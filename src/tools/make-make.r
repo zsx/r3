@@ -42,15 +42,16 @@ makefile-head:
 
 # For the build toolchain:
 CC=	$(TOOLS)gcc
-NM=	$(TOOLS)nm
 STRIP=	$(TOOLS)strip
 
 # CP allows different copy progs:
-CP=	
+CP=
+# LS allows different ls progs:
+LS=
 # UP - some systems do not use ../
-UP=	
+UP=
 # CD - some systems do not use ./
-CD=	
+CD=
 # Special tools:
 T=	$(UP)/src/tools
 # Paths used by make:
@@ -60,26 +61,30 @@ R=	$S/core
 INCL ?= .
 I= -I$(INCL) -I$S/include/
 
-TO_OS=	
-OS_ID=	
-RAPI_FLAGS=	
-HOST_FLAGS=	
-RLIB_FLAGS=	
+TO_OS=
+OS_ID=
+BIN_SUFFIX=
+RAPI_FLAGS=
+HOST_FLAGS=	-DREB_EXE
+RLIB_FLAGS=
 
 # Flags for core and for host:
 RFLAGS= -c -D$(TO_OS) -DREB_API  $(RAPI_FLAGS) $I
 HFLAGS= -c -D$(TO_OS) -DREB_CORE $(HOST_FLAGS) $I
-CLIB=   -lc -lm
+CLIB=   -lm
 
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make -qs
 
 # For running tests, ship, build, etc.
-R3=	$(CD)r3 -qs
+R3=	$(CD)r3$(BIN_SUFFIX) -qs
+
+# Refernce to correct R3 libname
+R3LIB=
 
 ### Build targets:
 top:
-	make r3
+	make r3$(BIN_SUFFIX)
 
 update:
 	-cd $(UP)/; cvs -q update src
@@ -88,14 +93,14 @@ make:
 	$(REBOL) $T/make-make.r $(OS_ID)
 
 clean:
-	@-rm -rf libr3.so objs/
+	@-rm -rf $(R3LIB) r3$(BIN_SUFFIX) host$(BIN_SUFFIX) objs/
 
 all:
 	make clean
 	make prep
-	make r3
+	make r3$(BIN_SUFFIX)
 	make lib
-	make host
+	make host$(BIN_SUFFIX)
 
 prep:
 	$(REBOL) $T/make-headers.r
@@ -108,31 +113,31 @@ prep:
 ### Post build actions
 purge:
 	-rm libr3.*
-	-rm host
+	-rm host$(BIN_SUFFIX)
 	make lib
-	make host
+	make host$(BIN_SUFFIX)
 
 test:
-	$(CP) r3 $(UP)/src/tests/
+	$(CP) r3$(BIN_SUFFIX) $(UP)/src/tests/
 	$(R3) $S/tests/test.r
 
 install:
-	sudo cp r3 /usr/local/bin
+	sudo cp r3$(BIN_SUFFIX) /usr/local/bin
 
 ship:
 	$(R3) $S/tools/upload.r
 
-build:	libr3.so
+build:	$(R3LIB)
 	$(R3) $S/tools/make-build.r
 
 cln:
-	rm libr3.* r3.o
+	rm $(R3LIB) r3.o
 
 check:
-	$(STRIP) -s -o r3.s r3
-	$(STRIP) -x -o r3.x r3
-	$(STRIP) -X -o r3.X r3
-	ls -l r3*
+	$(STRIP) -s -o r3.s r3$(BIN_SUFFIX)
+	$(STRIP) -x -o r3.x r3$(BIN_SUFFIX)
+	$(STRIP) -X -o r3.X r3$(BIN_SUFFIX)
+	$(LS) r3*
 
 }
 
@@ -140,14 +145,30 @@ check:
 
 makefile-link: {
 # Directly linked r3 executable:
-r3:	objs $(OBJS) $(HOST)
-	$(CC) -o r3 $(OBJS) $(HOST) $(CLIB)
-	$(STRIP) r3
-	-$(NM) -a r3
-	ls -l r3
+r3$(BIN_SUFFIX):	objs $(OBJS) $(HOST)
+	$(CC) -o r3$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
+	$(STRIP) r3$(BIN_SUFFIX)
+	$(LS) r3$(BIN_SUFFIX)
 
 objs:
 	mkdir -p objs
+}
+
+makefile-dll: {
+lib:	r3.dll
+
+# PUBLIC: Shared library:
+# NOTE: Did not use "-Wl,-soname,libr3.dll" because won't find .dll in local dir.
+r3.dll:	$(OBJS)
+	$(CC) -o r3.dll -shared $(OBJS) $(CLIB)
+	$(STRIP) r3.dll
+	$(LS) r3.dll
+
+# PUBLIC: Host using the shared lib:
+host$(BIN_SUFFIX):	$(HOST)
+	$(CC) -o host$(BIN_SUFFIX) $(HOST) r3.dll $(CLIB)
+	$(STRIP) host$(BIN_SUFFIX)
+	$(LS) host$(BIN_SUFFIX)
 }
 
 makefile-so: {
@@ -158,16 +179,13 @@ lib:	libr3.so
 libr3.so:	$(OBJS)
 	$(CC) -o libr3.so -shared $(OBJS) $(CLIB)
 	$(STRIP) libr3.so
-	-$(NM) -D libr3.so
-	-$(NM) -a libr3.so | grep "Do_"
-	ls -l libr3.so
+	$(LS) libr3.so
 
 # PUBLIC: Host using the shared lib:
-host:	$(HOST)
-	$(CC) -o host $(HOST) libr3.so $(CLIB)
-	$(STRIP) libr3.lib
-	$(STRIP) host
-	ls -l host
+host$(BIN_SUFFIX):	$(HOST)
+	$(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.so $(CLIB)
+	$(STRIP) host$(BIN_SUFFIX)
+	$(LS) host$(BIN_SUFFIX)
 	echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
 }
 
@@ -179,15 +197,13 @@ libr3.dylib:	$(OBJS)
 	ld -r -o r3.o $(OBJS)
 	$(CC) -dynamiclib -o libr3.dylib r3.o $(CLIB)
 	$(STRIP) -x libr3.dylib
-	-$(NM) -D libr3.dylib
-	-$(NM) -a libr3.dylib | grep "Do_"
-	ls -l libr3.dylib
+	$(LS) libr3.dylib
 
 # PUBLIC: Host using the shared lib:
-host:	$(HOST)
-	$(CC) -o host $(HOST) libr3.dylib $(CLIB)
-	$(STRIP) host
-	ls -l host
+host$(BIN_SUFFIX):	$(HOST)
+	$(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.dylib $(CLIB)
+	$(STRIP) host$(BIN_SUFFIX)
+	$(LS) host$(BIN_SUFFIX)
 	echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
 }
 
@@ -196,8 +212,7 @@ not-used: {
 libr3.lib:	r3.o
 	ld -static -r -o libr3.lib r3.o
 	$(STRIP) libr3.lib
-	-$(NM) -a libr3.lib | grep "Do_"
-	ls -l libr3.lib
+	$(LS) libr3.lib
 }
 
 ;******************************************************************************
@@ -244,6 +259,10 @@ append plat-id os-plat/3
 ; Create TO-OSNAME to indicate target OS:
 to-def: join "TO_" uppercase copy os-name
 
+; Collect OS-specific host files:
+os-specific-objs: select fb to word! join "os-" os-base
+os-specific-dir: dirize to file! join %os/ os-base
+
 outdir: path-make
 make-dir outdir
 make-dir outdir/objs
@@ -262,7 +281,7 @@ macro+: func [
 	'name
 	value
 ][
-	name: find find makefile-head join name "=" newline
+	name: find find/tail makefile-head join newline join name "=" newline
 	if name/-1 != space [name: insert name space]
 	insert name value
 ]
@@ -339,25 +358,44 @@ replace makefile-head "!date" now
 
 macro+ TO_OS to-def
 macro+ OS_ID os-plat
+macro+ LS pick ["dir" "ls -l"] flag? DIR
 macro+ CP pick [copy cp] flag? COP
 unless flag? -SP [ ; Use standard paths:
 	macro+ UP ".."
 	macro+ CD "./"
 ]
+
+switch os-plat/2 [
+	2 [
+		macro+ R3LIB %libr3.dylib	; OSX conforming name
+	]
+
+	3 [
+		macro+ REBOL ">NUL:" 	; Temporary workaround for R3 on Win7.
+		macro+ R3LIB %r3.dll	; Windows conforming name
+	]
+
+	4 [
+		macro+ R3LIB %libr3.so	; Linux conforming name
+	]
+]
+
+if flag? EXE [macro+ BIN_SUFFIX %.exe]
+
 macro++ CLIB linker-flags
 macro++ RAPI_FLAGS compile-flags
 macro++ HOST_FLAGS make compile-flags [PIC: NCM: none]
 macro+  HOST_FLAGS compile-flags/f64 ; default for all
 
-if flag? +SC [remove find fb/os-posix 'host-readline.c]
+if flag? +SC [remove find fb/os-specific-objs 'host-readline.c]
 
 emit makefile-head
 emit ["OBJS =" tab]
 emit-obj-files fb/core
 emit ["HOST =" tab]
-emit-obj-files append copy fb/os fb/os-posix
+emit-obj-files append copy fb/os os-specific-objs
 emit makefile-link
-emit get pick [makefile-dyn makefile-so] os-plat/2 = 2
+emit get pick [amiga makefile-dyn makefile-dll makefile-so none none freebsd openbsd] os-plat/2
 emit {
 ### File build targets:
 b-boot.c: $(SRC)/boot/boot.r
@@ -366,9 +404,8 @@ b-boot.c: $(SRC)/boot/boot.r
 emit newline
 emit-file-deps fb/core
 emit-file-deps/dir fb/os %os/
-emit-file-deps/dir fb/os-posix %os/posix/
+emit-file-deps/dir os-specific-objs os-specific-dir
 
 ;print copy/part output 300 halt
 print ["Created:" outdir/makefile]
 write outdir/makefile output
-
