@@ -75,6 +75,8 @@ extern void Init_Windows(void);
 extern void Init_Graphics(void);
 #endif
 
+extern void Init_Core_Ext(void);
+
 //#define TEST_EXTENSIONS
 #ifdef TEST_EXTENSIONS
 extern void Init_Ext_Test(void);	// see: host-ext-test.c
@@ -149,6 +151,9 @@ int main(int argc, char **argv)
 	if (n == 1) Host_Crash("Host-lib wrong size");
 	if (n == 2) Host_Crash("Host-lib wrong version/checksum");
 
+	//Initialize core extension commands
+	Init_Core_Ext();
+	
 #ifndef REB_CORE
 	Init_Windows();
 	Init_Graphics();
@@ -156,6 +161,12 @@ int main(int argc, char **argv)
 
 #ifdef TEST_EXTENSIONS
 	Init_Ext_Test();
+#endif
+
+#ifdef ENCAP
+	Console_Output(FALSE);
+#else
+	if (Main_Args.script) Console_Output(FALSE);
 #endif
 
 // Call sys/start function. If a compressed script is provided, it will be 
@@ -167,6 +178,11 @@ int main(int argc, char **argv)
 #else
 	n = RL_Start(0, 0, 0);
 #endif
+
+#ifdef ENCAP
+	Console_Output(TRUE);
+#else
+	if (Main_Args.script) Console_Output(TRUE);
 
 	// Console line input loop (just an example, can be improved):
 	if (
@@ -188,7 +204,7 @@ int main(int argc, char **argv)
 			else break; // EOS
 		}
 	}
-
+#endif
 	//OS_Call_Device(RDI_STDIO, RDC_CLOSE);
 	OS_Quit_Devices(0);
 

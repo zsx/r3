@@ -53,6 +53,14 @@
 #define GET_WHEEL_DELTA_WPARAM(wparam) ((short)HIWORD (wparam))
 #endif
 
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+
+#ifndef SPI_GETWHEELSCROLLCHARS
+#define SPI_GETWHEELSCROLLCHARS 0x006C
+#endif
+
 #include "reb-host.h"
 #include "host-lib.h"
 
@@ -60,6 +68,7 @@
 
 // Virtual key conversion table, sorted by first column.
 const REBCNT Key_To_Event[] = {
+        VK_TAB,     EVK_NONE,   //EVK_NONE means it is passed 'as-is'
 		VK_PRIOR,	EVK_PAGE_UP,
 		VK_NEXT,	EVK_PAGE_DOWN,
 		VK_END,		EVK_END,
@@ -92,7 +101,8 @@ extern void Done_Device(int handle, int error);
 extern void Paint_Window(HWND window);
 extern void Close_Window(REBGOB *gob);
 extern REBOOL Resize_Window(REBGOB *gob, REBOOL redraw);
-
+extern HWND Find_Window(REBGOB *gob);
+extern BOOL osDialogOpen; //this flag is checked to block rebol events loop when specific non-modal OS dialog(request-file, request-dir etc.) is opened
 
 /***********************************************************************
 **
@@ -184,11 +194,16 @@ static Check_Modifiers(REBINT flags)
 	// resizing is a modal loop and prevents it being a problem.
 	static LPARAM last_xy = 0;
 	static REBINT mode = 0;
+	static REBINT wheel_mode = 0;
+    static REBYTE keyboardState[256];
+    static REBCHR buf[2];
 
 	gob = (REBGOB *)GetWindowLong(hwnd, GWL_USERDATA);
 
-	// Not a REBOL window (or early creation):
-	if (!gob || !IS_WINDOW(gob)) {
+//    RL_Print("MSG: %d , %d\n", msg,wParam);
+
+	// Not a REBOL window (or early creation), or specific OS dialog is opened:
+	if (!gob || !IS_WINDOW(gob) || osDialogOpen) {
 		switch(msg) {
 			case WM_PAINT:
 				Paint_Window(hwnd);
@@ -221,14 +236,19 @@ static Check_Modifiers(REBINT flags)
 
 		case WM_SIZE:
 //			RL_Print("SIZE %d\n", mode);
-			if (wParam == SIZE_MINIMIZED) {
+
+            if (wParam == SIZE_MINIMIZED) {
 				//Invalidate the size but not win buffer
 				gob->old_size.x = 0;
 				gob->old_size.y = 0;
+				CLR_GOB_STATES(gob, GOBS_RESTORED, GOBS_MAXIMIZED);
+				SET_GOB_STATE(gob, GOBS_MINIMIZED);
 				Add_Event_XY(gob, EVT_MINIMIZE, xy, flags);
 			} else {
 				gob->size.x = (i16)LOWORD(xy);
+
 				gob->size.y = (i16)HIWORD(xy);
+
 				last_xy = xy;
 				if (mode) {
 					//Resize and redraw the window buffer (when resize dragging)
@@ -244,8 +264,15 @@ static Check_Modifiers(REBINT flags)
 					}
 				}
 				//Otherwise send combo of 'resize + maximize/restore events
-				if (wParam == SIZE_MAXIMIZED) i = EVT_MAXIMIZE;
-				else if (wParam == SIZE_RESTORED) i = EVT_RESTORE;
+				if (wParam == SIZE_MAXIMIZED) {
+					i = EVT_MAXIMIZE;
+					CLR_GOB_STATES(gob, GOBS_RESTORED, GOBS_MINIMIZED);
+					SET_GOB_STATE(gob, GOBS_MAXIMIZED);
+				} else if (wParam == SIZE_RESTORED) {
+					i = EVT_RESTORE;
+					CLR_GOB_STATES(gob, GOBS_MAXIMIZED, GOBS_MINIMIZED);
+					SET_GOB_STATE(gob, GOBS_RESTORED);
+				}
 				else i = 0;
 				Add_Event_XY(gob, EVT_RESIZE, xy, flags);
 				if (i) Add_Event_XY(gob, i, xy, flags);
@@ -255,7 +282,9 @@ static Check_Modifiers(REBINT flags)
 		case WM_MOVE:
 			// Minimize and maximize call this w/o mode set.
 			gob->offset.x = (i16)LOWORD(xy);
+
 			gob->offset.y = (i16)HIWORD(xy);
+
 			last_xy = xy;
 			if (mode) mode = EVT_OFFSET;
 			else Add_Event_XY(gob, EVT_OFFSET, xy, flags);
@@ -279,12 +308,62 @@ static Check_Modifiers(REBINT flags)
 			// WIN_FLAGS(wp) &= ~WINDOW_TRACK_LEAVE;
 			break;
 
+        //this can be sent by some mouse/trackpad drivers to fake the horizontal wheel
+		case WM_HSCROLL:
+            //so we are 'faking' the horizontal events as well
+            if (wheel_mode == msg || !wheel_mode)
+                wheel_mode = msg;
+            else
+                return 0;
+
+            mw_num_lines = 3; //default
+            SystemParametersInfo(SPI_GETWHEELSCROLLCHARS,0, &mw_num_lines, 0);
+
+            switch(LOWORD(wParam))
+            {
+                case SB_LINELEFT:
+                    i = EVT_SCROLL_LINE;
+                    wParam = mw_num_lines;
+                    break;
+                case SB_LINERIGHT:
+                    i = EVT_SCROLL_LINE;
+                    wParam = -mw_num_lines;
+                    break;
+                case SB_PAGELEFT:
+                    i = EVT_SCROLL_PAGE;
+                    wParam = 1;
+                    break;
+                case SB_PAGERIGHT:
+                    i = EVT_SCROLL_PAGE;
+                    wParam = -1;
+                    break;
+                default:
+                    return 0;
+            }
+			Add_Event_XY(gob, i, (u16)wParam , flags);
+            break;
+
+        case WM_MOUSEHWHEEL:
+            if (wheel_mode == msg || !wheel_mode)
+                wheel_mode = msg;
+            else
+                return 0;
+
+            mw_num_lines = 3; //default
+			SystemParametersInfo(SPI_GETWHEELSCROLLCHARS,0, &mw_num_lines, 0);
+			if (LOWORD(wParam) == MK_CONTROL || mw_num_lines > WHEEL_DELTA) {
+				Add_Event_XY(gob, EVT_SCROLL_PAGE, (u16)-(GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA) , flags);
+			} else {
+				Add_Event_XY(gob, EVT_SCROLL_LINE, (u16)-((GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA) * mw_num_lines) , flags);
+			}
+			break;
+
 		case WM_MOUSEWHEEL:
 			SystemParametersInfo(SPI_GETWHEELSCROLLLINES,0, &mw_num_lines, 0);
 			if (LOWORD(wParam) == MK_CONTROL || mw_num_lines > WHEEL_DELTA) {
 				Add_Event_XY(gob, EVT_SCROLL_PAGE, (GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA) << 16, flags);
 			} else {
-				Add_Event_XY(gob, EVT_SCROLL_LINE, ((GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA) << 16) * mw_num_lines, flags);
+				Add_Event_XY(gob, EVT_SCROLL_LINE, (((GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA) << 16) * mw_num_lines) , flags);
 			}
 			break;
 
@@ -353,22 +432,51 @@ static Check_Modifiers(REBINT flags)
 		case WM_KEYDOWN:
 			// Note: key repeat may cause multiple downs before an up.
 		case WM_KEYUP:
+//enable this once we have available ALT word in event/flags
+/*
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+*/
 			flags = Check_Modifiers(flags);
+
 			for (i = 0; Key_To_Event[i] && wParam > Key_To_Event[i]; i += 2);
+
 			if (wParam == Key_To_Event[i])
-				Add_Event_Key(gob, (msg==WM_KEYDOWN) ? EVT_KEY : EVT_KEY_UP, Key_To_Event[i+1] << 16, flags);
+                //handle virtual keys
+                if (i = Key_To_Event[i+1])
+                    i = i << 16;
+                else
+                    i = wParam; //pass VK as-is
+            else {
+                //handle character keys
+                i = 0;
+                GetKeyboardState(keyboardState);
+                if (ToUnicode(wParam,MapVirtualKey(wParam,2),keyboardState,buf,2,(msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP)))
+                    i = (REBINT)*buf;
+            }
+
+            //finally generate key event
+            if (i) {
+                if (i == 127) i = 8; // Windows weirdness of converting ctrl-backspace to delete
+                Add_Event_Key(gob, (msg==WM_KEYDOWN || msg == WM_SYSKEYDOWN) ? EVT_KEY : EVT_KEY_UP, i, flags);
+            }
 			break;
 
-		case WM_CHAR:
-			flags = Check_Modifiers(flags);
-#ifdef OS_WIDE_CHAR
-			i = wParam;
-#else
-			i = wParam & 0xff;
-#endif
-			//if (i == 127) i = 8; // Windows weirdness of converting ctrl-backspace to delete
-			Add_Event_Key(gob, EVT_KEY, i, flags);
-			break;
+        case WM_ACTIVATE:
+            switch (wParam)
+            {
+                case WA_ACTIVE:
+                case WA_CLICKACTIVE:
+                    SetFocus(Find_Window(gob));
+                    SET_GOB_STATE(gob, GOBS_ACTIVE);
+                    Add_Event_XY(gob, EVT_ACTIVE, 0, flags);
+                    break;
+                case WA_INACTIVE:
+                    CLR_GOB_STATE(gob, GOBS_ACTIVE);
+                    Add_Event_XY(gob, EVT_INACTIVE, 0, flags);
+                    break;
+            }
+            break;
 
 		case WM_DROPFILES:
 			Add_File_Events(gob, flags, (HDROP)wParam);
@@ -376,7 +484,7 @@ static Check_Modifiers(REBINT flags)
 
 		case WM_CLOSE:
 			Add_Event_XY(gob, EVT_CLOSE, xy, flags);
-			Close_Window(gob);	// Needs to be removed - should be done by REBOL event handling
+//			Close_Window(gob);	// Needs to be removed - should be done by REBOL event handling
 //			DestroyWindow(hwnd);// This is done in Close_Window()
 			break;
 

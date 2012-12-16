@@ -11,13 +11,13 @@ REBOL [
 	}
 	Name: 'http
 	Type: 'module
-	Version: 0.1.0
+	Version: 0.1.1
 	File: %prot-http.r
 	Purpose: {
 		This program defines the HTTP protocol scheme for REBOL 3.
 	}
-	Author: "Gabriele Santilli"
-	Date: 22-Jun-2007
+	Author: ["Gabriele Santilli" "Richard Smolak"]
+	Date: 26-Nov-2012
 ]
 
 sync-op: func [port body /local state] [
@@ -161,7 +161,7 @@ do-request: func [
 	spec/headers: body-of make make object! [
 		Accept: "*/*"
 		Accept-Charset: "utf-8"
-		Host: either spec/port-id <> 80 [
+		Host: either not find [80 443] spec/port-id [
 			rejoin [form spec/host #":" spec/port-id]
 		] [
 			form spec/host
@@ -258,6 +258,11 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
 				res: awake make event! [type: 'custom port: port code: 0]
 			] [
 				res: check-data port
+				unless open? port [
+					;NOTE some servers(e.g. yahoo.com) don't supply content-data in the redirect header so the state/state can be left in 'reading-data after check-data call
+					;I think it is better to check if port has been closed here and set the state so redirect sequence can happen. --Richard
+					state/state: 'ready
+				]
 			]
 			if all [not res state/state = 'ready] [
 				either all [
@@ -334,9 +339,16 @@ http-response-headers: context [
 do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] [
 	spec: port/spec
 	state: port/state
-	new-uri: construct/with decode-url new-uri port/scheme/spec
-	if new-uri/scheme <> 'http [
-		state/error: make-http-error {Redirect to a protocol different from HTTP not supported}
+	new-uri: decode-url new-uri
+	unless select new-uri 'port-id [
+		switch new-uri/scheme [
+			'https [append new-uri [port-id: 443]]
+			'http [append new-uri [port-id: 80]]
+		]
+	]
+	new-uri: construct/with new-uri port/scheme/spec
+	unless find [http https] new-uri/scheme [
+		state/error: make-http-error {Redirect to a protocol different from HTTP or HTTPS not supported}
 		return state/awake make event! [type: 'error port: port]
 	]
 	either all [
@@ -471,8 +483,8 @@ sys/make-scheme [
 				info: make port/scheme/info [type: 'file]
 				awake: :port/awake
 			]
-			port/state/connection: conn: make port! [
-				scheme: 'tcp
+			port/state/connection: conn: make port! compose [
+				scheme: (to lit-word! either port/spec/scheme = 'http ['tcp]['tls])
 				host: port/spec/host
 				port-id: port/spec/port-id
 				ref: rejoin [tcp:// host ":" port-id]
@@ -526,3 +538,11 @@ sys/make-scheme [
 		]
 	]
 ]
+
+sys/make-scheme/with [
+	name: 'https
+	title: "Secure HyperText Transport Protocol v1.1"
+	spec: make spec [
+		port-id: 443
+	]
+] 'http

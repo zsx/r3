@@ -64,8 +64,6 @@ static u32* graphics_ext_words;
 
 void* Rich_Text;
 
-RL_LIB *RL; // Link back to reb-lib from embedded extensions
-
 /***********************************************************************
 **
 */	HCURSOR Image_To_Cursor(REBYTE* image, REBINT width, REBINT height)
@@ -174,206 +172,234 @@ RL_LIB *RL; // Link back to reb-lib from embedded extensions
 **
 ***********************************************************************/
 {
-	switch (cmd) {
-
-	case CMD_GRAPHICS_SHOW:
-		Show_Gob((REBGOB*)RXA_SERIES(frm, 1));
-		RXA_TYPE(frm, 1) = RXT_GOB;
-		return RXR_VALUE;
-
-    case CMD_GRAPHICS_SIZE_TEXT:
-        if (Rich_Text) {
-            RXA_TYPE(frm, 2) = RXT_PAIR;
-            rt_size_text(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
-            RXA_PAIR(frm, 1).x = RXA_PAIR(frm, 2).x;
-            RXA_PAIR(frm, 1).y = RXA_PAIR(frm, 2).y;
-            RXA_TYPE(frm, 1) = RXT_PAIR;
-            return RXR_VALUE;
-        }
-
-        break;
-
-    case CMD_GRAPHICS_OFFSET_TO_CARET:
-        if (Rich_Text) {
-            REBINT element = 0, position = 0;
-            REBSER* dialect;
-            REBSER* block;
-            RXIARG val; //, str;
-            REBCNT n, type;
-
-            rt_offset_to_caret(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), RXA_PAIR(frm, 2), &element, &position);
-//            RL_Print("OTC: %d, %d\n", element, position);
-            dialect = (REBSER *)GOB_CONTENT((REBGOB*)RXA_SERIES(frm, 1));
-            block = RL_MAKE_BLOCK(RL_SERIES(dialect, RXI_SER_TAIL));
-            for (n = 0; type = RL_GET_VALUE(dialect, n, &val); n++) {
-                if (n == element) val.index = position;
-                RL_SET_VALUE(block, n, val, type);
-            }
-
-            RXA_TYPE(frm, 1) = RXT_BLOCK;
-            RXA_SERIES(frm, 1) = block;
-            RXA_INDEX(frm, 1) = element;
-
-            return RXR_VALUE;
-        }
-
-        break;
-
-    case CMD_GRAPHICS_CARET_TO_OFFSET:
-        if (Rich_Text) {
-            REBXYF result;
-            REBINT elem,pos;
-            if (RXA_TYPE(frm, 2) == RXT_INTEGER){
-                elem = RXA_INT64(frm, 2)-1;
-            } else {
-                elem = RXA_INDEX(frm, 2);
-            }
-            if (RXA_TYPE(frm, 3) == RXT_INTEGER){
-                pos = RXA_INT64(frm, 3)-1;
-            } else {
-                pos = RXA_INDEX(frm, 3);
-            }
-//            RL_Print("CTO: %d, %d\n", element, position);
-            rt_caret_to_offset(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
-
-            RXA_PAIR(frm, 1).x = result.x;
-            RXA_PAIR(frm, 1).y = result.y;
-            RXA_TYPE(frm, 1) = RXT_PAIR;
-            return RXR_VALUE;
-        }
-        break;
-
-    case CMD_GRAPHICS_CURSOR:
+    switch (cmd) {
+        case CMD_GRAPHICS_SHOW:
         {
-            REBINT n = 0;
-            REBSER image = 0;
+            REBGOB* gob = (REBGOB*)RXA_SERIES(frm, 1);
 
-            if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
-                image = RXA_IMAGE_BITS(frm,1);
-            } else {
-                n = RXA_INT64(frm,1);
+            switch (RL_FIND_WORD(graphics_ext_words,RXA_WORD(frm, 3))){
+                case 0: //most used case first
+                    break;
+                case W_GRAPHICS_RESTORE:
+                    CLR_GOB_STATES(gob, GOBS_MINIMIZED, GOBS_MAXIMIZED);
+                    SET_GOB_STATE(gob, GOBS_RESTORED);
+                    break;
+                case W_GRAPHICS_MINIMIZE:
+                    CLR_GOB_STATES(gob, GOBS_MAXIMIZED, GOBS_RESTORED);
+                    SET_GOB_STATE(gob, GOBS_MINIMIZED);
+                    break;
+                case W_GRAPHICS_MAXIMIZE:
+                    CLR_GOB_STATES(gob, GOBS_MINIMIZED, GOBS_RESTORED);
+                    SET_GOB_STATE(gob, GOBS_MAXIMIZED);
+                    break;
+                case W_GRAPHICS_ACTIVATE:
+                    SET_GOB_STATE(gob, GOBS_ACTIVE);
+                    break;
             }
 
-            if (Custom_Cursor) {
-                //Destroy cursor object only if it is a custom image
-                DestroyCursor(Cursor);
-                Custom_Cursor = FALSE;
-            }
-
-            if (n > 0)
-                Cursor = LoadCursor(NULL, (LPCTSTR)n);
-            else if (image) {
-                Cursor = Image_To_Cursor(image, RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
-                Custom_Cursor = TRUE;
-            } else
-                Cursor = NULL;
-
-            SetCursor(Cursor);
-
-        }
-        break;
-
-    case CMD_GRAPHICS_DRAW:
-        {
-            REBYTE* img = 0;
-            REBINT w,h;
-            if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
-                img = RXA_IMAGE_BITS(frm, 1);
-                w = RXA_IMAGE_WIDTH(frm, 1);
-                h = RXA_IMAGE_HEIGHT(frm, 1);
-            } else {
-                REBSER* i;
-                w = RXA_PAIR(frm,1).x;
-                h = RXA_PAIR(frm,1).y;
-                i = RL_MAKE_IMAGE(w,h);
-                img = (REBYTE *)RL_SERIES(i, RXI_SER_DATA);
-
-                RXA_TYPE(frm, 1) = RXT_IMAGE;
-                RXA_ARG(frm, 1).width = w;
-                RXA_ARG(frm, 1).height = h;
-                RXA_ARG(frm, 1).image = i;
-            }
-            Draw_Image(img, w, h, RXA_SERIES(frm, 2));
+            Show_Gob(gob);
+            RXA_TYPE(frm, 1) = RXT_GOB;
             return RXR_VALUE;
         }
-        break;
 
-    case CMD_GRAPHICS_GUI_METRIC:
-        {
-            REBINT x,y;
-            u32 w = RL_FIND_WORD(graphics_ext_words,RXA_WORD(frm, 1));
-
-            switch(w)
-            {
-                case W_GRAPHICS_SCREEN_SIZE:
-                    x = GetSystemMetrics(SM_CXSCREEN);
-                    y = GetSystemMetrics(SM_CYSCREEN);
-                    break;
-
-                case W_GRAPHICS_TITLE_SIZE:
-                    x = 0;
-                    y = GetSystemMetrics(SM_CYCAPTION);
-                    break;
-
-                case W_GRAPHICS_BORDER_SIZE:
-                    x = GetSystemMetrics(SM_CXSIZEFRAME);
-                    y = GetSystemMetrics(SM_CYSIZEFRAME);
-                    break;
-
-                case W_GRAPHICS_BORDER_FIXED:
-                    x = GetSystemMetrics(SM_CXFIXEDFRAME);
-                    y = GetSystemMetrics(SM_CYFIXEDFRAME);
-                    break;
-
-                case W_GRAPHICS_WORK_ORIGIN:
-                    {
-                        RECT rect;
-                        SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
-                        x = rect.left;
-                        y = rect.top;
-                    }
-                    break;
-
-                case W_GRAPHICS_WORK_SIZE:
-                    {
-                        RECT rect;
-                        SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
-                        x = rect.right;
-                        y = rect.bottom;
-                    }
-                    break;
-            }
-
-            if (w){
-                RXA_PAIR(frm, 1).x = x;
-                RXA_PAIR(frm, 1).y = y;
+        case CMD_GRAPHICS_SIZE_TEXT:
+            if (Rich_Text) {
+                RXA_TYPE(frm, 2) = RXT_PAIR;
+                rt_size_text(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
+                RXA_PAIR(frm, 1).x = RXA_PAIR(frm, 2).x;
+                RXA_PAIR(frm, 1).y = RXA_PAIR(frm, 2).y;
                 RXA_TYPE(frm, 1) = RXT_PAIR;
-            } else {
-                RXA_TYPE(frm, 1) = RXT_NONE;
+                return RXR_VALUE;
             }
-            return RXR_VALUE;
-        }
-        break;
 
-	case CMD_GRAPHICS_INIT:
-		Gob_Root = (REBGOB*)RXA_SERIES(frm, 1); // system/view/screen-gob
-		Gob_Root->size.x = (REBD32)GetSystemMetrics(SM_CXSCREEN);
-		Gob_Root->size.y = (REBD32)GetSystemMetrics(SM_CYSCREEN);
+            break;
 
-		//Initialize text rendering context
-		if (Rich_Text) Destroy_RichText(Rich_Text);
-		Rich_Text = Create_RichText();
+        case CMD_GRAPHICS_OFFSET_TO_CARET:
+            if (Rich_Text) {
+                REBINT element = 0, position = 0;
+                REBSER* dialect;
+                REBSER* block;
+                RXIARG val; //, str;
+                REBCNT n, type;
 
-		break;
+                rt_offset_to_caret(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), RXA_PAIR(frm, 2), &element, &position);
+    //            RL_Print("OTC: %d, %d\n", element, position);
+                dialect = (REBSER *)GOB_CONTENT((REBGOB*)RXA_SERIES(frm, 1));
+                block = RL_MAKE_BLOCK(RL_SERIES(dialect, RXI_SER_TAIL));
+                for (n = 0; type = RL_GET_VALUE(dialect, n, &val); n++) {
+                    if (n == element) val.index = position;
+                    RL_SET_VALUE(block, n, val, type);
+                }
 
-    case CMD_GRAPHICS_INIT_WORDS:
-        //temp hack - will be removed later
-        graphics_ext_words = RL_MAP_WORDS(RXA_SERIES(frm,1));
-        break;
+                RXA_TYPE(frm, 1) = RXT_BLOCK;
+                RXA_SERIES(frm, 1) = block;
+                RXA_INDEX(frm, 1) = element;
 
-	default:
-		return RXR_NO_COMMAND;
-	}
+                return RXR_VALUE;
+            }
+
+            break;
+
+        case CMD_GRAPHICS_CARET_TO_OFFSET:
+            if (Rich_Text) {
+                REBXYF result;
+                REBINT elem,pos;
+                if (RXA_TYPE(frm, 2) == RXT_INTEGER){
+                    elem = RXA_INT64(frm, 2)-1;
+                } else {
+                    elem = RXA_INDEX(frm, 2);
+                }
+                if (RXA_TYPE(frm, 3) == RXT_INTEGER){
+                    pos = RXA_INT64(frm, 3)-1;
+                } else {
+                    pos = RXA_INDEX(frm, 3);
+                }
+    //            RL_Print("CTO: %d, %d\n", element, position);
+                rt_caret_to_offset(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
+
+                RXA_PAIR(frm, 1).x = result.x;
+                RXA_PAIR(frm, 1).y = result.y;
+                RXA_TYPE(frm, 1) = RXT_PAIR;
+                return RXR_VALUE;
+            }
+            break;
+
+        case CMD_GRAPHICS_CURSOR:
+            {
+                REBINT n = 0;
+                REBSER image = 0;
+
+                if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
+                    image = RXA_IMAGE_BITS(frm,1);
+                } else {
+                    n = RXA_INT64(frm,1);
+                }
+
+                if (Custom_Cursor) {
+                    //Destroy cursor object only if it is a custom image
+                    DestroyCursor(Cursor);
+                    Custom_Cursor = FALSE;
+                }
+
+                if (n > 0)
+                    Cursor = LoadCursor(NULL, (LPCTSTR)n);
+                else if (image) {
+                    Cursor = Image_To_Cursor(image, RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
+                    Custom_Cursor = TRUE;
+                } else
+                    Cursor = NULL;
+
+                SetCursor(Cursor);
+
+            }
+            break;
+
+        case CMD_GRAPHICS_DRAW:
+            {
+                REBYTE* img = 0;
+                REBINT w,h;
+                if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
+                    img = RXA_IMAGE_BITS(frm, 1);
+                    w = RXA_IMAGE_WIDTH(frm, 1);
+                    h = RXA_IMAGE_HEIGHT(frm, 1);
+                } else {
+                    REBSER* i;
+                    w = RXA_PAIR(frm,1).x;
+                    h = RXA_PAIR(frm,1).y;
+                    i = RL_MAKE_IMAGE(w,h);
+                    img = (REBYTE *)RL_SERIES(i, RXI_SER_DATA);
+
+                    RXA_TYPE(frm, 1) = RXT_IMAGE;
+                    RXA_ARG(frm, 1).width = w;
+                    RXA_ARG(frm, 1).height = h;
+                    RXA_ARG(frm, 1).image = i;
+                }
+                Draw_Image(img, w, h, RXA_SERIES(frm, 2));
+                return RXR_VALUE;
+            }
+            break;
+
+        case CMD_GRAPHICS_GUI_METRIC:
+            {
+                REBINT x,y;
+                u32 w = RL_FIND_WORD(graphics_ext_words,RXA_WORD(frm, 1));
+
+                switch(w)
+                {
+                    case W_GRAPHICS_SCREEN_SIZE:
+                        x = GetSystemMetrics(SM_CXSCREEN);
+                        y = GetSystemMetrics(SM_CYSCREEN);
+                        break;
+
+                    case W_GRAPHICS_TITLE_SIZE:
+                        x = 0;
+                        y = GetSystemMetrics(SM_CYCAPTION);
+                        break;
+
+                    case W_GRAPHICS_BORDER_SIZE:
+                        x = GetSystemMetrics(SM_CXSIZEFRAME);
+                        y = GetSystemMetrics(SM_CYSIZEFRAME);
+                        break;
+
+                    case W_GRAPHICS_BORDER_FIXED:
+                        x = GetSystemMetrics(SM_CXFIXEDFRAME);
+                        y = GetSystemMetrics(SM_CYFIXEDFRAME);
+                        break;
+
+                    case W_GRAPHICS_WINDOW_MIN_SIZE:
+                        x = GetSystemMetrics(SM_CXMIN);
+                        y = GetSystemMetrics(SM_CYMIN);
+                        break;
+
+                    case W_GRAPHICS_WORK_ORIGIN:
+                        {
+                            RECT rect;
+                            SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+                            x = rect.left;
+                            y = rect.top;
+                        }
+                        break;
+
+                    case W_GRAPHICS_WORK_SIZE:
+                        {
+                            RECT rect;
+                            SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+                            x = rect.right;
+                            y = rect.bottom;
+                        }
+                        break;
+                }
+
+                if (w){
+                    RXA_PAIR(frm, 1).x = x;
+                    RXA_PAIR(frm, 1).y = y;
+                    RXA_TYPE(frm, 1) = RXT_PAIR;
+                } else {
+                    RXA_TYPE(frm, 1) = RXT_NONE;
+                }
+                return RXR_VALUE;
+            }
+            break;
+
+        case CMD_GRAPHICS_INIT:
+            Gob_Root = (REBGOB*)RXA_SERIES(frm, 1); // system/view/screen-gob
+            Gob_Root->size.x = (REBD32)GetSystemMetrics(SM_CXSCREEN);
+            Gob_Root->size.y = (REBD32)GetSystemMetrics(SM_CYSCREEN);
+
+            //Initialize text rendering context
+            if (Rich_Text) Destroy_RichText(Rich_Text);
+            Rich_Text = Create_RichText();
+
+            break;
+
+        case CMD_GRAPHICS_INIT_WORDS:
+            //temp hack - will be removed later
+            graphics_ext_words = RL_MAP_WORDS(RXA_SERIES(frm,1));
+            break;
+
+        default:
+            return RXR_NO_COMMAND;
+    }
     return RXR_UNSET;
 }
 
@@ -511,7 +537,7 @@ RL_LIB *RL; // Link back to reb-lib from embedded extensions
                 {
                     case W_TEXT_NAME:
                         if (type == RXT_STRING){
-                            font->name_gc = As_OS_Str(val.series, &(font->name));
+                            font->name_free = As_OS_Str(val.series, &(font->name));
                         }
                         break;
 
@@ -711,8 +737,8 @@ RL_LIB *RL; // Link back to reb-lib from embedded extensions
     case CMD_TEXT_TEXT:
         {
             REBCHR* str;
-            REBOOL gc = As_OS_Str(RXA_SERIES(frm, 1), &str);
-            rt_text(ctx->envr, str, ctx->index + 2, gc);
+            REBOOL dealloc = As_OS_Str(RXA_SERIES(frm, 1), &str);
+            rt_text(ctx->envr, str, ctx->index + 2, dealloc);
         }
         break;
 
@@ -1163,8 +1189,8 @@ RL_LIB *RL; // Link back to reb-lib from embedded extensions
         agg_text(
             ctx->envr,
             (RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 3)) == W_DRAW_VECTORIAL) ? 1 : 0,
-             RXA_PAIR(frm, 1),
-             RXA_PAIR(frm, 2),
+             &RXA_PAIR(frm, 1),
+             (RXA_TYPE(frm, 2) == RXT_PAIR) ? &RXA_PAIR(frm, 2) : NULL,
              RXA_SERIES(frm, 4)
         );
         break;
@@ -1215,7 +1241,7 @@ RL_LIB *RL; // Link back to reb-lib from embedded extensions
 **
 ***********************************************************************/
 {
-	RL = RL_Extend((REBYTE *)(&RX_graphics[0]), &RXD_Graphics);
+	RL_Extend((REBYTE *)(&RX_graphics[0]), &RXD_Graphics);
 	RL_Extend((REBYTE *)(&RX_draw[0]), &RXD_Draw);
 	RL_Extend((REBYTE *)(&RX_shape[0]), &RXD_Shape);
 	RL_Extend((REBYTE *)(&RX_text[0]), &RXD_Text);
