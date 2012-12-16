@@ -67,13 +67,8 @@ export-words: func [
 	words [block! none!] "The exports words block of the module"
 ][
 	if words [
-		;resolve/extend/only lib ctx words  ; words already set in lib are not overriden
-		;resolve/extend/only system/contexts/user lib words  ; lib, because of above
-		
-		; Temporary workaround for resolve/extend/only crash #1865
-		words: bind/new/only bind/new/only/copy words lib system/contexts/user
-		resolve/only lib ctx words
-		resolve/only system/contexts/user lib words
+		resolve/extend/only lib ctx words  ; words already set in lib are not overriden
+		resolve/extend/only system/contexts/user lib words  ; lib, because of above
 	]
 ]
 
@@ -98,38 +93,22 @@ load-header: funct/with [
 	/required "Script header is required"
 ][
 	; This function decodes the script header from the script body.
-	; It checks the header 'checksum and 'compress and 'content options,
-	; and supports length-specified or script-in-a-block embedding.
-	;
+	; It checks the header 'checksum and 'compress and 'content options.
 	; It will set the 'content field to the binary source if 'content is true.
-	; The 'content will be set to the source at the position of the beginning
-	; of the script header, skipping anything before it. For multi-scripts it
-	; doesn't copy the portion of the content that relates to the current
-	; script, or at all, so be careful with the source data you get.
-	;
 	; If the 'compress option is set then the body will be decompressed.
 	; Binary vs. script encoded compression will be autodetected. The
 	; header 'checksum is compared to the checksum of the decompressed binary.
-	;
-	; Normally, returns the header object, the body text (as binary), and the
-	; the end of the script or script-in-a-block. The end position can be used
-	; to determine where to stop decoding the body text. After the end is the
-	; rest of the binary data, which can contain anything you like. This can
-	; support multiple scripts in the same binary data, multi-scripts.
-	;
-	; If not /only and the script is embedded in a block and not compressed
-	; then the body text will be a decoded block instead of binary, to avoid
-	; the overhead of decoding the body twice.
-	;
+	; Normally, returns the header object and the body text (as binary).
+	; If not /only and the script is embedded and not compressed
+	; then the body text will be a decoded block instead of binary.
+	; Checksum not supported for embedded uncompressed scripts (for now?).
 	; Syntax errors are returned as words:
 	;    no-header
 	;    bad-header
 	;    bad-checksum
 	;    bad-compress
-	;
 	; Note: set/any and :var used - prevent malicious code errors.
 	; Commented assert statements are for documentation and testing.
-	;
 	case/all [
 		binary? source [tmp: assert-utf8 source]
 		string? source [tmp: to binary! source]
@@ -191,7 +170,7 @@ load-ext-module: funct [
 	; for ext obj: help system/standard/extensions
 	assert/type [ext/lib-base handle! ext/lib-boot binary!] ; Just in case
 
-	if word? set [hdr: code: end:] load-header/required ext/lib-boot [
+	if word? set [hdr: code:] load-header/required ext/lib-boot [
 		cause-error 'syntax hdr ext  ; word returned is error code
 	]
 	;assert/type [hdr object! hdr/options [block! none!] code [binary! block!]]
@@ -219,15 +198,10 @@ load-ext-module: funct [
 		]
 	]
 
-	; Only decodes the first script if a multi-script
-	if all [not empty? end same? head code head end] [
-		code: to block! copy/part code end  ; Embedded script code
-	]
-
 	; Convert the code to a block if not already:
 	unless block? code [code: to block! code]
 	insert code tmp ; Extension object fields and values must be first!
-	reduce [hdr code end] ; copy/part 2 to pass to make module!
+	reduce [hdr code] ; ready for make module!
 ]
 
 load-boot-exts: funct [
@@ -241,9 +215,6 @@ load-boot-exts: funct [
 		append ext-objs load-extension/dispatch spec caller
 	]
 
-	; NOTE: Boot-based extensions don't yet support the Needs header. You have
-	;  to manage your own dependencies in these modules, or have none.
-	;  Multi-scripts not supported yet, waiting for TRANSCODE/part and a plan.
 	foreach ext ext-objs [
 		case/all [
 			word? set [hdr: code:] load-header/only/required ext/lib-boot [
@@ -254,7 +225,7 @@ load-boot-exts: funct [
 				hdr/options: append any [hdr/options make block! 1] 'private
 			]
 			delay: all [hdr/name find hdr/options 'delay] [mod: reduce [hdr ext]] ; load it later
-			not delay [hdr: spec-of mod: make module! copy/part load-ext-module ext 2]
+			not delay [hdr: spec-of mod: make module! load-ext-module ext]
 			; NOTE: This will error out if the code contains commands but
 			; no extension dispatcher (call) has been provided.
 			hdr/name [reduce/into [hdr/name mod if hdr/checksum [copy hdr/checksum]] system/modules]
@@ -264,10 +235,7 @@ load-boot-exts: funct [
 			not block? select hdr 'exports none
 			empty? hdr/exports none
 			find hdr/options 'private [
-				;resolve/extend/only system/contexts/user mod hdr/exports ; full export to user
-				
-				; Temporary workaround for resolve/extend/only crash #1865
-				resolve/only system/contexts/user mod bind/new/only/copy hdr/exports system/contexts/user
+				resolve/extend/only system/contexts/user mod hdr/exports ; full export to user
 			]
 			'else [export-words mod hdr/exports]
 		]
@@ -346,15 +314,12 @@ load: funct [
 
 		;-- Try to load the header, handle error:
 		not all [
-			set [hdr: data: end:] either object? data [load-ext-module data] [load-header data]
+			set [hdr: data:] either object? data [load-ext-module data] [load-header data]
 			if word? hdr [cause-error 'syntax hdr source]
 		]
 		; data is binary or block now, hdr is object or none
 
 		;-- Convert code to block, insert header if requested:
-		all [not empty? end same? head data head end] [
-			data: to block! copy/part data end  ; Embedded script code
-		]
 		not block? data [data: to block! data]
 		header [insert data hdr]
 
@@ -439,12 +404,7 @@ do-needs: funct [
 		; Import the module
 		mod: apply :import [name true? vers vers true? hash hash no-share no-lib no-user]
 		; Collect any mixins into the object (if we are doing that)
-		if all [mixins mixin? mod] [
-			;resolve/extend/only mixins mod select spec-of mod 'exports
-			
-			; Temporary workaround for resolve/extend/only crash #1865
-			resolve/only mixins mod bind/new/only/copy select spec-of mod 'exports mixins
-		]
+		if all [mixins mixin? mod] [resolve/extend/only mixins mod select spec-of mod 'exports]
 		mod
 	]
 
@@ -511,12 +471,12 @@ load-module: funct [
 					unless attempt [ext: load-extension source] [return none]
 					data: ext/lib-boot ; save for checksum before it's unset
 					case [
-						import [set [hdr: code: end:] load-ext-module ext]
-						word? set [hdr: tmp: end:] load-header/only/required data [
+						import [set [hdr: code:] load-ext-module ext]
+						word? set [hdr: tmp:] load-header/only/required data [
 							cause-error 'syntax hdr source ; word is error code
 						]
 						not any [delay delay: true? find hdr/options 'delay] [
-							set [hdr: code: end:] load-ext-module ext ; import now
+							set [hdr: code:] load-ext-module ext ; import now
 						]
 					]
 					if hdr/checksum [modsum: copy hdr/checksum]
@@ -566,7 +526,7 @@ load-module: funct [
 		; Get and process the header
 		not hdr [
 			; Only happens for string, binary or non-extension file/url source
-			set [hdr: code: end:] load-header/required data
+			set [hdr: code:] load-header/required data
 			case [
 				word? hdr [cause-error 'syntax hdr source]
 				import none ; /import overrides 'delay option
@@ -629,7 +589,7 @@ load-module: funct [
 		all [version ver > modver] [cause-error 'syntax 'needs reduce [name ver]]
 
 		; If no further processing is needed, shortcut return
-		all [not override? any [mod delay]] [return reduce [name mod end]]
+		all [not override? any [mod delay]] [return reduce [name mod]]
 
 		; If /delay, save the intermediate form
 		delay [mod: reduce [hdr either object? ext [ext] [code]]]
@@ -645,10 +605,7 @@ load-module: funct [
 						hdr/options: append any [hdr/options make block! 1] 'isolate
 					]
 				]
-				all [not empty? end same? head code head end] [
-					code: to block! copy/part code end  ; Embedded script code
-				]
-				binary? code [code: to block! code]  ; Non-embedded script code
+				binary? code [code: to block! code]
 			]
 			assert/type [hdr object! code block!]
 			mod: reduce [hdr code do-needs/no-user hdr]
@@ -660,16 +617,13 @@ load-module: funct [
 				pos [pos/2: mod pos/3: modsum] ; replace delayed module
 				not pos [reduce/into [name mod modsum] system/modules]
 				all [module? mod not mixin? hdr block? select hdr 'exports] [
-					;resolve/extend/only lib mod hdr/exports ; no-op if empty
-					
-					; Temporary workaround for resolve/extend/only crash #1865
-					resolve/only lib mod bind/new/only/copy hdr/exports lib
+					resolve/extend/only lib mod hdr/exports ; no-op if empty
 				]
 			]
 		]
 	]
 
-	reduce [name if module? mod [mod] end]
+	reduce [name if module? mod [mod]]
 ]
 
 import: funct [
@@ -719,10 +673,7 @@ import: funct [
 		empty? exports  none
 		; If it's a private module (mixin), we must add *all* of its exports to user.
 		any [no-lib find select hdr 'options 'private] [ ; /no-lib causes private
-			;resolve/extend/only system/contexts/user mod exports
-			
-			; Temporary workaround for resolve/extend/only crash #1865
-			resolve/only system/contexts/user mod bind/new/only/copy exports system/contexts/user
+			resolve/extend/only system/contexts/user mod exports
 		]
 		; Unless /no-lib its exports are in lib already, so just import what we need.
 		not no-lib [resolve/only system/contexts/user lib exports]

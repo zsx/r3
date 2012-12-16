@@ -15,7 +15,7 @@ STRIP=	$(TOOLS)strip
 # CP allows different copy progs:
 CP= cp
 # LS allows different ls progs:
-LS= -dir
+LS=	-dir
 # UP - some systems do not use ../
 UP= ..
 # CD - some systems do not use ./
@@ -54,7 +54,7 @@ R3LIB= r3.dll
 
 ### Build targets:
 top:
-	make r3-core$(BIN_SUFFIX)
+	make r3-core
 
 update:
 	-cd $(UP)/; cvs -q update src
@@ -78,6 +78,7 @@ prep-lib:
 	$(REBOL) $T/make-boot.r $(OS_ID)
 	$(REBOL) $T/make-os-ext.r # ok, but not always
 	$(REBOL) $T/make-reb-lib.r
+	-rm -rf objs/
 
 prep-core:	
 	$(REBOL) $T/rma-init.r
@@ -186,13 +187,13 @@ AGG= \
 	objs/rich_text.o
 
 # Directly linked r3 core executable:
-r3-core: prep-core objs $(OBJS) $(HOST)
+r3-core: prep-lib prep-core objs $(OBJS) $(HOST)
 	$(CC) -o r3-core$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
 	$(STRIP) r3-core$(BIN_SUFFIX)
 	$(LS) r3-core$(BIN_SUFFIX)
 
 # Directly linked r3 view executable:
-r3-view: prep-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
+r3-view: prep-lib prep-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
 	$(CC) -o r3-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
 	$(STRIP) r3-view$(BIN_SUFFIX)
 	$(LS) r3-view$(BIN_SUFFIX)
