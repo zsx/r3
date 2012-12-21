@@ -35,6 +35,8 @@ BIN_SUFFIX= .exe
 RAPI_FLAGS=  -O2 -DUNICODE
 HOST_CORE_FLAGS= -DREB_CORE -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFFSET_BITS=64
 HOST_VIEW_FLAGS= -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFFSET_BITS=64
+ENCAP_CORE_FLAGS= -DENCAP $(HOST_CORE_FLAGS)
+ENCAP_VIEW_FLAGS= -DENCAP $(HOST_VIEW_FLAGS)
 RLIB_FLAGS=	
 
 # Flags for core and for host:
@@ -63,36 +65,64 @@ make:
 	$(REBOL) $T/make-make.r $(OS_ID)
 
 clean:
-	@-rm -rf $(R3LIB) r3-core-host$(BIN_SUFFIX) r3-view-host$(BIN_SUFFIX) r3-core$(BIN_SUFFIX) r3-view$(BIN_SUFFIX) objs/
+	@-rm -rf $(R3LIB) r3-core-host$(BIN_SUFFIX) r3-view-host$(BIN_SUFFIX) r3-core$(BIN_SUFFIX) r3-view$(BIN_SUFFIX) encap-view$(BIN_SUFFIX) encap-core$(BIN_SUFFIX) objs/
 
 all:
 	make clean
-	make r3-core
-	make r3-view
-	make lib
+	make lib	
 	make r3-core-host
 	make r3-view-host
+	make r3-core
+	make r3-view
+	make encap-core
+	make encap-view
 	
 prep-lib:
 	$(REBOL) $T/make-headers.r
 	$(REBOL) $T/make-boot.r $(OS_ID)
 	$(REBOL) $T/make-os-ext.r # ok, but not always
 	$(REBOL) $T/make-reb-lib.r
-	-rm -rf objs/
+	-rm -f $(OBJS)
 
 prep-core:	
 	$(REBOL) $T/rma-init.r
 	$(REBOL) $T/core-ext.r
 	$(eval HOST_FLAGS =$(HOST_CORE_FLAGS))
-	-rm -rf objs/
+	-rm -f $(HOST)
 
 prep-view:	
 	$(REBOL) $T/rma-init.r
 	$(REBOL) $T/core-ext.r
 	$(REBOL) $T/view-ext.r
 	$(eval HOST_FLAGS =$(HOST_VIEW_FLAGS))
-	-rm -rf objs/
+	-rm -f $(HOST)
 
+prep-encap-view:
+	$(REBOL) $T/encap-init.r
+	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/view-ext.r
+	$(eval HOST_FLAGS =$(ENCAP_VIEW_FLAGS))
+	-rm -f $(HOST)
+
+prep-encap-boot-view:	
+	$(REBOL) $T/encap-boot-init.r
+	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/view-ext.r
+	$(eval HOST_FLAGS =$(ENCAP_VIEW_FLAGS))
+	-rm -f $(HOST)
+
+prep-encap-core:
+	$(REBOL) $T/encap-init.r
+	$(REBOL) $T/core-ext.r
+	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
+	-rm -f $(HOST)
+
+prep-encap-boot-core:	
+	$(REBOL) $T/encap-boot-init.r
+	$(REBOL) $T/core-ext.r
+	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
+	-rm -f $(HOST)
+	
 ### Post build actions
 purge:
 	-rm $(R3LIB)
@@ -187,17 +217,44 @@ AGG= \
 	objs/rich_text.o
 
 # Directly linked r3 core executable:
-r3-core: prep-lib prep-core objs $(OBJS) $(HOST)
+r3-core: prep-core objs $(OBJS) $(HOST)
 	$(CC) -o r3-core$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
 	$(STRIP) r3-core$(BIN_SUFFIX)
 	$(LS) r3-core$(BIN_SUFFIX)
 
 # Directly linked r3 view executable:
-r3-view: prep-lib prep-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
+r3-view: prep-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
 	$(CC) -o r3-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
 	$(STRIP) r3-view$(BIN_SUFFIX)
 	$(LS) r3-view$(BIN_SUFFIX)
 
+# r3/view/encap executable:
+encap-view: objs
+	make encap-boot-view
+	make encap-exe-view
+
+# r3/core/encap executable:
+encap-core: objs
+	make encap-boot-core
+	make encap-exe-core
+
+encap-exe-view: prep-encap-view $(OBJS) $(HOST) $(GFX) $(AGG)
+	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
+	$(STRIP) encap-view$(BIN_SUFFIX)
+	-rm -f encap-boot.bin encap-boot.r
+	
+encap-boot-view: prep-encap-boot-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
+	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
+	$(STRIP) encap-boot.bin
+
+encap-exe-core: prep-encap-core $(OBJS) $(HOST)
+	$(CC) -o encap-core$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
+	$(STRIP) encap-core$(BIN_SUFFIX)
+	-rm -f encap-boot.bin encap-boot.r
+	
+encap-boot-core: prep-encap-boot-core objs $(OBJS) $(HOST)
+	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(CLIB)
+	$(STRIP) encap-boot.bin
 
 objs:
 	mkdir -p objs
