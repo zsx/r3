@@ -345,8 +345,8 @@ static void Free_Window(REBGOB *gob) {
 	if (GET_GOB_FLAG(gob, GOBF_POPUP)) {
 		parent = GOB_HWIN(GOB_TMP_OWNER(gob));
 		if (GET_GOB_FLAG(gob, GOBF_MODAL)) {
-            EnableWindow(parent, FALSE);
-            EnumWindows(EnumWindowsProc, (LPARAM)parent);
+			EnableWindow(parent, FALSE);
+			EnumWindows(EnumWindowsProc, (LPARAM)parent);
 		}
 	}
 
