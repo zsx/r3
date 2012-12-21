@@ -52,15 +52,15 @@ compile-flags: [
 ]
 
 linker-flags: [
-	MAP: "-Wl,-M"  								; output a map
+	MAP: "-Wl,-M"  ; output a map
 	STA: "--strip-all"
-	C++: "-lstdc++" 							; link with stdc++
-	LDL: "-ldl"     							; link with dynamic lib lib
-	ARC: "-arch i386" 						; x86 32 bit architecture (OSX)
+	C++: "-lstdc++" ; link with stdc++
+	LDL: "-ldl"     ; link with dynamic lib lib
+	ARC: "-arch i386" ; x86 32 bit architecture (OSX)
+	M32: "-m32"       ; use 32-bit memory model (Linux x64)
 	W32: "-lwsock32 -lcomdlg32"
-	WIN: "-mwindows"							; build as Windows GUI binary
+	WIN: "-mwindows"; build as Windows GUI binary
 	S4M: "-Wl,--stack=4194300"
-	M32: "-m32"       						; use 32-bit memory model (Linux x64)
 ]
 
 other-flags: [
