@@ -47,6 +47,7 @@
 #include <string.h>
 
 #ifdef _WIN32
+#define _WIN32_WINNT 0x0500
 #include <windows.h>
 #endif
 
@@ -114,21 +115,20 @@ void Host_Crash(REBYTE *reason) {
 ***********************************************************************/
 
 #ifdef TO_WIN32
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
+// int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
+int main(int argc, char **argv)
 #else
 int main(int argc, char **argv)
 #endif
 {
+
 	REBYTE vers[8];
 	REBYTE *line;
 	REBINT n;
 
 #ifdef TO_WIN32  // In Win32 get args manually:
-	int argc;
-	REBCHR **argv;
 	// Fetch the win32 unicoded program arguments:
 	argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-	App_Instance = inst;
 #endif
 
 	Host_Lib = &Host_Lib_Init;
@@ -153,35 +153,54 @@ int main(int argc, char **argv)
 
 	//Initialize core extension commands
 	Init_Core_Ext();
-	
-#ifndef REB_CORE
-	Init_Windows();
-	Init_Graphics();
-#endif
 
 #ifdef TEST_EXTENSIONS
 	Init_Ext_Test();
 #endif
 
-#ifdef ENCAP
-	Console_Output(FALSE);
-#else
-	if (Main_Args.script) Console_Output(FALSE);
+#ifdef TO_WIN32
+	// no console, we must be the child process
+	if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
+	{
+		App_Instance = GetModuleHandle(NULL);
 #endif
 
-// Call sys/start function. If a compressed script is provided, it will be 
-// decompressed, stored in system/options/boot-host, loaded, and evaluated.
-// Returns: 0: ok, -1: error, 1: bad data.
+#ifndef REB_CORE
+		Init_Windows();
+		Init_Graphics();
+#endif // REB_CORE
+
+#ifdef TO_WIN32
+	}
+	else if (argc > 1) // we have command line args
+	{
+		App_Instance = GetWindowLong(GetConsoleWindow(), GWL_HINSTANCE);
+	}
+	else // no command line args but a console - launch child process so GUI is initialized and exit
+	{
+		DWORD dwCreationFlags = CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS;
+		STARTUPINFO startinfo;
+		PROCESS_INFORMATION procinfo;
+		ZeroMemory(&startinfo, sizeof(startinfo));
+		startinfo.cb = sizeof(startinfo);
+		if (!CreateProcess(NULL, argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
+			MessageBox(0, "CreateProcess() failed :(", "", 0);
+		exit(0);
+	}
+#endif
+
+	// Common code for console & GUI version
+
+	// Call sys/start function. If a compressed script is provided, it will be
+	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
+	// Returns: 0: ok, -1: error, 1: bad data.
 #ifdef CUSTOM_STARTUP
-	// For custom startup, you can provide compressed script code here:
-	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, 0); // TRUE on halt
+		// For custom startup, you can provide compressed script code here:
+		n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, 0); // TRUE on halt
 #else
-	n = RL_Start(0, 0, 0);
+		n = RL_Start(0, 0, 0);
 #endif
 
-#ifdef ENCAP
-	Console_Output(TRUE);
-#else
 	if (Main_Args.script) Console_Output(TRUE);
 
 	// Console line input loop (just an example, can be improved):
@@ -204,8 +223,7 @@ int main(int argc, char **argv)
 			else break; // EOS
 		}
 	}
-#endif
-	//OS_Call_Device(RDI_STDIO, RDC_CLOSE);
+
 	OS_Quit_Devices(0);
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
