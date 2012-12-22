@@ -37,13 +37,14 @@ HOST_CORE_FLAGS= -DREB_CORE -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFF
 HOST_VIEW_FLAGS= -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFFSET_BITS=64
 ENCAP_CORE_FLAGS= -DENCAP $(HOST_CORE_FLAGS)
 ENCAP_VIEW_FLAGS= -DENCAP $(HOST_VIEW_FLAGS)
-RLIB_FLAGS=	
+RLIB_FLAGS=
 
 # Flags for core and for host:
 RFLAGS= -c -D$(TO_OS) -DREB_API  $(RAPI_FLAGS) $I
 HFLAGS= -c -D$(TO_OS) $(HOST_FLAGS) $I
 #-DREB_CORE
-CLIB=   -lm  -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -mwindows -Wl,--stack=4194300
+#CLIB= -lm  -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -mwindows -Wl,--stack=4194300
+CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -Wl,--stack=4194300
 
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make -qs >NUL:
@@ -69,14 +70,14 @@ clean:
 
 all:
 	make clean
-	make lib	
+	make lib
 	make r3-core-host
 	make r3-view-host
 	make r3-core
 	make r3-view
 	make encap-core
 	make encap-view
-	
+
 prep-lib:
 	$(REBOL) $T/make-headers.r
 	$(REBOL) $T/make-boot.r $(OS_ID)
@@ -84,13 +85,13 @@ prep-lib:
 	$(REBOL) $T/make-reb-lib.r
 	-rm -f $(OBJS)
 
-prep-core:	
+prep-core:
 	$(REBOL) $T/rma-init.r
 	$(REBOL) $T/core-ext.r
 	$(eval HOST_FLAGS =$(HOST_CORE_FLAGS))
 	-rm -f $(HOST)
 
-prep-view:	
+prep-view:
 	$(REBOL) $T/rma-init.r
 	$(REBOL) $T/core-ext.r
 	$(REBOL) $T/view-ext.r
@@ -104,7 +105,7 @@ prep-encap-view:
 	$(eval HOST_FLAGS =$(ENCAP_VIEW_FLAGS))
 	-rm -f $(HOST)
 
-prep-encap-boot-view:	
+prep-encap-boot-view:
 	$(REBOL) $T/encap-boot-init.r
 	$(REBOL) $T/core-ext.r
 	$(REBOL) $T/view-ext.r
@@ -117,12 +118,12 @@ prep-encap-core:
 	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
 	-rm -f $(HOST)
 
-prep-encap-boot-core:	
+prep-encap-boot-core:
 	$(REBOL) $T/encap-boot-init.r
 	$(REBOL) $T/core-ext.r
 	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
 	-rm -f $(HOST)
-	
+
 ### Post build actions
 purge:
 	-rm $(R3LIB)
@@ -175,7 +176,7 @@ OBJS =	objs/a-constants.o objs/a-globals.o objs/a-lib.o objs/b-boot.o \
 	objs/t-utype.o objs/t-vector.o objs/t-word.o objs/u-bmp.o \
 	objs/u-compress.o objs/u-dialect.o objs/u-gif.o objs/u-jpg.o \
 	objs/u-md5.o objs/u-parse.o objs/u-png.o objs/u-sha1.o \
-	objs/u-zlib.o 
+	objs/u-zlib.o
 
 HOST =	objs/host-main.o objs/host-core.o objs/host-args.o objs/host-device.o objs/host-stdio.o \
 	objs/dev-net.o objs/dev-dns.o objs/host-lib.o objs/dev-stdio.o \
@@ -242,7 +243,7 @@ encap-exe-view: prep-encap-view $(OBJS) $(HOST) $(GFX) $(AGG)
 	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
 	$(STRIP) encap-view$(BIN_SUFFIX)
 	-rm -f encap-boot.bin encap-boot.r
-	
+
 encap-boot-view: prep-encap-boot-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
 	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
 	$(STRIP) encap-boot.bin
@@ -251,7 +252,7 @@ encap-exe-core: prep-encap-core $(OBJS) $(HOST)
 	$(CC) -o encap-core$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
 	$(STRIP) encap-core$(BIN_SUFFIX)
 	-rm -f encap-boot.bin encap-boot.r
-	
+
 encap-boot-core: prep-encap-boot-core objs $(OBJS) $(HOST)
 	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(CLIB)
 	$(STRIP) encap-boot.bin
@@ -593,7 +594,7 @@ objs/dev-clipboard.o: $S/os/win32/dev-clipboard.c
 
 objs/host-graphics.o: $S/os/win32/host-graphics.c
 	$(CC) $S/os/win32/host-graphics.c $(HFLAGS) -o objs/host-graphics.o
-	
+
 objs/host-event.o:    $S/os/win32/host-event.c
 	$(CC) $S/os/win32/host-event.c $(HFLAGS) -o objs/host-event.o
 
