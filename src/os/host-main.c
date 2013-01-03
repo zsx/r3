@@ -184,18 +184,18 @@ int main(int argc, char **argv)
 
 	// Common code for console & GUI version
 #ifndef REB_CORE
-		Init_Windows();
-		Init_Graphics();
+	Init_Windows();
+	Init_Graphics();
 #endif // REB_CORE
 
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
 	// Returns: 0: ok, -1: error, 1: bad data.
 #ifdef CUSTOM_STARTUP
-		// For custom startup, you can provide compressed script code here:
-		n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, 0); // TRUE on halt
+	// For custom startup, you can provide compressed script code here:
+	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, 0); // TRUE on halt
 #else
-		n = RL_Start(0, 0, 0);
+	n = RL_Start(0, 0, 0);
 #endif
 
 	if (Main_Args.script) Console_Output(TRUE);
