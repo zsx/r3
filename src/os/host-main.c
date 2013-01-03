@@ -163,18 +163,11 @@ int main(int argc, char **argv)
 	if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
 	{
 		App_Instance = GetModuleHandle(NULL);
-#endif
-
-#ifndef REB_CORE
-		Init_Windows();
-		Init_Graphics();
-#endif // REB_CORE
-
-#ifdef TO_WIN32
 	}
 	else if (argc > 1) // we have command line args
 	{
-		App_Instance = GetWindowLong(GetConsoleWindow(), GWL_HINSTANCE);
+		// GetWindowsLongPtr support 32 & 64 bit windows
+		App_Instance = GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
 	}
 	else // no command line args but a console - launch child process so GUI is initialized and exit
 	{
@@ -190,6 +183,10 @@ int main(int argc, char **argv)
 #endif
 
 	// Common code for console & GUI version
+#ifndef REB_CORE
+		Init_Windows();
+		Init_Graphics();
+#endif // REB_CORE
 
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
