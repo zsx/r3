@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 
 #ifdef TO_WIN32  // In Win32 get args manually:
 	// Fetch the win32 unicoded program arguments:
-	argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+	argv = (char **)CommandLineToArgvW(GetCommandLineW(), &argc);
 #endif
 
 	Host_Lib = &Host_Lib_Init;
@@ -164,10 +164,20 @@ int main(int argc, char **argv)
 	{
 		App_Instance = GetModuleHandle(NULL);
 	}
+#ifdef REB_CORE	
+	else //use always the console for R3/core
+	{
+		// GetWindowsLongPtr support 32 & 64 bit windows
+		App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+	}
+#else
+	//followinng R3/view code behaviors when compiled as:
+	//-"console app" mode: stdio redirection works but blinking console window during start
+	//-"GUI app" mode stdio redirection doesn't work properly, no blinking console window during start
 	else if (argc > 1) // we have command line args
 	{
 		// GetWindowsLongPtr support 32 & 64 bit windows
-		App_Instance = GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+		App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
 	}
 	else // no command line args but a console - launch child process so GUI is initialized and exit
 	{
@@ -176,17 +186,24 @@ int main(int argc, char **argv)
 		PROCESS_INFORMATION procinfo;
 		ZeroMemory(&startinfo, sizeof(startinfo));
 		startinfo.cb = sizeof(startinfo);
-		if (!CreateProcess(NULL, argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
-			MessageBox(0, "CreateProcess() failed :(", "", 0);
+		if (!CreateProcess(NULL, (LPTSTR)argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
+			MessageBox(0, L"CreateProcess() failed :(", L"", 0);
 		exit(0);
 	}
-#endif
+#endif //REB_CORE	
+#endif //TO_WIN32
 
 	// Common code for console & GUI version
 #ifndef REB_CORE
 	Init_Windows();
 	Init_Graphics();
 #endif // REB_CORE
+
+#ifdef ENCAP
+	Console_Output(FALSE);
+#else
+	if (Main_Args.script) Console_Output(FALSE);
+#endif // ENCAP
 
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
@@ -198,6 +215,9 @@ int main(int argc, char **argv)
 	n = RL_Start(0, 0, 0);
 #endif
 
+#ifdef ENCAP
+	Console_Output(TRUE);
+#else
 	if (Main_Args.script) Console_Output(TRUE);
 
 	// Console line input loop (just an example, can be improved):
@@ -220,7 +240,7 @@ int main(int argc, char **argv)
 			else break; // EOS
 		}
 	}
-
+#endif //ENCAP
 	OS_Quit_Devices(0);
 
 	// A QUIT does not exit this way, so the only valid return code is zero.

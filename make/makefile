@@ -45,6 +45,7 @@ HFLAGS= -c -D$(TO_OS) $(HOST_FLAGS) $I
 #-DREB_CORE
 #CLIB= -lm  -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -mwindows -Wl,--stack=4194300
 CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -Wl,--stack=4194300
+GUI_CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -Wl,--stack=4194300 -mwindows
 
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make -qs >NUL:
@@ -225,7 +226,7 @@ r3-core: prep-core objs $(OBJS) $(HOST)
 
 # Directly linked r3 view executable:
 r3-view: prep-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
-	$(CC) -o r3-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
+	$(CC) -o r3-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
 	$(STRIP) r3-view$(BIN_SUFFIX)
 	$(LS) r3-view$(BIN_SUFFIX)
 
@@ -240,12 +241,12 @@ encap-core: objs
 	make encap-exe-core
 
 encap-exe-view: prep-encap-view $(OBJS) $(HOST) $(GFX) $(AGG)
-	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
+	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
 	$(STRIP) encap-view$(BIN_SUFFIX)
 	-rm -f encap-boot.bin encap-boot.r
 
 encap-boot-view: prep-encap-boot-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
-	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(GFX) $(AGG) $(CLIB)
+	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
 	$(STRIP) encap-boot.bin
 
 encap-exe-core: prep-encap-core $(OBJS) $(HOST)
@@ -279,7 +280,7 @@ r3-core-host: prep-core objs $(HOST)
 # PUBLIC: View Host using the shared lib:
 
 r3-view-host: prep-view objs $(HOST) $(GFX) $(AGG)
-	$(CC) -o r3-view-host$(BIN_SUFFIX) $(HOST) $(GFX) $(AGG) $(R3LIB) $(CLIB)
+	$(CC) -o r3-view-host$(BIN_SUFFIX) $(HOST) $(GFX) $(AGG) $(R3LIB) $(GUI_CLIB)
 	$(STRIP) r3-view-host$(BIN_SUFFIX)
 	$(LS) r3-view-host$(BIN_SUFFIX)
 
