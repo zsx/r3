@@ -35,8 +35,8 @@ BIN_SUFFIX= .exe
 RAPI_FLAGS=  -O2 -DUNICODE
 HOST_CORE_FLAGS= -DREB_CORE -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFFSET_BITS=64
 HOST_VIEW_FLAGS= -DREB_EXE -O2 -DUNICODE -DCUSTOM_STARTUP -D_FILE_OFFSET_BITS=64
-ENCAP_CORE_FLAGS= -DENCAP $(HOST_CORE_FLAGS)
-ENCAP_VIEW_FLAGS= -DENCAP $(HOST_VIEW_FLAGS)
+ENCAP_CORE_FLAGS= -DENCAP -DEXT_LICENSING $(HOST_CORE_FLAGS)
+ENCAP_VIEW_FLAGS= -DENCAP -DEXT_LICENSING $(HOST_VIEW_FLAGS)
 RLIB_FLAGS=
 
 # Flags for core and for host:
@@ -44,8 +44,8 @@ RFLAGS= -c -D$(TO_OS) -DREB_API  $(RAPI_FLAGS) $I
 HFLAGS= -c -D$(TO_OS) $(HOST_FLAGS) $I
 #-DREB_CORE
 #CLIB= -lm  -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -mwindows -Wl,--stack=4194300
-CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -Wl,--stack=4194300
-GUI_CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -Wl,--stack=4194300 -mwindows
+CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -liphlpapi -Wl,--stack=4194300
+GUI_CLIB= -L. -static-libgcc -lm -lwsock32 -lcomdlg32 -lgdi32 -lstdc++ -liphlpapi -Wl,--stack=4194300 -mwindows
 
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make -qs >NUL:
@@ -102,28 +102,36 @@ prep-view:
 prep-encap-view:
 	$(REBOL) $T/encap-init.r
 	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/licensing-ext.r	
 	$(REBOL) $T/view-ext.r
 	$(eval HOST_FLAGS =$(ENCAP_VIEW_FLAGS))
 	-rm -f $(HOST)
+	-rm -f $(HOST_ENCAP)
 
 prep-encap-boot-view:
 	$(REBOL) $T/encap-boot-init.r
 	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/licensing-ext.r	
 	$(REBOL) $T/view-ext.r
 	$(eval HOST_FLAGS =$(ENCAP_VIEW_FLAGS))
 	-rm -f $(HOST)
+	-rm -f $(HOST_ENCAP)
 
 prep-encap-core:
 	$(REBOL) $T/encap-init.r
 	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/licensing-ext.r	
 	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
 	-rm -f $(HOST)
+	-rm -f $(HOST_ENCAP)
 
 prep-encap-boot-core:
 	$(REBOL) $T/encap-boot-init.r
 	$(REBOL) $T/core-ext.r
+	$(REBOL) $T/licensing-ext.r	
 	$(eval HOST_FLAGS =$(ENCAP_CORE_FLAGS))
 	-rm -f $(HOST)
+	-rm -f $(HOST_ENCAP)
 
 ### Post build actions
 purge:
@@ -179,6 +187,8 @@ OBJS =	objs/a-constants.o objs/a-globals.o objs/a-lib.o objs/b-boot.o \
 	objs/u-md5.o objs/u-parse.o objs/u-png.o objs/u-sha1.o \
 	objs/u-zlib.o
 
+HOST_ENCAP = objs/host-licensing.o
+	
 HOST =	objs/host-main.o objs/host-core.o objs/host-args.o objs/host-device.o objs/host-stdio.o \
 	objs/dev-net.o objs/dev-dns.o objs/host-lib.o objs/dev-stdio.o \
 	objs/dev-file.o objs/dev-event.o objs/dev-clipboard.o \
@@ -240,22 +250,22 @@ encap-core: objs
 	make encap-boot-core
 	make encap-exe-core
 
-encap-exe-view: prep-encap-view $(OBJS) $(HOST) $(GFX) $(AGG)
-	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
+encap-exe-view: prep-encap-view $(OBJS) $(HOST_ENCAP) $(HOST) $(GFX) $(AGG)
+	$(CC) -o encap-view$(BIN_SUFFIX) $(OBJS) $(HOST_ENCAP) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
 	$(STRIP) encap-view$(BIN_SUFFIX)
 	-rm -f encap-boot.bin encap-boot.r
 
-encap-boot-view: prep-encap-boot-view objs $(OBJS) $(HOST) $(GFX) $(AGG)
-	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
+encap-boot-view: prep-encap-boot-view objs $(OBJS) $(HOST_ENCAP) $(HOST) $(GFX) $(AGG)
+	$(CC) -o encap-boot.bin $(OBJS) $(HOST_ENCAP) $(HOST) $(GFX) $(AGG) $(GUI_CLIB)
 	$(STRIP) encap-boot.bin
 
-encap-exe-core: prep-encap-core $(OBJS) $(HOST)
-	$(CC) -o encap-core$(BIN_SUFFIX) $(OBJS) $(HOST) $(CLIB)
+encap-exe-core: prep-encap-core $(OBJS) $(HOST_ENCAP) $(HOST)
+	$(CC) -o encap-core$(BIN_SUFFIX) $(OBJS) $(HOST_ENCAP) $(HOST) $(CLIB)
 	$(STRIP) encap-core$(BIN_SUFFIX)
 	-rm -f encap-boot.bin encap-boot.r
 
-encap-boot-core: prep-encap-boot-core objs $(OBJS) $(HOST)
-	$(CC) -o encap-boot.bin $(OBJS) $(HOST) $(CLIB)
+encap-boot-core: prep-encap-boot-core objs $(OBJS) $(HOST_ENCAP) $(HOST)
+	$(CC) -o encap-boot.bin $(OBJS) $(HOST_ENCAP) $(HOST) $(CLIB)
 	$(STRIP) encap-boot.bin
 
 objs:
@@ -562,6 +572,9 @@ objs/host-main.o:     $S/os/host-main.c
 
 objs/host-core.o:     $S/os/host-core.c
 	$(CC) $S/os/host-core.c $(HFLAGS) -o objs/host-core.o
+
+objs/host-licensing.o:     $S/os/win32/host-licensing.c
+	$(CC) $S/os/win32/host-licensing.c $(HFLAGS) -o objs/host-licensing.o
 
 objs/host-args.o:     $S/os/host-args.c
 	$(CC) $S/os/host-args.c $(HFLAGS) -o objs/host-args.o
