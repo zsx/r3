@@ -52,6 +52,9 @@ enum GOB_FLAGS {		// GOB attribute and option flags
 enum GOB_STATE {		// GOB state flags
 	GOBS_OPEN = 0,		// Window is open
 	GOBS_ACTIVE,		// Window is active
+	GOBS_RESTORED,		// Window is restored
+	GOBS_MINIMIZED,		// Window is minimized
+	GOBS_MAXIMIZED,		// Window is maximized
 	GOBS_NEW,			// Gob is new to pane (old-offset, old-size wrong)
 };
 
@@ -128,12 +131,13 @@ struct rebol_gob {		// size: 64 bytes!
 
 #define CLEAR_GOB_STATE(g) ((g)->state = 0)
 
-#define SET_GOB_FLAG(g,f)  SET_FLAG((g)->flags, f)
-#define GET_GOB_FLAG(g,f)  GET_FLAG((g)->flags, f)
-#define CLR_GOB_FLAG(g,f)  CLR_FLAG((g)->flags, f)
-#define SET_GOB_STATE(g,f) SET_FLAG((g)->state, f)
-#define GET_GOB_STATE(g,f) GET_FLAG((g)->state, f)
-#define CLR_GOB_STATE(g,f) CLR_FLAG((g)->state, f)
+#define SET_GOB_FLAG(g,f)       SET_FLAG((g)->flags, f)
+#define GET_GOB_FLAG(g,f)       GET_FLAG((g)->flags, f)
+#define CLR_GOB_FLAG(g,f)       CLR_FLAG((g)->flags, f)
+#define SET_GOB_STATE(g,f)      SET_FLAG((g)->state, f)
+#define GET_GOB_STATE(g,f)      GET_FLAG((g)->state, f)
+#define CLR_GOB_STATE(g,f)      CLR_FLAG((g)->state, f)
+#define CLR_GOB_STATES(g,f,h)   CLR_FLAGS((g)->state, f, h)
 
 #define GOB_ALPHA(g)		((g)->alpha)
 #define GOB_TYPE(g)			((g)->ctype)
