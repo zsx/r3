@@ -153,6 +153,9 @@ int main(int argc, char **argv)
 
 	//Initialize core extension commands
 	Init_Core_Ext();
+#ifdef EXT_LICENSING
+	Init_Licensing_Ext();
+#endif //EXT_LICENSING
 
 #ifdef TEST_EXTENSIONS
 	Init_Ext_Test();
