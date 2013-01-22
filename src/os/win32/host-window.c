@@ -42,7 +42,9 @@
 
 #include <windows.h>
 #include <math.h>
-
+#ifdef AGG_OPENGL
+#include <gl/gl.h>
+#endif
 #include "reb-host.h"
 #include "host-lib.h"
 
@@ -64,6 +66,7 @@ extern HINSTANCE App_Instance;		// Set by winmain function
 extern void Host_Crash(char *reason);
 extern LRESULT CALLBACK REBOL_Window_Proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern MSG Handle_Messages();
+extern REBINT As_OS_Str(REBSER *series, REBCHR **string);
 
 #ifdef TEMP_REMOVED
 extern void* Create_RichText();
@@ -80,43 +83,28 @@ REBGOB *Gob_Root;				// Top level GOB (the screen)
 HCURSOR Cursor;					// active cursor image object
 REBPAR Zero_Pair = {0, 0};
 //void* Effects;
+#ifdef AGG_OPENGL
+typedef BOOL (APIENTRY *PFNWGLSWAPINTERVALFARPROC)( int );
+PFNWGLSWAPINTERVALFARPROC wglSwapIntervalEXT = 0;
 
-
-/***********************************************************************
-**
-*/	REBOOL As_OS_Str(REBSER *series, REBCHR **string)
-/*
-**	If necessary, convert a string series to Win32 wide-chars.
-**  (Handy for GOB/TEXT handling).
-**  If the string series is empty the resulting string is set to NULL
-**
-**  Function returns:
-**      TRUE - if the resulting string needs to be deallocated by the caller code
-**      FALSE - if REBOL string is used (no dealloc needed)
-**
-**  Note: REBOL strings are allowed to contain nulls.
-**
-***********************************************************************/
+void setVSync(int interval)
 {
-	int len, n;
-	void *str;
-	wchar_t *wstr;
+  const char *extensions = glGetString( GL_EXTENSIONS );
 
-	if ((len = RL_Get_String(series, 0, &str)) < 0) {
-		// Latin1 byte string - convert to wide chars
-		len = -len;
-		wstr = OS_Make((len+1) * sizeof(wchar_t));
-		for (n = 0; n < len; n++)
-			wstr[n] = (wchar_t)((char*)str)[n];
-		wstr[len] = 0;
-		//note: following string needs be deallocated in the code that uses this function
-		*string = (REBCHR*)wstr;
-		return TRUE;
-	}
-	*string = (len == 0) ? NULL : str; //empty string check
-	return FALSE;
+  if( strstr( extensions, "WGL_EXT_swap_control" ) == 0 )
+  {
+    RL_Print("Vsync control failed\n");
+    return; // Error: WGL_EXT_swap_control extension not supported on your computer.\n");
+  }
+  else
+  {
+    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALFARPROC)wglGetProcAddress( "wglSwapIntervalEXT" );
+
+    if( wglSwapIntervalEXT )
+      wglSwapIntervalEXT(interval);
+  }
 }
-
+#endif
 
 /***********************************************************************
 **
@@ -164,7 +152,7 @@ static REBINT Alloc_Window(REBGOB *gob) {
 	return -1;
 }
 
-static HWND Find_Window(REBGOB *gob) {
+HWND Find_Window(REBGOB *gob) {
 	int n;
 	for (n = 0; n < MAX_WINDOWS; n++) {
 		if (Gob_Windows[n].gob == gob) return Gob_Windows[n].win;
@@ -280,7 +268,11 @@ static void Free_Window(REBGOB *gob) {
 	REBINT windex;
 	HWND window;
 	REBCHR *title;
+#ifdef AGG_OPENGL
+	int x, y, w, h, ow, oh;
+#else
 	int x, y, w, h;
+#endif
 	HWND parent = NULL;
 	REBYTE osString = FALSE;
     REBPAR metric;
@@ -290,12 +282,25 @@ static void Free_Window(REBGOB *gob) {
 	windex = Alloc_Window(gob);
 	if (windex < 0) Host_Crash("Too many windows");
 
+	//save minimized/maximized option before STATE is cleared
+	REBCNT state = 0;
+	if (GET_GOB_STATE(gob, GOBS_MAXIMIZED)) state = GOBS_MAXIMIZED;
+	if (GET_GOB_STATE(gob, GOBS_MINIMIZED)) state = GOBS_MINIMIZED;
+
 	CLEAR_GOB_STATE(gob);
+	
+	//restore initial window state if it has been requested by SHOW
+	if (state != 0) SET_GOB_STATE(gob, state);
+	
 	x = GOB_X_INT(gob);
 	y = GOB_Y_INT(gob);
+#ifdef AGG_OPENGL
+	w = ow = GOB_W_INT(gob);
+	h = oh = GOB_H_INT(gob);
+#else	
 	w = GOB_W_INT(gob);
 	h = GOB_H_INT(gob);
-
+#endif
 	SET_GOB_STATE(gob, GOBS_NEW);
 
 	// Setup window options:
@@ -356,6 +361,50 @@ static void Free_Window(REBGOB *gob) {
 		NULL, App_Instance, NULL
 	);
 
+#ifdef AGG_OPENGL
+        HDC hDC = GetDC(window);
+
+        PIXELFORMATDESCRIPTOR pfd;
+        ZeroMemory( &pfd, sizeof( pfd ) );
+        pfd.nSize = sizeof( pfd );
+        pfd.nVersion = 1;
+        pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL |
+                      PFD_DOUBLEBUFFER;
+        pfd.iPixelType = PFD_TYPE_RGBA;
+        pfd.cColorBits = 24;
+        pfd.cDepthBits = 16;
+        pfd.iLayerType = PFD_MAIN_PLANE;
+        int iFormat = ChoosePixelFormat( hDC, &pfd );
+        SetPixelFormat( hDC, iFormat, &pfd );
+
+        HGLRC hRC;
+        hRC = wglCreateContext( hDC );
+        wglMakeCurrent( hDC, hRC );
+
+       	glViewport(0, 0, ow, oh);
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+//        if (m_flip_y){
+//            glOrtho(0 , w, 0, h, -10000, 10000);
+//        } else {
+            glOrtho(0 , ow, oh, 0, -10000, 10000);
+//        }
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glTranslatef(0.375, 0.375, 0.0);
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glEnableClientState (GL_COLOR_ARRAY);
+        glEnableClientState (GL_VERTEX_ARRAY);
+
+		glClear(GL_COLOR_BUFFER_BIT);
+
+//        txtId = EmptyTexture(1024,1024);
+#endif
     //don't let the string leak!
     if (osString) OS_Free(title);
 	if (!window) Host_Crash("CreateWindow failed");
@@ -367,16 +416,20 @@ static void Free_Window(REBGOB *gob) {
 	Gob_Windows[windex].win = window;
 	SET_GOB_FLAG(gob, GOBF_WINDOW);
 	SET_GOB_STATE(gob, GOBS_OPEN);
+	SET_GOB_STATE(gob, GOBS_ACTIVE);
 
 	// Provide pointer from window back to REBOL window:
 	SetWindowLong(window, GWL_USERDATA, (long)gob);
 
-	if (!GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
-		if (GET_GOB_FLAG(gob, GOBF_ON_TOP)) SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
-		ShowWindow(window, SW_SHOWNORMAL);
-		SetForegroundWindow(window);
-	}
+    if (!GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
+        void Update_Window(REBGOB *gob);
+        if (GET_GOB_FLAG(gob, GOBF_ON_TOP)) SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+        Update_Window(gob);
+    }
 
+#ifdef AGG_OPENGL
+	setVSync(0);
+#endif
 	return window;
 }
 
@@ -489,30 +542,28 @@ static void Free_Window(REBGOB *gob) {
 	AdjustWindowRect(&r, wi.dwStyle, FALSE);
 
 	//Set the new size
-	SetWindowPos(window, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, opts | SWP_NOZORDER);
-
-	//if (opts)
-//		SetWindowPos(window, 0, GOB_X(gob), GOB_Y(gob), GOB_W(gob), GOB_H(gob), opts | SWP_NOZORDER);
+	SetWindowPos(window, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, opts | SWP_NOZORDER | SWP_NOACTIVATE);
 
 	if (IS_GOB_STRING(gob)){
         osString = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&title);
 		SetWindowText(window, title);
 		//don't let the string leak!
-        if (osString) OS_Free(title);
-    }
-
-	/*
-	switch (arg) {
-		case 0: arg = SW_MINIMIZE; break;
-		case 1: arg = SW_RESTORE;  break;
-		case 2: arg = SW_MAXIMIZE; break;
+		if (osString) OS_Free(title);
 	}
 
-	ShowWindow(window, arg);
+//    RL_Print("Update win: rs %d mi %d mx %d ac %d\n", GET_GOB_STATE(gob, GOBS_RESTORED),GET_GOB_STATE(gob, GOBS_MINIMIZED),GET_GOB_STATE(gob, GOBS_MAXIMIZED),GET_GOB_STATE(gob, GOBS_ACTIVE));
 
-	SetForegroundWindow(window);
-	*/
+	ShowWindow(
+        window, (GET_GOB_STATE(gob, GOBS_RESTORED)) ? SW_RESTORE
+            : GET_GOB_STATE(gob, GOBS_MINIMIZED) ? SW_MINIMIZE
+            : GET_GOB_STATE(gob, GOBS_MAXIMIZED) ? SW_MAXIMIZE
+            : SW_SHOWNOACTIVATE
+	);
+
+	if (GET_GOB_STATE(gob, GOBS_ACTIVE)) SetForegroundWindow(window);
+
 }
+
 
 
 /***********************************************************************
@@ -644,6 +695,16 @@ static void Free_Window(REBGOB *gob) {
 			Draw_Window(wingob, *gp);
 	}
 	return 0;
+#elif defined(AGG_OPENGL)
+	HDC paintDC = GetDC(GOB_HWIN(wingob));
+	int ow = GOB_W_INT(wingob);
+	int oh = GOB_H_INT(wingob);
+    compositor = GOB_COMPOSITOR(wingob);
+	len = Compose_Gob(compositor, wingob, gob);
+
+    SwapBuffers( paintDC );
+	ReleaseDC(GOB_HWIN(gob),paintDC);
+	return len;
 #else
 	//render and blit the GOB
 	compositor = GOB_COMPOSITOR(wingob);
@@ -672,7 +733,7 @@ static void Free_Window(REBGOB *gob) {
 
 		BeginPaint(window, (LPPAINTSTRUCT) &ps);
 
-#ifdef NO_COMPOSITOR
+#if defined(NO_COMPOSITOR) || defined(AGG_OPENGL)
 		Draw_Window(gob, gob);
 #else
 		size.x = ROUND_TO_INT(gob->size.x);
@@ -736,7 +797,7 @@ static void Free_Window(REBGOB *gob) {
 	}
 	// Is it a window gob that needs to be opened or refreshed?
 	else if (GOB_PARENT(gob) == Gob_Root) {
-		if (!GET_GOB_FLAG(gob, GOBF_WINDOW))
+		if (!GET_GOB_STATE(gob, GOBS_OPEN))
 			Open_Window(gob);
 		else
 			Update_Window(gob); // Problem! We may not want this all the time.

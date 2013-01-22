@@ -268,8 +268,8 @@ spline: command [
 
 text: command [
 	"Draws a string of text."
-	offset [pair!] "offset from where should the text be rendered"
-	size [pair!] "size of the text area"
+	origin [pair!] "offset from where should the text be rendered"
+	end [pair! none!] "End point of text box (clips and wraps the text). NONE means no clip/wrap limit within the gob."
 	'render-mode [word!] "RASTER or VECTORIAL"
 	rich-text-block [block!]
 ]

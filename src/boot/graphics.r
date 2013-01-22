@@ -17,12 +17,17 @@ REBOL [
 
 words: [
 	;gui-metric
-    screen-size
-    border-size
-    border-fixed
-    title-size
-    work-origin
-    work-size
+	border-fixed
+	border-size
+	screen-size
+	title-size
+	window-min-size
+	work-origin
+	work-size
+	restore
+	minimize
+	maximize
+	activate
 ]
 
 ;temp hack - will be removed later
@@ -58,6 +63,8 @@ offset-to-caret: command [ ;returns pair! instead of the block..needs to be fixe
 show: command [
 	"Display or update a graphical object or block of them."
 	gob [gob! none!]
+	/window
+		state [word!] "Sets the specified window GOB's show state. Keywords: RESTORE, MINIMIZE, MAXIMIZE, ACTIVATE."
 ]
 
 size-text: command [
@@ -73,7 +80,7 @@ draw: command [
 
 gui-metric: command [
 	"Returns specific gui related metric setting."
-	keyword [word!] "Available keywords: SCREEN-SIZE, BORDER-SIZE, BORDER-FIXED, TITLE-SIZE, WORK-ORIGIN and WORK-SIZE."
+	keyword [word!] "Available keywords: BORDER-FIXED, BORDER-SIZE, SCREEN-SIZE, TITLE-SIZE, WINDOW-MIN-SIZE, WORK-ORIGIN and WORK-SIZE."
 ]
 
 ;#not-yet-used [
