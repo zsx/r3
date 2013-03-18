@@ -157,6 +157,12 @@ namespace agg
             case W_TEXT_UNDERLINE:
                 font->underline = TRUE;
                 break;
+				
+			default:
+				font->bold = FALSE;
+				font->italic = FALSE;
+				font->underline = FALSE;
+				break;
         }
     }
 
