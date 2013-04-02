@@ -37,7 +37,7 @@ namespace agg
         alloc_type& allocator() { return *m_alloc; }
 
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         {
             m_alloc->allocate(max_span_len);
         }

@@ -30,7 +30,7 @@ namespace agg
             m_span_gen(&span_gen), m_conv(&conv) {}
 
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         {
             m_span_gen->prepare(max_span_len);
         }

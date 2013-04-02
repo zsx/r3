@@ -111,7 +111,7 @@ namespace agg
             p->r = (value_type)(r >> line_subpixel_shift * 2);
             p->g = (value_type)(g >> line_subpixel_shift * 2);
             p->b = (value_type)(b >> line_subpixel_shift * 2);
-            p->a = 255 - (value_type)(a >> line_subpixel_shift * 2);
+            p->a = (value_type)(a >> line_subpixel_shift * 2);
         }
     };
 

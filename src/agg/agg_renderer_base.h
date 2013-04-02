@@ -571,7 +571,7 @@ namespace agg
                 {
                     m_ren->copy_from(src, 
                                      rdst.x1, rdst.y1,
-                                     rsrc.x1 , rsrc.y1,
+                                     rsrc.x1, rsrc.y1,
                                      rc.x2);
                     rdst.y1 += incy;
                     rsrc.y1 += incy;

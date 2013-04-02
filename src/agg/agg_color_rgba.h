@@ -139,7 +139,7 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        static rgba no_color() { return rgba(0,0,0,1.0); }
+        static rgba no_color() { return rgba(0,0,0,0); }
 
         //--------------------------------------------------------------------
         static rgba from_wavelength(double wl, double gamma = 1.0);
@@ -243,7 +243,7 @@ namespace agg
         rgba8() {}
 
         //--------------------------------------------------------------------
-        rgba8(unsigned r_, unsigned g_, unsigned b_, unsigned a_=0) :
+        rgba8(unsigned r_, unsigned g_, unsigned b_, unsigned a_=base_mask) :
             r(value_type(r_)), 
             g(value_type(g_)), 
             b(value_type(b_)), 
@@ -276,7 +276,7 @@ namespace agg
         //--------------------------------------------------------------------
         const self_type& transparent()
         {
-            a = 255;
+            a = 0;
             return *this;
         }
 
@@ -360,7 +360,7 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        static self_type no_color() { return self_type(0,0,0,255); }
+        static self_type no_color() { return self_type(0,0,0,0); }
 
         //--------------------------------------------------------------------
         static self_type from_wavelength(double wl, double gamma = 1.0)

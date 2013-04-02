@@ -348,7 +348,7 @@ namespace agg
 
 		if (
 			(IS_GOB_OPAQUE(gob)) &&
-			(GOB_ALPHA(gob) == 0)
+			(GOB_ALPHA(gob) == 255)
 		){
 //			Reb_Print("OPAQUE SET");
 			m_opaque = true;
@@ -540,9 +540,9 @@ namespace agg
 							long color = (long)GOB_CONTENT(gob);
 							REBYTE alpha = GOB_ALPHA(gob);
 
-							alpha = (alpha == 0) ? (color >> 24) & 255 : alpha;
+							alpha = (alpha == 255) ? (color >> 24) & 255 : alpha;
 
-							if (alpha == 0){
+							if (alpha == 255){
 								m_rb_win.copy_bar(
 #ifdef AGG_OPENGL
 									ox,oy,
@@ -570,7 +570,7 @@ namespace agg
 										(color >> 16) & 255 ,
 										(color >> 8) & 255 ,
 										color & 255,
-										255 - alpha
+										alpha
 									),
 									255
 								);
@@ -588,13 +588,13 @@ namespace agg
 							m_rbuf_img.attach(GOB_BITMAP(gob),w,h,w * 4);
 							agg_graphics::pixfmt pixf_img(m_rbuf_img);
 
-							if (GOB_ALPHA(gob) == 0){
+							if (GOB_ALPHA(gob) == 255){
 //								m_rb_win.copy_from(m_rbuf_img);
 	//							m_gobs++;
 								// this will be enabled if image doesn't have alpha set but contains transparency by default.
 								m_rb_win.blend_from(pixf_img);
 							} else {
-								m_rb_win.blend_from(pixf_img,0,0,0,255 - GOB_ALPHA(gob));
+								m_rb_win.blend_from(pixf_img,0,0,0, GOB_ALPHA(gob));
 							}
 						}
 						break;
@@ -615,17 +615,19 @@ namespace agg
 							renbuf = &m_rbuf_win;
 							void* graphics = new agg_graphics(renbuf, sx+1, sy+1, ox, oy);
 #else
-							if (GOB_ALPHA(gob) == 0){
+							if (GOB_ALPHA(gob) == 255){
 								//render directly to the main buffer
 								rb = m_rb_win;
 								renbuf = &m_rbuf_win;
 							} else {
 								//create temporary buffer for later blending
 								tmp_buf = new REBYTE [sx * sy * 4];
-								memset(tmp_buf, 255, sx * sy * 4);
 								rbuf_tmp.attach(tmp_buf,sx,sy,sx * 4);
 								rb = rb_tmp;
 								rb.clip_box(ox,oy,sx,sy);
+								//note: this copies whole background. todo: check for faster solution
+								rb.copy_from(m_rbuf_win);
+								
 								renbuf = &rbuf_tmp;
 							}
 							void* graphics = new agg_graphics(renbuf, tx, ty, ox, oy);
@@ -645,7 +647,7 @@ namespace agg
 							if (tmp_buf){
 
 								//blend with main buffer
-								m_rb_win.blend_from(pixf_tmp,0,0,0,255 - GOB_ALPHA(gob));
+								m_rb_win.blend_from(pixf_tmp,0,0,0, GOB_ALPHA(gob));
 
 								//deallocate temoprary buffer
 								delete tmp_buf;

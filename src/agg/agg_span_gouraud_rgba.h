@@ -127,9 +127,9 @@ namespace agg
         {}
 
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len)
+        void prepare(unsigned max_span_len, unsigned num_spans)
         {
-            base_type::prepare(max_span_len);
+            base_type::prepare(max_span_len, num_spans);
 
             coord_type coord[3];
             this->arrange_vertices(coord);

@@ -27,7 +27,7 @@ namespace agg
         if(ras.rewind_scanlines())
         {
             sl.reset(ras.min_x(), ras.max_x());
-            ren.prepare(unsigned(ras.max_x() - ras.min_x() + 2));
+            ren.prepare(unsigned(ras.max_x() - ras.min_x() + 2), unsigned(ras.max_y() - ras.min_y()));
 
             while(ras.sweep_scanline(sl))
             {

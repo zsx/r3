@@ -248,7 +248,7 @@ Reb_Print(
 
 							if (attr.g_color1.a != 0){//color key enabled
 								// attach the original image to  rendering buffer
-							rbuf_img.attach(attr.img_buf, (int)attr.coord_x, (int)attr.coord_y, (int)attr.coord_x * 4);
+								rbuf_img.attach(attr.img_buf, (int)attr.coord_x, (int)attr.coord_y, (int)attr.coord_x * 4);
 								//create new buffer for keyed image
 								key_img_buffer = new unsigned char[(int)attr.coord_x * (int)attr.coord_y * 4];
 //								memset(key_img_buffer, 255, (int)attr.coord_x * (int)attr.coord_y * 4);
@@ -295,7 +295,7 @@ Reb_Print(
 
 								span_gen_type sg(sa,
 									rbuf_img_out,
-									rgba8(255,0,0,255),
+									rgba8(255,0,0,0),
 									m_interpolator_linear
 									);
 
@@ -330,14 +330,14 @@ Reb_Print(
 								switch(attr.img_filter_mode){
 									case FM_NORMAL:
 										{
-//Reb_Print ("filter without resampling");
+//RL_Print ("filter without resampling");
 											//filter without resampling
 
 											typedef span_image_filter_rgba<agg::rgba8,component_order, span_interpolator_linear<> > span_gen_type;
 											typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_type> renderer_type;
 											typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_type> renderer_bin_type;
 
-											span_gen_type sg(sa, rbuf_img_out, *m_buf, m_interpolator_linear, filter, tr);
+											span_gen_type sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_linear, filter);
 
 											if (attr.anti_aliased){
 												renderer_type ri(renb_pre, sg);
@@ -357,7 +357,7 @@ Reb_Print(
 											typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_type> renderer_type;
 											typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_type> renderer_bin_type;
 
-											span_gen_type sg(sa, rbuf_img_out, *m_buf, m_interpolator_linear, filter, tr);
+											span_gen_type sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_linear, filter);
 
 											sg.blur(attr.img_filter_arg);
 
@@ -458,7 +458,7 @@ Reb_Print(
 
 												span_gen_normal sg(sa,
 														 rbuf_img_out,
-														 rgba8(255,0,0,255),
+														 rgba8(255,0,0,0),
 														 m_interpolator_trans);
 												if (attr.anti_aliased){
 													renderer_type ri(renb, sg);
@@ -525,7 +525,7 @@ Reb_Print(
 									switch(attr.img_filter_mode){
 										case FM_NORMAL:
 											{
-//Reb_Print ("Perspective filter without resampling");
+//RL_Print ("Perspective filter without resampling");
 												//filter without resampling
 												switch(attr.pattern_mode){
 													case PM_NORMAL:
@@ -534,7 +534,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_normal> renderer_type;
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_normal> renderer_bin_type;
 															trans_perspective tr(vertices, vertices);
-															span_gen_normal sg(sa, rbuf_img_out, *m_buf, m_interpolator_trans, filter, tr);
+															span_gen_normal sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_trans, filter);
 															if (attr.anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
@@ -600,7 +600,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_normal> renderer_type;
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_normal> renderer_bin_type;
 															trans_perspective tr(vertices, vertices);
-															span_gen_normal sg(sa, rbuf_img_out, *m_buf, subdiv_adaptor, filter, tr);
+															span_gen_normal sg(sa, rbuf_img_out, rgba8(255,0,0,255), subdiv_adaptor, filter);
 
 															sg.blur(attr.img_filter_arg);
 
@@ -1166,8 +1166,8 @@ Reb_Print(
 
 		for(i = 0; i < num_pnt; i++)
 		{
-			rgba8 begin = rgba8(colors[j], colors[j + 1], colors[j + 2], 255 - colors[j + 3]);
-			rgba8 end = rgba8(colors[j + 4], colors[j + 5], colors[j + 6], 255 - colors[j + 7]);
+			rgba8 begin = rgba8(colors[j], colors[j + 1], colors[j + 2], colors[j + 3]);
+			rgba8 end = rgba8(colors[j + 4], colors[j + 5], colors[j + 6], colors[j + 7]);
 
 			if (i+1 == num_pnt) r = 256;
 			if (r>256) r = 256;
@@ -1199,7 +1199,7 @@ Reb_Print(
 	void agg_graphics::agg_line_pattern(REBYTE* color, double *dash_array)
 	{
 		if (color){
-			m_line_pattern_pen.a = 255 - color[3];
+			m_line_pattern_pen.a = color[3];
 			if (m_line_pattern_pen.a == 0){
 				m_dashed = false;
 			} else {
@@ -1572,9 +1572,9 @@ Reb_Print(
 		path_attributes& cattr = curr_attributes();
 		if (c1){
 			cattr.filled = RT_GORAUD;//goraud
-			cattr.g_color1 = rgba8(c1[0], c1[1], c1[2], 255 - c1[3]);
-			cattr.g_color2 = rgba8(c2[0], c2[1], c2[2], 255 - c2[3]);
-			cattr.g_color3 = rgba8(c3[0], c3[1], c3[2], 255 - c3[3]);
+			cattr.g_color1 = rgba8(c1[0], c1[1], c1[2], c1[3]);
+			cattr.g_color2 = rgba8(c2[0], c2[1], c2[2], c2[3]);
+			cattr.g_color3 = rgba8(c3[0], c3[1], c3[2], c3[3]);
 		}
 
 		cattr.coord_x = d; //sets triangle dilation value
@@ -1696,7 +1696,7 @@ Reb_Print(
     void agg_graphics::agg_arrows(REBYTE* color, int head, int tail)
     {
 		if (color)
-			m_arrow_color = rgba8(color[0],color[1],color[2],255 - color[3]);
+			m_arrow_color = rgba8(color[0],color[1],color[2],color[3]);
 		else
 			m_arrow_color = m_pen;
 		m_arrow_head = head;

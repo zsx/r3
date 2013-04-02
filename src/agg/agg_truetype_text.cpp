@@ -124,7 +124,7 @@ namespace agg
 		m_font->color[0] = 0;
 		m_font->color[1] = 0;
 		m_font->color[2] = 0;
-		m_font->color[3] = 0;
+		m_font->color[3] = 255;
 		m_font->offset_x = 2;
 		m_font->offset_y = 2;
 		m_font->space_x = 0;
@@ -134,7 +134,7 @@ namespace agg
 		m_font->shadow_color[0] = 0;
 		m_font->shadow_color[1] = 0;
 		m_font->shadow_color[2] = 0;
-		m_font->shadow_color[3] = 0;
+		m_font->shadow_color[3] = 255;
 		m_font->shadow_blur = 0;
 
 		m_para->tabs = 40;
@@ -219,7 +219,7 @@ namespace agg
 
 		//push font
 		attr.bold = m_font->bold;
-		attr.color = rgba8(m_font->color[0],m_font->color[1],m_font->color[2],255 - m_font->color[3]);
+		attr.color = rgba8(m_font->color[0],m_font->color[1],m_font->color[2], m_font->color[3]);
 		attr.italic = m_font->italic;
 		attr.name = (m_font->name) ? m_font->name : (wchar_t *)FONT_NAME;
 		attr.name_free = m_font->name_free;
@@ -227,7 +227,7 @@ namespace agg
 		attr.offset_y = m_font->offset_y;
 		attr.shadow_x = m_font->shadow_x;
 		attr.shadow_y = m_font->shadow_y;
-		attr.shadow_color = rgba8(m_font->shadow_color[0],m_font->shadow_color[1],m_font->shadow_color[2],255 - m_font->shadow_color[3]);
+		attr.shadow_color = rgba8(m_font->shadow_color[0],m_font->shadow_color[1],m_font->shadow_color[2], m_font->shadow_color[3]);
 		attr.shadow_blur = m_font->shadow_blur;
 		attr.size = m_font->size;
 		attr.space_x = m_font->space_x;
@@ -268,7 +268,7 @@ namespace agg
 		m_font->color[0] = attr.color.r;
 		m_font->color[1] = attr.color.g;
 		m_font->color[2] = attr.color.b;
-		m_font->color[3] = 255 - attr.color.a;
+		m_font->color[3] = attr.color.a;
 		m_font->italic = attr.italic;
 		m_font->name = attr.name;
 		m_font->name_free = attr.name_free;
@@ -280,7 +280,7 @@ namespace agg
 		m_font->shadow_color[0] = attr.shadow_color.r;
 		m_font->shadow_color[1] = attr.shadow_color.g;
 		m_font->shadow_color[2] = attr.shadow_color.b;
-		m_font->shadow_color[3] = 255 - attr.shadow_color.a;
+		m_font->shadow_color[3] = attr.shadow_color.a;
 		m_font->size = attr.size;
 		m_font->space_x = attr.space_x;
 		m_font->space_y = attr.space_y;
@@ -1133,7 +1133,7 @@ m_text_pos_x = x0+lw;
 
 														tmp_rb.attach(tmp, w, h, w * 4);
 														base_ren_type tmp_renb(tmp_pf);
-														tmp_renb.clear(rgba8(attr.shadow_color.r,attr.shadow_color.g,attr.shadow_color.b,255));
+														tmp_renb.clear(rgba8(attr.shadow_color.r,attr.shadow_color.g,attr.shadow_color.b,0));
 
 														m_ren_bin.attach(tmp_renb);
 
@@ -1188,7 +1188,7 @@ m_text_pos_x = x0+lw;
 
 														tmp_rb.attach(tmp, w, h, w * 4);
 														base_ren_type tmp_renb(tmp_pf);
-														tmp_renb.clear(rgba8(attr.shadow_color.r,attr.shadow_color.g,attr.shadow_color.b,255));
+														tmp_renb.clear(rgba8(attr.shadow_color.r,attr.shadow_color.g,attr.shadow_color.b,0));
 
 														m_ren_solid.attach(tmp_renb);
 

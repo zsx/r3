@@ -186,7 +186,7 @@ namespace agg
 		}
         const int8u* buf = (const int8u*)gbuf;
         sl.reset(x, x + w);
-        storage.prepare(w + 2);
+        storage.prepare(w + 2, h);
         if(flip_y)
         {
             buf += pitch * (h - 1);
@@ -229,7 +229,7 @@ namespace agg
         int pitch = ((w + 3) >> 2) << 2;
         const int8u* buf = (const int8u*)gbuf;
         sl.reset(x, x + w);
-        storage.prepare(w + 2);
+        storage.prepare(w + 2, h);
         if(flip_y)
         {
             buf += pitch * (h - 1);
@@ -811,7 +811,7 @@ namespace agg
                                                   m_path16);
                     m_rasterizer.add_path(m_curves16);
                 }
-                m_scanlines_bin.prepare(1); // Remove all
+                m_scanlines_bin.prepare(1, 1); // Remove all
                 render_scanlines(m_rasterizer, m_scanline_bin, m_scanlines_bin);
                 m_bounds.x1 = m_scanlines_bin.min_x();
                 m_bounds.y1 = m_scanlines_bin.min_y();
@@ -844,7 +844,7 @@ namespace agg
                                                   m_path16);
                     m_rasterizer.add_path(m_curves16);
                 }
-                m_scanlines_aa.prepare(1); // Remove all
+                m_scanlines_aa.prepare(1, 1); // Remove all
                 render_scanlines(m_rasterizer, m_scanline_aa, m_scanlines_aa);
                 m_bounds.x1 = m_scanlines_aa.min_x();
                 m_bounds.y1 = m_scanlines_aa.min_y();

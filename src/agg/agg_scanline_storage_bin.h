@@ -135,7 +135,7 @@ namespace agg
 
         // Renderer Interface
         //---------------------------------------------------------------
-        void prepare(unsigned)
+        void prepare(unsigned, unsigned)
         {
             m_scanlines.remove_all();
             m_spans.remove_all();
