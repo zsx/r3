@@ -105,9 +105,9 @@ namespace agg
         interpolator_type& interpolator() { return *m_interpolator; }
 
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         {
-            base_type::prepare(max_span_len);
+            base_type::prepare(max_span_len, num_spans);
         }
 
         //----------------------------------------------------------------

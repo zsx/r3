@@ -32,7 +32,7 @@
 #include "agg_span_pattern.h"
 #include "agg_span_image_filter.h"
 
-
+extern "C" void RL_Print(char* fmt, ...);//output just for testing
 namespace agg
 {
 
@@ -71,7 +71,7 @@ namespace agg
         span_pattern_filter_rgba_nn(alloc_type& alloc,
                                     const rendering_buffer& src, 
                                     interpolator_type& inter) :
-            base_type(alloc, src, color_type(0,0,0,255), inter, 0),
+            base_type(alloc, src, color_type(0,0,0,0), inter, 0),
             m_wrap_mode_x(src.width()),
             m_wrap_mode_y(src.height())
         {}
@@ -85,35 +85,59 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
+        void prepare(unsigned max_span_len, unsigned num_spans) 
+        { 
+            base_type::prepare(max_span_len, num_spans); 
+			m_len_y = num_spans;
+			m_span_cnt = 0;
+        }
+		
         color_type* generate(int x, int y, unsigned len)
         {
             base_type::interpolator().begin(x + base_type::filter_dx_dbl(), 
                                             y + base_type::filter_dy_dbl(), len);
             const value_type *fg_ptr;
             color_type* span = base_type::allocator().span();
+			int maxx = base_type::source_image().width() - 1;
+			int maxy = base_type::source_image().height() - 1;
             do
             {
                 base_type::interpolator().coordinates(&x, &y);
 
-                x = m_wrap_mode_x(x >> image_subpixel_shift);
-                y = m_wrap_mode_y(y >> image_subpixel_shift);
+				int x_ini = x >> image_subpixel_shift;
+				int y_ini = y >> image_subpixel_shift;
+				
+                x = m_wrap_mode_x(x_ini);
+                y = m_wrap_mode_y(y_ini);
 
+				if (y_ini < 0)
+					y = 0;
+				else if ((y == 0) && (m_span_cnt > m_len_y))
+					y = maxy;
+
+				if (x_ini < 0)
+					x = 0;
+				else if ((len == 1) && (x_ini > maxx))
+					x = maxx;
+				
                 fg_ptr = (value_type*)base_type::source_image().row(y) + (x << 2);
                 span->r = fg_ptr[order_type::R];
                 span->g = fg_ptr[order_type::G];
                 span->b = fg_ptr[order_type::B];
-                span->a = 255 - fg_ptr[order_type::A];
+                span->a = fg_ptr[order_type::A];
                 ++span;
                 ++base_type::interpolator();
 
             } while(--len);
-
+			++m_span_cnt;
             return base_type::allocator().span();
         }
 
     private:
         WrapModeX m_wrap_mode_x;
         WrapModeY m_wrap_mode_y;
+		unsigned m_len_y;
+		unsigned m_span_cnt;
     };
 
 
@@ -160,7 +184,7 @@ namespace agg
         span_pattern_filter_rgba_bilinear(alloc_type& alloc,
                                           const rendering_buffer& src, 
                                           interpolator_type& inter) :
-            base_type(alloc, src, color_type(0,0,0,255), inter, 0),
+            base_type(alloc, src, color_type(0,0,0,0), inter, 0),
             m_wrap_mode_x(src.width()),
             m_wrap_mode_y(src.height())
         {}
@@ -217,36 +241,36 @@ namespace agg
                 fg_ptr = ptr1 + x1;
                 weight = (image_subpixel_size - x_hr) * 
                          (image_subpixel_size - y_hr);
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[order_type::B] += weight * fg_ptr[0];
+                fg[order_type::G] += weight * fg_ptr[1];
+                fg[order_type::R] += weight * fg_ptr[2];
+                fg[order_type::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr1 + x2;
                 weight = x_hr * (image_subpixel_size - y_hr);
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[order_type::B] += weight * fg_ptr[0];
+                fg[order_type::G] += weight * fg_ptr[1];
+                fg[order_type::R] += weight * fg_ptr[2];
+                fg[order_type::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr2 + x1;
                 weight = (image_subpixel_size - x_hr) * y_hr;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[order_type::B] += weight * fg_ptr[0];
+                fg[order_type::G] += weight * fg_ptr[1];
+                fg[order_type::R] += weight * fg_ptr[2];
+                fg[order_type::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr2 + x2;
                 weight = x_hr * y_hr;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[order_type::B] += weight * fg_ptr[0];
+                fg[order_type::G] += weight * fg_ptr[1];
+                fg[order_type::R] += weight * fg_ptr[2];
+                fg[order_type::A] += weight * fg_ptr[3];
 
                 span->r = (value_type)(fg[order_type::R] >> image_subpixel_shift * 2);
                 span->g = (value_type)(fg[order_type::G] >> image_subpixel_shift * 2);
                 span->b = (value_type)(fg[order_type::B] >> image_subpixel_shift * 2);
-                span->a = 255 - (value_type)(fg[order_type::A] >> image_subpixel_shift * 2);
+                span->a = (value_type)(fg[order_type::A] >> image_subpixel_shift * 2);
                 ++span;
                 ++base_type::interpolator();
 
@@ -302,7 +326,7 @@ namespace agg
                                      const rendering_buffer& src, 
                                      interpolator_type& inter,
                                      const image_filter_lut& filter) :
-            base_type(alloc, src, color_type(0,0,0,255), inter, &filter),
+            base_type(alloc, src, color_type(0,0,0,0), inter, &filter),
             m_wrap_mode_x(src.width()),
             m_wrap_mode_y(src.height())
         {}
@@ -360,40 +384,40 @@ namespace agg
                           weight_array[y_hr + image_subpixel_size] + 
                           image_filter_size / 2) >> 
                           image_filter_shift;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[Order::B] += weight * fg_ptr[0];
+                fg[Order::G] += weight * fg_ptr[1];
+                fg[Order::R] += weight * fg_ptr[2];
+                fg[Order::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr1 + x2;
                 weight = (weight_array[x_hr] * 
                           weight_array[y_hr + image_subpixel_size] + 
                           image_filter_size / 2) >> 
                           image_filter_shift;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[Order::B] += weight * fg_ptr[0];
+                fg[Order::G] += weight * fg_ptr[1];
+                fg[Order::R] += weight * fg_ptr[2];
+                fg[Order::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr2 + x1;
                 weight = (weight_array[x_hr + image_subpixel_size] * 
                           weight_array[y_hr] + 
                           image_filter_size / 2) >> 
                           image_filter_shift;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[Order::B] += weight * fg_ptr[0];
+                fg[Order::G] += weight * fg_ptr[1];
+                fg[Order::R] += weight * fg_ptr[2];
+                fg[Order::A] += weight * fg_ptr[3];
 
                 fg_ptr = ptr2 + x2;
                 weight = (weight_array[x_hr] * 
                           weight_array[y_hr] + 
                           image_filter_size / 2) >> 
                           image_filter_shift;
-                fg[0] += weight * fg_ptr[0];
-                fg[1] += weight * fg_ptr[1];
-                fg[2] += weight * fg_ptr[2];
-                fg[3] += weight * fg_ptr[3];
+                fg[Order::B] += weight * fg_ptr[0];
+                fg[Order::G] += weight * fg_ptr[1];
+                fg[Order::R] += weight * fg_ptr[2];
+                fg[Order::A] += weight * fg_ptr[3];
 
                 fg[0] >>= image_filter_shift;
                 fg[1] >>= image_filter_shift;
@@ -401,9 +425,6 @@ namespace agg
                 fg[3] >>= image_filter_shift;
 
 				
-
-				fg[order_type::A] = 255 - fg[order_type::A];
-
 				//premultiply if needed
 				if(fg[order_type::A] != ColorT::base_mask)
 				{
@@ -484,7 +505,7 @@ namespace agg
                                  const rendering_buffer& src, 
                                  interpolator_type& inter,
                                  const image_filter_lut& filter) :
-            base_type(alloc, src, color_type(0,0,0,255), inter, &filter),
+            base_type(alloc, src, color_type(0,0,0,0), inter, &filter),
             m_wrap_mode_x(src.width()),
             m_wrap_mode_y(src.height())
         {}
@@ -498,6 +519,13 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
+        void prepare(unsigned max_span_len, unsigned num_spans) 
+        { 
+            base_type::prepare(max_span_len, num_spans); 
+			m_len_y = num_spans - base_type::filter().radius();
+			m_span_cnt = 0;
+        }
+		
         color_type* generate(int x, int y, unsigned len)
         {
             base_type::interpolator().begin(x + base_type::filter_dx_dbl(), 
@@ -505,8 +533,12 @@ namespace agg
             int fg[4];
 
             unsigned   diameter     = base_type::filter().diameter();
+			unsigned   radius     = base_type::filter().radius();
             int        start        = base_type::filter().start();
             const int16* weight_array = base_type::filter().weight_array();
+			
+			int maxx = base_type::source_image().width() - 1;
+			int maxy = base_type::source_image().height() - 1;
 
             color_type* span = base_type::allocator().span();
 
@@ -526,7 +558,8 @@ namespace agg
                 int x_fract = x_hr & image_subpixel_mask;
                 unsigned y_count = diameter;
 
-                int y_lr  = m_wrap_mode_y((y >> image_subpixel_shift) + start);
+				int y_int = (y >> image_subpixel_shift) + start;
+                int y_lr  = m_wrap_mode_y(y_int);
                 int x_int = (x >> image_subpixel_shift) + start;
                 int x_lr;
 
@@ -539,25 +572,41 @@ namespace agg
                     weight_y = weight_array[y_hr];
                     x_hr = image_subpixel_mask - x_fract;
                     x_lr = m_wrap_mode_x(x_int);
-                    const value_type* row_ptr = (value_type*)base_type::source_image().row(y_lr);
+					int tmpx = x_int;
+					int ypos = y_lr;
+					
+					if (y_int < 0)
+						ypos = 0;
+					else if ((ypos == 0) && (m_span_cnt > m_len_y))
+						ypos = maxy;
+					
+                    const value_type* row_ptr = (value_type*)base_type::source_image().row(ypos);
                     do
                     {
-                        const value_type* fg_ptr = row_ptr + (x_lr << 2);
+						int xpos = x_lr;
+						if (tmpx < 0)
+							xpos = 0;
+						else if ((len <= radius) && (tmpx > maxx))
+							xpos = maxx;
+							
+                        const value_type* fg_ptr = row_ptr + (xpos << 2);
                         int weight = (weight_y * weight_array[x_hr] + 
                                      image_filter_size / 2) >> 
                                      image_filter_shift;
-        
-                        fg[0] += fg_ptr[0] * weight;
-                        fg[1] += fg_ptr[1] * weight;
-                        fg[2] += fg_ptr[2] * weight;
-                        fg[3] += fg_ptr[3] * weight;
+
+						fg[Order::B] += fg_ptr[0] * weight;
+						fg[Order::G] += fg_ptr[1] * weight;
+						fg[Order::R] += fg_ptr[2] * weight;
+						fg[Order::A] += fg_ptr[3] * weight;
 
                         x_hr += image_subpixel_size;
                         x_lr = ++m_wrap_mode_x;
+						++tmpx;
                     } while(--x_count);
 
                     y_hr += image_subpixel_size;
                     y_lr = ++m_wrap_mode_y;
+					++y_int;
                 } while(--y_count);
 
                 fg[0] >>= image_filter_shift;
@@ -569,8 +618,6 @@ namespace agg
                 if(fg[1] < 0) fg[1] = 0;
                 if(fg[2] < 0) fg[2] = 0;
                 if(fg[3] < 0) fg[3] = 0;
-				
-				fg[order_type::A] = 255 - fg[order_type::A];
 
 			//premultiply if needed
             if(fg[order_type::A] != ColorT::base_mask)
@@ -599,13 +646,15 @@ namespace agg
                 ++base_type::interpolator();
 
             } while(--len);
-
+			++m_span_cnt;
             return base_type::allocator().span();
         }
 
     private:
         WrapModeX m_wrap_mode_x;
         WrapModeY m_wrap_mode_y;
+		unsigned m_len_y;
+		unsigned m_span_cnt;
     };
 
 

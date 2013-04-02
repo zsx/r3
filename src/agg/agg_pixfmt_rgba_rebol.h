@@ -51,7 +51,7 @@ namespace agg
         //--------------------------------------------------------------------
         static AGG_INLINE void premultiply(value_type* p)
         {
-            calc_type a = 255 - p[Order::A];
+            calc_type a = p[Order::A];
             if(a < ColorT::base_mask)
             {
                 if(a == 0)
@@ -59,9 +59,9 @@ namespace agg
                     p[Order::R] = p[Order::G] = p[Order::B] = 0;
                     return;
                 }
-                p[Order::R] = value_type((p[Order::R] * a) >> ColorT::base_shift);
-                p[Order::G] = value_type((p[Order::G] * a) >> ColorT::base_shift);
-                p[Order::B] = value_type((p[Order::B] * a) >> ColorT::base_shift);
+                p[Order::R] = value_type((p[Order::R] * a + ColorT::base_mask) >> ColorT::base_shift);
+                p[Order::G] = value_type((p[Order::G] * a + ColorT::base_mask) >> ColorT::base_shift);
+                p[Order::B] = value_type((p[Order::B] * a + ColorT::base_mask) >> ColorT::base_shift);
             }
         }
 
@@ -69,7 +69,7 @@ namespace agg
         //--------------------------------------------------------------------
         static AGG_INLINE void demultiply(value_type* p)
         {
-            calc_type a = 255 - p[Order::A];
+            calc_type a = p[Order::A];
             if(a < ColorT::base_mask)
             {
                 if(a == 0)
@@ -156,11 +156,11 @@ namespace agg
             calc_type r = p[Order::R];
             calc_type g = p[Order::G];
             calc_type b = p[Order::B];
-            calc_type a = 255 - p[Order::A];
+            calc_type a = p[Order::A];
             p[Order::R] = (value_type)(((cr - r) * alpha + (r << base_shift)) >> base_shift);
             p[Order::G] = (value_type)(((cg - g) * alpha + (g << base_shift)) >> base_shift);
             p[Order::B] = (value_type)(((cb - b) * alpha + (b << base_shift)) >> base_shift);
-            p[Order::A] = 255 - (value_type)((alpha + a) - ((alpha * a + base_mask) >> base_shift));
+            p[Order::A] = (value_type)((alpha + a) - ((alpha * a + base_mask) >> base_shift));
         }
     };
 
@@ -188,7 +188,7 @@ namespace agg
             p[Order::R] = (value_type)((p[Order::R] * alpha + cr * cover) >> base_shift);
             p[Order::G] = (value_type)((p[Order::G] * alpha + cg * cover) >> base_shift);
             p[Order::B] = (value_type)((p[Order::B] * alpha + cb * cover) >> base_shift);
-            p[Order::A] = 255 - (value_type)(base_mask - ((alpha * (base_mask - (255 - p[Order::A]))) >> base_shift));
+            p[Order::A] = (value_type)(base_mask - ((alpha * (base_mask - p[Order::A])) >> base_shift));
         }
 
         //--------------------------------------------------------------------
@@ -200,7 +200,7 @@ namespace agg
             p[Order::R] = (value_type)(((p[Order::R] * alpha) >> base_shift) + cr);
             p[Order::G] = (value_type)(((p[Order::G] * alpha) >> base_shift) + cg);
             p[Order::B] = (value_type)(((p[Order::B] * alpha) >> base_shift) + cb);
-            p[Order::A] = 255 - (value_type)(base_mask - ((alpha * (base_mask - (255 - p[Order::A]))) >> base_shift));
+            p[Order::A] = (value_type)(base_mask - ((alpha * (base_mask - p[Order::A])) >> base_shift));
         }
     };
 
@@ -282,7 +282,7 @@ namespace agg
                     p[order_type::R] = cr;
                     p[order_type::G] = cg;
                     p[order_type::B] = cb;
-                    p[order_type::A] = 255 - base_mask;
+                    p[order_type::A] = base_mask;
                 }
                 else
                 {
@@ -587,7 +587,7 @@ namespace agg
                     ((value_type*)&v)[order_type::R] = c.r;
                     ((value_type*)&v)[order_type::G] = c.g;
                     ((value_type*)&v)[order_type::B] = c.b;
-                    ((value_type*)&v)[order_type::A] = 255 - c.a;
+                    ((value_type*)&v)[order_type::A] = c.a;
                     do
                     {
                         *(pixel_type*)p = v;
@@ -638,7 +638,7 @@ namespace agg
                     ((value_type*)&v)[order_type::R] = c.r;
                     ((value_type*)&v)[order_type::G] = c.g;
                     ((value_type*)&v)[order_type::B] = c.b;
-                    ((value_type*)&v)[order_type::A] = 255 - c.a;
+                    ((value_type*)&v)[order_type::A] = c.a;
                     do
                     {
                         *(pixel_type*)p = v;
@@ -784,7 +784,7 @@ namespace agg
                         p[order_type::R] = c.r;
                         p[order_type::G] = c.g;
                         p[order_type::B] = c.b;
-                        p[order_type::A] = 255 - base_mask;
+                        p[order_type::A] = base_mask;
                     }
                     else
                     {
@@ -817,7 +817,7 @@ namespace agg
                         p[order_type::R] = c.r;
                         p[order_type::G] = c.g;
                         p[order_type::B] = c.b;
-                        p[order_type::A] = 255 - base_mask;
+                        p[order_type::A] = base_mask;
                     }
                     else
                     {
@@ -1050,7 +1050,7 @@ namespace agg
                                                 psrc[src_order::R],
                                                 psrc[src_order::G],
                                                 psrc[src_order::B],
-                                                255 - psrc[src_order::A]);
+                                                psrc[src_order::A]);
                     psrc += incp;
                     pdst += incp;
                 }
@@ -1064,7 +1064,7 @@ namespace agg
                                                 psrc[src_order::R],
                                                 psrc[src_order::G],
                                                 psrc[src_order::B],
-                                                255 - psrc[src_order::A],
+                                                psrc[src_order::A],
                                                 cover);
                     psrc += incp;
                     pdst += incp;

@@ -25,8 +25,7 @@ namespace agg
     //========================================span_image_resample_rgba_affine
     template<class ColorT,
              class Order, 
-             class Allocator = span_allocator<ColorT>,
-			 class Transformator = trans_perspective > 
+             class Allocator = span_allocator<ColorT> > 
     class span_image_resample_rgba_affine : 
     public span_image_resample_affine<ColorT, Allocator>
     {
@@ -34,7 +33,6 @@ namespace agg
         typedef ColorT color_type;
         typedef Order order_type;
         typedef Allocator alloc_type;
-		typedef Transformator trans_type;
         typedef span_image_resample_affine<color_type, alloc_type> base_type;
         typedef typename base_type::interpolator_type interpolator_type;
         typedef typename color_type::value_type value_type;
@@ -55,19 +53,7 @@ namespace agg
                                         const color_type& back_color,
                                         interpolator_type& inter,
                                         const image_filter_lut& filter) :
-            base_type(alloc, src, back_color, inter, filter),
-			m_trans_dst(m_trans_dst)
-        {}
-
-        //--------------------------------------------------------------------
-        span_image_resample_rgba_affine(alloc_type& alloc,
-                                        const rendering_buffer& src,
-										const rendering_buffer& dst,
-                                        interpolator_type& inter,
-                                        const image_filter_lut& filter,
-										trans_type& trans_dst) :
-            base_type(alloc, src, dst, inter, filter),
-			m_trans_dst(trans_dst)
+            base_type(alloc, src, back_color, inter, filter) 
         {}
 
 
@@ -78,21 +64,10 @@ namespace agg
                                             y + base_type::filter_dy_dbl(), len);
 
             long_type fg[4];
-
-            value_type back_r;
-            value_type back_g;
-            value_type back_b;
-            value_type back_a;
-
-			const rendering_buffer& bg_buffer = base_type::destination_image();
-
-			const color_type* bg_color = &base_type::background_color();
-			if (bg_color){
-				back_r = base_type::background_color().r;
-				back_g = base_type::background_color().g;
-				back_b = base_type::background_color().b;
-				back_a = base_type::background_color().a;
-			}
+            value_type back_r = base_type::background_color().r;
+            value_type back_g = base_type::background_color().g;
+            value_type back_b = base_type::background_color().b;
+            value_type back_a = base_type::background_color().a;
 
             color_type* span = base_type::allocator().span();
 
@@ -105,36 +80,8 @@ namespace agg
 
             const int16* weight_array = base_type::filter().weight_array();
 
-			dda2_line_interpolator li_x;
-			dda2_line_interpolator li_y;
-if (!bg_color){
-            double tx = x;
-            double ty = y;
-
-            m_trans_dst.transform(&tx, &ty);
-            int x1 = int(tx);
-            int y1 = int(ty);
-
-            tx = x + len;
-            ty = y;
-            m_trans_dst.transform(&tx, &ty);
-
-            li_x = dda2_line_interpolator(x1, int(tx), len);
-            li_y = dda2_line_interpolator(y1, int(ty), len);
-}
-
             do
             {
-				if (!bg_color){
-					const value_type *bg_ptr = (const value_type*)bg_buffer.row(li_y.y()) + ((li_x.y()) << 2);
-					++li_x;
-					++li_y;
-					back_r = bg_ptr[Order::R];
-					back_g = bg_ptr[Order::G];
-					back_b = bg_ptr[Order::B];
-					back_a = 255 - bg_ptr[Order::A];
-				}
-
                 base_type::interpolator().coordinates(&x, &y);
 
                 x += base_type::filter_dx_int() - radius_x;
@@ -156,55 +103,31 @@ if (!bg_color){
                     int weight_y = weight_array[y_hr];
                     int x_lr = x_lr_ini;
                     int x_hr = x_hr_ini;
-                    if(y_lr >= 0 && y_lr <= maxy)
-                    {
-                        const value_type* fg_ptr = (const value_type*)
-                            base_type::source_image().row(y_lr) + (x_lr << 2);
-                        do
-                        {
-                            int weight = (weight_y * weight_array[x_hr] + 
-                                         image_filter_size / 2) >> 
-                                         downscale_shift;
+					
+					const value_type* fg_ptr = (const value_type*)
+						base_type::source_image().row(MIN(MAX(0,y_lr), maxy)) +
+							(MIN(MAX(0,x_lr), maxx) << 2);
+								
+					do
+					{
+						int weight = (weight_y * weight_array[x_hr] + 
+									 image_filter_size / 2) >> 
+									 downscale_shift;
 
-                            if(x_lr >= 0 && x_lr <= maxx)
-                            {
-                                fg[0] += fg_ptr[0] * weight;
-                                fg[1] += fg_ptr[1] * weight;
-                                fg[2] += fg_ptr[2] * weight;
-                                fg[3] += fg_ptr[3] * weight;
-                            }
-                            else
-                            {
-                                fg[order_type::R] += back_r * weight;
-                                fg[order_type::G] += back_g * weight;
-                                fg[order_type::B] += back_b * weight;
-                                fg[order_type::A] += back_a * weight;
-                            }
-                            total_weight += weight;
-                            fg_ptr += 4;
-                            x_hr   += base_type::m_rx_inv;
-                            ++x_lr;
-                        }
-                        while(x_hr < filter_size);
-                    }
-                    else
-                    {
-                        do
-                        {
-                            int weight = (weight_y * weight_array[x_hr] + 
-                                         image_filter_size / 2) >> 
-                                         downscale_shift;
+						fg[order_type::B] += fg_ptr[0] * weight;
+						fg[order_type::G] += fg_ptr[1] * weight;
+						fg[order_type::R] += fg_ptr[2] * weight;
+						fg[order_type::A] += fg_ptr[3] * weight;
 
-                            total_weight      += weight;
-                            fg[order_type::R] += back_r * weight;
-                            fg[order_type::G] += back_g * weight;
-                            fg[order_type::B] += back_b * weight;
-                            fg[order_type::A] += back_a * weight;
-                            x_hr              += base_type::m_rx_inv;
-                        }
-                        while(x_hr < filter_size);
-                    }
-                    y_hr += base_type::m_ry_inv;
+						total_weight += weight;
+						x_hr += base_type::m_rx_inv;
+						++x_lr;
+						
+						if ((x_lr > 0) && (x_lr <= maxx)) fg_ptr += 4;
+					}
+					while(x_hr < filter_size);
+					
+					y_hr += base_type::m_ry_inv;
                     ++y_lr;
                 }
                 while(y_hr < filter_size);
@@ -219,20 +142,18 @@ if (!bg_color){
                 if(fg[2] < 0) fg[2] = 0;
                 if(fg[3] < 0) fg[3] = 0;
 
-			fg[order_type::A] = 255 - fg[order_type::A];
-
-			//premultiply if needed
-            if(fg[order_type::A] != ColorT::base_mask)
-            {
-                if(fg[order_type::A] == 0)
-                {
-                    fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
-                } else {
-					fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+				//premultiply if needed
+				if(fg[order_type::A] != ColorT::base_mask)
+				{
+					if(fg[order_type::A] == 0)
+					{
+						fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+					} else {
+						fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+					}
 				}
-            }
 
                 if(fg[order_type::A] > base_mask)         fg[order_type::A] = base_mask;
                 if(fg[order_type::R] > fg[order_type::A]) fg[order_type::R] = fg[order_type::A];
@@ -249,8 +170,6 @@ if (!bg_color){
             } while(--len);
             return base_type::allocator().span();
         }
-		private:
-			trans_type m_trans_dst;
     };
 
 
@@ -263,8 +182,7 @@ if (!bg_color){
     template<class ColorT,
              class Order, 
              class Interpolator, 
-             class Allocator = span_allocator<ColorT>,
-			  class Transformator = trans_perspective >
+             class Allocator = span_allocator<ColorT> >
     class span_image_resample_rgba : 
     public span_image_resample<ColorT, Interpolator, Allocator>
     {
@@ -273,7 +191,6 @@ if (!bg_color){
         typedef Order order_type;
         typedef Interpolator interpolator_type;
         typedef Allocator alloc_type;
-		typedef Transformator trans_type;
         typedef span_image_resample<color_type, interpolator_type, alloc_type> base_type;
         typedef typename color_type::value_type value_type;
         typedef typename color_type::long_type long_type;
@@ -295,21 +212,8 @@ if (!bg_color){
                                  const color_type& back_color,
                                  interpolator_type& inter,
                                  const image_filter_lut& filter) :
-            base_type(alloc, src, back_color, inter, filter),
-			m_trans_dst(m_trans_dst)
+            base_type(alloc, src, back_color, inter, filter)
         {}
-
-		//--------------------------------------------------------------------
-        span_image_resample_rgba(alloc_type& alloc,
-                                 const rendering_buffer& src, 
-								 const rendering_buffer& dst,
-                                 interpolator_type& inter,
-                                 const image_filter_lut& filter,
-								 trans_type& trans_dst) :
-			base_type(alloc, src, dst, inter, filter),
-			m_trans_dst(trans_dst)
-        {}
-
 
         //--------------------------------------------------------------------
         color_type* generate(int x, int y, unsigned len)
@@ -318,57 +222,21 @@ if (!bg_color){
             base_type::interpolator().begin(x + base_type::filter_dx_dbl(), 
                                             y + base_type::filter_dy_dbl(), len);
             long_type fg[4];
-
-            value_type back_r;
-            value_type back_g;
-            value_type back_b;
-            value_type back_a;
-
-			const rendering_buffer& bg_buffer = base_type::destination_image();
-
-			const color_type* bg_color = &base_type::background_color();
-			if (bg_color){
-				back_r = base_type::background_color().r;
-				back_g = base_type::background_color().g;
-				back_b = base_type::background_color().b;
-				back_a = base_type::background_color().a;
-			}
+            value_type back_r = base_type::background_color().r;
+            value_type back_g = base_type::background_color().g;
+            value_type back_b = base_type::background_color().b;
+            value_type back_a = base_type::background_color().a;
 
             int diameter = base_type::filter().diameter();
             int filter_size = diameter << image_subpixel_shift;
 
             const int16* weight_array = base_type::filter().weight_array();
 
-			dda2_line_interpolator li_x;
-			dda2_line_interpolator li_y;
-if (!bg_color){
-            double tx = x;
-            double ty = y;
-
-            m_trans_dst.transform(&tx, &ty);
-            int x1 = int(tx);
-            int y1 = int(ty);
-
-            tx = x + len;
-            ty = y;
-            m_trans_dst.transform(&tx, &ty);
-
-            li_x = dda2_line_interpolator(x1, int(tx), len);
-            li_y = dda2_line_interpolator(y1, int(ty), len);
-}
+			int maxx = base_type::source_image().width() - 1;
+			int maxy = base_type::source_image().height() - 1;
 
             do
             {
-				if (!bg_color){
-					const value_type *bg_ptr = (const value_type*)bg_buffer.row(li_y.y()) + ((li_x.y() << 2));
-					++li_x;
-					++li_y;
-					back_r = bg_ptr[Order::R];
-					back_g = bg_ptr[Order::G];
-					back_b = bg_ptr[Order::B];
-					back_a = 255 - bg_ptr[Order::A];
-				}
-
                 int rx;
                 int ry;
                 int rx_inv = image_subpixel_size;
@@ -407,8 +275,6 @@ if (!bg_color){
 
                 int radius_x = (diameter * rx) >> 1;
                 int radius_y = (diameter * ry) >> 1;
-                int maxx = base_type::source_image().width() - 1;
-                int maxy = base_type::source_image().height() - 1;
 
                 x += base_type::filter_dx_int() - radius_x;
                 y += base_type::filter_dy_int() - radius_y;
@@ -430,54 +296,30 @@ if (!bg_color){
                     int weight_y = weight_array[y_hr];
                     int x_lr = x_lr_ini;
                     int x_hr = x_hr_ini;
-                    if(y_lr >= 0 && y_lr <= maxy)
-                    {
-                        const value_type* fg_ptr = (const value_type*)
-                            base_type::source_image().row(y_lr) + (x_lr << 2);
-                        do
-                        {
-                            int weight = (weight_y * weight_array[x_hr] + 
-                                         image_filter_size / 2) >> 
-                                         downscale_shift;
 
-                            if(x_lr >= 0 && x_lr <= maxx)
-                            {
-                                fg[0] += fg_ptr[0] * weight;
-                                fg[1] += fg_ptr[1] * weight;
-                                fg[2] += fg_ptr[2] * weight;
-                                fg[3] += fg_ptr[3] * weight;
-                            }
-                            else
-                            {
-                                fg[order_type::R] += back_r * weight;
-                                fg[order_type::G] += back_g * weight;
-                                fg[order_type::B] += back_b * weight;
-                                fg[order_type::A] += back_a * weight;
-                            }
-                            total_weight += weight;
-                            fg_ptr += 4;
-                            x_hr   += rx_inv;
-                            ++x_lr;
-                        }
-                        while(x_hr < filter_size);
-                    }
-                    else
-                    {
-                        do
-                        {
-                            int weight = (weight_y * weight_array[x_hr] + 
-                                         image_filter_size / 2) >> 
-                                         downscale_shift;
+					const value_type* fg_ptr = (const value_type*)
+						base_type::source_image().row(MIN(MAX(0,y_lr), maxy)) +
+							(MIN(MAX(0,x_lr), maxx) << 2);
 
-                            total_weight      += weight;
-                            fg[order_type::R] += back_r * weight;
-                            fg[order_type::G] += back_g * weight;
-                            fg[order_type::B] += back_b * weight;
-                            fg[order_type::A] += back_a * weight;
-                            x_hr              += rx_inv;
-                        }
-                        while(x_hr < filter_size);
-                    }
+							
+					do
+					{
+						int weight = (weight_y * weight_array[x_hr] + 
+									 image_filter_size / 2) >> 
+									 downscale_shift;
+
+						fg[order_type::B] += fg_ptr[0] * weight;
+						fg[order_type::G] += fg_ptr[1] * weight;
+						fg[order_type::R] += fg_ptr[2] * weight;
+						fg[order_type::A] += fg_ptr[3] * weight;
+
+						total_weight += weight;
+						x_hr   += rx_inv;
+						++x_lr;
+						if ((x_lr > 0) && (x_lr <= maxx)) fg_ptr += 4;
+					}
+					while(x_hr < filter_size);
+
                     y_hr += ry_inv;
                     ++y_lr;
                 }
@@ -493,20 +335,18 @@ if (!bg_color){
                 if(fg[2] < 0) fg[2] = 0;
                 if(fg[3] < 0) fg[3] = 0;
 
-			fg[order_type::A] = 255 - fg[order_type::A];
-
-			//premultiply if needed
-            if(fg[order_type::A] != ColorT::base_mask)
-            {
-                if(fg[order_type::A] == 0)
-                {
-                    fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
-                } else {
-					fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+				//premultiply if needed
+				if(fg[order_type::A] != ColorT::base_mask)
+				{
+					if(fg[order_type::A] == 0)
+					{
+						fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+					} else {
+						fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+					}
 				}
-            }
 
                 if(fg[order_type::A] > base_mask)         fg[order_type::A] = base_mask;
                 if(fg[order_type::R] > fg[order_type::R]) fg[order_type::R] = fg[order_type::R];
@@ -523,10 +363,7 @@ if (!bg_color){
             } while(--len);
             return base_type::allocator().span();
         }
-
-		private:
-			trans_type m_trans_dst;
-
+        
     };
 
 }

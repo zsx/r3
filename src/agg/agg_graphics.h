@@ -102,7 +102,7 @@ namespace agg
 	   {
 		  if(argb[1] == c.r && argb[2] == c.g && argb[3] == c.b)
 		  {
-			  argb[0] = 255; // transparent
+			  argb[0] = 0; // transparent
 			  argb[1] = 0;
 			  argb[2] = 0;
 			  argb[3] = 0;
@@ -116,7 +116,7 @@ namespace agg
 			  bgra[0] = 0;
 			  bgra[1] = 0;
 			  bgra[2] = 0;
-			  bgra[3] = 255; // transparent
+			  bgra[3] = 0; // transparent
 		  }
 	   }
 #endif

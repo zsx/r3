@@ -43,9 +43,9 @@ namespace agg
         }
         
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         { 
-            m_span_gen->prepare(max_span_len); 
+            m_span_gen->prepare(max_span_len, num_spans); 
         }
 #ifdef AGG_OPENGL
         void finish() {}
@@ -140,7 +140,7 @@ namespace agg
 
         //--------------------------------------------------------------------
 #ifdef AGG_OPENGL
-        void prepare(unsigned) {
+        void prepare(unsigned, unsigned) {
                 m_ren->ren().begin_va();
         }
 
@@ -148,7 +148,7 @@ namespace agg
                 m_ren->ren().end_va();
         }
 #else
-        void prepare(unsigned) {}
+        void prepare(unsigned, unsigned) {}
 #endif
 
         //--------------------------------------------------------------------
@@ -209,9 +209,9 @@ namespace agg
         }
         
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         { 
-            m_span_gen->prepare(max_span_len); 
+            m_span_gen->prepare(max_span_len, num_spans); 
         }
 #ifdef AGG_OPENGL
 		void finish() {}
@@ -293,9 +293,9 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         { 
-            m_span_gen->prepare(max_span_len); 
+            m_span_gen->prepare(max_span_len, num_spans); 
         }
 
 #ifdef AGG_OPENGL
@@ -379,9 +379,9 @@ namespace agg
         }
         
         //--------------------------------------------------------------------
-        void prepare(unsigned max_span_len) 
+        void prepare(unsigned max_span_len, unsigned num_spans) 
         { 
-            m_span_gen->prepare(max_span_len); 
+            m_span_gen->prepare(max_span_len, num_spans); 
         }
 
 #ifdef AGG_OPENGL
@@ -463,7 +463,7 @@ namespace agg
 
         //--------------------------------------------------------------------
 #ifdef AGG_OPENGL
-        void prepare(unsigned) {
+        void prepare(unsigned, unsigned) {
                 m_ren->ren().begin_va();
         }
 
@@ -471,7 +471,7 @@ namespace agg
                 m_ren->ren().end_va();
         }
 #else
-        void prepare(unsigned) {}
+        void prepare(unsigned, unsigned) {}
 #endif
 
         //--------------------------------------------------------------------

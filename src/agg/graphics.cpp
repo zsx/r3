@@ -1,7 +1,7 @@
 //exported functions
 #include "agg_graphics.h"
 #undef IS_ERROR
-//extern "C" void Reb_Print(char *fmt, ...);//output just for testing
+extern "C" void RL_Print(char *fmt, ...);//output just for testing
 extern "C" void* Rich_Text;
 extern "C" REBINT Draw_Gob(void *graphics, REBSER *block, REBSER *args);
 
@@ -24,9 +24,9 @@ namespace agg
 		((agg_graphics*)gr)->agg_arc(c.x, c.y, r.x, r.y, ang1, ang2, closed);
 	}
 
-	extern "C" void agg_arrow(void* gr, REBXYF mode, REBYTE* col)
+	extern "C" void agg_arrow(void* gr, REBXYF mode, REBCNT col)
 	{
-		((agg_graphics*)gr)->agg_arrows(col, (REBINT)mode.x, (REBINT)mode.y);
+		((agg_graphics*)gr)->agg_arrows((col) ? (REBYTE*)&col : NULL, (REBINT)mode.x, (REBINT)mode.y);
 	}
 
 	extern "C" void agg_begin_poly (void* gr, REBXYF p)
@@ -80,10 +80,10 @@ namespace agg
 		((agg_graphics*)gr)->agg_end_bspline(step, closed);
 	}
 
-	extern "C" void agg_fill_pen(void* gr, REBYTE* col)
+	extern "C" void agg_fill_pen(void* gr, REBCNT col)
 	{
 		if (col)
-			((agg_graphics*)gr)->agg_fill_pen(col[0], col[1], col[2], 255 - col[3]);
+			((agg_graphics*)gr)->agg_fill_pen(((REBYTE*)&col)[0], ((REBYTE*)&col)[1], ((REBYTE*)&col)[2], ((REBYTE*)&col)[3]);
 		else
 			((agg_graphics*)gr)->agg_fill_pen(0, 0, 0, 0);
 
@@ -109,14 +109,15 @@ namespace agg
 
     extern "C" void agg_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REBXYF range, REBDEC angle, REBXYF scale, REBSER* colors){
 #ifndef AGG_OPENGL
-        unsigned char colorTuples[256*4+1] = {2, 0,0,0,0, 0,0,0,0, 255,255,255,0}; //max number of color tuples is 256 + one length information char
+        unsigned char colorTuples[256*4+1] = {2, 0,0,0,255, 0,0,0,255, 255,255,255,255}; //max number of color tuples is 256 + one length information char
 		REBDEC offsets[256] = {0.0 , 0.0, 1.0};
 
         //gradient fill
         RXIARG val;
         REBCNT type,i,j,k;
-        REBDEC* matrix = new REBDEC[6];
-
+        REBDEC *matrix = new REBDEC[6];
+		REBCNT *ptuples = (REBCNT*)&colorTuples[5];
+		
         for (i = 0, j = 1, k = 5; type = RL_GET_VALUE(colors, i, &val); i++) {
             if (type == RXT_DECIMAL || type == RXT_INTEGER) {
                 offsets[j] = (type == RXT_DECIMAL) ? val.dec64 : val.int64;
@@ -130,7 +131,7 @@ namespace agg
 
                 j++;
             } else if (type == RXT_TUPLE) {
-                memcpy(&colorTuples[k], val.bytes + 1, 4);
+				*ptuples++ = RXI_COLOR_TUPLE(val);
                 k+=4;
             }
         }
@@ -160,10 +161,10 @@ namespace agg
 		((agg_graphics*)gr)->agg_image_filter(type, mode, blur);
 	}
 
-	extern "C" void agg_image_options(void* gr, REBYTE* keyCol, REBINT border)
+	extern "C" void agg_image_options(void* gr, REBCNT keyCol, REBINT border)
 	{
 	    if (keyCol)
-            ((agg_graphics*)gr)->agg_image_options(keyCol[0], keyCol[1], keyCol[2], 255 - keyCol[3], border);
+            ((agg_graphics*)gr)->agg_image_options(((REBYTE*)&keyCol)[0], ((REBYTE*)&keyCol)[1], ((REBYTE*)&keyCol)[2], ((REBYTE*)&keyCol)[3], border);
         else
             ((agg_graphics*)gr)->agg_image_options(0,0,0,0, border);
 	}
@@ -188,7 +189,10 @@ namespace agg
 			}
 
             if (!len) return;
-            if (len == 1) ((agg_graphics*)gr)->agg_image(img, p[0].pair.x, p[0].pair.y, w, h);
+            if (len == 1) {
+				((agg_graphics*)gr)->agg_image(img, p[0].pair.x, p[0].pair.y, w, h);
+				return;
+			}
 
             ((agg_graphics*)gr)->agg_begin_poly(p[0].pair.x, p[0].pair.y);
 
@@ -230,9 +234,9 @@ namespace agg
 		((agg_graphics*)gr)->agg_dash_join((line_join_e)mode);
 	}
 
-	extern "C" void agg_line_pattern(void* gr, REBYTE* col, REBDEC* patterns)
+	extern "C" void agg_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 	{
-        ((agg_graphics*)gr)->agg_line_pattern(col, patterns);
+        ((agg_graphics*)gr)->agg_line_pattern((col) ? (REBYTE*)&col : NULL, patterns);
 	}
 
 	extern "C" void agg_line_width(void* gr, REBDEC width, REBINT mode)
@@ -263,10 +267,10 @@ namespace agg
             delete[] matrix;
 	}
 
-	extern "C" void agg_pen(void* gr, REBYTE* col)
+	extern "C" void agg_pen(void* gr, REBCNT col)
 	{
 		if (col)
-			((agg_graphics*)gr)->agg_pen(col[0], col[1], col[2], 255 - col[3]);
+			((agg_graphics*)gr)->agg_pen(((REBYTE*)&col)[0], ((REBYTE*)&col)[1], ((REBYTE*)&col)[2], ((REBYTE*)&col)[3]);
 		else
 			((agg_graphics*)gr)->agg_pen(0,0,0,0);
 
@@ -333,10 +337,10 @@ namespace agg
 		((agg_graphics*)gr)->agg_translate(p.x, p.y);
 	}
 
-	extern "C" void agg_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBYTE* c1, REBYTE* c2, REBYTE* c3, REBDEC dilation)
+	extern "C" void agg_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCNT c2, REBCNT c3, REBDEC dilation)
 	{
 #ifndef AGG_OPENGL	
-		((agg_graphics*)gr)->agg_gtriangle(p1, p2, p3, c1, c2, c3, dilation);
+		((agg_graphics*)gr)->agg_gtriangle(p1, p2, p3, (c1) ? (REBYTE*)&c1 : NULL, (REBYTE*)&c2, (REBYTE*)&c3, dilation);
 #endif
 	}
 

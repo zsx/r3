@@ -18,7 +18,7 @@
 
 #include "agg_color_rgba.h"
 #include "agg_span_image_resample.h"
-extern "C" void Reb_Print(char* fmt, ...);//output just for testing
+
 namespace agg
 {
 
@@ -119,10 +119,10 @@ namespace agg
                                      image_filter_size / 2) >> 
                                      downscale_shift;
 
-                        fg[0] += fg_ptr[0] * weight;
-                        fg[1] += fg_ptr[1] * weight;
-                        fg[2] += fg_ptr[2] * weight;
-                        fg[3] += fg_ptr[3] * weight;
+                        fg[order_type::B] += fg_ptr[0] * weight;
+                        fg[order_type::G] += fg_ptr[1] * weight;
+                        fg[order_type::R] += fg_ptr[2] * weight;
+                        fg[order_type::A] += fg_ptr[3] * weight;
                         total_weight += weight;
                         x_hr   += base_type::m_rx_inv;
                         x_lr = ++m_wrap_mode_x;
@@ -142,8 +142,6 @@ namespace agg
                 if(fg[1] < 0) fg[1] = 0;
                 if(fg[2] < 0) fg[2] = 0;
                 if(fg[3] < 0) fg[3] = 0;
-
-				fg[order_type::A] = 255 - fg[order_type::A];
 
 			//premultiply if needed
             if(fg[order_type::A] != ColorT::base_mask)
@@ -167,7 +165,7 @@ namespace agg
                 span->g = (value_type)fg[order_type::G];
                 span->b = (value_type)fg[order_type::B];
                 span->a = (value_type)fg[order_type::A];
-//Reb_Print("resample: %d.%d.%d.%d", fg[order_type::R], fg[order_type::G], fg[order_type::B],fg[order_type::A]);
+
                 ++span;
                 ++intr;
             } while(--len);
@@ -236,6 +234,13 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
+        void prepare(unsigned max_span_len, unsigned num_spans) 
+        { 
+            base_type::prepare(max_span_len, num_spans); 
+			m_len_y = num_spans - base_type::filter().radius();
+			m_span_cnt = 0;
+        }
+		
         color_type* generate(int x, int y, unsigned len)
         {
             color_type* span = base_type::allocator().span();
@@ -245,6 +250,7 @@ namespace agg
             long_type fg[4];
 
             int diameter = base_type::filter().diameter();
+			int radius = base_type::filter().radius();
             int filter_size = diameter << image_subpixel_shift;
             const int16* weight_array = base_type::filter().weight_array();
 
@@ -296,7 +302,8 @@ namespace agg
 
                 fg[0] = fg[1] = fg[2] = fg[3] = image_filter_size / 2;
 
-                int y_lr  = m_wrap_mode_y(y >> image_subpixel_shift);
+				int y_lr_ini = y >> image_subpixel_shift;
+                int y_lr  = m_wrap_mode_y(y_lr_ini);
                 int y_hr = ((image_subpixel_mask - (y & image_subpixel_mask)) * 
                                ry_inv) >> 
                                    image_subpixel_shift;
@@ -311,24 +318,40 @@ namespace agg
                     int weight_y = weight_array[y_hr];
                     int x_lr = m_wrap_mode_x(x_lr_ini);
                     int x_hr = x_hr_ini;
-                    const value_type* row_ptr = (const value_type*)base_type::source_image().row(y_lr);
+					int tmpx = x_lr_ini;
+					int ypos = y_lr;
+					
+					if (y_lr_ini < 0)
+						ypos = 0;
+					else if ((ypos == 0) && (m_span_cnt > m_len_y))
+						ypos = maxy;
+
+                    const value_type* row_ptr = (const value_type*)base_type::source_image().row(ypos);
                     do
                     {
-                        const value_type* fg_ptr = row_ptr + (x_lr << 2);
+						int xpos = x_lr;
+						if (tmpx < 0)
+							xpos = 0;
+						else if ((len <= radius) && (tmpx > maxx))
+							xpos = maxx;
+
+                        const value_type* fg_ptr = row_ptr + (xpos << 2);
                         int weight = (weight_y * weight_array[x_hr] + 
                                      image_filter_size / 2) >> 
                                      downscale_shift;
-                        fg[0] += fg_ptr[0] * weight;
-                        fg[1] += fg_ptr[1] * weight;
-                        fg[2] += fg_ptr[2] * weight;
-                        fg[3] += fg_ptr[3] * weight;
+                        fg[Order::B] += fg_ptr[0] * weight;
+                        fg[Order::G] += fg_ptr[1] * weight;
+                        fg[Order::R] += fg_ptr[2] * weight;
+                        fg[Order::A] += fg_ptr[3] * weight;
                         total_weight += weight;
                         x_hr   += rx_inv;
                         x_lr = ++m_wrap_mode_x;
+						++tmpx;
                     }
                     while(x_hr < filter_size);
                     y_hr += ry_inv;
                     y_lr = ++m_wrap_mode_y;
+					++y_lr_ini;
                 }
                 while(y_hr < filter_size);
 
@@ -342,20 +365,18 @@ namespace agg
                 if(fg[2] < 0) fg[2] = 0;
                 if(fg[3] < 0) fg[3] = 0;
 
-				fg[order_type::A] = 255 - fg[order_type::A];
-
-			//premultiply if needed
-            if(fg[order_type::A] != ColorT::base_mask)
-            {
-                if(fg[order_type::A] == 0)
-                {
-                    fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
-                } else {
-					fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+				//premultiply if needed
+				if(fg[order_type::A] != ColorT::base_mask)
+				{
+					if(fg[order_type::A] == 0)
+					{
+						fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+					} else {
+						fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+					}
 				}
-            }
 
                 if(fg[order_type::A] > base_mask)         fg[order_type::A] = base_mask;
                 if(fg[order_type::R] > fg[order_type::A]) fg[order_type::R] = fg[order_type::A];
@@ -370,12 +391,15 @@ namespace agg
                 ++span;
                 ++intr;
             } while(--len);
+			++m_span_cnt;
             return base_type::allocator().span();
         }
 
     private:
         WrapModeX m_wrap_mode_x;
         WrapModeY m_wrap_mode_y;
+		unsigned m_len_y;
+		unsigned m_span_cnt;
     };
 
 }

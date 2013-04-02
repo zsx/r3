@@ -49,13 +49,13 @@ namespace agg
 		((rich_text*)rt)->rt_push();
 	}
 
-	extern "C" void rt_color(void* rt, REBYTE* color)
+	extern "C" void rt_color(void* rt, REBCNT color)
 	{
 		font* font = ((rich_text*)rt)->rt_get_font();
-		font->color[0] = color[0];
-		font->color[1] = color[1];
-		font->color[2] = color[2];
-		font->color[3] = color[3];
+		font->color[0] = ((REBYTE*)&color)[0];
+		font->color[1] = ((REBYTE*)&color)[1];
+		font->color[2] = ((REBYTE*)&color)[2];
+		font->color[3] = ((REBYTE*)&color)[3];
 		((rich_text*)rt)->rt_push();
 		((rich_text*)rt)->rt_color_change();
 	}
@@ -133,7 +133,7 @@ namespace agg
 		((rich_text*)rt)->rt_push();
 	}
 
-	extern "C" void rt_shadow(void* rt, REBXYF d, REBYTE* color, REBINT blur)
+	extern "C" void rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 	{
 		font* font = ((rich_text*)rt)->rt_get_font();
 
@@ -141,7 +141,7 @@ namespace agg
 		font->shadow_y = ROUND_TO_INT(d.y);
 		font->shadow_blur = blur;
 
-		memcpy(font->shadow_color, color, 4);
+		memcpy(font->shadow_color, (REBYTE*)&color, 4);
 
 		((rich_text*)rt)->rt_push();
 	}
