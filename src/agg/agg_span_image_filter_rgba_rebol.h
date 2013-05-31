@@ -93,10 +93,10 @@ namespace agg
                    x <= maxx && y <= maxy) 
                 {
                     fg_ptr = (const value_type*)base_type::source_image().row(y) + (x << 2);
-                    fg[order_type::B] = *fg_ptr++;
-                    fg[order_type::G] = *fg_ptr++;
-                    fg[order_type::R] = *fg_ptr++;
-                    fg[order_type::A] = *fg_ptr++;
+                    fg[0] = *fg_ptr++;
+                    fg[1] = *fg_ptr++;
+                    fg[2] = *fg_ptr++;
+                    fg[3] = *fg_ptr++;
                 }
                 else
                 {
@@ -209,30 +209,30 @@ namespace agg
 
                     weight = (image_subpixel_size - x_hr) * 
                              (image_subpixel_size - y_hr);
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     weight = x_hr * (image_subpixel_size - y_hr);
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     fg_ptr = (const value_type*)base_type::source_image().next_row(fg_ptr - 8);
 
                     weight = (image_subpixel_size - x_hr) * y_hr;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     weight = x_hr * y_hr;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     fg[0] >>= image_subpixel_shift * 2;
                     fg[1] >>= image_subpixel_shift * 2;
@@ -265,10 +265,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -285,10 +285,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -306,10 +306,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -326,10 +326,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -450,19 +450,19 @@ namespace agg
                               weight_array[y_hr + image_subpixel_size] + 
                               image_filter_size / 2) >> 
                               image_filter_shift;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     weight = (weight_array[x_hr] * 
                               weight_array[y_hr + image_subpixel_size] + 
                               image_filter_size / 2) >> 
                               image_filter_shift;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     fg_ptr = (const value_type*)base_type::source_image().next_row(fg_ptr - 8);
 
@@ -470,19 +470,19 @@ namespace agg
                               weight_array[y_hr] + 
                               image_filter_size / 2) >> 
                               image_filter_shift;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     weight = (weight_array[x_hr] * 
                               weight_array[y_hr] + 
                               image_filter_size / 2) >> 
                               image_filter_shift;
-                    fg[order_type::B] += weight * *fg_ptr++;
-                    fg[order_type::G] += weight * *fg_ptr++;
-                    fg[order_type::R] += weight * *fg_ptr++;
-                    fg[order_type::A] += weight * *fg_ptr++;
+                    fg[0] += weight * *fg_ptr++;
+                    fg[1] += weight * *fg_ptr++;
+                    fg[2] += weight * *fg_ptr++;
+                    fg[3] += weight * *fg_ptr++;
 
                     fg[0] >>= image_filter_shift;
                     fg[1] >>= image_filter_shift;
@@ -494,11 +494,11 @@ namespace agg
 					{
 						if(fg[order_type::A] == 0)
 						{
-							fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+							fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
 						} else {
-							fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-							fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-							fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+							fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+							fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+							fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 						}
 					}
 
@@ -530,10 +530,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -553,10 +553,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -577,10 +577,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[Order::B] += weight * *fg_ptr++;
-                            fg[Order::G] += weight * *fg_ptr++;
-                            fg[Order::R] += weight * *fg_ptr++;
-                            fg[Order::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -600,10 +600,10 @@ namespace agg
                            x_lr <= maxx && y_lr <= maxy)
                         {
                             fg_ptr = (const value_type*)base_type::source_image().row(y_lr) + (x_lr << 2);
-                            fg[order_type::B] += weight * *fg_ptr++;
-                            fg[order_type::G] += weight * *fg_ptr++;
-                            fg[order_type::R] += weight * *fg_ptr++;
-                            fg[order_type::A] += weight * *fg_ptr++;
+                            fg[0] += weight * *fg_ptr++;
+                            fg[1] += weight * *fg_ptr++;
+                            fg[2] += weight * *fg_ptr++;
+                            fg[3] += weight * *fg_ptr++;
                         }
                         else
                         {
@@ -623,11 +623,11 @@ namespace agg
 						{
 							if(fg[order_type::A] == 0)
 							{
-								fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+								fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
 							} else {
-								fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-								fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-								fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+								fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+								fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+								fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 							}
 						}
 
@@ -764,10 +764,10 @@ namespace agg
                                          image_filter_size / 2) >> 
                                          image_filter_shift;
             
-                            fg[order_type::B] += *fg_ptr++ * weight;
-                            fg[order_type::G] += *fg_ptr++ * weight;
-                            fg[order_type::R] += *fg_ptr++ * weight;
-                            fg[order_type::A] += *fg_ptr++ * weight;
+                            fg[0] += *fg_ptr++ * weight;
+                            fg[1] += *fg_ptr++ * weight;
+                            fg[2] += *fg_ptr++ * weight;
+                            fg[3] += *fg_ptr++ * weight;
 
                             x_hr += image_subpixel_size;
 
@@ -793,11 +793,11 @@ namespace agg
             {
                 if(fg[order_type::A] == 0)
                 {
-                    fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+                    fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
                 } else {
-					fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 				}
             }
 
@@ -838,10 +838,10 @@ namespace agg
 									MIN(MAX(0,y_lr),int(base_type::source_image().height())-1)
 								) +
 								((MIN(MAX(0, x_lr), int(base_type::source_image().width())-1)) << 2);
-								fg[order_type::B] += *fg_ptr++ * weight;
-								fg[order_type::G] += *fg_ptr++ * weight;
-								fg[order_type::R] += *fg_ptr++ * weight;
-								fg[order_type::A] += *fg_ptr++ * weight;
+								fg[0] += *fg_ptr++ * weight;
+								fg[1] += *fg_ptr++ * weight;
+								fg[2] += *fg_ptr++ * weight;
+								fg[3] += *fg_ptr++ * weight;
 
                                 x_hr += image_subpixel_size;
                                 x_lr++;
@@ -869,11 +869,11 @@ namespace agg
             {
                 if(fg[order_type::A] == 0)
                 {
-                    fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+                    fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
                 } else {
-					fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-					fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+					fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 				}
             }
 

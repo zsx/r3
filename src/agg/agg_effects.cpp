@@ -1,4 +1,3 @@
-#include "agg_compo.h"
 #include "agg_effects.h"
 
 namespace agg

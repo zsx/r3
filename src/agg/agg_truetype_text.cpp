@@ -1,10 +1,10 @@
 /*
 	Rich-Text prototype module for Rebol/View
-	(currently supports only Win32 platform)
-	author: cyphre@rebol.com
+	author: Richard Smolak (Cyphre)
 */
 
-#include "agg_compo.h"
+#include "agg_graphics.h"
+
 #include "agg_truetype_text.h"
 
 extern "C" void RL_Print(char *fmt, ...);//output just for testing
@@ -99,7 +99,7 @@ namespace agg
 		m_color_changed = 0;
 
         wchar_t *last_text = 0;
-        wchar_t *last_name = 0;
+        REBCHR *last_name = 0;
         unsigned i;
 		for(i = 0; i < m_text_attributes.size(); i++){
 			text_attributes attr = m_text_attributes[i];
@@ -115,12 +115,12 @@ namespace agg
 
 		m_text_attributes.remove_all();
 
-		m_font->name = (wchar_t*)FONT_NAME; //"Arial"
+		m_font->name = FONT_NAME; //"Arial"
 		m_font->name_free = false;
 		m_font->bold = 0;
 		m_font->italic = 0;
 		m_font->underline = 0;
-		m_font->size = 12;
+		m_font->size = 12 * dp_scale.y;
 		m_font->color[0] = 0;
 		m_font->color[1] = 0;
 		m_font->color[2] = 0;
@@ -221,7 +221,7 @@ namespace agg
 		attr.bold = m_font->bold;
 		attr.color = rgba8(m_font->color[0],m_font->color[1],m_font->color[2], m_font->color[3]);
 		attr.italic = m_font->italic;
-		attr.name = (m_font->name) ? m_font->name : (wchar_t *)FONT_NAME;
+		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
 		attr.name_free = m_font->name_free;
 		attr.offset_x = m_font->offset_x;
 		attr.offset_y = m_font->offset_y;
@@ -343,10 +343,10 @@ namespace agg
 			m_feng.weight(FW_DONTCARE);
 		}
 
-		if(m_feng.create_font(attr.name, m_gren)){
+		if(m_feng.create_font((const wchar_t*)attr.name, m_gren)){
 #endif
 #ifdef AGG_FREETYPE
-        if (m_feng.load_font(attr.name, 0, m_gren)){
+        if (m_feng.load_font((const char*)attr.name, 0, m_gren)){
             m_feng.height(attr.size);
 #endif
 #ifdef AGG_WIN32_FONTS
@@ -423,10 +423,10 @@ namespace agg
 				m_feng.weight(FW_DONTCARE);
 
 			}
-			if(m_feng.create_font(attr.name, m_gren)){
+			if(m_feng.create_font((const wchar_t*)attr.name, m_gren)){
 #endif
 #ifdef AGG_FREETYPE
-			if(m_feng.load_font(attr.name, 0, m_gren)){
+			if(m_feng.load_font((const char*)attr.name, 0, m_gren)){
                 m_feng.height(attr.size);
 #endif
 				const wchar_t* p = attr.text;
@@ -583,14 +583,14 @@ namespace agg
 	--------------------------------------------------------------------*/
 	int rich_text::rt_draw_text(int mode, REBXYF* offset)
 	{
-
 		unsigned const attrSize = m_text_attributes.size();
 
 		if (!attrSize) return 0;
 
 		rect clip_box(m_clip_x1, m_clip_y1, m_clip_x2, m_clip_y2);
 
-
+		if (!clip_box.is_valid()) return 0;
+				
 //		m_contour.width(-m_weight.value() * m_height.value() * 0.05);
 
 		int glyph_count = 0;
@@ -633,30 +633,27 @@ namespace agg
 		}
 
 		//set initial offset
-		if (offset !=0){
-			if (attr.isPara){
-				ox=attr.para.origin_x + attr.para.indent_x + offset->x;
-				oy=attr.para.origin_y + offset->y + valign;
-				m_right_hang = attr.para.origin_x + attr.para.margin_x + attr.para.indent_x;
-			}
+		if (attr.isPara){
+			ox = attr.para.origin_x + attr.para.indent_x + attr.para.scroll_x;
+			oy = attr.para.origin_y + attr.para.scroll_y + valign;
+			m_right_hang = attr.para.origin_x + attr.para.margin_x + attr.para.indent_x;
 		} else {
-			if (attr.isPara){
-				ox = attr.para.origin_x + attr.para.indent_x + attr.para.scroll_x;
-				oy = attr.para.origin_y + attr.para.scroll_y + valign;
-				m_right_hang = attr.para.origin_x + attr.para.margin_x + + attr.para.indent_x;
-			} else {
-				ox = attr.offset_x;
-				oy = attr.offset_y + valign;
-			}
+			ox = attr.offset_x;
+			oy = attr.offset_y + valign;
 		}
-
+		
+		if (offset){
+			ox += offset->x;
+			oy += offset->y;
+		}
+		
 #ifdef AGG_WIN32_FONTS
-		m_feng.create_font(attr.name, m_gren);
+		m_feng.create_font((const wchar_t*)attr.name, m_gren);
 		GetTextMetrics( m_dc, &tm );
 		m_text_pos_y = tm.tmAscent + oy + attr.space_y;
 #endif
 #ifdef AGG_FREETYPE
-        m_feng.load_font(attr.name, 0, m_gren);
+        m_feng.load_font((const char*)attr.name, 0, m_gren);
         m_feng.height(attr.size);
         m_text_pos_y = m_feng.ascender() + oy + attr.space_y;
 #endif
@@ -694,11 +691,11 @@ namespace agg
 				m_feng.weight(FW_DONTCARE);
 			}
 //Reb_Print("create FONT beg\n");
-			if(m_feng.create_font(attr.name, m_gren))
+			if(m_feng.create_font((const wchar_t*)attr.name, m_gren))
 			{
 #endif
 #ifdef AGG_FREETYPE
-			if(m_feng.load_font(attr.name, 0, m_gren))
+			if(m_feng.load_font((const char*)attr.name, 0, m_gren))
 			{
                 m_feng.height(attr.size);
 #endif
@@ -866,6 +863,9 @@ m_text_pos_x = x0+lw;
 									){
 										//truncate line
 										if ((m_text_pos_x-lw-x0 == 0) && (g_adv_x >= m_wrap_size_x-m_right_hang)){
+											//avoid infinite loop
+											if (wrap==1) p++;										
+										
 											//special case (1st char is wider than destination)
 											wrap = 3;
 										} else {
@@ -985,10 +985,10 @@ m_text_pos_x = x0+lw;
 									} else {
 										m_feng.weight(FW_DONTCARE);
 									}
-									m_feng.create_font(attr.name, m_gren);
+									m_feng.create_font((const wchar_t*)attr.name, m_gren);
 #endif
 #ifdef AGG_FREETYPE
-                                    m_feng.load_font(attr.name, 0, m_gren);
+                                    m_feng.load_font((const char*)attr.name, 0, m_gren);
                                     m_feng.height(attr.size);
 #endif
 									prev_attr = i;
@@ -1368,6 +1368,9 @@ m_text_pos_x = x0+lw;
 									){
 										//truncate line
 										if ((m_text_pos_x-lw-x0 == 0) && (g_adv_x >= m_wrap_size_x-m_right_hang)){
+											//avoid infinite loop
+											if (wrap==1) p++;										
+										
 											//special case (1st char is wider than destination)
 											wrap = 3;
 										} else {
@@ -1469,10 +1472,10 @@ m_text_pos_x = x0+lw;
 									} else {
 										m_feng.weight(FW_DONTCARE);
 									}
-									m_feng.create_font(attr.name, m_gren);
+									m_feng.create_font((const wchar_t*)attr.name, m_gren);
 #endif
 #ifdef AGG_FREETYPE
-                                    m_feng.load_font(attr.name, 0, m_gren);
+                                    m_feng.load_font((const char*)attr.name, 0, m_gren);
                                     m_feng.height(attr.size);
 #endif
 									wrap = 0;
@@ -1603,6 +1606,9 @@ m_text_pos_x = x0+lw;
 									){
 										//truncate line
 										if ((m_text_pos_x-lw-x0 == 0) && (g_adv_x >= m_wrap_size_x-m_right_hang)){
+											//avoid infinite loop
+											if (wrap==1) p++;										
+
 											//special case (1st char is wider than destination)
 											wrap = 3;
 										} else {
@@ -1705,10 +1711,10 @@ m_text_pos_x = x0+lw;
 									} else {
 										m_feng.weight(FW_DONTCARE);
 									}
-									m_feng.create_font(attr.name, m_gren);
+									m_feng.create_font((const wchar_t*)attr.name, m_gren);
 #endif
 #ifdef AGG_FREETYPE
-                                    m_feng.load_font(attr.name, 0, m_gren);
+                                    m_feng.load_font((const char*)attr.name, 0, m_gren);
                                     m_feng.height(attr.size);
 #endif
 
@@ -1817,6 +1823,9 @@ m_text_pos_x = x0+lw;
 									){
 										//truncate line
 										if ((m_text_pos_x-lw-x0 == 0) && (g_adv_x >= m_wrap_size_x-m_right_hang)){
+											//avoid infinite loop
+											if (wrap==1) p++;
+											
 											//special case (1st char is wider than destination)
 											wrap = 3;
 										} else {
@@ -1913,10 +1922,10 @@ m_text_pos_x = x0+lw;
 									} else {
 										m_feng.weight(FW_DONTCARE);
 									}
-									m_feng.create_font(attr.name, m_gren);
+									m_feng.create_font((const wchar_t*)attr.name, m_gren);
 #endif
 #ifdef AGG_FREETYPE
-                                    m_feng.load_font(attr.name, 0, m_gren);
+                                    m_feng.load_font((const char*)attr.name, 0, m_gren);
                                     m_feng.height(attr.size);
 #endif
 

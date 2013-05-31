@@ -1,13 +1,59 @@
-#include "agg_compo.h"
-#include "agg_truetype_text.h"
+#include "../agg/agg_graphics.h"
+#include "../agg/agg_truetype_text.h"
 
+extern "C" void* Rich_Text;
 
-extern "C" void Reb_Print(char *fmt, ...);//output just for testing
-extern "C" void *RL_Series(REBSER *ser, REBINT what);
 extern "C" REBINT As_OS_Str(REBSER *series, REBCHR **string);
+extern "C" REBINT As_UTF32_Str(REBSER *series, REBCHR **string);
 
 namespace agg
 {
+	extern "C" void rt_block_text(void *richtext, REBSER *block)
+	{
+		REBCEC ctx;
+
+		ctx.envr = richtext;
+		ctx.block = block;
+		ctx.index = 0;
+
+		RL_DO_COMMANDS(block, 0, &ctx);
+	}
+
+	extern "C" REBINT rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI buf_size, REBXYF abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+	{
+		if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return 0; //don't render window title text
+
+		agg_graphics::ren_buf rbuf_win(buf, buf_size.x, buf_size.y, buf_size.x << 2);		
+		agg_graphics::pixfmt pixf_win(rbuf_win);
+		agg_graphics::ren_base rb_win(pixf_win);
+		rich_text* rt = (rich_text*)Rich_Text;
+		REBINT w = GOB_PW_INT(gob)-1;	//note: rt_set_clip() includes bottom-right values so we need to subtract
+		REBINT h = GOB_PH_INT(gob)-1;
+		
+		rt->rt_reset();
+		rt->rt_attach_buffer(&rbuf_win, buf_size.x, buf_size.y);
+//		rt->rt_set_clip(abs_oft.x, abs_oft.y, abs_oft.x+w, abs_oft.y+h, w, h);
+		rt->rt_set_clip(clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, w, h);		
+		if (GOB_TYPE(gob) == GOBT_TEXT)
+			rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		else {
+			REBCHR* str;
+#ifdef TO_WIN32
+			//Windows uses UTF16 wide chars
+			REBOOL dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#else
+			//linux, android use UTF32 wide chars
+			REBOOL dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#endif
+			if (str){
+				rt->rt_set_text(str, dealloc);
+				rt->rt_push(1);
+			}
+		}
+		
+		return rt->rt_draw_text(DRAW_TEXT, &abs_oft);
+	}
+
 	extern "C" void* Create_RichText()
 	{
 #ifdef AGG_WIN32_FONTS
@@ -168,15 +214,21 @@ namespace agg
 
 	extern "C" void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 	{
-		REBINT result = 0;
         REBCHR* str;
         REBOOL dealloc;
 		((rich_text*)rt)->rt_reset();
-		((rich_text*)rt)->rt_set_clip(0,0, GOB_W_INT(gob),GOB_H_INT(gob));
+		((rich_text*)rt)->rt_set_clip(0,0, GOB_PW_INT(gob),GOB_PH_INT(gob));
 		if (GOB_TYPE(gob) == GOBT_TEXT){
-			result = Text_Gob(rt, (REBSER *)GOB_CONTENT(gob));
+			rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 		} else if (GOB_TYPE(gob) == GOBT_STRING) {
-            dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#ifdef TO_WIN32
+			//Windows uses UTF16 wide chars
+			dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#else
+			//linux, android use UTF32 wide chars
+			dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#endif
+			
             ((rich_text*)rt)->rt_set_text(str, dealloc);
             ((rich_text*)rt)->rt_push(1);
 		} else {
@@ -184,8 +236,6 @@ namespace agg
 			size->y = 0;
 			return;
 		}
-
-		if (result < 0) return;
 
 		((rich_text*)rt)->rt_size_text(size);
 	}
@@ -220,60 +270,61 @@ namespace agg
 
 
 
-	extern "C" REBINT rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
+	extern "C" void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
 	{
         REBCHR* str;
         REBOOL dealloc;
-		REBINT result = 0;
+
 		((rich_text*)rt)->rt_reset();
-		((rich_text*)rt)->rt_set_clip(0,0, GOB_W_INT(gob),GOB_H_INT(gob));
+		((rich_text*)rt)->rt_set_clip(0,0, GOB_PW_INT(gob),GOB_PH_INT(gob));
 		if (GOB_TYPE(gob) == GOBT_TEXT){
-			result = Text_Gob(rt, (REBSER *)GOB_CONTENT(gob));
+			rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 		} else if (GOB_TYPE(gob) == GOBT_STRING) {
-            dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#ifdef TO_WIN32
+			//Windows uses UTF16 wide chars
+			dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#else
+			//linux, android use UTF32 wide chars
+			dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#endif
             ((rich_text*)rt)->rt_set_text(str, dealloc);
             ((rich_text*)rt)->rt_push(1);
 		} else {
 			*element = 0;
 			*position = 0;
-			return result;
+			return;
 		}
 
-		if (result < 0) return result;
-
 		((rich_text*)rt)->rt_offset_to_caret(xy, element, position);
-
-		return result;
 	}
 
-	extern "C" REBINT rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
+	extern "C" void rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
 	{
         REBCHR* str;
         REBOOL dealloc;
-		REBINT result = 0;
 		((rich_text*)rt)->rt_reset();
-		((rich_text*)rt)->rt_set_clip(0,0, GOB_W_INT(gob),GOB_H_INT(gob));
+		((rich_text*)rt)->rt_set_clip(0,0, GOB_PW_INT(gob),GOB_PH_INT(gob));
 		if (GOB_TYPE(gob) == GOBT_TEXT){
-			result = Text_Gob(rt, (REBSER *)GOB_CONTENT(gob));
+			rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 		} else if (GOB_TYPE(gob) == GOBT_STRING) {
-            dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#ifdef TO_WIN32
+			//Windows uses UTF16 wide chars
+			dealloc = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#else
+			//linux, android use UTF32 wide chars
+			dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+#endif
+			
             ((rich_text*)rt)->rt_set_text(str, dealloc);
             ((rich_text*)rt)->rt_push(1);
 		} else {
 			xy->x = 0;
 			xy->y = 0;
-			return result;
+			return;
 		}
 
-		if (result < 0) return result;
-
 		((rich_text*)rt)->rt_caret_to_offset(xy, element, position);
-
-		return result;
 	}
-
-
-
 
 
 }

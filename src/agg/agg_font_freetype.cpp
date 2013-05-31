@@ -19,7 +19,6 @@
 #include "agg_bitset_iterator.h"
 #include "agg_renderer_scanline.h"
 
-
 namespace agg
 {
 
@@ -415,7 +414,7 @@ namespace agg
         const int8u* buf = (const int8u*)bitmap.buffer;
         int pitch = bitmap.pitch;
         sl.reset(x, x + bitmap.width);
-        storage.prepare(bitmap.width + 2);
+        storage.prepare(bitmap.width + 2, y);
         if(flip_y)
         {
             buf += bitmap.pitch * (bitmap.rows - 1);
@@ -456,7 +455,7 @@ namespace agg
         const int8u* buf = (const int8u*)bitmap.buffer;
         int pitch = bitmap.pitch;
         sl.reset(x, x + bitmap.width);
-        storage.prepare(bitmap.width + 2);
+        storage.prepare(bitmap.width + 2, y);
         if(flip_y)
         {
             buf += bitmap.pitch * (bitmap.rows - 1);
@@ -602,19 +601,13 @@ namespace agg
 
 
     //------------------------------------------------------------------------
-    bool font_engine_freetype_base::load_font(const wchar_t* font_name_w,
+    bool font_engine_freetype_base::load_font(const char* font_name,
                                               unsigned face_index,
                                               glyph_rendering ren_type,
                                               const char* font_mem, 
                                               const long font_mem_size)
     {
-        //dirty conversion wchar_t* to char* - needs improvements
-        int len = wcslen(font_name_w);
-        char *font_name = new char[len + 1];
-        font_name[len] = 0;
-        wcstombs( font_name, font_name_w, len );
         bool ret = false;
-
         if(m_library_initialized)
         {
             m_last_error = 0;
@@ -671,8 +664,6 @@ namespace agg
                     m_name = 0;
                 }
             }
-
-            delete[] font_name;
 
             if(m_last_error == 0)
             {
@@ -1044,7 +1035,7 @@ namespace agg
                                              m_path16);
                         m_rasterizer.add_path(m_curves16);
                     }
-                    m_scanlines_bin.prepare(1); // Remove all 
+                    m_scanlines_bin.prepare(1, 1); // Remove all 
                     render_scanlines(m_rasterizer, m_scanline_bin, m_scanlines_bin);
                     m_bounds.x1 = m_scanlines_bin.min_x();
                     m_bounds.y1 = m_scanlines_bin.min_y();
@@ -1084,7 +1075,7 @@ namespace agg
                                              m_path16);
                         m_rasterizer.add_path(m_curves16);
                     }
-                    m_scanlines_aa.prepare(1); // Remove all 
+                    m_scanlines_aa.prepare(1, 1); // Remove all 
                     render_scanlines(m_rasterizer, m_scanline_aa, m_scanlines_aa);
                     m_bounds.x1 = m_scanlines_aa.min_x();
                     m_bounds.y1 = m_scanlines_aa.min_y();
