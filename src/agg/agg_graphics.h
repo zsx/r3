@@ -92,38 +92,6 @@ namespace agg
 		return vertices;
 	}
 
-
-	//image color keying
-	struct color_key
-	{
-	   color_key(rgba8 key) :  c(key) {}
-#ifdef ENDIAN_BIG
-	   void operator() (int8u* argb)
-	   {
-		  if(argb[1] == c.r && argb[2] == c.g && argb[3] == c.b)
-		  {
-			  argb[0] = 0; // transparent
-			  argb[1] = 0;
-			  argb[2] = 0;
-			  argb[3] = 0;
-		  }
-	   }
-#else
-	   void operator() (int8u* bgra)
-	   {
-		  if(bgra[0] == c.b && bgra[1] == c.g && bgra[2] == c.r)
-		  {
-			  bgra[0] = 0;
-			  bgra[1] = 0;
-			  bgra[2] = 0;
-			  bgra[3] = 0; // transparent
-		  }
-	   }
-#endif
-	   rgba8 c;
-	};
-
-
 	//gradient support
 
 	class gradient_polymorphic_wrapper_base
@@ -339,7 +307,7 @@ namespace agg
 			arrow_head(0),
 			arrow_tail(0),
 			arrow_color(rgba8(255,255,255,0)),
-			gradient(false),
+			gradient(0),
 			colors(0),
 			gradient_mode(0),
 			stroke_line_join(round_join),
@@ -363,9 +331,15 @@ namespace agg
 		typedef pixfmt_argb32_pre pixfmt_pre;
 		typedef order_argb component_order;
 #else
+#ifdef TO_ANDROID_ARM
+		typedef pixfmt_rgba32 pixfmt;
+		typedef pixfmt_rgba32_pre pixfmt_pre;
+		typedef order_rgba component_order;
+#else		
 		typedef pixfmt_bgra32 pixfmt;
 		typedef pixfmt_bgra32_pre pixfmt_pre;
 		typedef order_bgra component_order;
+#endif
 #endif
 		typedef renderer_base<pixfmt> ren_base;
 		typedef renderer_base<pixfmt_pre> ren_base_pre;
@@ -396,7 +370,7 @@ namespace agg
 		void agg_size(REBPAR* p);
 		void agg_set_buffer(ren_buf* buf,int w, int h, int x, int y);
 		rendering_buffer* agg_buffer();
-		REBINT agg_render(ren_base renb);
+		void agg_render(ren_base renb);
 		void agg_set_gamma(double g);
 		void agg_set_clip(double origX,double origY, double margX, double margY);
 		void agg_clear_buffer(unsigned int r, unsigned int g, unsigned int b, unsigned int a);
@@ -451,7 +425,7 @@ namespace agg
 		void agg_dash_cap(line_cap_e mode);
 
 		void agg_effect(REBPAR* p1, REBPAR* p2, REBSER* block);
-		REBINT agg_text(REBINT vectorial, REBXYF* p1, REBXYF* p2, REBSER* block);
+		void agg_text(REBINT vectorial, REBXYF* p1, REBXYF* p2, REBSER* block);
 
 		//PATH sub-commands
         void agg_path_move(int rel, double x, double y);   // M, m
@@ -536,6 +510,9 @@ namespace agg
 		int m_actual_height;
 		int m_offset_x;
 		int m_offset_y;
+		int m_mtx_offset_x;
+		int m_mtx_offset_y;
+		
 		double m_ratio_x;
 		double m_ratio_y;
 
@@ -590,6 +567,23 @@ namespace agg
         double m_pattern_w;
 		double m_pattern_h;
 
+	};
+
+	//image color keying
+	struct color_key
+	{
+	   color_key(rgba8 key) :  c(key) {}
+	   void operator() (int8u* pixel)
+	   {
+		  if(pixel[agg_graphics::component_order::R] == c.r && pixel[agg_graphics::component_order::G] == c.g && pixel[agg_graphics::component_order::B] == c.b)
+		  {
+			  pixel[agg_graphics::component_order::R] = 0;
+			  pixel[agg_graphics::component_order::G] = 0;
+			  pixel[agg_graphics::component_order::B] = 0;
+			  pixel[agg_graphics::component_order::A] = 0; // transparent
+		  }
+	   }
+	   rgba8 c;
 	};
 
 }

@@ -764,7 +764,7 @@ int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpD
 ***********************************************************************/
 {
 
-#if (defined REB_CORE || defined NO_COMPOSITOR)
+#if (defined REB_CORE)
 	return 0;
 #else
 	return (REBSER*)Gob_To_Image(gob);

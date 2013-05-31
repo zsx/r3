@@ -27,7 +27,15 @@
 #include "host-ext-text.h"
 
 //default font name
-#define FONT_NAME L"Arial"
+#ifdef TO_WIN32
+#define FONT_NAME (REBCHR*)L"Arial"
+#else
+#ifdef TO_ANDROID_ARM
+#define FONT_NAME (REBCHR*)"/system/fonts/DroidSans.ttf"
+#else
+#define FONT_NAME (REBCHR*)"/system/fonts/FreeSans.ttf"
+#endif
+#endif
 
 namespace agg
 {
@@ -58,7 +66,7 @@ namespace agg
 	} HINFO;
 
 	typedef struct font {
-		wchar_t *name;
+		REBCHR *name;
 		REBCNT name_free;
 		REBINT bold;
 		REBINT italic;
@@ -80,12 +88,12 @@ namespace agg
 		}
 
 		font() :
-			name((wchar_t*)FONT_NAME), //"Arial"
+			name(FONT_NAME), //"Arial"
 			name_free(FALSE),
 			bold(0),
 			italic(0),
 			underline(0),
-			size(12),
+			size(12 * dp_scale.y),
 			offset_x(2),
 			offset_y(2),
 			space_x(0),
@@ -140,7 +148,7 @@ namespace agg
 #endif
 	struct text_attributes {
 		unsigned index;
-		wchar_t *name;
+		REBCHR *name;
 		bool name_free;
 		int bold;
 		int italic;
@@ -170,7 +178,7 @@ namespace agg
 			bold(0),
 			italic(0),
 			underline(0),
-			size(12),
+			size(12 * dp_scale.y),
 			color(rgba8(255,0,0,255)),
 			offset_x(2),
 			offset_y(2),
@@ -206,7 +214,15 @@ namespace agg
 	{
 		public:
 			typedef rendering_buffer ren_buf;
+#ifdef ENDIAN_BIG			
+			typedef pixfmt_argb32 pixfmt_type;
+#else
+#ifdef TO_ANDROID_ARM
+			typedef pixfmt_rgba32 pixfmt_type;
+#else
 			typedef pixfmt_bgra32 pixfmt_type;
+#endif
+#endif
 			typedef renderer_base<pixfmt_type> base_ren_type;
 			typedef renderer_scanline_aa_solid<base_ren_type> renderer_solid;
 			typedef renderer_scanline_bin_solid<base_ren_type> renderer_bin;

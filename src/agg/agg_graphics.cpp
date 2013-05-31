@@ -1,17 +1,21 @@
-#include "agg_graphics.h"
-#include "agg_truetype_text.h"
-//include "agg_effects.h"
-
 /*
 Code by: Richard Smolak (Cyphre)
 All rights reserved.
 */
 
-extern "C" void* Rich_Text;
-//extern "C" void* Effects;
-extern "C" REBINT Text_Gob(void *richtext, REBSER *block);
-//extern "C" REBINT Effect_Gob(void *effects, REBSER *block);
-extern "C" void RL_Print(char *fmt, ...);//output just for testing
+#include "agg_graphics.h"
+
+//include "agg_effects.h"
+
+#if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
+#include "agg_truetype_text.h"
+
+extern "C" {
+	#include "../include/host-text-api.h"
+	void* Rich_Text;
+}
+#endif
+
 namespace agg
 {
 
@@ -40,6 +44,9 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 		m_offset_x = x;
 		m_offset_y = y;
 
+		m_mtx_offset_x = x;
+		m_mtx_offset_y = y;
+		
 		m_actual_width = w;
 		m_actual_height = h;
 /*
@@ -55,6 +62,7 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 		m_ratio_y = 1;
 
 //		m_resize_mtx = trans_affine_translation(0.5, 0.5);
+//		m_resize_mtx = trans_affine_translation(x,y);
 		m_output_mtx = m_resize_mtx;
 		m_output_mtx *= m_post_mtx;
 
@@ -90,7 +98,7 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 		m_actual_height = h;
 	}
 
-	REBINT agg_graphics::agg_render(ren_base renb){
+	void agg_graphics::agg_render(ren_base renb){
 //			ren_buf rbuf;
 //			rbuf.attach(m_buf, m_actual_width, m_actual_height, m_actual_width * 4);
 //			pixfmt pixf(rbuf);
@@ -113,10 +121,11 @@ Reb_Print(
 
 			for(unsigned i = 0; i < m_attributes.size(); i++){
 				path_attributes attr = m_attributes[i];
+//				RL->print((REBYTE*)"rendering attr: %d type: %d\n", i, attr.filled);
 				m_output_mtx = m_resize_mtx;
-#ifdef AGG_OPENGL
-				attr.post_mtx *= trans_affine_translation(m_offset_x, m_offset_y);
-#endif
+//#ifdef AGG_OPENGL
+				attr.post_mtx *= trans_affine_translation(m_mtx_offset_x, m_mtx_offset_y);
+//#endif
 				m_output_mtx *= attr.post_mtx;
 				m_ras.filling_rule(attr.fill_rule);
 
@@ -145,11 +154,24 @@ Reb_Print(
 				switch (attr.filled){
 					case RT_FILL://filling
                         if (attr.block){//vectorial text 'sub clip'
+							REBXYF siz = {
+								attr.coord_x3 - attr.coord_x2,
+								attr.coord_y3 - attr.coord_y2
+							};
+							REBXYF oft = {
+								attr.coord_x2 + m_mtx_offset_x,
+								attr.coord_y2 + m_mtx_offset_y
+							};
+							
                             rcb = renb.clip_box();
-							rect cb((int)attr.coord_x2 , (int)attr.coord_y2,  (int)attr.coord_x3, (int)attr.coord_y3);
+							rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
 							tcb = intersect_rectangles(rcb, cb);
+
+							if(!tcb.is_valid()) continue;
+
                             renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
                             m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+//							RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
                         }
 						if (attr.fill_pen_img_buf != 0) {
 							// image pattern fill
@@ -687,11 +709,25 @@ Reb_Print(
 							attr.gradient->mode(attr.gradient_mode);
 
                             if (attr.block){//vectorial text 'sub clip'
-                                rcb = renb.clip_box();
-                                rect cb((int)attr.coord_x2 , (int)attr.coord_y2,  (int)attr.coord_x3, (int)attr.coord_y3);
-                                tcb = intersect_rectangles(rcb, cb);
-                                renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-                                m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+								REBXYF siz = {
+									attr.coord_x3 - attr.coord_x2,
+									attr.coord_y3 - attr.coord_y2
+								};
+								REBXYF oft = {
+									attr.coord_x2 + m_mtx_offset_x,
+									attr.coord_y2 + m_mtx_offset_y
+								};
+								
+								rcb = renb.clip_box();
+								rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
+								tcb = intersect_rectangles(rcb, cb);
+
+								if(!tcb.is_valid()) continue;
+
+								renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+								m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+//								RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+								
                             }
 
 							color_function_profile colors(attr.colors);
@@ -709,32 +745,35 @@ Reb_Print(
 
 						}
 						break;
+#if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
 					case RT_TEXT:
 						{
 							rich_text* rt = (rich_text*)Rich_Text;
-							REBXYF pos;
-
-							double sx = attr.coord_x3 - attr.coord_x2;
-							double sy = attr.coord_y3 - attr.coord_y2;
-
+							REBXYF siz = {
+								attr.coord_x3 - attr.coord_x2,
+								attr.coord_y3 - attr.coord_y2
+							};
 							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
-							pos.x = attr.coord_x2;
-							pos.y = attr.coord_y2;
-
+							REBXYF oft = {
+								attr.coord_x2,
+								attr.coord_y2
+							};
+							
                             rect cb = renb.clip_box();
-							rect cb2((int)pos.x , (int)pos.y,  (int)(pos.x + sx), (int)(pos.y + sy));
+							rect cb2((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
 							cb = intersect_rectangles(cb, cb2);
 
+							if(!cb.is_valid()) continue;
+							
 							rt->rt_reset();
-                            rt->rt_attach_buffer(m_buf, (int)sx, (int)sy, m_offset_x, m_offset_y);
-
-							REBINT result = Text_Gob(rt, attr.block);
-							if (result < 0) return result;
-
-                            rt->rt_set_clip(cb.x1,cb.y1,cb.x2,cb.y2, (int)sx, (int)sy);
-							rt->rt_draw_text(DRAW_TEXT, &pos);
+                            rt->rt_attach_buffer(m_buf, (int)siz.x, (int)siz.y, m_offset_x, m_offset_y);
+							rt_block_text(rt, attr.block);
+                            rt->rt_set_clip(cb.x1,cb.y1,cb.x2-1,cb.y2-1, (int)siz.x, (int)siz.y);
+//							RL->print((REBYTE*)"draw text %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
+							rt->rt_draw_text(DRAW_TEXT, &oft);
 						}
 						break;
+#endif						
 #ifdef TEMP_REMOVED
 					case RT_EFFECT:
 						{
@@ -755,8 +794,7 @@ Reb_Print(
 							renb.clip_box(cb.x1, cb.y1, cb.x2, cb.y2);
 
 							((agg_effects*)Effects)->init(renb, *m_buf,(int)sx,(int)sy,0, 0, 0);
-							REBINT result = Effect_Gob(Effects, attr.block);
-							if (result < 0) return result;
+							Effect_Gob(Effects, attr.block);
 
 							renb.clip_box((int)attr.clip_x1, (int)attr.clip_y1, (int)attr.clip_x2, (int)attr.clip_y2);
 						}
@@ -772,11 +810,14 @@ Reb_Print(
                         cb = intersect_rectangles(cb, cb2);
 
                         if (cb.is_valid()){
-//                            RL_Print("clip: %dx%d %dx%d\n",cb.x1,cb.y1,cb.x2,cb.y2);
+//                            RL->print((REBYTE*)"rt_clip: %dx%d %dx%d\n",cb.x1,cb.y1,cb.x2,cb.y2);
                             renb.clip_box(cb.x1,cb.y1,cb.x2,cb.y2);
                             m_ras.clip_box(cb.x1,cb.y1,cb.x2,cb.y2);
+//							RL->print((REBYTE*)"renb.blend_bar: %dx%d %dx%d\n",0,0,cb.x1,cb.y1);
+//							renb.blend_bar(0,0,103,300, agg::rgba8(255,0,0), 64);
+//							RL->print((REBYTE*)"rt_clip PASSED\n");
                         } else {
-//                            RL_Print("invalid clip\n");
+//                            RL->print((REBYTE*)"invalid rt_clip\n");
                             renb.reset_clipping(false);
                             m_ras.reset_clipping();
                         }
@@ -936,7 +977,6 @@ Reb_Print(
                 }
 
 			}
-			return 0;
 		}
 
 
@@ -1047,7 +1087,7 @@ Reb_Print(
 
 	void agg_graphics::agg_line_width(double w, int mode)
 	{
-		m_line_width = max(0,w);
+		m_line_width = MAX(0.0,w);
 		m_line_width_mode = mode;
 
 	}
@@ -1549,8 +1589,8 @@ Reb_Print(
 		cattr.coord_y = sizY;
 		cattr.coord_x2 = m_pattern_x; //ox;
 		cattr.coord_y2 = m_pattern_y; //oy;
-		cattr.coord_x3 = m_pattern_x + ((m_pattern_w == 0) ? w - x : m_pattern_w); //ox + pw;
-		cattr.coord_y3 = m_pattern_y + ((m_pattern_h == 0) ? h - y : m_pattern_h); //oy + ph;
+		cattr.coord_x3 = m_pattern_x + ((m_pattern_w == 0) ? (w - x) / dp_scale.x : m_pattern_w); //ox + pw;
+		cattr.coord_y3 = m_pattern_y + ((m_pattern_h == 0) ? (h - y) / dp_scale.y : m_pattern_h); //oy + ph;
 		cattr.img_buf = img_buf;
 		cattr.pattern_mode = m_pattern_mode; //pattern;
 		if (m_img_border == 0){ //outline == 0){
@@ -1742,21 +1782,23 @@ Reb_Print(
 
 			m_path.add_vertex(0.0, 0.0, path_cmd_stop); //closes the path as it is not used in future processing...
 	}
-
-	REBINT agg_graphics::agg_text(REBINT vectorial, REBXYF* p1, REBXYF* p2, REBSER* block)
+#if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
+	void agg_graphics::agg_text(REBINT vectorial, REBXYF* p1, REBXYF* p2, REBSER* block)
 	{
 		agg_begin_path();
 		path_attributes& cattr = curr_attributes();
 
         cattr.coord_x2 = p1->x;
         cattr.coord_y2 = p1->y;
+//			RL->print((REBYTE*)"W/H: %dx%d %dx%d\n", m_actual_width, m_actual_height, m_initial_width, m_initial_height);
+//			RL->print((REBYTE*)"X/Y: %dx%d %dx%d\n", m_offset_x, m_offset_y, m_mtx_offset_x, m_mtx_offset_y);
 
         if (p2) {
             cattr.coord_x3 = p2->x;
             cattr.coord_y3 = p2->y;
         } else {
-            cattr.coord_x3 = m_actual_width;
-            cattr.coord_y3 = m_actual_height;
+            cattr.coord_x3 = m_initial_width;
+            cattr.coord_y3 = m_initial_height;
         }
 
 		if (vectorial){
@@ -1765,14 +1807,13 @@ Reb_Print(
 
 			rich_text* rt = (rich_text*)Rich_Text;
 			rt->rt_reset();
-
-			rt->rt_attach_buffer(m_buf, (int)(cattr.coord_x3 - cattr.coord_x2), (int)(cattr.coord_y3 - cattr.coord_y2), m_offset_x, m_offset_y);
-			Text_Gob(rt, block);
+//RL->print((REBYTE*)"VCLIP-1: %dx%d %dx%d\n",(int)(cattr.coord_x3 - cattr.coord_x2), (int)(cattr.coord_y3 - cattr.coord_y2), int(m_mtx_offset_x+cattr.coord_x2),(int)(m_mtx_offset_y+cattr.coord_y2));
+			rt->rt_attach_buffer(m_buf, (int)(cattr.coord_x3 - cattr.coord_x2), (int)(cattr.coord_y3 - cattr.coord_y2), int(m_mtx_offset_x+cattr.coord_x2),(int)(m_mtx_offset_y+cattr.coord_y2));
+			rt_block_text(rt, block);
 
 			//force to vectors no matter what was in the dialect block
 			rt->rt_text_mode(2);
 			rt->rt_set_graphics(this);
-
 			rt->rt_draw_text(DRAW_TEXT, p1);
 		} else {
 			//raster
@@ -1781,10 +1822,8 @@ Reb_Print(
 
 			m_path.add_vertex(0.0, 0.0, path_cmd_stop); //closes the path as it is not used in future processing...
 		}
-
-		return 0;
 	}
-
+#endif
 
 	//PATH sub-commands
     void agg_graphics::agg_path_move(int rel, double x, double y)          // M, m

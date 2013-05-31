@@ -114,10 +114,10 @@ namespace agg
 									 image_filter_size / 2) >> 
 									 downscale_shift;
 
-						fg[order_type::B] += fg_ptr[0] * weight;
-						fg[order_type::G] += fg_ptr[1] * weight;
-						fg[order_type::R] += fg_ptr[2] * weight;
-						fg[order_type::A] += fg_ptr[3] * weight;
+						fg[0] += fg_ptr[0] * weight;
+						fg[1] += fg_ptr[1] * weight;
+						fg[2] += fg_ptr[2] * weight;
+						fg[3] += fg_ptr[3] * weight;
 
 						total_weight += weight;
 						x_hr += base_type::m_rx_inv;
@@ -147,11 +147,11 @@ namespace agg
 				{
 					if(fg[order_type::A] == 0)
 					{
-						fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+						fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
 					} else {
-						fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-						fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-						fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 					}
 				}
 
@@ -308,10 +308,10 @@ namespace agg
 									 image_filter_size / 2) >> 
 									 downscale_shift;
 
-						fg[order_type::B] += fg_ptr[0] * weight;
-						fg[order_type::G] += fg_ptr[1] * weight;
-						fg[order_type::R] += fg_ptr[2] * weight;
-						fg[order_type::A] += fg_ptr[3] * weight;
+						fg[0] += fg_ptr[0] * weight;
+						fg[1] += fg_ptr[1] * weight;
+						fg[2] += fg_ptr[2] * weight;
+						fg[3] += fg_ptr[3] * weight;
 
 						total_weight += weight;
 						x_hr   += rx_inv;
@@ -340,11 +340,11 @@ namespace agg
 				{
 					if(fg[order_type::A] == 0)
 					{
-						fg[Order::R] = fg[Order::G] = fg[Order::B] = 0;
+						fg[order_type::R] = fg[order_type::G] = fg[order_type::B] = 0;
 					} else {
-						fg[Order::R] = value_type((fg[Order::R] * fg[order_type::A]) >> ColorT::base_shift);
-						fg[Order::G] = value_type((fg[Order::G] * fg[order_type::A]) >> ColorT::base_shift);
-						fg[Order::B] = value_type((fg[Order::B] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::R] = value_type((fg[order_type::R] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::G] = value_type((fg[order_type::G] * fg[order_type::A]) >> ColorT::base_shift);
+						fg[order_type::B] = value_type((fg[order_type::B] * fg[order_type::A]) >> ColorT::base_shift);
 					}
 				}
 

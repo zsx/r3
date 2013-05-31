@@ -19,7 +19,7 @@
 **
 ************************************************************************
 **
-**  Title: Device: Event handler for Win32
+**  Title: Device: Event handler for Posix
 **  Author: Carl Sassenrath
 **  Purpose:
 **      Processes events to pass to REBOL. Note that events are
@@ -71,12 +71,6 @@ void Done_Device(int handle, int error);
 **		Poll for events and process them.
 **		Returns 1 if event found, else 0.
 **
-**	MS Notes:
-**
-**		"The PeekMessage function normally does not remove WM_PAINT
-**		messages from the queue. WM_PAINT messages remain in the queue
-**		until they are processed."
-**
 ***********************************************************************/
 {
 	int flag = DR_DONE;
@@ -97,7 +91,7 @@ void Done_Device(int handle, int error);
 	int result;
 
 	tv.tv_sec = 0;
-	tv.tv_usec = req->length;
+	tv.tv_usec = req->length * 1000;
 	//printf("usec %d\n", tv.tv_usec);
 	
 	result = select(0, 0, 0, 0, &tv);
