@@ -26,16 +26,23 @@
 
 #include "host-ext-text.h"
 
-//default font name
+//default font name setup
+
 #ifdef TO_WIN32
-#define FONT_NAME (REBCHR*)L"Arial"
-#else
+	#define FONT_NAME (REBCHR*)L"Arial"
+#endif	
 #ifdef TO_ANDROID_ARM
-#define FONT_NAME (REBCHR*)"/system/fonts/DroidSans.ttf"
-#else
-#define FONT_NAME (REBCHR*)"/system/fonts/FreeSans.ttf"
+	#define FONT_NAME (REBCHR*)"/system/fonts/DroidSans.ttf"
+#endif	
+#ifdef TO_OSXI
+	#define FONT_NAME (REBCHR*)"/System/Library/Fonts/LucidaGrande.ttc"
 #endif
+
+//fallback font
+#ifndef FONT_NAME
+	#define FONT_NAME (REBCHR*)"/system/fonts/FreeSans.ttf"
 #endif
+
 
 namespace agg
 {
