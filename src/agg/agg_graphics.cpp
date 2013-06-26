@@ -151,28 +151,37 @@ Reb_Print(
 
 				(attr.line_width_mode) ? lw = attr.line_width : lw = attr.line_width * scl;
 
+				if ((int)attr.block == 1){//vectorial text 'sub clip'
+					attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
+					attr.post_mtx.transform(&attr.coord_x3, &attr.coord_y3);
+
+					REBXYF siz = {
+						attr.coord_x3 - attr.coord_x2,
+						attr.coord_y3 - attr.coord_y2
+					};
+					REBXYF oft = {
+						attr.coord_x2,
+						attr.coord_y2
+					};
+/*				
+					REBXYF oft = {
+						attr.coord_x2 + m_mtx_offset_x,
+						attr.coord_y2 + m_mtx_offset_y
+					};
+	*/				
+					rcb = renb.clip_box();
+					rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
+					tcb = intersect_rectangles(rcb, cb);
+//RL->print((REBYTE*)"cb %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
+					if(!tcb.is_valid()) continue;
+
+					renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+					m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+//					RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+				}
+				
 				switch (attr.filled){
 					case RT_FILL://filling
-                        if (attr.block){//vectorial text 'sub clip'
-							REBXYF siz = {
-								attr.coord_x3 - attr.coord_x2,
-								attr.coord_y3 - attr.coord_y2
-							};
-							REBXYF oft = {
-								attr.coord_x2 + m_mtx_offset_x,
-								attr.coord_y2 + m_mtx_offset_y
-							};
-							
-                            rcb = renb.clip_box();
-							rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
-							tcb = intersect_rectangles(rcb, cb);
-
-							if(!tcb.is_valid()) continue;
-
-                            renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-                            m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-//							RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-                        }
 						if (attr.fill_pen_img_buf != 0) {
 							// image pattern fill
 							ren_buf rbuf_img;
@@ -707,29 +716,6 @@ Reb_Print(
 							m_grad_mtx.invert();
 
 							attr.gradient->mode(attr.gradient_mode);
-
-                            if (attr.block){//vectorial text 'sub clip'
-								REBXYF siz = {
-									attr.coord_x3 - attr.coord_x2,
-									attr.coord_y3 - attr.coord_y2
-								};
-								REBXYF oft = {
-									attr.coord_x2 + m_mtx_offset_x,
-									attr.coord_y2 + m_mtx_offset_y
-								};
-								
-								rcb = renb.clip_box();
-								rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
-								tcb = intersect_rectangles(rcb, cb);
-
-								if(!tcb.is_valid()) continue;
-
-								renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-								m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-//								RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-								
-                            }
-
 							color_function_profile colors(attr.colors);
 							interpolator_type      inter(m_grad_mtx);
 							gradient_span_gen      span_gen(span_alloc, inter, *attr.gradient, colors, attr.coord_x, attr.coord_y);
@@ -749,11 +735,14 @@ Reb_Print(
 					case RT_TEXT:
 						{
 							rich_text* rt = (rich_text*)Rich_Text;
+							
+							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
+							attr.post_mtx.transform(&attr.coord_x3, &attr.coord_y3);
+
 							REBXYF siz = {
 								attr.coord_x3 - attr.coord_x2,
 								attr.coord_y3 - attr.coord_y2
 							};
-							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
 							REBXYF oft = {
 								attr.coord_x2,
 								attr.coord_y2
@@ -769,7 +758,7 @@ Reb_Print(
                             rt->rt_attach_buffer(m_buf, (int)siz.x, (int)siz.y, m_offset_x, m_offset_y);
 							rt_block_text(rt, attr.block);
                             rt->rt_set_clip(cb.x1,cb.y1,cb.x2-1,cb.y2-1, (int)siz.x, (int)siz.y);
-//							RL->print((REBYTE*)"draw text %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
+//							RL->print((REBYTE*)"raster text %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
 							rt->rt_draw_text(DRAW_TEXT, &oft);
 						}
 						break;
@@ -1797,18 +1786,35 @@ Reb_Print(
             cattr.coord_x3 = p2->x;
             cattr.coord_y3 = p2->y;
         } else {
-            cattr.coord_x3 = m_initial_width;
-            cattr.coord_y3 = m_initial_height;
+            cattr.coord_x3 = m_initial_width * (1 / cattr.post_mtx.scale());
+            cattr.coord_y3 = m_initial_height * (1 / cattr.post_mtx.scale());
         }
 
+		
 		if (vectorial){
 			//vectorial
             cattr.block = (void**)1; //used as 'vectorial text' flag in the render loop
 
 			rich_text* rt = (rich_text*)Rich_Text;
 			rt->rt_reset();
-//RL->print((REBYTE*)"VCLIP-1: %dx%d %dx%d\n",(int)(cattr.coord_x3 - cattr.coord_x2), (int)(cattr.coord_y3 - cattr.coord_y2), int(m_mtx_offset_x+cattr.coord_x2),(int)(m_mtx_offset_y+cattr.coord_y2));
-			rt->rt_attach_buffer(m_buf, (int)(cattr.coord_x3 - cattr.coord_x2), (int)(cattr.coord_y3 - cattr.coord_y2), int(m_mtx_offset_x+cattr.coord_x2),(int)(m_mtx_offset_y+cattr.coord_y2));
+
+			int wx = cattr.coord_x3 - cattr.coord_x2;
+			int wy = cattr.coord_y3 - cattr.coord_y2;
+
+			double ox = cattr.coord_x2;
+			double oy = cattr.coord_y2;
+			
+			cattr.post_mtx.transform(&ox, &oy);
+			
+			rt->rt_attach_buffer(
+				m_buf,
+				wx,
+				wy,
+				(int)(m_mtx_offset_x+ox),
+				(int)(m_mtx_offset_y+oy)
+
+			);
+
 			rt_block_text(rt, block);
 
 			//force to vectors no matter what was in the dialect block
