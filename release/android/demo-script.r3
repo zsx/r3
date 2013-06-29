@@ -1,6 +1,6 @@
 REBOL []
 
-#do [include-ctx/push [%../../r3-gui/release/]]
+#do [include-ctx/push [%../../../r3-gui/release/]]
 
 #include-check %r3-gui.r3
 

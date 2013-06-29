@@ -70,6 +70,8 @@ REBARGS Main_Args;
 REBYTE *CmdLine;
 REBOOL IsR3Running = FALSE;
 REBOOL IsR3Created = FALSE;
+extern REBYTE* encapBuffer;
+extern REBINT encapBufferLen;
 
 //threading stuff
 pthread_mutex_t mutex;
@@ -229,7 +231,7 @@ static void RebolThread()
 	OS_Exit(0);
 }
 
-JNI_FUNC(void, MainActivity_rebolCreate, jstring str)
+JNI_FUNC(void, MainActivity_rebolCreate, jstring str, jbyteArray array)
 {
 	jni_init(env, obj);
 
@@ -243,6 +245,14 @@ JNI_FUNC(void, MainActivity_rebolCreate, jstring str)
 	if (str != NULL)
 		Main_Args.script = (REBCHR *)(*env)->GetStringUTFChars( env, str , NULL );
 
+	if (array != NULL){
+		jbyte* bufferPtr = (*env)->GetByteArrayElements(env, array, NULL);
+		encapBufferLen = (*env)->GetArrayLength(env, array);
+		encapBuffer = (REBYTE*)MAKE_MEM(encapBufferLen);
+		COPY_MEM(encapBuffer, bufferPtr, encapBufferLen);
+		(*env)->ReleaseByteArrayElements(env, array, bufferPtr, 0);
+	}
+		
 	DoThread(RebolThread, NULL, TRUE);
 
 	//wait for the R3 console thread to initialize(locks mutex when done)

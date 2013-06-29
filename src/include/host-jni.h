@@ -32,7 +32,7 @@
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "R3Droid", __VA_ARGS__))
 #define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "R3Droid", __VA_ARGS__)) 
 
-#define JAVA_PATH com_example_rebolTest
+#define JAVA_PATH com_saphirion_rebolapp12345678
 
 #define JNI_FUNC_TMP2(r, n, p, ...) JNIEXPORT r JNICALL Java_##p##_##n(JNIEnv * env, jobject  obj, ##__VA_ARGS__)
 #define JNI_FUNC_TMP(r, n, p, ...) JNI_FUNC_TMP2(r, n, p , ##__VA_ARGS__)
