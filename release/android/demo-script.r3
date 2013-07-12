@@ -8,10 +8,10 @@ REBOL []
 
 dpi: gui-metric 'screen-dpi
 gui-metric/set 'unit-size dpi / 96
-scr: round (gui-metric 'work-size) - gui-metric 'title-size 
+scr: round/floor (gui-metric 'work-size) - gui-metric 'title-size 
 
 img: decode 'jpeg  #include-binary %clouds.jpg
-print ""
+;print ""
 
 view/options [
 	vgroup [
@@ -28,11 +28,18 @@ view/options [
 			border-color: black
 		]
 	] options [
-		max-hint: scr
+		max-hint: 'keep
 		pane-align: 'center
+	]
+	when [rotate] on-action [
+		win: arg/gob/data
+		bg: first faces? win
+		win/facets/max-hint:
+		bg/facets/max-hint:
+			as-pair arg/offset/x max arg/offset/y win/facets/intern/min-heights/1
+		update-face/no-show/content bg
 	]
 ][
 	offset: 0x0
-	init-hint: scr
 	max-hint: scr
 ] 
