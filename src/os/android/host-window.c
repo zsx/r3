@@ -93,6 +93,7 @@ static REBXYF Zero_Pair = {0, 0};
 **
 ***********************************************************************/
 {
+//	LOGI("OS_Init_Windows()");
 }
 
 /***********************************************************************
@@ -103,6 +104,7 @@ static REBXYF Zero_Pair = {0, 0};
 **
 ***********************************************************************/
 {
+//	LOGI("OS_Update_Window(): %d", GOB_HWIN(gob));
 	REBINT x = GOB_PX_INT(gob);
 	REBINT y = GOB_PY_INT(gob);
 	REBINT w = GOB_PW_INT(gob);
@@ -114,8 +116,10 @@ static REBXYF Zero_Pair = {0, 0};
 	if (moved || resized)
 		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_updateWindow, GOB_HWIN(gob), x, y, w, h);
 	
-	if (GET_GOB_FLAG(gob, GOBF_ACTIVE))
+	if (GET_GOB_FLAG(gob, GOBF_ACTIVE)){
+		CLR_GOB_FLAG(gob, GOBF_ACTIVE);
 		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_windowToFront, GOB_HWIN(gob));
+	}
 }
 
 /***********************************************************************
@@ -139,11 +143,13 @@ static REBXYF Zero_Pair = {0, 0};
 	windex = Alloc_Window(gob);
 	
 	if (windex < 0) Host_Crash("Too many windows");
-	
+
 	CLEAR_GOB_STATE(gob);
 	SET_GOB_STATE(gob, GOBS_NEW);
 //	LOGI("jni_createWindow: %dx%d %dx%d %dx%d\n", GOB_W_INT(gob),GOB_H_INT(gob),w,h, GOB_W(gob),GOB_H(gob));
 	window = (void*)(*jni_env)->CallIntMethod(jni_env, jni_obj, jni_createWindow, (REBINT)gob, x, y, w, h, FALSE);
+
+//	LOGI("OS_Open_Window(): %d", window);
 
 	Gob_Windows[windex].win = window;
 	Gob_Windows[windex].compositor = rebcmp_create(Gob_Root, gob);
@@ -167,6 +173,7 @@ static REBXYF Zero_Pair = {0, 0};
 **
 ***********************************************************************/
 {
+//	LOGI("OS_Close_Window(): %d", GOB_HWIN(gob));
 	if (GET_GOB_FLAG(gob, GOBF_WINDOW) && Find_Window(gob)) {
 		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_destroyWindow, GOB_HWIN(gob));
 		CLR_GOB_FLAG(gob, GOBF_WINDOW);

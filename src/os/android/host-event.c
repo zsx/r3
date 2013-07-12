@@ -53,7 +53,9 @@ enum input_events {
 	EV_RESIZE,
 	EV_ROTATE,
 	EV_KEY_DOWN,
-	EV_KEY_UP
+	EV_KEY_UP,
+	EV_ACTIVE,
+	EV_INACTIVE
 };
 
 //***** Externs *****
@@ -77,7 +79,7 @@ static void Add_Event_XY(REBGOB *gob, REBINT id, REBINT xy, REBINT flags)
 	evt.ser = (void*)gob;
 //	LOGI("adding event...\n");
 	res = RL_Event(&evt);	// returns 0 if queue is full
-//	LOGI("event dispatched: %d\n", res);
+//	LOGI("event dispatched: %d", id);
 }
 
 static void Add_Event_Key(REBGOB *gob, REBINT id, REBINT key, REBINT flags)
@@ -95,7 +97,7 @@ static void Add_Event_Key(REBGOB *gob, REBINT id, REBINT key, REBINT flags)
 
 JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 {
-//	LOGI("Got event! %d %dx%d", type, x, y);
+//	LOGI("dispatchEvent(): %d %dx%d", type, x, y);
 	REBGOB* g = (REBGOB*)gob;
 	REBINT ev_type = -1;
 	REBINT dp_x = ROUND_TO_INT(x / dp_scale.x);
@@ -116,19 +118,33 @@ JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 		case EV_KEY_UP:
 			Add_Event_Key(g, ((ev_type == -1) ? EVT_KEY_UP : ev_type) , x, 0);
 			return;
+		case EV_ACTIVE:
+			ev_type = EVT_ACTIVE;
+			SET_GOB_STATE(g, GOBS_ACTIVE);
+			break;
+		case EV_INACTIVE:
+			ev_type = EVT_INACTIVE;
+			CLR_GOB_STATE(g, GOBS_ACTIVE);
+			break;
 		case EV_RESIZE:
 			{
+				//not sure if this will be even called from Android side someday...
 				g->size.x = dp_x;
 				g->size.y = dp_y;
-				Resize_Window(g, FALSE);
+				Resize_Window(g, TRUE);
 				ev_type = EVT_RESIZE;
 				break;				
 			}
 		case EV_ROTATE:
 			{
+/*			
 				g->size.x = dp_x;
 				g->size.y = dp_y;
-				Resize_Window(g, TRUE);
+				if (!Resize_Window(g, TRUE)){
+					ev_type = EVT_ROTATE;
+					break;
+				} 
+*/				
 				ev_type = EVT_ROTATE;
 				break;
 			}

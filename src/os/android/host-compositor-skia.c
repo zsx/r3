@@ -82,6 +82,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_get_buffer()");
 	void* bitmapPixels;
 	REBYTE* bytes;
 	REBINT result;
@@ -104,6 +105,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_release_buffer()");
 	AndroidBitmap_unlockPixels(jni_env, ctx->jnibuffer);
 	(*jni_env)->DeleteLocalRef(jni_env, ctx->jnibuffer);
 }
@@ -118,12 +120,13 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_resize_buffer()");
 	//check if window size really changed
 	if ((GOB_PW(winGob) != GOB_WO(winGob)) || (GOB_PH(winGob) != GOB_HO(winGob))) {
 
 		REBINT w = GOB_PW_INT(winGob);
 		REBINT h = GOB_PH_INT(winGob);
-
+//		LOGI("resize to: %dx%d %dx%d\n", GOB_PX_INT(winGob), GOB_PY_INT(winGob), w, h);
 		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_updateWindow, ctx->Window, GOB_PX_INT(winGob), GOB_PY_INT(winGob), w, h);
 
 		//update the buffer size values
@@ -148,6 +151,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_create()");
 	//new compositor struct
 	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_Make(sizeof(REBCMP_CTX));
 	REBINT windex;
@@ -174,6 +178,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_destroy()");
 	if (ctx->Window == 0) //destroy "offscreen buffer"
 		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_destroyWindow, 0);
 	OS_Free(ctx);
@@ -297,6 +302,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_compose()");
 	REBINT max_depth = 1000; // avoid infinite loops
 	jboolean valid_intersection = TRUE;
 	REBD32 abs_x;
@@ -374,5 +380,7 @@ enum Region_ops {
 **
 ***********************************************************************/
 {
+//	LOGI("rebcmp_blit()");
 	(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_blitWindow, ctx->Window);
+//	LOGI("rebcmp_blitEND()");
 }

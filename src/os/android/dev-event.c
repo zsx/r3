@@ -97,13 +97,14 @@ void Done_Device(int handle, int error);
 	tv.tv_sec = 0;
 	tv.tv_usec = req->length * 1000;
 	//printf("usec %d\n", tv.tv_usec);
+//	LOGI("usec %d", tv.tv_usec);
 	result = select(0, 0, 0, 0, &tv);
 	if (result < 0) {
 		// !!! set error code
 		printf("ERROR!!!!\n");
 		return DR_ERROR;
 	}
-
+//	LOGI("POLL");
 	// Quickly check for other events:
 	Poll_Events(0); 
 
