@@ -141,3 +141,12 @@ JNI_FUNC(void, WindowView_updateRootGob, jint w, jint h)
 	RL_Extend((REBYTE *)(&RX_text[0]), &RXD_Text);
 }
 
+/***********************************************************************
+**
+*/	void OS_Destroy_Graphics(void)
+/*
+**	Finalize any special variables of the graphics subsystem.
+**
+***********************************************************************/
+{
+}
