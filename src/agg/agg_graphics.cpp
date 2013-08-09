@@ -98,6 +98,31 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 		m_actual_height = h;
 	}
 
+	template <class Renderer>
+	void agg_graphics::agg_render_sbool(Renderer& ren, bool mode){
+		if (mode){
+			sbool_combine_shapes_aa(
+				sbool_and,
+				m_ras,
+				m_ras_bool,
+				m_u_sl1_bool,
+				m_u_sl2_bool,
+				m_u_sl_result_bool,
+				ren
+			);
+		} else {
+			sbool_combine_shapes_bin(
+				sbool_and,
+				m_ras,
+				m_ras_bool,
+				m_u_sl1_bool,
+				m_u_sl2_bool,
+				m_u_sl_result_bool,
+				ren
+			);
+		}
+	}
+	
 	void agg_graphics::agg_render(ren_base renb){
 //			ren_buf rbuf;
 //			rbuf.attach(m_buf, m_actual_width, m_actual_height, m_actual_width * 4);
@@ -116,9 +141,12 @@ Reb_Print(
 			,m_path.total_vertices(), m_path.total_vertices() * 17
 );
 */
-            //helper rectangles used for vectorial text sub-clipping
-            rect rcb, tcb;
-
+            //helper rectangle used for vectorial text sub-clipping
+            rect rcb;
+			
+			//scanline boolean clip mode indicator
+			bool sbool_clip = false;
+			
 			for(unsigned i = 0; i < m_attributes.size(); i++){
 				path_attributes attr = m_attributes[i];
 //				RL->print((REBYTE*)"rendering attr: %d type: %d\n", i, attr.filled);
@@ -140,7 +168,9 @@ Reb_Print(
 					m_output_mtx *= trans_affine_translation(0.5, 0.5);
 				}
 
-				if (attr.anti_aliased){
+				bool anti_aliased = attr.anti_aliased;
+				
+				if (anti_aliased){
 					m_ras.gamma(gamma_power(1.0 / m_gamma));
 				} else {
 					m_ras.gamma(gamma_threshold(0.5));
@@ -151,33 +181,81 @@ Reb_Print(
 
 				(attr.line_width_mode) ? lw = attr.line_width : lw = attr.line_width * scl;
 
-				if ((int)attr.block == 1){//vectorial text 'sub clip'
-					attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
-					attr.post_mtx.transform(&attr.coord_x3, &attr.coord_y3);
+				bool vtext = ((int)attr.block == 1);
+				
+                if (vtext){
+					attr.post_mtx.store_to(m_mtx_store);
 
-					REBXYF siz = {
-						attr.coord_x3 - attr.coord_x2,
-						attr.coord_y3 - attr.coord_y2
-					};
-					REBXYF oft = {
-						attr.coord_x2,
-						attr.coord_y2
-					};
-/*				
-					REBXYF oft = {
-						attr.coord_x2 + m_mtx_offset_x,
-						attr.coord_y2 + m_mtx_offset_y
-					};
-	*/				
-					rcb = renb.clip_box();
-					rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
-					tcb = intersect_rectangles(rcb, cb);
-//RL->print((REBYTE*)"cb %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
-					if(!tcb.is_valid()) continue;
+					//if there is no rotation(or vtext uses image stroke) use rectangular clipping (faster), othervise use scanline bool clip intersection
+					if (
+						(m_mtx_store[1] == 0.0 && m_mtx_store[2] == 0.0) ||
+						(attr.stroked && attr.pen_img_buf)
+					){
+						double scx, scy;
+						attr.post_mtx.scaling(&scx, &scy);
+						REBXYF siz = {
+							(attr.coord_x3 - attr.coord_x2) * scx,
+							(attr.coord_y3 - attr.coord_y2) * scy
+						};
+						
+						attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
+						
+						REBXYF oft = {
+							attr.coord_x2,
+							attr.coord_y2
+						};
 
-					renb.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-					m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
-//					RL->print((REBYTE*)"draw text %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+						//store the current clip
+						rcb = renb.clip_box();
+
+						rect tcb = rcb;
+
+						//handle off-by one clip case when "renb.clip_box() = gob/size"
+						if (tcb.x2 == m_actual_width-1) tcb.x2++;
+						if (tcb.y2 == m_actual_height-1) tcb.y2++;
+						
+						rect cb((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
+
+						tcb = intersect_rectangles(tcb, cb);
+
+						if(!tcb.is_valid()) continue;
+						
+//						RL->print((REBYTE*)"draw vtext %dx%d %dx%d\n", tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+
+						renb.clip_box(tcb.x1,tcb.y1,tcb.x2-1,tcb.y2-1);
+						m_ras.clip_box(tcb.x1,tcb.y1,tcb.x2,tcb.y2);
+						
+//						renb.blend_bar(tcb.x1,tcb.y1,tcb.x2,tcb.y2, agg::rgba8(255,0,0), 64);
+					
+						sbool_clip = false;
+					} else {
+						double x1 = attr.coord_x2;
+						double y1 = attr.coord_y2;
+						double x3 = attr.coord_x3;
+						double y3 = attr.coord_y3;
+						double x2 = x3;
+						double y2 = y1;
+						double x4 = x1;
+						double y4 = y3;
+						
+						attr.post_mtx.transform(&x1, &y1);
+						attr.post_mtx.transform(&x2, &y2);
+						attr.post_mtx.transform(&x3, &y3);
+						attr.post_mtx.transform(&x4, &y4);
+						
+						m_path_bool.remove_all();
+						m_path_bool.start_new_path();
+						m_path_bool.move_to(x1, y1);
+						m_path_bool.line_to(x2, y2);
+						m_path_bool.line_to(x3, y3);
+						m_path_bool.line_to(x4, y4);
+						m_path_bool.close_polygon();
+
+						m_ras_bool.reset();
+						m_ras_bool.add_path(m_path_bool);
+						
+						sbool_clip = true;
+					}
 				}
 				
 				switch (attr.filled){
@@ -210,24 +288,35 @@ Reb_Print(
 							m_ras.reset();
 							m_ras.add_path(m_trans_curved, attr.index);
 
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								renderer_type ri(renb, sg);
-							render_scanlines(m_ras, m_u_sl, ri);
-
+								if (sbool_clip)
+									agg_render_sbool(ri, anti_aliased);
+								else
+									render_scanlines(m_ras, m_u_sl, ri);
 							} else {
 								renderer_bin_type ri(renb, sg);
-								render_scanlines(m_ras, m_u_sl, ri);
+								if (sbool_clip)
+									agg_render_sbool(ri, anti_aliased);
+								else
+									render_scanlines(m_ras, m_u_sl, ri);
 							}
 						} else {
 							//plain fill
 							m_ras.reset();
 							m_ras.add_path(m_trans_curved, attr.index);
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								ren_aa_s.color(attr.fill_pen);
-								render_scanlines(m_ras, m_p_sl, ren_aa_s);
+								if (sbool_clip)
+									agg_render_sbool(ren_aa_s, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_aa_s);
 							} else {
 								ren_b.color(attr.fill_pen);
-								render_scanlines(m_ras, m_p_sl, ren_b);
+								if (sbool_clip)
+									agg_render_sbool(ren_b, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_b);
 							}
 						}
 						break;
@@ -255,7 +344,7 @@ Reb_Print(
 
 							m_ras.reset();
 							m_ras.add_path(span_gen);
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								renderer_gouraud        ren_gouraud(renb, span_gen);
 							render_scanlines(m_ras, m_u_sl, ren_gouraud);
 							} else {
@@ -330,7 +419,7 @@ Reb_Print(
 									m_interpolator_linear
 									);
 
-								if (attr.anti_aliased){
+								if (anti_aliased){
 									renderer_type ri(renb, sg);
 									render_scanlines(m_ras, m_u_sl, ri);
 								} else {
@@ -370,7 +459,7 @@ Reb_Print(
 
 											span_gen_type sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_linear, filter);
 
-											if (attr.anti_aliased){
+											if (anti_aliased){
 												renderer_type ri(renb_pre, sg);
 												render_scanlines(m_ras, m_u_sl, ri);
 											} else {
@@ -392,7 +481,7 @@ Reb_Print(
 
 											sg.blur(attr.img_filter_arg);
 
-											if (attr.anti_aliased){
+											if (anti_aliased){
 												renderer_type ri(renb_pre, sg);
 												render_scanlines(m_ras, m_u_sl, ri);
 											} else {
@@ -491,7 +580,7 @@ Reb_Print(
 														 rbuf_img_out,
 														 rgba8(255,0,0,0),
 														 m_interpolator_trans);
-												if (attr.anti_aliased){
+												if (anti_aliased){
 													renderer_type ri(renb, sg);
 													render_scanlines(m_ras, m_u_sl, ri);
 												} else {
@@ -509,7 +598,7 @@ Reb_Print(
 												span_gen_repeat sg(sa,
 														 rbuf_img_out,
 														 m_interpolator_trans);
-												if (attr.anti_aliased){
+												if (anti_aliased){
 													renderer_type ri(renb, sg);
 													render_scanlines(m_ras, m_u_sl, ri);
 												} else {
@@ -527,7 +616,7 @@ Reb_Print(
 												span_gen_reflect sg(sa,
 														 rbuf_img_out,
 														 m_interpolator_trans);
-												if (attr.anti_aliased){
+												if (anti_aliased){
 													renderer_type ri(renb, sg);
 													render_scanlines(m_ras, m_u_sl, ri);
 												} else {
@@ -566,7 +655,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_normal> renderer_bin_type;
 															trans_perspective tr(vertices, vertices);
 															span_gen_normal sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_trans, filter);
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -581,7 +670,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_repeat> renderer_type;
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_repeat> renderer_bin_type;
 															span_gen_repeat sg(sa, rbuf_img_out, m_interpolator_trans, filter);
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -596,7 +685,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_reflect> renderer_type;
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_reflect> renderer_bin_type;
 															span_gen_reflect sg(sa, rbuf_img_out, m_interpolator_trans, filter);
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -635,7 +724,7 @@ Reb_Print(
 
 															sg.blur(attr.img_filter_arg);
 
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -653,7 +742,7 @@ Reb_Print(
 															span_gen_repeat sg(sa, rbuf_img_out, subdiv_adaptor, filter);
 															sg.blur(attr.img_filter_arg);
 
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -671,7 +760,7 @@ Reb_Print(
 															span_gen_reflect sg(sa, rbuf_img_out, subdiv_adaptor, filter);
 															sg.blur(attr.img_filter_arg);
 
-															if (attr.anti_aliased){
+															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
 															} else {
@@ -721,12 +810,18 @@ Reb_Print(
 							gradient_span_gen      span_gen(span_alloc, inter, *attr.gradient, colors, attr.coord_x, attr.coord_y);
 							m_ras.add_path(m_trans_curved, attr.index);
 
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								renderer_gradient r1(renb, span_gen);
-								render_scanlines(m_ras, m_u_sl, r1);
+								if (sbool_clip)
+									agg_render_sbool(r1, anti_aliased);
+								else
+									render_scanlines(m_ras, m_u_sl, r1);
 							} else {
 								renderer_bin_gradient r1(renb, span_gen);
-								render_scanlines(m_ras, m_u_sl, r1);
+								if (sbool_clip)
+									agg_render_sbool(r1, anti_aliased);
+								else
+									render_scanlines(m_ras, m_u_sl, r1);
 							}
 
 						}
@@ -735,30 +830,42 @@ Reb_Print(
 					case RT_TEXT:
 						{
 							rich_text* rt = (rich_text*)Rich_Text;
-							
-							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
-							attr.post_mtx.transform(&attr.coord_x3, &attr.coord_y3);
 
 							REBXYF siz = {
 								attr.coord_x3 - attr.coord_x2,
 								attr.coord_y3 - attr.coord_y2
 							};
+							
+							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
+							
 							REBXYF oft = {
 								attr.coord_x2,
 								attr.coord_y2
 							};
-							
+
                             rect cb = renb.clip_box();
+							
+							////handle off-by one clip case when "renb.clip_box() = gob/size"
+							if (cb.x2 == renb.width()-1) cb.x2++;
+							if (cb.y2 == renb.height()-1) cb.y2++;
+							
 							rect cb2((int)oft.x,(int)oft.y,(int)(oft.x + siz.x),(int)(oft.y + siz.y));
+
 							cb = intersect_rectangles(cb, cb2);
 
 							if(!cb.is_valid()) continue;
-							
+
 							rt->rt_reset();
                             rt->rt_attach_buffer(m_buf, (int)siz.x, (int)siz.y, m_offset_x, m_offset_y);
 							rt_block_text(rt, attr.block);
-                            rt->rt_set_clip(cb.x1,cb.y1,cb.x2-1,cb.y2-1, (int)siz.x, (int)siz.y);
-//							RL->print((REBYTE*)"raster text %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2);
+
+//							RL->print((REBYTE*)"raster text %dx%d %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2,(int)siz.x, (int)siz.y);
+
+							//note: rt_set_clip() include bottom-right values
+                            rt->rt_set_clip(cb.x1,cb.y1,cb.x2,cb.y2, (int)siz.x, (int)siz.y);
+							
+//							renb.blend_bar(cb.x1,cb.y1,cb.x2-1,cb.y2-1, agg::rgba8(255,0,0), 64);
+							
 							rt->rt_draw_text(DRAW_TEXT, &oft);
 						}
 						break;
@@ -800,6 +907,7 @@ Reb_Print(
 
                         if (cb.is_valid()){
 //                            RL->print((REBYTE*)"rt_clip: %dx%d %dx%d\n",cb.x1,cb.y1,cb.x2,cb.y2);
+							//note: renb.clip_box includes bottom-right values
                             renb.clip_box(cb.x1,cb.y1,cb.x2,cb.y2);
                             m_ras.clip_box(cb.x1,cb.y1,cb.x2,cb.y2);
 //							RL->print((REBYTE*)"renb.blend_bar: %dx%d %dx%d\n",0,0,cb.x1,cb.y1);
@@ -850,9 +958,9 @@ Reb_Print(
 							renderer_type ren_img(renb, patt);
 							rasterizer_type ras_img(ren_img);
 
-
 //							ren_img.scale_x(.5);
-//								ren_img.start_x(m_start_x.value());
+//							ren_img.start_x(m_start_x.value());
+
 							ras_img.add_path(m_trans_curved, attr.index);
 						} else {
 							m_stroke.width(lw);
@@ -865,12 +973,18 @@ Reb_Print(
 //							m_ras.add_path(m_stroked_trans, attr.index);
 							m_ras.add_path(m_stroke, attr.index);
 
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								ren_aa_s.color(attr.pen);
-								render_scanlines(m_ras, m_p_sl, ren_aa_s);
+								if (sbool_clip)
+									agg_render_sbool(ren_aa_s, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_aa_s);
 							} else {
 								ren_b.color(attr.pen);
-								render_scanlines(m_ras, m_p_sl, ren_b);
+								if (sbool_clip)
+									agg_render_sbool(ren_b, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_b);
 							}
 						}
 
@@ -910,14 +1024,19 @@ Reb_Print(
 							m_ras.reset();
 							m_ras.add_path(m_arrow);
 
-							if (attr.anti_aliased){
+							if (anti_aliased){
 								ren_aa_s.color(attr.arrow_color);
-								render_scanlines(m_ras, m_p_sl, ren_aa_s);
+								if (sbool_clip)
+									agg_render_sbool(ren_aa_s, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_aa_s);
 							} else {
 								ren_b.color(attr.arrow_color);
-								render_scanlines(m_ras, m_p_sl, ren_b);
+								if (sbool_clip)
+									agg_render_sbool(ren_b, anti_aliased);
+								else
+									render_scanlines(m_ras, m_p_sl, ren_b);
 							}
-
 						} else {
 							m_ah.no_head();
 							m_ah.no_head_tail();
@@ -948,21 +1067,30 @@ Reb_Print(
 						m_ras.reset();
 						m_ras.add_path(m_dashed_stroke, attr.index);
 
-
-						if (attr.anti_aliased){
-						ren_aa_s.color(attr.line_pattern_pen);
-						render_scanlines(m_ras, m_p_sl, ren_aa_s);
+						if (anti_aliased){
+							ren_aa_s.color(attr.line_pattern_pen);
+							if (sbool_clip)
+								agg_render_sbool(ren_aa_s, anti_aliased);
+							else
+								render_scanlines(m_ras, m_p_sl, ren_aa_s);
 						} else {
 							ren_b.color(attr.line_pattern_pen);
-							render_scanlines(m_ras, m_p_sl, ren_b);
+							if (sbool_clip)
+								agg_render_sbool(ren_b, anti_aliased);
+							else
+								render_scanlines(m_ras, m_p_sl, ren_b);
 						}
 					}
 				}
 
-                if ((int)attr.block == 1){
-                    //restore the current CLIP settings
-                    renb.clip_box(rcb.x1,rcb.y1,rcb.x2,rcb.y2);
-                    m_ras.clip_box(rcb.x1,rcb.y1,rcb.x2,rcb.y2);
+                if (vtext){
+					if (sbool_clip) {
+						sbool_clip = false;
+					} else {
+						//restore the current CLIP settings
+						renb.clip_box(rcb.x1,rcb.y1,rcb.x2,rcb.y2);
+						m_ras.clip_box(rcb.x1,rcb.y1,rcb.x2,rcb.y2);
+					}
                 }
 
 			}
@@ -1786,8 +1914,8 @@ Reb_Print(
             cattr.coord_x3 = p2->x;
             cattr.coord_y3 = p2->y;
         } else {
-            cattr.coord_x3 = m_initial_width * (1 / cattr.post_mtx.scale());
-            cattr.coord_y3 = m_initial_height * (1 / cattr.post_mtx.scale());
+            cattr.coord_x3 = m_initial_width;
+            cattr.coord_y3 = m_initial_height;
         }
 
 		

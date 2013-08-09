@@ -9,6 +9,9 @@
 #include "agg_rasterizer_scanline_aa.h"
 #include "agg_color_rgba.h"
 
+//boolean algebra
+#include "agg_scanline_boolean_algebra.h"
+
 //gradients
 #include "agg_span_gradient.h"
 
@@ -370,6 +373,8 @@ namespace agg
 		void agg_size(REBPAR* p);
 		void agg_set_buffer(ren_buf* buf,int w, int h, int x, int y);
 		rendering_buffer* agg_buffer();
+		template <class Renderer>
+		void agg_render_sbool(Renderer& ren, bool mode);
 		void agg_render(ren_base renb);
 		void agg_set_gamma(double g);
 		void agg_set_clip(double origX,double origY, double margX, double margY);
@@ -457,8 +462,12 @@ namespace agg
 
 		// Rasterizer & scanlines
 		rasterizer_scanline_aa<> m_ras;
+		rasterizer_scanline_aa<> m_ras_bool;
 		scanline_p8 m_p_sl;
 		scanline_u8 m_u_sl;
+		scanline_u8 m_u_sl1_bool;
+		scanline_u8 m_u_sl2_bool;
+		scanline_u8 m_u_sl_result_bool;
 		double m_gamma;
 
 		//attribute storage
@@ -466,6 +475,7 @@ namespace agg
 
 		//path storage
 		path_storage m_path;
+		path_storage m_path_bool;
 //		bool m_path_opened;
 
 		//transformation matrices
