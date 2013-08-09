@@ -65,8 +65,8 @@ namespace agg
 	{
 		m_clip_x1 = x1;
 		m_clip_y1 = y1;
-		m_clip_x2 = x2;
-		m_clip_y2 = y2;
+		m_clip_x2 = x2-1;
+		m_clip_y2 = y2-1;
 
 		if (wx)
 			m_wrap_size_x = wx;
