@@ -132,7 +132,7 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 			renderer_bin ren_b(renb);
 
 			//update clipping boundaries
-			renb.clip_box(m_offset_x, m_offset_y, m_actual_width, m_actual_height);
+			renb.clip_box(m_offset_x, m_offset_y, m_actual_width-1, m_actual_height-1);
 			m_ras.clip_box(m_offset_x, m_offset_y, m_actual_width, m_actual_height);
 /*
 Reb_Print(
@@ -541,7 +541,7 @@ Reb_Print(
 							    if (m_mtx_store[0] == 1.0 && m_mtx_store[1] == 0.0 && m_mtx_store[2] == 0.0 && m_mtx_store[3] == 1.0){
 //                                    RL_Print("Fast BLEND2 img %dx%d %dx%d\n", renb.xmin(), renb.ymin(),renb.xmax(), renb.ymax());
                                     renb.blend_from(
-                                        pixf_img, 0, (int)vertices[0]+(int)m_mtx_store[4], (int)vertices[1]+(int)m_mtx_store[5], 255
+                                        pixf_img, 0, (int)vertices[0], (int)vertices[1], 255
                                     );
                                     if (key_img_buffer !=0){
                                         delete [] key_img_buffer;
