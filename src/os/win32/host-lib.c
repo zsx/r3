@@ -5,6 +5,8 @@
 **  Copyright 2012 REBOL Technologies
 **  REBOL is a trademark of REBOL Technologies
 **
+**  Additional code modifications and improvements Copyright 2012 Saphirion AG
+**
 **  Licensed under the Apache License, Version 2.0 (the "License");
 **  you may not use this file except in compliance with the License.
 **  You may obtain a copy of the License at
@@ -20,7 +22,7 @@
 ************************************************************************
 **
 **  Title: OS API function library called by REBOL interpreter
-**  Author: Carl Sassenrath
+**  Author: Carl Sassenrath, Richard Smolak
 **  Purpose:
 **      This module provides the functions that REBOL calls
 **      to interface to the native (host) operating system.
@@ -56,9 +58,13 @@
 #include <stdio.h>
 #include <windows.h>
 #include <process.h>
+#include <shlobj.h>
 
 #include "reb-host.h"
 #include "host-lib.h"
+
+//used to detect non-modal OS dialogs
+BOOL osDialogOpen = FALSE; 
 
 // Semaphore lock to sync sub-task launch:
 static void *Task_Ready;
@@ -185,6 +191,9 @@ static void *Task_Ready;
 {
 	//OS_Call_Device(RDI_STDIO, RDC_CLOSE); // close echo
 	OS_Quit_Devices(0);
+#ifndef REB_CORE	
+	OS_Destroy_Graphics();
+#endif
 	exit(code);
 }
 
@@ -686,17 +695,69 @@ static void *Task_Ready;
 
 	if (GET_FLAG(fr->flags, FRF_MULTI)) ofn.Flags |= OFN_ALLOWMULTISELECT;
 
+	osDialogOpen = TRUE;
+	
 	if (GET_FLAG(fr->flags, FRF_SAVE))
 		ret = GetSaveFileName(&ofn);
 	else
 		ret = GetOpenFileName(&ofn);
 
+	osDialogOpen = FALSE;
+	
 	//if (!ret)
 	//	err = CommDlgExtendedError(); // CDERR_FINDRESFAILURE
 
 	return ret;
 }
 
+int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpData )
+{
+	static REBOOL inited = FALSE; 
+	switch (uMsg) {
+		case BFFM_INITIALIZED:
+			if (lpData) SendMessage(hWnd,BFFM_SETSELECTION,TRUE,lpData);
+			SetForegroundWindow(hWnd);			
+			inited = TRUE;
+			break;
+		case BFFM_SELCHANGED:
+			if (inited && lpData) {
+				SendMessage(hWnd,BFFM_SETSELECTION,TRUE,lpData);
+				inited = FALSE;
+			}
+			break;
+	}
+	return 0;
+}
+
+
+/***********************************************************************
+**
+*/	REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
+/*
+**	WARNING: TEMPORARY implementation! Used only by host-core.c
+**  Will be most probably changed in future.
+**
+***********************************************************************/
+{
+	BROWSEINFO bi;
+	REBCHR buffer[MAX_PATH];
+	ZeroMemory(buffer, MAX_PATH);
+	ZeroMemory(&bi, sizeof(bi));
+	bi.hwndOwner = NULL;
+	bi.pszDisplayName = buffer;
+	bi.lpszTitle = title;
+	bi.ulFlags = BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE;
+	bi.lpfn = ReqDirCallbackProc;
+	bi.lParam = (LPARAM)path;
+
+	osDialogOpen = TRUE;
+	LPCITEMIDLIST pFolder = SHBrowseForFolder(&bi);
+	osDialogOpen = FALSE;
+	if (pFolder == NULL) return FALSE;
+	if (!SHGetPathFromIDList(pFolder, buffer) ) return FALSE;
+	wcscpy(*folder, (REBCHR*)buffer);
+	return TRUE;
+}
 
 /***********************************************************************
 **
@@ -708,16 +769,45 @@ static void *Task_Ready;
 ***********************************************************************/
 {
 
-#ifndef REB_CORE
-
-#ifndef NO_COMPOSITOR
+#if (defined REB_CORE)
+	return 0;
+#else
 	return (REBSER*)Gob_To_Image(gob);
-#else
-	return 0;
 #endif
 
-#else
-	return 0;
-#endif
+}
 
+/***********************************************************************
+**
+*/	REBOOL As_OS_Str(REBSER *series, REBCHR **string)
+/*
+**	If necessary, convert a string series to Win32 wide-chars.
+**  (Handy for GOB/TEXT handling).
+**  If the string series is empty the resulting string is set to NULL
+**
+**  Function returns:
+**      TRUE - if the resulting string needs to be deallocated by the caller code
+**      FALSE - if REBOL string is used (no dealloc needed)
+**
+**  Note: REBOL strings are allowed to contain nulls.
+**
+***********************************************************************/
+{
+	int len, n;
+	void *str;
+	wchar_t *wstr;
+
+	if ((len = RL_Get_String(series, 0, &str)) < 0) {
+		// Latin1 byte string - convert to wide chars
+        len = -len;
+		wstr = OS_Make((len+1) * sizeof(wchar_t));
+		for (n = 0; n < len; n++)
+			wstr[n] = (wchar_t)((unsigned char*)str)[n];
+		wstr[len] = 0;
+		//note: following string needs be deallocated in the code that uses this function
+		*string = (REBCHR*)wstr;
+		return TRUE;
+	}
+	*string = (len == 0) ? NULL : str; //empty string check
+	return FALSE;
 }

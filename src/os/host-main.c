@@ -5,6 +5,8 @@
 **  Copyright 2012 REBOL Technologies
 **  REBOL is a trademark of REBOL Technologies
 **
+**  Additional code modifications and improvements Copyright 2012 Saphirion AG
+**
 **  Licensed under the Apache License, Version 2.0 (the "License");
 **  you may not use this file except in compliance with the License.
 **  You may obtain a copy of the License at
@@ -47,6 +49,7 @@
 #include <string.h>
 
 #ifdef _WIN32
+#define _WIN32_WINNT 0x0500
 #include <windows.h>
 #endif
 
@@ -72,8 +75,10 @@ HINSTANCE App_Instance = 0;
 
 #ifndef REB_CORE
 extern void Init_Windows(void);
-extern void Init_Graphics(void);
+extern void OS_Init_Graphics(void);
 #endif
+
+extern void Init_Core_Ext(void);
 
 //#define TEST_EXTENSIONS
 #ifdef TEST_EXTENSIONS
@@ -112,21 +117,20 @@ void Host_Crash(REBYTE *reason) {
 ***********************************************************************/
 
 #ifdef TO_WIN32
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
+// int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
+int main(int argc, char **argv)
 #else
 int main(int argc, char **argv)
 #endif
 {
+
 	REBYTE vers[8];
 	REBYTE *line;
 	REBINT n;
 
 #ifdef TO_WIN32  // In Win32 get args manually:
-	int argc;
-	REBCHR **argv;
 	// Fetch the win32 unicoded program arguments:
-	argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-	App_Instance = inst;
+	argv = (char **)CommandLineToArgvW(GetCommandLineW(), &argc);
 #endif
 
 	Host_Lib = &Host_Lib_Init;
@@ -149,18 +153,68 @@ int main(int argc, char **argv)
 	if (n == 1) Host_Crash("Host-lib wrong size");
 	if (n == 2) Host_Crash("Host-lib wrong version/checksum");
 
-#ifndef REB_CORE
-	Init_Windows();
-	Init_Graphics();
-#endif
+	//Initialize core extension commands
+	Init_Core_Ext();
+#ifdef EXT_LICENSING
+	Init_Licensing_Ext();
+#endif //EXT_LICENSING
 
 #ifdef TEST_EXTENSIONS
 	Init_Ext_Test();
 #endif
 
-// Call sys/start function. If a compressed script is provided, it will be 
-// decompressed, stored in system/options/boot-host, loaded, and evaluated.
-// Returns: 0: ok, -1: error, 1: bad data.
+#ifdef TO_WIN32
+	// no console, we must be the child process
+	if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
+	{
+		App_Instance = GetModuleHandle(NULL);
+	}
+#ifdef REB_CORE	
+	else //use always the console for R3/core
+	{
+		// GetWindowsLongPtr support 32 & 64 bit windows
+		App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+	}
+#else
+	//followinng R3/view code behaviors when compiled as:
+	//-"console app" mode: stdio redirection works but blinking console window during start
+	//-"GUI app" mode stdio redirection doesn't work properly, no blinking console window during start
+	else if (argc > 1) // we have command line args
+	{
+		// GetWindowsLongPtr support 32 & 64 bit windows
+		App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+	}
+	else // no command line args but a console - launch child process so GUI is initialized and exit
+	{
+		DWORD dwCreationFlags = CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS;
+		STARTUPINFO startinfo;
+		PROCESS_INFORMATION procinfo;
+		ZeroMemory(&startinfo, sizeof(startinfo));
+		startinfo.cb = sizeof(startinfo);
+		if (!CreateProcess(NULL, (LPTSTR)argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
+			MessageBox(0, L"CreateProcess() failed :(", L"", 0);
+		exit(0);
+	}
+#endif //REB_CORE	
+#endif //TO_WIN32
+
+	// Common code for console & GUI version
+#ifndef REB_CORE
+	Init_Windows();
+	OS_Init_Graphics();
+#endif // REB_CORE
+
+#ifdef TO_WIN32
+#ifdef ENCAP
+	Console_Output(FALSE);
+#else
+	if (Main_Args.script) Console_Output(FALSE);
+#endif // ENCAP
+#endif // TO_WIN32
+
+	// Call sys/start function. If a compressed script is provided, it will be
+	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
+	// Returns: 0: ok, -1: error, 1: bad data.
 #ifdef CUSTOM_STARTUP
 	// For custom startup, you can provide compressed script code here:
 	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, 0); // TRUE on halt
@@ -168,6 +222,15 @@ int main(int argc, char **argv)
 	n = RL_Start(0, 0, 0);
 #endif
 
+#ifdef TO_WIN32
+#ifdef ENCAP
+	Console_Output(TRUE);
+#else
+	if (Main_Args.script) Console_Output(TRUE);
+#endif // TO_WIN32
+#endif // ENCAP
+
+#ifndef ENCAP
 	// Console line input loop (just an example, can be improved):
 	if (
 		!(Main_Args.options & RO_CGI)
@@ -188,9 +251,11 @@ int main(int argc, char **argv)
 			else break; // EOS
 		}
 	}
-
-	//OS_Call_Device(RDI_STDIO, RDC_CLOSE);
+#endif //!ENCAP
 	OS_Quit_Devices(0);
+#ifndef REB_CORE	
+	OS_Destroy_Graphics();
+#endif
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;

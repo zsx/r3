@@ -220,6 +220,7 @@ typedef void(*CFUNC)(void *);
 #define GET_FLAGS(v,f,g)    (((v) & ((1<<(f)) | (1<<(g)))) != 0)
 #define SET_FLAG(v,f)       ((v) |= (1<<(f)))
 #define CLR_FLAG(v,f)       ((v) &= ~(1<<(f)))
+#define CLR_FLAGS(v,f,g)    ((v) &= ~((1<<(f)) | (1<<(g))))
 
 #ifdef min
 #define MIN(a,b) min(a,b)
@@ -272,4 +273,45 @@ typedef void(*CFUNC)(void *);
 
 #define MAKE_STR(n) (REBCHR*)(malloc((n) * sizeof(REBCHR)))  // OS chars!
 
-#define ROUND_TO_INT(d) (REBINT)(floor((d) + 0.5))
+#define ROUND_TO_INT(d) (REBINT)(floor((MAX(MIN_I32, MIN(MAX_I32, d))) + 0.5))
+
+//global pixelformat setup for REBOL image!, image loaders, color handling, tuple! conversions etc.
+//the graphics compositor code should rely on this setting(and do specific conversions if needed)
+//notes:
+//TO_RGBA_COLOR always returns 32bit RGBA value, converts R,G,B,A components to native RGBA order
+//TO_PIXEL_COLOR must match internal image! datatype byte order, converts R,G,B,A components to native image format
+// C_R, C_G, C_B, C_A Maps color components to correct byte positions for image! datatype byte order
+
+#ifdef ENDIAN_BIG
+
+#define TO_RGBA_COLOR(r,g,b,a) (REBCNT)((r)<<24 | (g)<<16 | (b)<<8 |  (a))
+
+//ARGB pixelformat used on big endian systems
+#define C_A 0
+#define C_R 1
+#define C_G 2
+#define C_B 3
+
+#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (r)<<16 | (g)<<8 |  (b))
+
+#else
+
+#define TO_RGBA_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (b)<<16 | (g)<<8 |  (r))
+
+//we use RGBA pixelformat on Android
+#ifdef TO_ANDROID_ARM
+#define C_R 0
+#define C_G 1
+#define C_B 2
+#define C_A 3
+#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (b)<<16 | (g)<<8 |  (r))
+#else
+//BGRA pixelformat is used on Windows
+#define C_B 0
+#define C_G 1
+#define C_R 2
+#define C_A 3
+#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (r)<<16 | (g)<<8 |  (b))
+#endif
+
+#endif

@@ -173,12 +173,14 @@ These are now obsolete (as of A107) and should be removed:
 #ifdef TO_OSXI					// OSX/Intel
 #define ENDIAN_LITTLE
 #define HAS_LL_CONSTS
+#undef NO_GRAPHICS
 #endif
 
 #ifdef TO_OSX					// OSX/PPC
 #define ENDIAN_BIG
 #define HAS_LL_CONSTS
 #define OLD_COMPILER
+#undef NO_GRAPHICS
 #endif
 
 #ifdef TO_FREEBSD
@@ -202,6 +204,13 @@ These are now obsolete (as of A107) and should be removed:
 #define HAS_LL_CONSTS
 #define HAS_SMART_CONSOLE
 #define NO_DL_LIB
+#endif
+
+#ifdef TO_ANDROID_ARM				// Android/ARM
+#undef MIN_OS
+#undef NO_GRAPHICS
+#define ENDIAN_LITTLE
+#define HAS_LL_CONSTS
 #endif
 
 

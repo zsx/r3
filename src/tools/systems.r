@@ -21,8 +21,8 @@ REBOL [
 systems: [
 	[plat  os-name   os-base  build-flags]
 	[0.1.03 "amiga"      posix  [HID NPS +SC CMT COP -SP -LM]]
-	[0.2.04 "osx"        posix  [+OS NCM -LM]]			; no shared lib possible
-	[0.2.05 "osxi"       posix  [ARC +O1 NPS PIC NCM HID STX -LM]]
+	[0.2.04 "osx"        osx    [+OS NCM -LM]]			; no shared lib possible
+	[0.2.05 "osxi"       osx    [ARC +O1 NPS PIC NCM HID STX -LM]]
 	[0.3.01 "win32"      win32  [+O2 UNI W32 WIN S4M EXE DIR -LM]]
 	[0.4.02 "linux"      posix  [+O2 LDL ST1 -LM]]		; libc 2.3
 	[0.4.03 "linux"      posix  [+O2 HID LDL ST1 -LM]]	; libc 2.5
@@ -33,6 +33,7 @@ systems: [
 	[0.5.75 "haiku"      posix  [+O2 ST1 NWK]]
 	[0.7.02 "freebsd"    posix  [+O1 C++ ST1 -LM]]
 	[0.9.04 "openbsd"    posix  [+O1 C++ ST1 -LM]]
+	[0.13.01 "android_arm"  posix  [HID F64 LDL LLOG -LM CST]]
 ]
 
 compile-flags: [
@@ -40,6 +41,7 @@ compile-flags: [
 	+O1: "-O1"                    ; full optimize
 	+O2: "-O2"                    ; full optimize
 	UNI: "-DUNICODE"              ; win32 wants it
+	CST: "-DCUSTOM_STARTUP"		  ; include custom startup script at host boot
 	HID: "-fvisibility=hidden"    ; all syms are hidden
 	F64: "-D_FILE_OFFSET_BITS=64" ; allow larger files
 	NPS: "-Wno-pointer-sign"      ; OSX fix
@@ -57,6 +59,7 @@ linker-flags: [
 	STA: "--strip-all"
 	C++: "-lstdc++" ; link with stdc++
 	LDL: "-ldl"     ; link with dynamic lib lib
+	LLOG: "-llog"	; on Android, link with liblog.so
 	ARC: "-arch i386" ; x86 32 bit architecture (OSX)
 	M32: "-m32"       ; use 32-bit memory model (Linux x64)
 	W32: "-lwsock32 -lcomdlg32"

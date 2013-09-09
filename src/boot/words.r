@@ -147,6 +147,7 @@ sha1
 md4
 md5
 crc32
+adler32
 
 ; Codec actions
 identify
@@ -180,6 +181,7 @@ rgb
 alpha
 data
 resize
+rotate
 no-title
 no-border
 dropable
@@ -189,6 +191,10 @@ modal
 on-top
 hidden
 owner
+active
+minimize
+maximize
+restore 
 
 *port-modes*
 
