@@ -6,8 +6,8 @@ do %make-host-init.r
 files: [
 	%mezz/prot-tls.r
 	%mezz/prot-http.r
-	%mezz/rma-patches.r
-	%mezz/rma-encap-boot.r
+	%mezz/saphir-patches.r
+	%mezz/saphir-encap-boot.r
 ]
 
 code: load-files files

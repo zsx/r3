@@ -12,8 +12,8 @@ files: [
 	%../make/encap-boot.r
 	%mezz/prot-tls.r
 	%mezz/prot-http.r
-	%mezz/rma-patches.r
-	%mezz/rma-encap.r
+	%mezz/saphir-patches.r
+	%mezz/saphir-encap.r
 ]
 
 code: load-files files

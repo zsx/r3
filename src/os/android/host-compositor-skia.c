@@ -122,22 +122,22 @@ enum Region_ops {
 {
 //	LOGI("rebcmp_resize_buffer()");
 	//check if window size really changed
-	if ((GOB_PW(winGob) != GOB_WO(winGob)) || (GOB_PH(winGob) != GOB_HO(winGob))) {
+	if ((GOB_LOG_W(winGob) != GOB_WO(winGob)) || (GOB_LOG_H(winGob) != GOB_HO(winGob))) {
 
-		REBINT w = GOB_PW_INT(winGob);
-		REBINT h = GOB_PH_INT(winGob);
-//		LOGI("resize to: %dx%d %dx%d\n", GOB_PX_INT(winGob), GOB_PY_INT(winGob), w, h);
-		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_updateWindow, ctx->Window, GOB_PX_INT(winGob), GOB_PY_INT(winGob), w, h);
+		REBINT w = GOB_LOG_W_INT(winGob);
+		REBINT h = GOB_LOG_H_INT(winGob);
+//		LOGI("resize to: %dx%d %dx%d\n", GOB_LOG_X_INT(winGob), GOB_LOG_Y_INT(winGob), w, h);
+		(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_updateWindow, ctx->Window, GOB_LOG_X_INT(winGob), GOB_LOG_Y_INT(winGob), w, h);
 
 		//update the buffer size values
 		ctx->winBufSize.x = w;
 		ctx->winBufSize.y = h;
 		
 		//update old gob area
-		GOB_XO(winGob) = GOB_PX(winGob);
-		GOB_YO(winGob) = GOB_PY(winGob);
-		GOB_WO(winGob) = GOB_PW(winGob);
-		GOB_HO(winGob) = GOB_PH(winGob);
+		GOB_XO(winGob) = GOB_LOG_X(winGob);
+		GOB_YO(winGob) = GOB_LOG_Y(winGob);
+		GOB_WO(winGob) = GOB_LOG_W(winGob);
+		GOB_HO(winGob) = GOB_LOG_H(winGob);
 		return TRUE;
 	}
 	return FALSE;
@@ -162,7 +162,7 @@ enum Region_ops {
 	ctx->Window = GOB_HWIN(gob); //an "id" of the Android WindowWiew class
 	
 	if (ctx->Window == 0) {	//no physical window, use "offscreen buffer" only
-		(*jni_env)->CallIntMethod(jni_env, jni_obj, jni_createWindow, (REBINT)gob, GOB_PX_INT(gob), GOB_PY_INT(gob), GOB_PW_INT(gob), GOB_PH_INT(gob), TRUE);
+		(*jni_env)->CallIntMethod(jni_env, jni_obj, jni_createWindow, (REBINT)gob, GOB_LOG_X_INT(gob), GOB_LOG_Y_INT(gob), GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob), TRUE);
 	}
 	
 	//call resize to init buffer
@@ -203,10 +203,10 @@ enum Region_ops {
 
 	if (GET_GOB_STATE(gob, GOBS_NEW)){
 		//reset old-offset and old-size if newly added
-		GOB_XO(gob) = GOB_PX(gob);
-		GOB_YO(gob) = GOB_PY(gob);
-		GOB_WO(gob) = GOB_PW(gob);
-		GOB_HO(gob) = GOB_PH(gob);
+		GOB_XO(gob) = GOB_LOG_X(gob);
+		GOB_YO(gob) = GOB_LOG_Y(gob);
+		GOB_WO(gob) = GOB_LOG_W(gob);
+		GOB_HO(gob) = GOB_LOG_H(gob);
 
 		CLR_GOB_STATE(gob, GOBS_NEW);
 	}
@@ -219,7 +219,7 @@ enum Region_ops {
 
 	//get the current Window clip box
 //	jintArray array = (*jni_env)->CallObjectMethod(jni_env, jni_obj, jni_getWindowClip, ctx->Window);
-	jintArray array = (*jni_env)->CallObjectMethod(jni_env, jni_obj, jni_intersectWindowClip, ctx->Window, x, y, x + GOB_PW_INT(gob), y + GOB_PH_INT(gob));
+	jintArray array = (*jni_env)->CallObjectMethod(jni_env, jni_obj, jni_intersectWindowClip, ctx->Window, x, y, x + GOB_LOG_W_INT(gob), y + GOB_LOG_H_INT(gob));
 	jint *coords = (*jni_env)->GetIntArrayElements(jni_env, array, NULL);
 	REBRECT gob_clip = {coords[0],coords[1],coords[2],coords[3]};
 	REBOOL valid_intersection = (REBOOL)coords[4];
@@ -274,8 +274,8 @@ enum Region_ops {
 			REBGOB **gp = GOB_HEAD(gob);
 			
 			for (n = 0; n < len; n++, gp++) {
-				REBINT g_x = GOB_PX(*gp);
-				REBINT g_y = GOB_PY(*gp);
+				REBINT g_x = GOB_LOG_X(*gp);
+				REBINT g_y = GOB_LOG_Y(*gp);
 
 				//restore the "parent gob" clip region
 //				(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_setWinRegion, ctx->Window, gob_clip.left, gob_clip.top, gob_clip.right, gob_clip.bottom);
@@ -326,8 +326,8 @@ enum Region_ops {
 	//calculate absolute offset of the gob
 	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
 	{
-		abs_x += GOB_PX(parent_gob);
-		abs_y += GOB_PY(parent_gob);
+		abs_x += GOB_LOG_X(parent_gob);
+		abs_y += GOB_LOG_Y(parent_gob);
 		parent_gob = GOB_PARENT(parent_gob);
 	} 
 
@@ -344,8 +344,8 @@ enum Region_ops {
 
 	if (!GET_GOB_STATE(gob, GOBS_NEW)){
 		//calculate absolute old offset of the gob
-		abs_ox = abs_x + (GOB_XO(gob) - GOB_PX(gob));
-		abs_oy = abs_y + (GOB_YO(gob) - GOB_PY(gob));
+		abs_ox = abs_x + (GOB_XO(gob) - GOB_LOG_X(gob));
+		abs_oy = abs_y + (GOB_YO(gob) - GOB_LOG_Y(gob));
 		
 //		RL_Print("OLD: %dx%d %dx%d\n",(REBINT)abs_ox, (REBINT)abs_oy, (REBINT)abs_ox + GOB_WO_INT(gob), (REBINT)abs_oy + GOB_HO_INT(gob));
 		
@@ -363,7 +363,7 @@ enum Region_ops {
 	//intersect resulting region with window clip region
 //	r = (*jni_env)->CallBooleanMethod(jni_env, jni_obj, jni_setWindowClip, ctx->Window, RGN_OP_INTERSECT);
 
-	valid_intersection = (*jni_env)->CallBooleanMethod(jni_env, jni_obj, jni_setNewRegion, ctx->Window, (REBINT)abs_x, (REBINT)abs_y, (REBINT)abs_x + GOB_PW_INT(gob), (REBINT)abs_y + GOB_PH_INT(gob));
+	valid_intersection = (*jni_env)->CallBooleanMethod(jni_env, jni_obj, jni_setNewRegion, ctx->Window, (REBINT)abs_x, (REBINT)abs_y, (REBINT)abs_x + GOB_LOG_W_INT(gob), (REBINT)abs_y + GOB_LOG_H_INT(gob));
 
 	if (valid_intersection)
 	{
@@ -377,10 +377,10 @@ enum Region_ops {
 	}
 	
 	//update old GOB area
-	GOB_XO(gob) = GOB_PX(gob);
-	GOB_YO(gob) = GOB_PY(gob);
-	GOB_WO(gob) = GOB_PW(gob);
-	GOB_HO(gob) = GOB_PH(gob);
+	GOB_XO(gob) = GOB_LOG_X(gob);
+	GOB_YO(gob) = GOB_LOG_Y(gob);
+	GOB_WO(gob) = GOB_LOG_W(gob);
+	GOB_HO(gob) = GOB_LOG_H(gob);
 }
 
 /***********************************************************************

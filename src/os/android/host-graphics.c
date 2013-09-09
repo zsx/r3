@@ -37,9 +37,7 @@
 ***********************************************************************/
 
 #include "reb-host.h"
-//#include "host-lib.h"
 #include "host-jni.h"
-#include "host-view.h"
 
 //***** Externs *****
 RXIEXT int RXD_Graphics(int cmd, RXIFRM *frm, REBCEC *data);

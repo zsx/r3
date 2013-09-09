@@ -105,10 +105,10 @@ static REBXYF Zero_Pair = {0, 0};
 ***********************************************************************/
 {
 //	LOGI("OS_Update_Window(): %d", GOB_HWIN(gob));
-	REBINT x = GOB_PX_INT(gob);
-	REBINT y = GOB_PY_INT(gob);
-	REBINT w = GOB_PW_INT(gob);
-	REBINT h = GOB_PH_INT(gob);
+	REBINT x = GOB_LOG_X_INT(gob);
+	REBINT y = GOB_LOG_Y_INT(gob);
+	REBINT w = GOB_LOG_W_INT(gob);
+	REBINT h = GOB_LOG_H_INT(gob);
 
 	REBOOL moved = ((x != GOB_XO_INT(gob)) || (y != GOB_YO_INT(gob)));
 	REBOOL resized = Resize_Window(gob, FALSE);
@@ -134,10 +134,10 @@ static REBXYF Zero_Pair = {0, 0};
 ***********************************************************************/
 {
 	REBINT windex;
-	REBINT x = GOB_PX_INT(gob);
-	REBINT y = GOB_PY_INT(gob);
-	REBINT w = GOB_PW_INT(gob);
-	REBINT h = GOB_PH_INT(gob);
+	REBINT x = GOB_LOG_X_INT(gob);
+	REBINT y = GOB_LOG_Y_INT(gob);
+	REBINT w = GOB_LOG_W_INT(gob);
+	REBINT h = GOB_LOG_H_INT(gob);
 	void* window;
 	
 	windex = Alloc_Window(gob);

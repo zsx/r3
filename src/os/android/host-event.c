@@ -60,7 +60,6 @@ enum input_events {
 
 //***** Externs *****
 extern REBOOL Resize_Window(REBGOB *gob, REBOOL redraw);
-extern REBXYF dp_scale;
 
 /***********************************************************************
 **
@@ -100,8 +99,9 @@ JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 //	LOGI("dispatchEvent(): %d %dx%d", type, x, y);
 	REBGOB* g = (REBGOB*)gob;
 	REBINT ev_type = -1;
-	REBINT dp_x = ROUND_TO_INT(x / dp_scale.x);
-	REBINT dp_y = ROUND_TO_INT(y / dp_scale.y);
+	REBINT p_x = ROUND_TO_INT(PHYS_COORD_X(x));
+	REBINT p_y = ROUND_TO_INT(PHYS_COORD_Y(y));
+
 	switch (type)
 	{
 		case EV_MOVE:
@@ -129,8 +129,8 @@ JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 		case EV_RESIZE:
 			{
 				//not sure if this will be even called from Android side someday...
-				g->size.x = dp_x;
-				g->size.y = dp_y;
+				g->size.x = p_x;
+				g->size.y = p_y;
 				Resize_Window(g, TRUE);
 				ev_type = EVT_RESIZE;
 				break;				
@@ -138,8 +138,8 @@ JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 		case EV_ROTATE:
 			{
 /*			
-				g->size.x = dp_x;
-				g->size.y = dp_y;
+				g->size.x = p_x;
+				g->size.y = p_y;
 				if (!Resize_Window(g, TRUE)){
 					ev_type = EVT_ROTATE;
 					break;
@@ -153,5 +153,5 @@ JNI_FUNC(void, WindowView_dispatchEvent, jint gob, jint type, jint x, jint y)
 			break;
 	}
 	if (ev_type != -1)
-		Add_Event_XY(g, ev_type, ((dp_y << 16) | (dp_x & 0xFFFF)), 0);
+		Add_Event_XY(g, ev_type, ((p_y << 16) | (p_x & 0xFFFF)), 0);
 }
