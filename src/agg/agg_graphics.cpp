@@ -1,7 +1,26 @@
-/*
-Code by: Richard Smolak (Cyphre)
-All rights reserved.
-*/
+/***********************************************************************
+**
+**  Copyright 2012 Saphirion AG
+**
+**  Licensed under the Apache License, Version 2.0 (the "License");
+**  you may not use this file except in compliance with the License.
+**  You may obtain a copy of the License at
+**
+**  http://www.apache.org/licenses/LICENSE-2.0
+**
+**  Unless required by applicable law or agreed to in writing, software
+**  distributed under the License is distributed on an "AS IS" BASIS,
+**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+**  See the License for the specific language governing permissions and
+**  limitations under the License.
+**
+************************************************************************
+**
+**  Module:  agg_graphics.cpp
+**  Summary: REBOL DRAW dialect graphics renderer
+**  Author:  Richard Smolak
+**
+***********************************************************************/
 
 #include "agg_graphics.h"
 
@@ -1706,8 +1725,8 @@ Reb_Print(
 		cattr.coord_y = sizY;
 		cattr.coord_x2 = m_pattern_x; //ox;
 		cattr.coord_y2 = m_pattern_y; //oy;
-		cattr.coord_x3 = m_pattern_x + ((m_pattern_w == 0) ? (w - x) / dp_scale.x : m_pattern_w); //ox + pw;
-		cattr.coord_y3 = m_pattern_y + ((m_pattern_h == 0) ? (h - y) / dp_scale.y : m_pattern_h); //oy + ph;
+		cattr.coord_x3 = m_pattern_x + ((m_pattern_w == 0) ? PHYS_COORD_X(w - x) : m_pattern_w); //ox + pw;
+		cattr.coord_y3 = m_pattern_y + ((m_pattern_h == 0) ? PHYS_COORD_Y(h - y) : m_pattern_h); //oy + ph;
 		cattr.img_buf = img_buf;
 		cattr.pattern_mode = m_pattern_mode; //pattern;
 		if (m_img_border == 0){ //outline == 0){
