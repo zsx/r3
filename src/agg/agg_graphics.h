@@ -123,8 +123,8 @@ namespace agg
 	class gradient_polymorphic_wrapper_base
 	{
 	public:
-		virtual int calculate(int x, int y, int) const = 0;
-		virtual void mode(int mode) = 0;
+		virtual int calculate(int x, int y, int) const {return (0);}
+		virtual void mode(int mode){}
 	};
 
 	template<class GradientF>
