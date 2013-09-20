@@ -115,14 +115,14 @@ JNI_FUNC(void, WindowView_updateRootGob, jint w, jint h)
 
 /***********************************************************************
 **
-*/	void OS_Show_Soft_Keyboard(REBINT win, REBINT x, REBINT y)
+*/	void OS_Show_Soft_Keyboard(void* win, REBINT x, REBINT y)
 /*
 **  Display software/virtual keyboard on the screen.
 **  (mainly used on mobile platforms)
 **
 ***********************************************************************/
 {
-	(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_showSoftKeyboard, win, x, y);
+	(*jni_env)->CallVoidMethod(jni_env, jni_obj, jni_showSoftKeyboard, (REBINT)win, x, y);
 }
 
 /***********************************************************************
