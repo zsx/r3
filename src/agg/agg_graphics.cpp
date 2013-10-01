@@ -200,7 +200,7 @@ Reb_Print(
 
 				(attr.line_width_mode) ? lw = attr.line_width : lw = attr.line_width * scl;
 
-				bool vtext = ((uintptr_t)attr.block == 1);
+				bool vtext = ((REBUPT)attr.block == 1);
 				
                 if (vtext){
 					attr.post_mtx.store_to(m_mtx_store);
