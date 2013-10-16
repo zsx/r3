@@ -357,7 +357,7 @@ namespace agg
 		typedef pixfmt_argb32_pre pixfmt_pre;
 		typedef order_argb component_order;
 #else
-#ifdef TO_ANDROID_ARM
+#if defined(TO_ANDROID_ARM) || defined(TO_LINUX) || defined(TO_LINUX_X64)
 		typedef pixfmt_rgba32 pixfmt;
 		typedef pixfmt_rgba32_pre pixfmt_pre;
 		typedef order_rgba component_order;
