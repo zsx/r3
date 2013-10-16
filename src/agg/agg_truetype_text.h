@@ -248,7 +248,7 @@ namespace agg
 #ifdef ENDIAN_BIG			
 			typedef pixfmt_argb32 pixfmt_type;
 #else
-#if defined(TO_ANDROID_ARM) || defined(TO_LINUX) || defined(TO_LINUX_X64)
+#ifdef TO_ANDROID_ARM
 			typedef pixfmt_rgba32 pixfmt_type;
 #else
 			typedef pixfmt_bgra32 pixfmt_type;
