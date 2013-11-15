@@ -62,6 +62,9 @@
 	#define FONT_NAME (REBCHR*)"/System/Library/Fonts/LucidaGrande.ttc"
 #endif
 
+#if defined(TO_LINUX) || defined(TO_LINUX_X64)
+	#define FONT_NAME (REBCHR*)"/usr/share/fonts/TTF/Aerial.ttf"
+#endif
 //fallback font
 #ifndef FONT_NAME
 	#define FONT_NAME (REBCHR*)"/system/fonts/FreeSans.ttf"
