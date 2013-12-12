@@ -24,6 +24,8 @@
 
 #include "agg_graphics.h"
 
+extern "C" void OS_Free(void *mem);
+
 #include "agg_truetype_text.h"
 
 extern "C" void RL_Print(char *fmt, ...);//output just for testing
@@ -123,7 +125,7 @@ namespace agg
 		for(i = 0; i < m_text_attributes.size(); i++){
 			text_attributes attr = m_text_attributes[i];
 			if (attr.text != last_text && attr.text_free){
-				delete[] attr.text;
+				OS_Free(attr.text);
 				last_text = attr.text;
 			}
 			if (attr.name != last_name && attr.name_free){
