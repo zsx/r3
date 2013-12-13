@@ -498,8 +498,6 @@ namespace agg
 
 	int rich_text::rt_size_text(REBXYF* size)
 	{
-		m_tmp_val.pair.x = ROUND_TO_INT(size->x);
-		m_tmp_val.pair.y = ROUND_TO_INT(size->y);
 		rt_draw_text(SIZE_TEXT);
 		size->x = m_tmp_val.pair.x;
 		size->y = m_tmp_val.pair.y;
