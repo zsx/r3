@@ -129,7 +129,7 @@ namespace agg
 				last_text = attr.text;
 			}
 			if (attr.name != last_name && attr.name_free){
-				delete[] attr.name;
+				OS_Free(attr.name);
 				last_name = attr.name;
 			}
 		}
