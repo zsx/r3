@@ -29,6 +29,13 @@ extern "C" void OS_Free(void *mem);
 #include "agg_truetype_text.h"
 
 extern "C" void RL_Print(char *fmt, ...);//output just for testing
+
+REBYTE *find_font_path(
+	const REBYTE* name,
+	unsigned char bold,
+	unsigned char italic,
+	unsigned char size);
+
 namespace agg
 {
 
@@ -243,14 +250,20 @@ namespace agg
 		attr.color = rgba8(m_font->color[0],m_font->color[1],m_font->color[2], m_font->color[3]);
 		attr.italic = m_font->italic;
 		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
-		attr.name_free = m_font->name_free;
+		attr.size = m_font->size;
+		REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+		if (fn != NULL){
+			attr.name = fn;
+			attr.name_free = true;
+		} else {
+			attr.name_free = m_font->name_free;
+		}
 		attr.offset_x = m_font->offset_x;
 		attr.offset_y = m_font->offset_y;
 		attr.shadow_x = m_font->shadow_x;
 		attr.shadow_y = m_font->shadow_y;
 		attr.shadow_color = rgba8(m_font->shadow_color[0],m_font->shadow_color[1],m_font->shadow_color[2], m_font->shadow_color[3]);
 		attr.shadow_blur = m_font->shadow_blur;
-		attr.size = m_font->size;
 		attr.space_x = m_font->space_x;
 		attr.space_y = m_font->space_y;
 		attr.underline = m_font->underline;

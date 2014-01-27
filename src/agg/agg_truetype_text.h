@@ -63,7 +63,7 @@
 #endif
 
 #if defined(TO_LINUX) || defined(TO_LINUX_X64)
-	#define FONT_NAME (REBCHR*)"/usr/share/fonts/TTF/Aerial.ttf"
+	#define FONT_NAME (REBCHR*)"Arial"
 #endif
 //fallback font
 #ifndef FONT_NAME
