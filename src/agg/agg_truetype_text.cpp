@@ -255,7 +255,7 @@ namespace agg
 		REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
 		if (fn != NULL){
 			attr.name = fn;
-			attr.name_free = true;
+			attr.name_free = false;
 		} else {
 			attr.name_free = m_font->name_free;
 		}
