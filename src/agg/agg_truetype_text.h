@@ -62,7 +62,7 @@
 	#define FONT_NAME (REBCHR*)"/System/Library/Fonts/LucidaGrande.ttc"
 #endif
 
-#if defined(TO_LINUX) || defined(TO_LINUX_X64)
+#ifdef TO_LINUX
 	#define FONT_NAME (REBCHR*)"Arial"
 #endif
 //fallback font
