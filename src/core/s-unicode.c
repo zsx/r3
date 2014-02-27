@@ -855,7 +855,7 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	int Decode_UTF16(REBUNI *dst, REBYTE *src, REBINT len, REBFLG lee, REBFLG ccr)
+*/	int Decode_UTF16(REBUNI *dst, REBYTE *src, REBCNT len, REBFLG lee, REBFLG ccr)
 /*
 **		dst: the desination array, must always be large enough!
 **		src: source binary data
