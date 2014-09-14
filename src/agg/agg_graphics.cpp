@@ -565,6 +565,7 @@ Reb_Print(
                                     if (key_img_buffer !=0){
                                         delete [] key_img_buffer;
                                     }
+									delete [] vertices;
                                     break;
 							    }
 							}
