@@ -1565,12 +1565,12 @@ Reb_Print(
 		for(i = 0; i < m_stack.size(); i++){
 			path_attributes attr = m_stack[i];
 			if (attr.colors != last_profile){
-				delete[] attr.colors;
 				last_profile = attr.colors;
+				delete[] attr.colors;
 			}
 			if (attr.dash_array != last_dash){
-				delete[] attr.dash_array;
 				last_dash = attr.dash_array;
+				delete[] attr.dash_array;
 			}
 		}
 
