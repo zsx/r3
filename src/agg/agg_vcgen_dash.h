@@ -71,7 +71,7 @@ namespace agg
 
         void calc_dash_start(double ds);
 
-        double             m_dashes[max_dashes];
+        double             m_dashes[max_dashes << 1]; /* m_dashes stores both dash and gap lengths */
         double             m_total_dash_len;
         unsigned           m_num_dashes;
         double             m_dash_start;
