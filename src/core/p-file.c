@@ -35,6 +35,7 @@
 #define HL64(v) (v##l + (v##h << 32))
 #define MAX_READ_MASK 0x7FFFFFFF // max size per chunk
 
+#define N_REQ_IN_STATE 1
 
 /***********************************************************************
 **
@@ -330,7 +331,7 @@ REBINT Mode_Syms[] = {
 	else if (!IS_FILE(path)) Trap1(RE_INVALID_SPEC, path);
 
 	// Get or setup internal state data:
-	file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file));
+	file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file), N_REQ_IN_STATE, 0);
 
 	switch (action) {
 

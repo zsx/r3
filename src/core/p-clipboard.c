@@ -29,6 +29,7 @@
 
 #include "sys-core.h"
 
+#define N_REQ_IN_STATE 1
 
 /***********************************************************************
 **
@@ -47,7 +48,7 @@
 
 	arg = D_ARG(2);
 
-	req = Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ));
+	req = Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ), N_REQ_IN_STATE, 0);
 
 	switch (action) {
 	case A_UPDATE:

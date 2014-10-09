@@ -85,11 +85,13 @@
 
 /***********************************************************************
 **
-*/	void *Use_Port_State(REBSER *port, REBCNT device, REBCNT size)
+*/	void *Use_Port_State(REBSER *port, REBCNT device, REBCNT size, REBCNT n, REBCNT index)
 /*
 **		Use private state area in a port. Create if necessary.
 **		The size is that of a binary structure used by
 **		the port for storing internal information.
+**		"n" is the number of structures the port needs
+**		"index" is the index to the returning structure
 **
 ***********************************************************************/
 {
@@ -97,19 +99,20 @@
 
 	// If state is not a binary structure, create it:
 	if (!IS_BINARY(state)) {
-		REBSER *data = Make_Binary(size);
-		REBREQ *req = (REBREQ*)STR_HEAD(data);
+		REBSER *data = Make_Binary(size * n);
 		Guard_Series(data); // GC safe if no other references
-		req->clen = size;
 		CLEAR(STR_HEAD(data), size);
 		//data->tail = size; // makes it easier for ACCEPT to clone the port
-		SET_FLAG(req->flags, RRF_ALLOC); // not on stack
-		req->port = port;
-		req->device = device;
 		Set_Binary(state, data);
 	}
 
-	return (void *)VAL_BIN(state);
+	REBREQ *req = (REBREQ*)(VAL_BIN(state) + size * index);
+	req->clen = size;
+	SET_FLAG(req->flags, RRF_ALLOC); // not on stack
+	req->port = port;
+	req->device = device;
+
+	return req;
 }
 
 

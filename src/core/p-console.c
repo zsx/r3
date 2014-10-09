@@ -39,6 +39,8 @@
 #define MAKE_OS_BUFFER Make_Binary
 #endif
 
+#define N_REQ_IN_STATE 1
+
 /***********************************************************************
 **
 */	static int Console_Actor(REBVAL *ds, REBSER *port, REBCNT action)
@@ -55,7 +57,7 @@
 	arg = D_ARG(2);
 	*D_RET = *D_ARG(1);
 
-	req = Use_Port_State(port, RDI_STDIO, sizeof(REBREQ));
+	req = Use_Port_State(port, RDI_STDIO, sizeof(REBREQ), N_REQ_IN_STATE, 0);
 
 	switch (action) {
 

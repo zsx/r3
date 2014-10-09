@@ -33,6 +33,8 @@
 
 #define MAX_SERIAL_DEV_PATH 128
 
+#define N_REQ_IN_STATE 1
+
 /***********************************************************************
 **
 */	static int Serial_Actor(REBVAL *ds, REBSER *port, REBCNT action)
@@ -61,7 +63,7 @@
 
 	//if (!IS_FILE(path)) Trap1(RE_INVALID_SPEC, path);
 
-	req = Use_Port_State(port, RDI_SERIAL, sizeof(*req));
+	req = Use_Port_State(port, RDI_SERIAL, sizeof(*req), N_REQ_IN_STATE, 0);
 
 	// Actions for an unopened serial port:
 	if (!IS_OPEN(req)) {

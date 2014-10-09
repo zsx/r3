@@ -205,7 +205,8 @@ standard: context [
 		actor:		; port action handler (script driven)
 		awake:		; port awake function (event driven)
 		state:		; internal state values (private)
-		data:		; data buffer (usually binary or block)
+		data:		; incoming data buffer (usually binary or block)
+		out-data:	; outgoing data buffer (usually binary or block)
 		locals:		; user-defined storage of local data
 ;		stats:		; stats on operation (optional)
 			none

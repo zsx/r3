@@ -30,6 +30,7 @@
 #include "sys-core.h"
 #include "reb-net.h"
 
+#define N_REQ_IN_STATE 1
 
 /***********************************************************************
 **
@@ -50,7 +51,7 @@
 	arg = D_ARG(2);
 	*D_RET = *D_ARG(1);
 
-	sock = Use_Port_State(port, RDI_DNS, sizeof(*sock));
+	sock = Use_Port_State(port, RDI_DNS, sizeof(*sock), N_REQ_IN_STATE, 0);
 	spec = OFV(port, STD_PORT_SPEC);
 	if (!IS_OBJECT(spec)) Trap0(RE_INVALID_PORT);
 

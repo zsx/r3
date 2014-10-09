@@ -34,6 +34,8 @@
 
 #define NET_BUF_SIZE 32*1024
 
+#define N_REQ_IN_STATE 2
+
 enum Transport_Types {
 	TRANSPORT_TCP,
 	TRANSPORT_UDP
@@ -84,7 +86,7 @@ enum Transport_Types {
 	SET_NONE(OFV(port, STD_PORT_STATE)); // just to be sure.
 
 	// Copy over the new sock data:
-	sock = Use_Port_State(port, RDI_NET, sizeof(*sock));
+	sock = Use_Port_State(port, RDI_NET, sizeof(*sock), N_REQ_IN_STATE, 0);
 	*sock = *nsock;
 	sock->clen = sizeof(*sock);
 	sock->port = port;
@@ -97,7 +99,7 @@ enum Transport_Types {
 /*
 ***********************************************************************/
 {
-	REBREQ *sock;	// IO request
+	REBREQ *sock, *osock;	// IO request
 	REBVAL *spec;	// port spec
 	REBVAL *arg;	// action argument value
 	REBVAL *val;	// e.g. port number value
@@ -112,7 +114,7 @@ enum Transport_Types {
 	arg = D_ARG(2);
 	refs = 0;
 
-	sock = Use_Port_State(port, RDI_NET, sizeof(*sock));
+	sock = Use_Port_State(port, RDI_NET, sizeof(*sock), N_REQ_IN_STATE, 0);
 	if (proto == TRANSPORT_UDP) {
 		SET_FLAG(sock->modes, RST_UDP);
 	}
@@ -183,12 +185,20 @@ enum Transport_Types {
 	case A_UPDATE:
 		// Update the port object after a READ or WRITE operation.
 		// This is normally called by the WAKE-UP function.
-		arg = OFV(port, STD_PORT_DATA);
-		if (sock->command == RDC_READ) {
-			if (ANY_BINSTR(arg)) VAL_TAIL(arg) += sock->actual;
-		}
-		else if (sock->command == RDC_WRITE) {
-			SET_NONE(arg);  // Write is done.
+		{
+			int i = 0;
+			for (i = 0; i < N_REQ_IN_STATE; i ++) {
+				if (sock->command == RDC_READ && sock->actual > 0) {
+					arg = OFV(port, STD_PORT_DATA);
+					if (ANY_BINSTR(arg)) VAL_TAIL(arg) += sock->actual;
+					sock->actual = 0;
+				}
+				else if (sock->command == RDC_WRITE) {
+					arg = OFV(port, STD_PORT_OUT_DATA);
+					SET_NONE(arg);  // Write is done.
+				}
+				++ sock;
+			}
 		}
 		return R_NONE;
 
@@ -236,7 +246,10 @@ enum Transport_Types {
 		}
 
 		// Setup the write:
-		*OFV(port, STD_PORT_DATA) = *spec;	// keep it GC safe
+		*OFV(port, STD_PORT_OUT_DATA) = *spec;	// keep it GC safe
+		osock = sock;
+		sock = Use_Port_State(port, RDI_NET, sizeof(*sock), N_REQ_IN_STATE, 1);
+		*sock = *osock;
 		sock->length = len;
 		sock->data = VAL_BIN_DATA(spec);
 		sock->actual = 0;
