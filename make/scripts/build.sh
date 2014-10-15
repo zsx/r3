@@ -2,6 +2,7 @@
 #$0 [all|win-32|win-64|linux-32|linux-64] publish
 version=3.0.0
 BUILD_TIME=$(date +%Y-%m-%d/%H:%M:%S)
+TOP_DIR=$(realpath $(dirname $0)/../../)
 
 revision() {
 	rev=$(git log|head -n 1|awk '{print $2}')
@@ -55,9 +56,9 @@ setup() {
 build() {
 	#echo "make -f $MK $EXE"
 	#echo "copy $EXE $NAME"
-	DIR=`pwd`
-	rm -fr $DIR/libffi
-	cd ../src/libffi
+	MAKE_DIR=$TOP_DIR/make
+	rm -fr $MAKE_DIR/make/libffi
+	cd $TOP_DIR/src/libffi
 	if [ -f configure ]; then
 		make clean
 	else
@@ -66,20 +67,20 @@ build() {
 	echo "CFLAGS: $CFLAGS"
 	if [ -z $HOST ]; then
 		if [ -z $CFLAGS ]; then
-			./configure --prefix=$DIR/libffi
+			./configure --prefix=$MAKE_DIR/libffi
 		else
-			./configure --prefix=$DIR/libffi CFLAGS=$CFLAGS
+			./configure --prefix=$MAKE_DIR/libffi CFLAGS=$CFLAGS
 		fi
 	else
 		if [ -z $CFLAGS ]; then
-			./configure --prefix=$DIR/libffi --host=$HOST
+			./configure --prefix=$MAKE_DIR/libffi --host=$HOST
 		else
-			./configure --prefix=$DIR/libffi --host=$HOST CFLAGS=$CFLAGS
+			./configure --prefix=$MAKE_DIR/libffi --host=$HOST CFLAGS=$CFLAGS
 		fi
 	fi
 	make
 	make install
-	cd $DIR
+	cd $MAKE_DIR
 	make -f $MK clean
 	make -f $MK $EXE
 	#make -f $MK strip-view
