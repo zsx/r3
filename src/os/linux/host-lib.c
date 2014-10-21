@@ -253,9 +253,11 @@ static const void * backtrace_buf [1024];
 	}
 	fputs(content, stderr);
 	fputs("\n\n", stderr);
+#ifdef backtrace  // A GNU extension
 	fputs("Backtrace:\n", stderr);
 	int n_backtrace = backtrace(backtrace_buf, sizeof(backtrace_buf)/sizeof(backtrace_buf[0]));
 	backtrace_symbols_fd(backtrace_buf, n_backtrace, STDERR_FILENO);
+#endif
 	exit(100);
 }
 
@@ -1172,7 +1174,7 @@ static int Try_Browser(char *browser, REBCHR *url)
 
 /***********************************************************************
 **
-*/	REBYTE * OS_Read_Embedded (const REBCHR *path, REBI64 *script_size)
+*/	REBYTE * OS_Read_Embedded (REBI64 *script_size)
 /*
 ***********************************************************************/
 {
@@ -1192,7 +1194,7 @@ static int Try_Browser(char *browser, REBCHR *url)
 	char *ret = NULL;
 	char *embedded_script = NULL;
 
-	script = fopen(path, "r");
+	script = fopen("/proc/self/exe", "r");
 	if (script == NULL) return NULL;
 
 	nbytes = fread(&file_header, sizeof(file_header), 1, script);
@@ -1201,7 +1203,7 @@ static int Try_Browser(char *browser, REBCHR *url)
 		return NULL;
 	}
 
-	sec_headers = OS_Make(file_header.e_shnum * file_header.e_shentsize);
+	sec_headers = OS_Make(((size_t)file_header.e_shnum) * file_header.e_shentsize);
 	if (sec_headers == NULL) {
 		fclose(script);
 		return NULL;
