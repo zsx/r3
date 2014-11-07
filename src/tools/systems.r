@@ -80,13 +80,13 @@ systems: [
 			[LEN LLC +O2 ST1 NWK]
 	;-------------------------------------------------------------------------
 	0.7.02		freebsd-x86		posix
-			[LEN LLC +O1 C++ ST1 -LM]
+			[LEN LLC +O1 ST1 -LM]
 
 	0.7.40		freebsd-x64		posix
 			[LP64 LEN LLC +O1 ST1 -LM]
 	;-------------------------------------------------------------------------
 	0.9.04		openbsd			posix
-			[LEN LLC +O1 C++ ST1 -LM]
+			[LEN LLC +O1 ST1 -LM]
 	;-------------------------------------------------------------------------
 	0.13.01		android-arm		android
 			[LEN LLC HID F64 LDL LLOG -LM CST]
@@ -129,7 +129,6 @@ linker-flags: context [
 	ARC: "-arch i386"				; x86 32 bit architecture (OSX)
 
 	NSO: ""							; no shared libs
-	C++: "-lstdc++"					; link with stdc++
 	LDL: "-ldl"						; link with dynamic lib lib
 	LLOG: "-llog"					; on Android, link with liblog.so
 
