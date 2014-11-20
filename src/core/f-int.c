@@ -42,7 +42,7 @@ REBOOL reb_u32_add_overflow(u32 x, u32 y, u32 *sum)
 {
 	u64 s = (u64)x + (u64)y;
 	if (s > MAX_I32) return TRUE;
-	*sum = s;
+	*sum = (u32)s;
 	return FALSE;
 }
 
@@ -81,7 +81,7 @@ REBOOL reb_i32_mul_overflow(i32 x, i32 y, i32 *prod)
 {
 	i64 p = (i64)x * (i64)y;
 	if (p > MAX_I32 || p < MIN_I32) return TRUE;
-	*prod = p;
+	*prod = (i32)p;
 	return FALSE;
 }
 
@@ -89,7 +89,7 @@ REBOOL reb_u32_mul_overflow(u32 x, u32 y, u32 *prod)
 {
 	u64 p = (u64)x * (u64)y;
 	if (p > MAX_U32) return TRUE;
-	*prod = p;
+	*prod = (u32)p;
 	return FALSE;
 }
 
@@ -137,9 +137,14 @@ REBOOL reb_i64_mul_overflow(i64 x, i64 y, i64 *prod)
 
 	if (REB_U64_MUL_OF(x, y, (u64 *)&p)
 		|| (!sgn && p > MAX_I64)
-		|| (sgn && p > MAX_U64)) return TRUE;
+		|| (sgn && p - 1 > MAX_I64)) return TRUE; /* assumes 2's complements */
 
-	*prod = sgn? -p : p;
+	if (sgn && p == (u64)MIN_I64) {
+		*prod = MIN_I64;
+		return FALSE;
+	}
+
+	*prod = sgn? -(i64)p : p;
 	return FALSE;
 }
 
