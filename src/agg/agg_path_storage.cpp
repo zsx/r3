@@ -106,9 +106,11 @@ namespace agg
                        m_coord_blocks, 
                        m_max_blocks * sizeof(double*));
 
-                memcpy(new_cmds, 
-                       m_cmd_blocks, 
-                       m_max_blocks * sizeof(unsigned char*));
+				if (m_cmd_blocks) {
+					memcpy(new_cmds,
+						   m_cmd_blocks,
+						   m_max_blocks * sizeof(unsigned char*));
+				}
 
                 delete [] m_coord_blocks;
             }
