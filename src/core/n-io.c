@@ -540,6 +540,7 @@ chk_neg:
 #define NONE_TYPE 1
 #define STRING_TYPE 2
 #define FILE_TYPE 3
+#define BINARY_TYPE 4
 
 #define FLAG_WAIT 1
 #define FLAG_CONSOLE 2
@@ -583,6 +584,10 @@ chk_neg:
 			input_type = STRING_TYPE;
 			os_input = Val_Str_To_OS(param);
 			input_len = VAL_LEN(param);
+		} else if (IS_BINARY(param)) {
+			input_type = BINARY_TYPE;
+			os_input = VAL_BIN_DATA(param);
+			input_len = VAL_LEN(param);
 		} else if (IS_FILE(param)) {
 			REBSER *path = Value_To_OS_Path(param, FALSE);
 			input_type = FILE_TYPE;
@@ -598,8 +603,10 @@ chk_neg:
 	if (D_REF(8)) { /* output */
 		REBVAL *param = D_ARG(9);
 		output = param;
-		if (IS_WORD(param)) {
+		if (IS_STRING(param)) {
 			output_type = STRING_TYPE;
+		} else if (IS_BINARY(param)) {
+			output_type = BINARY_TYPE;
 		} else if (IS_FILE(param)) {
 			REBSER *path = Value_To_OS_Path(param, FALSE);
 			output_type = FILE_TYPE;
@@ -615,8 +622,10 @@ chk_neg:
 	if (D_REF(10)) { /* err */
 		REBVAL *param = D_ARG(11);
 		err = param;
-		if (IS_WORD(param)) {
+		if (IS_STRING(param)) {
 			err_type = STRING_TYPE;
+		} else if (IS_BINARY(param)) {
+			err_type = BINARY_TYPE;
 		} else if (IS_FILE(param)) {
 			REBSER *path = Value_To_OS_Path(param, FALSE);
 			err_type = FILE_TYPE;
@@ -629,9 +638,13 @@ chk_neg:
 		}
 	}
 
+	/* I/O redirection implies /wait */
 	if (input_type == STRING_TYPE
+		|| input_type == BINARY_TYPE
 		|| output_type == STRING_TYPE
-		|| err_type == STRING_TYPE) {
+		|| output_type == BINARY_TYPE
+		|| err_type == STRING_TYPE
+		|| err_type == BINARY_TYPE) {
 		flag_wait = TRUE;
 	}
 
@@ -669,6 +682,7 @@ chk_neg:
 			}
 		}
 		argv[argc] = NULL;
+		cmd = NULL;
 	} else if (IS_FILE(arg)) {
 		REBSER * ser = NULL;
 		REBSER *path = Value_To_OS_Path(arg, FALSE);
@@ -677,6 +691,7 @@ chk_neg:
 		argv = (REBCHR**)SERIES_DATA(ser);
 		argv[0] = (REBCHR*) SERIES_DATA(path);
 		argv[argc] = NULL;
+		cmd = NULL;
 	} else {
 		Trap_Arg(arg);
 	}
@@ -686,18 +701,34 @@ chk_neg:
 						  output_type, &os_output, &output_len,
 						  err_type, &os_err, &err_len);
 
-	if (output_type == STRING_TYPE
-		&& output != NULL
-		&& output_len > 0) {
-		REBSER *ser = Copy_OS_Str(os_output, output_len);
-		Set_Var_Series(output, REB_STRING, ser, 0);
+	if (output_type == STRING_TYPE) {
+		if (output != NULL
+			&& output_len > 0) {
+			REBSER *ser = Copy_OS_Str(os_output, output_len);
+			Append_String(VAL_SERIES(output), ser, 0, SERIES_TAIL(ser));
+			OS_FREE(os_output);
+		}
+	} else if (output_type == BINARY_TYPE) {
+		if (output != NULL
+			&& output_len > 0) {
+			Append_Bytes_Len(VAL_SERIES(output), os_output, output_len);
+			OS_FREE(os_output);
+		}
 	}
 
-	if (err_type == STRING_TYPE
-		&& err != NULL
-		&& err_len > 0) {
-		REBSER *ser = Copy_OS_Str(os_err, err_len);
-		Set_Var_Series(err, REB_STRING, ser, 0);
+	if (err_type == STRING_TYPE) {
+		if (err != NULL
+			&& err_len > 0) {
+			REBSER *ser = Copy_OS_Str(os_err, err_len);
+			Append_String(VAL_SERIES(err), ser, 0, SERIES_TAIL(ser));
+			OS_FREE(os_err);
+		}
+	} else if (err_type == BINARY_TYPE) {
+		if (err != NULL
+			&& err_len > 0) {
+			Append_Bytes_Len(VAL_SERIES(err), os_err, err_len);
+			OS_FREE(os_err);
+		}
 	}
 
 	if (flag_info) {
