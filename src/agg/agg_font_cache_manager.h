@@ -173,9 +173,9 @@ namespace agg
                 if(m_num_fonts >= m_max_fonts)
                 {
                     delete m_fonts[0];
-                    memcpy(m_fonts, 
-                           m_fonts + 1, 
-                           (m_max_fonts - 1) * sizeof(font_cache*));
+                    memmove(m_fonts,
+							m_fonts + 1,
+							(m_max_fonts - 1) * sizeof(font_cache*));
                     m_num_fonts = m_max_fonts - 1;
                 }
                 m_fonts[m_num_fonts] = new font_cache(font_signature);

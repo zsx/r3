@@ -21,9 +21,15 @@
 **  Author:  Richard Smolak
 **
 ***********************************************************************/
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "reb-host.h"
+	#include "reb-host.h"
 
+#ifdef __cplusplus
+}
+#endif
 //basic api
 #include "agg_scanline_p.h"
 #include "agg_scanline_u.h"

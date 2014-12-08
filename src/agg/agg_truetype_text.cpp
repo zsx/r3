@@ -28,7 +28,7 @@ extern "C" void OS_Free(void *mem);
 
 #include "agg_truetype_text.h"
 
-extern "C" void RL_Print(char *fmt, ...);//output just for testing
+//extern "C" void RL_Print(char *fmt, ...);//output just for testing
 
 REBYTE *find_font_path(
 	const REBYTE* name,

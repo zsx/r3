@@ -1147,6 +1147,7 @@ int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpD
 {
 	BROWSEINFO bi;
 	REBCHR buffer[MAX_PATH];
+	LPCITEMIDLIST pFolder;
 	ZeroMemory(buffer, MAX_PATH);
 	ZeroMemory(&bi, sizeof(bi));
 	bi.hwndOwner = NULL;
@@ -1157,7 +1158,7 @@ int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpD
 	bi.lParam = (LPARAM)path;
 
 	osDialogOpen = TRUE;
-	LPCITEMIDLIST pFolder = SHBrowseForFolder(&bi);
+	pFolder = SHBrowseForFolder(&bi);
 	osDialogOpen = FALSE;
 	if (pFolder == NULL) return FALSE;
 	if (!SHGetPathFromIDList(pFolder, buffer) ) return FALSE;
@@ -1221,13 +1222,12 @@ int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpD
 /***********************************************************************
 **
 **	Read embedded rebol script from the executable
-*/	REBYTE * OS_Read_Embedded (const REBCHR *path, REBI64 *script_size)
+*/	REBYTE * OS_Read_Embedded (REBI64 *script_size)
 /*
 ***********************************************************************/
 {
 #define PAYLOAD_NAME L"EMBEDDEDREBOL"
 
-	FILE *script = NULL;
 	char *embedded_script = NULL;
 	HMODULE h_mod= 0;
 	HRSRC h_res = 0;

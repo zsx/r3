@@ -942,7 +942,7 @@ do-codec: native [
 	{Evaluate a CODEC function to encode or decode media types.}
 	handle [handle!] "Internal link to codec"
 	action [word!] "Decode, encode, identify"
-	data [binary! image!]
+	data [binary! image! string!]
 ]
 
 set-scheme: native [
