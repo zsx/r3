@@ -1073,7 +1073,6 @@ eval_func2:
 	jmp_buf *Last_Halt_State = Halt_State;
 
 	PUSH_STATE(state, Saved_State);
-
 	if (SET_JUMP(state)) {
 		/* Halt_State might become invalid, restore the one above */
 		Halt_State = Last_Halt_State;
@@ -1746,7 +1745,6 @@ eval_func2:
 	PUSH_STATE(state, Halt_State);
 	if (SET_JUMP(state)) {
 //		Debug_Fmt("Throw Halt %d", depth);
-
 		/* Saved_State might become invalid, restore the one above */
 		Saved_State = Last_Saved_State;
 		POP_STATE(state, Halt_State);
@@ -1860,7 +1858,7 @@ eval_func2:
 	VAL_ERR_VALUE(err) = TASK_THIS_VALUE;
 	VAL_ERR_SYM(err) = 0;
 
-	LONG_JUMP(*Halt_State, 1);
+	longjmp(*Halt_State, 1);
 }
 
 
