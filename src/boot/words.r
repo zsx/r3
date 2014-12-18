@@ -289,3 +289,9 @@ stack-size
 ;call/info
 id
 exit-code
+
+uid
+euid
+gid
+egid
+pid
