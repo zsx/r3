@@ -159,9 +159,10 @@ void OS_Destroy_Graphics(void);
 ***********************************************************************/
 
 /* Keep in sync with n-io.c */
-#define OS_EINVAL -1
-#define OS_EPERM -2
-#define OS_ESRCH -3
+#define OS_ENA	 -1
+#define OS_EINVAL -2
+#define OS_EPERM -3
+#define OS_ESRCH -4
 
 /***********************************************************************
 **

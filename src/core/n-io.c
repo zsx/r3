@@ -846,9 +846,10 @@ chk_neg:
  * /set
  */
 {
-#define OS_EINVAL -1
-#define OS_EPERM -2
-#define OS_ESRCH -3
+#define OS_ENA	 -1
+#define OS_EINVAL -2
+#define OS_EPERM -3
+#define OS_ESRCH -4
 
 	REBVAL *field = D_ARG(1);
 	REBOOL set = D_REF(2);
@@ -861,6 +862,8 @@ chk_neg:
 					REBINT ret = OS_SET_UID(VAL_INT32(val));
 					if (ret < 0) {
 						switch (ret) {
+							case OS_ENA:
+								return R_NONE;
 							case OS_EPERM:
 								Trap0(RE_PERMISSION_DENIED);
 								break;
@@ -894,6 +897,8 @@ chk_neg:
 					REBINT ret = OS_SET_GID(VAL_INT32(val));
 					if (ret < 0) {
 						switch (ret) {
+							case OS_ENA:
+								return R_NONE;
 							case OS_EPERM:
 								Trap0(RE_PERMISSION_DENIED);
 								break;
@@ -927,6 +932,8 @@ chk_neg:
 					REBINT ret = OS_SET_EUID(VAL_INT32(val));
 					if (ret < 0) {
 						switch (ret) {
+							case OS_ENA:
+								return R_NONE;
 							case OS_EPERM:
 								Trap0(RE_PERMISSION_DENIED);
 								break;
@@ -960,6 +967,8 @@ chk_neg:
 					REBINT ret = OS_SET_EGID(VAL_INT32(val));
 					if (ret < 0) {
 						switch (ret) {
+							case OS_ENA:
+								return R_NONE;
 							case OS_EPERM:
 								Trap0(RE_PERMISSION_DENIED);
 								break;
@@ -1016,6 +1025,8 @@ chk_neg:
 
 				if (ret < 0) {
 					switch (ret) {
+						case OS_ENA:
+							return R_NONE;
 						case OS_EPERM:
 							Trap0(RE_PERMISSION_DENIED);
 							break;
