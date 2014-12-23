@@ -140,6 +140,157 @@ static void *Task_Ready;
 **
 ***********************************************************************/
 
+/* Keep in sync with n-io.c */
+#define OS_ENA	 -1
+#define OS_EINVAL -2
+#define OS_EPERM -3
+#define OS_ESRCH -4
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_PID()
+/*
+**		Return the current process ID
+**
+***********************************************************************/
+{
+	return GetCurrentProcessId();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_UID()
+/*
+**		Return the real user ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_UID(REBINT uid)
+/*
+**		Set the user ID, see setuid manual for its semantics
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_GID()
+/*
+**		Return the real group ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_GID(REBINT gid)
+/*
+**		Set the group ID, see setgid manual for its semantics
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_EUID()
+/*
+**		Return the effective user ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_EUID(REBINT uid)
+/*
+**		Set the effective user ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_EGID()
+/*
+**		Return the effective group ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_EGID(REBINT gid)
+/*
+**		Set the effective group ID
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Send_Signal(REBINT pid, REBINT signal)
+/*
+**		Send signal to a process
+**
+***********************************************************************/
+{
+	return OS_ENA;
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Kill(REBINT pid)
+/*
+**		Try to kill the process
+**
+***********************************************************************/
+{
+	REBINT err = 0;
+	HANDLE ph = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+	if (ph == NULL) {
+		err = GetLastError();
+		switch (err) {
+			case ERROR_ACCESS_DENIED:
+				return OS_EPERM;
+			case ERROR_INVALID_PARAMETER:
+				return OS_ESRCH;
+			default:
+				return OS_ESRCH;
+		}
+	}
+	if (TerminateProcess(ph, 0)) {
+		CloseHandle(ph);
+		return 0;
+	}
+	err = GetLastError();
+	CloseHandle(ph);
+	switch (err) {
+		case ERROR_INVALID_HANDLE:
+			return OS_EINVAL;
+		default:
+			return -err;
+	}
+}
+
 /***********************************************************************
 **
 */	REBINT OS_Config(int id, REBYTE *result)
@@ -588,7 +739,6 @@ static void *Task_Ready;
 #define NONE_TYPE 1
 #define STRING_TYPE 2
 #define FILE_TYPE 3
-#define BINARY_TYPE 4
 
 #define FLAG_WAIT 1
 #define FLAG_CONSOLE 2
@@ -644,7 +794,6 @@ static void *Task_Ready;
 
 	switch (input_type) {
 		case STRING_TYPE:
-		case BINARY_TYPE:
 			if (!CreatePipe(&hInputRead, &hInputWrite, NULL, 0)) {
 				goto input_error;
 			}
@@ -674,7 +823,6 @@ static void *Task_Ready;
 
 	switch (output_type) {
 		case STRING_TYPE:
-		case BINARY_TYPE:
 			if (!CreatePipe(&hOutputRead, &hOutputWrite, NULL, 0)) {
 				goto output_error;
 			}
@@ -714,7 +862,6 @@ static void *Task_Ready;
 
 	switch (err_type) {
 		case STRING_TYPE:
-		case BINARY_TYPE:
 			if (!CreatePipe(&hErrorRead, &hErrorWrite, NULL, 0)) {
 				goto error_error;
 			}
@@ -804,21 +951,16 @@ static void *Task_Ready;
 
 		result = 0;
 		if (hInputWrite != NULL && input_len > 0) {
-			if (input_type == STRING_TYPE) {
-				DWORD dest_len = 0;
-				/* convert input encoding from UNICODE to OEM */
-				dest_len = WideCharToMultiByte(CP_OEMCP, 0, input, input_len, oem_input, dest_len, NULL, NULL);
-				if (dest_len > 0) {
-					oem_input = OS_Make(dest_len);
-					if (oem_input != NULL) {
-						WideCharToMultiByte(CP_OEMCP, 0, input, input_len, oem_input, dest_len, NULL, NULL);
-						input_len = dest_len;
-						input = oem_input;
-						handles[count ++] = hInputWrite;
-					}
+			DWORD dest_len = 0;
+			/* convert input encoding from UNICODE to OEM */
+			dest_len = WideCharToMultiByte(CP_OEMCP, 0, input, input_len, oem_input, dest_len, NULL, NULL);
+			if (dest_len > 0) {
+				oem_input = OS_Make(dest_len);
+				if (oem_input != NULL) {
+					WideCharToMultiByte(CP_OEMCP, 0, input, input_len, oem_input, dest_len, NULL, NULL);
+					input_len = dest_len;
+					handles[count ++] = hInputWrite;
 				}
-			} else { /* BINARY_TYPE */
-				handles[count ++] = hInputWrite;
 			}
 		}
 		if (hOutputRead != NULL) {
@@ -843,7 +985,7 @@ static void *Task_Ready;
 				DWORD n = 0;
 
 				if (handles[i] == hInputWrite) {
-					if (!WriteFile(hInputWrite, (char*)input + input_pos, input_len - input_pos, &n, NULL)) {
+					if (!WriteFile(hInputWrite, oem_input + input_pos, input_len - input_pos, &n, NULL)) {
 						if (i < count - 1) {
 							memmove(&handles[i], &handles[i + 1], (count - i - 1) * sizeof(HANDLE));
 						}
@@ -908,7 +1050,7 @@ static void *Task_Ready;
 		CloseHandle(pi.hThread);
 		CloseHandle(pi.hProcess);
 
-		if (err_type == STRING_TYPE && *output != NULL && *output_len > 0) {
+		if (*output != NULL && *output_len > 0) {
 			/* convert to wide char string */
 			int dest_len = 0;
 			wchar_t *dest = NULL;
@@ -926,7 +1068,7 @@ static void *Task_Ready;
 			*output_len = dest_len;
 		}
 
-		if (err_type == STRING_TYPE && *err != NULL && *err_len > 0) {
+		if (*err != NULL && *err_len > 0) {
 			/* convert to wide char string */
 			int dest_len = 0;
 			wchar_t *dest = NULL;

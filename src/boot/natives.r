@@ -888,7 +888,7 @@ list-env: native [
 
 call: native [
 	{Run another program; return immediately.}
-	command [string! block!] "An OS-local command line, quoted as necessary"
+	command [string! block! file!] "An OS-local command line (quoted as necessary), a block with arguments, or an executable file"
 	/wait "Wait for command to terminate before returning"
 	/console "Runs command with I/O redirected to console"
 	/shell "Forces command to be run from shell"
@@ -942,7 +942,14 @@ do-codec: native [
 	{Evaluate a CODEC function to encode or decode media types.}
 	handle [handle!] "Internal link to codec"
 	action [word!] "Decode, encode, identify"
-	data [binary! image!]
+	data [binary! image! string!]
+]
+
+access-os: native [
+	{Access to various operating system functions (getuid, setuid, getpid, kill, etc.)}
+	field [word!] "uid, euid, gid, egid, pid"
+	/set "To set or kill pid (sig 15)"
+	value [integer! block!] "Argument, such as uid, gid, or pid (in which case, it could be a block with the signal no)"
 ]
 
 set-scheme: native [

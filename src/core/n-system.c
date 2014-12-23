@@ -423,6 +423,10 @@ err:
 			codi.w = VAL_IMAGE_WIDE(val);
 			codi.h = VAL_IMAGE_HIGH(val);
 			codi.alpha = Image_Has_Alpha(val, 0);
+		} else if (IS_STRING(val)) {
+			codi.w = VAL_SERIES_WIDTH(val);
+			codi.len = VAL_LEN(val);
+			codi.other = VAL_BIN_DATA(val);
 		}
 		else
 			Trap1(RE_INVALID_ARG, val);
@@ -446,18 +450,34 @@ err:
 	case CODI_CHECK:
 		return R_TRUE;
 
-	case CODI_BINARY: //used on encode
 	case CODI_TEXT: //used on decode
+		switch (codi.w) {
+			default: /* some decoders might not set this field */
+			case 1:
+				ser = Make_Binary(codi.len);
+				break;
+			case 2:
+				ser = Make_Unicode(codi.len);
+				break;
+		}
+		memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
+		ser->tail = codi.len;
+		Set_String(D_RET, ser);
+		break;
+
+	case CODI_BINARY: //used on encode
 		ser = Make_Binary(codi.len);
 		ser->tail = codi.len;
-		memcpy(BIN_HEAD(ser), codi.data, codi.len);
+
+		// optimize for pass-thru decoders, which leave codi.data NULL
+		memcpy(BIN_HEAD(ser), codi.data == NULL? codi.other : codi.data, codi.len);
 		Set_Binary(D_RET, ser);
-		if (result != CODI_BINARY) VAL_SET(D_RET, REB_STRING);
 
 		//don't free the text binary input buffer during decode (it's the 3rd arg value in fact)
-		if (result == CODI_BINARY)
-			// See notice in reb-codec.h on reb_codec_image 
+		// See notice in reb-codec.h on reb_codec_image 
+		if (codi.data) {
 			Free_Mem(codi.data, codi.len);
+		}
 		break;
 
 	case CODI_IMAGE: //used on decode

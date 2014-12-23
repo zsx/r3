@@ -161,6 +161,190 @@ void OS_Destroy_Graphics(void);
 **
 ***********************************************************************/
 
+/* Keep in sync with n-io.c */
+#define OS_ENA	 -1
+#define OS_EINVAL -2
+#define OS_EPERM -3
+#define OS_ESRCH -4
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_PID()
+/*
+**		Return the current process ID
+**
+***********************************************************************/
+{
+	return getpid();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_UID()
+/*
+**		Return the real user ID
+**
+***********************************************************************/
+{
+	return getuid();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_UID(REBINT uid)
+/*
+**		Set the user ID, see setuid manual for its semantics
+**
+***********************************************************************/
+{
+	if (setuid(uid) < 0) {
+		switch (errno) {
+			case EINVAL:
+				return OS_EINVAL;
+			case EPERM:
+				return OS_EPERM;
+			default:
+				return -errno;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_GID()
+/*
+**		Return the real group ID
+**
+***********************************************************************/
+{
+	return getgid();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_GID(REBINT gid)
+/*
+**		Set the group ID, see setgid manual for its semantics
+**
+***********************************************************************/
+{
+	if (setgid(gid) < 0) {
+		switch (errno) {
+			case EINVAL:
+				return OS_EINVAL;
+			case EPERM:
+				return OS_EPERM;
+			default:
+				return -errno;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_EUID()
+/*
+**		Return the effective user ID
+**
+***********************************************************************/
+{
+	return geteuid();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_EUID(REBINT uid)
+/*
+**		Set the effective user ID
+**
+***********************************************************************/
+{
+	if (seteuid(uid) < 0) {
+		switch (errno) {
+			case EINVAL:
+				return OS_EINVAL;
+			case EPERM:
+				return OS_EPERM;
+			default:
+				return -errno;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Get_EGID()
+/*
+**		Return the effective group ID
+**
+***********************************************************************/
+{
+	return getegid();
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Set_EGID(REBINT gid)
+/*
+**		Set the effective group ID
+**
+***********************************************************************/
+{
+	if (setegid(gid) < 0) {
+		switch (errno) {
+			case EINVAL:
+				return OS_EINVAL;
+			case EPERM:
+				return OS_EPERM;
+			default:
+				return -errno;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Send_Signal(REBINT pid, REBINT signal)
+/*
+**		Send signal to a process
+**
+***********************************************************************/
+{
+	if (kill(pid, signal) < 0) {
+		switch (errno) {
+			case EINVAL:
+				return OS_EINVAL;
+			case EPERM:
+				return OS_EPERM;
+			case ESRCH:
+				return OS_ESRCH;
+			default:
+				return -errno;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/***********************************************************************
+**
+*/	REBINT OS_Kill(REBINT pid)
+/*
+**		Try to kill the process
+**
+***********************************************************************/
+{
+	return OS_Send_Signal(pid, SIGTERM);
+}
+
 /***********************************************************************
 **
 */	REBINT OS_Config(int id, REBYTE *result)
@@ -271,8 +455,14 @@ static const void * backtrace_buf [1024];
 **
 ***********************************************************************/
 {
-	strerror_r(errnum, str, len);
-	return str;
+	char *msg = NULL;
+	if (!errnum) errnum = errno;
+	msg = strerror_r(errnum, str, len);
+	if (msg != NULL && msg != (char*)str) {
+		strncpy(str, msg, len);
+		str[len - 1] = '\0'; /* to be safe */
+	}
+	return msg;
 }
 
 
@@ -679,10 +869,9 @@ error:
 	//SetEvent(Task_Ready);
 }
 
-
 /***********************************************************************
 **
-*/	int OS_Create_Process(REBCHR *call, int argc, char* argv[], u32 flags, u64 *pid, u32 input_type, void *input, u32 input_len, u32 output_type, void **output, u32 *output_len, u32 err_type, void **err, u32 *err_len)
+*/	int OS_Create_Process(REBCHR *call, int argc, char* argv[], u32 flags, u64 *pid, int *exit_code, u32 input_type, void *input, u32 input_len, u32 output_type, void **output, u32 *output_len, u32 err_type, void **err, u32 *err_len)
 /*
  * flags:
  * 		1: wait, is implied when I/O redirection is enabled
@@ -719,8 +908,12 @@ error:
 	int stdin_pipe[] = {-1, -1};
 	int stdout_pipe[] = {-1, -1};
 	int stderr_pipe[] = {-1, -1};
+	int info_pipe[] = {-1, -1};
 	int status = 0;
 	int ret = 0;
+	char *info = NULL;
+	off_t info_size = 0;
+	u32 info_len = 0;
 
 	if (flags & FLAG_WAIT) flag_wait = TRUE;
 	if (flags & FLAG_CONSOLE) flag_console = TRUE;
@@ -746,27 +939,37 @@ error:
 		}
 	}
 
+	if (pipe2(info_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
+		goto info_pipe_err;
+	}
+
 	*pid = fork();
 	if (*pid == 0) {
 		/* child */
 		if (input_type == STRING_TYPE
 			|| input_type == BINARY_TYPE) {
 			close(stdin_pipe[W]);
-			dup2(stdin_pipe[R], STDIN_FILENO);
+			if (dup2(stdin_pipe[R], STDIN_FILENO) < 0) {
+				goto child_error;
+			}
 			close(stdin_pipe[R]);
 		} else if (input_type == FILE_TYPE) {
 			int fd = open(input, O_RDONLY);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDIN_FILENO);
+			if (dup2(fd, STDIN_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else if (input_type == NONE_TYPE) {
-			int fd = open("/dev/null", O_WRONLY);
+			int fd = open("/dev/null", O_RDONLY);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDIN_FILENO);
+			if (dup2(fd, STDIN_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else { /* inherit stdin from the parent */
 		}
@@ -774,21 +977,27 @@ error:
 		if (output_type == STRING_TYPE
 			|| output_type == BINARY_TYPE) {
 			close(stdout_pipe[R]);
-			dup2(stdout_pipe[W], STDOUT_FILENO);
+			if (dup2(stdout_pipe[W], STDOUT_FILENO) < 0) {
+				goto child_error;
+			}
 			close(stdout_pipe[W]);
 		} else if (output_type == FILE_TYPE) {
 			int fd = open(*output, O_CREAT|O_WRONLY, 0666);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDOUT_FILENO);
+			if (dup2(fd, STDOUT_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else if (output_type == NONE_TYPE) {
 			int fd = open("/dev/null", O_WRONLY);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDOUT_FILENO);
+			if (dup2(fd, STDOUT_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else { /* inherit stdout from the parent */
 		}
@@ -796,40 +1005,54 @@ error:
 		if (err_type == STRING_TYPE
 			|| err_type == BINARY_TYPE) {
 			close(stderr_pipe[R]);
-			dup2(stderr_pipe[W], STDERR_FILENO);
+			if (dup2(stderr_pipe[W], STDERR_FILENO) < 0) {
+				goto child_error;
+			}
 			close(stderr_pipe[W]);
 		} else if (err_type == FILE_TYPE) {
 			int fd = open(*err, O_CREAT|O_WRONLY, 0666);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDERR_FILENO);
+			if (dup2(fd, STDERR_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else if (err_type == NONE_TYPE) {
 			int fd = open("/dev/null", O_WRONLY);
 			if (fd < 0) {
-				exit(EXIT_FAILURE);
+				goto child_error;
 			}
-			dup2(fd, STDERR_FILENO);
+			if (dup2(fd, STDERR_FILENO) < 0) {
+				goto child_error;
+			}
 			close(fd);
 		} else { /* inherit stderr from the parent */
 		}
+
+		close(info_pipe[R]);
 
 		//printf("flag_shell in child: %hhu\n", flag_shell);
 		if (flag_shell) {
 			const char* sh = NULL;
 			const char ** argv_new = NULL;
 			sh = getenv("SHELL");
-			if (sh == NULL) exit(EXIT_FAILURE);
+			if (sh == NULL) {
+				int err = 2; /* shell does not exist */
+				write(info_pipe[W], &err, sizeof(err));
+				exit(EXIT_FAILURE);
+			}
 			argv_new = OS_Make((argc + 3) * sizeof(char*));
 			argv_new[0] = sh;
 			argv_new[1] = "-c";
 			memcpy(&argv_new[2], argv, argc * sizeof(argv[0]));
 			argv_new[argc + 2] = NULL;
-			execv(sh, (char* const*)argv_new);
+			execvp(sh, (char* const*)argv_new);
 		} else {
-			execv(argv[0], argv);
+			execvp(argv[0], argv);
 		}
+child_error:
+		write(info_pipe[W], &errno, sizeof(errno));
 		exit(EXIT_FAILURE); /* get here only when exec fails */
 	} else if (*pid > 0) {
 		/* parent */
@@ -850,7 +1073,6 @@ error:
 		*err = NULL;
 		*err_len = 0;
 
-		if (!flag_wait) goto cleanup; /* I/O redirection implies wait */
 		if (stdin_pipe[W] > 0) {
 			//printf("stdin_pipe[W]: %d\n", stdin_pipe[W]);
 			input_size = strlen((char*)input); /* the passed in input_len is in character, not in bytes */
@@ -876,19 +1098,42 @@ error:
 			stderr_pipe[W] = -1;
 		}
 
+		if (info_pipe[R] > 0) {
+			pfds[nfds++] = (struct pollfd){.fd = info_pipe[R], .events = POLLIN};
+			info_size = 4;
+			info = OS_Make(info_size);
+			close(info_pipe[W]);
+			info_pipe[W] = -1;
+		}
+
 		int valid_nfds = nfds;
 		while (valid_nfds > 0) {
 			xpid = waitpid(*pid, &status, WNOHANG);
 			if (xpid == -1) {
+				ret = errno;
 				goto error;
 			}
 
 			if (xpid == *pid) {
 				/* try one more time to read any remainding output/err */
-				if (stdout_pipe[R] > 0)
-					read(stdout_pipe[R], *output + *output_len, output_size - *output_len);
-				if (stderr_pipe[R] > 0)
-					read(stderr_pipe[R], *err + *err_len, err_size - *err_len);
+				if (stdout_pipe[R] > 0) {
+					nbytes = read(stdout_pipe[R], *output + *output_len, output_size - *output_len);
+					if (nbytes > 0) {
+						*output_len += nbytes;
+					}
+				}
+				if (stderr_pipe[R] > 0) {
+					nbytes = read(stderr_pipe[R], *err + *err_len, err_size - *err_len);
+					if (nbytes > 0) {
+						*err_len += nbytes;
+					}
+				}
+				if (info_pipe[R] > 0) {
+					nbytes = read(info_pipe[R], info + info_len, info_size - info_len);
+					if (nbytes > 0) {
+						info_len += nbytes;
+					}
+				}
 
 				break;
 			}
@@ -900,6 +1145,7 @@ error:
 			printf(" / %d\n", nfds);
 			*/
 			if (poll(pfds, nfds, -1) < 0) {
+				ret = errno;
 				goto kill;
 			}
 
@@ -914,6 +1160,7 @@ error:
 					//printf("POLLOUT: %d [%d/%d]\n", pfds[i].fd, i, nfds);
 					nbytes = write(pfds[i].fd, input, input_size - input_len);
 					if (nbytes <= 0) {
+						ret = errno;
 						goto kill;
 					}
 					//printf("POLLOUT: %d bytes\n", nbytes);
@@ -933,10 +1180,14 @@ error:
 						buffer = (char**)output;
 						offset = output_len;
 						size = &output_size;
-					} else {
+					} else if (pfds[i].fd == stderr_pipe[R]) {
 						buffer = (char**)err;
 						offset = err_len;
 						size = &err_size;
+					} else { /* info pipe */
+						buffer = &info;
+						offset = &info_len;
+						size = &info_size;
 					}
 					do {
 						to_read = *size - *offset;
@@ -968,26 +1219,33 @@ error:
 					valid_nfds --;
 				} else if (pfds[i].revents & POLLNVAL) {
 					//printf("POLLNVAL: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+					ret = errno;
 					goto kill;
 				}
 			}
 		}
 
-		if (valid_nfds == 0) {
+		if (valid_nfds == 0 && flag_wait) {
 			if (waitpid(*pid, &status, 0) < 0) {
+				ret = errno;
 				goto error;
 			}
 		}
 
 	} else {
 		/* error */
+		ret = errno;
 		goto error;
 	}
 
-	if (WIFEXITED(status)) {
-		ret = WEXITSTATUS(status);
+	if (info_len > 0) {
+		/* exec in child process failed */
+		/* set to errno for reporting */
+		ret = *(int*)info;
+	} else if (WIFEXITED(status)) {
+		*exit_code = WEXITSTATUS(status);
 	} else {
-		ret = -1;
+		goto error;
 	}
 
 	goto cleanup;
@@ -995,19 +1253,29 @@ kill:
 	kill(*pid, SIGKILL);
 	waitpid(*pid, NULL, 0);
 error:
-	ret = -1;
+	if (!ret) ret = -1;
 cleanup:
-	if (stderr_pipe[R] > 0) {
-		close(stderr_pipe[R]);
-	}
-	if (stderr_pipe[W] > 0) {
-		close(stderr_pipe[W]);
-	}
 	if (*output != NULL && *output_len <= 0) {
 		OS_Free(*output);
 	}
 	if (*err != NULL && *err_len <= 0) {
 		OS_Free(*err);
+	}
+	if (info != NULL) {
+		OS_Free(info);
+	}
+	if (info_pipe[R] > 0) {
+		close(info_pipe[R]);
+	}
+	if (info_pipe[W] > 0) {
+		close(info_pipe[W]);
+	}
+info_pipe_err:
+	if (stderr_pipe[R] > 0) {
+		close(stderr_pipe[R]);
+	}
+	if (stderr_pipe[W] > 0) {
+		close(stderr_pipe[W]);
 	}
 stderr_pipe_err:
 	if (stdout_pipe[R] > 0) {
