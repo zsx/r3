@@ -1214,7 +1214,7 @@ chk_neg:
 				} else if (IS_BLOCK(val)) {
 					REBVAL *sig = NULL;
 
-					if (VAL_LEN(val) < 0) {
+					if (VAL_LEN(val) != 2) {
 						Trap_Arg(val);
 					}
 					pid = VAL_BLK_SKIP(val, 0);
