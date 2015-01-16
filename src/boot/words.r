@@ -190,6 +190,7 @@ pointer
 addr
 raw-memory
 raw-size
+rebval
 
 ;routine
 void
@@ -285,6 +286,12 @@ crash-dump
 watch-recycle
 watch-obj-copy
 stack-size
+
+uid
+euid
+gid
+egid
+pid
 
 ;call/info
 id

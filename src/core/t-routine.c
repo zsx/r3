@@ -116,7 +116,10 @@ static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields)
 
 	for (i = 0; i < SERIES_TAIL(fields); i ++) {
 		struct Struct_Field *field = (struct Struct_Field*)SERIES_SKIP(fields, i);
-		if (field->type != STRUCT_TYPE_STRUCT) {
+		if (field->type == STRUCT_TYPE_REBVAL) {
+			/* don't see a point to pass a rebol value to external functions */
+			Trap_Arg(out);
+		} else if (field->type != STRUCT_TYPE_STRUCT) {
 			if (struct_type_to_ffi[field->type]) {
 				REBCNT n = 0;
 				for (n = 0; n < field->dimension; n ++) {
@@ -148,7 +151,7 @@ static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
 {
 	ffi_type **args = (ffi_type**) SERIES_DATA(VAL_ROUTINE_FFI_ARGS(out));
 	REBVAL *rebol_args = NULL;
-	REBVAL *arg_structs = (REBVAL*)SERIES_DATA(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+	REBVAL *arg_structs = BLK_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 	if (idx) {
 		// when it's first call for return type, all_args has not been initialized yet
 		if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)
@@ -668,10 +671,10 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 				SET_INTEGER(elem, *(i64*)args[i]);
 				break;
 			case FFI_TYPE_STRUCT:
-				if (!IS_STRUCT((REBVAL*)SERIES_SKIP(RIN_ARGS_STRUCTS(rin), i))) {
-					Trap_Arg(elem);
+				if (!IS_STRUCT(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1))) {
+					Trap_Arg(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1));
 				}
-				Copy_Struct_Val(SERIES_SKIP(RIN_ARGS_STRUCTS(rin), i), elem);
+				Copy_Struct_Val(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1), elem);
 				memcpy(SERIES_SKIP(VAL_STRUCT_DATA_BIN(elem), VAL_STRUCT_OFFSET(elem)),
 					   args[i],
 					   VAL_STRUCT_LEN(elem));
@@ -732,8 +735,8 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 ** 	arg2 [type3] "note"
 ** 	...
 ** 	argn [typen] "note"
-** 	return: [type]
-** 	abi: word
+** 	return: [type] "note"
+** 	abi: word "note"
 ** ] lib "name"]
 **
 ***********************************************************************/
@@ -879,10 +882,6 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						++ blk;
 						process_type_block(out, blk, n);
 					}
-					++ blk;
-					if (IS_STRING(blk)) { /* argument notes, ignoring */
-						++ blk;
-					}
 				}
 				n ++;
 				break;
@@ -965,10 +964,13 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 					default:
 						Trap_Arg(blk);
 				}
-				++ blk;
 				break;
 			default:
 				Trap_Arg(blk);
+		}
+		++ blk;
+		if (IS_STRING(blk)) { /* notes, ignoring */
+			++ blk;
 		}
 	}
 
