@@ -287,12 +287,6 @@ watch-recycle
 watch-obj-copy
 stack-size
 
-uid
-euid
-gid
-egid
-pid
-
 ;call/info
 id
 exit-code
