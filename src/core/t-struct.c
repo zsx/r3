@@ -417,9 +417,9 @@ static REBOOL assign_scalar(REBSTU *stu,
 		VAL_STRUCT_SPEC(out) = Copy_Series(VAL_SERIES(data));
 		VAL_STRUCT_DATA(out) = Make_Series(1, sizeof(struct Struct_Data), FALSE);
 		EXPAND_SERIES_TAIL(VAL_STRUCT_DATA(out), 1);
+		BARE_SERIES(VAL_STRUCT_DATA(out));
 
 		VAL_STRUCT_DATA_BIN(out) = Make_Series(max_fields << 2, 1, FALSE);
-		BARE_SERIES(VAL_STRUCT_DATA(out));
 		BARE_SERIES(VAL_STRUCT_DATA_BIN(out));
 		VAL_STRUCT_OFFSET(out) = 0;
 
@@ -657,7 +657,17 @@ static REBOOL assign_scalar(REBSTU *stu,
 				if (field->type == STRUCT_TYPE_STRUCT) {
 					REBCNT n = 0;
 					for (n = 0; n < field->dimension; n ++) {
-						memcpy(SERIES_SKIP(VAL_STRUCT_DATA_BIN(out), ((REBCNT)offset) + n * field->size), SERIES_DATA(VAL_STRUCT_DATA(init)), field->size);
+						memcpy(SERIES_SKIP(VAL_STRUCT_DATA_BIN(out), ((REBCNT)offset) + n * field->size), SERIES_DATA(VAL_STRUCT_DATA_BIN(init)), field->size);
+					}
+				} else if (field->type == STRUCT_TYPE_REBVAL) {
+					REBVAL unset;
+					REBCNT n = 0;
+					SET_UNSET(&unset);
+					for (n = 0; n < field->dimension; n ++) {
+						if (!assign_scalar(&VAL_STRUCT(out), field, n, &unset)) {
+							//RL_Print("Failed to assign element value\n");
+							goto failed;
+						}
 					}
 				} else if (field->type == STRUCT_TYPE_REBVAL) {
 					REBVAL unset;
@@ -681,6 +691,8 @@ static REBOOL assign_scalar(REBSTU *stu,
 				Trap1(RE_SIZE_LIMIT, out);
 			}
 
+			field->done = TRUE;
+
 			++ field_idx;
 
 			DS_POP; /* pop up the inner struct*/
@@ -702,7 +714,6 @@ static REBOOL assign_scalar(REBSTU *stu,
 			EXT_SERIES(ser);
 
 			VAL_STRUCT_DATA_BIN(out) = ser;
-			++ blk;
 		}
 
 		return TRUE;
@@ -803,6 +814,7 @@ void Copy_Struct(REBSTU *src, REBSTU *dst)
 
 	/* writable field */
 	dst->data = Copy_Series(src->data);
+	BARE_SERIES(dst->data);
 	STRUCT_DATA_BIN(dst) = Copy_Series(STRUCT_DATA_BIN(src));
 }
 
