@@ -1,4 +1,11 @@
 LOCAL_PATH := $(call my-dir)
+
+MY_RAPI_FLAGS=-DTO_ANDROID -DMIN_OS -DENDIAN_LITTLE -ffloat-store 
+
+MY_CORE_FLAGS=-DREB_CORE -DREB_EXE -DCUSTOM_STARTUP $(MY_RAPI_FLAGS)
+#MY_VIEW_FLAGS=-DREB_EXE -DCUSTOM_STARTUP $(MY_RAPI_FLAGS)
+MY_VIEW_FLAGS=-DREB_EXE -DCUSTOM_STARTUP $(MY_RAPI_FLAGS)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE=libffi
@@ -139,9 +146,8 @@ LOCAL_SRC_FILES = \
 	$(MY_LIBR3_ROOT)/codecs/rc4/rc4.c \
 	$(MY_LIBR3_ROOT)/codecs/rsa/rsa.c
 
-	#$(MY_LIBR3_ROOT)/core/p-clipboard.c
 
-LOCAL_CFLAGS=-DTO_ANDROID -DREB_CORE -DMIN_OS -DREB_EXE -DENDIAN_LITTLE -ffloat-store
+LOCAL_CFLAGS=$(MY_RAPI_FLAGS)
 
 LOCAL_C_INCLUDES := jni/$(MY_LIBR3_ROOT)/include jni/$(MY_LIBR3_ROOT)/codecs
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_C_INCLUDES)
@@ -156,7 +162,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE=r3-core
 
 MY_R3_ROOT = ../../../src
-LOCAL_SRC_FILES = \
+MY_CORE_SRC_FILES=\
 	$(MY_R3_ROOT)/os/host-main.c \
 	$(MY_R3_ROOT)/os/host-args.c \
 	$(MY_R3_ROOT)/os/host-device.c \
@@ -168,15 +174,96 @@ LOCAL_SRC_FILES = \
 	$(MY_R3_ROOT)/os/linux/host-readline.c \
 	$(MY_R3_ROOT)/os/linux/iso-639.c \
 	$(MY_R3_ROOT)/os/linux/iso-3166.c \
-	$(MY_R3_ROOT)/os/linux/dev-clipboard.c \
 	$(MY_R3_ROOT)/os/linux/dev-event.c \
 	$(MY_R3_ROOT)/os/linux/dev-file.c \
 	$(MY_R3_ROOT)/os/linux/dev-serial.c \
 	$(MY_R3_ROOT)/os/linux/dev-stdio.c \
 
-	#$(MY_R3_ROOT)/os/linux/dev-signal.c \
+	#$(MY_R3_ROOT)/os/linux/dev-signal.c
 
-LOCAL_CFLAGS=-DTO_ANDROID -DREB_CORE -DMIN_OS -DREB_EXE -DENDIAN_LITTLE
+LOCAL_SRC_FILES = $(MY_CORE_SRC_FILES)
+
+LOCAL_CFLAGS=$(MY_CORE_FLAGS)
 
 LOCAL_STATIC_LIBRARIES = libffi libr3
+include $(BUILD_EXECUTABLE)
+
+#FreeType2
+include $(CLEAR_VARS)
+LOCAL_MODULE=freetype2
+MY_FREETYPE_ROOT = ../../../src/freetype2
+
+LOCAL_SRC_FILES = \
+	$(MY_FREETYPE_ROOT)/src/autofit/autofit.c \
+	$(MY_FREETYPE_ROOT)/src/base/basepic.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftapi.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftbase.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftbbox.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftbitmap.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftdbgmem.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftdebug.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftglyph.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftinit.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftpic.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftstroke.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftsynth.c \
+	$(MY_FREETYPE_ROOT)/src/base/ftsystem.c \
+	$(MY_FREETYPE_ROOT)/src/cff/cff.c \
+	$(MY_FREETYPE_ROOT)/src/pshinter/pshinter.c \
+	$(MY_FREETYPE_ROOT)/src/psnames/psnames.c \
+	$(MY_FREETYPE_ROOT)/src/raster/raster.c \
+	$(MY_FREETYPE_ROOT)/src/sfnt/sfnt.c \
+	$(MY_FREETYPE_ROOT)/src/smooth/smooth.c \
+	$(MY_FREETYPE_ROOT)/src/truetype/truetype.c
+
+LOCAL_CFLAGS=-DFT2_BUILD_LIBRARY=1
+LOCAL_C_INCLUDES=jni/$(MY_FREETYPE_ROOT)/include 
+LOCAL_EXPORT_C_INCLUDES := $(LOCAL_C_INCLUDES)
+include $(BUILD_STATIC_LIBRARY)
+
+#AGG
+include $(CLEAR_VARS)
+
+LOCAL_MODULE=agg
+
+MY_AGG_ROOT = ../../../src
+LOCAL_SRC_FILES = \
+	$(MY_AGG_ROOT)/agg/agg_arc.cpp \
+	$(MY_AGG_ROOT)/agg/agg_arrowhead.cpp \
+	$(MY_AGG_ROOT)/agg/agg_bezier_arc.cpp \
+	$(MY_AGG_ROOT)/agg/agg_bspline.cpp \
+	$(MY_AGG_ROOT)/agg/agg_curves.cpp \
+	$(MY_AGG_ROOT)/agg/agg_image_filters.cpp \
+	$(MY_AGG_ROOT)/agg/agg_line_aa_basics.cpp \
+	$(MY_AGG_ROOT)/agg/agg_path_storage.cpp \
+	$(MY_AGG_ROOT)/agg/agg_rasterizer_scanline_aa.cpp \
+	$(MY_AGG_ROOT)/agg/agg_rounded_rect.cpp \
+	$(MY_AGG_ROOT)/agg/agg_sqrt_tables.cpp \
+	$(MY_AGG_ROOT)/agg/agg_trans_affine.cpp \
+	$(MY_AGG_ROOT)/agg/agg_trans_single_path.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_bspline.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_contour.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_dash.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_markers_term.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_smooth_poly1.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vcgen_stroke.cpp \
+	$(MY_AGG_ROOT)/agg/agg_vpgen_segmentator.cpp \
+	$(MY_AGG_ROOT)/agg/agg_graphics.cpp \
+	$(MY_AGG_ROOT)/agg/agg_truetype_text.cpp
+
+LOCAL_CFLAGS=$(MY_VIEW_FLAGS)
+LOCAL_C_INCLUDES=jni/$(MY_AGG_ROOT)/include
+LOCAL_STATIC_LIBRARIES = freetype2
+include $(BUILD_STATIC_LIBRARY)
+
+#r3-view
+include $(CLEAR_VARS)
+
+LOCAL_MODULE=r3-view
+LOCAL_SRC_FILES=$(MY_CORE_SRC_FILES) \
+	$(MY_R3_ROOT)/os/linux/dev-clipboard.c
+
+LOCAL_STATIC_LIBRARIES = libffi libagg libfreetype2 libr3
+LOCAL_CFLAGS=$(MY_VIEW_FLAGS) -DREB_CORE
+#LOCAL_C_INCLUDES=
 include $(BUILD_EXECUTABLE)

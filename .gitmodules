@@ -1,3 +1,6 @@
 [submodule "src/libffi"]
 	path = src/libffi
 	url = git://github.com/atgreen/libffi.git
+[submodule "src/freetype2"]
+	path = src/freetype2
+	url = git://git.sv.nongnu.org/freetype/freetype2.git
