@@ -56,6 +56,13 @@
 // NOTE: the code below assumes a file id will never by zero. This should
 // be safe. In posix, zero is stdin, which is handled by dev-stdio.c.
 
+#ifndef S_IRUSR //for BSD
+#define S_IRUSR S_IREAD 
+#endif
+
+#ifndef S_IWUSR //for BSD
+#define S_IWRITE S_IWUSR 
+#endif
 
 /***********************************************************************
 **
@@ -286,9 +293,9 @@ static int Get_File_Info(REBREQ *file)
 	//modes |= GET_FLAG(file->modes, RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
 
 	if (GET_FLAG(file->modes, RFM_READONLY))
-		access = S_IREAD;
+		access = S_IRUSR;
 	else
-		access = S_IREAD | S_IWRITE | S_IRGRP | S_IWGRP | S_IROTH;
+		access = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
 
 	// Open the file:
 	// printf("Open: %s %d %d\n", path, modes, access);

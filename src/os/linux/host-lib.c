@@ -903,6 +903,11 @@ error:
 
 #define R 0
 #define W 1
+
+#ifdef TO_ANDROID
+	return -1;
+#else
+
 	unsigned char flag_wait = FALSE;
 	unsigned char flag_console = FALSE;
 	unsigned char flag_shell = FALSE;
@@ -1311,6 +1316,7 @@ stdout_pipe_err:
 stdin_pipe_err:
 	printf("ret: %d\n", ret);
 	return ret;
+#endif //TO_ANDROID
 }
 
 /***********************************************************************
