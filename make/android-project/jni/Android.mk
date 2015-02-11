@@ -254,6 +254,7 @@ LOCAL_SRC_FILES = \
 LOCAL_CFLAGS=$(MY_VIEW_FLAGS)
 LOCAL_C_INCLUDES=jni/$(MY_AGG_ROOT)/include
 LOCAL_STATIC_LIBRARIES = freetype2
+LOCAL_EXPORT_C_INCLUDES=$(LOCAL_C_INCLUDES)
 include $(BUILD_STATIC_LIBRARY)
 
 #r3-view
@@ -261,7 +262,10 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE=r3-view
 LOCAL_SRC_FILES=$(MY_CORE_SRC_FILES) \
-	$(MY_R3_ROOT)/os/linux/dev-clipboard.c
+	$(MY_R3_ROOT)/os/linux/dev-clipboard.c\
+	$(MY_R3_ROOT)/os/host-draw-api-agg.cpp\
+	$(MY_R3_ROOT)/os/host-text-api-agg.cpp\
+	$(MY_R3_ROOT)/os/host-view.c\
 
 LOCAL_STATIC_LIBRARIES = libffi libagg libfreetype2 libr3
 LOCAL_CFLAGS=$(MY_VIEW_FLAGS) -DREB_CORE
