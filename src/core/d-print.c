@@ -38,6 +38,10 @@
 
 #include "sys-core.h"
 
+#ifdef TO_ANDROID
+#include <android/log.h>
+#endif
+
 static REBREQ *Req_SIO;
 
 
@@ -91,6 +95,9 @@ static REBREQ *Req_SIO;
 **
 ***********************************************************************/
 {
+#ifdef TO_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "r3", "%s", bp);
+#else
 	#define BUF_SIZE 1024
 	REBYTE buffer[BUF_SIZE]; // on stack
 	REBYTE *buf = &buffer[0];
@@ -125,6 +132,7 @@ static REBREQ *Req_SIO;
 		OS_DO_DEVICE(Req_SIO, RDC_WRITE);
 		if (Req_SIO->error) Crash(RP_IO_ERROR);
 	}
+#endif
 }
 
 

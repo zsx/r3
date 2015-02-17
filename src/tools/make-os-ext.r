@@ -38,7 +38,7 @@ if all [
 	not find any [system/options/args []] "no-gfx"
 	find [3 4] system/version/4
 ][
-	append files [%host-window.c %host-graphics.c]
+	append files [%../sdl/host-window.c %../sdl/host-graphics.c]
 ]
 
 cnt: 0

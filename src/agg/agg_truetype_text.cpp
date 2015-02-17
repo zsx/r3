@@ -252,7 +252,8 @@ namespace agg
 		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
 		attr.size = m_font->size;
 #ifdef AGG_FONTCONFIG
-		REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+		//REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+		REBYTE *fn = NULL; // FIXME
 		if (fn != NULL){
 			attr.name = fn;
 			attr.name_free = false;

@@ -2289,6 +2289,7 @@ xx*/	REBVAL *Do_Path(REBVAL **path_val, REBVAL *val)
 //	static D = 0;
 //	int depth = D++;
 
+	Debug_Fmt("Init_Mezz");
 	//Debug_Fmt("Set Halt");
 
 	if (PG_Boot_Level >= BOOT_LEVEL_MODS) {
@@ -2317,7 +2318,9 @@ xx*/	REBVAL *Do_Path(REBVAL **path_val, REBVAL *val)
 		// Saved_State is safe.
 		Saved_State = Halt_State;
 
+		Debug_Fmt("Doing system start\n");
 		val = Do_Sys_Func(SYS_CTX_START, 0); // what if script contains a HALT?
+		Debug_Fmt("Done system start\n");
 
 		if (IS_INTEGER(val)) result = VAL_INT32(val);
 		//if (Try_Block_Halt(VAL_SERIES(ROOT_SCRIPT), 0)) {

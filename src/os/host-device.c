@@ -55,6 +55,7 @@
 #include "reb-host.h"
 #include "host-lib.h"
 
+#include "SDL.h"
 
 /***********************************************************************
 **
@@ -480,6 +481,7 @@ static int Poll_Default(REBDEV *dev)
 
 	// printf("OS_Wait %d\n", millisec);
 
+	//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "OS_WAIT %u milliseconds\n", millisec);
 	base = OS_Delta_Time(0, 0); // start timing
 
 	// Setup for timing:

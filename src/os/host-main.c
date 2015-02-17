@@ -63,6 +63,17 @@
 #include "host-init.h"
 #endif
 
+#include "SDL.h"
+
+#ifdef TO_ANDROID
+#include <android/log.h>
+#define  LOG_TAG    "r3"
+#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+#else
+#define  LOGD(...)  RL_Print(__VA_ARGS__)
+#endif
+
+
 /**********************************************************************/
 
 #define PROMPT_STR ">> "
@@ -149,7 +160,31 @@ int main(int argc, char **argv)
 		always_malloc = atoi(env_always_malloc);
 	}
 
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {
+        SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
+    }
+
+	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
+
+#ifdef TO_ANDROID
+	SDL_RWops *script = SDL_RWFromFile("main.reb", "r");
+	if (script != NULL) {
+		embedded_size = SDL_RWsize(script);
+		if (embedded_size > 0) {
+			embedded_script = OS_Make(embedded_size);
+			if (SDL_RWread(script, embedded_script, embedded_size, 1) < 0) {
+				LOGD("failed to read the embedded script data: %s\n", SDL_GetError());
+				OS_Free(embedded_script);
+				embedded_size = 0;
+			}
+		}
+	} else {
+		LOGD("failed to open the embedded script: %s\n", SDL_GetError());
+	}
+#else
 	embedded_script = OS_Read_Embedded(&embedded_size);
+#endif
+	//LOGD("embedded_size: %lld\n", embedded_size);
 	Parse_Args(argc, (REBCHR **)argv, &Main_Args);
 
 	vers[0] = 5; // len
@@ -169,7 +204,9 @@ int main(int argc, char **argv)
 	if (n == 2) Host_Crash("Host-lib wrong version/checksum");
 
 	//Initialize core extension commands
+	//LOGD("Initializing core ext\n");
 	Init_Core_Ext();
+	//LOGD("core ext Initialized\n");
 #ifdef EXT_LICENSING
 	Init_Licensing_Ext();
 #endif //EXT_LICENSING
@@ -230,12 +267,14 @@ int main(int argc, char **argv)
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
 	// Returns: 0: ok, -1: error, 1: bad data.
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Starting up...\n");
 #ifdef CUSTOM_STARTUP
 	// For custom startup, you can provide compressed script code here:
 	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, embedded_script, (REBINT)embedded_size, 0); // TRUE on halt
 #else
 	n = RL_Start(0, 0, embedded_script, (REBINT)embedded_size, 0);
 #endif
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Started up...\n");
 
 #ifdef TO_WIN32
 #ifdef ENCAP

@@ -49,6 +49,8 @@ REBOL_HOST_LIB *Host_Lib;
 #include <stdio.h>
 #endif
 
+#include "SDL.h"
+
 extern const REBYTE Reb_To_RXT[REB_MAX];
 extern RXIARG Value_To_RXI(REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
@@ -188,6 +190,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 		val = BLK_SKIP(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
 		Set_Binary(val, ser);
+		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "read embedded script (%ld):\n%s\n", script_len, BIN_DATA(ser));
 	}
 
 	return Init_Mezz(0);
