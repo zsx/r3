@@ -252,8 +252,31 @@ namespace agg
 		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
 		attr.size = m_font->size;
 #ifdef AGG_FONTCONFIG
-		//REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
-		REBYTE *fn = NULL; // FIXME
+#ifdef TO_ANDROID
+		REBYTE *fn = NULL;
+		/* FIXME: hackish */
+		if (!strncasecmp((const char*)attr.name, "Serif", 6)) {
+			if (attr.bold && attr.italic) {
+				fn = (REBYTE*)"/system/fonts/DroidSerif-BoldItalic.ttf";
+			} else if (attr.bold) {
+				fn = (REBYTE*)"/system/fonts/DroidSerif-Bold.ttf";
+			} else if (attr.italic) {
+				fn = (REBYTE*)"/system/fonts/DroidSerif-Italic.ttf";
+			} else {
+				fn = (REBYTE*)"/system/fonts/DroidSerif-Regular.ttf";
+			}
+		} else if (!strncasecmp((const char*)attr.name, "Sans", 5)) {
+			if (attr.bold) {
+				fn = (REBYTE*)"/system/fonts/DroidSans-Bold.ttf";
+			} else {
+				fn = (REBYTE*)"/system/fonts/DroidSans.ttf";
+			}
+		} else {
+			fn = (REBYTE*)"/system/fonts/DroidSans.ttf";
+		}
+#else
+		REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+#endif
 		if (fn != NULL){
 			attr.name = fn;
 			attr.name_free = false;
