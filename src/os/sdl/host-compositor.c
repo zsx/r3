@@ -75,6 +75,7 @@ typedef struct {
 	REBXYF absOffset;
 	SDL_Renderer *renderer;
 	SDL_Surface *surface;
+	SDL_Rect	clip;
 	int		pixel_pitch;
 } REBCMP_CTX;
 
@@ -190,28 +191,8 @@ typedef struct {
 	if (!ctx->renderer) {
 		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Failed to create a render\n");
 	}
+	SDL_RenderClear(ctx->renderer);
 
- 	SDL_DisplayMode target, closest;
-
-	// Set the desired resolution, etc.
-	target.w = 600;
-	target.h = 500;
-	target.format = SDL_PIXELFORMAT_RGBA8888;
-	target.refresh_rate = 0; // don't care
-	target.driverdata   = 0; // initialize to 0
-	printf("Requesting: \t%dx%dpx @ %dhz \n", target.w, target.h, target.refresh_rate);
-
-	// Pass the display mode structures by reference to SDL_GetClosestDisplay
-	// and check whether the result is a null pointer.
-	if (SDL_GetClosestDisplayMode(0, &target, &closest) == NULL)
-
-		// If the returned pointer is null, no match was found.
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "\nNo suitable display mode was found!\n\n");
-
-	else
-		// Otherwise, a display mode close to the target is available.
-		// Access the SDL_DisplayMode structure to see what was received.
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "  Received: \t%dx%dpx, 0x%x @ %dhz \n", closest.w, closest.h, closest.format, closest.refresh_rate);
 	//call resize to init buffer
 	rebcmp_resize_buffer(ctx, gob);
 	return ctx;
@@ -247,8 +228,11 @@ typedef struct {
 
 	REBINT x = ROUND_TO_INT(ctx->absOffset.x);
 	REBINT y = ROUND_TO_INT(ctx->absOffset.y);
+	REBRECT gob_clip;
+	SDL_Rect saved_clip = ctx->clip;
+	SDL_Rect gob_rect = {x, y, GOB_LOG_W(gob), GOB_LOG_H(gob)};
 
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "processing ctx %p, gob %p\n", ctx, gob);
+	//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "processing ctx %p, gob %p\n", ctx, gob);
 	if (GET_GOB_STATE(gob, GOBS_NEW)){
 		//reset old-offset and old-size if newly added
 		GOB_XO(gob) = GOB_LOG_X(gob);
@@ -259,31 +243,14 @@ typedef struct {
 		CLR_GOB_STATE(gob, GOBS_NEW);
 	}
 
-	//intersect gob dimensions with actual window clip region
-	REBOOL valid_intersection = TRUE; //FIXME
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
+	SDL_IntersectRect(&ctx->clip, &gob_rect, &ctx->clip);
 
-	//get the current Window clip box
+	gob_clip.left = ctx->clip.x;
+	gob_clip.top = ctx->clip.y;
+	gob_clip.right = GOB_LOG_W_INT(gob) + ctx->clip.x;
+	gob_clip.bottom = GOB_LOG_H_INT(gob) + ctx->clip.y;
 
-	REBRECT gob_clip = {
-		x, //left
-		y, //top
-		GOB_LOG_W_INT(gob) + x, //right
-		GOB_LOG_H_INT(gob) + y //bottom
-			/*
-		GOB_LOG_X(gob), //left
-		GOB_LOG_Y(gob), //top
-		GOB_LOG_W(gob) + GOB_LOG_X(gob), //right
-		GOB_LOG_H(gob) + GOB_LOG_Y(gob), //bottom
-		*/
-	};
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
-
-	if (valid_intersection)
+	if (!SDL_RectEmpty(&ctx->clip))
 	{
 		//renderer GOB content
 		switch (GOB_TYPE(gob)) {
@@ -301,7 +268,7 @@ typedef struct {
 					//Put backend specific code here
 					//------------------------------
 					// or use the similar draw api call:
-					// rebdrw_gob_image(gob, ctx->Window_Buffer, ctx->winBufSize, (REBXYI){x,y}, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
+					rebdrw_gob_image(gob, ctx->Window_Buffer, ctx->winBufSize, (REBXYI){x,y}, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
 				}
 				break;
 
@@ -354,6 +321,8 @@ typedef struct {
 			}
 		}
 	}
+
+	ctx->clip = saved_clip;
 }
 
 /***********************************************************************
@@ -374,11 +343,13 @@ typedef struct {
 	REBD32 abs_oy;
 	REBGOB* parent_gob = gob;
 
+	SDL_Rect old_clip;
+
 	//reset clip region to window area
 	//------------------------------
 	//Put backend specific code here
 	//------------------------------
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "composing ctx\n");
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "composing ctx: %p, size: %dx%d\n", ctx, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
 
 	//calculate absolute offset of the gob
 	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
@@ -399,6 +370,11 @@ typedef struct {
 		ctx->absOffset.y = 0;
 	}
 
+	ctx->clip.x = abs_x;
+	ctx->clip.y = abs_y;
+	ctx->clip.w = GOB_LOG_W_INT(gob);
+	ctx->clip.h = GOB_LOG_H_INT(gob);
+
 	//handle newly added gob case
 	if (!GET_GOB_STATE(gob, GOBS_NEW)){
 		//calculate absolute old offset of the gob
@@ -406,23 +382,15 @@ typedef struct {
 		abs_oy = abs_y + (GOB_YO(gob) - GOB_LOG_Y(gob));
 
 		//set region with old gob location and dimensions
-		//------------------------------
-		//Put backend specific code here
-		//------------------------------
+		old_clip.x = abs_ox;
+		old_clip.y = abs_oy;
+		old_clip.w = GOB_WO_INT(gob);
+		old_clip.h = GOB_HO_INT(gob);
+
+		SDL_UnionRect (&ctx->clip, &old_clip, &ctx->clip);
 	}
 
-	//Create union of "new" and "old" gob location
-	REBOOL valid_intersection = TRUE;
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
-
-	//intersect resulting region with window clip region
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
-
-	if (valid_intersection)
+	if (!SDL_RectEmpty(&ctx->clip))
 	{
 		ctx->Window_Buffer = rebcmp_get_buffer(ctx);
 
@@ -455,12 +423,12 @@ typedef struct {
 	//
 	SDL_Texture *texture = NULL;
 
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "bliting ctx %p\n", ctx);
+	//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "bliting ctx %p\n", ctx);
 
 	texture = SDL_CreateTextureFromSurface(ctx->renderer, ctx->surface);
 
-	SDL_RenderClear(ctx->renderer);
-	SDL_RenderCopy(ctx->renderer, texture, NULL, NULL);
+	SDL_RenderCopy(ctx->renderer, texture, NULL, &ctx->clip);
+	//SDL_RenderCopy(ctx->renderer, texture, NULL, NULL);
 	SDL_RenderPresent(ctx->renderer);
 
 	SDL_DestroyTexture(texture);
