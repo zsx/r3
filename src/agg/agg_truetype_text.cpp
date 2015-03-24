@@ -252,11 +252,17 @@ namespace agg
 		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
 		attr.size = m_font->size;
 #ifdef AGG_FONTCONFIG
-		REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
-		if (fn != NULL){
-			attr.name = fn;
-			attr.name_free = false;
+		FILE * fp = fopen((const char*)attr.name, "rb"); //try to see if this is a font file
+		if (!fp) {
+			REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+			if (fn != NULL){
+				attr.name = fn;
+				attr.name_free = false;
+			} else {
+				attr.name_free = m_font->name_free;
+			}
 		} else {
+			fclose(fp);
 			attr.name_free = m_font->name_free;
 		}
 #else
