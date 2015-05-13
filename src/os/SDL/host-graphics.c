@@ -47,6 +47,7 @@
 #ifdef TO_LINUX
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/Xrandr.h>
 #endif
 
 //** Externs *****
@@ -177,6 +178,29 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 		   }
 		   return fake_data[index];
 	   }
+       Screen *sc = XDefaultScreenOfDisplay(global_x_info->display);
+	   int virtual_width = XWidthOfScreen(sc);
+	   int virtual_height = XHeightOfScreen(sc);
+
+	   XRRScreenResources *res;
+	   RROutput primary_output;
+	   XRROutputInfo *info;
+	   XRRCrtcInfo *crtc;
+
+	   Window root = DefaultRootWindow(global_x_info->display);
+	   res = XRRGetScreenResourcesCurrent(global_x_info->display, root);
+	   primary_output = XRRGetOutputPrimary(global_x_info->display, root);
+	   info = XRRGetOutputInfo(global_x_info->display, res, primary_output);
+
+	   crtc = XRRGetCrtcInfo(global_x_info->display, res, info->crtc);
+
+	   /* adjust width/height for primary output */
+	   data [2] += crtc->width - virtual_width;
+	   data [3] += crtc->height - virtual_height;
+
+	   XRRFreeCrtcInfo(crtc);
+	   XRRFreeOutputInfo(info);
+	   XRRFreeScreenResources(res);
 
 	   ret = data[index];
 	   XFree(data);
@@ -211,81 +235,98 @@ static int get_work_area(Display *display, METRIC_TYPE type)
        }
 	   root = DefaultRootWindow(display);
        sc = XDefaultScreenOfDisplay(display);
-       switch(type) {
-               case SM_SCREEN_WIDTH:
-                       ret = XWidthOfScreen(sc);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_SCREEN_HEIGHT:
-                       ret = XHeightOfScreen(sc);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_WORK_X:
-               case SM_WORK_Y:
-               case SM_WORK_WIDTH:
-               case SM_WORK_HEIGHT:
-					   ret = get_work_area(display, type);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_TITLE_HEIGHT:
-					   XA_NET_FRAME_EXTENTS = XInternAtom(display, "_NET_FRAME_EXTENTS", True);
-					   if (XA_NET_FRAME_EXTENTS == None) {
-						   XCloseDisplay(display);
-						   return 20; //FIXME
-					   }
-					   status = XGetWindowProperty(display,
-												   RootWindowOfScreen(sc),
-												   XA_NET_FRAME_EXTENTS,
-												   0,
-												   (~0L),
-												   False,
-												   AnyPropertyType,
-												   &actual_type,
-												   &actual_format,
-												   &nitems,
-												   &bytes,
-												   (unsigned char**)&data);
-					   if (status != Success
-						   || data == NULL
-						   || actual_type != XA_CARDINAL
-						   || actual_format != 32
-						   || nitems != 4) {
-						   //RL_Print("status = %d, nitmes = %d\n", status, nitems);
-						   //Host_Crash("XGetWindowProperty failed in OS_Get_Metrics");
-						   XCloseDisplay(display);
-						   return 20; //FIXME
-					   }
+       switch (type) {
+       case SM_VIRTUAL_SCREEN_WIDTH:
+           return XWidthOfScreen(sc);
+       case SM_VIRTUAL_SCREEN_HEIGHT:
+           return XHeightOfScreen(sc);
+       case SM_SCREEN_WIDTH:
+       case SM_SCREEN_HEIGHT:
+       {
+           XRRScreenResources *res;
+           RROutput primary_output;
+           XRROutputInfo *info;
+           XRRCrtcInfo *crtc;
 
-                       ret = data[2]; //left, right, top, bottom
-					   XFree(data);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_SCREEN_DPI_X:
-                       dot = XWidthOfScreen(sc);
-                       mm = XWidthMMOfScreen(sc);
-					   XCloseDisplay(display);
-                       return round(dot * 25.4 / mm);
-               case SM_SCREEN_DPI_Y:
-                       dot = XHeightOfScreen(sc);
-                       mm = XHeightMMOfScreen(sc);
-					   XCloseDisplay(display);
-                       return round(dot * 25.4 / mm);
-               case SM_BORDER_WIDTH:
-               case SM_BORDER_HEIGHT:
-               case SM_BORDER_FIXED_WIDTH:
-               case SM_BORDER_FIXED_HEIGHT:
-					   XCloseDisplay(display);
-					   return 5; //FIXME
-               case SM_WINDOW_MIN_WIDTH:
-					   XCloseDisplay(display);
-					   return 132; //FIXME; from windows
-               case SM_WINDOW_MIN_HEIGHT:
-					   XCloseDisplay(display);
-					   return 38; //FIXME; from windows
-               default:
-					   XCloseDisplay(display);
-					   Host_Crash("NOT implemented others in OS_Get_Metrics");
-                       return 0; //FIXME, not implemented 
+           res = XRRGetScreenResourcesCurrent(global_x_info->display, root);
+           primary_output = XRRGetOutputPrimary(global_x_info->display, root);
+           info = XRRGetOutputInfo(global_x_info->display, res, primary_output);
+
+           crtc = XRRGetCrtcInfo(global_x_info->display, res, info->crtc);
+
+           ret = (type == SM_SCREEN_WIDTH) ? crtc->width : crtc->height;
+           XRRFreeCrtcInfo(crtc);
+           XRRFreeOutputInfo(info);
+           XRRFreeScreenResources(res);
+
+           return ret;
+       }
+       case SM_WORK_X:
+       case SM_WORK_Y:
+       case SM_WORK_WIDTH:
+       case SM_WORK_HEIGHT:
+           ret = get_work_area(display, type);
+           XCloseDisplay(display);
+           return ret;
+       case SM_TITLE_HEIGHT:
+           XA_NET_FRAME_EXTENTS = XInternAtom(display, "_NET_FRAME_EXTENTS", True);
+           if (XA_NET_FRAME_EXTENTS == None) {
+               XCloseDisplay(display);
+               return 20; //FIXME
+           }
+           status = XGetWindowProperty(display,
+               RootWindowOfScreen(sc),
+               XA_NET_FRAME_EXTENTS,
+               0,
+               (~0L),
+               False,
+               AnyPropertyType,
+               &actual_type,
+               &actual_format,
+               &nitems,
+               &bytes,
+               (unsigned char**)&data);
+           if (status != Success
+               || data == NULL
+               || actual_type != XA_CARDINAL
+               || actual_format != 32
+               || nitems != 4) {
+               //RL_Print("status = %d, nitmes = %d\n", status, nitems);
+               //Host_Crash("XGetWindowProperty failed in OS_Get_Metrics");
+               XCloseDisplay(display);
+               return 20; //FIXME
+           }
+
+           ret = data[2]; //left, right, top, bottom
+           XFree(data);
+           XCloseDisplay(display);
+           return ret;
+       case SM_SCREEN_DPI_X:
+           dot = XWidthOfScreen(sc);
+           mm = XWidthMMOfScreen(sc);
+           XCloseDisplay(display);
+           return round(dot * 25.4 / mm);
+       case SM_SCREEN_DPI_Y:
+           dot = XHeightOfScreen(sc);
+           mm = XHeightMMOfScreen(sc);
+           XCloseDisplay(display);
+           return round(dot * 25.4 / mm);
+       case SM_BORDER_WIDTH:
+       case SM_BORDER_HEIGHT:
+       case SM_BORDER_FIXED_WIDTH:
+       case SM_BORDER_FIXED_HEIGHT:
+           XCloseDisplay(display);
+           return 5; //FIXME
+       case SM_WINDOW_MIN_WIDTH:
+           XCloseDisplay(display);
+           return 132; //FIXME; from windows
+       case SM_WINDOW_MIN_HEIGHT:
+           XCloseDisplay(display);
+           return 38; //FIXME; from windows
+       default:
+           XCloseDisplay(display);
+           Host_Crash("NOT implemented others in OS_Get_Metrics");
+           return 0; //FIXME, not implemented 
        }
 }
 #endif
