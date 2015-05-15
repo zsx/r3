@@ -95,6 +95,8 @@ enum reb_panics {
 	RP_NO_CATCH,			// top level uncaught error
 	RP_NO_SAVED_STATE,		// saved state frame is missing
 	RP_MAX_EVENTS,			// event queue overflow
+	RP_AUX_STACK_UNDERFLOW,	// auxiliary stack underflow
+	RP_AUX_STACK_POINTER_OVERFLOW,	// auxiliary stack pointer overflow
 	RP_NA,					// not available
 
 //	Unspecified (just count them)

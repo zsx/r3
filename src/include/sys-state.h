@@ -28,12 +28,13 @@
 
 // Create this on your local stack frame or globally:
 typedef struct {		// State variables to save
+	jmp_buf cpu_state;
 	jmp_buf *last_jmp_buf;
+	REBSER	*error;
 	REBINT	dsp;
 	REBINT	dsf;
 	REBINT	hold_tail;	// Tail for GC_Protect
-	REBSER	*error;
-	jmp_buf cpu_state;
+	REBINT	asp;	// Auxiliary Stack Pointer
 } REBOL_STATE;
 
 // Save current state info into a structure:
@@ -42,6 +43,7 @@ typedef struct {		// State variables to save
 		(s).last_jmp_buf = g;\
 		(s).dsp = DSP;\
 		(s).dsf = DSF;\
+		(s).asp = SERIES_TAIL(AS_Series);\
 		(s).hold_tail = GC_Protect->tail;\
 		(s).error = 0;\
 	} while(0)
@@ -50,6 +52,7 @@ typedef struct {		// State variables to save
 		g = (s).last_jmp_buf;\
 		DSP = (s).dsp;\
 		DSF = (s).dsf;\
+		SERIES_TAIL(AS_Series) = (s).asp;\
 		GC_Protect->tail = (s).hold_tail;\
 	} while (0)
 

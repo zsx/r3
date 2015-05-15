@@ -115,6 +115,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	DEF_POOL(sizeof(REBGOB), 128),	// Gobs
 	DEF_POOL(sizeof(REBLHL), 32), // external libraries
 	DEF_POOL(sizeof(REBRIN), 128), // external routines
+	DEF_POOL(sizeof(REBGCM), 128), // temporary memory
 	DEF_POOL(1, 1),	// Just used for tracking main memory
 };
 
@@ -476,6 +477,20 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 /***********************************************************************
 **
+*/	REBSER *Make_Gcm(void *p, void (*free)(void*p))
+/*
+ */
+{
+	REBGCM *gcm = Make_Node(GCM_POOL);
+	gcm->mem = p;
+	gcm->free = free;
+	USE_GCM(gcm);
+
+	return gcm;
+}
+
+/***********************************************************************
+**
 */	void Free_Series_Data(REBSER *series, REBOOL protect)
 /*
 **		Free series data, but leave series header. Protect flag
@@ -601,6 +616,21 @@ clear_header:
 	if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
 }
 
+/***********************************************************************
+**
+*/	void Free_Gcm(REBGCM *gcm)
+/*
+**		Free a gcm
+**
+***********************************************************************/
+{
+	if (!IS_USED_GCM(gcm)) { /* already free'd */
+		return;
+	}
+	gcm->free(gcm->mem);
+	UNUSE_GCM(gcm);
+	Free_Node(GCM_POOL, (REBNOD *)gcm);
+}
 
 /***********************************************************************
 **

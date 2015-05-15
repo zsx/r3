@@ -92,6 +92,7 @@ TVAR REBSER	*DS_Series;
 TVAR REBVAL	*DS_Base;		// Data stack base
 TVAR REBINT	DSP;			// Data stack pointer
 TVAR REBINT	DSF;			// Data stack frame (function base)
+TVAR REBSER	*AS_Series;		// Auxiliary series
 
 TVAR jmp_buf *Saved_State;	// Pointer to saved CPU state
 

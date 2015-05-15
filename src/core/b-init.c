@@ -468,6 +468,10 @@ extern const REBYTE Str_Banner[];
 	DS_Base = BLK_HEAD(DS_Series);
 	DSP = DSF = 0;
 	SET_NONE(DS_TOP); // avoids it being set to END (GC problem)
+
+	AS_Series = Make_Series(size / 4, sizeof(REBGCM*), FALSE);
+	KEEP_SERIES(AS_Series, "auxiliary series"); // Keep it from GC
+	BARE_SERIES(AS_Series);
 }
 
 

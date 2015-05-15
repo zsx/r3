@@ -32,6 +32,27 @@
 #define	CHECK_MEMORY(n)
 #endif
 
+typedef struct _REBGCM REBGCM;
+
+typedef struct _REBGCM {
+	void (*free) (void *);
+	void *mem;
+	REBFLG 	flags;
+};
+
+enum {
+	GCM_USE = 0,
+	GCM_MARK = 1
+};
+
+#define USE_GCM(m) ((m)->flags |= (1 << GCM_USE))
+#define IS_USED_GCM(m) ((m)->flags & (1 << GCM_USE))
+#define UNUSE_GCM(m) ((m)->flags &= ~(1 << GCM_USE))
+
+#define MARK_GCM(m) ((m)->flags |= (1 << GCM_MARK))
+#define IS_MARKED_GCM(m) ((m)->flags & (1 << GCM_MARK))
+#define UNMARK_GCM(m) ((m)->flags &= ~(1 << GCM_MARK))
+
 typedef void *REBNOD;			// Just used for linking free nodes
 
 /***********************************************************************
@@ -100,6 +121,7 @@ typedef void *REBNOD;			// Just used for linking free nodes
 	GOB_POOL,
 	LIB_POOL,
 	RIN_POOL, /* routine info */
+	GCM_POOL, /* memory with used defined GC callbacks */
 	SYSTEM_POOL,
 	MAX_POOLS
 };

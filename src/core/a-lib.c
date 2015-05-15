@@ -993,7 +993,118 @@ RL_API int RL_Callback(RXICBI *cbi)
 	return RL_Event(&evt);	// (returns 0 if queue is full, ignored)
 }
 
+/***********************************************************************
+**
+*/	RL_API REBCNT RL_Push_Aux(void *p, void (*free) (void *))
+/*
+** Push a memory pointer and its destructor into the memory pool for GC
+** 
+** Returns:
+**		nothing
+**	Arguments:
+**		p - memory pointer
+**      free - destructor of the memory
+*/
+{
+	REBGCM *gcm = Make_Gcm(p, free);
 
+	Append_Series(AS_Series, &gcm, 1);
+
+	return SERIES_TAIL(AS_Series) - 1;
+}
+
+/***********************************************************************
+**
+*/ RL_API void* RL_Pop_Aux()
+/*
+** Pop a memory pointer from the memory pool without calling its destructor
+** 
+** Returns:
+**		nothing
+**	Arguments:
+**		nothing
+*/
+{
+	ASSERT2(SERIES_TAIL(AS_Series) > 0, RP_AUX_STACK_UNDERFLOW);
+	REBGCM *gcm = *(REBGCM**) SERIES_SKIP(AS_Series, SERIES_TAIL(AS_Series) - 1);
+	void *p = gcm->mem;
+	SERIES_TAIL(AS_Series) -= 1;
+
+	UNUSE_GCM(gcm);
+	Free_Node(GCM_POOL, (REBNOD *)gcm);
+
+	return p;
+}
+
+/***********************************************************************
+**
+*/ RL_API void RL_Pop_And_Free_Aux()
+/*
+** Pop a memory pointer from the memory pool and call its destructor
+** 
+** Returns:
+**		nothing
+**	Arguments:
+**		nothing
+*/
+{
+	ASSERT2(SERIES_TAIL(AS_Series) > 0, RP_AUX_STACK_UNDERFLOW);
+	REBGCM *gcm = *(REBGCM**) SERIES_SKIP(AS_Series, SERIES_TAIL(AS_Series) - 1);
+	
+	Free_Gcm(gcm);
+	SERIES_TAIL(AS_Series) -= 1;
+}
+
+/***********************************************************************
+**
+*/ RL_API REBCNT RL_Get_Aux_Pointer()
+/*
+** Get the auxiliary stack pointer
+** 
+** Returns:
+**		auxiliary stack pointer
+**	Arguments:
+**		nothing
+*/
+{
+	return SERIES_TAIL(AS_Series);
+}
+
+/***********************************************************************
+**
+*/ RL_API REBCNT RL_Restore_Aux_Pointer(REBCNT asp)
+/*
+** Restore the auxiliary stack pointer
+** 
+** Returns:
+**		nothing
+**	Arguments:
+**		auxiliary stack pointer
+*/
+{
+	ASSERT2(SERIES_TAIL(AS_Series) >= asp, RP_AUX_STACK_POINTER_OVERFLOW);
+	while (SERIES_TAIL(AS_Series) > asp) {
+		RL_Pop_Aux();
+	}
+}
+
+/***********************************************************************
+**
+*/ RL_API REBCNT RL_Restore_And_Free_Aux_Pointer(REBCNT asp)
+/*
+** Restore the auxiliary stack pointer
+** 
+** Returns:
+**		nothing
+**	Arguments:
+**		auxiliary stack pointer
+*/
+{
+	ASSERT2(SERIES_TAIL(AS_Series) >= asp, RP_AUX_STACK_POINTER_OVERFLOW);
+	while (SERIES_TAIL(AS_Series) > asp) {
+		RL_Pop_And_Free_Aux();
+	}
+}
 
 #include "reb-lib-lib.h"
 
