@@ -412,6 +412,8 @@ static int shm_error_handler(Display *d, XErrorEvent *e) {
 	REBYTE* color;
 	Region saved_win_region = XCreateRegion();
 
+	RL_Push_Aux(saved_win_region, XDestroyRegion);
+
 	if (GET_GOB_STATE(gob, GOBS_NEW)){
 		//reset old-offset and old-size if newly added
 		GOB_XO(gob) = GOB_LOG_X(gob);
@@ -443,6 +445,8 @@ static int shm_error_handler(Display *d, XErrorEvent *e) {
 	*/
 
 	Region reg = XCreateRegion();
+	RL_Push_Aux(reg, XDestroyRegion);
+
 	XUnionRectWithRegion(&rect, reg, reg);
 	/*
 	XClipBox(ctx->Win_Region, &rect);
@@ -563,9 +567,10 @@ static int shm_error_handler(Display *d, XErrorEvent *e) {
 			}
 		}
 	}
-	XDestroyRegion(reg);
+	RL_Pop_And_Free_Aux(); //free reg
+
 	XDestroyRegion(ctx->Win_Region);
-	ctx->Win_Region = saved_win_region;
+	ctx->Win_Region = RL_Pop_Aux(); //saved_win_region
 }
 
 static void swap_buffer(REBCMP_CTX* ctx)
