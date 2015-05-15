@@ -43,6 +43,30 @@
 namespace agg
 {
 //	extern "C" RL_LIB *RL;
+	extern "C" void free_graphics (void *p)
+	{
+		delete static_cast<agg_graphics*>(p);
+	}
+
+	extern "C" void free_ren_buf (void *p)
+	{
+		delete static_cast<agg_graphics::ren_buf*>(p);
+	}
+
+	extern "C" void free_ren_base (void *p)
+	{
+		delete static_cast<agg_graphics::ren_base*>(p);
+	}
+
+	extern "C" void free_pixfmt (void *p)
+	{
+		delete static_cast<agg_graphics::pixfmt*>(p);
+	}
+
+	extern "C" void free_cpp_byte_array (void *p)
+	{
+		delete static_cast<REBYTE*>(p);
+	}
 
 	extern "C" REBUPT RL_Series(REBSER *ser, REBCNT what);
 
@@ -538,35 +562,46 @@ namespace agg
 		REBINT stride = buf_size.x << 2;
 		
 		REBYTE* tmp_buf = 0;
-		agg_graphics::ren_buf rbuf_tmp;
-		agg_graphics::pixfmt pixf_tmp(rbuf_tmp);
-		agg_graphics::ren_buf rbuf_win(buf, buf_size.x, buf_size.y, stride);		
-		agg_graphics::pixfmt pixf_win(rbuf_win);
-		agg_graphics::ren_base rb;
-		agg_graphics::ren_base rb_win(pixf_win);
-		agg_graphics::ren_base rb_tmp(pixf_tmp);
+		REBCNT asp = RL_Get_Aux_Pointer();
+
+		agg_graphics::ren_buf *rbuf_tmp = new agg_graphics::ren_buf();
+		RL_Push_Aux(rbuf_tmp, free_ren_buf);
+		agg_graphics::pixfmt *pixf_tmp = new agg_graphics::pixfmt(*rbuf_tmp);
+		RL_Push_Aux(pixf_tmp, free_pixfmt);
+		agg_graphics::ren_buf *rbuf_win = new agg_graphics::ren_buf(buf, buf_size.x, buf_size.y, stride);		
+		RL_Push_Aux(rbuf_win, free_ren_buf);
+		agg_graphics::pixfmt *pixf_win = new agg_graphics::pixfmt(*rbuf_win);
+		RL_Push_Aux(pixf_win, free_pixfmt);
+		agg_graphics::ren_base *rb = NULL;
+		agg_graphics::ren_base *rb_win = new agg_graphics::ren_base(*pixf_win);
+		RL_Push_Aux(rb_win, free_ren_base);
+		agg_graphics::ren_base *rb_tmp = new agg_graphics::ren_base(*pixf_tmp);
+		RL_Push_Aux(rb_tmp, free_ren_base);
 
 //		RL->print((REBYTE*)"GOB: %dx%d %dx%d\n",abs_oft.x, abs_oft.y, GOB_W_INT(gob), GOB_H_INT(gob));
 //		RL->print((REBYTE*)"CLIP: %dx%d %dx%d (%dx%d)\n",clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, w, h);
 
 		if (GOB_ALPHA(gob) == 255){
 			//render directly to the main buffer
-			graphics = new agg_graphics(&rbuf_win, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob), abs_oft.x, abs_oft.y);
+			graphics = new agg_graphics(rbuf_win, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob), abs_oft.x, abs_oft.y);
+			RL_Push_Aux(graphics, free_graphics);
 			rb = rb_win;
 
 			//!!!workaround to change agg clipping
-			graphics->agg_set_buffer(&rbuf_win, clip_siz.x, clip_siz.y, clip_oft.x, clip_oft.y);
+			graphics->agg_set_buffer(rbuf_win, clip_siz.x, clip_siz.y, clip_oft.x, clip_oft.y);
 		} else {
 			//create temporary buffer for later blending
 			REBINT buf_len = w * h * 4;
 			tmp_buf = new REBYTE [buf_len];
-			rbuf_tmp.attach(tmp_buf, w, h, w * 4);
-			graphics = new agg_graphics(&rbuf_tmp, w, h, 0, 0);
+			RL_Push_Aux(tmp_buf, free_cpp_byte_array);
+			rbuf_tmp->attach(tmp_buf, w, h, w * 4);
+			graphics = new agg_graphics(rbuf_tmp, w, h, 0, 0);
+			RL_Push_Aux(graphics, free_graphics);
 			rb = rb_tmp;
-			rb.clip_box(0,0,w,h);
+			rb->clip_box(0,0,w,h);
 			
 			//note: this copies whole background. todo: check for faster solution
-			rb.copy_from(rbuf_win,0,-abs_oft.x, -abs_oft.y);
+			rb->copy_from(*rbuf_win,0,-abs_oft.x, -abs_oft.y);
 		}
 
 		ctx.envr = graphics;
@@ -574,16 +609,13 @@ namespace agg
 		ctx.index = 0;
 
 		RL_DO_COMMANDS(block, 0, &ctx);
-		graphics->agg_render(rb);
-
-		delete graphics;
+		graphics->agg_render(*rb);
 
 		if (tmp_buf){
 			//blend with main buffer
-			rb_win.blend_from(pixf_tmp,0,abs_oft.x, abs_oft.y, GOB_ALPHA(gob));
-
-			//deallocate temoprary buffer
-			delete [] tmp_buf;
+			rb_win->blend_from(*pixf_tmp,0,abs_oft.x, abs_oft.y, GOB_ALPHA(gob));
 		}
+
+		RL_Restore_And_Free_Aux_Pointer(asp);
 	}
 }
