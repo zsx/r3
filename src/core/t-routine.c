@@ -37,9 +37,11 @@
 	EXPAND_SERIES_TAIL(v->extra_mem, 1);\
 } while (0)
 
+extern	REBOL_HOST_LIB *Host_Lib;
+
 static ffi_type * struct_type_to_ffi [STRUCT_TYPE_MAX];
 
-static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n);
+static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make);
 
 static void init_type_map()
 {
@@ -97,7 +99,7 @@ static REBCNT n_struct_fields (REBSER *fields)
 	return n_fields;
 }
 
-static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields)
+static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields, REBOOL make)
 {
 	ffi_type *args = (ffi_type*) SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(out));
 	REBCNT i = 0, j = 0;
@@ -105,14 +107,22 @@ static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields)
 
 	ffi_type *stype = OS_MAKE(sizeof(ffi_type));
 	//printf("allocated stype at: %p\n", stype);
-	QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
+	if (make) {
+		QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
+	} else {
+		RL_Push_Aux(stype, Host_Lib->os_free);
+	}
 
 	stype->size = stype->alignment = 0;
 	stype->type = FFI_TYPE_STRUCT;
 
 	stype->elements = OS_MAKE(sizeof(ffi_type *) * (1 + n_struct_fields(fields))); /* one extra for NULL */
 	//printf("allocated stype elements at: %p\n", stype->elements);
-	QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
+	if (make) {
+		QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
+	} else {
+		RL_Push_Aux(stype->elements, Host_Lib->os_free);
+	}
 
 	for (i = 0; i < SERIES_TAIL(fields); i ++) {
 		struct Struct_Field *field = (struct Struct_Field*)SERIES_SKIP(fields, i);
@@ -129,7 +139,7 @@ static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields)
 				return NULL;
 			}
 		} else {
-			ffi_type *subtype = struct_to_ffi(out, field->fields);
+			ffi_type *subtype = struct_to_ffi(out, field->fields, make);
 			if (subtype) {
 				REBCNT n = 0;
 				for (n = 0; n < field->dimension; n ++) {
@@ -147,7 +157,7 @@ static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields)
 
 /* convert the type of "elem", and store it in "out" with index of "idx"
  */
-static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
+static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx, REBOOL make)
 {
 	ffi_type **args = (ffi_type**) SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(out));
 	REBVAL *rebol_args = NULL;
@@ -221,7 +231,7 @@ static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
 		}
 		Append_Value(VAL_ROUTINE_FFI_ARG_STRUCTS(out)); /* fill with none */
 	} else if (IS_STRUCT(elem)) {
-		ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem));
+		ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem), make);
 		REBVAL *to = NULL;
 		if (ftype) {
 			args[idx] = ftype;
@@ -481,11 +491,14 @@ static void ffi_to_rebol(REBRIN *rin,
 	REBVAL *tmp = NULL;
 	REBVAL *varargs = NULL;
 	REBINT n_fixed = 0; /* nunmber of fixed arguments */
+	REBCNT asp = 0;
 
 	if (VAL_ROUTINE_LIB(rot) != NULL //lib is NULL when routine is constructed from address directly
 		&& IS_CLOSED_LIB(VAL_ROUTINE_LIB(rot))) {
 		Trap0(RE_BAD_LIBRARY);
 	}
+
+	asp = RL_Get_Aux_Pointer();
 
 	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
 		varargs = BLK_HEAD(args);
@@ -538,7 +551,7 @@ static void ffi_to_rebol(REBRIN *rin,
 				v = Append_Value(VAL_ROUTINE_ALL_ARGS(rot));
 				Init_Word(v, SYM_ELLIPSIS); //FIXME, be clear
 				EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot), 1);
-				process_type_block(rot, reb_type, j);
+				process_type_block(rot, reb_type, j, FALSE);
 				i ++;
 			}
 			ffi_args[j - 1] = arg_to_ffi(rot, reb_arg, j, &pop);
@@ -575,6 +588,7 @@ static void ffi_to_rebol(REBRIN *rin,
 			 ffi_args);
 	ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
 	DSP -= pop;
+	RL_Restore_And_Free_Aux_Pointer(asp);
 }
 
 /***********************************************************************
@@ -597,7 +611,7 @@ static void ffi_to_rebol(REBRIN *rin,
 	Free_Node(RIN_POOL, (REBNOD*)rin);
 }
 
-static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n)
+static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
 {
 	if (IS_BLOCK(blk)) {
 		REBVAL *t = VAL_BLK_DATA(blk);
@@ -612,7 +626,7 @@ static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n)
 			if (!MT_Struct(DS_TOP, t, REB_STRUCT)) {
 				Trap_Arg(blk);
 			}
-			if (!rebol_type_to_ffi(out, DS_TOP, n)) {
+			if (!rebol_type_to_ffi(out, DS_TOP, n, make)) {
 				Trap_Arg(blk);
 			}
 
@@ -621,7 +635,7 @@ static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n)
 			if (VAL_LEN(blk) != 1) {
 				Trap_Arg(blk);
 			}
-			if (!rebol_type_to_ffi(out, t, n)) {
+			if (!rebol_type_to_ffi(out, t, n, make)) {
 				Trap_Arg(t);
 			}
 		}
@@ -886,7 +900,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
 						++ blk;
-						process_type_block(out, blk, n);
+						process_type_block(out, blk, n, TRUE);
 					}
 				}
 				n ++;
@@ -965,7 +979,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						}
 						has_return ++;
 						++ blk;
-						process_type_block(out, blk, 0);
+						process_type_block(out, blk, 0, TRUE);
 						break;
 					default:
 						Trap_Arg(blk);
