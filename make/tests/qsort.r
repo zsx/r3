@@ -9,11 +9,11 @@ f: func [
 ][
     i: make struct! compose/deep [
         [raw-memory: (a)]
-        int32 i
+		i [int32] 
     ]
     j: make struct! compose/deep [
         [raw-memory: (b)]
-        int32 i
+		i [int32]
     ]
     case [
         i/i = j/i [0]
