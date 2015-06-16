@@ -796,6 +796,12 @@ static void set_wm_locale(Display *display,
 
 }
 
+static int (*orig_error_handler)(Display *, XErrorEvent *);
+
+static int xdbe_error_handler(Display *d, XErrorEvent *e) {
+	global_x_info->has_double_buffer = 0;
+}
+
 /***********************************************************************
 **
 */  void* OS_Open_Window(REBGOB *gob)
@@ -916,7 +922,14 @@ static void set_wm_locale(Display *display,
 		) {
 		/* only use double buffer in non-xshm cases */
 		//RL_Print("Allocated buffer %x for window %x\n", hw->x_back_buffer, hw->x_id);
+		XSync(global_x_info->display, False);
+		orig_error_handler = XSetErrorHandler(xdbe_error_handler);
 		hw->x_back_buffer = XdbeAllocateBackBufferName(display, window, XdbeUndefined);
+		XSync(global_x_info->display, False);
+		XSetErrorHandler(orig_error_handler);
+		if (!global_x_info->has_double_buffer) {
+			hw->x_back_buffer = 0;
+		}
 	}
 
 	set_gob_window_type(gob, display, window);
