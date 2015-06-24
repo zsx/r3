@@ -172,9 +172,6 @@ FcChar8 *find_font_path(
 		return NULL;
 	}
 
-	FcConfigSubstitute(0, pat, FcMatchPattern);
-	FcDefaultSubstitute(pat);
-
 	FcPatternAddString(pat, FC_FAMILY, family);
 
 	if (italic) {
@@ -186,6 +183,9 @@ FcChar8 *find_font_path(
 	}
 
 	FcPatternAddInteger(pat, FC_SIZE, size);
+
+	FcConfigSubstitute(0, pat, FcMatchPattern);
+	FcDefaultSubstitute(pat);
 
 	match = FcFontMatch(0, pat, &result);
 	if (match) {
