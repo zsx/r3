@@ -183,6 +183,7 @@ FcChar8 *find_font_path(
 	}
 
 	FcPatternAddInteger(pat, FC_SIZE, size);
+	FcPatternAddBool(pat, FC_SCALABLE, FcTrue);
 
 	FcConfigSubstitute(0, pat, FcMatchPattern);
 	FcDefaultSubstitute(pat);
