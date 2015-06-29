@@ -974,12 +974,12 @@ static void set_wm_locale(Display *display,
 				//RL_Print("Deallocating buffer %x for window %x\n", hw->x_back_buffer, hw->x_id);
 				XdbeDeallocateBackBufferName(global_x_info->display, hw->x_back_buffer);
 			}
-			XDestroyWindow(global_x_info->display, hw->x_id);
 			if (hw->exposed_region != NULL) {
 				XDestroyRegion(hw->exposed_region);
 			}
+			XDestroyWindow(global_x_info->display, hw->x_id);
 			X_Event_Loop(-1);
-			OS_Free(hw);
+			return;
 		}
 
 		/* DestroyNotify might have not been received yet */
