@@ -50,30 +50,30 @@ systems: [
 			[LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
 
 	0.3.02		windows-x64		windows
-			[LLP64 LEN LL? +O2 UNI W32 WIN S4M EXE DIR -LM]
+			[LLP64 LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
 	;-------------------------------------------------------------------------
-	0.4.02		linux-x86	    linux
+	0.4.02		linux-x86		linux
 			[LEN LLC +O2 LDL ST1 -LM LC23]
 
-	0.4.03		linux-x86	    linux
+	0.4.03		linux-x86		linux
 			[LEN LLC +O2 HID LDL ST1 -LM LC25]
 
-	0.4.04		linux-x86	    linux
+	0.4.04		linux-x86		linux
 			[M32 LEN LLC +O2 HID LDL ST1 -LM LC211]
 
-	0.4.10		linux-ppc	    linux
+	0.4.10		linux-ppc		linux
 			[BEN LLC +O1 HID LDL ST1 -LM]
 
 	0.4.20		linux-arm		linux
-			[LEN LLC +O2 HID LDL ST1 -LM LCB]
+			[LEN LLC +O2 HID LDL ST1 -LM]
 
-	0.4.21		linux-arm	    linux
-			[LEN LLC +O2 HID LDL ST1 -LM PIE]
+	0.4.21		linux-arm		linux
+			[LEN LLC +O2 HID LDL ST1 -LM PIE LCB]
 
 	0.4.30		linux-mips		linux
-			[LEN LLC +O2 HID LDL ST1 -LM LCM]
+			[LEN LLC +O2 HID LDL ST1 -LM]
 
-	0.4.40		linux-x64	    linux
+	0.4.40		linux-x64		linux
 			[LP64 LEN LLC +O2 HID LDL ST1 -LM]
 	;-------------------------------------------------------------------------
 	0.5.75		haiku			posix
@@ -119,12 +119,9 @@ compiler-flags: context [
 	HID: "-fvisibility=hidden"		; all syms are hidden
 	F64: "-D_FILE_OFFSET_BITS=64"	; allow larger files
 	NPS: "-Wno-pointer-sign"		; OSX fix
-	NSP: "-fno-stack-protector"		; avoid insert of functions names
 	PIC: "-fPIC"					; position independent (used for libs)
 	PIE: "-fPIE"					; position independent (executables)
-	DYN: "-dynamic"					; optimize for dll??
 	NCM: "-fno-common"				; lib cannot have common vars
-	PAK: "-fpack-struct"			; pack structures
 ]
 
 linker-flags: context [
@@ -132,14 +129,11 @@ linker-flags: context [
 	ARC: "-arch i386"				; x86 32 bit architecture (OSX)
 
 	NSO: ""							; no shared libs
-	MAP: "-Wl,-M"					; output a map
-	STA: "--strip-all"
 	C++: "-lstdc++"					; link with stdc++
 	LDL: "-ldl"						; link with dynamic lib lib
 	LLOG: "-llog"					; on Android, link with liblog.so
 
 	W32: "-lwsock32 -lcomdlg32"
-	WIN: "-mwindows"				; build as Windows GUI binary
 	CON: "-mconsole"				; build as Windows Console binary
 	S4M: "-Wl,--stack=4194300"
 	-LM: "-lm"						; Math library (Haiku has it in libroot)
@@ -149,7 +143,6 @@ linker-flags: context [
 	LC25: ""						; libc 2.5
 	LC211: ""						; libc 2.11
 	LCB: ""							; bionic (Android)
-	LCM: ""							; MIPS has glibc without C++
 ]
 
 other-flags: context [
@@ -169,8 +162,8 @@ use [rec unknown-flags] [
 	; !!! See notes about NO-RETURN in the loop wrapper definition.
 	foreach-record-NO-RETURN rec systems [
 		assert [tuple? rec/id]
-		assert [(to-string rec/os-name) = (lowercase to-string rec/os-name)]
-		assert [(to-string rec/os-base) = (lowercase to-string rec/os-base)]
+		assert [(to-string rec/os-name) == (lowercase to-string rec/os-name)]
+		assert [(to-string rec/os-base) == (lowercase to-string rec/os-base)]
 		assert [not find (to-string rec/os-base) charset [#"-" #"_"]]
 		assert [block? rec/build-flags]
 		foreach flag rec/build-flags [assert [word? flag]]
