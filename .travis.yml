@@ -40,6 +40,5 @@ install:
 
 script:
     - cd make/
-    - make make OS_ID=${OS_ID}
-    - make clean prep r3
+    - make -f makefile.boot OS_ID=${OS_ID}
     - valgrind --error-exitcode=42 --leak-check=full ./r3 --do 'print {Hello!}'
