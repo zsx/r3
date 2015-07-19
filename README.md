@@ -1,6 +1,7 @@
 ![Ren/C logo](https://raw.githubusercontent.com/metaeducation/ren-c/master/ren-c-logo.png)
 
 # Ren/C
+[![Build Status](https://travis-ci.org/metaeducation/ren-c.svg?branch=master)](https://travis-ci.org/metaeducation/ren-c)
 
 **Ren/C** is an interim fork of the open sourced
 [Rebol](http://en.wikipedia.org/wiki/Rebol) codebase.  It has many goals:
