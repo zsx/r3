@@ -428,10 +428,37 @@ void Panic_Core(REBINT id, ...);
 		Panic_Core(rp); \
 	} while (0)
 
+#if !defined(NDEBUG)
+	// "Series Panics" will (hopefully) trigger an alert under memory tools
+	// like address sanitizer and valgrind that indicate the call stack at the
+	// moment of allocation of a series.  Then you should have TWO stacks: the
+	// one at the call of the Panic, and one where that series was alloc'd.
+
+	#define Panic_Series(s) \
+		do { \
+			Debug_Fmt("Panic_Series() in %s at line %d", __FILE__, __LINE__); \
+			if (*(s)->guard == 1020) /* should make valgrind or asan alert */ \
+				Panic(RP_MISC);	 \
+			Panic(RP_MISC); /* just in case it didn't crash */ \
+		} while (0);
+
+	#define Panic_Series_DEAD_END(s) \
+		do { \
+			Panic_Series(s); \
+			DEAD_END; \
+		} while (0);
+#else
+	// Release builds do not pay for the `guard` trick, so they just crash.
+
+	#define Panic_Series(s) Panic(RP_MISC)
+
+	#define Panic_Series_DEAD_END(s) Panic_DEAD_END(RP_MISC)
+#endif
+
+
 #define Panic_DEAD_END(rp) \
 	do { \
-		assert(0 == (rp)); /* fail here in Debug build */ \
-		Panic_Core(rp); \
+		Panic(rp); \
 		DEAD_END; \
 	} while (0)
 

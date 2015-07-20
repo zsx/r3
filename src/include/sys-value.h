@@ -320,6 +320,7 @@ typedef struct Reb_Tuple {
 #ifdef SERIES_LABELS
 	const REBYTE  *label;		// identify the series
 #endif
+
 	REBCNT	tail;		// one past end of useful data
 	REBCNT	rest;		// total number of units from bias to end
 	REBINT	info;		// holds width and flags
@@ -335,6 +336,16 @@ typedef struct Reb_Tuple {
 		} area;
 		REBUPT all; /* for copying, must have the same size as the union */
 	} extra;
+
+// !!! There is an issue if this is put earlier in the structure that it
+// mysteriously makes HTTPS reads start timing out.  So it's either alignment
+// or some other issue, which will hopefully be ferreted out by more and
+// stronger checks (ubsan, etc).  For now, putting it at the end seems to work,
+// but it's sketchy so be forewarned, and test `read https://...` if it moves.
+//
+#if !defined(NDEBUG)
+	REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
+#endif
 };
 
 #define SERIES_TAIL(s)	 ((s)->tail)

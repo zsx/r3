@@ -485,6 +485,15 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	if ((GC_Ballast -= length) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
+#if !defined(NDEBUG)
+	// See Panic_Series(): it's nice to be able to crash on some
+	// kind of guard for tracking the call stack at the point of allocation
+	// if we want to know when and where a problematic series came to exist.
+
+	series->guard = cast(REBINT *, malloc(sizeof(*series->guard)));
+	free(series->guard);
+#endif
+
 	// Keep the last few series in the nursery, safe from GC:
 	if (GC_Last_Infant >= MAX_SAFE_SERIES) GC_Last_Infant = 0;
 	GC_Infants[GC_Last_Infant++] = series;
