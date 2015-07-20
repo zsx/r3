@@ -39,6 +39,12 @@ make/makefile
 make/r3*
 make/objs/
 
+# It can be convenient if you are doing multiple builds of the same Rebol
+# codebase for different platforms to put them in separate make
+# directories (such as make-win32 or make-osx-x64) so they don't erase
+# each other's state
+make-*
+
 src/boot/boot-code.r
 src/boot/host-init.r
 
