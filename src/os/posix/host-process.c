@@ -525,9 +525,11 @@ child_error:
 		if (err != NULL) *err = NULL;
 		if (err_len != NULL) *err_len = 0;
 
-		if (stdin_pipe[W] > 0) {
+		// Only put the input pipe in the consideration if we can write to
+		// it and we have data to send to it.
+		if ((stdin_pipe[W] > 0) && (input_size = strlen(input)) > 0) {
 			//printf("stdin_pipe[W]: %d\n", stdin_pipe[W]);
-			input_size = strlen(input); /* the passed in input_len is in character, not in bytes */
+			/* the passed in input_len is in characters, not in bytes */
 			input_len = 0;
 
 			pfds[nfds].fd = stdin_pipe[W];
