@@ -126,10 +126,12 @@ extern STD_TERM *Init_Terminal(void);
 	tcsetattr(0, TCSADRAIN, &attrs);
 #endif
 
+    const char empty_line[] = "";
+
 	// Setup variables:
 	Line_History = OS_ALLOC_ARRAY(char*, MAX_HISTORY + 2);
-	Line_History[0] = OS_ALLOC_ARRAY(char, strlen(""));
-	strcpy(Line_History[0], "");
+    Line_History[0] = OS_ALLOC_ARRAY(char, strlen(empty_line) + 1);
+    strcpy(Line_History[0], empty_line);
 	Line_Count = 1;
 
 	term = OS_ALLOC_ZEROFILL(STD_TERM);
