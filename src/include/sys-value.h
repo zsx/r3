@@ -832,7 +832,6 @@ typedef struct Reb_Object {
 #define VAL_MOD_BODY(v)		((v)->data.object.body)
 #define VAL_MOD_SPEC(v)		VAL_FRM_SPEC(VAL_OBJ_VALUES(v))
 
-#define SET_HANDLE(v,h)		VAL_SET(v, REB_HANDLE), VAL_HANDLE(v) = (void*)(h) // a place to put it.
 
 /***********************************************************************
 **
