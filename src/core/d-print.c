@@ -245,7 +245,7 @@ static REBREQ *Req_SIO;
 		for (; lines > 0; lines--) Append_Byte(Trace_Buffer, LF);
 	}
 	else {
-		Prin_OS_String(bp, len, uni);
+		Prin_OS_String(p, len, uni);
 		for (; lines > 0; lines--) Print_OS_Line();
 	}
 }
