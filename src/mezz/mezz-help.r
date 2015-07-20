@@ -400,7 +400,7 @@ what: func [
 				title-of :val
 			]
 			append list reduce [word arg]
-			size: max size length? word
+			size: max size length? to-string word
 		]
 	]
 
