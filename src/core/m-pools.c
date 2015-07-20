@@ -436,7 +436,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		if (powerof2) {
 				REBCNT len=1;
 			#ifdef NDEBUG
-				len = 2048
+                len = 2048;
 			#else
 				if (!PG_Always_Malloc)
 					len = 2048;

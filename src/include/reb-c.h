@@ -127,14 +127,10 @@
 	 * functions check in both C and C++ (here only during Debug builds):
 	 * (Definitions are in n-strings.c w/prototypes built by make-headers.r)
 	 */
-	/*char *s_cast(unsigned char *b);
-		{ return cast(char *, b); } */
-	/*const char *cs_cast(const unsigned char *b);
-		{ return cast(const char *, b); } */
-	/*unsigned char *b_cast(char *s);
-		{ return cast(unsigned char *, s); } */
-	/*const unsigned char *cb_cast(const char *s);
-		{ return cast(const unsigned char *, s); } */
+    #define s_cast(b)       s_cast_(b)
+    #define cs_cast(b)      cs_cast_(b)
+    #define b_cast(s)       b_cast_(s)
+    #define cb_cast(s)      cb_cast_(s)
 #endif
 
 

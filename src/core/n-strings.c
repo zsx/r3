@@ -789,7 +789,7 @@ static struct digest {
 #ifndef NDEBUG
 /***********************************************************************
 **
-*/	REBYTE *b_cast(char *s)
+*/	REBYTE *b_cast_(char *s)
 /*
 **		Debug-only version of b_cast() that does type checking.
 **		If you get a complaint you probably meant to use cb_cast().
@@ -802,7 +802,7 @@ static struct digest {
 
 /***********************************************************************
 **
-*/	const REBYTE *cb_cast(const char *s)
+*/	const REBYTE *cb_cast_(const char *s)
 /*
 **		Debug-only version of cb_cast() that does type checking.
 **		If you get a complaint you probably meant to use b_cast().
@@ -815,7 +815,7 @@ static struct digest {
 
 /***********************************************************************
 **
-*/	char *s_cast(REBYTE *s)
+*/	char *s_cast_(REBYTE *s)
 /*
 **		Debug-only version of s_cast() that does type checking.
 **		If you get a complaint you probably meant to use cs_cast().
@@ -828,7 +828,7 @@ static struct digest {
 
 /***********************************************************************
 **
-*/	const char *cs_cast(const REBYTE *s)
+*/	const char *cs_cast_(const REBYTE *s)
 /*
 **		Debug-only version of cs_cast() that does type checking.
 **		If you get a complaint you probably meant to use s_cast().
