@@ -68,11 +68,6 @@ void Do_Rebcode(REBVAL *v) {;}
 #define PUSH_FUNC(v, w, s)
 #define PUSH_BLOCK(b)
 
-static REBVAL *Func_Word(REBINT dsf)
-{
-	return DSF_WORD(dsf);
-}
-
 
 /***********************************************************************
 **
@@ -336,7 +331,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 	// Save WORD for function and fake frame for relative arg lookup:
 	tos++;
-	Init_Word(tos, word ? word : cast(REBCNT, SYM__APPLY_));
+	Init_Word_Unbound(tos, REB_WORD, word ? word : cast(REBCNT, SYM__APPLY_));
 	if (func) {
 		VAL_WORD_FRAME(tos) = VAL_FUNC_ARGS(func);
 		// Save FUNC value for safety (spec, args, code):
@@ -568,7 +563,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	// If func is operator, first arg is already on stack:
 	if (IS_OP(func)) {
 		//if (!TYPE_CHECK(args, VAL_TYPE(DS_VALUE(DSP))))
-		//	Trap3_DEAD_END(RE_EXPECT_ARG, Func_Word(dsf), args, Of_Type(DS_VALUE(ds)));
+		//	Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(DS_VALUE(ds)));
 		args++;	 	// skip evaluation, but continue with type check
 		ds--;		// shorten stack fill below
 	}
@@ -592,7 +587,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 		case REB_WORD:		// WORD - Evaluate next value
 			index = Do_Next(block, index, IS_OP(func));
 			// THROWN is handled after the switch.
-			if (index == END_FLAG) Trap2_DEAD_END(RE_NO_ARG, Func_Word(dsf), args);
+			if (index == END_FLAG) Trap2_DEAD_END(RE_NO_ARG, DSF_WORD(dsf), args);
 			DS_Base[ds] = *DS_POP;
 			break;
 
@@ -649,7 +644,7 @@ more_path:
 					}
 				}
 				// Was refinement found? If not, error:
-				if (IS_END(args)) Trap2_DEAD_END(RE_NO_REFINE, Func_Word(dsf), path);
+				if (IS_END(args)) Trap2_DEAD_END(RE_NO_REFINE, DSF_WORD(dsf), path);
 				continue;
 			}
 			else Trap1_DEAD_END(RE_BAD_REFINE, path);
@@ -667,12 +662,12 @@ more_path:
 
 		// If word is typed, verify correct argument datatype:
 		if (!TYPE_CHECK(args, VAL_TYPE(DS_VALUE(ds))))
-			Trap3_DEAD_END(RE_EXPECT_ARG, Func_Word(dsf), args, Of_Type(DS_VALUE(ds)));
+			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(DS_VALUE(ds)));
 	}
 
 	// Hack to process remaining path:
 	if (path && NOT_END(path)) goto more_path;
-	//	Trap2_DEAD_END(RE_NO_REFINE, Func_Word(dsf), path);
+	//	Trap2_DEAD_END(RE_NO_REFINE, DSF_WORD(dsf), path);
 
 	return index;
 }
@@ -1397,7 +1392,7 @@ eval_func2:
 			}
 			// If arg is typed, verify correct argument datatype:
 			if (!TYPE_CHECK(args, VAL_TYPE(val)))
-				Trap3(RE_EXPECT_ARG, Func_Word(dsf), args, Of_Type(val));
+				Trap3(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(val));
 			args++;
 			val++;
 		}

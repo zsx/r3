@@ -289,15 +289,15 @@
 			ser = Make_Block(3);
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
 				arg = Append_Value(ser);
-				Init_Word(arg, SYM_DOUBLE);
+				Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL)) {
 				arg = Append_Value(ser);
-				Init_Word(arg, SYM_CONTROL);
+				Init_Word_Unbound(arg, REB_WORD, SYM_CONTROL);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT)) {
 				arg = Append_Value(ser);
-				Init_Word(arg, SYM_SHIFT);
+				Init_Word_Unbound(arg, REB_WORD, SYM_SHIFT);
 			}
 			Set_Block(val, ser);
 		} else SET_NONE(val);

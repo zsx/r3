@@ -1210,12 +1210,14 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			VAL_SERIES(value) = block;
 			if (token == TOKEN_LIT) {
 				token = REB_LIT_PATH;
-				VAL_SET(BLK_HEAD(block), REB_WORD); // NO_FRAME
+				VAL_SET(BLK_HEAD(block), REB_WORD);
+				assert(!VAL_WORD_FRAME(BLK_HEAD(block)));
 			}
 			else if (IS_GET_WORD(BLK_HEAD(block))) {
 				if (*scan_state->end == ':') goto syntax_error;
 				token = REB_GET_PATH;
-				VAL_SET(BLK_HEAD(block), REB_WORD); // NO_FRAME
+				VAL_SET(BLK_HEAD(block), REB_WORD);
+				assert(!VAL_WORD_FRAME(BLK_HEAD(block)));
 			}
 			else {
 				if (*scan_state->end == ':') {
@@ -1258,13 +1260,12 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 		case TOKEN_WORD:
 			if (len == 0) {bp--; goto syntax_error;}
-			VAL_SET(value, (REBYTE)(REB_WORD + (token - TOKEN_WORD))); // NO_FRAME
+			Init_Word_Unbound(value, REB_WORD + (token - TOKEN_WORD), SYM_NOT_USED);
 			if (!(VAL_WORD_SYM(value) = Make_Word(bp, len))) goto syntax_error;
-			VAL_WORD_FRAME(value) = 0;
 			break;
 
 		case TOKEN_REFINE:
-			VAL_SET(value, REB_REFINEMENT); // NO_FRAME
+			Init_Word_Unbound(value, REB_REFINEMENT, SYM_NOT_USED);
 			if (!(VAL_WORD_SYM(value) = Make_Word(bp+1, len-1))) goto syntax_error;
 			break;
 
@@ -1274,7 +1275,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				SET_NONE(value);  // A single # means NONE
 			}
 			else {
-				VAL_SET(value, REB_ISSUE); // NO_FRAME
+				Init_Word_Unbound(value, REB_ISSUE, SYM_NOT_USED);
 				if (!(VAL_WORD_SYM(value) = Scan_Issue(bp+1, len-1))) goto syntax_error;
 			}
 			break;

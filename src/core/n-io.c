@@ -741,7 +741,7 @@ chk_neg:
 	}
 
 	if (flag_info) {
-		REBSER *obj = Make_Frame(2);
+		REBSER *obj = Make_Frame(2, TRUE);
 		REBVAL *val = Append_Frame(obj, NULL, SYM_ID);
 		SET_INTEGER(val, pid);
 

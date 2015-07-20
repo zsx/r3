@@ -777,7 +777,14 @@ typedef struct Reb_Word_Spec {
 #define VAL_WORD_FRAME(v)		((v)->data.word.frame)
 #define HAS_FRAME(v)			VAL_WORD_FRAME(v)
 
-#define	UNBIND(v)				VAL_WORD_FRAME(v)=0, VAL_WORD_INDEX(v)=0
+#ifdef NDEBUG
+	#define UNBIND(v) \
+		(VAL_WORD_FRAME(v)=NULL)
+#else
+	#define WORD_INDEX_UNBOUND MIN_I32
+	#define UNBIND(v) \
+		(VAL_WORD_FRAME(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
+#endif
 
 #define VAL_WORD_CANON(v)		VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(v)))
 #define	VAL_WORD_NAME(v)		VAL_SYM_NAME(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(v)))
@@ -835,8 +842,8 @@ typedef struct Reb_Frame {
 	VAL_FRM_WORDS(v) = (w); \
 	VAL_SET(v, REB_FRAME)
 
-#define SET_SELFLESS(f) VAL_BIND_SYM(FRM_WORDS(f)) = 0
-#define IS_SELFLESS(f) (!VAL_BIND_SYM(FRM_WORDS(f)))
+#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_WORDS(f)) == SYM_NOT_USED)
+
 
 /***********************************************************************
 **
@@ -862,6 +869,12 @@ typedef struct Reb_Object {
 #define VAL_OBJ_WORD(v,n)	BLK_SKIP(VAL_OBJ_WORDS(v), (n))
 //#define VAL_OBJ_SPEC(v)		((v)->data.object.spec)
 #define	CLONE_OBJECT(c)		Copy_Series(c)
+
+#ifdef NDEBUG
+	#define ASSERT_FRAME(f) cast(void, 0)
+#else
+	#define ASSERT_FRAME(f) Assert_Frame_Core(f)
+#endif
 
 #define	VAL_MOD_FRAME(v)	((v)->data.object.frame)
 #define VAL_MOD_BODY(v)		((v)->data.object.body)

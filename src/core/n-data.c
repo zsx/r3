@@ -561,7 +561,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBCNT type = VAL_TYPE(D_ARG(1));
 
 	if (D_REF(2))	// /word
-		Init_Word(D_RET, type+1);
+		Init_Word_Unbound(D_RET, REB_WORD, type+1);
 	else
 		Set_Datatype(D_RET, type);
 	return R_RET;

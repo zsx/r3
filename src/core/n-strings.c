@@ -725,8 +725,7 @@ static struct digest {
 
 //	SERIES_TAIL(series) = len;
 //	Set_Series(REB_ISSUE, D_RET, series);
-	Init_Word(D_RET, Scan_Issue(&buffer[0], len));
-	VAL_SET(D_RET, REB_ISSUE);
+	Init_Word_Unbound(D_RET, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
 	return R_RET;
 }

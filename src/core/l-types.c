@@ -990,8 +990,7 @@ end_date:
 			}
 			if (IS_END(val)) {
 				val = Append_Value(blk); // add new word
-				Init_Word(val, sym);
-				VAL_SET(val, REB_SET_WORD);
+				Init_Word_Unbound(val, REB_SET_WORD, sym);
 				val = Append_Value(blk); // for new value
 			}
 		}

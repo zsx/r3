@@ -313,7 +313,9 @@ const char *evoke_help = "Evoke values:\n"
 	if (!sp) return R_NONE;
 
 	if (D_REF(2)) *D_RET = sp[1];		// block
-	else if (D_REF(3)) Init_Word(D_RET, VAL_WORD_SYM(sp+2));	// word
+	else if (D_REF(3)) {
+		Init_Word_Unbound(D_RET, REB_WORD, VAL_WORD_SYM(sp+2));	// word
+	}
 	else if (D_REF(4)) *D_RET = sp[3];	// func
 	else if (D_REF(5)) {		// args
 		len = 0;

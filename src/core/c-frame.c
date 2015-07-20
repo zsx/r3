@@ -107,12 +107,10 @@
 
 /***********************************************************************
 **
-*/  REBSER *Make_Frame(REBINT len)
+*/  REBSER *Make_Frame(REBINT len, REBOOL has_self)
 /*
 **      Create a frame of a given size, allocating space for both
 **		words and values. Normally used for global frames.
-**
-**		selfless means do not set SELF word
 **
 ***********************************************************************/
 {
@@ -129,7 +127,9 @@
 	value = Append_Value(frame);
 	SET_FRAME(value, 0, words);
 	value = Append_Value(words);
-	Init_Frame_Word(value, SYM_SELF); // may get unset by selfless frames
+	Init_Unword(
+		value, REB_WORD, has_self ? SYM_SELF : SYM_NOT_USED, ALL_64
+	);
 
 	return frame;
 }
@@ -181,8 +181,7 @@
 	// Add to word list:
 	EXPAND_SERIES_TAIL(words, 1);
 	value = BLK_LAST(words);
-	if (word) Init_Frame_Word(value, VAL_WORD_SYM(word));
-	else Init_Frame_Word(value, sym);
+	Init_Unword(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
 	BLK_TERM(words);
 
 	// Bind the word to this frame:
@@ -224,7 +223,7 @@
 	// Add the SELF word to slot zero.
 	if ((modes = (modes & BIND_NO_SELF)?0:SYM_SELF))
 		binds[modes] = -1;  // (cannot use zero here)
-	Init_Frame_Word(BLK_HEAD(BUF_WORDS), modes);
+	Init_Unword(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
 	SERIES_TAIL(BUF_WORDS) = 1;
 }
 
@@ -303,11 +302,13 @@
 					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
 					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
 					word = BLK_LAST(BUF_WORDS);
-					VAL_SET(word, VAL_TYPE(value));
-					VAL_SET_OPT(word, OPTS_UNWORD);
-					VAL_BIND_SYM(word) = VAL_WORD_SYM(value);
-					// Allow all datatypes (to start):
-					VAL_BIND_TYPESET(word) = ~((TYPESET(REB_END) | TYPESET(REB_UNSET))); // not END or UNSET
+					Init_Unword(
+						word,
+						VAL_TYPE(value),
+						VAL_WORD_SYM(value),
+						// Allow all datatypes but END or UNSET (initially):
+						~((TYPESET(REB_END) | TYPESET(REB_UNSET)))
+					);
 				}
 			} else {
 				// If word duplicated:
@@ -381,7 +382,7 @@
 		) {
 			binds[VAL_WORD_CANON(block)] = 1;
 			val = Append_Value(BUF_WORDS);
-			Init_Word(val, VAL_WORD_SYM(block));
+			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(block));
 		}
 		else if (ANY_EVAL_BLOCK(block) && (modes & BIND_DEEP))
 			Collect_Simple_Words(VAL_BLK_DATA(block), modes);
@@ -474,7 +475,9 @@
 	PG_Reb_Stats->Objects++;
 
 	if (!block || IS_END(block)) {
-		object = parent ? Copy_Block_Values(parent, 0, SERIES_TAIL(parent), TS_CLONE) : Make_Frame(0);
+		object = parent
+			? Copy_Block_Values(parent, 0, SERIES_TAIL(parent), TS_CLONE)
+			: Make_Frame(0, TRUE);
 	} else {
 		words = Collect_Frame(BIND_ONLY, parent, block); // GC safe
 		object = Create_Frame(words, 0); // GC safe
@@ -1383,27 +1386,6 @@
 	SET_OBJECT(value, frame);
 }
 
-/***********************************************************************
-**
-*/  void Check_Frame(REBSER *frame)
-/*
-***********************************************************************/
-{
-	REBINT n;
-	REBVAL *values = FRM_VALUES(frame);
-	REBVAL *words  = FRM_WORDS(frame);
-	REBINT tail = SERIES_TAIL(frame);
-
-	for (n = 0; n < tail; n++, values++, words++) {
-		if (IS_END(words) || IS_END(values)) {
-			Debug_Fmt("** Early %s end at index: %d", IS_END(words) ? "words" : "values", n);
-		}
-	}
-
-	if (NOT_END(words) || NOT_END(values))
-		Debug_Fmt("** Missing %s end at index: %d type: %d", NOT_END(words) ? "words" : "values", n, VAL_TYPE(words));
-}
-
 
 /***********************************************************************
 **
@@ -1414,3 +1396,77 @@
 	// Temporary block used while scanning for frame words:
 	Set_Root_Series(TASK_BUF_WORDS, Make_Block(100), "word cache"); // just holds words, no GC
 }
+
+
+#ifndef NDEBUG
+/***********************************************************************
+**
+*/  void Assert_Frame_Core(REBSER *frame)
+/*
+***********************************************************************/
+{
+	REBINT n;
+	REBVAL *value;
+	REBSER *words;
+	REBVAL *word;
+	REBINT tail;
+	REBVAL *frame_value; // "FRAME!-typed value" at head of "frame" series
+
+	frame_value = BLK_HEAD(frame);
+	if (!IS_FRAME(frame_value)) Panic_Series(frame);
+
+	if ((frame == VAL_SERIES(ROOT_ROOT)) || (frame == Task_Series)) {
+		// !!! Currently it is allowed that the root frames not
+		// have a wordlist.  This distinct behavior accomodation is
+		// not worth having the variance of behavior, but since
+		// it's there for now... allow it for just those two.
+
+		if(!FRM_WORD_SERIES(frame))
+			return;
+	}
+
+	value = FRM_VALUES(frame);
+
+	words = FRM_WORD_SERIES(frame);
+	word = FRM_WORDS(frame);
+	tail = SERIES_TAIL(frame);
+
+	for (n = 0; n < tail; n++, value++, word++) {
+		if (n == 0) {
+			assert(
+				VAL_WORD_SYM(word) == SYM_SELF
+				|| VAL_WORD_SYM(word) == SYM_NOT_USED
+			);
+		}
+
+		if (IS_END(word) || IS_END(value)) {
+			Debug_Fmt(
+				"** Early %s end at index: %d",
+				IS_END(word) ? "word" : "value",
+				n
+			);
+			Panic_Series(frame);
+		}
+
+		if (!ANY_WORD(word)) {
+			Debug_Fmt("** Non-word in word list, type: %d\n", VAL_TYPE(word));
+			Panic_Series(words);
+		}
+
+		if (!VAL_GET_OPT(word, OPTS_UNWORD)) {
+			Debug_Fmt("** Frame words contains non-unword");
+			Panic_Series(words);
+		}
+	}
+
+	if (NOT_END(word) || NOT_END(value)) {
+		Debug_Fmt(
+			"** Missing %s end at index: %d type: %d",
+			NOT_END(word) ? "word" : "value",
+			n,
+			VAL_TYPE(word)
+		);
+		Panic_Series(frame);
+	}
+}
+#endif

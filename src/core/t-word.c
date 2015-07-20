@@ -100,8 +100,8 @@
 				sym = IS_TRUE(arg) ? SYM_TRUE : SYM_FALSE;
 			}
 			else Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_WORD, VAL_TYPE(arg));
-			Set_Word(D_RET, sym, 0, 0);
-			VAL_SET(D_RET, type);
+
+			Init_Word_Unbound(D_RET, type, sym);
 		}
 		break;
 

@@ -487,12 +487,25 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 
 	// The scheme uses a native actor:
 	if (Scheme_Actions[n].fun) {
-		//Make_Native(actor, Make_Block(0), (REBFUN)(Scheme_Actions[n].fun), REB_NATIVE);
-		// Hand build a native function that will be used to reach native scheme actors.
+		// Hand build a native function used to reach native scheme actors.
 		REBSER *ser = Make_Block(1);
 		act = Append_Value(ser);
-		Init_Word(act, REB_PORT+1); // any word will do
-		VAL_TYPESET(act) = TYPESET(REB_END); // don't let it get called normally
+
+		Init_Unword(
+			act,
+			REB_WORD,
+			// !!! Because "any word will do", it's using the trick to create a
+			// args list that says [port!] by using the knowledge that the SYM_
+			// values start out with symbols valued to the types plus 1 :-/
+			REB_PORT + 1,
+			// Typeset is chosen as REB_END to prevent normal invocation;
+			// these actors are only dispatched from the C code.
+			TYPESET(REB_END)
+		);
+
+		// !!! Review: If this spec ever got leaked then it would be leaking
+		// unwords to the user.  For safety, a single global actor spec could
+		// be made at startup.
 		VAL_FUNC_SPEC(actor) = ser;
 		VAL_FUNC_ARGS(actor) = ser;
 		VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);

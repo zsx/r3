@@ -451,16 +451,19 @@
 	}
 
 	// See Make_Frame() - cannot use it directly because no Collect_Words
-	frame = Make_Frame(cnt);
+	frame = Make_Frame(cnt, TRUE);
 
 	word = FRM_WORD(frame, 1);
 	val  = FRM_VALUE(frame, 1);
 	for (mval = BLK_HEAD(mapser); NOT_END(mval) && NOT_END(mval+1); mval += 2) {
 		if (ANY_WORD(mval) && !IS_NONE(mval+1)) {
-			VAL_SET(word, REB_SET_WORD);
-			VAL_SET_OPT(word, OPTS_UNWORD);
-			VAL_BIND_SYM(word) = VAL_WORD_SYM(mval);
-			VAL_BIND_TYPESET(word) = ~((TYPESET(REB_END) | TYPESET(REB_UNSET))); // not END or UNSET
+			Init_Unword(
+				word,
+				REB_SET_WORD,
+				VAL_WORD_SYM(mval),
+				// all types except END or UNSET
+				~((TYPESET(REB_END) | TYPESET(REB_UNSET)))
+			);
 			word++;
 			*val++ = mval[1];
 		}

@@ -176,7 +176,7 @@ static REBSER *Trim_Object(REBSER *obj)
 			cnt++;
 	}
 
-	nobj = Make_Frame(cnt);
+	nobj = Make_Frame(cnt, TRUE);
 	nval = FRM_VALUES(nobj)+1;
 	word = FRM_WORDS(obj)+1;
 	nwrd = FRM_WORDS(nobj)+1;
@@ -340,7 +340,7 @@ static REBSER *Trim_Object(REBSER *obj)
 			// make object! 10
 			if (IS_NUMBER(arg)) {
 				n = Int32s(arg, 0);
-				obj = Make_Frame(n);
+				obj = Make_Frame(n, TRUE);
 				break; // returns obj
 			}
 
@@ -350,7 +350,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				break; // returns obj
 			}
 
-			//if (IS_NONE(arg)) {obj = Make_Frame(0); break;}
+			//if (IS_NONE(arg)) {obj = Make_Frame(0, TRUE); break;}
 
 			Trap_Make_DEAD_END(type, arg);
 		}
@@ -412,6 +412,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				val++; // module object
 				if (!IS_OBJECT(val)) Trap_Arg_DEAD_END(val);
 				VAL_MOD_SPEC(val) = obj;
+				VAL_MOD_BODY(val) = NULL;
 				*value = *val;
 				VAL_SET(value, REB_MODULE);
 				type = 0; // type already set

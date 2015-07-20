@@ -114,7 +114,11 @@
 	obj = CLONE_OBJECT(VAL_OBJ_FRAME(info));
 
 	SET_OBJECT(ret, obj);
-	Init_Word(OFV(obj, STD_FILE_INFO_TYPE), GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE);
+	Init_Word_Unbound(
+		OFV(obj, STD_FILE_INFO_TYPE),
+		REB_WORD,
+		GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE
+	);
 	SET_INTEGER(OFV(obj, STD_FILE_INFO_SIZE), file->special.file.size);
 	Set_File_Date(file, OFV(obj, STD_FILE_INFO_DATE));
 

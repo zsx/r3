@@ -179,8 +179,7 @@ static REBOOL get_scalar(REBSTU *stu,
 
 		/* required field name */
 		val = Append_Value(ser);
-		Init_Word(val, field->sym);
-		SET_TYPE(val, REB_SET_WORD);
+		Init_Word_Unbound(val, REB_SET_WORD, field->sym);
 
 		/* required type */
 		type_blk = Append_Value(ser);
@@ -192,17 +191,15 @@ static REBOOL get_scalar(REBSTU *stu,
 			DS_PUSH_NONE;
 			nested = DS_TOP;
 
-			Init_Word(val, SYM_STRUCT_TYPE);
+			Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
 			get_scalar(stu, field, 0, nested);
 			val = Append_Value(VAL_SERIES(type_blk));
 			SET_TYPE(val, REB_BLOCK);
 			VAL_SERIES(val) = Struct_To_Block(&VAL_STRUCT(nested));
 
 			DS_DROP;
-		} else {
-			REBINT sym = type_to_sym[field->type];
-			Init_Word(val, sym);
-		}
+		} else
+			Init_Word_Unbound(val, REB_WORD, type_to_sym[field->type]);
 
 		/* optional dimension */
 		if (field->dimension > 1) {

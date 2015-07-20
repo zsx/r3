@@ -53,8 +53,7 @@
 	// Hand-make a FRAME (done for for speed):
 	len = IS_BLOCK(spec) ? VAL_LEN(spec) : 1;
 	if (len == 0) Trap_Arg_DEAD_END(spec);
-	frame = Make_Frame(len);
-	SET_SELFLESS(frame);
+	frame = Make_Frame(len, FALSE);
 	SERIES_TAIL(frame) = len+1;
 	SERIES_TAIL(FRM_WORD_SERIES(frame)) = len+1;
 
@@ -71,9 +70,7 @@
 			Free_Series(frame);
 			Trap_Arg_DEAD_END(spec);
 		}
-		VAL_SET(word, VAL_TYPE(spec));
-		VAL_BIND_SYM(word) = VAL_WORD_SYM(spec);
-		VAL_BIND_TYPESET(word) = ALL_64;
+		Init_Unword(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
 		word++;
 		SET_NONE(vals);
 		vals++;
@@ -346,7 +343,7 @@
 						if (!VAL_GET_OPT(BLK_SKIP(out, index), OPTS_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
-								Set_Word(vars, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);
+								Init_Word(vars, REB_WORD, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);
 								if (NOT_END(vars+1)) index--; // reset index for the value part
 							}
 							else if (j == 1)

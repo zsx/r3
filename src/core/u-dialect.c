@@ -344,8 +344,13 @@ again:
 	// Insert command word:
 	if (!GET_FLAG(dia->flags, RDIA_NO_CMD)) {
 		val = Append_Value(dia->out);
-		Set_Word(val, FRM_WORD_SYM(dia->dialect, dia->cmd), dia->dialect, dia->cmd);
-		if (GET_FLAG(dia->flags, RDIA_LIT_CMD)) VAL_SET(val, REB_LIT_WORD);
+		Init_Word(
+			val,
+			GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
+			FRM_WORD_SYM(dia->dialect, dia->cmd),
+			dia->dialect,
+			dia->cmd
+		);
 		dia->outi++;
 		size++;
 	}

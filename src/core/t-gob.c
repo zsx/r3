@@ -297,7 +297,7 @@ const REBCNT Gob_Flag_Words[] = {
 	for (i = 0; Gob_Flag_Words[i]; i += 2) {
 		if (GET_GOB_FLAG(gob, Gob_Flag_Words[i+1])) {
 			val = Append_Value(ser);
-			Init_Word(val, Gob_Flag_Words[i]);
+			Init_Word_Unbound(val, REB_WORD, Gob_Flag_Words[i]);
 		}
 	}
 
@@ -629,8 +629,7 @@ is_none:
 
 	for (n = 0; words[n]; n++) {
 		val = Append_Value(ser);
-		Init_Word(val, words[n]);
-		VAL_SET(val, REB_SET_WORD);
+		Init_Word_Unbound(val, REB_SET_WORD, words[n]);
 		vals[n] = Append_Value(ser);
 	}
 
@@ -661,8 +660,7 @@ is_none:
 			sym = SYM_EFFECT;
 			break;
 		}
-		Init_Word(val1, sym);
-		VAL_SET(val1, REB_SET_WORD);
+		Init_Word_Unbound(val1, REB_SET_WORD, sym);
 		Get_GOB_Var(gob, val1, val);
 	}
 

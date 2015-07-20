@@ -293,44 +293,64 @@ make_sym:
 
 /***********************************************************************
 **
-*/	void Set_Word(REBVAL *value, REBINT sym, REBSER *frame, REBCNT index)
+*/	void Init_Word(REBVAL *value, REBCNT type, REBINT sym, REBSER *frame, REBCNT index)
 /*
+**		Initialize an ANY-WORD! type with a binding to a context.
+**
 ***********************************************************************/
 {
-	VAL_SET(value, REB_WORD);
+	VAL_SET(value, type);
 	VAL_WORD_SYM(value) = sym;
+	assert(frame);
 	VAL_WORD_FRAME(value) = frame;
 	VAL_WORD_INDEX(value) = index;
+	assert(ANY_WORD(value));
 }
 
 
 /***********************************************************************
 **
-*/	void Init_Word(REBVAL *value, REBCNT sym)
+*/	void Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
 /*
 **		Initialize a value as a word. Set frame as unbound (no context).
 **
 ***********************************************************************/
 {
-	VAL_SET(value, REB_WORD);
-	VAL_WORD_INDEX(value) = 0;
-	VAL_WORD_FRAME(value) = 0;
+	VAL_SET(value, type);
+	VAL_WORD_FRAME(value) = NULL;
 	VAL_WORD_SYM(value) = sym;
+#ifndef NDEBUG
+	VAL_WORD_INDEX(value) = WORD_INDEX_UNBOUND;
+#endif
+	assert(ANY_WORD(value));
 }
 
 
 /***********************************************************************
 **
-*/	void Init_Frame_Word(REBVAL *value, REBCNT sym)
+*/	void Init_Unword(REBVAL *value, REBCNT type, REBCNT sym, REBU64 typeset)
 /*
-**		Initialize as a word list word.
+**		When a special flag is set on a REB_WORD--or a value of
+**		ANY-WORD! type--it becomes an internal value holding a
+**		64-bit typeset (rather than a pointer and a binding index).
+**
+**		These "unwords" are found in the identifying function
+**		argument series or the words of an object.  For functions,
+**		typeset bits hold the legal Rebol types those elements can
+**		hold.  They are currently unused in objects.
+**
+**		NOTE: These should not be leaked out to the user as ordinary
+**		words.  When a user reflects the `words-of` list, any series
+**		with unwords in them must be copied and mutated back to
+**		ordinary words.
 **
 ***********************************************************************/
 {
-	VAL_SET(value, REB_WORD);
+	VAL_SET(value, type);
 	VAL_SET_OPT(value, OPTS_UNWORD);
 	VAL_BIND_SYM(value) = sym;
-	VAL_BIND_TYPESET(value) = ALL_64;
+	VAL_BIND_TYPESET(value) = typeset;
+	assert(ANY_WORD(value));
 }
 
 

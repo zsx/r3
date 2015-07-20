@@ -557,6 +557,8 @@
 /*
 ***********************************************************************/
 {
+	ASSERT_FRAME(series);
+
 	VAL_SET(value, REB_OBJECT);
 	VAL_OBJ_FRAME(value) = series;
 }
@@ -839,7 +841,8 @@
 	ser = Make_Block(cnt);
 	val2 = BLK_HEAD(ser);
 	for (; NOT_END(val); val++) {
-		if (IS_SET_WORD(val)) Init_Word(val2++, VAL_WORD_SYM(val));
+		if (IS_SET_WORD(val))
+			Init_Word_Unbound(val2++, REB_WORD, VAL_WORD_SYM(val));
 	}
 	SET_END(val2);
 	SERIES_TAIL(ser) = cnt;
