@@ -103,6 +103,8 @@ extern STD_TERM *Init_Terminal(void);
 ***********************************************************************/
 {
 	STD_TERM *term;
+	const char empty_line[] = "";
+
 #ifndef NO_TTY_ATTRIBUTES
 	struct termios attrs;
 
@@ -125,8 +127,6 @@ extern STD_TERM *Init_Terminal(void);
 
 	tcsetattr(0, TCSADRAIN, &attrs);
 #endif
-
-    const char empty_line[] = "";
 
 	// Setup variables:
 	Line_History = OS_ALLOC_ARRAY(char*, MAX_HISTORY + 2);
