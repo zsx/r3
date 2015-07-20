@@ -526,3 +526,59 @@
 
 	return ser;
 }
+
+
+#ifndef NDEBUG
+/***********************************************************************
+**
+*/	void Assert_Series_Core(const REBSER *series, REBINT type)
+/*
+***********************************************************************/
+{
+	// Make sure that the type of the series matches "blockishness"
+	switch (type) {
+	case -1:
+		// We didn't ask for a "typed" check, just make sure the series
+		// is in basic good shape.
+		break;
+
+	case REB_BLOCK:
+	case REB_PAREN:
+	case REB_PATH:
+	case REB_SET_PATH:
+	case REB_GET_PATH:
+	case REB_LIT_PATH:
+		ASSERT_BLK(series);
+		break;
+
+	case REB_MAP:
+		break; // vet map more?  is it actually okay to pass in a map?
+
+	default:
+		if (IS_BLOCK_SERIES(series))
+			Panic_Series(series);
+		break;
+	}
+
+	// Improve this check to track other series properties
+}
+#endif
+
+
+#ifndef NDEBUG
+/***********************************************************************
+**
+*/	void Assert_Series_Term_Core(REBSER *series)
+/*
+***********************************************************************/
+{
+	if (IS_BLOCK_SERIES(series)) {
+		// a.k.a. BLK_TAIL
+		assert(IS_END(cast(REBVAL *, series->data) + series->tail));
+	} else {
+		int n;
+		for (n = 0; n < SERIES_WIDE(series); n++)
+			assert(series->data[series->tail * SERIES_WIDE(series) + n] == 0);
+	}
+}
+#endif

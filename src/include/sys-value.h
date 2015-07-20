@@ -446,6 +446,24 @@ enum {
 #define LABEL_SERIES(s,l)
 #endif
 
+#ifdef NDEBUG
+	#define ASSERT_SERIES(s) cast(void, 0)
+#else
+	#define ASSERT_SERIES(s) Assert_Series_Core((s), REB_END)
+#endif
+
+#ifdef NDEBUG
+	#define ASSERT_TYPED_SERIES(s,t) cast(void, 0)
+#else
+	#define ASSERT_TYPED_SERIES(s,t) Assert_Series_Core((s), (t))
+#endif
+
+#ifdef NDEBUG
+	#define ASSERT_SERIES_TERM(s) cast(void, 0)
+#else
+	#define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
+#endif
+
 #ifdef MEM_STRESS
 #define FREE_SERIES(s)    SERIES_SET_FLAG(s, SER_FREE) // mark as removed
 #define	CHECK_MARK(s,d) \
@@ -682,6 +700,12 @@ typedef struct Reb_Series_Ref
 #define COPY_BLK_PART(d, s, n) memcpy((d)->data, s, (n) * sizeof(REBVAL)); SERIES_TAIL(d) = n; BLK_TERM(d)
 
 #define IS_EMPTY(v)		(VAL_INDEX(v) >= VAL_TAIL(v))
+
+#ifdef NDEBUG
+	#define ASSERT_BLK(s) cast(void, 0)
+#else
+	#define ASSERT_BLK(s) Assert_Blk_Core(s)
+#endif
 
 
 /***********************************************************************
