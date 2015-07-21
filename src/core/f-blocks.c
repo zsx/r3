@@ -394,11 +394,10 @@
 		return;
 	}
 
-	if (!IS_MARK_SERIES(series)) return; // avoid loop
+	if (!SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
-	UNMARK_SERIES(series);
+	SERIES_CLR_FLAG(series, SER_MARK);
 
-	for (val = VAL_BLK(val); NOT_END(val); val++) {
-			Unmark(val);
-	}
+	for (val = VAL_BLK(val); NOT_END(val); val++)
+		Unmark(val);
 }

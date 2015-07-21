@@ -86,6 +86,7 @@ TVAR REBCNT	GC_Disabled;	// GC disabled counter for critical sections.
 TVAR REBINT	GC_Ballast;		// Bytes allocated to force automatic GC
 TVAR REBOOL	GC_Active;		// TRUE when recycle is enabled (set by RECYCLE func)
 TVAR REBSER	*GC_Protect;	// A stack of protected series (removed by pop)
+PVAR REBSER	*GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER	*GC_Series;		// An array of protected series (removed by address)
 TVAR REBSER	**GC_Infants;	// A small list of last N series created (nursery)
 TVAR REBINT	GC_Last_Infant;	// Index to last infant above (circular)

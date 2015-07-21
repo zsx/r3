@@ -899,6 +899,9 @@ is_none:
 	REBCNT len;
 	REBVAL *value;
 
+	if (SERIES_FREED(series))
+		Panic_Series(series);
+
 	if (!IS_BLOCK_SERIES(series))
 		Panic_Series(series);
 

@@ -819,7 +819,7 @@ static void ffi_to_rebol(REBRIN *rin,
 		OS_FREE(addr);
 	}
 
-	UNMARK_ROUTINE(rin);
+	ROUTINE_CLR_FLAG(rin, ROUTINE_MARK);
 	if (IS_CALLBACK_ROUTINE(rin)) {
 		ffi_closure_free(RIN_CLOSURE(rin));
 	}
@@ -995,7 +995,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 
 	VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
 	memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
-	USE_ROUTINE(VAL_ROUTINE_INFO(out));
+	ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);
 
 	if (type == REB_CALLBACK) {
 		ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);

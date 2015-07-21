@@ -598,6 +598,13 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 {
 	//RL_Print("%s\n", __func__);
 	REBINT max_fields = 16;
+
+	// If either of these conditions were true, then Rebol would
+	// interpret these series as being series of REBVAL.
+
+	assert(sizeof(struct Struct_Field) != sizeof(REBVAL));
+	assert(sizeof(struct Struct_Data) != sizeof(REBVAL));
+
 	VAL_STRUCT_FIELDS(out) = Make_Series(max_fields, sizeof(struct Struct_Field), FALSE);
 	BARE_SERIES(VAL_STRUCT_FIELDS(out));
 	if (IS_BLOCK(data)) {

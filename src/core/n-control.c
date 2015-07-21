@@ -104,7 +104,7 @@ enum {
 {
 	REBSER *series = VAL_SERIES(val);
 
-	if (IS_MARK_SERIES(series)) return; // avoid loop
+	if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
 	if (GET_FLAG(flags, PROT_SET))
 		PROTECT_SERIES(series);
@@ -113,7 +113,7 @@ enum {
 
 	if (!ANY_BLOCK(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-	MARK_SERIES(series); // recursion protection
+	SERIES_SET_FLAG(series, SER_MARK); // recursion protection
 
 	for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
 		Protect_Value(val, flags);
@@ -131,7 +131,7 @@ enum {
 {
 	REBSER *series = VAL_OBJ_FRAME(value);
 
-	if (IS_MARK_SERIES(series)) return; // avoid loop
+	if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
 	if (GET_FLAG(flags, PROT_SET)) PROTECT_SERIES(series);
 	else UNPROTECT_SERIES(series);
@@ -142,7 +142,7 @@ enum {
 
 	if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-	MARK_SERIES(series); // recursion protection
+	SERIES_SET_FLAG(series, SER_MARK); // recursion protection
 
 	for (value = FRM_VALUES(series)+1; NOT_END(value); value++) {
 		Protect_Value(value, flags);
