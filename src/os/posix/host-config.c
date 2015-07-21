@@ -47,8 +47,6 @@
 #include <errno.h>
 #include <assert.h>
 
-extern char **environ;
-
 #include "reb-host.h"
 
 
