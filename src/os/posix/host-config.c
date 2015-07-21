@@ -50,6 +50,17 @@
 #include "reb-host.h"
 
 
+// !!! environ is supposed to be found in <stdlib.h> but appears not to be
+// in the header on OS/X (other POSIX?  HaikuOS even has it, for instance.)
+// Yet if we declare it extern it will generate a duplicate declaration
+// warning (or error using -Werror) if it's there.  But as putting this
+// definition in shows, it's *there* on OS/X, so what's going on with the
+// header?  Should aviailability of environ be a %systems.r flag?
+#ifdef TO_OSX
+	extern char **environ;
+#endif
+
+
 /***********************************************************************
 **
 */	REBINT OS_Config(int id, REBYTE *result)
