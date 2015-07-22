@@ -9,17 +9,19 @@ notifications:
 
 language: c
 
-compiler:
-    - gcc
-
 env:
     matrix:
-        # Linux x86, debug
-        - OS_ID=0.4.4
+        # Linux x86, release
+        - OS_ID=0.4.4 NDEBUG=1
         # Linux x64, debug
         - OS_ID=0.4.40
         # Linux x64, release
         - OS_ID=0.4.40 NDEBUG=1
+
+        # Windows x86, release
+        - OS_ID=0.3.1 NDEBUG=1 TOOLS=i686-w64-mingw32-
+        # Windows x64, release
+        - OS_ID=0.3.40 NDEBUG=1 TOOLS=x86_64-w64-mingw32-
 
 # Force new container-based infrastructure.
 # Ref: http://docs.travis-ci.com/user/migrating-from-legacy/
@@ -31,8 +33,16 @@ addons:
             # For building 32b binaries on a 64b host (not necessary when we
             # build for 64b):
             - gcc-multilib
+
             # For running the 32b bootstrap rebol ("r3-make") on a 64b host:
             - libc6:i386
+
+            # For cross-compiling to Windows.
+            - binutils-mingw-w64-i686
+            - binutils-mingw-w64-x86-64
+            - gcc-mingw-w64-i686
+            - gcc-mingw-w64-x86-64
+            - mingw-w64
 
 
 install:
@@ -43,4 +53,7 @@ install:
 
 script:
     - cd make/
-    - make -f makefile.boot OS_ID=${OS_ID}
+    # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
+    # filename inference, as we always use a Linux r3-make, even when
+    # cross-compiling to Windows.
+    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID=${OS_ID}
