@@ -527,7 +527,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 /***********************************************************************
 **
-*/	static REBINT Do_Args(REBCNT func_offset, REBVAL *path, REBSER *block, REBCNT index)
+*/	static REBINT Do_Args(REBINT dsf, REBVAL *path, REBSER *block, REBCNT index)
 /*
 **		Evaluate code block according to the function arg spec.
 **		Args are pushed onto the data stack in the same order
@@ -545,7 +545,6 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	REBSER *words;
 	REBINT ds = 0;			// stack argument position
 	REBINT dsp = DSP + 1;	// stack base
-	REBINT dsf = DSP - DSF_SIZE;
 	REBVAL *tos;
 	REBVAL *func;
 
@@ -553,9 +552,11 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 		Expand_Stack(STACK_MIN);
 	}
 
-	func = &DS_Base[func_offset];
+	// We can only assign this *after* the stack expansion (may move it)
+	func = DSF_FUNC(dsf);
 
-	if (IS_OP(func)) dsf--; // adjust for extra arg
+	// Note we must compensate for first arg already pushed if it is an OP
+	assert(dsf == DSP - DSF_SIZE - (IS_OP(func) ? 1 : 0));
 
 	// Get list of words:
 	words = VAL_FUNC_WORDS(func);
@@ -580,7 +581,10 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	ds = dsp;
 	for (; NOT_END(args); args++, ds++) {
 
-		func = &DS_Base[func_offset]; //DS_Base could be changed
+		// Until StableStack, any stack expansion could change the function
+		// pointer out from under us.  Since we pushed to the stack, we have
+		// to refresh it...
+		func = DSF_FUNC(dsf);
 
 		//if (Trace_Flags) Trace_Arg(ds - dsp, args, path);
 
@@ -818,7 +822,7 @@ eval_func:
 			Debug_Value(word, 4, 0);
 			Dump_Values(value, 4);
 		}
-		index = Do_Args(dsf + 3, 0, block, index+1); // uses old DSF, updates DSP
+		index = Do_Args(dsf, 0, block, index+1); // uses old DSF, updates DSP
 		value = DSF_FUNC(dsf); //reevaluate value, because stack could be expanded in Do_Args
 eval_func2:
 		// Evaluate the function:
@@ -874,15 +878,22 @@ eval_func2:
 			//Debug_Fmt("v: %r", value);
 			// Value returned only for functions that need evaluation (but not GET_PATH):
 			if (value && ANY_FUNC(value)) {
-				REBCNT offset = 0;
-				if (IS_OP(value)) Trap_Type_DEAD_END(value); // (because prior value is wiped out above)
+				ftype = VAL_TYPE(value) - REB_NATIVE;
+
+				// Cannot handle an OP! because prior value is wiped out above
+				// (Theoretically we could save it if we are DO-ing a chain of
+				// values, and make it work.  But then, a loop of DO/NEXT
+				// may not behave the same as DO-ing the whole block.  Bad.)
+
+				if (IS_OP(value)) Trap_Type_DEAD_END(value);
+
 				// Can be object/func or func/refinements or object/func/refinement:
-				dsf = Push_Func(TRUE, block, index, VAL_WORD_SYM(word), value); // Do not unset TOS1 (it is the value)
+
+				// Do not unset TOS1 (it is the value)
+				dsf = Push_Func(TRUE, block, index, VAL_WORD_SYM(word), value);
 				value = DS_TOP;
-				offset = value - DS_Base;
-				ftype = VAL_TYPE(value)-REB_NATIVE;
-				index = Do_Args(offset, word+1, block, index+1);
-				value = &DS_Base[offset]; //restore in case the stack is expanded
+				index = Do_Args(dsf, word + 1, block, index + 1);
+				value = DSF_FUNC(dsf); //restore in case the stack is expanded
 				goto eval_func2;
 			} else
 				index++;
