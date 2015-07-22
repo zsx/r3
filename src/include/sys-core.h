@@ -526,6 +526,32 @@ void Panic_Core(REBINT id, ...);
 	} while (0)
 
 
+/***********************************************************************
+**
+**  DEBUG PROBING
+**
+**		Debugging Rebol has traditionally been "printf-style".  Hence
+**		a good mechanism for putting debug info into the executable and
+**		creating IDE files was not in the open source release.  As
+**		these weaknesses are remedied with CMake targets and other
+**		methods, adding probes into the code is still useful.
+**
+**		In order to make it easier to find out where a piece of debug
+**		spew is coming from, the file and line number are included.
+**		You should not check in calls to PROBE, and they are only
+**		in Debug builds.
+**
+***********************************************************************/
+
+#if !defined(NDEBUG)
+	#define PROBE(v) \
+		Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
+
+	#define PROBE_MSG(v, m) \
+		Probe_Core_Debug((m), __FILE__, __LINE__, (v))
+#endif
+
+
 #define	NO_RESULT	((REBCNT)(-1))
 #define	ALL_BITS	((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS

@@ -748,6 +748,25 @@ more_path:
 	REBINT ftype;
 	REBCNT dsf;
 
+	REBVAL save; // !!! will be needed by StableStack, so not set debug-only
+
+#ifndef NDEBUG
+	// This counter is helpful for tracking a specific invocation.
+	// If you notice a crash, look on the stack for the topmost call
+	// and read the count...then put that here and recompile with
+	// a breakpoint set.  (The 'count_static' value is captured into a
+	// local 'count' so	you still get the right count after recursion.)
+
+	static int count_static = 0;
+	int count = ++count_static;
+	if (count == 0 /* don't commit your change! */) {
+		VAL_SET(&save, REB_BLOCK);
+		VAL_SERIES(&save) = block;
+		VAL_INDEX(&save) = index;
+		PROBE_MSG(&save, "Do_Next count trap");
+	}
+#endif
+
 	//CHECK_MEMORY(1);
 	CHECK_STACK(&value);
 	if ((DSP + 20) > (REBINT)SERIES_REST(DS_Series)) Expand_Stack(STACK_MIN); //Trap_DEAD_END(RE_STACK_OVERFLOW);
@@ -1408,8 +1427,10 @@ eval_func2:
 
 /***********************************************************************
 **
-*/	REBVAL *Apply_Function(REBSER *wblk, REBCNT widx, REBVAL *func, va_list args)
+*/	REBVAL *Apply_Function(REBSER *wblk, REBCNT widx, REBVAL *func, va_list *args)
 /*
+**		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+**
 **		Applies function from args provided by C call. Zero terminated.
 **		Result is EXTREMELY VOLATILE - a stack value above the DSP.
 **
@@ -1436,7 +1457,7 @@ eval_func2:
 
 	// Gather arguments from C stack:
 	for (; ds > 0; ds--) {
-		arg = va_arg(args, REBVAL*); // get value
+		arg = va_arg(*args, REBVAL*); // get value
 		if (arg) DS_PUSH(arg);  // push it; no type check
 		else break;
 	}
@@ -1471,7 +1492,7 @@ eval_func2:
 	if (!where) where = VAL_FUNC_BODY(func); // something/anything ?!!
 
 	va_start(args, func);
-	value = Apply_Function(where, 0, func, args);
+	value = Apply_Function(where, 0, func, &args);
 	va_end(args);
 
 	return value;
@@ -1504,7 +1525,7 @@ eval_func2:
 	if (!DSF) blk = VAL_FUNC_BODY(value);
 
 	va_start(args, inum);
-	value = Apply_Function(blk, idx, value, args);
+	value = Apply_Function(blk, idx, value, &args);
 	va_end(args);
 
 	return value;

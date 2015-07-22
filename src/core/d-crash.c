@@ -92,7 +92,9 @@ enum Panic_Msg_Nums {
 
 	// Use the above string or the boot string for the error (in boot.r):
 	msg = n >= 0 ? Panic_Msgs[n] : cs_cast(BOOT_STR(RS_ERROR, id - RP_STR_BASE - 1));
-	Form_Var_Args(b_cast(buf + strlen(buf)), PANIC_BUF_SIZE - 1 - strlen(buf), msg, args);
+	Form_Var_Args(
+		b_cast(buf + strlen(buf)), PANIC_BUF_SIZE - 1 - strlen(buf), msg, &args
+	);
 
 	va_end(args);
 

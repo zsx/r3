@@ -421,7 +421,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 {
 	va_list args;
 	va_start(args, fmt);
-	Debug_Buf(cs_cast(fmt), args); // Limits line size
+	Debug_Buf(cs_cast(fmt), &args);
 	va_end(args);
 }
 

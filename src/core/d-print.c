@@ -422,8 +422,10 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Buf(const char *fmt, va_list args)
+*/	void Debug_Buf(const char *fmt, va_list *args)
 /*
+**		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+**
 **		Lower level formatted print for debugging purposes.
 **
 **		1. Does not support UNICODE.
@@ -477,7 +479,7 @@ static REBREQ *Req_SIO;
 {
 	va_list args;
 	va_start(args, fmt);
-	Debug_Buf(fmt, args);
+	Debug_Buf(fmt, &args);
 	va_end(args);
 }
 
@@ -497,10 +499,31 @@ static REBREQ *Req_SIO;
 {
 	va_list args;
 	va_start(args, fmt);
-	Debug_Buf(fmt, args);
+	Debug_Buf(fmt, &args);
 	Debug_Line();
 	va_end(args);
 }
+
+
+#if !defined(NDEBUG)
+
+/***********************************************************************
+**
+*/	void Probe_Core_Debug(const char *msg, const char *file, int line, REBVAL *val)
+/*
+**		Debug function for outputting a value.  Done as a function
+**		instead of just a macro due to how easy it is with varargs
+**		to order the types of the parameters wrong.  :-/
+**
+***********************************************************************/
+{
+	if (msg)
+		Debug_Fmt("\n** PROBE_MSG(\"%s\") %s:%d\n%r\n", msg, file, line, val);
+	else
+		Debug_Fmt("\n** PROBE() %s:%d\n%r\n", file, line, val);
+}
+
+#endif
 
 
 /***********************************************************************
@@ -648,8 +671,10 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	REBYTE *Form_Var_Args(REBYTE *bp, REBCNT max, const char *fmt, va_list args)
+*/	REBYTE *Form_Var_Args(REBYTE *bp, REBCNT max, const char *fmt, va_list *args)
 /*
+**		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+**
 **		Lower level (debugging) value formatter.
 **		Can restrict to max char size.
 **
@@ -691,20 +716,25 @@ pick:
 			goto pick;
 
 		case 'd':
-			l = va_arg(args, REBINT);
-			cp = Form_Int_Pad(bp, (REBI64)l, max-len, pad, padding);
+			// All va_arg integer arguments will be coerced to platform 'int'
+			cp = Form_Int_Pad(
+				bp, cast(REBI64, va_arg(*args, int)), max-len, pad, padding
+			);
 			len += (REBCNT)(cp - bp);
 			bp = cp;
 			break;
 
 		case 'D':
-			cp = Form_Int_Pad(bp, va_arg(args, REBI64), max-len, pad, padding);
+			// All va_arg integer arguments will be coerced to platform 'int'
+			cp = Form_Int_Pad(
+				bp, cast(REBI64, va_arg(*args, int)), max-len, pad, padding
+			);
 			len += (REBCNT)(cp - bp);
 			bp = cp;
 			break;
 
 		case 's':
-			cp = va_arg(args, REBYTE *);
+			cp = va_arg(*args, REBYTE *);
 			if (pad == 1) pad = LEN_BYTES(cp);
 			if (pad < 0) {
 				pad = -pad;
@@ -717,7 +747,7 @@ pick:
 
 		case 'r':	// use Mold
 		case 'v':	// use Form
-			vp = va_arg(args, REBVAL *);
+			vp = va_arg(*args, REBVAL *);
 mold_value:
 			// Form the REBOL value into a reused buffer:
 			ser = Mold_Print_Value(vp, 0, desc != 'v');
@@ -733,14 +763,14 @@ mold_value:
 			break;
 
 		case 'm':  // Mold a series
-			ser = va_arg(args, REBSER *);
+			ser = va_arg(*args, REBSER *);
 			Set_Block(&value, ser);
 			vp = &value;
 			goto mold_value;
 
 		case 'c':
 			if (len < max) {
-				*bp++ = (REBYTE)va_arg(args, REBINT);
+				*bp++ = cast(REBYTE, va_arg(*args, REBINT));
 				len++;
 			}
 			break;
@@ -749,7 +779,9 @@ mold_value:
 			if (len + MAX_HEX_LEN + 1 < max) { // A cheat, but it is safe.
 				*bp++ = '#';
 				if (pad == 1) pad = 8;
-				cp = Form_Hex_Pad(bp, (REBU64)(REBUPT)(va_arg(args, REBYTE*)), pad);
+				cp = Form_Hex_Pad(
+					bp, cast(REBU64, cast(REBUPT, va_arg(*args, REBYTE*))), pad
+				);
 				len += 1 + (REBCNT)(cp - bp);
 				bp = cp;
 			}
