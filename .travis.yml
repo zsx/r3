@@ -14,10 +14,12 @@ compiler:
 
 env:
     matrix:
-        # Linux x86
+        # Linux x86, debug
         - OS_ID=0.4.4
-        # Linux x64
+        # Linux x64, debug
         - OS_ID=0.4.40
+        # Linux x64, release
+        - OS_ID=0.4.40 NDEBUG=1
 
 before_install:
     - sudo apt-get update
