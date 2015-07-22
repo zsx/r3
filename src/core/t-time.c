@@ -550,8 +550,8 @@
 
 fixTime:
 setTime:
-	VAL_TIME(D_RET) = secs;
-	VAL_SET(D_RET, REB_TIME);
+	VAL_TIME(D_OUT) = secs;
+	VAL_SET(D_OUT, REB_TIME);
 	return R_RET;
 
 is_false:

@@ -388,15 +388,15 @@ is_none:
 		else if (IS_DATATYPE(value)) {
 			if (IS_EVENT(arg)) return R_ARG2;
 			//Trap_Make_DEAD_END(REB_EVENT, value);
-			VAL_SET(D_RET, REB_EVENT);
-			CLEARS(&(D_RET->data.event));
+			VAL_SET(D_OUT, REB_EVENT);
+			CLEARS(&(D_OUT->data.event));
 		}
 		else
 is_arg_error:
 			Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_EVENT, VAL_TYPE(arg));
 
 		// Initialize GOB from block:
-		if (IS_BLOCK(arg)) Set_Event_Vars(D_RET, VAL_BLK_DATA(arg));
+		if (IS_BLOCK(arg)) Set_Event_Vars(D_OUT, VAL_BLK_DATA(arg));
 		else goto is_arg_error;
 	}
 	else Trap_Action_DEAD_END(REB_EVENT, action);
@@ -440,7 +440,7 @@ pick_it:
 			if (VAL_EVENT_TYPE(value) == 0) goto is_none;
 			arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
 			if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
-				*D_RET = *VAL_BLK_SKIP(arg, VAL_EVENT_TYPE(value));
+				*D_OUT = *VAL_BLK_SKIP(arg, VAL_EVENT_TYPE(value));
 				return R_RET;
 			}
 			return R_NONE;
@@ -448,47 +448,47 @@ pick_it:
 		case EF_PORT:
 			// Most events are for the GUI:
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_NO_REQ))
-				*D_RET = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
+				*D_OUT = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
 			else {
 				req = VAL_EVENT_REQ(value);
 				if (!req || !req->port) goto is_none;
-				SET_PORT(D_RET, (REBSER*)(req->port));
+				SET_PORT(D_OUT, (REBSER*)(req->port));
 			}
 			return R_RET;
 
 		case EF_KEY:
 			if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_none;
 			if (VAL_EVENT_FLAGS(value)) {  // !!!!!!!!!!!!! needs mask
-				VAL_SET(D_RET, REB_CHAR);
-				VAL_CHAR(D_RET) = VAL_EVENT_KEY(value) & 0xff;
+				VAL_SET(D_OUT, REB_CHAR);
+				VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
 			} else
-				Init_Word(D_RET, VAL_EVENT_XY(value));
+				Init_Word(D_OUT, VAL_EVENT_XY(value));
 			return R_RET;
 
 		case EF_OFFSET:
-			VAL_SET(D_RET, REB_PAIR);
-			VAL_PAIR_X(D_RET) = VAL_EVENT_X(value);
-			VAL_PAIR_Y(D_RET) = VAL_EVENT_Y(value);
+			VAL_SET(D_OUT, REB_PAIR);
+			VAL_PAIR_X(D_OUT) = VAL_EVENT_X(value);
+			VAL_PAIR_Y(D_OUT) = VAL_EVENT_Y(value);
 			return R_RET;
 
 		case EF_TIME:
-			VAL_SET(D_RET, REB_INTEGER);
-//!!			VAL_INT64(D_RET) = VAL_EVENT_TIME(value);
+			VAL_SET(D_OUT, REB_INTEGER);
+//!!			VAL_INT64(D_OUT) = VAL_EVENT_TIME(value);
 			return R_RET;
 
 		case EF_SHIFT:
-			VAL_SET(D_RET, REB_LOGIC);
-			VAL_LOGIC(D_RET) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0;
+			VAL_SET(D_OUT, REB_LOGIC);
+			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0;
 			return R_RET;
 
 		case EF_CONTROL:
-			VAL_SET(D_RET, REB_LOGIC);
-			VAL_LOGIC(D_RET) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0;
+			VAL_SET(D_OUT, REB_LOGIC);
+			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0;
 			return R_RET;
 
 		case EF_DCLICK:
-			VAL_SET(D_RET, REB_LOGIC);
-			VAL_LOGIC(D_RET) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0;
+			VAL_SET(D_OUT, REB_LOGIC);
+			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0;
 			return R_RET;
 
 /*			case EF_FACE:
@@ -496,7 +496,7 @@ pick_it:
 				REBWIN	*wp;
 				if (!IS_BLOCK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_RET None_Value;
 				wp = (REBWIN *)VAL_BLK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value));
-				*D_RET = wp->masterFace;
+				*D_OUT = wp->masterFace;
 				return R_RET;
 			}
 */

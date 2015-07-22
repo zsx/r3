@@ -240,9 +240,9 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				action == A_MULTIPLY
 			)
 		){
-			*D_RET = *D_ARG(2);
+			*D_OUT = *D_ARG(2);
 			*D_ARG(2) = *D_ARG(1);
-			*D_ARG(1) = *D_RET;
+			*D_ARG(1) = *D_OUT;
 			return Value_Dispatch[VAL_TYPE(D_ARG(1))](ds, action);
 		}
 
@@ -367,8 +367,8 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				REBYTE *bp;
 				REBCNT len;
 				bp = Qualify_String(val, 24, &len, FALSE);
-				if (Scan_Decimal(bp, len, D_RET, type != REB_PERCENT)) {
-					d1 = VAL_DECIMAL(D_RET);
+				if (Scan_Decimal(bp, len, D_OUT, type != REB_PERCENT)) {
+					d1 = VAL_DECIMAL(D_OUT);
 					if (type == REB_PERCENT) break;
 					goto setDec;
 				}
@@ -376,8 +376,8 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			}
 
 			case REB_BINARY:
-				Binary_To_Decimal(val, D_RET);
-				d1 = VAL_DECIMAL(D_RET);
+				Binary_To_Decimal(val, D_OUT);
+				d1 = VAL_DECIMAL(D_OUT);
 				break;
 
 #ifdef removed
@@ -386,9 +386,9 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				REBYTE *bp;
 				REBCNT len;
 				bp = Qualify_String(val, MAX_HEX_LEN, &len, FALSE);
-				if (Scan_Hex(bp, &VAL_INT64(D_RET), len, len) == 0)
+				if (Scan_Hex(bp, &VAL_INT64(D_OUT), len, len) == 0)
 					Trap_Make_DEAD_END(REB_DECIMAL, val);
-				d1 = VAL_DECIMAL(D_RET);
+				d1 = VAL_DECIMAL(D_OUT);
 				break;
 			}
 #endif
@@ -419,16 +419,16 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			num = Get_Round_Flags(ds);
 			if (D_REF(2)) { // to
 				if (IS_MONEY(arg)) {
-					VAL_DECI(D_RET) = Round_Deci(decimal_to_deci(d1), num, VAL_DECI(arg));
-					SET_TYPE(D_RET, REB_MONEY);
+					VAL_DECI(D_OUT) = Round_Deci(decimal_to_deci(d1), num, VAL_DECI(arg));
+					SET_TYPE(D_OUT, REB_MONEY);
 					return R_RET;
 				}
 				if (IS_TIME(arg)) Trap_Arg_DEAD_END(arg);
 
 				d1 = Round_Dec(d1, num, Dec64(arg));
 				if (IS_INTEGER(arg)) {
-					VAL_INT64(D_RET) = (REBI64)d1;
-					SET_TYPE(D_RET, REB_INTEGER);
+					VAL_INT64(D_OUT) = cast(REBI64, d1);
+					SET_TYPE(D_OUT, REB_INTEGER);
 					return R_RET;
 				}
 				if (IS_PERCENT(arg)) type = REB_PERCENT;
@@ -455,7 +455,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			goto setDec;
 
 		case A_COMPLEMENT:
-			SET_INTEGER(D_RET, ~(REBINT)d1);
+			SET_INTEGER(D_OUT, ~(REBINT)d1);
 			return R_RET;
 		}
 	}
@@ -472,9 +472,9 @@ setDec:
 		}
 	}
 #endif
-	VAL_SET(D_RET, type);
-	VAL_DECIMAL(D_RET) = d1;
-	///if (type == REB_MONEY) VAL_MONEY_DENOM(D_RET)[0] = 0;
+	VAL_SET(D_OUT, type);
+	VAL_DECIMAL(D_OUT) = d1;
+	///if (type == REB_MONEY) VAL_MONEY_DENOM(D_OUT)[0] = 0;
 	return R_RET;
 
 is_false:

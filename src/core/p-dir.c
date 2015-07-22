@@ -241,7 +241,7 @@
 
 	Validate_Port(port, action);
 
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 	CLEARS(&dir);
 
 	// Validate and fetch relevant PORT fields:
@@ -272,12 +272,12 @@
 			result = Read_Dir(&dir, VAL_SERIES(state));
 			///OS_FREE(dir.file.path);
 			if (result < 0) Trap_Port_DEAD_END(RE_CANNOT_OPEN, port, dir.error);
-			*D_RET = *state;
+			*D_OUT = *state;
 			SET_NONE(state);
 		} else {
 			len = VAL_BLK_LEN(state);
 			// !!? Why does this need to copy the block??
-			Set_Block(D_RET, Copy_Block_Values(VAL_SERIES(state), 0, len, TS_STRING));
+			Set_Block(D_OUT, Copy_Block_Values(VAL_SERIES(state), 0, len, TS_STRING));
 		}
 		break;
 
@@ -346,7 +346,7 @@ create:
 		SET_NONE(state);
 		Init_Dir_Path(&dir, path, -1, REMOVE_TAIL_SLASH | POL_READ);
 		if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_NONE;
-		Ret_Query_File(port, &dir, D_RET);
+		Ret_Query_File(port, &dir, D_OUT);
 		///OS_FREE(dir.file.path);
 		break;
 
@@ -354,7 +354,7 @@ create:
 
 	case A_LENGTHQ:
 		len = IS_BLOCK(state) ? VAL_BLK_LEN(state) : 0;
-		SET_INTEGER(D_RET, len);
+		SET_INTEGER(D_OUT, len);
 		break;
 
 	default:

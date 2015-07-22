@@ -859,9 +859,9 @@ find_none:
 
 	case A_INDEXQ:
 		if (D_REF(2)) {
-			VAL_SET(D_RET, REB_PAIR);
-			VAL_PAIR_X(D_RET) = (REBD32)(index % VAL_IMAGE_WIDE(value));
-			VAL_PAIR_Y(D_RET) = (REBD32)(index / VAL_IMAGE_WIDE(value));
+			VAL_SET(D_OUT, REB_PAIR);
+			VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
+			VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
 			return R_RET;
 		} else {
 			DS_RET_INT(index + 1);
@@ -937,7 +937,7 @@ find_none:
 			return R_RET; //was value;
 
 		} else {
-			Set_Tuple_Pixel(QUAD_SKIP(series, index), D_RET);
+			Set_Tuple_Pixel(QUAD_SKIP(series, index), D_OUT);
 			return R_RET;
 		}
 		break;
@@ -982,7 +982,7 @@ find_none:
 		if (IS_IMAGE(arg)) goto makeCopy;
 		else if (IS_GOB(arg)) {
 			//value = Make_Image(ROUND_TO_INT(GOB_W(VAL_GOB(arg))), ROUND_TO_INT(GOB_H(VAL_GOB(arg))));
-			//*D_RET = *value;
+			//*D_OUT = *value;
 			series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
 			if (!series) Trap_Make_DEAD_END(REB_IMAGE, arg);
 			SET_IMAGE(value, series);
@@ -1068,9 +1068,9 @@ find_none:
 			w = MIN(w, index - diff); // img-width - x-pos
 			h = MIN(h, (int)(VAL_IMAGE_HIGH(value) - len)); // img-high - y-pos
 			series = Make_Image(w, h, TRUE);
-			SET_IMAGE(D_RET, series);
-			Copy_Rect_Data(D_RET, 0, 0, w, h, value, diff, len);
-//			VAL_IMAGE_TRANSP(D_RET) = VAL_IMAGE_TRANSP(value);
+			SET_IMAGE(D_OUT, series);
+			Copy_Rect_Data(D_OUT, 0, 0, w, h, value, diff, len);
+//			VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
 			return R_RET;
 		}
 		Trap_Type_DEAD_END(arg);
@@ -1087,9 +1087,9 @@ makeCopy2:
 		else h = len / w;
 		if (w == 0) h = 0;
 		series = Make_Image(w, h, TRUE);
-		SET_IMAGE(D_RET, series);
-		memcpy(VAL_IMAGE_HEAD(D_RET), VAL_IMAGE_DATA(arg), w * h * 4);
-//		VAL_IMAGE_TRANSP(D_RET) = VAL_IMAGE_TRANSP(arg);
+		SET_IMAGE(D_OUT, series);
+		memcpy(VAL_IMAGE_HEAD(D_OUT), VAL_IMAGE_DATA(arg), w * h * 4);
+//		VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(arg);
 		return R_RET;
 		break;
 

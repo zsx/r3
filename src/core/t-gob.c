@@ -745,7 +745,7 @@ is_none:
 	REBCNT len;
 
 	arg = D_ARG(2);
-	val = D_RET;
+	val = D_OUT;
 	*val = *D_ARG(1);
 	gob = 0;
 
@@ -856,7 +856,7 @@ is_none:
 			Remove_Gobs(gob, index, 1);
 			return R_RET;
 		} else {
-			Set_Block(D_RET, Pane_To_Block(gob, index, len));
+			Set_Block(D_OUT, Pane_To_Block(gob, index, len));
 			Remove_Gobs(gob, index, len);
 		}
 		return R_RET;

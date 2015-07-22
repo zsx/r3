@@ -312,28 +312,28 @@ const char *evoke_help = "Evoke values:\n"
 	sp = Stack_Frame(index);
 	if (!sp) return R_NONE;
 
-	if (D_REF(2)) *D_RET = sp[1];		// block
+	if (D_REF(2)) *D_OUT = sp[1];		// block
 	else if (D_REF(3)) {
-		Init_Word_Unbound(D_RET, REB_WORD, VAL_WORD_SYM(sp+2));	// word
+		Init_Word_Unbound(D_OUT, REB_WORD, VAL_WORD_SYM(sp+2));	// word
 	}
-	else if (D_REF(4)) *D_RET = sp[3];	// func
+	else if (D_REF(4)) *D_OUT = sp[3];	// func
 	else if (D_REF(5)) {		// args
 		len = 0;
 		if (ANY_FUNC(sp+3)) len = VAL_FUNC_ARGC(sp+3)-1;
 		sp += 4;
-		Set_Block(D_RET, Copy_Values(sp, len));
+		Set_Block(D_OUT, Copy_Values(sp, len));
 	}
 	else if (D_REF(6)) {		// size
-		SET_INTEGER(D_RET, DSP+1);
+		SET_INTEGER(D_OUT, DSP+1);
 	}
 	else if (D_REF(7)) {		// depth
-		SET_INTEGER(D_RET, Stack_Depth());
+		SET_INTEGER(D_OUT, Stack_Depth());
 	}
 	else if (D_REF(8)) {		// limit
-		SET_INTEGER(D_RET, SERIES_REST(DS_Series) + SERIES_BIAS(DS_Series));
+		SET_INTEGER(D_OUT, SERIES_REST(DS_Series) + SERIES_BIAS(DS_Series));
 	}
 	else {
-		Set_Block(D_RET, Make_Backtrace(index));
+		Set_Block(D_OUT, Make_Backtrace(index));
 	}
 
 	return R_RET;
@@ -351,7 +351,7 @@ const char *evoke_help = "Evoke values:\n"
 	REBCNT n;
 
 	ser = VAL_SERIES(val = D_ARG(1));
-	*D_RET = *val;
+	*D_OUT = *val;
 
 	if (ANY_BLOCK(val)) {
 		for (n = 0; n < SERIES_TAIL(ser); n++) {
@@ -464,7 +464,7 @@ err:
 		}
 		memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
 		ser->tail = codi.len;
-		Set_String(D_RET, ser);
+		Set_String(D_OUT, ser);
 		break;
 
 	case CODI_BINARY: //used on encode
@@ -477,7 +477,7 @@ err:
 			codi.data ? codi.data : codi.extra.other,
 			codi.len
 		);
-		Set_Binary(D_RET, ser);
+		Set_Binary(D_OUT, ser);
 
 		//don't free the text binary input buffer during decode (it's the 3rd arg value in fact)
 		// See notice in reb-codec.h on reb_codec_image
@@ -489,14 +489,14 @@ err:
 	case CODI_IMAGE: //used on decode
 		ser = Make_Image(codi.w, codi.h, TRUE); // Puts it into RETURN stack position
 		memcpy(IMG_DATA(ser), codi.extra.bits, codi.w * codi.h * 4);
-		SET_IMAGE(D_RET, ser);
+		SET_IMAGE(D_OUT, ser);
 
 		// See notice in reb-codec.h on reb_codec_image
 		FREE_ARRAY(u32, codi.w * codi.h, codi.extra.bits);
 		break;
 
 	case CODI_BLOCK:
-		Set_Block(D_RET, cast(REBSER*, codi.extra.other));
+		Set_Block(D_OUT, cast(REBSER*, codi.extra.other));
 		break;
 
 	default:

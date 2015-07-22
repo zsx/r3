@@ -183,21 +183,21 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 {
 	REBVAL *val = D_ARG(1);
 
-	VAL_SET(D_RET, REB_PAIR);
+	VAL_SET(D_OUT, REB_PAIR);
 
 	if (IS_INTEGER(val)) {
-		VAL_PAIR_X(D_RET) = (REBD32)VAL_INT64(val);
+		VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_INT64(val));
 	}
 	else {
-		VAL_PAIR_X(D_RET) = (REBD32)VAL_DECIMAL(val);
+		VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
 	}
 
 	val = D_ARG(2);
 	if (IS_INTEGER(val)) {
-		VAL_PAIR_Y(D_RET) = (REBD32)VAL_INT64(val);
+		VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_INT64(val));
 	}
 	else {
-		VAL_PAIR_Y(D_RET) = (REBD32)VAL_DECIMAL(val);
+		VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
 	}
 
 	return R_RET;
@@ -258,7 +258,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	// Copy block if necessary (/copy):
 	blk = D_REF(3) ? Clone_Block_Value(arg) : VAL_SERIES(arg);
 //	if (D_REF(3)) blk = Copy_Block_Deep(blk, VAL_INDEX(arg), VAL_TAIL(arg), COPY_DEEP);
-	Set_Block_Index(D_RET, blk, D_REF(3) ? 0 : VAL_INDEX(arg));
+	Set_Block_Index(D_OUT, blk, D_REF(3) ? 0 : VAL_INDEX(arg));
 
 	if (rel)
 		Bind_Stack_Block(frame, blk); //!! needs deep
@@ -279,7 +279,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	if (!HAS_FRAME(word)) return R_NONE;
 	if (VAL_WORD_INDEX(word) < 0) return R_TRUE;
-	SET_OBJECT(D_RET, VAL_WORD_FRAME(word));
+	SET_OBJECT(D_OUT, VAL_WORD_FRAME(word));
 	return R_RET;
 }
 
@@ -340,7 +340,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	}
 
 	words = Collect_Block_Words(block, prior, modes);
-	Set_Block(D_RET, words);
+	Set_Block(D_OUT, words);
 	return R_RET;
 }
 
@@ -357,7 +357,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (ANY_WORD(word)) {
 		val = Get_Var(word);
 		if (IS_FRAME(val)) {
-			Init_Obj_Value(D_RET, VAL_WORD_FRAME(word));
+			Init_Obj_Value(D_OUT, VAL_WORD_FRAME(word));
 			return R_RET;
 		}
 		if (!D_REF(2) && !IS_SET(val)) Trap1_DEAD_END(RE_NO_VALUE, word);
@@ -369,12 +369,12 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	}
 	else if (IS_OBJECT(word)) {
 		Assert_Public_Object(word);
-		Set_Block(D_RET, Copy_Block(VAL_OBJ_FRAME(word), 1));
+		Set_Block(D_OUT, Copy_Block(VAL_OBJ_FRAME(word), 1));
 		return R_RET;
 	}
 	else val = word; // all other values
 
-	*D_RET = *val;
+	*D_OUT = *val;
 	return R_RET;
 }
 
@@ -403,7 +403,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 					if (index > 0) {
 						VAL_WORD_INDEX(word) = (REBCNT)index;
 						VAL_WORD_FRAME(word) = frame;
-						*D_RET = *word;
+						*D_OUT = *word;
 						return R_RET;
 					}
 				}
@@ -426,7 +426,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (index > 0) {
 		VAL_WORD_INDEX(word) = (REBCNT)index;
 		VAL_WORD_FRAME(word) = frame;
-		*D_RET = *word;
+		*D_OUT = *word;
 	} else
 		return R_NONE;
 	return R_RET;
@@ -561,9 +561,9 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBCNT type = VAL_TYPE(D_ARG(1));
 
 	if (D_REF(2))	// /word
-		Init_Word_Unbound(D_RET, REB_WORD, type+1);
+		Init_Word_Unbound(D_OUT, REB_WORD, type+1);
 	else
-		Set_Datatype(D_RET, type);
+		Set_Datatype(D_OUT, type);
 	return R_RET;
 }
 
@@ -790,7 +790,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 
 	value = Get_Var_Safe(word); // throws error
 
-	*D_RET = *value;
+	*D_OUT = *value;
 
 	if (IS_INTEGER(value)) {
 		VAL_INT64(value)++;
@@ -824,7 +824,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 
 	value = Get_Var_Safe(word); // throws error
 
-	*D_RET = *value;
+	*D_OUT = *value;
 
 	if (IS_INTEGER(value)) {
 		VAL_INT64(value)--;

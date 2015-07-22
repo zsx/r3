@@ -104,7 +104,7 @@
 			Set_Binary(arg, ser);
 		}
 
-		*D_RET = *arg;
+		*D_OUT = *arg;
 		return R_RET;
 
 	case A_WRITE:

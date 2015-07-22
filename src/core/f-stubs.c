@@ -472,7 +472,6 @@
 	VAL_SET(value, type);
 	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = 0;
-	VAL_SERIES_SIDE(value) = 0;
 }
 
 
@@ -487,7 +486,6 @@
 	VAL_SET(value, REB_BLOCK);
 	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = 0;
-	VAL_SERIES_SIDE(value) = 0;
 }
 
 
@@ -502,7 +500,6 @@
 	VAL_SET(value, REB_BLOCK);
 	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = index;
-	VAL_SERIES_SIDE(value) = 0;
 }
 
 
@@ -517,7 +514,6 @@
 	VAL_SET(value, REB_STRING);
 	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = 0;
-	VAL_SERIES_SIDE(value) = 0;
 }
 
 
@@ -532,7 +528,6 @@
 	VAL_SET(value, REB_BINARY);
 	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = 0;
-	VAL_SERIES_SIDE(value) = 0;
 }
 
 

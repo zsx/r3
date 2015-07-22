@@ -76,9 +76,9 @@
 			case A_ADD:
 			case A_MULTIPLY:
 				// Swap parameter order:
-				*D_RET = *val2;  // Use as temp workspace
+				*D_OUT = *val2;  // Use as temp workspace
 				*val2 = *val;
-				*val = *D_RET;
+				*val = *D_OUT;
 				return Value_Dispatch[VAL_TYPE(val)](ds, action);
 
 			// Only type valid to subtract from, divide into, is decimal/money:
@@ -169,13 +169,13 @@
 		n = Get_Round_Flags(ds);
 		if (D_REF(2)) { // to
 			if (IS_MONEY(val2)) {
-				VAL_DECI(D_RET) = Round_Deci(int_to_deci(num), n, VAL_DECI(val2));
-				SET_TYPE(D_RET, REB_MONEY);
+				VAL_DECI(D_OUT) = Round_Deci(int_to_deci(num), n, VAL_DECI(val2));
+				SET_TYPE(D_OUT, REB_MONEY);
 				return R_RET;
 			}
 			if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
-				VAL_DECIMAL(D_RET) = Round_Dec((REBDEC)num, n, VAL_DECIMAL(val2));
-				SET_TYPE(D_RET, VAL_TYPE(val2));
+				VAL_DECIMAL(D_OUT) = Round_Dec((REBDEC)num, n, VAL_DECIMAL(val2));
+				SET_TYPE(D_OUT, VAL_TYPE(val2));
 				return R_RET;
 			}
 			if (IS_TIME(val2)) Trap_Arg_DEAD_END(val2);

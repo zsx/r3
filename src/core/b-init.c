@@ -459,20 +459,6 @@ static	BOOT_BLK *Boot_Block;
 
 /***********************************************************************
 **
-*/	static void Init_Data_Stack(REBCNT size)
-/*
-***********************************************************************/
-{
-	DS_Series = Make_Block(size);
-	Set_Root_Series(TASK_STACK, DS_Series, "data stack"); // uses special GC
-	DS_Base = BLK_HEAD(DS_Series);
-	DSP = DSF = 0;
-	SET_NONE(DS_TOP); // avoids it being set to END (GC problem)
-}
-
-
-/***********************************************************************
-**
 */	static void Init_Root_Context(void)
 /*
 **		Hand-build the root context where special REBOL values are
@@ -974,7 +960,8 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	// errors? problem with PG_Boot_Phase shared?
 
-	Init_Memory(-4);
+	Init_Pools(-4);
+	Init_GC();
 	Init_Task_Context();	// Special REBOL values per task
 
 	Init_Raw_Print();
@@ -1039,7 +1026,8 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	PG_Boot_Time = OS_DELTA_TIME(0, 0);
 
 	DOUT("Level 0");
-	Init_Memory(0);			// Memory allocator
+	Init_Pools(0);			// Memory allocator
+	Init_GC();
 	Init_Root_Context();	// Special REBOL values per program
 	Init_Task_Context();	// Special REBOL values per task
 

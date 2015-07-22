@@ -77,10 +77,10 @@
 		if (n == OF_SPEC) {
 			obj = Make_Std_Object(STD_TYPE_SPEC);
 			Set_Object_Values(obj, BLK_HEAD(VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type+1))));
-			SET_OBJECT(D_RET, obj);
+			SET_OBJECT(D_OUT, obj);
 		}
 		else if (n == OF_TITLE) {
-			Set_String(D_RET, Copy_Series(VAL_SERIES(BLK_HEAD(VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type+1))))));
+			Set_String(D_OUT, Copy_Series(VAL_SERIES(BLK_HEAD(VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type+1))))));
 		}
 		else Trap_Reflect_DEAD_END(VAL_TYPE(value), arg);
 		break;
@@ -94,7 +94,7 @@
 			Trap_Make_DEAD_END(type, arg);
 		}
 		// if (IS_NONE(arg)) return R_NONE;
-		if (MT_Datatype(D_RET, arg, REB_DATATYPE))
+		if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
 			break;
 
 		Trap_Make_DEAD_END(REB_DATATYPE, arg);

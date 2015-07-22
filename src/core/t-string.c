@@ -594,7 +594,7 @@ pick_it:
 			len = Partial(value, 0, D_ARG(3), 0);
 			if (len == 0) {
 zero_str:
-				Set_Series(VAL_TYPE(value), D_RET, Make_Binary(0));
+				Set_Series(VAL_TYPE(value), D_OUT, Make_Binary(0));
 				return R_RET;
 			}
 		} else
@@ -733,7 +733,7 @@ zero_str:
 ser_exit:
 	type = VAL_TYPE(value);
 str_exit:
-	Set_Series(type, D_RET, ser);
+	Set_Series(type, D_OUT, ser);
 	return R_RET;
 
 is_none:

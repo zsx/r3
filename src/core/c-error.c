@@ -253,7 +253,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 	for (dsf = DSF; dsf > 0; dsf = PRIOR_DSF(dsf)) {
 		if (start-- <= 0) {
 			val = Append_Value(blk);
-			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_WORD(dsf)));
+			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(dsf)));
 		}
 	}
 
@@ -445,7 +445,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 		// Where (what function) is the error:
 		Set_Block(&error->where, Make_Backtrace(0));
 		// Nearby location of the error (in block being evaluated):
-		error->nearest = *DSF_BACK(DSF);
+		error->nearest = *DSF_POSITION(DSF);
 	}
 
 	return err;

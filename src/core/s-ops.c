@@ -692,14 +692,14 @@ static REBYTE seed_str[SEED_LEN] = {
 	REBCNT len;
 	REBCNT n;
 
-	*D_RET = *val;
+	*D_OUT = *val;
 
 	if (IS_CHAR(val)) {
 		REBUNI c = VAL_CHAR(val);
 		if (c < UNICODE_CASES) {
 			c = upper ? UP_CASE(c) : LO_CASE(c);
 		}
-		VAL_CHAR(D_RET) = c;
+		VAL_CHAR(D_OUT) = c;
 		return;
 	}
 

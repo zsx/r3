@@ -240,7 +240,7 @@ static int sig_word_num(REBVAL *word)
 
 			if (len > 0) {
 				update(req, len, arg);
-				*D_RET = *arg;
+				*D_OUT = *arg;
 				return R_RET;
 			} else {
 				return R_NONE;

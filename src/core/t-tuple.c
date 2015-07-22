@@ -340,11 +340,11 @@
 		}
 		if (IS_STRING(arg)) {
 			ap = Qualify_String(arg, 11*4+1, &len, FALSE); // can trap, ret diff str
-			if (Scan_Tuple(ap, len, D_RET)) return R_RET;
+			if (Scan_Tuple(ap, len, D_OUT)) return R_RET;
 			goto bad_arg;
 		}
 		if (ANY_BLOCK(arg)) {
-			if (!MT_Tuple(D_RET, VAL_BLK_DATA(arg), REB_TUPLE)) Trap_Make_DEAD_END(REB_TUPLE, arg);
+			if (!MT_Tuple(D_OUT, VAL_BLK_DATA(arg), REB_TUPLE)) Trap_Make_DEAD_END(REB_TUPLE, arg);
 			return R_RET;
 		}
 

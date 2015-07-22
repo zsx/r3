@@ -116,7 +116,7 @@ enum Transport_Types {
 
 	Validate_Port(port, action);
 
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 	arg = D_ARG(2);
 	refs = 0;
 
@@ -259,7 +259,7 @@ enum Transport_Types {
 		// FIRST server-port returns new port connection.
 		len = Get_Num_Arg(arg); // Position
 		if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
-			Accept_New_Port(ds, port, sock); // sets D_RET
+			Accept_New_Port(ds, port, sock); // sets D_OUT
 		else
 			Trap_Range_DEAD_END(arg);
 		break;
@@ -267,7 +267,7 @@ enum Transport_Types {
 	case A_QUERY:
 		// Get specific information - the scheme's info object.
 		// Special notation allows just getting part of the info.
-		Ret_Query_Net(port, sock, D_RET);
+		Ret_Query_Net(port, sock, D_OUT);
 		break;
 
 	case A_OPENQ:
@@ -285,7 +285,7 @@ enum Transport_Types {
 	case A_LENGTHQ:
 		arg = OFV(port, STD_PORT_DATA);
 		len = ANY_SERIES(arg) ? VAL_TAIL(arg) : 0;
-		SET_INTEGER(D_RET, len);
+		SET_INTEGER(D_OUT, len);
 		break;
 
 	case A_OPEN:

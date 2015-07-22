@@ -111,7 +111,7 @@ static REBSER *Read_All_File(char *fname)
 **
 ***********************************************************************/
 {
-	Set_String(D_RET, Copy_Form_Value(D_ARG(1), 0));
+	Set_String(D_OUT, Copy_Form_Value(D_ARG(1), 0));
 	return R_RET;
 }
 
@@ -140,7 +140,7 @@ static REBSER *Read_All_File(char *fname)
 
 	Mold_Value(&mo, val, TRUE);
 
-	Set_String(D_RET, Copy_String(mo.series, 0, -1));
+	Set_String(D_OUT, Copy_String(mo.series, 0, -1));
 
 	return R_RET;
 }
@@ -236,7 +236,7 @@ static REBSER *Read_All_File(char *fname)
 {
 	REBOL_DAT dat;
 	REBINT n = -1;
-	REBVAL *ret = D_RET;
+	REBVAL *ret = D_OUT;
 
 	OS_GET_TIME(&dat);
 	if (!D_REF(9)) dat.nano = 0; // Not /precise
@@ -291,7 +291,7 @@ static REBSER *Read_All_File(char *fname)
 	ser = Read_All_File(STR_HEAD(ser));
 	if (!ser) Trap1_DEAD_END(RE_CANNOT_OPEN, D_ARG(1));
 
-	Set_Binary(D_RET, ser);
+	Set_Binary(D_OUT, ser);
 
 	return R_RET;
 
@@ -322,7 +322,7 @@ static REBSER *Read_All_File(char *fname)
 	REBSER *ports = 0;
 	REBINT n = 0;
 
-	SET_NONE(D_RET);
+	SET_NONE(D_OUT);
 
 	if (IS_BLOCK(val)) {
 		Reduce_Block(VAL_SERIES(val), VAL_INDEX(val), 0); // [stack-move]
@@ -369,7 +369,7 @@ chk_neg:
 
 	// Prevent GC on temp port block:
 	// Note: Port block is always a copy of the block.
-	if (ports) Set_Block(D_RET, ports);
+	if (ports) Set_Block(D_OUT, ports);
 
 	// Process port events [stack-move]:
 	if (!Wait_Ports(ports, timeout, D_REF(3))) {
@@ -384,8 +384,8 @@ chk_neg:
 
 	if (!D_REF(2)) { // not /all ports
 		val = BLK_HEAD(ports);
-		if (IS_PORT(val)) *D_RET = *val;
-		else SET_NONE(D_RET);
+		if (IS_PORT(val)) *D_OUT = *val;
+		else SET_NONE(D_OUT);
 	}
 
 	return R_RET;
@@ -431,7 +431,7 @@ chk_neg:
 
 	ser = Value_To_REBOL_Path(arg, 0);
 	if (!ser) Trap_Arg_DEAD_END(arg);
-	Set_Series(REB_FILE, D_RET, ser);
+	Set_Series(REB_FILE, D_OUT, ser);
 
 	return R_RET;
 }
@@ -448,7 +448,7 @@ chk_neg:
 
 	ser = Value_To_Local_Path(arg, D_REF(2));
 	if (!ser) Trap_Arg_DEAD_END(arg);
-	Set_Series(REB_STRING, D_RET, ser);
+	Set_Series(REB_STRING, D_OUT, ser);
 
 	return R_RET;
 }
@@ -468,7 +468,7 @@ chk_neg:
 	ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE); // allocates extra for end /
 	assert(ser); // should never be NULL
 	OS_FREE(lpath);
-	Set_Series(REB_FILE, D_RET, ser);
+	Set_Series(REB_FILE, D_OUT, ser);
 
 	return R_RET;
 }
@@ -750,15 +750,15 @@ chk_neg:
 			SET_INTEGER(val, exit_code);
 		}
 
-		SET_OBJECT(D_RET, obj);
+		SET_OBJECT(D_OUT, obj);
 		return R_RET;
 	}
 
 	if (r == 0) {
 		if (flag_wait)
-			SET_INTEGER(D_RET, exit_code);
+			SET_INTEGER(D_OUT, exit_code);
 		else
-			SET_INTEGER(D_RET, pid);
+			SET_INTEGER(D_OUT, pid);
 		return R_RET;
 	} else {
 		Trap1_DEAD_END(RE_CALL_FAIL, Make_OS_Error(r));
@@ -927,11 +927,11 @@ chk_neg:
 	if (OS_REQUEST_FILE(&fr)) {
 		if (GET_FLAG(fr.flags, FRF_MULTI)) {
 			ser = File_List_To_Block(fr.files);
-			Set_Block(D_RET, ser);
+			Set_Block(D_OUT, ser);
 		}
 		else {
 			ser = To_REBOL_Path(fr.files, OS_STRLEN(fr.files), OS_WIDE, 0);
-			Set_Series(REB_FILE, D_RET, ser);
+			Set_Series(REB_FILE, D_OUT, ser);
 		}
 	} else
 		ser = 0;
@@ -966,7 +966,7 @@ chk_neg:
 	// Two copies...is there a better way?
 	buf = ALLOC_ARRAY(REBCHR, lenplus);
 	OS_GET_ENV(cmd, buf, lenplus);
-	Set_String(D_RET, Copy_OS_Str(buf, lenplus - 1));
+	Set_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
 	FREE_ARRAY(REBCHR, lenplus, buf);
 
 	return R_RET;
@@ -994,7 +994,7 @@ chk_neg:
 		success = OS_SET_ENV(cmd, value);
 		if (success) {
 			// What function could reuse arg2 as-is?
-			Set_String(D_RET, Copy_OS_Str(value, OS_STRLEN(value)));
+			Set_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
 			return R_RET;
 		}
 		return R_UNSET;
@@ -1022,7 +1022,7 @@ chk_neg:
 {
 	REBCHR *result = OS_LIST_ENV();
 
-	Set_Series(REB_MAP, D_RET, String_List_To_Block(result));
+	Set_Series(REB_MAP, D_OUT, String_List_To_Block(result));
 
 	return R_RET;
 }
@@ -1064,7 +1064,7 @@ chk_neg:
 								break;
 						}
 					} else {
-						SET_INTEGER(D_RET, ret);
+						SET_INTEGER(D_OUT, ret);
 						return R_RET;
 					}
 				} else {
@@ -1075,7 +1075,7 @@ chk_neg:
 				if (ret < 0) {
 					return R_NONE;
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			}
@@ -1099,7 +1099,7 @@ chk_neg:
 								break;
 						}
 					} else {
-						SET_INTEGER(D_RET, ret);
+						SET_INTEGER(D_OUT, ret);
 						return R_RET;
 					}
 				} else {
@@ -1110,7 +1110,7 @@ chk_neg:
 				if (ret < 0) {
 					return R_NONE;
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			}
@@ -1134,7 +1134,7 @@ chk_neg:
 								break;
 						}
 					} else {
-						SET_INTEGER(D_RET, ret);
+						SET_INTEGER(D_OUT, ret);
 						return R_RET;
 					}
 				} else {
@@ -1145,7 +1145,7 @@ chk_neg:
 				if (ret < 0) {
 					return R_NONE;
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			}
@@ -1169,7 +1169,7 @@ chk_neg:
 								break;
 						}
 					} else {
-						SET_INTEGER(D_RET, ret);
+						SET_INTEGER(D_OUT, ret);
 						return R_RET;
 					}
 				} else {
@@ -1180,7 +1180,7 @@ chk_neg:
 				if (ret < 0) {
 					return R_NONE;
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			}
@@ -1230,7 +1230,7 @@ chk_neg:
 							break;
 					}
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			} else {
@@ -1238,7 +1238,7 @@ chk_neg:
 				if (ret < 0) {
 					return R_NONE;
 				} else {
-					SET_INTEGER(D_RET, ret);
+					SET_INTEGER(D_OUT, ret);
 					return R_RET;
 				}
 			}

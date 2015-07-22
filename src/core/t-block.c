@@ -641,7 +641,7 @@ static struct {
 	if (action == A_MAKE || action == A_TO) {
 		Make_Block_Type(action == A_MAKE, value, arg); // returned in value
 		if (ANY_PATH(value)) Clear_Value_Opts(VAL_SERIES(value));
-		*D_RET = *value;
+		*D_OUT = *value;
 		return R_RET;
 	}
 
@@ -681,12 +681,12 @@ repick:
 		value = Pick_Block(value, arg);
 		if (action == A_PICK) {
 			if (!value) goto is_none;
-			*D_RET = *value;
+			*D_OUT = *value;
 		} else {
 			if (!value) Trap_Range_DEAD_END(arg);
 			arg = D_ARG(3);
 			*value = *arg;
-			*D_RET = *arg;
+			*D_OUT = *arg;
 		}
 		return R_RET;
 
@@ -700,11 +700,11 @@ repick:
 		}
 		if (action == A_PICK) {
 pick_it:
-			*D_RET = BLK_HEAD(ser)[index];
+			*D_OUT = BLK_HEAD(ser)[index];
 			return R_RET;
 		}
 		arg = D_ARG(3);
-		*D_RET = *arg;
+		*D_OUT = *arg;
 		BLK_HEAD(ser)[index] = *arg;
 		return R_RET;
 */
@@ -715,7 +715,7 @@ pick_it:
 			len = Partial1(value, D_ARG(3));
 			if (len == 0) {
 zero_blk:
-				Set_Block(D_RET, Make_Block(0));
+				Set_Block(D_OUT, Make_Block(0));
 				return R_RET;
 			}
 		} else
@@ -730,9 +730,9 @@ zero_blk:
 		}
 
 		// if no /part, just return value, else return block:
-		if (!D_REF(2)) *D_RET = BLK_HEAD(ser)[index];
-		else Set_Block(D_RET, Copy_Block_Len(ser, index, len)); // no more /DEEP
-//		else Set_Block(D_RET, Copy_Block_Deep(ser, index, len, D_REF(4) ? COPY_DEEP: 0));
+		if (!D_REF(2)) *D_OUT = BLK_HEAD(ser)[index];
+		else Set_Block(D_OUT, Copy_Block_Len(ser, index, len)); // no more /DEEP
+//		else Set_Block(D_OUT, Copy_Block_Deep(ser, index, len, D_REF(4) ? COPY_DEEP: 0));
 		Remove_Series(ser, index, len);
 		return R_RET;
 

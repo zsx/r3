@@ -281,7 +281,7 @@
 	REBINT n;
 
 #if !defined(NDEBUG)
-	const REBYTE *fname = Get_Word_Name(DSF_WORD(DSF));
+	const REBYTE *fname = Get_Word_Name(DSF_LABEL(DSF));
 #endif
 
 	Eval_Natives++;
@@ -388,12 +388,12 @@
 
 	// Handle special datatype test cases (eg. integer?)
 	if (VAL_FUNC_ACT(func) == 0) {
-		VAL_SET(D_RET, REB_LOGIC);
-		VAL_LOGIC(D_RET) = (type == VAL_INT64(BLK_LAST(VAL_FUNC_SPEC(func))));
+		VAL_SET(D_OUT, REB_LOGIC);
+		VAL_LOGIC(D_OUT) = (type == VAL_INT64(BLK_LAST(VAL_FUNC_SPEC(func))));
 		return;
 	}
 
-	Do_Act(D_RET, type, VAL_FUNC_ACT(func));
+	Do_Act(D_OUT, type, VAL_FUNC_ACT(func));
 }
 
 
@@ -407,7 +407,7 @@
 	REBVAL *ds;
 
 #if !defined(NDEBUG)
-	const REBYTE *name = Get_Word_Name(DSF_WORD(DSF));
+	const REBYTE *name = Get_Word_Name(DSF_LABEL(DSF));
 #endif
 
 	Eval_Functions++;

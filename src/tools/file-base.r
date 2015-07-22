@@ -58,6 +58,7 @@ core: [
 	m-gc.c
 	m-pools.c
 	m-series.c
+	m-stacks.c
 	n-control.c
 	n-data.c
 	n-io.c

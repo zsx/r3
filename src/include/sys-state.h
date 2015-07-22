@@ -49,7 +49,7 @@ typedef struct {		// State variables to save
 #define POP_STATE(s, g) do {\
 		g = (s).last_jmp_buf;\
 		DSP = (s).dsp;\
-		DSF = (s).dsf;\
+		SET_DSF((s).dsf);\
 		GC_Protect->tail = (s).hold_tail;\
 	} while (0)
 

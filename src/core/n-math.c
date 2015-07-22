@@ -100,7 +100,7 @@ enum {SINE, COSINE, TANGENT};
 
 	if (!D_REF(2)) dval = dval * 180.0 / pi1; // to degrees
 
-	SET_DECIMAL(D_RET, dval);
+	SET_DECIMAL(D_OUT, dval);
 }
 
 
@@ -112,7 +112,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = cos(Trig_Value(ds, COSINE));
 	if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-	SET_DECIMAL(D_RET, dval);
+	SET_DECIMAL(D_OUT, dval);
 	return R_RET;
 }
 
@@ -125,7 +125,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = sin(Trig_Value(ds, SINE));
 	if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-	SET_DECIMAL(D_RET, dval);
+	SET_DECIMAL(D_OUT, dval);
 	return R_RET;
 }
 
@@ -138,7 +138,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = Trig_Value(ds, TANGENT);
 	if (Eq_Decimal(fabs(dval), pi1 / 2.0)) Trap_DEAD_END(RE_OVERFLOW);
-	SET_DECIMAL(D_RET, tan(dval));
+	SET_DECIMAL(D_OUT, tan(dval));
 	return R_RET;
 }
 
@@ -187,7 +187,7 @@ enum {SINE, COSINE, TANGENT};
 
 	dval = pow(eps, dval);
 //!!!!	Check_Overflow(dval);
-	SET_DECIMAL(D_RET, dval);
+	SET_DECIMAL(D_OUT, dval);
 	return R_RET;
 }
 
@@ -200,7 +200,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
 	if (dval <= 0) Trap_DEAD_END(RE_POSITIVE);
-	SET_DECIMAL(D_RET, log10(dval));
+	SET_DECIMAL(D_OUT, log10(dval));
 	return R_RET;
 }
 
@@ -213,7 +213,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
 	if (dval <= 0) Trap_DEAD_END(RE_POSITIVE);
-	SET_DECIMAL(D_RET, log(dval) / LOG2);
+	SET_DECIMAL(D_OUT, log(dval) / LOG2);
 	return R_RET;
 }
 
@@ -226,7 +226,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
 	if (dval <= 0) Trap_DEAD_END(RE_POSITIVE);
-	SET_DECIMAL(D_RET, log(dval));
+	SET_DECIMAL(D_OUT, log(dval));
 	return R_RET;
 }
 
@@ -239,7 +239,7 @@ enum {SINE, COSINE, TANGENT};
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
 	if (dval < 0) Trap_DEAD_END(RE_POSITIVE);
-	SET_DECIMAL(D_RET, sqrt(dval));
+	SET_DECIMAL(D_OUT, sqrt(dval));
 	return R_RET;
 }
 

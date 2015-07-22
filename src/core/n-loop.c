@@ -197,7 +197,7 @@
 	// Save the starting var value:
 	*D_ARG(1) = *var;
 
-	SET_NONE(D_RET);
+	SET_NONE(D_OUT);
 
 	if (mode == 1) inc = Int32(D_ARG(2));
 
@@ -284,13 +284,13 @@
 	SET_OBJECT(D_ARG(1), frame); // keep GC safe
 	Set_Block(D_ARG(3), body);	 // keep GC safe
 
-	SET_NONE(D_RET);
+	SET_NONE(D_OUT);
 	SET_NONE(DS_NEXT);
 
 	// If it's MAP, create result block:
 	if (mode == 2) {
 		out = Make_Block(VAL_LEN(value));
-		Set_Block(D_RET, out);
+		Set_Block(D_OUT, out);
 	}
 
 	// Get series info:
@@ -310,7 +310,7 @@
 		index  = VAL_INDEX(value);
 		if (index >= cast(REBINT, SERIES_TAIL(series))) {
 			if (mode == 1) {
-				SET_INTEGER(D_RET, 0);
+				SET_INTEGER(D_OUT, 0);
 			}
 			return R_RET;
 		}
@@ -681,7 +681,7 @@ utop:
 	REBSER *b2 = VAL_SERIES(D_ARG(2));
 	REBCNT i2  = VAL_INDEX(D_ARG(2));
 
-	SET_NONE(D_RET);
+	SET_NONE(D_OUT);
 
 	do {
 		ds = Do_Blk(b1, i1);

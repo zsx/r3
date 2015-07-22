@@ -1186,7 +1186,7 @@
 	// the data stack, so now we must find it by walking back the
 	// stack looking for the function that the word is bound to.
 	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_WORD(dsf))) {
+	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
 		dsf = PRIOR_DSF(dsf);
 		if (dsf <= 0) Trap1_DEAD_END(RE_NOT_DEFINED, word); // change error !!!
 	}
@@ -1219,7 +1219,7 @@
 	// the data stack, so now we must find it by walking back the
 	// stack looking for the function that the word is bound to.
 	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_WORD(dsf))) {
+	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
 		dsf = PRIOR_DSF(dsf);
 		if (dsf <= 0) Trap1_DEAD_END(RE_NOT_DEFINED, word); // change error !!!
 	}
@@ -1243,7 +1243,7 @@
 	if (!frame) return 0;
 	if (index >= 0) return FRM_VALUES(frame)+index;
 	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_WORD(dsf))) {
+	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
 		dsf = PRIOR_DSF(dsf);
 		if (dsf <= 0) return 0;
 	}
@@ -1301,7 +1301,7 @@
 
 	// Find relative value:
 	dsf = DSF;
-	while (VAL_WORD_FRAME(word) != VAL_WORD_FRAME(DSF_WORD(dsf))) {
+	while (VAL_WORD_FRAME(word) != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
 		dsf = PRIOR_DSF(dsf);
 		if (dsf <= 0) Trap1(RE_NOT_DEFINED, word); // change error !!!
 	}
@@ -1323,7 +1323,6 @@
 	VAL_SET(&value, type);
 	VAL_SERIES(&value) = series;
 	VAL_INDEX(&value) = index;
-	VAL_SERIES_SIDE(&value) = 0;
 
 	Set_Var(var, &value);
 }

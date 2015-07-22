@@ -74,15 +74,15 @@
 
 			spec = Get_System(SYS_STANDARD, STD_UTYPE);
 			if (!IS_OBJECT(spec)) Trap_Arg_DEAD_END(spec);
-			SET_UTYPE(D_RET, Make_Object(VAL_OBJ_FRAME(spec), body));
-			VAL_UTYPE_DATA(D_RET) = 0;
+			SET_UTYPE(D_OUT, Make_Object(VAL_OBJ_FRAME(spec), body));
+			VAL_UTYPE_DATA(D_OUT) = 0;
 			return R_RET;
 		}
 		else Trap_Arg_DEAD_END(arg);
 	}
 
 	if (!IS_UTYPE(value)) Trap1_DEAD_END(RE_INVALID_TYPE, Get_Type(REB_UTYPE));
-//	if (!VAL_UTYPE_DATA(D_RET) || SERIES_TAIL(VAL_UTYPE_FUNC(value)) <= action)
+//	if (!VAL_UTYPE_DATA(D_OUT) || SERIES_TAIL(VAL_UTYPE_FUNC(value)) <= action)
 //		Trap_Action_DEAD_END(REB_UTYPE, action);
 
 	body = OFV(VAL_UTYPE_FUNC(value), action);

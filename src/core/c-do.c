@@ -327,7 +327,10 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	VAL_SET(tos, REB_BLOCK);
 	VAL_SERIES(tos) = block;
 	VAL_INDEX(tos)  = index;
-	VAL_BACK(tos)   = DSF;
+
+	// !!! Hacky place to poke the dsf_prior which precludes more interesting
+	// uses of the slot for series references, done differently in StableStack
+	tos->data.series.link.dsf_prior = DSF;
 
 	// Save WORD for function and fake frame for relative arg lookup:
 	tos++;
@@ -345,7 +348,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 	if (ret) SET_UNSET(ret);
 
-	DSP = dsp + DSF_BIAS;
+	DSP = dsp + DSF_SIZE + 1;
 	return dsp + 1;
 }
 
@@ -542,7 +545,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	REBSER *words;
 	REBINT ds = 0;			// stack argument position
 	REBINT dsp = DSP + 1;	// stack base
-	REBINT dsf = dsp - DSF_BIAS;
+	REBINT dsf = DSP - DSF_SIZE;
 	REBVAL *tos;
 	REBVAL *func;
 
@@ -563,7 +566,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	// If func is operator, first arg is already on stack:
 	if (IS_OP(func)) {
 		//if (!TYPE_CHECK(args, VAL_TYPE(DS_VALUE(DSP))))
-		//	Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(DS_VALUE(ds)));
+		//	Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(dsf), args, Of_Type(DS_VALUE(ds)));
 		args++;	 	// skip evaluation, but continue with type check
 		ds--;		// shorten stack fill below
 	}
@@ -587,7 +590,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 		case REB_WORD:		// WORD - Evaluate next value
 			index = Do_Next(block, index, IS_OP(func));
 			// THROWN is handled after the switch.
-			if (index == END_FLAG) Trap2_DEAD_END(RE_NO_ARG, DSF_WORD(dsf), args);
+			if (index == END_FLAG) Trap2_DEAD_END(RE_NO_ARG, DSF_LABEL(dsf), args);
 			DS_Base[ds] = *DS_POP;
 			break;
 
@@ -644,7 +647,7 @@ more_path:
 					}
 				}
 				// Was refinement found? If not, error:
-				if (IS_END(args)) Trap2_DEAD_END(RE_NO_REFINE, DSF_WORD(dsf), path);
+				if (IS_END(args)) Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(dsf), path);
 				continue;
 			}
 			else Trap1_DEAD_END(RE_BAD_REFINE, path);
@@ -662,12 +665,12 @@ more_path:
 
 		// If word is typed, verify correct argument datatype:
 		if (!TYPE_CHECK(args, VAL_TYPE(DS_VALUE(ds))))
-			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(DS_VALUE(ds)));
+			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(dsf), args, Of_Type(DS_VALUE(ds)));
 	}
 
 	// Hack to process remaining path:
 	if (path && NOT_END(path)) goto more_path;
-	//	Trap2_DEAD_END(RE_NO_REFINE, DSF_WORD(dsf), path);
+	//	Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(dsf), path);
 
 	return index;
 }
@@ -800,7 +803,7 @@ eval_func:
 		value = DSF_FUNC(dsf); //reevaluate value, because stack could be expanded in Do_Args
 eval_func2:
 		// Evaluate the function:
-		DSF = dsf;	// Set new DSF
+		SET_DSF(dsf);	// Set new DSF
 		if (!THROWN(DS_TOP)) {
 			if (Trace_Flags) Trace_Func(word, value);
 			Func_Dispatch[ftype](value);
@@ -812,7 +815,7 @@ eval_func2:
 		// Reset the stack to prior function frame, but keep the
 		// return value (function result) on the top of the stack.
 		DSP = dsf;
-		DSF = PRIOR_DSF(dsf);
+		SET_DSF(PRIOR_DSF(dsf));
 		if (Trace_Flags) Trace_Return(word, DS_TOP);
 
 		// The return value is a FUNC that needs to be re-evaluated.
@@ -1046,7 +1049,6 @@ eval_func2:
 	VAL_SET(&blk, type);
 	VAL_SERIES(&blk) = ser;
 	VAL_INDEX(&blk) = len;
-	VAL_SERIES_SIDE(&blk) = 0;
 	DS_PUSH(&blk); //push here avoid the blk being GC'ed later
 
 	while (index < BLK_LEN(block)) {
@@ -1090,7 +1092,6 @@ eval_func2:
 	VAL_SET(&blk, type);
 	VAL_SERIES(&blk) = dest_ser;
 	VAL_INDEX(&blk) = len;
-	VAL_SERIES_SIDE(&blk) = 0;
 	DS_PUSH(&blk); //push here avoid the blk being GC'ed later
 
 	if (IS_BLOCK(words)) {
@@ -1156,7 +1157,6 @@ eval_func2:
 	VAL_SET(&blk, type);
 	VAL_SERIES(&blk) = ser;
 	VAL_INDEX(&blk) = len;
-	VAL_SERIES_SIDE(&blk) = 0;
 	DS_PUSH(&blk); //push here avoid the blk being GC'ed later
 
 	while (index < BLK_LEN(block)) {
@@ -1278,7 +1278,6 @@ eval_func2:
 	VAL_SET(&blk, type);
 	VAL_SERIES(&blk) = ser;
 	VAL_INDEX(&blk) = len;
-	VAL_SERIES_SIDE(&blk) = 0;
 	DS_PUSH(&blk); //push here avoid the blk being GC'ed later
 
 	for (value = VAL_BLK_DATA(block); NOT_END(value); value++) {
@@ -1392,18 +1391,18 @@ eval_func2:
 			}
 			// If arg is typed, verify correct argument datatype:
 			if (!TYPE_CHECK(args, VAL_TYPE(val)))
-				Trap3(RE_EXPECT_ARG, DSF_WORD(dsf), args, Of_Type(val));
+				Trap3(RE_EXPECT_ARG, DSF_LABEL(dsf), args, Of_Type(val));
 			args++;
 			val++;
 		}
 	}
 
 	// Evaluate the function:
-	DSF = dsf;
+	SET_DSF(dsf);
 	func = DSF_FUNC(dsf); //stack could be expanded
 	Func_Dispatch[ftype](func);
 	DSP = dsf;
-	DSF = PRIOR_DSF(dsf);
+	SET_DSF(PRIOR_DSF(dsf));
 }
 
 
@@ -1444,9 +1443,9 @@ eval_func2:
 	for (; ds > 0; ds--) DS_PUSH_NONE; // unused slots
 
 	// Evaluate the function:
-	DSF = dsf;
+	SET_DSF(dsf);
 	Func_Dispatch[VAL_TYPE(func) - REB_NATIVE](func);
-	DSF = PRIOR_DSF(dsf);
+	SET_DSF(PRIOR_DSF(dsf));
 	DSP = dsf-1;
 
 	// Return resulting value from TOS1. But note:
@@ -1495,7 +1494,7 @@ eval_func2:
 	REBCNT idx = 0;
 
 	if (DSF) {
-		value = DSF_BACK(DSF);
+		value = DSF_POSITION(DSF);
 		blk = VAL_SERIES(value);
 		idx = VAL_INDEX(value);
 	}
@@ -1802,7 +1801,7 @@ eval_func2:
 	REBINT n;
 
 	// Caller must: Prep_Func + Args above
-	VAL_WORD_FRAME(DSF_WORD(DSF)) = VAL_FUNC_ARGS(func_val);
+	VAL_WORD_FRAME(DSF_LABEL(DSF)) = VAL_FUNC_ARGS(func_val);
 	n = DS_ARGC - (SERIES_TAIL(VAL_FUNC_WORDS(func_val)) - 1);
 	for (; n > 0; n--) DS_PUSH_NONE;
 	Func_Dispatch[VAL_TYPE(func_val)-REB_NATIVE](func_val);
@@ -1883,7 +1882,7 @@ push_arg:
 	memmove(DS_ARG(1), DS_TOP-(inew-1), inew * sizeof(REBVAL));
 	DSP = DS_ARG_BASE + inew; // new TOS
 	//Dump_Block(DS_ARG(1), inew);
-	VAL_WORD_FRAME(DSF_WORD(DSF)) = VAL_FUNC_ARGS(func_val);
+	VAL_WORD_FRAME(DSF_LABEL(DSF)) = VAL_FUNC_ARGS(func_val);
 	*DSF_FUNC(DSF) = *func_val;
 	Func_Dispatch[VAL_TYPE(func_val)-REB_NATIVE](func_val);
 }

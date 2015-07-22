@@ -498,13 +498,13 @@
 	case A_SELECT:
 		n = Find_Entry(series, arg, 0);
 		if (!n) return R_NONE;
-		*D_RET = *VAL_BLK_SKIP(val, ((n-1)*2)+1);
+		*D_OUT = *VAL_BLK_SKIP(val, ((n-1)*2)+1);
 		break;
 
 	case A_INSERT:
 	case A_APPEND:
 		if (!IS_BLOCK(arg)) Trap_Arg_DEAD_END(val);
-		*D_RET = *val;
+		*D_OUT = *val;
 		if (DS_REF(AN_DUP)) {
 			n = Int32(DS_ARG(AN_COUNT));
 			if (n <= 0) break;
@@ -514,7 +514,7 @@
 
 	case A_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
 		n = Find_Entry(series, arg, D_ARG(3));
-		*D_RET = *D_ARG(3);
+		*D_OUT = *D_ARG(3);
 		break;
 
 	case A_LENGTHQ:
@@ -526,7 +526,7 @@
 	case A_TO:
 		// make map! [word val word val]
 		if (IS_BLOCK(arg) || IS_PAREN(arg) || IS_MAP(arg)) {
-			if (MT_Map(D_RET, arg, 0)) return R_RET;
+			if (MT_Map(D_OUT, arg, 0)) return R_RET;
 			Trap_Arg_DEAD_END(arg);
 //		} else if (IS_NONE(arg)) {
 //			n = 3; // just a start
@@ -538,17 +538,17 @@
 			Trap_Make_DEAD_END(REB_MAP, Of_Type(arg));
 		// positive only
 		series = Make_Map(n);
-		Set_Series(REB_MAP, D_RET, series);
+		Set_Series(REB_MAP, D_OUT, series);
 		break;
 
 	case A_COPY:
-		if (MT_Map(D_RET, val, 0)) return R_RET;
+		if (MT_Map(D_OUT, val, 0)) return R_RET;
 		Trap_Arg_DEAD_END(val);
 
 	case A_CLEAR:
 		Clear_Series(series);
 		if (series->extra.series) Clear_Series(series->extra.series);
-		Set_Series(REB_MAP, D_RET, series);
+		Set_Series(REB_MAP, D_OUT, series);
 		break;
 
 	case A_REFLECT:
@@ -559,7 +559,7 @@
 		else if (action == OF_BODY) n = 0;
 		else Trap_Reflect_DEAD_END(REB_MAP, arg);
 		series = Map_To_Block(series, n);
-		Set_Block(D_RET, series);
+		Set_Block(D_OUT, series);
 		break;
 
 	case A_TAILQ:

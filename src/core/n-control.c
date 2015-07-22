@@ -509,12 +509,12 @@ got_err:
 
 	case REB_WORD:
 	case REB_GET_WORD:
-		*D_RET = *Get_Var(value);
+		*D_OUT = *Get_Var(value);
 		return R_RET;
 
 	case REB_LIT_WORD:
-		*D_RET = *value;
-		SET_TYPE(D_RET, REB_WORD);
+		*D_OUT = *value;
+		SET_TYPE(D_OUT, REB_WORD);
 		return R_RET;
 
 	case REB_ERROR:

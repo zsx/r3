@@ -48,7 +48,7 @@
 	Validate_Port(port, action);
 
 	arg = D_ARG(2);
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 
 	sock = cast(REBREQ*, Use_Port_State(port, RDI_DNS, sizeof(*sock)));
 	spec = OFV(port, STD_PORT_SPEC);
@@ -103,9 +103,9 @@ pick:
 				Trap_Port_DEAD_END(RE_READ_ERROR, port, sock->error);
 			}
 			if (GET_FLAG(sock->modes, RST_REVERSE)) {
-				Set_String(D_RET, Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data)));
+				Set_String(D_OUT, Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data)));
 			} else {
-				Set_Tuple(D_RET, cast(REBYTE*, &sock->special.net.remote_ip), 4);
+				Set_Tuple(D_OUT, cast(REBYTE*, &sock->special.net.remote_ip), 4);
 			}
 			OS_DO_DEVICE(sock, RDC_CLOSE);
 		} else Trap_Range_DEAD_END(arg);

@@ -788,10 +788,10 @@ setDate:
 				REBCNT len;
 				// 30-September-10000/12:34:56.123456789AM/12:34
 				bp = Qualify_String(arg, 45, &len, FALSE); // can trap, ret diff str
-				if (Scan_Date(bp, len, D_RET)) return R_RET;
+				if (Scan_Date(bp, len, D_OUT)) return R_RET;
 			}
 			else if (ANY_BLOCK(arg) && VAL_BLK_LEN(arg) >= 3) {
-				if (MT_Date(D_RET, VAL_BLK_DATA(arg), REB_DATE)) {
+				if (MT_Date(D_OUT, VAL_BLK_DATA(arg), REB_DATE)) {
 					return R_RET;
 				}
 			}

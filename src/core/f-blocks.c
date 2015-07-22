@@ -282,7 +282,6 @@
 	VAL_SET(blk, type);
 	VAL_SERIES(blk) = series;
 	VAL_INDEX(blk) = len;
-	VAL_SERIES_SIDE(blk) = 0;
 }
 
 

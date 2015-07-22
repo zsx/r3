@@ -209,7 +209,7 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 	dsf = PRIOR_DSF(DSF);
 
 	// Create stack frame (use prior stack frame for location info):
-	dsf = Push_Func(0, VAL_SERIES(DSF_BACK(dsf)), VAL_INDEX(DSF_BACK(dsf)), name, val);
+	dsf = Push_Func(0, VAL_SERIES(DSF_POSITION(dsf)), VAL_INDEX(DSF_POSITION(dsf)), name, val);
 	val = DSF_FUNC(dsf);        // for safety from GC
 	obj = VAL_FUNC_WORDS(val);  // func words
 	len = SERIES_TAIL(obj)-1;	// number of args (may include locals)
@@ -240,9 +240,9 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 	}
 
 	// Evaluate the function:
-	DSF = dsf;
+	SET_DSF(dsf);
 	Func_Dispatch[VAL_TYPE(val) - REB_NATIVE](val);
-	DSF = PRIOR_DSF(dsf);
+	SET_DSF(PRIOR_DSF(dsf));
 	DSP = dsf-1;
 
 	// Return resulting value from TOS1 (volatile location):
@@ -364,7 +364,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	// Extension return: dll, info, filename
 	obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION));
 	obj = CLONE_OBJECT(obj);
-	Set_Object(D_RET, obj);
+	Set_Object(D_OUT, obj);
 
 	// Set extension fields needed:
 	val = FRM_VALUE(obj, STD_EXTENSION_LIB_BASE);

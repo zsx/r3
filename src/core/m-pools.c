@@ -174,6 +174,20 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBCNT n;
 	REBINT unscale = 1;
 
+#ifndef NDEBUG
+	const char *env_always_malloc = NULL;
+	env_always_malloc = getenv("R3_ALWAYS_MALLOC");
+	if (env_always_malloc != NULL) {
+		Debug_Str(
+			"**\n"
+			"** R3_ALWAYS_MALLOC is TRUE in environment variable!\n"
+			"** Memory allocations aren't pooled, expect slowness...\n"
+			"**\n"
+		);
+		PG_Always_Malloc = (atoi(env_always_malloc) != 0);
+	}
+#endif
+
 	if (scale == 0) scale = 1;
 	else if (scale < 0) unscale = -scale, scale = 1;
 

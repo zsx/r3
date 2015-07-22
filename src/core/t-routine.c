@@ -489,7 +489,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 	switch (args[idx]->type) {
 		case FFI_TYPE_UINT8:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				u8 i = (u8) VAL_INT64(arg);
@@ -499,7 +499,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_SINT8:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				i8 i = (i8) VAL_INT64(arg);
@@ -509,7 +509,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_UINT16:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				u16 i = (u16) VAL_INT64(arg);
@@ -519,7 +519,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_SINT16:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				i16 i = (i16) VAL_INT64(arg);
@@ -529,7 +529,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_UINT32:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				u32 i = (u32) VAL_INT64(arg);
@@ -539,7 +539,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_SINT32:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 #ifdef BIG_ENDIAN
 				i32 i = (i32) VAL_INT64(arg);
@@ -550,7 +550,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 		case FFI_TYPE_UINT64:
 		case FFI_TYPE_SINT64:
 			if (!IS_INTEGER(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			}
 			return &VAL_INT64(arg);
 		case FFI_TYPE_POINTER:
@@ -566,12 +566,12 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 						return &VAL_INT64(DS_TOP);
 					}
 				default:
-					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			}
 		case FFI_TYPE_FLOAT:
 			/* hackish, store the signle precision floating point number in a double precision variable */
 			if (!IS_DECIMAL(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			} else {
 				float a = (float)VAL_DECIMAL(arg);
 				memcpy(&VAL_DECIMAL(arg), &a, sizeof(a));
@@ -579,7 +579,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			}
 		case FFI_TYPE_DOUBLE:
 			if (!IS_DECIMAL(arg)) {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			}
 			return &VAL_DECIMAL(arg);
 		case FFI_TYPE_STRUCT:
@@ -590,7 +590,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 				if (IS_STRUCT(arg)) {
 					VAL_STRUCT_DATA_BIN(arg) = Copy_Series(VAL_STRUCT_DATA_BIN(arg));
 				} else {
-					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 				}
 			}
 			return SERIES_SKIP(VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg));
@@ -598,7 +598,7 @@ static void *arg_to_ffi(REBVAL *rot, REBVAL *arg, REBCNT idx, REBINT *pop)
 			if (!idx) {
 				return NULL;
 			} else {
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(rebol_args, idx), arg);
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 			}
 		default:
 			Trap_Arg_DEAD_END(arg);
@@ -751,7 +751,7 @@ static void ffi_to_rebol(REBRIN *rin,
 			REBVAL *reb_arg = VAL_BLK_SKIP(varargs, i - 1);
 			if (i <= n_fixed) { /* fix arguments */
 				if (!TYPE_CHECK(BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i), VAL_TYPE(reb_arg))) {
-					Trap3(RE_EXPECT_ARG, DSF_WORD(DSF), BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i), reb_arg);
+					Trap3(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i), reb_arg);
 				}
 			} else {
 				/* initialize rin->args */

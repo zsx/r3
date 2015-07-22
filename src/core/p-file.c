@@ -328,7 +328,7 @@ REBINT Mode_Syms[] = {
 
 	Validate_Port(port, action);
 
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 
 	// Validate PORT fields:
 	spec = BLK_SKIP(port, STD_PORT_SPEC);
@@ -477,7 +477,7 @@ REBINT Mode_Syms[] = {
 			Setup_File(file, 0, path);
 			if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_NONE;
 		}
-		Ret_Query_File(port, file, D_RET);
+		Ret_Query_File(port, file, D_OUT);
 		// !!! free file path?
 		break;
 
@@ -491,11 +491,11 @@ REBINT Mode_Syms[] = {
 		break;
 
 	case A_INDEXQ:
-		SET_INTEGER(D_RET, file->special.file.index + 1);
+		SET_INTEGER(D_OUT, file->special.file.index + 1);
 		break;
 
 	case A_LENGTHQ:
-		SET_INTEGER(D_RET, file->special.file.size - file->special.file.index); // !clip at zero
+		SET_INTEGER(D_OUT, file->special.file.size - file->special.file.index); // !clip at zero
 		break;
 
 	case A_HEAD:

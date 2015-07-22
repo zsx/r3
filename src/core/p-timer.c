@@ -56,7 +56,7 @@
 	Validate_Port(port, action);
 
 	arg = D_ARG(2);
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 
 	// Validate and fetch relevant PORT fields:
 	state = BLK_SKIP(port, STD_PORT_STATE);
@@ -87,7 +87,7 @@ act_blk:
 		result = T_Block(ds, action);
 		SET_FLAG(Eval_Signals, SIG_EVENT_PORT);
 		if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
-			*D_RET = save_port;
+			*D_OUT = save_port;
 			break;
 		}
 		return result; // return condition
@@ -99,7 +99,7 @@ act_blk:
 		break;
 
 	case A_LENGTHQ:
-		SET_INTEGER(D_RET, VAL_TAIL(state));
+		SET_INTEGER(D_OUT, VAL_TAIL(state));
 		break;
 
 	case A_OPEN:

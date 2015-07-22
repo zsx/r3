@@ -227,8 +227,8 @@
 	case A_MAKE:
 	case A_TO:
 		if (IS_BLOCK(arg)) {
-			VAL_SET(D_RET, REB_TYPESET);
-			Make_Typeset(VAL_BLK_DATA(arg), D_RET, 0);
+			VAL_SET(D_OUT, REB_TYPESET);
+			Make_Typeset(VAL_BLK_DATA(arg), D_OUT, 0);
 			return R_RET;
 		}
 	//	if (IS_NONE(arg)) {

@@ -1027,33 +1027,17 @@ static void Process_Mark_Stack(void);
 
 /***********************************************************************
 **
-*/	void Init_Memory(REBINT scale)
+*/	void Init_GC(void)
 /*
-**		Initialize memory system.
+**		Initialize garbage collector.
 **
 ***********************************************************************/
 {
-#ifndef NDEBUG
-	const char *env_always_malloc = NULL;
-	env_always_malloc = getenv("R3_ALWAYS_MALLOC");
-	if (env_always_malloc != NULL) {
-		Debug_Str(
-			"**\n"
-			"** R3_ALWAYS_MALLOC is TRUE in environment variable!\n"
-			"** Memory allocations aren't pooled, expect slowness...\n"
-			"**\n"
-		);
-		PG_Always_Malloc = (atoi(env_always_malloc) != 0);
-	}
-#endif
-
 	GC_Active = 0;			// TRUE when recycle is enabled (set by RECYCLE func)
 	GC_Disabled = 0;		// GC disabled counter for critical sections.
 	GC_Ballast = MEM_BALLAST;
 	GC_Last_Infant = 0;		// Keep the last N series safe from GC.
 	GC_Infants = ALLOC_ARRAY(REBSER*, MAX_SAFE_SERIES + 2); // extra
-
-	Init_Pools(scale);
 
 	Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
 	Prior_Expand[0] = (REBSER*)1;

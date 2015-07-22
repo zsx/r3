@@ -107,7 +107,7 @@
 	REBXYF *cc;
 	REBVAL *a = D_ARG(1);
 	REBVAL *b = D_ARG(2);
-	REBVAL *c = D_RET;
+	REBVAL *c = D_OUT;
 
 	if (IS_PAIR(a)) aa = VAL_PAIR(a);
 	else if (IS_INTEGER(a)) aa.x = aa.y = (REBD32)VAL_INT64(a);
@@ -344,7 +344,7 @@
 				goto setPair;
 			}
 			if (ANY_BLOCK(val) && VAL_LEN(val) <= 2) {
-				if (MT_Pair(D_RET, val, REB_PAIR))
+				if (MT_Pair(D_OUT, val, REB_PAIR))
 					return R_RET;
 			}
 			Trap_Make_DEAD_END(REB_PAIR, val);

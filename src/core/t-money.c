@@ -123,41 +123,41 @@
 		if (IS_MONEY(arg))
 			;
 		else if (IS_INTEGER(arg)) {
-			VAL_DECI(D_RET) = int_to_deci(VAL_INT64(arg));
-			arg = D_RET;
+			VAL_DECI(D_OUT) = int_to_deci(VAL_INT64(arg));
+			arg = D_OUT;
 		}
 		else if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-			VAL_DECI(D_RET) = decimal_to_deci(VAL_DECIMAL(arg));
-			arg = D_RET;
+			VAL_DECI(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
+			arg = D_OUT;
 		}
 		else Trap_Math_Args(REB_MONEY, action);
 
 		switch (action) {
 		case A_ADD:
-			VAL_DECI(D_RET) = deci_add(VAL_DECI(val), VAL_DECI(arg));
+			VAL_DECI(D_OUT) = deci_add(VAL_DECI(val), VAL_DECI(arg));
 			break;
 
 		case A_SUBTRACT:
-			VAL_DECI(D_RET) = deci_subtract(VAL_DECI(val), VAL_DECI(arg));
+			VAL_DECI(D_OUT) = deci_subtract(VAL_DECI(val), VAL_DECI(arg));
 			break;
 
 		case A_MULTIPLY:
-			VAL_DECI(D_RET) = deci_multiply(VAL_DECI(val), VAL_DECI(arg));
+			VAL_DECI(D_OUT) = deci_multiply(VAL_DECI(val), VAL_DECI(arg));
 			break;
 
 		case A_DIVIDE:
-			VAL_DECI(D_RET) = deci_divide(VAL_DECI(val), VAL_DECI(arg));
+			VAL_DECI(D_OUT) = deci_divide(VAL_DECI(val), VAL_DECI(arg));
 			break;
 
 		case A_REMAINDER:
-			VAL_DECI(D_RET) = deci_mod(VAL_DECI(val), VAL_DECI(arg));
+			VAL_DECI(D_OUT) = deci_mod(VAL_DECI(val), VAL_DECI(arg));
 			break;
 
 		default:
 			Trap_Action_DEAD_END(REB_MONEY, action);
 		}
 
-		SET_TYPE(D_RET, REB_MONEY);
+		SET_TYPE(D_OUT, REB_MONEY);
 		return R_RET;
 	}
 
@@ -177,16 +177,16 @@
 			else if (IS_DECIMAL(arg) || IS_PERCENT(arg)) VAL_DECI(arg) = decimal_to_deci(VAL_DECIMAL(arg));
 			else if (!IS_MONEY(arg)) Trap_Arg_DEAD_END(arg);
 		}
-		VAL_DECI(D_RET) = Round_Deci(VAL_DECI(val), Get_Round_Flags(ds), VAL_DECI(arg));
+		VAL_DECI(D_OUT) = Round_Deci(VAL_DECI(val), Get_Round_Flags(ds), VAL_DECI(arg));
 		if (D_REF(2)) {
 			if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-				VAL_DECIMAL(D_RET) = deci_to_decimal(VAL_DECI(D_RET));
-				SET_TYPE(D_RET, VAL_TYPE(arg));
+				VAL_DECIMAL(D_OUT) = deci_to_decimal(VAL_DECI(D_OUT));
+				SET_TYPE(D_OUT, VAL_TYPE(arg));
 				return R_RET;
 			}
 			if (IS_INTEGER(arg)) {
-				VAL_INT64(D_RET) = deci_to_int(VAL_DECI(D_RET));;
-				SET_TYPE(D_RET, REB_INTEGER);
+				VAL_INT64(D_OUT) = deci_to_int(VAL_DECI(D_OUT));;
+				SET_TYPE(D_OUT, REB_INTEGER);
 				return R_RET;
 			}
 		}
@@ -206,12 +206,12 @@
 		switch (VAL_TYPE(arg)) {
 
 		case REB_INTEGER:
-			VAL_DECI(D_RET) = int_to_deci(VAL_INT64(arg));
+			VAL_DECI(D_OUT) = int_to_deci(VAL_INT64(arg));
 			break;
 
 		case REB_DECIMAL:
 		case REB_PERCENT:
-			VAL_DECI(D_RET) = decimal_to_deci(VAL_DECIMAL(arg));
+			VAL_DECI(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
 			break;
 
 		case REB_MONEY:
@@ -221,20 +221,20 @@
 		{
 			const REBYTE *end;
 			str = Qualify_String(arg, 36, 0, FALSE);
-			VAL_DECI(D_RET) = string_to_deci(str, &end);
+			VAL_DECI(D_OUT) = string_to_deci(str, &end);
 			if (end == str || *end != 0) Trap_Make_DEAD_END(REB_MONEY, arg);
 			break;
 		}
 
 //		case REB_ISSUE:
 		case REB_BINARY:
-			if (!Bin_To_Money(D_RET, arg)) goto err;
+			if (!Bin_To_Money(D_OUT, arg)) goto err;
 			break;
 
 		case REB_LOGIC:
 			equal = !VAL_LOGIC(arg);
 //		case REB_NONE: // 'equal defaults to 1
-			VAL_DECI(D_RET) = int_to_deci(equal ? 0 : 1);
+			VAL_DECI(D_OUT) = int_to_deci(equal ? 0 : 1);
 			break;
 
 		default:
@@ -247,7 +247,7 @@
 		Trap_Action_DEAD_END(REB_MONEY, action);
 	}
 
-	SET_TYPE(D_RET, REB_MONEY);
+	SET_TYPE(D_OUT, REB_MONEY);
 	return R_RET;
 
 is_true:  return R_TRUE;

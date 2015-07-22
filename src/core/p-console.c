@@ -53,7 +53,7 @@
 	Validate_Port(port, action);
 
 	arg = D_ARG(2);
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 
 	req = cast(REBREQ*, Use_Port_State(port, RDI_STDIO, sizeof(REBREQ)));
 

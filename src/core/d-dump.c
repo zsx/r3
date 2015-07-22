@@ -203,7 +203,7 @@
 	}
 
 	m = dsp - dsf - DSF_SIZE;
-	Debug_Fmt(cs_cast(BOOT_STR(RS_STACK, 1)), dsp, Get_Word_Name(DSF_WORD(dsf)), m, Get_Type_Name(DSF_FUNC(dsf)));
+	Debug_Fmt(cs_cast(BOOT_STR(RS_STACK, 1)), dsp, Get_Word_Name(DSF_LABEL(dsf)), m, Get_Type_Name(DSF_FUNC(dsf)));
 
 	if (dsf > 0) {
 		if (ANY_FUNC(DSF_FUNC(dsf))) {

@@ -63,7 +63,7 @@ enum {
 	REBCNT skip = 1;	// record size
 	REBCNT cased = 0;	// case sensitive when TRUE
 
-	SET_NONE(D_RET);
+	SET_NONE(D_OUT);
 	val1 = D_ARG(1);
 	i = 2;
 
@@ -118,14 +118,14 @@ enum {
 			}
 		} while (i);
 
-		Set_Block(D_RET, Copy_Series(retser));
+		Set_Block(D_OUT, Copy_Series(retser));
 		RESET_TAIL(retser); // required - allow reuse
 
 		break;
 
 	case REB_BINARY:
 		cased = TRUE;
-		SET_TYPE(D_RET, REB_BINARY);
+		SET_TYPE(D_OUT, REB_BINARY);
 	case REB_STRING:
 		i = VAL_LEN(val1);
 		// Setup result block:
@@ -164,10 +164,10 @@ enum {
 		} while (i);
 
 		ser = Copy_String(retser, 0, -1);
-		if (IS_BINARY(D_RET))
-			Set_Binary(D_RET, ser);
+		if (IS_BINARY(D_OUT))
+			Set_Binary(D_OUT, ser);
 		else
-			Set_String(D_RET, ser);
+			Set_String(D_OUT, ser);
 		break;
 
 	case REB_BITSET:
@@ -188,7 +188,7 @@ enum {
 			break;
 		}
 		ser = Xandor_Binary(i, val1, val2);
-		Set_Series(REB_BITSET, D_RET, ser);
+		Set_Series(REB_BITSET, D_OUT, ser);
 		break;
 
 	case REB_TYPESET:
@@ -240,7 +240,7 @@ enum {
 	if (IS_DATE(val1) || IS_DATE(val2)) {
 		if (!IS_DATE(val1)) Trap_Arg_DEAD_END(val1);
 		if (!IS_DATE(val2)) Trap_Arg_DEAD_END(val2);
-		Subtract_Date(val1, val2, D_RET);
+		Subtract_Date(val1, val2, D_OUT);
 		return R_RET;
 	}
 

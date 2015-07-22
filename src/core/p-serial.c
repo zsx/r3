@@ -51,7 +51,7 @@
 
 	Validate_Port(port, action);
 
-	*D_RET = *D_ARG(1);
+	*D_OUT = *D_ARG(1);
 
 	// Validate PORT fields:
 	spec = OFV(port, STD_PORT_SPEC);
@@ -186,7 +186,7 @@
 		}
 		printf("\n");
 #endif
-		*D_RET = *arg;
+		*D_OUT = *arg;
 		return R_RET;
 
 	case A_WRITE:

@@ -495,9 +495,12 @@ typedef struct Reb_Series_Ref
 	REBSER	*series;
 	REBCNT	index;
 	union {
-		REBSER	*side;		// lookaside block for lists/hashes/images
-		REBINT  back;		// (Used in DO for stack back linking)
-//		REBFRM	*frame;		// (may also be used as frame for binding blocks)
+		// !!! Hack for sticking the previous data stack frame into series
+		// references.  Marked for death as part of StableStack (opening
+		// up more interesting possibilities for copy-on-write, or other
+		// concepts that are more appropriate uses for this valuable slot
+		// in a fundamental type.)
+		REBINT  dsf_prior;
 	} link;
 } REBSRI;
 
@@ -508,9 +511,6 @@ typedef struct Reb_Series_Ref
 
 #define VAL_DATA(s)			(VAL_BIN_HEAD(s) + (VAL_INDEX(s) * VAL_SERIES_WIDTH(s)))
 
-#define VAL_BACK(v)			((v)->data.series.link.back)
-#define	VAL_SERIES_SIDE(v)  ((v)->data.series.link.side)
-#define	VAL_SERIES_FRAME(v) ((v)->data.series.link.frame)
 #define VAL_SERIES_WIDTH(v) (SERIES_WIDE(VAL_SERIES(v)))
 #define VAL_LIMIT_SERIES(v) if (VAL_INDEX(v) > VAL_TAIL(v)) VAL_INDEX(v) = VAL_TAIL(v)
 

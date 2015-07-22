@@ -590,7 +590,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 
 	case A_LENGTHQ:
 		//bits = 1 << (vect->size & 3);
-		SET_INTEGER(D_RET, vect->tail);
+		SET_INTEGER(D_OUT, vect->tail);
 		return R_RET;
 
 	case A_COPY:
@@ -608,7 +608,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 	}
 
-	*D_RET = *value;
+	*D_OUT = *value;
 	return R_RET;
 
 bad_make:
