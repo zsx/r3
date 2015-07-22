@@ -371,9 +371,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		length = Mem_Pools[pool_num].wide;
 	} else {
 		length = ALIGN(length, 2048);
-#ifdef DEBUGGING
-		Debug_Fmt_Num("Alloc1:", length);
-#endif
+
+	#if !defined(NDEBUG)
+		// Debug_Fmt_Num("Alloc1:", length);
+	#endif
+
 #ifdef MUNGWALL
 		node = cast(REBNOD *, ALLOC_ARRAY(char, length+2*MUNG_SIZE));
 #else
@@ -454,9 +456,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 					length = ALIGN(length, 2048);
 			#endif
 			}
-#ifdef DEBUGGING
-			Debug_Num("Alloc2:", length);
-#endif
+
+	#if !defined(NDEBUG)
+		// Debug_Num("Alloc2:", length);
+	#endif
+
 #ifdef MUNGWALL
 		node = cast(REBNOD *, ALLOC_ARRAY(char, length+2*MUNG_SIZE));
 #else

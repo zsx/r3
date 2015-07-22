@@ -279,9 +279,9 @@
 {
 	REBVAL *ds;
 	REBINT n;
-#ifdef DEBUGGING
-	REBYTE *fname = Get_Word_Name(DSF_WORD(DSF));	// for DEBUG
-	Debug_Str(fname);
+
+#if !defined(NDEBUG)
+	const REBYTE *fname = Get_Word_Name(DSF_WORD(DSF));
 #endif
 
 	Eval_Natives++;
@@ -405,8 +405,9 @@
 {
 	REBVAL *result;
 	REBVAL *ds;
-#ifdef DEBUGGING
-	REBYTE *name = Get_Word_Name(DSF_WORD(DSF));
+
+#if !defined(NDEBUG)
+	const REBYTE *name = Get_Word_Name(DSF_WORD(DSF));
 #endif
 
 	Eval_Functions++;

@@ -110,9 +110,11 @@
 			}
 			if (++n >= MAX_EXPAND_LIST) n = 1;
 		} while (n != (REBUPT)(Prior_Expand[0]));
-#ifdef DEBUGGING
-		Print_Num("Expand:", series->tail + delta + 1);
-#endif
+
+	#if !defined(NDEBUG)
+		// Print_Num("Expand:", series->tail + delta + 1);
+	#endif
+
 		/* new_size = series->tail + delta + x with overflow checking */
 		if (REB_U32_ADD_OF(series->tail, delta, &new_size)
 			|| REB_U32_ADD_OF(new_size, x, &new_size)) {
