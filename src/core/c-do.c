@@ -277,55 +277,51 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 /***********************************************************************
 **
-*/	REBCNT Push_Func(REBFLG keep, REBSER *block, REBCNT index, REBCNT word, REBVAL *func)
+*/	REBINT Push_Func(REBSER *block, REBCNT index, REBCNT sym, REBVAL *func)
 /*
 **		Push on stack a function call frame as defined in stack.h.
-**		Optimized to reduce usage of thread globals (TLS).
+**		Assumes that stack slot for return value has already been pushed.
 **		Block value must not be NULL (otherwise will cause GC fault).
-**
-**		keep: use current top of stack as the return value; do not push
-**			  a new value for the return.
-**
-**		returns: the stack index for the return value.
 **
 ***********************************************************************/
 {
-	REBCNT dsp = DSP;
-	REBVAL *tos = DS_VALUE(dsp);
-	REBVAL *ret;
+#if !defined(NDEBUG)
+	// account for already pushed return value.  e.g. DSP starts out at 0,
+	// caller pushes a return value and DSP is 1.  Our dsf value that we
+	// return will thus be 1; which is where we want to drop the stack to
+	// when the function call is completed, so the return value is TOS
+	REBINT dsf = DSP;
+#endif
 
-	// Set RETURN slot to its default value:
-	if (keep) ret = 0, dsp--;
-	else ret = ++tos; // don't unset it until bottom of this func
+	// Save prior DSF;
+	DS_SKIP;
+	SET_INTEGER(DS_TOP, DSF);
+	assert(DSF == PRIOR_DSF(dsf));
 
-	// Save BLOCK current evaluation position and prior DSF;
-	tos++;
-	VAL_SET(tos, REB_BLOCK);
-	VAL_SERIES(tos) = block;
-	VAL_INDEX(tos)  = index;
+	// Save current evaluation position
+	DS_SKIP;
+	VAL_SET(DS_TOP, REB_BLOCK);
+	VAL_SERIES(DS_TOP) = block;
+	VAL_INDEX(DS_TOP) = index;
+	assert(IS_BLOCK(DSF_POSITION(dsf)));
 
-	// !!! Hacky place to poke the dsf_prior which precludes more interesting
-	// uses of the slot for series references, done differently in StableStack
-	tos->data.series.link.dsf_prior = DSF;
+	// Save symbol describing the function (if we called this as the result of
+	// a word or path lookup)
+	DS_SKIP;
+	Init_Word_Unbound(DS_TOP, REB_WORD, sym ? sym : cast(REBCNT, SYM__APPLY_));
+	VAL_WORD_FRAME(DS_TOP) = VAL_FUNC_ARGS(func);
+	assert(IS_WORD(DSF_LABEL(dsf)));
 
-	// Save WORD for function and fake frame for relative arg lookup:
-	tos++;
-	Init_Word_Unbound(tos, REB_WORD, word ? word : cast(REBCNT, SYM__APPLY_));
-	if (func) {
-		VAL_WORD_FRAME(tos) = VAL_FUNC_ARGS(func);
-		// Save FUNC value for safety (spec, args, code):
-		tos++;
-		*tos = *func;	// the DSF_FUNC
-	} else {
-		VAL_WORD_FRAME(tos) = 0;
-		tos++;
-		SET_NONE(tos);	// the DSF_FUNC
-	}
+	// Save FUNC value for safety (spec, args, code):
+	DS_SKIP;
+	*DS_TOP = *func;
+	assert(ANY_FUNC(DSF_FUNC(dsf)));
 
-	if (ret) SET_UNSET(ret);
+	assert(dsf == DSP - DSF_SIZE);
 
-	DSP = dsp + DSF_SIZE + 1;
-	return dsp + 1;
+	// frame starts at the return value slot the caller pushed (which will
+	// become the value on top of stack when the function call is popped)
+	return DSP - DSF_SIZE;
 }
 
 
@@ -723,10 +719,13 @@ more_path:
 **
 ***********************************************************************/
 {
+#if !defined(NDEBUG)
+	REBINT dsp_orig = DSP;
+#endif
+
 	REBVAL *value;
 	REBVAL *word = 0;
-	REBINT ftype;
-	REBCNT dsf;
+	REBINT dsf;
 
 	REBVAL save; // !!! will be needed by StableStack, so not set debug-only
 
@@ -788,42 +787,51 @@ reval:
 		break;
 
 	case ET_FUNCTION:
-eval_func0:
-		ftype = VAL_TYPE(value) - REB_NATIVE; // function type
-		if (!word) word = ROOT_NONAME;
-		dsf = Push_Func(FALSE, block, index, VAL_WORD_SYM(word), value);
-eval_func:
-		value = DSF_FUNC(dsf); // a safe copy of function
-		if (VAL_TYPE(value) < REB_NATIVE) {
-			Debug_Value(word, 4, 0);
-			Dump_Values(value, 4);
-		}
-		index = Do_Args(dsf, 0, block, index+1); // uses old DSF, updates DSP
-		value = DSF_FUNC(dsf); //reevaluate value, because stack could be expanded in Do_Args
-eval_func2:
-		// Evaluate the function:
-		SET_DSF(dsf);	// Set new DSF
-		if (!THROWN(DS_TOP)) {
-			if (Trace_Flags) Trace_Func(word, value);
-			Func_Dispatch[ftype](value);
-		}
-		else {
-			*DSF_OUT(DSF) = *DS_TOP;
-		}
+		DS_SKIP;
 
-		// Reset the stack to prior function frame, but keep the
-		// return value (function result) on the top of the stack.
-		DSP = dsf;
+	// Value must be the function, and space for the return slot (DSF_OUT)
+	// needs to already be accounted for
+	func_needs_push:
+		assert(ANY_FUNC(value) && (DSP == dsp_orig + 1));
+		if (!word) word = ROOT_NONAME;
+		dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+		SET_UNSET(DSF_OUT(dsf));
+
+	// 'dsf' holds index of new call frame, not yet set during arg evaluation
+	// (because the arguments want to be computed in the caller's environment)
+	// value can be invalid at this point, but must be retrievable w/DSF_FUNC
+	func_already_pushed:
+		assert(IS_UNSET(DSF_OUT(dsf)) && dsf > DSF);
+		index = Do_Args(dsf, 0, block, index+1);
+		value = DSF_FUNC(dsf); // refresh, since stack could expand in Do_Args
+
+	// The function frame is completely filled with arguments and ready
+	func_ready_to_call:
+		assert(ANY_FUNC(value) && IS_UNSET(DSF_OUT(dsf)) && dsf > DSF);
+
+		if (Trace_Flags) Trace_Func(word, value);
+
+		// Set the DSF to our constructed 'dsf' during the function dispatch
+		SET_DSF(dsf);
+		Func_Dispatch[VAL_TYPE(value) - REB_NATIVE](value);
 		SET_DSF(PRIOR_DSF(dsf));
+
+		// Drop stack back to where the DSF_OUT is now the Top of Stack
+		DSP = dsf;
+
 		if (Trace_Flags) Trace_Return(word, DS_TOP);
 
 		// The return value is a FUNC that needs to be re-evaluated.
 		if (VAL_GET_OPT(DS_TOP, OPTS_REVAL) && ANY_FUNC(DS_TOP)) {
-			value = DS_POP; // WARNING: value is volatile on TOS1 !
-			word = Get_Type_Word(VAL_TYPE(value));
-			index--;		// Backup block index to re-evaluate.
+			value = DS_TOP;
+
 			if (IS_OP(value)) Trap_Type_DEAD_END(value); // not allowed
-			goto eval_func0;
+
+			word = Get_Type_Word(VAL_TYPE(value));
+			index--; // Backup block index to re-evaluate.
+
+			// We'll reuse the DS_TOP (where value lives) as the next DS_OUT
+			goto func_needs_push;
 		}
 		break;
 
@@ -832,18 +840,18 @@ eval_func2:
 		// datatype is stored in the extended flags part of the value.
 		if (!word) word = ROOT_NONAME;
 		if (DSP <= 0 || index == 0) Trap1_DEAD_END(RE_NO_OP_ARG, word);
-		ftype = VAL_GET_EXT(value) - REB_NATIVE;
-		dsf = Push_Func(TRUE, block, index, VAL_WORD_SYM(word), value); // TOS has first arg
-		DS_PUSH(DS_VALUE(dsf)); // Copy prior to first argument
-		goto eval_func;
+		// TOS has first arg, we will re-use that slot for the OUT value
+		dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+		DS_PUSH(DSF_OUT(dsf)); // Copy prior to first argument
+		SET_UNSET(DSF_OUT(dsf)); // initialize to unset before function call
+		goto func_already_pushed;
 
 	case ET_PATH:  // PATH, SET_PATH
-		ftype = VAL_TYPE(value);
 		word = value; // a path
 		//index++; // now done below with +1
 
 		//Debug_Fmt("t: %r", value);
-		if (ftype == REB_SET_PATH) {
+		if (IS_SET_PATH(value)) {
 			index = Do_Next(block, index+1, 0);
 			// THROWN is handled in Do_Path.
 			if (index == END_FLAG || VAL_TYPE(DS_TOP) <= REB_UNSET) Trap1_DEAD_END(RE_NEED_VALUE, word);
@@ -854,8 +862,6 @@ eval_func2:
 			//Debug_Fmt("v: %r", value);
 			// Value returned only for functions that need evaluation (but not GET_PATH):
 			if (value && ANY_FUNC(value)) {
-				ftype = VAL_TYPE(value) - REB_NATIVE;
-
 				// Cannot handle an OP! because prior value is wiped out above
 				// (Theoretically we could save it if we are DO-ing a chain of
 				// values, and make it work.  But then, a loop of DO/NEXT
@@ -865,12 +871,18 @@ eval_func2:
 
 				// Can be object/func or func/refinements or object/func/refinement:
 
-				// Do not unset TOS1 (it is the value)
-				dsf = Push_Func(TRUE, block, index, VAL_WORD_SYM(word), value);
-				value = DS_TOP;
+				// re-use TOS for OUT of function frame
+				dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+
 				index = Do_Args(dsf, word + 1, block, index + 1);
-				value = DSF_FUNC(dsf); //restore in case the stack is expanded
-				goto eval_func2;
+
+				// We now refresh the function value because Do may have moved
+				// the stack.  With the function value saved, we default the
+				// function output to UNSET!
+				value = DSF_FUNC(dsf);
+				SET_UNSET(DSF_OUT(dsf));
+
+				goto func_ready_to_call;
 			} else
 				index++;
 		}
@@ -1345,7 +1357,8 @@ eval_func2:
 	if (index > SERIES_TAIL(block)) index = SERIES_TAIL(block);
 
 	// Push function frame:
-	dsf = Push_Func(0, block, index, 0, func);
+	DS_PUSH_UNSET; // OUT slot for function eval result
+	dsf = Push_Func(block, index, 0, func);
 	func = DSF_FUNC(dsf); // for safety
 
 	// Determine total number of args:
@@ -1433,7 +1446,8 @@ eval_func2:
 	REBCNT ds;
 	REBVAL *arg;
 
-	dsf = Push_Func(0, wblk, widx, 0, func);
+	DS_PUSH_UNSET; // OUT slot for function eval result
+	dsf = Push_Func(wblk, widx, 0, func);
 	func = DSF_FUNC(dsf); // for safety
 	words = VAL_FUNC_WORDS(func);
 	ds = SERIES_TAIL(words)-1;	// length of stack fill below

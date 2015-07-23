@@ -50,6 +50,17 @@
 #define DSP DS_Index
 
 
+// Prior to StableStack, a pointer to a REBVAL that lives in the data stack
+// is very volatile.  Any pushes can expand the stack, which means any
+// pointers may go invalid.  As an interim step, it can be helpful to be
+// assured that a pointer is not into the data stack.  For assertions only.
+
+#if !defined(NDEBUG)
+	#define IN_DATA_STACK(p) \
+		(((p) >= &DS_Base[0]) && ((p <= &DS_Base[DS_Index])))
+#endif
+
+
 // "Data Stack Frame" indexes into Rebol's data stack at the location where
 // the block of information about a function call begins.  It starts with the
 // location where the return value is written, and has other properties (like
@@ -68,13 +79,13 @@
 // !!! Vis a vis, concordantly...DSF_RETURN is reserved for the definitionally
 // scoped return function built for the specific call the frame represents.
 
-#define DSF_SIZE		3					// from DSF to ARGS-1
+#define DSF_SIZE		4					// from DSF to ARGS-1
 #define DSF_OUT(d)		(&DS_Base[d])		// where to write return value
 #define PRIOR_DSF(d) \
-	(DS_Base[(d)+1].data.series.link.dsf_prior)
-#define	DSF_POSITION(d) (&DS_Base[(d)+1])	// block and index of execution
-#define DSF_LABEL(d)	(&DS_Base[(d)+2])	// func word backtrace
-#define DSF_FUNC(d)		(&DS_Base[(d)+3])	// function value saved
+	VAL_INT32(&DS_Base[(d)+1])
+#define DSF_POSITION(d) (&DS_Base[(d)+2])	// block and index of execution
+#define DSF_LABEL(d)	(&DS_Base[(d)+3])	// func word backtrace
+#define DSF_FUNC(d)		(&DS_Base[(d)+4])	// function value saved
 #define DSF_RETURN(d)	coming@soon			// return func linked to this call
 #define DSF_ARGS(d,n)	(&DS_Base[(d)+DSF_SIZE+(n)])
 

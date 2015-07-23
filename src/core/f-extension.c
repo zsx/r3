@@ -209,7 +209,10 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 	dsf = PRIOR_DSF(DSF);
 
 	// Create stack frame (use prior stack frame for location info):
-	dsf = Push_Func(0, VAL_SERIES(DSF_POSITION(dsf)), VAL_INDEX(DSF_POSITION(dsf)), name, val);
+	DS_PUSH_UNSET; // OUT slot for function eval result
+	dsf = Push_Func(
+		VAL_SERIES(DSF_POSITION(dsf)), VAL_INDEX(DSF_POSITION(dsf)), name, val
+	);
 	val = DSF_FUNC(dsf);        // for safety from GC
 	obj = VAL_FUNC_WORDS(val);  // func words
 	len = SERIES_TAIL(obj)-1;	// number of args (may include locals)

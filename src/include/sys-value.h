@@ -494,14 +494,6 @@ typedef struct Reb_Series_Ref
 {
 	REBSER	*series;
 	REBCNT	index;
-	union {
-		// !!! Hack for sticking the previous data stack frame into series
-		// references.  Marked for death as part of StableStack (opening
-		// up more interesting possibilities for copy-on-write, or other
-		// concepts that are more appropriate uses for this valuable slot
-		// in a fundamental type.)
-		REBINT  dsf_prior;
-	} link;
 } REBSRI;
 
 #define VAL_SERIES(v)	    ((v)->data.series.series)
