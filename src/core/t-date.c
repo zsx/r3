@@ -788,11 +788,11 @@ setDate:
 				REBCNT len;
 				// 30-September-10000/12:34:56.123456789AM/12:34
 				bp = Qualify_String(arg, 45, &len, FALSE); // can trap, ret diff str
-				if (Scan_Date(bp, len, D_OUT)) return R_RET;
+				if (Scan_Date(bp, len, D_OUT)) return R_OUT;
 			}
 			else if (ANY_BLOCK(arg) && VAL_BLK_LEN(arg) >= 3) {
 				if (MT_Date(D_OUT, VAL_BLK_DATA(arg), REB_DATE)) {
-					return R_RET;
+					return R_OUT;
 				}
 			}
 //			else if (IS_NONE(arg)) {
@@ -829,18 +829,18 @@ fixDate:
 	date = Normalize_Date(day, month, year, tz);
 
 setDate:
-	VAL_SET(DS_RETURN, REB_DATE);
-	VAL_DATE(DS_RETURN) = date;
-	VAL_TIME(DS_RETURN) = secs;
-	return R_RET;
+	VAL_SET(DS_OUT, REB_DATE);
+	VAL_DATE(DS_OUT) = date;
+	VAL_TIME(DS_OUT) = secs;
+	return R_OUT;
 
 ret_int:
-	DS_RET_INT(num);
-	return R_RET;
+	SET_INTEGER(D_OUT, num);
+	return R_OUT;
 
 ret_val:
-	*DS_RETURN = *val;
-	return R_RET;
+	*DS_OUT = *val;
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

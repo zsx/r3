@@ -401,9 +401,9 @@
 			case A_DIVIDE:
 				if (secs2 == 0) Trap_DEAD_END(RE_ZERO_DIVIDE);
 				//secs /= secs2;
-				VAL_SET(DS_RETURN, REB_DECIMAL);
-				VAL_DECIMAL(DS_RETURN) = (REBDEC)secs / (REBDEC)secs2;
-				return R_RET;
+				VAL_SET(DS_OUT, REB_DECIMAL);
+				VAL_DECIMAL(DS_OUT) = (REBDEC)secs / (REBDEC)secs2;
+				return R_OUT;
 
 			case A_REMAINDER:
 				if (secs2 == 0) Trap_DEAD_END(RE_ZERO_DIVIDE);
@@ -433,7 +433,7 @@
 			case A_DIVIDE:
 				if (num == 0) Trap_DEAD_END(RE_ZERO_DIVIDE);
 				secs /= num;
-				DS_RET_INT(secs);
+				SET_INTEGER(D_OUT, secs);
 				goto setTime;
 
 			case A_REMAINDER:
@@ -474,7 +474,7 @@
 			*D_ARG(1) = *arg;
 			*D_ARG(2) = *D_ARG(3);
 			T_Date(ds, action);
-			return R_RET;
+			return R_OUT;
 		}
 		Trap_Math_Args(REB_TIME, action);
 	}
@@ -552,7 +552,7 @@ fixTime:
 setTime:
 	VAL_TIME(D_OUT) = secs;
 	VAL_SET(D_OUT, REB_TIME);
-	return R_RET;
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

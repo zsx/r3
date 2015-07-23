@@ -101,30 +101,6 @@ void Do_Rebcode(REBVAL *v) {;}
 
 /***********************************************************************
 **
-*/	void DS_Ret_Int(REBINT n)
-/*
-**		Memsaver: set integer as return result on data stack.
-**
-***********************************************************************/
-{
-	DS_RET_INT(n);
-}
-
-
-/***********************************************************************
-**
-*/	void DS_Ret_Val(REBVAL *value)
-/*
-**		Memsaver: set any value as return result on data stack.
-**
-***********************************************************************/
-{
-	*DS_RETURN = *value;
-}
-
-
-/***********************************************************************
-**
 */  REBINT Eval_Depth(void)
 /*
 ***********************************************************************/
@@ -832,7 +808,7 @@ eval_func2:
 			Func_Dispatch[ftype](value);
 		}
 		else {
-			*DS_RETURN = *DS_TOP;
+			*DSF_OUT(DSF) = *DS_TOP;
 		}
 
 		// Reset the stack to prior function frame, but keep the

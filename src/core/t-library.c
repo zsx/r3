@@ -55,7 +55,7 @@
 	arg = D_ARG(2);
 	val = D_ARG(1);
 
-	ret = DS_RETURN;
+	ret = DS_OUT;
 	// unary actions
 	switch(action) {
 		case A_MAKE:
@@ -91,5 +91,5 @@
 		default:
 			Trap_Action_DEAD_END(REB_LIBRARY, action);
 	}
-	return R_RET;
+	return R_OUT;
 }

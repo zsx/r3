@@ -171,12 +171,12 @@
 			if (IS_MONEY(val2)) {
 				VAL_DECI(D_OUT) = Round_Deci(int_to_deci(num), n, VAL_DECI(val2));
 				SET_TYPE(D_OUT, REB_MONEY);
-				return R_RET;
+				return R_OUT;
 			}
 			if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
 				VAL_DECIMAL(D_OUT) = Round_Dec((REBDEC)num, n, VAL_DECIMAL(val2));
 				SET_TYPE(D_OUT, VAL_TYPE(val2));
-				return R_RET;
+				return R_OUT;
 			}
 			if (IS_TIME(val2)) Trap_Arg_DEAD_END(val2);
 			arg = VAL_INT64(val2);
@@ -232,8 +232,8 @@
 			if (memchr(bp, '.', len)
 			   	|| memchr(bp, 'e', len)
 			   	|| memchr(bp, 'E', len)) {
-				if (Scan_Decimal(bp, len, DS_RETURN, TRUE)) {
-					double v = VAL_DECIMAL(DS_RETURN);
+				if (Scan_Decimal(bp, len, DS_OUT, TRUE)) {
+					double v = VAL_DECIMAL(DS_OUT);
 					if (v < MAX_D64 && v >= MIN_D64) {
 						num = (REBI64)v;
 					} else {
@@ -242,8 +242,8 @@
 					break;
 				}
 			}
-			if (Scan_Integer(bp, len, DS_RETURN))
-				return R_RET;
+			if (Scan_Integer(bp, len, DS_OUT))
+				return R_OUT;
 			goto is_bad;
 		}
 		else if (IS_LOGIC(val)) {
@@ -264,8 +264,8 @@
 		Trap_Action_DEAD_END(REB_INTEGER, action);
 	}
 
-	SET_INTEGER(DS_RETURN, num);
-	return R_RET;
+	SET_INTEGER(DS_OUT, num);
+	return R_OUT;
 
 is_bad:
 	Trap_Make_DEAD_END(REB_INTEGER, val);

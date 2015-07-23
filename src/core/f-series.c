@@ -104,12 +104,12 @@
 		break;
 */
 	case A_INDEXQ:
-		SET_INTEGER(DS_RETURN, ((REBI64)index) + 1);
-		return R_RET;
+		SET_INTEGER(DS_OUT, cast(REBI64, index) + 1);
+		return R_OUT;
 
 	case A_LENGTHQ:
-		SET_INTEGER(DS_RETURN, tail > index ? tail - index : 0);
-		return R_RET;
+		SET_INTEGER(DS_OUT, tail > index ? tail - index : 0);
+		return R_OUT;
 
 	case A_REMOVE:
 		// /PART length
@@ -135,8 +135,8 @@
 		return -1;
 	}
 
-	DS_RET_VALUE(value);
-	return R_RET;
+	*DS_OUT = *value;
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

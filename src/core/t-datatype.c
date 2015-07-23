@@ -103,5 +103,5 @@
 		Trap_Action_DEAD_END(REB_DATATYPE, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }

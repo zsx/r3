@@ -80,8 +80,8 @@
 	case A_SUBTRACT:
 		chr -= (REBUNI)arg;
 		if (IS_CHAR(D_ARG(2))) {
-			DS_RET_INT(chr);
-			return R_RET;
+			SET_INTEGER(D_OUT, chr);
+			return R_OUT;
 		}
 		break;
 	case A_MULTIPLY: chr *= arg; break;
@@ -168,8 +168,8 @@ bad_make:
 	}
 
 	if ((chr >> 16) != 0 && (chr >> 16) != 0xffff) Trap1_DEAD_END(RE_TYPE_LIMIT, Get_Type(REB_CHAR));
-	SET_CHAR(DS_RETURN, chr);
-	return R_RET;
+	SET_CHAR(DS_OUT, chr);
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

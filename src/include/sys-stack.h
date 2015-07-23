@@ -128,19 +128,14 @@
 #define DS_REF(n)		(!IS_NONE(DS_ARG(n)))
 #define DS_ARGC			(DSP-DS_ARG_BASE)
 
-// RETURN operations:
-#define DS_RETURN		(&DS_Base[DSF])
-#define DS_RET_VALUE(v)	(*DS_RETURN=*(v))
-#define DS_RET_INT(n)	VAL_SET(DS_RETURN, REB_INTEGER), \
-						VAL_INT64(DS_RETURN) = n // not atomic
-
+#define DS_OUT		(&DS_Base[DSF])
 // Helpers:
-#define DS_RELOAD(d)	(d = DS_RETURN)
+#define DS_RELOAD(d)	(d = DS_OUT)
 #define	SET_BACK(v,b,i,f) VAL_SET((v), REB_BLOCK), VAL_SERIES(v)=(b), \
 						VAL_INDEX(v)=i, VAL_BACK(v)=f
 
 enum {
-	R_RET = 0,
+	R_OUT = 0,
 	R_TOS,
 	R_TOS1,
 	R_NONE,

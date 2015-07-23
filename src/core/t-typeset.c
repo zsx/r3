@@ -229,7 +229,7 @@
 		if (IS_BLOCK(arg)) {
 			VAL_SET(D_OUT, REB_TYPESET);
 			Make_Typeset(VAL_BLK_DATA(arg), D_OUT, 0);
-			return R_RET;
+			return R_OUT;
 		}
 	//	if (IS_NONE(arg)) {
 	//		VAL_SET(arg, REB_TYPESET);

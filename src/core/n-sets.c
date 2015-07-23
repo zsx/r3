@@ -214,7 +214,7 @@ enum {
 		Trap_Arg_DEAD_END(val1);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -241,7 +241,7 @@ enum {
 		if (!IS_DATE(val1)) Trap_Arg_DEAD_END(val1);
 		if (!IS_DATE(val2)) Trap_Arg_DEAD_END(val2);
 		Subtract_Date(val1, val2, D_OUT);
-		return R_RET;
+		return R_OUT;
 	}
 
 	return Do_Set_Operation(ds, SET_OP_DIFFERENCE);

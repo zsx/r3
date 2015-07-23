@@ -129,9 +129,9 @@ static struct digest {
 	str = Form_Reduce(VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)));
 	if (!str) return R_TOS;
 
-	Set_String(DS_RETURN, str); // not D_OUT (stack modified)
+	Set_String(DS_OUT, str); // not D_OUT (stack modified)
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -144,7 +144,7 @@ static struct digest {
 	Trap_DEAD_END(RE_DEPRECATED);
 //	*D_OUT = *D_ARG(1);
 //	VAL_SET(D_OUT, REB_BINARY);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -157,7 +157,7 @@ static struct digest {
 	Trap_DEAD_END(RE_DEPRECATED);
 //	*D_OUT = *D_ARG(1);
 //	VAL_SET(D_OUT, REB_STRING);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -204,14 +204,14 @@ static struct digest {
 		if (sym == SYM_CRC32) {
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) Trap_DEAD_END(RE_BAD_REFINES);
 			i = CRC32(data, len);
-			DS_RET_INT(i);
-			return R_RET;
+			SET_INTEGER(D_OUT, i);
+			return R_OUT;
 		}
 
 		if (sym == SYM_ADLER32) {
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) Trap_DEAD_END(RE_BAD_REFINES);
-			DS_RET_INT(z_adler32(0L, data, len));
-			return R_RET;
+			SET_INTEGER(D_OUT, z_adler32(0L, data, len));
+			return R_OUT;
 		}
 
 		for (i = 0; i < sizeof(digests) / sizeof(digests[0]); i++) {
@@ -262,7 +262,7 @@ static struct digest {
 				}
 
 				SERIES_TAIL(digest) = digests[i].len;
-				Set_Series(REB_BINARY, DS_RETURN, digest);
+				Set_Series(REB_BINARY, DS_OUT, digest);
 
 				return 0;
 			}
@@ -282,9 +282,9 @@ static struct digest {
 		i = Compute_CRC(data, len);
 	}
 
-	DS_RET_INT(i);
+	SET_INTEGER(D_OUT, i);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -306,7 +306,7 @@ static struct digest {
 
 	Set_Binary(D_OUT, Compress(ser, index, len, D_REF(4))); // /gzip
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -338,7 +338,7 @@ static struct digest {
 		BIN_HEAD(VAL_SERIES(arg)) + VAL_INDEX(arg), len, limit, gzip
 	));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -372,7 +372,7 @@ static struct digest {
 	frame = Construct_Object(parent, VAL_BLK_DATA(value), D_REF(4));
 	SET_OBJECT(D_OUT, frame);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -398,7 +398,7 @@ static struct digest {
 	if (!Decode_Binary(D_OUT, BIN_SKIP(ser, index), len, base, 0))
  		Trap1_DEAD_END(RE_INVALID_DATA, D_ARG(1));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -437,7 +437,7 @@ static struct digest {
 
 	Set_String(D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -525,7 +525,7 @@ static struct digest {
 
 	Set_Series(VAL_TYPE(arg), D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -543,7 +543,7 @@ static struct digest {
 
 	if (D_REF(2)) { //lines
 		Set_Block(D_OUT, Split_Lines(val));
-		return R_RET;
+		return R_OUT;
 	}
 
 	if (VAL_BYTE_SIZE(val)) {
@@ -605,7 +605,7 @@ static struct digest {
 
 	Set_Series(VAL_TYPE(val), D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -630,7 +630,7 @@ static struct digest {
 
 	Set_Series(VAL_TYPE(val), D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -641,7 +641,7 @@ static struct digest {
 ***********************************************************************/
 {
 	Change_Case(ds, D_ARG(1), D_ARG(3), FALSE);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -652,7 +652,7 @@ static struct digest {
 ***********************************************************************/
 {
 	Change_Case(ds, D_ARG(1), D_ARG(3), TRUE);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -727,7 +727,7 @@ static struct digest {
 //	Set_Series(REB_ISSUE, D_OUT, series);
 	Init_Word_Unbound(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -763,8 +763,8 @@ static struct digest {
 ***********************************************************************/
 {
 	REBINT utf = What_UTF(VAL_BIN_DATA(D_ARG(1)), VAL_LEN(D_ARG(1)));
-	DS_RET_INT(utf);
-	return R_RET;
+	SET_INTEGER(D_OUT, utf);
+	return R_OUT;
 }
 
 

@@ -200,7 +200,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -265,7 +265,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	else
 		Bind_Block(frame, BLK_HEAD(blk), flags);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -280,7 +280,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (!HAS_FRAME(word)) return R_NONE;
 	if (VAL_WORD_INDEX(word) < 0) return R_TRUE;
 	SET_OBJECT(D_OUT, VAL_WORD_FRAME(word));
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -341,7 +341,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	words = Collect_Block_Words(block, prior, modes);
 	Set_Block(D_OUT, words);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -358,7 +358,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		val = Get_Var(word);
 		if (IS_FRAME(val)) {
 			Init_Obj_Value(D_OUT, VAL_WORD_FRAME(word));
-			return R_RET;
+			return R_OUT;
 		}
 		if (!D_REF(2) && !IS_SET(val)) Trap1_DEAD_END(RE_NO_VALUE, word);
 	}
@@ -370,12 +370,12 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	else if (IS_OBJECT(word)) {
 		Assert_Public_Object(word);
 		Set_Block(D_OUT, Copy_Block(VAL_OBJ_FRAME(word), 1));
-		return R_RET;
+		return R_OUT;
 	}
 	else val = word; // all other values
 
 	*D_OUT = *val;
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -404,7 +404,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 						VAL_WORD_INDEX(word) = (REBCNT)index;
 						VAL_WORD_FRAME(word) = frame;
 						*D_OUT = *word;
-						return R_RET;
+						return R_OUT;
 					}
 				}
 			}
@@ -429,7 +429,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		*D_OUT = *word;
 	} else
 		return R_NONE;
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -564,7 +564,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		Init_Word_Unbound(D_OUT, REB_WORD, type+1);
 	else
 		Set_Datatype(D_OUT, type);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -592,7 +592,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			}
 		}
 	}
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -618,7 +618,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	REBACT action = Value_Dispatch[VAL_TYPE(D_ARG(1))];
 	DS_PUSH_INTEGER(n);
 	//DSF_FUNC(ds) // needs to be set to PICK action!
-	return action(ds, A_PICK);  // returns R_RET and other cases
+	return action(ds, A_PICK);  // returns R_OUT and other cases
 }
 
 /***********************************************************************
@@ -805,7 +805,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	else
 		Trap_Arg_DEAD_END(D_ARG(1));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -839,7 +839,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	else
 		Trap_Arg_DEAD_END(D_ARG(1));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -975,5 +975,5 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 
 	Return_Gob_Pair(ds, gob, xo, yo);
 
-	return R_RET;
+	return R_OUT;
 }

@@ -228,11 +228,11 @@
 
 			if (THROWN(ds)) {	// Break, throw, continue, error.
 				if (Check_Error(ds) >= 0) {
-					*DS_RETURN = *DS_NEXT;
+					*DS_OUT = *DS_NEXT;
 					break;
 				}
 			}
-			*DS_RETURN = *ds;
+			*DS_OUT = *ds;
 
 			if (VAL_TYPE(var) != type) Trap_Arg_DEAD_END(var);
 
@@ -244,7 +244,7 @@
 	// !!!!! ???? allowed to write VAR????
 	*var = *DS_ARG(1);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -312,7 +312,7 @@
 			if (mode == 1) {
 				SET_INTEGER(D_OUT, 0);
 			}
-			return R_RET;
+			return R_OUT;
 		}
 	}
 
@@ -450,12 +450,12 @@ skip_hidden: ;
 	if (mode == 1) {
 		// Remove hole (updates tail):
 		if (windex < index) Remove_Series(series, windex, index - windex);
-		SET_INTEGER(DS_RETURN, index - windex);
-		return R_RET;
+		SET_INTEGER(DS_OUT, index - windex);
+		return R_OUT;
 	}
 
 	// If MAP and not BREAK/RETURN:
-	if (mode == 2 && err != 2) return R_RET;
+	if (mode == 2 && err != 2) return R_OUT;
 
 	return R_TOS1;
 }
@@ -688,12 +688,12 @@ utop:
 		if (IS_UNSET(ds) || IS_ERROR(ds)) {	// Unset, break, throw, error.
 			if (Check_Error(ds) >= 0) return R_TOS1;
 		}
-		if (!IS_TRUE(ds)) return R_RET;
+		if (!IS_TRUE(ds)) return R_OUT;
 		ds = Do_Blk(b2, i2);
-		*DS_RETURN = *ds;	// save here (to avoid GC during error handling)
+		*DS_OUT = *ds;	// save here (to avoid GC during error handling)
 		if (THROWN(ds)) {	// Break, throw, continue, error.
 			if (Check_Error(ds) >= 0) return R_TOS1;
-			*DS_RETURN = *ds; // Check_Error modified it
+			*DS_OUT = *ds; // Check_Error modified it
 		}
 	} while (TRUE);
 }

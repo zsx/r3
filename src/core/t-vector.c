@@ -591,7 +591,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	case A_LENGTHQ:
 		//bits = 1 << (vect->size & 3);
 		SET_INTEGER(D_OUT, vect->tail);
-		return R_RET;
+		return R_OUT;
 
 	case A_COPY:
 		ser = Copy_Series(vect);
@@ -609,7 +609,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	}
 
 	*D_OUT = *value;
-	return R_RET;
+	return R_OUT;
 
 bad_make:
 	Trap_Make_DEAD_END(REB_VECTOR, arg);

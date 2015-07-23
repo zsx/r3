@@ -862,14 +862,14 @@ find_none:
 			VAL_SET(D_OUT, REB_PAIR);
 			VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
 			VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
-			return R_RET;
+			return R_OUT;
 		} else {
-			DS_RET_INT(index + 1);
-			return R_RET;
+			SET_INTEGER(D_OUT, index + 1);
+			return R_OUT;
 		}
 	case A_LENGTHQ:
-		DS_RET_INT(tail > index ? tail - index : 0);
-		return R_RET;
+		SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
+		return R_OUT;
 
 	case A_PICK:
 		Pick_Path(value, arg, 0);
@@ -922,8 +922,8 @@ find_none:
 				//*dp = (long) (VAL_TUPLE_LEN(arg) < 4) ?
 				//	((*dp & 0xff000000) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2])) :
 				//	((VAL_TUPLE(arg)[3] << 24) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2]));
-				DS_RET_VALUE(arg);
-				return R_RET;
+				*D_OUT = *arg;
+				return R_OUT;
 			}
 			if (IS_INTEGER(arg) && VAL_INT64(arg) > 0 && VAL_INT64(arg) < 255)
 				n = VAL_INT32(arg);
@@ -933,12 +933,12 @@ find_none:
 				Trap_Arg_DEAD_END(arg);
 
 			*dp = (*dp & 0xffffff) | (n << 24);
-			DS_RET_VALUE(arg);
-			return R_RET; //was value;
+			*D_OUT = *arg;
+			return R_OUT; //was value;
 
 		} else {
 			Set_Tuple_Pixel(QUAD_SKIP(series, index), D_OUT);
-			return R_RET;
+			return R_OUT;
 		}
 		break;
 #endif
@@ -971,11 +971,11 @@ find_none:
 	case A_APPEND:
 	case A_INSERT:	// insert ser val /part len /only /dup count
 	case A_CHANGE:	// change ser val /part len /only /dup count
-		value = Modify_Image(ds, action); // sets DS_RETURN
+		value = Modify_Image(ds, action); // sets DS_OUT
 		break;
 
 	case A_FIND:	// find   ser val /part len /only /case /any /with wild /match /tail
-		Find_Image(ds); // sets DS_RETURN
+		Find_Image(ds); // sets DS_OUT
 		break;
 
 	case A_TO:
@@ -1071,7 +1071,7 @@ find_none:
 			SET_IMAGE(D_OUT, series);
 			Copy_Rect_Data(D_OUT, 0, 0, w, h, value, diff, len);
 //			VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
-			return R_RET;
+			return R_OUT;
 		}
 		Trap_Type_DEAD_END(arg);
 
@@ -1090,15 +1090,15 @@ makeCopy2:
 		SET_IMAGE(D_OUT, series);
 		memcpy(VAL_IMAGE_HEAD(D_OUT), VAL_IMAGE_DATA(arg), w * h * 4);
 //		VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(arg);
-		return R_RET;
+		return R_OUT;
 		break;
 
 	default:
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 	}
 
-	*DS_RETURN = *value;
-	return R_RET;
+	*DS_OUT = *value;
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

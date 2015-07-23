@@ -519,14 +519,14 @@
 
 	case A_LENGTHQ:
 		n = Length_Map(series);
-		DS_RET_INT(n);
+		SET_INTEGER(D_OUT, n);
 		break;
 
 	case A_MAKE:
 	case A_TO:
 		// make map! [word val word val]
 		if (IS_BLOCK(arg) || IS_PAREN(arg) || IS_MAP(arg)) {
-			if (MT_Map(D_OUT, arg, 0)) return R_RET;
+			if (MT_Map(D_OUT, arg, 0)) return R_OUT;
 			Trap_Arg_DEAD_END(arg);
 //		} else if (IS_NONE(arg)) {
 //			n = 3; // just a start
@@ -542,7 +542,7 @@
 		break;
 
 	case A_COPY:
-		if (MT_Map(D_OUT, val, 0)) return R_RET;
+		if (MT_Map(D_OUT, val, 0)) return R_OUT;
 		Trap_Arg_DEAD_END(val);
 
 	case A_CLEAR:
@@ -569,5 +569,5 @@
 		Trap_Action_DEAD_END(REB_MAP, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }

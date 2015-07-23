@@ -642,7 +642,7 @@ static struct {
 		Make_Block_Type(action == A_MAKE, value, arg); // returned in value
 		if (ANY_PATH(value)) Clear_Value_Opts(VAL_SERIES(value));
 		*D_OUT = *value;
-		return R_RET;
+		return R_OUT;
 	}
 
 	index = (REBINT)VAL_INDEX(value);
@@ -688,7 +688,7 @@ repick:
 			*value = *arg;
 			*D_OUT = *arg;
 		}
-		return R_RET;
+		return R_OUT;
 
 /*
 		len = Get_Num_Arg(arg); // Position
@@ -701,12 +701,12 @@ repick:
 		if (action == A_PICK) {
 pick_it:
 			*D_OUT = BLK_HEAD(ser)[index];
-			return R_RET;
+			return R_OUT;
 		}
 		arg = D_ARG(3);
 		*D_OUT = *arg;
 		BLK_HEAD(ser)[index] = *arg;
-		return R_RET;
+		return R_OUT;
 */
 
 	case A_TAKE:
@@ -716,7 +716,7 @@ pick_it:
 			if (len == 0) {
 zero_blk:
 				Set_Block(D_OUT, Make_Block(0));
-				return R_RET;
+				return R_OUT;
 			}
 		} else
 			len = 1;
@@ -734,7 +734,7 @@ zero_blk:
 		else Set_Block(D_OUT, Copy_Block_Len(ser, index, len)); // no more /DEEP
 //		else Set_Block(D_OUT, Copy_Block_Deep(ser, index, len, D_REF(4) ? COPY_DEEP: 0));
 		Remove_Series(ser, index, len);
-		return R_RET;
+		return R_OUT;
 
 	//-- Search:
 
@@ -880,9 +880,11 @@ zero_blk:
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 	}
 
-	if (!value) value = D_ARG(1);
-	DS_RET_VALUE(value);
-	return R_RET;
+	if (!value)
+		return R_ARG1;
+
+	*D_OUT = *value;
+	return R_OUT;
 
 is_none:
 	return R_NONE;

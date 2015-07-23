@@ -128,7 +128,7 @@
 	}
 	SET_TYPE(c, REB_PAIR);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -315,8 +315,8 @@
 ///					Trap_Arg_DEAD_END(arg);
 ///				goto setPair;
 ///			}
-			SET_DECIMAL(DS_RETURN, n == 0 ? x1 : y1);
-			return R_RET;
+			SET_DECIMAL(DS_OUT, n == 0 ? x1 : y1);
+			return R_OUT;
 
 		case A_MAKE:
 		case A_TO:
@@ -325,15 +325,15 @@
 			x1 = y1 = 0;
 //			if (IS_NONE(val)) goto setPair;
 			if (IS_PAIR(val)) {
-				*DS_RETURN = *val;
-				return R_RET;
+				*DS_OUT = *val;
+				return R_OUT;
 			}
 			if (IS_STRING(val)) {
 				REBYTE *bp;
 				REBCNT len;
 				// -1234567890x-1234567890
 				bp = Qualify_String(val, VAL_LEN(val), &len, FALSE);
-				if (Scan_Pair(bp, len, DS_RETURN)) return R_RET;
+				if (Scan_Pair(bp, len, DS_OUT)) return R_OUT;
 			}
 			if (IS_INTEGER(val)) {
 				x1 = y1 = (REBD32)VAL_INT64(val);
@@ -345,7 +345,7 @@
 			}
 			if (ANY_BLOCK(val) && VAL_LEN(val) <= 2) {
 				if (MT_Pair(D_OUT, val, REB_PAIR))
-					return R_RET;
+					return R_OUT;
 			}
 			Trap_Make_DEAD_END(REB_PAIR, val);
 		}
@@ -353,10 +353,10 @@
 	Trap_Action_DEAD_END(REB_PAIR, action);
 
 setPair:
-	VAL_SET(DS_RETURN, REB_PAIR);
-	VAL_PAIR_X(DS_RETURN) = x1;
-	VAL_PAIR_Y(DS_RETURN) = y1;
-	return R_RET;
+	VAL_SET(DS_OUT, REB_PAIR);
+	VAL_PAIR_X(DS_OUT) = x1;
+	VAL_PAIR_Y(DS_OUT) = y1;
+	return R_OUT;
 
 //is_false:
 //	return R_FALSE;

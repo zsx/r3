@@ -76,7 +76,7 @@
 			if (!IS_OBJECT(spec)) Trap_Arg_DEAD_END(spec);
 			SET_UTYPE(D_OUT, Make_Object(VAL_OBJ_FRAME(spec), body));
 			VAL_UTYPE_DATA(D_OUT) = 0;
-			return R_RET;
+			return R_OUT;
 		}
 		else Trap_Arg_DEAD_END(arg);
 	}
@@ -90,5 +90,5 @@
 
 	Do_Function(body);
 
-	return R_RET;
+	return R_OUT;
 }

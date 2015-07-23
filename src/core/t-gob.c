@@ -791,7 +791,7 @@ is_none:
 		// Allow NONE as argument:
 //		else if (!IS_NONE(arg))
 //			goto is_arg_error;
-		SET_GOB(DS_RETURN, ngob);
+		SET_GOB(DS_OUT, ngob);
 		break;
 
 	case A_PICK:
@@ -815,8 +815,8 @@ is_none:
 		//GOB_PARENT(ngob) = 0;
 		//*GOB_SKIP(gob, index) = VAL_GOB(arg);
 		if (action == A_POKE) {
-			*DS_RETURN = *arg;
-			return R_RET;
+			*DS_OUT = *arg;
+			return R_OUT;
 		}
 		index++;
 		goto set_index;
@@ -854,12 +854,12 @@ is_none:
 			VAL_GOB(val) = *GOB_SKIP(gob, index);
 			VAL_GOB_INDEX(val) = 0;
 			Remove_Gobs(gob, index, 1);
-			return R_RET;
+			return R_OUT;
 		} else {
 			Set_Block(D_OUT, Pane_To_Block(gob, index, len));
 			Remove_Gobs(gob, index, len);
 		}
-		return R_RET;
+		return R_OUT;
 
 	case A_NEXT:
 		if (index < tail) index++;
@@ -923,13 +923,13 @@ is_none:
 	default:
 		Trap_Action_DEAD_END(REB_GOB, action);
 	}
-	return R_RET;
+	return R_OUT;
 
 set_index:
 	VAL_SET(val, REB_GOB);
 	VAL_GOB(val) = gob;
 	VAL_GOB_INDEX(val) = index;
-	return R_RET;
+	return R_OUT;
 
 is_none:
 	return R_NONE;

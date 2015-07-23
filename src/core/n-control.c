@@ -320,7 +320,7 @@ enum {
 
 	if (D_REF(1)) value = D_ARG(2);  // /return
 	SET_THROW(ds, RE_BREAK, value);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -379,8 +379,8 @@ enum {
 				Halt_Code(RE_HALT, 0);
 			else
 				Throw_Error(VAL_ERR_OBJECT(ret));
-			*DS_RETURN = *ret;
-			return R_RET;
+			*DS_OUT = *ret;
+			return R_OUT;
 		}
 		return R_TOS1;
 	}
@@ -409,7 +409,7 @@ enum {
 		} else {
 got_err:
 			*ds = *(VAL_ERR_VALUE(ret));
-			return R_RET;
+			return R_OUT;
 		}
 	}
 
@@ -426,7 +426,7 @@ got_err:
 	SET_THROW(ds, RE_THROW, D_ARG(1));
 	if (D_REF(2)) // /name
 		VAL_ERR_SYM(ds) = VAL_WORD_SYM(D_ARG(3));
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -466,7 +466,7 @@ got_err:
 ***********************************************************************/
 {
 	SET_THROW(ds, RE_CONTINUE, NONE_VALUE);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -510,12 +510,12 @@ got_err:
 	case REB_WORD:
 	case REB_GET_WORD:
 		*D_OUT = *Get_Var(value);
-		return R_RET;
+		return R_OUT;
 
 	case REB_LIT_WORD:
 		*D_OUT = *value;
 		SET_TYPE(D_OUT, REB_WORD);
-		return R_RET;
+		return R_OUT;
 
 	case REB_ERROR:
 		if (IS_THROW(value)) return R_ARG1;
@@ -566,7 +566,7 @@ got_err:
 ***********************************************************************/
 {
 	SET_THROW(ds, RE_RETURN, 0);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -645,7 +645,7 @@ got_err:
 
 	if (D_REF(2)) VAL_SET_OPT(arg, OPTS_REVAL);
 	SET_THROW(ds, RE_RETURN, arg);
-	return R_RET;
+	return R_OUT;
 }
 
 

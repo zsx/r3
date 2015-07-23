@@ -193,7 +193,7 @@ REBINT Mode_Syms[] = {
 ***********************************************************************/
 {
 	REBSER *ser;
-	REBVAL *ds = DS_RETURN;
+	REBVAL *ds = DS_OUT;
 
 	// Allocate read result buffer:
 	ser = Make_Binary(len);
@@ -555,7 +555,7 @@ REBINT Mode_Syms[] = {
 		Trap_Action_DEAD_END(REB_PORT, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 
 seeked:
 	SET_FLAG(file->modes, RFM_RESEEK);

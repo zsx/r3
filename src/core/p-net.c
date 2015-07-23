@@ -87,7 +87,7 @@ enum Transport_Types {
 
 	// Create a new port using ACCEPT request passed by sock->common.sock:
 	port = Copy_Block(port, 0);
-	SET_PORT(DS_RETURN, port);	// Also for GC protect
+	SET_PORT(DS_OUT, port);	// Also for GC protect
 	SET_NONE(OFV(port, STD_PORT_DATA)); // just to be sure.
 	SET_NONE(OFV(port, STD_PORT_STATE)); // just to be sure.
 
@@ -152,7 +152,7 @@ enum Transport_Types {
 				sock->special.net.remote_port = IS_INTEGER(val) ? VAL_INT32(val) : 80;
 				result = OS_DO_DEVICE(sock, RDC_LOOKUP);  // sets remote_ip field
 				if (result < 0) Trap_Port_DEAD_END(RE_NO_CONNECT, port, sock->error);
-				return R_RET;
+				return R_OUT;
 			}
 
 			// Host IP specified:
@@ -172,7 +172,7 @@ enum Transport_Types {
 			else Trap_Port_DEAD_END(RE_INVALID_SPEC, port, -10);
 
 		case A_CLOSE:
-			return R_RET;
+			return R_OUT;
 
 		case A_OPENQ:
 			return R_FALSE;
@@ -308,7 +308,7 @@ enum Transport_Types {
 		Trap_Action_DEAD_END(REB_PORT, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 /***********************************************************************

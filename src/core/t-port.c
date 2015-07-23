@@ -64,7 +64,7 @@
 	if (IS_PORT(value)) return value;
 
 	value = Make_Port(value);
-	ds = DS_RETURN;
+	ds = DS_OUT;
 	*D_ARG(1) = *value;
 
 	return D_ARG(1);
@@ -110,6 +110,6 @@
 		break;
 	}
 
-	DS_Ret_Val(value);
-	return R_RET;
+	*D_OUT = *value;
+	return R_OUT;
 }

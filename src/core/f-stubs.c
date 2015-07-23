@@ -785,8 +785,8 @@
 	REBCHR str[100];
 
 	OS_FORM_ERROR(errnum, str, 100);
-	Set_String(DS_RETURN, Copy_OS_Str(str, OS_STRLEN(str)));
-	return DS_RETURN;
+	Set_String(DS_OUT, Copy_OS_Str(str, OS_STRLEN(str)));
+	return DS_OUT;
 }
 
 

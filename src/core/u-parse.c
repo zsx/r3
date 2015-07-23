@@ -1244,10 +1244,10 @@ bad_end:
 		REBSER *ser;
 		if (!ANY_BINSTR(val)) Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_STRING, VAL_TYPE(val));
 		ser = Parse_String(VAL_SERIES(val), VAL_INDEX(val), arg, opts);
-		Set_Block(DS_RETURN, ser);
+		Set_Block(DS_OUT, ser);
 	}
 	else if (IS_SAME_WORD(arg, SYM_TEXT)) {
-		Set_Block(DS_RETURN, Parse_Lines(VAL_SERIES(val)));
+		Set_Block(DS_OUT, Parse_Lines(VAL_SERIES(val)));
 	}
 	else {
 		REBCNT n;
@@ -1256,27 +1256,27 @@ bad_end:
 		PUSH_STATE(state, Saved_State);
 		if (SET_JUMP(state)) {
 			POP_STATE(state, Saved_State);
-			Catch_Error(arg = DS_RETURN); // Stores error value here
+			Catch_Error(arg = DS_OUT); // Stores error value here
 			if (VAL_ERR_NUM(arg) == RE_BREAK) {
 				if (!VAL_ERR_VALUE(arg)) return R_NONE;
-				*DS_RETURN = *VAL_ERR_VALUE(arg);
-				return R_RET;
+				*DS_OUT = *VAL_ERR_VALUE(arg);
+				return R_OUT;
 			}
 			if (VAL_ERR_NUM(arg) == RE_RETURN && VAL_ERR_SYM(arg) == SYM_RETURN) {
-				*DS_RETURN = *VAL_ERR_VALUE(arg);
-				return R_RET;
+				*DS_OUT = *VAL_ERR_VALUE(arg);
+				return R_OUT;
 			}
 			// How to handle RETURN, BREAK, etc. ???? does not work !!!!
-			if (THROWN(DS_RETURN)) return R_RET; //Throw_Break(DS_RETURN);
-			Throw_Error(VAL_ERR_OBJECT(DS_RETURN));
+			if (THROWN(DS_OUT)) return R_OUT; //Throw_Break(DS_OUT);
+			Throw_Error(VAL_ERR_OBJECT(DS_OUT));
 		}
 		SET_STATE(state, Saved_State);
 		n = Parse_Series(val, VAL_BLK_DATA(arg), (opts & PF_CASE) ? AM_FIND_CASE : 0, 0);
-		SET_LOGIC(DS_RETURN, n >= VAL_TAIL(val) && n != NOT_FOUND);
+		SET_LOGIC(DS_OUT, n >= VAL_TAIL(val) && n != NOT_FOUND);
 		POP_STATE(state, Saved_State);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 

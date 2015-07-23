@@ -98,8 +98,8 @@
 
 	count = Recycle();
 
-	DS_Ret_Int(count);
-	return R_RET;
+	SET_INTEGER(D_OUT, count);
+	return R_OUT;
 }
 
 
@@ -116,13 +116,13 @@
 	if (D_REF(3)) {
 		VAL_TIME(ds) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
 		VAL_SET(ds, REB_TIME);
-		return R_RET;
+		return R_OUT;
 	}
 
 	if (D_REF(4)) {
 		n = Eval_Cycles + Eval_Dose - Eval_Count;
 		SET_INTEGER(ds, n);
-		return R_RET;
+		return R_OUT;
 	}
 
 	if (D_REF(2)) {
@@ -159,7 +159,7 @@
 			stats++;
 			SET_INTEGER(stats, PG_Reb_Stats->Recycle_Counter);
 		}
-		return R_RET;
+		return R_OUT;
 	}
 
 	if (D_REF(5)) {
@@ -171,9 +171,9 @@
 	if (D_REF(1)) flags = 3;
 	n = Inspect_Series(flags);
 
-	DS_RET_INT(n);
+	SET_INTEGER(D_OUT, n);
 
-	return R_RET;
+	return R_OUT;
 }
 
 const char *evoke_help = "Evoke values:\n"
@@ -336,7 +336,7 @@ const char *evoke_help = "Evoke values:\n"
 		Set_Block(D_OUT, Make_Backtrace(index));
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -365,7 +365,7 @@ const char *evoke_help = "Evoke values:\n"
 		}
 		if (*STR_SKIP(ser, n)) goto err;
 	}
-	return R_RET;
+	return R_OUT;
 err:
 	Trap_DEAD_END(RE_BAD_SERIES);
 	DEAD_END;
@@ -503,7 +503,7 @@ err:
 		Trap_DEAD_END(RE_BAD_MEDIA); // need better!!!
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 

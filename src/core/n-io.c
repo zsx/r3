@@ -95,7 +95,7 @@ static REBSER *Read_All_File(char *fname)
 			Trap1_DEAD_END(RE_CANNOT_OPEN, val);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -112,7 +112,7 @@ static REBSER *Read_All_File(char *fname)
 ***********************************************************************/
 {
 	Set_String(D_OUT, Copy_Form_Value(D_ARG(1), 0));
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -142,7 +142,7 @@ static REBSER *Read_All_File(char *fname)
 
 	Set_String(D_OUT, Copy_String(mo.series, 0, -1));
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -273,7 +273,7 @@ static REBSER *Read_All_File(char *fname)
 
 	if (n > 0) SET_INTEGER(ret, n);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -293,7 +293,7 @@ static REBSER *Read_All_File(char *fname)
 
 	Set_Binary(D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 
 #ifdef unused
 	if (D_REF(2)) // /binary
@@ -305,7 +305,7 @@ static REBSER *Read_All_File(char *fname)
 		else
 			Set_String(ret, ser);
 	}
-	return R_RET;
+	return R_OUT;
 #endif
 }
 #endif
@@ -388,7 +388,7 @@ chk_neg:
 		else SET_NONE(D_OUT);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -433,7 +433,7 @@ chk_neg:
 	if (!ser) Trap_Arg_DEAD_END(arg);
 	Set_Series(REB_FILE, D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -450,7 +450,7 @@ chk_neg:
 	if (!ser) Trap_Arg_DEAD_END(arg);
 	Set_Series(REB_STRING, D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -470,7 +470,7 @@ chk_neg:
 	OS_FREE(lpath);
 	Set_Series(REB_FILE, D_OUT, ser);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -751,7 +751,7 @@ chk_neg:
 		}
 
 		SET_OBJECT(D_OUT, obj);
-		return R_RET;
+		return R_OUT;
 	}
 
 	if (r == 0) {
@@ -759,7 +759,7 @@ chk_neg:
 			SET_INTEGER(D_OUT, exit_code);
 		else
 			SET_INTEGER(D_OUT, pid);
-		return R_RET;
+		return R_OUT;
 	} else {
 		Trap1_DEAD_END(RE_CALL_FAIL, Make_OS_Error(r));
 		return R_NONE;
@@ -939,7 +939,7 @@ chk_neg:
 	ENABLE_GC;
 	OS_FREE(fr.files);
 
-	return ser ? R_RET : R_NONE;
+	return ser ? R_OUT : R_NONE;
 }
 
 
@@ -969,7 +969,7 @@ chk_neg:
 	Set_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
 	FREE_ARRAY(REBCHR, lenplus, buf);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -995,7 +995,7 @@ chk_neg:
 		if (success) {
 			// What function could reuse arg2 as-is?
 			Set_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
-			return R_RET;
+			return R_OUT;
 		}
 		return R_UNSET;
 	}
@@ -1024,7 +1024,7 @@ chk_neg:
 
 	Set_Series(REB_MAP, D_OUT, String_List_To_Block(result));
 
-	return R_RET;
+	return R_OUT;
 }
 
 /***********************************************************************
@@ -1065,7 +1065,7 @@ chk_neg:
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
-						return R_RET;
+						return R_OUT;
 					}
 				} else {
 					Trap_Arg_DEAD_END(val);
@@ -1076,7 +1076,7 @@ chk_neg:
 					return R_NONE;
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			}
 			break;
@@ -1100,7 +1100,7 @@ chk_neg:
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
-						return R_RET;
+						return R_OUT;
 					}
 				} else {
 					Trap_Arg_DEAD_END(val);
@@ -1111,7 +1111,7 @@ chk_neg:
 					return R_NONE;
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			}
 			break;
@@ -1135,7 +1135,7 @@ chk_neg:
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
-						return R_RET;
+						return R_OUT;
 					}
 				} else {
 					Trap_Arg_DEAD_END(val);
@@ -1146,7 +1146,7 @@ chk_neg:
 					return R_NONE;
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			}
 			break;
@@ -1170,7 +1170,7 @@ chk_neg:
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
-						return R_RET;
+						return R_OUT;
 					}
 				} else {
 					Trap_Arg_DEAD_END(val);
@@ -1181,7 +1181,7 @@ chk_neg:
 					return R_NONE;
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			}
 			break;
@@ -1231,7 +1231,7 @@ chk_neg:
 					}
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			} else {
 				REBINT ret = OS_GET_PID();
@@ -1239,7 +1239,7 @@ chk_neg:
 					return R_NONE;
 				} else {
 					SET_INTEGER(D_OUT, ret);
-					return R_RET;
+					return R_OUT;
 				}
 			}
 			break;

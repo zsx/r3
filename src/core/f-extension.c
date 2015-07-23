@@ -276,7 +276,7 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 	if (!n) Trap_Num(RE_INVALID_ARG, GET_EXT_ERROR(&cbi->result));
 
 	RXI_To_Value(ds, cbi->result, n);
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -373,7 +373,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	if (!D_REF(2)) *FRM_VALUE(obj, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
 	Set_Binary(FRM_VALUE(obj, STD_EXTENSION_LIB_BOOT), src);
 
-	return R_RET;
+	return R_OUT;
 }
 
 
@@ -459,7 +459,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
 	// Call the command:
 	n = ext->call(cmd, &frm, 0);
-	val = DS_RETURN;
+	val = DS_OUT;
 	switch (n) {
 	case RXR_VALUE:
 		RXI_To_Value(val, frm.args[1], RXA_TYPE(&frm, 1));
@@ -589,7 +589,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 		n = (REBCNT)VAL_INT64(func + 1);
 		ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(func, 1))]; // Handler
 		n = ext->call(n, &frm, ctx);
-		val = DS_RETURN;
+		val = DS_OUT;
 		switch (n) {
 		case RXR_VALUE:
 			RXI_To_Value(val, frm.args[1], RXA_TYPE(&frm, 1));
@@ -637,5 +637,5 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	ctx.index = 0;
 	Do_Commands(ctx.block, &ctx);
 
-	return R_RET;
+	return R_OUT;
 }

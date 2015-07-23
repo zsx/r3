@@ -194,7 +194,7 @@ static int sig_word_num(REBVAL *word)
 				}
 				break;
 			case A_CLOSE:
-				return R_RET;
+				return R_OUT;
 
 			case A_OPENQ:
 				return R_FALSE;
@@ -241,7 +241,7 @@ static int sig_word_num(REBVAL *word)
 			if (len > 0) {
 				update(req, len, arg);
 				*D_OUT = *arg;
-				return R_RET;
+				return R_OUT;
 			} else {
 				return R_NONE;
 			}
@@ -260,7 +260,7 @@ static int sig_word_num(REBVAL *word)
 			Trap_Action_DEAD_END(REB_PORT, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 

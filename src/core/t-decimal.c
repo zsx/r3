@@ -421,7 +421,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				if (IS_MONEY(arg)) {
 					VAL_DECI(D_OUT) = Round_Deci(decimal_to_deci(d1), num, VAL_DECI(arg));
 					SET_TYPE(D_OUT, REB_MONEY);
-					return R_RET;
+					return R_OUT;
 				}
 				if (IS_TIME(arg)) Trap_Arg_DEAD_END(arg);
 
@@ -429,7 +429,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				if (IS_INTEGER(arg)) {
 					VAL_INT64(D_OUT) = cast(REBI64, d1);
 					SET_TYPE(D_OUT, REB_INTEGER);
-					return R_RET;
+					return R_OUT;
 				}
 				if (IS_PERCENT(arg)) type = REB_PERCENT;
 			}
@@ -456,7 +456,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 
 		case A_COMPLEMENT:
 			SET_INTEGER(D_OUT, ~(REBINT)d1);
-			return R_RET;
+			return R_OUT;
 		}
 	}
 	Trap_Action_DEAD_END(VAL_TYPE(val), action);
@@ -475,7 +475,7 @@ setDec:
 	VAL_SET(D_OUT, type);
 	VAL_DECIMAL(D_OUT) = d1;
 	///if (type == REB_MONEY) VAL_MONEY_DENOM(D_OUT)[0] = 0;
-	return R_RET;
+	return R_OUT;
 
 is_false:
 	return R_FALSE;

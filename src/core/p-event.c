@@ -225,7 +225,7 @@ act_blk:
 		Trap_Action_DEAD_END(REB_PORT, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 

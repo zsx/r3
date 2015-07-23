@@ -610,7 +610,7 @@ set_bits:
 		Trap_Action_DEAD_END(REB_BITSET, action);
 	}
 
-	DS_RET_VALUE(value);
-	return R_RET;
+	*D_OUT = *value;
+	return R_OUT;
 }
 

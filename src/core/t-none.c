@@ -86,5 +86,5 @@
 		Trap_Action_DEAD_END(VAL_TYPE(val), action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }

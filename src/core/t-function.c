@@ -162,6 +162,6 @@ of_type:
 	default: Trap_Action_DEAD_END(type, action);
 	}
 
-	DS_RET_VALUE(value);
-	return R_RET;
+	*D_OUT = *value;
+	return R_OUT;
 }

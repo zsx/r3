@@ -561,11 +561,11 @@ find:
 		if (action == A_PICK) {
 pick_it:
 			if (IS_BINARY(value)) {
-				SET_INTEGER(DS_RETURN, *VAL_BIN_SKIP(value, index));
+				SET_INTEGER(DS_OUT, *VAL_BIN_SKIP(value, index));
 			}
 			else
-				str_to_char(DS_RETURN, value, index);
-			return R_RET;
+				str_to_char(DS_OUT, value, index);
+			return R_OUT;
 		}
 		else {
 			REBUNI c;
@@ -595,7 +595,7 @@ pick_it:
 			if (len == 0) {
 zero_str:
 				Set_Series(VAL_TYPE(value), D_OUT, Make_Binary(0));
-				return R_RET;
+				return R_OUT;
 			}
 		} else
 			len = 1;
@@ -727,14 +727,14 @@ zero_str:
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 	}
 
-	DS_RET_VALUE(value);
-	return R_RET;
+	*D_OUT = *value;
+	return R_OUT;
 
 ser_exit:
 	type = VAL_TYPE(value);
 str_exit:
 	Set_Series(type, D_OUT, ser);
-	return R_RET;
+	return R_OUT;
 
 is_none:
 	return R_NONE;

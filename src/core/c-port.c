@@ -328,7 +328,7 @@
 
 	// If actor is a native function:
 	if (IS_NATIVE(actor))
-		return ((REBPAF)VAL_FUNC_CODE(actor))(DS_RETURN, port, action);
+		return cast(REBPAF, VAL_FUNC_CODE(actor))(DS_OUT, port, action);
 
 	// actor must be an object:
 	if (!IS_OBJECT(actor)) Trap_DEAD_END(RE_INVALID_ACTOR);
@@ -340,7 +340,7 @@
 		Trap1_DEAD_END(RE_NO_PORT_ACTION, Get_Action_Word(action));
 	}
 	Redo_Func(actor);
-	return R_RET;
+	return R_OUT;
 
 	// If not in PORT actor, use the SCHEME actor:
 #ifdef no_longer_used

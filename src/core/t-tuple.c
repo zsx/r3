@@ -286,8 +286,8 @@
 	switch (action) {
 	case A_LENGTHQ:
 		len = MAX(len, 3);
-		DS_RET_INT(len);
-		return R_RET;
+		SET_INTEGER(D_OUT, len);
+		return R_OUT;
 
 	case A_PICK:
 		Pick_Path(value, arg, 0);
@@ -319,8 +319,8 @@
 			Trap_Range_DEAD_END(arg);
 		}
 		if (action == A_PICK) {
-			DS_RET_INT(vp[a-1]);
-			return R_RET;
+			SET_INTEGER(D_OUT, vp[a-1]);
+			return R_OUT;
 		}
 		// Poke:
 		if (!IS_INTEGER(D_ARG(3))) Trap_Arg_DEAD_END(D_ARG(3));
@@ -340,12 +340,12 @@
 		}
 		if (IS_STRING(arg)) {
 			ap = Qualify_String(arg, 11*4+1, &len, FALSE); // can trap, ret diff str
-			if (Scan_Tuple(ap, len, D_OUT)) return R_RET;
+			if (Scan_Tuple(ap, len, D_OUT)) return R_OUT;
 			goto bad_arg;
 		}
 		if (ANY_BLOCK(arg)) {
 			if (!MT_Tuple(D_OUT, VAL_BLK_DATA(arg), REB_TUPLE)) Trap_Make_DEAD_END(REB_TUPLE, arg);
-			return R_RET;
+			return R_OUT;
 		}
 
 		VAL_SET(value, REB_TUPLE);
@@ -383,6 +383,6 @@ bad_arg:
 	Trap_Action_DEAD_END(REB_TUPLE, action);
 
 ret_value:
-	*DS_RETURN = *value;
-	return R_RET;
+	*DS_OUT = *value;
+	return R_OUT;
 }

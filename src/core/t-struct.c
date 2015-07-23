@@ -976,7 +976,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 	arg = D_ARG(2);
 	val = D_ARG(1);
 
-	ret = DS_RETURN;
+	ret = DS_OUT;
 	// unary actions
 	switch(action) {
 		case A_MAKE:
@@ -1047,7 +1047,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 		default:
 			Trap_Action_DEAD_END(REB_STRUCT, action);
 	}
-	return R_RET;
+	return R_OUT;
 
 is_arg_error:
 	Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_STRUCT, VAL_TYPE(arg));

@@ -91,8 +91,8 @@
 	err = z_compress2(BIN_HEAD(output), &size, BIN_HEAD(input) + index, len, Z_DEFAULT_COMPRESSION);
 	if (err) {
 		if (err == Z_MEM_ERROR) Trap_DEAD_END(RE_NO_MEMORY);
-		SET_INTEGER(DS_RETURN, err);
-		Trap1_DEAD_END(RE_BAD_PRESS, DS_RETURN); //!!!provide error string descriptions
+		SET_INTEGER(DS_OUT, err);
+		Trap1_DEAD_END(RE_BAD_PRESS, DS_OUT); //!!!provide error string descriptions
 	}
 	SET_STR_END(output, size);
 	SERIES_TAIL(output) = size;
@@ -137,8 +137,8 @@
 	if (err) {
 		if (PG_Boot_Phase < 2) return 0;
 		if (err == Z_MEM_ERROR) Trap_DEAD_END(RE_NO_MEMORY);
-		SET_INTEGER(DS_RETURN, err);
-		Trap1_DEAD_END(RE_BAD_PRESS, DS_RETURN); //!!!provide error string descriptions
+		SET_INTEGER(DS_OUT, err);
+		Trap1_DEAD_END(RE_BAD_PRESS, DS_OUT); //!!!provide error string descriptions
 	}
 	SET_STR_END(output, size);
 	SERIES_TAIL(output) = size;

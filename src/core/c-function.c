@@ -286,10 +286,10 @@
 
 	Eval_Natives++;
 
-	if ((n = VAL_FUNC_CODE(func)(DS_RETURN))) {
-		ds = DS_RETURN;
+	if ((n = VAL_FUNC_CODE(func)(DS_OUT))) {
+		ds = DS_OUT;
 		switch (n) {
-		case R_RET: // for compiler opt
+		case R_OUT: // for compiler opt
 			break;
 		case R_TOS:
 			*ds = *DS_TOP;
@@ -337,9 +337,9 @@
 	if (!action) Trap_Action(type, act);
 	ret = action(ds, act);
 	if (ret > 0) {
-		ds = DS_RETURN;
+		ds = DS_OUT;
 		switch (ret) {
-		case R_RET: // for compiler opt
+		case R_OUT: // for compiler opt
 			break;
 		case R_TOS:
 			*ds = *DS_TOP;
@@ -379,7 +379,7 @@
 /*
 ***********************************************************************/
 {
-	REBVAL *ds = DS_RETURN;
+	REBVAL *ds = DS_OUT;
 	REBCNT type = VAL_TYPE(D_ARG(1));
 
 	Eval_Natives++;
@@ -414,7 +414,7 @@
 
 	//Dump_Block(VAL_FUNC_BODY(func));
 	result = Do_Blk(VAL_FUNC_BODY(func), 0);
-	ds = DS_RETURN;
+	ds = DS_OUT;
 
 	if (IS_ERROR(result) && IS_RETURN(result)) {
 		// Value below is kept safe from GC because no-allocation is
@@ -455,10 +455,10 @@
 	// Rebind the body to the new context (deeply):
 	Rebind_Block(VAL_FUNC_ARGS(func), frame, BLK_HEAD(body), REBIND_TYPE);
 
-	ds = DS_RETURN;
+	ds = DS_OUT;
 	SET_OBJECT(ds, body); // keep it GC safe
 	result = Do_Blk(body, 0); // GC-OK - also, result returned on DS stack
-	ds = DS_RETURN;
+	ds = DS_OUT;
 
 	if (IS_ERROR(result) && IS_RETURN(result)) {
 		// Value below is kept safe from GC because no-allocation is
@@ -479,5 +479,5 @@
 {
 	//RL_Print("%s, %d\n", __func__, __LINE__);
 	REBSER *args = Copy_Values(BLK_SKIP(DS_Series, DS_ARG_BASE + 1), SERIES_TAIL(VAL_FUNC_ARGS(routine)) - 1);
-	Call_Routine(routine, args, DS_RETURN);
+	Call_Routine(routine, args, DS_OUT);
 }

@@ -105,7 +105,7 @@
 		}
 
 		*D_OUT = *arg;
-		return R_RET;
+		return R_OUT;
 
 	case A_WRITE:
 		if (!IS_STRING(arg) && !IS_BINARY(arg)) Trap1_DEAD_END(RE_INVALID_PORT_ARG, arg);

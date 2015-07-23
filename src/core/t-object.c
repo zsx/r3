@@ -299,8 +299,8 @@ static REBSER *Trim_Object(REBSER *obj)
 					SET_OBJECT(ds, obj); // GC save
 					arg = Do_Bind_Block(obj, arg); // GC-OK
 					if (THROWN(arg)) {
-						DS_RET_VALUE(arg);
-						return R_RET;
+						*D_OUT = *arg;
+						return R_OUT;
 					}
 					break; // returns obj
 				}
@@ -374,8 +374,8 @@ static REBSER *Trim_Object(REBSER *obj)
 				SET_OBJECT(ds, obj);
 				arg = Do_Bind_Block(obj, arg); // GC-OK
 				if (THROWN(arg)) {
-					DS_RET_VALUE(arg);
-					return R_RET;
+					*D_OUT = *arg;
+					return R_OUT;
 				}
 				break; // returns obj
 			}
@@ -433,8 +433,8 @@ static REBSER *Trim_Object(REBSER *obj)
 
 	case A_LENGTHQ:
 		if (IS_OBJECT(value)) {
-			DS_RET_INT(SERIES_TAIL(VAL_OBJ_FRAME(value))-1);
-			return R_RET;
+			SET_INTEGER(D_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) - 1);
+			return R_OUT;
 		}
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 
@@ -502,8 +502,8 @@ reflect:
 
 	case A_TAILQ:
 		if (IS_OBJECT(value)) {
-			SET_LOGIC(DS_RETURN, SERIES_TAIL(VAL_OBJ_FRAME(value)) <= 1);
-			return R_RET;
+			SET_LOGIC(DS_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) <= 1);
+			return R_OUT;
 		}
 		Trap_Action_DEAD_END(VAL_TYPE(value), action);
 
@@ -516,8 +516,8 @@ reflect:
 		VAL_OBJ_FRAME(value) = obj;
 	}
 
-	DS_RET_VALUE(value);
-	return R_RET;
+	*D_OUT = *value;
+	return R_OUT;
 
 is_true:
 	return R_TRUE;

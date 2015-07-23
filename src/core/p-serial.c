@@ -143,10 +143,10 @@
 
 			if (OS_DO_DEVICE(req, RDC_OPEN)) Trap_Port_DEAD_END(RE_CANNOT_OPEN, port, -12);
 			SET_OPEN(req);
-			return R_RET;
+			return R_OUT;
 
 		case A_CLOSE:
-			return R_RET;
+			return R_OUT;
 
 		case A_OPENQ:
 			return R_FALSE;
@@ -187,7 +187,7 @@
 		printf("\n");
 #endif
 		*D_OUT = *arg;
-		return R_RET;
+		return R_OUT;
 
 	case A_WRITE:
 		refs = Find_Refines(ds, ALL_WRITE_REFS);
@@ -235,7 +235,7 @@
 		Trap_Action_DEAD_END(REB_PORT, action);
 	}
 
-	return R_RET;
+	return R_OUT;
 }
 
 

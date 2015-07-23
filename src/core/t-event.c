@@ -401,7 +401,7 @@ is_arg_error:
 	}
 	else Trap_Action_DEAD_END(REB_EVENT, action);
 
-	return R_RET;
+	return R_OUT;
 }
 
 #ifdef ndef
@@ -441,7 +441,7 @@ pick_it:
 			arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
 			if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
 				*D_OUT = *VAL_BLK_SKIP(arg, VAL_EVENT_TYPE(value));
-				return R_RET;
+				return R_OUT;
 			}
 			return R_NONE;
 
@@ -454,7 +454,7 @@ pick_it:
 				if (!req || !req->port) goto is_none;
 				SET_PORT(D_OUT, (REBSER*)(req->port));
 			}
-			return R_RET;
+			return R_OUT;
 
 		case EF_KEY:
 			if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_none;
@@ -463,41 +463,45 @@ pick_it:
 				VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
 			} else
 				Init_Word(D_OUT, VAL_EVENT_XY(value));
-			return R_RET;
+			return R_OUT;
 
 		case EF_OFFSET:
 			VAL_SET(D_OUT, REB_PAIR);
 			VAL_PAIR_X(D_OUT) = VAL_EVENT_X(value);
 			VAL_PAIR_Y(D_OUT) = VAL_EVENT_Y(value);
-			return R_RET;
+			return R_OUT;
 
 		case EF_TIME:
 			VAL_SET(D_OUT, REB_INTEGER);
 //!!			VAL_INT64(D_OUT) = VAL_EVENT_TIME(value);
-			return R_RET;
+			return R_OUT;
 
 		case EF_SHIFT:
 			VAL_SET(D_OUT, REB_LOGIC);
 			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0;
-			return R_RET;
+			return R_OUT;
 
 		case EF_CONTROL:
 			VAL_SET(D_OUT, REB_LOGIC);
 			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0;
-			return R_RET;
+			return R_OUT;
 
 		case EF_DCLICK:
 			VAL_SET(D_OUT, REB_LOGIC);
 			VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0;
-			return R_RET;
+			return R_OUT;
 
 /*			case EF_FACE:
 			{
 				REBWIN	*wp;
-				if (!IS_BLOCK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_RET None_Value;
+				// !!! Used to say 'return R_OUT None_Value;', but as this is
+				// commented out code it's not possible to determine what that
+				// exactly was supposed to have done.
+
+				if (!IS_BLOCK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_OUT;
 				wp = (REBWIN *)VAL_BLK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value));
 				*D_OUT = wp->masterFace;
-				return R_RET;
+				return R_OUT;
 			}
 */
 		}
