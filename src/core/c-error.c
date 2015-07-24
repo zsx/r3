@@ -412,7 +412,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	REBSER *Make_Error(REBINT code, REBVAL *arg1, REBVAL *arg2, REBVAL *arg3)
+*/	REBSER *Make_Error(REBINT code, const REBVAL *arg1, const REBVAL *arg2, const REBVAL *arg3)
 /*
 **		Create and init a new error object.
 **
@@ -464,7 +464,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap1(REBCNT num, REBVAL *arg1)
+*/	void Trap1(REBCNT num, const REBVAL *arg1)
 /*
 ***********************************************************************/
 {
@@ -474,7 +474,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap2(REBCNT num, REBVAL *arg1, REBVAL *arg2)
+*/	void Trap2(REBCNT num, const REBVAL *arg1, const REBVAL *arg2)
 /*
 ***********************************************************************/
 {
@@ -484,7 +484,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap3(REBCNT num, REBVAL *arg1, REBVAL *arg2, REBVAL *arg3)
+*/	void Trap3(REBCNT num, const REBVAL *arg1, const REBVAL *arg2, const REBVAL *arg3)
 /*
 ***********************************************************************/
 {
@@ -494,7 +494,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Arg(REBVAL *arg)
+*/	void Trap_Arg(const REBVAL *arg)
 /*
 ***********************************************************************/
 {
@@ -504,7 +504,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Type(REBVAL *arg)
+*/	void Trap_Type(const REBVAL *arg)
 /*
 **		<type> type is not allowed here
 **
@@ -516,7 +516,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Range(REBVAL *arg)
+*/	void Trap_Range(const REBVAL *arg)
 /*
 **		value out of range: <value>
 **
@@ -528,7 +528,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Word(REBCNT num, REBCNT sym, REBVAL *arg)
+*/	void Trap_Word(REBCNT num, REBCNT sym, const REBVAL *arg)
 /*
 ***********************************************************************/
 {
@@ -571,7 +571,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Expect(REBVAL *object, REBCNT index, REBCNT type)
+*/	void Trap_Expect(const REBVAL *object, REBCNT index, REBCNT type)
 /*
 **		Object field is not of expected type.
 **		PORT expected SCHEME of OBJECT type
@@ -584,7 +584,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Make(REBCNT type, REBVAL *spec)
+*/	void Trap_Make(REBCNT type, const REBVAL *spec)
 /*
 ***********************************************************************/
 {
@@ -605,7 +605,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Reflect(REBCNT type, REBVAL *arg)
+*/	void Trap_Reflect(REBCNT type, const REBVAL *arg)
 /*
 ***********************************************************************/
 {

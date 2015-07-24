@@ -1352,7 +1352,7 @@
 
 /***********************************************************************
 **
-*/	REBVAL *Obj_Word(REBVAL *value, REBCNT index)
+*/	REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
 /*
 **		Return pointer to the nth WORD of an object.
 **

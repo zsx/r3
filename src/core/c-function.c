@@ -53,7 +53,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *List_Func_Words(REBVAL *func)
+*/	REBSER *List_Func_Words(const REBVAL *func)
 /*
 **		Return a block of function words, unbound.
 **		Note: skips 0th entry.
