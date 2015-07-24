@@ -1381,7 +1381,14 @@ append:
 	// it must be done like this and each time.
 	if (GET_MOPT(mold, MOPT_MOLD_ALL)) len = MAX_DIGITS;
 	else {
-		len = Get_System_Int(SYS_OPTIONS, OPTIONS_DECIMAL_DIGITS, MAX_DIGITS);
+		// !!! It may be necessary to mold out values before the options
+		// block is loaded, and this 'Get_System_Int' is a bottleneck which
+		// crashes that in early debugging.  BOOT_ERRORS is sufficient.
+		if (PG_Boot_Phase >= BOOT_ERRORS)
+			len = Get_System_Int(SYS_OPTIONS, OPTIONS_DECIMAL_DIGITS, MAX_DIGITS);
+		else
+			len = MAX_DIGITS;
+
 		if (len > MAX_DIGITS) len = MAX_DIGITS;
 		else if (len < 0) len = 0;
 	}
