@@ -539,6 +539,7 @@ got_err:
 		return R_ARG1;
 
 	case REB_SET_WORD:
+	case REB_SET_PATH:
 		Trap_Arg_DEAD_END(value);
 
 	default:
