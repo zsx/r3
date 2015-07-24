@@ -52,6 +52,7 @@ Script: [
 	no-value:           [:arg1 {has no value}]
 	need-value:         [:arg1 {needs a value}]
 	not-defined:        [:arg1 {word is not bound to a context}]
+	no-relative:        [:arg1 {word is bound relative to context not on stack}]
 	not-in-context:     [:arg1 {is not in the specified context}]
 
 	no-arg:             [:arg1 {is missing its} :arg2 {argument}]

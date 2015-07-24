@@ -163,7 +163,9 @@ enum {
 		wrd = FRM_WORDS(VAL_WORD_FRAME(word))+VAL_WORD_INDEX(word);
 		Protect_Word(wrd, flags);
 		if (GET_FLAG(flags, PROT_DEEP)) {
-			val = Get_Var(word);
+			// Ignore existing mutability state, by casting away the const.
+			// (Most routines should DEFINITELY not do this!)
+			val = m_cast(REBVAL*, GET_VAR(word));
 			Protect_Value(val, flags);
 			Unmark(val);
 		}
@@ -221,7 +223,24 @@ enum {
 		if (D_REF(4)) { // /values
 			REBVAL *val2;
 			for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
-				Protect_Value(val2 = Get_Any_Var(val), flags);
+				if (IS_WORD(val)) {
+					// !!! Temporary and ugly cast; since we *are* PROTECT
+					// we allow ourselves to get mutable references to even
+					// protected values so we can no-op protect them.
+					val2 = m_cast(REBVAL*, GET_VAR(val));
+				}
+				else if (IS_PATH(val)) {
+					REBVAL *path = val;
+					if (Do_Path(&path, 0)) {
+						val2 = val; // !!! comment said "found a function"
+					} else {
+						val2 = DS_TOP; // !!! unstable on top of stack
+					}
+				}
+				else
+					val2 = val;
+
+				Protect_Value(val2, flags);
 				if (GET_FLAG(flags, PROT_DEEP)) Unmark(val2);
 			}
 			return R_ARG1;
@@ -509,7 +528,7 @@ got_err:
 
 	case REB_WORD:
 	case REB_GET_WORD:
-		*D_OUT = *Get_Var(value);
+		GET_VAR_INTO(D_OUT, value);
 		return R_OUT;
 
 	case REB_LIT_WORD:

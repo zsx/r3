@@ -129,10 +129,12 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 		if (Find_Command(dia->dialect, value) == 0) {
 			REBVAL *val = value; // save
 			if (dia->contexts) {
-				value = Find_In_Contexts(VAL_WORD_CANON(value), dia->contexts);
+				value = Find_Mutable_In_Contexts(
+					VAL_WORD_CANON(value), dia->contexts
+				);
 				if (value) break;
 			}
-			value = Get_Var_No_Trap(val); // may return zero
+			value = TRY_GET_MUTABLE_VAR(val); // NULL if protected or not found
 		}
 		break;
 
@@ -215,7 +217,9 @@ again:
 					accept = 4;
 				}
 				// Is it a typeset?
-				else if ((temp = Get_Var_No_Trap(fargs)) && IS_TYPESET(temp)) {
+				else if (
+					(temp = TRY_GET_MUTABLE_VAR(fargs)) && IS_TYPESET(temp)
+				) {
 					if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;
 				}
 				else if (!IS_WORD(value)) return 0; // do not search past a refinement

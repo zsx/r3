@@ -91,7 +91,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 {
 	const REBVAL *val;
 
-	val = IS_WORD(types) ? Get_Var(types) : types;
+	val = IS_WORD(types) ? GET_VAR(types) : types;
 
 	if (IS_DATATYPE(val)) {
 		return (VAL_DATATYPE(val) == (REBINT)VAL_TYPE(value));
@@ -103,7 +103,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	if (IS_BLOCK(val)) {
 		for (types = VAL_BLK_DATA(val); NOT_END(types); types++) {
-			val = IS_WORD(types) ? Get_Var(types) : types;
+			val = IS_WORD(types) ? GET_VAR(types) : types;
 			if (IS_DATATYPE(val)) {
 				if (VAL_DATATYPE(val) == (REBINT)VAL_TYPE(value)) return TRUE;
 			} else if (IS_TYPESET(val)) {
@@ -152,7 +152,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 		for (value = VAL_BLK_DATA(value); NOT_END(value); value += 2) {
 			if (IS_WORD(value)) {
-				val = Get_Var(value);
+				val = GET_VAR(value);
 			}
 			else if (IS_PATH(value)) {
 				REBVAL *refinements = value;
@@ -353,29 +353,29 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 ***********************************************************************/
 {
 	REBVAL *word = D_ARG(1);
-	REBVAL *val;
 
 	if (ANY_WORD(word)) {
-		val = Get_Var(word);
+		const REBVAL *val = GET_VAR(word);
 		if (IS_FRAME(val)) {
 			Init_Obj_Value(D_OUT, VAL_WORD_FRAME(word));
 			return R_OUT;
 		}
 		if (!D_REF(2) && !IS_SET(val)) Trap1_DEAD_END(RE_NO_VALUE, word);
+		*D_OUT = *val;
 	}
 	else if (ANY_PATH(word)) {
-		val = Do_Path(&word, 0);
+		REBVAL *refinements = word;
+		REBVAL *val = Do_Path(&refinements, 0);
 		if (!val) val = DS_POP; // resides on stack
-		if (!D_REF(2) && !IS_SET(val)) Trap1_DEAD_END(RE_NO_VALUE, word); //!!!! word is modified
+		if (!D_REF(2) && !IS_SET(val)) Trap1_DEAD_END(RE_NO_VALUE, word);
+		*D_OUT = *val;
 	}
 	else if (IS_OBJECT(word)) {
 		Assert_Public_Object(word);
 		Set_Block(D_OUT, Copy_Block(VAL_OBJ_FRAME(word), 1));
-		return R_OUT;
 	}
-	else val = word; // all other values
+	else *D_OUT = *word; // all other values
 
-	*D_OUT = *val;
 	return R_OUT;
 }
 
@@ -533,14 +533,15 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 					if (!IS_SET(tmp)) Trap1_DEAD_END(RE_NEED_VALUE, word);
 					break;
 				case REB_GET_WORD:
-					if (!IS_SET(IS_WORD(tmp) ? Get_Var(tmp) : tmp)) Trap1_DEAD_END(RE_NEED_VALUE, word);
+					if (!IS_SET(IS_WORD(tmp) ? GET_VAR(tmp) : tmp))
+						Trap1_DEAD_END(RE_NEED_VALUE, word);
 				}
 			}
 		}
 		for (word = VAL_BLK_DATA(D_ARG(1)); NOT_END(word); word++) {
 			if (IS_WORD(word) || IS_SET_WORD(word) || IS_LIT_WORD(word)) Set_Var(word, val);
 			else if (IS_GET_WORD(word))
-				Set_Var(word, IS_WORD(val) ? Get_Var(val) : val);
+				Set_Var(word, IS_WORD(val) ? GET_VAR(val) : val);
 			else Trap_Arg_DEAD_END(word);
 			if (is_blk) {
 				val++;
@@ -581,14 +582,14 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (IS_WORD(word)) {
 		if (VAL_WORD_FRAME(word)) {
 			Protected(word);
-			value = Get_Var(word);
+			value = GET_MUTABLE_VAR(word);
 			SET_UNSET(value);
 		}
 	} else {
 		for (word = VAL_BLK_DATA(word); NOT_END(word); word++) {
 			if (IS_WORD(word) && VAL_WORD_FRAME(word)) {
 				Protected(word);
-				value = Get_Var(word);
+				value = GET_MUTABLE_VAR(word);
 				SET_UNSET(value);
 			}
 		}
@@ -605,7 +606,8 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 {
 	REBVAL	*value = D_ARG(1);
 
-	if (ANY_WORD(value) && !(value = Get_Var_No_Trap(value))) return R_FALSE;
+	if (ANY_WORD(value) && !(value = TRY_GET_MUTABLE_VAR(value)))
+		return R_FALSE;
 	if (IS_UNSET(value)) return R_FALSE;
 	return R_TRUE;
 }
@@ -758,7 +760,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	REBCNT index;
 	REBCNT tail;
 
-	value = Get_Var(D_ARG(1));
+	value = GET_MUTABLE_VAR(D_ARG(1));
 
 	if (ANY_SERIES(value)) {
 		tail = VAL_TAIL(value);
@@ -789,7 +791,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	REBCNT n;
 	REBVAL *word = D_ARG(1);
 
-	value = Get_Var_Safe(word); // throws error
+	value = GET_MUTABLE_VAR(word); // traps if protected
 
 	*D_OUT = *value;
 
@@ -823,7 +825,7 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 	REBCNT n;
 	REBVAL *word = D_ARG(1);
 
-	value = Get_Var_Safe(word); // throws error
+	value = GET_MUTABLE_VAR(word); // traps if protected
 
 	*D_OUT = *value;
 

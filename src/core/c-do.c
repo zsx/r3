@@ -191,7 +191,7 @@ void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
 
 	Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,1)), index+1, value);
 	if (IS_WORD(value) || IS_GET_WORD(value)) {
-		value = Get_Var(value);
+		value = GET_VAR(value);
 		if (VAL_TYPE(value) < REB_NATIVE)
 			Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), value);
 		else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION)
@@ -201,7 +201,7 @@ void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
 	}
 	/*if (ANY_WORD(value)) {
 		word = value;
-		if (IS_WORD(value)) value = Get_Var(word);
+		if (IS_WORD(value)) value = GET_VAR(word);
 		Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_FRAME(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
 	}
 	if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, DSF);
@@ -358,7 +358,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 	// object/:field case:
 	if (IS_GET_WORD(path = pvs->path)) {
-		pvs->select = Get_Var(path);
+		pvs->select = GET_MUTABLE_VAR(path);
 		if (IS_UNSET(pvs->select)) Trap1(RE_NO_VALUE, path);
 	}
 	// object/(expr) case:
@@ -434,7 +434,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 	// Lookup the value of the variable:
 	if (IS_WORD(pvs.path)) {
-		pvs.value = Get_Var(pvs.path);
+		pvs.value = GET_MUTABLE_VAR(pvs.path);
 		if (IS_UNSET(pvs.value)) Trap1_DEAD_END(RE_NO_VALUE, pvs.path);
 	} else pvs.value = pvs.path; //Trap2_DEAD_END(RE_INVALID_PATH, pvs.orig, pvs.path);
 
@@ -605,12 +605,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 			} else
 				SET_UNSET(&DS_Base[ds]); // allowed to be none
 			break;
-/*
-				value = BLK_SKIP(block, index);
-				index++;
-				if (IS_WORD(value) && VAL_WORD_FRAME(value)) value = Get_Var(value);
-				DS_Base[ds] = *value;
-*/
+
 		case REB_REFINEMENT: // /WORD - Function refinement
 			if (!path || IS_END(path)) return index;
 			if (IS_WORD(path)) {
@@ -743,7 +738,10 @@ more_path:
 	// 'label' will be that WORD!, and NULL otherwise.
 	REBVAL *label = NULL;
 
-	REBVAL save; // !!! will be needed by StableStack, so not set debug-only
+	// Most of what this routine does can be done with value pointers and
+	// the data stack.  Some operations need a unit of additional storage.
+	// This is a one-REBVAL-sized cell for saving that data.
+	REBVAL save;
 
 #ifndef NDEBUG
 	// This counter is helpful for tracking a specific invocation.
@@ -770,18 +768,24 @@ more_path:
 	value = BLK_SKIP(block, index);
 	//if (Trace_Flags) Trace_Eval(block, index);
 
-reval:
 	if (Trace_Flags) Trace_Line(block, index, value);
 
 	//getchar();
 	switch (EVAL_TYPE(value)) {
 
 	case ET_WORD:
-		value = Get_Var(label = value);
-		if (IS_UNSET(value)) Trap1_DEAD_END(RE_NO_VALUE, label);
-		if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) goto reval; // || IS_LIT_PATH(value)
-		DS_PUSH(value);
-		if (IS_FRAME(value)) Init_Obj_Value(DS_TOP, VAL_WORD_FRAME(label));
+		DS_SKIP;
+		GET_VAR_INTO(DS_TOP, value);
+		if (ANY_FUNC(DS_TOP)) {
+			// OP! is only handled by the code at the tail of this routine
+			if (IS_OP(DS_TOP)) Trap_Type_DEAD_END(DS_TOP);
+
+			// We will reuse the TOS for the OUT of the call frame
+			label = value;
+			value = DS_TOP;
+			if (Trace_Flags) Trace_Line(block, index, value);
+			goto func_needs_push;
+		}
 		index++;
 		break;
 
@@ -918,7 +922,8 @@ reval:
 		break;
 
 	case ET_GET_WORD:
-		DS_PUSH(Get_Var(value));
+		DS_SKIP;
+		GET_VAR_INTO(DS_TOP, value);
 		index++;
 		break;
 
@@ -946,11 +951,23 @@ reval:
 	// If normal eval (not higher precedence of infix op), check for op:
 	if (!op) {
 		value = BLK_SKIP(block, index);
+
+		// Literal function OP! values may occur.
+		if (IS_OP(value)) {
+			label = NULL;
+			if (Trace_Flags) Trace_Line(block, index, value);
+			goto handle_op;
+		}
+
+		// WORD! values may look up to an OP!
 		if (IS_WORD(value) && VAL_WORD_FRAME(value)) {
 			label = value;
-			value = Get_Var(value);
-			if (IS_OP(value))
+			GET_VAR_INTO(&save, value);
+			if (IS_OP(&save)) {
+				value = &save;
+				if (Trace_Flags) Trace_Line(block, index, value);
 				goto handle_op;
+			}
 		}
 	}
 
@@ -1108,7 +1125,6 @@ reval:
 {
 	REBINT start = DSP + 1;
 	REBVAL *val;
-	REBVAL *v;
 	REBSER *ser = 0;
 	REBCNT idx = 0;
 
@@ -1140,15 +1156,17 @@ reval:
 
 	for (val = BLK_SKIP(block, index); NOT_END(val); val++) {
 		if (IS_WORD(val)) {
+			const REBVAL *v;
 			// Check for keyword:
 			if (ser && NOT_FOUND != Find_Word(ser, idx, VAL_WORD_CANON(val))) {
 				Append_Val(dest_ser, val);
 				continue;
 			}
-			v = Get_Var(val);
+			v = GET_VAR(val);
 			Append_Val(dest_ser, v);
 		}
 		else if (IS_PATH(val)) {
+			REBVAL *v;
 			if (ser) {
 				// Check for keyword/path:
 				v = VAL_BLK_DATA(val);
@@ -1222,16 +1240,15 @@ reval:
 {
 	//REBINT start = DSP + 1;
 	REBVAL *val;
-	REBVAL *v;
 
 	// Lookup words and paths and push values on stack:
 	for (val = BLK_SKIP(block, index); NOT_END(val); val++) {
 		if (IS_WORD(val)) {
-			v = Get_Var(val);
+			const REBVAL *v = GET_VAR(val);
 			if (VAL_TYPE(v) == type) DS_PUSH(v);
 		}
 		else if (IS_PATH(val)) {
-			v = val;
+			REBVAL *v = val;
 			if (!Do_Path(&v, 0)) { // pushes val on stack
 				if (VAL_TYPE(DS_TOP) != type) DS_DROP;
 			}
@@ -1379,7 +1396,7 @@ reval:
 
 	// Push function frame:
 	DS_PUSH_UNSET; // OUT slot for function eval result
-	dsf = Push_Func(block, index, 0, func);
+	dsf = Push_Func(block, index, NULL, func);
 	func = DSF_FUNC(dsf); // for safety
 
 	// Determine total number of args:
@@ -1468,7 +1485,7 @@ reval:
 	REBVAL *arg;
 
 	DS_PUSH_UNSET; // OUT slot for function eval result
-	dsf = Push_Func(wblk, widx, 0, func);
+	dsf = Push_Func(wblk, widx, NULL, func);
 	func = DSF_FUNC(dsf); // for safety
 	words = VAL_FUNC_WORDS(func);
 	ds = SERIES_TAIL(words)-1;	// length of stack fill below
@@ -1936,12 +1953,13 @@ push_arg:
 */	const REBVAL *Get_Simple_Value(const REBVAL *val)
 /*
 **		Does easy lookup, else just returns the value as is.
-**		Note for paths value is left on stack.
+**
+**      !!! What's with leaving path! values on the stack?!?  :-/
 **
 ***********************************************************************/
 {
 	if (IS_WORD(val) || IS_GET_WORD(val))
-		val = Get_Var(val);
+		val = GET_VAR(val);
 	else if (IS_PATH(val) || IS_GET_PATH(val)) {
 		// !!! Temporary: make a copy to pass mutable value to Do_Path
 		REBVAL path = *val;
@@ -1964,7 +1982,7 @@ push_arg:
 ***********************************************************************/
 {
 	REBVAL *sel; // selector
-	REBVAL *val;
+	const REBVAL *val;
 	REBSER *blk;
 	REBCNT i;
 
@@ -1972,7 +1990,7 @@ push_arg:
 	blk = VAL_SERIES(path);
 	sel = BLK_HEAD(blk);
 	if (!ANY_WORD(sel)) return 0;
-	val = Get_Var(sel);
+	val = GET_VAR(sel);
 
 	sel = BLK_SKIP(blk, 1);
 	while (TRUE) {

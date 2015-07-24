@@ -295,7 +295,6 @@
 
 	for (; NOT_END(block); block++) {
 		value = block;
-		//if (modes & BIND_GET && IS_GET_WORD(block)) value = Get_Var(block);
 		if (ANY_WORD(value)) {
 			if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
 				if (IS_SET_WORD(value) || modes & BIND_ALL) {
@@ -1122,7 +1121,7 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Find_In_Contexts(REBCNT sym, REBVAL *where)
+*/  REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
 /*
 **      Search a block of objects for a given word symbol and
 **      return the value for the word. NULL if not found.
@@ -1133,7 +1132,7 @@
 
 	for (; NOT_END(where); where++) {
 		if (IS_WORD(where)) {
-			val = Get_Var(where);
+			val = GET_MUTABLE_VAR(where);
 		}
 		else if (IS_PATH(where)) {
 			Do_Path(&where, 0);
@@ -1173,104 +1172,159 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Get_Var(const REBVAL *word)
+*/  REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 /*
-**      Get the word (variable) value. (Use macro when possible).
+**      Get the word--variable--value. (Generally, use the macros like
+**      GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
+**		called quite a lot and so attention to performance is important.
+**
+**      Coded assuming most common case is trap=TRUE and writable=FALSE
 **
 ***********************************************************************/
 {
-	REBINT index = VAL_WORD_INDEX(word);
-	REBSER *frame = VAL_WORD_FRAME(word);
-	REBINT dsf;
+	REBSER *context = VAL_WORD_FRAME(word);
 
-	if (!frame) Trap1_DEAD_END(RE_NOT_DEFINED, word);
-	if (index >= 0) return FRM_VALUES(frame)+index;
+	if (context) {
+		REBINT dsf;
 
-	// A negative index indicates that the value is in a frame on
-	// the data stack, so now we must find it by walking back the
-	// stack looking for the function that the word is bound to.
-	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
-		dsf = PRIOR_DSF(dsf);
-		if (dsf <= 0) Trap1_DEAD_END(RE_NOT_DEFINED, word); // change error !!!
+		REBINT index = VAL_WORD_INDEX(word);
+
+		// POSITIVE INDEX: The word is bound directly to a value inside
+		// a frame, and represents the zero-based offset into that series.
+		// This is how values would be picked out of object-like things...
+		// (Including looking up 'append' in the user context.)
+
+		if (index > 0) {
+			if (!writable) return FRM_VALUES(context) + index;
+
+			{
+				// ^-- new scope: don't stack-alloc `value` in common case
+				REBVAL *value = FRM_VALUES(context) + index;
+				if (VAL_PROTECTED(value)) {
+					if (trap) {
+						Trap1(RE_LOCKED_WORD, word);
+						DEAD_END;
+					}
+					return NULL;
+				}
+				return value;
+			}
+		}
+
+		// NEGATIVE INDEX: Word is stack-relative bound to a function with
+		// no persistent frame held by the GC.  The value *might* be found
+		// on the stack (or not, if all instances of the function on the
+		// call stack have finished executing).  We walk backward in the call
+		// stack to see if we can find the function's "identifying series"
+		// in a call frame...and take the first instance we see (even if
+		// multiple invocations are on the stack, most recent wins)
+
+		if (index < 0) {
+			dsf = DSF; // may be zero (in theory) so loop checks that first
+			while (dsf != 0) {
+				if (context == VAL_FUNC_WORDS(DSF_FUNC(dsf))) {
+					assert(!IS_CLOSURE(DSF_FUNC(dsf)));
+
+					if (!writable) return DSF_ARGS(dsf, -index);
+
+					{
+						// ^-- new scope: don't usually stack-alloc `value`
+						REBVAL *value = DSF_ARGS(dsf, -index);
+						if (VAL_PROTECTED(value)) {
+							if (trap) {
+								Trap1(RE_LOCKED_WORD, word);
+								DEAD_END;
+							}
+							return NULL;
+						}
+						return value;
+					}
+				}
+
+				dsf = PRIOR_DSF(dsf);
+			}
+
+			if (trap) {
+				Trap1(RE_NO_RELATIVE, word);
+				DEAD_END;
+			}
+			return NULL;
+		}
+
+		// ZERO INDEX: The word is SELF.  Although the information needed
+		// to produce an OBJECT!-style REBVAL lives in the zero offset
+		// of the frame, it's not a value that we can return a direct
+		// pointer to.  Use GET_VAR_INTO instead for that.
+
+		assert(!IS_SELFLESS(context));
+		if (trap) {
+			Trap(RE_SELF_PROTECTED);
+			DEAD_END;
+		}
+		return NULL; // is this a case where we should *always* trap?
 	}
-//	if (Trace_Level) Dump_Stack_Frame(dsf);
-	return DSF_ARGS(dsf, -index);
+
+	if (trap) {
+		Trap1(RE_NOT_DEFINED, word);
+		DEAD_END;
+	}
+	return NULL;
 }
 
 
 /***********************************************************************
 **
-*/  REBVAL *Get_Var_Safe(REBVAL *word)
+*/  void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
 /*
-**      Get the word, but check if it will be safe to modify.
+**      Variant of Get_Var_Core that always traps and never returns a
+**      direct pointer into a frame.  It is thus able to give back
+**      `self` lookups, and doesn't have to check the word's protection
+**      status before returning.
+**
+**      See comments in Get_Var_Core for what it's actually doing.
 **
 ***********************************************************************/
 {
-	REBINT index = VAL_WORD_INDEX(word);
-	REBSER *frame = VAL_WORD_FRAME(word);
-	REBINT dsf;
+	REBSER *context = VAL_WORD_FRAME(word);
 
-	if (!frame) Trap1_DEAD_END(RE_NOT_DEFINED, word);
+	if (context) {
+		REBINT dsf;
 
-	if (index >= 0) {
-		if (VAL_PROTECTED(FRM_WORDS(frame) + index))
-			Trap1_DEAD_END(RE_LOCKED_WORD, word);
-		return FRM_VALUES(frame) + index;
+		REBINT index = VAL_WORD_INDEX(word);
+
+		if (index > 0) {
+			*out = *(FRM_VALUES(context) + index);
+			return;
+		}
+
+		if (index < 0) {
+			dsf = DSF;
+			while (dsf) {
+				if (context == VAL_FUNC_WORDS(DSF_FUNC(dsf))) {
+					assert(!IS_CLOSURE(DSF_FUNC(dsf)));
+					*out = *DSF_ARGS(dsf, -index);
+					return;
+				}
+				dsf = PRIOR_DSF(dsf);
+			}
+
+			Trap1(RE_NO_RELATIVE, word);
+			DEAD_END_VOID;
+		}
+
+		// Key difference between Get_Var_Into and Get_Var...fabricating
+		// an object REBVAL.
+
+		// !!! Could fake function frames stow the function value itself
+		// so 'binding-of' can return it and use for binding (vs. TRUE)?
+
+		assert(!IS_SELFLESS(context));
+		SET_OBJECT(out, context);
+		return;
 	}
 
-	// A negative index indicates that the value is in a frame on
-	// the data stack, so now we must find it by walking back the
-	// stack looking for the function that the word is bound to.
-	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
-		dsf = PRIOR_DSF(dsf);
-		if (dsf <= 0) Trap1_DEAD_END(RE_NOT_DEFINED, word); // change error !!!
-	}
-//	if (Trace_Level) Dump_Stack_Frame(dsf);
-	return DSF_ARGS(dsf, -index);
-}
-
-
-/***********************************************************************
-**
-*/  REBVAL *Get_Var_No_Trap(REBVAL *word)
-/*
-**      Same as above, but returns 0 rather than error.
-**
-***********************************************************************/
-{
-	REBINT index = VAL_WORD_INDEX(word);
-	REBSER *frame = VAL_WORD_FRAME(word);
-	REBINT dsf;
-
-	if (!frame) return 0;
-	if (index >= 0) return FRM_VALUES(frame)+index;
-	dsf = DSF;
-	while (frame != VAL_WORD_FRAME(DSF_LABEL(dsf))) {
-		dsf = PRIOR_DSF(dsf);
-		if (dsf <= 0) return 0;
-	}
-	return DSF_ARGS(dsf, -index);
-}
-
-
-/***********************************************************************
-**
-*/	REBVAL *Get_Any_Var(REBVAL *item)
-/*
-**		Works for words and paths. For paths, return value is
-**		volatile on top of stack.
-**
-***********************************************************************/
-{
-	if (IS_WORD(item)) return Get_Var(item);
-	if (IS_PATH(item)) {
-		REBVAL *path = item;
-		if (Do_Path(&path, 0)) return item; // found a function
-		item = DS_TOP;
-	}
-	return item;
+	Trap1(RE_NOT_DEFINED, word);
+	DEAD_END_VOID;
 }
 
 

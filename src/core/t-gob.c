@@ -180,7 +180,7 @@ const REBCNT Gob_Flag_Words[] = {
 	sarg = arg;
 	for (n = count = 0; n < len; n++, val++) {
 		val = arg++;
-		if (IS_WORD(val)) val = Get_Var(val);
+		if (IS_WORD(val)) val = GET_VAR(val);
 		if (IS_GOB(val)) {
 			count++;
 			if (GOB_PARENT(VAL_GOB(val))) {
@@ -223,7 +223,7 @@ const REBCNT Gob_Flag_Words[] = {
 	ptr = GOB_SKIP(gob, index);
 	for (n = 0; n < len; n++) {
 		val = arg++;
-		if (IS_WORD(val)) val = Get_Var(val);
+		if (IS_WORD(val)) val = GET_VAR(val);
 		if (IS_GOB(val)) {
 			// !!! Temporary error of some kind (supposed to trap, not panic?)
 			if (GOB_PARENT(VAL_GOB(val))) Trap(RE_MISC);

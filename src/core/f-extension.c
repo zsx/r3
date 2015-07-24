@@ -518,7 +518,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	REBSER *words;
 	REBVAL *args;
 	REBVAL *val;
-	REBVAL *func;
+	const REBVAL *func; // !!! Why is this called 'func'?  What is this?
 	RXIFRM frm;	// args stored here
 	REBCNT n;
 	REBEXT *ext;
@@ -540,7 +540,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 			// Optimized var fetch:
 			n = VAL_WORD_INDEX(blk);
 			if (n > 0) func = FRM_VALUES(VAL_WORD_FRAME(blk)) + n;
-			else func = Get_Var(blk); // fallback
+			else func = GET_VAR(blk); // fallback
 		} else func = blk;
 
 		if (!IS_COMMAND(func))
@@ -568,10 +568,19 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 			// actual arg is a word, lookup?
 			if (VAL_TYPE(val) >= REB_WORD) {
 				if (IS_WORD(val)) {
-					if (IS_WORD(args)) val = Get_Var(val);
+					// !!! The "mutable" is probably not necessary here
+					// However, this code is not written for val to be const
+					if (IS_WORD(args)) val = GET_MUTABLE_VAR(val);
 				}
 				else if (IS_PATH(val)) {
-					if (IS_WORD(args)) val = Get_Any_Var(val); // volatile value!
+					REBVAL *path = val;
+					if (IS_WORD(args)) {
+						if (Do_Path(&path, 0)) {
+							// !!! comment said "found a function"
+						} else {
+							val = DS_TOP; // volatile value!
+						}
+					}
 				}
 				else if (IS_PAREN(val)) {
 					val = Do_Blk(VAL_SERIES(val), 0); // volatile value!

@@ -124,7 +124,9 @@ void Print_Parse_Index(REBCNT type, REBVAL *rules, REBSER *series, REBCNT index)
 ***********************************************************************/
 {
 	if (IS_WORD(item)) {
-		if (!VAL_CMD(item)) item = Get_Var(item);
+		// !!! Should this be getting mutable variables?  If not, how
+		// does it guarantee it is honoring the protection status?
+		if (!VAL_CMD(item)) item = GET_MUTABLE_VAR(item);
 	}
 	else if (IS_PATH(item)) {
 		REBVAL *path = item;
@@ -369,7 +371,9 @@ no_result:
 					else goto bad_target;
 				}
 				else {
-					item = Get_Var(item);
+					// !!! Should mutability be enforced?  It might have to
+					// be if set/copy are used...
+					item = GET_MUTABLE_VAR(item);
 				}
 			}
 			else if (IS_PATH(item)) {
@@ -807,7 +811,8 @@ bad_target:
 
 				// :word - change the index for the series to a new position
 				if (IS_GET_WORD(item)) {
-					item = Get_Var(item);
+					// !!! Should mutability be enforced?
+					item = GET_MUTABLE_VAR(item);
 					// CureCode #1263 change
 					//if (parse->type != VAL_TYPE(item) || VAL_SERIES(item) != series)
 					//	Trap1_DEAD_END(RE_PARSE_SERIES, rules-1);
@@ -819,7 +824,8 @@ bad_target:
 
 				// word - some other variable
 				if (IS_WORD(item)) {
-					item = Get_Var(item);
+					// !!! Should mutability be enforced?
+					item = GET_MUTABLE_VAR(item);
 				}
 
 				// item can still be 'word or /word
@@ -1003,12 +1009,12 @@ post:
 				}
 				else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
 					if (IS_BLOCK_INPUT(parse)) {
-						item = Get_Var_Safe(word);
+						item = GET_MUTABLE_VAR(word); // traps if protected
 						if (count == 0) SET_NONE(item);
 						else *item = *BLK_SKIP(series, begin);
 					}
 					else {
-						item = Get_Var_Safe(word);
+						item = GET_MUTABLE_VAR(word); // traps if protected
 						if (count == 0) SET_NONE(item);
 						else {
 							i = GET_ANY_CHAR(series, begin);

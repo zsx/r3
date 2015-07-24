@@ -834,6 +834,34 @@ typedef struct Reb_Frame {
 #define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_WORDS(f)) == SYM_NOT_USED)
 
 
+// Gives back a const pointer to var itself, raises error on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define GET_VAR(w) \
+	c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
+
+// Gives back a const pointer to var itself, returns NULL on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define TRY_GET_VAR(w) \
+	c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
+
+// Gets mutable pointer to var itself, raises error on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define GET_MUTABLE_VAR(w) \
+	(Get_Var_Core((w), TRUE, TRUE))
+
+// Gets mutable pointer to var itself, returns NULL on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define TRY_GET_MUTABLE_VAR(w) \
+	(Get_Var_Core((w), FALSE, TRUE))
+
+// Makes a copy of the var's value, raises error on failure.
+// (Failure if unbound or stack-relative with no call on stack)
+// Copy means you can change it and not worry about PROTECT status of the var
+// NOTE: *value* itself may carry its own PROTECT status if series/object
+#define GET_VAR_INTO(v,w) \
+	(Get_Var_Into_Core((v), (w)))
+
+
 /***********************************************************************
 **
 **	OBJECTS - Object Support

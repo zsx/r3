@@ -48,7 +48,7 @@
 	REBSER *body;
 
 	// For :WORD format, get the var's value:
-	if (IS_GET_WORD(spec)) spec = Get_Var(spec);
+	if (IS_GET_WORD(spec)) spec = GET_VAR(spec);
 
 	// Hand-make a FRAME (done for for speed):
 	len = IS_BLOCK(spec) ? VAL_LEN(spec) : 1;
@@ -191,7 +191,7 @@
 	REBINT inc = 1;
 	REBCNT type;
 
-	var = Get_Var(D_ARG(1));
+	var = GET_MUTABLE_VAR(D_ARG(1));
 	if (IS_NONE(var)) return R_NONE;
 
 	// Save the starting var value:
