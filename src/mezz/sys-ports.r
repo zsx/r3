@@ -53,8 +53,8 @@ make-port*: func [
 
 	; Get the scheme definition:
 	unless all [
-		word? name
-		scheme: get in system/schemes name
+		any [word? name lit-word? name]
+		scheme: get in system/schemes to word! name
 	][cause-error 'access 'no-scheme name]
 
 	; Create the port with the correct scheme spec:

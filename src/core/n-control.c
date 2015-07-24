@@ -517,6 +517,11 @@ got_err:
 		SET_TYPE(D_OUT, REB_WORD);
 		return R_OUT;
 
+	case REB_LIT_PATH:
+		*D_OUT = *value;
+		SET_TYPE(D_OUT, REB_PATH);
+		return R_OUT;
+
 	case REB_ERROR:
 		if (IS_THROW(value)) return R_ARG1;
 		Throw_Error(VAL_ERR_OBJECT(value));
