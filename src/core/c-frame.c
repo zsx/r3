@@ -892,16 +892,20 @@
 
 /***********************************************************************
 **
-*/  void Unbind_Block(REBVAL *val, REBCNT deep)
+*/  void Unbind_Block(REBVAL *val, REBSER *frame, REBCNT deep)
 /*
+**		Unbind words in a block, optionally unbinding those which are
+**		bound to a particular frame (if frame is NULL, then all
+**		words will be unbound regardless of their VAL_WORD_FRAME).
+**
 ***********************************************************************/
 {
 	for (; NOT_END(val); val++) {
-		if (ANY_WORD(val)) {
+		if (ANY_WORD(val) && (!frame || VAL_WORD_FRAME(val) == frame)) {
 			UNBIND(val);
 		}
 		if (ANY_BLOCK(val) && deep) {
-			Unbind_Block(VAL_BLK_DATA(val), TRUE);
+			Unbind_Block(VAL_BLK_DATA(val), frame, TRUE);
 		}
 	}
 }

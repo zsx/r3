@@ -1030,7 +1030,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 						break;
 					case SYM_SPEC:
 						Set_Block(ret, Clone_Block(VAL_STRUCT_SPEC(val)));
-						Unbind_Block(VAL_BLK(val), TRUE);
+						Unbind_Block(VAL_BLK(val), NULL, TRUE);
 						break;
 					case SYM_ADDR:
 						SET_INTEGER(ret, (REBUPT)SERIES_SKIP(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val)));

@@ -299,7 +299,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		UNBIND(word);
 	}
 	else {
-		Unbind_Block(VAL_BLK_DATA(word), D_REF(2) != 0);
+		Unbind_Block(VAL_BLK_DATA(word), NULL, D_REF(2));
 	}
 
 	return R_ARG1;

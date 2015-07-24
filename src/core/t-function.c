@@ -126,10 +126,16 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 of_type:
 			switch (type) {
 			case REB_FUNCTION:
+				Set_Block(D_OUT, Clone_Block(VAL_FUNC_BODY(value)));
+				// See CC#2221 for why function body copies don't unbind locals
+				return R_OUT;
+
 			case REB_CLOSURE:
-				Set_Block(value, Clone_Block(VAL_FUNC_BODY(value)));
-				Unbind_Block(VAL_BLK(value), TRUE);
-				break;
+				Set_Block(D_OUT, Clone_Block(VAL_FUNC_BODY(value)));
+				// See CC#2221 for why closure body copies have locals unbound
+				Unbind_Block(VAL_BLK(D_OUT), VAL_FUNC_WORDS(value), TRUE);
+				return R_OUT;
+
 			case REB_NATIVE:
 			case REB_COMMAND:
 			case REB_ACTION:
@@ -142,7 +148,7 @@ of_type:
 			break;
 		case OF_SPEC:
 			Set_Block(value, Clone_Block(VAL_FUNC_SPEC(value)));
-			Unbind_Block(VAL_BLK(value), TRUE);
+			Unbind_Block(VAL_BLK(value), NULL, TRUE);
 			break;
 		case OF_TYPES:
 			Set_Block(value, As_Typesets(VAL_FUNC_ARGS(value)));
