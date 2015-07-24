@@ -661,7 +661,6 @@ bad_target:
 	REBVAL *item_hold;
 	REBVAL *val;		// spare
 	REBCNT rulen;
-	REBSER *ser;
 	REBFLG flags;
 	REBCNT cmd;
 	REBVAL *rule_head = rules;
@@ -805,7 +804,13 @@ bad_target:
 
 				// word: - set a variable to the series at current index
 				if (IS_SET_WORD(item)) {
-					Set_Var_Series(item, parse->type, series, index);
+					REBVAL temp;
+					VAL_SET(&temp, parse->type);
+					VAL_SERIES(&temp) = series;
+					VAL_INDEX(&temp) = index;
+
+					Set_Var(item, &temp);
+
 					continue;
 				}
 
@@ -993,7 +998,7 @@ post:
 				else index = begin;
 			}
 			if (index == NOT_FOUND) { // Failure actions:
-				// not decided: if (word) Set_Var_Basic(word, REB_NONE);
+				// !!! if word isn't NULL should we set its var to NONE! ...?
 				if (GET_FLAG(flags, PF_THEN)) {
 					SKIP_TO_BAR(rules);
 					if (!IS_END(rules)) rules++;
@@ -1002,10 +1007,15 @@ post:
 			else {  // Success actions:
 				count = (begin > index) ? 0 : index - begin; // how much we advanced the input
 				if (GET_FLAG(flags, PF_COPY)) {
-					ser = (IS_BLOCK_INPUT(parse))
-						? Copy_Block_Len(series, begin, count)
-						: Copy_String(series, begin, count); // condenses
-					Set_Var_Series(word, parse->type, ser, 0);
+					REBVAL temp;
+					VAL_SET(&temp, parse->type);
+					VAL_SERIES(&temp) =
+						IS_BLOCK_INPUT(parse)
+							? Copy_Block_Len(series, begin, count)
+							: Copy_String(series, begin, count); // condenses;
+					VAL_INDEX(&temp) = 0;
+
+					Set_Var(word, &temp);
 				}
 				else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
 					if (IS_BLOCK_INPUT(parse)) {
@@ -1027,7 +1037,7 @@ post:
 					}
 				}
 				if (GET_FLAG(flags, PF_RETURN)) {
-					ser = (IS_BLOCK_INPUT(parse))
+					REBSER *ser = (IS_BLOCK_INPUT(parse))
 						? Copy_Block_Len(series, begin, count)
 						: Copy_String(series, begin, count); // condenses
 					Throw_Return_Series(parse->type, ser);

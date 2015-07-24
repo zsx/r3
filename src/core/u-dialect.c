@@ -59,6 +59,37 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 
 /***********************************************************************
 **
+*/  REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
+/*
+**      Search a block of objects for a given word symbol and
+**      return the value for the word. NULL if not found.
+**
+***********************************************************************/
+{
+	REBVAL *val;
+
+	for (; NOT_END(where); where++) {
+		if (IS_WORD(where)) {
+			val = GET_MUTABLE_VAR(where);
+		}
+		else if (IS_PATH(where)) {
+			Do_Path(&where, 0);
+			val = DS_TOP; // only safe for short time!
+		}
+		else
+			val = where;
+
+		if (IS_OBJECT(val)) {
+			val = Find_Word_Value(VAL_OBJ_FRAME(val), sym);
+			if (val) return val;
+		}
+	}
+	return 0;
+}
+
+
+/***********************************************************************
+**
 */	static int Find_Command(REBSER *dialect, REBVAL *word)
 /*
 **		Given a word, check to see if it is in the dialect object.

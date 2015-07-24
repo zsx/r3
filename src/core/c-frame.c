@@ -1121,37 +1121,6 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
-/*
-**      Search a block of objects for a given word symbol and
-**      return the value for the word. NULL if not found.
-**
-***********************************************************************/
-{
-	REBVAL *val;
-
-	for (; NOT_END(where); where++) {
-		if (IS_WORD(where)) {
-			val = GET_MUTABLE_VAR(where);
-		}
-		else if (IS_PATH(where)) {
-			Do_Path(&where, 0);
-			val = DS_TOP; // only safe for short time!
-		}
-		else
-			val = where;
-
-		if (IS_OBJECT(val)) {
-			val = Find_Word_Value(VAL_OBJ_FRAME(val), sym);
-			if (val) return val;
-		}
-	}
-	return 0;
-}
-
-
-/***********************************************************************
-**
 */	REBCNT Find_Word(REBSER *series, REBCNT index, REBCNT sym)
 /*
 **		Find word (of any type) in a block... quickly.
@@ -1364,43 +1333,6 @@
 		if (dsf <= 0) Trap1(RE_NOT_DEFINED, word); // change error !!!
 	}
 	*DSF_ARGS(dsf, -index) = *value;
-}
-
-
-/***********************************************************************
-**
-*/	void Set_Var_Series(REBVAL *var, REBCNT type, REBSER *series, REBCNT index)
-/*
-**		A commonly used helper function to set a variable
-**		to a series value.
-**
-***********************************************************************/
-{
-	REBVAL value;
-
-	VAL_SET(&value, type);
-	VAL_SERIES(&value) = series;
-	VAL_INDEX(&value) = index;
-
-	Set_Var(var, &value);
-}
-
-
-/***********************************************************************
-**
-*/	void Set_Var_Basic(REBVAL *var, REBCNT type, ...)
-/*
-**		A commonly used helper function to set a variable
-**		to a basic value.
-**
-***********************************************************************/
-{
-	REBVAL value;
-    CLEARS(&value);
-
-	VAL_SET(&value, type);
-
-	Set_Var(var, &value);
 }
 
 
