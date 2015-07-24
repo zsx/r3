@@ -49,7 +49,7 @@ systems: [
 	0.3.01		windows-x86		windows
 			[LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
 
-	0.3.03		windows-x64		windows
+	0.3.40		windows-x64		windows
 			[LLP64 LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
 	;-------------------------------------------------------------------------
 	0.4.02		linux-x86		linux
