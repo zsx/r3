@@ -180,7 +180,7 @@ static REBINT Init_Depth(void)
 
 #define CHECK_DEPTH(d) if ((d = Init_Depth()) < 0) return;\
 
-void Trace_Line(REBSER *block, REBINT index, REBVAL *value)
+void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
 {
 	int depth;
 
@@ -1911,7 +1911,7 @@ push_arg:
 
 /***********************************************************************
 **
-*/	REBVAL *Get_Simple_Value(REBVAL *val)
+*/	const REBVAL *Get_Simple_Value(const REBVAL *val)
 /*
 **		Does easy lookup, else just returns the value as is.
 **		Note for paths value is left on stack.
@@ -1920,8 +1920,10 @@ push_arg:
 {
 	if (IS_WORD(val) || IS_GET_WORD(val))
 		val = Get_Var(val);
-	else if (IS_PATH(val) || IS_GET_PATH(val)) { //val = Get_Path_Var(val);
-		REBVAL *v = val;
+	else if (IS_PATH(val) || IS_GET_PATH(val)) {
+		// !!! Temporary: make a copy to pass mutable value to Do_Path
+		REBVAL path = *val;
+		REBVAL *v = &path;
 		DS_PUSH_NONE;
 		Do_Path(&v, 0);
 		val = DS_TOP;

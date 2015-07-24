@@ -96,7 +96,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 /***********************************************************************
 **
-*/	static REBFLG Set_Pair(REBXYF *pair, REBVAL *val)
+*/	static REBFLG Set_Pair(REBXYF *pair, const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -162,7 +162,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 /***********************************************************************
 **
-*/	static void Insert_Gobs(REBGOB *gob, REBVAL *arg, REBCNT index, REBCNT len, REBFLG change)
+*/	static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len, REBFLG change)
 /*
 **		Insert one or more gobs into a pane at the given index.
 **		If index >= tail, an append occurs. Each gob has its parent
@@ -172,7 +172,8 @@ const REBCNT Gob_Flag_Words[] = {
 {
 	REBGOB **ptr;
 	REBCNT n, count;
-	REBVAL *val, *sarg;
+	const REBVAL *val;
+	const REBVAL *sarg;
 	REBINT i;
 
 	// Verify they are gobs:
@@ -307,7 +308,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 /***********************************************************************
 **
-*/	static void Set_Gob_Flag(REBGOB *gob, REBVAL *word)
+*/	static void Set_Gob_Flag(REBGOB *gob, const REBVAL *word)
 /*
 ***********************************************************************/
 {
@@ -345,7 +346,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 /***********************************************************************
 **
-*/	static REBFLG Set_GOB_Var(REBGOB *gob, REBVAL *word, REBVAL *val)
+*/	static REBFLG Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -486,7 +487,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 /***********************************************************************
 **
-*/	static REBFLG Get_GOB_Var(REBGOB *gob, REBVAL *word, REBVAL *val)
+*/	static REBFLG Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -590,12 +591,12 @@ is_none:
 
 /***********************************************************************
 **
-*/	static void Set_GOB_Vars(REBGOB *gob, REBVAL *blk)
+*/	static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
 /*
 ***********************************************************************/
 {
-	REBVAL *var;
-	REBVAL *val;
+	const REBVAL *var;
+	const REBVAL *val;
 
 	while (NOT_END(blk)) {
 		var = blk++;

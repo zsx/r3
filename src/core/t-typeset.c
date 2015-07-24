@@ -98,14 +98,14 @@
 **
 ***********************************************************************/
 {
-	REBVAL *val;
+	const REBVAL *val;
 	REBCNT sym;
 	REBSER *types = VAL_SERIES(ROOT_TYPESETS);
 
 	VAL_TYPESET(value) = 0;
 
 	for (; NOT_END(block); block++) {
-		val = 0;
+		val = NULL;
 		if (IS_WORD(block)) {
 			//Print("word: %s", Get_Word_Name(block));
 			sym = VAL_WORD_SYM(block);

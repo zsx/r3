@@ -80,12 +80,12 @@
 
 /***********************************************************************
 **
-*/	void Set_Pixel_Tuple(REBYTE *dp, REBVAL *tuple)
+*/	void Set_Pixel_Tuple(REBYTE *dp, const REBVAL *tuple)
 /*
 ***********************************************************************/
 {
 	// Tuple to pixel.
-	REBYTE *tup = VAL_TUPLE(tuple);
+	const REBYTE *tup = VAL_TUPLE(tuple);
 
 	dp[C_R] = tup[0];
 	dp[C_G] = tup[1];

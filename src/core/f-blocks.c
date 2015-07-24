@@ -308,7 +308,7 @@
 
 /***********************************************************************
 **
-*/	void Append_Val(REBSER *block, REBVAL *val)
+*/	void Append_Val(REBSER *block, const REBVAL *val)
 /*
 **		Append a value to a block series at its tail.
 **		Expand it if necessary. Update the termination and tail.

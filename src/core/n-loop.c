@@ -34,7 +34,7 @@
 
 /***********************************************************************
 **
-*/	static REBSER *Init_Loop(REBVAL *spec, REBVAL *body_blk, REBSER **fram)
+*/	static REBSER *Init_Loop(const REBVAL *spec, REBVAL *body_blk, REBSER **fram)
 /*
 **		Initialize standard for loops (copy block, make frame, bind).
 **		Spec: WORD or [WORD ...]

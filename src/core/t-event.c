@@ -69,7 +69,7 @@
 
 /***********************************************************************
 **
-*/	static REBFLG Set_Event_Var(REBVAL *value, REBVAL *word, REBVAL *val)
+*/	static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -190,7 +190,7 @@
 ***********************************************************************/
 {
 	REBVAL *var;
-	REBVAL *val;
+	const REBVAL *val;
 
 	while (NOT_END(blk)) {
 		var = blk++;

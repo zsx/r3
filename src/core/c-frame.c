@@ -1173,7 +1173,7 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Get_Var(REBVAL *word)
+*/  REBVAL *Get_Var(const REBVAL *word)
 /*
 **      Get the word (variable) value. (Use macro when possible).
 **
@@ -1276,7 +1276,7 @@
 
 /***********************************************************************
 **
-*/  void Set_Var(REBVAL *word, REBVAL *value)
+*/  void Set_Var(const REBVAL *word, const REBVAL *value)
 /*
 **      Set the word (variable) value. (Use macro when possible).
 **

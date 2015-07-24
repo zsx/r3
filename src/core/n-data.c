@@ -82,14 +82,14 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 /***********************************************************************
 **
-*/	static REBOOL Is_Of_Type(REBVAL *value, REBVAL *types)
+*/	static REBOOL Is_Of_Type(const REBVAL *value, REBVAL *types)
 /*
 **		Types can be: word or block. Each element must be either
 **		a datatype or a typeset.
 **
 ***********************************************************************/
 {
-	REBVAL *val;
+	const REBVAL *val;
 
 	val = IS_WORD(types) ? Get_Var(types) : types;
 
@@ -147,7 +147,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	}
 	else {
 		// /types [var1 integer!  var2 [integer! decimal!]]
-		REBVAL *val;
+		const REBVAL *val;
 		REBVAL *type;
 
 		for (value = VAL_BLK_DATA(value); NOT_END(value); value += 2) {
@@ -155,9 +155,10 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 				val = Get_Var(value);
 			}
 			else if (IS_PATH(value)) {
-				val = value;
-				Do_Path(&val, 0);
-				val = DS_POP; // volatile stack reference
+				REBVAL *refinements = value;
+				Do_Path(&refinements, 0);
+				*D_OUT = *DS_POP;
+				val = D_OUT;
 			}
 			else Trap_Arg_DEAD_END(value);
 
@@ -392,7 +393,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	if (IS_BLOCK(val) || IS_PAREN(val)) {
 		if (IS_WORD(word)) {
-			REBVAL *v;
+			const REBVAL *v;
 			REBCNT i;
 			for (i = VAL_INDEX(val); i < VAL_TAIL(val); i++) {
 				v = VAL_BLK_SKIP(val, i);

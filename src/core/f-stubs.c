@@ -117,7 +117,7 @@
 
 /***********************************************************************
 **
-*/	REBINT Int32(REBVAL *val)
+*/	REBINT Int32(const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -139,7 +139,7 @@
 
 /***********************************************************************
 **
-*/	REBINT Int32s(REBVAL *val, REBINT sign)
+*/	REBINT Int32s(const REBVAL *val, REBINT sign)
 /*
 **		Get integer as positive, negative 32 bit value.
 **		Sign field can be
@@ -178,7 +178,7 @@
 
 /***********************************************************************
 **
-*/	REBI64 Int64(REBVAL *val)
+*/	REBI64 Int64(const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -192,7 +192,7 @@
 
 /***********************************************************************
 **
-*/	REBDEC Dec64(REBVAL *val)
+*/	REBDEC Dec64(const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -206,7 +206,7 @@
 
 /***********************************************************************
 **
-*/	REBI64 Int64s(REBVAL *val, REBINT sign)
+*/	REBI64 Int64s(const REBVAL *val, REBINT sign)
 /*
 **		Get integer as positive, negative 64 bit value.
 **		Sign field can be
@@ -241,7 +241,7 @@
 
 /***********************************************************************
 **
-*/	REBINT Int8u(REBVAL *val)
+*/	REBINT Int8u(const REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -252,7 +252,7 @@
 
 /***********************************************************************
 **
-*/	REBCNT Find_Refines(REBVAL *ds, REBCNT mask)
+*/	REBCNT Find_Refines(const REBVAL *ds, REBCNT mask)
 /*
 **		Scans the stack for function refinements that have been
 **		specified in the mask (each as a bit) and are being used.
@@ -360,7 +360,7 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Get_Object(REBVAL *objval, REBCNT index)
+*/  REBVAL *Get_Object(const REBVAL *objval, REBCNT index)
 /*
 **      Get an instance variable from an object value.
 **
