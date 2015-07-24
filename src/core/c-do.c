@@ -142,7 +142,7 @@ void Do_Rebcode(REBVAL *v) {;}
 	// The /back option: ON and OFF, or INTEGER! for # of lines:
 	if (D_REF(2)) { // /back
 		if (IS_LOGIC(arg)) {
-			Enable_Backtrace(IS_TRUE(arg));
+			Enable_Backtrace(VAL_LOGIC(arg));
 		}
 		else if (IS_INTEGER(arg)) {
 			Trace_Flags = 0;
@@ -154,7 +154,7 @@ void Do_Rebcode(REBVAL *v) {;}
 
 	// Set the trace level:
 	if (IS_LOGIC(arg)) {
-		Trace_Level = IS_TRUE(arg) ? 100000 : 0;
+		Trace_Level = VAL_LOGIC(arg) ? 100000 : 0;
 	}
 	else Trace_Level = Int32(arg);
 
@@ -1434,7 +1434,7 @@ more_path:
 		for (args = BLK_SKIP(words, 1); NOT_END(args);) {
 			// If arg is refinement, determine its state:
 			if (IS_REFINEMENT(args)) {
-				if (IS_FALSE(val)) {
+				if (IS_CONDITIONAL_FALSE(val)) {
 					SET_NONE(val);  // ++ ok for none
 					while (TRUE) {
 						val++;

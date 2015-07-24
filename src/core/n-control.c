@@ -280,7 +280,7 @@ enum {
 	while (index < SERIES_TAIL(block)) {
 		index = Do_Next(block, index, 0); // stack volatile
 		ds = DS_POP;  // volatile stack reference
-		if (IS_FALSE(ds)) return R_NONE;
+		if (IS_CONDITIONAL_FALSE(ds)) return R_NONE;
 		if (THROWN(ds)) break;
 	}
 	if (ds == 0) return R_TRUE;
@@ -300,7 +300,7 @@ enum {
 	while (index < SERIES_TAIL(block)) {
 		index = Do_Next(block, index, 0); // stack volatile
 		ds = DS_POP;  // volatile stack reference
-		if (!IS_FALSE(ds) && !IS_UNSET(ds)) return R_TOS1;
+		if (!IS_CONDITIONAL_FALSE(ds) && !IS_UNSET(ds)) return R_TOS1;
 	}
 	return R_NONE;
 }
@@ -357,7 +357,7 @@ enum {
 		//DSP = top; // reset stack  -- not needed?
 		index = Do_Next(block, index, 0);
 		ds = DS_POP;  // volatile stack reference
-		if (IS_FALSE(ds)) index++;
+		if (IS_CONDITIONAL_FALSE(ds)) index++;
 		else {
 			if (IS_UNSET(ds)) Trap_DEAD_END(RE_NO_RETURN);
 			if (THROWN(ds)) return R_TOS1;
@@ -573,7 +573,7 @@ got_err:
 /*
 ***********************************************************************/
 {
-	REBCNT argnum = IS_FALSE(D_ARG(1)) ? 3 : 2;
+	REBCNT argnum = IS_CONDITIONAL_FALSE(D_ARG(1)) ? 3 : 2;
 
 	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(4) /* not using /ONLY */) {
 		DO_BLK(D_ARG(argnum));
@@ -601,7 +601,7 @@ got_err:
 /*
 ***********************************************************************/
 {
-	if (IS_FALSE(D_ARG(1))) return R_NONE;
+	if (IS_CONDITIONAL_FALSE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
 		DO_BLK(D_ARG(2));
 		return R_TOS1;
@@ -753,7 +753,7 @@ got_err:
 /*
 ***********************************************************************/
 {
-	if (IS_TRUE(D_ARG(1))) return R_NONE;
+	if (IS_CONDITIONAL_TRUE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
 		DO_BLK(D_ARG(2));
 		return R_TOS1;

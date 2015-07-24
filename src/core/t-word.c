@@ -97,7 +97,7 @@
 				sym = VAL_DATATYPE(arg)+1;
 			}
 			else if (IS_LOGIC(arg)) {
-				sym = IS_TRUE(arg) ? SYM_TRUE : SYM_FALSE;
+				sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;
 			}
 			else Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_WORD, VAL_TYPE(arg));
 

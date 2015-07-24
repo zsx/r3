@@ -46,7 +46,7 @@
 
 	if (IS_FILE(val))
 		ser = Value_To_OS_Path(val, TRUE);
-	else if (IS_LOGIC(val) && IS_TRUE(val))
+	else if (IS_LOGIC(val) && VAL_LOGIC(val))
 		ser = To_Local_Path("output.txt", 10, FALSE, TRUE);
 
 	if (ser) {
@@ -141,7 +141,7 @@
 {
 	REBVAL *value = D_ARG(1);
 	REBVAL *val;
-	REBOOL cond = IS_TRUE(D_ARG(2));
+	REBOOL cond = IS_CONDITIONAL_TRUE(D_ARG(2));
 	REBCNT n;
 	REBINT skip = -1;
 

@@ -428,7 +428,7 @@ static struct {
 	val = Apply_Func(0, sort_flags.compare, v1, v2, 0);
 
 	if (IS_LOGIC(val)) {
-		if (IS_TRUE(val)) return 1;
+		if (VAL_LOGIC(val)) return 1;
 		return -1;
 	}
 	if (IS_INTEGER(val)) {
@@ -441,7 +441,7 @@ static struct {
 		if (VAL_DECIMAL(val) == 0) return 0;
 		return -1;
 	}
-	if (IS_TRUE(val)) return 1;
+	if (IS_CONDITIONAL_TRUE(val)) return 1;
 	return -1;
 }
 

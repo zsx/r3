@@ -778,7 +778,7 @@ bad_target:
 						if (IS_END(item)) goto bad_end;
 						if (!IS_PAREN(item)) Trap1_DEAD_END(RE_PARSE_RULE, item);
 						item = Do_Block_Value_Throw(item); // might GC
-						if (IS_TRUE(item)) continue;
+						if (IS_CONDITIONAL_TRUE(item)) continue;
 						else {
 							index = NOT_FOUND;
 							goto post;

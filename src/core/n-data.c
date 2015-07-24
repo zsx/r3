@@ -138,7 +138,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		while (index < SERIES_TAIL(block)) {
 			index = Do_Next(block, i = index, 0); // stack volatile
 			ds = DS_POP; // volatile stack reference
-			if (IS_FALSE(ds)) {
+			if (IS_CONDITIONAL_FALSE(ds)) {
 				Set_Block(ds, Copy_Block_Len(block, i, 3));
 				Trap1_DEAD_END(RE_ASSERT_FAILED, ds);
 			}
@@ -440,7 +440,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 /*
 ***********************************************************************/
 {
-	return (IS_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE);
+	return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
 }
 
 

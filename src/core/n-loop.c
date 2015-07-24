@@ -432,7 +432,7 @@
 
 			// If FALSE return, copy values to the write location:
 			if (mode == 1) {  // remove-each
-				if (IS_FALSE(ds)) {
+				if (IS_CONDITIONAL_FALSE(ds)) {
 					REBCNT wide = SERIES_WIDE(series);
 					// memory areas may overlap, so use memmove and not memcpy!
 					memmove(series->data + (windex * wide), series->data + (rindex * wide), (index - rindex) * wide);
@@ -665,7 +665,7 @@ utop:
 			if (Check_Error(ds) >= 0) break;
 			goto utop;
 		}
-	} while (IS_FALSE(ds));  // Break, return errors fall out.
+	} while (IS_CONDITIONAL_FALSE(ds)); // Break, return errors fall out.
 	return R_TOS1;
 }
 
@@ -688,7 +688,7 @@ utop:
 		if (IS_UNSET(ds) || IS_ERROR(ds)) {	// Unset, break, throw, error.
 			if (Check_Error(ds) >= 0) return R_TOS1;
 		}
-		if (!IS_TRUE(ds)) return R_OUT;
+		if (IS_CONDITIONAL_FALSE(ds)) return R_OUT;
 		ds = Do_Blk(b2, i2);
 		*DS_OUT = *ds;	// save here (to avoid GC during error handling)
 		if (THROWN(ds)) {	// Break, throw, continue, error.

@@ -485,7 +485,7 @@ found:
 		return PE_NONE;
 	}
 
-	t = IS_TRUE(val);
+	t = IS_CONDITIONAL_TRUE(val);
 	if (BITS_NOT(ser)) t = !t;
 	if (Set_Bits(ser, pvs->select, (REBOOL)t))
 		return PE_OK;

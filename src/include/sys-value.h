@@ -639,9 +639,16 @@ typedef struct Reb_Series_Ref
 #define	SET_LOGIC(v,n)	VAL_SET(v, REB_LOGIC), VAL_LOGIC(v) = ((n)!=0) //, VAL_LOGIC_WORDS(v)=0
 #define SET_TRUE(v)		SET_LOGIC(v, TRUE)  // compound statement
 #define SET_FALSE(v)	SET_LOGIC(v, FALSE) // compound statement
-#define IS_FALSE(v)		(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)))
-#define	IS_TRUE(v)		(!IS_FALSE(v))
 #define VAL_I32(v)		((v)->data.logic)	// used for handles, etc.
+
+// Conditional truth and falsehood allows an interpretation where a NONE! is
+// a FALSE value.  These macros (like many others in the codebase) capture
+// their parameters multiple times, so multiple evaluations can happen!
+
+#define IS_CONDITIONAL_FALSE(v) \
+	(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)))
+#define IS_CONDITIONAL_TRUE(v) \
+	!IS_CONDITIONAL_FALSE(v)
 
 
 /***********************************************************************
