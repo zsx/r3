@@ -277,7 +277,7 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 
 /***********************************************************************
 **
-*/	REBINT Push_Func(REBSER *block, REBCNT index, REBCNT sym, REBVAL *func)
+*/	REBINT Push_Func(REBSER *block, REBCNT index, const REBVAL *label, const REBVAL *func)
 /*
 **		Push on stack a function call frame as defined in stack.h.
 **		Assumes that stack slot for return value has already been pushed.
@@ -308,7 +308,19 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	// Save symbol describing the function (if we called this as the result of
 	// a word or path lookup)
 	DS_SKIP;
-	Init_Word_Unbound(DS_TOP, REB_WORD, sym ? sym : cast(REBCNT, SYM__APPLY_));
+	if (!label) {
+		// !!! When a function was not invoked through looking up a word to
+		// (or a word in a path) to use as a label, there were three different
+		// alternate labels used.  One was SYM__APPLY_, another was
+		// ROOT_NONAME, and another was to be the type of the function being
+		// executed.  None are fantastic, but we do the type for now.
+		label = Get_Type_Word(VAL_TYPE(func));
+	} else
+		assert(IS_WORD(label));
+
+	*DS_TOP = *label;
+	// !!! Not sure why this is needed; seems the label word should be unbound
+	// if anything...
 	VAL_WORD_FRAME(DS_TOP) = VAL_FUNC_ARGS(func);
 	assert(IS_WORD(DSF_LABEL(dsf)));
 
@@ -724,8 +736,12 @@ more_path:
 #endif
 
 	REBVAL *value;
-	REBVAL *word = 0;
 	REBINT dsf;
+
+	// Functions don't have "names", though they can be assigned to words.
+	// If a function invokes via word lookup (vs. a literal FUNCTION! value),
+	// 'label' will be that WORD!, and NULL otherwise.
+	REBVAL *label = NULL;
 
 	REBVAL save; // !!! will be needed by StableStack, so not set debug-only
 
@@ -761,11 +777,11 @@ reval:
 	switch (EVAL_TYPE(value)) {
 
 	case ET_WORD:
-		value = Get_Var(word = value);
-		if (IS_UNSET(value)) Trap1_DEAD_END(RE_NO_VALUE, word);
+		value = Get_Var(label = value);
+		if (IS_UNSET(value)) Trap1_DEAD_END(RE_NO_VALUE, label);
 		if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) goto reval; // || IS_LIT_PATH(value)
 		DS_PUSH(value);
-		if (IS_FRAME(value)) Init_Obj_Value(DS_TOP, VAL_WORD_FRAME(word));
+		if (IS_FRAME(value)) Init_Obj_Value(DS_TOP, VAL_WORD_FRAME(label));
 		index++;
 		break;
 
@@ -775,14 +791,11 @@ reval:
 		break;
 
 	case ET_SET_WORD:
-		word = value;
-		//if (!VAL_WORD_FRAME(word)) Trap1_DEAD_END(RE_NOT_DEFINED, word); (checked in set_var)
 		index = Do_Next(block, index+1, 0);
 		// THROWN is handled in Set_Var.
-		if (index == END_FLAG || VAL_TYPE(DS_TOP) <= REB_UNSET) Trap1_DEAD_END(RE_NEED_VALUE, word);
-		Set_Var(word, DS_TOP);
-		//Set_Word(word, DS_TOP); // (value stays on stack)
-		//Dump_Frame(Main_Frame);
+		if (index == END_FLAG || VAL_TYPE(DS_TOP) <= REB_UNSET)
+			Trap1_DEAD_END(RE_NEED_VALUE, value);
+		Set_Var(value, DS_TOP); // evaluation stays on top of stack
 		break;
 
 	case ET_FUNCTION:
@@ -792,8 +805,7 @@ reval:
 	// needs to already be accounted for
 	func_needs_push:
 		assert(ANY_FUNC(value) && (DSP == dsp_orig + 1));
-		if (!word) word = ROOT_NONAME;
-		dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+		dsf = Push_Func(block, index, label, value);
 		SET_UNSET(DSF_OUT(dsf));
 
 	// 'dsf' holds index of new call frame, not yet set during arg evaluation
@@ -808,7 +820,7 @@ reval:
 	func_ready_to_call:
 		assert(ANY_FUNC(value) && IS_UNSET(DSF_OUT(dsf)) && dsf > DSF);
 
-		if (Trace_Flags) Trace_Func(word, value);
+		if (Trace_Flags) Trace_Func(label, value);
 
 		// Set the DSF to our constructed 'dsf' during the function dispatch
 		SET_DSF(dsf);
@@ -818,7 +830,7 @@ reval:
 		// Drop stack back to where the DSF_OUT is now the Top of Stack
 		DSP = dsf;
 
-		if (Trace_Flags) Trace_Return(word, DS_TOP);
+		if (Trace_Flags) Trace_Return(label, DS_TOP);
 
 		// The return value is a FUNC that needs to be re-evaluated.
 		if (VAL_GET_OPT(DS_TOP, OPTS_REVAL) && ANY_FUNC(DS_TOP)) {
@@ -826,7 +838,7 @@ reval:
 
 			if (IS_OP(value)) Trap_Type_DEAD_END(value); // not allowed
 
-			word = Get_Type_Word(VAL_TYPE(value));
+			label = NULL;
 			index--; // Backup block index to re-evaluate.
 
 			// We'll reuse the DS_TOP (where value lives) as the next DS_OUT
@@ -835,32 +847,40 @@ reval:
 		break;
 
 	case ET_OPERATOR:
-		// An operator can be native or function, so its true evaluation
-		// datatype is stored in the extended flags part of the value.
-		if (!word) word = ROOT_NONAME;
-		if (DSP <= 0 || index == 0) Trap1_DEAD_END(RE_NO_OP_ARG, word);
+		// Can't actually run an OP! arg unless it's after an evaluation
+		Trap1_DEAD_END(RE_NO_OP_ARG, label);
+
+	handle_op:
+		assert(DSP > 0 && index != 0);
 		// TOS has first arg, we will re-use that slot for the OUT value
-		dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+		dsf = Push_Func(block, index, label, value);
 		DS_PUSH(DSF_OUT(dsf)); // Copy prior to first argument
 		SET_UNSET(DSF_OUT(dsf)); // initialize to unset before function call
 		goto func_already_pushed;
 
 	case ET_PATH:  // PATH, SET_PATH
-		word = value; // a path
+		label = value; // a path
 		//index++; // now done below with +1
 
-		//Debug_Fmt("t: %r", value);
 		if (IS_SET_PATH(value)) {
 			index = Do_Next(block, index+1, 0);
 			// THROWN is handled in Do_Path.
-			if (index == END_FLAG || VAL_TYPE(DS_TOP) <= REB_UNSET) Trap1_DEAD_END(RE_NEED_VALUE, word);
-			Do_Path(&word, DS_TOP);
-		} else {
-			// Can be a path or get-path:
-			value = Do_Path(&word, 0); // returns in word the path item, DS_TOP has value
-			//Debug_Fmt("v: %r", value);
+			if (index == END_FLAG || VAL_TYPE(DS_TOP) <= REB_UNSET)
+				Trap1_DEAD_END(RE_NEED_VALUE, label);
+			Do_Path(&label, DS_TOP);
+		}
+		else { // Can be a path or get-path:
+
+			// returns in word the path item, DS_TOP has value
+			value = Do_Path(&label, 0);
+
 			// Value returned only for functions that need evaluation (but not GET_PATH):
 			if (value && ANY_FUNC(value)) {
+				// object/func or func/refinements or object/func/refinement:
+
+				if (label && !IS_WORD(label))
+					Trap1(RE_BAD_REFINE, label); // CC#2226
+
 				// Cannot handle an OP! because prior value is wiped out above
 				// (Theoretically we could save it if we are DO-ing a chain of
 				// values, and make it work.  But then, a loop of DO/NEXT
@@ -868,12 +888,10 @@ reval:
 
 				if (IS_OP(value)) Trap_Type_DEAD_END(value);
 
-				// Can be object/func or func/refinements or object/func/refinement:
-
 				// re-use TOS for OUT of function frame
-				dsf = Push_Func(block, index, VAL_WORD_SYM(word), value);
+				dsf = Push_Func(block, index, label, value);
 
-				index = Do_Args(dsf, word + 1, block, index + 1);
+				index = Do_Args(dsf, label + 1, block, index + 1);
 
 				// We now refresh the function value because Do may have moved
 				// the stack.  With the function value saved, we default the
@@ -928,8 +946,12 @@ reval:
 	// If normal eval (not higher precedence of infix op), check for op:
 	if (!op) {
 		value = BLK_SKIP(block, index);
-		if (IS_WORD(value) && VAL_WORD_FRAME(value) && IS_OP(Get_Var(value)))
-			goto reval;
+		if (IS_WORD(value) && VAL_WORD_FRAME(value)) {
+			label = value;
+			value = Get_Var(value);
+			if (IS_OP(value))
+				goto handle_op;
+		}
 	}
 
 	return index;

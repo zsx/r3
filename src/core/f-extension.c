@@ -194,6 +194,7 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 	REBCNT len;
 	REBCNT n;
 	REBCNT dsp = DSP; // to restore stack on errors
+	REBVAL label;
 
 	// Find word in object, verify it is a function.
 	if (!(val = Find_Word_Value(obj, name))) {
@@ -210,8 +211,9 @@ x*/	int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result)
 
 	// Create stack frame (use prior stack frame for location info):
 	DS_PUSH_UNSET; // OUT slot for function eval result
+	Init_Word_Unbound(&label, REB_WORD, name);
 	dsf = Push_Func(
-		VAL_SERIES(DSF_POSITION(dsf)), VAL_INDEX(DSF_POSITION(dsf)), name, val
+		VAL_SERIES(DSF_POSITION(dsf)), VAL_INDEX(DSF_POSITION(dsf)), &label, val
 	);
 	val = DSF_FUNC(dsf);        // for safety from GC
 	obj = VAL_FUNC_WORDS(val);  // func words
