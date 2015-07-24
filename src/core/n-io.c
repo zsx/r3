@@ -29,49 +29,8 @@
 
 #include "sys-core.h"
 
-//#define HELPER
-
 
 /** Helper Functions **************************************************/
-
-#ifdef HELPER
-// Used for file loading during very early development.
-static REBSER *Read_All_File(char *fname)
-{
-	REBREQ file;
-	REBSER *ser = 0;
-
-	CLEAR(&file, sizeof(file));
-
-	file.clen = sizeof(file);
-	file.device = RDI_FILE;
-	file.special.file.path = fname;
-
-	SET_FLAG(file.modes, RFM_READ);
-
-	OS_DO_DEVICE(&file, RDC_OPEN);
-
-	if (file.error) return 0;
-
-	ser = Make_Binary(cast(REBCNT, file.special.file.size));
-
-	file.data = BIN_DATA(ser);
-	file.length = cast(REBCNT, file.special.file.size);
-
-	OS_DO_DEVICE(&file, RDC_READ);
-
-	if (file.error) {
-		ser = 0;
-	}
-	else {
-		ser->tail = file.actual;
-		STR_TERM(ser);
-	}
-
-	OS_DO_DEVICE(&file, RDC_CLOSE);
-	return ser;
-}
-#endif
 
 
 /***********************************************************************
@@ -275,40 +234,6 @@ static REBSER *Read_All_File(char *fname)
 
 	return R_OUT;
 }
-
-
-#ifdef HELPER
-/***********************************************************************
-**
-*/	REBNATIVE(read_file)
-/*
-***********************************************************************/
-{
-	REBSER *ser;
-
-	ser = VAL_SERIES(D_ARG(1));
-
-	ser = Read_All_File(STR_HEAD(ser));
-	if (!ser) Trap1_DEAD_END(RE_CANNOT_OPEN, D_ARG(1));
-
-	Set_Binary(D_OUT, ser);
-
-	return R_OUT;
-
-#ifdef unused
-	if (D_REF(2)) // /binary
-		Set_Binary(ret, ser);
-	else {
-		SERIES_TAIL(ser) = Convert_CRLF(STR_HEAD(ser), SERIES_TAIL(ser));
-		if (D_REF(3)) // /lines
-			Set_Block(ret, Convert_Lines(ser));
-		else
-			Set_String(ret, ser);
-	}
-	return R_OUT;
-#endif
-}
-#endif
 
 
 /***********************************************************************

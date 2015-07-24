@@ -59,56 +59,6 @@
 	return TRUE;
 }
 
-#ifdef removed
-static int find_word(REBVAL *val, REBVAL *word)
-{
-	REBCNT sym = VAL_WORD_CANON(word);
-	REBINT n;
-
-	for (n = 0; NOT_END(val+n); n++) {
-		if (sym == VAL_WORD_CANON(val+n)) return 1<<n;
-	}
-
-	return 0;
-}
-
-/***********************************************************************
-**
-*/	REBINT PD_Logic(REBPVS *pvs)
-/*
-***********************************************************************/
-{
-	REBVAL *sel;
-	REBVAL *val;
-	REBINT i;
-	REBINT bit;
-
-	if (IS_WORD(sel = pvs->select)) {
-		if (!VAL_LOGIC_WORDS(pvs->value) ||
-			!(bit = find_word(BLK_HEAD(VAL_LOGIC_WORDS(pvs->value)), sel)))
-			return PE_BAD_SELECT;
-	}
-	else if (IS_INTEGER(sel)) {
-		bit = Int32(sel);
-		if (bit < 0 || bit > 31) return PE_BAD_SELECT;
-		bit = 1 << bit;
-	}
-	else
-		return PE_BAD_SELECT;
-
-	if ((val = pvs->setval)) {
-		if (IS_LOGIC(val)) i = VAL_LOGIC(val);
-		else if (IS_INTEGER(val)) i = Int32(val);
-		else return PE_BAD_SET;
-		if (i) VAL_LOGIC(pvs->value) |= bit;
-		else   VAL_LOGIC(pvs->value) &= ~bit;
-		return PE_OK;
-	} else {
-		SET_LOGIC(pvs->store, VAL_LOGIC(pvs->value) & bit);
-		return PE_USE;
-	}
-}
-#endif
 
 /***********************************************************************
 **

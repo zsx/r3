@@ -581,23 +581,3 @@ is_false:
 {
 	Register_Scheme(SYM_FILE, 0, File_Actor);
 }
-
-
-#ifdef low_usage
-	// was in Read_File above...
-	if (args & AM_READ_LINES) {
-		REBYTE *bp = BIN_HEAD(ser);
-		REBYTE *lp;
-		REBSER *blk = Make_Block(1 + Count_Lines(bp, len));
-		REBVAL *val = Append_Value(blk);
-		Set_Binary(val, ser); // temp - keep it save from GC
-		Set_Block(ds, blk); // accounts for GC
-		while (*bp) {
-			lp = bp;
-			len = Next_Line(&bp);
-			val = Append_Value(blk);
-			Set_String(val, Decode_UTF8_Series(lp, len));
-		}
-		Remove_Series(blk, 0, 1); // remove temp binary
-	}
-#endif
