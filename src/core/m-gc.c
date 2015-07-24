@@ -628,6 +628,7 @@ static void Process_Mark_Stack(void);
 			break;
 
 		default:
+			assert(FALSE);
 			Panic_Core(RP_DATATYPE+1, VAL_TYPE(val));
 	}
 }
