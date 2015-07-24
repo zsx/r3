@@ -78,15 +78,11 @@ endif
 REBOL_TOOL= r3-make$(BIN_SUFFIX)
 REBOL= $(CD)$(REBOL_TOOL) -qs
 
-# For running tests, ship, build, etc.
-R3_TARGET= r3$(BIN_SUFFIX)
-R3= $(CD)$(R3_TARGET) -qs
-
 ### Build targets:
 top: makefile
 	$(MAKE) prep
 	$(MAKE) clean
-	$(MAKE) $(R3_TARGET)
+	$(MAKE) top
 
 # .FORCE is a file assumed to not exist, and is an idiom in makefiles to have
 # a null "phony target" you can use as a dependency for a target representing

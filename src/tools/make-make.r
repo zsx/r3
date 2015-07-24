@@ -81,19 +81,13 @@ T= $(UP)/src/tools
 S= ../src
 R= $S/core
 
-# http://stackoverflow.com/a/12099167/211160
-ifeq ($(OS),Windows_NT)
-	BIN_SUFFIX = .exe
-else
-	BIN_SUFFIX =
-endif
-
 INCL ?= .
 I= -I$(INCL) -I$S/include/ -I$S/codecs/
 
 TO_OS_BASE?=
 TO_OS_NAME?=
 OS_ID?=
+BIN_SUFFIX=
 RAPI_FLAGS=
 HOST_FLAGS=	-DREB_EXE
 RLIB_FLAGS=
@@ -416,6 +410,7 @@ unless flag? -SP [ ; Use standard paths:
 	macro+ UP ".."
 	macro+ CD "./"
 ]
+if flag? EXE [macro+ BIN_SUFFIX %.exe]
 macro++ CLIB linker-flags
 macro++ RAPI_FLAGS compiler-flags
 macro++ HOST_FLAGS make compiler-flags [PIC: NCM: none]
