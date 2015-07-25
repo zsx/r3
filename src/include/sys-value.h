@@ -130,6 +130,54 @@ typedef struct Reb_Type {
 
 /***********************************************************************
 **
+**	TRASH - Trash Value used in debugging cases where a cell is
+**	expected to be overwritten.  The operations are available in
+**	debug and release builds, except release builds cannot use
+**	the IS_TRASH() test.  (Hence trash is not a real datatype,
+**	just an invalid bit pattern used to mark value cells.)
+**
+**	Because the trash value saves the filename and line where it
+**	originated, the REBVAL has that info under the debugger.
+**
+***********************************************************************/
+
+#ifdef NDEBUG
+	#define SET_TRASH(v)
+
+	#define SET_TRASH_SAFE(v) SET_UNSET(v)
+#else
+	struct Reb_Trash {
+		REBOOL safe; // if "safe" then will be UNSET! in a release build
+		const char *filename;
+		int line;
+	};
+
+	#define IS_TRASH(v) (VAL_TYPE(v) == REB_MAX + 1)
+
+	#define VAL_TRASH_SAFE(v) ((v)->data.trash.safe)
+
+	#define SET_TRASH(v) \
+		( \
+			VAL_SET((v), REB_MAX + 1), \
+			(v)->data.trash.safe = FALSE, \
+			(v)->data.trash.filename = __FILE__, \
+			(v)->data.trash.line = __LINE__, \
+			cast(void, 0) \
+		)
+
+	#define SET_TRASH_SAFE(v) \
+		( \
+			VAL_SET((v), REB_MAX + 1), \
+			(v)->data.trash.safe = TRUE, \
+			(v)->data.trash.filename = __FILE__, \
+			(v)->data.trash.line = __LINE__, \
+			cast(void, 0) \
+		)
+#endif
+
+
+/***********************************************************************
+**
 **	NUMBERS - Integer and other simple scalars
 **
 ***********************************************************************/
@@ -1315,7 +1363,12 @@ typedef struct Reb_All {
 		REBDCI  deci;
 		REBHAN  handle;
 		REBALL  all;
+
+	#ifndef NDEBUG
+		struct Reb_Trash trash; // not an actual Rebol value type; debug only
+	#endif
 	} data;
+
 	union Reb_Val_Head {
 		REBHED flags;
 		REBCNT header;

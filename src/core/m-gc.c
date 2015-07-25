@@ -628,6 +628,18 @@ static void Process_Mark_Stack(void);
 			break;
 
 		default:
+		#if !defined(NDEBUG)
+			// We allow *safe* trash values to be on the stack at the time
+			// of a garbage collection.  These will be UNSET! in the debug
+			// builds and they would not interfere with GC (they only exist
+			// so that at the end of a process you can confirm that if an
+			// UNSET! is in the slot, it was written there purposefully)
+			if (IS_TRASH(val)) {
+				assert(VAL_TRASH_SAFE(val));
+				break;
+			}
+		#endif
+
 			assert(FALSE);
 			Panic_Core(RP_DATATYPE+1, VAL_TYPE(val));
 	}
