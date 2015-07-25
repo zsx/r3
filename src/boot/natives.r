@@ -213,9 +213,10 @@ map-each: native [
 ;]
 
 quit: native [
-	{Stops evaluation and exits the interpreter--if not caught with CATCH.}
-	/return {Returns a value to the command shell (default is 0)}
-	value [integer!] {See https://en.wikipedia.org/wiki/Exit_status}
+	{Stops evaluation and exits the interpreter.}
+	/return {Returns a value (to prior script or command shell)}
+	value {Note: use integers for command shell}
+	/now {Quit immediately}
 ]
 
 protect: native [
