@@ -589,7 +589,7 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 	words = BLK_HEAD(frm->words);
 	for (; NOT_END(val); val++, words++)
 		if (!(VAL_FLAGS(val) & FLAGS_CLEAN)) {
-			Append_Val(ser, words);
+			Append_Value(ser, words);
 			if (clear) VAL_FLAGS(val) |= FLAGS_CLEAN;
 		}
 	if (!STR_LEN(ser)) {

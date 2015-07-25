@@ -288,15 +288,15 @@
 		if (VAL_EVENT_FLAGS(value) & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)) {
 			ser = Make_Block(3);
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
-				arg = Append_Value(ser);
+				arg = Alloc_Tail_Blk(ser);
 				Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL)) {
-				arg = Append_Value(ser);
+				arg = Alloc_Tail_Blk(ser);
 				Init_Word_Unbound(arg, REB_WORD, SYM_CONTROL);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT)) {
-				arg = Append_Value(ser);
+				arg = Alloc_Tail_Blk(ser);
 				Init_Word_Unbound(arg, REB_WORD, SYM_SHIFT);
 			}
 			Set_Block(val, ser);

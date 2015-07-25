@@ -441,7 +441,7 @@
 				}
 			}
 			else
-				if (!IS_UNSET(ds)) Append_Val(out, ds); // (mode == 2)
+				if (!IS_UNSET(ds)) Append_Value(out, ds); // (mode == 2)
 		}
 skip_hidden: ;
 	}

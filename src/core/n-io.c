@@ -281,7 +281,7 @@ chk_neg:
 	case REB_PORT:
 		if (!Pending_Port(val)) return R_NONE;
 		ports = Make_Block(1);
-		Append_Val(ports, val);
+		Append_Value(ports, val);
 		// fall thru...
 	case REB_NONE:
 	case REB_END:
@@ -718,8 +718,8 @@ chk_neg:
 
 	str = start;
 	while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
-		Set_Series(REB_STRING, Append_Value(blk), Copy_OS_Str(str, eq-str));
-		Set_Series(REB_STRING, Append_Value(blk), Copy_OS_Str(eq+1, n-(eq-str)-1));
+		Set_Series(REB_STRING, Alloc_Tail_Blk(blk), Copy_OS_Str(str, eq-str));
+		Set_Series(REB_STRING, Alloc_Tail_Blk(blk), Copy_OS_Str(eq+1, n-(eq-str)-1));
 		str += n + 1; // next
 	}
 
@@ -782,7 +782,7 @@ chk_neg:
 
 	if (len == 1) {  // First is full file path
 		dir = To_REBOL_Path(str, n, OS_WIDE, 0);
-		Set_Series(REB_FILE, Append_Value(blk), dir);
+		Set_Series(REB_FILE, Alloc_Tail_Blk(blk), dir);
 	}
 	else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
@@ -793,14 +793,14 @@ chk_neg:
         while ((n = OS_STRLEN(str))) {
 			dir->tail = len;
 			Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
-			Set_Series(REB_FILE, Append_Value(blk), Copy_String(dir, 0, -1));
+			Set_Series(REB_FILE, Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #else /* absolute pathes already */
 		str += n + 1;
 		while ((n = OS_STRLEN(str))) {
 			dir = To_REBOL_Path(str, n, OS_WIDE, FALSE);
-			Set_Series(REB_FILE, Append_Value(blk), Copy_String(dir, 0, -1));
+			Set_Series(REB_FILE, Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #endif

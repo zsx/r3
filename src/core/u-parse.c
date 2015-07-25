@@ -632,7 +632,7 @@ bad_target:
 	// Copy the value into its own block:
 	newparse.series = Make_Block(1);
 	SAVE_SERIES(newparse.series);
-	Append_Val(newparse.series, &value);
+	Append_Value(newparse.series, &value);
 	newparse.type = REB_BLOCK;
 	newparse.flags = parse->flags;
 	newparse.result = 0;
@@ -1185,7 +1185,7 @@ bad_end:
 			if (Check_Bit(set, GET_ANY_CHAR(series, index), !(flags & PF_CASE))) index++;
 
 			// Append new string:
-			Set_String(Append_Value(blk), Copy_String(series, begin, end - begin));
+			Set_String(Alloc_Tail_Blk(blk), Copy_String(series, begin, end - begin));
 		}
 	}
 	UNSAVE_SERIES(set);
@@ -1220,7 +1220,7 @@ bad_end:
 	for (i = s = 0; i < SERIES_TAIL(src); i++) {
 		c = uni ? up[i] : bp[i];
 		if (c == LF || c == CR) {
-			val = Append_Value(blk);
+			val = Alloc_Tail_Blk(blk);
 			Set_String(val, Copy_String(src, s, i - s));
 			VAL_SET_LINE(val);
 			// Skip CRLF if found:
@@ -1231,7 +1231,7 @@ bad_end:
 
 	// Partial line (no linefeed):
 	if (s + 1 != i) {
-		val = Append_Value(blk);
+		val = Alloc_Tail_Blk(blk);
 		Set_String(val, Copy_String(src, s, i - s));
 		VAL_SET_LINE(val);
 	}

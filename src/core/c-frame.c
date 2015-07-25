@@ -124,9 +124,9 @@
 	frame = Make_Block(len + 1);
 	//ENABLE_GC;
 	// Note: cannot use Append_Frame for first word.
-	value = Append_Value(frame);
+	value = Alloc_Tail_Blk(frame);
 	SET_FRAME(value, 0, words);
-	value = Append_Value(words);
+	value = Alloc_Tail_Blk(words);
 	Init_Unword(
 		value, REB_WORD, has_self ? SYM_SELF : SYM_NOT_USED, ALL_64
 	);
@@ -380,7 +380,7 @@
 			&& (modes & BIND_ALL || IS_SET_WORD(block))
 		) {
 			binds[VAL_WORD_CANON(block)] = 1;
-			val = Append_Value(BUF_WORDS);
+			val = Alloc_Tail_Blk(BUF_WORDS);
 			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(block));
 		}
 		else if (ANY_EVAL_BLOCK(block) && (modes & BIND_DEEP))
@@ -540,7 +540,7 @@
 	for (; n < SERIES_TAIL(frame); n++) {
 		if (!VAL_GET_OPT(words+n, OPTS_HIDE)) {
 			if (mode & 1) {
-				value = Append_Value(block);
+				value = Alloc_Tail_Blk(block);
 				if (mode & 2) {
 					VAL_SET(value, REB_SET_WORD);
 					VAL_SET_LINE(value);
@@ -551,7 +551,7 @@
 				VAL_WORD_FRAME(value) = frame;
 			}
 			if (mode & 2) {
-				Append_Val(block, values+n);
+				Append_Value(block, values+n);
 			}
 		}
 	}
@@ -641,7 +641,7 @@
 	// Allocate child (now that we know the correct size):
 	wrds = Copy_Series(BUF_WORDS);
 	child = Make_Block(SERIES_TAIL(wrds));
-	value = Append_Value(child);
+	value = Alloc_Tail_Blk(child);
 	VAL_SET(value, REB_FRAME);
 	VAL_FRM_WORDS(value) = wrds;
 	VAL_FRM_SPEC(value) = 0;

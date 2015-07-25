@@ -136,7 +136,7 @@ static REBOOL get_scalar(REBSTU *stu,
 				for (n = 0; n < field->dimension; n ++) {
 					REBVAL elem;
 					get_scalar(stu, field, n, &elem);
-					Append_Val(ser, &elem);
+					Append_Value(ser, &elem);
 				}
 				VAL_SERIES(val) = ser;
 				VAL_INDEX(val) = 0;
@@ -178,14 +178,14 @@ static REBOOL get_scalar(REBSTU *stu,
 		REBVAL *type_blk = NULL;
 
 		/* required field name */
-		val = Append_Value(ser);
+		val = Alloc_Tail_Blk(ser);
 		Init_Word_Unbound(val, REB_SET_WORD, field->sym);
 
 		/* required type */
-		type_blk = Append_Value(ser);
+		type_blk = Alloc_Tail_Blk(ser);
 		VAL_SERIES(type_blk) = Make_Block(1);
 		SET_TYPE(type_blk, REB_BLOCK);
-		val = Append_Value(VAL_SERIES(type_blk));
+		val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 		if (field->type == STRUCT_TYPE_STRUCT) {
 			REBVAL *nested = NULL;
 			DS_PUSH_NONE;
@@ -193,7 +193,7 @@ static REBOOL get_scalar(REBSTU *stu,
 
 			Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
 			get_scalar(stu, field, 0, nested);
-			val = Append_Value(VAL_SERIES(type_blk));
+			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 			SET_TYPE(val, REB_BLOCK);
 			VAL_SERIES(val) = Struct_To_Block(&VAL_STRUCT(nested));
 
@@ -205,11 +205,11 @@ static REBOOL get_scalar(REBSTU *stu,
 		if (field->dimension > 1) {
 			REBSER *dim = Make_Block(1);
 			REBVAL *dv = NULL;
-			val = Append_Value(VAL_SERIES(type_blk));
+			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 			SET_TYPE(val, REB_BLOCK);
 			VAL_SERIES(val) = dim;
 
-			dv = Append_Value(dim);
+			dv = Alloc_Tail_Blk(dim);
 			SET_INTEGER(dv, field->dimension);
 		}
 
@@ -217,15 +217,15 @@ static REBOOL get_scalar(REBSTU *stu,
 		if (field->dimension > 1) {
 			REBSER *dim = Make_Block(1);
 			REBCNT n = 0;
-			val = Append_Value(ser);
+			val = Alloc_Tail_Blk(ser);
 			SET_TYPE(val, REB_BLOCK);
 			VAL_SERIES(val) = dim;
 			for (n = 0; n < field->dimension; n ++) {
-				REBVAL *dv = Append_Value(dim);
+				REBVAL *dv = Alloc_Tail_Blk(dim);
 				get_scalar(stu, field, n, dv);
 			}
 		} else {
-			val = Append_Value(ser);
+			val = Alloc_Tail_Blk(ser);
 			get_scalar(stu, field, 0, val);
 		}
 	}

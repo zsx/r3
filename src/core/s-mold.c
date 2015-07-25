@@ -585,7 +585,7 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 			return;
 		}
 	}
-	value = Append_Value(MOLD_LOOP);
+	value = Alloc_Tail_Blk(MOLD_LOOP);
 	Set_Block(value, series);
 
 	if (sep[1]) {
@@ -799,7 +799,7 @@ static void Mold_Map(REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		Append_Unencoded(mold->series, "...]");
 		return;
 	}
-	Append_Val(MOLD_LOOP, value);
+	Append_Value(MOLD_LOOP, value);
 
 	if (molded) {
 		Pre_Mold(value, mold);
@@ -838,7 +838,7 @@ static void Form_Object(REBVAL *value, REB_MOLD *mold)
 		Append_Unencoded(mold->series, "...]");
 		return;
 	}
-	Append_Val(MOLD_LOOP, value);
+	Append_Value(MOLD_LOOP, value);
 
 	// Mold all words and their values:
 	for (n = 1; n < SERIES_TAIL(wser); n++) {
@@ -874,7 +874,7 @@ static void Mold_Object(REBVAL *value, REB_MOLD *mold)
 		Append_Unencoded(mold->series, "...]");
 		return;
 	}
-	Append_Val(MOLD_LOOP, value);
+	Append_Value(MOLD_LOOP, value);
 
 	mold->indent++;
 	for (n = 1; n < SERIES_TAIL(wser); n++) {

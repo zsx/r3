@@ -256,8 +256,8 @@
 			else Trap_Type_DEAD_END(key);
 
 			if (!val) return 0;
-			Append_Val(series, key);
-			Append_Val(series, val); // no Copy_Series_Value(val) on strings
+			Append_Value(series, key);
+			Append_Value(series, val); // no Copy_Series_Value(val) on strings
 			return series->tail/2;
 		}
 
@@ -287,8 +287,8 @@
 	}
 
 	// Create new entry:
-	Append_Val(series, key);
-	Append_Val(series, val);  // no Copy_Series_Value(val) on strings
+	Append_Value(series, key);
+	Append_Value(series, val);  // no Copy_Series_Value(val) on strings
 
 	return (hashes[hash] = series->tail/2);
 }

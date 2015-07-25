@@ -287,7 +287,7 @@
 
 /***********************************************************************
 **
-*/	REBVAL *Append_Value(REBSER *block)
+*/	REBVAL *Alloc_Tail_Blk(REBSER *block)
 /*
 **		Append a value to a block series at its tail.
 **		Expand it if necessary. Update the termination and tail.
@@ -295,33 +295,27 @@
 **
 ***********************************************************************/
 {
-	REBVAL *value;
+	REBVAL *tail;
 
 	EXPAND_SERIES_TAIL(block, 1);
-	value = BLK_TAIL(block);
-	SET_END(value);
-	value--;
-	SET_NONE(value);  // Expand_Series leaves a hole here to be filled
-	return value;
+	tail = BLK_TAIL(block);
+	SET_END(tail);
+
+	SET_TRASH(tail - 1); // No-op in release builds
+	return tail - 1;
 }
 
 
 /***********************************************************************
 **
-*/	void Append_Val(REBSER *block, const REBVAL *val)
+*/	void Append_Value(REBSER *block, const REBVAL *value)
 /*
 **		Append a value to a block series at its tail.
 **		Expand it if necessary. Update the termination and tail.
 **
 ***********************************************************************/
 {
-	REBVAL *value;
-
-	EXPAND_SERIES_TAIL(block, 1);
-	value = BLK_TAIL(block);
-	SET_END(value);
-	value--;
-	*value = *val;
+	*Alloc_Tail_Blk(block) = *value;
 }
 
 

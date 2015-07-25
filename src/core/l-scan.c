@@ -1617,7 +1617,7 @@ exit_block:
 	Set_Block(D_OUT, blk);
 
 	VAL_INDEX(D_ARG(1)) = scan_state.end - VAL_BIN(D_ARG(1));
-	Append_Val(blk, D_ARG(1));
+	Append_Value(blk, D_ARG(1));
 
 	return R_OUT;
 }

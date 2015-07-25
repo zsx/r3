@@ -80,7 +80,7 @@
 	Set_Root_Series(ROOT_TYPESETS, Make_Block(40), "typeset presets");
 
 	for (n = 0; Typesets[n]; n += 2) {
-		value = Append_Value(VAL_SERIES(ROOT_TYPESETS));
+		value = Alloc_Tail_Blk(VAL_SERIES(ROOT_TYPESETS));
 		VAL_SET(value, REB_TYPESET);
 		VAL_TYPESET(value) = Typesets[n+1];
 		if (Typesets[n] > 1)
@@ -171,7 +171,7 @@
 	}
 
 //	Print("Size Typesets: %d", VAL_TAIL(ROOT_TYPESETS));
-	Append_Val(VAL_SERIES(ROOT_TYPESETS), &value);
+	Append_Value(VAL_SERIES(ROOT_TYPESETS), &value);
 	return n;
 }
 
@@ -199,7 +199,7 @@
 	// Convert bits to types:
 	for (n = 0; n < REB_MAX; n++) {
 		if (TYPE_CHECK(tset, n)) {
-			value = Append_Value(block);
+			value = Alloc_Tail_Blk(block);
 			Set_Datatype(value, n);
 		}
 	}

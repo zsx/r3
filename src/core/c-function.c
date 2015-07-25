@@ -70,7 +70,7 @@
 	word = BLK_SKIP(words, 1);
 
 	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
-		value = Append_Value(block);
+		value = Alloc_Tail_Blk(block);
 		VAL_SET(value, VAL_TYPE(word));
 		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
 		UNBIND(value);
@@ -99,7 +99,7 @@
 	word = BLK_SKIP(words, 1);
 
 	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
-		value = Append_Value(block);
+		value = Alloc_Tail_Blk(block);
 		VAL_SET(value, VAL_TYPE(word));
 		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
 		UNBIND(value);

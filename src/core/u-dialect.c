@@ -267,15 +267,19 @@ again:
 			return -REB_DIALECT_BAD_SPEC;
 
 		// Make room for it in the output block:
-		if (IS_END(outp))
-			outp = Append_Value(dia->out);
-		else if (!IS_NONE(outp)) {
+		if (IS_END(outp)) {
+			outp = Alloc_Tail_Blk(dia->out);
+			SET_NONE(outp);
+		} else if (!IS_NONE(outp)) {
 			// There's already an arg in this slot, so skip it...
 			if (dia->cmd > 1) outp++;
 			if (!rept) continue; // see if there's another farg that will work for it
 			// Look for first empty slot:
 			while (NOT_END(outp) && !IS_NONE(outp)) outp++;
-			if (IS_END(outp)) outp = Append_Value(dia->out);
+			if (IS_END(outp)) {
+				outp = Alloc_Tail_Blk(dia->out);
+				SET_NONE(outp);
+			}
 		}
 
 		// The datatype was correct from above!
@@ -378,7 +382,7 @@ again:
 
 	// Insert command word:
 	if (!GET_FLAG(dia->flags, RDIA_NO_CMD)) {
-		val = Append_Value(dia->out);
+		val = Alloc_Tail_Blk(dia->out);
 		Init_Word(
 			val,
 			GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
@@ -408,7 +412,8 @@ again:
 	// If not enough args, pad with NONE values:
 	if (dia->cmd > 1) {
 		for (n = SERIES_TAIL(dia->out); n < size; n++) {
-			Append_Value(dia->out);
+			REBVAL *temp = Alloc_Tail_Blk(dia->out);
+			SET_NONE(temp);
 		}
 	}
 

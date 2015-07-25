@@ -1110,7 +1110,7 @@ more_path:
 	while (index < BLK_LEN(block)) {
 		index = Do_Next(block, index, 0);
 		if (THROWN(DS_TOP)) return;
-		Append_Val(ser, DS_POP);
+		Append_Value(ser, DS_POP);
 	}
 }
 
@@ -1159,11 +1159,11 @@ more_path:
 			const REBVAL *v;
 			// Check for keyword:
 			if (ser && NOT_FOUND != Find_Word(ser, idx, VAL_WORD_CANON(val))) {
-				Append_Val(dest_ser, val);
+				Append_Value(dest_ser, val);
 				continue;
 			}
 			v = GET_VAR(val);
-			Append_Val(dest_ser, v);
+			Append_Value(dest_ser, v);
 		}
 		else if (IS_PATH(val)) {
 			REBVAL *v;
@@ -1172,16 +1172,16 @@ more_path:
 				v = VAL_BLK_DATA(val);
 				if (IS_WORD(v)) {
 					if (NOT_FOUND != Find_Word(ser, idx, VAL_WORD_CANON(v))) {
-						Append_Val(dest_ser, val);
+						Append_Value(dest_ser, val);
 						continue;
 					}
 				}
 			}
 			v = val;
 			Do_Path(&v, 0); // pushes val on stack
-			Append_Val(dest_ser, DS_POP);
+			Append_Value(dest_ser, DS_POP);
 		}
-		else Append_Val(dest_ser, val);
+		else Append_Value(dest_ser, val);
 		// No need to check for unwinds (THROWN) here, because unwinds should
 		// never be accessible via words or paths.
 	}
@@ -1223,7 +1223,7 @@ more_path:
 		} else
 			index = Do_Next(block, index, 0);
 		if (THROWN(DS_TOP)) return;
-		Append_Val(ser, DS_POP);
+		Append_Value(ser, DS_POP);
 	}
 
 }
@@ -1351,22 +1351,22 @@ more_path:
 				// Append series:
 				Append_Series(ser, (REBYTE *)VAL_BLK_DATA(paren), VAL_BLK_LEN(paren));
 			}
-			else if (!IS_UNSET(paren)) Append_Val(ser, paren); //don't append result if unset is returned
+			else if (!IS_UNSET(paren)) Append_Value(ser, paren); //don't append result if unset is returned
 		}
 		else if (deep) {
 			if (IS_BLOCK(value)) {
 				Compose_Block(value, TRUE, only, 0);
-				Append_Val(ser, DS_POP);
+				Append_Value(ser, DS_POP);
 			}
 			else {
 				REBVAL tmp = *value;
 				if (ANY_BLOCK(value)) // Include PATHS
 					VAL_SERIES(&tmp) = Copy_Block(VAL_SERIES(value), 0);
-				Append_Val(ser, &tmp);
+				Append_Value(ser, &tmp);
 			}
 		}
 		else {
-			Append_Val(ser, value);
+			Append_Value(ser, value);
 		}
 	}
 

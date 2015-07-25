@@ -171,7 +171,7 @@ x*/	void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 
 	blk = Make_Block(len = RXA_COUNT(frm));
 	for (n = 1; n <= len; n++) {
-		val = Append_Value(blk);
+		val = Alloc_Tail_Blk(blk);
 		RXI_To_Value(val, frm->args[n], RXA_TYPE(frm, n));
 	}
 	Set_Block(out, blk);

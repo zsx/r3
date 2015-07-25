@@ -66,7 +66,7 @@
 		name = Copy_OS_Str(file.special.file.path, len);
 		if (GET_FLAG(file.modes, RFM_DIR))
 			SET_ANY_CHAR(name, name->tail-1, '/');
-		Set_Series(REB_FILE, Append_Value(files), name);
+		Set_Series(REB_FILE, Alloc_Tail_Blk(files), name);
 	}
 
 	if (result < 0 && dir->error != -RFE_OPEN_FAIL

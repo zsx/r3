@@ -584,7 +584,7 @@ static	BOOT_BLK *Boot_Block;
 	frame = VAL_SERIES(value);
 	Extend_Series(frame, REB_MAX-1);
 	for (n = 1; n <= REB_MAX; n++) {
-		Append_Val(frame, FRM_VALUES(Lib_Context) + n);
+		Append_Value(frame, FRM_VALUES(Lib_Context) + n);
 	}
 
 	// Create system/catalog/datatypes block:
@@ -871,10 +871,10 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
 	for (val = VAL_BLK(val); NOT_END(val); val++) {
 		VAL_CLR_LINE(val);
-		if (rargs->options & n) Append_Val(ser, val);
+		if (rargs->options & n) Append_Value(ser, val);
 		n <<= 1;
 	}
-	val = Append_Value(ser);
+	val = Alloc_Tail_Blk(ser);
 	SET_TRUE(val);
 	val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
 	Set_Block(val, ser);

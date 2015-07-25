@@ -387,6 +387,7 @@ static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
 	}
 
 	if (IS_WORD(elem)) {
+		REBVAL *temp;
 		switch (VAL_WORD_CANON(elem)) {
 			case SYM_VOID:
 				args[idx] = &ffi_type_void;
@@ -443,8 +444,10 @@ static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
 			default:
 				return FALSE;
 		}
-		Append_Value(VAL_ROUTINE_FFI_ARG_STRUCTS(out)); /* fill with none */
-	} else if (IS_STRUCT(elem)) {
+		temp = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+		SET_NONE(temp);
+	}
+	else if (IS_STRUCT(elem)) {
 		ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem));
 		REBVAL *to = NULL;
 		if (ftype) {
@@ -458,7 +461,7 @@ static REBOOL rebol_type_to_ffi(REBVAL *out, REBVAL *elem, REBCNT idx)
 		if (idx == 0) {
 			to = BLK_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 		} else {
-			to = Append_Value(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+			to = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 		}
 		Copy_Struct_Val(elem, to); //for callback and return value
 	} else {
@@ -764,7 +767,7 @@ static void ffi_to_rebol(REBRIN *rin,
 				if (!IS_BLOCK(reb_type)) {
 					Trap_Arg(reb_type);
 				}
-				v = Append_Value(VAL_ROUTINE_ALL_ARGS(rot));
+				v = Alloc_Tail_Blk(VAL_ROUTINE_ALL_ARGS(rot));
 				Init_Word_Unbound(v, REB_WORD, SYM_ELLIPSIS); //FIXME, be clear
 				EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot), 1);
 				process_type_block(rot, reb_type, j);
@@ -873,12 +876,12 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	VAL_SERIES(blk) = ser = Make_Block(1 + cif->nargs);
 	VAL_INDEX(blk) = 0;
 
-	elem = Append_Value(ser);
+	elem = Alloc_Tail_Blk(ser);
 	SET_TYPE(elem, REB_FUNCTION);
 	VAL_FUNC(elem) = RIN_FUNC(rin);
 
 	for (i = 0; i < cif->nargs; i ++) {
-		elem = Append_Value(ser);
+		elem = Alloc_Tail_Blk(ser);
 		switch (cif->arg_types[i]->type) {
 			case FFI_TYPE_UINT8:
 				SET_INTEGER(elem, *(u8*)args[i]);
@@ -915,7 +918,8 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 					   VAL_STRUCT_LEN(elem));
 				break;
 			default:
-				Trap_Arg(elem);
+				// !!! was Trap_Arg(elem), but elem is uninitizalized here
+				Trap(RE_MISC);
 		}
 	}
 	elem = Do_Blk(ser, 0);
@@ -986,6 +990,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBCNT n = 1; /* arguments start with the index 1 (return type has a index of 0) */
 	REBCNT has_return = 0;
 	REBCNT has_abi = 0;
+	REBVAL *temp;
 
 	if (!IS_BLOCK(data)) {
 		return FALSE;
@@ -1006,9 +1011,15 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	VAL_ROUTINE_SPEC(out) = Copy_Series(VAL_SERIES(data));
 	VAL_ROUTINE_FFI_ARG_TYPES(out) = Make_Series(N_ARGS, sizeof(ffi_type*), FALSE);
 	VAL_ROUTINE_ARGS(out) = Make_Block(N_ARGS);
-	Append_Value(VAL_ROUTINE_ARGS(out)); //first word should be 'self', but ignored here.
+
+	// first word should be 'self', but ignored here.
+	temp = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
+	SET_NONE(temp);
+
 	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Block(N_ARGS);
-	Append_Value(VAL_ROUTINE_FFI_ARG_STRUCTS(out)); /* reserve for returning struct */
+	// reserve for returning struct
+	temp = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+	SET_NONE(temp); // should this be SET_TRASH(), e.g. write-only location?
 
 	VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
 	VAL_ROUTINE_LIB(out) = NULL;
@@ -1105,7 +1116,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						//Change the argument list to be a block
 						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Series(VAL_ROUTINE_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
-						v = Append_Value(VAL_ROUTINE_ARGS(out));
+						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
 						Init_Word_Unbound(v, REB_WORD, SYM_VARARGS);
 						TYPE_SET(v, REB_BLOCK);
 					} else {
@@ -1114,7 +1125,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							//... has to be the last argument
 							Trap_Arg_DEAD_END(blk);
 						}
-						v = Append_Value(VAL_ROUTINE_ARGS(out));
+						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
 						Init_Word_Unbound(v, REB_WORD, VAL_WORD_SYM(blk));
 						EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 

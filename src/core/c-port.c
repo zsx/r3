@@ -489,7 +489,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 	if (Scheme_Actions[n].fun) {
 		// Hand build a native function used to reach native scheme actors.
 		REBSER *ser = Make_Block(1);
-		act = Append_Value(ser);
+		act = Alloc_Tail_Blk(ser);
 
 		Init_Unword(
 			act,

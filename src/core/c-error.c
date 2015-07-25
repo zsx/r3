@@ -173,9 +173,9 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 	REBSER *blk = VAL_SERIES(TASK_ERR_TEMPS);
 
 	RESET_SERIES(blk);
-	val = Append_Value(blk);
+	val = Alloc_Tail_Blk(blk);
 	Set_Series(type, val, series);
-	err = Append_Value(blk);
+	err = Alloc_Tail_Blk(blk);
 	SET_THROW(err, RE_RETURN, val);
 	VAL_ERR_SYM(err) = SYM_RETURN; // indicates it is "virtual" (parse return)
 	Throw_Break(err);
@@ -195,9 +195,9 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 	REBSER *blk = VAL_SERIES(TASK_ERR_TEMPS);
 
 	RESET_SERIES(blk);
-	val = Append_Value(blk);
+	val = Alloc_Tail_Blk(blk);
 	*val = *value;
-	err = Append_Value(blk);
+	err = Alloc_Tail_Blk(blk);
 	SET_THROW(err, RE_RETURN, val);
 	VAL_ERR_SYM(err) = SYM_RETURN; // indicates it is "virtual" (parse return)
 	Throw_Break(err);
@@ -252,7 +252,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 	for (dsf = DSF; dsf > 0; dsf = PRIOR_DSF(dsf)) {
 		if (start-- <= 0) {
-			val = Append_Value(blk);
+			val = Alloc_Tail_Blk(blk);
 			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(dsf)));
 		}
 	}

@@ -939,9 +939,9 @@ static int Do_Ordinal(REBVAL *ds, REBINT n)
 
 	blk = Make_Block(2);
 	Set_Series(REB_BLOCK, ds, blk);
-	val = Append_Value(blk);
+	val = Alloc_Tail_Blk(blk);
 	SET_GOB(val, gob);
-	val = Append_Value(blk);
+	val = Alloc_Tail_Blk(blk);
 	VAL_SET(val, REB_PAIR);
 	VAL_PAIR_X(val) = x;
 	VAL_PAIR_Y(val) = y;

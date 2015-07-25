@@ -242,9 +242,9 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		ser = Make_Block(2);
 		Set_Block(value, ser);
 	}
-	value = Append_Value(ser);
+	value = Alloc_Tail_Blk(ser);
 	Set_Binary(value, Copy_Bytes(source, -1)); // UTF-8
-	value = Append_Value(ser);
+	value = Alloc_Tail_Blk(ser);
 	SET_HANDLE_CODE(value, cast(CFUNC*, call));
 
 	return Extension_Lib();
@@ -936,7 +936,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	CLEARS(&value);
 	RXI_To_Value(&value, val, type);
 	if (index >= series->tail) {
-		Append_Val(series, &value);
+		Append_Value(series, &value);
 		return TRUE;
 	}
 	*BLK_SKIP(series, index) = value;
