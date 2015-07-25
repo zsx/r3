@@ -546,11 +546,11 @@ emit {
 extern "C" ^{
 #endif
 
-extern const REBYTE Reb_To_RXT[REB_MAX];
+extern const REBRXT Reb_To_RXT[REB_MAX];
 
 /***********************************************************************
 **
-*/	const REBYTE Reb_To_RXT[REB_MAX] =
+*/	const REBRXT Reb_To_RXT[REB_MAX] =
 /*
 ***********************************************************************/
 ^{

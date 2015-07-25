@@ -83,6 +83,7 @@ typedef struct rxi_cmd_context {
 	REBCNT index;	// 0-based index of current command in block
 } REBCEC;
 
+typedef unsigned char REBRXT;
 typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
 
 #pragma pack()

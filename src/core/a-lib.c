@@ -49,7 +49,7 @@ REBOL_HOST_LIB *Host_Lib;
 #include <stdio.h>
 #endif
 
-extern const REBYTE Reb_To_RXT[REB_MAX];
+extern const REBRXT Reb_To_RXT[REB_MAX];
 extern RXIARG Value_To_RXI(REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
