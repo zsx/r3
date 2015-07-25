@@ -28,18 +28,7 @@
 ***********************************************************************/
 
 #include <stdlib.h>
-#include <stdio.h>
-#include <poll.h>
-#include <fcntl.h>              /* Obtain O_* constant definitions */
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <time.h>
 #include <string.h>
-#include <errno.h>
-#include <assert.h>
 
 #include "reb-host.h"
 
