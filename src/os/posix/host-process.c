@@ -30,25 +30,21 @@
 **
 ***********************************************************************/
 
-#ifndef __cplusplus
+#if !defined( __cplusplus) && defined(TO_LINUX)
 	// See feature_test_macros(7)
 	// This definition is redundant under C++
-	#define _GNU_SOURCE
+	#define _GNU_SOURCE  // Needed for pipe2 on Linux
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <poll.h>
-#include <fcntl.h>              /* Obtain O_* constant definitions */
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <string.h>
 #include <errno.h>
-#include <assert.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "reb-host.h"
 
