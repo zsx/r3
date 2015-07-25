@@ -986,7 +986,7 @@ tls-read-data: func [
 	return false
 ]
 
-tls-awake: funct [event [event!]] [
+tls-awake: function [event [event!]] [
 	debug ["TLS Awake-event:" event/type]
 	port: event/port
 	tls-port: port/locals

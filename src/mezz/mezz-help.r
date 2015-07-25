@@ -422,7 +422,7 @@ say-browser: does [
 	print "Opening web browser..."
 ]
 
-upgrade: funct [
+upgrade: function [
 	"Check for newer versions (update REBOL)."
 ][
 	print "Fetching upgrade check ..."
