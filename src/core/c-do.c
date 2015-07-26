@@ -2044,13 +2044,23 @@ push_arg:
 		// Saved_State is safe.
 		Saved_State = Halt_State;
 
-		// SYS_CTX_START runs 'start' in sys-start.r
-		Do_Sys_Func(SYS_CTX_START, 0); // what if script contains a HALT?
+		// !!! Startup is split into two functions--both called here in a
+		// temporary commit, but separately in RL_Start() and Init_Core() in
+		// a forthcoming modification.  These are in sys-start.r, and the
+		// convention is that NONE! indicates success.
 
-		// Convention is that if start completes successfully, it returns unset
-		assert(IS_UNSET(DS_TOP));
-		//if (Try_Block_Halt(VAL_SERIES(ROOT_SCRIPT), 0)) {
+		Do_Sys_Func(SYS_CTX_FINISH_INIT_CORE, NULL);
+		if (!IS_NONE(DS_TOP)) {
+			Debug_Fmt("** 'finish-init-core' returned non-none!: %r", DS_TOP);
+			Panic(RP_EARLY_ERROR);
+		}
+		DS_DROP;
 
+		Do_Sys_Func(SYS_CTX_FINISH_RL_START, NULL);
+		if (!IS_NONE(DS_TOP)) {
+			Debug_Fmt("** 'finish-rl-start' returned non-none!: %r", DS_TOP);
+			Panic(RP_EARLY_ERROR);
+		}
 		DS_DROP;
 
 		//DS_Base[state.dsp+1] = *val;

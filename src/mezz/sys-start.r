@@ -11,27 +11,74 @@ REBOL [
 	}
 	Context: sys
 	Note: {
-		The boot binding of this module is SYS then LIB deep.
+		Originally Rebol's "Mezzanine" init was one function.  In Ren/C's
+		philosophy of being "just an interpreter core", many concerns will
+		not be in the basic library.  This includes whether "--do" is the
+		character sequence on the command-line for executing scripts (or even
+		if there *is* a command-line).  It also shouldn't be concerned with
+		code for reading embedded scripts out of various ELF or PE file
+		formats for encapping.
+
+		Prior to the Atronix un-forking, Ren/C had some progress by putting
+		the "--do" handling into the host.  But merging the Atronix code put
+		encapping into the core startup.  So this separation will be an
+		ongoing process.  For the moment that is done by splitting into two
+		functions: a "core" portion for finishing Init_Core(), and a "host"
+		portion for finishing RL_Start().
+
+		!!! "The boot binding of this module is SYS then LIB deep.
 		Any non-local words not found in those contexts WILL BE
-		UNBOUND and will error out at runtime!
+		UNBOUND and will error out at runtime!"
 	}
 ]
 
-start: func [
-	"INIT: Completes the boot sequence. Loads extras, handles args, security, scripts."
-	/local file tmp script-path script-args code
+finish-init-core: func [
+	"Completes the boot sequence for Ren/C core."
+	/local tmp
+] bind [ ; context is system/options
+
+	; For now, we consider initializing the port schemes to be "part of the
+	; core function".  Longer term, it may be the host's responsibility to
+	; pick and configure the specific schemes it wishes to support...or
+	; to delegate to the user to load them.
+	;
+	init-schemes
+
+	; Make the user's global context
+	;
+	tmp: make object! 320
+	append tmp reduce ['system :system]
+	system/contexts/user: tmp
+
+	; Remove the reference through which this function we are running is
+	; found, so it's invisible to the user and can't run again.
+	;
+	finish-init-core: 'done
+
+	; Set the "boot-level"
+	; !!! Is this something the user needs to be concerned with?
+	;
+	assert [none? boot-level]
+	boot-level: 'full
+
+	; It was a stated goal at one point that it should be possible to protect
+	; the entire system object and still run the interpreter.  This was
+	; commented out, so the state of that feature is unknown.
+	;
+	comment [if :lib/secure [protect-system-object]]
+
+	; returning anything but NONE! from init is considered an error, and
+	; the value is raised as an alert when Panic()-ing
+	;
+	none
+
+] system/options
+
+
+finish-rl-start: func [
+	"Loads extras, handles args, security, scripts (should be host-specific)."
+	/local file script-path script-args code
 ] bind [ ; context is: system/options
-
-	;** Note ** We need to make this work for lower boot levels too!
-
-	;-- DEBUG: enable these lines for debug or related testing
-	loud-print ["Starting... boot level:" boot-level]
-	;trace 1
-	;crash-here ; test error handling (undefined word)
-
-	boot-level: any [boot-level 'full]
-	start: 'done ; only once
-	init-schemes ; only once
 
 	;-- Print minimal identification banner if needed:
 	if all [
@@ -46,8 +93,7 @@ start: func [
 	path: dirize any [path home]
 	home: dirize home
 	;if slash <> first boot [boot: clean-path boot] ;;;;; HAVE C CODE DO IT PROPERLY !!!!
-	;home: file: first split-path boot ;doesn't work when system/options/home is NONE, patched with line below for now --cyphre
-	file: home
+	home: file: first split-path boot
 	if file? script [ ; Get the path (needed for SECURE setup)
 		script-path: split-path script
 		case [
@@ -119,17 +165,10 @@ start: func [
 	loud-print ["Checking for rebol.r file in" file]
 	if exists? file/rebol.r [do file/rebol.r] ; bug#706
 
-	;-- Make the user's global context:
-	tmp: make object! 320
-	append tmp reduce ['system :system]
-	system/contexts/user: tmp
-
 	;boot-print ["Checking for user.r file in" file]
 	;if exists? file/user.r [do file/user.r]
 
 	boot-print ""
-
-	;if :lib/secure [protect-system-object]
 
 	; Import module?
 	if import [lib/import import]
@@ -191,6 +230,7 @@ start: func [
 		boot-print boot-help
 	]
 
-	exit
+	finish-rl-start: 'done
 
+	none ; returning anything besides none is considered failure
 ] system/options
