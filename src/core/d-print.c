@@ -275,7 +275,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Uni(REBSER *ser)
+*/	void Debug_Uni(const REBSER *ser)
 /*
 **		Print debug unicode string followed by a newline.
 **
@@ -300,12 +300,43 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Series(REBSER *ser)
+*/	void Debug_Series(const REBSER *ser)
 /*
 ***********************************************************************/
 {
-	if (BYTE_SIZE(ser)) Debug_Str(s_cast(BIN_HEAD(ser)));
-	else Debug_Uni(ser);
+	REBINT disabled = GC_Disabled;
+	GC_Disabled = 1;
+
+	// This routine is also a little catalog of the outlying series
+	// types in terms of sizing, just to know what they are.
+
+	if (BYTE_SIZE(ser))
+		Debug_Str(s_cast(BIN_HEAD(ser)));
+	else if (IS_BLOCK_SERIES(ser)) {
+		REBVAL value;
+		// May not actually be a REB_BLOCK, but we put it in a value
+		// container for now saying it is so we can output it.  Because
+		// it may be a frame or otherwise, we use a raw VAL_SET
+		VAL_SET(&value, REB_BLOCK);
+		VAL_SERIES(&value) = m_cast(REBSER *, ser); // not actually modifying
+		VAL_INDEX(&value) = 0;
+		Debug_Fmt("%r", &value);
+	} else if (SERIES_WIDE(ser) == sizeof(REBUNI))
+		Debug_Uni(ser);
+	else if (ser == Bind_Table) {
+		// Dump bind table somehow?
+		Panic_Series(ser);
+	} else if (ser == PG_Word_Table.hashes) {
+		// Dump hashes somehow?
+		Panic_Series(ser);
+	} else if (ser == GC_Protect) {
+		// Dump protected series pointers somehow?
+		Panic_Series(ser);
+	} else
+		Panic_Series(ser);
+
+	assert(GC_Disabled == 1);
+	GC_Disabled = disabled;
 }
 
 
