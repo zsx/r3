@@ -509,7 +509,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Probe_Core_Debug(const char *msg, const char *file, int line, REBVAL *val)
+*/	void Probe_Core_Debug(const char *msg, const char *file, int line, const REBVAL *val)
 /*
 **		Debug function for outputting a value.  Done as a function
 **		instead of just a macro due to how easy it is with varargs
