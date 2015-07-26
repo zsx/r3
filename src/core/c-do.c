@@ -775,6 +775,7 @@ more_path:
 	case ET_WORD:
 		DS_SKIP;
 		GET_VAR_INTO(DS_TOP, value);
+		if (IS_UNSET(DS_TOP)) Trap1_DEAD_END(RE_NO_VALUE, value);
 		if (ANY_FUNC(DS_TOP)) {
 			// OP! is only handled by the code at the tail of this routine
 			if (IS_OP(DS_TOP)) Trap_Type_DEAD_END(DS_TOP);
