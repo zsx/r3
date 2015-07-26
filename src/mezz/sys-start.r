@@ -155,12 +155,6 @@ start: func [
 		quit ;ignore user script and "--do" argument
 	]
 
-	;-- Evaluate: --do "some code" if found
-	if do-arg [
-		do intern do-arg
-		unless script [quit/now]
-	]
-
 	;-- Evaluate script argument?
 	either file? script [
 		; !!! Would be nice to use DO for this section. !!!

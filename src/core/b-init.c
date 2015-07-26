@@ -909,10 +909,18 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		PG_Boot_Level = n - SYM_BASE; // 0 - 3
 
 	Set_Option_String(rargs->args, OPTIONS_ARGS);
-	Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
 	Set_Option_String(rargs->debug, OPTIONS_DEBUG);
 	Set_Option_String(rargs->version, OPTIONS_VERSION);
 	Set_Option_String(rargs->import, OPTIONS_IMPORT);
+
+	// !!! The argument to --do exists in REBCHR* form in rargs->do_arg,
+	// hence platform-specific encoding.  The host_main.c executes the --do
+	// directly instead of using the Rebol-Value string set here.  Ultimately,
+	// the Ren/C core will *not* be taking responsibility for setting any
+	// "do-arg" variable in the system/options context...if a client of the
+	// library has a --do option and wants to expose it, then it will have
+	// to do so itself.  We'll leave this non-INTERN'd block here for now.
+	Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
 
 	Set_Option_Word(rargs->secure, OPTIONS_SECURE);
 

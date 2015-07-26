@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #ifdef _WIN32
 #undef _WIN32_WINNT
@@ -127,7 +128,7 @@ int main(int argc, char **argv_ansi)
 {
 	REBYTE vers[8];
 	REBYTE *line;
-	REBINT n;
+	REBINT err_num;
 	REBYTE *embedded_script = NULL;
 	REBI64 embedded_size = 0;
 
@@ -164,9 +165,9 @@ int main(int argc, char **argv_ansi)
 	if (!Host_Lib) Host_Crash("Missing host lib");
 	// !!! Second part will become vers[2] < RL_REV on release!!!
 	if (vers[1] != RL_VER || vers[2] != RL_REV) Host_Crash("Incompatible reb-lib DLL");
-	n = RL_Init(&Main_Args, Host_Lib);
-	if (n == 1) Host_Crash("Host-lib wrong size");
-	if (n == 2) Host_Crash("Host-lib wrong version/checksum");
+	err_num = RL_Init(&Main_Args, Host_Lib);
+	if (err_num == 1) Host_Crash("Host-lib wrong size");
+	if (err_num == 2) Host_Crash("Host-lib wrong version/checksum");
 
 	//Initialize core extension commands
 	Init_Core_Ext();
@@ -232,9 +233,12 @@ int main(int argc, char **argv_ansi)
 	// Returns: 0: ok, -1: error, 1: bad data.
 #ifdef CUSTOM_STARTUP
 	// For custom startup, you can provide compressed script code here:
-	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, embedded_script, (REBINT)embedded_size, 0); // TRUE on halt
+	err_num = RL_Start(
+		&Reb_Init_Code[0], REB_INIT_SIZE,
+		embedded_script, embedded_size, 0
+	);
 #else
-	n = RL_Start(0, 0, embedded_script, (REBINT)embedded_size, 0);
+	err_num = RL_Start(0, 0, embedded_script, embedded_size, 0);
 #endif
 
 #ifdef TO_WINDOWS
@@ -245,17 +249,95 @@ int main(int argc, char **argv_ansi)
 #endif // TO_WINDOWS
 #endif // ENCAP
 
-#ifndef ENCAP
+#if !defined(ENCAP)
+	// !!! What should an encapped executable do with a --do?  Here we just
+	// ignore it, as the assumption is that it is a packaged system that
+	// doesn't necessarily want to present itself as an arbitrary interpreter
+
+	// Previously this command line option was handled by the Rebol Core
+	// itself, in Mezzanine initialization.  However, Ren/C is catering to
+	// needs of other kinds of clients.  So rather than having those clients
+	// figure out how to send Rebol a "--do" option in a "command line
+	// arguments buffer", it is turned the other way so that if something
+	// does have a command line it needs to call APIs to run them.  This
+	// "pulled out" piece of command line processing uses the RL_Api still,
+	// with RL_Do_String (more options will be available with Ren/C proper)
+
+	// !!! NOTE: Encapping needs to be thought of similarly; it is not a
+	// Ren/C feature, rather a feature that some client (e.g. a console
+	// client named "Rebol") would implement.
+
+	// !!! The command line processing tells us if we have just '--do' with
+	// nothing afterward by setting do_arg to NULL.  When all the command
+	// line processing is taken out of Ren/C's concern that kind of decision
+	// can be revisited.  In the meantime, we test for NULL.
+
+	if (err_num >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
+		RXIARG result;
+		REBYTE *do_arg_utf8;
+		REBCNT len_predicted;
+		REBCNT len_encoded;
+
+		// On Windows, do_arg is a REBCHR*.  We need to get it into UTF8.
+		// !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
+		// so this should be more seamless.
+	#ifdef TO_WINDOWS
+		len_predicted = RL_Length_As_UTF8(
+			Main_Args.do_arg, wcslen(Main_Args.do_arg), TRUE, TRUE
+		);
+		do_arg_utf8 = OS_ALLOC_ARRAY(REBYTE, len_predicted + 1);
+		len_encoded = len_predicted;
+		RL_Encode_UTF8(
+			do_arg_utf8,
+			len_predicted + 1,
+			Main_Args.do_arg,
+			&len_encoded,
+			TRUE,
+			TRUE
+		);
+
+		// Sanity check; we shouldn't get a different answer.
+		assert(len_predicted == len_encoded);
+
+		// Encoding doesn't NULL-terminate on its own.
+		do_arg_utf8[len_encoded] = '\0';
+	#else
+		do_arg_utf8 = b_cast(Main_Args.do_arg);
+	#endif
+
+		RL_Do_String(do_arg_utf8, 0, &result);
+
+	#ifdef TO_WINDOWS
+		OS_FREE(do_arg_utf8);
+	#endif
+
+		// We ignore the result; and only ask for it to help prevent an
+		// item from being put on the stack that we'd have to print out.
+		// (there is no RL_DS_DROP, while Ren/C would just use DS_DROP)
+
+		// The above may request a QUIT, and thus bubble out to the topmost
+		// Rebol handler.  Or it may have some kind of error.  We lack
+		// any way here to tell if there was an error.  While quitting
+		// is not necessarily ideal, it was the previous behavior when
+		// a --do was provided.  However it would be nice if we could
+		// have the option of examining the crash state.
+
+		// !!! Under RenC, this client would be able to catch the error
+		// itself and cleanly shut down the system (if it wished).
+
+		RL_Do_String(cb_cast("quit"), 0, 0);
+	}
+
 	// Console line input loop (just an example, can be improved):
 	if (
 		!(Main_Args.options & RO_CGI)
 		&& (
 			!Main_Args.script // no script was provided
-			|| n  < 0         // script halted or had error
+			|| err_num < 0         // script halted or had error
 			|| Main_Args.options & RO_HALT  // --halt option
 		)
 	){
-		n = 0;  // reset error code (but should be able to set it below too!)
+		err_num = 0;  // reset error code (but should be able to set it below too!)
 		while (TRUE) {
 			Put_Str(prompt_str);
 			if ((line = Get_Str())) {

@@ -1737,7 +1737,7 @@ more_path:
 
 /***********************************************************************
 **
-*/	REBVAL *Do_String(REBYTE *text, REBCNT flags)
+*/	REBVAL *Do_String(const REBYTE *text, REBCNT flags)
 /*
 **		Do a string. Convert it to code, then evaluate it with
 **		the ability to catch errors and also alow HALT if needed.
@@ -1761,6 +1761,12 @@ more_path:
 		if (VAL_ERR_NUM(val) == RE_QUIT) {
 			OS_EXIT(VAL_INT32(VAL_ERR_VALUE(DS_NEXT))); // console quit
 		}
+		// !!! Current weak API can't distinguish between returning an error
+		// value and evaluating to an error.  So print the error if we catch
+		// one.  (Don't worry--this function is going away.)  Debug_Fmt is
+		// also actually not just in debug builds, and is the easiest way
+		// to just FORM a value without worrying about manual buffering.
+		Debug_Fmt("%v", DS_NEXT);
 		return val;
 	}
 	SET_STATE(state, Halt_State);

@@ -274,7 +274,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 /***********************************************************************
 **
-*/	RL_API int RL_Do_String(REBYTE *text, REBCNT flags, RXIARG *result)
+*/	RL_API int RL_Do_String(const REBYTE *text, REBCNT flags, RXIARG *result)
 /*
 **	Load a string and evaluate the resulting block.
 **
@@ -302,7 +302,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 /***********************************************************************
 **
-*/	RL_API int RL_Do_Binary(REBYTE *bin, REBINT length, REBCNT flags, REBCNT key, RXIARG *result)
+*/	RL_API int RL_Do_Binary(const REBYTE *bin, REBINT length, REBCNT flags, REBCNT key, RXIARG *result)
 /*
 **	Evaluate an encoded binary script such as compressed text.
 **
@@ -321,15 +321,11 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 ***********************************************************************/
 {
 	REBSER *text;
-	REBVAL *val;
 #ifdef DUMP_INIT_SCRIPT
 	int f;
 #endif
+	REBRXT rxt;
 
-	REBSER spec;
-	CLEARS(&spec);
-
-	//Cloak(TRUE, code, NAT_SPEC_SIZE, &key[0], 20, TRUE);
 	text = Decompress(bin, length, 10000000, 0);
 	if (!text) return FALSE;
 	Append_Byte(text, 0);
@@ -340,17 +336,10 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	_close(f);
 #endif
 
-	SAVE_SERIES(text);
-	val = Do_String(text->data, flags);
-	UNSAVE_SERIES(text);
-	if (IS_ERROR(val)) // && (VAL_ERR_NUM(val) != RE_QUIT)) {
-		Print_Value(val, 1000, FALSE);
+	rxt = RL_Do_String(text->data, flags, result);
 
-	if (result) {
-		*result = Value_To_RXI(val);
-		return Reb_To_RXT[VAL_TYPE(val)];
-	}
-	return 0;
+	Free_Series(text);
+	return rxt;
 }
 
 
