@@ -324,7 +324,7 @@
 	}
 
 	if (year < 0 || year > MAX_YEAR) {
-		Throw_Error(Make_Error(RE_TYPE_LIMIT, Get_Type(REB_DATE), 0, 0));
+		Trap1(RE_TYPE_LIMIT, Get_Type(REB_DATE));
 		// Unreachable, but we want to make the compiler happy
 		assert(FALSE);
 		return dr;

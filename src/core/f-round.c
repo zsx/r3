@@ -221,7 +221,7 @@ enum {
 
 	if (GET_FLAG(flags, RF_TO)) {
 		if (deci_is_zero(scale)) {
-			Throw_Error(Make_Error(RE_ZERO_DIVIDE, 0, 0, 0));
+			Trap(RE_ZERO_DIVIDE);
 			// UNREACHABLE, but we want to make compiler happy...
 			assert(FALSE);
 			return deci_one;
