@@ -74,11 +74,11 @@ typedef struct term_data {
 extern STD_TERM *Init_Terminal();
 extern void Quit_Terminal(STD_TERM*);
 extern int Read_Line(STD_TERM*, char*, int);
+
+STD_TERM *Term_IO;
 #endif
 
 void Put_Str(REBYTE *buf);
-
-STD_TERM *Term_IO;
 
 static int interrupted = 0;
 
@@ -159,9 +159,7 @@ static void close_stdio(void)
 #ifndef HAS_SMART_CONSOLE
 		if (isatty(Std_Inp))
 			Term_IO = Init_Terminal();
-		else
 #endif
-			Term_IO = 0;
 		//printf("%x\r\n", req->requestee.handle);
 	}
 	else
