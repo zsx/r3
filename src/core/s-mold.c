@@ -919,16 +919,13 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	}
 
 	if (VAL_ERR_NUM(value) < RE_THROW_MAX) {
-		// !!! TBD: write a good dumper for unprocessed BREAK, THROW,
-		// CONTINUE, RETURN.  These have no frames, and with increased
-		// rigor making a "fake" frame with a THROWN error number has
-		// been prohibited to prevent accidents.
-
-		Emit(mold, "** I", VAL_ERR_NUM(value));
-		return;
+		// Though we generally do not make error objects for THROWN() errors,
+		// we do make one here for the purposes of molding.
+		err = ERR_VALUES(Make_Error(VAL_ERR_NUM(value), value, 0, 0));
 	}
-
-	err = VAL_ERR_VALUES(value);
+	else {
+		err = VAL_ERR_VALUES(value);
+	}
 
 	// Form: ** <type> Error:
 	Emit(mold, "** WB", &err->type, RS_ERRS+0);

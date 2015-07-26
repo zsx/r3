@@ -1078,6 +1078,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	Init_Year();
 
 	// Special pre-made error:
+	assert(RE_STACK_OVERFLOW >= RE_THROW_MAX);
 	ser = Make_Error(RE_STACK_OVERFLOW, 0, 0, 0);
 	SET_ERROR(TASK_STACK_ERROR, RE_STACK_OVERFLOW, ser);
 

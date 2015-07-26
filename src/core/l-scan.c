@@ -613,6 +613,7 @@
 	while (NOT_NEWLINE(*cp)) cp++, len++;
 
 	//DISABLE_GC;
+	assert(errnum >= RE_THROW_MAX);
 	errs = Make_Error(errnum, 0, 0, 0);
 	error = (ERROR_OBJ *)FRM_VALUES(errs);
 	ser = Make_Binary(len + 16);

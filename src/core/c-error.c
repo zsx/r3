@@ -456,6 +456,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 /*
 ***********************************************************************/
 {
+	assert(num >= RE_THROW_MAX);
 	Throw_Error(Make_Error(num, 0, 0, 0));
 }
 
@@ -466,6 +467,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 /*
 ***********************************************************************/
 {
+	assert(num >= RE_THROW_MAX);
 	Throw_Error(Make_Error(num, arg1, 0, 0));
 }
 
@@ -476,6 +478,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 /*
 ***********************************************************************/
 {
+	assert(num >= RE_THROW_MAX);
 	Throw_Error(Make_Error(num, arg1, arg2, 0));
 }
 
@@ -486,6 +489,7 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 /*
 ***********************************************************************/
 {
+	assert(num >= RE_THROW_MAX);
 	Throw_Error(Make_Error(num, arg1, arg2, arg3));
 }
 
