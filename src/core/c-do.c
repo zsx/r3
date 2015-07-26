@@ -33,7 +33,6 @@
 
 #include "sys-core.h"
 #include <stdio.h>
-#include "sys-state.h"
 
 enum Eval_Types {
 	ET_INVALID,		// not valid to evaluate
