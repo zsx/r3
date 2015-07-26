@@ -35,19 +35,17 @@
 
 /***********************************************************************
 **
-*/	REBVAL *Make_Port(REBVAL *spec)
+*/	void Make_Port(REBVAL *out, const REBVAL *spec)
 /*
 **		Create a new port. This is done by calling the MAKE_PORT
 **		function stored in the system/intrinsic object.
 **
 ***********************************************************************/
 {
-	REBVAL *value;
+	Do_Sys_Func(SYS_CTX_MAKE_PORT_P, spec, 0); // volatile
+	if (IS_NONE(DS_TOP)) Trap1(RE_INVALID_SPEC, spec);
 
-	value = Do_Sys_Func(SYS_CTX_MAKE_PORT_P, spec, 0); // volatile
-	if (IS_NONE(value)) Trap1_DEAD_END(RE_INVALID_SPEC, spec);
-
-	return value;
+	*out = *DS_POP;
 }
 
 
@@ -153,7 +151,7 @@
 	REBVAL *awake;
 	REBVAL tmp;
 	REBVAL ref_only;
-	REBVAL *v;
+	REBINT result;
 
 	// Get the system port object:
 	port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -181,10 +179,14 @@
 	if (only) SET_TRUE(&ref_only);
 	else SET_NONE(&ref_only);
 	// Call the system awake function:
-	v = Apply_Func(0, awake, port, &tmp, &ref_only, 0); // ds is return value
+	Apply_Func(0, awake, port, &tmp, &ref_only, 0); // ds is return value
 
 	// Awake function returns 1 for end of WAIT:
-	return (IS_LOGIC(v) && VAL_LOGIC(v)) ? 1 : 0;
+	result = (IS_LOGIC(DS_TOP) && VAL_LOGIC(DS_TOP)) ? 1 : 0;
+
+	DS_DROP;
+
+	return result;
 }
 
 

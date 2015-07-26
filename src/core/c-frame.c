@@ -575,19 +575,17 @@
 
 /***********************************************************************
 **
-*/	REBVAL *Make_Module(REBVAL *spec)
+*/	void Make_Module(REBVAL *out, const REBVAL *spec)
 /*
 **      Create a module from a spec and an init block.
 **		Call the Make_Module function in the system/intrinsic object.
 **
 ***********************************************************************/
 {
-	REBVAL *value;
+	Do_Sys_Func(SYS_CTX_MAKE_MODULE_P, spec, 0); // volatile
+	if (IS_NONE(DS_TOP)) Trap1(RE_INVALID_SPEC, spec);
 
-	value = Do_Sys_Func(SYS_CTX_MAKE_MODULE_P, spec, 0); // volatile
-	if (IS_NONE(value)) Trap1_DEAD_END(RE_INVALID_SPEC, spec);
-
-	return value;
+	*out = *DS_POP;
 }
 
 

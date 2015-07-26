@@ -306,7 +306,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				}
 
 				if (type == REB_MODULE) {
-					*value = *Make_Module(arg);
+					Make_Module(value, arg);
 					type = 0;
 				//	VAL_MOD_BODY(value) = VAL_SERIES(arg);
 				//	VAL_SET(value, REB_MODULE); // GC protected

@@ -63,9 +63,8 @@
 
 	if (IS_PORT(value)) return value;
 
-	value = Make_Port(value);
 	ds = DS_OUT;
-	*D_ARG(1) = *value;
+	Make_Port(D_ARG(1), value);
 
 	return D_ARG(1);
 }
@@ -99,7 +98,7 @@
 		break;
 
 	case A_MAKE:
-		if (IS_DATATYPE(value)) value = Make_Port(arg);
+		if (IS_DATATYPE(value)) Make_Port(value, arg);
 		else Trap_Make_DEAD_END(REB_PORT, value);
 		break;
 

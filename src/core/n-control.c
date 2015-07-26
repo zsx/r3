@@ -549,7 +549,7 @@ got_err:
 	case REB_FILE:
 		// DO native and system/intrinsic/do must use same arg list:
 		Do_Sys_Func(SYS_CTX_DO_P, value, D_ARG(2), D_ARG(3), D_ARG(4), D_ARG(5), NULL);
-		return R_TOS1;
+		return R_TOS;
 
 	case REB_TASK:
 		Do_Task(value);
@@ -736,6 +736,7 @@ got_err:
 					Trap3_DEAD_END(RE_EXPECT_ARG, Of_Type(&handler), args, Of_Type(&error));
 				}
 				Apply_Func(0, &handler, &error, 0);
+				return R_TOS;
 			}
 		}
 	}

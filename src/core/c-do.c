@@ -1464,12 +1464,12 @@ more_path:
 
 /***********************************************************************
 **
-*/	REBVAL *Apply_Function(REBSER *wblk, REBCNT widx, REBVAL *func, va_list *args)
+*/	void Apply_Function(REBSER *wblk, REBCNT widx, REBVAL *func, va_list *args)
 /*
 **		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 **
 **		Applies function from args provided by C call. Zero terminated.
-**		Result is EXTREMELY VOLATILE - a stack value above the DSP.
+**		Result returned on TOS
 **
 **		wblk - where block (where we were called)
 **		widx - where index (position in above block)
@@ -1505,41 +1505,33 @@ more_path:
 	SET_DSF(dsf);
 	Func_Dispatch[VAL_TYPE(func) - REB_NATIVE](func);
 	SET_DSF(PRIOR_DSF(dsf));
-	DSP = dsf-1;
-
-	// Return resulting value from TOS1. But note:
-	// EXTREMELY VOLATILE - use or copy quickly
-	// before next evaluation, GC, or anything else!
-	return DS_VALUE(dsf);
+	DSP = dsf;
 }
 
 
 /***********************************************************************
 **
-*/	REBVAL *Apply_Func(REBSER *where, REBVAL *func, ...)
+*/	void Apply_Func(REBSER *where, REBVAL *func, ...)
 /*
 **		Applies function from args provided by C call. Zero terminated.
-**		Result is EXTREMELY VOLATILE - a stack value above the DSP.
+**		Return value is on TOS
 **
 ***********************************************************************/
 {
-	REBVAL *value;
 	va_list args;
 
-	if (!ANY_FUNC(func)) Trap_Arg_DEAD_END(func);
+	if (!ANY_FUNC(func)) Trap_Arg(func);
 	if (!where) where = VAL_FUNC_BODY(func); // something/anything ?!!
 
 	va_start(args, func);
-	value = Apply_Function(where, 0, func, &args);
+	Apply_Function(where, 0, func, &args);
 	va_end(args);
-
-	return value;
 }
 
 
 /***********************************************************************
 **
-*/	REBVAL *Do_Sys_Func(REBCNT inum, ...)
+*/	void Do_Sys_Func(REBCNT inum, ...)
 /*
 **		Evaluates a SYS function and TOS1 contains
 **		the result (VOLATILE). Uses current stack frame location
@@ -1559,14 +1551,12 @@ more_path:
 	}
 
 	value = FRM_VALUE(Sys_Context, inum);
-	if (!ANY_FUNC(value)) Trap1_DEAD_END(RE_BAD_SYS_FUNC, value);
+	if (!ANY_FUNC(value)) Trap1(RE_BAD_SYS_FUNC, value);
 	if (!DSF) blk = VAL_FUNC_BODY(value);
 
 	va_start(args, inum);
-	value = Apply_Function(blk, idx, value, &args);
+	Apply_Function(blk, idx, value, &args);
 	va_end(args);
-
-	return value;
 }
 
 
@@ -2048,11 +2038,13 @@ push_arg:
 		Saved_State = Halt_State;
 
 		// SYS_CTX_START runs 'start' in sys-start.r
-		val = Do_Sys_Func(SYS_CTX_START, 0); // what if script contains a HALT?
+		Do_Sys_Func(SYS_CTX_START, 0); // what if script contains a HALT?
 
 		// Convention is that if start completes successfully, it returns unset
-		assert(IS_UNSET(val));
+		assert(IS_UNSET(DS_TOP));
 		//if (Try_Block_Halt(VAL_SERIES(ROOT_SCRIPT), 0)) {
+
+		DS_DROP;
 
 		//DS_Base[state.dsp+1] = *val;
 		POP_STATE(state, Halt_State);

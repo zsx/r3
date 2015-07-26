@@ -328,6 +328,7 @@ chk_neg:
 {
 	REBVAL *val = D_ARG(1);
 	REBSER *port = VAL_PORT(val);
+	REBOOL awakened = TRUE; // start by assuming success
 
 	if (SERIES_TAIL(port) < STD_PORT_MAX) Panic_DEAD_END(9910);
 
@@ -338,10 +339,10 @@ chk_neg:
 
 	val = OFV(port, STD_PORT_AWAKE);
 	if (ANY_FUNC(val)) {
-		val = Apply_Func(0, val, D_ARG(2), 0);
-		if (!(IS_LOGIC(val) && VAL_LOGIC(val))) return R_FALSE;
+		Apply_Func(0, val, D_ARG(2), 0);
+		if (!(IS_LOGIC(val) && VAL_LOGIC(val))) awakened = FALSE;
 	}
-	return R_TRUE;  // wake it up
+	return awakened ? R_TRUE : R_FALSE;
 }
 
 
