@@ -384,7 +384,7 @@ err:
 
 /***********************************************************************
 **
-*/  REBSER *Encode_Base2(REBVAL *value, REBSER *series, REBFLG brk)
+*/  REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
 /*
 **		Base2 encode a given series. Must be BYTES, not UNICODE.
 **
@@ -426,7 +426,7 @@ err:
 
 /***********************************************************************
 **
-*/  REBSER *Encode_Base16(REBVAL *value, REBSER *series, REBFLG brk)
+*/  REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
 /*
 **		Base16 encode a given series. Must be BYTES, not UNICODE.
 **
@@ -461,7 +461,7 @@ err:
 
 /***********************************************************************
 **
-*/  REBSER *Encode_Base64(REBVAL *value, REBSER *series, REBFLG brk)
+*/  REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
 /*
 **		Base64 encode a given series. Must be BYTES, not UNICODE.
 **

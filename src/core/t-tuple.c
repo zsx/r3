@@ -149,7 +149,7 @@
 
 /***********************************************************************
 **
-*/  REBINT Emit_Tuple(REBVAL *value, REBYTE *out)
+*/  REBINT Emit_Tuple(const REBVAL *value, REBYTE *out)
 /*
 **		The out array must be large enough to hold longest tuple.
 **		Longest is: (3 digits + '.') * 11 nums + 1 term => 45

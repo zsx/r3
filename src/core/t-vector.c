@@ -619,7 +619,7 @@ bad_make:
 
 /***********************************************************************
 **
-*/	void Mold_Vector(REBVAL *value, REB_MOLD *mold, REBFLG molded)
+*/	void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 /*
 ***********************************************************************/
 {

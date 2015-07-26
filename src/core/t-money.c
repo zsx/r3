@@ -55,7 +55,7 @@
 
 /***********************************************************************
 **
-*/  REBINT Emit_Money(REBVAL *value, REBYTE *buf, REBCNT opts)
+*/  REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBCNT opts)
 /*
 ***********************************************************************/
 {

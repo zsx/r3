@@ -56,8 +56,8 @@ static const REBINT type_to_sym [STRUCT_TYPE_MAX] = {
 	//STRUCT_TYPE_MAX
 };
 
-static REBOOL get_scalar(REBSTU *stu,
-				  struct Struct_Field *field,
+static REBOOL get_scalar(const REBSTU *stu,
+				  const struct Struct_Field *field,
 				  REBCNT n, /* element index, starting from 0 */
 				  REBVAL *val)
 {
@@ -163,7 +163,7 @@ static REBOOL get_scalar(REBSTU *stu,
 
 /***********************************************************************
 **
-*/	REBSER *Struct_To_Block(REBSTU *stu)
+*/	REBSER *Struct_To_Block(const REBSTU *stu)
 /*
 **		Used by MOLD to create a block.
 **

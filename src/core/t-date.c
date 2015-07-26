@@ -86,7 +86,7 @@
 
 /***********************************************************************
 **
-*/	void Emit_Date(REB_MOLD *mold, REBVAL *value)
+*/	void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
 /*
 ***********************************************************************/
 {
@@ -94,8 +94,12 @@
 	REBYTE *bp = &buf[0];
 	REBINT tz;
 	REBYTE dash = GET_MOPT(mold, MOPT_SLASH_DATE) ? '/' : '-';
-	REBVAL val = *value;
-	value = &val;
+
+	// We don't want to modify the incoming date value we are molding,
+	// so we make a copy that we can tweak during the emit process
+
+	REBVAL value_buffer = *value_orig;
+	REBVAL *value = &value_buffer;
 
 	if (
 		VAL_MONTH(value) == 0

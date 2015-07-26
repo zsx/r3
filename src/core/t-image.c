@@ -340,7 +340,7 @@ REBCNT ARGB_To_BGR(REBCNT i)
 
 /***********************************************************************
 **
-*/	void Mold_Image_Data(REBVAL *value, REB_MOLD *mold)
+*/	void Mold_Image_Data(const REBVAL *value, REB_MOLD *mold)
 /*
 ***********************************************************************/
 {
@@ -750,7 +750,7 @@ find_none:
 
 /***********************************************************************
 **
-*/	REBFLG Image_Has_Alpha(REBVAL *v, REBFLG save)
+*/	REBFLG Image_Has_Alpha(const REBVAL *v, REBFLG save)
 /*
 ***********************************************************************/
 {

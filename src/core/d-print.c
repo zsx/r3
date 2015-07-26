@@ -141,7 +141,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/  void Out_Value(REBVAL *value, REBCNT limit, REBOOL mold, REBINT lines)
+*/  void Out_Value(const REBVAL *value, REBCNT limit, REBOOL mold, REBINT lines)
 /*
 ***********************************************************************/
 {
@@ -311,7 +311,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Num(REBYTE *str, REBINT num)
+*/	void Debug_Num(const REBYTE *str, REBINT num)
 /*
 **		Print a string followed by a number.
 **
@@ -356,7 +356,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Word(REBVAL *word)
+*/	void Debug_Word(const REBVAL *word)
 /*
 **		Print a REBOL word.
 **
@@ -368,7 +368,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Type(REBVAL *value)
+*/	void Debug_Type(const REBVAL *value)
 /*
 **		Print a REBOL datatype name.
 **
@@ -805,7 +805,7 @@ mold_value:
 
 /***********************************************************************
 **
-*/  void Prin_Value(REBVAL *value, REBCNT limit, REBOOL mold)
+*/  void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 /*
 **		Print a value or block's contents for user viewing.
 **		Can limit output to a given size. Set limit to 0 for full size.
@@ -819,7 +819,7 @@ mold_value:
 
 /***********************************************************************
 **
-*/  void Print_Value(REBVAL *value, REBCNT limit, REBOOL mold)
+*/  void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 /*
 **		Print a value or block's contents for user viewing.
 **		Can limit output to a given size. Set limit to 0 for full size.

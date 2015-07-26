@@ -198,7 +198,7 @@ enum {
 
 /***********************************************************************
 **
-*/  void Pre_Mold(REBVAL *value, REB_MOLD *mold)
+*/  void Pre_Mold(const REBVAL *value, REB_MOLD *mold)
 /*
 **		Emit the initial datatype function, depending on /ALL option
 **
@@ -222,7 +222,7 @@ enum {
 
 /***********************************************************************
 **
-*/  void Post_Mold(REBVAL *value, REB_MOLD *mold)
+*/  void Post_Mold(const REBVAL *value, REB_MOLD *mold)
 /*
 **		For series that has an index, add the index for mold/all.
 **		Add closing block.
@@ -363,7 +363,7 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
 	UNI_TERM(dst);
 }
 
-static void Mold_String_Series(REBVAL *value, REB_MOLD *mold)
+static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 {
 	REBCNT len = VAL_LEN(value);
 	REBSER *ser = VAL_SERIES(value);
@@ -448,7 +448,7 @@ static void Mold_String_Series(REBVAL *value, REB_MOLD *mold)
 	unencoded within a URL.
 */
 
-static void Mold_Url(REBVAL *value, REB_MOLD *mold)
+static void Mold_Url(const REBVAL *value, REB_MOLD *mold)
 {
 	REBUNI *dp;
 	REBCNT n;
@@ -473,7 +473,7 @@ static void Mold_Url(REBVAL *value, REB_MOLD *mold)
 	*dp = 0;
 }
 
-static void Mold_File(REBVAL *value, REB_MOLD *mold)
+static void Mold_File(const REBVAL *value, REB_MOLD *mold)
 {
 	REBUNI *dp;
 	REBCNT n;
@@ -502,7 +502,7 @@ static void Mold_File(REBVAL *value, REB_MOLD *mold)
 	*dp = 0;
 }
 
-static void Mold_Tag(REBVAL *value, REB_MOLD *mold)
+static void Mold_Tag(const REBVAL *value, REB_MOLD *mold)
 {
 	Append_Byte(mold->series, '<');
 	Insert_String(mold->series, AT_TAIL, VAL_SERIES(value), VAL_INDEX(value), VAL_LEN(value), 0);
@@ -512,7 +512,7 @@ static void Mold_Tag(REBVAL *value, REB_MOLD *mold)
 
 /***********************************************************************
 **
-*/	void Mold_Binary(REBVAL *value, REB_MOLD *mold)
+*/	void Mold_Binary(const REBVAL *value, REB_MOLD *mold)
 /*
 ***********************************************************************/
 {
@@ -537,7 +537,7 @@ static void Mold_Tag(REBVAL *value, REB_MOLD *mold)
 	Emit(mold, "#{E}", out);
 }
 
-static void Mold_All_String(REBVAL *value, REB_MOLD *mold)
+static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
 {
 	// The string that is molded for /all option:
 	REBVAL val;
@@ -616,7 +616,7 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 	Remove_Last(MOLD_LOOP);
 }
 
-static void Mold_Block(REBVAL *value, REB_MOLD *mold)
+static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
 {
 	const char *sep;
 	REBOOL all = GET_MOPT(mold, MOPT_MOLD_ALL);
@@ -750,7 +750,7 @@ static void Form_Block_Series(REBSER *blk, REBCNT index, REB_MOLD *mold, REBSER 
 ***********************************************************************/
 
 
-static void Mold_Typeset(REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
 	REBINT n;
 
@@ -774,7 +774,7 @@ static void Mold_Typeset(REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	}
 }
 
-static void Mold_Function(REBVAL *value, REB_MOLD *mold)
+static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 {
 	Pre_Mold(value, mold);
 
@@ -789,7 +789,7 @@ static void Mold_Function(REBVAL *value, REB_MOLD *mold)
 	End_Mold(mold);
 }
 
-static void Mold_Map(REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
 	REBSER *mapser = VAL_SERIES(value);
 	REBVAL *val;
@@ -826,7 +826,7 @@ static void Mold_Map(REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	Remove_Last(MOLD_LOOP);
 }
 
-static void Form_Object(REBVAL *value, REB_MOLD *mold)
+static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
 	REBSER *wser = VAL_OBJ_WORDS(value);
 	REBVAL *words = BLK_HEAD(wser);
@@ -849,7 +849,7 @@ static void Form_Object(REBVAL *value, REB_MOLD *mold)
 	Remove_Last(MOLD_LOOP);
 }
 
-static void Mold_Object(REBVAL *value, REB_MOLD *mold)
+static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
 	REBSER *wser;
 	REBVAL *words;
@@ -898,7 +898,7 @@ static void Mold_Object(REBVAL *value, REB_MOLD *mold)
 	Remove_Last(MOLD_LOOP);
 }
 
-static void Mold_Error(REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
 	ERROR_OBJ *err;
 	REBVAL *msg;  // Error message block
@@ -918,10 +918,16 @@ static void Mold_Error(REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		return;
 	}
 
-	// If it is an unprocessed BREAK, THROW, CONTINUE, RETURN:
-	if (VAL_ERR_NUM(value) < RE_NOTE || !VAL_ERR_OBJECT(value)) {
-		VAL_ERR_OBJECT(value) = Make_Error(VAL_ERR_NUM(value), value, 0, 0); // spoofs field
+	if (VAL_ERR_NUM(value) < RE_THROW_MAX) {
+		// !!! TBD: write a good dumper for unprocessed BREAK, THROW,
+		// CONTINUE, RETURN.  These have no frames, and with increased
+		// rigor making a "fake" frame with a THROWN error number has
+		// been prohibited to prevent accidents.
+
+		Emit(mold, "** I", VAL_ERR_NUM(value));
+		return;
 	}
+
 	err = VAL_ERR_VALUES(value);
 
 	// Form: ** <type> Error:
@@ -974,7 +980,7 @@ static void Mold_Error(REBVAL *value, REB_MOLD *mold, REBFLG molded)
 
 /***********************************************************************
 **
-*/  void Mold_Value(REB_MOLD *mold, REBVAL *value, REBFLG molded)
+*/  void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
 /*
 **		Mold or form any value to string series tail.
 **
@@ -1290,7 +1296,7 @@ append:
 
 /***********************************************************************
 **
-*/  REBSER *Copy_Mold_Value(REBVAL *value, REBCNT opts)
+*/  REBSER *Copy_Mold_Value(const REBVAL *value, REBCNT opts)
 /*
 **		Form a value based on the mold opts provided.
 **
@@ -1398,7 +1404,7 @@ append:
 
 /***********************************************************************
 **
-*/	REBSER *Mold_Print_Value(REBVAL *value, REBCNT limit, REBFLG mold)
+*/	REBSER *Mold_Print_Value(const REBVAL *value, REBCNT limit, REBFLG mold)
 /*
 **		Basis function for print.  Can do a form or a mold based
 **		on the mold flag setting.  Can limit string output to a

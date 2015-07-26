@@ -321,7 +321,7 @@
 
 /***********************************************************************
 **
-*/	REBINT Find_Same_Block(REBSER *blk, REBVAL *val)
+*/	REBINT Find_Same_Block(REBSER *blk, const REBVAL *val)
 /*
 **		Scan a block for any values that reference blocks related
 **		to the value provided.

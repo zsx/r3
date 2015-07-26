@@ -205,7 +205,7 @@
 
 /***********************************************************************
 **
-*/	static REBFLG Get_Event_Var(REBVAL *value, REBCNT sym, REBVAL *val)
+*/	static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
 /*
 ***********************************************************************/
 {
@@ -316,7 +316,18 @@
 		if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
 			void *str = VAL_EVENT_SER(value);
 			VAL_EVENT_SER(value) = Copy_Bytes(cast(REBYTE*, str), -1);
-			SET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED);
+
+			// !!! EVIL mutability cast !!!
+			// This should be done a better way.  What's apparently going on
+			// is that VAL_EVENT_SER is supposed to be a FILE! series
+			// for a string, but some client is allowed to put an ordinary
+			// OS_ALLOC'd string of bytes into the field.  If a flag
+			// doesn't tell us that it's "copied" and hence holds that
+			// string form, it gets turned into a series "on-demand" even
+			// in const-like contexts.  (So VAL_EVENT_SER is what C++ would
+			// consider a "mutable" field.)  No way to tell C that, though.
+
+			SET_FLAG(VAL_EVENT_FLAGS(m_cast(REBVAL*, value)), EVF_COPIED);
 			OS_FREE(str);
 		}
 		Set_Series(REB_FILE, val, VAL_EVENT_SER(value));
@@ -525,7 +536,7 @@ enum rebol_event_fields {
 
 /***********************************************************************
 **
-*/	 void Mold_Event(REBVAL *value, REB_MOLD *mold)
+*/	 void Mold_Event(const REBVAL *value, REB_MOLD *mold)
 /*
 ***********************************************************************/
 {
