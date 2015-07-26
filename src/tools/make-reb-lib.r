@@ -118,6 +118,9 @@ pads: func [start col] [
 
 func-header: [
 	[
+		;-- WARNING: as written this means you can't use RL_API in a comment
+		;-- or this will screw up... more rigor needed.
+
 		thru "RL_API "
 		copy spec to newline skip
 		["/*" copy cmt thru "*/" | none]
