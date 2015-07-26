@@ -204,22 +204,6 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Stack(void)
-/*
-***********************************************************************/
-{
-	if (IS_INTEGER(TASK_THIS_ERROR)) return; // composing prior error.
-
-	if (!Saved_State) Panic(RP_NO_SAVED_STATE);
-
-	*TASK_THIS_ERROR = *TASK_STACK_ERROR; // pre-allocated
-
-	LONG_JUMP(*Saved_State, 1);
-}
-
-
-/***********************************************************************
-**
 */	REBCNT Stack_Depth(void)
 /*
 ***********************************************************************/

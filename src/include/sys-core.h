@@ -588,10 +588,13 @@ void Panic_Core(REBINT id, ...);
 	} while (0)
 
 #ifdef OS_STACK_GROWS_UP
-#define CHECK_STACK(v) if ((REBUPT)(v) >= Stack_Limit) Trap_Stack();
+	#define CHECK_STACK(v) \
+		if (cast(REBUPT, v) >= Stack_Limit) Trap(RE_CHECK_STACK_FAILED);
 #else
-#define CHECK_STACK(v) if ((REBUPT)(v) <= Stack_Limit) Trap_Stack();
+	#define CHECK_STACK(v) \
+		if (cast(REBUPT, v) <= Stack_Limit) Trap(RE_CHECK_STACK_FAILED);
 #endif
+
 #define STACK_BOUNDS (4*1024*1000) // note: need a better way to set it !!
 // Also: made somewhat smaller than linker setting to allow trapping it
 
