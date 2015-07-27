@@ -142,8 +142,6 @@
 #define DS_OUT		(&DS_Base[DSF])
 // Helpers:
 #define DS_RELOAD(d)	(d = DS_OUT)
-#define	SET_BACK(v,b,i,f) VAL_SET((v), REB_BLOCK), VAL_SERIES(v)=(b), \
-						VAL_INDEX(v)=i, VAL_BACK(v)=f
 
 enum {
 	R_OUT = 0,
