@@ -997,7 +997,12 @@ more_path:
 		if (THROWN(tos)) break;
 	}
 	// If block was empty:
-	if (!tos) {tos = DS_NEXT; SET_UNSET(tos);}
+	if (!tos) {
+		// CC#2229 - respond to Halt() in code like 'forever []'
+		if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+
+		tos = DS_NEXT; SET_UNSET(tos);
+	}
 
 	if (start != DSP || tos != &DS_Base[start+1]) Trap_DEAD_END(RE_MISSING_ARG);
 
@@ -1029,7 +1034,12 @@ more_path:
 		if (THROWN(tos)) Throw_Break(tos);
 	}
 	// If series was empty:
-	if (!tos) {tos = DS_NEXT; SET_UNSET(tos);}
+	if (!tos) {
+		// CC#2229 - respond to Halt() in code like 'forever []'
+		if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+
+		tos = DS_NEXT; SET_UNSET(tos);
+	}
 
 	if (start != DSP || tos != &DS_Base[start+1]) Trap_DEAD_END(RE_MISSING_ARG);
 
@@ -1066,7 +1076,12 @@ more_path:
 		tos = DS_POP;
 		if (THROWN(tos)) break;
 	}
-	if (!tos) {tos = DS_NEXT; SET_UNSET(tos);}
+	if (!tos) {
+		// CC#2229 - respond to Halt() in code like 'forever []'
+		if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+
+		tos = DS_NEXT; SET_UNSET(tos);
+	}
 
 	// Restore data stack and return value at TOS+1:
 	DS_Base[state.dsp+1] = *tos;
