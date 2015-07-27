@@ -431,7 +431,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBPOL *pool;
 	REBCNT pool_num;
 
-	CHECK_STACK(&series);
+	CHECK_C_STACK_OVERFLOW(&series);
 
 	if (((REBU64)length * wide) > MAX_I32) Trap_DEAD_END(RE_NO_MEMORY);
 

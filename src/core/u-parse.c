@@ -664,7 +664,7 @@ bad_target:
 	REBCNT cmd;
 	REBVAL *rule_head = rules;
 
-	CHECK_STACK(&flags);
+	CHECK_C_STACK_OVERFLOW(&flags);
 	//if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
 	flags = 0;
 	word = 0;

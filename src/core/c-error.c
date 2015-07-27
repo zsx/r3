@@ -204,12 +204,15 @@ static REBOL_STATE Top_State; // Boot var: holds error state during boot
 
 /***********************************************************************
 **
-*/	void Trap_Stack(void)
+*/	void Trap_Stack_Overflow(void)
 /*
+**		See comments on CHECK_C_STACK_OVERFLOW.  This routine is
+**		deliberately separate and simple so that it allocates no
+**		objects or locals...and doesn't run any code that itself
+**		might wind up calling CHECK_C_STACK_OVERFLOW.
+**
 ***********************************************************************/
 {
-	if (IS_INTEGER(TASK_THIS_ERROR)) return; // composing prior error.
-
 	if (!Saved_State) Panic(RP_NO_SAVED_STATE);
 
 	*TASK_THIS_ERROR = *TASK_STACK_ERROR; // pre-allocated

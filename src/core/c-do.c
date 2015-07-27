@@ -760,7 +760,7 @@ more_path:
 #endif
 
 	//CHECK_MEMORY(1);
-	CHECK_STACK(&value);
+	CHECK_C_STACK_OVERFLOW(&value);
 	if ((DSP + 20) > (REBINT)SERIES_REST(DS_Series)) Expand_Stack(STACK_MIN); //Trap_DEAD_END(RE_STACK_OVERFLOW);
 	if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
 

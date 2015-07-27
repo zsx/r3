@@ -587,11 +587,43 @@ void Panic_Core(REBINT id, ...);
 		assert(((REBSER **)(GC_Protect->data))[GC_Protect->tail] == s); \
 	} while (0)
 
+
+// Rebol doesn't want to crash in the event of a stack overflow, but would
+// like to gracefully trap it and return the user to the console.  While it
+// is possible for Rebol to set a limit to how deeply it allows function
+// calls in the interpreter to recurse, there's no *portable* way to
+// catch a stack overflow in the C code of the interpreter itself.
+//
+// Hence, Rebol uses a non-portable and non-standard heuristic.  It looks
+// at the compiled addresses of local (stack-allocated) variables in a
+// function, and decides from their relative pointers if memory is growing
+// "up" or "down".  It then extrapolates that C function call frames will
+// be laid out consecutively, and the memory difference between a stack
+// variable in the topmost stacks can be checked against some limit.
+//
+// This has nothing to do with guarantees in the C standard, and compilers
+// can really put variables at any address they feel like:
+//
+//     http://stackoverflow.com/a/1677482/211160
+//
+// Additionally, it puts the burden on every recursive or deeply nested
+// routine to sprinkle calls to the CHECK_C_STACK_OVERFLOW macro somewhere
+// in it.  The ideal answer is to make Rebol itself corral an interpreted
+// script such that it can't cause the C code to stack overflow.  Lacking
+// that ideal this technique could break, so build configurations should
+// be able to turn it off if needed.
+//
+// In the meantime, CHECK_C_STACK_OVERFLOW is a macro which takes the
+// address of some variable local to the currently executed function.
+
 #ifdef OS_STACK_GROWS_UP
-#define CHECK_STACK(v) if ((REBUPT)(v) >= Stack_Limit) Trap_Stack();
+	#define CHECK_C_STACK_OVERFLOW(local_var) \
+		if (cast(REBUPT, local_var) >= Stack_Limit) Trap_Stack_Overflow();
 #else
-#define CHECK_STACK(v) if ((REBUPT)(v) <= Stack_Limit) Trap_Stack();
+	#define CHECK_C_STACK_OVERFLOW(local_var) \
+		if (cast(REBUPT, local_var) <= Stack_Limit) Trap_Stack_Overflow();
 #endif
+
 #define STACK_BOUNDS (4*1024*1000) // note: need a better way to set it !!
 // Also: made somewhat smaller than linker setting to allow trapping it
 

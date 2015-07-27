@@ -1163,7 +1163,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 	// just_once for load/next see Load_Script for more info.
 	REBOOL just_once = GET_FLAG(scan_state->opts, SCAN_NEXT);
 
-	CHECK_STACK(&token);
+	CHECK_C_STACK_OVERFLOW(&token);
 
 	if (just_once)
 		CLR_FLAG(scan_state->opts, SCAN_NEXT); // no deeper
