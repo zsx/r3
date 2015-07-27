@@ -241,5 +241,4 @@ Internal: [
 	feature-na:         {feature not available}
 	not-done:           {reserved for future use (or not yet implemented)}
 	invalid-error:      {error object or fields were not valid}
-	check-stack-failed:	{Check_Stack() call failed}
 ]
