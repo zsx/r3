@@ -902,6 +902,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
 	ERROR_OBJ *err;
 	REBVAL *msg;  // Error message block
+	REBSER *frame;
 
 	// Protect against recursion. !!!!
 
@@ -921,9 +922,11 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	if (VAL_ERR_NUM(value) < RE_THROW_MAX) {
 		// Though we generally do not make error objects for THROWN() errors,
 		// we do make one here for the purposes of molding.
-		err = ERR_VALUES(Make_Error(VAL_ERR_NUM(value), value, 0, 0));
+		frame = Make_Error(VAL_ERR_NUM(value), value, 0, 0);
+		err = ERR_VALUES(frame);
 	}
 	else {
+		frame = VAL_ERR_OBJECT(value);
 		err = VAL_ERR_VALUES(value);
 	}
 
@@ -936,10 +939,10 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		if (!IS_BLOCK(msg)) Mold_Value(mold, msg, 0);
 		else {
 			//start = DSP + 1;
-			//Reduce_In_Frame(VAL_ERR_OBJECT(value), VAL_BLK_DATA(msg));
+			//Reduce_In_Frame(frame, VAL_BLK_DATA(msg));
 			//SERIES_TAIL(DS_Series) = DSP + 1;
 			//Form_Block_Series(DS_Series, start, mold, 0);
-			Form_Block_Series(VAL_SERIES(msg), 0, mold, VAL_ERR_OBJECT(value));
+			Form_Block_Series(VAL_SERIES(msg), 0, mold, frame);
 		}
 	} else
 		Append_Boot_Str(mold->series, RS_ERRS+1);
