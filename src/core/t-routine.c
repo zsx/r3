@@ -776,7 +776,7 @@ static void ffi_to_rebol(REBRIN *rin,
 					Trap_Arg(reb_type);
 				}
 				v = Alloc_Tail_Blk(VAL_ROUTINE_ALL_ARGS(rot));
-				Init_Word_Unbound(v, REB_WORD, SYM_ELLIPSIS); //FIXME, be clear
+				Init_Unword(v, REB_WORD, SYM_ELLIPSIS, 0); //FIXME, be clear
 				EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot), 1);
 				process_type_block(rot, reb_type, j);
 				i ++;
@@ -1126,8 +1126,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Series(VAL_ROUTINE_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
 						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-						Init_Word_Unbound(v, REB_WORD, SYM_VARARGS);
-						TYPE_SET(v, REB_BLOCK);
+						Init_Unword(v, REB_WORD, SYM_VARARGS, TYPESET(REB_BLOCK));
 					} else {
 						REBVAL *v = NULL;
 						if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
@@ -1135,7 +1134,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							Trap_Arg_DEAD_END(blk);
 						}
 						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-						Init_Word_Unbound(v, REB_WORD, VAL_WORD_SYM(blk));
+						Init_Unword(v, REB_WORD, VAL_WORD_SYM(blk), 0);
 						EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
 						++ blk;
