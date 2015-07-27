@@ -1761,13 +1761,13 @@ more_path:
 		if (VAL_ERR_NUM(val) == RE_QUIT) {
 			OS_EXIT(VAL_INT32(VAL_ERR_VALUE(DS_NEXT))); // console quit
 		}
+
 		// !!! Current weak API can't distinguish between returning an error
 		// value and evaluating to an error.  So print the error if we catch
-		// one.  (Don't worry--this function is going away.)  Debug_Fmt is
-		// also actually not just in debug builds, and is the easiest way
-		// to just FORM a value without worrying about manual buffering.
-		Debug_Fmt("%v", DS_NEXT);
-		return val;
+		// one.  (Don't worry--this function is going away.)
+		Out_Value(DS_NEXT, 640, FALSE, 0); // error FORMed
+		SET_UNSET(DS_NEXT);
+		return UNSET_VALUE;
 	}
 	SET_STATE(state, Halt_State);
 	// Use this handler for both, halt conditions (QUIT, HALT) and error
