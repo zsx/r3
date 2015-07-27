@@ -592,13 +592,18 @@
 **
 ***********************************************************************/
 {
-	ERROR_OBJ *error;
-	REBSER *errs;
+	REBVAL error;
+	ERROR_OBJ *err_obj;
+	REBSER *frame;
 	const REBYTE *name;
 	const REBYTE *cp;
 	const REBYTE *bp;
 	REBSER *ser;
 	REBCNT len = 0;
+
+	//DISABLE_GC;
+
+	assert(errnum >= RE_THROW_MAX);
 
 	ss->errors++;
 
@@ -612,26 +617,29 @@
 	bp = cp;
 	while (NOT_NEWLINE(*cp)) cp++, len++;
 
-	//DISABLE_GC;
-	assert(errnum >= RE_THROW_MAX);
-	errs = Make_Error(errnum, 0, 0, 0);
-	error = (ERROR_OBJ *)FRM_VALUES(errs);
 	ser = Make_Binary(len + 16);
 	Append_Unencoded(ser, "(line ");
 	Append_Int(ser, ss->line_count);
 	Append_Unencoded(ser, ") ");
 	Append_Series(ser, bp, len);
-	Set_String(&error->nearest, ser);
-	Set_String(&error->arg1, Copy_Bytes(name, -1));
-	Set_String(&error->arg2, Copy_Bytes(arg, size));
+
+	frame = Make_Error(errnum, 0, 0, 0);
+	err_obj = cast(ERROR_OBJ*, FRM_VALUES(frame));
+	Set_String(&err_obj->nearest, ser);
+	Set_String(&err_obj->arg1, Copy_Bytes(name, -1));
+	Set_String(&err_obj->arg2, Copy_Bytes(arg, size));
+
+	VAL_SET(&error, REB_ERROR);
+	VAL_ERR_NUM(&error) = errnum;
+	VAL_ERR_OBJECT(&error) = frame;
 
 	if (relax) {
-		SET_ERROR(relax, errnum, errs);
+		*relax = error;
 		//ENABLE_GC;
 		return;
 	}
 
-	Throw_Error(errs);	// ENABLE_GC implied
+	Throw_Error(frame); // ENABLE_GC implied
 }
 
 
