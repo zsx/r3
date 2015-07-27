@@ -183,9 +183,10 @@ typedef struct Reb_Type {
 ***********************************************************************/
 
 #define	SET_UNSET(v)	VAL_SET(v, REB_UNSET)
+#define UNSET_VALUE		ROOT_UNSET_VAL
 
 #define	SET_NONE(v)		VAL_SET(v, REB_NONE)
-#define NONE_VALUE		ROOT_NONEVAL
+#define NONE_VALUE		ROOT_NONE_VAL
 
 #define VAL_INT32(v)	(REBINT)((v)->data.integer)
 #define VAL_INT64(v)	((v)->data.integer)

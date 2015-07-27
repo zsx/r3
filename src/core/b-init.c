@@ -487,6 +487,13 @@ static	BOOT_BLK *Boot_Block;
 	SET_END(value+ROOT_MAX);
 	SERIES_TAIL(frame) = ROOT_MAX;
 
+	// Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
+	// to pass as an arg if we need an UNSET but don't want to pay for making
+	// a new one.  (There is also a NONE_VALUE for this purpose for NONE!s)
+	SET_UNSET(ROOT_UNSET_VAL);
+	assert(IS_NONE(NONE_VALUE));
+	assert(IS_UNSET(UNSET_VALUE));
+
 	// Initialize a few fields:
 	Set_Block(ROOT_ROOT, frame);
 	Init_Word_Unbound(ROOT_NONAME, REB_WORD, SYM__UNNAMED_);
