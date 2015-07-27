@@ -286,7 +286,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Copy_Series_Value(REBVAL *value)
+*/	REBSER *Copy_Series_Value(const REBVAL *value)
 /*
 **		Copy a series from its value structure.
 **		Index does not need to be at head location.
