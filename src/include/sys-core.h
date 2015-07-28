@@ -680,6 +680,11 @@ typedef struct rebol_time_fields {
 	REBCNT n;
 } REB_TIMEF;
 
+
+// DO evaltype dispatch function
+typedef void (*REBDOF)(REBVAL *ds);
+
+
 /***********************************************************************
 **
 **	Thread Shared Variables
