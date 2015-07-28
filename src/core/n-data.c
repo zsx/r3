@@ -594,7 +594,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			}
 		}
 	}
-	return R_OUT;
+	return R_UNSET;
 }
 
 
