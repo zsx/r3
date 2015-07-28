@@ -581,14 +581,12 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	if (IS_WORD(word)) {
 		if (VAL_WORD_FRAME(word)) {
-			Protected(word);
 			value = GET_MUTABLE_VAR(word);
 			SET_UNSET(value);
 		}
 	} else {
 		for (word = VAL_BLK_DATA(word); NOT_END(word); word++) {
 			if (IS_WORD(word) && VAL_WORD_FRAME(word)) {
-				Protected(word);
 				value = GET_MUTABLE_VAR(word);
 				SET_UNSET(value);
 			}

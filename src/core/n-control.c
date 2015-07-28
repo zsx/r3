@@ -43,26 +43,6 @@ enum {
 
 /***********************************************************************
 **
-*/	void Protected(REBVAL *word)
-/*
-**		Throw an error if word is protected.
-**
-***********************************************************************/
-{
-	REBSER *frm;
-	REBINT index = VAL_WORD_INDEX(word);
-
-	if (index > 0) {
-		frm = VAL_WORD_FRAME(word);
-		if (VAL_PROTECTED(FRM_WORDS(frm)+index))
-			Trap1(RE_LOCKED_WORD, word);
-	}
-	else if (index == 0) Trap(RE_SELF_PROTECTED);
-}
-
-
-/***********************************************************************
-**
 */	static void Protect_Word(REBVAL *value, REBCNT flags)
 /*
 ***********************************************************************/
