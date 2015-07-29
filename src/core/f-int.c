@@ -98,6 +98,11 @@ REBOOL reb_i64_mul_overflow(i64 x, i64 y, i64 *prod)
 	REBFLG sgn;
 	u64 p = 0;
 
+	if (!x || !y) {
+		*prod = 0;
+		return FALSE;
+	}
+
 	sgn = (x < 0);
 	if (sgn) {
 		if (x == MIN_I64) {
