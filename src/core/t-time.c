@@ -473,8 +473,7 @@
 			*D_ARG(3) = *val; // (temporary location for swap)
 			*D_ARG(1) = *arg;
 			*D_ARG(2) = *D_ARG(3);
-			T_Date(ds, action);
-			return R_OUT;
+			return T_Date(ds, action);
 		}
 		Trap_Math_Args(REB_TIME, action);
 	}
