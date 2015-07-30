@@ -190,7 +190,6 @@
 	const REBYTE *ap;
 	REBCNT len;
 	REBCNT alen;
-	REBCNT	v;
 	REBINT	a;
 	REBDEC	dec;
 
@@ -221,7 +220,7 @@
 		} else Trap_Math_Args(REB_TUPLE, action);
 
 		for (;len > 0; len--, vp++) {
-			v = *vp;
+			REBINT v = *vp;
 			if (ap)
 				a = (REBINT) *ap++;
 			switch (action) {
@@ -254,6 +253,7 @@
 			}
 
 			if (v > 255) v = 255;
+			else if (v < 0) v = 0;
 			*vp = (REBYTE) v;
 		}
 		goto ret_value;
@@ -303,11 +303,12 @@
 			len = MIN(len, VAL_TUPLE_LEN(value));
 		}
 		if (len > 0) {
+			REBCNT i;
 			//len = MAX(len, 3);
-			for (v = 0; v < len/2; v++) {
-				a = vp[len-v-1];
-				vp[len-v-1] = vp[v];
-				vp[v] = a;
+			for (i = 0; i < len/2; i++) {
+				a = vp[len - i - 1];
+				vp[len - i - 1] = vp[i];
+				vp[i] = a;
 			}
 		}
 		goto ret_value;
