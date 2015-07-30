@@ -224,8 +224,10 @@ static struct digest {
 		for (i = 0; i < sizeof(digests) / sizeof(digests[0]); i++) {
 
 			if (digests[i].index == sym) {
+				REBSER *digest = Make_Series(
+					digests[i].len, sizeof(char), FALSE
+				);
 
-				REBSER *digest = Make_Series(digests[i].len, 1, FALSE);
 				LABEL_SERIES(digest, "checksum digest");
 
 				if (D_REF(ARG_CHECKSUM_KEY)) {
