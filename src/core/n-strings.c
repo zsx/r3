@@ -185,32 +185,39 @@ static struct digest {
 ***********************************************************************/
 {
 	REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
-	REBINT sum;
-	REBCNT i;
-	REBINT j;
-	REBSER *digest;
-	REBINT sym = SYM_SHA1;
-	REBCNT len;
 	REBYTE *data = VAL_BIN_DATA(arg);
-
-	len = Partial1(arg, D_ARG(ARG_CHECKSUM_LENGTH));
+	REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_LENGTH));
+	REBINT sym = SYM_SHA1;
 
 	// Method word:
 	if (D_REF(ARG_CHECKSUM_METHOD)) sym = VAL_WORD_CANON(D_ARG(ARG_CHECKSUM_WORD));
 
 	// If method, secure, or key... find matching digest:
 	if (D_REF(ARG_CHECKSUM_METHOD) || D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) {
+		REBCNT i;
 
 		if (sym == SYM_CRC32) {
+			// The CRC32() routine returns an unsigned 32-bit number and uses
+			// the full range of values.  Yet Rebol chose to export this as
+			// a signed integer via checksum.  Perhaps (?) to generate a value
+			// that could also be used by Rebol2, as it only had 32-bit
+			// signed INTEGER! available.
+
+			REBINT crc32;
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) Trap_DEAD_END(RE_BAD_REFINES);
-			i = CRC32(data, len);
-			SET_INTEGER(D_OUT, i);
+			crc32 = cast(REBINT, CRC32(data, len));
+			SET_INTEGER(D_OUT, crc32);
 			return R_OUT;
 		}
 
 		if (sym == SYM_ADLER32) {
+			// adler32() is a Saphirion addition since 64-bit INTEGER! was
+			// available in Rebol3, and did not convert the unsigned result
+			// of the adler calculation to a signed integer.
+
+			uLong adler = z_adler32(0L, data, len);
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) Trap_DEAD_END(RE_BAD_REFINES);
-			SET_INTEGER(D_OUT, z_adler32(0L, data, len));
+			SET_INTEGER(D_OUT, adler);
 			return R_OUT;
 		}
 
@@ -218,7 +225,7 @@ static struct digest {
 
 			if (digests[i].index == sym) {
 
-				digest = Make_Series(digests[i].len, 1, FALSE);
+				REBSER *digest = Make_Series(digests[i].len, 1, FALSE);
 				LABEL_SERIES(digest, "checksum digest");
 
 				if (D_REF(ARG_CHECKSUM_KEY)) {
@@ -229,6 +236,7 @@ static struct digest {
 					REBYTE *keycp = VAL_BIN_DATA(key);
 					int keylen = VAL_LEN(key);
 					int blocklen = digests[i].hmacblock;
+					REBINT j;
 
 					if (keylen > blocklen) {
 						digests[i].digest(keycp,keylen,tmpdigest);
@@ -271,18 +279,20 @@ static struct digest {
 		Trap_Arg_DEAD_END(D_ARG(ARG_CHECKSUM_WORD));
 	}
 	else if (D_REF(ARG_CHECKSUM_TCP)) { // /tcp
-		i = Compute_IPC(data, len);
+		REBINT ipc = Compute_IPC(data, len);
+		SET_INTEGER(D_OUT, ipc);
 	}
 	else if (D_REF(ARG_CHECKSUM_HASH)) {  // /hash
-		sum = VAL_INT32(D_ARG(ARG_CHECKSUM_SIZE)); // /size
+		REBINT hash;
+		REBINT sum = VAL_INT32(D_ARG(ARG_CHECKSUM_SIZE)); // /size
 		if (sum <= 1) sum = 1;
-		i = Hash_String(data, len) % sum;
+		hash = Hash_String(data, len) % sum;
+		SET_INTEGER(D_OUT, hash);
 	}
 	else {
-		i = Compute_CRC(data, len);
+		REBINT crc = Compute_CRC(data, len);
+		SET_INTEGER(D_OUT, crc);
 	}
-
-	SET_INTEGER(D_OUT, i);
 
 	return R_OUT;
 }
