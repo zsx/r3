@@ -147,20 +147,20 @@
 		len = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
 
 	// Prescan for: /c/dir = c:/dir, /vol/dir = //vol/dir, //dir = ??
-	c = GET_CHAR_UNI(uni, bp, i);
+	c = uni ? up[i] : bp[i];
 	if (c == '/') {			// %/
 		dst = Make_Unicode(len+FN_PAD);
 		out = UNI_HEAD(dst);
 #ifdef TO_WINDOWS
 		i++;
 		if (i < len) {
-			c = GET_CHAR_UNI(uni, bp, i);
+			c = uni ? up[i] : bp[i];
 			i++;
 		}
 		if (c != '/') {		// %/c or %/c/ but not %/ %// %//c
 			// peek ahead for a '/':
 			d = '/';
-			if (i < len) d = GET_CHAR_UNI(uni, bp, i);
+			if (i < len) d = uni ? up[i] : bp[i];
 			if (d == '/') {	// %/c/ => "c:/"
 				i++;
 				out[n++] = c;
@@ -200,12 +200,12 @@
 	while (i < len) {
 		if (full) {
 			// Peek for: . ..
-			c = GET_CHAR_UNI(uni, bp, i);
+			c = uni ? up[i] : bp[i];
 			if (c == '.') {		// .
 				i++;
-				c = GET_CHAR_UNI(uni, bp, i);
+				c = uni ? up[i] : bp[i];
 				if (c == '.') {	// ..
-					c = GET_CHAR_UNI(uni, bp, i+1);
+					c = uni ? up[i + 1] : bp[i + 1];
 					if (c == 0 || c == '/') { // ../ or ..
 						i++;
 						// backup a dir
@@ -226,7 +226,7 @@
 			}
 		}
 		for (; i < len; i++) {
-			c = GET_CHAR_UNI(uni, bp, i);
+			c = uni ? up[i] : bp[i];
 			if (c == '/') {
 				if (n == 0 || out[n-1] != OS_DIR_SEP) out[n++] = OS_DIR_SEP;
 				i++;
