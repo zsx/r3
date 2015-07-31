@@ -109,7 +109,7 @@ void OS_Destroy_Graphics(void);
 }
 
 
-static int Try_Browser(char *browser, REBCHR *url)
+static int Try_Browser(const char *browser, const REBCHR *url)
 {
 	pid_t pid;
 	int result, status;
