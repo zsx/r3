@@ -411,9 +411,6 @@ static void Propagate_All_GC_Marks(void);
 		else {
 			// may be null if called before the routine! is fully constructed
 		}
-
-		if (ROUTINE_RVALUE(rot).spec)
-			Queue_Mark_Struct_Deep(&ROUTINE_RVALUE(rot));
 	}
 }
 
