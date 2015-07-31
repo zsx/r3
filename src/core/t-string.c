@@ -665,7 +665,7 @@ zero_str:
 		goto ser_exit;
 
 	case A_COMPLEMENT:
-		if (!IS_BINARY(arg)) Trap_Arg_DEAD_END(arg);
+		if (!IS_BINARY(value)) Trap_Arg_DEAD_END(value);
 		ser = Complement_Binary(value);
 		goto ser_exit;
 
