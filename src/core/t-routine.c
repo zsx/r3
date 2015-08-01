@@ -1021,9 +1021,9 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
 	VAL_ROUTINE_ARGS(out) = Make_Block(N_ARGS);
 
-	// first word should be 'self', but ignored here.
+	// first word is ignored, see Do_Args in c-do.c
 	temp = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-	SET_NONE(temp);
+	Init_Unword(temp, REB_WORD, 0, 0);
 
 	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Block(N_ARGS);
 	// reserve for returning struct
