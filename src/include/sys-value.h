@@ -1244,7 +1244,7 @@ enum {
 #define ROUTINE_FFI_ARG_STRUCTS(v)  (ROUTINE_INFO(v)->arg_structs)
 #define ROUTINE_EXTRA_MEM(v) 		(ROUTINE_INFO(v)->extra_mem)
 #define ROUTINE_CIF(v) 				(ROUTINE_INFO(v)->cif)
-#define ROUTINE_RVALUE(v) 			VAL_STRUCT((REBVAL*)SERIES_DATA(ROUTINE_INFO(v)->arg_structs))
+#define ROUTINE_RVALUE(v) 			VAL_STRUCT(BLK_HEAD(ROUTINE_FFI_ARG_STRUCTS(v)))
 #define ROUTINE_CLOSURE(v)			(ROUTINE_INFO(v)->info.cb.closure)
 #define ROUTINE_DISPATCHER(v)		(ROUTINE_INFO(v)->info.cb.dispatcher)
 #define CALLBACK_FUNC(v)  			(ROUTINE_INFO(v)->info.cb.func)
@@ -1256,7 +1256,7 @@ enum {
 #define RIN_CLOSURE(v)				((v)->info.cb.closure)
 #define RIN_FUNC(v)					((v)->info.cb.func)
 #define RIN_ARGS_STRUCTS(v)			((v)->arg_structs)
-#define RIN_RVALUE(v)				VAL_STRUCT((REBVAL*)SERIES_DATA(RIN_ARGS_STRUCTS(v)))
+#define RIN_RVALUE(v)				VAL_STRUCT(BLK_HEAD(RIN_ARGS_STRUCTS(v)))
 
 #define ROUTINE_FLAGS(s)	   ((s)->flags)
 #define ROUTINE_SET_FLAG(s, f) (ROUTINE_FLAGS(s) |= (f))
