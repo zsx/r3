@@ -1092,7 +1092,6 @@ struct Reb_Call {
 // this enumerated type containing its legal values).
 enum {
 	R_OUT = 0,
-	R_TOS,
 	R_NONE,
 	R_UNSET,
 	R_TRUE,
