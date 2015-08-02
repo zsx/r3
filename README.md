@@ -20,7 +20,7 @@ by [Atronix Engineering](http://atronixengineering.com/downloads.html).
 * To accelerate the process by which consensus features and fixes are
 integrated into the language.  Though debates continue over features in
 [Rebol and Red Chat](http://rebolsource.net/go/chat-faq), many changes are
-ready and agreed upon--some submitted as patches.  Yet they haven't had a
+ready and agreed upon -- some submitted as patches.  Yet they haven't had a
 focal location where they can be launched and people get new builds.
 
 * To integrate the test suite into the build, and make the bar obvious that
@@ -30,28 +30,28 @@ with modifications to the code to prevent masking bugs.
 
 * To provide an option for stable open-source bootstrapping to be used by the
 [Red Language](http://www.red-lang.org/p/about.html), which is currently
-bootstrapped from closed-source Rebol2.  *(Red's roadmap goal is to move
-directly to a self-hosting state from the Rebol2 codebase.  This may be
-a poorer option than moving to an improved Rebol3 as an interim step.)*
+bootstrapped from closed-source Rebol 2.  *(Red's roadmap goal is to move
+directly to a self-hosting state from the Rebol 2 codebase.  This may be
+a poorer option than moving to an improved Rebol 3 as an interim step.)*
 
 
 ## Building
 
-First get the sources--either from cloning the repository with git, or
+First get the sources -- either from cloning the repository with git, or
 [Downloading a ZIP](https://github.com/metaeducation/ren-c/archive/master.zip).
-Next you need to [get an interpreter](http://rebolsource.net), rename it
-to `r3-make` or `r3-make.exe`, and put it in the `%make/` subdirectory.
+Next you need to [get a pre-built Rebol 3 interpreter](http://rebolsource.net),
+rename it to `r3-make` or `r3-make.exe`, and put it in the `%make/`
+subdirectory.
 
 Then run:
 
-	 make -f makefile.boot
+	make -f makefile.boot
 
 The platform to target will be assumed to be the same as the build type of
 the `r3-make` you use.  If your needs are more complex *(such as doing a
 cross-compilation, or if the `system/version` in your r3-make doesn't match
-the target you want)*, refer to the bootstrap makefile:
-
-[%src/make/makefile.boot](https://github.com/metaeducation/ren-c/blob/master/make/makefile.boot)
+the target you want)*, refer to the bootstrap makefile
+[`%src/make/makefile.boot`](https://github.com/metaeducation/ren-c/blob/master/make/makefile.boot).
 
 
 ## Methodology
@@ -69,7 +69,7 @@ stronger type-checking and metaprogramming, while still retaining the ability
 to do a complete build on very old compilers when `__cplusplus` is not defined.
 
 Consequently, Ren/C brings all the non-GUI features added by Atronix and
-Saphirion to core builds for other systems (Mac 32-bit and 64-bit, HaikuOS,
+Saphirion to core builds for other systems (OS/X 32-bit and 64-bit, HaikuOS,
 Raspberry Pi, etc.)  It also allows users who are not interested in the GUI to
 use lighter builds on Windows and Linux.
 
@@ -94,25 +94,30 @@ New features available in Ren/C's console builds vs. the open-sourced Rebol
 codebase of 12-Dec-2012 are:
 
 * HTTPS support as a protocol written in Rebol code, empowered by underlying
-cryptography libraries incorporated the C code.
+cryptography libraries incorporated the C code.  (Originally contributed by
+Saphirion.)
 
-* An implementation of LIBRARY!, which allows Rebol to load	a DLL or shared
-library and then directly call functions in it.  This is accomplished with the
-["FFI"](https://en.wikipedia.org/wiki/Foreign_function_interface) (Foreign
-Function Interface) and new data types for representing C-level constructs
-like ROUTINE! and STRUCT!.
+* A foreign function interface
+(["FFI"](https://en.wikipedia.org/wiki/Foreign_function_interface)), which
+allows Rebol to load a shared library and then directly call functions in it.
+This implementation is based on [libffi](http://sourceware.org/libffi/),
+and brings new datatypes for interfacing with native libraries, such as
+LIBRARY!, ROUTINE!, and STRUCT!.  (Originally contributed by Atronix.)
 
-> Note: Building Ren/C with FFI currently requires additional steps or package,
-> installation, as the FFI library has not been extracted into code following
-> Rebol's build process.
+> Note: Building Ren/C with the FFI currently requires additional steps or
+> package, installation, as the FFI library has not been extracted into code
+> following Rebol's build process.
 
-* CALL with /INPUT /OUTPUT /ERROR
+* `CALL` with support for standard input/output redirection (also known as
+`/INPUT`, `/OUTPUT`, and `/ERROR`).  (Originally contributed by Atronix.)
 
-* UDP Network Scheme
+* UDP Network Scheme (Originally contributed by Atronix.)
 
-* Ability to make use of native ("__builtin") 64-bit math, if it is available
+* Serial port support on Linux and Windows.  (Originally written by Carl
+Sassenrath, completed & integrated by Joshua Shireman, extended by Atronix.)
 
-*(Additionally there is serial port support on Linux and Windows.)*
+* Ability to make use of native 64-bit math builtins provided by the
+compiler/math library, where available.  (Originally contributed by Atronix.)
 
 
 ## Platforms
@@ -121,19 +126,19 @@ As of 16-Jul-2015, Ren/C has been verified as reaching the goal of building
 across the standards-compliant spectrum of C or C++ without warnings on
 these desktop platforms:
 
-* Linux 32-bit, libcc 2.11 (`OS_ID=0.3.04`)
-* Linux 64-bit (`OS_ID=0.4.40`)
-* Windows 32-bit (`OS_ID=0.3.01`)
-* Windows 64-bit (`OS_ID=0.3.02`)
-* OS/X 32-bit (`OS_ID=0.2.05`)
-* OS/X 64-bit (`OS_ID=0.2.40`)
+* Linux 32-bit x86 (`OS_ID=0.4.04`)
+* Linux 64-bit x86 (`OS_ID=0.4.40`)
+* Windows 32-bit x86 (`OS_ID=0.3.01`)
+* Windows 64-bit x86 (`OS_ID=0.3.40`)
+* OS/X 32-bit x86 (`OS_ID=0.2.05`)
+* OS/X 64-bit x86 (`OS_ID=0.2.40`)
 
 It has additionally been built for:
 
-* ARM Linux on Raspberry Pi (`OS_ID=0.4.21`)
-* OS/X PowerPC (`OS_ID=0.2.04`)
-* HaikuOS (`OS_ID=0.5.75`)
-* SyllableOS Desktop(`OS_ID=0.14.01`)
+* Linux 32-bit ARM, on Raspberry Pi (`OS_ID=0.4.20`)
+* OS/X 32-bit PowerPC (`OS_ID=0.2.04`)
+* HaikuOS 32-bit x86 (`OS_ID=0.5.75`)
+* SyllableOS Desktop 32-bit x86 (`OS_ID=0.14.01`)
 
 Here are the warnings enabled (manually in the makefile, at the moment):
 
@@ -153,10 +158,10 @@ These warnings are disabled (manually in the makefile, at the moment):
 It's important to mention that the features written by Saphirion and Atronix
 were added using a methodology driven more by customer needs vs. philosophical
 or language purity.  Several of the features rely on an incomplete codec
-extension model in Rebol3, which was not clearly articulated...nor is it
+extension model in Rebol 3, which was neither clearly articulated, nor is it
 apparent what separation of concerns it set out to guarantee.  Many other
-aspects--such as adding additional device ports--is not as decoupled or modular
-as it should be.
+aspects -- such as adding additional device ports -- is not as decoupled or
+modular as it should be.
 
 Disclaimer aside, the features reflect concrete needs of the user base, and
 *have been used in deployment*.  While the implementations may not be perfect,
@@ -170,7 +175,8 @@ and extraction, starting from a basis of code that does function.
 If you have been invited as a stakeholder in this project with write
 access to the repository, it is not necessarily for your C programming
 skillset.  Rather it is a way of asking for your buy-in with a sort of
-"paying it forward"...and trusting you with the power to (for instance)
+"paying it forward" and trusting you with the power to (for instance)
 triage and dismiss issues out of the Issue ticketing database.
 
-Discussion for this project is on [SO Chat](http://rebolsource.net/go/chat-faq)
+Discussion for this project is on
+[SO Chat](http://rebolsource.net/go/chat-faq).
