@@ -122,7 +122,7 @@
 #define DS_TOP			(&DS_Base[DSP])
 
 #define DS_DROP \
-	(SET_END(DS_TOP), --DSP, cast(void, 0))
+	(SET_END(DS_TOP), --DSP, NOOP)
 
 #define DS_POP_INTO(v) \
 	do { \
