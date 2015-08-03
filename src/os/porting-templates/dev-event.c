@@ -82,8 +82,9 @@ void Done_Device(int handle, int error);
 **
 */	DEVICE_CMD Query_Events(REBREQ *req)
 /*
-**		Wait for an event or a timeout specified by req->length.
-**		This is used by WAIT as the main timing method.
+**		Wait for an event, or a timeout (in milliseconds) specified by
+**		req->length. The latter is used by WAIT as the main timing
+**		method.
 **
 ***********************************************************************/
 {

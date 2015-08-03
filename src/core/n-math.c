@@ -247,8 +247,7 @@ enum {SINE, COSINE, TANGENT};
 **
 */	REBNATIVE(shift)
 /*
-**		shift int bits /logical
-**		Clip shift at 64 bits.
+**		shift int bits arithmetic or logical
 **
 ***********************************************************************/
 {

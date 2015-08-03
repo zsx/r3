@@ -368,16 +368,14 @@ enum {
 
 	if (D_REF(4)) {	//QUIT
 		if (Try_Block_Halt(VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
-			// We can be here for 2 reasons:
-			// 1. a QUIT/HALT condition
-			// 2. an error condition
+			// We are here because of a QUIT/HALT condition.
 			ret = DS_NEXT;
 			if (VAL_ERR_NUM(ret) == RE_QUIT)
 				ret = VAL_ERR_VALUE(ret);
 			else if (VAL_ERR_NUM(ret) == RE_HALT)
 				Halt_Code(RE_HALT, 0);
 			else
-				Throw_Error(VAL_ERR_OBJECT(ret));
+				Crash(RP_NO_CATCH);
 			*DS_RETURN = *ret;
 			return R_RET;
 		}
@@ -620,27 +618,13 @@ got_err:
 /*
 ***********************************************************************/
 {
-	REBVAL *cond = D_ARG(1);
-	REBCNT argnum = 2;
-
-	if (!D_REF(3)) {	// no /else
-		if (IS_FALSE(cond)) return R_NONE;
-	} else
-		if (IS_FALSE(cond)) argnum = 4;
-
-	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(5) /* not using /ONLY */) {
-		DO_BLK(D_ARG(argnum));
+	if (IS_FALSE(D_ARG(1))) return R_NONE;
+	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
+		DO_BLK(D_ARG(2));
 		return R_TOS1;
-	} {
-		if (argnum == 2)
-			return R_ARG2;
-		else {
-			// No R_ARG4, but IF/ELSE may get the axe (CC #2077)
-			DS_RET_VALUE(D_ARG(argnum));
-			return R_RET;
-		}
+	} else {
+		return R_ARG2;
 	}
-
 }
 
 
@@ -702,7 +686,6 @@ got_err:
 {
 	REBVAL *arg = D_ARG(1);
 
-	if (D_REF(2)) VAL_SET_OPT(arg, OPTS_REVAL);
 	SET_THROW(ds, RE_RETURN, arg);
 	return R_RET;
 }
