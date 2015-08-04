@@ -232,11 +232,11 @@
 		}
 		// Event holds a port:
 		else if (IS_EVENT_MODEL(value, EVM_PORT)) {
-			SET_PORT(val, VAL_EVENT_SER(value));
+			SET_PORT(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
 		}
 		// Event holds an object:
 		else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
-			SET_OBJECT(val, VAL_EVENT_SER(value));
+			SET_OBJECT(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
 		}
 		else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
 			*val = *Get_System(SYS_PORTS, PORTS_CALLBACK);
@@ -253,8 +253,8 @@
 	case SYM_WINDOW:
 	case SYM_GOB:
 		if (IS_EVENT_MODEL(value, EVM_GUI)) {
-			if (VAL_EVENT_SER(value)) {
-				SET_GOB(val, cast(REBGOB*, VAL_EVENT_SER(value)));
+			if (VAL_EVENT_SER(m_cast(REBVAL*, value))) {
+				SET_GOB(val, cast(REBGOB*, VAL_EVENT_SER(m_cast(REBVAL*, value))));
 				break;
 			}
 		}
@@ -314,9 +314,6 @@
 		// Event holds a file string:
 		if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_none;
 		if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
-			void *str = VAL_EVENT_SER(value);
-			VAL_EVENT_SER(value) = Copy_Bytes(cast(REBYTE*, str), -1);
-
 			// !!! EVIL mutability cast !!!
 			// This should be done a better way.  What's apparently going on
 			// is that VAL_EVENT_SER is supposed to be a FILE! series
@@ -327,10 +324,12 @@
 			// in const-like contexts.  (So VAL_EVENT_SER is what C++ would
 			// consider a "mutable" field.)  No way to tell C that, though.
 
+			void *str = VAL_EVENT_SER(m_cast(REBVAL*, value));
+			VAL_EVENT_SER(m_cast(REBVAL*, value)) = Copy_Bytes(cast(REBYTE*, str), -1);
 			SET_FLAG(VAL_EVENT_FLAGS(m_cast(REBVAL*, value)), EVF_COPIED);
 			OS_FREE(str);
 		}
-		Set_Series(REB_FILE, val, VAL_EVENT_SER(value));
+		Set_Series(REB_FILE, val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
 		break;
 
 	default:
