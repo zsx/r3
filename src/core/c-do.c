@@ -575,6 +575,11 @@ void Trace_Arg(REBINT num, REBVAL *arg, REBVAL *path)
 	// keep the invariant, that's temporary...StableStack fixes it.
 	DS_SKIP;
 
+	// The caller will be testing the top slot, and we might not write to
+	// it (e.g. what if all params are quoted?) so we have to put something
+	// that is *not* THROWN() there.
+	SET_TRASH_SAFE(DS_TOP);
+
 	// Go thru the word list args:
 	ds = dsp;
 	for (; NOT_END(args); args++, ds++) {
@@ -831,7 +836,7 @@ return_index:
 	// (because the arguments want to be computed in the caller's environment)
 	// value can be invalid at this point, but must be retrievable w/DSF_FUNC
 	func_already_pushed:
-		assert(IS_UNSET(DSF_OUT(dsf)) && dsf > DSF);
+		assert(IS_UNSET(DSF_OUT(dsf)) && dsf > DSF && !THROWN(DS_TOP));
 		index = Do_Args(dsf, 0, block, index+1);
 		value = DSF_FUNC(dsf); // refresh, since stack could expand in Do_Args
 
