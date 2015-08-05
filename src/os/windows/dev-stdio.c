@@ -53,10 +53,10 @@
 #define CONSOLE_MODES ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_ECHO_INPUT \
 		| 0x0040 | 0x0020  // quick edit and insert mode (not defined in VC6)
 
-static HANDLE Std_Out = 0;
-static HANDLE Std_Inp = 0;
-static HANDLE Std_Echo = 0;
-static wchar_t *Std_Buf = 0;		// for input and output
+static HANDLE Std_Out = NULL;
+static HANDLE Std_Inp = NULL;
+static HANDLE Std_Echo = NULL;
+static wchar_t *Std_Buf = NULL;		// for input and output
 
 static BOOL Redir_Out = 0;
 static BOOL Redir_Inp = 0;
