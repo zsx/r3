@@ -1212,32 +1212,22 @@ ConversionResult ConvertUTF8toUTF32 (
 **		cannot use wcslen() to determine a REBUNI* string size, as
 **		wchar_t is not guaranteed to be 2 bytes on every platform.
 **
-**		This is a simple UCS-2 implementation of string length.  It
-**		applies `memchr()` for a potential speedup from optimizations
-**		in the C runtime exploiting processor operations to do better
-**		than a `for` loop could accomplish.
+**		Note: ideally this would use a routine like memmem() to look
+**		for two sequential zero bytes and then match only those aligned
+**		on an even byte boundary (to prevent spanning characters).  But
+**		memmem() is not POSIX and only on GNU.  So this uses a simple
+**		byte-by-byte search.
 **
 ***********************************************************************/
 {
 	REBCNT len;
-	const char *cp = (const char *)up; // "C"har vs. "U"nicode
+	const char *cp = cast(const char *, up) + 1; // "C"har vs. "U"nicode
+	assert(sizeof(REBUNI) == 2);
+	assert(cast(REBUPT, up) % 2 == 0);
 
-	do {
-		// A size_t -1 is a portable way of saying 'maximum size_t',
-		// since we have no known limit on the search length
-		cp = (const char *)memchr(cp, 0, (size_t)(-1));
-		len = cp - (const char *)up;
+	while (*cp || *(cp - 1)) cp += 2;
 
-		// If it's at an even position, we can check to see if the
-		// next byte is zero as well.  If so we've found a proper
-		// two byte terminating sequence.
-		if ((len % 2 == 0) && (*(++cp) == 0)) break;
-
-		// It's either an odd position or didn't match, keep going...
-		++cp;
-	} while (cp);
-
-	assert(len % 2 == 0);
-	return len / 2;
+	assert(cast(REBUPT, cp - 1) % 2 == 0);
+	return cast(const REBUNI*, cp - 1) - up;
 }
 
