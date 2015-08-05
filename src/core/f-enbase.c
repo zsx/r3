@@ -402,6 +402,14 @@ err:
 
 	// Add slop-factor
 	series = Prep_String (series, &p, 8 * len + 2 * (len / 8) + 4);
+
+	// If the input series was zero length, return empty series
+	if (!len) {
+		SERIES_TAIL(series) = 0;
+		TERM_SERIES(series);
+		return series;
+	}
+
 	if (len > 8 && brk) *p++ = LF;
 
 	for (i = 0; i < len; i++) {
@@ -444,6 +452,13 @@ err:
 	series = Prep_String(series, &bp, len*2 + len/32 + 32);
 	// (Note: tail not properly set yet)
 
+	// If the input series was zero length, return empty series
+	if (!len) {
+		SERIES_TAIL(series) = 0;
+		TERM_SERIES(series);
+		return series;
+	}
+
 	if (len >= 32 && brk) *bp++ = LF;
 	for (count = 1; count <= len; count++) {
 		bp = Form_Hex2(bp, *src++);
@@ -477,6 +492,14 @@ err:
 
 	// slop-factor
   	series = Prep_String (series, &p, 4 * len / 3 + 2 * (len / 32) + 5);
+
+	// If the input series was zero length, return empty series
+	if (!len) {
+		SERIES_TAIL(series) = 0;
+		TERM_SERIES(series);
+		return series;
+	}
+
 	loop = (int) (len / 3) - 1;
 	if (4 * loop > 64 && brk) *p++ = LF;
 
