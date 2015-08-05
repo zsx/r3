@@ -47,19 +47,12 @@
 
 #include "reb-host.h"
 
-#define BUF_SIZE (16*1024)
-
 #define SF_DEV_NULL 31		// local flag to mark NULL device
 
 // Temporary globals: (either move or remove?!)
 static int Std_Inp = STDIN_FILENO;
 static int Std_Out = STDOUT_FILENO;
 static FILE *Std_Echo = NULL;
-
-static REBOOL Redir_Out = 0; // redirection flags
-static REBOOL Redir_Inp = 0;
-
-#define PUTE(s)		if (Std_Echo) fputs(s, Std_Echo)
 
 #ifndef HAS_SMART_CONSOLE	// console line-editing and recall needed
 typedef struct term_data {
@@ -78,17 +71,10 @@ extern int Read_Line(STD_TERM*, char*, int);
 STD_TERM *Term_IO;
 #endif
 
-void Put_Str(REBYTE *buf);
+extern void Put_Str(REBYTE *buf);
 
 static int interrupted = 0;
 
-/*
-#define	PUTS(s)		fputs(s, stdout)
-#define GETS(s,len)	fgets(s, len, stdin);
-#define FLUSH()		fflush(stdout)
-*/
-
-static const void * backtrace_buf [1024];
 static void Handle_Signal(int sig)
 {
 	REBYTE buf[] = "[escape]";
@@ -104,7 +90,7 @@ static void Init_Signals(void)
 	signal(SIGTERM, Handle_Signal);
 }
 
-static void close_stdio(void)
+static void Close_Stdio(void)
 {
 #ifndef HAS_SMART_CONSOLE
 	if (Term_IO) {
@@ -126,7 +112,7 @@ static void close_stdio(void)
 {
 	REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy above
 
-	close_stdio();
+	Close_Stdio();
 
 	CLR_FLAG(dev->flags, RDF_OPEN);
 	return DR_DONE;
@@ -180,7 +166,7 @@ static void close_stdio(void)
 {
 	REBDEV *dev = Devices[req->device];
 
-	close_stdio();
+	Close_Stdio();
 
 	CLR_FLAG(dev->flags, RRF_OPEN);
 
