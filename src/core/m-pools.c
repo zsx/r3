@@ -257,11 +257,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBNOD	*node;
 	REBYTE	*next;
 	REBCNT	units = pool->units;
-#ifdef MUNGWALL
-	REBCNT	mem_size = (pool->wide + 2 * MUNG_SIZE) * units + sizeof(REBSEG);
-#else
 	REBCNT	mem_size = pool->wide * units + sizeof(REBSEG);
-#endif
 
 	seg = cast(REBSEG *, ALLOC_ARRAY(char, mem_size));
 	if (!seg) {
@@ -284,20 +280,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		ASAN_UNPOISON_MEMORY_REGION(node, pool->wide);
 	}
 
-#ifdef MUNGWALL
-	for (next = (REBYTE *)(seg + 1); units > 0; units--) {
-		memcpy(next,MUNG_PATTERN1,MUNG_SIZE);
-		memcpy(next+MUNG_SIZE+pool->wide,MUNG_PATTERN2,MUNG_SIZE);
-		*node = (REBNOD) (next+MUNG_SIZE);
-		node  = *node;
-		next+=pool->wide+2*MUNG_SIZE;
-	}
-#else
 	for (next = (REBYTE *)(seg + 1); units > 0; units--, next += pool->wide) {
 		*node = (REBNOD) next;
 		node  = cast(void**, *node);
 	}
-#endif
+
 	*node = 0;
 	if (pool->last != NULL) {
 		ASAN_POISON_MEMORY_REGION(pool->last, pool->wide);
@@ -344,7 +331,6 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 {
 	REBPOL *pool = &Mem_Pools[pool_id];
 
-	MUNG_CHECK(pool_id, node, pool->wide);
 	if (pool->last == NULL) { //pool is empty
 		Fill_Pool(pool); //insert an empty segment, such that this node won't be picked by next Make_Node to enlongate the poisonous time of this area to catch stale pointers
 	}
@@ -390,17 +376,10 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		// Debug_Fmt_Num("Alloc1:", length);
 	#endif
 
-#ifdef MUNGWALL
-		node = cast(REBNOD *, ALLOC_ARRAY(char, length+2*MUNG_SIZE));
-#else
 		node = cast(REBNOD *, ALLOC_ARRAY(char, length));
-#endif
+
 		if (!node) Trap_DEAD_END(RE_NO_MEMORY);
-#ifdef MUNGWALL
-		memcpy((REBYTE *)node,MUNG_PATTERN1,MUNG_SIZE);
-		memcpy(((REBYTE *)node)+length+MUNG_SIZE,MUNG_PATTERN2,MUNG_SIZE);
-		node=(REBNOD *)(((REBYTE *)node)+MUNG_SIZE);
-#endif
+
 		Mem_Pools[SYSTEM_POOL].has += length;
 		Mem_Pools[SYSTEM_POOL].free++;
 	}
@@ -475,20 +454,13 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		// Debug_Num("Alloc2:", length);
 	#endif
 
-#ifdef MUNGWALL
-		node = cast(REBNOD *, ALLOC_ARRAY(char, length+2*MUNG_SIZE));
-#else
 		node = cast(REBNOD *, ALLOC_ARRAY(char, length));
-#endif
+
 		if (!node) {
 			Free_Node(SERIES_POOL, (REBNOD *)series);
 			Trap_DEAD_END(RE_NO_MEMORY);
 		}
-#ifdef MUNGWALL
-		memcpy((REBYTE *)node,MUNG_PATTERN1,MUNG_SIZE);
-		memcpy(((REBYTE *)node)+length+MUNG_SIZE,MUNG_PATTERN2,MUNG_SIZE);
-		node=(REBNOD *)(((REBYTE *)node)+MUNG_SIZE);
-#endif
+
 		Mem_Pools[SYSTEM_POOL].has += length;
 		Mem_Pools[SYSTEM_POOL].free++;
 	}
@@ -576,16 +548,13 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		/* size < wide when "wide" is not a multiple of element size */
 		assert(Mem_Pools[pool_num].wide >= size);
 	}
-	MUNG_CHECK(pool_num,node, size);
 
 	if (pool_num < SYSTEM_POOL) {
 		Free_Node(pool_num, (REBNOD *)node);
-	} else {
-#ifdef MUNGWALL
-		Free_Mem(((REBYTE *)node)-MUNG_SIZE, size + MUNG_SIZE*2);
-#else
+	}
+	else {
 		Free_Mem(node, size);
-#endif
+
 		Mem_Pools[SYSTEM_POOL].has -= size;
 		Mem_Pools[SYSTEM_POOL].free--;
 	}
@@ -638,13 +607,6 @@ clear_header:
 		if (GC_Infants[n] == series)
 			GC_Infants[n] = NULL;
 	}
-
-/* Old torture mode:
-	if (!SERIES_FREED(series)) { // Don't try to free twice.
-		MUNG_CHECK(SERIES_POOL, (REBNOD *)series, Mem_Pools[SERIES_POOL].wide);
-		FREE_SERIES(series); // special GC mark as freed
-	}
-*/
 }
 
 
@@ -731,8 +693,6 @@ clear_header:
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
 		series = (REBSER *) (seg + 1);
 		for (count = Mem_Pools[SERIES_POOL].units; count > 0; count--) {
-			SKIP_WALL(series);
-			MUNG_CHECK(SERIES_POOL, series, sizeof(*series));
 			if (!SERIES_FREED(series)) {
 				if (!SERIES_REST(series) || !series->data)
 					goto crash;
@@ -743,7 +703,6 @@ clear_header:
 					goto crash;
 			}
 			series++;
-			SKIP_WALL(series);
 		}
 	}
 
@@ -790,7 +749,6 @@ crash:
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
 		series = (REBSER *) (seg + 1);
 		for (count = Mem_Pools[SERIES_POOL].units; count > 0; count--) {
-			SKIP_WALL(series);
 			if (!SERIES_FREED(series)) {
 				if (SERIES_WIDE(series) == size && SERIES_GET_FLAG(series, SER_MON)) {
 					//Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SERIES_TOTAL(series), series->data);
@@ -798,7 +756,6 @@ crash:
 				}
 			}
 			series++;
-			SKIP_WALL(series);
 		}
 	}
 }
@@ -819,7 +776,6 @@ crash:
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
 		series = (REBSER *) (seg + 1);
 		for (count = Mem_Pools[SERIES_POOL].units; count > 0; count--) {
-			SKIP_WALL(series);
 			if (!SERIES_FREED(series)) {
 				if (
 					pool_id == UNKNOWN
@@ -846,7 +802,6 @@ crash:
 				}
 			}
 			series++;
-			SKIP_WALL(series);
 		}
 	}
 }
@@ -925,8 +880,6 @@ crash:
 		series = (REBSER *) (seg + 1);
 
 		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--) {
-			SKIP_WALL(series);
-			MUNG_CHECK(SERIES_POOL, series, sizeof(*series));
 
 			if (SERIES_WIDE(series)) {
 				tot++;
@@ -973,7 +926,6 @@ crash:
 			}
 
 			series++;
-			SKIP_WALL(series);
 		}
 	}
 

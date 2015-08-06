@@ -767,8 +767,6 @@ static void Propagate_All_GC_Marks(void);
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
 		series = (REBSER *) (seg + 1);
 		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--) {
-			SKIP_WALL(series);
-			MUNG_CHECK(SERIES_POOL, series, sizeof(*series));
 			if (!SERIES_FREED(series)) {
 				if (IS_FREEABLE(series)) {
 					Free_Series(series);
@@ -777,7 +775,6 @@ static void Propagate_All_GC_Marks(void);
 					SERIES_CLR_FLAG(series, SER_MARK);
 			}
 			series++;
-			SKIP_WALL(series);
 		}
 	}
 
@@ -804,10 +801,6 @@ static void Propagate_All_GC_Marks(void);
 	for (seg = Mem_Pools[GOB_POOL].segs; seg; seg = seg->next) {
 		gob = (REBGOB *) (seg + 1);
 		for (n = Mem_Pools[GOB_POOL].units; n > 0; n--) {
-#ifdef MUNGWALL
-			gob = (gob *) (((REBYTE *)s)+MUNG_SIZE);
-			MUNG_CHECK(GOB_POOL, gob, sizeof(*gob));
-#endif
 			if (IS_GOB_USED(gob)) {
 				if (IS_GOB_MARK(gob))
 					UNMARK_GOB(gob);
@@ -817,9 +810,6 @@ static void Propagate_All_GC_Marks(void);
 				}
 			}
 			gob++;
-#ifdef MUNGWALL
-			gob = (gob *) (((REBYTE *)s)+MUNG_SIZE);
-#endif
 		}
 	}
 
@@ -846,7 +836,6 @@ static void Propagate_All_GC_Marks(void);
 	for (seg = Mem_Pools[LIB_POOL].segs; seg; seg = seg->next) {
 		lib = (REBLHL *) (seg + 1);
 		for (n = Mem_Pools[LIB_POOL].units; n > 0; n--) {
-			SKIP_WALL(lib);
 			if (IS_USED_LIB(lib)) {
 				if (IS_MARK_LIB(lib))
 					UNMARK_LIB(lib);
@@ -883,7 +872,6 @@ static void Propagate_All_GC_Marks(void);
 	for (seg = Mem_Pools[RIN_POOL].segs; seg; seg = seg->next) {
 		info = (REBRIN *) (seg + 1);
 		for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-			SKIP_WALL(info);
 			if (ROUTINE_GET_FLAG(info, ROUTINE_USED)) {
 				if (ROUTINE_GET_FLAG(info, ROUTINE_MARK))
 					ROUTINE_CLR_FLAG(info, ROUTINE_MARK);
