@@ -24,23 +24,44 @@
 **  Section: memory
 **  Author:  Carl Sassenrath
 **  Notes:
+**		A point of Rebol's design was to remain small and solve its
+**		problems without relying on a lot of abstraction.  Its
+**		memory-management was thus focused on staying low-level...and
+**		being able to do efficient and lightweight allocations of
+**		two major elements: series and graphic objects (GOBs).
+**
+**		Both series and GOBs have a fixed-size component that can
+**		be easily allocated from a memory pool.  This portion is
+**		called the "Node" (or NOD) in both Rebol and Red terminology;
+**		it is an item whose pointer is valid for the lifetime of
+**		the object, regardless of resizing.  This is where header
+**		information is stored, and pointers to these objects may
+**		be saved in REBVAL values; such that they are kept alive
+**		by the garbage collector.
+**
+**		The more complicated thing to do memory pooling of is the
+**		variable-sized portion of a series (currently called the
+**		"series data")...as series sizes can vary widely.  But a
+**		trick Rebol has is that a series might be able to take
+**		advantage of being given back an allocation larger than
+**		requested.  They can use it as reserved space for growth.
+**
+**		(Typical models for implementation of things like C++'s
+**		std::vector do not reach below new[] or delete[]...which
+**		are generally implemented with malloc and free under
+**		the hood.  Their buffered additional capacity is done
+**		assuming the allocation they get is as big as they asked
+**		for...no more and no less.)
+**
+**		While Rebol's memory pooling is a likely-useful tool even
+**		with modern alternatives, there are also useful tools
+**		like Valgrind and Address Sanitizer which can more easily
+**		root out bugs if each allocation and free is done
+**		separately through malloc and free.  Therefore there is
+**		an option for always using malloc, which you can enable
+**		by setting the environment variable R3_ALWAYS_MALLOC to 1.
 **
 ***********************************************************************/
-/*
-	Ideas...
-
-	Each task needs its own series-save list that is simply a pointer
-	array of un-rooted (NEW) series that should not be GCed. When
-	a TRAP or THROW occurs, the list is trimmed back to its prior
-	marker, allowing series that were orphaned by the TRAP to be GCed.
-
-	When GC occurs, each series on the save list is mark-scanned to
-	keep it alive. The save list can be expanded, but care should be
-	used to avoid creating a huge list when recursion happens.
-
-	What if interpreter kept track of save list marker when calling
-	each native, and reset it on return?
-*/
 
 //-- Special Debugging Options:
 //#define CHAFF					// Fill series data to crash old references
