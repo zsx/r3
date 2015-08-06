@@ -54,6 +54,7 @@ const char ** iso3166_find_entry_by_2_code(const char* code);
 	unsigned int j = 0;
 	char *lang = NULL;
 	char *territory = NULL;
+	char *locale = NULL;
 
 	// something like: 'lang_territory.codeset'
 	const char *lang_env = getenv("LANG");
@@ -103,7 +104,9 @@ const char ** iso3166_find_entry_by_2_code(const char* code);
 	ret[2] = iso3166_entry[1];
 	ret[3] = iso3166_entry[1];
 
-	return strdup(ret[what]);
+	locale = OS_ALLOC_ARRAY(char, strlen(ret[what]) + 1);
+	strcpy(locale, ret[what]);
+	return locale;
 
 error:
 	if (lang != NULL) {
