@@ -77,9 +77,10 @@
 	{
 		char *ptr = cast(char *, mem) - sizeof(size_t);
 		if (*cast(size_t *, ptr) != cast(size_t, -1020)) {
-			Debug_Fmt("** OS_Free_Mem() mismatched with allocator!");
-			Debug_Fmt("** Did you mean to use FREE() instead of OS_FREE()?");
-			assert(FALSE);
+			OS_CRASH(
+				cb_cast("OS_Free_Mem() mismatched with allocator!"),
+				cb_cast("Did you mean to use FREE() instead of OS_FREE()?")
+			);
 		}
 		free(ptr);
 	}
