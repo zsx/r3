@@ -80,6 +80,101 @@
 #define ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
 #endif
 
+/***********************************************************************
+**
+*/	void *Alloc_Mem(size_t size)
+/*
+**		NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_ARRAY
+**		wrapper macros to ensure the memory block being freed matches
+**		the appropriate size for the type.
+**
+*************************************************************************
+**
+**		Alloc_Mem is an interface for a basic memory allocator.
+**		It is coupled with a Free_Mem function that clients must
+**		call with the correct size of the memory block to be freed.
+**		It is thus lower-level than malloc()... whose memory blocks
+**		remember the size of the allocation so you don't need to
+**		pass it into free().
+**
+**		One motivation behind using such an allocator in Rebol
+**		is to allow it to keep knowledge of how much memory the
+**		system is using.  This means it can decide when to trigger a
+**		garbage collection, or raise an out-of-memory error before
+**		the operating system would, e.g. via 'ulimit':
+**
+**			http://stackoverflow.com/questions/1229241/
+**
+**		Finer-grained allocations are done with memory pooling.  But
+**		the blocks of memory used by the pools are still acquired
+**		using ALLOC_ARRAY and FREE_ARRAY.
+**
+***********************************************************************/
+{
+	// Trap memory usage limit *before* the allocation is performed
+
+	PG_Mem_Usage += size;
+	if ((PG_Mem_Limit != 0) && (PG_Mem_Usage > PG_Mem_Limit))
+		Check_Security(SYM_MEMORY, POL_EXEC, 0);
+
+	// While conceptually a simpler interface than malloc(), the
+	// current implementations on all C platforms just pass through to
+	// malloc and free.  NOTE: use of calloc is temporary for the
+	// pooling commit, as it covers up bugs.  Those are addressed in
+	// a separate patch.
+
+#ifdef NDEBUG
+	return calloc(size, 1);
+#else
+	{
+		// In debug builds we cache the size at the head of the
+		// allocation so we can check it.
+
+		void *ptr = calloc(size + sizeof(size_t), 1);
+		*cast(size_t *, ptr) = size;
+		return cast(char *, ptr) + sizeof(size_t);
+	}
+#endif
+}
+
+
+/***********************************************************************
+**
+*/	void Free_Mem(void *mem, size_t size)
+/*
+**		NOTE: Instead of Free_Mem, use the FREE and FREE_ARRAY
+**		wrapper macros to ensure the memory block being freed matches
+**		the appropriate size for the type.
+**
+***********************************************************************/
+{
+#ifdef NDEBUG
+	free(mem);
+#else
+	{
+		// In debug builds we will not only be able to assert the
+		// correct size...but if someone tries to use a normal free()
+		// and bypass Free_Mem it will trigger debug alerts from the
+		// C runtime of trying to free a non-head-of-malloc.  This
+		// helps in ensuring we get a balanced PG_Mem_Usage of 0 at the
+		// end of the program.  We also know the host allocator uses
+		// a similar trick, but since it doesn't need to remember the
+		// size it puts a known garbage value for us to check for.
+
+		char *ptr = cast(char *, mem) - sizeof(size_t);
+		if (*cast(size_t *, ptr) == cast(size_t, -1020)) {
+			Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
+			Debug_Fmt("** You should use OS_FREE() instead of FREE().");
+			assert(FALSE);
+		}
+		assert(*cast(size_t *, ptr) == size);
+		free(ptr);
+	}
+#endif
+	PG_Mem_Usage -= size;
+}
+
+
 #define POOL_MAP
 
 #define	BAD_MEM_PTR ((REBYTE *)0xBAD1BAD1)
@@ -150,38 +245,6 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	DEF_POOL(sizeof(REBRIN), 128), // external routines
 	DEF_POOL(1, 1),	// Just used for tracking main memory
 };
-
-
-/***********************************************************************
-**
-*/	void *Alloc_Mem(size_t size)
-/*
-**		Main memory allocation wrapper function.
-**
-***********************************************************************/
-{
-	void *ptr;
-
-	if (!(ptr = malloc(size))) return 0;
-	PG_Mem_Usage += size;
-	if (PG_Mem_Limit != 0 && (PG_Mem_Usage > PG_Mem_Limit)) {
-		Check_Security(SYM_MEMORY, POL_EXEC, 0);
-	}
-	CLEAR(ptr, size);
-
-	return ptr;
-}
-
-
-/***********************************************************************
-**
-*/	void Free_Mem(void *mem, size_t size)
-/*
-***********************************************************************/
-{
-	PG_Mem_Usage -= size;
-	free(mem);
-}
 
 
 /***********************************************************************
