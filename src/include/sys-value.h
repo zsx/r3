@@ -1021,8 +1021,8 @@ typedef struct Reb_Error {
 // are handled specially as a task-local variable, and only *one* can be in
 // effect at a time.  These macros abstract and ensure that condition.
 #ifdef NDEBUG
-	#define ADD_THROWN_ARG(v,a)		(*TASK_ERROR_ARG = *(a))
-	#define TAKE_THROWN_ARG(a, v)	(*(a) = *TASK_ERROR_ARG)
+	#define ADD_THROWN_ARG(v,a)		(*TASK_THROWN_ARG = *(a))
+	#define TAKE_THROWN_ARG(a, v)	(*(a) = *TASK_THROWN_ARG)
 #else
 	#define ADD_THROWN_ARG(v,a)		Add_Thrown_Arg_Debug(v, a)
 	#define TAKE_THROWN_ARG(a,v)	Take_Thrown_Arg_Debug(a, v)
