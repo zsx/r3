@@ -462,7 +462,7 @@ enum {
 	SER_KEEP	= 1 << 1,	// don't garbage collect even if unreferenced
 	SER_LOCK	= 1 << 2,	// size is locked (do not expand it)
 	SER_EXT		= 1 << 3,	// .data pointer is external, don't free() on GC
-	SER_FREE	= 1 << 4,	// rest of REBSER is uninitialized, can be reused
+	SER_FLAG_4	= 1 << 4,	// UNUSED: was SER_FREE, but free if wide = 0
 	SER_BLOCK	= 1 << 5,	// is sizeof(REBVAL) wide and has valid values
 	SER_PROT	= 1 << 6,	// protected from modification
 	SER_MON		= 1 << 7	// !!! Monitoring (?)
@@ -472,7 +472,7 @@ enum {
 #define SERIES_CLR_FLAG(s, f) (SERIES_FLAGS(s) &= ~((f) << 8))
 #define SERIES_GET_FLAG(s, f) (SERIES_FLAGS(s) &  ((f) << 8))
 
-#define	IS_FREEABLE(s)    !SERIES_GET_FLAG(s, SER_MARK|SER_KEEP|SER_FREE)
+#define	IS_FREEABLE(s)    !SERIES_GET_FLAG(s, SER_MARK|SER_KEEP)
 #define KEEP_SERIES(s,l)  do {SERIES_SET_FLAG(s, SER_KEEP); LABEL_SERIES(s,l);} while(0)
 #define EXT_SERIES(s)     SERIES_SET_FLAG(s, SER_EXT)
 #define IS_EXT_SERIES(s)  SERIES_GET_FLAG(s, SER_EXT)
@@ -509,15 +509,6 @@ enum {
 	#define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
 #endif
 
-#ifdef MEM_STRESS
-#define FREE_SERIES(s)    SERIES_SET_FLAG(s, SER_FREE) // mark as removed
-#define	CHECK_MARK(s,d) \
-		if (SERIES_GET_FLAG(s, SER_FREE)) Choke(); \
-		if (!IS_MARK_SERIES(s)) Mark_Series(s, d);
-#else
-#define FREE_SERIES(s)
-#define	CHECK_MARK(s,d) if (!IS_MARK_SERIES(s)) Mark_Series(s, d);
-#endif
 
 //#define LABEL_SERIES(s,l) s->label = (l)
 
