@@ -32,7 +32,7 @@
 
 /***********************************************************************
 **
-*/	REBCNT Modify_Block(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
+*/	REBCNT Modify_Block(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
 /*
 **		action: INSERT, APPEND, CHANGE
 **
@@ -50,24 +50,27 @@
 	REBCNT tail  = SERIES_TAIL(dst_ser);
 	REBINT ilen  = 1;	// length to be inserted
 	REBINT size;		// total to insert
-	REBFLG is_blk = FALSE; // src_val is a block not a value
 
 	if (dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
 	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
 	// Check /PART, compute LEN:
 	if (!GET_FLAG(flags, AN_ONLY) && ANY_BLOCK(src_val)) {
-		is_blk = TRUE; // src_val is a block
-		// Are we modifying ourselves? If so, copy src_val block first:
-		if (dst_ser == VAL_SERIES(src_val)) {
-			VAL_SERIES(src_val) = Copy_Block(VAL_SERIES(src_val), VAL_INDEX(src_val));
-			VAL_INDEX(src_val) = 0;
-		}
-		// Length of insertion:
+		// Adjust length of insertion if changing /PART:
 		if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
 			ilen = dst_len;
 		else
 			ilen = VAL_LEN(src_val);
+
+		// Are we modifying ourselves? If so, copy src_val block first:
+		if (dst_ser == VAL_SERIES(src_val)) {
+			REBSER *series = Copy_Block(
+				VAL_SERIES(src_val), VAL_INDEX(src_val)
+			);
+			src_val = BLK_HEAD(series);
+		}
+		else
+			src_val = VAL_BLK_DATA(src_val); // skips by VAL_INDEX values
 	}
 
 	// Total to insert:
@@ -88,8 +91,6 @@
 
 	tail = (action == A_APPEND) ? 0 : size + dst_idx;
 
-	if (is_blk) src_val = VAL_BLK_DATA(src_val);
-
 	dst_idx *= SERIES_WIDE(dst_ser); // loop invariant
 	ilen  *= SERIES_WIDE(dst_ser); // loop invariant
 	for (; dups > 0; dups--) {
@@ -104,7 +105,7 @@
 
 /***********************************************************************
 **
-*/	REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
+*/	REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
 /*
 **		action: INSERT, APPEND, CHANGE
 **
