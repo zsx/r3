@@ -639,7 +639,14 @@ static struct {
 	// Special case (to avoid fetch of index and tail below):
 	if (action == A_MAKE || action == A_TO) {
 		Make_Block_Type(action == A_MAKE, value, arg); // returned in value
-		if (ANY_PATH(value)) Clear_Value_Opts(VAL_SERIES(value));
+
+		if (ANY_PATH(value)) {
+			// Get rid of any line break options on the path's elements
+			REBVAL *clear = BLK_HEAD(VAL_SERIES(value));
+			for (; NOT_END(clear); clear++) {
+				VAL_CLR_OPT(clear, OPT_VALUE_LINE);
+			}
+		}
 		*D_OUT = *value;
 		return R_OUT;
 	}
@@ -893,7 +900,7 @@ is_none:
 #ifndef NDEBUG
 /***********************************************************************
 **
-*/	void Assert_Blk_Core(const REBSER *series, REBOOL unwords)
+*/	void Assert_Blk_Core(const REBSER *series, REBOOL typed_words)
 /*
 ***********************************************************************/
 {
@@ -914,8 +921,12 @@ is_none:
 			Panic_Series(series);
 		}
 
-		if (unwords && (!ANY_WORD(value) || !VAL_GET_OPT(value, OPTS_UNWORD)))
+		if (
+			typed_words
+			&& (!ANY_WORD(value) || !VAL_GET_EXT(value, EXT_WORD_TYPED))
+		) {
 			Panic_Series(series);
+		}
 	}
 
 	if (!IS_END(BLK_SKIP(series, SERIES_TAIL(series)))) {

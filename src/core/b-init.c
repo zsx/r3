@@ -374,7 +374,7 @@ static	BOOT_BLK *Boot_Block;
 		if (!func) Panic(RP_MISC);
 		*val = *func;
 		VAL_SET(val, REB_OP);
-		VAL_SET_EXT(val, VAL_TYPE(func));
+		VAL_EXTS_DATA(val) = VAL_TYPE(func);
 	}
 }
 
@@ -897,7 +897,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	n = 2; // skip first flag (ROF_EXT)
 	val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
 	for (val = VAL_BLK(val); NOT_END(val); val++) {
-		VAL_CLR_LINE(val);
+		VAL_CLR_OPT(val, OPT_VALUE_LINE);
 		if (rargs->options & n) Append_Value(ser, val);
 		n <<= 1;
 	}

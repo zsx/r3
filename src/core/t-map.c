@@ -457,7 +457,7 @@
 	val  = FRM_VALUE(frame, 1);
 	for (mval = BLK_HEAD(mapser); NOT_END(mval) && NOT_END(mval+1); mval += 2) {
 		if (ANY_WORD(mval) && !IS_NONE(mval+1)) {
-			Init_Unword(
+			Init_Typed_Word(
 				word,
 				REB_SET_WORD,
 				VAL_WORD_SYM(mval),

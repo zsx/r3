@@ -161,9 +161,9 @@
 	}
 	for (n = 0; NOT_END(val); n++, val++) {
 		if (cond ^ (n % skip != 0))
-			VAL_SET_LINE(val);
+			VAL_SET_OPT(val, OPT_VALUE_LINE);
 		else
-			VAL_CLR_LINE(val);
+			VAL_CLR_OPT(val, OPT_VALUE_LINE);
 		if (skip < 0) break;
 	}
 
@@ -177,7 +177,7 @@
 /*
 ***********************************************************************/
 {
-	if VAL_GET_LINE(VAL_BLK_DATA(D_ARG(1))) return R_TRUE;
+	if VAL_GET_OPT(VAL_BLK_DATA(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
 	return R_FALSE;
 }
 

@@ -47,13 +47,13 @@ enum {
 ***********************************************************************/
 {
 	if (GET_FLAG(flags, PROT_WORD)) {
-		if (GET_FLAG(flags, PROT_SET)) VAL_SET_OPT(value, OPTS_LOCK);
-		else VAL_CLR_OPT(value, OPTS_LOCK);
+		if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(value, EXT_WORD_LOCK);
+		else VAL_CLR_EXT(value, EXT_WORD_LOCK);
 	}
 
 	if (GET_FLAG(flags, PROT_HIDE)) {
-		if GET_FLAG(flags, PROT_SET) VAL_SET_OPT(value, OPTS_HIDE);
-		else VAL_CLR_OPT(value, OPTS_HIDE);
+		if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(value, EXT_WORD_HIDE);
+		else VAL_CLR_EXT(value, EXT_WORD_HIDE);
 	}
 }
 
@@ -576,7 +576,7 @@ enum {
     case REB_OP:
     case REB_CLOSURE:
 	case REB_FUNCTION:
-		VAL_SET_OPT(value, OPTS_REVAL);
+		VAL_SET_OPT(value, OPT_VALUE_REDO);
 		return R_ARG1;
 
 //	case REB_PATH:  ? is it used?

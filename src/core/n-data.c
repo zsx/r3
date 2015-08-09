@@ -511,7 +511,8 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		Assert_Public_Object(word);
 		// Check for protected or unset before setting anything.
 		for (tmp = val, obj_word = VAL_OBJ_WORD(word, 1); NOT_END(obj_word); obj_word++) { // skip self
-			if (VAL_PROTECTED(obj_word)) Trap1_DEAD_END(RE_LOCKED_WORD, obj_word);
+			if (VAL_GET_EXT(obj_word, EXT_WORD_LOCK))
+				Trap1_DEAD_END(RE_LOCKED_WORD, obj_word);
 			if (not_any && is_blk && !IS_END(tmp) && IS_UNSET(tmp++)) // won't advance past end
 				Trap1_DEAD_END(RE_NEED_VALUE, obj_word);
 		}

@@ -69,7 +69,7 @@
 			Free_Series(frame);
 			Trap_Arg_DEAD_END(spec);
 		}
-		Init_Unword(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
+		Init_Typed_Word(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
 		word++;
 		SET_NONE(vals);
 		vals++;
@@ -344,7 +344,7 @@
 					}
 
 					else if (ANY_OBJECT(value)) {
-						if (!VAL_GET_OPT(BLK_SKIP(out, index), OPTS_HIDE)) {
+						if (!VAL_GET_EXT(BLK_SKIP(out, index), EXT_WORD_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
 								Init_Word(vars, REB_WORD, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);

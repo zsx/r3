@@ -605,7 +605,7 @@ return_index:
 	if (Trace_Flags) Trace_Func(DSF_LABEL(call), func);
 
 	if (func_type == REB_OP)
-		func_type = cast(enum REBOL_Types, VAL_GET_EXT(func));
+        func_type = cast(enum REBOL_Types, VAL_EXTS_DATA(func));
 
 	switch (func_type) {
 	case REB_NATIVE:
@@ -806,7 +806,7 @@ do_at_index:
 		if (Trace_Flags) Trace_Return(label, out);
 
 		// The return value is a FUNC that needs to be re-evaluated.
-		if (VAL_GET_OPT(out, OPTS_REVAL) && ANY_FUNC(out)) {
+        if (VAL_GET_OPT(out, OPT_VALUE_REDO) && ANY_FUNC(out)) {
 			if (IS_OP(out)) Trap_Type_DEAD_END(value); // not allowed
 
 			value = out;

@@ -140,13 +140,19 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 
 	// Set new values to obj words
 	for (word = arg; NOT_END(word); word += 2) {
+		REBVAL *frame_word;
 
 		i = binds[VAL_WORD_CANON(word)];
 		val = FRM_VALUE(obj, i);
-		if (GET_FLAGS(VAL_OPTS(FRM_WORD(obj, i)), OPTS_HIDE, OPTS_LOCK)) {
+		frame_word = FRM_WORD(obj, i);
+
+		if (
+			VAL_GET_EXT(frame_word, EXT_WORD_HIDE)
+			|| VAL_GET_EXT(frame_word, EXT_WORD_LOCK)
+		) {
 			// release binding table
 			Collect_End(obj);
-			if (VAL_PROTECTED(FRM_WORD(obj, i)))
+			if (VAL_GET_EXT(FRM_WORD(obj, i), EXT_WORD_LOCK))
 				Trap1(RE_LOCKED_WORD, FRM_WORD(obj, i));
 			Trap(RE_HIDDEN);
 		}
@@ -172,7 +178,7 @@ static REBSER *Trim_Object(REBSER *obj)
 
 	word = FRM_WORDS(obj)+1;
 	for (val = FRM_VALUES(obj)+1; NOT_END(val); val++, word++) {
-		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_OPT(word, OPTS_HIDE))
+		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(word, EXT_WORD_HIDE))
 			cnt++;
 	}
 
@@ -181,7 +187,7 @@ static REBSER *Trim_Object(REBSER *obj)
 	word = FRM_WORDS(obj)+1;
 	nwrd = FRM_WORDS(nobj)+1;
 	for (val = FRM_VALUES(obj)+1; NOT_END(val); val++, word++) {
-		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_OPT(word, OPTS_HIDE)) {
+		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(word, EXT_WORD_HIDE)) {
 			*nval++ = *val;
 			*nwrd++ = *word;
 		}
@@ -258,8 +264,13 @@ static REBSER *Trim_Object(REBSER *obj)
 	if (n <= 0 || (REBCNT)n >= SERIES_TAIL(VAL_OBJ_FRAME(pvs->value)))
 		return PE_BAD_SELECT;
 
-	if (pvs->setval && IS_END(pvs->path+1) && VAL_PROTECTED(VAL_FRM_WORD(pvs->value, n)))
+	if (
+		pvs->setval
+		&& IS_END(pvs->path+1)
+		&& VAL_GET_EXT(VAL_FRM_WORD(pvs->value, n), EXT_WORD_LOCK)
+	) {
 		Trap1_DEAD_END(RE_LOCKED_WORD, pvs->select);
+	}
 
 	pvs->value = VAL_OBJ_VALUES(pvs->value) + n;
 	return PE_SET;
@@ -544,8 +555,9 @@ is_true:
 		word = BLK_SKIP(VAL_FRM_WORDS(pvs->value), 1);
 		for (val = pvs->value + 1; NOT_END(val); val++, word++) {
 			if (sym == VAL_BIND_SYM(word) || s == VAL_BIND_CANON(word)) {
-				if (VAL_GET_OPT(word, OPTS_HIDE)) break;
-				if (VAL_PROTECTED(word)) Trap1_DEAD_END(RE_LOCKED_WORD, word);
+				if (VAL_GET_EXT(word, EXT_WORD_HIDE)) break;
+				if (VAL_GET_EXT(word, EXT_WORD_LOCK))
+					Trap1_DEAD_END(RE_LOCKED_WORD, word);
 				pvs->value = val;
 				return PE_SET;
 			}

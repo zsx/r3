@@ -1309,7 +1309,7 @@ bad_end:
 		if (c == LF || c == CR) {
 			val = Alloc_Tail_Blk(blk);
 			Set_String(val, Copy_String(src, s, i - s));
-			VAL_SET_LINE(val);
+			VAL_SET_OPT(val, OPT_VALUE_LINE);
 			// Skip CRLF if found:
 			if (c == CR && LF == uni ? up[i] : bp[i]) i++;
 			s = i;
@@ -1320,7 +1320,7 @@ bad_end:
 	if (s + 1 != i) {
 		val = Alloc_Tail_Blk(blk);
 		Set_String(val, Copy_String(src, s, i - s));
-		VAL_SET_LINE(val);
+		VAL_SET_OPT(val, OPT_VALUE_LINE);
 	}
 
 	return Copy_Block(blk, 0);

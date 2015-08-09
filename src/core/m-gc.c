@@ -198,7 +198,7 @@ static void Propagate_All_GC_Marks(void);
 
 
 // Non-Deep form of mark, to be used on non-BLOCK! series or a block series
-// for which deep marking is not necessary (such as an UNWORDS block)
+// for which deep marking is not necessary (such as an 'typed' words block)
 
 #ifdef NDEBUG
 	#define MARK_SERIES_ONLY(s) SERIES_SET_FLAG((s), SER_MARK)
@@ -207,13 +207,13 @@ static void Propagate_All_GC_Marks(void);
 #endif
 
 
-// "Unword" blocks contain REBWRS-style words, which have type information
+// Typed word blocks contain REBWRS-style words, which have type information
 // instead of a binding.  They shouldn't have any other types in them so we
 // don't need to mark deep...BUT doesn't hurt to check in debug builds!
 
-#define MARK_UNWORDS_BLOCK(s) \
+#define MARK_TYPED_WORDS_BLOCK(s) \
 	do { \
-		ASSERT_UNWORDS_BLOCK(s); \
+		ASSERT_TYPED_WORDS_BLOCK(s); \
 		MARK_SERIES_ONLY(s); \
 	} while (0)
 
@@ -400,10 +400,10 @@ static void Propagate_All_GC_Marks(void);
 	} else {
 		if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
 			if (ROUTINE_FIXED_ARGS(rot))
-				MARK_UNWORDS_BLOCK(ROUTINE_FIXED_ARGS(rot));
+				MARK_TYPED_WORDS_BLOCK(ROUTINE_FIXED_ARGS(rot));
 
 			if (ROUTINE_ALL_ARGS(rot))
-				MARK_UNWORDS_BLOCK(ROUTINE_ALL_ARGS(rot));
+				MARK_TYPED_WORDS_BLOCK(ROUTINE_ALL_ARGS(rot));
 		}
 
 		if (ROUTINE_LIB(rot))
@@ -571,7 +571,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_FRAME:
 			// Mark special word list. Contains no pointers because
 			// these are special word bindings (to typesets if used).
-			MARK_UNWORDS_BLOCK(VAL_FRM_WORDS(val));
+			MARK_TYPED_WORDS_BLOCK(VAL_FRM_WORDS(val));
 			if (VAL_FRM_SPEC(val))
 				QUEUE_MARK_BLOCK_DEEP(VAL_FRM_SPEC(val));
 			// !!! See code below for ANY-WORD! which also deals with FRAME!
@@ -602,7 +602,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_ACTION:
 		case REB_OP:
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_SPEC(val));
-			MARK_UNWORDS_BLOCK(VAL_FUNC_WORDS(val));
+			MARK_TYPED_WORDS_BLOCK(VAL_FUNC_WORDS(val));
 			break;
 
 		case REB_WORD:	// (and also used for function STACK backtrace frame)
@@ -612,7 +612,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_REFINEMENT:
 		case REB_ISSUE:
 			// Special word used in word frame, stack, or errors:
-            if (VAL_GET_OPT(val, OPTS_UNWORD)) break;
+			if (VAL_GET_EXT(val, EXT_WORD_TYPED)) break;
 
 			ser = VAL_WORD_FRAME(val);
 			if (ser) {
@@ -633,8 +633,8 @@ static void Propagate_All_GC_Marks(void);
 				}
 				else {
 					// It's referring to a FUNCTION!'s identifying series,
-					// which should just be a list of UNWORDs.
-					MARK_UNWORDS_BLOCK(ser);
+					// which should just be a list of 'typed' words.
+					MARK_TYPED_WORDS_BLOCK(ser);
 				}
 			}
 			else {

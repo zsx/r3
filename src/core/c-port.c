@@ -491,7 +491,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		REBSER *ser = Make_Block(1);
 		act = Alloc_Tail_Blk(ser);
 
-		Init_Unword(
+		Init_Typed_Word(
 			act,
 			REB_WORD,
 			// !!! Because "any word will do", it's using the trick to create a
@@ -504,8 +504,8 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		);
 
 		// !!! Review: If this spec ever got leaked then it would be leaking
-		// unwords to the user.  For safety, a single global actor spec could
-		// be made at startup.
+		// 'typed' words to the user.  For safety, a single global actor spec
+		// could be made at startup.
 		VAL_FUNC_SPEC(actor) = ser;
 		VAL_FUNC_WORDS(actor) = ser;
 		VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);

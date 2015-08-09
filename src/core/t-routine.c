@@ -776,7 +776,7 @@ static void ffi_to_rebol(REBRIN *rin,
 					Trap_Arg(reb_type);
 				}
 				v = Alloc_Tail_Blk(VAL_ROUTINE_ALL_ARGS(rot));
-				Init_Unword(v, REB_WORD, SYM_ELLIPSIS, 0); //FIXME, be clear
+				Init_Typed_Word(v, REB_WORD, SYM_ELLIPSIS, 0); //FIXME, be clear
 				EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot), 1);
 
 				// !!! REVIEW: Mutability cast needed here because the
@@ -1031,7 +1031,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 
 	// first word is ignored, see Do_Args in c-do.c
 	temp = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-	Init_Unword(temp, REB_WORD, 0, 0);
+	Init_Typed_Word(temp, REB_WORD, 0, 0);
 
 	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Block(N_ARGS);
 	// reserve for returning struct
@@ -1134,7 +1134,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Series(VAL_ROUTINE_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
 						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-						Init_Unword(v, REB_WORD, SYM_VARARGS, TYPESET(REB_BLOCK));
+						Init_Typed_Word(v, REB_WORD, SYM_VARARGS, TYPESET(REB_BLOCK));
 					} else {
 						REBVAL *v = NULL;
 						if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
@@ -1142,7 +1142,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							Trap_Arg_DEAD_END(blk);
 						}
 						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
-						Init_Unword(v, REB_WORD, VAL_WORD_SYM(blk), 0);
+						Init_Typed_Word(v, REB_WORD, VAL_WORD_SYM(blk), 0);
 						EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
 						++ blk;

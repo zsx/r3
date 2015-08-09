@@ -1214,7 +1214,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
         if ((token == TOKEN_PATH || ((token == TOKEN_WORD || token == TOKEN_LIT ||
 				token == TOKEN_GET) && *ep == '/'))
 					&& mode_char != '/') {
-			//line = VAL_GET_LINE(value);
+			//line = VAL_GET_OPT(value, OPT_VALUE_LINE);
 			block = Scan_Block(scan_state, '/');  // (could realloc emitbuf)
 			value = BLK_TAIL(emitbuf);
 			VAL_SERIES(value) = block;
@@ -1238,7 +1238,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 //			if (IS_SET_WORD(BLK_SKIP(block, block->tail - 1)
 			VAL_SET(value, token);
 			VAL_INDEX(value) = 0;
-			//if (line) line = FALSE, VAL_SET_LINE(value);
+			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			token = TOKEN_PATH;
         } else {
             ACCEPT_TOKEN(scan_state);
@@ -1292,7 +1292,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_BLOCK:
 		case TOKEN_PAREN:
-			//line = VAL_GET_LINE(value);
+			//line = VAL_GET_OPT(value, OPT_VALUE_LINE);
 			block = Scan_Block(scan_state, (REBYTE)((token == TOKEN_BLOCK) ? ']' : ')'));
 			// (above line could have realloced emitbuf)
 			ep = scan_state->end;
@@ -1305,7 +1305,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			VAL_SERIES(value) = block;
 			VAL_SET(value, (REBYTE)((token == TOKEN_BLOCK) ? REB_BLOCK : REB_PAREN));
 			VAL_INDEX(value) = 0;
-			//if (line) line = FALSE, VAL_SET_LINE(value);
+			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			break;
 
 		case TOKEN_PATH:
@@ -1439,7 +1439,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		if (line) {
 			line = FALSE;
-			VAL_SET_LINE(value);
+			VAL_SET_OPT(value, OPT_VALUE_LINE);
 		}
 
 		#ifdef TEST_SCAN
@@ -1494,7 +1494,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
     if (mode_char == ']' || mode_char == ')') goto missing_error;
 
 exit_block:
-	if (line && value) VAL_SET_LINE(value);
+	if (line && value) VAL_SET_OPT(value, OPT_VALUE_LINE);
 	#ifdef TEST_SCAN
 	Print((REBYTE*)"block of %d values ", emitbuf->tail - begin); //Wait_User("...");
 	#endif

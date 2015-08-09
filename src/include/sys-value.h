@@ -78,29 +78,21 @@ typedef struct Reb_Series REBSER;
 
 // Value option flags:
 enum {
-	OPTS_LINE = 0,	// Line break occurs before this value
-	OPTS_LOCK,		// Lock word from modification
-	OPTS_REVAL,		// Reevaluate result value
-	OPTS_UNWORD,	// Not a normal word
-	OPTS_TEMP,		// Temporary flag - variety of uses
-	OPTS_HIDE,		// Hide the word
-	OPTS_MAX
+	OPT_VALUE_LINE = 0,	// Line break occurs before this value
+	OPT_VALUE_REDO,		// Reevaluate result value
+	OPT_VALUE_MAX
 };
 
-#define VAL_OPTS(v)			((v)->flags.flags.opts)
-#define VAL_SET_OPT(v,n)	SET_FLAG(VAL_OPTS(v), n)
-#define VAL_GET_OPT(v,n)	GET_FLAG(VAL_OPTS(v), n)
-#define VAL_CLR_OPT(v,n)	CLR_FLAG(VAL_OPTS(v), n)
+#define VAL_OPTS_DATA(v)	((v)->flags.flags.opts)
+#define VAL_SET_OPT(v,n)	SET_FLAG(VAL_OPTS_DATA(v), n)
+#define VAL_GET_OPT(v,n)	GET_FLAG(VAL_OPTS_DATA(v), n)
+#define VAL_CLR_OPT(v,n)	CLR_FLAG(VAL_OPTS_DATA(v), n)
 
-#define VAL_GET_LINE(v)		VAL_GET_OPT((v), OPTS_LINE)
-#define VAL_SET_LINE(v)		VAL_SET_OPT((v), OPTS_LINE)
-#define VAL_CLR_LINE(v)		VAL_CLR_OPT((v), OPTS_LINE)
-
-#define VAL_PROTECTED(v)	VAL_GET_OPT((v), OPTS_LOCK)
-
-// Used for datatype-dependent data (e.g. op! stores action!)
-#define VAL_GET_EXT(v)		((v)->flags.flags.exts)
-#define VAL_SET_EXT(v,n)	((v)->flags.flags.exts = (n))
+// Used for 8 datatype-dependent flags (or one byte-sized data value)
+#define VAL_EXTS_DATA(v)	((v)->flags.flags.exts)
+#define VAL_SET_EXT(v,n)	SET_FLAG(VAL_EXTS_DATA(v), n)
+#define VAL_GET_EXT(v,n)	GET_FLAG(VAL_EXTS_DATA(v), n)
+#define VAL_CLR_EXT(v,n)	CLR_FLAG(VAL_EXTS_DATA(v), n)
 
 #define	IS_SET(v)			(VAL_TYPE(v) > REB_UNSET)
 #define IS_SCALAR(v)		(VAL_TYPE(v) <= REB_DATE)
@@ -744,10 +736,10 @@ typedef struct Reb_Series_Ref
 
 #ifdef NDEBUG
 	#define ASSERT_BLK(s) cast(void, 0)
-	#define ASSERT_UNWORDS_BLOCK(s) cast(void, 0)
+	#define ASSERT_TYPED_WORDS_BLOCK(s) cast(void, 0)
 #else
 	#define ASSERT_BLK(s) Assert_Blk_Core(s, FALSE)
-	#define ASSERT_UNWORDS_BLOCK(s) Assert_Blk_Core(s, TRUE)
+	#define ASSERT_TYPED_WORDS_BLOCK(s) Assert_Blk_Core(s, TRUE)
 #endif
 
 
@@ -812,6 +804,14 @@ typedef struct Reb_Word_Spec {
 	REBCNT	sym;		// Index of the word's symbol (and pad for U64 alignment)
 	REBU64	typeset;
 } REBWRS;
+
+// Word option flags:
+enum {
+	EXT_WORD_LOCK = 0,	// Lock word from modification
+	EXT_WORD_TYPED,		// Word holds a typeset instead of binding
+	EXT_WORD_HIDE,		// Hide the word
+	EXT_WORD_MAX
+};
 
 #define IS_SAME_WORD(v, n)		(IS_WORD(v) && VAL_WORD_CANON(v) == n)
 

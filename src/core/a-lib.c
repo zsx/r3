@@ -1136,7 +1136,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	REBVAL value;
 	CLEARS(&value);
 	if (!(word = Find_Word_Index(obj, word, FALSE))) return 0;
-	if (VAL_PROTECTED(FRM_WORDS(obj)+word)) return 0; //	Trap1_DEAD_END(RE_LOCKED_WORD, word);
+	if (VAL_GET_EXT(FRM_WORDS(obj) + word, EXT_WORD_LOCK)) return 0;
 	RXI_To_Value(FRM_VALUES(obj)+word, val, type);
 	return type;
 }

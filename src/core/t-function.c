@@ -142,7 +142,7 @@ of_type:
 				SET_NONE(value);
 				break;
 			case REB_OP:
-				type = VAL_GET_EXT(value); // internal datatype
+				type = VAL_EXTS_DATA(value); // internal datatype
 				goto of_type;
 			}
 			break;

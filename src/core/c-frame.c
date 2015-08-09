@@ -126,7 +126,7 @@
 	value = Alloc_Tail_Blk(frame);
 	SET_FRAME(value, 0, words);
 	value = Alloc_Tail_Blk(words);
-	Init_Unword(
+	Init_Typed_Word(
 		value, REB_WORD, has_self ? SYM_SELF : SYM_NOT_USED, ALL_64
 	);
 
@@ -176,7 +176,7 @@
 	// Add to word list:
 	EXPAND_SERIES_TAIL(words, 1);
 	value = BLK_LAST(words);
-	Init_Unword(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
+	Init_Typed_Word(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
 	BLK_TERM(words);
 
 	// Bind the word to this frame:
@@ -218,7 +218,7 @@
 	// Add the SELF word to slot zero.
 	if ((modes = (modes & BIND_NO_SELF)?0:SYM_SELF))
 		binds[modes] = -1;  // (cannot use zero here)
-	Init_Unword(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
+	Init_Typed_Word(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
 	SERIES_TAIL(BUF_WORDS) = 1;
 }
 
@@ -295,7 +295,7 @@
 					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
 					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
 					word = BLK_LAST(BUF_WORDS);
-					Init_Unword(
+					Init_Typed_Word(
 						word,
 						VAL_TYPE(value),
 						VAL_WORD_SYM(value),
@@ -532,12 +532,12 @@
 	block = Make_Block(SERIES_TAIL(frame) * (n + 1));
 
 	for (; n < SERIES_TAIL(frame); n++) {
-		if (!VAL_GET_OPT(words+n, OPTS_HIDE)) {
+		if (!VAL_GET_EXT(words + n, EXT_WORD_HIDE)) {
 			if (mode & 1) {
 				value = Alloc_Tail_Blk(block);
 				if (mode & 2) {
 					VAL_SET(value, REB_SET_WORD);
-					VAL_SET_LINE(value);
+					VAL_SET_OPT(value, OPT_VALUE_LINE);
 				}
 				else VAL_SET(value, REB_WORD); //VAL_TYPE(words+n));
 				VAL_WORD_SYM(value) = VAL_BIND_SYM(words+n);
@@ -563,7 +563,7 @@
 	REBVAL *word  = BLK_HEAD(VAL_OBJ_WORDS(value));
 
 	for (; NOT_END(word); word++)
-		if (VAL_GET_OPT(word, OPTS_HIDE)) Trap(RE_HIDDEN);
+		if (VAL_GET_EXT(word, EXT_WORD_HIDE)) Trap(RE_HIDDEN);
 }
 
 
@@ -737,7 +737,10 @@
 	for (words = FRM_WORD(target, n); NOT_END(words); words++, vals++) {
 		if ((m = binds[VAL_BIND_CANON(words)])) {
 			binds[VAL_BIND_CANON(words)] = 0; // mark it as set
-			if (!VAL_PROTECTED(words) && (all || IS_UNSET(vals))) {
+			if (
+				!VAL_GET_EXT(words, EXT_WORD_LOCK)
+				&& (all || IS_UNSET(vals))
+			) {
 				if (m < 0) SET_UNSET(vals); // no value in source context
 				else *vals = *FRM_VALUE(source, m);
 				//Debug_Num("type:", VAL_TYPE(vals));
@@ -865,7 +868,7 @@
 	index = 1;
 	for (index = 1; index < frame->tail; index++) {
 		words = FRM_WORD(frame, index);
-		if (!VAL_GET_OPT(words, OPTS_HIDE))
+		if (!VAL_GET_OPT(words, EXT_WORD_HIDE))
 			binds[VAL_BIND_CANON(words)] = index;
 	}
 
@@ -1084,7 +1087,7 @@
 
 	for (n = 1; n < len; n++, word++)
 		if (sym == VAL_BIND_SYM(word) || s == VAL_BIND_CANON(word))
-			return (!always && VAL_GET_OPT(word, OPTS_HIDE)) ? 0 : n;
+			return (!always && VAL_GET_EXT(word, EXT_WORD_HIDE)) ? 0 : n;
 
 	return 0;
 }
@@ -1157,7 +1160,7 @@
 			{
 				// ^-- new scope: don't stack-alloc `value` in common case
 				REBVAL *value = FRM_VALUES(context) + index;
-				if (VAL_PROTECTED(value)) {
+				if (VAL_GET_EXT(value, EXT_WORD_LOCK)) {
 					if (trap) {
 						Trap1(RE_LOCKED_WORD, word);
 						DEAD_END;
@@ -1191,7 +1194,7 @@
 					{
 						// ^-- new scope: don't usually stack-alloc `value`
 						REBVAL *value = DSF_ARG(call, -index);
-						if (VAL_PROTECTED(value)) {
+						if (VAL_GET_EXT(value, EXT_WORD_LOCK)) {
 							if (trap) {
 								Trap1(RE_LOCKED_WORD, word);
 								DEAD_END;
@@ -1312,7 +1315,7 @@
 
 	if (index > 0) {
 		frm = VAL_WORD_FRAME(word);
-		if (VAL_PROTECTED(FRM_WORDS(frm)+index))
+		if (VAL_GET_EXT(FRM_WORDS(frm) + index, EXT_WORD_LOCK))
 			Trap1(RE_LOCKED_WORD, word);
 		FRM_VALUES(frm)[index] = *value;
 		return;
@@ -1439,8 +1442,8 @@
 			Panic_Series(words);
 		}
 
-		if (!VAL_GET_OPT(word, OPTS_UNWORD)) {
-			Debug_Fmt("** Frame words contains non-unword");
+		if (!VAL_GET_EXT(word, EXT_WORD_TYPED)) {
+			Debug_Fmt("** Frame words contains non-'typed'-word");
 			Panic_Series(words);
 		}
 	}

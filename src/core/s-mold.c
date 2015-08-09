@@ -596,7 +596,7 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 
 	value = BLK_SKIP(series, index);
 	while (NOT_END(value)) {
-		if (VAL_GET_LINE(value)) {
+		if (VAL_GET_OPT(value, OPT_VALUE_LINE)) {
 			if (sep[1] || line_flag) New_Indented_Line(mold);
 			had_lines = TRUE;
 		}
@@ -609,7 +609,8 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 
 	if (sep[1]) {
 		mold->indent--;
-		if (VAL_GET_LINE(value) || had_lines) New_Indented_Line(mold);
+		if (VAL_GET_OPT(value, OPT_VALUE_LINE) || had_lines)
+			New_Indented_Line(mold);
 		Append_Byte(out, sep[1]);
 	}
 
@@ -845,7 +846,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 	// Mold all words and their values:
 	for (n = 1; n < SERIES_TAIL(wser); n++) {
-		if (!VAL_GET_OPT(words+n, OPTS_HIDE))
+		if (!VAL_GET_EXT(words + n, EXT_WORD_HIDE))
 			Emit(mold, "N: V\n", VAL_WORD_SYM(words+n), vals+n);
 	}
 	Remove_Last(mold->series);
@@ -882,7 +883,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 	mold->indent++;
 	for (n = 1; n < SERIES_TAIL(wser); n++) {
 		if (
-			!VAL_GET_OPT(words+n, OPTS_HIDE) &&
+			!VAL_GET_EXT(words + n, EXT_WORD_HIDE) &&
 			((VAL_TYPE(vals+n) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
 		){
 			New_Indented_Line(mold);

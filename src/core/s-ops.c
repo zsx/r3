@@ -759,7 +759,7 @@ static REBYTE seed_str[SEED_LEN] = {
 			out = Copy_String(str, start, idx - start);
 			val = Alloc_Tail_Blk(ser);
 			SET_STRING(val, out);
-			VAL_SET_LINE(val);
+			VAL_SET_OPT(val, OPT_VALUE_LINE);
 			idx++;
 			if (c == CR && GET_ANY_CHAR(str, idx) == LF)
 				idx++;
@@ -772,7 +772,7 @@ static REBYTE seed_str[SEED_LEN] = {
 		out = Copy_String(str, start, idx - start);
 		val = Alloc_Tail_Blk(ser);
 		SET_STRING(val, out);
-		VAL_SET_LINE(val);
+		VAL_SET_OPT(val, OPT_VALUE_LINE);
 	}
 
 	return Copy_Block(ser, 0);
