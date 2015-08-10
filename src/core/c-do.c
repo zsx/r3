@@ -626,6 +626,9 @@ return_index:
 	case REB_FUNCTION:
 		Do_Function(func);
 		break;
+	case REB_ROUTINE:
+		Do_Routine(func);
+		break;
 	default:
 		assert(FALSE);
 	}
