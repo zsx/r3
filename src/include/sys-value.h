@@ -745,25 +745,6 @@ typedef struct Reb_Series_Ref
 
 /***********************************************************************
 **
-**	LIST & HASH Block Lookaside buffer
-**
-***********************************************************************/
-
-typedef struct Reb_Side {		// lookaside series
-	REBCNT	next;		// next element
-	REBCNT	past;		// prior element
-} REBLAB;
-
-#define LIST_HEAD(s)	((REBLAB *)((s)->data))
-#define LIST_SKIP(s,n)	(((REBLAB *)((s)->data))+(n))
-
-#define	VAL_LIST(v)		LIST_HEAD(VAL_SERIES_SIDE(v))
-
-#define	SET_LIST(v,s,l)	VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SER_LIST(v)=(l), VAL_SET(v, REB_LIST)
-
-
-/***********************************************************************
-**
 **	SYMBOLS -- Used only for symbol tables
 **
 ***********************************************************************/
