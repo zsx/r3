@@ -776,6 +776,7 @@ end_date:
 
 	VAL_SET(value, type);
 	VAL_SERIES(value) = Append_UTF8(0, cp, len);
+	VAL_INDEX(value) = 0;
 
 	if (VAL_BYTE_SIZE(value)) {
 		n = Deline_Bytes(VAL_BIN(value), VAL_LEN(value));
