@@ -173,7 +173,7 @@ struct rebol_devreq {
 		int id;
 	} requestee;			// !!! REVIEW: Not always "receiver"?  The name is
 							// "bad" (?) but at least unique, making it easy
-							// to change.  See also rebol_event->eventee
+							// to change.  See also Reb_Event->eventee
 
 	// Command info:
 	i32  command;			// command code

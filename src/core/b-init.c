@@ -29,6 +29,8 @@
 
 #include "sys-core.h"
 
+#include <stddef.h> // for offsetof()
+
 #define EVAL_DOSE 10000
 
 // Boot Vars used locally:
@@ -55,42 +57,43 @@ static	BOOT_BLK *Boot_Block;
 {
 	REBVAL val;
 
+#if defined(SHOW_SIZEOFS)
+	union Reb_Value_Data *dummy;
+#endif
+
 	VAL_SET(&val, 123);
 #ifdef WATCH_BOOT
 	printf("TYPE(123)=%d val=%d dat=%d gob=%d\n",
 		VAL_TYPE(&val), sizeof(REBVAL), sizeof(REBDAT), sizeof(REBGOB));
 #endif
 
-#ifdef SHOW_SIZEOFS
+#if defined(SHOW_SIZEOFS)
 	// For debugging ports to some systems:
-	printf("%d %s\n", sizeof(REBWRD), "word");
-	printf("%d %s\n", sizeof(REBSRI), "series");
-	printf("%d %s\n", sizeof(REBCNT), "logic");
-	printf("%d %s\n", sizeof(REBI64), "integer");
-	printf("%d %s\n", sizeof(REBU64), "unteger");
-	printf("%d %s\n", sizeof(REBINT), "int32");
-	printf("%d %s\n", sizeof(REBDEC), "decimal");
-	printf("%d %s\n", sizeof(REBUNI), "uchar");
-	printf("%d %s\n", sizeof(REBERR), "error");
-	printf("%d %s\n", sizeof(REBTYP), "datatype");
-	printf("%d %s\n", sizeof(REBFRM), "frame");
-	printf("%d %s\n", sizeof(REBWRS), "wordspec");
-	printf("%d %s\n", sizeof(REBTYS), "typeset");
-	printf("%d %s\n", sizeof(REBSYM), "symbol");
-	printf("%d %s\n", sizeof(REBTIM), "time");
-	printf("%d %s\n", sizeof(REBTUP), "tuple");
-	printf("%d %s\n", sizeof(REBFCN), "func");
-	printf("%d %s\n", sizeof(REBOBJ), "object");
-	printf("%d %s\n", sizeof(REBXYF), "pair");
-	printf("%d %s\n", sizeof(REBEVT), "event");
-	printf("%d %s\n", sizeof(REBLIB), "library");
-	printf("%d %s\n", sizeof(REBROT), "routine");
-	printf("%d %s\n", sizeof(REBSTU), "structure");
-	printf("%d %s\n", sizeof(REBGBO), "gob");
-	printf("%d %s\n", sizeof(REBUDT), "utype");
-	printf("%d %s\n", sizeof(REBDCI), "deci");
-	printf("%d %s\n", sizeof(REBHAN), "handle");
-	printf("%d %s\n", sizeof(REBALL), "all");
+	printf("%d %s\n", sizeof(dummy->word), "word");
+	printf("%d %s\n", sizeof(dummy->series), "series");
+	printf("%d %s\n", sizeof(dummy->logic), "logic");
+	printf("%d %s\n", sizeof(dummy->integer), "integer");
+	printf("%d %s\n", sizeof(dummy->unteger), "unteger");
+	printf("%d %s\n", sizeof(dummy->decimal), "decimal");
+	printf("%d %s\n", sizeof(dummy->character), "char");
+	printf("%d %s\n", sizeof(dummy->error), "error");
+	printf("%d %s\n", sizeof(dummy->datatype), "datatype");
+	printf("%d %s\n", sizeof(dummy->frame), "frame");
+	printf("%d %s\n", sizeof(dummy->typeset), "typeset");
+	printf("%d %s\n", sizeof(dummy->symbol), "symbol");
+	printf("%d %s\n", sizeof(dummy->time), "time");
+	printf("%d %s\n", sizeof(dummy->tuple), "tuple");
+	printf("%d %s\n", sizeof(dummy->func), "func");
+	printf("%d %s\n", sizeof(dummy->object), "object");
+	printf("%d %s\n", sizeof(dummy->pair), "pair");
+	printf("%d %s\n", sizeof(dummy->event), "event");
+	printf("%d %s\n", sizeof(dummy->library), "library");
+	printf("%d %s\n", sizeof(dummy->structure), "struct");
+	printf("%d %s\n", sizeof(dummy->gob), "gob");
+	printf("%d %s\n", sizeof(dummy->utype), "utype");
+	printf("%d %s\n", sizeof(dummy->money), "money");
+	printf("%d %s\n", sizeof(dummy->handle), "handle");
+	printf("%d %s\n", sizeof(dummy->all), "all");
 #endif
 
 	if (cast(REBCNT, VAL_TYPE(&val)) != 123) Panic(RP_REBVAL_ALIGNMENT);
@@ -102,6 +105,29 @@ static	BOOT_BLK *Boot_Block;
 		if (sizeof(REBGOB) != 64) Panic(RP_BAD_SIZE);
 	}
 	if (sizeof(REBDAT) != 4) Panic(RP_BAD_SIZE);
+
+	// !!! C standard doesn't support 'offsetof(struct S, s_member.submember)'
+	// so we're stuck using addition here.
+
+	if (
+		offsetof(struct Reb_Error, data)
+		+ offsetof(union Reb_Error_Data, frame)
+		!= offsetof(struct Reb_Object, frame)
+	) {
+		// When errors are exposed to the user then they must have a frame
+		// and act like objects (they're dispatched through REBTYPE(Object))
+		Panic(RP_MISC);
+	}
+
+	if (
+		offsetof(struct Reb_Word, extra)
+		+ offsetof(union Reb_Word_Extra, typebits)
+		!= offsetof(struct Reb_Typeset, typebits)
+	) {
+		// Currently the typeset checking code is generic to run on both
+		// an EXT_WORD_TYPED WORD! and a TYPESET!.
+		Panic(RP_MISC);
+	}
 }
 
 

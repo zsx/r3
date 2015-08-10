@@ -29,7 +29,7 @@
 // Note: size must be 12 bytes on 32-bit or 16 on 64-bit!
 
 #pragma pack(4)
-typedef struct rebol_event {
+struct Reb_Event {
 	u8  type;		// event id (mouse-move, mouse-button, etc)
 	u8  flags;		// special flags
 	u8  win;		// window id
@@ -41,8 +41,12 @@ typedef struct rebol_event {
 	} eventee;				// !!! REVIEW: Not always "sender"?  The name is
 							// "bad" (?) but at least unique, making it easy
 							// to change.  See also rebol_devreq->requestee
-} REBEVT;
+};
 #pragma pack()
+
+// !!! REBEVT might be better-off as a 16/32 byte structure instead of the
+// "uneven" sized payload, and then it could carry a whole REBVAL of info
+typedef struct Reb_Event REBEVT;
 
 // Special event flags:
 

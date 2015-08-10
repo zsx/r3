@@ -39,18 +39,23 @@ typedef void *REBOBJ;
 #pragma pack(4)
 
 // X/Y coordinate pair as floats:
-typedef struct rebol_xy_float {
+struct Reb_Pair {
 	float x;
 	float y;
-} REBXYF;
+};
+
+// !!! Use this instead of struct Reb_Pair when all integer pairs are gone?
+// (Apparently PAIR went through an int-to-float transition at some point)
+/* typedef struct Reb_Pair REBPAR; */
+
+// !!! Temporary name for Reb_Pair "X and Y as floats"
+typedef struct Reb_Pair REBXYF;
 
 // X/Y coordinate pair as integers:
 typedef struct rebol_xy_int {
 	int x;
 	int y;
 } REBXYI;
-
-#define REBPAR REBXYI  // temporary until all sources are converted
 
 // Standard date and time:
 typedef struct rebol_dat {

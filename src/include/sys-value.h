@@ -40,20 +40,24 @@
 
 #pragma pack(4)
 
-// Note: b-init.c verifies that lower 8 bits of header = flags.type
-typedef struct Reb_Header {
-#ifdef ENDIAN_LITTLE
-	unsigned type:8;	// datatype
-	unsigned opts:8;	// special options
-	unsigned exts:8;	// extensions to datatype
-	unsigned resv:8;	// reserved for future
-#else
-	unsigned resv:8;	// reserved for future
-	unsigned exts:8;	// extensions to datatype
-	unsigned opts:8;	// special options
-	unsigned type:8;	// datatype
-#endif
-} REBHED;
+// Note: b-init.c verifies that lower 8 bits is flags.type
+union Reb_Value_Flags {
+	struct {
+	#ifdef ENDIAN_LITTLE
+		unsigned type:8;	// datatype
+		unsigned opts:8;	// special options
+		unsigned exts:8;	// extensions to datatype
+		unsigned resv:8;	// reserved for future
+	#else
+		unsigned resv:8;	// reserved for future
+		unsigned exts:8;	// extensions to datatype
+		unsigned opts:8;	// special options
+		unsigned type:8;	// datatype
+	#endif
+	} bitfields;
+
+	REBCNT all;				// for setting all the flags at once
+};
 
 struct Reb_Value;
 typedef struct Reb_Value REBVAL;
@@ -62,11 +66,11 @@ typedef struct Reb_Series REBSER;
 // Value type identifier (generally, should be handled as integer):
 
 // get and set only the type (not flags)
-#define VAL_TYPE(v)		((enum REBOL_Types)(v)->flags.flags.type)
-#define SET_TYPE(v,t)	((v)->flags.flags.type = (t))
+#define VAL_TYPE(v)		((enum REBOL_Types)(v)->flags.bitfields.type)
+#define SET_TYPE(v,t)	((v)->flags.bitfields.type = (t))
 
 // set type, clear all flags
-#define VAL_SET(v,t)	((v)->flags.header = (t))
+#define VAL_SET(v,t)	((v)->flags.all = (t))
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
@@ -83,13 +87,13 @@ enum {
 	OPT_VALUE_MAX
 };
 
-#define VAL_OPTS_DATA(v)	((v)->flags.flags.opts)
+#define VAL_OPTS_DATA(v)	((v)->flags.bitfields.opts)
 #define VAL_SET_OPT(v,n)	SET_FLAG(VAL_OPTS_DATA(v), n)
 #define VAL_GET_OPT(v,n)	GET_FLAG(VAL_OPTS_DATA(v), n)
 #define VAL_CLR_OPT(v,n)	CLR_FLAG(VAL_OPTS_DATA(v), n)
 
 // Used for 8 datatype-dependent flags (or one byte-sized data value)
-#define VAL_EXTS_DATA(v)	((v)->flags.flags.exts)
+#define VAL_EXTS_DATA(v)	((v)->flags.bitfields.exts)
 #define VAL_SET_EXT(v,n)	SET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_GET_EXT(v,n)	GET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_CLR_EXT(v,n)	CLR_FLAG(VAL_EXTS_DATA(v), n)
@@ -104,12 +108,12 @@ enum {
 **
 ***********************************************************************/
 
-typedef struct Reb_Type {
+struct Reb_Datatype {
 	REBINT	type;	// base type
 	REBSER  *spec;
 //	REBINT	min_type;
 //	REBINT	max_type;
-} REBTYP;
+};
 
 #define	VAL_DATATYPE(v)		((v)->data.datatype.type)
 #define	VAL_TYPE_SPEC(v)	((v)->data.datatype.spec)
@@ -189,15 +193,17 @@ typedef struct Reb_Type {
 #define	SET_INT32(v,n)  ((v)->data.integer) = (REBINT)(n)
 
 #define MAX_CHAR		0xffff
-#define VAL_CHAR(v)		((v)->data.uchar)
-#define	SET_CHAR(v,n)	VAL_SET(v, REB_CHAR), VAL_CHAR(v) = (REBUNI)(n)
+#define VAL_CHAR(v)		((v)->data.character)
+#define SET_CHAR(v,n) \
+	(VAL_SET((v), REB_CHAR), VAL_CHAR(v) = (n), NOOP)
 
 #define IS_NUMBER(v)	(VAL_TYPE(v) == REB_INTEGER || VAL_TYPE(v) == REB_DECIMAL)
 
 
 /***********************************************************************
 **
-**	DECIMAL, MONEY -- Includes denomination and amount
+**	DECIMAL -- Implementation-wise, a 'double'-precision floating
+**	point number in C (typically 64-bit).
 **
 ***********************************************************************/
 
@@ -253,10 +259,10 @@ typedef union reb_date {
 	REBCNT bits;
 } REBDAT;
 
-typedef struct Reb_Time {
+struct Reb_Time {
 	REBI64 time;	// time in nanoseconds
 	REBDAT date;
-} REBTIM;
+};
 
 #define VAL_TIME(v)	((v)->data.time.time)
 #define TIME_SEC(n)	((REBI64)(n) * 1000000000L)
@@ -549,14 +555,14 @@ enum {
 #include "reb-gob.h"
 #pragma pack(4)
 
-typedef struct Reb_Series_Ref
+struct Reb_Position
 {
 	REBSER	*series;
 	REBCNT	index;
-} REBSRI;
+};
 
-#define VAL_SERIES(v)	    ((v)->data.series.series)
-#define VAL_INDEX(v)	    ((v)->data.series.index)
+#define VAL_SERIES(v)	    ((v)->data.position.series)
+#define VAL_INDEX(v)	    ((v)->data.position.index)
 #define	VAL_TAIL(v)		    (VAL_SERIES(v)->tail)
 #define VAL_LEN(v)			(Val_Series_Len(v))
 
@@ -771,11 +777,11 @@ typedef struct Reb_Series_Ref
 **
 ***********************************************************************/
 
-typedef struct Reb_Symbol {
+struct Reb_Symbol {
 	REBCNT	canon;	// Index of the canonical (first) word
 	REBCNT	alias;	// Index to next alias form
 	REBCNT	name;	// Index into PG_Word_Names string
-} REBSYM;
+};
 
 // Arg is value:
 #define VAL_SYM_NINDEX(v)	((v)->data.symbol.name)
@@ -797,17 +803,6 @@ typedef struct Reb_Symbol {
 **
 ***********************************************************************/
 
-typedef struct Reb_Word {
-	REBCNT	sym;		// Index of the word's symbol
-	REBINT	index;		// Index of the word in the frame
-	REBSER	*frame;		// Frame in which the word is defined
-} REBWRD;
-
-typedef struct Reb_Word_Spec {
-	REBCNT	sym;		// Index of the word's symbol (and pad for U64 alignment)
-	REBU64	typeset;
-} REBWRS;
-
 // Word option flags:
 enum {
 	EXT_WORD_LOCK = 0,	// Lock word from modification
@@ -816,11 +811,28 @@ enum {
 	EXT_WORD_MAX
 };
 
+union Reb_Word_Extra {
+	// ...when EXT_WORD_TYPED
+	REBU64 typebits;
+
+	// ...when not EXT_WORD_TYPED
+	struct {
+		REBSER *frame;	// Frame (or VAL_FUNC_WORDS) where word is defined
+		REBINT index;	// Index of word in frame (if it's not NULL)
+	} binding;
+};
+
+struct Reb_Word {
+	REBCNT sym;			// Index of the word's symbol (and pad for 64 bits)
+
+	union Reb_Word_Extra extra;
+};
+
 #define IS_SAME_WORD(v, n)		(IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #define VAL_WORD_SYM(v)			((v)->data.word.sym)
-#define VAL_WORD_INDEX(v)		((v)->data.word.index)
-#define VAL_WORD_FRAME(v)		((v)->data.word.frame)
+#define VAL_WORD_INDEX(v)		((v)->data.word.extra.binding.index)
+#define VAL_WORD_FRAME(v)		((v)->data.word.extra.binding.frame)
 #define HAS_FRAME(v)			VAL_WORD_FRAME(v)
 
 #ifdef NDEBUG
@@ -837,9 +849,9 @@ enum {
 #define	VAL_WORD_NAME_STR(v)	STR_HEAD(VAL_WORD_NAME(v))
 
 // When words are used in frame word lists, fields get a different meaning:
-#define	VAL_BIND_SYM(v)			((v)->data.wordspec.sym)
+#define VAL_BIND_SYM(v)			((v)->data.word.sym)
 #define VAL_BIND_CANON(v)		VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_BIND_SYM(v))) //((v)->data.wordspec.index)
-#define VAL_BIND_TYPESET(v)		((v)->data.wordspec.typeset)
+#define VAL_BIND_TYPESET(v)		((v)->data.word.extra.typebits)
 #define VAL_WORD_FRAME_WORDS(v) VAL_WORD_FRAME(v)->words
 #define VAL_WORD_FRAME_VALUES(v) VAL_WORD_FRAME(v)->values
 
@@ -855,11 +867,11 @@ enum {
 **
 ***********************************************************************/
 
-typedef struct Reb_Frame {
+struct Reb_Frame {
 	REBSER	*words;
 	REBSER	*spec;
 //	REBSER	*parent;
-} REBFRM;
+};
 
 // Value to frame fields:
 #define	VAL_FRM_WORDS(v)	((v)->data.frame.words)
@@ -878,7 +890,7 @@ typedef struct Reb_Frame {
 #define FRM_WORD(c,n)		BLK_SKIP(FRM_WORD_SERIES(c),(n))
 #define FRM_WORD_SYM(c,n)	VAL_BIND_SYM(FRM_WORD(c,n))
 
-#define VAL_FRM_WORD(v,n)	BLK_SKIP(FRM_WORD_SERIES(VAL_SERIES(v)),(n))
+#define VAL_FRM_WORD(v,n)	BLK_SKIP(FRM_WORD_SERIES(VAL_OBJ_FRAME(v)),(n))
 
 // Object field (series, index):
 #define OFV(s,n)			BLK_SKIP(s,n)
@@ -925,12 +937,10 @@ typedef struct Reb_Frame {
 **
 ***********************************************************************/
 
-typedef struct Reb_Object {
+struct Reb_Object {
 	REBSER	*frame;
 	REBSER	*body;		// module body
-//	REBSER	*spec;
-//	REBCNT	num;		// shortcut for checking error number
-} REBOBJ;
+};
 
 #define SET_OBJECT(v,f) \
 	(VAL_SET((v), REB_OBJECT), VAL_OBJ_FRAME(v) = (f), NOOP)
@@ -1001,7 +1011,7 @@ union Reb_Error_Extra {
 	REBSER *unwind;     // identify function series to RETURN from
 };
 
-typedef struct Reb_Error {
+struct Reb_Error {
 	// Possibly nothing in this slot (e.g. for CONTINUE)
 	// Note: all user exposed errors can act like ANY-OBJECT!, hence the
 	// 'frame' field must be at the same offest as Reb_Object's 'frame'.
@@ -1012,7 +1022,7 @@ typedef struct Reb_Error {
 
 	// (nothing in this slot if not THROW or RETURN)
 	union Reb_Error_Extra extra;
-} REBERR;
+};
 
 // Value Accessors:
 #define	VAL_ERR_NUM(v)		((v)->data.error.num)
@@ -1060,10 +1070,10 @@ typedef struct Reb_Error {
 **
 ***********************************************************************/
 
-typedef struct Reb_Gob {
+struct Reb_Gob {
 	REBGOB *gob;
 	REBCNT index;
-} REBGBO;
+};
 
 #define	VAL_GOB(v)			((v)->data.gob.gob)
 #define	VAL_GOB_INDEX(v)	((v)->data.gob.index)
@@ -1114,7 +1124,7 @@ typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 
 typedef struct Reb_Routine_Info REBRIN;
 
-typedef struct Reb_Function {
+struct Reb_Function {
 	REBSER	*spec;	// Spec block for function
 	REBSER	*args;	// Block of Wordspecs (with typesets)
 	union Reb_Func_Code {
@@ -1123,9 +1133,9 @@ typedef struct Reb_Function {
 		REBCNT	act;
 		REBRIN	*info;
 	} func;
-} REBFCN;
+};
 
-/* argument is of type REBFCN* */
+/* argument to these is a pointer to struct Reb_Function */
 #define FUNC_SPEC(v)	  ((v)->spec)	// a series
 #define FUNC_SPEC_BLK(v)  BLK_HEAD((v)->spec)
 #define FUNC_ARGS(v)	  ((v)->args)
@@ -1203,12 +1213,12 @@ typedef REBINT (*REBCTF)(REBVAL *a, REBVAL *b, REBINT s);
 **
 ***********************************************************************/
 
-typedef struct Reb_Handle {
+struct Reb_Handle {
 	union {
 		CFUNC *code;
 		void *data;
 	} thing;
-} REBHAN;
+};
 
 #define VAL_HANDLE_CODE(v) \
 	((v)->data.handle.thing.code)
@@ -1234,10 +1244,10 @@ typedef struct Reb_Library_Handle {
 	REBFLG flags;
 } REBLHL;
 
-typedef struct Reb_Library {
+struct Reb_Library {
 	REBLHL *handle;
 	REBSER *spec;
-} REBLIB;
+};
 
 #define LIB_FD(v) 			((v)->fd)
 #define LIB_FLAGS(v) 		((v)->flags)
@@ -1302,7 +1312,7 @@ struct Reb_Routine_Info {
 		} rot;
 		struct {
 			void *closure;
-			REBFCN func;
+			struct Reb_Function func;
 			CFUNC *dispatcher;
 		} cb;
 	} info;
@@ -1380,17 +1390,23 @@ enum {
 #define VAL_CALLBACK_FUNC(v)  		(VAL_ROUTINE_INFO(v)->info.cb.func)
 
 
-typedef REBWRS REBTYS;
+/***********************************************************************
+**
+**	TYPESET - Collection of up to 64 types
+**
+***********************************************************************/
 
-#define VAL_TYPESET(v)  ((v)->data.typeset.typeset)
+struct Reb_Typeset {
+	REBCNT pad;			// Pad for U64 alignment (and common with Reb_Word)
+	REBU64 typebits;	// Bitset with one bit for each DATATYPE!
+};
+
+#define VAL_TYPESET(v)  ((v)->data.typeset.typebits)
 #define TYPE_CHECK(v,n) ((VAL_TYPESET(v) & ((REBU64)1 << (n))) != (REBU64)0)
 #define TYPE_SET(v,n)   (VAL_TYPESET(v) |= ((REBU64)1 << (n)))
 #define EQUAL_TYPESET(v,w) (VAL_TYPESET(v) == VAL_TYPESET(w))
 #define TYPESET(n) ((REBU64)1 << (n))
 
-//#define TYPE_CHECK(v,n) ((VAL_TYPESET(v)[(n)/32] & (1 << ((n)%32))) != 0)
-//#define TYPE_SET(v,n)   (VAL_TYPESET(v)[(n)/32] |= (1 << ((n)%32)))
-//#define EQUAL_TYPESET(v,n) (VAL_TYPESET(v)[0] == VAL_TYPESET(n)[0] && VAL_TYPESET(v)[1] == VAL_TYPESET(n)[1])
 
 /***********************************************************************
 **
@@ -1398,73 +1414,111 @@ typedef REBWRS REBTYS;
 **
 ***********************************************************************/
 
-typedef struct Reb_Utype {
+struct Reb_Utype {
 	REBSER	*func;	// func object
 	REBSER	*data;	// data object
-} REBUDT;
+};
 
 #define VAL_UTYPE_FUNC(v)	((v)->data.utype.func)
 #define VAL_UTYPE_DATA(v)	((v)->data.utype.data)
 
-// All bits of value fields:
-typedef struct Reb_All {
+
+
+/***********************************************************************
+**
+**	REBVAL (a.k.a. struct Reb_Value)
+**
+**		The structure/union for all REBOL values. It is designed to
+**		be four C pointers in size (so 16 bytes on 32-bit platforms
+**		and 32 bytes on 64-bit platforms).  Operation will be most
+**		efficient with those nice even sizes, but the rest of the
+**		code in the system should be able to work even if the size
+**		turns out to be different.
+**
+**		Of the four 16/32 bit slots that each value has, one of them
+**		is used for the value's "Flags".  This includes the data
+**		type, such as REB_INTEGER, REB_BLOCK, REB_STRING, etc.  Then
+**		there are 8 bits which are for general purposes that could
+**		apply equally well to any type of value (including whether
+**		the value should have a new-line after it when molded out
+**		inside of a block).  There are 8 bits which are custom to
+**		each type--for instance whether a function is infix or not.
+**		Then there are 8 bits reserved for future use.
+**
+**		(Technically speaking this means a 64-bit build has an
+**		extra 32-bit value it might find a use for.  But it's hard
+**		to think of what feature you'd empower specifically on a
+**		64-bit builds.)
+**
+**		The remaining three pointer-sized things are used to hold
+**		whatever representation that value type needs to express
+**		itself.  Perhaps obviously, an arbitrarily long string will
+**		not fit into 3*32 bits, or even 3*64 bits!  You can fit the
+**		data for an INTEGER or DECIMAL in that, but not a BLOCK
+**		or a FUNCTION (for instance).  So those pointers are used
+**		to point to things, and often they will point to one or
+**		more Rebol Series (REBSER).
+**
+***********************************************************************/
+
+// Reb_All is a structure type designed specifically for getting at
+// the underlying bits of whichever union member is in effect inside
+// the Reb_Value_Data.  This is in order to hash the values in a
+// generic way that can use the bytes and doesn't have to be custom
+// to each type.  Though many traditional methods of doing this "type
+// punning" might generate arbitrarily broken code, this is being
+// done through a union, for which C99 expanded the "legal" uses:
+//
+//     http://stackoverflow.com/questions/11639947/i
+//
+// !!! Why is Reb_All defined this weird way?
+//
+struct Reb_All {
 #if defined(__LP64__) || defined(__LLP64__)
 	REBCNT bits[6];
 	REBINT padding; //make sizeof(REBVAL) 32 bytes
 #else
 	REBCNT bits[3];
 #endif
-} REBALL;
+};
 
 #define VAL_ALL_BITS(v) ((v)->data.all.bits)
 
+union Reb_Value_Data {
+	struct Reb_Word word;
+	struct Reb_Position position;
+	REBCNT logic;
+	REBI64 integer;
+	REBU64 unteger;
+	REBDEC decimal; // actually a C 'double', typically 64-bit
+	REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
+	struct Reb_Error error;
+	struct Reb_Datatype datatype;
+	struct Reb_Frame frame;
+	struct Reb_Typeset typeset;
+	struct Reb_Symbol symbol;
+	struct Reb_Time time;
+	struct Reb_Tuple tuple;
+	struct Reb_Function func;
+	struct Reb_Object object;
+	struct Reb_Pair pair;
+	struct Reb_Event event;
+	struct Reb_Library library;
+	struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
+	struct Reb_Gob gob;
+	struct Reb_Utype utype;
+	struct Reb_Money money;
+	struct Reb_Handle handle;
+	struct Reb_All all;
+#ifndef NDEBUG
+	struct Reb_Trash trash; // not an actual Rebol value type; debug only
+#endif
+};
 
-/***********************************************************************
-**
-*/	struct Reb_Value
-/*
-**		The structure/union for all REBOL values. Most efficient
-**		if it fits into 16 bytes of memory (but not required).
-**
-***********************************************************************/
+struct Reb_Value
 {
-	union Reb_Val_Data {
-		REBWRD	word;
-		REBSRI	series;
-		REBCNT  logic;
-		REBI64	integer;
-		REBU64	unteger;
-		REBDEC	decimal;
-		REBUNI  uchar;
-		REBERR	error;
-		REBTYP	datatype;
-		REBFRM	frame;
-		REBWRS	wordspec;
-		REBTYS  typeset;
-		REBSYM	symbol;
-		REBTIM	time;
-		REBTUP	tuple;
-		REBFCN	func;
-		REBOBJ	object;
-		REBXYF	pair;
-		REBEVT	event;
-		REBLIB  library;
-		REBSTU  structure;
-		REBGBO	gob;
-		REBUDT  utype;
-		struct Reb_Money money;
-		REBHAN  handle;
-		REBALL  all;
-
-	#ifndef NDEBUG
-		struct Reb_Trash trash; // not an actual Rebol value type; debug only
-	#endif
-	} data;
-
-	union Reb_Val_Head {
-		REBHED flags;
-		REBCNT header;
-	} flags;
+	union Reb_Value_Data data;
+	union Reb_Value_Flags flags;
 };
 
 #define ANY_SERIES(v)		(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
