@@ -609,9 +609,9 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 /*
 ***********************************************************************/
 {
-	REBVAL	*value = D_ARG(1);
+	const REBVAL *value = D_ARG(1);
 
-	if (ANY_WORD(value) && !(value = TRY_GET_MUTABLE_VAR(value)))
+	if (ANY_WORD(value) && !(value = TRY_GET_VAR(value)))
 		return R_FALSE;
 	if (IS_UNSET(value)) return R_FALSE;
 	return R_TRUE;

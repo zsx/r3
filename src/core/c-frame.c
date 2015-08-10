@@ -1155,20 +1155,18 @@
 		// (Including looking up 'append' in the user context.)
 
 		if (index > 0) {
-			if (!writable) return FRM_VALUES(context) + index;
-
-			{
-				// ^-- new scope: don't stack-alloc `value` in common case
-				REBVAL *value = FRM_VALUES(context) + index;
-				if (VAL_GET_EXT(value, EXT_WORD_LOCK)) {
-					if (trap) {
-						Trap1(RE_LOCKED_WORD, word);
-						DEAD_END;
-					}
-					return NULL;
+			if (
+				writable &&
+				VAL_GET_EXT(FRM_WORDS(context) + index, EXT_WORD_LOCK)
+			) {
+				if (trap) {
+					Trap1(RE_LOCKED_WORD, word);
+					DEAD_END;
 				}
-				return value;
+				return NULL;
 			}
+
+			return FRM_VALUES(context) + index;
 		}
 
 		// NEGATIVE INDEX: Word is stack-relative bound to a function with
@@ -1189,21 +1187,21 @@
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
 					assert(!call->pending);
 
-					if (!writable) return DSF_ARG(call, -index);
-
-					{
-						// ^-- new scope: don't usually stack-alloc `value`
-						REBVAL *value = DSF_ARG(call, -index);
-						if (VAL_GET_EXT(value, EXT_WORD_LOCK)) {
-							if (trap) {
-								Trap1(RE_LOCKED_WORD, word);
-								DEAD_END;
-							}
-							return NULL;
+					if (
+						writable &&
+						VAL_GET_EXT(
+							VAL_FUNC_PARAM(DSF_FUNC(call), -index),
+							EXT_WORD_LOCK
+						)
+					) {
+						if (trap) {
+							Trap1(RE_LOCKED_WORD, word);
+							DEAD_END;
 						}
-						assert(!IS_TRASH(value));
-						return value;
+						return NULL;
 					}
+
+					return DSF_ARG(call, -index);
 				}
 
 				call = PRIOR_DSF(call);
