@@ -757,21 +757,23 @@ enum {
 **
 ***********************************************************************/
 {
-	REBVAL *blk = VAL_BLK_DATA(D_ARG(2));
+	REBVAL *case_val = VAL_BLK_DATA(D_ARG(2));
 	REBOOL all = D_REF(5);
 	REBOOL found = FALSE;
 
-	// Find value in case block...
-	for (; NOT_END(blk); blk++) {
-		if (!IS_BLOCK(blk) && 0 == Cmp_Value(D_ARG(1), blk, FALSE)) { // avoid stack move
-			// Skip forward to block...
-			for (; !IS_BLOCK(blk) && NOT_END(blk); blk++);
-			if (IS_END(blk)) break;
+	for (; NOT_END(case_val); case_val++) {
+
+		// Look for the next *non* block case value to try to match
+		if (!IS_BLOCK(case_val) && 0 == Cmp_Value(D_ARG(1), case_val, FALSE)) {
+
+			// Skip ahead to try and find a block, to treat as code
+			while (!IS_BLOCK(case_val) && NOT_END(case_val)) case_val++;
+			if (IS_END(case_val)) break;
+
 			found = TRUE;
-			// Evaluate the case block
-			if (!DO_BLOCK(D_OUT, VAL_SERIES(blk), 0)) {
-				if (Check_Error(D_OUT) >= 0) break;
-			}
+
+			// Evaluate code block, but if result is THROWN() then return it
+			if (!DO_BLOCK(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
 
 			if (!all) return R_OUT;
 		}
