@@ -435,7 +435,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		Trap_Make_DEAD_END(type, arg);
 
 	case A_APPEND:
-		TRAP_PROTECT(VAL_SERIES(value));
+		TRAP_PROTECT(VAL_OBJ_FRAME(value));
 		if (IS_OBJECT(value)) {
 			Append_Obj(VAL_OBJ_FRAME(value), arg);
 			return R_ARG1;

@@ -826,14 +826,16 @@ find_none:
 {
 	REBVAL	*value = D_ARG(1);
 	REBVAL	*arg = D_ARG(2);
-	REBSER	*series = VAL_SERIES(value);
-	REBINT	index = (REBINT)VAL_INDEX(value);
+	REBSER	*series;
+	REBINT	index;
 	REBINT	tail;
 	REBINT	diff, len, w, h;
 	REBVAL	*val;
 
 	// Clip index if past tail:
 	if (action != A_MAKE && action != A_TO) {
+		series = VAL_SERIES(value);
+		index = VAL_INDEX(value);
 		tail = (REBINT)SERIES_TAIL(series);
 		if (index > tail) index = tail;
 	}

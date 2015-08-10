@@ -62,10 +62,12 @@ extern void reb_qsort(void *a, size_t n, size_t es, cmp_t *cmp);
 **
 ***********************************************************************/
 
+// !!! "STRING value to CHAR value (save some code space)" <-- what?
 static void str_to_char(REBVAL *out, REBVAL *val, REBCNT idx)
 {
-	// STRING value to CHAR value (save some code space)
-	SET_CHAR(out, GET_ANY_CHAR(VAL_SERIES(val), idx));
+	// Note: out may equal val, do assignment in two steps
+	REBUNI codepoint = GET_ANY_CHAR(VAL_SERIES(val), idx);
+	SET_CHAR(out, codepoint);
 }
 
 static void swap_chars(REBVAL *val1, REBVAL *val2)

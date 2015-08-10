@@ -486,11 +486,16 @@
 	REBVAL *val = D_ARG(1);
 	REBVAL *arg = D_ARG(2);
 	REBINT n;
-	REBSER *series = VAL_SERIES(val);
+	REBSER *series;
+
+	if (action != A_MAKE && action != A_TO)
+		series = VAL_SERIES(val);
 
 	// Check must be in this order (to avoid checking a non-series value);
-	if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(series))
-		Trap_DEAD_END(RE_PROTECTED);
+	if (action >= A_TAKE && action <= A_SORT) {
+		if(IS_PROTECT_SERIES(series))
+			Trap_DEAD_END(RE_PROTECTED);
+	}
 
 	switch (action) {
 

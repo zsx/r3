@@ -606,6 +606,7 @@ end_date:
 	REBOOL at = FALSE;
 	REBUNI n;
 
+	VAL_SET(value, REB_EMAIL);
 	VAL_SERIES(value) = Make_Binary(len);
 	VAL_INDEX(value) = 0;
 
@@ -626,7 +627,7 @@ end_date:
 	*str = 0;
 	if (!at) return 0;
 	VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
-	VAL_SET(value, REB_EMAIL);
+
 	return cp;
 }
 
@@ -650,6 +651,7 @@ end_date:
 //	if (n >= URL_MAX) return 0;
 //	if (*str != ':') return 0;
 
+	VAL_SET(value, REB_URL);
 	VAL_SERIES(value) = Make_Binary(len);
 	VAL_INDEX(value) = 0;
 
@@ -666,7 +668,6 @@ end_date:
 	}
 	*str = 0;
 	VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
-	VAL_SET(value, REB_URL);
 	return cp;
 }
 

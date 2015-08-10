@@ -1217,7 +1217,6 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			//line = VAL_GET_OPT(value, OPT_VALUE_LINE);
 			block = Scan_Block(scan_state, '/');  // (could realloc emitbuf)
 			value = BLK_TAIL(emitbuf);
-			VAL_SERIES(value) = block;
 			if (token == TOKEN_LIT) {
 				token = REB_LIT_PATH;
 				VAL_SET(BLK_HEAD(block), REB_WORD);
@@ -1237,6 +1236,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 //			if (IS_SET_WORD(BLK_SKIP(block, block->tail - 1)
 			VAL_SET(value, token);
+			VAL_SERIES(value) = block;
 			VAL_INDEX(value) = 0;
 			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			token = TOKEN_PATH;
@@ -1302,8 +1302,8 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				emitbuf->tail++;
 				goto exit_block;
 			}
-			VAL_SERIES(value) = block;
 			VAL_SET(value, (REBYTE)((token == TOKEN_BLOCK) ? REB_BLOCK : REB_PAREN));
+			VAL_SERIES(value) = block;
 			VAL_INDEX(value) = 0;
 			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			break;

@@ -333,17 +333,28 @@
 	REBVAL *bp;
 	REBINT index = 0;
 
+	REBSER *compare;
+
+	if (VAL_TYPE(val) >= REB_BLOCK && VAL_TYPE(val) <= REB_MAP)
+		compare = VAL_SERIES(val);
+	else if (VAL_TYPE(val) >= REB_BLOCK && VAL_TYPE(val) <= REB_PORT)
+		compare = VAL_OBJ_FRAME(val);
+	else {
+		assert(FALSE);
+		DEAD_END;
+	}
+
 	for (bp = BLK_HEAD(blk); NOT_END(bp); bp++, index++) {
 
 		if (VAL_TYPE(bp) >= REB_BLOCK &&
 			VAL_TYPE(bp) <= REB_MAP &&
-			VAL_BLK(bp) == VAL_BLK(val)
+			VAL_SERIES(bp) == compare
 		) return index+1;
 
 		if (
 			VAL_TYPE(bp) >= REB_OBJECT &&
 			VAL_TYPE(bp) <= REB_PORT &&
-			VAL_OBJ_FRAME(bp) == VAL_OBJ_FRAME(val)
+			VAL_OBJ_FRAME(bp) == compare
 		) return index+1;
 	}
 	return -1;
@@ -362,15 +373,13 @@
 **
 ***********************************************************************/
 {
-	// The next line works because VAL_OBJ_FRAME(val) == VAL_SERIES(val)
-	REBSER *series = VAL_SERIES(val);
-	if (!ANY_SERIES(val)
-		&& !IS_OBJECT(val)
-		&& !IS_MODULE(val)
-		&& !IS_ERROR(val)
-		&& !IS_PORT(val)) {
+	REBSER *series;
+	if (ANY_SERIES(val))
+		series = VAL_SERIES(val);
+	else if (IS_OBJECT(val) || IS_MODULE(val) || IS_ERROR(val) || IS_PORT(val))
+		series = VAL_OBJ_FRAME(val);
+	else
 		return;
-	}
 
 	if (!SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 

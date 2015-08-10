@@ -555,10 +555,13 @@ typedef struct Reb_Series_Ref
 **
 ***********************************************************************/
 
-#define	SET_STRING(v,s) VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SET(v, REB_STRING)
-#define	SET_BINARY(v,s) VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SET(v, REB_BINARY)
-#define	SET_FILE(v,s) VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SET(v, REB_FILE)
-#define	SET_STR_TYPE(t,v,s) VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SET(v, t)
+#define SET_STR_TYPE(t,v,s) \
+	(VAL_SET((v), (t)), VAL_SERIES(v) = (s), VAL_INDEX(v) = 0, NOOP)
+
+#define SET_STRING(v,s)		SET_STR_TYPE(REB_STRING, (v), (s))
+#define SET_BINARY(v,s)		SET_STR_TYPE(REB_BINARY, (v), (s))
+#define SET_FILE(v,s)		SET_STR_TYPE(REB_FILE, (v), (s))
+
 #define SET_STR_END(s,n) (*STR_SKIP(s,n) = 0)
 
 // Arg is a binary (byte) series:
@@ -910,9 +913,11 @@ typedef struct Reb_Object {
 //	REBCNT	num;		// shortcut for checking error number
 } REBOBJ;
 
-//#define	SET_OBJECT(v,s,f) VAL_OBJ_SPEC(v) = (s), VAL_OBJ_FRAME(v) = (f), VAL_SET(v, REB_OBJECT)
-#define	SET_OBJECT(v,f)		VAL_OBJ_FRAME(v) = (f), VAL_SET(v, REB_OBJECT)
-#define	SET_MODULE(v,f)		VAL_OBJ_FRAME(v) = (f), VAL_SET(v, REB_MODULE)
+#define SET_OBJECT(v,f) \
+	(VAL_SET((v), REB_OBJECT), VAL_OBJ_FRAME(v) = (f), NOOP)
+
+#define SET_MODULE(v,f) \
+	(VAL_SET((v), REB_MODULE), VAL_OBJ_FRAME(v) = (f), NOOP)
 
 #define VAL_OBJ_FRAME(v)	((v)->data.object.frame)
 #define VAL_OBJ_VALUES(v)	FRM_VALUES((v)->data.object.frame)

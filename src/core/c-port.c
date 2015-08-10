@@ -157,12 +157,12 @@
 	if (!IS_PORT(port)) return -10; // verify it is a port object
 
 	// Get wait queue block (the state field):
-	state = VAL_BLK_SKIP(port, STD_PORT_STATE);
+	state = VAL_OBJ_VALUE(port, STD_PORT_STATE);
 	if (!IS_BLOCK(state)) return -10;
 	//Debug_Num("S", VAL_TAIL(state));
 
 	// Get waked queue block:
-	waked = VAL_BLK_SKIP(port, STD_PORT_DATA);
+	waked = VAL_OBJ_VALUE(port, STD_PORT_DATA);
 	if (!IS_BLOCK(waked)) return -10;
 
 	// If there is nothing new to do, return now:
@@ -170,7 +170,7 @@
 
 	//Debug_Num("A", VAL_TAIL(waked));
 	// Get the system port AWAKE function:
-	awake = VAL_BLK_SKIP(port, STD_PORT_AWAKE);
+	awake = VAL_OBJ_VALUE(port, STD_PORT_AWAKE);
 	if (!ANY_FUNC(awake)) return -1;
 	if (ports) Set_Block(&tmp, ports);
 	else SET_NONE(&tmp);
@@ -261,7 +261,7 @@
 
 	port = Get_System(SYS_PORTS, PORTS_SYSTEM);
 	if (!IS_PORT(port)) return;
-	waked = VAL_BLK_SKIP(port, STD_PORT_DATA);
+	waked = VAL_OBJ_VALUE(port, STD_PORT_DATA);
 	if (!IS_BLOCK(waked)) return;
 
 	for (n = 0; ports && n < SERIES_TAIL(ports);) {

@@ -29,7 +29,8 @@
 
 #include "sys-core.h"
 
-#define	SET_VECTOR(v,s) VAL_SERIES(v)=(s), VAL_INDEX(v)=0, VAL_SET(v, REB_VECTOR)
+#define	SET_VECTOR(v,s) \
+	(VAL_SET((v), REB_VECTOR), VAL_SERIES(v)=(s), VAL_INDEX(v) = 0, NOOP)
 
 // Encoding Format:
 //		stored in series->size for now
@@ -412,6 +413,8 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 		bp++;
 	}
 
+	SET_TYPE(value, REB_VECTOR);
+
 	// Index offset:
 	if (IS_INTEGER(bp)) {
 		VAL_INDEX(value) = (Int32s(bp, 1) - 1);
@@ -426,7 +429,6 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 
 	if (iblk) Set_Vector_Row(vect, iblk);
 
-	SET_TYPE(value, REB_VECTOR);
 	VAL_SERIES(value) = vect;
 	// index set earlier
 
@@ -549,7 +551,8 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	type = Do_Series_Action(call_, action, value, arg);
 	if (type >= 0) return type;
 
-	vect = VAL_SERIES(value); // not valid for MAKE or TO
+	if (action != A_MAKE && action != A_TO)
+		vect = VAL_SERIES(value);
 
 	// Check must be in this order (to avoid checking a non-series value);
 	if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(vect))

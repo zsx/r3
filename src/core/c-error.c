@@ -469,7 +469,7 @@
 	cats = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
 
 	if (code >= 0 && n < SERIES_TAIL(cats) &&
-		(cat = VAL_SERIES(BLK_SKIP(cats, n)))
+		(cat = VAL_ERR_OBJECT(BLK_SKIP(cats, n)))
 	) {
 		Init_Word(&error->type, REB_WORD, FRM_WORD_SYM(cats, n), cats, n);
 

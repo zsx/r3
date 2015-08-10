@@ -82,7 +82,7 @@ REBREQ *req;		//!!! move this global
 	if (!IS_PORT(port)) return 0; // verify it is a port object
 
 	// Get queue block:
-	state = VAL_BLK_SKIP(port, STD_PORT_STATE);
+	state = VAL_OBJ_VALUE(port, STD_PORT_STATE);
 	if (!IS_BLOCK(state)) return 0;
 
 	// Append to tail if room:
@@ -123,7 +123,7 @@ REBREQ *req;		//!!! move this global
 	if (!IS_PORT(port)) return NULL; // verify it is a port object
 
 	// Get queue block:
-	state = VAL_BLK_SKIP(port, STD_PORT_STATE);
+	state = VAL_OBJ_VALUE(port, STD_PORT_STATE);
 	if (!IS_BLOCK(state)) return NULL;
 	for (value = VAL_BLK_TAIL(state) - 1; value >= VAL_BLK(state); -- value) {
 		if (VAL_EVENT_MODEL(value) == model) {
