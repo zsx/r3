@@ -102,7 +102,7 @@
 			(IS_LOGIC(arg) && !VAL_LOGIC(arg)) ||
 			(IS_INTEGER(arg) && (action == A_MAKE && VAL_INT64(arg) == 0)) ||
 			((IS_DECIMAL(arg) || IS_PERCENT(arg)) && (action == A_MAKE && VAL_DECIMAL(arg) == 0.0)) ||
-			(IS_MONEY(arg) && (action == A_MAKE && deci_is_zero(VAL_DECI(arg))))
+			(IS_MONEY(arg) && (action == A_MAKE && deci_is_zero(VAL_MONEY_AMOUNT(arg))))
 		) goto is_false;
 		goto is_true;
 

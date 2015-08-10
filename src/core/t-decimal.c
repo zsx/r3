@@ -260,7 +260,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				if (action == A_DIVIDE) type = REB_DECIMAL;
 				else if (!IS_PERCENT(val)) type = VAL_TYPE(val);
 			} else if (type == REB_MONEY) {
-				VAL_DECI(val) = decimal_to_deci(VAL_DECIMAL(val));
+				VAL_MONEY_AMOUNT(val) = decimal_to_deci(VAL_DECIMAL(val));
 				VAL_SET(val, REB_MONEY);
 				return T_Money(call_, action);
 			} else if (type == REB_CHAR) {
@@ -347,7 +347,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				goto setDec;
 
 			case REB_MONEY:
-				d1 = deci_to_decimal(VAL_DECI(val));
+				d1 = deci_to_decimal(VAL_MONEY_AMOUNT(val));
 				goto setDec;
 
 			case REB_LOGIC:
@@ -419,7 +419,9 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			num = Get_Round_Flags(call_);
 			if (D_REF(2)) { // to
 				if (IS_MONEY(arg)) {
-					VAL_DECI(D_OUT) = Round_Deci(decimal_to_deci(d1), num, VAL_DECI(arg));
+					VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+						decimal_to_deci(d1), num, VAL_MONEY_AMOUNT(arg)
+					);
 					SET_TYPE(D_OUT, REB_MONEY);
 					return R_OUT;
 				}

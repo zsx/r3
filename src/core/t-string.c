@@ -268,7 +268,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 	case REB_MONEY:
 		ser = Make_Binary(12);
 		ser->tail = 12;
-		deci_to_binary(ser->data, VAL_DECI(arg));
+		deci_to_binary(ser->data, VAL_MONEY_AMOUNT(arg));
 		ser->data[12] = 0;
 		break;
 

@@ -92,7 +92,7 @@
 					return T_Decimal(call_, action);
 				}
 				if (IS_MONEY(val2)) {
-					VAL_DECI(val) = int_to_deci(VAL_INT64(val));
+					VAL_MONEY_AMOUNT(val) = int_to_deci(VAL_INT64(val));
 					VAL_SET(val, REB_MONEY);
 					return T_Money(call_, action);
 				}
@@ -169,7 +169,9 @@
 		n = Get_Round_Flags(call_);
 		if (D_REF(2)) { // to
 			if (IS_MONEY(val2)) {
-				VAL_DECI(D_OUT) = Round_Deci(int_to_deci(num), n, VAL_DECI(val2));
+				VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+					int_to_deci(num), n, VAL_MONEY_AMOUNT(val2)
+				);
 				SET_TYPE(D_OUT, REB_MONEY);
 				return R_OUT;
 			}
@@ -209,7 +211,7 @@
 		else if (IS_INTEGER(val))
 			num = VAL_INT64(val);
 		else if (IS_MONEY(val))
-			num = deci_to_int(VAL_DECI(val));
+			num = deci_to_int(VAL_MONEY_AMOUNT(val));
 		else if (IS_ISSUE(val)) {
 			const REBYTE *bp = Get_Word_Name(val);
 			REBCNT len;

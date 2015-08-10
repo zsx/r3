@@ -737,7 +737,7 @@ static struct digest {
 	}
 	else if (IS_MONEY(arg)) {
 		REBYTE tmp[12];
-		deci_to_binary(&tmp[0], VAL_DECI(arg));
+		deci_to_binary(&tmp[0], VAL_MONEY_AMOUNT(arg));
 		for (len = 0; len < 12; len++)
 			buf = Form_Hex2(buf, tmp[len]);
 		len = 24;

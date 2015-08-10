@@ -360,7 +360,7 @@ bad_hex:	Trap_DEAD_END(RE_INVALID_CHARS);
 
 	if (*cp == '$') cp++, len--;
 	if (len == 0) return 0;
-	VAL_DECI(value) = string_to_deci(cp, &end);
+	VAL_MONEY_AMOUNT(value) = string_to_deci(cp, &end);
 	if (end != cp + len) return 0;
 	VAL_SET(value, REB_MONEY);
 

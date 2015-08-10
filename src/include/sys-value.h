@@ -204,9 +204,28 @@ typedef struct Reb_Type {
 #define VAL_DECIMAL(v)	((v)->data.decimal)
 #define	SET_DECIMAL(v,n) VAL_SET(v, REB_DECIMAL), VAL_DECIMAL(v) = (n)
 
-typedef deci REBDCI;
-#define VAL_DECI(v)		((v)->data.deci)
-#define	SET_MONEY(v,n) VAL_SET(v, REB_MONEY), VAL_DECI(v) = (n)
+
+/***********************************************************************
+**
+**	MONEY -- Includes denomination and amount
+**
+**	!!! The naming of "deci" used by MONEY! as "decimal" is a very
+**	bad overlap with DECIMAL! and also not very descriptive of what
+**	the properties of a "deci" are.  Also, to be a useful money
+**	abstraction it should store the currency type, e.g. the three
+**	character ISO 4217 code (~15 bits to store)
+**
+**		https://en.wikipedia.org/wiki/ISO_4217
+**
+***********************************************************************/
+
+struct Reb_Money {
+	deci amount;
+};
+
+#define VAL_MONEY_AMOUNT(v)		((v)->data.money.amount)
+#define SET_MONEY_AMOUNT(v,n) \
+	(VAL_SET((v), REB_MONEY), VAL_MONEY_AMOUNT(v) = (n), NOOP)
 
 
 /***********************************************************************
@@ -1433,7 +1452,7 @@ typedef struct Reb_All {
 		REBSTU  structure;
 		REBGBO	gob;
 		REBUDT  utype;
-		REBDCI  deci;
+		struct Reb_Money money;
 		REBHAN  handle;
 		REBALL  all;
 

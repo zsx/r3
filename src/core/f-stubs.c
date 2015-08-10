@@ -184,7 +184,7 @@
 {
 	if (IS_INTEGER(val)) return VAL_INT64(val);
 	if (IS_DECIMAL(val) || IS_PERCENT(val)) return (REBI64)VAL_DECIMAL(val);
-	if (IS_MONEY(val)) return deci_to_int(VAL_DECI(val));
+	if (IS_MONEY(val)) return deci_to_int(VAL_MONEY_AMOUNT(val));
 	Trap_Arg_DEAD_END(val);
 	return 0;
 }
@@ -198,7 +198,7 @@
 {
 	if (IS_DECIMAL(val) || IS_PERCENT(val)) return VAL_DECIMAL(val);
 	if (IS_INTEGER(val)) return (REBDEC)VAL_INT64(val);
-	if (IS_MONEY(val)) return deci_to_decimal(VAL_DECI(val));
+	if (IS_MONEY(val)) return deci_to_decimal(VAL_MONEY_AMOUNT(val));
 	Trap_Arg_DEAD_END(val);
 	return 0;
 }

@@ -210,14 +210,14 @@ enum {
 
 /***********************************************************************
 **
-*/	REBDCI Round_Deci(REBDCI num, REBCNT flags, REBDCI scale)
+*/	deci Round_Deci(deci num, REBCNT flags, deci scale)
 /*
 **		Identical to ROUND mezzanine function.
 **		Note: scale arg only valid if RF_TO is set
 **
 ***********************************************************************/
 {
-	REBDCI deci_one = {1u, 0u, 0u, 0u, 0};
+	deci deci_one = {1u, 0u, 0u, 0u, 0};
 
 	if (GET_FLAG(flags, RF_TO)) {
 		if (deci_is_zero(scale)) {

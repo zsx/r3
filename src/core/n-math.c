@@ -323,7 +323,7 @@ enum {SINE, COSINE, TANGENT};
 				goto compare;
 			}
 			else if (tb == REB_MONEY) {
-				SET_MONEY(a, int_to_deci(VAL_INT64(a)));
+				SET_MONEY_AMOUNT(a, int_to_deci(VAL_INT64(a)));
 				goto compare;
 			}
 			break;
@@ -335,7 +335,7 @@ enum {SINE, COSINE, TANGENT};
 				goto compare;
 			}
 			else if (tb == REB_MONEY) {
-				SET_MONEY(a, decimal_to_deci(VAL_DECIMAL(a)));
+				SET_MONEY_AMOUNT(a, decimal_to_deci(VAL_DECIMAL(a)));
 				goto compare;
 			}
 			else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
@@ -344,11 +344,11 @@ enum {SINE, COSINE, TANGENT};
 
 		case REB_MONEY:
 			if (tb == REB_INTEGER) {
-				SET_MONEY(b, int_to_deci(VAL_INT64(b)));
+				SET_MONEY_AMOUNT(b, int_to_deci(VAL_INT64(b)));
 				goto compare;
 			}
 			if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-				SET_MONEY(b, decimal_to_deci(VAL_DECIMAL(b)));
+				SET_MONEY_AMOUNT(b, decimal_to_deci(VAL_DECIMAL(b)));
 				goto compare;
 			}
 			break;
