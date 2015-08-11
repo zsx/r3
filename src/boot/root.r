@@ -31,6 +31,7 @@ noname			; noname function word
 
 ;; Tags used in function specs
 
+transparent-tag	; func w/o definitional return, ignores non-definitional ones
 infix-tag		; func is treated as "infix" (first parameter comes before it)
 
 boot			; boot block defined in boot.r (GC'd after boot is done)

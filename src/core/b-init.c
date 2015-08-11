@@ -1060,6 +1060,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	REBOL_STATE state;
 	REBVAL out;
 
+	const REBYTE transparent[] = "transparent";
 	const REBYTE infix[] = "infix";
 
 	DOUT("Main init");
@@ -1145,6 +1146,13 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	// specs.  There may be a better place to put them or a better way to do
 	// it, but it didn't seem there was a "compare UTF8 byte array to
 	// arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
+
+	VAL_SET(ROOT_TRANSPARENT_TAG, REB_TAG);
+	VAL_SERIES(ROOT_TRANSPARENT_TAG) = (
+		Append_UTF8(0, transparent, LEN_BYTES(transparent))
+	);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCK);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROT);
 
 	VAL_SET(ROOT_INFIX_TAG, REB_TAG);
 	VAL_SERIES(ROOT_INFIX_TAG) = Append_UTF8(0, infix, LEN_BYTES(infix));

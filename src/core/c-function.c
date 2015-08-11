@@ -168,6 +168,8 @@
 
 			if (0 == Compare_String_Vals(blk, ROOT_INFIX_TAG, TRUE))
 				SET_FLAG(*exts, EXT_FUNC_INFIX);
+			else if (0 == Compare_String_Vals(blk, ROOT_TRANSPARENT_TAG, TRUE))
+				SET_FLAG(*exts, EXT_FUNC_TRANSPARENT);
 			else
 				Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
 			break;

@@ -145,7 +145,7 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
 	]
 	if any [code decl] [cmt: none]
 	if cmt [
-		len: 31 - length? str
+		len: 32 - length? str
 		loop to-integer len / 4 [append str tab]
 		any [
 			if define [repend str cmt]

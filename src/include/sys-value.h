@@ -1090,6 +1090,7 @@ struct Reb_Gob {
 
 enum {
 	EXT_FUNC_INFIX = 0,		// called with "infix" protocol
+	EXT_FUNC_TRANSPARENT,	// no Definitionally Scoped return, ignores non-DS
 	EXT_FUNC_RETURN,		// function is a definitionally scoped return
 	EXT_FUNC_REDO,			// Reevaluate result value
 	EXT_FUNC_MAX
