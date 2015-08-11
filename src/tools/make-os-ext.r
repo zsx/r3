@@ -83,7 +83,7 @@ process: func [file] [
 	if verbose [?? file]
 	data: read the-file: file
 	data: to-string data ; R3
-	parse/all data [
+	parse data [
 		any [
 			thru "/***" 10 100 "*" newline
 			thru "*/"

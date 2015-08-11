@@ -106,7 +106,7 @@ process: func [file] [
 	if verbose [?? file]
 	data: read the-file: file
 	if r3 [data: deline to-string data]
-	parse/all data [
+	parse data [
 		any [
 			thru "/******" to newline
 			[
@@ -235,7 +235,7 @@ emit-header "REBOL Constants Strings" %str-consts.h
 
 data: to string! read %a-constants.c ;R3
 
-parse/all data [
+parse data [
 	some [
 		to "^/const"
 		copy d to "="

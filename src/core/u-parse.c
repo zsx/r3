@@ -31,9 +31,8 @@
 
 // Parser flags:
 enum Parse_Flags {
-	PF_ALL = 1,
-	PF_CASE = 2,
-	PF_CASED = 4 // was set as initial option
+	PF_CASE = 1 << 0,
+	PF_CASED = 1 << 1 // was set as initial option
 };
 
 typedef struct reb_parse {
@@ -1190,218 +1189,79 @@ bad_end:
 
 /***********************************************************************
 **
-*/	REBSER *Parse_String(REBSER *series, REBCNT index, REBVAL *rules, REBCNT flags)
-/*
-***********************************************************************/
-{
-	REBCNT tail = series->tail;
-	REBSER *blk;
-	REBSER *set;
-	REBCNT begin;
-	REBCNT end;
-	REBOOL skip_spaces = !(flags & PF_ALL);
-	REBUNI uc;
-
-	blk = BUF_EMIT;	// shared series
-	RESET_SERIES(blk);
-
-	// String of delimiters or single character:
-	if (IS_STRING(rules) || IS_CHAR(rules)) {
-		begin = Find_Max_Bit(rules);
-		if (begin <= ' ') begin = ' ' + 1;
-		set = Make_Bitset(begin);
-		Set_Bits(set, rules, TRUE);
-	}
-	// None, so use defaults ",;":
-	else {
-		set = Make_Bitset(1+MAX(',',';'));
-		Set_Bit(set, ',', TRUE);
-		Set_Bit(set, ';', TRUE);
-	}
-	SAVE_SERIES(set);
-
-	// If required, make space delimiters too:
-	if (skip_spaces) {
-		for (uc = 1; uc <= ' '; uc++) Set_Bit(set, uc, TRUE);
-	}
-
-	while (index < tail) {
-
-		if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
-
-		// Skip whitespace if not /all refinement:
-		if (skip_spaces) {
-			uc = 0;
-			for (; index < tail; index++) {
-				uc = GET_ANY_CHAR(series, index);
-				if (!IS_WHITE(uc)) break;
-			}
-		}
-		else
-			uc = GET_ANY_CHAR(series, index); // prefetch
-
-		if (index < tail) {
-
-			// Handle quoted strings (in a simple way):
-			if (uc == '"') {
-				begin = ++index; // eat quote
-				for (; index < tail; index++) {
-					uc = GET_ANY_CHAR(series, index);
-					if (uc == '"') break;
-				}
-				end = index;
-				if (index < tail) index++;
-			}
-			// All other tokens:
-			else {
-				begin = index;
-				for (; index < tail; index++) {
-					if (Check_Bit(set, GET_ANY_CHAR(series, index), !(flags & PF_CASE))) break;
-				}
-				end = index;
-			}
-
-			// Skip trailing spaces:
-			if (skip_spaces)
-				for (; index < tail; index++) {
-					uc = GET_ANY_CHAR(series, index);
-					if (!IS_WHITE(uc)) break;
-				}
-
-			// Check for and remove separator:
-			if (Check_Bit(set, GET_ANY_CHAR(series, index), !(flags & PF_CASE))) index++;
-
-			// Append new string:
-			Set_String(Alloc_Tail_Blk(blk), Copy_String(series, begin, end - begin));
-		}
-	}
-	UNSAVE_SERIES(set);
-
-	return Copy_Block(blk, 0);
-}
-
-
-/***********************************************************************
-**
-*/	REBSER *Parse_Lines(REBSER *src)
-/*
-**		Convert a string buffer to a block of strings.
-**		Note that the string must already be converted
-**		to REBOL LF format (no CRs).
-**
-***********************************************************************/
-{
-	REBSER	*blk;
-	REBUNI c;
-	REBCNT i;
-	REBCNT s;
-	REBVAL *val;
-	REBOOL uni = !BYTE_SIZE(src);
-	REBYTE *bp = BIN_HEAD(src);
-	REBUNI *up = UNI_HEAD(src);
-
-	blk = BUF_EMIT;
-	RESET_SERIES(blk);
-
-	// Scan string, looking for LF and CR terminators:
-	for (i = s = 0; i < SERIES_TAIL(src); i++) {
-		c = uni ? up[i] : bp[i];
-		if (c == LF || c == CR) {
-			val = Alloc_Tail_Blk(blk);
-			Set_String(val, Copy_String(src, s, i - s));
-			VAL_SET_OPT(val, OPT_VALUE_LINE);
-			// Skip CRLF if found:
-			if (c == CR && LF == uni ? up[i] : bp[i]) i++;
-			s = i;
-		}
-	}
-
-	// Partial line (no linefeed):
-	if (s + 1 != i) {
-		val = Alloc_Tail_Blk(blk);
-		Set_String(val, Copy_String(src, s, i - s));
-		VAL_SET_OPT(val, OPT_VALUE_LINE);
-	}
-
-	return Copy_Block(blk, 0);
-}
-
-
-/***********************************************************************
-**
 */	REBNATIVE(parse)
 /*
 ***********************************************************************/
 {
-	REBVAL *val = D_ARG(1);
-	REBVAL *arg = D_ARG(2);
+	REBVAL *input = D_ARG(1);
+	REBVAL *rules = D_ARG(2);
+	const REBOOL cased = D_REF(3);
+
 	REBCNT opts = 0;
+	REBCNT index;
 
-	if (D_REF(3)) opts |= PF_ALL;
-	if (D_REF(4)) opts |= PF_CASE;
+	REBOL_STATE state;
+	const REBVAL *error;
 
-	if (IS_BINARY(val)) opts |= PF_ALL | PF_CASE;
+	if (cased) opts |= PF_CASE;
 
-	// Is it a simple string?
-	if (IS_NONE(arg) || IS_STRING(arg) || IS_CHAR(arg)) {
-		REBSER *ser;
-		if (!ANY_BINSTR(val)) Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_STRING, VAL_TYPE(val));
-		ser = Parse_String(VAL_SERIES(val), VAL_INDEX(val), arg, opts);
-		Set_Block(D_OUT, ser);
-	}
-	else if (IS_SAME_WORD(arg, SYM_TEXT)) {
-		Set_Block(D_OUT, Parse_Lines(VAL_SERIES(val)));
-	}
-	else {
-		REBCNT n;
-		REBOL_STATE state;
-		const REBVAL *error;
+	// We always want "case-sensitivity" on binary bytes, vs. treating as
+	// case-insensitive bytes for ASCII characters
+	if (IS_BINARY(input)) opts |= PF_CASE;
 
-		PUSH_CATCH(&error, &state);
+	PUSH_CATCH(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
 
-		if (error) {
-			// We use a special kind of RETURN to be caught by PARSE so we
-			// differentiate between:
-			//
-			//	   foo: func [] [parse "1020" [(return true)]
-			//	   bar: func [] [parse "0304" [return false]]
-			//
-			// !!! I added a RE_PARSE_BREAK as a review point, as it seemed
-			// like there was a function Throw_Break which corresponded to
-			// a special Throw_Return used by PARSE.  In the end, BREAK and
-			// ACCEPT (what's the difference?) seem to work another way.
-			// Leaving RE_PARSE_BREAK until all is understood.  --HF
+	if (error) {
+		// We use a special kind of RETURN to be caught by PARSE so we
+		// differentiate between:
+		//
+		//	   foo: func [] [parse "1020" [(return true)]
+		//	   bar: func [] [parse "0304" [return false]]
+		//
+		// !!! I added a RE_PARSE_BREAK as a review point, as it seemed
+		// like there was a function Throw_Break which corresponded to
+		// a special Throw_Return used by PARSE.  In the end, BREAK and
+		// ACCEPT (what's the difference?) seem to work another way.
+		// Leaving RE_PARSE_BREAK until all is understood.  --HF
 
-			if (
-				(VAL_ERR_NUM(error) == RE_PARSE_BREAK)
-				|| (VAL_ERR_NUM(error) == RE_PARSE_RETURN)
-			) {
-				TAKE_THROWN_ARG(D_OUT, error);
-				return R_OUT;
-			}
-
-			// If a THROWN style error, evaluate to that so that it can
-			// bubble up the stack.
-			if (THROWN(error)) {
-				*D_OUT = *error;
-				return R_OUT;
-			}
-
-			// Trap all other errors that aren't implicitly thrown...
-			Throw(error, NULL);
-			DEAD_END;
+		if (
+			(VAL_ERR_NUM(error) == RE_PARSE_BREAK)
+			|| (VAL_ERR_NUM(error) == RE_PARSE_RETURN)
+		) {
+			TAKE_THROWN_ARG(D_OUT, error);
+			return R_OUT;
 		}
 
-		// opts is volatile across a setjmp/longjmp, so we re-read D_REF(4)
-		// for the casing instead of using opts
+		// If a THROWN style error, evaluate to that so that it can
+		// bubble up the stack.
+		if (THROWN(error)) {
+			*D_OUT = *error;
+			return R_OUT;
+		}
 
-		n = Parse_Series(val, VAL_BLK_DATA(arg), D_REF(4) ? AM_FIND_CASE : 0, 0);
-		SET_LOGIC(D_OUT, n >= VAL_TAIL(val) && n != NOT_FOUND);
-		DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+		// Trap all other errors that aren't implicitly thrown...
+		Throw(error, NULL);
+		DEAD_END;
 	}
 
-	return R_OUT;
+	index = Parse_Series(
+		input, VAL_BLK_DATA(rules), cased ? AM_FIND_CASE : 0, 0
+	);
+
+	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+
+	// Parse can fail if the match rule state can't process pending input
+	if (index == NOT_FOUND)
+		return R_FALSE; // !!! Would R_NONE be better?
+
+	// If the match rules all completed, but the parse position didn't end
+	// at (or beyond) the tail of the input series, the parse also failed
+	if (index < VAL_TAIL(input))
+		return R_FALSE; // !!! Would R_NONE be better?
+
+	// The parse succeeded...
+	return R_TRUE; // !!! Would 'input' be a more useful "true"?  See CC#2165
 }

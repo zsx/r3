@@ -121,7 +121,7 @@ make-port*: func [
 	decode-url: func ["Decode a URL according to rules of sys/*parse-url." url] [
 		--- "This function is bound in the context of sys/*parse-url."
 		out: make block! 8
-		parse/all url rules
+		parse url rules
 		out
 	]
 ]

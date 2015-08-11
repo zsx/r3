@@ -176,7 +176,7 @@ write-if: func [file data] [
 process: func [file] [
 	if verbose [?? file]
 	data: to string! read the-file: file ;R3
-	parse/all data [
+	parse data [
 		any func-header
 	]
 ]

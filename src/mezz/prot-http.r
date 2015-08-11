@@ -208,7 +208,7 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
 	res: false
 	unless info/response-parsed [
 		;?? line
-		parse/all line [
+		parse line [
 			"HTTP/1." [#"0" | #"1"] some #" " [
 				#"1" (info/response-parsed: 'info)
 				|
@@ -380,12 +380,12 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
 			unless port/data [port/data: make binary! length? data]
 			out: port/data
 			until [
-				either parse/all data [
+				either parse data [
 					copy chunk-size some hex-digits thru crlfbin mk1: to end
 				] [
 					chunk-size: to integer! to issue! to string! chunk-size
 					either chunk-size = 0 [
-						if parse/all mk1 [
+						if parse mk1 [
 							crlfbin (trailer: "") to end | copy trailer to crlf2bin to end
 						] [
 							trailer: construct trailer
@@ -396,7 +396,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
 						]
 						true
 					] [
-						either parse/all mk1 [
+						either parse mk1 [
 							chunk-size skip mk2: crlfbin to end
 						] [
 							insert/part tail out mk1 mk2

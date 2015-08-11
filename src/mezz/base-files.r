@@ -162,7 +162,7 @@ split-path: func [
 	target [file! url! string!]
 	/local dir pos
 ][
-	parse/all target [
+	parse target [
 		[#"/" | 1 2 #"." opt #"/"] end (dir: dirize target) |
 		pos: any [thru #"/" [end | pos:]] (
 			all [empty? dir: copy/part target at head target index? pos dir: %./]

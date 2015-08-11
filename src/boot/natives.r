@@ -548,9 +548,9 @@ in: native [
 parse: native [
 	{Parses a string or block series according to grammar rules.}
 	input [series!] {Input series to parse}
-	rules [block! string! char! none!] {Rules to parse by (none = ",;")}
-	/all {For simple rules (not blocks) parse all chars including whitespace}
+	rules [block!] {Rules to parse by}
 	/case {Uses case-sensitive comparison}
+	/all {(ignored refinement left for Rebol2 transitioning)}
 ]
 
 set: native [
