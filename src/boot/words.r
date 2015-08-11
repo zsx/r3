@@ -98,6 +98,9 @@ yearday
 zone
 utc
 
+; Used to recognize Rebol2 use of [catch] in function specs
+catch
+
 ; Parse: - These words must not reserved above!!
 parse
 |	 ; must be first

@@ -135,8 +135,24 @@
 	for (; NOT_END(blk); blk++) {
 		switch (VAL_TYPE(blk)) {
 		case REB_BLOCK:
-			// Must be processing a parameter
-			if (n == 0) Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
+			if (n == 0) {
+				// !!! Rebol2 had the ability to put a block in the first
+				// slot before any parameters, in which you could put words.
+				// This is deprecated in favor of the use of tags.  For
+				// @rgchris's sake we will allow the one element [catch]
+				// block, during Rebol2 => Rebol3 migration.
+
+				if (VAL_BLK_LEN(blk) == 1) {
+					REBVAL *attribute = VAL_BLK_DATA(blk);
+					if (
+						IS_WORD(attribute)
+						&& VAL_WORD_SYM(attribute) == SYM_CATCH
+					) {
+						break; // exempt, just ignore it
+					}
+				}
+				Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
+			}
 
 			// Turn block into typeset for parameter at current index
 			Make_Typeset(VAL_BLK(blk), BLK_SKIP(words, n), 0);
