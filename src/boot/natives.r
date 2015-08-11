@@ -862,6 +862,11 @@ latin1?: native [
 	value [any-string! char! integer!]
 ]
 
+infix?: native [
+	{Returns TRUE if the function gets its first argument prior to the call}
+	value [any-function!]
+]
+
 ; Temps...
 
 stats: native [

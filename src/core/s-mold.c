@@ -1254,7 +1254,6 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		End_Mold(mold);
 		break;
 	case REB_REBCODE:
-	case REB_OP:
 	case REB_FRAME:
 	case REB_HANDLE:
 	case REB_UTYPE:

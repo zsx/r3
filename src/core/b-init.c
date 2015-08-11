@@ -389,18 +389,14 @@ static	BOOT_BLK *Boot_Block;
 ***********************************************************************/
 {
 	REBVAL *word;
-	REBVAL *func;
 	REBVAL *val;
 
-	for (word = VAL_BLK(&Boot_Block->ops); NOT_END(word); word+=2) {
+	for (word = VAL_BLK(&Boot_Block->ops); NOT_END(word); word++) {
 		// Append the operator name to the lib frame:
 		val = Append_Frame(Lib_Context, word, 0);
-		// Find the related function:
-		func = Find_Word_Value(Lib_Context, VAL_WORD_SYM(word+1));
-		if (!func) Panic(RP_MISC);
-		*val = *func;
-		VAL_SET(val, REB_OP);
-		VAL_EXTS_DATA(val) = VAL_TYPE(func);
+
+		// leave UNSET!, functions will be filled in later...
+		cast(void, cast(REBUPT, val));
 	}
 }
 
@@ -1064,6 +1060,8 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	REBOL_STATE state;
 	REBVAL out;
 
+	const REBYTE infix[] = "infix";
+
 	DOUT("Main init");
 
 #ifndef NDEBUG
@@ -1142,6 +1140,16 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	Init_Codecs();
 	Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 	PG_Boot_Phase = BOOT_ERRORS;
+
+	// We need these values around to compare to the tags we find in function
+	// specs.  There may be a better place to put them or a better way to do
+	// it, but it didn't seem there was a "compare UTF8 byte array to
+	// arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
+
+	VAL_SET(ROOT_INFIX_TAG, REB_TAG);
+	VAL_SERIES(ROOT_INFIX_TAG) = Append_UTF8(0, infix, LEN_BYTES(infix));
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
 
 	// Special pre-made error:
 	assert(RE_STACK_OVERFLOW >= RE_THROW_MAX);

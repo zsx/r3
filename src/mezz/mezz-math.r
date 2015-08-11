@@ -17,7 +17,6 @@ mod: func [
 	; that is "almost non-negative"
 	; Example: 0.15 - 0.05 - 0.1 // 0.1 is negative,
 	; but it is "almost" zero, i.e. "almost non-negative"
-	[catch]
 	a [number! money! time!]
 	b [number! money! time!] "Must be nonzero."
 	/local r
@@ -33,7 +32,6 @@ mod: func [
 
 modulo: func [
 	{Wrapper for MOD that handles errors like REMAINDER. Negligible values (compared to A and B) are rounded to zero.}
-	;[catch]
 	a [number! money! time!]
 	b [number! money! time!] "Absolute value will be used"
 	/local r

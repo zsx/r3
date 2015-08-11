@@ -600,7 +600,6 @@ static void Propagate_All_GC_Marks(void);
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_BODY(val));
 		case REB_NATIVE:
 		case REB_ACTION:
-		case REB_OP:
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_SPEC(val));
 			MARK_TYPED_WORDS_BLOCK(VAL_FUNC_WORDS(val));
 			break;

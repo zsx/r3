@@ -52,7 +52,7 @@ dump-obj: function [
 
 	foreach [word val] obj [
 		type: type?/word :val
-		str: either find [function! closure! native! action! op! object!] type [
+		str: either any [any-function? :type object? :type] [
 			reform [word mold spec-of :val words-of :val]
 		][
 			form word
@@ -263,7 +263,7 @@ dump-obj: function [
 
 	args: words-of :value
 	clear find args /local
-	either op? :value [
+	either infix? :value [
 		print [args/1 word args/2]
 	][
 		print [uppercase mold word args]

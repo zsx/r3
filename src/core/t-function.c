@@ -123,7 +123,6 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			//	Set_Block(value, List_Func_Words(value));
 			break;
 		case OF_BODY:
-of_type:
 			switch (type) {
 			case REB_FUNCTION:
 				Set_Block(D_OUT, Clone_Block(VAL_FUNC_BODY(value)));
@@ -141,9 +140,6 @@ of_type:
 			case REB_ACTION:
 				SET_NONE(value);
 				break;
-			case REB_OP:
-				type = VAL_EXTS_DATA(value); // internal datatype
-				goto of_type;
 			}
 			break;
 		case OF_SPEC:

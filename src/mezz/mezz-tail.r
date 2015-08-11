@@ -22,5 +22,15 @@ func: funco [
 	make function! copy/deep reduce [spec body] ; (now it deep copies)
 ]
 
-; Quick test runner (temporary):
-t: does [do %test.r]
+
+;; Compatibility routines for pre-Ren/C (temporary)
+
+; This needs a more complete story, controlled by switches to give deprecation
+; warnings.  But for starters putting them here.
+
+op?: func [
+	"Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
+	value [any-type!]
+][
+	either any-function? :value [:infix? :value] false
+]

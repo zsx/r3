@@ -287,7 +287,6 @@ chkDecimal:
 
 	case REB_ACTION:
 	case REB_COMMAND:
-	case REB_OP:
 	case REB_FUNCTION:
 		return VAL_FUNC_BODY(s) - VAL_FUNC_BODY(t);
 

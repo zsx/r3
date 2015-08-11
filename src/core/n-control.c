@@ -573,10 +573,9 @@ enum {
 	case REB_ACTION:
     case REB_COMMAND:
     case REB_REBCODE:
-    case REB_OP:
     case REB_CLOSURE:
 	case REB_FUNCTION:
-		VAL_SET_OPT(value, OPT_VALUE_REDO);
+		VAL_SET_EXT(value, EXT_FUNC_REDO);
 		return R_ARG1;
 
 //	case REB_PATH:  ? is it used?

@@ -29,5 +29,9 @@ unset-val		; a value of type UNSET!
 empty-block		; a value that is an empty BLOCK!
 noname			; noname function word
 
+;; Tags used in function specs
+
+infix-tag		; func is treated as "infix" (first parameter comes before it)
+
 boot			; boot block defined in boot.r (GC'd after boot is done)
 

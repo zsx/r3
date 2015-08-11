@@ -416,16 +416,25 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	REBVAL *param = VAL_FUNC_PARAM(func, 1);
 	REBVAL *arg = DSF_ARG(call, 1);
 
+	REBOOL lookahead;
+
 	REBVAL *value;
 
-	// If func is operator, first arg is already written in
-	if (IS_OP(func)) {
+	if (VAL_GET_EXT(func, EXT_FUNC_INFIX)) {
+		// If func is being called infix, first arg is already in call frame
 		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
 			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
 
 		param++;
 		arg++;
+
+		// When we're in mid-dispatch of an infix function, the precedence is
+		// such that we don't want to do further infix lookahead while getting
+		// the arguments.  (e.g. with '1 + 2 * 3' we don't want infix + to
+		// look ahead past the 2 to see the infix *)
+		lookahead = FALSE;
 	}
+	else lookahead = TRUE;
 
 	// Go thru the word list params:
 	for (; NOT_END(param); param++, arg++) {
@@ -434,7 +443,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		switch (VAL_TYPE(param)) {
 
 		case REB_WORD:		// WORD - Evaluate next value
-			index = Do_Core(arg, TRUE, block, index, IS_OP(func));
+			index = Do_Core(arg, TRUE, block, index, lookahead);
 			if (index == THROWN_FLAG) {
 				*out = *arg;
 				goto return_index;
@@ -446,7 +455,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 			if (index < BLK_LEN(block)) {
 				value = BLK_SKIP(block, index);
 				if (IS_PAREN(value) || IS_GET_WORD(value) || IS_GET_PATH(value)) {
-					index = Do_Core(arg, TRUE, block, index, IS_OP(func));
+					index = Do_Core(arg, TRUE, block, index, lookahead);
 					if (index == THROWN_FLAG) {
 						*out = *arg;
 						goto return_index;
@@ -589,7 +598,6 @@ return_index:
 #endif
 
 	const REBVAL * const func = DSF_FUNC(call);
-	enum REBOL_Types func_type = VAL_TYPE(func);
 	REBVAL *out = DSF_OUT(call);
 
 	// We need to save what the DSF was prior to our execution, and
@@ -604,10 +612,7 @@ return_index:
 
 	if (Trace_Flags) Trace_Func(DSF_LABEL(call), func);
 
-	if (func_type == REB_OP)
-        func_type = cast(enum REBOL_Types, VAL_EXTS_DATA(func));
-
-	switch (func_type) {
+	switch (VAL_TYPE(func)) {
 	case REB_NATIVE:
 		Do_Native(func);
 		break;
@@ -652,7 +657,7 @@ return_index:
 
 /***********************************************************************
 **
-*/	REBCNT Do_Core(REBVAL * const out, REBOOL next, REBSER *block, REBCNT index, REBFLG op)
+*/	REBCNT Do_Core(REBVAL * const out, REBOOL next, REBSER *block, REBCNT index, REBFLG lookahead)
 /*
 **		Evaluate the code block until we have:
 **			1. An irreducible value (return next index)
@@ -739,8 +744,8 @@ do_at_index:
 	do_fetched_word:
 		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NO_VALUE, value);
 		if (ANY_FUNC(out)) {
-			// OP! is only handled by the code at the tail of this routine
-			if (IS_OP(out)) Trap_Type_DEAD_END(out);
+			// infix is only handled by the code at the tail of this routine
+			if (VAL_GET_EXT(out, EXT_FUNC_INFIX)) Trap_Type_DEAD_END(out);
 
 			// We will reuse the TOS for the OUT of the call frame
 			label = value;
@@ -748,13 +753,13 @@ do_at_index:
 			value = out;
 
 			if (Trace_Flags) Trace_Line(block, index, value);
-			goto func_needs_push;
+			goto do_function_args;
 		}
 		index++;
 		break;
 
 	case REB_SET_WORD:
-		index = Do_Core(out, TRUE, block, index + 1, FALSE);
+		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
 		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NEED_VALUE, value);
@@ -770,23 +775,37 @@ do_at_index:
 	case REB_CLOSURE:
 	case REB_FUNCTION:
 
-	// Value must be the function, and space for the return slot (DSF_OUT)
-	// needs to already be accounted for
-	func_needs_push:
+		// If we come across an infix function from do_at_index in the loop,
+		// we can't actually run it.  It only runs after an evaluation has
+		// yielded a value as part of a single "atomic" Do/Next step
+		if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
+			Trap1_DEAD_END(RE_NO_OP_ARG, label);
+
+	// Value must be the function when a jump here occurs
+	do_function_args:
 		assert(ANY_FUNC(value));
 		assert(DSP == dsp_orig);
+
+		// OUT may contain the pending argument for an infix operation,
+		// so Make_Call() shouldn't overwrite it!
 		call = Make_Call(out, block, index, label, value);
+
+		// Fetch the first argument from output slot before overwriting
+		if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) {
+			assert(index != 0);
+			*DSF_ARG(call, 1) = *out;
+		}
+
 		SET_TRASH_SAFE(out); // catch functions that don't write out
 
 	// 'call' holds index of new call frame, not yet set during arg evaluation
 	// (because the arguments want to be computed in the caller's environment)
 	// value can be invalid at this point, but must be retrievable w/DSF_FUNC
-	func_already_pushed:
-		assert(IS_TRASH(out));
+
 		index = Do_Args(call, 0, block, index+1);
 
 	// The function frame is completely filled with arguments and ready
-	func_ready_to_call:
+	function_ready_to_call:
 		// value may have started pointing to the out slot, so if we are
 		// to reference the function we need the copy from the call frame
 		value = DSF_FUNC(call);
@@ -809,28 +828,17 @@ do_at_index:
 		if (Trace_Flags) Trace_Return(label, out);
 
 		// The return value is a FUNC that needs to be re-evaluated.
-        if (VAL_GET_OPT(out, OPT_VALUE_REDO) && ANY_FUNC(out)) {
-			if (IS_OP(out)) Trap_Type_DEAD_END(value); // not allowed
+		if (ANY_FUNC(out) && VAL_GET_EXT(out, EXT_FUNC_REDO)) {
+			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
+				Trap_Type_DEAD_END(value); // not allowed
 
 			value = out;
 			label = NULL;
 			index--; // Backup block index to re-evaluate.
 
-			goto func_needs_push;
+			goto do_function_args;
 		}
 		break;
-
-	case REB_OP:
-		// Can't actually run an OP! arg unless it's after an evaluation
-		Trap1_DEAD_END(RE_NO_OP_ARG, label);
-
-	handle_op:
-		assert(index != 0);
-		// TOS has first arg, we will re-use that slot for the OUT value
-		call = Make_Call(out, block, index, label, value);
-		*DSF_ARG(call, 1) = *out; // Copy prior to first argument
-		SET_TRASH_SAFE(out); // catch functions that don't write out
-		goto func_already_pushed;
 
 	case REB_PATH:
 		label = value;
@@ -860,12 +868,12 @@ do_at_index:
 			// is the function value itself.
 			assert(!ANY_FUNC(label) || value == label);
 
-			// Cannot handle an OP! because prior value is wiped out above
+			// Cannot handle infix because prior value is wiped out above
 			// (Theoretically we could save it if we are DO-ing a chain of
 			// values, and make it work.  But then, a loop of DO/NEXT
 			// may not behave the same as DO-ing the whole block.  Bad.)
 
-			if (IS_OP(value)) Trap_Type_DEAD_END(value);
+			if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) Trap_Type_DEAD_END(value);
 
 			call = Make_Call(
 				out, block, index, ANY_FUNC(label) ? NULL : label, value
@@ -873,7 +881,7 @@ do_at_index:
 
 			index = Do_Args(call, label + 1, block, index + 1);
 
-			goto func_ready_to_call;
+			goto function_ready_to_call;
 		} else
 			index++;
 		break;
@@ -895,7 +903,7 @@ do_at_index:
 		break;
 
 	case REB_SET_PATH:
-		index = Do_Core(out, TRUE, block, index + 1, FALSE);
+		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
 		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NEED_VALUE, label);
@@ -955,29 +963,31 @@ do_at_index:
 	// Should not have a THROWN value if we got here
 	assert(index != THROWN_FLAG && !THROWN(out));
 
-	// If normal eval (not higher precedence of infix op), check for op:
-	if (!op) {
+	// We do not look ahead for infix dispatch if we are currently processing
+	// an infix operation with higher precedence
+	if (lookahead) {
 		value = BLK_SKIP(block, index);
 
-		// Literal function OP! values may occur.
-		if (IS_OP(value)) {
+		// Literal infix function values may occur.
+		if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) {
 			label = NULL;
 			if (Trace_Flags) Trace_Line(block, index, value);
-			goto handle_op;
+			goto do_function_args;
 		}
 
-		// WORD! values may look up to an OP!
 		if (IS_WORD(value)) {
+			// WORD! values may look up to an infix function
+
 			GET_VAR_INTO(&save, value);
-			if (IS_OP(&save)) {
+			if (VAL_GET_EXT(&save, EXT_FUNC_INFIX)) {
 				label = value;
 				value = &save;
 				if (Trace_Flags) Trace_Line(block, index, value);
-				goto handle_op;
+				goto do_function_args;
 			}
 
-			// It may not have been an OP!, but we just paid for a variable
-			// lookup.  If not just asking for a DO/NEXT, use the work!
+			// Perhaps not an infix function, but we just paid for a variable
+			// lookup.  If this isn't just a DO/NEXT, use the work!
 			if (!next) {
 				*out = save;
 				goto do_fetched_word;
@@ -1294,7 +1304,7 @@ finished:
 
 	SET_TRASH_SAFE(out);
 
-	// !!! Should OP! be supported here, but just act like a normal function?
+	// !!! Should infix work here, but just act like a normal function?
 	// Historically that is how it has worked:
 	//
 	//     >> apply :+ [1 2]

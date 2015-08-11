@@ -111,7 +111,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Check_Func_Spec(REBSER *block)
+*/	REBSER *Check_Func_Spec(REBSER *block, REBYTE *exts)
 /*
 **		Check function spec of the form:
 **
@@ -126,6 +126,8 @@
 	REBINT n = 0;
 	REBVAL *value;
 
+	*exts = 0;
+
 	blk = BLK_HEAD(block);
 	words = Collect_Frame(BIND_ALL | BIND_NO_DUP | BIND_NO_SELF, 0, blk);
 
@@ -133,30 +135,50 @@
 	for (; NOT_END(blk); blk++) {
 		switch (VAL_TYPE(blk)) {
 		case REB_BLOCK:
-			// Skip the SPEC block as an arg. Use other blocks as datatypes:
-			if (n > 0) Make_Typeset(VAL_BLK(blk), BLK_SKIP(words, n), 0);
+			// Must be processing a parameter
+			if (n == 0) Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
+
+			// Turn block into typeset for parameter at current index
+			Make_Typeset(VAL_BLK(blk), BLK_SKIP(words, n), 0);
 			break;
+
 		case REB_STRING:
 		case REB_INTEGER:	// special case used by datatype test actions
 			break;
+
 		case REB_WORD:
 		case REB_GET_WORD:
 		case REB_LIT_WORD:
 			n++;
 			break;
+
 		case REB_REFINEMENT:
 			// Refinement only allows logic! and none! for its datatype:
 			n++;
 			value = BLK_SKIP(words, n);
 			VAL_TYPESET(value) = (TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
 			break;
+
+		case REB_TAG:
+			// Tags are used to specify some EXT_FUNC opts switches.  At
+			// present they are only allowed at the head of the spec block,
+			// to try and keep things in at least a slightly canon format.
+			// This may or may not be relaxed in the future.
+			if (n != 0) Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
+
+			if (0 == Compare_String_Vals(blk, ROOT_INFIX_TAG, TRUE))
+				SET_FLAG(*exts, EXT_FUNC_INFIX);
+			else
+				Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
+			break;
+
 		case REB_SET_WORD:
 		default:
 			Trap1_DEAD_END(RE_BAD_FUNC_DEF, blk);
 		}
 	}
 
-	return words; //Create_Frame(words, 0);
+	return words;
 }
 
 
@@ -166,9 +188,14 @@
 /*
 ***********************************************************************/
 {
+	REBYTE exts;
 	//Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_TAIL(spec));
 	VAL_FUNC_SPEC(value) = spec;
-	VAL_FUNC_WORDS(value) = Check_Func_Spec(spec);
+	VAL_FUNC_WORDS(value) = Check_Func_Spec(spec, &exts);
+
+	// We don't expect special flags on natives like <transparent>, <infix>
+	assert(exts == 0);
+
 	VAL_FUNC_CODE(value) = func;
 	VAL_SET(value, type);
 }
@@ -183,6 +210,7 @@
 	REBVAL *spec;
 	REBVAL *body;
 	REBCNT len;
+	REBYTE exts;
 
 	if (
 		!IS_BLOCK(def)
@@ -193,7 +221,7 @@
 	body = VAL_BLK_SKIP(def, 1);
 
 	VAL_FUNC_SPEC(value) = VAL_SERIES(spec);
-	VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec));
+	VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec), &exts);
 
 	if (type != REB_COMMAND) {
 		if (len != 2 || !IS_BLOCK(body)) return FALSE;
@@ -202,7 +230,8 @@
 	else
 		Make_Command(value, def);
 
-	VAL_SET(value, type);
+	VAL_SET(value, type); // clears exts and opts in header...
+	VAL_EXTS_DATA(value) = exts; // ...so we set this after that point
 
 	if (type == REB_FUNCTION || type == REB_CLOSURE)
 		Bind_Relative(VAL_FUNC_WORDS(value), VAL_FUNC_WORDS(value), VAL_FUNC_BODY(value));
@@ -228,8 +257,14 @@
 		body = VAL_BLK_SKIP(args, 1);
 		// Spec given, must be block or *
 		if (IS_BLOCK(spec)) {
+			REBYTE exts;
 			VAL_FUNC_SPEC(value) = VAL_SERIES(spec);
-			VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec));
+			VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec), &exts);
+
+			// !!! This feature seems to be tied to old make function
+			// tricks that should likely be deleted instead of moved forward
+			// with the new EXTS options...
+			assert(exts == 0);
 		} else {
 			if (!IS_STAR(spec)) return FALSE;
 			VAL_FUNC_WORDS(value) = Copy_Block(VAL_FUNC_WORDS(value), 0);

@@ -375,10 +375,10 @@ enum encoding_opts {
 ***********************************************************************/
 
 #define DO_NEXT(o,s,i) \
-	Do_Core((o), TRUE, (s), (i), FALSE)
+	Do_Core((o), TRUE, (s), (i), TRUE)
 
 #define DO_BLOCK(o,s,i) \
-	(THROWN_FLAG != Do_Core((o), FALSE, (s), (i), FALSE))
+	(THROWN_FLAG != Do_Core((o), FALSE, (s), (i), TRUE))
 
 
 /***********************************************************************

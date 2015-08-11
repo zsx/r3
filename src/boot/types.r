@@ -85,7 +85,6 @@ action      function    *        -       -      *		function
 routine     routine     *        -       -      *		function
 rebcode     0           -        -       -      *		function
 command     function    -        -       -      *		function
-op          function    -        -       -      *		function
 closure     function    *        -       -      *		function
 function    function    *        -       -      *		function
 
