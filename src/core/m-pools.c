@@ -878,7 +878,7 @@ crash:
 							  SERIES_FLAGS(series)
 							 );
 					//Dump_Series(series, "Dump");
-					if (SERIES_WIDE(series) == sizeof(REBVAL)) {
+					if (IS_BLOCK_SERIES(series)) {
 						Debug_Values(BLK_HEAD(series), SERIES_TAIL(series), 1024); /* FIXME limit */
 					} else{
 						Dump_Bytes(series->data, (SERIES_TAIL(series)+1) * SERIES_WIDE(series));
@@ -984,7 +984,7 @@ crash:
 				f = 1;
 			}
 #endif
-			if (SERIES_WIDE(series) == sizeof(REBVAL)) {
+			if (IS_BLOCK_SERIES(series)) {
 				blks++;
 				blk_size += SERIES_TOTAL(series);
 				if (f) Debug_Fmt_("BLOCK ");

@@ -552,10 +552,12 @@ static	BOOT_BLK *Boot_Block;
 {
 	LABEL_SERIES(ser, label);
 
-	if (SERIES_WIDE(ser) == sizeof(REBVAL))
+	if (IS_BLOCK_SERIES(ser))
 		Set_Block(value, ser); // VAL_SET(value, REB_BLOCK);
-	else
+	else {
+		assert(SERIES_WIDE(ser) == 1 || SERIES_WIDE(ser) == 2);
 		Set_String(value, ser);	//VAL_SET(value, REB_STRING);
+	}
 }
 
 
