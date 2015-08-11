@@ -1321,7 +1321,7 @@ struct Reb_Routine_Info {
 		struct {
 			void *closure;
 			struct Reb_Function func;
-			CFUNC *dispatcher;
+			void *dispatcher;
 		} cb;
 	} info;
 	void	*cif;
