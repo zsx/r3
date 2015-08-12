@@ -298,7 +298,7 @@ static void Propagate_All_GC_Marks(void);
 		unsigned int len = 0;
 		REBSER *field_fields = field->fields;
 
-		QUEUE_MARK_BLOCK_DEEP(field_fields);
+		MARK_SERIES_ONLY(field_fields);
 		QUEUE_MARK_BLOCK_DEEP(field->spec);
 
 		for (len = 0; len < field_fields->tail; len++) {
