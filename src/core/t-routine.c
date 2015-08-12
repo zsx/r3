@@ -739,10 +739,14 @@ static void ffi_to_rebol(REBRIN *rin,
 		);
 	}
 
-	SAVE_SERIES(ser); //protect from GC
-	ffi_args = (void **) SERIES_DATA(ser);
+	/* ser is NULL if the routine takes no arguments */
+	if (ser != NULL) {
+		SAVE_SERIES(ser); //protect from GC
+		ffi_args = (void **) SERIES_DATA(ser);
 
-	ffi_args_ptrs = Make_Series(SERIES_TOTAL(ser) - 1, sizeof(void *), MKS_NONE); // must be big enough
+	}
+
+	ffi_args_ptrs = Make_Series(SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
 	SAVE_SERIES(ffi_args_ptrs);
 
 	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
@@ -811,7 +815,9 @@ static void ffi_to_rebol(REBRIN *rin,
 			 ffi_args);
 
 	UNSAVE_SERIES(ffi_args_ptrs);
-	UNSAVE_SERIES(ser);
+	if (ser != NULL) {
+		UNSAVE_SERIES(ser);
+	}
 
 	ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
 }
