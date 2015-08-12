@@ -88,3 +88,86 @@ maximum-of: func [
 	]
 	spot
 ]
+
+; A simple iterative implementation; returns 1 for negative
+; numbers. FEEL FREE TO IMPROVE THIS!
+;
+factorial: func [n [integer!] /local res] [
+	if n < 2 [return 1]
+	res: 1
+	; should avoid doing the loop for i = 1...
+	repeat i n [res: res * i]
+]
+
+; This MATH implementation is from Gabrielle Santilli circa 2001, found
+; via http://www.amyresource.it/AGI/.  It implements the much-requested
+; (by new users) idea of * and / running before + and - in math expressions.
+;
+math: function/with [
+	{Process expression taking "usual" operator precedence into account.}
+	expr [block!] {Block to evaluate}
+	/only {Translate operators to their prefix calls, but don't execute}
+	/local res recursion
+][
+	; to allow recursive calling, we need to preserve our state
+	recursion: reduce [
+		:expr-val :expr-op :term-val :term-op :power-val :unary-val
+		:pre-uop :post-uop :prim-val
+	]
+
+	res: if parse expr expression [expr-val]
+
+	set [
+		expr-val expr-op term-val term-op power-val unary-val
+		pre-uop post-uop prim-val
+	] recursion
+
+	either only [res] [do res]
+][
+	slash: to-lit-word first [ / ]
+
+	expr-val: expr-op: none
+
+	expression: [
+		term (expr-val: term-val)
+		any [
+			['+ (expr-op: 'add) | '- (expr-op: 'subtract)]
+			term (expr-val: compose [(expr-op) (expr-val) (term-val)])
+		]
+	]
+
+	term-val: term-op: none
+
+	term: [
+		pow (term-val: power-val)
+		any [
+			['* (term-op: 'multiply) | slash (term-op: 'divide)]
+			pow (term-val: compose [(term-op) (term-val) (power-val)])
+		]
+	]
+
+	power-val: none
+
+	pow: [
+		unary (power-val: unary-val)
+		opt ['** unary (power-val: compose [power (power-val) (unary-val)])]
+	]
+
+	unary-val: pre-uop: post-uop: none
+
+	unary: [
+		(post-uop: pre-uop: [])
+		opt ['- (pre-uop: 'negate)]
+		primary
+		opt ['! (post-uop: 'factorial)]
+		(unary-val: compose [(post-uop) (pre-uop) (prim-val)])
+	]
+
+	prim-val: none
+
+	; WARNING: uses recursion for parens.
+	primary: [
+		set prim-val [number! | word!]
+		| set prim-val paren! (prim-val: translate to-block :prim-val)
+	]
+]
