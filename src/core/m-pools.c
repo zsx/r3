@@ -261,14 +261,14 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 #ifndef NDEBUG
 	const char *env_always_malloc = NULL;
 	env_always_malloc = getenv("R3_ALWAYS_MALLOC");
-	if (env_always_malloc != NULL) {
+	if (env_always_malloc != NULL && atoi(env_always_malloc) != 0) {
 		Debug_Str(
 			"**\n"
 			"** R3_ALWAYS_MALLOC is TRUE in environment variable!\n"
 			"** Memory allocations aren't pooled, expect slowness...\n"
 			"**\n"
 		);
-		PG_Always_Malloc = (atoi(env_always_malloc) != 0);
+		PG_Always_Malloc = TRUE;
 	}
 #endif
 
