@@ -419,8 +419,6 @@ enum {
 			}
 
 			// Otherwise, extract the exit status.
-			// !!! How does CATCH/QUIT know it caught a QUIT?
-			assert(IS_TRASH(TASK_THROWN_ARG));
 			SET_INTEGER(D_OUT, VAL_ERR_STATUS(error));
 			return R_OUT;
 		}
