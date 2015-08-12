@@ -980,6 +980,8 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 	val = D_ARG(1);
 
 	ret = D_OUT;
+
+	SET_UNSET(ret);
 	// unary actions
 	switch(action) {
 		case A_MAKE:
