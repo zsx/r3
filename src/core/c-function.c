@@ -446,7 +446,7 @@
 	Eval_Functions++;
 
 	if (!DO_BLOCK(out, VAL_FUNC_BODY(func), 0)) {
-		if (VAL_ERR_NUM(out) == RE_RETURN)
+		if (VAL_ERR_NUM(out) == RE_RETURN || VAL_ERR_NUM(out) == RE_EXIT)
 			TAKE_THROWN_ARG(out, out);
 	}
 }
@@ -506,7 +506,7 @@
 
 	SAVE_SERIES(body);
 	if (!DO_BLOCK(out, body, 0)) {
-		if (VAL_ERR_NUM(out) == RE_RETURN)
+		if (VAL_ERR_NUM(out) == RE_RETURN || VAL_ERR_NUM(out) == RE_EXIT)
 			TAKE_THROWN_ARG(out, out);
 	}
 	UNSAVE_SERIES(body);

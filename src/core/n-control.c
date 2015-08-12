@@ -647,11 +647,19 @@ enum {
 **
 */	REBNATIVE(exit)
 /*
+**	1: /with
+**	2: value
+**
 ***********************************************************************/
 {
 	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_RETURN;
-	ADD_THROWN_ARG(D_OUT, UNSET_VALUE);
+
+	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
+		VAL_ERR_NUM(D_OUT) = RE_RETURN;
+	else
+		VAL_ERR_NUM(D_OUT) = RE_EXIT;
+
+	ADD_THROWN_ARG(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
 	return R_OUT;
 }

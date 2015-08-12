@@ -139,7 +139,9 @@ either: native [
 ]
 
 exit: native [
-	{Exits a function, returning no value.}
+	{Leave whatever enclosing Rebol state EXIT's block *actually* runs in.}
+	/with {Result for enclosing state (default is UNSET!)}
+	value [any-type!]
 ]
 
 find-script: native [

@@ -136,6 +136,10 @@ options: context [  ; Options supplied to REBOL during startup
 	default-suffix: %.reb ; Used by IMPORT if no suffix is provided
 	file-types: []
 	result-types: none
+
+	; Legacy Behaviors Options (enabled if R3_LEGACY=1 set in OS environment)
+
+	exit-functions-only: false
 ]
 
 script: context [

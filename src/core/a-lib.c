@@ -104,6 +104,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 {
 	int marker;
 	REBUPT bounds;
+	const char *env_legacy = NULL;
 
 	Host_Lib = cast(REBOL_HOST_LIB *, lib);
 
@@ -121,6 +122,25 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 #endif
 
 	Init_Core(rargs);
+
+#if !defined(NDEBUG)
+	env_legacy = getenv("R3_LEGACY");
+	if (env_legacy != NULL && atoi(env_legacy) != 0) {
+		Debug_Str(
+			"**\n"
+			"** R3_LEGACY is TRUE in environment variable!\n"
+			"** system/options relating to historical behaviors are heeded:\n"
+			"**\n"
+			"** system/options: [\n"
+			"**     (...)\n"
+			"**     exit-functions-only: false\n"
+			"** ]\n"
+			"**\n"
+		);
+		PG_Legacy = TRUE;
+	}
+#endif
+
 	GC_Active = TRUE; // Turn on GC
 	if (rargs->options & RO_TRACE) {
 		Trace_Level = 9999;
@@ -198,7 +218,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 // Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		if (VAL_ERR_NUM(error) == RE_QUIT) {
+		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
 			int status = VAL_ERR_STATUS(error);
 			Shutdown_Core();
 			OS_EXIT(status);
@@ -361,7 +381,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 // Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		if (VAL_ERR_NUM(error) == RE_QUIT) {
+		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
 			int status = VAL_ERR_STATUS(error);
 			Shutdown_Core();
 			OS_EXIT(status);

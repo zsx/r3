@@ -384,10 +384,11 @@
 ***********************************************************************/
 {
 	REBVAL err;
+	REBVAL arg;
 	VAL_SET(&err, REB_ERROR);
 	VAL_ERR_NUM(&err) = RE_QUIT;
-	VAL_ERR_STATUS(&err) = status;
-	Throw(&err, NULL);
+	SET_INTEGER(&arg, status);
+	Throw(&err, &arg);
 }
 
 
@@ -884,6 +885,59 @@
 
 	return 0;
 	// Else: Let all other errors return as values.
+}
+
+
+/***********************************************************************
+**
+*/	int Get_Error_Exit_Status(const REBVAL *err)
+/*
+**		This routine's job is to turn an arbitrary value into an
+**		operating system exit status:
+**
+**			https://en.wikipedia.org/wiki/Exit_status
+**
+**		The QUIT native is only allowed to return INTEGER! values,
+**		as it is used to quit to the OS and has no other purpose.
+**		As an experiment for the moment (that may or may not be
+**		final), the EXIT native is used to exit whatever the
+**		current "execution context" is; which may be a paren in
+**		a parse rule, or a function, or just the command line
+**		itself.  Hence EXIT can get a non-integer! and reach the
+**		point of needing to quit the system.
+**
+***********************************************************************/
+{
+	REBVAL arg;
+	TAKE_THROWN_ARG(&arg, err);
+
+	if (IS_INTEGER(&arg)) {
+		// Fairly obviously, an integer should return an integer
+		// result.  But Rebol integers are 64 bit and signed, while
+		// exit statuses don't go that large.
+		//
+		return VAL_INT32(&arg);
+	}
+	else if (IS_UNSET(&arg) || IS_NONE(&arg)) {
+		// An unset would happen with just QUIT or EXIT and no /WITH,
+		// so treating that as a 0 for success makes sense.  A NONE!
+		// seems like nothing to report as well, for instance:
+		//
+		//     exit/with if badthing [badthing-code]
+		//
+		return 0;
+	}
+	else if (IS_ERROR(&arg)) {
+		// Rebol errors do have an error number in them, and if your
+		// program tries to return a Rebol error it seems it wouldn't
+		// hurt to try using that.
+		//
+		return VAL_ERR_NUM(&arg);
+	}
+
+	// Just 1 otherwise.
+	//
+	return 1;
 }
 
 

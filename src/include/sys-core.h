@@ -668,6 +668,33 @@ void Panic_Core(REBINT id, ...);
 
 /***********************************************************************
 **
+**	Legacy Modes Checking
+**
+**		Ren/C wants to try out new things that will (or likely will) make
+**		it into the official release.  But it also wants transitioning
+**		feasible from Rebol2 and Rebol3-alpha, and without paying
+**		much to check for "old" modes if they're not being used.  So
+**		system/options contains flags used for enabling specific
+**		features relied upon by old code.
+**
+**		In order to keep these easements from adding to the measured
+**		performance cost in the system, they are only supported in
+**		debug builds.  Also, none of them are checked by default...
+**		you must have run the executable with an environment variable
+**		set as R3_LEGACY=1, which sets PG_Legacy so the check is done.
+**
+***********************************************************************/
+
+#ifdef NDEBUG
+	#define LEGACY(option) FALSE
+#else
+	#define LEGACY(option) \
+		(PG_Legacy && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))))
+#endif
+
+
+/***********************************************************************
+**
 **	Structures
 **
 ***********************************************************************/

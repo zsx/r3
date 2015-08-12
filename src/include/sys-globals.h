@@ -58,9 +58,9 @@ PVAR REBI64 PG_Boot_Time;	// Counter when boot started
 PVAR REBINT Current_Year;
 PVAR REB_OPTS *Reb_Opts;
 
-/* for memory allocation trouble shooting */
 #ifndef NDEBUG
-    PVAR REBOOL PG_Always_Malloc;
+	PVAR REBOOL PG_Always_Malloc;	// For memory-related troubleshooting
+	PVAR REBOOL PG_Legacy;			// Need to check for old operation modes
 #endif
 
 // This signal word should be thread-local, but it will not work

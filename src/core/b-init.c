@@ -1067,6 +1067,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 #ifndef NDEBUG
 	PG_Always_Malloc = FALSE;
+	PG_Legacy = FALSE;
 #endif
 
 	// Globals
@@ -1178,11 +1179,13 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		// an error, at which point the system will Panic out.
 		// !!! TBD: Enforce not being *able* to trigger QUIT or HALT
 		assert(
-			VAL_ERR_NUM(error) != RE_HALT && VAL_ERR_NUM(error) != RE_QUIT
+			VAL_ERR_NUM(error) != RE_HALT
+			&& VAL_ERR_NUM(error) != RE_QUIT
+			&& VAL_ERR_NUM(error) != RE_EXIT
 		);
 
 		// For the moment in release builds, let a QUIT slide (we shouldn't)
-		if (VAL_ERR_NUM(error) == RE_QUIT) {
+		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
 			int status = VAL_ERR_STATUS(error);
 			Shutdown_Core();
 			OS_EXIT(status);

@@ -1002,7 +1002,7 @@ struct Reb_Object {
 
 union Reb_Error_Data {
 	REBSER *frame;      // error object frame if user-facing ERROR!
-	REBINT status;      // Exit status if QUIT
+	/* ... */			// THROWN() errors could put something else here
 };
 
 union Reb_Error_Extra {
@@ -1026,9 +1026,10 @@ struct Reb_Error {
 // Value Accessors:
 #define	VAL_ERR_NUM(v)		((v)->data.error.num)
 #define VAL_ERR_OBJECT(v)	((v)->data.error.data.frame)
-#define VAL_ERR_STATUS(v)   ((v)->data.error.data.status)
 #define VAL_ERR_SYM(v)		((v)->data.error.extra.sym)
 #define VAL_ERR_UNWIND(v)   ((v)->data.error.extra.unwind)
+
+#define VAL_ERR_STATUS(v)   Get_Error_Exit_Status(v)
 
 // A throw-style may need an associated value (such as how a RETURN needs to
 // have a value to be returned).  Yet an ERROR! being a value cannot hold the
