@@ -143,7 +143,7 @@ make-http-request: func [
 	]
 	if content [
 		content: to binary! content
-		repend result ["Content-Length: " length? content CRLF]
+		repend result ["Content-Length: " length content CRLF]
 	]
 	append result CRLF
 	result: to binary! result
@@ -377,7 +377,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
 		headers/transfer-encoding = "chunked" [
 			data: conn/data
 			;clear the port data only at the beginning of the request --Richard
-			unless port/data [port/data: make binary! length? data]
+			unless port/data [port/data: make binary! length data]
 			out: port/data
 			until [
 				either parse data [
@@ -417,7 +417,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
 		]
 		integer? headers/content-length [
 			port/data: conn/data
-			either headers/content-length <= length? port/data [
+			either headers/content-length <= length port/data [
 				state/state: 'ready
 				conn/data: make binary! 32000
 				res: state/awake make event! [type: 'custom port: port code: 0]
@@ -548,10 +548,20 @@ sys/make-scheme [
 				]
 			]
 		]
+		length: func [
+			port [port!]
+		] [
+			; actor is not an object!, so this isn't a recursive length call
+			either port/data [length port/data] [0]
+		]
+
+		; !!! DEPRECATED in favor of length above, but left working for now.
+		; Since this isn't an object, we can't say 'length? :length'.  So
+		; we repeat the body, given that it's short and this will be deleted.
 		length?: func [
 			port [port!]
 		] [
-			either port/data [length? port/data] [0]
+			either port/data [length port/data] [0]
 		]
 	]
 ]

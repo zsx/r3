@@ -514,7 +514,7 @@
 			n = Int32(D_ARG(AN_COUNT));
 			if (n <= 0) break;
 		}
-		Append_Map(series, arg, Partial1(arg, D_ARG(AN_LENGTH)));
+		Append_Map(series, arg, Partial1(arg, D_ARG(AN_LIMIT)));
 		break;
 
 	case A_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
@@ -522,7 +522,7 @@
 		*D_OUT = *D_ARG(3);
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		n = Length_Map(series);
 		SET_INTEGER(D_OUT, n);
 		break;

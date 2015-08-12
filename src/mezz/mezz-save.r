@@ -37,6 +37,14 @@ save: function [
 	/compress {Save in a compressed format or not}
 	method [logic! word!] "true = compressed, false = not, 'script = encoded string"
 ][
+	;-- SAVE function historically has a refinement called /LENGTH, that
+	;-- saves a header attribute as [length: ...].  Yet the LENGTH? function
+	;-- has been changed to use just the word LENGTH.
+	;--
+	save-length: length			; refinement passed in
+	length-of: :lib/length		; traditional LENGTH function
+	unset 'length				; helps avoid overlooking the ambiguity
+
 	;-- Special datatypes use codecs directly (e.g. PNG image file):
 	if lib/all [
 		not header ; User wants to save value as script, not data file
@@ -47,7 +55,7 @@ save: function [
 	]
 
 	;-- Compressed scripts and script lengths require a header:
-	if any [length method] [
+	if any [save-length method] [
 		header: true
 		header-data: any [header-data []]
 	]
@@ -84,12 +92,12 @@ save: function [
 			]
 		]
 
-		if length [
+		if save-length [
 			append header-data [length: #[true]] ; any true? value will work
 		]
 
 		unless compress: true? find select header-data 'options 'compress [method: none]
-		length: true? select header-data 'length
+		save-length: true? select header-data 'length
 		header-data: body-of header-data
 	]
 
@@ -105,7 +113,7 @@ save: function [
 		; File content is encoded as base-64:
 		method = 'script [data: mold64 data]
 		not binary? data [data: to-binary data]
-		length [change find/tail header-data 'length length? data]
+		save-length [change find/tail header-data 'length (length-of data)]
 		header-data [insert data ajoin ['REBOL #" " mold header-data newline]]
 	]
 	case [

@@ -146,7 +146,7 @@ make-scheme: func [
 
 	; If actor is block build a non-contextual actor object:
 	if block? :def/actor [
-		actor: make object! (length? def/actor) / 4
+		actor: make object! (length def/actor) / 4
 		foreach [name func* args body] def/actor [ ; (maybe PARSE is better here)
 			name: to word! name ; bug!!! (should not be necessary?)
 			repend actor [name func args body]

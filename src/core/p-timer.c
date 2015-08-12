@@ -98,7 +98,7 @@ act_blk:
 		CLR_FLAG(Eval_Signals, SIG_EVENT_PORT);
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		SET_INTEGER(D_OUT, VAL_TAIL(state));
 		break;
 

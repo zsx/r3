@@ -33,7 +33,7 @@ intern: function [
 	"Imports (internalizes) words/values from the lib into the user context."
 	data [block! any-word!] "Word or block of words to be added (deeply)"
 ][
-	index: 1 + length? usr: system/contexts/user ; for optimization below (index for resolve)
+	index: 1 + length usr: system/contexts/user ; for optimization below (index for resolve)
 	data: bind/new :data usr   ; Extend the user context with new words
 	resolve/only usr lib index ; Copy only the new values into the user context
 	:data
@@ -333,7 +333,7 @@ load: function [
 			all
 			header
 			empty? data
-			1 < length? data
+			1 < length data
 		][data: first data]
 	]
 	:data
@@ -364,7 +364,7 @@ do-needs: function [
 		tuple? :needs [
 			case [
 				needs > system/version [cause-error 'syntax 'needs reduce ['core needs]]
-				3 >= length? needs  none  ; no platform id
+				3 >= length needs  none  ; no platform id
 				(needs and 0.0.0.255.255) != (system/version and 0.0.0.255.255) [
 					cause-error 'syntax 'needs reduce ['core needs] ; must match
 				]
@@ -377,7 +377,7 @@ do-needs: function [
 	]
 
 	; Parse the needs dialect [source |version| |checksum-hash|]
-	mods: make block! length? needs
+	mods: make block! length needs
 	name: vers: hash: none
 	unless parse needs [
 		here:
@@ -493,7 +493,7 @@ load-module: function [
 		]
 		block? source [
 			if any [version check as] [cause-error 'script 'bad-refines none]
-			data: make block! length? source
+			data: make block! length source
 			unless parse source [
 				any [
 					tmp:

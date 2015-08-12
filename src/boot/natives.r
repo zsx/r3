@@ -376,7 +376,7 @@ collect-words: native [
 checksum: native [
 	{Computes a checksum, CRC, or hash.}
 	data [binary!] {Bytes to checksum}
-	/part length {Length of data}
+	/part limit {Length of data}
 	/tcp {Returns an Internet TCP 16-bit checksum}
 	/secure {Returns a cryptographically secure checksum}
 	/hash {Returns a hash value}
@@ -390,14 +390,19 @@ checksum: native [
 compress: native [
 	{Compresses a string series and returns it.}
 	data [binary! string!] {If string, it will be UTF8 encoded}
-	/part length {Length of data (elements)}
+	/part limit {Length of data (elements)}
 	/gzip {Use GZIP checksum}
 ]
 
+;-- !!! This used to use /PART LENGTH, but when LENGTH? was migrate to LENGTH
+;-- most routines taking a /PART changed their parameter name to LIMIT.  This
+;-- routine has a /LIMIT refinement that conflicts, however.  Renamed LENGTH
+;-- to LIM for the moment, but this interface should be given a review for
+;-- naming, in addition to what it means to decompress a /PART of the input.
 decompress: native [
 	{Decompresses data. Result is binary.}
 	data [binary!] {Data to decompress}
-	/part length {Length of compressed data (must match end marker)}
+	/part lim {Length of compressed data (must match end marker)}
 	/gzip {Use GZIP checksum}
 	/limit size {Error out if result is larger than this}
 ]
@@ -520,14 +525,14 @@ lowercase: native [
 	"Converts string of characters to lowercase."
 	string [any-string! char!] {(modified if series)}
 	/part {Limits to a given length or position}
-	length [number! any-string!]
+	limit [number! any-string!]
 ]
 
 uppercase: native [
 	"Converts string of characters to uppercase."
 	string [any-string! char!] {(modified if series)}
 	/part {Limits to a given length or position}
-	length [number! any-string!]
+	limit [number! any-string!]
 ]
 
 dehex: native [
@@ -570,7 +575,7 @@ to-hex: native [
 	len [integer!]
 ]
 
-type?: native [
+type-of: native [
 	{Returns the datatype of a value.}
 	value [any-type!]
 	/word {Returns the datatype as a word}

@@ -145,7 +145,7 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
 	]
 	if any [code decl] [cmt: none]
 	if cmt [
-		len: 32 - length? str
+		len: 32 - length str
 		loop to-integer len / 4 [append str tab]
 		any [
 			if define [repend str cmt]
@@ -421,7 +421,7 @@ foreach-record-NO-RETURN type boot-types [
 	str: uppercase form type/name
 	replace/all str #"-" #"_"
 	def: join {#define IS_} [str "(v)"]
-	len: 31 - length? def
+	len: 31 - length def
 	loop to-integer len / 4 [append def tab]
 	emit [def "(VAL_TYPE(v)==REB_" str ")" newline]
 ]
@@ -635,7 +635,7 @@ foreach str boot-strings [
 ]
 
 emit ["#define RS_MAX" tab n lf]
-emit ["#define RS_SIZE" tab length? out lf]
+emit ["#define RS_SIZE" tab length out lf]
 boot-strings: to-binary code
 
 ;-- Generate Canonical Words (must follow datatypes above!) ------------------
@@ -958,7 +958,7 @@ nats: append copy boot-booters boot-natives
 n: boot-sys
 ;while [n: find n 'native] [
 ;	if set-word? first back n [
-;		print index? n
+;		print index-of n
 ;		append nats copy/part back n 3
 ;	]
 ;	n: next next n
@@ -1040,8 +1040,8 @@ write src/b-boot.c out
 
 ;-- Output stats:
 print [
-	"Compressed" length? data "to" length? comp-data "bytes:"
-	to-integer ((length? comp-data) / (length? data) * 100)
+	"Compressed" length data "to" length comp-data "bytes:"
+	to-integer ((length comp-data) / (length data) * 100)
 	"percent of original"
 ]
 
@@ -1066,8 +1066,8 @@ emit-head "Bootstrap Structure and Root Module" %boot.h
 emit [
 {
 #define MAX_NATS      } nat-count {
-#define NAT_UNCOMPRESSED_SIZE } length? data {
-#define NAT_COMPRESSED_SIZE } length? comp-data {
+#define NAT_UNCOMPRESSED_SIZE } length data {
+#define NAT_COMPRESSED_SIZE } length comp-data {
 #define CHECK_TITLE   } checksum to binary! title {
 
 extern const REBYTE Native_Specs[];

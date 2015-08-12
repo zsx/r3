@@ -859,7 +859,7 @@ find_none:
 		SET_IMAGE(value, series); // use series var not func
 		break;
 
-	case A_INDEXQ:
+	case A_INDEX_OF:
 		if (D_REF(2)) {
 			VAL_SET(D_OUT, REB_PAIR);
 			VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
@@ -869,7 +869,7 @@ find_none:
 			SET_INTEGER(D_OUT, index + 1);
 			return R_OUT;
 		}
-	case A_LENGTHQ:
+	case A_LENGTH:
 		SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
 		return R_OUT;
 

@@ -105,7 +105,7 @@ class-types: [universal application context-specific private]
 parse-asn: func [
 	data [binary!]
 	/local
-		mode d constructed? class tag ln length result val
+		mode d constructed? class tag ln size result val
 ] [
 	result: make block! 16
 	mode: 'type
@@ -125,19 +125,26 @@ parse-asn: func [
 						val: d and 31
 					]
 				]
-				mode: 'length
+				mode: 'size
 			]
 
-			length [
-				length: d and 127
+			size [
+				size: d and 127
 				unless zero? (d and 128) [
 					; long form
-					ln: length
-					length: to integer! copy/part next data length
+					ln: size
+					size: to integer! copy/part next data size
 					data: skip data ln
 				]
-				either zero? length [
-					append/only result compose/deep [(tag) [(either constructed? ["constructed"] ["primitive"]) (index? data) (length) #[none]]]
+				either zero? size [
+					append/only result compose/deep [
+						(tag) [
+							(either constructed? ["constructed"] ["primitive"])
+							(index-of data)
+							(size)
+							#[none]
+						]
+					]
 					mode: 'type
 				] [
 					mode: 'value
@@ -147,8 +154,15 @@ parse-asn: func [
 			value [
 				switch class [
 					universal [
-						val: copy/part data length
-						append/only result compose/deep [(tag) [(either constructed? ["constructed"] ["primitive"]) (index? data) (length) (either constructed? [none] [val])]]
+						val: copy/part data size
+						append/only result compose/deep [
+							(tag) [
+								(either constructed? ["constructed"] ["primitive"])
+								(index-of data)
+								(size)
+								(either constructed? [none] [val])
+							]
+						]
 						if constructed? [
 							poke second last result 4
 							parse-asn val
@@ -156,12 +170,12 @@ parse-asn: func [
 					]
 
 					context-specific [
-						append/only result compose/deep [(tag) [(val) (length)]]
-						parse-asn copy/part data length
+						append/only result compose/deep [(tag) [(val) (size)]]
+						parse-asn copy/part data size
 					]
 				]
 
-				data: skip data length - 1
+				data: skip data size - 1
 				mode: 'type
 			]
 		]
@@ -246,7 +260,7 @@ client-hello: func [
 
 	cs-data: rejoin values-of cipher-suites
 
-	beg: length? ctx/msg
+	beg: length ctx/msg
 	emit ctx [
 		#{16}						; protocol type (22=Handshake)
 		ctx/version					; protocol version (3|1 = TLS1.0)
@@ -256,14 +270,14 @@ client-hello: func [
 		ctx/version					; max supported version by client (TLS1.0)
 		ctx/client-random			; random struct (4 bytes gmt unix time + 28 random bytes)
 		#{00}						; session ID length
-		to-bin length? cs-data 2	; cipher suites length
+		to-bin length cs-data 2		; cipher suites length
 		cs-data						; cipher suites list
 		#{01}						; compression method length
 		#{00}						; no compression
 	]
 
 	; set the correct msg lengths
-	change at ctx/msg beg + 7 to-bin len: length? at ctx/msg beg + 10 3
+	change at ctx/msg beg + 7 to-bin len: length at ctx/msg beg + 10 3
 	change at ctx/msg beg + 4 to-bin len + 4 2
 
 	append clear ctx/handshake-messages copy at ctx/msg beg + 6
@@ -303,19 +317,19 @@ client-key-exchange: func [
 		]
 	]
 
-	beg: length? ctx/msg
+	beg: length ctx/msg
 	emit ctx [
 		#{16}						; protocol type (22=Handshake)
 		ctx/version					; protocol version (3|1 = TLS1.0)
 		#{00 00}					; length of SSL record data
 		#{10}						; protocol message type	(16=ClientKeyExchange)
 		#{00 00 00} 				; protocol message length
-		to-bin length? key-data 2	; length of the key (2 bytes)
+		to-bin length key-data 2	; length of the key (2 bytes)
 		key-data
 	]
 
 	; set the correct msg lengths
-	change at ctx/msg beg + 7 to-bin len: length? at ctx/msg beg + 10 3
+	change at ctx/msg beg + 7 to-bin len: length at ctx/msg beg + 10 3
 	change at ctx/msg beg + 4 to-bin len + 4 2
 
 	; make all secure data
@@ -363,7 +377,7 @@ encrypted-handshake-msg: func [
 	emit ctx [
 		#{16}						; protocol type (22=Handshake)
 		ctx/version					; protocol version (3|1 = TLS1.0)
-		to-bin length? message 2	; length of SSL record data
+		to-bin length message 2	; length of SSL record data
 		message
 	]
 	append ctx/handshake-messages plain-msg
@@ -378,7 +392,7 @@ application-data: func [
 	emit ctx [
 		#{17}						; protocol type (23=Application)
 		ctx/version					; protocol version (3|1 = TLS1.0)
-		to-bin length? message 2	; length of SSL record data
+		to-bin length message 2		; length of SSL record data
 		message
 	]
 	return ctx/msg
@@ -392,7 +406,7 @@ alert-close-notify: func [
 	emit ctx [
 		#{15}						; protocol type (21=Alert)
 		ctx/version					; protocol version (3|1 = TLS1.0)
-		to-bin length? message 2	; length of SSL record data
+		to-bin length message 2		; length of SSL record data
 		message
 	]
 	return ctx/msg
@@ -427,14 +441,14 @@ encrypt-data: func [
 			to-bin ctx/seq-num-w 8				; sequence number (64-bit int in R3)
 			any [msg-type #{17}]				; msg type
 			ctx/version							; version
-			to-bin length? data 2				; msg content length
+			to-bin length data 2				; msg content length
 			data								; msg content
 		] ctx/hash-method decode 'text ctx/client-mac-key
 	]
 
 	if ctx/block-size [
 		; add the padding data in CBC mode
-		padding: ctx/block-size - (1 + (length? data) // ctx/block-size)
+		padding: ctx/block-size - (1 + (length data) // ctx/block-size)
 		len: 1 + padding
 		append data head insert/dup make binary! len to-bin padding 1 len
 	]
@@ -539,8 +553,8 @@ parse-protocol: func [
 	return context [
 		type: proto
 		version: pick [ssl-v3 tls-v1.0 tls-v1.1] data/3 + 1
-		length: to integer! copy/part at data 4 2
-		messages: copy/part at data 6 length
+		size: to integer! copy/part at data 4 2
+		messages: copy/part at data 6 size
 	]
 ]
 
@@ -558,7 +572,7 @@ parse-messages: func [
 		debug ["decrypting..."]
 		if ctx/block-size [
 			; deal with padding in CBC mode
-			data: copy/part data (length? data) - 1 - (to integer! last data)
+			data: copy/part data (length data) - 1 - (to integer! last data)
 			debug ["depadding..."]
 		]
 		debug ["data:" data]
@@ -799,9 +813,9 @@ parse-messages: func [
 		application [
 			append result msg-obj: context [
 				type: 'app-data
-				content: copy/part data (length? data) - ctx/hash-size
+				content: copy/part data (length data) - ctx/hash-size
 			]
-			len: length? msg-obj/content
+			len: length msg-obj/content
 			mac: copy/part skip data len ctx/hash-size
 			; check the MAC
 			if mac <> checksum/method/key rejoin [
@@ -833,9 +847,9 @@ parse-response: func [
 		proto/messages: messages
 	]
 
-	debug ["processed protocol type:" proto/type "messages:" length? proto/messages]
+	debug ["processed protocol type:" proto/type "messages:" length proto/messages]
 
-	unless tail? skip msg proto/length + 5 [do make error! "invalid length of response fragment"]
+	unless tail? skip msg proto/size + 5 [do make error! "invalid length of response fragment"]
 
 	return proto
 ]
@@ -848,7 +862,7 @@ prf: func [
 	/local
 		len mid s-1 s-2 a p-sha1 p-md5
 ] [
-	len: length? secret
+	len: length secret
 	mid: to integer! .5 * (len + either odd? len [1] [0])
 
 	s-1: copy/part secret mid
@@ -858,7 +872,7 @@ prf: func [
 
 	p-md5: clear #{}
 	a: seed ; A(0)
-	while [output-length > length? p-md5] [
+	while [output-length > length p-md5] [
 		a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
 		append p-md5 checksum/method/key rejoin [a seed] 'md5 decode 'text s-1
 
@@ -866,7 +880,7 @@ prf: func [
 
 	p-sha1: clear #{}
 	a: seed ; A(0)
-	while [output-length > length? p-sha1] [
+	while [output-length > length p-sha1] [
 		a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
 		append p-sha1 checksum/method/key rejoin [a seed] 'sha1 decode 'text s-2
 	]
@@ -909,7 +923,7 @@ do-commands: func [
 			)
 		]
 	]
-	debug ["writing bytes:" length? ctx/msg]
+	debug ["writing bytes:" length ctx/msg]
 	ctx/resp: clear []
 	write ctx/connection ctx/msg
 
@@ -946,12 +960,12 @@ tls-read-data: func [
 	port-data [binary!]
 	/local len data fragment next-state
 ] [
-	debug ["tls-read-data:" length? port-data "bytes"]
+	debug ["tls-read-data:" length port-data "bytes"]
 	data: append ctx/data-buffer port-data
 	clear port-data
 
 	while [
-		5 = length? copy/part data 5
+		5 = length copy/part data 5
 	] [
 		len: 5 + to integer! copy/part at data 4 2
 
@@ -959,12 +973,12 @@ tls-read-data: func [
 
 		fragment: copy/part data len
 
-		if len > length? fragment [
-			debug ["incomplete fragment: read" length? fragment "of" len "bytes"]
+		if len > length fragment [
+			debug ["incomplete fragment: read" length fragment "of" len "bytes"]
 			break
 		]
 
-		debug ["received bytes:" length? fragment newline "parsing response..."]
+		debug ["received bytes:" length fragment newline "parsing response..."]
 
 		append ctx/resp parse-response ctx fragment
 
@@ -975,7 +989,12 @@ tls-read-data: func [
 		data: skip data len
 
 		if all [tail? data find next-state #complete] [
-			debug ["READING FINISHED" length? head ctx/data-buffer index? data same? tail ctx/data-buffer data]
+			debug [
+				"READING FINISHED"
+				length head ctx/data-buffer
+				index-of data
+				same? tail ctx/data-buffer data
+			]
 			clear ctx/data-buffer
 			return true
 		]
@@ -1034,7 +1053,7 @@ tls-awake: function [event [event!]] [
 			return false
 		]
 		read [
-			debug ["Read" length? port/data "bytes proto-state:" tls-port/state/protocol-state]
+			debug ["Read" length port/data "bytes proto-state:" tls-port/state/protocol-state]
 			complete?: tls-read-data tls-port/state port/data
 			application?: false
 			foreach proto tls-port/state/resp [
@@ -1189,8 +1208,16 @@ sys/make-scheme [
 		query: func [port [port!]] [
 			all [port/state query port/state/connection]
 		]
+		length: func [port [port!]] [
+			; actor is not an object!, so this isn't a recursive length call
+			either port/data [length port/data] [0]
+		]
+
+		; !!! DEPRECATED in favor of length above, but left working for now.
+		; Since this isn't an object, we can't say 'length? :length'.  So
+		; we repeat the body, given that it's short and this will be deleted.
 		length?: func [port [port!]] [
-			either port/data [length? port/data] [0]
+			either port/data [length port/data] [0]
 		]
 	]
 ]

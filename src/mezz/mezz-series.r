@@ -18,12 +18,12 @@ empty?: make :tail? [
 	]
 ]
 
-offset?: func [
+offset-of: func [
 	"Returns the offset between two series positions."
 	series1 [series!]
 	series2 [series!]
 ][
-	subtract index? series2 index? series1
+	subtract index-of series2 index-of series1
 ]
 
 found?: func [
@@ -37,7 +37,7 @@ last?: single?: func [
 	"Returns TRUE if the series length is 1."
 	series [series! port! map! tuple! bitset! object! gob! any-word!]
 ][
-	1 = length? series
+	1 = length series
 ]
 
 extend: func [
@@ -76,8 +76,18 @@ charset: func [
 	chars [string! block! binary! char! integer!]
 	/length "Preallocate this many bits"
 	len [integer!] "Must be > 0"
+	/local charset-length length-of
 ][
-	either length [append make bitset! len chars] [make bitset! chars]
+	;-- CHARSET function historically has a refinement called /LENGTH, that
+	;-- is used to preallocate bits.  Yet the LENGTH? function has been
+	;-- changed to use just the word LENGTH.  We could change this to
+	;-- /CAPACITY SIZE or something similar, but keep it working for now.
+	;--
+	charset-length: length		; refinement passed in
+	length-of: :lib/length		; traditional LENGTH function
+	unset 'length				; helps avoid overlooking the ambiguity
+
+	either charset-length [append make bitset! len chars] [make bitset! chars]
 ]
 
 array: func [
@@ -90,7 +100,7 @@ array: func [
 	if block? size [
 		if tail? rest: next size [rest: none]
 		unless integer? set/any 'size first size [
-			cause-error 'script 'expect-arg reduce ['array 'size type? :size]
+			cause-error 'script 'expect-arg reduce ['array 'size type-of :size]
 		]
 	]
 	block: make block! size
@@ -127,13 +137,13 @@ replace: func [
 		bitset? :search  1
 		any-string? target [
 			if any [not any-string? :search tag? :search] [search: form :search]
-			length? :search
+			length :search
 		]
 		binary? target [
 			unless binary? :search [search: to-binary :search] ; Must be convertable
-			length? :search
+			length :search
 		]
-		any-block? :search [length? :search]
+		any-block? :search [length :search]
 		true  1
 	]
 	; /all and /case checked before the while, /tail after
@@ -163,10 +173,10 @@ reword: func [
 	/local char-end vals word wtype cword out fout rule a b w v c
 ][
 	assert/type [local none!]  ; Prevent locals injection
-	unless into [output: make source length? source]
+	unless into [output: make source length source]
 	; Determine the datatype to convert the keywords to internally
 	; Case-sensitive map keys must be binary, tags are special-cased by parse
-	wtype: lib/case [case binary! tag? source string! 'else type? source]
+	wtype: lib/case [case binary! tag? source string! 'else type-of source]
 	; Determine the escape delimiter(s), if any
 	lib/case/all [
 		not escape [char: "$"]
@@ -187,7 +197,7 @@ reword: func [
 			empty? char-end  ; If we have char-end, it gets appended to the keys
 			foreach [w v] values [
 				; Key types must match wtype and no unset values allowed
-				if any [unset? :v wtype <> type? :w] [break/return false]
+				if any [unset? :v wtype <> type-of :w] [break/return false]
 				true
 			]
 		] [vals: values]  ; Success, so use it
@@ -195,7 +205,7 @@ reword: func [
 		; Last duplicate keyword wins; empty keywords, unset or none vals removed
 		; Any trailing delimiter is added to the end of the key for convenience
 		all [
-			vals: make map! length? values  ; Make a new map internally
+			vals: make map! length values  ; Make a new map internally
 			not only block? values  ; Should we evaluate value expressions?
 		] [
 			while [not tail? values] [
@@ -203,7 +213,7 @@ reword: func [
 				set/any 'v do/next values 'values
 				if any [set-word? :w lit-word? :w] [w: to word! :w]
 				lib/case [
-					wtype = type? :w none
+					wtype = type-of :w none
 					wtype <> binary! [w: to wtype :w]
 					any-string? :w [w: to binary! :w]
 					'else [w: to binary! to string! :w]
@@ -218,7 +228,7 @@ reword: func [
 			foreach [w v] values [  ; foreach can be used on all values types
 				if any [set-word? :w lit-word? :w] [w: to word! :w]
 				lib/case [
-					wtype = type? :w none
+					wtype = type-of :w none
 					wtype <> binary! [w: to wtype :w]
 					any-string? :w [w: to binary! :w]
 					'else [w: to binary! to string! :w]
@@ -231,11 +241,11 @@ reword: func [
 		]
 	]
 	; Construct the reword rule
-	word: make block! 2 * length? vals
+	word: make block! 2 * length vals
 	foreach w vals [word: reduce/into [w '|] word]
 	word: head remove back word
 	; Convert keyword if the type doesn't match
-	cword: pick [(w: to wtype w)] wtype <> type? source
+	cword: pick [(w: to wtype w)] wtype <> type-of source
 	set/any [out: fout:] pick [
 		[   ; Convert to string if type combination needs it
 			(output: insert output to string! copy/part a b)
@@ -259,7 +269,7 @@ reword: func [
 		[a: any [to word b: [escape | skip]] to end fout]
 	][
 		; Starting escape string defined, use regular TO
-		if wtype <> type? char [char: to wtype char]
+		if wtype <> type-of char [char: to wtype char]
 		[a: any [to char b: char [escape | none]] to end fout]
 	]
 	either case [parse/case source rule] [parse source rule]
@@ -273,18 +283,18 @@ move: func [
 	source [series!] "Source series (modified)"
 	offset [integer!] "Offset to move by, or index to move to"
 	/part "Move part of a series"
-	length [integer!] "The length of the part to move"
+	limit [integer!] "The length of the part to move"
 	/skip "Treat the series as records of fixed size" ;; SKIP redefined
 	size [integer!] "Size of each record"
 	/to "Move to an index relative to the head of the series" ;; TO redefined
 ][
-	unless length [length: 1]
+	unless limit [limit: 1]
 	if skip [
 		if 1 > size [cause-error 'script 'out-of-range size]
 		offset: either to [offset - 1 * size + 1] [offset * size]
-		length: length * size
+		limit: limit * size
 	]
-	part: take/part source length
+	part: take/part source limit
 	insert either to [at head source offset] [
 		lib/skip source offset
 	] part
@@ -304,14 +314,14 @@ extract: func [
 ][  ; Default value is "" for any-string! output
 	if zero? width [return any [output make series 0]]  ; To avoid an infinite loop
 	len: either positive? width [  ; Length to preallocate
-		divide length? series width  ; Forward loop, use length
+		divide length series width  ; Forward loop, use length
 	][
-		divide index? series negate width  ; Backward loop, use position
+		divide index-of series negate width  ; Backward loop, use position
 	]
 	unless index [pos: 1]
 	either block? pos [
 		unless parse pos [some [number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
-		unless output [output: make series len * length? pos]
+		unless output [output: make series len * length pos]
 		if all [not default any-string? output] [value: copy ""]
 		forskip series width [forall pos [
 			if none? set/any 'val pick series pos/1 [set/any 'val value]
@@ -374,9 +384,9 @@ format: function [
 	val: 0
 	foreach rule rules [
 		if word? :rule [rule: get rule]
-		val: val + switch/default type?/word :rule [
+		val: val + switch/default type-of/word :rule [
 			integer! [abs rule]
-			string! [length? rule]
+			string! [length rule]
 			char!    [1]
 		][0]
 	]
@@ -387,15 +397,15 @@ format: function [
 	; Process each rule:
 	foreach rule rules [
 		if word? :rule [rule: get rule]
-		switch type?/word :rule [
+		switch type-of/word :rule [
 			integer! [
 				pad: rule
 				val: form first+ values
 				clear at val 1 + abs rule
 				if negative? rule [
-					pad: rule + length? val
+					pad: rule + length val
 					if negative? pad [out: skip out negate pad]
-					pad: length? val
+					pad: length val
 				]
 				change out :val
 				out: skip out pad ; spacing (remainder)
@@ -442,7 +452,7 @@ split: func [
 				all [integer? size  into] [
 					if size < 1 [cause-error 'Script 'invalid-arg size]
 					count: size - 1
-					piece-size: to integer! round/down divide length? series size
+					piece-size: to integer! round/down divide length series size
 					if zero? piece-size [piece-size: 1]
 					[
 						count [copy series piece-size skip (keep/only series)]
@@ -469,8 +479,8 @@ split: func [
 				; If the result is too short, i.e., less items than 'size, add
 				; empty items to fill it to 'size.
 				; We loop here, because insert/dup doesn't copy the value inserted.
-				if size > length? res [
-					loop (size - length? res) [add-fill-val]
+				if size > length res [
+					loop (size - length res) [add-fill-val]
 				]
 			]
 			; integer? dlm [

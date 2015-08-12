@@ -103,11 +103,11 @@
 		}
 		break;
 */
-	case A_INDEXQ:
+	case A_INDEX_OF:
 		SET_INTEGER(D_OUT, cast(REBI64, index) + 1);
 		return R_OUT;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
 		return R_OUT;
 

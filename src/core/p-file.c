@@ -352,7 +352,7 @@ REBINT Mode_Syms[] = {
 
 		if (args & AM_READ_SEEK) Set_Seek(file, D_ARG(ARG_READ_INDEX));
 		len = Set_Length(
-			file, D_REF(ARG_READ_PART) ? VAL_INT64(D_ARG(ARG_READ_LENGTH)) : -1
+			file, D_REF(ARG_READ_PART) ? VAL_INT64(D_ARG(ARG_READ_LIMIT)) : -1
 		);
 		Read_File_Port(D_OUT, port, file, path, args, len);
 
@@ -397,7 +397,7 @@ REBINT Mode_Syms[] = {
 		// Determine length. Clip /PART to size of string if needed.
 		len = VAL_LEN(spec);
 		if (args & AM_WRITE_PART) {
-			REBCNT n = Int32s(D_ARG(ARG_WRITE_LENGTH), 0);
+			REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
 			if (n <= len) len = n;
 		}
 
@@ -486,11 +486,11 @@ REBINT Mode_Syms[] = {
 		return R_TRUE;
 		break;
 
-	case A_INDEXQ:
+	case A_INDEX_OF:
 		SET_INTEGER(D_OUT, file->special.file.index + 1);
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		SET_INTEGER(D_OUT, file->special.file.size - file->special.file.index); // !clip at zero
 		break;
 

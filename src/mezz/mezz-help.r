@@ -20,13 +20,13 @@ dump-obj: function [
 	clip-str: func [str] [
 		; Keep string to one line.
 		trim/lines str
-		if (length? str) > 45 [str: append copy/part str 45 "..."]
+		if (length str) > 45 [str: append copy/part str 45 "..."]
 		str
 	]
 
 	form-val: func [val] [
 		; Form a limited string from the value provided.
-		if any-block? :val [return reform ["length:" length? val]]
+		if any-block? :val [return reform ["length:" length val]]
 		if image? :val [return reform ["size:" val/size]]
 		if datatype? :val [return get in spec-of val 'title]
 		if any-function? :val [
@@ -42,7 +42,7 @@ dump-obj: function [
 	form-pad: func [val size] [
 		; Form a value with fixed size (space padding follows).
 		val: form val
-		insert/dup tail val #" " size - length? val
+		insert/dup tail val #" " size - length val
 		val
 	]
 
@@ -51,7 +51,7 @@ dump-obj: function [
 	wild: all [string? pat  find pat "*"]
 
 	foreach [word val] obj [
-		type: type?/word :val
+		type: type-of/word :val
 		str: either any [any-function? :type object? :type] [
 			reform [word mold spec-of :val words-of :val]
 		][
@@ -77,7 +77,7 @@ dump-obj: function [
 		][
 			str: form-pad word 15
 			append str #" "
-			append str form-pad type 10 - ((length? str) - 15)
+			append str form-pad type 10 - ((length str) - 15)
 			append out reform [
 				"  " str
 				if type <> 'unset! [form-val :val]
@@ -225,7 +225,7 @@ dump-obj: function [
 
 	; Print type name with proper singular article:
 	type-name: func [value] [
-		value: mold type? :value
+		value: mold type-of :value
 		clear back tail value
 		join either find "aeiou" first value ["an "]["a "] value
 	]
@@ -400,7 +400,7 @@ what: func [
 				title-of :val
 			]
 			append list reduce [word arg]
-			size: max size length? to-string word
+			size: max size length to-string word
 		]
 	]
 

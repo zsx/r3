@@ -20,6 +20,16 @@ REBOL [
 	}
 ]
 
+;-- !!! BACKWARDS COMPATIBILITY: this does detection on things that have
+;-- changed, in order to adapt the environment so that the build scripts
+;-- can still work in older as well as newer Rebols.  Thus the detection
+;-- has to be a bit "dynamic"
+
+unless value? 'length [length: :length?]
+unless value? 'index-of [index-of: :index?]
+unless value? 'offset-of [offset-of: :offset?]
+
+
 ;-- !!! switch to use spaces when code is transitioned
 code-tab: (comment [rejoin [space space space space]] tab)
 
@@ -35,7 +45,7 @@ binary-to-c: func [
 	; !!! Add variable name to produce entire 'const char *name = {...};' ?
 	 /local out str comma-count
 ] [
-	out: make string! 6 * (length? data)
+	out: make string! 6 * (length data)
 	while [not tail? data] [
 		append out code-tab 
 
@@ -55,7 +65,7 @@ binary-to-c: func [
 
 	;-- Sanity check (should be one more byte in source than commas out)
 	parse out [(comma-count: 0) some [thru "," (++ comma-count)] to end]
-	assert [(comma-count + 1) = (length? head data)]
+	assert [(comma-count + 1) = (length head data)]
 
 	out
 ]
@@ -86,7 +96,7 @@ foreach-record-NO-RETURN: func [
 	table: next table
 
 	set/any quote result: while [not empty? table] [
-		if (length? headings) > (length? table) [
+		if (length headings) > (length table) [
 			do make error! {Element count isn't even multiple of header count}
 		]
 

@@ -274,7 +274,7 @@ enum Insert_Arg_Nums {
 	AN_SERIES = 1,
 	AN_VALUE,
 	AN_PART,
-	AN_LENGTH,
+	AN_LIMIT,
 	AN_ONLY,
 	AN_DUP,
 	AN_COUNT

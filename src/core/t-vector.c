@@ -593,7 +593,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 		if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_BLK_DATA(arg), value)) break;
 		goto bad_make;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		//bits = 1 << (vect->size & 3);
 		SET_INTEGER(D_OUT, vect->tail);
 		return R_OUT;

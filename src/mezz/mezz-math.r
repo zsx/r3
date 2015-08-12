@@ -46,7 +46,7 @@ modulo: func [
 	either any [a - r = a   r + b = b] [make r 0] [r]
 ]
 
-sign?: func [
+sign-of: func [
 	"Returns sign of number as 1, 0, or -1 (to use as multiplier)."
 	number [number! money! time!]
 ][

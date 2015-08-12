@@ -54,10 +54,10 @@ emit-end: func [/easy] [
 binary-to-c: either system/version/4 = 3 [
 	; Windows MSVC 6 compatible format (as integer chars):
 	func [comp-data /local out] [
-		out: make string! 4 * (length? comp-data)
+		out: make string! 4 * (length comp-data)
 		forall comp-data [
 			out: insert out reduce [to-integer first comp-data ", "]
-			if zero? ((index? comp-data) // 10) [out: insert out "^/^-"]
+			if zero? ((index-of comp-data) // 10) [out: insert out "^/^-"]
 		]
 		;remove/part out either (pick out -1) = #" " [-2][-4]
 		head out
@@ -65,7 +65,7 @@ binary-to-c: either system/version/4 = 3 [
 ][
 	; Other compilers (as hex-escaped char strings "\x00"):
 	func [comp-data /local out] [
-		out: make string! 4 * (length? comp-data)
+		out: make string! 4 * (length comp-data)
 		forall comp-data [
 			data: copy/part comp-data 16
 			comp-data: skip comp-data 15
@@ -110,7 +110,7 @@ write-c-file: func [
 	]
 
 	comp-data: compress data
-	comp-size: length? comp-data
+	comp-size: length comp-data
 
 	emit ["#define REB_INIT_SIZE " comp-size newline newline]
 
@@ -132,8 +132,8 @@ write-c-file: func [
 	;-- Output stats:
 	print [
 		newline
-		"Compressed" length? data "to" comp-size "bytes:"
-		to-integer (comp-size / (length? data) * 100)
+		"Compressed" length data "to" comp-size "bytes:"
+		to-integer (comp-size / (length data) * 100)
 		"percent of original"
 	]
 

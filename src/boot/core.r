@@ -127,7 +127,7 @@ dh-make-key: func [
 	"Creates a key object for Diffie-Hellman algorithm."
 ;NOT YET IMPLEMENTED
 ;	/generate
-;		length [integer!] "Key length"
+;		size [integer!] "Key length"
 ;	    generator [integer!] "Generator number"
 ][
 	make object! [

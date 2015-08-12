@@ -584,7 +584,7 @@ set_bits:
 		VAL_SERIES(value) = Copy_Series_Value(value);
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		len = VAL_TAIL(value) * 8;
 		SET_INTEGER(value, len);
 		break;

@@ -1046,7 +1046,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			}
 			break;
 
-		case A_LENGTHQ:
+		case A_LENGTH:
 			SET_INTEGER(ret, SERIES_TAIL(VAL_STRUCT_DATA_BIN(val)));
 			break;
 		default:

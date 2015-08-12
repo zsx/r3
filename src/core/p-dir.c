@@ -286,7 +286,7 @@ create:
 
 	//-- Port Series Actions (only called if opened as a port)
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		len = IS_BLOCK(state) ? VAL_BLK_LEN(state) : 0;
 		SET_INTEGER(D_OUT, len);
 		break;

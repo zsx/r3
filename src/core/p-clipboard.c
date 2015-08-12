@@ -118,8 +118,8 @@
 
 		// Handle /part refinement:
 		len = VAL_LEN(arg);
-		if (refs & AM_WRITE_PART && VAL_INT32(D_ARG(ARG_WRITE_LENGTH)) < len)
-			len = VAL_INT32(D_ARG(ARG_WRITE_LENGTH));
+		if (refs & AM_WRITE_PART && VAL_INT32(D_ARG(ARG_WRITE_LIMIT)) < len)
+			len = VAL_INT32(D_ARG(ARG_WRITE_LIMIT));
 
 		// If bytes, see if we can fit it:
 		if (SERIES_WIDE(VAL_SERIES(arg)) == 1) {

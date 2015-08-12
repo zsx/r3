@@ -170,13 +170,13 @@ at: action [
 	index [number! logic! pair!]
 ]
 
-index?: action [
+index-of: action [
 	{Returns the current position (index) of the series.}
 	series [series! gob! port! none!]
 	/xy {Returns index as an XY pair offset}
 ]
 
-length?: action [
+length: action [
 	{Returns the length (from the current position for series.)}
 	series [series! port! map! tuple! bitset! object! gob! struct! any-word! none!]
 ]
@@ -196,7 +196,7 @@ find: action [
 	series [series! gob! port! bitset! typeset! object! none!]
 	value [any-type!]
 	/part {Limits the search to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Treats a series value as only a single value}
 	/case {Characters are case-sensitive}
 	/any  {Enables the * and ? wildcards}
@@ -215,7 +215,7 @@ select: action [
 	series [series! port! map! object! none!]
 	value [any-type!]
 	/part {Limits the search to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Treats a series value as only a single value}
 	/case {Characters are case-sensitive}
 	/any  {Enables the * and ? wildcards}
@@ -253,7 +253,7 @@ copy: action [
 	{Copies a series, object, or other value.}
 	value [series! port! map! object! bitset! any-function!] {At position}
 	/part {Limits to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/deep {Also copies series values within the block}
 	/types {What datatypes to copy}
 	kinds [typeset! datatype!]
@@ -263,7 +263,7 @@ take: action [
 	{Removes and returns one or more elements.}
 	series [series! port! gob! none!] {At position (modified)}
 	/part {Specifies a length or end position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/deep {Also copies series values within the block}
 	/last {Take it from the tail end}
 ]
@@ -273,7 +273,7 @@ insert: action [
 	series [series! port! map! gob! object! bitset! port!] {At position (modified)}
 	value [any-type!] {The value to insert}
 	/part {Limits to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Only insert a block as a single value (not the contents of the block)}
 	/dup {Duplicates the insert a specified number of times}
 	count [number! pair!]
@@ -284,7 +284,7 @@ append: action [
 	series [series! port! map! gob! object! bitset!] {Any position (modified)}
 	value [any-type!] {The value to insert}
 	/part {Limits to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Only insert a block as a single value (not the contents of the block)}
 	/dup {Duplicates the insert a specified number of times}
 	count [number! pair!]
@@ -294,7 +294,7 @@ remove: action [
 	{Removes element(s); returns same position.}
 	series [series! gob! port! bitset! none!] {At position (modified)}
 	/part {Removes multiple elements or to a given position}
-	length [number! series! pair! char!]
+	limit [number! series! pair! char!]
 ]
 
 change: action [
@@ -302,7 +302,7 @@ change: action [
 	series [series! gob! port! struct!]{At position (modified)}
 	value [any-type!] {The new value}
 	/part {Limits the amount to change to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Only change a block as a single value (not the contents of the block)}
 	/dup {Duplicates the change a specified number of times}
 	count [number! pair!]
@@ -341,7 +341,7 @@ reverse: action [
 	{Reverses the order of elements; returns at same position.}
 	series [series! gob! tuple! pair!] {At position (modified)}
 	/part {Limits to a given length or position}
-	length [number! series!]
+	limit [number! series!]
 ]
 
 sort: action [
@@ -353,7 +353,7 @@ sort: action [
 	/compare  {Comparator offset, block or function}
 	comparator [integer! block! any-function!]
 	/part {Sort only part of a series}
-	length [number! series!] {Length of series to sort}
+	limit [number! series!] {Length of series to sort}
 	/all {Compare all fields}
 	/reverse {Reverse sort order}
 ]
@@ -390,7 +390,7 @@ read: action [
 	{Read from a file, URL, or other port.}
 	source [port! file! url! block!]
 	/part {Partial read a given number of units (source relative)}
-		length [number!]
+		limit [number!]
 	/seek {Read from a specific position (source relative)}
 		index [number!]
 	/string {Convert UTF and line terminators to standard text string}
@@ -404,7 +404,7 @@ write: action [
 	destination [port! file! url! block!]
 	data [binary! string! block!] {Data to write (non-binary converts to UTF-8)}
 	/part {Partial write a given number of units}
-		length [number!]
+		limit [number!]
 	/seek {Write at a specific position}
 		index [number!]
 	/append {Write data at end of file}

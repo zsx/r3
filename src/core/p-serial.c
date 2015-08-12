@@ -196,7 +196,7 @@
 		spec = D_ARG(2);
 		len = VAL_LEN(spec);
 		if (refs & AM_WRITE_PART) {
-			REBCNT n = Int32s(D_ARG(ARG_WRITE_LENGTH), 0);
+			REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
 			if (n <= len) len = n;
 		}
 

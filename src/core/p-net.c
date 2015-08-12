@@ -239,7 +239,7 @@ enum Transport_Types {
 		spec = D_ARG(2);
 		len = VAL_LEN(spec);
 		if (refs & AM_WRITE_PART) {
-			REBCNT n = Int32s(D_ARG(ARG_WRITE_LENGTH), 0);
+			REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
 			if (n <= len) len = n;
 		}
 
@@ -282,7 +282,7 @@ enum Transport_Types {
 		}
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		arg = OFV(port, STD_PORT_DATA);
 		len = ANY_SERIES(arg) ? VAL_TAIL(arg) : 0;
 		SET_INTEGER(D_OUT, len);

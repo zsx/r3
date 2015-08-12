@@ -898,11 +898,11 @@ is_none:
 		if (index > tail) goto is_true;
 		goto is_false;
 
-	case A_INDEXQ:
+	case A_INDEX_OF:
 		SET_INTEGER(val, index+1);
 		break;
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		index = (tail > index) ? tail - index : 0;
 		SET_INTEGER(val, index);
 		break;

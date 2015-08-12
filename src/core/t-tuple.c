@@ -282,7 +282,7 @@
 */
 	//a = 1; //???
 	switch (action) {
-	case A_LENGTHQ:
+	case A_LENGTH:
 		len = MAX(len, 3);
 		SET_INTEGER(D_OUT, len);
 		return R_OUT;

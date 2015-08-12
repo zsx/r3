@@ -339,7 +339,7 @@ macro++: func ['name obj [object!] /local out] [
 
 emit: func [d] [repend output d]
 
-pad: func [str] [head insert/dup copy "" " " 16 - length? str]
+pad: func [str] [head insert/dup copy "" " " 16 - length str]
 
 to-obj: func [
 	"Create .o object filename (with no dir path)."

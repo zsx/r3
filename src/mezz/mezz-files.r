@@ -39,7 +39,7 @@ clean-path: func [
 
 	if all [dir not dir? file] [append file #"/"]
 
-	out: make file length? file ; same datatype
+	out: make file length file ; same datatype
 	cnt: 0 ; back dir counter
 
 	parse reverse file [
@@ -92,7 +92,7 @@ confirm: func [
 	/with choices [string! block!]
 	/local response
 ][
-	if all [block? choices 2 < length? choices] [
+	if all [block? choices 2 < length choices] [
 		cause-error 'script 'invalid-arg mold choices
 	]
 	response: ask question
@@ -100,7 +100,7 @@ confirm: func [
 	case [ ; returned
 		empty? choices [true]
 		string? choices [if find/match response choices [true]]
-		2 > length? choices [if find/match response first choices [true]]
+		2 > length choices [if find/match response first choices [true]]
 		find first choices response [true]
 		find second choices response [false]
 	]
@@ -118,7 +118,7 @@ list-dir: func [
 	/local files save-dir info
 ][
 	save-dir: what-dir
-	switch type?/word :path [
+	switch type-of/word :path [
 		unset! [] ; Stay here
 		file! [change-dir path]
 		string! [change-dir to-rebol-file path]
@@ -136,8 +136,8 @@ list-dir: func [
 		][continue]
 		either string? l [
 			append l file
-			append/dup l #" " 15 - remainder length? l 15
-			if greater? length? l 60 [print l clear l]
+			append/dup l #" " 15 - remainder length l 15
+			if greater? length l 60 [print l clear l]
 		][
 			info: get query file
 			change info second split-path info/1

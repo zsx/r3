@@ -181,7 +181,7 @@ static struct digest {
 **	Args:
 **
 **		data [any-string!] {Data to checksum}
-**		/part length
+**		/part limit
 **		/tcp {Returns an Internet TCP 16-bit checksum.}
 **		/secure {Returns a cryptographically secure checksum.}
 **		/hash {Returns a hash value}
@@ -195,7 +195,7 @@ static struct digest {
 {
 	REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
 	REBYTE *data = VAL_BIN_DATA(arg);
-	REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_LENGTH));
+	REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE));
 	REBINT sym = SYM_SHA1;
 
 	// Method word:

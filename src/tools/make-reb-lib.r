@@ -31,6 +31,8 @@ reb-ext-defs: out-dir/reb-lib-lib.h  ; for REBOL usage
 
 ver: load %../boot/version.r
 
+do %common.r
+
 do %form-header.r
 
 ;-----------------------------------------------------------------------------
@@ -88,7 +90,7 @@ gen-doc: func [fspec spec cmt] [
 	while [
 		all [
 			beg: find beg " - "
-			positive? offset? beg any [find beg "notes:" tail beg]
+			positive? offset-of beg any [find beg "notes:" tail beg]
 		]
 	][
 		insert beg </tt>
@@ -112,7 +114,7 @@ gen-doc: func [fspec spec cmt] [
 ]
 
 pads: func [start col] [
-	col: col - offset? start tail start
+	col: col - offset-of start tail start
 	head insert/dup clear "" #" " col
 ]
 

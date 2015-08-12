@@ -143,7 +143,7 @@ script?: func [
 	{Checks file, url, or string for a valid script header.}
 	source [file! url! binary! string!]
 ][
-	switch type?/word source [
+	switch type-of/word source [
 		file! url! [source: read source]
 		string! [source: to binary! source] ; Remove this line if FIND-SCRIPT changed to accept string!
 	]
@@ -165,7 +165,7 @@ split-path: func [
 	parse target [
 		[#"/" | 1 2 #"." opt #"/"] end (dir: dirize target) |
 		pos: any [thru #"/" [end | pos:]] (
-			all [empty? dir: copy/part target at head target index? pos dir: %./]
+			all [empty? dir: copy/part target at head target index-of pos dir: %./]
 			all [find [%. %..] pos: to file! pos insert tail pos #"/"]
 		)
 	]
@@ -176,7 +176,7 @@ intern: function [
 	"Imports (internalize) words and their values from the lib into the user context."
 	data [block! any-word!] "Word or block of words to be added (deeply)"
 ][
-	index: 1 + length? usr: system/contexts/user ; optimization
+	index: 1 + length usr: system/contexts/user ; optimization
 	data: bind/new :data usr   ; Extend the user context with new words
 	resolve/only usr lib index ; Copy only the new values into the user context
 	:data
@@ -214,7 +214,7 @@ load: function [
 		unless any [
 			all
 			header
-			1 <> length? data
+			1 <> length data
 		][data: first data]
 	]
 

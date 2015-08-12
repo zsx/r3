@@ -48,10 +48,10 @@ speed?: function [
 			loop 100'000 [
 				; measure more than just loop func
 				; typical load: 1 set, 2 data, 1 op, 4 trivial funcs
-				x: 1 * index? back next "x"
-				x: 1 * index? back next "x"
-				x: 1 * index? back next "x"
-				x: 1 * index? back next "x"
+				x: 1 * index-of back next "x"
+				x: 1 * index-of back next "x"
+				x: 1 * index-of back next "x"
+				x: 1 * index-of back next "x"
 			]
 			calc: [100'000 / secs / 100] ; arbitrary calc
 		][
@@ -61,12 +61,12 @@ speed?: function [
 				random tmp
 				decompress compress tmp
 			]
-			calc: [(length? tmp) * 10 / secs / 1900]
+			calc: [(length tmp) * 10 / secs / 1900]
 		][
 			repeat n 40 [
 				change/dup tmp to-char n 500'000
 			]
-			calc: [(length? tmp) * 40 / secs / 1024 / 1024]
+			calc: [(length tmp) * 40 / secs / 1024 / 1024]
 		][
 			unless no-io [
 				write file: %tmp-junk.txt "" ; force security request before timer
@@ -77,7 +77,7 @@ speed?: function [
 					read file
 				]
 				delete file
-				calc: [(length? tmp) * 100 * 2 / secs / 1024 / 1024]
+				calc: [(length tmp) * 100 * 2 / secs / 1024 / 1024]
 			]
 		]
 	][

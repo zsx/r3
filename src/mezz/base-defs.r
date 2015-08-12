@@ -96,47 +96,47 @@ system/options/result-types: make typeset! [
 any-block?: func [
 	"Return TRUE if value is any type of block."
 	value [any-type!]
-][find any-block! type? :value]
+][find any-block! type-of :value]
 
 any-string?: func [
 	"Return TRUE if value is any type of string."
 	value [any-type!]
-][find any-string! type? :value]
+][find any-string! type-of :value]
 
 any-function?: func [
 	"Return TRUE if value is any type of function."
 	value [any-type!]
-][find any-function! type? :value]
+][find any-function! type-of :value]
 
 any-word?: func [
 	"Return TRUE if value is any type of word."
 	value [any-type!]
-][find any-word! type? :value]
+][find any-word! type-of :value]
 
 any-path?: func [
 	"Return TRUE if value is any type of path."
 	value [any-type!]
-][find any-path! type? :value]
+][find any-path! type-of :value]
 
 any-object?: func [
 	"Return TRUE if value is any type of object."
 	value [any-type!]
-][find any-object! type? :value]
+][find any-object! type-of :value]
 
 number?: func [
 	"Return TRUE if value is a number (integer or decimal)."
 	value [any-type!]
-][find number! type? :value]
+][find number! type-of :value]
 
 series?: func [
 	"Return TRUE if value is any type of series."
 	value [any-type!]
-][find series! type? :value]
+][find series! type-of :value]
 
 scalar?: func [
 	"Return TRUE if value is any type of scalar."
 	value [any-type!]
-][find scalar! type? :value]
+][find scalar! type-of :value]
 
 true?: func [
 	"Returns true if an expression can be used as true."

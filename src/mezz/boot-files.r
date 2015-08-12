@@ -47,6 +47,7 @@ REBOL [
 	%mezz-banner.r
 	%mezz-colors.r
 	%mezz-tail.r
+	%mezz-legacy.r
 ]
 
 ;-- protocols:

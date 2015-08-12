@@ -108,7 +108,7 @@ last: func [
 ] [
 	case [
 		series? value [pick back tail value 1]
-		tuple? value [pick value length? value]
+		tuple? value [pick value length value]
 		gob? value [
 			; The C code effectively used 'pick value t' with:
 			;
@@ -137,12 +137,12 @@ repend: func [
 	series [series! port! map! gob! object! bitset!] {Series at point to insert (modified)}
 	value {The value to insert}
 	/part {Limits to a given length or position}
-	length [number! series! pair!]
+	limit [number! series! pair!]
 	/only {Inserts a series as a series}
 	/dup {Duplicates the insert a specified number of times}
 	count [number! pair!]
 ][
-	apply :append [series reduce :value part length only dup count]
+	apply :append [series reduce :value part limit only dup count]
 ]
 
 join: func [

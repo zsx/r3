@@ -443,7 +443,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		else
 			Trap_Action_DEAD_END(VAL_TYPE(value), action); // !!! needs better error
 
-	case A_LENGTHQ:
+	case A_LENGTH:
 		if (IS_OBJECT(value)) {
 			SET_INTEGER(D_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) - 1);
 			return R_OUT;

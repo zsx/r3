@@ -47,7 +47,7 @@ secure: function/with [
 	]
 
 	if policy = 'query [
-		out: make block! 2 * length? pol-obj
+		out: make block! 2 * length pol-obj
 		foreach [target pol] pol-obj [
 			case [
 				; file 0.0.0 (policies)
@@ -112,7 +112,7 @@ secure: function/with [
 		if word? pol [
 			n: find acts pol
 			assert-policy n target pol
-			return (index? n) - 1 * 1.1.1
+			return (index-of n) - 1 * 1.1.1
 		]
 		; Detailed case: [file [allow read throw write]]
 		flags: 0.0.0
@@ -122,7 +122,7 @@ secure: function/with [
 			assert-policy n target act
 			m: select [read 1.0.0 write 0.1.0 execute 0.0.1] perm
 			assert-policy m target perm
-			flags: (index? n) - 1 * m or flags
+			flags: (index-of n) - 1 * m or flags
 		]
 		flags
 	]
