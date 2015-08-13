@@ -552,7 +552,7 @@
 //		}
 		VAL_ERR_NUM(out) = VAL_INT32(&error->code);
 		VAL_ERR_OBJECT(out) = err;
-		return;
+		return TRUE;
 	}
 
 	// Make a copy of the error object template:
