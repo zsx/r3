@@ -242,8 +242,13 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	}
 	// object/(expr) case:
 	else if (IS_PAREN(path)) {
-		// ?? GC protect stuff !!!!!! stack could expand!
-		DO_BLOCK(&temp, VAL_SERIES(path), 0);
+
+		if (!DO_BLOCK(&temp, VAL_SERIES(path), 0)) {
+			// If temp is THROWN(), stop path evaluation
+			*pvs->value = temp;
+			return;
+		}
+
 		pvs->select = &temp;
 	}
 	else // object/word and object/value case:
@@ -845,6 +850,10 @@ do_at_index:
 
 		// returns in word the path item, DS_TOP has value
 		value = Do_Path(out, &label, 0);
+		if (THROWN(out)) {
+			index = THROWN_FLAG;
+			goto return_index;
+		}
 
 		// Value returned only for functions that need evaluation
 		if (value && ANY_FUNC(value)) {
