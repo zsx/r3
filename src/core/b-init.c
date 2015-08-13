@@ -368,16 +368,23 @@ static	BOOT_BLK *Boot_Block;
 **		The spec block has already been bound to Lib_Context, to
 **		allow any embedded values and functions to evaluate.
 **
+**		Note: Overlaps MAKE OBJECT! code (REBTYPE(Object)'s A_MAKE)
+**
 ***********************************************************************/
 {
 	REBVAL *spec = D_ARG(1);
-	REBVAL ignored; // !!! Should result just be ignored?
+	REBVAL evaluated;
 
 	SET_OBJECT(D_OUT, Make_Object(0, VAL_BLK(spec)));
-	Bind_Block(VAL_OBJ_FRAME(D_OUT), VAL_BLK(spec), BIND_ONLY); // not deep
+	Bind_Block(VAL_OBJ_FRAME(D_OUT), VAL_BLK(spec), BIND_DEEP);
 
-	DO_BLOCK(&ignored, VAL_SERIES(spec), 0);
+	if (DO_BLOCK(&evaluated, VAL_SERIES(spec), 0)) {
+		// On success, return the object (common case)
+		return R_OUT;
+	}
 
+	// evaluation is a THROWN() value (RETURN, BREAK, etc.), we return it
+	*D_OUT = evaluated;
 	return R_OUT;
 }
 

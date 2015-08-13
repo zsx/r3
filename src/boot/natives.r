@@ -97,8 +97,8 @@ compose: native [
 ]
 
 context: native [
-	{Creates an object.}
-	spec ; [block!] -- no check required, we know it is correct
+	{Defines a unique object.}
+	spec [block!] {Object words and values}
 ]
 
 continue: native [
