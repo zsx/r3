@@ -861,7 +861,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **
 ***********************************************************************/
 {
-	return Make_Word(string, 0);
+	return Make_Word(string, LEN_BYTES(string));
 }
 
 
