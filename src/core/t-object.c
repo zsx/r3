@@ -235,7 +235,14 @@ static REBSER *Trim_Object(REBSER *obj)
 	VAL_OBJ_FRAME(out) = Construct_Object(0, VAL_BLK_DATA(data), 0);
 	VAL_SET(out, type);
 	if (type == REB_ERROR) {
-		Make_Error_Object(out, out);
+		REBVAL result;
+		if (!Make_Error_Object(&result, out)) {
+			assert(THROWN(&result));
+			*out = result;
+			return FALSE;
+		}
+		assert(IS_ERROR(&result));
+		*out = result;
 	}
 	return TRUE;
 }
@@ -344,7 +351,11 @@ static REBSER *Trim_Object(REBSER *obj)
 
 			// make error! [....]
 			if (type == REB_ERROR) {
-				Make_Error_Object(arg, value); // arg is block/string, returns value
+				// arg is block/string, returns value
+				if (!Make_Error_Object(value, arg)) {
+					assert(THROWN(value));
+					// going to return it anyway, no special handling needed
+				}
 				type = 0;
 				break; // returns value
 			}
@@ -405,7 +416,11 @@ static REBSER *Trim_Object(REBSER *obj)
 		if (IS_DATATYPE(value)) {
 			type = VAL_DATATYPE(value);
 			if (type == REB_ERROR) {
-				Make_Error_Object(arg, value); // arg is block/string, returns value
+				// arg is block/string, returns value
+				if (!Make_Error_Object(value, arg)) {
+					assert(THROWN(value));
+					// going to return it anyway, no special handling needed
+				}
 				type = 0; // type already set
 				break; // returns value
 			}

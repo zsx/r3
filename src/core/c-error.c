@@ -525,11 +525,13 @@
 
 /***********************************************************************
 **
-*/	void Make_Error_Object(REBVAL *arg, REBVAL *value)
+*/	REBOOL Make_Error_Object(REBVAL *out, REBVAL *arg)
 /*
 **		Creates an error object from arg and puts it in value.
 **		The arg can be a string or an object body block.
 **		This function is called by MAKE ERROR!.
+**
+**		Returns FALSE if a THROWN() value is made during evaluation.
 **
 ***********************************************************************/
 {
@@ -537,7 +539,7 @@
 	ERROR_OBJ *error;	// Error object values
 	REBINT code = 0;
 
-	VAL_SET(value, REB_ERROR);
+	VAL_SET(out, REB_ERROR);
 
 	// Create a new error object from another object, including any non-standard fields:
 	if (IS_ERROR(arg) || IS_OBJECT(arg)) {
@@ -548,8 +550,8 @@
 			if (!Find_Error_Info(error, &code)) code = RE_INVALID_ERROR;
 			SET_INTEGER(&error->code, code);
 //		}
-		VAL_ERR_NUM(value) = VAL_INT32(&error->code);
-		VAL_ERR_OBJECT(value) = err;
+		VAL_ERR_NUM(out) = VAL_INT32(&error->code);
+		VAL_ERR_OBJECT(out) = err;
 		return;
 	}
 
@@ -557,17 +559,30 @@
 	err = CLONE_OBJECT(VAL_OBJ_FRAME(ROOT_ERROBJ));
 	error = ERR_VALUES(err);
 	SET_NONE(&error->id);
-	VAL_SET(value, REB_ERROR);
-	VAL_ERR_OBJECT(value) = err;
+	VAL_SET(out, REB_ERROR);
+	VAL_ERR_OBJECT(out) = err;
 
 	// If block arg, evaluate object values (checking done later):
 	// If user set error code, use it to setup type and id fields.
 	if (IS_BLOCK(arg)) {
-		REBVAL ignored; // !!! Is the DO_BLK result meaningful?
+		REBVAL evaluated;
+
+		// !!! Why exactly is garbage collection disabled here, vs protecting
+		// specific things that are known to not be accounted for?
+
 		DISABLE_GC;
+
+		// Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
+		// code in REBTYPE(Object) and code in REBNATIVE(construct))
 		Bind_Block(err, VAL_BLK_DATA(arg), BIND_DEEP);
-		DO_BLOCK(&ignored, VAL_SERIES(arg), 0); // GC-OK (disabled)
+		if (!DO_BLOCK(&evaluated, VAL_SERIES(arg), 0)) {
+			ENABLE_GC;
+			*out = evaluated;
+			return FALSE;
+		}
+
 		ENABLE_GC;
+
 		if (IS_INTEGER(&error->code) && VAL_INT64(&error->code)) {
 			Set_Error_Type(error);
 		} else {
@@ -599,9 +614,11 @@
 	else
 		Trap_Arg(arg);
 
-	if (!(VAL_ERR_NUM(value) = VAL_INT32(&error->code))) {
+	if (!(VAL_ERR_NUM(out) = VAL_INT32(&error->code))) {
 		Trap_Arg(arg);
 	}
+
+	return TRUE;
 }
 
 
