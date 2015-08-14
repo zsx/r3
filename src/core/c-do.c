@@ -749,8 +749,10 @@ do_at_index:
 	do_fetched_word:
 		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NO_VALUE, value);
 		if (ANY_FUNC(out)) {
-			// infix is only handled by the code at the tail of this routine
-			if (VAL_GET_EXT(out, EXT_FUNC_INFIX)) Trap_Type_DEAD_END(out);
+			// We can only acquire an infix operator's first arg during the
+			// "lookahead".  Here we are starting a brand new expression.
+			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
+				Trap1_DEAD_END(RE_NO_OP_ARG, value);
 
 			// We will reuse the TOS for the OUT of the call frame
 			label = value;
