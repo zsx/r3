@@ -99,7 +99,7 @@ compose: native [
 
 context: native [
 	{Defines a unique object.}
-	spec [block!] {Object words and values}
+	spec [block!] {Object words and values (modified)}
 ]
 
 continue: native [
