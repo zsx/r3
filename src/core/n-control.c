@@ -360,29 +360,131 @@ enum {
 **
 */	REBNATIVE(case)
 /*
+**	1: block
+**	2: /all
+**	3: /only
+**
 ***********************************************************************/
 {
+	// We leave D_ARG(1) alone, it is holding 'block' alive from GC
 	REBSER *block = VAL_SERIES(D_ARG(1));
 	REBCNT index = VAL_INDEX(D_ARG(1));
-	REBFLG all_flag = D_REF(2);
+
+	// Save refinements to booleans to free up their call frame slots
+	REBFLG all = D_REF(2);
+	REBFLG only = D_REF(3);
+
+	// reuse refinement slots for GC safety (pointers are optimized out)
+	REBVAL * const condition_result = D_ARG(2);
+	REBVAL * const body_result = D_ARG(3);
+
+	// CASE is in the same family as IF/UNLESS/EITHER, so if there is no
+	// matching condition it will return a NONE!.  Set that as default.
+
+	SET_NONE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
-		index = DO_NEXT(D_OUT, block, index);
-		if (IS_CONDITIONAL_FALSE(D_OUT)) index++;
-		else {
-			if (IS_UNSET(D_OUT)) Trap_DEAD_END(RE_NO_RETURN);
-			if (index == THROWN_FLAG) return R_OUT;
-			if (index >= SERIES_TAIL(block)) return R_TRUE;
-			index = DO_NEXT(D_OUT, block, index);
-			if (IS_BLOCK(D_OUT)) {
-				DO_BLOCK(D_OUT, VAL_SERIES(D_OUT), 0);
-				if (IS_UNSET(D_OUT) && !all_flag) return R_TRUE;
+
+		index = DO_NEXT(condition_result, block, index);
+
+		if (index == THROWN_FLAG) {
+			*D_OUT = *condition_result; // is a RETURN, BREAK, THROW...
+			return R_OUT;
+		}
+
+		if (index == END_FLAG) Trap(RE_PAST_END);
+
+		if (IS_UNSET(condition_result)) Trap(RE_NO_RETURN);
+
+		// We DO the next expression, rather than just assume it is a
+		// literal block.  That allows you to write things like:
+		//
+		//     condition: true
+		//     case [condition 10 + 20] ;-- returns 30
+		//
+		// But we need to DO regardless of the condition being true or
+		// false.  Rebol2 would just skip over one item (the 10 in this
+		// case) and get an error.  Code not in blocks must be evaluated
+		// even if false, as it is with 'if false (print "eval'd")'
+		//
+		// If the source was a literal block then the DO_NEXT will
+		// *probably* be a no-op, but consider infix operators:
+		//
+		//     case [true [stuff] + [more stuff]]
+		//
+		// Until such time as DO guarantees such things aren't legal,
+		// CASE must evaluate block literals too.
+
+		if (
+			LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)
+			&& IS_CONDITIONAL_FALSE(condition_result)
+		) {
+			// case [true add 1 2] => 3
+			// case [false add 1 2] => 2 ;-- in Rebol2
+			index++;
+
+			// forgets the last evaluative result for a TRUE condition
+			// when /ALL is set (instead of keeping it to return)
+			SET_NONE(D_OUT);
+			continue;
+		}
+
+		index = DO_NEXT(body_result, block, index);
+
+		if (index == THROWN_FLAG) {
+			*D_OUT = *body_result; // is a RETURN, BREAK, THROW...
+			return R_OUT;
+		}
+
+		if (index == END_FLAG) {
+			if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
+				// case [first [a b c]] => true ;-- in Rebol2
+				return R_TRUE;
 			}
-			if (THROWN(D_OUT) || !all_flag || index >= SERIES_TAIL(block))
-				return R_OUT;
+
+			// case [first [a b c]] => **error**
+			Trap(RE_PAST_END);
+		}
+
+		if (IS_CONDITIONAL_TRUE(condition_result)) {
+
+			if (!only && IS_BLOCK(body_result)) {
+				// If we're not using the /ONLY switch and it's a block,
+				// we'll need two evaluations for things like:
+				//
+				//     stuff: [print "This will be printed"]
+				//     case [true stuff]
+				//
+				if (!DO_BLOCK(
+					D_OUT, VAL_SERIES(body_result), VAL_INDEX(body_result)
+				)) {
+					// D_OUT is a RETURN, BREAK, THROW...
+					return R_OUT;
+				}
+			}
+			else {
+				// With /ONLY (or a non-block) don't do more evaluation, so
+				// for the above that's: [print "This will be printed"]
+
+				*D_OUT = *body_result;
+			}
+
+			if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
+				if (IS_UNSET(D_OUT)) {
+					// case [true [] false [1 + 2]] => true ;-- in Rebol2
+					SET_TRUE(D_OUT);
+				}
+			}
+
+			// One match is enough to return the result now, unless /ALL
+			if (!all) return R_OUT;
 		}
 	}
-	return R_NONE;
+
+	// Returns the evaluative result of the last body whose condition was
+	// conditionally true, or defaults to NONE if there weren't any
+
+	return R_OUT;
 }
 
 

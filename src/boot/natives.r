@@ -66,7 +66,8 @@ break: native [
 case: native [
 	{Evaluates each condition, and when true, evaluates what follows it.}
 	block [block!] {Block of cases (conditions followed by values)}
-	/all {Evaluate all cases (do not stop at first true case)}
+	/all {Evaluate all cases (do not stop at first TRUE? case)}
+	/only {Return block values instead of evaluating them.}
 ]
 
 catch: native [

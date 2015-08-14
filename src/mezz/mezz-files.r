@@ -34,7 +34,7 @@ clean-path: func [
 			]
 			file: append clear out file
 		]
-		file: append what-dir file
+		true [file: append what-dir file]
 	]
 
 	if all [dir not dir? file] [append file #"/"]

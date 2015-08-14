@@ -140,6 +140,7 @@ options: context [  ; Options supplied to REBOL during startup
 	; Legacy Behaviors Options (enabled if R3_LEGACY=1 set in OS environment)
 
 	exit-functions-only: false
+	broken-case-semantics: false
 ]
 
 script: context [

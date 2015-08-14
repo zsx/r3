@@ -134,6 +134,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			"** system/options: [\n"
 			"**     (...)\n"
 			"**     exit-functions-only: false\n"
+			"**     broken-case-semantics: false\n"
 			"** ]\n"
 			"**\n"
 		);
