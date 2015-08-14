@@ -329,7 +329,10 @@ enum {
 
 	if (error) return R_NONE;
 
-	DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)));
+	if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
+		// This means that D_OUT is a THROWN() value, but we have
+		// no special processing to apply.  Fall through and return it.
+	}
 
 	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -666,7 +669,10 @@ enum {
 			return R_OUT;
 		}
 
-		DO_BLOCK(D_OUT, VAL_SERIES(value), 0);
+		if (!DO_BLOCK(D_OUT, VAL_SERIES(value), 0)) {
+			// output is THROWN, RETURN, BREAK etc.
+			// no special handling though, just return it as we were going to
+		}
 		return R_OUT;
 
     case REB_NATIVE:
@@ -735,7 +741,10 @@ enum {
 	REBCNT argnum = IS_CONDITIONAL_FALSE(D_ARG(1)) ? 3 : 2;
 
 	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(4) /* not using /ONLY */) {
-		DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(argnum)), 0);
+		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(argnum)), 0)) {
+			// Value is RETURN, THROW, BREAK, etc...
+			// No special handling though, just return it as we were going to
+		}
 		return R_OUT;
 	} else {
 		return argnum == 2 ? R_ARG2 : R_ARG3;
@@ -773,7 +782,10 @@ enum {
 {
 	if (IS_CONDITIONAL_FALSE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0);
+		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0)) {
+			// Was a THROW, RETURN, BREAK, etc...
+			// No special handling, just return it like we were going to
+		}
 		return R_OUT;
 	}
 	return R_ARG2;
@@ -887,7 +899,10 @@ enum {
 	}
 
 	if (!found && IS_BLOCK(D_ARG(4))) {
-		DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(4)), 0);
+		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(4)), 0)) {
+			// Value is THROW, RETURN, BREAK, etc...
+			// No special handling though, just return as we were going to
+		}
 		return R_OUT;
 	}
 
@@ -919,8 +934,13 @@ enum {
 	if (error) {
 		if (except) {
 			if (IS_BLOCK(D_ARG(3))) {
-				// forget the result of the try.
-				DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(3)), VAL_INDEX(D_ARG(3)));
+				// forget the result of the try (no way to pass to a block)
+				if (
+					!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(3)), VAL_INDEX(D_ARG(3)))
+				) {
+					// Was a THROW, RETURN, BREAK etc...
+					// No special handling, just return like we were going to
+				}
 				return R_OUT;
 			}
 			else if (ANY_FUNC(D_ARG(3))) {
@@ -950,7 +970,10 @@ enum {
 		return R_OUT;
 	}
 
-	DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)));
+	if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
+		// Was a THROW, RETURN, BREAK, etc...
+		// No special handling, just return like we were going to
+	}
 
 	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -966,7 +989,10 @@ enum {
 {
 	if (IS_CONDITIONAL_TRUE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0);
+		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0)) {
+			// Was THROWN, RETURN, BREAK, etc...
+			// No special handling, just return it like we were going to
+		}
 		return R_OUT;
 	}
 	return R_ARG2;

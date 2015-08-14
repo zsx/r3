@@ -154,18 +154,22 @@ static	BOOT_BLK *Boot_Block;
 **		   -1: bind shallow into sys (for NATIVE and ACTION)
 **			1: add new words to LIB, bind/deep to LIB
 **			2: add new words to SYS, bind/deep to LIB
-**		A single result is left on top of data stack (may be an error).
+**
+**		Expects result to be UNSET!
 **
 ***********************************************************************/
 {
-	REBVAL ignored; // !!! Should result just be ignored?
+	REBVAL result;
 
 	Bind_Block(rebind > 1 ? Sys_Context : Lib_Context, BLK_HEAD(block), BIND_SET);
 	if (rebind < 0) Bind_Block(Sys_Context, BLK_HEAD(block), 0);
 	if (rebind > 0) Bind_Block(Lib_Context, BLK_HEAD(block), BIND_DEEP);
 	if (rebind > 1) Bind_Block(Sys_Context, BLK_HEAD(block), BIND_DEEP);
 
-	DO_BLOCK(&ignored, block, 0);
+	VERIFY_DO_BLOCK(&result, block, 0);
+
+	if (!IS_UNSET(&result))
+		Panic(RP_EARLY_ERROR);
 }
 
 
@@ -613,7 +617,7 @@ static	BOOT_BLK *Boot_Block;
 	REBSER *frame;
 	REBVAL *value;
 	REBCNT n;
-	REBVAL ignored; // !!! Should result just be ignored?
+	REBVAL result;
 
 	// Evaluate the system object and create the global SYSTEM word.
 	// We do not BIND_ALL here to keep the internal system words out
@@ -629,7 +633,11 @@ static	BOOT_BLK *Boot_Block;
 	Bind_Block(frame, value, BIND_ONLY);  // No need to go deeper
 
 	// Evaluate the block (will eval FRAMEs within):
-	DO_BLOCK(&ignored, VAL_SERIES(&Boot_Block->sysobj), 0);
+	VERIFY_DO_BLOCK(&result, VAL_SERIES(&Boot_Block->sysobj), 0);
+
+	// Expects UNSET! by convention
+	if (!IS_UNSET(&result))
+		Panic(RP_EARLY_ERROR);
 
 	// Create a global value for it:
 	value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
@@ -1227,9 +1235,9 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	Do_Sys_Func(&out, SYS_CTX_FINISH_INIT_CORE, 0);
 
 	// Success of the 'finish-init-core' Rebol code is signified by returning
-	// a NONE! (all other return results indicate an error state)
+	// a UNSET! (all other return results indicate an error state)
 
-	if (!IS_NONE(&out)) {
+	if (!IS_UNSET(&out)) {
 		Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &out);
 		Panic(RP_EARLY_ERROR);
 	}

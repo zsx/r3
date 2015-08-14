@@ -933,7 +933,12 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		}
 	}
 
-	DO_BLOCK(&safe, ser, 0);
+	if (!DO_BLOCK(&safe, ser, 0)) {
+		// There was a RETURN, THROW, BREAK etc. during evaluation
+		// !!! What should actually happen here?
+		Trap(RE_MISC);
+	}
+
 	elem = &safe;
 	switch (cif->rtype->type) {
 		case FFI_TYPE_VOID:

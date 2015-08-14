@@ -445,3 +445,5 @@ rename: action [
 	to [port! file! url! block!]
 ]
 
+;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+()

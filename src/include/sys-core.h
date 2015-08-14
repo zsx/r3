@@ -380,6 +380,11 @@ enum encoding_opts {
 #define DO_BLOCK(o,s,i) \
 	(THROWN_FLAG != Do_Core((o), FALSE, (s), (i), TRUE))
 
+#define VERIFY_DO_BLOCK(o,s,i) \
+	if (!Do_Core((o), FALSE, (s), (i), TRUE)) {\
+		Panic(RP_MISC); \
+	}
+
 
 /***********************************************************************
 **

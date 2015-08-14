@@ -919,6 +919,10 @@ foreach section [boot-base boot-sys boot-mezz] [
 		append get section load join %../mezz/ file
 	]
 	remove-tests get section
+
+	;-- Expectation is that section does not return result; PAREN! makes unset
+	append get section [()]
+
 	mezz-files: next mezz-files
 ]
 

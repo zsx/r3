@@ -523,3 +523,5 @@ view: context [
 ;	help: none      ; True if the --help flags was specified
 ;	halt: none		; halt after script
 
+;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+()

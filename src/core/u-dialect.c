@@ -187,7 +187,12 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 		break;
 
 	case REB_PAREN:
-		DO_BLOCK(&safe, VAL_SERIES(value), 0);
+		if (!DO_BLOCK(&safe, VAL_SERIES(value), 0)) {
+			// Value is a THROW, RETURN, BREAK, etc...
+			// !!! Odds are we shouldn't push this on the stack and continue,
+			// but it's not clear what was intended here.
+			Panic(RP_MISC);
+		}
 		DS_PUSH(&safe);
 		value = DS_TOP;
 		break;

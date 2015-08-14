@@ -1046,3 +1046,6 @@ zero?: native [
 	{Returns TRUE if the value is zero (for its datatype).}
 	value
 ]
+
+;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+()

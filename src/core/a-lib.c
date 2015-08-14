@@ -251,10 +251,10 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	// The convention in the API was to return 0 for success.  We use the
-	// convention (as for FINISH_INIT_CORE) that any non-none! result from
+	// convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
 	// FINISH_RL_START indicates something went wrong.
 
-	if (IS_NONE(&out))
+	if (IS_UNSET(&out))
 		result = 0;
 	else {
 		assert(FALSE); // should not happen (raise an error instead)
