@@ -134,8 +134,8 @@ do: native [
 either: native [
 	{If TRUE condition return first arg, else second; evaluate blocks by default.}
 	condition
-	true-branch
-	false-branch
+	true-branch [any-type!]
+	false-branch [any-type!]
 	/only "Suppress evaluation of block args."
 ]
 
@@ -192,7 +192,7 @@ halt: native [
 if: native [
 	{If TRUE condition, return arg; evaluate blocks by default.}
 	condition
-	true-branch
+	true-branch [any-type!]
 	/only "Return block arg instead of evaluating it."
 ]
 
@@ -310,7 +310,7 @@ try: native [
 unless: native [
 	{If FALSE condition, return arg; evaluate blocks by default.}
 	condition
-	false-branch
+	false-branch [any-type!]
 	/only "Return block arg instead of evaluating it."
 ]
 
