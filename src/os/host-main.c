@@ -113,17 +113,7 @@ void Host_Crash(const char *reason) {
 **  Posix args: as you would expect in C.
 **  Posix return: ditto.
 **
-
 */
-
-int tidy(REBYTE* error_str) {
-	Put_Str(error_str);
-	OS_Quit_Devices(0);
-#ifndef REB_CORE
-	OS_Destroy_Graphics();
-#endif
-
-}
 /***********************************************************************/
 
 // Using a main entry point for a console program (as opposed to WinMain)
@@ -372,7 +362,7 @@ int main(int argc, char **argv_ansi)
 							if (noshortstr && nolongstr) {
 								cont_cmd[cont_len++] = BOXON;
 								if (cont_len >= CONTMAX) {
-									tidy("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
+									Host_Crash("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
 									return(1);
 								}
 								cont_str[0] = BOXON;
@@ -390,7 +380,7 @@ int main(int argc, char **argv_ansi)
 							if (noshortstr) {
 								cont_cmd[cont_len++] = BRACEON;
 								if (cont_len >= CONTMAX) {
-									tidy("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
+									Host_Crash("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
 									return(2);
 								}
 								cont_str[0] = BRACEON;
@@ -440,7 +430,10 @@ int main(int argc, char **argv_ansi)
 		}
 	}
 #endif //!ENCAP
-	tidy(0);
+	OS_Quit_Devices(0);
+#ifndef REB_CORE
+	OS_Destroy_Graphics();
+#endif
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
