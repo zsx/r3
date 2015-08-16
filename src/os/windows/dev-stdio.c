@@ -95,13 +95,9 @@ static void Close_Stdio(void)
 
 BOOL Init_Console()
 {
-	const wchar_t *title = L"REBOL 3";
-
 	if (!AllocConsole()) {
 		return FALSE;
 	}
-
-	SetConsoleTitle(title);
 
 	// Get the new stdio handles:
 	Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
