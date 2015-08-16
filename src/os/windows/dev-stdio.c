@@ -93,30 +93,6 @@ static void Close_Stdio(void)
 }
 
 
-BOOL Init_Console()
-{
-	if (!AllocConsole()) {
-		return FALSE;
-	}
-
-	// Get the new stdio handles:
-	Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
-
-	if (!Redir_Inp) {
-		Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
-		// Make the Win32 console a bit smarter by default:
-		SetConsoleMode(Std_Inp, CONSOLE_MODES);
-	}
-
-	Std_Buf = OS_ALLOC_ARRAY(wchar_t, BUF_SIZE);
-
-	// Handle stdio CTRL-C interrupt:
-	SetConsoleCtrlHandler(Handle_Break, TRUE);
-
-	return TRUE;
-}
-
-
 /***********************************************************************
 **
 */	DEVICE_CMD Quit_IO(REBREQ *dr)
@@ -161,10 +137,18 @@ BOOL Init_Console()
 		Redir_Out = (GetFileType(Std_Out) != 0);
 		Redir_Inp = (GetFileType(Std_Inp) != 0);
 
-		// If output not redirected, open a console:
-		if (!Redir_Out) {
-			Std_Out = 0;
-			Init_Console(req);
+		if (!Redir_Inp || !Redir_Out) {
+			// If either input or output is not redirected, preallocate
+			// a buffer for conversion from/to UTF-8.
+			Std_Buf = OS_ALLOC_ARRAY(wchar_t, BUF_SIZE);
+		}
+
+		if (!Redir_Inp) {
+			// Make the Win32 console a bit smarter by default.
+			SetConsoleMode(Std_Inp, CONSOLE_MODES);
+
+			// Handle CTRL-C interrupt.
+			SetConsoleCtrlHandler(Handle_Break, TRUE);
 		}
 	}
 	else
