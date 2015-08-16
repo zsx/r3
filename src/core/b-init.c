@@ -1183,29 +1183,17 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	VAL_ERR_OBJECT(TASK_STACK_ERROR) = ser;
 
 	// With error trapping enabled, set up to catch them if they happen.
-	PUSH_CATCH_ANY(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		// You shouldn't be able to cancel or quit during Init_Core() startup.
+		// You shouldn't be able to halt during Init_Core() startup.
 		// The only way you should be able to stop Init_Core() is by raising
 		// an error, at which point the system will Panic out.
-		// !!! TBD: Enforce not being *able* to trigger QUIT or HALT
-		assert(
-			VAL_ERR_NUM(error) != RE_HALT
-			&& VAL_ERR_NUM(error) != RE_QUIT
-			&& VAL_ERR_NUM(error) != RE_EXIT
-		);
-
-		// For the moment in release builds, let a QUIT slide (we shouldn't)
-		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
-			int status = VAL_ERR_STATUS(error);
-			Shutdown_Core();
-			OS_EXIT(status);
-			DEAD_END_VOID;
-		}
+		// !!! TBD: Enforce not being *able* to trigger HALT
+		assert(VAL_ERR_NUM(error) != RE_HALT);
 
 		// If an error was raised during startup, print it and crash.
 		Print_Value(error, 1024, FALSE);
@@ -1232,7 +1220,26 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	assert(DSP == -1 && !DSF);
 
-	Do_Sys_Func(&out, SYS_CTX_FINISH_INIT_CORE, 0);
+	if (!Do_Sys_Func(&out, SYS_CTX_FINISH_INIT_CORE, 0)) {
+		// You shouldn't be able to exit or quit during Init_Core() startup.
+		// The only way you should be able to stop Init_Core() is by raising
+		// an error, at which point the system will Panic out.
+		Debug_Fmt("** 'finish-init-core' returned THROWN() result: %r", &out);
+
+		// !!! TBD: Enforce not being *able* to trigger QUIT or EXIT, but we
+		// let them slide for the moment, even though we shouldn't.
+		if (
+			VAL_ERR_NUM(&out) == RE_THROW &&
+			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(&out) == SYM_EXIT)
+		) {
+			int status = VAL_ERR_STATUS(&out);
+			Shutdown_Core();
+			OS_EXIT(status);
+			DEAD_END_VOID;
+		}
+
+		Panic(RP_EARLY_ERROR);
+	}
 
 	// Success of the 'finish-init-core' Rebol code is signified by returning
 	// a UNSET! (all other return results indicate an error state)
@@ -1244,7 +1251,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	assert(DSP == -1 && !DSF);
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	PG_Boot_Phase = BOOT_DONE;
 

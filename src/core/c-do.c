@@ -592,7 +592,7 @@ return_index:
 
 /***********************************************************************
 **
-*/	void Dispatch_Call(struct Reb_Call *call)
+*/	REBOOL Dispatch_Call(struct Reb_Call *call)
 /*
 **		Expects call frame to be ready with all arguments fulfilled.
 **
@@ -657,6 +657,8 @@ return_index:
 
 	SET_DSF(dsf_precall);
 	Free_Call(call);
+
+	return !THROWN(out);
 }
 
 
@@ -825,9 +827,7 @@ do_at_index:
 		}
 
 		// Execute the function with all arguments ready
-		Dispatch_Call(call);
-
-		if (THROWN(out)) {
+		if (!Dispatch_Call(call)) {
 			index = THROWN_FLAG;
 			goto return_index;
 		}
@@ -1285,7 +1285,7 @@ finished:
 
 /***********************************************************************
 **
-*/	void Apply_Block(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT index, REBFLG reduce)
+*/	REBOOL Apply_Block(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT index, REBFLG reduce)
 /*
 **		Use a block at a certain index as the source of parameters to
 **		a function invocation.  If 'reduce' then the block will be
@@ -1304,6 +1304,8 @@ finished:
 **		of arguments if it is shorter than the total needed.  If
 **		there are more values in the block than arguments, that
 **		will be an error.
+**
+**		returns FALSE if out is THROWN()
 **
 ***********************************************************************/
 {
@@ -1351,7 +1353,7 @@ finished:
 			index = DO_NEXT(out, block, index);
 			if (index == THROWN_FLAG) {
 				Free_Call(call);
-				return;
+				return FALSE;
 			}
 			if (too_many) continue;
 			*arg = *out;
@@ -1394,13 +1396,13 @@ finished:
 		Trap(RE_TOO_LONG);
 	}
 
-	Dispatch_Call(call);
+	return Dispatch_Call(call);
 }
 
 
 /***********************************************************************
 **
-*/	void Apply_Function(REBVAL *out, const REBVAL *func, va_list *values)
+*/	REBOOL Apply_Function(REBVAL *out, const REBVAL *func, va_list *values)
 /*
 **		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 **
@@ -1408,11 +1410,13 @@ finished:
 **		Does not type check in release build; assumes the system is
 **		calling correctly (Debug build does check)
 **
-**		out	- result value (may be THROWN())
+**		out	- result value
 **		func - function to call
 **		values - values to pass as function args (null terminated)
 **
 **		!!! OPs are allowed, treated as normal functions.  Good idea?
+**
+**		returns FALSE if the result is THROWN()
 **
 ***********************************************************************/
 {
@@ -1468,7 +1472,7 @@ finished:
 		if (THROWN(value)) {
 			*out = *value;
 			Free_Call(call);
-			return;
+			return FALSE;
 		}
 
 		*arg = *value;
@@ -1500,45 +1504,51 @@ finished:
 	#endif
 	}
 
-	Dispatch_Call(call);
+	return Dispatch_Call(call);
 }
 
 
 /***********************************************************************
 **
-*/	void Apply_Func(REBVAL *out, REBVAL *func, ...)
+*/	REBOOL Apply_Func(REBVAL *out, REBVAL *func, ...)
 /*
 **		Applies function from args provided by C call. Zero terminated.
 **		Return value is on TOS
 **
 ***********************************************************************/
 {
+	REBOOL result;
 	va_list args;
 
 	if (!ANY_FUNC(func)) Trap_Arg(func);
 
 	va_start(args, func);
-	Apply_Function(out, func, &args);
+	result = Apply_Function(out, func, &args);
 	va_end(args);
+
+	return result;
 }
 
 
 /***********************************************************************
 **
-*/	void Do_Sys_Func(REBVAL *out, REBCNT inum, ...)
+*/	REBOOL Do_Sys_Func(REBVAL *out, REBCNT inum, ...)
 /*
-**		Evaluates a SYS function and TOS contains the result.
+**		Evaluates a SYS function and out contains the result.
 **
 ***********************************************************************/
 {
+	REBOOL result;
 	va_list args;
 	REBVAL *value = FRM_VALUE(Sys_Context, inum);
 
 	if (!ANY_FUNC(value)) Trap1(RE_BAD_SYS_FUNC, value);
 
 	va_start(args, inum);
-	Apply_Function(out, value, &args);
+	result = Apply_Function(out, value, &args);
 	va_end(args);
+
+	return result;
 }
 
 
@@ -1649,13 +1659,15 @@ finished:
 
 /***********************************************************************
 **
-*/	void Redo_Func(REBVAL *func_val)
+*/	REBOOL Redo_Func(REBVAL *func_val)
 /*
 **		Trampoline a function, restacking arguments as needed.
 **
 **	Setup:
 **		The source for arguments is the existing stack frame,
 **		or a prior stack frame. (Prep_Func + Args)
+**
+**		Returns FALSE if result is THROWN()
 **
 ***********************************************************************/
 {
@@ -1742,7 +1754,7 @@ finished:
 		}
 	}
 
-	Dispatch_Call(call);
+	return Dispatch_Call(call);
 }
 
 

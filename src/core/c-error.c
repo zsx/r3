@@ -113,10 +113,10 @@
 
 /***********************************************************************
 **
-*/	void Push_Catch_Helper(REBOL_STATE *s)
+*/	void Push_Trap_Helper(REBOL_STATE *s)
 /*
-**		Used by both CATCH and CATCH_ANY, whose differentiation comes
-**		from how they react to the catch vs. from the initial push.
+**		Used by both TRY and TRY_ANY, whose differentiation comes
+**		from how they react to HALT.
 **
 ***********************************************************************/
 {
@@ -139,48 +139,39 @@
 
 /***********************************************************************
 **
-*/	void Drop_Catch_Helper(REBOL_STATE *s, REBOOL caught)
+*/	REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
 /*
-**		Pops a CATCH state from the list without changing the actual
-**		state of the data stack or data stack frame.
+**		This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do
+**		the work of responding to a longjmp.  (Hence it is run when
+**		setjmp returns TRUE.)  Its job is to safely recover from
+**		a sudden interruption, though the list of things which can
+**		be safely recovered from is finite.  Among the countless
+**		things that are not handled automatically would be a memory
+**		allocation.
 **
-***********************************************************************/
-{
-	// leave DSP as-is
-	// leave DSF as-is
-
-	// !!! Should anything be done with GC_Protect->tail, s->hold_tail ?
-
-	assert(GC_Disabled == s->gc_disable);
-
-	assert(caught ? !IS_TRASH(&s->error) : IS_TRASH(&s->error));
-
-	Saved_State = s->last_state;
-}
-
-
-/***********************************************************************
+**		(Note: This is a crucial difference between C and C++, as
+**		C++ will walk up the stack at each level and make sure
+**		any constructors have their associated destructors run.
+**		*Much* safer for large systems, though not without cost.
+**		Rebol's greater concern is not so much the cost of setup
+**		for stack unwinding, but being able to be compiled without
+**		requiring a C++ compiler.)
 **
-*/	REBOOL Catch_Any_Error_Helper(REBOL_STATE *state)
-/*
-**		This is the core handler which is used by Catch_Error_Helper
-**		as well.  It is necessary for the /QUIT refinement of CATCH,
-**		as well as clients like Ren/C++ which need to be told when all
-**		errors happen in order to do C++ stack unwinding.  (If automatic
-**		re-throwing were used there, Ren/C++ would have no way to
-**		insinuate itself as a step in the process when calling Rebol
-**		from within a C++ routine invoked by Rebol.  Ponder that.)
+**		Returns whether the trapped error was a RE_HALT or not.
 **
 ***********************************************************************/
 {
 	struct Reb_Call *call = CS_Top;
+	REBOOL halted;
 
 	// You're only supposed to throw an error.
 	assert(IS_ERROR(&state->error));
 
+	halted = VAL_ERR_NUM(&state->error) == RE_HALT;
+
 	// !!! Reset or ENABLE_GC; ?
 
-	// Restore Rebol call stack frame at time of Push_Catch
+	// Restore Rebol call stack frame at time of Push_Trap
 	while (call != state->dsf) {
 		struct Reb_Call *prior = call->prior;
 		Free_Call(call);
@@ -188,56 +179,15 @@
 	}
 	SET_DSF(state->dsf);
 
-	// Restore Rebol data stack pointer at time of Push_Catch
+	// Restore Rebol data stack pointer at time of Push_Trap
 	DS_DROP_TO(state->dsp);
 
 	GC_Protect->tail = state->hold_tail;
 	GC_Disabled = state->gc_disable;
 
-	// Pop state structure (this alone won't restore DSP/DSF/etc)
-	Drop_Catch_Helper(state, TRUE);
+	Saved_State = state->last_state;
 
-	// Halts should only be caught by the *topmost* level of
-	// execution (generally the interpreter console loop).  There is
-	// likely no good reason for a user-exposed ability to CATCH/HALT
-
-	if ((VAL_ERR_NUM(&state->error) == RE_HALT) && Saved_State)
-		Throw(&state->error, NULL);
-
-	return TRUE;
-}
-
-
-/***********************************************************************
-**
-*/	REBOOL Catch_Error_Helper(REBOL_STATE *state)
-/*
-**		This is the handler which is used with PUSH_CATCH as opposed
-**		to PUSH_CATCH_ANY.  The only difference is that it will
-**		automatically re-throw an RE_QUIT error without offering
-**		an opportunity to process it.  You can only use this form
-**		if there's already a PUSH_CATCH_ANY on the stack which
-**		can ultimately handle QUITs and HALTs.
-**
-***********************************************************************/
-{
-	// If the state has no parent, then it is the topmost level.  It
-	// *must* use Catch_Any_Error and be able to handle anything.
-
-	assert(state->last_state);
-
-	// This is a simple wrapper over Catch_Any_Error, and might even
-	// be better done in the macro.
-
-	Catch_Any_Error_Helper(state);
-
-	// If you want to catch a QUIT, you must be a construct that uses
-	// Catch_Any_Error.  Using Catch_Error_Helper will just rethrow.
-
-	if (VAL_ERR_NUM(&state->error) == RE_QUIT)
-		Throw(&state->error, NULL);
-
-	return TRUE;
+	return halted;
 }
 
 
@@ -254,10 +204,10 @@
 	assert(IS_ERROR(err) && THROWN(err));
 
 	// This assertion is a nice idea, but practically speaking we don't
-	// currently have a moment when an error is caught with PUSH_CATCH
+	// currently have a moment when an error is caught with PUSH_TRAP
 	// to set it to trash...only if it has its value processed as a
 	// function return or loop break, etc.  One way of fixing it would
-	// be to make PUSH_CATCH take 3 arguments instead of 2, and store
+	// be to make PUSH_TRAP take 3 arguments instead of 2, and store
 	// the error argument in the Rebol_State if it gets thrown...but
 	// that looks a bit ugly.  Think more on this.
 
@@ -295,13 +245,14 @@
 
 /***********************************************************************
 **
-*/	void Throw(const REBVAL *err, const REBVAL *arg_add)
+*/	void Do_Error(const REBVAL *err)
 /*
-**		Throw to the enclosing PUSH_CATCH or PUSH_CATCH_ANY.  Although
-**		the item type being thrown is a value of type "ERROR!", not
-**		all such values represent failures.  The same mechanism is
-**		used to do non-local jumps, so the THROWN() categories of
-**		error can represent e.g. RETURN or BREAK or CONTINUE.
+**		Cause a "trap" of an error by longjmp'ing to the enclosing
+**		PUSH_TRAP or PUSH_TRAP_ANY.  Although the error being passed
+**		may not be something that strictly represents an error
+**		condition (e.g. a BREAK or CONTINUE or THROW), if it gets
+**		passed to this routine then it has not been caught by its
+**		intended recipient, and is being treated as an error.
 **
 ***********************************************************************/
 {
@@ -336,20 +287,10 @@
 			);
 	}
 
-	// Error may live in a local variable whose stack is going away,
-	// on the stack, or other unstable location.  Copy before the jump.
+	// Error may live in a local variable whose stack is going away, or
+	// other unstable location.  Copy before the jump.
 
 	Saved_State->error = *err;
-
-	// Passing an argument will "add" it to the error, if it is a
-	// THROWN-class error like a RETURN that has an associated value.
-	// This will assert if you try to add an argument to an error
-	// that you are passing on which already had an argument added.
-
-	if (arg_add) {
-		assert(THROWN(err));
-		ADD_THROWN_ARG(&Saved_State->error, arg_add);
-	}
 
 	LONG_JUMP(Saved_State->cpu_state, 1);
 }
@@ -374,23 +315,6 @@
 }
 
 
-/***********************************************************************
-**
-*/	void Quit(int status)
-/*
-**		A QUIT is thrown and can't be caught by a normal CATCH, you
-**		have to use a PUSH_CATCH_ANY
-**
-***********************************************************************/
-{
-	REBVAL err;
-	REBVAL arg;
-	VAL_SET(&err, REB_ERROR);
-	VAL_ERR_NUM(&err) = RE_QUIT;
-	SET_INTEGER(&arg, status);
-	Throw(&err, &arg);
-}
-
 
 /***********************************************************************
 **
@@ -405,7 +329,7 @@
 	REBVAL err;
 	VAL_SET(&err, REB_ERROR);
 	VAL_ERR_NUM(&err) = RE_HALT;
-	Throw(&err, NULL);
+	Do_Error(&err);
 }
 
 
@@ -677,7 +601,7 @@
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
 	VAL_ERR_OBJECT(&error) = Make_Error(num, 0, 0, 0);
-	Throw(&error, NULL);
+	Do_Error(&error);
 }
 
 
@@ -694,7 +618,7 @@
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
 	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, 0, 0);
-	Throw(&error, NULL);
+	Do_Error(&error);
 }
 
 
@@ -711,7 +635,7 @@
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
 	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, arg2, 0);
-	Throw(&error, NULL);
+	Do_Error(&error);
 }
 
 
@@ -728,7 +652,7 @@
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
 	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, arg2, arg3);
-	Throw(&error, NULL);
+	Do_Error(&error);
 }
 
 

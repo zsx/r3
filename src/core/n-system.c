@@ -45,19 +45,38 @@
 **
 */	REBNATIVE(quit)
 /*
-**		1: /return
-**		2: value
+**	1: /with
+**	2: value
+**	3: /return (deprecated)
+**	4: /return-value (deprecated)
+**
+**	While QUIT is implemented via a THROWN() value that bubbles up
+**	through the stack, it may not ultimately use the WORD! of QUIT
+**	as its /NAME when more specific values are allowed as names.
 **
 ***********************************************************************/
 {
-	if (D_REF(1)) {
-		assert(IS_INTEGER(D_ARG(2)));
-		Quit(Int32(D_ARG(2)));
-	}
-	else
-		Quit(0);
+	VAL_SET(D_OUT, REB_ERROR);
+	VAL_ERR_NUM(D_OUT) = RE_THROW;
+	VAL_ERR_SYM(D_OUT) = SYM_QUIT;
 
-	DEAD_END;
+	if (D_REF(1)) {
+		ADD_THROWN_ARG(D_OUT, D_ARG(2));
+	}
+	else if (D_REF(3)) {
+		ADD_THROWN_ARG(D_OUT, D_ARG(4));
+	}
+	else {
+		// Chosen to do it this way because returning to a calling script it
+		// will be UNSET! by default, for parity with BREAK and EXIT without
+		// a /WITH.  Long view would have RETURN work this way too: CC#2241
+
+		// (UNSET! will be translated to 0 if it gets caught for the shell)
+
+		ADD_THROWN_ARG(D_OUT, UNSET_VALUE);
+	}
+
+	return R_OUT;
 }
 
 

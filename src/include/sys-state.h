@@ -73,7 +73,7 @@
 
 
 // Structure holding the information about the last point in the stack that
-// wanted to set up an opportunity to "catch" a DO ERROR! or a THROW.
+// wanted to set up an opportunity to "catch" a Do_Error()
 
 typedef struct Rebol_State {
 	struct Rebol_State *last_state;
@@ -92,17 +92,82 @@ typedef struct Rebol_State {
 } REBOL_STATE;
 
 
-// You really can't put "setjmp" in arbitrary conditional contexts, such
-// as `setjmp(...) ? x : y`.  That's against the rules.  Although the
-// preprocessor abuse below is a bit ugly, it helps establish that anyone
-// modifying this code later not be able to avoid the truth of the limitation
-// (by removing the return value of setjmp from the caller's view).
+// PUSH_TRAP is a construct which is used to catch errors that have been
+// triggered by either the Do_Error() function directly, or the helper
+// routines with names like TrapXXX().  (In Rebol user code, the trapping
+// function is manually triggered with a DO of an ERROR! type.)  To call
+// the push, you need a REBOL_STATE value to be passed which it will
+// write into--which is a black box that clients shouldn't inspect.
+//
+// The routine also takes a pointer-to-a-REBVAL-pointer which represents
+// an error.  Using the tricky mechanisms of setjmp/longjmp, there will
+// be a first pass of execution where the line of code after the PUSH_TRAP
+// will see the error pointer as being NULL.  If a trap occurs during
+// code before the paired DROP_TRY happens, then the C state will be
+// magically teleported back to the line after the PUSH_TRAP with the
+// error value now non-null and inspectable for handling.
+//
+// Note: The implementation of this macro was chosen stylistically to
+// hide the result of the setjmp call.  That's because you really can't
+// put "setjmp" in arbitrary conditions like `setjmp(...) ? x : y`.  That's
+// against the rules.  So although the preprocessor abuse below is a bit
+// ugly, it helps establish that anyone modifying this code later not be
+// able to avoid the truth of the limitation:
 //
 //		http://stackoverflow.com/questions/30416403/
+
+#define PUSH_TRAP(e,s) \
+	do { \
+		Push_Trap_Helper(s); \
+		assert((s)->last_state != NULL); /* top push MUST handle halts */ \
+		if (!SET_JUMP((s)->cpu_state)) { \
+			/* this branch will always be run */ \
+			*(e) = NULL; \
+		} else { \
+			/* this runs if before the DROP_TRAP a longjmp() happens */ \
+			if (Trapped_Helper_Halted(s)) \
+				Do_Error(&(s)->error); /* proxy the halt up the stack */ \
+			else \
+				*(e) = cast(const REBVAL*, &(s)->error); \
+		} \
+	} while (0)
+
+
+// PUSH_UNHALTABLE_TRAP is a form of PUSH_TRAP that will receive RE_HALT in
+// the same way it would be told about other errors.  In a pure C client,
+// it would usually be only at the topmost level (e.g. console REPL loop).
 //
-// IMPORTANT: You must DROP_CATCH from the same scope you PUSH_CATCH from.
-// Do not call PUSH_CATCH in a function, then return from that function and
-// DROP_CATCH at another stack level:
+// It's also necessary at C-to-C++ boundary crossings (as in Ren/C++) even
+// if they are not the topmost.  This is because C++ needs to know if *any*
+// longjmp happens, to keep it from crossing stack frames with constructed
+// objects without running their destructors.  Once it is done unwinding
+// any relevant C++ call frames, it may have to trigger another longjmp IF
+// the C++ code was called from other Rebol C code.  (This is done in the
+// exception handler found in Ren/C++'s %function.hpp)
+//
+// Note: Despite the technical needs of low-level clients, there is likely
+// no reasonable use-case for a user-exposed ability to intercept HALTs in
+// Rebol code, for instance with a "TRY/HALTABLE" construction.
+
+#define PUSH_UNHALTABLE_TRAP(e,s) \
+	do { \
+		Push_Trap_Helper(s); \
+		if (!SET_JUMP((s)->cpu_state)) { \
+			/* this branch will always be run */ \
+			*(e) = NULL; \
+		} else { \
+			/* this runs if before the DROP_TRAP a longjmp() happens */ \
+			cast(void, Trapped_Helper_Halted(s)); \
+			*(e) = cast(const REBVAL*, &(s)->error); \
+		} \
+	} while (0)
+
+
+// If either a haltable or non-haltable TRY is PUSHed, it must be DROP'd.
+// DROP_TRAP_SAME_STACKLEVEL_AS_PUSH has a long and informative name to
+// remind you that you must DROP_TRY from the same scope you PUSH_TRAP
+// from.  (So do not call PUSH_TRAP in a function, then return from that
+// function and DROP_TRY at another stack level.)
 //
 //		"If the function that called setjmp has exited (whether by return
 //		or by a different longjmp higher up the stack), the behavior is
@@ -111,29 +176,9 @@ typedef struct Rebol_State {
 //
 //		http://en.cppreference.com/w/c/program/longjmp
 
-#define PUSH_CATCH(e,s) \
+#define DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(s) \
 	do { \
-		Push_Catch_Helper(s); \
-		if (SET_JUMP((s)->cpu_state)) { \
-			if (Catch_Error_Helper(s)) \
-				*(e) = cast(const REBVAL*, &(s)->error); \
-			else \
-				*(e) = NULL; \
-		} else \
-			*(e) = NULL; \
+		assert(GC_Disabled == (s)->gc_disable); \
+		assert(IS_TRASH(&(s)->error)); \
+		Saved_State = (s)->last_state; \
 	} while (0)
-
-#define PUSH_CATCH_ANY(e,s) \
-	do { \
-		Push_Catch_Helper(s); \
-		if (SET_JUMP((s)->cpu_state)) { \
-			if (Catch_Any_Error_Helper(s)) \
-				*(e) = cast(const REBVAL*, &(s)->error); \
-			else \
-				*(e) = NULL; \
-		} else \
-			*(e) = NULL; \
-	} while (0)
-
-#define DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(s) \
-	Drop_Catch_Helper((s), FALSE);

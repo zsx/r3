@@ -322,10 +322,10 @@ enum {
 	REBOL_STATE state;
 	const REBVAL *error;
 
-	PUSH_CATCH(&error, &state);
+	PUSH_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) return R_NONE;
 
@@ -334,7 +334,7 @@ enum {
 		// no special processing to apply.  Fall through and return it.
 	}
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	return R_OUT;
 }
@@ -495,72 +495,71 @@ enum {
 **
 */	REBNATIVE(catch)
 /*
+**	1 block
+**	2 /name
+**	3 named
+**	4 /quit
+**	5 /any
+**
+**	There's a refinement for catching quits, and CATCH/ANY will not
+**	alone catch it (you have to CATCH/ANY/QUIT).  The use of the
+**	WORD! QUIT is pending review, and when full label values are
+**	available it will likely be changed to at least get the native
+**	(e.g. equal to THROW with /NAME :QUIT instead of /NAME 'QUIT)
+**
 ***********************************************************************/
 {
-	REBVAL *val;
-	REBCNT sym;
-	REBOOL catch_quit = D_REF(4); // Should we catch QUIT too?
+	REBVAL * const block = D_ARG(1);
 
-	REBOL_STATE state;
-	const REBVAL *error;
+	REBOOL catch_named = D_REF(2);
+	REBVAL *named = D_ARG(3);
+	REBOOL catch_quit = D_REF(4);
+	REBOOL catch_any = D_REF(5);
 
-	PUSH_CATCH_ANY(&error, &state);
+	// /ANY would override /NAME, so point out the potential confusion
+	if (catch_any && catch_named) Trap(RE_BAD_REFINES);
 
-// The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+	if (!DO_BLOCK(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+		REBCNT sym = VAL_ERR_SYM(D_OUT);
 
-	if (error) {
-		// We don't ever want to catch HALT from inside a native; re-throw
-		if (VAL_ERR_NUM(error) == RE_HALT) {
-			Throw(error, NULL);
-			DEAD_END;
-		}
-
-		if (VAL_ERR_NUM(error) == RE_QUIT) {
-			// If they didn't want to catch quits then re-throw
-			if (!catch_quit) {
-				Throw(error, NULL);
-				DEAD_END;
-			}
-
-			// Otherwise, extract the exit status.
-			SET_INTEGER(D_OUT, VAL_ERR_STATUS(error));
+		if (
+			(catch_quit && sym == SYM_QUIT) || (catch_any && sym != SYM_QUIT)
+		) {
+			TAKE_THROWN_ARG(D_OUT, D_OUT);
 			return R_OUT;
 		}
 
-		*D_OUT = *error;
-		return R_OUT;
-	}
-
-	if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
-		// If it is a throw, process it:
-		if (VAL_ERR_NUM(D_OUT) == RE_THROW) {
-
-			// If a named throw, then check it:
-			if (D_REF(2)) { // /name
-
-				sym = VAL_ERR_SYM(D_OUT);
-				val = D_ARG(3); // name symbol
-
-				if (IS_WORD(val) && sym == VAL_WORD_CANON(val)) {
-					// name is the same word
+		if (catch_named) {
+			if (IS_WORD(named)) {
+				// Return the THROW/NAME's arg if the names match
+				if (sym == VAL_WORD_CANON(named)) {
 					TAKE_THROWN_ARG(D_OUT, D_OUT);
+					return R_OUT;
 				}
-				else if (IS_BLOCK(val)) {
-					// it is a block of words so test all of them
-					for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
-						if (IS_WORD(val) && sym == VAL_WORD_CANON(val))
-							TAKE_THROWN_ARG(D_OUT, D_OUT);
+			}
+			else if (IS_BLOCK(named)) {
+				// Test all the words in the block for a match to catch
+				REBVAL *word = VAL_BLK_DATA(named);
+				for (; NOT_END(word); word++) {
+					if (!IS_WORD(word)) Trap1(RE_INVALID_ARG, named);
+
+					// Return the THROW/NAME's arg if the names match
+					if (sym == VAL_WORD_CANON(word)) {
+						TAKE_THROWN_ARG(D_OUT, D_OUT);
+						return R_OUT;
 					}
 				}
-			} else {
-				// Throw is not named, don't check it
+			}
+			else Trap1(RE_INVALID_ARG, named);
+		}
+		else {
+			// Return THROW's arg only if it did not have a /NAME supplied
+			if (sym == SYM_NOT_USED) {
 				TAKE_THROWN_ARG(D_OUT, D_OUT);
+				return R_OUT;
 			}
 		}
 	}
-
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	return R_OUT;
 }
@@ -648,7 +647,12 @@ enum {
 /*
 ***********************************************************************/
 {
-	REBVAL *value = D_ARG(1);
+	REBVAL * const value = D_ARG(1);
+	REBVAL * const args_ref = D_ARG(2);
+	REBVAL * const arg = D_ARG(3);
+	REBVAL * const next_ref = D_ARG(4);
+	REBVAL * const var = D_ARG(5);
+
 	REBVAL out;
 
 	switch (VAL_TYPE(value)) {
@@ -708,14 +712,26 @@ enum {
 			assert(FALSE);
 			return R_ARG1;
 		}
-		Throw(value, NULL);
+		Do_Error(value);
 
 	case REB_BINARY:
 	case REB_STRING:
 	case REB_URL:
 	case REB_FILE:
-		// DO native and system/intrinsic/do must use same arg list:
-		Do_Sys_Func(D_OUT, SYS_CTX_DO_P, value, D_ARG(2), D_ARG(3), D_ARG(4), D_ARG(5), NULL);
+		// DO native and system/intrinsic/do* must use same arg list:
+		if (!Do_Sys_Func(
+			D_OUT,
+			SYS_CTX_DO_P,
+			value,
+			args_ref,
+			arg,
+			next_ref,
+			var,
+			NULL
+		)) {
+			// Was THROW, RETURN, EXIT, QUIT etc...
+			// No special handling, just return as we were going to
+		}
 		return R_OUT;
 
 	case REB_TASK:
@@ -759,14 +775,20 @@ enum {
 **	1: /with
 **	2: value
 **
+**	While EXIT is implemented via a THROWN() value that bubbles up
+**	through the stack, it may not ultimately use the WORD! of EXIT
+**	as its /NAME when more specific values are allowed as names.
+**
 ***********************************************************************/
 {
 	VAL_SET(D_OUT, REB_ERROR);
 
 	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
 		VAL_ERR_NUM(D_OUT) = RE_RETURN;
-	else
-		VAL_ERR_NUM(D_OUT) = RE_EXIT;
+	else {
+		VAL_ERR_NUM(D_OUT) = RE_THROW;
+		VAL_ERR_SYM(D_OUT) = SYM_EXIT;
+	}
 
 	ADD_THROWN_ARG(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
@@ -926,10 +948,10 @@ enum {
 	REBOL_STATE state;
 	const REBVAL *error;
 
-	PUSH_CATCH(&error, &state);
+	PUSH_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
 		if (except) {
@@ -975,7 +997,7 @@ enum {
 		// No special handling, just return like we were going to
 	}
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	return R_OUT;
 }

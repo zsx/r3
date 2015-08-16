@@ -76,6 +76,7 @@ catch: native [
 	/name {Catches a named throw}
 	word [word! block!] {One or more names}
 	/quit {Special catch for QUIT native}
+	/any {Catch all throws except QUIT (can be used with /QUIT)}
 ]
 
 ;cause: native [
@@ -216,10 +217,11 @@ map-each: native [
 ;]
 
 quit: native [
-	{Stops evaluation and exits the interpreter.}
-	/return {Returns a value (to prior script or command shell)}
-	value {Note: use integers for command shell}
-	/now {Quit immediately}
+	{Stop evaluating and return control to command shell or calling script.}
+	/with {Yield a result (mapped to an integer if given to shell)}
+	value [any-type!] {See: http://en.wikipedia.org/wiki/Exit_status}
+	/return {(deprecated synonym for /WITH)}
+	return-value
 ]
 
 protect: native [

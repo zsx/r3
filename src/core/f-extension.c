@@ -238,7 +238,11 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 	}
 
 	// Evaluate the function:
-	Dispatch_Call(call);
+	if (!Dispatch_Call(call)) {
+		// !!! Needs better handling for THROWN() to safely "bubble up"
+		Do_Error(DSF_OUT(call));
+		DEAD_END;
+	}
 
 	// Return resulting value from output
 	*result = Value_To_RXI(&out);

@@ -213,19 +213,12 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		Set_Binary(val, ser);
 	}
 
-	PUSH_CATCH_ANY(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
-			int status = VAL_ERR_STATUS(error);
-			Shutdown_Core();
-			OS_EXIT(status);
-			DEAD_END;
-		}
-
 		// Save error for EXPLAIN and return it
 		*Get_System(SYS_STATE, STATE_LAST_ERROR) = *error;
 
@@ -246,9 +239,22 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		return VAL_ERR_NUM(error);
 	}
 
-	Do_Sys_Func(&out, SYS_CTX_FINISH_RL_START, 0);
+	if (!Do_Sys_Func(&out, SYS_CTX_FINISH_RL_START, 0)) {
+		if (
+			VAL_ERR_NUM(&out) == RE_THROW &&
+			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(error) == SYM_EXIT)
+		) {
+			int status = VAL_ERR_STATUS(&out);
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+			Shutdown_Core();
+			OS_EXIT(status);
+			DEAD_END;
+		}
+	}
+
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	// The convention in the API was to return 0 for success.  We use the
 	// convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
@@ -376,19 +382,12 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	assert(DSP == -1);
 
-	PUSH_CATCH_ANY(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		if (VAL_ERR_NUM(error) == RE_QUIT || VAL_ERR_NUM(error) == RE_EXIT) {
-			int status = VAL_ERR_STATUS(error);
-			Shutdown_Core();
-			OS_EXIT(status);
-			DEAD_END;
-		}
-
 		// !!! Through this interface we have no way to distinguish an error
 		// returned as a value from one that was thrown.  Yet by contract
 		// we must return some sort of value--we try and patch over this
@@ -450,13 +449,27 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	if (!DO_BLOCK(&out, code, 0)) {
 		UNSAVE_SERIES(code);
-		Throw(&out, NULL);
+
+		if (
+			VAL_ERR_NUM(&out) == RE_THROW &&
+			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(&out) == SYM_EXIT)
+		) {
+			int status = VAL_ERR_STATUS(&out);
+
+			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+			Shutdown_Core();
+			OS_EXIT(status);
+			DEAD_END;
+		}
+
+		Do_Error(&out);
 		DEAD_END;
 	}
 
 	UNSAVE_SERIES(code);
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	if (result) {
 		// Convert Do_Blk output to RXT and RXI if that was requested.

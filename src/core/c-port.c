@@ -42,7 +42,13 @@
 **
 ***********************************************************************/
 {
-	Do_Sys_Func(out, SYS_CTX_MAKE_PORT_P, spec, 0);
+	if (!Do_Sys_Func(out, SYS_CTX_MAKE_PORT_P, spec, 0)) {
+		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
+		Do_Error(out);
+		DEAD_END_VOID;
+	}
+
+	// !!! Shouldn't this be testing for !IS_PORT( ) ?
 	if (IS_NONE(out)) Trap1(RE_INVALID_SPEC, spec);
 }
 

@@ -1265,7 +1265,7 @@ bad_end:
 	assert(IS_TRASH(D_OUT));
 	parse.out = D_OUT;
 
-	PUSH_CATCH(&error, &state);
+	PUSH_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
@@ -1299,8 +1299,7 @@ bad_end:
 		}
 
 		// All other errors we don't interfere with, and just re-trap
-		Throw(error, NULL);
-		DEAD_END;
+		Do_Error(error);
 	}
 
 	index = Parse_Rules_Loop(&parse, VAL_INDEX(input), VAL_BLK_DATA(rules), 0);
@@ -1311,7 +1310,7 @@ bad_end:
 	// parse->out value here (instead of in RE_PARSE_LONGJMP_HACK handling).
 	assert(IS_TRASH(D_OUT));
 
-	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	// Parse can fail if the match rule state can't process pending input
 	if (index == NOT_FOUND)

@@ -639,7 +639,7 @@
 		return;
 	}
 
-	Throw(&error, NULL); // ENABLE_GC implied
+	Do_Error(&error); // ENABLE_GC implied
 	DEAD_END_VOID;
 }
 
