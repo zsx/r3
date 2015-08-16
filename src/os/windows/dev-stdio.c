@@ -108,44 +108,40 @@ HWND Get_Console_Window()
 
 BOOL Init_Console()
 {
-	if (!Std_Out && Con_Out){
+	const wchar_t *title = L"REBOL 3";
+	HWND win;
 
-		const wchar_t *title = L"REBOL 3";
-		HWND win;
-
-		if (!AllocConsole()) {
-			return FALSE;
-		}
-
-		SetConsoleTitle(title);
-
-		// The goof-balls at MS seem to require this:
-		// See: http://support.microsoft.com/kb/124103
-		Sleep(40);
-		win = Get_Console_Window();
-
-		if (win) {
-			SetForegroundWindow(win);
-			BringWindowToTop(win);
-		}
-
-		// Get the new stdio handles:
-		Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
-
-		if (!Redir_Inp) {
-			Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
-			// Make the Win32 console a bit smarter by default:
-			SetConsoleMode(Std_Inp, CONSOLE_MODES);
-		}
-
-		Std_Buf = OS_ALLOC_ARRAY(wchar_t, BUF_SIZE);
-
-		// Handle stdio CTRL-C interrupt:
-		SetConsoleCtrlHandler(Handle_Break, TRUE);
-
-		return TRUE;
+	if (!AllocConsole()) {
+		return FALSE;
 	}
-	return FALSE;
+
+	SetConsoleTitle(title);
+
+	// The goof-balls at MS seem to require this:
+	// See: http://support.microsoft.com/kb/124103
+	Sleep(40);
+	win = Get_Console_Window();
+
+	if (win) {
+		SetForegroundWindow(win);
+		BringWindowToTop(win);
+	}
+
+	// Get the new stdio handles:
+	Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	if (!Redir_Inp) {
+		Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
+		// Make the Win32 console a bit smarter by default:
+		SetConsoleMode(Std_Inp, CONSOLE_MODES);
+	}
+
+	Std_Buf = OS_ALLOC_ARRAY(wchar_t, BUF_SIZE);
+
+	// Handle stdio CTRL-C interrupt:
+	SetConsoleCtrlHandler(Handle_Break, TRUE);
+
+	return TRUE;
 }
 
 
@@ -246,7 +242,8 @@ BOOL Init_Console()
 		return DR_DONE;
 	}
 
-	Init_Console();
+	if (!Std_Out && Con_Out)
+		Init_Console();
 
 	if (Std_Out && Con_Out) {
 
