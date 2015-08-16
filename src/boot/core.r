@@ -35,21 +35,6 @@ init-words: command [
 
 init-words words
 
-; There is no console in Ren/C
-;
-;show-console: command [
-;	"Opens console window"
-;]
-;
-;console-output: command [
-;	"Enables/Diables printing to console"
-;	state [logic!]
-;]
-;
-;hide-console: command [
-;	"Hides console window if already open"
-;]
-
 ; The Ren/C library itself is not involved in encapping; this is the
 ; responsibility of the executable built with it to provide.
 ;

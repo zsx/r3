@@ -92,12 +92,6 @@ static void Close_Stdio(void)
 	}
 }
 
-//accessor function to enable/disable output print to console
-void Console_Output(BOOL state)
-{
-    Con_Out = state;
-}
-
 HWND Get_Console_Window()
 {
     HMODULE h = LoadLibraryW(L"kernel32.dll");
@@ -180,7 +174,6 @@ BOOL Init_Console()
 	}
 
 	if (!GET_FLAG(req->modes, RDM_NULL)) {
-
 		// Get the raw stdio handles:
 		Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
 		Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
@@ -190,9 +183,10 @@ BOOL Init_Console()
 		Redir_Out = (GetFileType(Std_Out) != 0);
 		Redir_Inp = (GetFileType(Std_Inp) != 0);
 
- 		// Output not redirected, reset out handle
+		// If output not redirected, open a console:
 		if (!Redir_Out) {
 			Std_Out = 0;
+			Init_Console(req);
 		}
 	}
 	else
@@ -242,10 +236,7 @@ BOOL Init_Console()
 		return DR_DONE;
 	}
 
-	if (!Std_Out && Con_Out)
-		Init_Console();
-
-	if (Std_Out && Con_Out) {
+	if (Std_Out) {
 
 		if (Redir_Out) { // Always UTF-8
 			ok = WriteFile(Std_Out, req->common.data, req->length, &total, 0);
