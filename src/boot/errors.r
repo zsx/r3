@@ -19,10 +19,8 @@ Throw: [
 	type: "throw error"
 	null:				{invalid error code zero}
 	break:              {no loop to break}
-	parse-break:		{parse BREAK not in PARSE (impossible!)}
 	return:             {return not in function}
 	exit:				{no context to handle EXIT (impossible!)}
-	parse-return:		{parse RETURN not in PARSE (impossible!)}
 	throw:              [{no catch for throw:} :arg1]
 	continue:           {no loop to continue}
 	halt:               [{halted by user or script}]
@@ -221,6 +219,13 @@ Command: [
 resv700: [
 	code: 700
 	type: "reserved"
+	; !!! Temporary: PARSE uses simulated error Trap to get out of arbitrary
+	; stacks when a paren! is THROWN() out of (e.g. parse {} [(return 0)]).
+	; This isn't sensible compared to just having a way to use ordinary
+	; C logic to return out of the stack.  There is overhead to cleaning up
+	; after the longjmp and cost to set up and drop a setjmp state on every
+	; parse (even those which will not need to use this hack).
+	parse-longjmp-hack:	{RE_PARSE_LONGJMP_HACK not in PARSE (impossible!)}
 ]
 
 User: [

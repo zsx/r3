@@ -40,7 +40,7 @@ typedef struct reb_parse {
 	REBCNT type;
 	REBCNT flags;
 	REBINT result;
-	REBVAL retval;
+	REBVAL *out;
 } REBPARSE;
 
 enum parse_flags {
@@ -76,23 +76,6 @@ void Print_Parse_Index(REBCNT type, const REBVAL *rules, REBSER *series, REBCNT 
 	Set_Series(type, &val, series);
 	VAL_INDEX(&val) = index;
 	Debug_Fmt("%r: %r", rules, &val);
-}
-
-
-/***********************************************************************
-**
-*/	static REBCNT Parse_Series(REBVAL *val, const REBVAL *rules, REBCNT flags, REBCNT depth)
-/*
-***********************************************************************/
-{
-	REBPARSE parse;
-
-	parse.series = VAL_SERIES(val);
-	parse.type = VAL_TYPE(val);
-	parse.flags = flags;
-	parse.result = 0;
-
-	return Parse_Rules_Loop(&parse, VAL_INDEX(val), rules, depth);
 }
 
 
@@ -225,11 +208,13 @@ void Print_Parse_Index(REBCNT type, const REBVAL *rules, REBSER *series, REBCNT 
 	// Do an expression:
 	case REB_PAREN:
 		// might GC
-		if (!DO_BLOCK(&save, VAL_SERIES(item), 0))
-			Throw(&save, NULL);
+		if (!DO_BLOCK(&save, VAL_SERIES(item), 0)) {
+			*parse->out = save;
+			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+			DEAD_END;
+		}
 
 		item = &save;
-		// old: if (IS_ERROR(item)) Throw_Error(VAL_ERR_OBJECT(item));
         index = MIN(index, series->tail); // may affect tail
 		break;
 
@@ -296,8 +281,11 @@ void Print_Parse_Index(REBCNT type, const REBVAL *rules, REBSER *series, REBCNT 
 	// Do an expression:
 	case REB_PAREN:
 		// might GC
-		if (!DO_BLOCK(&save, VAL_SERIES(item), 0))
-			Throw(&save, NULL);
+		if (!DO_BLOCK(&save, VAL_SERIES(item), 0)) {
+			*parse->out = save;
+			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+			DEAD_END;
+		}
 		item = &save;
 		// old: if (IS_ERROR(item)) Throw_Error(VAL_ERR_OBJECT(item));
         index = MIN(index, series->tail); // may affect tail
@@ -352,8 +340,11 @@ no_result:
 						if (IS_END(item)) goto bad_target;
 						if (IS_PAREN(item)) {
 							// might GC
-							if (!DO_BLOCK(&save, VAL_SERIES(item), 0))
-								Throw(&save, NULL);
+							if (!DO_BLOCK(&save, VAL_SERIES(item), 0)) {
+								*parse->out = save;
+								Trap(RE_PARSE_LONGJMP_HACK);
+								DEAD_END;
+							}
 							item = &save;
 						}
 
@@ -451,17 +442,25 @@ next:		// Check for | (required if not end)
 
 found:
 	if (IS_PAREN(blk + 1)) {
-		REBVAL ignored; // !!! Ignore result?
-		if (!DO_BLOCK(&ignored, VAL_SERIES(blk + 1), 0))
-			Throw(&ignored, NULL);
+		REBVAL evaluated;
+		if (!DO_BLOCK(&evaluated, VAL_SERIES(blk + 1), 0)) {
+			*parse->out = evaluated;
+			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+			DEAD_END;
+		}
+		// !!! ignore evaluated if it's not THROWN?
 	}
 	return index;
 
 found1:
 	if (IS_PAREN(blk + 1)) {
-		REBVAL ignored;	// !!! Ignore result?
-		if (!DO_BLOCK(&ignored, VAL_SERIES(blk + 1), 0))
-			Throw(&ignored, NULL);
+		REBVAL evaluated;
+		if (!DO_BLOCK(&evaluated, VAL_SERIES(blk + 1), 0)) {
+			*parse->out = save;
+			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+			DEAD_END;
+		}
+		// !!! ignore evaluated if it's not THROWN?
 	}
 	return index + (is_thru ? 1 : 0);
 
@@ -583,8 +582,12 @@ bad_target:
 	// Evaluate next N input values:
 	index = DO_NEXT(&value, parse->series, index);
 
-	// Value is on top of stack:
-	if (THROWN(&value)) Throw(&value, NULL);
+	if (index == THROWN_FLAG) {
+		// Value is a THROW, RETURN, BREAK, etc...we have to stop processing
+		*parse->out = value;
+		Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+		DEAD_END;
+	}
 
 	// Get variable or command:
 	if (IS_WORD(item)) {
@@ -600,20 +603,39 @@ bad_target:
 			if (IS_END(item)) Trap1_DEAD_END(RE_PARSE_END, item-2);
 			if (IS_PAREN(item)) {
 				// might GC
-				if (!DO_BLOCK(&save, VAL_SERIES(item), 0))
-					Throw(&save, NULL);
+				if (!DO_BLOCK(&save, VAL_SERIES(item), 0)) {
+					*parse->out = save;
+					Trap(RE_PARSE_LONGJMP_HACK);
+					DEAD_END;
+				}
 				item = &save;
 			}
 		}
 		else if (n == SYM_INTO) {
+			REBPARSE sub_parse;
+
 			item = item + 1;
 			(*rule)++;
 			if (IS_END(item)) Trap1_DEAD_END(RE_PARSE_END, item-2);
 			item = Get_Parse_Value(&save, item); // sub-rules
 			if (!IS_BLOCK(item)) Trap1_DEAD_END(RE_PARSE_RULE, item-2);
 			if (!ANY_BINSTR(&value) && !ANY_BLOCK(&value)) return NOT_FOUND;
-			return (Parse_Series(&value, VAL_BLK_DATA(item), parse->flags, 0) == VAL_TAIL(&value))
-				? index : NOT_FOUND;
+
+			sub_parse.series = VAL_SERIES(&value);
+			sub_parse.type = VAL_TYPE(&value);
+			sub_parse.flags = parse->flags;
+			sub_parse.result = 0;
+			sub_parse.out = parse->out;
+
+			if (
+				VAL_TAIL(&value) == Parse_Rules_Loop(
+					&sub_parse, VAL_INDEX(&value), VAL_BLK_DATA(item), 0
+				)
+			) {
+				return index;
+			}
+
+			return NOT_FOUND;
 		}
 		else if (n > 0)
 			Trap1_DEAD_END(RE_PARSE_RULE, item);
@@ -766,19 +788,16 @@ bad_target:
 
 					case SYM_RETURN:
 						if (IS_PAREN(rules)) {
-							REBVAL err;
-							REBVAL arg;
+							if (!DO_BLOCK(parse->out, VAL_SERIES(rules), 0)) {
+								// If the paren evaluation result gives a
+								// THROW, BREAK, CONTINUE, etc then we'll
+								// return that (but we were returning anyway,
+								// so just fall through)
+							}
 
-							VAL_SET(&err, REB_ERROR);
-							VAL_ERR_NUM(&err) = RE_PARSE_RETURN;
-
-							// If the paren evaluation result gives non-PARSE
-							// RETURN (or THROW, BREAK, CONTINUE) then that
-							// trumps the parse return we are trying to do
-							if (!DO_BLOCK(&arg, VAL_SERIES(rules), 0))
-								Throw(&arg, NULL);
-
-							Throw(&err, &arg);
+							// Implicitly returns whatever's in parse->out
+							// !!! Should return gracefully...!
+							Trap(RE_PARSE_LONGJMP_HACK);
 							DEAD_END;
 						}
 						SET_FLAG(flags, PF_RETURN);
@@ -803,8 +822,11 @@ bad_target:
 						if (!IS_PAREN(item)) Trap1_DEAD_END(RE_PARSE_RULE, item);
 
 						// might GC
-						if (!DO_BLOCK(&save, VAL_SERIES(item), 0))
-							Throw(&save, NULL);
+						if (!DO_BLOCK(&save, VAL_SERIES(item), 0)) {
+							*parse->out = save;
+							Trap(RE_PARSE_LONGJMP_HACK);
+							DEAD_END;
+						}
 
 						item = &save;
 						if (IS_CONDITIONAL_TRUE(item)) continue;
@@ -905,11 +927,15 @@ bad_target:
 		}
 
 		if (IS_PAREN(item)) {
-			REBVAL ignored; // !!! Ignore result?
+			REBVAL evaluated;
 
 			// might GC
-			if (!DO_BLOCK(&ignored, VAL_SERIES(item), 0))
-				Throw(&ignored, NULL);
+			if (!DO_BLOCK(&evaluated, VAL_SERIES(item), 0)) {
+				*parse->out = evaluated;
+				Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
+				DEAD_END;
+			}
+			// ignore evaluated if it's not THROWN?
 
 			if (index > series->tail) index = series->tail;
 			continue;
@@ -974,25 +1000,51 @@ bad_target:
 					rulen = 1;
 					if (IS_PAREN(rules)) {
 						// might GC
-						if (!DO_BLOCK(&save, VAL_SERIES(rules), 0))
-							Throw(&save, NULL);
+						if (!DO_BLOCK(&save, VAL_SERIES(rules), 0)) {
+							*parse->out = save;
+							Trap(RE_PARSE_LONGJMP_HACK);
+							DEAD_END;
+						}
 						item = &save;
 					}
 					else item = rules;
 					i = (0 == Cmp_Value(BLK_SKIP(series, index), item, parse->flags & AM_FIND_CASE)) ? index+1 : NOT_FOUND;
 					break;
 
-				case SYM_INTO:
+				case SYM_INTO: {
+					REBPARSE sub_parse;
+
 					if (IS_END(rules)) goto bad_end;
 					rulen = 1;
 					item = Get_Parse_Value(&save, rules); // sub-rules
 					if (!IS_BLOCK(item)) goto bad_rule;
 					val = BLK_SKIP(series, index);
-					i = (
-						(ANY_BINSTR(val) || ANY_BLOCK(val))
-						&& (Parse_Series(val, VAL_BLK_DATA(item), parse->flags, depth+1) == VAL_TAIL(val))
-					) ? index+1 : NOT_FOUND;
+
+					if (!ANY_BINSTR(val) && !ANY_BLOCK(val)) {
+						i = NOT_FOUND;
+						break;
+					}
+
+					sub_parse.series = VAL_SERIES(val);
+					sub_parse.type = VAL_TYPE(val);
+					sub_parse.flags = parse->flags;
+					sub_parse.result = 0;
+					sub_parse.out = parse->out;
+
+					if (
+						VAL_TAIL(val) != Parse_Rules_Loop(
+							&sub_parse,
+							VAL_INDEX(val),
+							VAL_BLK_DATA(item),
+							depth + 1
+						)
+					) {
+						i = NOT_FOUND;
+					}
+
+					i = index + 1;
 					break;
+				}
 
 				case SYM_DO:
 					if (!IS_BLOCK_INPUT(parse)) goto bad_rule;
@@ -1112,20 +1164,14 @@ post:
 				}
 				if (GET_FLAG(flags, PF_RETURN)) {
 					// See notes on PARSE's return in handling of SYM_RETURN
-					REBVAL err;
-					REBVAL arg;
-
-					VAL_SET(&err, REB_ERROR);
-					VAL_ERR_NUM(&err) = RE_PARSE_RETURN;
-
-					VAL_SET(&arg, parse->type);
-					VAL_SERIES(&arg) =
+					VAL_SET(parse->out, parse->type);
+					VAL_SERIES(parse->out) =
 						IS_BLOCK_INPUT(parse)
 							? Copy_Block_Len(series, begin, count)
 							: Copy_String(series, begin, count); // condenses
-					VAL_INDEX(&arg) = 0;
+					VAL_INDEX(parse->out) = 0;
 
-					Throw(&err, &arg);
+					Trap(RE_PARSE_LONGJMP_HACK);
 					DEAD_END;
 				}
 				if (GET_FLAG(flags, PF_REMOVE)) {
@@ -1200,6 +1246,8 @@ bad_end:
 	REBCNT opts = 0;
 	REBCNT index;
 
+	REBPARSE parse;
+
 	REBOL_STATE state;
 	const REBVAL *error;
 
@@ -1209,47 +1257,59 @@ bad_end:
 	// case-insensitive bytes for ASCII characters
 	if (IS_BINARY(input)) opts |= PF_CASE;
 
+	parse.series = VAL_SERIES(input);
+	parse.type = VAL_TYPE(input);
+	parse.flags = cased ? AM_FIND_CASE : 0;
+	parse.result = 0;
+
+	assert(IS_TRASH(D_OUT));
+	parse.out = D_OUT;
+
 	PUSH_CATCH(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
-// Throw() can longjmp here, so 'error' won't be NULL *if* that happens!
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		// We use a special kind of RETURN to be caught by PARSE so we
-		// differentiate between:
+		// !!! Rather than return normally up the C call stack when it
+		// hits a place it needs to give back a THROWN() or do a RETURN,
+		// PARSE re-uses the setjmp/longjmp mechanism from error handling
+		// to leap out of the stack it is in and to this enclosing code.
+		// This is an unnecessary hack and should be removed.
+		//
+		// For instance: the code would jump here if it were to hit either
+		// a RETURN parse rule -or- have a paren code that did a RETURN.
+		// Note the distinction in meaning in that particular case:
 		//
 		//	   foo: func [] [parse "1020" [(return true)]
-		//	   bar: func [] [parse "0304" [return false]]
+		//	   bar: func [] [parse "0304" [return (false)]]
 		//
-		// !!! I added a RE_PARSE_BREAK as a review point, as it seemed
-		// like there was a function Throw_Break which corresponded to
-		// a special Throw_Return used by PARSE.  In the end, BREAK and
-		// ACCEPT (what's the difference?) seem to work another way.
-		// Leaving RE_PARSE_BREAK until all is understood.  --HF
-
-		if (
-			(VAL_ERR_NUM(error) == RE_PARSE_BREAK)
-			|| (VAL_ERR_NUM(error) == RE_PARSE_RETURN)
-		) {
-			TAKE_THROWN_ARG(D_OUT, error);
+		// (To end a PARSE from within a PAREN!, it is being considered
+		// that EXIT/WITH might exit the parentheses and then the /WITH would
+		// be treated as the next rule to run.  In that case, you could end
+		// a parse with EXIT/WITH [return].)
+		//
+		if (VAL_ERR_NUM(error) == RE_PARSE_LONGJMP_HACK) {
+			// If the longjmp hack is being done, it is required that the
+			// jumper has filled our output value.  It knows where to write
+			// it because we pass D_OUT in the REBPARSE as parse->out
+			//
+			assert(!IS_TRASH(D_OUT));
 			return R_OUT;
 		}
 
-		// If a THROWN style error, evaluate to that so that it can
-		// bubble up the stack.
-		if (THROWN(error)) {
-			*D_OUT = *error;
-			return R_OUT;
-		}
-
-		// Trap all other errors that aren't implicitly thrown...
+		// All other errors we don't interfere with, and just re-trap
 		Throw(error, NULL);
 		DEAD_END;
 	}
 
-	index = Parse_Series(
-		input, VAL_BLK_DATA(rules), cased ? AM_FIND_CASE : 0, 0
-	);
+	index = Parse_Rules_Loop(&parse, VAL_INDEX(input), VAL_BLK_DATA(rules), 0);
+
+	// !!! Currently the only way Parse_Rules_Loop should write to the out
+	// value we gave it is if it did a "longjmp hack".  When the hack is gone
+	// and the C unwinds back to us without a longjmp, we would read the
+	// parse->out value here (instead of in RE_PARSE_LONGJMP_HACK handling).
+	assert(IS_TRASH(D_OUT));
 
 	DROP_CATCH_SAME_STACKLEVEL_AS_PUSH(&state);
 
