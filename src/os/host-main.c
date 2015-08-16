@@ -312,13 +312,8 @@ int main(int argc, char **argv_ansi)
 		RL_Do_String(cb_cast("quit"), 0, 0);
 	}
 
-	#define LBRACKET	'['
-	#define RBRACKET	']'
-	#define LBRACE		'{'
-	#define RBRACE		'}'
-	#define	QUOTE		'"'
-	#define SEMICOL		';'
-	#define CONTMAX		80
+
+	#define CONTMAX 80
 
 	REBYTE cont_str[] = "    ";
 	cont_str[0] = 0;
@@ -355,19 +350,19 @@ int main(int argc, char **argv_ansi)
 			if (line = Get_Str()) {
 				for (i = 0; line[i] != 0; i++) {
 					switch (line[i]) {
-						case QUOTE:
+						case '"':
 							noshortstr = !noshortstr;
 							break;
-						case LBRACKET:
+						case '[':
 							if (noshortstr && nolongstr) {
-								cont_cmd[cont_len++] = LBRACKET;
+								cont_cmd[cont_len++] = line[i];
 								if (cont_len >= CONTMAX) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = LBRACKET;
+								cont_str[0] = line[i];
 							}
 							break;
-						case RBRACKET:
+						case ']':
 							if (noshortstr && nolongstr) {
 								if (cont_len >= 2) {
 									cont_str[0] = cont_cmd[cont_len - 2];
@@ -375,17 +370,17 @@ int main(int argc, char **argv_ansi)
 								cont_cmd[--cont_len] = 0;
 							}
 							break;
-						case LBRACE:
+						case '{':
 							if (noshortstr) {
-								cont_cmd[cont_len++] = LBRACE;
+								cont_cmd[cont_len++] = line[i];
 								if (cont_len >= CONTMAX) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = LBRACE;
+								cont_str[0] = line[i];
 								nolongstr = FALSE;
 							}
 							break;
-						case RBRACE:
+						case '}':
 							if (noshortstr) {
 								if (cont_len >= 2) {
 									cont_str[0] = cont_cmd[cont_len - 2];
@@ -394,7 +389,7 @@ int main(int argc, char **argv_ansi)
 								nolongstr = TRUE;
 							}
 							break;
-						case SEMICOL:
+						case ';':
 							if (noshortstr && nolongstr) {
 								line[i--] = 0;
 							}
