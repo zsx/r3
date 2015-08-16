@@ -46,17 +46,18 @@
 
 #include "reb-host.h"
 
-#define BUF_SIZE (16*1024)		// MS restrictions apply
+#define BUF_SIZE (16 * 1024)	// MS restrictions apply
 
-#define SF_DEV_NULL 31			// local flag to mark NULL device
+#define SF_DEV_NULL 31			// Local flag to mark NULL device.
 
-#define CONSOLE_MODES ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_ECHO_INPUT \
-		| 0x0040 | 0x0020  // quick edit and insert mode (not defined in VC6)
+#define CONSOLE_MODES \
+		ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_ECHO_INPUT \
+		| 0x0040 | 0x0020		// quick edit and insert mode (not defined in VC6)
 
 static HANDLE Std_Out = NULL;
 static HANDLE Std_Inp = NULL;
 static HANDLE Std_Echo = NULL;
-static wchar_t *Std_Buf = NULL;		// for input and output
+static wchar_t *Std_Buf = NULL;	// Used for UTF-8 conversion of stdin/stdout.
 
 static BOOL Redir_Out = 0;
 static BOOL Redir_Inp = 0;
@@ -77,21 +78,8 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
 	return TRUE;	// We handled it
 }
 
-#ifdef DEBUG_METHOD
-// Because this file deals with stdio, we must avoid using stdio for debug.
-// This funtion is of use wne needed.
-static dbgout(char *fmt, int d, char *s)
-{
-	char buf[255];
-	FILE *f = fopen("dbgout.txt", "w");
-	sprintf(buf, fmt, d, s);
-	fwrite(buf, strlen(buf), 1, f);
-	fclose(f);
-}
-// example: dbgout("handle: %x %s\n", hdl, name);
-#endif
 
-static void close_stdio(void)
+static void Close_Stdio(void)
 {
 	if (Std_Buf) {
 		OS_FREE(Std_Buf);
@@ -120,55 +108,46 @@ HWND Get_Console_Window()
 
 BOOL Init_Console()
 {
-    if (!Std_Out && Con_Out){
+	if (!Std_Out && Con_Out){
 
-        const wchar_t *title = L"REBOL 3";
-        HWND win;
+		const wchar_t *title = L"REBOL 3";
+		HWND win;
 
-        if (!AllocConsole()) {
-            return FALSE;
-	}
+		if (!AllocConsole()) {
+			return FALSE;
+		}
 
-        SetConsoleTitle(title);
+		SetConsoleTitle(title);
 
-        // The goof-balls at MS seem to require this:
-        // See: http://support.microsoft.com/kb/124103
-        Sleep(40);
-        win = Get_Console_Window();
+		// The goof-balls at MS seem to require this:
+		// See: http://support.microsoft.com/kb/124103
+		Sleep(40);
+		win = Get_Console_Window();
 
-        if (win) {
-            SetForegroundWindow(win);
-            BringWindowToTop(win);
-	}
+		if (win) {
+			SetForegroundWindow(win);
+			BringWindowToTop(win);
+		}
 
-        // Get the new stdio handles:
-        Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+		// Get the new stdio handles:
+		Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
 
-        if (!Redir_Inp)	{
-            Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
-            // Make the Win32 console a bit smarter by default:
-            SetConsoleMode(Std_Inp, CONSOLE_MODES);
-        }
+		if (!Redir_Inp) {
+			Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
+			// Make the Win32 console a bit smarter by default:
+			SetConsoleMode(Std_Inp, CONSOLE_MODES);
+		}
 
 		Std_Buf = OS_ALLOC_ARRAY(wchar_t, BUF_SIZE);
 
 		// Handle stdio CTRL-C interrupt:
 		SetConsoleCtrlHandler(Handle_Break, TRUE);
-        return TRUE;
-    }
-    return FALSE;
+
+		return TRUE;
+	}
+	return FALSE;
 }
 
-// show/hide console window - should be converted to OS_* function to be called by native func?
-void Console_Window(BOOL show)
-{
-    HWND win = Get_Console_Window();
-    Console_Output(TRUE);
-    if (win)
-        ShowWindow( win, (show) ? SW_SHOW : SW_HIDE );
-    else if (show)
-        Init_Console();
-}
 
 /***********************************************************************
 **
@@ -178,11 +157,12 @@ void Console_Window(BOOL show)
 {
 	REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy above
 
-	close_stdio();
+	Close_Stdio();
 	//if (GET_FLAG(dev->flags, RDF_OPEN)) FreeConsole();
 	CLR_FLAG(dev->flags, RDF_OPEN);
 	return DR_DONE;
 }
+
 
 /***********************************************************************
 **
@@ -216,9 +196,9 @@ void Console_Window(BOOL show)
 
  		// Output not redirected, reset out handle
 		if (!Redir_Out) {
-		    Std_Out = 0;
-			}
+			Std_Out = 0;
 		}
+	}
 	else
 		SET_FLAG(dev->flags, SF_DEV_NULL);
 
@@ -237,7 +217,7 @@ void Console_Window(BOOL show)
 {
 	REBDEV *dev = Devices[req->device];
 
-	close_stdio();
+	Close_Stdio();
 
 	CLR_FLAG(dev->flags, RRF_OPEN);
 
@@ -257,8 +237,8 @@ void Console_Window(BOOL show)
 **
 ***********************************************************************/
 {
-    DWORD len;
-    DWORD total = 0;
+	DWORD len;
+	DWORD total = 0;
 	BOOL ok = FALSE;
 
 	if (GET_FLAG(req->modes, RDM_NULL)) {
@@ -266,7 +246,7 @@ void Console_Window(BOOL show)
 		return DR_DONE;
 	}
 
-    Init_Console();
+	Init_Console();
 
 	if (Std_Out && Con_Out) {
 
@@ -279,7 +259,7 @@ void Console_Window(BOOL show)
 			// however, if our buffer overflows, it's an error. There's no
 			// efficient way at this level to split-up the input data,
 			// because its UTF-8 with variable char sizes.
-            len = MultiByteToWideChar(CP_UTF8, 0, s_cast(req->common.data), req->length, Std_Buf, BUF_SIZE);
+			len = MultiByteToWideChar(CP_UTF8, 0, s_cast(req->common.data), req->length, Std_Buf, BUF_SIZE);
 			if (len > 0) // no error
 				ok = WriteConsoleW(Std_Out, Std_Buf, len, &total, 0);
 		}
@@ -317,8 +297,8 @@ void Console_Window(BOOL show)
 **
 ***********************************************************************/
 {
-    DWORD total = 0;
-    DWORD len;
+	DWORD total = 0;
+	DWORD len;
 	BOOL ok;
 
 	if (GET_FLAG(req->modes, RDM_NULL)) {
@@ -337,7 +317,7 @@ void Console_Window(BOOL show)
 		else {
 			ok = ReadConsoleW(Std_Inp, Std_Buf, BUF_SIZE-1, &total, 0);
 			if (ok) {
-                total = WideCharToMultiByte(CP_UTF8, 0, Std_Buf, total, s_cast(req->common.data), req->length, 0, 0);
+				total = WideCharToMultiByte(CP_UTF8, 0, Std_Buf, total, s_cast(req->common.data), req->length, 0, 0);
 				if (!total) ok = FALSE;
 			}
 		}
