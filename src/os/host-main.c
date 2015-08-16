@@ -362,8 +362,7 @@ int main(int argc, char **argv_ansi)
 							if (noshortstr && nolongstr) {
 								cont_cmd[cont_len++] = BOXON;
 								if (cont_len >= CONTMAX) {
-									Host_Crash("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
-									return(1);
+									Host_Crash("Maximum console continuation level exceeded!");
 								}
 								cont_str[0] = BOXON;
 							}
@@ -380,8 +379,7 @@ int main(int argc, char **argv_ansi)
 							if (noshortstr) {
 								cont_cmd[cont_len++] = BRACEON;
 								if (cont_len >= CONTMAX) {
-									Host_Crash("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
-									return(2);
+									Host_Crash("Maximum console continuation level exceeded!");
 								}
 								cont_str[0] = BRACEON;
 								nolongstr = FALSE;
