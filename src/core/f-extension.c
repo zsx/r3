@@ -578,8 +578,9 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 					}
 				}
 				else if (IS_PAREN(val)) {
-					if (!DO_BLOCK(&save, VAL_SERIES(val), 0)) {
-						// !!! handle THROW, RETURN, BREAK...?
+					if (DO_BLOCK_THROWS(&save, VAL_SERIES(val), 0)) {
+						Do_Error(&save); // !!! Better answer?
+						DEAD_END_VOID;
 					}
 					val = &save;
 				}

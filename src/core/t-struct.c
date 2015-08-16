@@ -565,10 +565,11 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 	if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
 		REBVAL ret;
 
-		if (!DO_BLOCK(&ret, VAL_SERIES(val), 0)) {
+		if (DO_BLOCK_THROWS(&ret, VAL_SERIES(val), 0)) {
 			// !!! Does not check for thrown cases...what should this
-			// do in case of THROW, BREAK, RETURN?  Currently it would
-			// say it expected an integer and not allow the throw.
+			// do in case of THROW, BREAK, QUIT?
+			Do_Error(&ret);
+			DEAD_END;
 		}
 
 		if (!IS_INTEGER(&ret)) {

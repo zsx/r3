@@ -329,7 +329,7 @@ enum {
 
 	if (error) return R_NONE;
 
-	if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
+	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
 		// This means that D_OUT is a THROWN() value, but we have
 		// no special processing to apply.  Fall through and return it.
 	}
@@ -458,10 +458,9 @@ enum {
 				//     stuff: [print "This will be printed"]
 				//     case [true stuff]
 				//
-				if (!DO_BLOCK(
+				if (DO_BLOCK_THROWS(
 					D_OUT, VAL_SERIES(body_result), VAL_INDEX(body_result)
 				)) {
-					// D_OUT is a RETURN, BREAK, THROW...
 					return R_OUT;
 				}
 			}
@@ -519,7 +518,7 @@ enum {
 	// /ANY would override /NAME, so point out the potential confusion
 	if (catch_any && catch_named) Trap(RE_BAD_REFINES);
 
-	if (!DO_BLOCK(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
 		REBCNT sym = VAL_ERR_SYM(D_OUT);
 
 		if (
@@ -673,10 +672,9 @@ enum {
 			return R_OUT;
 		}
 
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(value), 0)) {
-			// output is THROWN, RETURN, BREAK etc.
-			// no special handling though, just return it as we were going to
-		}
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(value), 0))
+			return R_OUT;
+
 		return R_OUT;
 
     case REB_NATIVE:
@@ -757,14 +755,13 @@ enum {
 	REBCNT argnum = IS_CONDITIONAL_FALSE(D_ARG(1)) ? 3 : 2;
 
 	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(4) /* not using /ONLY */) {
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(argnum)), 0)) {
-			// Value is RETURN, THROW, BREAK, etc...
-			// No special handling though, just return it as we were going to
-		}
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(argnum)), 0))
+			return R_OUT;
+
 		return R_OUT;
-	} else {
-		return argnum == 2 ? R_ARG2 : R_ARG3;
 	}
+
+	return argnum == 2 ? R_ARG2 : R_ARG3;
 }
 
 
@@ -804,10 +801,9 @@ enum {
 {
 	if (IS_CONDITIONAL_FALSE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0)) {
-			// Was a THROW, RETURN, BREAK, etc...
-			// No special handling, just return it like we were going to
-		}
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(2)), 0))
+			return R_OUT;
+
 		return R_OUT;
 	}
 	return R_ARG2;
@@ -914,17 +910,16 @@ enum {
 			found = TRUE;
 
 			// Evaluate code block, but if result is THROWN() then return it
-			if (!DO_BLOCK(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
+			if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
 
 			if (!all) return R_OUT;
 		}
 	}
 
 	if (!found && IS_BLOCK(D_ARG(4))) {
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(4)), 0)) {
-			// Value is THROW, RETURN, BREAK, etc...
-			// No special handling though, just return as we were going to
-		}
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(4)), 0))
+			return R_OUT;
+
 		return R_OUT;
 	}
 
@@ -957,11 +952,10 @@ enum {
 		if (except) {
 			if (IS_BLOCK(D_ARG(3))) {
 				// forget the result of the try (no way to pass to a block)
-				if (
-					!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(3)), VAL_INDEX(D_ARG(3)))
-				) {
-					// Was a THROW, RETURN, BREAK etc...
-					// No special handling, just return like we were going to
+				if (DO_BLOCK_THROWS(
+					D_OUT, VAL_SERIES(D_ARG(3)), VAL_INDEX(D_ARG(3))
+				)) {
+					return R_OUT;
 				}
 				return R_OUT;
 			}
@@ -992,8 +986,7 @@ enum {
 		return R_OUT;
 	}
 
-	if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
-		// Was a THROW, RETURN, BREAK, etc...
+	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
 		// No special handling, just return like we were going to
 	}
 
@@ -1010,12 +1003,13 @@ enum {
 ***********************************************************************/
 {
 	if (IS_CONDITIONAL_TRUE(D_ARG(1))) return R_NONE;
+
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(2)), 0)) {
-			// Was THROWN, RETURN, BREAK, etc...
-			// No special handling, just return it like we were going to
-		}
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(2)), 0))
+			return R_OUT;
+
 		return R_OUT;
 	}
+
 	return R_ARG2;
 }

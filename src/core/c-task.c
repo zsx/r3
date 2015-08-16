@@ -75,9 +75,10 @@
 	body = Clone_Block(VAL_MOD_BODY(task));
 	OS_TASK_READY(0);
 
-	// !!! Result is whether a THROWN() happened, and it would be
-	// important for TASK! if it were to be developed further
-	cast(void, DO_BLOCK(&ignored, body, 0));
+	if (DO_BLOCK_THROWS(&ignored, body, 0)) {
+		Do_Error(&ignored);
+		DEAD_END_VOID;
+	}
 
 	Debug_Str("End Task");
 }

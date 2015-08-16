@@ -933,10 +933,11 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		}
 	}
 
-	if (!DO_BLOCK(&safe, ser, 0)) {
-		// There was a RETURN, THROW, BREAK etc. during evaluation
-		// !!! What should actually happen here?
-		Trap(RE_MISC);
+	if (DO_BLOCK_THROWS(&safe, ser, 0)) {
+		// !!! Does not check for thrown cases...what should this
+		// do in case of THROW, BREAK, QUIT?
+		Do_Error(&safe);
+		DEAD_END_VOID;
 	}
 
 	elem = &safe;

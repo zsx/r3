@@ -108,7 +108,7 @@
 	for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
 		VAL_INDEX(var) = si;
 
-		if (!DO_BLOCK(out, body, 0) && Check_Error(out) >= 0) break;
+		if (DO_BLOCK_THROWS(out, body, 0) && Check_Error(out) >= 0) break;
 
 		if (VAL_TYPE(var) != type) Trap1(RE_INVALID_TYPE, var);
 		si = VAL_INDEX(var);
@@ -129,7 +129,7 @@
 	while ((incr > 0) ? start <= end : start >= end) {
 		VAL_INT64(var) = start;
 
-		if (!DO_BLOCK(out, body, 0) && Check_Error(out) >= 0) break;
+		if (DO_BLOCK_THROWS(out, body, 0) && Check_Error(out) >= 0) break;
 
 		if (!IS_INTEGER(var)) Trap_Type(var);
 		start = VAL_INT64(var);
@@ -170,7 +170,7 @@
 	for (; (i > 0.0) ? s <= e : s >= e; s += i) {
 		VAL_DECIMAL(var) = s;
 
-		if (!DO_BLOCK(out, body, 0) && Check_Error(out) >= 0) break;
+		if (DO_BLOCK_THROWS(out, body, 0) && Check_Error(out) >= 0) break;
 
 		if (!IS_DECIMAL(var)) Trap_Type(var);
 		s = VAL_DECIMAL(var);
@@ -229,7 +229,7 @@
 				VAL_INDEX(var) = idx;
 			}
 
-			if (!DO_BLOCK(D_OUT, body, bodi)) {	// Break, throw, continue, error.
+			if (DO_BLOCK_THROWS(D_OUT, body, bodi)) {
 				if (Check_Error(D_OUT) >= 0) {
 					break;
 				}
@@ -418,7 +418,7 @@
 		}
 		if (index == rindex) index++; //the word block has only set-words: foreach [a:] [1 2 3][]
 
-		if (!DO_BLOCK(D_OUT, body, 0)) {
+		if (DO_BLOCK_THROWS(D_OUT, body, 0)) {
 			if ((err = Check_Error(D_OUT)) >= 0) {
 				index = rindex;
 				break;
@@ -538,7 +538,7 @@ skip_hidden: ;
 ***********************************************************************/
 {
 	do {
-		if (!DO_BLOCK(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
+		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
 			if (Check_Error(D_OUT) >= 0) return R_OUT;
 		}
 	} while (TRUE);
@@ -604,7 +604,7 @@ skip_hidden: ;
 	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
 
 	for (; count > 0; count--) {
-		if (!DO_BLOCK(D_OUT, block, index)) {
+		if (DO_BLOCK_THROWS(D_OUT, block, index)) {
 			if (Check_Error(D_OUT) >= 0) break;
 		}
 	}
@@ -661,7 +661,7 @@ skip_hidden: ;
 
 	do {
 utop:
-		if (!DO_BLOCK(D_OUT, b1, i1)) {
+		if (DO_BLOCK_THROWS(D_OUT, b1, i1)) {
 			if (Check_Error(D_OUT) >= 0) break;
 			goto utop;
 		}
@@ -694,12 +694,11 @@ utop:
 	SET_NONE(D_OUT);
 
 	do {
-		if (!DO_BLOCK(&temp, b1, i1) || IS_UNSET(&temp)) {
-			// Unset, break, throw, error.
+		if (DO_BLOCK_THROWS(&temp, b1, i1) || IS_UNSET(&temp)) {
 			if (Check_Error(&temp) >= 0) {
-				// Check_Error modifies its argument such that TOS will be
+				// Check_Error modifies its argument such that temp will be
 				// UNSET! (or the arg to BREAK/WITH) if a BREAK happened.
-				// (It will also complain if DS_TOP was an UNSET!.)
+				// (It will also complain if temp was an UNSET!.)
 				*D_OUT = temp;
 				return R_OUT;
 			}
@@ -711,8 +710,7 @@ utop:
 		// Not interested in the value of the condition loop once we've
 		// decided to run the body...
 
-		if (!DO_BLOCK(D_OUT, b2, i2)) {
-			// Break, throw, continue, error.
+		if (DO_BLOCK_THROWS(D_OUT, b2, i2)) {
 			// !!! Check_Error may modify its argument
 			if (Check_Error(D_OUT) >= 0) return R_OUT;
 		}

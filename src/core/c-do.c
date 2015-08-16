@@ -243,8 +243,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// object/(expr) case:
 	else if (IS_PAREN(path)) {
 
-		if (!DO_BLOCK(&temp, VAL_SERIES(path), 0)) {
-			// If temp is THROWN(), stop path evaluation
+		if (DO_BLOCK_THROWS(&temp, VAL_SERIES(path), 0)) {
 			*pvs->value = temp;
 			return;
 		}
@@ -928,7 +927,7 @@ do_at_index:
 		break;
 
 	case REB_PAREN:
-		if (!DO_BLOCK(out, VAL_SERIES(value), 0)) {
+		if (DO_BLOCK_THROWS(out, VAL_SERIES(value), 0)) {
 			index = THROWN_FLAG;
 			goto return_index;
 		}
@@ -1231,8 +1230,7 @@ finished:
 		if (IS_PAREN(value)) {
 			REBVAL evaluated;
 
-			if (!DO_BLOCK(&evaluated, VAL_SERIES(value), 0)) {
-				// throw, return, break, continue...
+			if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(value), 0)) {
 				*out = evaluated;
 				DS_DROP_TO(dsp_orig);
 				goto finished;

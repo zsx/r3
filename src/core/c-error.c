@@ -499,7 +499,7 @@
 		// Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
 		// code in REBTYPE(Object) and code in REBNATIVE(construct))
 		Bind_Block(err, VAL_BLK_DATA(arg), BIND_DEEP);
-		if (!DO_BLOCK(&evaluated, VAL_SERIES(arg), 0)) {
+		if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(arg), 0)) {
 			ENABLE_GC;
 			*out = evaluated;
 			return FALSE;

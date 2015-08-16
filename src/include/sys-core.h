@@ -349,41 +349,48 @@ enum encoding_opts {
 
 /***********************************************************************
 **
-**	DO OPERATIONS
+**	DO_NEXT
 **
-**		Simple macro wrappers for Do_Core.  DO_NEXT can return:
+**		This is a wrapper for the basic building block of Rebol
+**		evaluation.  See Do_Next_Core() for its inner workings, but
+**		it will return:
 **
 **			END_FLAG if end of series prohibited a full evaluation
 **			THROWN_FLAG if the output is THROWN()
 **			...or the next index position for attempting evaluation
 **
-**		DO_BLOCK runs from a given index to the tail of the block,
-**		either to completion or to throw, return, break, continue, etc.
-**		If it returns TRUE, then the output contains a THROWN() value.
-**		Otherwise it's the last value evaluated in the block.
+**		Note that THROWN() is not an indicator of an error, rather
+**		something that ordinary language constructs might meaningfully
+**		want to process as they bubble up the stack (some examples
+**		would be BREAK, CONTINUE, and even QUIT).  Errors are handled
+**		with a different mechanism using longjmp().  So if an actual
+**		error happened during the DO then there wouldn't even *BE* a
+**		return value...because the function call would never return!
+**		See PUSH_TRAP() and Do_Error() for more information.
 **
-**		Note that testing for "failure" with 'if (!DO_BLOCK(...))'
-**		won't let you catch "errors".  Those will Trap() and you will
-**		get no result at all.  A false result just means evaluation
-**		hit a "throw-style" construct.
+**	DO_BLOCK_THROWS
 **
-**		(RETURN would be an example, since there is not a SET_JUMP
-**		at every function call to process a LONG_JUMP.  Hence the
-**		REBVAL containing the RETURN instruction just bubbles up the
-**		C call stack normally.)
+**		DO_BLOCK_THROWS behaves "as if" it is performing iterated
+**		calls to DO_NEXT until the end of block is reached.  (Under
+**		the hood it is actually more efficient than doing so.)  It
+**		is named to cue you into realizing that it returns TRUE if
+**		a THROW interrupted the DO_BLOCK execution.  And it's named
+**		with _THROWS instead of _THROWN to help realize the throw is
+**		being spoken of as happening during the executing line, vs.
+**		somewhere previously and now being tested.)
+**
+**		If it returns FALSE, then the DO completed successfully to
+**		end of input without a throw...and the output contains the
+**		last value evaluated in the block (empty blocks give UNSET!).
+**		If it returns TRUE then it will be the THROWN() value.
 **
 ***********************************************************************/
 
-#define DO_NEXT(o,s,i) \
-	Do_Core((o), TRUE, (s), (i), TRUE)
+#define DO_NEXT(out,series,index) \
+	Do_Core((out), TRUE, (series), (index), TRUE)
 
-#define DO_BLOCK(o,s,i) \
-	(THROWN_FLAG != Do_Core((o), FALSE, (s), (i), TRUE))
-
-#define VERIFY_DO_BLOCK(o,s,i) \
-	if (!Do_Core((o), FALSE, (s), (i), TRUE)) {\
-		Panic(RP_MISC); \
-	}
+#define DO_BLOCK_THROWS(out,series,index) \
+	(THROWN_FLAG == Do_Core((out), FALSE, (series), (index), TRUE))
 
 
 /***********************************************************************

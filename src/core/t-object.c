@@ -318,7 +318,8 @@ static REBSER *Trim_Object(REBSER *obj)
 					Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
 
 					// GC-OK
-					if (!DO_BLOCK(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
+					if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0))
+						return R_OUT;
 
 					break; // returns obj
 				}
@@ -398,7 +399,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
 
 				// GC-OK
-				if (!DO_BLOCK(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
+				if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
 
 				break; // returns obj
 			}

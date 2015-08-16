@@ -187,11 +187,11 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 		break;
 
 	case REB_PAREN:
-		if (!DO_BLOCK(&safe, VAL_SERIES(value), 0)) {
-			// Value is a THROW, RETURN, BREAK, etc...
-			// !!! Odds are we shouldn't push this on the stack and continue,
-			// but it's not clear what was intended here.
-			Panic(RP_MISC);
+		if (DO_BLOCK_THROWS(&safe, VAL_SERIES(value), 0)) {
+			// !!! Does not check for thrown cases...what should this
+			// do in case of THROW, BREAK, QUIT?
+			Do_Error(&safe);
+			DEAD_END;
 		}
 		DS_PUSH(&safe);
 		value = DS_TOP;

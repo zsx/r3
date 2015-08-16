@@ -445,7 +445,7 @@
 
 	Eval_Functions++;
 
-	if (!DO_BLOCK(out, VAL_FUNC_BODY(func), 0)) {
+	if (DO_BLOCK_THROWS(out, VAL_FUNC_BODY(func), 0)) {
 		if (
 			VAL_ERR_NUM(out) == RE_RETURN
 			|| (VAL_ERR_NUM(out) == RE_THROW && VAL_ERR_SYM(out) == SYM_EXIT)
@@ -510,7 +510,7 @@
 	Rebind_Block(VAL_FUNC_WORDS(func), frame, BLK_HEAD(body), REBIND_TYPE);
 
 	SAVE_SERIES(body);
-	if (!DO_BLOCK(out, body, 0)) {
+	if (DO_BLOCK_THROWS(out, body, 0)) {
 		if (
 			VAL_ERR_NUM(out) == RE_RETURN
 			|| (VAL_ERR_NUM(out) == RE_THROW && VAL_ERR_SYM(out) == SYM_EXIT)
