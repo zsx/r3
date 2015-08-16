@@ -92,34 +92,16 @@ static void Close_Stdio(void)
 	}
 }
 
-HWND Get_Console_Window()
-{
-    HMODULE h = LoadLibraryW(L"kernel32.dll");
-	HWND result = (HWND)(HWND (WINAPI *)())GetProcAddress(h, "GetConsoleWindow")();
-	FreeLibrary(h);
-	return result;
-}
 
 BOOL Init_Console()
 {
 	const wchar_t *title = L"REBOL 3";
-	HWND win;
 
 	if (!AllocConsole()) {
 		return FALSE;
 	}
 
 	SetConsoleTitle(title);
-
-	// The goof-balls at MS seem to require this:
-	// See: http://support.microsoft.com/kb/124103
-	Sleep(40);
-	win = Get_Console_Window();
-
-	if (win) {
-		SetForegroundWindow(win);
-		BringWindowToTop(win);
-	}
 
 	// Get the new stdio handles:
 	Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
