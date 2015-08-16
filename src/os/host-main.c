@@ -312,10 +312,10 @@ int main(int argc, char **argv_ansi)
 		RL_Do_String(cb_cast("quit"), 0, 0);
 	}
 
-	#define BOXON		'['
-	#define BOXOFF		']'
-	#define BRACEON		'{'
-	#define BRACEOFF	'}'
+	#define LBRACKET	'['
+	#define RBRACKET	']'
+	#define LBRACE		'{'
+	#define RBRACE		'}'
 	#define	QUOTE		'"'
 	#define SEMICOL		';'
 	#define CONTMAX		80
@@ -358,16 +358,16 @@ int main(int argc, char **argv_ansi)
 						case QUOTE:
 							noshortstr = !noshortstr;
 							break;
-						case BOXON:
+						case LBRACKET:
 							if (noshortstr && nolongstr) {
-								cont_cmd[cont_len++] = BOXON;
+								cont_cmd[cont_len++] = LBRACKET;
 								if (cont_len >= CONTMAX) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = BOXON;
+								cont_str[0] = LBRACKET;
 							}
 							break;
-						case BOXOFF:
+						case RBRACKET:
 							if (noshortstr && nolongstr) {
 								if (cont_len >= 2) {
 									cont_str[0] = cont_cmd[cont_len - 2];
@@ -375,17 +375,17 @@ int main(int argc, char **argv_ansi)
 								cont_cmd[--cont_len] = 0;
 							}
 							break;
-						case BRACEON:
+						case LBRACE:
 							if (noshortstr) {
-								cont_cmd[cont_len++] = BRACEON;
+								cont_cmd[cont_len++] = LBRACE;
 								if (cont_len >= CONTMAX) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = BRACEON;
+								cont_str[0] = LBRACE;
 								nolongstr = FALSE;
 							}
 							break;
-						case BRACEOFF:
+						case RBRACE:
 							if (noshortstr) {
 								if (cont_len >= 2) {
 									cont_str[0] = cont_cmd[cont_len - 2];
