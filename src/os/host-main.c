@@ -312,12 +312,12 @@ int main(int argc, char **argv_ansi)
 		RL_Do_String(cb_cast("quit"), 0, 0);
 	}
 
-	#define BOXON		91
-	#define BOXOFF		93
-	#define BRACEON		123
-	#define BRACEOFF	125
-	#define QUOTE		34
-	#define SEMICOL		59
+	#define BOXON		'['
+	#define BOXOFF		']'
+	#define BRACEON		'{'
+	#define BRACEOFF	'}'
+	#define	QUOTE		'"'
+	#define SEMICOL		';'
 	#define CONTMAX		80
 
 	REBYTE cont_str[] = "    ";
