@@ -113,7 +113,18 @@ void Host_Crash(const char *reason) {
 **  Posix args: as you would expect in C.
 **  Posix return: ditto.
 **
-***********************************************************************/
+
+*/
+
+int tidy(REBYTE* error_str) {
+    Put_Str(error_str);
+    OS_Quit_Devices(0);
+#ifndef REB_CORE
+    OS_Destroy_Graphics();
+#endif
+
+}
+/***********************************************************************/
 
 // Using a main entry point for a console program (as opposed to WinMain)
 // so that we can connect to the console.  See the StackOverflow question
@@ -310,34 +321,128 @@ int main(int argc, char **argv_ansi)
 
 		RL_Do_String(cb_cast("quit"), 0, 0);
 	}
+   
+    #define BOXON          91     
+    #define BOXOFF         93   
+    #define BRACEON     123   
+    #define BRACEOFF     125   
+    #define QUOTE            34   
+    #define SEMICOL        59
+    #define CONTMAX  80
+   
+    REBYTE cont_str[] =  "    ";
+    cont_str[0] = 0;
+    int cont_len = 0;
+   
+    int buf_max = 32768;
+    REBYTE cont_cmd[CONTMAX]  = {0};
+    REBYTE cmd_buf[buf_max];
+    int buf_len = 0;
+    cmd_buf[buf_len] = 0;
+    int i;
+    BOOL noshortstr = TRUE;
+    BOOL nolongstr = TRUE;
+   
+   
+    // Console line input loop (just an example, can be improved):
+    if (
+        !(Main_Args.options & RO_CGI)
+        && (
+            !Main_Args.script // no script was provided
+            || err_num < 0         // script halted or had error
+            || Main_Args.options & RO_HALT  // --halt option
+        )
+    ){
+        err_num = 0;  // reset error code (but should be able to set it below too!)
+        while (TRUE) {
+            if (cont_str[0]) {
+                Put_Str(cont_str);
+                for (i = 1; i < cont_len; i++) {
+                    Put_Str("    ");
+                }
+            } else {
+                Put_Str(prompt_str);
+            }
+            if (line = Get_Str()) {
+                for (i = 0; line[i] != 0; i++) {
+                    switch (line[i])  {
+                        case QUOTE:
+                            noshortstr = !noshortstr;
+                            break;
+                        case BOXON:
+                            if (noshortstr &&  nolongstr)   {
+                                cont_cmd[cont_len++] = BOXON;
+                                if (cont_len >= CONTMAX) {
+                                    tidy("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
+                                    return(1);
+                                }
+                                cont_str[0] = BOXON ;
+                            }
+                            break;
+                        case BOXOFF:
+                            if (noshortstr &&  nolongstr) {
+                                if (cont_len >= 2)  {
+                                    cont_str[0] = cont_cmd[cont_len -2] ;
+                                }
+                                cont_cmd[--cont_len] = 0;
+                            }
+                            break;
+                        case BRACEON:
+                            if (noshortstr )   {   
+                                cont_cmd[cont_len++] = BRACEON;
+                                if (cont_len >= CONTMAX) {
+                                    tidy("!! ERROR!! max continuation 80 exceeded !!  \n exiting !! \n");
+                                    return(2);
+                                }
+                                cont_str[0] = BRACEON ;
+                                nolongstr = FALSE;
+                            }
+                            break;
+                        case BRACEOFF:
+                            if (noshortstr ) {
+                                if (cont_len >= 2)  {
+                                    cont_str[0] = cont_cmd[cont_len -2] ;
+                                }
+                                cont_cmd[--cont_len] = 0;
+                                nolongstr = TRUE;
+                            }
+                            break;
+                        case SEMICOL:
+                            if (noshortstr && nolongstr)  {
+                                line[i--] = 0;
+                            }
+                            break;
+                    }
+                }
+                noshortstr = TRUE;
 
-	// Console line input loop (just an example, can be improved):
-	if (
-		!(Main_Args.options & RO_CGI)
-		&& (
-			!Main_Args.script // no script was provided
-			|| err_num < 0         // script halted or had error
-			|| Main_Args.options & RO_HALT  // --halt option
-		)
-	){
-		err_num = 0;  // reset error code (but should be able to set it below too!)
-		while (TRUE) {
-			Put_Str(prompt_str);
-			if ((line = Get_Str())) {
-				RL_Do_String(line, 0, 0);
-				RL_Print_TOS(0, result_str);
-				OS_FREE(line);
-			}
-			else break; // EOS
-		}
-	}
+                if (buf_len + i > buf_max)  {
+                    Put_Str("!!  ERROR!!max buffer len exceeded !!");
+                    break;
+                }
+                strncpy(&cmd_buf[buf_len],line,  i);
+                buf_len = buf_len + i;
+                cmd_buf[buf_len] = 0;
+               
+                OS_FREE(line);
+               
+                if (cont_len > 0) {
+                        continue;
+                }
+               
+                buf_len = 0;
+                cont_str[0] = 0;
+                cont_len = 0;
+               
+                RL_Do_String(cmd_buf, 0, 0);
+                RL_Print_TOS(0, result_str);
+            }
+                else break ;// EOS
+        }    
+    }
 #endif //!ENCAP
-	OS_Quit_Devices(0);
-#ifndef REB_CORE
-	OS_Destroy_Graphics();
-#endif
+    tidy(0);
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
 }
-
