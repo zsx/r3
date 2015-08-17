@@ -568,7 +568,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 		if (DO_BLOCK_THROWS(&ret, VAL_SERIES(val), 0)) {
 			// !!! Does not check for thrown cases...what should this
 			// do in case of THROW, BREAK, QUIT?
-			Do_Error(&ret);
+			Trap_Thrown(&ret);
 			DEAD_END;
 		}
 

@@ -190,7 +190,7 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 		if (DO_BLOCK_THROWS(&safe, VAL_SERIES(value), 0)) {
 			// !!! Does not check for thrown cases...what should this
 			// do in case of THROW, BREAK, QUIT?
-			Do_Error(&safe);
+			Trap_Thrown(&safe);
 			DEAD_END;
 		}
 		DS_PUSH(&safe);

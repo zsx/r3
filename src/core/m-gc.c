@@ -538,6 +538,18 @@ static void Propagate_All_GC_Marks(void);
 {
 	REBSER *ser = NULL;
 
+	if (THROWN(val)) {
+		// Running GC where it can get a chance to see a THROWN value
+		// is invalid because it is related to a temporary value saved
+		// with THROWN_ARG.  So if the GC sees the thrown, it is not
+		// seeing the THROWN_ARG.
+
+		// !!! It's not clear if this should crash or not.
+		// Aggressive Recycle() forces this to happen, review.
+
+		// Panic(RP_THROW_IN_GC);
+	}
+
 	switch (VAL_TYPE(val)) {
 		case REB_UNSET:
 		case REB_TYPESET:
@@ -551,18 +563,7 @@ static void Propagate_All_GC_Marks(void);
 			break;
 
 		case REB_ERROR:
-			if (VAL_ERR_NUM(val) < RE_THROW_MAX) {
-				// If it has no error object, then it is a THROW.  A GC of a
-				// THROW value is invalid because it contains temporary values
-				// on the stack that could be above the current DSP
-				// (where the THROW was done).
-
-				// !!! It's not clear if this should crash or not.
-				// Aggressive Recycle() forces this to happen.
-
-				// Panic(RP_THROW_IN_GC);
-			} else
-				QUEUE_MARK_BLOCK_DEEP(VAL_ERR_OBJECT(val));
+			QUEUE_MARK_BLOCK_DEEP(VAL_ERR_OBJECT(val));
 			break;
 
 		case REB_TASK: // not yet implemented

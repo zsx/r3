@@ -578,7 +578,7 @@
 {
 	if (!Do_Sys_Func(out, SYS_CTX_MAKE_MODULE_P, spec, 0)) {
 		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-		Do_Error(out);
+		Trap_Thrown(out);
 		DEAD_END_VOID;
 	}
 
@@ -1161,6 +1161,7 @@
 		// (Including looking up 'append' in the user context.)
 
 		if (index > 0) {
+			REBVAL *value;
 			if (
 				writable &&
 				VAL_GET_EXT(FRM_WORDS(context) + index, EXT_WORD_LOCK)
@@ -1172,7 +1173,9 @@
 				return NULL;
 			}
 
-			return FRM_VALUES(context) + index;
+			value = FRM_VALUES(context) + index;
+			assert(!THROWN(value));
+			return value;
 		}
 
 		// NEGATIVE INDEX: Word is stack-relative bound to a function with
@@ -1190,6 +1193,8 @@
 			// the stack, so check for no DSF first...
 			while (call) {
 				if (context == VAL_FUNC_WORDS(DSF_FUNC(call))) {
+					REBVAL *value;
+
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
 					assert(!call->pending);
 
@@ -1207,7 +1212,9 @@
 						return NULL;
 					}
 
-					return DSF_ARG(call, -index);
+					value = DSF_ARG(call, -index);
+					assert(!THROWN(value));
+					return value;
 				}
 
 				call = PRIOR_DSF(call);
@@ -1261,6 +1268,8 @@
 
 		if (index > 0) {
 			*out = *(FRM_VALUES(context) + index);
+			assert(!IS_TRASH(out));
+			assert(!THROWN(out));
 			return;
 		}
 
@@ -1272,6 +1281,7 @@
 					assert(!call->pending);
 					*out = *DSF_ARG(call, -index);
 					assert(!IS_TRASH(out));
+					assert(!THROWN(out));
 					return;
 				}
 				call = PRIOR_DSF(call);

@@ -83,6 +83,7 @@ typedef struct Reb_Series REBSER;
 // Value option flags:
 enum {
 	OPT_VALUE_LINE = 0,	// Line break occurs before this value
+	OPT_VALUE_THROWN,	// Value is /NAME of a THROW (arg via THROWN_ARG)
 	OPT_VALUE_MAX
 };
 
@@ -96,6 +97,46 @@ enum {
 #define VAL_SET_EXT(v,n)	SET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_GET_EXT(v,n)	GET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_CLR_EXT(v,n)	CLR_FLAG(VAL_EXTS_DATA(v), n)
+
+// All THROWN values have two parts: the REBVAL arg being thrown and
+// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
+// created with plain THROW instead of THROW/NAME then its name is NONE!).
+// You cannot fit both values into a single value's bits of course, but
+// since only one THROWN() value is supposed to exist on the stack at a
+// time the arg part is stored off to the side when one is produced
+// during an evaluation.  It must be processed before another evaluation
+// is performed, and if the GC or DO are ever given a value with a
+// THROWN() bit they will assert!
+//
+// A reason to favor the name as "the main part" is that having the name
+// value ready-at-hand allows easy testing of it to see if it needs
+// to be passed on.  That happens more often than using the arg, which
+// will occur exactly once (when it is caught).  Moreover, it is done
+// this way because historically Rebol used an ERROR! where the name
+// lived for this purpose.  The spot available in the error value only
+// afforded only 32 bits, which could only hold a symbol ID and hence
+// the name was presumed as corresponding to an unbound WORD!
+
+#ifdef NDEBUG
+	#define CONVERT_NAME_TO_THROWN(name,arg) \
+		do { \
+			VAL_SET_OPT((name), OPT_THROWN); \
+			(*TASK_THROWN_ARG = *(arg)) \
+		} while (0)
+
+	#define TAKE_THROWN_ARG(arg,thrown) \
+		do { \
+			assert(VAL_GET_OPT((thrown), OPT_THROWN)); \
+			VAL_CLR_OPT((thrown), OPT_THROW); \
+			(*(arg) = *TASK_THROWN_ARG); \
+		} while (0)
+#else
+	#define CONVERT_NAME_TO_THROWN(n,a)		Convert_Name_To_Thrown_Debug(n, a)
+	#define TAKE_THROWN_ARG(a,t)			Take_Thrown_Arg_Debug(a, t)
+#endif
+
+#define THROWN(v)			(VAL_GET_OPT((v), OPT_VALUE_THROWN))
+
 
 #define	IS_SET(v)			(VAL_TYPE(v) > REB_UNSET)
 #define IS_SCALAR(v)		(VAL_TYPE(v) <= REB_DATE)
@@ -1006,7 +1047,6 @@ union Reb_Error_Data {
 };
 
 union Reb_Error_Extra {
-	REBCNT sym;			// if a RE_THROW with /NAME, then symbol, else 0
 	REBSER *unwind;     // identify function series to RETURN from
 };
 
@@ -1026,26 +1066,7 @@ struct Reb_Error {
 // Value Accessors:
 #define	VAL_ERR_NUM(v)		((v)->data.error.num)
 #define VAL_ERR_OBJECT(v)	((v)->data.error.data.frame)
-#define VAL_ERR_SYM(v)		((v)->data.error.extra.sym)
 #define VAL_ERR_UNWIND(v)   ((v)->data.error.extra.unwind)
-
-#define VAL_ERR_STATUS(v)   Get_Error_Exit_Status(v)
-
-// A throw-style may need an associated value (such as how a RETURN needs to
-// have a value to be returned).  Yet an ERROR! being a value cannot hold the
-// full spectrum of values inside it and still be an error.  Error arguments
-// are handled specially as a task-local variable, and only *one* can be in
-// effect at a time.  These macros abstract and ensure that condition.
-#ifdef NDEBUG
-	#define ADD_THROWN_ARG(v,a)		(*TASK_THROWN_ARG = *(a))
-	#define TAKE_THROWN_ARG(a, v)	(*(a) = *TASK_THROWN_ARG)
-#else
-	#define ADD_THROWN_ARG(v,a)		Add_Thrown_Arg_Debug(v, a)
-	#define TAKE_THROWN_ARG(a,v)	Take_Thrown_Arg_Debug(a, v)
-#endif
-
-#define	IS_THROW(v)			(VAL_ERR_NUM(v) < RE_THROW_MAX)
-#define THROWN(v)			(IS_ERROR(v) && IS_THROW(v))
 
 #define VAL_ERR_VALUES(v)	cast(ERROR_OBJ*, FRM_VALUES(VAL_ERR_OBJECT(v)))
 #define	VAL_ERR_ARG1(v)		(&VAL_ERR_VALUES(v)->arg1)

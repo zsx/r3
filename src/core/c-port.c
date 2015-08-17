@@ -44,7 +44,7 @@
 {
 	if (!Do_Sys_Func(out, SYS_CTX_MAKE_PORT_P, spec, 0)) {
 		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-		Do_Error(out);
+		Trap_Thrown(out);
 		DEAD_END_VOID;
 	}
 

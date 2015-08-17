@@ -59,8 +59,10 @@ attempt: native [
 
 break: native [
 	{Breaks out of a loop, while, until, repeat, foreach, etc.}
-	/return {Forces the loop function to return a value}
+	/with {Forces the loop function to return a value}
 	value [any-type!]
+	/return {(deprecated synonym for /WITH)}
+	return-value [any-type!]
 ]
 
 case: native [
@@ -74,7 +76,7 @@ catch: native [
 	{Catches a throw from a block and returns its value.}
 	block [block!] {Block to evaluate}
 	/name {Catches a named throw}
-	word [word! block!] {One or more names}
+	name-list [block! word! any-function! object!] {Names to catch (single name if not block)}
 	/quit {Special catch for QUIT native}
 	/any {Catch all throws except QUIT (can be used with /QUIT)}
 ]
@@ -291,7 +293,7 @@ throw: native [
 	{Throws control back to a previous catch.}
 	value [any-type!] {Value returned from catch}
 	/name {Throws to a named catch}
-	word [word!]
+	name-value [word! any-function! object!]
 ]
 
 trace: native [

@@ -76,7 +76,7 @@
 	OS_TASK_READY(0);
 
 	if (DO_BLOCK_THROWS(&ignored, body, 0)) {
-		Do_Error(&ignored);
+		Trap_Thrown(&ignored);
 		DEAD_END_VOID;
 	}
 

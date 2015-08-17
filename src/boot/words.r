@@ -101,9 +101,13 @@ utc
 ; Used to recognize Rebol2 use of [catch] in function specs
 catch
 
-; Needed for processing of "special" THROW words that might exit interpreter
+; Needed for processing of THROW's /NAME words used by system
+; NOTE: may become something more specific than WORD!
 exit
 quit
+;break ;-- covered by parse below
+;return ;-- covered by parse below
+continue
 
 ; Parse: - These words must not reserved above!!
 parse

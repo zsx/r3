@@ -603,7 +603,7 @@
 
 	//DISABLE_GC;
 
-	assert(errnum >= RE_THROW_MAX);
+	assert(errnum != 0);
 
 	ss->errors++;
 

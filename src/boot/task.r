@@ -21,6 +21,7 @@ ballast			; current memory ballast (used for GC)
 max-ballast		; ballast reset value
 thrown-arg		; for holding an error argument during throw back
 stack-error		; special stack overlow error object
+halt-error		; special halt error object
 this-context	; current context
 buf-emit		; temporary emit output block
 buf-words		; temporary word cache

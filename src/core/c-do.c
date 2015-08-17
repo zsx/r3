@@ -735,6 +735,7 @@ do_at_index:
 	if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
 
 	value = BLK_SKIP(block, index);
+	assert(!THROWN(value));
 
 	if (Trace_Flags) Trace_Line(block, index, value);
 

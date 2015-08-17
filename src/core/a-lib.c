@@ -241,10 +241,13 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	if (!Do_Sys_Func(&out, SYS_CTX_FINISH_RL_START, 0)) {
 		if (
-			VAL_ERR_NUM(&out) == RE_THROW &&
-			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(error) == SYM_EXIT)
+			IS_WORD(&out) &&
+			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(error) == SYM_EXIT)
 		) {
-			int status = VAL_ERR_STATUS(&out);
+			int status;
+
+			TAKE_THROWN_ARG(&out, &out);
+			status = Exit_Status_From_Value(&out);
 
 			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -451,10 +454,13 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		UNSAVE_SERIES(code);
 
 		if (
-			VAL_ERR_NUM(&out) == RE_THROW &&
-			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(&out) == SYM_EXIT)
+			IS_WORD(&out) &&
+			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
 		) {
-			int status = VAL_ERR_STATUS(&out);
+			int status;
+
+			TAKE_THROWN_ARG(&out, &out);
+			status = Exit_Status_From_Value(&out);
 
 			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -463,7 +469,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			DEAD_END;
 		}
 
-		Do_Error(&out);
+		Trap_Thrown(&out);
 		DEAD_END;
 	}
 

@@ -1176,12 +1176,16 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
 
-	// Special pre-made error:
-	assert(RE_STACK_OVERFLOW >= RE_THROW_MAX);
+	// Special pre-made errors:
 	ser = Make_Error(RE_STACK_OVERFLOW, 0, 0, 0);
 	VAL_SET(TASK_STACK_ERROR, REB_ERROR);
 	VAL_ERR_NUM(TASK_STACK_ERROR) = RE_STACK_OVERFLOW;
 	VAL_ERR_OBJECT(TASK_STACK_ERROR) = ser;
+
+	ser = Make_Error(RE_HALT, 0, 0, 0);
+	VAL_SET(TASK_HALT_ERROR, REB_ERROR);
+	VAL_ERR_NUM(TASK_HALT_ERROR) = RE_HALT;
+	VAL_ERR_OBJECT(TASK_HALT_ERROR) = ser;
 
 	// With error trapping enabled, set up to catch them if they happen.
 	PUSH_UNHALTABLE_TRAP(&error, &state);
@@ -1230,10 +1234,14 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		// !!! TBD: Enforce not being *able* to trigger QUIT or EXIT, but we
 		// let them slide for the moment, even though we shouldn't.
 		if (
-			VAL_ERR_NUM(&out) == RE_THROW &&
-			(VAL_ERR_SYM(&out) == SYM_QUIT || VAL_ERR_SYM(&out) == SYM_EXIT)
+			IS_WORD(&out) &&
+			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
 		) {
-			int status = VAL_ERR_STATUS(&out);
+			int status;
+
+			TAKE_THROWN_ARG(&out, &out);
+			status = Exit_Status_From_Value(&out);
+
 			Shutdown_Core();
 			OS_EXIT(status);
 			DEAD_END_VOID;

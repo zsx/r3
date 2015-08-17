@@ -56,15 +56,13 @@
 **
 ***********************************************************************/
 {
-	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_THROW;
-	VAL_ERR_SYM(D_OUT) = SYM_QUIT;
+	Init_Word_Unbound(D_OUT, REB_WORD, SYM_QUIT);
 
 	if (D_REF(1)) {
-		ADD_THROWN_ARG(D_OUT, D_ARG(2));
+		CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
 	}
 	else if (D_REF(3)) {
-		ADD_THROWN_ARG(D_OUT, D_ARG(4));
+		CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(4));
 	}
 	else {
 		// Chosen to do it this way because returning to a calling script it
@@ -73,7 +71,7 @@
 
 		// (UNSET! will be translated to 0 if it gets caught for the shell)
 
-		ADD_THROWN_ARG(D_OUT, UNSET_VALUE);
+		CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
 	}
 
 	return R_OUT;

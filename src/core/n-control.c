@@ -261,11 +261,13 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 		index = DO_NEXT(D_OUT, block, index);
+		if (index == THROWN_FLAG) break;
+		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
+		/* if (IS_UNSET(D_OUT)) { Trap(RE_NO_RETURN); } */
 		if (IS_CONDITIONAL_FALSE(D_OUT)) {
 			SET_TRASH_SAFE(D_OUT);
 			return R_NONE;
 		}
-		if (index == THROWN_FLAG) break;
 	}
 	return R_OUT;
 }
@@ -282,9 +284,11 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 		index = DO_NEXT(D_OUT, block, index);
+		if (index == THROWN_FLAG) return R_OUT;
 
-		// Don't have to check for THROWN_FLAG or THROWN as this returns
-		// any value that isn't FALSE! or UNSET!
+		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
+		/* if (IS_UNSET(D_OUT)) { Trap(RE_NO_RETURN); } */
+
 		if (!IS_CONDITIONAL_FALSE(D_OUT) && !IS_UNSET(D_OUT)) return R_OUT;
 	}
 
@@ -344,16 +348,22 @@ enum {
 **
 */	REBNATIVE(break)
 /*
-**		1: /return
+**		1: /with
 **		2: value
+**		3: /return (deprecated)
+**		4: return-value
+**
+**	While BREAK is implemented via a THROWN() value that bubbles up
+**	through the stack, it may not ultimately use the WORD! of BREAK
+**	as its /NAME.
 **
 ***********************************************************************/
 {
-	REBVAL *value = D_REF(1) ? D_ARG(2) : UNSET_VALUE;
+	REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
 
-	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_BREAK;
-	ADD_THROWN_ARG(D_OUT, value);
+	Init_Word_Unbound(D_OUT, REB_WORD, SYM_BREAK);
+
+	CONVERT_NAME_TO_THROWN(D_OUT, value);
 
 	return R_OUT;
 }
@@ -496,7 +506,7 @@ enum {
 /*
 **	1 block
 **	2 /name
-**	3 named
+**	3 name-list
 **	4 /quit
 **	5 /any
 **
@@ -510,50 +520,67 @@ enum {
 {
 	REBVAL * const block = D_ARG(1);
 
-	REBOOL catch_named = D_REF(2);
-	REBVAL *named = D_ARG(3);
-	REBOOL catch_quit = D_REF(4);
-	REBOOL catch_any = D_REF(5);
+	REBOOL named = D_REF(2);
+	REBVAL *name_list = D_ARG(3);
+
+	// We save the values into booleans and overwrite their slots
+	REBOOL quit = D_REF(4);
+	REBOOL any = D_REF(5);
 
 	// /ANY would override /NAME, so point out the potential confusion
-	if (catch_any && catch_named) Trap(RE_BAD_REFINES);
+	if (any && named) Trap(RE_BAD_REFINES);
 
 	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
-		REBCNT sym = VAL_ERR_SYM(D_OUT);
-
 		if (
-			(catch_quit && sym == SYM_QUIT) || (catch_any && sym != SYM_QUIT)
+			(any && (!IS_WORD(D_OUT) || VAL_WORD_SYM(D_OUT) != SYM_QUIT))
+			|| (quit && IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_QUIT)
 		) {
 			TAKE_THROWN_ARG(D_OUT, D_OUT);
 			return R_OUT;
 		}
 
-		if (catch_named) {
-			if (IS_WORD(named)) {
-				// Return the THROW/NAME's arg if the names match
-				if (sym == VAL_WORD_CANON(named)) {
-					TAKE_THROWN_ARG(D_OUT, D_OUT);
-					return R_OUT;
-				}
-			}
-			else if (IS_BLOCK(named)) {
+		if (named) {
+			// We use equal? by way of Compare_Modify_Values, and re-use the
+			// refinement slots for the mutable space
+			REBVAL * const temp1 = D_ARG(4);
+			REBVAL * const temp2 = D_ARG(5);
+
+			// !!! The reason we're copying isn't so the OPT_VALUE_THROWN bit
+			// won't confuse the equality comparison...but would it have?
+
+			if (IS_BLOCK(name_list)) {
 				// Test all the words in the block for a match to catch
-				REBVAL *word = VAL_BLK_DATA(named);
-				for (; NOT_END(word); word++) {
-					if (!IS_WORD(word)) Trap1(RE_INVALID_ARG, named);
+				REBVAL *candidate = VAL_BLK_DATA(name_list);
+				for (; NOT_END(candidate); candidate++) {
+					// !!! Should we test a typeset for illegal name types?
+					if (IS_BLOCK(candidate)) Trap1(RE_INVALID_ARG, name_list);
+
+					*temp1 = *candidate;
+					*temp2 = *D_OUT;
 
 					// Return the THROW/NAME's arg if the names match
-					if (sym == VAL_WORD_CANON(word)) {
+					// !!! 0 means equal?, but strict-equal? might be better
+					if (Compare_Modify_Values(temp1, temp2, 0)) {
 						TAKE_THROWN_ARG(D_OUT, D_OUT);
 						return R_OUT;
 					}
 				}
 			}
-			else Trap1(RE_INVALID_ARG, named);
+			else {
+				*temp1 = *name_list;
+				*temp2 = *D_OUT;
+
+				// Return the THROW/NAME's arg if the names match
+				// !!! 0 means equal?, but strict-equal? might be better
+				if (Compare_Modify_Values(temp1, temp2, 0)) {
+					TAKE_THROWN_ARG(D_OUT, D_OUT);
+					return R_OUT;
+				}
+			}
 		}
 		else {
 			// Return THROW's arg only if it did not have a /NAME supplied
-			if (sym == SYM_NOT_USED) {
+			if (IS_NONE(D_OUT)) {
 				TAKE_THROWN_ARG(D_OUT, D_OUT);
 				return R_OUT;
 			}
@@ -570,13 +597,27 @@ enum {
 /*
 ***********************************************************************/
 {
-	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_THROW;
-	if (D_REF(2)) // /name
-		VAL_ERR_SYM(D_OUT) = VAL_WORD_SYM(D_ARG(3));
-	else
-		VAL_ERR_SYM(D_OUT) = SYM_NOT_USED;
-	ADD_THROWN_ARG(D_OUT, D_ARG(1));
+	REBVAL * const value = D_ARG(1);
+	REBOOL named = D_REF(2);
+	REBVAL * const name_value = D_ARG(3);
+
+	if (named) {
+		// blocks as names would conflict with name_list feature in catch
+		assert(!IS_BLOCK(name_value));
+		*D_OUT = *name_value;
+	}
+	else {
+		// None values serving as representative of THROWN() means "no name"
+
+		// !!! This convention might be a bit "hidden" while debugging if
+		// one misses the THROWN() bit.  But that's true of THROWN() values
+		// in general.  Debug output should make noise about THROWNs
+		// whenever it sees them.
+
+		SET_NONE(D_OUT);
+	}
+
+	CONVERT_NAME_TO_THROWN(D_OUT, value);
 
 	return R_OUT;
 }
@@ -631,10 +672,14 @@ enum {
 **
 */	REBNATIVE(continue)
 /*
+**	While CONTINUE is implemented via a THROWN() value that bubbles up
+**	through the stack, it may not ultimately use the WORD! of CONTINUE
+**	as its /NAME.
+**
 ***********************************************************************/
 {
-	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_CONTINUE;
+	Init_Word_Unbound(D_OUT, REB_WORD, SYM_CONTINUE);
+	CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
 
 	return R_OUT;
 }
@@ -704,13 +749,8 @@ enum {
 		return R_OUT;
 
 	case REB_ERROR:
-		if (IS_THROW(value)) {
-			// @HostileFork wants to know if this happens.  It shouldn't
-			// (but there was code here that seemed to think it could)
-			assert(FALSE);
-			return R_ARG1;
-		}
 		Do_Error(value);
+		DEAD_END;
 
 	case REB_BINARY:
 	case REB_STRING:
@@ -774,20 +814,16 @@ enum {
 **
 **	While EXIT is implemented via a THROWN() value that bubbles up
 **	through the stack, it may not ultimately use the WORD! of EXIT
-**	as its /NAME when more specific values are allowed as names.
+**	as its /NAME.
 **
 ***********************************************************************/
 {
-	VAL_SET(D_OUT, REB_ERROR);
-
 	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-		VAL_ERR_NUM(D_OUT) = RE_RETURN;
-	else {
-		VAL_ERR_NUM(D_OUT) = RE_THROW;
-		VAL_ERR_SYM(D_OUT) = SYM_EXIT;
-	}
+		Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+	else
+		Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
 
-	ADD_THROWN_ARG(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
+	CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
 	return R_OUT;
 }
@@ -865,18 +901,15 @@ enum {
 **
 */	REBNATIVE(return)
 /*
-**		Returns a value from the current function. This is done by
-**		returning a special "error!" which indicates a return, and
-**		putting the returned value into an associated task-local
-**		variable (only one of these is in effect at a time).
+**	The implementation of RETURN here is a simple THROWN() value and
+**	has no "definitional scoping"--a temporary state of affairs.
 **
 ***********************************************************************/
 {
 	REBVAL *arg = D_ARG(1);
 
-	VAL_SET(D_OUT, REB_ERROR);
-	VAL_ERR_NUM(D_OUT) = RE_RETURN;
-	ADD_THROWN_ARG(D_OUT, arg);
+	Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+	CONVERT_NAME_TO_THROWN(D_OUT, arg);
 
 	return R_OUT;
 }

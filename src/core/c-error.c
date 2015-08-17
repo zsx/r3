@@ -193,15 +193,17 @@
 
 /***********************************************************************
 **
-*/	void Add_Thrown_Arg_Debug(REBVAL *err, const REBVAL *arg)
+*/	void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg)
 /*
-**		Sets a task-local value to be associated with the error.
-**		At the moment, there is no information put into the
-**		actual error itself to reflect this.
+**		Debug-only version of CONVERT_NAME_TO_THROWN
+**
+**		Sets a task-local value to be associated with the name and
+**		mark it as the proxy value indicating a THROW().
 **
 ***********************************************************************/
 {
-	assert(IS_ERROR(err) && THROWN(err));
+	assert(!THROWN(name));
+	VAL_SET_OPT(name, OPT_VALUE_THROWN);
 
 	// This assertion is a nice idea, but practically speaking we don't
 	// currently have a moment when an error is caught with PUSH_TRAP
@@ -219,19 +221,21 @@
 
 /***********************************************************************
 **
-*/	void Take_Thrown_Arg_Debug(REBVAL *out, const REBVAL *err)
+*/	void Take_Thrown_Arg_Debug(REBVAL *out, REBVAL *thrown)
 /*
-**		Gets the task-local value associated with the error, and
-**		sets the task's value to be Trash.  At the moment, there is
-**		no linkage between the error and the value.
+**		Debug-only version of TAKE_THROWN_ARG
 **
-**		WARNING: 'out' can be the same pointer as 'err'
+**		Gets the task-local value associated with the thrown,
+**		and clears the thrown bit from thrown.
+**
+**		WARNING: 'out' can be the same pointer as 'thrown'
 **
 ***********************************************************************/
 {
-	assert(IS_ERROR(err) && THROWN(err));
+	assert(THROWN(thrown));
+	VAL_CLR_OPT(thrown, OPT_VALUE_THROWN);
 
-	// See notes about assertion in Add_Thrown_Arg_Debug.  TBD.
+	// See notes about assertion in Convert_Name_To_Thrown_Debug.  TBD.
 
 	/* assert(!IS_TRASH(TASK_THROWN_ARG)); */
 
@@ -326,10 +330,7 @@
 **
 ***********************************************************************/
 {
-	REBVAL err;
-	VAL_SET(&err, REB_ERROR);
-	VAL_ERR_NUM(&err) = RE_HALT;
-	Do_Error(&err);
+	Do_Error(TASK_HALT_ERROR);
 }
 
 
@@ -596,7 +597,7 @@
 {
 	REBVAL error;
 
-	assert(num >= RE_THROW_MAX);
+	assert(num != 0);
 
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
@@ -613,7 +614,7 @@
 {
 	REBVAL error;
 
-	assert(num >= RE_THROW_MAX);
+	assert(num != 0);
 
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
@@ -630,7 +631,7 @@
 {
 	REBVAL error;
 
-	assert(num >= RE_THROW_MAX);
+	assert(num != 0);
 
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
@@ -647,7 +648,7 @@
 {
 	REBVAL error;
 
-	assert(num >= RE_THROW_MAX);
+	assert(num != 0);
 
 	VAL_SET(&error, REB_ERROR);
 	VAL_ERR_NUM(&error) = num;
@@ -663,6 +664,25 @@
 ***********************************************************************/
 {
 	Trap1(RE_INVALID_ARG, arg);
+}
+
+
+/***********************************************************************
+**
+*/	void Trap_Thrown(REBVAL *thrown)
+/*
+***********************************************************************/
+{
+	REBVAL arg;
+	assert(THROWN(thrown));
+	TAKE_THROWN_ARG(&arg, thrown); // clears bit
+
+	if (IS_NONE(thrown))
+		Trap1(RE_NO_CATCH, &arg);
+	else
+		Trap2(RE_NO_CATCH_NAMED, &arg, thrown);
+
+	DEAD_END_VOID;
 }
 
 
@@ -798,68 +818,61 @@
 
 /***********************************************************************
 **
-*/	REBINT Check_Error(REBVAL *val)
+*/	REBINT Process_Loop_Throw(REBVAL *val)
 /*
-**		Process a loop exceptions. Pass in the TOS value, returns:
+**		Process values thrown during loop. Returns:
 **
-**			 1 - break (or break/return, which changes val)
+**			 1 - break or break/return (changes result)
 **			-1 - if continue, change val to unset
 **			 0 - if not break or continue
 **			else: error if not an ERROR value
 **
 ***********************************************************************/
 {
-	// It's UNSET, not an error:
-	if (!IS_ERROR(val))
-		Trap_DEAD_END(RE_NO_RETURN); //!!! change to special msg
+	assert(THROWN(val));
 
-	// If it's a BREAK, check for /return value:
-	if (VAL_ERR_NUM(val) == RE_BREAK) {
+	// Using words for starters to parallel VAL_ERR_SYM()
+	if (!IS_WORD(val))
+		return 0;
+
+	// If it's a BREAK, get the /WITH value (UNSET! if no /WITH):
+	if (VAL_WORD_SYM(val) == SYM_BREAK) {
 		TAKE_THROWN_ARG(val, val);
 		return 1;
 	}
 
-	if (VAL_ERR_NUM(val) == RE_CONTINUE) {
+	// If it's a CONTINUE then wipe out the
+	if (VAL_WORD_SYM(val) == SYM_CONTINUE) {
 		SET_UNSET(val);
 		return -1;
 	}
 
+	// Else: Let all other thrown values bubble up
 	return 0;
-	// Else: Let all other errors return as values.
 }
 
 
 /***********************************************************************
 **
-*/	int Get_Error_Exit_Status(const REBVAL *err)
+*/	int Exit_Status_From_Value(REBVAL *value)
 /*
 **		This routine's job is to turn an arbitrary value into an
 **		operating system exit status:
 **
 **			https://en.wikipedia.org/wiki/Exit_status
 **
-**		The QUIT native is only allowed to return INTEGER! values,
-**		as it is used to quit to the OS and has no other purpose.
-**		As an experiment for the moment (that may or may not be
-**		final), the EXIT native is used to exit whatever the
-**		current "execution context" is; which may be a paren in
-**		a parse rule, or a function, or just the command line
-**		itself.  Hence EXIT can get a non-integer! and reach the
-**		point of needing to quit the system.
-**
 ***********************************************************************/
 {
-	REBVAL arg;
-	TAKE_THROWN_ARG(&arg, err);
+	assert(!THROWN(value));
 
-	if (IS_INTEGER(&arg)) {
+	if (IS_INTEGER(value)) {
 		// Fairly obviously, an integer should return an integer
 		// result.  But Rebol integers are 64 bit and signed, while
 		// exit statuses don't go that large.
 		//
-		return VAL_INT32(&arg);
+		return VAL_INT32(value);
 	}
-	else if (IS_UNSET(&arg) || IS_NONE(&arg)) {
+	else if (IS_UNSET(value) || IS_NONE(value)) {
 		// An unset would happen with just QUIT or EXIT and no /WITH,
 		// so treating that as a 0 for success makes sense.  A NONE!
 		// seems like nothing to report as well, for instance:
@@ -868,12 +881,14 @@
 		//
 		return 0;
 	}
-	else if (IS_ERROR(&arg)) {
+	else if (IS_ERROR(value)) {
 		// Rebol errors do have an error number in them, and if your
 		// program tries to return a Rebol error it seems it wouldn't
-		// hurt to try using that.
+		// hurt to try using that.  They may be out of range for
+		// platforms using byte-sized error codes, however...but if
+		// that causes bad things OS_EXIT() should be graceful about it.
 		//
-		return VAL_ERR_NUM(&arg);
+		return VAL_ERR_NUM(value);
 	}
 
 	// Just 1 otherwise.
@@ -1048,8 +1063,9 @@ error:
 **
 ***********************************************************************/
 {
+	assert(IS_ERROR(err));
 	assert(VAL_ERR_NUM(err) != 0);
-	if (!THROWN(err)) ASSERT_FRAME(VAL_ERR_OBJECT(err));
+	ASSERT_FRAME(VAL_ERR_OBJECT(err));
 }
 
 #endif

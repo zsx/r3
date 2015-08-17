@@ -518,7 +518,6 @@ static REBSER *Trim_Object(REBSER *obj)
 		if (action < 3) action |= 4;  // add SELF to list
 reflect:
 #endif
-		if (THROWN(value)) Trap_DEAD_END(RE_THROW_USAGE);
 		Set_Block(value, Make_Object_Block(VAL_OBJ_FRAME(value), action));
 		break;
 

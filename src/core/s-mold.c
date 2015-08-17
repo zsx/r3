@@ -923,16 +923,8 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		return;
 	}
 
-	if (VAL_ERR_NUM(value) < RE_THROW_MAX) {
-		// Though we generally do not make error objects for THROWN() errors,
-		// we do make one here for the purposes of molding.
-		frame = Make_Error(VAL_ERR_NUM(value), value, 0, 0);
-		err = ERR_VALUES(frame);
-	}
-	else {
-		frame = VAL_ERR_OBJECT(value);
-		err = VAL_ERR_VALUES(value);
-	}
+	frame = VAL_ERR_OBJECT(value);
+	err = VAL_ERR_VALUES(value);
 
 	// Form: ** <type> Error:
 	Emit(mold, "** WB", &err->type, RS_ERRS+0);
@@ -998,6 +990,14 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 
 	assert(SERIES_WIDE(mold->series) == sizeof(REBUNI));
 	assert(ser);
+
+	if (THROWN(value)) {
+		// !!! You do not want to see THROWN values leak into user awareness,
+		// as they are an implementation detail.  So unless this is debug
+		// output, it should be an assert.  Thus REB_MOLD probably needs a
+		// "for debug output purposes" switch.
+		Emit(mold, "S", "!!! THROWN() -> ");
+	}
 
 	// Special handling of string series: {
 	if (ANY_STR(value) && !IS_TAG(value)) {

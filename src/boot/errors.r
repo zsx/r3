@@ -16,13 +16,8 @@ REBOL [
 
 Throw: [
 	code: 0
-	type: "throw error"
+	type: "non-error"
 	null:				{invalid error code zero}
-	break:              {no loop to break}
-	return:             {return not in function}
-	exit:				{no context to handle EXIT (impossible!)}
-	throw:              [{no catch for throw:} :arg1]
-	continue:           {no loop to continue}
 	halt:               [{halted by user or script}]
 ]
 
@@ -97,7 +92,8 @@ Script: [
 
 	no-return:          {block did not return a value}
 	block-lines:        {expected block of lines}
-	throw-usage:        {invalid use of a thrown error value}
+	no-catch:			[{no CATCH for THROW of} :arg1]
+	no-catch-named:		[{no CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
 	locked-word:        [{protected variable - cannot modify:} :arg1]
 	protected:          {protected value or series - cannot modify}
