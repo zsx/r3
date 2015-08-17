@@ -68,7 +68,6 @@ REBARGS Main_Args;
 
 #ifdef TO_WINDOWS
 HINSTANCE App_Instance = 0;
-extern void Console_Output(BOOL state);
 #endif
 
 #ifndef REB_CORE
@@ -220,14 +219,6 @@ int main(int argc, char **argv_ansi)
 	OS_Init_Graphics();
 #endif // REB_CORE
 
-#ifdef TO_WINDOWS
-#ifdef ENCAP
-	Console_Output(FALSE);
-#else
-	if (Main_Args.script) Console_Output(FALSE);
-#endif // ENCAP
-#endif // TO_WINDOWS
-
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
 	// Returns: 0: ok, -1: error, 1: bad data.
@@ -240,14 +231,6 @@ int main(int argc, char **argv_ansi)
 #else
 	err_num = RL_Start(0, 0, embedded_script, embedded_size, 0);
 #endif
-
-#ifdef TO_WINDOWS
-#ifdef ENCAP
-	Console_Output(TRUE);
-#else
-	if (Main_Args.script) Console_Output(TRUE);
-#endif // TO_WINDOWS
-#endif // ENCAP
 
 #if !defined(ENCAP)
 	// !!! What should an encapped executable do with a --do?  Here we just
