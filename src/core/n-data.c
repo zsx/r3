@@ -136,13 +136,15 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 		while (index < SERIES_TAIL(block)) {
 			i = index;
-			index = DO_NEXT(D_OUT, block, index);
+			index = DO_NEXT_MAY_THROW(D_OUT, block, index);
+
+			if (index == THROWN_FLAG) return R_OUT;
+
 			if (IS_CONDITIONAL_FALSE(D_OUT)) {
 				// !!! Only copies 3 values (and flaky), see CC#2231
 				Set_Block(D_OUT, Copy_Block_Len(block, i, 3));
 				Trap1_DEAD_END(RE_ASSERT_FAILED, D_OUT);
 			}
-			if (THROWN(D_OUT)) return R_OUT;
 		}
 		SET_TRASH_SAFE(D_OUT);
 	}

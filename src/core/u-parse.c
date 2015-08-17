@@ -580,7 +580,7 @@ bad_target:
 	}
 
 	// Evaluate next N input values:
-	index = DO_NEXT(&value, parse->series, index);
+	index = DO_NEXT_MAY_THROW(&value, parse->series, index);
 
 	if (index == THROWN_FLAG) {
 		// Value is a THROW, RETURN, BREAK, etc...we have to stop processing

@@ -471,8 +471,12 @@ typedef struct Reb_Tuple {
 #define SERIES_DATA(s)   ((s)->data)
 #define	SERIES_SKIP(s,i) (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
 
-#define END_FLAG 0x80000000  // Indicates end of block as an index (from DO_NEXT)
-#define THROWN_FLAG (END_FLAG - 1) // Indicates throw as an index
+// These flags are returned from Do_Next_Core and DO_NEXT_MAY_THROW, in
+// order to keep from needing another returned value in addition to the
+// index (as they both imply that no "next index" exists to be returned)
+
+#define END_FLAG 0x80000000  // end of block as index
+#define THROWN_FLAG (END_FLAG - 1) // throw as an index
 
 #ifdef SERIES_LABELS
 #define SERIES_LABEL(s)  ((s)->label)

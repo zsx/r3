@@ -1031,7 +1031,7 @@ return_index:
 
 	while (index < BLK_LEN(block)) {
 		REBVAL reduced;
-		index = DO_NEXT(&reduced, block, index);
+		index = DO_NEXT_MAY_THROW(&reduced, block, index);
 		if (index == THROWN_FLAG) {
 			*out = reduced;
 			DS_DROP_TO(dsp_orig);
@@ -1123,7 +1123,7 @@ finished:
 		}
 		else {
 			REBVAL reduced;
-			index = DO_NEXT(&reduced, block, index);
+			index = DO_NEXT_MAY_THROW(&reduced, block, index);
 			if (index == THROWN_FLAG) {
 				*out = reduced;
 				DS_DROP_TO(dsp_orig);
@@ -1288,7 +1288,7 @@ finished:
 /*
 **		Use a block at a certain index as the source of parameters to
 **		a function invocation.  If 'reduce' then the block will be
-**		evaluated in steps via DO_NEXT and the results passed as
+**		evaluated in steps via DO_NEXT_MAY_THROW and the results passed as
 **		the arguments, otherwise it will be taken as literal values.
 **
 **		Refinements are passed according to their positions relative
@@ -1349,7 +1349,7 @@ finished:
 
 		// Reduce (or just copy) block content to call frame:
 		if (reduce) {
-			index = DO_NEXT(out, block, index);
+			index = DO_NEXT_MAY_THROW(out, block, index);
 			if (index == THROWN_FLAG) {
 				Free_Call(call);
 				return FALSE;

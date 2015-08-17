@@ -693,9 +693,13 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 					Reduce_Block(init, VAL_SERIES(blk), 0, FALSE);
 					++ blk;
 				} else {
-					eval_idx = DO_NEXT(
+					eval_idx = DO_NEXT_MAY_THROW(
 						init, VAL_SERIES(data), blk - VAL_BLK_DATA(data)
 					);
+					if (eval_idx == THROWN_FLAG) {
+						Trap_Thrown(init);
+						DEAD_END;
+					}
 
 					blk = VAL_BLK_SKIP(data, eval_idx);
 				}

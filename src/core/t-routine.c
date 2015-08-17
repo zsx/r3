@@ -1060,7 +1060,11 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		if (!IS_BLOCK(&blk[0]))
 			Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_BLOCK, VAL_TYPE(&blk[0]));
 
-		fn_idx = DO_NEXT(&lib, VAL_SERIES(data), 1);
+		fn_idx = DO_NEXT_MAY_THROW(&lib, VAL_SERIES(data), 1);
+		if (fn_idx == THROWN_FLAG) {
+			Trap_Thrown(&lib);
+			DEAD_END;
+		}
 
 		if (IS_INTEGER(&lib)) {
 			if (NOT_END(&blk[fn_idx]))
@@ -1108,7 +1112,13 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 
 		if (!IS_BLOCK(&blk[0]))
 			Trap_Arg_DEAD_END(&blk[0]);
-		fn_idx = DO_NEXT(&fun, VAL_SERIES(data), 1);
+
+		fn_idx = DO_NEXT_MAY_THROW(&fun, VAL_SERIES(data), 1);
+		if (fn_idx == THROWN_FLAG) {
+			Trap_Thrown(&fun);
+			DEAD_END;
+		}
+
 		if (!IS_FUNCTION(&fun))
 			Trap_Arg_DEAD_END(&fun);
 		VAL_CALLBACK_FUNC(out) = VAL_FUNC(&fun);

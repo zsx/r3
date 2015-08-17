@@ -260,7 +260,7 @@ enum {
 	SET_TRUE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
-		index = DO_NEXT(D_OUT, block, index);
+		index = DO_NEXT_MAY_THROW(D_OUT, block, index);
 		if (index == THROWN_FLAG) break;
 		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
 		/* if (IS_UNSET(D_OUT)) { Trap(RE_NO_RETURN); } */
@@ -283,7 +283,7 @@ enum {
 	REBCNT index = VAL_INDEX(D_ARG(1));
 
 	while (index < SERIES_TAIL(block)) {
-		index = DO_NEXT(D_OUT, block, index);
+		index = DO_NEXT_MAY_THROW(D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT;
 
 		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
@@ -398,7 +398,7 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 
-		index = DO_NEXT(condition_result, block, index);
+		index = DO_NEXT_MAY_THROW(condition_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *condition_result; // is a RETURN, BREAK, THROW...
@@ -420,8 +420,8 @@ enum {
 		// case) and get an error.  Code not in blocks must be evaluated
 		// even if false, as it is with 'if false (print "eval'd")'
 		//
-		// If the source was a literal block then the DO_NEXT will
-		// *probably* be a no-op, but consider infix operators:
+		// If the source was a literal block then the DO_NEXT_MAY_THROW
+		// will *probably* be a no-op, but consider infix operators:
 		//
 		//     case [true [stuff] + [more stuff]]
 		//
@@ -442,7 +442,7 @@ enum {
 			continue;
 		}
 
-		index = DO_NEXT(body_result, block, index);
+		index = DO_NEXT_MAY_THROW(body_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *body_result; // is a RETURN, BREAK, THROW...
@@ -704,9 +704,15 @@ enum {
 	case REB_BLOCK:
 	case REB_PAREN:
 		if (D_REF(4)) { // next
-			VAL_INDEX(value) = DO_NEXT(
+			VAL_INDEX(value) = DO_NEXT_MAY_THROW(
 				D_OUT, VAL_SERIES(value), VAL_INDEX(value)
 			);
+
+			if (VAL_INDEX(value) == THROWN_FLAG) {
+				// We're going to return the value in D_OUT anyway, but
+				// if we looked at D_OUT we'd have to check this first
+			}
+
 			if (VAL_INDEX(value) == END_FLAG) {
 				VAL_INDEX(value) = VAL_TAIL(value);
 				Set_Var(D_ARG(5), value);

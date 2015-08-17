@@ -112,7 +112,7 @@ typedef void *REBNOD;			// Just used for linking free nodes
 
 #define MEM_BALLAST 3000000
 
-// Disable GC - Only necessary if DO_NEXT with non-referenced series.
+// Disable GC - Only necessary if DO_NEXT_MAY_THROW with non-referenced series.
 #define DISABLE_GC		GC_Disabled++
 #define ENABLE_GC		GC_Disabled--
 //Was: if (--GC_Disabled <= 0 && GC_Pending) Recycle()
