@@ -316,7 +316,6 @@ int main(int argc, char **argv_ansi)
 	#define MAX_CONT_LEVEL 80
 
 	REBYTE cont_str[] = "    ";
-	cont_str[0] = 0;
 	int cont_level = 0;
 	REBYTE cont_stack[MAX_CONT_LEVEL] = {0};
 
@@ -339,10 +338,15 @@ int main(int argc, char **argv_ansi)
 	){
 		err_num = 0;  // reset error code (but should be able to set it below too!)
 		while (TRUE) {
-			if (cont_str[0]) {
+			if (cont_level > 0) {
+				int level;
+
+				cont_str[0] = cont_stack[cont_level - 1];
 				Put_Str(cont_str);
-				for (i = 1; i < cont_level; i++) {
-					Put_Str("    ");
+
+				cont_str[0] = ' ';
+				for (level = 1; level < cont_level; level++) {
+					Put_Str(cont_str);
 				}
 			} else {
 				Put_Str(prompt_str);
@@ -359,14 +363,10 @@ int main(int argc, char **argv_ansi)
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = line[i];
 							}
 							break;
 						case ']':
 							if (!inside_short_str && !inside_long_str) {
-								if (cont_level >= 2) {
-									cont_str[0] = cont_stack[cont_level - 2];
-								}
 								cont_stack[--cont_level] = 0;
 							}
 							break;
@@ -376,15 +376,11 @@ int main(int argc, char **argv_ansi)
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								cont_str[0] = line[i];
 								inside_long_str = TRUE;
 							}
 							break;
 						case '}':
 							if (!inside_short_str) {
-								if (cont_level >= 2) {
-									cont_str[0] = cont_stack[cont_level - 2];
-								}
 								cont_stack[--cont_level] = 0;
 								inside_long_str = FALSE;
 							}
@@ -413,7 +409,6 @@ int main(int argc, char **argv_ansi)
 				}
 
 				input_len = 0;
-				cont_str[0] = 0;
 				cont_level = 0;
 
 				RL_Do_String(input, 0, 0);
