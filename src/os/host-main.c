@@ -385,11 +385,6 @@ int main(int argc, char **argv_ansi)
 								inside_long_str = FALSE;
 							}
 							break;
-						case ';':
-							if (!inside_short_str && !inside_long_str) {
-								line[i--] = 0;
-							}
-							break;
 					}
 				}
 				inside_short_str = FALSE;
