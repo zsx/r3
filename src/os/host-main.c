@@ -325,7 +325,7 @@ int main(int argc, char **argv_ansi)
 	input[input_len] = 0;
 	int i;
 	BOOL inside_short_str = FALSE;
-	BOOL inside_long_str = FALSE;
+	int long_str_level = 0;
 
 	// Console line input loop (just an example, can be improved):
 	if (
@@ -358,7 +358,7 @@ int main(int argc, char **argv_ansi)
 							inside_short_str = !inside_short_str;
 							break;
 						case '[':
-							if (!inside_short_str && !inside_long_str) {
+							if (!inside_short_str && long_str_level == 0) {
 								cont_stack[cont_level++] = line[i];
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
@@ -366,7 +366,7 @@ int main(int argc, char **argv_ansi)
 							}
 							break;
 						case ']':
-							if (!inside_short_str && !inside_long_str) {
+							if (!inside_short_str && long_str_level == 0) {
 								if (cont_level > 0) {
 									cont_stack[--cont_level] = 0;
 								}
@@ -378,7 +378,7 @@ int main(int argc, char **argv_ansi)
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
-								inside_long_str = TRUE;
+								long_str_level++;
 							}
 							break;
 						case '}':
@@ -386,7 +386,9 @@ int main(int argc, char **argv_ansi)
 								if (cont_level > 0) {
 									cont_stack[--cont_level] = 0;
 								}
-								inside_long_str = FALSE;
+								if (long_str_level > 0) {
+									long_str_level--;
+								}
 							}
 							break;
 					}
