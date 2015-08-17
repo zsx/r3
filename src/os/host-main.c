@@ -367,7 +367,9 @@ int main(int argc, char **argv_ansi)
 							break;
 						case ']':
 							if (!inside_short_str && !inside_long_str) {
-								cont_stack[--cont_level] = 0;
+								if (cont_level > 0) {
+									cont_stack[--cont_level] = 0;
+								}
 							}
 							break;
 						case '{':
@@ -381,7 +383,9 @@ int main(int argc, char **argv_ansi)
 							break;
 						case '}':
 							if (!inside_short_str) {
-								cont_stack[--cont_level] = 0;
+								if (cont_level > 0) {
+									cont_stack[--cont_level] = 0;
+								}
 								inside_long_str = FALSE;
 							}
 							break;
