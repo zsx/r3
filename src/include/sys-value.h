@@ -120,14 +120,14 @@ enum {
 #ifdef NDEBUG
 	#define CONVERT_NAME_TO_THROWN(name,arg) \
 		do { \
-			VAL_SET_OPT((name), OPT_THROWN); \
-			(*TASK_THROWN_ARG = *(arg)) \
+			VAL_SET_OPT((name), OPT_VALUE_THROWN); \
+			(*TASK_THROWN_ARG = *(arg)); \
 		} while (0)
 
 	#define TAKE_THROWN_ARG(arg,thrown) \
 		do { \
-			assert(VAL_GET_OPT((thrown), OPT_THROWN)); \
-			VAL_CLR_OPT((thrown), OPT_THROW); \
+			assert(VAL_GET_OPT((thrown), OPT_VALUE_THROWN)); \
+			VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
 			(*(arg) = *TASK_THROWN_ARG); \
 		} while (0)
 #else
