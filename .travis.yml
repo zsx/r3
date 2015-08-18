@@ -12,16 +12,16 @@ language: c
 env:
     matrix:
         # Linux x86, release
-        - OS_ID=0.4.4 NDEBUG=1
+        - OS_ID=0.4.4 REL=1
         # Linux x64, debug
         - OS_ID=0.4.40
         # Linux x64, release
-        - OS_ID=0.4.40 NDEBUG=1
+        - OS_ID=0.4.40 REL=1
 
         # Windows x86, release
-        - OS_ID=0.3.1 NDEBUG=1 TOOLS=i686-w64-mingw32-
+        - OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
         # Windows x64, release
-        - OS_ID=0.3.40 NDEBUG=1 TOOLS=x86_64-w64-mingw32-
+        - OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
 
 # Force new container-based infrastructure.
 # Ref: http://docs.travis-ci.com/user/migrating-from-legacy/
@@ -53,7 +53,11 @@ install:
 
 script:
     - cd make/
+    # If REL is defined and not empty, we do a release build by compiling with
+    # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
+    # "if parameter set, use alt_value, else use null string.")
+    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
     # filename inference, as we always use a Linux r3-make, even when
     # cross-compiling to Windows.
-    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID=${OS_ID}
+    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
