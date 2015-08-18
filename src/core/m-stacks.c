@@ -221,9 +221,7 @@
 	call->prior = CS_Top;
 	CS_Top = call;
 
-#if !defined(NDEBUG)
-	call->pending = TRUE;
-#endif
+	call->args_ready = FALSE;
 
 	call->out = out;
 

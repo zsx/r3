@@ -216,12 +216,28 @@ struct Reb_Call {
 
 	struct Reb_Call *prior;
 
-	// In the Debug build, we make sure SET_DSF has happened on a call frame.
-	// This way "pending" frames that haven't had their arguments fulfilled
-	// can be checked to be sure no one tries to Get_Var out of them yet.
-#if !defined(NDEBUG)
-	REBOOL pending;
-#endif
+	// In an ideal world, it would not be possible for code to get its hands
+	// on words that had been bound into a specific call frame while it
+	// was still being formed...because no executing code would have access
+	// to words that were linked into it.  Unfortunately with stack-relative
+	// addressing, they can get that access:
+	//
+	//		leaker: func [/eval e /gimme g] [
+	//			either gimme [return [g]] [reduce e]
+	//		]
+	//
+	//		leaker/eval reduce leaker/gimme 10
+	//
+	// Since a leaked word from another instance of a function can give
+	// access to a call frame during its formation, we need a way to tell
+	// when a call frame is finished forming and a candidate for lookup
+	// via Get_Var.  'args_ready' defaults to TRUE in Make_Call and then
+	// is set to FALSE in Dispatch_Call when the function runs.
+	//
+	// !!! For optimization this boolean could be squeaked in lots of
+	// other places, but a regular struct field for clarity right now.
+
+	REBOOL args_ready;	// Function's arguments have finished evaluating
 
 	REBCNT num_vars;	// !!! Redundant with VAL_FUNC_NUM_WORDS()?
 
@@ -231,8 +247,6 @@ struct Reb_Call {
 
 	REBVAL where;			// block and index of execution
 	REBVAL label;			// func word backtrace
-
-	REBVAL return_func;		// dynamic scoped return (coming soon!)
 
 	// these are "variables"...SELF, RETURN, args, locals
 	REBVAL vars[1];		// (array exceeds struct, but cannot be [0] in C++)
@@ -275,7 +289,7 @@ struct Reb_Call {
 	#define SET_DSF(c) \
 		( \
 			CS_Running = (c), \
-			(c) ? cast(void, (c)->pending = FALSE) : NOOP \
+			(c) ? cast(void, (c)->args_ready = TRUE) : NOOP \
 		)
 #endif
 

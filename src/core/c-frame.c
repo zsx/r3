@@ -1192,11 +1192,13 @@
 			// Get_Var could theoretically be called with no evaluation on
 			// the stack, so check for no DSF first...
 			while (call) {
-				if (context == VAL_FUNC_WORDS(DSF_FUNC(call))) {
+				if (
+					call->args_ready
+					&& context == VAL_FUNC_WORDS(DSF_FUNC(call))
+				) {
 					REBVAL *value;
 
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
-					assert(!call->pending);
 
 					if (
 						writable &&
@@ -1276,9 +1278,11 @@
 		if (index < 0) {
 			struct Reb_Call *call = DSF;
 			while (call) {
-				if (context == VAL_FUNC_WORDS(DSF_FUNC(call))) {
+				if (
+					call->args_ready
+					&& context == VAL_FUNC_WORDS(DSF_FUNC(call))
+				) {
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
-					assert(!call->pending);
 					*out = *DSF_ARG(call, -index);
 					assert(!IS_TRASH(out));
 					assert(!THROWN(out));
