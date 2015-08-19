@@ -256,7 +256,7 @@ static int Get_File_Info(REBREQ *file)
 	file->modes = 0;
 	strncpy(file->special.file.path, cp, MAX_FILE_NAME);
 
-#ifdef FALSE
+#if FALSE
 	// NOTE: we do not use d_type even if DT_DIR is #define-d.  First of all,
 	// it's not a POSIX requirement and not all operating systems support it.
 	// (Linux/BSD have it defined in their structs, but Haiku doesn't--for
