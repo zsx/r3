@@ -509,6 +509,8 @@ enum {
 **	3 name-list
 **	4 /quit
 **	5 /any
+**	6 /with
+**	7 handler
 **
 **	There's a refinement for catching quits, and CATCH/ANY will not
 **	alone catch it (you have to CATCH/ANY/QUIT).  The use of the
@@ -520,12 +522,15 @@ enum {
 {
 	REBVAL * const block = D_ARG(1);
 
-	REBOOL named = D_REF(2);
-	REBVAL *name_list = D_ARG(3);
+	const REBOOL named = D_REF(2);
+	REBVAL * const name_list = D_ARG(3);
 
-	// We save the values into booleans and overwrite their slots
-	REBOOL quit = D_REF(4);
-	REBOOL any = D_REF(5);
+	// We save the values into booleans (and reuse their GC-protected slots)
+	const REBOOL quit = D_REF(4);
+	const REBOOL any = D_REF(5);
+
+	const REBOOL with = D_REF(6);
+	REBVAL * const handler = D_ARG(7);
 
 	// /ANY would override /NAME, so point out the potential confusion
 	if (any && named) Trap(RE_BAD_REFINES);
@@ -535,8 +540,7 @@ enum {
 			(any && (!IS_WORD(D_OUT) || VAL_WORD_SYM(D_OUT) != SYM_QUIT))
 			|| (quit && IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_QUIT)
 		) {
-			TAKE_THROWN_ARG(D_OUT, D_OUT);
-			return R_OUT;
+			goto was_caught;
 		}
 
 		if (named) {
@@ -560,10 +564,8 @@ enum {
 
 					// Return the THROW/NAME's arg if the names match
 					// !!! 0 means equal?, but strict-equal? might be better
-					if (Compare_Modify_Values(temp1, temp2, 0)) {
-						TAKE_THROWN_ARG(D_OUT, D_OUT);
-						return R_OUT;
-					}
+					if (Compare_Modify_Values(temp1, temp2, 0))
+						goto was_caught;
 				}
 			}
 			else {
@@ -572,21 +574,84 @@ enum {
 
 				// Return the THROW/NAME's arg if the names match
 				// !!! 0 means equal?, but strict-equal? might be better
-				if (Compare_Modify_Values(temp1, temp2, 0)) {
-					TAKE_THROWN_ARG(D_OUT, D_OUT);
-					return R_OUT;
-				}
+				if (Compare_Modify_Values(temp1, temp2, 0))
+					goto was_caught;
 			}
 		}
 		else {
 			// Return THROW's arg only if it did not have a /NAME supplied
-			if (IS_NONE(D_OUT)) {
-				TAKE_THROWN_ARG(D_OUT, D_OUT);
-				return R_OUT;
-			}
+			if (IS_NONE(D_OUT))
+				goto was_caught;
 		}
 	}
 
+	return R_OUT;
+
+was_caught:
+	if (with) {
+		if (IS_BLOCK(handler)) {
+			// There's no way to pass args to a block (so just DO it)
+			if (DO_BLOCK_THROWS(
+				D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
+			)) {
+				return R_OUT;
+			}
+			return R_OUT;
+		}
+		else if (ANY_FUNC(handler)) {
+			// We again re-use the refinement slots, but this time as mutable
+			// space protected from GC for the handler's arguments
+			REBVAL *thrown_arg = D_ARG(4);
+			REBVAL *thrown_name = D_ARG(5);
+
+			TAKE_THROWN_ARG(thrown_arg, D_OUT);
+			*thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
+
+			// We will accept a function of arity 0, 1, or 2 as a CATCH/WITH
+			// handler.  If it is arity 1 it will get just the thrown value,
+			// If it is arity 2 it will get the value and the throw name.
+
+			REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
+			if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(thrown_arg))) {
+				Trap3_DEAD_END(
+					RE_EXPECT_ARG,
+					Of_Type(handler),
+					param,
+					Of_Type(thrown_arg)
+				);
+			}
+
+			if (NOT_END(param)) ++param;
+
+			if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(thrown_name))) {
+				Trap3_DEAD_END(
+					RE_EXPECT_ARG,
+					Of_Type(handler),
+					param,
+					Of_Type(thrown_name)
+				);
+			}
+
+			if (NOT_END(param)) param++;
+
+			if (NOT_END(param) && !IS_REFINEMENT(param)) {
+				// We go lower in arity, but don't make up arg values
+				Trap1(RE_NEED_VALUE, param);
+				DEAD_END;
+			}
+
+			// !!! As written, Apply_Func will ignore extra arguments.
+			// This means we can pass a lower arity function.  The
+			// effect is desirable, though having Apply_Func be cavalier
+			// about extra arguments may not be the best way to do it.
+
+			Apply_Func(D_OUT, handler, thrown_arg, thrown_name, NULL);
+			return R_OUT;
+		}
+	}
+
+	// If no handler, just return the caught thing
+	TAKE_THROWN_ARG(D_OUT, D_OUT);
 	return R_OUT;
 }
 
@@ -968,16 +1033,17 @@ enum {
 
 /***********************************************************************
 **
-*/	REBNATIVE(try)
+*/	REBNATIVE(trap)
 /*
 **		1: block
-**		2: /except
-**		3: code
+**		2: /with
+**		3: handler
 **
 ***********************************************************************/
 {
-	REBFLG except = D_REF(2);
-	REBVAL handler = *D_ARG(3); // TRY exception will trim the stack
+	REBVAL * const block = D_ARG(1);
+	const REBFLG with = D_REF(2);
+	REBVAL * const handler = D_ARG(3);
 
 	REBOL_STATE state;
 	const REBVAL *error;
@@ -988,31 +1054,41 @@ enum {
 // Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		if (except) {
-			if (IS_BLOCK(D_ARG(3))) {
-				// forget the result of the try (no way to pass to a block)
+		if (with) {
+			if (IS_BLOCK(handler)) {
+				// There's no way to pass 'error' to a block (so just DO it)
 				if (DO_BLOCK_THROWS(
-					D_OUT, VAL_SERIES(D_ARG(3)), VAL_INDEX(D_ARG(3))
+					D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
 				)) {
 					return R_OUT;
 				}
 				return R_OUT;
 			}
-			else if (ANY_FUNC(D_ARG(3))) {
-				// !!! REVIEW: What about zero arity functions or functions of
-				// arity greater than 1?  What about a function that has
-				// more args via refinements but can still act as an
-				// arity one function without those refinements?
+			else if (ANY_FUNC(handler)) {
+				REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
 
-				REBVAL *args = BLK_SKIP(VAL_FUNC_WORDS(&handler), 1);
-				if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(error))) {
-					// TODO: This results in an error message such as "action!
-					// does not allow error! for its value1 argument". A better
-					// message would be more like "except handler does not
-					// allow error! for its value1 argument."
-					Trap3_DEAD_END(RE_EXPECT_ARG, Of_Type(&handler), args, Of_Type(error));
+				// We will accept a function of arity 0 or 1 as a TRAP/WITH
+				// handler.  If it is arity 1 it will get the error.
+
+				if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(error))) {
+					// If handler takes an arg, it must take ERROR!
+					Trap1(RE_TRAP_WITH_EXPECTS, param);
+					DEAD_END;
 				}
-				Apply_Func(D_OUT, &handler, error, NULL);
+
+				if (NOT_END(param)) param++;
+
+				if (NOT_END(param) && !IS_REFINEMENT(param)) {
+					// We go lower in arity, but don't make up arg values
+					Trap1(RE_NEED_VALUE, param);
+					DEAD_END;
+				}
+
+				// !!! As written, Apply_Func will ignore extra arguments.
+				// This means we can pass a lower arity function.  The
+				// effect is desirable, though having Apply_Func be cavalier
+				// about extra arguments may not be the best way to do it.
+				Apply_Func(D_OUT, handler, error, NULL);
 				return R_OUT;
 			}
 			else
@@ -1025,8 +1101,17 @@ enum {
 		return R_OUT;
 	}
 
-	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
-		// No special handling, just return like we were going to
+	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+		// Note that we are interested in when errors are raised, which
+		// causes a tricky C longjmp() to the code above.  Yet a THROW
+		// is different from that, and offers an opportunity to each
+		// DO'ing stack level along the way to CATCH the thrown value
+		// (with no need for something like the PUSH_TRAP above).
+		//
+		// We're being given that opportunity here, but doing nothing
+		// and just returning the THROWN thing for other stack levels
+		// to look at.  For the construct which does let you catch a
+		// throw, see REBNATIVE(catch), which has code for this case.
 	}
 
 	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);

@@ -68,3 +68,25 @@ sign?: :sign-of
 ;why?
 ;info?
 ;exists?
+
+
+; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what
+; is done with the error if one happens.  It also has historical baggage with
+; TRY/CATCH constructs. TRAP does not have that, and better parallels CATCH
+; by communicating you seek to "trap errors in this code (with this handler)"
+; Here trapping the error suggests you "caught it in a trap" and it is
+; in the trap (and hence in your possession) to examine.  /WITH is not only
+; shorter than /EXCEPT but it makes much more sense.
+;
+; !!! This may free up TRY for more interesting uses, such as a much shorter
+; word to use for ATTEMPT.
+;
+try: func [
+	<transparent>
+	{Tries to DO a block and returns its value or an error.}
+	block [block!]
+	/except "On exception, evaluate this code block"
+	code [block! any-function!]
+] [
+	either except [trap/with block code] [trap block]
+]

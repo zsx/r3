@@ -79,6 +79,8 @@ catch: native [
 	name-list [block! word! any-function! object!] {Names to catch (single name if not block)}
 	/quit {Special catch for QUIT native}
 	/any {Catch all throws except QUIT (can be used with /QUIT)}
+	/with {Handle thrown case with code}
+	handler [block! any-function!] {If FUNCTION!, spec matches [value name]}
 ]
 
 ;cause: native [
@@ -304,11 +306,11 @@ trace: native [
 ;	/stack {Show stack index}
 ]
 
-try: native [
-	{Tries to DO a block and returns its value or an error.}
+trap: native [
+	{Tries to DO a block, trapping error as return value (if one is raised).}
 	block [block!]
-	/except "On exception, evaluate this code block"
-	code [block! any-function!]
+	/with "Handle error case with code"
+	handler [block! any-function!] {If FUNCTION!, spec allows [error [error!]]}
 ]
 
 unless: native [

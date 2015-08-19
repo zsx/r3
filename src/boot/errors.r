@@ -57,6 +57,8 @@ Script: [
 	expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
 	cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
 
+	trap-with-expects:	[{must allow} :arg1 {as ERROR! to be TRAP handler}]
+
 	invalid-arg:        [{invalid argument:} :arg1]
 	invalid-type:       [:arg1 {type is not allowed here}]
 	invalid-op:         [{invalid operator:} :arg1]
