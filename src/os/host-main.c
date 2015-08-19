@@ -362,6 +362,7 @@ int main(int argc, char **argv_ansi)
 							inside_short_str = !inside_short_str;
 							break;
 						case '[':
+						case '(':
 							if (!inside_short_str && long_str_level == 0) {
 								cont_stack[cont_level++] = *utf8byte;
 								if (cont_level >= MAX_CONT_LEVEL) {
@@ -370,6 +371,7 @@ int main(int argc, char **argv_ansi)
 							}
 							break;
 						case ']':
+						case ')':
 							if (!inside_short_str && long_str_level == 0) {
 								if (cont_level > 0) {
 									cont_stack[--cont_level] = 0;
