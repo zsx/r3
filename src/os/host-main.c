@@ -88,65 +88,18 @@ extern void Open_StdIO(void);
 extern void Put_Str(REBYTE *buf);
 extern REBYTE *Get_Str();
 
+
 /* coverity[+kill] */
 void Host_Crash(const char *reason) {
 	OS_Crash(cb_cast("REBOL Host Failure"), cb_cast(reason));
 }
 
 
-/***********************************************************************
-**
-**  MAIN ENTRY POINT
-**
-**	Win32 args:
-**		inst:  current instance of the application (app handle)
-**		prior: always NULL (use a mutex for single inst of app)
-**		cmd:   command line string (or use GetCommandLine)
-**	    show:  how app window is to be shown (e.g. maximize, minimize, etc.)
-**
-**	Win32 return:
-**		If the function succeeds, terminating when it receives a WM_QUIT
-**		message, it should return the exit value contained in that
-**		message's wParam parameter. If the function terminates before
-**		entering the message loop, it should return zero.
-**
-**  Posix args: as you would expect in C.
-**  Posix return: ditto.
-**
-*/
-/***********************************************************************/
-
-// Using a main entry point for a console program (as opposed to WinMain)
-// so that we can connect to the console.  See the StackOverflow question
-// "Can one executable be both a console and a GUI application":
-//
-//     http://stackoverflow.com/questions/493536/
-//
-// int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
-
-int main(int argc, char **argv_ansi)
-{
+REBINT Host_Start(int argc, char **argv) {
 	REBYTE vers[8];
-	REBYTE *line;
 	REBINT err_num;
 	REBYTE *embedded_script = NULL;
 	REBI64 embedded_size = 0;
-
-	REBCHR **argv;
-
-	// As defined, Put_Str takes non-const data
-	REBYTE prompt_str[] = ">> ";
-	REBYTE result_str[] = "== ";
-
-#ifdef TO_WINDOWS
-	// Were we using WinMain we'd be getting our arguments in Unicode, but
-	// since we're using an ordinary main() we do not.  However, this call
-	// lets us slip out and pick up the arguments in Unicode form.
-	argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-#else
-	// Assume no wide character support, and just take the ANSI C args
-	argv = argv_ansi;
-#endif
 
 	Host_Lib = &Host_Lib_Init;
 
@@ -311,10 +264,18 @@ int main(int argc, char **argv_ansi)
 
 		RL_Do_String(cb_cast("quit"), 0, 0);
 	}
+#endif //!ENCAP
 
+	return err_num;
+}
+
+
+void Host_Repl(REBINT err_num) {
+	// As defined, Put_Str takes non-const data
+	REBYTE prompt_str[] = ">> ";
+	REBYTE result_str[] = "== ";
 
 	#define MAX_CONT_LEVEL 80
-
 	REBYTE cont_str[] = "    ";
 	int cont_level = 0;
 	REBYTE cont_stack[MAX_CONT_LEVEL] = {0};
@@ -323,9 +284,10 @@ int main(int argc, char **argv_ansi)
 	int input_len = 0;
 	REBYTE *input = OS_ALLOC_ARRAY(REBYTE, input_max);
 
-	REBYTE *utf8byte;
+	REBYTE *line;
 	int line_len;
 
+	REBYTE *utf8byte;
 	BOOL inside_short_str = FALSE;
 	int long_str_level = 0;
 
@@ -431,13 +393,69 @@ int main(int argc, char **argv_ansi)
 			else break; // EOS
 		}
 	}
-#endif //!ENCAP
+
+	OS_FREE(input);
+}
+
+
+void Host_Quit() {
 	OS_Quit_Devices(0);
 #ifndef REB_CORE
 	OS_Destroy_Graphics();
 #endif
+}
 
-	OS_FREE(input);
+
+/***********************************************************************
+**
+**  MAIN ENTRY POINT
+**
+**	Win32 args:
+**		inst:  current instance of the application (app handle)
+**		prior: always NULL (use a mutex for single inst of app)
+**		cmd:   command line string (or use GetCommandLine)
+**	    show:  how app window is to be shown (e.g. maximize, minimize, etc.)
+**
+**	Win32 return:
+**		If the function succeeds, terminating when it receives a WM_QUIT
+**		message, it should return the exit value contained in that
+**		message's wParam parameter. If the function terminates before
+**		entering the message loop, it should return zero.
+**
+**  Posix args: as you would expect in C.
+**  Posix return: ditto.
+**
+*/
+/***********************************************************************/
+
+// Using a main entry point for a console program (as opposed to WinMain)
+// so that we can connect to the console.  See the StackOverflow question
+// "Can one executable be both a console and a GUI application":
+//
+//     http://stackoverflow.com/questions/493536/
+//
+// int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
+
+int main(int argc, char **argv_ansi)
+{
+	REBINT err_num;
+	REBCHR **argv;
+
+#ifdef TO_WINDOWS
+	// Were we using WinMain we'd be getting our arguments in Unicode, but
+	// since we're using an ordinary main() we do not.  However, this call
+	// lets us slip out and pick up the arguments in Unicode form.
+	argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+#else
+	// Assume no wide character support, and just take the ANSI C args
+	argv = argv_ansi;
+#endif
+
+	err_num = Host_Start(argc, argv);
+#if !defined(ENCAP)
+	Host_Repl(err_num);
+#endif
+	Host_Quit();
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
