@@ -97,7 +97,7 @@ void Host_Crash(const char *reason) {
 
 REBINT Host_Start(int argc, char **argv) {
 	REBYTE vers[8];
-	REBINT err_num;
+	REBINT startup_rc;
 	REBYTE *embedded_script = NULL;
 	REBI64 embedded_size = 0;
 
@@ -118,9 +118,9 @@ REBINT Host_Start(int argc, char **argv) {
 	if (!Host_Lib) Host_Crash("Missing host lib");
 	// !!! Second part will become vers[2] < RL_REV on release!!!
 	if (vers[1] != RL_VER || vers[2] != RL_REV) Host_Crash("Incompatible reb-lib DLL");
-	err_num = RL_Init(&Main_Args, Host_Lib);
-	if (err_num == 1) Host_Crash("Host-lib wrong size");
-	if (err_num == 2) Host_Crash("Host-lib wrong version/checksum");
+	startup_rc = RL_Init(&Main_Args, Host_Lib);
+	if (startup_rc == 1) Host_Crash("Host-lib wrong size");
+	if (startup_rc == 2) Host_Crash("Host-lib wrong version/checksum");
 
 	//Initialize core extension commands
 	Init_Core_Ext();
@@ -178,12 +178,12 @@ REBINT Host_Start(int argc, char **argv) {
 	// Returns: 0: ok, -1: error, 1: bad data.
 #ifdef CUSTOM_STARTUP
 	// For custom startup, you can provide compressed script code here:
-	err_num = RL_Start(
+	startup_rc = RL_Start(
 		&Reb_Init_Code[0], REB_INIT_SIZE,
 		embedded_script, embedded_size, 0
 	);
 #else
-	err_num = RL_Start(0, 0, embedded_script, embedded_size, 0);
+	startup_rc = RL_Start(0, 0, embedded_script, embedded_size, 0);
 #endif
 
 #if !defined(ENCAP)
@@ -209,7 +209,7 @@ REBINT Host_Start(int argc, char **argv) {
 	// line processing is taken out of Ren/C's concern that kind of decision
 	// can be revisited.  In the meantime, we test for NULL.
 
-	if (err_num >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
+	if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
 		RXIARG result;
 		REBYTE *do_arg_utf8;
 		REBCNT len_predicted;
@@ -266,11 +266,11 @@ REBINT Host_Start(int argc, char **argv) {
 	}
 #endif //!ENCAP
 
-	return err_num;
+	return startup_rc;
 }
 
 
-void Host_Repl(REBINT err_num) {
+void Host_Repl(REBINT startup_rc) {
 	// As defined, Put_Str takes non-const data
 	REBYTE prompt_str[] = ">> ";
 	REBYTE result_str[] = "== ";
@@ -296,11 +296,10 @@ void Host_Repl(REBINT err_num) {
 		!(Main_Args.options & RO_CGI)
 		&& (
 			!Main_Args.script               // no script was provided
-			|| err_num < 0                  // script halted or had error
+			|| startup_rc < 0               // script halted or had error
 			|| Main_Args.options & RO_HALT  // --halt option
 		)
 	){
-		err_num = 0;  // reset error code (but should be able to set it below too!)
 		while (TRUE) {
 			if (cont_level > 0) {
 				int level;
@@ -438,7 +437,7 @@ void Host_Quit() {
 
 int main(int argc, char **argv_ansi)
 {
-	REBINT err_num;
+	REBINT startup_rc;
 	REBCHR **argv;
 
 #ifdef TO_WINDOWS
@@ -451,9 +450,9 @@ int main(int argc, char **argv_ansi)
 	argv = argv_ansi;
 #endif
 
-	err_num = Host_Start(argc, argv);
+	startup_rc = Host_Start(argc, argv);
 #if !defined(ENCAP)
-	Host_Repl(err_num);
+	Host_Repl(startup_rc);
 #endif
 	Host_Quit();
 
