@@ -320,9 +320,8 @@ int main(int argc, char **argv_ansi)
 	REBYTE cont_stack[MAX_CONT_LEVEL] = {0};
 
 	int input_max = 32768;
-	REBYTE input[input_max];
 	int input_len = 0;
-	input[input_len] = 0;
+	REBYTE *input = OS_ALLOC_ARRAY(REBYTE, input_max);
 	int i;
 	BOOL inside_short_str = FALSE;
 	int long_str_level = 0;
@@ -396,11 +395,18 @@ int main(int argc, char **argv_ansi)
 				inside_short_str = FALSE;
 
 				if (input_len + i > input_max) {
-					Put_Str("!!  ERROR!!max buffer len exceeded !!");
-					break;
+					REBYTE *tmp = OS_ALLOC_ARRAY(REBYTE, 2 * input_max);
+					if (!tmp) {
+						Host_Crash("Growing console input buffer failed!");
+					}
+					memcpy(tmp, input, input_len);
+					OS_FREE(input);
+					input = tmp;
+					input_max *= 2;
 				}
-				strncpy(&input[input_len], line, i);
-				input_len = input_len + i;
+
+				memcpy(&input[input_len], line, i);
+				input_len += i;
 				input[input_len] = 0;
 
 				OS_FREE(line);
@@ -423,6 +429,8 @@ int main(int argc, char **argv_ansi)
 #ifndef REB_CORE
 	OS_Destroy_Graphics();
 #endif
+
+	OS_FREE(input);
 
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
