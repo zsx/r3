@@ -304,7 +304,7 @@ init-schemes: func [
 			if url? port/spec/ref [
 				parse port/spec/ref
 					[thru #":" 0 2 slash copy path [to slash | end] skip copy speed to end]
-				if speed: try [to integer! speed] [port/spec/speed: speed]
+				if speed: trap [to integer! speed] [port/spec/speed: speed]
 				port/spec/path: to file! path
 			]
 		]

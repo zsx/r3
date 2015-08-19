@@ -239,7 +239,7 @@ dump-obj: function [
 	; Get value (may be a function, so handle with ":")
 	either path? :word [
 		if any [
-			error? set/any 'value try [get :word] ;try reduce [to-get-path word]
+			error? set/any 'value trap [get :word] ;trap reduce [to-get-path word]
 			not value? 'value
 		][
 			print ["No information on" word "(path has no value)"]
@@ -426,7 +426,7 @@ upgrade: function [
 	"Check for newer versions (update REBOL)."
 ][
 	print "Fetching upgrade check ..."
-	if error? err: try [do http://www.atronixengineering.com/r3/upgrade.r none][
+	if error? err: trap [do http://www.atronixengineering.com/r3/upgrade.r none][
 		either err/id = 'protocol [print "Cannot upgrade from web."][do err]
 	]
 	exit
@@ -461,7 +461,7 @@ why?: func [
 ;	"Run R3 demo."
 ;][
 ;	print "Fetching demo..."
-;	if error? err: try [do http://www.atronixengineering.com/r3/demo.r none][
+;	if error? err: trap [do http://www.atronixengineering.com/r3/demo.r none][
 ;		either err/id = 'protocol [print "Cannot load demo from web."][do err]
 ;	]
 ;	exit
@@ -471,7 +471,7 @@ why?: func [
 ;	"Download current Spahirion's R3-GUI module from web."
 ;][
 ;    print "Fetching GUI..."
-;    either error? data: try [load http://www.atronixengineering.com/r3/r3-gui.r3] [
+;    either error? data: trap [load http://www.atronixengineering.com/r3/r3-gui.r3] [
 ;        either data/id = 'protocol [print "Cannot load GUI from web."] [do err]
 ;    ] [
 ;        do data
