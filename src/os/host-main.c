@@ -271,9 +271,8 @@ REBINT Host_Start(int argc, char **argv) {
 
 
 void Host_Repl(REBINT startup_rc) {
-	// As defined, Put_Str takes non-const data
-	REBYTE prompt_str[] = ">> ";
-	REBYTE result_str[] = "== ";
+	const REBYTE prompt_str[] = ">> ";
+	const REBYTE result_str[] = "== ";
 
 	#define MAX_CONT_LEVEL 80
 	REBYTE cont_str[] = "    ";
@@ -312,7 +311,7 @@ void Host_Repl(REBINT startup_rc) {
 					Put_Str(cont_str);
 				}
 			} else {
-				Put_Str(prompt_str);
+				Put_Str(m_cast(REBYTE*, prompt_str));  // !!! Put_Str currently takes a non-const.
 			}
 			if ((line = Get_Str())) {
 				line_len = 0;
