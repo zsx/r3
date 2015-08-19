@@ -322,7 +322,10 @@ int main(int argc, char **argv_ansi)
 	int input_max = 32768;
 	int input_len = 0;
 	REBYTE *input = OS_ALLOC_ARRAY(REBYTE, input_max);
-	int i;
+
+	REBYTE *utf8byte;
+	int line_len;
+
 	BOOL inside_short_str = FALSE;
 	int long_str_level = 0;
 
@@ -350,15 +353,17 @@ int main(int argc, char **argv_ansi)
 			} else {
 				Put_Str(prompt_str);
 			}
-			if (line = Get_Str()) {
-				for (i = 0; line[i] != 0; i++) {
-					switch (line[i]) {
+			if ((line = Get_Str())) {
+				line_len = 0;
+				for (utf8byte = line; *utf8byte; utf8byte++) {
+					line_len++;
+					switch (*utf8byte) {
 						case '"':
 							inside_short_str = !inside_short_str;
 							break;
 						case '[':
 							if (!inside_short_str && long_str_level == 0) {
-								cont_stack[cont_level++] = line[i];
+								cont_stack[cont_level++] = *utf8byte;
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
@@ -373,7 +378,7 @@ int main(int argc, char **argv_ansi)
 							break;
 						case '{':
 							if (!inside_short_str) {
-								cont_stack[cont_level++] = line[i];
+								cont_stack[cont_level++] = *utf8byte;
 								if (cont_level >= MAX_CONT_LEVEL) {
 									Host_Crash("Maximum console continuation level exceeded!");
 								}
@@ -394,7 +399,7 @@ int main(int argc, char **argv_ansi)
 				}
 				inside_short_str = FALSE;
 
-				if (input_len + i > input_max) {
+				if (input_len + line_len > input_max) {
 					REBYTE *tmp = OS_ALLOC_ARRAY(REBYTE, 2 * input_max);
 					if (!tmp) {
 						Host_Crash("Growing console input buffer failed!");
@@ -405,8 +410,8 @@ int main(int argc, char **argv_ansi)
 					input_max *= 2;
 				}
 
-				memcpy(&input[input_len], line, i);
-				input_len += i;
+				memcpy(&input[input_len], line, line_len);
+				input_len += line_len;
 				input[input_len] = 0;
 
 				OS_FREE(line);
