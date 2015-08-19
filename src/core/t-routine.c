@@ -848,18 +848,22 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n)
 		REBVAL *t = VAL_BLK_DATA(blk);
 		if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
 			/* followed by struct definition */
-			REBVAL tmp;
+			REBVAL* tmp;
+			DS_PUSH_NONE;
+			tmp = DS_TOP;
 
 			++ t;
 			if (!IS_BLOCK(t) || VAL_LEN(blk) != 2) {
 				Trap_Arg(blk);
 			}
-			if (!MT_Struct(&tmp, t, REB_STRUCT)) {
+			if (!MT_Struct(tmp, t, REB_STRUCT)) {
 				Trap_Arg(blk);
 			}
-			if (!rebol_type_to_ffi(out, &tmp, n)) {
+			if (!rebol_type_to_ffi(out, tmp, n)) {
 				Trap_Arg(blk);
 			}
+
+			DS_DROP;
 		} else {
 			if (VAL_LEN(blk) != 1) {
 				Trap_Arg(blk);
