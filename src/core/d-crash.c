@@ -98,7 +98,7 @@ enum Panic_Msg_Nums {
 
 	va_end(args);
 
-	strncat(buf, Panic_Msgs[CM_CONTACT], PANIC_BUF_SIZE);
+	strncat(buf, Panic_Msgs[CM_CONTACT], PANIC_BUF_SIZE - 1);
 
 	// Convert to OS-specific char-type:
 #ifdef disable_for_now //OS_WIDE_CHAR   /// win98 does not support it

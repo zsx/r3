@@ -468,7 +468,7 @@
 			sh = getenv("SHELL");
 			if (sh == NULL) {
 				int err = 2; /* shell does not exist */
-				write(info_pipe[W], &err, sizeof(err));
+				cast(void, write(info_pipe[W], &err, sizeof(err)));
 				exit(EXIT_FAILURE);
 			}
 			argv_new = c_cast(
@@ -486,7 +486,7 @@
 			execvp(argv[0], argv_hack);
 		}
 child_error:
-		write(info_pipe[W], &errno, sizeof(errno));
+		cast(void, write(info_pipe[W], &errno, sizeof(errno)));
 		exit(EXIT_FAILURE); /* get here only when exec fails */
 	} else if (fpid > 0) {
 		/* parent */

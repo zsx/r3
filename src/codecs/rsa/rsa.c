@@ -70,7 +70,8 @@ void get_random(int num_rand_bytes, uint8_t *rand_data)
     CryptGenRandom(gCryptProv, num_rand_bytes, rand_data);
 #else
     if (rng_fd == -1) rng_fd = open("/dev/urandom", O_RDONLY);
-    read(rng_fd, rand_data, num_rand_bytes);
+	// !!! Ren/C: cast to void to avoid -Wunused-result
+	(void)read(rng_fd, rand_data, num_rand_bytes);
 #endif
 }
 

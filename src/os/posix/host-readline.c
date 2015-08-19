@@ -65,9 +65,27 @@
 #define MAX_HISTORY  300	// number of lines stored
 
 // Macros: (does not use reb-c.h)
-#define WRITE_CHAR(s)    write(1, s, 1)
-#define WRITE_CHARS(s,l) write(1, s, l)
-#define WRITE_STR(s)     write(1, s, strlen(s))
+
+#define WRITE_CHAR(s) \
+	do { \
+		if (write(1, s, 1) == -1) { \
+			/* Error here, or better to "just try to keep going"? */ \
+		} \
+	} while (0)
+
+#define WRITE_CHARS(s,n) \
+	do { \
+		if (write(1, s, n) == -1) { \
+			/* Error here, or better to "just try to keep going"? */ \
+		} \
+	} while (0)
+
+#define WRITE_STR(s) \
+	do { \
+		if (write(1, s, strlen(s)) == -1) { \
+			/* Error here, or better to "just try to keep going"? */ \
+		} \
+	} while (0)
 
 #define DBG_INT(t,n) //printf("\r\ndbg[%s]: %d\r\n", t, (n));
 #define DBG_STR(t,s) //printf("\r\ndbg[%s]: %s\r\n", t, (s));
