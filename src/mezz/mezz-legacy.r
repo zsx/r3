@@ -88,5 +88,5 @@ try: func [
 	/except "On exception, evaluate this code block"
 	code [block! any-function!]
 ] [
-	either except [trap/with block code] [trap block]
+	either except [trap/with block :code] [trap block]
 ]
