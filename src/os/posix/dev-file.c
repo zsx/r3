@@ -90,7 +90,6 @@
 **
 ***********************************************************************/
 
-#ifndef DT_DIR
 // dirent.d_type is a BSD extension, actually not part of POSIX
 // reformatted from: http://ports.haiku-files.org/wiki/CommonProblems
 // this comes from: http://ports.haiku-files.org/wiki/CommonProblems
@@ -121,7 +120,7 @@ static int Is_Dir(const char *path, const char *name)
 	OS_FREE(pathname);
 	return S_ISDIR(st.st_mode);
 }
-#endif
+
 
 static REBOOL Seek_File_64(REBREQ *file)
 {
@@ -257,23 +256,22 @@ static int Get_File_Info(REBREQ *file)
 	file->modes = 0;
 	strncpy(file->special.file.path, cp, MAX_FILE_NAME);
 
-#ifdef DT_DIR
-	// NOTE: not all POSIX filesystems support the d_type extension (mainly
-	// Linux and BSD support it, and OS/X Darwin is BSD-derived so it has it)
-	//
-	// If you're building on an alternative platform and it complains, you'll
-	// need another method for telling if something is a directory.  The
-	// Is_Dir() workaround was enabled for HaikuOS and may work for your
-	// platform as well.
+#ifdef FALSE
+	// NOTE: we do not use d_type even if DT_DIR is #define-d.  First of all,
+	// it's not a POSIX requirement and not all operating systems support it.
+	// (Linux/BSD have it defined in their structs, but Haiku doesn't--for
+	// instance).  But secondly, even if your OS supports it...a filesystem
+	// doesn't have to.  (Examples: VirtualBox shared folders, XFS.)
 
 	if (d->d_type == DT_DIR) SET_FLAG(file->modes, RFM_DIR);
-#else
-	// Less efficient method of testing if something is a directory
-	// (because it requires making an additional file system call)
+#endif
+
+	// More widely supported mechanism of determining if something is a
+	// directory, although less efficient than DT_DIR (because it requires
+	// making an additional filesystem call)
 
 	if (Is_Dir(dir->special.file.path, file->special.file.path))
 		SET_FLAG(file->modes, RFM_DIR);
-#endif
 
 	// Line below DOES NOT WORK -- because we need full path.
 	//Get_File_Info(file); // updates modes, size, time
