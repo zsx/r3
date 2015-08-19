@@ -468,7 +468,10 @@
 			sh = getenv("SHELL");
 			if (sh == NULL) {
 				int err = 2; /* shell does not exist */
-				cast(void, write(info_pipe[W], &err, sizeof(err)));
+				if (write(info_pipe[W], &err, sizeof(err)) == -1) {
+					// Nothing we can do, but need to stop compiler warning
+					// (cast to void is insufficient for warn_unused_result)
+				}
 				exit(EXIT_FAILURE);
 			}
 			argv_new = c_cast(
@@ -485,10 +488,15 @@
 			memcpy(&argv_hack, &argv, sizeof(argv_hack));
 			execvp(argv[0], argv_hack);
 		}
+
 child_error:
-		cast(void, write(info_pipe[W], &errno, sizeof(errno)));
+		if (write(info_pipe[W], &errno, sizeof(errno)) == -1) {
+			// Nothing we can do, but need to stop compiler warning
+			// (cast to void is insufficient for warn_unused_result)
+		}
 		exit(EXIT_FAILURE); /* get here only when exec fails */
-	} else if (fpid > 0) {
+	}
+	else if (fpid > 0) {
 		/* parent */
 #define BUF_SIZE_CHUNK 4096
 		nfds_t nfds = 0;
