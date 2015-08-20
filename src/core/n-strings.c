@@ -146,32 +146,6 @@ static struct digest {
 
 /***********************************************************************
 **
-*/	REBNATIVE(as_binary)
-/*
-***********************************************************************/
-{
-	Trap_DEAD_END(RE_DEPRECATED);
-//	*D_OUT = *D_ARG(1);
-//	VAL_SET(D_OUT, REB_BINARY);
-	return R_OUT;
-}
-
-
-/***********************************************************************
-**
-*/	REBNATIVE(as_string)
-/*
-***********************************************************************/
-{
-	Trap_DEAD_END(RE_DEPRECATED);
-//	*D_OUT = *D_ARG(1);
-//	VAL_SET(D_OUT, REB_STRING);
-	return R_OUT;
-}
-
-
-/***********************************************************************
-**
 */	REBNATIVE(checksum)
 /*
 **		Computes checksum or hash value.

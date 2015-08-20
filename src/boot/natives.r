@@ -333,23 +333,6 @@ while: native [
 
 ;-- Data Natives - nat_data.c
 
-;alias: native [
-;	See CC#1835
-;	{Creates an alternate spelling for a word.}
-;	word [word!] {Word to alias}
-;	name [string!] {Name of alias}
-;]
-
-;as-binary: native [
-;	{Coerces any type of string into a binary! datatype without copying it.}
-;	string [any-string!]
-;]
-;
-;as-string: native [
-;	{Coerces any type of string into a string! datatype without copying it.}
-;	string [any-string!]
-;]
-
 bind: native [
 	{Binds words to the specified context.}
 	word [block! any-word!] {A word or block (modified) (returned)}

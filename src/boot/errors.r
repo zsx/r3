@@ -106,7 +106,6 @@ Script: [
 	bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
 	bad-decode:         {missing or unsupported encoding marker}
 ;	no-decode:          [{cannot decode} :arg1 {encoding}]
-	already-used:       [{alias word is already in use:} :arg1]
 	wrong-denom:        [:arg1 {not same denomination as} :arg2]
 ;   bad-convert:        [{invalid conversion value:} :arg1]
 	bad-press:          [{invalid compressed data - problem:} :arg1]
