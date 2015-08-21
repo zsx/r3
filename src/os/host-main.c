@@ -365,6 +365,7 @@ void Host_Repl(int *exit_status) {
 					if (!inside_short_str && long_str_level == 0) {
 						cont_stack[cont_level++] = *utf8byte;
 						if (cont_level >= MAX_CONT_LEVEL) {
+							OS_FREE(input);
 							Host_Crash("Maximum console continuation level exceeded!");
 						}
 					}
@@ -381,6 +382,7 @@ void Host_Repl(int *exit_status) {
 					if (!inside_short_str) {
 						cont_stack[cont_level++] = *utf8byte;
 						if (cont_level >= MAX_CONT_LEVEL) {
+							OS_FREE(input);
 							Host_Crash("Maximum console continuation level exceeded!");
 						}
 						long_str_level++;
@@ -403,6 +405,7 @@ void Host_Repl(int *exit_status) {
 		if (input_len + line_len > input_max) {
 			REBYTE *tmp = OS_ALLOC_ARRAY(REBYTE, 2 * input_max);
 			if (!tmp) {
+				OS_FREE(input);
 				Host_Crash("Growing console input buffer failed!");
 			}
 			memcpy(tmp, input, input_len);
