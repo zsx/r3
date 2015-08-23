@@ -121,7 +121,7 @@
 	}
 	else {
 		series = Copy_Values(values, len);
-		Set_Block(out, series);
+		Val_Init_Block(out, series);
 	}
 
 	DS_DROP_TO(dsp_start);
@@ -229,9 +229,7 @@
 	call->func = *func;
 
 	assert(block); // Don't accept NULL series
-	VAL_SET(&call->where, REB_BLOCK);
-	VAL_SERIES(&call->where) = block;
-	VAL_INDEX(&call->where) = index;
+	Val_Init_Block_Index(&call->where, block, index);
 
 	// Save symbol describing the function (if we called this as the result of
 	// a word or path lookup)

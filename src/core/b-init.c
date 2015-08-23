@@ -381,7 +381,7 @@ static	BOOT_BLK *Boot_Block;
 	REBVAL *spec = D_ARG(1);
 	REBVAL evaluated;
 
-	SET_OBJECT(D_OUT, Make_Object(0, VAL_BLK(spec)));
+	Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK(spec)));
 	Bind_Block(VAL_OBJ_FRAME(D_OUT), VAL_BLK(spec), BIND_DEEP);
 
 	if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(spec), 0)) {
@@ -492,12 +492,12 @@ static	BOOT_BLK *Boot_Block;
 		SET_NONE(BLK_SKIP(frm, n));
 	BLK_TERM(frm);
 
-	obj = Get_System(SYS_STANDARD, STD_UTYPE);
-	SET_OBJECT(obj, frm);
-
 	// !!! Termination was originally missing for the word series
 	SERIES_TAIL(FRM_WORD_SERIES(frm)) = A_MAX_ACTION;
 	BLK_TERM(FRM_WORD_SERIES(frm));
+
+	obj = Get_System(SYS_STANDARD, STD_UTYPE);
+	Val_Init_Object(obj, frm);
 }
 
 
@@ -539,14 +539,14 @@ static	BOOT_BLK *Boot_Block;
 	SET_UNSET(ROOT_UNSET_VAL);
 	assert(IS_NONE(NONE_VALUE));
 	assert(IS_UNSET(UNSET_VALUE));
-	VAL_SET(ROOT_EMPTY_BLOCK, REB_BLOCK);
-	Set_Block(ROOT_EMPTY_BLOCK, Make_Block(0));
+
+	Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Block(0));
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROT);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
 
 	// Initialize a few fields:
-	Set_Block(ROOT_ROOT, frame);
-	Init_Word_Unbound(ROOT_NONAME, REB_WORD, SYM__UNNAMED_);
+	Val_Init_Block(ROOT_ROOT, frame);
+	Val_Init_Word_Unbound(ROOT_NONAME, REB_WORD, SYM__UNNAMED_);
 }
 
 
@@ -558,13 +558,24 @@ static	BOOT_BLK *Boot_Block;
 **
 ***********************************************************************/
 {
-	LABEL_SERIES(ser, label);
+	KEEP_SERIES(ser, label);
 
-	if (IS_BLOCK_SERIES(ser))
-		Set_Block(value, ser); // VAL_SET(value, REB_BLOCK);
+	// Val_Init_Block and Val_Init_String would call Manage_Series and
+	// make the series GC Managed, which would be a bad thing for series
+	// like BUF_WORDS...because that would make all the series copied
+	// from it managed too, and we don't always want that.  For now
+	// we reproduce the logic of the routines.
+
+	if (IS_BLOCK_SERIES(ser)) {
+		VAL_SET(value, REB_BLOCK);
+		VAL_SERIES(value) = ser;
+		VAL_INDEX(value) = 0;
+	}
 	else {
 		assert(SERIES_WIDE(ser) == 1 || SERIES_WIDE(ser) == 2);
-		Set_String(value, ser);	//VAL_SET(value, REB_STRING);
+		VAL_SET(value, REB_STRING);
+		VAL_SERIES(value) = ser;
+		VAL_INDEX(value) = 0;
 	}
 }
 
@@ -643,8 +654,8 @@ static	BOOT_BLK *Boot_Block;
 
 	// Create a global value for it:
 	value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
-	SET_OBJECT(value, frame);
-	SET_OBJECT(ROOT_SYSTEM, frame);
+	Val_Init_Object(value, frame);
+	Val_Init_Object(ROOT_SYSTEM, frame);
 
 	// Create system/datatypes block:
 //	value = Get_System(SYS_DATATYPES, 0);
@@ -657,24 +668,24 @@ static	BOOT_BLK *Boot_Block;
 
 	// Create system/catalog/datatypes block:
 //	value = Get_System(SYS_CATALOG, CAT_DATATYPES);
-//	Set_Block(value, Copy_Blk(VAL_SERIES(&Boot_Block->types)));
+//	Val_Init_Block(value, Copy_Blk(VAL_SERIES(&Boot_Block->types)));
 
 	// Create system/catalog/actions block:
 	value = Get_System(SYS_CATALOG, CAT_ACTIONS);
-	Set_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->actions)));
+	Val_Init_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->actions)));
 
 	// Create system/catalog/actions block:
 	value = Get_System(SYS_CATALOG, CAT_NATIVES);
-	Set_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->natives)));
+	Val_Init_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->natives)));
 
 	// Create system/codecs object:
 	value = Get_System(SYS_CODECS, 0);
 	frame = Make_Frame(10, TRUE);
-	SET_OBJECT(value, frame);
+	Val_Init_Object(value, frame);
 
 	// Set system/words to be the main context:
 //	value = Get_System(SYS_WORDS, 0);
-//	SET_OBJECT(value, Lib_Context);
+//	Val_Init_Object(value, Lib_Context);
 
 	Init_UType_Proto();
 }
@@ -690,19 +701,19 @@ static	BOOT_BLK *Boot_Block;
 //	REBSER *frame;
 
 	value = Get_System(SYS_CONTEXTS, CTX_SYS);
-	SET_OBJECT(value, Sys_Context);
+	Val_Init_Object(value, Sys_Context);
 
 	value = Get_System(SYS_CONTEXTS, CTX_LIB);
-	SET_OBJECT(value, Lib_Context);
+	Val_Init_Object(value, Lib_Context);
 
 	value = Get_System(SYS_CONTEXTS, CTX_USER);  // default for new code evaluation
-	SET_OBJECT(value, Lib_Context);
+	Val_Init_Object(value, Lib_Context);
 
 	// Make the boot context - used to store values created
 	// during boot, but processed in REBOL code (e.g. codecs)
 //	value = Get_System(SYS_CONTEXTS, CTX_BOOT);
 //	frame = Make_Frame(4, TRUE);
-//	SET_OBJECT(value, frame);
+//	Val_Init_Object(value, frame);
 }
 
 /***********************************************************************
@@ -897,7 +908,7 @@ static void Set_Option_String(REBCHR *str, REBCNT field)
 	REBVAL *val;
 	if (str) {
 		val = Get_System(SYS_OPTIONS, field);
-		Set_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
+		Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
 	}
 }
 
@@ -915,7 +926,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
 		n = Make_Word(buf, n);
 		val = Get_System(SYS_OPTIONS, field);
-		Init_Word_Unbound(val, REB_WORD, n);
+		Val_Init_Word_Unbound(val, REB_WORD, n);
 	}
 	return n;
 }
@@ -945,7 +956,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	val = Alloc_Tail_Blk(ser);
 	SET_TRUE(val);
 	val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
-	Set_Block(val, ser);
+	Val_Init_Block(val, ser);
 
 	// For compatibility:
 	if (rargs->options & RO_QUIET) {
@@ -957,20 +968,20 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	if (rargs->script) {
 		ser = To_REBOL_Path(rargs->script, 0, OS_WIDE, 0);
 		val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
-		Set_Series(REB_FILE, val, ser);
+		Val_Init_File(val, ser);
 	}
 
 	if (rargs->exe_path) {
 		ser = To_REBOL_Path(rargs->exe_path, 0, OS_WIDE, 0);
 		val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
-		Set_Series(REB_FILE, val, ser);
+		Val_Init_File(val, ser);
 	}
 
 	// Print("home: %s", rargs->home_dir);
 	if (rargs->home_dir) {
 		ser = To_REBOL_Path(rargs->home_dir, 0, OS_WIDE, TRUE);
 		val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
-		Set_Series(REB_FILE, val, ser);
+		Val_Init_File(val, ser);
 	}
 
 	n = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
@@ -979,14 +990,15 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	if (rargs->args) {
 		n = 0;
-		while (rargs->args[n++]);
+		while (rargs->args[n++]) NOOP;
 		// n == number_of_args + 1
-		val = Get_System(SYS_OPTIONS, OPTIONS_ARGS);
 		ser = Make_Block(n);
-		Set_Series(REB_BLOCK, val, ser);
+		Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), ser);
 		SERIES_TAIL(ser) = n - 1;
 		for (n = 0; (data = rargs->args[n]); ++n)
-			Set_String(BLK_SKIP(ser, n), Copy_OS_Str(data, OS_STRLEN(data)));
+			Val_Init_String(
+				BLK_SKIP(ser, n), Copy_OS_Str(data, OS_STRLEN(data))
+			);
 		BLK_TERM(ser);
 	}
 
@@ -1007,25 +1019,25 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	if ((data = OS_GET_LOCALE(0))) {
 		val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE);
-		Set_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+		Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
 		OS_FREE(data);
 	}
 
 	if ((data = OS_GET_LOCALE(1))) {
 		val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE_P);
-		Set_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+		Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
 		OS_FREE(data);
 	}
 
 	if ((data = OS_GET_LOCALE(2))) {
 		val = Get_System(SYS_LOCALE, LOCALE_LOCALE);
-		Set_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+		Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
 		OS_FREE(data);
 	}
 
 	if ((data = OS_GET_LOCALE(3))) {
 		val = Get_System(SYS_LOCALE, LOCALE_LOCALE_P);
-		Set_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+		Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
 		OS_FREE(data);
 	}
 }
@@ -1084,7 +1096,6 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 **
 ***********************************************************************/
 {
-	REBSER *ser;
 	const REBVAL *error;
 	REBOL_STATE state;
 	REBVAL out;
@@ -1151,6 +1162,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	// Get the words of the ROOT context (to avoid it being an exception case):
 	PG_Root_Words = Collect_Frame(BIND_ALL, 0, VAL_BLK(&Boot_Block->root));
+	KEEP_SERIES(PG_Root_Words, "root words");
 	VAL_FRM_WORDS(ROOT_SELF) = PG_Root_Words;
 
 	// Create main values:
@@ -1177,28 +1189,23 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	// it, but it didn't seem there was a "compare UTF8 byte array to
 	// arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
 
-	VAL_SET(ROOT_TRANSPARENT_TAG, REB_TAG);
-	VAL_SERIES(ROOT_TRANSPARENT_TAG) = (
-		Append_UTF8(0, transparent, LEN_BYTES(transparent))
+	Val_Init_Tag(
+		ROOT_TRANSPARENT_TAG,
+		Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
 	);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCK);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROT);
 
-	VAL_SET(ROOT_INFIX_TAG, REB_TAG);
-	VAL_SERIES(ROOT_INFIX_TAG) = Append_UTF8(0, infix, LEN_BYTES(infix));
+	Val_Init_Tag(
+		ROOT_INFIX_TAG,
+		Append_UTF8(NULL, infix, LEN_BYTES(infix))
+	);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
 
 	// Special pre-made errors:
-	ser = Make_Error(RE_STACK_OVERFLOW, 0, 0, 0);
-	VAL_SET(TASK_STACK_ERROR, REB_ERROR);
-	VAL_ERR_NUM(TASK_STACK_ERROR) = RE_STACK_OVERFLOW;
-	VAL_ERR_OBJECT(TASK_STACK_ERROR) = ser;
-
-	ser = Make_Error(RE_HALT, 0, 0, 0);
-	VAL_SET(TASK_HALT_ERROR, REB_ERROR);
-	VAL_ERR_NUM(TASK_HALT_ERROR) = RE_HALT;
-	VAL_ERR_OBJECT(TASK_HALT_ERROR) = ser;
+	Val_Init_Error(TASK_STACK_ERROR, Make_Error(RE_STACK_OVERFLOW, 0, 0, 0));
+	Val_Init_Error(TASK_HALT_ERROR, Make_Error(RE_HALT, 0, 0, 0));
 
 	// With error trapping enabled, set up to catch them if they happen.
 	PUSH_UNHALTABLE_TRAP(&error, &state);

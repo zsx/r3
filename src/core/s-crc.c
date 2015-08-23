@@ -290,6 +290,20 @@ static REBCNT *CRC_Table;
 
 /***********************************************************************
 **
+*/	void Val_Init_Map(REBVAL *out, REBSER *ser)
+/*
+**		A map has an additional hash element hidden in the ->extra
+**		field of the REBSER which needs to be given to memory
+**		management as well.
+**
+***********************************************************************/
+{
+	Val_Init_Series(out, REB_MAP, ser);
+}
+
+
+/***********************************************************************
+**
 */	REBSER *Hash_Block(REBVAL *block, REBCNT cased)
 /*
 **		Hash ALL values of a block. Return hash array series.

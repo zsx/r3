@@ -314,7 +314,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				// make object! [init]
 				if (type == REB_OBJECT) {
 					obj = Make_Object(0, VAL_BLK_DATA(arg));
-					SET_OBJECT(D_OUT, obj); // GC save
+					Val_Init_Object(D_OUT, obj); // GC save
 					Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
 
 					// GC-OK
@@ -395,7 +395,7 @@ static REBSER *Trim_Object(REBSER *obj)
 			if (IS_BLOCK(arg)) {
 				obj = Make_Object(src_obj, VAL_BLK_DATA(arg));
 				Rebind_Frame(src_obj, obj);
-				SET_OBJECT(D_OUT, obj);
+				Val_Init_Object(D_OUT, obj);
 				Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
 
 				// GC-OK
@@ -518,7 +518,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		if (action < 3) action |= 4;  // add SELF to list
 reflect:
 #endif
-		Set_Block(value, Make_Object_Block(VAL_OBJ_FRAME(value), action));
+		Val_Init_Block(value, Make_Object_Block(VAL_OBJ_FRAME(value), action));
 		break;
 
 	case A_TRIM:

@@ -298,7 +298,7 @@ const REBCNT Gob_Flag_Words[] = {
 	for (i = 0; Gob_Flag_Words[i]; i += 2) {
 		if (GET_GOB_FLAG(gob, Gob_Flag_Words[i+1])) {
 			val = Alloc_Tail_Blk(ser);
-			Init_Word_Unbound(val, REB_WORD, Gob_Flag_Words[i]);
+			Val_Init_Word_Unbound(val, REB_WORD, Gob_Flag_Words[i]);
 		}
 	}
 
@@ -510,24 +510,25 @@ const REBCNT Gob_Flag_Words[] = {
 
 	case SYM_DRAW:
 		if (GOB_TYPE(gob) == GOBT_DRAW) {
-			Set_Block(val, GOB_CONTENT(gob)); // Note: compiler optimizes SET_BLOCKs below
+			// !!! comment said "compiler optimizes" the init "calls below" (?)
+			Val_Init_Block(val, GOB_CONTENT(gob));
 		}
 		else goto is_none;
 		break;
 
 	case SYM_TEXT:
 		if (GOB_TYPE(gob) == GOBT_TEXT) {
-			Set_Block(val, GOB_CONTENT(gob));
+			Val_Init_Block(val, GOB_CONTENT(gob));
 		}
 		else if (GOB_TYPE(gob) == GOBT_STRING) {
-			Set_String(val, GOB_CONTENT(gob));
+			Val_Init_String(val, GOB_CONTENT(gob));
 		}
 		else goto is_none;
 		break;
 
 	case SYM_EFFECT:
 		if (GOB_TYPE(gob) == GOBT_EFFECT) {
-			Set_Block(val, GOB_CONTENT(gob));
+			Val_Init_Block(val, GOB_CONTENT(gob));
 		}
 		else goto is_none;
 		break;
@@ -545,9 +546,9 @@ const REBCNT Gob_Flag_Words[] = {
 
 	case SYM_PANE:
 		if (GOB_PANE(gob))
-			Set_Block(val, Pane_To_Block(gob, 0, -1));
+			Val_Init_Block(val, Pane_To_Block(gob, 0, -1));
 		else
-			Set_Block(val, Make_Block(0));
+			Val_Init_Block(val, Make_Block(0));
 		break;
 
 	case SYM_PARENT:
@@ -561,16 +562,16 @@ is_none:
 
 	case SYM_DATA:
 		if (GOB_DTYPE(gob) == GOBD_OBJECT) {
-			SET_OBJECT(val, GOB_DATA(gob));
+			Val_Init_Object(val, GOB_DATA(gob));
 		}
 		else if (GOB_DTYPE(gob) == GOBD_BLOCK) {
-			Set_Block(val, GOB_DATA(gob));
+			Val_Init_Block(val, GOB_DATA(gob));
 		}
 		else if (GOB_DTYPE(gob) == GOBD_STRING) {
-			Set_String(val, GOB_DATA(gob));
+			Val_Init_String(val, GOB_DATA(gob));
 		}
 		else if (GOB_DTYPE(gob) == GOBD_BINARY) {
-			SET_BINARY(val, GOB_DATA(gob));
+			Val_Init_Binary(val, GOB_DATA(gob));
 		}
 		else if (GOB_DTYPE(gob) == GOBD_INTEGER) {
 			SET_INTEGER(val, (REBIPT)GOB_DATA(gob));
@@ -579,7 +580,7 @@ is_none:
 		break;
 
 	case SYM_FLAGS:
-		Set_Block(val, Flags_To_Block(gob));
+		Val_Init_Block(val, Flags_To_Block(gob));
 		break;
 
 	default:
@@ -631,7 +632,7 @@ is_none:
 
 	for (n = 0; words[n]; n++) {
 		val = Alloc_Tail_Blk(ser);
-		Init_Word_Unbound(val, REB_SET_WORD, words[n]);
+		Val_Init_Word_Unbound(val, REB_SET_WORD, words[n]);
 		vals[n] = Alloc_Tail_Blk(ser);
 		SET_NONE(vals[n]);
 	}
@@ -663,7 +664,7 @@ is_none:
 			sym = SYM_EFFECT;
 			break;
 		}
-		Init_Word_Unbound(val1, REB_SET_WORD, sym);
+		Val_Init_Word_Unbound(val1, REB_SET_WORD, sym);
 		Get_GOB_Var(gob, val1, val);
 	}
 
@@ -859,7 +860,7 @@ is_none:
 			Remove_Gobs(gob, index, 1);
 			return R_OUT;
 		} else {
-			Set_Block(D_OUT, Pane_To_Block(gob, index, len));
+			Val_Init_Block(D_OUT, Pane_To_Block(gob, index, len));
 			Remove_Gobs(gob, index, len);
 		}
 		return R_OUT;

@@ -138,7 +138,7 @@ static struct digest {
 
 	DS_DROP;
 
-	Set_String(D_OUT, str); // not D_OUT (stack modified)
+	Val_Init_String(D_OUT, str); // not D_OUT (stack modified)
 
 	return R_OUT;
 }
@@ -255,7 +255,7 @@ static struct digest {
 				}
 
 				SERIES_TAIL(digest) = digests[i].len;
-				Set_Series(REB_BINARY, D_OUT, digest);
+				Val_Init_Binary(D_OUT, digest);
 
 				return 0;
 			}
@@ -299,7 +299,7 @@ static struct digest {
 
 	ser = Prep_Bin_Str(D_ARG(1), &index, &len); // result may be a SHARED BUFFER!
 
-	Set_Binary(D_OUT, Compress(ser, index, len, D_REF(4))); // /gzip
+	Val_Init_Binary(D_OUT, Compress(ser, index, len, D_REF(4))); // /gzip
 
 	return R_OUT;
 }
@@ -329,7 +329,7 @@ static struct digest {
 	if (limit < 0)
 		return R_NONE; // !!! Should negative limit be an error instead?
 
-	Set_Binary(D_OUT, Decompress(
+	Val_Init_Binary(D_OUT, Decompress(
 		BIN_HEAD(VAL_SERIES(arg)) + VAL_INDEX(arg), len, limit, gzip
 	));
 
@@ -352,7 +352,7 @@ static struct digest {
 
 		// Just a guess at size:
 		frame = Make_Block(10);		// Use a std BUF_?
-		Set_Block(D_OUT, frame);	// Keep safe
+		Val_Init_Block(D_OUT, frame); // Keep safe
 
 		// Convert string if necessary. Store back for safety.
 		VAL_SERIES(value) = Prep_Bin_Str(value, &index, 0);
@@ -365,7 +365,7 @@ static struct digest {
 	if (D_REF(2)) parent = VAL_OBJ_FRAME(D_ARG(3));
 
 	frame = Construct_Object(parent, VAL_BLK_DATA(value), D_REF(4));
-	SET_OBJECT(D_OUT, frame);
+	Val_Init_Object(D_OUT, frame);
 
 	return R_OUT;
 }
@@ -411,7 +411,7 @@ static struct digest {
 	REBCNT index;
 	REBVAL *arg = D_ARG(1);
 
-	Set_Binary(arg, Prep_Bin_Str(arg, &index, 0)); // may be SHARED buffer
+	Val_Init_Binary(arg, Prep_Bin_Str(arg, &index, 0)); // may be SHARED buffer
 	VAL_INDEX(arg) = index;
 
 	if (D_REF(2)) base = VAL_INT32(D_ARG(3));
@@ -430,7 +430,7 @@ static struct digest {
 		Trap_Arg_DEAD_END(D_ARG(3));
 	}
 
-	Set_String(D_OUT, ser);
+	Val_Init_String(D_OUT, ser);
 
 	return R_OUT;
 }
@@ -518,7 +518,7 @@ static struct digest {
 		ser = Copy_String(BUF_MOLD, 0, dp - UNI_HEAD(BUF_MOLD));
 	}
 
-	Set_Series(VAL_TYPE(arg), D_OUT, ser);
+	Val_Init_Series(D_OUT, VAL_TYPE(arg), ser);
 
 	return R_OUT;
 }
@@ -537,7 +537,7 @@ static struct digest {
 	REBINT n;
 
 	if (D_REF(2)) { //lines
-		Set_Block(D_OUT, Split_Lines(val));
+		Val_Init_Block(D_OUT, Split_Lines(val));
 		return R_OUT;
 	}
 
@@ -598,7 +598,7 @@ static struct digest {
 	else
 		ser = Entab_Unicode(VAL_UNI(val), VAL_INDEX(val), len, tabsize);
 
-	Set_Series(VAL_TYPE(val), D_OUT, ser);
+	Val_Init_Series(D_OUT, VAL_TYPE(val), ser);
 
 	return R_OUT;
 }
@@ -623,7 +623,7 @@ static struct digest {
 	else
 		ser = Detab_Unicode(VAL_UNI(val), VAL_INDEX(val), len, tabsize);
 
-	Set_Series(VAL_TYPE(val), D_OUT, ser);
+	Val_Init_Series(D_OUT, VAL_TYPE(val), ser);
 
 	return R_OUT;
 }
@@ -719,8 +719,8 @@ static struct digest {
 #endif
 
 //	SERIES_TAIL(series) = len;
-//	Set_Series(REB_ISSUE, D_OUT, series);
-	Init_Word_Unbound(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
+//	Val_Init_Series(D_OUT, REB_ISSUE, series);
+	Val_Init_Word_Unbound(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
 	return R_OUT;
 }

@@ -62,12 +62,12 @@
 			if (GET_FLAG(req->flags, RRF_WIDE)) {
 				len /= sizeof(REBUNI); //correct length
 				// Copy the string (convert to latin-8 if it fits):
-				Set_Binary(arg, Copy_Wide_Str(req->common.data, len));
+				Val_Init_Binary(arg, Copy_Wide_Str(req->common.data, len));
 			} else {
 				REBSER *ser = Make_Binary(len);
 				memcpy(BIN_HEAD(ser), req->common.data, len);
 				SERIES_TAIL(ser) = len;
-				Set_Binary(arg, ser);
+				Val_Init_Binary(arg, ser);
 			}
 			OS_FREE(req->common.data); // release the copy buffer
 			req->common.data = 0;
@@ -96,12 +96,12 @@
 		if (GET_FLAG(req->flags, RRF_WIDE)) {
 			len /= sizeof(REBUNI); //correct length
 			// Copy the string (convert to latin-8 if it fits):
-			Set_Binary(arg, Copy_Wide_Str(req->common.data, len));
+			Val_Init_Binary(arg, Copy_Wide_Str(req->common.data, len));
 		} else {
 			REBSER *ser = Make_Binary(len);
 			memcpy(BIN_HEAD(ser), req->common.data, len);
 			SERIES_TAIL(ser) = len;
-			Set_Binary(arg, ser);
+			Val_Init_Binary(arg, ser);
 		}
 
 		*D_OUT = *arg;
@@ -125,7 +125,9 @@
 		if (SERIES_WIDE(VAL_SERIES(arg)) == 1) {
 #ifdef ARG_STRINGS_ALLOWED
 			if (Is_Not_ASCII(VAL_BIN_DATA(arg), len)) {
-				Set_String(arg, Copy_Bytes_To_Unicode(VAL_BIN_DATA(arg), len));
+				Val_Init_String(
+					arg, Copy_Bytes_To_Unicode(VAL_BIN_DATA(arg), len)
+				);
 			} else
 				req->common.data = VAL_BIN_DATA(arg);
 #endif
@@ -135,7 +137,7 @@
 			len = Decode_UTF8(UNI_HEAD(ser), VAL_BIN_DATA(arg), len, FALSE);
 			SERIES_TAIL(ser) = len = abs(len);
 			UNI_TERM(ser);
-			Set_String(arg, ser);
+			Val_Init_String(arg, ser);
 			req->common.data = cast(REBYTE*, UNI_HEAD(ser));
 			SET_FLAG(req->flags, RRF_WIDE);
 		}

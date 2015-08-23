@@ -186,7 +186,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		if (!ser) return 1;
 
 		val = BLK_SKIP(Sys_Context, SYS_CTX_BOOT_HOST);
-		Set_Binary(val, ser);
+		Val_Init_Binary(val, ser);
 	}
 
 	if (script && script_len > 4) {
@@ -210,7 +210,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		OS_FREE(script);
 
 		val = BLK_SKIP(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
-		Set_Binary(val, ser);
+		Val_Init_Binary(val, ser);
 	}
 
 	PUSH_UNHALTABLE_TRAP(&error, &state);
@@ -324,10 +324,10 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	if (IS_BLOCK(value)) ser = VAL_SERIES(value);
 	else {
 		ser = Make_Block(2);
-		Set_Block(value, ser);
+		Val_Init_Block(value, ser);
 	}
 	value = Alloc_Tail_Blk(ser);
-	Set_Binary(value, Copy_Bytes(source, -1)); // UTF-8
+	Val_Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
 	value = Alloc_Tail_Blk(ser);
 	SET_HANDLE_CODE(value, cast(CFUNC*, call));
 

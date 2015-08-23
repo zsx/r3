@@ -64,7 +64,7 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
 		);
 		SET_INTEGER(val, sig[i].si_uid);
 
-		Set_Object(VAL_BLK_SKIP(arg, VAL_TAIL(arg) + i), obj);
+		Val_Init_Object(VAL_BLK_SKIP(arg, VAL_TAIL(arg) + i), obj);
 	}
 
 	VAL_TAIL(arg) += len;
@@ -233,7 +233,7 @@ static int sig_word_num(REBVAL *word)
 
 			arg = OFV(port, STD_PORT_DATA);
 			if (!IS_BLOCK(arg)) {
-				Set_Block(arg, Make_Block(len));
+				Val_Init_Block(arg, Make_Block(len));
 			}
 
 			len = req->actual;

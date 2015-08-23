@@ -395,7 +395,7 @@ again:
 	// Insert command word:
 	if (!GET_FLAG(dia->flags, RDIA_NO_CMD)) {
 		val = Alloc_Tail_Blk(dia->out);
-		Init_Word(
+		Val_Init_Word(
 			val,
 			GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
 			FRM_WORD_SYM(dia->dialect, dia->cmd),

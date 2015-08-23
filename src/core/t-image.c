@@ -461,7 +461,7 @@ REBCNT ARGB_To_BGR(REBCNT i)
 
 	img = Make_Image(w, h, FALSE);
 	if (img == 0) return 0;
-	SET_IMAGE(val, img);
+	Val_Init_Image(val, img);
 
 	ip = IMG_DATA(img);
 	size = w * h;
@@ -856,7 +856,7 @@ find_none:
 
 	case A_COMPLEMENT:
 		series = Complement_Image(value);
-		SET_IMAGE(value, series); // use series var not func
+		Val_Init_Image(value, series); // use series var not func
 		break;
 
 	case A_INDEX_OF:
@@ -987,7 +987,7 @@ find_none:
 			//*D_OUT = *value;
 			series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
 			if (!series) Trap_Make_DEAD_END(REB_IMAGE, arg);
-			SET_IMAGE(value, series);
+			Val_Init_Image(value, series);
 			break;
 		}
 		else if (IS_BINARY(arg)) {
@@ -999,7 +999,7 @@ find_none:
 			h = diff / w;
 			if (w * h < diff) h++; // partial line
 			series = Make_Image(w, h, TRUE);
-			SET_IMAGE(value, series);
+			Val_Init_Image(value, series);
 			Bin_To_RGBA(IMG_DATA(series), w*h, VAL_BIN_DATA(arg), VAL_LEN(arg)/4, 0);
 			break;
 		}
@@ -1023,7 +1023,7 @@ find_none:
 			w = MAX(w, 0);
 			h = MAX(h, 0);
 			series = Make_Image(w, h, TRUE);
-			SET_IMAGE(value, series);
+			Val_Init_Image(value, series);
 			break;
 		}
 //		else if (IS_NONE(arg)) {
@@ -1070,7 +1070,7 @@ find_none:
 			w = MIN(w, index - diff); // img-width - x-pos
 			h = MIN(h, (int)(VAL_IMAGE_HIGH(value) - len)); // img-high - y-pos
 			series = Make_Image(w, h, TRUE);
-			SET_IMAGE(D_OUT, series);
+			Val_Init_Image(D_OUT, series);
 			Copy_Rect_Data(D_OUT, 0, 0, w, h, value, diff, len);
 //			VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
 			return R_OUT;
@@ -1089,7 +1089,7 @@ makeCopy2:
 		else h = len / w;
 		if (w == 0) h = 0;
 		series = Make_Image(w, h, TRUE);
-		SET_IMAGE(D_OUT, series);
+		Val_Init_Image(D_OUT, series);
 		memcpy(VAL_IMAGE_HEAD(D_OUT), VAL_IMAGE_DATA(arg), w * h * 4);
 //		VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(arg);
 		return R_OUT;
@@ -1150,14 +1150,14 @@ is_true:
 				nser = Make_Binary(len * 3);
 				SERIES_TAIL(nser) = len * 3;
 				RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
-				Set_Binary(val, nser);
+				Val_Init_Binary(val, nser);
 				break;
 
 			case SYM_ALPHA:
 				nser = Make_Binary(len);
 				SERIES_TAIL(nser) = len;
 				Alpha_To_Bin(QUAD_HEAD(nser), src, len);
-				Set_Binary(val, nser);
+				Val_Init_Binary(val, nser);
 				break;
 
 			default:

@@ -70,7 +70,7 @@
 **
 ***********************************************************************/
 {
-	Set_String(D_OUT, Copy_Form_Value(D_ARG(1), 0));
+	Val_Init_String(D_OUT, Copy_Form_Value(D_ARG(1), 0));
 	return R_OUT;
 }
 
@@ -99,7 +99,7 @@
 
 	Mold_Value(&mo, val, TRUE);
 
-	Set_String(D_OUT, Copy_String(mo.series, 0, -1));
+	Val_Init_String(D_OUT, Copy_String(mo.series, 0, -1));
 
 	return R_OUT;
 }
@@ -302,7 +302,7 @@ chk_neg:
 
 	// Prevent GC on temp port block:
 	// Note: Port block is always a copy of the block.
-	if (ports) Set_Block(D_OUT, ports);
+	if (ports) Val_Init_Block(D_OUT, ports);
 
 	// Process port events [stack-move]:
 	if (!Wait_Ports(ports, timeout, D_REF(3))) {
@@ -365,7 +365,7 @@ chk_neg:
 
 	ser = Value_To_REBOL_Path(arg, 0);
 	if (!ser) Trap_Arg_DEAD_END(arg);
-	Set_Series(REB_FILE, D_OUT, ser);
+	Val_Init_File(D_OUT, ser);
 
 	return R_OUT;
 }
@@ -382,7 +382,7 @@ chk_neg:
 
 	ser = Value_To_Local_Path(arg, D_REF(2));
 	if (!ser) Trap_Arg_DEAD_END(arg);
-	Set_Series(REB_STRING, D_OUT, ser);
+	Val_Init_String(D_OUT, ser);
 
 	return R_OUT;
 }
@@ -402,7 +402,7 @@ chk_neg:
 	ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE); // allocates extra for end /
 	assert(ser); // should never be NULL
 	OS_FREE(lpath);
-	Set_Series(REB_FILE, D_OUT, ser);
+	Val_Init_File(D_OUT, ser);
 
 	return R_OUT;
 }
@@ -422,7 +422,7 @@ chk_neg:
 	ser = Value_To_OS_Path(arg, TRUE);
 	if (!ser) Trap_Arg_DEAD_END(arg); // !!! ERROR MSG
 
-	Set_String(&val, ser); // may be unicode or utf-8
+	Val_Init_String(&val, ser); // may be unicode or utf-8
 	Check_Security(SYM_FILE, POL_EXEC, &val);
 
 	n = OS_SET_CURRENT_DIR(cast(REBCHR*, ser->data));  // use len for bool
@@ -685,7 +685,7 @@ chk_neg:
 			SET_INTEGER(val, exit_code);
 		}
 
-		SET_OBJECT(D_OUT, obj);
+		Val_Init_Object(D_OUT, obj);
 		return R_OUT;
 	}
 
@@ -728,8 +728,10 @@ chk_neg:
 
 	str = start;
 	while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
-		Set_Series(REB_STRING, Alloc_Tail_Blk(blk), Copy_OS_Str(str, eq-str));
-		Set_Series(REB_STRING, Alloc_Tail_Blk(blk), Copy_OS_Str(eq+1, n-(eq-str)-1));
+		Val_Init_String(Alloc_Tail_Blk(blk), Copy_OS_Str(str, eq - str));
+		Val_Init_String(
+			Alloc_Tail_Blk(blk), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
+		);
 		str += n + 1; // next
 	}
 
@@ -792,7 +794,7 @@ chk_neg:
 
 	if (len == 1) {  // First is full file path
 		dir = To_REBOL_Path(str, n, OS_WIDE, 0);
-		Set_Series(REB_FILE, Alloc_Tail_Blk(blk), dir);
+		Val_Init_File(Alloc_Tail_Blk(blk), dir);
 	}
 	else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
@@ -803,14 +805,14 @@ chk_neg:
         while ((n = OS_STRLEN(str))) {
 			dir->tail = len;
 			Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
-			Set_Series(REB_FILE, Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
+			Val_Init_File(Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #else /* absolute pathes already */
 		str += n + 1;
 		while ((n = OS_STRLEN(str))) {
 			dir = To_REBOL_Path(str, n, OS_WIDE, FALSE);
-			Set_Series(REB_FILE, Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
+			Val_Init_File(Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #endif
@@ -862,11 +864,11 @@ chk_neg:
 	if (OS_REQUEST_FILE(&fr)) {
 		if (GET_FLAG(fr.flags, FRF_MULTI)) {
 			ser = File_List_To_Block(fr.files);
-			Set_Block(D_OUT, ser);
+			Val_Init_Block(D_OUT, ser);
 		}
 		else {
 			ser = To_REBOL_Path(fr.files, OS_STRLEN(fr.files), OS_WIDE, 0);
-			Set_Series(REB_FILE, D_OUT, ser);
+			Val_Init_File(D_OUT, ser);
 		}
 	} else
 		ser = 0;
@@ -891,8 +893,8 @@ chk_neg:
 
 	Check_Security(SYM_ENVR, POL_READ, arg);
 
-	if (ANY_WORD(arg)) Set_String(arg, Copy_Form_Value(arg, 0));
 	cmd = Val_Str_To_OS(arg);
+	if (ANY_WORD(arg)) Val_Init_String(arg, Copy_Form_Value(arg, 0));
 
 	lenplus = OS_GET_ENV(cmd, NULL, 0);
 	if (lenplus == 0) return R_NONE;
@@ -901,7 +903,7 @@ chk_neg:
 	// Two copies...is there a better way?
 	buf = ALLOC_ARRAY(REBCHR, lenplus);
 	OS_GET_ENV(cmd, buf, lenplus);
-	Set_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
+	Val_Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
 	FREE_ARRAY(REBCHR, lenplus, buf);
 
 	return R_OUT;
@@ -921,15 +923,15 @@ chk_neg:
 
 	Check_Security(SYM_ENVR, POL_WRITE, arg1);
 
-	if (ANY_WORD(arg1)) Set_String(arg1, Copy_Form_Value(arg1, 0));
 	cmd = Val_Str_To_OS(arg1);
+	if (ANY_WORD(arg1)) Val_Init_String(arg1, Copy_Form_Value(arg1, 0));
 
 	if (ANY_STR(arg2)) {
 		REBCHR *value = Val_Str_To_OS(arg2);
 		success = OS_SET_ENV(cmd, value);
 		if (success) {
 			// What function could reuse arg2 as-is?
-			Set_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
+			Val_Init_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
 			return R_OUT;
 		}
 		return R_UNSET;
@@ -957,7 +959,7 @@ chk_neg:
 {
 	REBCHR *result = OS_LIST_ENV();
 
-	Set_Series(REB_MAP, D_OUT, String_List_To_Block(result));
+	Val_Init_Map(D_OUT, String_List_To_Block(result));
 
 	return R_OUT;
 }

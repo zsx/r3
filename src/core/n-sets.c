@@ -118,7 +118,8 @@ enum {
 			}
 		} while (i);
 
-		Set_Block(D_OUT, Copy_Series(retser));
+
+		Val_Init_Block(D_OUT, Copy_Series(retser));
 		RESET_TAIL(retser); // required - allow reuse
 
 		break;
@@ -165,9 +166,9 @@ enum {
 
 		ser = Copy_String(retser, 0, -1);
 		if (IS_BINARY(D_OUT))
-			Set_Binary(D_OUT, ser);
+			Val_Init_Binary(D_OUT, ser);
 		else
-			Set_String(D_OUT, ser);
+			Val_Init_String(D_OUT, ser);
 		break;
 
 	case REB_BITSET:
@@ -188,7 +189,7 @@ enum {
 			break;
 		}
 		ser = Xandor_Binary(i, val1, val2);
-		Set_Series(REB_BITSET, D_OUT, ser);
+		Val_Init_Bitset(D_OUT, ser);
 		break;
 
 	case REB_TYPESET:

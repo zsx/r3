@@ -315,8 +315,9 @@ static REBREQ *Req_SIO;
 	else if (IS_BLOCK_SERIES(ser)) {
 		REBVAL value;
 		// May not actually be a REB_BLOCK, but we put it in a value
-		// container for now saying it is so we can output it.  Because
-		// it may be a frame or otherwise, we use a raw VAL_SET
+		// container for now saying it is so we can output it.  It may be
+		// a frame and we may not want to Manage_Series here, so we use a
+		// raw VAL_SET instead of Val_Init_Block
 		VAL_SET(&value, REB_BLOCK);
 		VAL_SERIES(&value) = m_cast(REBSER *, ser); // not actually modifying
 		VAL_INDEX(&value) = 0;
@@ -795,7 +796,11 @@ mold_value:
 
 		case 'm':  // Mold a series
 			ser = va_arg(*args, REBSER *);
-			Set_Block(&value, ser);
+			// Val_Init_Block would Ensure_Series_Managed, we use a raw
+			// VAL_SET instead
+			VAL_SET(&value, REB_BLOCK);
+			VAL_SERIES(&value) = ser;
+			VAL_INDEX(&value) = 0;
 			vp = &value;
 			goto mold_value;
 

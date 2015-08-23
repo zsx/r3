@@ -165,7 +165,7 @@
 		// Setup the read buffer (allocate a buffer if needed):
 		arg = OFV(port, STD_PORT_DATA);
 		if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-			Set_Binary(arg, Make_Binary(32000));
+			Val_Init_Binary(arg, Make_Binary(32000));
 		}
 		ser = VAL_SERIES(arg);
 		req->length = SERIES_AVAIL(ser); // space available

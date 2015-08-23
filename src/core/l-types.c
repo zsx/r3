@@ -554,7 +554,7 @@ end_date:
 	}
 	cp = Scan_Item(cp, cp+len, term, invalid);
 	if (cp)
-		Set_Series(REB_FILE, value, Copy_String(BUF_MOLD, 0, -1));
+		Val_Init_File(value, Copy_String(BUF_MOLD, 0, -1));
 	return cp;
 
 #ifdef ndef
@@ -566,7 +566,7 @@ end_date:
 		cp = Scan_Quote(cp, 0);
 		if (cp) {
 			int need_changes;
-			Set_String(value, Copy_String(BUF_MOLD, 0, -1));
+			Val_Init_String(value, Copy_String(BUF_MOLD, 0, -1));
 			VAL_SET(value, REB_FILE);
 		}
 		return cp;
@@ -804,7 +804,7 @@ end_date:
 	SET_END(val);
 	series->tail++;
 	SET_END(val+1);
-	SET_STR_TYPE(type, val, Append_UTF8(0, bp, len));
+	Val_Init_Series(val, type, Append_UTF8(0, bp, len));
 }
 
 
@@ -892,7 +892,7 @@ end_date:
 
 	if (!IS_WORD(val)) return FALSE;
 
-	Set_Block(value, spec); //GC
+	Val_Init_Block(value, spec); //GC
 
 	// Handle the datatype or keyword:
 	type = VAL_WORD_CANON(val);
@@ -985,7 +985,7 @@ end_date:
 						ser = Make_Block(2);
 						val2 = Alloc_Tail_Blk(ser); // prior value
 						*val2 = val[1];
-						Set_Block(val+1, ser);
+						Val_Init_Block(val + 1, ser);
 						val = Alloc_Tail_Blk(ser); // for new value
 						SET_NONE(val);
 					}
@@ -994,7 +994,7 @@ end_date:
 			}
 			if (IS_END(val)) {
 				val = Alloc_Tail_Blk(blk); // add new word
-				Init_Word_Unbound(val, REB_SET_WORD, sym);
+				Val_Init_Word_Unbound(val, REB_SET_WORD, sym);
 				val = Alloc_Tail_Blk(blk); // for new value
 				SET_NONE(val);
 			}
@@ -1034,7 +1034,7 @@ end_date:
 			else break;
 		}
 		*str = 0;
-		Set_String(val, ser);
+		Val_Init_String(val, ser);
 	}
 
 	return blk;

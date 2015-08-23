@@ -66,7 +66,7 @@
 		name = Copy_OS_Str(file.special.file.path, len);
 		if (GET_FLAG(file.modes, RFM_DIR))
 			SET_ANY_CHAR(name, name->tail-1, '/');
-		Set_Series(REB_FILE, Alloc_Tail_Blk(files), name);
+		Val_Init_File(Alloc_Tail_Blk(files), name);
 	}
 
 	if (result < 0 && dir->error != -RFE_OPEN_FAIL
@@ -202,7 +202,7 @@
 		args = Find_Refines(call_, ALL_READ_REFS);
 		if (!IS_BLOCK(state)) {		// !!! ignores /SKIP and /PART, for now
 			Init_Dir_Path(&dir, path, 1, POL_READ);
-			Set_Block(state, Make_Block(7)); // initial guess
+			Val_Init_Block(state, Make_Block(7)); // initial guess
 			result = Read_Dir(&dir, VAL_SERIES(state));
 			///OS_FREE(dir.file.path);
 			if (result < 0) Trap_Port_DEAD_END(RE_CANNOT_OPEN, port, dir.error);
@@ -211,7 +211,7 @@
 		} else {
 			len = VAL_BLK_LEN(state);
 			// !!? Why does this need to copy the block??
-			Set_Block(D_OUT, Copy_Block_Values(VAL_SERIES(state), 0, len, TS_STRING));
+			Val_Init_Block(D_OUT, Copy_Block_Values(VAL_SERIES(state), 0, len, TS_STRING));
 		}
 		break;
 
@@ -260,7 +260,7 @@ create:
 		args = Find_Refines(call_, ALL_OPEN_REFS);
 		if (args & AM_OPEN_NEW) goto create;
 		//if (args & ~AM_OPEN_READ) Trap1_DEAD_END(RE_INVALID_SPEC, path);
-		Set_Block(state, Make_Block(7));
+		Val_Init_Block(state, Make_Block(7));
 		Init_Dir_Path(&dir, path, 1, POL_READ);
 		result = Read_Dir(&dir, VAL_SERIES(state));
 		///OS_FREE(dir.file.path);

@@ -108,7 +108,7 @@
 		SET_FLAG(req->flags, RRF_ALLOC); // not on stack
 		req->port = port;
 		req->device = device;
-		Set_Binary(state, data);
+		Val_Init_Binary(state, data);
 	}
 
 	return (void *)VAL_BIN(state);
@@ -178,7 +178,7 @@
 	// Get the system port AWAKE function:
 	awake = VAL_OBJ_VALUE(port, STD_PORT_AWAKE);
 	if (!ANY_FUNC(awake)) return -1;
-	if (ports) Set_Block(&tmp, ports);
+	if (ports) Val_Init_Block(&tmp, ports);
 	else SET_NONE(&tmp);
 
 	if (only) SET_TRUE(&ref_only);
@@ -377,7 +377,7 @@
 	REBYTE *flags;
 	REBVAL val;
 
-	Set_String(&val, path);
+	Val_Init_String(&val, path);
 	flags = Security_Policy(kind, &val); // policy flags
 
 	// Check policy integer:
@@ -497,7 +497,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		REBSER *ser = Make_Block(1);
 		act = Alloc_Tail_Blk(ser);
 
-		Init_Typed_Word(
+		Val_Init_Word_Typed(
 			act,
 			REB_WORD,
 			// !!! Because "any word will do", it's using the trick to create a

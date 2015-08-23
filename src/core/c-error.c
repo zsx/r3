@@ -367,7 +367,7 @@
 	for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
 		if (start-- <= 0) {
 			val = Alloc_Tail_Blk(blk);
-			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(call)));
+			Val_Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(call)));
 		}
 	}
 
@@ -397,13 +397,13 @@
 	if (code >= 0 && n < SERIES_TAIL(cats) &&
 		(cat = VAL_ERR_OBJECT(BLK_SKIP(cats, n)))
 	) {
-		Init_Word(&error->type, REB_WORD, FRM_WORD_SYM(cats, n), cats, n);
+		Val_Init_Word(&error->type, REB_WORD, FRM_WORD_SYM(cats, n), cats, n);
 
 		// Find word related to the error itself:
 
 		n = code % 100 + 3;
 		if (n < SERIES_TAIL(cat))
-			Init_Word(&error->id, REB_WORD, FRM_WORD_SYM(cat, n), cat, n);
+			Val_Init_Word(&error->id, REB_WORD, FRM_WORD_SYM(cat, n), cat, n);
 	}
 }
 
@@ -450,6 +450,22 @@
 
 /***********************************************************************
 **
+*/	void Val_Init_Error(REBVAL *out, REBSER *err_frame)
+/*
+**		Returns FALSE if a THROWN() value is made during evaluation.
+**
+***********************************************************************/
+{
+	VAL_SET(out, REB_ERROR);
+	VAL_ERR_NUM(out) = VAL_INT32(&ERR_VALUES(err_frame)->code);
+	VAL_ERR_OBJECT(out) = err_frame;
+
+	ASSERT_ERROR(out);
+}
+
+
+/***********************************************************************
+**
 */	REBOOL Make_Error_Object(REBVAL *out, REBVAL *arg)
 /*
 **		Creates an error object from arg and puts it in value.
@@ -464,19 +480,16 @@
 	ERROR_OBJ *error;	// Error object values
 	REBINT code = 0;
 
-	VAL_SET(out, REB_ERROR);
-
 	// Create a new error object from another object, including any non-standard fields:
 	if (IS_ERROR(arg) || IS_OBJECT(arg)) {
 		err = Merge_Frames(VAL_OBJ_FRAME(ROOT_ERROBJ),
 			IS_ERROR(arg) ? VAL_OBJ_FRAME(arg) : VAL_ERR_OBJECT(arg));
 		error = ERR_VALUES(err);
-//		if (!IS_INTEGER(&error->code)) {
-			if (!Find_Error_Info(error, &code)) code = RE_INVALID_ERROR;
-			SET_INTEGER(&error->code, code);
-//		}
-		VAL_ERR_NUM(out) = VAL_INT32(&error->code);
-		VAL_ERR_OBJECT(out) = err;
+
+		if (!Find_Error_Info(error, &code)) code = RE_INVALID_ERROR;
+		SET_INTEGER(&error->code, code);
+
+		Val_Init_Error(out, err);
 		return TRUE;
 	}
 
@@ -484,8 +497,6 @@
 	err = CLONE_OBJECT(VAL_OBJ_FRAME(ROOT_ERROBJ));
 	error = ERR_VALUES(err);
 	SET_NONE(&error->id);
-	VAL_SET(out, REB_ERROR);
-	VAL_ERR_OBJECT(out) = err;
 
 	// If block arg, evaluate object values (checking done later):
 	// If user set error code, use it to setup type and id fields.
@@ -527,21 +538,13 @@
 	// If string arg, setup other fields
 	else if (IS_STRING(arg)) {
 		SET_INTEGER(&error->code, RE_USER); // user error
-		Set_String(&error->arg1, Copy_Series_Value(arg));
+		Val_Init_String(&error->arg1, Copy_Series_Value(arg));
 		Set_Error_Type(error);
 	}
-
-// No longer allowed:
-//	else if (IS_INTEGER(arg)) {
-//		error->code = *arg;
-//		Set_Error_Type(error);
-//	}
 	else
 		Trap_Arg(arg);
 
-	if (!(VAL_ERR_NUM(out) = VAL_INT32(&error->code))) {
-		Trap_Arg(arg);
-	}
+	Val_Init_Error(out, err);
 
 	return TRUE;
 }
@@ -558,6 +561,8 @@
 	REBSER *err;		// Error object
 	ERROR_OBJ *error;	// Error object values
 
+	assert(code != 0);
+
 	if (PG_Boot_Phase < BOOT_ERRORS) {
 		assert(FALSE);
 		Panic_Core(RP_EARLY_ERROR, code); // Not far enough!
@@ -569,7 +574,7 @@
 	error = ERR_VALUES(err);
 
 	// Set error number:
-	SET_INTEGER(&error->code, (REBINT)code);
+	SET_INTEGER(&error->code, code);
 	Set_Error_Type(error);
 
 	// Set error argument values:
@@ -580,7 +585,7 @@
 	// Set backtrace and location information:
 	if (DSF) {
 		// Where (what function) is the error:
-		Set_Block(&error->where, Make_Backtrace(0));
+		Val_Init_Block(&error->where, Make_Backtrace(0));
 		// Nearby location of the error (in block being evaluated):
 		error->nearest = *DSF_WHERE(DSF);
 	}
@@ -596,12 +601,7 @@
 ***********************************************************************/
 {
 	REBVAL error;
-
-	assert(num != 0);
-
-	VAL_SET(&error, REB_ERROR);
-	VAL_ERR_NUM(&error) = num;
-	VAL_ERR_OBJECT(&error) = Make_Error(num, 0, 0, 0);
+	Val_Init_Error(&error, Make_Error(num, 0, 0, 0));
 	Do_Error(&error);
 }
 
@@ -613,12 +613,7 @@
 ***********************************************************************/
 {
 	REBVAL error;
-
-	assert(num != 0);
-
-	VAL_SET(&error, REB_ERROR);
-	VAL_ERR_NUM(&error) = num;
-	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, 0, 0);
+	Val_Init_Error(&error, Make_Error(num, arg1, 0, 0));
 	Do_Error(&error);
 }
 
@@ -630,12 +625,7 @@
 ***********************************************************************/
 {
 	REBVAL error;
-
-	assert(num != 0);
-
-	VAL_SET(&error, REB_ERROR);
-	VAL_ERR_NUM(&error) = num;
-	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, arg2, 0);
+	Val_Init_Error(&error, Make_Error(num, arg1, arg2, 0));
 	Do_Error(&error);
 }
 
@@ -647,12 +637,7 @@
 ***********************************************************************/
 {
 	REBVAL error;
-
-	assert(num != 0);
-
-	VAL_SET(&error, REB_ERROR);
-	VAL_ERR_NUM(&error) = num;
-	VAL_ERR_OBJECT(&error) = Make_Error(num, arg1, arg2, arg3);
+	Val_Init_Error(&error, Make_Error(num, arg1, arg2, arg3));
 	Do_Error(&error);
 }
 
@@ -716,7 +701,7 @@
 /*
 ***********************************************************************/
 {
-	Init_Word_Unbound(DS_TOP, REB_WORD, sym);
+	Val_Init_Word_Unbound(DS_TOP, REB_WORD, sym);
 	if (arg) Trap2(num, DS_TOP, arg);
 	else Trap1(num, DS_TOP);
 }
@@ -909,12 +894,13 @@
 	// Create error objects and error type objects:
 	*ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
 	errs = Construct_Object(0, VAL_BLK(errors), 0);
-	Set_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
+
+	Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
 	// Create objects for all error types:
 	for (val = BLK_SKIP(errs, 1); NOT_END(val); val++) {
 		errs = Construct_Object(0, VAL_BLK(val), 0);
-		SET_OBJECT(val, errs);
+		Val_Init_Object(val, errs);
 	}
 }
 
@@ -1006,7 +992,7 @@
 		policy = name ? name : 0;
 error:
 		if (!policy) {
-			Init_Word_Unbound(DS_TOP, REB_WORD, sym);
+			Val_Init_Word_Unbound(DS_TOP, REB_WORD, sym);
 			policy = DS_TOP;
 		}
 		Trap1_DEAD_END(errcode, policy);
@@ -1027,7 +1013,7 @@ error:
 {
 	if (flag == SEC_THROW) {
 		if (!value) {
-			Init_Word_Unbound(DS_TOP, REB_WORD, sym);
+			Val_Init_Word_Unbound(DS_TOP, REB_WORD, sym);
 			value = DS_TOP;
 		}
 		Trap1(RE_SECURITY, value);
@@ -1065,6 +1051,7 @@ error:
 {
 	assert(IS_ERROR(err));
 	assert(VAL_ERR_NUM(err) != 0);
+
 	ASSERT_FRAME(VAL_ERR_OBJECT(err));
 }
 

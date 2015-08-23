@@ -69,7 +69,7 @@
 		// If no buffer, create a buffer:
 		arg = OFV(port, STD_PORT_DATA);
 		if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-			Set_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
+			Val_Init_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
 		}
 		ser = VAL_SERIES(arg);
 		RESET_SERIES(ser);
@@ -109,8 +109,8 @@
 		}
 #endif
 		// !!! Among many confusions in this file, it said "Another copy???"
-		//Set_String(D_OUT, Copy_OS_Str(ser->data, result));
-		Set_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
+		//Val_Init_String(D_OUT, Copy_OS_Str(ser->data, result));
+		Val_Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
 		break;
 
 	case A_OPEN:

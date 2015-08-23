@@ -99,12 +99,12 @@
 		if (len < 0 || len > 0xFFFFFF) Trap_Arg_DEAD_END(data);
 		ser = Make_Bitset(len);
 		Set_Bits(ser, data, TRUE);
-		Set_Series(REB_BITSET, out, ser);
+		Val_Init_Bitset(out, ser);
 		return TRUE;
 	}
 
 	if (!IS_BINARY(data)) return FALSE;
-	Set_Series(REB_BITSET, out, Copy_Series_Value(data));
+	Val_Init_Bitset(out, Copy_Series_Value(data));
 	BITS_NOT(VAL_SERIES(out)) = 0;
 	return TRUE;
 }
@@ -542,7 +542,7 @@ found:
 	case A_NEGATE:
 		ser = Copy_Series(VAL_SERIES(value));
 		BITS_NOT(ser) = !BITS_NOT(VAL_SERIES(value));
-		Set_Series(REB_BITSET, value, ser);
+		Val_Init_Bitset(value, ser);
 		break;
 
 	case A_MAKE:
@@ -552,7 +552,7 @@ found:
 		if (len < 0 || len > 0x0FFFFFFF) Trap_Arg_DEAD_END(arg);
 
 		ser = Make_Bitset(len);
-		Set_Series(REB_BITSET, value, ser);
+		Val_Init_Bitset(value, ser);
 
 		// Nothing more to do.
 		if (IS_INTEGER(arg)) break;
@@ -581,8 +581,13 @@ set_bits:
 		Trap_Arg_DEAD_END(D_ARG(3));
 
 	case A_COPY:
-		VAL_SERIES(value) = Copy_Series_Value(value);
-		break;
+		Val_Init_Series_Index(
+			D_OUT,
+			REB_BITSET,
+			Copy_Series_Value(value),
+			VAL_INDEX(value)
+		);
+		return R_OUT;
 
 	case A_LENGTH:
 		len = VAL_TAIL(value) * 8;

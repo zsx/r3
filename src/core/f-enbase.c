@@ -376,7 +376,7 @@ err:
 
 	if (!ser) return 0;
 
-	Set_Binary(value, ser);
+	Val_Init_Binary(value, ser);
 
 	return src;
 }

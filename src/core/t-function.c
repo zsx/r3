@@ -117,20 +117,21 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 		n = What_Reflector(arg); // zero on error
 		switch (n) {
 		case OF_WORDS:
-			//if (type == REB_CLOSURE)
-			Set_Block(value, List_Func_Words(value));
-			//else
-			//	Set_Block(value, List_Func_Words(value));
+			Val_Init_Block(value, List_Func_Words(value));
 			break;
 		case OF_BODY:
 			switch (type) {
 			case REB_FUNCTION:
-				Set_Block(D_OUT, Clone_Block(VAL_FUNC_BODY(value)));
+				Val_Init_Block(
+					D_OUT, Clone_Block(VAL_FUNC_BODY(value))
+				);
 				// See CC#2221 for why function body copies don't unbind locals
 				return R_OUT;
 
 			case REB_CLOSURE:
-				Set_Block(D_OUT, Clone_Block(VAL_FUNC_BODY(value)));
+				Val_Init_Block(
+					D_OUT, Clone_Block(VAL_FUNC_BODY(value))
+				);
 				// See CC#2221 for why closure body copies have locals unbound
 				Unbind_Block(VAL_BLK(D_OUT), VAL_FUNC_WORDS(value), TRUE);
 				return R_OUT;
@@ -143,17 +144,17 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			}
 			break;
 		case OF_SPEC:
-			Set_Block(value, Clone_Block(VAL_FUNC_SPEC(value)));
+			Val_Init_Block(value, Clone_Block(VAL_FUNC_SPEC(value)));
 			Unbind_Block(VAL_BLK(value), NULL, TRUE);
 			break;
 		case OF_TYPES:
-			Set_Block(value, As_Typesets(VAL_FUNC_WORDS(value)));
+			Val_Init_Block(value, As_Typesets(VAL_FUNC_WORDS(value)));
 			break;
 		case OF_TITLE:
 			arg = BLK_HEAD(VAL_FUNC_SPEC(value));
 			for (; NOT_END(arg) && !IS_STRING(arg) && !IS_WORD(arg); arg++);
 			if (!IS_STRING(arg)) return R_NONE;
-			Set_String(value, Copy_Series(VAL_SERIES(arg)));
+			Val_Init_String(value, Copy_Series(VAL_SERIES(arg)));
 			break;
 		default:
 		bad_arg:

@@ -163,7 +163,7 @@ REBREQ *req;		//!!! move this global
 	if (!IS_OBJECT(spec)) Trap1_DEAD_END(RE_INVALID_SPEC, spec);
 
 	// Get or setup internal state data:
-	if (!IS_BLOCK(state)) Set_Block(state, Make_Block(EVENTS_CHUNK - 1));
+	if (!IS_BLOCK(state)) Val_Init_Block(state, Make_Block(EVENTS_CHUNK - 1));
 
 	switch (action) {
 

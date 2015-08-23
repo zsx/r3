@@ -69,7 +69,7 @@
 			Free_Series(frame);
 			Trap_Arg_DEAD_END(spec);
 		}
-		Init_Typed_Word(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
+		Val_Init_Word_Typed(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
 		word++;
 		SET_NONE(vals);
 		vals++;
@@ -289,8 +289,8 @@
 	if (IS_NONE(value)) return R_NONE;
 
 	body = Init_Loop(D_ARG(1), D_ARG(3), &frame); // vars, body
-	SET_OBJECT(D_ARG(1), frame); // keep GC safe
-	Set_Block(D_ARG(3), body);	 // keep GC safe
+	Val_Init_Object(D_ARG(1), frame); // keep GC safe
+	Val_Init_Block(D_ARG(3), body); // keep GC safe
 
 	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
 
@@ -319,8 +319,8 @@
 			if (mode == 1) {
 				SET_INTEGER(D_OUT, 0);
 			} else if (mode == 2) {
-				Set_Block(D_OUT, out);
 				UNSAVE_SERIES(out);
+				Val_Init_Block(D_OUT, out);
 			}
 			return R_OUT;
 		}
@@ -353,7 +353,7 @@
 						if (!VAL_GET_EXT(BLK_SKIP(out, index), EXT_WORD_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
-								Init_Word(vars, REB_WORD, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);
+								Val_Init_Word(vars, REB_WORD, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);
 								if (NOT_END(vars+1)) index--; // reset index for the value part
 							}
 							else if (j == 1)
@@ -411,13 +411,11 @@
 
 			// var spec is SET_WORD:
 			else if (IS_SET_WORD(words)) {
-				if (ANY_OBJECT(value) || IS_MAP(value)) {
+				if (ANY_OBJECT(value) || IS_MAP(value))
 					*vars = *value;
-				} else {
-					VAL_SET(vars, REB_BLOCK);
-					VAL_SERIES(vars) = series;
-					VAL_INDEX(vars) = index;
-				}
+				else
+					Val_Init_Block_Index(vars, series, index);
+
 				//if (index < tail) index++; // do not increment block.
 			}
 			else Trap_Arg_DEAD_END(words);
@@ -468,7 +466,7 @@ skip_hidden: ;
 		UNSAVE_SERIES(out);
 		if (err != 2) {
 			// ...and not BREAK/RETURN:
-			Set_Block(D_OUT, out);
+			Val_Init_Block(D_OUT, out);
 			return R_OUT;
 		}
 	}
@@ -495,8 +493,8 @@ skip_hidden: ;
 	// Copy body block, make a frame, bind loop var to it:
 	body = Init_Loop(D_ARG(1), D_ARG(5), &frame);
 	var = FRM_VALUE(frame, 1); // safe: not on stack
-	SET_OBJECT(D_ARG(1), frame); // keep GC safe
-	Set_Block(D_ARG(5), body);	 // keep GC safe
+	Val_Init_Object(D_ARG(1), frame); // keep GC safe
+	Val_Init_Block(D_ARG(5), body); // keep GC safe
 
 	if (IS_INTEGER(start) && IS_INTEGER(end) && IS_INTEGER(incr)) {
 		Loop_Integer(D_OUT, var, body, VAL_INT64(start),
@@ -640,8 +638,8 @@ skip_hidden: ;
 
 	body = Init_Loop(D_ARG(1), D_ARG(3), &frame);
 	var = FRM_VALUE(frame, 1); // safe: not on stack
-	SET_OBJECT(D_ARG(1), frame); // keep GC safe
-	Set_Block(D_ARG(3), body);	 // keep GC safe
+	Val_Init_Object(D_ARG(1), frame); // keep GC safe
+	Val_Init_Block(D_ARG(3), body); // keep GC safe
 
 	if (ANY_SERIES(count)) {
 		Loop_Series(D_OUT, var, body, count, VAL_TAIL(count) - 1, 1);

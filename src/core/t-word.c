@@ -101,7 +101,7 @@
 			}
 			else Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_WORD, VAL_TYPE(arg));
 
-			Init_Word_Unbound(D_OUT, type, sym);
+			Val_Init_Word_Unbound(D_OUT, type, sym);
 		}
 		break;
 

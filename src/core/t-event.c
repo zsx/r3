@@ -241,7 +241,7 @@
 		}
 		// Event holds an object:
 		else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
-			SET_OBJECT(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
+			Val_Init_Object(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
 		}
 		else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
 			*val = *Get_System(SYS_PORTS, PORTS_CALLBACK);
@@ -294,17 +294,17 @@
 			ser = Make_Block(3);
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
 				arg = Alloc_Tail_Blk(ser);
-				Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);
+				Val_Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL)) {
 				arg = Alloc_Tail_Blk(ser);
-				Init_Word_Unbound(arg, REB_WORD, SYM_CONTROL);
+				Val_Init_Word_Unbound(arg, REB_WORD, SYM_CONTROL);
 			}
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT)) {
 				arg = Alloc_Tail_Blk(ser);
-				Init_Word_Unbound(arg, REB_WORD, SYM_SHIFT);
+				Val_Init_Word_Unbound(arg, REB_WORD, SYM_SHIFT);
 			}
-			Set_Block(val, ser);
+			Val_Init_Block(val, ser);
 		} else SET_NONE(val);
 		break;
 
@@ -334,7 +334,7 @@
 			SET_FLAG(VAL_EVENT_FLAGS(m_cast(REBVAL*, value)), EVF_COPIED);
 			OS_FREE(str);
 		}
-		Set_Series(REB_FILE, val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
+		Val_Init_File(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
 		break;
 
 	default:
@@ -477,7 +477,7 @@ pick_it:
 				VAL_SET(D_OUT, REB_CHAR);
 				VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
 			} else
-				Init_Word(D_OUT, VAL_EVENT_XY(value));
+				Val_Init_Word(D_OUT, VAL_EVENT_XY(value));
 			return R_OUT;
 
 		case EF_OFFSET:

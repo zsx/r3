@@ -334,7 +334,7 @@ static void No_Nones(REBVAL *arg) {
 
 	// to block! typset
 	if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-		Set_Block(value, Typeset_To_Block(arg));
+		Val_Init_Block(value, Typeset_To_Block(arg));
 		return;
 	}
 
@@ -342,7 +342,7 @@ static void No_Nones(REBVAL *arg) {
 		// make block! 10
 		if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
 			len = Int32s(arg, 0);
-			Set_Series(type, value, Make_Block(len));
+			Val_Init_Series(value, type, Make_Block(len));
 			return;
 		}
 		Trap_Arg(arg);
@@ -351,7 +351,7 @@ static void No_Nones(REBVAL *arg) {
 	ser = Copy_Values(arg, 1);
 
 done:
-	Set_Series(type, value, ser);
+	Val_Init_Series(value, type, ser);
 	return;
 }
 
@@ -721,7 +721,7 @@ pick_it:
 			len = Partial1(value, D_ARG(3));
 			if (len == 0) {
 zero_blk:
-				Set_Block(D_OUT, Make_Block(0));
+				Val_Init_Block(D_OUT, Make_Block(0));
 				return R_OUT;
 			}
 		} else
@@ -737,8 +737,7 @@ zero_blk:
 
 		// if no /part, just return value, else return block:
 		if (!D_REF(2)) *D_OUT = BLK_HEAD(ser)[index];
-		else Set_Block(D_OUT, Copy_Block_Len(ser, index, len)); // no more /DEEP
-//		else Set_Block(D_OUT, Copy_Block_Deep(ser, index, len, D_REF(4) ? COPY_DEEP: 0));
+		else Val_Init_Block(D_OUT, Copy_Block_Len(ser, index, len));
 		Remove_Series(ser, index, len);
 		return R_OUT;
 

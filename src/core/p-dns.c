@@ -103,7 +103,7 @@ pick:
 				Trap_Port_DEAD_END(RE_READ_ERROR, port, sock->error);
 			}
 			if (GET_FLAG(sock->modes, RST_REVERSE)) {
-				Set_String(D_OUT, Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data)));
+				Val_Init_String(D_OUT, Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data)));
 			} else {
 				Set_Tuple(D_OUT, cast(REBYTE*, &sock->special.net.remote_ip), 4);
 			}

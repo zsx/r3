@@ -173,7 +173,7 @@ x*/	void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 		val = Alloc_Tail_Blk(blk);
 		RXI_To_Value(val, frm->args[n], RXA_TYPE(frm, n));
 	}
-	Set_Block(out, blk);
+	Val_Init_Block(out, blk);
 }
 
 
@@ -207,7 +207,7 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 
 	// Create stack frame (use prior stack frame for location info):
 	SET_TRASH_SAFE(&out); // OUT slot for function eval result
-	Init_Word_Unbound(&label, REB_WORD, name);
+	Val_Init_Word_Unbound(&label, REB_WORD, name);
 	call = Make_Call(
 		&out,
 		VAL_SERIES(DSF_WHERE(PRIOR_DSF(DSF))),
@@ -363,14 +363,14 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	// Extension return: dll, info, filename
 	obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION));
 	obj = CLONE_OBJECT(obj);
-	Set_Object(D_OUT, obj);
+	Val_Init_Object(D_OUT, obj);
 
 	// Set extension fields needed:
 	val = FRM_VALUE(obj, STD_EXTENSION_LIB_BASE);
 	VAL_SET(val, REB_HANDLE);
 	VAL_I32(val) = ext->index;
 	if (!D_REF(2)) *FRM_VALUE(obj, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
-	Set_Binary(FRM_VALUE(obj, STD_EXTENSION_LIB_BOOT), src);
+	Val_Init_Binary(FRM_VALUE(obj, STD_EXTENSION_LIB_BOOT), src);
 
 	return R_OUT;
 }

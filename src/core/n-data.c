@@ -142,7 +142,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 			if (IS_CONDITIONAL_FALSE(D_OUT)) {
 				// !!! Only copies 3 values (and flaky), see CC#2231
-				Set_Block(D_OUT, Copy_Block_Len(block, i, 3));
+				Val_Init_Block(D_OUT, Copy_Block_Len(block, i, 3));
 				Trap1_DEAD_END(RE_ASSERT_FAILED, D_OUT);
 			}
 		}
@@ -261,7 +261,8 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	// Copy block if necessary (/copy):
 	blk = D_REF(3) ? Clone_Block_Value(arg) : VAL_SERIES(arg);
 //	if (D_REF(3)) blk = Copy_Block_Deep(blk, VAL_INDEX(arg), VAL_TAIL(arg), COPY_DEEP);
-	Set_Block_Index(D_OUT, blk, D_REF(3) ? 0 : VAL_INDEX(arg));
+
+	Val_Init_Block_Index(D_OUT, blk, D_REF(3) ? 0 : VAL_INDEX(arg));
 
 	if (rel)
 		Bind_Stack_Block(frame, blk); //!! needs deep
@@ -282,7 +283,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	if (!HAS_FRAME(word)) return R_NONE;
 	if (VAL_WORD_INDEX(word) < 0) return R_TRUE;
-	SET_OBJECT(D_OUT, VAL_WORD_FRAME(word));
+	Val_Init_Object(D_OUT, VAL_WORD_FRAME(word));
 	return R_OUT;
 }
 
@@ -343,7 +344,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	}
 
 	words = Collect_Block_Words(block, prior, modes);
-	Set_Block(D_OUT, words);
+	Val_Init_Block(D_OUT, words);
 	return R_OUT;
 }
 
@@ -375,7 +376,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	}
 	else if (IS_OBJECT(word)) {
 		Assert_Public_Object(word);
-		Set_Block(D_OUT, Copy_Block(VAL_OBJ_FRAME(word), 1));
+		Val_Init_Block(D_OUT, Copy_Block(VAL_OBJ_FRAME(word), 1));
 	}
 	else *D_OUT = *word; // all other values
 
@@ -572,7 +573,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBCNT type = VAL_TYPE(D_ARG(1));
 
 	if (D_REF(2))	// /word
-		Init_Word_Unbound(D_OUT, REB_WORD, type+1);
+		Val_Init_Word_Unbound(D_OUT, REB_WORD, type+1);
 	else
 		Set_Datatype(D_OUT, type);
 	return R_OUT;
@@ -799,7 +800,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBVAL *val;
 
 	blk = Make_Block(2);
-	Set_Series(REB_BLOCK, out, blk);
+	Val_Init_Block(out, blk);
 	val = Alloc_Tail_Blk(blk);
 	SET_GOB(val, gob);
 	val = Alloc_Tail_Blk(blk);

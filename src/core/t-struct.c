@@ -134,14 +134,12 @@ static REBOOL get_scalar(const REBSTU *stu,
 			if (field->array) {
 				REBSER *ser = Make_Block(field->dimension);
 				REBCNT n = 0;
-				SET_TYPE(val, REB_BLOCK);
 				for (n = 0; n < field->dimension; n ++) {
 					REBVAL elem;
 					get_scalar(stu, field, n, &elem);
 					Append_Value(ser, &elem);
 				}
-				VAL_SERIES(val) = ser;
-				VAL_INDEX(val) = 0;
+				Val_Init_Block(val, ser);
 			} else {
 				get_scalar(stu, field, 0, val);
 			}
@@ -181,35 +179,33 @@ static REBOOL get_scalar(const REBSTU *stu,
 
 		/* required field name */
 		val = Alloc_Tail_Blk(ser);
-		Init_Word_Unbound(val, REB_SET_WORD, field->sym);
+		Val_Init_Word_Unbound(val, REB_SET_WORD, field->sym);
 
 		/* required type */
 		type_blk = Alloc_Tail_Blk(ser);
-		VAL_SERIES(type_blk) = Make_Block(1);
-		SET_TYPE(type_blk, REB_BLOCK);
+		Val_Init_Block(type_blk, Make_Block(1));
+
 		val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 		if (field->type == STRUCT_TYPE_STRUCT) {
 			REBVAL *nested = NULL;
 			DS_PUSH_NONE;
 			nested = DS_TOP;
 
-			Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
+			Val_Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
 			get_scalar(stu, field, 0, nested);
 			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
-			SET_TYPE(val, REB_BLOCK);
-			VAL_SERIES(val) = Struct_To_Block(&VAL_STRUCT(nested));
+			Val_Init_Block(val, Struct_To_Block(&VAL_STRUCT(nested)));
 
 			DS_DROP;
 		} else
-			Init_Word_Unbound(val, REB_WORD, type_to_sym[field->type]);
+			Val_Init_Word_Unbound(val, REB_WORD, type_to_sym[field->type]);
 
 		/* optional dimension */
 		if (field->dimension > 1) {
 			REBSER *dim = Make_Block(1);
 			REBVAL *dv = NULL;
 			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
-			SET_TYPE(val, REB_BLOCK);
-			VAL_SERIES(val) = dim;
+			Val_Init_Block(val, dim);
 
 			dv = Alloc_Tail_Blk(dim);
 			SET_INTEGER(dv, field->dimension);
@@ -220,8 +216,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 			REBSER *dim = Make_Block(1);
 			REBCNT n = 0;
 			val = Alloc_Tail_Blk(ser);
-			SET_TYPE(val, REB_BLOCK);
-			VAL_SERIES(val) = dim;
+			Val_Init_Block(val, dim);
 			for (n = 0; n < field->dimension; n ++) {
 				REBVAL *dv = Alloc_Tail_Blk(dim);
 				get_scalar(stu, field, n, dv);
@@ -1040,10 +1035,10 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 				REBINT n = VAL_WORD_CANON(arg); // zero on error
 				switch (n) {
 					case SYM_VALUES:
-						SET_BINARY(ret, Copy_Series_Part(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_LEN(val)));
+						Val_Init_Binary(ret, Copy_Series_Part(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_LEN(val)));
 						break;
 					case SYM_SPEC:
-						Set_Block(ret, Clone_Block(VAL_STRUCT_SPEC(val)));
+						Val_Init_Block(ret, Clone_Block(VAL_STRUCT_SPEC(val)));
 						Unbind_Block(VAL_BLK(val), NULL, TRUE);
 						break;
 					case SYM_ADDR:

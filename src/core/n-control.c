@@ -361,7 +361,7 @@ enum {
 {
 	REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
 
-	Init_Word_Unbound(D_OUT, REB_WORD, SYM_BREAK);
+	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_BREAK);
 
 	CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -743,7 +743,7 @@ was_caught:
 **
 ***********************************************************************/
 {
-	Init_Word_Unbound(D_OUT, REB_WORD, SYM_CONTINUE);
+	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_CONTINUE);
 	CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
 
 	return R_OUT;
@@ -890,9 +890,9 @@ was_caught:
 ***********************************************************************/
 {
 	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-		Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
 	else
-		Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
+		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
 
 	CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
@@ -979,7 +979,7 @@ was_caught:
 {
 	REBVAL *arg = D_ARG(1);
 
-	Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
 	CONVERT_NAME_TO_THROWN(D_OUT, arg);
 
 	return R_OUT;

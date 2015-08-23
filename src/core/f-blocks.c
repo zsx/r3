@@ -279,9 +279,7 @@
 
 	DS_DROP_TO(start);
 	blk = DS_TOP;
-	VAL_SET(blk, type);
-	VAL_SERIES(blk) = series;
-	VAL_INDEX(blk) = len;
+	Val_Init_Series_Index(blk, type, series, len);
 }
 
 

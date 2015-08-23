@@ -126,7 +126,7 @@
 	value = Alloc_Tail_Blk(frame);
 	SET_FRAME(value, 0, words);
 	value = Alloc_Tail_Blk(words);
-	Init_Typed_Word(
+	Val_Init_Word_Typed(
 		value, REB_WORD, has_self ? SYM_SELF : SYM_NOT_USED, ALL_64
 	);
 
@@ -176,7 +176,7 @@
 	// Add to word list:
 	EXPAND_SERIES_TAIL(words, 1);
 	value = BLK_LAST(words);
-	Init_Typed_Word(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
+	Val_Init_Word_Typed(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
 	BLK_TERM(words);
 
 	// Bind the word to this frame:
@@ -218,7 +218,7 @@
 	// Add the SELF word to slot zero.
 	if ((modes = (modes & BIND_NO_SELF)?0:SYM_SELF))
 		binds[modes] = -1;  // (cannot use zero here)
-	Init_Typed_Word(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
+	Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
 	SERIES_TAIL(BUF_WORDS) = 1;
 }
 
@@ -295,7 +295,7 @@
 					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
 					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
 					word = BLK_LAST(BUF_WORDS);
-					Init_Typed_Word(
+					Val_Init_Word_Typed(
 						word,
 						VAL_TYPE(value),
 						VAL_WORD_SYM(value),
@@ -375,7 +375,7 @@
 		) {
 			binds[VAL_WORD_CANON(block)] = 1;
 			val = Alloc_Tail_Blk(BUF_WORDS);
-			Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(block));
+			Val_Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(block));
 		}
 		else if (ANY_EVAL_BLOCK(block) && (modes & BIND_DEEP))
 			Collect_Simple_Words(VAL_BLK_DATA(block), modes);
@@ -1302,7 +1302,7 @@
 		// so 'binding-of' can return it and use for binding (vs. TRUE)?
 
 		assert(!IS_SELFLESS(context));
-		SET_OBJECT(out, context);
+		Val_Init_Object(out, context);
 		return;
 	}
 
@@ -1387,7 +1387,7 @@
 {
 	assert(frame);
 	CLEARS(value);
-	SET_OBJECT(value, frame);
+	Val_Init_Object(value, frame);
 }
 
 

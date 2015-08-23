@@ -52,7 +52,7 @@ enum Transport_Types {
 
 	obj = CLONE_OBJECT(VAL_OBJ_FRAME(info));
 
-	SET_OBJECT(ret, obj);
+	Val_Init_Object(ret, obj);
 	Set_Tuple(
 		OFV(obj, STD_NET_INFO_LOCAL_IP),
 		cast(REBYTE*, &sock->special.net.local_ip),
@@ -211,7 +211,7 @@ enum Transport_Types {
 		// Setup the read buffer (allocate a buffer if needed):
 		arg = OFV(port, STD_PORT_DATA);
 		if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-			Set_Binary(arg, Make_Binary(NET_BUF_SIZE));
+			Val_Init_Binary(arg, Make_Binary(NET_BUF_SIZE));
 		}
 		ser = VAL_SERIES(arg);
 		sock->length = SERIES_AVAIL(ser); // space available

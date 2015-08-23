@@ -375,7 +375,7 @@
 
 	Rehash_Hash(series);
 
-	Set_Series(REB_MAP, out, series);
+	Val_Init_Map(out, series);
 
 	return TRUE;
 }
@@ -457,7 +457,7 @@
 	val  = FRM_VALUE(frame, 1);
 	for (mval = BLK_HEAD(mapser); NOT_END(mval) && NOT_END(mval+1); mval += 2) {
 		if (ANY_WORD(mval) && !IS_NONE(mval+1)) {
-			Init_Typed_Word(
+			Val_Init_Word_Typed(
 				word,
 				REB_SET_WORD,
 				VAL_WORD_SYM(mval),
@@ -543,7 +543,7 @@
 			Trap_Make_DEAD_END(REB_MAP, Of_Type(arg));
 		// positive only
 		series = Make_Map(n);
-		Set_Series(REB_MAP, D_OUT, series);
+		Val_Init_Map(D_OUT, series);
 		break;
 
 	case A_COPY:
@@ -553,7 +553,7 @@
 	case A_CLEAR:
 		Clear_Series(series);
 		if (series->extra.series) Clear_Series(series->extra.series);
-		Set_Series(REB_MAP, D_OUT, series);
+		Val_Init_Map(D_OUT, series);
 		break;
 
 	case A_REFLECT:
@@ -564,7 +564,7 @@
 		else if (action == OF_BODY) n = 0;
 		else Trap_Reflect_DEAD_END(REB_MAP, arg);
 		series = Map_To_Block(series, n);
-		Set_Block(D_OUT, series);
+		Val_Init_Block(D_OUT, series);
 		break;
 
 	case A_TAILQ:

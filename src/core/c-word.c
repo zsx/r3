@@ -294,7 +294,7 @@ make_sym:
 
 /***********************************************************************
 **
-*/	void Init_Word(REBVAL *value, REBCNT type, REBINT sym, REBSER *frame, REBCNT index)
+*/	void Val_Init_Word(REBVAL *value, REBCNT type, REBINT sym, REBSER *frame, REBCNT index)
 /*
 **		Initialize an ANY-WORD! type with a binding to a context.
 **
@@ -311,7 +311,7 @@ make_sym:
 
 /***********************************************************************
 **
-*/	void Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
+*/	void Val_Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
 /*
 **		Initialize a value as a word. Set frame as unbound (no context).
 **
@@ -329,7 +329,7 @@ make_sym:
 
 /***********************************************************************
 **
-*/	void Init_Typed_Word(REBVAL *value, REBCNT type, REBCNT sym, REBU64 typeset)
+*/	void Val_Init_Word_Typed(REBVAL *value, REBCNT type, REBCNT sym, REBU64 typeset)
 /*
 **		When a special flag is set on a REB_WORD--or a value of
 **		ANY-WORD! type--it becomes an internal value holding a

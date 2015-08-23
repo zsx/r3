@@ -443,7 +443,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 	n = (c == '/' || c == '\\') ? 1 : 0;
 	Append_String(ser, arg, n, arg->tail-n);
 
-	Set_Series(VAL_TYPE(pvs->value), pvs->store, ser);
+	Val_Init_Series(pvs->store, VAL_TYPE(pvs->value), ser);
 
 	return PE_USE;
 }
@@ -519,7 +519,7 @@ find:
 		else {
 			if (IS_CHAR(arg) || IS_BITSET(arg)) len = 1;
 			else if (!ANY_STR(arg)) {
-				Set_String(arg, Copy_Form_Value(arg, 0));
+				Val_Init_String(arg, Copy_Form_Value(arg, 0));
 			}
 		}
 
@@ -596,7 +596,7 @@ pick_it:
 			len = Partial(value, 0, D_ARG(3), 0);
 			if (len == 0) {
 zero_str:
-				Set_Series(VAL_TYPE(value), D_OUT, Make_Binary(0));
+				Val_Init_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
 				return R_OUT;
 			}
 		} else
@@ -619,7 +619,7 @@ zero_str:
 			} else
 				str_to_char(value, value, index);
 		}
-		else Set_Series(VAL_TYPE(value), value, Copy_String(ser, index, len));
+		else Val_Init_Series(value, VAL_TYPE(value), Copy_String(ser, index, len));
 		Remove_Series(ser, index, len);
 		break;
 
@@ -735,7 +735,7 @@ zero_str:
 ser_exit:
 	type = VAL_TYPE(value);
 str_exit:
-	Set_Series(type, D_OUT, ser);
+	Val_Init_Series(D_OUT, type, ser);
 	return R_OUT;
 
 is_none:

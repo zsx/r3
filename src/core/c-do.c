@@ -724,9 +724,7 @@ do_at_index:
 								  0
 		// *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
 	) {
-		VAL_SET(&save, REB_BLOCK);
-		VAL_SERIES(&save) = block;
-		VAL_INDEX(&save) = index;
+		Val_Init_Block_Index(&save, block, index);
 		PROBE_MSG(&save, "Do_Core() count trap");
 	}
 #endif

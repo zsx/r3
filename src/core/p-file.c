@@ -113,8 +113,8 @@
 
 	obj = CLONE_OBJECT(VAL_OBJ_FRAME(info));
 
-	SET_OBJECT(ret, obj);
-	Init_Word_Unbound(
+	Val_Init_Object(ret, obj);
+	Val_Init_Word_Unbound(
 		OFV(obj, STD_FILE_INFO_TYPE),
 		REB_WORD,
 		GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE
@@ -124,7 +124,7 @@
 
 	ser = To_REBOL_Path(file->special.file.path, 0, OS_WIDE, 0);
 
-	Set_Series(REB_FILE, OFV(obj, STD_FILE_INFO_NAME), ser);
+	Val_Init_File(OFV(obj, STD_FILE_INFO_NAME), ser);
 }
 
 
@@ -196,7 +196,7 @@ REBINT Mode_Syms[] = {
 
 	// Allocate read result buffer:
 	ser = Make_Binary(len);
-	Set_Series(REB_BINARY, out, ser); //??? what if already set?
+	Val_Init_Binary(out, ser); //??? what if already set?
 
 	// Do the read, check for errors:
 	file->common.data = BIN_HEAD(ser);
@@ -213,8 +213,8 @@ REBINT Mode_Syms[] = {
 		if (nser == NULL) {
 			Trap(RE_BAD_DECODE);
 		}
-		Set_String(out, nser);
-		if (args & AM_READ_LINES) Set_Block(out, Split_Lines(out));
+		Val_Init_String(out, nser);
+		if (args & AM_READ_LINES) Val_Init_Block(out, Split_Lines(out));
 	}
 }
 
@@ -238,7 +238,7 @@ REBINT Mode_Syms[] = {
 			mo.opts = 1 << MOPT_LINES;
 		}
 		Mold_Value(&mo, data, 0);
-		Set_String(data, mo.series); // fall into next section
+		Val_Init_String(data, mo.series); // fall into next section
 		len = SERIES_TAIL(mo.series);
 	}
 

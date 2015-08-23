@@ -464,71 +464,16 @@
 
 /***********************************************************************
 **
-*/	void Set_Series(REBINT type, REBVAL *value, REBSER *series)
+*/	void Val_Init_Series_Index_Core(REBVAL *value, enum Reb_Kind type, REBSER *series, REBCNT index)
 /*
 **		Common function.
 **
 ***********************************************************************/
 {
+
 	VAL_SET(value, type);
 	VAL_SERIES(value) = series;
-	VAL_INDEX(value) = 0;
-}
-
-
-/***********************************************************************
-**
-*/	void Set_Block(REBVAL *value, REBSER *series)
-/*
-**		Common function.
-**
-***********************************************************************/
-{
-	VAL_SET(value, REB_BLOCK);
-	VAL_SERIES(value) = series;
-	VAL_INDEX(value) = 0;
-}
-
-
-/***********************************************************************
-**
-*/	void Set_Block_Index(REBVAL *value, REBSER *series, REBCNT index)
-/*
-**		Common function.
-**
-***********************************************************************/
-{
-	VAL_SET(value, REB_BLOCK);
-	VAL_SERIES(value) = series;
 	VAL_INDEX(value) = index;
-}
-
-
-/***********************************************************************
-**
-*/	void Set_String(REBVAL *value, REBSER *series)
-/*
-**		Common function.
-**
-***********************************************************************/
-{
-	VAL_SET(value, REB_STRING);
-	VAL_SERIES(value) = series;
-	VAL_INDEX(value) = 0;
-}
-
-
-/***********************************************************************
-**
-*/	void Set_Binary(REBVAL *value, REBSER *series)
-/*
-**		Common function.
-**
-***********************************************************************/
-{
-	VAL_SET(value, REB_BINARY);
-	VAL_SERIES(value) = series;
-	VAL_INDEX(value) = 0;
 }
 
 
@@ -549,7 +494,7 @@
 
 /***********************************************************************
 **
-*/	void Set_Object(REBVAL *value, REBSER *series)
+*/	void Val_Init_Object(REBVAL *value, REBSER *series)
 /*
 ***********************************************************************/
 {
@@ -786,7 +731,7 @@
 	REBCHR str[100];
 
 	OS_FORM_ERROR(errnum, str, 100);
-	Set_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
+	Val_Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
 }
 
 
@@ -837,7 +782,7 @@
 	val2 = BLK_HEAD(ser);
 	for (; NOT_END(val); val++) {
 		if (IS_SET_WORD(val))
-			Init_Word_Unbound(val2++, REB_WORD, VAL_WORD_SYM(val));
+			Val_Init_Word_Unbound(val2++, REB_WORD, VAL_WORD_SYM(val));
 	}
 	SET_END(val2);
 	SERIES_TAIL(ser) = cnt;

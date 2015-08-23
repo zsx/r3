@@ -73,7 +73,7 @@ static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rule
 void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, REBCNT index)
 {
 	REBVAL val;
-	Set_Series(type, &val, series);
+	Val_Init_Series(&val, type, series);
 	VAL_INDEX(&val) = index;
 	Debug_Fmt("%r: %r", rules, &val);
 }
@@ -858,9 +858,7 @@ bad_target:
 				// word: - set a variable to the series at current index
 				if (IS_SET_WORD(item)) {
 					REBVAL temp;
-					VAL_SET(&temp, parse->type);
-					VAL_SERIES(&temp) = series;
-					VAL_INDEX(&temp) = index;
+					Val_Init_Series_Index(&temp, parse->type, series, index);
 
 					Set_Var(item, &temp);
 
@@ -902,7 +900,7 @@ bad_target:
 			else if (IS_SET_PATH(item)) {
 				REBVAL tmp;
 
-				Set_Series(parse->type, &tmp, parse->series);
+				Val_Init_Series(&tmp, parse->type, parse->series);
 				VAL_INDEX(&tmp) = index;
 				if (Do_Path(&save, &path, &tmp)) {
 					// found a function
@@ -1132,13 +1130,13 @@ post:
 				count = (begin > index) ? 0 : index - begin; // how much we advanced the input
 				if (GET_FLAG(flags, PF_COPY)) {
 					REBVAL temp;
-					VAL_SET(&temp, parse->type);
-					VAL_SERIES(&temp) =
+					Val_Init_Series(
+						&temp,
+						parse->type,
 						IS_BLOCK_INPUT(parse)
 							? Copy_Block_Len(series, begin, count)
-							: Copy_String(series, begin, count); // condenses;
-					VAL_INDEX(&temp) = 0;
-
+							: Copy_String(series, begin, count) // condenses;
+					);
 					Set_Var(word, &temp);
 				}
 				else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
@@ -1166,12 +1164,13 @@ post:
 				}
 				if (GET_FLAG(flags, PF_RETURN)) {
 					// See notes on PARSE's return in handling of SYM_RETURN
-					VAL_SET(parse->out, parse->type);
-					VAL_SERIES(parse->out) =
+					Val_Init_Series(
+						parse->out,
+						parse->type,
 						IS_BLOCK_INPUT(parse)
 							? Copy_Block_Len(series, begin, count)
-							: Copy_String(series, begin, count); // condenses
-					VAL_INDEX(parse->out) = 0;
+							: Copy_String(series, begin, count) // condenses
+					);
 
 					Trap(RE_PARSE_LONGJMP_HACK);
 					DEAD_END;

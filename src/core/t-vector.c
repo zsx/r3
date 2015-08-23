@@ -29,8 +29,8 @@
 
 #include "sys-core.h"
 
-#define	SET_VECTOR(v,s) \
-	(VAL_SET((v), REB_VECTOR), VAL_SERIES(v)=(s), VAL_INDEX(v) = 0, NOOP)
+#define Val_Init_Vector(v,s) \
+	Val_Init_Series((v), REB_VECTOR, (s))
 
 // Encoding Format:
 //		stored in series->size for now
@@ -578,12 +578,12 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 			size = Int32s(arg, 0);
 			if (size < 0) goto bad_make;
 			ser = Make_Vector(0, 0, 1, 32, size);
-			SET_VECTOR(value, ser);
+			Val_Init_Vector(value, ser);
 			break;
 		}
 //		if (IS_NONE(arg)) {
 //			ser = Make_Vector(0, 0, 1, 32, 0);
-//			SET_VECTOR(value, ser);
+//			Val_Init_Vector(value, ser);
 //			break;
 //		}
 		// fall thru
@@ -601,7 +601,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	case A_COPY:
 		ser = Copy_Series(vect);
 		ser->extra.size = vect->extra.size; // attributes
-		SET_VECTOR(value, ser);
+		Val_Init_Vector(value, ser);
 		break;
 
 	case A_RANDOM:

@@ -618,6 +618,38 @@ struct Reb_Position
 
 #define DIFF_PTRS(a,b) (REBCNT)((REBYTE*)a - (REBYTE*)b)
 
+// Note: These macros represent things that used to sometimes be functions,
+// and sometimes were not.  They could be done without a function call, but
+// that would then make them unsafe to use with side-effects:
+//
+//     Val_Init_Block(Alloc_Tail_Blk(parent), child);
+//
+// The repetitition of the value parameter would lead to the allocation
+// running multiple times.  Hence we Caps_Words_With_Underscore to name
+// these macros to indicate they are safe by not duplicating their args.
+// If erring on the side of caution and making a function call turns out
+// to be a problem in profiling, then on a case-by-case basis those
+// bottlenecks can be replaced with something more like:
+//
+//     VAL_SET(value, REB_XXX);
+//     ENSURE_SERIES_MANAGED(series);
+//     VAL_SERIES(value) = series;
+//     VAL_INDEX(value) = index;
+//
+// (Or perhaps just use proper inlining and support it in those builds.)
+
+#define Val_Init_Series_Index(v,t,s,i) \
+	Val_Init_Series_Index_Core((v), (t), (s), (i))
+
+#define Val_Init_Series(v,t,s) \
+	Val_Init_Series_Index((v), (t), (s), 0)
+
+#define Val_Init_Block_Index(v,s,i) \
+	Val_Init_Series_Index((v), REB_BLOCK, (s), (i))
+
+#define Val_Init_Block(v,s) \
+	Val_Init_Block_Index((v), (s), 0)
+
 
 /***********************************************************************
 **
@@ -625,12 +657,20 @@ struct Reb_Position
 **
 ***********************************************************************/
 
-#define SET_STR_TYPE(t,v,s) \
-	(VAL_SET((v), (t)), VAL_SERIES(v) = (s), VAL_INDEX(v) = 0, NOOP)
+#define Val_Init_String(v,s) \
+	Val_Init_Series((v), REB_STRING, (s))
 
-#define SET_STRING(v,s)		SET_STR_TYPE(REB_STRING, (v), (s))
-#define SET_BINARY(v,s)		SET_STR_TYPE(REB_BINARY, (v), (s))
-#define SET_FILE(v,s)		SET_STR_TYPE(REB_FILE, (v), (s))
+#define Val_Init_Binary(v,s) \
+	Val_Init_Series((v), REB_BINARY, (s))
+
+#define Val_Init_File(v,s) \
+	Val_Init_Series((v), REB_FILE, (s))
+
+#define Val_Init_Tag(v,s) \
+	Val_Init_Series((v), REB_TAG, (s))
+
+#define Val_Init_Bitset(v,s) \
+	Val_Init_Series((v), REB_BITSET, (s))
 
 #define SET_STR_END(s,n) (*STR_SKIP(s,n) = 0)
 
@@ -719,7 +759,8 @@ struct Reb_Position
 #define	VAL_IMAGE_HIGH(v)	(IMG_HIGH(VAL_SERIES(v)))
 #define	VAL_IMAGE_LEN(v)	VAL_LEN(v)
 
-#define SET_IMAGE(v,s) VAL_SET(v, REB_IMAGE);VAL_SERIES(v)=s;VAL_INDEX(v) = 0;
+#define Val_Init_Image(v,s) \
+	Val_Init_Series((v), REB_IMAGE, (s));
 
 
 //#define VAL_IMAGE_TRANSP(v) (VAL_IMAGE_INFO(v)->transp)
@@ -986,9 +1027,6 @@ struct Reb_Object {
 	REBSER	*frame;
 	REBSER	*body;		// module body
 };
-
-#define SET_OBJECT(v,f) \
-	(VAL_SET((v), REB_OBJECT), VAL_OBJ_FRAME(v) = (f), NOOP)
 
 #define SET_MODULE(v,f) \
 	(VAL_SET((v), REB_MODULE), VAL_OBJ_FRAME(v) = (f), NOOP)

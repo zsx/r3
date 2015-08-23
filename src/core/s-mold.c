@@ -586,7 +586,7 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 		}
 	}
 	value = Alloc_Tail_Blk(MOLD_LOOP);
-	Set_Block(value, series);
+	Val_Init_Block(value, series);
 
 	if (sep[1]) {
 		Append_Byte(out, sep[0]);

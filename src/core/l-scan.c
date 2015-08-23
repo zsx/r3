@@ -625,13 +625,11 @@
 
 	frame = Make_Error(errnum, 0, 0, 0);
 	err_obj = cast(ERROR_OBJ*, FRM_VALUES(frame));
-	Set_String(&err_obj->nearest, ser);
-	Set_String(&err_obj->arg1, Copy_Bytes(name, -1));
-	Set_String(&err_obj->arg2, Copy_Bytes(arg, size));
+	Val_Init_String(&err_obj->nearest, ser);
+	Val_Init_String(&err_obj->arg1, Copy_Bytes(name, -1));
+	Val_Init_String(&err_obj->arg2, Copy_Bytes(arg, size));
 
-	VAL_SET(&error, REB_ERROR);
-	VAL_ERR_NUM(&error) = errnum;
-	VAL_ERR_OBJECT(&error) = frame;
+	Val_Init_Error(&error, frame);
 
 	if (relax) {
 		*relax = error;
@@ -1270,12 +1268,12 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 		case TOKEN_WORD:
 			if (len == 0) {bp--; goto syntax_error;}
-			Init_Word_Unbound(value, REB_WORD + (token - TOKEN_WORD), SYM_NOT_USED);
+			Val_Init_Word_Unbound(value, REB_WORD + (token - TOKEN_WORD), SYM_NOT_USED);
 			if (!(VAL_WORD_SYM(value) = Make_Word(bp, len))) goto syntax_error;
 			break;
 
 		case TOKEN_REFINE:
-			Init_Word_Unbound(value, REB_REFINEMENT, SYM_NOT_USED);
+			Val_Init_Word_Unbound(value, REB_REFINEMENT, SYM_NOT_USED);
 			if (!(VAL_WORD_SYM(value) = Make_Word(bp+1, len-1))) goto syntax_error;
 			break;
 
@@ -1285,7 +1283,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				SET_NONE(value);  // A single # means NONE
 			}
 			else {
-				Init_Word_Unbound(value, REB_ISSUE, SYM_NOT_USED);
+				Val_Init_Word_Unbound(value, REB_ISSUE, SYM_NOT_USED);
 				if (!(VAL_WORD_SYM(value) = Scan_Issue(bp+1, len-1))) goto syntax_error;
 			}
 			break;
@@ -1302,9 +1300,12 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				emitbuf->tail++;
 				goto exit_block;
 			}
-			VAL_SET(value, (REBYTE)((token == TOKEN_BLOCK) ? REB_BLOCK : REB_PAREN));
-			VAL_SERIES(value) = block;
-			VAL_INDEX(value) = 0;
+			Val_Init_Series_Index(
+				value,
+				(token == TOKEN_BLOCK) ? REB_BLOCK : REB_PAREN,
+				block,
+				0
+			);
 			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			break;
 
@@ -1380,7 +1381,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_STRING:
 			// During scan above, string was stored in BUF_MOLD (with Uni width)
-			Set_String(value, Copy_String(BUF_MOLD, 0, -1));
+			Val_Init_String(value, Copy_String(BUF_MOLD, 0, -1));
 			LABEL_SERIES(VAL_SERIES(value), "scan string");
 			break;
 
@@ -1425,7 +1426,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			Bind_Block(Lib_Context, BLK_HEAD(block), BIND_ALL|BIND_DEEP);
 			//Bind_Global_Block(BLK_HEAD(block));
 			if (!Construct_Value(value, block)) {
-				if (IS_END(value)) Set_Block(value, block);
+				if (IS_END(value)) Val_Init_Block(value, block);
 				Trap1_DEAD_END(RE_MALCONSTRUCT, value);
 			}
 			emitbuf->tail--; // Unprotect
@@ -1543,7 +1544,7 @@ exit_block:
 
 	BLK_RESET(BUF_EMIT); // Prevents growth (when errors are thrown)
 	return Scan_Block(scan_state, mode_char);
-//	Set_Block(Temp_Scan_Value, ser);
+//	Val_Init_Block(Temp_Scan_Value, ser);
 //	return Temp_Scan_Value;
 }
 
@@ -1622,7 +1623,7 @@ exit_block:
 	if (D_REF(4)) SET_FLAG(scan_state.opts, SCAN_RELAX);
 
 	blk = Scan_Code(&scan_state, 0);
-	Set_Block(D_OUT, blk);
+	Val_Init_Block(D_OUT, blk);
 
 	VAL_INDEX(D_ARG(1)) = scan_state.end - VAL_BIN(D_ARG(1));
 	Append_Value(blk, D_ARG(1));
