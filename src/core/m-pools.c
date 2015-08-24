@@ -641,6 +641,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	CHECK_MEMORY(2);
 
+	if (flags & MKS_BLOCK) PG_Reb_Stats->Blocks++;
+
 	return series;
 }
 

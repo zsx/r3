@@ -41,7 +41,7 @@
 {
 	REBSER *series = Make_Series(length + 1, sizeof(REBVAL), MKS_BLOCK);
 	SET_END(BLK_HEAD(series));
-	PG_Reb_Stats->Blocks++;
+
 	return series;
 }
 
@@ -66,8 +66,6 @@
 	SERIES_TAIL(series) = len;
 	BLK_TERM(series);
 
-	PG_Reb_Stats->Blocks++;
-
 	return series;
 }
 
@@ -91,8 +89,6 @@
 	SERIES_TAIL(series) = len;
 	BLK_TERM(series);
 
-	PG_Reb_Stats->Blocks++;
-
 	return series;
 }
 
@@ -112,8 +108,6 @@
 	memcpy(series->data, values, len * sizeof(REBVAL));
 	SERIES_TAIL(series) = len;
 	BLK_TERM(series);
-
-	PG_Reb_Stats->Blocks++;
 
 	return series;
 }
@@ -139,7 +133,6 @@
 			// Note that this should work for objects too (the frame).
 			VAL_SERIES(val) = Copy_Series(VAL_SERIES(val));
 			if ((types & TYPESET(VAL_TYPE(val)) & TS_BLOCKS_OBJ) != 0) {
-				PG_Reb_Stats->Blocks++;
 				// If we need to copy recursively (deep):
 				if ((types & CP_DEEP) != 0)
 					Copy_Deep_Values(VAL_SERIES(val), 0, VAL_TAIL(val), types);
@@ -212,7 +205,6 @@
 	SERIES_TAIL(series) = len;
 	BLK_TERM(series);
 
-	PG_Reb_Stats->Blocks++;
 	return series;
 }
 
@@ -299,8 +291,6 @@
 
 		DS_DROP_TO(start);
 		Val_Init_Series_Index(DS_TOP, REB_BLOCK, series, 0);
-
-		PG_Reb_Stats->Blocks++;
 	}
 }
 
