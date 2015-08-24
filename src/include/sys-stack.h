@@ -276,22 +276,19 @@ struct Reb_Call {
 
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
-#ifdef NDEBUG
-	#define SET_DSF(c) \
-		(CS_Running = (c), NOOP)
-#else
+#if (!defined(NDEBUG) && defined(STRESS))
 	// In a "stress checked" debug mode, every time the DSF is accessed we
 	// can verify that it is well-formed.
 	#ifdef STRESS
 		#define DSF (DSF_Stress())
 	#endif
-
-	#define SET_DSF(c) \
-		( \
-			CS_Running = (c), \
-			(c) ? cast(void, (c)->args_ready = TRUE) : NOOP \
-		)
 #endif
+
+#define SET_DSF(c) \
+	( \
+		CS_Running = (c), \
+		(c) ? cast(void, (c)->args_ready = TRUE) : NOOP \
+	)
 
 #define DSF_OUT(c)		((c)->out)
 #define PRIOR_DSF(c)	((c)->prior)
