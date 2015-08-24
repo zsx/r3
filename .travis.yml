@@ -61,3 +61,6 @@ script:
     # filename inference, as we always use a Linux r3-make, even when
     # cross-compiling to Windows.
     - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+    # A minimal sanity check that the built R3 does _something_. Eventually, we
+    # should run the full test suite.
+    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}' | grep OK; fi
