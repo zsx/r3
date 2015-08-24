@@ -1331,7 +1331,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 				switch (n) {
 					case SYM_SPEC:
 						Val_Init_Block(ret, Clone_Block(VAL_ROUTINE_SPEC(val)));
-						Unbind_Block(VAL_BLK(val), NULL, TRUE);
+						Unbind_Array_Deep(VAL_BLK_HEAD(val));
 						break;
 					case SYM_ADDR:
 						SET_INTEGER(ret, cast(REBUPT, VAL_ROUTINE_FUNCPTR(val)));
@@ -1378,7 +1378,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 				switch (n) {
 					case SYM_SPEC:
 						Val_Init_Block(ret, Clone_Block(VAL_ROUTINE_SPEC(val)));
-						Unbind_Block(VAL_BLK(val), NULL, TRUE);
+						Unbind_Array_Deep(VAL_BLK_HEAD(val));
 						break;
 					case SYM_ADDR:
 						SET_INTEGER(ret, (REBUPT)VAL_ROUTINE_DISPATCHER(val));

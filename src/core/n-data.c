@@ -267,7 +267,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (rel)
 		Bind_Stack_Block(frame, blk); //!! needs deep
 	else
-		Bind_Block(frame, BLK_HEAD(blk), flags);
+		Bind_Array_Core(BLK_HEAD(blk), frame, flags);
 
 	return R_OUT;
 }
@@ -299,12 +299,10 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 {
 	REBVAL *word = D_ARG(1);
 
-	if (ANY_WORD(word)) {
-		UNBIND(word);
-	}
-	else {
-		Unbind_Block(VAL_BLK_DATA(word), NULL, D_REF(2));
-	}
+	if (ANY_WORD(word))
+		UNBIND_WORD(word);
+	else
+		Unbind_Array_Core(VAL_BLK_DATA(word), NULL, D_REF(2));
 
 	return R_ARG1;
 }
@@ -324,11 +322,9 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 {
 	REBSER *words;
 	REBCNT modes = 0;
-	REBVAL *prior = 0;
-	REBVAL *block;
+	REBVAL *values = VAL_BLK_DATA(D_ARG(1));
+	REBVAL *prior_values = NULL;
 	REBVAL *obj;
-
-	block = VAL_BLK_DATA(D_ARG(1));
 
 	if (D_REF(2)) modes |= BIND_DEEP;
 	if (!D_REF(3)) modes |= BIND_ALL;
@@ -337,13 +333,13 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (D_REF(4)) {
 		obj = D_ARG(5);
 		if (ANY_OBJECT(obj))
-			prior = BLK_SKIP(VAL_OBJ_WORDS(obj), 1);
+			prior_values = BLK_SKIP(VAL_OBJ_WORDS(obj), 1);
 		else if (IS_BLOCK(obj))
-			prior = VAL_BLK_DATA(obj);
+			prior_values = VAL_BLK_DATA(obj);
 		// else stays 0
 	}
 
-	words = Collect_Block_Words(block, prior, modes);
+	words = Collect_Array_Words(values, prior_values, modes);
 	Val_Init_Block(D_OUT, words);
 	return R_OUT;
 }
@@ -424,7 +420,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	// Special form: IN object block
 	if (IS_BLOCK(word) || IS_PAREN(word)) {
-		Bind_Block(frame, VAL_BLK(word), BIND_DEEP);
+		Bind_Array_Deep(VAL_BLK_HEAD(word), frame);
 		return R_ARG2;
 	}
 

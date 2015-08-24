@@ -510,7 +510,7 @@
 
 		// Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
 		// code in REBTYPE(Object) and code in REBNATIVE(construct))
-		Bind_Block(err, VAL_BLK_DATA(arg), BIND_DEEP);
+		Bind_Array_Deep(VAL_BLK_DATA(arg), err);
 		if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(arg), 0)) {
 			ENABLE_GC;
 			*out = evaluated;
@@ -893,13 +893,13 @@
 
 	// Create error objects and error type objects:
 	*ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-	errs = Construct_Object(0, VAL_BLK(errors), 0);
+	errs = Construct_Object(NULL, VAL_BLK_HEAD(errors), FALSE);
 
 	Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
 	// Create objects for all error types:
 	for (val = BLK_SKIP(errs, 1); NOT_END(val); val++) {
-		errs = Construct_Object(0, VAL_BLK(val), 0);
+		errs = Construct_Object(NULL, VAL_BLK_HEAD(val), FALSE);
 		Val_Init_Object(val, errs);
 	}
 }
@@ -962,7 +962,7 @@
 	// Scan block of policies for the class: [file [allow read quit write]]
 	len = 0;	// file or url length
 	flags = 0;	// policy flags
-	for (policy = VAL_BLK(policy); NOT_END(policy); policy += 2) {
+	for (policy = VAL_BLK_HEAD(policy); NOT_END(policy); policy += 2) {
 
 		// Must be a policy tuple:
 		if (!IS_TUPLE(policy+1)) goto error;

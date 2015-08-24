@@ -73,7 +73,7 @@
 		value = Alloc_Tail_Blk(block);
 		VAL_SET(value, VAL_TYPE(word));
 		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
-		UNBIND(value);
+		UNBIND_WORD(value);
 	}
 
 	return block;
@@ -102,7 +102,7 @@
 		value = Alloc_Tail_Blk(block);
 		VAL_SET(value, VAL_TYPE(word));
 		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
-		UNBIND(value);
+		UNBIND_WORD(value);
 	}
 
 	return block;
@@ -129,7 +129,7 @@
 	*exts = 0;
 
 	blk = BLK_HEAD(block);
-	words = Collect_Frame(BIND_ALL | BIND_NO_DUP | BIND_NO_SELF, 0, blk);
+	words = Collect_Frame(NULL, blk, BIND_ALL | BIND_NO_DUP | BIND_NO_SELF);
 
 	// !!! needs more checks
 	for (; NOT_END(blk); blk++) {
@@ -155,7 +155,7 @@
 			}
 
 			// Turn block into typeset for parameter at current index
-			Make_Typeset(VAL_BLK(blk), BLK_SKIP(words, n), 0);
+			Make_Typeset(VAL_BLK_HEAD(blk), BLK_SKIP(words, n), 0);
 			break;
 
 		case REB_STRING:
@@ -233,7 +233,7 @@
 	if (
 		!IS_BLOCK(def)
 		|| (len = VAL_LEN(def)) < 2
-		|| !IS_BLOCK(spec = VAL_BLK(def))
+		|| !IS_BLOCK(spec = VAL_BLK_HEAD(def))
 	) return FALSE;
 
 	body = VAL_BLK_SKIP(def, 1);
@@ -267,7 +267,7 @@
 	REBVAL *spec;
 	REBVAL *body;
 
-	if (!args || ((spec = VAL_BLK(args)) && IS_END(spec))) {
+	if (!args || ((spec = VAL_BLK_HEAD(args)) && IS_END(spec))) {
 		body = 0;
 		if (IS_FUNCTION(value) || IS_CLOSURE(value))
 			VAL_FUNC_WORDS(value) = Copy_Block(VAL_FUNC_WORDS(value), 0);

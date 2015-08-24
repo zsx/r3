@@ -161,10 +161,13 @@ static	BOOT_BLK *Boot_Block;
 {
 	REBVAL result;
 
-	Bind_Block(rebind > 1 ? Sys_Context : Lib_Context, BLK_HEAD(block), BIND_SET);
-	if (rebind < 0) Bind_Block(Sys_Context, BLK_HEAD(block), 0);
-	if (rebind > 0) Bind_Block(Lib_Context, BLK_HEAD(block), BIND_DEEP);
-	if (rebind > 1) Bind_Block(Sys_Context, BLK_HEAD(block), BIND_DEEP);
+	Bind_Array_Set_Forward_Shallow(
+		BLK_HEAD(block), rebind > 1 ? Sys_Context : Lib_Context
+	);
+
+	if (rebind < 0) Bind_Array_Shallow(BLK_HEAD(block), Sys_Context);
+	if (rebind > 0) Bind_Array_Deep(BLK_HEAD(block), Lib_Context);
+	if (rebind > 1) Bind_Array_Deep(BLK_HEAD(block), Sys_Context);
 
 	if (DO_BLOCK_THROWS(&result, block, 0))
 		Panic(RP_EARLY_ERROR);
@@ -204,11 +207,11 @@ static	BOOT_BLK *Boot_Block;
 
 	Set_Root_Series(ROOT_BOOT, boot, "boot block");	// Do not let it get GC'd
 
-	Boot_Block = cast(BOOT_BLK *, VAL_BLK(BLK_HEAD(boot)));
+	Boot_Block = cast(BOOT_BLK *, VAL_BLK_HEAD(BLK_HEAD(boot)));
 
 	if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
 		Panic(RP_BAD_BOOT_TYPE_BLOCK);
-	if (VAL_WORD_SYM(VAL_BLK(&Boot_Block->types)) != SYM_END_TYPE)
+	if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_END_TYPE)
 		Panic(RP_BAD_END_TYPE_WORD);
 
 	// Create low-level string pointers (used by RS_ constants):
@@ -242,7 +245,7 @@ static	BOOT_BLK *Boot_Block;
 **
 ***********************************************************************/
 {
-	REBVAL *word = VAL_BLK(&Boot_Block->types);
+	REBVAL *word = VAL_BLK_HEAD(&Boot_Block->types);
 	REBSER *specs = VAL_SERIES(&Boot_Block->typespecs);
 	REBVAL *value;
 	REBINT n;
@@ -267,14 +270,14 @@ static	BOOT_BLK *Boot_Block;
 **
 ***********************************************************************/
 {
-	REBVAL *word = VAL_BLK(&Boot_Block->types);
+	REBVAL *word = VAL_BLK_HEAD(&Boot_Block->types);
 	REBVAL *value;
 	REBSER *spec;
 	REBCNT sym;
 	REBINT n = 1;
 	REBYTE str[32];
 
-	spec = VAL_SERIES(VAL_BLK(&Boot_Block->booters));
+	spec = VAL_SERIES(VAL_BLK_HEAD(&Boot_Block->booters));
 
 	for (word++; NOT_END(word); word++, n++) {
 		COPY_BYTES(str, Get_Word_Name(word), 32);
@@ -381,8 +384,8 @@ static	BOOT_BLK *Boot_Block;
 	REBVAL *spec = D_ARG(1);
 	REBVAL evaluated;
 
-	Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK(spec)));
-	Bind_Block(VAL_OBJ_FRAME(D_OUT), VAL_BLK(spec), BIND_DEEP);
+	Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK_HEAD(spec)));
+	Bind_Array_Deep(VAL_BLK_HEAD(spec), VAL_OBJ_FRAME(D_OUT));
 
 	if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(spec), 0)) {
 		*D_OUT = evaluated;
@@ -403,7 +406,7 @@ static	BOOT_BLK *Boot_Block;
 	REBVAL *word;
 	REBVAL *val;
 
-	for (word = VAL_BLK(&Boot_Block->ops); NOT_END(word); word++) {
+	for (word = VAL_BLK_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
 		// Append the operator name to the lib frame:
 		val = Append_Frame(Lib_Context, word, 0);
 
@@ -636,13 +639,12 @@ static	BOOT_BLK *Boot_Block;
 	// of the global context. See also N_context() which creates the
 	// subobjects of the system object.
 
-	// Create the system object from the sysobj block:
-	value = VAL_BLK(&Boot_Block->sysobj);
-	frame = Make_Object(0, value);
+	// Create the system object from the sysobj block and bind its fields:
+	frame = Make_Object(0, VAL_BLK_HEAD(&Boot_Block->sysobj));
+	Bind_Array_Deep(VAL_BLK_HEAD(&Boot_Block->sysobj), Lib_Context);
 
-	// Bind it so CONTEXT native will work and bind its fields:
-	Bind_Block(Lib_Context, value, BIND_DEEP);
-	Bind_Block(frame, value, BIND_ONLY);  // No need to go deeper
+	// Bind it so CONTEXT native will work (only used at topmost depth):
+	Bind_Array_Shallow(VAL_BLK_HEAD(&Boot_Block->sysobj), frame);
 
 	// Evaluate the block (will eval FRAMEs within):
 	if (DO_BLOCK_THROWS(&result, VAL_SERIES(&Boot_Block->sysobj), 0))
@@ -672,11 +674,11 @@ static	BOOT_BLK *Boot_Block;
 
 	// Create system/catalog/actions block:
 	value = Get_System(SYS_CATALOG, CAT_ACTIONS);
-	Val_Init_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->actions)));
+	Val_Init_Block(value, Collect_Set_Words(VAL_BLK_HEAD(&Boot_Block->actions)));
 
 	// Create system/catalog/actions block:
 	value = Get_System(SYS_CATALOG, CAT_NATIVES);
-	Val_Init_Block(value, Collect_Set_Words(VAL_BLK(&Boot_Block->natives)));
+	Val_Init_Block(value, Collect_Set_Words(VAL_BLK_HEAD(&Boot_Block->natives)));
 
 	// Create system/codecs object:
 	value = Get_System(SYS_CODECS, 0);
@@ -948,7 +950,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	ser = Make_Block(3);
 	n = 2; // skip first flag (ROF_EXT)
 	val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-	for (val = VAL_BLK(val); NOT_END(val); val++) {
+	for (val = VAL_BLK_HEAD(val); NOT_END(val); val++) {
 		VAL_CLR_OPT(val, OPT_VALUE_LINE);
 		if (rargs->options & n) Append_Value(ser, val);
 		n <<= 1;
@@ -1161,7 +1163,9 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	//Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
 	// Get the words of the ROOT context (to avoid it being an exception case):
-	PG_Root_Words = Collect_Frame(BIND_ALL, 0, VAL_BLK(&Boot_Block->root));
+	PG_Root_Words = Collect_Frame(
+		NULL, VAL_BLK_HEAD(&Boot_Block->root), BIND_ALL
+	);
 	KEEP_SERIES(PG_Root_Words, "root words");
 	VAL_FRM_WORDS(ROOT_SELF) = PG_Root_Words;
 

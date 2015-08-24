@@ -232,7 +232,7 @@ static REBSER *Trim_Object(REBSER *obj)
 ***********************************************************************/
 {
 	if (!IS_BLOCK(data)) return FALSE;
-	VAL_OBJ_FRAME(out) = Construct_Object(0, VAL_BLK_DATA(data), 0);
+	VAL_OBJ_FRAME(out) = Construct_Object(NULL, VAL_BLK_DATA(data), FALSE);
 	VAL_SET(out, type);
 	if (type == REB_ERROR) {
 		REBVAL result;
@@ -315,7 +315,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				if (type == REB_OBJECT) {
 					obj = Make_Object(0, VAL_BLK_DATA(arg));
 					Val_Init_Object(D_OUT, obj); // GC save
-					Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
+					Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
 
 					// GC-OK
 					if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0))
@@ -337,8 +337,8 @@ static REBSER *Trim_Object(REBSER *obj)
 				// make task! [init]
 				if (type == REB_TASK) {
 					// Does it include a spec?
-					if (IS_BLOCK(VAL_BLK(arg))) {
-						arg = VAL_BLK(arg);
+					if (IS_BLOCK(VAL_BLK_HEAD(arg))) {
+						arg = VAL_BLK_HEAD(arg);
 						if (!IS_BLOCK(arg+1)) Trap_Make_DEAD_END(REB_TASK, value);
 						obj = Make_Module_Spec(arg);
 						VAL_MOD_BODY(value) = VAL_SERIES(arg+1);
@@ -396,7 +396,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				obj = Make_Object(src_obj, VAL_BLK_DATA(arg));
 				Rebind_Frame(src_obj, obj);
 				Val_Init_Object(D_OUT, obj);
-				Bind_Block(obj, VAL_BLK_DATA(arg), BIND_DEEP);
+				Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
 
 				// GC-OK
 				if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
@@ -625,7 +625,7 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 		goto is_none;
 	}
 
-	Bind_Block(frm, BLK_HEAD(ser), FALSE);
+	Bind_Array_Shallow(BLK_HEAD(ser), frm);
 	VAL_SERIES(Temp_Blk_Value) = ser;
 	//ENABLE_GC;
 	return Temp_Blk_Value;

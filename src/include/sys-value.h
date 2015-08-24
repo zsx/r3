@@ -835,7 +835,7 @@ struct Reb_Position
 #define BLK_RESET(b)	(b)->tail = 0, SET_END(BLK_HEAD(b))
 
 // Arg is a value:
-#define VAL_BLK(v)		BLK_HEAD(VAL_SERIES(v))
+#define VAL_BLK_HEAD(v)	BLK_HEAD(VAL_SERIES(v))
 #define VAL_BLK_DATA(v)	BLK_SKIP(VAL_SERIES(v), VAL_INDEX(v))
 #define VAL_BLK_SKIP(v,n)	BLK_SKIP(VAL_SERIES(v), (n))
 #define VAL_BLK_TAIL(v)	BLK_SKIP(VAL_SERIES(v), VAL_SERIES(v)->tail)
@@ -922,11 +922,11 @@ struct Reb_Word {
 #define HAS_FRAME(v)			VAL_WORD_FRAME(v)
 
 #ifdef NDEBUG
-	#define UNBIND(v) \
+	#define UNBIND_WORD(v) \
 		(VAL_WORD_FRAME(v)=NULL)
 #else
 	#define WORD_INDEX_UNBOUND MIN_I32
-	#define UNBIND(v) \
+	#define UNBIND_WORD(v) \
 		(VAL_WORD_FRAME(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
 #endif
 

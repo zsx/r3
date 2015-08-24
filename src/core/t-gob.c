@@ -466,7 +466,7 @@ const REBCNT Gob_Flag_Words[] = {
 			for (i = 0; Gob_Flag_Words[i]; i += 2)
 				CLR_FLAG(gob->flags, Gob_Flag_Words[i+1]);
 
-			for (val = VAL_BLK(val); NOT_END(val); val++)
+			for (val = VAL_BLK_HEAD(val); NOT_END(val); val++)
 				if (IS_WORD(val)) Set_Gob_Flag(gob, val);
 		}
 		break;

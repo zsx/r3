@@ -69,7 +69,7 @@ static void No_Nones(REBVAL *arg) {
 
 	if (!ANY_BLOCK(data)) return FALSE;
 	if (type >= REB_PATH && type <= REB_LIT_PATH)
-		if (!ANY_WORD(VAL_BLK(data))) return FALSE;
+		if (!ANY_WORD(VAL_BLK_HEAD(data))) return FALSE;
 
 	*out = *data++;
 	VAL_SET(out, type);
@@ -545,7 +545,7 @@ static struct {
 	REBCNT n;
 	REBCNT k;
 	REBCNT idx = VAL_INDEX(value);
-	REBVAL *data = VAL_BLK(value);
+	REBVAL *data = VAL_BLK_HEAD(value);
 	REBVAL swap;
 
 	for (n = VAL_LEN(value); n > 1;) {

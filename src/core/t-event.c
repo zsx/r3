@@ -84,7 +84,7 @@
 		arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
 		if (IS_BLOCK(arg)) {
 			w = VAL_WORD_CANON(val);
-			for (n = 0, arg = VAL_BLK(arg); NOT_END(arg); arg++, n++) {
+			for (n = 0, arg = VAL_BLK_HEAD(arg); NOT_END(arg); arg++, n++) {
 				if (IS_WORD(arg) && VAL_WORD_CANON(arg) == w) {
 					VAL_EVENT_TYPE(value) = n;
 					return TRUE;
@@ -158,7 +158,7 @@
 	case SYM_FLAGS:
 		if (IS_BLOCK(val)) {
 			VAL_EVENT_FLAGS(value) &= ~(1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT);
-			for (val = VAL_BLK(val); NOT_END(val); val++)
+			for (val = VAL_BLK_HEAD(val); NOT_END(val); val++)
 				if (IS_WORD(val))
 					switch (VAL_WORD_CANON(val)) {
 						case SYM_CONTROL:
@@ -514,7 +514,7 @@ pick_it:
 				// exactly was supposed to have done.
 
 				if (!IS_BLOCK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_OUT;
-				wp = (REBWIN *)VAL_BLK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value));
+				wp = cast(REBWIN *, VAL_BLK_HEAD(BLK_HEAD(Windows) + VAL_EVENT_WIN(value)));
 				*D_OUT = wp->masterFace;
 				return R_OUT;
 			}

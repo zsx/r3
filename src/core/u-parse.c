@@ -322,7 +322,7 @@ no_result:
 
 	for (; index <= series->tail; index++) {
 
-		for (blk = VAL_BLK(block); NOT_END(blk); blk++) {
+		for (blk = VAL_BLK_HEAD(block); NOT_END(blk); blk++) {
 
 			item = blk;
 

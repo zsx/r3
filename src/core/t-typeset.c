@@ -141,7 +141,7 @@
 {
 	if (!IS_BLOCK(data)) return FALSE;
 
-	if (!Make_Typeset(VAL_BLK(data), out, TRUE)) return FALSE;
+	if (!Make_Typeset(VAL_BLK_HEAD(data), out, TRUE)) return FALSE;
 	VAL_SET(out, REB_TYPESET);
 
 	return TRUE;

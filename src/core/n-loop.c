@@ -79,7 +79,7 @@
 	SET_END(vals);
 
 	body = Clone_Block_Value(body_blk);
-	Bind_Block(frame, BLK_HEAD(body), BIND_DEEP);
+	Bind_Array_Deep(BLK_HEAD(body), frame);
 
 	*fram = frame;
 

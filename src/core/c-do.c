@@ -397,7 +397,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 
 /***********************************************************************
 **
-*/	static REBINT Do_Args(struct Reb_Call *call, const REBVAL *path, REBSER *block, REBCNT index)
+*/	static REBINT Do_Args(struct Reb_Call *call, const REBVAL path[], REBSER *block, REBCNT index)
 /*
 **		Evaluate code block according to the function arg spec.
 **		Args are pushed onto the data stack in the same order
@@ -1553,7 +1553,7 @@ finished:
 
 /***********************************************************************
 **
-*/	void Do_Construct(REBVAL *value)
+*/	void Do_Construct(REBVAL value[])
 /*
 **		Do a block with minimal evaluation and no evaluation of
 **		functions. Used for things like script headers where security
@@ -1624,7 +1624,7 @@ finished:
 
 /***********************************************************************
 **
-*/	void Do_Min_Construct(REBVAL *value)
+*/	void Do_Min_Construct(REBVAL value[])
 /*
 **		Do no evaluation of the set values.
 **

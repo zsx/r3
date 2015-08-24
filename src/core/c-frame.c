@@ -277,21 +277,17 @@
 
 /***********************************************************************
 **
-*/ void Collect_Words(REBVAL *block, REBFLG modes)
+*/ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
 /*
 **		The inner recursive loop used for Collect_Frame function below.
 **
 ***********************************************************************/
 {
-	REBINT *binds = WORDS_HEAD(Bind_Table);
-	REBVAL *word;
-	REBVAL *value;
-
-	for (; NOT_END(block); block++) {
-		value = block;
+	for (; NOT_END(value); value++) {
 		if (ANY_WORD(value)) {
 			if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
 				if (IS_SET_WORD(value) || modes & BIND_ALL) {
+					REBVAL *word;
 					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
 					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
 					word = BLK_LAST(BUF_WORDS);
@@ -307,6 +303,7 @@
 				// If word duplicated:
 				if (modes & BIND_NO_DUP) {
 					// Reset binding table (note BUF_WORDS may have expanded):
+					REBVAL *word;
 					for (word = BLK_HEAD(BUF_WORDS); NOT_END(word); word++)
 						binds[VAL_WORD_CANON(word)] = 0;
 					RESET_TAIL(BUF_WORDS);  // allow reuse
@@ -317,7 +314,7 @@
 		}
 		// Recurse into sub-blocks:
 		if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-			Collect_Words(VAL_BLK_DATA(value), modes);
+			Collect_Frame_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
 		// In this mode (foreach native), do not allow non-words:
 		//else if (modes & BIND_GET) Trap_Arg_DEAD_END(value);
 	}
@@ -327,7 +324,7 @@
 
 /***********************************************************************
 **
-*/  REBSER *Collect_Frame(REBFLG modes, REBSER *prior, REBVAL *block)
+*/  REBSER *Collect_Frame(REBSER *prior, REBVAL value[], REBCNT modes)
 /*
 **		Scans a block for words to use in the frame. The list of
 **		words can then be used to create a frame. The Bind_Table is
@@ -351,7 +348,7 @@
 	if (prior) Collect_Object(prior);
 
 	// Scan for words, adding them to BUF_WORDS and bind table:
-	Collect_Words(block, modes);
+	Collect_Frame_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
 
 	return Collect_End(prior);
 }
@@ -359,33 +356,32 @@
 
 /***********************************************************************
 **
-*/  void Collect_Simple_Words(REBVAL *block, REBCNT modes)
+*/  static void Collect_Array_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
 /*
-**		Used for Collect_Block_Words().
+**		Used for Collect_Array_Words() after the binds table has
+**		been set up.
 **
 ***********************************************************************/
 {
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-	REBVAL *val;
-
-	for (; NOT_END(block); block++) {
-		if (ANY_WORD(block)
-			&& !binds[VAL_WORD_CANON(block)]
-			&& (modes & BIND_ALL || IS_SET_WORD(block))
+	for (; NOT_END(value); value++) {
+		if (ANY_WORD(value)
+			&& !binds[VAL_WORD_CANON(value)]
+			&& (modes & BIND_ALL || IS_SET_WORD(value))
 		) {
-			binds[VAL_WORD_CANON(block)] = 1;
-			val = Alloc_Tail_Blk(BUF_WORDS);
-			Val_Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(block));
+			REBVAL *word;
+			binds[VAL_WORD_CANON(value)] = 1;
+			word = Alloc_Tail_Blk(BUF_WORDS);
+			Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
 		}
-		else if (ANY_EVAL_BLOCK(block) && (modes & BIND_DEEP))
-			Collect_Simple_Words(VAL_BLK_DATA(block), modes);
+		else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
+			Collect_Array_Words_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
 	}
 }
 
 
 /***********************************************************************
 **
-*/  REBSER *Collect_Block_Words(REBVAL *block, REBVAL *prior, REBCNT modes)
+*/  REBSER *Collect_Array_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 /*
 **		Collect words from a prior block and new block.
 **
@@ -398,17 +394,17 @@
 
 	if (SERIES_TAIL(BUF_WORDS)) Panic_DEAD_END(RP_WORD_LIST); // still in use
 
-	if (prior)
-		Collect_Simple_Words(prior, BIND_ALL);
+	if (prior_value)
+		Collect_Array_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
 
 	start = SERIES_TAIL(BUF_WORDS);
-	Collect_Simple_Words(block, modes);
+	Collect_Array_Words_Inner_Loop(binds, &value[0], modes);
 
 	// Reset word markers:
-	for (block = BLK_HEAD(BUF_WORDS); NOT_END(block); block++)
-		binds[VAL_WORD_CANON(block)] = 0;
+	for (value = BLK_HEAD(BUF_WORDS); NOT_END(value); value++)
+		binds[VAL_WORD_CANON(value)] = 0;
 
-	series = Copy_Series_Part(BUF_WORDS, start, SERIES_TAIL(BUF_WORDS)-start);
+	series = Copy_Series_Part(BUF_WORDS, start, SERIES_TAIL(BUF_WORDS) - start);
 	RESET_TAIL(BUF_WORDS);  // allow reuse
 
 	CHECK_BIND_TABLE;
@@ -455,7 +451,7 @@
 
 /***********************************************************************
 **
-*/  REBSER *Make_Object(REBSER *parent, REBVAL *block)
+*/  REBSER *Make_Object(REBSER *parent, REBVAL value[])
 /*
 **      Create an object from a parent object and a spec block.
 **		The words within the resultant object are not bound.
@@ -467,12 +463,12 @@
 
 	PG_Reb_Stats->Objects++;
 
-	if (!block || IS_END(block)) {
+	if (!value || IS_END(value)) {
 		object = parent
 			? Copy_Block_Values(parent, 0, SERIES_TAIL(parent), TS_CLONE)
 			: Make_Frame(0, TRUE);
 	} else {
-		words = Collect_Frame(BIND_ONLY, parent, block); // GC safe
+		words = Collect_Frame(parent, &value[0], BIND_ONLY); // GC safe
 		object = Create_Frame(words, 0); // GC safe
 		if (parent) {
 			if (Reb_Opts->watch_obj_copy)
@@ -490,19 +486,20 @@
 
 /***********************************************************************
 **
-*/  REBSER *Construct_Object(REBSER *parent, REBVAL *block, REBFLG asis)
+*/  REBSER *Construct_Object(REBSER *parent, REBVAL value[], REBFLG as_is)
 /*
 **		Construct an object (partial evaluation of block).
-**		Parent can be null. Block is rebound.
+**		Parent can be null. Values are rebound.
 **
 ***********************************************************************/
 {
-	REBSER *frame;
+	REBSER *frame = Make_Object(parent, &value[0]);
 
-	frame = Make_Object(parent, block);
-	if (NOT_END(block)) Bind_Block(frame, block, BIND_ONLY);
-	if (asis) Do_Min_Construct(block);
-	else Do_Construct(block);
+	if (NOT_END(value)) Bind_Array_Shallow(&value[0], frame);
+
+	if (as_is) Do_Min_Construct(&value[0]);
+	else Do_Construct(&value[0]);
+
 	return frame;
 }
 
@@ -589,20 +586,21 @@
 
 /***********************************************************************
 **
-*/  REBSER *Make_Module_Spec(REBVAL *block)
+*/  REBSER *Make_Module_Spec(REBVAL *spec)
 /*
 **		Create a module spec object. Holds module name, version,
 **		exports, locals, and more. See system/standard/module.
 **
 ***********************************************************************/
 {
-	REBSER *obj;
+	// Build standard module header object:
+	REBSER *obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
 	REBSER *frame;
 
-	// Build standard module header object:
-	obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
-	if (block && IS_BLOCK(block)) frame = Construct_Object(obj, VAL_BLK_DATA(block), 0);
-	else frame = CLONE_OBJECT(obj);
+	if (spec && IS_BLOCK(spec))
+		frame = Construct_Object(obj, VAL_BLK_DATA(spec), FALSE);
+	else
+		frame = CLONE_OBJECT(obj);
 
 	return frame;
 }
@@ -632,7 +630,9 @@
 	// Setup binding table and BUF_WORDS with parent1 words:
 	if (parent1) Collect_Object(parent1);
 	// Add parent2 words to binding table and BUF_WORDS:
-	Collect_Words(BLK_SKIP(FRM_WORD_SERIES(parent2), 1), BIND_ALL);
+	Collect_Frame_Inner_Loop(
+		binds, BLK_SKIP(FRM_WORD_SERIES(parent2), 1), BIND_ALL
+	);
 
 	// Allocate child (now that we know the correct size):
 	wrds = Copy_Series(BUF_WORDS);
@@ -793,30 +793,21 @@
 
 /***********************************************************************
 **
-*/  static void Bind_Block_Words(REBSER *frame, REBVAL *value, REBCNT mode)
+*/  static void Bind_Array_Inner_Loop(REBINT *binds, REBVAL value[], REBSER *frame, REBCNT mode)
 /*
-**      Inner loop of bind block. Modes are:
-**
-**          BIND_ONLY    Only bind the words found in the frame.
-**          BIND_SET     Add set-words to the frame during the bind.
-**          BIND_ALL     Add words to the frame during the bind.
-**          BIND_DEEP    Recurse into sub-blocks.
-**
-**      NOTE: BIND_SET must be used carefully, because it does not
-**      bind prior instances of the word before the set-word. That is
-**      forward references are not allowed.
+**		Bind_Array_Core() sets up the binding table and then calls
+**		this recursive routine to do the actual binding.
 **
 ***********************************************************************/
 {
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-	REBCNT n;
 	REBFLG selfish = !IS_SELFLESS(frame);
 
 	for (; NOT_END(value); value++) {
 		if (ANY_WORD(value)) {
 			//Print("Word: %s", Get_Sym_Name(VAL_WORD_CANON(value)));
 			// Is the word found in this frame?
-			if ((n = binds[VAL_WORD_CANON(value)])) {
+			REBCNT n = binds[VAL_WORD_CANON(value)];
+			if (n != 0) {
 				if (n == NO_RESULT) n = 0; // SELF word
 				assert(n < SERIES_TAIL(frame));
 				// Word is in frame, bind it:
@@ -837,24 +828,36 @@
 			}
 		}
 		else if (ANY_BLOCK(value) && (mode & BIND_DEEP))
-			Bind_Block_Words(frame, VAL_BLK_DATA(value), mode);
+			Bind_Array_Inner_Loop(
+				binds, VAL_BLK_DATA(value), frame, mode
+			);
 		else if ((IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC))
-			Bind_Block_Words(frame, BLK_HEAD(VAL_FUNC_BODY(value)), mode);
+			Bind_Array_Inner_Loop(
+				binds, BLK_HEAD(VAL_FUNC_BODY(value)), frame, mode
+			);
 	}
 }
 
 
 /***********************************************************************
 **
-*/  void Bind_Block(REBSER *frame, REBVAL *block, REBCNT mode)
+*/  void Bind_Array_Core(REBVAL value[], REBSER *frame, REBCNT mode)
 /*
-**      Bind the words of a block to a specified frame.
-**      Different modes may be applied:
+**		Bind words in an array of values terminated with REB_END
+**		to a specified frame.  See warnings on the functions like
+**		Bind_Array_Deep() about not passing just a singular REBVAL.
+**
+**		Different modes may be applied:
+**
 **          BIND_ONLY - Only bind words found in the frame.
 **          BIND_ALL  - Add words to the frame during the bind.
 **          BIND_SET  - Add set-words to the frame during the bind.
 **                      (note: word must not occur before the SET)
 **          BIND_DEEP - Recurse into sub-blocks.
+**
+**		NOTE: BIND_SET must be used carefully, because it does not
+**		bind prior instances of the word before the set-word. That is
+**		to say that forward references are not allowed.
 **
 ***********************************************************************/
 {
@@ -870,18 +873,17 @@
 	// binding table for short blocks (size < 4), because testing
 	// every block for the rare case adds up.
 
-	// Setup binding table:
-	index = 1;
+	// Setup binding table
 	for (index = 1; index < frame->tail; index++) {
 		words = FRM_WORD(frame, index);
 		if (!VAL_GET_OPT(words, EXT_WORD_HIDE))
 			binds[VAL_BIND_CANON(words)] = index;
 	}
 
-	Bind_Block_Words(frame, block, mode);
+	Bind_Array_Inner_Loop(binds, &value[0], frame, mode);
 
 	// Reset binding table:
-	for (words = FRM_WORDS(frame)+1; NOT_END(words); words++)
+	for (words = FRM_WORDS(frame) + 1; NOT_END(words); words++)
 		binds[VAL_BIND_CANON(words)] = 0;
 
 	CHECK_BIND_TABLE;
@@ -890,7 +892,7 @@
 
 /***********************************************************************
 **
-*/  void Unbind_Block(REBVAL *val, REBSER *frame, REBCNT deep)
+*/  void Unbind_Array_Core(REBVAL value[], REBSER *frame, REBOOL deep)
 /*
 **		Unbind words in a block, optionally unbinding those which are
 **		bound to a particular frame (if frame is NULL, then all
@@ -898,13 +900,12 @@
 **
 ***********************************************************************/
 {
-	for (; NOT_END(val); val++) {
-		if (ANY_WORD(val) && (!frame || VAL_WORD_FRAME(val) == frame)) {
-			UNBIND(val);
-		}
-		if (ANY_BLOCK(val) && deep) {
-			Unbind_Block(VAL_BLK_DATA(val), frame, TRUE);
-		}
+	for (; NOT_END(value); value++) {
+		if (ANY_WORD(value) && (!frame || VAL_WORD_FRAME(value) == frame))
+			UNBIND_WORD(value);
+
+		if (ANY_BLOCK(value) && deep)
+			Unbind_Array_Core(VAL_BLK_DATA(value), frame, TRUE);
 	}
 }
 
@@ -921,7 +922,7 @@
 	REBCNT n;
 
 	n = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
-	if (n) {
+	if (n != 0) {
 		VAL_WORD_FRAME(word) = frame;
 		VAL_WORD_INDEX(word) = n;
 	}
@@ -931,7 +932,7 @@
 
 /***********************************************************************
 **
-*/  static void Bind_Relative_Words(REBSER *frame, REBSER *block)
+*/  static void Bind_Relative_Inner_Loop(REBINT *binds, REBSER *frame, REBSER *block)
 /*
 **      Recursive function for relative function word binding.
 **
@@ -941,19 +942,19 @@
 ***********************************************************************/
 {
 	REBVAL *value = BLK_HEAD(block);
-	REBINT n;
 
 	for (; NOT_END(value); value++) {
 		if (ANY_WORD(value)) {
 			// Is the word (canon sym) found in this frame?
-			if ((n = WORDS_HEAD(Bind_Table)[VAL_WORD_CANON(value)])) {
+			REBINT n = binds[VAL_WORD_CANON(value)];
+			if (n != 0) {
 				// Word is in frame, bind it:
 				VAL_WORD_INDEX(value) = n;
 				VAL_WORD_FRAME(value) = frame; // func body
 			}
 		}
 		else if (ANY_BLOCK(value))
-			Bind_Relative_Words(frame, VAL_SERIES(value));
+			Bind_Relative_Inner_Loop(binds, frame, VAL_SERIES(value));
 	}
 }
 
@@ -986,7 +987,7 @@
 	for (index = 1; NOT_END(args); args++, index++)
 		binds[VAL_BIND_CANON(args)] = -index;
 
-	Bind_Relative_Words(frame, block);
+	Bind_Relative_Inner_Loop(binds, frame, block);
 
 	// Reset binding table:
 	for (args = BLK_SKIP(words, 1); NOT_END(args); args++)
@@ -1113,7 +1114,7 @@
 
 	if (!frame) return 0;
 	n = Find_Word_Index(frame, sym, FALSE);
-	if (!n) return 0;
+	if (n == 0) return 0;
 	return BLK_SKIP(frame, n);
 }
 

@@ -67,7 +67,7 @@
 		// MAKE udef! [spec body]
 		if (IS_DATATYPE(value)) {
 			if (!IS_BLOCK(arg)) Trap_Arg_DEAD_END(arg);
-			spec = VAL_BLK(arg);
+			spec = VAL_BLK_HEAD(arg);
 			if (!IS_BLOCK(spec)) Trap_Arg_DEAD_END(arg);
 			body = VAL_BLK_SKIP(arg, 1);
 			if (!IS_BLOCK(body)) Trap_Arg_DEAD_END(arg);

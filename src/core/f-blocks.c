@@ -383,6 +383,6 @@
 
 	SERIES_CLR_FLAG(series, SER_MARK);
 
-	for (val = VAL_BLK(val); NOT_END(val); val++)
+	for (val = VAL_BLK_HEAD(val); NOT_END(val); val++)
 		Unmark(val);
 }

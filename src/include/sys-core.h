@@ -691,6 +691,58 @@ void Panic_Core(REBINT id, ...);
 
 /***********************************************************************
 **
+**	BINDING CONVENIENCE MACROS
+**
+**		** WARNING ** -- Don't pass these routines something like a
+**		singular REBVAL* (such as a REB_BLOCK) which you wish to have
+**		bound.  You must pass its *contents* as an array...as the
+**		deliberately-long-name implies!
+**
+**		So don't do this:
+**
+**			REBVAL *block = D_ARG(1);
+**			REBVAL *something = D_ARG(2);
+**			Bind_Array_Deep(block, frame);
+**
+**		What will happen is that the block will be treated as an
+**		array of values and get incremented.  In the above case it
+**		would reach to the next argument and bind it too (while
+**		likely crashing at some point not too long after that).
+**
+**		Instead write:
+**
+**			Bind_Array_Deep(VAL_BLK_HEAD(block), frame);
+**
+**		That will pass the address of the first value element of
+**		the block's contents.  You could use a later value element,
+**		but note that the interface as written doesn't have a length
+**		limit.  So although you can control where it starts, it will
+**		keep binding until it hits a REB_END marker value.
+**
+***********************************************************************/
+
+#define Bind_Array_Deep(values,frame) \
+	Bind_Array_Core((values), (frame), BIND_DEEP)
+
+#define Bind_Array_All_Deep(values,frame) \
+	Bind_Array_Core((values), (frame), BIND_ALL | BIND_DEEP)
+
+#define Bind_Array_Shallow(values, frame) \
+	Bind_Array_Core((values), (frame), BIND_ONLY)
+
+// Gave this a complex name to warn of its peculiarities.  Calling with
+// just BIND_SET is shallow and tricky because the set words must occur
+// before the uses (to be applied to bindings of those uses)!
+//
+#define Bind_Array_Set_Forward_Shallow(values, frame) \
+	Bind_Array_Core((values), (frame), BIND_SET)
+
+#define Unbind_Array_Deep(values) \
+	Unbind_Array_Core((values), NULL, TRUE)
+
+
+/***********************************************************************
+**
 **	Legacy Modes Checking
 **
 **		Ren/C wants to try out new things that will (or likely will) make
