@@ -81,7 +81,7 @@
 
 	if (BITS_NOT(ser)) Append_Unencoded(mold->series, "[not bits ");
 	Mold_Binary(value, mold);
-	if (BITS_NOT(ser)) Append_Byte(mold->series, ']');
+	if (BITS_NOT(ser)) Append_Codepoint_Raw(mold->series, ']');
 }
 
 

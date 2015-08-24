@@ -152,7 +152,9 @@
 	if (tf.s == 0 && tf.n == 0) fmt = "I:2";
 	else fmt = "I:2:2";
 
-	if (VAL_TIME(value) < (REBI64)0) Append_Byte(mold->series, '-');
+	if (VAL_TIME(value) < cast(REBI64, 0))
+		Append_Codepoint_Raw(mold->series, '-');
+
 	Emit(mold, fmt, tf.h, tf.m, tf.s, 0);
 
 	if (tf.n > 0) Emit(mold, ".i", tf.n);

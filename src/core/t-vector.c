@@ -650,7 +650,7 @@ bad_make:
 	if (molded) {
 		REBCNT type = (bits >= VTSF08) ? REB_DECIMAL : REB_INTEGER;
 		Pre_Mold(value, mold);
-		if (!GET_MOPT(mold, MOPT_MOLD_ALL)) Append_Byte(mold->series, '[');
+		if (!GET_MOPT(mold, MOPT_MOLD_ALL)) Append_Codepoint_Raw(mold->series, '[');
 		if (bits >= VTUI08 && bits <= VTUI64) Append_Unencoded(mold->series, "unsigned ");
 		Emit(mold, "N I I [", type+1, bit_sizes[bits & 3], len);
 		if (len) New_Indented_Line(mold);
@@ -671,16 +671,16 @@ bad_make:
 			c = 0;
 		}
 		else
-			Append_Byte(mold->series, ' ');
+			Append_Codepoint_Raw(mold->series, ' ');
 	}
 
 	if (len) mold->series->tail--; // remove final space
 
 	if (molded) {
 		if (len) New_Indented_Line(mold);
-		Append_Byte(mold->series, ']');
+		Append_Codepoint_Raw(mold->series, ']');
 		if (!GET_MOPT(mold, MOPT_MOLD_ALL)) {
-			Append_Byte(mold->series, ']');
+			Append_Codepoint_Raw(mold->series, ']');
 		}
 		else {
 			Post_Mold(value, mold);

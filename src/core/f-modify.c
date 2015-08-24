@@ -125,6 +125,7 @@
 	REBCNT src_len;
 	REBCNT tail  = SERIES_TAIL(dst_ser);
 	REBINT size;		// total to insert
+	REBOOL needs_free;
 
 	if (dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
 	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
@@ -132,25 +133,35 @@
 	// If the src_val is not a string, then we need to create a string:
 	if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
 		if (IS_INTEGER(src_val)) {
-			src_ser = Append_Byte(0, Int8u(src_val)); // creates a binary
+			src_ser = Make_Series_Codepoint(Int8u(src_val));
+			needs_free = TRUE;
 		}
 		else if (IS_BLOCK(src_val)) {
 			src_ser = Join_Binary(src_val); // NOTE: it's the shared FORM buffer!
+			needs_free = FALSE;
 		}
 		else if (IS_CHAR(src_val)) {
-			src_ser = Make_Binary(6); // (I hate unicode)
+			// "UTF-8 was originally specified to allow codepoints with up to
+			// 31 bits (or 6 bytes). But with RFC3629, this was reduced to 4
+			// bytes max. to be more compatible to UTF-16."  So depending on
+			// which RFC you consider "the UTF-8", max size is either 4 or 6.
+			src_ser = Make_Binary(6);
 			src_ser->tail = Encode_UTF8_Char(BIN_HEAD(src_ser), VAL_CHAR(src_val));
+			needs_free = TRUE;
 		}
 		else if (!ANY_BINSTR(src_val)) Trap_Arg_DEAD_END(src_val);
 	}
 	else if (IS_CHAR(src_val)) {
-		src_ser = Append_Byte(0, VAL_CHAR(src_val)); // unicode ok too
+		src_ser = Make_Series_Codepoint(VAL_CHAR(src_val));
+		needs_free = TRUE;
 	}
 	else if (IS_BLOCK(src_val)) {
 		src_ser = Form_Tight_Block(src_val);
+		needs_free = TRUE;
 	}
 	else if (!ANY_STR(src_val) || IS_TAG(src_val)) {
 		src_ser = Copy_Form_Value(src_val, 0);
+		needs_free = TRUE;
 	}
 
 	// Use either new src or the one that was passed:
@@ -161,6 +172,7 @@
 		src_ser = VAL_SERIES(src_val);
 		src_idx = VAL_INDEX(src_val);
 		src_len = VAL_LEN(src_val);
+		needs_free = FALSE;
 	}
 
 	// For INSERT or APPEND with /PART use the dst_len not src_len:
@@ -170,7 +182,9 @@
 	// Clone the argument just to be safe.
 	// (Note: It may be possible to optimize special cases like append !!)
 	if (dst_ser == src_ser) {
+		assert(!needs_free);
 		src_ser = Copy_Series_Part(src_ser, src_idx, src_len);
+		needs_free = TRUE;
 		src_idx = 0;
 	}
 
@@ -197,6 +211,12 @@
 	}
 
 	TERM_SERIES(dst_ser);
+
+	if (needs_free) {
+		// If we did not use the series that was passed in, but rather
+		// created an internal temporary one, we need to free it.
+		Free_Series(src_ser);
+	}
 
 	return (action == A_APPEND) ? 0 : dst_idx;
 }

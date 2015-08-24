@@ -127,7 +127,7 @@
 
 	if (VAL_TIME(value) != NO_TIME) {
 
-		Append_Byte(mold->series, '/');
+		Append_Codepoint_Raw(mold->series, '/');
 		Emit_Time(mold, value);
 
 		if (VAL_ZONE(value) != 0) {

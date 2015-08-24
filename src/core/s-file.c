@@ -188,7 +188,7 @@
 			dst->tail = abs(clen);
 			//Append_Unencoded(dst, lpath);
 #endif
-			Append_Byte(dst, OS_DIR_SEP);
+			Append_Codepoint_Raw(dst, OS_DIR_SEP);
 			OS_FREE(lpath);
 		}
 		out = UNI_HEAD(dst);

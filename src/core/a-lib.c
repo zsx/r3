@@ -524,7 +524,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	text = Decompress(bin, length, 10000000, 0);
 	if (!text) return FALSE;
-	Append_Byte(text, 0);
+	Append_Codepoint_Raw(text, 0);
 
 #ifdef DUMP_INIT_SCRIPT
 	f = _open("host-boot.r", _O_CREAT | _O_RDWR, _S_IREAD | _S_IWRITE );

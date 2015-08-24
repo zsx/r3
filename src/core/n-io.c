@@ -759,9 +759,9 @@ chk_neg:
 
 	for (value = VAL_BLK_DATA(blk); NOT_END(value); value++) {
 		Mold_Value(&mo, value, 0);
-		Append_Byte(mo.series, 0);
+		Append_Codepoint_Raw(mo.series, 0);
 	}
-	Append_Byte(mo.series, 0);
+	Append_Codepoint_Raw(mo.series, 0);
 
 	return Copy_Series(mo.series); // Unicode
 }

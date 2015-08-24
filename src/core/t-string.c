@@ -183,7 +183,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
 	// MAKE/TO <type> #"A"
 	else if (IS_CHAR(arg)) {
 		ser = (VAL_CHAR(arg) > 0xff) ? Make_Unicode(2) : Make_Binary(2);
-		Append_Byte(ser, VAL_CHAR(arg));
+		Append_Codepoint_Raw(ser, VAL_CHAR(arg));
 	}
 	// MAKE/TO <type> <any-value>
 //	else if (IS_NONE(arg)) {
@@ -427,7 +427,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
 	n = SERIES_TAIL(ser);
 	if (n > 0) c = GET_ANY_CHAR(ser, n-1);
-	if (n == 0 || c != '/') Append_Byte(ser, '/');
+	if (n == 0 || c != '/') Append_Codepoint_Raw(ser, '/');
 
 	if (ANY_STR(pvs->select))
 		arg = VAL_SERIES(pvs->select);

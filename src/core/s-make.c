@@ -398,37 +398,55 @@ cp_same:
 
 /***********************************************************************
 **
-*/	REBSER *Append_Byte(REBSER *dst, REBCNT chr)
+*/	REBSER *Append_Codepoint_Raw(REBSER *dst, REBCNT codepoint)
 /*
 **		Optimized function to append a non-encoded character.
-**		If dst is null, it will be created and returned and the
-**		chr will be used to determine the width.
-**
 **		Destination can be 1 or 2 bytes wide, but DOES NOT WIDEN.
 **
 ***********************************************************************/
 {
-	REBCNT tail;
+	REBCNT tail = SERIES_TAIL(dst);
 
-	if (!dst) {
-		dst = (chr > 255) ? Make_Unicode(3) : Make_Binary(3);
-		tail = 0;
-		SERIES_TAIL(dst) = 1;
-	} else {
-		tail = SERIES_TAIL(dst);
-		EXPAND_SERIES_TAIL(dst, 1);
-	}
+	EXPAND_SERIES_TAIL(dst, 1);
 
 	if (BYTE_SIZE(dst)) {
-		*STR_SKIP(dst, tail) = (REBYTE)chr;
+		assert(codepoint < (1 << 8));
+		*STR_SKIP(dst, tail) = cast(REBYTE, codepoint);
 		STR_TERM(dst);
 	}
 	else {
-		*UNI_SKIP(dst, tail) = (REBUNI)chr;
+		assert(codepoint < (1 << 16));
+		*UNI_SKIP(dst, tail) = cast(REBUNI, codepoint);
 		UNI_TERM(dst);
 	}
 
 	return dst;
+}
+
+
+/***********************************************************************
+**
+*/	REBSER *Make_Series_Codepoint(REBCNT codepoint)
+/*
+**		Create a series that holds a single codepoint.  If the
+**		codepoint will fit into a byte, then it will be a byte
+**		series.  If two bytes, it will be a REBUNI series.
+**
+**		(Codepoints greater than the size of REBUNI are not
+**		currently supported in Rebol3.)
+**
+***********************************************************************/
+{
+	REBSER *out;
+
+	assert(codepoint < (1 << 16));
+
+	out = (codepoint > 255) ? Make_Unicode(1) : Make_Binary(1);
+	TERM_SERIES(out);
+
+	Append_Codepoint_Raw(out, codepoint);
+
+	return out;
 }
 
 

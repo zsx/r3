@@ -242,10 +242,10 @@ static REBREQ *Req_SIO;
 		// !!! account for unicode!
 		for (; len > 0; len--) {
 			uc = uni ? *up++ : *bp++;
-			Append_Byte(Trace_Buffer, uc);
+			Append_Codepoint_Raw(Trace_Buffer, uc);
 		}
 		//Append_Unencoded_Len(Trace_Buffer, bp, len);
-		for (; lines > 0; lines--) Append_Byte(Trace_Buffer, LF);
+		for (; lines > 0; lines--) Append_Codepoint_Raw(Trace_Buffer, LF);
 	}
 	else {
 		Prin_OS_String(p, len, uni);

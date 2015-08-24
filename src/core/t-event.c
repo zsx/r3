@@ -552,7 +552,7 @@ enum rebol_event_fields {
 	};
 
 	Pre_Mold(value, mold);
-	Append_Byte(mold->series, '[');
+	Append_Codepoint_Raw(mold->series, '[');
 	mold->indent++;
 
 	for (field = 0; fields[field]; field++) {
@@ -561,14 +561,14 @@ enum rebol_event_fields {
 			New_Indented_Line(mold);
 			Append_UTF8(mold->series, Get_Sym_Name(fields[field]), -1);
 			Append_Unencoded(mold->series, ": ");
-			if (IS_WORD(&val)) Append_Byte(mold->series, '\'');
+			if (IS_WORD(&val)) Append_Codepoint_Raw(mold->series, '\'');
 			Mold_Value(mold, &val, TRUE);
 		}
 	}
 
 	mold->indent--;
 	New_Indented_Line(mold);
-	Append_Byte(mold->series, ']');
+	Append_Codepoint_Raw(mold->series, ']');
 
 	End_Mold(mold);
 }
