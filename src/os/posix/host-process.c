@@ -547,8 +547,7 @@ child_error:
 			//printf("stdout_pipe[R]: %d\n", stdout_pipe[R]);
 			output_size = BUF_SIZE_CHUNK;
 
-			// !!! Uses realloc(), can't use OS_ALLOC_ARRAY
-			*output = cast(char*, malloc(output_size));
+			*output = OS_ALLOC_ARRAY(char, output_size);
 
 			pfds[nfds].fd = stdout_pipe[R];
 			pfds[nfds].events = POLLIN;
@@ -561,8 +560,7 @@ child_error:
 			//printf("stderr_pipe[R]: %d\n", stderr_pipe[R]);
 			err_size = BUF_SIZE_CHUNK;
 
-			// !!! Uses realloc(), can't use OS_ALLOC_ARRAY
-			*err = cast(char*, malloc(err_size));
+			*err = OS_ALLOC_ARRAY(char, err_size);
 
 			pfds[nfds].fd = stderr_pipe[R];
 			pfds[nfds].events = POLLIN;
@@ -578,8 +576,9 @@ child_error:
 			nfds++;
 
 			info_size = 4;
-			// !!! Uses realloc(), can't use OS_ALLOC_ARRAY
-			info = cast(char*, malloc(info_size));
+
+			info = OS_ALLOC_ARRAY(char, info_size);
+
 			close(info_pipe[W]);
 			info_pipe[W] = -1;
 		}
@@ -700,11 +699,13 @@ child_error:
 						//printf("POLLIN: %d bytes\n", nbytes);
 						*offset += nbytes;
 						if (*offset >= size) {
+							char *larger =
+								OS_ALLOC_ARRAY(char, size + BUF_SIZE_CHUNK);
+							if (!larger) goto kill;
+							memcpy(larger, *buffer, size * sizeof(larger[0]));
+							OS_FREE(*buffer);
+							*buffer = larger;
 							size += BUF_SIZE_CHUNK;
-							*buffer = cast(char *,
-								realloc(*buffer, size * sizeof((*buffer)[0]))
-							);
-							if (*buffer == NULL) goto kill;
 						}
 					} while (nbytes == to_read);
 				} else if (pfds[i].revents & POLLHUP) {
@@ -752,13 +753,13 @@ error:
 	if (!ret) ret = -1;
 cleanup:
 	if (output != NULL && *output != NULL && *output_len <= 0) {
-		free(*output);
+		OS_FREE(*output);
 	}
 	if (err != NULL && *err != NULL && *err_len <= 0) {
-		free(*err);
+		OS_FREE(*err);
 	}
 	if (info != NULL) {
-		free(info);
+		OS_FREE(info);
 	}
 	if (info_pipe[R] > 0) {
 		close(info_pipe[R]);
