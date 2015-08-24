@@ -232,6 +232,9 @@ static REBREQ *Req_SIO;
 	const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
 	const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
 
+	REBINT disabled = GC_Disabled;
+	GC_Disabled = 1;
+
 	if (Trace_Limit > 0) {
 		if (Trace_Buffer->tail >= Trace_Limit)
 			Remove_Series(Trace_Buffer, 0, 2000);
@@ -248,6 +251,9 @@ static REBREQ *Req_SIO;
 		Prin_OS_String(p, len, uni);
 		for (; lines > 0; lines--) Print_OS_Line();
 	}
+
+	assert(GC_Disabled == 1);
+	GC_Disabled = disabled;
 }
 
 
@@ -287,6 +293,9 @@ static REBREQ *Req_SIO;
 	REBUNI *up = UNI_HEAD(ser);
 	REBINT size = Length_As_UTF8(up, SERIES_TAIL(ser), TRUE, OS_CRLF);
 
+	REBINT disabled = GC_Disabled;
+	GC_Disabled = 1;
+
 	while (size > 0) {
 		ul = Encode_UTF8(buf, MIN(size, 1020), up, &bl, TRUE, OS_CRLF);
 		Debug_String(buf, bl, 0, 0);
@@ -295,6 +304,9 @@ static REBREQ *Req_SIO;
 	}
 
 	Debug_Line();
+
+	assert(GC_Disabled == 1);
+	GC_Disabled = disabled;
 }
 
 
@@ -482,6 +494,9 @@ static REBREQ *Req_SIO;
 
 	if (!buf) Panic(RP_NO_BUFFER);
 
+	REBINT disabled = GC_Disabled;
+	GC_Disabled = 1;
+
 	RESET_SERIES(buf);
 
 	// Limits output to size of buffer, will not expand it:
@@ -493,6 +508,9 @@ static REBREQ *Req_SIO;
 		if (len > 1024) len = 1024;
 		Debug_String(STR_SKIP(buf, n), len, 0, 0);
 	}
+
+	assert(GC_Disabled == 1);
+	GC_Disabled = disabled;
 }
 
 
