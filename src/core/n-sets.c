@@ -116,8 +116,13 @@ enum {
 				val2 = val;
 				CLR_FLAG(flags, SOP_BOTH);
 			}
+
+			if (GET_FLAG(flags, SOP_CHECK))
+				Free_Series(hser);
 		} while (i);
 
+		if (hret)
+			Free_Series(hret);
 
 		Val_Init_Block(D_OUT, Copy_Series(retser));
 		RESET_TAIL(retser); // required - allow reuse

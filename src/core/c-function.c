@@ -517,4 +517,5 @@
 		DSF_ARG(DSF, 1), SERIES_TAIL(VAL_FUNC_WORDS(routine)) - 1
 	);
 	Call_Routine(routine, args, DSF_OUT(DSF));
+	Free_Series(args);
 }

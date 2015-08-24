@@ -282,6 +282,7 @@
 	Encode_UTF8(BIN_HEAD(bin), n+FN_PAD, UNI_HEAD(ser), &n, TRUE, OS_CRLF);
 	SERIES_TAIL(bin) = n;
 	TERM_SERIES(bin);
+	Free_Series(ser);
 	ser = bin;
 #endif
 

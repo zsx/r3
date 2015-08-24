@@ -195,6 +195,7 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 		// !! Can be optimized (w/o COPY)
 		ser = Copy_Form_Value(item, 0);
 		index = Find_Str_Str(series, 0, index, SERIES_TAIL(series), 1, ser, 0, ser->tail, flags);
+		Free_Series(ser);
 		break;
 
 	case REB_NONE:
@@ -518,6 +519,7 @@ bad_target:
 					ser = Copy_Form_Value(item, 0);
 					i = Find_Str_Str(series, 0, index, series->tail, 1, ser, 0, ser->tail, HAS_CASE(parse));
 					if (i != NOT_FOUND && is_thru) i += ser->tail;
+					Free_Series(ser);
 				}
 				else {
 					i = Find_Str_Str(series, 0, index, series->tail, 1, VAL_SERIES(item), VAL_INDEX(item), VAL_LEN(item), HAS_CASE(parse));

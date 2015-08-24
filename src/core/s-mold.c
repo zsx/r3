@@ -535,6 +535,7 @@ static void Mold_Tag(const REBVAL *value, REB_MOLD *mold)
 	}
 
 	Emit(mold, "#{E}", out);
+	Free_Series(out);
 }
 
 static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
