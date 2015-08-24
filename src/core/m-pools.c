@@ -624,6 +624,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		// REBSER header allocation is done
 
 		SERIES_SET_FLAG(series, SER_EXTERNAL);
+		series->info |= wide & 0xFF;
+		series->rest = length;
 	}
 	else {
 		// Allocate the actual data blob that holds the series elements
