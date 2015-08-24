@@ -243,7 +243,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// object/(expr) case:
 	else if (IS_PAREN(path)) {
 
-		if (DO_BLOCK_THROWS(&temp, VAL_SERIES(path), 0)) {
+		if (Do_Block_Throws(&temp, VAL_SERIES(path), 0)) {
 			*pvs->value = temp;
 			return;
 		}
@@ -928,7 +928,7 @@ do_at_index:
 		break;
 
 	case REB_PAREN:
-		if (DO_BLOCK_THROWS(out, VAL_SERIES(value), 0)) {
+		if (Do_Block_Throws(out, VAL_SERIES(value), 0)) {
 			index = THROWN_FLAG;
 			goto return_index;
 		}
@@ -1031,7 +1031,7 @@ return_index:
 
 	while (index < BLK_LEN(block)) {
 		REBVAL reduced;
-		index = DO_NEXT_MAY_THROW(&reduced, block, index);
+		index = Do_Next_May_Throw(&reduced, block, index);
 		if (index == THROWN_FLAG) {
 			*out = reduced;
 			DS_DROP_TO(dsp_orig);
@@ -1123,7 +1123,7 @@ finished:
 		}
 		else {
 			REBVAL reduced;
-			index = DO_NEXT_MAY_THROW(&reduced, block, index);
+			index = Do_Next_May_Throw(&reduced, block, index);
 			if (index == THROWN_FLAG) {
 				*out = reduced;
 				DS_DROP_TO(dsp_orig);
@@ -1231,7 +1231,7 @@ finished:
 		if (IS_PAREN(value)) {
 			REBVAL evaluated;
 
-			if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(value), 0)) {
+			if (Do_Block_Throws(&evaluated, VAL_SERIES(value), 0)) {
 				*out = evaluated;
 				DS_DROP_TO(dsp_orig);
 				goto finished;
@@ -1288,7 +1288,7 @@ finished:
 /*
 **		Use a block at a certain index as the source of parameters to
 **		a function invocation.  If 'reduce' then the block will be
-**		evaluated in steps via DO_NEXT_MAY_THROW and the results passed as
+**		evaluated in steps via Do_Next_May_Throw and the results passed as
 **		the arguments, otherwise it will be taken as literal values.
 **
 **		Refinements are passed according to their positions relative
@@ -1349,7 +1349,7 @@ finished:
 
 		// Reduce (or just copy) block content to call frame:
 		if (reduce) {
-			index = DO_NEXT_MAY_THROW(out, block, index);
+			index = Do_Next_May_Throw(out, block, index);
 			if (index == THROWN_FLAG) {
 				Free_Call(call);
 				return FALSE;

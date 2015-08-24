@@ -108,7 +108,7 @@
 	for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
 		VAL_INDEX(var) = si;
 
-		if (DO_BLOCK_THROWS(out, body, 0)) {
+		if (Do_Block_Throws(out, body, 0)) {
 			if (Process_Loop_Throw(out) >= 0) break;
 		}
 
@@ -131,7 +131,7 @@
 	while ((incr > 0) ? start <= end : start >= end) {
 		VAL_INT64(var) = start;
 
-		if (DO_BLOCK_THROWS(out, body, 0)) {
+		if (Do_Block_Throws(out, body, 0)) {
 			if (Process_Loop_Throw(out) >= 0) break;
 		}
 
@@ -174,7 +174,7 @@
 	for (; (i > 0.0) ? s <= e : s >= e; s += i) {
 		VAL_DECIMAL(var) = s;
 
-		if (DO_BLOCK_THROWS(out, body, 0)) {
+		if (Do_Block_Throws(out, body, 0)) {
 			if (Process_Loop_Throw(out) >= 0) break;
 		}
 
@@ -235,7 +235,7 @@
 				VAL_INDEX(var) = idx;
 			}
 
-			if (DO_BLOCK_THROWS(D_OUT, body, bodi)) {
+			if (Do_Block_Throws(D_OUT, body, bodi)) {
 				if (Process_Loop_Throw(D_OUT) >= 0) {
 					break;
 				}
@@ -422,7 +422,7 @@
 		}
 		if (index == rindex) index++; //the word block has only set-words: foreach [a:] [1 2 3][]
 
-		if (DO_BLOCK_THROWS(D_OUT, body, 0)) {
+		if (Do_Block_Throws(D_OUT, body, 0)) {
 			if ((err = Process_Loop_Throw(D_OUT)) >= 0) {
 				index = rindex;
 				break;
@@ -542,7 +542,7 @@ skip_hidden: ;
 ***********************************************************************/
 {
 	do {
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
 			if (Process_Loop_Throw(D_OUT) >= 0) return R_OUT;
 		}
 	} while (TRUE);
@@ -608,7 +608,7 @@ skip_hidden: ;
 	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
 
 	for (; count > 0; count--) {
-		if (DO_BLOCK_THROWS(D_OUT, block, index)) {
+		if (Do_Block_Throws(D_OUT, block, index)) {
 			if (Process_Loop_Throw(D_OUT) >= 0) break;
 		}
 	}
@@ -665,7 +665,7 @@ skip_hidden: ;
 
 	do {
 utop:
-		if (DO_BLOCK_THROWS(D_OUT, b1, i1)) {
+		if (Do_Block_Throws(D_OUT, b1, i1)) {
 			if (Process_Loop_Throw(D_OUT) >= 0) break;
 			goto utop;
 		}
@@ -698,7 +698,7 @@ utop:
 	SET_NONE(D_OUT);
 
 	do {
-		if (DO_BLOCK_THROWS(&temp, b1, i1) || IS_UNSET(&temp)) {
+		if (Do_Block_Throws(&temp, b1, i1) || IS_UNSET(&temp)) {
 			if (Process_Loop_Throw(&temp) >= 0) {
 				// Process_Loop_Throw modifies its argument so temp will be
 				// UNSET! (or the arg to BREAK/WITH) if a BREAK happened.
@@ -713,7 +713,7 @@ utop:
 		// Not interested in the value of the condition loop once we've
 		// decided to run the body...
 
-		if (DO_BLOCK_THROWS(D_OUT, b2, i2)) {
+		if (Do_Block_Throws(D_OUT, b2, i2)) {
 			// !!! Process_Loop_Throw may modify its argument
 			if (Process_Loop_Throw(D_OUT) >= 0) return R_OUT;
 		}

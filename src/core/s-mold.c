@@ -1334,7 +1334,7 @@ append:
 
 	while (index < BLK_LEN(block)) {
 		REBVAL out;
-		index = DO_NEXT_MAY_THROW(&out, block, index);
+		index = Do_Next_May_Throw(&out, block, index);
 		if (index == THROWN_FLAG) goto return_balanced;
 		DS_PUSH(&out);
 	}

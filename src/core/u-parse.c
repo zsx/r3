@@ -209,7 +209,7 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 	// Do an expression:
 	case REB_PAREN:
 		// might GC
-		if (DO_BLOCK_THROWS(&save, VAL_SERIES(item), 0)) {
+		if (Do_Block_Throws(&save, VAL_SERIES(item), 0)) {
 			*parse->out = save;
 			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 			DEAD_END;
@@ -282,7 +282,7 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 	// Do an expression:
 	case REB_PAREN:
 		// might GC
-		if (DO_BLOCK_THROWS(&save, VAL_SERIES(item), 0)) {
+		if (Do_Block_Throws(&save, VAL_SERIES(item), 0)) {
 			*parse->out = save;
 			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 			DEAD_END;
@@ -341,7 +341,7 @@ no_result:
 						if (IS_END(item)) goto bad_target;
 						if (IS_PAREN(item)) {
 							// might GC
-							if (DO_BLOCK_THROWS(&save, VAL_SERIES(item), 0)) {
+							if (Do_Block_Throws(&save, VAL_SERIES(item), 0)) {
 								*parse->out = save;
 								Trap(RE_PARSE_LONGJMP_HACK);
 								DEAD_END;
@@ -444,7 +444,7 @@ next:		// Check for | (required if not end)
 found:
 	if (IS_PAREN(blk + 1)) {
 		REBVAL evaluated;
-		if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(blk + 1), 0)) {
+		if (Do_Block_Throws(&evaluated, VAL_SERIES(blk + 1), 0)) {
 			*parse->out = evaluated;
 			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 			DEAD_END;
@@ -456,7 +456,7 @@ found:
 found1:
 	if (IS_PAREN(blk + 1)) {
 		REBVAL evaluated;
-		if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(blk + 1), 0)) {
+		if (Do_Block_Throws(&evaluated, VAL_SERIES(blk + 1), 0)) {
 			*parse->out = save;
 			Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 			DEAD_END;
@@ -582,7 +582,7 @@ bad_target:
 	}
 
 	// Evaluate next N input values:
-	index = DO_NEXT_MAY_THROW(&value, parse->series, index);
+	index = Do_Next_May_Throw(&value, parse->series, index);
 
 	if (index == THROWN_FLAG) {
 		// Value is a THROW, RETURN, BREAK, etc...we have to stop processing
@@ -605,7 +605,7 @@ bad_target:
 			if (IS_END(item)) Trap1_DEAD_END(RE_PARSE_END, item-2);
 			if (IS_PAREN(item)) {
 				// might GC
-				if (DO_BLOCK_THROWS(&save, VAL_SERIES(item), 0)) {
+				if (Do_Block_Throws(&save, VAL_SERIES(item), 0)) {
 					*parse->out = save;
 					Trap(RE_PARSE_LONGJMP_HACK);
 					DEAD_END;
@@ -790,7 +790,7 @@ bad_target:
 
 					case SYM_RETURN:
 						if (IS_PAREN(rules)) {
-							if (DO_BLOCK_THROWS(
+							if (Do_Block_Throws(
 								parse->out, VAL_SERIES(rules), 0
 							)) {
 								// If the paren evaluation result gives a
@@ -826,7 +826,7 @@ bad_target:
 						if (!IS_PAREN(item)) Trap1_DEAD_END(RE_PARSE_RULE, item);
 
 						// might GC
-						if (DO_BLOCK_THROWS(&save, VAL_SERIES(item), 0)) {
+						if (Do_Block_Throws(&save, VAL_SERIES(item), 0)) {
 							*parse->out = save;
 							Trap(RE_PARSE_LONGJMP_HACK);
 							DEAD_END;
@@ -932,7 +932,7 @@ bad_target:
 			REBVAL evaluated;
 
 			// might GC
-			if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(item), 0)) {
+			if (Do_Block_Throws(&evaluated, VAL_SERIES(item), 0)) {
 				*parse->out = evaluated;
 				Trap(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 				DEAD_END;
@@ -1002,7 +1002,7 @@ bad_target:
 					rulen = 1;
 					if (IS_PAREN(rules)) {
 						// might GC
-						if (DO_BLOCK_THROWS(&save, VAL_SERIES(rules), 0)) {
+						if (Do_Block_Throws(&save, VAL_SERIES(rules), 0)) {
 							*parse->out = save;
 							Trap(RE_PARSE_LONGJMP_HACK);
 							DEAD_END;

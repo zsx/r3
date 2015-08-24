@@ -351,7 +351,7 @@ enum encoding_opts {
 
 /***********************************************************************
 **
-**	DO_NEXT_MAY_THROW
+**	Do_Next_May_Throw
 **
 **		This is a wrapper for the basic building block of Rebol
 **		evaluation.  See Do_Next_Core() for its inner workings, but
@@ -379,10 +379,10 @@ enum encoding_opts {
 **		return value...because the function call would never return!
 **		See PUSH_TRAP() and Do_Error() for more information.
 **
-**	DO_BLOCK_THROWS
+**	Do_Block_Throws
 **
-**		DO_BLOCK_THROWS behaves "as if" it is performing iterated
-**		calls to DO_NEXT_MAY_THROW until the end of block is reached.
+**		Do_Block_Throws behaves "as if" it is performing iterated
+**		calls to Do_Next_May_Throw until the end of block is reached.
 **		(Under the hood it is actually more efficient than doing so.)
 **		It is named the way it is because it's expected to usually be
 **		used in an 'if' statement.  It cues you into realizing
@@ -395,12 +395,17 @@ enum encoding_opts {
 **		last value evaluated in the block (empty blocks give UNSET!).
 **		If it returns TRUE then it will be the THROWN() value.
 **
+**		NOTE: Because these macros use each of their arguments exactly
+**		once in all builds, they have the same argument evaluation
+**		as a function.  So they are named w/Leading_Caps_Underscores
+**		to convey that they abide by this contract.
+**
 ***********************************************************************/
 
-#define DO_NEXT_MAY_THROW(out,series,index) \
+#define Do_Next_May_Throw(out,series,index) \
 	Do_Core((out), TRUE, (series), (index), TRUE)
 
-#define DO_BLOCK_THROWS(out,series,index) \
+#define Do_Block_Throws(out,series,index) \
 	(THROWN_FLAG == Do_Core((out), FALSE, (series), (index), TRUE))
 
 

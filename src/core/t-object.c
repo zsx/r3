@@ -318,7 +318,7 @@ static REBSER *Trim_Object(REBSER *obj)
 					Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
 
 					// GC-OK
-					if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0))
+					if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0))
 						return R_OUT;
 
 					break; // returns obj
@@ -399,7 +399,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
 
 				// GC-OK
-				if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
+				if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
 
 				break; // returns obj
 			}

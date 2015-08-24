@@ -169,7 +169,7 @@ static	BOOT_BLK *Boot_Block;
 	if (rebind > 0) Bind_Array_Deep(BLK_HEAD(block), Lib_Context);
 	if (rebind > 1) Bind_Array_Deep(BLK_HEAD(block), Sys_Context);
 
-	if (DO_BLOCK_THROWS(&result, block, 0))
+	if (Do_Block_Throws(&result, block, 0))
 		Panic(RP_EARLY_ERROR);
 
 	if (!IS_UNSET(&result))
@@ -387,7 +387,7 @@ static	BOOT_BLK *Boot_Block;
 	Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK_HEAD(spec)));
 	Bind_Array_Deep(VAL_BLK_HEAD(spec), VAL_OBJ_FRAME(D_OUT));
 
-	if (DO_BLOCK_THROWS(&evaluated, VAL_SERIES(spec), 0)) {
+	if (Do_Block_Throws(&evaluated, VAL_SERIES(spec), 0)) {
 		*D_OUT = evaluated;
 		return R_OUT;
 	}
@@ -647,7 +647,7 @@ static	BOOT_BLK *Boot_Block;
 	Bind_Array_Shallow(VAL_BLK_HEAD(&Boot_Block->sysobj), frame);
 
 	// Evaluate the block (will eval FRAMEs within):
-	if (DO_BLOCK_THROWS(&result, VAL_SERIES(&Boot_Block->sysobj), 0))
+	if (Do_Block_Throws(&result, VAL_SERIES(&Boot_Block->sysobj), 0))
 		Panic(RP_EARLY_ERROR);
 
 	// Expects UNSET! by convention

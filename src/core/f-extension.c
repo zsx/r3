@@ -578,7 +578,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 					}
 				}
 				else if (IS_PAREN(val)) {
-					if (DO_BLOCK_THROWS(&save, VAL_SERIES(val), 0)) {
+					if (Do_Block_Throws(&save, VAL_SERIES(val), 0)) {
 						Trap_Thrown(&save); // !!! Better answer?
 						DEAD_END_VOID;
 					}

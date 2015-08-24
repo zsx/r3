@@ -136,7 +136,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 		while (index < SERIES_TAIL(block)) {
 			i = index;
-			index = DO_NEXT_MAY_THROW(D_OUT, block, index);
+			index = Do_Next_May_Throw(D_OUT, block, index);
 
 			if (index == THROWN_FLAG) return R_OUT;
 

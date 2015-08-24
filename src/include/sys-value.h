@@ -474,7 +474,7 @@ typedef struct Reb_Tuple {
 #define SERIES_DATA(s)   ((s)->data)
 #define	SERIES_SKIP(s,i) (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
 
-// These flags are returned from Do_Next_Core and DO_NEXT_MAY_THROW, in
+// These flags are returned from Do_Next_Core and Do_Next_May_Throw, in
 // order to keep from needing another returned value in addition to the
 // index (as they both imply that no "next index" exists to be returned)
 

@@ -450,7 +450,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		Resolve_Context(user, Lib_Context, &vali, FALSE, 0);
 	}
 
-	if (DO_BLOCK_THROWS(&out, code, 0)) {
+	if (Do_Block_Throws(&out, code, 0)) {
 		UNSAVE_SERIES(code);
 
 		if (

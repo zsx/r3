@@ -564,7 +564,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 	if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
 		REBVAL ret;
 
-		if (DO_BLOCK_THROWS(&ret, VAL_SERIES(val), 0)) {
+		if (Do_Block_Throws(&ret, VAL_SERIES(val), 0)) {
 			// !!! Does not check for thrown cases...what should this
 			// do in case of THROW, BREAK, QUIT?
 			Trap_Thrown(&ret);
@@ -692,7 +692,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 					Reduce_Block(init, VAL_SERIES(blk), 0, FALSE);
 					++ blk;
 				} else {
-					eval_idx = DO_NEXT_MAY_THROW(
+					eval_idx = Do_Next_May_Throw(
 						init, VAL_SERIES(data), blk - VAL_BLK_DATA(data)
 					);
 					if (eval_idx == THROWN_FLAG) {

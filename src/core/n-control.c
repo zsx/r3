@@ -260,7 +260,7 @@ enum {
 	SET_TRUE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
-		index = DO_NEXT_MAY_THROW(D_OUT, block, index);
+		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) break;
 		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
 		/* if (IS_UNSET(D_OUT)) { Trap(RE_NO_RETURN); } */
@@ -283,7 +283,7 @@ enum {
 	REBCNT index = VAL_INDEX(D_ARG(1));
 
 	while (index < SERIES_TAIL(block)) {
-		index = DO_NEXT_MAY_THROW(D_OUT, block, index);
+		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT;
 
 		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
@@ -333,7 +333,7 @@ enum {
 
 	if (error) return R_NONE;
 
-	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
+	if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
 		// This means that D_OUT is a THROWN() value, but we have
 		// no special processing to apply.  Fall through and return it.
 	}
@@ -398,7 +398,7 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 
-		index = DO_NEXT_MAY_THROW(condition_result, block, index);
+		index = Do_Next_May_Throw(condition_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *condition_result; // is a RETURN, BREAK, THROW...
@@ -420,7 +420,7 @@ enum {
 		// case) and get an error.  Code not in blocks must be evaluated
 		// even if false, as it is with 'if false (print "eval'd")'
 		//
-		// If the source was a literal block then the DO_NEXT_MAY_THROW
+		// If the source was a literal block then the Do_Next_May_Throw
 		// will *probably* be a no-op, but consider infix operators:
 		//
 		//     case [true [stuff] + [more stuff]]
@@ -442,7 +442,7 @@ enum {
 			continue;
 		}
 
-		index = DO_NEXT_MAY_THROW(body_result, block, index);
+		index = Do_Next_May_Throw(body_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *body_result; // is a RETURN, BREAK, THROW...
@@ -468,7 +468,7 @@ enum {
 				//     stuff: [print "This will be printed"]
 				//     case [true stuff]
 				//
-				if (DO_BLOCK_THROWS(
+				if (Do_Block_Throws(
 					D_OUT, VAL_SERIES(body_result), VAL_INDEX(body_result)
 				)) {
 					return R_OUT;
@@ -535,7 +535,7 @@ enum {
 	// /ANY would override /NAME, so point out the potential confusion
 	if (any && named) Trap(RE_BAD_REFINES);
 
-	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+	if (Do_Block_Throws(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
 		if (
 			(any && (!IS_WORD(D_OUT) || VAL_WORD_SYM(D_OUT) != SYM_QUIT))
 			|| (quit && IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_QUIT)
@@ -591,7 +591,7 @@ was_caught:
 	if (with) {
 		if (IS_BLOCK(handler)) {
 			// There's no way to pass args to a block (so just DO it)
-			if (DO_BLOCK_THROWS(
+			if (Do_Block_Throws(
 				D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
 			)) {
 				return R_OUT;
@@ -769,7 +769,7 @@ was_caught:
 	case REB_BLOCK:
 	case REB_PAREN:
 		if (D_REF(4)) { // next
-			VAL_INDEX(value) = DO_NEXT_MAY_THROW(
+			VAL_INDEX(value) = Do_Next_May_Throw(
 				D_OUT, VAL_SERIES(value), VAL_INDEX(value)
 			);
 
@@ -788,7 +788,7 @@ was_caught:
 			return R_OUT;
 		}
 
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(value), 0))
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(value), 0))
 			return R_OUT;
 
 		return R_OUT;
@@ -866,7 +866,7 @@ was_caught:
 	REBCNT argnum = IS_CONDITIONAL_FALSE(D_ARG(1)) ? 3 : 2;
 
 	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(4) /* not using /ONLY */) {
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(argnum)), 0))
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(argnum)), 0))
 			return R_OUT;
 
 		return R_OUT;
@@ -908,7 +908,7 @@ was_caught:
 {
 	if (IS_CONDITIONAL_FALSE(D_ARG(1))) return R_NONE;
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(2)), 0))
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(2)), 0))
 			return R_OUT;
 
 		return R_OUT;
@@ -1014,14 +1014,14 @@ was_caught:
 			found = TRUE;
 
 			// Evaluate code block, but if result is THROWN() then return it
-			if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
+			if (Do_Block_Throws(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
 
 			if (!all) return R_OUT;
 		}
 	}
 
 	if (!found && IS_BLOCK(D_ARG(4))) {
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(4)), 0))
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(4)), 0))
 			return R_OUT;
 
 		return R_OUT;
@@ -1057,7 +1057,7 @@ was_caught:
 		if (with) {
 			if (IS_BLOCK(handler)) {
 				// There's no way to pass 'error' to a block (so just DO it)
-				if (DO_BLOCK_THROWS(
+				if (Do_Block_Throws(
 					D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
 				)) {
 					return R_OUT;
@@ -1101,7 +1101,7 @@ was_caught:
 		return R_OUT;
 	}
 
-	if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+	if (Do_Block_Throws(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
 		// Note that we are interested in when errors are raised, which
 		// causes a tricky C longjmp() to the code above.  Yet a THROW
 		// is different from that, and offers an opportunity to each
@@ -1129,7 +1129,7 @@ was_caught:
 	if (IS_CONDITIONAL_TRUE(D_ARG(1))) return R_NONE;
 
 	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (DO_BLOCK_THROWS(D_OUT, VAL_SERIES(D_ARG(2)), 0))
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(2)), 0))
 			return R_OUT;
 
 		return R_OUT;

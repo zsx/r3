@@ -75,7 +75,7 @@
 	body = Clone_Block(VAL_MOD_BODY(task));
 	OS_TASK_READY(0);
 
-	if (DO_BLOCK_THROWS(&ignored, body, 0)) {
+	if (Do_Block_Throws(&ignored, body, 0)) {
 		Trap_Thrown(&ignored);
 		DEAD_END_VOID;
 	}
