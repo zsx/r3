@@ -265,10 +265,13 @@
 	REBINT *binds = WORDS_HEAD(Bind_Table);
 	REBINT n;
 
-	// this is necessary for COPY_VALUES below
-	// to not overwrite memory BUF_WORDS does not own
+	// this is necessary for memcpy below to not overwrite memory
+	// BUF_WORDS does not own
 	RESIZE_SERIES(BUF_WORDS, SERIES_TAIL(prior));
-	COPY_VALUES(words, BLK_HEAD(BUF_WORDS), SERIES_TAIL(prior));
+
+	// Word values can be copied just as bits (these are EXT_WORD_TYPED)
+	memcpy(BLK_HEAD(BUF_WORDS), words, SERIES_TAIL(prior) * sizeof(REBVAL));
+
 	SERIES_TAIL(BUF_WORDS) = SERIES_TAIL(prior);
 	for (n = 1, words++; NOT_END(words); words++) // skips first = SELF
 		binds[VAL_WORD_CANON(words)] = n++;
@@ -473,8 +476,15 @@
 		if (parent) {
 			if (Reb_Opts->watch_obj_copy)
 				Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 2)), SERIES_TAIL(parent) - 1, FRM_WORD_SERIES(object));
-			// Copy parent values and deep copy blocks and strings:
-			COPY_VALUES(FRM_VALUES(parent)+1, FRM_VALUES(object)+1, SERIES_TAIL(parent) - 1);
+
+			// Copy parent values:
+			memcpy(
+				FRM_VALUES(object) + 1,
+				FRM_VALUES(parent) + 1,
+				(SERIES_TAIL(parent) - 1) * sizeof(REBVAL)
+			);
+
+			// Deep copy blocks and strings:
 			Copy_Deep_Values(object, 1, SERIES_TAIL(object), TS_CLONE);
 		}
 	}
@@ -643,7 +653,11 @@
 	VAL_FRM_SPEC(value) = 0;
 
 	// Copy parent1 values:
-	COPY_VALUES(FRM_VALUES(parent1)+1, FRM_VALUES(child)+1, SERIES_TAIL(parent1)-1);
+	memcpy(
+		FRM_VALUES(child) + 1,
+		FRM_VALUES(parent1) + 1,
+		(SERIES_TAIL(parent1) - 1) * sizeof(REBVAL)
+	);
 
 	// Copy parent2 values:
 	words = FRM_WORDS(parent2)+1;

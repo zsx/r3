@@ -842,10 +842,6 @@ struct Reb_Position
 #define	VAL_BLK_LEN(v)	VAL_LEN(v)
 #define VAL_BLK_TERM(v)	BLK_TERM(VAL_SERIES(v))
 
-#define	COPY_VALUES(f,t,l) memcpy(t, f, (l) * sizeof(REBVAL))
-
-#define COPY_BLK_PART(d, s, n) memcpy((d)->data, s, (n) * sizeof(REBVAL)); SERIES_TAIL(d) = n; BLK_TERM(d)
-
 #define IS_EMPTY(v)		(VAL_INDEX(v) >= VAL_TAIL(v))
 
 #ifdef NDEBUG

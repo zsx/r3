@@ -370,7 +370,6 @@
 
 	series = Make_Map(n/2);
 
-	//COPY_BLK_PART(series, VAL_BLK_DATA(data), n);
 	Append_Map(series, data, UNKNOWN);
 
 	Rehash_Hash(series);

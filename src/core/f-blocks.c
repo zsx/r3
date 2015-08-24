@@ -61,7 +61,10 @@
 
 	len -= index;
 	series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
-	COPY_BLK_PART(series, BLK_SKIP(block, index), len);
+
+	memcpy(series->data, BLK_SKIP(block, index), len * sizeof(REBVAL));
+	SERIES_TAIL(series) = len;
+	BLK_TERM(series);
 
 	PG_Reb_Stats->Blocks++;
 
@@ -83,7 +86,10 @@
 	if (index + len > SERIES_TAIL(block)) len = SERIES_TAIL(block) - index;
 
 	series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
-	COPY_BLK_PART(series, BLK_SKIP(block, index), len);
+
+	memcpy(series->data, BLK_SKIP(block, index), len * sizeof(REBVAL));
+	SERIES_TAIL(series) = len;
+	BLK_TERM(series);
 
 	PG_Reb_Stats->Blocks++;
 
@@ -93,7 +99,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Copy_Values(REBVAL *blk, REBCNT length)
+*/	REBSER *Copy_Values(REBVAL values[], REBCNT len)
 /*
 **		Shallow copy a block from current value for length values.
 **
@@ -101,8 +107,11 @@
 {
 	REBSER *series;
 
-	series = Make_Series(length + 1, sizeof(REBVAL), MKS_BLOCK);
-	COPY_BLK_PART(series, blk, length);
+	series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
+
+	memcpy(series->data, values, len * sizeof(REBVAL));
+	SERIES_TAIL(series) = len;
+	BLK_TERM(series);
 
 	PG_Reb_Stats->Blocks++;
 
@@ -198,7 +207,11 @@
 {
 	REBCNT len = SERIES_TAIL(block);
 	REBSER *series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_BLOCK);
-	COPY_BLK_PART(series, BLK_HEAD(block), len);
+
+	memcpy(series->data, BLK_HEAD(block), len * sizeof(REBVAL));
+	SERIES_TAIL(series) = len;
+	BLK_TERM(series);
+
 	PG_Reb_Stats->Blocks++;
 	return series;
 }
@@ -222,10 +235,8 @@
 	REBSER *series;
 	REBVAL *blk = DS_AT(start);
 	REBCNT len = DSP - start + 1;
-	enum Reb_Kind type;
 
 	if (into) {
-		type = VAL_TYPE(into);
 		series = VAL_SERIES(into);
 
 		if (IS_PROTECT_SERIES(series)) Trap(RE_PROTECTED);
@@ -234,10 +245,17 @@
 			// When the target is an any-block, we can do an ordinary
 			// insertion of the values via a memcpy()-style operation
 
-			len = Insert_Series(
+			VAL_INDEX(into) = Insert_Series(
 				series, VAL_INDEX(into), cast(REBYTE*, blk), len
 			);
-		} else {
+
+			DS_DROP_TO(start);
+
+			Val_Init_Series_Index(
+				DS_TOP, VAL_TYPE(into), series, VAL_INDEX(into)
+			);
+		}
+		else {
 			// When the target is a string or binary series, we defer
 			// to the same code used by A_INSERT.  Because the interface
 			// does not take a memory address and count, we insert
@@ -264,22 +282,26 @@
 				);
 			}
 
-			// Len is used below to set the index of the result,
-			// and we want it to be just past the last element
-			// that we inserted
-			len = VAL_INDEX(into);
+			DS_DROP_TO(start);
+
+			// We want index of result just past the last element we inserted
+			Val_Init_Series_Index(
+				DS_TOP, VAL_TYPE(into), series, VAL_INDEX(into)
+			);
 		}
-	} else {
+	}
+	else {
 		series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
-		COPY_BLK_PART(series, blk, len);
-		len = 0;
-		type = REB_BLOCK;
+
+		memcpy(series->data, blk, len * sizeof(REBVAL));
+		SERIES_TAIL(series) = len;
+		BLK_TERM(series);
+
+		DS_DROP_TO(start);
+		Val_Init_Series_Index(DS_TOP, REB_BLOCK, series, 0);
+
 		PG_Reb_Stats->Blocks++;
 	}
-
-	DS_DROP_TO(start);
-	blk = DS_TOP;
-	Val_Init_Series_Index(blk, type, series, len);
 }
 
 
