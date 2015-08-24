@@ -432,7 +432,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 /***********************************************************************
 **
-*/	static REBOOL Series_Data_Alloc(REBSER *series, REBYTE wide, REBCNT length, REBCNT flags)
+*/	static REBOOL Series_Data_Alloc(REBSER *series, REBCNT length, REBYTE wide, REBCNT flags)
 /*
 **		Allocates element array for an already allocated REBSER header
 **		structure.  Resets the bias and tail to zero, and sets the new
@@ -456,11 +456,16 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	if (pool_num < SYSTEM_POOL) {
 		// ...there is a pool designated for allocations of this size range
 		series->data = cast(REBYTE*, Make_Node(pool_num));
+		if (!series->data)
+			return FALSE;
 
 		// The pooled allocation might wind up being larger than we asked.
 		// Don't waste the space...mark as capacity the series could use.
 		size = Mem_Pools[pool_num].wide;
 		assert(size >= length * wide);
+
+		// We don't round to power of 2 for allocations in memory pools
+		SERIES_CLR_FLAG(series, SER_POWER_OF_2);
 	}
 	else {
 		// ...the allocation is too big for a pool.  But instead of just
@@ -474,9 +479,12 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 			while(len < size)
 				len *= 2;
 			size = len;
+			SERIES_SET_FLAG(series, SER_POWER_OF_2);
 		}
-		else
+		else {
 			size = ALIGN(size, 2048);
+			SERIES_CLR_FLAG(series, SER_POWER_OF_2);
+		}
 
 		series->data = ALLOC_ARRAY(REBYTE, size);
 		if (!series->data)
@@ -520,13 +528,58 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	if ((GC_Ballast -= size) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
+	assert(Series_Allocated_Size(series) == size);
 	return TRUE;
 }
 
 
 /***********************************************************************
 **
-*/	REBSER *Make_Series(REBCNT length, REBCNT wide, REBCNT flags)
+*/	REBCNT Series_Allocated_Size(REBSER *series)
+/*
+**		When we want the actual memory accounting for a series, the
+**		whole story may not be told by the element size multiplied
+**		by the capacity.  The series may have been allocated from
+**		a pool where it was rounded up to the pool size, and the
+**		elements may not fit evenly in that space.  Or it may have
+**		been allocated from the "system pool" via Alloc_Mem, but
+**		rounded up to a power of 2.
+**
+**		(Note: It's necessary to know the size because Free_Mem
+**		requires it, as Rebol's allocator doesn't remember the size
+**		of system pool allocations for you.  It also needs it in
+**		order to keep track of GC boundaries and memory use quotas.)
+**
+**		Rather than pay for the cost on every series of an "actual
+**		allocation size", the optimization choice is to only pay
+**		for a "rounded up to power of 2" bit.  (Since there are a
+**		LOT of series created in Rebol, each byte is scrutinized.)
+**
+***********************************************************************/
+{
+	REBCNT total = SERIES_TOTAL(series);
+	REBCNT pool_num = FIND_POOL(total);
+
+	if (pool_num < SERIES_POOL) {
+		assert(!SERIES_GET_FLAG(series, SER_POWER_OF_2));
+		assert(Mem_Pools[pool_num].wide >= total);
+		return Mem_Pools[pool_num].wide;
+	}
+
+	if (SERIES_GET_FLAG(series, SER_POWER_OF_2)) {
+		REBCNT len = 2048;
+		while(len < total)
+			len *= 2;
+		return len;
+	}
+
+	return ALIGN(total, 2048);
+}
+
+
+/***********************************************************************
+**
+*/	REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 /*
 **		Make a series of a given length and width (unit size).
 **		Small series will be allocated from a REBOL pool.
@@ -539,6 +592,10 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	CHECK_C_STACK_OVERFLOW(&series);
 
+	// PRESERVE flag only makes sense for Remake_Series, where there is
+	// previous data to be kept.
+	assert(!(flags & MKS_PRESERVE));
+
 	if ((cast(REBU64, length) * wide) > MAX_I32) Trap(RE_NO_MEMORY);
 
 	PG_Reb_Stats->Series_Made++;
@@ -547,7 +604,6 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 //	if (GC_TRIGGER) Recycle();
 
 	series = cast(REBSER*, Make_Node(SERIES_POOL));
-
 
 	if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -571,7 +627,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	else {
 		// Allocate the actual data blob that holds the series elements
 
-		if (!Series_Data_Alloc(series, wide, length, flags)) {
+		if (!Series_Data_Alloc(series, length, wide, flags)) {
 			Free_Node(SERIES_POOL, cast(REBNOD*, series));
 			Trap(RE_NO_MEMORY);
 		}
@@ -768,14 +824,14 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	data_old = series->data;
 	bias_old = SERIES_BIAS(series);
-	size_old = SERIES_REST(series) * wide;
+	size_old = Series_Allocated_Size(series);
 	tail_old = SERIES_TAIL(series);
 
 	series->data = NULL;
 	if (!Series_Data_Alloc(
 		series,
-		wide,
 		series->tail + delta + x,
+		wide,
 		any_block ? (MKS_BLOCK | MKS_POWER_OF_2) : MKS_POWER_OF_2
 	)) {
 		Trap(RE_NO_MEMORY);
@@ -805,69 +861,72 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 /***********************************************************************
 **
-*/	void Shrink_Series(REBSER *series, REBCNT units, REBOOL keep)
+*/	void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 /*
-**		Shrink a series back to a given maximum size. All
-**		content is deleted and tail is reset.
-**
-**      A comment here used to say:
-**
-**		"WARNING: This should only be used for strings or other
-**		series that cannot contain internally referenced values."
-**
-**      What does that mean?  What series "contains internally
-**      referenced values?"  It's as if it's suggesting you
-**      can't take a value out of a block when you obviously can.
+**		Reallocate a series as a given maximum size. Content in the
+**		retained portion of the length may be kept as-is if the
+**		MKS_PRESERVE is passed in the flags.  The other flags are
+**		handled the same as when passed to Make_Series.
 **
 ***********************************************************************/
 {
-	REBYTE *data_old;
-	REBINT bias_old;
-	REBINT size_old;
-	REBCNT tail_old;
-	REBYTE wide;
+	REBINT bias_old = SERIES_BIAS(series);
+	REBINT size_old = Series_Allocated_Size(series);
+	REBCNT tail_old = series->tail;
+	REBYTE wide_old = SERIES_WIDE(series);
 	REBOOL any_block = IS_BLOCK_SERIES(series);
 
-	if (SERIES_REST(series) <= units) return;
+	// Extract the data pointer to take responsibility for it.  (The pointer
+	// may have already been extracted if the caller is doing their own
+	// updating preservation.)
+	REBYTE *data_old = series->data;
 
-	bias_old = SERIES_BIAS(series);
-	size_old = SERIES_REST(series) * SERIES_WIDE(series);
-	data_old = series->data;
-	tail_old = series->tail;
-	wide = SERIES_WIDE(series);
-
+	assert(series->data);
 	series->data = NULL;
+
+	// SER_EXTERNAL manages its own memory and shouldn't call Remake
+	assert(!(flags & MKS_EXTERNAL));
+
+	// We only let you preserve if the data is the same width as original
+#if !defined(NDEBUG)
+	if (flags & MKS_PRESERVE) {
+		assert(wide == wide_old);
+		if (flags & MKS_BLOCK) assert(SERIES_GET_FLAG(series, SER_BLOCK));
+	}
+#endif
+
 	if (!Series_Data_Alloc(
-		series, wide, units + 1, any_block ? MKS_BLOCK : MKS_NONE
+		series, units + 1, wide, any_block ? MKS_BLOCK | flags : flags
 	)) {
+		// Put series back how it was (there may be extant references)
+		series->data = data_old;
 		Trap(RE_NO_MEMORY);
 		DEAD_END_VOID;
 	}
 
-	if (keep) {
-		assert(tail_old <= units);
-		memcpy(series->data, data_old, wide * tail_old);
-		series->tail = tail_old;
+	if (flags & MKS_PRESERVE) {
+		// Preserve as much data as possible (if it was requested, some
+		// operations may extract the data pointer ahead of time and do this
+		// more selectively)
+
+		series->tail = MIN(tail_old, units);
+		memcpy(series->data, data_old, series->tail * wide);
 	} else
 		series->tail = 0;
 
 	TERM_SERIES(series);
 
-	Free_Unbiased_Series_Data(data_old - (wide * bias_old), size_old);
+	Free_Unbiased_Series_Data(data_old - (wide_old * bias_old), size_old);
 }
 
 
 /***********************************************************************
 **
-*/	void Free_Series(REBSER *series)
+*/	void GC_Kill_Series(REBSER *series)
 /*
-**		Free a series, returning its memory for reuse.
-**
-**		!!! As it's obviously not easy to realize when it is safe
-**		to call Free_Series, especially if you're not the garbage
-**		collector, see:
-**
-**			https://github.com/metaeducation/ren-c/issues/2
+**		Only the garbage collector should be calling this routine.
+**		It frees a series even though it is under GC management,
+**		because the GC has figured out no references exist.
 **
 ***********************************************************************/
 {
@@ -893,8 +952,10 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		// !!! Should the external owner be told about the GC/free event?
 	}
 	else {
-		series->data -= SERIES_WIDE(series) * SERIES_BIAS(series);
-		Free_Unbiased_Series_Data(series->data, size);
+		REBYTE wide = SERIES_WIDE(series);
+		REBCNT bias = SERIES_BIAS(series);
+		series->data -= wide * bias;
+		Free_Unbiased_Series_Data(series->data, Series_Allocated_Size(series));
 	}
 
 	series->info = 0; // includes width
@@ -916,6 +977,68 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	// GC may no longer be necessary:
 	if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
+}
+
+
+/***********************************************************************
+**
+*/	void Free_Series(REBSER *series)
+/*
+**		Free a series, returning its memory for reuse.  You can only
+**		call this on series that are not managed by the GC.
+**
+***********************************************************************/
+{
+	// (bookkeeping in subsequent commit)
+
+	// With bookkeeping done, use the same routine the GC uses to free
+	GC_Kill_Series(series);
+}
+
+
+/***********************************************************************
+**
+*/	void Widen_String(REBSER *series)
+/*
+**		Widen string from 1 byte to 2 bytes.
+**
+**		NOTE: allocates new memory. Cached pointers are invalid.
+**
+***********************************************************************/
+{
+	REBINT bias_old = SERIES_BIAS(series);
+	REBINT size_old = Series_Allocated_Size(series);
+	REBCNT tail_old = series->tail;
+	REBYTE wide_old = SERIES_WIDE(series);
+
+	REBYTE *data_old = series->data;
+
+	REBYTE *bp;
+	REBUNI *up;
+	REBCNT n;
+
+	series->data = NULL;
+
+	assert(SERIES_WIDE(series) == 1);
+
+	if (!Series_Data_Alloc(
+		series, tail_old + 1, cast(REBYTE, sizeof(REBUNI)), MKS_NONE
+	)) {
+		// Put series back how it was (there may be extant references)
+		series->data = data_old;
+		Trap(RE_NO_MEMORY);
+		DEAD_END_VOID;
+	}
+
+	bp = data_old;
+	up = UNI_HEAD(series);
+
+	for (n = 0; n <= tail_old; n++) up[n] = bp[n]; // includes terminator
+	SERIES_TAIL(series) = tail_old;
+
+	Free_Unbiased_Series_Data(data_old - (wide_old * bias_old), size_old);
+
+	ASSERT_SERIES(series);
 }
 
 
@@ -1043,7 +1166,7 @@ crash:
 		series = (REBSER *) (seg + 1);
 		for (count = Mem_Pools[SERIES_POOL].units; count > 0; count--) {
 			if (!SERIES_FREED(series)) {
-				if (SERIES_WIDE(series) == size && SERIES_GET_FLAG(series, SER_MON)) {
+				if (SERIES_WIDE(series) == size) {
 					//Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SERIES_TOTAL(series), series->data);
 					Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SERIES_REST(series), (SERIES_LABEL(series) ? SERIES_LABEL(series) : "-"));
 				}

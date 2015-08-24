@@ -107,26 +107,14 @@
 **
 ***********************************************************************/
 {
-	REBSER oser;
-	REBSER *nser;
-	REBINT pnum;
-
-	pnum = Get_Hash_Prime(ser->tail+1);
+	REBINT pnum = Get_Hash_Prime(ser->tail + 1);
 	if (!pnum) Trap_Num(RE_SIZE_LIMIT, ser->tail+1);
 
 	assert(!IS_BLOCK_SERIES(ser));
-	nser = Make_Series(pnum + 1, SERIES_WIDE(ser), MKS_POWER_OF_2);
-	LABEL_SERIES(nser, "hash series");
-
-	oser = *ser;
-	*ser = *nser;
-	ser->info = oser.info;
-	*nser = oser;
+	Remake_Series(ser, pnum + 1, SERIES_WIDE(ser), MKS_POWER_OF_2);
 
 	Clear_Series(ser);
 	ser->tail = pnum;
-
-	Free_Series(nser);
 }
 
 

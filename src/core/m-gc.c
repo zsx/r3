@@ -816,7 +816,7 @@ static void Propagate_All_GC_Marks(void);
 		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--) {
 			if (!SERIES_FREED(series)) {
 				if (IS_FREEABLE(series)) {
-					Free_Series(series);
+					GC_Kill_Series(series);
 					count++;
 				} else
 					SERIES_CLR_FLAG(series, SER_MARK);

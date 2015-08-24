@@ -1382,7 +1382,7 @@ return_balanced:
 	if (!buf) Panic(RP_NO_BUFFER);
 
 	if (SERIES_REST(buf) > MAX_COMMON)
-		Shrink_Series(buf, MIN_COMMON, FALSE);
+		Remake_Series(buf, MIN_COMMON, SERIES_WIDE(buf), MKS_NONE);
 
 	BLK_RESET(MOLD_LOOP);
 	RESET_SERIES(buf);

@@ -539,7 +539,7 @@ enum {
 	SER_FLAG_4		= 1 << 4,	// UNUSED: was SER_FREE, but free if wide = 0
 	SER_BLOCK		= 1 << 5,	// is sizeof(REBVAL) wide and has valid values
 	SER_PROT		= 1 << 6,	// protected from modification
-	SER_MON			= 1 << 7	// !!! Monitoring (?)
+	SER_POWER_OF_2	= 1 << 7	// true alloc size is rounded to power of 2
 };
 
 #define SERIES_SET_FLAG(s, f) cast(void, (SERIES_FLAGS(s) |= ((f) << 8)))

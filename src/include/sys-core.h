@@ -169,7 +169,8 @@ enum {
 	MKS_NONE		= 0,		// data is opaque (not delved into by the GC)
 	MKS_BLOCK		= 1 << 0,	// Contains REBVALs (seen by GC and Debug)
 	MKS_POWER_OF_2	= 1 << 1,	// Round size up to a power of 2
-	MKS_EXTERNAL	= 1 << 2	// Uses external pointer--don't alloc data
+	MKS_EXTERNAL	= 1 << 2,	// Uses external pointer--don't alloc data
+	MKS_PRESERVE	= 1 << 3	// "Remake" only (save what data possible)
 };
 
 // Modes allowed by Copy_Block function:

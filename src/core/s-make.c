@@ -164,36 +164,6 @@
 
 /***********************************************************************
 **
-*/	void Widen_String(REBSER *series)
-/*
-**		Widen string from 1 byte to 2 bytes.
-**
-**		NOTE: allocates new memory. Cached pointers are invalid.
-**
-***********************************************************************/
-{
-	REBSER *uni = Make_Unicode(STR_LEN(series));
-	REBUNI *up;
-	REBYTE *bp;
-	REBCNT n;
-	REBSER tmp;
-
-	// !!! optimize the empty case by just modifying series header??
-
-	bp = BIN_HEAD(series);
-	up = UNI_HEAD(uni);
-	for (n = 0; n < STR_LEN(series); n++) up[n] = bp[n];
-	SERIES_TAIL(uni) = SERIES_TAIL(series);
-
-	// Swap series headers: // !!?? is it valid for all?
-	tmp = *series;
-	*series = *uni;
-	*uni = tmp;
-}
-
-
-/***********************************************************************
-**
 */	void Insert_Char(REBSER *dst, REBCNT index, REBCNT chr)
 /*
 **		Insert a Char (byte or unicode) into a string.
