@@ -595,6 +595,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	// PRESERVE flag only makes sense for Remake_Series, where there is
 	// previous data to be kept.
 	assert(!(flags & MKS_PRESERVE));
+	assert(wide != 0 && length != 0);
 
 	if ((cast(REBU64, length) * wide) > MAX_I32) Trap(RE_NO_MEMORY);
 
