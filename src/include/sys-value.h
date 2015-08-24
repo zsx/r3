@@ -564,21 +564,21 @@ enum {
 #endif
 
 #ifdef NDEBUG
-	#define ASSERT_SERIES(s) cast(void, 0)
-#else
-	#define ASSERT_SERIES(s) Assert_Series_Core((s), REB_END)
-#endif
-
-#ifdef NDEBUG
-	#define ASSERT_TYPED_SERIES(s,t) cast(void, 0)
-#else
-	#define ASSERT_TYPED_SERIES(s,t) Assert_Series_Core((s), (t))
-#endif
-
-#ifdef NDEBUG
 	#define ASSERT_SERIES_TERM(s) cast(void, 0)
 #else
 	#define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
+#endif
+
+#ifdef NDEBUG
+	#define ASSERT_SERIES(s) cast(void, 0)
+#else
+	#define ASSERT_SERIES(s) \
+		do { \
+			if (IS_BLOCK_SERIES(series)) \
+				ASSERT_BLK(series); \
+			else \
+				ASSERT_SERIES_TERM(series); \
+		} while (0)
 #endif
 
 

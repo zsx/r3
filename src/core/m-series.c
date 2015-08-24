@@ -383,44 +383,8 @@
 }
 
 
-#ifndef NDEBUG
-/***********************************************************************
-**
-*/	void Assert_Series_Core(const REBSER *series, REBINT type)
-/*
-***********************************************************************/
-{
-	// Make sure that the type of the series matches "blockishness"
-	switch (type) {
-	case -1:
-		// We didn't ask for a "typed" check, just make sure the series
-		// is in basic good shape.
-		break;
+#if !defined(NDEBUG)
 
-	case REB_BLOCK:
-	case REB_PAREN:
-	case REB_PATH:
-	case REB_SET_PATH:
-	case REB_GET_PATH:
-	case REB_LIT_PATH:
-		ASSERT_BLK(series);
-		break;
-
-	case REB_MAP:
-		break; // vet map more?  is it actually okay to pass in a map?
-
-	default:
-		if (IS_BLOCK_SERIES(series))
-			Panic_Series(series);
-		break;
-	}
-
-	// Improve this check to track other series properties
-}
-#endif
-
-
-#ifndef NDEBUG
 /***********************************************************************
 **
 */	void Assert_Series_Term_Core(REBSER *series)
@@ -428,12 +392,22 @@
 ***********************************************************************/
 {
 	if (IS_BLOCK_SERIES(series)) {
-		// a.k.a. BLK_TAIL
-		assert(IS_END(cast(REBVAL *, series->data) + series->tail));
-	} else {
+		// REB_END values may not be canonized to zero bytes, check type only
+		if (!IS_END(BLK_SKIP(series, series->tail))) {
+			Debug_Fmt("Unterminated blocklike series detected");
+			Panic_Series(series);
+		}
+	}
+	else {
+		// Non-REBVAL-bearing series must have their terminal as all 0 bytes
 		int n;
-		for (n = 0; n < SERIES_WIDE(series); n++)
-			assert(series->data[series->tail * SERIES_WIDE(series) + n] == 0);
+		for (n = 0; n < SERIES_WIDE(series); n++) {
+			if (0 != series->data[series->tail * SERIES_WIDE(series) + n]) {
+				Debug_Fmt("Non-zero byte in terminator of non-block series");
+				Panic_Series(series);
+			}
+		}
 	}
 }
+
 #endif

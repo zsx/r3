@@ -80,10 +80,10 @@ static void swap_chars(REBVAL *val1, REBVAL *val2)
 	c1 = GET_ANY_CHAR(s1, VAL_INDEX(val1));
 	c2 = GET_ANY_CHAR(s2, VAL_INDEX(val2));
 
-	if (BYTE_SIZE(s1) && c2 > 0xff) Widen_String(s1);
+	if (BYTE_SIZE(s1) && c2 > 0xff) Widen_String(s1, TRUE);
 	SET_ANY_CHAR(s1, VAL_INDEX(val1), c2);
 
-	if (BYTE_SIZE(s2) && c1 > 0xff) Widen_String(s2);
+	if (BYTE_SIZE(s2) && c1 > 0xff) Widen_String(s2, TRUE);
 	SET_ANY_CHAR(s2, VAL_INDEX(val2), c1);
 }
 
@@ -403,7 +403,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
 	TRAP_PROTECT(ser);
 
-	if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser);
+	if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser, TRUE);
 	SET_ANY_CHAR(ser, n, c);
 
 	return PE_OK;
@@ -584,7 +584,7 @@ pick_it:
 				BIN_HEAD(ser)[index] = (REBYTE)c;
 			}
 			else {
-				if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser);
+				if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser, TRUE);
 				SET_ANY_CHAR(ser, index, c);
 			}
 			value = arg;

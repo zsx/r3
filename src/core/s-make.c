@@ -171,7 +171,7 @@
 ***********************************************************************/
 {
 	if (index > dst->tail) index = dst->tail;
-	if (chr > 0xFF && BYTE_SIZE(dst)) Widen_String(dst);
+	if (chr > 0xFF && BYTE_SIZE(dst)) Widen_String(dst, TRUE);
 	Expand_Series(dst, index, 1);
 	SET_ANY_CHAR(dst, index, chr);
 }
@@ -222,7 +222,7 @@ cp_same:
 			idx += n;
 			pos += n;
 			len -= n;
-			Widen_String(dst);
+			Widen_String(dst, FALSE);
 			goto cp_same;
 		}
 		bp[n] = (REBYTE)up[n];

@@ -998,7 +998,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 /***********************************************************************
 **
-*/	void Widen_String(REBSER *series)
+*/	void Widen_String(REBSER *series, REBOOL preserve)
 /*
 **		Widen string from 1 byte to 2 bytes.
 **
@@ -1019,6 +1019,13 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	series->data = NULL;
 
+#if !defined(NDEBUG)
+	// We may be resizing a partially constructed series, or otherwise
+	// not want to preserve the previous contents
+	if (preserve)
+		ASSERT_SERIES(series);
+#endif
+
 	assert(SERIES_WIDE(series) == 1);
 
 	if (!Series_Data_Alloc(
@@ -1033,8 +1040,14 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	bp = data_old;
 	up = UNI_HEAD(series);
 
-	for (n = 0; n <= tail_old; n++) up[n] = bp[n]; // includes terminator
-	SERIES_TAIL(series) = tail_old;
+	if (preserve) {
+		for (n = 0; n <= tail_old; n++) up[n] = bp[n]; // includes terminator
+		SERIES_TAIL(series) = tail_old;
+	}
+	else {
+		SERIES_TAIL(series) = 0;
+		TERM_SERIES(series);
+	}
 
 	Free_Unbiased_Series_Data(data_old - (wide_old * bias_old), size_old);
 
