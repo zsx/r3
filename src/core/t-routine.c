@@ -848,9 +848,13 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n)
 		REBVAL *t = VAL_BLK_DATA(blk);
 		if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
 			/* followed by struct definition */
+			REBSER *ser;
 			REBVAL* tmp;
-			DS_PUSH_NONE;
-			tmp = DS_TOP;
+
+			//lock the series to make BLK_HEAD permanent
+			ser = Make_Series(2, sizeof(REBVAL), MKS_BLOCK | MKS_LOCK);
+			SAVE_SERIES(ser);
+			tmp = BLK_HEAD(ser);
 
 			++ t;
 			if (!IS_BLOCK(t) || VAL_LEN(blk) != 2) {
@@ -863,7 +867,8 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n)
 				Trap_Arg(blk);
 			}
 
-			DS_DROP;
+			UNSAVE_SERIES(ser);
+
 		} else {
 			if (VAL_LEN(blk) != 1) {
 				Trap_Arg(blk);
@@ -884,11 +889,9 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBSER *ser;
 	REBVAL *elem;
 	REBVAL safe;
-	REBVAL tmp;
 
 	ser = Make_Block(1 + cif->nargs);
-	Val_Init_Block(&tmp, ser);
-	DS_PUSH(&tmp); //save it to the stack to avoid being GC'ed.
+	SAVE_SERIES(ser);
 
 	elem = Alloc_Tail_Blk(ser);
 	SET_TYPE(elem, REB_FUNCTION);
@@ -982,7 +985,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 			Trap_Arg(elem);
 	}
 
-	DS_DROP;
+	UNSAVE_SERIES(ser);
 }
 
 /***********************************************************************
