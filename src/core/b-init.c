@@ -161,13 +161,13 @@ static	BOOT_BLK *Boot_Block;
 {
 	REBVAL result;
 
-	Bind_Array_Set_Forward_Shallow(
+	Bind_Values_Set_Forward_Shallow(
 		BLK_HEAD(block), rebind > 1 ? Sys_Context : Lib_Context
 	);
 
-	if (rebind < 0) Bind_Array_Shallow(BLK_HEAD(block), Sys_Context);
-	if (rebind > 0) Bind_Array_Deep(BLK_HEAD(block), Lib_Context);
-	if (rebind > 1) Bind_Array_Deep(BLK_HEAD(block), Sys_Context);
+	if (rebind < 0) Bind_Values_Shallow(BLK_HEAD(block), Sys_Context);
+	if (rebind > 0) Bind_Values_Deep(BLK_HEAD(block), Lib_Context);
+	if (rebind > 1) Bind_Values_Deep(BLK_HEAD(block), Sys_Context);
 
 	if (Do_Block_Throws(&result, block, 0))
 		Panic(RP_EARLY_ERROR);
@@ -385,7 +385,7 @@ static	BOOT_BLK *Boot_Block;
 	REBVAL evaluated;
 
 	Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK_HEAD(spec)));
-	Bind_Array_Deep(VAL_BLK_HEAD(spec), VAL_OBJ_FRAME(D_OUT));
+	Bind_Values_Deep(VAL_BLK_HEAD(spec), VAL_OBJ_FRAME(D_OUT));
 
 	if (Do_Block_Throws(&evaluated, VAL_SERIES(spec), 0)) {
 		*D_OUT = evaluated;
@@ -641,10 +641,10 @@ static	BOOT_BLK *Boot_Block;
 
 	// Create the system object from the sysobj block and bind its fields:
 	frame = Make_Object(0, VAL_BLK_HEAD(&Boot_Block->sysobj));
-	Bind_Array_Deep(VAL_BLK_HEAD(&Boot_Block->sysobj), Lib_Context);
+	Bind_Values_Deep(VAL_BLK_HEAD(&Boot_Block->sysobj), Lib_Context);
 
 	// Bind it so CONTEXT native will work (only used at topmost depth):
-	Bind_Array_Shallow(VAL_BLK_HEAD(&Boot_Block->sysobj), frame);
+	Bind_Values_Shallow(VAL_BLK_HEAD(&Boot_Block->sysobj), frame);
 
 	// Evaluate the block (will eval FRAMEs within):
 	if (Do_Block_Throws(&result, VAL_SERIES(&Boot_Block->sysobj), 0))

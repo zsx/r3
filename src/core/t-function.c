@@ -133,7 +133,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 					D_OUT, Clone_Block(VAL_FUNC_BODY(value))
 				);
 				// See CC#2221 for why closure body copies have locals unbound
-				Unbind_Array_Core(
+				Unbind_Values_Core(
 					VAL_BLK_HEAD(D_OUT), VAL_FUNC_WORDS(value), TRUE
 				);
 				return R_OUT;
@@ -147,7 +147,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			break;
 		case OF_SPEC:
 			Val_Init_Block(value, Clone_Block(VAL_FUNC_SPEC(value)));
-			Unbind_Array_Deep(VAL_BLK_HEAD(value));
+			Unbind_Values_Deep(VAL_BLK_HEAD(value));
 			break;
 		case OF_TYPES:
 			Val_Init_Block(value, As_Typesets(VAL_FUNC_WORDS(value)));

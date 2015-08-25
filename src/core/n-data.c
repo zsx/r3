@@ -267,7 +267,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (rel)
 		Bind_Stack_Block(frame, blk); //!! needs deep
 	else
-		Bind_Array_Core(BLK_HEAD(blk), frame, flags);
+		Bind_Values_Core(BLK_HEAD(blk), frame, flags);
 
 	return R_OUT;
 }
@@ -302,7 +302,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (ANY_WORD(word))
 		UNBIND_WORD(word);
 	else
-		Unbind_Array_Core(VAL_BLK_DATA(word), NULL, D_REF(2));
+		Unbind_Values_Core(VAL_BLK_DATA(word), NULL, D_REF(2));
 
 	return R_ARG1;
 }
@@ -339,7 +339,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		// else stays 0
 	}
 
-	words = Collect_Array_Words(values, prior_values, modes);
+	words = Collect_Words(values, prior_values, modes);
 	Val_Init_Block(D_OUT, words);
 	return R_OUT;
 }
@@ -420,7 +420,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	// Special form: IN object block
 	if (IS_BLOCK(word) || IS_PAREN(word)) {
-		Bind_Array_Deep(VAL_BLK_HEAD(word), frame);
+		Bind_Values_Deep(VAL_BLK_HEAD(word), frame);
 		return R_ARG2;
 	}
 

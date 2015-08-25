@@ -1423,7 +1423,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			value = BLK_TAIL(emitbuf);
 			emitbuf->tail++; // Protect the block from GC
 //			if (!Construct_Simple(value, block)) {
-			Bind_Array_All_Deep(BLK_HEAD(block), Lib_Context);
+			Bind_Values_All_Deep(BLK_HEAD(block), Lib_Context);
 			//Bind_Global_Block(BLK_HEAD(block));
 			if (!Construct_Value(value, block)) {
 				if (IS_END(value)) Val_Init_Block(value, block);

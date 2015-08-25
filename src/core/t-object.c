@@ -315,7 +315,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				if (type == REB_OBJECT) {
 					obj = Make_Object(0, VAL_BLK_DATA(arg));
 					Val_Init_Object(D_OUT, obj); // GC save
-					Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
+					Bind_Values_Deep(VAL_BLK_DATA(arg), obj);
 
 					// GC-OK
 					if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0))
@@ -396,7 +396,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				obj = Make_Object(src_obj, VAL_BLK_DATA(arg));
 				Rebind_Frame(src_obj, obj);
 				Val_Init_Object(D_OUT, obj);
-				Bind_Array_Deep(VAL_BLK_DATA(arg), obj);
+				Bind_Values_Deep(VAL_BLK_DATA(arg), obj);
 
 				// GC-OK
 				if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0)) return R_OUT;
@@ -625,7 +625,7 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 		goto is_none;
 	}
 
-	Bind_Array_Shallow(BLK_HEAD(ser), frm);
+	Bind_Values_Shallow(BLK_HEAD(ser), frm);
 	VAL_SERIES(Temp_Blk_Value) = ser;
 	//ENABLE_GC;
 	return Temp_Blk_Value;

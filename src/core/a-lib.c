@@ -440,12 +440,12 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	// Bind into lib or user spaces?
 	if (flags) {
 		// Top words will be added to lib:
-		Bind_Array_Set_Forward_Shallow(BLK_HEAD(code), Lib_Context);
-		Bind_Array_Deep(BLK_HEAD(code), Lib_Context);
+		Bind_Values_Set_Forward_Shallow(BLK_HEAD(code), Lib_Context);
+		Bind_Values_Deep(BLK_HEAD(code), Lib_Context);
 	} else {
 		REBSER *user = VAL_OBJ_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
 		len = user->tail;
-		Bind_Array_All_Deep(BLK_HEAD(code), user);
+		Bind_Values_All_Deep(BLK_HEAD(code), user);
 		SET_INTEGER(&vali, len);
 		Resolve_Context(user, Lib_Context, &vali, FALSE, 0);
 	}

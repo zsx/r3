@@ -708,7 +708,7 @@ void Panic_Core(REBINT id, ...);
 **
 **			REBVAL *block = D_ARG(1);
 **			REBVAL *something = D_ARG(2);
-**			Bind_Array_Deep(block, frame);
+**			Bind_Values_Deep(block, frame);
 **
 **		What will happen is that the block will be treated as an
 **		array of values and get incremented.  In the above case it
@@ -717,7 +717,7 @@ void Panic_Core(REBINT id, ...);
 **
 **		Instead write:
 **
-**			Bind_Array_Deep(VAL_BLK_HEAD(block), frame);
+**			Bind_Values_Deep(VAL_BLK_HEAD(block), frame);
 **
 **		That will pass the address of the first value element of
 **		the block's contents.  You could use a later value element,
@@ -727,24 +727,24 @@ void Panic_Core(REBINT id, ...);
 **
 ***********************************************************************/
 
-#define Bind_Array_Deep(values,frame) \
-	Bind_Array_Core((values), (frame), BIND_DEEP)
+#define Bind_Values_Deep(values,frame) \
+	Bind_Values_Core((values), (frame), BIND_DEEP)
 
-#define Bind_Array_All_Deep(values,frame) \
-	Bind_Array_Core((values), (frame), BIND_ALL | BIND_DEEP)
+#define Bind_Values_All_Deep(values,frame) \
+	Bind_Values_Core((values), (frame), BIND_ALL | BIND_DEEP)
 
-#define Bind_Array_Shallow(values, frame) \
-	Bind_Array_Core((values), (frame), BIND_ONLY)
+#define Bind_Values_Shallow(values, frame) \
+	Bind_Values_Core((values), (frame), BIND_ONLY)
 
 // Gave this a complex name to warn of its peculiarities.  Calling with
 // just BIND_SET is shallow and tricky because the set words must occur
 // before the uses (to be applied to bindings of those uses)!
 //
-#define Bind_Array_Set_Forward_Shallow(values, frame) \
-	Bind_Array_Core((values), (frame), BIND_SET)
+#define Bind_Values_Set_Forward_Shallow(values, frame) \
+	Bind_Values_Core((values), (frame), BIND_SET)
 
-#define Unbind_Array_Deep(values) \
-	Unbind_Array_Core((values), NULL, TRUE)
+#define Unbind_Values_Deep(values) \
+	Unbind_Values_Core((values), NULL, TRUE)
 
 
 /***********************************************************************

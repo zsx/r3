@@ -359,9 +359,9 @@
 
 /***********************************************************************
 **
-*/  static void Collect_Array_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
+*/  static void Collect_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
 /*
-**		Used for Collect_Array_Words() after the binds table has
+**		Used for Collect_Words() after the binds table has
 **		been set up.
 **
 ***********************************************************************/
@@ -377,14 +377,14 @@
 			Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
 		}
 		else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-			Collect_Array_Words_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
+			Collect_Words_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
 	}
 }
 
 
 /***********************************************************************
 **
-*/  REBSER *Collect_Array_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
+*/  REBSER *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 /*
 **		Collect words from a prior block and new block.
 **
@@ -398,10 +398,10 @@
 	if (SERIES_TAIL(BUF_WORDS)) Panic_DEAD_END(RP_WORD_LIST); // still in use
 
 	if (prior_value)
-		Collect_Array_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
+		Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
 
 	start = SERIES_TAIL(BUF_WORDS);
-	Collect_Array_Words_Inner_Loop(binds, &value[0], modes);
+	Collect_Words_Inner_Loop(binds, &value[0], modes);
 
 	// Reset word markers:
 	for (value = BLK_HEAD(BUF_WORDS); NOT_END(value); value++)
@@ -505,7 +505,7 @@
 {
 	REBSER *frame = Make_Object(parent, &value[0]);
 
-	if (NOT_END(value)) Bind_Array_Shallow(&value[0], frame);
+	if (NOT_END(value)) Bind_Values_Shallow(&value[0], frame);
 
 	if (as_is) Do_Min_Construct(&value[0]);
 	else Do_Construct(&value[0]);
@@ -807,9 +807,9 @@
 
 /***********************************************************************
 **
-*/  static void Bind_Array_Inner_Loop(REBINT *binds, REBVAL value[], REBSER *frame, REBCNT mode)
+*/  static void Bind_Values_Inner_Loop(REBINT *binds, REBVAL value[], REBSER *frame, REBCNT mode)
 /*
-**		Bind_Array_Core() sets up the binding table and then calls
+**		Bind_Values_Core() sets up the binding table and then calls
 **		this recursive routine to do the actual binding.
 **
 ***********************************************************************/
@@ -842,11 +842,11 @@
 			}
 		}
 		else if (ANY_BLOCK(value) && (mode & BIND_DEEP))
-			Bind_Array_Inner_Loop(
+			Bind_Values_Inner_Loop(
 				binds, VAL_BLK_DATA(value), frame, mode
 			);
 		else if ((IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC))
-			Bind_Array_Inner_Loop(
+			Bind_Values_Inner_Loop(
 				binds, BLK_HEAD(VAL_FUNC_BODY(value)), frame, mode
 			);
 	}
@@ -855,11 +855,11 @@
 
 /***********************************************************************
 **
-*/  void Bind_Array_Core(REBVAL value[], REBSER *frame, REBCNT mode)
+*/  void Bind_Values_Core(REBVAL value[], REBSER *frame, REBCNT mode)
 /*
 **		Bind words in an array of values terminated with REB_END
 **		to a specified frame.  See warnings on the functions like
-**		Bind_Array_Deep() about not passing just a singular REBVAL.
+**		Bind_Values_Deep() about not passing just a singular REBVAL.
 **
 **		Different modes may be applied:
 **
@@ -894,7 +894,7 @@
 			binds[VAL_BIND_CANON(words)] = index;
 	}
 
-	Bind_Array_Inner_Loop(binds, &value[0], frame, mode);
+	Bind_Values_Inner_Loop(binds, &value[0], frame, mode);
 
 	// Reset binding table:
 	for (words = FRM_WORDS(frame) + 1; NOT_END(words); words++)
@@ -906,7 +906,7 @@
 
 /***********************************************************************
 **
-*/  void Unbind_Array_Core(REBVAL value[], REBSER *frame, REBOOL deep)
+*/  void Unbind_Values_Core(REBVAL value[], REBSER *frame, REBOOL deep)
 /*
 **		Unbind words in a block, optionally unbinding those which are
 **		bound to a particular frame (if frame is NULL, then all
@@ -919,7 +919,7 @@
 			UNBIND_WORD(value);
 
 		if (ANY_BLOCK(value) && deep)
-			Unbind_Array_Core(VAL_BLK_DATA(value), frame, TRUE);
+			Unbind_Values_Core(VAL_BLK_DATA(value), frame, TRUE);
 	}
 }
 
