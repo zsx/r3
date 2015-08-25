@@ -136,12 +136,12 @@ scalar?: func [
 any-array?: func [
 	"Return TRUE if value is a series containing all the same type."
 	value [any-type!]
-][find array! type-of :value]
+][find any-array! type-of :value]
 
 any-list?: func [
 	"Return TRUE if value is a series that can hold elements of any type."
 	value [any-type!]
-][find list! type-of :value]
+][find any-list! type-of :value]
 
 true?: func [
 	"Returns true if an expression can be used as true."
