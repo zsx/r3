@@ -93,11 +93,6 @@ system/options/result-types: make typeset! [
 
 ;-- Create "To-Datatype" conversion functions early in bootstrap:
 
-any-block?: func [
-	"Return TRUE if value is any type of block."
-	value [any-type!]
-][find any-block! type-of :value]
-
 any-string?: func [
 	"Return TRUE if value is any type of string."
 	value [any-type!]
@@ -137,6 +132,16 @@ scalar?: func [
 	"Return TRUE if value is any type of scalar."
 	value [any-type!]
 ][find scalar! type-of :value]
+
+any-array?: func [
+	"Return TRUE if value is a series containing all the same type."
+	value [any-type!]
+][find array! type-of :value]
+
+any-list?: func [
+	"Return TRUE if value is a series that can hold elements of any type."
+	value [any-type!]
+][find list! type-of :value]
 
 true?: func [
 	"Returns true if an expression can be used as true."

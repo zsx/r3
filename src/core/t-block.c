@@ -37,8 +37,17 @@ extern void reb_qsort(void *a, size_t n, size_t es, cmp_t *cmp);
 
 /***********************************************************************
 **
-*/	REBINT CT_Block(REBVAL *a, REBVAL *b, REBINT mode)
+*/	REBINT CT_List(REBVAL *a, REBVAL *b, REBINT mode)
 /*
+**	"Compare Type" dispatcher for the following types:
+**
+**		CT_Block(REBVAL *a, REBVAL *b, REBINT mode)
+**		CT_Paren(REBVAL *a, REBVAL *b, REBINT mode)
+**		CT_Path(REBVAL *a, REBVAL *b, REBINT mode)
+**		CT_Set_Path(REBVAL *a, REBVAL *b, REBINT mode)
+**		CT_Get_Path(REBVAL *a, REBVAL *b, REBINT mode)
+**		CT_Lit_Path(REBVAL *a, REBVAL *b, REBINT mode)
+**
 ***********************************************************************/
 {
 	REBINT num;
@@ -61,8 +70,17 @@ static void No_Nones(REBVAL *arg) {
 
 /***********************************************************************
 **
-*/	REBFLG MT_Block(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_List(REBVAL *out, REBVAL *data, REBCNT type)
 /*
+**	"Make Type" dispatcher for the following subtypes:
+**
+**		MT_Block(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Paren(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Path(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Set_Path(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Get_Path(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Lit_Path(REBVAL *out, REBVAL *data, REBCNT type)
+**
 ***********************************************************************/
 {
 	REBCNT i;
@@ -560,8 +578,17 @@ static struct {
 
 /***********************************************************************
 **
-*/	REBINT PD_Block(REBPVS *pvs)
+*/	REBINT PD_List(REBPVS *pvs)
 /*
+**	Path dispatch for the following types:
+**
+**		PD_Block(REBPVS *pvs)
+**		PD_Paren(REBPVS *pvs)
+**		PD_Path(REBPVS *pvs)
+**		PD_Get_Path(REBPVS *pvs)
+**		PD_Set_Path(REBPVS *pvs)
+**		PD_Lit_Path(REBPVS *pvs)
+**
 ***********************************************************************/
 {
 	REBINT n = 0;
@@ -614,8 +641,17 @@ static struct {
 
 /***********************************************************************
 **
-*/	REBTYPE(Block)
+*/	REBTYPE(List)
 /*
+**	Implementation of type dispatch of the following:
+**
+**		REBTYPE(Block)
+**		REBTYPE(Paren)
+**		REBTYPE(Path)
+**		REBTYPE(Get_Path)
+**		REBTYPE(Set_Path)
+**		REBTYPE(Lit_Path)
+**
 ***********************************************************************/
 {
 	REBVAL	*value = D_ARG(1);

@@ -185,7 +185,7 @@ REBREQ *req;		//!!! move this global
 act_blk:
 		save_port = *D_ARG(1); // save for return
 		*D_ARG(1) = *state;
-		result = T_Block(call_, action);
+		result = T_List(call_, action);
 		SET_SIGNAL(SIG_EVENT_PORT);
 		if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
 			*D_OUT = save_port;

@@ -15,7 +15,7 @@ REBOL [
 	}
 ]
 
-any-type!
+any-type! ;-- signals beginning of typesets (SYM_ANY_TYPEX hardcoded reference)
 any-word!
 any-path!
 any-function!
@@ -24,9 +24,17 @@ scalar!
 series!
 any-string!
 any-object!
-any-block!
+any-list! ;-- replacement for any-block! that doesn't conflate with "block"
+any-array! ;-- trial concept: all elements same type (e.g. not a list!)
+
+;-----------------------------------------------------------------------------
+; Signal that every earlier numbered symbol is for a typeset or datatype...
 
 datatypes
+
+; ...note that the words for types are created programmatically before
+; this list is applied, so you only see typesets in this file.
+;-----------------------------------------------------------------------------
 
 native
 self

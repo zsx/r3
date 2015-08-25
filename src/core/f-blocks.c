@@ -132,7 +132,7 @@
 			// Replace just the series field of the value
 			// Note that this should work for objects too (the frame).
 			VAL_SERIES(val) = Copy_Series(VAL_SERIES(val));
-			if ((types & TYPESET(VAL_TYPE(val)) & TS_BLOCKS_OBJ) != 0) {
+			if ((types & TYPESET(VAL_TYPE(val)) & TS_LISTS_OBJ) != 0) {
 				// If we need to copy recursively (deep):
 				if ((types & CP_DEEP) != 0)
 					Copy_Deep_Values(VAL_SERIES(val), 0, VAL_TAIL(val), types);

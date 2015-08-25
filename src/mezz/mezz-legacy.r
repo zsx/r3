@@ -46,6 +46,32 @@ offset?: :offset-of
 sign?: :sign-of
 
 
+; The distinctions between Rebol's types is important to articulate.
+; So using the term "BLOCK" generically to mean any composite
+; series--as well as specificially the bracketed block type--is a
+; recipe for confusion.
+;
+; Importantly: it also makes it difficult to get one's bearings
+; in the C sources.  It's hard to find where exactly the bits are in
+; play that make something a bracketed block...or if that's what you
+; are dealing with at all.  Hence some unique name for the typeclass
+; is needed.
+;
+; The search for a new word for the ANY-BLOCK! superclass has
+; gone on for a long time, and no better word has come out of that
+; search than LIST!.  List has some data structure connotations with
+; the word "linked" but it is used in many more general senses,
+; most notably in Lisp for this purpose.  That lists can have nested
+; lists where the nested item can be any type (including list) is now
+; accepted in HTML and elsewhere.  It's a definition that must be
+; explained to users, but unlike ANY-BLOCK! it is a cost that can
+; be paid up front--and not be paying for it with confusion in every
+; sentence spoken after that understanding is established.
+
+any-block!: :any-list!
+any-block?: :any-list?
+
+
 ; !!! These have not been renamed yet, because of questions over what they
 ; actually return.  CONTEXT-OF was a candidate, however the current behavior
 ; of just returning TRUE from BIND? when the word is linked to a function
