@@ -114,18 +114,28 @@
 
 /***********************************************************************
 **
-*/	REBSER *Copy_Series(REBSER *source)
+*/	REBSER *Copy_Sequence(REBSER *source)
 /*
-**		Copy any series, including terminator for it.
+**		Copy any series that *isn't* an "array" (such as STRING!,
+**		BINARY!, BITSET!, VECTOR!...).  Includes the terminator.
+**
+**		Use Copy_Array routines (which specify Shallow, Deep, etc.) for
+**		greater detail needed when expressing intent for Rebol Arrays.
+**
+**		Note: No suitable name for "non-array-series" has been picked.
+**		"Sequence" is used for now because Copy_Non_Array() doesn't
+**		look good and lots of things aren't "Rebol Arrays" that aren't
+**		series.  The main idea was just to get rid of the generic
+**		Copy_Series() routine, which doesn't call any attention
+**		to the importance of stating one's intentions specifically
+**		about semantics when copying an array.
 **
 ***********************************************************************/
 {
 	REBCNT len = source->tail + 1;
-	REBSER *series = Make_Series(
-		len,
-		SERIES_WIDE(source),
-		IS_BLOCK_SERIES(source) ? MKS_BLOCK : MKS_NONE
-	);
+	REBSER *series = Make_Series(len, SERIES_WIDE(source), MKS_NONE);
+
+	assert(!IS_BLOCK_SERIES(source));
 
 	memcpy(series->data, source->data, len * SERIES_WIDE(source));
 	series->tail = source->tail;
@@ -135,34 +145,42 @@
 
 /***********************************************************************
 **
-*/	REBSER *Copy_Series_Part(REBSER *source, REBCNT index, REBCNT length)
+*/	REBSER *Copy_Sequence_At_Len(REBSER *source, REBCNT index, REBCNT len)
 /*
-**		Copy any subseries, including terminator for it.
+**		Copy a subseries out of a series that is not an array.
+**		Includes the terminator for it.
+**
+**		Use Copy_Array routines (which specify Shallow, Deep, etc.) for
+**		greater detail needed when expressing intent for Rebol Arrays.
 **
 ***********************************************************************/
 {
-	REBSER *series = Make_Series(
-		length + 1,
-		SERIES_WIDE(source),
-		IS_BLOCK_SERIES(source) ? MKS_BLOCK : MKS_NONE
-	);
+	REBSER *series = Make_Series(len + 1, SERIES_WIDE(source), MKS_NONE);
 
-	memcpy(series->data, source->data + index * SERIES_WIDE(source), (length+1) * SERIES_WIDE(source));
-	series->tail = length;
+	assert(!IS_BLOCK_SERIES(source));
+
+	memcpy(
+		series->data,
+		source->data + index * SERIES_WIDE(source),
+		(len + 1) * SERIES_WIDE(source)
+	);
+	series->tail = len;
 	return series;
 }
 
 
 /***********************************************************************
 **
-*/	REBSER *Copy_Series_Value(const REBVAL *value)
+*/	REBSER *Copy_Sequence_At_Position(const REBVAL *position)
 /*
-**		Copy a series from its value structure.
-**		Index does not need to be at head location.
+**		Copy a non-array series from its value structure, using the
+**		value's index as the location to start copying the data.
 **
 ***********************************************************************/
 {
-	return Copy_Series_Part(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN(value));
+	return Copy_Sequence_At_Len(
+		VAL_SERIES(position), VAL_INDEX(position), VAL_LEN(position)
+	);
 }
 
 

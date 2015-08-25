@@ -332,7 +332,7 @@ const char *evoke_help = "Evoke values:\n"
 			len = VAL_FUNC_NUM_PARAMS(DSF_FUNC(call));
 		else
 			len = 0;
-		Val_Init_Block(D_OUT, Copy_Values(DSF_ARG(call, 1), len));
+		Val_Init_Block(D_OUT, Copy_Values_Len_Shallow(DSF_ARG(call, 1), len));
 	}
 	else if (D_REF(6)) {		// size
 		SET_INTEGER(D_OUT, DSP+1);
