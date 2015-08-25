@@ -619,6 +619,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	series->info = 0; // start with all flags clear...
 	series->data = NULL;
 
+	if (flags & MKS_LOCK) SERIES_SET_FLAG(series, SER_LOCK);
+
 	if (flags & MKS_EXTERNAL) {
 		// External series will poke in their own data pointer after the
 		// REBSER header allocation is done
@@ -891,6 +893,9 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	// SER_EXTERNAL manages its own memory and shouldn't call Remake
 	assert(!(flags & MKS_EXTERNAL));
+
+	// SER_LOCK has unexpandable data and shouldn't call Remake
+	assert(!(flags & MKS_LOCK));
 
 	// We only let you preserve if the data is the same width as original
 #if !defined(NDEBUG)

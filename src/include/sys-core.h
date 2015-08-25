@@ -170,7 +170,8 @@ enum {
 	MKS_BLOCK		= 1 << 0,	// Contains REBVALs (seen by GC and Debug)
 	MKS_POWER_OF_2	= 1 << 1,	// Round size up to a power of 2
 	MKS_EXTERNAL	= 1 << 2,	// Uses external pointer--don't alloc data
-	MKS_PRESERVE	= 1 << 3	// "Remake" only (save what data possible)
+	MKS_PRESERVE	= 1 << 3,	// "Remake" only (save what data possible)
+	MKS_LOCK		= 1 << 4	// series is unexpandable
 };
 
 // Modes allowed by Copy_Block function:
