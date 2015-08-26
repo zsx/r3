@@ -514,7 +514,9 @@
 {
 	//RL_Print("%s, %d\n", __func__, __LINE__);
 	REBSER *args = Copy_Values(
-		DSF_ARG(DSF, 1), SERIES_TAIL(VAL_FUNC_WORDS(routine)) - 1
+		DSF_NUM_ARGS(DSF) > 0 ? DSF_ARG(DSF, 1) : NULL,
+		DSF_NUM_ARGS(DSF)
 	);
+	assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_NUM_ARGS(DSF));
 	Call_Routine(routine, args, DSF_OUT(DSF));
 }
