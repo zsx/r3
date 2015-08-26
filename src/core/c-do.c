@@ -328,7 +328,13 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	} else pvs.value = pvs.path; //Trap2_DEAD_END(RE_INVALID_PATH, pvs.orig, pvs.path);
 
 	// Start evaluation of path:
-	if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
+	if (IS_END(pvs.path + 1)) {
+		// If it was a single element path, return the value rather than
+		// try to dispatch it (would cause a crash at time of writing)
+		//
+		// !!! Is this the desired behavior, or should it be an error?
+	}
+	else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
 		Next_Path(&pvs);
 		// Check for errors:
 		if (NOT_END(pvs.path+1) && !ANY_FUNC(pvs.value)) {
@@ -336,7 +342,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 			Trap2_DEAD_END(RE_INVALID_PATH, pvs.orig, pvs.path);
 		}
 	}
-	else if (NOT_END(pvs.path+1) && !ANY_FUNC(pvs.value))
+	else if (!ANY_FUNC(pvs.value))
 		Trap2_DEAD_END(RE_BAD_PATH_TYPE, pvs.orig, Of_Type(pvs.value));
 
 	// If SET then we don't return anything
