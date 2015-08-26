@@ -144,7 +144,7 @@
 	err = z_uncompress(BIN_HEAD(output), &size, data, len);
 	if (err) {
 		REBVAL arg;
-		if (PG_Boot_Phase < 2) return 0;
+
 		Free_Series(output);
 		if (PG_Boot_Phase < BOOT_ERRORS) return 0;
 		if (err == Z_MEM_ERROR) Trap_DEAD_END(RE_NO_MEMORY);
