@@ -328,10 +328,10 @@ const char *evoke_help = "Evoke values:\n"
 	}
 	else if (D_REF(4)) *D_OUT = *DSF_FUNC(call);
 	else if (D_REF(5)) {
-		len = 0;
-		if (ANY_FUNC(DSF_FUNC(call))) len = (
-			VAL_FUNC_NUM_PARAMS(DSF_FUNC(call)) - 1
-		);
+		if (ANY_FUNC(DSF_FUNC(call)))
+			len = VAL_FUNC_NUM_PARAMS(DSF_FUNC(call));
+		else
+			len = 0;
 		Val_Init_Block(D_OUT, Copy_Values(DSF_ARG(call, 1), len));
 	}
 	else if (D_REF(6)) {		// size
