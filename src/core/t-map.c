@@ -262,6 +262,7 @@
 		// Add hash table:
 		//Print("hash added %d", series->tail);
 		series->extra.series = hser = Make_Hash_Sequence(series->tail);
+		MANAGE_SERIES(hser);
 		Rehash_Hash(series);
 	}
 

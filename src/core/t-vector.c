@@ -430,6 +430,8 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	if (iblk) Set_Vector_Row(vect, iblk);
 
 	VAL_SERIES(value) = vect;
+	MANAGE_SERIES(vect);
+
 	// index set earlier
 
 	return value;

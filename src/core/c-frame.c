@@ -118,10 +118,9 @@
 	REBSER *words;
 	REBVAL *value;
 
-	//DISABLE_GC;
 	words = Make_Array(len + 1); // size + room for SELF
 	frame = Make_Array(len + 1);
-	//ENABLE_GC;
+
 	// Note: cannot use Append_Frame for first word.
 	value = Alloc_Tail_Array(frame);
 	SET_FRAME(value, 0, words);
@@ -149,8 +148,11 @@
 
 	// Expand or copy WORDS block:
 	if (copy) {
+		REBOOL managed = SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED);
 		FRM_WORD_SERIES(frame) = Copy_Array_Extra_Shallow(words, delta);
-	} else {
+		if (managed) MANAGE_SERIES(FRM_WORD_SERIES(frame));
+	}
+	else {
 		Extend_Series(words, delta);
 		BLK_TERM(words);
 	}
@@ -476,6 +478,7 @@
 		}
 		else {
 			object = Make_Frame(0, TRUE);
+			MANAGE_FRAME(object);
 		}
 	}
 	else {
@@ -497,10 +500,24 @@
 			Clonify_Values_Len_Managed(
 				BLK_SKIP(object, 1), SERIES_TAIL(object) - 1, TRUE, TS_CLONE
 			);
+
+			// The *word series* might have been reused from the parent,
+			// based on whether any words were added, or we could have gotten
+			// a fresh one back.  Force our invariant here (as the screws
+			// tighten...)
+			ENSURE_SERIES_MANAGED(FRM_WORD_SERIES(object));
+			MANAGE_SERIES(object);
 		}
+		else {
+			MANAGE_FRAME(object);
+		}
+
+		assert(words == FRM_WORD_SERIES(object));
 	}
 
-	//Dump_Frame(object);
+	assert(SERIES_GET_FLAG(object, SER_MANAGED));
+	assert(SERIES_GET_FLAG(FRM_WORD_SERIES(object), SER_MANAGED));
+	ASSERT_FRAME(object);
 	return object;
 }
 

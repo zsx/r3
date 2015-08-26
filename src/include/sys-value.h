@@ -465,6 +465,14 @@ typedef struct Reb_Tuple {
 #if !defined(NDEBUG)
 	REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
 #endif
+
+// These links are used to make a list in the debug build to track the series
+// which have not been handed over to MANAGE_SERIES(), and thus can represent
+// a leak in the release build.  (See GC_Manuals declaration for details.)
+#if !defined(NDEBUG)
+	struct Reb_Series *next;
+	struct Reb_Series *prev;
+#endif
 };
 
 #define SERIES_TAIL(s)	 ((s)->tail)
@@ -537,7 +545,7 @@ enum {
 	SER_KEEP		= 1 << 1,	// don't garbage collect even if unreferenced
 	SER_LOCK		= 1 << 2,	// size is locked (do not expand it)
 	SER_EXTERNAL	= 1 << 3,	// ->data is external, don't free() on GC
-	SER_FLAG_4		= 1 << 4,	// UNUSED: was SER_FREE, but free if wide = 0
+	SER_MANAGED		= 1 << 4,	// series is managed by garbage collection
 	SER_ARRAY		= 1 << 5,	// is sizeof(REBVAL) wide and has valid values
 	SER_PROT		= 1 << 6,	// protected from modification
 	SER_POWER_OF_2	= 1 << 7	// true alloc size is rounded to power of 2
@@ -547,7 +555,6 @@ enum {
 #define SERIES_CLR_FLAG(s, f) cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
 #define SERIES_GET_FLAG(s, f) (0 != (SERIES_FLAGS(s) & ((f) << 8)))
 
-#define	IS_FREEABLE(s)    !SERIES_GET_FLAG(s, SER_MARK|SER_KEEP)
 #define KEEP_SERIES(s,l)  do {SERIES_SET_FLAG(s, SER_KEEP); LABEL_SERIES(s,l);} while(0)
 #define LOCK_SERIES(s)    SERIES_SET_FLAG(s, SER_LOCK)
 #define IS_LOCK_SERIES(s) SERIES_GET_FLAG(s, SER_LOCK)

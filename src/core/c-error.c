@@ -128,6 +128,10 @@
 	s->hold_tail = GC_Protect->tail;
 	s->gc_disable = GC_Disabled;
 
+#if !defined(NDEBUG)
+	s->manuals = GC_Manuals;
+#endif
+
 	s->last_state = Saved_State;
 	Saved_State = s;
 
@@ -169,8 +173,6 @@
 
 	halted = VAL_ERR_NUM(&state->error) == RE_HALT;
 
-	// !!! Reset or ENABLE_GC; ?
-
 	// Restore Rebol call stack frame at time of Push_Trap
 	while (call != state->dsf) {
 		struct Reb_Call *prior = call->prior;
@@ -183,6 +185,11 @@
 	DS_DROP_TO(state->dsp);
 
 	GC_Protect->tail = state->hold_tail;
+
+#if !defined(NDEBUG)
+	MANUALS_LEAK_CHECK(state->manuals, "Trapped_Helper_Halted");
+#endif
+
 	GC_Disabled = state->gc_disable;
 
 	Saved_State = state->last_state;
@@ -290,6 +297,13 @@
 				&VAL_ERR_VALUES(err)->id
 			);
 	}
+
+#if !defined(NDEBUG)
+	// This check is also in Trapped_Helper_Halted which should run right
+	// after this routine.  But the extra check here helps find the leak
+	// before the longjmp happens and we lose our stack.
+	MANUALS_LEAK_CHECK(Saved_State->manuals, "Do_Error");
+#endif
 
 	// Error may live in a local variable whose stack is going away, or
 	// other unstable location.  Copy before the jump.
@@ -456,6 +470,8 @@
 **
 ***********************************************************************/
 {
+	ENSURE_FRAME_MANAGED(err_frame);
+
 	VAL_SET(out, REB_ERROR);
 	VAL_ERR_NUM(out) = VAL_INT32(&ERR_VALUES(err_frame)->code);
 	VAL_ERR_OBJECT(out) = err_frame;
@@ -495,6 +511,8 @@
 
 	// Make a copy of the error object template:
 	err = Copy_Array_Shallow(VAL_OBJ_FRAME(ROOT_ERROBJ));
+	MANAGE_SERIES(err);
+
 	error = ERR_VALUES(err);
 	SET_NONE(&error->id);
 
@@ -503,21 +521,13 @@
 	if (IS_BLOCK(arg)) {
 		REBVAL evaluated;
 
-		// !!! Why exactly is garbage collection disabled here, vs protecting
-		// specific things that are known to not be accounted for?
-
-		DISABLE_GC;
-
 		// Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
 		// code in REBTYPE(Object) and code in REBNATIVE(construct))
 		Bind_Values_Deep(VAL_BLK_DATA(arg), err);
 		if (Do_Block_Throws(&evaluated, VAL_SERIES(arg), 0)) {
-			ENABLE_GC;
 			*out = evaluated;
 			return FALSE;
 		}
-
-		ENABLE_GC;
 
 		if (IS_INTEGER(&error->code) && VAL_INT64(&error->code)) {
 			Set_Error_Type(error);
@@ -569,8 +579,13 @@
 		DEAD_END;
 	}
 
-	// Make a copy of the error object template:
+	// Make a copy of the error object template's frame  Note that by shallow
+	// copying it we are implicitly reusing the original's word series..
+	// which has already been indicated as "Managed".  We set our copy to
+	// managed so that it matches.
 	err = Copy_Array_Shallow(VAL_OBJ_FRAME(ROOT_ERROBJ));
+	MANAGE_SERIES(err);
+
 	error = ERR_VALUES(err);
 
 	// Set error number:

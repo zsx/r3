@@ -447,7 +447,8 @@ chk_neg:
 	if (IS_NONE(arg))
 		return R_UNSET;
 
-	url = Val_Str_To_OS(arg);
+	// !!! By passing NULL we don't get backing series to protect!
+	url = Val_Str_To_OS_Managed(NULL, arg);
 
 	r = OS_BROWSE(url, 0);
 
@@ -488,28 +489,65 @@ chk_neg:
 #define FLAG_INFO 8
 
 	REBINT r;
-	REBCHR *cmd = NULL;
 	REBVAL *arg = D_ARG(1);
 	REBU64 pid = MAX_U64; // Was REBI64 of -1, but OS_CREATE_PROCESS wants u64
 	u32 flags = 0;
-	int argc = 1;
-	const REBCHR ** argv = NULL;
+
+	// We synthesize the argc and argv from our REBVAL arg, and in the
+	// process we may need to do dynamic allocations of argc strings.  In
+	// Rebol this is always done by making a series, and if those series
+	// are managed then we need to keep them SAVEd from the GC for the
+	// duration they will be used.  Due to an artifact of the current
+	// implementation, FILE! and STRING! turned into OS-compatible character
+	// representations must be managed...so we need to save them over
+	// the duration of the call.  We hold the pointers to remember to unsave.
+	//
+	int argc;
+	const REBCHR **argv;
+	REBCHR *cmd;
+	REBSER *argv_ser = NULL;
+	REBSER *argv_saved_sers = NULL;
+	REBSER *cmd_ser = NULL;
+
 	REBVAL *input = NULL;
 	REBVAL *output = NULL;
 	REBVAL *err = NULL;
+
+	// Sometimes OS_CREATE_PROCESS passes back a input/output/err pointers,
+	// and sometimes it expects one as input.  If it expects one as input
+	// then we may have to transform the REBVAL into pointer data the OS
+	// expects.  If we do so then we have to clean up after that transform.
+	// (That cleanup could be just a Free_Series(), but an artifact of
+	// implementation forces us to use managed series hence SAVE/UNSAVE)
+	//
+	REBSER *input_ser = NULL;
+	REBSER *output_ser = NULL;
+	REBSER *err_ser = NULL;
+
+	// Pointers to the string data buffers corresponding to input/output/err,
+	// which may be the data of the expanded path series, the data inside
+	// of a STRING!, or NULL if NONE! or default of INHERIT_TYPE
+	//
 	char *os_input = NULL;
 	char *os_output = NULL;
 	char *os_err = NULL;
+
 	int input_type = INHERIT_TYPE;
 	int output_type = INHERIT_TYPE;
 	int err_type = INHERIT_TYPE;
+
 	REBCNT input_len = 0;
 	REBCNT output_len = 0;
 	REBCNT err_len = 0;
+
+	// Parameter usage may require WAIT mode even if not explicitly requested
+	// !!! /WAIT should be default, with /ASYNC (or otherwise) as exception!
+	//
 	REBOOL flag_wait = FALSE;
 	REBOOL flag_console = FALSE;
 	REBOOL flag_shell = FALSE;
 	REBOOL flag_info = FALSE;
+
 	int exit_code = 0;
 
 	Check_Security(SYM_CALL, POL_EXEC, arg);
@@ -518,63 +556,93 @@ chk_neg:
 	if (D_REF(3)) flag_console = TRUE;
 	if (D_REF(4)) flag_shell = TRUE;
 	if (D_REF(5)) flag_info = TRUE;
-	if (D_REF(6)) { /* input */
+
+	// If input_ser is set, it will be both managed and saved
+	if (D_REF(6)) {
 		REBVAL *param = D_ARG(7);
 		input = param;
 		if (IS_STRING(param)) {
 			input_type = STRING_TYPE;
-			os_input = cast(char*, Val_Str_To_OS(param));
+			os_input = cast(char*, Val_Str_To_OS_Managed(&input_ser, param));
+			SAVE_SERIES(input_ser);
 			input_len = VAL_LEN(param);
-		} else if (IS_BINARY(param)) {
+		}
+		else if (IS_BINARY(param)) {
 			input_type = BINARY_TYPE;
 			os_input = s_cast(VAL_BIN_DATA(param));
 			input_len = VAL_LEN(param);
-		} else if (IS_FILE(param)) {
-			REBSER *path = Value_To_OS_Path(param, FALSE);
+		}
+		else if (IS_FILE(param)) {
 			input_type = FILE_TYPE;
-			os_input = s_cast(SERIES_DATA(path));
-			input_len = SERIES_TAIL(path);
-		} else if (IS_NONE(param)) {
+			input_ser = Value_To_OS_Path(param, FALSE);
+			MANAGE_SERIES(input_ser);
+			SAVE_SERIES(input_ser);
+			os_input = s_cast(SERIES_DATA(input_ser));
+			input_len = SERIES_TAIL(input_ser);
+		}
+		else if (IS_NONE(param)) {
 			input_type = NONE_TYPE;
-		} else {
+		}
+		else {
 			Trap_Arg_DEAD_END(param);
 		}
 	}
 
-	if (D_REF(8)) { /* output */
+	// Note that os_output is actually treated as an *input* parameter in the
+	// case of a FILE! by OS_CREATE_PROCESS.  (In the other cases it is a
+	// pointer of the returned data, which will need to be freed with
+	// OS_FREE().)  Hence the case for FILE! is handled specially, where the
+	// output_ser must be unsaved instead of OS_FREE()d.
+	//
+	if (D_REF(8)) {
 		REBVAL *param = D_ARG(9);
 		output = param;
 		if (IS_STRING(param)) {
 			output_type = STRING_TYPE;
-		} else if (IS_BINARY(param)) {
+		}
+		else if (IS_BINARY(param)) {
 			output_type = BINARY_TYPE;
-		} else if (IS_FILE(param)) {
-			REBSER *path = Value_To_OS_Path(param, FALSE);
+		}
+		else if (IS_FILE(param)) {
 			output_type = FILE_TYPE;
-			os_output = s_cast(SERIES_DATA(path));
-			output_len = SERIES_TAIL(path);
-		} else if (IS_NONE(param)) {
+			output_ser = Value_To_OS_Path(param, FALSE);
+			MANAGE_SERIES(output_ser);
+			SAVE_SERIES(output_ser);
+			os_output = s_cast(SERIES_DATA(output_ser));
+			output_len = SERIES_TAIL(output_ser);
+		}
+		else if (IS_NONE(param)) {
 			output_type = NONE_TYPE;
-		} else {
+		}
+		else {
 			Trap_Arg_DEAD_END(param);
 		}
 	}
 
-	if (D_REF(10)) { /* err */
+	(void)input; // suppress unused warning but keep variable
+
+	// Error case...same note about FILE! case as with Output case above
+	if (D_REF(10)) {
 		REBVAL *param = D_ARG(11);
 		err = param;
 		if (IS_STRING(param)) {
 			err_type = STRING_TYPE;
-		} else if (IS_BINARY(param)) {
+		}
+		else if (IS_BINARY(param)) {
 			err_type = BINARY_TYPE;
-		} else if (IS_FILE(param)) {
-			REBSER *path = Value_To_OS_Path(param, FALSE);
+		}
+		else if (IS_FILE(param)) {
 			err_type = FILE_TYPE;
-			os_err = s_cast(SERIES_DATA(path));
-			err_len = SERIES_TAIL(path);
-		} else if (IS_NONE(param)) {
+			err_ser = Value_To_OS_Path(param, FALSE);
+			MANAGE_SERIES(err_ser);
+			SAVE_SERIES(err_ser);
+			os_err = s_cast(SERIES_DATA(err_ser));
+			err_len = SERIES_TAIL(err_ser);
+		}
+		else if (IS_NONE(param)) {
 			err_type = NONE_TYPE;
-		} else {
+		}
+		else {
 			Trap_Arg_DEAD_END(param);
 		}
 	}
@@ -594,46 +662,83 @@ chk_neg:
 	if (flag_shell) flags |= FLAG_SHELL;
 	if (flag_info) flags |= FLAG_INFO;
 
+	// Translate the first parameter into an `argc` and a pointer array for
+	// `argv[]`.  The pointer array is backed by `argv_series` which must
+	// be freed after we are done using it.
+	//
 	if (IS_STRING(arg)) {
-		REBSER * ser = NULL;
-		cmd = Val_Str_To_OS(arg);
+		// `call {foo bar}` => execute %"foo bar"
+
+		// !!! Interpreting string case as an invocation of %foo with argument
+		// "bar" has been requested and seems more suitable.  Question is
+		// whether it should go through the shell parsing to do so.
+
+		cmd = Val_Str_To_OS_Managed(&cmd_ser, arg);
+		SAVE_SERIES(cmd_ser);
+
 		argc = 1;
-		ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
-		argv = cast(const REBCHR**, SERIES_DATA(ser));
+		argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
+		argv = cast(const REBCHR**, SERIES_DATA(argv_ser));
+
 		argv[0] = cmd;
+		// Already implicitly SAVEd by cmd_ser, no need for argv_saved_sers
+
 		argv[argc] = NULL;
-	} else if (IS_BLOCK(arg)) {
-		int i = 0;
-		REBSER * ser = NULL;
+	}
+	else if (IS_BLOCK(arg)) {
+		// `call ["foo" "bar"]` => execute %foo with arg "bar"
+
+		int i;
+
+		cmd = NULL;
 		argc = VAL_LEN(arg);
 		if (argc <= 0) {
 			Trap_DEAD_END(RE_TOO_SHORT);
 		}
-		ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
-		argv = cast(const REBCHR**, SERIES_DATA(ser));
+		argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
+		argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
+		argv = cast(const REBCHR**, SERIES_DATA(argv_ser));
 		for (i = 0; i < argc; i ++) {
 			REBVAL *param = VAL_BLK_SKIP(arg, i);
 			if (IS_STRING(param)) {
-				argv[i] = Val_Str_To_OS(param);
-			} else if (IS_FILE(param)) {
+				REBSER *ser;
+				argv[i] = Val_Str_To_OS_Managed(&ser, param);
+				SAVE_SERIES(ser);
+				cast(REBSER**, SERIES_DATA(argv_saved_sers))[i] = ser;
+			}
+			else if (IS_FILE(param)) {
 				REBSER *path = Value_To_OS_Path(param, FALSE);
 				argv[i] = cast(REBCHR*, SERIES_DATA(path));
-			} else {
+
+				MANAGE_SERIES(path);
+				SAVE_SERIES(path);
+				cast(REBSER**, SERIES_DATA(argv_saved_sers))[i] = path;
+			}
+			else {
 				Trap_Arg_DEAD_END(param);
 			}
 		}
 		argv[argc] = NULL;
-		cmd = NULL;
-	} else if (IS_FILE(arg)) {
-		REBSER * ser = NULL;
+	}
+	else if (IS_FILE(arg)) {
+		// `call %"foo bar"` => execute %"foo bar"
+
 		REBSER *path = Value_To_OS_Path(arg, FALSE);
-		argc = 1;
-		ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
-		argv = cast(const REBCHR**, SERIES_DATA(ser));
-		argv[0] = cast(REBCHR*, SERIES_DATA(path));
-		argv[argc] = NULL;
+
 		cmd = NULL;
-	} else {
+		argc = 1;
+		argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
+		argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
+
+		argv = cast(const REBCHR**, SERIES_DATA(argv_ser));
+
+		argv[0] = cast(REBCHR*, SERIES_DATA(path));
+		SAVE_SERIES(path);
+		cast(REBSER**, SERIES_DATA(argv_saved_sers))[0] = path;
+
+		argv[argc] = NULL;
+	}
+	else {
 		Trap_Arg_DEAD_END(arg);
 	}
 
@@ -645,12 +750,30 @@ chk_neg:
 		err_type, &os_err, &err_len
 	);
 
+	// Call may not succeed if r != 0, but we still have to run cleanup
+	// before reporting any error...
+	//
+	if (argv_saved_sers) {
+		int i = argc;
+		assert(argc > 0);
+		do {
+			// Count down: must unsave the most recently saved series first!
+			UNSAVE_SERIES(cast(REBSER**, SERIES_DATA(argv_saved_sers))[i - 1]);
+			--i;
+		} while (i != 0);
+		Free_Series(argv_saved_sers);
+	}
+	if (cmd_ser) UNSAVE_SERIES(cmd_ser);
+	if (argv_ser) Free_Series(argv_ser); // Unmanaged, so we can free it
+
 	if (output_type == STRING_TYPE) {
 		if (output != NULL
 			&& output_len > 0) {
+			// !!! Somewhat inefficient: should there be Append_OS_Str?
 			REBSER *ser = Copy_OS_Str(os_output, output_len);
 			Append_String(VAL_SERIES(output), ser, 0, SERIES_TAIL(ser));
 			OS_FREE(os_output);
+			Free_Series(ser);
 		}
 	} else if (output_type == BINARY_TYPE) {
 		if (output != NULL
@@ -663,9 +786,11 @@ chk_neg:
 	if (err_type == STRING_TYPE) {
 		if (err != NULL
 			&& err_len > 0) {
+			// !!! Somewhat inefficient: should there be Append_OS_Str?
 			REBSER *ser = Copy_OS_Str(os_err, err_len);
 			Append_String(VAL_SERIES(err), ser, 0, SERIES_TAIL(ser));
 			OS_FREE(os_err);
+			Free_Series(ser);
 		}
 	} else if (err_type == BINARY_TYPE) {
 		if (err != NULL
@@ -674,6 +799,14 @@ chk_neg:
 			OS_FREE(os_err);
 		}
 	}
+
+	// If we used (and possibly created) a series for input/output/err, then
+	// that series was managed and saved from GC.  Unsave them now.  Note
+	// backwardsness: must unsave the most recently saved series first!!
+	//
+	if (err_ser) UNSAVE_SERIES(err_ser);
+	if (output_ser) UNSAVE_SERIES(output_ser);
+	if (input_ser) UNSAVE_SERIES(input_ser);
 
 	if (flag_info) {
 		REBSER *obj = Make_Frame(2, TRUE);
@@ -689,18 +822,19 @@ chk_neg:
 		return R_OUT;
 	}
 
-	if (r == 0) {
-		if (flag_wait)
-			SET_INTEGER(D_OUT, exit_code);
-		else
-			SET_INTEGER(D_OUT, pid);
-		return R_OUT;
-	} else {
+	if (r != 0) {
 		Make_OS_Error(D_OUT, r);
 		Trap1_DEAD_END(RE_CALL_FAIL, D_OUT);
 	}
 
-	(void)input; // suppress unused warning but keep variable
+	// We may have waited even if they didn't ask us to explicitly, but
+	// we only return a process ID if /WAIT was not explicitly used
+	if (flag_wait)
+		SET_INTEGER(D_OUT, exit_code);
+	else
+		SET_INTEGER(D_OUT, pid);
+
+	return R_OUT;
 }
 
 
@@ -831,13 +965,18 @@ chk_neg:
 	REBSER *ser;
 	REBINT n;
 
+	// !!! This routine used to have an ENABLE_GC and DISABLE_GC
+	// reference.  It is not clear what that was protecting, but
+	// this code should be reviewed with GC "torture mode", and
+	// if any values are being created which cannot be GC'd then
+	// they should be created without handing them over to GC with
+	// MANAGE_SERIES() instead.
+
 	REBRFR fr;
 	CLEARS(&fr);
 	fr.files = OS_ALLOC_ARRAY(REBCHR, MAX_FILE_REQ_BUF);
 	fr.len = MAX_FILE_REQ_BUF/sizeof(REBCHR) - 2;
 	fr.files[0] = OS_MAKE_CH('\0');
-
-	DISABLE_GC;
 
 	if (D_REF(ARG_REQUEST_FILE_SAVE)) SET_FLAG(fr.flags, FRF_SAVE);
 	if (D_REF(ARG_REQUEST_FILE_MULTI)) SET_FLAG(fr.flags, FRF_MULTI);
@@ -858,8 +997,10 @@ chk_neg:
 		fr.filter = cast(REBCHR*, ser->data);
 	}
 
-	if (D_REF(ARG_REQUEST_FILE_TITLE))
-		fr.title = Val_Str_To_OS(D_ARG(ARG_REQUEST_FILE_TEXT));
+	if (D_REF(ARG_REQUEST_FILE_TITLE)) {
+		// !!! By passing NULL we don't get backing series to protect!
+		fr.title = Val_Str_To_OS_Managed(NULL, D_ARG(ARG_REQUEST_FILE_TEXT));
+	}
 
 	if (OS_REQUEST_FILE(&fr)) {
 		if (GET_FLAG(fr.flags, FRF_MULTI)) {
@@ -873,7 +1014,6 @@ chk_neg:
 	} else
 		ser = 0;
 
-	ENABLE_GC;
 	OS_FREE(fr.files);
 
 	return ser ? R_OUT : R_NONE;
@@ -893,8 +1033,10 @@ chk_neg:
 
 	Check_Security(SYM_ENVR, POL_READ, arg);
 
-	cmd = Val_Str_To_OS(arg);
 	if (ANY_WORD(arg)) Val_Init_String(arg, Copy_Form_Value(arg, 0));
+
+	// !!! By passing NULL we don't get backing series to protect!
+	cmd = Val_Str_To_OS_Managed(NULL, arg);
 
 	lenplus = OS_GET_ENV(cmd, NULL, 0);
 	if (lenplus == 0) return R_NONE;
@@ -923,11 +1065,14 @@ chk_neg:
 
 	Check_Security(SYM_ENVR, POL_WRITE, arg1);
 
-	cmd = Val_Str_To_OS(arg1);
 	if (ANY_WORD(arg1)) Val_Init_String(arg1, Copy_Form_Value(arg1, 0));
 
+	// !!! By passing NULL we don't get backing series to protect!
+	cmd = Val_Str_To_OS_Managed(NULL, arg1);
+
 	if (ANY_STR(arg2)) {
-		REBCHR *value = Val_Str_To_OS(arg2);
+		// !!! By passing NULL we don't get backing series to protect!
+		REBCHR *value = Val_Str_To_OS_Managed(NULL, arg2);
 		success = OS_SET_ENV(cmd, value);
 		if (success) {
 			// What function could reuse arg2 as-is?

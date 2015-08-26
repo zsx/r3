@@ -299,6 +299,8 @@ static REBCNT *CRC_Table;
 ***********************************************************************/
 {
 	Val_Init_Series(out, REB_MAP, ser);
+	if (ser->extra.series)
+		ENSURE_SERIES_MANAGED(ser->extra.series);
 }
 
 

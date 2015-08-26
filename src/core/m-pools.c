@@ -640,9 +640,21 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	series->extra.size = 0;
 
-	// Keep the last few series in the nursery, safe from GC:
-	if (GC_Last_Infant >= MAX_SAFE_SERIES) GC_Last_Infant = 0;
-	GC_Infants[GC_Last_Infant++] = series;
+#if !defined(NDEBUG)
+	// All series start out in the debug tracking list of series that
+	// must be freed (if not handed to Manage_Series for the GC to take
+	// care of.)  We tack the new series on the head of the doubly-linked
+	// track list.
+
+	if (GC_Manuals) {
+		series->next = GC_Manuals;
+		GC_Manuals->prev = series;
+	}
+	else
+		series->next = NULL;
+	series->prev = NULL;
+	GC_Manuals = series;
+#endif
 
 	CHECK_MEMORY(2);
 
@@ -973,12 +985,6 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	//series->tail = 0xBAD2BAD2;
 	//series->extra.size = 0xBAD3BAD3;
 
-	/* remove from GC_Infants */
-	for (n = 0; n < MAX_SAFE_SERIES; n++) {
-		if (GC_Infants[n] == series)
-			GC_Infants[n] = NULL;
-	}
-
 	Free_Node(SERIES_POOL, cast(REBNOD*, series));
 
 	if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast)) {
@@ -999,7 +1005,24 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **
 ***********************************************************************/
 {
-	// (bookkeeping in subsequent commit)
+	// We can only free a series that is not under management by the
+	// garbage collector
+#if !defined(NDEBUG)
+	if (SERIES_GET_FLAG(series, SER_MANAGED)) {
+		Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
+		Panic_Series(series);
+	}
+
+	if (series->next)
+		series->next->prev = series->prev;
+
+	if (series->prev)
+		series->prev->next = series->next;
+	else {
+		assert(series == GC_Manuals);
+		GC_Manuals = series->next;
+	}
+#endif
 
 	// With bookkeeping done, use the same routine the GC uses to free
 	GC_Kill_Series(series);
@@ -1063,6 +1086,134 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	ASSERT_SERIES(series);
 }
+
+
+#if !defined(NDEBUG)
+
+/***********************************************************************
+**
+*/	void Manage_Series_Debug(REBSER *series)
+/*
+**		When a series is first created, it is in a state of being
+**		manually memory managed.  Thus, you can call Free_Series on
+**		it if you are sure you do not need it.  This will transition
+**		a manually managed series to be one managed by the GC.  There
+**		is no way to transition it back--once a series has become
+**		managed, only the GC can free it.
+**
+**		All series that wind up in user-visible values *must* be
+**		managed, because the user can make copies of values
+**		containing that series.  When these copies are made, it's
+**		no longer safe to assume it's okay to free the original.
+**
+**		Though marking a series as managed is just setting a bit in
+**		the release build (and hence, cheap+fast), we do some more
+**		work to ensure coherence in the debug build.
+**
+***********************************************************************/
+{
+	assert(!SERIES_GET_FLAG(series, SER_MANAGED));
+	SERIES_SET_FLAG(series, SER_MANAGED);
+
+#if !defined(NDEBUG)
+	if (series->prev == NULL)
+		GC_Manuals = series->next;
+	else
+		series->prev->next = series->next;
+	if (series->next)
+		series->next->prev = series->prev;
+#endif
+}
+
+
+/***********************************************************************
+**
+*/	void Manage_Frame_Debug(REBSER *frame)
+/*
+**      Special handler for making sure frames are managed by the GC,
+**		specifically.  If you've poked in a wordlist from somewhere
+**		else you might not be able to use this.
+**
+***********************************************************************/
+{
+	if (
+		SERIES_GET_FLAG(frame, SER_MANAGED)
+		!= SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)
+	) {
+		if (!SERIES_GET_FLAG(frame, SER_MANAGED)) {
+			Debug_Fmt("Frame word series is managed but frame is not!");
+			Panic_Series(frame);
+		}
+
+		Debug_Fmt("Frame is managed but frame word series is not!");
+		Panic_Series(FRM_WORD_SERIES(frame));
+	}
+
+	MANAGE_SERIES(FRM_WORD_SERIES(frame));
+	MANAGE_SERIES(frame);
+}
+
+
+/***********************************************************************
+**
+*/	void Manuals_Leak_Check_Debug(REBSER *manuals, const char *label_str)
+/*
+**		Routine for checking that the pointer passed in is the
+**		same as the head of the series that the GC is not tracking,
+**		which is used to check for leaks relative to an initial
+**		status of outstanding series.
+**
+***********************************************************************/
+{
+	if (GC_Manuals != manuals) {
+		REBINT count = 0;
+		REBSER *temp = manuals;
+		while (temp != GC_Manuals) {
+			temp = temp->prev;
+			if (!temp) {
+				Debug_Fmt("Bad tracking chain in REBSER leak check.");
+				Panic_Series(GC_Manuals);
+			}
+			count++;
+		}
+		Debug_Fmt("%d leaked REBSERs during %s", count, label_str);
+		Debug_Fmt("Panic_Series() on most recent (for valgrind, ASAN)");
+		Panic_Series(GC_Manuals);
+	}
+}
+
+
+/***********************************************************************
+**
+*/	void Assert_Value_Managed_Debug(const REBVAL *value)
+/*
+**		Routine for checking that the pointer passed in is the
+**		same as the head of the series that the GC is not tracking,
+**		which is used to check for leaks relative to an initial
+**		status of outstanding series.
+**
+***********************************************************************/
+{
+	if (ANY_OBJECT(value)) {
+		REBSER *frame = VAL_OBJ_FRAME(value);
+		if (!SERIES_GET_FLAG(frame, SER_MANAGED)) {
+			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on object frame");
+			Panic_Series(frame);
+		}
+		if (!SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)) {
+			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on object frame words");
+			Panic_Series(FRM_WORD_SERIES(frame));
+		}
+	}
+	else if (ANY_SERIES(value)) {
+		if (!SERIES_GET_FLAG(VAL_SERIES(value), SER_MANAGED)) {
+			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on series");
+			Panic_Series(VAL_SERIES(value));
+		}
+	}
+}
+
+#endif
 
 
 /***********************************************************************

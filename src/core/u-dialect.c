@@ -511,7 +511,9 @@ again:
 
 	if (*index >= SERIES_TAIL(block)) return 0; // end of block
 
-	DISABLE_GC; // Avoid GC during Dialect (prevents unknown crash problem)
+	// !!! This used to say "Avoid GC during Dialect (prevents unknown
+	// crash problem)".  To the extent DELECT is still used, this unknown
+	// crash problem should be resolved...not the GC disabled.
 
 	if (!*out) *out = Make_Array(25);
 
@@ -534,8 +536,6 @@ again:
 
 	if (n < 0) return n; //error
 	*index = dia.argi;
-
-	ENABLE_GC;
 
 	return dia.cmd;
 }

@@ -324,7 +324,8 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
 		if (!IS_FILE(val)) Trap_Arg_DEAD_END(val);
 
-		name = Val_Str_To_OS(val);
+		// !!! By passing NULL we don't get backing series to protect!
+		name = Val_Str_To_OS_Managed(NULL, val);
 
 		// Try to load the DLL file:
 		if (!(dll = OS_OPEN_LIBRARY(name, &error))) {
@@ -364,6 +365,9 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION));
 	obj = Copy_Array_Shallow(obj);
 
+	// Shallow copy means we reuse STD_EXTENSION's word list, which is
+	// already managed.  We manage our copy to match.
+	MANAGE_SERIES(obj);
 	Val_Init_Object(D_OUT, obj);
 
 	// Set extension fields needed:
@@ -407,6 +411,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
 	// make command! [[arg-spec] handle cmd-index]
 	VAL_FUNC_BODY(value) = Copy_Array_At_Max_Shallow(VAL_SERIES(def), 1, 2);
+	MANAGE_SERIES(VAL_FUNC_BODY(value));
 
 	// Check for valid command arg datatypes:
 	args++; // skip self

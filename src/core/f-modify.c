@@ -51,6 +51,10 @@
 	REBINT ilen  = 1;	// length to be inserted
 	REBINT size;		// total to insert
 
+#if !defined(NDEBUG)
+	REBINT index;
+#endif
+
 	if (dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
 	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
@@ -90,6 +94,13 @@
 	}
 
 	tail = (action == A_APPEND) ? 0 : size + dst_idx;
+
+#if !defined(NDEBUG)
+	for (index = 0; index < ilen; index++) {
+		if (SERIES_GET_FLAG(dst_ser, SER_MANAGED))
+			ASSERT_VALUE_MANAGED(&src_val[index]);
+	}
+#endif
 
 	dst_idx *= SERIES_WIDE(dst_ser); // loop invariant
 	ilen  *= SERIES_WIDE(dst_ser); // loop invariant

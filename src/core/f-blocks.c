@@ -128,12 +128,21 @@
 **		scalars).  If the `deep` flag is set, recurse into subseries
 **		and objects when that type is matched for clonifying.
 **
+**		Note: The resulting clones will be managed.  The model for
+**		lists only allows the topmost level to contain unmanaged
+**		values...and we *assume* the values we are operating on here
+**		live inside of an array.  (We also assume the source values
+**		are in an array, and assert that they are managed.)
 **
 ***********************************************************************/
 {
 	REBCNT index;
 
 	for (index = 0; index < len; index++, value++) {
+		// By the rules, if we need to do a deep copy on the source
+		// series then the values inside it must have already been
+		// marked managed (because they *might* delve another level deep)
+		ASSERT_VALUE_MANAGED(value);
 
 		if (types & TYPESET(VAL_TYPE(value)) & TS_SERIES_OBJ) {
 			// Replace just the series field of the value
@@ -142,6 +151,8 @@
 				VAL_SERIES(value) = Copy_Array_Shallow(VAL_SERIES(value));
 			else
 				VAL_SERIES(value) = Copy_Sequence(VAL_SERIES(value));
+
+			MANAGE_SERIES(VAL_SERIES(value));
 
 			if (!deep) continue;
 
@@ -174,6 +185,8 @@
 			REBSER *src_words = VAL_FUNC_WORDS(value);
 
 			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(src_words);
+			MANAGE_SERIES(VAL_FUNC_WORDS(value));
+
 			VAL_FUNC_BODY(value) = Copy_Array_Core_Managed(
 				VAL_FUNC_BODY(value),
 				0,
@@ -205,6 +218,9 @@
 /*
 **		Copy a block, copy specified values, deeply if indicated.
 **
+**		The resulting series will already be under GC management,
+**		and hence cannot be freed with Free_Series().
+**
 ***********************************************************************/
 {
 	REBSER *series;
@@ -215,9 +231,14 @@
 
 	if (index > SERIES_TAIL(block)) {
 		series = Make_Array(0);
+		MANAGE_SERIES(series);
 	}
 	else {
 		series = Copy_Values_Len_Shallow(BLK_SKIP(block, index), tail - index);
+
+		// Hand to the GC to manage *before* the recursion, in case it fails
+		// from being too deep.  This way the GC cleans it up during trap.
+		MANAGE_SERIES(series);
 
 		if (types != 0)
 			Clonify_Values_Len_Managed(
@@ -236,6 +257,9 @@
 **		Deep copy an array, including all series (strings, blocks,
 **		parens, objects...) excluding images, bitsets, maps, etc.
 **		The set of exclusions is the typeset TS_NOT_COPIED.
+**
+**		The resulting array will already be under GC management,
+**		and hence cannot be freed with Free_Series().
 **
 **		Note: If this were declared as a macro it would use the
 **		`array` parameter more than once, and have to be in all-caps

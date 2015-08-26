@@ -55,9 +55,18 @@
 		if (!(args & AM_OPEN_WRITE)) Trap1(RE_BAD_FILE_MODE, path);
 	}
 
-	// Convert file name to OS format, let it GC later.
 	if (!(ser = Value_To_OS_Path(path, TRUE)))
 		Trap1(RE_BAD_FILE_PATH, path);
+
+	// !!! Original comment said "Convert file name to OS format, let
+	// it GC later."  Then it grabs the series data from inside of it.
+	// It's not clear what lifetime file->file.path is supposed to have,
+	// and saying "good until whenever the GC runs" is not rigorous.
+	// The series should be kept manual and freed when the data is
+	// no longer used, or the managed series saved in a GC-safe place
+	// as long as the bytes are needed.
+	//
+	MANAGE_SERIES(ser);
 
 	file->special.file.path = cast(REBCHR*, ser->data);
 
@@ -112,6 +121,7 @@
 	if (!info || !IS_OBJECT(info)) Trap_Port(RE_INVALID_SPEC, port, -10);
 
 	obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
+	MANAGE_SERIES(obj);
 
 	Val_Init_Object(ret, obj);
 	Val_Init_Word_Unbound(
@@ -245,6 +255,7 @@ REBINT Mode_Syms[] = {
 	// Auto convert string to UTF-8
 	if (IS_STRING(data)) {
 		ser = Encode_UTF8_Value(data, len, ENCF_OS_CRLF);
+		MANAGE_SERIES(ser);
 		file->common.data = ser? BIN_HEAD(ser) : VAL_BIN_DATA(data); // No encoding may be needed
 		len = SERIES_TAIL(ser);
 	}

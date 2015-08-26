@@ -514,7 +514,10 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		// could be made at startup.
 		VAL_FUNC_SPEC(actor) = ser;
 		VAL_FUNC_WORDS(actor) = ser;
+		MANAGE_SERIES(ser);
+
 		VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);
+
 		VAL_SET(actor, REB_NATIVE);
 		return R_TRUE;
 	}

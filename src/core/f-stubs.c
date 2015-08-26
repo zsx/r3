@@ -472,6 +472,7 @@
 **
 ***********************************************************************/
 {
+	ENSURE_SERIES_MANAGED(series);
 
 	VAL_SET(value, type);
 	VAL_SERIES(value) = series;
@@ -500,7 +501,7 @@
 /*
 ***********************************************************************/
 {
-	ASSERT_FRAME(series);
+	ENSURE_FRAME_MANAGED(series);
 
 	VAL_SET(value, REB_OBJECT);
 	VAL_OBJ_FRAME(value) = series;

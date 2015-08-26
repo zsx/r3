@@ -208,6 +208,11 @@ const REBCNT Gob_Flag_Words[] = {
 		LABEL_SERIES(GOB_PANE(gob), "gob pane");
 		GOB_TAIL(gob) = count;
 		index = 0;
+
+		// !!! A GOB_PANE could theoretically be MKS_UNTRACKED and manually
+		// memory managed, if that made sense.  Does it?
+
+		MANAGE_SERIES(GOB_PANE(gob));
 	}
 	else {
 		if (change) {

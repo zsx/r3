@@ -298,7 +298,16 @@
 
 	// If it's MAP, create result block:
 	if (mode == 2) {
+		// Must be managed *and* saved...because we are accumulating results
+		// into it, and those results must be protected from GC
+
+		// !!! This means we cannot Free_Series in case of a BREAK, we
+		// have to leave it to the GC.  Should there be a variant which
+		// lets a series be a GC root for a temporary time even if it is
+		// not SER_KEEP?
+
 		out = Make_Array(VAL_LEN(value));
+		MANAGE_SERIES(out);
 		SAVE_SERIES(out);
 	}
 
@@ -471,6 +480,8 @@ skip_hidden: ;
 			Val_Init_Block(D_OUT, out);
 			return R_OUT;
 		}
+		// Would be nice if we could Free_Series(out), but it is owned by GC
+		// (we had to make it that way to use SAVE_SERIES on it)
 	}
 
 	return R_OUT;

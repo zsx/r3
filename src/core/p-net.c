@@ -51,6 +51,7 @@ enum Transport_Types {
 	if (!info || !IS_OBJECT(info)) Trap_Port(RE_INVALID_SPEC, port, -10);
 
 	obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
+	MANAGE_SERIES(obj);
 
 	Val_Init_Object(ret, obj);
 	Set_Tuple(

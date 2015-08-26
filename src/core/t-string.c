@@ -496,6 +496,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 		if (IS_BINARY(value)) SET_FLAG(args, AN_SERIES); // special purpose
 		if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
 		index = Modify_String(action, VAL_SERIES(value), index, arg, args, len, D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1);
+		ENSURE_SERIES_MANAGED(VAL_SERIES(value));
 		VAL_INDEX(value) = index;
 		break;
 

@@ -130,6 +130,7 @@
 
 	blk = BLK_HEAD(block);
 	words = Collect_Frame(NULL, blk, BIND_ALL | BIND_NO_DUP | BIND_NO_SELF);
+	MANAGE_SERIES(words);
 
 	// !!! needs more checks
 	for (; NOT_END(blk); blk++) {
@@ -208,6 +209,7 @@
 {
 	REBYTE exts;
 	//Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_TAIL(spec));
+	ENSURE_SERIES_MANAGED(spec);
 	VAL_FUNC_SPEC(value) = spec;
 	VAL_FUNC_WORDS(value) = Check_Func_Spec(spec, &exts);
 
@@ -269,8 +271,10 @@
 
 	if (!args || ((spec = VAL_BLK_HEAD(args)) && IS_END(spec))) {
 		body = 0;
-		if (IS_FUNCTION(value) || IS_CLOSURE(value))
+		if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
 			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(VAL_FUNC_WORDS(value));
+			MANAGE_SERIES(VAL_FUNC_WORDS(value));
+		}
 	} else {
 		body = VAL_BLK_SKIP(args, 1);
 		// Spec given, must be block or *
@@ -286,6 +290,7 @@
 		} else {
 			if (!IS_STAR(spec)) return FALSE;
 			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(VAL_FUNC_WORDS(value));
+			MANAGE_SERIES(VAL_FUNC_WORDS(value));
 		}
 	}
 
@@ -444,8 +449,6 @@
 	REBCNT word_index;
 
 	Eval_Functions++;
-	//DISABLE_GC;
-
 
 	// Copy stack frame variables as the closure object.  The +1 is for
 	// SELF, as the REB_END is already accounted for by Make_Blk.
@@ -463,6 +466,12 @@
 
 	frame->tail = word_index;
 	TERM_SERIES(frame);
+
+	// We do not Manage_Frame, because we are reusing a word series here
+	// that has already been managed...only manage the outer series
+	assert(SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED));
+	MANAGE_SERIES(frame);
+
 	ASSERT_FRAME(frame);
 
 	// !!! For *today*, no option for function/closure to have a SELF
@@ -497,6 +506,7 @@
 	UNSAVE_SERIES(body);
 }
 
+
 /***********************************************************************
 **
 */	void Do_Routine(const REBVAL *routine)
@@ -510,4 +520,5 @@
 	);
 	assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_NUM_ARGS(DSF));
 	Call_Routine(routine, args, DSF_OUT(DSF));
+	Free_Series(args);
 }

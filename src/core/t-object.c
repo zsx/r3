@@ -365,6 +365,7 @@ static REBSER *Trim_Object(REBSER *obj)
 			if (IS_NUMBER(arg)) {
 				n = Int32s(arg, 0);
 				obj = Make_Frame(n, TRUE);
+				MANAGE_FRAME(obj);
 				break; // returns obj
 			}
 
@@ -409,6 +410,7 @@ static REBSER *Trim_Object(REBSER *obj)
 			// make parent-object object
 			if (IS_OBJECT(arg)) {
 				obj = Merge_Frames(src_obj, VAL_OBJ_FRAME(arg));
+				MANAGE_FRAME(obj);
 				break; // returns obj
 			}
 		}
@@ -620,7 +622,6 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 	REBFRM *frm  = VAL_OBJ_FRAME(obj);
 	REBSER *ser  = Make_Array(2);
 	REBOOL clear = D_REF(2);
-	//DISABLE_GC;
 
 	val   = BLK_HEAD(frm->values);
 	words = BLK_HEAD(frm->words);
@@ -630,13 +631,12 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 			if (clear) VAL_FLAGS(val) |= FLAGS_CLEAN;
 		}
 	if (!STR_LEN(ser)) {
-		ENABLE_GC;
 		goto is_none;
 	}
 
 	Bind_Values_Shallow(BLK_HEAD(ser), frm);
 	VAL_SERIES(Temp_Blk_Value) = ser;
-	//ENABLE_GC;
+
 	return Temp_Blk_Value;
 }
 #endif

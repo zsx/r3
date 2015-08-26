@@ -91,10 +91,6 @@
 **			the TOP (DSP) are automatically protected. This is a
 **			common protection method used by native functions.
 **
-**		DISABLE_GC - macro that turns off GC. A quick way to avoid
-**			GC, but must only be used for well-behaved sections
-**			or could cause substantial memory growth.
-**
 **		DONE flag - do not scan the series; it has no links.
 **
 ***********************************************************************/
@@ -152,6 +148,14 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 **
 ***********************************************************************/
 {
+	if (
+		!SERIES_GET_FLAG(series, SER_MANAGED)
+		&& !SERIES_GET_FLAG(series, SER_KEEP)
+	) {
+		Debug_Fmt("Link to non-MANAGED non-KEEP item reached by GC");
+		Panic_Series(series);
+	}
+
 	assert(!SERIES_GET_FLAG(series, SER_EXTERNAL));
 	assert(Is_Array_Series(series));
 
@@ -227,13 +231,21 @@ static void Propagate_All_GC_Marks(void);
 #if !defined(NDEBUG)
 /***********************************************************************
 **
-*/	static void Mark_Series_Only_Debug(REBSER *ser)
+*/	static void Mark_Series_Only_Debug(REBSER *series)
 /*
 **		Hook point for marking and tracing a single series mark.
 **
 ***********************************************************************/
 {
-	SERIES_SET_FLAG(ser, SER_MARK);
+	if (
+		!SERIES_GET_FLAG(series, SER_MANAGED)
+		&& !SERIES_GET_FLAG(series, SER_KEEP)
+	) {
+		Debug_Fmt("Link to non-MANAGED non-KEEP item reached by GC");
+		Panic_Series(series);
+	}
+
+	SERIES_SET_FLAG(series, SER_MARK);
 }
 #endif
 
@@ -814,13 +826,31 @@ static void Propagate_All_GC_Marks(void);
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
 		series = (REBSER *) (seg + 1);
 		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--) {
-			if (!SERIES_FREED(series)) {
-				if (IS_FREEABLE(series)) {
-					GC_Kill_Series(series);
-					count++;
-				} else
-					SERIES_CLR_FLAG(series, SER_MARK);
+			// Only consider series that have been handed to GC for
+			// memory management to be candidates for freeing
+			if (SERIES_GET_FLAG(series, SER_MANAGED)) {
+				if (!SERIES_FREED(series)) {
+					if (!SERIES_GET_FLAG(series, SER_MARK | SER_KEEP)) {
+						GC_Kill_Series(series);
+						count++;
+					} else
+						SERIES_CLR_FLAG(series, SER_MARK);
+				}
 			}
+			else {
+			#ifdef NDEBUG
+				SERIES_CLR_FLAG(series, SER_MARK);
+			#else
+				// We should have only been willing to mark a non-managed
+				// series if it had SER_KEEP status (we will free it at
+				// shutdown time)
+				if (SERIES_GET_FLAG(series, SER_MARK)) {
+					assert(SERIES_GET_FLAG(series, SER_KEEP));
+					SERIES_CLR_FLAG(series, SER_MARK);
+				}
+			#endif
+			}
+
 			series++;
 		}
 	}
@@ -1025,24 +1055,6 @@ static void Propagate_All_GC_Marks(void);
 		sp++; // can't increment inside macro arg, evaluated multiple times
 	}
 
-	// Mark the last MAX_SAFE "infant" series that were created.
-	// We must assume that infant blocks are valid - that they contain
-	// no partially valid datatypes (that are under construction).
-
-	// !!! As written, this is much more likely to mask bugs than prevent
-	// them.  (@HostileFork has a more formalized solution to this.)
-
-	for (n = 0; n < MAX_SAFE_SERIES; n++) {
-		REBSER *ser;
-		if ((ser = GC_Infants[n])) {
-			//Dump_Series(ser, "Safe Series");
-            if (Is_Array_Series(ser))
-				MARK_BLOCK_DEEP(ser);
-            else
-                MARK_SERIES_ONLY(ser);
-		} else break;
-	}
-
 	// Mark all root series:
 	MARK_BLOCK_DEEP(VAL_SERIES(ROOT_ROOT));
 	MARK_BLOCK_DEEP(Task_Series);
@@ -1098,6 +1110,15 @@ static void Propagate_All_GC_Marks(void);
 /*
 ***********************************************************************/
 {
+	// It would seem there isn't any reason to save a series from being
+	// garbage collected if it is already invisible to the garbage
+	// collector.  But some kind of "saving" feature which added a
+	// non-managed series in as if it were part of the root set would
+	// be useful.  That would be for cases where you are building a
+	// series up from constituent values but might want to abort and
+	// manually free it.  For the moment, we don't have that feature.
+	assert(SERIES_GET_FLAG(series, SER_MANAGED));
+
 	if (SERIES_FULL(GC_Protect)) Extend_Series(GC_Protect, 8);
 	((REBSER **)GC_Protect->data)[GC_Protect->tail++] = series;
 }
@@ -1150,8 +1171,6 @@ static void Propagate_All_GC_Marks(void);
 	GC_Active = 0;			// TRUE when recycle is enabled (set by RECYCLE func)
 	GC_Disabled = 0;		// GC disabled counter for critical sections.
 	GC_Ballast = MEM_BALLAST;
-	GC_Last_Infant = 0;		// Keep the last N series safe from GC.
-	GC_Infants = ALLOC_ARRAY(REBSER*, MAX_SAFE_SERIES + 2); // extra
 
 	Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
 	Prior_Expand[0] = (REBSER*)1;

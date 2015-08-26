@@ -267,7 +267,7 @@ cp_same:
 
 /***********************************************************************
 **
-*/	REBCHR *Val_Str_To_OS(REBVAL *val)
+*/	REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
 /*
 **		This is used to pass a REBOL value string to an OS API.
 **
@@ -280,7 +280,10 @@ cp_same:
 **		like that.
 **
 **		!!! The series is created but just let up to the garbage
-**		collector to free.  This is a "leaky" approach.
+**		collector to free.  This is a "leaky" approach.  You may
+**		optionally request to have the series returned if it is
+**		important for you to protect it from GC, but you cannot
+**		currently get a "freeable" series out of this.
 **
 ***********************************************************************/
 {
@@ -288,25 +291,43 @@ cp_same:
 	if (VAL_BYTE_SIZE(val)) {
 		// On windows, we need to convert byte to wide:
 		REBINT n = VAL_LEN(val);
-		REBSER *up = Make_Unicode(n);  // will be GC'd ok
+		REBSER *up = Make_Unicode(n);
+
+		// !!!"Leaks" in the sense that the GC has to take care of this
+		MANAGE_SERIES(up);
+
 		n = Decode_UTF8(UNI_HEAD(up), VAL_BIN_DATA(val), n, FALSE);
 		SERIES_TAIL(up) = abs(n);
 		UNI_TERM(up);
+
+		if (out) *out = up;
+
 		return cast(REBCHR*, UNI_HEAD(up));
 	}
 	else {
 		// Already wide, we can use it as-is:
 		// !Assumes the OS uses same wide format!
+
+		if (out) *out = VAL_SERIES(val);
+
 		return cast(REBCHR*, VAL_UNI_DATA(val));
 	}
 #else
 	if (VAL_STR_IS_ASCII(val)) {
+		if (out) *out = VAL_SERIES(val);
+
 		// On Linux/Unix we can use ASCII directly (it is valid UTF-8):
 		return cast(REBCHR*, VAL_BIN_DATA(val));
 	}
 	else {
 		REBCNT n = VAL_LEN(val);
 		REBSER *ser = Prep_Bin_Str(val, 0, &n);
+
+		// !!! "Leaks" in the sense that the GC has to take care of this
+		MANAGE_SERIES(ser);
+
+		if (out) *out = ser;
+
 		// NOTE: may return a shared buffer!
 		return cast(REBCHR*, BIN_HEAD(ser));
 	}

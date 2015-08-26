@@ -173,6 +173,13 @@ static REBOOL get_scalar(const REBSTU *stu,
 	struct Struct_Field *field = (struct Struct_Field*) SERIES_DATA(stu->fields);
 	REBCNT i;
 
+	// We are building a recursive structure.  So if we did not hand each
+	// sub-series over to the GC then a single Free_Series() would not know
+	// how to free them all.  There would have to be a specialized walk to
+	// free the resulting structure.  Hence, don't invoke the GC until the
+	// root series being returned is done being used or is safe from GC!
+	MANAGE_SERIES(ser);
+
 	for(i = 0; i < SERIES_TAIL(stu->fields); i ++, field ++) {
 		REBVAL *val = NULL;
 		REBVAL *type_blk = NULL;
@@ -609,6 +616,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 	VAL_STRUCT_FIELDS(out) = Make_Series(
 		max_fields, sizeof(struct Struct_Field), MKS_NONE
 	);
+	MANAGE_SERIES(VAL_STRUCT_FIELDS(out));
 
 	if (IS_BLOCK(data)) {
 		//Reduce_Block_No_Set(VAL_SERIES(data), 0, NULL);
@@ -631,6 +639,12 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 		VAL_STRUCT_DATA_BIN(out) = Make_Series(max_fields << 2, 1, MKS_NONE);
 		VAL_STRUCT_OFFSET(out) = 0;
+
+		// We tell the GC to manage this series, but it will not cause a
+		// synchronous garbage collect.  Still, when's the right time?
+		ENSURE_SERIES_MANAGED(VAL_STRUCT_SPEC(out));
+		MANAGE_SERIES(VAL_STRUCT_DATA(out));
+		MANAGE_SERIES(VAL_STRUCT_DATA_BIN(out));
 
 		/* set type early such that GC will handle it correctly, i.e, not collect series in the struct */
 		SET_TYPE(out, REB_STRUCT);
@@ -774,7 +788,20 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 		if (raw_addr) {
 			set_ext_storage(out, raw_size, raw_addr);
+			// The above creates VAL_STRUCT_DATA_BIN and it's not managed
+			MANAGE_SERIES(VAL_STRUCT_DATA_BIN(out));
 		}
+		else {
+			// Might be already managed?  (It's better if we're certain...)
+			ENSURE_SERIES_MANAGED(VAL_STRUCT_DATA_BIN(out));
+		}
+
+		// For every series we create, we must either free it or hand it over
+		// to the GC to manage.
+
+		ENSURE_SERIES_MANAGED(VAL_STRUCT_FIELDS(out)); // managed already?
+		ENSURE_SERIES_MANAGED(VAL_STRUCT_SPEC(out)); // managed already?
+		ENSURE_SERIES_MANAGED(VAL_STRUCT_DATA(out)); // managed already?
 
 		return TRUE;
 	}

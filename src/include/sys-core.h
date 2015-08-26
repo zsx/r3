@@ -592,6 +592,80 @@ void Panic_Core(REBINT id, ...);
 
 /***********************************************************************
 **
+**	SERIES MANAGED MEMORY
+**
+**		When a series is allocated by the Make_Series routine, it is
+**		not initially seen by the garbage collector.  To keep from
+**		leaking it, then it must be either freed with Free_Series or
+**		delegated to the GC to manage with MANAGE_SERIES.
+**
+**		(In debug builds, there is a test at the end of every Rebol
+**		function dispatch that checks to make sure one of those two
+**		things happened for any series allocated during the call.)
+**
+**		The implementation of MANAGE_SERIES is shallow--it only sets
+**		a bit on that *one* series, not the series referenced by
+**		values inside of it.  This means that you cannot build a
+**		hierarchical structure that isn't visible to the GC and
+**		then do a single MANAGE_SERIES call on the root to hand it
+**		over to the garbage collector.  While it would be technically
+**		possible to deeply walk the structure, the efficiency gained
+**		from pre-building the structure with the managed bit set is
+**		significant...so that's how deep copies and the loader do it.
+**
+**		(In debug builds, if any unmanaged series are found inside
+**		of values reachable by the GC, it will raise an alert.)
+**
+***********************************************************************/
+
+#ifdef NDEBUG
+	#define MANAGE_SERIES(series) \
+		SERIES_SET_FLAG((series), SER_MANAGED)
+
+	#define ENSURE_SERIES_MANAGED(series) \
+		MANAGE_SERIES(series)
+
+	#define MANAGE_FRAME(frame) \
+		(SERIES_SET_FLAG((frame), SER_MANAGED), \
+		SERIES_SET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED))
+
+	#define ENSURE_FRAME_MANAGED(frame) \
+		MANAGE_FRAME(frame)
+
+	#define MANUALS_LEAK_CHECK(manuals,label_str) \
+		NOOP
+
+	#define ASSERT_VALUE_MANAGED(value) \
+		NOOP
+
+#else
+	#define MANAGE_SERIES(series) \
+		Manage_Series_Debug(series)
+
+	#define ENSURE_SERIES_MANAGED(series) \
+		(SERIES_GET_FLAG((series), SER_MANAGED) \
+			? NOOP \
+			: MANAGE_SERIES(series))
+
+	#define MANAGE_FRAME(frame) \
+		Manage_Frame_Debug(frame)
+
+	#define ENSURE_FRAME_MANAGED(frame) \
+		((SERIES_GET_FLAG((frame), SER_MANAGED) \
+		&& SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)) \
+			? NOOP \
+			: MANAGE_FRAME(frame))
+
+	#define MANUALS_LEAK_CHECK(manuals,label_str) \
+		Manuals_Leak_Check_Debug((manuals), (label_str))
+
+	#define ASSERT_VALUE_MANAGED(value) \
+		Assert_Value_Managed_Debug(value)
+#endif
+
+
+/***********************************************************************
+**
 **  DEBUG PROBING
 **
 **		Debugging Rebol has traditionally been "printf-style".  Hence

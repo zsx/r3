@@ -86,7 +86,6 @@
 	size = len + (len > STERLINGS_MAGIC_NUMBER ? len / 10 + 12 : STERLINGS_MAGIC_FIX);
 	output = Make_Binary(size);
 
-	//DISABLE_GC;	// !!! why??
 	// dest, dest-len, src, src-len, level
 	err = z_compress2(BIN_HEAD(output), &size, BIN_HEAD(input) + index, len, Z_DEFAULT_COMPRESSION);
 	if (err) {
@@ -99,7 +98,6 @@
 	SERIES_TAIL(output) = size;
 	REBCNT_To_Bytes(out_size, (REBCNT)len); // Tag the size to the end.
 	Append_Series(output, (REBYTE*)out_size, sizeof(REBCNT));
-	//ENABLE_GC;
 	if (SERIES_AVAIL(output) > 1024) {
 		// Is there wasted space?  Trim it down if too big.
 		// !!! Revisit this based on mem alloc alg.
@@ -140,7 +138,6 @@
 
 	output = Make_Binary(size);
 
-	//DISABLE_GC;
 	err = z_uncompress(BIN_HEAD(output), &size, data, len);
 	if (err) {
 		REBVAL arg;
@@ -153,6 +150,6 @@
 	}
 	SET_STR_END(output, size);
 	SERIES_TAIL(output) = size;
-	//ENABLE_GC;
+
 	return output;
 }

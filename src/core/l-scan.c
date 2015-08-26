@@ -601,8 +601,6 @@
 	REBSER *ser;
 	REBCNT len = 0;
 
-	//DISABLE_GC;
-
 	assert(errnum != 0);
 
 	ss->errors++;
@@ -633,11 +631,10 @@
 
 	if (relax) {
 		*relax = error;
-		//ENABLE_GC;
 		return;
 	}
 
-	Do_Error(&error); // ENABLE_GC implied
+	Do_Error(&error);
 	DEAD_END_VOID;
 }
 
@@ -1507,6 +1504,10 @@ exit_block:
 	emitbuf->tail = begin;
 //!!!!	if (value) VAL_OPTS(BLK_TAIL(block)) = VAL_OPTS(value); // save NEWLINE marker
 
+	// All scanned code is expected to be managed by the GC (because walking
+	// the tree after constructing it to add the "manage GC" bit would be
+	// too expensive, and we don't load source and free it manually anyway)
+	MANAGE_SERIES(block);
 	return block;
 }
 

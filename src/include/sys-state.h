@@ -84,6 +84,10 @@ typedef struct Rebol_State {
 	REBVAL error;
 	REBINT gc_disable;      // Count of GC_Disables at time of Push
 
+#if !defined(NDEBUG)
+	REBSER *manuals;	// Where GC_Manuals was when state started
+#endif
+
 #ifdef HAS_POSIX_SIGNAL
 	sigjmp_buf cpu_state;
 #else
@@ -180,5 +184,6 @@ typedef struct Rebol_State {
 	do { \
 		assert(GC_Disabled == (s)->gc_disable); \
 		assert(IS_TRASH(&(s)->error)); \
+		MANUALS_LEAK_CHECK((s)->manuals, "drop trap"); \
 		Saved_State = (s)->last_state; \
 	} while (0)

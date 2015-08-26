@@ -68,7 +68,14 @@ enum Panic_Msg_Nums {
 
 	va_start(args, id);
 
-	DISABLE_GC;
+	// We are crashing so something is internally wrong...a legitimate
+	// time to be disabling the garbage collector.
+	//
+	// !!! But should we be doing FORMing etc. to make a message from
+	// varargs or just spitting out the crash in a less risky way?  Is
+	// Panic overdesigned for its purpose?
+	GC_Disabled++;
+
 	if (Reb_Opts->crash_dump) {
 		Dump_Info();
 		Dump_Stack(0, 0);

@@ -628,6 +628,8 @@ end_date:
 	if (!at) return 0;
 	VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
 
+	MANAGE_SERIES(VAL_SERIES(value));
+
 	return cp;
 }
 
@@ -668,6 +670,9 @@ end_date:
 	}
 	*str = 0;
 	VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
+
+	// All scanned code is assumed to be managed
+	MANAGE_SERIES(VAL_SERIES(value));
 	return cp;
 }
 
@@ -779,6 +784,10 @@ end_date:
 	VAL_SERIES(value) = Append_UTF8(0, cp, len);
 	VAL_INDEX(value) = 0;
 
+	// We hand it over to management by the GC, but don't run the GC before
+	// the source has been scanned and put somewhere safe!
+	MANAGE_SERIES(VAL_SERIES(value));
+
 	if (VAL_BYTE_SIZE(value)) {
 		n = Deline_Bytes(VAL_BIN(value), VAL_LEN(value));
 	} else {
@@ -822,7 +831,6 @@ end_date:
 	REBYTE quote;
 
 	series = Make_Array(16);
-	//DISABLE_GC;
 
 	while (len > 0) {
 		// Look for tag, gathering text as we go:
@@ -857,7 +865,6 @@ end_date:
 		// Note: if final tag does not end, then it is treated as text.
 	}
 	if (cp != bp) Append_Markup(series, REB_STRING, bp, cp - bp);
-	//ENABLE_GC;
 
 	return series;
 }

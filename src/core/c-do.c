@@ -527,6 +527,8 @@ more_path:
 			Trap_Arg_DEAD_END(param);
 		}
 
+		ASSERT_VALUE_MANAGED(arg);
+
 		// If word is typed, verify correct argument datatype:
 		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
 			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
@@ -606,6 +608,14 @@ return_index:
 #if !defined(NDEBUG)
 	REBINT dsp_precall = DSP;
 
+	// We keep track of the head of the list of series that are not tracked
+	// by garbage collection at the outset of the call.  Then we ensure that
+	// when the call is finished, no accumulation has happened.  So all
+	// newly allocated series should either be (a) freed or (b) delegated
+	// to management by the GC...else they'd represent a leak
+	//
+	REBSER *manuals = GC_Manuals;
+
 	const REBYTE *label_str = Get_Word_Name(DSF_LABEL(call));
 #endif
 
@@ -656,12 +666,16 @@ return_index:
 
 	assert(VAL_TYPE(out) < REB_MAX); // cheap check
 
+	ASSERT_VALUE_MANAGED(out);
+
 #if !defined(NDEBUG)
 	assert(DSP >= dsp_precall);
 	if (DSP > dsp_precall) {
 		PROBE_MSG(DSF_WHERE(call), "UNBALANCED STACK TRAP!!!");
 		Panic(RP_MISC);
 	}
+
+	MANUALS_LEAK_CHECK(manuals, cs_cast(label_str));
 #endif
 
 	SET_DSF(dsf_precall);
@@ -715,6 +729,8 @@ return_index:
 	//
 	assert(!IN_DATA_STACK(out));
 
+	assert(SERIES_GET_FLAG(block, SER_MANAGED));
+
 do_at_index:
 	assert(index != END_FLAG && index != THROWN_FLAG);
 	SET_TRASH_SAFE(out);
@@ -744,6 +760,7 @@ do_at_index:
 
 	value = BLK_SKIP(block, index);
 	assert(!THROWN(value));
+	ASSERT_VALUE_MANAGED(value);
 
 	if (Trace_Flags) Trace_Line(block, index, value);
 
@@ -1271,6 +1288,7 @@ finished:
 					// compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
 					// !!! path and second paren are copies, first paren isn't
 					VAL_SERIES(DS_TOP) = Copy_Array_Shallow(VAL_SERIES(value));
+					MANAGE_SERIES(VAL_SERIES(DS_TOP));
 				}
 			}
 		}

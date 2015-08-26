@@ -783,7 +783,13 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **
 ***********************************************************************/
 {
-	return unicode ? Make_Unicode(size) : Make_Binary(size);
+	REBSER *result = unicode ? Make_Unicode(size) : Make_Binary(size);
+
+	// !!! Assume client does not have Free_Series() or MANAGE_SERIES()
+	// APIs, so the series we give back must be managed.  But how can
+	// we be sure they get what usage they needed before the GC happens?
+	MANAGE_SERIES(result);
+	return result;
 }
 
 

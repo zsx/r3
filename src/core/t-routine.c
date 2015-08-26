@@ -740,14 +740,10 @@ static void ffi_to_rebol(REBRIN *rin,
 	}
 
 	/* ser is NULL if the routine takes no arguments */
-	if (ser != NULL) {
-		SAVE_SERIES(ser); //protect from GC
+	if (ser)
 		ffi_args = (void **) SERIES_DATA(ser);
 
-	}
-
 	ffi_args_ptrs = Make_Series(SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
-	SAVE_SERIES(ffi_args_ptrs);
 
 	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
 		REBCNT j = 1;
@@ -814,10 +810,9 @@ static void ffi_to_rebol(REBRIN *rin,
 			 rvalue,
 			 ffi_args);
 
-	UNSAVE_SERIES(ffi_args_ptrs);
-	if (ser != NULL) {
-		UNSAVE_SERIES(ser);
-	}
+	Free_Series(ffi_args_ptrs);
+
+	if (ser) Free_Series(ser);
 
 	ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
 }
@@ -891,6 +886,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBVAL safe;
 
 	ser = Make_Array(1 + cif->nargs);
+	MANAGE_SERIES(ser);
 	SAVE_SERIES(ser);
 
 	elem = Alloc_Tail_Array(ser);
@@ -1060,6 +1056,21 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	init_type_map();
 
 	blk = VAL_BLK_DATA(data);
+
+	// For all series we created, we must either free them or hand them over
+	// to be managed by the garbage collector.  (They will be invisible to
+	// the GC prior to giving them over via Manage_Series.)  On the plus
+	// side of making them managed up-front, the GC is responsible for
+	// freeing them if there is an error.  On the downside: if any DO
+	// operation were to run, the series would be candidates for GC if
+	// they are not linked somehow into the transitive closure of the roots.
+	//
+	ENSURE_SERIES_MANAGED(VAL_ROUTINE_SPEC(out)); // probably already managed
+	MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_TYPES(out));
+	MANAGE_SERIES(VAL_ROUTINE_ARGS(out));
+	MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+	MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
+
 	if (type == REB_ROUTINE) {
 		REBINT fn_idx = 0;
 		REBVAL lib;
