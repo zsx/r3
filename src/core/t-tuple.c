@@ -182,8 +182,8 @@
 /*
 ***********************************************************************/
 {
-	REBVAL	*value;
-	REBVAL	*arg;
+	REBVAL *value = D_ARG(1);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	REBYTE	*vp;
 	const REBYTE *ap;
 	REBCNT len;
@@ -191,14 +191,12 @@
 	REBINT	a;
 	REBDEC	dec;
 
-	value = D_ARG(1);
 	if (IS_TUPLE(value)) {
 		vp = VAL_TUPLE(value);
 		len = VAL_TUPLE_LEN(value);
 	} else if (!(IS_DATATYPE(value) && (action == A_MAKE || action == A_TO))) {
 		Trap_Arg_DEAD_END(value);
 	}
-	arg = D_ARG(2);
 
 	if (IS_BINARY_ACT(action)) {
 		assert(vp);

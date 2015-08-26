@@ -68,7 +68,7 @@
 {
 	REBCNT val1 = VAL_LOGIC(D_ARG(1));
 	REBCNT val2;
-	REBVAL *arg = D_ARG(2);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 
 	if (IS_BINARY_ACT(action)) {
 		if (IS_LOGIC(arg)) val2 = VAL_LOGIC(arg);

@@ -168,11 +168,14 @@ enum {
 **
 */	static int Protect(struct Reb_Call *call_, REBCNT flags)
 /*
+**	Common arguments between protect and unprotect:
+**
 **		1: value
 **		2: /deep  - recursive
 **		3: /words  - list of words
 **		4: /values - list of values
-**		5: /hide  - hide variables
+**
+**	Protect takes a HIDE parameter as #5.
 **
 ***********************************************************************/
 {
@@ -184,9 +187,6 @@ enum {
 
 	if (D_REF(2)) SET_FLAG(flags, PROT_DEEP);
 	//if (D_REF(3)) SET_FLAG(flags, PROT_WORD);
-
-	if (D_REF(5)) SET_FLAG(flags, PROT_HIDE);
-	else SET_FLAG(flags, PROT_WORD); // there is no unhide
 
 	if (IS_WORD(val) || IS_PATH(val)) {
 		Protect_Word_Value(val, flags); // will unmark if deep
@@ -923,7 +923,13 @@ was_caught:
 /*
 ***********************************************************************/
 {
-	return Protect(call_, 1); // PROT_SET
+	REBCNT flags = FLAGIT(PROT_SET);
+
+	if (D_REF(5)) SET_FLAG(flags, PROT_HIDE);
+	else SET_FLAG(flags, PROT_WORD); // there is no unhide
+
+	// accesses arguments 1 - 4
+	return Protect(call_, flags);
 }
 
 
@@ -933,8 +939,8 @@ was_caught:
 /*
 ***********************************************************************/
 {
-	SET_NONE(D_ARG(5)); // necessary, bogus, but no harm to stack
-	return Protect(call_, 0);
+	// accesses arguments 1 - 4
+	return Protect(call_, FLAGIT(PROT_WORD));
 }
 
 

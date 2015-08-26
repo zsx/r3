@@ -312,32 +312,20 @@
 }
 
 
-#ifdef STRESS
+#if !defined(NDEBUG)
 
 /***********************************************************************
 **
-*/	struct Reb_Call *DSF_Stress(void)
+*/	REBVAL *DSF_VAR_Debug(struct Reb_Call *call, REBCNT n)
 /*
-**		If there is an issue in testing where the function call frame
-**		is found to contain bad information at some point, this
-**		can be used in a "stress mode" to check when it went bad.
-**		DSF is a macro which is changed to call this function (and
-**		then dereference the returned pointer to get an LValue).
-**
-**		!!! This was used when the call stack frames were on the
-**		data stack and could get intermingled; less relevant now.
+**		Debug-only version of getting a variable out of a call
+**		frame, which asserts if you use an index that is higher
+**		than the number of arguments in the frame.
 **
 ***********************************************************************/
 {
-	assert(DSP >= -1);
-	if (CS_Running) {
-		REBCNT index;
-		assert(ANY_FUNC(DSF_FUNC(CS_Running)));
-		assert(ANY_BLOCK(DSF_WHERE(CS_Running)));
-		ASSERT_BLK(VAL_SERIES(DSF_WHERE(CS_Running)));
-	}
-
-	return CS_Running;
+	assert(n <= call->num_vars);
+	return &call->vars[n - 1];
 }
 
 #endif

@@ -456,7 +456,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 ***********************************************************************/
 {
 	REBVAL	*value = D_ARG(1);
-	REBVAL  *arg = D_ARG(2);
+	REBVAL  *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	REBINT	index;
 	REBINT	tail;
 	REBINT	len;

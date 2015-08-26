@@ -418,7 +418,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	const REBVAL *func = DSF_FUNC(call);
 	REBSER *words = VAL_FUNC_WORDS(func);
 	REBVAL *param = VAL_FUNC_PARAM(func, 1);
-	REBVAL *arg = DSF_ARG(call, 1);
+	REBVAL *arg = DSF_NUM_ARGS(call) > 0 ? DSF_ARG(call, 1) : NULL;
 
 	REBOOL lookahead;
 
@@ -1334,8 +1334,11 @@ finished:
 
 	// Gather arguments:
 
-	arg = DSF_ARG(call, 1);
-	param = VAL_FUNC_PARAM(func, 1);
+	arg = DSF_NUM_ARGS(call) > 0 ? DSF_ARG(call, 1) : END_VALUE;
+	if (VAL_FUNC_NUM_PARAMS(func) > 0)
+		param = VAL_FUNC_PARAM(func, 1);
+	else
+		param = END_VALUE;
 
 	while (index < BLK_LEN(block)) {
 		if (!too_many && IS_END(param)) {

@@ -740,18 +740,15 @@ is_none:
 /*
 ***********************************************************************/
 {
-	REBVAL *val;
-	REBVAL *arg;
-	REBGOB *gob;
+	REBVAL *val = D_ARG(1);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+	REBGOB *gob = NULL;
 	REBGOB *ngob;
 	REBCNT index;
 	REBCNT tail;
 	REBCNT len;
 
-	arg = D_ARG(2);
-	val = D_OUT;
-	*val = *D_ARG(1);
-	gob = 0;
+	*D_OUT = *val;
 
 	if (IS_GOB(val)) {
 		gob = VAL_GOB(val);
@@ -766,7 +763,6 @@ is_none:
 
 	case A_MAKE:
 		ngob = Make_Gob();
-		val = D_ARG(1);
 
 		// Clone an existing GOB:
 		if (IS_GOB(val)) {	// local variable "gob" is valid
@@ -854,9 +850,9 @@ is_none:
 		if (index + len > tail) len = tail - index;
 		if (index >= tail) goto is_none;
 		if (!D_REF(2)) { // just one value
-			VAL_SET(val, REB_GOB);
-			VAL_GOB(val) = *GOB_SKIP(gob, index);
-			VAL_GOB_INDEX(val) = 0;
+			VAL_SET(D_OUT, REB_GOB);
+			VAL_GOB(D_OUT) = *GOB_SKIP(gob, index);
+			VAL_GOB_INDEX(D_OUT) = 0;
 			Remove_Gobs(gob, index, 1);
 			return R_OUT;
 		} else {
@@ -900,12 +896,12 @@ is_none:
 		goto is_false;
 
 	case A_INDEX_OF:
-		SET_INTEGER(val, index+1);
+		SET_INTEGER(D_OUT, index + 1);
 		break;
 
 	case A_LENGTH:
 		index = (tail > index) ? tail - index : 0;
-		SET_INTEGER(val, index);
+		SET_INTEGER(D_OUT, index);
 		break;
 
 	case A_FIND:
@@ -930,9 +926,9 @@ is_none:
 	return R_OUT;
 
 set_index:
-	VAL_SET(val, REB_GOB);
-	VAL_GOB(val) = gob;
-	VAL_GOB_INDEX(val) = index;
+	VAL_SET(D_OUT, REB_GOB);
+	VAL_GOB(D_OUT) = gob;
+	VAL_GOB_INDEX(D_OUT) = index;
 	return R_OUT;
 
 is_none:

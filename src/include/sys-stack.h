@@ -276,14 +276,6 @@ struct Reb_Call {
 
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
-#if (!defined(NDEBUG) && defined(STRESS))
-	// In a "stress checked" debug mode, every time the DSF is accessed we
-	// can verify that it is well-formed.
-	#ifdef STRESS
-		#define DSF (DSF_Stress())
-	#endif
-#endif
-
 #define SET_DSF(c) \
 	( \
 		CS_Running = (c), \
@@ -298,7 +290,11 @@ struct Reb_Call {
 #define DSF_RETURN(c)	coming@soon
 
 // VARS includes (*will* include) RETURN dispatching value, locals...
-#define DSF_VAR(c,n)	(&(c)->vars[(n) - 1])
+#ifdef NDEBUG
+	#define DSF_VAR(c,n)	(&(c)->vars[(n) - 1])
+#else
+	#define DSF_VAR(c,n)	DSF_VAR_Debug((c), (n)) // checks arg index bound
+#endif
 
 // ARGS is the parameters and refinements
 #define DSF_ARG(c,n)	DSF_VAR((c), (n) - 1 + FIRST_PARAM_INDEX)
@@ -315,4 +311,9 @@ struct Reb_Call {
 #define D_ARG(n)		DSF_ARG(call_, (n))
 #define D_REF(n)		(!IS_NONE(D_ARG(n)))
 
+// Functions should generally not to detect the arity they were invoked with,
+// (and it doesn't make sense as most implementations get the full list of
+// arguments and refinements).  However, several dispatches may go through
+// actions and other locations.  IS_BINARY_ACTION() and other functions could
+// be used to do this more gracefully, but actions need review anyway
 #define DS_ARGC			DSF_NUM_ARGS(call_)

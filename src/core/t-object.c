@@ -295,7 +295,7 @@ static REBSER *Trim_Object(REBSER *obj)
 ***********************************************************************/
 {
 	REBVAL *value = D_ARG(1);
-	REBVAL *arg = D_ARG(2);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	REBINT n;
 	REBVAL *val;
 	REBSER *obj, *src_obj;

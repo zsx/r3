@@ -483,7 +483,7 @@
 ***********************************************************************/
 {
 	REBVAL *val = D_ARG(1);
-	REBVAL *arg = D_ARG(2);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	REBINT n;
 	REBSER *series;
 
