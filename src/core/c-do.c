@@ -648,6 +648,8 @@ return_index:
 	// over the trash that we put in the return slot before the call.
 	assert(!IS_TRASH(out));
 
+	assert(VAL_TYPE(out) < REB_MAX); // cheap check
+
 #if !defined(NDEBUG)
 	assert(DSP >= dsp_precall);
 	if (DSP > dsp_precall) {
@@ -1014,6 +1016,7 @@ return_index:
 	assert(!IS_TRASH(out));
 	assert((index == THROWN_FLAG) == THROWN(out));
 	assert(index != END_FLAG || index >= BLK_LEN(block));
+	assert(VAL_TYPE(out) < REB_MAX); // cheap check
 	return index;
 }
 
