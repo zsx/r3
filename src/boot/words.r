@@ -24,8 +24,7 @@ scalar!
 series!
 any-string!
 any-object!
-any-list! ;-- replacement for any-block! that doesn't conflate with "block"
-any-array! ;-- trial concept: all elements same type (e.g. not a list!)
+any-array! ;-- replacement for any-block! that doesn't conflate with "block"
 
 ;-----------------------------------------------------------------------------
 ; Signal that every earlier numbered symbol is for a typeset or datatype...

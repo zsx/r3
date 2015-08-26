@@ -47,24 +47,24 @@ date        date        *		*       *		*		-
 
 ;-- Series
 
-binary      string      +		+       *		*		[series array]
-string      string      +		f*      *		*		[series string array]
-file        string      +		f*      file	*		[series string array]
-email       string      +		f*      *		*		[series string array]
-url         string      +		f*      file	*		[series string array]
-tag         string      +		+       *		*		[series string array]
+binary      string      +		+       *		*		[series]
+string      string      +		f*      *		*		[series string]
+file        string      +		f*      file	*		[series string]
+email       string      +		f*      *		*		[series string]
+url         string      +		f*      file	*		[series string]
+tag         string      +		+       *		*		[series string]
 
 bitset      bitset      *		*       *		*		-
-image       image       +		+       *		*		[series array]
-vector      vector      -		-       *		*		[series array]
+image       image       +		+       *		*		[series]
+vector      vector      -		-       *		*		[series]
 
-block       list        *		f*      *		*		[series list]
-paren       list        *		f*      *		*		[series list]
+block       array       *		f*      *		*		[series array]
+paren       array       *		f*      *		*		[series array]
 
-path        list        *		*       *		*		[series path list]
-set-path    list        *		*       *		*		[series path list]
-get-path    list        *		*       *		*		[series path list]
-lit-path    list        *		*       *		*		[series path list]
+path        array       *		*       *		*		[series path array]
+set-path    array       *		*       *		*		[series path array]
+get-path    array       *		*       *		*		[series path array]
+lit-path    array       *		*       *		*		[series path array]
 
 map         map         +		f*      *		*		-
 

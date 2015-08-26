@@ -99,7 +99,7 @@ compose: native [
 	/deep "Compose nested blocks"
 	/only {Insert a block as a single value (not the contents of the block)}
 	/into {Output results into a series with no intermediate storage}
-	out [any-list! any-string! binary!]
+	out [any-array! any-string! binary!]
 ]
 
 context: native [
@@ -261,7 +261,7 @@ reduce: native [
 	/only {Only evaluate words and paths, not functions}
 	words [block! none!] {Optional words that are not evaluated (keywords)}
 	/into {Output results into a series with no intermediate storage}
-	out [any-list! any-string! binary!]
+	out [any-array! any-string! binary!]
 ]
 
 repeat: native [

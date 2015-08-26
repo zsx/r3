@@ -37,7 +37,7 @@ extern void reb_qsort(void *a, size_t n, size_t es, cmp_t *cmp);
 
 /***********************************************************************
 **
-*/	REBINT CT_List(REBVAL *a, REBVAL *b, REBINT mode)
+*/	REBINT CT_Array(REBVAL *a, REBVAL *b, REBINT mode)
 /*
 **	"Compare Type" dispatcher for the following types:
 **
@@ -70,7 +70,7 @@ static void No_Nones(REBVAL *arg) {
 
 /***********************************************************************
 **
-*/	REBFLG MT_List(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Array(REBVAL *out, REBVAL *data, REBCNT type)
 /*
 **	"Make Type" dispatcher for the following subtypes:
 **
@@ -578,7 +578,7 @@ static struct {
 
 /***********************************************************************
 **
-*/	REBINT PD_List(REBPVS *pvs)
+*/	REBINT PD_Array(REBPVS *pvs)
 /*
 **	Path dispatch for the following types:
 **
@@ -641,7 +641,7 @@ static struct {
 
 /***********************************************************************
 **
-*/	REBTYPE(List)
+*/	REBTYPE(Array)
 /*
 **	Implementation of type dispatch of the following:
 **

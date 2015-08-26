@@ -57,19 +57,18 @@ sign?: :sign-of
 ; are dealing with at all.  Hence some unique name for the typeclass
 ; is needed.
 ;
-; The search for a new word for the ANY-BLOCK! superclass has
-; gone on for a long time, and no better word has come out of that
-; search than LIST!.  List has some data structure connotations with
-; the word "linked" but it is used in many more general senses,
-; most notably in Lisp for this purpose.  That lists can have nested
-; lists where the nested item can be any type (including list) is now
-; accepted in HTML and elsewhere.  It's a definition that must be
-; explained to users, but unlike ANY-BLOCK! it is a cost that can
-; be paid up front--and not be paying for it with confusion in every
-; sentence spoken after that understanding is established.
+; The search for a new word for the ANY-BLOCK! superclass went on for
+; a long time.  LIST! was looking like it might have to be the winner,
+; until ARRAY! was deemed more fitting.  The notion that a "Rebol
+; Array" contains "Rebol Values" that can be elements of any type
+; (including other arrays) separates it from the other series classes
+; which can only contain one type of element (codepoints for strings,
+; bytes for binaries, numbers for vector).  In the future those may
+; have more unification under a typeclass of their own, but ARRAY!
+; is for BLOCK!, PAREN!, PATH!, GET-PATH!, SET-PATH!, and LIT-PATH!
 
-any-block!: :any-list!
-any-block?: :any-list?
+any-block!: :any-array!
+any-block?: :any-array?
 
 
 ; !!! These have not been renamed yet, because of questions over what they
