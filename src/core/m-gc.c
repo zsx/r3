@@ -126,7 +126,9 @@ static void Queue_Mark_Value_Deep(const REBVAL *val);
 
 static void Push_Block_Marked_Deep(REBSER *series);
 
+#ifndef NDEBUG
 static void Mark_Series_Only_Debug(REBSER *ser);
+#endif
 
 /***********************************************************************
 **
