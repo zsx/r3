@@ -980,12 +980,17 @@ static struct digest {
 **
 ***********************************************************************/
 {
+	// We have to m_cast because C++ actually has a separate overloads of
+	// wcschr and strchr which will return a const pointer if the in pointer
+	// was const.
 #ifdef OS_WIDE_CHAR
-	return cast(REBCHR*, wcschr(cast(const wchar_t*, str), ch));
+	return cast(REBCHR*,
+		m_cast(wchar_t*, wcschr(cast(const wchar_t*, str), ch))
+	);
 #else
-	// We have to m_cast because C++ actually has a separate overload of
-	// strchr which will return a const pointer if the in pointer was const
-	return cast(REBCHR*, m_cast(char*, strchr(cast(const char*, str), ch)));
+	return cast(REBCHR*,
+		m_cast(char*, strchr(cast(const char*, str), ch))
+	);
 #endif
 }
 
