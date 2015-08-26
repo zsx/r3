@@ -576,7 +576,7 @@ enum {
 	#define ASSERT_SERIES(s) \
 		do { \
 			if (Is_Array_Series(series)) \
-				ASSERT_BLK(series); \
+				ASSERT_ARRAY(series); \
 			else \
 				ASSERT_SERIES_TERM(series); \
 		} while (0)
@@ -863,11 +863,11 @@ struct Reb_Position
 #define IS_EMPTY(v)		(VAL_INDEX(v) >= VAL_TAIL(v))
 
 #ifdef NDEBUG
-	#define ASSERT_BLK(s) cast(void, 0)
-	#define ASSERT_TYPED_WORDS_BLOCK(s) cast(void, 0)
+	#define ASSERT_ARRAY(s) cast(void, 0)
+	#define ASSERT_TYPED_WORDS_ARRAY(s) cast(void, 0)
 #else
-	#define ASSERT_BLK(s) Assert_Blk_Core(s, FALSE)
-	#define ASSERT_TYPED_WORDS_BLOCK(s) Assert_Blk_Core(s, TRUE)
+	#define ASSERT_ARRAY(s) Assert_Array_Core(s, FALSE)
+	#define ASSERT_TYPED_WORDS_ARRAY(s) Assert_Array_Core(s, TRUE)
 #endif
 
 

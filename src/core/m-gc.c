@@ -213,7 +213,7 @@ static void Propagate_All_GC_Marks(void);
 
 #define MARK_TYPED_WORDS_BLOCK(s) \
 	do { \
-		ASSERT_TYPED_WORDS_BLOCK(s); \
+		ASSERT_TYPED_WORDS_ARRAY(s); \
 		MARK_SERIES_ONLY(s); \
 	} while (0)
 

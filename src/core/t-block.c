@@ -844,10 +844,10 @@ is_none:
 }
 
 
-#ifndef NDEBUG
+#if !defined(NDEBUG)
 /***********************************************************************
 **
-*/	void Assert_Blk_Core(const REBSER *series, REBOOL typed_words)
+*/	void Assert_Array_Core(const REBSER *series, REBOOL typed_words)
 /*
 ***********************************************************************/
 {
