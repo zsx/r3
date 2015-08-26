@@ -717,8 +717,6 @@ was_caught:
 	REBVAL *value = D_ARG(1);
 	REBOOL into = D_REF(4);
 
-	Stack_Depth();
-
 	// Only composes BLOCK!, all other arguments evaluate to themselves
 	if (!IS_BLOCK(value)) return R_ARG1;
 
@@ -726,8 +724,6 @@ was_caught:
 	if (into) *D_OUT = *D_ARG(5);
 
 	Compose_Block(D_OUT, value, D_REF(2), D_REF(3), into);
-
-	Stack_Depth();
 
 	return R_OUT;
 }
@@ -964,8 +960,6 @@ was_caught:
 			Reduce_Only(D_OUT, ser, index, D_ARG(4), into);
 		else
 			Reduce_Block(D_OUT, ser, index, into);
-
-		Stack_Depth();
 
 		return R_OUT;
 	}
