@@ -223,7 +223,10 @@ create:
 		result = OS_DO_DEVICE(&dir, RDC_CREATE);
 		///OS_FREE(dir.file.path);
 		if (result < 0) Trap1_DEAD_END(RE_NO_CREATE, path);
-		if (action == A_CREATE) return R_ARG2;
+		if (action == A_CREATE) {
+			// !!! Used to return R_ARG2, but create is single arity.  :-/
+			return R_ARG1;
+		}
 		SET_NONE(state);
 		break;
 
@@ -251,7 +254,8 @@ create:
 		result = OS_DO_DEVICE(&dir, RDC_DELETE);
 		///OS_FREE(dir.file.path);
 		if (result < 0) Trap1_DEAD_END(RE_NO_DELETE, path);
-		return R_ARG2;
+		// !!! Returned R_ARG2 before, but there is no second argument :-/
+		return R_ARG1;
 
 	case A_OPEN:
 		// !! If open fails, what if user does a READ w/o checking for error?
