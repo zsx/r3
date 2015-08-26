@@ -547,6 +547,11 @@ static	BOOT_BLK *Boot_Block;
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROT);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
 
+	// We can't actually put a REB_END value in the middle of a block,
+	// so we poke this one into a program global
+	SET_END(&PG_End_Val);
+	assert(IS_END(END_VALUE));
+
 	// Initialize a few fields:
 	Val_Init_Block(ROOT_ROOT, frame);
 	Val_Init_Word_Unbound(ROOT_NONAME, REB_WORD, SYM__UNNAMED_);

@@ -63,6 +63,10 @@ PVAR REB_OPTS *Reb_Opts;
 	PVAR REBOOL PG_Legacy;			// Need to check for old operation modes
 #endif
 
+// A REB_END value, which comes in handy if you ever need the address of
+// an end for a noop to pass to a routine expecting an end-terminated series
+PVAR REBVAL PG_End_Val;
+
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
 PVAR REBCNT	Eval_Signals;	// Signal flags

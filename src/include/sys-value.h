@@ -79,6 +79,7 @@ typedef struct Reb_Series REBSER;
 
 // Clear type identifier:
 #define SET_END(v)			VAL_SET(v, 0)
+#define END_VALUE			&PG_End_Val
 
 // Value option flags:
 enum {
