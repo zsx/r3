@@ -48,14 +48,9 @@
 /*
 ***********************************************************************/
 {
-	REBVAL *val;
-	REBVAL *arg;
-	REBVAL *ret;
+	REBVAL *val = D_ARG(1);
+	REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 
-	arg = D_ARG(2);
-	val = D_ARG(1);
-
-	ret = D_OUT;
 	// unary actions
 	switch(action) {
 		case A_MAKE:
@@ -76,19 +71,22 @@
 				if (!lib) {
 					Trap_Make_DEAD_END(REB_LIBRARY, arg);
 				}
-				VAL_LIB_SPEC(ret) = Make_Array(1);
-				Append_Value(VAL_LIB_SPEC(ret), arg);
-				VAL_LIB_HANDLE(ret) = (REBLHL*)Make_Node(LIB_POOL);
-				VAL_LIB_FD(ret) = lib;
-				USE_LIB(VAL_LIB_HANDLE(ret));
-				OPEN_LIB(VAL_LIB_HANDLE(ret));
-				SET_TYPE(ret, REB_LIBRARY);
+
+				VAL_LIB_SPEC(D_OUT) = Make_Array(1);
+				MANAGE_SERIES(VAL_LIB_SPEC(D_OUT));
+
+				Append_Value(VAL_LIB_SPEC(D_OUT), arg);
+				VAL_LIB_HANDLE(D_OUT) = (REBLHL*)Make_Node(LIB_POOL);
+				VAL_LIB_FD(D_OUT) = lib;
+				USE_LIB(VAL_LIB_HANDLE(D_OUT));
+				OPEN_LIB(VAL_LIB_HANDLE(D_OUT));
+				SET_TYPE(D_OUT, REB_LIBRARY);
 			}
 			break;
 		case A_CLOSE:
 			OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
 			CLOSE_LIB(VAL_LIB_HANDLE(val));
-			SET_UNSET(ret);
+			SET_UNSET(D_OUT);
 			break;
 		default:
 			Trap_Action_DEAD_END(REB_LIBRARY, action);
