@@ -728,9 +728,9 @@ chk_neg:
 
 	str = start;
 	while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
-		Val_Init_String(Alloc_Tail_Blk(blk), Copy_OS_Str(str, eq - str));
+		Val_Init_String(Alloc_Tail_Array(blk), Copy_OS_Str(str, eq - str));
 		Val_Init_String(
-			Alloc_Tail_Blk(blk), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
+			Alloc_Tail_Array(blk), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
 		);
 		str += n + 1; // next
 	}
@@ -794,7 +794,7 @@ chk_neg:
 
 	if (len == 1) {  // First is full file path
 		dir = To_REBOL_Path(str, n, OS_WIDE, 0);
-		Val_Init_File(Alloc_Tail_Blk(blk), dir);
+		Val_Init_File(Alloc_Tail_Array(blk), dir);
 	}
 	else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
@@ -805,14 +805,14 @@ chk_neg:
         while ((n = OS_STRLEN(str))) {
 			dir->tail = len;
 			Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
-			Val_Init_File(Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
+			Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #else /* absolute pathes already */
 		str += n + 1;
 		while ((n = OS_STRLEN(str))) {
 			dir = To_REBOL_Path(str, n, OS_WIDE, FALSE);
-			Val_Init_File(Alloc_Tail_Blk(blk), Copy_String(dir, 0, -1));
+			Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
 			str += n + 1; // next
 		}
 #endif

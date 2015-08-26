@@ -799,9 +799,9 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	blk = Make_Array(2);
 	Val_Init_Block(out, blk);
-	val = Alloc_Tail_Blk(blk);
+	val = Alloc_Tail_Array(blk);
 	SET_GOB(val, gob);
-	val = Alloc_Tail_Blk(blk);
+	val = Alloc_Tail_Array(blk);
 	VAL_SET(val, REB_PAIR);
 	VAL_PAIR_X(val) = x;
 	VAL_PAIR_Y(val) = y;

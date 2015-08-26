@@ -444,7 +444,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
 			default:
 				return FALSE;
 		}
-		temp = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+		temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 		SET_NONE(temp);
 	}
 	else if (IS_STRUCT(elem)) {
@@ -461,7 +461,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
 		if (idx == 0) {
 			to = BLK_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 		} else {
-			to = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+			to = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 		}
 		Copy_Struct_Val(elem, to); //for callback and return value
 	} else {
@@ -774,7 +774,7 @@ static void ffi_to_rebol(REBRIN *rin,
 				if (!IS_BLOCK(reb_type)) {
 					Trap_Arg(reb_type);
 				}
-				v = Alloc_Tail_Blk(VAL_ROUTINE_ALL_ARGS(rot));
+				v = Alloc_Tail_Array(VAL_ROUTINE_ALL_ARGS(rot));
 				Val_Init_Word_Typed(v, REB_WORD, SYM_ELLIPSIS, 0); //FIXME, be clear
 				EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot), 1);
 
@@ -893,12 +893,12 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	ser = Make_Array(1 + cif->nargs);
 	SAVE_SERIES(ser);
 
-	elem = Alloc_Tail_Blk(ser);
+	elem = Alloc_Tail_Array(ser);
 	SET_TYPE(elem, REB_FUNCTION);
 	VAL_FUNC(elem) = RIN_FUNC(rin);
 
 	for (i = 0; i < cif->nargs; i ++) {
-		elem = Alloc_Tail_Blk(ser);
+		elem = Alloc_Tail_Array(ser);
 		switch (cif->arg_types[i]->type) {
 			case FFI_TYPE_UINT8:
 				SET_INTEGER(elem, *(u8*)args[i]);
@@ -1039,12 +1039,12 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	VAL_ROUTINE_ARGS(out) = Make_Array(N_ARGS);
 
 	// first word is ignored, see Do_Args in c-do.c
-	temp = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
+	temp = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
 	Val_Init_Word_Typed(temp, REB_WORD, 0, 0);
 
 	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
 	// reserve for returning struct
-	temp = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+	temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 	SET_NONE(temp); // should this be SET_TRASH(), e.g. write-only location?
 
 	VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
@@ -1152,7 +1152,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						//Change the argument list to be a block
 						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Sequence(VAL_ROUTINE_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
-						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
+						v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
 						Val_Init_Word_Typed(v, REB_WORD, SYM_VARARGS, TYPESET(REB_BLOCK));
 					} else {
 						REBVAL *v = NULL;
@@ -1160,7 +1160,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							//... has to be the last argument
 							Trap_Arg_DEAD_END(blk);
 						}
-						v = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
+						v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
 						Val_Init_Word_Typed(v, REB_WORD, VAL_WORD_SYM(blk), 0);
 						EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 

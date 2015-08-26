@@ -297,7 +297,7 @@ const REBCNT Gob_Flag_Words[] = {
 
 	for (i = 0; Gob_Flag_Words[i]; i += 2) {
 		if (GET_GOB_FLAG(gob, Gob_Flag_Words[i+1])) {
-			val = Alloc_Tail_Blk(ser);
+			val = Alloc_Tail_Array(ser);
 			Val_Init_Word_Unbound(val, REB_WORD, Gob_Flag_Words[i]);
 		}
 	}
@@ -631,9 +631,9 @@ is_none:
 	REBCNT sym;
 
 	for (n = 0; words[n]; n++) {
-		val = Alloc_Tail_Blk(ser);
+		val = Alloc_Tail_Array(ser);
 		Val_Init_Word_Unbound(val, REB_SET_WORD, words[n]);
-		vals[n] = Alloc_Tail_Blk(ser);
+		vals[n] = Alloc_Tail_Array(ser);
 		SET_NONE(vals[n]);
 	}
 
@@ -644,8 +644,8 @@ is_none:
 	if (!GOB_TYPE(gob)) return ser;
 
 	if (GOB_CONTENT(gob)) {
-		val1 = Alloc_Tail_Blk(ser);
-		val = Alloc_Tail_Blk(ser);
+		val1 = Alloc_Tail_Array(ser);
+		val = Alloc_Tail_Array(ser);
 		switch (GOB_TYPE(gob)) {
 		case GOBT_COLOR:
 			sym = SYM_COLOR;

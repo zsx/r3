@@ -366,7 +366,7 @@
 
 	for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
 		if (start-- <= 0) {
-			val = Alloc_Tail_Blk(blk);
+			val = Alloc_Tail_Array(blk);
 			Val_Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(call)));
 		}
 	}

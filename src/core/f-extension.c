@@ -170,7 +170,7 @@ x*/	void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 
 	blk = Make_Array(len = RXA_COUNT(frm));
 	for (n = 1; n <= len; n++) {
-		val = Alloc_Tail_Blk(blk);
+		val = Alloc_Tail_Array(blk);
 		RXI_To_Value(val, frm->args[n], RXA_TYPE(frm, n));
 	}
 	Val_Init_Block(out, blk);

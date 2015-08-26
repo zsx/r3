@@ -66,7 +66,7 @@
 		name = Copy_OS_Str(file.special.file.path, len);
 		if (GET_FLAG(file.modes, RFM_DIR))
 			SET_ANY_CHAR(name, name->tail-1, '/');
-		Val_Init_File(Alloc_Tail_Blk(files), name);
+		Val_Init_File(Alloc_Tail_Array(files), name);
 	}
 
 	if (result < 0 && dir->error != -RFE_OPEN_FAIL

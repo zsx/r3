@@ -965,7 +965,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		if (rargs->options & n) Append_Value(ser, val);
 		n <<= 1;
 	}
-	val = Alloc_Tail_Blk(ser);
+	val = Alloc_Tail_Array(ser);
 	SET_TRUE(val);
 	val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
 	Val_Init_Block(val, ser);

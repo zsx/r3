@@ -341,11 +341,14 @@
 
 /***********************************************************************
 **
-*/	REBVAL *Alloc_Tail_Blk(REBSER *block)
+*/	REBVAL *Alloc_Tail_Array(REBSER *block)
 /*
-**		Append a value to a block series at its tail.
-**		Expand it if necessary. Update the termination and tail.
+**		Append a REBVAL-size slot to Rebol Array series at its tail.
+**		Will use existing memory capacity already in the series if it
+**		is available, but will expand the series if necessary.
 **		Returns the new value for you to initialize.
+**
+**		Note: Updates the termination and tail.
 **
 ***********************************************************************/
 {
@@ -357,19 +360,6 @@
 
 	SET_TRASH(tail - 1); // No-op in release builds
 	return tail - 1;
-}
-
-
-/***********************************************************************
-**
-*/	void Append_Value(REBSER *block, const REBVAL *value)
-/*
-**		Append a value to a block series at its tail.
-**		Expand it if necessary. Update the termination and tail.
-**
-***********************************************************************/
-{
-	*Alloc_Tail_Blk(block) = *value;
 }
 
 

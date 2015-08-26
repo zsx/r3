@@ -329,9 +329,9 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		ser = Make_Array(2);
 		Val_Init_Block(value, ser);
 	}
-	value = Alloc_Tail_Blk(ser);
+	value = Alloc_Tail_Array(ser);
 	Val_Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
-	value = Alloc_Tail_Blk(ser);
+	value = Alloc_Tail_Array(ser);
 	SET_HANDLE_CODE(value, cast(CFUNC*, call));
 
 	return Extension_Lib();

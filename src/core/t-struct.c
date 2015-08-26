@@ -178,14 +178,14 @@ static REBOOL get_scalar(const REBSTU *stu,
 		REBVAL *type_blk = NULL;
 
 		/* required field name */
-		val = Alloc_Tail_Blk(ser);
+		val = Alloc_Tail_Array(ser);
 		Val_Init_Word_Unbound(val, REB_SET_WORD, field->sym);
 
 		/* required type */
-		type_blk = Alloc_Tail_Blk(ser);
+		type_blk = Alloc_Tail_Array(ser);
 		Val_Init_Block(type_blk, Make_Array(1));
 
-		val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
+		val = Alloc_Tail_Array(VAL_SERIES(type_blk));
 		if (field->type == STRUCT_TYPE_STRUCT) {
 			REBVAL *nested = NULL;
 			DS_PUSH_NONE;
@@ -193,7 +193,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 
 			Val_Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
 			get_scalar(stu, field, 0, nested);
-			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
+			val = Alloc_Tail_Array(VAL_SERIES(type_blk));
 			Val_Init_Block(val, Struct_To_Block(&VAL_STRUCT(nested)));
 
 			DS_DROP;
@@ -204,10 +204,10 @@ static REBOOL get_scalar(const REBSTU *stu,
 		if (field->dimension > 1) {
 			REBSER *dim = Make_Array(1);
 			REBVAL *dv = NULL;
-			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
+			val = Alloc_Tail_Array(VAL_SERIES(type_blk));
 			Val_Init_Block(val, dim);
 
-			dv = Alloc_Tail_Blk(dim);
+			dv = Alloc_Tail_Array(dim);
 			SET_INTEGER(dv, field->dimension);
 		}
 
@@ -215,14 +215,14 @@ static REBOOL get_scalar(const REBSTU *stu,
 		if (field->dimension > 1) {
 			REBSER *dim = Make_Array(1);
 			REBCNT n = 0;
-			val = Alloc_Tail_Blk(ser);
+			val = Alloc_Tail_Array(ser);
 			Val_Init_Block(val, dim);
 			for (n = 0; n < field->dimension; n ++) {
-				REBVAL *dv = Alloc_Tail_Blk(dim);
+				REBVAL *dv = Alloc_Tail_Array(dim);
 				get_scalar(stu, field, n, dv);
 			}
 		} else {
-			val = Alloc_Tail_Blk(ser);
+			val = Alloc_Tail_Array(ser);
 			get_scalar(stu, field, 0, val);
 		}
 	}

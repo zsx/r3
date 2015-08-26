@@ -976,26 +976,26 @@ end_date:
 					// Does it already use a block?
 					if (IS_BLOCK(val+1)) {
 						// Block of values already exists:
-						val = Alloc_Tail_Blk(VAL_SERIES(val+1));
+						val = Alloc_Tail_Array(VAL_SERIES(val+1));
 						SET_NONE(val);
 					}
 					else {
 						// Create new block for values:
 						REBVAL *val2;
 						ser = Make_Array(2);
-						val2 = Alloc_Tail_Blk(ser); // prior value
+						val2 = Alloc_Tail_Array(ser); // prior value
 						*val2 = val[1];
 						Val_Init_Block(val + 1, ser);
-						val = Alloc_Tail_Blk(ser); // for new value
+						val = Alloc_Tail_Array(ser); // for new value
 						SET_NONE(val);
 					}
 					break;
 				}
 			}
 			if (IS_END(val)) {
-				val = Alloc_Tail_Blk(blk); // add new word
+				val = Alloc_Tail_Array(blk); // add new word
 				Val_Init_Word_Unbound(val, REB_SET_WORD, sym);
-				val = Alloc_Tail_Blk(blk); // for new value
+				val = Alloc_Tail_Array(blk); // for new value
 				SET_NONE(val);
 			}
 		}

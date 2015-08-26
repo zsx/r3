@@ -75,7 +75,7 @@
 **
 **	At the moment, the data stack is *mostly* implemented as a typical
 **	series.  Pushing unfilled slots on the stack (via PUSH_TRASH_UNSAFE)
-**	partially inlines Alloc_Tail_Blk, so it only pays for the function
+**	partially inlines Alloc_Tail_List, so it only pays for the function
 **	call in cases where expansion is necessary.
 **
 **	When Rebol was first open-sourced, there were other deviations from
@@ -127,7 +127,7 @@
 			: ( \
 				SERIES_REST(DS_Series) >= STACK_LIMIT \
 					? Trap_Stack_Overflow() \
-					: cast(void, cast(REBUPT, Alloc_Tail_Blk(DS_Series))) \
+					: cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Series))) \
 			), \
 		SET_TRASH(DS_TOP) \
 	)

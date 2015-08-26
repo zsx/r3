@@ -623,7 +623,7 @@ struct Reb_Position
 // and sometimes were not.  They could be done without a function call, but
 // that would then make them unsafe to use with side-effects:
 //
-//     Val_Init_Block(Alloc_Tail_Blk(parent), child);
+//     Val_Init_Block(Alloc_Tail_Array(parent), child);
 //
 // The repetitition of the value parameter would lead to the allocation
 // running multiple times.  Hence we Caps_Words_With_Underscore to name
@@ -663,6 +663,10 @@ struct Reb_Position
 
 #define Copy_Array_Extra_Shallow(a,e) \
 	Copy_Array_At_Extra_Shallow((a), 0, (e))
+
+
+#define Append_Value(a,v) \
+	(*Alloc_Tail_Array((a)) = *(v), NOOP)
 
 
 /***********************************************************************
