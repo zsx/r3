@@ -173,7 +173,7 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 		break;
 
 	case REB_PATH: {
-		const REBVAL *value_const;
+		const REBVAL *value_const = value;
 		if (Do_Path(&safe, &value_const, 0)) return 0;
 		DS_PUSH(&safe);
 		value = DS_TOP;
