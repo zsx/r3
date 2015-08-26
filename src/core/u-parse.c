@@ -661,6 +661,7 @@ bad_target:
 	newparse.type = REB_BLOCK;
 	newparse.flags = parse->flags;
 	newparse.result = 0;
+	newparse.out = parse->out;
 
 	n = (Parse_Next_Block(&newparse, 0, item, 0) != NOT_FOUND) ? index : NOT_FOUND;
 	UNSAVE_SERIES(newparse.series);
@@ -1260,12 +1261,12 @@ bad_end:
 	// case-insensitive bytes for ASCII characters
 	if (IS_BINARY(input)) opts |= PF_CASE;
 
+	assert(IS_TRASH(D_OUT));
+
 	parse.series = VAL_SERIES(input);
 	parse.type = VAL_TYPE(input);
 	parse.flags = cased ? AM_FIND_CASE : 0;
 	parse.result = 0;
-
-	assert(IS_TRASH(D_OUT));
 	parse.out = D_OUT;
 
 	PUSH_TRAP(&error, &state);
