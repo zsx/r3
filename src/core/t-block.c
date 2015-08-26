@@ -200,92 +200,6 @@ static void No_Nones(REBVAL *arg) {
 
 /***********************************************************************
 **
-*/	void Modify_Blockx(struct Reb_Call *call_, REBCNT action, REBVAL *block, REBVAL *arg)
-/*
-**		Actions: INSERT, APPEND, CHANGE
-**
-**		block [block!] {Series at point to insert}
-**		value [any-type!] {The value to insert}
-**		/part {Limits to a given length or position.}
-**		limit [number! series! pair!]
-**		/only {Inserts a series as a series.}
-**		/dup {Duplicates the insert a specified number of times.}
-**		count [number! pair!]
-**
-**	Add:
-**		Handle insert [] () case
-**		What does insert () [] do?
-**		/deep option for cloning subcontents?
-**
-***********************************************************************/
-{
-	REBSER *series = VAL_SERIES(block);
-	REBCNT index = VAL_INDEX(block);
-	REBCNT tail  = VAL_TAIL(block);
-	REBFLG only  = D_REF(AN_ONLY);
-	REBCNT rlen;  // length to be removed
-	REBCNT ilen  = 1;  // length to be inserted
-	REBINT cnt   = 1;  // DUP count
-	REBCNT size;
-	REBFLG is_blk = FALSE; // arg is a block not a value
-
-	// Length of target (may modify index): (arg can be anything)
-	rlen = Partial1((action == A_CHANGE) ? block : arg, D_ARG(AN_LIMIT));
-
-	index = VAL_INDEX(block);
-	if (action == A_APPEND || index > tail) index = tail;
-
-	// Check /PART, compute LEN:
-	if (!only && ANY_BLOCK(arg)) {
-		is_blk = TRUE; // arg is a block
-		// Are we modifying ourselves? If so, copy arg block first:
-		if (series == VAL_SERIES(arg))  {
-			VAL_SERIES(arg) = Copy_Array_At_Shallow(VAL_SERIES(arg), VAL_INDEX(arg));
-			VAL_INDEX(arg) = 0;
-		}
-		// Length of insertion:
-		ilen = (action != A_CHANGE && D_REF(AN_PART)) ? rlen : VAL_LEN(arg);
-	}
-
-	// Get /DUP count:
-	if (D_REF(AN_DUP)) {
-		cnt = Int32(D_ARG(AN_COUNT));
-		if (cnt <= 0) return; // no changes
-	}
-
-	// Total to insert:
-	size = cnt * ilen;
-
-	if (action != A_CHANGE) {
-		// Always expand series for INSERT and APPEND actions:
-		Expand_Series(series, index, size);
-	} else {
-		if (size > rlen)
-			Expand_Series(series, index, size-rlen);
-		else if (size < rlen && D_REF(AN_PART))
-			Remove_Series(series, index, rlen-size);
-		else if (size + index > tail) {
-			EXPAND_SERIES_TAIL(series, size - (tail - index));
-		}
-	}
-
-	if (is_blk) arg = VAL_BLK_DATA(arg);
-
-	// For dup count:
-	VAL_INDEX(block) = (action == A_APPEND) ? 0 : size + index;
-
-	index *= SERIES_WIDE(series); // loop invariant
-	ilen *= SERIES_WIDE(series);   // loop invariant
-	for (; cnt > 0; cnt--) {
-		memcpy(series->data + index, (REBYTE *)arg, ilen);
-		index += ilen;
-	}
-	BLK_TERM(series);
-}
-
-
-/***********************************************************************
-**
 */	void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
 /*
 **		Value can be:
@@ -817,7 +731,7 @@ zero_blk:
 		args = 0;
 		if (D_REF(AN_ONLY)) SET_FLAG(args, AN_ONLY);
 		if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
-		index = Modify_Block(action, ser, index, arg, args, len, D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1);
+		index = Modify_Array(action, ser, index, arg, args, len, D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1);
 		VAL_INDEX(value) = index;
 		break;
 
