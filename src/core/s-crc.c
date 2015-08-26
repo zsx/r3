@@ -269,7 +269,7 @@ static REBCNT *CRC_Table;
 
 /***********************************************************************
 **
-*/	REBSER *Make_Hash_Array(REBCNT len)
+*/	REBSER *Make_Hash_Sequence(REBCNT len)
 /*
 ***********************************************************************/
 {
@@ -320,7 +320,7 @@ static REBCNT *CRC_Table;
 	REBSER *series = VAL_SERIES(block);
 
 	// Create the hash array (integer indexes):
-	hser = Make_Hash_Array(VAL_LEN(block));
+	hser = Make_Hash_Sequence(VAL_LEN(block));
 	hashes = (REBCNT*)hser->data;
 
 	for (n = VAL_INDEX(block); n < series->tail; n++) {

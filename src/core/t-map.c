@@ -81,7 +81,7 @@
 	REBSER *blk = Make_Array(size * 2);
 	REBSER *ser = 0;
 
-	if (size >= MIN_DICT) ser = Make_Hash_Array(size);
+	if (size >= MIN_DICT) ser = Make_Hash_Sequence(size);
 
 	blk->extra.series = ser;
 
@@ -261,7 +261,7 @@
 
 		// Add hash table:
 		//Print("hash added %d", series->tail);
-		series->extra.series = hser = Make_Hash_Array(series->tail);
+		series->extra.series = hser = Make_Hash_Sequence(series->tail);
 		Rehash_Hash(series);
 	}
 
@@ -424,7 +424,7 @@
 	REBSER *ser = 0;
 	REBCNT size = SERIES_TAIL(blk);
 
-	if (size >= MIN_DICT) ser = Make_Hash_Array(size);
+	if (size >= MIN_DICT) ser = Make_Hash_Sequence(size);
 	blk->extra.series = ser;
 	Rehash_Hash(blk);
 }
