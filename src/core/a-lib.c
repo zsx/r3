@@ -255,6 +255,9 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			OS_EXIT(status);
 			DEAD_END;
 		}
+
+		Trap_Thrown(&out);
+		DEAD_END;
 	}
 
 	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
