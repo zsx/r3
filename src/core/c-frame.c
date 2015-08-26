@@ -119,8 +119,8 @@
 	REBVAL *value;
 
 	//DISABLE_GC;
-	words = Make_Block(len + 1); // size + room for SELF
-	frame = Make_Block(len + 1);
+	words = Make_Array(len + 1); // size + room for SELF
+	frame = Make_Array(len + 1);
 	//ENABLE_GC;
 	// Note: cannot use Append_Frame for first word.
 	value = Alloc_Tail_Blk(frame);
@@ -427,7 +427,7 @@
 ***********************************************************************/
 {
 	REBINT len = SERIES_TAIL(words);
-	REBSER *frame = Make_Block(len);
+	REBSER *frame = Make_Array(len);
 	REBVAL *value = BLK_HEAD(frame);
 
 	SET_FRAME(value, spec, words);
@@ -547,7 +547,7 @@
 	REBCNT n;
 
 	n = (mode & 4) ? 0 : 1;
-	block = Make_Block(SERIES_TAIL(frame) * (n + 1));
+	block = Make_Array(SERIES_TAIL(frame) * (n + 1));
 
 	for (; n < SERIES_TAIL(frame); n++) {
 		if (!VAL_GET_EXT(words + n, EXT_WORD_HIDE)) {
@@ -657,7 +657,7 @@
 
 	// Allocate child (now that we know the correct size):
 	wrds = Copy_Array_Shallow(BUF_WORDS);
-	child = Make_Block(SERIES_TAIL(wrds));
+	child = Make_Array(SERIES_TAIL(wrds));
 	value = Alloc_Tail_Blk(child);
 	VAL_SET(value, REB_FRAME);
 	VAL_FRM_WORDS(value) = wrds;
@@ -1426,7 +1426,7 @@
 ***********************************************************************/
 {
 	// Temporary block used while scanning for frame words:
-	Set_Root_Series(TASK_BUF_WORDS, Make_Block(100), "word cache"); // just holds words, no GC
+	Set_Root_Series(TASK_BUF_WORDS, Make_Array(100), "word cache"); // just holds words, no GC
 }
 
 

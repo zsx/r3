@@ -538,7 +538,7 @@ enum {
 	SER_LOCK		= 1 << 2,	// size is locked (do not expand it)
 	SER_EXTERNAL	= 1 << 3,	// ->data is external, don't free() on GC
 	SER_FLAG_4		= 1 << 4,	// UNUSED: was SER_FREE, but free if wide = 0
-	SER_BLOCK		= 1 << 5,	// is sizeof(REBVAL) wide and has valid values
+	SER_ARRAY		= 1 << 5,	// is sizeof(REBVAL) wide and has valid values
 	SER_PROT		= 1 << 6,	// protected from modification
 	SER_POWER_OF_2	= 1 << 7	// true alloc size is rounded to power of 2
 };
@@ -551,7 +551,7 @@ enum {
 #define KEEP_SERIES(s,l)  do {SERIES_SET_FLAG(s, SER_KEEP); LABEL_SERIES(s,l);} while(0)
 #define LOCK_SERIES(s)    SERIES_SET_FLAG(s, SER_LOCK)
 #define IS_LOCK_SERIES(s) SERIES_GET_FLAG(s, SER_LOCK)
-#define IS_BLOCK_SERIES(s) SERIES_GET_FLAG((s), SER_BLOCK)
+#define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
 #define PROTECT_SERIES(s) SERIES_SET_FLAG(s, SER_PROT)
 #define UNPROTECT_SERIES(s)  SERIES_CLR_FLAG(s, SER_PROT)
 #define IS_PROTECT_SERIES(s) SERIES_GET_FLAG(s, SER_PROT)
@@ -575,7 +575,7 @@ enum {
 #else
 	#define ASSERT_SERIES(s) \
 		do { \
-			if (IS_BLOCK_SERIES(series)) \
+			if (Is_Array_Series(series)) \
 				ASSERT_BLK(series); \
 			else \
 				ASSERT_SERIES_TERM(series); \

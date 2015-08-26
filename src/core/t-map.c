@@ -78,7 +78,7 @@
 **
 ***********************************************************************/
 {
-	REBSER *blk = Make_Block(size*2);
+	REBSER *blk = Make_Array(size * 2);
 	REBSER *ser = 0;
 
 	if (size >= MIN_DICT) ser = Make_Hash_Array(size);
@@ -398,7 +398,7 @@
 	}
 
 	// Copy entries to new block:
-	blk = Make_Block(cnt * ((what == 0) ? 2 : 1));
+	blk = Make_Array(cnt * ((what == 0) ? 2 : 1));
 	out = BLK_HEAD(blk);
 	for (val = BLK_HEAD(mapser); NOT_END(val) && NOT_END(val+1); val += 2) {
 		if (!IS_NONE(val+1)) {

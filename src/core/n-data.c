@@ -797,7 +797,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBSER *blk;
 	REBVAL *val;
 
-	blk = Make_Block(2);
+	blk = Make_Array(2);
 	Val_Init_Block(out, blk);
 	val = Alloc_Tail_Blk(blk);
 	SET_GOB(val, gob);

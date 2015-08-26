@@ -504,14 +504,14 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	series->info = ((series->info >> 8) << 8) | wide;
 	SERIES_SET_BIAS(series, 0);
 
-	if (flags & MKS_BLOCK) {
+	if (flags & MKS_ARRAY) {
 		assert(wide == sizeof(REBVAL));
-		SERIES_SET_FLAG(series, SER_BLOCK);
-		assert(IS_BLOCK_SERIES(series));
+		SERIES_SET_FLAG(series, SER_ARRAY);
+		assert(Is_Array_Series(series));
 	}
 	else {
-		SERIES_CLR_FLAG(series, SER_BLOCK);
-		assert(!IS_BLOCK_SERIES(series));
+		SERIES_CLR_FLAG(series, SER_ARRAY);
+		assert(!Is_Array_Series(series));
 	}
 
 	// The allocation may have returned more than we requested, so we note
@@ -646,7 +646,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	CHECK_MEMORY(2);
 
-	if (flags & MKS_BLOCK) PG_Reb_Stats->Blocks++;
+	if (flags & MKS_ARRAY) PG_Reb_Stats->Blocks++;
 
 	return series;
 }
@@ -743,7 +743,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 ***********************************************************************/
 {
 	REBYTE wide = SERIES_WIDE(series);
-	REBOOL any_block = IS_BLOCK_SERIES(series);
+	REBOOL any_block = Is_Array_Series(series);
 
 	REBCNT start;
 	REBCNT size;
@@ -760,7 +760,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	if (delta == 0) return;
 
-	any_block = IS_BLOCK_SERIES(series);
+	any_block = Is_Array_Series(series);
 
 	// Optimized case of head insertion:
 	if (index == 0 && SERIES_BIAS(series) >= delta) {
@@ -839,7 +839,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		series,
 		series->tail + delta + x,
 		wide,
-		any_block ? (MKS_BLOCK | MKS_POWER_OF_2) : MKS_POWER_OF_2
+		any_block ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
 	)) {
 		Trap(RE_NO_MEMORY);
 		DEAD_END_VOID;
@@ -881,7 +881,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBINT size_old = Series_Allocated_Size(series);
 	REBCNT tail_old = series->tail;
 	REBYTE wide_old = SERIES_WIDE(series);
-	REBOOL any_block = IS_BLOCK_SERIES(series);
+	REBOOL any_block = Is_Array_Series(series);
 
 	// Extract the data pointer to take responsibility for it.  (The pointer
 	// may have already been extracted if the caller is doing their own
@@ -901,12 +901,12 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 #if !defined(NDEBUG)
 	if (flags & MKS_PRESERVE) {
 		assert(wide == wide_old);
-		if (flags & MKS_BLOCK) assert(SERIES_GET_FLAG(series, SER_BLOCK));
+		if (flags & MKS_ARRAY) assert(SERIES_GET_FLAG(series, SER_ARRAY));
 	}
 #endif
 
 	if (!Series_Data_Alloc(
-		series, units + 1, wide, any_block ? MKS_BLOCK | flags : flags
+		series, units + 1, wide, any_block ? MKS_ARRAY | flags : flags
 	)) {
 		// Put series back how it was (there may be extant references)
 		series->data = data_old;
@@ -1233,7 +1233,7 @@ crash:
 							  SERIES_FLAGS(series)
 							 );
 					//Dump_Series(series, "Dump");
-					if (IS_BLOCK_SERIES(series)) {
+					if (Is_Array_Series(series)) {
 						Debug_Values(BLK_HEAD(series), SERIES_TAIL(series), 1024); /* FIXME limit */
 					} else{
 						Dump_Bytes(series->data, (SERIES_TAIL(series)+1) * SERIES_WIDE(series));
@@ -1339,7 +1339,7 @@ crash:
 				f = 1;
 			}
 #endif
-			if (IS_BLOCK_SERIES(series)) {
+			if (Is_Array_Series(series)) {
 				blks++;
 				blk_size += SERIES_TOTAL(series);
 				if (f) Debug_Fmt_("BLOCK ");

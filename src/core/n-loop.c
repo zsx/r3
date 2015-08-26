@@ -298,7 +298,7 @@
 
 	// If it's MAP, create result block:
 	if (mode == 2) {
-		out = Make_Block(VAL_LEN(value));
+		out = Make_Array(VAL_LEN(value));
 		SAVE_SERIES(out);
 	}
 

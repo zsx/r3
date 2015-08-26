@@ -351,7 +351,7 @@ static struct digest {
 		REBCNT index;
 
 		// Just a guess at size:
-		frame = Make_Block(10);		// Use a std BUF_?
+		frame = Make_Array(10);		// Use a std BUF_?
 		Val_Init_Block(D_OUT, frame); // Keep safe
 
 		// Convert string if necessary. Store back for safety.

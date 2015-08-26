@@ -76,7 +76,7 @@
 				if (!lib) {
 					Trap_Make_DEAD_END(REB_LIBRARY, arg);
 				}
-				VAL_LIB_SPEC(ret) = Make_Block(1);
+				VAL_LIB_SPEC(ret) = Make_Array(1);
 				Append_Value(VAL_LIB_SPEC(ret), arg);
 				VAL_LIB_HANDLE(ret) = (REBLHL*)Make_Node(LIB_POOL);
 				VAL_LIB_FD(ret) = lib;

@@ -32,7 +32,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Make_Block(REBCNT capacity)
+*/	REBSER *Make_Array(REBCNT capacity)
 /*
 **		Make a series that is the right size to store REBVALs (and
 **		marked for the garbage collector to look into recursively).
@@ -40,7 +40,7 @@
 **
 ***********************************************************************/
 {
-	REBSER *series = Make_Series(capacity + 1, sizeof(REBVAL), MKS_BLOCK);
+	REBSER *series = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
 	SET_END(BLK_HEAD(series));
 
 	return series;
@@ -60,10 +60,10 @@
 	REBCNT len = SERIES_TAIL(array);
 	REBSER *series;
 
-	if (index > len) return Make_Block(extra);
+	if (index > len) return Make_Array(extra);
 
 	len -= index;
-	series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_BLOCK);
+	series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_ARRAY);
 
 	memcpy(series->data, BLK_SKIP(array, index), len * sizeof(REBVAL));
 	SERIES_TAIL(series) = len;
@@ -84,10 +84,10 @@
 {
 	REBSER *series;
 
-	if (index > SERIES_TAIL(array)) return Make_Block(0);
+	if (index > SERIES_TAIL(array)) return Make_Array(0);
 	if (index + max > SERIES_TAIL(array)) max = SERIES_TAIL(array) - index;
 
-	series = Make_Series(max + 1, sizeof(REBVAL), MKS_BLOCK);
+	series = Make_Series(max + 1, sizeof(REBVAL), MKS_ARRAY);
 
 	memcpy(series->data, BLK_SKIP(array, index), max * sizeof(REBVAL));
 	SERIES_TAIL(series) = max;
@@ -108,7 +108,7 @@
 {
 	REBSER *series;
 
-	series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
+	series = Make_Series(len + 1, sizeof(REBVAL), MKS_ARRAY);
 
 	memcpy(series->data, &value[0], len * sizeof(REBVAL));
 	SERIES_TAIL(series) = len;
@@ -138,7 +138,7 @@
 		if (types & TYPESET(VAL_TYPE(value)) & TS_SERIES_OBJ) {
 			// Replace just the series field of the value
 			// Note that this should work for objects too (the frame).
-			if (IS_BLOCK_SERIES(VAL_SERIES(value)))
+			if (Is_Array_Series(VAL_SERIES(value)))
 				VAL_SERIES(value) = Copy_Array_Shallow(VAL_SERIES(value));
 			else
 				VAL_SERIES(value) = Copy_Sequence(VAL_SERIES(value));
@@ -209,12 +209,12 @@
 {
 	REBSER *series;
 
-	assert(IS_BLOCK_SERIES(block));
+	assert(Is_Array_Series(block));
 
 	if (index > tail) index = tail;
 
 	if (index > SERIES_TAIL(block)) {
-		series = Make_Block(0);
+		series = Make_Array(0);
 	}
 	else {
 		series = Copy_Values_Len_Shallow(BLK_SKIP(block, index), tail - index);
@@ -327,7 +327,7 @@
 		}
 	}
 	else {
-		series = Make_Series(len + 1, sizeof(REBVAL), MKS_BLOCK);
+		series = Make_Series(len + 1, sizeof(REBVAL), MKS_ARRAY);
 
 		memcpy(series->data, blk, len * sizeof(REBVAL));
 		SERIES_TAIL(series) = len;

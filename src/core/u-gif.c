@@ -296,7 +296,7 @@ void Chrom_Key_Alpha(REBVAL *v,REBCNT col,REBINT blitmode) {
 		//note: animated GIFs support needs to be added!!!
 /*
 		if (image_count == 2) {
-			VAL_SERIES(Temp2_Value) = Make_Block(0, 0);
+			VAL_SERIES(Temp2_Value) = Make_Array(0, 0);
 			VAL_INIT(Temp2_Value, REB_BLOCK);
 			VAL_INDEX(Temp2_Value) = 0;
 			Append_Series(VAL_SERIES(Temp2_Value), (REBMEM *)Temp_Value, 1);

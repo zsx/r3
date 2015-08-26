@@ -270,7 +270,7 @@ const REBCNT Gob_Flag_Words[] = {
 	if (len == -1 || (len + index) > GOB_TAIL(gob)) len = GOB_TAIL(gob) - index;
 	if (len < 0) len = 0;
 
-	ser = Make_Block(len);
+	ser = Make_Array(len);
 	ser->tail = len;
 	val = BLK_HEAD(ser);
 	gp = GOB_HEAD(gob);
@@ -293,7 +293,7 @@ const REBCNT Gob_Flag_Words[] = {
 	REBVAL *val;
 	REBINT i;
 
-	ser = Make_Block(3);
+	ser = Make_Array(3);
 
 	for (i = 0; Gob_Flag_Words[i]; i += 2) {
 		if (GET_GOB_FLAG(gob, Gob_Flag_Words[i+1])) {
@@ -548,7 +548,7 @@ const REBCNT Gob_Flag_Words[] = {
 		if (GOB_PANE(gob))
 			Val_Init_Block(val, Pane_To_Block(gob, 0, -1));
 		else
-			Val_Init_Block(val, Make_Block(0));
+			Val_Init_Block(val, Make_Array(0));
 		break;
 
 	case SYM_PARENT:
@@ -622,7 +622,7 @@ is_none:
 **
 ***********************************************************************/
 {
-	REBSER *ser = Make_Block(10);
+	REBSER *ser = Make_Array(10);
 	REBVAL *val;
 	REBINT words[6] = {SYM_OFFSET, SYM_SIZE, SYM_ALPHA, 0};
 	REBVAL *vals[6];

@@ -210,7 +210,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 		Trap_Arg_DEAD_END(vect);
 	}
 
-	ser = Make_Block(len);
+	ser = Make_Array(len);
 	val = BLK_HEAD(ser);
 	for (n = VAL_INDEX(vect); n < VAL_TAIL(vect); n++, val++) {
 		VAL_SET(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);

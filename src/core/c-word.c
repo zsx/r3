@@ -110,7 +110,7 @@
 	REBINT pnum = Get_Hash_Prime(ser->tail + 1);
 	if (!pnum) Trap_Num(RE_SIZE_LIMIT, ser->tail+1);
 
-	assert(!IS_BLOCK_SERIES(ser));
+	assert(!Is_Array_Series(ser));
 	Remake_Series(ser, pnum + 1, SERIES_WIDE(ser), MKS_POWER_OF_2);
 
 	Clear_Series(ser);
@@ -418,7 +418,7 @@ make_sym:
 		PG_Word_Table.hashes->tail = n;
 
 		// The word (symbol) table itself:
-		PG_Word_Table.series = Make_Block(WORD_TABLE_SIZE);
+		PG_Word_Table.series = Make_Array(WORD_TABLE_SIZE);
 		SET_NONE(BLK_HEAD(PG_Word_Table.series)); // Put a NONE at head.
 		KEEP_SERIES(PG_Word_Table.series, "word table"); // words are never GC'd
 		PG_Word_Table.series->tail = 1;  // prevent the zero case

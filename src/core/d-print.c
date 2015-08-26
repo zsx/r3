@@ -324,7 +324,7 @@ static REBREQ *Req_SIO;
 
 	if (BYTE_SIZE(ser))
 		Debug_Str(s_cast(BIN_HEAD(ser)));
-	else if (IS_BLOCK_SERIES(ser)) {
+	else if (Is_Array_Series(ser)) {
 		REBVAL value;
 		// May not actually be a REB_BLOCK, but we put it in a value
 		// container for now saying it is so we can output it.  It may be

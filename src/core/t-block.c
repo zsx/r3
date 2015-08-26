@@ -346,7 +346,7 @@ static void No_Nones(REBVAL *arg) {
 	}
 
 //	if (make && IS_NONE(arg)) {
-//		ser = Make_Block(0);
+//		ser = Make_Array(0);
 //		goto done;
 //	}
 
@@ -360,7 +360,7 @@ static void No_Nones(REBVAL *arg) {
 		// make block! 10
 		if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
 			len = Int32s(arg, 0);
-			Val_Init_Series(value, type, Make_Block(len));
+			Val_Init_Series(value, type, Make_Array(len));
 			return;
 		}
 		Trap_Arg(arg);
@@ -757,7 +757,7 @@ pick_it:
 			len = Partial1(value, D_ARG(3));
 			if (len == 0) {
 zero_blk:
-				Val_Init_Block(D_OUT, Make_Block(0));
+				Val_Init_Block(D_OUT, Make_Array(0));
 				return R_OUT;
 			}
 		} else
@@ -943,7 +943,7 @@ is_none:
 	if (SERIES_FREED(series))
 		Panic_Series(series);
 
-	if (!IS_BLOCK_SERIES(series))
+	if (!Is_Array_Series(series))
 		Panic_Series(series);
 
 	for (len = 0; len < series->tail; len++) {

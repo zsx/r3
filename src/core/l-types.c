@@ -821,7 +821,7 @@ end_date:
 	REBSER *series;
 	REBYTE quote;
 
-	series = Make_Block(16);
+	series = Make_Array(16);
 	//DISABLE_GC;
 
 	while (len > 0) {
@@ -982,7 +982,7 @@ end_date:
 					else {
 						// Create new block for values:
 						REBVAL *val2;
-						ser = Make_Block(2);
+						ser = Make_Array(2);
 						val2 = Alloc_Tail_Blk(ser); // prior value
 						*val2 = val[1];
 						Val_Init_Block(val + 1, ser);

@@ -360,7 +360,7 @@
 ***********************************************************************/
 {
 	REBCNT depth = Stack_Depth();
-	REBSER *blk = Make_Block(depth-start);
+	REBSER *blk = Make_Array(depth - start);
 	struct Reb_Call *call;
 	REBVAL *val;
 

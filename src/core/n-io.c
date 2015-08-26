@@ -288,7 +288,7 @@ chk_neg:
 
 	case REB_PORT:
 		if (!Pending_Port(val)) return R_NONE;
-		ports = Make_Block(1);
+		ports = Make_Array(1);
 		Append_Value(ports, val);
 		// fall thru...
 	case REB_NONE:
@@ -724,7 +724,7 @@ chk_neg:
 		str += n + 1; // next
 	}
 
-	blk = Make_Block(len*2);
+	blk = Make_Array(len * 2);
 
 	str = start;
 	while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
@@ -786,7 +786,7 @@ chk_neg:
 		str += n + 1; // next
 	}
 
-	blk = Make_Block(len);
+	blk = Make_Array(len);
 
 	// First is a dir path or full file path:
 	str = start;

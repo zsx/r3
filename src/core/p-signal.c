@@ -233,7 +233,7 @@ static int sig_word_num(REBVAL *word)
 
 			arg = OFV(port, STD_PORT_DATA);
 			if (!IS_BLOCK(arg)) {
-				Val_Init_Block(arg, Make_Block(len));
+				Val_Init_Block(arg, Make_Array(len));
 			}
 
 			len = req->actual;

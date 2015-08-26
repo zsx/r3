@@ -655,7 +655,7 @@ bad_target:
 	}
 
 	// Copy the value into its own block:
-	newparse.series = Make_Block(1);
+	newparse.series = Make_Array(1);
 	SAVE_SERIES(newparse.series);
 	Append_Value(newparse.series, &value);
 	newparse.type = REB_BLOCK;

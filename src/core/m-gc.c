@@ -153,7 +153,7 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 ***********************************************************************/
 {
 	assert(!SERIES_GET_FLAG(series, SER_EXTERNAL));
-	assert(IS_BLOCK_SERIES(series));
+	assert(Is_Array_Series(series));
 
     // set by calling macro (helps catch direct calls of this function)
 	assert(SERIES_GET_FLAG(series, SER_MARK));
@@ -178,7 +178,7 @@ static void Propagate_All_GC_Marks(void);
 
 #define QUEUE_MARK_BLOCK_DEEP(s) \
     do { \
-        assert(IS_BLOCK_SERIES(s)); \
+        assert(Is_Array_Series(s)); \
         if (!SERIES_GET_FLAG((s), SER_MARK)) { \
             SERIES_SET_FLAG((s), SER_MARK); \
             Push_Block_Marked_Deep(s); \
@@ -690,7 +690,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_GET_PATH:
 		case REB_LIT_PATH:
 			ser = VAL_SERIES(val);
-			assert(IS_BLOCK_SERIES(ser) && SERIES_WIDE(ser) == sizeof(REBVAL));
+			assert(Is_Array_Series(ser) && SERIES_WIDE(ser) == sizeof(REBVAL));
 			assert(IS_END(BLK_SKIP(ser, SERIES_TAIL(ser))) || ser == DS_Series);
 
 			QUEUE_MARK_BLOCK_DEEP(ser);
@@ -1008,7 +1008,7 @@ static void Propagate_All_GC_Marks(void);
 	// Mark series stack (temp-saved series):
 	sp = (REBSER **)GC_Protect->data;
 	for (n = SERIES_TAIL(GC_Protect); n > 0; n--) {
-        if (IS_BLOCK_SERIES(*sp))
+        if (Is_Array_Series(*sp))
             MARK_BLOCK_DEEP(*sp);
         else
             MARK_SERIES_ONLY(*sp);
@@ -1018,7 +1018,7 @@ static void Propagate_All_GC_Marks(void);
 	// Mark all special series:
 	sp = (REBSER **)GC_Series->data;
 	for (n = SERIES_TAIL(GC_Series); n > 0; n--) {
-        if (IS_BLOCK_SERIES(*sp))
+        if (Is_Array_Series(*sp))
             MARK_BLOCK_DEEP(*sp);
         else
             MARK_SERIES_ONLY(*sp);
@@ -1036,7 +1036,7 @@ static void Propagate_All_GC_Marks(void);
 		REBSER *ser;
 		if ((ser = GC_Infants[n])) {
 			//Dump_Series(ser, "Safe Series");
-            if (IS_BLOCK_SERIES(ser))
+            if (Is_Array_Series(ser))
 				MARK_BLOCK_DEEP(ser);
             else
                 MARK_SERIES_ONLY(ser);

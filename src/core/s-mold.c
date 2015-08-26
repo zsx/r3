@@ -1443,7 +1443,7 @@ return_balanced:
 	REBYTE c;
 	const REBYTE *dc;
 
-	Set_Root_Series(TASK_MOLD_LOOP, Make_Block(size/10), "mold loop");
+	Set_Root_Series(TASK_MOLD_LOOP, Make_Array(size/10), "mold loop");
 	Set_Root_Series(TASK_BUF_MOLD, Make_Unicode(size), "mold buffer");
 
 	// Create quoted char escape table:

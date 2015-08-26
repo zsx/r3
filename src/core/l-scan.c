@@ -1600,7 +1600,7 @@ exit_block:
 /*
 ***********************************************************************/
 {
-	Set_Root_Series(TASK_BUF_EMIT, Make_Block(511), "emit block");
+	Set_Root_Series(TASK_BUF_EMIT, Make_Array(511), "emit block");
 	Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020), "utf8 buffer");
 }
 

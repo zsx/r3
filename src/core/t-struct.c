@@ -132,7 +132,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 	for (i = 0; i < SERIES_TAIL(stu->fields); i ++, field ++) {
 		if (VAL_WORD_CANON(word) == VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, field->sym))) {
 			if (field->array) {
-				REBSER *ser = Make_Block(field->dimension);
+				REBSER *ser = Make_Array(field->dimension);
 				REBCNT n = 0;
 				for (n = 0; n < field->dimension; n ++) {
 					REBVAL elem;
@@ -169,7 +169,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 **
 ***********************************************************************/
 {
-	REBSER *ser = Make_Block(10);
+	REBSER *ser = Make_Array(10);
 	struct Struct_Field *field = (struct Struct_Field*) SERIES_DATA(stu->fields);
 	REBCNT i;
 
@@ -183,7 +183,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 
 		/* required type */
 		type_blk = Alloc_Tail_Blk(ser);
-		Val_Init_Block(type_blk, Make_Block(1));
+		Val_Init_Block(type_blk, Make_Array(1));
 
 		val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 		if (field->type == STRUCT_TYPE_STRUCT) {
@@ -202,7 +202,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 
 		/* optional dimension */
 		if (field->dimension > 1) {
-			REBSER *dim = Make_Block(1);
+			REBSER *dim = Make_Array(1);
 			REBVAL *dv = NULL;
 			val = Alloc_Tail_Blk(VAL_SERIES(type_blk));
 			Val_Init_Block(val, dim);
@@ -213,7 +213,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 
 		/* optional initialization */
 		if (field->dimension > 1) {
-			REBSER *dim = Make_Block(1);
+			REBSER *dim = Make_Array(1);
 			REBCNT n = 0;
 			val = Alloc_Tail_Blk(ser);
 			Val_Init_Block(val, dim);
@@ -464,7 +464,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 	ser = Make_Series(
 		SERIES_LEN(data_ser), // counts terminator, though a "LEN" shouldn't!
 		SERIES_WIDE(data_ser),
-		IS_BLOCK_SERIES(data_ser) ? (MKS_BLOCK | MKS_EXTERNAL) : MKS_EXTERNAL
+		Is_Array_Series(data_ser) ? (MKS_ARRAY | MKS_EXTERNAL) : MKS_EXTERNAL
 	);
 
 	ser->data = (REBYTE*)raw_addr;

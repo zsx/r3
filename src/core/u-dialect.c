@@ -513,7 +513,7 @@ again:
 
 	DISABLE_GC; // Avoid GC during Dialect (prevents unknown crash problem)
 
-	if (!*out) *out = Make_Block(25);
+	if (!*out) *out = Make_Array(25);
 
 	dia.dialect = dialect;
 	dia.args = block;

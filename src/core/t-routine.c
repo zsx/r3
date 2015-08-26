@@ -852,7 +852,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n)
 			REBVAL* tmp;
 
 			//lock the series to make BLK_HEAD permanent
-			ser = Make_Series(2, sizeof(REBVAL), MKS_BLOCK | MKS_LOCK);
+			ser = Make_Series(2, sizeof(REBVAL), MKS_ARRAY | MKS_LOCK);
 			SAVE_SERIES(ser);
 			tmp = BLK_HEAD(ser);
 
@@ -890,7 +890,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBVAL *elem;
 	REBVAL safe;
 
-	ser = Make_Block(1 + cif->nargs);
+	ser = Make_Array(1 + cif->nargs);
 	SAVE_SERIES(ser);
 
 	elem = Alloc_Tail_Blk(ser);
@@ -1036,13 +1036,13 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_SERIES(data));
 	VAL_ROUTINE_FFI_ARG_TYPES(out) =
 		Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
-	VAL_ROUTINE_ARGS(out) = Make_Block(N_ARGS);
+	VAL_ROUTINE_ARGS(out) = Make_Array(N_ARGS);
 
 	// first word is ignored, see Do_Args in c-do.c
 	temp = Alloc_Tail_Blk(VAL_ROUTINE_ARGS(out));
 	Val_Init_Word_Typed(temp, REB_WORD, 0, 0);
 
-	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Block(N_ARGS);
+	VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
 	// reserve for returning struct
 	temp = Alloc_Tail_Blk(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 	SET_NONE(temp); // should this be SET_TRASH(), e.g. write-only location?

@@ -53,7 +53,7 @@
 		SERIES_REST(series),
 		SERIES_FLAGS(series)
 	);
-	if (IS_BLOCK_SERIES(series)) {
+	if (Is_Array_Series(series)) {
 		Dump_Values(BLK_HEAD(series), SERIES_TAIL(series));
 	} else
 		Dump_Bytes(series->data, (SERIES_TAIL(series)+1) * SERIES_WIDE(series));

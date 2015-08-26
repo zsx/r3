@@ -526,7 +526,7 @@ static	BOOT_BLK *Boot_Block;
 	REBINT n;
 	REBSER *frame;
 
-	frame = Make_Block(ROOT_MAX);  // Only half the context! (No words)
+	frame = Make_Array(ROOT_MAX);  // Only half the context! (No words)
 	KEEP_SERIES(frame, "root context");
 	LOCK_SERIES(frame);
 	Root_Context = (ROOT_CTX*)(frame->data);
@@ -548,7 +548,7 @@ static	BOOT_BLK *Boot_Block;
 	assert(IS_NONE(NONE_VALUE));
 	assert(IS_UNSET(UNSET_VALUE));
 
-	Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Block(0));
+	Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROT);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
 
@@ -579,7 +579,7 @@ static	BOOT_BLK *Boot_Block;
 	// from it managed too, and we don't always want that.  For now
 	// we reproduce the logic of the routines.
 
-	if (IS_BLOCK_SERIES(ser)) {
+	if (Is_Array_Series(ser)) {
 		VAL_SET(value, REB_BLOCK);
 		VAL_SERIES(value) = ser;
 		VAL_INDEX(value) = 0;
@@ -607,7 +607,7 @@ static	BOOT_BLK *Boot_Block;
 
 	//Print_Str("Task Context");
 
-	Task_Series = frame = Make_Block(TASK_MAX);
+	Task_Series = frame = Make_Array(TASK_MAX);
 	KEEP_SERIES(frame, "task context");
 	LOCK_SERIES(frame);
 	Task_Context = (TASK_CTX*)(frame->data);
@@ -957,7 +957,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	REBCNT n;
 
 
-	ser = Make_Block(3);
+	ser = Make_Array(3);
 	n = 2; // skip first flag (ROF_EXT)
 	val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
 	for (val = VAL_BLK_HEAD(val); NOT_END(val); val++) {
@@ -1004,7 +1004,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		n = 0;
 		while (rargs->args[n++]) NOOP;
 		// n == number_of_args + 1
-		ser = Make_Block(n);
+		ser = Make_Array(n);
 		Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), ser);
 		SERIES_TAIL(ser) = n - 1;
 		for (n = 0; (data = rargs->args[n]); ++n)

@@ -49,7 +49,7 @@
 	CS_Top = NULL;
 	CS_Running = NULL;
 
-	DS_Series = Make_Block(size);
+	DS_Series = Make_Array(size);
 	Set_Root_Series(TASK_STACK, DS_Series, "data stack"); // uses special GC
 }
 

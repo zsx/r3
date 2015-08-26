@@ -291,7 +291,7 @@
 
 	case SYM_FLAGS:
 		if (VAL_EVENT_FLAGS(value) & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)) {
-			ser = Make_Block(3);
+			ser = Make_Array(3);
 			if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
 				arg = Alloc_Tail_Blk(ser);
 				Val_Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);

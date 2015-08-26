@@ -618,7 +618,7 @@ REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
 	REBVAL *obj  = D_ARG(1);
 	REBVAL *words, *val;
 	REBFRM *frm  = VAL_OBJ_FRAME(obj);
-	REBSER *ser  = Make_Block(2);
+	REBSER *ser  = Make_Array(2);
 	REBOOL clear = D_REF(2);
 	//DISABLE_GC;
 

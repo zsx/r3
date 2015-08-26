@@ -77,7 +77,7 @@
 	REBVAL *value;
 	REBINT n;
 
-	Set_Root_Series(ROOT_TYPESETS, Make_Block(40), "typeset presets");
+	Set_Root_Series(ROOT_TYPESETS, Make_Array(40), "typeset presets");
 
 	for (n = 0; Typesets[n]; n += 2) {
 		value = Alloc_Tail_Blk(VAL_SERIES(ROOT_TYPESETS));
@@ -194,7 +194,7 @@
 		if (TYPE_CHECK(tset, n)) size++;
 	}
 
-	block = Make_Block(size);
+	block = Make_Array(size);
 
 	// Convert bits to types:
 	for (n = 0; n < REB_MAX; n++) {

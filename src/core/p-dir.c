@@ -202,7 +202,7 @@
 		args = Find_Refines(call_, ALL_READ_REFS);
 		if (!IS_BLOCK(state)) {		// !!! ignores /SKIP and /PART, for now
 			Init_Dir_Path(&dir, path, 1, POL_READ);
-			Val_Init_Block(state, Make_Block(7)); // initial guess
+			Val_Init_Block(state, Make_Array(7)); // initial guess
 			result = Read_Dir(&dir, VAL_SERIES(state));
 			///OS_FREE(dir.file.path);
 			if (result < 0) Trap_Port_DEAD_END(RE_CANNOT_OPEN, port, dir.error);
@@ -274,7 +274,7 @@ create:
 		args = Find_Refines(call_, ALL_OPEN_REFS);
 		if (args & AM_OPEN_NEW) goto create;
 		//if (args & ~AM_OPEN_READ) Trap1_DEAD_END(RE_INVALID_SPEC, path);
-		Val_Init_Block(state, Make_Block(7));
+		Val_Init_Block(state, Make_Array(7));
 		Init_Dir_Path(&dir, path, 1, POL_READ);
 		result = Read_Dir(&dir, VAL_SERIES(state));
 		///OS_FREE(dir.file.path);

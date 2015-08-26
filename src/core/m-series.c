@@ -135,7 +135,7 @@
 	REBCNT len = source->tail + 1;
 	REBSER *series = Make_Series(len, SERIES_WIDE(source), MKS_NONE);
 
-	assert(!IS_BLOCK_SERIES(source));
+	assert(!Is_Array_Series(source));
 
 	memcpy(series->data, source->data, len * SERIES_WIDE(source));
 	series->tail = source->tail;
@@ -157,7 +157,7 @@
 {
 	REBSER *series = Make_Series(len + 1, SERIES_WIDE(source), MKS_NONE);
 
-	assert(!IS_BLOCK_SERIES(source));
+	assert(!Is_Array_Series(source));
 
 	memcpy(
 		series->data,
@@ -390,7 +390,7 @@
 	ser = Make_Series(
 		len + 1,
 		SERIES_WIDE(buf),
-		IS_BLOCK_SERIES(buf) ? MKS_BLOCK : MKS_NONE
+		Is_Array_Series(buf) ? MKS_ARRAY : MKS_NONE
 	);
 
 	memcpy(ser->data, buf->data, SERIES_WIDE(buf) * len);
@@ -409,7 +409,7 @@
 /*
 ***********************************************************************/
 {
-	if (IS_BLOCK_SERIES(series)) {
+	if (Is_Array_Series(series)) {
 		// REB_END values may not be canonized to zero bytes, check type only
 		if (!IS_END(BLK_SKIP(series, series->tail))) {
 			Debug_Fmt("Unterminated blocklike series detected");

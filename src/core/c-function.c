@@ -66,7 +66,7 @@
 	REBVAL *value;
 	REBVAL *word;
 
-	block = Make_Block(SERIES_TAIL(words));
+	block = Make_Array(SERIES_TAIL(words));
 	word = BLK_SKIP(words, 1);
 
 	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
@@ -95,7 +95,7 @@
 	REBVAL *value;
 	REBVAL *word;
 
-	block = Make_Block(SERIES_TAIL(words));
+	block = Make_Array(SERIES_TAIL(words));
 	word = BLK_SKIP(words, 1);
 
 	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
@@ -450,7 +450,7 @@
 	// Copy stack frame variables as the closure object.  The +1 is for
 	// SELF, as the REB_END is already accounted for by Make_Blk.
 
-	frame = Make_Block(DSF->num_vars + 1);
+	frame = Make_Array(DSF->num_vars + 1);
 	value = BLK_HEAD(frame);
 
 	assert(DSF->num_vars == VAL_FUNC_NUM_WORDS(func));
