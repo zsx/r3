@@ -320,7 +320,7 @@ static REBCNT n_struct_fields (REBSER *fields)
 	return n_fields;
 }
 
-static ffi_type* struct_to_ffi(REBVAL *out, REBSER *fields, REBOOL make)
+static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
 {
 	REBCNT i = 0, j = 0;
 	REBCNT n_basic_type = 0;
@@ -775,7 +775,8 @@ static void ffi_to_rebol(REBRIN *rin,
 		/* reset SERIES_TAIL */
 		SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)) = n_fixed + 1;
 
-		VAL_ROUTINE_ALL_ARGS(rot) = Copy_Sequence(VAL_ROUTINE_FIXED_ARGS(rot));
+		VAL_ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(VAL_ROUTINE_FIXED_ARGS(rot));
+		MANAGE_SERIES(VAL_ROUTINE_ALL_ARGS(rot));
 
 		for (i = 1, j = 1; i < SERIES_TAIL(VAL_SERIES(varargs)) + 1; i ++, j ++) {
 			REBVAL *reb_arg = VAL_BLK_SKIP(varargs, i - 1);
@@ -1182,7 +1183,8 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						}
 						ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS);
 						//Change the argument list to be a block
-						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Sequence(VAL_ROUTINE_ARGS(out));
+						VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_ARGS(out));
+						MANAGE_SERIES(VAL_ROUTINE_FIXED_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
 						v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
 						Val_Init_Word_Typed(v, REB_WORD, SYM_VARARGS, TYPESET(REB_BLOCK));

@@ -477,6 +477,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 	ser->data = (REBYTE*)raw_addr;
 
 	VAL_STRUCT_DATA_BIN(out) = ser;
+	MANAGE_SERIES(ser);
 }
 
 static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL *inner, REBVAL **init)
@@ -788,8 +789,6 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 		if (raw_addr) {
 			set_ext_storage(out, raw_size, raw_addr);
-			// The above creates VAL_STRUCT_DATA_BIN and it's not managed
-			MANAGE_SERIES(VAL_STRUCT_DATA_BIN(out));
 		}
 		else {
 			// Might be already managed?  (It's better if we're certain...)
@@ -911,7 +910,9 @@ failed:
 
 	/* writable field */
 	dst->data = Copy_Sequence(src->data);
+	MANAGE_SERIES(dst->data);
 	STRUCT_DATA_BIN(dst) = Copy_Sequence(STRUCT_DATA_BIN(src));
+	MANAGE_SERIES(STRUCT_DATA_BIN(dst));
 }
 
 /***********************************************************************
