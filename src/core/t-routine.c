@@ -595,13 +595,10 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
 			}
 			return &VAL_DECIMAL(arg);
 		case FFI_TYPE_STRUCT:
-			/* make a copy of old binary data, such that the original one won't be modified */
 			if (idx == 0) {/* returning a struct */
 				Copy_Struct(&VAL_ROUTINE_RVALUE(rot), &VAL_STRUCT(arg));
 			} else {
-				if (IS_STRUCT(arg)) {
-					VAL_STRUCT_DATA_BIN(arg) = Copy_Sequence(VAL_STRUCT_DATA_BIN(arg));
-				} else {
+				if (!IS_STRUCT(arg)) {
 					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
 				}
 			}
