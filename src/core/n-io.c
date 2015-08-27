@@ -764,7 +764,7 @@ chk_neg:
 		Free_Series(argv_saved_sers);
 	}
 	if (cmd_ser) UNSAVE_SERIES(cmd_ser);
-	if (argv_ser) Free_Series(argv_ser); // Unmanaged, so we can free it
+	Free_Series(argv_ser); // Unmanaged, so we can free it
 
 	if (output_type == STRING_TYPE) {
 		if (output != NULL
