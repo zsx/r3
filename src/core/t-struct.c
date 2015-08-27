@@ -1008,7 +1008,6 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 	REBVAL *arg;
 	REBVAL *ret;
 
-	arg = D_ARG(2);
 	val = D_ARG(1);
 
 	ret = D_OUT;
@@ -1020,6 +1019,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			//RL_Print("%s, %d, Make struct action\n", __func__, __LINE__);
 		case A_TO:
 			//RL_Print("%s, %d, To struct action\n", __func__, __LINE__);
+			arg = D_ARG(2);
 
 			// Clone an existing STRUCT:
 			if (IS_STRUCT(val)) {
@@ -1046,6 +1046,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 
 		case A_CHANGE:
 			{
+				arg = D_ARG(2);
 				if (!IS_BINARY(arg)) {
 					Trap_Types_DEAD_END(RE_EXPECT_VAL, REB_BINARY, VAL_TYPE(arg));
 				}
@@ -1060,6 +1061,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			break;
 		case A_REFLECT:
 			{
+				arg = D_ARG(2);
 				REBINT n = VAL_WORD_CANON(arg); // zero on error
 				switch (n) {
 					case SYM_VALUES:
