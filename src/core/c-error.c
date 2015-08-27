@@ -511,7 +511,6 @@
 
 	// Make a copy of the error object template:
 	err = Copy_Array_Shallow(VAL_OBJ_FRAME(ROOT_ERROBJ));
-	MANAGE_SERIES(err);
 
 	error = ERR_VALUES(err);
 	SET_NONE(&error->id);
@@ -554,6 +553,7 @@
 	else
 		Trap_Arg(arg);
 
+	MANAGE_SERIES(err);
 	Val_Init_Error(out, err);
 
 	return TRUE;
