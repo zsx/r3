@@ -156,7 +156,7 @@ REBREQ *req;		//!!! move this global
 
 	Validate_Port(port, action);
 
-	arg = D_ARG(2);
+	arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	*D_OUT = *D_ARG(1);
 
 	// Validate and fetch relevant PORT fields:

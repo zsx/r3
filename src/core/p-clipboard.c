@@ -45,7 +45,7 @@
 
 	Validate_Port(port, action);
 
-	arg = D_ARG(2);
+	arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 
 	req = cast(REBREQ*, Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ)));
 

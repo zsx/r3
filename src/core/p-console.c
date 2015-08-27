@@ -47,12 +47,12 @@
 {
 	REBREQ *req;
 	REBINT result;
-	REBVAL *arg = D_ARG(2);
+	REBVAL *arg;
 	REBSER *ser;
 
 	Validate_Port(port, action);
 
-	arg = D_ARG(2);
+	arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
 	*D_OUT = *D_ARG(1);
 
 	req = cast(REBREQ*, Use_Port_State(port, RDI_STDIO, sizeof(REBREQ)));
