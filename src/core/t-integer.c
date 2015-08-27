@@ -84,6 +84,7 @@
 			// Only type valid to subtract from, divide into, is decimal/money:
 			case A_SUBTRACT:
 				n = 1;
+				/* fall through */
 			case A_DIVIDE:
 			case A_REMAINDER:
 			case A_POWER:
