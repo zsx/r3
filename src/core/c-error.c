@@ -186,10 +186,6 @@
 
 	GC_Protect->tail = state->hold_tail;
 
-#if !defined(NDEBUG)
-	MANUALS_LEAK_CHECK(state->manuals, "Trapped_Helper_Halted");
-#endif
-
 	GC_Disabled = state->gc_disable;
 
 	Saved_State = state->last_state;
@@ -297,13 +293,6 @@
 				&VAL_ERR_VALUES(err)->id
 			);
 	}
-
-#if !defined(NDEBUG)
-	// This check is also in Trapped_Helper_Halted which should run right
-	// after this routine.  But the extra check here helps find the leak
-	// before the longjmp happens and we lose our stack.
-	MANUALS_LEAK_CHECK(Saved_State->manuals, "Do_Error");
-#endif
 
 	// Error may live in a local variable whose stack is going away, or
 	// other unstable location.  Copy before the jump.
