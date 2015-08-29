@@ -14,19 +14,95 @@ REBOL [
 	}
 ]
 
-Throw: [
+Special: [
 	code: 0
-	type: "non-error"
+	type: "special"		; Not really "errors"
 	null:				{invalid error code zero}
 	halt:               {halted by user or script}
 	exited:             {exit occurred}
+
+	; !!! Temporary: PARSE uses simulated error Trap to get out of arbitrary
+	; stacks when a paren! is THROWN() out of (e.g. parse {} [(return 0)]).
+	; This isn't sensible compared to just having a way to use ordinary
+	; C logic to return out of the stack.  There is overhead to cleaning up
+	; after the longjmp and cost to set up and drop a setjmp state on every
+	; parse (even those which will not need to use this hack).
+	;
+	parse-longjmp-hack:	{RE_PARSE_LONGJMP_HACK not in PARSE (impossible!)}
 ]
 
-Note: [
+Internal: [
+	; Some of these internal errors can happen prior to when the error
+	; catalog (e.g. the blocks in this file) have been loaded as Rebol data.
+	; Those strings need to be accessible another way, so %make-boot.r takes
+	; the string data and duplicates it as C literals usable by Panic_Core()
+	;
+	; Note: Because these are flattened into printf-style format strings
+	; instead of using the ordinary error-building mechanism, argument
+	; ordering is not honored when an error is raised using the mechanism
+	; from before when booting is ready.  It's also probably a bad idea to
+	; use sophisticated REBVALs as arguments, because it may be too early
+	; in the boot process for them to be molded properly.
+	;
 	code: 100
-	type: "note"
-	no-load:            [{cannot load: } :arg1]
-	deprecated:         {deprecated function not allowed}
+	type: "internal"
+
+	; Because adding an error code has the overhead of modifying this file and
+	; coming up with a good name, errors for testing or that you don't think
+	; will happen can be put here.  A debug build will identify the line
+	; number and file source of the error, so provides some info already.
+	;
+	misc:				{RE_MISC error (if actually happens, add to %errors.r)}
+
+	; The error machinery expects a `raise` or `panic` macro to have signaled
+	; whether the error is meant to be trappable or to exit the process
+	;
+	no-prep:			{raise or panic "keyword" missing from error trigger}
+
+	; !!! Should there be a distinction made between different kinds of
+	; stack overflows?  (Call stack, Data stack?)
+	;
+	stack-overflow:		{stack overflow}
+
+	not-done:           {reserved for future use (or not yet implemented)}
+
+	; !!! Should boot errors be their own category?  Even if they were,
+	; there will still be some errors that are not boot-specific which can
+	; happen during boot (such as out of memory) which can't rely on boot
+	;
+	no-memory:			[{not enough memory:} :arg1 {bytes}]
+	corrupt-memory:		{Check_Memory() found a problem}
+	boot-data:			{no boot.r text found}
+	native-boot:		{bad boot.r native ordering}
+	bad-boot-string:	{boot strings area is invalid}
+	bad-boot-type-block: {boot block is wrong size}
+	max-natives:        {too many natives}
+	action-overflow:	{more actions than we should have}
+	bad-end-canon-word:	{END was not found}
+	bad-true-canon-word:	{TRUE was not found}
+	bad-end-type-word:	{the end word is not correct}
+	rebval-alignment	{sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
+
+	io-error:			{problem with IO}
+	max-words:			{too many words}
+	word-list:			{word list (cache) already in use}
+	locked-series:		{locked series expansion}
+	no-saved-state:		{saved state frame is missing}
+	max-events:			{event queue overflow}
+	unexpected-case		{no case in switch statement}
+	bad-size:			{expected size did not match}
+	no-buffer:			{buffer not yet allocated}
+	invalid-datatype:	[{invalid datatype #} :arg1]
+	bad-path:           [{bad path:} :arg1]
+	not-here:           [:arg1 {not supported on your system}]
+	globals-full:       {no more global variable space}
+	bad-series:         {invalid series}
+	limit-hit:          [{internal limit reached:} :arg1]
+	bad-sys-func:       [{invalid or missing system function:} :arg1]
+	invalid-error:      {error object or fields were not valid}
+	bad-evaltype:		{invalid datatype for evaluation}
+	hash-overflow:		{Hash ran out of space}
+	no-print-ptr:		{print is missing string pointer}
 ]
 
 Syntax: [
@@ -118,6 +194,7 @@ Script: [
 	parse-command:      [{PARSE - command cannot be used as variable:} :arg1]
 	parse-series:       [{PARSE - input must be a series:} :arg1]
 
+	not-ffi-build:		{This Rebol build wasn't linked with libffi features}
 	bad-library:		{bad library (already closed?)}
 
 ;   bad-prompt:         [{Error executing prompt block}]
@@ -153,7 +230,7 @@ Access: [
 	invalid-spec:       [{invalid spec or options:} :arg1]
 	invalid-port:       [{invalid port object (invalid field values)}]
 	invalid-actor:      [{invalid port actor (must be native or object)}]
-	invalid-port-arg:   [{invalid port argument:} arg1]
+	invalid-port-arg:   [{invalid port argument:} :arg1]
 	no-port-action:     [{this port does not support:} :arg1]
 	protocol:           [{protocol error:} :arg1]
 	invalid-check:      [{invalid checksum (tampered file):} :arg1]
@@ -161,7 +238,6 @@ Access: [
 	write-error:        [{write failed:} :arg1 {reason:} :arg2]
 	read-error:         [{read failed:} :arg1 {reason:} :arg2]
 	read-only:          [{read-only - write not allowed:} :arg1]
-	no-buffer:          [{port has no data buffer:} :arg1]
 	timeout:            [{port action timed out:} :arg1]
 
 	no-create:          [{cannot create:} :arg1]
@@ -212,38 +288,15 @@ Command: [
 	command-fail:		["Command failed"]
 ]
 
-resv700: [
-	code: 700
-	type: "reserved"
-	; !!! Temporary: PARSE uses simulated error Trap to get out of arbitrary
-	; stacks when a paren! is THROWN() out of (e.g. parse {} [(return 0)]).
-	; This isn't sensible compared to just having a way to use ordinary
-	; C logic to return out of the stack.  There is overhead to cleaning up
-	; after the longjmp and cost to set up and drop a setjmp state on every
-	; parse (even those which will not need to use this hack).
-	parse-longjmp-hack:	{RE_PARSE_LONGJMP_HACK not in PARSE (impossible!)}
-]
+; 700-799 unused
+
+; 800-899 unused
+
+; 900-999 unused
 
 User: [
-	code: 800
+	code: 1000
 	type: "user error"
 	message: [:arg1]
 ]
 
-Internal: [
-	code: 900
-	type: "internal error"
-	misc:				[{miscellaneous error (add specific case to errors.r)}]
-	bad-path:           [{bad path:} arg1]
-	not-here:           [arg1 {not supported on your system}]
-	no-memory:          {not enough memory}
-	stack-overflow:     {stack overflow}
-	globals-full:       {no more global variable space}
-	max-natives:        {too many natives}
-	bad-series:         {invalid series}
-	limit-hit:          [{internal limit reached:} :arg1]
-	bad-sys-func:       [{invalid or missing system function:} :arg1]
-	feature-na:         {feature not available}
-	not-done:           {reserved for future use (or not yet implemented)}
-	invalid-error:      {error object or fields were not valid}
-]

@@ -238,7 +238,8 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// object/:field case:
 	if (IS_GET_WORD(path = pvs->path)) {
 		pvs->select = GET_MUTABLE_VAR(path);
-		if (IS_UNSET(pvs->select)) Trap1(RE_NO_VALUE, path);
+		if (IS_UNSET(pvs->select))
+			raise Error_1(RE_NO_VALUE, path);
 	}
 	// object/(expr) case:
 	else if (IS_PAREN(path)) {
@@ -275,13 +276,13 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		pvs->value = pvs->store;
 		break;
 	case PE_BAD_SELECT:
-		Trap2(RE_INVALID_PATH, pvs->orig, pvs->path);
+		raise Error_2(RE_INVALID_PATH, pvs->orig, pvs->path);
 	case PE_BAD_SET:
-		Trap2(RE_BAD_PATH_SET, pvs->orig, pvs->path);
+		raise Error_2(RE_BAD_PATH_SET, pvs->orig, pvs->path);
 	case PE_BAD_RANGE:
-		Trap_Range(pvs->path);
+		raise Error_Out_Of_Range(pvs->path);
 	case PE_BAD_SET_TYPE:
-		Trap2(RE_BAD_FIELD_SET, pvs->path, Of_Type(pvs->setval));
+		raise Error_2(RE_BAD_FIELD_SET, pvs->path, Type_Of(pvs->setval));
 	}
 
 	if (NOT_END(pvs->path+1)) Next_Path(pvs);
@@ -324,8 +325,10 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// Lookup the value of the variable:
 	if (IS_WORD(pvs.path)) {
 		pvs.value = GET_MUTABLE_VAR(pvs.path);
-		if (IS_UNSET(pvs.value)) Trap1_DEAD_END(RE_NO_VALUE, pvs.path);
-	} else pvs.value = pvs.path; //Trap2_DEAD_END(RE_INVALID_PATH, pvs.orig, pvs.path);
+		if (IS_UNSET(pvs.value))
+			raise Error_1(RE_NO_VALUE, pvs.path);
+	}
+	else pvs.value = pvs.path;
 
 	// Start evaluation of path:
 	if (IS_END(pvs.path + 1)) {
@@ -339,11 +342,11 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		// Check for errors:
 		if (NOT_END(pvs.path+1) && !ANY_FUNC(pvs.value)) {
 			// Only function refinements should get by this line:
-			Trap2_DEAD_END(RE_INVALID_PATH, pvs.orig, pvs.path);
+			raise Error_2(RE_INVALID_PATH, pvs.orig, pvs.path);
 		}
 	}
 	else if (!ANY_FUNC(pvs.value))
-		Trap2_DEAD_END(RE_BAD_PATH_TYPE, pvs.orig, Of_Type(pvs.value));
+		raise Error_2(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value));
 
 	// If SET then we don't return anything
 	if (val) {
@@ -393,10 +396,9 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		pvs.value = pvs.store;
 		break;
 	case PE_BAD_SELECT:
-		Trap2(RE_INVALID_PATH, pvs.value, pvs.select);
+		raise Error_2(RE_INVALID_PATH, pvs.value, pvs.select);
 	case PE_BAD_SET:
-		Trap2(RE_BAD_PATH_SET, pvs.value, pvs.select);
-		break;
+		raise Error_2(RE_BAD_PATH_SET, pvs.value, pvs.select);
 	}
 }
 
@@ -446,8 +448,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	if (GET_FLAG(sigs, SIG_ESCAPE) && PG_Boot_Phase >= BOOT_MEZZ) {
 		CLR_SIGNAL(SIG_ESCAPE);
 		Eval_Sigmask = mask;
-		Halt();
-		DEAD_END_VOID;
+		raise Error_Is(TASK_HALT_ERROR);
 	}
 
 	Eval_Sigmask = mask;
@@ -534,7 +535,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	assert(DSP >= dsp_precall);
 	if (DSP > dsp_precall) {
 		PROBE_MSG(DSF_WHERE(call), "UNBALANCED STACK TRAP!!!");
-		Panic(RP_MISC);
+		panic Error_0(RE_MISC);
 	}
 
 	MANUALS_LEAK_CHECK(manuals_tail, cs_cast(label_str));
@@ -654,12 +655,13 @@ do_at_index:
 		GET_VAR_INTO(out, value);
 
 	do_fetched_word:
-		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NO_VALUE, value);
+		if (IS_UNSET(out)) raise Error_1(RE_NO_VALUE, value);
+
 		if (ANY_FUNC(out)) {
 			// We can only acquire an infix operator's first arg during the
 			// "lookahead".  Here we are starting a brand new expression.
 			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
-				Trap1_DEAD_END(RE_NO_OP_ARG, value);
+				raise Error_1(RE_NO_OP_ARG, value);
 
 			// We will reuse the TOS for the OUT of the call frame
 			label = value;
@@ -676,7 +678,7 @@ do_at_index:
 		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NEED_VALUE, value);
+		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, value);
 		if (index == THROWN_FLAG) goto return_index;
 
 		Set_Var(value, out);
@@ -693,7 +695,7 @@ do_at_index:
 		// we can't actually run it.  It only runs after an evaluation has
 		// yielded a value as part of a single "atomic" Do/Next step
 		if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-			Trap1_DEAD_END(RE_NO_OP_ARG, label);
+			raise Error_1(RE_NO_OP_ARG, label);
 
 	// Value must be the function when a jump here occurs
 	do_function_args:
@@ -740,7 +742,7 @@ do_at_index:
 			// already computed first argument, so it's sitting in `out`
 			*arg = *out;
 			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+				raise Error_Arg_Type(call, param, Type_Of(arg));
 
 			param++;
 			arg++;
@@ -771,7 +773,8 @@ do_at_index:
 					Free_Call(call);
 					goto return_index;
 				}
-				if (index == END_FLAG) Trap2(RE_NO_ARG, DSF_LABEL(call), param);
+				if (index == END_FLAG)
+					raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
 				break;
 
 			case REB_GET_WORD:
@@ -852,7 +855,7 @@ do_at_index:
 					goto function_ready_to_call;
 
 				if (!IS_WORD(&refinements[0]))
-					Trap1_DEAD_END(RE_BAD_REFINE, &refinements[0]);
+					raise Error_1(RE_BAD_REFINE, &refinements[0]);
 
 				// Optimize, if the refinement is the next arg:
 				if (SAME_SYM(&refinements[0], param)) {
@@ -868,7 +871,7 @@ do_at_index:
 				// Check is redundant if we are coming from REB_REFINEMENT
 				// case above, but not if we're jumping in.
 				if (!IS_WORD(&refinements[0]))
-					Trap1_DEAD_END(RE_BAD_REFINE, &refinements[0]);
+					raise Error_1(RE_BAD_REFINE, &refinements[0]);
 
 				param = VAL_FUNC_PARAM(value, 1);
 				arg = DSF_ARG(call, 1);
@@ -882,7 +885,7 @@ do_at_index:
 				}
 				// Was refinement found? If not, error:
 				if (IS_END(param))
-					Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(call), &refinements[0]);
+					raise Error_2(RE_NO_REFINE, DSF_LABEL(call), &refinements[0]);
 
 				// skip type check on refinement itself, and let the
 				// loop process its arguments (if any)
@@ -893,17 +896,17 @@ do_at_index:
 				// used RETURN: as a specifier for the return value, but this
 				// may lead to problems with the locals-gathering mechanics
 				// with nested FUNCTION declarations.
-				Trap_Arg_DEAD_END(param);
+				raise Error_Invalid_Arg(param);
 
 			default:
-				Trap_Arg_DEAD_END(param);
+				raise Error_Invalid_Arg(param);
 			}
 
 			ASSERT_VALUE_MANAGED(arg);
 
 			// If word is typed, verify correct argument datatype:
 			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+				raise Error_Arg_Type(call, param, Type_Of(arg));
 		}
 
 		// Hack to process remaining path:
@@ -921,7 +924,7 @@ do_at_index:
 		// The return value is a FUNC that needs to be re-evaluated.
 		if (ANY_FUNC(out) && VAL_GET_EXT(out, EXT_FUNC_REDO)) {
 			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
-				Trap_Type_DEAD_END(value); // not allowed
+				raise Error_Has_Bad_Type(value); // not allowed
 
 			value = out;
 			label = NULL;
@@ -957,7 +960,7 @@ do_at_index:
 			// Hence legal, but we don't pass that into Make_Call.
 
 			if (!IS_WORD(label) && !ANY_FUNC(label))
-				Trap1(RE_BAD_REFINE, label); // CC#2226
+				raise Error_1(RE_BAD_REFINE, label); // CC#2226
 
 			// We should only get a label that is the function if said label
 			// is the function value itself.
@@ -968,7 +971,8 @@ do_at_index:
 			// values, and make it work.  But then, a loop of DO/NEXT
 			// may not behave the same as DO-ing the whole block.  Bad.)
 
-			if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) Trap_Type_DEAD_END(value);
+			if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
+				raise Error_Has_Bad_Type(value);
 
 			refinements = label + 1;
 
@@ -995,7 +999,7 @@ do_at_index:
 		// ignoring seems unwise.  It should presumably create a modified
 		// function in that case which acts as if it has the refinement.
 		if (label && !IS_END(label + 1) && ANY_FUNC(out))
-			Trap(RE_TOO_LONG);
+			raise Error_0(RE_TOO_LONG);
 
 		index++;
 		break;
@@ -1004,7 +1008,7 @@ do_at_index:
 		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-		if (IS_UNSET(out)) Trap1_DEAD_END(RE_NEED_VALUE, label);
+		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, label);
 		if (index == THROWN_FLAG) goto return_index;
 
 		label = value;
@@ -1042,8 +1046,7 @@ do_at_index:
 
 	case REB_FRAME:
 		// !!! Frame should be hidden from user visibility
-		Panic_Core(RP_BAD_EVALTYPE, VAL_TYPE(value));
-		DEAD_END;
+		panic Error_1(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(value)));
 
 	default:
 		// Most things just evaluate to themselves
@@ -1468,7 +1471,7 @@ finished:
 			else {
 				// If arg is typed, verify correct argument datatype:
 				if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-					Trap3(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+					raise Error_Arg_Type(call, param, Type_Of(arg));
 			}
 		}
 
@@ -1480,7 +1483,7 @@ finished:
 		// With the effective reduction of the block (if it was necessary)
 		// now we can report an error about the size.  "Content too long"
 		// is probably not the right error; needs a more specific one.
-		Trap(RE_TOO_LONG);
+		raise Error_0(RE_TOO_LONG);
 	}
 
 	return Dispatch_Call_Throws(call);
@@ -1586,7 +1589,7 @@ finished:
 		else {
 			// If arg is typed, verify correct argument datatype:
 			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				Trap3(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+				raise Error_Arg_Type(call, param, Type_Of(arg));
 		}
 	#endif
 	}
@@ -1608,7 +1611,7 @@ finished:
 	REBOOL result;
 	va_list args;
 
-	if (!ANY_FUNC(func)) Trap_Arg(func);
+	if (!ANY_FUNC(func)) raise Error_Invalid_Arg(func);
 
 	va_start(args, func);
 	result = Apply_Function_Throws(out, func, &args);
@@ -1630,7 +1633,7 @@ finished:
 	va_list args;
 	REBVAL *value = FRM_VALUE(Sys_Context, inum);
 
-	if (!ANY_FUNC(value)) Trap1(RE_BAD_SYS_FUNC, value);
+	if (!ANY_FUNC(value)) raise Error_1(RE_BAD_SYS_FUNC, value);
 
 	va_start(args, inum);
 	result = Apply_Function_Throws(out, value, &args);
@@ -1803,7 +1806,7 @@ finished:
 				}
 				else {
 					// !!! Why does this allow the bounced-to function to have
-					// a different type, push a none, and not 'Trap_Arg(word);'
+					// a different type, and push a none instead of erroring?
 					SET_NONE(arg);
 				}
 				break;
@@ -1833,12 +1836,12 @@ finished:
 					// !!! The function didn't have the refinement so skip
 					// it.  But what will happen now with the arguments?
 					SET_NONE(arg);
-					//if (isrc >= BLK_LEN(wsrc)) Trap_Arg(word);
+					//if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word);
 				}
 				break;
 
 			default:
-				Panic(RP_MISC);
+				panic Error_0(RE_MISC);
 		}
 	}
 

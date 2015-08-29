@@ -65,7 +65,7 @@
 
 //-- Special Debugging Options:
 //#define CHAFF					// Fill series data to crash old references
-//#define HIT_END				// Panic_DEAD_END if block tail is past block terminator.
+//#define HIT_END				// Panic if block tail is past block terminator.
 //#define WATCH_FREED			// Show # series freed each GC
 //#define MEM_STRESS			// Special torture mode enabled
 //#define INSPECT_SERIES
@@ -421,10 +421,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBCNT	mem_size = pool->wide * units + sizeof(REBSEG);
 
 	seg = cast(REBSEG *, ALLOC_ARRAY(char, mem_size));
-	if (!seg) {
-		assert(FALSE);
-		Panic_Core(RP_NO_MEMORY, mem_size);
-	}
+
+	if (!seg) panic Error_No_Memory(mem_size);
 
 	// !!! See notes above whether a more limited contract between the node
 	// types and the pools could prevent needing to zero all the units.
@@ -737,7 +735,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	assert(!(flags & MKS_PRESERVE));
 	assert(wide != 0 && length != 0);
 
-	if ((cast(REBU64, length) * wide) > MAX_I32) Trap(RE_NO_MEMORY);
+	if (cast(REBU64, length) * wide > MAX_I32)
+		raise Error_No_Memory(cast(REBU64, length) * wide);
 
 	PG_Reb_Stats->Series_Made++;
 	PG_Reb_Stats->Series_Memory += length * wide;
@@ -774,7 +773,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 		if (!Series_Data_Alloc(series, length, wide, flags)) {
 			Free_Node(SERIES_POOL, cast(REBNOD*, series));
-			Trap(RE_NO_MEMORY);
+			raise Error_No_Memory(length * wide);
 		}
 	}
 
@@ -923,7 +922,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	}
 
 	// Range checks:
-	if (delta & 0x80000000) Trap(RE_PAST_END); // 2GB max
+	if (delta & 0x80000000) raise Error_0(RE_PAST_END); // 2GB max
 	if (index > series->tail) index = series->tail; // clip
 
 	// Width adjusted variables:
@@ -942,7 +941,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		if ((SERIES_TAIL(series) + SERIES_BIAS(series)) * wide >= SERIES_TOTAL(series)) {
 			Dump_Series(series, "Overflow");
 			assert(FALSE);
-			Panic(RP_MISC); // shouldn't be possible, but code here panic'd
+			panic Error_0(RE_MISC); // shouldn't be possible, but code here panic'd
 		}
 
 		return;
@@ -950,7 +949,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	// We need to expand the current series allocation.
 
-	if (SERIES_GET_FLAG(series, SER_LOCK)) Panic(RP_LOCKED_SERIES);
+	if (SERIES_GET_FLAG(series, SER_LOCK)) panic Error_0(RE_LOCKED_SERIES);
 
 #ifndef NDEBUG
 	if (Reb_Opts->watch_expand) {
@@ -992,8 +991,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		wide,
 		any_block ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
 	)) {
-		Trap(RE_NO_MEMORY);
-		DEAD_END_VOID;
+		raise Error_No_Memory((series->tail + delta + x) * wide);
 	}
 
 	assert(SERIES_BIAS(series) == 0); // should be reset
@@ -1061,8 +1059,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	)) {
 		// Put series back how it was (there may be extant references)
 		series->data = data_old;
-		Trap(RE_NO_MEMORY);
-		DEAD_END_VOID;
+		raise Error_No_Memory((units + 1) * wide);
 	}
 
 	if (flags & MKS_PRESERVE) {
@@ -1214,8 +1211,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	)) {
 		// Put series back how it was (there may be extant references)
 		series->data = data_old;
-		Trap(RE_NO_MEMORY);
-		DEAD_END_VOID;
+		raise Error_No_Memory((tail_old + 1) * sizeof(REBUNI));
 	}
 
 	bp = data_old;
@@ -1464,8 +1460,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	return count;
 crash:
-	Panic_DEAD_END(RP_CORRUPT_MEMORY);
-	return 0; // for compiler only
+	panic Error_0(RE_CORRUPT_MEMORY);
 }
 
 
