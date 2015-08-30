@@ -239,7 +239,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		return VAL_ERR_NUM(error);
 	}
 
-	if (!Do_Sys_Func(&out, SYS_CTX_FINISH_RL_START, 0)) {
+	if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_RL_START, 0)) {
 		if (
 			IS_WORD(&out) &&
 			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(error) == SYM_EXIT)

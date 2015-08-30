@@ -238,7 +238,7 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 	}
 
 	// Evaluate the function:
-	if (!Dispatch_Call(call)) {
+	if (Dispatch_Call_Throws(call)) {
 		// !!! Needs better handling for THROWN() to safely "bubble up"
 		Trap_Thrown(DSF_OUT(call));
 		DEAD_END;

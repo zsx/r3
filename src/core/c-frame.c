@@ -611,7 +611,7 @@
 **
 ***********************************************************************/
 {
-	if (!Do_Sys_Func(out, SYS_CTX_MAKE_MODULE_P, spec, 0)) {
+	if (Do_Sys_Func_Throws(out, SYS_CTX_MAKE_MODULE_P, spec, 0)) {
 		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
 		Trap_Thrown(out);
 		DEAD_END_VOID;

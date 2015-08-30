@@ -42,7 +42,7 @@
 **
 ***********************************************************************/
 {
-	if (!Do_Sys_Func(out, SYS_CTX_MAKE_PORT_P, spec, 0)) {
+	if (Do_Sys_Func_Throws(out, SYS_CTX_MAKE_PORT_P, spec, 0)) {
 		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
 		Trap_Thrown(out);
 		DEAD_END_VOID;
@@ -184,7 +184,10 @@
 	if (only) SET_TRUE(&ref_only);
 	else SET_NONE(&ref_only);
 	// Call the system awake function:
-	Apply_Func(&out, awake, port, &tmp, &ref_only, 0);
+	if (Apply_Func_Throws(&out, awake, port, &tmp, &ref_only, 0)) {
+		Trap_Thrown(&out);
+		DEAD_END;
+	}
 
 	// Awake function returns 1 for end of WAIT:
 	result = (IS_LOGIC(&out) && VAL_LOGIC(&out)) ? 1 : 0;
@@ -345,7 +348,12 @@
 	if (!n || !actor || !ANY_FUNC(actor)) {
 		Trap1_DEAD_END(RE_NO_PORT_ACTION, Get_Action_Word(action));
 	}
-	Redo_Func(actor);
+
+	if (Redo_Func_Throws(actor)) {
+		// No special handling needed, as we are just going to return
+		// the output value in D_OUT anyway.
+	}
+
 	return R_OUT;
 
 	// If not in PORT actor, use the SCHEME actor:

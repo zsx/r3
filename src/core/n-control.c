@@ -310,9 +310,12 @@ enum {
 	REBVAL * block = D_ARG(2);
 	REBOOL reduce = !D_REF(3);
 
-	Apply_Block(
+	if (!Apply_Block_Throws(
 		D_OUT, func, VAL_SERIES(block), VAL_INDEX(block), reduce
-	);
+	)) {
+		// No special handling needed if D_OUT is thrown, as we are just
+		// returning it to bubble up anyway
+	}
 	return R_OUT;
 }
 
@@ -645,7 +648,11 @@ was_caught:
 			// effect is desirable, though having Apply_Func be cavalier
 			// about extra arguments may not be the best way to do it.
 
-			Apply_Func(D_OUT, handler, thrown_arg, thrown_name, NULL);
+			if (Apply_Func_Throws(D_OUT, handler, thrown_arg, thrown_name, NULL)) {
+				// No need to do anything special in the thrown case, as we
+				// are just returning the thrown value anyway
+			}
+
 			return R_OUT;
 		}
 	}
@@ -824,7 +831,7 @@ was_caught:
 	case REB_URL:
 	case REB_FILE:
 		// DO native and system/intrinsic/do* must use same arg list:
-		if (!Do_Sys_Func(
+		if (Do_Sys_Func_Throws(
 			D_OUT,
 			SYS_CTX_DO_P,
 			value,
@@ -1088,7 +1095,12 @@ was_caught:
 				// This means we can pass a lower arity function.  The
 				// effect is desirable, though having Apply_Func be cavalier
 				// about extra arguments may not be the best way to do it.
-				Apply_Func(D_OUT, handler, error, NULL);
+
+				if (Apply_Func_Throws(D_OUT, handler, error, NULL)) {
+					// No need to handle thrown result specially, as we
+					// are just returning it anyway
+				}
+
 				return R_OUT;
 			}
 			else

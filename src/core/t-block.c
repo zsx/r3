@@ -358,7 +358,10 @@ static struct {
 		);
 	}
 
-	Apply_Func(&out, sort_flags.compare, v1, v2, 0);
+	if (Apply_Func_Throws(&out, sort_flags.compare, v1, v2, 0)) {
+		Trap_Thrown(&out);
+		DEAD_END;
+	}
 
 	if (IS_LOGIC(&out)) {
 		if (VAL_LOGIC(&out)) result = 1;

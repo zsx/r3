@@ -1259,7 +1259,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	assert(DSP == -1 && !DSF);
 
-	if (!Do_Sys_Func(&out, SYS_CTX_FINISH_INIT_CORE, 0)) {
+	if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_INIT_CORE, 0)) {
 		// You shouldn't be able to exit or quit during Init_Core() startup.
 		// The only way you should be able to stop Init_Core() is by raising
 		// an error, at which point the system will Panic out.
