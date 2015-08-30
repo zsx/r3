@@ -491,10 +491,10 @@ static REBREQ *Req_SIO;
 	REBCNT n;
 	REBYTE *bp;
 	REBCNT tail;
+	REBINT disabled = GC_Disabled;
 
 	if (!buf) Panic(RP_NO_BUFFER);
 
-	REBINT disabled = GC_Disabled;
 	GC_Disabled = 1;
 
 	RESET_SERIES(buf);

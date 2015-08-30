@@ -602,6 +602,8 @@ was_caught:
 			return R_OUT;
 		}
 		else if (ANY_FUNC(handler)) {
+			REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
+
 			// We again re-use the refinement slots, but this time as mutable
 			// space protected from GC for the handler's arguments
 			REBVAL *thrown_arg = D_ARG(4);
@@ -614,7 +616,6 @@ was_caught:
 			// handler.  If it is arity 1 it will get just the thrown value,
 			// If it is arity 2 it will get the value and the throw name.
 
-			REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
 			if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(thrown_arg))) {
 				Trap3_DEAD_END(
 					RE_EXPECT_ARG,

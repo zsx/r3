@@ -1061,8 +1061,9 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			break;
 		case A_REFLECT:
 			{
+				REBINT n;
 				arg = D_ARG(2);
-				REBINT n = VAL_WORD_CANON(arg); // zero on error
+				n = VAL_WORD_CANON(arg); // zero on error
 				switch (n) {
 					case SYM_VALUES:
 						Val_Init_Binary(ret, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_LEN(val)));
