@@ -589,6 +589,34 @@ static REBCNT To_Thru(
                     if (Check_Bit(VAL_SERIES(item), ch1, NOT(P_HAS_CASE)))
                         goto found1;
                 }
+                else if (IS_TAG(item)) {
+                    ch2 = '<';
+                    if (ch1 == ch2) {
+                        //
+                        // !!! This code was adapted from Parse_to, and is
+                        // inefficient in the sense that it forms the tag
+                        //
+                        REBSER *ser = Copy_Form_Value(item, 0);
+                        REBCNT len = SER_LEN(ser);
+                        i = Find_Str_Str(
+                            P_INPUT,
+                            0,
+                            index,
+                            SER_LEN(P_INPUT),
+                            1,
+                            ser,
+                            0,
+                            len,
+                            AM_FIND_MATCH | P_FIND_FLAGS
+                        );
+                        Free_Series(ser);
+                        if (i != NOT_FOUND) {
+                            if (is_thru) i += len;
+                            index = i;
+                            goto found;
+                        }
+                    }
+                }
                 else if (ANY_STRING(item)) {
                     ch2 = VAL_ANY_CHAR(item);
                     if (!P_HAS_CASE) ch2 = UP_CASE(ch2);
