@@ -1043,6 +1043,7 @@ bad_target:
 						)
 					) {
 						i = NOT_FOUND;
+						break;
 					}
 
 					i = index + 1;
