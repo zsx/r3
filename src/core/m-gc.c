@@ -501,14 +501,13 @@ static void Propagate_All_GC_Marks(void);
 **
 */ static void Mark_Call_Frames_Deep(void)
 /*
-**		Mark all function call frames.  At the moment, this is mostly
-**		taken care of by the marking of the data stack itself...since
-**		the call frames put their values on the data stack.  The one
-**		exception is the return value, which only *indirectly*
-**		implicates a value (which may or may not live on the data
-**		stack) by storing a pointer into a handle.  We must extract
-**		that REBVAL* in order for the garbage collector to see it,
-**		as the handle would be opaque to it otherwise.
+**		Mark all function call frames.  In addition to containing the
+**		arguments that are referred to by pointer during a function
+**		invocation (acquired via D_ARG(N) calls), it is able to point
+**		to an arbitrary stable memory location for D_OUT.  This may
+**		be giving awareness to the GC of a variable on the C stack
+**		(for example).  This also keeps the function value itself
+**		live, as well as the "label" word and "where" block value.
 **
 **		Note that prior to a function invocation, the output value
 **		slot is written with "safe" TRASH.  This helps the evaluator
