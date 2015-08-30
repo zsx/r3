@@ -529,8 +529,10 @@
 			SET_INTEGER(&error->code, RE_INVALID_ERROR);
 			Set_Error_Type(error);
 		}
-		if (VAL_INT64(&error->code) < 100 || VAL_INT64(&error->code) > 1000)
+		if (VAL_INT64(&error->code) < 100 || VAL_INT64(&error->code) > 1000) {
+			Free_Series(err);
 			Trap_Arg(arg);
+		}
 	}
 
 	// If string arg, setup other fields
@@ -539,8 +541,10 @@
 		Val_Init_String(&error->arg1, Copy_Sequence_At_Position(arg));
 		Set_Error_Type(error);
 	}
-	else
+	else {
+		Free_Series(err);
 		Trap_Arg(arg);
+	}
 
 	MANAGE_SERIES(err);
 	Val_Init_Error(out, err);
