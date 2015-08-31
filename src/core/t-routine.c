@@ -450,6 +450,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
 					TYPE_SET(&rebol_args[idx], REB_STRING);
 					TYPE_SET(&rebol_args[idx], REB_BINARY);
 					TYPE_SET(&rebol_args[idx], REB_VECTOR);
+					TYPE_SET(&rebol_args[idx], REB_CALLBACK);
 				}
 				break;
 			default:
@@ -575,6 +576,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
 				case REB_BINARY:
 				case REB_VECTOR:
 					ptrs[idx] = VAL_DATA(arg);
+					return &ptrs[idx];
+				case REB_CALLBACK:
+					ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
 					return &ptrs[idx];
 				default:
 					Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(DSF), BLK_SKIP(rebol_args, idx), arg);
