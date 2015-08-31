@@ -403,149 +403,6 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 
 /***********************************************************************
 **
-*/	static REBINT Do_Args(struct Reb_Call *call, const REBVAL path[], REBSER *block, REBCNT index)
-/*
-**		Evaluate code block according to the function arg spec.
-**		Args are pushed onto the data stack in the same order
-**		as the function frame.
-**
-**			dsf: index of function call frame
-**			path:  refinements or object/function path
-**			block: current evaluation block
-**			index: current evaluation index
-**
-***********************************************************************/
-{
-#if !defined(NDEBUG)
-	REBINT dsp_orig = DSP;
-#endif
-
-	REBVAL * const out = DSF_OUT(call);
-	const REBVAL *func = DSF_FUNC(call);
-	REBSER *words = VAL_FUNC_WORDS(func);
-	REBVAL *param = VAL_FUNC_PARAM(func, 1);
-	REBVAL *arg = DSF_NUM_ARGS(call) > 0 ? DSF_ARG(call, 1) : NULL;
-
-	REBOOL lookahead;
-
-	REBVAL *value;
-
-	if (VAL_GET_EXT(func, EXT_FUNC_INFIX)) {
-		// If func is being called infix, first arg is already in call frame
-		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
-
-		param++;
-		arg++;
-
-		// When we're in mid-dispatch of an infix function, the precedence is
-		// such that we don't want to do further infix lookahead while getting
-		// the arguments.  (e.g. with '1 + 2 * 3' we don't want infix + to
-		// look ahead past the 2 to see the infix *)
-		lookahead = FALSE;
-	}
-	else lookahead = TRUE;
-
-	// Go thru the word list params:
-	for (; NOT_END(param); param++, arg++) {
-
-		// Process each parameter:
-		switch (VAL_TYPE(param)) {
-
-		case REB_WORD:		// WORD - Evaluate next value
-			index = Do_Core(arg, TRUE, block, index, lookahead);
-			if (index == THROWN_FLAG) {
-				*out = *arg;
-				goto return_index;
-			}
-			if (index == END_FLAG) Trap2(RE_NO_ARG, DSF_LABEL(call), param);
-			break;
-
-		case REB_LIT_WORD:	// 'WORD - Just get next value
-			if (index < BLK_LEN(block)) {
-				value = BLK_SKIP(block, index);
-				if (IS_PAREN(value) || IS_GET_WORD(value) || IS_GET_PATH(value)) {
-					index = Do_Core(arg, TRUE, block, index, lookahead);
-					if (index == THROWN_FLAG) {
-						*out = *arg;
-						goto return_index;
-					}
-					if (index == END_FLAG) {
-						// end of block "trick" quotes as an UNSET! (still
-						// type checked to see if the parameter accepts it)
-						assert(IS_UNSET(arg));
-					}
-				}
-				else {
-					index++;
-					*arg = *value;
-				}
-			} else
-				SET_UNSET(arg); // allowed to be none
-			break;
-
-		case REB_GET_WORD:	// :WORD - Get value
-			if (index < BLK_LEN(block)) {
-				*arg = *BLK_SKIP(block, index);
-				index++;
-			} else
-				SET_UNSET(arg); // allowed to be none
-			break;
-
-		case REB_REFINEMENT: // /WORD - Function refinement
-			if (!path || IS_END(path)) return index;
-			if (IS_WORD(path)) {
-				// Optimize, if the refinement is the next arg:
-				if (SAME_SYM(path, param)) {
-					SET_TRUE(arg); // set refinement stack value true
-					path++;				// remove processed refinement
-					continue;
-				}
-				// Refinement out of sequence, resequence arg order:
-more_path:
-				param = VAL_FUNC_PARAM(func, 1);
-				arg = DSF_ARG(call, 1);
-				for (; NOT_END(param); param++, arg++) {
-					if (!IS_WORD(path)) {
-						Trap1_DEAD_END(RE_BAD_REFINE, path);
-					}
-					if (IS_REFINEMENT(param) && VAL_WORD_CANON(param) == VAL_WORD_CANON(path)) {
-						SET_TRUE(arg); // set refinement stack value true
-						path++;				// remove processed refinement
-						break;
-					}
-				}
-				// Was refinement found? If not, error:
-				if (IS_END(param)) Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(call), path);
-				continue;
-			}
-			else Trap1_DEAD_END(RE_BAD_REFINE, path);
-			break;
-
-		case REB_SET_WORD:	// WORD: - reserved for special features
-		default:
-			Trap_Arg_DEAD_END(param);
-		}
-
-		ASSERT_VALUE_MANAGED(arg);
-
-		// If word is typed, verify correct argument datatype:
-		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-			Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
-	}
-
-	// Hack to process remaining path:
-	if (path && NOT_END(path)) goto more_path;
-	//	Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(dsf), path);
-
-return_index:
-	assert(DSP == dsp_orig);
-	return index;
-}
-
-
-/***********************************************************************
-**
 */	void Do_Signals(void)
 /*
 **		Special events to process during evaluation.
@@ -630,6 +487,11 @@ return_index:
 	struct Reb_Call *dsf_precall = DSF;
 	SET_DSF(call);
 
+	// Write some garbage (that won't crash the GC) into the `out` slot in
+	// the debug build.  This helps to catch functions that do not
+	// at some point intentionally write an output value into the slot.
+	//
+	// Note: if they use that slot for temp space, it subverts this check.
 	SET_TRASH_SAFE(out);
 
 	if (Trace_Flags) Trace_Func(DSF_LABEL(call), func);
@@ -698,6 +560,12 @@ return_index:
 **		Op indicates infix operator is being evaluated (precedence);
 **		The value (or error) is placed on top of the data stack.
 **
+**		LOOKAHEAD:
+**		When we're in mid-dispatch of an infix function, the precedence
+**		is such that we don't want to do further infix lookahead while
+**		getting the arguments.  (e.g. with `1 + 2 * 3` we don't want
+**		infix `+` to look ahead past the 2 to see the infix `*`)
+**
 ***********************************************************************/
 {
 #if !defined(NDEBUG)
@@ -708,12 +576,22 @@ return_index:
 #endif
 
 	const REBVAL *value;
+	REBOOL infix;
+
 	struct Reb_Call *call;
 
 	// Functions don't have "names", though they can be assigned to words.
 	// If a function invokes via word lookup (vs. a literal FUNCTION! value),
 	// 'label' will be that WORD!, and NULL otherwise.
 	const REBVAL *label;
+
+	const REBVAL *refinements;
+
+	// We use the convention that "param" refers to the word from the spec
+	// of the function (a.k.a. the "formal" argument) and "arg" refers to
+	// the evaluated value the function sees (a.k.a. the "actual" argument)
+	REBVAL *param;
+	REBVAL *arg;
 
 	// Most of what this routine does can be done with value pointers and
 	// the data stack.  Some operations need a unit of additional storage.
@@ -734,7 +612,11 @@ return_index:
 do_at_index:
 	assert(index != END_FLAG && index != THROWN_FLAG);
 	SET_TRASH_SAFE(out);
+
+	// Someday it may be worth it to micro-optimize these null assignments
+	// so they don't happen each time through the loop.
 	label = NULL;
+	refinements = NULL;
 
 #ifndef NDEBUG
 	// This counter is helpful for tracking a specific invocation.
@@ -818,39 +700,218 @@ do_at_index:
 	// Value must be the function when a jump here occurs
 	do_function_args:
 		assert(ANY_FUNC(value));
+		index++;
 		assert(DSP == dsp_orig);
 
-		// OUT may contain the pending argument for an infix operation,
-		// so Make_Call() shouldn't overwrite it!
+		// `out` may contain the pending argument for an infix operation,
+		// and it could also be the backing store of the `value` pointer
+		// to the function.  So Make_Call() shouldn't overwrite it!
+		//
+		// Note: Although we create the call frame here, we cann't "put
+		// it into effect" until all the arguments have been computed.
+		// This is because recursive stack-relative bindings would wind
+		// up reading variables out of the frame while it is still
+		// being built, and that would be bad.
+
 		call = Make_Call(out, block, index, label, value);
 
-		// Fetch the first argument from output slot before overwriting
-		if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) {
-			assert(index != 0);
-			*DSF_ARG(call, 1) = *out;
-		}
+		// Make_Call() put a safe copy of the function value into the
+		// call frame.  Refresh our value to point to that one (instead of
+		// where it was possibly lingering in the `out` slot).
 
-		SET_TRASH_SAFE(out); // catch functions that don't write out
-
-	// 'call' holds index of new call frame, not yet set during arg evaluation
-	// (because the arguments want to be computed in the caller's environment)
-	// value can be invalid at this point, but must be retrievable w/DSF_FUNC
-
-		index = Do_Args(call, 0, block, index+1);
-
-	// The function frame is completely filled with arguments and ready
-	function_ready_to_call:
-		// value may have started pointing to the out slot, so if we are
-		// to reference the function we need the copy from the call frame
 		value = DSF_FUNC(call);
 		assert(ANY_FUNC(value));
+		infix = VAL_GET_EXT(value, EXT_FUNC_INFIX);
 
-		// if THROW, RETURN, BREAK, CONTINUE during Do_Args
-		if (index == THROWN_FLAG) {
-			Free_Call(call);
-			goto return_index;
+		// If there are no arguments, just skip the next section
+		if (DSF_NUM_ARGS(call) == 0) goto function_ready_to_call;
+
+		// We assume you can enumerate both the formal parameters (in the
+		// spec) and the actual arguments (in the call frame) using pointer
+		// incrementation, that they are both terminated by REB_END, and
+		// that there are an equal number of values in both.
+		param = VAL_FUNC_PARAM(value, 1);
+		arg = DSF_ARG(call, 1);
+
+		// Fetch the first argument from output slot before overwriting
+		// !!! Redundant check on REB_PATH branch (knows it's not infix)
+		if (infix) {
+			assert(index != 0);
+
+			// If func is being called infix, prior evaluation loop has
+			// already computed first argument, so it's sitting in `out`
+			*arg = *out;
+			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+
+			param++;
+			arg++;
 		}
 
+		// This loop goes through the parameter and argument slots.  It
+		// starts out going in order, BUT note that when processing
+		// refinements, this may "jump around".  (This happens if the path
+		// generating the call doesn't specify the refinements in the same
+		// order as was in the definition.
+		//
+		for (; NOT_END(param); param++, arg++) {
+
+			switch (VAL_TYPE(param)) {
+
+			case REB_WORD:
+				// An ordinary WORD! in the function spec indicates that you
+				// would like that argument to be evaluated normally.
+				//
+				//     >> foo: function [a] [print [{a is} a]
+				//
+				//     >> foo 1 + 2
+				//     a is 3
+				//
+				index = Do_Core(arg, TRUE, block, index, !infix);
+				if (index == THROWN_FLAG) {
+					*out = *arg;
+					Free_Call(call);
+					goto return_index;
+				}
+				if (index == END_FLAG) Trap2(RE_NO_ARG, DSF_LABEL(call), param);
+				break;
+
+			case REB_GET_WORD:
+				// Using a GET-WORD! in the function spec indicates that you
+				// would like that argument to be "quoted" sans evaluation.
+				//
+				//     >> foo: function [:a] [print [{a is} a]
+				//
+				//     >> foo 1 + 2
+				//     a is 1
+				//
+				//     >> foo (1 + 2)
+				//     a is (1 + 2)
+				//
+				// A special allowance is made that if a function quotes its
+				// argument and can the parameter is at the end of a series,
+				// it will be treated as an UNSET!  (This is how HELP manages
+				// to act as an arity 1 function as well as an arity 0 one.)
+				// But to use this feature it must also explicitly accept
+				// the UNSET! type (checked after the switch).
+				//
+				if (index < BLK_LEN(block)) {
+					*arg = *BLK_SKIP(block, index);
+					index++;
+				}
+				else
+					SET_UNSET(arg); // series end UNSET! trick
+				break;
+
+			case REB_LIT_WORD:
+				// Using a LIT-WORD in the function spec indicates that
+				// parameters are quoted *unless* they are "gets" or parens.
+				//
+				//     >> foo: function ['a] [print [{a is} a]
+				//
+				//     >> foo 1 + 2
+				//     a is 1
+				//
+				//     >> foo (1 + 2)
+				//     a is 3
+				//
+				// This provides a convenient escape mechanism for the caller
+				// to subvert quote-like behavior (which is an option that
+				// one generally would like to give in a quote-like API).
+				//
+				// The same trick is allowed for UNSET! at end of series as
+				// with a GET-WORD! style quote.
+				//
+				if (index < BLK_LEN(block)) {
+					REBVAL * const quoted = BLK_SKIP(block, index);
+					if (
+						IS_PAREN(quoted)
+						|| IS_GET_WORD(quoted)
+						|| IS_GET_PATH(quoted)
+					) {
+						index = Do_Core(arg, TRUE, block, index, !infix);
+						if (index == THROWN_FLAG) {
+							*out = *arg;
+							Free_Call(call);
+							goto return_index;
+						}
+						if (index == END_FLAG)
+							assert(IS_UNSET(arg)); // series end UNSET! trick
+					}
+					else {
+						index++;
+						*arg = *quoted;
+					}
+				} else
+					SET_UNSET(arg); // series end UNSET! trick
+				break;
+
+			case REB_REFINEMENT:
+				// Refinements are tricky because we may hit them in the spec
+				// at a time when they are not the
+				//
+				if (!refinements || IS_END(refinements))
+					goto function_ready_to_call;
+
+				if (!IS_WORD(&refinements[0]))
+					Trap1_DEAD_END(RE_BAD_REFINE, &refinements[0]);
+
+				// Optimize, if the refinement is the next arg:
+				if (SAME_SYM(&refinements[0], param)) {
+					SET_TRUE(arg);
+					refinements++;
+
+					// skip type check on refinement itself, and let the
+					// loop process its arguments (if any)
+					continue;
+				}
+
+			seek_refinement:
+				// Check is redundant if we are coming from REB_REFINEMENT
+				// case above, but not if we're jumping in.
+				if (!IS_WORD(&refinements[0]))
+					Trap1_DEAD_END(RE_BAD_REFINE, &refinements[0]);
+
+				param = VAL_FUNC_PARAM(value, 1);
+				arg = DSF_ARG(call, 1);
+				for (; NOT_END(param); param++, arg++) {
+					if (IS_REFINEMENT(param))
+						if (SAME_SYM(param, &refinements[0])) {
+							SET_TRUE(arg);
+							refinements++;
+							break; // will fall through to continue below
+						}
+				}
+				// Was refinement found? If not, error:
+				if (IS_END(param))
+					Trap2_DEAD_END(RE_NO_REFINE, DSF_LABEL(call), &refinements[0]);
+
+				// skip type check on refinement itself, and let the
+				// loop process its arguments (if any)
+				continue;
+
+			case REB_SET_WORD:
+				// The SET-WORD! is reserved for special features.  Red has
+				// used RETURN: as a specifier for the return value, but this
+				// may lead to problems with the locals-gathering mechanics
+				// with nested FUNCTION declarations.
+				Trap_Arg_DEAD_END(param);
+
+			default:
+				Trap_Arg_DEAD_END(param);
+			}
+
+			ASSERT_VALUE_MANAGED(arg);
+
+			// If word is typed, verify correct argument datatype:
+			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
+				Trap3_DEAD_END(RE_EXPECT_ARG, DSF_LABEL(call), param, Of_Type(arg));
+		}
+
+		// Hack to process remaining path:
+		if (refinements && NOT_END(refinements)) goto seek_refinement;
+
+	function_ready_to_call:
 		// Execute the function with all arguments ready
 		if (Dispatch_Call_Throws(call)) {
 			index = THROWN_FLAG;
@@ -911,13 +972,16 @@ do_at_index:
 
 			if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) Trap_Type_DEAD_END(value);
 
-			call = Make_Call(
-				out, block, index, ANY_FUNC(label) ? NULL : label, value
-			);
+			refinements = label + 1;
 
-			index = Do_Args(call, label + 1, block, index + 1);
+			// It's possible to put a literal function value into a path,
+			// but the labeling mechanism currently expects a word or NULL
+			// for what you dispatch from.
 
-			goto function_ready_to_call;
+			if (ANY_FUNC(label))
+				label = NULL;
+
+			goto do_function_args;
 		} else
 			index++;
 		break;
