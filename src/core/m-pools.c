@@ -1140,13 +1140,9 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		SERIES_GET_FLAG(frame, SER_MANAGED)
 		!= SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)
 	) {
-		if (!SERIES_GET_FLAG(frame, SER_MANAGED)) {
-			Debug_Fmt("Frame word series is managed but frame is not!");
-			Panic_Series(frame);
-		}
-
-		Debug_Fmt("Frame is managed but frame word series is not!");
-		Panic_Series(FRM_WORD_SERIES(frame));
+		// Only one of these will trip...
+		ASSERT_SERIES_MANAGED(frame);
+		ASSERT_SERIES_MANAGED(FRM_WORD_SERIES(frame));
 	}
 
 	MANAGE_SERIES(FRM_WORD_SERIES(frame));
@@ -1196,21 +1192,12 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 {
 	if (ANY_OBJECT(value)) {
 		REBSER *frame = VAL_OBJ_FRAME(value);
-		if (!SERIES_GET_FLAG(frame, SER_MANAGED)) {
-			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on object frame");
-			Panic_Series(frame);
-		}
-		if (!SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)) {
-			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on object frame words");
-			Panic_Series(FRM_WORD_SERIES(frame));
-		}
+		ASSERT_SERIES_MANAGED(frame);
+		ASSERT_SERIES_MANAGED(FRM_WORD_SERIES(frame));
+
 	}
-	else if (ANY_SERIES(value)) {
-		if (!SERIES_GET_FLAG(VAL_SERIES(value), SER_MANAGED)) {
-			Debug_Fmt("ASSERT_VALUE_MANAGED() failing on series");
-			Panic_Series(VAL_SERIES(value));
-		}
-	}
+	else if (ANY_SERIES(value))
+		ASSERT_SERIES_MANAGED(VAL_SERIES(value));
 }
 
 #endif

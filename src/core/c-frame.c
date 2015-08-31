@@ -515,8 +515,8 @@
 		assert(words == FRM_WORD_SERIES(object));
 	}
 
-	assert(SERIES_GET_FLAG(object, SER_MANAGED));
-	assert(SERIES_GET_FLAG(FRM_WORD_SERIES(object), SER_MANAGED));
+	ASSERT_SERIES_MANAGED(object);
+	ASSERT_SERIES_MANAGED(FRM_WORD_SERIES(object));
 	ASSERT_FRAME(object);
 	return object;
 }

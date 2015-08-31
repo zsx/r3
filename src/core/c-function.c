@@ -469,7 +469,7 @@
 
 	// We do not Manage_Frame, because we are reusing a word series here
 	// that has already been managed...only manage the outer series
-	assert(SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED));
+	ASSERT_SERIES_MANAGED(FRM_WORD_SERIES(frame));
 	MANAGE_SERIES(frame);
 
 	ASSERT_FRAME(frame);

@@ -1118,7 +1118,7 @@ static void Propagate_All_GC_Marks(void);
 	// be useful.  That would be for cases where you are building a
 	// series up from constituent values but might want to abort and
 	// manually free it.  For the moment, we don't have that feature.
-	assert(SERIES_GET_FLAG(series, SER_MANAGED));
+	ASSERT_SERIES_MANAGED(series);
 
 	if (SERIES_FULL(GC_Protect)) Extend_Series(GC_Protect, 8);
 	((REBSER **)GC_Protect->data)[GC_Protect->tail++] = series;

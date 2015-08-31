@@ -635,6 +635,9 @@ void Panic_Core(REBINT id, ...);
 	#define MANUALS_LEAK_CHECK(manuals,label_str) \
 		NOOP
 
+	#define ASSERT_SERIES_MANAGED(series) \
+		NOOP
+
 	#define ASSERT_VALUE_MANAGED(value) \
 		NOOP
 
@@ -658,6 +661,12 @@ void Panic_Core(REBINT id, ...);
 
 	#define MANUALS_LEAK_CHECK(manuals,label_str) \
 		Manuals_Leak_Check_Debug((manuals), (label_str))
+
+	#define ASSERT_SERIES_MANAGED(series) \
+		do { \
+			if (!SERIES_GET_FLAG((series), SER_MANAGED)) \
+				Panic_Series(series); \
+		} while (0)
 
 	#define ASSERT_VALUE_MANAGED(value) \
 		Assert_Value_Managed_Debug(value)
