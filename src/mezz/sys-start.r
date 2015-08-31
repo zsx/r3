@@ -109,7 +109,7 @@ finish-rl-start: func [
 
 	;-- Convert command line arg strings as needed:
 	script-args: args ; save for below
-	foreach [opt act] [
+	for-each [opt act] [
 		do-arg  block!
 		debug   block!
 		secure  word!
@@ -134,7 +134,7 @@ finish-rl-start: func [
 		do bind-lib boot-mezz
 		boot-mezz: 'done
 
-		foreach [spec body] boot-prot [module spec body]
+		for-each [spec body] boot-prot [module spec body]
 		;do bind-lib boot-prot
 		;boot-prot: 'done
 

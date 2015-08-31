@@ -160,13 +160,13 @@ other-flags: context [
 ; A little bit of sanity-checking on the systems table
 use [rec unknown-flags] [
 	; !!! See notes about NO-RETURN in the loop wrapper definition.
-	foreach-record-NO-RETURN rec systems [
+	for-each-record-NO-RETURN rec systems [
 		assert [tuple? rec/id]
 		assert [(to-string rec/os-name) == (lowercase to-string rec/os-name)]
 		assert [(to-string rec/os-base) == (lowercase to-string rec/os-base)]
 		assert [not find (to-string rec/os-base) charset [#"-" #"_"]]
 		assert [block? rec/build-flags]
-		foreach flag rec/build-flags [assert [word? flag]]
+		for-each flag rec/build-flags [assert [word? flag]]
 
 		; Exclude should mutate (CC#2222), but this works either way
 		unknown-flags: exclude (unknown_flags: copy rec/build-flags) compose [

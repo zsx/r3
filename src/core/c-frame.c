@@ -320,7 +320,7 @@
 		// Recurse into sub-blocks:
 		if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
 			Collect_Frame_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
-		// In this mode (foreach native), do not allow non-words:
+		// In this mode (for-each native), do not allow non-words:
 		//else if (modes & BIND_GET) Trap_Arg_DEAD_END(value);
 	}
 	BLK_TERM(BUF_WORDS);

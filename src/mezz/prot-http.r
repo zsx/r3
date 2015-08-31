@@ -138,7 +138,7 @@ make-http-request: func [
 		either file? target [next mold target] [target]
 		" HTTP/1.0" CRLF
 	]
-	foreach [word string] headers [
+	for-each [word string] headers [
 		repend result [mold word #" " string CRLF]
 	]
 	if content [

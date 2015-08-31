@@ -28,7 +28,7 @@ title-of:
 	none
 
 use [word title] [
-	foreach name system/catalog/reflectors [
+	for-each name system/catalog/reflectors [
 		word: make word! ajoin [name "-of"]
 		word: bind/new word 'reflect
 		title: ajoin ["Returns a copy of the " name " of a " switch/default name [
@@ -47,7 +47,7 @@ decode-url: none ; set in sys init
 
 ;-- Setup Codecs -------------------------------------------------------------
 
-foreach [codec handler] system/codecs [
+for-each [codec handler] system/codecs [
 	if handle? handler [
 		; Change boot handle into object:
 		codec: set codec make object! [

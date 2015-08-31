@@ -58,7 +58,7 @@ attempt: native [
 ]
 
 break: native [
-	{Breaks out of a loop, while, until, repeat, foreach, etc.}
+	{Breaks out of a loop, while, until, repeat, for-each, etc.}
 	/with {Forces the loop function to return a value}
 	value [any-type!]
 	/return {(deprecated synonym for /WITH)}
@@ -175,7 +175,7 @@ forever: native [
 	body [block!] {Block to evaluate each time}
 ]
 
-foreach: native [
+for-each: native [
 	{Evaluates a block for each value(s) in a series.}
 	'word [word! block!] {Word or block of words to set each time (local)}
 	data [series! any-object! map! none!] {The series to traverse}

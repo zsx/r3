@@ -24,7 +24,7 @@ to-event:
 
 ; Auto-build the functions for the above TO-* words.
 use [word] [
-	foreach type system/catalog/datatypes [
+	for-each type system/catalog/datatypes [
 		; The list above determines what will be made here:
 		if in lib word: make word! head remove back tail ajoin ["to-" type] [
 			; Add doc line only if this build has autodocs:

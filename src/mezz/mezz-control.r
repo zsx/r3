@@ -11,6 +11,9 @@ REBOL [
 	}
 ]
 
+; non-hyphenated "pretty" form of for-each (better than `foreach`)
+every: :for-each
+
 launch: func [
 	{Runs a script as a separate process; return immediately.}
 	script [file! string! none!] "The name of the script"

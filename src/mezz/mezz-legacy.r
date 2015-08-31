@@ -46,6 +46,18 @@ offset?: :offset-of
 sign?: :sign-of
 
 
+; While `foreach` may have been comfortable for some as a word, its hard
+; not to see the word `reach` inside of it.  Once you recognize that it's
+; not a word and see it with fresh eyes, it looks bad...and also not part
+; of the family of other -each functions like `remove-each` and `map-each`.
+; The need for the hyphen for `for-each` isn't that bad, but the hyphen
+; does break the rhythm a little bit.  Choosing to let `each` stand alone
+; was deemed too ugly, so `every` was selected as a synonym of `for-each`.
+; But `foreach` is demoted to legacy / compatibility module
+
+foreach: :for-each
+
+
 ; The distinctions between Rebol's types is important to articulate.
 ; So using the term "BLOCK" generically to mean any composite
 ; series--as well as specificially the bracketed block type--is a

@@ -201,7 +201,7 @@ export: func [
 	"Low level export of values (e.g. functions) to lib."
 	words [block!] "Block of words (already defined in local context)"
 ][
-	foreach word words [repend lib [word get word]]
+	for-each word words [repend lib [word get word]]
 ]
 
 assert-utf8: function [

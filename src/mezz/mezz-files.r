@@ -129,7 +129,7 @@ list-dir: func [
 	unless indent [indent: ""]
 	files: attempt [read %./]
 	if not files [print ["Not found:" :path] change-dir save-dir exit]
-	foreach file files [
+	for-each file files [
 		if any [
 			all [f dir? file]
 			all [d not dir? file]

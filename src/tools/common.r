@@ -25,10 +25,11 @@ REBOL [
 ;-- can still work in older as well as newer Rebols.  Thus the detection
 ;-- has to be a bit "dynamic"
 
-unless value? 'length [length: :length?]
-unless value? 'index-of [index-of: :index?]
-unless value? 'offset-of [offset-of: :offset?]
+unless value? 'length [length: :length? unset 'length?]
+unless value? 'index-of [index-of: :index? unset 'index?]
+unless value? 'offset-of [offset-of: :offset? unset 'offset?]
 
+unless value? 'for-each [for-each: :foreach every: :foreach unset 'foreach]
 
 ;-- !!! switch to use spaces when code is transitioned
 code-tab: (comment [rejoin [space space space space]] tab)
@@ -52,7 +53,7 @@ binary-to-c: func [
 		;-- grab hexes in groups of 8 bytes
 		hexed: enbase/base (copy/part data 8) 16
 		data: skip data 8
-		foreach [digit1 digit2] hexed [
+		for-each [digit1 digit2] hexed [
 			append out rejoin [{0x} digit1 digit2 {,} space]
 		]
 
@@ -76,7 +77,7 @@ binary-to-c: func [
 ; RETURN in it will return from the *caller*.  It will just wind up returning
 ; from *this loop wrapper* (in older Rebols) when the call is finished!
 ;
-foreach-record-NO-RETURN: func [
+for-each-record-NO-RETURN: func [
 	{Iterate a table with a header by creating an object for each row}
 	'record [word!] {Word to set each time to the row made into an object}
 	table [block!] {Table of values with header block as first element}
@@ -101,7 +102,7 @@ foreach-record-NO-RETURN: func [
 		]
 
 		spec: collect [
-			foreach column-name headings [
+			for-each column-name headings [
 				keep column-name
 				keep compose/only [quote (table/1)]
 				table: next table
@@ -131,7 +132,7 @@ find-record-unique: func [
 	]
 
 	result: none
-	foreach-record-NO-RETURN rec table [
+	for-each-record-NO-RETURN rec table [
 		unless value = select rec key [continue]
 
 		if result [

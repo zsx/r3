@@ -1056,10 +1056,10 @@ tls-awake: function [event [event!]] [
 			debug ["Read" length port/data "bytes proto-state:" tls-port/state/protocol-state]
 			complete?: tls-read-data tls-port/state port/data
 			application?: false
-			foreach proto tls-port/state/resp [
+			for-each proto tls-port/state/resp [
 				switch proto/type [
 					application [
-						foreach msg proto/messages [
+						for-each msg proto/messages [
 							if msg/type = 'app-data [
 								unless tls-port/data [tls-port/data: clear tls-port/state/port-data]
 								append tls-port/data msg/content
@@ -1069,7 +1069,7 @@ tls-awake: function [event [event!]] [
 						]
 					]
 					alert [
-						foreach msg proto/messages [
+						for-each msg proto/messages [
 							if msg/description = "Close notify" [
 								do-commands tls-port/state [close-notify]
 								insert system/ports/system make event! [type: 'read port: tls-port]

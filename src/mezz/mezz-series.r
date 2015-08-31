@@ -197,7 +197,7 @@ reword: func [
 		all [
 			map? values      ; Must be a map to use series keys with no dups
 			empty? char-end  ; If we have char-end, it gets appended to the keys
-			foreach [w v] values [
+			for-each [w v] values [
 				; Key types must match wtype and no unset values allowed
 				if any [unset? :v wtype <> type-of :w] [break/return false]
 				true
@@ -227,7 +227,7 @@ reword: func [
 			]
 		]
 		'else [  ; /only doesn't apply, just assign raw values
-			foreach [w v] values [  ; foreach can be used on all values types
+			for-each [w v] values [  ; for-each can be used on all values types
 				if any [set-word? :w lit-word? :w] [w: to word! :w]
 				lib/case [
 					wtype = type-of :w none
@@ -244,7 +244,7 @@ reword: func [
 	]
 	; Construct the reword rule
 	word: make block! 2 * length vals
-	foreach w vals [word: reduce/into [w '|] word]
+	for-each w vals [word: reduce/into [w '|] word]
 	word: head remove back word
 	; Convert keyword if the type doesn't match
 	cword: pick [(w: to wtype w)] wtype <> type-of source
@@ -384,7 +384,7 @@ format: function [
 
 	; Compute size of output (for better mem usage):
 	val: 0
-	foreach rule rules [
+	for-each rule rules [
 		if word? :rule [rule: get rule]
 		val: val + switch/default type-of/word :rule [
 			integer! [abs rule]
@@ -397,7 +397,7 @@ format: function [
 	insert/dup out p val
 
 	; Process each rule:
-	foreach rule rules [
+	for-each rule rules [
 		if word? :rule [rule: get rule]
 		switch type-of/word :rule [
 			integer! [

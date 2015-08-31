@@ -153,7 +153,7 @@ typedef struct REBOL_Host_Lib ^{
 	REBDEV **devices;
 }
 
-foreach file files [
+for-each file files [
 	print ["scanning" file]
 	if all [
 		%.c = suffix? file

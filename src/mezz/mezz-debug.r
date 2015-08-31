@@ -28,7 +28,7 @@ dp: delta-profile: func [
 	start: values-of stats/profile
 	do block
 	end: values-of stats/profile
-	foreach num start [
+	for-each num start [
 		change end end/1 - num
 		end: next end
 	]
@@ -43,7 +43,7 @@ speed?: function [
 	/times "Show time for each test"
 ][
 	result: copy []
-	foreach block [
+	for-each block [
 		[
 			loop 100'000 [
 				; measure more than just loop func

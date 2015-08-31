@@ -262,7 +262,7 @@
 */	static REB_R Loop_Each(struct Reb_Call *call_, REBINT mode)
 /*
 **		Supports these natives (modes):
-**			0: foreach
+**			0: for-each
 **			1: remove-each
 **			2: map
 **
@@ -431,7 +431,7 @@
 			}
 			else Trap_Arg_DEAD_END(words);
 		}
-		if (index == rindex) index++; //the word block has only set-words: foreach [a:] [1 2 3][]
+		if (index == rindex) index++; //the word block has only set-words: for-each [a:] [1 2 3][]
 
 		if (Do_Block_Throws(D_OUT, body, 0)) {
 			if ((err = Process_Loop_Throw(D_OUT)) >= 0) {
@@ -566,7 +566,7 @@ skip_hidden: ;
 
 /***********************************************************************
 **
-*/	REBNATIVE(foreach)
+*/	REBNATIVE(for_each)
 /*
 **		{Evaluates a block for each value(s) in a series.}
 **		'word [get-word! word! block!] {Word or block of words}
