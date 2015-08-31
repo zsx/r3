@@ -607,8 +607,6 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	//
 	assert(!IN_DATA_STACK(out));
 
-	ASSERT_SERIES_MANAGED(block);
-
 do_at_index:
 	assert(index != END_FLAG && index != THROWN_FLAG);
 	SET_TRASH_SAFE(out);
