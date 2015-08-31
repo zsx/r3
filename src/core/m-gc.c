@@ -1060,6 +1060,10 @@ static void Propagate_All_GC_Marks(void);
 	MARK_BLOCK_DEEP(VAL_SERIES(ROOT_ROOT));
 	MARK_BLOCK_DEEP(Task_Series);
 
+	// Mark potential error object from callback!
+	Queue_Mark_Value_Deep(&Callback_Error);
+	Propagate_All_GC_Marks();
+
 	// Mark all devices:
 	Mark_Devices_Deep();
 

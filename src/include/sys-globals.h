@@ -135,3 +135,5 @@ TVAR REBI64 Eval_Functions;
 
 //-- Other per thread globals:
 TVAR REBSER *Bind_Table;	// Used to quickly bind words to contexts
+
+TVAR REBVAL Callback_Error; //Error produced by callback!, note it's not callback://

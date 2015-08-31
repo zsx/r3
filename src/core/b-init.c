@@ -1196,6 +1196,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	Init_Ports();
 	Init_Codecs();
 	Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
+	SET_UNSET(&Callback_Error);
 	PG_Boot_Phase = BOOT_ERRORS;
 
 	// We need these values around to compare to the tags we find in function

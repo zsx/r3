@@ -254,7 +254,6 @@
 	}
 #endif // HAVE_LIBFFI_AVAILABLE
 
-
 #define QUEUE_EXTRA_MEM(v, p) do {\
 	*(void**) SERIES_SKIP(v->extra_mem, SERIES_TAIL(v->extra_mem)) = p;\
 	EXPAND_SERIES_TAIL(v->extra_mem, 1);\
@@ -827,10 +826,12 @@ static void ffi_to_rebol(REBRIN *rin,
 	}
 	prep_rvalue(VAL_ROUTINE_INFO(rot), ret);
 	rvalue = arg_to_ffi(rot, ret, 0, cast(void **, SERIES_DATA(ffi_args_ptrs)));
+	SET_UNSET(&Callback_Error);
 	ffi_call(cast(ffi_cif*, VAL_ROUTINE_CIF(rot)),
 			 VAL_ROUTINE_FUNCPTR(rot),
 			 rvalue,
 			 ffi_args);
+	if (IS_ERROR(&Callback_Error)) Do_Error(&Callback_Error);
 
 	ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
 
@@ -906,6 +907,10 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBVAL *elem;
 	REBVAL safe;
 
+	REBOL_STATE state;
+	const REBVAL *error = NULL;
+
+	if (IS_ERROR(&Callback_Error)) return;
 	ser = Make_Array(1 + cif->nargs);
 	MANAGE_SERIES(ser);
 	SAVE_SERIES(ser);
@@ -957,12 +962,18 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		}
 	}
 
+	PUSH_TRAP(&error, &state);
+	if (error) {
+		Callback_Error = *error;
+		return;
+	}
 	if (Do_Block_Throws(&safe, ser, 0)) {
 		// !!! Does not check for thrown cases...what should this
 		// do in case of THROW, BREAK, QUIT?
 		Trap_Thrown(&safe);
 		DEAD_END_VOID;
 	}
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	elem = &safe;
 	switch (cif->rtype->type) {
