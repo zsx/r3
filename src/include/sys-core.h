@@ -498,13 +498,7 @@ void Panic_Core(REBINT id, ...);
 	// moment of allocation of a series.  Then you should have TWO stacks: the
 	// one at the call of the Panic, and one where that series was alloc'd.
 
-	#define Panic_Series(s) \
-		do { \
-			Debug_Fmt("Panic_Series() in %s at line %d", __FILE__, __LINE__); \
-			if (*(s)->guard == 1020) /* should make valgrind or asan alert */ \
-				Panic(RP_MISC);	 \
-			Panic(RP_MISC); /* just in case it didn't crash */ \
-		} while (0);
+	#define Panic_Series(s) Panic_Series_Debug((s), __FILE__, __LINE__);
 
 	#define Panic_Series_DEAD_END(s) \
 		do { \

@@ -428,4 +428,20 @@
 	}
 }
 
+
+/***********************************************************************
+**
+*/	void Panic_Series_Debug(const REBSER *series, const char *file, int line)
+/*
+**		This could be done in the PANIC_SERIES macro, but having it
+**		as an actual function gives you a place to set breakpoints.
+**
+***********************************************************************/
+{
+	Debug_Fmt("Panic_Series() in %s at line %d", file, line);
+	if (*series->guard == 1020) // should make valgrind or asan alert
+		Panic(RP_MISC);
+	Panic(RP_MISC); // just in case it didn't crash
+}
+
 #endif
