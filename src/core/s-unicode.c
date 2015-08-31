@@ -1178,33 +1178,6 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	REBSER *Encode_String(void *str, REBCNT len, REBCNT opts)
-/*
-**		str: byte or unicode string
-**		len: length in chars
-**		opt: special options (UTF, LE/BE, CR/LF, BOM)
-**
-***********************************************************************/
-{
-	REBSER *ser = 0;
-
-	if (GET_FLAG(opts, ENC_OPT_UTF8)) {
-		//ser = Encode_UTF8_Value(arg, len, opts);
-	}
-
-	if (GET_FLAG(opts, ENC_OPT_UTF16)) {
-		// ser = Encode_UTF16_Value(arg, len, FALSE, ccr);
-	}
-
-//	if (utf == 0 || ser == 0) {
-		// Enline_Bytes();
-//	}
-
-	return ser;
-}
-
-/***********************************************************************
-**
 */	REBCNT Strlen_Uni(const REBUNI *up)
 /*
 **		Rebol's current choice is to use UCS-2 internally, such that
