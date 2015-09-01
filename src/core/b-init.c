@@ -1129,6 +1129,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	PG_Mem_Limit = 0;
 	PG_Reb_Stats = ALLOC(REB_STATS);
 	Reb_Opts = ALLOC(REB_OPTS);
+	CLEAR(Reb_Opts, sizeof(REB_OPTS));
 	Saved_State = NULL;
 
 	// Thread locals:

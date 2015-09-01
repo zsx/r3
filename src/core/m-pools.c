@@ -119,18 +119,17 @@
 
 	// While conceptually a simpler interface than malloc(), the
 	// current implementations on all C platforms just pass through to
-	// malloc and free.  NOTE: use of calloc is temporary for the
-	// pooling commit, as it covers up bugs.  Those are addressed in
-	// a separate patch.
+	// malloc and free.
 
 #ifdef NDEBUG
 	return calloc(size, 1);
 #else
 	{
-		// In debug builds we cache the size at the head of the
-		// allocation so we can check it.
+		// In debug builds we cache the size at the head of the allocation
+		// so we can check it.  This also allows us to catch cases when
+		// free() is paired with Alloc_Mem() instead of using Free_Mem()
 
-		void *ptr = calloc(size + sizeof(size_t), 1);
+		void *ptr = malloc(size + sizeof(size_t));
 		*cast(size_t *, ptr) = size;
 		return cast(char *, ptr) + sizeof(size_t);
 	}
@@ -278,14 +277,21 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	// Copy pool sizes to new pool structure:
 	Mem_Pools = ALLOC_ARRAY(REBPOL, MAX_POOLS);
 	for (n = 0; n < MAX_POOLS; n++) {
+		Mem_Pools[n].segs = NULL;
+		Mem_Pools[n].first = NULL;
+		Mem_Pools[n].last = NULL;
 		Mem_Pools[n].wide = Mem_Pool_Spec[n].wide;
 		Mem_Pools[n].units = (Mem_Pool_Spec[n].units * scale) / unscale;
 		if (Mem_Pools[n].units < 2) Mem_Pools[n].units = 2;
+		Mem_Pools[n].free = 0;
+		Mem_Pools[n].has = 0;
 	}
 
 	// For pool lookup. Maps size to pool index. (See Find_Pool below)
-	PG_Pool_Map = ALLOC_ARRAY(REBYTE, (4 * MEM_BIG_SIZE) + 4); // extra
-	n = 9;  // sizes 0 - 8 are pool 0
+	PG_Pool_Map = ALLOC_ARRAY(REBYTE, (4 * MEM_BIG_SIZE) + 1);
+
+	// sizes 0 - 8 are pool 0
+	for (n = 0; n <= 8; n++) PG_Pool_Map[n] = 0;
 	for (; n <= 16 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_TINY_POOL     + ((n-1) / MEM_MIN_SIZE);
 	for (; n <= 32 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_SMALL_POOLS-4 + ((n-1) / (MEM_MIN_SIZE * 4));
 	for (; n <=  4 * MEM_BIG_SIZE; n++) PG_Pool_Map[n] = MEM_MID_POOLS     + ((n-1) / MEM_BIG_SIZE);
@@ -349,7 +355,13 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		Panic_Core(RP_NO_MEMORY, mem_size);
 	}
 
-	CLEAR(seg, mem_size);  // needed to clear series nodes
+	// !!! See notes above whether a more limited contract between the node
+	// types and the pools could prevent needing to zero all the units.
+	// Also note that (for instance) there is no guarantee that memsetting
+	// a pointer variable to zero will make that into a NULL pointer.
+	//
+	CLEAR(seg, mem_size);
+
 	seg->size = mem_size;
 	seg->next = pool->segs;
    	pool->segs = seg;
@@ -366,6 +378,25 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	for (next = (REBYTE *)(seg + 1); units > 0; units--, next += pool->wide) {
 		*node = (REBNOD) next;
+
+		// !!! Were a more limited contract established between the node
+		// type and the pools, this is where it would write the signal
+		// into the unit that it is in a free state.  As it stands, we
+		// do not know what bit the type will use...just that it uses
+		// zero (of something that isn't the first pointer sized thing,
+		// that we just assigned).  If it were looking for zero in
+		// the second pointer sized thing, we might put this line here:
+		//
+		//     *(node + 1) = cast(REBNOD, 0);
+		//
+		// For now we just clear the remaining bits...but we do it all
+		// in one call with the CLEAR() above vs. repeated calls on
+		// each individual unit.  Note each unit only receives a zero
+		// filling once in its lifetime; if it is freed and then reused
+		// it will not be zero filled again (depending on the client to
+		// have done whatever zeroing they needed to indicate the free
+		// state prior to free).
+
 		node  = cast(void**, *node);
 	}
 
@@ -382,8 +413,42 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **
 */	void *Make_Node(REBCNT pool_id)
 /*
-**		Allocate a node from a pool.  The node will NOT be cleared.
-**		If the pool has run out of nodes, it will be refilled.
+**		Allocate a node from a pool.  If the pool has run out of
+**		nodes, it will be refilled.
+**
+**		Note that the node you get back will not be zero-filled
+**		in the general case.  BUT *at least one bit of the node
+**		will be zero*, and that one bit will *not be in the first
+**		pointer-sized object of your node*.  This results from the
+**		way that the pools and the node types must cooperate in
+**		order to indicate that a node is in a free state when all
+**		the nodes of a certain type--freed or not--are being
+**		enumerated (e.g. by the garbage collector).
+**
+**		Here's how:
+**
+**		When a pool segment is allocated, it will initialize all
+**		the units (which will become REBSERs, REBGOBs, etc.) to
+**		zero bytes, *except* for the first pointer-sized thing in
+**		each unit.  That is used whenever a unit is in the freed
+**		state to indicate the next free unit.  Because the unit
+**		has the rest of the bits zero, it can pick the zeroness
+**		any one of those bits to signify a free state.  However,
+**		when it frees the node then it must set the bit it chose
+**		back to zero before freeing.  Except for changes to the
+**		first pointer-size slot, a reused unit being handed out
+**		via Alloc_Node will have all the same bits it had when it
+**		was freed.
+**
+**		!!! Should a stricter contract be established between the
+**		pool and the node type about what location will be used
+**		to indicate the free state?  For instance, there's already
+**		a prescriptiveness that the first pointer-sized thing can't
+**		be used to indicate anything in the free state...why not
+**		push that to two and say that freed things always have the
+**		second pointer-sized thing be 0?  That would prevent the
+**		need for a full zero-fill, at the cost of dictating the
+**		layout of the node type's struct a little more.
 **
 ***********************************************************************/
 {
@@ -409,7 +474,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **
 */	void Free_Node(REBCNT pool_id, REBNOD *node)
 /*
-**		Free a node, returning it to its pool.
+**		Free a node, returning it to its pool.  If the nodelist for
+**		this pool_id is going to be enumerated, then some bit of
+**		the data must be set to 0 prior to freeing in order to
+**		distinguish the allocated from free state.  (See notes on
+**		Alloc_Node.)
 **
 ***********************************************************************/
 {

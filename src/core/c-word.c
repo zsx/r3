@@ -419,6 +419,7 @@ make_sym:
 
 		// The word (symbol) table itself:
 		PG_Word_Table.series = Make_Array(WORD_TABLE_SIZE);
+		Clear_Series(PG_Word_Table.series);
 		SET_NONE(BLK_HEAD(PG_Word_Table.series)); // Put a NONE at head.
 		KEEP_SERIES(PG_Word_Table.series, "word table"); // words are never GC'd
 		PG_Word_Table.series->tail = 1;  // prevent the zero case
