@@ -1137,42 +1137,39 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	REBSER *Encode_UTF8_Value(REBVAL *arg, REBCNT len, REBFLG opts)
+*/	REBSER *Make_UTF8_From_Any_String(const REBVAL *value, REBCNT len, REBFLG opts)
 /*
-**		Do all the details to encode a string as UTF8.
-**		No_copy means do not make a copy.
-**		Result can be a shared buffer!
+**		Do all the details to encode either a byte-sized or REBUNI
+**		size ANY-STRING! value to a UTF8-encoded series.  Resulting
+**		series must be either freed or handed to the GC.
 **
 ***********************************************************************/
 {
-	REBSER *ser = BUF_FORM; // a shared buffer
-	REBCNT size;
-	REBYTE *cp;
+	REBSER *series;
 	REBFLG ccr = GET_FLAG(opts, ENC_OPT_CRLF);
 
-	if (VAL_BYTE_SIZE(arg)) {
-		REBYTE *bp = VAL_BIN_DATA(arg);
+	assert(ANY_STR(value));
 
-		if (Is_Not_ASCII(bp, len)) {
-			size = Length_As_UTF8((REBUNI*)bp, len, FALSE, (REBOOL)ccr);
-			cp = Reset_Buffer(ser, size + (GET_FLAG(opts, ENC_OPT_BOM) ? 3 : 0));
-			Encode_UTF8(cp, size, bp, &len, FALSE, ccr);
-		}
-		else if (GET_FLAG(opts, ENC_OPT_NO_COPY)) return 0;
-		else return Copy_Bytes(bp, len);
+	if (VAL_STR_IS_ASCII(value)) {
+		// We can copy a one-byte-per-character series if it doesn't contain
+		// codepoints like 128 - 255 (pure ASCII is valid UTF-8)
 
-	} else {
-		REBUNI *up = VAL_UNI_DATA(arg);
-
-		size = Length_As_UTF8(up, len, TRUE, (REBOOL)ccr);
-		cp = Reset_Buffer(ser, size + (GET_FLAG(opts, ENC_OPT_BOM) ? 3 : 0));
-		Encode_UTF8(Reset_Buffer(ser, size), size, up, &len, TRUE, ccr);
+		// !!! Does not pay attention to ENC_OPT_CRLF.  Should it?
+		series = Copy_Bytes(VAL_BIN_DATA(value), len);
+	}
+	else {
+		REBOOL uni = !VAL_BYTE_SIZE(value);
+		REBCNT size = Length_As_UTF8(VAL_BIN_DATA(value), len, uni, ccr);
+		series = Make_Binary(size + (GET_FLAG(opts, ENC_OPT_BOM) ? 3 : 0));
+		Encode_UTF8(
+			BIN_HEAD(series), size, VAL_BIN_DATA(value), &len, uni, ccr
+		);
 	}
 
-	SERIES_TAIL(ser) = len;
-	STR_TERM(ser);
+	SERIES_TAIL(series) = len;
+	STR_TERM(series);
 
-	return Copy_Bytes(BIN_HEAD(ser), len);
+	return series;
 }
 
 

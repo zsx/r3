@@ -311,11 +311,9 @@ enum encoding_opts {
 	ENC_OPT_UTF32,		// UTF-32
 	ENC_OPT_BOM,		// byte order marker
 	ENC_OPT_CRLF,		// CR line termination
-	ENC_OPT_NO_COPY,	// do not copy if ASCII
 	ENC_OPT_MAX
 };
 
-#define ENCF_NO_COPY (1<<ENC_OPT_NO_COPY)
 #if OS_CRLF
 #define ENCF_OS_CRLF (1<<ENC_OPT_CRLF)
 #else

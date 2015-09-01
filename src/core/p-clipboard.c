@@ -124,7 +124,7 @@
 		// If bytes, see if we can fit it:
 		if (SERIES_WIDE(VAL_SERIES(arg)) == 1) {
 #ifdef ARG_STRINGS_ALLOWED
-			if (Is_Not_ASCII(VAL_BIN_DATA(arg), len)) {
+			if (!All_Bytes_ASCII(VAL_BIN_DATA(arg), len)) {
 				Val_Init_String(
 					arg, Copy_Bytes_To_Unicode(VAL_BIN_DATA(arg), len)
 				);

@@ -530,7 +530,8 @@ typedef struct Reb_Tuple {
 // Is it a byte-sized series? (this works because no other odd size allowed)
 #define BYTE_SIZE(s) (((s)->info) & 1)
 #define VAL_BYTE_SIZE(v) (BYTE_SIZE(VAL_SERIES(v)))
-#define VAL_STR_IS_ASCII(v) (VAL_BYTE_SIZE(v) && !Is_Not_ASCII(VAL_BIN_DATA(v), VAL_LEN(v)))
+#define VAL_STR_IS_ASCII(v) \
+	(VAL_BYTE_SIZE(v) && All_Bytes_ASCII(VAL_BIN_DATA(v), VAL_LEN(v)))
 
 // Bias is empty space in front of head:
 #define	SERIES_BIAS(s)	   (REBCNT)((SERIES_FLAGS(s) >> 16) & 0xffff)

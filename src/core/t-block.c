@@ -234,7 +234,7 @@ static void No_Nones(REBVAL *arg) {
 
 	if (IS_STRING(arg)) {
 		REBCNT index, len = 0;
-		VAL_SERIES(arg) = Prep_Bin_Str(arg, &index, &len); // (keeps safe)
+		VAL_SERIES(arg) = Temp_Bin_Str_Managed(arg, &index, &len);
 		ser = Scan_Source(VAL_BIN(arg), VAL_LEN(arg));
 		goto done;
 	}

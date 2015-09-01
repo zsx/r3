@@ -297,7 +297,7 @@ static struct digest {
 
 	len = Partial1(D_ARG(1), D_ARG(3));
 
-	ser = Prep_Bin_Str(D_ARG(1), &index, &len); // result may be a SHARED BUFFER!
+	ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
 
 	Val_Init_Binary(D_OUT, Compress(ser, index, len, D_REF(4))); // /gzip
 
@@ -355,7 +355,7 @@ static struct digest {
 		Val_Init_Block(D_OUT, frame); // Keep safe
 
 		// Convert string if necessary. Store back for safety.
-		VAL_SERIES(value) = Prep_Bin_Str(value, &index, 0);
+		VAL_SERIES(value) = Temp_Bin_Str_Managed(value, &index, 0);
 
 		// !issue! Is this what we really want here?
 		Scan_Net_Header(frame, VAL_BIN(value) + index);
@@ -386,7 +386,7 @@ static struct digest {
 	REBCNT index;
 	REBCNT len = 0;
 
-	ser = Prep_Bin_Str(D_ARG(1), &index, &len); // result may be a SHARED BUFFER!
+	ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
 
 	if (D_REF(2)) base = VAL_INT32(D_ARG(3)); // /base
 
@@ -411,7 +411,7 @@ static struct digest {
 	REBCNT index;
 	REBVAL *arg = D_ARG(1);
 
-	Val_Init_Binary(arg, Prep_Bin_Str(arg, &index, 0)); // may be SHARED buffer
+	Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, 0));
 	VAL_INDEX(arg) = index;
 
 	if (D_REF(2)) base = VAL_INT32(D_ARG(3));

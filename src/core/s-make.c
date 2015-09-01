@@ -321,10 +321,9 @@ cp_same:
 	}
 	else {
 		REBCNT n = VAL_LEN(val);
-		REBSER *ser = Prep_Bin_Str(val, 0, &n);
 
 		// !!! "Leaks" in the sense that the GC has to take care of this
-		MANAGE_SERIES(ser);
+		REBSER *ser = Temp_Bin_Str_Managed(val, 0, &n);
 
 		if (out) *out = ser;
 

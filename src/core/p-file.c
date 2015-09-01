@@ -254,7 +254,7 @@ REBINT Mode_Syms[] = {
 
 	// Auto convert string to UTF-8
 	if (IS_STRING(data)) {
-		ser = Encode_UTF8_Value(data, len, ENCF_OS_CRLF);
+		ser = Make_UTF8_From_Any_String(data, len, ENCF_OS_CRLF);
 		MANAGE_SERIES(ser);
 		file->common.data = ser? BIN_HEAD(ser) : VAL_BIN_DATA(data); // No encoding may be needed
 		len = SERIES_TAIL(ser);
