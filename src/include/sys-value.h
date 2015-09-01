@@ -477,11 +477,13 @@ typedef struct Reb_Tuple {
 
 #define SERIES_TAIL(s)	 ((s)->tail)
 #define SERIES_REST(s)	 ((s)->rest)
-#define	SERIES_LEN(s)    ((s)->tail + 1) // Includes terminator
 #define	SERIES_FLAGS(s)	 ((s)->info)
 #define	SERIES_WIDE(s)	 (((s)->info) & 0xff)
 #define SERIES_DATA(s)   ((s)->data)
 #define	SERIES_SKIP(s,i) (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
+
+// !!! Ultimately this should replace SERIES_TAIL
+#define SERIES_LEN(s)	 SERIES_TAIL(s)
 
 // These flags are returned from Do_Next_Core and Do_Next_May_Throw, in
 // order to keep from needing another returned value in addition to the
@@ -506,7 +508,7 @@ typedef struct Reb_Tuple {
 // Size in bytes of series (not including bias area):
 #define	SERIES_SPACE(s) (SERIES_REST(s) * (REBCNT)SERIES_WIDE(s))
 // Size in bytes being used, including terminator:
-#define SERIES_USED(s) (SERIES_LEN(s) * SERIES_WIDE(s))
+#define SERIES_USED(s) ((SERIES_LEN(s) + 1) * SERIES_WIDE(s))
 
 // Optimized expand when at tail (but, does not reterminate)
 #define EXPAND_SERIES_TAIL(s,l) if (SERIES_FITS(s, l)) s->tail += l; else Expand_Series(s, AT_TAIL, l)
@@ -520,8 +522,8 @@ typedef struct Reb_Tuple {
 #define TERM_SERIES(s) memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s))
 
 // Returns space that a series has available (less terminator):
-#define SERIES_FULL(s) (SERIES_LEN(s) >= SERIES_REST(s))
-#define SERIES_AVAIL(s) (SERIES_REST(s) - SERIES_LEN(s))
+#define SERIES_FULL(s) (SERIES_LEN(s) + 1 >= SERIES_REST(s))
+#define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
 #define SERIES_FITS(s,n) ((SERIES_TAIL(s) + (REBCNT)(n) + 1) < SERIES_REST(s))
 
 // Flag used for extending series at tail:

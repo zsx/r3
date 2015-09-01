@@ -469,7 +469,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 	}
 
 	ser = Make_Series(
-		SERIES_LEN(data_ser), // counts terminator, though a "LEN" shouldn't!
+		SERIES_LEN(data_ser) + 1, // include term.
 		SERIES_WIDE(data_ser),
 		Is_Array_Series(data_ser) ? (MKS_ARRAY | MKS_EXTERNAL) : MKS_EXTERNAL
 	);

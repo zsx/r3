@@ -472,7 +472,8 @@
 
 		src++;
 
-		if (SERIES_LEN(buf) >= SERIES_REST(buf)) Extend_Series(buf, 1);
+		if (SERIES_LEN(buf) + 1 >= SERIES_REST(buf)) // include term.
+			Extend_Series(buf, 1);
 
 		*UNI_SKIP(buf, buf->tail) = chr;
 

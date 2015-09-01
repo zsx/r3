@@ -250,7 +250,7 @@
 		return;
 	}
 
-	length = SERIES_LEN(series) * SERIES_WIDE(series);
+	length = (SERIES_LEN(series) + 1) * SERIES_WIDE(series); // include term.
 	series->tail -= (REBCNT)len;
 	len *= SERIES_WIDE(series);
 	data = series->data + start;
