@@ -75,7 +75,7 @@
 	case A_REFLECT:
 		n = What_Reflector(arg); // zero on error
 		if (n == OF_SPEC) {
-			obj = Make_Std_Object(STD_TYPE_SPEC);
+			obj = Make_Std_Object_Managed(STD_TYPE_SPEC);
 			Set_Object_Values(obj, BLK_HEAD(VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type+1))));
 			Val_Init_Object(D_OUT, obj);
 		}

@@ -439,13 +439,18 @@
 
 /***********************************************************************
 **
-*/  REBSER *Make_Std_Object(REBCNT index)
+*/  REBSER *Make_Std_Object_Managed(REBCNT index)
 /*
 ***********************************************************************/
 {
-	return Copy_Array_Shallow(
+	REBSER *result = Copy_Array_Shallow(
 		VAL_OBJ_FRAME(Get_System(SYS_STANDARD, index))
 	);
+	// The system object is accessible by the user, and all of its
+	// content is managed already.  We copy the frame shallowly,
+	// but the word series inside it is managed.
+	MANAGE_SERIES(result);
+	return result;
 }
 
 
