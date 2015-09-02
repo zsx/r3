@@ -632,14 +632,14 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 /***********************************************************************
 **
-*/	RL_API void RL_Print_TOS(REBCNT flags, const REBYTE *marker)
+*/	RL_API void RL_Print_TOS(REBOOL mold, const REBYTE *marker)
 /*
-**	Print top REBOL stack value to the console and drop it.
+**	Print top REBOL stack value to the console.
 **
 **	Returns:
 **		Nothing
 **	Arguments:
-**		flags - special flags (set to zero at this time).
+**		mold - should value be MOLDed instead of FORMed.
 **		marker - placed at beginning of line to indicate output.
 **	Notes:
 **		This function is used for the main console evaluation
@@ -656,14 +656,29 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	if (DSP != 0)
 		Debug_Fmt(Str_Stack_Misaligned, DSP);
 
-	// We shouldn't get any THROWN() errors exposed to the user
-	assert(!IS_ERROR(DS_TOP) || !THROWN(DS_TOP));
+	// We shouldn't get any THROWN() values exposed to the client
+	assert(!THROWN(DS_TOP));
 
 	if (!IS_UNSET(DS_TOP)) {
 		if (marker) Out_Str(marker, 0);
-		Out_Value(DS_TOP, 500, TRUE, 1); // limit, molded
+		Out_Value(DS_TOP, 500, mold, 1); // limit print length
 	}
+}
 
+
+/***********************************************************************
+**
+*/	RL_API void RL_Drop_TOS(void)
+/*
+**	Drop top REBOL stack value.
+**
+**	Returns:
+**		Nothing
+**	Arguments:
+**		Nothing
+**
+***********************************************************************/
+{
 	DS_DROP;
 }
 

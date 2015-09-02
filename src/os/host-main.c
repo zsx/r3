@@ -296,15 +296,14 @@ int main(int argc, char **argv_ansi)
 		do_arg_utf8 = b_cast(Main_Args.do_arg);
 	#endif
 
-		RL_Do_String(do_arg_utf8, 0, &result);
+		RL_Do_String(do_arg_utf8, 0, NULL);
 
 	#ifdef TO_WINDOWS
 		OS_FREE(do_arg_utf8);
 	#endif
 
-		// We ignore the result; and only ask for it to help prevent an
-		// item from being put on the stack that we'd have to print out.
-		// (there is no RL_DS_DROP, while Ren/C would just use DS_DROP)
+		// Don't print the result, just drop it from the stack
+		RL_Drop_TOS();
 
 		// The above may request a QUIT, and thus bubble out to the topmost
 		// Rebol handler.  Or it may have some kind of error.  We lack
@@ -333,7 +332,8 @@ int main(int argc, char **argv_ansi)
 			Put_Str(prompt_str);
 			if ((line = Get_Str())) {
 				RL_Do_String(line, 0, 0);
-				RL_Print_TOS(0, result_str);
+				RL_Print_TOS(TRUE, result_str);
+				RL_Drop_TOS();
 				OS_FREE(line);
 			}
 			else break; // EOS
