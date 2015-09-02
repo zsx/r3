@@ -151,6 +151,8 @@ int main(int argc, char **argv_ansi)
 	Host_Lib = &Host_Lib_Init;
 
 	embedded_script = OS_Read_Embedded(&embedded_size);
+
+	// !!! Note we may have to free Main_Args.home_dir below after this
 	Parse_Args(argc, argv, &Main_Args);
 
 	vers[0] = 5; // len
@@ -166,6 +168,11 @@ int main(int argc, char **argv_ansi)
 	// !!! Second part will become vers[2] < RL_REV on release!!!
 	if (vers[1] != RL_VER || vers[2] != RL_REV) Host_Crash("Incompatible reb-lib DLL");
 	err_num = RL_Init(&Main_Args, Host_Lib);
+
+	// !!! Not a good abstraction layer here, but Parse_Args may have put
+	// an OS_ALLOC'd string into home_dir, via OS_Get_Current_Dir
+	if (Main_Args.home_dir) OS_FREE(Main_Args.home_dir);
+
 	if (err_num == 1) Host_Crash("Host-lib wrong size");
 	if (err_num == 2) Host_Crash("Host-lib wrong version/checksum");
 
