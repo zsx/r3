@@ -1336,6 +1336,11 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	Shutdown_Stacks();
 
+	// Run Recycle, but the TRUE flag indicates we want every series
+	// that is managed to be freed.  (Only unmanaged should be left.)
+	//
+	Recycle_Core(TRUE);
+
 	FREE_ARRAY(REBYTE*, RS_MAX, PG_Boot_Strs);
 
 	Shutdown_Ports();
@@ -1350,6 +1355,26 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	// does) and Init_StdIO...they both open, and both close.
 
 	Shutdown_StdIO();
+
+	// !!! Ideally we would free all the manual series by calling them out by
+	// name and not "cheat" here, to be sure everything is under control.
+	// But for the moment we use the same sweep as the garbage collector,
+	// except sweeping the series it *wasn't* responsible for freeing.
+	{
+		REBSEG *seg = Mem_Pools[SERIES_POOL].segs;
+		REBCNT n;
+
+		for (; seg != NULL; seg = seg->next) {
+			REBSER *series = cast(REBSER*, seg + 1);
+			for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--, series++) {
+				if (SERIES_FREED(series))
+					continue;
+
+				Free_Series(series);
+			}
+		}
+	}
+
 	FREE(REB_STATS, PG_Reb_Stats);
 
 	FREE(REB_OPTS, Reb_Opts);

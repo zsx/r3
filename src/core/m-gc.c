@@ -810,49 +810,61 @@ static void Propagate_All_GC_Marks(void);
 
 /***********************************************************************
 **
-*/	ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
+*/	ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(REBOOL shutdown)
 /*
-**		Free all unmarked series.
-**
 **		Scans all series in all segments that are part of the
-**		SERIES_POOL. Free series that have not been marked.
+**		SERIES_POOL.  If a series had its lifetime management
+**		delegated to the garbage collector with MANAGE_SERIES(),
+**		then if it didn't get "marked" as live during the marking
+**		phase then free it.
+**
+**		The current exception is that any GC-managed series that has
+**		been marked with the SER_KEEP flag will not be freed--unless
+**		this sweep call is during shutdown.  During shutdown, those
+**		kept series will be freed as well.
+**
+**		!!! Review the idea of SER_KEEP, as it is a lot like
+**		Guard_Series (which was deleted).  Although SER_KEEP offers a
+**		less inefficient way to flag a series as protected from the
+**		garbage collector, it can be put on and left for an arbitrary
+**		amount of time...making it seem contentious with the idea of
+**		delegating it to the garbage collector in the first place.
 **
 ***********************************************************************/
 {
-	REBSEG	*seg;
-	REBSER	*series;
-	REBCNT  n;
-	REBCNT	count = 0;
+	REBSEG *seg;
+	REBCNT count = 0;
 
 	for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
-		series = (REBSER *) (seg + 1);
-		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--) {
-			// Only consider series that have been handed to GC for
-			// memory management to be candidates for freeing
+		REBSER *series = cast(REBSER *, seg + 1);
+		REBCNT n;
+		for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--, series++) {
+			// See notes on Make_Node() about how the first allocation of a
+			// unit zero-fills *most* of it.  But after that it's up to the
+			// caller of Free_Node() to zero out whatever bits it uses to
+			// indicate "freeness".  We check the zeroness of the `wide`.
+			if (SERIES_FREED(series))
+				continue;
+
 			if (SERIES_GET_FLAG(series, SER_MANAGED)) {
-				if (!SERIES_FREED(series)) {
-					if (!SERIES_GET_FLAG(series, SER_MARK | SER_KEEP)) {
-						GC_Kill_Series(series);
-						count++;
-					} else
-						SERIES_CLR_FLAG(series, SER_MARK);
-				}
+				if (shutdown || !SERIES_GET_FLAG(series, SER_MARK)) {
+					GC_Kill_Series(series);
+					count++;
+				} else
+					SERIES_CLR_FLAG(series, SER_MARK);
 			}
 			else {
 			#ifdef NDEBUG
 				SERIES_CLR_FLAG(series, SER_MARK);
 			#else
 				// We should have only been willing to mark a non-managed
-				// series if it had SER_KEEP status (we will free it at
-				// shutdown time)
+				// series if it had SER_KEEP status
 				if (SERIES_GET_FLAG(series, SER_MARK)) {
 					assert(SERIES_GET_FLAG(series, SER_KEEP));
 					SERIES_CLR_FLAG(series, SER_MARK);
 				}
 			#endif
 			}
-
-			series++;
 		}
 	}
 
@@ -999,14 +1011,13 @@ static void Propagate_All_GC_Marks(void);
 
 /***********************************************************************
 **
-*/	REBCNT Recycle(void)
+*/	REBCNT Recycle_Core(REBOOL shutdown)
 /*
 **		Recycle memory no longer needed.
 **
 ***********************************************************************/
 {
 	REBINT n;
-	REBSER **sp;
 	REBCNT count;
 
 	//Debug_Num("GC", GC_Disabled);
@@ -1034,35 +1045,47 @@ static void Propagate_All_GC_Marks(void);
 	// but has not yet updated the TAIL marker.
 	VAL_BLK_TERM(TASK_BUF_EMIT);
 	VAL_BLK_TERM(TASK_BUF_WORDS);
-//!!!	SET_END(BLK_TAIL(Save_Value_List));
 
-	// Mark series stack (temp-saved series):
-	sp = (REBSER **)GC_Protect->data;
-	for (n = SERIES_TAIL(GC_Protect); n > 0; n--) {
-        if (Is_Array_Series(*sp))
-            MARK_BLOCK_DEEP(*sp);
-        else
-            MARK_SERIES_ONLY(*sp);
-		sp++; // can't increment inside macro arg, evaluated multiple times
+	// MARKING PHASE: the "root set" from which we determine the liveness
+	// (or deadness) of a series.  If we are shutting down, we are freeing
+	// *all* of the series that are managed by the garbage collector, so
+	// we don't mark anything as live.
+
+	if (!shutdown) {
+		REBSER **sp;
+
+		// Mark series stack (temp-saved series):
+		sp = cast(REBSER**, GC_Protect->data);
+		for (n = SERIES_TAIL(GC_Protect); n > 0; n--) {
+			if (Is_Array_Series(*sp))
+				MARK_BLOCK_DEEP(*sp);
+			else
+				MARK_SERIES_ONLY(*sp);
+			sp++; // can't increment inside macro arg (eval'd multiple times)
+		}
+
+		// Mark all root series:
+		MARK_BLOCK_DEEP(VAL_SERIES(ROOT_ROOT));
+		MARK_BLOCK_DEEP(Task_Series);
+
+		// Mark potential error object from callback!
+		Queue_Mark_Value_Deep(&Callback_Error);
+		Propagate_All_GC_Marks();
+
+		// Mark all devices:
+		Mark_Devices_Deep();
+
+		// Mark function call frames:
+		Mark_Call_Frames_Deep();
 	}
 
-	// Mark all root series:
-	MARK_BLOCK_DEEP(VAL_SERIES(ROOT_ROOT));
-	MARK_BLOCK_DEEP(Task_Series);
+	// SWEEPING PHASE
 
-	// Mark potential error object from callback!
-	Queue_Mark_Value_Deep(&Callback_Error);
-	Propagate_All_GC_Marks();
+	// this needs to run before Sweep_Series(), because Routine has series
+	// with pointers, which can't be simply discarded by Sweep_Series
+	count = Sweep_Routines();
 
-	// Mark all devices:
-	Mark_Devices_Deep();
-
-	// Mark function call frames:
-	Mark_Call_Frames_Deep();
-
-	count = Sweep_Routines(); // this needs to run before Sweep_Series(), because Routine has series with pointers, which can't be simply discarded by Sweep_Series
-
-	count += Sweep_Series();
+	count += Sweep_Series(shutdown);
 	count += Sweep_Gobs();
 	count += Sweep_Libs();
 
@@ -1096,6 +1119,19 @@ static void Propagate_All_GC_Marks(void);
 	ASSERT_NO_GC_MARKS_PENDING();
 
 	return count;
+}
+
+
+/***********************************************************************
+**
+*/	REBCNT Recycle(void)
+/*
+**		Recycle memory no longer needed.
+**
+***********************************************************************/
+{
+	// Default to not passing the `shutdown` flag.
+	return Recycle_Core(FALSE);
 }
 
 
