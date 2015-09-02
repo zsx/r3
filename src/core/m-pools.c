@@ -437,7 +437,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **		when it frees the node then it must set the bit it chose
 **		back to zero before freeing.  Except for changes to the
 **		first pointer-size slot, a reused unit being handed out
-**		via Alloc_Node will have all the same bits it had when it
+**		via Make_Node will have all the same bits it had when it
 **		was freed.
 **
 **		!!! Should a stricter contract be established between the
@@ -478,7 +478,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **		this pool_id is going to be enumerated, then some bit of
 **		the data must be set to 0 prior to freeing in order to
 **		distinguish the allocated from free state.  (See notes on
-**		Alloc_Node.)
+**		Make_Node.)
 **
 ***********************************************************************/
 {
