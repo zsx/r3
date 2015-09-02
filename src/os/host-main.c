@@ -337,6 +337,10 @@ int main(int argc, char **argv_ansi)
 	OS_Destroy_Graphics();
 #endif
 
+	// No need to do a "clean" shutdown, as we are about to exit the process
+	// (Note: The debug build runs through the clean shutdown anyway!)
+	RL_Shutdown(FALSE);
+
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
 }

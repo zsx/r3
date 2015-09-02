@@ -281,20 +281,34 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 /***********************************************************************
 **
-*/	RL_API void RL_Reset(void)
+*/	RL_API void RL_Shutdown(REBOOL clean)
 /*
-**	Reset REBOL (not implemented)
+**	Shut down a Rebol interpreter (that was initialized via RL_Init).
 **
 **	Returns:
 **		nothing
 **	Arguments:
-**		none
-**	Notes:
-**		Intended to reset the REBOL interpreter.
+**		clean - whether you want Rebol to release all of its memory
+**		accrued since initialization.  If you pass false, then it will
+**		only do the minimum needed for data integrity (assuming you
+**		are planning to exit the process, and hence the OS will
+**		automatically reclaim all memory/handles/etc.)
 **
 ***********************************************************************/
 {
-	Panic(RP_NA);
+	// At time of writing, nothing Shutdown_Core() does pertains to
+	// committing unfinished data to disk.  So really there is
+	// nothing to do in the case of an "unclean" shutdown...yet.
+
+#ifdef NDEBUG
+	// Only do the work above this line in an unclean shutdown
+	if (!clean) return;
+#else
+	// Run a clean shutdown anyway in debug builds--even if the
+	// caller didn't need it--to see if it triggers any alerts.
+#endif
+
+	Shutdown_Core();
 }
 
 
