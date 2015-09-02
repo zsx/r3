@@ -296,10 +296,76 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	for (; n <= 32 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_SMALL_POOLS-4 + ((n-1) / (MEM_MIN_SIZE * 4));
 	for (; n <=  4 * MEM_BIG_SIZE; n++) PG_Pool_Map[n] = MEM_MID_POOLS     + ((n-1) / MEM_BIG_SIZE);
 
+	// !!! Revisit where series init/shutdown goes when the code is more
+	// organized to have some of the logic not in the pools file
+
+	PG_Reb_Stats = ALLOC(REB_STATS);
+
 	// Manually allocated series that GC is not responsible for (unless a
 	// trap occurs). Holds series pointers.
 	GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
 	KEEP_SERIES(GC_Manuals, "gc manuals");
+
+	Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
+	CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
+	Prior_Expand[0] = (REBSER*)1;
+}
+
+
+/***********************************************************************
+**
+*/	void Shutdown_Pools(void)
+/*
+**		Release all segments in all pools, and the pools themselves.
+**
+***********************************************************************/
+{
+	REBCNT n;
+
+	// Can't use Free_Series() because GC_Manuals couldn't be put in
+	// the manuals list...
+	GC_Kill_Series(GC_Manuals);
+
+	for (n = 0; n < MAX_POOLS; n++) {
+		REBPOL *pool = &Mem_Pools[n];
+		REBSEG *seg = pool->segs;
+		REBCNT units = pool->units;
+		REBCNT mem_size = pool->wide * units + sizeof(REBSEG);
+
+		while (seg) {
+			REBSEG *next = seg->next;
+			FREE_ARRAY(char, mem_size, cast(char*, seg));
+			seg = next;
+		}
+	}
+
+	FREE_ARRAY(REBPOL, MAX_POOLS, Mem_Pools);
+
+	FREE_ARRAY(REBYTE, (4 * MEM_BIG_SIZE) + 1, PG_Pool_Map);
+
+	// !!! Revisit location (just has to be after all series are freed)
+	FREE_ARRAY(REBSER*, MAX_EXPAND_LIST, Prior_Expand);
+	FREE(REB_STATS, PG_Reb_Stats);
+
+	// Rebol's Alloc_Mem() does not save the size of an allocation, so
+	// callers of the Alloc_Free() routine must say how big the memory block
+	// they are freeing is.  This information is used to decide when to GC,
+	// as well as to be able to set boundaries on mem usage without "ulimit".
+	// The tracked number of total memory used should balance to 0 here.
+	//
+	if (PG_Mem_Usage != 0) {
+		/* assert(FALSE); */
+
+		// This tells you about the leaked allocations, but if you want to
+		// actually get a list of where they came from you need to use
+		// Valgrind or Leak Sanitizer (or similar).  This assert should
+		// thus have some kind of switch to disable it when using with
+		// one of those tools, to allow for a normal exit to read the report.
+		//
+		// !!! Ideally we would print the number here, but Rebol's
+		// print mechanisms (e.g. Debug_Fmt) use memory...and we don't
+		// want to link in `printf`.  Is there a more basic printer?
+	}
 }
 
 

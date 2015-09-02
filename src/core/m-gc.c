@@ -1167,10 +1167,6 @@ static void Propagate_All_GC_Marks(void);
 	GC_Disabled = 0;		// GC disabled counter for critical sections.
 	GC_Ballast = MEM_BALLAST;
 
-	Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
-	CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
-	Prior_Expand[0] = (REBSER*)1;
-
 	// Temporary series protected from GC. Holds series pointers.
 	GC_Protect = Make_Series(15, sizeof(REBSER *), MKS_NONE);
 	KEEP_SERIES(GC_Protect, "gc protected");

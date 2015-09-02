@@ -1149,7 +1149,6 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	PG_Boot_Level = BOOT_LEVEL_FULL;
 	PG_Mem_Usage = 0;
 	PG_Mem_Limit = 0;
-	PG_Reb_Stats = ALLOC(REB_STATS);
 	Reb_Opts = ALLOC(REB_OPTS);
 	CLEAR(Reb_Opts, sizeof(REB_OPTS));
 	Saved_State = NULL;
@@ -1370,12 +1369,19 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 				if (SERIES_FREED(series))
 					continue;
 
-				Free_Series(series);
+				// Free_Series asserts that a manual series is freed from
+				// the manuals list.  But the GC_Manuals series was never
+				// added to itself (it couldn't be!)
+				if (series != GC_Manuals)
+					Free_Series(series);
 			}
 		}
 	}
 
-	FREE(REB_STATS, PG_Reb_Stats);
-
 	FREE(REB_OPTS, Reb_Opts);
+
+	// Shutting down the memory manager must be done after all the Free_Mem
+	// calls have been made to balance their Alloc_Mem calls.
+	//
+	Shutdown_Pools();
 }
