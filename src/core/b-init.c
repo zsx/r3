@@ -1103,8 +1103,30 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 **
 */	void Init_Core(REBARGS *rargs)
 /*
-**		GC is disabled during all init code, so these functions
-**		need not protect themselves.
+**		Initialize the interpreter core.  The initialization will
+**		either succeed or "panic".
+**
+**		!!! Panic currently triggers an exit to the OS.  Offering a
+**		hook to cleanly fail would be ideal--but the code is not
+**		currently written to be able to cleanly shut down from a
+**		partial initialization.
+**
+**		The phases of initialization are tracked by PG_Boot_Phase.
+**		Some system functions are unavailable at certain phases.
+**
+**		Though most of the initialization is run as C code, some
+**		portions are run in Rebol.  Small bits are run during the
+**		loading of natives and actions (for instance, NATIVE and
+**		ACTION are functions that are registered very early on in
+**		the booting process, which are run during boot to register
+**		each of the natives and actions).
+**
+**		At the tail of the initialization, `finish_init_core` is run.
+**		This Rebol function lives in %sys-start.r, and it should be
+**		"host agnostic".  Hence it should not assume things about
+**		command-line switches (or even that there is a command line!)
+**		Converting the code that made such assumptions is an
+**		ongoing process.
 **
 ***********************************************************************/
 {
@@ -1262,28 +1284,11 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	assert(DSP == -1 && !DSF);
 
 	if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_INIT_CORE, 0)) {
-		// You shouldn't be able to exit or quit during Init_Core() startup.
-		// The only way you should be able to stop Init_Core() is by raising
-		// an error, at which point the system will Panic out.
-		Debug_Fmt("** 'finish-init-core' returned THROWN() result: %r", &out);
-
-		// !!! TBD: Enforce not being *able* to trigger QUIT or EXIT, but we
-		// let them slide for the moment, even though we shouldn't.
-		if (
-			IS_WORD(&out) &&
-			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
-		) {
-			int status;
-
-			TAKE_THROWN_ARG(&out, &out);
-			status = Exit_Status_From_Value(&out);
-
-			Shutdown_Core();
-			OS_EXIT(status);
-			DEAD_END_VOID;
-		}
-
-		Panic(RP_EARLY_ERROR);
+		// Note: You shouldn't be able to throw any uncaught values during
+		// Init_Core() startup, including throws implementing QUIT or EXIT.
+		assert(FALSE);
+		Trap_Thrown(&out);
+		DEAD_END_VOID;
 	}
 
 	// Success of the 'finish-init-core' Rebol code is signified by returning
