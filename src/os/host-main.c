@@ -85,6 +85,7 @@ extern void Init_Ext_Test(void);	// see: host-ext-test.c
 
 // Host bare-bones stdio functs:
 extern void Open_StdIO(void);
+extern void Close_StdIO(void);
 extern void Put_Str(REBYTE *buf);
 extern REBYTE *Get_Str();
 
@@ -336,6 +337,8 @@ int main(int argc, char **argv_ansi)
 #ifndef REB_CORE
 	OS_Destroy_Graphics();
 #endif
+
+	Close_StdIO();
 
 	// No need to do a "clean" shutdown, as we are about to exit the process
 	// (Note: The debug build runs through the clean shutdown anyway!)
