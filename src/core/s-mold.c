@@ -945,25 +945,23 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	} else
 		Append_Boot_Str(mold->series, RS_ERRS+1);
 
-	Append_Codepoint_Raw(mold->series, '\n');
-
 	// Form: ** Where: function
 	value = &err->where;
 	if (VAL_TYPE(value) > REB_NONE) {
+		Append_Codepoint_Raw(mold->series, '\n');
 		Append_Boot_Str(mold->series, RS_ERRS+2);
 		Mold_Value(mold, value, 0);
-		Append_Codepoint_Raw(mold->series, '\n');
 	}
 
 	// Form: ** Near: location
 	value = &err->nearest;
 	if (VAL_TYPE(value) > REB_NONE) {
+		Append_Codepoint_Raw(mold->series, '\n');
 		Append_Boot_Str(mold->series, RS_ERRS+3);
 		if (IS_STRING(value)) // special case: source file line number
 			Append_String(mold->series, VAL_SERIES(value), 0, VAL_TAIL(value));
 		else if (IS_BLOCK(value))
 			Mold_Simple_Block(mold, VAL_BLK_DATA(value), 60);
-		Append_Codepoint_Raw(mold->series, '\n');
 	}
 }
 
