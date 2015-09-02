@@ -1315,12 +1315,42 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 **
 */	void Shutdown_Core(void)
 /*
-**		!!! Merging soon to a Git branch near you:
-**		!!!    The ability to do clean shutdown, zero leaks.
+**		The goal of Shutdown_Core() is to release all memory and
+**		resources that the interpreter has accrued since Init_Core().
+**
+**		Clients may wish to force an exit to the OS instead of calling
+**		Shutdown_Core in a release build, in order to save time.  It
+**		should be noted that when used as a library this doesn't
+**		necessarily work, because Rebol may be initialized and shut
+**		down multiple times during a program run.
+**
+**		Using a tool like Valgrind or Leak Sanitizer, it is possible
+**		to verify that all the allocations have indeed been freed.
+**		Being able to have a report that they have is a good sanity
+**		check on not just the memory lost by leaks, but the semantic
+**		errors and bugs that such leaks may indicate.
 **
 ***********************************************************************/
 {
+	assert(!Saved_State);
+
 	Shutdown_Stacks();
-	assert(Saved_State == NULL);
-	// assert(IS_TRASH(TASK_THROWN_ARG));
+
+	FREE_ARRAY(REBYTE*, RS_MAX, PG_Boot_Strs);
+
+	Shutdown_Ports();
+	Shutdown_Event_Scheme();
+	Shutdown_CRC();
+	Shutdown_Mold();
+	Shutdown_Scanner();
+	Shutdown_Char_Cases();
+	Shutdown_GC();
+
+	// !!! Need to review the relationship between Open_StdIO (which the host
+	// does) and Init_StdIO...they both open, and both close.
+
+	Shutdown_StdIO();
+	FREE(REB_STATS, PG_Reb_Stats);
+
+	FREE(REB_OPTS, Reb_Opts);
 }

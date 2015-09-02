@@ -1609,6 +1609,17 @@ exit_block:
 
 /***********************************************************************
 **
+*/	void Shutdown_Scanner(void)
+/*
+***********************************************************************/
+{
+	Free_Series(VAL_SERIES(TASK_BUF_EMIT));
+	Free_Series(VAL_SERIES(TASK_BUF_UTF8));
+}
+
+
+/***********************************************************************
+**
 */	REBNATIVE(transcode)
 /*
 **		Allows BINARY! input only!

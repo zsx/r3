@@ -586,3 +586,13 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 	Init_Signal_Scheme();
 #endif
 }
+
+
+/***********************************************************************
+**
+*/	void Shutdown_Ports(void)
+/*
+***********************************************************************/
+{
+	FREE_ARRAY(SCHEME_ACTIONS, MAX_SCHEMES, Scheme_Actions);
+}

@@ -65,6 +65,18 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
+*/	void Shutdown_StdIO(void)
+/*
+***********************************************************************/
+{
+	// !!! There is no OS_FREE_DEVREQ.  Should there be?  Should this
+	// include an OS_ABORT_DEVICE?
+	OS_FREE(Req_SIO);
+}
+
+
+/***********************************************************************
+**
 */	static void Print_OS_Line(void)
 /*
 **		Print a new line.

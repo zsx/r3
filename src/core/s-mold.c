@@ -1458,3 +1458,17 @@ return_balanced:
 	dc = cb_cast(";%\"()[]{}<>");
 	for (c = LEN_BYTES(dc); c > 0; c--) URL_Escapes[*dc++] = ESC_URL | ESC_FILE;
 }
+
+
+/***********************************************************************
+**
+*/  void Shutdown_Mold(void)
+/*
+***********************************************************************/
+{
+	Free_Series(VAL_SERIES(TASK_MOLD_LOOP));
+	Free_Series(VAL_SERIES(TASK_BUF_MOLD));
+
+	FREE_ARRAY(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
+	FREE_ARRAY(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
+}

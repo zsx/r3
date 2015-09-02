@@ -242,3 +242,16 @@ act_blk:
 	Register_Scheme(SYM_EVENT, 0, Event_Actor);
 	Register_Scheme(SYM_CALLBACK, 0, Event_Actor);
 }
+
+
+/***********************************************************************
+**
+*/	void Shutdown_Event_Scheme(void)
+/*
+***********************************************************************/
+{
+	if (req) {
+		OS_FREE(req);
+		req = NULL;
+	}
+}

@@ -1145,3 +1145,14 @@ static void Propagate_All_GC_Marks(void);
 	TERM_SERIES(GC_Mark_Stack);
 	KEEP_SERIES(GC_Mark_Stack, "gc mark stack");
 }
+
+
+/***********************************************************************
+**
+*/	void Shutdown_GC(void)
+/*
+***********************************************************************/
+{
+	Free_Series(GC_Protect);
+	Free_Series(GC_Mark_Stack);
+}

@@ -336,17 +336,6 @@ static REBCNT *CRC_Table;
 
 /***********************************************************************
 **
-*/	void Init_CRC(void)
-/*
-***********************************************************************/
-{
-	CRC_Table = ALLOC_ARRAY(REBCNT, 256);
-	Make_CRC_Table(PRZCRC);
-}
-
-
-/***********************************************************************
-**
 */	REBINT Compute_IPC(REBYTE *data, REBCNT length)
 /*
 **		Compute an IP checksum given some data and a length.
@@ -416,6 +405,28 @@ REBCNT Update_CRC32(u32 crc, REBYTE *buf, int len) {
 	return Update_CRC32(U32_C(0x00000000), buf, len);
 }
 
+
+/***********************************************************************
+**
+*/	void Init_CRC(void)
+/*
+***********************************************************************/
+{
+	CRC_Table = ALLOC_ARRAY(REBCNT, 256);
+	Make_CRC_Table(PRZCRC);
+}
+
+
+/***********************************************************************
+**
+*/	void Shutdown_CRC(void)
+/*
+***********************************************************************/
+{
+	if (crc32_table) FREE_ARRAY(u32, 256, crc32_table);
+
+	FREE_ARRAY(REBCNT, 256, CRC_Table);
+}
 
 
 #ifdef USE_ARCHIVED_CRC_CODE

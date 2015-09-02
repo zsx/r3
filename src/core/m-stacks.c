@@ -64,12 +64,13 @@
 		cast(REBYTE*, CS_Root) - sizeof(struct Reb_Chunk*)
 	);
 
-	assert(DSP == -1);
-
 	assert(!CS_Running);
 	assert(!CS_Top);
 
 	FREE(struct Reb_Chunk, chunk);
+
+	assert(DSP == -1);
+	Free_Series(DS_Series);
 }
 
 
