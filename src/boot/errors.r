@@ -18,14 +18,14 @@ Throw: [
 	code: 0
 	type: "non-error"
 	null:				{invalid error code zero}
-	halt:               [{halted by user or script}]
+	halt:               {halted by user or script}
+	exited:             {exit occurred}
 ]
 
 Note: [
 	code: 100
 	type: "note"
 	no-load:            [{cannot load: } :arg1]
-	exited:             [{exit occurred}]
 	deprecated:         {deprecated function not allowed}
 ]
 

@@ -49,7 +49,7 @@ REBOL_HOST_LIB *Host_Lib;
 #endif
 
 extern const REBRXT Reb_To_RXT[REB_MAX];
-extern RXIARG Value_To_RXI(REBVAL *val); // f-extension.c
+extern RXIARG Value_To_RXI(const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
 extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
@@ -376,30 +376,40 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 /***********************************************************************
 **
-*/	RL_API int RL_Do_String(const REBYTE *text, REBCNT flags, RXIARG *result)
+*/	RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIARG *result)
 /*
 **	Load a string and evaluate the resulting block.
 **
 **	Returns:
-**		The datatype of the result.
+**		The datatype of the result if a positive number (or 0 if the
+**		type has no representation in the "RXT" API).  An error code
+**		if it's a negative number.  Two negative numbers are reserved
+**		for non-error conditions: -1 for halting (e.g. Escape), and
+**		-2 is reserved for exiting with exit_status set.
+**
 **	Arguments:
 **		text - A null terminated UTF-8 (or ASCII) string to transcode
 **			into a block and evaluate.
 **		flags - set to zero for now
-**		result - value returned from evaluation.
+**		result - value returned from evaluation, if NULL then result
+**			will be returned on the top of the stack
+**
+**	Notes:
+**		This API was from before Rebol's open sourcing and had little
+**		vetting and few clients.  The one client it did have was the
+**		"sample" console code (which wound up being the "only"
+**		console code for quite some time).
 **
 ***********************************************************************/
 {
 	REBSER *code;
-	REBCNT len;
-	REBVAL vali;
-
-	REBVAL temp;
 	REBVAL out;
 
 	REBOL_STATE state;
 	const REBVAL *error;
 
+	// assumes it can only be run at the topmost level where
+	// the data stack is completely empty.
 	assert(DSP == -1);
 
 	PUSH_UNHALTABLE_TRAP(&error, &state);
@@ -408,45 +418,16 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 // Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
 
 	if (error) {
-		// !!! Through this interface we have no way to distinguish an error
-		// returned as a value from one that was thrown.  Yet by contract
-		// we must return some sort of value--we try and patch over this
-		// by printing out the error and returning an UNSET!.  RenC has
-		// a stronger answer of offering the actual error catching interface
-		// to clients directly.
+		if (VAL_ERR_NUM(error) == RE_HALT)
+			return -1; // !!! Revisit hardcoded #
 
-		DS_PUSH_UNSET;
+		// Save error for WHY?
+		*Get_System(SYS_STATE, STATE_LAST_ERROR) = *error;
 
-		// !!! If the user halted during a Do_String what should we return?
-		// For now, assume the halt printed a message and don't do it again.
-		// Otherwise, we should print the FORMed error
-		if (VAL_ERR_NUM(error) != RE_HALT) {
-			// !!! statics are not safe for multithreading.
-			static REBOOL why_alert = TRUE;
-
-			Out_Value(error, 640, FALSE, 0);
-
-			// Save error for WHY?
-			*Get_System(SYS_STATE, STATE_LAST_ERROR) = *error;
-
-			// Tell them about why on the first error only
-			if (why_alert) {
-				Out_Str(
-					cb_cast("** Note: use WHY? for more error information"), 2
-				);
-				why_alert = FALSE;
-			}
-		}
-
-		if (result) {
-			REBRXT type = Reb_To_RXT[VAL_TYPE(DS_TOP)];
-			*result = Value_To_RXI(DS_TOP);
-
-			SET_TRASH(DS_TOP);
-			DS_DROP;
-
-			return type;
-		}
+		if (result)
+			*result = Value_To_RXI(error);
+		else
+			DS_PUSH(error);
 
 		return -VAL_ERR_NUM(error);
 	}
@@ -460,6 +441,8 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		Bind_Values_Set_Forward_Shallow(BLK_HEAD(code), Lib_Context);
 		Bind_Values_Deep(BLK_HEAD(code), Lib_Context);
 	} else {
+		REBCNT len;
+		REBVAL vali;
 		REBSER *user = VAL_OBJ_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
 		len = user->tail;
 		Bind_Values_All_Deep(BLK_HEAD(code), user);
@@ -474,16 +457,11 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			IS_WORD(&out) &&
 			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
 		) {
-			int status;
-
 			TAKE_THROWN_ARG(&out, &out);
-			status = Exit_Status_From_Value(&out);
-
 			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-			Shutdown_Core();
-			OS_EXIT(status);
-			DEAD_END;
+			*exit_status = Exit_Status_From_Value(&out);
+			return -2; // Revisit hardcoded #
 		}
 
 		Trap_Thrown(&out);
@@ -494,28 +472,18 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-	if (result) {
-		// Convert Do_Blk output to RXT and RXI if that was requested.
-
-		REBRXT type = Reb_To_RXT[VAL_TYPE(&out)];
+	if (result)
 		*result = Value_To_RXI(&out);
+	else
+		DS_PUSH(&out);
 
-		return type;
-	}
-
-	// Value is pushed on top of stack if no result parameter.  :-/
-	// (The RL API was written with ideas like "print the top of stack"
-	// while not exposing ways to analyze it unless converted to RXT/RXI)
-
-	DS_PUSH(&out);
-
-	return 0;
+	return Reb_To_RXT[VAL_TYPE(&out)];
 }
 
 
 /***********************************************************************
 **
-*/	RL_API int RL_Do_Binary(const REBYTE *bin, REBINT length, REBCNT flags, REBCNT key, RXIARG *result)
+*/	RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBCNT flags, REBCNT key, RXIARG *result)
 /*
 **	Evaluate an encoded binary script such as compressed text.
 **
@@ -537,7 +505,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 #ifdef DUMP_INIT_SCRIPT
 	int f;
 #endif
-	REBRXT rxt;
+	int do_result;
 
 	text = Decompress(bin, length, 10000000, 0);
 	if (!text) return FALSE;
@@ -550,11 +518,11 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 #endif
 
 	SAVE_SERIES(text);
-	rxt = RL_Do_String(text->data, flags, result);
+	do_result = RL_Do_String(exit_status, text->data, flags, result);
 	UNSAVE_SERIES(text);
 
 	Free_Series(text);
-	return rxt;
+	return do_result;
 }
 
 

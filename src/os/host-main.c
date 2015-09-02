@@ -126,6 +126,8 @@ void Host_Crash(const char *reason) {
 
 int main(int argc, char **argv_ansi)
 {
+	int exit_status = 0;
+
 	REBYTE vers[8];
 	REBYTE *line;
 	REBINT err_num;
@@ -137,6 +139,10 @@ int main(int argc, char **argv_ansi)
 	// As defined, Put_Str takes non-const data
 	REBYTE prompt_str[] = ">> ";
 	REBYTE result_str[] = "== ";
+	REBYTE halt_str[] = "[escape]";
+
+	REBOOL why_alert = TRUE;
+	REBYTE why_str[] = "** Note: use WHY? for more error information\n\n";
 
 #ifdef TO_WINDOWS
 	// Were we using WinMain we'd be getting our arguments in Unicode, but
@@ -268,6 +274,7 @@ int main(int argc, char **argv_ansi)
 		REBYTE *do_arg_utf8;
 		REBCNT len_predicted;
 		REBCNT len_encoded;
+		int do_result;
 
 		// On Windows, do_arg is a REBCHR*.  We need to get it into UTF8.
 		// !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
@@ -296,26 +303,48 @@ int main(int argc, char **argv_ansi)
 		do_arg_utf8 = b_cast(Main_Args.do_arg);
 	#endif
 
-		RL_Do_String(do_arg_utf8, 0, NULL);
+		do_result = RL_Do_String(&exit_status, do_arg_utf8, 0, NULL);
 
 	#ifdef TO_WINDOWS
 		OS_FREE(do_arg_utf8);
 	#endif
 
-		// Don't print the result, just drop it from the stack
-		RL_Drop_TOS();
+		if (do_result == -1) {
+			// The user canceled via a HALT signal, e.g. Ctrl-C.  For now we
+			// print a halt message and exit with a made-up error code.
 
-		// The above may request a QUIT, and thus bubble out to the topmost
-		// Rebol handler.  Or it may have some kind of error.  We lack
-		// any way here to tell if there was an error.  While quitting
-		// is not necessarily ideal, it was the previous behavior when
-		// a --do was provided.  However it would be nice if we could
-		// have the option of examining the crash state.
+			Put_Str(halt_str);
 
-		// !!! Under RenC, this client would be able to catch the error
-		// itself and cleanly shut down the system (if it wished).
+			exit_status = 100; // !!! Arbitrary number, should be configurable
+			goto cleanup_and_exit;
+		}
+		else if (do_result == -2) {
+			// There was a purposeful QUIT or EXIT, exit_status has any /WITH
+			// translated into an integer
+			goto cleanup_and_exit;
+		}
+		else if (do_result < -2) {
+			// There was an error, so print it out.
+			RL_Print_TOS(FALSE, NULL);
+			RL_Drop_TOS();
 
-		RL_Do_String(cb_cast("quit"), 0, 0);
+			// We invent a status and exit, but the response to an error
+			// should be more flexible.  See #2215.
+
+			exit_status = 101; // !!! Arbitrary number, should be configurable
+			goto cleanup_and_exit;
+		}
+		else {
+			assert(do_result >= 0);
+
+			// Command completed successfully, we don't print anything.
+			RL_Drop_TOS();
+
+			// We quit vs. dropping to interpreter by default, but it would be
+			// good to have a more flexible response here too.  See #2215.
+			exit_status = 0;
+			goto cleanup_and_exit;
+		}
 	}
 
 	// Console line input loop (just an example, can be improved):
@@ -329,16 +358,58 @@ int main(int argc, char **argv_ansi)
 	){
 		err_num = 0;  // reset error code (but should be able to set it below too!)
 		while (TRUE) {
+			int do_result;
+
 			Put_Str(prompt_str);
-			if ((line = Get_Str())) {
-				RL_Do_String(line, 0, 0);
+
+			line = Get_Str();
+
+			if (!line) goto cleanup_and_exit; // end of stream
+
+			do_result = RL_Do_String(&exit_status, line, 0, 0);
+
+			OS_FREE(line);
+
+			if (do_result == -1) {
+				// !!! The "Halt" status is communicated via -1, but
+				// is not an actual valid "error value".  It cannot be
+				// created by user code, and the fact that it is done
+				// via the error mechanism is an "implementation detail".
+				// Hence nothing is pushed to the stack.
+
+				Put_Str(halt_str);
+			}
+			else if (do_result == -2) {
+				// Command issued a purposeful QUIT or EXIT, exit_status
+				// contains status.  Assume nothing was pushed on stack
+				goto cleanup_and_exit;
+			}
+			else if (do_result < -2) {
+				// Error occurred, print it without molding (formed)
+				RL_Print_TOS(FALSE, NULL);
+				RL_Drop_TOS();
+
+				// Tell them about why on the first error only
+				if (why_alert) {
+					Put_Str(why_str);
+					why_alert = FALSE;
+				}
+			}
+			else {
+				assert(do_result >= 0);
+
+				// There was no error, and the value is on the top of
+				// stack.  If the value on top of stack is an unset
+				// then nothing will be printed.
+
 				RL_Print_TOS(TRUE, result_str);
 				RL_Drop_TOS();
-				OS_FREE(line);
 			}
-			else break; // EOS
 		}
 	}
+
+cleanup_and_exit:
+
 #endif //!ENCAP
 	OS_Quit_Devices(0);
 #ifndef REB_CORE
@@ -351,7 +422,6 @@ int main(int argc, char **argv_ansi)
 	// (Note: The debug build runs through the clean shutdown anyway!)
 	RL_Shutdown(FALSE);
 
-	// A QUIT does not exit this way, so the only valid return code is zero.
-	return 0;
+	return exit_status;
 }
 
