@@ -77,6 +77,7 @@ extern void OS_Destroy_Graphics(void);
 #endif
 
 extern void Init_Core_Ext(void);
+extern void Shutdown_Core_Ext(void);
 
 //#define TEST_EXTENSIONS
 #ifdef TEST_EXTENSIONS
@@ -184,9 +185,6 @@ int main(int argc, char **argv_ansi)
 
 	//Initialize core extension commands
 	Init_Core_Ext();
-#ifdef EXT_LICENSING
-	Init_Licensing_Ext();
-#endif //EXT_LICENSING
 
 #ifdef TEST_EXTENSIONS
 	Init_Ext_Test();
@@ -417,6 +415,8 @@ cleanup_and_exit:
 #endif
 
 	Close_StdIO();
+
+	Shutdown_Core_Ext();
 
 	// No need to do a "clean" shutdown, as we are about to exit the process
 	// (Note: The debug build runs through the clean shutdown anyway!)

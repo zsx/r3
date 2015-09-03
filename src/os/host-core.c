@@ -439,6 +439,8 @@ static u32 *core_ext_words;
 				w++;
 			}
 
+			OS_FREE(words);
+
 			if (!n || !e) return RXR_NONE;
 
 			if (RXA_WORD(frm, 4)) // private refinement
@@ -645,4 +647,14 @@ static u32 *core_ext_words;
 ***********************************************************************/
 {
 	RL = cast(RL_LIB*, RL_Extend(RX_core, &RXD_Core));
+}
+
+
+/***********************************************************************
+**
+*/	void Shutdown_Core_Ext(void)
+/*
+***********************************************************************/
+{
+	if (core_ext_words) OS_FREE(core_ext_words);
 }
