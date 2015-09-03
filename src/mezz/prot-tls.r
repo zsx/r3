@@ -1173,13 +1173,46 @@ sys/make-scheme [
 		open?: func [port [port!]] [
 			found? all [port/state open? port/state/connection]
 		]
-		close: func [port [port!]] [
-			if port/state [
-				close port/state/connection
-				debug "TLS/TCP port closed"
-				port/state/connection/awake: none
-				port/state: none
+		close: func [port [port!] /local ctx] [
+			unless port/state [return port]
+
+			close port/state/connection
+
+			; The symmetric ciphers used by TLS are able to encrypt chunks of
+			; data one at a time.  It keeps the progressive state of the
+			; encryption process in the -stream variables, which under the
+			; hood are memory-allocated items stored as a HANDLE!.  The
+			; memory they represent will not be automatically freed by
+			; garbage collection.
+			;
+			; Calling the encryption functions with NONE! as the data to
+			; input will assume you are done, and will free the handle.
+			;
+			; !!! Is there a good reason for not doing this with an ordinary
+			; OBJECT! containing a BINARY! ?
+			;
+			switch port/state/crypt-method [
+				rc4 [
+					if port/state/encrypt-stream [
+						rc4/stream port/state/encrypt-stream none
+					]
+					if port/state/decrypt-stream [
+						rc4/stream port/state/decrypt-stream none
+					]
+				]
+				aes [
+					if port/state/encrypt-stream [
+						aes/stream port/state/encrypt-stream none
+					]
+					if port/state/decrypt-stream [
+						aes/stream port/state/decrypt-stream none
+					]
+				]
 			]
+
+			debug "TLS/TCP port closed"
+			port/state/connection/awake: none
+			port/state: none
 			port
 		]
 		copy: func [port [port!]] [
