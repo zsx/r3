@@ -171,7 +171,8 @@ enum {
 	MKS_POWER_OF_2	= 1 << 1,	// Round size up to a power of 2
 	MKS_EXTERNAL	= 1 << 2,	// Uses external pointer--don't alloc data
 	MKS_PRESERVE	= 1 << 3,	// "Remake" only (save what data possible)
-	MKS_LOCK		= 1 << 4	// series is unexpandable
+	MKS_LOCK		= 1 << 4,	// series is unexpandable
+	MKS_GC_MANUALS	= 1 << 5	// used in implementation of series itself
 };
 
 // Modes allowed by Copy_Block function:
@@ -610,19 +611,26 @@ void Panic_Core(REBINT id, ...);
 **
 ***********************************************************************/
 
+#define MANAGE_SERIES(series) \
+	Manage_Series(series)
+
+#define ENSURE_SERIES_MANAGED(series) \
+	(SERIES_GET_FLAG((series), SER_MANAGED) \
+		? NOOP \
+		: MANAGE_SERIES(series))
+
+// Debug build includes testing that the managed state of the frame and
+// its word series is the same for the "ensure" case.  It also adds a
+// few assert macros.
+//
 #ifdef NDEBUG
-	#define MANAGE_SERIES(series) \
-		SERIES_SET_FLAG((series), SER_MANAGED)
-
-	#define ENSURE_SERIES_MANAGED(series) \
-		MANAGE_SERIES(series)
-
 	#define MANAGE_FRAME(frame) \
-		(SERIES_SET_FLAG((frame), SER_MANAGED), \
-		SERIES_SET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED))
+		(MANAGE_SERIES(frame), MANAGE_SERIES(FRM_WORD_SERIES(frame)))
 
 	#define ENSURE_FRAME_MANAGED(frame) \
-		MANAGE_FRAME(frame)
+		(SERIES_GET_FLAG((frame), SER_MANAGED) \
+			? NOOP \
+			: MANAGE_FRAME(frame))
 
 	#define MANUALS_LEAK_CHECK(manuals,label_str) \
 		NOOP
@@ -632,16 +640,7 @@ void Panic_Core(REBINT id, ...);
 
 	#define ASSERT_VALUE_MANAGED(value) \
 		NOOP
-
 #else
-	#define MANAGE_SERIES(series) \
-		Manage_Series_Debug(series)
-
-	#define ENSURE_SERIES_MANAGED(series) \
-		(SERIES_GET_FLAG((series), SER_MANAGED) \
-			? NOOP \
-			: MANAGE_SERIES(series))
-
 	#define MANAGE_FRAME(frame) \
 		Manage_Frame_Debug(frame)
 

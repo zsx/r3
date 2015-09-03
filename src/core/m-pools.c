@@ -295,6 +295,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	for (; n <= 16 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_TINY_POOL     + ((n-1) / MEM_MIN_SIZE);
 	for (; n <= 32 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_SMALL_POOLS-4 + ((n-1) / (MEM_MIN_SIZE * 4));
 	for (; n <=  4 * MEM_BIG_SIZE; n++) PG_Pool_Map[n] = MEM_MID_POOLS     + ((n-1) / MEM_BIG_SIZE);
+
+	// Manually allocated series that GC is not responsible for (unless a
+	// trap occurs). Holds series pointers.
+	GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
+	KEEP_SERIES(GC_Manuals, "gc manuals");
 }
 
 
@@ -709,21 +714,20 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	series->extra.size = 0;
 
-#if !defined(NDEBUG)
-	// All series start out in the debug tracking list of series that
-	// must be freed (if not handed to Manage_Series for the GC to take
-	// care of.)  We tack the new series on the head of the doubly-linked
-	// track list.
+	// All series start out in the list of series that must be freed (if not
+	// handed to Manage_Series for the GC to take care of.)  The only way
+	// the series will be cleaned up automatically is if a trap happens
 
-	if (GC_Manuals) {
-		series->next = GC_Manuals;
-		GC_Manuals->prev = series;
+	// !!! Should there be a MKS_MANAGED to start a series out in the
+	// managed state, for efficiency?
+
+	if (!(flags & MKS_GC_MANUALS)) {
+		// We can only add to the GC_Manuals series if the series itself
+		// is not GC_Manuals...
+
+		if (SERIES_FULL(GC_Manuals)) Extend_Series(GC_Manuals, 8);
+		cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail++] = series;
 	}
-	else
-		series->next = NULL;
-	series->prev = NULL;
-	GC_Manuals = series;
-#endif
 
 	CHECK_MEMORY(2);
 
@@ -1074,6 +1078,9 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **
 ***********************************************************************/
 {
+	REBSER ** const last_ptr
+		= &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+
 	// We can only free a series that is not under management by the
 	// garbage collector
 #if !defined(NDEBUG)
@@ -1081,17 +1088,23 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 		Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
 		Panic_Series(series);
 	}
-
-	if (series->next)
-		series->next->prev = series->prev;
-
-	if (series->prev)
-		series->prev->next = series->next;
-	else {
-		assert(series == GC_Manuals);
-		GC_Manuals = series->next;
-	}
 #endif
+
+	// Note: Code repeated in Manage_Series()
+	assert(GC_Manuals->tail >= 1);
+	if (*last_ptr != series) {
+		// If the series is not the last manually added series, then
+		// find where it is, then move the last manually added series
+		// to that position to preserve it when we chop off the tail
+		// (instead of keeping the series we want to free).
+		REBSER **current_ptr = last_ptr - 1;
+		while (*current_ptr != series) {
+			assert(current_ptr > cast(REBSER**, GC_Manuals->data));
+			--current_ptr;
+		}
+		*current_ptr = *last_ptr;
+	}
+	GC_Manuals->tail--; // !!! Should it ever shrink or save memory?
 
 	// With bookkeeping done, use the same routine the GC uses to free
 	GC_Kill_Series(series);
@@ -1157,11 +1170,9 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 }
 
 
-#if !defined(NDEBUG)
-
 /***********************************************************************
 **
-*/	void Manage_Series_Debug(REBSER *series)
+*/	void Manage_Series(REBSER *series)
 /*
 **		When a series is first created, it is in a state of being
 **		manually memory managed.  Thus, you can call Free_Series on
@@ -1175,25 +1186,33 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **		containing that series.  When these copies are made, it's
 **		no longer safe to assume it's okay to free the original.
 **
-**		Though marking a series as managed is just setting a bit in
-**		the release build (and hence, cheap+fast), we do some more
-**		work to ensure coherence in the debug build.
-**
 ***********************************************************************/
 {
+	REBSER ** const last_ptr
+		= &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+
 	assert(!SERIES_GET_FLAG(series, SER_MANAGED));
 	SERIES_SET_FLAG(series, SER_MANAGED);
 
-#if !defined(NDEBUG)
-	if (series->prev == NULL)
-		GC_Manuals = series->next;
-	else
-		series->prev->next = series->next;
-	if (series->next)
-		series->next->prev = series->prev;
-#endif
+	// Note: Code repeated in Free_Series()
+	assert(GC_Manuals->tail >= 1);
+	if (*last_ptr != series) {
+		// If the series is not the last manually added series, then
+		// find where it is, then move the last manually added series
+		// to that position to preserve it when we chop off the tail
+		// (instead of keeping the series we want to free).
+		REBSER **current_ptr = last_ptr - 1;
+		while (*current_ptr != series) {
+			assert(current_ptr > cast(REBSER**, GC_Manuals->data));
+			--current_ptr;
+		}
+		*current_ptr = *last_ptr;
+	}
+	GC_Manuals->tail--; // !!! Should it ever shrink or save memory?
 }
 
+
+#if !defined(NDEBUG)
 
 /***********************************************************************
 **
@@ -1221,7 +1240,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 /***********************************************************************
 **
-*/	void Manuals_Leak_Check_Debug(REBSER *manuals, const char *label_str)
+*/	void Manuals_Leak_Check_Debug(REBCNT manuals_tail, const char *label_str)
 /*
 **		Routine for checking that the pointer passed in is the
 **		same as the head of the series that the GC is not tracking,
@@ -1230,20 +1249,25 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 **
 ***********************************************************************/
 {
-	if (GC_Manuals != manuals) {
-		REBINT count = 0;
-		REBSER *temp = manuals;
-		while (temp != GC_Manuals) {
-			temp = temp->prev;
-			if (!temp) {
-				Debug_Fmt("Bad tracking chain in REBSER leak check.");
-				Panic_Series(GC_Manuals);
-			}
-			count++;
-		}
-		Debug_Fmt("%d leaked REBSERs during %s", count, label_str);
+	if (SERIES_TAIL(GC_Manuals) > manuals_tail) {
+		REBSER* most_recent =
+			cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+
+		Debug_Fmt(
+			"%d leaked REBSERs during %s",
+			SERIES_TAIL(GC_Manuals) - manuals_tail,
+			label_str
+		);
 		Debug_Fmt("Panic_Series() on most recent (for valgrind, ASAN)");
-		Panic_Series(GC_Manuals);
+		Panic_Series(most_recent);
+	}
+	else if (SERIES_TAIL(GC_Manuals) < manuals_tail) {
+		Debug_Fmt("Manual series freed from outside of checkpoint.");
+
+		// Note: Should this ever actually happen, this panic won't do
+		// that much good in helping debug it.  You'll probably need to
+		// add additional checking in the Manage_Series and Free_Series
+		// routines that checks against the caller's manuals_tail.
 	}
 }
 

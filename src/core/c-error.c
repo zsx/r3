@@ -128,9 +128,7 @@
 	s->hold_tail = GC_Protect->tail;
 	s->gc_disable = GC_Disabled;
 
-#if !defined(NDEBUG)
-	s->manuals = GC_Manuals;
-#endif
+	s->manuals_tail = SERIES_TAIL(GC_Manuals);
 
 	s->last_state = Saved_State;
 	Saved_State = s;
@@ -183,6 +181,14 @@
 
 	// Restore Rebol data stack pointer at time of Push_Trap
 	DS_DROP_TO(state->dsp);
+
+	// Free any manual series that were extant at the time of the error
+	// (that were created since this PUSH_TRAP started)
+	assert(GC_Manuals->tail >= state->manuals_tail);
+	while (GC_Manuals->tail != state->manuals_tail) {
+		// Freeing the series will update the tail...
+		Free_Series(cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1]);
+	}
 
 	GC_Protect->tail = state->hold_tail;
 

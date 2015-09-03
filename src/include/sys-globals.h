@@ -92,19 +92,10 @@ PVAR REBSER	*GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBFLG GC_Stay_Dirty;  // Do not free memory, fill it with 0xBB
 TVAR REBSER **Prior_Expand;	// Track prior series expansions (acceleration)
 
-#if !defined(NDEBUG)
-	// In the debug build, the REBSERs can be linked as a doubly linked
-	// list so that we can keep track of the series that are manually
-	// memory managed.  That is to say: all the series that have been
-	// allocated with Make_Series() but have not been handed to the
-	// garbage collector via MANAGE_SERIES().
-	//
-	// These manually-managed series must either be freed with Free_Series()
-	// or handed over to the GC at certain synchronized points, else they
-	// would represent a memory leak in the release build.
-
-	TVAR REBSER *GC_Manuals;	// Manually memory managed (not by GC)
-#endif
+// These manually-managed series must either be freed with Free_Series()
+// or handed over to the GC at certain synchronized points, else they
+// would represent a memory leak in the release build.
+TVAR REBSER *GC_Manuals;	// Manually memory managed (not by GC)
 
 TVAR REBUPT Stack_Limit;	// Limit address for CPU stack.
 

@@ -465,14 +465,6 @@ typedef struct Reb_Tuple {
 #if !defined(NDEBUG)
 	REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
 #endif
-
-// These links are used to make a list in the debug build to track the series
-// which have not been handed over to MANAGE_SERIES(), and thus can represent
-// a leak in the release build.  (See GC_Manuals declaration for details.)
-#if !defined(NDEBUG)
-	struct Reb_Series *next;
-	struct Reb_Series *prev;
-#endif
 };
 
 #define SERIES_TAIL(s)	 ((s)->tail)

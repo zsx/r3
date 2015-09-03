@@ -471,7 +471,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// newly allocated series should either be (a) freed or (b) delegated
 	// to management by the GC...else they'd represent a leak
 	//
-	REBSER *manuals = GC_Manuals;
+	REBCNT manuals_tail = SERIES_TAIL(GC_Manuals);
 
 	const REBYTE *label_str = Get_Word_Name(DSF_LABEL(call));
 #endif
@@ -537,7 +537,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		Panic(RP_MISC);
 	}
 
-	MANUALS_LEAK_CHECK(manuals, cs_cast(label_str));
+	MANUALS_LEAK_CHECK(manuals_tail, cs_cast(label_str));
 #endif
 
 	SET_DSF(dsf_precall);
