@@ -467,12 +467,14 @@ static u32 *core_ext_words;
 				binary_len = RSA_decrypt(rsa_ctx, dataBuffer, binaryBuffer, RXA_WORD(frm, 4), padding);
 
 				if (binary_len == -1) {
-					free(data_bi);
+					bi_free(rsa_ctx->bi_ctx, data_bi);
+					RSA_free(rsa_ctx);
 					return RXR_NONE;
 				}
 			} else {
 				if (-1 == RSA_encrypt(rsa_ctx, dataBuffer, data_len, binaryBuffer, RXA_WORD(frm, 4), padding)) {
-					free(data_bi);
+					bi_free(rsa_ctx->bi_ctx, data_bi);
+					RSA_free(rsa_ctx);
 					return RXR_NONE;
 				}
 			}
@@ -484,7 +486,8 @@ static u32 *core_ext_words;
 			RXA_TYPE(frm,1) = RXT_BINARY;
 			RXA_SERIES(frm,1) = binary;
 			RXA_INDEX(frm,1) = 0;
-			free(data_bi);
+			bi_free(rsa_ctx->bi_ctx, data_bi);
+			RSA_free(rsa_ctx);
 			return RXR_VALUE;
 		}
 
