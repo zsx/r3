@@ -760,14 +760,10 @@ static void ffi_to_rebol(REBRIN *rin,
 	}
 
 	/* ser is NULL if the routine takes no arguments */
-	if (ser) {
-		ffi_args = (void **) SERIES_DATA(ser);
-		// have it managed due to potential Traps;
-		MANAGE_SERIES(ser);
-	}
+	if (ser)
+		ffi_args = cast(void**, SERIES_DATA(ser));
 
 	ffi_args_ptrs = Make_Series(SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
-	MANAGE_SERIES(ffi_args_ptrs);
 
 	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
 		REBCNT j = 1;
@@ -838,6 +834,10 @@ static void ffi_to_rebol(REBRIN *rin,
 	if (IS_ERROR(&Callback_Error)) Do_Error(&Callback_Error);
 
 	ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
+
+	Free_Series(ffi_args_ptrs);
+
+	if (ser) Free_Series(ser);
 
 	//restore the saved series stack pointer
 	GC_Protect->tail = GC_Protect_tail;
@@ -912,10 +912,27 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	REBVAL safe;
 
 	REBOL_STATE state;
-	const REBVAL *error = NULL;
+	const REBVAL *error;
 
 	if (IS_ERROR(&Callback_Error)) return;
+
+	PUSH_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// Trap()s can longjmp here, so 'error' won't be NULL *if* that happens!
+
+	if (error) {
+		Callback_Error = *error;
+		return;
+	}
+
 	ser = Make_Array(1 + cif->nargs);
+
+	// !!! Currently a series must be managed in order to use it with DO,
+	// because the series could be put into a block of a backtrace.  That
+	// constraint may need to change (for Ren/C++) so this code is set up
+	// so these lines (and the UNSAVE) can be deleted if that happens.
+	//
 	MANAGE_SERIES(ser);
 	SAVE_SERIES(ser);
 
@@ -966,18 +983,12 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		}
 	}
 
-	PUSH_TRAP(&error, &state);
-	if (error) {
-		Callback_Error = *error;
-		return;
-	}
 	if (Do_Block_Throws(&safe, ser, 0)) {
 		// !!! Does not check for thrown cases...what should this
 		// do in case of THROW, BREAK, QUIT?
 		Trap_Thrown(&safe);
 		DEAD_END_VOID;
 	}
-	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 	elem = &safe;
 	switch (cif->rtype->type) {
@@ -1017,7 +1028,10 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 			Trap_Arg(elem);
 	}
 
+	// !!! Could be a Free_Series if not managed/saved to use with DO
 	UNSAVE_SERIES(ser);
+
+	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 }
 
 /***********************************************************************

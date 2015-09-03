@@ -235,9 +235,6 @@
 	}
 	else {
 		series = Copy_Values_Len_Shallow(BLK_SKIP(block, index), tail - index);
-
-		// Hand to the GC to manage *before* the recursion, in case it fails
-		// from being too deep.  This way the GC cleans it up during trap.
 		MANAGE_SERIES(series);
 
 		if (types != 0)

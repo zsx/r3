@@ -519,10 +519,8 @@
 		DSF_NUM_ARGS(DSF)
 	);
 	assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_NUM_ARGS(DSF));
-	MANAGE_SERIES(args);
-	SAVE_SERIES(args);
 
 	Call_Routine(routine, args, DSF_OUT(DSF));
 
-	UNSAVE_SERIES(args);
+	Free_Series(args);
 }
