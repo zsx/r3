@@ -697,7 +697,7 @@ bad_target:
 	const REBVAL *rule_head = rules;
 	REBVAL save;
 
-	CHECK_C_STACK_OVERFLOW(&flags);
+	if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
 	//if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
 	flags = 0;
 	word = 0;

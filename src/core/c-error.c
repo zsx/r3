@@ -307,10 +307,10 @@
 **
 */	void Trap_Stack_Overflow(void)
 /*
-**		See comments on CHECK_C_STACK_OVERFLOW.  This routine is
+**		See comments on C_STACK_OVERFLOWING.  This routine is
 **		deliberately separate and simple so that it allocates no
 **		objects or locals...and doesn't run any code that itself
-**		might wind up calling CHECK_C_STACK_OVERFLOW.
+**		might wind up calling C_STACK_OVERFLOWING.
 **
 ***********************************************************************/
 {

@@ -634,7 +634,7 @@ do_at_index:
 #endif
 
 	//CHECK_MEMORY(1);
-	CHECK_C_STACK_OVERFLOW(&value);
+	if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
 
 	if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
 

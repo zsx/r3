@@ -659,7 +659,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 {
 	REBSER *series;
 
-	CHECK_C_STACK_OVERFLOW(&series);
+	if (C_STACK_OVERFLOWING(&series)) Trap_Stack_Overflow();
 
 	// PRESERVE flag only makes sense for Remake_Series, where there is
 	// previous data to be kept.

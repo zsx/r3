@@ -986,7 +986,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	REBINT len;
 	REBSER *ser = mold->series;
 
-	CHECK_C_STACK_OVERFLOW(&len);
+	if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
 
 	assert(SERIES_WIDE(mold->series) == sizeof(REBUNI));
 	assert(ser);

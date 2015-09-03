@@ -732,7 +732,7 @@ void Panic_Core(REBINT id, ...);
 // calls in the interpreter to recurse, there's no *portable* way to
 // catch a stack overflow in the C code of the interpreter itself.
 //
-// Hence, Rebol uses a non-portable and non-standard heuristic.  It looks
+// Hence, by default Rebol will use a non-standard heuristic.  It looks
 // at the compiled addresses of local (stack-allocated) variables in a
 // function, and decides from their relative pointers if memory is growing
 // "up" or "down".  It then extrapolates that C function call frames will
@@ -745,21 +745,26 @@ void Panic_Core(REBINT id, ...);
 //     http://stackoverflow.com/a/1677482/211160
 //
 // Additionally, it puts the burden on every recursive or deeply nested
-// routine to sprinkle calls to the CHECK_C_STACK_OVERFLOW macro somewhere
+// routine to sprinkle calls to the C_STACK_OVERFLOWING macro somewhere
 // in it.  The ideal answer is to make Rebol itself corral an interpreted
 // script such that it can't cause the C code to stack overflow.  Lacking
 // that ideal this technique could break, so build configurations should
 // be able to turn it off if needed.
 //
-// In the meantime, CHECK_C_STACK_OVERFLOW is a macro which takes the
+// In the meantime, C_STACK_OVERFLOWING is a macro which takes the
 // address of some variable local to the currently executed function.
+// Note that because the limit is noticed before the C stack has *actually*
+// overflowed, you still have a bit of stack room to do the cleanup and
+// raise an error trap.  (You need to take care of any unmanaged series
+// allocations, etc).  So cleaning up that state should be doable without
+// making deep function calls.
 
 #ifdef OS_STACK_GROWS_UP
-	#define CHECK_C_STACK_OVERFLOW(local_var) \
-		if (cast(REBUPT, local_var) >= Stack_Limit) Trap_Stack_Overflow();
+	#define C_STACK_OVERFLOWING(address_of_local_var) \
+		(cast(REBUPT, address_of_local_var) >= Stack_Limit)
 #else
-	#define CHECK_C_STACK_OVERFLOW(local_var) \
-		if (cast(REBUPT, local_var) <= Stack_Limit) Trap_Stack_Overflow();
+	#define C_STACK_OVERFLOWING(address_of_local_var) \
+		(cast(REBUPT, address_of_local_var) <= Stack_Limit)
 #endif
 
 #define STACK_BOUNDS (4*1024*1000) // note: need a better way to set it !!
