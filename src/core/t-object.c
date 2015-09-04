@@ -483,7 +483,9 @@ static REBSER *Trim_Object(REBSER *obj)
 			if (IS_DATATYPE(arg)) types |= TYPESET(VAL_TYPE_KIND(arg));
 			else types |= VAL_TYPESET(arg);
 		}
-		VAL_OBJ_FRAME(value) = obj = Copy_Array_Shallow(VAL_OBJ_FRAME(value));
+		obj = Copy_Array_Shallow(VAL_OBJ_FRAME(value));
+		MANAGE_SERIES(obj);
+		VAL_OBJ_FRAME(value) = obj;
 		if (types != 0) {
 			Clonify_Values_Len_Managed(
 				BLK_SKIP(obj, 1),
