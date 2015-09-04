@@ -748,11 +748,6 @@ log-e: native [
 	value [number!]
 ]
 
-not: native [
-	{Returns the logic complement.}
-	value {(Only FALSE and NONE return TRUE)}
-]
-
 square-root: native [
 	{Returns the square root of a number.}
 	value [number!]
@@ -764,6 +759,37 @@ shift: native [
 	bits [integer!] "Positive for left shift, negative for right shift"
 	/logical "Logical shift (sign bit ignored)"
 ]
+
+
+;-- Conditional logic
+
+and?: native [
+	;-- TBD: define infix form later as AND (rename bitwise AND to AND*)
+	{Returns true if both values are conditionally true (no "short-circuit")}
+	value1
+	value2
+]
+
+not?: native [
+	;-- defined later as synonym NOT
+	{Returns the logic complement.}
+	value {(Only FALSE and NONE return TRUE)}
+]
+
+or?: native [
+	;-- TBD: define infix form later as OR (rename bitwise OR to OR+)
+	{Returns true if either value is conditionally true (no "short-circuit")}
+	value1
+	value2
+]
+
+xor?: native [
+	;-- TBD: define infix form later as XOR (rename bitwise XOR to XOR-)
+	{Returns true if only one of the two values is conditionally true.}
+	value1
+	value2
+]
+
 
 ;-- New, hackish stuff:
 

@@ -442,11 +442,51 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 /***********************************************************************
 **
-*/	REBNATIVE(not)
+*/	REBNATIVE(andq)
+/*
+***********************************************************************/
+{
+	if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
+		return R_TRUE;
+	else
+		return R_FALSE;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(notq)
 /*
 ***********************************************************************/
 {
 	return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(orq)
+/*
+***********************************************************************/
+{
+	if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
+		return R_TRUE;
+	else
+		return R_FALSE;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(xorq)
+/*
+***********************************************************************/
+{
+	// Note: no boolean ^^ in C; normalize to booleans and check unequal
+	if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
+		return R_TRUE;
+	else
+		return R_FALSE;
 }
 
 
