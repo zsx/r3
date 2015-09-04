@@ -71,7 +71,7 @@ extern int Read_Line(STD_TERM*, char*, int);
 STD_TERM *Term_IO;
 #endif
 
-extern void Put_Str(REBYTE *buf);
+extern void Put_Str(const REBYTE *buf);
 
 static int interrupted = 0;
 
