@@ -914,8 +914,6 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	// Protect against recursion. !!!!
 
 	if (molded) {
-		if (VAL_ERR_NUM(value) > RE_SPECIAL_MAX) raise Error_0(RE_MISC);
-
 		ASSERT_FRAME(VAL_OBJ_FRAME(value));
 		Mold_Object(value, mold);
 		return;
