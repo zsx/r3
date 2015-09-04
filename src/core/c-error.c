@@ -871,42 +871,6 @@
 
 /***********************************************************************
 **
-*/	REBINT Process_Loop_Throw(REBVAL *val)
-/*
-**		Process values thrown during loop. Returns:
-**
-**			 1 - break or break/return (changes result)
-**			-1 - if continue, change val to unset
-**			 0 - if not break or continue
-**			else: error if not an ERROR value
-**
-***********************************************************************/
-{
-	assert(THROWN(val));
-
-	// Using words for starters to parallel VAL_ERR_SYM()
-	if (!IS_WORD(val))
-		return 0;
-
-	// If it's a BREAK, get the /WITH value (UNSET! if no /WITH):
-	if (VAL_WORD_SYM(val) == SYM_BREAK) {
-		TAKE_THROWN_ARG(val, val);
-		return 1;
-	}
-
-	// If it's a CONTINUE then wipe out the
-	if (VAL_WORD_SYM(val) == SYM_CONTINUE) {
-		SET_UNSET(val);
-		return -1;
-	}
-
-	// Else: Let all other thrown values bubble up
-	return 0;
-}
-
-
-/***********************************************************************
-**
 */	int Exit_Status_From_Value(REBVAL *value)
 /*
 **		This routine's job is to turn an arbitrary value into an

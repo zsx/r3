@@ -33,6 +33,48 @@
 
 /***********************************************************************
 **
+*/	REBOOL Loop_Throw_Should_Return(REBVAL *val)
+/*
+**		Process values thrown during loop, and tell the loop whether
+**		to take that processed value and return it up the stack.
+**		If not, then the throw was a continue...and the code
+**		should just keep going.
+**
+**		Note: This modifies the input value.  If it returns FALSE
+**		then the value is guaranteed to not be THROWN(), but it
+**		may-or-may-not be THROWN() if TRUE is returned.
+**
+***********************************************************************/
+{
+	assert(THROWN(val));
+
+	// Using words for BREAK and CONTINUE to parallel old VAL_ERR_SYM()
+	// code.  So if the throw wasn't a word it can't be either of those,
+	// hence the loop doesn't handle it and needs to bubble up the THROWN()
+	if (!IS_WORD(val))
+		return TRUE;
+
+	// If it's a CONTINUE then wipe out the THROWN() value with UNSET,
+	// and tell the loop it doesn't have to return.
+	if (VAL_WORD_SYM(val) == SYM_CONTINUE) {
+		SET_UNSET(val);
+		return FALSE;
+	}
+
+	// If it's a BREAK, get the /WITH value (UNSET! if no /WITH) and
+	// say it should be returned.
+	if (VAL_WORD_SYM(val) == SYM_BREAK) {
+		TAKE_THROWN_ARG(val, val);
+		return TRUE;
+	}
+
+	// Else: Let all other THROWN() values bubble up.
+	return TRUE;
+}
+
+
+/***********************************************************************
+**
 */	static REBSER *Init_Loop(const REBVAL *spec, REBVAL *body_blk, REBSER **fram)
 /*
 **		Initialize standard for loops (copy block, make frame, bind).
@@ -111,7 +153,7 @@
 		VAL_INDEX(var) = si;
 
 		if (Do_Block_Throws(out, body, 0)) {
-			if (Process_Loop_Throw(out) >= 0) break;
+			if (Loop_Throw_Should_Return(out)) break;
 		}
 
 		if (VAL_TYPE(var) != type) raise Error_1(RE_INVALID_TYPE, var);
@@ -134,7 +176,7 @@
 		VAL_INT64(var) = start;
 
 		if (Do_Block_Throws(out, body, 0)) {
-			if (Process_Loop_Throw(out) >= 0) break;
+			if (Loop_Throw_Should_Return(out)) break;
 		}
 
 		if (!IS_INTEGER(var)) raise Error_Has_Bad_Type(var);
@@ -185,7 +227,7 @@
 		VAL_DECIMAL(var) = s;
 
 		if (Do_Block_Throws(out, body, 0)) {
-			if (Process_Loop_Throw(out) >= 0) break;
+			if (Loop_Throw_Should_Return(out)) break;
 		}
 
 		if (!IS_DECIMAL(var)) raise Error_Has_Bad_Type(var);
@@ -246,7 +288,8 @@
 			}
 
 			if (Do_Block_Throws(D_OUT, body, bodi)) {
-				if (Process_Loop_Throw(D_OUT) >= 0) {
+				if (Loop_Throw_Should_Return(D_OUT)) {
+					// return value is set, but we still need to assign var
 					break;
 				}
 			}
@@ -289,7 +332,7 @@
 	REBINT tail;
 	REBINT windex;	// write
 	REBINT rindex;	// read
-	REBINT err;
+	REBOOL break_with = FALSE;
 	REBCNT i;
 	REBCNT j;
 	REBVAL *ds;
@@ -444,14 +487,28 @@
 		if (index == rindex) index++; //the word block has only set-words: for-each [a:] [1 2 3][]
 
 		if (Do_Block_Throws(D_OUT, body, 0)) {
-			if ((err = Process_Loop_Throw(D_OUT)) >= 0) {
+			if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_CONTINUE) {
+				// keep the value (for mode == 1)
+				if (mode == 1)
+					SET_FALSE(D_OUT);
+				else
+					SET_UNSET(D_OUT);
+			}
+			else if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_BREAK) {
+				// If it's a BREAK, get the /WITH value (UNSET! if no /WITH)
+				// Though technically this doesn't really tell us if a
+				// BREAK/WITH happened, as you can BREAK/WITH an UNSET!
+				TAKE_THROWN_ARG(D_OUT, D_OUT);
+				if (!IS_UNSET(D_OUT))
+					break_with = TRUE;
 				index = rindex;
 				break;
 			}
-			// else CONTINUE:
-			if (mode == 1) SET_FALSE(D_OUT); // keep the value (for mode == 1)
-		} else {
-			err = 0; // prevent later test against uninitialized value
+			else {
+				// Any other kind of throw, with a WORD! name or otherwise...
+				index = rindex;
+				break;
+			}
 		}
 
 		if (mode > 0) {
@@ -483,13 +540,23 @@ skip_hidden: ;
 	// If MAP...
 	if (mode == 2) {
 		UNSAVE_SERIES(out);
-		if (err != 2) {
-			// ...and not BREAK/RETURN:
-			Val_Init_Block(D_OUT, out);
+		if (break_with) {
+			// If you're doing a map-each and BREAK is given a /WITH parameter
+			// that is not an UNSET!, it is assumed that you want to override
+			// the accumulated mapped data so far and return the /WITH value.
+			// (which will be in D_OUT when the loop above is `break`-ed)
+
+			// !!! Would be nice if we could Free_Series(out), but it is owned
+			// by GC (we had to make it that way to use SAVE_SERIES on it)
 			return R_OUT;
 		}
-		// Would be nice if we could Free_Series(out), but it is owned by GC
-		// (we had to make it that way to use SAVE_SERIES on it)
+
+		// If you BREAK/WITH an UNSET! (or just use a BREAK that has no
+		// /WITH, which is indistinguishable in the thrown value) then it
+		// returns the accumulated results so far up to the break.
+
+		Val_Init_Block(D_OUT, out);
+		return R_OUT;
 	}
 
 	return R_OUT;
@@ -562,7 +629,7 @@ skip_hidden: ;
 {
 	do {
 		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
-			if (Process_Loop_Throw(D_OUT) >= 0) return R_OUT;
+			if (Loop_Throw_Should_Return(D_OUT)) return R_OUT;
 		}
 	} while (TRUE);
 
@@ -628,7 +695,7 @@ skip_hidden: ;
 
 	for (; count > 0; count--) {
 		if (Do_Block_Throws(D_OUT, block, index)) {
-			if (Process_Loop_Throw(D_OUT) >= 0) break;
+			if (Loop_Throw_Should_Return(D_OUT)) return R_OUT;
 		}
 	}
 	return R_OUT;
@@ -685,7 +752,7 @@ skip_hidden: ;
 	do {
 utop:
 		if (Do_Block_Throws(D_OUT, b1, i1)) {
-			if (Process_Loop_Throw(D_OUT) >= 0) break;
+			if (Loop_Throw_Should_Return(D_OUT)) return R_OUT;
 			goto utop;
 		}
 
@@ -734,11 +801,11 @@ utop:
 		}
 
 		if (IS_UNSET(&cond_out))
-			Trap_DEAD_END(RE_NO_RETURN);
+			raise Error_0(RE_NO_RETURN);
 
 		if (Do_Block_Throws(D_OUT, body_series, body_index)) {
 			// !!! Process_Loop_Throw may modify its argument
-			if (Process_Loop_Throw(D_OUT) >= 0) return R_OUT;
+			if (Loop_Throw_Should_Return(D_OUT)) return R_OUT;
 		}
 	} while (TRUE);
 }
