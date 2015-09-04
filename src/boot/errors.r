@@ -288,15 +288,26 @@ Command: [
 	command-fail:		["Command failed"]
 ]
 
-; 700-799 unused
+Unused-700-799: [
+	; Padding categories required for math done by Find_Error_Info
+	code: 700
+	type: "reserved 700-799"
+]
 
-; 800-899 unused
+Unused-800-899: [
+	; Padding categories required for math done by Find_Error_Info
+	code: 800
+	type: "reserved 800-899"
+]
 
-; 900-999 unused
+Unused-900-999: [
+	; Padding categories required for math done by Find_Error_Info
+	code: 900
+	type: "reserved 900-999"
+]
 
 User: [
 	code: 1000
 	type: "user error"
 	message: [:arg1]
 ]
-
