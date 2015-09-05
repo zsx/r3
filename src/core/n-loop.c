@@ -30,6 +30,13 @@
 #include "sys-core.h"
 #include "sys-int-funcs.h" //REB_I64_ADD_OF
 
+typedef enum {
+	LOOP_FOR_EACH,
+	LOOP_REMOVE_EACH,
+	LOOP_MAP_EACH,
+	LOOP_EVERY
+} LOOP_MODE;
+
 
 /***********************************************************************
 **
@@ -311,12 +318,10 @@
 
 /***********************************************************************
 **
-*/	static REB_R Loop_Each(struct Reb_Call *call_, REBINT mode)
+*/	static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 /*
-**		Supports these natives (modes):
-**			0: for-each
-**			1: remove-each
-**			2: map
+**		Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH,
+**		and EVERY.
 **
 ***********************************************************************/
 {
@@ -326,18 +331,17 @@
 	REBSER *frame;
 	REBVAL *value;
 	REBSER *series;
-	REBSER *out;	// output block (for MAP, mode = 2)
+	REBSER *out;	// output block (needed for MAP-EACH)
 
 	REBINT index;	// !!!! should these be REBCNT?
 	REBINT tail;
 	REBINT windex;	// write
 	REBINT rindex;	// read
 	REBOOL break_with = FALSE;
+	REBOOL every_true = TRUE;
 	REBCNT i;
 	REBCNT j;
 	REBVAL *ds;
-
-	assert(mode >= 0 && mode < 3);
 
 	value = D_ARG(2); // series
 	if (IS_NONE(value)) return R_NONE;
@@ -348,8 +352,7 @@
 
 	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
 
-	// If it's MAP, create result block:
-	if (mode == 2) {
+	if (mode == LOOP_MAP_EACH) {
 		// Must be managed *and* saved...because we are accumulating results
 		// into it, and those results must be protected from GC
 
@@ -379,9 +382,10 @@
 		series = VAL_SERIES(value);
 		index  = VAL_INDEX(value);
 		if (index >= cast(REBINT, SERIES_TAIL(series))) {
-			if (mode == 1) {
+			if (mode == LOOP_REMOVE_EACH) {
 				SET_INTEGER(D_OUT, 0);
-			} else if (mode == 2) {
+			}
+			else if (mode == LOOP_MAP_EACH) {
 				UNSAVE_SERIES(out);
 				Val_Init_Block(D_OUT, out);
 			}
@@ -488,11 +492,16 @@
 
 		if (Do_Block_Throws(D_OUT, body, 0)) {
 			if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_CONTINUE) {
-				// keep the value (for mode == 1)
-				if (mode == 1)
+				if (mode == LOOP_REMOVE_EACH) {
+					// signal the post-body-execution processing that we
+					// *do not* want to remove the element on a CONTINUE
 					SET_FALSE(D_OUT);
-				else
+				}
+				else {
+					// CONTINUE otherwise acts "as if" the loop body execution
+					// returned an UNSET!
 					SET_UNSET(D_OUT);
+				}
 			}
 			else if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_BREAK) {
 				// If it's a BREAK, get the /WITH value (UNSET! if no /WITH)
@@ -511,40 +520,68 @@
 			}
 		}
 
-		if (mode > 0) {
-			// If FALSE return, copy values to the write location:
-			if (mode == 1) {  // remove-each
-				if (IS_CONDITIONAL_FALSE(D_OUT)) {
-					REBYTE wide = SERIES_WIDE(series);
-					// memory areas may overlap, so use memmove and not memcpy!
-					memmove(series->data + (windex * wide), series->data + (rindex * wide), (index - rindex) * wide);
-					windex += index - rindex;
-					// old: while (rindex < index) *BLK_SKIP(series, windex++) = *BLK_SKIP(series, rindex++);
-				}
+		switch (mode) {
+		case LOOP_FOR_EACH:
+			// no action needed after body is run
+			break;
+		case LOOP_REMOVE_EACH:
+			// If FALSE return, copy values to the write location
+			// !!! Should UNSET! also act as conditional false here?  Error?
+			if (IS_CONDITIONAL_FALSE(D_OUT)) {
+				REBYTE wide = SERIES_WIDE(series);
+				// memory areas may overlap, so use memmove and not memcpy!
+
+				// !!! This seems a slow way to do it, but there's probably
+				// not a lot that can be done as the series is expected to
+				// be in a good state for the next iteration of the body. :-/
+				memmove(
+					series->data + (windex * wide),
+					series->data + (rindex * wide),
+					(index - rindex) * wide
+				);
+				windex += index - rindex;
 			}
-			else
-				if (!IS_UNSET(D_OUT)) Append_Value(out, D_OUT); // (mode == 2)
+			break;
+		case LOOP_MAP_EACH:
+			// anything that's not an UNSET! will be added to the result
+			if (!IS_UNSET(D_OUT)) Append_Value(out, D_OUT);
+			break;
+		case LOOP_EVERY:
+			if (every_true) {
+				// !!! This currently treats UNSET! as true, which ALL
+				// effectively does right now.  That's likely a bad idea.
+				// When ALL changes, so should this.
+				//
+				every_true = IS_CONDITIONAL_TRUE(D_OUT);
+			}
+			break;
+		default:
+			assert(FALSE);
 		}
 skip_hidden: ;
 	}
 
-	// Finish up:
-	if (mode == 1) {
+	switch (mode) {
+	case LOOP_FOR_EACH:
+		// Nothing to do but return last result (will be UNSET! if an
+		// ordinary BREAK was used, the /WITH if a BREAK/WITH was used,
+		// and an UNSET! if the last loop iteration did a CONTINUE.)
+		return R_OUT;
+
+	case LOOP_REMOVE_EACH:
 		// Remove hole (updates tail):
 		if (windex < index) Remove_Series(series, windex, index - windex);
 		SET_INTEGER(D_OUT, index - windex);
 
 		return R_OUT;
-	}
 
-	// If MAP...
-	if (mode == 2) {
+	case LOOP_MAP_EACH:
 		UNSAVE_SERIES(out);
 		if (break_with) {
-			// If you're doing a map-each and BREAK is given a /WITH parameter
-			// that is not an UNSET!, it is assumed that you want to override
-			// the accumulated mapped data so far and return the /WITH value.
-			// (which will be in D_OUT when the loop above is `break`-ed)
+			// If BREAK is given a /WITH parameter that is not an UNSET!, it
+			// is assumed that you want to override the accumulated mapped
+			// data so far and return the /WITH value. (which will be in
+			// D_OUT when the loop above is `break`-ed)
 
 			// !!! Would be nice if we could Free_Series(out), but it is owned
 			// by GC (we had to make it that way to use SAVE_SERIES on it)
@@ -557,9 +594,18 @@ skip_hidden: ;
 
 		Val_Init_Block(D_OUT, out);
 		return R_OUT;
+
+	case LOOP_EVERY:
+		// Result is the cumulative TRUE? state of all the input (with any
+		// unsets taken out of the consideration).  The last TRUE? input
+		// if all valid and NONE! otherwise.  (Like ALL.)  If the loop
+		// never runs, `every_true` will be TRUE *but* D_OUT will be NONE!
+		if (!every_true)
+			SET_NONE(D_OUT);
+		return R_OUT;
 	}
 
-	return R_OUT;
+	DEAD_END;
 }
 
 
@@ -648,7 +694,7 @@ skip_hidden: ;
 **
 ***********************************************************************/
 {
-	return Loop_Each(call_, 0);
+	return Loop_Each(call_, LOOP_FOR_EACH);
 }
 
 
@@ -662,7 +708,7 @@ skip_hidden: ;
 **
 ***********************************************************************/
 {
-	return Loop_Each(call_, 1);
+	return Loop_Each(call_, LOOP_REMOVE_EACH);
 }
 
 
@@ -676,7 +722,21 @@ skip_hidden: ;
 **
 ***********************************************************************/
 {
-	return Loop_Each(call_, 2);
+	return Loop_Each(call_, LOOP_MAP_EACH);
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(every)
+/*
+**		'word [get-word! word! block!] {Word or block of words}
+**		data [series!] {The series to traverse}
+**		body [block!] {Block to evaluate each time}
+**
+***********************************************************************/
+{
+	return Loop_Each(call_, LOOP_EVERY);
 }
 
 

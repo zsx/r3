@@ -144,6 +144,13 @@ either: native [
 	/only "Suppress evaluation of block args."
 ]
 
+every: native [
+	{Returns last TRUE? value if evaluating a block over a series is all TRUE?}
+	'word [word! block!] {Word or block of words to set each time (local)}
+	data [series! any-object! map! none!] {The series to traverse}
+	body [block!] {Block to evaluate each time}
+]
+
 exit: native [
 	{Leave whatever enclosing Rebol state EXIT's block *actually* runs in.}
 	/with {Result for enclosing state (default is UNSET!)}
