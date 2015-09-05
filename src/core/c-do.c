@@ -84,8 +84,14 @@ void Do_Rebcode(const REBVAL *v) {;}
 			Enable_Backtrace(VAL_LOGIC(arg));
 		}
 		else if (IS_INTEGER(arg)) {
+			REBINT lines = Int32(arg);
 			Trace_Flags = 0;
-			Display_Backtrace(Int32(arg));
+			if (lines < 0) {
+				raise Error_Invalid_Arg(arg);
+				return R_UNSET;
+			}
+
+			Display_Backtrace(cast(REBCNT, lines));
 			return R_UNSET;
 		}
 	}
@@ -110,10 +116,10 @@ void Do_Rebcode(const REBVAL *v) {;}
 static REBINT Init_Depth(void)
 {
 	// Check the trace depth is ok:
-	int depth = Eval_Depth() - Trace_Depth;
+	REBINT depth = Eval_Depth() - Trace_Depth;
 	if (depth < 0 || depth >= Trace_Level) return -1;
 	if (depth > 10) depth = 10;
-	Debug_Space(4 * depth);
+	Debug_Space(cast(REBCNT, 4 * depth));
 	return depth;
 }
 
