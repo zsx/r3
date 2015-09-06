@@ -223,7 +223,7 @@
 
 /***********************************************************************
 **
-*/	REBFLG Make_Function(REBCNT type, REBVAL *value, REBVAL *def)
+*/	REBFLG Make_Function(REBVAL *out, REBCNT type, REBVAL *def)
 /*
 ***********************************************************************/
 {
@@ -240,21 +240,23 @@
 
 	body = VAL_BLK_SKIP(def, 1);
 
-	VAL_FUNC_SPEC(value) = VAL_SERIES(spec);
-	VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec), &exts);
+	VAL_FUNC_SPEC(out) = VAL_SERIES(spec);
+	VAL_FUNC_WORDS(out) = Check_Func_Spec(VAL_SERIES(spec), &exts);
 
 	if (type != REB_COMMAND) {
 		if (len != 2 || !IS_BLOCK(body)) return FALSE;
-		VAL_FUNC_BODY(value) = VAL_SERIES(body);
+		VAL_FUNC_BODY(out) = VAL_SERIES(body);
 	}
 	else
-		Make_Command(value, def);
+		Make_Command(out, def);
 
-	VAL_SET(value, type); // clears exts and opts in header...
-	VAL_EXTS_DATA(value) = exts; // ...so we set this after that point
+	VAL_SET(out, type); // clears exts and opts in header...
+	VAL_EXTS_DATA(out) = exts; // ...so we set this after that point
 
 	if (type == REB_FUNCTION || type == REB_CLOSURE)
-		Bind_Relative(VAL_FUNC_WORDS(value), VAL_FUNC_WORDS(value), VAL_FUNC_BODY(value));
+		Bind_Relative(
+			VAL_FUNC_WORDS(out), VAL_FUNC_WORDS(out), VAL_FUNC_BODY(out)
+		);
 
 	return TRUE;
 }
@@ -262,53 +264,42 @@
 
 /***********************************************************************
 **
-*/	REBFLG Copy_Function(REBVAL *value, REBVAL *args)
+*/	void Copy_Function(REBVAL *out, const REBVAL *src)
 /*
 ***********************************************************************/
 {
-	REBVAL *spec;
-	REBVAL *body;
+	if (IS_FUNCTION(src) || IS_CLOSURE(src)) {
+		// !!! A closure's "archetype" never operates on its body directly,
+		// and there is currently no way to get a reference to a closure
+		// "instance" (an ANY-FUNCTION value with the copied body in it).
+		// Making a copy of the body here is likely superfluous right now.
 
-	if (!args || ((spec = VAL_BLK_HEAD(args)) && IS_END(spec))) {
-		body = 0;
-		if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
-			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(VAL_FUNC_WORDS(value));
-			MANAGE_SERIES(VAL_FUNC_WORDS(value));
-		}
-	} else {
-		body = VAL_BLK_SKIP(args, 1);
-		// Spec given, must be block or *
-		if (IS_BLOCK(spec)) {
-			REBYTE exts;
-			VAL_FUNC_SPEC(value) = VAL_SERIES(spec);
-			VAL_FUNC_WORDS(value) = Check_Func_Spec(VAL_SERIES(spec), &exts);
+		// Need to pick up the infix flag and any other settings.
+		out->flags = src->flags;
 
-			// !!! This feature seems to be tied to old make function
-			// tricks that should likely be deleted instead of moved forward
-			// with the new EXTS options...
-			assert(exts == 0);
-		} else {
-			if (!IS_STAR(spec)) return FALSE;
-			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(VAL_FUNC_WORDS(value));
-			MANAGE_SERIES(VAL_FUNC_WORDS(value));
-		}
+		// We can reuse the spec series.  A more nuanced form of function
+		// copying might let you change the spec as part of the process and
+		// keep the body (or vice versa), but would need to check to make
+		// sure they were compatible with the substitution.
+		VAL_FUNC_SPEC(out) = VAL_SERIES(src);
+
+		// Copy the identifying word series, so that the function has a
+		// unique identity on the stack from the one it is copying.
+		VAL_FUNC_WORDS(out) = Copy_Array_Shallow(VAL_FUNC_WORDS(src));
+		MANAGE_SERIES(VAL_FUNC_WORDS(out));
+
+		// Copy the body and rebind its word references to the locals.
+		VAL_FUNC_BODY(out) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(src));
+		Bind_Relative(
+			VAL_FUNC_WORDS(out), VAL_FUNC_WORDS(out), VAL_FUNC_BODY(out)
+		);
 	}
-
-	if (body && !IS_END(body)) {
-		if (!IS_FUNCTION(value) && !IS_CLOSURE(value)) return FALSE;
-		// Body must be block:
-		if (!IS_BLOCK(body)) return FALSE;
-		VAL_FUNC_BODY(value) = VAL_SERIES(body);
+	else {
+		// Natives, actions, etc. do not have bodies that can accumulate
+		// state, and hence the only meaning of "copying" a function is just
+		// copying its value bits verbatim.
+		*out = *src;
 	}
-	// No body, use prototype:
-	else if (IS_FUNCTION(value) || IS_CLOSURE(value))
-		VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
-
-	// Rebind function words:
-	if (IS_FUNCTION(value) || IS_CLOSURE(value))
-		Bind_Relative(VAL_FUNC_WORDS(value), VAL_FUNC_WORDS(value), VAL_FUNC_BODY(value));
-
-	return TRUE;
 }
 
 

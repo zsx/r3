@@ -896,8 +896,6 @@ struct Reb_Symbol {
 // Return the CANON value for a word value:
 #define WORD_TO_CANON(w) (VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(w))))
 
-#define IS_STAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM__P)
-
 
 /***********************************************************************
 **
