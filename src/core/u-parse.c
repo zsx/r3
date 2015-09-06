@@ -29,16 +29,10 @@
 
 #include "sys-core.h"
 
-// Parser flags:
-enum Parse_Flags {
-	PF_CASE = 1 << 0,
-	PF_CASED = 1 << 1 // was set as initial option
-};
-
 typedef struct reb_parse {
 	REBSER *series;
 	enum Reb_Kind type;
-	REBCNT flags;
+	REBCNT find_flags;
 	REBINT result;
 	REBVAL *out;
 } REBPARSE;
@@ -63,7 +57,7 @@ enum parse_flags {
 // Returns SYMBOL or 0 if not a command:
 #define GET_CMD(n) (((n) >= SYM_OR_BAR && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
-#define HAS_CASE(p) (p->flags & AM_FIND_CASE)
+#define HAS_CASE(p) (p->find_flags & AM_FIND_CASE)
 #define IS_OR_BAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM_OR_BAR)
 #define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_SAME_WORD(r, SYM_OR_BAR)) r++;
 #define IS_BLOCK_INPUT(p) (p->type >= REB_BLOCK)
@@ -89,8 +83,10 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 {
 	parse->series = VAL_SERIES(item);
 	parse->type = VAL_TYPE(item);
-	if (IS_BINARY(item) || (parse->flags & PF_CASED)) parse->flags |= PF_CASE;
-	else parse->flags &= ~PF_CASE;
+	if (IS_BINARY(item) || (parse->find_flags & AM_FIND_CASE))
+		parse->find_flags |= AM_FIND_CASE;
+	else
+		parse->find_flags &= ~AM_FIND_CASE;
 	return (VAL_INDEX(item) > VAL_TAIL(item)) ? VAL_TAIL(item) : VAL_INDEX(item);
 }
 
@@ -146,7 +142,7 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 	// !!! THIS CODE NEEDS CLEANUP AND REWRITE BASED ON OTHER CHANGES
 	REBSER *series = parse->series;
 	REBSER *ser;
-	REBCNT flags = parse->flags | AM_FIND_MATCH | AM_FIND_TAIL;
+	REBCNT flags = parse->find_flags | AM_FIND_MATCH | AM_FIND_TAIL;
 	int rewrite_needed;
 	REBVAL save;
 
@@ -416,7 +412,7 @@ no_result:
 					if (ch1 == ch2) {
 						len = VAL_LEN(item);
 						if (len == 1) goto found1;
-						i = Find_Str_Str(series, 0, index, SERIES_TAIL(series), 1, VAL_SERIES(item), VAL_INDEX(item), len, AM_FIND_MATCH | parse->flags);
+						i = Find_Str_Str(series, 0, index, SERIES_TAIL(series), 1, VAL_SERIES(item), VAL_INDEX(item), len, AM_FIND_MATCH | parse->find_flags);
 						if (i != NOT_FOUND) {
 							if (is_thru) i += len;
 							index = i;
@@ -506,7 +502,6 @@ bad_target:
 				VAL_SET(&word, REB_WORD);
 				item = &word;
 			}
-			///i = Find_Value(series, index, tail-index, item, 1, (REBOOL)(PF_CASE & flags), FALSE, 1);
 			i = Find_Block(series, index, series->tail, item, 1, HAS_CASE(parse)?AM_FIND_CASE:0, 1);
 			if (i != NOT_FOUND && is_thru) i++;
 		}
@@ -622,7 +617,7 @@ bad_target:
 
 			sub_parse.series = VAL_SERIES(&value);
 			sub_parse.type = VAL_TYPE(&value);
-			sub_parse.flags = parse->flags;
+			sub_parse.find_flags = parse->find_flags;
 			sub_parse.result = 0;
 			sub_parse.out = parse->out;
 
@@ -656,7 +651,7 @@ bad_target:
 	SAVE_SERIES(newparse.series);
 	Append_Value(newparse.series, &value);
 	newparse.type = REB_BLOCK;
-	newparse.flags = parse->flags;
+	newparse.find_flags = parse->find_flags;
 	newparse.result = 0;
 	newparse.out = parse->out;
 
@@ -1006,7 +1001,7 @@ bad_target:
 						item = &save;
 					}
 					else item = rules;
-					i = (0 == Cmp_Value(BLK_SKIP(series, index), item, parse->flags & AM_FIND_CASE)) ? index+1 : NOT_FOUND;
+					i = (0 == Cmp_Value(BLK_SKIP(series, index), item, parse->find_flags & AM_FIND_CASE)) ? index+1 : NOT_FOUND;
 					break;
 
 				case SYM_INTO: {
@@ -1025,7 +1020,7 @@ bad_target:
 
 					sub_parse.series = VAL_SERIES(val);
 					sub_parse.type = VAL_TYPE(val);
-					sub_parse.flags = parse->flags;
+					sub_parse.find_flags = parse->find_flags;
 					sub_parse.result = 0;
 					sub_parse.out = parse->out;
 
@@ -1240,9 +1235,11 @@ bad_end:
 {
 	REBVAL *input = D_ARG(1);
 	REBVAL *rules = D_ARG(2);
-	const REBOOL cased = D_REF(3);
 
-	REBCNT opts = 0;
+	// We always want "case-sensitivity" on binary bytes, vs. treating as
+	// case-insensitive bytes for ASCII characters
+	const REBOOL cased = D_REF(3) || IS_BINARY(input);
+
 	REBCNT index;
 
 	REBPARSE parse;
@@ -1250,17 +1247,11 @@ bad_end:
 	REBOL_STATE state;
 	const REBVAL *error;
 
-	if (cased) opts |= PF_CASE;
-
-	// We always want "case-sensitivity" on binary bytes, vs. treating as
-	// case-insensitive bytes for ASCII characters
-	if (IS_BINARY(input)) opts |= PF_CASE;
-
 	assert(IS_TRASH(D_OUT));
 
 	parse.series = VAL_SERIES(input);
 	parse.type = VAL_TYPE(input);
-	parse.flags = cased ? AM_FIND_CASE : 0;
+	parse.find_flags = cased ? AM_FIND_CASE : 0;
 	parse.result = 0;
 	parse.out = D_OUT;
 
