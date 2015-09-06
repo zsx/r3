@@ -471,7 +471,16 @@ bad_hex:
 	if (*cp == '-' || num < 0) return 0;
 	size = (REBCNT)(ep - cp);
 	if (!size) return 0;
-	if (!day) day = num;
+
+	if (!day) {
+		day = num;
+
+		// !!! There had been no assignment in this branch, meaning that year
+		// would be uninitialized in the processing below for this case.
+		// Cause an error instead of using uninitialized data (a more thorough
+		// review can decide what the intent of the code was).
+		return NULL;
+	}
 	else {	// it is a year
 		// Allow shorthand form (e.g. /96) ranging +49,-51 years
 		//		(so in year 2050 a 0 -> 2000 not 2100)
