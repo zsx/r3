@@ -530,6 +530,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 	if (!IS_OBJECT(actor)) return R_NONE;
 
 	// Map action natives to scheme actor words:
+	map = Scheme_Actions[n].map;
 	for (; map->func; map++) {
 		// Find the action in the scheme actor:
 		n = Find_Action(actor, map->action);
