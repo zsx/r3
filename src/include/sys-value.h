@@ -228,6 +228,7 @@ struct Reb_Datatype {
 #define	SET_NONE(v)		VAL_SET(v, REB_NONE)
 #define NONE_VALUE		ROOT_NONE_VAL
 
+#define EMPTY_BLOCK		ROOT_EMPTY_BLOCK
 #define EMPTY_SERIES	VAL_SERIES(ROOT_EMPTY_BLOCK)
 
 #define VAL_INT32(v)	(REBINT)((v)->data.integer)
