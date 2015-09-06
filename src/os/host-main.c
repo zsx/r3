@@ -102,7 +102,7 @@ void Host_Crash(const char *reason) {
 }
 
 
-REBOOL Host_Start_Exiting(int *exit_status, int argc, char **argv) {
+REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 	REBYTE vers[8];
 	REBINT startup_rc;
 	REBYTE *embedded_script = NULL;
