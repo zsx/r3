@@ -66,6 +66,7 @@
 	dst = ((uni == -1) || (uni && Is_Wide(up, len)))
 		? Make_Unicode(len+FN_PAD) : Make_Binary(len+FN_PAD);
 
+	c = '\0'; // for test after loop (in case loop does not run)
 	for (i = 0; i < len;) {
 		c = uni ? up[i] : bp[i];
 		i++;
