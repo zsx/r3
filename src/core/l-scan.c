@@ -341,7 +341,7 @@
 	if (c >= 0x80) {
 		n = Decode_UTF8_Char(bp, 0); // zero on error
 		(*bp)++; // skip char
-		return n;
+		return n == 0 ? -1 : n;
 	}
 
 	(*bp)++;
