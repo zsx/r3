@@ -258,7 +258,7 @@ REBINT Mode_Syms[] = {
 	if (IS_STRING(data)) {
 		ser = Make_UTF8_From_Any_String(data, len, ENCF_OS_CRLF);
 		MANAGE_SERIES(ser);
-		file->common.data = ser? BIN_HEAD(ser) : VAL_BIN_DATA(data); // No encoding may be needed
+		file->common.data = BIN_HEAD(ser);
 		len = SERIES_TAIL(ser);
 	}
 	else {

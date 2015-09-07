@@ -665,7 +665,7 @@
 	// Keep the binding table.
 	Collect_Start(BIND_ALL);
 	// Setup binding table and BUF_WORDS with parent1 words:
-	if (parent1) Collect_Object(parent1);
+	Collect_Object(parent1);
 	// Add parent2 words to binding table and BUF_WORDS:
 	Collect_Frame_Inner_Loop(
 		binds, BLK_SKIP(FRM_WORD_SERIES(parent2), 1), BIND_ALL
