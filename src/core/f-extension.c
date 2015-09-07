@@ -448,20 +448,17 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 **
 ***********************************************************************/
 {
+	// All of these were checked above on definition:
 	REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(value));
-	REBEXT *ext;
-	REBCNT cmd;
-	REBCNT argc;
+	REBEXT *ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(val, 1))]; // Handler
+	REBCNT cmd = cast(REBCNT, Int32(val + 1));
+	REBCNT argc = SERIES_TAIL(VAL_FUNC_WORDS(value)) - 1; // not self
+
 	REBCNT n;
 	RXIFRM frm;	// args stored here
 
-	// All of these were checked above on definition:
-	val = BLK_HEAD(VAL_FUNC_BODY(value));
-	cmd = (int)VAL_INT64(val+1);
-	ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(val, 1))]; // Handler
-
 	// Copy args to command frame (array of args):
-	RXA_COUNT(&frm) = argc = SERIES_TAIL(VAL_FUNC_WORDS(value))-1; // not self
+	RXA_COUNT(&frm) = argc;
 	if (argc > 7) raise Error_0(RE_BAD_COMMAND);
 	val = DSF_ARG(DSF, 1);
 	for (n = 1; n <= argc; n++, val++) {
