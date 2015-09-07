@@ -60,8 +60,11 @@ void Do_Rebcode(const REBVAL *v) {;}
 {
 	struct Reb_Call *call = DSF;
 
-	for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
-		if (n-- <= 0) return call;
+	while (call) {
+		if (n == 0) return call;
+
+		--n;
+		call = PRIOR_DSF(call);
 	}
 
 	return NULL;

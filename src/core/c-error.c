@@ -257,8 +257,9 @@
 	struct Reb_Call *call = DSF;
 	REBCNT count = 0;
 
-	for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
+	while (call) {
 		count++;
+		call = PRIOR_DSF(call);
 	}
 
 	return count;
