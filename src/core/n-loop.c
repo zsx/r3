@@ -329,8 +329,13 @@ typedef enum {
 	REBVAL *vars;
 	REBVAL *words;
 	REBSER *frame;
-	REBVAL *value;
+
+	// `data` is the series/object/map/etc. being iterated over
+	// Note: `data_is_object` flag is optimized out, but hints static analyzer
+	REBVAL *data = D_ARG(2);
 	REBSER *series;
+	const REBOOL data_is_object = ANY_OBJECT(data);
+
 	REBSER *out;	// output block (needed for MAP-EACH)
 
 	REBINT index;	// !!!! should these be REBCNT?
@@ -343,8 +348,7 @@ typedef enum {
 	REBCNT j;
 	REBVAL *ds;
 
-	value = D_ARG(2); // series
-	if (IS_NONE(value)) return R_NONE;
+	if (IS_NONE(data)) return R_NONE;
 
 	body = Init_Loop(D_ARG(1), D_ARG(3), &frame); // vars, body
 	Val_Init_Object(D_ARG(1), frame); // keep GC safe
@@ -361,26 +365,26 @@ typedef enum {
 		// lets a series be a GC root for a temporary time even if it is
 		// not SER_KEEP?
 
-		out = Make_Array(VAL_LEN(value));
+		out = Make_Array(VAL_LEN(data));
 		MANAGE_SERIES(out);
 		SAVE_SERIES(out);
 	}
 
 	// Get series info:
-	if (ANY_OBJECT(value)) {
-		series = VAL_OBJ_FRAME(value);
+	if (data_is_object) {
+		series = VAL_OBJ_FRAME(data);
 		out = FRM_WORD_SERIES(series); // words (the out local reused)
 		index = 1;
 		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_WORD(frame, 3));
 	}
-	else if (IS_MAP(value)) {
-		series = VAL_SERIES(value);
+	else if (IS_MAP(data)) {
+		series = VAL_SERIES(data);
 		index = 0;
 		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_WORD(frame, 3));
 	}
 	else {
-		series = VAL_SERIES(value);
-		index  = VAL_INDEX(value);
+		series = VAL_SERIES(data);
+		index  = VAL_INDEX(data);
 		if (index >= cast(REBINT, SERIES_TAIL(series))) {
 			if (mode == LOOP_REMOVE_EACH) {
 				SET_INTEGER(D_OUT, 0);
@@ -395,7 +399,7 @@ typedef enum {
 
 	windex = index;
 
-	// Iterate over each value in the series block:
+	// Iterate over each value in the data series block:
 	while (index < (tail = SERIES_TAIL(series))) {
 
 		rindex = index;  // remember starting spot
@@ -412,11 +416,10 @@ typedef enum {
 
 				if (index < tail) {
 
-					if (ANY_BLOCK(value)) {
+					if (ANY_BLOCK(data)) {
 						*vars = *BLK_SKIP(series, index);
 					}
-
-					else if (ANY_OBJECT(value)) {
+					else if (data_is_object) {
 						if (!VAL_GET_EXT(BLK_SKIP(out, index), EXT_WORD_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
@@ -435,12 +438,10 @@ typedef enum {
 							goto skip_hidden;
 						}
 					}
-
-					else if (IS_VECTOR(value)) {
+					else if (IS_VECTOR(data)) {
 						Set_Vector_Value(vars, series, index);
 					}
-
-					else if (IS_MAP(value)) {
+					else if (IS_MAP(data)) {
 						REBVAL *val = BLK_SKIP(series, index | 1);
 						if (!IS_NONE(val)) {
 							if (j == 0) {
@@ -458,12 +459,11 @@ typedef enum {
 							goto skip_hidden;
 						}
 					}
-
 					else { // A string or binary
-						if (IS_BINARY(value)) {
+						if (IS_BINARY(data)) {
 							SET_INTEGER(vars, (REBI64)(BIN_HEAD(series)[index]));
 						}
-						else if (IS_IMAGE(value)) {
+						else if (IS_IMAGE(data)) {
 							Set_Tuple_Pixel(BIN_SKIP(series, index), vars);
 						}
 						else {
@@ -475,11 +475,10 @@ typedef enum {
 				}
 				else SET_NONE(vars);
 			}
-
 			// var spec is SET_WORD:
 			else if (IS_SET_WORD(words)) {
-				if (ANY_OBJECT(value) || IS_MAP(value))
-					*vars = *value;
+				if (ANY_OBJECT(data) || IS_MAP(data))
+					*vars = *data;
 				else
 					Val_Init_Block_Index(vars, series, index);
 
@@ -488,7 +487,11 @@ typedef enum {
 			else
 				raise Error_Invalid_Arg(words);
 		}
-		if (index == rindex) index++; //the word block has only set-words: for-each [a:] [1 2 3][]
+
+		if (index == rindex) {
+			// the word block has only set-words: for-each [a:] [1 2 3][]
+			index++;
+		}
 
 		if (Do_Block_Throws(D_OUT, body, 0)) {
 			if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_CONTINUE) {
