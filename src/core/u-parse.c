@@ -210,7 +210,6 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 			raise Error_0(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 		}
 
-		item = &save;
         index = MIN(index, series->tail); // may affect tail
 		break;
 
@@ -281,7 +280,6 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 			*parse->out = save;
 			raise Error_0(RE_PARSE_LONGJMP_HACK); // !!! should return gracefully!
 		}
-		item = &save;
 		// old: if (IS_ERROR(item)) Throw_Error(VAL_ERR_OBJECT(item));
         index = MIN(index, series->tail); // may affect tail
 		break;
@@ -961,7 +959,6 @@ bad_target:
 		if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_NATIVE) goto bad_rule;
 		begin = index;		// input at beginning of match section
 		rulen = 0;			// rules consumed (do not use rule++ below)
-		i = index;
 
 		//note: rules var already advanced
 

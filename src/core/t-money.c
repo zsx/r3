@@ -42,7 +42,6 @@
 	if (mode >= 3) e = deci_is_same(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
 	else {
 		e = deci_is_equal(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
-		g = 0;
 		if (mode < 0) {
 			g = deci_is_lesser_or_equal(
 				VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)

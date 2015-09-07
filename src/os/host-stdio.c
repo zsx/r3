@@ -54,7 +54,7 @@ static REBCNT inbuf_len = 32*1024;
 
 static REBYTE *Get_Next_Line()
 {
-	REBYTE *bp = inbuf;
+	REBYTE *bp;
 	REBYTE *out;
 	REBCNT len;
 

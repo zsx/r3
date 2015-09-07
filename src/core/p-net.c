@@ -120,7 +120,6 @@ enum Transport_Types {
 
 	*D_OUT = *D_ARG(1);
 	arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
-	refs = 0;
 
 	sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
 	if (proto == TRANSPORT_UDP) {

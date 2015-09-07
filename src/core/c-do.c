@@ -1774,7 +1774,6 @@ finished:
 	REBCNT inew;		// index position in target frame
 	REBVAL *word;
 	REBVAL *word2;
-	REBINT dsp_orig = DSP;
 
 	struct Reb_Call *call;
 	REBVAL *arg;

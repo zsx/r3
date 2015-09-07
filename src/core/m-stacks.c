@@ -198,7 +198,6 @@
 
 		if (chunk->next) {
 			// Previously allocated chunk exists already to grow into
-			call = cast(struct Reb_Call*, &chunk->payload);
 			assert(!chunk->next->next);
 		}
 		else {

@@ -312,7 +312,7 @@ bad_hex:
 	}
 
 	if (len > MAX_NUM_LEN) return 0; // prevent buffer overflow
-	len = 0;
+
 	bp = buf;
 
 	// Strip leading signs:
@@ -694,12 +694,10 @@ end_date:
 **
 ***********************************************************************/
 {
-	const REBYTE *ep, *xp;
 	REBYTE buf[MAX_NUM_LEN+4];
+	const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
+	const REBYTE *xp;
 
-	ep = cp;
-	//ep = Grab_Int(ep, &n);
-	ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
 	if (!ep) return 0;
 	VAL_PAIR_X(value) = (float)atof((char*)(&buf[0])); //n;
 	if (*ep != 'x' && *ep != 'X') return 0;

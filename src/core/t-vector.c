@@ -517,14 +517,8 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 	else if (IS_DECIMAL(pvs->setval)) {
 		f = VAL_DECIMAL(pvs->setval);
 		if (bits <= VTUI64) i = cast(REBINT, f);
-		else {
-			// !!! REVIEW: i was not set in this case; compiler caught the
-			// unused parameter.  So fill with distinctive garbage to make it
-			// easier to search for if it ever is.
-			i = -646699;
-
+		else
 			return PE_BAD_SET;
-		}
 	}
 	else return PE_BAD_SET;
 

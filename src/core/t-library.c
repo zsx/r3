@@ -62,7 +62,6 @@
 			if (!IS_FILE(arg)) {
 				raise Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg));
 			} else {
-				REBCNT len = VAL_LEN(arg);
 				void *lib = NULL;
 				REBCNT error = 0;
 				REBSER *path = Value_To_OS_Path(arg, FALSE);

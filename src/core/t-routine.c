@@ -380,7 +380,6 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
 {
 	ffi_type **args = (ffi_type**) SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(out));
 	REBVAL *rebol_args = NULL;
-	REBVAL *arg_structs = BLK_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 	if (idx) {
 		// when it's first call for return type, all_args has not been initialized yet
 		if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)

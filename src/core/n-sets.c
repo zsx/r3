@@ -148,7 +148,7 @@ enum {
 			// Iterate over first series:
 			ser = VAL_SERIES(val1);
 			i = VAL_INDEX(val1);
-			for (; val = BLK_SKIP(ser, i), i < SERIES_TAIL(ser); i += skip) {
+			for (; i < SERIES_TAIL(ser); i += skip) {
 				uc = GET_ANY_CHAR(ser, i);
 				if (GET_FLAG(flags, SOP_CHECK)) {
 					h = Find_Str_Char(VAL_SERIES(val2), 0, VAL_INDEX(val2), VAL_TAIL(val2), skip, uc, cased) != NOT_FOUND;

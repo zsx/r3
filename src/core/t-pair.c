@@ -326,8 +326,7 @@
 		case A_TO:
 			assert(DS_ARGC > 1);
 			val = D_ARG(2);
-			x1 = y1 = 0;
-//			if (IS_NONE(val)) goto setPair;
+
 			if (IS_PAIR(val)) {
 				*D_OUT = *val;
 				return R_OUT;
