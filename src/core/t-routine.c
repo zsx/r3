@@ -710,9 +710,13 @@ static void ffi_to_rebol(REBRIN *rin,
 	REBSER *ser = NULL;
 	void ** ffi_args = NULL;
 	REBINT pop = 0;
-	REBVAL *varargs = NULL;
 	REBCNT n_fixed = 0; /* number of fixed arguments */
 	REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
+
+	// `is_vararg_routine` is optimized out, but hints static analyzer
+	const REBOOL is_vararg_routine
+		= ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS);
+	REBVAL *varargs = NULL;
 
 	/* save the saved series stack pointer
 	 *
@@ -728,7 +732,7 @@ static void ffi_to_rebol(REBRIN *rin,
 			raise Error_0(RE_BAD_LIBRARY);
 	}
 
-	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
+	if (is_vararg_routine) {
 		varargs = BLK_HEAD(args);
 		if (!IS_BLOCK(varargs))
 			raise Error_Invalid_Arg(varargs);
@@ -756,7 +760,7 @@ static void ffi_to_rebol(REBRIN *rin,
 
 	ffi_args_ptrs = Make_Series(SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
 
-	if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
+	if (is_vararg_routine) {
 		REBCNT j = 1;
 		ffi_type **arg_types = NULL;
 		/* reset SERIES_TAIL */
