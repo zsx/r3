@@ -417,7 +417,7 @@
 /*
 **      Scan a quoted string, handling all the escape characters.
 **
-**		The result will be put into the temporary MOLD_BUF unistring.
+**		The result will be put into the temporary unistring mold buffer.
 **
 ***********************************************************************/
 {
@@ -498,7 +498,7 @@
 **
 **		Returns continuation point or zero for error.
 **
-**		Put result into the MOLD_BUF as uni-chars.
+**		Put result into the temporary mold buffer as uni-chars.
 **
 ***********************************************************************/
 {
@@ -900,7 +900,6 @@
             if (IS_LEX_AT_LEAST_NUMBER(*cp)) goto num;
             if (IS_LEX_SPECIAL(*cp)) {
                 if ((GET_LEX_VALUE(*cp)) >= LEX_SPECIAL_PERIOD) goto next_ls;
-/*              if (*cp == '#') goto hex; */
                 if (*cp == '+' || *cp == '-') {
                     type = TOKEN_WORD;
                     goto scanword;
@@ -913,11 +912,6 @@
         case LEX_SPECIAL_POUND:
         pound:
             cp++;
-/*        hex:
-          if (HAS_LEX_FLAGS(flags, ~(LEX_FLAG(LEX_SPECIAL_POUND) | LEX_FLAG(LEX_SPECIAL_PERIOD)
-                        | LEX_FLAG(LEX_SPECIAL_TICK) | LEX_FLAG(LEX_SPECIAL_WORD)))) return -TOKEN_INTEGER;
-*/
-/*        if (HAS_LEX_FLAG(flags, LEX_SPECIAL_PERIOD)) return TOKEN_BYTES; */
 			if (*cp == '[') {
 				scan_state->end = ++cp;
 				return TOKEN_CONSTRUCT;
@@ -1016,16 +1010,9 @@
         return -TOKEN_WORD;
     }
 
-#ifdef ndef	// unreachable code
-    /* avoid '123 :123 from scanning as a word.... */
-    if (IS_LEX_WORD(cp[1]) && !HAS_LEX_FLAGS(flags, LEX_WORD_FLAGS))
-        return TOKEN_LIT;
-    return -TOKEN_WORD;
-#endif
-
-scanword:
+scanword: // unreachable otherwise
     if (HAS_LEX_FLAG(flags, LEX_SPECIAL_COLON)) {    /* word:  url:words */
-        if (type != TOKEN_WORD) return type; //-TOKEN_WORD;  /* only valid with WORD (not set or lit) */
+        if (type != TOKEN_WORD) return type; /* only valid with WORD (not set or lit) */
 		cp = Skip_To_Byte(cp, scan_state->end, ':'); /* always returns a pointer (always a ':') */
         if (cp[1] != '/' && Lex_Map[(REBYTE)cp[1]] < LEX_SPECIAL) { /* a valid delimited word SET? */
             if (HAS_LEX_FLAGS(flags, ~LEX_FLAG(LEX_SPECIAL_COLON) & LEX_WORD_FLAGS)) return -TOKEN_WORD;
@@ -1048,8 +1035,6 @@ scanword:
 		if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=' ||
 			IS_LEX_SPACE(cp[1]) || (cp[1] != '/' && IS_LEX_DELIMIT(cp[1])))
 			return -type;
-		/*bogus: if (HAS_LEX_FLAG(flags, LEX_SPECIAL_GREATER) &&
-			Skip_To_Byte(scan_state->begin, cp, '>')) return -TOKEN_WORD; */
 		scan_state->end = cp;
 	} else if (HAS_LEX_FLAG(flags, LEX_SPECIAL_GREATER)) return -type;
     return type;
@@ -1137,8 +1122,7 @@ scanword:
 	}
 }
 
-// !!! Only called once (inside of Scan_Block), should it be folded	in
-// so this forward declaration is not necessary?
+
 static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 /***********************************************************************
@@ -1195,7 +1179,6 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		value = BLK_TAIL(emitbuf);
 		SET_END(value);
-		// Line opt was set here. Moved to end in 3.0.
 
         // If in a path, handle start of path /word or word//word cases:
         if (mode_char == '/' && *bp == '/') {
@@ -1209,7 +1192,6 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
         if ((token == TOKEN_PATH || ((token == TOKEN_WORD || token == TOKEN_LIT ||
 				token == TOKEN_GET) && *ep == '/'))
 					&& mode_char != '/') {
-			//line = VAL_GET_OPT(value, OPT_VALUE_LINE);
 			block = Scan_Block(scan_state, '/');  // (could realloc emitbuf)
 			value = BLK_TAIL(emitbuf);
 			if (token == TOKEN_LIT) {
@@ -1229,11 +1211,9 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 					scan_state->begin = ++(scan_state->end);
 				} else token = REB_PATH;
 			}
-//			if (IS_SET_WORD(BLK_SKIP(block, block->tail - 1)
 			VAL_SET(value, token);
 			VAL_SERIES(value) = block;
 			VAL_INDEX(value) = 0;
-			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			token = TOKEN_PATH;
         } else {
             ACCEPT_TOKEN(scan_state);
@@ -1243,9 +1223,9 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 		switch (token) {  // (idea is that compiler selects computed branch)
 
 		case TOKEN_LINE:
-			#ifdef TEST_SCAN
+#ifdef TEST_SCAN
 			Wait_User("next...");
-			#endif
+#endif
 			line = TRUE;
 			scan_state->head_line = ep;
 			continue;
@@ -1287,7 +1267,6 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_BLOCK:
 		case TOKEN_PAREN:
-			//line = VAL_GET_OPT(value, OPT_VALUE_LINE);
 			block = Scan_Block(scan_state, (REBYTE)((token == TOKEN_BLOCK) ? ']' : ')'));
 			// (above line could have realloced emitbuf)
 			ep = scan_state->end;
@@ -1303,7 +1282,6 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				block,
 				0
 			);
-			//if (line) line = FALSE, VAL_SET_OPT(value, OPT_VALUE_LINE);
 			break;
 
 		case TOKEN_PATH:
@@ -1419,9 +1397,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			block = Scan_Full_Block(scan_state, ']');
 			value = BLK_TAIL(emitbuf);
 			emitbuf->tail++; // Protect the block from GC
-//			if (!Construct_Simple(value, block)) {
 			Bind_Values_All_Deep(BLK_HEAD(block), Lib_Context);
-			//Bind_Global_Block(BLK_HEAD(block));
 			if (!Construct_Value(value, block)) {
 				if (IS_END(value)) Val_Init_Block(value, block);
 				raise Error_1(RE_MALCONSTRUCT, value);
@@ -1440,12 +1416,12 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			VAL_SET_OPT(value, OPT_VALUE_LINE);
 		}
 
-		#ifdef TEST_SCAN
+#ifdef TEST_SCAN
 		Print((REBYTE*)"%s - %s", Token_Names[token], Use_Buf(bp,ep));
 		if (VAL_TYPE(value) >= REB_STRING && VAL_TYPE(value) <= REB_URL)
 			Print_Str(VAL_BIN(value));
 		//Wait_User(0);
-		#endif
+#endif
 
 #ifdef COMP_LINES
 		VAL_LINE(value)=linenum;
@@ -1493,16 +1469,16 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 exit_block:
 	if (line && value) VAL_SET_OPT(value, OPT_VALUE_LINE);
-	#ifdef TEST_SCAN
+
+#ifdef TEST_SCAN
 	Print((REBYTE*)"block of %d values ", emitbuf->tail - begin); //Wait_User("...");
-	#endif
+#endif
 
 	len = emitbuf->tail;
 	block = Copy_Values_Len_Shallow(BLK_SKIP(emitbuf, begin), len - begin);
 	LABEL_SERIES(block, "scan block");
 
 	emitbuf->tail = begin;
-//!!!!	if (value) VAL_OPTS(BLK_TAIL(block)) = VAL_OPTS(value); // save NEWLINE marker
 
 	// All scanned code is expected to be managed by the GC (because walking
 	// the tree after constructing it to add the "manage GC" bit would be
@@ -1537,16 +1513,10 @@ exit_block:
 **		Scan source code, given a scan state. Allows scan of source
 **		code a section at a time (used for LOAD/next).
 **
-**		Note: Renamed this from Scan_Trap (a bad name, no trap used)
-**
 ***********************************************************************/
 {
-//	REBSER *ser;
-
 	BLK_RESET(BUF_EMIT); // Prevents growth (when errors are thrown)
 	return Scan_Block(scan_state, mode_char);
-//	Val_Init_Block(Temp_Scan_Value, ser);
-//	return Temp_Scan_Value;
 }
 
 
