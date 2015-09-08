@@ -1694,20 +1694,36 @@ exit_block:
 **
 ***********************************************************************/
 {
-	REBSER *blk;
+	REBVAL * const input = D_ARG(1);
+	const REBOOL next = D_REF(2);
+	const REBOOL only = D_REF(3);
+	const REBOOL relax = D_REF(4);
+
 	SCAN_STATE scan_state;
 
-	Init_Scan_State(&scan_state, VAL_BIN_DATA(D_ARG(1)), VAL_LEN(D_ARG(1)));
+	assert(IS_BINARY(input));
 
-	if (D_REF(2)) SET_FLAG(scan_state.opts, SCAN_NEXT);
-	if (D_REF(3)) SET_FLAG(scan_state.opts, SCAN_ONLY);
-	if (D_REF(4)) SET_FLAG(scan_state.opts, SCAN_RELAX);
+	Init_Scan_State(&scan_state, VAL_BIN_DATA(input), VAL_LEN(input));
 
-	blk = Scan_Code(&scan_state, 0);
-	Val_Init_Block(D_OUT, blk);
+	if (next) SET_FLAG(scan_state.opts, SCAN_NEXT);
+	if (only) SET_FLAG(scan_state.opts, SCAN_ONLY);
+	if (relax) SET_FLAG(scan_state.opts, SCAN_RELAX);
 
-	VAL_INDEX(D_ARG(1)) = scan_state.end - VAL_BIN(D_ARG(1));
-	Append_Value(blk, D_ARG(1));
+	// The scanner always returns an "array" series.  So set the result
+	// to a BLOCK! of the results.
+	//
+	// If the source data bytes are "1" then it will be the block [1]
+	// if the source data is "[1]" then it will be the block [[1]]
+
+	Val_Init_Block(D_OUT, Scan_Code(&scan_state, 0));
+
+	// Add a value to the tail of the result, representing the input
+	// with position advanced past the content consumed by the scan.
+	// (Returning a length 2 block is how TRANSCODE does a "multiple
+	// return value, but #1916 discusses a possible "revamp" of this.)
+
+	VAL_INDEX(input) = scan_state.end - VAL_BIN(input);
+	Append_Value(VAL_SERIES(D_OUT), input);
 
 	return R_OUT;
 }
