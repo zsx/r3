@@ -1101,6 +1101,12 @@ scanword: // unreachable otherwise
 **
 ***********************************************************************/
 {
+	// Not all scans finish successfully, and if they're stopped by an error
+	// may leave lingering data in the emit buffer.  This cleans it upon
+	// every new scan initialization.
+	// !!! Is it too slow to have all scans be in a TRAP that does this?
+	BLK_RESET(BUF_EMIT);
+
 	scan_state->head_line = scan_state->begin = scan_state->end = cp;
 	scan_state->limit = cp + limit;
 	scan_state->line_count = 1;
@@ -1607,32 +1613,15 @@ exit_block:
 
 /***********************************************************************
 **
-*/	static REBSER *Scan_Code(SCAN_STATE *scan_state, REBYTE mode_char)
-/*
-**		Scan source code, given a scan state. Allows scan of source
-**		code a section at a time (used for LOAD/next).
-**
-***********************************************************************/
-{
-	BLK_RESET(BUF_EMIT); // Prevents growth (when errors are thrown)
-	return Scan_Block(scan_state, mode_char);
-}
-
-
-/***********************************************************************
-**
 */	REBSER *Scan_Source(const REBYTE *src, REBCNT len)
 /*
 **		Scan source code. Scan state initialized. No header required.
-**		If len = 0, then use the C string terminated length.
 **
 ***********************************************************************/
 {
 	SCAN_STATE scan_state;
-
-	if (!len) len = LEN_BYTES(src);
 	Init_Scan_State(&scan_state, src, len);
-	return Scan_Code(&scan_state, 0);
+	return Scan_Block(&scan_state, 0);
 }
 
 
@@ -1715,7 +1704,7 @@ exit_block:
 	// If the source data bytes are "1" then it will be the block [1]
 	// if the source data is "[1]" then it will be the block [[1]]
 
-	Val_Init_Block(D_OUT, Scan_Code(&scan_state, 0));
+	Val_Init_Block(D_OUT, Scan_Block(&scan_state, 0));
 
 	// Add a value to the tail of the result, representing the input
 	// with position advanced past the content consumed by the scan.
