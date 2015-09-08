@@ -989,14 +989,20 @@ end_date:
 		while (IS_LEX_SPACE(*cp)) cp++;
 		start = cp;
 		len = 0;
-		while (NOT_NEWLINE(*cp)) len++, cp++;
+		while (!ANY_CR_LF_END(*cp)) {
+			len++;
+			cp++;
+		}
 		// Is it continued on next line?
 		while (*cp) {
 			if (*cp == CR) cp++;
 			if (*cp == LF) cp++;
 			if (IS_LEX_SPACE(*cp)) {
 				while (IS_LEX_SPACE(*cp)) cp++;
-				while (NOT_NEWLINE(*cp)) len++, cp++;
+				while (!ANY_CR_LF_END(*cp)) {
+					len++;
+					cp++;
+				}
 			}
 			else break;
 		}
@@ -1007,13 +1013,14 @@ end_date:
 		str = STR_HEAD(ser);
 		cp = start;
 		// Code below *MUST* mirror that above:
-		while (NOT_NEWLINE(*cp)) *str++ = *cp++;
+		while (!ANY_CR_LF_END(*cp)) *str++ = *cp++;
 		while (*cp) {
 			if (*cp == CR) cp++;
 			if (*cp == LF) cp++;
 			if (IS_LEX_SPACE(*cp)) {
 				while (IS_LEX_SPACE(*cp)) cp++;
-				while (NOT_NEWLINE(*cp)) *str++ = *cp++;
+				while (!ANY_CR_LF_END(*cp))
+					*str++ = *cp++;
 			}
 			else break;
 		}

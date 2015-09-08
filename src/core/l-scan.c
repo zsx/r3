@@ -52,7 +52,7 @@
 **
 ***********************************************************************/
 {
-	/* 00 EOF */    LEX_DELIMIT|LEX_DELIMIT_END_FILE,
+	/* 00 EOF */    LEX_DELIMIT|LEX_DELIMIT_END,
 	/* 01     */    LEX_DEFAULT,
 	/* 02     */    LEX_DEFAULT,
 	/* 03     */    LEX_DEFAULT,
@@ -612,7 +612,10 @@
 	cp = ss->head_line;
 	while (IS_LEX_SPACE(*cp)) cp++;	// skip indentation
 	bp = cp;
-	while (NOT_NEWLINE(*cp)) cp++, len++;
+	while (!ANY_CR_LF_END(*cp)) {
+		cp++;
+		len++;
+	}
 
 	ser = Make_Binary(len + 16);
 	Append_Unencoded(ser, "(line ");
@@ -678,6 +681,11 @@
 				// Include the delimiter if it is the only character we
 				// are returning in the range (leave it out otherwise)
 				scan_state->end = cp + 1;
+
+				// Note: We'd liked to have excluded LEX_DELIMIT_END, but
+				// would require a GET_LEX_VALUE() call to know to do so.
+				// Locate_Token() does a `switch` on that already, so it
+				// can subtract this addition back out itself.
 			}
 			else
 				scan_state->end = cp;
@@ -725,7 +733,8 @@
 **		The scan_state will be updated so that `scan_state->begin`
 **		has been moved past any leading whitespace that was pending in
 **		the buffer.  `scan_state->end` will hold the conclusion at
-**		a delimiter.  TOKEN_EOF is returned if end of input is reached.
+**		a delimiter.  TOKEN_END is returned if end of input is reached
+**		(signaled by a null byte).
 **
 **		Newlines that should be internal to a non-ANY-ARRAY! type are
 **		included in the scanned range between the `begin` and `end`.
@@ -787,7 +796,7 @@
 **			%a-b.c d => TOKEN_FILE (content *not* in BUF_MOLD)
 **			B     E
 **
-**			\0 => TOKEN_EOF
+**			\0 => TOKEN_END
 **			BB
 **			EE
 **
@@ -813,7 +822,7 @@
 			DEAD_END;
 
 		case LEX_DELIMIT_SEMICOLON:     /* ; begin comment */
-			while (NOT_NEWLINE(*cp)) cp++;
+			while (!ANY_CR_LF_END(*cp)) cp++;
 			if (!*cp) cp--;             /* avoid passing EOF  */
 			if (*cp == LF) goto line_feed;
 			/* fall thru  */
@@ -859,11 +868,12 @@
 			if (cp) {
 				scan_state->end = cp;
 				return TOKEN_STRING;
-			} else {        /* try to recover at next new line... */
-				for (cp = scan_state->begin + 1; NOT_NEWLINE(*cp); cp++);
-				scan_state->end = cp;
-				return -TOKEN_STRING;
 			}
+			// try to recover at next new line...
+			cp = scan_state->begin + 1;
+			while (!ANY_CR_LF_END(*cp)) cp++;
+			scan_state->end = cp;
+			return -TOKEN_STRING;
 
 		case LEX_DELIMIT_RIGHT_BRACE:
 			// !!! handle better (missing)
@@ -900,9 +910,12 @@
 			scan_state->end = cp;
 			return TOKEN_WORD;
 
-		case LEX_DELIMIT_END_FILE:      /* end of file */
+		case LEX_DELIMIT_END:
+			// Prescan_Token() spans the terminator as if it were a byte
+			// to process, so we collapse end to begin to signal no data
 			scan_state->end--;
-			return TOKEN_EOF;
+			assert(scan_state->end == scan_state->begin);
+			return TOKEN_END;
 
 		case LEX_DELIMIT_UTF8_ERROR:
 		default:
@@ -1039,11 +1052,12 @@
 				if (type >= 0 && *cp == '"') {
 					scan_state->end = cp+1;
 					return TOKEN_CHAR;
-				} else {        /* try to recover at next new line... */
-					for (cp = (scan_state->begin)+1; NOT_NEWLINE(*cp); cp++);
-					scan_state->end = cp;
-					return -TOKEN_CHAR;
 				}
+				// try to recover at next new line...
+				cp = scan_state->begin + 1;
+				while (!ANY_CR_LF_END(*cp)) cp++;
+				scan_state->end = cp;
+				return -TOKEN_CHAR;
 			}
 			if (*cp == '{') { /* BINARY #{12343132023902902302938290382} */
 				scan_state->end = scan_state->begin;  /* save start */
@@ -1054,11 +1068,12 @@
 				if (cp) {
 					scan_state->end = cp;
 					return TOKEN_BINARY;
-				} else {        /* try to recover at next new line... */
-					for (cp = (scan_state->begin)+1; NOT_NEWLINE(*cp); cp++);
-					scan_state->end = cp;
-					return -TOKEN_BINARY;
 				}
+				// try to recover at next new line...
+				cp = (scan_state->begin) + 1;
+				while (!ANY_CR_LF_END(*cp)) cp++;
+				scan_state->end = cp;
+				return -TOKEN_BINARY;
 			}
 			if (cp-1 == scan_state->begin) return TOKEN_ISSUE;
 			else return -TOKEN_INTEGER;
@@ -1285,9 +1300,9 @@ scanword:
 		case 0:
 			return 0;
 		default:	/* everything else... */
-			if NOT_NEWLINE(*cp) rp = bp = 0;
+			if (!ANY_CR_LF_END(*cp)) rp = bp = 0;
 		skipline:
-			while NOT_NEWLINE(*cp) cp++;
+			while (!ANY_CR_LF_END(*cp)) cp++;
 			if (*cp == CR && cp[1] == LF) cp++;
 			if (*cp) cp++;
 			count++;
@@ -1334,7 +1349,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 #ifdef COMP_LINES
 		linenum=scan_state->line_count,
 #endif
-		((token = Locate_Token(scan_state)) != TOKEN_EOF)
+		((token = Locate_Token(scan_state)) != TOKEN_END)
 	) {
 
 		bp = scan_state->begin;
@@ -1604,7 +1619,8 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			emitbuf->tail--; // Unprotect
 			break;
 
-		case TOKEN_EOF: continue;
+		case TOKEN_END:
+			continue;
 
 		default:
 			SET_NONE(value);

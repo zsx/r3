@@ -30,7 +30,7 @@
 **  Tokens returned by the scanner.  Keep in sync with boot.r strings area.
 */
 enum Value_Types {
-	TOKEN_EOF = 0,
+	TOKEN_END = 0,
 	TOKEN_NEWLINE,
 	TOKEN_BLOCK_END,
 	TOKEN_PAREN_END,
@@ -82,7 +82,7 @@ enum Value_Types {
 */
 enum LEX_DELIMIT_ENUM {
 	LEX_DELIMIT_SPACE,              /* 20 space */
-	LEX_DELIMIT_END_FILE,           /* 00 EOF */
+	LEX_DELIMIT_END,                /* 00 null terminator, end of input */
 	LEX_DELIMIT_LINEFEED,           /* 0A line-feed */
 	LEX_DELIMIT_RETURN,             /* 0D return */
 	LEX_DELIMIT_LEFT_PAREN,         /* 28 ( */
@@ -202,7 +202,7 @@ typedef struct rebol_scan_state {
 
 #define ACCEPT_TOKEN(s) ((s)->begin = (s)->end)
 
-#define NOT_NEWLINE(c) ((c) && (c) != CR && (c) != LF)
+#define ANY_CR_LF_END(c) (!(c) || (c) == CR || (c) == LF)
 
 enum {
 	SCAN_NEXT,	// load/next feature
