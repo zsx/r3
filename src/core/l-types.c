@@ -938,11 +938,16 @@ end_date:
 
 	while (1) {
 		// Scan valid word:
-		if (GET_LEX_CLASS(*cp) == LEX_CLASS_WORD) {
+		if (IS_LEX_WORD(*cp)) {
 			start = cp;
 			while (
-				IS_LEX_AT_LEAST_WORD(*cp) || *cp == '.' || *cp == '-' || *cp == '_'
-			) cp++; // word char or number
+				IS_LEX_WORD_OR_NUMBER(*cp)
+				|| *cp == '.'
+				|| *cp == '-'
+				|| *cp == '_'
+			) {
+				cp++;
+			}
 		}
 		else break;
 

@@ -632,50 +632,74 @@
 
 /***********************************************************************
 **
-*/  static REBCNT Prescan(SCAN_STATE *scan_state)
+*/  static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 /*
-**		The general idea of this function is to break up a string
-**      into tokens, with sensitivity to common token frequencies.
-**      That is, find DELIMITERS, simple WORDS, and simple NUMBERS
-**      rapidly.  For everything else, find the substring and note
-**      the special characters that it contains.  All scans start
-**      by skipping whitespace and are concluded by a delimiter.
-**      A delimiter is returned only when nothing was found before
-**      it (i.e. not part of other lexical tokens).
+**		This function updates `scan_state->begin` to skip past leading
+**		whitespace.  If the first character it finds after that is a
+**		LEX_DELIMITER (`"`, `[`, `)`, `{`, etc. or a space/newline)
+**		then it will advance the end position to just past that one
+**		character.  For all other leading characters, it will advance
+**		the end pointer up to the first delimiter class byte (but not
+**		include it.)
 **
-**      Returns a word with bit flags indicating special chars
-**      that were found during the scan (other than the first
-**      char, which is not part of the flags).
-**      Both the beginning and ending positions are updated.
+**		If the first character is not a delimiter, then this routine
+**		also gathers a quick "fingerprint" of the special characters
+**		that appeared after it, but before a delimiter was found.
+**		This comes from unioning LEX_SPECIAL_XXX flags of the bytes
+**		that are seen (plus LEX_SPECIAL_WORD if any legal word bytes
+**		were found in that range.)
+**
+**		So if the input were "$#foobar[@" this would come back with
+**		the flags LEX_SPECIAL_POUND and LEX_SPECIAL_WORD set.  Since
+**		it is the first character, the `$` would not be counted to
+**		add LEX_SPECIAL_DOLLAR.  And LEX_SPECIAL_AT would not be set
+**		even though there is an `@` character, because it occurs
+**		after the `[` which is LEX_DELIMITER class.
+**
+**		Note: The reason the first character's lexical class is not
+**		considered is because it's important to know it exactly, so
+**		the caller will use GET_LEX_CLASS(scan_state->begin[0]).
+**		Fingerprinting just helps accelerate further categorization.
 **
 ***********************************************************************/
 {
-	const REBYTE *cp = scan_state->begin; /* char scan pointer */
-	REBCNT flags = 0;               /* lexical flags */
+	const REBYTE *cp = scan_state->begin;
+	REBCNT flags = 0;
 
-	while (IS_LEX_SPACE(*cp)) cp++; /* skip white space */
-	scan_state->begin = cp;         /* start of lexical symbol */
+	// Skip whitespace (if any) and update the scan_state
+	while (IS_LEX_SPACE(*cp)) cp++;
+	scan_state->begin = cp;
 
-	while (1) {
+	while (TRUE) {
 		switch (GET_LEX_CLASS(*cp)) {
 
 		case LEX_CLASS_DELIMIT:
-			if (cp == scan_state->begin) cp++;  /* returning delimiter */
-			scan_state->end = cp;
+			if (cp == scan_state->begin) {
+				// Include the delimiter if it is the only character we
+				// are returning in the range (leave it out otherwise)
+				scan_state->end = cp + 1;
+			}
+			else
+				scan_state->end = cp;
 			return flags;
 
-		case LEX_CLASS_SPECIAL:     /* Flag all but first special char: */
-			if (cp != scan_state->begin) SET_LEX_FLAG(flags, GET_LEX_VALUE(*cp));
+		case LEX_CLASS_SPECIAL:
+			if (cp != scan_state->begin) {
+				// As long as it isn't the first character, we union a flag
+				// in the result mask to signal this special char's presence
+				SET_LEX_FLAG(flags, GET_LEX_VALUE(*cp));
+			}
 			cp++;
 			break;
 
 		case LEX_CLASS_WORD:
-			SET_LEX_FLAG(flags, LEX_SPECIAL_WORD);  /* flags word char (for nums) */
-			while (IS_LEX_AT_LEAST_WORD(*cp)) cp++; /* word or number */
+			// !!! Comment said "flags word char (for nums)"...meaning?
+			SET_LEX_FLAG(flags, LEX_SPECIAL_WORD);
+			while (IS_LEX_WORD_OR_NUMBER(*cp)) cp++;
 			break;
 
 		case LEX_CLASS_NUMBER:
-			while (IS_LEX_AT_LEAST_NUMBER(*cp)) cp++;
+			while (IS_LEX_NUMBER(*cp)) cp++;
 			break;
 		}
 	}
@@ -773,18 +797,21 @@
 **
 ***********************************************************************/
 {
-	REBCNT flags;
-	const REBYTE *cp;
-	REBINT type;
+	REBCNT flags = Prescan_Token(scan_state);
 
-	flags = Prescan(scan_state);
-	cp = scan_state->begin;
+	const REBYTE *cp = scan_state->begin;
+
+	REBINT type;
 
 	switch (GET_LEX_CLASS(*cp)) {
 
 	case LEX_CLASS_DELIMIT:
 		switch (GET_LEX_VALUE(*cp)) {
-		case LEX_DELIMIT_SPACE:         /* white space (pre-processed above) */
+		case LEX_DELIMIT_SPACE:
+			// We should not get whitespace as Prescan_Token skips it all
+			assert(FALSE);
+			DEAD_END;
+
 		case LEX_DELIMIT_SEMICOLON:     /* ; begin comment */
 			while (NOT_NEWLINE(*cp)) cp++;
 			if (!*cp) cp--;             /* avoid passing EOF  */
@@ -847,14 +874,19 @@
 
 		case LEX_DELIMIT_SLASH:
 			while (*cp && *cp == '/') cp++;
-			if (IS_LEX_AT_LEAST_WORD(*cp) || *cp=='+' || *cp=='-' || *cp=='.') {
+			if (
+				IS_LEX_WORD_OR_NUMBER(*cp)
+				|| *cp == '+'
+				|| *cp == '-'
+				|| *cp == '.'
+			) {
 				// ///refine not allowed
 				if (scan_state->begin + 1 != cp) {
 					scan_state->end = cp;
 					return -TOKEN_REFINE;
 				}
 				scan_state->begin = cp;
-				flags = Prescan(scan_state);
+				flags = Prescan_Token(scan_state);
 				scan_state->begin--;
 				type = TOKEN_REFINE;
 				// Fast easy case:
@@ -897,7 +929,7 @@
 			}
 			while (*cp == '/') {        /* deal with path delimiter */
 				cp++;
-				while (IS_LEX_AT_LEAST_SPECIAL(*cp)) cp++;
+				while (IS_LEX_NOT_DELIMIT(*cp)) cp++;
 			}
 			scan_state->end = cp;
 			return TOKEN_FILE;
@@ -982,7 +1014,7 @@
 				}
 			}
 			cp++;
-			if (IS_LEX_AT_LEAST_NUMBER(*cp)) goto num;
+			if (IS_LEX_NUMBER(*cp)) goto num;
 			if (IS_LEX_SPECIAL(*cp)) {
 				if ((GET_LEX_VALUE(*cp)) >= LEX_SPECIAL_PERIOD) goto next_ls;
 				if (*cp == '+' || *cp == '-') {
@@ -1154,7 +1186,7 @@ scanword:
 		cp = scan_state->end;   /* then, must be a URL */
 		while (*cp == '/') {    /* deal with path delimiter */
 			cp++;
-			while (IS_LEX_AT_LEAST_SPECIAL(*cp) || *cp == '/') cp++;
+			while (IS_LEX_NOT_DELIMIT(*cp) || *cp == '/') cp++;
 		}
 		scan_state->end = cp;
 		return TOKEN_URL;
@@ -1467,7 +1499,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 			else {				// A / and not in block
 				token = TOKEN_DATE;
-				while (*ep == '/' || IS_LEX_AT_LEAST_SPECIAL(*ep)) ep++;
+				while (*ep == '/' || IS_LEX_NOT_DELIMIT(*ep)) ep++;
 				scan_state->begin = ep;
 				len = (REBCNT)(ep - bp);
 				if (ep != Scan_Date(bp, len, value)) goto syntax_error;
@@ -1503,7 +1535,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 		case TOKEN_DATE:
 			while (*ep == '/' && mode_char != '/') {  // Is it a date/time?
 				ep++;
-				while (IS_LEX_AT_LEAST_SPECIAL(*ep)) ep++;
+				while (IS_LEX_NOT_DELIMIT(*ep)) ep++;
 				len = (REBCNT)(ep - bp);
 				if (len > 50) {
 					// prevent infinite loop, should never be longer than this

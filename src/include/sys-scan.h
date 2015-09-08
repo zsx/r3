@@ -78,6 +78,7 @@ enum Value_Types {
 
 /*
 **	Delimiting Chars (encoded in the LEX_VALUE field)
+**	NOTE: Macros do make assumption that _RETURN is the last space delimiter
 */
 enum LEX_DELIMIT_ENUM {
 	LEX_DELIMIT_SPACE,              /* 20 space */
@@ -100,6 +101,7 @@ enum LEX_DELIMIT_ENUM {
 
 /*
 **  General Lexical Classes (encoded in the LEX_CLASS field)
+**  NOTE: macros do make assumptions on the order, and that there are 4!
 */
 enum LEX_CLASS_ENUM {
     LEX_CLASS_DELIMIT = 0,
@@ -125,11 +127,11 @@ enum LEX_CLASS_ENUM {
 #define IS_LEX_DELIMIT(c)               (MASK_LEX_CLASS(c) == LEX_DELIMIT)
 #define IS_LEX_SPECIAL(c)               (MASK_LEX_CLASS(c) == LEX_SPECIAL)
 #define IS_LEX_WORD(c)                  (MASK_LEX_CLASS(c) == LEX_WORD)
-#define IS_LEX_NUMBER(c)                (MASK_LEX_CLASS(c) == LEX_NUMBER)
+// Optimization (necessary?)
+#define IS_LEX_NUMBER(c)                (Lex_Map[(REBYTE)c] >= LEX_NUMBER)
 
-#define IS_LEX_AT_LEAST_SPECIAL(c)      (Lex_Map[(REBYTE)c] >= LEX_SPECIAL)
-#define IS_LEX_AT_LEAST_WORD(c)         (Lex_Map[(REBYTE)c] >= LEX_WORD)
-#define IS_LEX_AT_LEAST_NUMBER(c)       (Lex_Map[(REBYTE)c] >= LEX_NUMBER)
+#define IS_LEX_NOT_DELIMIT(c)           (Lex_Map[(REBYTE)c] >= LEX_SPECIAL)
+#define IS_LEX_WORD_OR_NUMBER(c)        (Lex_Map[(REBYTE)c] >= LEX_WORD)
 
 /*
 **  Special Chars (encoded in the LEX_VALUE field)
