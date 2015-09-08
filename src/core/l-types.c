@@ -565,41 +565,6 @@ end_date:
 	if (cp)
 		Val_Init_File(value, Copy_String(BUF_MOLD, 0, -1));
 	return cp;
-
-#ifdef ndef
-	extern REBYTE *Scan_Quote(REBYTE *src, SCAN_STATE *scan_state);
-
-	if (*cp == '%') cp++, len--;
-	if (len == 0) return 0;
-	if (*cp == '"') {
-		cp = Scan_Quote(cp, 0);
-		if (cp) {
-			int need_changes;
-			Val_Init_String(value, Copy_String(BUF_MOLD, 0, -1));
-			VAL_SET(value, REB_FILE);
-		}
-		return cp;
-	}
-
-	VAL_SERIES(value) = Make_Binary(len);
-	VAL_INDEX(value) = 0;
-
-	str = VAL_BIN(value);
-	for (; len > 0; len--) {
-		if (*cp == '%' && len > 2 && Scan_Hex2(cp+1, &n, FALSE)) {
-			*str++ = n;
-			cp += 3;
-			len -= 2;
-		}
-		else if (*cp == '\\') cp++, *str++ = '/';
-		else if (strchr(":;()[]\"", *cp)) return 0;  // chars not allowed in files !!!
-		else *str++ = *cp++;
-	}
-	*str = 0;
-	VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
-	VAL_SET(value, REB_FILE);
-	return cp;
-#endif
 }
 
 

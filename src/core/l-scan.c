@@ -415,7 +415,7 @@
 
 /***********************************************************************
 **
-*/  static const REBYTE *Scan_Quote(const REBYTE *src, SCAN_STATE *scan_state)
+*/  static const REBYTE *Scan_Quote(REBSER *buf, const REBYTE *src, SCAN_STATE *scan_state)
 /*
 **      Scan a quoted string, handling all the escape characters.
 **
@@ -427,9 +427,6 @@
 	REBUNI term;
 	REBINT chr;
 	REBCNT lines = 0;
-	REBSER *buf = BUF_MOLD;
-
-	RESET_TAIL(buf);
 
 	term = (*src++ == '{') ? '}' : '"';	// pick termination
 
@@ -687,20 +684,92 @@
 
 /***********************************************************************
 **
-*/  static REBINT Scan_Token(SCAN_STATE *scan_state)
+*/  static REBINT Locate_Token(SCAN_STATE *scan_state)
 /*
-**		Scan the next lexical object and determine its datatype.
-**		Skip all leading whitespace and conclude on a delimiter.
+**		Find the beginning and end character pointers for the next
+**		TOKEN_ in the scanner state.  The TOKEN_ type returned will
+**		correspond directly to a Rebol datatype if it isn't an
+**		ANY-ARRAY! (e.g. TOKEN_INTEGER for INTEGER! or TOKEN_STRING
+**		for STRING!).  When a block or paren delimiter was found it
+**		will indicate that (e.g. TOKEN_BLOCK_BEGIN or TOKEN_PAREN_END).
+**		Hence the routine will have to be called multiple times during
+**		the array's content scan.
 **
-**      Returns the value type (VT) identifying the token.
-**		Negative value types indicate an error in that type.
-**      Both the beginning and ending positions are updated.
+**		!!! This should be modified to explain how paths work, once
+**		I can understand how paths work. :-/  --HF
 **
-**      Note: this function does not need to find errors in types
-**      that are to be scanned and converted.  It only needs to
-**      recognize that the value should be of that type. For words
-**      however, since no further scanning is done, they must be
-**      checked for errors here.  Same is true for delimiters.
+**		The scan_state will be updated so that `scan_state->begin`
+**		has been moved past any leading whitespace that was pending in
+**		the buffer.  `scan_state->end` will hold the conclusion at
+**		a delimiter.  TOKEN_EOF is returned if end of input is reached.
+**
+**		Newlines that should be internal to a non-ANY-ARRAY! type are
+**		included in the scanned range between the `begin` and `end`.
+**		But newlines that are found outside of a string are returned
+**		as TOKEN_NEWLINE.  (These are used to set the OPTS_VALUE_LINE
+**		formatting bit on the values.)
+**
+**		Determining the end point of token types that need escaping
+**		requires processing (for instance `{a^}b}` can't see the first
+**		close brace as ending the string).  To avoid double processing,
+**		the routine decodes the string's content into BUF_MOLD for any
+**		quoted form to be used by the caller.  This is overwritten in
+**		successive calls, and is only done for quoted forms (e.g. %"foo"
+**		will have data in BUF_MOLD but %foo will not.)
+**
+**		!!! This is a somewhat weird separation of responsibilities,
+**		that seems to arise from a desire to make "Scan_XXX" functions
+**		independent of the "Locate_Token" function.  But if the work of
+**		locating the value means you have to basically do what you'd
+**		do to read it into a REBVAL anyway, why split it up?  --HF
+**
+**		Error handling is limited for most types, as an additional
+**		phase is needed to load their data into a REBOL value.  Yet if
+**		a "cheap" error is incidentally found during this routine
+**		without extra cost to compute, it is indicated by returning a
+**		negative value for the malformed type.
+**
+**		!!! What real value is this optimization of the negative type,
+**		as opposed to just raising the error here?  Is it required to
+**		support a resumable scanner on partially written source, such
+**		as in a syntax highlighter?  Is the "relaxed" mode of handling
+**		errors already sufficient to achieve the goal?  --HF
+**
+**		Examples with scan_state's (B)egin (E)nd and return value:
+**
+**			   foo: baz bar => TOKEN_SET
+**			   B   E
+**
+**			[quick brown fox] => TOKEN_BLOCK_BEGIN
+**			B
+**			 E
+**
+**			"brown fox]" => TOKEN_WORD
+**			 B    E
+**
+**			  $10AE.20 sent => -TOKEN_MONEY (negative, malformed)
+**			  B       E
+**
+**			  {line1\nline2}  => TOKEN_STRING (content in BUF_MOLD)
+**			  B             E
+**
+**			\n{line2} => TOKEN_NEWLINE (newline is external)
+**			BB
+**			  E
+**
+**			%"a ^"b^" c" d => TOKEN_FILE (content in BUF_MOLD)
+**			B           E
+**
+**			%a-b.c d => TOKEN_FILE (content *not* in BUF_MOLD)
+**			B     E
+**
+**			\0 => TOKEN_EOF
+**			BB
+**			EE
+**
+**		Note: The reason that the code is able to use byte scanning
+**		over UTF-8 encoded source is because all the characters
+**		that dictate the tokenization are ASCII (< 128).
 **
 ***********************************************************************/
 {
@@ -721,33 +790,44 @@
 			if (!*cp) cp--;             /* avoid passing EOF  */
 			if (*cp == LF) goto line_feed;
 			/* fall thru  */
-		case LEX_DELIMIT_RETURN:        /* CR */
+		case LEX_DELIMIT_RETURN:
 			if (cp[1] == LF) cp++;
 			/* fall thru */
-		case LEX_DELIMIT_LINEFEED:      /* LF */
+		case LEX_DELIMIT_LINEFEED:
 		line_feed:
 			scan_state->line_count++;
 			scan_state->end = cp + 1;
 			return TOKEN_NEWLINE;
 
-		case LEX_DELIMIT_LEFT_BRACKET:  /* [ begin block */
+
+		// [BRACKETS]
+
+		case LEX_DELIMIT_LEFT_BRACKET:
 			return TOKEN_BLOCK_BEGIN;
 
-		case LEX_DELIMIT_RIGHT_BRACKET: /* ] end block */
+		case LEX_DELIMIT_RIGHT_BRACKET:
 			return TOKEN_BLOCK_END;
 
-		case LEX_DELIMIT_LEFT_PAREN:    /* ( begin paren */
+
+		// (PARENS)
+
+		case LEX_DELIMIT_LEFT_PAREN:
 			return TOKEN_PAREN_BEGIN;
 
-		case LEX_DELIMIT_RIGHT_PAREN:   /* ) end paren */
+		case LEX_DELIMIT_RIGHT_PAREN:
 			return TOKEN_PAREN_END;
 
-		case LEX_DELIMIT_DOUBLE_QUOTE:  /* " quote */
-			cp = Scan_Quote(cp, scan_state); // stores result string in BUF_MOLD
+
+		// "QUOTES" and {BRACES}
+
+		case LEX_DELIMIT_DOUBLE_QUOTE:
+			RESET_TAIL(BUF_MOLD);
+			cp = Scan_Quote(BUF_MOLD, cp, scan_state);
 			goto check_str;
 
-		case LEX_DELIMIT_LEFT_BRACE:    /* { begin quote */
-			cp = Scan_Quote(cp, scan_state);  // stores result string in BUF_MOLD
+		case LEX_DELIMIT_LEFT_BRACE:
+			RESET_TAIL(BUF_MOLD);
+			cp = Scan_Quote(BUF_MOLD, cp, scan_state);
 		check_str:
 			if (cp) {
 				scan_state->end = cp;
@@ -758,11 +838,14 @@
 				return -TOKEN_STRING;
 			}
 
-		case LEX_DELIMIT_RIGHT_BRACE:   /* } end quote */
+		case LEX_DELIMIT_RIGHT_BRACE:
 			// !!! handle better (missing)
 			return -TOKEN_STRING;
 
-		case LEX_DELIMIT_SLASH:         /* probably / or / *   */
+
+		// /SLASH
+
+		case LEX_DELIMIT_SLASH:
 			while (*cp && *cp == '/') cp++;
 			if (IS_LEX_AT_LEAST_WORD(*cp) || *cp=='+' || *cp=='-' || *cp=='.') {
 				// ///refine not allowed
@@ -806,8 +889,8 @@
 		case LEX_SPECIAL_PERCENT:       /* %filename */
 			cp = scan_state->end;
 			if (*cp == '"') {
-				// Scan_Quote stores result string in BUF_MOLD
-				cp = Scan_Quote(cp, scan_state);
+				RESET_TAIL(BUF_MOLD);
+				cp = Scan_Quote(BUF_MOLD, cp, scan_state);
 				if (!cp) return -TOKEN_FILE;
 				scan_state->end = cp;
 				return TOKEN_FILE;
@@ -933,8 +1016,8 @@
 			if (*cp == '{') { /* BINARY #{12343132023902902302938290382} */
 				scan_state->end = scan_state->begin;  /* save start */
 				scan_state->begin = cp;
-				// !!! Scan_Quote stores result string in BUF_MOLD !!??
-				cp = Scan_Quote(cp, scan_state);
+				RESET_TAIL(BUF_MOLD);
+				cp = Scan_Quote(BUF_MOLD, cp, scan_state);
 				scan_state->begin = scan_state->end;  /* restore start */
 				if (cp) {
 					scan_state->end = cp;
@@ -1047,7 +1130,9 @@
 		return -TOKEN_WORD;
 	}
 
-scanword: // unreachable otherwise
+	DEAD_END;
+
+scanword:
 	if (HAS_LEX_FLAG(flags, LEX_SPECIAL_COLON)) { // word:  url:words
 		if (type != TOKEN_WORD) {
 			// only valid with WORD (not set or lit)
@@ -1217,7 +1302,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 #ifdef COMP_LINES
 		linenum=scan_state->line_count,
 #endif
-		((token = Scan_Token(scan_state)) != TOKEN_EOF)
+		((token = Locate_Token(scan_state)) != TOKEN_EOF)
 	) {
 
 		bp = scan_state->begin;
@@ -1732,7 +1817,7 @@ exit_block:
 
 	Init_Scan_State(&scan_state, cp, len);
 
-	if (TOKEN_WORD == Scan_Token(&scan_state)) return Make_Word(cp, len);
+	if (TOKEN_WORD == Locate_Token(&scan_state)) return Make_Word(cp, len);
 
 	return 0;
 }
