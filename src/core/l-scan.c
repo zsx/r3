@@ -589,13 +589,12 @@
 
 /***********************************************************************
 **
-*/	static void Scan_Error(REBCNT errnum, SCAN_STATE *ss, REBCNT tkn, const REBYTE *arg, REBCNT size, REBVAL *relax)
+*/	static void Make_Error_Bad_Scan(REBVAL *out, REBCNT errnum, SCAN_STATE *ss, REBCNT tkn, const REBYTE *arg, REBCNT size)
 /*
 **		Scanner error handler
 **
 ***********************************************************************/
 {
-	REBVAL error;
 	ERROR_OBJ *err_obj;
 	REBSER *frame;
 	const REBYTE *name;
@@ -630,14 +629,7 @@
 	Val_Init_String(&err_obj->arg1, Copy_Bytes(name, -1));
 	Val_Init_String(&err_obj->arg2, Copy_Bytes(arg, size));
 
-	Val_Init_Error(&error, frame);
-
-	if (relax) {
-		*relax = error;
-		return;
-	}
-
-	raise Error_Is(&error);
+	Val_Init_Error(out, frame);
 }
 
 
@@ -1491,7 +1483,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_EOF: continue;
 
-		default: ;
+		default:
 			SET_NONE(value);
 		}
 
@@ -1513,18 +1505,23 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 #endif
 		if (VAL_TYPE(value)) emitbuf->tail++;
 		else {
+			REBVAL error;
 		syntax_error:
-			value = BLK_TAIL(emitbuf);
-			Scan_Error(
+			Make_Error_Bad_Scan(
+				&error,
 				RE_INVALID,
 				scan_state,
 				cast(REBCNT, token),
 				bp,
-				cast(REBCNT, ep - bp),
-				GET_FLAG(scan_state->opts, SCAN_RELAX) ? value : 0
+				cast(REBCNT, ep - bp)
 			);
-			emitbuf->tail++;
-			goto exit_block;
+			if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
+				*BLK_TAIL(emitbuf) = error;
+				emitbuf->tail++;
+				goto exit_block;
+			}
+			raise Error_Is(&error);
+
 		missing_error:
 			scan_state->line_count = start;	// where block started
 			scan_state->head_line = start_line;
@@ -1532,17 +1529,20 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				REBYTE tmp_buf[4];	// Temporary error string
 				tmp_buf[0] = mode_char;
 				tmp_buf[1] = 0;
-				value = BLK_TAIL(emitbuf);
-				Scan_Error(
+				Make_Error_Bad_Scan(
+					&error,
 					RE_MISSING,
 					scan_state,
 					cast(REBCNT, token),
 					tmp_buf,
-					1,
-					GET_FLAG(scan_state->opts, SCAN_RELAX) ? value : 0
+					1
 				);
-				emitbuf->tail++;
-				goto exit_block;
+				if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
+					*BLK_TAIL(emitbuf) = error;
+					emitbuf->tail++;
+					goto exit_block;
+				}
+				raise Error_Is(&error);
 			}
 		}
 
