@@ -31,7 +31,7 @@
 */
 enum Value_Types {
 	TOKEN_EOF = 0,
-	TOKEN_LINE,
+	TOKEN_NEWLINE,
 	TOKEN_BLOCK_END,
 	TOKEN_PAREN_END,
 	TOKEN_WORD,
@@ -47,8 +47,8 @@ enum Value_Types {
 	TOKEN_TIME,
 	TOKEN_DATE,
 	TOKEN_CHAR,
-	TOKEN_BLOCK,
-	TOKEN_PAREN,
+	TOKEN_BLOCK_BEGIN,
+	TOKEN_PAREN_BEGIN,
 	TOKEN_STRING,
 	TOKEN_BINARY,
 	TOKEN_PAIR,
@@ -90,7 +90,7 @@ enum LEX_DELIMIT_ENUM {
 	LEX_DELIMIT_RIGHT_BRACKET,      /* 5D ] */
 	LEX_DELIMIT_LEFT_BRACE,         /* 7B } */
 	LEX_DELIMIT_RIGHT_BRACE,        /* 7D } */
-	LEX_DELIMIT_QUOTE,              /* 22 " */
+	LEX_DELIMIT_DOUBLE_QUOTE,       /* 22 " */
 	LEX_DELIMIT_SLASH,              /* 2F / - date, path, file */
 	LEX_DELIMIT_SEMICOLON,          /* 3B ; */
 	LEX_DELIMIT_UTF8_ERROR,
@@ -139,7 +139,7 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
 	LEX_SPECIAL_PERCENT,            /* 25 % - file name */
 	LEX_SPECIAL_BACKSLASH,          /* 5C \  */
 	LEX_SPECIAL_COLON,              /* 3A : - time, get, set */
-	LEX_SPECIAL_TICK,               /* 27 ' - literal */
+	LEX_SPECIAL_APOSTROPHE,         /* 27 ' - literal */
 	LEX_SPECIAL_LESSER,				/* 3C < - compare or tag */
 	LEX_SPECIAL_GREATER,			/* 3E > - compare or end tag */
 	LEX_SPECIAL_PLUS,               /* 2B + - positive number */

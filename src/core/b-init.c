@@ -232,7 +232,7 @@ static	BOOT_BLK *Boot_Block;
 		panic Error_0(RE_BAD_END_CANON_WORD);
 	if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
 		panic Error_0(RE_BAD_TRUE_CANON_WORD);
-	if (COMPARE_BYTES(cb_cast("line"), BOOT_STR(RS_SCAN, 1)) != 0)
+	if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
 		panic Error_0(RE_BAD_BOOT_STRING);
 }
 

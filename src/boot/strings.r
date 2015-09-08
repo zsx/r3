@@ -22,9 +22,9 @@ REBOL [
 
 scan: ; Used by scanner. Keep in sync with Value_Types in scan.h file!
 	"end-of-script"
-	"line"
-	"end-of-block"
-	"end-of-paren"
+	"newline"
+	"block-end"
+	"paren-end"
 	"word"
 	"word-set"
 	"word-get"
@@ -38,8 +38,8 @@ scan: ; Used by scanner. Keep in sync with Value_Types in scan.h file!
 	"time"
 	"date"
 	"char"
-	"block"
-	"paren"
+	"block-begin"
+	"paren-begin"
 	"string"
 	"binary"
 	"pair"

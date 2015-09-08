@@ -88,12 +88,12 @@
 
 	/* 20     */    LEX_DELIMIT|LEX_DELIMIT_SPACE,
 	/* 21 !   */    LEX_WORD,
-	/* 22 "   */    LEX_DELIMIT|LEX_DELIMIT_QUOTE,
+	/* 22 "   */    LEX_DELIMIT|LEX_DELIMIT_DOUBLE_QUOTE,
 	/* 23 #   */    LEX_SPECIAL|LEX_SPECIAL_POUND,
 	/* 24 $   */    LEX_SPECIAL|LEX_SPECIAL_DOLLAR,
 	/* 25 %   */    LEX_SPECIAL|LEX_SPECIAL_PERCENT,
 	/* 26 &   */    LEX_WORD,
-	/* 27 '   */    LEX_SPECIAL|LEX_SPECIAL_TICK,
+	/* 27 '   */    LEX_SPECIAL|LEX_SPECIAL_APOSTROPHE,
 	/* 28 (   */    LEX_DELIMIT|LEX_DELIMIT_LEFT_PAREN,
 	/* 29 )   */    LEX_DELIMIT|LEX_DELIMIT_RIGHT_PAREN,
 	/* 2A *   */    LEX_WORD,
@@ -728,21 +728,21 @@
 		line_feed:
 			scan_state->line_count++;
 			scan_state->end = cp + 1;
-			return TOKEN_LINE;
+			return TOKEN_NEWLINE;
 
 		case LEX_DELIMIT_LEFT_BRACKET:  /* [ begin block */
-			return TOKEN_BLOCK;
+			return TOKEN_BLOCK_BEGIN;
 
 		case LEX_DELIMIT_RIGHT_BRACKET: /* ] end block */
 			return TOKEN_BLOCK_END;
 
 		case LEX_DELIMIT_LEFT_PAREN:    /* ( begin paren */
-			return TOKEN_PAREN;
+			return TOKEN_PAREN_BEGIN;
 
 		case LEX_DELIMIT_RIGHT_PAREN:   /* ) end paren */
 			return TOKEN_PAREN_END;
 
-		case LEX_DELIMIT_QUOTE:         /* " quote */
+		case LEX_DELIMIT_DOUBLE_QUOTE:  /* " quote */
 			cp = Scan_Quote(cp, scan_state); // stores result string in BUF_MOLD
 			goto check_str;
 
@@ -836,7 +836,7 @@
 			cp++;                       /* skip ':' */
 			goto scanword;
 
-		case LEX_SPECIAL_TICK:
+		case LEX_SPECIAL_APOSTROPHE:
 			if (IS_LEX_NUMBER(cp[1])) return -TOKEN_LIT;		// no '2nd
 			if (cp[1] == ':') return -TOKEN_LIT;				// no ':X
 			if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
@@ -1016,7 +1016,7 @@
 					~(
 						LEX_FLAG(LEX_SPECIAL_POUND)
 						| LEX_FLAG(LEX_SPECIAL_PERIOD)
-						| LEX_FLAG(LEX_SPECIAL_TICK)
+						| LEX_FLAG(LEX_SPECIAL_APOSTROPHE)
 					)
 				)
 			) {
@@ -1039,7 +1039,7 @@
 			if (*cp == '%') return TOKEN_PERCENT;
 		}
 		/*cp = scan_state->begin;*/
-		if (HAS_LEX_FLAG(flags, LEX_SPECIAL_TICK))
+		if (HAS_LEX_FLAG(flags, LEX_SPECIAL_APOSTROPHE))
 			return TOKEN_INTEGER; // 1'200
 		return -TOKEN_INTEGER;
 
@@ -1290,7 +1290,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 		// Process each lexical token appropriately:
 		switch (token) {  // (idea is that compiler selects computed branch)
 
-		case TOKEN_LINE:
+		case TOKEN_NEWLINE:
 #ifdef TEST_SCAN
 			Wait_User("next...");
 #endif
@@ -1341,10 +1341,10 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 			break;
 
-		case TOKEN_BLOCK:
-		case TOKEN_PAREN:
+		case TOKEN_BLOCK_BEGIN:
+		case TOKEN_PAREN_BEGIN:
 			block = Scan_Block(
-				scan_state, cast(REBYTE, (token == TOKEN_BLOCK) ? ']' : ')')
+				scan_state, (token == TOKEN_BLOCK_BEGIN) ? ']' : ')'
 			);
 			// (above line could have realloced emitbuf)
 			ep = scan_state->end;
@@ -1356,7 +1356,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			}
 			Val_Init_Series_Index(
 				value,
-				(token == TOKEN_BLOCK) ? REB_BLOCK : REB_PAREN,
+				(token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_PAREN,
 				block,
 				0
 			);
@@ -1763,7 +1763,7 @@ exit_block:
 
 		case LEX_CLASS_SPECIAL:     /* Flag all but first special char: */
 			c = GET_LEX_VALUE(*bp);
-			if (!(LEX_SPECIAL_TICK    == c
+			if (!(LEX_SPECIAL_APOSTROPHE == c
 				|| LEX_SPECIAL_COMMA  == c
 				|| LEX_SPECIAL_PERIOD == c
 				|| LEX_SPECIAL_PLUS   == c
