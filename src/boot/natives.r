@@ -89,8 +89,8 @@ catch: native [
 ;]
 
 comment: native [
-	{Ignores the argument value and returns nothing.}
-	value {A string, block, file, etc.}
+	{Ignores the argument value and returns nothing (no evaluations performed).}
+	:value [block! any-string! scalar!] {Literal value to be ignored.}
 ]
 
 compose: native [
