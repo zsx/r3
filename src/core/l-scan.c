@@ -1358,7 +1358,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		if (token < 0) {	// Check for error tokens
 			token = -token;
-			ACCEPT_TOKEN(scan_state);
+			scan_state->begin = scan_state->end; // skip malformed token
 			goto syntax_error;
 		}
 
@@ -1416,7 +1416,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			VAL_INDEX(value) = 0;
 			token = TOKEN_PATH;
 		} else {
-			ACCEPT_TOKEN(scan_state);
+			scan_state->begin = scan_state->end; // accept token
 		}
 
 		// Process each lexical token appropriately:

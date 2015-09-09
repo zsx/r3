@@ -200,8 +200,6 @@ typedef struct rebol_scan_state {
 	REBCNT errors;
 } SCAN_STATE;
 
-#define ACCEPT_TOKEN(s) ((s)->begin = (s)->end)
-
 #define ANY_CR_LF_END(c) (!(c) || (c) == CR || (c) == LF)
 
 enum {
