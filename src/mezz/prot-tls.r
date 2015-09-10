@@ -242,7 +242,7 @@ update-proto-state: func [
 		debug ["new-state:" new-state]
 		ctx/protocol-state: new-state
 	] [
-		do make error! "invalid protocol state"
+		fail "invalid protocol state"
 	]
 ]
 
@@ -548,7 +548,7 @@ parse-protocol: func [
 	/local proto
 ] [
 	unless proto: select protocol-types data/1 [
-		do make error! "unknown/invalid protocol type"
+		fail "unknown/invalid protocol type"
 	]
 	return context [
 		type: proto
@@ -686,7 +686,10 @@ parse-messages: func [
 								ctx/hash-size: 20
 							]
 						] cipher-suites [
-							do make error! rejoin ["Current version of TLS scheme doesn't support ciphersuite: " mold ctx/cipher-suite]
+							fail [
+								"This TLS scheme doesn't support ciphersuite:"
+								(mold ctx/cipher-suite)
+							]
 						]
 
 						ctx/server-random: msg-obj/server-random
@@ -749,7 +752,7 @@ parse-messages: func [
 								msg-obj
 							]
 						] [
-							do make error! "Server-key-exchange message has been sent illegally."
+							fail "Server-key-exchange message sent illegally."
 						]
 					]
 					server-hello-done [
@@ -771,7 +774,7 @@ parse-messages: func [
 						ctx/seq-num-r: 0
 						msg-content: copy/part at data 5 len
 						either msg-content <> prf ctx/master-secret either ctx/server? ["client finished"] ["server finished"] rejoin [checksum/method ctx/handshake-messages 'md5 checksum/method ctx/handshake-messages 'sha1] 12 [
-							do make error! "Bad 'finished' MAC"
+							fail "Bad 'finished' MAC"
 						] [
 							debug "FINISHED MAC verify: OK"
 						]
@@ -796,7 +799,7 @@ parse-messages: func [
 							copy/part data len + 4
 						] ctx/hash-method decode 'text ctx/server-mac-key
 					[
-						do make error! "Bad handshake record MAC"
+						fail "Bad handshake record MAC"
 					]
 					4 + ctx/hash-size
 				] [
@@ -826,7 +829,7 @@ parse-messages: func [
 				msg-obj/content			; content
 			] ctx/hash-method decode 'text ctx/server-mac-key
 			[
-				do make error! "Bad application record MAC"
+				fail "Bad application record MAC"
 			]
 		]
 	]
@@ -842,14 +845,16 @@ parse-response: func [
 ] [
 	proto: parse-protocol msg
 	either empty? messages: parse-messages ctx proto [
-		do make error! "unknown/invalid protocol message"
+		fail "unknown/invalid protocol message"
 	] [
 		proto/messages: messages
 	]
 
 	debug ["processed protocol type:" proto/type "messages:" length proto/messages]
 
-	unless tail? skip msg proto/size + 5 [do make error! "invalid length of response fragment"]
+	unless tail? skip msg proto/size + 5 [
+		fail "invalid length of response fragment"
+	]
 
 	return proto
 ]
@@ -928,7 +933,7 @@ do-commands: func [
 	write ctx/connection ctx/msg
 
 	unless no-wait [
-		unless port? wait [ctx/connection 30] [do make error! "port timeout"]
+		unless port? wait [ctx/connection 30] [fail "port timeout"]
 	]
 	ctx/resp
 ]
@@ -1093,7 +1098,7 @@ tls-awake: function [event [event!]] [
 		]
 	] [
 		close port
-		do make error! rejoin ["Unexpected TLS event: " event/type]
+		fail ["Unexpected TLS event:" (event/type)]
 	]
 	false
 ]

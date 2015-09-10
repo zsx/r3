@@ -52,7 +52,7 @@ read-sync-awake: func [event [event!] /local error] [
 		error [
 			error: event/port/state/error
 			event/port/state/error: none
-			do error
+			fail error
 		]
 	] [
 		false

@@ -657,7 +657,7 @@ for-each [cat msgs] boot-errors [
 					either get-word? item [{ %v }] [item]
 				]
 			]
-			true [do make error! {Non-STRING! non-BLOCK! as %errors.r value}]
+			true [fail {Non-STRING! non-BLOCK! as %errors.r value}]
 		]
 		append code null
 	]
@@ -904,7 +904,7 @@ for-each [cat msgs] boot-errors [
 	emit newline
 ]
 
-if errs [do make error! "Invalid errors.r input"]
+if errs [fail "Invalid errors.r input"]
 
 emit-end
 

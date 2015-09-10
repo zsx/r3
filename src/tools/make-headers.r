@@ -85,7 +85,7 @@ func-header: [
 				newline
 				http://stackoverflow.com/questions/693788/c-void-arguments
 			]
-			do make error! "C++ no-arg prototype used instead of C style"
+			fail "C++ no-arg prototype used instead of C style"
 		]
 
 		append-spec spec

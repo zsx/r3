@@ -674,6 +674,18 @@ was_caught:
 	REBOOL named = D_REF(2);
 	REBVAL * const name_value = D_ARG(3);
 
+	if (IS_ERROR(value)) {
+		// We raise an alert from within the implementation of throw for
+		// trying to use it to trigger errors, because if THROW just didn't
+		// take errors in the spec it wouldn't guide what *to* use.
+		//
+		raise Error_0(RE_USE_FAIL_FOR_ERROR);
+
+		// Note: Caller can put the ERROR! in a block or use some other
+		// such trick if it wants to actually throw an error.
+		// (Better than complicating throw with /error-is-intentional!)
+	}
+
 	if (named) {
 		// blocks as names would conflict with name_list feature in catch
 		assert(!IS_BLOCK(name_value));
@@ -824,7 +836,9 @@ was_caught:
 		return R_OUT;
 
 	case REB_ERROR:
-		raise Error_Is(value);
+		// This path will no longer raise the error you asked for, though it
+		// will still raise *an* error directing you to use FAIL.)
+		raise Error_0(RE_USE_FAIL_FOR_ERROR);
 
 	case REB_BINARY:
 	case REB_STRING:
@@ -900,6 +914,77 @@ was_caught:
 	CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
 	return R_OUT;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(fail)
+/*
+***********************************************************************/
+{
+	REBVAL * const reason = D_ARG(1);
+
+	if (IS_ERROR(reason)) {
+		raise Error_Is(reason);
+	}
+	else if (IS_STRING(reason) || IS_BLOCK(reason)) {
+		// Ultimately we'd like FAIL to use some clever error-creating
+		// dialect when passed a block, maybe something like:
+		//
+		//     fail [<invalid-key> {The key} key-name: key {is invalid}]
+		//
+		// That could provide an error ID, the format message, and the
+		// values to plug into the slots to make the message...which could
+		// be extracted from the error if captured (e.g. error/id and
+		// `error/key-name`.  Another option would be something like:
+		//
+		//     fail/with [{The key} :key-name {is invalid}] [key-name: key]
+		//
+		if (IS_BLOCK(reason)) {
+			// Check to make sure we're only drawing from the limited types
+			// we accept (reserving room for future dialect expansion)
+			REBCNT index = VAL_INDEX(reason);
+			for (; index < SERIES_LEN(VAL_SERIES(reason)); index++) {
+				REBVAL *item = BLK_SKIP(VAL_SERIES(reason), index);
+				if (IS_STRING(item) || IS_SCALAR(item) || IS_PAREN(item))
+					continue;
+
+				// We don't want to dispatch functions directly (use parens)
+
+				// !!! This keeps the option open of being able to know that
+				// strings that appear in the block appear in the error
+				// message so it can be templated.
+
+				if (IS_WORD(item)) {
+					const REBVAL *var = TRY_GET_VAR(item);
+					if (!var || !ANY_FUNC(var))
+						continue;
+				}
+
+				// The only way to tell if a path resolves to a function
+				// or not is to actually evaluate it, and we are delegating
+				// to Reduce_Block ATM.  For now we force you to use a PAREN!
+				//
+				//     fail [{Erroring on} (the/safe/side) {for now.}]
+
+				raise Error_0(RE_LIMITED_FAIL_INPUT);
+			}
+
+			// We just reduce and form the result, but since we allow PAREN!
+			// it means you can put in pretty much any expression.
+			Reduce_Block(reason, VAL_SERIES(reason), VAL_INDEX(reason), FALSE);
+			Val_Init_String(reason, Copy_Form_Value(reason, 0));
+		}
+
+		if (!Make_Error_Object(D_OUT, reason)) {
+			assert(THROWN(D_OUT));
+			return R_OUT;
+		}
+		raise Error_Is(D_OUT);
+	}
+
+	DEAD_END;
 }
 
 

@@ -83,11 +83,6 @@ catch: native [
 	handler [block! any-function!] {If FUNCTION!, spec matches [value name]}
 ]
 
-;cause: native [
-;	{Force error processing on an error value.}
-;	error [error!]
-;]
-
 comment: native [
 	{Ignores the argument value and returns nothing (no evaluations performed).}
 	:value [block! any-string! scalar!] {Literal value to be ignored.}
@@ -155,6 +150,11 @@ exit: native [
 	{Leave whatever enclosing Rebol state EXIT's block *actually* runs in.}
 	/with {Result for enclosing state (default is UNSET!)}
 	value [any-type!]
+]
+
+fail: native [
+	{Interrupts execution by reporting an error (a TRAP can intercept it).}
+	reason [error! string! block!] {ERROR! value, message string, or failure spec}
 ]
 
 find-script: native [

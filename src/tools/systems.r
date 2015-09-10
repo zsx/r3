@@ -188,7 +188,7 @@ config-system: func [
 ][
 	; Don't override a literal version tuple with a guess
 	if all [guess version] [
-		do make error! "config-system called with both /version and /guess"
+		fail "config-system called with both /version and /guess"
 	]
 
 	id: any [
@@ -202,7 +202,7 @@ config-system: func [
 			probe hint
 			hint: load hint
 			unless tuple? hint [
-				do make error! rejoin [
+				fail [
 					"Expected platform id (tuple like 0.3.1), not:" hint
 				]
 			]
@@ -214,8 +214,8 @@ config-system: func [
 	]
 
 	unless result: find-record-unique systems 'id id [
-		do make error! rejoin [
-			{No table entry for} space version space {found in systems.r}
+		fail [
+			{No table entry for} version {found in systems.r}
 		]
 	]
 

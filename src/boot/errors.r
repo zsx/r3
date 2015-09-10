@@ -135,6 +135,10 @@ Script: [
 
 	trap-with-expects:	[{must allow} :arg1 {as ERROR! to be TRAP handler}]
 
+	; Temporary error while DO MAKE ERROR! constructs are still outstanding
+	use-fail-for-error:	{Use FAIL (instead of THROW or DO) to trigger ERROR!}
+	limited-fail-input:	{FAIL requires complex expressions to be in a PAREN!}
+
 	invalid-arg:        [{invalid argument:} :arg1]
 	invalid-type:       [:arg1 {type is not allowed here}]
 	invalid-op:         [{invalid operator:} :arg1]
@@ -170,8 +174,8 @@ Script: [
 
 	no-return:          {block did not return a value}
 	block-lines:        {expected block of lines}
-	no-catch:			[{no CATCH for THROW of} :arg1]
-	no-catch-named:		[{no CATCH for THROW of} :arg1 {with /NAME:} :arg2]
+	no-catch:			[{Missing CATCH for THROW of} :arg1]
+	no-catch-named:		[{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
 	locked-word:        [{protected variable - cannot modify:} :arg1]
 	protected:          {protected value or series - cannot modify}

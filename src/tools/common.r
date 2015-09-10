@@ -85,11 +85,11 @@ for-each-record-NO-RETURN: func [
 	/local headings result spec
 ] [
 	unless block? first table [
-		do make error! {Table of records does not start with a header block}
+		fail {Table of records does not start with a header block}
 	]
 	headings: map-each word first table [
 		unless word? word [
-			do make error! rejoin [{Heading} space word space {is not a word}]
+			fail [{Heading} word {is not a word}]
 		]
 		to-set-word word
 	]
@@ -98,7 +98,7 @@ for-each-record-NO-RETURN: func [
 
 	set/any quote result: while [not empty? table] [
 		if (length headings) > (length table) [
-			do make error! {Element count isn't even multiple of header count}
+			fail {Element count isn't even multiple of header count}
 		]
 
 		spec: collect [
@@ -126,9 +126,7 @@ find-record-unique: func [
 	/local rec result
 ] [
 	unless find first table key [
-		do make error! rejoin [
-			key space {not found in table headers} space first table
-		]
+		fail [key {not found in table headers:} (first table)]
 	]
 
 	result: none
@@ -136,9 +134,7 @@ find-record-unique: func [
 		unless value = select rec key [continue]
 
 		if result [
-			do make error! rejoin [
-				{More than one table record matches} space key {=} value
-			]
+			fail [{More than one table record matches} key {=} value]
 		]
 
 		result: rec

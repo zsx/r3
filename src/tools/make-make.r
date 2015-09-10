@@ -279,7 +279,7 @@ append plat-id config/id/3
 
 ; Collect OS-specific host files:
 unless os-specific-objs: select file-base to word! join "os-" config/os-base [
-	do make error! rejoin [
+	fail rejoin [
 		"make-make.r requires os-specific obj list in file-base.r" newline
 		"none was provided for os-" config/os-base
 	]

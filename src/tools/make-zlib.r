@@ -77,7 +77,7 @@ disable-user-includes: func [
 
 	; If we inline a header, it should happen once and only once for each
 	unless empty? headers [
-		throw make error! rejoin [{Not all headers inlined by make-zlib:} space mold headers]  
+		fail [{Not all headers inlined by make-zlib:} (mold headers)]
 	]
 ]
 
