@@ -30,7 +30,9 @@ sync-op: func [port body /local state] [
 	;The timeout should be triggered only when the response from other side exceeds the timeout value.
 	;--Richard
 	while [not find [ready close] state/state][
-		unless port? wait [state/connection port/spec/timeout] [http-error "Timeout"]
+		unless port? wait [state/connection port/spec/timeout] [
+			fail make-http-error "Timeout"
+		]
 		if state/state = 'reading-data [read state/connection]
 	]
 	body: copy port
@@ -108,6 +110,7 @@ http-awake: func [event /local port http-port state awake res] [
 		]
 	] [true]
 ]
+
 make-http-error: func [
 	"Make an error for the HTTP protocol"
 	message [string! block!]
@@ -119,12 +122,7 @@ make-http-error: func [
 		arg1: message
 	]
 ]
-http-error: func [
-	"Throw an error for the HTTP protocol"
-	message [string! block!]
-] [
-	do make-http-error message
-]
+
 make-http-request: func [
 	"Create an HTTP request (returns string!)"
 	method [word! string!] "E.g. GET, HEAD, POST etc."
@@ -461,7 +459,9 @@ sys/make-scheme [
 		] [
 			either any-function? :port/awake [
 				unless open? port [cause-error 'Access 'not-open port/spec/ref]
-				if port/state/state <> 'ready [http-error "Port not ready"]
+				unless port/state/state = 'ready [
+					fail make-http-error "Port not ready"
+				]
 				port/state/awake: :port/awake
 				do-request port
 				port
@@ -477,7 +477,9 @@ sys/make-scheme [
 			unless block? value [value: reduce [[Content-Type: "application/x-www-form-urlencoded; charset=utf-8"] value]]
 			either any-function? :port/awake [
 				unless open? port [cause-error 'Access 'not-open port/spec/ref]
-				if port/state/state <> 'ready [http-error "Port not ready"]
+				unless port/state/state = 'ready [
+					fail make-http-error "Port not ready"
+				]
 				port/state/awake: :port/awake
 				parse-write-dialect port value
 				do-request port
@@ -491,7 +493,9 @@ sys/make-scheme [
 			/local conn
 		] [
 			if port/state [return port]
-			if none? port/spec/host [http-error "Missing host address"]
+			unless port/spec/host [
+				fail make-http-error "Missing host address"
+			]
 			port/state: context [
 				state: 'inited
 				connection:

@@ -103,7 +103,7 @@ cause-error: func [
 		]
 	]
 	; Build and throw the error:
-	do make error! [
+	fail make error! [
 		type: err-type
 		id:   err-id
 		arg1: first args

@@ -46,13 +46,6 @@ make-tls-error: func [
 	]
 ]
 
-tls-error: func [
-	"Throw an error for the TLS protocol"
-	message [string! block!]
-] [
-	do make-tls-error message
-]
-
 cipher-suites: make object! [
 	TLS_RSA_WITH_RC4_128_MD5:				#{00 04}
 	TLS_RSA_WITH_RC4_128_SHA:				#{00 05}
@@ -1130,7 +1123,9 @@ sys/make-scheme [
 		open: func [port [port!] /local conn] [
 			if port/state [return port]
 
-			if none? port/spec/host [tls-error "Missing host address"]
+			unless port/spec/host [
+				fail make-tls-error "Missing host address"
+			]
 
 			port/state: context [
 				data-buffer: make binary! 32000
