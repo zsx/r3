@@ -76,6 +76,7 @@ REBOL [
 	3 m68k
 	4 elf-x86
 	5 sparc
+	40 elf-x64
 ]
 
 10 Sun [

@@ -99,6 +99,9 @@ systems: [
 	;-------------------------------------------------------------------------
 	0.9.04		openbsd			posix
 			[LEN LLC +O1 ST1 -LM]
+
+	0.9.40		openbsd			posix
+			[LP64 LEN LLC +O1 ST1 -LM]
 	;-------------------------------------------------------------------------
 	0.13.01		android-arm		android
 			[LEN LLC HID F64 LDL LLOG -LM CST]
