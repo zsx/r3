@@ -84,6 +84,9 @@ systems: [
 
 	0.4.60		linux-axp		linux
 			[LP64 LEN LLC +O2 HID LDL ST1 -LM]
+
+	0.4.61		linux-ia64		linux
+			[LP64 LEN LLC +O2 HID LDL ST1 -LM]
 	;-------------------------------------------------------------------------
 	0.5.75		haiku			posix
 			[LEN LLC +O2 ST1 NWK]

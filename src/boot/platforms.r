@@ -46,6 +46,7 @@ REBOL [
 	31 libc6-mips32be
 	40 libc-x64
 	60 dec-alpha
+	61 libc-ia64
 ]
 
 5 Haiku [
