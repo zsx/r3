@@ -106,24 +106,24 @@ parse-asn: func [
 	while [d: data/1] [
 		switch mode [
 			type [
-				constructed?: not zero? (d and 32)
+				constructed?: not zero? (d and* 32)
 				class: pick class-types 1 + shift d -6
 
 				switch class [
 					universal [
-						tag: pick universal-tags 1 + (d and 31)
+						tag: pick universal-tags 1 + (d and* 31)
 					]
 					context-specific [
 						tag: class
-						val: d and 31
+						val: d and* 31
 					]
 				]
 				mode: 'size
 			]
 
 			size [
-				size: d and 127
-				unless zero? (d and 128) [
+				size: d and* 127
+				unless zero? (d and* 128) [
 					; long form
 					ln: size
 					size: to integer! copy/part next data size
@@ -882,7 +882,7 @@ prf: func [
 		a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
 		append p-sha1 checksum/method/key rejoin [a seed] 'sha1 decode 'text s-2
 	]
-	return ((copy/part p-md5 output-length) xor copy/part p-sha1 output-length)
+	return ((copy/part p-md5 output-length) xor- copy/part p-sha1 output-length)
 ]
 
 make-key-block: func [

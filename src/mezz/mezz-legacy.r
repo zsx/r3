@@ -174,6 +174,12 @@ set 'r3-legacy* func [] [
 
 	append system/contexts/user compose [
 
+		and: (:and*)
+
+		or: (:or+)
+
+		xor: (:xor-)
+
 		; Add simple parse back in by delegating to split, and return a LOGIC!
 		parse: (function [
 			{Parses a string or block series according to grammar rules.}

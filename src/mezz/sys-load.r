@@ -365,7 +365,7 @@ do-needs: function [
 			case [
 				needs > system/version [cause-error 'syntax 'needs reduce ['core needs]]
 				3 >= length needs  none  ; no platform id
-				(needs and 0.0.0.255.255) != (system/version and 0.0.0.255.255) [
+				(needs and* 0.0.0.255.255) != (system/version and* 0.0.0.255.255) [
 					cause-error 'syntax 'needs reduce ['core needs] ; must match
 				]
 			]

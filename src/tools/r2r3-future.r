@@ -66,3 +66,20 @@ unless value? 'fail [
 		]
 	]
 ]
+
+; R3-Alpha and Rebol2 did not allow you to make custom infix operators.
+; There is no way to get a conditional infix AND using those binaries.
+; In some cases, the bitwise and will be good enough for logic purposes...
+;
+unless value? 'and* [
+	and*: :and
+	and?: func [a b] [and* true? :a true? :b]
+]
+unless value? 'or+ [
+	or+: :or
+	or?: func [a b] [or+ true? :a true? :b]
+]
+unless value? 'xor- [
+	xor-: :xor
+	xor?: func [a b] [xor- true? :a true? :b]
+]

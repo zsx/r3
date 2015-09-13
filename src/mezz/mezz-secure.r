@@ -122,7 +122,7 @@ secure: function/with [
 			assert-policy n target act
 			m: select [read 1.0.0 write 0.1.0 execute 0.0.1] perm
 			assert-policy m target perm
-			flags: (index-of n) - 1 * m or flags
+			flags: (index-of n) - 1 * m or+ flags
 		]
 		flags
 	]
