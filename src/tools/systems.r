@@ -76,6 +76,9 @@ systems: [
 	0.4.30		linux-mips		linux
 			[LEN LLC +O2 HID LDL ST1 -LM]
 
+	0.4.31		linux-mips32be	linux
+			[BEN LLC +O2 HID LDL ST1 -LM]
+
 	0.4.40		linux-x64		linux
 			[LP64 LEN LLC +O2 HID LDL ST1 -LM]
 	;-------------------------------------------------------------------------

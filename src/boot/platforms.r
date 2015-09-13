@@ -43,6 +43,7 @@ REBOL [
 	11 libc6-ppc64
 	20 libc6-arm
 	30 libc6-mips
+	31 libc6-mips32be
 	40 libc-x64
 ]
 
