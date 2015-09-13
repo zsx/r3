@@ -64,6 +64,9 @@ systems: [
 	0.4.10		linux-ppc		linux
 			[BEN LLC +O1 HID LDL ST1 -LM]
 
+	0.4.11		linux-ppc64		linux
+			[LP64 BEN LLC +O1 HID LDL ST1 -LM]
+
 	0.4.20		linux-arm		linux
 			[LEN LLC +O2 HID LDL ST1 -LM]
 
