@@ -400,11 +400,34 @@ chk_neg:
 	REBCHR *lpath;
 	REBINT len;
 
-	len = OS_GET_CURRENT_DIR(&lpath);
-	ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE); // allocates extra for end /
-	assert(ser); // should never be NULL
-	OS_FREE(lpath);
-	Val_Init_File(D_OUT, ser);
+	REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
+
+	// !!! Because of the need to track a notion of "current path" which
+	// could be a URL! as well as a FILE!, the state is stored in the system
+	// options.  For now--however--it is "duplicate" in the case of a FILE!,
+	// because the OS has its own tracked state.  We let the OS state win
+	// for files if they have diverged somehow--because the code was already
+	// here and it would be more compatible.  But reconsider the duplication.
+
+	if (IS_URL(current_path)) {
+		*D_OUT = *current_path;
+	}
+	else if (IS_FILE(current_path) || IS_NONE(current_path)) {
+		len = OS_GET_CURRENT_DIR(&lpath);
+
+		// allocates extra for end `/`
+		ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE);
+
+		OS_FREE(lpath);
+
+		Val_Init_File(D_OUT, ser);
+		*current_path = *D_OUT; // !!! refresh system option if they diverged
+	}
+	else {
+		// Lousy error, but ATM the user can directly edit system/options.
+		// They shouldn't be able to (or if they can, it should be validated)
+		raise Error_Invalid_Arg(current_path);
+	}
 
 	return R_OUT;
 }
@@ -421,14 +444,29 @@ chk_neg:
 	REBINT n;
 	REBVAL val;
 
-	ser = Value_To_OS_Path(arg, TRUE);
-	if (!ser) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+	REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
 
-	Val_Init_String(&val, ser); // may be unicode or utf-8
-	Check_Security(SYM_FILE, POL_EXEC, &val);
+	if (IS_URL(arg)) {
+		// There is no directory listing protocol for HTTP (although this
+		// needs to be methodized to work for SFTP etc.)  So this takes
+		// your word for it for the moment that it's a valid "directory".
+		//
+		// !!! Should it at least check for a trailing `/`?
+	}
+	else {
+		assert(IS_FILE(arg));
 
-	n = OS_SET_CURRENT_DIR(cast(REBCHR*, ser->data));  // use len for bool
-	if (!n) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+		ser = Value_To_OS_Path(arg, TRUE);
+		if (!ser) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+
+		Val_Init_String(&val, ser); // may be unicode or utf-8
+		Check_Security(SYM_FILE, POL_EXEC, &val);
+
+		n = OS_SET_CURRENT_DIR(cast(REBCHR*, ser->data));  // use len for bool
+		if (!n) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+	}
+
+	*current_path = *arg;
 
 	return R_ARG1;
 }

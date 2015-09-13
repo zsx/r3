@@ -699,8 +699,8 @@ wake-up: native [
 what-dir: native ["Returns the current directory path."]
 
 change-dir: native [
-	"Changes the current directory path."
-	path [file!]
+	"Changes the current path (where scripts with relative paths will be run)."
+	path [file! url!]
 ]
 
 ;-- Math Natives - nat_math.c

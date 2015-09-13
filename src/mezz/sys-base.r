@@ -56,7 +56,8 @@ do*: function [
 			return r3-legacy* ;-- defined in %mezz-legacy.r
 		]
 
-		return do switch/default value [
+		; Convert value into a URL!
+		value: switch/default value [
 			; Special proposals
 			<proposals> [https://raw.githubusercontent.com/hostilefork/rebol-proposals/master/all-proposals.reb]
 
@@ -78,14 +79,22 @@ do*: function [
 		]
 	]
 
+	original-path: what-dir
+
+	; If a file is being mentioned as a DO location and the "current path"
+	; is a URL!, then adjust the value to be a URL! based from that path.
+	if all [url? original-path  file? value] [
+		 value: join original-path value
+	]
+
 	; Load the data, first so it will error before change-dir
 	data: load/header/type value 'unbound ; unbound so DO-NEEDS runs before INTERN
 	; Get the header and advance 'data to the code position
 	hdr: first+ data  ; object or none
 	; data is a block! here, with the header object in the first position back
-	mod?: 'module = select hdr 'type
+	is-module: 'module = select hdr 'type
 
-	either all [string? value  not mod?] [
+	either all [string? value  not is-module] [
 		; Return result without script overhead
 		do-needs hdr  ; Load the script requirements
 		if empty? data [if var [set var data]  exit] ; Shortcut return empty
@@ -93,10 +102,20 @@ do*: function [
 		catch/quit either var [[do/next data var]] [data]
 	][ ; Otherwise we are in script mode
 
-		; Do file in directory if necessary
-		dir: none ; in case of /local hack
-		if all [file? value  file: find/last/tail value slash] [
-			dir: what-dir ; save the current directory for later restoration
+		; When we run a script, the "current" directory is changed to the
+		; directory of that script.  This way, relative path lookups to
+		; find dependent files will look relative to the script.
+		;
+		; We want this behavior for both FILE! and for URL!, which means
+		; that the "current" path may become a URL!.  This can be processed
+		; with change-dir commands, but it will be protocol dependent as
+		; to whether a directory listing would be possible (HTTP does not
+		; define a standard for that)
+		;
+		if all [
+			any [file? value  url? value]
+			file: find/last/tail value slash
+		][
 			change-dir copy/part value file
 		]
 
@@ -112,14 +131,14 @@ do*: function [
 
 		; Print out the script info
 		boot-print [
-			pick ["Module:" "Script:"] mod?  mold select hdr 'title
+			(either is-module "Module:" "Script:")  mold select hdr 'title
 			"Version:" select hdr 'version
 			"Date:" select hdr 'date
 		]
 
-		also
+		also (
 			; Eval the block or make the module, returned
-			either mod? [ ; Import the module and set the var
+			either is-module [ ; Import the module and set the var
 				spec: reduce [hdr data do-needs/no-user hdr]
 				also import catch/quit [make module! spec]
 					if var [set var tail data]
@@ -128,8 +147,11 @@ do*: function [
 				intern data   ; Bind the user script
 				catch/quit either var [[do/next data var]] [data]
 			]
+		)(
 			; Restore system/script and the dir
-			all [system/script: :scr  dir  change-dir dir]
+			system/script: :scr
+			if original-path [change-dir original-path]
+		)
 	]
 ]
 

@@ -117,6 +117,8 @@ options: context [  ; Options supplied to REBOL during startup
 	path:           ; Where script was started or the startup dir
 		none
 
+	current-path:	; Current URL! or FILE! path to use for relative lookups
+
 	flags:          ; Boot flag bits (see system/catalog/boot-flags)
 	script:         ; Filename of script to evaluate
 	args:           ; Command line arguments passed to script

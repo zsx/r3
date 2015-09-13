@@ -118,6 +118,11 @@ list-dir: func [
 	/local files save-dir info
 ][
 	save-dir: what-dir
+
+	unless file? save-dir [
+		fail ["No directory listing protocol registered for" save-dir]
+	]
+
 	switch type-of/word :path [
 		unset! [] ; Stay here
 		file! [change-dir path]
