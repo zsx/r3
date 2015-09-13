@@ -25,11 +25,8 @@ REBOL [
 ;-- can still work in older as well as newer Rebols.  Thus the detection
 ;-- has to be a bit "dynamic"
 
-unless value? 'length [length: :length? unset 'length?]
-unless value? 'index-of [index-of: :index? unset 'index?]
-unless value? 'offset-of [offset-of: :offset? unset 'offset?]
+do %r2r3-future.r
 
-unless value? 'for-each [for-each: :foreach every: :foreach unset 'foreach]
 
 ;-- !!! switch to use spaces when code is transitioned
 code-tab: (comment [rejoin [space space space space]] tab)
