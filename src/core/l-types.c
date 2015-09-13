@@ -453,7 +453,7 @@ bad_hex:
 
 		// !!! Clang static analyzer doesn't know from test of `day` below
 		// how it connects with year being set or not.  Suppress warning.
-		year = INT32_MIN; // !!! Garbage, should not be read.
+		year = MIN_I32; // !!! Garbage, should not be read.
 	}
 	else return NULL;
 
