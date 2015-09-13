@@ -172,31 +172,32 @@ set 'r3-legacy* func [] [
 	system/options/broken-case-semantics: true
 	system/options/exit-functions-only: true
 
-  append system/contexts/user compose [
+	append system/contexts/user compose [
 
-	; Add simple parse back in by delegating to split, and return a LOGIC!
-	parse: (function [
-		{Parses a string or block series according to grammar rules.}
-		input [series!] "Input series to parse"
-		rules [block! string! none!] "Rules (string! is <r3-legacy>, use SPLIT)"
-		/case "Uses case-sensitive comparison"
-		/all "Ignored refinement for <r3-legacy>"
-	][
-		lib/case [
-			none? rules [
-				split input charset reduce [tab space cr lf]
-			]
+		; Add simple parse back in by delegating to split, and return a LOGIC!
+		parse: (function [
+			{Parses a string or block series according to grammar rules.}
+			input [series!] "Input series to parse"
+			rules [block! string! none!] "Rules (string! is <r3-legacy>, use SPLIT)"
+			/case "Uses case-sensitive comparison"
+			/all "Ignored refinement for <r3-legacy>"
+		][
+			lib/case [
+				none? rules [
+					split input charset reduce [tab space cr lf]
+				]
 
-			string? rules [
-				split input to-bitset rules
-			]
+				string? rules [
+					split input to-bitset rules
+				]
 
-			true [
-				true? apply :lib/parse [input rules case]
+				true [
+					true? apply :lib/parse [input rules case]
+				]
 			]
-		]
-	])
-  ]
+		])
+
+	]
 
 	return none
 ]
