@@ -1244,6 +1244,14 @@ bad_end:
 	REBOL_STATE state;
 	const REBVAL *error;
 
+	if (IS_NONE(rules) || IS_STRING(rules)) {
+		// !!! Temporary...more informative than having a simple "does not
+		// take type" response based on the spec not accepting string/none
+		raise Error_0(RE_USE_SPLIT_SIMPLE);
+	}
+
+	assert(IS_BLOCK(rules));
+
 	assert(IS_TRASH(D_OUT));
 
 	parse.series = VAL_SERIES(input);

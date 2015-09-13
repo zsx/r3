@@ -555,7 +555,10 @@ in: native [
 parse: native [
 	{Parses a string or block series according to grammar rules.}
 	input [series!] {Input series to parse}
-	rules [block!] {Rules to parse by}
+	;rules [block!] {Rules to parse by}
+	; !!! Does not actually handle STRING! and NONE!, used to give a more
+	; informative error message directing people to use SPLIT instead
+	rules [block! string! none!] {Rules to parse by}
 	/case {Uses case-sensitive comparison}
 	/all {(ignored refinement left for Rebol2 transitioning)}
 ]

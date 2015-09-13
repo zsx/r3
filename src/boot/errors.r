@@ -139,6 +139,7 @@ Script: [
 	; (more informative than just saying "function doesn't take that type")
 	use-eval-for-eval:  {Use EVAL (not DO) for inline evaluation of a value}
 	use-fail-for-error: {Use FAIL (instead of THROW or DO) to trigger ERROR!}
+	use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
 
 	limited-fail-input: {FAIL requires complex expressions to be in a PAREN!}
 
