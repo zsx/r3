@@ -417,7 +417,7 @@ bad_hex:
 	const REBYTE *ep;
 	const REBYTE *end = cp + len;
 	REBINT num;
-	REBINT day = 0;
+	REBINT day;
 	REBINT month;
 	REBINT year;
 	REBINT tz = 0;
@@ -439,9 +439,24 @@ bad_hex:
 	ep = Grab_Int(cp, &num);
 	if (num < 0) return 0;
 	size = (REBCNT)(ep - cp);
-	if (size >= 4) year = num;
-	else if (size) day = num;
-	else return 0;
+	if (size >= 4) {
+		// year is set in this branch (we know because day is 0)
+		// Ex: 2009/04/20/19:00:00+0:00
+		year = num;
+		day = 0;
+	}
+	else if (size) {
+		// year is not set in this branch (we know because day ISN'T 0)
+		// Ex: 12-Dec-2012
+		day = num;
+		if (day == 0) return NULL;
+
+		// !!! Clang static analyzer doesn't know from test of `day` below
+		// how it connects with year being set or not.  Suppress warning.
+		year = INT32_MIN; // !!! Garbage, should not be read.
+	}
+	else return NULL;
+
 	cp = ep;
 
 	// Determine field separator:
@@ -472,16 +487,13 @@ bad_hex:
 	size = (REBCNT)(ep - cp);
 	if (!size) return 0;
 
-	if (!day) {
+	if (day == 0) {
+		// year already set, but day hasn't been
 		day = num;
-
-		// !!! There had been no assignment in this branch, meaning that year
-		// would be uninitialized in the processing below for this case.
-		// Cause an error instead of using uninitialized data (a more thorough
-		// review can decide what the intent of the code was).
-		return NULL;
 	}
-	else {	// it is a year
+	else {
+		// day has been set, but year hasn't been
+
 		// Allow shorthand form (e.g. /96) ranging +49,-51 years
 		//		(so in year 2050 a 0 -> 2000 not 2100)
 		if (size >= 3) year = num;
