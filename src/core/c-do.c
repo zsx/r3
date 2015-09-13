@@ -617,14 +617,13 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	//
 	assert(!IN_DATA_STACK(out));
 
+	// Only need to check this once (C stack size would be the same each
+	// time this line is run if it were in a loop)
+	if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
+
 do_at_index:
 	assert(index != END_FLAG && index != THROWN_FLAG);
 	SET_TRASH_SAFE(out);
-
-	// Someday it may be worth it to micro-optimize these null assignments
-	// so they don't happen each time through the loop.
-	label = NULL;
-	refinements = NULL;
 
 #ifndef NDEBUG
 	// This counter is helpful for tracking a specific invocation.
@@ -643,16 +642,21 @@ do_at_index:
 	}
 #endif
 
-	//CHECK_MEMORY(1);
-	if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
-
-	if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
-
 	value = BLK_SKIP(block, index);
-	assert(!THROWN(value));
-	ASSERT_VALUE_MANAGED(value);
 
 	if (Trace_Flags) Trace_Line(block, index, value);
+
+reevaluate:
+	if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+
+	assert(!THROWN(value));
+	assert(!VAL_GET_OPT(value, OPT_VALUE_REEVALUATE));
+	ASSERT_VALUE_MANAGED(value);
+
+	// Someday it may be worth it to micro-optimize these null assignments
+	// so they don't happen each time through the loop.
+	label = NULL;
+	refinements = NULL;
 
 	switch (VAL_TYPE(value)) {
 
@@ -930,16 +934,25 @@ do_at_index:
 
 		if (Trace_Flags) Trace_Return(label, out);
 
-		// The return value is a FUNC that needs to be re-evaluated.
-		if (ANY_FUNC(out) && VAL_GET_EXT(out, EXT_FUNC_REDO)) {
-			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
-				raise Error_Has_Bad_Type(value); // not allowed
+		if (VAL_GET_OPT(out, OPT_VALUE_REEVALUATE)) {
+			// The return value came from EVAL and we need to "activate" it.
+			//
+			// !!! As EVAL is the only way this can ever happen, the test
+			// could be if the function is a NATIVE! and holds the C
+			// function pointer to REBNATIVE(eval)--then reclaim the bit.
 
-			value = out;
-			label = NULL;
-			index--; // Backup block index to re-evaluate.
+			VAL_CLR_OPT(out, OPT_VALUE_REEVALUATE);
 
-			goto do_function_args;
+			// The next evaluation we invoke expects to be able to write into
+			// `out` (and not have `value` living in there), so move it!
+			save = *out;
+			value = &save;
+
+			// act "as if" value had been in the last position of the last
+			// function argument evaluated (or the function itself if no args)
+			index--;
+
+			goto reevaluate;
 		}
 		break;
 

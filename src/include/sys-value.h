@@ -85,6 +85,7 @@ typedef struct Reb_Series REBSER;
 enum {
 	OPT_VALUE_LINE = 0,	// Line break occurs before this value
 	OPT_VALUE_THROWN,	// Value is /NAME of a THROW (arg via THROWN_ARG)
+	OPT_VALUE_REEVALUATE, // Reevaluate result value
 	OPT_VALUE_MAX
 };
 
@@ -1171,7 +1172,6 @@ enum {
 	EXT_FUNC_INFIX = 0,		// called with "infix" protocol
 	EXT_FUNC_TRANSPARENT,	// no Definitionally Scoped return, ignores non-DS
 	EXT_FUNC_RETURN,		// function is a definitionally scoped return
-	EXT_FUNC_REDO,			// Reevaluate result value
 	EXT_FUNC_MAX
 };
 

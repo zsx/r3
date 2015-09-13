@@ -118,18 +118,21 @@ continue: native [
 ;]
 
 do: native [
-	{Evaluates a block, file, URL, function, word, or any other value.}
-	value [any-type!] "Normally a file name, URL, or block"
+	{Evaluates a block of source code (directly or fetched according to type)}
+	;source [none! block! paren! string! binary! url! file! tag!]
+	; !!! Actually does not handle ERROR! or ANY-FUNCTION! but temporarily
+	; accepts them to trigger more informataive errors suggesting FAIL and EVAL
+	source [none! block! paren! string! binary! url! file! tag! error! any-function!]
 	/args "If value is a script, this will set its system/script/args"
 	arg   "Args passed to a script (normally a string)"
 	/next "Do next expression only, return it, update block variable"
 	var [word!] "Variable updated with new block position"
 ]
 
-;eval: native [
-;	{Evaluates a block, file, URL, function, word, or any other value.}
-;	value "Normally a file name, URL, or block"
-;]
+eval: native [
+	{(Special) Process received value *inline* as the evaluator loop would.}
+	value [any-type!] {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
+]
 
 either: native [
 	{If TRUE condition return first arg, else second; evaluate blocks by default.}

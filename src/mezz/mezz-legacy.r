@@ -12,14 +12,36 @@ REBOL [
 		See: http://www.apache.org/licenses/LICENSE-2.0
 	}
 	Description: {
-		These definitions help support Rebol code that was written prior
-		to Ren/C.  (See also the OS environment setting R3_LEGACY=1)
-		This will eventually be reworked as an optional compatibility
-		module that will not be included in the default distribution.
+		These definitions turn the clock backward for Rebol code that was
+		written prior to Ren/C, e.g. binaries available on rebolsource.net
+		or R3-Alpha binaries from rebol.com.  (See also the OS environment
+		setting R3_LEGACY=1).
 
-		A porting guide Trello has been started at:
+		Some "legacy" definitions (like `foreach` as synonym of `for-each`)
+		are kept by default for now, possibly indefinitely.  For other
+		changes--such as variations in behavior of natives of the same
+		name--you need to add the following to your code:
 
-		https://trello.com/b/l385BE7a/porting-guide
+			do <r3-legacy>
+
+		(Dispatch for this from DO is in the DO* function of sys-base.r)
+
+		This statement will be a NO-OP in older Rebols, since executing a
+		tag evaluates to just a tag.  Note that the current trick will
+		modify the user context directly, and is not module-based...so
+		you really are sort of "backdating" the system globally.  A
+		more selective version that turns features on and off one at
+		a time to ease porting is needed, perhaps like:
+
+			do/args <r3-legacy> [
+				new-do: off
+				question-marks: on
+			]
+
+		As always, feedback and improvement welcome.  A porting guide Trello
+		has been started at:
+
+			https://trello.com/b/l385BE7a/porting-guide
 	}
 ]
 
@@ -51,11 +73,15 @@ sign?: :sign-of
 ; not a word and see it with fresh eyes, it looks bad...and also not part
 ; of the family of other -each functions like `remove-each` and `map-each`.
 ; The need for the hyphen for `for-each` isn't that bad, but the hyphen
-; does break the rhythm a little bit.  Choosing to let `each` stand alone
-; was deemed too ugly, so `every` was selected as a near-synonym of
-; `for-each` (with a different return result).  But `foreach` is demoted
-; to legacy / compatibility module
-
+; does break the rhythm a little bit.  `every` was selected as a
+; near-synonym of `for-each` (with a different return result).
+;
+; Because there is no eager need to retake foreach for any other purpose
+; and it doesn't convey any fundamentally incorrect idea, it is low on
+; the priority list to eliminate completely.  It may be retained as a
+; synonym, and `each` may be considered as well.  The support of synonyms
+; is controversial and should be balanced against the value of standards.
+;
 foreach: :for-each
 
 
@@ -117,7 +143,8 @@ any-block?: :any-array?
 ; shorter than /EXCEPT but it makes much more sense.
 ;
 ; !!! This may free up TRY for more interesting uses, such as a much shorter
-; word to use for ATTEMPT.
+; word to use for ATTEMPT.  Even so, this is not a priority at this point in
+; time...so TRY is left to linger without needing `do <r3-legacy>`
 ;
 try: func [
 	<transparent>
@@ -125,6 +152,51 @@ try: func [
 	block [block!]
 	/except "On exception, evaluate this code block"
 	code [block! any-function!]
-] [
+][
 	either except [trap/with block :code] [trap block]
+]
+
+
+; To invoke this function, use `do <r3-legacy>` instead of calling it
+; directly, as that will be a no-op in older Rebols.  Notice the word
+; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
+;
+set 'r3-legacy* func [] [
+
+	; NOTE: these flags only work if R3_LEGACY is set to "1" in the
+	; environment and you are using a debug build equipped to support
+	; them.  A better availability test for the functionality is needed
+	;
+	system/options/do-runs-functions: true
+	system/options/do-raises-errors: true
+	system/options/broken-case-semantics: true
+	system/options/exit-functions-only: true
+
+  append system/contexts/user compose [
+
+	; Add simple parse back in by delegating to split, and return a LOGIC!
+	parse: (function [
+		{Parses a string or block series according to grammar rules.}
+		input [series!] "Input series to parse"
+		rules [block! string! none!] "Rules (string! is <r3-legacy>, use SPLIT)"
+		/case "Uses case-sensitive comparison"
+		/all "Ignored refinement for <r3-legacy>"
+	][
+		lib/case [
+			none? rules [
+				split input charset reduce [tab space cr lf]
+			]
+
+			string? rules [
+				split input to-bitset rules
+			]
+
+			true [
+				true? apply :lib/parse [input rules case]
+			]
+		]
+	])
+  ]
+
+	return none
 ]

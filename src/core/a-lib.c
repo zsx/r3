@@ -128,14 +128,18 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	if (env_legacy != NULL && atoi(env_legacy) != 0) {
 		Debug_Str(
 			"**\n"
-			"** R3_LEGACY is TRUE in environment variable!\n"
+			"** R3_LEGACY is nonzero in environment variable!\n"
 			"** system/options relating to historical behaviors are heeded:\n"
 			"**\n"
-			"** system/options: [\n"
-			"**     (...)\n"
-			"**     exit-functions-only: false\n"
-			"**     broken-case-semantics: false\n"
-			"** ]\n"
+			"**     system/options: [\n"
+			"**         (...)\n"
+			"**         exit-functions-only: false\n"
+			"**         broken-case-semantics: false\n"
+			"**         do-runs-functions: false\n"
+			"**         do-raises-errors: false\n"
+			"**     ]\n"
+			"**\n"
+			"** Use `do <r3-legacy>` to enable more compatibility wrappers.\n"
 			"**\n"
 		);
 		PG_Legacy = TRUE;

@@ -365,7 +365,7 @@ collect: func [
 	output [series!] "The buffer series (modified)"
 ][
 	unless output [output: make block! 16]
-	do func [keep] body func [value [any-type!] /only] [
+	eval func [keep] body func [value [any-type!] /only] [
 		output: apply :insert [output :value none none only]
 		:value
 	]

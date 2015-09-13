@@ -141,6 +141,8 @@ options: context [  ; Options supplied to REBOL during startup
 
 	exit-functions-only: false
 	broken-case-semantics: false
+	do-runs-functions: false
+	do-raises-errors: false
 ]
 
 script: context [

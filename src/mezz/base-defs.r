@@ -45,6 +45,8 @@ use [word title] [
 
 decode-url: none ; set in sys init
 
+r3-legacy*: none ; set in %mezz-legacy.r
+
 ;-- Setup Codecs -------------------------------------------------------------
 
 for-each [codec handler] system/codecs [

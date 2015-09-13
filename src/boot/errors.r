@@ -135,9 +135,12 @@ Script: [
 
 	trap-with-expects:	[{must allow} :arg1 {as ERROR! to be TRAP handler}]
 
-	; Temporary error while DO MAKE ERROR! constructs are still outstanding
-	use-fail-for-error:	{Use FAIL (instead of THROW or DO) to trigger ERROR!}
-	limited-fail-input:	{FAIL requires complex expressions to be in a PAREN!}
+	; !!! Temporary errors while faulty constructs are still outstanding
+	; (more informative than just saying "function doesn't take that type")
+	use-eval-for-eval:  {Use EVAL (not DO) for inline evaluation of a value}
+	use-fail-for-error: {Use FAIL (instead of THROW or DO) to trigger ERROR!}
+
+	limited-fail-input: {FAIL requires complex expressions to be in a PAREN!}
 
 	invalid-arg:        [{invalid argument:} :arg1]
 	invalid-type:       [:arg1 {type is not allowed here}]

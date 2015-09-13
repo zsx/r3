@@ -26,16 +26,15 @@ REBOL [
 native: none ; for boot only
 action: none ; for boot only
 
-do*: func [
+do*: function [
 	{SYS: Called by system for DO on datatypes that require special handling.}
-	value [file! url! string! binary!]
+	value [file! url! string! binary! tag!]
 	/args "If value is a script, this will set its system/script/args"
 	arg   "Args passed to a script (normally a string)"
 	/next "Do next expression only, return it, update block variable"
 	var [word!] "Variable updated with new block position"
-	/local data file spec dir hdr scr mod?
 ][
-	; This code is only called for urls, files, and strings.
+	; This code is only called for urls, files, strings, and tags.
 	; DO of functions, blocks, paths, and other do-able types is done in the
 	; native, and this code is not called.
 	; Note that DO of file path evaluates in the directory of the target file.
@@ -44,6 +43,40 @@ do*: func [
 	;       position, or will cause an error. No exceptions, not even for
 	;       directories or media.
 	;       Currently, load of URL has no special block forms.
+
+	; !!! DEMONSTRATION OF CONCEPT... this translates a tag into a URL!, but
+	; it should be using a more "official" URL instead of on individuals
+	; websites.  There should also be some kind of local caching facility.
+	;
+	if tag? value [
+		if value = <r3-legacy> [
+			; Special compatibility tag... Rebol2 and R3-Alpha will ignore the
+			; DO of a <tag>, so this is a no-op in them.
+			;
+			return r3-legacy* ;-- defined in %mezz-legacy.r
+		]
+
+		return do switch/default value [
+			; Special proposals
+			<proposals> [https://raw.githubusercontent.com/hostilefork/rebol-proposals/master/all-proposals.reb]
+
+			; Encodings and data formats
+			<json> [http://reb4.me/r3/json.reb]
+			<xml> [http://reb4.me/r3/altxml.reb]
+
+			; Web services
+			<amazon-s3> [http://reb4.me/r3/s3.reb]
+			<twitter> [https://raw.githubusercontent.com/gchiu/rebolbot/master/twitter.r3]
+			<trello> [http://codeconscious.com/rebol-scripts/trello.r]
+
+			; Dialects
+			<rebmu> [https://raw.githubusercontent.com/hostilefork/rebmu/master/rebmu.reb]
+		][
+			fail [
+				{Module} value {not in "rebol.org index" (hardcoded for now)}
+			]
+		]
+	]
 
 	; Load the data, first so it will error before change-dir
 	data: load/header/type value 'unbound ; unbound so DO-NEEDS runs before INTERN

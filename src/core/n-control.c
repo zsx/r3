@@ -778,9 +778,26 @@ was_caught:
 	REBVAL * const next_ref = D_ARG(4);
 	REBVAL * const var = D_ARG(5);
 
-	REBVAL out;
+#if !defined(NDEBUG)
+	if (LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)) {
+		switch (VAL_TYPE(value)) {
+
+		case REB_NATIVE:
+		case REB_ACTION:
+		case REB_COMMAND:
+		case REB_REBCODE:
+		case REB_CLOSURE:
+		case REB_FUNCTION:
+			VAL_SET_OPT(value, OPT_VALUE_REEVALUATE);
+			return R_ARG1;
+		}
+	}
+#endif
 
 	switch (VAL_TYPE(value)) {
+	case REB_NONE:
+		// No-op is convenient for `do if ...` constructions
+		return R_NONE;
 
 	case REB_BLOCK:
 	case REB_PAREN:
@@ -809,41 +826,11 @@ was_caught:
 
 		return R_OUT;
 
-    case REB_NATIVE:
-	case REB_ACTION:
-    case REB_COMMAND:
-    case REB_REBCODE:
-    case REB_CLOSURE:
-	case REB_FUNCTION:
-		VAL_SET_EXT(value, EXT_FUNC_REDO);
-		return R_ARG1;
-
-//	case REB_PATH:  ? is it used?
-
-	case REB_WORD:
-	case REB_GET_WORD:
-		GET_VAR_INTO(D_OUT, value);
-		return R_OUT;
-
-	case REB_LIT_WORD:
-		*D_OUT = *value;
-		SET_TYPE(D_OUT, REB_WORD);
-		return R_OUT;
-
-	case REB_LIT_PATH:
-		*D_OUT = *value;
-		SET_TYPE(D_OUT, REB_PATH);
-		return R_OUT;
-
-	case REB_ERROR:
-		// This path will no longer raise the error you asked for, though it
-		// will still raise *an* error directing you to use FAIL.)
-		raise Error_0(RE_USE_FAIL_FOR_ERROR);
-
 	case REB_BINARY:
 	case REB_STRING:
 	case REB_URL:
 	case REB_FILE:
+	case REB_TAG:
 		// DO native and system/intrinsic/do* must use same arg list:
 		if (Do_Sys_Func_Throws(
 			D_OUT,
@@ -860,17 +847,25 @@ was_caught:
 		}
 		return R_OUT;
 
+	case REB_ERROR:
+	#if !defined(NDEBUG)
+		if (LEGACY(OPTIONS_DO_RAISES_ERRORS))
+			raise Error_Is(value);
+	#endif
+		// This path will no longer raise the error you asked for, though it
+		// will still raise *an* error directing you to use FAIL.)
+		raise Error_0(RE_USE_FAIL_FOR_ERROR);
+
 	case REB_TASK:
 		Do_Task(value);
 		return R_ARG1;
-
-	case REB_SET_WORD:
-	case REB_SET_PATH:
-		raise Error_Invalid_Arg(value);
-
-	default:
-		return R_ARG1;
 	}
+
+	// Note: it is not possible to write a wrapper function in Rebol
+	// which can do what EVAL can do for types that consume arguments
+	// (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
+	// functions only, EVAL generalizes it.
+	raise Error_0(RE_USE_EVAL_FOR_EVAL);
 }
 
 
@@ -890,6 +885,48 @@ was_caught:
 	}
 
 	return argnum == 2 ? R_ARG2 : R_ARG3;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(eval)
+/*
+***********************************************************************/
+{
+	REBVAL * const value = D_ARG(1);
+
+	// Sets special flag, intercepted by the Do_Core() loop and used
+	// to signal that it should treat the return value as if it had
+	// seen it literally inline at the callsite.
+	//
+	//     >> x: 10
+	//     >> (quote x:) 20
+	//     >> print x
+	//     10 ;-- the quoted x: is not "live"
+	//
+	//     >> x: 10
+	//     >> eval (quote x:) 20
+	//     >> print x
+	//     20 ;-- eval "activates" x: so it's as if you'd written `x: 20`
+	//
+	// This can be used to dispatch arbitrary function values without
+	// putting their arguments into blocks.
+	//
+	//     >> eval :add 10 20
+	//     == 30
+	//
+	// So although eval is just an arity 1 function, it is able to use its
+	// argument as a cue for its "actual arity" before the next value is
+	// to be evaluated.  This means it is doing something no other Rebol
+	// function is able to do.
+	//
+	// Note: Because it is slightly evil, "eval" is a good name for it.
+	// It may confuse people a little because it has no effect on blocks,
+	// but that does reinforce the truth that blocks are actually inert.
+
+	VAL_SET_OPT(value, OPT_VALUE_REEVALUATE);
+	return R_ARG1;
 }
 
 
