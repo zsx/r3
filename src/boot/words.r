@@ -105,8 +105,9 @@ yearday
 zone
 utc
 
-; Used to recognize Rebol2 use of [catch] in function specs
+; Used to recognize Rebol2 use of [catch] and [throw] in function specs
 catch
+throw
 
 ; Needed for processing of THROW's /NAME words used by system
 ; NOTE: may become something more specific than WORD!

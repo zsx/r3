@@ -139,20 +139,24 @@
 			if (n == 0) {
 				// !!! Rebol2 had the ability to put a block in the first
 				// slot before any parameters, in which you could put words.
-				// This is deprecated in favor of the use of tags.  For
-				// @rgchris's sake we will allow the one element [catch]
-				// block, during Rebol2 => Rebol3 migration.
+				// This is deprecated in favor of the use of tags.  We permit
+				// [catch] and [throw] during Rebol2 => Rebol3 migration.
 
-				if (VAL_BLK_LEN(blk) == 1) {
-					REBVAL *attribute = VAL_BLK_DATA(blk);
-					if (
-						IS_WORD(attribute)
-						&& VAL_WORD_SYM(attribute) == SYM_CATCH
-					) {
-						break; // exempt, just ignore it
+				REBVAL *attribute = VAL_BLK_DATA(blk);
+				for (; NOT_END(attribute); attribute++) {
+					if (IS_WORD(attribute)) {
+						if (VAL_WORD_SYM(attribute) == SYM_CATCH)
+							continue; // ignore it;
+						if (VAL_WORD_SYM(attribute) == SYM_THROW) {
+							// Basically a synonym for <transparent>
+							SET_FLAG(*exts, EXT_FUNC_TRANSPARENT);
+							continue;
+						}
+						// no other words supported, fall through to error
 					}
+					raise Error_1(RE_BAD_FUNC_DEF, blk);
 				}
-				raise Error_1(RE_BAD_FUNC_DEF, blk);
+				break; // leading block handled if we get here, no more to do
 			}
 
 			// Turn block into typeset for parameter at current index
