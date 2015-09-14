@@ -60,10 +60,26 @@
 			if (!req->common.data) return R_NONE;
 			len = req->actual;
 			if (GET_FLAG(req->flags, RRF_WIDE)) {
-				len /= sizeof(REBUNI); //correct length
-				// Copy the string (convert to latin-8 if it fits):
-				Val_Init_Binary(arg, Copy_Wide_Str(req->common.data, len));
-			} else {
+				// convert to UTF8, so that it can be converted back to string!
+
+				REBCNT len_uni = len / sizeof(REBUNI); // correct length
+				REBCNT size = Length_As_UTF8(
+					cast(REBUNI*, req->common.data), len_uni, TRUE, FALSE
+				);
+				REBSER *ser = Make_Binary(size);
+
+				Encode_UTF8(
+					SERIES_DATA(ser),
+					size,
+					req->common.data,
+					&len_uni,
+					TRUE,
+					FALSE
+				);
+				SERIES_TAIL(ser) = len_uni;
+				Val_Init_Binary(arg, ser);
+			}
+			else {
 				REBSER *ser = Make_Binary(len);
 				memcpy(BIN_HEAD(ser), req->common.data, len);
 				SERIES_TAIL(ser) = len;
@@ -94,10 +110,21 @@
 
 		len = req->actual;
 		if (GET_FLAG(req->flags, RRF_WIDE)) {
-			len /= sizeof(REBUNI); //correct length
-			// Copy the string (convert to latin-8 if it fits):
-			Val_Init_Binary(arg, Copy_Wide_Str(req->common.data, len));
-		} else {
+			REBCNT len_uni = len / sizeof(REBUNI); // correct length
+			REBCNT size = Length_As_UTF8(
+				cast(REBUNI*, req->common.data), len_uni, TRUE, FALSE
+			);
+			REBSER *ser = Make_Binary(size);
+
+			// convert to UTF8, so that it can be converted back to string!
+
+			Encode_UTF8(
+				SERIES_DATA(ser), size, req->common.data, &len_uni, TRUE, FALSE
+			);
+			SERIES_TAIL(ser) = len_uni;
+			Val_Init_Binary(arg, ser);
+		}
+		else {
 			REBSER *ser = Make_Binary(len);
 			memcpy(BIN_HEAD(ser), req->common.data, len);
 			SERIES_TAIL(ser) = len;
