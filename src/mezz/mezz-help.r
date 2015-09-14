@@ -424,11 +424,7 @@ say-browser: does [
 upgrade: function [
 	"Check for newer versions (update REBOL)."
 ][
-	print "Fetching upgrade check ..."
-	if error? err: trap [do http://www.atronixengineering.com/r3/upgrade.r none][
-		either err/id = 'protocol [print "Cannot upgrade from web."][do err]
-	]
-	exit
+	fail "Automatic upgrade checking is currently not supported."
 ]
 
 why?: func [
