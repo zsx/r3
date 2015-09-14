@@ -196,6 +196,7 @@ set 'r3-legacy* func [] [
 	system/options/broken-case-semantics: true
 	system/options/exit-functions-only: true
 	system/options/datatype-word-strict: true
+	system/options/refinements-true: true
 
 	; False is already the default for this switch
 	; (e.g. `to-word type-of quote ()` is the word PAREN! and not GROUP!)
@@ -228,11 +229,19 @@ set 'r3-legacy* func [] [
 				]
 
 				true [
+					; !!! We could write this as:
+					;
+					;     lib/parse/:case input rules
+					;
+					; However, system/options/refinements-true has been set.
+					; We could move the set to after the function is defined,
+					; but probably best since this is "mixed up" code to use
+					; the pattern that works either way.
+					;
 					true? apply :lib/parse [input rules case]
 				]
 			]
 		])
-
 	]
 
 	return none

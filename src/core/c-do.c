@@ -862,18 +862,53 @@ reevaluate:
 
 			case REB_REFINEMENT:
 				// Refinements are tricky because we may hit them in the spec
-				// at a time when they are not the
+				// at a time when they are not at the position in the path
+				// used to invoke that is being processed.  Also, we cannot
+				// write directly into `arg` unless we find a fit, because
+				// we may be scanning across an already-fulfilled refinement
+				// arg we shouldn't mess up.  `out` is available as a
+				// temporary storage space in its place.
 				//
 				if (!refinements || IS_END(refinements))
 					goto function_ready_to_call;
 
-				if (!IS_WORD(&refinements[0]))
-					raise Error_1(RE_BAD_REFINE, &refinements[0]);
+				// !!! Path evaluation needs to be redone to be able to do
+				// "refinement specialization" and other things, but this
+				// poor-man's-evaluator lets us look up a GET-WORD! or
+				// skip over a NONE! (if we ran a PAREN! under this model,
+				// we'd risk doing an evaluation more than once... no good.)
+				//
+				while (TRUE) {
+					if (IS_GET_WORD(&refinements[0]))
+						*out = *GET_VAR(&refinements[0]);
+					else
+						*out = refinements[0];
+					if (IS_WORD(out))
+						break;
+					else if (IS_NONE(out)) {
+						refinements++;
+						if (IS_END(refinements))
+							goto function_ready_to_call;
+					}
+					else
+						raise Error_1(RE_BAD_REFINE, out);
+				}
 
 				// Optimize, if the refinement is the next arg:
-				if (SAME_SYM(&refinements[0], param)) {
-					SET_TRUE(arg);
+				if (SAME_SYM(out, param)) {
 					refinements++;
+
+				#if !defined(NDEBUG)
+					if (TYPE_CHECK(param, REB_LOGIC)) {
+						// OPTIONS_REFINEMENTS_TRUE at function create
+						SET_TRUE(arg);
+						continue;
+					}
+				#endif
+
+					Val_Init_Word_Unbound(
+						arg, REB_WORD, VAL_WORD_SYM(param)
+					);
 
 					// skip type check on refinement itself, and let the
 					// loop process its arguments (if any)
@@ -881,24 +916,52 @@ reevaluate:
 				}
 
 			seek_refinement:
-				// Check is redundant if we are coming from REB_REFINEMENT
+				// Code is redundant if we are coming from REB_REFINEMENT
 				// case above, but not if we're jumping in.
-				if (!IS_WORD(&refinements[0]))
-					raise Error_1(RE_BAD_REFINE, &refinements[0]);
+				//
+				// !!! This will be gone when path eval pre-evaluates
+				// function refinements, likely targeted to data stack
+				//
+				while (TRUE) {
+					if (IS_GET_WORD(&refinements[0]))
+						*out = *GET_VAR(&refinements[0]);
+					else
+						*out = refinements[0];
+					if (IS_WORD(out))
+						break;
+					else if (IS_NONE(out)) {
+						refinements++;
+						if (IS_END(refinements))
+							goto function_ready_to_call;
+					}
+					else
+						raise Error_1(RE_BAD_REFINE, out);
+				}
 
 				param = VAL_FUNC_PARAM(value, 1);
 				arg = DSF_ARG(call, 1);
 				for (; NOT_END(param); param++, arg++) {
 					if (IS_REFINEMENT(param))
-						if (SAME_SYM(param, &refinements[0])) {
-							SET_TRUE(arg);
+						if (SAME_SYM(param, out)) {
 							refinements++;
+
+						#if !defined(NDEBUG)
+							if (TYPE_CHECK(param, REB_LOGIC)) {
+								// OPTIONS_REFINEMENTS_TRUE at function create
+								SET_TRUE(arg);
+								break;
+							}
+						#endif
+
+							Val_Init_Word_Unbound(
+								arg, REB_WORD, VAL_WORD_SYM(param)
+							);
 							break; // will fall through to continue below
 						}
 				}
 				// Was refinement found? If not, error:
 				if (IS_END(param))
-					raise Error_2(RE_NO_REFINE, DSF_LABEL(call), &refinements[0]);
+					raise Error_2(RE_NO_REFINE, DSF_LABEL(call), out);
 
 				// skip type check on refinement itself, and let the
 				// loop process its arguments (if any)
@@ -1394,104 +1457,166 @@ finished:
 
 /***********************************************************************
 **
-*/	REBOOL Apply_Block_Throws(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT index, REBFLG reduce)
+*/	REBOOL Apply_Block_Throws(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT index, REBFLG reduce, va_list *varargs)
 /*
-**		Use a block at a certain index as the source of parameters to
-**		a function invocation.  If 'reduce' then the block will be
-**		evaluated in steps via Do_Next_May_Throw and the results passed as
-**		the arguments, otherwise it will be taken as literal values.
+**		Invoke a function with arguments, either from a C va_list if
+**		varargs is non-NULL...or sourced from a block at a certain index.
+**		(If using varargs, then the block and the index passed in are
+**		used for backtrace purposes only.)  Type checking is performed.
 **
-**		Refinements are passed according to their positions relative
-**		to the order in which they were defined in the spec.  (Brittle,
-**		but that's how it's been done.)  Any conditionally true
-**		value in a refinement position means the refinement will be
-**		passed as TRUE, while conditional falsehood means NONE.
-**		Arguments to an unused refinement will still be evaluated if
-**		'reduce' is set, will be passed as NONE.
+**		This is the mechanism for calling Rebol functions from C (such as
+**		system support functions), and to implement the APPLY native:
 **
-**		The block will be effectively padded with NONE to the number
-**		of arguments if it is shorter than the total needed.  If
-**		there are more values in the block than arguments, that
-**		will be an error.
+**			>> apply :append [[a b c] [d e]]
+**			== [a b c d e]
 **
-**		returns TRUE if out is THROWN()
+**		Refinements are processed according to the positions in which they
+**		were defined in the function spec.  So for instance, /ONLY is in
+**		the 5th spot of APPEND (after /PART and its LIMIT):
+**
+**			>> use-only: true
+**			>> apply :append [[a b c] [d e] none none use-only]
+**			== [a b c [d e]]
+**
+**		(Note: This is brittle, so it's better to use path dispatch
+**		when it's an option, e.g. `append/:use-only [a b c] [d e]`)
+**
+**		Any conditionally true value in a refinement position means the
+**		refinement will be considered present, while conditional
+**		falsehood means absent.  When the function runs, a present
+**		refinement's variable will hold its WORD! name unbound
+**		(for chaining, while still testing as TRUE?).  Absent refinements
+**		will be seen as NONE! from within the function body.
+**
+**		If 'reduce' (the default behavior of the native) then the block
+**		will be evaluated in steps via Do_Next_May_Throw, and the results
+**		passed as the arguments.  Otherwise it will be taken as literal
+**		values--which is the behavior of the native when /ONLY is used.
+**		(Using reduce is not allowed when input is coming from the
+**		va_list, as that would require copying them into a series first.)
+**
+**		* Arguments to an unused refinement will still be evaluated if
+**		'reduce' is set, with the result discarded and passed as NONE!.
+**
+**		* The input block or varargs must fulfill the required args, and
+**		cannot cut off in the middle of refinement args to anything it
+**		has started.  But it may stop supplying arguments at the boundary
+**		of any transition to another refinement.
+**
+**		* If there are more processed values in the block than arguments,
+**		that will trigger an error.
+**
+**		* Infix functions are allowed, with the first item in the block
+**		presumed to be the left-hand side of the call.
+**
+**		The boolean result will be TRUE if an argument eval or the call
+**		created a THROWN() value, with the thrown value in `out`.
+**		Otheriwse it returns FALSE and `out` will hold the evaluation.
 **
 ***********************************************************************/
 {
 	struct Reb_Call *call;
-	REBVAL *arg;
-	REBVAL *param;
+
+	REBVAL *param; // EXT_WORD_TYPED parameter word in function words list
+	REBVAL *arg; // value argument slot to fill in call frame for `param`
+
+	// Discard evaluations until the next refinement or end of block.
 	REBOOL ignoring = FALSE;
+
+	// `apply x y` behaves as if you wrote `apply/only x reduce y`.
+	// Hence the following should return before erroring on too-many-args:
+	//
+	//     apply does [] [1 2 return 3 4]
+	//
+	// This flag reminds us to error *after* any reducing has finished.
+	//
 	REBOOL too_many = FALSE;
 
-	SET_TRASH_SAFE(out);
+#if !defined(NDEBUG)
+	if (varargs) assert(!reduce); // we'd have to put it in a series to reduce
+#endif
 
-	// !!! Should infix work here, but just act like a normal function?
-	// Historically that is how it has worked:
-	//
-	//     >> apply :+ [1 2]
-	//     3
-	//
-	// Whether that's confusing or sensible depends.
-
+	// !!! Should these be asserts?
+	if (!ANY_FUNC(func)) raise Error_Invalid_Arg(func);
 	if (index > SERIES_TAIL(block)) index = SERIES_TAIL(block);
 
-	// Now push function frame
 	call = Make_Call(out, block, index, NULL, func);
 
-	// Gather arguments:
+	assert(VAL_FUNC_NUM_PARAMS(func) == DSF_NUM_ARGS(call));
 
-	arg = DSF_NUM_ARGS(call) > 0 ? DSF_ARG(call, 1) : END_VALUE;
+	// Get first parameter (or a REB_END if no parameters)
 	if (VAL_FUNC_NUM_PARAMS(func) > 0)
 		param = VAL_FUNC_PARAM(func, 1);
 	else
-		param = END_VALUE;
+		param = END_VALUE; // triggers `too_many` if loop is entered
 
-	while (index < BLK_LEN(block)) {
+	// Get slot to write actual argument for first parameter into (or NULL)
+	arg = (DSF_NUM_ARGS(call) > 0) ? DSF_ARG(call, 1) : NULL;
+
+	while (varargs || index < BLK_LEN(block)) {
 		if (!too_many && IS_END(param)) {
-			too_many = TRUE;
-			if (!reduce) break;
+			if (varargs && !va_arg(*varargs, REBVAL*)) break;
 
-			// Semantically speaking, 'apply x y' behaves "as if" you had
-			// written 'apply/only x reduce y'.  This means that even if a
-			// block contains too many values for the function being called,
-			// we can't report that before finishing the reduce.  (e.g.
-			// 'apply does [] [1 2 return 3 4]' should return before there
-			// is an opportunity to report the too-many-args error)
+			too_many = TRUE;
+			if (!reduce) break; // we can shortcut if reduce wasn't requested
+
+			// When we have a valid place to reduce arguments into, `arg`
+			// is the ideal spot to do it.  But for excess arguments we
+			// need another place.  `out` is always available, so use that.
+			arg = out;
 		}
 
-		// Reduce (or just copy) block content to call frame:
-		if (reduce) {
-			index = Do_Next_May_Throw(out, block, index);
+		if (varargs) {
+			REBVAL* value = va_arg(*varargs, REBVAL*);
+			if (!value) break; // our convention is "NULL signals no more"
+
+			*arg = *value;
+		}
+		else if (reduce) {
+			index = Do_Next_May_Throw(arg, block, index);
 			if (index == THROWN_FLAG) {
+				*out = *arg; // `arg` may be equal to `out` (if `too_many`)
 				Free_Call(call);
 				return FALSE;
 			}
-			if (too_many) continue;
-			*arg = *out;
-		} else {
-			assert(!too_many);
+			if (too_many) continue; // don't test `arg` or advance `param`
+		}
+		else {
+			assert(!too_many); // break above would have already given up
 			*arg = *BLK_SKIP(block, index);
 			index++;
 		}
 
-		// If arg is refinement, determine its state:
 		if (IS_REFINEMENT(param)) {
+			// If we've found a refinement, this resets our ignore state
+			// based on whether or not the arg suggests it is enabled
+
 			if (IS_CONDITIONAL_TRUE(arg)) {
-				// !!! Review this in light of the idea of refinements
-				// holding the value of their words
-				SET_TRUE(arg);
 				ignoring = FALSE;
-			} else {
-				SET_NONE(arg);
+
+			#ifdef NDEBUG
+				Val_Init_Word_Unbound(arg, REB_WORD, VAL_WORD_SYM(param));
+			#else
+				if (TYPE_CHECK(param, REB_LOGIC)) {
+					// OPTIONS_REFINEMENTS_TRUE at function create
+					SET_TRUE(arg);
+				} else
+					Val_Init_Word_Unbound(arg, REB_WORD, VAL_WORD_SYM(param));
+			#endif
+			}
+			else {
 				ignoring = TRUE;
+				SET_NONE(arg);
 			}
 		}
 		else {
-			if (ignoring)
+			if (ignoring) {
+				// Ignored refinement args are set to NONE! but may not
+				// actually have NONE! as accepted in their typeset
 				SET_NONE(arg);
+			}
 			else {
-				// If arg is typed, verify correct argument datatype:
+				// Verify allowed argument datatype:
 				if (!TYPE_CHECK(param, VAL_TYPE(arg)))
 					raise Error_Arg_Type(call, param, Type_Of(arg));
 			}
@@ -1501,12 +1626,33 @@ finished:
 		param++;
 	}
 
-	if (too_many) {
-		// With the effective reduction of the block (if it was necessary)
-		// now we can report an error about the size.  "Content too long"
-		// is probably not the right error; needs a more specific one.
-		raise Error_0(RE_TOO_LONG);
+	if (too_many)
+		raise Error_0(RE_APPLY_TOO_MANY);
+
+	// Pad with NONE! any remaining parameters if they can accept it, and
+	// detect if we are trying to run an incomplete parameterization.
+
+	while (!IS_END(param)) {
+		SET_NONE(arg);
+
+		if (IS_REFINEMENT(param))
+			ignoring = TRUE;
+		else {
+			if (!ignoring) {
+				// If we aren't in ignore mode and we are dealing with
+				// a non-refinement, then it's a situation of a required
+				// argument missing or not all the args to a refinement given
+
+				raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
+			}
+		}
+
+		arg++;
+		param++;
 	}
+
+	// With the arguments processed and proxied into the call frame, invoke
+	// the function body.
 
 	return Dispatch_Call_Throws(call);
 }
@@ -1514,35 +1660,24 @@ finished:
 
 /***********************************************************************
 **
-*/	REBOOL Apply_Function_Throws(REBVAL *out, const REBVAL *func, va_list *values)
+*/	REBOOL Apply_Function_Throws(REBVAL *out, const REBVAL *func, va_list *varargs)
 /*
 **		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 **
-**		Applies function from args provided by C call. Zero terminated.
-**		Does not type check in release build; assumes the system is
-**		calling correctly (Debug build does check)
-**
-**		out	- result value
-**		func - function to call
-**		values - values to pass as function args (null terminated)
-**
-**		!!! OPs are allowed, treated as normal functions.  Good idea?
+**		Applies function from args provided by C call.  Although the
+**		function knows how many total args + refinements + refinement
+**		args it takes, it's desirable to be able to pass fewer and
+**		have the remainder padded with NONE!, so the convention used
+**		is that the varargs must be NULL-terminated.
 **
 **		returns TRUE if out is THROWN()
 **
 ***********************************************************************/
 {
-	struct Reb_Call *call;
-	REBVAL *param;
-	REBVAL *arg;
-	REBVAL *value;
+	REBSER *block;
+	REBCNT index;
 
-	REBOOL ignoring = FALSE;
-
-	REBSER *where_block;
-	REBCNT where_index;
-
-	// For debug backtracing, DO wants to know what our execution
+	// For debug backtracing, the evaluator wants to know what our
 	// block and position are.  We have to make something up, because
 	// this call is originating from C code (not Rebol code).
 
@@ -1550,73 +1685,29 @@ finished:
 		// Some function is on the stack, so fabricate our execution
 		// position by copying the block and position it was at.
 
-		where_block = VAL_SERIES(DSF_WHERE(DSF));
-		where_index = VAL_INDEX(DSF_WHERE(DSF));
+		block = VAL_SERIES(DSF_WHERE(DSF));
+		index = VAL_INDEX(DSF_WHERE(DSF));
 	}
 	else if (IS_FUNCTION(func) || IS_CLOSURE(func)) {
 		// Stack is empty, so offer up the body of the function itself
 		// (if it has a body!)
 
-		where_block = VAL_FUNC_BODY(func);
-		where_index = 0;
+		block = VAL_FUNC_BODY(func);
+		index = 0;
 	}
 	else {
 		// We got nothin'.  Give back the specially marked "top level"
 		// empty block just to provide something in the slot
 		// !!! Could use more sophisticated backtracing in general
 
-		where_block = EMPTY_SERIES;
-		where_index = 0;
+		block = EMPTY_SERIES;
+		index = 0;
 	}
 
-	SET_TRASH_SAFE(out);
-
-	call = Make_Call(out, where_block, where_index, NULL, func);
-
-	param = VAL_FUNC_PARAM(func, 1);
-	arg = DSF_ARG(call, 1);
-
-	for (; NOT_END(param); param++, arg++) {
-		const REBVAL *value = va_arg(*values, REBVAL*);
-
-		if (!value) break;
-
-		if (THROWN(value)) {
-			*out = *value;
-			Free_Call(call);
-			return FALSE;
-		}
-
-		*arg = *value;
-
-	#ifndef NDEBUG
-		// !!! Should this be in the release build or "just trust it"?
-		// original code had no checking whatsoever.
-
-		if (IS_REFINEMENT(param)) {
-			if (IS_LOGIC(arg) && VAL_LOGIC(arg))
-				ignoring = FALSE;
-			else if (IS_NONE(arg))
-				ignoring = TRUE;
-			else {
-				// !!! Old code did not force to TRUE or NONE.  But functions
-				// expect a refinement to be TRUE or NONE.  Should we test for
-				// IS_CONDITIONAL_TRUE and give the appropriate value, giving
-				// C-invocations the same leeway as APPLY?
-				assert(FALSE);
-			}
-		}
-		else if (ignoring)
-			assert(IS_NONE(arg)); // !!! again, old code did not force this
-		else {
-			// If arg is typed, verify correct argument datatype:
-			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				raise Error_Arg_Type(call, param, Type_Of(arg));
-		}
-	#endif
-	}
-
-	return Dispatch_Call_Throws(call);
+	// Re-use the code powering the APPLY native for handling blocks.
+	// As we pass in a non-NULL va_list*, it gets the values from there.
+	//
+	return Apply_Block_Throws(out, func, block, index, FALSE, varargs);
 }
 
 
@@ -1633,10 +1724,28 @@ finished:
 	REBOOL result;
 	va_list args;
 
-	if (!ANY_FUNC(func)) raise Error_Invalid_Arg(func);
-
 	va_start(args, func);
 	result = Apply_Function_Throws(out, func, &args);
+
+	// !!! An issue was uncovered here that there can be problems if a
+	// failure is caused inside the Apply_Function_Throws() which does
+	// a longjmp() and never returns.  The C standard is explicit that
+	// you cannot dodge the call to va_end(), and that call can only be
+	// in *this* function (as it passes a local variable directly, and
+	// its implementation is opaque):
+	//
+	//    http://stackoverflow.com/a/32259710/211160
+	//
+	// This means either the entire Apply logic has to be duplicated
+	// inside of this function with shutdowns -OR- the varargs need to
+	// be unpacked into a series managed by GC or the data stack -OR-
+	// the Apply logic has to be parameterized to return errors to be
+	// raised and a call frame to be executed, without failing or
+	// calling itself.
+	//
+	// On most architectures this will not be a problem, but most does
+	// not mean all... so it should be tended to at some point.
+	//
 	va_end(args);
 
 	return result;
@@ -1659,6 +1768,8 @@ finished:
 
 	va_start(args, inum);
 	result = Apply_Function_Throws(out, value, &args);
+
+	// !!! See notes in Apply_Func_Throws about va_end() and longjmp()
 	va_end(args);
 
 	return result;

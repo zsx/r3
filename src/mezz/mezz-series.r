@@ -68,7 +68,7 @@ remold: func [
 	/all  {Mold in serialized format}
 	/flat {No indentation}
 ][
-	apply :mold [reduce :value only all flat]
+	mold/:only/:all/:flat reduce :value
 ]
 
 charset: func [
@@ -366,6 +366,16 @@ collect: func [
 ][
 	unless output [output: make block! 16]
 	eval func [<transparent> keep] body func [value [any-type!] /only] [
+		; In the default operation, this could now be written as:
+		;
+		;     output: insert/:only :value
+		;
+		; However, even though the system/options/refinements-true operation
+		; is captured at function definition time to work how the function
+		; expected, this is creating new functions *dynamically*.  As long as
+		; the option exists, we must use APPLY in case the compatibility
+		; mode is on and ONLY is #[true] (instead of the WORD! ONLY)
+		;
 		output: apply :insert [output :value none none only]
 		:value
 	]

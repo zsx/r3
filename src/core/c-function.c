@@ -174,10 +174,22 @@
 			break;
 
 		case REB_REFINEMENT:
-			// Refinement only allows logic! and none! for its datatype:
 			n++;
 			value = BLK_SKIP(words, n);
-			VAL_TYPESET(value) = (TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
+
+		#if !defined(NDEBUG)
+			// Because Mezzanine functions are written to depend on the idea
+			// that when they get a refinement it will be a WORD! and not a
+			// LOGIC!, we have to capture the desire to get LOGIC! vs WORD!
+			// at function creation time...not dispatch time.  We encode the
+			// bit in the refinement's typeset that it accepts.
+			if (LEGACY(OPTIONS_REFINEMENTS_TRUE)) {
+				VAL_TYPESET(value) = (TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
+				break;
+			}
+		#endif
+			// Refinements can nominally be only WORD! or NONE!
+			VAL_TYPESET(value) = (TYPESET(REB_WORD) | TYPESET(REB_NONE));
 			break;
 
 		case REB_TAG:

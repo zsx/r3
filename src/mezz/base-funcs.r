@@ -69,7 +69,9 @@ use: func [
 	vars [block! word!] {Local word(s) to the block}
 	body [block!] {Block to evaluate}
 ][
-	apply make closure! reduce [compose [<transparent> (vars)] copy/deep body] []
+	apply make closure! reduce [
+		compose [<transparent> /local (vars)] copy/deep body
+	] []
 ]
 
 object: func [

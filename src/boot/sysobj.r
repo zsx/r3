@@ -147,6 +147,7 @@ options: context [  ; Options supplied to REBOL during startup
 	do-raises-errors: false
 	datatype-word-strict: false
 	group-not-paren: false ;; bias the default to PAREN! vs GROUP! (for now...)
+	refinements-true: false
 ]
 
 script: context [

@@ -311,7 +311,7 @@ enum {
 	REBOOL reduce = !D_REF(3);
 
 	if (!Apply_Block_Throws(
-		D_OUT, func, VAL_SERIES(block), VAL_INDEX(block), reduce
+		D_OUT, func, VAL_SERIES(block), VAL_INDEX(block), reduce, NULL
 	)) {
 		// No special handling needed if D_OUT is thrown, as we are just
 		// returning it to bubble up anyway
@@ -619,45 +619,42 @@ was_caught:
 			TAKE_THROWN_ARG(thrown_arg, D_OUT);
 			*thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
 
-			// We will accept a function of arity 0, 1, or 2 as a CATCH/WITH
-			// handler.  If it is arity 1 it will get just the thrown value,
-			// If it is arity 2 it will get the value and the throw name.
-
-			if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(thrown_arg))) {
-				raise Error_3(
-					RE_EXPECT_ARG,
-					Type_Of(handler),
-					param,
-					Type_Of(thrown_arg)
-				);
+			if (
+				(VAL_FUNC_NUM_PARAMS(handler) == 0)
+				|| IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
+			) {
+				// If the handler is zero arity or takes a first parameter
+				// that is a refinement, call it with no arguments
+				//
+				if (Apply_Func_Throws(D_OUT, handler, NULL)) {
+					// No need to do anything special in the thrown case,
+					// as we are just returning the thrown value anyway
+				}
 			}
-
-			if (NOT_END(param)) ++param;
-
-			if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(thrown_name))) {
-				raise Error_3(
-					RE_EXPECT_ARG,
-					Type_Of(handler),
-					param,
-					Type_Of(thrown_name)
-				);
+			else if (
+				(VAL_FUNC_NUM_PARAMS(handler) == 1)
+				|| IS_REFINEMENT(VAL_FUNC_PARAM(handler, 2))
+			) {
+				// If the handler is arity one (with a non-refinement
+				// parameter), or a greater arity with a second parameter that
+				// is a refinement...call it with *just* the thrown value.
+				//
+				if (Apply_Func_Throws(D_OUT, handler, thrown_arg, NULL)) {
+					// No need to do anything special in the thrown case,
+					// as we are just returning the thrown value anyway
+				}
 			}
-
-			if (NOT_END(param)) param++;
-
-			if (NOT_END(param) && !IS_REFINEMENT(param)) {
-				// We go lower in arity, but don't make up arg values
-				raise Error_1(RE_NEED_VALUE, param);
-			}
-
-			// !!! As written, Apply_Func will ignore extra arguments.
-			// This means we can pass a lower arity function.  The
-			// effect is desirable, though having Apply_Func be cavalier
-			// about extra arguments may not be the best way to do it.
-
-			if (Apply_Func_Throws(D_OUT, handler, thrown_arg, thrown_name, NULL)) {
-				// No need to do anything special in the thrown case, as we
-				// are just returning the thrown value anyway
+			else {
+				// For all other handler signatures, try passing both the
+				// thrown arg and the thrown name.  Let Apply take care of
+				// checking that the arguments are legal for the call.
+				//
+				if (Apply_Func_Throws(
+					D_OUT, handler, thrown_arg, thrown_name, NULL
+				)) {
+					// No need to do anything special in the thrown case,
+					// as we are just returning the thrown value anyway
+				}
 			}
 
 			return R_OUT;
@@ -1204,31 +1201,27 @@ was_caught:
 				return R_OUT;
 			}
 			else if (ANY_FUNC(handler)) {
-				REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
-
-				// We will accept a function of arity 0 or 1 as a TRAP/WITH
-				// handler.  If it is arity 1 it will get the error.
-
-				if (NOT_END(param) && !TYPE_CHECK(param, VAL_TYPE(error))) {
-					// If handler takes an arg, it must take ERROR!
-					raise Error_1(RE_TRAP_WITH_EXPECTS, param);
+				if (
+					(VAL_FUNC_NUM_PARAMS(handler) == 0)
+					|| IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
+				) {
+					// Arity zero handlers (or handlers whose first
+					// parameter is a refinement) we call without the ERROR!
+					//
+					if (!Apply_Func_Throws(D_OUT, handler, NULL)) {
+						// No need to handle thrown result specially, as we
+						// are just returning it anyway
+					}
 				}
-
-				if (NOT_END(param)) param++;
-
-				if (NOT_END(param) && !IS_REFINEMENT(param)) {
-					// We go lower in arity, but don't make up arg values
-					raise Error_1(RE_NEED_VALUE, param);
-				}
-
-				// !!! As written, Apply_Func will ignore extra arguments.
-				// This means we can pass a lower arity function.  The
-				// effect is desirable, though having Apply_Func be cavalier
-				// about extra arguments may not be the best way to do it.
-
-				if (Apply_Func_Throws(D_OUT, handler, error, NULL)) {
-					// No need to handle thrown result specially, as we
-					// are just returning it anyway
+				else {
+					// If the handler takes at least one parameter that
+					// isn't a refinement, try passing it the ERROR! we
+					// trapped.  Apply will do argument checking.
+					//
+					if (!Apply_Func_Throws(D_OUT, handler, error, NULL)) {
+						// No need to handle thrown result specially, as we
+						// are just returning it anyway
+					}
 				}
 
 				return R_OUT;

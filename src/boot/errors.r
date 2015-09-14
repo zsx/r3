@@ -132,8 +132,7 @@ Script: [
 	expect-val:         [{expected} :arg1 {not} :arg2]
 	expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
 	cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
-
-	trap-with-expects:	[{must allow} :arg1 {as ERROR! to be TRAP handler}]
+	apply-too-many:		{Too many values in processed argument block of APPLY.}
 
 	; !!! Temporary errors while faulty constructs are still outstanding
 	; (more informative than just saying "function doesn't take that type")
