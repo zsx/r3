@@ -365,7 +365,9 @@ collect: func [
 	output [series!] "The buffer series (modified)"
 ][
 	unless output [output: make block! 16]
-	eval func [keep] body func [value [any-type!] /only] [
+	eval func [<transparent> keep] body func [
+		<transparent> value [any-type!] /only
+	] [
 		output: apply :insert [output :value none none only]
 		:value
 	]
@@ -514,6 +516,7 @@ split: func [
 ]
 
 find-all: function [
+	<transparent>
 	"Find all occurrences of a value within a series (allows modification)."
 	'series [word!] "Variable for block, string, or other series"
 	value

@@ -167,6 +167,7 @@ undirize: func [
 ]
 
 in-dir: func [
+	<transparent>
 	"Evaluate a block while in a directory."
 	dir [file!] "Directory to change to (changed back after)"
 	block [block!] "Block to evaluate"

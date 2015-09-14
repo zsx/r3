@@ -64,14 +64,16 @@ does: func [
 ]
 
 use: func [
+	<transparent>
 	{Defines words local to a block.}
 	vars [block! word!] {Local word(s) to the block}
 	body [block!] {Block to evaluate}
-][ ; !!Needs the R3 equivalent of the [throw] function attribute in the created closure!
-	apply make closure! reduce [to block! vars copy/deep body] []
+][
+	apply make closure! reduce [compose [<transparent> (vars)] copy/deep body] []
 ]
 
 object: func [
+	<transparent>
 	{Defines a unique object.}
 	blk [block!] {Object words and values (modified)}
 ][
@@ -79,6 +81,7 @@ object: func [
 ]
 
 module: func [
+	<transparent>
 	"Creates a new module."
 	spec [block!] "The header block of the module (modified)"
 	body [block!] "The body block of the module (modified)"

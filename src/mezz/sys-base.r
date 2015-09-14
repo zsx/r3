@@ -156,6 +156,7 @@ do*: function [
 ]
 
 make-module*: func [
+	<transparent>
 	"SYS: Called by system on MAKE of MODULE! datatype."
 	spec [block!] "As [spec-block body-block opt-mixins-object]"
 	/local body obj mixins hidden w
