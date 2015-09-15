@@ -35,6 +35,8 @@ datatypes
 ; this list is applied, so you only see typesets in this file.
 ;-----------------------------------------------------------------------------
 
+group! ;-- replacement for paren! type (incubating as normal word for now)
+
 native
 self
 none

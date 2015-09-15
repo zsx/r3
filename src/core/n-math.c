@@ -365,6 +365,18 @@ enum {SINE, COSINE, TANGENT};
 				if (LEGACY(OPTIONS_DATATYPE_WORD_STRICT)) break;
 			#endif
 
+			#if !defined(NDEBUG)
+				if (
+					LEGACY(OPTIONS_GROUP_NOT_PAREN)
+					&& VAL_WORD_SYM(b) == SYM_GROUPX
+					&& VAL_TYPE_KIND(a) == REB_PAREN
+				) {
+					// If comparing PAREN! datatype to GROUP! word, mutate
+					// the fake word made from datatype to have group symbol
+					sym = SYM_GROUPX;
+				}
+			#endif
+
 				Val_Init_Word_Unbound(a, REB_WORD, sym);
 				goto compare;
 			}
@@ -384,6 +396,18 @@ enum {SINE, COSINE, TANGENT};
 
 			#if !defined(NDEBUG)
 				if (LEGACY(OPTIONS_DATATYPE_WORD_STRICT)) break;
+			#endif
+
+			#if !defined(NDEBUG)
+				if (
+					LEGACY(OPTIONS_GROUP_NOT_PAREN)
+					&& VAL_WORD_SYM(a) == SYM_GROUPX
+					&& VAL_TYPE_KIND(b) == REB_PAREN
+				) {
+					// If comparing PAREN! datatype to GROUP! word, mutate
+					// the fake word made from datatype to have group symbol
+					sym = SYM_GROUPX;
+				}
 			#endif
 
 				Val_Init_Word_Unbound(b, REB_WORD, sym);

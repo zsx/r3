@@ -99,6 +99,19 @@
 			//return R_NONE;
 			raise Error_Bad_Make(type, arg);
 		}
+
+		#if !defined(NDEBUG)
+			if (
+				LEGACY(OPTIONS_GROUP_NOT_PAREN)
+				&& IS_WORD(arg)
+				&& VAL_WORD_SYM(arg) == SYM_GROUPX
+			) {
+				// Mutate call frame word symbol from GROUP! to the one for
+				// a PAREN! (see VAL_TYPE_SYM() regarding the + 1)
+				VAL_WORD_SYM(arg) = REB_PAREN + 1;
+			}
+		#endif
+
 		// if (IS_NONE(arg)) return R_NONE;
 		if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
 			break;

@@ -36,3 +36,6 @@ use [word] [
 		]
 	]
 ]
+
+; See notes on GROUP! in base-constants.r
+to-group: :to-paren

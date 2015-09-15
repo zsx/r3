@@ -174,6 +174,11 @@ set 'r3-legacy* func [] [
 	system/options/exit-functions-only: true
 	system/options/datatype-word-strict: true
 
+	; False is already the default for this switch
+	; (e.g. `to-word type-of quote ()` is the word PAREN! and not GROUP!)
+	;
+	system/options/group-not-paren: false
+
 	append system/contexts/user compose [
 
 		and: (:and*)
