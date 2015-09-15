@@ -431,6 +431,7 @@ enum {
 		// Until such time as DO guarantees such things aren't legal,
 		// CASE must evaluate block literals too.
 
+	#if !defined(NDEBUG)
 		if (
 			LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)
 			&& IS_CONDITIONAL_FALSE(condition_result)
@@ -444,6 +445,7 @@ enum {
 			SET_NONE(D_OUT);
 			continue;
 		}
+	#endif
 
 		index = Do_Next_May_Throw(body_result, block, index);
 
@@ -453,10 +455,12 @@ enum {
 		}
 
 		if (index == END_FLAG) {
+		#if !defined(NDEBUG)
 			if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
 				// case [first [a b c]] => true ;-- in Rebol2
 				return R_TRUE;
 			}
+		#endif
 
 			// case [first [a b c]] => **error**
 			raise Error_0(RE_PAST_END);
@@ -484,12 +488,14 @@ enum {
 				*D_OUT = *body_result;
 			}
 
+		#if !defined(NDEBUG)
 			if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
 				if (IS_UNSET(D_OUT)) {
 					// case [true [] false [1 + 2]] => true ;-- in Rebol2
 					SET_TRUE(D_OUT);
 				}
 			}
+		#endif
 
 			// One match is enough to return the result now, unless /ALL
 			if (!all) return R_OUT;
@@ -943,10 +949,14 @@ was_caught:
 **
 ***********************************************************************/
 {
+#if !defined(NDEBUG)
 	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
 		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
 	else
 		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
+#else
+	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
+#endif
 
 	CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 

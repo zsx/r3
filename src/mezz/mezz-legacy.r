@@ -14,8 +14,9 @@ REBOL [
 	Description: {
 		These definitions turn the clock backward for Rebol code that was
 		written prior to Ren/C, e.g. binaries available on rebolsource.net
-		or R3-Alpha binaries from rebol.com.  (See also the OS environment
-		setting R3_LEGACY=1).
+		or R3-Alpha binaries from rebol.com.  Some flags which are set
+		which affect the behavior of natives and the evaluator ARE ONLY
+		ENABLED IN DEBUG BUILDS OF REN/C...so be aware of that.
 
 		Some "legacy" definitions (like `foreach` as synonym of `for-each`)
 		are kept by default for now, possibly indefinitely.  For other
@@ -163,9 +164,9 @@ try: func [
 ;
 set 'r3-legacy* func [] [
 
-	; NOTE: these flags only work if R3_LEGACY is set to "1" in the
-	; environment and you are using a debug build equipped to support
-	; them.  A better availability test for the functionality is needed
+	; NOTE: these flags only work in debug builds.  A better availability
+	; test for the functionality is needed, as these flags may be expired
+	; at different times on a case-by-case basis.
 	;
 	system/options/do-runs-functions: true
 	system/options/do-raises-errors: true

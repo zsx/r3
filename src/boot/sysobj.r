@@ -139,7 +139,7 @@ options: context [  ; Options supplied to REBOL during startup
 	file-types: []
 	result-types: none
 
-	; Legacy Behaviors Options (enabled if R3_LEGACY=1 set in OS environment)
+	; Legacy Behaviors Options (paid attention to only by debug builds)
 
 	exit-functions-only: false
 	broken-case-semantics: false

@@ -1142,7 +1142,6 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 #ifndef NDEBUG
 	PG_Always_Malloc = FALSE;
-	PG_Legacy = FALSE;
 #endif
 
 	// Globals

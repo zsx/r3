@@ -60,7 +60,6 @@ PVAR REB_OPTS *Reb_Opts;
 
 #ifndef NDEBUG
 	PVAR REBOOL PG_Always_Malloc;	// For memory-related troubleshooting
-	PVAR REBOOL PG_Legacy;			// Need to check for old operation modes
 #endif
 
 // A REB_END value, which comes in handy if you ever need the address of

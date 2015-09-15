@@ -845,26 +845,25 @@ enum Reb_Fail_Prep {
 **
 **	Legacy Modes Checking
 **
-**		Ren/C wants to try out new things that will (or likely will) make
-**		it into the official release.  But it also wants transitioning
-**		feasible from Rebol2 and Rebol3-alpha, and without paying
+**		Ren/C wants to try out new things that will likely be included
+**		it the official Rebol3 release.  But it also wants transitioning
+**		to be feasible from Rebol2 and R3-Alpha, without paying that
 **		much to check for "old" modes if they're not being used.  So
 **		system/options contains flags used for enabling specific
 **		features relied upon by old code.
 **
 **		In order to keep these easements from adding to the measured
-**		performance cost in the system, they are only supported in
-**		debug builds.  Also, none of them are checked by default...
-**		you must have run the executable with an environment variable
-**		set as R3_LEGACY=1, which sets PG_Legacy so the check is done.
+**		performance cost in the system (and to keep them from being
+**		used for anything besides porting), they are only supported in
+**		debug builds.
 **
 ***********************************************************************/
 
-#ifdef NDEBUG
-	#define LEGACY(option) FALSE
-#else
-	#define LEGACY(option) \
-		(PG_Legacy && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))))
+#if !defined(NDEBUG)
+	#define LEGACY(option) ( \
+		(PG_Boot_Phase >= BOOT_ERRORS) \
+		&& IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))) \
+	)
 #endif
 
 
