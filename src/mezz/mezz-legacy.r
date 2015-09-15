@@ -172,6 +172,7 @@ set 'r3-legacy* func [] [
 	system/options/do-raises-errors: true
 	system/options/broken-case-semantics: true
 	system/options/exit-functions-only: true
+	system/options/datatype-word-strict: true
 
 	append system/contexts/user compose [
 

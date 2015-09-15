@@ -145,6 +145,7 @@ options: context [  ; Options supplied to REBOL during startup
 	broken-case-semantics: false
 	do-runs-functions: false
 	do-raises-errors: false
+	datatype-word-strict: false
 ]
 
 script: context [
