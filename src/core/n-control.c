@@ -1131,39 +1131,152 @@ was_caught:
 **		/default
 **		case
 **      /all {Check all cases}
+**      /strict
 **
 ***********************************************************************/
 {
-	REBVAL *case_val = VAL_BLK_DATA(D_ARG(2));
+	REBVAL * const value = D_ARG(1);
+	REBVAL * const cases = D_ARG(2);
+	// has_default implied by default_case not being none
+	REBVAL * const default_case = D_ARG(4);
 	REBOOL all = D_REF(5);
+	REBOOL strict = D_REF(6);
+
 	REBOOL found = FALSE;
 
-	for (; NOT_END(case_val); case_val++) {
+	REBVAL *item = VAL_BLK_DATA(cases);
 
-		// Look for the next *non* block case value to try to match
-		if (!IS_BLOCK(case_val) && 0 == Cmp_Value(D_ARG(1), case_val, FALSE)) {
+	SET_NONE(D_OUT); // default return value if no cases run
 
-			// Skip ahead to try and find a block, to treat as code
-			while (!IS_BLOCK(case_val) && NOT_END(case_val)) case_val++;
-			if (IS_END(case_val)) break;
+	for (; NOT_END(item); item++) {
 
-			found = TRUE;
+		// The way SWITCH works with blocks is that blocks are considered
+		// bodies to match for other value types, so you can't use them
+		// as case keys themselves.  They'll be skipped until we find
+		// a non-block case we want to match.
 
-			// Evaluate code block, but if result is THROWN() then return it
-			if (Do_Block_Throws(D_OUT, VAL_SERIES(case_val), 0)) return R_OUT;
+		if (IS_BLOCK(item)) {
+			// Each time we see a block that we don't take, we reset
+			// the output to NONE!...because we only leak evaluations
+			// out the bottom of the switch if no block would catch it
 
-			if (!all) return R_OUT;
+			SET_NONE(D_OUT);
+			continue;
 		}
-	}
 
-	if (!found && IS_BLOCK(D_ARG(4))) {
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(4)), 0))
+		// GET-WORD!, GET-PATH!, and PAREN! are evaluated (an escaping
+		// mechanism as in lit-quotes of function specs to avoid quoting)
+		// You can still evaluate to one of these, e.g. `(quote :foo)` to
+		// use parens to produce a GET-WORD! to test against.
+
+		if (IS_PAREN(item)) {
+
+		#if !defined(NDEBUG)
+			if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
+				// !!! Note this as a delta in the legacy log
+				*D_OUT = *item;
+				goto compare_values;
+			}
+		#endif
+
+			if (Do_Block_Throws(D_OUT, VAL_SERIES(item), VAL_INDEX(item)))
+				return R_OUT;
+		}
+		else if (IS_GET_WORD(item)) {
+
+		#if !defined(NDEBUG)
+			if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
+				// !!! Note this as a delta in the legacy log
+				*D_OUT = *item;
+				goto compare_values;
+			}
+		#endif
+
+			GET_VAR_INTO(D_OUT, item);
+		}
+		else if (IS_GET_PATH(item)) {
+			const REBVAL *path = item;
+
+		#if !defined(NDEBUG)
+			if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
+				// !!! Note this as a delta in the legacy log
+				*D_OUT = *item;
+				goto compare_values;
+			}
+		#endif
+
+			Do_Path(D_OUT, &path, NULL);
+			if (THROWN(D_OUT))
+				return R_OUT;
+		}
+		else {
+			// Even if we're just using the item literally, we need to copy
+			// it from the block the user loaned us...because the type
+			// coercion in Compare_Modify_Values could mutate it.
+
+			*D_OUT = *item;
+		}
+
+	#if !defined(NDEBUG)
+	compare_values: // only used by LEGACY(OPTIONS_NO_SWITCH_EVALS)
+	#endif
+
+		// It's okay that we are letting the comparison change `value`
+		// here, because equality is supposed to be transitive.  So if it
+		// changes 0.01 to 1% in order to compare it, anything 0.01 would
+		// have compared equal to so will 1%.  (That's the idea, anyway,
+		// required for `a = b` and `b = c` to properly imply `a = c`.)
+
+		if (!Compare_Modify_Values(value, D_OUT, strict ? 2 : 0))
+			continue;
+
+		// Skip ahead to try and find a block, to treat as code
+
+		while (!IS_BLOCK(item)) {
+			if (IS_END(item)) break;
+			item++;
+		}
+
+		found = TRUE;
+
+		if (Do_Block_Throws(D_OUT, VAL_SERIES(item), VAL_INDEX(item)))
 			return R_OUT;
 
+		// Only keep processing if the /ALL refinement was specified
+
+		if (!all) return R_OUT;
+	}
+
+	if (!found && IS_BLOCK(default_case)) {
+		if (Do_Block_Throws(
+			D_OUT, VAL_SERIES(default_case), VAL_INDEX(default_case)
+		)) {
+			// No special handling needed if D_OUT is thrown, as we're
+			// just going to return it anyway.
+		}
 		return R_OUT;
 	}
 
-	return R_NONE;
+	#if !defined(NDEBUG)
+		// The previous answer to `switch 1 [1]` was a NONE!.  This was
+		// a candidate for marking as an error, however the new idea is to
+		// let cases that do not have a block after them be evaluated
+		// (if necessary) and the last one to fall through and be the
+		// result.  This offers a nicer syntax for a default, especially
+		// when PAREN! is taken into account.
+		//
+		// However, running in legacy compatibility mode we need to squash
+		// the value into a NONE! so it doesn't fall through.
+		//
+		if (LEGACY(OPTIONS_NO_SWITCH_FALLTHROUGH)) {
+			if (!IS_NONE(D_OUT)) {
+				// !!! Note this difference in legacy log
+			}
+			return R_NONE;
+		}
+	#endif
+
+	return R_OUT;
 }
 
 

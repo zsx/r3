@@ -148,6 +148,8 @@ options: context [  ; Options supplied to REBOL during startup
 	datatype-word-strict: false
 	group-not-paren: false ;; bias the default to PAREN! vs GROUP! (for now...)
 	refinements-true: false
+	no-switch-evals: false
+	no-switch-fallthrough: false
 ]
 
 script: context [

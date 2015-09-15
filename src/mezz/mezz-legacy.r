@@ -197,6 +197,8 @@ set 'r3-legacy* func [] [
 	system/options/exit-functions-only: true
 	system/options/datatype-word-strict: true
 	system/options/refinements-true: true
+	system/options/no-switch-evals: true
+	system/options/no-switch-fallthrough: true
 
 	; False is already the default for this switch
 	; (e.g. `to-word type-of quote ()` is the word PAREN! and not GROUP!)

@@ -299,6 +299,7 @@ switch: native [
 	cases [block!] "Block of cases to check"
 	/default case "Default case if no others found"
 	/all "Evaluate all matches (not just first one)"
+	/strict "Use STRICT-EQUAL? when comparing cases instead of EQUAL?"
 ]
 
 throw: native [
