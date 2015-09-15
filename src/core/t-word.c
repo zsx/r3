@@ -94,7 +94,7 @@
 				if (!sym) raise Error_1(RE_BAD_CHAR, arg);
 			}
 			else if (IS_DATATYPE(arg)) {
-				sym = VAL_TYPE_KIND(arg) + 1;
+				sym = VAL_TYPE_SYM(arg);
 			}
 			else if (IS_LOGIC(arg)) {
 				sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;

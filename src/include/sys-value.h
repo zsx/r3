@@ -165,6 +165,12 @@ struct Reb_Datatype {
 #define	VAL_TYPE_KIND(v)		((v)->data.datatype.kind)
 #define	VAL_TYPE_SPEC(v)	((v)->data.datatype.spec)
 
+// %words.r is arranged so that symbols for types are at the start
+// Although REB_END is 0, the 0 REBCNT used for symbol IDs is reserved
+// for "no symbol"...so the END! word actually is symbol 1.
+//
+#define VAL_TYPE_SYM(v)		((v)->data.datatype.kind + 1)
+
 //#define	VAL_MIN_TYPE(v)	((v)->data.datatype.min_type)
 //#define	VAL_MAX_TYPE(v)	((v)->data.datatype.max_type)
 
