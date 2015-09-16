@@ -213,6 +213,9 @@ set 'r3-legacy* func [] [
 
 		xor: (:xor-)
 
+		; Not contentious, but trying to excise this ASAP
+		funct: (:function)
+
 		; Add simple parse back in by delegating to split, and return a LOGIC!
 		parse: (function [
 			{Parses a string or block series according to grammar rules.}

@@ -25,7 +25,7 @@ func: make function! [[
 	make function! reduce [spec body]
 ]]
 
-function: funct: func [
+function: func [
 	{Defines a function with all set-words as locals.}
 	spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
 	body [block!] {The body block of the function}
