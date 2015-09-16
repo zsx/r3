@@ -509,29 +509,39 @@ typedef u16 REBUNI;
 **
 ***********************************************************************/
 
-#if defined(__GNUC__) && (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 5)
+#ifndef __has_builtin
+	#define __has_builtin(x) 0
+#endif
 
-	#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
-	#define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
-	#define DEAD_END __builtin_unreachable()
+#ifndef __has_feature
+	#define __has_feature(x) 0
+#endif
 
-#elif defined(__clang__)
-
-	#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
-	#define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
-
-	#if __has_builtin(__builtin_unreachable)
-		#define DEAD_END __builtin_unreachable()
-	#else
-		#define DEAD_END
-	#endif
-
+#ifdef __GNUC__
+	#define GCC_VERSION_AT_LEAST(m, n) \
+		(__GNUC__ > (m) || (__GNUC__ == (m) && __GNUC_MINOR__ >= (n)))
 #else
+	#define GCC_VERSION_AT_LEAST(m, n) 0
+#endif
 
+#if __has_feature(address_sanitizer) || GCC_VERSION_AT_LEAST(4, 8)
+	#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__ ((no_sanitize_address))
+#else
 	#define ATTRIBUTE_NO_SANITIZE_ADDRESS
-	#define ATTRIBUTE_NO_RETURN
-	#define DEAD_END
+#endif
 
+#if defined(__clang__) || GCC_VERSION_AT_LEAST(2, 5)
+	#define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+	#define ATTRIBUTE_NO_RETURN _Noreturn
+#else
+	#define ATTRIBUTE_NO_RETURN
+#endif
+
+#if __has_builtin(__builtin_unreachable) || GCC_VERSION_AT_LEAST(4, 5)
+	#define DEAD_END __builtin_unreachable()
+#else
+	#define DEAD_END
 #endif
 
 
