@@ -42,7 +42,14 @@
 {
 	REBSER *series = Make_Series(length + 1, sizeof(REBYTE), MKS_NONE);
 	LABEL_SERIES(series, "make binary");
+
+	// !!! Clients seem to have different expectations of if `length` is
+	// total capacity (and the binary should be empty) or actually is
+	// specifically being preallocated at a fixed length.  Until this
+	// is straightened out, terminate for both possibilities.
+
 	BIN_DATA(series)[length] = 0;
+	TERM_SERIES(series);
 	return series;
 }
 
@@ -58,7 +65,14 @@
 {
 	REBSER *series = Make_Series(length + 1, sizeof(REBUNI), MKS_NONE);
 	LABEL_SERIES(series, "make unicode");
+
+	// !!! Clients seem to have different expectations of if `length` is
+	// total capacity (and the binary should be empty) or actually is
+	// specifically being preallocated at a fixed length.  Until this
+	// is straightened out, terminate for both possibilities.
+
 	UNI_HEAD(series)[length] = 0;
+	TERM_SERIES(series);
 	return series;
 }
 
