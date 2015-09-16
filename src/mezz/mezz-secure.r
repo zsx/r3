@@ -104,7 +104,7 @@ secure: function/with [
 	][
 		; Special cases: [eval 100000]
 		if find [eval memory] target [
-			assert-policy number? pol target pol
+			assert-policy any-number? pol target pol
 			limit-usage target pol ; pol is a number here
 			return 3.3.3 ; always quit
 		]

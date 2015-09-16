@@ -79,7 +79,7 @@ input: function [
 
 ask: func [
 	"Ask the user for input."
-	question [series!] "Prompt to user"
+	question [any-series!] "Prompt to user"
 	/hide "mask input with *"
 ][
 	prin question
@@ -88,7 +88,7 @@ ask: func [
 
 confirm: func [
 	"Confirms a user choice."
-	question [series!] "Prompt to user"
+	question [any-series!] "Prompt to user"
 	/with choices [string! block!]
 	/local response
 ][

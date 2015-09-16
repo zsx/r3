@@ -86,11 +86,11 @@ internal!: make typeset! [
 
 immediate!: make typeset! [
 	; Does not include internal datatypes
-	none! logic! scalar! date! any-word! datatype! typeset! event!
+	none! logic! any-scalar! date! any-word! datatype! typeset! event!
 ]
 
 system/options/result-types: make typeset! [
-	immediate! series! bitset! image! object! map! gob!
+	immediate! any-series! bitset! image! object! map! gob!
 ]
 
 ;-- Create "To-Datatype" conversion functions early in bootstrap:
@@ -120,20 +120,20 @@ any-object?: func [
 	value [any-type!]
 ][find any-object! type-of :value]
 
-number?: func [
+any-number?: func [
 	"Return TRUE if value is a number (integer or decimal)."
 	value [any-type!]
-][find number! type-of :value]
+][find any-number! type-of :value]
 
-series?: func [
+any-series?: func [
 	"Return TRUE if value is any type of series."
 	value [any-type!]
-][find series! type-of :value]
+][find any-series! type-of :value]
 
-scalar?: func [
+any-scalar?: func [
 	"Return TRUE if value is any type of scalar."
 	value [any-type!]
-][find scalar! type-of :value]
+][find any-scalar! type-of :value]
 
 any-array?: func [
 	"Return TRUE if value is a series containing all the same type."

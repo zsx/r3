@@ -13,15 +13,15 @@ REBOL [
 
 empty?: func [
 	{Returns TRUE if empty or NONE, or for series if index is at or beyond its tail.}
-	series [series! object! gob! port! bitset! map! none!]
+	series [any-series! object! gob! port! bitset! map! none!]
 ][
 	tail? series
 ]
 
 offset-of: func [
 	"Returns the offset between two series positions."
-	series1 [series!]
-	series2 [series!]
+	series1 [any-series!]
+	series2 [any-series!]
 ][
 	subtract index-of series2 index-of series1
 ]
@@ -35,7 +35,7 @@ found?: func [
 
 last?: single?: func [
 	"Returns TRUE if the series length is 1."
-	series [series! port! map! tuple! bitset! object! gob! any-word!]
+	series [any-series! port! map! tuple! bitset! object! gob! any-word!]
 ][
 	1 = length series
 ]
@@ -56,7 +56,7 @@ rejoin: func [
 	;/with "separator"
 ][
 	if empty? block: reduce block [return block]
-	append either series? first block [copy first block][
+	append either any-series? first block [copy first block][
 		form first block
 	] next block
 ]
@@ -108,7 +108,7 @@ array: func [
 		block? rest [
 			loop size [block: insert/only block array/initial rest :value]
 		]
-		series? :value [
+		any-series? :value [
 			loop size [block: insert/only block copy/deep value]
 		]
 		any-function? :value [ ; So value can be a thunk :)
@@ -123,7 +123,7 @@ array: func [
 
 replace: func [
 	"Replaces a search value with the replace value within the target series."
-	target  [series!] "Series to replace within (modified)"
+	target  [any-series!] "Series to replace within (modified)"
 	search  "Value to be replaced (converted if necessary)"
 	replace "Value to replace with (called each time if a function)"
 	/all "Replace all occurrences"  ;!!! Note ALL is redefined in here!
@@ -282,7 +282,7 @@ reword: func [
 
 move: func [
 	"Move a value or span of values in a series."
-	source [series!] "Source series (modified)"
+	source [any-series!] "Source series (modified)"
 	offset [integer!] "Offset to move by, or index to move to"
 	/part "Move part of a series"
 	limit [integer!] "The length of the part to move"
@@ -304,14 +304,14 @@ move: func [
 
 extract: func [
 	"Extracts a value from a series at regular intervals."
-	series [series!]
+	series [any-series!]
 	width [integer!] "Size of each entry (the skip)"
 	/index "Extract from an offset position"
-	pos "The position(s)" [number! logic! block!]
+	pos "The position(s)" [any-number! logic! block!]
 	/default "Use a default value instead of none"
 	value "The value to use (will be called each time if a function)"
 	/into "Insert into a buffer instead (returns position after insert)"
-	output [series!] "The buffer series (modified)"
+	output [any-series!] "The buffer series (modified)"
 	/local len val
 ][  ; Default value is "" for any-string! output
 	if zero? width [return any [output make series 0]]  ; To avoid an infinite loop
@@ -322,7 +322,7 @@ extract: func [
 	]
 	unless index [pos: 1]
 	either block? pos [
-		unless parse pos [some [number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
+		unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
 		unless output [output: make series len * length pos]
 		if all [not default any-string? output] [value: copy ""]
 		forskip series width [forall pos [
@@ -342,7 +342,7 @@ extract: func [
 
 alter: func [
 	"Append value if not found, else remove it; returns true if added."
-	series [series! port! bitset!] {(modified)}
+	series [any-series! port! bitset!] {(modified)}
 	value
 	/case "Case-sensitive comparison"
 ][
@@ -362,7 +362,7 @@ collect: func [
 	"Evaluates a block, storing values via KEEP function, and returns block of collected values."
 	body [block!] "Block to evaluate"
 	/into "Insert into a buffer instead (returns position after insert)"
-	output [series!] "The buffer series (modified)"
+	output [any-series!] "The buffer series (modified)"
 ][
 	unless output [output: make block! 16]
 	eval func [<transparent> keep] body func [value [any-type!] /only] [
@@ -446,7 +446,7 @@ printf: func [
 
 split: func [
 	"Split a series into pieces; fixed or variable size, fixed number, or at delimiters"
-	series	[series!] "The series to split"
+	series	[any-series!] "The series to split"
 	dlm		[block! integer! char! bitset! any-string!] "Split size, delimiter(s), or rule(s)."
 	/into	"If dlm is an integer, split into n pieces, rather than pieces of length n."
 	/local size piece-size count mk1 mk2 res fill-val add-fill-val
@@ -534,7 +534,7 @@ find-all: function [
 	value
 	body [block!] "Evaluated for each occurrence"
 ][
-	assert [series? orig: get series]
+	assert [any-series? orig: get series]
 	while [any [set series find get series :value (set series orig false)]] [
 		do body
 		++ (series)

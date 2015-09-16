@@ -47,9 +47,9 @@ enum {
 **
 */  REBCNT Get_Round_Flags(struct Reb_Call *call_)
 /*
-**		1 n [number! money! time!] "The value to round"
+**		1 n [any-number! money! time!] "The value to round"
 **		2 /to "Return the nearest multiple of the scale parameter"
-**		3	scale [number! money! time!] "Must be a non-zero value"
+**		3	scale [any-number! money! time!] "Must be a non-zero value"
 **		4 /even      "Halves round toward even results"
 **		5 /down      "Round toward zero, ignoring discarded digits. (truncate)"
 **		6 /half-down "Halves round toward zero"

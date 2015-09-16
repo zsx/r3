@@ -229,8 +229,8 @@ enum {
 /*
 **	Set functions use this arg pattern:
 **
-**		set1 [ series! bitset! date! ] "first set"
-**		set2 [ series! bitset! date! ] "second set"
+**		set1 [ any-series! bitset! date! ] "first set"
+**		set2 [ any-series! bitset! date! ] "second set"
 **		/case "case sensitive"
 **		/skip "treat the series as records of fixed size"
 **		size [integer!]

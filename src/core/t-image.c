@@ -690,7 +690,7 @@ REBCNT ARGB_To_BGR(REBCNT i)
 **		 1 image
 **		 2 value [any-type!]
 **		 3 /part {Limits the search to a given length or position.}
-**		 4 range [number! series! port!]
+**		 4 range [any-number! any-series! port!]
 **		 5 /only {ignore alpha value.}
 **		 6 /case - ignored
 **		 7 /any  - ignored

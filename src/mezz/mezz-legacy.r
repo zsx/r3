@@ -134,6 +134,23 @@ any-block!: :any-array!
 any-block?: :any-array?
 
 
+; By having typesets prefixed with ANY-*, it helps cement the realization
+; on the user's part that they are not dealing with a concrete type...so
+; even though this is in the function prototype, they will not get back
+; that answer from TYPE-OF, nor could they pass it to MAKE or TO.  Because
+; typsets cannot be returned in that way, they're easier than most things
+; to make synonyms for the old ANY-less variations.
+
+number!: :any-number!
+number?: :any-number?
+
+scalar!: :any-scalar!
+scalar?: :any-scalar?
+
+series!: :any-series!
+series?: :any-series?
+
+
 ; !!! These have not been renamed yet, because of questions over what they
 ; actually return.  CONTEXT-OF was a candidate, however the current behavior
 ; of just returning TRUE from BIND? when the word is linked to a function
@@ -219,7 +236,7 @@ set 'r3-legacy* func [] [
 		; Add simple parse back in by delegating to split, and return a LOGIC!
 		parse: (function [
 			{Parses a string or block series according to grammar rules.}
-			input [series!] "Input series to parse"
+			input [any-series!] "Input series to parse"
 			rules [block! string! none!] "Rules (string! is <r3-legacy>, use SPLIT)"
 			/case "Uses case-sensitive comparison"
 			/all "Ignored refinement for <r3-legacy>"

@@ -388,14 +388,14 @@ static struct {
 **
 */	static void Sort_Block(REBVAL *block, REBFLG ccase, REBVAL *skipv, REBVAL *compv, REBVAL *part, REBFLG all, REBFLG rev)
 /*
-**		series [series!]
+**		series [any-series!]
 **		/case {Case sensitive sort}
 **		/skip {Treat the series as records of fixed size}
 **		size [integer!] {Size of each record}
 **		/compare  {Comparator offset, block or function}
 **		comparator [integer! block! function!]
 **		/part {Sort only part of a series}
-**		limit [number! series!] {Length of series to sort}
+**		limit [any-number! any-series!] {Length of series to sort}
 **		/all {Compare all fields}
 **		/reverse {Reverse sort order}
 **

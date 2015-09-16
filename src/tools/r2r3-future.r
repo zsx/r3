@@ -48,7 +48,7 @@ unless value? 'fail [
 			block? reason [
 				for-each item reason [
 					unless any [
-						scalar? :item
+						any-scalar? :item
 						string? :item
 						paren? :item
 						all [

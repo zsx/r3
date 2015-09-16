@@ -30,26 +30,38 @@
 #include "sys-core.h"
 
 
-/***********************************************************************
-**
-*/	const REBU64 Typesets[] =
-/*
-**		Order of symbols is important- used below for Make_Typeset().
-**
-************************************************************************/
-{
-	1, 0, // First (0th) typeset is not valid
-	SYM_ANY_TYPEX,     ((REBU64)1<<REB_MAX)-2, // do not include END!
-	SYM_ANY_WORDX,     TS_WORD,
-	SYM_ANY_PATHX,     TS_PATH,
-	SYM_ANY_FUNCTIONX, TS_FUNCTION,
-	SYM_NUMBERX,       TS_NUMBER,
-	SYM_SCALARX,       TS_SCALAR,
-	SYM_SERIESX,       TS_SERIES,
-	SYM_ANY_STRINGX,   TS_STRING,
-	SYM_ANY_OBJECTX,   TS_OBJECT,
-	SYM_ANY_ARRAYX,    TS_ARRAY,
-	0, 0
+
+//
+// symbol-to-typeset-bits mapping table
+//
+// NOTE: Order of symbols is important, because this is used to build a
+// list of typeset word symbols ordered relative to their symbol #,
+// which lays out the legal unbound WORD! values you can use during
+// a MAKE TYPESET! (bound words will be looked up as variables to see
+// if they contain a DATATYPE! or a typeset, but general reduction is
+// not performed on the block passed in.)
+//
+// !!! Is it necessary for MAKE TYPESET! to allow unbound words at all,
+// or should the typesets be required to be in bound variables?  Should
+// clients be asked to pass in only datatypes and typesets, hence doing
+// their own reduce before trying to make a typeset out of a block?
+//
+const struct {
+	REBCNT sym;
+	REBU64 bits;
+} Typesets[] = {
+	{SYM_ANY_TYPEX, (cast(REBU64, 1) << REB_MAX) - 2}, // do not include END!
+	{SYM_ANY_WORDX, TS_WORD},
+	{SYM_ANY_PATHX, TS_PATH},
+	{SYM_ANY_FUNCTIONX, TS_FUNCTION},
+	{SYM_ANY_NUMBERX, TS_NUMBER},
+	{SYM_ANY_SCALARX, TS_SCALAR},
+	{SYM_ANY_SERIESX, TS_SERIES},
+	{SYM_ANY_STRINGX, TS_STRING},
+	{SYM_ANY_OBJECTX, TS_OBJECT},
+	{SYM_ANY_ARRAYX, TS_ARRAY},
+
+	{SYM_NOT_USED, 0}
 };
 
 
@@ -79,12 +91,12 @@
 
 	Set_Root_Series(ROOT_TYPESETS, Make_Array(40), "typeset presets");
 
-	for (n = 0; Typesets[n]; n += 2) {
+	for (n = 0; Typesets[n].sym != SYM_NOT_USED; n++) {
 		value = Alloc_Tail_Array(VAL_SERIES(ROOT_TYPESETS));
 		VAL_SET(value, REB_TYPESET);
-		VAL_TYPESET(value) = Typesets[n+1];
-		if (Typesets[n] > 1)
-			*Append_Frame(Lib_Context, 0, (REBCNT)(Typesets[n])) = *value;
+		VAL_TYPESET(value) = Typesets[n].bits;
+
+		*Append_Frame(Lib_Context, NULL, Typesets[n].sym) = *value;
 	}
 }
 
@@ -116,7 +128,7 @@
 				continue;
 			} // Special typeset symbols:
 			else if (sym >= SYM_ANY_TYPEX && sym < SYM_DATATYPES)
-				val = BLK_SKIP(types, sym - SYM_ANY_TYPEX + 1);
+				val = BLK_SKIP(types, sym - SYM_ANY_TYPEX);
 		}
 		if (!val) val = block;
 		if (IS_DATATYPE(val)) {

@@ -19,9 +19,9 @@ any-type! ;-- signals beginning of typesets (SYM_ANY_TYPEX hardcoded reference)
 any-word!
 any-path!
 any-function!
-number!
-scalar!
-series!
+any-number!
+any-scalar!
+any-series!
 any-string!
 any-object!
 any-array! ;-- replacement for any-block! that doesn't conflate with "block"

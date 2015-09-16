@@ -85,7 +85,7 @@ catch: native [
 
 comment: native [
 	{Ignores the argument value and returns nothing (no evaluations performed).}
-	:value [block! any-string! scalar!] {Literal value to be ignored.}
+	:value [block! any-string! any-scalar!] {Literal value to be ignored.}
 ]
 
 compose: native [
@@ -145,7 +145,7 @@ either: native [
 every: native [
 	{Returns last TRUE? value if evaluating a block over a series is all TRUE?}
 	'word [word! block!] {Word or block of words to set each time (local)}
-	data [series! any-object! map! none!] {The series to traverse}
+	data [any-series! any-object! map! none!] {The series to traverse}
 	body [block!] {Block to evaluate each time}
 ]
 
@@ -168,9 +168,9 @@ find-script: native [
 for: native [
 	{Evaluate a block over a range of values. (See also: REPEAT)}
 	'word [word!] "Variable to hold current value"
-	start [series! number!] "Starting value"
-	end   [series! number!] "Ending value"
-	bump  [number!] "Amount to skip each time"
+	start [any-series! any-number!] "Starting value"
+	end   [any-series! any-number!] "Ending value"
+	bump  [any-number!] "Amount to skip each time"
 	body  [block!] "Block to evaluate"
 ]
 
@@ -188,7 +188,7 @@ forever: native [
 for-each: native [
 	{Evaluates a block for each value(s) in a series.}
 	'word [word! block!] {Word or block of words to set each time (local)}
-	data [series! any-object! map! none!] {The series to traverse}
+	data [any-series! any-object! map! none!] {The series to traverse}
 	body [block!] {Block to evaluate each time}
 ]
 
@@ -213,7 +213,7 @@ if: native [
 
 loop: native [
 	{Evaluates a block a specified number of times.}
-	count [number!] {Number of repetitions}
+	count [any-number!] {Number of repetitions}
 	block [block!] {Block to evaluate}
 ]
 
@@ -240,7 +240,7 @@ quit: native [
 
 protect: native [
 	"Protect a series or a variable from being modified."
-	value [word! series! bitset! map! object! module!]
+	value [word! any-series! bitset! map! object! module!]
 	/deep "Protect all sub-series/objects as well"
 	/words  "Process list as words (and path words)"
 	/values "Process list of values (implied GET)"
@@ -249,7 +249,7 @@ protect: native [
 
 unprotect: native [
 	"Unprotect a series or a variable (it can again be modified)."
-	value [word! series! bitset! map! object! module!]
+	value [word! any-series! bitset! map! object! module!]
 	/deep "Protect all sub-series as well"
 	/words "Block is a list of words"
 	/values "Process list of values (implied GET)"
@@ -277,14 +277,14 @@ reduce: native [
 repeat: native [
 	{Evaluates a block a number of times or over a series.}
 	'word [word!] {Word to set each time}
-	value [number! series! none!] {Maximum number or series to traverse}
+	value [any-number! any-series! none!] {Maximum number or series to traverse}
 	body [block!] {Block to evaluate each time}
 ]
 
 remove-each: native [
 	{Removes values for each block that returns true; returns removal count.}
 	'word [word! block!] {Word or block of words to set each time (local)}
-	data [series!] {The series to traverse (modified)}
+	data [any-series!] {The series to traverse (modified)}
 	body [block!] {Block to evaluate (return TRUE to remove)}
 ]
 
@@ -526,14 +526,14 @@ lowercase: native [
 	"Converts string of characters to lowercase."
 	string [any-string! char!] {(modified if series)}
 	/part {Limits to a given length or position}
-	limit [number! any-string!]
+	limit [any-number! any-string!]
 ]
 
 uppercase: native [
 	"Converts string of characters to uppercase."
 	string [any-string! char!] {(modified if series)}
 	/part {Limits to a given length or position}
-	limit [number! any-string!]
+	limit [any-number! any-string!]
 ]
 
 dehex: native [
@@ -555,7 +555,7 @@ in: native [
 
 parse: native [
 	{Parses a string or block series according to grammar rules.}
-	input [series!] {Input series to parse}
+	input [any-series!] {Input series to parse}
 	;rules [block!] {Rules to parse by}
 	; !!! Does not actually handle STRING! and NONE!, used to give a more
 	; informative error message directing people to use SPLIT instead
@@ -685,7 +685,7 @@ now: native [
 
 wait: native [
 	{Waits for a duration, port, or both.}
-	value [number! time! port! block! none!]
+	value [any-number! time! port! block! none!]
 	/all {Returns all in a block}
 	/only {only check for ports given in the block to this function}
 ]
@@ -707,63 +707,63 @@ change-dir: native [
 
 cosine: native [
 	{Returns the trigonometric cosine.}
-	value [number!] {In degrees by default}
+	value [any-number!] {In degrees by default}
 	/radians {Value is specified in radians}
 ]
 
 sine: native [
 	{Returns the trigonometric sine.}
-	value [number!] {In degrees by default}
+	value [any-number!] {In degrees by default}
 	/radians {Value is specified in radians}
 ]
 
 tangent: native [
 	{Returns the trigonometric tangent.}
-	value [number!] {In degrees by default}
+	value [any-number!] {In degrees by default}
 	/radians {Value is specified in radians}
 ]
 
 arccosine: native [
 	{Returns the trigonometric arccosine (in degrees by default).}
-	value [number!]
+	value [any-number!]
 	/radians {Returns result in radians}
 ]
 
 arcsine: native [
 	{Returns the trigonometric arcsine (in degrees by default).}
-	value [number!]
+	value [any-number!]
 	/radians {Returns result in radians}
 ]
 
 arctangent: native [
 	{Returns the trigonometric arctangent (in degrees by default).}
-	value [number!]
+	value [any-number!]
 	/radians {Returns result in radians}
 ]
 
 exp: native [
 	{Raises E (the base of natural logarithm) to the power specified}
-	power [number!]
+	power [any-number!]
 ]
 
 log-10: native [
 	{Returns the base-10 logarithm.}
-	value [number!]
+	value [any-number!]
 ]
 
 log-2: native [
 	{Return the base-2 logarithm.}
-	value [number!]
+	value [any-number!]
 ]
 
 log-e: native [
 	{Returns the natural (base-E) logarithm of the given value}
-	value [number!]
+	value [any-number!]
 ]
 
 square-root: native [
 	{Returns the square root of a number.}
-	value [number!]
+	value [any-number!]
 ]
 
 shift: native [
@@ -947,7 +947,7 @@ do-commands: native [
 
 ds: native ["Temporary stack debug"]
 dump: native ["Temporary debug dump" v]
-check: native ["Temporary series debug check" val [series!]]
+check: native ["Temporary series debug check" val [any-series!]]
 
 do-callback: native [
 	"Internal function to process callback events."
@@ -958,7 +958,7 @@ do-callback: native [
 limit-usage: native [
 	"Set a usage limit only once (used for SECURE)."
 	field [word!] "eval (count) or memory (bytes)"
-	limit [number!]
+	limit [any-number!]
 ]
 
 selfless?: native [
@@ -980,8 +980,8 @@ map-gob-offset: native [
 
 as-pair: native [
 	"Combine X and Y values into a pair."
-	x [number!]
-	y [number!]
+	x [any-number!]
+	y [any-number!]
 ]
 
 ;read-file: native [f [file!]]
@@ -1050,24 +1050,24 @@ lesser-or-equal?: native [
 
 minimum: native [
 	{Returns the lesser of the two values.}
-	value1 [scalar! date! series!]
-	value2 [scalar! date! series!]
+	value1 [any-scalar! date! any-series!]
+	value2 [any-scalar! date! any-series!]
 ]
 
 maximum: native [ ; Note: Some datatypes expect all binary ops to be <= this
 	{Returns the greater of the two values.}
-	value1 [scalar! date! series!]
-	value2 [scalar! date! series!]
+	value1 [any-scalar! date! any-series!]
+	value2 [any-scalar! date! any-series!]
 ]
 
 negative?: native [
 	{Returns TRUE if the number is negative.}
-	number [number! money! time! pair!]
+	number [any-number! money! time! pair!]
 ]
 
 positive?: native [
 	{Returns TRUE if the value is positive.}
-	number [number! money! time! pair!]
+	number [any-number! money! time! pair!]
 ]
 
 zero?: native [

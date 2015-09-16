@@ -692,7 +692,7 @@ skip_hidden: ;
 /*
 **		{Evaluates a block for each value(s) in a series.}
 **		'word [get-word! word! block!] {Word or block of words}
-**		data [series!] {The series to traverse}
+**		data [any-series!] {The series to traverse}
 **		body [block!] {Block to evaluate each time}
 **
 ***********************************************************************/
@@ -706,7 +706,7 @@ skip_hidden: ;
 */	REBNATIVE(remove_each)
 /*
 **		'word [get-word! word! block!] {Word or block of words}
-**		data [series!] {The series to traverse}
+**		data [any-series!] {The series to traverse}
 **		body [block!] {Block to evaluate each time}
 **
 ***********************************************************************/
@@ -720,7 +720,7 @@ skip_hidden: ;
 */	REBNATIVE(map_each)
 /*
 **		'word [get-word! word! block!] {Word or block of words}
-**		data [series!] {The series to traverse}
+**		data [any-series!] {The series to traverse}
 **		body [block!] {Block to evaluate each time}
 **
 ***********************************************************************/
@@ -734,7 +734,7 @@ skip_hidden: ;
 */	REBNATIVE(every)
 /*
 **		'word [get-word! word! block!] {Word or block of words}
-**		data [series!] {The series to traverse}
+**		data [any-series!] {The series to traverse}
 **		body [block!] {Block to evaluate each time}
 **
 ***********************************************************************/
