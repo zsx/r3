@@ -25,19 +25,16 @@
 **
 ***********************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <poll.h>
-#include <fcntl.h>              /* Obtain O_* constant definitions */
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <string.h>
-#include <errno.h>
 #include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef HAVE_EXECINFO_AVAILABLE
+	#include <execinfo.h>
+	#include <unistd.h>  // STDERR_FILENO
+#endif
 
 #include "reb-host.h"
 
@@ -59,7 +56,6 @@
 	exit(code);
 }
 
-static const void * backtrace_buf [1024];
 /***********************************************************************
 **
 ** coverity[+kill]
@@ -88,10 +84,14 @@ static const void * backtrace_buf [1024];
 	}
 	fputs(cs_cast(content), stderr);
 	fputs("\n\n", stderr);
-#ifdef backtrace  // A GNU extension
-	fputs("Backtrace:\n", stderr);
-	int n_backtrace = backtrace(backtrace_buf, sizeof(backtrace_buf)/sizeof(backtrace_buf[0]));
-	backtrace_symbols_fd(backtrace_buf, n_backtrace, STDERR_FILENO);
+
+#ifdef HAVE_EXECINFO_AVAILABLE  // backtrace is a GNU extension.
+	{
+		void *backtrace_buf[1024];
+		int n_backtrace = backtrace(backtrace_buf, sizeof(backtrace_buf)/sizeof(backtrace_buf[0]));
+		fputs("Backtrace:\n", stderr);
+		backtrace_symbols_fd(backtrace_buf, n_backtrace, STDERR_FILENO);
+	}
 #endif
 
 	exit(EXIT_FAILURE);
