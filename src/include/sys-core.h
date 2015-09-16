@@ -539,7 +539,9 @@ enum Reb_Fail_Prep {
 	((TG_Fail_Prep == FAIL_PREP_RAISE) \
 		? Raise_Core(err) \
 		: Panic_Core( \
-			TG_Fail_Prep == FAIL_PREP_PANIC ? VAL_ERR_NUM(err) : RE_NO_PREP, \
+            TG_Fail_Prep == FAIL_PREP_PANIC \
+                ? VAL_ERR_NUM(err) \
+                : cast(REBCNT, RE_NO_PREP), \
 			err, \
 			TG_Fail_C_File, \
 			TG_Fail_C_Line, \

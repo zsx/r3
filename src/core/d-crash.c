@@ -36,7 +36,7 @@
 
 /***********************************************************************
 **
-*/	ATTRIBUTE_NO_RETURN void Panic_Core(REBINT id, const REBVAL *maybe_error, const char *c_file, int c_line, va_list *args)
+*/	ATTRIBUTE_NO_RETURN void Panic_Core(REBCNT id, const REBVAL *maybe_error, const char *c_file, int c_line, va_list *args)
 /*
 **		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 **
