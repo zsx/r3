@@ -1319,10 +1319,10 @@ struct Reb_Handle {
 	((v)->data.handle.thing.data)
 
 #define SET_HANDLE_CODE(v,c) \
-	VAL_SET(v, REB_HANDLE), VAL_HANDLE_CODE(v) = (c)
+	(VAL_SET((v), REB_HANDLE), VAL_HANDLE_CODE(v) = (c))
 
 #define SET_HANDLE_DATA(v,d) \
-	VAL_SET(v, REB_HANDLE), VAL_HANDLE_DATA(v) = (d)
+	(VAL_SET((v), REB_HANDLE), VAL_HANDLE_DATA(v) = (d))
 
 
 /***********************************************************************
