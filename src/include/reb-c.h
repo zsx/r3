@@ -509,14 +509,29 @@ typedef u16 REBUNI;
 **
 ***********************************************************************/
 
-#if (defined(__clang__) || defined (__GNUC__))
+#if defined(__GNUC__) && (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 5)
+
 	#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
 	#define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
 	#define DEAD_END __builtin_unreachable()
+
+#elif defined(__clang__)
+
+	#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
+	#define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
+
+	#if __has_builtin(__builtin_unreachable)
+		#define DEAD_END __builtin_unreachable()
+	#else
+		#define DEAD_END
+	#endif
+
 #else
+
 	#define ATTRIBUTE_NO_SANITIZE_ADDRESS
 	#define ATTRIBUTE_NO_RETURN
 	#define DEAD_END
+
 #endif
 
 
