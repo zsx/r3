@@ -356,7 +356,9 @@ void Host_Repl(int *exit_status) {
 			line_len++;
 			switch (*utf8byte) {
 				case '"':
-					inside_short_str = !inside_short_str;
+					if (long_str_level == 0) {
+						inside_short_str = !inside_short_str;
+					}
 					break;
 				case '[':
 				case '(':
