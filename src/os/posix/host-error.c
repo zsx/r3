@@ -93,7 +93,8 @@ static const void * backtrace_buf [1024];
 	int n_backtrace = backtrace(backtrace_buf, sizeof(backtrace_buf)/sizeof(backtrace_buf[0]));
 	backtrace_symbols_fd(backtrace_buf, n_backtrace, STDERR_FILENO);
 #endif
-	exit(100);
+
+	exit(EXIT_FAILURE);
 }
 
 
