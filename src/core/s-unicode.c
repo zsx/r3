@@ -975,7 +975,7 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	REBCNT Length_As_UTF8(const void *p, REBCNT len, REBOOL uni, REBOOL ccr)
+*/	REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLG opts)
 /*
 **		Returns how long the UTF8 encoded string would be.
 **
@@ -983,6 +983,8 @@ ConversionResult ConvertUTF8toUTF32 (
 {
 	REBCNT size = 0;
 	REBCNT c;
+	REBOOL uni = GET_FLAG(opts, OPT_ENC_UNISRC);
+	REBOOL ccr = GET_FLAG(opts, OPT_ENC_CRLF);
 	const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
 	const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
 
@@ -1042,14 +1044,14 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	REBCNT Encode_UTF8(REBYTE *dst, REBINT max, const void *src, REBCNT *len, REBFLG uni, REBFLG ccr)
+*/	REBCNT Encode_UTF8(REBYTE *dst, REBCNT max, const void *src, REBCNT *len, REBFLG opts)
 /*
 **		Encode the unicode into UTF8 byte string.
 **
-**		Source string can be byte or unichar sized (uni = TRUE);
+**		Source string can be byte or unichar sized (OPT_ENC_UNISRC);
 **		Max is the maximum size of the result (UTF8).
-**		Returns number of source chars used.
-**		Updates len for dst bytes used.
+**		Returns number of dst bytes used.
+**		Updates len for source chars used.
 **		Does not add a terminator.
 **
 ***********************************************************************/
@@ -1061,6 +1063,8 @@ ConversionResult ConvertUTF8toUTF32 (
 	const REBYTE *bp = cast(const REBYTE*, src);
 	const REBUNI *up = cast(const REBUNI*, src);
 	REBCNT cnt;
+	REBOOL uni = GET_FLAG(opts, OPT_ENC_UNISRC);
+	REBOOL ccr = GET_FLAG(opts, OPT_ENC_CRLF);
 
 	if (len) cnt = *len;
 	else cnt = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -1071,7 +1075,7 @@ ConversionResult ConvertUTF8toUTF32 (
 #if defined(TO_WINDOWS)
 			if (ccr && c == LF) {
 				// If there's not room, don't try to output CRLF
-				if (2 > max) {up--; break;}
+				if (2 > max) {bp--; up--; break;}
 				*dst++ = CR;
 				max--;
 				c = LF;
@@ -1082,16 +1086,16 @@ ConversionResult ConvertUTF8toUTF32 (
 		}
 		else {
 			n = Encode_UTF8_Char(buf, c);
-			if (n > max) {up--; break;}
+			if (n > max) {bp--; up--; break;}
 			memcpy(dst, buf, n);
 			dst += n;
 			max -= n;
 		}
 	}
 
-	if (len) *len = dst - bs;
+	if (len) *len = uni ? up - cast(const REBUNI*, src) : bp - cast(const REBYTE*, src);
 
-	return uni ? up - cast(const REBUNI*, src) : bp - cast(const REBYTE*, src);
+	return dst - bs;
 }
 
 
@@ -1137,6 +1141,27 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
+*/	REBSER *Make_UTF8_Binary(const void *data, REBCNT len, REBCNT extra, REBFLG opts)
+/*
+**		Convert byte- or REBUNI-sized data to UTF8-encoded
+**		null-terminated series. Can reserve extra bytes of space.
+**		Resulting series must be either freed or handed to the GC.
+**
+***********************************************************************/
+{
+	REBCNT size = Length_As_UTF8(data, len, opts);
+	REBSER *series = Make_Binary(size + extra);
+	SERIES_TAIL(series) = Encode_UTF8(
+		BIN_HEAD(series), size, data, &len, opts
+	);
+	assert(SERIES_TAIL(series) == size);
+	STR_TERM(series);
+	return series;
+}
+
+
+/***********************************************************************
+**
 */	REBSER *Make_UTF8_From_Any_String(const REBVAL *value, REBCNT len, REBFLG opts)
 /*
 **		Do all the details to encode either a byte-sized or REBUNI
@@ -1145,32 +1170,25 @@ ConversionResult ConvertUTF8toUTF32 (
 **
 ***********************************************************************/
 {
-	REBSER *series;
-	REBFLG ccr = GET_FLAG(opts, ENC_OPT_CRLF);
-
 	assert(ANY_STR(value));
 
-	if (VAL_STR_IS_ASCII(value)) {
+	if (!GET_FLAG(opts, OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
 		// We can copy a one-byte-per-character series if it doesn't contain
 		// codepoints like 128 - 255 (pure ASCII is valid UTF-8)
-
-		// !!! Does not pay attention to ENC_OPT_CRLF.  Should it?
-		series = Copy_Bytes(VAL_BIN_DATA(value), len);
+		return Copy_Bytes(VAL_BIN_DATA(value), len);
 	}
 	else {
-		REBOOL uni = !VAL_BYTE_SIZE(value);
-		const void *data = uni ?
-			cast(const void*, VAL_UNI_DATA(value)) :
-			cast(const void*, VAL_BIN_DATA(value));
-		REBCNT size = Length_As_UTF8(data, len, uni, ccr);
-		series = Make_Binary(size + (GET_FLAG(opts, ENC_OPT_BOM) ? 3 : 0));
-		Encode_UTF8(BIN_HEAD(series), size, data, &len, uni, ccr);
+		const void *data;
+		if (VAL_BYTE_SIZE(value)) {
+			CLR_FLAG(opts, OPT_ENC_UNISRC);
+			data = VAL_BIN_DATA(value);
+		}
+		else {
+			SET_FLAG(opts, OPT_ENC_UNISRC);
+			data = VAL_UNI_DATA(value);
+		}
+		return Make_UTF8_Binary(data, len, 0, opts);
 	}
-
-	SERIES_TAIL(series) = len;
-	STR_TERM(series);
-
-	return series;
 }
 
 

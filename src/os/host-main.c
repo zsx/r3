@@ -224,6 +224,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 	if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
 		RXIARG result;
 		REBYTE *do_arg_utf8;
+		REBCNT len_uni;
 		REBCNT len_predicted;
 		REBCNT len_encoded;
 		int do_result;
@@ -232,18 +233,18 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 		// !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
 		// so this should be more seamless.
 	#ifdef TO_WINDOWS
+		len_uni = wcslen(Main_Args.do_arg);
 		len_predicted = RL_Length_As_UTF8(
-			Main_Args.do_arg, wcslen(Main_Args.do_arg), TRUE, TRUE
+			Main_Args.do_arg, len_uni, TRUE, FALSE
 		);
 		do_arg_utf8 = OS_ALLOC_ARRAY(REBYTE, len_predicted + 1);
-		len_encoded = len_predicted;
-		RL_Encode_UTF8(
+		len_encoded = RL_Encode_UTF8(
 			do_arg_utf8,
 			len_predicted + 1,
 			Main_Args.do_arg,
-			&len_encoded,
+			&len_uni,
 			TRUE,
-			TRUE
+			FALSE
 		);
 
 		// Sanity check; we shouldn't get a different answer.

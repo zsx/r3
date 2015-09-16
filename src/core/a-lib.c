@@ -1236,7 +1236,11 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **
 ***********************************************************************/
 {
-	return Length_As_UTF8(p, len, uni, ccr);
+	return Length_As_UTF8(
+		p,
+		len,
+		(uni ? FLAGIT(OPT_ENC_UNISRC) : 0) | (ccr ? FLAGIT(OPT_ENC_CRLF) : 0)
+	);
 }
 
 
@@ -1247,13 +1251,13 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **		Encode the unicode into UTF8 byte string.
 **
 **	Returns:
-**		Number of source chars used.
+**		Number of dst bytes used.
 **
 **	Arguments:
 **		dst - destination for encoded UTF8 bytes
 **		max - maximum size of the result in bytes
 **		src - source array of bytes or wide characters
-**		len - input is source length, updated to reflect dst bytes used
+**		len - input is source length, updated to reflect src chars used
 **		uni - true if src is in wide character format
 **		ccr - convert linefeed + carriage-return into just linefeed
 **
@@ -1267,7 +1271,13 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **
 ***********************************************************************/
 {
-	return Encode_UTF8(dst, max, src, len, uni, ccr);
+	return Encode_UTF8(
+		dst,
+		max,
+		src,
+		len,
+		(uni ? FLAGIT(OPT_ENC_UNISRC) : 0) | (ccr ? FLAGIT(OPT_ENC_CRLF) : 0)
+	);
 }
 
 

@@ -608,6 +608,7 @@ cp_same:
 	REBVAL *val;
 	REBCNT tail = 0;
 	REBCNT len;
+	REBCNT bl;
 	void *bp;
 
 	if (limit < 0) limit = VAL_LEN(blk);
@@ -637,10 +638,17 @@ cp_same:
 		case REB_TAG:
 			len = VAL_LEN(val);
 			bp = VAL_BYTE_SIZE(val) ? VAL_BIN_DATA(val) : (REBYTE*)VAL_UNI_DATA(val);
-			len = Length_As_UTF8(bp, len, (REBOOL)!VAL_BYTE_SIZE(val), 0);
-			EXPAND_SERIES_TAIL(series, len);
-			Encode_UTF8(BIN_SKIP(series, tail), len, bp, &len, !VAL_BYTE_SIZE(val), 0);
-			series->tail = tail + len;
+			bl = Length_As_UTF8(
+				bp, len, VAL_BYTE_SIZE(val) ? 0 : FLAGIT(OPT_ENC_UNISRC)
+			);
+			EXPAND_SERIES_TAIL(series, bl);
+			series->tail = tail + Encode_UTF8(
+				BIN_SKIP(series, tail),
+				bl,
+				bp,
+				&len,
+				VAL_BYTE_SIZE(val) ? 0 : FLAGIT(OPT_ENC_UNISRC)
+			);
 			break;
 
 		case REB_CHAR:

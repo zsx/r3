@@ -269,7 +269,6 @@
 	REBSER *ser; // will be unicode size
 #ifndef TO_WINDOWS
 	REBSER *bin;
-	REBCNT n;
 #endif
 
 	assert(ANY_BINSTR(val));
@@ -278,11 +277,9 @@
 
 #ifndef TO_WINDOWS
 	// Posix needs UTF8 conversion:
-	n = Length_As_UTF8(UNI_HEAD(ser), SERIES_TAIL(ser), TRUE, OS_CRLF);
-	bin = Make_Binary(n + FN_PAD);
-	Encode_UTF8(BIN_HEAD(bin), n+FN_PAD, UNI_HEAD(ser), &n, TRUE, OS_CRLF);
-	SERIES_TAIL(bin) = n;
-	TERM_SERIES(bin);
+	bin = Make_UTF8_Binary(
+		UNI_HEAD(ser), SERIES_LEN(ser), FN_PAD, FLAGIT(OPT_ENC_UNISRC)
+	);
 	Free_Series(ser);
 	ser = bin;
 #endif
