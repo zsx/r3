@@ -1598,8 +1598,8 @@ union Reb_Value_Data {
 
 struct Reb_Value
 {
-	union Reb_Value_Data data;
 	union Reb_Value_Flags flags;
+	union Reb_Value_Data data;
 };
 
 #define ANY_SERIES(v)		(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
