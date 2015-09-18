@@ -1250,7 +1250,6 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	case REB_REBCODE:
 	case REB_FRAME:
 	case REB_HANDLE:
-	case REB_UTYPE:
 		// Value has no printable form, so just print its name.
 		if (!molded) Emit(mold, "?T?", value);
 		else Emit(mold, "+T", value);

@@ -66,7 +66,7 @@
 	REBVAL *value = D_ARG(1);
 	REBVAL *arg = D_ARG(2);
 	REBACT act;
-	REBINT type = VAL_TYPE_KIND(value);
+	enum Reb_Kind kind = VAL_TYPE_KIND(value);
 	REBSER *obj;
 	REBINT n;
 
@@ -76,14 +76,19 @@
 		n = What_Reflector(arg); // zero on error
 		if (n == OF_SPEC) {
 			obj = Make_Std_Object_Managed(STD_TYPE_SPEC);
-			Set_Object_Values(obj, BLK_HEAD(VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type+1))));
+			Set_Object_Values(
+				obj,
+				BLK_HEAD(
+					VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, SYM_FROM_KIND(kind)))
+				)
+			);
 			Val_Init_Object(D_OUT, obj);
 		}
 		else if (n == OF_TITLE) {
 			Val_Init_String(
 				D_OUT,
 				Copy_Array_Shallow(VAL_SERIES(BLK_HEAD(
-					VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, type + 1))
+					VAL_TYPE_SPEC(BLK_SKIP(Lib_Context, SYM_FROM_KIND(kind)))
 				)))
 			);
 		}
@@ -93,11 +98,11 @@
 
 	case A_MAKE:
 	case A_TO:
-		if (type != REB_DATATYPE) {
-			act = Value_Dispatch[type];
+		if (kind != REB_DATATYPE) {
+			act = Value_Dispatch[kind];
 			if (act) return act(call_, action);
 			//return R_NONE;
-			raise Error_Bad_Make(type, arg);
+			raise Error_Bad_Make(kind, arg);
 		}
 
 		#if !defined(NDEBUG)
@@ -106,9 +111,7 @@
 				&& IS_WORD(arg)
 				&& VAL_WORD_SYM(arg) == SYM_GROUPX
 			) {
-				// Mutate call frame word symbol from GROUP! to the one for
-				// a PAREN! (see VAL_TYPE_SYM() regarding the + 1)
-				VAL_WORD_SYM(arg) = REB_PAREN + 1;
+				VAL_WORD_SYM(arg) = SYM_FROM_KIND(REB_PAREN);
 			}
 		#endif
 

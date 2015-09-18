@@ -484,34 +484,6 @@ static	BOOT_BLK *Boot_Block;
 
 /***********************************************************************
 **
-*/	void Init_UType_Proto(void)
-/*
-**		Create prototype func object for UTypes.
-**
-***********************************************************************/
-{
-	REBSER *frm = Make_Frame(A_MAX_ACTION - 1, TRUE);
-	REBVAL *obj;
-	REBINT n;
-
-	Insert_Series(FRM_WORD_SERIES(frm), 1, (REBYTE*)FRM_WORD(Lib_Context, Action_Marker+1), A_MAX_ACTION);
-
-	SERIES_TAIL(frm) = A_MAX_ACTION;
-	for (n = 1; n < A_MAX_ACTION; n++)
-		SET_NONE(BLK_SKIP(frm, n));
-	BLK_TERM(frm);
-
-	// !!! Termination was originally missing for the word series
-	SERIES_TAIL(FRM_WORD_SERIES(frm)) = A_MAX_ACTION;
-	BLK_TERM(FRM_WORD_SERIES(frm));
-
-	obj = Get_System(SYS_STANDARD, STD_UTYPE);
-	Val_Init_Object(obj, frm);
-}
-
-
-/***********************************************************************
-**
 */	static void Init_Root_Context(void)
 /*
 **		Hand-build the root context where special REBOL values are
@@ -699,8 +671,6 @@ static	BOOT_BLK *Boot_Block;
 	// Set system/words to be the main context:
 //	value = Get_System(SYS_WORDS, 0);
 //	Val_Init_Object(value, Lib_Context);
-
-	Init_UType_Proto();
 }
 
 

@@ -169,7 +169,10 @@ struct Reb_Datatype {
 // Although REB_END is 0, the 0 REBCNT used for symbol IDs is reserved
 // for "no symbol"...so the END! word actually is symbol 1.
 //
-#define VAL_TYPE_SYM(v)		((v)->data.datatype.kind + 1)
+#define IS_KIND_SYM(s)		((s) < REB_MAX + 1)
+#define KIND_FROM_SYM(s)	cast(enum Reb_Kind, (s) - 1)
+#define SYM_FROM_KIND(k)	cast(REBCNT, (k) + 1)
+#define VAL_TYPE_SYM(v)		SYM_FROM_KIND((v)->data.datatype.kind)
 
 //#define	VAL_MIN_TYPE(v)	((v)->data.datatype.min_type)
 //#define	VAL_MAX_TYPE(v)	((v)->data.datatype.max_type)
@@ -1500,22 +1503,6 @@ struct Reb_Typeset {
 
 /***********************************************************************
 **
-**	UTYPE - User defined types
-**
-***********************************************************************/
-
-struct Reb_Utype {
-	REBSER	*func;	// func object
-	REBSER	*data;	// data object
-};
-
-#define VAL_UTYPE_FUNC(v)	((v)->data.utype.func)
-#define VAL_UTYPE_DATA(v)	((v)->data.utype.data)
-
-
-
-/***********************************************************************
-**
 **	REBVAL (a.k.a. struct Reb_Value)
 **
 **		The structure/union for all REBOL values. It is designed to
@@ -1596,7 +1583,6 @@ union Reb_Value_Data {
 	struct Reb_Library library;
 	struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
 	struct Reb_Gob gob;
-	struct Reb_Utype utype;
 	struct Reb_Money money;
 	struct Reb_Handle handle;
 	struct Reb_All all;

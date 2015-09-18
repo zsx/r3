@@ -123,8 +123,8 @@ const struct {
 			sym = VAL_WORD_SYM(block);
 			if (VAL_WORD_FRAME(block)) { // Get word value
 				val = GET_VAR(block);
-			} else if (sym < REB_MAX) { // Accept datatype word
-				TYPE_SET(value, VAL_WORD_SYM(block)-1);
+			} else if (IS_KIND_SYM(sym)) { // Accept datatype word
+				TYPE_SET(value, KIND_FROM_SYM(sym));
 				continue;
 			} // Special typeset symbols:
 			else if (sym >= SYM_ANY_TYPEX && sym < SYM_DATATYPES)
