@@ -213,17 +213,6 @@ static void Propagate_All_GC_Marks(void);
 #endif
 
 
-// Typed word blocks contain REBWRS-style words, which have type information
-// instead of a binding.  They shouldn't have any other types in them so we
-// don't need to mark deep...BUT doesn't hurt to check in debug builds!
-
-#define MARK_TYPED_WORDS_BLOCK(s) \
-	do { \
-		ASSERT_TYPED_WORDS_ARRAY(s); \
-		MARK_SERIES_ONLY(s); \
-	} while (0)
-
-
 // Assertion for making sure that all the deferred marks have been propagated
 
 #define ASSERT_NO_GC_MARKS_PENDING() \
@@ -414,10 +403,10 @@ static void Propagate_All_GC_Marks(void);
 	} else {
 		if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
 			if (ROUTINE_FIXED_ARGS(rot))
-				MARK_TYPED_WORDS_BLOCK(ROUTINE_FIXED_ARGS(rot));
+				QUEUE_MARK_BLOCK_DEEP(ROUTINE_FIXED_ARGS(rot));
 
 			if (ROUTINE_ALL_ARGS(rot))
-				MARK_TYPED_WORDS_BLOCK(ROUTINE_ALL_ARGS(rot));
+				QUEUE_MARK_BLOCK_DEEP(ROUTINE_ALL_ARGS(rot));
 		}
 
 		if (ROUTINE_LIB(rot))
@@ -565,7 +554,17 @@ static void Propagate_All_GC_Marks(void);
 
 	switch (VAL_TYPE(val)) {
 		case REB_UNSET:
+			break;
+
 		case REB_TYPESET:
+			// As long as typeset is encoded as 64 bits, there's no issue
+			// of having to keep alive "user types" or other things...but
+			// that might be needed in the future.
+			//
+			// The symbol stored for object/frame typesets is effectively
+			// unbound, and hence has no frame to be preserved.
+			break;
+
 		case REB_HANDLE:
 			break;
 
@@ -583,9 +582,23 @@ static void Propagate_All_GC_Marks(void);
 			break;
 
 		case REB_FRAME:
-			// Mark special word list. Contains no pointers because
-			// these are special word bindings (to typesets if used).
-			MARK_TYPED_WORDS_BLOCK(VAL_FRM_WORDS(val));
+			// Mark special word list.
+			//
+			// At the moment this list contains no values which would
+			// require being seen by the GC...however skipping over the
+			// values is a limited optimization.  (For instance: symbols
+			// may become GC'd and need to see the symbol references inside
+			// the values, or typesets might contain dynamically allocated
+			// arrays of user types).
+			//
+			// !!! A more global optimization would be if there was a flag
+			// that was maintained about whether there might be any GC'able
+			// values in an array.  It could start out saying there may
+			// be...but then if it did a visit and didn't see any mark it
+			// as not needing GC.  Then modifications dirty that bit.
+			//
+			QUEUE_MARK_BLOCK_DEEP(VAL_FRM_WORDS(val));
+
 			if (VAL_FRM_SPEC(val))
 				QUEUE_MARK_BLOCK_DEEP(VAL_FRM_SPEC(val));
 			// !!! See code below for ANY-WORD! which also deals with FRAME!
@@ -615,7 +628,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_NATIVE:
 		case REB_ACTION:
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_SPEC(val));
-			MARK_TYPED_WORDS_BLOCK(VAL_FUNC_WORDS(val));
+			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_WORDS(val));
 			break;
 
 		case REB_WORD:	// (and also used for function STACK backtrace frame)
@@ -634,21 +647,7 @@ static void Propagate_All_GC_Marks(void);
 				// bound words should keep their contexts from being GC'd...
 				// even stack-relative contexts for functions.
 
-				REBVAL *first;
-				assert(SERIES_TAIL(ser) > 0);
-				first = BLK_HEAD(ser);
-
-				if (IS_FRAME(first)) {
-					// It's referring to an OBJECT!-style FRAME, where the
-					// first element is a FRAME! containing the word keys
-					// and the rest of the elements are the data values
-					QUEUE_MARK_BLOCK_DEEP(ser);
-				}
-				else {
-					// It's referring to a FUNCTION!'s identifying series,
-					// which should just be a list of 'typed' words.
-					MARK_TYPED_WORDS_BLOCK(ser);
-				}
+				QUEUE_MARK_BLOCK_DEEP(ser);
 			}
 			else {
 			#ifndef NDEBUG

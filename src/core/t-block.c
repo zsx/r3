@@ -854,7 +854,7 @@ is_none:
 #if !defined(NDEBUG)
 /***********************************************************************
 **
-*/	void Assert_Array_Core(const REBSER *series, REBOOL typed_words)
+*/	void Assert_Array_Core(const REBSER *series)
 /*
 ***********************************************************************/
 {
@@ -872,13 +872,6 @@ is_none:
 
 		if (VAL_TYPE(value) == REB_END) {
 			// Premature end
-			Panic_Series(series);
-		}
-
-		if (
-			typed_words
-			&& (!ANY_WORD(value) || !VAL_GET_EXT(value, EXT_WORD_TYPED))
-		) {
 			Panic_Series(series);
 		}
 	}

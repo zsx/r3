@@ -874,10 +874,8 @@ struct Reb_Position
 
 #ifdef NDEBUG
 	#define ASSERT_ARRAY(s) cast(void, 0)
-	#define ASSERT_TYPED_WORDS_ARRAY(s) cast(void, 0)
 #else
-	#define ASSERT_ARRAY(s) Assert_Array_Core(s, FALSE)
-	#define ASSERT_TYPED_WORDS_ARRAY(s) Assert_Array_Core(s, TRUE)
+	#define ASSERT_ARRAY(s) Assert_Array_Core(s)
 #endif
 
 
