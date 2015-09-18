@@ -129,8 +129,8 @@
 			val = BLK_SKIP(series, (n-1) * wide);
 			if (
 				ANY_WORD(val) &&
-				(VAL_WORD_SYM(key) == VAL_BIND_SYM(val) ||
-				(!cased && VAL_WORD_CANON(key) == VAL_BIND_CANON(val)))
+				(VAL_WORD_SYM(key) == VAL_WORD_SYM(val) ||
+				(!cased && VAL_WORD_CANON(key) == VAL_WORD_CANON(val)))
 			) return hash;
 			hash += skip;
 			if (hash >= len) hash -= len;
@@ -219,7 +219,10 @@
 			v = BLK_HEAD(series);
 			if (ANY_WORD(key)) {
 				for (n = 0; n < series->tail; n += 2, v += 2) {
-					if (ANY_WORD(v) && SAME_SYM(key, v)) {
+					if (
+						ANY_WORD(v)
+						&& SAME_SYM(VAL_WORD_SYM(key), VAL_WORD_SYM(v))
+					) {
 						if (val) *++v = *val;
 						return n/2+1;
 					}

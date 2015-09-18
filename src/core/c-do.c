@@ -895,7 +895,7 @@ reevaluate:
 				}
 
 				// Optimize, if the refinement is the next arg:
-				if (SAME_SYM(out, param)) {
+				if (SAME_SYM(VAL_WORD_SYM(out), VAL_BIND_SYM(param))) {
 					refinements++;
 
 				#if !defined(NDEBUG)
@@ -942,7 +942,9 @@ reevaluate:
 				arg = DSF_ARG(call, 1);
 				for (; NOT_END(param); param++, arg++) {
 					if (IS_REFINEMENT(param))
-						if (SAME_SYM(param, out)) {
+						if (SAME_SYM(
+							VAL_BIND_SYM(param), VAL_WORD_SYM(out)
+						)) {
 							refinements++;
 
 						#if !defined(NDEBUG)

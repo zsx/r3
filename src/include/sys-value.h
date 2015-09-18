@@ -965,7 +965,12 @@ struct Reb_Word {
 #define VAL_WORD_FRAME_VALUES(v) VAL_WORD_FRAME(v)->values
 
 // Is it the same symbol? Quick check, then canon check:
-#define SAME_SYM(a,b) (VAL_WORD_SYM(a)==VAL_BIND_SYM(b)||VAL_WORD_CANON(a)==VAL_BIND_CANON(b))
+#define SAME_SYM(s1,s2) \
+	((s1) == (s2) \
+	|| ( \
+		VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, (s1))) \
+		== VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, (s2))) \
+	))
 
 /***********************************************************************
 **
