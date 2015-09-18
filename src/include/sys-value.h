@@ -1014,7 +1014,7 @@ struct Reb_Frame {
 	VAL_FRM_WORDS(v) = (w); \
 	VAL_SET(v, REB_FRAME)
 
-#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_WORDS(f)) == SYM_NOT_USED)
+#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_WORDS(f)) == SYM_0)
 
 
 // Gives back a const pointer to var itself, raises error on failure

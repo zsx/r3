@@ -267,6 +267,7 @@ make_sym:
 	PG_Word_Table.series->tail++;
 	Bind_Table->tail++;
 
+	assert(n != SYM_0);
 	return n;
 }
 
@@ -293,6 +294,7 @@ make_sym:
 ***********************************************************************/
 {
 	VAL_SET(value, type);
+	assert(sym != SYM_0);
 	VAL_WORD_SYM(value) = sym;
 	assert(frame);
 	VAL_WORD_FRAME(value) = frame;
@@ -311,6 +313,7 @@ make_sym:
 {
 	VAL_SET(value, type);
 	VAL_WORD_FRAME(value) = NULL;
+	assert(sym != SYM_0);
 	VAL_WORD_SYM(value) = sym;
 #ifndef NDEBUG
 	VAL_WORD_INDEX(value) = WORD_INDEX_UNBOUND;

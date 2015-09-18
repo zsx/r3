@@ -1446,16 +1446,14 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 		case TOKEN_WORD:
 			if (len == 0) {bp--; goto syntax_error;}
 			Val_Init_Word_Unbound(
-				value, REB_WORD + (token - TOKEN_WORD), SYM_NOT_USED
+				value, REB_WORD + (token - TOKEN_WORD), Make_Word(bp, len)
 			);
-			if (!(VAL_WORD_SYM(value) = Make_Word(bp, len)))
-				goto syntax_error;
 			break;
 
 		case TOKEN_REFINE:
-			Val_Init_Word_Unbound(value, REB_REFINEMENT, SYM_NOT_USED);
-			if (!(VAL_WORD_SYM(value) = Make_Word(bp + 1, len - 1)))
-				goto syntax_error;
+			Val_Init_Word_Unbound(
+				value, REB_REFINEMENT, Make_Word(bp + 1, len - 1)
+			);
 			break;
 
 		case TOKEN_ISSUE:
@@ -1467,9 +1465,10 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				SET_NONE(value);  // A single # means NONE
 			}
 			else {
-				Val_Init_Word_Unbound(value, REB_ISSUE, SYM_NOT_USED);
-				if (!(VAL_WORD_SYM(value) = Scan_Issue(bp + 1, len - 1)))
+				REBCNT sym = Scan_Issue(bp + 1, len - 1);
+				if (sym == SYM_0)
 					goto syntax_error;
+				Val_Init_Word_Unbound(value, REB_ISSUE, sym);
 			}
 			break;
 
@@ -1883,7 +1882,8 @@ exit_block:
 	REBCNT l = len;
 	REBCNT c;
 
-	if (len == 0) return 0;
+	if (len == 0) return SYM_0; // will trigger error
+
 	while (IS_LEX_SPACE(*cp)) cp++; /* skip white space */
 
 	bp = cp;
@@ -1892,7 +1892,7 @@ exit_block:
 		switch (GET_LEX_CLASS(*bp)) {
 
 		case LEX_CLASS_DELIMIT:
-			return 0;
+			return SYM_0; // will trigger error
 
 		case LEX_CLASS_SPECIAL:     /* Flag all but first special char: */
 			c = GET_LEX_VALUE(*bp);
@@ -1902,9 +1902,10 @@ exit_block:
 				|| LEX_SPECIAL_PLUS   == c
 				|| LEX_SPECIAL_MINUS  == c
 				|| LEX_SPECIAL_TILDE  == c
-			))
-			return 0;
-
+			)) {
+				return SYM_0; // will trigger error
+			}
+			// fallthrough
 		case LEX_CLASS_WORD:
 		case LEX_CLASS_NUMBER:
 			bp++;

@@ -61,7 +61,7 @@ const struct {
 	{SYM_ANY_OBJECTX, TS_OBJECT},
 	{SYM_ANY_ARRAYX, TS_ARRAY},
 
-	{SYM_NOT_USED, 0}
+	{SYM_0, 0}
 };
 
 
@@ -91,7 +91,7 @@ const struct {
 
 	Set_Root_Series(ROOT_TYPESETS, Make_Array(40), "typeset presets");
 
-	for (n = 0; Typesets[n].sym != SYM_NOT_USED; n++) {
+	for (n = 0; Typesets[n].sym != SYM_0; n++) {
 		value = Alloc_Tail_Array(VAL_SERIES(ROOT_TYPESETS));
 		VAL_SET(value, REB_TYPESET);
 		VAL_TYPESET(value) = Typesets[n].bits;

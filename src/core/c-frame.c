@@ -126,7 +126,7 @@
 	SET_FRAME(value, 0, words);
 	value = Alloc_Tail_Array(words);
 	Val_Init_Word_Typed(
-		value, REB_WORD, has_self ? SYM_SELF : SYM_NOT_USED, ALL_64
+		value, REB_WORD, has_self ? SYM_SELF : SYM_0, ALL_64
 	);
 
 	return frame;
@@ -217,10 +217,14 @@
 	// be known until all words are scanned. Then copy this block.
 	if (SERIES_TAIL(BUF_WORDS)) panic Error_0(RE_WORD_LIST); // still in use
 
-	// Add the SELF word to slot zero.
-	if ((modes = (modes & BIND_NO_SELF)?0:SYM_SELF))
-		binds[modes] = -1;  // (cannot use zero here)
-	Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, modes, ALL_64);
+	// Add the SELF key (or unused key) to slot zero
+	if (modes & BIND_NO_SELF)
+		Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, SYM_0, ALL_64);
+	else {
+		Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, SYM_SELF, ALL_64);
+		binds[SYM_SELF] = -1;  // (cannot use zero here)
+	}
+
 	SERIES_TAIL(BUF_WORDS) = 1;
 }
 
@@ -1465,7 +1469,7 @@
 		if (n == 0) {
 			if (
 				VAL_WORD_SYM(word) != SYM_SELF
-				&& VAL_WORD_SYM(word) != SYM_NOT_USED
+				&& VAL_WORD_SYM(word) != SYM_0
 			) {
 				Debug_Fmt("** First slot in frame is not SELF or null symbol");
 				Panic_Series(frame);

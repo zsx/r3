@@ -483,7 +483,7 @@
 
 	// !!! For *today*, no option for function/closure to have a SELF
 	// referring to their function or closure values.
-	assert(VAL_WORD_SYM(BLK_HEAD(VAL_FUNC_WORDS(func))) == SYM_NOT_USED);
+	assert(VAL_WORD_SYM(BLK_HEAD(VAL_FUNC_WORDS(func))) == SYM_0);
 
 	// Clone the body of the closure to allow us to rebind words inside
 	// of it so that they point specifically to the instances for this
