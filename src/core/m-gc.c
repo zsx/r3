@@ -597,7 +597,7 @@ static void Propagate_All_GC_Marks(void);
 			// be...but then if it did a visit and didn't see any mark it
 			// as not needing GC.  Then modifications dirty that bit.
 			//
-			QUEUE_MARK_BLOCK_DEEP(VAL_FRM_WORDS(val));
+			QUEUE_MARK_BLOCK_DEEP(VAL_FRM_KEYLIST(val));
 
 			if (VAL_FRM_SPEC(val))
 				QUEUE_MARK_BLOCK_DEEP(VAL_FRM_SPEC(val));
@@ -628,7 +628,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_NATIVE:
 		case REB_ACTION:
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_SPEC(val));
-			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_WORDS(val));
+			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_PARAMLIST(val));
 			break;
 
 		case REB_WORD:	// (and also used for function STACK backtrace frame)
@@ -792,7 +792,7 @@ static void Propagate_All_GC_Marks(void);
 				// not worth having the variance of behavior, but since
 				// it's there for now... allow it for just those two.
 
-				if(!VAL_FRM_WORDS(val))
+				if(!VAL_FRM_KEYLIST(val))
 					continue;
 			}
 		}

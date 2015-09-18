@@ -325,7 +325,7 @@
 **
 ***********************************************************************/
 {
-	return FRM_WORD_SYM(Lib_Context, type + 1);
+	return FRM_KEY_SYM(Lib_Context, type + 1);
 }
 
 
@@ -337,7 +337,7 @@
 **
 ***********************************************************************/
 {
-	return FRM_WORD(Lib_Context, type + 1);
+	return FRM_KEY(Lib_Context, type + 1);
 }
 
 
@@ -350,7 +350,7 @@
 ***********************************************************************/
 {
 	assert(index < SERIES_TAIL(obj));
-	return Get_Sym_Name(FRM_WORD_SYM(obj, index));
+	return Get_Sym_Name(FRM_KEY_SYM(obj, index));
 }
 
 

@@ -345,7 +345,7 @@ static struct {
 		v2 = tmp;
 	}
 
-	args = BLK_SKIP(VAL_FUNC_WORDS(sort_flags.compare), 1);
+	args = BLK_SKIP(VAL_FUNC_PARAMLIST(sort_flags.compare), 1);
 	if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v1)))) {
 		raise Error_3(
 			RE_EXPECT_ARG,

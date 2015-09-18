@@ -834,8 +834,8 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 
 static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
-	REBSER *wser = VAL_OBJ_WORDS(value);
-	REBVAL *words = BLK_HEAD(wser);
+	REBSER *keylist = VAL_OBJ_KEYLIST(value);
+	REBVAL *keys = BLK_HEAD(keylist);
 	REBVAL *vals  = VAL_OBJ_VALUES(value); // first value is context
 	REBCNT n;
 
@@ -847,9 +847,9 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 	Append_Value(MOLD_LOOP, value);
 
 	// Mold all words and their values:
-	for (n = 1; n < SERIES_TAIL(wser); n++) {
-		if (!VAL_GET_EXT(words + n, EXT_WORD_HIDE))
-			Emit(mold, "N: V\n", VAL_WORD_SYM(words+n), vals+n);
+	for (n = 1; n < SERIES_TAIL(keylist); n++) {
+		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE))
+			Emit(mold, "N: V\n", VAL_BIND_SYM(keys + n), vals + n);
 	}
 	Remove_Last(mold->series);
 	Remove_Last(MOLD_LOOP);
@@ -857,19 +857,12 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-	REBSER *wser;
-	REBVAL *words;
-	REBVAL *vals; // first value is context
+	REBSER *keylist = VAL_OBJ_KEYLIST(value);
+	REBVAL *keys = BLK_HEAD(keylist);
+	REBVAL *vals = VAL_OBJ_VALUES(value); // first value is context
 	REBCNT n;
 
 	assert(VAL_OBJ_FRAME(value));
-
-	wser = VAL_OBJ_WORDS(value);
-//	if (wser < 1000)
-//		Dump_Block_Raw(VAL_OBJ_FRAME(value), 0, 1);
-	words = BLK_HEAD(wser);
-
-	vals  = VAL_OBJ_VALUES(value); // first value is context
 
 	Pre_Mold(value, mold);
 
@@ -883,13 +876,15 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 	Append_Value(MOLD_LOOP, value);
 
 	mold->indent++;
-	for (n = 1; n < SERIES_TAIL(wser); n++) {
+	for (n = 1; n < SERIES_TAIL(keylist); n++) {
 		if (
-			!VAL_GET_EXT(words + n, EXT_WORD_HIDE) &&
+			!VAL_GET_EXT(keys + n, EXT_WORD_HIDE) &&
 			((VAL_TYPE(vals+n) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
 		){
 			New_Indented_Line(mold);
-			Append_UTF8(mold->series, Get_Sym_Name(VAL_WORD_SYM(words+n)), -1);
+			Append_UTF8(
+				mold->series, Get_Sym_Name(VAL_BIND_SYM(keys + n)), -1
+			);
 			//Print("Slot: %s", Get_Sym_Name(VAL_WORD_SYM(words+n)));
 			Append_Unencoded(mold->series, ": ");
 			if (IS_WORD(vals+n) && !GET_MOPT(mold, MOPT_MOLD_ALL))

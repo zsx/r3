@@ -444,7 +444,7 @@
 	REBVAL *val;
 	REBCNT cnt = 0;
 	REBSER *frame;
-	REBVAL *word;
+	REBVAL *key;
 	REBVAL *mval;
 
 	// Count number of set entries:
@@ -455,25 +455,25 @@
 	// See Make_Frame() - cannot use it directly because no Collect_Words
 	frame = Make_Frame(cnt, TRUE);
 
-	word = FRM_WORD(frame, 1);
+	key = FRM_KEY(frame, 1);
 	val  = FRM_VALUE(frame, 1);
 	for (mval = BLK_HEAD(mapser); NOT_END(mval) && NOT_END(mval+1); mval += 2) {
 		if (ANY_WORD(mval) && !IS_NONE(mval+1)) {
 			Val_Init_Word_Typed(
-				word,
+				key,
 				REB_SET_WORD,
 				VAL_WORD_SYM(mval),
 				// all types except END or UNSET
 				~((TYPESET(REB_END) | TYPESET(REB_UNSET)))
 			);
-			word++;
+			key++;
 			*val++ = mval[1];
 		}
 	}
 
-	SET_END(word);
+	SET_END(key);
 	SET_END(val);
-	FRM_WORD_SERIES(frame)->tail = frame->tail = cnt + 1;
+	FRM_KEYLIST(frame)->tail = frame->tail = cnt + 1;
 
 	return frame;
 }

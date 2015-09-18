@@ -182,10 +182,10 @@
 			//
 			// if (IS_CLOSURE(value)) continue;
 
-			REBSER *src_words = VAL_FUNC_WORDS(value);
+			REBSER *src_words = VAL_FUNC_PARAMLIST(value);
 
-			VAL_FUNC_WORDS(value) = Copy_Array_Shallow(src_words);
-			MANAGE_SERIES(VAL_FUNC_WORDS(value));
+			VAL_FUNC_PARAMLIST(value) = Copy_Array_Shallow(src_words);
+			MANAGE_SERIES(VAL_FUNC_PARAMLIST(value));
 
 			VAL_FUNC_BODY(value) = Copy_Array_Core_Managed(
 				VAL_FUNC_BODY(value),
@@ -196,10 +196,10 @@
 			);
 
 			// Remap references in the body from src_words to our new copied
-			// word list we saved in VAL_FUNC_WORDS(value)
+			// word list we saved in VAL_FUNC_PARAMLIST(value)
 			Rebind_Block(
 				src_words,
-				VAL_FUNC_WORDS(value),
+				VAL_FUNC_PARAMLIST(value),
 				BLK_HEAD(VAL_FUNC_BODY(value)),
 				0
 			);

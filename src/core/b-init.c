@@ -466,7 +466,7 @@ static	BOOT_BLK *Boot_Block;
 **
 ***********************************************************************/
 {
-	return FRM_WORD(Lib_Context, Action_Marker+action);
+	return FRM_KEY(Lib_Context, Action_Marker + action);
 }
 
 
@@ -1169,7 +1169,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		NULL, VAL_BLK_HEAD(&Boot_Block->root), BIND_ALL
 	);
 	KEEP_SERIES(PG_Root_Words, "root words");
-	VAL_FRM_WORDS(ROOT_SELF) = PG_Root_Words;
+	VAL_FRM_KEYLIST(ROOT_SELF) = PG_Root_Words;
 
 	// Create main values:
 	DOUT("Level 3");

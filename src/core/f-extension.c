@@ -215,7 +215,7 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 		&label,
 		val
 	);
-	obj = VAL_FUNC_WORDS(val);  // func words
+	obj = VAL_FUNC_PARAMLIST(val);  // func words
 	len = SERIES_TAIL(obj)-1;	// number of args (may include locals)
 
 	// Push args. Too short or too long arg frames are handled W/O error.
@@ -393,7 +393,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 **
 ***********************************************************************/
 {
-	REBVAL *args = BLK_HEAD(VAL_FUNC_WORDS(value));
+	REBVAL *args = BLK_HEAD(VAL_FUNC_PARAMLIST(value));
 	REBCNT n;
 	REBVAL *val = VAL_BLK_SKIP(def, 1);
 	REBEXT *ext;
@@ -452,7 +452,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(value));
 	REBEXT *ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(val, 1))]; // Handler
 	REBCNT cmd = cast(REBCNT, Int32(val + 1));
-	REBCNT argc = SERIES_TAIL(VAL_FUNC_WORDS(value)) - 1; // not self
+	REBCNT argc = SERIES_TAIL(VAL_FUNC_PARAMLIST(value)) - 1; // not self
 
 	REBCNT n;
 	RXIFRM frm;	// args stored here
@@ -558,8 +558,8 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 		index++;
 
 		// get command arguments and body
-		words = VAL_FUNC_WORDS(func);
-		RXA_COUNT(&frm) = SERIES_TAIL(VAL_FUNC_WORDS(func))-1; // not self
+		words = VAL_FUNC_PARAMLIST(func);
+		RXA_COUNT(&frm) = SERIES_TAIL(VAL_FUNC_PARAMLIST(func)) - 1; // no self
 
 		// collect each argument (arg list already validated on MAKE)
 		n = 0;

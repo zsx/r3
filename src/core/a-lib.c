@@ -1108,17 +1108,17 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 ***********************************************************************/
 {
 	REBCNT index;
-	u32 *words;
-	REBVAL *syms;
+	u32 *syms;
+	REBVAL *keys;
 
-	syms = FRM_WORD(obj, 1);
+	keys = FRM_KEY(obj, 1);
 	// One less, because SELF not included.
-	words = OS_ALLOC_ARRAY(u32, obj->tail);
-	for (index = 0; index < (obj->tail-1); syms++, index++) {
-		words[index] = VAL_BIND_CANON(syms);
+	syms = OS_ALLOC_ARRAY(u32, obj->tail);
+	for (index = 0; index < (obj->tail - 1); keys++, index++) {
+		syms[index] = VAL_BIND_CANON(keys);
 	}
-	words[index] = 0;
-	return words;
+	syms[index] = 0;
+	return syms;
 }
 
 
@@ -1164,7 +1164,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	REBVAL value;
 	CLEARS(&value);
 	if (!(word = Find_Word_Index(obj, word, FALSE))) return 0;
-	if (VAL_GET_EXT(FRM_WORDS(obj) + word, EXT_WORD_LOCK)) return 0;
+	if (VAL_GET_EXT(FRM_KEYS(obj) + word, EXT_WORD_LOCK)) return 0;
 	RXI_To_Value(FRM_VALUES(obj)+word, val, type);
 	return type;
 }

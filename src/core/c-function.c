@@ -61,7 +61,7 @@
 ***********************************************************************/
 {
 	REBSER *block;
-	REBSER *words = VAL_FUNC_WORDS(func);
+	REBSER *words = VAL_FUNC_PARAMLIST(func);
 	REBCNT n;
 	REBVAL *value;
 	REBVAL *word;
@@ -90,7 +90,7 @@
 ***********************************************************************/
 {
 	REBSER *block;
-	REBSER *words = VAL_FUNC_WORDS(func);
+	REBSER *words = VAL_FUNC_PARAMLIST(func);
 	REBCNT n;
 	REBVAL *value;
 	REBVAL *word;
@@ -227,7 +227,7 @@
 	//Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_TAIL(spec));
 	ENSURE_SERIES_MANAGED(spec);
 	VAL_FUNC_SPEC(value) = spec;
-	VAL_FUNC_WORDS(value) = Check_Func_Spec(spec, &exts);
+	VAL_FUNC_PARAMLIST(value) = Check_Func_Spec(spec, &exts);
 
 	// We don't expect special flags on natives like <transparent>, <infix>
 	assert(exts == 0);
@@ -257,7 +257,7 @@
 	body = VAL_BLK_SKIP(def, 1);
 
 	VAL_FUNC_SPEC(out) = VAL_SERIES(spec);
-	VAL_FUNC_WORDS(out) = Check_Func_Spec(VAL_SERIES(spec), &exts);
+	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_SERIES(spec), &exts);
 
 	if (type != REB_COMMAND) {
 		if (len != 2 || !IS_BLOCK(body)) return FALSE;
@@ -271,7 +271,7 @@
 
 	if (type == REB_FUNCTION || type == REB_CLOSURE)
 		Bind_Relative(
-			VAL_FUNC_WORDS(out), VAL_FUNC_WORDS(out), VAL_FUNC_BODY(out)
+			VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
 		);
 
 	return TRUE;
@@ -301,13 +301,13 @@
 
 		// Copy the identifying word series, so that the function has a
 		// unique identity on the stack from the one it is copying.
-		VAL_FUNC_WORDS(out) = Copy_Array_Shallow(VAL_FUNC_WORDS(src));
-		MANAGE_SERIES(VAL_FUNC_WORDS(out));
+		VAL_FUNC_PARAMLIST(out) = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(src));
+		MANAGE_SERIES(VAL_FUNC_PARAMLIST(out));
 
 		// Copy the body and rebind its word references to the locals.
 		VAL_FUNC_BODY(out) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(src));
 		Bind_Relative(
-			VAL_FUNC_WORDS(out), VAL_FUNC_WORDS(out), VAL_FUNC_BODY(out)
+			VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
 		);
 	}
 	else {
@@ -463,9 +463,9 @@
 	frame = Make_Array(DSF->num_vars + 1);
 	value = BLK_HEAD(frame);
 
-	assert(DSF->num_vars == VAL_FUNC_NUM_WORDS(func));
+	assert(DSF->num_vars == VAL_FUNC_NUM_PARAMS(func));
 
-	SET_FRAME(value, NULL, VAL_FUNC_WORDS(func));
+	SET_FRAME(value, NULL, VAL_FUNC_PARAMLIST(func));
 	value++;
 
 	for (word_index = 1; word_index <= DSF->num_vars; word_index++)
@@ -476,21 +476,21 @@
 
 	// We do not Manage_Frame, because we are reusing a word series here
 	// that has already been managed...only manage the outer series
-	ASSERT_SERIES_MANAGED(FRM_WORD_SERIES(frame));
+	ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
 	MANAGE_SERIES(frame);
 
 	ASSERT_FRAME(frame);
 
 	// !!! For *today*, no option for function/closure to have a SELF
 	// referring to their function or closure values.
-	assert(VAL_WORD_SYM(BLK_HEAD(VAL_FUNC_WORDS(func))) == SYM_0);
+	assert(VAL_BIND_SYM(BLK_HEAD(VAL_FUNC_PARAMLIST(func))) == SYM_0);
 
 	// Clone the body of the closure to allow us to rebind words inside
 	// of it so that they point specifically to the instances for this
 	// invocation.  (Costly, but that is the mechanics of words.)
 	//
 	body = Copy_Array_Deep_Managed(VAL_FUNC_BODY(func));
-	Rebind_Block(VAL_FUNC_WORDS(func), frame, BLK_HEAD(body), REBIND_TYPE);
+	Rebind_Block(VAL_FUNC_PARAMLIST(func), frame, BLK_HEAD(body), REBIND_TYPE);
 
 	// Protect the body from garbage collection during the course of the
 	// execution.  (We could also protect it by stowing it in the call

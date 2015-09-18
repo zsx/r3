@@ -907,7 +907,7 @@ reevaluate:
 				#endif
 
 					Val_Init_Word_Unbound(
-						arg, REB_WORD, VAL_WORD_SYM(param)
+						arg, REB_WORD, VAL_BIND_SYM(param)
 					);
 
 					// skip type check on refinement itself, and let the
@@ -956,7 +956,7 @@ reevaluate:
 						#endif
 
 							Val_Init_Word_Unbound(
-								arg, REB_WORD, VAL_WORD_SYM(param)
+								arg, REB_WORD, VAL_BIND_SYM(param)
 							);
 							break; // will fall through to continue below
 						}
@@ -1603,7 +1603,9 @@ finished:
 					// OPTIONS_REFINEMENTS_TRUE at function create
 					SET_TRUE(arg);
 				} else
-					Val_Init_Word_Unbound(arg, REB_WORD, VAL_WORD_SYM(param));
+					Val_Init_Word_Unbound(
+						arg, REB_WORD, VAL_BIND_SYM(param)
+					);
 			#endif
 			}
 			else {
@@ -1907,8 +1909,8 @@ finished:
 	struct Reb_Call *call;
 	REBVAL *arg;
 
-	wsrc = VAL_FUNC_WORDS(DSF_FUNC(DSF));
-	wnew = VAL_FUNC_WORDS(func_val);
+	wsrc = VAL_FUNC_PARAMLIST(DSF_FUNC(DSF));
+	wnew = VAL_FUNC_PARAMLIST(func_val);
 
 	// As part of the "Redo" we are not adding a new function location,
 	// label, or place to write the output.  We are substituting new code

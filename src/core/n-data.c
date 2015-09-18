@@ -336,7 +336,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (D_REF(4)) {
 		obj = D_ARG(5);
 		if (ANY_OBJECT(obj))
-			prior_values = BLK_SKIP(VAL_OBJ_WORDS(obj), 1);
+			prior_values = BLK_SKIP(VAL_OBJ_KEYLIST(obj), 1);
 		else if (IS_BLOCK(obj))
 			prior_values = VAL_BLK_DATA(obj);
 		// else stays 0
@@ -550,20 +550,30 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 	// Is target an object?
 	if (IS_OBJECT(word)) {
-		REBVAL *obj_word;
+		REBVAL *key = VAL_OBJ_KEY(word, 1); // skip self
+		REBVAL *obj_value = VAL_OBJ_VALUES(D_ARG(1)) + 1;
+
 		Assert_Public_Object(word);
 		// Check for protected or unset before setting anything.
-		for (tmp = val, obj_word = VAL_OBJ_WORD(word, 1); NOT_END(obj_word); obj_word++) { // skip self
-			if (VAL_GET_EXT(obj_word, EXT_WORD_LOCK))
-				raise Error_1(RE_LOCKED_WORD, obj_word);
-			if (not_any && is_blk && !IS_END(tmp) && IS_UNSET(tmp++)) // won't advance past end
-				raise Error_1(RE_NEED_VALUE, obj_word);
+		tmp = val;
+		for (; NOT_END(key); key++) {
+			if (VAL_GET_EXT(key, EXT_WORD_LOCK))
+				raise Error_Protected_Key(key);
+			if (not_any && is_blk && !IS_END(tmp) && IS_UNSET(tmp++)) {
+				// (Loop won't advance past end)
+				REBVAL key_name;
+				Val_Init_Word_Unbound(
+					&key_name, REB_WORD, VAL_BIND_SYM(key)
+				);
+				raise Error_1(RE_NEED_VALUE, &key_name);
+			}
 		}
-		for (obj_word = VAL_OBJ_VALUES(D_ARG(1)) + 1; NOT_END(obj_word); obj_word++) { // skip self
+
+		for (; NOT_END(obj_value); obj_value++) { // skip self
 			// WARNING: Unwinds that make it here are assigned. All unwinds
 			// should be screened earlier (as is done in e.g. REDUCE, or for
 			// function arguments) so they don't even get into this function.
-			*obj_word = *val;
+			*obj_value = *val;
 			if (is_blk) {
 				val++;
 				if (IS_END(val)) {

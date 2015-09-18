@@ -33,7 +33,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 {
 	if (VAL_TYPE(val) == VAL_TYPE(arg) &&
 		VAL_FUNC_SPEC(val) == VAL_FUNC_SPEC(arg) &&
-		VAL_FUNC_WORDS(val) == VAL_FUNC_WORDS(arg) &&
+		VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg) &&
 		VAL_FUNC_CODE(val) == VAL_FUNC_CODE(arg)) return TRUE;
 	return FALSE;
 }
@@ -126,7 +126,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 				);
 				// See CC#2221 for why closure body copies have locals unbound
 				Unbind_Values_Core(
-					VAL_BLK_HEAD(D_OUT), VAL_FUNC_WORDS(value), TRUE
+					VAL_BLK_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
 				);
 				return R_OUT;
 
@@ -145,7 +145,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			return R_OUT;
 
 		case OF_TYPES:
-			Val_Init_Block(D_OUT, As_Typesets(VAL_FUNC_WORDS(value)));
+			Val_Init_Block(D_OUT, As_Typesets(VAL_FUNC_PARAMLIST(value)));
 			return R_OUT;
 
 		case OF_TITLE:

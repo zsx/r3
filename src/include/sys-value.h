@@ -982,13 +982,13 @@ struct Reb_Word {
 ***********************************************************************/
 
 struct Reb_Frame {
-	REBSER	*words;
+	REBSER	*keylist;
 	REBSER	*spec;
 //	REBSER	*parent;
 };
 
 // Value to frame fields:
-#define	VAL_FRM_WORDS(v)	((v)->data.frame.words)
+#define	VAL_FRM_KEYLIST(v)	((v)->data.frame.keylist)
 #define	VAL_FRM_SPEC(v)		((v)->data.frame.spec)
 //#define	VAL_FRM_PARENT(v)	((v)->data.frame.parent)
 
@@ -997,24 +997,25 @@ struct Reb_Frame {
 #define WORDS_LAST(w)		(((REBINT *)(w)->data)+(w)->tail-1) // (tail never zero)
 
 // Frame series to frame components:
-#define FRM_WORD_SERIES(c)	VAL_FRM_WORDS(BLK_HEAD(c))
-#define FRM_WORDS(c)		BLK_HEAD(FRM_WORD_SERIES(c))
+#define FRM_KEYLIST(c)	VAL_FRM_KEYLIST(BLK_HEAD(c))
+#define FRM_KEYS(c)		BLK_HEAD(FRM_KEYLIST(c))
 #define FRM_VALUES(c)		BLK_HEAD(c)
 #define FRM_VALUE(c,n)		BLK_SKIP(c,(n))
-#define FRM_WORD(c,n)		BLK_SKIP(FRM_WORD_SERIES(c),(n))
-#define FRM_WORD_SYM(c,n)	VAL_BIND_SYM(FRM_WORD(c,n))
 
-#define VAL_FRM_WORD(v,n)	BLK_SKIP(FRM_WORD_SERIES(VAL_OBJ_FRAME(v)),(n))
+#define FRM_KEY(c,n)		BLK_SKIP(FRM_KEYLIST(c),(n))
+#define FRM_KEY_SYM(c,n)	VAL_BIND_SYM(FRM_KEY(c,n))
+
+#define VAL_FRM_KEY(v,n)	BLK_SKIP(FRM_KEYLIST(VAL_OBJ_FRAME(v)),(n))
 
 // Object field (series, index):
 #define OFV(s,n)			BLK_SKIP(s,n)
 
 #define SET_FRAME(v, s, w) \
 	VAL_FRM_SPEC(v) = (s); \
-	VAL_FRM_WORDS(v) = (w); \
+	VAL_FRM_KEYLIST(v) = (w); \
 	VAL_SET(v, REB_FRAME)
 
-#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_WORDS(f)) == SYM_0)
+#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_KEYS(f)) == SYM_0)
 
 
 // Gives back a const pointer to var itself, raises error on failure
@@ -1062,8 +1063,8 @@ struct Reb_Object {
 #define VAL_OBJ_FRAME(v)	((v)->data.object.frame)
 #define VAL_OBJ_VALUES(v)	FRM_VALUES((v)->data.object.frame)
 #define VAL_OBJ_VALUE(v,n)	FRM_VALUE((v)->data.object.frame, n)
-#define VAL_OBJ_WORDS(v)	FRM_WORD_SERIES((v)->data.object.frame)
-#define VAL_OBJ_WORD(v,n)	BLK_SKIP(VAL_OBJ_WORDS(v), (n))
+#define VAL_OBJ_KEYLIST(v)	FRM_KEYLIST((v)->data.object.frame)
+#define VAL_OBJ_KEY(v,n)	BLK_SKIP(VAL_OBJ_KEYLIST(v), (n))
 //#define VAL_OBJ_SPEC(v)		((v)->data.object.spec)
 
 #ifdef NDEBUG
@@ -1255,16 +1256,13 @@ struct Reb_Function {
 #define VAL_FUNC(v)			  ((v)->data.func)
 #define VAL_FUNC_SPEC(v)	  ((v)->data.func.spec)	// a series
 #define VAL_FUNC_SPEC_BLK(v)  BLK_HEAD((v)->data.func.spec)
-#define VAL_FUNC_WORDS(v)     ((v)->data.func.args)
-
-#define VAL_FUNC_NUM_WORDS(v) \
-	(SERIES_TAIL(VAL_FUNC_WORDS(v)) - 1)
+#define VAL_FUNC_PARAMLIST(v)     ((v)->data.func.args)
 
 #define VAL_FUNC_PARAM(v,p) \
-	BLK_SKIP(VAL_FUNC_WORDS(v), FIRST_PARAM_INDEX + (p) - 1)
+	BLK_SKIP(VAL_FUNC_PARAMLIST(v), FIRST_PARAM_INDEX + (p) - 1)
 
 #define VAL_FUNC_NUM_PARAMS(v) \
-	(SERIES_TAIL(VAL_FUNC_WORDS(v)) - FIRST_PARAM_INDEX)
+	(SERIES_TAIL(VAL_FUNC_PARAMLIST(v)) - FIRST_PARAM_INDEX)
 
 #define VAL_FUNC_RETURN_WORD(v) \
 	coming@soon
@@ -1471,7 +1469,7 @@ enum {
 #define VAL_ROUTINE(v)          	VAL_FUNC(v)
 #define VAL_ROUTINE_SPEC(v) 		VAL_FUNC_SPEC(v)
 #define VAL_ROUTINE_INFO(v) 		VAL_FUNC_INFO(v)
-#define VAL_ROUTINE_ARGS(v) 		VAL_FUNC_WORDS(v)
+#define VAL_ROUTINE_ARGS(v) 		VAL_FUNC_PARAMLIST(v)
 #define VAL_ROUTINE_FUNCPTR(v)  	(VAL_ROUTINE_INFO(v)->info.rot.funcptr)
 #define VAL_ROUTINE_LIB(v)  		(VAL_ROUTINE_INFO(v)->info.rot.lib)
 #define VAL_ROUTINE_ABI(v)  		(VAL_ROUTINE_INFO(v)->abi)

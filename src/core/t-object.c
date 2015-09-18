@@ -45,8 +45,8 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 {
 	REBSER *f1;
 	REBSER *f2;
-	REBSER *w1;
-	REBSER *w2;
+	REBSER *k1;
+	REBSER *k2;
 	REBINT n;
 
 	if (VAL_TYPE(arg) != VAL_TYPE(val)) return FALSE;
@@ -56,16 +56,19 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 	if (f1 == f2) return TRUE;
 	if (f1->tail != f2->tail) return FALSE;
 
-	w1 = FRM_WORD_SERIES(f1);
-	w2 = FRM_WORD_SERIES(f2);
-	if (w1->tail != w2->tail) return FALSE;
+	k1 = FRM_KEYLIST(f1);
+	k2 = FRM_KEYLIST(f2);
+	if (k1->tail != k2->tail) return FALSE;
 
 	// Compare each entry:
 	for (n = 1; n < (REBINT)(f1->tail); n++) {
-		if (Cmp_Value(BLK_SKIP(w1, n), BLK_SKIP(w2, n), FALSE)) return FALSE;
+		if (Cmp_Value(BLK_SKIP(k1, n), BLK_SKIP(k2, n), FALSE) != 0)
+			return FALSE;
+
 		// !!! A comment here said "Use Compare_Modify_Values();"...but it
 		// doesn't... it calls Cmp_Value (?)
-		if (Cmp_Value(BLK_SKIP(f1, n), BLK_SKIP(f2, n), FALSE)) return FALSE;
+		if (Cmp_Value(BLK_SKIP(f1, n), BLK_SKIP(f2, n), FALSE) != 0)
+			return FALSE;
 	}
 
 	return TRUE;
@@ -135,25 +138,24 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 	// Append new words to obj
 	len = SERIES_TAIL(obj);
 	Expand_Frame(obj, SERIES_TAIL(BUF_WORDS) - len, 1);
-	for (word = BLK_SKIP(BUF_WORDS, len); NOT_END(word); word++)
-		Append_Frame(obj, 0, VAL_WORD_SYM(word));
+	for (val = BLK_SKIP(BUF_WORDS, len); NOT_END(val); val++)
+		Append_Frame(obj, 0, VAL_BIND_SYM(val));
 
 	// Set new values to obj words
 	for (word = arg; NOT_END(word); word += 2) {
-		REBVAL *frame_word;
+		REBVAL *key;
 
 		i = binds[VAL_WORD_CANON(word)];
 		val = FRM_VALUE(obj, i);
-		frame_word = FRM_WORD(obj, i);
+		key = FRM_KEY(obj, i);
 
-		if (
-			VAL_GET_EXT(frame_word, EXT_WORD_HIDE)
-			|| VAL_GET_EXT(frame_word, EXT_WORD_LOCK)
-		) {
-			// release binding table
+		if (VAL_GET_EXT(key, EXT_WORD_LOCK)) {
 			Collect_End(obj);
-			if (VAL_GET_EXT(FRM_WORD(obj, i), EXT_WORD_LOCK))
-				raise Error_1(RE_LOCKED_WORD, FRM_WORD(obj, i));
+			raise Error_Protected_Key(key);
+		}
+
+		if (VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+			Collect_End(obj);
 			raise Error_0(RE_HIDDEN);
 		}
 
@@ -173,29 +175,29 @@ static REBSER *Trim_Object(REBSER *obj)
 	REBINT cnt = 0;
 	REBSER *nobj;
 	REBVAL *nval;
-	REBVAL *word;
-	REBVAL *nwrd;
+	REBVAL *key;
+	REBVAL *nkey;
 
-	word = FRM_WORDS(obj)+1;
-	for (val = FRM_VALUES(obj)+1; NOT_END(val); val++, word++) {
-		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(word, EXT_WORD_HIDE))
+	key = FRM_KEYS(obj) + 1;
+	for (val = FRM_VALUES(obj) + 1; NOT_END(val); val++, key++) {
+		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(key, EXT_WORD_HIDE))
 			cnt++;
 	}
 
 	nobj = Make_Frame(cnt, TRUE);
 	nval = FRM_VALUES(nobj)+1;
-	word = FRM_WORDS(obj)+1;
-	nwrd = FRM_WORDS(nobj)+1;
-	for (val = FRM_VALUES(obj)+1; NOT_END(val); val++, word++) {
-		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(word, EXT_WORD_HIDE)) {
+	key = FRM_KEYS(obj) + 1;
+	nkey = FRM_KEYS(nobj) + 1;
+	for (val = FRM_VALUES(obj) + 1; NOT_END(val); val++, key++) {
+		if (VAL_TYPE(val) > REB_NONE && !VAL_GET_EXT(key, EXT_WORD_HIDE)) {
 			*nval++ = *val;
-			*nwrd++ = *word;
+			*nkey++ = *key;
 		}
 	}
 	SET_END(nval);
-	SET_END(nwrd);
+	SET_END(nkey);
 	SERIES_TAIL(nobj) = cnt+1;
-	SERIES_TAIL(FRM_WORD_SERIES(nobj)) = cnt+1;
+	SERIES_TAIL(FRM_KEYLIST(nobj)) = cnt+1;
 
 	return nobj;
 }
@@ -274,7 +276,7 @@ static REBSER *Trim_Object(REBSER *obj)
 	if (
 		pvs->setval
 		&& IS_END(pvs->path+1)
-		&& VAL_GET_EXT(VAL_FRM_WORD(pvs->value, n), EXT_WORD_LOCK)
+		&& VAL_GET_EXT(VAL_FRM_KEY(pvs->value, n), EXT_WORD_LOCK)
 	) {
 		raise Error_1(RE_LOCKED_WORD, pvs->select);
 	}
@@ -570,25 +572,34 @@ is_true:
 ***********************************************************************/
 {
 	REBCNT sym;
-	REBCNT s;
-	REBVAL *word;
+	REBCNT canon;
+	REBVAL *key;
 	REBVAL *val;
 
-	if (IS_WORD(pvs->select)) {
-		sym = VAL_WORD_SYM(pvs->select);
-		s = SYMBOL_TO_CANON(sym);
-		word = BLK_SKIP(VAL_FRM_WORDS(pvs->value), 1);
-		for (val = pvs->value + 1; NOT_END(val); val++, word++) {
-			if (sym == VAL_BIND_SYM(word) || s == VAL_BIND_CANON(word)) {
-				if (VAL_GET_EXT(word, EXT_WORD_HIDE)) break;
-				if (VAL_GET_EXT(word, EXT_WORD_LOCK))
-					raise Error_1(RE_LOCKED_WORD, word);
-				pvs->value = val;
-				return PE_SET;
-			}
+	if (!IS_WORD(pvs->select))
+		return PE_BAD_SELECT; // can only use words to pick from objects
+
+	sym = VAL_WORD_SYM(pvs->select);
+	canon = SYMBOL_TO_CANON(sym); // don't recalc each loop step
+
+	key = VAL_FRM_KEY(pvs->value, 1);
+	val = pvs->value + 1;
+
+	for (; NOT_END(val); val++, key++) {
+		if (
+			sym == VAL_BIND_SYM(key)
+			|| canon == VAL_BIND_CANON(key)
+		) {
+			if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+				return PE_BAD_SELECT;
+			if (VAL_GET_EXT(key, EXT_WORD_LOCK))
+				raise Error_Protected_Key(key);
+			pvs->value = val;
+			return PE_SET;
 		}
 	}
-	return PE_BAD_SELECT;
+
+	DEAD_END;
 }
 
 

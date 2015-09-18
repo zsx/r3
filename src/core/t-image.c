@@ -722,7 +722,7 @@ REBCNT ARGB_To_BGR(REBCNT i)
 	for (n = 0; n < 8; n++) // (zero based)
 		if (D_REF((REBINT)no_refs[n]))
 			raise Error_0(RE_BAD_REFINE);
-//			raise Error_2(RE_CANNOT_USE, FRM_WORDS(me, (REBINT)no_refs[n]), Get_Global(REB_IMAGE));
+//			raise Error_2(RE_CANNOT_USE, FRM_KEYS(me, (REBINT)no_refs[n]), Get_Global(REB_IMAGE));
 
 	if (IS_TUPLE(arg)) {
 		only = (REBOOL)(VAL_TUPLE_LEN(arg) < 4);

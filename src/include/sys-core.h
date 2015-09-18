@@ -646,7 +646,7 @@ enum Reb_Fail_Prep {
 //
 #ifdef NDEBUG
 	#define MANAGE_FRAME(frame) \
-		(MANAGE_SERIES(frame), MANAGE_SERIES(FRM_WORD_SERIES(frame)))
+		(MANAGE_SERIES(frame), MANAGE_SERIES(FRM_KEYLIST(frame)))
 
 	#define ENSURE_FRAME_MANAGED(frame) \
 		(SERIES_GET_FLAG((frame), SER_MANAGED) \
@@ -667,7 +667,7 @@ enum Reb_Fail_Prep {
 
 	#define ENSURE_FRAME_MANAGED(frame) \
 		((SERIES_GET_FLAG((frame), SER_MANAGED) \
-		&& SERIES_GET_FLAG(FRM_WORD_SERIES(frame), SER_MANAGED)) \
+		&& SERIES_GET_FLAG(FRM_KEYLIST(frame), SER_MANAGED)) \
 			? NOOP \
 			: MANAGE_FRAME(frame))
 

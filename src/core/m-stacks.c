@@ -162,7 +162,7 @@
 **
 ***********************************************************************/
 {
-	REBCNT num_vars = VAL_FUNC_NUM_WORDS(func);
+	REBCNT num_vars = VAL_FUNC_NUM_PARAMS(func);
 
 	REBCNT size = (
 		sizeof(struct Reb_Call)
@@ -247,7 +247,7 @@
 	}
 	// !!! Not sure why this is needed; seems the label word should be unbound
 	// if anything...
-	VAL_WORD_FRAME(&call->label) = VAL_FUNC_WORDS(func);
+	VAL_WORD_FRAME(&call->label) = VAL_FUNC_PARAMLIST(func);
 
 	// Fill call frame's args with default of NONE!.  Have to do this in
 	// advance because refinement filling often skips around; if you have

@@ -42,18 +42,18 @@ enum {
 
 /***********************************************************************
 **
-*/	static void Protect_Word(REBVAL *value, REBCNT flags)
+*/	static void Protect_Key(REBVAL *key, REBCNT flags)
 /*
 ***********************************************************************/
 {
 	if (GET_FLAG(flags, PROT_WORD)) {
-		if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(value, EXT_WORD_LOCK);
-		else VAL_CLR_EXT(value, EXT_WORD_LOCK);
+		if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_WORD_LOCK);
+		else VAL_CLR_EXT(key, EXT_WORD_LOCK);
 	}
 
 	if (GET_FLAG(flags, PROT_HIDE)) {
-		if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(value, EXT_WORD_HIDE);
-		else VAL_CLR_EXT(value, EXT_WORD_HIDE);
+		if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_WORD_HIDE);
+		else VAL_CLR_EXT(key, EXT_WORD_HIDE);
 	}
 }
 
@@ -115,8 +115,8 @@ enum {
 	if (GET_FLAG(flags, PROT_SET)) PROTECT_SERIES(series);
 	else UNPROTECT_SERIES(series);
 
-	for (value = FRM_WORDS(series)+1; NOT_END(value); value++) {
-		Protect_Word(value, flags);
+	for (value = FRM_KEYS(series)+1; NOT_END(value); value++) {
+		Protect_Key(value, flags);
 	}
 
 	if (!GET_FLAG(flags, PROT_DEEP)) return;
@@ -135,12 +135,12 @@ enum {
 /*
 ***********************************************************************/
 {
-	REBVAL *wrd;
+	REBVAL *key;
 	REBVAL *val;
 
 	if (ANY_WORD(word) && HAS_FRAME(word) && VAL_WORD_INDEX(word) > 0) {
-		wrd = FRM_WORDS(VAL_WORD_FRAME(word))+VAL_WORD_INDEX(word);
-		Protect_Word(wrd, flags);
+		key = FRM_KEYS(VAL_WORD_FRAME(word)) + VAL_WORD_INDEX(word);
+		Protect_Key(key, flags);
 		if (GET_FLAG(flags, PROT_DEEP)) {
 			// Ignore existing mutability state, by casting away the const.
 			// (Most routines should DEFINITELY not do this!)
@@ -153,8 +153,8 @@ enum {
 		REBCNT index;
 		REBSER *obj;
 		if ((obj = Resolve_Path(word, &index))) {
-			wrd = FRM_WORD(obj, index);
-			Protect_Word(wrd, flags);
+			key = FRM_KEY(obj, index);
+			Protect_Key(key, flags);
 			if (GET_FLAG(flags, PROT_DEEP)) {
 				Protect_Value(val = FRM_VALUE(obj, index), flags);
 				Unmark(val);
@@ -609,7 +609,7 @@ was_caught:
 			return R_OUT;
 		}
 		else if (ANY_FUNC(handler)) {
-			REBVAL *param = BLK_SKIP(VAL_FUNC_WORDS(handler), 1);
+			REBVAL *param = BLK_SKIP(VAL_FUNC_PARAMLIST(handler), 1);
 
 			// We again re-use the refinement slots, but this time as mutable
 			// space protected from GC for the handler's arguments

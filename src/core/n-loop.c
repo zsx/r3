@@ -103,10 +103,10 @@ typedef enum {
 	if (len == 0) raise Error_Invalid_Arg(spec);
 	frame = Make_Frame(len, FALSE);
 	SERIES_TAIL(frame) = len+1;
-	SERIES_TAIL(FRM_WORD_SERIES(frame)) = len+1;
+	SERIES_TAIL(FRM_KEYLIST(frame)) = len + 1;
 
 	// Setup for loop:
-	word = FRM_WORD(frame, 1); // skip SELF
+	word = FRM_KEY(frame, 1); // skip SELF
 	vals = BLK_SKIP(frame, 1);
 	if (IS_BLOCK(spec)) spec = VAL_BLK_DATA(spec);
 
@@ -114,7 +114,7 @@ typedef enum {
 	while (len-- > 0) {
 		if (!IS_WORD(spec) && !IS_SET_WORD(spec)) {
 			// Prevent inconsistent GC state:
-			Free_Series(FRM_WORD_SERIES(frame));
+			Free_Series(FRM_KEYLIST(frame));
 			Free_Series(frame);
 			raise Error_Invalid_Arg(spec);
 		}
@@ -327,7 +327,7 @@ typedef enum {
 {
 	REBSER *body;
 	REBVAL *vars;
-	REBVAL *words;
+	REBVAL *keys;
 	REBSER *frame;
 
 	// `data` is the series/object/map/etc. being iterated over
@@ -373,14 +373,14 @@ typedef enum {
 	// Get series info:
 	if (data_is_object) {
 		series = VAL_OBJ_FRAME(data);
-		out = FRM_WORD_SERIES(series); // words (the out local reused)
+		out = FRM_KEYLIST(series); // words (the out local reused)
 		index = 1;
-		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_WORD(frame, 3));
+		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_KEY(frame, 3));
 	}
 	else if (IS_MAP(data)) {
 		series = VAL_SERIES(data);
 		index = 0;
-		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_WORD(frame, 3));
+		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_KEY(frame, 3));
 	}
 	else {
 		series = VAL_SERIES(data);
@@ -409,10 +409,9 @@ typedef enum {
 		for (i = 1; i < frame->tail; i++) {
 
 			vars = FRM_VALUE(frame, i);
-			words = FRM_WORD(frame, i);
+			keys = FRM_KEY(frame, i);
 
-			// var spec is WORD
-			if (IS_WORD(words)) {
+			if (TRUE) { // was IS_WORD but no longer applicable...
 
 				if (index < tail) {
 
@@ -423,13 +422,19 @@ typedef enum {
 						if (!VAL_GET_EXT(BLK_SKIP(out, index), EXT_WORD_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
-								Val_Init_Word(vars, REB_WORD, VAL_WORD_SYM(BLK_SKIP(out, index)), series, index);
+								Val_Init_Word(vars, REB_WORD, VAL_BIND_SYM(BLK_SKIP(out, index)), series, index);
 								if (NOT_END(vars+1)) index--; // reset index for the value part
 							}
 							else if (j == 1)
 								*vars = *BLK_SKIP(series, index);
-							else
-								raise Error_Invalid_Arg(words);
+							else {
+								// !!! Review this error (and this routine...)
+								REBVAL key_name;
+								Val_Init_Word_Unbound(
+									&key_name, REB_WORD, VAL_BIND_SYM(keys)
+								);
+								raise Error_Invalid_Arg(&key_name);
+							}
 							j++;
 						}
 						else {
@@ -450,8 +455,14 @@ typedef enum {
 							}
 							else if (j == 1)
 								*vars = *BLK_SKIP(series, index);
-							else
-								raise Error_Invalid_Arg(words);
+							else {
+								// !!! Review this error (and this routine...)
+								REBVAL key_name;
+								Val_Init_Word_Unbound(
+									&key_name, REB_WORD, VAL_BIND_SYM(keys)
+								);
+								raise Error_Invalid_Arg(&key_name);
+							}
 							j++;
 						}
 						else {
@@ -475,8 +486,7 @@ typedef enum {
 				}
 				else SET_NONE(vars);
 			}
-			// var spec is SET_WORD:
-			else if (IS_SET_WORD(words)) {
+			else if (FALSE) { // !!! was IS_SET_WORD(keys), what was that for?
 				if (ANY_OBJECT(data) || IS_MAP(data))
 					*vars = *data;
 				else
@@ -484,8 +494,6 @@ typedef enum {
 
 				//if (index < tail) index++; // do not increment block.
 			}
-			else
-				raise Error_Invalid_Arg(words);
 		}
 
 		if (index == rindex) {

@@ -312,13 +312,13 @@
 	if (code >= 0 && n < SERIES_TAIL(cats) &&
 		(cat = VAL_ERR_OBJECT(BLK_SKIP(cats, n)))
 	) {
-		Val_Init_Word(&error->type, REB_WORD, FRM_WORD_SYM(cats, n), cats, n);
+		Val_Init_Word(&error->type, REB_WORD, FRM_KEY_SYM(cats, n), cats, n);
 
 		// Find word related to the error itself:
 
 		n = code % 100 + 3;
 		if (n < SERIES_TAIL(cat))
-			Val_Init_Word(&error->id, REB_WORD, FRM_WORD_SYM(cat, n), cat, n);
+			Val_Init_Word(&error->id, REB_WORD, FRM_KEY_SYM(cat, n), cat, n);
 	}
 }
 
@@ -778,6 +778,20 @@
 ***********************************************************************/
 {
 	Error_1(RE_OUT_OF_RANGE, arg);
+}
+
+
+/***********************************************************************
+**
+*/	ATTRIBUTE_NO_RETURN void Error_Protected_Key(REBVAL *key)
+/*
+***********************************************************************/
+{
+	REBVAL key_name;
+	assert(IS_TYPESET(key));
+	Val_Init_Word_Unbound(&key_name, REB_WORD, VAL_BIND_SYM(key));
+
+	Error_1(RE_LOCKED_WORD, &key_name);
 }
 
 

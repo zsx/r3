@@ -517,7 +517,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		// 'typed' words to the user.  For safety, a single global actor spec
 		// could be made at startup.
 		VAL_FUNC_SPEC(actor) = ser;
-		VAL_FUNC_WORDS(actor) = ser;
+		VAL_FUNC_PARAMLIST(actor) = ser;
 		MANAGE_SERIES(ser);
 
 		VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);

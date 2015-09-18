@@ -240,7 +240,7 @@ struct Reb_Call {
 
 	REBOOL args_ready;	// Function's arguments have finished evaluating
 
-	REBCNT num_vars;	// !!! Redundant with VAL_FUNC_NUM_WORDS()?
+	REBCNT num_vars;	// !!! Redundant with VAL_FUNC_NUM_PARAMS()?
 
 	REBVAL *out;		// where to write the function's output
 
