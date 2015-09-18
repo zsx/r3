@@ -74,7 +74,7 @@ type?: function [
 		; so the EITHER isn't necessary.  But it's a talking point about
 		; TYPE?/WORD's compatibility story if TO-WORD changed.
 		;
-		either word: to-word type-of :value = 'group! [paren!] [word]
+		either (word: to-word type-of :value) = 'group! [paren!] [word]
 	][
 		type-of :value
 	]
