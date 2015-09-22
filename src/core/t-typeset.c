@@ -37,11 +37,11 @@
 // NOTE: Order of symbols is important, because this is used to build a
 // list of typeset word symbols ordered relative to their symbol #,
 // which lays out the legal unbound WORD! values you can use during
-// a MAKE FLAGIT_64! (bound words will be looked up as variables to see
+// a MAKE TYPESET! (bound words will be looked up as variables to see
 // if they contain a DATATYPE! or a typeset, but general reduction is
 // not performed on the block passed in.)
 //
-// !!! Is it necessary for MAKE FLAGIT_64! to allow unbound words at all,
+// !!! Is it necessary for MAKE TYPESET! to allow unbound words at all,
 // or should the typesets be required to be in bound variables?  Should
 // clients be asked to pass in only datatypes and typesets, hence doing
 // their own reduce before trying to make a typeset out of a block?
