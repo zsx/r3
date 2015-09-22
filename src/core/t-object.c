@@ -70,8 +70,8 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 		// objects to consider themselves to be equal (but which do not
 		// count in comparison of the typesets)
 		if (
-			VAL_BIND_CANON(BLK_SKIP(k1, n))
-			!= VAL_BIND_CANON(BLK_SKIP(k2, n))
+			VAL_TYPESET_CANON(BLK_SKIP(k1, n))
+			!= VAL_TYPESET_CANON(BLK_SKIP(k2, n))
 		) {
 			return FALSE;
 		}
@@ -112,7 +112,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 	// Use binding table
 	binds = WORDS_HEAD(Bind_Table);
 	// Handle selfless
-	Collect_Start(IS_SELFLESS(obj) ? BIND_NO_SELF | BIND_ALL : BIND_ALL);
+	Collect_Keys_Start(IS_SELFLESS(obj) ? BIND_NO_SELF | BIND_ALL : BIND_ALL);
 	// Setup binding table with obj words:
 	Collect_Object(obj);
 
@@ -121,8 +121,8 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 
 		if (!IS_WORD(word) && !IS_SET_WORD(word)) {
 			// release binding table
-			BLK_TERM(BUF_WORDS);
-			Collect_End(obj);
+			BLK_TERM(BUF_COLLECT);
+			Collect_Keys_End(obj);
 			raise Error_Invalid_Arg(word);
 		}
 
@@ -130,27 +130,27 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 			// bug fix, 'self is protected only in selfish frames:
 			if ((VAL_WORD_CANON(word) == SYM_SELF) && !IS_SELFLESS(obj)) {
 				// release binding table
-				BLK_TERM(BUF_WORDS);
-				Collect_End(obj);
+				BLK_TERM(BUF_COLLECT);
+				Collect_Keys_End(obj);
 				raise Error_0(RE_SELF_PROTECTED);
 			}
 		} else {
 			// collect the word
-			binds[VAL_WORD_CANON(word)] = SERIES_TAIL(BUF_WORDS);
-			EXPAND_SERIES_TAIL(BUF_WORDS, 1);
-			val = BLK_LAST(BUF_WORDS);
+			binds[VAL_WORD_CANON(word)] = SERIES_TAIL(BUF_COLLECT);
+			EXPAND_SERIES_TAIL(BUF_COLLECT, 1);
+			val = BLK_LAST(BUF_COLLECT);
 			Val_Init_Typeset(val, ALL_64, VAL_WORD_SYM(word));
 		}
 		if (IS_END(word + 1)) break; // fix bug#708
 	}
 
-	BLK_TERM(BUF_WORDS);
+	BLK_TERM(BUF_COLLECT);
 
 	// Append new words to obj
 	len = SERIES_TAIL(obj);
-	Expand_Frame(obj, SERIES_TAIL(BUF_WORDS) - len, 1);
-	for (val = BLK_SKIP(BUF_WORDS, len); NOT_END(val); val++)
-		Append_Frame(obj, 0, VAL_BIND_SYM(val));
+	Expand_Frame(obj, SERIES_TAIL(BUF_COLLECT) - len, 1);
+	for (val = BLK_SKIP(BUF_COLLECT, len); NOT_END(val); val++)
+		Append_Frame(obj, 0, VAL_TYPESET_SYM(val));
 
 	// Set new values to obj words
 	for (word = arg; NOT_END(word); word += 2) {
@@ -161,12 +161,12 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 		key = FRM_KEY(obj, i);
 
 		if (VAL_GET_EXT(key, EXT_WORD_LOCK)) {
-			Collect_End(obj);
+			Collect_Keys_End(obj);
 			raise Error_Protected_Key(key);
 		}
 
 		if (VAL_GET_EXT(key, EXT_WORD_HIDE)) {
-			Collect_End(obj);
+			Collect_Keys_End(obj);
 			raise Error_0(RE_HIDDEN);
 		}
 
@@ -177,7 +177,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 	}
 
 	// release binding table
-	Collect_End(obj);
+	Collect_Keys_End(obj);
 }
 
 static REBSER *Trim_Object(REBSER *obj)
@@ -493,8 +493,8 @@ static REBSER *Trim_Object(REBSER *obj)
 		}
 		if (D_REF(ARG_COPY_TYPES)) {
 			arg = D_ARG(ARG_COPY_KINDS);
-			if (IS_DATATYPE(arg)) types |= TYPESET(VAL_TYPE_KIND(arg));
-			else types |= VAL_TYPESET(arg);
+			if (IS_DATATYPE(arg)) types |= FLAGIT_64(VAL_TYPE_KIND(arg));
+			else types |= VAL_TYPESET_BITS(arg);
 		}
 		obj = Copy_Array_Shallow(VAL_OBJ_FRAME(value));
 		MANAGE_SERIES(obj);
@@ -598,8 +598,8 @@ is_true:
 
 	for (; NOT_END(val); val++, key++) {
 		if (
-			sym == VAL_BIND_SYM(key)
-			|| canon == VAL_BIND_CANON(key)
+			sym == VAL_TYPESET_SYM(key)
+			|| canon == VAL_TYPESET_CANON(key)
 		) {
 			if (VAL_GET_EXT(key, EXT_WORD_HIDE))
 				return PE_BAD_SELECT;

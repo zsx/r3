@@ -1040,7 +1040,7 @@ static void Propagate_All_GC_Marks(void);
 	// be a problem if code is building a new value at the tail,
 	// but has not yet updated the TAIL marker.
 	VAL_BLK_TERM(TASK_BUF_EMIT);
-	VAL_BLK_TERM(TASK_BUF_WORDS);
+	VAL_BLK_TERM(TASK_BUF_COLLECT);
 
 	// MARKING PHASE: the "root set" from which we determine the liveness
 	// (or deadness) of a series.  If we are shutting down, we are freeing

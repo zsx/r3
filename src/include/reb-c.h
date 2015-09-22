@@ -552,6 +552,7 @@ typedef u16 REBUNI;
 ***********************************************************************/
 
 #define FLAGIT(f)           (1u << (f))
+#define FLAGIT_64(n)        (cast(REBU64, 1) << (n))
 #define GET_FLAG(v,f)       (((v) & (1u << (f))) != 0)
 #define GET_FLAGS(v,f,g)    (((v) & ((1u << (f)) | (1u << (g)))) != 0)
 #define SET_FLAG(v,f)       cast(void, (v) |= (1u << (f)))

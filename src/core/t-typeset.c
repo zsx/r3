@@ -37,11 +37,11 @@
 // NOTE: Order of symbols is important, because this is used to build a
 // list of typeset word symbols ordered relative to their symbol #,
 // which lays out the legal unbound WORD! values you can use during
-// a MAKE TYPESET! (bound words will be looked up as variables to see
+// a MAKE FLAGIT_64! (bound words will be looked up as variables to see
 // if they contain a DATATYPE! or a typeset, but general reduction is
 // not performed on the block passed in.)
 //
-// !!! Is it necessary for MAKE TYPESET! to allow unbound words at all,
+// !!! Is it necessary for MAKE FLAGIT_64! to allow unbound words at all,
 // or should the typesets be required to be in bound variables?  Should
 // clients be asked to pass in only datatypes and typesets, hence doing
 // their own reduce before trying to make a typeset out of a block?
@@ -94,7 +94,7 @@ const struct {
 	for (n = 0; Typesets[n].sym != SYM_0; n++) {
 		value = Alloc_Tail_Array(VAL_SERIES(ROOT_TYPESETS));
 		VAL_SET(value, REB_TYPESET);
-		VAL_TYPESET(value) = Typesets[n].bits;
+		VAL_TYPESET_BITS(value) = Typesets[n].bits;
 
 		*Append_Frame(Lib_Context, NULL, Typesets[n].sym) = *value;
 	}
@@ -110,8 +110,8 @@ const struct {
 ***********************************************************************/
 {
 	VAL_SET(value, REB_TYPESET);
-	VAL_BIND_SYM(value) = sym;
-	VAL_TYPESET(value) = bits;
+	VAL_TYPESET_SYM(value) = sym;
+	VAL_TYPESET_BITS(value) = bits;
 }
 
 
@@ -144,7 +144,7 @@ const struct {
 	REBCNT sym;
 	REBSER *types = VAL_SERIES(ROOT_TYPESETS);
 
-	VAL_TYPESET(value) = 0;
+	VAL_TYPESET_BITS(value) = 0;
 
 	for (; NOT_END(block); block++) {
 		val = NULL;
@@ -164,7 +164,7 @@ const struct {
 		if (IS_DATATYPE(val)) {
 			TYPE_SET(value, VAL_TYPE_KIND(val));
 		} else if (IS_TYPESET(val)) {
-			VAL_TYPESET(value) |= VAL_TYPESET(val);
+			VAL_TYPESET_BITS(value) |= VAL_TYPESET_BITS(val);
 		} else {
 			if (load) return FALSE;
 			raise Error_Invalid_Arg(block);
@@ -275,7 +275,7 @@ const struct {
 		}
 	//	if (IS_NONE(arg)) {
 	//		VAL_SET(arg, REB_TYPESET);
-	//		VAL_TYPESET(arg) = 0L;
+	//		VAL_TYPESET_BITS(arg) = 0L;
 	//		return R_ARG2;
 	//	}
 		if (IS_TYPESET(arg)) return R_ARG2;
@@ -284,16 +284,16 @@ const struct {
 	case A_AND:
 	case A_OR:
 	case A_XOR:
-		if (IS_DATATYPE(arg)) VAL_TYPESET(arg) = TYPESET(VAL_TYPE_KIND(arg));
+		if (IS_DATATYPE(arg)) VAL_TYPESET_BITS(arg) = FLAGIT_64(VAL_TYPE_KIND(arg));
 		else if (!IS_TYPESET(arg)) raise Error_Invalid_Arg(arg);
 
-		if (action == A_OR) VAL_TYPESET(val) |= VAL_TYPESET(arg);
-		else if (action == A_AND) VAL_TYPESET(val) &= VAL_TYPESET(arg);
-		else VAL_TYPESET(val) ^= VAL_TYPESET(arg);
+		if (action == A_OR) VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
+		else if (action == A_AND) VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
+		else VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
 		return R_ARG1;
 
 	case A_COMPLEMENT:
-		VAL_TYPESET(val) = ~VAL_TYPESET(val);
+		VAL_TYPESET_BITS(val) = ~VAL_TYPESET_BITS(val);
 		return R_ARG1;
 
 	default:

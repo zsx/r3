@@ -1115,7 +1115,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	// One less, because SELF not included.
 	syms = OS_ALLOC_ARRAY(u32, obj->tail);
 	for (index = 0; index < (obj->tail - 1); keys++, index++) {
-		syms[index] = VAL_BIND_CANON(keys);
+		syms[index] = VAL_TYPESET_CANON(keys);
 	}
 	syms[index] = 0;
 	return syms;

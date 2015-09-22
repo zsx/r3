@@ -465,7 +465,7 @@
 			Val_Init_Typeset(
 				key,
 				// all types except END or UNSET
-				~((TYPESET(REB_END) | TYPESET(REB_UNSET))),
+				~((FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET))),
 				VAL_WORD_SYM(mval)
 			);
 			key++;

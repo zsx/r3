@@ -1205,7 +1205,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 						MANAGE_SERIES(VAL_ROUTINE_FIXED_ARGS(out));
 						Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
 						v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
-						Val_Init_Typeset(v, TYPESET(REB_BLOCK), SYM_VARARGS);
+						Val_Init_Typeset(v, FLAGIT_64(REB_BLOCK), SYM_VARARGS);
 					} else {
 						REBVAL *v = NULL;
 						if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {

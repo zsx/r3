@@ -426,7 +426,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	for (; NOT_END(args); args++, n++) {
 		// If the typeset contains args that are not valid:
 		// (3 is the default when no args given, for not END and UNSET)
-		if (3 != ~VAL_TYPESET(args) && (VAL_TYPESET(args) & ~RXT_ALLOWED_TYPES))
+		if (3 != ~VAL_TYPESET_BITS(args) && (VAL_TYPESET_BITS(args) & ~RXT_ALLOWED_TYPES))
 			raise Error_1(RE_BAD_FUNC_ARG, args);
 	}
 

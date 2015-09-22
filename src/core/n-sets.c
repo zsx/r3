@@ -201,16 +201,16 @@ enum {
 		case SET_OP_UNIQUE:
 			break;
 		case SET_OP_UNION:
-			VAL_TYPESET(val1) |= VAL_TYPESET(val2);
+			VAL_TYPESET_BITS(val1) |= VAL_TYPESET_BITS(val2);
 			break;
 		case SET_OP_INTERSECT:
-			VAL_TYPESET(val1) &= VAL_TYPESET(val2);
+			VAL_TYPESET_BITS(val1) &= VAL_TYPESET_BITS(val2);
 			break;
 		case SET_OP_DIFFERENCE:
-			VAL_TYPESET(val1) ^= VAL_TYPESET(val2);
+			VAL_TYPESET_BITS(val1) ^= VAL_TYPESET_BITS(val2);
 			break;
 		case SET_OP_EXCLUDE:
-			VAL_TYPESET(val1) &= ~VAL_TYPESET(val2);
+			VAL_TYPESET_BITS(val1) &= ~VAL_TYPESET_BITS(val2);
 			break;
 		}
 		return R_ARG1;

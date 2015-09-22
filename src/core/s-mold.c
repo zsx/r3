@@ -849,7 +849,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 	// Mold all words and their values:
 	for (n = 1; n < SERIES_TAIL(keylist); n++) {
 		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE))
-			Emit(mold, "N: V\n", VAL_BIND_SYM(keys + n), vals + n);
+			Emit(mold, "N: V\n", VAL_TYPESET_SYM(keys + n), vals + n);
 	}
 	Remove_Last(mold->series);
 	Remove_Last(MOLD_LOOP);
@@ -883,7 +883,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 		){
 			New_Indented_Line(mold);
 			Append_UTF8(
-				mold->series, Get_Sym_Name(VAL_BIND_SYM(keys + n)), -1
+				mold->series, Get_Sym_Name(VAL_TYPESET_SYM(keys + n)), -1
 			);
 			//Print("Slot: %s", Get_Sym_Name(VAL_WORD_SYM(words+n)));
 			Append_Unencoded(mold->series, ": ");

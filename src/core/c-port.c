@@ -511,7 +511,7 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 			act,
 			// Typeset is chosen as REB_END to prevent normal invocation;
 			// these actors are only dispatched from the C code.
-			TYPESET(REB_END),
+			FLAGIT_64(REB_END),
 			// !!! Because "any word will do", it's just making an args list
 			// that looks like [port!]
 			SYM_FROM_KIND(REB_PORT)

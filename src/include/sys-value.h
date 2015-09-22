@@ -924,7 +924,7 @@ struct Reb_Word {
 	#define VAL_WORD_SYM(v) ((v)->data.word.sym)
 #else
 	// !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-	// VAL_BIND_SYM calls were swapped.  In the aftermath of reorganization
+	// VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
 	// this check is prudent (until further notice...)
 	#define VAL_WORD_SYM(v) (*Val_Word_Sym_Ptr_Debug(v))
 #endif
@@ -988,7 +988,7 @@ struct Reb_Frame {
 #define FRM_VALUE(c,n)		BLK_SKIP(c,(n))
 
 #define FRM_KEY(c,n)		BLK_SKIP(FRM_KEYLIST(c),(n))
-#define FRM_KEY_SYM(c,n)	VAL_BIND_SYM(FRM_KEY(c,n))
+#define FRM_KEY_SYM(c,n)	VAL_TYPESET_SYM(FRM_KEY(c,n))
 
 #define VAL_FRM_KEY(v,n)	BLK_SKIP(FRM_KEYLIST(VAL_OBJ_FRAME(v)),(n))
 
@@ -1000,7 +1000,7 @@ struct Reb_Frame {
 	VAL_FRM_KEYLIST(v) = (w); \
 	VAL_SET(v, REB_FRAME)
 
-#define IS_SELFLESS(f) (VAL_BIND_SYM(FRM_KEYS(f)) == SYM_0)
+#define IS_SELFLESS(f) (VAL_TYPESET_SYM(FRM_KEYS(f)) == SYM_0)
 
 
 // Gives back a const pointer to var itself, raises error on failure
@@ -1506,37 +1506,35 @@ struct Reb_Typeset {
 	// Note: `sym` is first so that the value's 32-bit Reb_Flags header plus
 	// the 32-bit REBCNT will pad `bits` to a REBU64 alignment boundary
 
-	REBU64 bits;		// Bitset with one bit for each DATATYPE!
+	REBU64 bits;		// One bit for each DATATYPE! (use with FLAGIT_64)
 };
 
 // Operations when typeset is done with a bitset (currently all typesets)
 
-#define TYPESET(n) (cast(REBU64, 1) << (n))
-
-#define VAL_TYPESET(v) ((v)->data.typeset.bits)
+#define VAL_TYPESET_BITS(v) ((v)->data.typeset.bits)
 
 #define TYPE_CHECK(v,n) \
-	((VAL_TYPESET(v) & (cast(REBU64, 1) << (n))) != 0)
+	((VAL_TYPESET_BITS(v) & FLAGIT_64(n)) != 0)
 
 #define TYPE_SET(v,n) \
-	((VAL_TYPESET(v) |= ((REBU64)1 << (n))), NOOP)
+	((VAL_TYPESET_BITS(v) |= FLAGIT_64(n)), NOOP)
 
 #define EQUAL_TYPESET(v,w) \
-	(VAL_TYPESET(v) == VAL_TYPESET(w))
+	(VAL_TYPESET_BITS(v) == VAL_TYPESET_BITS(w))
 
 // Symbol is SYM_0 unless typeset in object keylist or func paramlist
 
 #ifdef NDEBUG
-	#define VAL_BIND_SYM(v) ((v)->data.typeset.sym)
+	#define VAL_TYPESET_SYM(v) ((v)->data.typeset.sym)
 #else
 	// !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-	// VAL_BIND_SYM calls were swapped.  In the aftermath of reorganization
+	// VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
 	// this check is prudent (until further notice...)
-	#define VAL_BIND_SYM(v) (*Val_Typeset_Sym_Ptr_Debug(v))
+	#define VAL_TYPESET_SYM(v) (*Val_Typeset_Sym_Ptr_Debug(v))
 #endif
 
-#define VAL_BIND_CANON(v) \
-	VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_BIND_SYM(v)))
+#define VAL_TYPESET_CANON(v) \
+	VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_TYPESET_SYM(v)))
 
 
 /***********************************************************************

@@ -84,7 +84,7 @@
 		}
 
 		Val_Init_Word_Unbound(
-			Alloc_Tail_Array(block), kind, VAL_BIND_SYM(typeset)
+			Alloc_Tail_Array(block), kind, VAL_TYPESET_SYM(typeset)
 		);
 	}
 
@@ -200,7 +200,7 @@
 			typeset++;
 			assert(
 				IS_TYPESET(typeset)
-				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+				&& VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
 			);
 			VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
 			break;
@@ -209,7 +209,7 @@
 			typeset++;
 			assert(
 				IS_TYPESET(typeset)
-				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+				&& VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
 			);
 			VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
 			break;
@@ -218,7 +218,7 @@
 			typeset++;
 			assert(
 				IS_TYPESET(typeset)
-				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+				&& VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
 			);
 			VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
 			// will actually only evaluate get-word!, get-path!, and paren!
@@ -229,7 +229,7 @@
 			typeset++;
 			assert(
 				IS_TYPESET(typeset)
-				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+				&& VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
 			);
 			VAL_SET_EXT(typeset, EXT_TYPESET_REFINEMENT);
 
@@ -240,14 +240,14 @@
 			// at function creation time...not dispatch time.  We encode the
 			// bit in the refinement's typeset that it accepts.
 			if (LEGACY(OPTIONS_REFINEMENTS_TRUE)) {
-				VAL_TYPESET(typeset) =
-					(TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
+				VAL_TYPESET_BITS(typeset) =
+					(FLAGIT_64(REB_LOGIC) | FLAGIT_64(REB_NONE));
 				break;
 			}
 		#endif
 			// Refinements can nominally be only WORD! or NONE!
-			VAL_TYPESET(typeset) =
-				(TYPESET(REB_WORD) | TYPESET(REB_NONE));
+			VAL_TYPESET_BITS(typeset) =
+				(FLAGIT_64(REB_WORD) | FLAGIT_64(REB_NONE));
 			break;
 
 		case REB_TAG:
@@ -543,7 +543,7 @@
 
 	// !!! For *today*, no option for function/closure to have a SELF
 	// referring to their function or closure values.
-	assert(VAL_BIND_SYM(BLK_HEAD(VAL_FUNC_PARAMLIST(func))) == SYM_0);
+	assert(VAL_TYPESET_SYM(BLK_HEAD(VAL_FUNC_PARAMLIST(func))) == SYM_0);
 
 	// Clone the body of the closure to allow us to rebind words inside
 	// of it so that they point specifically to the instances for this

@@ -563,7 +563,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 				// (Loop won't advance past end)
 				REBVAL key_name;
 				Val_Init_Word_Unbound(
-					&key_name, REB_WORD, VAL_BIND_SYM(key)
+					&key_name, REB_WORD, VAL_TYPESET_SYM(key)
 				);
 				raise Error_1(RE_NEED_VALUE, &key_name);
 			}

@@ -538,7 +538,7 @@ static	BOOT_BLK *Boot_Block;
 
 	// Val_Init_Block and Val_Init_String would call Manage_Series and
 	// make the series GC Managed, which would be a bad thing for series
-	// like BUF_WORDS...because that would make all the series copied
+	// like BUF_COLLECT...because that would make all the series copied
 	// from it managed too, and we don't always want that.  For now
 	// we reproduce the logic of the routines.
 

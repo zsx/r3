@@ -197,13 +197,16 @@
 
 /***********************************************************************
 **
-*/  void Collect_Start(REBCNT modes)
+*/  void Collect_Keys_Start(REBCNT modes)
 /*
-**		Use the Bind_Table to start collecting new words for
-**		a frame. Use Collect_End() when done.
+**		Use the Bind_Table to start collecting new keys for a frame.
+**		Use Collect_Keys_End() when done.
 **
-**		WARNING: Do not call code that might call BIND or otherwise
-**		make use of the Bind_Table or the Word cache array (BUF_WORDS).
+**		WARNING: This routine uses the shared BUF_COLLECT rather than
+**		targeting a new series directly.  This way a frame can be
+**		allocated at exactly the right length when contents are copied.
+**		Therefore do not call code that might call BIND or otherwise
+**		make use of the Bind_Table or BUF_COLLECT.
 **
 ***********************************************************************/
 {
@@ -211,25 +214,23 @@
 
 	CHECK_BIND_TABLE;
 
-	// Reuse a global word list block because length of block cannot
-	// be known until all words are scanned. Then copy this block.
-	if (SERIES_TAIL(BUF_WORDS)) panic Error_0(RE_WORD_LIST); // still in use
+	assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
 
 	// Add the SELF key (or unused key) to slot zero
 	if (modes & BIND_NO_SELF)
-		Val_Init_Typeset(BLK_HEAD(BUF_WORDS), ALL_64, SYM_0);
+		Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_0);
 	else {
-		Val_Init_Typeset(BLK_HEAD(BUF_WORDS), ALL_64, SYM_SELF);
+		Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_SELF);
 		binds[SYM_SELF] = -1;  // (cannot use zero here)
 	}
 
-	SERIES_TAIL(BUF_WORDS) = 1;
+	SERIES_TAIL(BUF_COLLECT) = 1;
 }
 
 
 /***********************************************************************
 **
-*/  REBSER *Collect_End(REBSER *prior)
+*/  REBSER *Collect_Keys_End(REBSER *prior)
 /*
 **		Finish collecting words, and free the Bind_Table for reuse.
 **
@@ -238,18 +239,18 @@
 	REBVAL *words;
 	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-	// Reset binding table (note BUF_WORDS may have expanded):
-	for (words = BLK_HEAD(BUF_WORDS); NOT_END(words); words++)
-		binds[VAL_BIND_CANON(words)] = 0;
+	// Reset binding table (note BUF_COLLECT may have expanded):
+	for (words = BLK_HEAD(BUF_COLLECT); NOT_END(words); words++)
+		binds[VAL_TYPESET_CANON(words)] = 0;
 
 	// If no new words, prior frame:
-	if (prior && SERIES_TAIL(BUF_WORDS) == SERIES_TAIL(prior)) {
-		RESET_TAIL(BUF_WORDS);  // allow reuse
+	if (prior && SERIES_TAIL(BUF_COLLECT) == SERIES_TAIL(prior)) {
+		RESET_TAIL(BUF_COLLECT);  // allow reuse
 		return FRM_KEYLIST(prior);
 	}
 
-	prior = Copy_Array_Shallow(BUF_WORDS);
-	RESET_TAIL(BUF_WORDS);  // allow reuse
+	prior = Copy_Array_Shallow(BUF_COLLECT);
+	RESET_TAIL(BUF_COLLECT);  // allow reuse
 
 	CHECK_BIND_TABLE;
 
@@ -270,15 +271,15 @@
 	REBINT n;
 
 	// this is necessary for memcpy below to not overwrite memory
-	// BUF_WORDS does not own
-	RESIZE_SERIES(BUF_WORDS, SERIES_TAIL(prior));
+	// BUF_COLLECT does not own
+	RESIZE_SERIES(BUF_COLLECT, SERIES_TAIL(prior));
 
 	// Typeset values in keys (with key symbol) can be copied just as bits
-	memcpy(BLK_HEAD(BUF_WORDS), keys, SERIES_TAIL(prior) * sizeof(REBVAL));
+	memcpy(BLK_HEAD(BUF_COLLECT), keys, SERIES_TAIL(prior) * sizeof(REBVAL));
 
-	SERIES_TAIL(BUF_WORDS) = SERIES_TAIL(prior);
+	SERIES_TAIL(BUF_COLLECT) = SERIES_TAIL(prior);
 	for (n = 1, keys++; NOT_END(keys); keys++) // skips first = SELF
-		binds[VAL_BIND_CANON(keys)] = n++;
+		binds[VAL_TYPESET_CANON(keys)] = n++;
 }
 
 
@@ -295,24 +296,24 @@
 			if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
 				if (IS_SET_WORD(value) || modes & BIND_ALL) {
 					REBVAL *typeset;
-					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
-					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
-					typeset = BLK_LAST(BUF_WORDS);
+					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_COLLECT);
+					EXPAND_SERIES_TAIL(BUF_COLLECT, 1);
+					typeset = BLK_LAST(BUF_COLLECT);
 					Val_Init_Typeset(
 						typeset,
 						// Allow all datatypes but END or UNSET (initially):
-						~((TYPESET(REB_END) | TYPESET(REB_UNSET))),
+						~((FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET))),
 						VAL_WORD_SYM(value)
 					);
 				}
 			} else {
 				// If word duplicated:
 				if (modes & BIND_NO_DUP) {
-					// Reset binding table (note BUF_WORDS may have expanded):
-					REBVAL *key = BLK_HEAD(BUF_WORDS);
+					// Reset binding table (note BUF_COLLECT may have expanded):
+					REBVAL *key = BLK_HEAD(BUF_COLLECT);
 					for (; NOT_END(key); key++)
-						binds[VAL_BIND_CANON(key)] = 0;
-					RESET_TAIL(BUF_WORDS);  // allow reuse
+						binds[VAL_TYPESET_CANON(key)] = 0;
+					RESET_TAIL(BUF_COLLECT);  // allow reuse
 					raise Error_1(RE_DUP_VARS, value);
 				}
 			}
@@ -324,7 +325,7 @@
 		// In this mode (foreach native), do not allow non-words:
 		//else if (modes & BIND_GET) raise Error_Invalid_Arg(value);
 	}
-	BLK_TERM(BUF_WORDS);
+	BLK_TERM(BUF_COLLECT);
 }
 
 
@@ -348,15 +349,15 @@
 **
 ***********************************************************************/
 {
-	Collect_Start(modes);
+	Collect_Keys_Start(modes);
 
 	// Setup binding table with existing words:
 	if (prior) Collect_Object(prior);
 
-	// Scan for words, adding them to BUF_WORDS and bind table:
+	// Scan for words, adding them to BUF_COLLECT and bind table:
 	Collect_Frame_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
 
-	return Collect_End(prior);
+	return Collect_Keys_End(prior);
 }
 
 
@@ -376,7 +377,7 @@
 		) {
 			REBVAL *word;
 			binds[VAL_WORD_CANON(value)] = 1;
-			word = Alloc_Tail_Array(BUF_WORDS);
+			word = Alloc_Tail_Array(BUF_COLLECT);
 			Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
 		}
 		else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
@@ -398,22 +399,22 @@
 	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 	CHECK_BIND_TABLE;
 
-	if (SERIES_TAIL(BUF_WORDS)) panic Error_0(RE_WORD_LIST); // still in use
+	assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
 
 	if (prior_value)
 		Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
 
-	start = SERIES_TAIL(BUF_WORDS);
+	start = SERIES_TAIL(BUF_COLLECT);
 	Collect_Words_Inner_Loop(binds, &value[0], modes);
 
 	// Reset word markers:
-	for (value = BLK_HEAD(BUF_WORDS); NOT_END(value); value++)
+	for (value = BLK_HEAD(BUF_COLLECT); NOT_END(value); value++)
 		binds[VAL_WORD_CANON(value)] = 0;
 
 	series = Copy_Array_At_Max_Shallow(
-		BUF_WORDS, start, SERIES_TAIL(BUF_WORDS) - start
+		BUF_COLLECT, start, SERIES_TAIL(BUF_COLLECT) - start
 	);
-	RESET_TAIL(BUF_WORDS);  // allow reuse
+	RESET_TAIL(BUF_COLLECT);  // allow reuse
 
 	CHECK_BIND_TABLE;
 	return series;
@@ -576,7 +577,7 @@
 					VAL_SET_OPT(value, OPT_VALUE_LINE);
 				}
 				else VAL_SET(value, REB_WORD);
-				VAL_WORD_SYM(value) = VAL_BIND_SYM(keys + n);
+				VAL_WORD_SYM(value) = VAL_TYPESET_SYM(keys + n);
 				VAL_WORD_INDEX(value) = n;
 				VAL_WORD_FRAME(value) = frame;
 			}
@@ -664,16 +665,16 @@
 
 	// Merge parent1 and parent2 words.
 	// Keep the binding table.
-	Collect_Start(BIND_ALL);
-	// Setup binding table and BUF_WORDS with parent1 words:
+	Collect_Keys_Start(BIND_ALL);
+	// Setup binding table and BUF_COLLECT with parent1 words:
 	Collect_Object(parent1);
-	// Add parent2 words to binding table and BUF_WORDS:
+	// Add parent2 words to binding table and BUF_COLLECT:
 	Collect_Frame_Inner_Loop(
 		binds, BLK_SKIP(FRM_KEYLIST(parent2), 1), BIND_ALL
 	);
 
 	// Allocate child (now that we know the correct size):
-	wrds = Copy_Array_Shallow(BUF_WORDS);
+	wrds = Copy_Array_Shallow(BUF_COLLECT);
 	child = Make_Array(SERIES_TAIL(wrds));
 	value = Alloc_Tail_Array(child);
 	VAL_SET(value, REB_FRAME);
@@ -692,7 +693,7 @@
 	value = FRM_VALUES(parent2) + 1;
 	for (; NOT_END(key); key++, value++) {
 		// no need to search when the binding table is available
-		n = binds[VAL_BIND_CANON(key)];
+		n = binds[VAL_TYPESET_CANON(key)];
 		BLK_HEAD(child)[n] = *value;
 	}
 
@@ -710,7 +711,7 @@
 	Rebind_Block(parent2, child, BLK_SKIP(child, 1), REBIND_FUNC | REBIND_TABLE);
 
 	// release the bind table
-	Collect_End(child);
+	Collect_Keys_End(child);
 
 	return child;
 }
@@ -742,7 +743,7 @@
 		if (i >= target->tail) return;
 	}
 
-	Collect_Start(BIND_NO_SELF);  // DO NOT TRAP IN THIS SECTION
+	Collect_Keys_Start(BIND_NO_SELF);  // DO NOT TRAP IN THIS SECTION
 
 	n = 0;
 
@@ -750,7 +751,7 @@
 	if (i) {
 		// Only the new words of the target:
 		for (keys = FRM_KEY(target, i); NOT_END(keys); keys++)
-			binds[VAL_BIND_CANON(keys)] = -1;
+			binds[VAL_TYPESET_CANON(keys)] = -1;
 		n = SERIES_TAIL(target) - 1;
 	}
 	else if (IS_BLOCK(only_words)) {
@@ -768,7 +769,7 @@
 	if (expand && n > 0) {
 		// Determine how many new words to add:
 		for (keys = FRM_KEY(target, 1); NOT_END(keys); keys++)
-			if (binds[VAL_BIND_CANON(keys)]) n--;
+			if (binds[VAL_TYPESET_CANON(keys)]) n--;
 
 		// Expand frame by the amount required:
 		if (n > 0) Expand_Frame(target, n, 0);
@@ -779,8 +780,8 @@
 	// Done by marking all source words (in bind table):
 	keys = FRM_KEYS(source) + 1;
 	for (n = 1; NOT_END(keys); n++, keys++) {
-		if (IS_NONE(only_words) || binds[VAL_BIND_CANON(keys)])
-			binds[VAL_BIND_CANON(keys)] = n;
+		if (IS_NONE(only_words) || binds[VAL_TYPESET_CANON(keys)])
+			binds[VAL_TYPESET_CANON(keys)] = n;
 	}
 
 	// Foreach word in target, copy the correct value from source:
@@ -788,8 +789,8 @@
 	vals = FRM_VALUE(target, n);
 	keys = FRM_KEY(target, n);
 	for (; NOT_END(keys); keys++, vals++) {
-		if ((m = binds[VAL_BIND_CANON(keys)])) {
-			binds[VAL_BIND_CANON(keys)] = 0; // mark it as set
+		if ((m = binds[VAL_TYPESET_CANON(keys)])) {
+			binds[VAL_TYPESET_CANON(keys)] = 0; // mark it as set
 			if (
 				!VAL_GET_EXT(keys, EXT_WORD_LOCK)
 				&& (all || IS_UNSET(vals))
@@ -807,10 +808,10 @@
 		REBVAL *val;
 		keys = FRM_KEYS(source) + 1;
 		for (n = 1; NOT_END(keys); n++, keys++) {
-			if (binds[VAL_BIND_CANON(keys)]) {
+			if (binds[VAL_TYPESET_CANON(keys)]) {
 				// Note: no protect check is needed here
-				binds[VAL_BIND_CANON(keys)] = 0;
-				val = Append_Frame(target, 0, VAL_BIND_CANON(keys));
+				binds[VAL_TYPESET_CANON(keys)] = 0;
+				val = Append_Frame(target, 0, VAL_TYPESET_CANON(keys));
 				*val = *FRM_VALUE(source, n);
 			}
 		}
@@ -819,7 +820,7 @@
 		// Reset bind table (do not use Collect_End):
 		if (i) {
 			for (keys = FRM_KEY(target, i); NOT_END(keys); keys++)
-				binds[VAL_BIND_CANON(keys)] = 0;
+				binds[VAL_TYPESET_CANON(keys)] = 0;
 		}
 		else if (IS_BLOCK(only_words)) {
 			REBVAL *words = VAL_BLK_DATA(only_words);
@@ -830,13 +831,13 @@
 		}
 		else {
 			for (keys = FRM_KEYS(source) + 1; NOT_END(keys); keys++)
-				binds[VAL_BIND_CANON(keys)] = 0;
+				binds[VAL_TYPESET_CANON(keys)] = 0;
 		}
 	}
 
 	CHECK_BIND_TABLE;
 
-	RESET_TAIL(BUF_WORDS);  // allow reuse, trapping ok now
+	RESET_TAIL(BUF_COLLECT);  // allow reuse, trapping ok now
 }
 
 
@@ -926,14 +927,14 @@
 	for (index = 1; index < frame->tail; index++) {
 		key = FRM_KEY(frame, index);
 		if (!VAL_GET_OPT(key, EXT_WORD_HIDE))
-			binds[VAL_BIND_CANON(key)] = index;
+			binds[VAL_TYPESET_CANON(key)] = index;
 	}
 
 	Bind_Values_Inner_Loop(binds, &value[0], frame, mode);
 
 	// Reset binding table:
 	for (key = FRM_KEYS(frame) + 1; NOT_END(key); key++)
-		binds[VAL_BIND_CANON(key)] = 0;
+		binds[VAL_TYPESET_CANON(key)] = 0;
 
 	CHECK_BIND_TABLE;
 }
@@ -1034,13 +1035,13 @@
 
 	// Setup binding table from the argument word list:
 	for (index = 1; NOT_END(params); params++, index++)
-		binds[VAL_BIND_CANON(params)] = -index;
+		binds[VAL_TYPESET_CANON(params)] = -index;
 
 	Bind_Relative_Inner_Loop(binds, frame, block);
 
 	// Reset binding table:
 	for (params = BLK_SKIP(paramlist, 1); NOT_END(params); params++)
-		binds[VAL_BIND_CANON(params)] = 0;
+		binds[VAL_TYPESET_CANON(params)] = 0;
 
 	CHECK_BIND_TABLE;
 }
@@ -1115,8 +1116,8 @@
 	REBCNT n;
 	for (n = 1; n < len; n++, params++) {
 		if (
-			sym == VAL_BIND_SYM(params)
-			|| canon == VAL_BIND_CANON(params)
+			sym == VAL_TYPESET_SYM(params)
+			|| canon == VAL_TYPESET_CANON(params)
 		) {
 			return n;
 		}
@@ -1144,8 +1145,8 @@
 	REBCNT n;
 	for (n = 1; n < len; n++, key++) {
 		if (
-			sym == VAL_BIND_SYM(key)
-			|| canon == VAL_BIND_CANON(key)
+			sym == VAL_TYPESET_SYM(key)
+			|| canon == VAL_TYPESET_CANON(key)
 		) {
 			return (!always && VAL_GET_EXT(key, EXT_WORD_HIDE)) ? 0 : n;
 		}
@@ -1222,7 +1223,7 @@
 			assert(
 				SAME_SYM(
 					VAL_WORD_SYM(word),
-					VAL_BIND_SYM(FRM_KEYS(context) + index)
+					VAL_TYPESET_SYM(FRM_KEYS(context) + index)
 				)
 			);
 
@@ -1264,7 +1265,7 @@
 					assert(
 						SAME_SYM(
 							VAL_WORD_SYM(word),
-							VAL_BIND_SYM(
+							VAL_TYPESET_SYM(
 								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
 							)
 						)
@@ -1330,7 +1331,7 @@
 			assert(
 				SAME_SYM(
 					VAL_WORD_SYM(word),
-					VAL_BIND_SYM(FRM_KEYS(context) + index)
+					VAL_TYPESET_SYM(FRM_KEYS(context) + index)
 				)
 			);
 
@@ -1350,7 +1351,7 @@
 					assert(
 						SAME_SYM(
 							VAL_WORD_SYM(word),
-							VAL_BIND_SYM(
+							VAL_TYPESET_SYM(
 								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
 							)
 						)
@@ -1407,7 +1408,7 @@
 		assert(
 			SAME_SYM(
 				VAL_WORD_SYM(word),
-				VAL_BIND_SYM(FRM_KEYS(frm) + index)
+				VAL_TYPESET_SYM(FRM_KEYS(frm) + index)
 			)
 		);
 
@@ -1428,7 +1429,7 @@
 	assert(
 		SAME_SYM(
 			VAL_WORD_SYM(word),
-			VAL_BIND_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
+			VAL_TYPESET_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
 		)
 	);
 
@@ -1484,7 +1485,7 @@
 ***********************************************************************/
 {
 	// Temporary block used while scanning for frame words:
-	Set_Root_Series(TASK_BUF_WORDS, Make_Array(100), "word cache"); // just holds words, no GC
+	Set_Root_Series(TASK_BUF_COLLECT, Make_Array(100), "word cache"); // just holds words, no GC
 }
 
 
@@ -1522,8 +1523,8 @@
 	for (n = 0; n < tail; n++, value++, key++) {
 		if (n == 0) {
 			if (
-				VAL_BIND_SYM(key) != SYM_SELF
-				&& VAL_BIND_SYM(key) != SYM_0
+				VAL_TYPESET_SYM(key) != SYM_SELF
+				&& VAL_TYPESET_SYM(key) != SYM_0
 			) {
 				Debug_Fmt("** First slot in frame is not SELF or null symbol");
 				Panic_Series(frame);

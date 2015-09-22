@@ -869,7 +869,7 @@ reevaluate:
 				}
 
 				// Optimize, if the refinement is the next arg:
-				if (SAME_SYM(VAL_WORD_SYM(out), VAL_BIND_SYM(param))) {
+				if (SAME_SYM(VAL_WORD_SYM(out), VAL_TYPESET_SYM(param))) {
 					refinements++;
 
 				#if !defined(NDEBUG)
@@ -881,7 +881,7 @@ reevaluate:
 				#endif
 
 					Val_Init_Word_Unbound(
-						arg, REB_WORD, VAL_BIND_SYM(param)
+						arg, REB_WORD, VAL_TYPESET_SYM(param)
 					);
 
 					// skip type check on refinement itself, and let the
@@ -917,7 +917,7 @@ reevaluate:
 				for (; NOT_END(param); param++, arg++) {
 					if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
 						if (SAME_SYM(
-							VAL_BIND_SYM(param), VAL_WORD_SYM(out)
+							VAL_TYPESET_SYM(param), VAL_WORD_SYM(out)
 						)) {
 							refinements++;
 
@@ -930,7 +930,7 @@ reevaluate:
 						#endif
 
 							Val_Init_Word_Unbound(
-								arg, REB_WORD, VAL_BIND_SYM(param)
+								arg, REB_WORD, VAL_TYPESET_SYM(param)
 							);
 							break; // will fall through to continue below
 						}
@@ -1589,7 +1589,7 @@ finished:
 					SET_TRUE(arg);
 				} else
 					Val_Init_Word_Unbound(
-						arg, REB_WORD, VAL_BIND_SYM(param)
+						arg, REB_WORD, VAL_TYPESET_SYM(param)
 					);
 			#endif
 			}
@@ -1931,8 +1931,8 @@ finished:
 				param2
 				&& VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
 				&& (
-					VAL_BIND_CANON(param2)
-					== VAL_BIND_CANON(param)
+					VAL_TYPESET_CANON(param2)
+					== VAL_TYPESET_CANON(param)
 				)
 			) {
 				*arg = *DSF_ARG(DSF, isrc);
@@ -1945,8 +1945,8 @@ finished:
 					if (
 						VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
 						&& (
-							VAL_BIND_CANON(param2)
-							== VAL_BIND_CANON(param)
+							VAL_TYPESET_CANON(param2)
+							== VAL_TYPESET_CANON(param)
 						)
 					) {
 						*arg = *DSF_ARG(DSF, isrc);

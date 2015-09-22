@@ -789,7 +789,7 @@
 {
 	REBVAL key_name;
 	assert(IS_TYPESET(key));
-	Val_Init_Word_Unbound(&key_name, REB_WORD, VAL_BIND_SYM(key));
+	Val_Init_Word_Unbound(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
 
 	Error_1(RE_LOCKED_WORD, &key_name);
 }
@@ -846,7 +846,7 @@
 {
 	REBVAL param_word;
 	assert(IS_TYPESET(param));
-	Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_BIND_SYM(param));
+	Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
 
 	assert(IS_DATATYPE(arg_type));
 	Error_3(RE_EXPECT_ARG, DSF_LABEL(call), &param_word, arg_type);

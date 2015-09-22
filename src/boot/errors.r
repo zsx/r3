@@ -85,7 +85,6 @@ Internal: [
 
 	io-error:			{problem with IO}
 	max-words:			{too many words}
-	word-list:			{word list (cache) already in use}
 	locked-series:		{locked series expansion}
 	no-saved-state:		{saved state frame is missing}
 	max-events:			{event queue overflow}

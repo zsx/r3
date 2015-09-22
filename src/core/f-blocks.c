@@ -144,7 +144,7 @@
 		// marked managed (because they *might* delve another level deep)
 		ASSERT_VALUE_MANAGED(value);
 
-		if (types & TYPESET(VAL_TYPE(value)) & TS_SERIES_OBJ) {
+		if (types & FLAGIT_64(VAL_TYPE(value)) & TS_SERIES_OBJ) {
 			// Replace just the series field of the value
 			// Note that this should work for objects too (the frame).
 			if (Is_Array_Series(VAL_SERIES(value)))
@@ -156,7 +156,7 @@
 
 			if (!deep) continue;
 
-			if (types & TYPESET(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
+			if (types & FLAGIT_64(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
 				Clonify_Values_Len_Managed(
 					 BLK_HEAD(VAL_SERIES(value)),
 					 VAL_TAIL(value),
@@ -165,7 +165,7 @@
 				);
 			}
 		}
-		else if (types & TYPESET(VAL_TYPE(value)) & TS_FUNCLOS) {
+		else if (types & FLAGIT_64(VAL_TYPE(value)) & TS_FUNCLOS) {
 			// Here we reuse the spec of the function when we copy it, but
 			// create a new identifying word series.  We also need to make
 			// a new body and rebind it to that series.  The reason we have

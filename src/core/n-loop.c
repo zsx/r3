@@ -422,7 +422,7 @@ typedef enum {
 						if (!VAL_GET_EXT(BLK_SKIP(out, index), EXT_WORD_HIDE)) {
 							// Alternate between word and value parts of object:
 							if (j == 0) {
-								Val_Init_Word(vars, REB_WORD, VAL_BIND_SYM(BLK_SKIP(out, index)), series, index);
+								Val_Init_Word(vars, REB_WORD, VAL_TYPESET_SYM(BLK_SKIP(out, index)), series, index);
 								if (NOT_END(vars+1)) index--; // reset index for the value part
 							}
 							else if (j == 1)
@@ -431,7 +431,7 @@ typedef enum {
 								// !!! Review this error (and this routine...)
 								REBVAL key_name;
 								Val_Init_Word_Unbound(
-									&key_name, REB_WORD, VAL_BIND_SYM(keys)
+									&key_name, REB_WORD, VAL_TYPESET_SYM(keys)
 								);
 								raise Error_Invalid_Arg(&key_name);
 							}
@@ -459,7 +459,7 @@ typedef enum {
 								// !!! Review this error (and this routine...)
 								REBVAL key_name;
 								Val_Init_Word_Unbound(
-									&key_name, REB_WORD, VAL_BIND_SYM(keys)
+									&key_name, REB_WORD, VAL_TYPESET_SYM(keys)
 								);
 								raise Error_Invalid_Arg(&key_name);
 							}
