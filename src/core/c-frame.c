@@ -1221,6 +1221,14 @@
 
 		if (index > 0) {
 			REBVAL *value;
+
+			assert(
+				SAME_SYM(
+					VAL_WORD_SYM(word),
+					VAL_BIND_SYM(FRM_KEYS(context) + index)
+				)
+			);
+
 			if (
 				writable &&
 				VAL_GET_EXT(FRM_KEYS(context) + index, EXT_WORD_LOCK)
@@ -1255,6 +1263,15 @@
 					REBVAL *value;
 
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
+
+					assert(
+						SAME_SYM(
+							VAL_WORD_SYM(word),
+							VAL_BIND_SYM(
+								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+							)
+						)
+					);
 
 					if (
 						writable &&
@@ -1313,6 +1330,13 @@
 		REBINT index = VAL_WORD_INDEX(word);
 
 		if (index > 0) {
+			assert(
+				SAME_SYM(
+					VAL_WORD_SYM(word),
+					VAL_BIND_SYM(FRM_KEYS(context) + index)
+				)
+			);
+
 			*out = *(FRM_VALUES(context) + index);
 			assert(!IS_TRASH(out));
 			assert(!THROWN(out));
@@ -1326,6 +1350,14 @@
 					call->args_ready
 					&& context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
 				) {
+					assert(
+						SAME_SYM(
+							VAL_WORD_SYM(word),
+							VAL_BIND_SYM(
+								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+							)
+						)
+					);
 					assert(!IS_CLOSURE(DSF_FUNC(call)));
 					*out = *DSF_ARG(call, -index);
 					assert(!IS_TRASH(out));
@@ -1374,6 +1406,14 @@
 
 	if (index > 0) {
 		frm = VAL_WORD_FRAME(word);
+
+		assert(
+			SAME_SYM(
+				VAL_WORD_SYM(word),
+				VAL_BIND_SYM(FRM_KEYS(frm) + index)
+			)
+		);
+
 		if (VAL_GET_EXT(FRM_KEYS(frm) + index, EXT_WORD_LOCK))
 			raise Error_1(RE_LOCKED_WORD, word);
 		FRM_VALUES(frm)[index] = *value;
@@ -1387,6 +1427,14 @@
 		call = PRIOR_DSF(call);
 		if (!call) raise Error_1(RE_NOT_DEFINED, word); // change error !!!
 	}
+
+	assert(
+		SAME_SYM(
+			VAL_WORD_SYM(word),
+			VAL_BIND_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
+		)
+	);
+
 	*DSF_ARG(call, -index) = *value;
 }
 
