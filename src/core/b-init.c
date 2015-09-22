@@ -460,13 +460,13 @@ static	BOOT_BLK *Boot_Block;
 
 /***********************************************************************
 **
-*/	REBVAL *Get_Action_Word(REBCNT action)
+*/	REBCNT Get_Action_Sym(REBCNT action)
 /*
 **		Return the word symbol for a given Action number.
 **
 ***********************************************************************/
 {
-	return FRM_KEY(Lib_Context, Action_Marker + action);
+	return FRM_KEY_SYM(Lib_Context, Action_Marker + action);
 }
 
 

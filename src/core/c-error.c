@@ -801,7 +801,10 @@
 /*
 ***********************************************************************/
 {
-	Error_2(RE_CANNOT_USE, Get_Action_Word(action), Get_Type(type));
+	REBVAL action_word;
+	Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+
+	Error_2(RE_CANNOT_USE, &action_word, Get_Type(type));
 }
 
 
@@ -811,7 +814,10 @@
 /*
 ***********************************************************************/
 {
-	Error_2(RE_NOT_RELATED, Get_Action_Word(action), Get_Type(type));
+	REBVAL action_word;
+	Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+
+	Error_2(RE_NOT_RELATED, &action_word, Get_Type(type));
 }
 
 

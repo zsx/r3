@@ -331,7 +331,7 @@ REBINT Mode_Syms[] = {
 	REBCNT len;
 	REBOOL opened = FALSE;	// had to be opened (shortcut case)
 
-	//Print("FILE ACTION: %r", Get_Action_Word(action));
+	//Print("FILE ACTION: %d", Get_Action_Sym(action));
 
 	Validate_Port(port, action);
 

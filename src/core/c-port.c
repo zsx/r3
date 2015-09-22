@@ -293,7 +293,9 @@
 **
 ***********************************************************************/
 {
-	return Find_Word_Index(VAL_OBJ_FRAME(object), VAL_BIND_SYM(Get_Action_Word(action)), FALSE);
+	return Find_Word_Index(
+		VAL_OBJ_FRAME(object), Get_Action_Sym(action), FALSE
+	);
 }
 
 
@@ -341,8 +343,12 @@
 	// Dispatch object function:
 	n = Find_Action(actor, action);
 	actor = Obj_Value(actor, n);
-	if (!n || !actor || !ANY_FUNC(actor))
-		raise Error_1(RE_NO_PORT_ACTION, Get_Action_Word(action));
+	if (!n || !actor || !ANY_FUNC(actor)) {
+		REBVAL action_word;
+		Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+
+		raise Error_1(RE_NO_PORT_ACTION, &action_word);
+	}
 
 	if (Redo_Func_Throws(actor)) {
 		// No special handling needed, as we are just going to return
