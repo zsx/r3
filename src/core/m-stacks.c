@@ -239,15 +239,17 @@
 		// alternate labels used.  One was SYM__APPLY_, another was
 		// ROOT_NONAME, and another was to be the type of the function being
 		// executed.  None are fantastic, but we do the type for now.
-		call->label = *Get_Type_Word(VAL_TYPE(func));
+		Val_Init_Word_Unbound(
+			&call->label, REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
+		);
 	}
 	else {
-		assert(IS_WORD(label));
 		call->label = *label;
 	}
 	// !!! Not sure why this is needed; seems the label word should be unbound
 	// if anything...
 	VAL_WORD_FRAME(&call->label) = VAL_FUNC_PARAMLIST(func);
+	assert(IS_WORD(DSF_LABEL(call)));
 
 	// Fill call frame's args with default of NONE!.  Have to do this in
 	// advance because refinement filling often skips around; if you have

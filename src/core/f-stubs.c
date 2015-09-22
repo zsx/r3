@@ -331,18 +331,6 @@
 
 /***********************************************************************
 **
-*/  REBVAL *Get_Type_Word(REBCNT type)
-/*
-**      Returns the datatype word for the given type number.
-**
-***********************************************************************/
-{
-	return FRM_KEY(Lib_Context, type + 1);
-}
-
-
-/***********************************************************************
-**
 */  const REBYTE *Get_Field_Name(REBSER *obj, REBCNT index)
 /*
 **      Get the name of a field of an object.

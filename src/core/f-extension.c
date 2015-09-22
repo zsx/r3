@@ -549,8 +549,13 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 			else func = GET_VAR(blk); // fallback
 		} else func = blk;
 
-		if (!IS_COMMAND(func))
-			raise Error_2(RE_EXPECT_VAL, Get_Type_Word(REB_COMMAND), blk);
+		if (!IS_COMMAND(func)) {
+			REBVAL commandx_word;
+			Val_Init_Word_Unbound(
+				&commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
+			);
+			raise Error_2(RE_EXPECT_VAL, &commandx_word, blk);
+		}
 
 		// Advance to next value
 		blk++;
