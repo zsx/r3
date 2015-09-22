@@ -769,30 +769,13 @@ reevaluate:
 		//
 		for (; NOT_END(param); param++, arg++) {
 
-			switch (VAL_TYPE(param)) {
+			assert(IS_TYPESET(param));
 
-			case REB_WORD:
-				// An ordinary WORD! in the function spec indicates that you
-				// would like that argument to be evaluated normally.
-				//
-				//     >> foo: function [a] [print [{a is} a]
-				//
-				//     >> foo 1 + 2
-				//     a is 3
-				//
-				index = Do_Core(arg, TRUE, block, index, !infix);
-				if (index == THROWN_FLAG) {
-					*out = *arg;
-					Free_Call(call);
-					goto return_index;
-				}
-				if (index == END_FLAG)
-					raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
-				break;
+			if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
 
-			case REB_GET_WORD:
 				// Using a GET-WORD! in the function spec indicates that you
-				// would like that argument to be "quoted" sans evaluation.
+				// would like that argument to be EXT_TYPESET_QUOTE, e.g.
+				// not evaluated at the callsite:
 				//
 				//     >> foo: function [:a] [print [{a is} a]
 				//
@@ -802,24 +785,9 @@ reevaluate:
 				//     >> foo (1 + 2)
 				//     a is (1 + 2)
 				//
-				// A special allowance is made that if a function quotes its
-				// argument and can the parameter is at the end of a series,
-				// it will be treated as an UNSET!  (This is how HELP manages
-				// to act as an arity 1 function as well as an arity 0 one.)
-				// But to use this feature it must also explicitly accept
-				// the UNSET! type (checked after the switch).
-				//
-				if (index < BLK_LEN(block)) {
-					*arg = *BLK_SKIP(block, index);
-					index++;
-				}
-				else
-					SET_UNSET(arg); // series end UNSET! trick
-				break;
-
-			case REB_LIT_WORD:
-				// Using a LIT-WORD in the function spec indicates that
-				// parameters are quoted *unless* they are "gets" or parens.
+				// Using a LIT-WORD in the function spec indicates that args
+				// should be EXT_TYPESET_QUOTE but also EXT_TYPESET_EVALUATE
+				// so that if they are "gets" or parens they still run:
 				//
 				//     >> foo: function ['a] [print [{a is} a]
 				//
@@ -833,15 +801,22 @@ reevaluate:
 				// to subvert quote-like behavior (which is an option that
 				// one generally would like to give in a quote-like API).
 				//
-				// The same trick is allowed for UNSET! at end of series as
-				// with a GET-WORD! style quote.
+				// A special allowance is made that if a function quotes its
+				// argument and the parameter is at the end of a series,
+				// it will be treated as an UNSET!  (This is how HELP manages
+				// to act as an arity 1 function as well as an arity 0 one.)
+				// But to use this feature it must also explicitly accept
+				// the UNSET! type (checked after the switch).
 				//
 				if (index < BLK_LEN(block)) {
 					REBVAL * const quoted = BLK_SKIP(block, index);
 					if (
-						IS_PAREN(quoted)
-						|| IS_GET_WORD(quoted)
-						|| IS_GET_PATH(quoted)
+						VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
+						&& (
+							IS_PAREN(quoted)
+							|| IS_GET_WORD(quoted)
+							|| IS_GET_PATH(quoted)
+						)
 					) {
 						index = Do_Core(arg, TRUE, block, index, !infix);
 						if (index == THROWN_FLAG) {
@@ -858,9 +833,8 @@ reevaluate:
 					}
 				} else
 					SET_UNSET(arg); // series end UNSET! trick
-				break;
-
-			case REB_REFINEMENT:
+			}
+			else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 				// Refinements are tricky because we may hit them in the spec
 				// at a time when they are not at the position in the path
 				// used to invoke that is being processed.  Also, we cannot
@@ -941,7 +915,7 @@ reevaluate:
 				param = VAL_FUNC_PARAM(value, 1);
 				arg = DSF_ARG(call, 1);
 				for (; NOT_END(param); param++, arg++) {
-					if (IS_REFINEMENT(param))
+					if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
 						if (SAME_SYM(
 							VAL_BIND_SYM(param), VAL_WORD_SYM(out)
 						)) {
@@ -968,16 +942,27 @@ reevaluate:
 				// skip type check on refinement itself, and let the
 				// loop process its arguments (if any)
 				continue;
+			}
+			else {
+				// !!! Should there be any other checks here?
+				assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
 
-			case REB_SET_WORD:
-				// The SET-WORD! is reserved for special features.  Red has
-				// used RETURN: as a specifier for the return value, but this
-				// may lead to problems with the locals-gathering mechanics
-				// with nested FUNCTION declarations.
-				raise Error_Invalid_Arg(param);
-
-			default:
-				raise Error_Invalid_Arg(param);
+				// An ordinary WORD! in the function spec indicates that you
+				// would like that argument to be evaluated normally.
+				//
+				//     >> foo: function [a] [print [{a is} a]
+				//
+				//     >> foo 1 + 2
+				//     a is 3
+				//
+				index = Do_Core(arg, TRUE, block, index, !infix);
+				if (index == THROWN_FLAG) {
+					*out = *arg;
+					Free_Call(call);
+					goto return_index;
+				}
+				if (index == END_FLAG)
+					raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
 			}
 
 			ASSERT_VALUE_MANAGED(arg);
@@ -1519,7 +1504,7 @@ finished:
 {
 	struct Reb_Call *call;
 
-	REBVAL *param; // EXT_WORD_TYPED parameter word in function words list
+	REBVAL *param; // typeset parameter (w/symbol) in function words list
 	REBVAL *arg; // value argument slot to fill in call frame for `param`
 
 	// Discard evaluations until the next refinement or end of block.
@@ -1589,7 +1574,7 @@ finished:
 			index++;
 		}
 
-		if (IS_REFINEMENT(param)) {
+		if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 			// If we've found a refinement, this resets our ignore state
 			// based on whether or not the arg suggests it is enabled
 
@@ -1639,7 +1624,7 @@ finished:
 	while (!IS_END(param)) {
 		SET_NONE(arg);
 
-		if (IS_REFINEMENT(param))
+		if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
 			ignoring = TRUE;
 		else {
 			if (!ignoring) {
@@ -1899,18 +1884,15 @@ finished:
 **
 ***********************************************************************/
 {
-	REBSER *wsrc;		// words of source func
-	REBSER *wnew;		// words of target func
+	REBSER *paramlist_src = VAL_FUNC_PARAMLIST(DSF_FUNC(DSF));
+	REBSER *paramlist_new = VAL_FUNC_PARAMLIST(func_val);
 	REBCNT isrc;		// index position in source frame
 	REBCNT inew;		// index position in target frame
-	REBVAL *word;
-	REBVAL *word2;
+	REBVAL *param;
+	REBVAL *param2;
 
 	struct Reb_Call *call;
 	REBVAL *arg;
-
-	wsrc = VAL_FUNC_PARAMLIST(DSF_FUNC(DSF));
-	wnew = VAL_FUNC_PARAMLIST(func_val);
 
 	// As part of the "Redo" we are not adding a new function location,
 	// label, or place to write the output.  We are substituting new code
@@ -1926,58 +1908,76 @@ finished:
 
 	// Foreach arg of the target, copy to source until refinement.
 	arg = DSF_ARG(call, 1);
-	for (isrc = inew = FIRST_PARAM_INDEX; inew < BLK_LEN(wnew); inew++, isrc++, arg++) {
-		word = BLK_SKIP(wnew, inew);
-		if (isrc > BLK_LEN(wsrc)) isrc = BLK_LEN(wsrc);
+	isrc = inew = FIRST_PARAM_INDEX;
 
-		switch (VAL_TYPE(word)) {
-			case REB_SET_WORD: // !!! for definitional return...
-				assert(FALSE); // !!! (but not yet)
-			case REB_WORD:
-			case REB_LIT_WORD:
-			case REB_GET_WORD:
-				if (VAL_TYPE(word) == VAL_TYPE(BLK_SKIP(wsrc, isrc))) {
-					*arg = *DSF_ARG(DSF, isrc);
-					// !!! Should check datatypes for new arg passing!
-				}
-				else {
-					// !!! Why does this allow the bounced-to function to have
-					// a different type, and push a none instead of erroring?
-					SET_NONE(arg);
-				}
-				break;
+	for (; inew < BLK_LEN(paramlist_new); inew++, isrc++, arg++) {
+		param = BLK_SKIP(paramlist_new, inew);
+		assert(IS_TYPESET(param));
 
+		if (isrc >= BLK_LEN(paramlist_src)) {
+			isrc = BLK_LEN(paramlist_src);
+			param2 = NULL;
+		}
+		else {
+			param2 = BLK_SKIP(paramlist_src, isrc);
+			assert(IS_TYPESET(param2));
+		}
+
+		if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 			// At refinement, search for it in source, then continue with words.
-			case REB_REFINEMENT:
-				// Are we aligned on the refinement already? (a common case)
-				word2 = BLK_SKIP(wsrc, isrc);
-				if (
-					IS_REFINEMENT(word2)
-					&& VAL_WORD_CANON(word2) == VAL_WORD_CANON(word)
-				) {
-					*arg = *DSF_ARG(DSF, isrc);
-				}
-				else {
-					// No, we need to search for it:
-					for (isrc = FIRST_PARAM_INDEX; isrc < BLK_LEN(wsrc); isrc++) {
-						word2 = BLK_SKIP(wsrc, isrc);
-						if (
-							IS_REFINEMENT(word2)
-							&& VAL_WORD_CANON(word2) == VAL_WORD_CANON(word)
-						) {
-							*arg = *DSF_ARG(DSF, isrc);
-							break;
-						}
-					}
-					// !!! The function didn't have the refinement so skip
-					// it.  But what will happen now with the arguments?
-					SET_NONE(arg);
-					//if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word);
-				}
-				break;
 
-			default:
-				panic Error_0(RE_MISC);
+			// Are we aligned on the refinement already? (a common case)
+			if (
+				param2
+				&& VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
+				&& (
+					VAL_BIND_CANON(param2)
+					== VAL_BIND_CANON(param)
+				)
+			) {
+				*arg = *DSF_ARG(DSF, isrc);
+			}
+			else {
+				// No, we need to search for it:
+				isrc = FIRST_PARAM_INDEX;
+				for (; isrc < BLK_LEN(paramlist_src); isrc++) {
+					param2 = BLK_SKIP(paramlist_src, isrc);
+					if (
+						VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
+						&& (
+							VAL_BIND_CANON(param2)
+							== VAL_BIND_CANON(param)
+						)
+					) {
+						*arg = *DSF_ARG(DSF, isrc);
+						break;
+					}
+				}
+				// !!! The function didn't have the refinement so skip
+				// it.  But what will happen now with the arguments?
+				SET_NONE(arg);
+				//if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word);
+			}
+		}
+		else {
+			if (
+				param2
+				&& (
+					VAL_GET_EXT(param, EXT_TYPESET_QUOTE)
+					== VAL_GET_EXT(param2, EXT_TYPESET_QUOTE)
+				) && (
+					VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
+					== VAL_GET_EXT(param2, EXT_TYPESET_EVALUATE)
+				)
+			) {
+				*arg = *DSF_ARG(DSF, isrc);
+				// !!! Should check datatypes for new arg passing!
+			}
+			else {
+				// !!! Why does this allow the bounced-to function to have
+				// a different type, and push a none instead of erroring?
+				SET_NONE(arg);
+			}
 		}
 	}
 

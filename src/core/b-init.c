@@ -118,16 +118,6 @@ static	BOOT_BLK *Boot_Block;
 		// and act like objects (they're dispatched through REBTYPE(Object))
 		panic Error_0(RE_MISC);
 	}
-
-	if (
-		offsetof(struct Reb_Word, extra)
-		+ offsetof(union Reb_Word_Extra, typebits)
-		!= offsetof(struct Reb_Typeset, typebits)
-	) {
-		// Currently the typeset checking code is generic to run on both
-		// an EXT_WORD_TYPED WORD! and a TYPESET!.
-		panic Error_0(RE_MISC);
-	}
 }
 
 

@@ -507,16 +507,14 @@ SCHEME_ACTIONS *Scheme_Actions;	// Initial Global (not threaded)
 		REBSER *ser = Make_Array(1);
 		act = Alloc_Tail_Array(ser);
 
-		Val_Init_Word_Typed(
+		Val_Init_Typeset(
 			act,
-			REB_WORD,
-			// !!! Because "any word will do", it's using the trick to create a
-			// args list that says [port!] by using the knowledge that the SYM_
-			// values start out with symbols valued to the types plus 1 :-/
-			REB_PORT + 1,
 			// Typeset is chosen as REB_END to prevent normal invocation;
 			// these actors are only dispatched from the C code.
-			TYPESET(REB_END)
+			TYPESET(REB_END),
+			// !!! Because "any word will do", it's just making an args list
+			// that looks like [port!]
+			SYM_FROM_KIND(REB_PORT)
 		);
 
 		// !!! Review: If this spec ever got leaked then it would be leaking

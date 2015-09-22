@@ -103,6 +103,36 @@ const struct {
 
 /***********************************************************************
 **
+*/	void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBCNT sym)
+/*
+**		Note: sym is optional, and can be SYM_0
+**
+***********************************************************************/
+{
+	VAL_SET(value, REB_TYPESET);
+	VAL_BIND_SYM(value) = sym;
+	VAL_TYPESET(value) = bits;
+}
+
+
+/***********************************************************************
+**
+*/	REBCNT *Val_Typeset_Sym_Ptr_Debug(const REBVAL *typeset)
+/*
+**		!!! Needed temporarily due to reorganization (though it should
+**		be checked via C++ build's static typing eventually...)
+**
+***********************************************************************/
+{
+	assert(IS_TYPESET(typeset));
+	// loses constness, but that's not the particular concern needed
+	// to be caught in the wake of the UNWORD => TYPESET change...
+	return cast(REBCNT*, &typeset->data.typeset.sym);
+}
+
+
+/***********************************************************************
+**
 */	REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
 /*
 **		block - block of datatypes (datatype words ok too)

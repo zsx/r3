@@ -62,8 +62,19 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 
 	// Compare each entry:
 	for (n = 1; n < (REBINT)(f1->tail); n++) {
+		// Do ordinary comparison of the typesets
 		if (Cmp_Value(BLK_SKIP(k1, n), BLK_SKIP(k2, n), FALSE) != 0)
 			return FALSE;
+
+		// The typesets contain a symbol as well which must match for
+		// objects to consider themselves to be equal (but which do not
+		// count in comparison of the typesets)
+		if (
+			VAL_BIND_CANON(BLK_SKIP(k1, n))
+			!= VAL_BIND_CANON(BLK_SKIP(k2, n))
+		) {
+			return FALSE;
+		}
 
 		// !!! A comment here said "Use Compare_Modify_Values();"...but it
 		// doesn't... it calls Cmp_Value (?)
@@ -128,7 +139,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 			binds[VAL_WORD_CANON(word)] = SERIES_TAIL(BUF_WORDS);
 			EXPAND_SERIES_TAIL(BUF_WORDS, 1);
 			val = BLK_LAST(BUF_WORDS);
-			*val = *word;
+			Val_Init_Typeset(val, ALL_64, VAL_WORD_SYM(word));
 		}
 		if (IS_END(word + 1)) break; // fix bug#708
 	}

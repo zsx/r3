@@ -118,7 +118,7 @@ typedef enum {
 			Free_Series(frame);
 			raise Error_Invalid_Arg(spec);
 		}
-		Val_Init_Word_Typed(word, VAL_TYPE(spec), VAL_WORD_SYM(spec), ALL_64);
+		Val_Init_Typeset(word, ALL_64, VAL_WORD_SYM(spec));
 		word++;
 		SET_NONE(vals);
 		vals++;

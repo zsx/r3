@@ -125,9 +125,7 @@
 	value = Alloc_Tail_Array(frame);
 	SET_FRAME(value, 0, words);
 	value = Alloc_Tail_Array(words);
-	Val_Init_Word_Typed(
-		value, REB_WORD, has_self ? SYM_SELF : SYM_0, ALL_64
-	);
+	Val_Init_Typeset(value, ALL_64, has_self ? SYM_SELF : SYM_0);
 
 	return frame;
 }
@@ -178,7 +176,7 @@
 	// Add to word list:
 	EXPAND_SERIES_TAIL(keylist, 1);
 	value = BLK_LAST(keylist);
-	Val_Init_Word_Typed(value, REB_WORD, word ? VAL_WORD_SYM(word) : sym, ALL_64);
+	Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
 	BLK_TERM(keylist);
 
 	// Bind the word to this frame:
@@ -219,9 +217,9 @@
 
 	// Add the SELF key (or unused key) to slot zero
 	if (modes & BIND_NO_SELF)
-		Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, SYM_0, ALL_64);
+		Val_Init_Typeset(BLK_HEAD(BUF_WORDS), ALL_64, SYM_0);
 	else {
-		Val_Init_Word_Typed(BLK_HEAD(BUF_WORDS), REB_WORD, SYM_SELF, ALL_64);
+		Val_Init_Typeset(BLK_HEAD(BUF_WORDS), ALL_64, SYM_SELF);
 		binds[SYM_SELF] = -1;  // (cannot use zero here)
 	}
 
@@ -275,7 +273,7 @@
 	// BUF_WORDS does not own
 	RESIZE_SERIES(BUF_WORDS, SERIES_TAIL(prior));
 
-	// Word values can be copied just as bits (these are EXT_WORD_TYPED)
+	// Typeset values in keys (with key symbol) can be copied just as bits
 	memcpy(BLK_HEAD(BUF_WORDS), keys, SERIES_TAIL(prior) * sizeof(REBVAL));
 
 	SERIES_TAIL(BUF_WORDS) = SERIES_TAIL(prior);
@@ -296,16 +294,15 @@
 		if (ANY_WORD(value)) {
 			if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
 				if (IS_SET_WORD(value) || modes & BIND_ALL) {
-					REBVAL *word;
+					REBVAL *typeset;
 					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_WORDS);
 					EXPAND_SERIES_TAIL(BUF_WORDS, 1);
-					word = BLK_LAST(BUF_WORDS);
-					Val_Init_Word_Typed(
-						word,
-						VAL_TYPE(value),
-						VAL_WORD_SYM(value),
+					typeset = BLK_LAST(BUF_WORDS);
+					Val_Init_Typeset(
+						typeset,
 						// Allow all datatypes but END or UNSET (initially):
-						~((TYPESET(REB_END) | TYPESET(REB_UNSET)))
+						~((TYPESET(REB_END) | TYPESET(REB_UNSET))),
+						VAL_WORD_SYM(value)
 					);
 				}
 			} else {
@@ -1542,13 +1539,8 @@
 			Panic_Series(frame);
 		}
 
-		if (!ANY_WORD(key)) {
-			Debug_Fmt("** Non-word in word list, type: %d\n", VAL_TYPE(key));
-			Panic_Series(FRM_KEYLIST(frame));
-		}
-
-		if (!VAL_GET_EXT(key, EXT_WORD_TYPED)) {
-			Debug_Fmt("** Frame words contains non-'typed'-word");
+		if (!IS_TYPESET(key)) {
+			Debug_Fmt("** Non-typeset in frame keys: %d\n", VAL_TYPE(key));
 			Panic_Series(FRM_KEYLIST(frame));
 		}
 	}

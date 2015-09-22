@@ -844,9 +844,12 @@
 **
 ***********************************************************************/
 {
+	REBVAL param_word;
+	assert(IS_TYPESET(param));
+	Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_BIND_SYM(param));
+
 	assert(IS_DATATYPE(arg_type));
-	assert(ANY_WORD(param));
-	Error_3(RE_EXPECT_ARG, DSF_LABEL(call), param, arg_type);
+	Error_3(RE_EXPECT_ARG, DSF_LABEL(call), &param_word, arg_type);
 }
 
 

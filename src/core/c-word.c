@@ -324,29 +324,17 @@ make_sym:
 
 /***********************************************************************
 **
-*/	void Val_Init_Word_Typed(REBVAL *value, REBCNT type, REBCNT sym, REBU64 typeset)
+*/	REBCNT *Val_Word_Sym_Ptr_Debug(const REBVAL *word)
 /*
-**		When a special flag is set on a REB_WORD--or a value of
-**		ANY-WORD! type--it becomes an internal value holding a
-**		64-bit typeset (rather than a pointer and a binding index).
-**
-**		These 'typed' words are found in the identifying function
-**		argument series or the words of an object.  For functions,
-**		typeset bits hold the legal Rebol types those elements can
-**		hold.  They are currently unused in objects.
-**
-**		NOTE: These should not be leaked out to the user as ordinary
-**		words.  When a user reflects the `words-of` list, any series
-**		with typed words in them must be copied and mutated back to
-**		ordinary words.
+**		!!! Needed temporarily due to reorganization (though it should
+**		be checked via C++ build's static typing eventually...)
 **
 ***********************************************************************/
 {
-	VAL_SET(value, type);
-	VAL_SET_EXT(value, EXT_WORD_TYPED);
-	VAL_BIND_SYM(value) = sym;
-	VAL_BIND_TYPESET(value) = typeset;
-	assert(ANY_WORD(value));
+	assert(ANY_WORD(word));
+	// loses constness, but that's not the particular concern needed
+	// to be caught in the wake of the UNWORD => TYPESET change...
+	return cast(REBCNT*, &word->data.word.sym);
 }
 
 

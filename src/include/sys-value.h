@@ -912,36 +912,25 @@ struct Reb_Symbol {
 **
 ***********************************************************************/
 
-// Word option flags:
-enum {
-	EXT_WORD_LOCK = 0,	// Lock word from modification
-	EXT_WORD_TYPED,		// Word holds a typeset instead of binding
-	EXT_WORD_HIDE,		// Hide the word
-	EXT_WORD_MAX
-};
-
-union Reb_Word_Extra {
-	// ...when EXT_WORD_TYPED
-	REBU64 typebits;
-
-	// ...when not EXT_WORD_TYPED
-	struct {
-		REBSER *frame;	// Frame (or VAL_FUNC_WORDS) where word is defined
-		REBINT index;	// Index of word in frame (if it's not NULL)
-	} binding;
-};
-
 struct Reb_Word {
-	REBCNT sym;			// Index of the word's symbol (and pad for 64 bits)
-
-	union Reb_Word_Extra extra;
+	REBSER *frame;	// Frame (or VAL_FUNC_PARAMLIST) where word is defined
+	REBINT index;	// Index of word in frame (if it's not NULL)
+	REBCNT sym;		// Index of the word's symbol
 };
 
 #define IS_SAME_WORD(v, n)		(IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
-#define VAL_WORD_SYM(v)			((v)->data.word.sym)
-#define VAL_WORD_INDEX(v)		((v)->data.word.extra.binding.index)
-#define VAL_WORD_FRAME(v)		((v)->data.word.extra.binding.frame)
+#ifdef NDEBUG
+	#define VAL_WORD_SYM(v) ((v)->data.word.sym)
+#else
+	// !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
+	// VAL_BIND_SYM calls were swapped.  In the aftermath of reorganization
+	// this check is prudent (until further notice...)
+	#define VAL_WORD_SYM(v) (*Val_Word_Sym_Ptr_Debug(v))
+#endif
+
+#define VAL_WORD_INDEX(v)		((v)->data.word.index)
+#define VAL_WORD_FRAME(v)		((v)->data.word.frame)
 #define HAS_FRAME(v)			VAL_WORD_FRAME(v)
 
 #ifdef NDEBUG
@@ -957,10 +946,6 @@ struct Reb_Word {
 #define	VAL_WORD_NAME(v)		VAL_SYM_NAME(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(v)))
 #define	VAL_WORD_NAME_STR(v)	STR_HEAD(VAL_WORD_NAME(v))
 
-// When words are used in frame word lists, fields get a different meaning:
-#define VAL_BIND_SYM(v)			((v)->data.word.sym)
-#define VAL_BIND_CANON(v)		VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_BIND_SYM(v))) //((v)->data.wordspec.index)
-#define VAL_BIND_TYPESET(v)		((v)->data.word.extra.typebits)
 #define VAL_WORD_FRAME_WORDS(v) VAL_WORD_FRAME(v)->words
 #define VAL_WORD_FRAME_VALUES(v) VAL_WORD_FRAME(v)->values
 
@@ -1490,18 +1475,68 @@ enum {
 **
 **	TYPESET - Collection of up to 64 types
 **
+**	Though available to the user to manipulate directly as a TYPESET!,
+**	REBVALs of this type have another use in describing the fields of
+**	objects or parameters of function frames.  When used for that
+**	purpose, they not only list the legal types...but also hold a
+**	symbol for naming the field or parameter.
+**
+**	!!! At present, a TYPESET! created with MAKE TYPESET! cannot set
+**	the internal symbol.  Nor can it set the extended flags, though
+**	that might someday be allowed with a syntax like:
+**
+**		make typeset! [<hide> <quoted> string! integer!]
+**
 ***********************************************************************/
 
-struct Reb_Typeset {
-	REBCNT pad;			// Pad for U64 alignment (and common with Reb_Word)
-	REBU64 typebits;	// Bitset with one bit for each DATATYPE!
+// Option flags used with VAL_GET_EXT().  These describe properties of
+// a value slot when it's constrained to the types in the typeset
+enum {
+	EXT_TYPESET_QUOTE = 0,	// Quoted (REDUCE paren/get-word|path if EVALUATE)
+	EXT_TYPESET_EVALUATE,	// DO/NEXT performed at callsite when setting
+	EXT_TYPESET_REFINEMENT,	// Value indicates an optional switch
+	EXT_WORD_LOCK,	// Can't be changed (set with PROTECT)
+	EXT_WORD_HIDE,		// Can't be reflected (set with PROTECT/HIDE)
+	EXT_TYPESET_MAX
 };
 
-#define VAL_TYPESET(v)  ((v)->data.typeset.typebits)
-#define TYPE_CHECK(v,n) ((VAL_TYPESET(v) & ((REBU64)1 << (n))) != (REBU64)0)
-#define TYPE_SET(v,n)   (VAL_TYPESET(v) |= ((REBU64)1 << (n)))
-#define EQUAL_TYPESET(v,w) (VAL_TYPESET(v) == VAL_TYPESET(w))
-#define TYPESET(n) ((REBU64)1 << (n))
+struct Reb_Typeset {
+	REBCNT sym;			// Symbol (if a key of object or function param)
+
+	// Note: `sym` is first so that the value's 32-bit Reb_Flags header plus
+	// the 32-bit REBCNT will pad `bits` to a REBU64 alignment boundary
+
+	REBU64 bits;		// Bitset with one bit for each DATATYPE!
+};
+
+// Operations when typeset is done with a bitset (currently all typesets)
+
+#define TYPESET(n) (cast(REBU64, 1) << (n))
+
+#define VAL_TYPESET(v) ((v)->data.typeset.bits)
+
+#define TYPE_CHECK(v,n) \
+	((VAL_TYPESET(v) & (cast(REBU64, 1) << (n))) != 0)
+
+#define TYPE_SET(v,n) \
+	((VAL_TYPESET(v) |= ((REBU64)1 << (n))), NOOP)
+
+#define EQUAL_TYPESET(v,w) \
+	(VAL_TYPESET(v) == VAL_TYPESET(w))
+
+// Symbol is SYM_0 unless typeset in object keylist or func paramlist
+
+#ifdef NDEBUG
+	#define VAL_BIND_SYM(v) ((v)->data.typeset.sym)
+#else
+	// !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
+	// VAL_BIND_SYM calls were swapped.  In the aftermath of reorganization
+	// this check is prudent (until further notice...)
+	#define VAL_BIND_SYM(v) (*Val_Typeset_Sym_Ptr_Debug(v))
+#endif
+
+#define VAL_BIND_CANON(v) \
+	VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_BIND_SYM(v)))
 
 
 /***********************************************************************

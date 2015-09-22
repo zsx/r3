@@ -60,20 +60,32 @@
 **
 ***********************************************************************/
 {
-	REBSER *block;
-	REBSER *words = VAL_FUNC_PARAMLIST(func);
+	REBSER *series = VAL_FUNC_PARAMLIST(func);
+	REBVAL *typeset = BLK_SKIP(series, 1);
+
+	REBSER *block = Make_Array(SERIES_TAIL(series));
+
 	REBCNT n;
-	REBVAL *value;
-	REBVAL *word;
+	for (n = 1; n < SERIES_TAIL(series); typeset++, n++) {
+		enum Reb_Kind kind;
+		if (VAL_GET_EXT(typeset, EXT_TYPESET_REFINEMENT))
+			kind = REB_REFINEMENT;
+		else if (VAL_GET_EXT(typeset, EXT_TYPESET_QUOTE)) {
+			if (VAL_GET_EXT(typeset, EXT_TYPESET_EVALUATE))
+				kind = REB_LIT_WORD;
+			else
+				kind = REB_GET_WORD;
+		}
+		else {
+			// Currently there's no meaning for non-quoted non-evaluating
+			// things (only 3 param types for foo:, 'foo, :foo)
+			assert(VAL_GET_EXT(typeset, EXT_TYPESET_EVALUATE));
+			kind = REB_WORD;
+		}
 
-	block = Make_Array(SERIES_TAIL(words));
-	word = BLK_SKIP(words, 1);
-
-	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
-		value = Alloc_Tail_Array(block);
-		VAL_SET(value, VAL_TYPE(word));
-		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
-		UNBIND_WORD(value);
+		Val_Init_Word_Unbound(
+			Alloc_Tail_Array(block), kind, VAL_BIND_SYM(typeset)
+		);
 	}
 
 	return block;
@@ -82,27 +94,28 @@
 
 /***********************************************************************
 **
-*/	REBSER *List_Func_Types(REBVAL *func)
+*/	REBSER *List_Func_Typesets(REBVAL *func)
 /*
-**		Return a block of function arg types.
+**		Return a block of function arg typesets.
 **		Note: skips 0th entry.
 **
 ***********************************************************************/
 {
-	REBSER *block;
-	REBSER *words = VAL_FUNC_PARAMLIST(func);
+	REBSER *series = VAL_FUNC_PARAMLIST(func);
+	REBVAL *typeset = BLK_SKIP(series, 1);
+
+	REBSER *block = Make_Array(SERIES_TAIL(series));
+
 	REBCNT n;
-	REBVAL *value;
-	REBVAL *word;
+	for (n = 1; n < SERIES_TAIL(series); typeset++, n++) {
+		REBVAL *value = Alloc_Tail_Array(block);
+		*value = *typeset;
 
-	block = Make_Array(SERIES_TAIL(words));
-	word = BLK_SKIP(words, 1);
+		// !!! It's already a typeset, but this will clear out the header
+		// bits.  This may not be desirable over the long run (what if
+		// a typeset wishes to encode hiddenness, protectedness, etc?)
 
-	for (n = 1; n < SERIES_TAIL(words); word++, n++) {
-		value = Alloc_Tail_Array(block);
-		VAL_SET(value, VAL_TYPE(word));
-		VAL_WORD_SYM(value) = VAL_BIND_SYM(word);
-		UNBIND_WORD(value);
+		VAL_SET(value, REB_TYPESET);
 	}
 
 	return block;
@@ -111,7 +124,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Check_Func_Spec(REBSER *block, REBYTE *exts)
+*/	REBSER *Check_Func_Spec(REBSER *spec, REBYTE *exts)
 /*
 **		Check function spec of the form:
 **
@@ -121,28 +134,30 @@
 **
 ***********************************************************************/
 {
-	REBVAL *blk;
-	REBSER *words;
-	REBINT n = 0;
-	REBVAL *value;
+	REBVAL *item;
+	REBSER *keylist;
+	REBVAL *typeset;
 
 	*exts = 0;
 
-	blk = BLK_HEAD(block);
-	words = Collect_Frame(NULL, blk, BIND_ALL | BIND_NO_DUP | BIND_NO_SELF);
-	MANAGE_SERIES(words);
+	keylist = Collect_Frame(
+		NULL, BLK_HEAD(spec), BIND_ALL | BIND_NO_DUP | BIND_NO_SELF
+	);
+
+	// First position is "self", but not used...
+	typeset = BLK_HEAD(keylist);
 
 	// !!! needs more checks
-	for (; NOT_END(blk); blk++) {
-		switch (VAL_TYPE(blk)) {
+	for (item = BLK_HEAD(spec); NOT_END(item); item++) {
+		switch (VAL_TYPE(item)) {
 		case REB_BLOCK:
-			if (n == 0) {
+			if (typeset == BLK_HEAD(keylist)) {
 				// !!! Rebol2 had the ability to put a block in the first
 				// slot before any parameters, in which you could put words.
 				// This is deprecated in favor of the use of tags.  We permit
 				// [catch] and [throw] during Rebol2 => Rebol3 migration.
 
-				REBVAL *attribute = VAL_BLK_DATA(blk);
+				REBVAL *attribute = VAL_BLK_DATA(item);
 				for (; NOT_END(attribute); attribute++) {
 					if (IS_WORD(attribute)) {
 						if (VAL_WORD_SYM(attribute) == SYM_CATCH)
@@ -154,28 +169,69 @@
 						}
 						// no other words supported, fall through to error
 					}
-					raise Error_1(RE_BAD_FUNC_DEF, blk);
+					raise Error_1(RE_BAD_FUNC_DEF, item);
 				}
 				break; // leading block handled if we get here, no more to do
 			}
 
 			// Turn block into typeset for parameter at current index
-			Make_Typeset(VAL_BLK_HEAD(blk), BLK_SKIP(words, n), 0);
+			// Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
+			Make_Typeset(VAL_BLK_HEAD(item), typeset, 0);
 			break;
 
 		case REB_STRING:
-		case REB_INTEGER:	// special case used by datatype test actions
+			// !!! Documentation strings are ignored, but should there be
+			// some canon form be enforced?  Right now you can write many
+			// forms that may not be desirable to have in the wild:
+			//
+			//		func [foo [type!] {doc string :-)}]
+			//		func [foo {doc string :-/} [type!]]
+			//		func [foo {doc string1 :-/} {doc string2 :-(} [type!]]
+			//
+			// It's currently HELP that has to sort out the variant forms
+			// but there's nothing stopping them.
+			break;
+
+		case REB_INTEGER:
+			// special case used by datatype testing actions, e.g. STRING?
 			break;
 
 		case REB_WORD:
+			typeset++;
+			assert(
+				IS_TYPESET(typeset)
+				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+			);
+			VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
+			break;
+
 		case REB_GET_WORD:
+			typeset++;
+			assert(
+				IS_TYPESET(typeset)
+				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+			);
+			VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
+			break;
+
 		case REB_LIT_WORD:
-			n++;
+			typeset++;
+			assert(
+				IS_TYPESET(typeset)
+				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+			);
+			VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
+			// will actually only evaluate get-word!, get-path!, and paren!
+			VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
 			break;
 
 		case REB_REFINEMENT:
-			n++;
-			value = BLK_SKIP(words, n);
+			typeset++;
+			assert(
+				IS_TYPESET(typeset)
+				&& VAL_BIND_SYM(typeset) == VAL_WORD_SYM(item)
+			);
+			VAL_SET_EXT(typeset, EXT_TYPESET_REFINEMENT);
 
 		#if !defined(NDEBUG)
 			// Because Mezzanine functions are written to depend on the idea
@@ -184,12 +240,14 @@
 			// at function creation time...not dispatch time.  We encode the
 			// bit in the refinement's typeset that it accepts.
 			if (LEGACY(OPTIONS_REFINEMENTS_TRUE)) {
-				VAL_TYPESET(value) = (TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
+				VAL_TYPESET(typeset) =
+					(TYPESET(REB_LOGIC) | TYPESET(REB_NONE));
 				break;
 			}
 		#endif
 			// Refinements can nominally be only WORD! or NONE!
-			VAL_TYPESET(value) = (TYPESET(REB_WORD) | TYPESET(REB_NONE));
+			VAL_TYPESET(typeset) =
+				(TYPESET(REB_WORD) | TYPESET(REB_NONE));
 			break;
 
 		case REB_TAG:
@@ -197,23 +255,25 @@
 			// present they are only allowed at the head of the spec block,
 			// to try and keep things in at least a slightly canon format.
 			// This may or may not be relaxed in the future.
-			if (n != 0) raise Error_1(RE_BAD_FUNC_DEF, blk);
+			if (typeset != BLK_HEAD(keylist))
+				raise Error_1(RE_BAD_FUNC_DEF, item);
 
-			if (0 == Compare_String_Vals(blk, ROOT_INFIX_TAG, TRUE))
+			if (0 == Compare_String_Vals(item, ROOT_INFIX_TAG, TRUE))
 				SET_FLAG(*exts, EXT_FUNC_INFIX);
-			else if (0 == Compare_String_Vals(blk, ROOT_TRANSPARENT_TAG, TRUE))
+			else if (0 == Compare_String_Vals(item, ROOT_TRANSPARENT_TAG, TRUE))
 				SET_FLAG(*exts, EXT_FUNC_TRANSPARENT);
 			else
-				raise Error_1(RE_BAD_FUNC_DEF, blk);
+				raise Error_1(RE_BAD_FUNC_DEF, item);
 			break;
 
 		case REB_SET_WORD:
 		default:
-			raise Error_1(RE_BAD_FUNC_DEF, blk);
+			raise Error_1(RE_BAD_FUNC_DEF, item);
 		}
 	}
 
-	return words;
+	MANAGE_SERIES(keylist);
+	return keylist;
 }
 
 

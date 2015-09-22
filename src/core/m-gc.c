@@ -637,9 +637,6 @@ static void Propagate_All_GC_Marks(void);
 		case REB_LIT_WORD:
 		case REB_REFINEMENT:
 		case REB_ISSUE:
-			// Special word used in word frame, stack, or errors:
-			if (VAL_GET_EXT(val, EXT_WORD_TYPED)) break;
-
 			ser = VAL_WORD_FRAME(val);
 			if (ser) {
 				// Word is bound, so mark its context (which may be a FRAME!

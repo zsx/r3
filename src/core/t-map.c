@@ -459,12 +459,14 @@
 	val  = FRM_VALUE(frame, 1);
 	for (mval = BLK_HEAD(mapser); NOT_END(mval) && NOT_END(mval+1); mval += 2) {
 		if (ANY_WORD(mval) && !IS_NONE(mval+1)) {
-			Val_Init_Word_Typed(
+			// !!! Used to leave SET_WORD typed values here... but why?
+			// (Objects did not make use of the set-word vs. other distinctions
+			// that function specs did.)
+			Val_Init_Typeset(
 				key,
-				REB_SET_WORD,
-				VAL_WORD_SYM(mval),
 				// all types except END or UNSET
-				~((TYPESET(REB_END) | TYPESET(REB_UNSET)))
+				~((TYPESET(REB_END) | TYPESET(REB_UNSET))),
+				VAL_WORD_SYM(mval)
 			);
 			key++;
 			*val++ = mval[1];
