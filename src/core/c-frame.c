@@ -181,9 +181,12 @@
 
 	// Bind the word to this frame:
 	if (word) {
+		assert(sym == SYM_0);
 		VAL_WORD_FRAME(word) = frame;
 		VAL_WORD_INDEX(word) = frame->tail;
 	}
+	else
+		assert(sym != SYM_0);
 
 	// Add unset value to frame:
 	EXPAND_SERIES_TAIL(frame, 1);
