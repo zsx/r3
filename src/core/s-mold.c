@@ -923,14 +923,10 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	// Append: error message ARG1, ARG2, etc.
 	msg = Find_Error_Info(err, 0);
 	if (msg) {
-		if (!IS_BLOCK(msg)) Mold_Value(mold, msg, 0);
-		else {
-			//start = DSP + 1;
-			//Reduce_In_Frame(frame, VAL_BLK_DATA(msg));
-			//SERIES_TAIL(DS_Series) = DSP + 1;
-			//Form_Block_Series(DS_Series, start, mold, 0);
+		if (IS_BLOCK(msg))
 			Form_Block_Series(VAL_SERIES(msg), 0, mold, frame);
-		}
+		else
+			Mold_Value(mold, msg, 0);
 	} else
 		Append_Boot_Str(mold->series, RS_ERRS+1);
 
