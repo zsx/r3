@@ -962,7 +962,7 @@ reevaluate:
 					goto return_index;
 				}
 				if (index == END_FLAG)
-					raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
+					raise Error_No_Arg(DSF_LABEL(call), param);
 			}
 
 			ASSERT_VALUE_MANAGED(arg);
@@ -1568,7 +1568,7 @@ finished:
 				// a non-refinement, then it's a situation of a required
 				// argument missing or not all the args to a refinement given
 
-				raise Error_2(RE_NO_ARG, DSF_LABEL(call), param);
+				raise Error_No_Arg(DSF_LABEL(call), param);
 			}
 		}
 

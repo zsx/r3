@@ -573,7 +573,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 			//Debug_Type(args);
 			val = blk++;
 			index++;
-			if (IS_END(val)) raise Error_2(RE_NO_ARG, cmd_word, args);
+			if (IS_END(val)) raise Error_No_Arg(cmd_word, args);
 			//Debug_Type(val);
 
 			// actual arg is a word, lookup?
@@ -603,8 +603,13 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 			}
 
 			// check datatype
-			if (!TYPE_CHECK(args, VAL_TYPE(val)))
-				raise Error_3(RE_EXPECT_ARG, cmd_word, args, Type_Of(val));
+			if (!TYPE_CHECK(args, VAL_TYPE(val))) {
+				REBVAL arg_word;
+				Val_Init_Word_Unbound(
+					&arg_word, REB_WORD, VAL_TYPESET_SYM(args)
+				);
+				raise Error_3(RE_EXPECT_ARG, cmd_word, &arg_word, Type_Of(val));
+			}
 
 			// put arg into command frame
 			n++;

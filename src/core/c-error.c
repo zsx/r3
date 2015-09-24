@@ -703,6 +703,19 @@
 
 /***********************************************************************
 **
+*/	ATTRIBUTE_NO_RETURN void Error_No_Arg(const REBVAL *label, const REBVAL *key)
+/*
+***********************************************************************/
+{
+	REBVAL key_word;
+	assert(IS_TYPESET(key));
+	Val_Init_Word_Unbound(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
+	Error_2(RE_NO_ARG, label, &key_word);
+}
+
+
+/***********************************************************************
+**
 */	ATTRIBUTE_NO_RETURN void Error_Invalid_Datatype(REBCNT id)
 /*
 ***********************************************************************/
