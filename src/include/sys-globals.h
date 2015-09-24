@@ -91,6 +91,8 @@ PVAR REBSER	*GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBFLG GC_Stay_Dirty;  // Do not free memory, fill it with 0xBB
 TVAR REBSER **Prior_Expand;	// Track prior series expansions (acceleration)
 
+TVAR REBMRK GC_Mark_Hook;	// Mark hook (set by Ren/C host to mark values)
+
 // These manually-managed series must either be freed with Free_Series()
 // or handed over to the GC at certain synchronized points, else they
 // would represent a memory leak in the release build.

@@ -194,6 +194,25 @@ enum {
 #define TS_FUNCLOS (FLAGIT_64(REB_FUNCTION) | FLAGIT_64(REB_CLOSURE))
 #define TS_CLONE ((TS_SERIES | TS_FUNCLOS) & ~TS_NOT_COPIED)
 
+// These are the types which have no need to be seen by the GC.  Note that
+// this list may change--for instance if garbage collection is added for
+// symbols, then word types and typesets would have to be checked too.  Some
+// are counterintuitive, for instance DATATYPE! contains a SPEC that is a
+// series and thus has to be checked...
+
+#define TS_NO_GC \
+	(FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET) | FLAGIT_64(REB_NONE) \
+	| FLAGIT_64(REB_LOGIC) | FLAGIT_64(REB_INTEGER) | FLAGIT_64(REB_DECIMAL) \
+	| FLAGIT_64(REB_PERCENT) | FLAGIT_64(REB_MONEY) | FLAGIT_64(REB_CHAR) \
+	| FLAGIT_64(REB_PAIR) | FLAGIT_64(REB_TUPLE) | FLAGIT_64(REB_TIME) \
+	| FLAGIT_64(REB_DATE) | FLAGIT_64(REB_TYPESET) | TS_WORD \
+	| FLAGIT_64(REB_HANDLE))
+
+#define TS_GC (~TS_NO_GC)
+
+// Garbage collection marker function (GC Hook)
+typedef void (*REBMRK)(void);
+
 // Modes allowed by Bind related functions:
 enum {
 	BIND_ONLY = 0,		// Only bind the words found in the context.
