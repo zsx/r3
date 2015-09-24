@@ -1144,9 +1144,17 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	REBSER ** const last_ptr
 		= &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
 
+#if !defined(NDEBUG)
+	// If a series has already been freed, we'll find out about that
+	// below indirectly, so better in the debug build to get a clearer
+	// error that won't be conflated with a possible tracking problem
+	if (SERIES_FREED(series)) {
+		Debug_Fmt("Trying to Free_Series() on an already freed series");
+		Panic_Series(series);
+	}
+
 	// We can only free a series that is not under management by the
 	// garbage collector
-#if !defined(NDEBUG)
 	if (SERIES_GET_FLAG(series, SER_MANAGED)) {
 		Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
 		Panic_Series(series);
