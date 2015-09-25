@@ -38,6 +38,7 @@
 #endif
 
 #include <stdlib.h> //for free()
+#include <assert.h>
 
 #include "reb-host.h"
 
@@ -646,6 +647,27 @@ static u32 *core_ext_words;
 **
 ***********************************************************************/
 {
+// Initialize random number services (used by https protocol)
+#ifdef TO_WINDOWS
+	if (!CryptAcquireContextW(
+		&gCryptProv, 0, 0, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT
+	)) {
+		// !!! There is no good way to return failure here as the
+		// routine is designed, and it appears that in some cases
+		// a zero initialization worked in the past.  Assert in the
+		// debug build but continue silently otherwise.
+		assert(FALSE);
+		gCryptProv = 0;
+	}
+#else
+	rng_fd = open("/dev/urandom", O_RDONLY);
+	if (rng_fd == -1) {
+		// We don't crash the release client now, but we will later
+		// if they try to generate random numbers
+		assert(FALSE);
+	}
+#endif
+
 	RL = cast(RL_LIB*, RL_Extend(RX_core, &RXD_Core));
 }
 
@@ -656,5 +678,13 @@ static u32 *core_ext_words;
 /*
 ***********************************************************************/
 {
+#ifdef TO_WINDOWS
+	if (gCryptProv != 0)
+		CryptReleaseContext(gCryptProv, 0);
+#else
+	if (rng_fd != -1)
+		close(rng_fd);
+#endif
+
 	if (core_ext_words) OS_FREE(core_ext_words);
 }
