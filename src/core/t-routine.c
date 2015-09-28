@@ -1230,11 +1230,17 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							case SYM_DEFAULT:
 								VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
 								break;
+#if defined(X86_64) || defined(X86)
 #ifdef X86_WIN64
 							case SYM_WIN64:
 								VAL_ROUTINE_ABI(out) = FFI_WIN64;
 								break;
-#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
+
+#elif defined(X86_64) || (defined (__x86_64__) && defined (X86_DARWIN))
+							case SYM_UNIX64:
+								VAL_ROUTINE_ABI(out) = FFI_UNIX64;
+								break;
+#elif defined(X86_WIN32)
 							case SYM_STDCALL:
 								VAL_ROUTINE_ABI(out) = FFI_STDCALL;
 								break;
@@ -1247,15 +1253,11 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							case SYM_FASTCALL:
 								VAL_ROUTINE_ABI(out) = FFI_FASTCALL;
 								break;
-#ifdef X86_WIN32
+#else
 							case SYM_MS_CDECL:
 								VAL_ROUTINE_ABI(out) = FFI_MS_CDECL;
 								break;
-#else
-							case SYM_UNIX64:
-								VAL_ROUTINE_ABI(out) = FFI_UNIX64;
-								break;
-#endif //X86_WIN32
+#endif //X86_WIN64
 #elif defined (TO_LINUX_ARM)
 							case SYM_VFP:
 								VAL_ROUTINE_ABI(out) = FFI_VFP;
@@ -1281,7 +1283,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 							case SYM_N64_SOFT_FLOAT:
 								VAL_RNUTINE_ABI(out) = FFI_N64_SOFT_FLOAT;
 								break;
-#endif //X86_WIN64
+#endif //X86
 							default:
 								raise Error_Invalid_Arg(blk);
 						}
