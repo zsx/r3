@@ -60,7 +60,7 @@ view: func [
 		unless opts/as-is [
 			tmp: window
 			tmp/offset: 0x0
-			window: make gob! [size: tmp/size]
+			window: make gob! reduce/no-set [size: tmp/size]
 			append window tmp
 		]
 		; Set optional background:
