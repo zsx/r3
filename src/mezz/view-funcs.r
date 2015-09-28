@@ -174,7 +174,7 @@ handle-events: func [
 	handler: make base-handler handler
 	sys-hand: system/view/event-port/locals/handlers
 	; Insert by priority:
-	unless foreach [here: hand] sys-hand [
+	unless for-each [here: hand] sys-hand [
 		if handler/priority > hand/priority [
 			insert here handler
 			break/return true
@@ -197,7 +197,7 @@ handled-events?: func [
 	"Returns event handler object matching a given name."
 	name
 ][
-	foreach hand system/view/event-port/locals/handlers [
+	for-each hand system/view/event-port/locals/handlers [
 		if hand/name = name [return hand]
 	]
 	none
