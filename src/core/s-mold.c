@@ -1449,9 +1449,6 @@ return_balanced:
 /*
 ***********************************************************************/
 {
-	Free_Series(VAL_SERIES(TASK_MOLD_LOOP));
-	Free_Series(VAL_SERIES(TASK_BUF_MOLD));
-
 	FREE_ARRAY(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
 	FREE_ARRAY(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }

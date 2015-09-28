@@ -490,7 +490,7 @@ static	BOOT_BLK *Boot_Block;
 	REBSER *frame;
 
 	frame = Make_Array(ROOT_MAX);  // Only half the context! (No words)
-	KEEP_SERIES(frame, "root context");
+	LABEL_SERIES(frame, "root context");
 	LOCK_SERIES(frame);
 	Root_Context = (ROOT_CTX*)(frame->data);
 
@@ -534,24 +534,17 @@ static	BOOT_BLK *Boot_Block;
 **
 ***********************************************************************/
 {
-	KEEP_SERIES(ser, label);
+	LABEL_SERIES(ser, label);
 
-	// Val_Init_Block and Val_Init_String would call Manage_Series and
-	// make the series GC Managed, which would be a bad thing for series
-	// like BUF_COLLECT...because that would make all the series copied
-	// from it managed too, and we don't always want that.  For now
-	// we reproduce the logic of the routines.
+	// Note that the Val_Init routines call Manage_Series and make the
+	// series GC Managed.  They will hence be freed on shutdown
+	// automatically when the root set is removed from consideration.
 
-	if (Is_Array_Series(ser)) {
-		VAL_SET(value, REB_BLOCK);
-		VAL_SERIES(value) = ser;
-		VAL_INDEX(value) = 0;
-	}
+	if (Is_Array_Series(ser))
+		Val_Init_Block(value, ser);
 	else {
 		assert(SERIES_WIDE(ser) == 1 || SERIES_WIDE(ser) == 2);
-		VAL_SET(value, REB_STRING);
-		VAL_SERIES(value) = ser;
-		VAL_INDEX(value) = 0;
+		Val_Init_String(value, ser);
 	}
 }
 
@@ -571,8 +564,9 @@ static	BOOT_BLK *Boot_Block;
 	//Print_Str("Task Context");
 
 	Task_Series = frame = Make_Array(TASK_MAX);
-	KEEP_SERIES(frame, "task context");
+	LABEL_SERIES(frame, "task context");
 	LOCK_SERIES(frame);
+	MANAGE_SERIES(frame);
 	Task_Context = (TASK_CTX*)(frame->data);
 
 	// Get first value (the SELF for the context):
@@ -1154,12 +1148,15 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	PG_Boot_Phase = BOOT_LOADED;
 	//Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
-	// Get the words of the ROOT context (to avoid it being an exception case):
+	// Get the words of the ROOT context (to avoid it being an exception case)
+	// and convert ROOT_ROOT from a BLOCK! to an OBJECT!
 	PG_Root_Words = Collect_Frame(
 		NULL, VAL_BLK_HEAD(&Boot_Block->root), BIND_ALL
 	);
-	KEEP_SERIES(PG_Root_Words, "root words");
+	LABEL_SERIES(PG_Root_Words, "root words");
+	MANAGE_SERIES(PG_Root_Words);
 	VAL_FRM_KEYLIST(ROOT_SELF) = PG_Root_Words;
+	Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));
 
 	// Create main values:
 	DOUT("Level 3");

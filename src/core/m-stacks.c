@@ -70,7 +70,6 @@
 	FREE(struct Reb_Chunk, chunk);
 
 	assert(DSP == -1);
-	Free_Series(DS_Series);
 }
 
 

@@ -361,9 +361,9 @@ typedef enum {
 		// into it, and those results must be protected from GC
 
 		// !!! This means we cannot Free_Series in case of a BREAK, we
-		// have to leave it to the GC.  Should there be a variant which
-		// lets a series be a GC root for a temporary time even if it is
-		// not SER_KEEP?
+		// have to leave it to the GC.  Is there a safe and efficient way
+		// to allow inserting the managed values into a single-deep
+		// unmanaged series if we *promise* not to go deeper?
 
 		out = Make_Array(VAL_LEN(data));
 		MANAGE_SERIES(out);

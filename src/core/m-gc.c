@@ -151,11 +151,8 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 **
 ***********************************************************************/
 {
-	if (
-		!SERIES_GET_FLAG(series, SER_MANAGED)
-		&& !SERIES_GET_FLAG(series, SER_KEEP)
-	) {
-		Debug_Fmt("Link to non-MANAGED non-KEEP item reached by GC");
+	if (!SERIES_GET_FLAG(series, SER_MANAGED)) {
+		Debug_Fmt("Link to non-MANAGED item reached by GC");
 		Panic_Series(series);
 	}
 
@@ -229,11 +226,8 @@ static void Propagate_All_GC_Marks(void);
 **
 ***********************************************************************/
 {
-	if (
-		!SERIES_GET_FLAG(series, SER_MANAGED)
-		&& !SERIES_GET_FLAG(series, SER_KEEP)
-	) {
-		Debug_Fmt("Link to non-MANAGED non-KEEP item reached by GC");
+	if (!SERIES_GET_FLAG(series, SER_MANAGED)) {
+		Debug_Fmt("Link to non-MANAGED item reached by GC");
 		Panic_Series(series);
 	}
 
@@ -853,18 +847,8 @@ static void Propagate_All_GC_Marks(void);
 				} else
 					SERIES_CLR_FLAG(series, SER_MARK);
 			}
-			else {
-			#ifdef NDEBUG
-				SERIES_CLR_FLAG(series, SER_MARK);
-			#else
-				// We should have only been willing to mark a non-managed
-				// series if it had SER_KEEP status
-				if (SERIES_GET_FLAG(series, SER_MARK)) {
-					assert(SERIES_GET_FLAG(series, SER_KEEP));
-					SERIES_CLR_FLAG(series, SER_MARK);
-				}
-			#endif
-			}
+			else
+				assert(!SERIES_GET_FLAG(series, SER_MARK));
 		}
 	}
 
@@ -1180,13 +1164,13 @@ static void Propagate_All_GC_Marks(void);
 
 	// Temporary series protected from GC. Holds series pointers.
 	GC_Protect = Make_Series(15, sizeof(REBSER *), MKS_NONE);
-	KEEP_SERIES(GC_Protect, "gc protected");
+	LABEL_SERIES(GC_Protect, "gc protected");
 
 	// The marking queue used in lieu of recursion to ensure that deeply
 	// nested structures don't cause the C stack to overflow.
 	GC_Mark_Stack = Make_Series(100, sizeof(REBSER *), MKS_NONE);
 	TERM_SERIES(GC_Mark_Stack);
-	KEEP_SERIES(GC_Mark_Stack, "gc mark stack");
+	LABEL_SERIES(GC_Mark_Stack, "gc mark stack");
 }
 
 

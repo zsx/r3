@@ -190,7 +190,7 @@ static REBREQ *Req_SIO;
 		if (Trace_Limit == 0) {
 			Trace_Limit = 100000;
 			Trace_Buffer = Make_Binary(Trace_Limit);
-			KEEP_SERIES(Trace_Buffer, "trace-buffer"); // !!! use better way
+			LABEL_SERIES(Trace_Buffer, "trace-buffer");
 		}
 	}
 	else {

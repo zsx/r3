@@ -1802,8 +1802,7 @@ exit_block:
 /*
 ***********************************************************************/
 {
-	Free_Series(VAL_SERIES(TASK_BUF_EMIT));
-	Free_Series(VAL_SERIES(TASK_BUF_UTF8));
+	// Note: Emit and UTF8 buffers freed by task root set
 }
 
 

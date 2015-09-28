@@ -548,7 +548,7 @@ typedef struct Reb_Tuple {
 // Series Flags:
 enum {
 	SER_MARK		= 1 << 0,	// was found during GC mark scan.
-	SER_KEEP		= 1 << 1,	// don't garbage collect even if unreferenced
+	SER_FRAME		= 1 << 1,	// object frame (unsets legal, has key series)
 	SER_LOCK		= 1 << 2,	// size is locked (do not expand it)
 	SER_EXTERNAL	= 1 << 3,	// ->data is external, don't free() on GC
 	SER_MANAGED		= 1 << 4,	// series is managed by garbage collection
@@ -561,7 +561,6 @@ enum {
 #define SERIES_CLR_FLAG(s, f) cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
 #define SERIES_GET_FLAG(s, f) (0 != (SERIES_FLAGS(s) & ((f) << 8)))
 
-#define KEEP_SERIES(s,l)  do {SERIES_SET_FLAG(s, SER_KEEP); LABEL_SERIES(s,l);} while(0)
 #define LOCK_SERIES(s)    SERIES_SET_FLAG(s, SER_LOCK)
 #define IS_LOCK_SERIES(s) SERIES_GET_FLAG(s, SER_LOCK)
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)

@@ -813,7 +813,15 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 **
 ***********************************************************************/
 {
-	(flags == 1) ? SERIES_SET_FLAG(series, SER_KEEP) : SERIES_CLR_FLAG(series, SER_KEEP);
+	// !!! With series flags in short supply, this undesirable routine
+	// was removed along with SER_KEEP.  (Note that it is not possible
+	// to simply flip off the SER_MANAGED bit, because there is more
+	// involved in tracking the managed state than just that bit.)
+	//
+	// For the purpose intended by this routine, use the GC_Mark_Hook (or
+	// its hopeful improved successors.)
+
+	panic Error_0(RE_MISC);
 }
 
 

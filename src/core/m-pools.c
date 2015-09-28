@@ -304,7 +304,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	// Manually allocated series that GC is not responsible for (unless a
 	// trap occurs). Holds series pointers.
 	GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
-	KEEP_SERIES(GC_Manuals, "gc manuals");
+	LABEL_SERIES(GC_Manuals, "gc manuals");
 
 	Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
 	CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
@@ -574,8 +574,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 /*
 **		Allocates element array for an already allocated REBSER header
 **		structure.  Resets the bias and tail to zero, and sets the new
-**		width.  Flags like SER_PROTECT or SER_KEEP are left as they
-**		were, and other fields in the series structure are untouched.
+**		width.  Flags like SER_PROTECT are left as they were, and other
+**		fields in the series structure are untouched.
 **
 **		This routine can thus be used for an initial construction
 **		or an operation like expansion.  Currently not exported
@@ -637,7 +637,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	memset(series->data, 0xff, size);
 #endif
 
-	// Keep the series flags like SER_KEEP, but use new width and set bias 0.
+	// Keep the series flags like SER_PROTECT, but use new width and bias to 0
 
 	series->info = ((series->info >> 8) << 8) | wide;
 	SERIES_SET_BIAS(series, 0);
@@ -1629,7 +1629,6 @@ crash:
 
 #ifdef SERIES_LABELS
 			kind = "----";
-			if (SERIES_GET_FLAG(series, SER_KEEP)) kind = "KEEP";
 			//if (Find_Root(series)) kind = "ROOT";
 			if (!SERIES_FREED(series) && series->label) {
 				Debug_Fmt_("%08x: %16s %s ", series, series->label, kind);
