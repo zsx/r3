@@ -39,6 +39,7 @@
 ***********************************************************************/
 
 #include "reb-host.h"
+#include "host-view.h"
 #include "host-compositor.h"
 
 #include <SDL.h>
@@ -162,9 +163,9 @@ static REBXYF Zero_Pair = {0, 0};
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))
-        os_string = As_OS_Str(GOB_CONTENT(gob), (REBCHR**)&title);
+        os_string = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&title);
     else
-        title = TXT("REBOL Window");
+        title = "REBOL Window";
 
 	if (GET_FLAGS(gob->flags, GOBF_NO_TITLE, GOBF_NO_BORDER)) {
 		flags |= SDL_WINDOW_BORDERLESS;
@@ -202,7 +203,7 @@ static REBXYF Zero_Pair = {0, 0};
 	}
 	win = SDL_CreateWindow(title, x, y, w, h, flags);
 	if (os_string)
-		OS_Free(title);
+		OS_FREE(title);
 
 	SDL_SetWindowData(win, "GOB", gob);
 

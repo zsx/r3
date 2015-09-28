@@ -41,7 +41,7 @@
 #include <string.h>
 #include <math.h>	//for floor()
 #include "reb-host.h"
-#include "host-lib.h"
+#include "host-view.h"
 
 #include "host-compositor.h"
 
@@ -84,7 +84,7 @@ static u32* graphics_ext_words;
 **
 ***********************************************************************/
 {
-	Gob_Windows = (struct gob_window *)OS_Make(sizeof(struct gob_window) * (MAX_WINDOWS+1));
+	Gob_Windows = (struct gob_window *)OS_ALLOC_ARRAY(struct gob_window, MAX_WINDOWS + 1);
 	CLEAR(Gob_Windows, sizeof(struct gob_window) * (MAX_WINDOWS+1));
 
 	//call OS specific initialization code
@@ -428,9 +428,9 @@ REBINT Alloc_Window(REBGOB *gob) {
                     img = (REBYTE *)RL_SERIES(i, RXI_SER_DATA);
 
                     RXA_TYPE(frm, 1) = RXT_IMAGE;
-                    RXA_ARG(frm, 1).width = w;
-                    RXA_ARG(frm, 1).height = h;
-                    RXA_ARG(frm, 1).image = i;
+                    RXA_IMAGE_WIDTH(frm, 1) = w;
+                    RXA_IMAGE_HEIGHT(frm, 1) = h;
+                    RXA_IMAGE(frm, 1) = i;
                 }
 				rebdrw_to_image(img, w, h, RXA_SERIES(frm, 2));
 

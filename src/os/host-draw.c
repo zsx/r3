@@ -40,9 +40,9 @@
 
 #include <stdlib.h>
 #include "reb-host.h"
-#include "host-lib.h"
 
 //#include "agg-draw.h"
+#include "host-view.h"
 #include "host-draw-api.h"
 
 #define INCLUDE_EXT_DATA
@@ -435,7 +435,7 @@ static u32* shape_ext_words;
                 RXIARG val;
                 REBCNT type;
                 REBCNT n;
-                REBDEC* pattern = (REBDEC*) OS_Make((len + 1) * sizeof(REBDEC)) ;
+                REBDEC* pattern = (REBDEC*) OS_ALLOC_ARRAY(REBDEC, len + 1) ;
 
                 pattern[0] = len;
 

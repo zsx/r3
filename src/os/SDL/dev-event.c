@@ -43,7 +43,6 @@
 //#include <sys/time.h>
 
 #include "reb-host.h"
-#include "host-lib.h"
 
 #include "SDL.h"
 

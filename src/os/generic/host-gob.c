@@ -73,18 +73,8 @@ REBSER* Gob_To_Image(REBGOB *gob);
 
 /***********************************************************************
 **
-*/	REBOOL As_OS_Str(REBSER *series, REBCHR **string)
+*/	REBOOL As_UTF8_Str(REBSER *series, REBCHR **string)
 /*
-**	If necessary, convert a string series to platform specific format.
-**  (Handy for GOB/TEXT handling).
-**  If the string series is empty the resulting string is set to NULL
-**
-**  Function returns:
-**      TRUE - if the resulting string needs to be deallocated by the caller code
-**      FALSE - if REBOL string is used (no dealloc needed)
-**
-**  Note: REBOL strings are allowed to contain nulls.
-**
 ***********************************************************************/
 {
 	int n;
@@ -111,4 +101,23 @@ REBSER* Gob_To_Image(REBGOB *gob);
 		(*string)[utf8_len] = '\0';
 	}
 	return TRUE;
+}
+
+/***********************************************************************
+**
+*/	REBOOL As_OS_Str(REBSER *series, REBCHR **string)
+/*
+**	If necessary, convert a string series to platform specific format.
+**  (Handy for GOB/TEXT handling).
+**  If the string series is empty the resulting string is set to NULL
+**
+**  Function returns:
+**      TRUE - if the resulting string needs to be deallocated by the caller code
+**      FALSE - if REBOL string is used (no dealloc needed)
+**
+**  Note: REBOL strings are allowed to contain nulls.
+**
+***********************************************************************/
+{
+	return As_UTF8_Str(series, **string);
 }

@@ -45,9 +45,9 @@
 #include <string.h>
 #include <math.h>	//for floor()
 #include "reb-host.h"
-#include "host-lib.h"
 #include "SDL.h"
 
+#include "host-view.h"
 #include "host-draw-api.h"
 
 //#include <GL/glew.h>
@@ -196,7 +196,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	SDL_Window *win = NULL;
 
 	//new compositor struct
-	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_Make(sizeof(REBCMP_CTX));
+	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_ALLOC_ARRAY(REBCMP_CTX, 1);
 	int w = GOB_LOG_W_INT(gob);
 	int h = GOB_LOG_H_INT(gob);
 
@@ -253,7 +253,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	
 	rebdrw_destroy_context(ctx->draw_ctx);
 	SDL_DestroyRenderer(ctx->renderer);
-	OS_Free(ctx);
+	OS_FREE(ctx);
 }
 
 /***********************************************************************

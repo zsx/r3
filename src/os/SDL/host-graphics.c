@@ -39,6 +39,8 @@
 ***********************************************************************/
 
 #include "reb-host.h"
+#include "host-view.h"
+#include "host-ext-graphics.h"
 #include "SDL.h"
 
 #ifdef TO_LINUX
