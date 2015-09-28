@@ -137,7 +137,7 @@ view: func [
 	; Wait for the event port to tell us we can return:
 	if all [
 		not opts/no-wait
-		1 = length? screen
+		1 = length screen
 	][
 		do-events
 	]
