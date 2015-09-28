@@ -41,7 +41,7 @@ arc: command [
 	"Draws an elliptical arc from the current point."
 	end-point [pair!]
 	radius [pair!]
-	angle [number!] 
+	angle [any-number!] 
 	'sweep-flag [word!] "The arc will be drawn in POSITIVE or NEGATIVE angle direction"
 	'arc-flag [word!] "User SMALL or LARGE arc sweep"
 ]
@@ -50,7 +50,7 @@ arc': command [
 	"Draws an elliptical arc from the current point.(uses relative coordinates)"
 	end-point [pair!]
 	radius [pair!]
-	angle [number!] 
+	angle [any-number!] 
 	'sweep-flag [word!] "The arc will be drawn in POSITIVE or NEGATIVE angle direction"
 	'arc-flag [word!] "User SMALL or LARGE arc sweep"
 ]
@@ -81,12 +81,12 @@ curve': command [
 
 hline: command [
 	"Draws a horizontal line from the current point."
-	end-x [number!]
+	end-x [any-number!]
 ]
 
 hline': command [
 	"Draws a horizontal line from the current point.(uses relative coordinates)"
-	end-x [number!]
+	end-x [any-number!]
 ]
 
 line: command [
@@ -131,10 +131,10 @@ qcurve': command [
 
 vline: command [
 	"Draws a vertical line from the current point."
-	end-y [number!]
+	end-y [any-number!]
 ]
 
 vline': command [
 	"Draws a vertical line from the current point.(uses relative coordinates)"
-	end-y [number!]
+	end-y [any-number!]
 ]

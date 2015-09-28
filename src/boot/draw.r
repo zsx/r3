@@ -90,8 +90,8 @@ arc: command [
 	"Draws a partial section of an ellipse or circle."
 	center [pair!] "The center of the circle"
 	radius [pair!] "The radius of the circle"
-	angle-begin [number!] "The angle where the arc begins, in degrees"
-	angle-length [number!] "The length of the arc in degrees"
+	angle-begin [any-number!] "The angle where the arc begins, in degrees"
+	angle-length [any-number!] "The length of the arc in degrees"
 	'arc-ending [word!] "Leave the arc: OPENED or CLOSED"
 ]
 
@@ -105,7 +105,7 @@ box: command [
 	"Draws a rectangular box."
 	origin [pair!] "Corner of box"
 	end [pair!] "End of box"
-	corner-radius [number!] "Rounds corners"
+	corner-radius [any-number!] "Rounds corners"
 ]
 
 circle: command [
@@ -146,7 +146,7 @@ fill-rule: command [
 
 gamma: command [
 	"Sets the gamma correction value."
-	gamma-value [number!]
+	gamma-value [any-number!]
 ]
 
 grad-pen: command [
@@ -155,7 +155,7 @@ grad-pen: command [
 	'mode [word!] "The gradient rendering mode: NORMAL REPEAT REFLECT"
 	offset [pair!] "offset from where should the gradient be rendered"
 	range [pair!] "begin and end of the gradient range"
-	angle [number!] "rotation of the gradient in degrees"
+	angle [any-number!] "rotation of the gradient in degrees"
 	scale [pair!] "X and Y scale factor"
 	colors [block! none!] "block containing up to 256 gradient colors (optionally with color offsets)"
 ]
@@ -170,7 +170,7 @@ image-filter: command [
 	"Specifies type of algorithm used when an image is scaled."
 	'filter-type [word!] "supported filters: NEAREST, BILINEAR, BICUBIC, GAUSSIAN"
 	'filter-mode [word!] "Output quality: RESIZE(low, faster) or RESAMPLE(high, slower)"
-	blur [number! none!] "Used only in RESAMPLE mode"
+	blur [any-number! none!] "Used only in RESAMPLE mode"
 ]
 
 image-options: command [
@@ -210,7 +210,7 @@ line-pattern: command [
 
 line-width: command [
 	"Sets the line width."
-	width [number!] "Zero, or negative values, produce a line-width of 1."
+	width [any-number!] "Zero, or negative values, produce a line-width of 1."
 	'mode [word!] "Line width mode during scaling: FIXED or VARIABLE"
 ]
 
@@ -244,7 +244,7 @@ reset-matrix: command [
 
 rotate: command [
 	"Sets the clockwise rotation in current transformation matrix."
-	angle [number!] "in degrees"
+	angle [any-number!] "in degrees"
 ]
 
 scale: command [
@@ -279,7 +279,7 @@ text: command [
 
 transform: command [
 	"Applies transformation such as translation, scaling, and rotation."
-	angle [number!]
+	angle [any-number!]
 	center [pair!]
 	scale [pair!]
 	translation [pair!]
@@ -298,5 +298,5 @@ triangle: command [
 	color-1 [tuple! none!]
 	color-2 [tuple! none!]
 	color-3 [tuple! none!]
-	dilation [number!] "Useful for eliminating anitaliased edges"
+	dilation [any-number!] "Useful for eliminating anitaliased edges"
 ]
