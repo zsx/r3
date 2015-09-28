@@ -42,6 +42,7 @@
 **
 ***********************************************************************/
 
+#include <stdio.h>
 #include <string.h>
 #include <math.h>	//for floor()
 #include "reb-host.h"

@@ -38,6 +38,7 @@
 **
 ***********************************************************************/
 
+#include <math.h>
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-ext-graphics.h"
