@@ -262,8 +262,6 @@ enum {
 	while (index < SERIES_TAIL(block)) {
 		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) break;
-		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
-		/* if (IS_UNSET(D_OUT)) raise Error_0(RE_NO_RETURN); */
 		if (IS_CONDITIONAL_FALSE(D_OUT)) {
 			SET_TRASH_SAFE(D_OUT);
 			return R_NONE;
@@ -285,9 +283,6 @@ enum {
 	while (index < SERIES_TAIL(block)) {
 		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT;
-
-		// !!! UNSET! should be an error, CC#564 (Is there a better error?)
-		/* if (IS_UNSET(D_OUT)) raise Error_0(RE_NO_RETURN); */
 
 		if (!IS_CONDITIONAL_FALSE(D_OUT) && !IS_UNSET(D_OUT)) return R_OUT;
 	}
