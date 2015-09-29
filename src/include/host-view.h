@@ -36,6 +36,9 @@
 **
 ***********************************************************************/
 
+#ifndef REB_HOST_VIEW_H
+#define REB_HOST_VIEW_H
+
 extern REBXYF log_size;
 extern REBXYF phys_size;
 
@@ -61,3 +64,5 @@ typedef enum {
 	SM_WORK_X,
 	SM_WORK_Y
 } METRIC_TYPE;
+
+#endif //REB_HOST_VIEW_H
