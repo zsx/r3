@@ -73,7 +73,7 @@ REBSER* Gob_To_Image(REBGOB *gob);
 
 /***********************************************************************
 **
-*/	REBOOL As_UTF8_Str(REBSER *series, REBCHR **string)
+*/	REBOOL As_UTF8_Str(REBSER *series, char **string)
 /*
 ***********************************************************************/
 {
@@ -119,5 +119,5 @@ REBSER* Gob_To_Image(REBGOB *gob);
 **
 ***********************************************************************/
 {
-	return As_UTF8_Str(series, **string);
+	return As_UTF8_Str(series, string);
 }
