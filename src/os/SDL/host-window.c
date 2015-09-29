@@ -47,15 +47,13 @@
 #include <SDL.h>
 #include <GL/glew.h>
 
-#include "nanovg.h"
-
-
 // Externs
 extern REBGOBWINDOWS *Gob_Windows;
 extern void Free_Window(REBGOB *gob);
 extern void* Find_Compositor(REBGOB *gob);
 extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
+extern REBOOL As_UTF8_Str(REBSER *series, char **string);
 
 // Locals
 
