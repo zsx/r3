@@ -49,7 +49,7 @@
 #include <X11/Xatom.h>
 #endif
 
-//***** Externs *****
+//** Externs *****
 RXIEXT int RXD_Graphics(int cmd, RXIFRM *frm, REBCEC *data);
 RXIEXT int RXD_Draw(int cmd, RXIFRM *frm, REBCEC *ctx);
 RXIEXT int RXD_Shape(int cmd, RXIFRM *frm, REBCEC *ctx);
@@ -62,9 +62,9 @@ extern const unsigned char RX_text[];
 
 extern void Init_Host_Event();
 
-//**********************************************************************
+////////////////////////////////////////////////////////////////////////
 //** Helper Functions **************************************************
-//**********************************************************************
+///////////////////////////////////////////////////////////////////////
 
 
 /***********************************************************************

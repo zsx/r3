@@ -49,22 +49,21 @@
 
 #include "nanovg.h"
 
-//***** Constants *****
 
-//***** Externs *****
+// Externs
 extern REBGOBWINDOWS *Gob_Windows;
 extern void Free_Window(REBGOB *gob);
 extern void* Find_Compositor(REBGOB *gob);
 extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 
-//***** Locals *****
+// Locals
 
 static REBXYF Zero_Pair = {0, 0};
 
-//**********************************************************************
+//
 //** OSAL Library Functions ********************************************
-//**********************************************************************
+//
 
 /***********************************************************************
 **
