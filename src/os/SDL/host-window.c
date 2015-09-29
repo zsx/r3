@@ -38,6 +38,8 @@
 **
 ***********************************************************************/
 
+#include <stdio.h>
+#include <math.h>
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-compositor.h"
