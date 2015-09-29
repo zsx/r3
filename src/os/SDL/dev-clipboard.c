@@ -42,7 +42,6 @@
 #include <stdio.h>
 
 #include "reb-host.h"
-#include "host-lib.h"
 #include "sys-net.h"
 
 /***********************************************************************
@@ -90,7 +89,7 @@
 	//make sure "bytes mode" is set
 	CLR_FLAG(req->flags, RRF_WIDE);
 
-	req->data = data;
+	req->common.data = data;
 	req->actual = LEN_STR(data);
 
 	return DR_DONE;
