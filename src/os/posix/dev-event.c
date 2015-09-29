@@ -37,6 +37,8 @@
 **
 ***********************************************************************/
 
+#ifdef REB_CORE //view needs to have its own event implementation
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -137,3 +139,5 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
 };
 
 DEFINE_DEV(Dev_Event, "OS Events", 1, Dev_Cmds, RDC_MAX, 0);
+
+#endif
