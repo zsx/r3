@@ -65,4 +65,5 @@ typedef enum {
 	SM_WORK_Y
 } METRIC_TYPE;
 
+REBOOL Resize_Window(REBGOB *gob, REBOOL redraw);
 #endif //REB_HOST_VIEW_H
