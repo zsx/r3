@@ -61,6 +61,7 @@ extern const unsigned char RX_shape[];
 extern const unsigned char RX_text[];
 
 extern void Init_Host_Event();
+extern void Host_Crash(const char *reason);
 
 ////////////////////////////////////////////////////////////////////////
 //** Helper Functions **************************************************
