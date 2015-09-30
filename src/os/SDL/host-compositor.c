@@ -445,7 +445,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 		SDL_GL_MakeCurrent(ctx->win, ctx->sdl_ctx);
 		rebdrw_begin_frame(ctx->draw_ctx);
 		//draw(vg);
-		printf("abs oft: (%f, %f)\n", ctx->absOffset.x, ctx->absOffset.y);
+		//printf("abs oft: (%f, %f)\n", ctx->absOffset.x, ctx->absOffset.y);
 		process_gobs(ctx, winGob);
 
 		//redraw gobs

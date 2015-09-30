@@ -76,7 +76,7 @@ static REBXYF Zero_Pair = {0, 0};
 	GLenum glew_err;
 
 	if (SDL_Init(SDL_INIT_VIDEO) != 0){
-		printf("SDL_Init Error: %d\n", SDL_GetError());
+		printf("SDL_Init Error: %s\n", SDL_GetError());
 		return;
 	}
 
@@ -221,6 +221,7 @@ static REBXYF Zero_Pair = {0, 0};
 	SET_GOB_FLAG(gob, GOBF_WINDOW);
 	SET_GOB_FLAG(gob, GOBF_ACTIVE);
 	SET_GOB_STATE(gob, GOBS_OPEN);
+	return win;
 }
 
 /***********************************************************************

@@ -476,7 +476,7 @@ void dispatch (SDL_Event *evt)
 			if (win) {
 				gob = SDL_GetWindowData(win, "GOB");
 			} else {
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Invalid win: %d", win);
+				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Invalid win: %p", win);
 			}
 			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Multigesture event, gob: %p, loc: %fx%f, numfingers: %d, dist: %f",
 						 gob,
