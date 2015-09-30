@@ -40,6 +40,7 @@
 ***********************************************************************/
 
 #include <stdio.h>
+#include <string.h>
 
 #include "reb-host.h"
 #include "sys-net.h"
@@ -90,7 +91,7 @@
 	CLR_FLAG(req->flags, RRF_WIDE);
 
 	req->common.data = data;
-	req->actual = LEN_STR(data);
+	req->actual = strlen(data);
 
 	return DR_DONE;
 }
