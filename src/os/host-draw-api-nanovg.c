@@ -388,7 +388,7 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 	REBCNT type;
 	REBCNT n, len = 0;
 
-	for (n = 0; type = RL_GET_VALUE(points, n, &a); n++) {
+	for (n = 0; (type = RL_GET_VALUE(points, n, &a)); n++) {
 		if (type == RXT_PAIR){
 			REBXYF tmp = RXI_LOG_PAIR(a);
 			p[len] = tmp;
