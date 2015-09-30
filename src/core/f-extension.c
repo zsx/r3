@@ -636,21 +636,21 @@ bad_func_def:
 			if (IS_END(val)) raise Error_No_Arg(cmd_word, args);
 			//Debug_Type(val);
 
-			// actual arg is a word, lookup?
-			if (VAL_TYPE(val) >= REB_WORD) {
-				if (IS_WORD(val)) {
+			// See Do_Core in c-do.c for reference
+			if (VAL_GET_EXT(args, EXT_TYPESET_EVALUATE)) {
+				if ((IS_WORD(val) && !VAL_GET_EXT(args, EXT_TYPESET_QUOTE))
+					|| IS_GET_WORD(val)) {
 					// !!! The "mutable" is probably not necessary here
 					// However, this code is not written for val to be const
-					if (IS_WORD(args)) val = GET_MUTABLE_VAR(val);
+					val = GET_MUTABLE_VAR(val);
 				}
-				else if (IS_PATH(val)) {
+				if ((IS_PATH(val) && !VAL_GET_EXT(args, EXT_TYPESET_QUOTE))
+					|| IS_GET_PATH(val)) {
 					const REBVAL *path = val;
-					if (IS_WORD(args)) {
-						if (Do_Path(&save, &path, 0)) {
-							// !!! comment said "found a function"
-						} else {
-							val = &save;
-						}
+					if (Do_Path(&save, &path, 0)) {
+						// !!! comment said "found a function"
+					} else {
+						val = &save;
 					}
 				}
 				else if (IS_PAREN(val)) {
