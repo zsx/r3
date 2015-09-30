@@ -304,9 +304,11 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 	SDL_Rect rect;
 	SDL_DisplayMode mode;
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "number of screens: %d\n", SDL_GetNumVideoDisplays());
+	float dpi;
 
 	switch (type) {
 		case SM_SCREEN_WIDTH:
+		case SM_WORK_WIDTH:
 			//SDL_GetDisplayBounds(0, &rect);
 			if (SDL_GetDisplayBounds(0, &rect)) {
 				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "SDL_GetDisplayBounds failed: %s", SDL_GetError());
@@ -316,10 +318,20 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 			//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "screen dimension: %dx%d, format: 0x%x\n", mode.w, mode.h, mode.format);
 			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "screen width: %d\n", rect.w);
 			return rect.w;
+
 		case SM_SCREEN_HEIGHT:
+		case SM_WORK_HEIGHT:
 			SDL_GetDisplayBounds(0, &rect);
 			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "screen height: %d\n", rect.h);
 			return rect.h;
+
+		case SM_SCREEN_DPI_X:
+			if (SDL_GetDisplayDPI(0, NULL, &dpi, NULL) < 0) return 0;
+			return dpi;
+
+		case SM_SCREEN_DPI_Y:
+			if (SDL_GetDisplayDPI(0, NULL, NULL, &dpi) < 0) return 0;
+			return dpi;
 	}
 	return 0;
 #endif
