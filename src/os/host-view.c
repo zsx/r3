@@ -254,7 +254,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 		// Remove any closed windows:
 		for (n = 0; n < MAX_WINDOWS; n++) {
-			if (g = Gob_Windows[n].gob) {
+			if ((g = Gob_Windows[n].gob)) {
 				if (!GOB_PARENT(g) && GET_GOB_FLAG(g, GOBF_WINDOW))
 					OS_Close_Window(g);
 			}

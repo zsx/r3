@@ -148,7 +148,7 @@ static u32* text_ext_words;
 //Reb_Print("RXI_WORDS_OF_OBJECT() OK\n");
             w = words;
 
-            while (type = RL_GET_FIELD(obj, w[0], &val))
+            while ((type = RL_GET_FIELD(obj, w[0], &val)))
             {
 //                RL_Print("word: %d %d %d\n", w[0],w[1], (REBYTE)w[1]);
                 switch(RL_FIND_WORD(text_ext_words,w[0]))
@@ -239,7 +239,7 @@ static u32* text_ext_words;
             words = RL_WORDS_OF_OBJECT(obj);
             w = words;
 
-            while (type = RL_GET_FIELD(obj, w[0], &val))
+            while ((type = RL_GET_FIELD(obj, w[0], &val)))
             {
 				if (type == RXT_PAIR) {
 					REBXYF tmp = RXI_LOG_PAIR(val);
@@ -270,7 +270,7 @@ static u32* text_ext_words;
                                 REBCNT styleType;
                                 REBCNT n;
                                 u32 styleWord;
-                                for (n = 0; styleType = RL_GET_VALUE(val.sri.series, n, &styleVal); n++) {
+                                for (n = 0; (styleType = RL_GET_VALUE(val.sri.series, n, &styleVal)); n++) {
                                     if (styleType == RXT_WORD) {
                                         styleWord = RL_FIND_WORD(text_ext_words,styleVal.i2.int32a);
                                         if (styleWord) rt_set_font_styles(font, styleWord);
@@ -327,7 +327,7 @@ static u32* text_ext_words;
                                 RXIARG shadowVal;
                                 REBCNT shadowType;
                                 REBCNT n;
-                                for (n = 0; shadowType = RL_GET_VALUE(val.sri.series, n, &shadowVal); n++) {
+                                for (n = 0; (shadowType = RL_GET_VALUE(val.sri.series, n, &shadowVal)); n++) {
                                     switch (shadowType)
                                     {
                                         case RXT_PAIR:
@@ -388,7 +388,7 @@ static u32* text_ext_words;
             words = RL_WORDS_OF_OBJECT(obj);
             w = words;
 
-            while (type = RL_GET_FIELD(obj, w[0], &val))
+            while ((type = RL_GET_FIELD(obj, w[0], &val)))
             {
 				if (type == RXT_PAIR) {
 					REBXYF tmp = RXI_LOG_PAIR(val);

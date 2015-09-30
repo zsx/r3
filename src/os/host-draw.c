@@ -109,7 +109,7 @@ static u32* shape_ext_words;
 			REBCNT n, m = 0;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val[m]); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
 //                    rebshp_curv(ctx->envr, rel, val[0].pair, val[1].pair);
 					REBXYF p1 = RXI_LOG_PAIR(val[0]);
@@ -130,7 +130,7 @@ static u32* shape_ext_words;
 			REBCNT n, m = 0;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val[m]); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
                 if (type == RXT_PAIR && ++m == 3) {
 //                    rebshp_curve(ctx->envr, rel, val[0].pair, val[1].pair, val[2].pair);
 					REBXYF p1 = RXI_LOG_PAIR(val[0]);
@@ -163,7 +163,7 @@ static u32* shape_ext_words;
 			REBCNT n;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
 				if (type == RXT_PAIR) {
 //                    rebshp_line(ctx->envr, rel, val.pair);
 					REBXYF p = RXI_LOG_PAIR(val);
@@ -200,7 +200,7 @@ static u32* shape_ext_words;
 			REBCNT n, m = 0;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val[m]); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
 //                    rebshp_qcurve(ctx->envr, rel, val[0].pair, val[1].pair);
 					REBXYF p1 = RXI_LOG_PAIR(val[0]);
@@ -389,7 +389,7 @@ static u32* shape_ext_words;
 			REBCNT n, m = 0;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val[m]); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 				if (type == RXT_PAIR) {
 				    switch (++m){
                         case 1:
@@ -439,7 +439,7 @@ static u32* shape_ext_words;
 
                 pattern[0] = len;
 
-                for (n = 0; type = RL_GET_VALUE(patterns, n, &val); n++) {
+                for (n = 0; (type = RL_GET_VALUE(patterns, n, &val)); n++) {
                     if (type == RXT_DECIMAL)
                         pattern[n+1] = LOG_COORD_X(val.dec64);
                     else if (type == RXT_INTEGER)
@@ -477,7 +477,7 @@ static u32* shape_ext_words;
 			REBCNT n;
 			REBSER blk = RXA_SERIES(frm, 1);
 
-			for (n = 0; type = RL_GET_VALUE(blk, n, &val); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
 				if (type == RXT_PAIR) {
 					REBXYF p = RXI_LOG_PAIR(val);
 					if (n > 0)
@@ -546,7 +546,7 @@ static u32* shape_ext_words;
                 REBCNT type;
                 REBCNT n;
 
-                for (n = 0; type = RL_GET_VALUE(points, n, &val); n++) {
+                for (n = 0; (type = RL_GET_VALUE(points, n, &val)); n++) {
                     if (type == RXT_PAIR) {
 						REBXYF p = RXI_LOG_PAIR(val);
                         if (n > 0)
