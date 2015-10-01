@@ -881,6 +881,8 @@ void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 void rebdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
 {
 	REBYTE* color = (REBYTE*)&GOB_CONTENT(gob);
+	if (ctx == NULL) return;
+
 	nvgSave(ctx->nvg);
 	nvgRect(ctx->nvg, clip_top.x, clip_top.y, clip_bottom.x - clip_top.x, clip_bottom.y - clip_top.y);
 	nvgFillColor(ctx->nvg, nvgRGBA(color[C_R], color[C_G], color[C_B], color[C_A]));
@@ -893,11 +895,15 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	struct rebol_series* img = (struct rebol_series*)GOB_CONTENT(gob);
 	int w = IMG_WIDE(img);
 	int h = IMG_HIGH(img);
-	NVGcontext *nvg = ctx->nvg;
+	NVGcontext *nvg = NULL;
+
 	REBINT paint_mode = (GOB_ALPHA(gob) == 255) ? NVG_COPY : NVG_SOURCE_OVER;
 	REBXYF image_size = {w, h};
 	REBXYF clip_oft = {clip_top.x, clip_top.y};
 	REBXYF clip_size = {clip_bottom.x - clip_top.x, clip_bottom.y - clip_bottom.y};
+
+	if (ctx == NULL) return;
+	nvg = ctx->nvg;
 
 	int image = nvgCreateImageRGBA(nvg, w, h, 0, GOB_BITMAP(gob));
 
@@ -929,6 +935,8 @@ void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_t
 	};
 	gr_context_t gr_ctx;
 
+	if (ctx == NULL) return;
+
 	ctx->offset_x = abs_oft.x;
 	ctx->offset_y = abs_oft.y;
 
@@ -959,10 +967,16 @@ void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_t
 	nvgRestore(ctx->nvg);
 }
 
-static void create_layers(REBDRW_CTX *ctx, REBINT w, REBINT h)
+static int create_layers(REBDRW_CTX *ctx, REBINT w, REBINT h)
 {
+	if (ctx == NULL) return -1;
 	ctx->win_layer = nvgCreateLayer(ctx->nvg, w, h, 0);
+	if (ctx->win_layer == NULL) return -1;
 	ctx->gob_layer = nvgCreateLayer(ctx->nvg, w, h, 0);
+	if (ctx->gob_layer == NULL) {
+		nvgDeleteLayer(ctx->nvg, ctx->win_layer);
+		return -1;
+	}
 	ctx->tmp_layer = NULL;
 
 	//printf("Created a NVG context at: %p, w: %d, h: %d\n", ctx->nvg, w, h);
@@ -994,16 +1008,27 @@ static void delete_layers(REBDRW_CTX *ctx)
 REBDRW_CTX* rebdrw_create_context(REBINT w, REBINT h)
 {
 	REBDRW_CTX *ctx = (REBDRW_CTX*)malloc(sizeof(REBDRW_CTX));
+	if (ctx == NULL) return NULL;
 	ctx->ww = w;
 	ctx->wh = h;
 	ctx->nvg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
-	create_layers(ctx, w, h);
+
+	if (ctx->nvg == NULL) {
+		free(ctx);
+		return NULL;
+	}
+	if (create_layers(ctx, w, h) < 0){
+		free(ctx);
+		nvgDeleteGL3(ctx->nvg);
+		return NULL;
+	}
 
 	return ctx;
 }
 
 void rebdrw_resize_context(REBDRW_CTX *ctx, REBINT w, REBINT h)
 {
+	if (ctx == NULL) return;
 	ctx->ww = w;
 	ctx->wh = h;
 	delete_layers(ctx);
@@ -1027,6 +1052,7 @@ void rebdrw_destroy_context(REBDRW_CTX *ctx)
 void rebdrw_begin_frame(REBDRW_CTX *ctx)
 {
 	//printf("begin frame: %d\n", __LINE__);
+	if (ctx == NULL) return;
 	nvgBeginFrame(ctx->nvg, ctx->ww, ctx->wh, ctx->pixel_ratio);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
@@ -1038,6 +1064,7 @@ void rebdrw_begin_frame(REBDRW_CTX *ctx)
 
 void rebdrw_end_frame(REBDRW_CTX *ctx)
 {
+	if (ctx == NULL) return;
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
 	//printf("End frame: %d\n", __LINE__);
 	nvgEndFrame(ctx->nvg);
@@ -1045,6 +1072,7 @@ void rebdrw_end_frame(REBDRW_CTX *ctx)
 
 void rebdrw_blit_frame(REBDRW_CTX *ctx)
 {
+	if (ctx == NULL) return;
 	nvgBeginFrame(ctx->nvg, ctx->ww, ctx->wh, ctx->pixel_ratio);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
