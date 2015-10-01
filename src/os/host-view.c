@@ -347,7 +347,6 @@ REBINT Alloc_Window(REBGOB *gob) {
             RXA_TYPE(frm, 1) = RXT_GOB;
             return RXR_VALUE;
         }
-#if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
         case CMD_GRAPHICS_SIZE_TEXT:
 		
             if (Rich_Text) {
@@ -374,7 +373,7 @@ REBINT Alloc_Window(REBGOB *gob) {
                 dialect = (REBSER *)GOB_CONTENT((REBGOB*)RXA_SERIES(frm, 1));
                 block = RL_MAKE_BLOCK(RL_SERIES(dialect, RXI_SER_TAIL));
                 for (n = 0; type = RL_GET_VALUE(dialect, n, &val); n++) {
-                    if (n == element) val.index = position;
+                    if (n == element) val.sri.index = position;
                     RL_SET_VALUE(block, n, val, type);
                 }
 
@@ -410,7 +409,6 @@ REBINT Alloc_Window(REBGOB *gob) {
                 return RXR_VALUE;
             }
             break;
-#endif
         case CMD_GRAPHICS_DRAW:
             {
                 REBYTE* img = 0;
