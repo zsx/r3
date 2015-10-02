@@ -291,7 +291,7 @@ translate: command [
 ]
 
 triangle: command [
-	"Draws triangular polygon with shading parameters (Gouraud shading). Set colors to NONE to turn of shading."
+	"Draws triangular polygon with shading parameters (Gouraud shading). Set colors to NONE to turn off shading."
 	vertex-1 [pair!]
 	vertex-2 [pair!]
 	vertex-3 [pair!]
