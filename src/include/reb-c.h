@@ -636,28 +636,15 @@ typedef u16 REBUNI;
 		| cast(REBCNT, (g)) << 8 \
 		| cast(REBCNT, (r)))
 
-	#ifdef TO_ANDROID_ARM // RGBA pixel format on Android
-		#define C_R 0
-		#define C_G 1
-		#define C_B 2
-		#define C_A 3
+	#define C_R 0
+	#define C_G 1
+	#define C_B 2
+	#define C_A 3
 
-		#define TO_PIXEL_COLOR(r,g,b,a) \
-			(cast(REBCNT, (a)) << 24 \
-			| cast(REBCNT, (b)) << 16 \
-			| cast(REBCNT, (g)) << 8 \
-			| cast(REBCNT, (r)))
+	#define TO_PIXEL_COLOR(r,g,b,a) \
+		(cast(REBCNT, (a)) << 24 \
+		| cast(REBCNT, (b)) << 16 \
+		| cast(REBCNT, (g)) << 8 \
+		| cast(REBCNT, (r)))
 
-	#else // BGRA pixel format on Windows
-		#define C_B 0
-		#define C_G 1
-		#define C_R 2
-		#define C_A 3
-
-		#define TO_PIXEL_COLOR(r,g,b,a) \
-			(cast(REBCNT, (a)) << 24 \
-			| cast(REBCNT, (r)) << 16 \
-			| cast(REBCNT, (g)) << 8 \
-			| cast(REBCNT, (b)))
-	#endif
 #endif
