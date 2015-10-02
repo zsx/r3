@@ -147,7 +147,7 @@ void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT c
 	NVGcontext *nvg = ctx->draw_ctx->nvg;
 	BEGIN_NVG_PATH(ctx);
 	if (r.x == r.y) {
-		if (ctx->fill || (ctx->stroke && closed)) {
+		if (closed) {
 			float x0, y0;
 			x0 = c.x + r.x * cos(nvgDegToRad(ang1));
 			y0 = c.y + r.y * sin(nvgDegToRad(ang1));
@@ -156,14 +156,9 @@ void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT c
 			nvgLineTo(nvg, x0, y0);
 			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
 			nvgClosePath(nvg);
-			if (ctx->fill) nvgFill(nvg);
-			if (ctx->stroke && closed) nvgStroke(nvg);
-		}
-		if (ctx->stroke && !closed) {
+		} else {
 			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
-			nvgStroke(nvg);
 		}
-		return;
 	} else {
 		/* FIXME */
 		printf("FIXME: %d\n", __LINE__);
