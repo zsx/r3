@@ -143,18 +143,27 @@ void rebdrw_anti_alias(void* gr, REBINT mode)
 
 void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
 {
-	//((agg_graphics*)gr)->agg_arc(c.x, c.y, r.x, r.y, ang1, ang2, closed);
 	gr_context_t* ctx = (gr_context_t *)gr;
+	NVGcontext *nvg = ctx->draw_ctx->nvg;
 	BEGIN_NVG_PATH(ctx);
 	if (r.x == r.y) {
-		if (closed) {
-			/* FIXME */
-			printf("FIXME: %d\n", __LINE__);
-			//nvgMoveTo(ctx->nvg, c.x + r.x * cos(nvgDegToRad(ang1)), c.y + r.x * sin(nvgDegToRad(ang1)));
-			//nvgArcTo();
-		} else {
-			nvgArc(ctx->draw_ctx->nvg, c.x, c.y, r.x, ang1, ang1 + ang2, NVG_CW);
+		if (ctx->fill || (ctx->stroke && closed)) {
+			float x0, y0;
+			x0 = c.x + r.x * cos(nvgDegToRad(ang1));
+			y0 = c.y + r.y * sin(nvgDegToRad(ang1));
+
+			nvgMoveTo(nvg, c.x, c.y);
+			nvgLineTo(nvg, x0, y0);
+			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
+			nvgClosePath(nvg);
+			if (ctx->fill) nvgFill(nvg);
+			if (ctx->stroke && closed) nvgStroke(nvg);
 		}
+		if (ctx->stroke && !closed) {
+			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
+			nvgStroke(nvg);
+		}
+		return;
 	} else {
 		/* FIXME */
 		printf("FIXME: %d\n", __LINE__);
@@ -206,12 +215,20 @@ void rebdrw_clip(void* gr, REBXYF p1, REBXYF p2)
 
 void rebdrw_curve3(void* gr, REBXYF p1, REBXYF p2, REBXYF p3)
 {
-	//((agg_graphics*)gr)->agg_curve3(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+	gr_context_t* ctx = (gr_context_t *)gr;
+	BEGIN_NVG_PATH(ctx);
+	nvgMoveTo(ctx->draw_ctx->nvg, p1.x, p1.y);
+	nvgQuadTo(ctx->draw_ctx->nvg, p2.x, p2.y, p3.x, p3.y);
+	END_NVG_PATH(ctx);
 }
 
 void rebdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 {
-	//((agg_graphics*)gr)->agg_curve4(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
+	gr_context_t* ctx = (gr_context_t *)gr;
+	BEGIN_NVG_PATH(ctx);
+	nvgMoveTo(ctx->draw_ctx->nvg, p1.x, p1.y);
+	nvgBezierTo(ctx->draw_ctx->nvg, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
+	END_NVG_PATH(ctx);
 }
 
 REBINT rebdrw_effect(void* gr, REBXYF* p1, REBXYF* p2, REBSER* block)
