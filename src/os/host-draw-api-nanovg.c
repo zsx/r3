@@ -78,6 +78,7 @@ struct REBDRW_CTX {
 
 	/* fill or stroke */
 	int 		fill_image;
+	int 		stroke_image;
 	unsigned int fill: 1;
 	unsigned int stroke: 1;
 };
@@ -204,7 +205,9 @@ void rebdrw_circle(void* gr, REBXYF p, REBXYF r)
 
 void rebdrw_clip(void* gr, REBXYF p1, REBXYF p2)
 {
-	//((agg_graphics*)gr)->agg_set_clip(p1.x, p1.y, p2.x, p2.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgScissor(ctx->nvg, ctx->clip_x, ctx->clip_y, ctx->clip_w, ctx->clip_h);
+	nvgIntersectScissor(ctx->nvg, p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
 }
 
 void rebdrw_curve3(void* gr, REBXYF p1, REBXYF p2, REBXYF p3)
@@ -269,7 +272,16 @@ void rebdrw_fill_pen(void* gr, REBCNT col)
 void rebdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	int image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	NVGpaint paint;
+
+	if (ctx->fill_image != 0) {
+		nvgFlush(ctx->nvg);
+		nvgDeleteImage(ctx->nvg, ctx->fill_image);
+	}
+
+	ctx->fill_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->fill_image, 1);
+	nvgFillPaint(ctx->nvg, paint);
 }
 
 void rebdrw_fill_rule(void* gr, REBINT mode)
@@ -558,14 +570,29 @@ void rebdrw_pen(void* gr, REBCNT col)
 
 void rebdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	NVGpaint paint;
+
+	if (ctx->stroke_image != 0) {
+		nvgFlush(ctx->nvg);
+		nvgDeleteImage(ctx->nvg, ctx->stroke_image);
+	}
+
+	ctx->stroke_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->stroke_image, 1);
+	nvgStrokePaint(ctx->nvg, paint);
 }
 
 void rebdrw_pop_matrix(void* gr)
 {
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgRestore(ctx->nvg);
 }
 
 void rebdrw_push_matrix(void* gr)
 {
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgSave(ctx->nvg);
 }
 
 void rebdrw_reset_gradient_pen(void* gr)
@@ -1037,6 +1064,7 @@ REBDRW_CTX* rebdrw_create_context(REBINT w, REBINT h)
 	ctx->wh = h;
 	ctx->nvg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
 	ctx->fill_image = 0;
+	ctx->stroke_image = 0;
 	ctx->fill = FALSE;
 	ctx->stroke = TRUE;
 	ctx->last_x = 0;
@@ -1069,6 +1097,13 @@ void rebdrw_destroy_context(REBDRW_CTX *ctx)
 	if (ctx == NULL) return;
 
 	delete_layers(ctx);
+
+	if (ctx->fill_image != 0) {
+		nvgDeleteImage(ctx->nvg, ctx->fill_image);
+	}
+	if (ctx->stroke_image != 0) {
+		nvgDeleteImage(ctx->nvg, ctx->stroke_image);
+	}
 
 	nvgDeleteGL3(ctx->nvg);
 	ctx->nvg = NULL;
