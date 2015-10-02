@@ -71,24 +71,23 @@ struct REBDRW_CTX {
 	/* gob offset, in window coordinates*/
 	float		offset_x;
 	float		offset_y;
-};
 
+	/* for shapes */
+	float 		last_x;
+	float 		last_y;
 
-REBUPT RL_Series(REBSER *ser, REBCNT what);
-typedef struct {
-	REBDRW_CTX *draw_ctx;
-	REBINT w;
-	REBINT h;
-	float last_x;
-	float last_y;
+	/* fill or stroke */
+	int 		fill_image;
 	unsigned int fill: 1;
 	unsigned int stroke: 1;
-} gr_context_t;
+};
+
+REBUPT RL_Series(REBSER *ser, REBCNT what);
 
 void rebdrw_add_vertex (void* gr, REBXYF p)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgLineTo(ctx->draw_ctx->nvg, p.x, p.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgLineTo(ctx->nvg, p.x, p.y);
 
 	//printf("new polygen vertex at (%f, %f)\n", p.x, p.y);
 
@@ -97,7 +96,7 @@ void rebdrw_add_vertex (void* gr, REBXYF p)
 
 void rebdrw_anti_alias(void* gr, REBINT mode)
 {
-	//((agg_graphics*)gr)->agg_anti_alias(mode!=0);
+	//always on
 }
 
 #define BEGIN_NVG_PATH(ctx) 					\
@@ -106,18 +105,18 @@ void rebdrw_anti_alias(void* gr, REBINT mode)
 			printf("early return from line %d because of no fill or stroke\n", __LINE__); \
 			return; 						\
 		} 									\
-		nvgBeginPath((ctx)->draw_ctx->nvg); 			\
+		nvgBeginPath((ctx)->nvg); 			\
 	} while (0)
 
 #define END_NVG_PATH(ctx) 				\
 	do { 							\
 		if ((ctx)->fill) {			\
 			/* printf("Filling a path, %d\n", __LINE__); */ \
-			nvgFill((ctx)->draw_ctx->nvg); 		\
+			nvgFill((ctx)->nvg); 		\
 		} 							\
 		if ((ctx)->stroke) { 			\
 			/* printf("stroking a path, %d\n", __LINE__); */ \
-			nvgStroke((ctx)->draw_ctx->nvg);	\
+			nvgStroke((ctx)->nvg);	\
 		} 							\
 	} while (0)
 
@@ -143,8 +142,8 @@ void rebdrw_anti_alias(void* gr, REBINT mode)
 
 void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	NVGcontext *nvg = ctx->draw_ctx->nvg;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	NVGcontext *nvg = ctx->nvg;
 	BEGIN_NVG_PATH(ctx);
 	if (r.x == r.y) {
 		if (closed) {
@@ -173,32 +172,32 @@ void rebdrw_arrow(void* gr, REBXYF mode, REBCNT col)
 
 void rebdrw_begin_poly (void* gr, REBXYF p)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
-	nvgMoveTo(ctx->draw_ctx->nvg, p.x, p.y);
+	nvgMoveTo(ctx->nvg, p.x, p.y);
 	//printf("new polygen at: (%f, %f)\n", p.x, p.y);
 }
 
 void rebdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
 	if (r) {
-		nvgRoundedRect(ctx->draw_ctx->nvg, p1.x, p1.y, p2.x - p1.x, p2.y - p1.y, r);
+		nvgRoundedRect(ctx->nvg, p1.x, p1.y, p2.x - p1.x, p2.y - p1.y, r);
 	} else {
-		nvgRect(ctx->draw_ctx->nvg, p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+		nvgRect(ctx->nvg, p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
 	}
 	END_NVG_PATH(ctx);
 }
 
 void rebdrw_circle(void* gr, REBXYF p, REBXYF r)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
 	if (r.x != r.y) {
-		nvgEllipse(ctx->draw_ctx->nvg, p.x, p.y, r.x, r.y);
+		nvgEllipse(ctx->nvg, p.x, p.y, r.x, r.y);
 	} else {
-		nvgCircle(ctx->draw_ctx->nvg, p.x, p.y, r.x);
+		nvgCircle(ctx->nvg, p.x, p.y, r.x);
 	}
 	END_NVG_PATH(ctx);
 }
@@ -210,19 +209,19 @@ void rebdrw_clip(void* gr, REBXYF p1, REBXYF p2)
 
 void rebdrw_curve3(void* gr, REBXYF p1, REBXYF p2, REBXYF p3)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
-	nvgMoveTo(ctx->draw_ctx->nvg, p1.x, p1.y);
-	nvgQuadTo(ctx->draw_ctx->nvg, p2.x, p2.y, p3.x, p3.y);
+	nvgMoveTo(ctx->nvg, p1.x, p1.y);
+	nvgQuadTo(ctx->nvg, p2.x, p2.y, p3.x, p3.y);
 	END_NVG_PATH(ctx);
 }
 
 void rebdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
-	nvgMoveTo(ctx->draw_ctx->nvg, p1.x, p1.y);
-	nvgBezierTo(ctx->draw_ctx->nvg, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
+	nvgMoveTo(ctx->nvg, p1.x, p1.y);
+	nvgBezierTo(ctx->nvg, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
 	END_NVG_PATH(ctx);
 }
 
@@ -233,24 +232,24 @@ REBINT rebdrw_effect(void* gr, REBXYF* p1, REBXYF* p2, REBSER* block)
 
 void rebdrw_ellipse(void* gr, REBXYF p1, REBXYF p2)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
-	nvgEllipse(ctx->draw_ctx->nvg, (p1.x + p2.x)/2, (p1.y + p2.y)/2, (p2.x - p1.x)/2, (p2.y - p1.y)/2);
+	nvgEllipse(ctx->nvg, (p1.x + p2.x)/2, (p1.y + p2.y)/2, (p2.x - p1.x)/2, (p2.y - p1.y)/2);
 	END_NVG_PATH(ctx);
 }
 
 void rebdrw_end_poly (void* gr)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgClosePath(ctx->draw_ctx->nvg);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgClosePath(ctx->nvg);
 	END_NVG_PATH(ctx);
 	//printf("polygen done\n");
 }
 
 void rebdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgClosePath(ctx->draw_ctx->nvg);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgClosePath(ctx->nvg);
 	BEGIN_NVG_PATH(ctx);
 	printf("spline done, FIXME\n");
 	//((agg_graphics*)gr)->agg_end_bspline(step, closed);
@@ -258,9 +257,9 @@ void rebdrw_end_spline (void* gr, REBINT step, REBINT closed)
 
 void rebdrw_fill_pen(void* gr, REBCNT col)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	if (col) {
-		nvgFillColor(ctx->draw_ctx->nvg, REBCNT_NVG_COLOR(col));
+		nvgFillColor(ctx->nvg, REBCNT_NVG_COLOR(col));
 		ctx->fill = TRUE;
 	} else {
 		ctx->fill = FALSE;
@@ -269,9 +268,8 @@ void rebdrw_fill_pen(void* gr, REBCNT col)
 
 void rebdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
-#ifndef AGG_OPENGL	
-	//((agg_graphics*)gr)->agg_fill_pen(0, 0, 0, 255, img, w, h);
-#endif
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	int image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
 }
 
 void rebdrw_fill_rule(void* gr, REBINT mode)
@@ -326,12 +324,12 @@ void rebdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REB
 
 void rebdrw_invert_matrix(void* gr)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	float xform[6], inv[6];
 
-	nvgCurrentTransform(ctx->draw_ctx->nvg, xform);
+	nvgCurrentTransform(ctx->nvg, xform);
 	nvgTransformInverse(inv, xform);
-	nvgTransform(ctx->draw_ctx->nvg, inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
+	nvgTransform(ctx->nvg, inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
 }
 
 static void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
@@ -353,19 +351,18 @@ static void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 
 void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	REBDRW_CTX* draw_ctx = ctx->draw_ctx;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	REBXYF image_size = {w, h};
 
-	int image = nvgCreateImageRGBA(draw_ctx->nvg, w, h, 0, img);
-	nvgSave(draw_ctx->nvg);
+	int image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	nvgSave(ctx->nvg);
 
-	paint_image(draw_ctx, image, NVG_COPY, 1.0f, offset, image_size, offset, image_size);
+	paint_image(ctx, image, NVG_COPY, 1.0f, offset, image_size, offset, image_size);
 
-	nvgFlush(draw_ctx->nvg);
+	nvgFlush(ctx->nvg);
 
-	nvgDeleteImage(draw_ctx->nvg, image);
-	nvgRestore(draw_ctx->nvg);
+	nvgDeleteImage(ctx->nvg, image);
+	nvgRestore(ctx->nvg);
 }
 
 void rebdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
@@ -395,8 +392,7 @@ void rebdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size)
 
 void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	REBDRW_CTX* draw_ctx = ctx->draw_ctx;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	int image = -1;
 	NVGpaint paint;
 
@@ -415,93 +411,51 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 
 	if (!len) return;
 
-	image = nvgCreateImageRGBA(draw_ctx->nvg, w, h, 0, img);
-	nvgSave(draw_ctx->nvg);
+	image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	nvgSave(ctx->nvg);
 
-	paint = nvgImagePattern(draw_ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
-	nvgBlendMode(draw_ctx->nvg, NVG_SOURCE_OVER);
+	paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
+	nvgBlendMode(ctx->nvg, NVG_SOURCE_OVER);
 
-	nvgBeginPath(draw_ctx->nvg);
+	nvgBeginPath(ctx->nvg);
 
-	nvgFillPaint(draw_ctx->nvg, paint);
-	nvgMoveTo(draw_ctx->nvg, p[0].x, p[0].y);
-
-	switch (len) {
-		case 2:
-			nvgLineTo(draw_ctx->nvg, p[1].x, p[0].y);
-			nvgLineTo(draw_ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(draw_ctx->nvg, p[0].x, p[1].y);
-			break;
-		case 3:
-			nvgLineTo(draw_ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(draw_ctx->nvg, p[2].x, p[2].y);
-			nvgLineTo(draw_ctx->nvg, p[0].x, p[2].y);
-			break;
-		case 4:
-			nvgLineTo(draw_ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(draw_ctx->nvg, p[2].x, p[2].y);
-			nvgLineTo(draw_ctx->nvg, p[3].x, p[3].y);
-			break;
-	}
-
-	nvgClosePath(draw_ctx->nvg);
-
-	nvgFill(draw_ctx->nvg);
-	nvgFlush(draw_ctx->nvg);
-
-	nvgDeleteImage(draw_ctx->nvg, image);
-	nvgRestore(draw_ctx->nvg);
-#if 0
-	RXIARG a;
-	REBXYF p[4];
-	REBCNT type;
-	REBCNT n, len = 0;
-
-	for (n = 0; type = RL_GET_VALUE(points, n, &a); n++) {
-		if (type == RXT_PAIR){
-			REBXYF tmp = RXI_LOG_PAIR(a);
-			p[len] = tmp;
-			if (++len == 4) break;
-		}
-	}
-
-	if (!len) return;
-	if (len == 1 && log_size.x == 1 && log_size.y == 1) {
-		((agg_graphics*)gr)->agg_image(img, p[0].x, p[0].y, w, h);
-		return;
-	}
-
-	((agg_graphics*)gr)->agg_begin_poly(p[0].x, p[0].y);
+	nvgFillPaint(ctx->nvg, paint);
+	nvgMoveTo(ctx->nvg, p[0].x, p[0].y);
 
 	switch (len) {
 		case 2:
-			((agg_graphics*)gr)->agg_add_vertex(p[1].x, p[0].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[1].x, p[1].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[0].x, p[1].y);
+			nvgLineTo(ctx->nvg, p[1].x, p[0].y);
+			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
+			nvgLineTo(ctx->nvg, p[0].x, p[1].y);
 			break;
 		case 3:
-			((agg_graphics*)gr)->agg_add_vertex(p[1].x, p[1].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[2].x, p[2].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[0].x, p[2].y);
+			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
+			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
+			nvgLineTo(ctx->nvg, p[0].x, p[2].y);
 			break;
 		case 4:
-			((agg_graphics*)gr)->agg_add_vertex(p[1].x, p[1].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[2].x, p[2].y);
-			((agg_graphics*)gr)->agg_add_vertex(p[3].x, p[3].y);
+			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
+			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
+			nvgLineTo(ctx->nvg, p[3].x, p[3].y);
 			break;
 	}
 
-	((agg_graphics*)gr)->agg_end_poly_img(img, w, h);
-#endif
+	nvgClosePath(ctx->nvg);
+
+	nvgFill(ctx->nvg);
+	nvgFlush(ctx->nvg);
+
+	nvgDeleteImage(ctx->nvg, image);
+	nvgRestore(ctx->nvg);
 }
 
 void rebdrw_line(void* gr, REBXYF p1, REBXYF p2)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	BEGIN_NVG_PATH(ctx);
-	nvgMoveTo(ctx->draw_ctx->nvg, p1.x, p1.y);
-	nvgLineTo(ctx->draw_ctx->nvg, p2.x, p2.y);
+	nvgMoveTo(ctx->nvg, p1.x, p1.y);
+	nvgLineTo(ctx->nvg, p2.x, p2.y);
 	END_NVG_PATH(ctx);
 }
 
@@ -512,16 +466,16 @@ void rebdrw_line_cap(void* gr, REBINT mode)
 	   square_cap,
 	   round_cap
 	   */
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	switch (mode) {
 		case 0:
-			nvgLineCap(ctx->draw_ctx->nvg, NVG_BUTT);
+			nvgLineCap(ctx->nvg, NVG_BUTT);
 			break;
 		case 1:
-			nvgLineCap(ctx->draw_ctx->nvg, NVG_SQUARE);
+			nvgLineCap(ctx->nvg, NVG_SQUARE);
 			break;
 		case 2:
-			nvgLineCap(ctx->draw_ctx->nvg, NVG_ROUND);
+			nvgLineCap(ctx->nvg, NVG_ROUND);
 			break;
 	}
 }
@@ -536,21 +490,21 @@ void rebdrw_line_join(void* gr, REBINT mode)
 	   miter_join_round   = 4,
 	   */
 
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	switch (mode) {
 		case 0:
 		case 1:
 		case 4:
-			nvgLineJoin(ctx->draw_ctx->nvg, NVG_MITER);
+			nvgLineJoin(ctx->nvg, NVG_MITER);
 			break;
 		case 2:
-			nvgLineJoin(ctx->draw_ctx->nvg, NVG_ROUND);
+			nvgLineJoin(ctx->nvg, NVG_ROUND);
 			break;
 		case 3:
-			nvgLineJoin(ctx->draw_ctx->nvg, NVG_BEVEL);
+			nvgLineJoin(ctx->nvg, NVG_BEVEL);
 			break;
 		default:
-			nvgLineJoin(ctx->draw_ctx->nvg, NVG_MITER);
+			nvgLineJoin(ctx->nvg, NVG_MITER);
 			break;
 	}
 }
@@ -562,8 +516,8 @@ void rebdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 
 void rebdrw_line_width(void* gr, REBDEC width, REBINT mode)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgStrokeWidth(ctx->draw_ctx->nvg, width); //FIXME, mode?
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgStrokeWidth(ctx->nvg, width); //FIXME, mode?
 }
 
 void rebdrw_matrix(void* gr, REBSER* mtx)
@@ -571,7 +525,7 @@ void rebdrw_matrix(void* gr, REBSER* mtx)
 	RXIARG val;
 	REBCNT type;
 	REBCNT n;
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	float matrix[6];
 
@@ -587,18 +541,18 @@ void rebdrw_matrix(void* gr, REBSER* mtx)
 
 	if (n != 6) return;
 
-	nvgTransform(ctx->draw_ctx->nvg, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+	nvgTransform(ctx->nvg, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
 }
 
 void rebdrw_pen(void* gr, REBCNT col)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	if (col){
 		ctx->stroke = TRUE;
-		nvgStrokeColor(ctx->draw_ctx->nvg, REBCNT_NVG_COLOR(col));
+		nvgStrokeColor(ctx->nvg, REBCNT_NVG_COLOR(col));
 	} else {
 		ctx->stroke = FALSE;
-		nvgStrokeColor(ctx->draw_ctx->nvg, nvgRGBA(255, 255, 255, 0));
+		nvgStrokeColor(ctx->nvg, nvgRGBA(255, 255, 255, 0));
 	}
 }
 
@@ -620,27 +574,26 @@ void rebdrw_reset_gradient_pen(void* gr)
 
 void rebdrw_reset_matrix(void* gr)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	REBDRW_CTX *draw_ctx = ctx->draw_ctx;
-	nvgResetTransform(draw_ctx->nvg);
-	nvgTranslate(draw_ctx->nvg, draw_ctx->offset_x, draw_ctx->offset_y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgResetTransform(ctx->nvg);
+	nvgTranslate(ctx->nvg, ctx->offset_x, ctx->offset_y);
 }
 
 void rebdrw_rotate(void* gr, REBDEC ang)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgRotate(ctx->draw_ctx->nvg, nvgDegToRad(ang));
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgRotate(ctx->nvg, nvgDegToRad(ang));
 }
 
 void rebdrw_scale(void* gr, REBXYF sc)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgScale(ctx->draw_ctx->nvg, sc.x, sc.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgScale(ctx->nvg, sc.x, sc.y);
 }
 
 void rebdrw_skew(void* gr, REBXYF angle)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	//nvgScale(ctx->nvg, sc.x, sc.y);
 }
 void rebdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
@@ -654,8 +607,8 @@ void rebdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
 
 void rebdrw_translate(void* gr, REBXYF p)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgTranslate(ctx->draw_ctx->nvg, p.x, p.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgTranslate(ctx->nvg, p.x, p.y);
 }
 
 static inline double square(double x)
@@ -678,16 +631,15 @@ static void nearest_point(REBXYF *p1, REBXYF *p2, REBXYF *p3, REBXYF *p)
 
 void rebdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCNT c2, REBCNT c3, REBDEC dilation)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	REBDRW_CTX* draw_ctx = ctx->draw_ctx;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	NVGcolor cr1, cr2, cr3;
 
 	if (c1 == 0) {// Gouraud shading is off
 		BEGIN_NVG_PATH(ctx);
-		nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
-		nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
-		nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
-		nvgClosePath(draw_ctx->nvg);
+		nvgMoveTo(ctx->nvg, p1.x, p1.y);
+		nvgLineTo(ctx->nvg, p2.x, p2.y);
+		nvgLineTo(ctx->nvg, p3.x, p3.y);
+		nvgClosePath(ctx->nvg);
 		END_NVG_PATH(ctx);
 	} else {
 		cr1 = REBCNT_NVG_COLOR(c1);
@@ -695,126 +647,131 @@ void rebdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCN
 		cr3 = REBCNT_NVG_COLOR(c3);
 
 		if (c1 == c2 == c3) { /* all vertices have the same color */
-			nvgSave(draw_ctx->nvg);
+			nvgSave(ctx->nvg);
 
-			nvgFillColor(draw_ctx->nvg, cr1);
+			nvgFillColor(ctx->nvg, cr1);
 
 			BEGIN_NVG_PATH(ctx);
-			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
-			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
-			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
-			nvgClosePath(draw_ctx->nvg);
+			nvgMoveTo(ctx->nvg, p1.x, p1.y);
+			nvgLineTo(ctx->nvg, p2.x, p2.y);
+			nvgLineTo(ctx->nvg, p3.x, p3.y);
+			nvgClosePath(ctx->nvg);
 			END_NVG_PATH(ctx);
 
-			nvgRestore(draw_ctx->nvg);
+			nvgRestore(ctx->nvg);
 		} else if (c1 == c2 || c2 == c3 || c1 == c3) { /* two of them have the same color */
 			NVGpaint paint;
 			REBXYF p;
 			if (c1 == c2) {
 				nearest_point(&p1, &p2, &p3, &p);
-				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p3.x, p3.y, cr1, cr3);
+				paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p3.x, p3.y, cr1, cr3);
 			} else if (c2 == c3) {
 				nearest_point(&p2, &p3, &p1, &p);
-				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p1.x, p1.y, cr2, cr1);
+				paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p1.x, p1.y, cr2, cr1);
 			} else { /* c1 == c3 */
 				nearest_point(&p1, &p3, &p2, &p);
-				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p2.x, p2.y, cr1, cr2);
+				paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p2.x, p2.y, cr1, cr2);
 			}
 
-			nvgSave(draw_ctx->nvg);
+			nvgSave(ctx->nvg);
 
-			nvgFillPaint(draw_ctx->nvg, paint);
+			nvgFillPaint(ctx->nvg, paint);
 
 			BEGIN_NVG_PATH(ctx);
-			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
-			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
-			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
-			nvgClosePath(draw_ctx->nvg);
+			nvgMoveTo(ctx->nvg, p1.x, p1.y);
+			nvgLineTo(ctx->nvg, p2.x, p2.y);
+			nvgLineTo(ctx->nvg, p3.x, p3.y);
+			nvgClosePath(ctx->nvg);
 			END_NVG_PATH(ctx);
 
-			nvgRestore(draw_ctx->nvg);
+			nvgRestore(ctx->nvg);
 		} else { /* every vertex has a different color */
 			NVGpaint paint;
 			REBXYF p;
-			if (draw_ctx->tmp_layer == NULL) {
-				draw_ctx->tmp_layer = nvgCreateLayer(draw_ctx->nvg, draw_ctx->ww, draw_ctx->wh, 0);
+			if (ctx->tmp_layer == NULL) {
+				ctx->tmp_layer = nvgCreateLayer(ctx->nvg, ctx->ww, ctx->wh, 0);
 			}
 
 			// blend mode could be changed
-			nvgSave(draw_ctx->nvg);
+			nvgSave(ctx->nvg);
 
 			//printf("begin a temporary win_layer: %d\n", __LINE__);
-			nvgBeginLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
-			nvgBlendMode(draw_ctx->nvg, NVG_LIGHTER);
+			nvgBeginLayer(ctx->nvg, ctx->tmp_layer);
+			nvgBlendMode(ctx->nvg, NVG_LIGHTER);
 
 			glClearColor(0, 0, 0, 0);
 			glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
 
-			nvgBeginPath(draw_ctx->nvg);
-			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
-			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
-			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
-			nvgClosePath(draw_ctx->nvg);
+			nvgBeginPath(ctx->nvg);
+			nvgMoveTo(ctx->nvg, p1.x, p1.y);
+			nvgLineTo(ctx->nvg, p2.x, p2.y);
+			nvgLineTo(ctx->nvg, p3.x, p3.y);
+			nvgClosePath(ctx->nvg);
 
 			nearest_point(&p1, &p2, &p3, &p);
-			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p3.x, p3.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr3.a), cr3);
-			nvgFillPaint(draw_ctx->nvg, paint);
-			nvgFill(draw_ctx->nvg);
+			paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p3.x, p3.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr3.a), cr3);
+			nvgFillPaint(ctx->nvg, paint);
+			nvgFill(ctx->nvg);
 
 			nearest_point(&p2, &p3, &p1, &p);
-			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p1.x, p1.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr1.a), cr1);
-			nvgFillPaint(draw_ctx->nvg, paint);
-			nvgFill(draw_ctx->nvg);
+			paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p1.x, p1.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr1.a), cr1);
+			nvgFillPaint(ctx->nvg, paint);
+			nvgFill(ctx->nvg);
 
 			nearest_point(&p1, &p3, &p2, &p);
-			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p2.x, p2.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr2.a), cr2);
-			nvgFillPaint(draw_ctx->nvg, paint);
-			nvgFill(draw_ctx->nvg);
+			paint = nvgLinearGradient(ctx->nvg, p.x, p.y, p2.x, p2.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr2.a), cr2);
+			nvgFillPaint(ctx->nvg, paint);
+			nvgFill(ctx->nvg);
 
 			if (ctx->stroke) {
-				nvgStroke(draw_ctx->nvg);
+				nvgStroke(ctx->nvg);
 			}
 			//printf("end of temporary win_layer: %d\n", __LINE__);
-			nvgEndLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
+			nvgEndLayer(ctx->nvg, ctx->tmp_layer);
 
-			PAINT_LAYER_FULL(draw_ctx, draw_ctx->tmp_layer, NVG_SOURCE_OVER);
+			PAINT_LAYER_FULL(ctx, ctx->tmp_layer, NVG_SOURCE_OVER);
 
-			nvgFlush(draw_ctx->nvg);
+			nvgFlush(ctx->nvg);
 
-			nvgRestore(draw_ctx->nvg);
+			nvgRestore(ctx->nvg);
 		}
 	}
 }
 
 //SHAPE functions
-void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT sweep, REBINT large)
+void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT positive, REBINT large)
 {
 	float x, y;
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBXYF c;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
-	//x = rel? ctx->last_x + p.x : p.x;
-	//y = ctx->last_y;
+	x = rel? ctx->last_x + p.x : p.x;
+	y = ctx->last_y;
 
-	//ctx->last_x = x;
-	//ctx->last_y = y;
-
-	//nvgArcTo(ctx->nvg, c.x, c.y, r.x, ang1, ang1 + ang2, NVG_CW);
-	//((agg_graphics*)gr)->agg_path_arc(rel, r.x, r.y, ang, large, sweep, p.x, p.y);
+	if (r.x == r.y) {
+		//nvgArc(ctx->nvg, c.x, c.y, r.x, ang, ang, positive? NVG_CCW : NVG_CW);
+	} else {
+		// elliptical arc
+		// FIXME
+	}
+	printf("FIXME: %d\n", __LINE__);
+	ctx->last_x = x;
+	ctx->last_y = y;
 }
 
 void rebshp_close(void* gr)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgClosePath(ctx->draw_ctx->nvg);
-	//((agg_graphics*)gr)->agg_path_close();
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgClosePath(ctx->nvg);
 }
 
-void rebshp_curv(void* gr, REBCNT rel, REBXYF p1, REBXYF p2)
+void rebshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
-	//nvgBezierTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y);
-	//((agg_graphics*)gr)->agg_path_cubic_curve_to(rel, p1.x, p1.y, p2.x, p2.y);
+	REBXYF p1 = {ctx->last_x, ctx->last_y};
+
+	rebshp_curve(gr, 0, p1, p2, p3);
 }
 
 void rebshp_curve(void* gr, REBCNT rel, REBXYF p1,REBXYF p2, REBXYF p3)
@@ -823,27 +780,25 @@ void rebshp_curve(void* gr, REBCNT rel, REBXYF p1,REBXYF p2, REBXYF p3)
 	float x2, y2;
 	float x3, y3;
 
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	if (rel) {
-		nvgBezierTo(ctx->draw_ctx->nvg, ctx->last_x + p1.x, ctx->last_y + p1.y,
+		nvgBezierTo(ctx->nvg, ctx->last_x + p1.x, ctx->last_y + p1.y,
 					ctx->last_x + p2.x, ctx->last_y + p2.y,
 					ctx->last_x + p3.x, ctx->last_y + p3.y);
 		ctx->last_x += p3.x;
 		ctx->last_y += p3.y;
 	} else {
-		nvgBezierTo(ctx->draw_ctx->nvg, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+		nvgBezierTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
 		ctx->last_x = p3.x;
 		ctx->last_y = p3.y;
 	}
-
-	//((agg_graphics*)gr)->agg_path_cubic_curve(rel, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
 }
 
 void rebshp_hline(void* gr, REBCNT rel, REBDEC x)
 {
 	float y;
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	x = rel? ctx->last_x + x : x;
 	y = ctx->last_y;
@@ -851,14 +806,13 @@ void rebshp_hline(void* gr, REBCNT rel, REBDEC x)
 	ctx->last_x = x;
 	ctx->last_y = y;
 
-	nvgLineTo(ctx->draw_ctx->nvg, x, y);
-	//((agg_graphics*)gr)->agg_path_hline(rel, x);
+	nvgLineTo(ctx->nvg, x, y);
 }
 
 void rebshp_line(void* gr, REBCNT rel, REBXYF p)
 {
 	float x, y;
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	x = rel? ctx->last_x + p.x : p.x;
 	y = rel? ctx->last_y + p.y : p.y;
@@ -866,14 +820,13 @@ void rebshp_line(void* gr, REBCNT rel, REBXYF p)
 	ctx->last_x = x;
 	ctx->last_y = y;
 
-	nvgLineTo(ctx->draw_ctx->nvg, x, y);
-	//((agg_graphics*)gr)->agg_path_line(rel, p.x, p.y);
+	nvgLineTo(ctx->nvg, x, y);
 }
 
 void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 {
 	float x, y;
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	x = rel? ctx->last_x + p.x : p.x;
 	y = rel? ctx->last_y + p.y : p.y;
@@ -881,21 +834,18 @@ void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 	ctx->last_x = x;
 	ctx->last_y = y;
 
-	nvgMoveTo(ctx->draw_ctx->nvg, x, y);
-
-	//((agg_graphics*)gr)->agg_path_move(rel, p.x, p.y);
+	nvgMoveTo(ctx->nvg, x, y);
 }
 
 void rebshp_open(void* gr)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
-	nvgBeginPath(ctx->draw_ctx->nvg);
-	//((agg_graphics*)gr)->agg_begin_path();
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgBeginPath(ctx->nvg);
 }
 
 void rebshp_vline(void* gr, REBCNT rel, REBDEC y)
 {
-	gr_context_t* ctx = (gr_context_t *)gr;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	float x;
 
 	x = ctx->last_x;
@@ -904,19 +854,32 @@ void rebshp_vline(void* gr, REBCNT rel, REBDEC y)
 	ctx->last_x = x;
 	ctx->last_y = y;
 
-	nvgLineTo(ctx->draw_ctx->nvg, x, y);
-
-	//((agg_graphics*)gr)->agg_path_vline(rel, y);
+	nvgLineTo(ctx->nvg, x, y);
 }
 
 void rebshp_qcurv(void* gr, REBCNT rel, REBXYF p)
 {
-	//((agg_graphics*)gr)->agg_path_quadratic_curve_to(rel, p.x, p.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	REBXYF p1 = {ctx->last_x, ctx->last_y};
+
+	nvgQuadTo(ctx->nvg, p1.x, p1.y, p.x, p.y);
+	ctx->last_x = p.x;
+	ctx->last_y = p.y;
 }
 
 void rebshp_qcurve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2)
 {
-	//((agg_graphics*)gr)->agg_path_quadratic_curve(rel, p1.x, p1.y, p2.x, p2.y);
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	if (rel) {
+		nvgQuadTo(ctx->nvg, ctx->last_x + p1.x, ctx->last_y + p1.y,
+				  ctx->last_x + p2.x, ctx->last_y + p2.y);
+		ctx->last_x += p2.x;
+		ctx->last_y += p2.y;
+	} else {
+		nvgQuadTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y);
+		ctx->last_x = p2.x;
+		ctx->last_y = p2.y;
+	}
 }
 
 
@@ -1000,7 +963,6 @@ void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_t
 		clip_bottom.x - clip_top.x,
 		clip_bottom.y - clip_top.y
 	};
-	gr_context_t gr_ctx;
 
 	if (ctx == NULL) return;
 
@@ -1012,23 +974,18 @@ void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_t
 	ctx->clip_w = clip_size.x;
 	ctx->clip_h = clip_size.y;
 
-	gr_ctx.draw_ctx = ctx;
-	gr_ctx.stroke = TRUE;
-	gr_ctx.last_x = 0;
-	gr_ctx.last_y = 0;
-
-	cec_ctx.envr = &gr_ctx;
+	cec_ctx.envr = ctx;
 	cec_ctx.block = block;
 	cec_ctx.index = 0;
 
 	nvgSave(ctx->nvg);
 
 	nvgReset(ctx->nvg);
+	nvgScissor(ctx->nvg, clip_oft.x, clip_oft.y, clip_size.x, clip_size.y);
+	printf("gob %p abs offset: (%d, %d)\n", gob, abs_oft.x, abs_oft.y);
+	printf("scissor for gob %p is: (%f, %f) & (%f, %f)\n", gob,
+		   clip_oft.x, clip_oft.y, clip_size.x, clip_size.y);
 	nvgTranslate(ctx->nvg, abs_oft.x, abs_oft.y);
-	nvgScissor(ctx->nvg, clip_oft.x - abs_oft.x, clip_oft.y - abs_oft.y, clip_size.x, clip_size.y);
-	//printf("gob %p abs offset: (%f, %f)\n", abs_oft.x, abs_oft.y);
-	//printf("scissor for gob %p is: (%f, %f) & (%f, %f)\n", gob,
-	//	   clip_oft.x - abs_oft.x, clip_oft.y - abs_oft.y, clip_size.x, clip_size.y);
 	RL_DO_COMMANDS(block, 0, &cec_ctx);
 
 	nvgRestore(ctx->nvg);
@@ -1079,6 +1036,11 @@ REBDRW_CTX* rebdrw_create_context(REBINT w, REBINT h)
 	ctx->ww = w;
 	ctx->wh = h;
 	ctx->nvg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
+	ctx->fill_image = 0;
+	ctx->fill = FALSE;
+	ctx->stroke = TRUE;
+	ctx->last_x = 0;
+	ctx->last_y = 0;
 
 	if (ctx->nvg == NULL) {
 		free(ctx);
