@@ -326,7 +326,12 @@ void rebdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REB
 
 void rebdrw_invert_matrix(void* gr)
 {
-	//((agg_graphics*)gr)->agg_invert_mtx();
+	gr_context_t* ctx = (gr_context_t *)gr;
+	float xform[6], inv[6];
+
+	nvgCurrentTransform(ctx->draw_ctx->nvg, xform);
+	nvgTransformInverse(inv, xform);
+	nvgTransform(ctx->draw_ctx->nvg, inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
 }
 
 static void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
