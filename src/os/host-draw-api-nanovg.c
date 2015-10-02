@@ -680,60 +680,110 @@ void rebdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCN
 {
 	gr_context_t* ctx = (gr_context_t *)gr;
 	REBDRW_CTX* draw_ctx = ctx->draw_ctx;
-	NVGpaint paint;
-	REBXYF p;
 	NVGcolor cr1, cr2, cr3;
 
-	cr1 = REBCNT_NVG_COLOR(c1);
-	cr2 = REBCNT_NVG_COLOR(c2);
-	cr3 = REBCNT_NVG_COLOR(c3);
+	if (c1 == 0) {// Gouraud shading is off
+		BEGIN_NVG_PATH(ctx);
+		nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
+		nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
+		nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
+		nvgClosePath(draw_ctx->nvg);
+		END_NVG_PATH(ctx);
+	} else {
+		cr1 = REBCNT_NVG_COLOR(c1);
+		cr2 = REBCNT_NVG_COLOR(c2);
+		cr3 = REBCNT_NVG_COLOR(c3);
 
-	if (draw_ctx->tmp_layer == NULL) {
-		draw_ctx->tmp_layer = nvgCreateLayer(draw_ctx->nvg, draw_ctx->ww, draw_ctx->wh, 0);
+		if (c1 == c2 == c3) { /* all vertices have the same color */
+			nvgSave(draw_ctx->nvg);
+
+			nvgFillColor(draw_ctx->nvg, cr1);
+
+			BEGIN_NVG_PATH(ctx);
+			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
+			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
+			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
+			nvgClosePath(draw_ctx->nvg);
+			END_NVG_PATH(ctx);
+
+			nvgRestore(draw_ctx->nvg);
+		} else if (c1 == c2 || c2 == c3 || c1 == c3) { /* two of them have the same color */
+			NVGpaint paint;
+			REBXYF p;
+			if (c1 == c2) {
+				nearest_point(&p1, &p2, &p3, &p);
+				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p3.x, p3.y, cr1, cr3);
+			} else if (c2 == c3) {
+				nearest_point(&p2, &p3, &p1, &p);
+				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p1.x, p1.y, cr2, cr1);
+			} else { /* c1 == c3 */
+				nearest_point(&p1, &p3, &p2, &p);
+				paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p2.x, p2.y, cr1, cr2);
+			}
+
+			nvgSave(draw_ctx->nvg);
+
+			nvgFillPaint(draw_ctx->nvg, paint);
+
+			BEGIN_NVG_PATH(ctx);
+			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
+			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
+			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
+			nvgClosePath(draw_ctx->nvg);
+			END_NVG_PATH(ctx);
+
+			nvgRestore(draw_ctx->nvg);
+		} else { /* every vertex has a different color */
+			NVGpaint paint;
+			REBXYF p;
+			if (draw_ctx->tmp_layer == NULL) {
+				draw_ctx->tmp_layer = nvgCreateLayer(draw_ctx->nvg, draw_ctx->ww, draw_ctx->wh, 0);
+			}
+
+			// blend mode could be changed
+			nvgSave(draw_ctx->nvg);
+
+			//printf("begin a temporary win_layer: %d\n", __LINE__);
+			nvgBeginLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
+			nvgBlendMode(draw_ctx->nvg, NVG_LIGHTER);
+
+			glClearColor(0, 0, 0, 0);
+			glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
+
+			nvgBeginPath(draw_ctx->nvg);
+			nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
+			nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
+			nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
+			nvgClosePath(draw_ctx->nvg);
+
+			nearest_point(&p1, &p2, &p3, &p);
+			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p3.x, p3.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr3.a), cr3);
+			nvgFillPaint(draw_ctx->nvg, paint);
+			nvgFill(draw_ctx->nvg);
+
+			nearest_point(&p2, &p3, &p1, &p);
+			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p1.x, p1.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr1.a), cr1);
+			nvgFillPaint(draw_ctx->nvg, paint);
+			nvgFill(draw_ctx->nvg);
+
+			nearest_point(&p1, &p3, &p2, &p);
+			paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p2.x, p2.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr2.a), cr2);
+			nvgFillPaint(draw_ctx->nvg, paint);
+			nvgFill(draw_ctx->nvg);
+
+			if (ctx->stroke) {
+				nvgStroke(draw_ctx->nvg);
+			}
+			//printf("end of temporary win_layer: %d\n", __LINE__);
+			nvgEndLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
+
+			PAINT_LAYER_FULL(draw_ctx, draw_ctx->tmp_layer, NVG_SOURCE_OVER);
+
+			nvgFlush(draw_ctx->nvg);
+
+			nvgRestore(draw_ctx->nvg);
+		}
 	}
-
-	// blend mode could be changed
-	nvgSave(draw_ctx->nvg);
-
-	//printf("begin a temporary win_layer: %d\n", __LINE__);
-	nvgBeginLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
-	nvgBlendMode(draw_ctx->nvg, NVG_LIGHTER);
-
-	glClearColor(0, 0, 0, 0);
-	glClear(GL_COLOR_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
-
-	nvgBeginPath(draw_ctx->nvg);
-	nvgMoveTo(draw_ctx->nvg, p1.x, p1.y);
-	nvgLineTo(draw_ctx->nvg, p2.x, p2.y);
-	nvgLineTo(draw_ctx->nvg, p3.x, p3.y);
-	nvgClosePath(draw_ctx->nvg);
-
-	nearest_point(&p1, &p2, &p3, &p);
-	paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p3.x, p3.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr3.a), cr3);
-	nvgFillPaint(draw_ctx->nvg, paint);
-	nvgFill(draw_ctx->nvg);
-
-	nearest_point(&p2, &p3, &p1, &p);
-	paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p1.x, p1.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr1.a), cr1);
-	nvgFillPaint(draw_ctx->nvg, paint);
-	nvgFill(draw_ctx->nvg);
-
-	nearest_point(&p1, &p3, &p2, &p);
-	paint = nvgLinearGradient(draw_ctx->nvg, p.x, p.y, p2.x, p2.y, nvgTransRGBAf(nvgRGB(0, 0, 0), cr2.a), cr2);
-	nvgFillPaint(draw_ctx->nvg, paint);
-	nvgFill(draw_ctx->nvg);
-
-	if (ctx->stroke) {
-		nvgStroke(draw_ctx->nvg);
-	}
-	//printf("end of temporary win_layer: %d\n", __LINE__);
-	nvgEndLayer(draw_ctx->nvg, draw_ctx->tmp_layer);
-
-	PAINT_LAYER_FULL(draw_ctx, draw_ctx->tmp_layer, NVG_SOURCE_OVER);
-
-	nvgFlush(draw_ctx->nvg);
-
-	nvgRestore(draw_ctx->nvg);
 }
 
 //SHAPE functions
