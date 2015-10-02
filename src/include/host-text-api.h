@@ -69,6 +69,7 @@ typedef struct REBOL_PARA {
 		REBINT valign;
 } REBPRA;
 
+typedef struct REBTXT_CTX REBTXT_CTX;
 extern void* Create_RichText();
 extern void Destroy_RichText(void* rt);
 extern void rt_anti_alias(void* rt, REBINT mode);
@@ -95,5 +96,5 @@ extern void rt_underline(void* rt, REBINT state);
 
 extern void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);
 extern void rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position);
-extern REBINT rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI buf_size, REBXYF abs_oft, REBXYI clip_oft, REBXYI clip_siz);
+REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom);
 extern void rt_block_text(void *rt, REBSER *block);

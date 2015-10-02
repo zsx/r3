@@ -40,6 +40,25 @@
 #include "host-view.h"
 #include "host-text-api.h"
 
+#include "nanovg.h"
+
+#include "host-view.h"
+#include "host-draw-api.h"
+
+#include <GL/glew.h>
+
+#include "nanovg_gl.h"
+
+struct REBTXT_CTX {
+	NVGcontext *nvg;
+	REBFNT		font;
+	REBPRA		para;
+
+	/* text starting coordinates */
+	int			x;
+	int			y;
+};
+
 void rt_block_text(void *richtext, REBSER *block)
 {
 	REBCEC ctx;
@@ -51,9 +70,14 @@ void rt_block_text(void *richtext, REBSER *block)
 	RL_DO_COMMANDS(block, 0, &ctx);
 }
 
-REBINT rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI buf_size, REBXYF abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
 {
 	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return 0; //don't render window title text
+	if (GOB_TYPE(gob) == GOBT_TEXT) {
+		//rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+	} else {
+		//nvgText();
+	}
 
 #if 0
 	agg_graphics::ren_buf rbuf_win(buf, buf_size.x, buf_size.y, buf_size.x << 2);		
@@ -92,19 +116,15 @@ REBINT rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI buf_size, REBXYF abs_oft, RE
 
 void* Create_RichText()
 {
-#if 0
-#ifdef AGG_WIN32_FONTS
-	return (void*)new rich_text(GetDC( NULL ));
-#endif
-#ifdef AGG_FREETYPE
-	return (void*)new rich_text();
-#endif
-#endif
+	REBTXT_CTX *rt = malloc(sizeof(REBTXT_CTX));
+
+	return rt;
 }
 
 void Destroy_RichText(void* rt)
 {
-//	delete (rich_text*)rt;
+	if (rt == NULL) return;
+	free(rt);
 }
 
 void rt_anti_alias(void* rt, REBINT mode)
@@ -167,6 +187,8 @@ void rt_font(void* rt, REBFNT* REBFNT)
 
 void rt_font_size(void* rt, REBINT size)
 {
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	nvgFontSize(ctx->nvg, size);
 #if 0
 	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
 	REBFNT->size = size;
@@ -176,13 +198,15 @@ void rt_font_size(void* rt, REBINT size)
 
 void* rt_get_font(void* rt)
 {
-//	return (void*)((rich_text*)rt)->rt_get_font();
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	return &ctx->font;
 }
 
 
 void* rt_get_para(void* rt)
 {
-//	return (void*)((rich_text*)rt)->rt_get_para();
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	return &ctx->para;
 }
 
 void rt_italic(void* rt, REBINT state)
@@ -196,6 +220,8 @@ void rt_italic(void* rt, REBINT state)
 
 void rt_left(void* rt)
 {
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	nvgTextAlign(ctx->nvg, NVG_ALIGN_LEFT);
 #if 0
 	REBPRA* par = ((rich_text*)rt)->rt_get_para();
 	par->align = W_TEXT_LEFT;
@@ -222,6 +248,8 @@ void rt_para(void* rt, REBPRA* REBPRA)
 
 void rt_right(void* rt)
 {
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	nvgTextAlign(ctx->nvg, NVG_ALIGN_RIGHT);
 #if 0
 	REBPRA* par = ((rich_text*)rt)->rt_get_para();
 	par->align = W_TEXT_RIGHT;
@@ -310,6 +338,8 @@ void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 
 void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
 {
+	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+	nvgText(ctx->nvg, ctx->x, ctx->y, text, NULL);
 #if 0
 	((rich_text*)rt)->rt_set_text(text, dealloc);
 	((rich_text*)rt)->rt_push(index);
@@ -324,23 +354,6 @@ void rt_underline(void* rt, REBINT state)
 	((rich_text*)rt)->rt_push();
 #endif
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
 {
