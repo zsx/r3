@@ -529,7 +529,13 @@ void rebdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 void rebdrw_line_width(void* gr, REBDEC width, REBINT mode)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	nvgStrokeWidth(ctx->nvg, width); //FIXME, mode?
+	if (mode) {/* fixed */
+		nvgStrokeWidth(ctx->nvg, width);
+	} else { /* variable, scaled by the matrix */
+		float xform[6];
+		nvgCurrentTransform(ctx->nvg, xform);
+		nvgStrokeWidth(ctx->nvg, width * (xform[0] + xform[3]) / 2);
+	}
 }
 
 void rebdrw_matrix(void* gr, REBSER* mtx)
