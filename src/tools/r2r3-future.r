@@ -38,9 +38,13 @@ unless value? 'for-each [
 ; *all* typesets now are ANY-XXX to help distinguish them from concrete types
 ; https://trello.com/c/d0Nw87kp
 ;
-unless value? 'any-scalar? [any-scalar?: :scalar?]
-unless value? 'any-series? [any-series?: :series?]
-unless value? 'any-number? [any-number?: :number?]
+unless value? 'any-scalar? [any-scalar?: :scalar? any-scalar!: scalar!]
+unless value? 'any-series? [any-series?: :series? any-series!: series!]
+unless value? 'any-number? [any-number?: :number? any-number!: number!]
+unless value? 'any-value? [
+	any-value?: func [item [any-type!]] [not unset? :item]
+	any-value!: any-type!
+]
 
 ; It is not possible to make a version of eval that does something other
 ; than everything DO does in an older Rebol.  Which points to why exactly
