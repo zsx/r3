@@ -190,7 +190,7 @@ Script: [
 ;	no-decode:          [{cannot decode} :arg1 {encoding}]
 	wrong-denom:        [:arg1 {not same denomination as} :arg2]
 ;   bad-convert:        [{invalid conversion value:} :arg1]
-	bad-press:          [{invalid compressed data - problem:} :arg1]
+	bad-compression:    [{invalid compressed data - problem:} :arg1]
 	dialect:            [{incorrect} :arg1 {dialect usage at:} :arg2]
 	bad-command:        {invalid command format (extension function)}
 

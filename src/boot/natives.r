@@ -393,6 +393,7 @@ compress: native [
 	data [binary! string!] {If string, it will be UTF8 encoded}
 	/part limit {Length of data (elements)}
 	/gzip {Use GZIP checksum}
+	/only {Do not store header or envelope information ("raw")}
 ]
 
 ;-- !!! This used to use /PART LENGTH, but when LENGTH? was migrate to LENGTH
@@ -406,6 +407,7 @@ decompress: native [
 	/part lim {Length of compressed data (must match end marker)}
 	/gzip {Use GZIP checksum}
 	/limit size {Error out if result is larger than this}
+	/only {Do not look for header or envelope information ("raw")}
 ]
 
 construct: native [
