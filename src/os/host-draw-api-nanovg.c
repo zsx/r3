@@ -237,7 +237,7 @@ void rebdrw_ellipse(void* gr, REBXYF p1, REBXYF p2)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
-	nvgEllipse(ctx->nvg, (p1.x + p2.x)/2, (p1.y + p2.y)/2, (p2.x - p1.x)/2, (p2.y - p1.y)/2);
+	nvgEllipse(ctx->nvg, p1.x + p2.x/2, p1.y + p2.y/2, p2.x / 2, p2.y / 2);
 	END_NVG_PATH(ctx);
 }
 
