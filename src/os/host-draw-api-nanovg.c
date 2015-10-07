@@ -22,7 +22,7 @@
  ************************************************************************
  **
  **  Title: DRAW dialect API functions
- **  Author: Richard Smolak
+ **  Author: Shixin Zeng
  **
  ************************************************************************
  **
@@ -52,36 +52,8 @@
 #include <GL/glew.h>
 
 #include "nanovg_gl.h"
+#include "host-draw-api-nanovg.h"
 
-struct REBDRW_CTX {
-	NVGcontext	*nvg;
-	NVGlayer	*win_layer;
-	NVGlayer	*gob_layer;
-	NVGlayer	*tmp_layer;
-	REBINT		ww;
-	REBINT		wh;
-	float		pixel_ratio;
-
-	/* gob clip, in gob's local coordinates */
-	float		clip_x; 
-	float		clip_y;
-	float		clip_w;
-	float		clip_h;
-
-	/* gob offset, in window coordinates*/
-	float		offset_x;
-	float		offset_y;
-
-	/* for shapes */
-	float 		last_x;
-	float 		last_y;
-
-	/* fill or stroke */
-	int 		fill_image;
-	int 		stroke_image;
-	unsigned int fill: 1;
-	unsigned int stroke: 1;
-};
 
 REBUPT RL_Series(REBSER *ser, REBCNT what);
 
