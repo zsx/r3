@@ -221,12 +221,73 @@
 			if (Scan_Hex(bp, &num, n, n) == 0) goto is_bad;
 		}
 		else if (IS_BINARY(val)) { // must be before STRING!
-			REBYTE	*bp;
+			REBYTE *bp = VAL_BIN_DATA(val);
+			REBOOL negative;
+			REBINT fill;
+
 			n = VAL_LEN(val);
-			if (n > sizeof(REBI64)) n = sizeof(REBI64);
-			num = 0;
-			for (bp = VAL_BIN_DATA(val); n; n--, bp++)
+
+		#if !defined(NDEBUG)
+			if (LEGACY(OPTIONS_FOREVER_64_BIT_INTS)) {
+				num = 0;
+				if (n > sizeof(REBI64)) n = sizeof(REBI64);
+				for (; n; n--, bp++)
+					num = (num << 8) | *bp;
+				break;
+			}
+		#endif
+
+			// Rebol3 creates 8-byte big endian for signed 64-bit integers.
+			// Rebol2 created 4-byte big endian for signed 32-bit integers,
+			// Several variations exist embedded in file formats.
+			//
+			// Assume big-Endian for decoding (clients can REVERSE if they
+			// want little-Endian).  Also assume that any missing bytes are
+			// sign-extended to 64-bits based on the most significant byte.
+			//
+			//     #{01020304} => #{0000000001020304}
+			//     #{DECAFBAD} => #{FFFFFFFFDECAFBAD}
+			//
+			// If under these rules a number cannot be represented in the
+			// numeric format of the system, it will error.  This attempts
+			// to "future-proof" for other integer sizes and accommodates
+			// more flexible decoding options (prepend 0xFF for always
+			// negative, prepend 0x00 for always positive, leave as-is for
+			// signed interpretation).
+
+			if (n == 0) {
+				num = 0; // !!! Should #{} empty binary be 0 or error?
+				break;
+			}
+
+			negative = *bp >= 0x80; // would result be negative?
+
+			// Consume any leading 0xFF or 0x00 bytes
+			while (n != 0 && (*bp == 0xFF || *bp == 0x00)) {
+				bp++; n--;
+			}
+			if (n == 0) {
+				if (negative)
+					num = -1; // it was all 0xFF bytes, must mean -1
+				else
+					num = 0; // it was all 0x00 bytes, must mean 0
+				break;
+			}
+
+			// Not using BigNums (yet) so max representation is 8 bytes
+			if (n > 8)
+				raise Error_1(RE_OUT_OF_RANGE, val);
+
+			// Pad out to make sure any missing upper bytes match sign
+			for (fill = n; fill < 8; fill++)
+				num = (num << 8) | (negative ? 0xFF : 0x00);
+
+			// Use binary data bytes to fill in the up-to-8 lower bytes
+			while (n != 0) {
 				num = (num << 8) | *bp;
+				bp++;
+				n--;
+			}
 		}
 		else if (ANY_STR(val)) {
 			REBYTE *bp;
