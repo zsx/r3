@@ -105,19 +105,6 @@ static	BOOT_BLK *Boot_Block;
 		if (sizeof(REBGOB) != 64) panic Error_0(RE_BAD_SIZE);
 	}
 	if (sizeof(REBDAT) != 4) panic Error_0(RE_BAD_SIZE);
-
-	// !!! C standard doesn't support 'offsetof(struct S, s_member.submember)'
-	// so we're stuck using addition here.
-
-	if (
-		offsetof(struct Reb_Error, data)
-		+ offsetof(union Reb_Error_Data, frame)
-		!= offsetof(struct Reb_Object, frame)
-	) {
-		// When errors are exposed to the user then they must have a frame
-		// and act like objects (they're dispatched through REBTYPE(Object))
-		panic Error_0(RE_MISC);
-	}
 }
 
 

@@ -374,7 +374,6 @@
 	ENSURE_FRAME_MANAGED(err_frame);
 
 	VAL_SET(out, REB_ERROR);
-	VAL_ERR_NUM(out) = VAL_INT32(&ERR_VALUES(err_frame)->code);
 	VAL_ERR_OBJECT(out) = err_frame;
 
 	ASSERT_ERROR(out);
@@ -400,7 +399,7 @@
 	// Create a new error object from another object, including any non-standard fields:
 	if (IS_ERROR(arg) || IS_OBJECT(arg)) {
 		err = Merge_Frames(VAL_OBJ_FRAME(ROOT_ERROBJ),
-			IS_ERROR(arg) ? VAL_OBJ_FRAME(arg) : VAL_ERR_OBJECT(arg));
+			IS_ERROR(arg) ? VAL_ERR_OBJECT(arg) : VAL_OBJ_FRAME(arg));
 		error = ERR_VALUES(err);
 
 		if (!Find_Error_Info(error, &code)) code = RE_INVALID_ERROR;
