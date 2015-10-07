@@ -141,11 +141,8 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	ret = deflate(&strm, Z_FINISH);
 	deflateEnd(&strm);
 
-	if (ret != Z_STREAM_END) {
-		REBVAL arg;
-
+	if (ret != Z_STREAM_END)
 		raise Error_Compression(&strm, ret);
-	}
 
 	SET_STR_END(output, buf_size - strm.avail_out);
 	SERIES_TAIL(output) = buf_size - strm.avail_out;
@@ -222,7 +219,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 
 		if (max >= 0 && buf_size > cast(REBCNT, max)) {
 			REBVAL temp;
-			VAL_SET(&temp, max);
+			SET_INTEGER(&temp, max);
 
 			// NOTE: You can hit this if you 'make prep' without doing a full
 			// rebuild.  'make clean' and build again, it should go away.
@@ -276,6 +273,9 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	// Loop through and allocate a larger buffer each time we find the
 	// decompression did not run to completion.  Stop if we exceed max.
 	//
+	// NOTE: All exit paths must call inflateEnd().  The buffer does not
+	// technically need to be freed if an error is raised.
+	//
 	while (TRUE) {
 
 		// Perform the inflation
@@ -296,6 +296,8 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 				REBVAL temp;
 				VAL_SET(&temp, max);
 
+				inflateEnd(&strm);
+
 				// NOTE: You can hit this on 'make prep' without doing a full
 				// rebuild.  'make clean' and build again, it should go away.
 				//
@@ -306,7 +308,17 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 			if (max >= 0 && buf_size > cast(REBCNT, max))
 				buf_size = max;
 
+			assert(strm.avail_out == 0); // !!! is this guaranteed?
+			assert(
+				strm.next_out == BIN_HEAD(output) + old_size - strm.avail_out
+			);
+
 			Extend_Series(output, buf_size - old_size);
+
+			// Extending keeps the content but may realloc the pointer, so
+			// put it at the same spot to keep writing to
+			strm.next_out = BIN_HEAD(output) + old_size - strm.avail_out;
+
 			strm.avail_out += buf_size - old_size;
 		}
 		else {
