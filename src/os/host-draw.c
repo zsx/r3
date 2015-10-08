@@ -482,7 +482,7 @@ static u32* shape_ext_words;
 					REBXYF p = RXI_LOG_PAIR(val);
 					if (n > 0)
 //						rebdrw_add_vertex(ctx->envr, val.pair);
-						rebdrw_add_vertex(ctx->envr, p);
+						rebdrw_add_poly_vertex(ctx->envr, p);
 					else
 //						rebdrw_begin_poly(ctx->envr, val.pair);
 						rebdrw_begin_poly(ctx->envr, p);
@@ -551,10 +551,10 @@ static u32* shape_ext_words;
 						REBXYF p = RXI_LOG_PAIR(val);
                         if (n > 0)
 //                            rebdrw_add_vertex(ctx->envr, val.pair);
-							rebdrw_add_vertex(ctx->envr, p);
+							rebdrw_add_spline_vertex(ctx->envr, p);
                         else
 //                            rebdrw_begin_poly(ctx->envr, val.pair);
-							rebdrw_begin_poly(ctx->envr, p);
+							rebdrw_begin_spline(ctx->envr, p);
                     }
                 }
                 rebdrw_end_spline(ctx->envr, RXA_INT32(frm, 2), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 3)) - W_DRAW_OPENED);

@@ -57,14 +57,22 @@
 
 REBUPT RL_Series(REBSER *ser, REBCNT what);
 
-void rebdrw_add_vertex (void* gr, REBXYF p)
+void rebdrw_add_poly_vertex (void* gr, REBXYF p)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	nvgLineTo(ctx->nvg, p.x, p.y);
 
-	//printf("new polygen vertex at (%f, %f)\n", p.x, p.y);
+	printf("new polygen vertex at (%f, %f)\n", p.x, p.y);
 
 	//((agg_graphics*)gr)->agg_add_vertex(p.x, p.y);
+}
+
+void rebdrw_add_spline_vertex (void* gr, REBXYF p)
+{
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	nvgLineTo(ctx->nvg, p.x, p.y);
+
+	printf("new spline vertex at (%f, %f)\n", p.x, p.y);
 }
 
 void rebdrw_anti_alias(void* gr, REBINT mode)
@@ -148,7 +156,15 @@ void rebdrw_begin_poly (void* gr, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
 	nvgMoveTo(ctx->nvg, p.x, p.y);
-	//printf("new polygen at: (%f, %f)\n", p.x, p.y);
+	printf("new polygen at: (%f, %f)\n", p.x, p.y);
+}
+
+void rebdrw_begin_spline (void* gr, REBXYF p)
+{
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	BEGIN_NVG_PATH(ctx);
+	nvgMoveTo(ctx->nvg, p.x, p.y);
+	printf("new polygen at: (%f, %f)\n", p.x, p.y);
 }
 
 void rebdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
@@ -224,10 +240,15 @@ void rebdrw_end_poly (void* gr)
 void rebdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	nvgClosePath(ctx->nvg);
-	BEGIN_NVG_PATH(ctx);
+	printf("spline step: %d\n", step);
+	if (step == 0) {
+		if (closed) {
+			nvgClosePath(ctx->nvg);
+		}
+		END_NVG_PATH(ctx);
+		return;
+	}
 	printf("spline done, FIXME\n");
-	//((agg_graphics*)gr)->agg_end_bspline(step, closed);
 }
 
 void rebdrw_fill_pen(void* gr, REBCNT col)

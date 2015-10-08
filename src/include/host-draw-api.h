@@ -46,11 +46,13 @@ extern REBDRW_CTX* rebdrw_create_context(REBINT w, REBINT h);
 extern void rebdrw_destroy_context(REBDRW_CTX *ctx);
 
 
-extern void rebdrw_add_vertex (void* gr, REBXYF p);
+extern void rebdrw_add_poly_vertex (void* gr, REBXYF p);
+extern void rebdrw_add_spline_vertex (void* gr, REBXYF p);
 extern void rebdrw_anti_alias(void* gr, REBINT mode);
 extern void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed);
 extern void rebdrw_arrow(void* gr, REBXYF mode, REBCNT col);
 extern void rebdrw_begin_poly (void* gr, REBXYF p);
+extern void rebdrw_begin_spline (void* gr, REBXYF p);
 extern void rebdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r);
 extern void rebdrw_circle(void* gr, REBXYF p, REBXYF r);
 extern void rebdrw_clip(void* gr, REBXYF p1, REBXYF p2);
