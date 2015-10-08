@@ -31,8 +31,12 @@ unless value? 'offset-of [offset-of: :offset? unset 'offset?]
 unless value? 'type-of [type-of: :type? unset 'type?]
 
 unless value? 'for-each [
-	for-each: :foreach every: :foreach
+	for-each: :foreach
 	;unset 'foreach ;-- tolerate it (for now, maybe indefinitely?)
+
+	; Note: EVERY cannot be written in R3-Alpha because there is no way
+	; to write loop wrappers, given lack of definitionally scoped return
+	; or <transparent>
 ]
 
 ; *all* typesets now are ANY-XXX to help distinguish them from concrete types
