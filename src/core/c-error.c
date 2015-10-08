@@ -382,13 +382,14 @@
 
 /***********************************************************************
 **
-*/	REBOOL Make_Error_Object(REBVAL *out, REBVAL *arg)
+*/	REBOOL Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
 /*
 **		Creates an error object from arg and puts it in value.
 **		The arg can be a string or an object body block.
-**		This function is called by MAKE ERROR!.
 **
-**		Returns FALSE if a THROWN() value is made during evaluation.
+**		Returns TRUE if a THROWN() value is made during evaluation.
+**
+**		This function is called by MAKE ERROR!.
 **
 ***********************************************************************/
 {
@@ -406,7 +407,7 @@
 		SET_INTEGER(&error->code, code);
 
 		Val_Init_Error(out, err);
-		return TRUE;
+		return FALSE;
 	}
 
 	// Make a copy of the error object template:
@@ -425,7 +426,7 @@
 		Bind_Values_Deep(VAL_BLK_DATA(arg), err);
 		if (Do_Block_Throws(&evaluated, VAL_SERIES(arg), 0)) {
 			*out = evaluated;
-			return FALSE;
+			return TRUE;
 		}
 
 		if (IS_INTEGER(&error->code) && VAL_INT64(&error->code)) {
@@ -461,7 +462,7 @@
 	MANAGE_SERIES(err);
 	Val_Init_Error(out, err);
 
-	return TRUE;
+	return FALSE;
 }
 
 
