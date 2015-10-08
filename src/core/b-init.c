@@ -105,6 +105,31 @@ static	BOOT_BLK *Boot_Block;
 		if (sizeof(REBGOB) != 64) panic Error_0(RE_BAD_SIZE);
 	}
 	if (sizeof(REBDAT) != 4) panic Error_0(RE_BAD_SIZE);
+
+	// The RXIARG structure mirrors the layouts of several value types
+	// for clients who want to extend Rebol but not depend on all of
+	// its includes.  This mirroring is brittle and is counter to the
+	// idea of Ren/C.  It is depended on by the host-extensions (crypto)
+	// as well as R3/View's way of picking apart Rebol data.
+	//
+	// Best thing to do would be to get rid of it and link those clients
+	// directly to Ren/C's API.  But until then, even adapting the RXIARG
+	// doesn't seem to get everything to work...so there are bugs.  The
+	// struct layout of certain things must line up, notably that the
+	// frame of an ANY-OBJECT! is as the same location as the series
+	// of a ANY-SERIES!
+	//
+	// In the meantime, this limits flexibility which might require the
+	// answer to VAL_OBJ_FRAME() to be different from VAL_SERIES(), and
+	// lead to trouble if one call were used in lieu of the other.
+	// Revisit after RXIARG dependencies have been eliminated.
+
+	if (
+		offsetof(struct Reb_Object, frame)
+		!= offsetof(struct Reb_Position, series)
+	) {
+		panic Error_0(RE_MISC);
+	}
 }
 
 

@@ -1040,11 +1040,6 @@ struct Reb_Frame {
 ***********************************************************************/
 
 struct Reb_Object {
-	// This pointer is left here so that the REBSER* is not at the
-	// same offset as retrieved by VAL_SERIES for a Reb_Position.
-	// The slot is reserved for future use.
-	void *dummy;
-
 	// See notes about frames, which actually indicates *two* series.
 	// One is a "keylist" and the other are values associated with
 	// those keys.  At the present time extra pointers are carried
