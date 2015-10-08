@@ -1185,8 +1185,8 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
 
 	// Special pre-made errors:
-	Val_Init_Error(TASK_STACK_ERROR, Make_Error(RE_STACK_OVERFLOW, 0, 0, 0));
-	Val_Init_Error(TASK_HALT_ERROR, Make_Error(RE_HALT, 0, 0, 0));
+	Val_Init_Error(TASK_STACK_ERROR, Make_Error(RE_STACK_OVERFLOW, NULL));
+	Val_Init_Error(TASK_HALT_ERROR, Make_Error(RE_HALT, NULL));
 
 	// With error trapping enabled, set up to catch them if they happen.
 	PUSH_UNHALTABLE_TRAP(&error, &state);

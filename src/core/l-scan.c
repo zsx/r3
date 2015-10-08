@@ -592,8 +592,12 @@
 **
 ***********************************************************************/
 {
-	ERROR_OBJ *err_obj;
 	REBSER *frame;
+
+	ERROR_OBJ *err_obj;
+	REBVAL arg1;
+	REBVAL arg2;
+
 	const REBYTE *name;
 	const REBYTE *cp;
 	const REBYTE *bp;
@@ -623,11 +627,14 @@
 	Append_Unencoded(ser, ") ");
 	Append_Series(ser, bp, len);
 
-	frame = Make_Error(errnum, 0, 0, 0);
+	Val_Init_String(&arg1, Copy_Bytes(name, -1));
+	Val_Init_String(&arg2, Copy_Bytes(arg, size));
+
+	frame = Make_Error(errnum, &arg1, &arg2, NULL);
+
+	// Write the NEAREST: information (Make_Error gets it from DSF)
 	err_obj = cast(ERROR_OBJ*, FRM_VALUES(frame));
 	Val_Init_String(&err_obj->nearest, ser);
-	Val_Init_String(&err_obj->arg1, Copy_Bytes(name, -1));
-	Val_Init_String(&err_obj->arg2, Copy_Bytes(arg, size));
 
 	Val_Init_Error(out, frame);
 }

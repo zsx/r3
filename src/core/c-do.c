@@ -707,8 +707,14 @@ reevaluate:
 		// If we come across an infix function from do_at_index in the loop,
 		// we can't actually run it.  It only runs after an evaluation has
 		// yielded a value as part of a single "atomic" Do/Next step
+		//
+		// Note: Because this is a function value being hit literally in
+		// a block, it does not have a name.  `label` is NULL.  The function
+		// value may display strangely in the error...but that is a problem
+		// to address in general with error display.
+		//
 		if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-			raise Error_1(RE_NO_OP_ARG, label);
+			raise Error_1(RE_NO_OP_ARG, value);
 
 	// Value must be the function when a jump here occurs
 	do_function_args:
@@ -1080,7 +1086,7 @@ reevaluate:
 		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, label);
+		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, value);
 		if (index == THROWN_FLAG) goto return_index;
 
 		label = value;
