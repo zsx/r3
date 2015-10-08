@@ -251,7 +251,7 @@ void rebdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 		nvgDeleteImage(ctx->nvg, ctx->fill_image);
 	}
 
-	ctx->fill_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	ctx->fill_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, NULL, img);
 	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->fill_image, 1);
 	nvgFillPaint(ctx->nvg, paint);
 }
@@ -332,16 +332,21 @@ static void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 	nvgFill(ctx->nvg);
 }
 
-
 void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	REBXYF image_size = {w, h};
 
-	int image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	int image;
+   
+	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
 
 	paint_image(ctx, image, NVG_COPY, 1.0f, offset, image_size, offset, image_size);
+
+	if (ctx->img_border) {
+		nvgStroke(ctx->nvg);
+	}
 
 	nvgFlush(ctx->nvg);
 
@@ -354,14 +359,14 @@ void rebdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
 	//((agg_graphics*)gr)->agg_image_filter(type, mode, blur);
 }
 
-void rebdrw_image_options(void* gr, REBCNT keyCol, REBINT border)
+void rebdrw_image_options(void* gr, REBOOL keyColEnabled, REBCNT keyCol, REBINT border)
 {
-#if 0
-	if (keyCol)
-		((agg_graphics*)gr)->agg_image_options(((REBYTE*)&keyCol)[0], ((REBYTE*)&keyCol)[1], ((REBYTE*)&keyCol)[2], ((REBYTE*)&keyCol)[3], border);
-	else
-		((agg_graphics*)gr)->agg_image_options(0,0,0,0, border);
-#endif
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	ctx->key_color_enabled = !!keyColEnabled;
+	if (keyColEnabled) {
+		ctx->key_color = REBCNT_NVG_COLOR(keyCol);
+	}
+	ctx->img_border = !!border;
 }
 
 void rebdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size)
@@ -395,7 +400,7 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 
 	if (!len) return;
 
-	image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
 
 	paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
@@ -556,7 +561,7 @@ void rebdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 		nvgDeleteImage(ctx->nvg, ctx->stroke_image);
 	}
 
-	ctx->stroke_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, img);
+	ctx->stroke_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, NULL, img);
 	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->stroke_image, 1);
 	nvgStrokePaint(ctx->nvg, paint);
 }
@@ -940,7 +945,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	if (ctx == NULL) return;
 	nvg = ctx->nvg;
 
-	int image = nvgCreateImageRGBA(nvg, w, h, 0, GOB_BITMAP(gob));
+	int image = nvgCreateImageRGBA(nvg, w, h, 0, NULL, GOB_BITMAP(gob));
 
 	nvgSave(nvg);
 

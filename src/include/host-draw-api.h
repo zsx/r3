@@ -70,7 +70,7 @@ extern void rebdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF o
 extern void rebdrw_invert_matrix(void* gr);
 extern void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset);
 extern void rebdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur);
-extern void rebdrw_image_options(void* gr, REBCNT keyCol, REBINT border);
+extern void rebdrw_image_options(void* gr, REBOOL keyColEnabled, REBCNT keyCol, REBINT border);
 extern void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points);
 extern void rebdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size);
 extern void rebdrw_line(void* gr, REBXYF p1, REBXYF p2);

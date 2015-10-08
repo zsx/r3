@@ -62,7 +62,10 @@ struct REBDRW_CTX {
 	/* fill or stroke */
 	int 		fill_image;
 	int 		stroke_image;
+
+	NVGcolor	key_color;
 	unsigned int fill: 1;
 	unsigned int stroke: 1;
 	unsigned int img_border: 1; /* draw the image border or not */
+	unsigned int key_color_enabled: 1; /* key_color enabled or not */
 };
