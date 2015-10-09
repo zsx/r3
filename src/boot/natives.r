@@ -581,6 +581,15 @@ to-hex: native [
 	len [integer!]
 ]
 
+to-integer: native [
+	{Synonym of TO INTEGER! when used without refinements, adds /UNSIGNED.}
+	value [
+		integer! decimal! percent! money! char! time!
+		issue! binary! any-string!
+	]
+	/unsigned {For BINARY! interpret as unsigned, otherwise error if signed.}
+]
+
 type-of: native [
 	{Returns the datatype of a value.}
 	value [any-value!]

@@ -1515,7 +1515,8 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_INTEGER:		// or start of DATE
 			if (*ep != '/' || mode_char == '/') {
-				if (0 == Scan_Integer(bp, len, value))
+				VAL_SET(value, REB_INTEGER);
+				if (!Scan_Integer(&VAL_INT64(value), bp, len))
 					goto syntax_error;
 			}
 			else {				// A / and not in block
@@ -1530,7 +1531,8 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 		case TOKEN_DECIMAL:
 		case TOKEN_PERCENT:
 			// Do not allow 1.2/abc:
-			if (*ep == '/' || !Scan_Decimal(bp, len, value, 0))
+			VAL_SET(value, REB_DECIMAL);
+			if (*ep == '/' || !Scan_Decimal(&VAL_DECIMAL(value), bp, len, 0))
 				goto syntax_error;
 			if (bp[len-1] == '%') {
 				VAL_SET(value, REB_PERCENT);
@@ -1546,7 +1548,9 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 
 		case TOKEN_TIME:
 			if (bp[len-1] == ':' && mode_char == '/') {	// could be path/10: set
-				if (!Scan_Integer(bp, len-1, value)) goto syntax_error;
+				VAL_SET(value, REB_INTEGER);
+				if (!Scan_Integer(&VAL_INT64(value), bp, len - 1))
+					goto syntax_error;
 				scan_state->end--;	// put ':' back on end but not beginning
 				break;
 			}
