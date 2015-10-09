@@ -102,6 +102,8 @@ Internal: [
 	bad-evaltype:		{invalid datatype for evaluation}
 	hash-overflow:		{Hash ran out of space}
 	no-print-ptr:		{print is missing string pointer}
+
+	codepoint-too-high:	[{codepoint} :arg1 {too large for current interpreter}]
 ]
 
 Syntax: [

@@ -768,35 +768,67 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	REBCNT Decode_UTF8_Char(const REBYTE **str, REBCNT *len)
+*/	const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 /*
-**		Converts a single UTF8 code-point (to 32 bit).
-**		Errors are returned as zero. (So prescan source for null.)
-**		Increments str by extra chars needed.
-**		Decrements len by extra chars needed.
+**	Converts a single UTF8 code-point and returns the position *at the
+**	the last byte of the character's data*.  (This differs from the usual
+**	`Scan_XXX` interface of returning the position after the scanned
+**	element, ready to read the next one.)
+**
+**	The peculiar interface is useful in loops that are processing
+**	ordinary ASCII chars directly -as well- as UTF8 ones.  The loop can
+**	do a single byte pointer increment after both kinds of
+**	elements, avoiding the need to call any kind of `Scan_Ascii()`:
+**
+**		for (; len > 0; bp++, len--) {
+**			if (*bp < 0x80) {
+**				// do ASCII stuff...
+**			}
+**			else {
+**				REBUNI uni;
+**				bp = Back_Scan_UTF8_Char(&uni, bp, &len);
+**				// do UNICODE stuff...
+**			}
+**		}
+**
+**	The third parameter is an optional length that will be decremented by
+**	the number of "extra" bytes the UTF8 has beyond a single byte character.
+**	This allows for decrement-style loops such as the above.
+**
+**	Though the machinery can decode a UTF32 32-bit codepoint, the interface
+**	uses a 16-bit REBUNI (due to that being all that Rebol supports at this
+**	time).  If a codepoint that won't fit in 16-bits is found, it will raise
+**	an error vs. return NULL.  This makes it clear that the problem is not
+**	with the data itself being malformed (the usual assumption of callers)
+**	but rather a limit of the implementation.
+**
+**	Prescans source for null, and will not return code point 0.
+**
+**	If failure due to insufficient data or malformed bytes, then NULL is
+**	returned (len is not advanced).
 **
 ***********************************************************************/
 {
-	const UTF8 *source = *str;
+	const UTF8 *source = bp;
 	UTF32 ch = 0;
-	REBCNT slen = trailingBytesForUTF8[*source];
+	REBCNT trail = trailingBytesForUTF8[*source];
 
 	// Check that we have enough valid source bytes:
 	if (len) {
-		if (slen + 1 > *len) return 0;
+		if (trail + 1 > *len) return NULL;
 	}
-	else if (slen != 0) {
+	else if (trail != 0) {
 		do {
-			if (source[slen] < 0x80) return 0;
-		} while (--slen != 0);
+			if (source[trail] < 0x80) return NULL;
+		} while (--trail != 0);
 
-		slen = trailingBytesForUTF8[*source];
+		trail = trailingBytesForUTF8[*source];
 	}
 
 	// Do this check whether lenient or strict:
 	// if (!isLegalUTF8(source, slen+1)) return 0;
 
-	switch (slen) {
+	switch (trail) {
 		case 5: ch += *source++; ch <<= 6;
 		case 4: ch += *source++; ch <<= 6;
 		case 3: ch += *source++; ch <<= 6;
@@ -804,16 +836,31 @@ ConversionResult ConvertUTF8toUTF32 (
 		case 1: ch += *source++; ch <<= 6;
 		case 0: ch += *source++;
 	}
-	ch -= offsetsFromUTF8[slen];
+	ch -= offsetsFromUTF8[trail];
 
 	// UTF-16 surrogate values are illegal in UTF-32, and anything
 	// over Plane 17 (> 0x10FFFF) is illegal.
-	if (ch > UNI_MAX_LEGAL_UTF32) return 0;
-	if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END) return 0;
+	if (ch > UNI_MAX_LEGAL_UTF32) return NULL;
+	if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END) return NULL;
 
-	if (len) *len -= slen;
-	*str += slen;
-	return ch;
+	if (len) *len -= trail;
+
+	// !!! Original implementation used 0 as a return value to indicate a
+	// decoding failure.  However, 0 is a legal UTF8 codepoint, and also
+	// Rebol strings are able to store NUL characters (they track a length
+	// and are not zero-terminated.)  Should this be legal?
+	assert(ch != 0);
+	if (ch == 0) return NULL;
+
+	if (ch > 0xFFFF) {
+		// !!! Not currently supported.
+		REBVAL num;
+		SET_INTEGER(&num, ch);
+		raise Error_1(RE_CODEPOINT_TOO_HIGH, &num);
+	}
+
+	*out = ch;
+	return bp + trail;
 }
 
 
@@ -834,19 +881,20 @@ ConversionResult ConvertUTF8toUTF32 (
 ***********************************************************************/
 {
 	int flag = -1;
-	UTF32 ch;
+	REBUNI ch;
 	REBUNI *start = dst;
 
 	for (; len > 0; len--, src++) {
 		if ((ch = *src) >= 0x80) {
-			ch = Decode_UTF8_Char(&src, &len);
-			if (ch == 0) ch = UNI_REPLACEMENT_CHAR; // temporary!
+			if (!(src = Back_Scan_UTF8_Char(&ch, src, &len)))
+				raise Error_0(RE_BAD_DECODE);
+
 			if (ch > 0xff) flag = 1;
 		} if (ch == CR && ccr) {
 			if (src[1] == LF) continue;
 			ch = LF;
 		}
-		*dst++ = (REBUNI)ch;
+		*dst++ = ch;
 	}
 
 	return (dst - start) * flag;
