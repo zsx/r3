@@ -957,21 +957,11 @@ ConversionResult ConvertUTF8toUTF32 (
 
 /***********************************************************************
 **
-*/	int Decode_UTF32(REBUNI *dst, REBYTE *src, REBINT len, REBFLG lee, REBFLG ccr)
-/*
-***********************************************************************/
-{
-	return 0;
-}
-
-
-/***********************************************************************
-**
 */	REBSER *Decode_UTF_String(REBYTE *bp, REBCNT len, REBINT utf)
 /*
 **		Do all the details to decode a string.
 **		Input is a byte series. Len is len of input.
-**		The utf is 0, 8, +/-16, +/-32.
+**		The utf is 0, 8, +/-16
 **		A special -1 means use the BOM, if present, or UTF-8 otherwise.
 **
 **		Returns the decoded string or NULL for unsupported encodings.
@@ -988,7 +978,6 @@ ConversionResult ConvertUTF8toUTF32 (
 		if (utf != 0) {
 			if (utf == 8) bp += 3, len -= 3;
 			else if (utf == -16 || utf == 16) bp += 2, len -= 2;
-			//else if (utf == -32 || utf == 32) bp += 4, len -= 4;
 			else return NULL;
 		}
 	}
@@ -999,9 +988,6 @@ ConversionResult ConvertUTF8toUTF32 (
 	else if (utf == -16 || utf == 16) {
 		size = Decode_UTF16((REBUNI*)Reset_Buffer(ser, len/2 + 1), bp, len, utf < 0, TRUE);
 	}
-//	else if (utf == -32 || utf == 32) {
-//		size = Decode_UTF32((REBUNI*)Reset_Buffer(ser, len/4 + 1), bp, len, utf < 0, TRUE);
-//	}
 	else {
 		// Encoding is unsupported or not yet implemented.
 		return NULL;
