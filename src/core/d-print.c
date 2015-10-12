@@ -98,7 +98,7 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Prin_OS_String(const void *p, REBCNT len, REBFLG encopts)
+*/	void Prin_OS_String(const void *p, REBCNT len, REBFLG opts)
 /*
 **	Print a string (with no line terminator).
 **
@@ -110,15 +110,15 @@ static REBREQ *Req_SIO;
 	REBYTE buffer[BUF_SIZE]; // on stack
 	REBYTE *buf = &buffer[0];
 	REBCNT len2;
-	const REBOOL uni = (encopts & OPT_ENC_UNISRC) != 0;
+	const REBOOL is_uni = (opts & OPT_ENC_UNISRC) != 0;
 
-	const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
-	const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
+	const REBYTE *bp = is_uni ? NULL : cast(const REBYTE *, p);
+	const REBUNI *up = is_uni ? cast(const REBUNI *, p) : NULL;
 
 	if (!p) panic Error_0(RE_NO_PRINT_PTR);
 
 	// Determine length if not provided:
-	if (len == UNKNOWN) len = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
+	if (len == UNKNOWN) len = is_uni ? Strlen_Uni(up) : LEN_BYTES(bp);
 
 	SET_FLAG(Req_SIO->flags, RRF_FLUSH);
 
@@ -126,9 +126,11 @@ static REBREQ *Req_SIO;
 	Req_SIO->common.data = buf;
 	buffer[0] = 0; // for debug tracing
 
-	if (encopts & OPT_ENC_RAW) {
+	if (opts & OPT_ENC_RAW) {
+		Do_Signals();
+
 		// Used by verbatim terminal output, e.g. print of a BINARY!
-		assert(!uni);
+		assert(!is_uni);
 		Req_SIO->length = len;
 
 		// Mutability cast, but RDC_WRITE should not be modifying the buffer
@@ -140,18 +142,17 @@ static REBREQ *Req_SIO;
 	}
 	else {
 		while ((len2 = len) > 0) {
-
 			Do_Signals();
 
 			Req_SIO->length = Encode_UTF8(
 				buf,
 				BUF_SIZE - 4,
-				uni ? cast(const void *, up) : cast(const void *, bp),
+				is_uni ? cast(const void *, up) : cast(const void *, bp),
 				&len2,
-				encopts
+				opts
 			);
 
-			if (uni) up += len2; else bp += len2;
+			if (is_uni) up += len2; else bp += len2;
 			len -= len2;
 
 			OS_DO_DEVICE(Req_SIO, RDC_WRITE);
