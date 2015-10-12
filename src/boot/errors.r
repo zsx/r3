@@ -273,6 +273,7 @@ Access: [
 	permission-denied: 	[{permission denied}]
 	process-not-found: 	[{process not found:} :arg1]
 
+	symbol-not-found:	[{symbol not found:} :arg1]
 ]
 
 Command: [
