@@ -1218,7 +1218,7 @@ ConversionResult ConvertUTF8toUTF32 (
 			data = VAL_BIN_DATA(value);
 		}
 		else {
-			opts &= OPT_ENC_UNISRC; // add flag
+			opts |= OPT_ENC_UNISRC; // add flag
 			data = VAL_UNI_DATA(value);
 		}
 		return Make_UTF8_Binary(data, len, 0, opts);
