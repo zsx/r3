@@ -436,6 +436,37 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 						Trap_Arg(attr);
 					}
 					break;
+				case SYM_EXTERN:
+					++ attr;
+
+					if (*raw_addr != 0) /* raw-memory is exclusive with extern */
+						Trap_Arg(attr);
+
+					if (!IS_BLOCK(attr)
+						|| VAL_LEN(attr) != 2) {
+						Trap_Arg(attr);
+					} else {
+						REBVAL *lib;
+						REBVAL *sym;
+						void *addr;
+
+						lib = VAL_BLK_SKIP(attr, 0);
+						sym = VAL_BLK_SKIP(attr, 1);
+
+						if (!IS_LIBRARY(lib))
+							Trap_Arg(attr);
+						if (IS_CLOSED_LIB(VAL_LIB_HANDLE(lib)))
+							Trap0(RE_BAD_LIBRARY);
+						if (!ANY_BINSTR(sym))
+							Trap_Arg(sym);
+
+						addr = OS_FIND_FUNCTION(LIB_FD(VAL_LIB_HANDLE(lib)), VAL_DATA(sym));
+						if (!addr)
+							Trap1(RE_SYMBOL_NOT_FOUND, sym);
+
+						*raw_addr = (REBUPT)addr;
+					}
+					break;
 					/*
 					   case SYM_ALIGNMENT:
 					   ++ attr;
