@@ -1017,8 +1017,8 @@ ConversionResult ConvertUTF8toUTF32 (
 {
 	REBCNT size = 0;
 	REBCNT c;
-	REBOOL uni = GET_FLAG(opts, OPT_ENC_UNISRC);
-	REBOOL ccr = GET_FLAG(opts, OPT_ENC_CRLF);
+	REBOOL uni = (opts & OPT_ENC_UNISRC) != 0;
+	REBOOL ccr = (opts & OPT_ENC_CRLF) != 0;
 	const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
 	const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
 
@@ -1097,8 +1097,8 @@ ConversionResult ConvertUTF8toUTF32 (
 	const REBYTE *bp = cast(const REBYTE*, src);
 	const REBUNI *up = cast(const REBUNI*, src);
 	REBCNT cnt;
-	REBOOL uni = GET_FLAG(opts, OPT_ENC_UNISRC);
-	REBOOL ccr = GET_FLAG(opts, OPT_ENC_CRLF);
+	REBOOL uni = (opts & OPT_ENC_UNISRC) != 0;
+	REBOOL ccr = (opts & OPT_ENC_CRLF) != 0;
 
 	if (len) cnt = *len;
 	else cnt = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -1206,7 +1206,7 @@ ConversionResult ConvertUTF8toUTF32 (
 {
 	assert(ANY_STR(value));
 
-	if (!GET_FLAG(opts, OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
+	if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
 		// We can copy a one-byte-per-character series if it doesn't contain
 		// codepoints like 128 - 255 (pure ASCII is valid UTF-8)
 		return Copy_Bytes(VAL_BIN_DATA(value), len);
@@ -1214,11 +1214,11 @@ ConversionResult ConvertUTF8toUTF32 (
 	else {
 		const void *data;
 		if (VAL_BYTE_SIZE(value)) {
-			CLR_FLAG(opts, OPT_ENC_UNISRC);
+			opts &= ~OPT_ENC_UNISRC; // remove flag
 			data = VAL_BIN_DATA(value);
 		}
 		else {
-			SET_FLAG(opts, OPT_ENC_UNISRC);
+			opts &= OPT_ENC_UNISRC; // add flag
 			data = VAL_UNI_DATA(value);
 		}
 		return Make_UTF8_Binary(data, len, 0, opts);
