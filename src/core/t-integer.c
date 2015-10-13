@@ -117,7 +117,7 @@
 			*out = 0;
 			if (n > sizeof(REBI64)) n = sizeof(REBI64);
 			for (; n; n--, bp++)
-				*out = (*out << 8) | *bp;
+				*out = cast(REBI64, (cast(REBU64, *out) << 8) | *bp);
 
 			// There was no TO-INTEGER/UNSIGNED in R3-Alpha, so even if
 			// running in compatibility mode we can check the sign if used.
@@ -163,11 +163,13 @@
 
 		// Pad out to make sure any missing upper bytes match sign
 		for (fill = n; fill < 8; fill++)
-			*out = (*out << 8) | (negative ? 0xFF : 0x00);
+			*out = cast(REBI64,
+				(cast(REBU64, *out) << 8) | (negative ? 0xFF : 0x00)
+			);
 
 		// Use binary data bytes to fill in the up-to-8 lower bytes
 		while (n != 0) {
-			*out = (*out << 8) | *bp;
+			*out = cast(REBI64, (cast(REBU64, *out) << 8) | *bp);
 			bp++;
 			n--;
 		}
