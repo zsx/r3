@@ -599,43 +599,65 @@ typedef u16 REBUNI;
 
 #define ROUND_TO_INT(d) (REBINT)(floor((MAX(MIN_I32, MIN(MAX_I32, d))) + 0.5))
 
-//global pixelformat setup for REBOL image!, image loaders, color handling, tuple! conversions etc.
-//the graphics compositor code should rely on this setting(and do specific conversions if needed)
-//notes:
-//TO_RGBA_COLOR always returns 32bit RGBA value, converts R,G,B,A components to native RGBA order
-//TO_PIXEL_COLOR must match internal image! datatype byte order, converts R,G,B,A components to native image format
-// C_R, C_G, C_B, C_A Maps color components to correct byte positions for image! datatype byte order
+// Global pixel format setup for REBOL image!, image loaders, color handling,
+// tuple! conversions etc.  The graphics compositor code should rely on this
+// setting(and do specific conversions if needed)
+//
+// TO_RGBA_COLOR always returns 32bit RGBA value, converts R,G,B,A
+// components to native RGBA order
+//
+// TO_PIXEL_COLOR must match internal image! datatype byte order, converts
+// R,G,B,A components to native image format
+//
+// C_R, C_G, C_B, C_A Maps color components to correct byte positions for
+// image! datatype byte order
 
-#ifdef ENDIAN_BIG
+#ifdef ENDIAN_BIG // ARGB pixel format on big endian systems
+	#define TO_RGBA_COLOR(r,g,b,a) \
+		(cast(REBCNT, (r)) << 24 \
+		| cast(REBCNT, (g)) << 16 \
+		| cast(REBCNT, (b)) << 8 \
+		| cast(REBCNT, (a)))
 
-#define TO_RGBA_COLOR(r,g,b,a) (REBCNT)((r)<<24 | (g)<<16 | (b)<<8 |  (a))
+	#define C_A 0
+	#define C_R 1
+	#define C_G 2
+	#define C_B 3
 
-//ARGB pixelformat used on big endian systems
-#define C_A 0
-#define C_R 1
-#define C_G 2
-#define C_B 3
-
-#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (r)<<16 | (g)<<8 |  (b))
-
+	#define TO_PIXEL_COLOR(r,g,b,a) \
+		(cast(REBCNT, (a)) << 24 \
+		| cast(REBCNT, (r)) << 16 \
+		| cast(REBCNT, (g)) << 8 \
+		| cast(REBCNT, (b)))
 #else
+	#define TO_RGBA_COLOR(r,g,b,a) \
+		(cast(REBCNT, (a)) << 24 \
+		| cast(REBCNT, (b)) << 16 \
+		| cast(REBCNT, (g)) << 8 \
+		| cast(REBCNT, (r)))
 
-#define TO_RGBA_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (b)<<16 | (g)<<8 |  (r))
+	#ifdef TO_ANDROID_ARM // RGBA pixel format on Android
+		#define C_R 0
+		#define C_G 1
+		#define C_B 2
+		#define C_A 3
 
-//we use RGBA pixelformat on Android
-#ifdef TO_ANDROID_ARM
-#define C_R 0
-#define C_G 1
-#define C_B 2
-#define C_A 3
-#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (b)<<16 | (g)<<8 |  (r))
-#else
-//BGRA pixelformat is used on Windows
-#define C_B 0
-#define C_G 1
-#define C_R 2
-#define C_A 3
-#define TO_PIXEL_COLOR(r,g,b,a) (REBCNT)((a)<<24 | (r)<<16 | (g)<<8 |  (b))
-#endif
+		#define TO_PIXEL_COLOR(r,g,b,a) \
+			(cast(REBCNT, (a)) << 24 \
+			| cast(REBCNT, (b)) << 16 \
+			| cast(REBCNT, (g)) << 8 \
+			| cast(REBCNT, (r)))
 
+	#else // BGRA pixel format on Windows
+		#define C_B 0
+		#define C_G 1
+		#define C_R 2
+		#define C_A 3
+
+		#define TO_PIXEL_COLOR(r,g,b,a) \
+			(cast(REBCNT, (a)) << 24 \
+			| cast(REBCNT, (r)) << 16 \
+			| cast(REBCNT, (g)) << 8 \
+			| cast(REBCNT, (b)))
+	#endif
 #endif
