@@ -102,9 +102,12 @@ static REBOOL get_scalar(const REBSTU *stu,
 				SET_TYPE(val, REB_STRUCT);
 				VAL_STRUCT_FIELDS(val) = field->fields;
 				VAL_STRUCT_SPEC(val) = field->spec;
+
 				VAL_STRUCT_DATA(val) = Make_Series(
 					1, sizeof(struct Struct_Data), MKS_NONE
 				);
+				MANAGE_SERIES(VAL_STRUCT_DATA(val));
+
 				VAL_STRUCT_DATA_BIN(val) = STRUCT_DATA_BIN(stu);
 				VAL_STRUCT_OFFSET(val) = data - SERIES_DATA(VAL_STRUCT_DATA_BIN(val));
 				VAL_STRUCT_LEN(val) = field->size;

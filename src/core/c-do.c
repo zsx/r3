@@ -967,8 +967,10 @@ reevaluate:
 				continue;
 			}
 			else {
-				// !!! Should there be any other checks here?
-				assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
+				// !!! Note: ROUTINE! does not set any bits on the symbols
+				// and will need to be made to...
+				//
+				// assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
 
 				// An ordinary WORD! in the function spec indicates that you
 				// would like that argument to be evaluated normally.
