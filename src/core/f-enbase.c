@@ -188,7 +188,7 @@
 	REBYTE *bp;
 	const REBYTE *cp;
 	REBCNT count = 0;
-	REBINT accum = 0;
+	REBCNT accum = 0;
 	REBYTE lex;
 	REBSER *ser;
 
@@ -209,7 +209,7 @@
 			else goto err;
 
 			if (count++ >= 7) {
-				*bp++ = (REBYTE)accum;
+				*bp++ = cast(REBYTE, accum);
 				count = 0;
 				accum = 0;
 			}
@@ -238,7 +238,7 @@ err:
 	REBYTE *bp;
 	const REBYTE *cp;
 	REBCNT count = 0;
-	REBINT accum = 0;
+	REBCNT accum = 0;
 	REBYTE lex;
 	REBINT val;
 	REBSER *ser;
@@ -257,7 +257,7 @@ err:
 			val = lex & LEX_VALUE; // char num encoded into lex
 			if (!val && lex < LEX_NUMBER) goto err;  // invalid char (word but no val)
 			accum = (accum << 4) + val;
-			if (count++ & 1) *bp++ = (REBYTE)accum;
+			if (count++ & 1) *bp++ = cast(REBYTE, accum);
 		}
 		else if (!*cp || lex > LEX_DELIMIT_RETURN) goto err;
 	}
@@ -283,7 +283,7 @@ err:
 	REBYTE *bp;
 	const REBYTE *cp;
 	REBCNT flip = 0;
-	REBINT accum = 0;
+	REBCNT accum = 0;
 	REBYTE lex;
 	REBSER *ser;
 
@@ -311,9 +311,9 @@ err:
 			if (*cp != '=')	{
 				accum = (accum << 6) + lex;
 				if (flip++ == 3) {
-					*bp++ = (REBYTE)(accum >> 16);
-					*bp++ = (REBYTE)(accum >> 8);
-					*bp++ = (REBYTE)(accum);
+					*bp++ = cast(REBYTE, accum >> 16);
+					*bp++ = cast(REBYTE, accum >> 8);
+					*bp++ = cast(REBYTE, accum);
 					accum = 0;
 					flip = 0;
 				}
@@ -322,14 +322,14 @@ err:
 				cp++;
 				len--;
 				if (flip == 3) {
-					*bp++ = (REBYTE)(accum >> 10);
-					*bp++ = (REBYTE)(accum >> 2);
+					*bp++ = cast(REBYTE, accum >> 10);
+					*bp++ = cast(REBYTE, accum >> 2);
 					flip = 0;
 				}
 				else if (flip == 2) {
 					if (!Skip_To_Byte(cp, cp + len, '=')) goto err;
 					cp++;
-					*bp++ = (REBYTE)(accum >> 4);
+					*bp++ = cast(REBYTE, accum >> 4);
 					flip = 0;
 				}
 				else goto err;
