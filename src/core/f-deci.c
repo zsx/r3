@@ -561,7 +561,7 @@ REBI64 deci_to_int (const deci a) {
 
 	/* convert significand to integer */
 	if (m_cmp (3, sa, min_int64_t_as_deci) > 0) raise Error_0(RE_OVERFLOW);
-	result = ((REBI64) sa[1] << 32) | (REBI64) sa[0];
+	result = cast(REBI64, (cast(REBU64, sa[1]) << 32) | cast(REBU64, sa[0]));
 
 	/* handle sign */
 	if (a.s && result > MIN_I64) result = -result;
