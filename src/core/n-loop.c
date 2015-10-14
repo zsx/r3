@@ -58,20 +58,21 @@ typedef enum {
 	// Using words for BREAK and CONTINUE to parallel old VAL_ERR_SYM()
 	// code.  So if the throw wasn't a word it can't be either of those,
 	// hence the loop doesn't handle it and needs to bubble up the THROWN()
-	if (!IS_WORD(val))
+	if (!IS_NATIVE(val))
 		return TRUE;
 
 	// If it's a CONTINUE then wipe out the THROWN() value with UNSET,
 	// and tell the loop it doesn't have to return.
-	if (VAL_WORD_SYM(val) == SYM_CONTINUE) {
+	if (VAL_FUNC_CODE(val) == VAL_FUNC_CODE(ROOT_CONTINUE_NATIVE)) {
+		CATCH_THROWN(val, val);
 		SET_UNSET(val);
 		return FALSE;
 	}
 
 	// If it's a BREAK, get the /WITH value (UNSET! if no /WITH) and
 	// say it should be returned.
-	if (VAL_WORD_SYM(val) == SYM_BREAK) {
-		TAKE_THROWN_ARG(val, val);
+	if (VAL_FUNC_CODE(val) == VAL_FUNC_CODE(ROOT_BREAK_NATIVE)) {
+		CATCH_THROWN(val, val);
 		return TRUE;
 	}
 
@@ -502,7 +503,11 @@ typedef enum {
 		}
 
 		if (Do_Block_Throws(D_OUT, body, 0)) {
-			if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_CONTINUE) {
+			if (
+				IS_NATIVE(D_OUT)
+				&& VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_CONTINUE_NATIVE)
+			) {
+				CATCH_THROWN(D_OUT, D_OUT);
 				if (mode == LOOP_REMOVE_EACH) {
 					// signal the post-body-execution processing that we
 					// *do not* want to remove the element on a CONTINUE
@@ -514,11 +519,14 @@ typedef enum {
 					SET_UNSET(D_OUT);
 				}
 			}
-			else if (IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_BREAK) {
+			else if (
+				IS_NATIVE(D_OUT)
+				&& VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_BREAK_NATIVE)
+			) {
 				// If it's a BREAK, get the /WITH value (UNSET! if no /WITH)
 				// Though technically this doesn't really tell us if a
 				// BREAK/WITH happened, as you can BREAK/WITH an UNSET!
-				TAKE_THROWN_ARG(D_OUT, D_OUT);
+				CATCH_THROWN(D_OUT, D_OUT);
 				if (!IS_UNSET(D_OUT))
 					break_with = TRUE;
 				index = rindex;

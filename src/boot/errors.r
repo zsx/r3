@@ -19,16 +19,6 @@ Special: [
 	type: "special"		; Not really "errors"
 	null:				{invalid error code zero}
 	halt:               {halted by user or script}
-	exited:             {exit occurred}
-
-	; !!! Temporary: PARSE uses simulated error Trap to get out of arbitrary
-	; stacks when a paren! is THROWN() out of (e.g. parse {} [(return 0)]).
-	; This isn't sensible compared to just having a way to use ordinary
-	; C logic to return out of the stack.  There is overhead to cleaning up
-	; after the longjmp and cost to set up and drop a setjmp state on every
-	; parse (even those which will not need to use this hack).
-	;
-	parse-longjmp-hack:	{RE_PARSE_LONGJMP_HACK not in PARSE (impossible!)}
 ]
 
 Internal: [

@@ -49,13 +49,13 @@
 **	3: /return (deprecated)
 **	4: /return-value (deprecated)
 **
-**	While QUIT is implemented via a THROWN() value that bubbles up
-**	through the stack, it may not ultimately use the WORD! of QUIT
-**	as its /NAME when more specific values are allowed as names.
+**	QUIT is implemented via a THROWN() value that bubbles up through
+**	the stack.  It uses the value of its own native function as the
+**	name of the throw, like `throw/name value :quit`.
 **
 ***********************************************************************/
 {
-	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_QUIT);
+	*D_OUT = *ROOT_QUIT_NATIVE;
 
 	if (D_REF(1)) {
 		CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));

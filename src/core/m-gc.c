@@ -538,17 +538,14 @@ static void Propagate_All_GC_Marks(void);
 {
 	REBSER *ser = NULL;
 
-	if (THROWN(val)) {
-		// Running GC where it can get a chance to see a THROWN value
-		// is invalid because it is related to a temporary value saved
-		// with THROWN_ARG.  So if the GC sees the thrown, it is not
-		// seeing the THROWN_ARG.
-
-		// !!! It's not clear if this should crash or not.
-		// Aggressive Recycle() forces this to happen, review.
-
-		// panic Error_0(RE_THROW_IN_GC);
-	}
+	// If this happens, it means somehow Recycle() got called between
+	// when an `if (Do_XXX_Throws())` branch was taken and when the throw
+	// should have been caught up the stack (before any more calls made).
+	//
+	// !!! Is it worth causing a panic on this in particular in the
+	// release build?  Odds are things will get more corrupt and crash.
+	//
+	assert(!THROWN(val));
 
 	switch (VAL_TYPE(val)) {
 		case REB_UNSET:

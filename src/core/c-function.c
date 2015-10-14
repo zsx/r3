@@ -277,6 +277,17 @@
 }
 
 
+// Generates function prototypes for the natives here to be captured
+// by Make_Native (native's N_XXX functions are not automatically exported)
+
+REBNATIVE(parse);
+REBNATIVE(break);
+REBNATIVE(continue);
+REBNATIVE(quit);
+REBNATIVE(return);
+REBNATIVE(exit);
+
+
 /***********************************************************************
 **
 */	void Make_Native(REBVAL *value, REBSER *spec, REBFUN func, REBINT type)
@@ -294,6 +305,23 @@
 
 	VAL_FUNC_CODE(value) = func;
 	VAL_SET(value, type);
+
+	// These native routines want to be able to use *themselves* as a throw
+	// name (and other natives want to recognize that name, as might user
+	// code e.g. custom loops wishing to intercept BREAK or CONTINUE)
+	//
+	if (func == &N_parse)
+		*ROOT_PARSE_NATIVE = *value;
+	else if (func == &N_break)
+		*ROOT_BREAK_NATIVE = *value;
+	else if (func == &N_continue)
+		*ROOT_CONTINUE_NATIVE = *value;
+	else if (func == &N_quit)
+		*ROOT_QUIT_NATIVE = *value;
+	else if (func == &N_return)
+		*ROOT_RETURN_NATIVE = *value;
+	else if (func == &N_exit)
+		*ROOT_EXIT_NATIVE = *value;
 }
 
 
@@ -490,11 +518,13 @@
 
 	if (Do_Block_Throws(out, VAL_FUNC_BODY(func), 0)) {
 		if (
-			IS_WORD(out) &&
-			(VAL_WORD_SYM(out) == SYM_RETURN || VAL_WORD_SYM(out) == SYM_EXIT)
+			IS_NATIVE(out) && (
+				VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_RETURN_NATIVE)
+				|| VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+			)
 		) {
 			if (!VAL_GET_EXT(func, EXT_FUNC_TRANSPARENT))
-				TAKE_THROWN_ARG(out, out);
+				CATCH_THROWN(out, out);
 		}
 	}
 }
@@ -560,11 +590,13 @@
 
 	if (Do_Block_Throws(out, body, 0)) {
 		if (
-			IS_WORD(out) &&
-			(VAL_WORD_SYM(out) == SYM_RETURN || VAL_WORD_SYM(out) == SYM_EXIT)
+			IS_NATIVE(out) && (
+				VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_RETURN_NATIVE)
+				|| VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+			)
 		) {
 			if (!VAL_GET_EXT(func, EXT_FUNC_TRANSPARENT))
-				TAKE_THROWN_ARG(out, out);
+				CATCH_THROWN(out, out);
 		}
 	}
 

@@ -351,15 +351,15 @@ enum {
 **		3: /return (deprecated)
 **		4: return-value
 **
-**	While BREAK is implemented via a THROWN() value that bubbles up
-**	through the stack, it may not ultimately use the WORD! of BREAK
-**	as its /NAME.
+**	BREAK is implemented via a THROWN() value that bubbles up through
+**	the stack.  It uses the value of its own native function as the
+**	name of the throw, like `throw/name value :break`.
 **
 ***********************************************************************/
 {
 	REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
 
-	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_BREAK);
+	*D_OUT = *ROOT_BREAK_NATIVE;
 
 	CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -541,8 +541,14 @@ enum {
 
 	if (Do_Block_Throws(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
 		if (
-			(any && (!IS_WORD(D_OUT) || VAL_WORD_SYM(D_OUT) != SYM_QUIT))
-			|| (quit && IS_WORD(D_OUT) && VAL_WORD_SYM(D_OUT) == SYM_QUIT)
+			(any && (
+				!IS_NATIVE(D_OUT)
+				|| VAL_FUNC_CODE(D_OUT) != VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
+			))
+			|| (quit && (
+				IS_NATIVE(D_OUT)
+				&& VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
+			))
 		) {
 			goto was_caught;
 		}
@@ -611,7 +617,7 @@ was_caught:
 			REBVAL *thrown_arg = D_ARG(4);
 			REBVAL *thrown_name = D_ARG(5);
 
-			TAKE_THROWN_ARG(thrown_arg, D_OUT);
+			CATCH_THROWN(thrown_arg, D_OUT);
 			*thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
 
 			if (
@@ -657,7 +663,7 @@ was_caught:
 	}
 
 	// If no handler, just return the caught thing
-	TAKE_THROWN_ARG(D_OUT, D_OUT);
+	CATCH_THROWN(D_OUT, D_OUT);
 	return R_OUT;
 }
 
@@ -751,13 +757,13 @@ was_caught:
 **
 */	REBNATIVE(continue)
 /*
-**	While CONTINUE is implemented via a THROWN() value that bubbles up
-**	through the stack, it may not ultimately use the WORD! of CONTINUE
-**	as its /NAME.
+**	CONTINUE is implemented via a THROWN() value that bubbles up through
+**	the stack.  It uses the value of its own native function as the
+**	name of the throw, like `throw/name value :continue`.
 **
 ***********************************************************************/
 {
-	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_CONTINUE);
+	*D_OUT = *ROOT_CONTINUE_NATIVE;
 	CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
 
 	return R_OUT;
@@ -935,19 +941,19 @@ was_caught:
 **	1: /with
 **	2: value
 **
-**	While EXIT is implemented via a THROWN() value that bubbles up
-**	through the stack, it may not ultimately use the WORD! of EXIT
-**	as its /NAME.
+**	EXIT is implemented via a THROWN() value that bubbles up through
+**	the stack.  It uses the value of its own native function as the
+**	name of the throw, like `throw/name value :exit`.
 **
 ***********************************************************************/
 {
 #if !defined(NDEBUG)
 	if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+		*D_OUT = *ROOT_RETURN_NATIVE;
 	else
-		Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
+		*D_OUT = *ROOT_EXIT_NATIVE;
 #else
-	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_EXIT);
+	*D_OUT = *ROOT_EXIT_NATIVE;
 #endif
 
 	CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
@@ -1103,13 +1109,15 @@ was_caught:
 */	REBNATIVE(return)
 /*
 **	The implementation of RETURN here is a simple THROWN() value and
-**	has no "definitional scoping"--a temporary state of affairs.
+**	has no "definitional scoping".  It will be the only way to return
+**	from a MAKE FUNCTION! which has not defined a local specific
+**	definitional return.
 **
 ***********************************************************************/
 {
 	REBVAL *arg = D_ARG(1);
 
-	Val_Init_Word_Unbound(D_OUT, REB_WORD, SYM_RETURN);
+	*D_OUT = *ROOT_RETURN_NATIVE;
 	CONVERT_NAME_TO_THROWN(D_OUT, arg);
 
 	return R_OUT;

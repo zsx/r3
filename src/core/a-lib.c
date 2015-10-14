@@ -222,12 +222,14 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 
 	if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_RL_START, 0)) {
 		if (
-			IS_WORD(&out) &&
-			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
+			IS_NATIVE(&out) && (
+				VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
+				|| VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+			)
 		) {
 			int status;
 
-			TAKE_THROWN_ARG(&out, &out);
+			CATCH_THROWN(&out, &out);
 			status = Exit_Status_From_Value(&out);
 
 			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -434,10 +436,12 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		DROP_GUARD_SERIES(code);
 
 		if (
-			IS_WORD(&out) &&
-			(VAL_WORD_SYM(&out) == SYM_QUIT || VAL_WORD_SYM(&out) == SYM_EXIT)
+			IS_NATIVE(&out) && (
+				VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
+				|| VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+			)
 		) {
-			TAKE_THROWN_ARG(&out, &out);
+			CATCH_THROWN(&out, &out);
 			DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 			*exit_status = Exit_Status_From_Value(&out);

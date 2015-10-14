@@ -1050,6 +1050,8 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	Init_Mold(MIN_COMMON/4);
 	Init_Frame();
 	//Inspect_Series(0);
+
+	SET_TRASH_SAFE(TASK_THROWN_ARG);
 }
 
 

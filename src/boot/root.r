@@ -34,5 +34,15 @@ noname			; noname function word
 transparent-tag	; func w/o definitional return, ignores non-definitional ones
 infix-tag		; func is treated as "infix" (first parameter comes before it)
 
+;; Natives needed as values by the system for throw names (they use their
+;; own function values as names, to be agnostic about words)
+
+parse-native
+break-native
+continue-native
+quit-native
+return-native
+exit-native
+
 boot			; boot block defined in boot.r (GC'd after boot is done)
 

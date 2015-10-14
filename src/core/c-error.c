@@ -136,15 +136,8 @@
 	assert(!THROWN(name));
 	VAL_SET_OPT(name, OPT_VALUE_THROWN);
 
-	// This assertion is a nice idea, but practically speaking we don't
-	// currently have a moment when an error is caught with PUSH_TRAP
-	// to set it to trash...only if it has its value processed as a
-	// function return or loop break, etc.  One way of fixing it would
-	// be to make PUSH_TRAP take 3 arguments instead of 2, and store
-	// the error argument in the Rebol_State if it gets thrown...but
-	// that looks a bit ugly.  Think more on this.
-
-	/* assert(IS_TRASH(TASK_THROWN_ARG)); */
+	assert(IS_TRASH(TASK_THROWN_ARG));
+	assert(!IS_TRASH(arg));
 
 	*TASK_THROWN_ARG = *arg;
 }
@@ -152,7 +145,7 @@
 
 /***********************************************************************
 **
-*/	void Take_Thrown_Arg_Debug(REBVAL *out, REBVAL *thrown)
+*/	void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
 /*
 **		Debug-only version of TAKE_THROWN_ARG
 **
@@ -166,14 +159,10 @@
 	assert(THROWN(thrown));
 	VAL_CLR_OPT(thrown, OPT_VALUE_THROWN);
 
-	// See notes about assertion in Convert_Name_To_Thrown_Debug.  TBD.
-
-	/* assert(!IS_TRASH(TASK_THROWN_ARG)); */
+	assert(!IS_TRASH(TASK_THROWN_ARG));
 
 	*out = *TASK_THROWN_ARG;
 
-	// The THROWN_ARG lives under the root set, and must be a value
-	// that won't trip up the GC.
 	SET_TRASH_SAFE(TASK_THROWN_ARG);
 }
 
@@ -226,6 +215,13 @@
 	// other unstable location.  Copy before the jump.
 
 	Saved_State->error = *err;
+
+	// If a THROWN() was being processed up the stack when the error was
+	// raised, then it had the thrown argument set.  We ensure that it is
+	// not set any longer (even in release builds, this is needed to keep
+	// it from having a hold on the GC of the thrown value).
+
+	SET_TRASH_SAFE(TASK_THROWN_ARG);
 
 	LONG_JUMP(Saved_State->cpu_state, 1);
 }
@@ -763,7 +759,7 @@
 {
 	REBVAL arg;
 	assert(THROWN(thrown));
-	TAKE_THROWN_ARG(&arg, thrown); // clears bit
+	CATCH_THROWN(&arg, thrown); // clears bit
 
 	if (IS_NONE(thrown))
 		Error_1(RE_NO_CATCH, &arg);

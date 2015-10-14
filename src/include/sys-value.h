@@ -113,11 +113,7 @@ enum {
 // A reason to favor the name as "the main part" is that having the name
 // value ready-at-hand allows easy testing of it to see if it needs
 // to be passed on.  That happens more often than using the arg, which
-// will occur exactly once (when it is caught).  Moreover, it is done
-// this way because historically Rebol used an ERROR! where the name
-// lived for this purpose.  The spot available in the error value only
-// afforded only 32 bits, which could only hold a symbol ID and hence
-// the name was presumed as corresponding to an unbound WORD!
+// will occur exactly once (when it is caught).
 
 #ifdef NDEBUG
 	#define CONVERT_NAME_TO_THROWN(name,arg) \
@@ -126,15 +122,17 @@ enum {
 			(*TASK_THROWN_ARG = *(arg)); \
 		} while (0)
 
-	#define TAKE_THROWN_ARG(arg,thrown) \
+	#define CATCH_THROWN(arg,thrown) \
 		do { \
-			assert(VAL_GET_OPT((thrown), OPT_VALUE_THROWN)); \
 			VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
 			(*(arg) = *TASK_THROWN_ARG); \
 		} while (0)
 #else
-	#define CONVERT_NAME_TO_THROWN(n,a)		Convert_Name_To_Thrown_Debug(n, a)
-	#define TAKE_THROWN_ARG(a,t)			Take_Thrown_Arg_Debug(a, t)
+	#define CONVERT_NAME_TO_THROWN(n,a) \
+		Convert_Name_To_Thrown_Debug(n, a)
+
+	#define CATCH_THROWN(a,t) \
+		Catch_Thrown_Debug(a, t)
 #endif
 
 #define THROWN(v)			(VAL_GET_OPT((v), OPT_VALUE_THROWN))
