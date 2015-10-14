@@ -618,7 +618,6 @@ static void Propagate_All_GC_Marks(void);
 		case REB_FUNCTION:
 		case REB_COMMAND:
 		case REB_CLOSURE:
-		case REB_REBCODE:
 			QUEUE_MARK_BLOCK_DEEP(VAL_FUNC_BODY(val));
 		case REB_NATIVE:
 		case REB_ACTION:

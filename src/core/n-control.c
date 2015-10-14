@@ -789,7 +789,6 @@ was_caught:
 		case REB_NATIVE:
 		case REB_ACTION:
 		case REB_COMMAND:
-		case REB_REBCODE:
 		case REB_CLOSURE:
 		case REB_FUNCTION:
 			VAL_SET_OPT(value, OPT_VALUE_REEVALUATE);

@@ -33,8 +33,6 @@
 
 #include "sys-core.h"
 
-void Do_Rebcode(const REBVAL *v) {;}
-
 #include "tmp-evaltypes.h"
 
 
@@ -516,9 +514,6 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	case REB_ACTION:
 		Do_Action(func);
 		break;
-	case REB_REBCODE:
-		Do_Rebcode(func);
-		break;
 	case REB_COMMAND:
 		Do_Command(func);
 		break;
@@ -716,7 +711,6 @@ reevaluate:
 
 	case REB_NATIVE:
 	case REB_ACTION:
-	case REB_REBCODE:
 	case REB_COMMAND:
 	case REB_CLOSURE:
 	case REB_FUNCTION:

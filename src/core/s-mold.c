@@ -1238,7 +1238,6 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		Mold_Block_Series(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
 		End_Mold(mold);
 		break;
-	case REB_REBCODE:
 	case REB_FRAME:
 	case REB_HANDLE:
 		// Value has no printable form, so just print its name.

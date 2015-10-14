@@ -83,7 +83,6 @@ issue       word        +        *       -      -		word
 native      function    *        -       -      *		function
 action      function    *        -       -      *		function
 routine     routine     *        -       -      *		function
-rebcode     0           -        -       -      *		function
 command     function    -        -       -      *		function
 closure     function    *        -       -      *		function
 function    function    *        -       -      *		function
