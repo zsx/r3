@@ -124,21 +124,20 @@ static struct digest {
 /*
 ***********************************************************************/
 {
-	REBSER *str;
+	REBSER *block = VAL_SERIES(D_ARG(1));
+	REBCNT index = VAL_INDEX(D_ARG(1));
 
-	// !!! This uses stack pushing/popping protocol and doesn't need
-	// to.  It's only called once; should probably be inlined here.
-	// (Assuming AJOIN should exist, which it probably shouldn't.)
+	REB_MOLD mo;
+	CLEARS(&mo);
+	Reset_Mold(&mo);
 
-	str = Form_Reduce(VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)));
-	if (!str) {
-		DS_POP_INTO(D_OUT);
-		return R_OUT;
+	while (index != END_FLAG) {
+		index = Do_Next_May_Throw(D_OUT, block, index);
+		if (index == THROWN_FLAG) return R_OUT;
+		Mold_Value(&mo, D_OUT, 0);
 	}
 
-	DS_DROP;
-
-	Val_Init_String(D_OUT, str); // not D_OUT (stack modified)
+	Val_Init_String(D_OUT, Copy_String(mo.series, 0, -1));
 
 	return R_OUT;
 }
