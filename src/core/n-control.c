@@ -763,10 +763,13 @@ was_caught:
 **
 ***********************************************************************/
 {
-	*D_OUT = *ROOT_CONTINUE_NATIVE;
-	CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
+	REBVAL *value = D_REF(1) ? D_ARG(2) : UNSET_VALUE;
 
-	return R_OUT;
+	*D_OUT = *ROOT_CONTINUE_NATIVE;
+
+	CONVERT_NAME_TO_THROWN(D_OUT, value);
+
+	return R_OUT_IS_THROWN;
 }
 
 

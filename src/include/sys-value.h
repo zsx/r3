@@ -1164,6 +1164,7 @@ struct Reb_Call;
 // this enumerated type containing its legal values).
 enum {
 	R_OUT = 0,
+	R_OUT_IS_THROWN = R_OUT, // can be synonym if per-value THROWN bit is kept
 	R_NONE,
 	R_UNSET,
 	R_TRUE,

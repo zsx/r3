@@ -61,7 +61,7 @@ break: native [
 	{Breaks out of a loop, while, until, repeat, for-each, etc.}
 	/with {Forces the loop function to return a value}
 	value [any-value!]
-	/return {(deprecated synonym for /WITH)}
+	/return {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
 	return-value [any-value!]
 ]
 
@@ -104,6 +104,8 @@ context: native [
 
 continue: native [
 	{Throws control back to top of loop.}
+	/with {Act as if loop body finished current evaluation with a value}
+	value [any-value!]
 ]
 
 ;dir?: native [
