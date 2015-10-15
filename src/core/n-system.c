@@ -73,7 +73,7 @@
 		CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
 	}
 
-	return R_OUT;
+	return R_OUT_IS_THROWN;
 }
 
 

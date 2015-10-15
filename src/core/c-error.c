@@ -380,7 +380,7 @@
 
 /***********************************************************************
 **
-*/	REBOOL Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
+*/	REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
 /*
 **		Creates an error object from arg and puts it in value.
 **		The arg can be a string or an object body block.

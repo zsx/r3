@@ -1327,7 +1327,7 @@ bad_end:
 		}
 
 		// All other throws should just bubble up uncaught.
-		return R_OUT;
+		return R_OUT_IS_THROWN;
 	}
 
 	assert(IS_TRASH(D_OUT));

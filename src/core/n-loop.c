@@ -630,6 +630,8 @@ skip_hidden: ;
 		return R_OUT;
 
 	case LOOP_EVERY:
+		if (threw) return R_OUT_IS_THROWN;
+
 		// Result is the cumulative TRUE? state of all the input (with any
 		// unsets taken out of the consideration).  The last TRUE? input
 		// if all valid and NONE! otherwise.  (Like ALL.)  If the loop

@@ -137,7 +137,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			i = index;
 			index = Do_Next_May_Throw(D_OUT, block, index);
 
-			if (index == THROWN_FLAG) return R_OUT;
+			if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
 			if (IS_CONDITIONAL_FALSE(D_OUT)) {
 				// !!! Only copies 3 values (and flaky), see CC#2231

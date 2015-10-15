@@ -133,7 +133,7 @@ static struct digest {
 
 	while (index != END_FLAG) {
 		index = Do_Next_May_Throw(D_OUT, block, index);
-		if (index == THROWN_FLAG) return R_OUT;
+		if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 		Mold_Value(&mo, D_OUT, 0);
 	}
 
