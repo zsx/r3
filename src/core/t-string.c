@@ -658,6 +658,12 @@ zero_str:
 			? make_string(arg, (REBOOL)(action == A_MAKE))
 			: make_binary(arg, (REBOOL)(action == A_MAKE));
 
+		if (ser && type == REB_FILE && action == A_TO) {
+			REBSER *f_ser = To_REBOL_Path(SERIES_DATA(ser), SERIES_LEN(ser), SERIES_WIDE(ser) > 1, FALSE);
+			Free_Series(ser);
+			ser = f_ser;
+		}
+
 		if (ser) goto str_exit;
 		raise Error_Invalid_Arg(arg);
 
