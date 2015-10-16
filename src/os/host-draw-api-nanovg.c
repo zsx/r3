@@ -642,7 +642,7 @@ void rebdrw_translate(void* gr, REBXYF p)
 	nvgTranslate(ctx->nvg, p.x, p.y);
 }
 
-static inline double square(double x)
+static double square(double x)
 {
 	return x * x;
 }
