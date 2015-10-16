@@ -393,7 +393,7 @@ static u32* shape_ext_words;
 				if (type == RXT_PAIR) {
 				    switch (++m){
                         case 1:
-                            rebshp_open(ctx->envr);
+                            rebshp_begin(ctx->envr);
                             break;
 				        case 2:
 							{
@@ -526,7 +526,7 @@ static u32* shape_ext_words;
             innerCtx.block = RXA_SERIES(frm, 1);
             innerCtx.index = 0;
 
-            rebshp_open(ctx->envr);
+            rebshp_begin(ctx->envr);
             RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
             rebshp_end(ctx->envr);
         }

@@ -874,7 +874,7 @@ void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 	nvgMoveTo(ctx->nvg, x, y);
 }
 
-void rebshp_open(void* gr)
+void rebshp_begin(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	nvgBeginPath(ctx->nvg);

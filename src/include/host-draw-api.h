@@ -104,7 +104,7 @@ extern void rebshp_close(void* gr);
 extern void rebshp_hline(void* gr,REBCNT rel, REBDEC x);
 extern void rebshp_line(void* gr, REBCNT rel, REBXYF p);
 extern void rebshp_move(void* gr, REBCNT rel, REBXYF p);
-extern void rebshp_open(void* gr);
+extern void rebshp_begin(void* gr);
 extern void rebshp_end(void* gr);
 extern void rebshp_vline(void* gr,REBCNT rel, REBDEC y);
 extern void rebshp_curv(void* gr, REBCNT rel, REBXYF p1, REBXYF p2);
