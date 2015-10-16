@@ -57,7 +57,11 @@ DEVICE_CMD Listen_Socket(REBREQ *sock);
 
 #ifdef TO_WINDOWS
 typedef int socklen_t;
-extern HWND Event_Handle; // For WSAAsync API
+
+#ifdef WINSYS_WIN32
+	extern HWND Event_Handle; // For WSAAsync API
+#endif
+
 #endif
 
 
