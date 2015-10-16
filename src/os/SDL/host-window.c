@@ -161,7 +161,7 @@ static REBXYF Zero_Pair = {0, 0};
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))
-		RL_Get_UTF8_String(GOB_CONTENT(gob), &title);
+		RL_Get_UTF8_String(GOB_CONTENT(gob), 0, &title);
     else
         title = "REBOL Window";
 
