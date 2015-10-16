@@ -53,7 +53,6 @@ extern void Free_Window(REBGOB *gob);
 extern void* Find_Compositor(REBGOB *gob);
 extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
-extern REBOOL As_UTF8_Str(REBSER *series, char **string);
 
 // Locals
 
@@ -154,7 +153,7 @@ static REBXYF Zero_Pair = {0, 0};
 	REBINT h = GOB_LOG_H_INT(gob);
 
 	SDL_Window *win = NULL;
-	REBCHR *title;
+	REBYTE *title;
 	REBYTE os_string = FALSE;
 	Uint32 flags = SDL_WINDOW_OPENGL;
 	REBGOB *parent_gob = GOB_TMP_OWNER(gob);
@@ -162,7 +161,7 @@ static REBXYF Zero_Pair = {0, 0};
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))
-        os_string = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&title);
+		RL_Get_UTF8_String(GOB_CONTENT(gob), &title);
     else
         title = "REBOL Window";
 
