@@ -528,7 +528,7 @@ static u32* shape_ext_words;
 
             rebshp_open(ctx->envr);
             RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
-            rebshp_close(ctx->envr);
+            rebshp_end(ctx->envr);
         }
         break;
 

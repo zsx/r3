@@ -796,6 +796,12 @@ void rebshp_close(void* gr)
 	nvgClosePath(ctx->nvg);
 }
 
+void rebshp_end(void* gr)
+{
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	END_NVG_PATH(ctx);
+}
+
 void rebshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
