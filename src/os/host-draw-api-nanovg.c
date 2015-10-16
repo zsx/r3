@@ -899,6 +899,11 @@ void rebshp_qcurv(void* gr, REBCNT rel, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	REBXYF p1 = {ctx->last_x, ctx->last_y};
 
+	if (rel) {
+		p.x += ctx->last_x;
+		p.y += ctx->last_y;
+	}
+
 	nvgQuadTo(ctx->nvg, p1.x, p1.y, p.x, p.y);
 	ctx->last_x = p.x;
 	ctx->last_y = p.y;
