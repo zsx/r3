@@ -60,6 +60,8 @@ typedef int socklen_t;
 
 #ifdef WINSYS_WIN32
 	extern HWND Event_Handle; // For WSAAsync API
+#else
+#undef HAS_ASYNC_DNS
 #endif
 
 #endif

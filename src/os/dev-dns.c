@@ -49,13 +49,13 @@ extern DEVICE_CMD Quit_Net(REBREQ *);
 
 extern void Signal_Device(REBREQ *req, REBINT type);
 
-#ifdef HAS_ASYNC_DNS
-
-#ifdef WINSYS_WIN32
-// Async DNS requires a window handle to signal completion (WSAASync)
-extern HWND Event_Handle;
+#ifndef WINSYS_WIN32
+#undef HAS_ASYNC_DNS
 #endif
 
+#ifdef HAS_ASYNC_DNS
+// Async DNS requires a window handle to signal completion (WSAASync)
+extern HWND Event_Handle;
 #endif
 
 /***********************************************************************
