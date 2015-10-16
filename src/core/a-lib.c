@@ -888,6 +888,47 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	return len;
 }
 
+/***********************************************************************
+**
+*/ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
+/*
+**	Obtain a pointer into a UTF8 string.
+**
+**	Returns:
+**		The length and type of string.
+**  Arguments:
+**		series - string series pointer
+**		index - index from beginning (zero-based)
+**		str   - pointer to first character
+**	Notes:
+**		Strings are allowed to move in memory. Therefore, you will want
+**		to make a copy of the string if needed.
+**
+***********************************************************************/
+{	
+	int len = (index >= series->tail) ? 0 : series->tail - index;
+
+	if (BYTE_SIZE(series)) {
+		*str = BIN_SKIP(series, index);
+	}
+	else {
+		void *src;
+		REBCNT utf8_len;
+		REBSER *utf8;
+		
+		src = UNI_SKIP(series, index);
+		utf8_len = Length_As_UTF8(src, len, OPT_ENC_UNISRC);
+
+		if (utf8_len == 0) 	return 0;
+
+		utf8 = Make_Binary(utf8_len);
+		if (utf8 == NULL) return 0;
+
+		Encode_UTF8(SERIES_DATA(utf8), utf8_len, src, &len, OPT_ENC_UNISRC);
+	}
+
+	return len;
+}
 
 /***********************************************************************
 **
