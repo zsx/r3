@@ -198,6 +198,8 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 	startup_rc = RL_Start(0, 0, embedded_script, embedded_size, 0);
 #endif
 
+	*exit_status = startup_rc;
+
 #if !defined(ENCAP)
 	// !!! What should an encapped executable do with a --do?  Here we just
 	// ignore it, as the assumption is that it is a packaged system that
