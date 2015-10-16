@@ -36,6 +36,7 @@
 **
 ***********************************************************************/
 
+#include <stdlib.h>
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-text-api.h"
