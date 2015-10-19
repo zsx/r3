@@ -37,6 +37,8 @@
 **
 ***********************************************************************/
 
+#ifdef WINSYS_WIN32
+
 #include <windows.h>
 #include "reb-host.h"
 
@@ -216,3 +218,5 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
 };
 
 DEFINE_DEV(Dev_Event, "OS Events", 1, Dev_Cmds, RDC_MAX, 0);
+
+#endif //WINSYS_WIN32
