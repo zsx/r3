@@ -37,7 +37,10 @@
 #include <time.h>
 #include <stdlib.h>
 
+#ifdef _MSC_VER
 #include <malloc.h>
+#endif
+
 #include <assert.h>
 
 #if defined(TO_OSX_X86) || defined(TO_OSX_PPC)
