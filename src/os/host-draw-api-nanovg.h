@@ -68,4 +68,10 @@ struct REBDRW_CTX {
 	unsigned int stroke: 1;
 	unsigned int img_border: 1; /* draw the image border or not */
 	unsigned int key_color_enabled: 1; /* key_color enabled or not */
+
+	char		last_shape_cmd;
+
+	/* control point of last 'C' or 'Q' */
+	float		last_control_x;
+	float		last_control_y;
 };

@@ -141,7 +141,7 @@ void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT c
 		}
 	} else {
 		/* FIXME */
-		printf("FIXME: %d\n", __LINE__);
+		printf("FIXME, elliptical arc %fx%f at line %d\n", r.x, r.y, __LINE__);
 	}
 	END_NVG_PATH(ctx);
 }
@@ -363,6 +363,7 @@ void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
 
+	printf("size: (%d, %d) at (%f, %f)\n", w, h, offset.x, offset.y);
 	paint_image(ctx, image, NVG_COPY, 1.0f, offset, image_size, offset, image_size);
 
 	if (ctx->img_border) {
@@ -411,6 +412,7 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 	REBCNT type;
 	REBCNT n, len = 0;
 
+	printf("scaling image size: (%d, %d)\n", w, h);
 	for (n = 0; (type = RL_GET_VALUE(points, n, &a)); n++) {
 		if (type == RXT_PAIR){
 			REBXYF tmp = RXI_LOG_PAIR(a);
@@ -424,12 +426,9 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
 
-	paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
-	nvgBlendMode(ctx->nvg, NVG_SOURCE_OVER);
-
+	//paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, p[1].x, p[1].y, 0, image, 1.0f);
 	nvgBeginPath(ctx->nvg);
 
-	nvgFillPaint(ctx->nvg, paint);
 	nvgMoveTo(ctx->nvg, p[0].x, p[0].y);
 
 	switch (len) {
@@ -437,20 +436,31 @@ void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* point
 			nvgLineTo(ctx->nvg, p[1].x, p[0].y);
 			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
 			nvgLineTo(ctx->nvg, p[0].x, p[1].y);
+			//w = p[1].x - p[0].x;
+			//h = p[1].y - p[0].y;
 			break;
 		case 3:
+			printf("FIXME: %d\n", __LINE__);
 			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
 			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
 			nvgLineTo(ctx->nvg, p[0].x, p[2].y);
+			//w = p[1].x - p[0].x;
+			//h = p[1].y - p[0].y;
 			break;
 		case 4:
+			printf("FIXME: %d\n", __LINE__);
 			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
 			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
 			nvgLineTo(ctx->nvg, p[3].x, p[3].y);
+			//w = p[1].x - p[0].x;
+			//h = p[1].y - p[0].y;
 			break;
 	}
 
 	nvgClosePath(ctx->nvg);
+	paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
+	nvgBlendMode(ctx->nvg, NVG_SOURCE_OVER);
+	nvgFillPaint(ctx->nvg, paint);
 
 	nvgFill(ctx->nvg);
 	nvgFlush(ctx->nvg);
@@ -777,7 +787,7 @@ void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT pos
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	x = rel? ctx->last_x + p.x : p.x;
-	y = ctx->last_y;
+	y = rel? ctx->last_y + p.y : p.y;
 
 	if (r.x == r.y) {
 		//nvgArc(ctx->nvg, c.x, c.y, r.x, ang, ang, positive? NVG_CCW : NVG_CW);
@@ -788,30 +798,59 @@ void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT pos
 	printf("FIXME: %d\n", __LINE__);
 	ctx->last_x = x;
 	ctx->last_y = y;
+
+	ctx->last_shape_cmd = rel? 'a' : 'A';
 }
 
 void rebshp_close(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	nvgClosePath(ctx->nvg);
+	ctx->last_shape_cmd = 'z';
+	//printf("%s, %d\n", __func__, __LINE__);
 }
 
 void rebshp_end(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	END_NVG_PATH(ctx);
+	//printf("%s, %d\n", __func__, __LINE__);
 }
 
 void rebshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
-	REBXYF p1 = {ctx->last_x, ctx->last_y};
+	REBXYF p1;
+   
+	if (ctx->last_shape_cmd != 's'
+		&& ctx->last_shape_cmd != 'S'
+		&& ctx->last_shape_cmd != 'c'
+		&& ctx->last_shape_cmd != 'C') {
+		p1.x = ctx->last_x;
+		p1.y = ctx->last_y;
+	} else { /* reflection of last control point to the current point */
+		p1.x = 2 * ctx->last_x - ctx->last_control_x;
+		p1.y = 2 * ctx->last_y - ctx->last_control_y;
+	}
+
+	if (rel) {
+		p2.x += ctx->last_x;
+		p2.y += ctx->last_y;
+
+		p3.x += ctx->last_x;
+		p3.y += ctx->last_y;
+	}
 
 	rebshp_curve(gr, 0, p1, p2, p3);
+
+	ctx->last_control_x = p2.x;
+	ctx->last_control_y = p2.y;
+
+	ctx->last_shape_cmd = rel? 's' : 'S';
 }
 
-void rebshp_curve(void* gr, REBCNT rel, REBXYF p1,REBXYF p2, REBXYF p3)
+void rebshp_curve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2, REBXYF p3)
 {
 	float x1, y1;
 	float x2, y2;
@@ -820,16 +859,26 @@ void rebshp_curve(void* gr, REBCNT rel, REBXYF p1,REBXYF p2, REBXYF p3)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	if (rel) {
-		nvgBezierTo(ctx->nvg, ctx->last_x + p1.x, ctx->last_y + p1.y,
-					ctx->last_x + p2.x, ctx->last_y + p2.y,
-					ctx->last_x + p3.x, ctx->last_y + p3.y);
-		ctx->last_x += p3.x;
-		ctx->last_y += p3.y;
-	} else {
-		nvgBezierTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-		ctx->last_x = p3.x;
-		ctx->last_y = p3.y;
+		p1.x += ctx->last_x;
+		p1.y += ctx->last_y;
+
+		p2.x += ctx->last_x;
+		p2.y += ctx->last_y;
+
+		p3.x += ctx->last_x;
+		p3.y += ctx->last_y;
 	}
+
+	nvgBezierTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+
+	ctx->last_x = p3.x;
+	ctx->last_y = p3.y;
+
+	ctx->last_control_x = p2.x;
+	ctx->last_control_y = p2.y;
+
+	ctx->last_shape_cmd = rel? 'c' : 'C';
+
 }
 
 void rebshp_hline(void* gr, REBCNT rel, REBDEC x)
@@ -841,9 +890,10 @@ void rebshp_hline(void* gr, REBCNT rel, REBDEC x)
 	y = ctx->last_y;
 
 	ctx->last_x = x;
-	ctx->last_y = y;
+	//ctx->last_y = y;
 
 	nvgLineTo(ctx->nvg, x, y);
+	ctx->last_shape_cmd = rel? 'h' : 'H';
 }
 
 void rebshp_line(void* gr, REBCNT rel, REBXYF p)
@@ -858,6 +908,8 @@ void rebshp_line(void* gr, REBCNT rel, REBXYF p)
 	ctx->last_y = y;
 
 	nvgLineTo(ctx->nvg, x, y);
+	ctx->last_shape_cmd = rel? 'l' : 'L';
+	//printf("%s, %d: %fx%f\n", __func__, __LINE__, x, y);
 }
 
 void rebshp_move(void* gr, REBCNT rel, REBXYF p)
@@ -872,11 +924,14 @@ void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 	ctx->last_y = y;
 
 	nvgMoveTo(ctx->nvg, x, y);
+	ctx->last_shape_cmd = rel? 'm' : 'M';
+	//printf("%s, %d: %fx%f\n", __func__, __LINE__, x, y);
 }
 
 void rebshp_begin(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	//printf("%s, %d\n", __func__, __LINE__);
 	nvgBeginPath(ctx->nvg);
 }
 
@@ -888,16 +943,28 @@ void rebshp_vline(void* gr, REBCNT rel, REBDEC y)
 	x = ctx->last_x;
 	y = rel? ctx->last_y + y : y;
 
-	ctx->last_x = x;
+	//ctx->last_x = x;
 	ctx->last_y = y;
 
 	nvgLineTo(ctx->nvg, x, y);
+	ctx->last_shape_cmd = rel? 'v' : 'V';
 }
 
 void rebshp_qcurv(void* gr, REBCNT rel, REBXYF p)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	REBXYF p1 = {ctx->last_x, ctx->last_y};
+	REBXYF p1;
+
+	if (ctx->last_shape_cmd != 'q'
+		&& ctx->last_shape_cmd != 'Q'
+		&& ctx->last_shape_cmd != 't'
+		&& ctx->last_shape_cmd != 'T') {
+		p1.x = ctx->last_x;
+		p1.y = ctx->last_y;
+	} else {
+		p1.x = 2 * ctx->last_x - ctx->last_control_x;
+		p1.y = 2 * ctx->last_y - ctx->last_control_y;
+	}
 
 	if (rel) {
 		p.x += ctx->last_x;
@@ -907,21 +974,28 @@ void rebshp_qcurv(void* gr, REBCNT rel, REBXYF p)
 	nvgQuadTo(ctx->nvg, p1.x, p1.y, p.x, p.y);
 	ctx->last_x = p.x;
 	ctx->last_y = p.y;
+	ctx->last_shape_cmd = rel? 't' : 'T';
+	ctx->last_control_x = p1.x;
+	ctx->last_control_y = p1.y;
 }
 
 void rebshp_qcurve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	if (rel) {
-		nvgQuadTo(ctx->nvg, ctx->last_x + p1.x, ctx->last_y + p1.y,
-				  ctx->last_x + p2.x, ctx->last_y + p2.y);
-		ctx->last_x += p2.x;
-		ctx->last_y += p2.y;
-	} else {
-		nvgQuadTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y);
-		ctx->last_x = p2.x;
-		ctx->last_y = p2.y;
+		p1.x += ctx->last_x;
+		p1.y += ctx->last_y;
+		p2.x += ctx->last_x;
+		p2.y += ctx->last_y;
 	}
+
+	nvgQuadTo(ctx->nvg, p1.x, p1.y, p2.x, p2.y);
+	ctx->last_x = p2.x;
+	ctx->last_y = p2.y;
+
+	ctx->last_shape_cmd = rel? 'q' : 'Q';
+	ctx->last_control_x = p1.x;
+	ctx->last_control_y = p1.y;
 }
 
 
@@ -1056,7 +1130,7 @@ static int create_layers(REBDRW_CTX *ctx, REBINT w, REBINT h)
 	nvgBeginLayer(ctx->nvg, ctx->win_layer);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
-	printf("end of win_layer: %d\n", __LINE__);
+	//printf("end of win_layer: %d\n", __LINE__);
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
 }
 
