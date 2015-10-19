@@ -39,6 +39,8 @@
 **
 ***********************************************************************/
 
+#ifndef TO_WINDOWS //WINDOWS has its own clipboard implementation
+
 #include <stdio.h>
 #include <string.h>
 
@@ -146,3 +148,5 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 };
 
 DEFINE_DEV(Dev_Clipboard, "Clipboard", 1, Dev_Cmds, RDC_MAX, 0);
+
+#endif
