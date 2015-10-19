@@ -178,7 +178,6 @@ os-windows: [
 	+ windows/host-lib.c
 	windows/dev-stdio.c
 	windows/dev-file.c
-	windows/dev-event.c
 	windows/dev-clipboard.c
 	windows/dev-serial.c
 ]
