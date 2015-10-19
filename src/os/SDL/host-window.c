@@ -56,6 +56,7 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 
 // Locals
 
+int sdl_gl_swap_interval = 1;
 static REBXYF Zero_Pair = {0, 0};
 
 //
@@ -73,6 +74,9 @@ static REBXYF Zero_Pair = {0, 0};
 	SDL_Window *dummy_win = NULL;
 	SDL_GLContext *gl_ctx = NULL;
 	GLenum glew_err;
+	const char *s_int = NULL;
+	char *s_end = NULL;
+	int interval = 0;
 
 	if (SDL_Init(SDL_INIT_VIDEO) != 0){
 		printf("SDL_Init Error: %s\n", SDL_GetError());
@@ -88,6 +92,16 @@ static REBXYF Zero_Pair = {0, 0};
 	dummy_win = SDL_CreateWindow("dummy", 0, 0, 1, 1, SDL_WINDOW_OPENGL);
 	gl_ctx = SDL_GL_CreateContext(dummy_win);
 	SDL_GL_MakeCurrent(dummy_win, gl_ctx);
+
+	s_int = SDL_getenv("R3_VSYNC");
+	if (s_int != NULL) {
+		interval = strtol(s_int, &s_end, 10);
+		if (s_end != s_int
+			&& interval >= -1
+			&& interval <= 1) {
+			sdl_gl_swap_interval = interval;
+		}
+	}
 
 	glewExperimental = 1; /* try to load every extension */
 	glew_err = glewInit();

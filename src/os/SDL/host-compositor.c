@@ -64,6 +64,8 @@ void* Find_Window(REBGOB *gob);
 
 //***** Locals *****
 
+extern int sdl_gl_swap_interval;
+
 static REBXYF Zero_Pair = {0, 0};
 
 typedef struct {
@@ -443,6 +445,8 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 		ctx->Window_Buffer = rebcmp_get_buffer(ctx);
 
 		SDL_GL_MakeCurrent(ctx->win, ctx->sdl_ctx);
+
+		SDL_GL_SetSwapInterval(sdl_gl_swap_interval);
 		rebdrw_begin_frame(ctx->draw_ctx);
 		//draw(vg);
 		//printf("abs oft: (%f, %f)\n", ctx->absOffset.x, ctx->absOffset.y);

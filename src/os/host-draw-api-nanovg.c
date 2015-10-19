@@ -1024,9 +1024,9 @@ void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_t
 
 	nvgReset(ctx->nvg);
 	nvgScissor(ctx->nvg, clip_oft.x, clip_oft.y, clip_size.x, clip_size.y);
-	printf("gob %p abs offset: (%d, %d)\n", gob, abs_oft.x, abs_oft.y);
-	printf("scissor for gob %p is: (%f, %f) & (%f, %f)\n", gob,
-		   clip_oft.x, clip_oft.y, clip_size.x, clip_size.y);
+	//printf("gob %p abs offset: (%d, %d)\n", gob, abs_oft.x, abs_oft.y);
+	//printf("scissor for gob %p is: (%f, %f) & (%f, %f)\n", gob,
+	//	   clip_oft.x, clip_oft.y, clip_size.x, clip_size.y);
 	nvgTranslate(ctx->nvg, abs_oft.x, abs_oft.y);
 	nvgStrokeColor(ctx->nvg, nvgRGB(255, 255, 255)); //default stroke color
 	RL_DO_COMMANDS(block, 0, &cec_ctx);
