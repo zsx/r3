@@ -82,6 +82,11 @@ typedef enum {
 **		Initialize standard for loops (copy block, make frame, bind).
 **		Spec: WORD or [WORD ...]
 **
+**		Note that because we are copying the block in order to rebind it, the
+**		ensuing loop code will `Do_At_Throws(out, body, 0);`.  Starting at
+**		zero is correct because the duplicate body has already had the
+**		items before its VAL_INDEX() omitted.
+**
 ***********************************************************************/
 {
 	REBSER *frame;
@@ -154,7 +159,7 @@ typedef enum {
 	for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
 		VAL_INDEX(var) = si;
 
-		if (Do_Block_Throws(out, body, 0)) {
+		if (Do_At_Throws(out, body, 0)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(out, &stop)) {
 				if (stop) break;
@@ -185,7 +190,7 @@ typedef enum {
 	while ((incr > 0) ? start <= end : start >= end) {
 		VAL_INT64(var) = start;
 
-		if (Do_Block_Throws(out, body, 0)) {
+		if (Do_At_Throws(out, body, 0)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(out, &stop)) {
 				if (stop) break;
@@ -244,7 +249,7 @@ typedef enum {
 	for (; (i > 0.0) ? s <= e : s >= e; s += i) {
 		VAL_DECIMAL(var) = s;
 
-		if (Do_Block_Throws(out, body, 0)) {
+		if (Do_At_Throws(out, body, 0)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(out, &stop)) {
 				if (stop) break;
@@ -313,7 +318,7 @@ typedef enum {
 				VAL_INDEX(var) = idx;
 			}
 
-			if (Do_Block_Throws(D_OUT, body, bodi)) {
+			if (Do_At_Throws(D_OUT, body, bodi)) {
 				REBFLG stop;
 				if (Catching_Break_Or_Continue(D_OUT, &stop)) {
 					if (stop) {
@@ -532,7 +537,7 @@ typedef enum {
 			index++;
 		}
 
-		if (Do_Block_Throws(D_OUT, body, 0)) {
+		if (Do_At_Throws(D_OUT, body, 0)) {
 			if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
 				// A non-loop throw, we should be bubbling up
 				threw = TRUE;
@@ -732,8 +737,10 @@ skip_hidden: ;
 /*
 ***********************************************************************/
 {
+	REBVAL * const block = D_ARG(1);
+
 	do {
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(1)), 0)) {
+		if (DO_ARRAY_THROWS(D_OUT, block)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(D_OUT, &stop)) {
 				if (stop) return R_OUT;
@@ -811,14 +818,13 @@ skip_hidden: ;
 ***********************************************************************/
 {
 	REBI64 count = Int64(D_ARG(1));
-	REBSER *block = VAL_SERIES(D_ARG(2));
-	REBCNT index  = VAL_INDEX(D_ARG(2));
+	REBVAL * const block = D_ARG(2);
 	REBVAL *ds;
 
 	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
 
 	for (; count > 0; count--) {
-		if (Do_Block_Throws(D_OUT, block, index)) {
+		if (DO_ARRAY_THROWS(D_OUT, block)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(D_OUT, &stop)) {
 				if (stop) return R_OUT;
@@ -883,11 +889,10 @@ skip_hidden: ;
 /*
 ***********************************************************************/
 {
-	REBSER *b1 = VAL_SERIES(D_ARG(1));
-	REBCNT i1  = VAL_INDEX(D_ARG(1));
+	REBVAL * const block = D_ARG(1);
 
 	do {
-		if (Do_Block_Throws(D_OUT, b1, i1)) {
+		if (DO_ARRAY_THROWS(D_OUT, block)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(D_OUT, &stop)) {
 				if (stop) return R_OUT;
@@ -910,41 +915,39 @@ skip_hidden: ;
 /*
 ***********************************************************************/
 {
-	REBSER *cond_series = VAL_SERIES(D_ARG(1));
-	REBCNT cond_index = VAL_INDEX(D_ARG(1));
-	REBSER *body_series = VAL_SERIES(D_ARG(2));
-	REBCNT body_index = VAL_INDEX(D_ARG(2));
+	REBVAL * const condition = D_ARG(1);
+	REBVAL * const body = D_ARG(2);
 
 	// We need to keep the condition and body safe from GC, so we can't
 	// use a D_ARG slot for evaluating the condition (can't overwrite
 	// D_OUT because that's the last loop's value we might return)
-	REBVAL cond_out;
+	REBVAL temp;
 
 	// If the loop body never runs (and condition doesn't error or throw),
 	// we want to return a NONE!
 	SET_NONE(D_OUT);
 
 	do {
-		if (Do_Block_Throws(&cond_out, cond_series, cond_index)) {
+		if (DO_ARRAY_THROWS(&temp, condition)) {
 			// A while loop should only look for breaks and continues in its
 			// body, not in its condition.  So `while [break] []` is a
 			// request to break the enclosing loop (or error if there is
 			// nothing to catch that break).  Hence we bubble up the throw.
-			*D_OUT = cond_out;
+			*D_OUT = temp;
 			return R_OUT_IS_THROWN;
 		}
 
-		if (IS_CONDITIONAL_FALSE(&cond_out)) {
+		if (IS_UNSET(&temp))
+			raise Error_0(RE_NO_RETURN);
+
+		if (IS_CONDITIONAL_FALSE(&temp)) {
 			// When the condition evaluates to a LOGIC! false or a NONE!,
 			// WHILE returns whatever the last value was that the body
 			// evaluated to (or none if no body evaluations yet).
 			return R_OUT;
 		}
 
-		if (IS_UNSET(&cond_out))
-			raise Error_0(RE_NO_RETURN);
-
-		if (Do_Block_Throws(D_OUT, body_series, body_index)) {
+		if (DO_ARRAY_THROWS(D_OUT, body)) {
 			REBFLG stop;
 			if (Catching_Break_Or_Continue(D_OUT, &stop)) {
 				if (stop) return R_OUT;

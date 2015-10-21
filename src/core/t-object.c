@@ -330,7 +330,7 @@ static REBSER *Trim_Object(REBSER *obj)
 					Bind_Values_Deep(VAL_BLK_DATA(arg), obj);
 
 					// GC-OK
-					if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0))
+					if (DO_ARRAY_THROWS(D_OUT, arg))
 						return R_OUT_IS_THROWN;
 
 					break; // returns obj
@@ -415,7 +415,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				Bind_Values_Deep(VAL_BLK_DATA(arg), obj);
 
 				// GC-OK
-				if (Do_Block_Throws(D_OUT, VAL_SERIES(arg), 0))
+				if (DO_ARRAY_THROWS(D_OUT, arg))
 					return R_OUT_IS_THROWN;
 
 				break; // returns obj

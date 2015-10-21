@@ -600,7 +600,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 					}
 				}
 				else if (IS_PAREN(val)) {
-					if (Do_Block_Throws(&save, VAL_SERIES(val), 0)) {
+					if (DO_ARRAY_THROWS(&save, val)) {
 						// !!! Should this paren evaluation be able to "bubble
 						// up" so that returns and throws can be caught up
 						// the stack, or is raising an error here sufficient?

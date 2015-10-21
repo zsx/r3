@@ -350,6 +350,8 @@ enum {
 /*
 ***********************************************************************/
 {
+	REBVAL * const block = D_ARG(1);
+
 	REBOL_STATE state;
 	const REBVAL *error;
 
@@ -360,7 +362,7 @@ enum {
 
 	if (error) return R_NONE;
 
-	if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1)))) {
+	if (DO_ARRAY_THROWS(D_OUT, block)) {
 		DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 		// Throw name is in D_OUT, thrown value is held task local
@@ -501,11 +503,8 @@ enum {
 				//     stuff: [print "This will be printed"]
 				//     case [true stuff]
 				//
-				if (Do_Block_Throws(
-					D_OUT, VAL_SERIES(body_result), VAL_INDEX(body_result)
-				)) {
+				if (DO_ARRAY_THROWS(D_OUT, body_result))
 					return R_OUT_IS_THROWN;
-				}
 			}
 			else {
 				// With /ONLY (or a non-block) don't do more evaluation, so
@@ -570,7 +569,7 @@ enum {
 	// /ANY would override /NAME, so point out the potential confusion
 	if (any && named) raise Error_0(RE_BAD_REFINES);
 
-	if (Do_Block_Throws(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+	if (DO_ARRAY_THROWS(D_OUT, block)) {
 		if (
 			(any && (
 				!IS_NATIVE(D_OUT)
@@ -644,11 +643,9 @@ was_caught:
 
 		if (IS_BLOCK(handler)) {
 			// There's no way to pass args to a block (so just DO it)
-			if (Do_Block_Throws(
-				D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
-			)) {
+			if (DO_ARRAY_THROWS(D_OUT, handler))
 				return R_OUT_IS_THROWN;
-			}
+
 			return R_OUT;
 		}
 		else if (ANY_FUNC(handler)) {
@@ -864,7 +861,7 @@ was_caught:
 			return R_OUT;
 		}
 
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(value), 0))
+		if (DO_ARRAY_THROWS(D_OUT, value))
 			return R_OUT_IS_THROWN;
 
 		return R_OUT;
@@ -917,16 +914,21 @@ was_caught:
 /*
 ***********************************************************************/
 {
-	REBCNT argnum = IS_CONDITIONAL_FALSE(D_ARG(1)) ? 3 : 2;
+	REBVAL * const condition = D_ARG(1);
+	REBVAL * const branch = IS_CONDITIONAL_TRUE(condition)
+		? D_ARG(2) // true-branch
+		: D_ARG(3); // false-branch
+	const REBOOL only = D_REF(4);
 
-	if (IS_BLOCK(D_ARG(argnum)) && !D_REF(4) /* not using /ONLY */) {
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(argnum)), 0))
-			return R_OUT_IS_THROWN;
-
+	if (only || !IS_BLOCK(branch)) {
+		*D_OUT = *branch;
 		return R_OUT;
 	}
 
-	return argnum == 2 ? R_ARG2 : R_ARG3;
+	if (DO_ARRAY_THROWS(D_OUT, branch))
+		return R_OUT_IS_THROWN;
+
+	return R_OUT;
 }
 
 
@@ -1084,14 +1086,21 @@ was_caught:
 /*
 ***********************************************************************/
 {
-	if (IS_CONDITIONAL_FALSE(D_ARG(1))) return R_NONE;
-	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(2)), 0))
-			return R_OUT_IS_THROWN;
+	REBVAL * const condition = D_ARG(1);
+	REBVAL * const branch = D_ARG(2);
+	const REBOOL only = D_REF(3);
 
+	if (IS_CONDITIONAL_FALSE(condition)) return R_NONE;
+
+	if (only || !IS_BLOCK(branch)) {
+		*D_OUT = *branch;
 		return R_OUT;
 	}
-	return R_ARG2;
+
+	if (DO_ARRAY_THROWS(D_OUT, branch))
+		return R_OUT_IS_THROWN;
+
+	return R_OUT;
 }
 
 
@@ -1231,7 +1240,7 @@ was_caught:
 			}
 		#endif
 
-			if (Do_Block_Throws(D_OUT, VAL_SERIES(item), VAL_INDEX(item)))
+			if (DO_ARRAY_THROWS(D_OUT, item))
 				return R_OUT_IS_THROWN;
 		}
 		else if (IS_GET_WORD(item)) {
@@ -1291,7 +1300,7 @@ was_caught:
 
 		found = TRUE;
 
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(item), VAL_INDEX(item)))
+		if (DO_ARRAY_THROWS(D_OUT, item))
 			return R_OUT_IS_THROWN;
 
 		// Only keep processing if the /ALL refinement was specified
@@ -1300,11 +1309,9 @@ was_caught:
 	}
 
 	if (!found && IS_BLOCK(default_case)) {
-		if (Do_Block_Throws(
-			D_OUT, VAL_SERIES(default_case), VAL_INDEX(default_case)
-		)) {
+		if (DO_ARRAY_THROWS(D_OUT, default_case))
 			return R_OUT_IS_THROWN;
-		}
+
 		return R_OUT;
 	}
 
@@ -1357,11 +1364,9 @@ was_caught:
 		if (with) {
 			if (IS_BLOCK(handler)) {
 				// There's no way to pass 'error' to a block (so just DO it)
-				if (Do_Block_Throws(
-					D_OUT, VAL_SERIES(handler), VAL_INDEX(handler)
-				)) {
+				if (DO_ARRAY_THROWS(D_OUT, handler))
 					return R_OUT_IS_THROWN;
-				}
+
 				return R_OUT;
 			}
 			else if (ANY_FUNC(handler)) {
@@ -1394,7 +1399,7 @@ was_caught:
 		return R_OUT;
 	}
 
-	if (Do_Block_Throws(D_OUT, VAL_SERIES(block), VAL_INDEX(block))) {
+	if (DO_ARRAY_THROWS(D_OUT, block)) {
 		// Note that we are interested in when errors are raised, which
 		// causes a tricky C longjmp() to the code above.  Yet a THROW
 		// is different from that, and offers an opportunity to each
@@ -1422,14 +1427,19 @@ was_caught:
 /*
 ***********************************************************************/
 {
-	if (IS_CONDITIONAL_TRUE(D_ARG(1))) return R_NONE;
+	REBVAL * const condition = D_ARG(1);
+	REBVAL * const branch = D_ARG(2);
+	const REBOOL only = D_REF(3);
 
-	if (IS_BLOCK(D_ARG(2)) && !D_REF(3) /* not using /ONLY */) {
-		if (Do_Block_Throws(D_OUT, VAL_SERIES(D_ARG(2)), 0))
-			return R_OUT_IS_THROWN;
+	if (IS_CONDITIONAL_TRUE(condition)) return R_NONE;
 
+	if (only || !IS_BLOCK(branch)) {
+		*D_OUT = *branch;
 		return R_OUT;
 	}
 
-	return R_ARG2;
+	if (DO_ARRAY_THROWS(D_OUT, branch))
+		return R_OUT_IS_THROWN;
+
+	return R_OUT;
 }

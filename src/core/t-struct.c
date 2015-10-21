@@ -609,7 +609,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 	if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
 		REBVAL ret;
 
-		if (Do_Block_Throws(&ret, VAL_SERIES(val), 0)) {
+		if (DO_ARRAY_THROWS(&ret, val)) {
 			// !!! Does not check for thrown cases...what should this
 			// do in case of THROW, BREAK, QUIT?
 			raise Error_No_Catch_For_Throw(&ret);

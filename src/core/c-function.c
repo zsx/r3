@@ -528,7 +528,8 @@ REBNATIVE(exit);
 
 	Eval_Functions++;
 
-	if (Do_Block_Throws(out, VAL_FUNC_BODY(func), 0)) {
+	// Functions have a body series pointer, but no VAL_INDEX, so use 0
+	if (Do_At_Throws(out, VAL_FUNC_BODY(func), 0)) {
 		if (
 			IS_NATIVE(out) && (
 				VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_RETURN_NATIVE)
@@ -605,7 +606,7 @@ REBNATIVE(exit);
 	// "archetype", but it may be valuable to keep that as-is.)
 	PUSH_GUARD_SERIES(body);
 
-	if (Do_Block_Throws(out, body, 0)) {
+	if (Do_At_Throws(out, body, 0)) {
 		DROP_GUARD_SERIES(body);
 		if (
 			IS_NATIVE(out) && (
