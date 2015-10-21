@@ -30,12 +30,12 @@ also: native [
 ]
 
 all: native [
-	{Shortcut AND. Evaluates and returns at the first FALSE or NONE.}
+	{Shortcut AND. Returns NONE vs. TRUE (or last evaluation if it was TRUE?)}
 	block [block!] {Block of expressions}
 ]
 
 any: native [
-	{Shortcut OR. Evaluates and returns the first value that is not FALSE or NONE.}
+	{Shortcut OR, ignores unsets. Returns the first TRUE? result, or NONE.}
 	block [block!] {Block of expressions}
 ]
 

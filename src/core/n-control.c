@@ -251,23 +251,39 @@ enum {
 **
 */	REBNATIVE(all)
 /*
+**	ALL is effectively Rebol's "short-circuit AND".  Unsets do not vote either
+**	true or false...they are ignored.
+**
+**	To offer a more generically useful result than just TRUE or FALSE, it will
+**	use as a "truthy" value whatever the last evaluation in the chain was.  If
+**	there was no last value, but no conditionally false instance hit to break
+**	the chain, as in `all []` or `all [1 2 ()]`...it will return TRUE.
+**
+**	(Note: It would become a more costly operation to retain the last truthy
+**	value to return 2 in the case of `all [1 2 ()`]`, just to say it could.
+**	The overhead would undermine the raw efficiency of the operation.)
+**
+**	For the "falsy" value, ALL uses a NONE! rather than logic FALSE.  It's a
+**	historical design decision which has some benefits, but perhaps some
+**	drawbacks to those wishing to use it on logic values and stay in the
+**	logic domain.  (`all [true true]` => true, `all [false true]` is NONE!).
+**
 ***********************************************************************/
 {
 	REBSER *block = VAL_SERIES(D_ARG(1));
 	REBCNT index = VAL_INDEX(D_ARG(1));
 
-	// Default result for 'all []'
 	SET_TRUE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
 		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
-		if (IS_CONDITIONAL_FALSE(D_OUT)) {
-			SET_TRASH_SAFE(D_OUT);
-			return R_NONE;
-		}
+		if (IS_CONDITIONAL_FALSE(D_OUT)) return R_NONE;
 	}
+
+	if (IS_UNSET(D_OUT)) return R_TRUE;
+
 	return R_OUT;
 }
 
@@ -276,6 +292,18 @@ enum {
 **
 */	REBNATIVE(any)
 /*
+**	ANY is effectively Rebol's "short-circuit OR".  Unsets do not vote either
+**	true or false...they are ignored.
+**
+**	See ALL's notes about returning the last truthy value or NONE! (vs. FALSE)
+**
+**	The base case of `any []` is NONE! and not TRUE.  This might seem strange
+**	given that `all []` is TRUE.  But this ties more into what the questions
+**	they are used to ask about in practice: "Were all of these things not
+**	false?" as opposed to "Were any of these things true?"  It is also the
+**	case that `FALSE OR X OR Y` matches with `TRUE AND X AND Y` as the
+**	"seed" for not affecting the chain.
+**
 ***********************************************************************/
 {
 	REBSER *block = VAL_SERIES(D_ARG(1));
@@ -285,7 +313,7 @@ enum {
 		index = Do_Next_May_Throw(D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
-		if (!IS_CONDITIONAL_FALSE(D_OUT) && !IS_UNSET(D_OUT)) return R_OUT;
+		if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
 	}
 
 	return R_NONE;

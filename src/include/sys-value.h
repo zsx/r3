@@ -823,11 +823,13 @@ struct Reb_Position
 // Conditional truth and falsehood allows an interpretation where a NONE! is
 // a FALSE value.  These macros (like many others in the codebase) capture
 // their parameters multiple times, so multiple evaluations can happen!
+//
+// Unsets are neither conditionally true nor conditionally false.
 
 #define IS_CONDITIONAL_FALSE(v) \
 	(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)))
 #define IS_CONDITIONAL_TRUE(v) \
-	!IS_CONDITIONAL_FALSE(v)
+	(!IS_UNSET(v) && !IS_CONDITIONAL_FALSE(v))
 
 
 /***********************************************************************

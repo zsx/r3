@@ -382,7 +382,10 @@ typedef enum {
 	Val_Init_Object(D_ARG(1), frame); // keep GC safe
 	Val_Init_Block(D_ARG(3), body); // keep GC safe
 
-	SET_NONE(D_OUT); // Default result to NONE if the loop does not run
+	if (mode == LOOP_EVERY)
+		SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
+	else
+		SET_NONE(D_OUT); // !!! Loops may set default to not set in future
 
 	if (mode == LOOP_MAP_EACH) {
 		// Must be managed *and* saved...because we are accumulating results
@@ -566,13 +569,7 @@ typedef enum {
 			if (!IS_UNSET(D_OUT)) Append_Value(out, D_OUT);
 			break;
 		case LOOP_EVERY:
-			if (every_true) {
-				// !!! This currently treats UNSET! as true, which ALL
-				// effectively does right now.  That's likely a bad idea.
-				// When ALL changes, so should this.
-				//
-				every_true = IS_CONDITIONAL_TRUE(D_OUT);
-			}
+			every_true = every_true && IS_CONDITIONAL_TRUE(D_OUT);
 			break;
 		default:
 			assert(FALSE);
@@ -634,10 +631,13 @@ skip_hidden: ;
 
 		// Result is the cumulative TRUE? state of all the input (with any
 		// unsets taken out of the consideration).  The last TRUE? input
-		// if all valid and NONE! otherwise.  (Like ALL.)  If the loop
-		// never runs, `every_true` will be TRUE *but* D_OUT will be NONE!
-		if (!every_true)
-			SET_NONE(D_OUT);
+		// if all valid and NONE! otherwise.  (Like ALL.)
+		if (!every_true) return R_NONE;
+
+		// We want to act like `ALL MAP-EACH ...`, hence we effectively ignore
+		// unsets and return TRUE if the last evaluation leaves an unset.
+		if (IS_UNSET(D_OUT)) return R_TRUE;
+
 		return R_OUT;
 
 	default:
