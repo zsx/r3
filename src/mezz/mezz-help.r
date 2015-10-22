@@ -426,7 +426,7 @@ upgrade: function [
 	"Check for newer versions (update REBOL)."
 ][
 	print "Fetching upgrade check ..."
-	if error? err: try [do http://www.atronixengineering.com/r3/upgrade.r none][
+	if error? err: try [do http://rebol.atronixengineering.com/r3/upgrade.r none][
 		either err/id = 'protocol [print "Cannot upgrade from web."][do err]
 	]
 	exit
@@ -459,7 +459,7 @@ demo: function [
 	"Run R3 demo."
 ][
 	print "Fetching demo..."
-	if error? err: try [do http://www.atronixengineering.com/r3/demo.r none][
+	if error? err: try [do http://rebol.atronixengineering.com/r3/demo.r none][
 		either err/id = 'protocol [print "Cannot load demo from web."][do err]
 	]
 	exit
@@ -469,7 +469,7 @@ load-gui: function [
 	"Download current Spahirion's R3-GUI module from web."
 ][
     print "Fetching GUI..."
-    either error? data: try [load http://www.atronixengineering.com/r3/r3-gui.r3] [
+    either error? data: try [load http://rebol.atronixengineering.com/r3/r3-gui.r3] [
         either data/id = 'protocol [print "Cannot load GUI from web."] [do err]
     ] [
         do data
