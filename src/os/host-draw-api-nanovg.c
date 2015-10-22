@@ -37,6 +37,7 @@
 ***********************************************************************/
 
 #include <stdio.h>
+#include <math.h>
 #include "reb-host.h"
 #include "reb-series.h"
 
@@ -54,6 +55,9 @@
 #include "nanovg_gl.h"
 #include "host-draw-api-nanovg.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 REBUPT RL_Series(REBSER *ser, REBCNT what);
 
@@ -121,27 +125,106 @@ void rebdrw_anti_alias(void* gr, REBINT mode)
 		PAINT_LAYER(ctx, layer, paint_mode, 1.0f, clip_oft, clip_size);\
 	} while (0)
 
+/* convert from centeral angle to parameter angle and normalize it to [0, PI / 2] */
+static float parameterize_ellpitical_angle(REBXYF r, REBDEC ang)
+{
+	float a;
+	while (ang > 360) ang -= 360;
+	while (ang < 0) ang += 360;
+
+	if (ang == 90) return M_PI / 2;
+	if (ang == 270) return 1.5 * M_PI;
+
+	a = atan(r.x / r.y * tan(nvgDegToRad(ang)));
+
+	if (ang > 90 && ang < 270) a += M_PI;
+	else if (ang > 270)	a += M_PI * 2;
+
+	return a;
+}
+
+static void elliptical_aux(REBXYF r, REBDEC ang, float *x, float *y)
+{
+	float t;
+
+	while (ang > 360) ang -= 360;
+	while (ang < 0) ang += 360;
+
+	if (ang == 90) {
+		*x = 0;
+		*y = r.y;
+	} else if (ang == 270) {
+		*x = 0;
+		*y = - r.y;
+	} else if (ang > 90 && ang < 270) {
+		t = tan(nvgDegToRad(ang));
+		*x = -r.x / sqrt(r.x * r.x / (r.y * r.y) * t * t + 1);
+		*y = *x * t;
+	} else {
+		t = tan(nvgDegToRad(ang));
+		*x = r.x / sqrt(r.x * r.x / (r.y * r.y) * t * t + 1);
+		*y = *x * t;
+	}
+}
+
+/* draw an elliptical arc from ang1 to ang2, clockwise
+	ang1 < ang2
+*/
+static void elliptical_arc(NVGcontext *nvg, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
+{
+	/* Approximate an ellipticial arc with line segments */
+	float ra, da, ang;
+	float matrix[6];
+	float x, y;
+
+	if (ang2 > ang1 + 360) ang2 = ang1 + 360;
+	if (ang2 < ang1 - 360) ang2 = ang1 - 360;
+
+	nvgCurrentTransform(nvg, matrix);
+	ra = (r.x * matrix[0] + r.y * matrix[3]) / 2;
+	da = acos(ra / (ra + 0.125)) * 180 / M_PI;
+
+	if (ang2 < ang1) da = -da;
+
+	//printf("da: %f\n", da);
+	elliptical_aux(r, ang1, &x, &y);
+
+	if (closed) {
+		nvgLineTo(nvg, c.x + x, c.y + y);
+	} else {
+		nvgMoveTo(nvg, c.x + x, c.y + y);
+	}
+
+	for (ang = ang1 + da; (da > 0 && ang <= ang2) || ( da < 0 && ang >= ang2); ang += da) {
+		elliptical_aux(r, ang, &x, &y);
+		nvgLineTo(nvg, c.x + x, c.y + y);
+	}
+
+	if ((da > 0 && ang < ang2 + da)
+		|| (da < 0 && ang > ang2 + da)){
+		elliptical_aux(r, ang2, &x, &y);
+		nvgLineTo(nvg, c.x + x, c.y + y);
+	}
+}
+
 void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	NVGcontext *nvg = ctx->nvg;
-	BEGIN_NVG_PATH(ctx);
-	if (r.x == r.y) {
-		if (closed) {
-			float x0, y0;
-			x0 = c.x + r.x * cos(nvgDegToRad(ang1));
-			y0 = c.y + r.y * sin(nvgDegToRad(ang1));
+	float x0, y0;
 
-			nvgMoveTo(nvg, c.x, c.y);
-			nvgLineTo(nvg, x0, y0);
-			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
-			nvgClosePath(nvg);
-		} else {
-			nvgArc(nvg, c.x, c.y, r.x, nvgDegToRad(ang1), nvgDegToRad(ang2), NVG_CW);
-		}
+	if (ang1 >= ang2) return;
+
+	x0 = c.x + r.x * cos(nvgDegToRad(ang1));
+	y0 = c.y + r.y * sin(nvgDegToRad(ang1));
+
+	BEGIN_NVG_PATH(ctx);
+	if (closed) {
+		nvgMoveTo(nvg, c.x, c.y);
+		elliptical_arc(nvg, c, r, ang1, ang2, closed);
+		nvgClosePath(nvg);
 	} else {
-		/* FIXME */
-		printf("FIXME, elliptical arc %fx%f at line %d\n", r.x, r.y, __LINE__);
+		elliptical_arc(nvg, c, r, ang1, ang2, closed);
 	}
 	END_NVG_PATH(ctx);
 }
@@ -782,22 +865,119 @@ void rebdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCN
 //SHAPE functions
 void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT positive, REBINT large)
 {
-	float x, y;
+	// See http://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
+
+	double x2, y2;
 	REBXYF c;
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
-	x = rel? ctx->last_x + p.x : p.x;
-	y = rel? ctx->last_y + p.y : p.y;
+	double x1 = ctx->last_x;
+	double y1 = ctx->last_y;
 
-	if (r.x == r.y) {
-		//nvgArc(ctx->nvg, c.x, c.y, r.x, ang, ang, positive? NVG_CCW : NVG_CW);
-	} else {
-		// elliptical arc
-		// FIXME
+	double dx, dy;
+
+	double x1_p, y1_p;
+
+	double cx_p, cy_p;
+	double cx, cy;
+
+	double cos_a = cos(nvgDegToRad(ang));
+	double sin_a = sin(nvgDegToRad(ang));
+
+	double theta, delta;
+
+	x2 = rel? ctx->last_x + p.x : p.x;
+	y2 = rel? ctx->last_y + p.y : p.y;
+
+	if (r.x == 0 || r.y == 0) {
+		/* degenerated to a straight line */
+		nvgLineTo(ctx->nvg, x2, y2);
+		goto done;
 	}
-	printf("FIXME: %d\n", __LINE__);
-	ctx->last_x = x;
-	ctx->last_y = y;
+
+	if (x1 == x2 && y1 == y2) goto done;
+
+	/* step 1 compute (x1_p, y1_p) */
+	dx = (x1 - x2) / 2;
+	dy = (y1 - y2) / 2;
+
+	x1_p = (cos_a * dx + sin_a * dy);
+	y1_p = (-sin_a * dx + cos_a * dy);
+
+	/* check radii */
+	{
+		double radii_check;
+		if (r.x < 0) r.x = -r.x;
+		if (r.y < 0) r.y = -r.y;
+
+		radii_check = x1_p * x1_p / (r.x * r.x) + y1_p * y1_p / (r.y * r.y);
+
+		if (radii_check > 1) {
+			double s = sqrt(radii_check);
+			r.x *= s;
+			r.y *= s;
+		}
+	}
+
+	/* step 2: compute (cx_p, cy_p) */
+	{
+		double sq;
+		double rxs = r.x * r.x;
+		double rys = r.y * r.y;
+
+		double tmp = rxs * y1_p * y1_p + rys * x1_p * x1_p;
+
+		int sign = (!!positive == !!large) ? -1 : 1;;
+
+		sq = (rxs * rys - tmp) / tmp;
+		sq = (sq < 0) ? 0 : sq;
+		tmp = sign * sqrt(sq);
+		cx_p = tmp * r.x * y1_p / r.y;
+		cy_p = -tmp * r.y * x1_p / r.x;
+	}
+
+	/* step 3: compute (cx, cy) from (cx_p, cy_p) */
+	cx = (cos_a * cx_p - sin_a * cy_p) + (x1 + x2) / 2;
+	cy = (sin_a * cx_p + cos_a * cy_p) + (y1 + y2) / 2;
+
+	/* compute starting angle and the extent */
+	{
+		double ux, uy, vx, vy, p, n;
+		int sign;
+
+		ux = (x1_p - cx_p) / r.x;
+		uy = (y1_p - cy_p) / r.y;
+		vx = (-x1_p - cx_p) / r.x;
+		vy = (-y1_p - cy_p) / r.y;
+		n = sqrt(ux * ux + uy * uy);
+		p = ux; // 1 * ux + 0 * vy;
+		sign = (uy < 0) ? -1 : 1;
+		theta = nvgRadToDeg(sign * acos(p / n));
+
+		// angle extent
+		n = sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+		p = ux * vx + uy * vy;
+
+		sign = (ux * vy - uy * vx < 0) ? -1 : 1;
+		delta = nvgRadToDeg(sign * acos(p / n));
+
+		if (!positive && delta > 0)
+			delta -= 360;
+		else if (positive && delta < 0)
+			delta += 360;
+	}
+
+	/* draw the arc */
+	{
+		REBXYF c = { cx, cy };
+		elliptical_arc(ctx->nvg, c, r, theta, theta + delta, TRUE);
+	}
+
+done:
+	ctx->last_x = x2;
+	ctx->last_y = y2;
+
+//	printf("current point after arc: (%f, %f)\n", x2, y2);
 
 	ctx->last_shape_cmd = rel? 'a' : 'A';
 }
@@ -894,6 +1074,8 @@ void rebshp_hline(void* gr, REBCNT rel, REBDEC x)
 
 	nvgLineTo(ctx->nvg, x, y);
 	ctx->last_shape_cmd = rel? 'h' : 'H';
+
+//	printf("point after hline: (%f, %f)\n", ctx->last_x, ctx->last_y);
 }
 
 void rebshp_line(void* gr, REBCNT rel, REBXYF p)
@@ -925,13 +1107,13 @@ void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 
 	nvgMoveTo(ctx->nvg, x, y);
 	ctx->last_shape_cmd = rel? 'm' : 'M';
-	//printf("%s, %d: %fx%f\n", __func__, __LINE__, x, y);
+//	printf("%s, %d: %fx%f\n", __FUNCTION__, __LINE__, x, y);
 }
 
 void rebshp_begin(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	//printf("%s, %d\n", __func__, __LINE__);
+//	printf("%s, %d\n", __FUNCTION__, __LINE__);
 	nvgBeginPath(ctx->nvg);
 }
 
