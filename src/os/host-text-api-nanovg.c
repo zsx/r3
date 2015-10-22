@@ -113,6 +113,7 @@ REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top
 
 	return rt->rt_draw_text(DRAW_TEXT, &abs_oft);
 #endif
+    return 0;
 }
 
 void* Create_RichText()

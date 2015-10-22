@@ -126,22 +126,6 @@ void rebdrw_anti_alias(void* gr, REBINT mode)
 	} while (0)
 
 /* convert from centeral angle to parameter angle and normalize it to [0, PI / 2] */
-static float parameterize_ellpitical_angle(REBXYF r, REBDEC ang)
-{
-	float a;
-	while (ang > 360) ang -= 360;
-	while (ang < 0) ang += 360;
-
-	if (ang == 90) return M_PI / 2;
-	if (ang == 270) return 1.5 * M_PI;
-
-	a = atan(r.x / r.y * tan(nvgDegToRad(ang)));
-
-	if (ang > 90 && ang < 270) a += M_PI;
-	else if (ang > 270)	a += M_PI * 2;
-
-	return a;
-}
 
 static void elliptical_aux(REBXYF r, REBDEC ang, float *x, float *y)
 {
@@ -717,7 +701,7 @@ void rebdrw_scale(void* gr, REBXYF sc)
 
 void rebdrw_skew(void* gr, REBXYF angle)
 {
-	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	//REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	//nvgScale(ctx->nvg, sc.x, sc.y);
 }
 void rebdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
@@ -867,13 +851,14 @@ void rebshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT pos
 {
 	// See http://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
 
-	double x2, y2;
-	REBXYF c;
-	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+    
 	double x1 = ctx->last_x;
 	double y1 = ctx->last_y;
-
+    
+	double x2, y2;
+    
 	double dx, dy;
 
 	double x1_p, y1_p;
@@ -1032,10 +1017,6 @@ void rebshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
 
 void rebshp_curve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2, REBXYF p3)
 {
-	float x1, y1;
-	float x2, y2;
-	float x3, y3;
-
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
 	if (rel) {
@@ -1250,11 +1231,8 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 
 void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
 {
-	REBINT result;
 	REBCEC cec_ctx;
 	REBSER *block = (REBSER *)GOB_CONTENT(gob);
-	NVGpaint paint;
-	NVGlayer *layer;
 
 	REBXYF clip_oft = {clip_top.x, clip_top.y};
 	REBXYF clip_size = {
@@ -1314,6 +1292,8 @@ static int create_layers(REBDRW_CTX *ctx, REBINT w, REBINT h)
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
 	//printf("end of win_layer: %d\n", __LINE__);
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
+    
+    return 0;
 }
 
 static void delete_layers(REBDRW_CTX *ctx)
