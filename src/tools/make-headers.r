@@ -14,6 +14,7 @@ REBOL [
 ]
 
 do %common.r
+do %common-parsers.r
 
 print "------ Building headers"
 
@@ -77,17 +78,10 @@ emit-proto: func [proto] [
 ]
 
 func-header: [
-	;-- Scan for function header box:
-	"^/**" to newline
-	"^/*/" any [#" " | #"^-"]
-	copy proto to newline (emit-proto proto) newline
-	opt [
-		"/*" ; must be in func header section, not file banner
-		any [
-			thru "**" [#" " | #"^-"] copy line thru newline
-		]
-		thru "*/"
-	]
+	format2012.pre.proto
+	copy proto to newline newline
+	opt format2012.post.comment
+	(emit-proto proto)
 ]
 
 segment: [

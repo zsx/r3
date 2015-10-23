@@ -32,6 +32,7 @@ reb-ext-defs: out-dir/reb-lib-lib.h  ; for REBOL usage
 ver: load %../boot/version.r
 
 do %common.r
+do %common-parsers.r
 
 do %form-header.r
 
@@ -118,7 +119,9 @@ pads: func [start col] [
 	head insert/dup clear "" #" " col
 ]
 
-emit-proto: funct/extern [proto] [
+emit-proto: func [
+	proto
+] [
 
 	if all [
 		proto
@@ -151,31 +154,30 @@ emit-proto: funct/extern [proto] [
 
 		proto-count: proto-count + 1
 	]
-][proto-count]
+]
 
 func-header: [
 	;-- WARNING: as written this means you can't use RL_API in a comment
 	;-- or this will screw up... more rigor needed.
 
-	thru "RL_API " copy proto to newline skip
-	opt ["/*" copy comment-text thru "*/"]
+	format2012.pre.proto
+	"RL_API " copy proto to newline skip
+	opt format2012.post.comment
 	(emit-proto proto)
-	newline
-	opt [
-		"/*" ; must be in func header section, not file banner
-		any [
-			thru "**" [#" " | #"^-"] copy line thru newline
-		]
-		thru "*/"
+]
+
+segment: [
+	thru "/******" to newline [
+		func-header
+		| thru newline
 	]
 ]
 
 process: func [file] [
 	if verbose [?? file]
-	data: to string! read the-file: file ;R3
-	parse data [
-		any func-header
-	]
+	data: read the-file: file ;R3
+	data: to-string data ; R3
+	parse data [any segment]
 ]
 
 write-if: func [file data] [

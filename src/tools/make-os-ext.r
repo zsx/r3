@@ -20,7 +20,8 @@ version: load %../boot/version.r
 lib-version: version/3
 print ["--- Make OS Ext Lib --- Version:" lib-version]
 
-do %common.r
+do %common.r
+do %common-parsers.r
 do %systems.r
 
 config: config-system/guess system/options/args
@@ -79,7 +80,7 @@ count: func [s c /local n] [
 	append output-buffer ")"
 ]
 
-emit-proto: funct/extern [
+emit-proto: func [
 	proto
 ] [
 
@@ -131,18 +132,19 @@ emit-proto: funct/extern [
 
 		proto-count: proto-count + 1
 	]
-][proto-count]
+]
 
 func-header: [
-	thru "/***" 10 100 "*" newline
-	thru "*/"
-	copy proto to newline (emit-proto proto) newline
-	opt [
-		"/*" ; must be in func header section, not file banner
-		any [
-			thru "**" [#" " | #"^-"] copy line thru newline
-		]
-		thru "*/"
+	format2012.pre.proto
+	copy proto to newline newline
+	opt format2012.post.comment
+	(emit-proto proto)
+]
+
+segment: [
+	thru "/******" to newline [
+		func-header
+		| thru newline
 	]
 ]
 
@@ -150,9 +152,7 @@ process: func [file] [
 	if verbose [?? file]
 	data: read the-file: file
 	data: to-string data ; R3
-	parse data [
-		any func-header
-	]
+	parse data [any segment]
 ]
 
 append host-lib-struct {
