@@ -565,8 +565,10 @@ static void set_wm_name(Display *display,
 												display,
 												"UTF8_STRING",
 												False);
-	XChangeProperty(display, window, XA_TITLE, XA_UTF8_STRING, 8,
-					PropModeReplace, title, strlen(title));
+	if (XA_TITLE != None
+		&& XA_UTF8_STRING != None)
+		XChangeProperty(display, window, XA_TITLE, XA_UTF8_STRING, 8,
+						PropModeReplace, title, strlen(title));
 	XStoreName(display, window, title); //backup for non NET Wms
 }
 
@@ -599,13 +601,15 @@ static void set_wm_icon_name(Display *display,
 							 Window window,
 							 const char* title)
 {
-	XChangeProperty(display, window,
-					x_atom_list_find_atom(global_x_info->x_atom_list,
-										  display, "_NET_WM_ICON_NAME", True),
-					x_atom_list_find_atom(global_x_info->x_atom_list,
-										  display, "UTF8_STRING", True),
-					8, PropModeReplace,
-					title, strlen(title));
+	Atom XA_ICON_NAME = x_atom_list_find_atom(global_x_info->x_atom_list,
+									  display, "_NET_WM_ICON_NAME", True);
+	Atom XA_UTF8_STRING = x_atom_list_find_atom(global_x_info->x_atom_list,
+												display, "UTF8_STRING", True);
+	if (XA_ICON_NAME != None && XA_UTF8_STRING != None)
+		XChangeProperty(display, window,
+						XA_ICON_NAME, XA_UTF8_STRING,
+						8, PropModeReplace,
+						title, strlen(title));
 
 }
 
