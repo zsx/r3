@@ -20,7 +20,7 @@ REBOL [
 	}
 ]
 
-decode-lines: funct [
+decode-lines: function [
 	{Decode text previously encoded using a line prefix e.g. comments (modifies).}
 	text [string!]
 	line-prefix [string!] {Usually "**" or "//".}
@@ -64,7 +64,7 @@ encode-lines: func [
 	text
 ]
 
-load-next: funct [
+load-next: function [
 	{Load the next value. Return block with value and new position.}
 	string [string!]
 ] [
@@ -74,7 +74,7 @@ load-next: funct [
 ] ; by @rgchris.
 
 
-load-until-blank: funct [
+load-until-blank: function [
 	{Load rebol values from text until double newline.}
 	text [string!]
 	/next {Return values and next position.}
