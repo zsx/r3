@@ -423,9 +423,9 @@ enum {
 	REBVAL * const body_result = D_ARG(3);
 
 	// CASE is in the same family as IF/UNLESS/EITHER, so if there is no
-	// matching condition it will return a NONE!.  Set that as default.
+	// matching condition it will return UNSET!.  Set that as default.
 
-	SET_NONE(D_OUT);
+	SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
 
@@ -470,7 +470,7 @@ enum {
 
 			// forgets the last evaluative result for a TRUE condition
 			// when /ALL is set (instead of keeping it to return)
-			SET_NONE(D_OUT);
+			SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 			continue;
 		}
 	#endif
@@ -829,8 +829,12 @@ was_caught:
 #endif
 
 	switch (VAL_TYPE(value)) {
+	case REB_UNSET:
+		// useful for `do if ...` types of scenarios
+		return R_UNSET;
+
 	case REB_NONE:
-		// No-op is convenient for `do if ...` constructions
+		// useful for `do all ...` types of scenarios
 		return R_NONE;
 
 	case REB_BLOCK:
@@ -1090,14 +1094,13 @@ was_caught:
 	REBVAL * const branch = D_ARG(2);
 	const REBOOL only = D_REF(3);
 
-	if (IS_CONDITIONAL_FALSE(condition)) return R_NONE;
-
-	if (only || !IS_BLOCK(branch)) {
-		*D_OUT = *branch;
-		return R_OUT;
+	if (IS_CONDITIONAL_FALSE(condition)) {
+		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 	}
-
-	if (DO_ARRAY_THROWS(D_OUT, branch))
+	else if (only || !IS_BLOCK(branch)) {
+		*D_OUT = *branch;
+	}
+	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
 
 	return R_OUT;
@@ -1207,7 +1210,7 @@ was_caught:
 
 	REBVAL *item = VAL_BLK_DATA(cases);
 
-	SET_NONE(D_OUT); // default return value if no cases run
+	SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // default return if no cases run
 
 	for (; NOT_END(item); item++) {
 
@@ -1218,10 +1221,10 @@ was_caught:
 
 		if (IS_BLOCK(item)) {
 			// Each time we see a block that we don't take, we reset
-			// the output to NONE!...because we only leak evaluations
+			// the output to UNSET!...because we only leak evaluations
 			// out the bottom of the switch if no block would catch it
 
-			SET_NONE(D_OUT);
+			SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 			continue;
 		}
 
@@ -1431,14 +1434,13 @@ was_caught:
 	REBVAL * const branch = D_ARG(2);
 	const REBOOL only = D_REF(3);
 
-	if (IS_CONDITIONAL_TRUE(condition)) return R_NONE;
-
-	if (only || !IS_BLOCK(branch)) {
-		*D_OUT = *branch;
-		return R_OUT;
+	if (IS_CONDITIONAL_TRUE(condition)) {
+		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 	}
-
-	if (DO_ARRAY_THROWS(D_OUT, branch))
+	else if (only || !IS_BLOCK(branch)) {
+		*D_OUT = *branch;
+	}
+	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
 
 	return R_OUT;

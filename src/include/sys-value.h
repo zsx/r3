@@ -236,6 +236,19 @@ struct Reb_Datatype {
 #define	SET_NONE(v)		VAL_SET(v, REB_NONE)
 #define NONE_VALUE		ROOT_NONE_VAL
 
+// In legacy mode we still support the old convention that an IF that does
+// not take its branch or a WHILE loop that never runs its body return a NONE!
+// value instead of an UNSET!.  To track the locations where this decision is
+// made more easily, SET_UNSET_UNLESS_LEGACY_NONE() is used.
+//
+#ifdef NDEBUG
+	#define	SET_UNSET_UNLESS_LEGACY_NONE(v) \
+		SET_UNSET(v)
+#else
+	#define SET_UNSET_UNLESS_LEGACY_NONE(v) \
+		(LEGACY(OPTIONS_NONE_INSTEAD_OF_UNSETS) ? SET_NONE(v) : SET_UNSET(v))
+#endif
+
 #define EMPTY_BLOCK		ROOT_EMPTY_BLOCK
 #define EMPTY_SERIES	VAL_SERIES(ROOT_EMPTY_BLOCK)
 

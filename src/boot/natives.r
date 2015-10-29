@@ -121,10 +121,10 @@ continue: native [
 
 do: native [
 	{Evaluates a block of source code (directly or fetched according to type)}
-	;source [none! block! paren! string! binary! url! file! tag!]
+	;source [unset! none! block! paren! string! binary! url! file! tag!]
 	; !!! Actually does not handle ERROR! or ANY-FUNCTION! but temporarily
 	; accepts them to trigger more informataive errors suggesting FAIL and EVAL
-	source [none! block! paren! string! binary! url! file! tag! error! any-function!]
+	source [unset! none! block! paren! string! binary! url! file! tag! error! any-function!]
 	/args "If value is a script, this will set its system/script/args"
 	arg   "Args passed to a script (normally a string)"
 	/next "Do next expression only, return it, update block variable"

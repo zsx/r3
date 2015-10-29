@@ -234,6 +234,8 @@ set 'r3-legacy* func [] [
 	system/options/forever-64-bit-ints: true
 	system/options/print-forms-everything: true
 	system/options/break-with-overrides: true
+	system/options/none-instead-of-unsets: true
+	system/options/cant-unset-set-words: true
 
 	; False is already the default for this switch
 	; (e.g. `to-word type-of quote ()` is the word PAREN! and not GROUP!)

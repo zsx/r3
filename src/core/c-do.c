@@ -718,11 +718,31 @@ reevaluate:
 	case REB_SET_WORD:
 		index = Do_Core(out, TRUE, block, index + 1, TRUE);
 
-		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, value);
 		if (index == THROWN_FLAG) goto return_index;
 
-		Set_Var(value, out);
+		if (index == END_FLAG) {
+			// `do [x:]` is not as purposefully an assignment of an unset as
+			// something like `do [x: ()]`, so it's an error.
+			assert(IS_UNSET(out));
+			raise Error_1(RE_NEED_VALUE, value);
+		}
+
+		if (IS_UNSET(out)) {
+			// Treat direct assignments of an unset as unsetting the word
+			REBVAL *var;
+
+		#if !defined(NDEBUG)
+			if (LEGACY(OPTIONS_CANT_UNSET_SET_WORDS))
+				raise Error_1(RE_NEED_VALUE, value);
+		#endif
+
+			if (!HAS_FRAME(value)) raise Error_1(RE_NOT_BOUND, value);
+
+			var = GET_MUTABLE_VAR(value);
+			SET_UNSET(var);
+		}
+		else
+			Set_Var(value, out);
 		break;
 
 	case REB_NATIVE:

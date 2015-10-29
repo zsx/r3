@@ -152,6 +152,8 @@ options: context [  ; Options supplied to REBOL during startup
 	forever-64-bit-ints: false
 	print-forms-everything: false
 	break-with-overrides: false
+	none-instead-of-unsets: false
+	cant-unset-set-words: false
 ]
 
 script: context [
