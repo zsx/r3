@@ -83,6 +83,12 @@ catch: native [
 	handler [block! any-function!] {If FUNCTION!, spec matches [value name]}
 ]
 
+clos: native [
+	{Defines a closure function.}
+	spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
+	body [block!] {The body block of the function}
+]
+
 comment: native [
 	{Ignores the argument value and returns nothing (no evaluations performed).}
 	:value [block! any-string! any-scalar!] {Literal value to be ignored.}
@@ -200,6 +206,12 @@ forskip: native [
 	size [integer! decimal!] "Number of positions to skip each time"
 	body [block!] "Block to evaluate each time"
 	/local orig result
+]
+
+func: native [
+	{Defines a user function with given spec and body.}
+	spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
+	body [block!] {The body block of the function}
 ]
 
 halt: native [

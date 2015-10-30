@@ -327,42 +327,75 @@ REBNATIVE(exit);
 
 /***********************************************************************
 **
-*/	REBFLG Make_Function(REBVAL *out, REBCNT type, REBVAL *def)
+*/	void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const REBVAL *body)
 /*
+**	Creates a function from a spec value and a body value.  Both spec and
+**	body data will be copied deeply.  Invalid spec or body values will
+**	raise an error.
+**
 ***********************************************************************/
 {
-	REBVAL *spec;
-	REBVAL *body;
-	REBCNT len;
 	REBYTE exts;
 
-	if (
-		!IS_BLOCK(def)
-		|| (len = VAL_LEN(def)) < 2
-		|| !IS_BLOCK(spec = VAL_BLK_HEAD(def))
-	) return FALSE;
+	// Note: "Commands" are created with Make_Command
+	assert(type == REB_FUNCTION || type == REB_CLOSURE);
 
-	body = VAL_BLK_SKIP(def, 1);
+	if (!IS_BLOCK(spec) || !IS_BLOCK(body)) {
+		// !!! Improve this error; it's simply a direct emulation of arity-1
+		// error that existed before refactoring code out of MT_Function()
+		REBVAL def;
+		REBSER *series = Make_Array(2);
+		Append_Value(series, spec);
+		Append_Value(series, body);
+		Val_Init_Block(&def, series);
 
-	VAL_FUNC_SPEC(out) = VAL_SERIES(spec);
-	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_SERIES(spec), &exts);
-
-	if (type != REB_COMMAND) {
-		if (len != 2 || !IS_BLOCK(body)) return FALSE;
-		VAL_FUNC_BODY(out) = VAL_SERIES(body);
+		raise Error_1(RE_BAD_FUNC_DEF, &def);
 	}
-	else
-		Make_Command(out, def);
+
+	// Making a copy of the spec and body is the more desirable behavior for
+	// usage, but we are *required* to do so:
+	//
+	//    (a) It prevents tampering with the spec after it has been analyzed
+	//        by Check_Func_Spec(), so the help doesn't get out of sync
+	//        with the identifying arguments series.
+	//    (b) The incoming values can be series at any index position, and
+	//        there is no space in the REBVAL for holding that position.
+	//        Hence all series will be interpreted at the head, ignoring
+	//        a user's intent for non-head-positioned blocks passed in.
+	//
+	// Technically the copying of the body might be avoidable *if* one were
+	// going to raise an error on being supplied with a series that was at
+	// an offset other than its head; but the restriction seems bizarre.
+	//
+	// Still...we do not enforce within the system that known invariant
+	// series cannot be reused.  To help ensure the assumption doesn't get
+	// built in (and make a small optimization) we substitute the global
+	// empty array vs. copying the series out of an empty block.
+
+	VAL_FUNC_SPEC(out) = (VAL_LEN(spec) == 0)
+		? EMPTY_ARRAY
+		: Copy_Array_At_Deep_Managed(VAL_SERIES(spec), VAL_INDEX(spec));
+
+	VAL_FUNC_BODY(out) = (VAL_LEN(body) == 0)
+		? EMPTY_ARRAY
+		: Copy_Array_At_Deep_Managed(VAL_SERIES(body), VAL_INDEX(body));
+
+	// Spec checking will raise an error if there is a problem
+
+	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(out), &exts);
+
+	// In the copied body, we rebind all the words that are local to point to
+	// the index positions in the function's identifying words list for the
+	// parameter list.  (We do so despite the fact that a closure never uses
+	// its "archetypal" body during a call, because the relative binding
+	// indicators speed each copying pass to bind to a persistent object.)
+
+	Bind_Relative(
+		VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
+	);
 
 	VAL_SET(out, type); // clears exts and opts in header...
 	VAL_EXTS_DATA(out) = exts; // ...so we set this after that point
-
-	if (type == REB_FUNCTION || type == REB_CLOSURE)
-		Bind_Relative(
-			VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
-		);
-
-	return TRUE;
 }
 
 
@@ -647,4 +680,77 @@ REBNATIVE(exit);
 	Free_Series(args);
 
 	return FALSE; // You cannot "throw" a Rebol value across an FFI boundary
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(func)
+/*
+**	At one time FUNC was a synonym for:
+**
+**		make function! copy/deep reduce [spec body]
+**
+**	Making it native interestingly saves somewhere on the order of 30% faster
+**	which is not bad, but not the motivation.  The real motivation was the
+**	desire to change to a feature known as "definitional return"--which will
+**	shift return to not available by default in MAKE FUNCTION!, which only has
+**	the non-definitional primitive EXIT available.
+**
+**	Being a native will not be required to implement definitional return
+**	in the Ren/C design.  It could be implemented in user code through a
+**	perfectly valid set of equivalent code, that would look something like
+**	the following simplification:
+**
+**		make function! compose/deep [
+**			; NEW SPEC
+**			; *- merge w/existing /local
+**			; ** - check for parameter named return, potentially suppress
+**			[(spec) /local* return**]
+**
+**			; NEW BODY
+**			[
+**				return: make function! [value] [
+**					throw/name value bind-of 'return
+**				]
+**				catch/name [(body)] bind-of 'return
+**			]
+**		]
+**
+**	This pleasing user-mode ability to have a RETURN that is "bound" to a
+**	memory of where it came from is foundational in being able to implement
+**	Rebol structures like custom looping constructs.  Less pleasing would
+**	be the performance cost to every function if it were user-mode.  Hence
+**	the FUNC native implements an optimized equivalent functionality,
+**	faking the component behaviors.
+**
+**	Becoming native is a prelude to this transformation.
+**
+***********************************************************************/
+{
+	REBVAL * const spec = D_ARG(1);
+	REBVAL * const body = D_ARG(2);
+
+	Make_Function(D_OUT, REB_FUNCTION, spec, body); // can raise error
+
+	return R_OUT;
+}
+
+
+/***********************************************************************
+**
+*/	REBNATIVE(clos)
+/*
+**	See comments for FUNC.  Note that long term, the behavior of a CLOS is
+**	strictly more desirable than that of a FUNC, so having them distinct is
+**	an optimization.
+**
+***********************************************************************/
+{
+	REBVAL * const spec = D_ARG(1);
+	REBVAL * const body = D_ARG(2);
+
+	Make_Function(D_OUT, REB_CLOSURE, spec, body); // can raise error
+
+	return R_OUT;
 }

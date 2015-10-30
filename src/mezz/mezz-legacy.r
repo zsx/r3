@@ -214,6 +214,18 @@ try: func [
 ]
 
 
+; HAS is targeted for use to be the arity-1 parallel to OBJECT as arity-2,
+; (similar to the relationship between DOES and FUNCTION).
+;
+has: func [
+	{A shortcut to define a function that has local variables but no arguments.}
+	vars [block!] {List of words that are local to the function}
+	body [block!] {The body block of the function}
+][
+	func (head insert copy vars /local) body
+]
+
+
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine

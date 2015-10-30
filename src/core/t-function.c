@@ -68,11 +68,57 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 
 /***********************************************************************
 **
-*/	REBFLG MT_Function(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
 /*
+**	For REB_FUNCTION and REB_CLOSURE "make spec", there is a function spec
+**	block and then a block of Rebol code implementing that function.  In that
+**	case we expect that `def` should be:
+**
+**		[[spec] [body]]
+**
+**	With REB_COMMAND, the code is implemented via a C DLL, under a system of
+**	APIs that pre-date Rebol's open sourcing and hence Ren/C:
+**
+**		[[spec] extension command-num]
+**
+**	See notes in Make_Command() regarding that mechanism and meaning.
+**
 ***********************************************************************/
 {
-	return Make_Function(out, type, data);
+	REBVAL *spec;
+	REBCNT len;
+
+	if (!IS_BLOCK(def)) return FALSE;
+
+	len = VAL_LEN(def);
+	if (len < 2) return FALSE;
+
+	spec = VAL_BLK_HEAD(def);
+
+	if (!IS_BLOCK(def)) return FALSE;
+
+	if (type == REB_COMMAND) {
+		REBVAL *extension = VAL_BLK_SKIP(def, 1);
+		REBVAL *command_num;
+
+		if (len != 3) return FALSE;
+		command_num = VAL_BLK_SKIP(def, 2);
+
+		Make_Command(out, spec, extension, command_num);
+	}
+	else if (type == REB_FUNCTION || type == REB_CLOSURE) {
+		REBVAL *body = VAL_BLK_SKIP(def, 1);
+
+		if (len != 2) return FALSE;
+
+		Make_Function(out, type, spec, body);
+	}
+	else
+		return FALSE;
+
+
+	// We only get here if neither Make() raises an error...
+	return TRUE;
 }
 
 
@@ -94,8 +140,9 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 	case A_MAKE:
 		if (!IS_DATATYPE(value)) raise Error_Invalid_Arg(value);
 
-		// Make_Function checks for an `[[args] [body]]`-style make argument
-		if (!Make_Function(D_OUT, VAL_TYPE_KIND(value), arg))
+		// MT_Function checks for `[[spec] [body]]` arg if function/closure
+		// and for `[[spec] extension command-num]` if command
+		if (!MT_Function(D_OUT, arg, VAL_TYPE_KIND(value)))
 			raise Error_Bad_Make(VAL_TYPE_KIND(value), arg);
 		return R_OUT;
 

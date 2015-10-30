@@ -1682,7 +1682,7 @@ return_index:
 		// empty block just to provide something in the slot
 		// !!! Could use more sophisticated backtracing in general
 
-		block = EMPTY_SERIES;
+		block = EMPTY_ARRAY;
 		index = 0;
 	}
 

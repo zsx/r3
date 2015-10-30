@@ -250,7 +250,7 @@ struct Reb_Datatype {
 #endif
 
 #define EMPTY_BLOCK		ROOT_EMPTY_BLOCK
-#define EMPTY_SERIES	VAL_SERIES(ROOT_EMPTY_BLOCK)
+#define EMPTY_ARRAY		VAL_SERIES(ROOT_EMPTY_BLOCK)
 
 #define VAL_INT32(v)	(REBINT)((v)->data.integer)
 #define VAL_INT64(v)	((v)->data.integer)
