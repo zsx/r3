@@ -140,8 +140,13 @@ void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
 		value = GET_VAR(value);
 		if (VAL_TYPE(value) < REB_NATIVE)
 			Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), value);
-		else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION)
-			Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,3)), Get_Type_Name(value), List_Func_Words(value));
+		else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) {
+			REBSER *words = List_Func_Words(value);
+			Debug_Fmt_(
+				cs_cast(BOOT_STR(RS_TRACE,3)), Get_Type_Name(value), words
+			);
+			Free_Series(words);
+		}
 		else
 			Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,4)), Get_Type_Name(value));
 	}

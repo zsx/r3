@@ -588,7 +588,13 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 		}
 	}
 	value = Alloc_Tail_Array(MOLD_LOOP);
-	Val_Init_Block(value, series);
+
+	// We don't want to use Val_Init_Block because it will create an implicit
+	// managed value, and the incoming series may be from an unmanaged source
+	// !!! Review how to avoid needing to put the series into a value
+	VAL_SET(value, REB_BLOCK);
+	VAL_SERIES(value) = series;
+	VAL_INDEX(value) = 0;
 
 	if (sep[1]) {
 		Append_Codepoint_Raw(out, sep[0]);
