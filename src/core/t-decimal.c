@@ -113,7 +113,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 
 /***********************************************************************
 **
-*/  REBFLG MT_Decimal(REBVAL *out, REBVAL *data, REBCNT type)
+*/  REBFLG MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {

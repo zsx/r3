@@ -414,7 +414,7 @@
 
 /***********************************************************************
 **
-*/	REBFLG MT_Date(REBVAL *val, REBVAL *arg, REBCNT type)
+*/	REBFLG MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 /*
 **		Given a block of values, construct a date datatype.
 **

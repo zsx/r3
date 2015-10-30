@@ -70,16 +70,16 @@ static void No_Nones(REBVAL *arg) {
 
 /***********************************************************************
 **
-*/	REBFLG MT_Array(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 **	"Make Type" dispatcher for the following subtypes:
 **
-**		MT_Block(REBVAL *out, REBVAL *data, REBCNT type)
-**		MT_Paren(REBVAL *out, REBVAL *data, REBCNT type)
-**		MT_Path(REBVAL *out, REBVAL *data, REBCNT type)
-**		MT_Set_Path(REBVAL *out, REBVAL *data, REBCNT type)
-**		MT_Get_Path(REBVAL *out, REBVAL *data, REBCNT type)
-**		MT_Lit_Path(REBVAL *out, REBVAL *data, REBCNT type)
+**		MT_Block
+**		MT_Paren
+**		MT_Path
+**		MT_Set_Path
+**		MT_Get_Path
+**		MT_Lit_Path
 **
 ***********************************************************************/
 {

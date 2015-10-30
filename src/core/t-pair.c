@@ -48,7 +48,7 @@
 
 /***********************************************************************
 **
-*/	REBFLG MT_Pair(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {

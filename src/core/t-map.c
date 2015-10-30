@@ -359,7 +359,7 @@
 
 /***********************************************************************
 **
-*/	REBFLG MT_Map(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {
@@ -535,7 +535,7 @@
 	case A_TO:
 		// make map! [word val word val]
 		if (IS_BLOCK(arg) || IS_PAREN(arg) || IS_MAP(arg)) {
-			if (MT_Map(D_OUT, arg, 0)) return R_OUT;
+			if (MT_Map(D_OUT, arg, REB_MAP)) return R_OUT;
 			raise Error_Invalid_Arg(arg);
 //		} else if (IS_NONE(arg)) {
 //			n = 3; // just a start
@@ -553,7 +553,7 @@
 		break;
 
 	case A_COPY:
-		if (MT_Map(D_OUT, val, 0)) return R_OUT;
+		if (MT_Map(D_OUT, val, REB_MAP)) return R_OUT;
 		raise Error_Invalid_Arg(val);
 
 	case A_CLEAR:

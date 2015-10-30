@@ -634,7 +634,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 /***********************************************************************
 **
-*/	REBFLG MT_Struct(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
  * Format:
  * make struct! [

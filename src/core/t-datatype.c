@@ -43,15 +43,16 @@
 
 /***********************************************************************
 **
-*/	REBFLG MT_Datatype(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {
+	REBCNT sym;
 	if (!IS_WORD(data)) return FALSE;
-	type = VAL_WORD_CANON(data);
-	if (type > REB_MAX) return FALSE;
+	sym = VAL_WORD_CANON(data);
+	if (sym > REB_MAX) return FALSE;
 	VAL_SET(out, REB_DATATYPE);
-	VAL_TYPE_KIND(out) = cast(enum Reb_Kind, type - 1);
+	VAL_TYPE_KIND(out) = KIND_FROM_SYM(sym);
 	VAL_TYPE_SPEC(out) = 0;
 	return TRUE;
 }

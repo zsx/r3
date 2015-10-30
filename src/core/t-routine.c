@@ -1030,7 +1030,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 
 /***********************************************************************
 **
-*/	REBFLG MT_Routine(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ** format:
 ** make routine! [[

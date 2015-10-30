@@ -240,7 +240,7 @@ static REBSER *Trim_Object(REBSER *obj)
 
 /***********************************************************************
 **
-*/	REBFLG MT_Object(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {

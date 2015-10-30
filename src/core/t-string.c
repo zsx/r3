@@ -281,7 +281,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
 /***********************************************************************
 **
-*/	REBFLG MT_String(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {

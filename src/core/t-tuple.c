@@ -46,7 +46,7 @@
 
 /***********************************************************************
 **
-*/	REBFLG MT_Tuple(REBVAL *out, REBVAL *data, REBCNT type)
+*/	REBFLG MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 /*
 ***********************************************************************/
 {
