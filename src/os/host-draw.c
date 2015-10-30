@@ -43,6 +43,7 @@
 
 //#include "agg-draw.h"
 #include "host-view.h"
+#include "host-renderer.h"
 #include "host-draw-api.h"
 
 #define INCLUDE_EXT_DATA
@@ -84,7 +85,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF r = RXA_LOG_PAIR(frm, 1); 
 			REBXYF ang = RXA_LOG_PAIR(frm, 2);
-			rebshp_arc(
+			rebol_renderer->draw->rebshp_arc(
 				ctx->envr,
 				rel,
 				r,
@@ -97,7 +98,7 @@ static u32* shape_ext_words;
         break;
 
     case CMD_SHAPE_CLOSE:
-        rebshp_close(ctx->envr);
+        rebol_renderer->draw->rebshp_close(ctx->envr);
         break;
 
     case CMD_SHAPE_CURV_LIT:
@@ -111,11 +112,11 @@ static u32* shape_ext_words;
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
-//                    rebshp_curv(ctx->envr, rel, val[0].pair, val[1].pair);
-					REBXYF p1 = RXI_LOG_PAIR(val[0]);
-					REBXYF p2 =  RXI_LOG_PAIR(val[1]);
-					rebshp_curv(ctx->envr, rel, p1, p2);
-                    m = 0;
+//                    rebol_renderer->draw->rebshp_curv(ctx->envr, rel, val[0].pair, val[1].pair);
+				    REBXYF p1 = RXI_LOG_PAIR(val[0]);
+				    REBXYF p2 =  RXI_LOG_PAIR(val[1]);
+				    rebol_renderer->draw->rebshp_curv(ctx->envr, rel, p1, p2);
+				    m = 0;
 			    }
 			}
         }
@@ -132,12 +133,12 @@ static u32* shape_ext_words;
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
                 if (type == RXT_PAIR && ++m == 3) {
-//                    rebshp_curve(ctx->envr, rel, val[0].pair, val[1].pair, val[2].pair);
+//                    rebol_renderer->draw->rebshp_curve(ctx->envr, rel, val[0].pair, val[1].pair, val[2].pair);
 					REBXYF p1 = RXI_LOG_PAIR(val[0]);
 					REBXYF p2 = RXI_LOG_PAIR(val[1]);
 					REBXYF p3 = RXI_LOG_PAIR(val[2]);
 
-					rebshp_curve(ctx->envr, rel, p1, p2, p3);
+					rebol_renderer->draw->rebshp_curve(ctx->envr, rel, p1, p2, p3);
                     m = 0;
                 }
 			}
@@ -147,7 +148,7 @@ static u32* shape_ext_words;
     case CMD_SHAPE_HLINE_LIT:
         rel = 1;
     case CMD_SHAPE_HLINE:
-        rebshp_hline(ctx->envr, rel, LOG_COORD_X((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)));
+        rebol_renderer->draw->rebshp_hline(ctx->envr, rel, LOG_COORD_X((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)));
         break;
 
     case CMD_SHAPE_LINE_LIT:
@@ -156,7 +157,7 @@ static u32* shape_ext_words;
         if (RXA_TYPE(frm, 1) == RXT_PAIR)
 		{
 			REBXYF p = RXA_LOG_PAIR(frm, 1);
-            rebshp_line(ctx->envr, rel, p);
+            rebol_renderer->draw->rebshp_line(ctx->envr, rel, p);
 		} else {
 			RXIARG val;
 			REBCNT type;
@@ -165,9 +166,9 @@ static u32* shape_ext_words;
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
 				if (type == RXT_PAIR) {
-//                    rebshp_line(ctx->envr, rel, val.pair);
+//                    rebol_renderer->draw->rebshp_line(ctx->envr, rel, val.pair);
 					REBXYF p = RXI_LOG_PAIR(val);
-					rebshp_line(ctx->envr, rel, p);
+					rebol_renderer->draw->rebshp_line(ctx->envr, rel, p);
 				}
 			}
         }
@@ -178,7 +179,7 @@ static u32* shape_ext_words;
     case CMD_SHAPE_MOVE:
 		{
 			REBXYF p = RXA_LOG_PAIR(frm, 1);
-			rebshp_move(ctx->envr, rel, p);
+			rebol_renderer->draw->rebshp_move(ctx->envr, rel, p);
 		}
 		break;
 
@@ -187,7 +188,7 @@ static u32* shape_ext_words;
     case CMD_SHAPE_QCURV:
 		{
 			REBXYF p = RXA_LOG_PAIR(frm, 1);
-			rebshp_qcurv(ctx->envr, rel, p);
+			rebol_renderer->draw->rebshp_qcurv(ctx->envr, rel, p);
 		}
 		break;
 
@@ -202,11 +203,11 @@ static u32* shape_ext_words;
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
-//                    rebshp_qcurve(ctx->envr, rel, val[0].pair, val[1].pair);
+//                    rebol_renderer->draw->rebshp_qcurve(ctx->envr, rel, val[0].pair, val[1].pair);
 					REBXYF p1 = RXI_LOG_PAIR(val[0]);
 					REBXYF p2 = RXI_LOG_PAIR(val[1]);
 
-					rebshp_qcurve(ctx->envr, rel, p1, p2);
+					rebol_renderer->draw->rebshp_qcurve(ctx->envr, rel, p1, p2);
                     m = 0;
 			    }
 			}
@@ -216,7 +217,7 @@ static u32* shape_ext_words;
     case CMD_SHAPE_VLINE_LIT:
         rel = 1;
     case CMD_SHAPE_VLINE:
-        rebshp_vline(ctx->envr, rel, LOG_COORD_Y((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)));
+        rebol_renderer->draw->rebshp_vline(ctx->envr, rel, LOG_COORD_Y((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)));
         break;
 
     default:
@@ -244,14 +245,14 @@ static u32* shape_ext_words;
         draw_ext_words = RL_MAP_WORDS(RXA_SERIES(frm,1));
         break;
     case CMD_DRAW_ANTI_ALIAS:
-        rebdrw_anti_alias(ctx->envr, RXA_LOGIC(frm, 1));
+        rebol_renderer->draw->rebdrw_anti_alias(ctx->envr, RXA_LOGIC(frm, 1));
         break;
 
 	case CMD_DRAW_ARC:
 		{
 			REBXYF c = RXA_LOG_PAIR(frm, 1);
 			REBXYF r = RXA_LOG_PAIR(frm, 2);
-			rebdrw_arc(
+			rebol_renderer->draw->rebdrw_arc(
 				ctx->envr,
 				c,
 				r,
@@ -263,14 +264,14 @@ static u32* shape_ext_words;
 		break;
 
 	case CMD_DRAW_ARROW:
-		rebdrw_arrow(ctx->envr, RXA_PAIR(frm, 1), (RXA_TYPE(frm, 2) == RXT_NONE) ? 0 : RXA_COLOR_TUPLE(frm, 2));
+		rebol_renderer->draw->rebdrw_arrow(ctx->envr, RXA_PAIR(frm, 1), (RXA_TYPE(frm, 2) == RXT_NONE) ? 0 : RXA_COLOR_TUPLE(frm, 2));
 		break;
 
 	case CMD_DRAW_BOX:
 		{
 			REBXYF p1 = RXA_LOG_PAIR(frm, 1);
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
-			rebdrw_box(ctx->envr, p1, p2, LOG_COORD_X((RXA_TYPE(frm, 3) == RXT_DECIMAL) ? RXA_DEC64(frm, 3) : RXA_INT64(frm, 3)));
+			rebol_renderer->draw->rebdrw_box(ctx->envr, p1, p2, LOG_COORD_X((RXA_TYPE(frm, 3) == RXT_DECIMAL) ? RXA_DEC64(frm, 3) : RXA_INT64(frm, 3)));
 		}
 		break;
 
@@ -278,7 +279,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF p1 = RXA_LOG_PAIR(frm, 1);
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
-			rebdrw_circle(ctx->envr, p1, p2);
+			rebol_renderer->draw->rebdrw_circle(ctx->envr, p1, p2);
 		}
 		break;
 
@@ -286,7 +287,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF p1 = RXA_LOG_PAIR(frm, 1);
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
-			rebdrw_clip(ctx->envr, p1, p2);
+			rebol_renderer->draw->rebdrw_clip(ctx->envr, p1, p2);
 		}
 		break;
 
@@ -297,9 +298,9 @@ static u32* shape_ext_words;
 			REBXYF p3 = RXA_LOG_PAIR(frm, 3);
 			REBXYF p4 = RXA_LOG_PAIR(frm, 4);
 			if (RXA_TYPE(frm, 4) == RXT_NONE)
-				rebdrw_curve3(ctx->envr, p1, p2, p3);
+				rebol_renderer->draw->rebdrw_curve3(ctx->envr, p1, p2, p3);
 			else
-				rebdrw_curve4(ctx->envr, p1, p2, p3, p4);
+				rebol_renderer->draw->rebdrw_curve4(ctx->envr, p1, p2, p3, p4);
 		}
 		break;
 
@@ -307,7 +308,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF p1 = RXA_LOG_PAIR(frm, 1);
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
-			rebdrw_ellipse(ctx->envr, p1, p2);
+			rebol_renderer->draw->rebdrw_ellipse(ctx->envr, p1, p2);
 		}
 		break;
 
@@ -318,21 +319,21 @@ static u32* shape_ext_words;
 			//REBSER* img;
 
         if (RXA_TYPE(frm, 1) == RXT_TUPLE)
-            rebdrw_fill_pen(ctx->envr, RXA_COLOR_TUPLE(frm, 1));
+            rebol_renderer->draw->rebdrw_fill_pen(ctx->envr, RXA_COLOR_TUPLE(frm, 1));
         else if (RXA_TYPE(frm, 1) == RXT_LOGIC && !RXA_LOGIC(frm,1))
-            rebdrw_fill_pen(ctx->envr, 0);
+            rebol_renderer->draw->rebdrw_fill_pen(ctx->envr, 0);
         else {
-            rebdrw_fill_pen_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
+            rebol_renderer->draw->rebdrw_fill_pen_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
             }
         }
 		break;
 
     case CMD_DRAW_FILL_RULE:
-        rebdrw_fill_rule(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)));
+        rebol_renderer->draw->rebdrw_fill_rule(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)));
         break;
 
     case CMD_DRAW_GAMMA:
-        rebdrw_gamma(ctx->envr, (RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1));
+        rebol_renderer->draw->rebdrw_gamma(ctx->envr, (RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1));
         break;
 
 	case CMD_DRAW_GRAD_PEN:
@@ -340,9 +341,9 @@ static u32* shape_ext_words;
 			REBXYF p3 = RXA_LOG_PAIR(frm, 3);
 			REBXYF p4 = RXA_LOG_PAIR(frm, 4);
 			if (RXA_TYPE(frm, 7) == RXT_NONE)
-				rebdrw_reset_gradient_pen(ctx->envr);
+				rebol_renderer->draw->rebdrw_reset_gradient_pen(ctx->envr);
 			else
-				rebdrw_gradient_pen(
+				rebol_renderer->draw->rebdrw_gradient_pen(
 					ctx->envr,
 					RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)), //type
 					RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)), //mode
@@ -358,14 +359,14 @@ static u32* shape_ext_words;
     case CMD_DRAW_IMAGE:
 		if (RXA_TYPE(frm, 2) == RXT_PAIR) {
         	REBXYF offset = RXA_LOG_PAIR(frm, 2);
-		    rebdrw_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1), offset);
+		    rebol_renderer->draw->rebdrw_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1), offset);
 		} else {
-            rebdrw_image_scale(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1), RXA_SERIES(frm, 2));
+            rebol_renderer->draw->rebdrw_image_scale(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1), RXA_SERIES(frm, 2));
         }
         break;
 
     case CMD_DRAW_IMAGE_FILTER:
-        rebdrw_image_filter(
+        rebol_renderer->draw->rebdrw_image_filter(
             ctx->envr,
             RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_NEAREST,
             RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_RESIZE,
@@ -374,11 +375,11 @@ static u32* shape_ext_words;
         break;
 
     case CMD_DRAW_IMAGE_OPTIONS:
-        rebdrw_image_options(ctx->envr, (RXA_TYPE(frm, 1) == RXT_NONE) ? 0 : 1, RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
+        rebol_renderer->draw->rebdrw_image_options(ctx->envr, (RXA_TYPE(frm, 1) == RXT_NONE) ? 0 : 1, RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
         break;
 
     case CMD_DRAW_IMAGE_PATTERN:
-        rebdrw_image_pattern(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_NORMAL, RXA_PAIR(frm, 2), RXA_PAIR(frm, 3));
+        rebol_renderer->draw->rebdrw_image_pattern(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_NORMAL, RXA_PAIR(frm, 2), RXA_PAIR(frm, 3));
         break;
 
 
@@ -393,14 +394,14 @@ static u32* shape_ext_words;
 				if (type == RXT_PAIR) {
 				    switch (++m){
                         case 1:
-                            rebshp_begin(ctx->envr);
+                            rebol_renderer->draw->rebshp_begin(ctx->envr);
                             break;
 				        case 2:
 							{
 								REBXYF p1 = RXI_LOG_PAIR(val[0]);
 								REBXYF p2 = RXI_LOG_PAIR(val[1]);
-//								rebdrw_line(ctx->envr, val[0].pair,val[1].pair);
-								rebdrw_line(ctx->envr, p1, p2);
+//								rebol_renderer->draw->rebdrw_line(ctx->envr, val[0].pair,val[1].pair);
+								rebol_renderer->draw->rebdrw_line(ctx->envr, p1, p2);
 								val[0] = val[1];
 								m--;
 							}
@@ -412,20 +413,20 @@ static u32* shape_ext_words;
 		break;
 
 	case CMD_DRAW_LINE_CAP:
-		rebdrw_line_cap(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_BUTT);
+		rebol_renderer->draw->rebdrw_line_cap(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_BUTT);
 		break;
 
 	case CMD_DRAW_LINE_JOIN:
-		rebdrw_line_join(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_MITER);
+		rebol_renderer->draw->rebdrw_line_join(ctx->envr, RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_MITER);
 		break;
 
 	case CMD_DRAW_LINE_WIDTH:
-		rebdrw_line_width(ctx->envr, ((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_VARIABLE);
+		rebol_renderer->draw->rebdrw_line_width(ctx->envr, ((RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1)), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_VARIABLE);
 		break;
 
 	case CMD_DRAW_LINE_PATTERN:
         if (RXA_TYPE(frm, 2) == RXT_NONE)
-            rebdrw_line_pattern(ctx->envr, 0, 0);
+            rebol_renderer->draw->rebdrw_line_pattern(ctx->envr, 0, 0);
         else {
             REBSER patterns = RXA_SERIES(frm, 2);
             REBINT len = RL_SERIES(patterns, RXI_SER_TAIL);
@@ -447,27 +448,27 @@ static u32* shape_ext_words;
                     else
                         break;
                 }
-                rebdrw_line_pattern(ctx->envr, RXA_COLOR_TUPLE(frm, 1), pattern);
+                rebol_renderer->draw->rebdrw_line_pattern(ctx->envr, RXA_COLOR_TUPLE(frm, 1), pattern);
             }
 
         }
 		break;
 
 	case CMD_DRAW_INVERT_MATRIX:
-		rebdrw_invert_matrix(ctx->envr);
+		rebol_renderer->draw->rebdrw_invert_matrix(ctx->envr);
 		break;
 
 	case CMD_DRAW_MATRIX:
-        rebdrw_matrix(ctx->envr, RXA_SERIES(frm, 1));
+        rebol_renderer->draw->rebdrw_matrix(ctx->envr, RXA_SERIES(frm, 1));
 		break;
 
 	case CMD_DRAW_PEN:
         if (RXA_TYPE(frm, 1) == RXT_TUPLE)
-            rebdrw_pen(ctx->envr, RXA_COLOR_TUPLE(frm, 1));
+            rebol_renderer->draw->rebdrw_pen(ctx->envr, RXA_COLOR_TUPLE(frm, 1));
         else if (RXA_TYPE(frm, 1) == RXT_LOGIC && !RXA_LOGIC(frm,1))
-            rebdrw_pen(ctx->envr, 0);
+            rebol_renderer->draw->rebdrw_pen(ctx->envr, 0);
         else
-            rebdrw_pen_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
+            rebol_renderer->draw->rebdrw_pen_image(ctx->envr, RXA_IMAGE_BITS(frm,1), RXA_IMAGE_WIDTH(frm,1), RXA_IMAGE_HEIGHT(frm,1));
 		break;
 
 	case CMD_DRAW_POLYGON:
@@ -481,14 +482,14 @@ static u32* shape_ext_words;
 				if (type == RXT_PAIR) {
 					REBXYF p = RXI_LOG_PAIR(val);
 					if (n > 0)
-//						rebdrw_add_vertex(ctx->envr, val.pair);
-						rebdrw_add_poly_vertex(ctx->envr, p);
+//						rebol_renderer->draw->rebdrw_add_vertex(ctx->envr, val.pair);
+						rebol_renderer->draw->rebdrw_add_poly_vertex(ctx->envr, p);
 					else
-//						rebdrw_begin_poly(ctx->envr, val.pair);
-						rebdrw_begin_poly(ctx->envr, p);
+//						rebol_renderer->draw->rebdrw_begin_poly(ctx->envr, val.pair);
+						rebol_renderer->draw->rebdrw_begin_poly(ctx->envr, p);
 				}
 			}
-			rebdrw_end_poly(ctx->envr);
+			rebol_renderer->draw->rebdrw_end_poly(ctx->envr);
 		}
 		break;
 
@@ -500,22 +501,22 @@ static u32* shape_ext_words;
             innerCtx.block = RXA_SERIES(frm, 1);
             innerCtx.index = 0;
 
-            rebdrw_push_matrix(ctx->envr);
+            rebol_renderer->draw->rebdrw_push_matrix(ctx->envr);
             RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
-            rebdrw_pop_matrix(ctx->envr);
+            rebol_renderer->draw->rebdrw_pop_matrix(ctx->envr);
         }
         break;
 
 	case CMD_DRAW_RESET_MATRIX:
-		rebdrw_reset_matrix(ctx->envr);
+		rebol_renderer->draw->rebdrw_reset_matrix(ctx->envr);
 		break;
 
     case CMD_DRAW_ROTATE:
-        rebdrw_rotate(ctx->envr, (RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1));
+        rebol_renderer->draw->rebdrw_rotate(ctx->envr, (RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1));
         break;
 
     case CMD_DRAW_SCALE:
-        rebdrw_scale(ctx->envr, RXA_PAIR(frm, 1));
+        rebol_renderer->draw->rebdrw_scale(ctx->envr, RXA_PAIR(frm, 1));
         break;
 
     case CMD_DRAW_SHAPE:
@@ -526,14 +527,14 @@ static u32* shape_ext_words;
             innerCtx.block = RXA_SERIES(frm, 1);
             innerCtx.index = 0;
 
-            rebshp_begin(ctx->envr);
+            rebol_renderer->draw->rebshp_begin(ctx->envr);
             RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
-            rebshp_end(ctx->envr);
+            rebol_renderer->draw->rebshp_end(ctx->envr);
         }
         break;
 
     case CMD_DRAW_SKEW:
-        rebdrw_skew(ctx->envr, RXA_PAIR(frm, 1));
+        rebol_renderer->draw->rebdrw_skew(ctx->envr, RXA_PAIR(frm, 1));
         break;
 
 	case CMD_DRAW_SPLINE:
@@ -550,14 +551,14 @@ static u32* shape_ext_words;
                     if (type == RXT_PAIR) {
 						REBXYF p = RXI_LOG_PAIR(val);
                         if (n > 0)
-//                            rebdrw_add_vertex(ctx->envr, val.pair);
-							rebdrw_add_spline_vertex(ctx->envr, p);
+//                            rebol_renderer->draw->rebdrw_add_vertex(ctx->envr, val.pair);
+							rebol_renderer->draw->rebdrw_add_spline_vertex(ctx->envr, p);
                         else
-//                            rebdrw_begin_poly(ctx->envr, val.pair);
-							rebdrw_begin_spline(ctx->envr, p);
+//                            rebol_renderer->draw->rebdrw_begin_poly(ctx->envr, val.pair);
+							rebol_renderer->draw->rebdrw_begin_spline(ctx->envr, p);
                     }
                 }
-                rebdrw_end_spline(ctx->envr, RXA_INT32(frm, 2), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 3)) - W_DRAW_OPENED);
+                rebol_renderer->draw->rebdrw_end_spline(ctx->envr, RXA_INT32(frm, 2), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 3)) - W_DRAW_OPENED);
             }
 
 		}
@@ -568,7 +569,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF p1 = RXA_LOG_PAIR(frm, 1);
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
-			rebdrw_text(
+			rebol_renderer->draw->rebdrw_text(
 				ctx->envr,
 				(RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 3)) == W_DRAW_VECTORIAL) ? 1 : 0,
 				 &p1,
@@ -583,7 +584,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF center = RXA_LOG_PAIR(frm, 2);
 			REBXYF offset = RXA_LOG_PAIR(frm, 4);
-			rebdrw_transform(
+			rebol_renderer->draw->rebdrw_transform(
 				ctx->envr,
 				(RXA_TYPE(frm, 1) == RXT_DECIMAL) ? RXA_DEC64(frm, 1) : RXA_INT64(frm, 1), // angle
 				center,
@@ -596,7 +597,7 @@ static u32* shape_ext_words;
     case CMD_DRAW_TRANSLATE:
 		{
 			REBXYF p = RXA_LOG_PAIR(frm, 1);
-			rebdrw_translate(ctx->envr, p);
+			rebol_renderer->draw->rebdrw_translate(ctx->envr, p);
 		}
 		break;
 
@@ -607,7 +608,7 @@ static u32* shape_ext_words;
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
 			REBXYF p3 = RXA_LOG_PAIR(frm, 3);
 
-            rebdrw_triangle(
+            rebol_renderer->draw->rebdrw_triangle(
                 ctx->envr,
                 p1, // vertex-1
                 p2, // vertex-2

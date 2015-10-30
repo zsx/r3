@@ -43,9 +43,9 @@
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-compositor.h"
+#include "host-renderer.h"
 
 #include <SDL.h>
-#include <GL/glew.h>
 
 // Externs
 extern REBGOBWINDOWS *Gob_Windows;
@@ -55,9 +55,6 @@ extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 
 // Locals
-
-int sdl_gl_swap_interval = 1;
-static REBXYF Zero_Pair = {0, 0};
 
 //
 //** OSAL Library Functions ********************************************
@@ -71,46 +68,14 @@ static REBXYF Zero_Pair = {0, 0};
 **
 ***********************************************************************/
 {
-	SDL_Window *dummy_win = NULL;
-	SDL_GLContext *gl_ctx = NULL;
-	GLenum glew_err;
-	const char *s_int = NULL;
-	char *s_end = NULL;
-	int interval = 0;
 
-	if (SDL_Init(SDL_INIT_VIDEO) != 0){
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0){
 		printf("SDL_Init Error: %s\n", SDL_GetError());
 		return;
 	}
-
 	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_WARN);
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-	dummy_win = SDL_CreateWindow("dummy", 0, 0, 1, 1, SDL_WINDOW_OPENGL);
-	gl_ctx = SDL_GL_CreateContext(dummy_win);
-	SDL_GL_MakeCurrent(dummy_win, gl_ctx);
-
-	s_int = SDL_getenv("R3_VSYNC");
-	if (s_int != NULL) {
-		interval = strtol(s_int, &s_end, 10);
-		if (s_end != s_int
-			&& interval >= -1
-			&& interval <= 1) {
-			sdl_gl_swap_interval = interval;
-		}
-	}
-
-	glewExperimental = 1; /* try to load every extension */
-	glew_err = glewInit();
-	if (glew_err != GLEW_OK) {
-		printf("GLEW initialization failed\n");
-	}
-
-	SDL_GL_DeleteContext(gl_ctx);
-	SDL_DestroyWindow(dummy_win);
+	rebol_renderer = init_renderer();
 }
 
 /***********************************************************************
@@ -169,9 +134,12 @@ static REBXYF Zero_Pair = {0, 0};
 	SDL_Window *win = NULL;
 	REBYTE *title;
 	REBYTE os_string = FALSE;
-	Uint32 flags = SDL_WINDOW_OPENGL;
+	Uint32 flags;
 	REBGOB *parent_gob = GOB_TMP_OWNER(gob);
 
+	if (rebol_renderer == NULL) return NULL;
+
+	flags = rebol_renderer->default_SDL_win_flags;
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))

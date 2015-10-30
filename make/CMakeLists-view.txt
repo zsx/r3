@@ -1,0 +1,218 @@
+# vim: ts=2 shiftwidth=2 filetype=CMAKE
+
+if (WIN32)
+	set (AGG_DEFINITIONS AGG_WIN32_FONTS)
+	list(APPEND LIBS "OpenGL32")
+else()
+	set (AGG_DEFINITIONS AGG_FREETYPE)
+
+	find_package(PkgConfig)
+	pkg_search_module(FONTCONFIG REQUIRED fontconfig)
+	set(AGG_INCLUDE_DIRS ${FONTCONFIG_INCLUDE_DIRS})
+	set(AGG_LIBRARIES ${FONTCONFIG_LDFLAGS})
+	if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		list(APPEND LIBS "X11")
+	endif()
+endif()
+
+#to shutoff cmake
+cmake_policy(SET CMP0042 OLD)
+
+#nanovg
+set (NANOVG_SOURCE
+	${EXTERNAL_DIR}/nanovg/src/nanovg.c
+	)
+set (VIEW_DIR ${OS_DIR})
+set (WIN_SYS_DIR ${OS_DIR})
+
+#GLEW
+if (R3_EXTERNAL_GLEW)
+	pkg_search_module(GLEW REQUIRED glew)
+else()
+	add_subdirectory(${EXTERNAL_DIR}/glew/build/cmake
+		${CMAKE_CURRENT_BINARY_DIR}/GLEW
+		EXCLUDE_FROM_ALL)
+	set(GLEW_DEFINITIONS GLEW_STATIC)
+	set(GLEW_INCLUDE_DIRS
+		${EXTERNAL_DIR}/glew/include
+		)
+	set(GLEW_LIBRARIES glew_s)
+endif()
+#AGG
+set (AGG_SOURCE 
+	${AGG_DIR}/agg_arc.cpp
+	${AGG_DIR}/agg_arrowhead.cpp
+	${AGG_DIR}/agg_bezier_arc.cpp
+	${AGG_DIR}/agg_bspline.cpp
+	${AGG_DIR}/agg_curves.cpp
+	${AGG_DIR}/agg_font_freetype.cpp
+	${AGG_DIR}/agg_font_win32_tt.cpp
+	${AGG_DIR}/agg_fontconfig.cpp
+	${AGG_DIR}/agg_graphics.cpp
+	${AGG_DIR}/agg_image_filters.cpp
+	${AGG_DIR}/agg_line_aa_basics.cpp
+	${AGG_DIR}/agg_path_storage.cpp
+	${AGG_DIR}/agg_rasterizer_scanline_aa.cpp
+	${AGG_DIR}/agg_rounded_rect.cpp
+	${AGG_DIR}/agg_sqrt_tables.cpp
+	${AGG_DIR}/agg_trans_affine.cpp
+	${AGG_DIR}/agg_trans_single_path.cpp
+	${AGG_DIR}/agg_truetype_text.cpp
+	${AGG_DIR}/agg_vcgen_bspline.cpp
+	${AGG_DIR}/agg_vcgen_contour.cpp
+	${AGG_DIR}/agg_vcgen_dash.cpp
+	${AGG_DIR}/agg_vcgen_markers_term.cpp
+	${AGG_DIR}/agg_vcgen_smooth_poly1.cpp
+	${AGG_DIR}/agg_vcgen_stroke.cpp
+	${AGG_DIR}/agg_vpgen_segmentator.cpp
+)
+add_library(libagg OBJECT ${AGG_SOURCE})
+
+#SDL
+if (R3_EXTERNAL_SDL)
+	pkg_search_module(SDL REQUIRED sdl2)
+else()
+	add_subdirectory(${EXTERNAL_DIR}/SDL
+		${CMAKE_CURRENT_BINARY_DIR}/SDL
+		EXCLUDE_FROM_ALL)
+	set (SDL_INCLUDE_DIRS ${EXTERNAL_DIR}/SDL/include)
+	set (SDL_LIBRARIES SDL2main SDL2-static)
+endif()
+set (VIEW_SOURCE 
+	${VIEW_DIR}/host-view.c
+	${VIEW_DIR}/host-draw.c
+	${VIEW_DIR}/host-text.c
+	${VIEW_DIR}/host-renderer.c
+	${VIEW_DIR}/host-renderer-nanovg.c
+	${VIEW_DIR}/host-draw-api-nanovg.c
+	${VIEW_DIR}/host-text-api-nanovg.c
+	${VIEW_DIR}/host-renderer-agg.c
+	${VIEW_DIR}/host-draw-api-agg.c
+	${VIEW_DIR}/host-draw-api-agg.cpp
+	${VIEW_DIR}/host-text-api-agg.c
+	${VIEW_DIR}/host-text-api-agg.cpp
+)
+set (WIN_SYS_SOURCE 
+	${WIN_SYS_DIR}/SDL/dev-event.c
+	${WIN_SYS_DIR}/SDL/dev-clipboard.c
+	${WIN_SYS_DIR}/SDL/host-event.c
+	${WIN_SYS_DIR}/SDL/host-compositor.c
+	${WIN_SYS_DIR}/SDL/host-window.c
+	${WIN_SYS_DIR}/SDL/host-graphics.c
+)
+add_custom_command(OUTPUT
+	${TOP_SRC_DIR}/include/host-ext-draw.h
+	${TOP_SRC_DIR}/include/host-ext-shape.h
+	${TOP_SRC_DIR}/include/host-ext-text.h
+	${TOP_SRC_DIR}/include/host-ext-graphics.h
+	COMMAND ${REBOL} ${TOOLS_DIR}/view-ext.r
+)
+set (GENERATED_VIEW_SOURCE 
+	${TOP_SRC_DIR}/include/host-ext-draw.h
+	${TOP_SRC_DIR}/include/host-ext-shape.h
+	${TOP_SRC_DIR}/include/host-ext-text.h
+	${TOP_SRC_DIR}/include/host-ext-graphics.h
+)
+add_library(libr3_view_core OBJECT
+				${CORE_SOURCE}
+				${GENERATED_CORE_SOURCE})
+add_library(libr3_view_os OBJECT ${OS_SOURCE} ${GENERATED_OS_SOURCE})
+add_library(libr3_view OBJECT ${VIEW_SOURCE} ${GENERATED_VIEW_SOURCE})
+add_library(libr3_win_sys OBJECT ${WIN_SYS_SOURCE})
+add_library(libnanovg OBJECT ${NANOVG_SOURCE})
+add_dependencies(libr3_view_os libr3_view_core)
+add_dependencies(libr3_view libnanovg libr3_view_os)
+add_dependencies(libr3_win_sys libr3_view_os libr3_view)
+add_dependencies(libagg libr3_view_core libr3_view)
+
+add_executable(r3-view
+	$<TARGET_OBJECTS:libr3_view_core>
+	$<TARGET_OBJECTS:libr3_view_os>
+	$<TARGET_OBJECTS:libr3_view>
+	$<TARGET_OBJECTS:libr3_win_sys>
+	$<TARGET_OBJECTS:libnanovg>
+	$<TARGET_OBJECTS:libagg>
+)
+SET_TARGET_PROPERTIES(r3-view PROPERTIES LINKER_LANGUAGE C)
+
+target_include_directories(libr3_view_core PUBLIC
+	${TOP_SRC_DIR}/include
+	${TOP_SRC_DIR}/codecs
+	${FFI_INCLUDE_DIRS}
+)
+target_include_directories(libnanovg PUBLIC
+	${GLEW_INCLUDE_DIRS}
+)
+target_compile_definitions(libnanovg PUBLIC
+	${GLEW_DEFINITIONS}
+)
+target_include_directories(libagg PUBLIC
+	${TOP_SRC_DIR}/include
+	${AGG_INCLUDE_DIRS}
+)
+target_compile_definitions(libagg PUBLIC
+	${COMMON_MACROS}
+	${AGG_DEFINITIONS}
+)
+
+target_include_directories(libr3_view_os PUBLIC
+	${TOP_SRC_DIR}/include
+	${TOP_SRC_DIR}/codecs
+)
+
+target_compile_definitions(libr3_view_os PUBLIC
+	${COMMON_MACROS}
+)
+
+target_include_directories(libr3_win_sys PUBLIC
+	${TOP_SRC_DIR}/include
+	${SDL_INCLUDE_DIRS}
+	${GLEW_INCLUDE_DIRS}
+)
+
+target_compile_definitions(libr3_win_sys PUBLIC
+	${COMMON_MACROS}
+	${GLEW_DEFINITIONS}
+)
+
+if (DEFINED SDL_CFLAGS OR DEFINED GLEW_CFLAGS)
+	set_target_properties(libr3_win_sys PROPERTIES COMPILE_FLAGS
+		${SDL_CFLAGS}
+		${GLEW_CFLAGS}
+		)
+	set_target_properties(libr3_view PROPERTIES COMPILE_FLAGS
+		${SDL_CFLAGS}
+		${GLEW_CFLAGS}
+		)
+endif()
+
+target_include_directories(libr3_view PUBLIC
+	${TOP_SRC_DIR}/include
+	${AGG_DIR}
+	${EXTERNAL_DIR}/nanovg/src
+	${SDL_INCLUDE_DIRS}
+	${GLEW_INCLUDE_DIRS}
+	${AGG_INCLUDE_DIRS}
+)
+
+target_compile_definitions(libr3_view PUBLIC
+	${COMMON_MACROS}
+	${GLEW_DEFINITIONS}
+	${AGG_DEFINITIONS}
+)
+
+target_compile_definitions(libr3_view_core PUBLIC
+	REB_API
+	${COMMON_MACROS}
+)
+
+target_link_libraries(r3-view
+	${FFI_LIBRARIES}
+	${FFI_LDFLAGS}
+	${SDL_LIBRARIES}
+	${SDL_LDFLAGS}
+	${GLEW_LIBRARIES}
+	${GLEW_LDFLAGS}
+	${AGG_LIBRARIES}
+	${LIBS}
+)

@@ -46,27 +46,16 @@
 #include <string.h>
 #include <math.h>	//for floor()
 #include "reb-host.h"
-#include "SDL.h"
+#include <SDL.h>
 
 #include "host-view.h"
+#include "host-renderer.h"
 #include "host-draw-api.h"
-
-//#include <GL/glew.h>
-//#include "nanovg.h"
-//#define NANOVG_GL3_IMPLEMENTATION   // Use GL3 implementation.
-//#define NANOVG_FBO_VALID
-//#include "nanovg_gl.h"
 
 void* Find_Window(REBGOB *gob);
 
 //***** Macros *****
 #define GOB_HWIN(gob)	(Find_Window(gob))
-
-//***** Locals *****
-
-extern int sdl_gl_swap_interval;
-
-static REBXYF Zero_Pair = {0, 0};
 
 typedef struct {
 	REBINT left;
@@ -80,63 +69,13 @@ typedef struct {
 //None of the values should be accessed directly from external code.
 //The structure can be extended/modified according to the specific backend needs.
 typedef struct {
-	REBYTE *Window_Buffer;
-	REBXYI winBufSize;
-	REBGOB *Win_Gob;
-	REBGOB *Root_Gob;
-	REBXYF absOffset;
-	SDL_Renderer *renderer;
-	SDL_Surface *surface;
-	SDL_GLContext *sdl_ctx;
-	SDL_Window *win;
+	REBGOB 		*Win_Gob;
+	REBGOB 		*Root_Gob;
+	REBXYF 		absOffset;
+	SDL_Window 	*win;
 	SDL_Rect	clip;
-	REBDRW_CTX *draw_ctx;
-	int		pixel_pitch;
+	REBDRW_CTX 	*draw_ctx;
 } REBCMP_CTX;
-
-void rebdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
-void rebdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
-void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
-
-/***********************************************************************
-**
-*/ REBYTE* rebcmp_get_buffer(REBCMP_CTX* ctx)
-/*
-**	Provide pointer to window compositing buffer.
-**  Return NULL if buffer not available of call failed.
-**
-**  NOTE: The buffer may be "locked" during this call on some platforms.
-**        Always call rebcmp_release_buffer() to be sure it is released.
-**
-***********************************************************************/
-{
-#if 0
-	if (SDL_MUSTLOCK(ctx->surface)) {
-		SDL_LockSurface(ctx->surface);
-	}
-	return ctx->surface->pixels;
-#endif
-
-	return NULL;
-}
-
-/***********************************************************************
-**
-*/ void rebcmp_release_buffer(REBCMP_CTX* ctx)
-/*
-**	Release the window compositing buffer acquired by rebcmp_get_buffer().
-**
-**  NOTE: this call can be "no-op" on platforms that don't need locking.
-**
-***********************************************************************/
-{
-	return;
-#if 0
-	if (SDL_MUSTLOCK(ctx->surface)) {
-		SDL_UnlockSurface(ctx->surface);
-	}
-#endif
-}
 
 /***********************************************************************
 **
@@ -148,7 +87,6 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 **
 ***********************************************************************/
 {
-
 	//check if window size really changed or buffer needs to be created
 	if ((GOB_LOG_W(winGob) != GOB_WO(winGob))
 		|| (GOB_LOG_H(winGob) != GOB_HO(winGob))) {
@@ -156,27 +94,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 		REBINT w = GOB_LOG_W_INT(winGob);
 		REBINT h = GOB_LOG_H_INT(winGob);
 
-		//------------------------------
-		//Put backend specific code here
-		//------------------------------
-
-		//update the buffer size values
-		ctx->winBufSize.x = w;
-		ctx->winBufSize.y = h;
-
-		rebdrw_resize_context(ctx->draw_ctx, w, h);
-
-#if 0
-		if (ctx->surface) {
-			SDL_FreeSurface(ctx->surface);
-		}
-		ctx->surface = SDL_CreateRGBSurface(0, w, h, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-
-		if (ctx->surface == NULL) {
-			fprintf(stderr, "CreateRGBSurface failed: %s\n", SDL_GetError());
-			exit(1);
-		}
-#endif
+		rebol_renderer->resize_draw_context(ctx->draw_ctx, w, h);
 
 		//update old gob area
 		GOB_XO(winGob) = GOB_LOG_X(winGob);
@@ -208,35 +126,14 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	//shortcuts
 	ctx->Root_Gob = rootGob;
 	ctx->Win_Gob = gob;
-	ctx->pixel_pitch = 4;
 
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
-	
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%dx%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 	ctx->win = GOB_HWIN(gob);
-	//ctx->renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	//ctx->renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_SOFTWARE);
-#if 0
-	ctx->renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
 
-	if (!ctx->renderer) {
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Failed to create a render\n");
-	}
-	SDL_RenderClear(ctx->renderer);
-#endif
-
-	ctx->sdl_ctx = SDL_GL_CreateContext(ctx->win);
-	SDL_GL_MakeCurrent(ctx->win, ctx->sdl_ctx);
-
-	printf("Graphic system is initialized.\n");
-	ctx->draw_ctx = rebdrw_create_context(w, h);
+	ctx->draw_ctx = rebol_renderer->create_draw_context(ctx->win, w, h);
 
 	//call resize to init buffer
 	rebcmp_resize_buffer(ctx, gob);
-	//ctx->winBufSize.x = w;
-	//ctx->winBufSize.y = h;
 	return ctx;
 }
 
@@ -248,14 +145,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 **
 ***********************************************************************/
 {
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
-	//SDL_FreeSurface(ctx->surface);
-	//OS_Free(ctx->Window_Buffer);
-	
-	rebdrw_destroy_context(ctx->draw_ctx);
-	SDL_DestroyRenderer(ctx->renderer);
+	rebol_renderer->destroy_draw_context(ctx->draw_ctx);
 	OS_FREE(ctx);
 }
 
@@ -299,43 +189,27 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	//printf("ctx->clip: top-left, (%d, %d) -> (w, h), (%d, %d)\n", ctx->clip.x, ctx->clip.y, ctx->clip.w, ctx->clip.h);
 	if (!SDL_RectEmpty(&ctx->clip))
 	{
+		REBXYI offset = {x, y};
+		REBXYI top = {gob_clip.left, gob_clip.top};
+		REBXYI bottom = {gob_clip.right, gob_clip.bottom};
+
 		//renderer GOB content
 		switch (GOB_TYPE(gob)) {
 			case GOBT_COLOR:
-				//------------------------------
-				//Put backend specific code here
-				//------------------------------
-				// or use the similar draw api call:
-				rebdrw_gob_color(gob, ctx->draw_ctx, (REBXYI){x,y}, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
+				rebol_renderer->draw->rebdrw_gob_color(gob, ctx->draw_ctx, offset, top, bottom);
 				break;
 
 			case GOBT_IMAGE:
-				{
-					//------------------------------
-					//Put backend specific code here
-					//------------------------------
-					// or use the similar draw api call:
-					rebdrw_gob_image(gob, ctx->draw_ctx, (REBXYI){x,y}, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
-				}
+				rebol_renderer->draw->rebdrw_gob_image(gob, ctx->draw_ctx, offset, top, bottom);
 				break;
 
 			case GOBT_DRAW:
-				{
-					//------------------------------
-					//Put backend specific code here
-					//------------------------------
-					// or use the similar draw api call:
-					rebdrw_gob_draw(gob, ctx->draw_ctx, (REBXYI){x,y}, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
-				}
+				rebol_renderer->draw->rebdrw_gob_draw(gob, ctx->draw_ctx, offset, top, bottom);
 				break;
 
 			case GOBT_TEXT:
 			case GOBT_STRING:
-				//------------------------------
-				//Put backend specific code here
-				//------------------------------
-				// or use the similar draw api call:
-				//rt_gob_text(gob, ctx->Window_Buffer ,ctx->winBufSize,ctx->absOffset, (REBXYI){gob_clip.left, gob_clip.top}, (REBXYI){gob_clip.right, gob_clip.bottom});
+				//rebol_renderer->text->rt_gob_text(gob, ctx->draw_ctx, offset, top, bottom);
 				break;
 
 			case GOBT_EFFECT:
@@ -352,11 +226,6 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 			for (n = 0; n < len; n++, gp++) {
 				REBINT g_x = GOB_LOG_X(*gp);
 				REBINT g_y = GOB_LOG_Y(*gp);
-
-				//restore the "parent gob" clip region
-				//------------------------------
-				//Put backend specific code here
-				//------------------------------
 
 				ctx->absOffset.x += g_x;
 				ctx->absOffset.y += g_y;
@@ -376,7 +245,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 
 /***********************************************************************
 **
-*/ void rebcmp_compose(REBCMP_CTX* ctx, REBGOB* winGob, REBGOB* gob, REBOOL only)
+*/ void rebcmp_compose(REBCMP_CTX* ctx, REBGOB* winGob, REBGOB* gob, char *buf)
 /*
 **	Compose content of the specified gob. Main compositing function.
 **
@@ -410,7 +279,7 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 	}
 
 	//the offset is shifted to renderer given gob at offset 0x0 (used by TO-IMAGE)
-	if (only){
+	if (buf){ /* render to a memory buffer */
 		ctx->absOffset.x = -abs_x;
 		ctx->absOffset.y = -abs_y;
 		abs_x = 0;
@@ -442,22 +311,9 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 
 	if (!SDL_RectEmpty(&ctx->clip))
 	{
-		ctx->Window_Buffer = rebcmp_get_buffer(ctx);
-
-		SDL_GL_MakeCurrent(ctx->win, ctx->sdl_ctx);
-
-		SDL_GL_SetSwapInterval(sdl_gl_swap_interval);
-		rebdrw_begin_frame(ctx->draw_ctx);
-		//draw(vg);
-		//printf("abs oft: (%f, %f)\n", ctx->absOffset.x, ctx->absOffset.y);
+		rebol_renderer->begin_frame(ctx->draw_ctx);
 		process_gobs(ctx, winGob);
-
-		//redraw gobs
-		rebdrw_end_frame(ctx->draw_ctx);
-
-		rebcmp_release_buffer(ctx);
-
-		ctx->Window_Buffer = NULL;
+		rebol_renderer->end_frame(ctx->draw_ctx);
 	}
 
 	//update old GOB area
@@ -475,6 +331,5 @@ void rebdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_
 **
 ***********************************************************************/
 {
-	rebdrw_blit_frame(ctx->draw_ctx);
-	SDL_GL_SwapWindow(ctx->win);
+	rebol_renderer->blit_frame(ctx->draw_ctx, &ctx->clip);
 }

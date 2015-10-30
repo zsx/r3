@@ -39,7 +39,9 @@
 #include <stdlib.h>
 #include "reb-host.h"
 #include "host-view.h"
+#include "host-renderer.h"
 #include "host-text-api.h"
+#include "host-draw-api-agg.h"
 
 #include "nanovg.h"
 
@@ -50,17 +52,8 @@
 
 #include "nanovg_gl.h"
 
-struct REBTXT_CTX {
-	NVGcontext *nvg;
-	REBFNT		font;
-	REBPRA		para;
 
-	/* text starting coordinates */
-	int			x;
-	int			y;
-};
-
-void rt_block_text(void *richtext, REBSER *block)
+static void nanovg_rt_block_text(void *richtext, REBSER *block)
 {
 	REBCEC ctx;
 
@@ -71,11 +64,11 @@ void rt_block_text(void *richtext, REBSER *block)
 	RL_DO_COMMANDS(block, 0, &ctx);
 }
 
-REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
+static REBINT nanovg_rt_gob_text(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
 {
 	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return 0; //don't render window title text
 	if (GOB_TYPE(gob) == GOBT_TEXT) {
-		//rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		//nanovg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 	} else {
 		//nvgText();
 	}
@@ -88,14 +81,14 @@ REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top
 	REBINT w = GOB_LOG_W_INT(gob);	
 	REBINT h = GOB_LOG_H_INT(gob);
 
-	rt->rt_reset();
-	rt->rt_attach_buffer(&rbuf_win, buf_size.x, buf_size.y);
-	//note: rt_set_clip() include bottom-right values
-	//		rt->rt_set_clip(abs_oft.x, abs_oft.y, abs_oft.x+w, abs_oft.y+h, w, h);
-	rt->rt_set_clip(clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, w, h);
+	rt->nanovg_rt_reset();
+	rt->nanovg_rt_attach_buffer(&rbuf_win, buf_size.x, buf_size.y);
+	//note: nanovg_rt_set_clip() include bottom-right values
+	//		rt->nanovg_rt_set_clip(abs_oft.x, abs_oft.y, abs_oft.x+w, abs_oft.y+h, w, h);
+	rt->nanovg_rt_set_clip(clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, w, h);
 
 	if (GOB_TYPE(gob) == GOBT_TEXT)
-		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		nanovg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 	else {
 		REBCHR* str;
 #ifdef TO_WIN32
@@ -106,175 +99,175 @@ REBINT rt_gob_text(REBGOB *gob, REBTXT_CTX *ctx, REBXYI abs_oft, REBXYI clip_top
 		REBOOL dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
 #endif
 		if (str){
-			rt->rt_set_text(str, dealloc);
-			rt->rt_push(1);
+			rt->nanovg_rt_set_text(str, dealloc);
+			rt->nanovg_rt_push(1);
 		}
 	}
 
-	return rt->rt_draw_text(DRAW_TEXT, &abs_oft);
+	return rt->nanovg_rt_draw_text(DRAW_TEXT, &abs_oft);
 #endif
     return 0;
 }
 
-void* Create_RichText()
+static void* nanovg_create_rich_text()
 {
-	REBTXT_CTX *rt = malloc(sizeof(REBTXT_CTX));
-
-	return rt;
+	return NULL;
 }
 
-void Destroy_RichText(void* rt)
+static void nanovg_destroy_rich_text(void* rt)
 {
 	if (rt == NULL) return;
 	free(rt);
 }
 
-void rt_anti_alias(void* rt, REBINT mode)
+static void nanovg_rt_anti_alias(void* rt, REBINT mode)
 {
-//	((rich_text*)rt)->rt_text_mode(mode);
+//	((rich_text*)rt)->nanovg_rt_text_mode(mode);
 }
 
-void rt_bold(void* rt, REBINT state)
+static void nanovg_rt_bold(void* rt, REBINT state)
 {
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 	REBFNT->bold = state;
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
+static void nanovg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
 {
 #if 0
-	if (highlightStart) ((rich_text*)rt)->rt_set_hinfo(*highlightStart,highlightEnd);
-	if (caret) ((rich_text*)rt)->rt_set_caret(*caret);
+	if (highlightStart) ((rich_text*)rt)->nanovg_rt_set_hinfo(*highlightStart,highlightEnd);
+	if (caret) ((rich_text*)rt)->nanovg_rt_set_caret(*caret);
 #endif
 }
 
-void rt_center(void* rt)
+static void nanovg_rt_center(void* rt)
 {
 #if 0
-	REBPRA* par = ((rich_text*)rt)->rt_get_para();
+	REBPRA* par = ((rich_text*)rt)->nanovg_rt_get_para();
 	par->align = W_TEXT_CENTER;
-	((rich_text*)rt)->rt_set_para(par);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_para(par);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_color(void* rt, REBCNT color)
+static void nanovg_rt_color(void* rt, REBCNT color)
 {
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 	REBFNT->color[0] = ((REBYTE*)&color)[0];
 	REBFNT->color[1] = ((REBYTE*)&color)[1];
 	REBFNT->color[2] = ((REBYTE*)&color)[2];
 	REBFNT->color[3] = ((REBYTE*)&color)[3];
-	((rich_text*)rt)->rt_push();
-	((rich_text*)rt)->rt_color_change();
+	((rich_text*)rt)->nanovg_rt_push();
+	((rich_text*)rt)->nanovg_rt_color_change();
 #endif
 }
 
-void rt_drop(void* rt, REBINT number)
+static void nanovg_rt_drop(void* rt, REBINT number)
 {
-//	((rich_text*)rt)->rt_drop(number);
+//	((rich_text*)rt)->nanovg_rt_drop(number);
 }
 
-void rt_font(void* rt, REBFNT* REBFNT)
+static void nanovg_rt_font(void* rt, REBFNT* REBFNT)
 {
 #if 0
-	((rich_text*)rt)->rt_set_font(REBFNT);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_font(REBFNT);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_font_size(void* rt, REBINT size)
+static void nanovg_rt_font_size(void* rt, REBINT size)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	nvgFontSize(ctx->nvg, size);
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	nvgFontSize(ctx->nvg, size);
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 	REBFNT->size = size;
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void* rt_get_font(void* rt)
+static void* nanovg_rt_get_font(void* rt)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	return &ctx->font;
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	return &ctx->font;
+	return NULL;
 }
 
 
-void* rt_get_para(void* rt)
+static void* nanovg_rt_get_para(void* rt)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	return &ctx->para;
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	return &ctx->para;
+	return NULL;
 }
 
-void rt_italic(void* rt, REBINT state)
+static void nanovg_rt_italic(void* rt, REBINT state)
 {
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 	REBFNT->italic = state;
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_left(void* rt)
+static void nanovg_rt_left(void* rt)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	nvgTextAlign(ctx->nvg, NVG_ALIGN_LEFT);
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	nvgTextAlign(ctx->nvg, NVG_ALIGN_LEFT);
 #if 0
-	REBPRA* par = ((rich_text*)rt)->rt_get_para();
+	REBPRA* par = ((rich_text*)rt)->nanovg_rt_get_para();
 	par->align = W_TEXT_LEFT;
-	((rich_text*)rt)->rt_set_para(par);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_para(par);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_newline(void* rt, REBINT index)
+static void nanovg_rt_newline(void* rt, REBINT index)
 {
 #if 0
-	((rich_text*)rt)->rt_set_text((REBCHR*)"\n", TRUE);
-	((rich_text*)rt)->rt_push(index);
+	((rich_text*)rt)->nanovg_rt_set_text((REBCHR*)"\n", TRUE);
+	((rich_text*)rt)->nanovg_rt_push(index);
 #endif
 }
 
-void rt_para(void* rt, REBPRA* REBPRA)
+static void nanovg_rt_para(void* rt, REBPRA* REBPRA)
 {
 #if 0
-	((rich_text*)rt)->rt_set_para(REBPRA);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_para(REBPRA);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_right(void* rt)
+static void nanovg_rt_right(void* rt)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	nvgTextAlign(ctx->nvg, NVG_ALIGN_RIGHT);
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	nvgTextAlign(ctx->nvg, NVG_ALIGN_RIGHT);
 #if 0
-	REBPRA* par = ((rich_text*)rt)->rt_get_para();
+	REBPRA* par = ((rich_text*)rt)->nanovg_rt_get_para();
 	par->align = W_TEXT_RIGHT;
-	((rich_text*)rt)->rt_set_para(par);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_para(par);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_scroll(void* rt, REBXYF offset)
+static void nanovg_rt_scroll(void* rt, REBXYF offset)
 {
 #if 0
-	REBPRA* par = ((rich_text*)rt)->rt_get_para();
+	REBPRA* par = ((rich_text*)rt)->nanovg_rt_get_para();
 	par->scroll_x = offset.x;
 	par->scroll_y = offset.y;
-	((rich_text*)rt)->rt_set_para(par);
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_set_para(par);
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
+static void nanovg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 {
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 
 	REBFNT->shadow_x = ROUND_TO_INT(d.x);
 	REBFNT->shadow_y = ROUND_TO_INT(d.y);
@@ -282,11 +275,11 @@ void rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 
 	memcpy(REBFNT->shadow_color, (REBYTE*)&color, 4);
 
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_set_font_styles(REBFNT* REBFNT, u32 word){
+static void nanovg_rt_set_font_styles(REBFNT* REBFNT, u32 word){
 #if 0
 	switch (word){
 		case W_TEXT_BOLD:
@@ -308,15 +301,15 @@ void rt_set_font_styles(REBFNT* REBFNT, u32 word){
 #endif
 }
 
-void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
+static void nanovg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 {
 #if 0
 	REBCHR* str;
 	REBOOL dealloc;
-	((rich_text*)rt)->rt_reset();
-	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
+	((rich_text*)rt)->nanovg_rt_reset();
+	((rich_text*)rt)->nanovg_rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		nanovg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars
@@ -326,47 +319,47 @@ void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 		dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
 #endif
 
-		((rich_text*)rt)->rt_set_text(str, dealloc);
-		((rich_text*)rt)->rt_push(1);
+		((rich_text*)rt)->nanovg_rt_set_text(str, dealloc);
+		((rich_text*)rt)->nanovg_rt_push(1);
 	} else {
 		size->x = 0;
 		size->y = 0;
 		return;
 	}
 
-	((rich_text*)rt)->rt_size_text(size);
+	((rich_text*)rt)->nanovg_rt_size_text(size);
 #endif
 }
 
-void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
+static void nanovg_rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
 {
-	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
-	nvgText(ctx->nvg, ctx->x, ctx->y, text, NULL);
+//	REBTXT_CTX *ctx = (REBTXT_CTX*) rt;
+//	nvgText(ctx->nvg, ctx->x, ctx->y, text, NULL);
 #if 0
-	((rich_text*)rt)->rt_set_text(text, dealloc);
-	((rich_text*)rt)->rt_push(index);
+	((rich_text*)rt)->nanovg_rt_set_text(text, dealloc);
+	((rich_text*)rt)->nanovg_rt_push(index);
 #endif
 }
 
-void rt_underline(void* rt, REBINT state)
+static void nanovg_rt_underline(void* rt, REBINT state)
 {
 #if 0
-	REBFNT* REBFNT = ((rich_text*)rt)->rt_get_font();
+	REBFNT* REBFNT = ((rich_text*)rt)->nanovg_rt_get_font();
 	REBFNT->underline = state;
-	((rich_text*)rt)->rt_push();
+	((rich_text*)rt)->nanovg_rt_push();
 #endif
 }
 
-void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
+static void nanovg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
 {
 #if 0
 	REBCHR* str;
 	REBOOL dealloc;
 
-	((rich_text*)rt)->rt_reset();
-	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
+	((rich_text*)rt)->nanovg_rt_reset();
+	((rich_text*)rt)->nanovg_rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		nanovg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars
@@ -375,27 +368,27 @@ void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBIN
 		//linux, android use UTF32 wide chars
 		dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
 #endif
-		((rich_text*)rt)->rt_set_text(str, dealloc);
-		((rich_text*)rt)->rt_push(1);
+		((rich_text*)rt)->nanovg_rt_set_text(str, dealloc);
+		((rich_text*)rt)->nanovg_rt_push(1);
 	} else {
 		*element = 0;
 		*position = 0;
 		return;
 	}
 
-	((rich_text*)rt)->rt_offset_to_caret(xy, element, position);
+	((rich_text*)rt)->nanovg_rt_offset_to_caret(xy, element, position);
 #endif
 }
 
-void rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
+static void nanovg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
 {
 #if 0
 	REBCHR* str;
 	REBOOL dealloc;
-	((rich_text*)rt)->rt_reset();
-	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
+	((rich_text*)rt)->nanovg_rt_reset();
+	((rich_text*)rt)->nanovg_rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		nanovg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars
@@ -405,15 +398,44 @@ void rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBIN
 		dealloc = As_UTF32_Str(GOB_CONTENT(gob), (REBCHR**)&str);
 #endif
 
-		((rich_text*)rt)->rt_set_text(str, dealloc);
-		((rich_text*)rt)->rt_push(1);
+		((rich_text*)rt)->nanovg_rt_set_text(str, dealloc);
+		((rich_text*)rt)->nanovg_rt_push(1);
 	} else {
 		xy->x = 0;
 		xy->y = 0;
 		return;
 	}
 
-	((rich_text*)rt)->rt_caret_to_offset(xy, element, position);
+	((rich_text*)rt)->nanovg_rt_caret_to_offset(xy, element, position);
 #endif
 }
 
+struct REBRDR_TXT text_nanovg = {
+	.create_rich_text = nanovg_create_rich_text,
+	.destroy_rich_text = nanovg_destroy_rich_text,
+	.rt_anti_alias = nanovg_rt_anti_alias,
+	.rt_bold = nanovg_rt_bold,
+	.rt_caret = nanovg_rt_caret,
+	.rt_center = nanovg_rt_center,
+	.rt_color = nanovg_rt_color,
+	.rt_drop = nanovg_rt_drop,
+	.rt_font = nanovg_rt_font,
+	.rt_font_size = nanovg_rt_font_size,
+	.rt_get_font = nanovg_rt_get_font,
+	.rt_get_para = nanovg_rt_get_para,
+	.rt_italic = nanovg_rt_italic,
+	.rt_left = nanovg_rt_left,
+	.rt_newline = nanovg_rt_newline,
+	.rt_para = nanovg_rt_para,
+	.rt_right = nanovg_rt_right,
+	.rt_scroll = nanovg_rt_scroll,
+	.rt_shadow = nanovg_rt_shadow,
+	.rt_set_font_styles = nanovg_rt_set_font_styles,
+	.rt_size_text = nanovg_rt_size_text,
+	.rt_text = nanovg_rt_text,
+	.rt_underline = nanovg_rt_underline,
+	.rt_offset_to_caret = nanovg_rt_offset_to_caret,
+	.rt_caret_to_offset = nanovg_rt_caret_to_offset,
+	.rt_gob_text = nanovg_rt_gob_text,
+	.rt_block_text = nanovg_rt_block_text
+};

@@ -42,7 +42,7 @@ extern void rebcmp_destroy(void* context);
 
 //extern REBSER* Gob_To_Image(REBGOB *gob);
 
-extern void rebcmp_compose(void* context, REBGOB* winGob, REBGOB* gob, REBOOL only);
+extern void rebcmp_compose(void* context, REBGOB* winGob, REBGOB* gob, char *buf);
 
 extern void rebcmp_blit(void* context);
 

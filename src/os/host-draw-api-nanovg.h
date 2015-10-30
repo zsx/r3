@@ -36,7 +36,12 @@
 **
 ***********************************************************************/
 
+#include <nanovg.h>
+#include <SDL.h>
+
 struct REBDRW_CTX {
+	SDL_Window 	*win;
+	SDL_GLContext 	*sdl;
 	NVGcontext	*nvg;
 	NVGlayer	*win_layer;
 	NVGlayer	*gob_layer;

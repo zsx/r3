@@ -42,6 +42,9 @@
 #include <math.h>	//for floor()
 #include "reb-host.h"
 #include "host-view.h"
+#include "host-renderer.h"
+#include "host-draw-api.h"
+#include "host-text-api.h"
 
 #include "host-compositor.h"
 
@@ -56,9 +59,7 @@
 //***** Externs *****
 
 extern void OS_Init_Windows(void);
-extern void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block);
 extern REBD32 OS_Get_Metrics(METRIC_TYPE type);
-extern void* Create_RichText();
 extern void* OS_Load_Cursor(void *cursor);
 extern void* OS_Image_To_Cursor(REBYTE* image, REBINT width, REBINT height);
 extern void OS_Show_Soft_Keyboard(void* win, REBINT x, REBINT y);
@@ -297,10 +298,9 @@ REBINT Alloc_Window(REBGOB *gob) {
 **
 ***********************************************************************/
 {
-	REBINT w,h,result;
+	REBINT w,h;
 	REBSER* img;
 	void* cp;
-	REBGOB* parent;
 	REBGOB* topgob;
 
 	w = (REBINT)GOB_LOG_W(gob);
@@ -314,13 +314,8 @@ REBINT Alloc_Window(REBGOB *gob) {
 		topgob = GOB_PARENT(topgob);
 
 	cp = rebcmp_create(Gob_Root, gob);
-	rebcmp_compose(cp, topgob, gob, TRUE);
+	rebcmp_compose(cp, topgob, gob, (REBYTE *)RL_SERIES(img, RXI_SER_DATA));
 
-	//copy the composed result to image
-	memcpy((REBYTE *)RL_SERIES(img, RXI_SER_DATA), rebcmp_get_buffer(cp), w * h * 4);
-
-	rebcmp_release_buffer(cp);
-	
 	rebcmp_destroy(cp);
 
 	return img;
@@ -339,6 +334,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 **
 ***********************************************************************/
 {
+    if (rebol_renderer == NULL) return RXR_ERROR;
     switch (cmd) {
         case CMD_GRAPHICS_SHOW:
         {
@@ -349,9 +345,9 @@ REBINT Alloc_Window(REBGOB *gob) {
         }
         case CMD_GRAPHICS_SIZE_TEXT:
 		
-            if (Rich_Text) {
+            if (Rich_Text && rebol_renderer->text) {
                 RXA_TYPE(frm, 2) = RXT_PAIR;
-                rt_size_text(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
+                rebol_renderer->text->rt_size_text(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
 				RXA_PAIR(frm, 1).x = PHYS_COORD_X(RXA_PAIR(frm, 2).x);
 				RXA_PAIR(frm, 1).y = PHYS_COORD_Y(RXA_PAIR(frm, 2).y);
                 RXA_TYPE(frm, 1) = RXT_PAIR;
@@ -361,14 +357,14 @@ REBINT Alloc_Window(REBGOB *gob) {
             break;
 
         case CMD_GRAPHICS_OFFSET_TO_CARET:
-            if (Rich_Text) {
+            if (Rich_Text && rebol_renderer->text) {
                 REBINT element = 0, position = 0;
                 REBSER* dialect;
                 REBSER* block;
                 RXIARG val; //, str;
                 REBCNT n, type;
 				REBXYF coord = RXA_LOG_PAIR(frm, 2);
-                rt_offset_to_caret(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), coord, &element, &position);
+                rebol_renderer->text->rt_offset_to_caret(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), coord, &element, &position);
 //                RL_Print("OTC: %dx%d %d, %d\n", (int)RXA_LOG_PAIR(frm, 2).x, (int)RXA_LOG_PAIR(frm, 2).y, element, position);
                 dialect = (REBSER *)GOB_CONTENT((REBGOB*)RXA_SERIES(frm, 1));
                 block = RL_MAKE_BLOCK(RL_SERIES(dialect, RXI_SER_TAIL));
@@ -387,7 +383,7 @@ REBINT Alloc_Window(REBGOB *gob) {
             break;
 
         case CMD_GRAPHICS_CARET_TO_OFFSET:
-            if (Rich_Text) {
+            if (Rich_Text && rebol_renderer->text) {
                 REBXYF result;
                 REBINT elem,pos;
                 if (RXA_TYPE(frm, 2) == RXT_INTEGER){
@@ -401,7 +397,7 @@ REBINT Alloc_Window(REBGOB *gob) {
                     pos = RXA_INDEX(frm, 3);
                 }
 
-                rt_caret_to_offset(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
+		rebol_renderer->text->rt_caret_to_offset(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
 
                 RXA_TYPE(frm, 1) = RXT_PAIR;
 				RXA_ARG(frm, 1).pair.x = ROUND_TO_INT(PHYS_COORD_X(result.x));
@@ -413,6 +409,9 @@ REBINT Alloc_Window(REBGOB *gob) {
             {
                 REBYTE* img = 0;
                 REBINT w,h;
+
+		if (!rebol_renderer->draw || !rebol_renderer->draw->rebdrw_to_image) return RXR_ERROR;
+
                 if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
                     img = RXA_IMAGE_BITS(frm, 1);
                     w = RXA_IMAGE_WIDTH(frm, 1);
@@ -430,7 +429,7 @@ REBINT Alloc_Window(REBGOB *gob) {
                     RXA_IMAGE_HEIGHT(frm, 1) = h;
                     RXA_IMAGE(frm, 1) = i;
                 }
-				rebdrw_to_image(img, w, h, RXA_SERIES(frm, 2));
+		rebol_renderer->draw->rebdrw_to_image(img, w, h, RXA_SERIES(frm, 2));
 
                 return RXR_VALUE;
             }
@@ -522,8 +521,10 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 #if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
             //Initialize text rendering context
-            if (Rich_Text) Destroy_RichText(Rich_Text);
-            Rich_Text = Create_RichText();
+	    if (rebol_renderer && rebol_renderer->text) {
+		    if (Rich_Text) rebol_renderer->text->destroy_rich_text(Rich_Text);
+		    Rich_Text = rebol_renderer->text->create_rich_text();
+	    }
 #endif
             break;
 

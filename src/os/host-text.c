@@ -46,6 +46,7 @@
 #include "reb-host.h"
 
 #include "host-view.h"
+#include "host-renderer.h"
 #include "host-text-api.h"
 
 #define INCLUDE_EXT_DATA
@@ -127,11 +128,11 @@ static u32* text_ext_words;
         break;
 
     case CMD_TEXT_ANTI_ALIAS:
-        rt_anti_alias(ctx->envr, RXA_LOGIC(frm, 1));
+        rebol_renderer->text->rt_anti_alias(ctx->envr, RXA_LOGIC(frm, 1));
         break;
 
     case CMD_TEXT_BOLD:
-        rt_bold(ctx->envr, RXA_LOGIC(frm, 1));
+        rebol_renderer->text->rt_bold(ctx->envr, RXA_LOGIC(frm, 1));
         break;
 
     case CMD_TEXT_CARET:
@@ -210,21 +211,21 @@ static u32* text_ext_words;
                 w++;
             }
             OS_FREE(words);
-            rt_caret(ctx->envr, pcaret, phighlightStart, highlightEnd);
+            rebol_renderer->text->rt_caret(ctx->envr, pcaret, phighlightStart, highlightEnd);
         }
 
         break;
 
     case CMD_TEXT_CENTER:
-        rt_center(ctx->envr);
+        rebol_renderer->text->rt_center(ctx->envr);
         break;
 
     case CMD_TEXT_COLOR:
-        rt_color(ctx->envr, RXA_COLOR_TUPLE(frm,1));
+        rebol_renderer->text->rt_color(ctx->envr, RXA_COLOR_TUPLE(frm,1));
        break;
 
     case CMD_TEXT_DROP:
-        rt_drop(ctx->envr, RXA_INT32(frm,1));
+        rebol_renderer->text->rt_drop(ctx->envr, RXA_INT32(frm,1));
         break;
 
     case CMD_TEXT_FONT:
@@ -233,7 +234,7 @@ static u32* text_ext_words;
             u32 *words,*w;
             REBSER *obj;
             REBCNT type;
-            REBFNT *font = rt_get_font(ctx->envr);
+            REBFNT *font = rebol_renderer->text->rt_get_font(ctx->envr);
 
             obj = RXA_OBJECT(frm, 1);
             words = RL_WORDS_OF_OBJECT(obj);
@@ -260,7 +261,7 @@ static u32* text_ext_words;
                             case RXT_WORD:
                             {
                                 u32 styleWord = RL_FIND_WORD(text_ext_words,val.i2.int32a);
-                                if (styleWord) rt_set_font_styles(font, styleWord);
+                                if (styleWord) rebol_renderer->text->rt_set_font_styles(font, styleWord);
                             }
                             break;
 
@@ -273,7 +274,7 @@ static u32* text_ext_words;
                                 for (n = 0; (styleType = RL_GET_VALUE(val.sri.series, n, &styleVal)); n++) {
                                     if (styleType == RXT_WORD) {
                                         styleWord = RL_FIND_WORD(text_ext_words,styleVal.i2.int32a);
-                                        if (styleWord) rt_set_font_styles(font, styleWord);
+                                        if (styleWord) rebol_renderer->text->rt_set_font_styles(font, styleWord);
                                     }
                                 }
                             }
@@ -281,7 +282,7 @@ static u32* text_ext_words;
 							
 							default:
 								//reset font styles
-								rt_set_font_styles(font, 0);
+								rebol_renderer->text->rt_set_font_styles(font, 0);
 								break;
                         }
                         break;
@@ -360,20 +361,20 @@ static u32* text_ext_words;
                 w++;
             }
             OS_FREE(words);
-            rt_font(ctx->envr, font);
+            rebol_renderer->text->rt_font(ctx->envr, font);
         }
         break;
 
     case CMD_TEXT_ITALIC:
-        rt_italic(ctx->envr, RXA_LOGIC(frm, 1));
+        rebol_renderer->text->rt_italic(ctx->envr, RXA_LOGIC(frm, 1));
         break;
 
     case CMD_TEXT_LEFT:
-        rt_left(ctx->envr);
+        rebol_renderer->text->rt_left(ctx->envr);
         break;
 
 	case CMD_TEXT_NEWLINE:
-        rt_newline(ctx->envr, ctx->index + 1);
+        rebol_renderer->text->rt_newline(ctx->envr, ctx->index + 1);
 		break;
 
     case CMD_TEXT_PARA:
@@ -382,7 +383,7 @@ static u32* text_ext_words;
             u32 *words,*w;
             REBSER *obj;
             REBCNT type;
-            REBPRA *para = rt_get_para(ctx->envr);
+            REBPRA *para = rebol_renderer->text->rt_get_para(ctx->envr);
 
             obj = RXA_OBJECT(frm, 1);
             words = RL_WORDS_OF_OBJECT(obj);
@@ -446,30 +447,30 @@ static u32* text_ext_words;
                 w++;
             }
             OS_FREE(words);
-            rt_para(ctx->envr, para);
+            rebol_renderer->text->rt_para(ctx->envr, para);
         }
         break;
 
     case CMD_TEXT_RIGHT:
-        rt_right(ctx->envr);
+        rebol_renderer->text->rt_right(ctx->envr);
         break;
 
 	case CMD_TEXT_SCROLL:
 		{
 			REBXYF offset = RXA_LOG_PAIR(frm, 1);
-			rt_scroll(ctx->envr, offset);
+			rebol_renderer->text->rt_scroll(ctx->envr, offset);
 		}
 		break;
 
     case CMD_TEXT_SHADOW:
 		{
 			REBXYF d = RXA_LOG_PAIR(frm, 1);
-			rt_shadow(ctx->envr, d, RXA_COLOR_TUPLE(frm,2), RXA_INT32(frm,3));
+			rebol_renderer->text->rt_shadow(ctx->envr, d, RXA_COLOR_TUPLE(frm,2), RXA_INT32(frm,3));
 		}
         break;
 
 	case CMD_TEXT_SIZE:
-		rt_font_size(ctx->envr, LOG_COORD_Y(RXA_INT32(frm,1)));
+		rebol_renderer->text->rt_font_size(ctx->envr, LOG_COORD_Y(RXA_INT32(frm,1)));
 		break;
 
     case CMD_TEXT_TEXT:
@@ -482,12 +483,12 @@ static u32* text_ext_words;
 			//linux, android use UTF32 wide chars
             REBOOL dealloc = As_UTF32_Str(RXA_SERIES(frm, 1), &str);
 #endif			
-            rt_text(ctx->envr, str, ctx->index + 2, dealloc);
+            rebol_renderer->text->rt_text(ctx->envr, str, ctx->index + 2, dealloc);
         }
         break;
 
     case CMD_TEXT_UNDERLINE:
-        rt_underline(ctx->envr, RXA_LOGIC(frm, 1));
+        rebol_renderer->text->rt_underline(ctx->envr, RXA_LOGIC(frm, 1));
 		break;
 
 	default:
