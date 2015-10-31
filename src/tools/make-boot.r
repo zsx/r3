@@ -137,19 +137,18 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
 
 	if up1 [uppercase/part str 1]
 
-	str: any [
-		if define [rejoin [prefix str]]
-		if code   [rejoin ["    " prefix str cmt]]
-		if decl   [rejoin [prefix str cmt]]
-		rejoin ["    " prefix str ","]
+	str: case [
+		define [rejoin [prefix str]]
+		code   [rejoin ["    " prefix str cmt]]
+		decl   [rejoin [prefix str cmt]]
+		true   [rejoin ["    " prefix str ","]]
 	]
 	if any [code decl] [cmt: none]
 	if cmt [
-		len: 32 - length str
-		loop to-integer len / 4 [append str tab]
-		any [
-			if define [repend str cmt]
-			if cmt [repend str ["// " cmt]]
+		append str space
+		case [
+			define [repend str cmt]
+			cmt [repend str ["// " cmt]]
 		]
 	]
 	append str newline

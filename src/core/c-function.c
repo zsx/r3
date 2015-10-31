@@ -666,9 +666,8 @@ REBNATIVE(exit);
 **
 */	REBFLG Do_Routine_Throws(const REBVAL *routine)
 /*
- */
+***********************************************************************/
 {
-	//RL_Print("%s, %d\n", __func__, __LINE__);
 	REBSER *args = Copy_Values_Len_Shallow(
 		DSF_NUM_ARGS(DSF) > 0 ? DSF_ARG(DSF, 1) : NULL,
 		DSF_NUM_ARGS(DSF)
