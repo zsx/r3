@@ -6,7 +6,7 @@
 	url = https://github.com/metaeducation/ren-c-test
 [submodule "SDL"]
 	path = external/SDL
-	url = https://github.com/spurious/SDL-mirror.git
+	url = https://github.com/zsx/SDL-mirror.git
 [submodule "glew"]
 	path = external/glew
 	url = https://github.com/nigels-com/glew.git
