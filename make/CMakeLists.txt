@@ -343,6 +343,11 @@ set (GENERATED_CORE_SOURCE
 	${TOP_SRC_DIR}/include/host-lib.h
 	${TOP_SRC_DIR}/include/host-table.inc
 	)
+set_source_files_properties(
+	${TOP_SRC_DIR}/include/host-table.inc
+	PROPERTIES
+	HEADER_FILE_ONLY TRUE
+	)
 #HOST
 set (OS_SOURCE 
 	${OS_DIR}/host-main.c
