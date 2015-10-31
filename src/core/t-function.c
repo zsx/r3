@@ -147,9 +147,12 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 		return R_OUT;
 
 	case A_COPY:
-		// Functions can modify their bodies while running, effectively
-		// accruing state which you may want to snapshot as a copy.
-		Copy_Function(D_OUT, value);
+		// !!! The R3-Alpha theory was that functions could modify "their
+		// bodies" while running, effectively accruing state that one might
+		// want to snapshot.  See notes on Clonify_Function about why this
+		// idea may be incorrect.
+		*D_OUT = *value;
+		Clonify_Function(D_OUT);
 		return R_OUT;
 
 	case A_REFLECT:

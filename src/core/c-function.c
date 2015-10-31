@@ -401,42 +401,76 @@ REBNATIVE(exit);
 
 /***********************************************************************
 **
-*/	void Copy_Function(REBVAL *out, const REBVAL *src)
+*/	void Clonify_Function(REBVAL *value)
 /*
+**	The "Clonify" interface takes in a raw duplicate value that one
+**	wishes to mutate in-place into a full-fledged copy of the value
+**	it is a clone of.  This interface can be more efficient than a
+**	"source in, dest out" copy...and clarifies the dangers when the
+**	source and destination are the same.
+**
 ***********************************************************************/
 {
-	if (IS_FUNCTION(src) || IS_CLOSURE(src)) {
-		// !!! A closure's "archetype" never operates on its body directly,
-		// and there is currently no way to get a reference to a closure
-		// "instance" (an ANY-FUNCTION value with the copied body in it).
-		// Making a copy of the body here is likely superfluous right now.
+	REBSER *paramlist_orig;
 
-		// Need to pick up the infix flag and any other settings.
-		out->flags = src->flags;
+	// !!! Conceptually the only types it currently makes sense to speak of
+	// copying are functions and closures.  Though the concept is a little
+	// bit "fuzzy"...the idea is that the series which are reachable from
+	// their body series by a deep copy would be their "state".  Hence
+	// as a function runs, its "state" can change.  One can thus define
+	// a copy as snapshotting that "state".  This has been the classic
+	// interpretation that Rebol has taken.
 
-		// We can reuse the spec series.  A more nuanced form of function
-		// copying might let you change the spec as part of the process and
-		// keep the body (or vice versa), but would need to check to make
-		// sure they were compatible with the substitution.
-		VAL_FUNC_SPEC(out) = VAL_SERIES(src);
+	// !!! However, in R3-Alpha a closure's "archetype" (e.g. the one made
+	// by `clos [a] [print a]`) never operates on its body directly... it
+	// is copied each time.  And there is no way at present to get a
+	// reference to a closure "instance" (an ANY-FUNCTION value with the
+	// copied body in it).  Until such time as there's a way
 
-		// Copy the identifying word series, so that the function has a
-		// unique identity on the stack from the one it is copying.
-		VAL_FUNC_PARAMLIST(out) = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(src));
-		MANAGE_SERIES(VAL_FUNC_PARAMLIST(out));
+	// !!! This leaves only one function type that is mechanically
+	// clonable at all... the FUNCTION!.  While the behavior is questionable,
+	// for now we will suspend disbelief and preserve what R3-Alpha did
+	// until a clear resolution.
 
-		// Copy the body and rebind its word references to the locals.
-		VAL_FUNC_BODY(out) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(src));
-		Bind_Relative(
-			VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
-		);
-	}
-	else {
-		// Natives, actions, etc. do not have bodies that can accumulate
-		// state, and hence the only meaning of "copying" a function is just
-		// copying its value bits verbatim.
-		*out = *src;
-	}
+	if (!IS_FUNCTION(value))
+		return;
+
+	// No need to modify the spec or header.  But we do need to copy the
+	// identifying parameter series, so that the copied function has a
+	// unique identity on the stack from the one it is copying.  Otherwise
+	// two calls on the stack would be seen as recursions of the same
+	// function, sharing each others "stack relative locals".
+
+	paramlist_orig = VAL_FUNC_PARAMLIST(value);
+
+	VAL_FUNC_PARAMLIST(value) = Copy_Array_Shallow(paramlist_orig);
+	MANAGE_SERIES(VAL_FUNC_PARAMLIST(value));
+
+	VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
+
+	// Remap references in the body from paramlist_orig to our new copied
+	// word list we saved in VAL_FUNC_PARAMLIST(value)
+
+	Rebind_Block(
+		paramlist_orig,
+		VAL_FUNC_PARAMLIST(value),
+		BLK_HEAD(VAL_FUNC_BODY(value)),
+		0
+	);
+
+	// The above phrasing came from deep cloning code, while the below was
+	// in the Copy_Function code.  Evaluate if there is now "dead code"
+	// relating to the difference.
+/*
+	Bind_Relative(
+		VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
+	);
+*/
+
+	// The first element in the paramlist is the identity of the function
+	// value itself.  So we must update this value if we make a copy,
+	// so the paramlist does not indicate the original.
+	*BLK_HEAD(VAL_FUNC_PARAMLIST(value)) = *value;
 }
 
 

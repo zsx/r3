@@ -170,43 +170,7 @@
 			}
 		}
 		else if (types & FLAGIT_64(VAL_TYPE(value)) & TS_FUNCLOS) {
-			// Here we reuse the spec of the function when we copy it, but
-			// create a new identifying word series.  We also need to make
-			// a new body and rebind it to that series.  The reason we have
-			// to copy the function is because it can persistently modify
-			// its body (in the current design) so a copy would need to
-			// capture that state.  Also, the word series is used to identify
-			// function instances distinctly so two calls on the stack won't
-			// be seen as recursions of the same function, sharing each others
-			// "stack relative locals".
-
-			// !!! Closures can probably be left as-is, since they always
-			// copy their bodies and cannot accumulate state in their
-			// archetype.  This would have to be tested further.
-			//
-			// if (IS_CLOSURE(value)) continue;
-
-			REBSER *src_words = VAL_FUNC_PARAMLIST(value);
-
-			VAL_FUNC_PARAMLIST(value) = Copy_Array_Shallow(src_words);
-			MANAGE_SERIES(VAL_FUNC_PARAMLIST(value));
-
-			VAL_FUNC_BODY(value) = Copy_Array_Core_Managed(
-				VAL_FUNC_BODY(value),
-				0,
-				SERIES_TAIL(VAL_FUNC_BODY(value)),
-				TRUE, // deep
-				TS_CLONE
-			);
-
-			// Remap references in the body from src_words to our new copied
-			// word list we saved in VAL_FUNC_PARAMLIST(value)
-			Rebind_Block(
-				src_words,
-				VAL_FUNC_PARAMLIST(value),
-				BLK_HEAD(VAL_FUNC_BODY(value)),
-				0
-			);
+			Clonify_Function(value);
 		}
 		else {
 			// The value is not on our radar as needing to be processed,
