@@ -204,7 +204,6 @@ opt: :optional
 ; time...so TRY is left to linger without needing `do <r3-legacy>`
 ;
 try: func [
-	<transparent>
 	{Tries to DO a block and returns its value or an error.}
 	block [block!]
 	/except "On exception, evaluate this code block"

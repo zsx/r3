@@ -84,7 +84,6 @@ use: func [
 ]
 
 object: func [
-	<transparent>
 	{Defines a unique object.}
 	blk [block!] {Object words and values (modified)}
 ][
@@ -92,7 +91,6 @@ object: func [
 ]
 
 module: func [
-	<transparent>
 	"Creates a new module."
 	spec [block!] "The header block of the module (modified)"
 	body [block!] "The body block of the module (modified)"
