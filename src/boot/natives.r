@@ -205,7 +205,6 @@ forskip: native [
 	'word [word!] {Word that refers to the series, set to each position in series}
 	size [integer! decimal!] "Number of positions to skip each time"
 	body [block!] "Block to evaluate each time"
-	/local orig result
 ]
 
 func: native [
