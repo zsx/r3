@@ -180,7 +180,7 @@ standard: context [
 	func-body: [
 		return: make function! [
 			[{Returns a value from a function.} value [any-value!]]
-			[throw/name value bind-of 'return]
+			[throw/name :value bind-of 'return]
 		]
 		catch/name $1 bind-of 'return
 	]
