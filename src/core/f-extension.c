@@ -467,6 +467,11 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	VAL_SET(out, REB_COMMAND); // clears exts and opts in header...
 	VAL_EXTS_DATA(out) = func_exts; // ...so we set this after that point
 
+	// Put the command REBVAL in slot 0 so that REB_COMMAND, like other
+	// function types, can find the function value from the paramlist.
+
+	*BLK_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+
 	return;
 
 bad_func_def:

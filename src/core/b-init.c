@@ -527,6 +527,19 @@ static	BOOT_BLK *Boot_Block;
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROT);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
 
+	// Used by FUNC and CLOS generators: /LOCAL and RETURN
+	Val_Init_Word_Unbound(ROOT_LOCAL_REFINEMENT, REB_REFINEMENT, SYM_LOCAL);
+	Val_Init_Word_Unbound(ROOT_RETURN_WORD, REB_WORD, SYM_RETURN);
+
+	// Make a series that's just [/local return], that is made often
+	// in function spec blocks (when the original spec was just []) and
+	// doesn't need unique mutable identity
+	Val_Init_Block(ROOT_LOCAL_RETURN_BLOCK, Make_Array(2));
+	Append_Value(VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK), ROOT_LOCAL_REFINEMENT);
+	Append_Value(VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK), ROOT_RETURN_WORD);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK), SER_PROT);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK), SER_LOCK);
+
 	// We can't actually put a REB_END value in the middle of a block,
 	// so we poke this one into a program global
 	SET_END(&PG_End_Val);

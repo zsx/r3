@@ -44,5 +44,14 @@ quit-native
 return-native
 exit-native
 
+;; The FUNC and CLOS function generators are native code, and quick access
+;; to a value preloaded with /LOCAL and RETURN is clearer and likely faster.
+;; Also [/local return] would be a common spec block for anything that
+;; started with an empty spec, so create just one copy of that.
+
+local-refinement
+return-word
+local-return-block
+
 boot			; boot block defined in boot.r (GC'd after boot is done)
 

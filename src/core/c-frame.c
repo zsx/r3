@@ -278,7 +278,24 @@
 	RESIZE_SERIES(BUF_COLLECT, SERIES_TAIL(prior));
 
 	// Typeset values in keys (with key symbol) can be copied just as bits
-	memcpy(BLK_HEAD(BUF_COLLECT), keys, SERIES_TAIL(prior) * sizeof(REBVAL));
+	assert(SERIES_TAIL(prior) > 0);
+	if (IS_SELFLESS(prior)) {
+		// A selfless frame can use its 0 slot for things other than words
+		// (e.g. a CLOSURE! uses it for the function value of the closure
+		// itself).  Eventually this will be what OBJECT! does, too...and
+		// self will just be a way of establishing a relationship to that
+		// 0 slot object value.
+		memcpy(
+			BLK_HEAD(BUF_COLLECT),
+			keys + 1,
+			(SERIES_TAIL(prior) - 1) * sizeof(REBVAL)
+		);
+	}
+	else {
+		memcpy(
+			BLK_HEAD(BUF_COLLECT), keys, SERIES_TAIL(prior) * sizeof(REBVAL)
+		);
+	}
 
 	SERIES_TAIL(BUF_COLLECT) = SERIES_TAIL(prior);
 	for (n = 1, keys++; NOT_END(keys); keys++) // skips first = SELF
@@ -1526,11 +1543,20 @@
 	for (n = 0; n < tail; n++, value++, key++) {
 		if (n == 0) {
 			if (
-				VAL_TYPESET_SYM(key) != SYM_SELF
-				&& VAL_TYPESET_SYM(key) != SYM_0
+				!(IS_TYPESET(key) && (
+					VAL_TYPESET_SYM(key) == SYM_SELF
+					|| VAL_TYPESET_SYM(key) == SYM_0
+				))
+				&& !IS_CLOSURE(key)
 			) {
-				Debug_Fmt("** First slot in frame is not SELF or null symbol");
+				Debug_Fmt("** First frame slot not SELF, SYM_0 or CLOSURE!");
 				Panic_Series(frame);
+			}
+		}
+		else {
+			if (!IS_TYPESET(key)) {
+				Debug_Fmt("** Non-typeset in frame keys: %d\n", VAL_TYPE(key));
+				Panic_Series(FRM_KEYLIST(frame));
 			}
 		}
 
@@ -1541,11 +1567,6 @@
 				n
 			);
 			Panic_Series(frame);
-		}
-
-		if (!IS_TYPESET(key)) {
-			Debug_Fmt("** Non-typeset in frame keys: %d\n", VAL_TYPE(key));
-			Panic_Series(FRM_KEYLIST(frame));
 		}
 	}
 

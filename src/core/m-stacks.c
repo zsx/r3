@@ -259,11 +259,43 @@
 	// It's also necessary because the slots must be GC-safe values, in case
 	// there is a Recycle() during argument fulfillment.
 
+	// !!! The underlying loop could be made more efficient, but there are
+	// some changes to the way that path evaluation is done that should make
+	// it possible to finesse it so that arguments do not need to be
+	// initialized in advance.
+
 	call->num_vars = num_vars;
 	{
+		REBFLG has_return = VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN);
 		REBCNT var_index;
-		for (var_index = 0; var_index < num_vars; var_index++)
+		for (var_index = 0; var_index < num_vars; var_index++) {
+			if (has_return) {
+				REBVAL *param = VAL_FUNC_PARAM(func, var_index + 1);
+				if (
+					!VAL_GET_EXT(param, EXT_TYPESET_QUOTE)
+					&& VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
+					&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+				) {
+					// We use the (hidden from the public) RETURN native's
+					// function value to give the definitional return its
+					// prototype, but overwrite its code pointer to hold the
+					// paramlist of the target.
+
+					call->vars[var_index] = *ROOT_RETURN_NATIVE;
+					VAL_FUNC_RETURN_TO(&call->vars[var_index]) = (
+						VAL_FUNC_PARAMLIST(func)
+					);
+
+					// Do_Native_Throws() sees when someone tries to execute
+					// one of these "native returns" and instead interprets it
+					// as a THROW whose /NAME is the function value.  The
+					// paramlist has that value (it's the REBVAL in slot #0)
+					continue;
+				}
+			}
+
 			SET_NONE(&call->vars[var_index]);
+		}
 	}
 
 	assert(size == DSF_SIZE(call));

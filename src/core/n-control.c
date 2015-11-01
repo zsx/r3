@@ -1170,19 +1170,20 @@ was_caught:
 **
 */	REBNATIVE(return)
 /*
-**	The implementation of RETURN here is a simple THROWN() value and
-**	has no "definitional scoping".  It will be the only way to return
-**	from a MAKE FUNCTION! which has not defined a local specific
-**	definitional return.
+**	There is a RETURN native defined, and its native function spec is
+**	utilized to create the appropriate help and calling protocol
+**	information for values that have overridden its VAL_FUNC_CODE
+**	slot with a VAL_FUNC_RETURN_TO spec.
+**
+**	However: this native is unset and its actual code body should
+**	never be able to be called.  The non-definitional return construct
+**	that people should use if they need it would be EXIT and EXIT/WITH
 **
 ***********************************************************************/
 {
-	REBVAL *arg = D_ARG(1);
+	panic Error_0(RE_MISC);
 
-	*D_OUT = *ROOT_RETURN_NATIVE;
-	CONVERT_NAME_TO_THROWN(D_OUT, arg);
-
-	return R_OUT_IS_THROWN;
+	return R_NONE;
 }
 
 

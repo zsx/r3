@@ -109,9 +109,14 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 	else if (type == REB_FUNCTION || type == REB_CLOSURE) {
 		REBVAL *body = VAL_BLK_SKIP(def, 1);
 
+		// Spec-constructed functions do *not* have definitional returns
+		// added automatically.  They are part of the generators.
+
+		REBFLG has_return = FALSE;
+
 		if (len != 2) return FALSE;
 
-		Make_Function(out, type, spec, body);
+		Make_Function(out, type, spec, body, has_return);
 	}
 	else
 		return FALSE;
@@ -161,24 +166,27 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			Val_Init_Block(D_OUT, List_Func_Words(value));
 			return R_OUT;
 
-		case OF_BODY:
-			switch (VAL_TYPE(value)) {
+		case OF_BODY: {
+			switch (VAL_TYPE(value))
 			case REB_FUNCTION:
-				Val_Init_Block(
-					D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_BODY(value))
-				);
-				// See CC#2221 for why function body copies don't unbind locals
-				return R_OUT;
+			case REB_CLOSURE: {
+				// BODY-OF is an example of user-facing code that needs to be
+				// complicit in the "lie" about the effective bodies of the
+				// functions made by the optimized generators FUNC and CLOS...
 
-			case REB_CLOSURE:
-				Val_Init_Block(
-					D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_BODY(value))
-				);
-				// See CC#2221 for why closure body copies have locals unbound
-				Unbind_Values_Core(
-					VAL_BLK_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
-				);
+				REBFLG is_fake;
+				REBSER *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+				Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
+
+				if (VAL_TYPE(value) == REB_CLOSURE) {
+					// See #2221 for why closure body copies unbind locals
+					Unbind_Values_Core(
+						VAL_BLK_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
+					);
+				}
+				if (is_fake) Free_Series(body); // was shallow copy
 				return R_OUT;
+			}
 
 			case REB_NATIVE:
 			case REB_COMMAND:

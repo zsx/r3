@@ -158,13 +158,13 @@ series?: :any-series?
 ;
 any-type!: :any-value!
 
-; !!! These have not been renamed yet, because of questions over what they
-; actually return.  CONTEXT-OF was a candidate, however the current behavior
-; of just returning TRUE from BIND? when the word is linked to a function
-; arg or local is being reconsidered to perhaps return the function, and to
-; be able to use functions as targets for BIND as well.  So binding-of might
-; be the better name, or bind-of as it's shorter.
+; !!! BIND? and BOUND? will have to go, but it's not clear exactly if
+; BIND-OF or CONTEXT-OF or what is the right term.  So a mass renaming
+; effort has not been undertaken, especially given the number of bootstrap
+; references.  When the new name final decision comes, then BIND? and BOUND?
+; will be the ones with their home in the legacy module...
 
+bind-of: :bound?
 ;bind?
 ;bound?
 

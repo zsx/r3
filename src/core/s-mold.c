@@ -794,8 +794,18 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
 	Mold_Block_Series(mold, VAL_FUNC_SPEC(value), 0, 0); //// & ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all).
 
-	if (IS_FUNCTION(value) || IS_CLOSURE(value))
-		Mold_Block_Series(mold, VAL_FUNC_BODY(value), 0, 0);
+	if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
+		// MOLD is an example of user-facing code that needs to be complicit
+		// in the "lie" about the effective bodies of the functions made
+		// by the optimized generators FUNC and CLOS...
+
+		REBFLG is_fake;
+		REBSER *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+
+		Mold_Block_Series(mold, body, 0, 0);
+
+		if (is_fake) Free_Series(body); // was shallow copy
+	}
 
 	Append_Codepoint_Raw(mold->series, ']');
 	End_Mold(mold);

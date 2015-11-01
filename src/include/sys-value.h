@@ -598,10 +598,10 @@ enum {
 #else
 	#define ASSERT_SERIES(s) \
 		do { \
-			if (Is_Array_Series(series)) \
-				ASSERT_ARRAY(series); \
+			if (Is_Array_Series(s)) \
+				ASSERT_ARRAY(s); \
 			else \
-				ASSERT_SERIES_TERM(series); \
+				ASSERT_SERIES_TERM(s); \
 		} while (0)
 #endif
 
@@ -680,6 +680,13 @@ struct Reb_Position
 
 #define Copy_Array_Deep_Managed(a) \
 	Copy_Array_At_Deep_Managed((a), 0)
+
+// !!! Ignores capacity request ATM.  As it's a capacity request extra of
+// "whatever it had before" it means the caller did not know how much
+// there was in the first place, so the code should still work but just
+// not take the hint and perhaps reallocate more than it should.  Implement!
+#define Copy_Array_At_Extra_Deep_Managed(a,i,e) \
+	Copy_Array_At_Deep_Managed((a), (i))
 
 #define Copy_Array_At_Shallow(a,i) \
 	Copy_Array_At_Extra_Shallow((a), (i), 0)
@@ -1012,7 +1019,8 @@ struct Reb_Frame {
 	VAL_FRM_KEYLIST(v) = (w); \
 	VAL_SET(v, REB_FRAME)
 
-#define IS_SELFLESS(f) (VAL_TYPESET_SYM(FRM_KEYS(f)) == SYM_0)
+#define IS_SELFLESS(f) \
+	(IS_CLOSURE(FRM_KEYS(f)) || VAL_TYPESET_SYM(FRM_KEYS(f)) == SYM_0)
 
 
 // Gives back a const pointer to var itself, raises error on failure
@@ -1166,8 +1174,7 @@ struct Reb_Gob {
 
 enum {
 	EXT_FUNC_INFIX = 0,		// called with "infix" protocol
-	EXT_FUNC_TRANSPARENT,	// no Definitionally Scoped return, ignores non-DS
-	EXT_FUNC_RETURN,		// function is a definitionally scoped return
+	EXT_FUNC_HAS_RETURN,	// function "fakes" a definitionally scoped return
 	EXT_FUNC_MAX
 };
 
@@ -1291,13 +1298,14 @@ struct Reb_Function {
 #define VAL_FUNC_NUM_PARAMS(v) \
 	(SERIES_TAIL(VAL_FUNC_PARAMLIST(v)) - FIRST_PARAM_INDEX)
 
-#define VAL_FUNC_RETURN_WORD(v) \
-	coming@soon
-
 #define VAL_FUNC_CODE(v)	  ((v)->data.func.func.code)
 #define VAL_FUNC_BODY(v)	  ((v)->data.func.func.body)
 #define VAL_FUNC_ACT(v)       ((v)->data.func.func.act)
 #define VAL_FUNC_INFO(v)      ((v)->data.func.func.info)
+
+// An EXT_FUNC_HAS_RETURN function overwrites REBNATIVE(return)'s
+// VAL_FUNC_CODE with the identifying series or frame it wants to return to.
+#define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
 
 typedef struct Reb_Path_Value {
 	REBVAL *value;	// modified

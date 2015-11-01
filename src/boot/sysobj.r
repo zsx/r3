@@ -167,6 +167,24 @@ script: context [
 
 standard: context [
 
+	; FUNC+CLOS implement a native-optimized variant of a function generator.
+	; This is the body template that it provides as the code *equivalent* of
+	; what it is doing (via a more specialized/internal method).  Though
+	; the only "real" body stored and used is the one the user provided
+	; (substituted in $1), this template is used to "lie" when asked what
+	; the BODY-OF the function is.
+	;
+	; (The substitution location is hardcoded at index 6 in the block.  It
+	; does not "scan" to find $1...just asserts the position is MONEY!)
+	;
+	func-body: [
+		return: make function! [
+			[{Returns a value from a function.} value [any-value!]]
+			[throw/name value bind-of 'return]
+		]
+		catch/name $1 bind-of 'return
+	]
+
 	error: context [ ; Template used for all errors:
 		code: 0
 		type: 'user
