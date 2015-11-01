@@ -118,7 +118,6 @@ quit
 ;break ;-- covered by parse below
 ;return ;-- covered by parse below
 continue
-local ;-- needed by "fake" definitional return (FUNC, CLOS natives)
 
 ; Parse: - These words must not reserved above!!
 parse

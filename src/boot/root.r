@@ -45,13 +45,13 @@ return-native
 exit-native
 
 ;; The FUNC and CLOS function generators are native code, and quick access
-;; to a value preloaded with /LOCAL and RETURN is clearer and likely faster.
-;; Also [/local return] would be a common spec block for anything that
-;; started with an empty spec, so create just one copy of that.
+;; to a block containing [RETURN:] is useful to share across all of the
+;; instances of functions like those created by DOES.  Having a filled
+;; REBVAL of the word alone saves a call to Val_Init_Word_Unbound with
+;; the symbol as well.
 
-local-refinement
-return-word
-local-return-block
+return-set-word
+return-block
 
 boot			; boot block defined in boot.r (GC'd after boot is done)
 

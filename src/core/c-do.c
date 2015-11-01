@@ -840,7 +840,17 @@ reevaluate:
 
 			assert(IS_TYPESET(param));
 
-			if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
+			if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+				// When the spec contained a SET-WORD!, that was a "true
+				// local".  It corresponds to no argument and will not
+				// appear in WORDS-OF.  Unlike /local, it cannot be used
+				// for "locals injection".  Helpful when writing generators
+				// because you don't have to go find /local (!), you can
+				// really put it wherever is convenient--no position rule.
+				//
+				// So just skip over it and go on to the next.
+			}
+			else if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
 
 				// Using a GET-WORD! in the function spec indicates that you
 				// would like that argument to be EXT_TYPESET_QUOTE, e.g.
@@ -1562,6 +1572,13 @@ return_index:
 			arg = out;
 		}
 
+		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+			// We need to skip over "pure locals", e.g. those created in
+			// the spec with a SET-WORD!.  (They are useful for generators)
+			param++;
+			continue;
+		}
+
 		if (varargs) {
 			REBVAL* value = va_arg(*varargs, REBVAL*);
 			if (!value) break; // our convention is "NULL signals no more"
@@ -1633,7 +1650,12 @@ return_index:
 	while (!IS_END(param)) {
 		SET_NONE(arg);
 
-		if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
+		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+			// A true local...to be ignored as far as block args go.
+			// Very likely to hit them at the end of the paramlist because
+			// that's where the function function generators tack on RETURN:
+		}
+		else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
 			ignoring = TRUE;
 		else {
 			if (!ignoring) {

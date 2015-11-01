@@ -68,6 +68,13 @@
 	REBCNT n;
 	for (n = 1; n < SERIES_TAIL(series); typeset++, n++) {
 		enum Reb_Kind kind;
+
+		if (VAL_GET_EXT(typeset, EXT_WORD_HIDE)) {
+			// "true local" (e.g. it was a SET-WORD! in the spec)
+			// treat as invisible and do not expose via WORDS-OF
+			continue;
+		}
+
 		if (VAL_GET_EXT(typeset, EXT_TYPESET_REFINEMENT))
 			kind = REB_REFINEMENT;
 		else if (VAL_GET_EXT(typeset, EXT_TYPESET_QUOTE)) {
@@ -274,6 +281,18 @@
 			break;
 
 		case REB_SET_WORD:
+			// "True locals"... these will not be visible via WORDS-OF and
+			// will be skipped during argument fulfillment.  We re-use the
+			// same option flag that is used to hide words other places.
+
+			typeset++;
+			assert(
+				IS_TYPESET(typeset)
+				&& VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
+			);
+			VAL_SET_EXT(typeset, EXT_WORD_HIDE);
+			break;
+
 		default:
 			raise Error_1(RE_BAD_FUNC_DEF, item);
 		}
@@ -467,14 +486,8 @@ REBNATIVE(exit);
 		// They must decide whether to add a specially handled RETURN
 		// local, which will be given a tricky "native" definitional return
 
-		// !!! A better mechanism, in which set-words are collected and put
-		// at the end as "true locals" (vs. the /local refinement historical
-		// convention) will make this simpler, as well as other generators.
-
-		REBCNT last_local_index = NOT_FOUND;
-		REBCNT index = 0;
-		REBFLG in_locals = FALSE;
 		REBVAL *item = BLK_HEAD(VAL_SERIES(spec));
+		REBCNT index = 0;
 
 		for (; NOT_END(item); index++, item++) {
 			if (
@@ -502,16 +515,33 @@ REBNATIVE(exit);
 				goto check_spec;
 			}
 
-			if (IS_WORD(item) && SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
-				// All these would cancel a definitional return:
+			if (ANY_WORD(item) && SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
+
+				if (IS_SET_WORD(item)) {
+					// A "true local" (indicated by a set-word) is considered
+					// to be tacit approval of wanting a definitional return
+					// by the generator.  This helps because Red's model
+					// for specifying returns uses a SET-WORD!
+					//
+					//     func [return: [integer!] {returns an integer}]
+					//
+					// In Ren/C's case it just means you want a local called
+					// return, but the generator will be "initializing it
+					// with a definitional return" for you.  You don't have
+					// to use it if you don't want to...
+
+					goto check_spec;
+				}
+
+				// OTOH, all these would cancel a definitional return:
 				//
 				//     func [return [integer!]]
 				//     func [/value return]
 				//     func [/local return]
 				//
-				// The last one because in the long run, /local is intended
-				// to behave as an ordinary refinement.  Alternatives are
-				// under consideration for "true locals".
+				// The last one because /local is actually "just an ordinary
+				// refinement".  The choice of HELP to omit it could be
+				// a configuration setting.
 
 				VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
 					VAL_SERIES(spec), VAL_INDEX(spec)
@@ -519,72 +549,24 @@ REBNATIVE(exit);
 				has_return = FALSE;
 				goto check_spec;
 			}
-
-			// If we're looking for the end of the `/local` args list but
-			// haven't found it yet, bump the index.
-
-			if (in_locals) last_local_index++;
-
-			if (!IS_REFINEMENT(item)) continue;
-
-			// A refinement will either be `/local` (to start us looking for
-			// its last argument position) or not (so we stop the count)
-
-			if (SAME_SYM(VAL_WORD_SYM(item), SYM_LOCAL)) {
-				in_locals = TRUE;
-				last_local_index = index;
-			}
-			else {
-				if (in_locals) {
-					// no more locals, so stop counting
-					// (also we went too far, back up)
-					in_locals = FALSE;
-					last_local_index--;
-				}
-			}
 		}
 
-		// No prior RETURN or otherwise stopping definitional return, add it!
+		// No prior RETURN (or other issue) stopping definitional return!
+		// Add the "true local" RETURN: to the spec.
 
-		if (last_local_index == NOT_FOUND) {
-			// No existing /LOCAL so add /LOCAL RETURN to the end.
+		if (index == 0) {
+			// If the incoming spec was [] and we are turning it to
+			// [return:], then that's a relatively common pattern
+			// (e.g. what DOES would manufacture).  Re-use a global instance
+			// of that series as an optimization.
 
-			if (index == 0) {
-				// If the incoming spec was [] and we are turning it to
-				// [/local return] then that's a relatively common pattern
-				// (e.g. what DOES makes).  Use a global instance of that
-				// series as an optimization.
-
-				VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK);
-			}
-			else {
-				VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-					VAL_SERIES(spec), VAL_INDEX(spec), 2 // +2 capacity hint
-				);
-				Append_Value(VAL_FUNC_SPEC(out), ROOT_LOCAL_REFINEMENT);
-				Append_Value(VAL_FUNC_SPEC(out), ROOT_RETURN_WORD);
-			}
+			VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_RETURN_BLOCK);
 		}
 		else {
-			// Found a /LOCAL so insert RETURN after the last local arg
-
-			if (index == 1) {
-				// It was just [/local] so instead of making [/local return]
-				// use the global instance of that series as optimization
-
-				VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_LOCAL_RETURN_BLOCK);
-			}
-			else {
-				VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-					VAL_SERIES(spec), VAL_INDEX(spec), 1 // +1 capacity hint
-				);
-				Insert_Series(
-					VAL_FUNC_SPEC(out),
-					last_local_index + 1,
-					cast(REBYTE*, ROOT_RETURN_WORD),
-					1
-				);
-			}
+			VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
+				VAL_SERIES(spec), VAL_INDEX(spec), 1 // +1 capacity hint
+			);
+			Append_Value(VAL_FUNC_SPEC(out), ROOT_RETURN_SET_WORD);
 		}
 	}
 

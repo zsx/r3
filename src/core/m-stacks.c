@@ -272,8 +272,7 @@
 			if (has_return) {
 				REBVAL *param = VAL_FUNC_PARAM(func, var_index + 1);
 				if (
-					!VAL_GET_EXT(param, EXT_TYPESET_QUOTE)
-					&& VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
+					VAL_GET_EXT(param, EXT_WORD_HIDE)
 					&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
 				) {
 					// We use the (hidden from the public) RETURN native's
