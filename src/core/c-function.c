@@ -502,7 +502,10 @@ REBNATIVE(exit);
 				//
 				// This is redundant with the default for `make function!`.
 				// But having an option to use the familiar arity-2 form and
-				// name will probably appeal to more users.
+				// name will probably appeal to more users.  Also, having
+				// two independent parameters can save the need for a REDUCE
+				// or COMPOSE that is generally required to composite a single
+				// block parameter that MAKE FUNCTION! requires.
 
 				VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
 					VAL_SERIES(spec), VAL_INDEX(spec)

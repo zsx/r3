@@ -304,7 +304,13 @@ dump-obj: function [
 		parse args [
 			any [string! | block!]
 			any [
-				set word [refinement! (ref: true) | any-word!]
+				set word [
+					; We omit set-word! as it is a "pure local"
+					refinement! (ref: true)
+				|	word!
+				|	get-word!
+				|	lit-word!
+				]
 				(append/only either ref [refl][argl] b: reduce [word none none])
 				any [set v block! (b/3: v) | set v string! (b/2: v)]
 			]
