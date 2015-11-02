@@ -501,7 +501,10 @@ static	BOOT_BLK *Boot_Block;
 	REBINT n;
 	REBSER *frame;
 
-	frame = Make_Array(ROOT_MAX);  // Only half the context! (No words)
+	// Only half the context! (No words)
+	frame = Make_Series(ROOT_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME);
+	SET_END(BLK_HEAD(frame)); // !!! Need since we're using Make_Series?
+
 	LABEL_SERIES(frame, "root context");
 	LOCK_SERIES(frame);
 	Root_Context = (ROOT_CTX*)(frame->data);
@@ -587,7 +590,10 @@ static	BOOT_BLK *Boot_Block;
 
 	//Print_Str("Task Context");
 
-	Task_Series = frame = Make_Array(TASK_MAX);
+	frame = Make_Series(TASK_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME);
+	SET_END(BLK_HEAD(frame)); // !!! Needed since we're using Make_Series?
+	Task_Series = frame;
+
 	LABEL_SERIES(frame, "task context");
 	LOCK_SERIES(frame);
 	MANAGE_SERIES(frame);

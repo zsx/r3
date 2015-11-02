@@ -792,6 +792,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 	if (flags & MKS_LOCK) SERIES_SET_FLAG(series, SER_LOCK);
 
+	if (flags & MKS_FRAME) SERIES_SET_FLAG(series, SER_FRAME);
+
 	if (flags & MKS_EXTERNAL) {
 		// External series will poke in their own data pointer after the
 		// REBSER header allocation is done

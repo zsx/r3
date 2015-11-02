@@ -119,7 +119,8 @@
 	REBVAL *value;
 
 	words = Make_Array(len + 1); // size + room for SELF
-	frame = Make_Array(len + 1);
+	frame = Make_Series((len + 1) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME);
+	SET_END(BLK_HEAD(frame)); // !!! Needed since we used Make_Series?
 
 	// Note: cannot use Append_Frame for first word.
 	value = Alloc_Tail_Array(frame);
