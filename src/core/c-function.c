@@ -383,15 +383,21 @@ REBNATIVE(exit);
 
 	*is_fake = TRUE;
 
-	// See comments in sysobj.r on standard/func-body.  We are to substitute
-	// at index 6 (5 in zero-based C) a $1 with the "real" body
-
+	// See comments in sysobj.r on standard/func-body.
 	fake_body = Copy_Array_Shallow(
 		VAL_SERIES(Get_System(SYS_STANDARD, STD_FUNC_BODY))
 	);
-	assert(IS_MONEY(BLK_SKIP(fake_body, 5)));
 
-	Val_Init_Block(BLK_SKIP(fake_body, 5), VAL_FUNC_BODY(func));
+	// Index 5 (or 4 in zero-based C) should be #TYPE, a FUNCTION! or CLOSURE!
+	// !!! Is the binding important in this fake body??
+	assert(IS_ISSUE(BLK_SKIP(fake_body, 4)));
+	Val_Init_Word_Unbound(
+		BLK_SKIP(fake_body, 4), REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
+	);
+
+	// Index 8 (or 7 in zero-based C) should be #BODY, a "real" body
+	assert(IS_ISSUE(BLK_SKIP(fake_body, 7))); // #BODY
+	Val_Init_Block(BLK_SKIP(fake_body, 7), VAL_FUNC_BODY(func));
 
 	return fake_body;
 }

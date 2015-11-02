@@ -171,18 +171,20 @@ standard: context [
 	; This is the body template that it provides as the code *equivalent* of
 	; what it is doing (via a more specialized/internal method).  Though
 	; the only "real" body stored and used is the one the user provided
-	; (substituted in $1), this template is used to "lie" when asked what
+	; (substituted in #BODY), this template is used to "lie" when asked what
 	; the BODY-OF the function is.
 	;
-	; (The substitution location is hardcoded at index 6 in the block.  It
-	; does not "scan" to find $1...just asserts the position is MONEY!)
+	; The substitution locations are hardcoded at index 5 (function! or
+	; closure!) and index 8 in the block.  It does not "scan" to find #TYPE
+	; or #BODY, just asserts the positions are ISSUE!.
 	;
 	func-body: [
-		return: make function! [
+		comment {Optimized, but acts "as if" the boilerplate code were there.}
+		return: make #TYPE [
 			[{Returns a value from a function.} value [any-value!]]
 			[throw/name :value bind-of 'return]
 		]
-		catch/name $1 bind-of 'return
+		catch/name #BODY bind-of 'return
 	]
 
 	error: context [ ; Template used for all errors:
