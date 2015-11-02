@@ -613,7 +613,7 @@ is_none:
 		if (IS_END(val) || IS_UNSET(val) || IS_SET_WORD(val))
 			raise Error_1(RE_NEED_VALUE, var);
 		Get_Simple_Value_Into(&safe, val);
-		if (!Set_GOB_Var(gob, var, val))
+		if (!Set_GOB_Var(gob, var, &safe))
 			raise Error_2(RE_BAD_FIELD_SET, var, Type_Of(val));
 	}
 }
