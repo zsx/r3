@@ -71,6 +71,11 @@
 // Local includes:
 #include "reb-c.h"
 
+// !!! Is there a more ideal location for these prototypes?
+typedef int cmp_t(void *, const void *, const void *);
+extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
+
+
 // Must be defined at the end of reb-c.h, but not *in* reb-c.h so that
 // files including sys-core.h and reb-host.h can have differing
 // definitions of REBCHR.  (We want it opaque to the core, but the
