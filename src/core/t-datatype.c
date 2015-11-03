@@ -105,17 +105,6 @@
 			//return R_NONE;
 			raise Error_Bad_Make(kind, arg);
 		}
-
-		#if !defined(NDEBUG)
-			if (
-				LEGACY(OPTIONS_GROUP_NOT_PAREN)
-				&& IS_WORD(arg)
-				&& VAL_WORD_SYM(arg) == SYM_GROUPX
-			) {
-				VAL_WORD_SYM(arg) = SYM_FROM_KIND(REB_PAREN);
-			}
-		#endif
-
 		// if (IS_NONE(arg)) return R_NONE;
 		if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
 			break;
