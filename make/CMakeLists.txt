@@ -271,12 +271,25 @@ set (CORE_SOURCE
 	${CORE_DIR}/../codecs/rc4/rc4.c
 	${CORE_DIR}/../codecs/rsa/rsa.c
 	)
+
+file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
+list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
+#message("CORE_C_FILES: ${CORE_C_FILES}")
 add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/tmp-funcs.h
 	${TOP_SRC_DIR}/include/tmp-funcargs.h
 	${TOP_SRC_DIR}/include/tmp-strings.h
 	COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
+	DEPENDS
+	${TOOLS_DIR}/make-headers.r
+	${TOOLS_DIR}/common.r
+	${TOOLS_DIR}/common-parsers.r
+	${TOOLS_DIR}/form-header.r
+	${CORE_C_FILES}
+	${TOP_SRC_DIR}/boot/actions.r
+	${TOP_SRC_DIR}/boot/natives.r
 	)
+
 add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/tmp-evaltypes.h
 	${TOP_SRC_DIR}/include/tmp-maketypes.h
@@ -294,29 +307,83 @@ add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/tmp-boot.h
 	${TOP_SRC_DIR}/core/b-boot.c
 	COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r ${R3_OS_ID}
+	DEPENDS
+	${TOOLS_DIR}/make-boot.r
+
+	# all of the files loaded by make-boot.r
+	${TOP_SRC_DIR}/boot/version.r
+	${TOP_SRC_DIR}/boot/types.r
+	${TOP_SRC_DIR}/boot/types-ext.r
+	${TOP_SRC_DIR}/boot/strings.r
+	${TOP_SRC_DIR}/boot/errors.r
+	${TOP_SRC_DIR}/boot/words.r
+	${TOP_SRC_DIR}/boot/modes.r
+	${TOP_SRC_DIR}/boot/actions.r
+	${TOP_SRC_DIR}/boot/sysobj.r
+	${TOP_SRC_DIR}/boot/platforms.r
+
+	${TOP_SRC_DIR}/mezz/boot-files.r
+
+	${TOP_SRC_DIR}/boot/booters.r
+	${TOP_SRC_DIR}/boot/natives.r
+	${TOP_SRC_DIR}/boot/typespec.r
+	${TOP_SRC_DIR}/boot/root.r
+	${TOP_SRC_DIR}/boot/task.r
+	${TOP_SRC_DIR}/boot/ops.r
+
+	# all of the files in boot-files.r
+	${TOP_SRC_DIR}/mezz/base-constants.r
+	${TOP_SRC_DIR}/mezz/base-funcs.r
+	${TOP_SRC_DIR}/mezz/base-infix.r
+	${TOP_SRC_DIR}/mezz/base-series.r
+	${TOP_SRC_DIR}/mezz/base-files.r
+	${TOP_SRC_DIR}/mezz/base-debug.r
+	${TOP_SRC_DIR}/mezz/base-defs.r
+
+	${TOP_SRC_DIR}/mezz/sys-base.r
+	${TOP_SRC_DIR}/mezz/sys-ports.r
+	${TOP_SRC_DIR}/mezz/sys-codec.r # export to lib!
+	${TOP_SRC_DIR}/mezz/sys-load.r
+	${TOP_SRC_DIR}/mezz/sys-start.r
+
+	${TOP_SRC_DIR}/mezz/mezz-types.r
+	${TOP_SRC_DIR}/mezz/mezz-func.r
+	${TOP_SRC_DIR}/mezz/mezz-debug.r
+	${TOP_SRC_DIR}/mezz/mezz-control.r
+	${TOP_SRC_DIR}/mezz/mezz-save.r
+	${TOP_SRC_DIR}/mezz/mezz-series.r
+	${TOP_SRC_DIR}/mezz/mezz-files.r
+	${TOP_SRC_DIR}/mezz/mezz-shell.r
+	${TOP_SRC_DIR}/mezz/mezz-math.r
+	${TOP_SRC_DIR}/mezz/mezz-help.r # move dump-obj!
+	${TOP_SRC_DIR}/mezz/mezz-banner.r
+	${TOP_SRC_DIR}/mezz/mezz-colors.r
+	${TOP_SRC_DIR}/mezz/mezz-tail.r
+	${TOP_SRC_DIR}/mezz/mezz-legacy.r
+
+	${TOP_SRC_DIR}/mezz/prot-http.r
+	${TOP_SRC_DIR}/mezz/prot-tls.r
 	)
 add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/host-ext-core.h
 	COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r
+	DEPENDS
+	${TOOLS_DIR}/core-ext.r
+	${TOP_SRC_DIR}/boot/core.r
 	)
 add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/reb-lib.h
 	${TOP_SRC_DIR}/include/reb-lib-lib.h
 	COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r
+	DEPENDS
+	${TOOLS_DIR}/make-reb-lib.r
+	${TOOLS_DIR}/common.r
+	${TOOLS_DIR}/common-parsers.r
+	${TOOLS_DIR}/form-header.r
+	${TOP_SRC_DIR}/boot/version.r
+	${CORE_DIR}/a-lib.c
+	${CORE_DIR}/f-extension.c
 	)
-if (BUILD_VIEW)
-	add_custom_command(OUTPUT
-		${TOP_SRC_DIR}/include/host-lib.h
-		${TOP_SRC_DIR}/include/host-table.inc
-		COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID} gfx
-		)
-else ()
-	add_custom_command(OUTPUT
-		${TOP_SRC_DIR}/include/host-lib.h
-		${TOP_SRC_DIR}/include/host-table.inc
-		COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID}
-		)
-endif ()
 
 set (GENERATED_CORE_SOURCE 
 	${TOP_SRC_DIR}/include/tmp-funcs.h
@@ -362,6 +429,36 @@ set (OS_SOURCE
 	)
 set (GENERATED_OS_SOURCE 
 	)
+
+if (BUILD_VIEW)
+	add_custom_command(OUTPUT
+		${TOP_SRC_DIR}/include/host-lib.h
+		${TOP_SRC_DIR}/include/host-table.inc
+		COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID} gfx
+		DEPENDS
+		${TOOLS_DIR}/make-os-ext.r
+		${TOP_SRC_DIR}/boot/version.r
+		${TOOLS_DIR}/common.r
+		${TOOLS_DIR}/common-parsers.r
+		${TOOLS_DIR}/form-header.r
+		${TOOLS_DIR}/file-base.r
+		${OS_SOURCE}
+		)
+else ()
+	add_custom_command(OUTPUT
+		${TOP_SRC_DIR}/include/host-lib.h
+		${TOP_SRC_DIR}/include/host-table.inc
+		COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID}
+		DEPENDS
+		${TOOLS_DIR}/make-os-ext.r
+		${TOP_SRC_DIR}/boot/version.r
+		${TOOLS_DIR}/common.r
+		${TOOLS_DIR}/common-parsers.r
+		${TOOLS_DIR}/form-header.r
+		${TOOLS_DIR}/file-base.r
+		${OS_SOURCE}
+		)
+endif ()
 
 if(NOT (MSVC_IDE OR XCODE))
 	add_custom_target(clean-generated COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake)

@@ -108,6 +108,14 @@ add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/host-ext-text.h
 	${TOP_SRC_DIR}/include/host-ext-graphics.h
 	COMMAND ${REBOL} ${TOOLS_DIR}/view-ext.r
+	DEPENDS
+	${TOOLS_DIR}/view-ext.r
+	${TOP_SRC_DIR}/boot/graphics.r
+	${TOP_SRC_DIR}/boot/draw.r
+	${TOP_SRC_DIR}/boot/shape.r
+	${TOP_SRC_DIR}/boot/text.r
+	${TOP_SRC_DIR}/mezz/view-funcs.r
+
 )
 set (GENERATED_VIEW_SOURCE 
 	${TOP_SRC_DIR}/include/host-ext-draw.h
