@@ -238,7 +238,6 @@ set 'r3-legacy* func [] [
 	system/options/do-runs-functions: true
 	system/options/broken-case-semantics: true
 	system/options/exit-functions-only: true
-	system/options/datatype-word-strict: true
 	system/options/refinements-true: true
 	system/options/no-switch-evals: true
 	system/options/no-switch-fallthrough: true
