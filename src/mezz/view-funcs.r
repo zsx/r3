@@ -174,10 +174,10 @@ handle-events: func [
 	handler: make base-handler handler
 	sys-hand: system/view/event-port/locals/handlers
 	; Insert by priority:
-	unless for-each [here: hand] sys-hand [
+	if unset? for-each [here: hand] sys-hand [
 		if handler/priority > hand/priority [
 			insert here handler
-			break/return true
+			break/with true
 		]
 	][
 		append sys-hand handler
