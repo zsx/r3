@@ -597,6 +597,11 @@ set: native [
 	/pad {For objects, if block is too short, remaining words are set to NONE}
 ]
 
+spelling-of: native [
+	{Gives the delimiter-less spelling of words or strings}
+	value [any-word! any-string!]
+]
+
 to-hex: native [
 	{Converts numeric value to a hex issue! datatype (with leading # and 0's).}
 	value [integer! tuple!] {Value to be converted}
