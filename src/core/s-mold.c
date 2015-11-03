@@ -1211,11 +1211,12 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 
 	case REB_GOB:
 	{
-		REBSER *blk;
+		REBSER *blk = Make_Array(10);;
 		Pre_Mold(value, mold);
-		blk = Gob_To_Block(VAL_GOB(value));
+		Gob_To_Block(blk, VAL_GOB(value));
 		Mold_Block_Series(mold, blk, 0, 0);
 		End_Mold(mold);
+		Free_Series(blk);
 	}
 		break;
 

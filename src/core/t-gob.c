@@ -621,19 +621,20 @@ is_none:
 
 /***********************************************************************
 **
-*/	REBSER *Gob_To_Block(REBGOB *gob)
+*/	REBSER *Gob_To_Block(REBSER *ser, REBGOB *gob)
 /*
 **		Used by MOLD to create a block.
 **
 ***********************************************************************/
 {
-	REBSER *ser = Make_Array(10);
 	REBVAL *val;
 	REBINT words[6] = {SYM_OFFSET, SYM_SIZE, SYM_ALPHA, 0};
 	REBVAL *vals[6];
 	REBINT n = 0;
 	REBVAL *val1;
 	REBCNT sym;
+
+	if (!ser) return ser;
 
 	for (n = 0; words[n]; n++) {
 		val = Alloc_Tail_Array(ser);
