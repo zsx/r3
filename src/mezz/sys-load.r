@@ -450,7 +450,7 @@ load-module: function [
 				as [cause-error 'script 'bad-refine /as] ; no renaming
 				; Return none if no module of that name found
 				not tmp: find/skip system/modules source 3 [return none]
-				set [mod: modsum:] next tmp none ; get the module
+				set/any [mod: modsum:] next tmp none ; get the module
 				;assert/type [mod [module! block!] modsum [binary! none!]] none
 				; If no further processing is needed, shortcut return
 				all [not version not check any [delay module? :mod]] [
@@ -551,7 +551,7 @@ load-module: function [
 		; See if it's there already, or there is something more recent
 		all [
 			override?: not no-lib ; set to false later if existing module is used
-			set [name0: mod0: sum0:] pos: find/skip system/modules name 3
+			set/any [name0: mod0: sum0:] pos: find/skip system/modules name 3
 		] [
 			; Get existing module's info
 			case/all [
