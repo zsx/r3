@@ -495,8 +495,8 @@ delect: native [
 
 difference: native [
 	{Returns the special difference of two values.}
-	set1 [block! string! binary! bitset! date! typeset!] "First data set"
-	set2 [block! string! binary! bitset! date! typeset!] "Second data set"
+	set1 [any-array! any-string! binary! bitset! date! typeset!] "First data set"
+	set2 [any-array! any-string! binary! bitset! date! typeset!] "Second data set"
 	/case {Uses case-sensitive comparison}
 	/skip {Treat the series as records of fixed size}
 	size [integer!]
@@ -504,8 +504,8 @@ difference: native [
 
 exclude: native [
 	{Returns the first data set less the second data set.}
-	set1 [block! string! binary! bitset! typeset!] "First data set"
-	set2 [block! string! binary! bitset! typeset!] "Second data set"
+	set1 [any-array! any-string! binary! bitset! typeset!] "First data set"
+	set2 [any-array! any-string! binary! bitset! typeset!] "Second data set"
 	/case {Uses case-sensitive comparison}
 	/skip {Treat the series as records of fixed size}
 	size [integer!]
@@ -513,8 +513,8 @@ exclude: native [
 
 intersect: native [
 	{Returns the intersection of two data sets.}
-	set1 [block! string! binary! bitset! typeset!] "first set"
-	set2 [block! string! binary! bitset! typeset!] "second set"
+	set1 [any-array! any-string! binary! bitset! typeset!] "first set"
+	set2 [any-array! any-string! binary! bitset! typeset!] "second set"
 	/case {Uses case-sensitive comparison}
 	/skip {Treat the series as records of fixed size}
 	size [integer!]
@@ -522,8 +522,8 @@ intersect: native [
 
 union: native [
 	{Returns the union of two data sets.}
-	set1 [block! string! binary! bitset! typeset!] "first set"
-	set2 [block! string! binary! bitset! typeset!] "second set"
+	set1 [any-array! any-string! binary! bitset! typeset!] "first set"
+	set2 [any-array! any-string! binary! bitset! typeset!] "second set"
 	/case {Use case-sensitive comparison}
 	/skip {Treat the series as records of fixed size}
 	size [integer!]
@@ -531,7 +531,7 @@ union: native [
 
 unique: native [
 	{Returns the data set with duplicates removed.}
-	set1 [block! string! binary! bitset! typeset!]
+	set1 [any-array! any-string! binary! bitset! typeset!]
 	/case  {Use case-sensitive comparison (except bitsets)}
 	/skip {Treat the series as records of fixed size}
 	size [integer!]

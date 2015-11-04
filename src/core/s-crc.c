@@ -331,7 +331,7 @@ static REBCNT *CRC_Table;
 
 /***********************************************************************
 **
-*/	REBSER *Hash_Block(REBVAL *block, REBCNT cased)
+*/	REBSER *Hash_Block(const REBVAL *block, REBCNT cased)
 /*
 **		Hash ALL values of a block. Return hash array series.
 **		Used for SET logic (unique, union, etc.)
