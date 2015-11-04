@@ -4,7 +4,7 @@ if (WIN32)
 	set (AGG_DEFINITIONS AGG_WIN32_FONTS)
 	list(APPEND LIBS "OpenGL32")
 else()
-	set (AGG_DEFINITIONS AGG_FREETYPE)
+	set (AGG_DEFINITIONS AGG_FREETYPE AGG_FONTCONFIG)
 
 	find_package(PkgConfig)
 	pkg_search_module(FONTCONFIG REQUIRED fontconfig)
