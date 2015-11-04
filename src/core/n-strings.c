@@ -230,7 +230,7 @@ static struct digest {
 
 			if (digests[i].index == sym) {
 				REBSER *digest = Make_Series(
-					digests[i].len, sizeof(char), FALSE
+					digests[i].len + 1, sizeof(char), FALSE
 				);
 
 				LABEL_SERIES(digest, "checksum digest");
@@ -277,6 +277,7 @@ static struct digest {
 				}
 
 				SERIES_TAIL(digest) = digests[i].len;
+				TERM_SERIES(digest);
 				Val_Init_Binary(D_OUT, digest);
 
 				return 0;
