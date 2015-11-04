@@ -91,7 +91,7 @@
 
 /***********************************************************************
 **
-*/	REBINT Find_Key(REBSER *series, REBSER *hser, REBVAL *key, REBINT wide, REBCNT cased, REBYTE mode)
+*/	REBINT Find_Key(REBSER *series, REBSER *hser, const REBVAL *key, REBINT wide, REBCNT cased, REBYTE mode)
 /*
 **		Returns hash index (either the match or the new one).
 **		A return of zero is valid (as a hash index);
@@ -157,10 +157,8 @@
 
 	// Append new value the target series:
 	if (mode > 1) {
-		hashes[hash] = SERIES_TAIL(series)+1;
-		//Debug_Num("hash:", hashes[hash]);
-		Append_Series(series, (REBYTE*)key, wide);
-		//Dump_Series(series, "hash");
+		hashes[hash] = SERIES_TAIL(series) + 1;
+		Append_Values_Len(series, key, wide);
 	}
 
 	return (mode > 0) ? NOT_FOUND : hash;
