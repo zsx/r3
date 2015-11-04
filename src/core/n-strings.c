@@ -277,7 +277,7 @@ static struct digest {
 				}
 
 				SERIES_TAIL(digest) = digests[i].len;
-				TERM_SERIES(digest);
+				TERM_SEQUENCE(digest);
 				Val_Init_Binary(D_OUT, digest);
 
 				return 0;

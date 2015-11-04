@@ -739,7 +739,7 @@ zero_blk:
 
 	case A_CLEAR:
 		if (index < tail) {
-			if (index == 0) Reset_Series(ser);
+			if (index == 0) Reset_Array(ser);
 			else {
 				SET_END(BLK_SKIP(ser, index));
 				VAL_TAIL(value) = (REBCNT)index;

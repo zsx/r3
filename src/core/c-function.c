@@ -979,7 +979,7 @@ check_spec:
 	}
 
 	frame->tail = word_index;
-	TERM_SERIES(frame);
+	TERM_ARRAY(frame);
 
 	// We do not Manage_Frame, because we are reusing a word series here
 	// that has already been managed...only manage the outer series

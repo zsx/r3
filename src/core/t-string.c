@@ -672,7 +672,7 @@ zero_str:
 			if (index == 0) Reset_Series(VAL_SERIES(value));
 			else {
 				VAL_TAIL(value) = (REBCNT)index;
-				TERM_SERIES(VAL_SERIES(value));
+				TERM_SEQUENCE(VAL_SERIES(value));
 			}
 		}
 		break;

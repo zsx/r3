@@ -555,7 +555,7 @@
 		raise Error_Invalid_Arg(val);
 
 	case A_CLEAR:
-		Clear_Series(series);
+		Reset_Array(series);
 		if (series->extra.series) Clear_Series(series->extra.series);
 		Val_Init_Map(D_OUT, series);
 		break;

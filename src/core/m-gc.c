@@ -691,7 +691,7 @@ static void Propagate_All_GC_Marks(void);
 		case REB_LIT_PATH:
 			ser = VAL_SERIES(val);
 			assert(Is_Array_Series(ser) && SERIES_WIDE(ser) == sizeof(REBVAL));
-			assert(IS_END(BLK_SKIP(ser, SERIES_TAIL(ser))) || ser == DS_Series);
+			ASSERT_SERIES_TERM(ser);
 
 			QUEUE_MARK_ARRAY_DEEP(ser);
 			break;
@@ -795,11 +795,12 @@ static void Propagate_All_GC_Marks(void);
 		Queue_Mark_Value_Deep(val);
 	}
 
-	assert(
-		SERIES_WIDE(array) != sizeof(REBVAL)
-		|| IS_END(BLK_SKIP(array, len))
-		|| array == DS_Series
-	);
+#if !defined(NDEBUG)
+	if (!IS_END(BLK_SKIP(array, len))) {
+		Debug_Fmt("Found badly terminated array in Mark_Array_Deep_Core()");
+		Panic_Series(array);
+	}
+#endif
 }
 
 
@@ -1028,8 +1029,8 @@ static void Propagate_All_GC_Marks(void);
 	// WARNING: These terminate existing open blocks. This could
 	// be a problem if code is building a new value at the tail,
 	// but has not yet updated the TAIL marker.
-	VAL_BLK_TERM(TASK_BUF_EMIT);
-	VAL_BLK_TERM(TASK_BUF_COLLECT);
+	VAL_TERM_ARRAY(TASK_BUF_EMIT);
+	VAL_TERM_ARRAY(TASK_BUF_COLLECT);
 
 	// MARKING PHASE: the "root set" from which we determine the liveness
 	// (or deadness) of a series.  If we are shutting down, we are freeing
@@ -1210,7 +1211,7 @@ static void Propagate_All_GC_Marks(void);
 	// The marking queue used in lieu of recursion to ensure that deeply
 	// nested structures don't cause the C stack to overflow.
 	GC_Mark_Stack = Make_Series(100, sizeof(REBSER *), MKS_NONE);
-	TERM_SERIES(GC_Mark_Stack);
+	TERM_SEQUENCE(GC_Mark_Stack);
 	LABEL_SERIES(GC_Mark_Stack, "gc mark stack");
 }
 

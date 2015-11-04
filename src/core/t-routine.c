@@ -1154,7 +1154,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 				raise Error_Invalid_Arg(&lib);
 				//RL_Print("lib is not open\n");
 			}
-			TERM_SERIES(VAL_SERIES(&blk[fn_idx]));
+			TERM_SEQUENCE(VAL_SERIES(&blk[fn_idx]));
 			func = OS_FIND_FUNCTION(LIB_FD(VAL_ROUTINE_LIB(out)), s_cast(VAL_DATA(&blk[fn_idx])));
 			if (!func) {
 				raise Error_Invalid_Arg(&blk[fn_idx]);

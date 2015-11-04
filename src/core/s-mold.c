@@ -622,7 +622,7 @@ static void Mold_Block_Series(REB_MOLD *mold, REBSER *series, REBCNT index, cons
 		Append_Codepoint_Raw(out, sep[1]);
 	}
 
-	Remove_Last(MOLD_LOOP);
+	Remove_Array_Last(MOLD_LOOP);
 }
 
 static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
@@ -845,7 +845,7 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	}
 
 	End_Mold(mold);
-	Remove_Last(MOLD_LOOP);
+	Remove_Array_Last(MOLD_LOOP);
 }
 
 static void Form_Object(const REBVAL *value, REB_MOLD *mold)
@@ -867,8 +867,8 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE))
 			Emit(mold, "N: V\n", VAL_TYPESET_SYM(keys + n), vals + n);
 	}
-	Remove_Last(mold->series);
-	Remove_Last(MOLD_LOOP);
+	Remove_Sequence_Last(mold->series);
+	Remove_Array_Last(MOLD_LOOP);
 }
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
@@ -913,7 +913,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 	Append_Codepoint_Raw(mold->series, ']');
 
 	End_Mold(mold);
-	Remove_Last(MOLD_LOOP);
+	Remove_Array_Last(MOLD_LOOP);
 }
 
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)

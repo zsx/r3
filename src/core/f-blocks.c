@@ -67,7 +67,7 @@
 
 	memcpy(series->data, BLK_SKIP(array, index), len * sizeof(REBVAL));
 	SERIES_TAIL(series) = len;
-	BLK_TERM(series);
+	TERM_ARRAY(series);
 
 	return series;
 }
@@ -91,7 +91,7 @@
 
 	memcpy(series->data, BLK_SKIP(array, index), max * sizeof(REBVAL));
 	SERIES_TAIL(series) = max;
-	BLK_TERM(series);
+	TERM_ARRAY(series);
 
 	return series;
 }
@@ -112,7 +112,7 @@
 
 	memcpy(series->data, &value[0], len * sizeof(REBVAL));
 	SERIES_TAIL(series) = len;
-	BLK_TERM(series);
+	TERM_ARRAY(series);
 
 	return series;
 }
@@ -320,7 +320,7 @@
 
 		memcpy(series->data, blk, len * sizeof(REBVAL));
 		SERIES_TAIL(series) = len;
-		BLK_TERM(series);
+		TERM_ARRAY(series);
 
 		DS_DROP_TO(start);
 		Val_Init_Series_Index(DS_TOP, REB_BLOCK, series, 0);

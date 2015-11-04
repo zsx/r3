@@ -78,7 +78,7 @@ typedef struct Reb_Series REBSER;
 #define VAL_SET_ZEROED(v,t) (CLEAR((v), sizeof(REBVAL)), VAL_SET((v),(t)))
 
 // Clear type identifier:
-#define SET_END(v)			VAL_SET(v, 0)
+#define SET_END(v)			VAL_SET(v, REB_END)
 #define END_VALUE			&PG_End_Val
 
 // Value option flags:
@@ -178,14 +178,29 @@ struct Reb_Datatype {
 
 /***********************************************************************
 **
-**	TRASH - Trash Value used in debugging cases where a cell is
-**	expected to be overwritten.  The operations are available in
-**	debug and release builds, except release builds cannot use
-**	the IS_TRASH() test.  (Hence trash is not a real datatype,
-**	just an invalid bit pattern used to mark value cells.)
+**	TRASH - Trash Value used in debugging cases where a cell is expected to
+**	be overwritten.  By default, the garbage collector will raise an alert
+**	if a trash value is not overwritten by the time it sees it...but there
+**	are some uses of trash which the GC should be able to run while it is
+**	extant.  For these cases, use SET_TRASH_SAFE.
 **
-**	Because the trash value saves the filename and line where it
-**	originated, the REBVAL has that info under the debugger.
+**	The operations for setting trash are available in both debug and release
+**	builds.  An unsafe trash set turns into a NOOP in release builds, while
+**	a safe trash set turns into a SET_UNSET().  The IS_TRASH() operation for
+**	testing for trash is not available in release builds.
+**
+**	Because the trash value saves the filename and line where it originated,
+**	the REBVAL has that info in debug builds to inspect.
+**
+**	The special REB_XXX value of 0 is chosen for trash.  This pattern was
+**	used previously to indicate the value that terminates series (a REB_END).
+**	Changing REB_END's value and triggering alerts on 0 helps find places
+**	that were not consciously managing the termination location and just
+**	"lucked out" due to a zero fill.  Making sure that every update of the
+**	end marker is done consciously provides footing for alternate ideas about
+**	how to terminate arrays which may not cost a "full value" (e.g. a method
+**	which may allow series of length 0 or 1 to fit inside a series node
+**	itself, with no second data array allocated).
 **
 ***********************************************************************/
 
@@ -193,6 +208,8 @@ struct Reb_Datatype {
 	#define SET_TRASH(v) NOOP
 
 	#define SET_TRASH_SAFE(v) SET_UNSET(v)
+
+	#undef IS_TRASH
 #else
 	struct Reb_Trash {
 		REBOOL safe; // if "safe" then will be UNSET! in a release build
@@ -200,13 +217,11 @@ struct Reb_Datatype {
 		int line;
 	};
 
-	#define IS_TRASH(v) (VAL_TYPE(v) == REB_MAX + 1)
-
 	#define VAL_TRASH_SAFE(v) ((v)->data.trash.safe)
 
 	#define SET_TRASH(v) \
 		( \
-			VAL_SET((v), REB_MAX + 1), \
+			VAL_SET((v), REB_TRASH), \
 			(v)->data.trash.safe = FALSE, \
 			(v)->data.trash.filename = __FILE__, \
 			(v)->data.trash.line = __LINE__, \
@@ -215,7 +230,7 @@ struct Reb_Datatype {
 
 	#define SET_TRASH_SAFE(v) \
 		( \
-			VAL_SET((v), REB_MAX + 1), \
+			VAL_SET((v), REB_TRASH), \
 			(v)->data.trash.safe = TRUE, \
 			(v)->data.trash.filename = __FILE__, \
 			(v)->data.trash.line = __LINE__, \
@@ -531,9 +546,17 @@ typedef struct Reb_Tuple {
 #define RESET_TAIL(s) s->tail = 0
 
 // Clear all and clear to tail:
-#define CLEAR_SERIES(s) CLEAR(SERIES_DATA(s), SERIES_SPACE(s))
-#define ZERO_SERIES(s) memset(SERIES_DATA(s), 0, SERIES_USED(s))
-#define TERM_SERIES(s) memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s))
+#define CLEAR_SEQUENCE(s) \
+	do { \
+		assert(!Is_Array_Series(s)); \
+		CLEAR(SERIES_DATA(s), SERIES_SPACE(s)); \
+	} while (0)
+
+#define TERM_SEQUENCE(s) \
+	do { \
+		assert(!Is_Array_Series(s)); \
+		memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s)); \
+	} while (0)
 
 // Returns space that a series has available (less terminator):
 #define SERIES_FULL(s) (SERIES_LEN(s) + 1 >= SERIES_REST(s))
@@ -881,8 +904,18 @@ struct Reb_Position
 #define	BLK_TAIL(s)		(((REBVAL *)((s)->data))+(s)->tail)
 #define	BLK_LAST(s)		(((REBVAL *)((s)->data))+((s)->tail-1)) // make sure tail not zero
 #define	BLK_LEN(s)		(SERIES_TAIL(s))
-#define BLK_TERM(s)		SET_END(BLK_TAIL(s))
 #define BLK_RESET(b)	(b)->tail = 0, SET_END(BLK_HEAD(b))
+
+#define TERM_ARRAY(s) \
+	do { \
+		assert(Is_Array_Series(s)); \
+		SET_END(BLK_TAIL(s)); \
+	} while (0)
+
+#define TERM_SERIES(s) \
+	Is_Array_Series(s) \
+		? cast(void, SET_END(BLK_TAIL(s))) \
+		: cast(void, memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s)))
 
 // Arg is a value:
 #define VAL_BLK_HEAD(v)	BLK_HEAD(VAL_SERIES(v))
@@ -890,7 +923,7 @@ struct Reb_Position
 #define VAL_BLK_SKIP(v,n)	BLK_SKIP(VAL_SERIES(v), (n))
 #define VAL_BLK_TAIL(v)	BLK_SKIP(VAL_SERIES(v), VAL_SERIES(v)->tail)
 #define	VAL_BLK_LEN(v)	VAL_LEN(v)
-#define VAL_BLK_TERM(v)	BLK_TERM(VAL_SERIES(v))
+#define VAL_TERM_ARRAY(v)	TERM_ARRAY(VAL_SERIES(v))
 
 #define IS_EMPTY(v)		(VAL_INDEX(v) >= VAL_TAIL(v))
 

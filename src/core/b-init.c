@@ -213,7 +213,7 @@ static	BOOT_BLK *Boot_Block;
 
 	if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
 		panic Error_0(RE_BAD_BOOT_TYPE_BLOCK);
-	if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_END_TYPE)
+	if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
 		panic Error_0(RE_BAD_END_TYPE_WORD);
 
 	// Create low-level string pointers (used by RS_ constants):
@@ -996,7 +996,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 			Val_Init_String(
 				BLK_SKIP(ser, n), Copy_OS_Str(data, OS_STRLEN(data))
 			);
-		BLK_TERM(ser);
+		TERM_ARRAY(ser);
 	}
 
 	Set_Option_String(rargs->debug, OPTIONS_DEBUG);

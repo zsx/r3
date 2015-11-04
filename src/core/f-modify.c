@@ -108,7 +108,7 @@
 		memcpy(dst_ser->data + dst_idx, src_val, ilen);
 		dst_idx += ilen;
 	}
-	BLK_TERM(dst_ser);
+	TERM_ARRAY(dst_ser);
 
 	return tail;
 }
@@ -239,7 +239,7 @@
 		dst_idx += src_len;
 	}
 
-	TERM_SERIES(dst_ser);
+	TERM_SEQUENCE(dst_ser);
 
 	if (needs_free) {
 		// If we did not use the series that was passed in, but rather

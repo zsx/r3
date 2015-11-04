@@ -143,7 +143,7 @@
 	REBSER *keylist = FRM_KEYLIST(frame);
 
 	Extend_Series(frame, delta);
-	BLK_TERM(frame);
+	TERM_ARRAY(frame);
 
 	// Expand or copy WORDS block:
 	if (copy) {
@@ -153,7 +153,7 @@
 	}
 	else {
 		Extend_Series(keylist, delta);
-		BLK_TERM(keylist);
+		TERM_ARRAY(keylist);
 	}
 }
 
@@ -178,7 +178,7 @@
 	EXPAND_SERIES_TAIL(keylist, 1);
 	value = BLK_LAST(keylist);
 	Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
-	BLK_TERM(keylist);
+	TERM_ARRAY(keylist);
 
 	// Bind the word to this frame:
 	if (word) {
@@ -193,7 +193,7 @@
 	EXPAND_SERIES_TAIL(frame, 1);
 	value = BLK_LAST(frame);
 	SET_UNSET(value);
-	BLK_TERM(frame);
+	TERM_ARRAY(frame);
 
 	return value; // The variable value location for the key we just added.
 }
@@ -346,7 +346,8 @@
 		// In this mode (foreach native), do not allow non-words:
 		//else if (modes & BIND_GET) raise Error_Invalid_Arg(value);
 	}
-	BLK_TERM(BUF_COLLECT);
+
+	TERM_ARRAY(BUF_COLLECT);
 }
 
 
@@ -720,7 +721,7 @@
 
 	// Terminate the child frame:
 	SERIES_TAIL(child) = SERIES_TAIL(wrds);
-	BLK_TERM(child);
+	TERM_ARRAY(child);
 
 	// Deep copy the child
 	Clonify_Values_Len_Managed(
