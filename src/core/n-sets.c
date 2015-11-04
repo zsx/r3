@@ -58,8 +58,8 @@ enum {
 	if (val2) {
 		assert(ANY_SERIES(val2));
 
-		if (ANY_BLOCK(val1)) {
-			if (!ANY_BLOCK(val2))
+		if (ANY_ARRAY(val1)) {
+			if (!ANY_ARRAY(val2))
 				raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
 
 			// As long as they're both arrays, we're willing to do:
@@ -91,7 +91,7 @@ enum {
 	i = VAL_LEN(val1);
 	if (flags & SOP_FLAG_BOTH) i += VAL_LEN(val2);
 
-	if (ANY_BLOCK(val1)) {
+	if (ANY_ARRAY(val1)) {
 		REBSER *hser = 0;	// hash table for series
 		REBSER *hret;		// hash table for return series
 

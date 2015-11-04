@@ -112,7 +112,7 @@
 	REBVAL *values = BLK_SKIP(DS_Series, dsp_start + 1);
 
 	if (into) {
-		assert(ANY_BLOCK(out));
+		assert(ANY_ARRAY(out));
 		series = VAL_SERIES(out);
 		if (IS_PROTECT_SERIES(series)) raise Error_0(RE_PROTECTED);
 		VAL_INDEX(out) = Insert_Series(

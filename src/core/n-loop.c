@@ -455,7 +455,7 @@ typedef enum {
 
 				if (index < tail) {
 
-					if (ANY_BLOCK(data)) {
+					if (ANY_ARRAY(data)) {
 						*vars = *BLK_SKIP(series, index);
 					}
 					else if (data_is_object) {

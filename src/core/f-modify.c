@@ -59,7 +59,7 @@
 	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
 	// Check /PART, compute LEN:
-	if (!GET_FLAG(flags, AN_ONLY) && ANY_BLOCK(src_val)) {
+	if (!GET_FLAG(flags, AN_ONLY) && ANY_ARRAY(src_val)) {
 		// Adjust length of insertion if changing /PART:
 		if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
 			ilen = dst_len;

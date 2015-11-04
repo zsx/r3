@@ -90,7 +90,7 @@ enum {
 	else
 		UNPROTECT_SERIES(series);
 
-	if (!ANY_BLOCK(val) || !GET_FLAG(flags, PROT_DEEP)) return;
+	if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
 	SERIES_SET_FLAG(series, SER_MARK); // recursion protection
 

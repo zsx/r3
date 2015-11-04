@@ -1443,7 +1443,7 @@ return_index:
 			}
 			else {
 				DS_PUSH(value);
-				if (ANY_BLOCK(value)) {
+				if (ANY_ARRAY(value)) {
 					// compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
 					// !!! path and second paren are copies, first paren isn't
 					VAL_SERIES(DS_TOP) = Copy_Array_Shallow(VAL_SERIES(value));

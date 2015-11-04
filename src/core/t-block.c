@@ -80,7 +80,7 @@ static void No_Nones(REBVAL *arg) {
 {
 	REBCNT i;
 
-	if (!ANY_BLOCK(data)) return FALSE;
+	if (!ANY_ARRAY(data)) return FALSE;
 	if (type >= REB_PATH && type <= REB_LIT_PATH)
 		if (!ANY_WORD(VAL_BLK_HEAD(data))) return FALSE;
 
@@ -149,7 +149,7 @@ static void No_Nones(REBVAL *arg) {
 		return NOT_FOUND;
 	}
 	// Match a block against a block:
-	else if (ANY_BLOCK(target) && !(flags & AM_FIND_ONLY)) {
+	else if (ANY_ARRAY(target) && !(flags & AM_FIND_ONLY)) {
 		for (; index >= start && index < end; index += skip) {
 			cnt = 0;
 			value = BLK_SKIP(series, index);
@@ -219,7 +219,7 @@ static void No_Nones(REBVAL *arg) {
 		type = VAL_TYPE(value);
 
 	// make block! [1 2 3]
-	if (ANY_BLOCK(arg)) {
+	if (ANY_ARRAY(arg)) {
 		len = VAL_BLK_LEN(arg);
 		if (len > 0 && type >= REB_PATH && type <= REB_LIT_PATH)
 			No_Nones(arg);
@@ -698,8 +698,8 @@ zero_blk:
 	case A_FIND:
 	case A_SELECT:
 		args = Find_Refines(call_, ALL_FIND_REFS);
-//		if (ANY_BLOCK(arg) || args) {
-			len = ANY_BLOCK(arg) ? VAL_BLK_LEN(arg) : 1;
+//		if (ANY_ARRAY(arg) || args) {
+			len = ANY_ARRAY(arg) ? VAL_BLK_LEN(arg) : 1;
 			if (args & AM_FIND_PART) tail = Partial1(value, D_ARG(ARG_FIND_LIMIT));
 			ret = 1;
 			if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);

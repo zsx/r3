@@ -899,7 +899,7 @@
 				}
 			}
 		}
-		else if (ANY_BLOCK(value) && (mode & BIND_DEEP))
+		else if (ANY_ARRAY(value) && (mode & BIND_DEEP))
 			Bind_Values_Inner_Loop(
 				binds, VAL_BLK_DATA(value), frame, mode
 			);
@@ -976,7 +976,7 @@
 		if (ANY_WORD(value) && (!frame || VAL_WORD_FRAME(value) == frame))
 			UNBIND_WORD(value);
 
-		if (ANY_BLOCK(value) && deep)
+		if (ANY_ARRAY(value) && deep)
 			Unbind_Values_Core(VAL_BLK_DATA(value), frame, TRUE);
 	}
 }
@@ -1025,7 +1025,7 @@
 				VAL_WORD_FRAME(value) = frame; // func body
 			}
 		}
-		else if (ANY_BLOCK(value))
+		else if (ANY_ARRAY(value))
 			Bind_Relative_Inner_Loop(binds, frame, VAL_SERIES(value));
 	}
 }
@@ -1110,7 +1110,7 @@
 	REBINT *binds = WORDS_HEAD(Bind_Table);
 
 	for (; NOT_END(data); data++) {
-		if (ANY_BLOCK(data))
+		if (ANY_ARRAY(data))
 			Rebind_Block(src_frame, dst_frame, VAL_BLK_DATA(data), modes);
 		else if (ANY_WORD(data) && VAL_WORD_FRAME(data) == src_frame) {
 			VAL_WORD_FRAME(data) = dst_frame;
