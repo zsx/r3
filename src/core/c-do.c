@@ -658,8 +658,6 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	// time this line is run if it were in a loop)
 	if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
 
-	ASSERT_FRAME(Lib_Context);
-
 do_at_index:
 	assert(index != END_FLAG && index != THROWN_FLAG);
 	SET_TRASH_SAFE(out);
