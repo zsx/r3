@@ -33,7 +33,7 @@ if (R3_EXTERNAL_GLEW)
 else()
 	add_subdirectory(${EXTERNAL_DIR}/glew/build/cmake
 		${CMAKE_CURRENT_BINARY_DIR}/GLEW
-		EXCLUDE_FROM_ALL)
+		)
 	set(GLEW_DEFINITIONS GLEW_STATIC)
 	set(GLEW_INCLUDE_DIRS
 		${EXTERNAL_DIR}/glew/include
@@ -76,7 +76,7 @@ if (R3_EXTERNAL_SDL)
 else()
 	add_subdirectory(${EXTERNAL_DIR}/SDL
 		${CMAKE_CURRENT_BINARY_DIR}/SDL
-		EXCLUDE_FROM_ALL)
+		)
 	set (SDL_INCLUDE_DIRS ${EXTERNAL_DIR}/SDL/include)
 	set (SDL_LIBRARIES SDL2main SDL2-static)
 endif()
@@ -89,11 +89,12 @@ set (VIEW_SOURCE
 	${VIEW_DIR}/host-draw-api-nanovg.c
 	${VIEW_DIR}/host-text-api-nanovg.c
 	${VIEW_DIR}/host-renderer-agg.c
-	${VIEW_DIR}/host-draw-api-agg.c
+	${VIEW_DIR}/host-draw-api-agg-bridge.c
 	${VIEW_DIR}/host-draw-api-agg.cpp
-	${VIEW_DIR}/host-text-api-agg.c
+	${VIEW_DIR}/host-text-api-agg-bridge.c
 	${VIEW_DIR}/host-text-api-agg.cpp
 )
+
 set (WIN_SYS_SOURCE 
 	${WIN_SYS_DIR}/SDL/dev-event.c
 	${WIN_SYS_DIR}/SDL/dev-clipboard.c
@@ -126,22 +127,23 @@ set (GENERATED_VIEW_SOURCE
 add_library(libr3_view_core OBJECT
 				${CORE_SOURCE}
 				${GENERATED_CORE_SOURCE})
-add_library(libr3_view_os OBJECT ${OS_SOURCE} ${GENERATED_OS_SOURCE})
+			#add_library(libr3_view_os OBJECT ${OS_SOURCE} ${GENERATED_OS_SOURCE})
 add_library(libr3_view OBJECT ${VIEW_SOURCE} ${GENERATED_VIEW_SOURCE})
 add_library(libr3_win_sys OBJECT ${WIN_SYS_SOURCE})
 add_library(libnanovg OBJECT ${NANOVG_SOURCE})
-add_dependencies(libr3_view_os libr3_view_core)
-add_dependencies(libr3_view libnanovg libr3_view_os)
-add_dependencies(libr3_win_sys libr3_view_os libr3_view)
+#add_dependencies(libr3_view_os libr3_view_core)
+add_dependencies(libr3_view libnanovg)
+add_dependencies(libr3_win_sys libr3_view)
 add_dependencies(libagg libr3_view_core libr3_view)
 
 add_executable(r3-view
 	$<TARGET_OBJECTS:libr3_view_core>
-	$<TARGET_OBJECTS:libr3_view_os>
 	$<TARGET_OBJECTS:libr3_view>
 	$<TARGET_OBJECTS:libr3_win_sys>
 	$<TARGET_OBJECTS:libnanovg>
 	$<TARGET_OBJECTS:libagg>
+	${OS_SOURCE}
+	${GENERATED_OS_SOURCE}
 )
 SET_TARGET_PROPERTIES(r3-view PROPERTIES LINKER_LANGUAGE C)
 
@@ -165,12 +167,12 @@ target_compile_definitions(libagg PUBLIC
 	${AGG_DEFINITIONS}
 )
 
-target_include_directories(libr3_view_os PUBLIC
+target_include_directories(r3-view PUBLIC
 	${TOP_SRC_DIR}/include
 	${TOP_SRC_DIR}/codecs
 )
 
-target_compile_definitions(libr3_view_os PUBLIC
+target_compile_definitions(r3-view PUBLIC
 	${COMMON_MACROS}
 )
 
