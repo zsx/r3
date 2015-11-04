@@ -131,7 +131,7 @@
 
 /***********************************************************************
 **
-*/	REBSER *Check_Func_Spec(REBSER *spec, REBYTE *exts)
+*/	REBSER *Check_Func_Spec(REBSER *spec)
 /*
 **		Check function spec of the form:
 **
@@ -144,8 +144,6 @@
 	REBVAL *item;
 	REBSER *keylist;
 	REBVAL *typeset;
-
-	*exts = 0;
 
 	keylist = Collect_Frame(
 		NULL, BLK_HEAD(spec), BIND_ALL | BIND_NO_DUP | BIND_NO_SELF
@@ -161,6 +159,32 @@
 
 	// !!! needs more checks
 	for (item = BLK_HEAD(spec); NOT_END(item); item++) {
+
+		if (ANY_BINSTR(item)) {
+			// A goal of the Ren-C design is that core generators like
+			// MAKE FUNCTION! an MAKE OBJECT! do not know any keywords or
+			// key strings.  As a consequence, the most flexible offering
+			// to function generators is to allow them to let as many
+			// strings or tags or otherwise be stored in the spec as
+			// they might wish to.  It's up to them to take them out.
+			//
+			// So it's not Check_Func_Spec's job to filter out "bad" string
+			// patterns.  Anything is fair game:
+			//
+			//		[foo [type!] {doc string :-)}]
+			//		[foo {doc string :-/} [type!]]
+			//		[foo {doc string1 :-/} {doc string2 :-(} [type!]]
+			//
+			// HELP and other clients of SPEC-OF are left with the burden of
+			// sorting out the variants.  The current policy of HELP is only
+			// to show strings.
+			//
+			// !!! Though the system isn't supposed to have a reaction to
+			// strings, is there a meaning for BINARY! besides ignoring it?
+
+			continue;
+		}
+
 		switch (VAL_TYPE(item)) {
 		case REB_BLOCK:
 			if (typeset == BLK_HEAD(keylist)) {
@@ -193,19 +217,6 @@
 			// Turn block into typeset for parameter at current index
 			// Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
 			Make_Typeset(VAL_BLK_HEAD(item), typeset, 0);
-			break;
-
-		case REB_STRING:
-			// !!! Documentation strings are ignored, but should there be
-			// some canon form be enforced?  Right now you can write many
-			// forms that may not be desirable to have in the wild:
-			//
-			//		func [foo [type!] {doc string :-)}]
-			//		func [foo {doc string :-/} [type!]]
-			//		func [foo {doc string1 :-/} {doc string2 :-(} [type!]]
-			//
-			// It's currently HELP that has to sort out the variant forms
-			// but there's nothing stopping them.
 			break;
 
 		case REB_INTEGER:
@@ -266,20 +277,6 @@
 				(FLAGIT_64(REB_WORD) | FLAGIT_64(REB_NONE));
 			break;
 
-		case REB_TAG:
-			// Tags are used to specify some EXT_FUNC opts switches.  At
-			// present they are only allowed at the head of the spec block,
-			// to try and keep things in at least a slightly canon format.
-			// This may or may not be relaxed in the future.
-			if (typeset != BLK_HEAD(keylist))
-				raise Error_1(RE_BAD_FUNC_DEF, item);
-
-			if (0 == Compare_String_Vals(item, ROOT_INFIX_TAG, TRUE))
-				SET_FLAG(*exts, EXT_FUNC_INFIX);
-			else
-				raise Error_1(RE_BAD_FUNC_DEF, item);
-			break;
-
 		case REB_SET_WORD:
 			// "True locals"... these will not be visible via WORDS-OF and
 			// will be skipped during argument fulfillment.  We re-use the
@@ -320,14 +317,10 @@ REBNATIVE(exit);
 /*
 ***********************************************************************/
 {
-	REBYTE exts;
 	//Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_TAIL(spec));
 	ENSURE_SERIES_MANAGED(spec);
 	VAL_FUNC_SPEC(out) = spec;
-	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(spec, &exts);
-
-	// We don't expect special flags on natives like <transparent>, <infix>
-	assert(exts == 0);
+	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(spec);
 
 	VAL_FUNC_CODE(out) = func;
 	VAL_SET(out, type);
@@ -465,7 +458,7 @@ REBNATIVE(exit);
 **
 ***********************************************************************/
 {
-	REBYTE func_flags; // 8-bits in header, reserved type-specific flags
+	REBYTE func_flags = 0; // 8-bits in header, reserved type-specific flags
 
 	if (!IS_BLOCK(spec) || !IS_BLOCK(body))
 		raise Error_Bad_Func_Def(spec, body);
@@ -494,94 +487,174 @@ REBNATIVE(exit);
 
 		REBVAL *item = BLK_HEAD(VAL_SERIES(spec));
 		REBCNT index = 0;
+		REBFLG convert_local = FALSE;
 
 		for (; NOT_END(item); index++, item++) {
-			if (
-				IS_TAG(item) &&
-				(0 == Compare_String_Vals(item, ROOT_TRANSPARENT_TAG, TRUE))
-			) {
-				// The <transparent> tag is a way to cue FUNC and CLOS that
-				// you do not want a definitional return:
+			if (IS_SET_WORD(item)) {
+				// Note a "true local" (indicated by a set-word) is considered
+				// to be tacit approval of wanting a definitional return
+				// by the generator.  This helps because Red's model
+				// for specifying returns uses a SET-WORD!
 				//
-				//     foo: func [<transparent> a] [return a]
-				//     foo 10 ;-- ERROR!
+				//     func [return: [integer!] {returns an integer}]
 				//
-				// This is redundant with the default for `make function!`.
-				// But having an option to use the familiar arity-2 form and
-				// name will probably appeal to more users.  Also, having
-				// two independent parameters can save the need for a REDUCE
-				// or COMPOSE that is generally required to composite a single
-				// block parameter that MAKE FUNCTION! requires.
+				// In Ren/C's case it just means you want a local called
+				// return, but the generator will be "initializing it
+				// with a definitional return" for you.  You don't have
+				// to use it if you don't want to...
 
-				VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-					VAL_SERIES(spec), VAL_INDEX(spec)
-				);
-				has_return = FALSE;
+				// !!! Should FUNC and CLOS be willing to move blocks after
+				// a return: to the head to indicate a type check?  It
+				// breaks the purity of the model.
 
-				// Take the <transparent> out so Check_Func_Spec won't choke.
-				// !!! It still will choke if there's more than one, though!
-				Remove_Series(VAL_FUNC_SPEC(out), index, 1);
-				goto check_spec;
+				continue;
 			}
 
-			if (ANY_WORD(item) && SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
-
-				if (IS_SET_WORD(item)) {
-					// A "true local" (indicated by a set-word) is considered
-					// to be tacit approval of wanting a definitional return
-					// by the generator.  This helps because Red's model
-					// for specifying returns uses a SET-WORD!
+			if (IS_TAG(item)) {
+				if (
+					0 == Compare_String_Vals(item, ROOT_TRANSPARENT_TAG, TRUE)
+				) {
+					// The <transparent> tag is a way to cue FUNC and CLOS that
+					// you do not want a definitional return:
 					//
-					//     func [return: [integer!] {returns an integer}]
+					//     foo: func [<transparent> a] [return a]
+					//     foo 10 ;-- ERROR!
 					//
-					// In Ren/C's case it just means you want a local called
-					// return, but the generator will be "initializing it
-					// with a definitional return" for you.  You don't have
-					// to use it if you don't want to...
+					// This is redundant with the default for `make function!`.
+					// But having an option to use the familiar arity-2 form
+					// will probably appeal to more users.  Also, having two
+					// independent parameters can save the need for a REDUCE
+					// or COMPOSE that is generally required to composite a
+					// single block parameter that MAKE FUNCTION! requires.
 
-					goto check_spec;
+					VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
+						VAL_SERIES(spec), VAL_INDEX(spec)
+					);
+					has_return = FALSE;
+
+					// We *could* remove the <transparent> tag, or check to
+					// see if there's more than one, etc.  But Check_Func_Spec
+					// is tolerant of any strings that we leave in the spec.
+					// This tolerance exists because the system is not to have
+					// any features based on recognizing specific keywords,
+					// so there's no need for tags to be "for future expansion"
+					// ... hence the mechanical cost burden of being forced
+					// to copy and remove them is a cost generators may not
+					// want to pay.
+
+					/*Remove_Series(VAL_FUNC_SPEC(out), index, 1);*/
+				}
+				else if (
+					0 == Compare_String_Vals(item, ROOT_INFIX_TAG, TRUE)
+				) {
+					// The <infix> option may or may not stick around.  The
+					// main reason not to is that it doesn't make sense for
+					// OP! to be the same interface type as FUNCTION! (or
+					// ANY-FUNCTION!).  An INFIX function generator is thus
+					// kind of tempting that returns an INFIX! (OP!), so
+					// this will remain under consideration.
+
+					SET_FLAG(func_flags, EXT_FUNC_INFIX);
+				}
+				else if (
+					0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)
+				) {
+					// While using x: and y: for pure locals is one option,
+					// it has two downsides.  One downside is that it makes
+					// the spec look too much "like everything else", so
+					// all the code kind of bleeds together.  Another is that
+					// if you nest one function within another then the outer
+					// function will wind up locals-gathering the locals of
+					// the inner function.  (It will anyway if you put the
+					// whole literal body there, but if you're adding the
+					// locals in a generator to be picked up by code that
+					// rebinds to them then it makes a difference.)
+					//
+					// Having a tag that lets you mark a run of locals is
+					// useful.  It will convert WORD! to SET-WORD! in the
+					// spec, and stop at the next refinement.
+
+					convert_local = TRUE;
+
+					// See notes about how we *could* remove ANY-STRING!s like
+					// the <local> tag from the spec, but Check_Func_Spec
+					// doesn't mind...it might be useful for HELP...and it's
+					// cheaper not to.
+				}
+				else
+					raise Error_1(RE_BAD_FUNC_DEF, item);
+			}
+			else if (ANY_WORD(item)) {
+				if (convert_local) {
+					if (IS_WORD(item)) {
+						// We convert words to set-words for pure local status
+						SET_TYPE(item, REB_SET_WORD);
+					}
+					else if (IS_REFINEMENT(item)) {
+						// A refinement signals us to stop doing the locals
+						// conversion.  Historically, help hides any
+						// refinements that appear behind a /local, so
+						// presumably it would do the same with <local>...
+						// but mechanically there is no way to tell
+						// Check_Func_Spec to hide a refinement.
+
+						convert_local = FALSE;
+					}
+					else {
+						// We've already ruled out pure locals, so this means
+						// they wrote something like:
+						//
+						//     func [a b <local> 'c #d :e]
+						//
+						// Consider that an error.
+
+						raise Error_1(RE_BAD_FUNC_DEF, item);
+					}
 				}
 
-				// OTOH, all these would cancel a definitional return:
-				//
-				//     func [return [integer!]]
-				//     func [/value return]
-				//     func [/local return]
-				//
-				// The last one because /local is actually "just an ordinary
-				// refinement".  The choice of HELP to omit it could be
-				// a configuration setting.
+				if (SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
+					// Although return: is explicitly tolerated,  all these
+					// would cancel a definitional return:
+					//
+					//     func [return [integer!]]
+					//     func [/value return]
+					//     func [/local return]
+					//
+					// The last one because /local is actually "just an ordinary
+					// refinement".  The choice of HELP to omit it could be
+					// a configuration setting.
 
-				VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-					VAL_SERIES(spec), VAL_INDEX(spec)
-				);
-				has_return = FALSE;
-				goto check_spec;
+					VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
+						VAL_SERIES(spec), VAL_INDEX(spec)
+					);
+					has_return = FALSE;
+				}
 			}
 		}
 
-		// No prior RETURN (or other issue) stopping definitional return!
-		// Add the "true local" RETURN: to the spec.
+		if (has_return) {
+			// No prior RETURN (or other issue) stopping definitional return!
+			// Add the "true local" RETURN: to the spec.
 
-		if (index == 0) {
-			// If the incoming spec was [] and we are turning it to
-			// [return:], then that's a relatively common pattern
-			// (e.g. what DOES would manufacture).  Re-use a global instance
-			// of that series as an optimization.
+			if (index == 0) {
+				// If the incoming spec was [] and we are turning it to
+				// [return:], then that's a relatively common pattern
+				// (e.g. what DOES would manufacture).  Re-use a global
+				// instance of that series as an optimization.
 
-			VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_RETURN_BLOCK);
-		}
-		else {
-			VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-				VAL_SERIES(spec), VAL_INDEX(spec), 1 // +1 capacity hint
-			);
-			Append_Value(VAL_FUNC_SPEC(out), ROOT_RETURN_SET_WORD);
+				VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_RETURN_BLOCK);
+			}
+			else {
+				VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
+					VAL_SERIES(spec), VAL_INDEX(spec), 1 // +1 capacity hint
+				);
+				Append_Value(VAL_FUNC_SPEC(out), ROOT_RETURN_SET_WORD);
+			}
 		}
 	}
 
-check_spec:
 	// Spec checking will longjmp out with an error if the spec is bad
-	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(out), &func_flags);
+	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(out));
 
 	// We copy the body or do the empty body optimization to not copy and
 	// use the EMPTY_ARRAY (which probably doesn't happen often...)

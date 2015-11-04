@@ -849,6 +849,8 @@ reevaluate:
 				// really put it wherever is convenient--no position rule.
 				//
 				// So just skip over it and go on to the next.
+				//
+				// Note: set-word conversion is is how FUNC implements <local>
 			}
 			else if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
 

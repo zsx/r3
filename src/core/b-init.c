@@ -1123,6 +1123,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	const REBYTE transparent[] = "transparent";
 	const REBYTE infix[] = "infix";
+	const REBYTE local[] = "local";
 
 	DOUT("Main init");
 
@@ -1210,7 +1211,13 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	SET_UNSET(&Callback_Error);
 	PG_Boot_Phase = BOOT_ERRORS;
 
-	// We need these values around to compare to the tags we find in function
+	// Although the goal is for the core not to depend on any specific
+	// "keywords", there are some native-optimized generators that are not
+	// conceptually "part of the core".  Hence, they rely on some keywords,
+	// but a dissatisfied user could rewrite them with different ones
+	// (at only a cost in performance).
+	//
+	// We need these tags around to compare to the tags we find in function
 	// specs.  There may be a better place to put them or a better way to do
 	// it, but it didn't seem there was a "compare UTF8 byte array to
 	// arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
@@ -1228,6 +1235,13 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
+
+	Val_Init_Tag(
+		ROOT_LOCAL_TAG,
+		Append_UTF8(NULL, local, LEN_BYTES(local))
+	);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCK);
+	SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROT);
 
 	// Special pre-made errors:
 	Val_Init_Error(TASK_STACK_ERROR, Make_Error(RE_STACK_OVERFLOW, NULL));

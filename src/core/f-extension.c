@@ -416,8 +416,6 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 **
 ***********************************************************************/
 {
-	REBYTE func_exts; // extended bits for function value header
-
 	if (!IS_MODULE(extension) && !IS_OBJECT(extension)) goto bad_func_def;
 
 	// Check that handle and extension are somewhat valid (not used)
@@ -438,7 +436,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	VAL_FUNC_SPEC(out) =
 		Copy_Array_At_Deep_Managed(VAL_SERIES(spec), VAL_INDEX(spec));
 
-	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(spec), &func_exts);
+	VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(spec));
 
 	// Make sure the command doesn't use any types for which an "RXT" parallel
 	// datatype (to a REB_XXX type) has not been published:
@@ -465,7 +463,6 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 	MANAGE_SERIES(VAL_FUNC_BODY(out));
 
 	VAL_SET(out, REB_COMMAND); // clears exts and opts in header...
-	VAL_EXTS_DATA(out) = func_exts; // ...so we set this after that point
 
 	// Put the command REBVAL in slot 0 so that REB_COMMAND, like other
 	// function types, can find the function value from the paramlist.

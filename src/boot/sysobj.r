@@ -177,7 +177,7 @@ standard: context [
 	; or #BODY, just asserts the positions are ISSUE!.
 	;
 	func-body: [
-		comment {Optimized, but acts "as if" the boilerplate code were there.}
+		comment {boilerplate is equivalent user code (simulated, optimized)}
 		return: make #TYPE [
 			[{Returns a value from a function.} value [any-value!]]
 			[throw/name :value bind-of 'return]

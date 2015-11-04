@@ -265,7 +265,15 @@ dump-obj: function [
 	prin "USAGE:^/^-"
 
 	args: words-of :value
+
+	; !!! Historically, HELP would not show anything that happens after a
+	; /local.  The way it did this was to clear everything after /local
+	; in the WORDS-OF list.  But with the <local> tag, *the locals do
+	; not show up in the WORDS-OF list* because the FUNC generator
+	; converted them all
+	;
 	clear find args /local
+
 	either infix? :value [
 		print [args/1 word args/2]
 	][
