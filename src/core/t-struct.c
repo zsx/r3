@@ -743,8 +743,11 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 					++ blk;
 				} else {
-					eval_idx = Do_Next_May_Throw(
-						init, VAL_SERIES(data), blk - VAL_BLK_DATA(data)
+					DO_NEXT_MAY_THROW(
+						eval_idx,
+						init,
+						VAL_SERIES(data),
+						blk - VAL_BLK_DATA(data)
 					);
 					if (eval_idx == THROWN_FLAG)
 						raise Error_No_Catch_For_Throw(init);

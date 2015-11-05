@@ -1343,7 +1343,7 @@ append:
 	// per thread?
 
 	while (index < BLK_LEN(block)) {
-		index = Do_Next_May_Throw(out, block, index);
+		DO_NEXT_MAY_THROW(index, out, block, index);
 		if (index == THROWN_FLAG) {
 			DS_DROP_TO(start);
 			return TRUE;

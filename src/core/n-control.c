@@ -276,7 +276,7 @@ enum {
 	SET_TRUE(D_OUT);
 
 	while (index < SERIES_TAIL(block)) {
-		index = Do_Next_May_Throw(D_OUT, block, index);
+		DO_NEXT_MAY_THROW(index, D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
 		if (IS_CONDITIONAL_FALSE(D_OUT)) return R_NONE;
@@ -310,7 +310,7 @@ enum {
 	REBCNT index = VAL_INDEX(D_ARG(1));
 
 	while (index < SERIES_TAIL(block)) {
-		index = Do_Next_May_Throw(D_OUT, block, index);
+		DO_NEXT_MAY_THROW(index, D_OUT, block, index);
 		if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
 		if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
@@ -429,7 +429,7 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 
-		index = Do_Next_May_Throw(condition_result, block, index);
+		DO_NEXT_MAY_THROW(index, condition_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *condition_result; // is a RETURN, BREAK, THROW...
@@ -475,7 +475,7 @@ enum {
 		}
 	#endif
 
-		index = Do_Next_May_Throw(body_result, block, index);
+		DO_NEXT_MAY_THROW(index, body_result, block, index);
 
 		if (index == THROWN_FLAG) {
 			*D_OUT = *body_result; // is a RETURN, BREAK, THROW...
@@ -840,8 +840,8 @@ was_caught:
 	case REB_BLOCK:
 	case REB_PAREN:
 		if (D_REF(4)) { // next
-			VAL_INDEX(value) = Do_Next_May_Throw(
-				D_OUT, VAL_SERIES(value), VAL_INDEX(value)
+			DO_NEXT_MAY_THROW(
+				VAL_INDEX(value), D_OUT, VAL_SERIES(value), VAL_INDEX(value)
 			);
 
 			if (VAL_INDEX(value) == THROWN_FLAG) {

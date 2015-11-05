@@ -733,7 +733,8 @@ reevaluate:
 		break;
 
 	case REB_SET_WORD:
-		index = Do_Core(out, TRUE, block, index + 1, TRUE);
+		// `index` and `out` are modified
+		DO_NEXT_MAY_THROW_CORE(index, out, block, index + 1, TRUE);
 
 		if (index == THROWN_FLAG) goto return_index;
 
@@ -968,7 +969,9 @@ reevaluate:
 							|| IS_GET_PATH(quoted)
 						)
 					) {
-						index = Do_Core(arg, TRUE, block, index, !infix);
+						DO_NEXT_MAY_THROW_CORE(
+							index, arg, block, index, !infix
+						);
 						if (index == THROWN_FLAG) {
 							*out = *arg;
 							Free_Call(call);
@@ -1061,7 +1064,7 @@ reevaluate:
 				//     >> foo 1 + 2
 				//     a is 3
 				//
-				index = Do_Core(arg, TRUE, block, index, !infix);
+				DO_NEXT_MAY_THROW_CORE(index, arg, block, index, !infix);
 				if (index == THROWN_FLAG) {
 					*out = *arg;
 					Free_Call(call);
@@ -1199,7 +1202,7 @@ reevaluate:
 		break;
 
 	case REB_SET_PATH:
-		index = Do_Core(out, TRUE, block, index + 1, TRUE);
+		DO_NEXT_MAY_THROW_CORE(index, out, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
 		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, value);
@@ -1316,7 +1319,7 @@ return_index:
 
 	while (index < BLK_LEN(block)) {
 		REBVAL reduced;
-		index = Do_Next_May_Throw(&reduced, block, index);
+		DO_NEXT_MAY_THROW(index, &reduced, block, index);
 		if (index == THROWN_FLAG) {
 			*out = reduced;
 			DS_DROP_TO(dsp_orig);
@@ -1406,7 +1409,7 @@ return_index:
 		}
 		else {
 			REBVAL reduced;
-			index = Do_Next_May_Throw(&reduced, block, index);
+			DO_NEXT_MAY_THROW(index, &reduced, block, index);
 			if (index == THROWN_FLAG) {
 				*out = reduced;
 				DS_DROP_TO(dsp_orig);
@@ -1647,7 +1650,7 @@ return_index:
 			*arg = *value;
 		}
 		else if (reduce) {
-			index = Do_Next_May_Throw(arg, block, index);
+			DO_NEXT_MAY_THROW(index, arg, block, index);
 			if (index == THROWN_FLAG) {
 				*out = *arg; // `arg` may be equal to `out` (if `too_many`)
 				Free_Call(call);

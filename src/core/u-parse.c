@@ -579,7 +579,7 @@ bad_target:
 	}
 
 	// Evaluate next N input values:
-	index = Do_Next_May_Throw(&value, parse->series, index);
+	DO_NEXT_MAY_THROW(index, &value, parse->series, index);
 
 	if (index == THROWN_FLAG) {
 		// Value is a THROW, RETURN, BREAK, etc...we have to stop processing

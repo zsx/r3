@@ -1122,7 +1122,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		if (!IS_BLOCK(&blk[0]))
 			raise Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0]));
 
-		fn_idx = Do_Next_May_Throw(&lib, VAL_SERIES(data), 1);
+		DO_NEXT_MAY_THROW(fn_idx, &lib, VAL_SERIES(data), 1);
 		if (fn_idx == THROWN_FLAG)
 			raise Error_No_Catch_For_Throw(&lib);
 
@@ -1170,7 +1170,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 		if (!IS_BLOCK(&blk[0]))
 			raise Error_Invalid_Arg(&blk[0]);
 
-		fn_idx = Do_Next_May_Throw(&fun, VAL_SERIES(data), 1);
+		DO_NEXT_MAY_THROW(fn_idx, &fun, VAL_SERIES(data), 1);
 		if (fn_idx == THROWN_FLAG)
 			raise Error_No_Catch_For_Throw(&fun);
 
