@@ -1578,6 +1578,7 @@ return_index:
 			// We need to skip over "pure locals", e.g. those created in
 			// the spec with a SET-WORD!.  (They are useful for generators)
 			param++;
+			arg++;
 			continue;
 		}
 
@@ -1650,15 +1651,15 @@ return_index:
 	// detect if we are trying to run an incomplete parameterization.
 
 	while (!IS_END(param)) {
-		SET_NONE(arg);
-
 		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
 			// A true local...to be ignored as far as block args go.
 			// Very likely to hit them at the end of the paramlist because
-			// that's where the function function generators tack on RETURN:
+			// that's where the function generators tack on RETURN:
 		}
-		else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
+		else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 			ignoring = TRUE;
+			SET_NONE(arg);
+		}
 		else {
 			if (!ignoring) {
 				// If we aren't in ignore mode and we are dealing with
@@ -1667,6 +1668,7 @@ return_index:
 
 				raise Error_No_Arg(DSF_LABEL(call), param);
 			}
+			SET_NONE(arg);
 		}
 
 		arg++;
