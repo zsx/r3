@@ -1336,8 +1336,14 @@ struct Reb_Function {
 #define VAL_FUNC_ACT(v)       ((v)->data.func.func.act)
 #define VAL_FUNC_INFO(v)      ((v)->data.func.func.info)
 
-// An EXT_FUNC_HAS_RETURN function overwrites REBNATIVE(return)'s
-// VAL_FUNC_CODE with the identifying series or frame it wants to return to.
+// EXT_FUNC_HAS_RETURN functions use the RETURN native's function value to give
+// the definitional return its prototype, but overwrite its code pointer to
+// hold the paramlist of the target.
+//
+// Do_Native_Throws() sees when someone tries to execute one of these "native
+// returns"...and instead interprets it as a THROW whose /NAME is the function
+// value.  The paramlist has that value (it's the REBVAL in slot #0)
+//
 #define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
 
 typedef struct Reb_Path_Value {

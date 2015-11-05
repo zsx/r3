@@ -1443,7 +1443,7 @@
 
 	// Find relative value:
 	call = DSF;
-	while (VAL_WORD_FRAME(word) != VAL_WORD_FRAME(DSF_LABEL(call))) {
+	while (VAL_WORD_FRAME(word) != VAL_FUNC_PARAMLIST(DSF_FUNC(call))) {
 		call = PRIOR_DSF(call);
 		if (!call) raise Error_1(RE_NO_RELATIVE, word);
 	}

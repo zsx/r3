@@ -611,9 +611,9 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 **
 ***********************************************************************/
 {
-#if !defined(NDEBUG)
 	REBINT dsp_orig = DSP;
 
+#if !defined(NDEBUG)
 	static REBCNT count_static = 0;
 	REBCNT count;
 #endif
@@ -629,6 +629,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	const REBVAL *label;
 
 	const REBVAL *refinements;
+	REBFLG ignoring; // are we processing parameters of an unused refinement?
 
 	// We use the convention that "param" refers to the word from the spec
 	// of the function (a.k.a. the "formal" argument) and "arg" refers to
@@ -830,29 +831,97 @@ reevaluate:
 			arg++;
 		}
 
-		// This loop goes through the parameter and argument slots.  It
-		// starts out going in order, BUT note that when processing
-		// refinements, this may "jump around".  (This happens if the path
-		// generating the call doesn't specify the refinements in the same
-		// order as was in the definition.
+		// !!! Currently, path evaluation "punts" on refinements.  When it
+		// finds a function, it stops the path evaluation and passes back
+		// the unprocessed remainder to the evaluator.  A more elegant
+		// solution would be able to process and notice (for instance) that
+		// `:APPEND/ONLY` should yield a function value that has been
+		// specialized with a refinement.  Path chaining should thus be
+		// able to effectively do this and give the refined function object
+		// back to the evaluator or other client.
 		//
+		// That is not implemented yet, and even when it is there will be
+		// a need to "cheat" such that temporary function objects are not
+		// craeted when they would just be invoked and immediately GC'd.
+		// A trick would be to have the path evaluation gather the refinements
+		// on the data stack as it went and make a decision at the end
+		// about how to handle it.
+		//
+		// This code simulates that path-processing-to-data-stack, but it
+		// should really be something Do_Path does.  In any case, we put the
+		// refinements on the data stack...and we know refinements are from
+		// dsp_orig to DSP (thanks to accounting, all other operations
+		// should balance!)
+
+		for (; refinements && NOT_END(refinements); refinements++) {
+			if (IS_PAREN(refinements)) {
+				// It's okay for us to mess with the `out` slot here, since
+				// any infix parameter or function value that had lived in
+				// that slot has been safely moved to the call frame
+				if (DO_ARRAY_THROWS(out, refinements)) {
+					Free_Call(call);
+					DS_DROP_TO(dsp_orig);
+					goto return_index;
+				}
+				if (IS_NONE(out)) continue;
+				if (!IS_WORD(out)) raise Error_1(RE_BAD_REFINE, out);
+				DS_PUSH(out);
+			}
+			else if (IS_GET_WORD(refinements)) {
+				*out = *GET_VAR(refinements);
+				if (IS_NONE(out)) continue;
+				if (!IS_WORD(out)) raise Error_1(RE_BAD_REFINE, out);
+				DS_PUSH(out);
+			}
+			else if (IS_WORD(refinements))
+				DS_PUSH(refinements);
+			else if (!IS_NONE(refinements))
+				raise Error_1(RE_BAD_REFINE, out);
+		}
+
+		// This loop goes through the parameter and argument slots, in order.
+		//
+		// Note that in debug builds Make_Call initialized all the arg slots
+		// with SET_TRASH_SAFE, so we have to at minimum overwrite the arg
+		// w/UNSET in debug builds to silence later alerts about the trash.
+
+		ignoring = FALSE;
+
 		for (; NOT_END(param); param++, arg++) {
 
 			assert(IS_TYPESET(param));
 
 			if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
-				// When the spec contained a SET-WORD!, that was a "true
+				// When the spec contained a SET-WORD!, that was a "pure
 				// local".  It corresponds to no argument and will not
 				// appear in WORDS-OF.  Unlike /local, it cannot be used
 				// for "locals injection".  Helpful when writing generators
 				// because you don't have to go find /local (!), you can
 				// really put it wherever is convenient--no position rule.
-				//
-				// So just skip over it and go on to the next.
-				//
-				// Note: set-word conversion is is how FUNC implements <local>
+
+				// A special trick for functions marked EXT_FUNC_HAS_RETURN
+				// puts a "magic" REBNATIVE(return) value into the arg slot
+				// for pure locals named RETURN: ....used by FUNC and CLOS
+
+				if (
+					VAL_GET_EXT(value, EXT_FUNC_HAS_RETURN)
+					&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+				) {
+					*arg = *ROOT_RETURN_NATIVE;
+					VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(value);
+				}
+				else {
+				#if !defined(NDEBUG)
+					// overwrite the GC safe trash in debug builds in slot
+					SET_UNSET(arg);
+				#endif
+				}
 			}
 			else if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
+				if (ignoring) {
+					SET_NONE(arg);
+					continue;
+				}
 
 				// Using a GET-WORD! in the function spec indicates that you
 				// would like that argument to be EXT_TYPESET_QUOTE, e.g.
@@ -903,6 +972,9 @@ reevaluate:
 						if (index == THROWN_FLAG) {
 							*out = *arg;
 							Free_Call(call);
+							// If we have refinements pending on the data
+							// stack we need to balance those...
+							DS_DROP_TO(dsp_orig);
 							goto return_index;
 						}
 						if (index == END_FLAG)
@@ -916,119 +988,70 @@ reevaluate:
 					SET_UNSET(arg); // series end UNSET! trick
 			}
 			else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
-				// Refinements are tricky because we may hit them in the spec
-				// at a time when they are not at the position in the path
-				// used to invoke that is being processed.  Also, we cannot
-				// write directly into `arg` unless we find a fit, because
-				// we may be scanning across an already-fulfilled refinement
-				// arg we shouldn't mess up.  `out` is available as a
-				// temporary storage space in its place.
-				//
-				if (!refinements || IS_END(refinements))
-					goto function_ready_to_call;
+				// Refinements are from dsp_orig to DSP.  We tweak them off
+				// the data stack each time we find one.
+				REBVAL *temp;
 
-				// !!! Path evaluation needs to be redone to be able to do
-				// "refinement specialization" and other things, but this
-				// poor-man's-evaluator lets us look up a GET-WORD! or
-				// skip over a NONE! (if we ran a PAREN! under this model,
-				// we'd risk doing an evaluation more than once... no good.)
-				//
-				while (TRUE) {
-					if (IS_GET_WORD(&refinements[0]))
-						*out = *GET_VAR(&refinements[0]);
-					else
-						*out = refinements[0];
-					if (IS_WORD(out))
-						break;
-					else if (IS_NONE(out)) {
-						refinements++;
-						if (IS_END(refinements))
-							goto function_ready_to_call;
-					}
-					else
-						raise Error_1(RE_BAD_REFINE, out);
-				}
-
-				// Optimize, if the refinement is the next arg:
-				if (SAME_SYM(VAL_WORD_SYM(out), VAL_TYPESET_SYM(param))) {
-					refinements++;
-
-				#if !defined(NDEBUG)
-					if (TYPE_CHECK(param, REB_LOGIC)) {
-						// OPTIONS_REFINEMENTS_TRUE at function create
-						SET_TRUE(arg);
-						continue;
-					}
-				#endif
-
-					Val_Init_Word_Unbound(
-						arg, REB_WORD, VAL_TYPESET_SYM(param)
-					);
-
-					// skip type check on refinement itself, and let the
-					// loop process its arguments (if any)
+				if (dsp_orig == DSP) {
+					// No refinements left to search, set to none and start
+					// ignoring args until next refinement...
+					SET_NONE(arg);
+					ignoring = TRUE;
 					continue;
 				}
 
-			seek_refinement:
-				// Code is redundant if we are coming from REB_REFINEMENT
-				// case above, but not if we're jumping in.
-				//
-				// !!! This will be gone when path eval pre-evaluates
-				// function refinements, likely targeted to data stack
-				//
+				temp = DS_AT(dsp_orig + 1);
+
 				while (TRUE) {
-					if (IS_GET_WORD(&refinements[0]))
-						*out = *GET_VAR(&refinements[0]);
-					else
-						*out = refinements[0];
-					if (IS_WORD(out))
+					if (
+						SAME_SYM(
+							VAL_WORD_SYM(temp),
+							VAL_TYPESET_SYM(param)
+						)
+					) {
+						if (temp == DS_TOP)
+							DS_DROP;
+						else
+							DS_POP_INTO(temp);
+						temp = NULL;
 						break;
-					else if (IS_NONE(out)) {
-						refinements++;
-						if (IS_END(refinements))
-							goto function_ready_to_call;
 					}
-					else
-						raise Error_1(RE_BAD_REFINE, out);
+					if (temp == DS_TOP) break;
+					temp++;
 				}
 
-				param = VAL_FUNC_PARAM(value, 1);
-				arg = DSF_ARG(call, 1);
-				for (; NOT_END(param); param++, arg++) {
-					if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT))
-						if (SAME_SYM(
-							VAL_TYPESET_SYM(param), VAL_WORD_SYM(out)
-						)) {
-							refinements++;
-
-						#if !defined(NDEBUG)
-							if (TYPE_CHECK(param, REB_LOGIC)) {
-								// OPTIONS_REFINEMENTS_TRUE at function create
-								SET_TRUE(arg);
-								break;
-							}
-						#endif
-
-							Val_Init_Word_Unbound(
-								arg, REB_WORD, VAL_TYPESET_SYM(param)
-							);
-							break; // will fall through to continue below
-						}
+				// If we didn't set temp to NULL and hit the end,
+				// then we didn't find and remove it from the data stack...
+				// so it's not used!
+				if (temp) {
+					SET_NONE(arg);
+					ignoring = TRUE;
+					continue;
 				}
-				// Was refinement found? If not, error:
-				if (IS_END(param))
-					raise Error_2(RE_NO_REFINE, DSF_LABEL(call), out);
 
-				// skip type check on refinement itself, and let the
-				// loop process its arguments (if any)
-				continue;
+				ignoring = FALSE;
+
+			#if !defined(NDEBUG)
+				if (TYPE_CHECK(param, REB_LOGIC)) {
+					// OPTIONS_REFINEMENTS_TRUE at function create
+					SET_TRUE(arg);
+				}
+				else
+			#endif
+					Val_Init_Word_Unbound(
+						arg, REB_WORD, VAL_TYPESET_SYM(param)
+					);
 			}
 			else {
 				// !!! Note: ROUTINE! does not set any bits on the symbols
 				// and will need to be made to...
 				//
 				// assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
+
+				if (ignoring) {
+					SET_NONE(arg);
+					continue;
+				}
 
 				// An ordinary WORD! in the function spec indicates that you
 				// would like that argument to be evaluated normally.
@@ -1042,6 +1065,9 @@ reevaluate:
 				if (index == THROWN_FLAG) {
 					*out = *arg;
 					Free_Call(call);
+					// If we have refinements pending on the data
+					// stack we need to balance those...
+					DS_DROP_TO(dsp_orig);
 					goto return_index;
 				}
 				if (index == END_FLAG)
@@ -1055,8 +1081,21 @@ reevaluate:
 				raise Error_Arg_Type(call, param, Type_Of(arg));
 		}
 
-		// Hack to process remaining path:
-		if (refinements && NOT_END(refinements)) goto seek_refinement;
+		// If all the refinements on the stack did not get balanced, then
+		// they weren't all found on the function.  Pick the first one
+		// to complain about.
+		//
+		// !!! This will complain differently than a proper "REFINED!" strategy
+		// would complain, because if you do:
+		//
+		//     append/(second [only asdhjas])/(print "hi") [a b c] [d]
+		//
+		// ...it would never make it to the print.  Here we do all the path
+		// and paren evals up front and check that things are words or NONE,
+		// not knowing if a refinement isn't on the function until the end.
+
+		if (DSP != dsp_orig)
+			raise Error_1(RE_BAD_REFINE, DS_AT(dsp_orig + 1));
 
 	function_ready_to_call:
 		// Execute the function with all arguments ready
@@ -1577,6 +1616,25 @@ return_index:
 		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
 			// We need to skip over "pure locals", e.g. those created in
 			// the spec with a SET-WORD!.  (They are useful for generators)
+			//
+			// The special exception is a RETURN: local, if it is "magic"
+			// (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
+			// that is "magic" and knows to return to *this* function...
+
+			if (
+				VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
+				&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+			) {
+				*arg = *ROOT_RETURN_NATIVE;
+				VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
+			}
+			else {
+			#if !defined(NDEBUG)
+				// Frame used trash in debug builds
+				SET_UNSET(arg);
+			#endif
+			}
+
 			param++;
 			arg++;
 			continue;
@@ -1655,6 +1713,20 @@ return_index:
 			// A true local...to be ignored as far as block args go.
 			// Very likely to hit them at the end of the paramlist because
 			// that's where the function generators tack on RETURN:
+
+			if (
+				VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
+				&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+			) {
+				*arg = *ROOT_RETURN_NATIVE;
+				VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
+			}
+			else {
+			#if !defined(NDEBUG)
+				// Frame used trash in debug builds
+				SET_UNSET(arg);
+			#endif
+			}
 		}
 		else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 			ignoring = TRUE;
@@ -1668,6 +1740,8 @@ return_index:
 
 				raise Error_No_Arg(DSF_LABEL(call), param);
 			}
+
+			// change this to UNSET!...
 			SET_NONE(arg);
 		}
 
