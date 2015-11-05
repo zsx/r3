@@ -1669,7 +1669,7 @@ return_index:
 				ignoring = FALSE;
 
 			#ifdef NDEBUG
-				Val_Init_Word_Unbound(arg, REB_WORD, VAL_WORD_SYM(param));
+				Val_Init_Word_Unbound(arg, REB_WORD, VAL_TYPESET_SYM(param));
 			#else
 				if (TYPE_CHECK(param, REB_LOGIC)) {
 					// OPTIONS_REFINEMENTS_TRUE at function create
