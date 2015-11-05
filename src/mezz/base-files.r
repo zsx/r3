@@ -155,7 +155,7 @@ file-type?: func [
 	"Return the identifying word for a specific file type (or NONE)."
 	file [file! url!]
 ][
-	relax if file: find find system/options/file-types suffix? file word! [
+	to-value if file: find find system/options/file-types suffix? file word! [
 		first file
 	]
 ]
