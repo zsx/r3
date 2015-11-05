@@ -854,6 +854,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 	REBVAL *keys = BLK_HEAD(keylist);
 	REBVAL *vals  = VAL_OBJ_VALUES(value); // first value is context
 	REBCNT n;
+	REBFLG had_output = FALSE;
 
 	// Prevent endless mold loop:
 	if (Find_Same_Block(MOLD_LOOP, value) > 0) {
@@ -864,10 +865,16 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 	// Mold all words and their values:
 	for (n = 1; n < SERIES_TAIL(keylist); n++) {
-		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE))
+		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE)) {
+			had_output = TRUE;
 			Emit(mold, "N: V\n", VAL_TYPESET_SYM(keys + n), vals + n);
+		}
 	}
-	Remove_Sequence_Last(mold->series);
+
+	// Remove the final newline...but only if WE added something to the buffer
+	if (had_output)
+		Remove_Sequence_Last(mold->series);
+
 	Remove_Array_Last(MOLD_LOOP);
 }
 
