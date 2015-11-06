@@ -847,19 +847,6 @@ xor?: native [
 	value2
 ]
 
-
-;-- New, hackish stuff:
-
-++: native [
-	{Increment an integer or series index. Return its prior value.}
-	'word [word!] "Integer or series variable"
-]
-
---: native [
-	{Decrement an integer or series index. Return its prior value.}
-	'word [word!] "Integer or series variable"
-]
-
 stack: native [
 	{Returns stack backtrace or other values.}
 	offset [integer!] "Relative backward offset"
