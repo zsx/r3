@@ -378,6 +378,11 @@ bound?: native [
 	word [any-word!]
 ]
 
+set?: native [
+	{Returns whether a value is set.}
+	cell [unset! any-value!]
+]
+
 collect-words: native [
 	"Collect unique words used in a block (used for context construction)."
 	block [block!]
