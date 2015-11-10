@@ -43,6 +43,7 @@ if (WIN32)
 		TO_WINDOWS
 		ENDIAN_LITTLE
 		UNICODE
+		_UNICODE
 		)
 	set(LIBS wsock32 comdlg32)
 elseif (APPLE)
