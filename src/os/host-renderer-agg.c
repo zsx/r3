@@ -2,12 +2,19 @@
 
 #include "reb-host.h"
 #include "host-renderer.h"
+#include "host-text-api.h"
 #include "host-draw-api-agg.h"
 #include <SDL.h>
 
 static int agg_init(REBRDR *renderer)
 {
-	return 0; /* always success */
+	int ret = 0;
+
+	if (renderer->text && renderer->text->init) {
+		ret = renderer->text->init(renderer->text);
+	}
+
+	return ret;
 }
 
 static REBDRW_CTX* agg_create_draw_context(SDL_Window *win, REBINT w, REBINT h)

@@ -124,6 +124,19 @@ extern "C" void agg_destroy_rich_text(void* rt)
 {
    delete (rich_text*)rt;
 }
+extern "C" int agg_rt_init(REBRDR_TXT *txt)
+{
+	txt->rich_text = Rich_Text = agg_create_rich_text();
+	if (txt->rich_text) return 0;
+
+	return -1;
+}
+
+extern "C" void agg_rt_fini(REBRDR_TXT *txt)
+{
+	if (!txt) return;
+	agg_destroy_rich_text(txt->rich_text);
+}
 
 extern "C" void agg_rt_anti_alias(void* rt, REBINT mode)
 {
@@ -297,9 +310,17 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_size_text(size);
 }
 
-extern "C" void agg_rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
+extern "C" void agg_rt_text(void* rt, REBSER* text, REBINT index)
 {
-((rich_text*)rt)->rt_set_text(text, dealloc);
+	REBCHR* str;
+#ifdef TO_WINDOWS
+	//Windows uses UTF16 wide chars
+	REBOOL dealloc = As_OS_Str(text, &str);
+#else
+	//linux, android use UTF32 wide chars
+	REBOOL dealloc = As_UTF32_Str(text, &str);
+#endif		
+((rich_text*)rt)->rt_set_text(str, dealloc);
 ((rich_text*)rt)->rt_push(index);
 }
 

@@ -43,7 +43,7 @@ typedef struct REBOL_FONT {
 	REBINT italic;
 	REBINT underline;
 	REBINT size;
-	REBYTE* color;
+	REBCNT color;
 	REBINT offset_x;
 	REBINT offset_y;
 	REBINT space_x;
@@ -70,6 +70,9 @@ typedef struct REBOL_PARA {
 } REBPRA;
 
 struct REBRDR_TXT {
+	void *rich_text;
+	int (*init) (REBRDR_TXT *);
+	void (*fini) ();
 	void* (*create_rich_text)();
 	void (*destroy_rich_text)(void *rt);
 	void (*rt_anti_alias)(void* rt, REBINT mode);
@@ -91,11 +94,11 @@ struct REBRDR_TXT {
 	void (*rt_shadow)(void* rt, REBXYF d, REBCNT color, REBINT blur);
 	void (*rt_set_font_styles)(REBFNT* font, u32 word);
 	void (*rt_size_text)(void* rt, REBGOB* gob, REBXYF* size);
-	void (*rt_text)(void* gr, REBCHR* text, REBINT index, REBCNT gc);
+	void (*rt_text)(void* gr, REBSER* text, REBINT index);
 	void (*rt_underline)(void* rt, REBINT state);
 
 	void (*rt_offset_to_caret)(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);
 	void (*rt_caret_to_offset)(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position);
 	REBINT (*rt_gob_text)(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom);
-	void (*rt_block_text)(void *rt, REBSER *block);
+	void (*rt_block_text)(void *rt, void * draw_ctx, REBSER *block);
 };

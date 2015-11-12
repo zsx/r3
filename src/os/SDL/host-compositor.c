@@ -51,6 +51,7 @@
 #include "host-view.h"
 #include "host-renderer.h"
 #include "host-draw-api.h"
+#include "host-text-api.h"
 
 void* Find_Window(REBGOB *gob);
 
@@ -209,7 +210,7 @@ typedef struct {
 
 			case GOBT_TEXT:
 			case GOBT_STRING:
-				//rebol_renderer->text->rt_gob_text(gob, ctx->draw_ctx, offset, top, bottom);
+				rebol_renderer->text->rt_gob_text(gob, ctx->draw_ctx, offset, top, bottom);
 				break;
 
 			case GOBT_EFFECT:
@@ -331,5 +332,6 @@ typedef struct {
 **
 ***********************************************************************/
 {
+	//printf("%s\n", __FUNCTION__);
 	rebol_renderer->blit_frame(ctx->draw_ctx, &ctx->clip);
 }

@@ -7,6 +7,8 @@
 #include "host-text-api-agg.h"
 
 struct REBRDR_TXT text_agg = {
+	.init = agg_rt_init,
+	.fini = agg_rt_fini,
 	.create_rich_text = agg_create_rich_text,
 	.destroy_rich_text = agg_destroy_rich_text,
 	.rt_anti_alias = agg_rt_anti_alias,

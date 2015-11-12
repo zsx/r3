@@ -80,10 +80,10 @@ view: func [
 				priority: 50
 				handler: func [event] [
 					print ["view-event:" event/type event/offset]
-					if switch event/type [
+					if switch/default event/type [
 						close [true]
 						key [event/key = escape]
-					][
+					][false][
 						unhandle-events self
 						unview event/window
 						quit

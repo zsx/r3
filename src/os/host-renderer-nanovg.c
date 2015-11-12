@@ -10,6 +10,7 @@
 
 #include "reb-host.h"
 #include "host-renderer.h"
+#include "host-text-api.h"
 #include "host-draw-api-nanovg.h"
 
 void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
@@ -30,7 +31,7 @@ void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 		PAINT_LAYER(ctx, layer, paint_mode, 1.0f, clip_oft, clip_size);\
 	} while (0)
 
-static int sdl_gl_swap_interval = 1;
+static int sdl_gl_swap_interval = 0;
 
 static int nanovg_init(REBRDR *renderer)
 {
@@ -90,6 +91,10 @@ static int nanovg_init(REBRDR *renderer)
 	if (!glewIsSupported("GL_VERSION_3_2")) {
 		ret = -6;
 		goto cleanup;
+	}
+
+	if (renderer->text && renderer->text->init) {
+		ret = renderer->text->init(renderer->text);
 	}
 
 cleanup:
@@ -156,7 +161,11 @@ static REBDRW_CTX* nanovg_create_draw_context(SDL_Window *win, REBINT w, REBINT 
 
 	ctx->ww = w;
 	ctx->wh = h;
+#ifdef DEBUG
 	ctx->nvg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
+#else
+	ctx->nvg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+#endif
 	ctx->fill_image = 0;
 	ctx->stroke_image = 0;
 	ctx->fill = FALSE;
@@ -239,7 +248,6 @@ static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	nvgScissor(ctx->nvg, clip->x, clip->y, clip->w, clip->h);
 	PAINT_LAYER_FULL(ctx, ctx->win_layer, NVG_SOURCE_OVER);
 	//printf("End frame: %d\n", __LINE__);
 	nvgEndFrame(ctx->nvg);

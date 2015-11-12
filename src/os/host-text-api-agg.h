@@ -4,6 +4,8 @@ extern "C" {
 
 extern void* agg_create_rich_text();
 extern void agg_destroy_rich_text(void* rt);
+extern int agg_rt_init(REBRDR_TXT *txt);
+extern void agg_rt_fini(REBRDR_TXT *txt);
 extern void agg_rt_anti_alias(void* rt, REBINT mode);
 extern void agg_rt_bold(void* rt, REBINT state);
 extern void agg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd);
@@ -23,7 +25,7 @@ extern void agg_rt_scroll(void* rt, REBXYF offset);
 extern void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur);
 extern void agg_rt_set_font_styles(void* font, u32 word);
 extern void agg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size);
-extern void agg_rt_text(void* gr, REBCHR* text, REBINT index, REBCNT gc);
+extern void agg_rt_text(void* gr, REBSER* text, REBINT index);
 extern void agg_rt_underline(void* rt, REBINT state);
 
 extern void agg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);

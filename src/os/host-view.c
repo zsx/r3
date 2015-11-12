@@ -344,10 +344,9 @@ REBINT Alloc_Window(REBGOB *gob) {
             return RXR_VALUE;
         }
         case CMD_GRAPHICS_SIZE_TEXT:
-		
-            if (Rich_Text && rebol_renderer->text) {
+            if (rebol_renderer->text) {
                 RXA_TYPE(frm, 2) = RXT_PAIR;
-                rebol_renderer->text->rt_size_text(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
+                rebol_renderer->text->rt_size_text(rebol_renderer->text->rich_text, (REBGOB*)RXA_SERIES(frm, 1),&RXA_PAIR(frm, 2));
 				RXA_PAIR(frm, 1).x = PHYS_COORD_X(RXA_PAIR(frm, 2).x);
 				RXA_PAIR(frm, 1).y = PHYS_COORD_Y(RXA_PAIR(frm, 2).y);
                 RXA_TYPE(frm, 1) = RXT_PAIR;
@@ -357,14 +356,14 @@ REBINT Alloc_Window(REBGOB *gob) {
             break;
 
         case CMD_GRAPHICS_OFFSET_TO_CARET:
-            if (Rich_Text && rebol_renderer->text) {
+            if (rebol_renderer->text) {
                 REBINT element = 0, position = 0;
                 REBSER* dialect;
                 REBSER* block;
                 RXIARG val; //, str;
                 REBCNT n, type;
 				REBXYF coord = RXA_LOG_PAIR(frm, 2);
-                rebol_renderer->text->rt_offset_to_caret(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), coord, &element, &position);
+                rebol_renderer->text->rt_offset_to_caret(rebol_renderer->text->rich_text, (REBGOB*)RXA_SERIES(frm, 1), coord, &element, &position);
 //                RL_Print("OTC: %dx%d %d, %d\n", (int)RXA_LOG_PAIR(frm, 2).x, (int)RXA_LOG_PAIR(frm, 2).y, element, position);
                 dialect = (REBSER *)GOB_CONTENT((REBGOB*)RXA_SERIES(frm, 1));
                 block = RL_MAKE_BLOCK(RL_SERIES(dialect, RXI_SER_TAIL));
@@ -383,7 +382,7 @@ REBINT Alloc_Window(REBGOB *gob) {
             break;
 
         case CMD_GRAPHICS_CARET_TO_OFFSET:
-            if (Rich_Text && rebol_renderer->text) {
+            if (rebol_renderer->text) {
                 REBXYF result;
                 REBINT elem,pos;
                 if (RXA_TYPE(frm, 2) == RXT_INTEGER){
@@ -397,7 +396,7 @@ REBINT Alloc_Window(REBGOB *gob) {
                     pos = RXA_INDEX(frm, 3);
                 }
 
-		rebol_renderer->text->rt_caret_to_offset(Rich_Text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
+				rebol_renderer->text->rt_caret_to_offset(rebol_renderer->text->rich_text, (REBGOB*)RXA_SERIES(frm, 1), &result, elem, pos);
 
                 RXA_TYPE(frm, 1) = RXT_PAIR;
 				RXA_ARG(frm, 1).pair.x = ROUND_TO_INT(PHYS_COORD_X(result.x));
@@ -521,10 +520,10 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 #if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
             //Initialize text rendering context
-	    if (rebol_renderer && rebol_renderer->text) {
-		    if (Rich_Text) rebol_renderer->text->destroy_rich_text(Rich_Text);
-		    Rich_Text = rebol_renderer->text->create_rich_text();
-	    }
+//	    if (rebol_renderer && rebol_renderer->text) {
+//		    if (Rich_Text) rebol_renderer->text->destroy_rich_text(Rich_Text);
+//		    Rich_Text = rebol_renderer->text->create_rich_text();
+//	    }
 #endif
             break;
 

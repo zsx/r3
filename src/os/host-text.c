@@ -295,7 +295,7 @@ static u32* text_ext_words;
                     case W_TEXT_COLOR:
                         if (type == RXT_TUPLE) {
 							REBCNT col = RXI_COLOR_TUPLE(val);
-							memcpy(font->color,(REBYTE*)&col , 4);
+							memcpy(&font->color,(REBYTE*)&col , 4);
 						}
                         break;
 
@@ -474,17 +474,7 @@ static u32* text_ext_words;
 		break;
 
     case CMD_TEXT_TEXT:
-        {
-            REBCHR* str;
-#ifdef TO_WIN32
-			//Windows uses UTF16 wide chars
-			REBOOL dealloc = As_OS_Str(RXA_SERIES(frm, 1), &str);
-#else
-			//linux, android use UTF32 wide chars
-            REBOOL dealloc = As_UTF32_Str(RXA_SERIES(frm, 1), &str);
-#endif			
-            rebol_renderer->text->rt_text(ctx->envr, str, ctx->index + 2, dealloc);
-        }
+		rebol_renderer->text->rt_text(ctx->envr, RXA_SERIES(frm, 1), ctx->index + 2);
         break;
 
     case CMD_TEXT_UNDERLINE:

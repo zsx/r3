@@ -68,6 +68,8 @@ struct REBDRW_CTX {
 	int 		fill_image;
 	int 		stroke_image;
 
+	REBCNT		fill_color; /* passed to text renderer */
+
 	NVGcolor	key_color;
 	unsigned int fill: 1;
 	unsigned int stroke: 1;
@@ -80,3 +82,9 @@ struct REBDRW_CTX {
 	float		last_control_x;
 	float		last_control_y;
 };
+
+#define REBCNT_NVG_COLOR(c) \
+	nvgRGBA(((unsigned char*)&(c))[C_R], \
+			((unsigned char*)&(c))[C_G], \
+			((unsigned char*)&(c))[C_B], \
+			((unsigned char*)&(c))[C_A])

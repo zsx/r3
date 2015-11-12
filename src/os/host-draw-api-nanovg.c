@@ -45,7 +45,9 @@
 
 #include "host-view.h"
 #include "host-renderer.h"
+#include "host-text-api.h"
 #include "host-draw-api.h"
+#include "host-ext-draw.h"
 
 #define NANOVG_GL3_IMPLEMENTATION   // Use GL3 implementation.
 #define NANOVG_FBO_VALID
@@ -55,6 +57,7 @@
 
 #include "nanovg_gl.h"
 #include "host-draw-api-nanovg.h"
+#include "host-text-api-nanovg.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -67,7 +70,7 @@ static void nvgdrw_add_poly_vertex (void* gr, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	nvgLineTo(ctx->nvg, p.x, p.y);
 
-	printf("new polygen vertex at (%f, %f)\n", p.x, p.y);
+	//printf("new polygen vertex at (%f, %f)\n", p.x, p.y);
 
 	//((agg_graphics*)gr)->agg_add_vertex(p.x, p.y);
 }
@@ -77,7 +80,7 @@ static void nvgdrw_add_spline_vertex (void* gr, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	nvgLineTo(ctx->nvg, p.x, p.y);
 
-	printf("new spline vertex at (%f, %f)\n", p.x, p.y);
+	//printf("new spline vertex at (%f, %f)\n", p.x, p.y);
 }
 
 static void nvgdrw_anti_alias(void* gr, REBINT mode)
@@ -88,7 +91,7 @@ static void nvgdrw_anti_alias(void* gr, REBINT mode)
 #define BEGIN_NVG_PATH(ctx) 					\
 	do { 									\
 		if (! ((ctx)->fill || (ctx)->stroke)) {	\
-			printf("early return from line %d because of no fill or stroke\n", __LINE__); \
+			/* printf("early return from line %d because of no fill or stroke\n", __LINE__); */\
 			return; 						\
 		} 									\
 		nvgBeginPath((ctx)->nvg); 			\
@@ -105,12 +108,6 @@ static void nvgdrw_anti_alias(void* gr, REBINT mode)
 			nvgStroke((ctx)->nvg);	\
 		} 							\
 	} while (0)
-
-#define REBCNT_NVG_COLOR(c) \
-	nvgRGBA(((unsigned char*)&(c))[C_R], \
-			((unsigned char*)&(c))[C_G], \
-			((unsigned char*)&(c))[C_B], \
-			((unsigned char*)&(c))[C_A])
 
 #define PAINT_LAYER(ctx, layer, paint_mode, alpha, clip_oft, clip_size) 	\
 	do {												\
@@ -224,7 +221,7 @@ static void nvgdrw_begin_poly (void* gr, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
 	nvgMoveTo(ctx->nvg, p.x, p.y);
-	printf("new polygen at: (%f, %f)\n", p.x, p.y);
+	//printf("new polygen at: (%f, %f)\n", p.x, p.y);
 }
 
 static void nvgdrw_begin_spline (void* gr, REBXYF p)
@@ -232,7 +229,7 @@ static void nvgdrw_begin_spline (void* gr, REBXYF p)
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	BEGIN_NVG_PATH(ctx);
 	nvgMoveTo(ctx->nvg, p.x, p.y);
-	printf("new polygen at: (%f, %f)\n", p.x, p.y);
+	//printf("new polygen at: (%f, %f)\n", p.x, p.y);
 }
 
 static void nvgdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
@@ -284,7 +281,7 @@ static void nvgdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 	END_NVG_PATH(ctx);
 }
 
-REBINT nvgdrw_effect(void* gr, REBXYF* p1, REBXYF* p2, REBSER* block)
+static REBINT nvgdrw_effect(void* gr, REBXYF* p1, REBXYF* p2, REBSER* block)
 {
 	return 0;
 }
@@ -308,7 +305,7 @@ static void nvgdrw_end_poly (void* gr)
 static void nvgdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	printf("spline step: %d\n", step);
+	//printf("spline step: %d\n", step);
 	if (step == 0) {
 		if (closed) {
 			nvgClosePath(ctx->nvg);
@@ -316,7 +313,8 @@ static void nvgdrw_end_spline (void* gr, REBINT step, REBINT closed)
 		END_NVG_PATH(ctx);
 		return;
 	}
-	printf("spline done, FIXME\n");
+	//printf("spline done, FIXME\n");
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_fill_pen(void* gr, REBCNT col)
@@ -328,6 +326,7 @@ static void nvgdrw_fill_pen(void* gr, REBCNT col)
 	} else {
 		ctx->fill = FALSE;
 	}
+	ctx->fill_color = col;
 }
 
 static void nvgdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
@@ -347,12 +346,16 @@ static void nvgdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 
 static void nvgdrw_fill_rule(void* gr, REBINT mode)
 {
+	if (mode != W_DRAW_EVEN_ODD) {
+		printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+	}
 	//   if (mode >= W_DRAW_EVEN_ODD && mode <= W_DRAW_NON_ZERO)
 	//      ((agg_graphics*)gr)->agg_fill_rule((agg::filling_rule_e)mode);
 }
 
 static void nvgdrw_gamma(void* gr, REBDEC gamma)
 {
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 	//((agg_graphics*)gr)->agg_set_gamma(gamma);
 }
 
@@ -393,6 +396,7 @@ static void nvgdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF o
 	((agg_graphics*)gr)->agg_gradient_pen(gradtype, oft.x, oft.y, range.x, range.y, angle, scale.x, scale.y, colorTuples, offsets, mode);
 #endif		
 #endif
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_invert_matrix(void* gr)
@@ -431,7 +435,7 @@ static void nvgdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
 
-	printf("size: (%d, %d) at (%f, %f)\n", w, h, offset.x, offset.y);
+	//printf("size: (%d, %d) at (%f, %f)\n", w, h, offset.x, offset.y);
 	paint_image(ctx, image, NVG_COPY, 1.0f, offset, image_size, offset, image_size);
 
 	if (ctx->img_border) {
@@ -467,6 +471,7 @@ static void nvgdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF si
 	else
 		((agg_graphics*)gr)->agg_image_pattern(0,0,0,0,0);
 #endif
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
@@ -480,7 +485,8 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	REBCNT type;
 	REBCNT n, len = 0;
 
-	printf("scaling image size: (%d, %d)\n", w, h);
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+//	printf("scaling image size: (%d, %d)\n", w, h);
 	for (n = 0; (type = RL_GET_VALUE(points, n, &a)); n++) {
 		if (type == RXT_PAIR){
 			REBXYF tmp = RXI_LOG_PAIR(a);
@@ -492,9 +498,11 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	if (!len) return;
 
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
+#if 0
 	nvgSave(ctx->nvg);
 
 	//paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, p[1].x, p[1].y, 0, image, 1.0f);
+
 	nvgBeginPath(ctx->nvg);
 
 	nvgMoveTo(ctx->nvg, p[0].x, p[0].y);
@@ -531,6 +539,29 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	nvgFillPaint(ctx->nvg, paint);
 
 	nvgFill(ctx->nvg);
+#endif
+
+	switch (len) {
+	case 2:
+		nvgPaintImage(ctx->nvg, image, p[0].x, p[1].y, p[1].x, p[1].y, p[0].x, p[0].y, p[1].x,p[0].y);
+		break;
+	case 3:
+		printf("FIXME: %d\n", __LINE__);
+		nvgLineTo(ctx->nvg, p[1].x, p[1].y);
+		nvgLineTo(ctx->nvg, p[2].x, p[2].y);
+		nvgLineTo(ctx->nvg, p[0].x, p[2].y);
+		//w = p[1].x - p[0].x;
+		//h = p[1].y - p[0].y;
+		break;
+	case 4:
+		printf("FIXME: %d\n", __LINE__);
+		nvgLineTo(ctx->nvg, p[1].x, p[1].y);
+		nvgLineTo(ctx->nvg, p[2].x, p[2].y);
+		nvgLineTo(ctx->nvg, p[3].x, p[3].y);
+		//w = p[1].x - p[0].x;
+		//h = p[1].y - p[0].y;
+		break;
+	}
 	nvgFlush(ctx->nvg);
 
 	nvgDeleteImage(ctx->nvg, image);
@@ -600,6 +631,7 @@ static void nvgdrw_line_join(void* gr, REBINT mode)
 static void nvgdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
 	//((agg_graphics*)gr)->agg_line_pattern((col) ? (REBYTE*)&col : NULL, patterns);
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_line_width(void* gr, REBDEC width, REBINT mode)
@@ -704,14 +736,20 @@ static void nvgdrw_skew(void* gr, REBXYF angle)
 {
 	//REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	//nvgScale(ctx->nvg, sc.x, sc.y);
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 static void nvgdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
 {
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+//	REBXYF oft = { p1->x + ctx->offset_x, p1->y + ctx->offset_y};
+	nvg_text(ctx, mode, p1, p2, block);
 }
+
 static void nvgdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
 {
 	//nvgTransform(ctx->nvg, sc.x, matrix[1], sc.y, matrix[3], oft.x, oft.y);
 	//((agg_graphics*)gr)->agg_transform(ang, ctr.x, ctr.y, sc.x, sc.y, oft.x, oft.y);
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_translate(void* gr, REBXYF p)
@@ -1186,6 +1224,7 @@ static void nvgdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 
 	delete graphics;
 #endif
+	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 }
 
 static void nvgdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
@@ -1194,8 +1233,10 @@ static void nvgdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXY
 	if (ctx == NULL) return;
 
 	nvgSave(ctx->nvg);
+	nvgReset(ctx->nvg);
+	nvgBeginPath(ctx->nvg);
 	nvgRect(ctx->nvg, clip_top.x, clip_top.y, clip_bottom.x - clip_top.x, clip_bottom.y - clip_top.y);
-	nvgFillColor(ctx->nvg, nvgRGBA(color[C_R], color[C_G], color[C_B], color[C_A]));
+	nvgFillColor(ctx->nvg, nvgRGBA(color[C_R], color[C_G], color[C_B], GOB_ALPHA(gob) * color[C_A] / 255));
 	nvgFill(ctx->nvg);
 	nvgRestore(ctx->nvg);
 }
@@ -1218,6 +1259,7 @@ static void nvgdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXY
 	int image = nvgCreateImageRGBA(nvg, w, h, 0, NULL, GOB_BITMAP(gob));
 
 	nvgSave(nvg);
+	nvgReset(nvg);
 
 	paint_image(ctx, image, paint_mode, GOB_ALPHA(gob) / 255.0f,
 				clip_oft, image_size,
