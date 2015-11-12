@@ -26,17 +26,18 @@
 
 extern "C" {
 #include "host-view.h"
+
+unsigned char *find_font_path(
+		const unsigned char* family,
+		unsigned char bold,
+		unsigned char italic,
+		unsigned char size);
+
 }
 
 #include "agg_truetype_text.h"
 
 //extern "C" void RL_Print(char *fmt, ...);//output just for testing
-
-REBYTE *find_font_path(
-	const REBYTE* name,
-	unsigned char bold,
-	unsigned char italic,
-	unsigned char size);
 
 namespace agg
 {
@@ -256,9 +257,9 @@ namespace agg
 #ifdef AGG_FONTCONFIG
 		FILE * fp = fopen((const char*)attr.name, "rb"); //try to see if this is a font file
 		if (!fp) {
-			REBYTE *fn = find_font_path(attr.name, attr.bold, attr.italic, attr.size);
+			REBYTE *fn = find_font_path(reinterpret_cast<const unsigned char *>(attr.name), attr.bold, attr.italic, attr.size);
 			if (fn != NULL){
-				attr.name = fn;
+				attr.name = reinterpret_cast<REBCHR*>(fn);
 				attr.name_free = false;
 			} else {
 				attr.name_free = m_font->name_free;

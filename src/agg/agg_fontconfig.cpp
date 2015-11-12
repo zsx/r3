@@ -1,10 +1,18 @@
 #ifdef AGG_FONTCONFIG
 
+extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <fontconfig/fontconfig.h>
 
-extern "C" void RL_Print(char *fmt, ...);//output just for testing
+	void RL_Print(char *fmt, ...);//output just for testing
+}
+
+extern "C" unsigned char *find_font_path(
+	const unsigned char* family,
+	unsigned char bold,
+	unsigned char italic,
+	unsigned char size);
 
 typedef struct font_cache {
 		char* 		family;
@@ -150,8 +158,8 @@ class font_cache_manager {
 static font_cache_manager cache_manager(128);
 
 /* the returned font_path must not be free'ed by the caller */
-FcChar8 *find_font_path(
-	const FcChar8* family,
+unsigned char *find_font_path(
+	const unsigned char* family,
 	unsigned char bold,
 	unsigned char italic,
 	unsigned char size)
