@@ -31,9 +31,16 @@ set (WIN_SYS_DIR ${OS_DIR})
 if (R3_EXTERNAL_GLEW)
 	pkg_search_module(GLEW REQUIRED glew)
 else()
-	add_subdirectory(${EXTERNAL_DIR}/glew/build/cmake
-		${CMAKE_CURRENT_BINARY_DIR}/GLEW
-		)
+	if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
+		add_subdirectory(${EXTERNAL_DIR}/glew/build/cmake
+			${CMAKE_CURRENT_BINARY_DIR}/GLEW
+			)
+	else ()
+		add_subdirectory(${EXTERNAL_DIR}/glew/build/cmake
+			${CMAKE_CURRENT_BINARY_DIR}/GLEW
+			EXCLUDE_FROM_ALL
+			)
+	endif ()
 	set(GLEW_DEFINITIONS GLEW_STATIC)
 	set(GLEW_INCLUDE_DIRS
 		${EXTERNAL_DIR}/glew/include
@@ -74,9 +81,16 @@ add_library(libagg OBJECT ${AGG_SOURCE})
 if (R3_EXTERNAL_SDL)
 	pkg_search_module(SDL REQUIRED sdl2)
 else()
-	add_subdirectory(${EXTERNAL_DIR}/SDL
-		${CMAKE_CURRENT_BINARY_DIR}/SDL
-		)
+	if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
+		add_subdirectory(${EXTERNAL_DIR}/SDL
+			${CMAKE_CURRENT_BINARY_DIR}/SDL
+			)
+	else ()
+		add_subdirectory(${EXTERNAL_DIR}/SDL
+			${CMAKE_CURRENT_BINARY_DIR}/SDL
+			EXCLUDE_FROM_ALL
+			)
+	endif ()
 	set (SDL_INCLUDE_DIRS ${EXTERNAL_DIR}/SDL/include)
 	set (SDL_LIBRARIES SDL2main SDL2-static)
 endif()
@@ -132,7 +146,7 @@ add_library(libr3_view OBJECT ${VIEW_SOURCE} ${GENERATED_VIEW_SOURCE})
 add_library(libr3_win_sys OBJECT ${WIN_SYS_SOURCE})
 add_library(libnanovg OBJECT ${NANOVG_SOURCE})
 #add_dependencies(libr3_view_os libr3_view_core)
-add_dependencies(libr3_view libnanovg)
+add_dependencies(libr3_view libnanovg libr3_view_core)
 add_dependencies(libr3_win_sys libr3_view)
 add_dependencies(libagg libr3_view_core libr3_view)
 
