@@ -97,9 +97,9 @@ do*: function [
 	either all [string? value  not is-module] [
 		; Return result without script overhead
 		do-needs hdr  ; Load the script requirements
-		if empty? data [if var [set var data]  exit] ; Shortcut return empty
+		if empty? data [if next [set var data] return ()]
 		intern data   ; Bind the user script
-		catch/quit either var [[do/next data var]] [data]
+		catch/quit [do/next data :var]
 	][ ; Otherwise we are in script mode
 
 		; When we run a script, the "current" directory is changed to the
@@ -141,11 +141,11 @@ do*: function [
 			either is-module [ ; Import the module and set the var
 				spec: reduce [hdr data do-needs/no-user hdr]
 				also import catch/quit [make module! spec]
-					if var [set var tail data]
+					if next [set var tail data]
 			][
 				do-needs hdr  ; Load the script requirements
 				intern data   ; Bind the user script
-				catch/quit either var [[do/next data var]] [data]
+				catch/quit [do/next data :var]
 			]
 		)(
 			; Restore system/script and the dir

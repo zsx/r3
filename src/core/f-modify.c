@@ -55,7 +55,14 @@
 	REBINT index;
 #endif
 
-	if (dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
+	if (IS_UNSET(src_val) || dups < 0) {
+		// If they are effectively asking for "no action" then all we have
+		// to do is return the natural index result for the operation.
+		// (APPEND will return 0, insert the tail of the insertion...so index)
+
+		return (action == A_APPEND) ? 0 : dst_idx;
+	}
+
 	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
 	// Check /PART, compute LEN:

@@ -105,7 +105,7 @@ array: func [
 	]
 	block: make block! size
 	case [
-		block? rest [
+		block? :rest [
 			loop size [block: insert/only block array/initial rest :value]
 		]
 		any-series? :value [
@@ -345,14 +345,14 @@ extract: func [
 	unless index [pos: 1]
 	either block? pos [
 		unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
-		unless output [output: make series len * length pos]
+		if unset? :output [output: make series len * length pos]
 		if all [not default any-string? output] [value: copy ""]
 		forskip series width [forall pos [
 			if none? set/any 'val pick series pos/1 [set/any 'val value]
 			output: insert/only output :val
 		]]
 	][
-		unless output [output: make series len]
+		if unset? :output [output: make series len]
 		if all [not default any-string? output] [value: copy ""]
 		forskip series width [
 			if none? set/any 'val pick series pos [set/any 'val value]
@@ -401,6 +401,11 @@ collect: func [
 	; instead of intermingled.  :-)
 
 	either system/options/refinements-true [
+		; Note: because this is a Mezzanine it was loaded with the word valued
+		; refinements and unset-unused-refinements, and remembers that...even
+		; when the legacy mode is enabled.  Compatibility to not touch code.
+		if unset? :output [output: none]
+
 		;; Rebol2, R3-Alpha, Red ;;
 
 		unless output [output: make block! 16]
@@ -414,7 +419,7 @@ collect: func [
 	][
 		;; Ren/C ;;
 
-		unless output [output: make block! 16]
+		output: any [:output make block! 16]
 		eval func [<transparent> keep] body func [
 			value [any-value!] /only
 		][
@@ -448,7 +453,7 @@ format: function [
 	values
 	/pad p
 ][
-	p: any [p #" "]
+	p: any [:p #" "]
 	unless block? :rules [rules: reduce [:rules]]
 	unless block? :values [values: reduce [:values]]
 

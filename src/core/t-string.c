@@ -366,7 +366,7 @@ enum COMPARE_CHR_FLAGS {
 	if (len <= 1) return;
 
 	// Skip factor:
-	if (!IS_NONE(skipv)) {
+	if (!IS_UNSET(skipv)) {
 		skip = Get_Num_Arg(skipv);
 		if (skip <= 0 || len % skip != 0 || skip > len)
 			raise Error_Invalid_Arg(skipv);

@@ -802,7 +802,7 @@
 	// Done by marking all source words (in bind table):
 	keys = FRM_KEYS(source) + 1;
 	for (n = 1; NOT_END(keys); n++, keys++) {
-		if (IS_NONE(only_words) || binds[VAL_TYPESET_CANON(keys)])
+		if (IS_UNSET(only_words) || binds[VAL_TYPESET_CANON(keys)])
 			binds[VAL_TYPESET_CANON(keys)] = n;
 	}
 

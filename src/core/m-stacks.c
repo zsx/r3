@@ -252,17 +252,12 @@
 	// Make_Call does not fill the args in the frame--that is up to Do_Core
 	// and Apply_Block to do as they go along.  But the frame has to survive
 	// Recycle() during arg fulfillment...slots can't be left uninitialized.
-	// Set to UNSET in the release build, but "GC safe" trash in the debug
-	// build to help catch skipped slots that aren't written intentionally.
+	// It is important to set to UNSET for bookkeeping so that refinement
+	// scanning knows when it has filled a refinement or not.
 	{
-		REBCNT var_index;
-		for (var_index = 0; var_index < num_vars; var_index++) {
-		#ifdef NDEBUG
-			SET_UNSET(&call->vars[var_index]);
-		#else
-			SET_TRASH_SAFE(&call->vars[var_index]);
-		#endif
-		}
+		REBCNT index;
+		for (index = 0; index < num_vars; index++)
+			SET_UNSET(&call->vars[index]);
 	}
 
 	assert(size == DSF_SIZE(call));

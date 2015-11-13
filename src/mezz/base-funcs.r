@@ -59,7 +59,8 @@ function: func [
 
 		; Ignore the words in the spec and those in the object. The spec needs
 		; to be copied since the object words shouldn't be added to the locals.
-		append append append copy spec 'self words-of object words ; ignore 'self too
+		; ignore 'self too
+		compose [(spec) 'self (words-of object) (:words)]
 	][
 		; Don't include the words in the spec, or any extern words.
 		either extern [append copy spec words] [spec]

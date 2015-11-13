@@ -211,8 +211,9 @@ config-system: func [
 	]
 
 	id: any [
-		; first choice is a literal tuple that was passed in
-		id
+		; first choice is a literal tuple that was passed in (unset means
+		; no vote in the ANY)
+		:id
 
 		; If version was none and asked to /guess, use opts if given
 		if all [guess hint] [

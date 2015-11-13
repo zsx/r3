@@ -105,8 +105,8 @@ tenth: func [
 last: func [
 	{Returns the last value of a series.}
 	value [any-series! tuple! gob!]
-	/local len
-] [
+	<local> len
+][
 	case [
 		any-series? value [pick back tail value 1]
 		tuple? value [pick value length value]
@@ -120,7 +120,7 @@ last: func [
 
 			pick back tail value 1
 		]
-		true [
+		'default [
 			; C code said "let the action throw the error", but by virtue
 			; of type checking this case should not happen.
 			pick value 0
@@ -135,24 +135,33 @@ last: func [
 
 repend: func [
 	"Appends a reduced value to a series and returns the series head."
-	series [any-series! port! map! gob! object! bitset!] {Series at point to insert (modified)}
-	value {The value to insert}
+	series [any-series! port! map! gob! object! bitset!]
+		{Series at point to insert (modified)}
+	value [any-value! unset!] {The value to insert}
 	/part {Limits to a given length or position}
 	limit [any-number! any-series! pair!]
 	/only {Inserts a series as a series}
 	/dup {Duplicates the insert a specified number of times}
 	count [any-number! pair!]
 ][
-	apply :append [series reduce :value part limit only dup count]
+	either set? :value [
+		append/part/:only/dup series reduce :value :limit :count
+	][
+		head series ;-- simulating result of appending () returns the head
+	]
 ]
 
 join: func [
 	"Concatenates values."
-	value "Base value"
-	rest "Value or block of values"
+	value "Base value" [unset! any-value!]
+	rest "Value or block of values" [unset! any-value!]
 ][
-	value: either any-series? :value [copy value] [form :value]
-	repend value :rest
+	either set? :value [
+		value: either any-series? :value [copy value] [form :value]
+		repend value :rest
+	][
+		reduce rest
+	]
 ]
 
 reform: func [

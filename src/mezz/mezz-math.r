@@ -103,7 +103,7 @@ maximum-of: func [
 	size [integer!]
 	/local spot
 ][
-	size: any [size 1]
+	size: any [:size 1]
 	if 1 > size [cause-error 'script 'out-of-range size]
 	spot: series
 	forskip series size [

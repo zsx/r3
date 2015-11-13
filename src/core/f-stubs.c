@@ -596,8 +596,8 @@
 	REBINT maxlen;
 	REBINT is_ser = ANY_SERIES(sval);
 
-	// If lval = NONE, use the current len of the target value:
-	if (IS_NONE(lval)) {
+	// If lval is not set, use the current len of the target value:
+	if (IS_UNSET(lval)) {
 		if (!is_ser) return 1;
 		if (VAL_INDEX(sval) >= VAL_TAIL(sval)) return 0;
 		return (VAL_TAIL(sval) - VAL_INDEX(sval));
@@ -652,8 +652,8 @@
 	REBINT len;
 	REBINT maxlen;
 
-	// If lval = NONE, use the current len of the target value:
-	if (IS_NONE(lval)) {
+	// If lval is unset, use the current len of the target value:
+	if (IS_UNSET(lval)) {
 		val = (bval && ANY_SERIES(bval)) ? bval : aval;
 		if (VAL_INDEX(val) >= VAL_TAIL(val)) return 0;
 		return (VAL_TAIL(val) - VAL_INDEX(val));

@@ -35,6 +35,15 @@
 
 #include "tmp-evaltypes.h"
 
+enum Reb_Param_Mode {
+	PARAM_MODE_NORMAL, // ordinary arguments before any refinements seen
+	PARAM_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
+	PARAM_MODE_REFINE_ARGS, // at least one refinement has been found
+	PARAM_MODE_SCANNING, // looking for refinements (used out of order)
+	PARAM_MODE_SKIPPING, // in the process of skipping an unused refinement
+	PARAM_MODE_REVOKING // found an unset and aiming to revoke refinement use
+};
+
 
 /***********************************************************************
 **
@@ -592,7 +601,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 
 /***********************************************************************
 **
-*/	REBCNT Do_Core(REBVAL * const out, REBOOL next, REBSER *block, REBCNT index, REBFLG lookahead)
+*/	REBCNT Do_Core(REBVAL * const out, REBFLG next, REBSER *block, REBCNT index, REBFLG lookahead)
 /*
 **		Evaluate the code block until we have:
 **			1. An irreducible value (return next index)
@@ -616,10 +625,15 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 #if !defined(NDEBUG)
 	static REBCNT count_static = 0;
 	REBCNT count;
+
+	// Debug builds that are emulating the old behavior of writing NONE into
+	// refinement args need to know when they should be writing these nones
+	// or leaving what's there during PARAM_MODE_SCANNING/PARAM_MODE_SKIPPING
+	REBFLG write_none;
 #endif
 
 	const REBVAL *value;
-	REBOOL infix;
+	REBFLG infix;
 
 	struct Reb_Call *call;
 
@@ -629,13 +643,18 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	const REBVAL *label;
 
 	const REBVAL *refinements;
-	REBFLG ignoring; // are we processing parameters of an unused refinement?
+	enum Reb_Param_Mode mode; // before refinements, in refinement, skipping...
 
 	// We use the convention that "param" refers to the word from the spec
 	// of the function (a.k.a. the "formal" argument) and "arg" refers to
 	// the evaluated value the function sees (a.k.a. the "actual" argument)
 	REBVAL *param;
 	REBVAL *arg;
+
+	// The refinement currently being processed.  We have to remember its
+	// address in case we want to revoke it.  (Note: can probably save on
+	// having another pointer by merging with others above later.)
+	REBVAL *refine;
 
 	// Most of what this routine does can be done with value pointers and
 	// the data stack.  Some operations need a unit of additional storage.
@@ -849,7 +868,7 @@ reevaluate:
 		//
 		// That is not implemented yet, and even when it is there will be
 		// a need to "cheat" such that temporary function objects are not
-		// craeted when they would just be invoked and immediately GC'd.
+		// created when they would just be invoked and immediately GC'd.
 		// A trick would be to have the path evaluation gather the refinements
 		// on the data stack as it went and make a decision at the end
 		// about how to handle it.
@@ -870,8 +889,6 @@ reevaluate:
 					DS_DROP_TO(dsp_orig);
 					goto return_index;
 				}
-				if (IS_NONE(out)) continue;
-				if (!IS_WORD(out)) raise Error_1(RE_BAD_REFINE, out);
 				DS_PUSH(out);
 			}
 			else if (IS_GET_WORD(refinements)) {
@@ -886,17 +903,44 @@ reevaluate:
 				raise Error_1(RE_BAD_REFINE, out);
 		}
 
-		// This loop goes through the parameter and argument slots, in order.
-		//
-		// Note that in debug builds Make_Call initialized all the arg slots
-		// with SET_TRASH_SAFE, so we have to at minimum overwrite the arg
-		// w/UNSET in debug builds to silence later alerts about the trash.
+		// To make things easier for processing, reverse the refinements on
+		// the data stack (we needed to evaluate them in forward order).
+		// This way we can just pop them as we go, and know if they weren't
+		// all consumed if it doesn't get back to `dsp_orig` by the end.
 
-		ignoring = FALSE;
+		if (dsp_orig != DSP) {
+			REBVAL *temp = DS_AT(dsp_orig + 1);
+			refine = DS_TOP;
+			while (refine > temp) {
+				*out = *refine;
+				*refine = *temp;
+				*temp = *out;
+
+				refine--;
+				temp++;
+			}
+		}
+
+		// This loop goes through the parameter and argument slots, filling in
+		// the arguments via recursive calls to the evaluator.
+		//
+		// Note that Make_Call initialized them all to UNSET.  This is needed
+		// in order to allow skipping around, in particular so that a
+		// refinement slot can be marked as processed or not processed, but
+		// also because the garbage collector has to consider the slots "live"
+		// as arguments are progressively fulfilled.
+
+		mode = PARAM_MODE_NORMAL;
+
+	#if !defined(NDEBUG)
+		write_none = FALSE;
+	#endif
 
 		for (; NOT_END(param); param++, arg++) {
-
+		no_advance:
 			assert(IS_TYPESET(param));
+
+			// *** PURE LOCALS => continue ***
 
 			if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
 				// When the spec contained a SET-WORD!, that was a "pure
@@ -917,19 +961,176 @@ reevaluate:
 					*arg = *ROOT_RETURN_NATIVE;
 					VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(value);
 				}
-				else {
+				// otherwise leave it unset
+
+				continue;
+			}
+
+			if (!VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+				// Hunting a refinement?  Quickly disregard this if we are
+				// doing such a scan and it isn't a refinement.
+				if (mode == PARAM_MODE_SCANNING) {
 				#if !defined(NDEBUG)
-					// overwrite the GC safe trash in debug builds in slot
-					SET_UNSET(arg);
+					if (write_none)
+						SET_NONE(arg);
 				#endif
+					continue;
 				}
 			}
-			else if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
-				if (ignoring) {
-					SET_NONE(arg);
+			else {
+				// *** REFINEMENTS => continue ***
+
+				// Refinements are tricky because users can write:
+				//
+				//     foo: func [a /b c /d e] [...]
+				//
+				//     foo/b/d (1 + 2) (3 + 4) (5 + 6)
+				//     foo/d/b (1 + 2) (3 + 4) (5 + 6)
+				//
+				// But we are marching across the parameters in order of their
+				// *definition*.  Hence we may have to seek refinements ahead
+				// or behind to know where to put the results we evaluate.
+
+				if (mode == PARAM_MODE_SCANNING) {
+					if (
+						SAME_SYM(VAL_WORD_SYM(DS_TOP), VAL_TYPESET_SYM(param))
+					) {
+						// If we seeked backwards to find a refinement and it's
+						// the one we are looking for, "consume" it off the
+						// data stack to say we found it in the frame
+						DS_DROP;
+
+						// Now as we switch to pending mode, change refine to
+						// point at the arg slot so we can revoke it if needed
+						mode = PARAM_MODE_REFINE_PENDING;
+						refine = arg;
+
+					#if !defined(NDEBUG)
+						write_none = FALSE;
+
+						if (TYPE_CHECK(param, REB_LOGIC)) {
+							// OPTIONS_REFINEMENTS_TRUE at function create
+							SET_TRUE(refine);
+						}
+						else
+					#endif
+							Val_Init_Word_Unbound(
+								refine, REB_WORD, VAL_TYPESET_SYM(param)
+							);
+
+						continue;
+					}
+
+					// ...else keep scanning, but if it's unset then set it
+					// to none because we *might* not revisit this spot again.
+					if (IS_UNSET(arg)) {
+						SET_NONE(arg);
+
+					#if !defined(NDEBUG)
+						if (TYPE_CHECK(param, REB_LOGIC))
+							write_none = TRUE;
+					#endif
+					}
+					else {
+					#if !defined(NDEBUG)
+						write_none = FALSE;
+					#endif
+					}
 					continue;
 				}
 
+				if (dsp_orig == DSP) {
+					// No refinements are left on the data stack, so if this
+					// refinement slot is still unset, skip the args and leave
+					// them as unsets (or set nones in legacy mode)
+					mode = PARAM_MODE_SKIPPING;
+					if (IS_UNSET(arg)) {
+						SET_NONE(arg);
+
+					#if !defined(NDEBUG)
+						// We need to know if we need to write nones into args
+						// based on the legacy switch capture.
+						if (TYPE_CHECK(param, REB_LOGIC))
+							write_none = TRUE;
+					#endif
+					}
+
+					continue;
+				}
+
+				// Should have only pushed words to the stack (or there would
+				// have been an earlier error)
+				assert(IS_WORD(DS_TOP));
+
+				if (SAME_SYM(VAL_WORD_SYM(DS_TOP), VAL_TYPESET_SYM(param))) {
+					// We were lucky and the next refinement we wish to
+					// process lines up with this parameter slot.
+
+					mode = PARAM_MODE_REFINE_PENDING;
+					refine = arg;
+
+					DS_DROP;
+
+					#if !defined(NDEBUG)
+						if (TYPE_CHECK(param, REB_LOGIC)) {
+							// OPTIONS_REFINEMENTS_TRUE at function create
+							SET_TRUE(refine);
+						}
+						else
+					#endif
+							Val_Init_Word_Unbound(
+								refine, REB_WORD, VAL_TYPESET_SYM(param)
+							);
+
+					continue;
+				}
+
+				// We weren't lucky and need to scan
+				mode = PARAM_MODE_SCANNING;
+
+				assert(IS_WORD(DS_TOP));
+
+				// We have to reset to the beginning if we are going to scan,
+				// because we might have gone past the refinement on a prior
+				// scan.  (Review if a bit might inform us if we've ever done
+				// a scan before to get us started going out of order.  If not,
+				// we would only need to look ahead.)
+
+				param = VAL_FUNC_PARAM(value, 1);
+				arg = DSF_ARG(call, 1);
+
+			#if !defined(NDEBUG)
+				write_none = FALSE;
+			#endif
+
+				// We might have a function with no normal args, where a
+				// refinement is the first parameter...and we don't want to
+				// run the loop's arg++/param++ we get if we `continue`
+				goto no_advance;
+			}
+
+			if (mode == PARAM_MODE_SKIPPING) {
+			#if !defined(NDEBUG)
+				// In release builds we just skip because the args are already
+				// UNSET.  But in debug builds we may need to overwrite the
+				// unset default with none if this function was created while
+				// legacy mode was on.
+				if (write_none)
+					SET_NONE(arg);
+			#endif
+				continue;
+			}
+
+			assert(
+				mode == PARAM_MODE_NORMAL
+				|| mode == PARAM_MODE_REFINE_PENDING
+				|| mode == PARAM_MODE_REFINE_ARGS
+				|| mode == PARAM_MODE_REVOKING
+			);
+
+			// *** QUOTED OR EVALUATED ITEMS ***
+
+			if (VAL_GET_EXT(param, EXT_TYPESET_QUOTE)) {
 				// Using a GET-WORD! in the function spec indicates that you
 				// would like that argument to be EXT_TYPESET_QUOTE, e.g.
 				// not evaluated at the callsite:
@@ -986,81 +1187,27 @@ reevaluate:
 							DS_DROP_TO(dsp_orig);
 							goto return_index;
 						}
-						if (index == END_FLAG)
-							assert(IS_UNSET(arg)); // series end UNSET! trick
+						if (index == END_FLAG) {
+							// This is legal due to the series end UNSET! trick
+							// (we will type check if unset is actually legal
+							// in a moment below)
+							assert(IS_UNSET(arg));
+						}
 					}
 					else {
 						index++;
 						*arg = *quoted;
 					}
-				} else
-					SET_UNSET(arg); // series end UNSET! trick
-			}
-			else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
-				// Refinements are from dsp_orig to DSP.  We tweak them off
-				// the data stack each time we find one.
-				REBVAL *temp;
-
-				if (dsp_orig == DSP) {
-					// No refinements left to search, set to none and start
-					// ignoring args until next refinement...
-					SET_NONE(arg);
-					ignoring = TRUE;
-					continue;
 				}
-
-				temp = DS_AT(dsp_orig + 1);
-
-				while (TRUE) {
-					if (
-						SAME_SYM(
-							VAL_WORD_SYM(temp),
-							VAL_TYPESET_SYM(param)
-						)
-					) {
-						if (temp == DS_TOP)
-							DS_DROP;
-						else
-							DS_POP_INTO(temp);
-						temp = NULL;
-						break;
-					}
-					if (temp == DS_TOP) break;
-					temp++;
+				else {
+					// series end UNSET! trick; already unset...
 				}
-
-				// If we didn't set temp to NULL and hit the end,
-				// then we didn't find and remove it from the data stack...
-				// so it's not used!
-				if (temp) {
-					SET_NONE(arg);
-					ignoring = TRUE;
-					continue;
-				}
-
-				ignoring = FALSE;
-
-			#if !defined(NDEBUG)
-				if (TYPE_CHECK(param, REB_LOGIC)) {
-					// OPTIONS_REFINEMENTS_TRUE at function create
-					SET_TRUE(arg);
-				}
-				else
-			#endif
-					Val_Init_Word_Unbound(
-						arg, REB_WORD, VAL_TYPESET_SYM(param)
-					);
 			}
 			else {
 				// !!! Note: ROUTINE! does not set any bits on the symbols
 				// and will need to be made to...
 				//
 				// assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
-
-				if (ignoring) {
-					SET_NONE(arg);
-					continue;
-				}
 
 				// An ordinary WORD! in the function spec indicates that you
 				// would like that argument to be evaluated normally.
@@ -1085,14 +1232,56 @@ reevaluate:
 
 			ASSERT_VALUE_MANAGED(arg);
 
+			if (IS_UNSET(arg)) {
+				if (mode == PARAM_MODE_REFINE_ARGS)
+					raise Error_0(RE_BAD_REFINE_REVOKE);
+				else if (mode == PARAM_MODE_REFINE_PENDING) {
+					mode = PARAM_MODE_REVOKING;
+
+				#if !defined(NDEBUG)
+					// We captured the "true-valued-refinements" legacy switch
+					// and decided whether to make the refinement true or the
+					// word value of the refinement.  We use the same switch
+					// to cover whether the unused args are NONE or UNSET...
+					// but decide which it is by looking at what was filled
+					// in for the refinement.  UNSET is the default.
+
+					if (!IS_WORD(refine)) {
+						assert(IS_LOGIC(refine));
+						SET_NONE(arg);
+					}
+				#endif
+
+					// Revoke the refinement.
+					SET_NONE(refine);
+				}
+				else if (mode == PARAM_MODE_REVOKING) {
+				#ifdef NDEBUG
+					// Don't have to do anything, it's unset
+				#else
+					// We have overwritten the refinement so we don't know if
+					// it was LOGIC! or WORD!, but we don't need to know that
+					// because we can just copy whatever the previous arg
+					// was set to...
+					*arg = *(arg - 1);
+				#endif
+				}
+			}
+			else {
+				if (mode == PARAM_MODE_REVOKING)
+					raise Error_0(RE_BAD_REFINE_REVOKE);
+				else if (mode == PARAM_MODE_REFINE_PENDING)
+					mode = PARAM_MODE_REFINE_ARGS;
+			}
+
 			// If word is typed, verify correct argument datatype:
-			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				raise Error_Arg_Type(call, param, Type_Of(arg));
+			if (mode != PARAM_MODE_REVOKING)
+				if (!TYPE_CHECK(param, VAL_TYPE(arg)))
+					raise Error_Arg_Type(call, param, Type_Of(arg));
 		}
 
-		// If all the refinements on the stack did not get balanced, then
-		// they weren't all found on the function.  Pick the first one
-		// to complain about.
+		// If we were scanning and didn't find the refinement we were looking
+		// for, then complain with an error.
 		//
 		// !!! This will complain differently than a proper "REFINED!" strategy
 		// would complain, because if you do:
@@ -1103,8 +1292,24 @@ reevaluate:
 		// and paren evals up front and check that things are words or NONE,
 		// not knowing if a refinement isn't on the function until the end.
 
-		if (DSP != dsp_orig)
-			raise Error_1(RE_BAD_REFINE, DS_AT(dsp_orig + 1));
+		if (mode == PARAM_MODE_SCANNING)
+			raise Error_1(RE_BAD_REFINE, DS_TOP);
+
+		// In the case where the user has said foo/bar/baz, and bar was later
+		// in the spec than baz, then we will have passed it.  We need to
+		// restart the scan (which may wind up failing)
+
+		if (DSP != dsp_orig) {
+			mode = PARAM_MODE_SCANNING;
+			param = VAL_FUNC_PARAM(value, 1);
+			arg = DSF_ARG(call, 1);
+
+		#if !defined(NDEBUG)
+			write_none = FALSE;
+		#endif
+
+			goto no_advance;
+		}
 
 	function_ready_to_call:
 		// Execute the function with all arguments ready
@@ -1569,6 +1774,12 @@ return_index:
 **		created a THROWN() value, with the thrown value in `out`.
 **		Otheriwse it returns FALSE and `out` will hold the evaluation.
 **
+**		!!! NOTE: This code currently does not process revoking of
+**		refinements via unset as the path-based dispatch does in the
+**		Do_Core evaluator.  It probably should--though perhaps there
+**		should be a better sharing of implementations of the function
+**		dispatch in Do_Core and Apply_Block_Throws.
+**
 ***********************************************************************/
 {
 	struct Reb_Call *call;
@@ -1576,8 +1787,10 @@ return_index:
 	REBVAL *param; // typeset parameter (w/symbol) in function words list
 	REBVAL *arg; // value argument slot to fill in call frame for `param`
 
-	// Discard evaluations until the next refinement or end of block.
-	REBOOL ignoring = FALSE;
+	// before refinements, in refinement, skipping...
+	enum Reb_Param_Mode mode = PARAM_MODE_NORMAL;
+
+	REBVAL *refine; // the refinement we may need to go back and revoke
 
 	// `apply x y` behaves as if you wrote `apply/only x reduce y`.
 	// Hence the following should return before erroring on too-many-args:
@@ -1586,7 +1799,7 @@ return_index:
 	//
 	// This flag reminds us to error *after* any reducing has finished.
 	//
-	REBOOL too_many = FALSE;
+	REBFLG too_many = FALSE;
 
 #if !defined(NDEBUG)
 	if (varargs) assert(!reduce); // we'd have to put it in a series to reduce
@@ -1609,7 +1822,8 @@ return_index:
 	// Get slot to write actual argument for first parameter into (or NULL)
 	arg = (DSF_NUM_ARGS(call) > 0) ? DSF_ARG(call, 1) : NULL;
 
-	while (varargs || index < BLK_LEN(block)) {
+	for (; varargs || index < BLK_LEN(block); param++, arg++) {
+	no_advance:
 		if (!too_many && IS_END(param)) {
 			if (varargs && !va_arg(*varargs, REBVAL*)) break;
 
@@ -1620,33 +1834,6 @@ return_index:
 			// is the ideal spot to do it.  But for excess arguments we
 			// need another place.  `out` is always available, so use that.
 			arg = out;
-		}
-
-		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
-			// We need to skip over "pure locals", e.g. those created in
-			// the spec with a SET-WORD!.  (They are useful for generators)
-			//
-			// The special exception is a RETURN: local, if it is "magic"
-			// (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
-			// that is "magic" and knows to return to *this* function...
-
-			if (
-				VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-				&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
-			) {
-				*arg = *ROOT_RETURN_NATIVE;
-				VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
-			}
-			else {
-			#if !defined(NDEBUG)
-				// Frame used trash in debug builds
-				SET_UNSET(arg);
-			#endif
-			}
-
-			param++;
-			arg++;
-			continue;
 		}
 
 		if (varargs) {
@@ -1670,12 +1857,54 @@ return_index:
 			index++;
 		}
 
+		// *** PURE LOCALS => continue ***
+
+		while (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+			// We need to skip over "pure locals", e.g. those created in
+			// the spec with a SET-WORD!.  (They are useful for generators)
+			//
+			// The special exception is a RETURN: local, if it is "magic"
+			// (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
+			// that is "magic" and knows to return to *this* function...
+
+			if (
+				VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
+				&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+			) {
+				*arg = *ROOT_RETURN_NATIVE;
+				VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
+			}
+			else {
+			#if !defined(NDEBUG)
+				// Frame used trash in debug builds
+				SET_UNSET(arg);
+			#endif
+			}
+
+			// We aren't actually consuming the evaluated item in the block,
+			// so keep advancing the parameter as long as it's a pure local.
+			param++;
+			if (IS_END(param)) {
+				if (reduce) {
+					// Note again that if we are reducing, we must reduce the
+					// entire block beore reporting the "too many" error!
+					too_many = TRUE;
+					goto no_advance;
+				}
+				raise Error_0(RE_APPLY_TOO_MANY);
+			}
+		}
+
+		// *** REFINEMENT => continue ***
+
 		if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
 			// If we've found a refinement, this resets our ignore state
 			// based on whether or not the arg suggests it is enabled
 
+			refine = arg;
+
 			if (IS_CONDITIONAL_TRUE(arg)) {
-				ignoring = FALSE;
+				mode = PARAM_MODE_REFINE_PENDING;
 
 			#ifdef NDEBUG
 				Val_Init_Word_Unbound(arg, REB_WORD, VAL_TYPESET_SYM(param));
@@ -1690,32 +1919,48 @@ return_index:
 			#endif
 			}
 			else {
-				ignoring = TRUE;
+				mode = PARAM_MODE_SKIPPING;
 				SET_NONE(arg);
 			}
-		}
-		else {
-			if (ignoring) {
-				// Ignored refinement args are set to NONE! but may not
-				// actually have NONE! as accepted in their typeset
-				SET_NONE(arg);
-			}
-			else {
-				// Verify allowed argument datatype:
-				if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-					raise Error_Arg_Type(call, param, Type_Of(arg));
-			}
+			continue;
 		}
 
-		arg++;
-		param++;
+		// *** QUOTED OR EVALUATED ITEMS ***
+		// We are passing the value literally so it doesn't matter if it was
+		// quoted or not in the spec...the value is taken verbatim
+
+		if (mode == PARAM_MODE_SKIPPING) {
+		#if !defined(NDEBUG)
+			assert(IS_NONE(refine));
+
+			// Unfortunately the refinement is none in this case, so to
+			// figure out whether we need a NONE or an UNSET in the skipped
+			// args we have to go back to the refine's param...
+
+			if (
+				TYPE_CHECK(
+					refine - DSF_ARG(call, 1) + VAL_FUNC_PARAM(func, 1),
+					REB_LOGIC
+				)
+			) {
+				SET_NONE(arg);
+			}
+			else
+				SET_UNSET(arg);
+		#endif
+
+			continue;
+		}
+
+		// Verify allowed argument datatype:
+		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
+			raise Error_Arg_Type(call, param, Type_Of(arg));
 	}
 
 	if (too_many)
 		raise Error_0(RE_APPLY_TOO_MANY);
 
-	// Pad with NONE! any remaining parameters if they can accept it, and
-	// detect if we are trying to run an incomplete parameterization.
+	// Pad out any remaining parameters with unset
 
 	while (!IS_END(param)) {
 		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
@@ -1738,11 +1983,12 @@ return_index:
 			}
 		}
 		else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
-			ignoring = TRUE;
+			mode = PARAM_MODE_SKIPPING;
 			SET_NONE(arg);
+			refine = arg;
 		}
 		else {
-			if (!ignoring) {
+			if (mode != PARAM_MODE_SKIPPING) {
 				// If we aren't in ignore mode and we are dealing with
 				// a non-refinement, then it's a situation of a required
 				// argument missing or not all the args to a refinement given
@@ -1750,8 +1996,24 @@ return_index:
 				raise Error_No_Arg(DSF_LABEL(call), param);
 			}
 
-			// change this to UNSET!...
-			SET_NONE(arg);
+		#if !defined(NDEBUG)
+			assert(IS_NONE(refine));
+
+			// Unfortunately the refinement is none in this case, so to
+			// figure out whether we need a NONE or an UNSET in the skipped
+			// args we have to go back to the refine's param...
+
+			if (
+				TYPE_CHECK(
+					refine - DSF_ARG(call, 1) + VAL_FUNC_PARAM(func, 1),
+					REB_LOGIC
+				)
+			) {
+				SET_NONE(arg);
+			}
+			else
+				SET_UNSET(arg);
+		#endif
 		}
 
 		arg++;
