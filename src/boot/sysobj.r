@@ -141,6 +141,7 @@ options: context [  ; Options supplied to REBOL during startup
 
 	; Legacy Behaviors Options (paid attention to only by debug builds)
 
+	lit-word-decay: false
 	exit-functions-only: false
 	broken-case-semantics: false
 	do-runs-functions: false

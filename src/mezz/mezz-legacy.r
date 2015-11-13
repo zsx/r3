@@ -226,6 +226,7 @@ set 'r3-legacy* func [] [
 	; test for the functionality is needed, as these flags may be expired
 	; at different times on a case-by-case basis.
 	;
+	system/options/lit-word-decay: true
 	system/options/do-runs-functions: true
 	system/options/broken-case-semantics: true
 	system/options/exit-functions-only: true

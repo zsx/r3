@@ -729,6 +729,12 @@ reevaluate:
 			if (Trace_Flags) Trace_Line(block, index, value);
 			goto do_function_args;
 		}
+
+	#if !defined(NDEBUG)
+		if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(out))
+			VAL_SET(out, REB_WORD);
+	#endif
+
 		index++;
 		break;
 
