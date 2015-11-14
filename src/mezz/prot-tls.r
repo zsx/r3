@@ -432,7 +432,7 @@ encrypt-data: func [
 		; MAC code
 		mac: checksum/method/key rejoin [
 			to-bin ctx/seq-num-w 8				; sequence number (64-bit int in R3)
-			any [msg-type #{17}]				; msg type
+			any [:msg-type #{17}]				; msg type
 			ctx/version							; version
 			to-bin length data 2				; msg content length
 			data								; msg content

@@ -176,9 +176,19 @@ make-scheme: func [
 	; If actor is block build a non-contextual actor object:
 	if block? :def/actor [
 		actor: make object! (length def/actor) / 4
-		for-each [name func* args body] def/actor [ ; (maybe PARSE is better here)
-			name: to word! name ; bug!!! (should not be necessary?)
-			repend actor [name func args body]
+		for-each [name func* args body] def/actor [
+			; !!! Comment here said "Maybe PARSE is better here", though
+			; knowing would depend on understanding precisely what the goal
+			; is in only allowing FUNC vs. alternative function generators.
+			assert [
+				set-word? name
+				func* = 'func
+				block? args
+				block? body
+			]
+			append actor reduce [
+				name (func args body) ; add function! to object! w/name
+			]
 		]
 		def/actor: actor
 	]

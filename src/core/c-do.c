@@ -618,6 +618,11 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 **		getting the arguments.  (e.g. with `1 + 2 * 3` we don't want
 **		infix `+` to look ahead past the 2 to see the infix `*`)
 **
+**	!!! IMPORTANT NOTE !!! => Changing the behavior of the function calling
+**	conventions and parameter fulfillment generally needs to mean changes to
+**	two other closely-related routines: Apply_Block_Throws() and
+**	Redo_Func_Throws().
+**
 ***********************************************************************/
 {
 	REBINT dsp_orig = DSP;
@@ -2254,13 +2259,22 @@ return_index:
 **
 */	REBFLG Redo_Func_Throws(REBVAL *func_val)
 /*
-**		Trampoline a function, restacking arguments as needed.
+**	This code takes a call frame that has been built for one function and
+**	then uses it to build a call frame to call another.  (The source call
+**	frame is implicitly the currently running one.)
 **
-**	Setup:
-**		The source for arguments is the existing stack frame,
-**		or a prior stack frame. (Prep_Func + Args)
+**	This function is currently used only by Do_Port_Action, where ACTION! (an
+**	archetypal function spec with no implementation) is "bounced out" of
+**	the C code into user code.  All the other ACTION!-handling code is
+**	implemented in C with switch statements.
 **
-**		Returns FALSE if result is THROWN()
+**	The archetypal frame cannot be used directly, because it can be different.
+**	That difference could be as simple as `foo: action [port [port!]]` vs.
+**	`foo-impl: func [port [port!] /local x y z]`.  However, other tricks
+**	are allowed--such as for the implementation to offer refinements which
+**	were not present in the archetype.
+**
+**	Returns TRUE if result is THROWN()
 **
 ***********************************************************************/
 {
@@ -2293,6 +2307,22 @@ return_index:
 	for (; inew < BLK_LEN(paramlist_new); inew++, isrc++, arg++) {
 		param = BLK_SKIP(paramlist_new, inew);
 		assert(IS_TYPESET(param));
+
+		if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+			if (
+				VAL_GET_EXT(func_val, EXT_FUNC_HAS_RETURN)
+				&& SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+			) {
+				// This pure local is a special magic "definitional return"
+				// (see comments on VAL_FUNC_RETURN_TO)
+				*arg = *ROOT_RETURN_NATIVE;
+				VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func_val);
+			}
+			else {
+				// This pure local is not special, so leave as UNSET
+			}
+			continue;
+		}
 
 		if (isrc >= BLK_LEN(paramlist_src)) {
 			isrc = BLK_LEN(paramlist_src);
@@ -2334,9 +2364,9 @@ return_index:
 					}
 				}
 				// !!! The function didn't have the refinement so skip
-				// it.  But what will happen now with the arguments?
-				SET_NONE(arg);
-				//if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word);
+				// it and leave as unset.
+				// But what will happen now with the arguments?
+				/* if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word); */
 			}
 		}
 		else {
@@ -2355,8 +2385,14 @@ return_index:
 			}
 			else {
 				// !!! Why does this allow the bounced-to function to have
-				// a different type, and push a none instead of erroring?
-				SET_NONE(arg);
+				// a different type, and be unset instead of erroring?
+
+				// !!! Technically speaking this should honor the
+				// LEGACY(OPTIONS_REFINEMENTS_TRUE) switch and SET_NONE if so,
+				// but that would apply to a very small amount of "third
+				// party actor code" from R3-Alpha.  Both the actor code and
+				// this branch are suspect in terms of long term value, so
+				// we just leave it as unset.
 			}
 		}
 	}
