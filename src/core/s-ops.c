@@ -28,7 +28,6 @@
 ***********************************************************************/
 
 #include "sys-core.h"
-#include "sys-scan.h"
 
 
 /*********************************************************************
@@ -64,10 +63,16 @@
 
 /*********************************************************************
 **
-*/	REBYTE *Qualify_String(const REBVAL *val, REBINT max_len, REBCNT *length, REBINT opts)
+*/	REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *length, REBINT opts)
 /*
+**	NOTE: This function returns a temporary result, and uses an internal
+**	buffer.  Do not use it recursively.  Also, it will Trap on errors.
+**
 **	Prequalifies a string before using it with a function that
-**	expects it to be 8-bits.
+**	expects it to be 8-bits.  It would be used for instance to convert
+**	a string that is potentially REBUNI-wide into a form that can be used
+**	with a Scan_XXX routine, that is expecting ASCII or UTF-8 source.
+**	(Many TO-XXX conversions from STRING re-use that scanner logic.)
 **
 **	Returns a temporary string and sets the length field.
 **
@@ -83,11 +88,6 @@
 **		3. it's actual content (less space, newlines) <= max len
 **		4. it does not contain other values ("123 456")
 **		5. it's not empty or only whitespace
-**
-**	Notes:
-*
-**		1. This function will TRAP on errors.
-**		2. Do not recursively use it (internal buffer)
 **
 ***********************************************************************/
 {

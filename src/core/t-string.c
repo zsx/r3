@@ -28,7 +28,6 @@
 ***********************************************************************/
 
 #include "sys-core.h"
-#include "sys-scan.h"
 #include "sys-deci-funcs.h"
 #include "sys-int-funcs.h"
 

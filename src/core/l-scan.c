@@ -32,7 +32,6 @@
 ***********************************************************************/
 
 #include "sys-core.h"
-#include "sys-scan.h"
 
 // In UTF8 C0, C1, F5, and FF are invalid.
 #ifdef USE_UNICODE

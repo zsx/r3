@@ -335,7 +335,7 @@
 				REBYTE *bp;
 				REBCNT len;
 				// -1234567890x-1234567890
-				bp = Qualify_String(val, VAL_LEN(val), &len, FALSE);
+				bp = Temp_Byte_Chars_May_Fail(val, VAL_LEN(val), &len, FALSE);
 				if (Scan_Pair(bp, len, D_OUT)) return R_OUT;
 			}
 			if (IS_INTEGER(val)) {

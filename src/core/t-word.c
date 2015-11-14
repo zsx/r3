@@ -82,7 +82,7 @@
 				REBYTE *bp;
 				REBCNT len;
 				// Set sym. Rest is set below.
-				bp = Qualify_String(arg, 255, &len, TRUE);
+				bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_WORD, &len, TRUE);
 				if (type == REB_ISSUE) sym = Scan_Issue(bp, len);
 				else sym = Scan_Word(bp, len);
 				if (!sym) raise Error_1(RE_BAD_CHAR, arg);

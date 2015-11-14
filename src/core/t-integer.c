@@ -210,7 +210,7 @@
 		REBYTE *bp;
 		REBCNT len;
 		REBDEC dec;
-		bp = Qualify_String(value, VAL_LEN(value), &len, FALSE);
+		bp = Temp_Byte_Chars_May_Fail(value, VAL_LEN(value), &len, FALSE);
 		if (
 			memchr(bp, '.', len)
 			|| memchr(bp, 'e', len)

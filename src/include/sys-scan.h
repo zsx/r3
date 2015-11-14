@@ -209,6 +209,35 @@ enum {
 	SCAN_MAX
 };
 
+
+//
+// MAXIMUM LENGTHS
+//
+// These are the maximum input lengths in bytes needed for a buffer to give
+// to Scan_XXX (not including terminator?)  The TO conversions from strings
+// tended to hardcode the numbers, so that hardcoding is excised here to
+// make it more clear what those numbers are and what their motivation might
+// have been (not all were explained).
+//
+// (See also MAX_HEX_LEN, MAX_INT_LEN)
+//
+
+// 30-September-10000/12:34:56.123456789AM/12:34
+#define MAX_SCAN_DATE 45
+
+// The maximum length a tuple can be in characters legally for Scan_Tuple
+// (should be in a better location, but just excised it for clarity.
+#define MAX_SCAN_TUPLE (11 * 4 + 1)
+
+#define MAX_SCAN_DECIMAL 24
+
+#define MAX_SCAN_MONEY 36
+
+#define MAX_SCAN_TIME 30
+
+#define MAX_SCAN_WORD 255
+
+
 /*
 **  Externally Accessed Variables
 */

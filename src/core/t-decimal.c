@@ -366,7 +366,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			{
 				REBYTE *bp;
 				REBCNT len;
-				bp = Qualify_String(val, 24, &len, FALSE);
+				bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_DECIMAL, &len, FALSE);
 
 				VAL_SET(D_OUT, REB_DECIMAL);
 				if (Scan_Decimal(
@@ -389,7 +389,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 			{
 				REBYTE *bp;
 				REBCNT len;
-				bp = Qualify_String(val, MAX_HEX_LEN, &len, FALSE);
+				bp = Temp_Byte_Chars_May_Fail(val, MAX_HEX_LEN, &len, FALSE);
 				if (Scan_Hex(&VAL_INT64(D_OUT), bp, len, len) == 0)
 					raise Error_Bad_Make(REB_DECIMAL, val);
 				d1 = VAL_DECIMAL(D_OUT);

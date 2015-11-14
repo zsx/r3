@@ -348,8 +348,7 @@
 		// URL! here fixes it, though there are still open questions.
 		//
 		if (IS_STRING(arg) || IS_URL(arg)) {
-			// Convert REBUNI-wide strings to byte buffer to use w/Scan_Tuple
-			ap = Qualify_String(arg, 11*4+1, &len, FALSE); // can trap, ret diff str
+			ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
 			if (Scan_Tuple(ap, len, D_OUT)) return R_OUT;
 			goto bad_arg;
 		}

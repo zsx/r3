@@ -148,6 +148,8 @@ typedef struct rebol_mold {
 #include "sys-stack.h"
 #include "sys-state.h"
 
+#include "sys-scan.h"
+
 /***********************************************************************
 **
 **	Constants

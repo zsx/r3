@@ -190,7 +190,7 @@
 	else if (IS_STRING(val)) {
 		REBYTE *bp;
 		REBCNT len;
-		bp = Qualify_String(val, 30, &len, FALSE); // can trap, ret diff str
+		bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
 		if (!Scan_Time(bp, len, val)) goto no_time;
 		secs = VAL_TIME(val);
 	}

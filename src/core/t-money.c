@@ -249,7 +249,7 @@
 		case REB_STRING:
 		{
 			const REBYTE *end;
-			str = Qualify_String(arg, 36, 0, FALSE);
+			str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
 			VAL_MONEY_AMOUNT(D_OUT) = string_to_deci(str, &end);
 			if (end == str || *end != 0) raise Error_Bad_Make(REB_MONEY, arg);
 			break;

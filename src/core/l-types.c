@@ -28,7 +28,6 @@
 ***********************************************************************/
 
 #include "sys-core.h"
-#include "sys-scan.h"
 #include "sys-deci-funcs.h"
 #include "sys-dec-to-char.h"
 #include <errno.h>

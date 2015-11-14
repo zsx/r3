@@ -785,8 +785,7 @@ setDate:
 			if (IS_STRING(arg)) {
 				REBYTE *bp;
 				REBCNT len;
-				// 30-September-10000/12:34:56.123456789AM/12:34
-				bp = Qualify_String(arg, 45, &len, FALSE); // can trap, ret diff str
+				bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
 				if (Scan_Date(bp, len, D_OUT)) return R_OUT;
 			}
 			else if (ANY_ARRAY(arg) && VAL_BLK_LEN(arg) >= 3) {

@@ -29,7 +29,6 @@
 
 //#define	INCLUDE_TYPE_NAMES		// include the value names table
 #include "sys-core.h"
-#include "sys-scan.h"
 #include <float.h>
 
 #define	MAX_QUOTED_STR	50	// max length of "string" before going to { }
