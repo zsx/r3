@@ -112,8 +112,31 @@ make-port*: func [
 							port-id: (to-integer/unsigned s2)
 						] tail out
 					)
-				]
-				(unless empty? s1 [attempt [s1: to tuple! s1] emit host s1])
+				] (
+					; Note: This code has historically attempted to convert
+					; the host name into a TUPLE!, and if it succeeded it
+					; considers this to represent an IP address lookup vs.
+					; a DNS lookup.  A basis for believing this will work can
+					; come from RFC-1738:
+					;
+					; "The rightmost domain label will never start with a
+					;  digit, though, which syntactically distinguishes all
+					;  domain names from the IP addresses."
+					;
+					; This suggests that as long as a TUPLE! conversion will
+					; never allow non-numeric characters it can work, though
+					; giving a confusing response to looking up "1" to come
+					; back and say "1.0.0 cannot be found", because that is
+					; the result of `make tuple! "1"`.
+					;
+					; !!! This code was also broken in R3-Alpha, because the
+					; captured content in PARSE of a URL! was a URL! and not
+					; a STRING!, and so the attempt to convert `s1` to TUPLE!
+					; would always fail.  Ren-C permits this conversion.
+
+					attempt [s1: to tuple! s1]
+					emit host s1
+				)
 			]
 		]
 

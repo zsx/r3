@@ -336,11 +336,24 @@
 		if (IS_TUPLE(arg)) {
 			return R_ARG2;
 		}
-		if (IS_STRING(arg)) {
+
+		// !!! Net lookup parses IP addresses out of `tcp://93.184.216.34` or
+		// similar URL!s.  In Rebol3 these captures come back the same type
+		// as the input instead of as STRING!, which was a latent bug in the
+		// network code of the 12-Dec-2012 release:
+		//
+		// https://github.com/rebol/rebol/blob/master/src/mezz/sys-ports.r#L110
+		//
+		// All attempts to convert a URL!-flavored IP address failed.  Taking
+		// URL! here fixes it, though there are still open questions.
+		//
+		if (IS_STRING(arg) || IS_URL(arg)) {
+			// Convert REBUNI-wide strings to byte buffer to use w/Scan_Tuple
 			ap = Qualify_String(arg, 11*4+1, &len, FALSE); // can trap, ret diff str
 			if (Scan_Tuple(ap, len, D_OUT)) return R_OUT;
 			goto bad_arg;
 		}
+
 		if (ANY_ARRAY(arg)) {
 			if (!MT_Tuple(D_OUT, VAL_BLK_DATA(arg), REB_TUPLE))
 				raise Error_Bad_Make(REB_TUPLE, arg);
