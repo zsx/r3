@@ -160,7 +160,17 @@ make-module*: func [
 	spec [block!] "As [spec-block body-block opt-mixins-object]"
 	/local body obj mixins hidden w
 ][
-	set [spec body mixins] spec
+	; There may be no mixins argument.  This touches upon questions about the
+	; potentional prevention of "reified" UNSET! as a value that can occur in
+	; a block.  The actual mechanical prevention of unsets has been deferred
+	; in favor of a policy of "making them rather difficult to make and
+	; outside of the interests of code that would like to pretend they do
+	; not exist", hence for now we rely on that deference with SET/ANY, and
+	; keep the code running under its original idea that mixins becomes
+	; either an OBJECT! or NONE! to maintain status quo.
+
+	set/any [spec body mixins] spec
+	mixins: to-value :mixins
 
 	; Convert header block to standard header object:
 	if block? :spec [
