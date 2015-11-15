@@ -81,9 +81,23 @@ include-protocols: false      ; include protocols in build
 ; !!! Heed /script/args so you could say e.g. `do/args %make-boot.r [0.3.01]`
 ; Note however that current leaning is that scripts called by the invoked
 ; process will not have access to the "outer" args, hence there will be only
-; one "args" to be looked at in the long run.
+; one "args" to be looked at in the long run.  This is an attempt to still
+; be able to bootstrap under the conditions of the A111 rebol.com R3-Alpha
+; as well as function either from the command line or the REPL.
 ;
-unless args: any [:system/script/args system/options/args] [
+unless args: any [
+	if string? :system/script/args [
+		either block? load system/script/args [
+			load system/script/args
+		][
+			reduce [load system/script/args]
+		]
+	]
+	:system/script/args
+
+	; This is the only piece that should be necessary if not dealing w/legacy
+	system/options/args
+] [
 	fail "No platform specified."
 ]
 
