@@ -339,12 +339,20 @@ static REBREQ *Req_SIO;
 
 /***********************************************************************
 **
-*/	void Debug_Series(const REBSER *ser)
+*/	void Debug_Series(REBSER *ser)
 /*
 ***********************************************************************/
 {
 	REBINT disabled = GC_Disabled;
 	GC_Disabled = 1;
+
+	// Invalid series would possibly (but not necessarily) crash the print
+	// routines--which are the same ones used to output a series normally.
+	// Hence Debug_Series should not be used to attempt to print a known
+	// malformed series.  ASSERT_SERIES will likely give a more pointed
+	// message about what is wrong than just crashing the print code...
+
+	ASSERT_SERIES(ser);
 
 	// This routine is also a little catalog of the outlying series
 	// types in terms of sizing, just to know what they are.
@@ -358,7 +366,7 @@ static REBREQ *Req_SIO;
 		// a frame and we may not want to Manage_Series here, so we use a
 		// raw VAL_SET instead of Val_Init_Block
 		VAL_SET(&value, REB_BLOCK);
-		VAL_SERIES(&value) = m_cast(REBSER *, ser); // not actually modifying
+		VAL_SERIES(&value) = ser;
 		VAL_INDEX(&value) = 0;
 		Debug_Fmt("%r", &value);
 	} else if (SERIES_WIDE(ser) == sizeof(REBUNI))
