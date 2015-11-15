@@ -424,7 +424,7 @@ load: function [
 		;-- Load multiple sources?
 		block? source [
 			return map-each item source [
-				(load/:type/:header/:all_LOAD :item ftype)
+				(load/type/:header/:all_LOAD :item :ftype)
 			]
 		]
 
@@ -570,10 +570,12 @@ do-needs: function [
 	; Import the modules:
 	mods: map-each [name vers hash] mods [
 		; Import the module
-		mod: (import/version/check/:no-share/:no-lib/:no-user name vers hash)
+		mod: (import/version/check/:no-share/:no-lib/:no-user
+			name (opt vers) (opt hash)
+		)
 
 		; Collect any mixins into the object (if we are doing that)
-		if all [mixins mixin? mod] [
+		if all [set? :mixins mixin? mod] [
 			resolve/extend/only mixins mod select spec-of mod 'exports
 		]
 		mod
@@ -581,7 +583,7 @@ do-needs: function [
 
 	case [
 		block [mods] ; /block: return block of modules
-		not empty? mixins [mixins] ; else return mixins, if any
+		not empty? to-value :mixins [mixins] ; else return mixins, if any
 	]
 ]
 
@@ -725,8 +727,8 @@ load-module: function [
 			]
 
 			return map-each [mod ver sum name] source [
-				(load-module/:ver/:sum/:no-share/:no-lib/:import/name/:delay
-					mod ver sum (if name [name])
+				(load-module/ver/sum/name/:no-share/:no-lib/:import/:delay
+					mod :ver :sum (opt name)
 				)
 			]
 		]
@@ -915,8 +917,8 @@ import: function [
 
 			for-each path system/options/module-paths [
 				if set [name: mod:] (
-					load-module/:version/:check/as/:no-share/:no-lib/import
-						path/:file ver sum module
+					load-module/version/check/as/:no-share/:no-lib/import
+						path/:file :ver :sum module
 				) [
 					break
 				]
