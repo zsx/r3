@@ -838,7 +838,7 @@
 				REBVAL *arg = va_arg(*args, REBVAL*);
 
 				if (!arg) {
-				#if defined(NDEBUG)
+				#ifdef NDEBUG
 					// If the C code passed too few args in a debug build,
 					// prevent a crash in the release build by filling it
 					// in with a NONE.
@@ -856,8 +856,8 @@
 					// args with C's vararg machinery--no NULL termination
 					// unless you explicitly put it in (and that's messy, so
 					// we don't want to do it)
-				}
 				#endif
+				}
 
 				ASSERT_VALUE_MANAGED(arg);
 
