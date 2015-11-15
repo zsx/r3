@@ -1018,9 +1018,10 @@ for-each [category info] boot-errors [
 emit-end
 
 emit {
-#define RE_INTERNAL_FIRST RE_MISC // update if no longer first
-#define RE_USER RE_MESSAGE
-#define RE_MAX RE_USER_MAX // update if another category added
+#define RE_USER 1000 // Hardcoded, update in %make-boot.r
+
+#define RE_INTERNAL_FIRST RE_MISC // GENERATED! update in %make-boot.r
+#define RE_MAX RE_COMMAND_MAX // GENERATED! update in %make-boot.r
 }
 
 write inc/tmp-errnums.h out

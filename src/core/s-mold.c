@@ -925,7 +925,6 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
 	ERROR_OBJ *err;
-	REBVAL *msg;  // Error message block
 	REBSER *frame;
 
 	// Protect against recursion. !!!!
@@ -943,14 +942,12 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 	Emit(mold, "** WB", &err->type, RS_ERRS+0);
 
 	// Append: error message ARG1, ARG2, etc.
-	msg = Find_Error_Info(err, 0);
-	if (msg) {
-		if (IS_BLOCK(msg))
-			Form_Block_Series(VAL_SERIES(msg), 0, mold, frame);
-		else
-			Mold_Value(mold, msg, 0);
-	} else
-		Append_Boot_Str(mold->series, RS_ERRS+1);
+	if (IS_BLOCK(&err->message))
+		Form_Block_Series(VAL_SERIES(&err->message), 0, mold, frame);
+	else if (IS_STRING(&err->message))
+		Mold_Value(mold, &err->message, 0);
+	else
+		Append_Boot_Str(mold->series, RS_ERRS + 1);
 
 	// Form: ** Where: function
 	value = &err->where;

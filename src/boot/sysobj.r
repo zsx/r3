@@ -161,6 +161,7 @@ options: context [  ; Options supplied to REBOL during startup
 	; as not being in the mezzanine and following a different rule.)
 
 	cant-unset-set-words: false
+	arg1-arg2-arg3-error: false
 ]
 
 script: context [
@@ -195,15 +196,16 @@ standard: context [
 	]
 
 	error: context [ ; Template used for all errors:
-		code: 0
+		code: none
 		type: 'user
 		id:   'message
-		arg1:
-		arg2:
-		arg3:
+		message:
 		near:
 		where:
 			none
+
+		; Arguments will be allocated in the frame at creation time if
+		; necessary (errors with no arguments will just have a message)
 	]
 
 	script: context [

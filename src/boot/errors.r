@@ -88,7 +88,7 @@ Internal: [
 	bad-series:         {invalid series}
 	limit-hit:          [{internal limit reached:} :arg1]
 	bad-sys-func:       [{invalid or missing system function:} :arg1]
-	invalid-error:      {error object or fields were not valid}
+	invalid-error:      [{error object or fields were not valid:} :arg1]
 	bad-evaltype:		{invalid datatype for evaluation}
 	hash-overflow:		{Hash ran out of space}
 	no-print-ptr:		{print is missing string pointer}
@@ -289,26 +289,7 @@ Command: [
 	command-fail:		["Command failed"]
 ]
 
-Unused-700-799: [
-	; Padding categories required for math done by Find_Error_Info
-	code: 700
-	type: "reserved 700-799"
-]
+; If new category added, be sure to update RE_MAX in %make-boot.r
+; (currently RE_COMMAND_MAX because `Command: [...]` is the last category)
 
-Unused-800-899: [
-	; Padding categories required for math done by Find_Error_Info
-	code: 800
-	type: "reserved 800-899"
-]
-
-Unused-900-999: [
-	; Padding categories required for math done by Find_Error_Info
-	code: 900
-	type: "reserved 900-999"
-]
-
-User: [
-	code: 1000
-	type: "user error"
-	message: [:arg1]
-]
+; Note that 1000 is the hardcoded constant in %make-boot.r used for RE_USER

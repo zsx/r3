@@ -444,7 +444,7 @@ upgrade: function [
 	fail "Automatic upgrade checking is currently not supported."
 ]
 
-why?: func [
+why?: function [
 	"Explain the last error in more detail."
 	'err [word! path! error! none! unset!] "Optional error value"
 ][
@@ -458,6 +458,18 @@ why?: func [
 		error? err: any [:err system/state/last-error]
 		err/type ; avoids lower level error types (like halt)
 	][
+		; In non-"NDEBUG" (No DEBUG) builds, if an error originated from the
+		; C sources then it will have a file and line number included of where
+		; the error was triggered.
+		if all [
+			file: attempt [system/state/last-error/__FILE__]
+			line: attempt [system/state/last-error/__LINE__]
+		][
+			print ["DEBUG BUILD INFO:"]
+			print ["    __FILE__ =" file]
+			print ["    __LINE__ =" line]
+		]
+
 		say-browser
 		err: lowercase ajoin [err/type #"-" err/id]
 		browse join http://www.rebol.com/r3/docs/errors/ [err ".html"]

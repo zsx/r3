@@ -290,92 +290,158 @@
 
 /***********************************************************************
 **
-*/	void Set_Error_Type(ERROR_OBJ *error)
+*/	REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 /*
-**		Sets error type and id fields based on code number.
+**		Find the id word, the error type (category) word, and the error
+**		message template block-or-string for a given error number.
+**
+**		This scans the data which is loaded into the boot file by
+**		processing %errors.r
+**
+**		If the message is not found, return NULL.  Will not write to
+**		`id_out` or `type_out` unless returning a non-NULL pointer.
 **
 ***********************************************************************/
 {
-	REBSER *cats;		// Error catalog object
-	REBSER *cat;		// Error category object
-	REBCNT n;		// Word symbol number
-	REBINT code;
+	// See %errors.r for the list of data which is loaded into the boot
+	// file as objects for the "error catalog"
+	REBSER *categories = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
 
-	code = VAL_INT32(&error->code);
+	REBSER *category;
+	REBCNT n;
+	REBVAL *message;
 
-	// Set error category:
-	n = code / 100 + 1;
-	cats = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+	// Find the correct catalog category
+	n = code / 100; // 0 for Special, 1 for Internal...
+	if (n + 1 > SERIES_TAIL(categories)) // +1 account for SELF
+		return NULL;
 
-	if (code >= 0 && n < SERIES_TAIL(cats) &&
-		(cat = VAL_ERR_OBJECT(BLK_SKIP(cats, n)))
-	) {
-		Val_Init_Word(&error->type, REB_WORD, FRM_KEY_SYM(cats, n), cats, n);
-
-		// Find word related to the error itself:
-
-		n = code % 100 + 3;
-		if (n < SERIES_TAIL(cat))
-			Val_Init_Word(&error->id, REB_WORD, FRM_KEY_SYM(cat, n), cat, n);
+	// Get frame of object representing the elements of the category itself
+	if (!IS_OBJECT(FRM_VALUE(categories, n + 1))) {
+		assert(FALSE);
+		return NULL;
 	}
+	category = VAL_OBJ_FRAME(FRM_VALUE(categories, n + 1));
+
+	// Find the correct template in the catalog category (see %errors.r)
+	n = code % 100; // 0-based order within category
+	if (n + 3 > SERIES_TAIL(category)) // +3 account for SELF, CODE: TYPE:
+		return NULL;
+
+	// Sanity check CODE: field of category object
+	if (!IS_INTEGER(FRM_VALUE(category, 1))) {
+		assert(FALSE);
+		return NULL;
+	}
+	assert(
+		cast(REBCNT, VAL_INT32(FRM_VALUE(category, 1))) == (code / 100) * 100
+	);
+
+	// Sanity check TYPE: field of category object
+	// !!! Same spelling as what we set in VAL_WORD_SYM(type_out))?
+	if (!IS_STRING(FRM_VALUE(category, 2))) {
+		assert(FALSE);
+		return NULL;
+	}
+
+	message = FRM_VALUE(category, n + 3);
+
+	// Error message template must be string or block
+	assert(IS_BLOCK(message) || IS_STRING(message));
+
+	// Success! Write category word from the category list frame key sym,
+	// and specific error ID word from the frame key sym within category
+	Val_Init_Word_Unbound(
+		type_out,
+		REB_WORD,
+		VAL_TYPESET_SYM(FRM_KEY(categories, (code / 100) + 1))
+	);
+	Val_Init_Word_Unbound(
+		id_out,
+		REB_WORD,
+		VAL_TYPESET_SYM(FRM_KEY(category, (code % 100) + 3))
+	);
+
+	return message;
 }
 
 
 /***********************************************************************
 **
-*/	REBVAL *Find_Error_Info(ERROR_OBJ *error, REBINT *num)
+*/	void Val_Init_Error(REBVAL *out, REBSER *frame)
 /*
-**		Return the error message needed to print an error.
-**		Must scan the error catalog and its error lists.
-**		Note that the error type and id words no longer need
-**		to be bound to the error catalog context.
-**		If the message is not found, return null.
-**
 ***********************************************************************/
 {
-	REBSER *frame;
-	REBVAL *obj1;
-	REBVAL *obj2;
-
-	if (!IS_WORD(&error->type) || !IS_WORD(&error->id)) return 0;
-
-	// Find the correct error type object in the catalog:
-	frame = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
-	obj1 = Find_Word_Value(frame, VAL_WORD_SYM(&error->type));
-	if (!obj1) return 0;
-
-	// Now find the correct error message for that type:
-	frame = VAL_OBJ_FRAME(obj1);
-	obj2 = Find_Word_Value(frame, VAL_WORD_SYM(&error->id));
-	if (!obj2) return 0;
-
-	if (num) {
-		obj1 = Find_Word_Value(frame, SYM_CODE);
-		if (!obj1) return 0;
-		*num = VAL_INT32(obj1)
-			+ Find_Word_Index(frame, VAL_WORD_SYM(&error->id), FALSE)
-			- Find_Word_Index(frame, SYM_TYPE, FALSE) - 1;
-	}
-
-	return obj2;
-}
-
-
-/***********************************************************************
-**
-*/	void Val_Init_Error(REBVAL *out, REBSER *err_frame)
-/*
-**		Returns FALSE if a THROWN() value is made during evaluation.
-**
-***********************************************************************/
-{
-	ENSURE_FRAME_MANAGED(err_frame);
+	ENSURE_FRAME_MANAGED(frame);
 
 	VAL_SET(out, REB_ERROR);
-	VAL_ERR_OBJECT(out) = err_frame;
+	VAL_ERR_OBJECT(out) = frame;
 
 	ASSERT_ERROR(out);
 }
+
+
+#if !defined(NDEBUG)
+
+/***********************************************************************
+**
+*/	static REBSER *Make_Guarded_Arg123_Error_Frame(void)
+/*
+**	Needed only for compatibility trick to "fake in" ARG1: ARG2: ARG3:
+**
+**	Rebol2 and R3-Alpha errors were limited to three arguments with
+**	fixed names, arg1 arg2 arg3.  (Though R3 comments alluded to
+**	the idea that MAKE ERROR! from an OBJECT! would inherit that
+**	object's fields, it did not actually work.)  With FAIL and more
+**	flexible error creation this is being extended.
+**
+**	Change is not made to the root error object because there is no
+**	"moment" to effect that (e.g. <r3-legacy> mode will not be started
+**	at boot time, it happens after).  This allows the stock args to be
+**	enabled and disabled dynamically in the legacy settings, at the
+**	cost of creating a new error object each time.
+**
+**	To make code handling it like the regular error frame (and keep that
+**	code "relatively uncontaminated" by the #ifdefs), it must behave
+**	as GC managed.  So it has to be guarded, thus the client drops the
+**	guard and it will wind up being freed since it's not in the root set.
+**	This is a bit inefficient but it's for legacy mode only, so best
+**	to bend to the expectations of the non-legacy code.
+**
+***********************************************************************/
+{
+	REBSER *root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
+	REBCNT len = SERIES_LEN(root_frame);
+	REBSER *frame = Make_Frame(len + 3, TRUE);
+	REBVAL *key = FRM_KEY(frame, 0);
+	REBVAL *value = FRM_VALUE(frame, 0);
+	REBCNT n;
+
+	for (n = 0; n < len; n++, key++, value++) {
+		if (n == 0) continue; // skip SELF:
+		*key = *FRM_KEY(root_frame, n);
+		*value = *FRM_VALUE(root_frame, n);
+		assert(IS_TYPESET(key));
+	}
+
+	for (n = 0; n < 3; n++, key++, value++) {
+		Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
+		SET_NONE(value);
+	}
+
+	SET_END(key);
+	SET_END(value);
+
+	frame->tail = len + 3;
+	FRM_KEYLIST(frame)->tail = len + 3;
+
+	ASSERT_FRAME(frame);
+	MANAGE_FRAME(frame);
+	PUSH_GUARD_SERIES(frame);
+	return frame;
+}
+
+#endif
 
 
 /***********************************************************************
@@ -387,176 +453,467 @@
 **
 **		Returns TRUE if a THROWN() value is made during evaluation.
 **
-**		This function is called by MAKE ERROR!.
+**		This function is called by MAKE ERROR!.  Note that most often
+**		system errors from %errors.r are thrown by C code using
+**		Make_Error(), but this routine accommodates verification of
+**		errors created through user code...which may be mezzanine
+**		Rebol itself.  A goal is to not allow any such errors to
+**		be formed differently than the C code would have made them,
+**		and to cross through the point of R3-Alpha error compatibility,
+**		which makes this a rather tortured routine.  However, it
+**		maps out the existing landscape so that if it is to be changed
+**		then it can be seen exactly what is changing.
 **
 ***********************************************************************/
 {
-	REBSER *err;		// Error object
-	ERROR_OBJ *error;	// Error object values
-	REBINT code = 0;
+	// Frame from the error object template defined in %sysobj.r
+	REBSER *root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
 
-	// Create a new error object from another object, including any non-standard fields:
+	REBSER *frame;
+	ERROR_OBJ *error_obj;
+
+#if !defined(NDEBUG)
+	if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
+		root_frame = Make_Guarded_Arg123_Error_Frame();
+#endif
+
 	if (IS_ERROR(arg) || IS_OBJECT(arg)) {
-		err = Merge_Frames(VAL_OBJ_FRAME(ROOT_ERROBJ),
-			IS_ERROR(arg) ? VAL_ERR_OBJECT(arg) : VAL_OBJ_FRAME(arg));
-		error = ERR_VALUES(err);
+		// Create a new error object from another object, including any
+		// non-standard fields.  WHERE: and NEAR: will be overridden if
+		// used.  If ID:, TYPE:, or CODE: were used in a way that would
+		// be inconsistent with a Rebol system error, an error will be
+		// raised later in the routine.
 
-		if (!Find_Error_Info(error, &code)) code = RE_INVALID_ERROR;
-		SET_INTEGER(&error->code, code);
-
-		Val_Init_Error(out, err);
-		return FALSE;
+		frame = Merge_Frames(
+			root_frame,
+			IS_ERROR(arg) ? VAL_ERR_OBJECT(arg) : VAL_OBJ_FRAME(arg)
+		);
+		error_obj = ERR_VALUES(frame);
 	}
+	else if (IS_BLOCK(arg)) {
+		// If a block, then effectively MAKE OBJECT! on it.  Afterward,
+		// apply the same logic as if an OBJECT! had been passed in above.
 
-	// Make a copy of the error object template:
-	err = Copy_Array_Shallow(VAL_OBJ_FRAME(ROOT_ERROBJ));
-
-	error = ERR_VALUES(err);
-	SET_NONE(&error->id);
-
-	// If block arg, evaluate object values (checking done later):
-	// If user set error code, use it to setup type and id fields.
-	if (IS_BLOCK(arg)) {
 		REBVAL evaluated;
 
 		// Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
 		// code in REBTYPE(Object) and code in REBNATIVE(construct))
-		Bind_Values_Deep(VAL_BLK_DATA(arg), err);
+
+		frame = Make_Object(root_frame, VAL_BLK_DATA(arg));
+		Rebind_Frame(root_frame, frame);
+		Bind_Values_Deep(VAL_BLK_DATA(arg), frame);
+
 		if (DO_ARRAY_THROWS(&evaluated, arg)) {
 			*out = evaluated;
+
+		#if !defined(NDEBUG)
+			// Let our fake root_frame that had arg1: arg2: arg3: on it be
+			// garbage collected.
+			if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
+				DROP_GUARD_SERIES(root_frame);
+		#endif
+
 			return TRUE;
 		}
 
-		if (IS_INTEGER(&error->code) && VAL_INT64(&error->code)) {
-			Set_Error_Type(error);
-		} else {
-			if (Find_Error_Info(error, &code)) {
-				SET_INTEGER(&error->code, code);
+		error_obj = ERR_VALUES(frame);
+	}
+	else if (IS_STRING(arg)) {
+		// String argument to MAKE ERROR! makes a custom error from user:
+		//
+		//     code: 1000 ;-- default none
+		//     type: 'user
+		//     id: 'message
+		//     message: "whatever the string was" ;-- default none
+		//
+		// Minus the code number and message, this is the default state of
+		// root_frame if not overridden.
+
+		frame = Copy_Array_Shallow(root_frame);
+		MANAGE_SERIES(frame);
+		error_obj = ERR_VALUES(frame);
+
+		assert(IS_NONE(&error_obj->code));
+		// fill in RE_USER (1000) later if it passes the check
+
+		Val_Init_String(&error_obj->message, Copy_Sequence_At_Position(arg));
+	}
+	else {
+		// No other argument types are handled by this routine at this time.
+
+		raise Error_1(RE_INVALID_ERROR, arg);
+	}
+
+	// Validate the error contents, and reconcile message template and ID
+	// information with any data in the object.  Do this for the IS_STRING
+	// creation case just to make sure the rules are followed there too.
+
+	// !!! Note that this code is very cautious because the goal isn't to do
+	// this as efficiently as possible, rather to put up lots of alarms and
+	// traffic cones to make it easy to pick and choose what parts to excise
+	// or tighten in an error enhancement upgrade.
+
+	if (IS_INTEGER(&error_obj->code)) {
+		if (VAL_INT32(&error_obj->code) < RE_USER) {
+			// Users can make up anything for error codes allocated to them,
+			// but Rebol's historical default is to "own" error codes less
+			// than 1000.  If a code is used in the sub-1000 range then make
+			// sure any id or type provided do not conflict.
+
+			REBVAL id;
+			REBVAL type;
+			REBVAL *message;
+
+			if (!IS_NONE(&error_obj->message)) // assume a MESSAGE: is wrong
+				raise Error_1(RE_INVALID_ERROR, arg);
+
+			message = Find_Error_For_Code(
+				&id,
+				&type,
+				cast(REBCNT, VAL_INT32(&error_obj->code))
+			);
+
+			if (!message)
+				raise Error_1(RE_INVALID_ERROR, arg);
+
+			error_obj->message = *message;
+
+			if (!IS_NONE(&error_obj->id)) {
+				if (
+					!IS_WORD(&error_obj->id)
+					|| !SAME_SYM(
+						VAL_WORD_SYM(&error_obj->id), VAL_WORD_SYM(&id)
+					)
+				) {
+					raise Error_1(RE_INVALID_ERROR, arg);
+				}
+			}
+			error_obj->id = id; // normalize binding and case
+
+			if (!IS_NONE(&error_obj->type)) {
+				if (
+					!IS_WORD(&error_obj->id)
+					|| !SAME_SYM(
+						VAL_WORD_SYM(&error_obj->type), VAL_WORD_SYM(&type)
+					)
+				) {
+					raise Error_1(RE_INVALID_ERROR, arg);
+				}
+			}
+			error_obj->type = type; // normalize binding and case
+
+			// !!! TBD: Check that all arguments were provided!
+		}
+	}
+	else if (IS_WORD(&error_obj->type) && IS_WORD(&error_obj->id)) {
+		// If there was no CODE: supplied but there was a TYPE: and ID: then
+		// this may overlap a combination used by Rebol where we wish to
+		// fill in the code.  (No fast lookup for this, must search.)
+
+		REBSER *categories = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+		REBVAL *category;
+
+		assert(IS_NONE(&error_obj->code));
+
+		// Find correct category for TYPE: (if any)
+		category = Find_Word_Value(categories, VAL_WORD_SYM(&error_obj->type));
+		if (category) {
+			REBCNT code;
+			REBVAL *message;
+
+			assert(IS_OBJECT(category)); // SELF: 0
+
+			assert(
+				SAME_SYM(VAL_TYPESET_SYM(VAL_OBJ_KEY(category, 1)), SYM_CODE)
+			);
+			assert(IS_INTEGER(VAL_OBJ_VALUE(category, 1)));
+			code = cast(REBCNT, VAL_INT32(VAL_OBJ_VALUE(category, 1)));
+
+			assert(
+				SAME_SYM(VAL_TYPESET_SYM(VAL_OBJ_KEY(category, 2)), SYM_TYPE)
+			);
+			assert(IS_STRING(VAL_OBJ_VALUE(category, 2)));
+
+			// Find correct message for ID: (if any)
+			message = Find_Word_Value(
+				VAL_OBJ_FRAME(category), VAL_WORD_SYM(&error_obj->id)
+			);
+
+			if (message) {
+				assert(IS_STRING(message) || IS_BLOCK(message));
+
+				if (!IS_NONE(&error_obj->message))
+					raise Error_1(RE_INVALID_ERROR, arg);
+
+				error_obj->message = *message;
+
+				SET_INTEGER(&error_obj->code,
+					code
+					+ Find_Word_Index(frame, VAL_WORD_SYM(&error_obj->id), FALSE)
+					- Find_Word_Index(frame, SYM_TYPE, FALSE)
+					- 1
+				);
+			}
+			else {
+				// At the moment, we don't let the user make a user-ID'd
+				// error using a category from the internal list just
+				// because there was no id from that category.  In effect
+				// all the category words have been "reserved"
+
+				// !!! Again, remember this is all here just to show compliance
+				// with what the test suite tested for, it disallowed e.g.
+				// it expected the following to be an illegal error because
+				// the `script` category had no `set-self` error ID.
+				//
+				//     make error! [type: 'script id: 'set-self]
+
+				raise Error_1(RE_INVALID_ERROR, arg);
 			}
 		}
-		// The error code is not valid:
-		if (IS_NONE(&error->id)) {
-			SET_INTEGER(&error->code, RE_INVALID_ERROR);
-			Set_Error_Type(error);
+		else {
+			// The type and category picked did not overlap any existing one
+			// so let it be a user error.
+			SET_INTEGER(&error_obj->code, RE_USER);
 		}
+	}
+	else {
+		// It's either a user-created error or otherwise.  It may
+		// have bad ID, TYPE, or message fields, or a completely
+		// strange code #.  The question of how non-standard to
+		// tolerate is an open one.
+
+		// For now we just write 1000 into the error code field, if that was
+		// not already there.
+
+		if (IS_NONE(&error_obj->code))
+			SET_INTEGER(&error_obj->code, RE_USER);
+		else if (IS_INTEGER(&error_obj->code)) {
+			if (VAL_INT32(&error_obj->code) != RE_USER)
+				raise Error_1(RE_INVALID_ERROR, arg);
+		}
+		else
+			raise Error_1(RE_INVALID_ERROR, arg);
+
+		// !!! Because we will experience crashes in the molding logic,
+		// we put some level of requirement besides "code # not 0".
+		// This is conservative logic and not good for general purposes.
+
 		if (
-			VAL_INT64(&error->code) < RE_SPECIAL_MAX
-			|| VAL_INT64(&error->code) >= RE_MAX
+			!(IS_WORD(&error_obj->id) || IS_NONE(&error_obj->id))
+			|| !(IS_WORD(&error_obj->type) || IS_NONE(&error_obj->type))
+			|| !(
+				IS_BLOCK(&error_obj->message)
+				|| IS_STRING(&error_obj->message)
+				|| IS_NONE(&error_obj->message)
+			)
 		) {
-			Free_Series(err);
-			raise Error_Invalid_Arg(arg);
+			raise Error_1(RE_INVALID_ERROR, arg);
 		}
 	}
 
-	// If string arg, setup other fields
-	else if (IS_STRING(arg)) {
-		SET_INTEGER(&error->code, RE_USER); // user error
-		Val_Init_String(&error->arg1, Copy_Sequence_At_Position(arg));
-		Set_Error_Type(error);
-	}
-	else
-		raise Error_Invalid_Arg(arg);
+	assert(IS_INTEGER(&error_obj->code));
 
-	MANAGE_SERIES(err);
-	Val_Init_Error(out, err);
+#if !defined(NDEBUG)
+	// Let our fake root_frame that had arg1: arg2: arg3: on it be
+	// garbage collected.
+	if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
+		DROP_GUARD_SERIES(root_frame);
+#endif
 
+	Val_Init_Error(out, frame);
 	return FALSE;
 }
 
 
 /***********************************************************************
 **
-*/	REBSER *Make_Error_Core(REBINT code, const char *c_file, int c_line, va_list *args)
+*/	REBSER *Make_Error_Core(REBCNT code, const char *c_file, int c_line, va_list *args)
 /*
 **		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 **
-**		Create and init a new error object.
+**		Create and init a new error object.  Should not be able to
+**		fail...will Panic if it does (avoids the failure to call
+**		va_end on a longjmp).
 **
 ***********************************************************************/
 {
-	REBSER *err;		// Error object
-	ERROR_OBJ *error;	// Error object values
-	REBVAL *arg;
+	REBSER *root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
+
+	REBSER *frame; // Error object frame
+	ERROR_OBJ *error_obj; // Error object values
+	REBVAL *message;
+	REBVAL id;
+	REBVAL type;
+
+	REBCNT expected_args;
 
 	assert(code != 0);
+
+#if !defined(NDEBUG)
+	if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
+		root_frame = Make_Guarded_Arg123_Error_Frame();
+#endif
 
 	if (PG_Boot_Phase < BOOT_ERRORS) {
 		Panic_Core(code, NULL, c_file, c_line, args);
 		DEAD_END;
 	}
 
-	// Make a copy of the error object template's frame  Note that by shallow
-	// copying it we are implicitly reusing the original's word series..
-	// which has already been indicated as "Managed".  We set our copy to
-	// managed so that it matches.
-	err = Copy_Array_Shallow(VAL_OBJ_FRAME(ROOT_ERROBJ));
-	MANAGE_SERIES(err);
+	message = Find_Error_For_Code(&id, &type, code);
+	assert(message);
 
-	error = ERR_VALUES(err);
+	if (IS_BLOCK(message)) {
+		// For a system error coming from a C vararg call, the # of
+		// GET-WORD!s in the format block should match the varargs supplied.
 
-	// Set error number:
-	SET_INTEGER(&error->code, code);
-	Set_Error_Type(error);
-
-	// Set error argument values:
-	arg = va_arg(*args, REBVAL*);
-
-	if (arg) {
-		error->arg1 = *arg;
-		arg = va_arg(*args, REBVAL*);
+		REBVAL *temp = VAL_BLK_HEAD(message);
+		expected_args = 0;
+		while (NOT_END(temp)) {
+			if (IS_GET_WORD(temp))
+				expected_args++;
+			else
+				assert(IS_STRING(temp));
+			temp++;
+		}
 	}
+	else {
+		// Just a string, no arguments expected.
 
-	if (arg) {
-		error->arg2 = *arg;
-		arg = va_arg(*args, REBVAL*);
-	}
-
-	if (arg) {
-		error->arg3 = *arg;
-		arg = va_arg(*args, REBVAL*);
+		assert(IS_STRING(message));
+		expected_args = 0;
 	}
 
 #if !defined(NDEBUG)
-	if (arg) {
-		// Implementation previously didn't take a vararg, and so was
-		// limited to 3 arguments.  Could be generalized more now
+	// !!! We have the C source file and line information for where the
+	// error was triggered (since Make_Error_Core calls all originate
+	// from C source, as opposed to the user path where the error
+	// is made in the T_Object dispatch).  Add them in the error so
+	// they can be seen with PROBE but not when FORM'd to users
+	expected_args += 2;
+#endif
 
-		Debug_Fmt("Make_Error() passed more than 3 error arguments!");
-		panic Error_0(RE_MISC);
+	if (expected_args == 0) {
+		// If there are no arguments, we don't need to make a new keylist...
+		// just a new valuelist to hold this instance's settings. (root
+		// frame keylist is already managed)
+
+		frame = Copy_Array_Shallow(root_frame);
 	}
+	else {
+		REBVAL *key;
+		REBVAL *value;
+		REBVAL *temp;
 
-	assert(c_file);
-
-	{
-		// !!! We have the C source file and line information for where the
-		// error was triggered (since Make_Error_Core calls all originate
-		// from C source, as opposed to the user path where the error
-		// is made in the T_Object dispatch).  However, the error object
-		// template is defined in sysobj.r, and there's no way to add
-		// "debug only" fields to it.  We create REBVALs for the file and
-		// line just to show they are available here, if there were some
-		// good way to put them into the object (perhaps they should be
-		// associated via a map or list, and not put inside?)
+		// Should the error be well-formed, we'll need room for the new
+		// expected values *and* their new keys in the keylist.
 		//
-		REBVAL c_file_value;
-		REBVAL c_line_value;
+		frame = Copy_Array_Extra_Shallow(root_frame, expected_args);
+		FRM_KEYLIST(frame) = Copy_Array_Extra_Shallow(
+			FRM_KEYLIST(root_frame), expected_args
+		);
+
+		key = BLK_SKIP(FRM_KEYLIST(frame), SERIES_LEN(root_frame));
+		value = BLK_SKIP(frame, SERIES_LEN(root_frame));
+
+	#ifdef NDEBUG
+		temp = VAL_BLK_HEAD(message);
+	#else
+		// Will get here even for a parameterless string due to throwing in
+		// the extra "arguments" of the __FILE__ and __LINE__
+		temp = IS_STRING(message) ? END_VALUE : VAL_BLK_HEAD(message);
+	#endif
+
+		while (NOT_END(temp)) {
+			if (IS_GET_WORD(temp)) {
+				REBVAL *arg = va_arg(*args, REBVAL*);
+
+				if (!arg) {
+				#if defined(NDEBUG)
+					// If the C code passed too few args in a debug build,
+					// prevent a crash in the release build by filling it
+					// in with a NONE.
+					arg = NONE_VALUE;
+				#else
+					Debug_Fmt(
+						"too few args passed for error code %d at %s line %d",
+						code,
+						c_file,
+						c_line
+					);
+					assert(FALSE);
+
+					// !!! Note that we have no way of checking for too *many*
+					// args with C's vararg machinery--no NULL termination
+					// unless you explicitly put it in (and that's messy, so
+					// we don't want to do it)
+				}
+				#endif
+
+				ASSERT_VALUE_MANAGED(arg);
+
+				Val_Init_Typeset(key, ALL_64, VAL_WORD_SYM(temp));
+				*value = *arg;
+
+				key++;
+				value++;
+			}
+			temp++;
+		}
+
+	#if !defined(NDEBUG)
+		// error/__FILE__ (a FILE! value)
+		Val_Init_Typeset(key, ALL_64, SYM___FILE__);
+		key++;
 		Val_Init_File(
-			&c_file_value,
+			value,
 			Append_UTF8(NULL, cb_cast(c_file), LEN_BYTES(cb_cast(c_file)))
 		);
-		SET_INTEGER(&c_line_value, c_line);
+		value++;
+
+		// error/__LINE__ (an INTEGER! value)
+		Val_Init_Typeset(key, ALL_64, SYM___LINE__);
+		key++;
+		SET_INTEGER(value, c_line);
+		value++;
+	#endif
+
+		SET_END(key);
+		SET_END(value);
+
+		// Fix up the tail (was not done so automatically);
+		SERIES_TAIL(FRM_KEYLIST(frame)) += expected_args;
+		SERIES_TAIL(frame) += expected_args;
+
+		MANAGE_SERIES(FRM_KEYLIST(frame));
 	}
-#endif
+
+	MANAGE_SERIES(frame);
+
+	error_obj = ERR_VALUES(frame);
+
+	// Set error number:
+	SET_INTEGER(&error_obj->code, code);
+
+	error_obj->message = *message;
+	error_obj->id = id;
+	error_obj->type = type;
 
 	// Set backtrace and location information:
 	if (DSF) {
 		// Where (what function) is the error:
-		Val_Init_Block(&error->where, Make_Backtrace(0));
+		Val_Init_Block(&error_obj->where, Make_Backtrace(0));
 		// Nearby location of the error (in block being evaluated):
-		error->nearest = *DSF_WHERE(DSF);
+		error_obj->nearest = *DSF_WHERE(DSF);
 	}
 
-	return err;
+#if !defined(NDEBUG)
+	// Let our fake root_frame that had arg1: arg2: arg3: on it be
+	// garbage collected.
+	if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
+		DROP_GUARD_SERIES(root_frame);
+#endif
+
+	return frame;
 }
 
 
@@ -567,19 +924,19 @@
 ***********************************************************************/
 {
 	va_list args;
-	REBSER *error;
+	REBSER *frame;
 
 	va_start(args, num);
 
 #ifdef NDEBUG
-	error = Make_Error_Core(num, NULL, 0, &args);
+	frame = Make_Error_Core(num, NULL, 0, &args);
 #else
-	error = Make_Error_Core(num, __FILE__, __LINE__, &args);
+	frame = Make_Error_Core(num, __FILE__, __LINE__, &args);
 #endif
 
 	va_end(args);
 
-	return error;
+	return frame;
 }
 
 
