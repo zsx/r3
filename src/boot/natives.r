@@ -69,7 +69,6 @@ case: native [
 	{Evaluates each condition, and when true, evaluates what follows it.}
 	block [block!] {Block of cases (conditions followed by values)}
 	/all {Evaluate all cases (do not stop at first TRUE? case)}
-	/only {Return block values instead of evaluating them.}
 ]
 
 catch: native [
@@ -143,11 +142,10 @@ eval: native [
 ]
 
 either: native [
-	{If TRUE condition return first arg, else second; evaluate blocks by default.}
+	{If TRUE? condition return 1st branch, else 2nd--evaluate blocks as code.}
 	condition
 	true-branch [any-value!]
 	false-branch [any-value!]
-	/only "Suppress evaluation of block args."
 ]
 
 every: native [
@@ -218,10 +216,9 @@ halt: native [
 ]
 
 if: native [
-	{If TRUE condition, return arg; evaluate blocks by default.}
+	{If TRUE? condition, return the branch--with blocks evaluated as code.}
 	condition
 	true-branch [any-value!]
-	/only "Return block arg instead of evaluating it."
 ]
 
 loop: native [
@@ -338,10 +335,9 @@ trap: native [
 ]
 
 unless: native [
-	{If FALSE condition, return arg; evaluate blocks by default.}
+	{If FALSE? condition, return the branch--with blocks evaluated as code.}
 	condition
 	false-branch [any-value!]
-	/only "Return block arg instead of evaluating it."
 ]
 
 until: native [

@@ -406,7 +406,6 @@ enum {
 /*
 **	1: block
 **	2: /all
-**	3: /only
 **
 ***********************************************************************/
 {
@@ -414,13 +413,16 @@ enum {
 	REBSER *block = VAL_SERIES(D_ARG(1));
 	REBCNT index = VAL_INDEX(D_ARG(1));
 
-	// Save refinements to booleans to free up their call frame slots
+	// Save refinement to boolean to free up GC protected call frame slot
 	REBFLG all = D_REF(2);
-	REBFLG only = D_REF(3);
 
-	// reuse refinement slots for GC safety (pointers are optimized out)
-	REBVAL * const condition_result = D_ARG(2);
-	REBVAL * const body_result = D_ARG(3);
+	// reuse refinement slot for GC safety (const pointer optimized out)
+	REBVAL * const safe_temp = D_ARG(2);
+
+	// condition result must survive across potential GC evaluations of
+	// the body evaluation re-using `safe-temp`, but can be collapsed to a
+	// flag as the full value of the condition is never returned.
+	REBFLG matched;
 
 	// CASE is in the same family as IF/UNLESS/EITHER, so if there is no
 	// matching condition it will return UNSET!.  Set that as default.
@@ -429,16 +431,30 @@ enum {
 
 	while (index < SERIES_TAIL(block)) {
 
-		DO_NEXT_MAY_THROW(index, condition_result, block, index);
+		DO_NEXT_MAY_THROW(index, safe_temp, block, index);
 
 		if (index == THROWN_FLAG) {
-			*D_OUT = *condition_result; // is a RETURN, BREAK, THROW...
+			*D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
 			return R_OUT_IS_THROWN;
 		}
 
+		// CASE statements are rather freeform as-is, and it seems most useful
+		// to return an error on things like:
+		//
+		//     case [
+		//         false [print "skipped"]
+		//         false ; no matching body for condition
+		//     ]
+
 		if (index == END_FLAG) raise Error_0(RE_PAST_END);
 
-		if (IS_UNSET(condition_result)) raise Error_0(RE_NO_RETURN);
+		// While unset is often a chance to "opt-out" of things, the condition
+		// of an IF/UNLESS/EITHER is a spot where opting out is not allowed,
+		// so it seems equally applicable to CASE.
+
+		if (IS_UNSET(safe_temp)) raise Error_0(RE_NO_RETURN);
+
+		matched = IS_CONDITIONAL_TRUE(safe_temp);
 
 		// We DO the next expression, rather than just assume it is a
 		// literal block.  That allows you to write things like:
@@ -460,10 +476,7 @@ enum {
 		// CASE must evaluate block literals too.
 
 	#if !defined(NDEBUG)
-		if (
-			LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)
-			&& IS_CONDITIONAL_FALSE(condition_result)
-		) {
+		if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS) && !matched) {
 			// case [true add 1 2] => 3
 			// case [false add 1 2] => 2 ;-- in Rebol2
 			index++;
@@ -475,10 +488,10 @@ enum {
 		}
 	#endif
 
-		DO_NEXT_MAY_THROW(index, body_result, block, index);
+		DO_NEXT_MAY_THROW(index, safe_temp, block, index);
 
 		if (index == THROWN_FLAG) {
-			*D_OUT = *body_result; // is a RETURN, BREAK, THROW...
+			*D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
 			return R_OUT_IS_THROWN;
 		}
 
@@ -494,24 +507,24 @@ enum {
 			raise Error_0(RE_PAST_END);
 		}
 
-		if (IS_CONDITIONAL_TRUE(condition_result)) {
+		if (matched) {
 
-			if (!only && IS_BLOCK(body_result)) {
-				// If we're not using the /ONLY switch and it's a block,
-				// we'll need two evaluations for things like:
+			if (IS_BLOCK(safe_temp)) {
+				// The classical implementation of CASE is defined to give two
+				// evals for things like:
 				//
 				//     stuff: [print "This will be printed"]
 				//     case [true stuff]
 				//
-				if (DO_ARRAY_THROWS(D_OUT, body_result))
+				// This puts it more closely in the spirit of being a kind of
+				// "optimized IF-ELSE" as `if true stuff` would also behave
+				// in the manner of running that block.
+
+				if (DO_ARRAY_THROWS(D_OUT, safe_temp))
 					return R_OUT_IS_THROWN;
 			}
-			else {
-				// With /ONLY (or a non-block) don't do more evaluation, so
-				// for the above that's: [print "This will be printed"]
-
-				*D_OUT = *body_result;
-			}
+			else
+				*D_OUT = *safe_temp;
 
 		#if !defined(NDEBUG)
 			if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
@@ -528,7 +541,8 @@ enum {
 	}
 
 	// Returns the evaluative result of the last body whose condition was
-	// conditionally true, or defaults to NONE if there weren't any
+	// conditionally true, or defaults to UNSET if there weren't any
+	// (or NONE in legacy mode)
 
 	return R_OUT;
 }
@@ -922,14 +936,11 @@ was_caught:
 	REBVAL * const branch = IS_CONDITIONAL_TRUE(condition)
 		? D_ARG(2) // true-branch
 		: D_ARG(3); // false-branch
-	const REBOOL only = D_REF(4);
 
-	if (only || !IS_BLOCK(branch)) {
+	if (!IS_BLOCK(branch)) {
 		*D_OUT = *branch;
-		return R_OUT;
 	}
-
-	if (DO_ARRAY_THROWS(D_OUT, branch))
+	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
 
 	return R_OUT;
@@ -1085,13 +1096,9 @@ was_caught:
 {
 	REBVAL * const condition = D_ARG(1);
 	REBVAL * const branch = D_ARG(2);
-	const REBOOL only = D_REF(3);
 
 	if (IS_CONDITIONAL_FALSE(condition)) {
 		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-	}
-	else if (only || !IS_BLOCK(branch)) {
-		*D_OUT = *branch;
 	}
 	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
@@ -1426,13 +1433,9 @@ was_caught:
 {
 	REBVAL * const condition = D_ARG(1);
 	REBVAL * const branch = D_ARG(2);
-	const REBOOL only = D_REF(3);
 
 	if (IS_CONDITIONAL_TRUE(condition)) {
 		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-	}
-	else if (only || !IS_BLOCK(branch)) {
-		*D_OUT = *branch;
 	}
 	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
