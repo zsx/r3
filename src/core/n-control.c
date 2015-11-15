@@ -1100,6 +1100,9 @@ was_caught:
 	if (IS_CONDITIONAL_FALSE(condition)) {
 		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 	}
+	else if (!IS_BLOCK(branch)) {
+		*D_OUT = *branch;
+	}
 	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;
 
@@ -1436,6 +1439,9 @@ was_caught:
 
 	if (IS_CONDITIONAL_TRUE(condition)) {
 		SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+	}
+	else if (!IS_BLOCK(branch)) {
+		*D_OUT = *branch;
 	}
 	else if (DO_ARRAY_THROWS(D_OUT, branch))
 		return R_OUT_IS_THROWN;

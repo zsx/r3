@@ -692,7 +692,7 @@ do_at_index:
 	// If you notice a crash, look on the stack for the topmost call
 	// and read the count...then put that here and recompile with
 	// a breakpoint set.  (The 'count_static' value is captured into a
-	// local 'count' so	you still get the right count after recursion.)
+	// local 'count' so you still get the right count after recursion.)
 	//
 	// We bound it at the max unsigned 32-bit because otherwise it would
 	// roll over to zero and print a message that wasn't asked for, which
