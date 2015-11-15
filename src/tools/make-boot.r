@@ -76,11 +76,16 @@ sections: [
 
 include-protocols: false      ; include protocols in build
 
-;-- Error handler:
-error: func [msg arg] [print ["*** Make-boot error:" msg arg] halt]
-
-;-- Args passed: platform, product
-if none? args: system/options/args [error "No platform specified." ""]
+; Args passed: platform, product
+;
+; !!! Heed /script/args so you could say e.g. `do/args %make-boot.r [0.3.01]`
+; Note however that current leaning is that scripts called by the invoked
+; process will not have access to the "outer" args, hence there will be only
+; one "args" to be looked at in the long run.
+;
+unless args: any [:system/script/args system/options/args] [
+	fail "No platform specified."
+]
 
 if args/1 = ">" [args: ["Win32" "VIEW-PRO"]] ; for debugging only
 product: to-word any [args/2  "core"]
