@@ -142,17 +142,29 @@ http-awake: func [event /local port http-port state awake res] [
 ]
 make-http-error: func [
 	"Make an error for the HTTP protocol"
-	message [string! block!]
+	msg [string! block!]
 	/inf obj
 	/otherhost new-url [url!]
 ] [
-	if block? message [message: ajoin message]
+	; cannot call it "message" because message is the error template.  :-/
+	; hence when the error is created it has message defined as none, and
+	; you have to overwrite it if you're doing a custom template, e.g.
+	;
+	;     make error! [message: ["the" :animal "has claws"] animal: "cat"]
+	;
+	; A less keyword-y solution is being pursued, however this error template
+	; name of "message" existed before.  It's just that the object creation
+	; with derived fields in the usual way wasn't working, so you didn't
+	; know.  Once it was fixed, the `message` variable name here caused
+	; a conflict where the error had no message.
+
+	if block? msg [msg: ajoin msg]
 	case [
 		inf [
 			make error! [
 				type: 'Access
 				id: 'Protocol
-				arg1: message
+				arg1: msg
 				arg2: obj
 			]
 		]
@@ -160,7 +172,7 @@ make-http-error: func [
 			make error! [
 				type: 'Access
 				id: 'Protocol
-				arg1: message
+				arg1: msg
 				arg3: new-url
 			]
 		]
@@ -168,7 +180,7 @@ make-http-error: func [
 			make error! [
 				type: 'Access
 				id: 'Protocol
-				arg1: message
+				arg1: msg
 			]
 		]
 	]
