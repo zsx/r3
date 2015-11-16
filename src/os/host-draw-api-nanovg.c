@@ -63,6 +63,12 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#ifndef NDEBUG
+#define NOT_IMPLEMENTED printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__)
+#else
+#define NOT_IMPLEMENTED
+#endif
+
 REBUPT RL_Series(REBSER *ser, REBCNT what);
 
 static void nvgdrw_add_poly_vertex (void* gr, REBXYF p)
@@ -631,7 +637,7 @@ static void nvgdrw_line_join(void* gr, REBINT mode)
 static void nvgdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
 	//((agg_graphics*)gr)->agg_line_pattern((col) ? (REBYTE*)&col : NULL, patterns);
-	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+	NOT_IMPLEMENTED;
 }
 
 static void nvgdrw_line_width(void* gr, REBDEC width, REBINT mode)
@@ -736,7 +742,7 @@ static void nvgdrw_skew(void* gr, REBXYF angle)
 {
 	//REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	//nvgScale(ctx->nvg, sc.x, sc.y);
-	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+	NOT_IMPLEMENTED;
 }
 static void nvgdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
 {
@@ -749,7 +755,7 @@ static void nvgdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF
 {
 	//nvgTransform(ctx->nvg, sc.x, matrix[1], sc.y, matrix[3], oft.x, oft.y);
 	//((agg_graphics*)gr)->agg_transform(ang, ctr.x, ctr.y, sc.x, sc.y, oft.x, oft.y);
-	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+	NOT_IMPLEMENTED;
 }
 
 static void nvgdrw_translate(void* gr, REBXYF p)
@@ -1224,7 +1230,7 @@ static void nvgdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 
 	delete graphics;
 #endif
-	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
+	NOT_IMPLEMENTED;
 }
 
 static void nvgdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
