@@ -30,32 +30,41 @@ save: function [
 	{Saves a value, block, or other data to a file, URL, binary, or string.}
 	where [file! url! binary! string! none!] {Where to save (suffix determines encoding)}
 	value {Value(s) to save}
-	/header {Provide a REBOL header block (or output non-code datatypes)}
-	header-data [block! object! logic!] {Header block, object, or TRUE (header is in value)}
-	/all {Save in serialized format}
-	/length {Save the length of the script content in the header}
-	/compress {Save in a compressed format or not}
-	method [logic! word!] "true = compressed, false = not, 'script = encoded string"
+	/header
+		{Provide a REBOL header block (or output non-code datatypes)}
+	header-data [block! object! logic!]
+		{Header block, object, or TRUE (header is in value)}
+	/all ;-- renamed to `all_SAVE` to avoid ambiguity with native
+		{Save in serialized format}
+	/length ;-- renamed to `length_SAVE` to avoid ambiguity with native
+		{Save the length of the script content in the header}
+	/compress
+		{Save in a compressed format or not}
+	method [logic! word!]
+		{true = compressed, false = not, 'script = encoded string}
 ][
-	;-- SAVE function historically has a refinement called /LENGTH, that
-	;-- saves a header attribute as [length: ...].  Yet the LENGTH? function
-	;-- has been changed to use just the word LENGTH.
-	;--
-	save-length: length			; refinement passed in
-	length-of: :lib/length		; traditional LENGTH function
-	unset 'length				; helps avoid overlooking the ambiguity
+	; Recover common natives for words used as refinements.
+	all_SAVE: all
+	length_SAVE: length
+	all: :lib/all
+	length: :lib/length
+
+	; Default `method` and `header-data` to none
+	method: any [:method]
+	header-data: any [:header-data]
 
 	;-- Special datatypes use codecs directly (e.g. PNG image file):
-	if lib/all [
+	if all [
 		not header ; User wants to save value as script, not data file
 		any [file? where url? where]
 		type: file-type? where
-	][ ; We have a codec:
-		return write where encode type :value ; will check for valid type
+	][
+		; We have a codec.  Will check for valid type.
+		return write where encode type :value
 	]
 
 	;-- Compressed scripts and script lengths require a header:
-	if any [save-length method] [
+	if any [length_SAVE method] [
 		header: true
 		header-data: any [header-data []]
 	]
@@ -65,7 +74,7 @@ save: function [
 		; TRUE indicates the header is the first value in the block:
 		if header-data = true [
 			header-data: any [
-				lib/all [
+				all [
 					block? :value
 					first+ value ; the header (do not use TAKE)
 				]
@@ -75,14 +84,18 @@ save: function [
 
 		; Make it an object if it's not already (ok to ignore overhead):
 		header-data: either object? :header-data [
-			trim :header-data ; clean out the words set to none
+			; clean out the words set to none
+			trim :header-data
 		][
-			construct :header-data ; standard/header intentionally not used
+			; standard/header intentionally not used
+			construct :header-data
 		]
 
 		if compress [ ; Make the header option match
 			case [
-				not method [remove find select header-data 'options 'compress]
+				not method [
+					remove find select header-data 'options 'compress
+				]
 				not block? select header-data 'options [
 					repend header-data ['options copy [compress]]
 				]
@@ -92,35 +105,65 @@ save: function [
 			]
 		]
 
-		if save-length [
-			append header-data [length: #[true]] ; any true? value will work
+		if length_SAVE [
+			; any true? value will work, but this uses #[true].  (Notation
+			; is to help realize this is a *mention*, not *usage* of length.)
+			append header-data reduce [(quote length:) (true)]
 		]
 
-		unless compress: true? find select header-data 'options 'compress [method: none]
-		save-length: true? select header-data 'length
+		unless compress: true? find (select header-data 'options) 'compress [
+			method: none
+		]
+
+		length_SAVE: true? select header-data 'length
 		header-data: body-of header-data
 	]
 
-	; (Maybe /all should be the default? See CureCode.)
-	data: either all [mold/all/only :value] [mold/only :value]
-	append data newline ; mold does not append a newline? Nope.
+	; !!! Maybe /all should be the default?  See #2159
+	data: either all_SAVE [mold/all/only :value] [
+		mold/only :value
+	]
+
+	; mold does not append a newline? Nope.
+	append data newline
 
 	case/all [
 		; Checksum uncompressed data, if requested
-		tmp: find header-data 'checksum [change next tmp checksum/secure data: to-binary data]
+		tmp: find header-data 'checksum [
+			change next tmp checksum/secure data: to-binary data
+		]
+
 		; Compress the data if necessary
 		compress [data: lib/compress data]
+
 		; File content is encoded as base-64:
 		method = 'script [data: mold64 data]
 		not binary? data [data: to-binary data]
-		save-length [change find/tail header-data 'length (length-of data)]
+		length_SAVE [change find/tail header-data 'length (length data)]
 		header-data [insert data ajoin ['REBOL #" " mold header-data newline]]
 	]
+
 	case [
-		file? where [write where data] ; WRITE converts to UTF-8, saves overhead
-		url? where [write where data]  ; But some schemes don't support it
-		none? where [data] ; just return the UTF-8 binary
-		'else [insert tail where data] ; string! or binary!, insert data
+		file? where [
+			; WRITE converts to UTF-8, saves overhead
+			write where data
+		]
+
+		url? where [
+			; !!! Comment said "But some schemes don't support it"
+			; Presumably saying that the URL scheme does not support UTF-8 (?)
+			write where data
+		]
+
+		none? where [
+			; just return the UTF-8 binary
+			data
+		]
+
+		'default [
+			; string! or binary!, insert data
+			insert tail where data
+		]
 	]
 ]
 
