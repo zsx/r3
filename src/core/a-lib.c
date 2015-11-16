@@ -925,6 +925,8 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		if (utf8 == NULL) return 0;
 
 		Encode_UTF8(SERIES_DATA(utf8), utf8_len, src, &len, OPT_ENC_UNISRC);
+		
+		MANAGE_SERIES(utf8);
 	}
 
 	return len;
