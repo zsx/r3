@@ -301,7 +301,7 @@ static REBCNT *CRC_Table;
 	if (!n) {
 		REBVAL temp;
 		SET_INTEGER(&temp, len);
-		raise Error_1(RE_SIZE_LIMIT, &temp);
+		fail (Error(RE_SIZE_LIMIT, &temp));
 	}
 
 	ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);

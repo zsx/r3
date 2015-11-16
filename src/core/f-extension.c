@@ -241,7 +241,7 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 	if (Dispatch_Call_Throws(call)) {
 		// !!! Does this need handling such that there is a way for the thrown
 		// value to "bubble up" out of the callback, or is an error sufficient?
-		raise Error_No_Catch_For_Throw(DSF_OUT(call));
+		fail (Error_No_Catch_For_Throw(DSF_OUT(call)));
 	}
 
 	// Return resulting value from output
@@ -275,7 +275,7 @@ x*/	REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 	if (!n) {
 		REBVAL temp;
 		SET_INTEGER(&temp, GET_EXT_ERROR(&cbi->result));
-		raise Error_1(RE_INVALID_ARG, &temp);
+		fail (Error(RE_INVALID_ARG, &temp));
 	}
 
 	RXI_To_Value(D_OUT, cbi->result, n);
@@ -326,26 +326,26 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
 	if (!D_REF(2)) { // No /dispatch, use the DLL file:
 
-		if (!IS_FILE(val)) raise Error_Invalid_Arg(val);
+		if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
 
 		// !!! By passing NULL we don't get backing series to protect!
 		name = Val_Str_To_OS_Managed(NULL, val);
 
 		// Try to load the DLL file:
 		if (!(dll = OS_OPEN_LIBRARY(name, &error))) {
-			raise Error_1(RE_NO_EXTENSION, val);
+			fail (Error(RE_NO_EXTENSION, val));
 		}
 
 		// Call its info() function for header and code body:
 		if (!(info = OS_FIND_FUNCTION(dll, cs_cast(BOOT_STR(RS_EXTENSION, 0))))){
 			OS_CLOSE_LIBRARY(dll);
-			raise Error_1(RE_BAD_EXTENSION, val);
+			fail (Error(RE_BAD_EXTENSION, val));
 		}
 
 		// Obtain info string as UTF8:
 		if (!(code = cast(INFO_FUNC*, info)(0, Extension_Lib()))) {
 			OS_CLOSE_LIBRARY(dll);
-			raise Error_1(RE_EXTENSION_INIT, val);
+			fail (Error(RE_EXTENSION_INIT, val));
 		}
 
 		// Import the string into REBOL-land:
@@ -447,7 +447,7 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 				(3 != ~VAL_TYPESET_BITS(args)) // not END and UNSET (no args)
 				&& (VAL_TYPESET_BITS(args) & ~RXT_ALLOWED_TYPES)
 			) {
-				raise Error_1(RE_BAD_FUNC_ARG, args);
+				fail (Error(RE_BAD_FUNC_ARG, args));
 			}
 		}
 	}
@@ -481,7 +481,7 @@ bad_func_def:
 		Append_Value(series, command_num);
 		Val_Init_Block(&def, series);
 
-		raise Error_1(RE_BAD_FUNC_DEF, &def);
+		fail (Error(RE_BAD_FUNC_DEF, &def));
 	}
 }
 
@@ -511,7 +511,7 @@ bad_func_def:
 
 	// Copy args to command frame (array of args):
 	RXA_COUNT(&frm) = argc;
-	if (argc > 7) raise Error_0(RE_BAD_COMMAND);
+	if (argc > 7) fail (Error(RE_BAD_COMMAND));
 	val = DSF_ARG(DSF, 1);
 	for (n = 1; n <= argc; n++, val++) {
 		RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE(val)];
@@ -545,13 +545,13 @@ bad_func_def:
 		break;
 
 	case RXR_BAD_ARGS:
-		raise Error_0(RE_BAD_CMD_ARGS);
+		fail (Error(RE_BAD_CMD_ARGS));
 
 	case RXR_NO_COMMAND:
-		raise Error_0(RE_NO_CMD);
+		fail (Error(RE_NO_CMD));
 
 	case RXR_ERROR:
-		raise Error_0(RE_COMMAND_FAIL);
+		fail (Error(RE_COMMAND_FAIL));
 
 	default:
 		SET_UNSET(val);
@@ -611,7 +611,7 @@ bad_func_def:
 			Val_Init_Word_Unbound(
 				&commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
 			);
-			raise Error_2(RE_EXPECT_VAL, &commandx_word, blk);
+			fail (Error(RE_EXPECT_VAL, &commandx_word, blk));
 		}
 
 		// Advance to next value
@@ -630,7 +630,7 @@ bad_func_def:
 			//Debug_Type(args);
 			val = blk++;
 			index++;
-			if (IS_END(val)) raise Error_No_Arg(cmd_word, args);
+			if (IS_END(val)) fail (Error_No_Arg(cmd_word, args));
 			//Debug_Type(val);
 
 			// actual arg is a word, lookup?
@@ -656,7 +656,7 @@ bad_func_def:
 						// up" so that returns and throws can be caught up
 						// the stack, or is raising an error here sufficient?
 
-						raise Error_No_Catch_For_Throw(&save);
+						fail (Error_No_Catch_For_Throw(&save));
 					}
 					val = &save;
 				}
@@ -669,7 +669,7 @@ bad_func_def:
 				Val_Init_Word_Unbound(
 					&arg_word, REB_WORD, VAL_TYPESET_SYM(args)
 				);
-				raise Error_3(RE_EXPECT_ARG, cmd_word, &arg_word, Type_Of(val));
+				fail (Error(RE_EXPECT_ARG, cmd_word, &arg_word, Type_Of(val)));
 			}
 
 			// put arg into command frame
@@ -705,7 +705,7 @@ bad_func_def:
 			break;
 
 		case RXR_ERROR:
-			raise Error_0(RE_COMMAND_FAIL);
+			fail (Error(RE_COMMAND_FAIL));
 
 		default:
 			SET_UNSET(val);

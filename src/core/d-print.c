@@ -55,7 +55,7 @@ static REBREQ *Req_SIO;
 {
 	//OS_CALL_DEVICE(RDI_STDIO, RDC_INIT);
 	Req_SIO = OS_MAKE_DEVREQ(RDI_STDIO);
-	if (!Req_SIO) panic Error_0(RE_IO_ERROR);
+	if (!Req_SIO) panic (Error(RE_IO_ERROR));
 
 	// The device is already open, so this call will just setup
 	// the request fields properly.
@@ -92,7 +92,7 @@ static REBREQ *Req_SIO;
 
 	OS_DO_DEVICE(Req_SIO, RDC_WRITE);
 
-	if (Req_SIO->error) panic Error_0(RE_IO_ERROR);
+	if (Req_SIO->error) panic (Error(RE_IO_ERROR));
 }
 
 
@@ -115,7 +115,7 @@ static REBREQ *Req_SIO;
 	const REBYTE *bp = is_uni ? NULL : cast(const REBYTE *, p);
 	const REBUNI *up = is_uni ? cast(const REBUNI *, p) : NULL;
 
-	if (!p) panic Error_0(RE_NO_PRINT_PTR);
+	if (!p) panic (Error(RE_NO_PRINT_PTR));
 
 	// Determine length if not provided:
 	if (len == UNKNOWN) len = is_uni ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -138,7 +138,7 @@ static REBREQ *Req_SIO;
 		Req_SIO->common.data = m_cast(REBYTE *, bp);
 
 		OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-		if (Req_SIO->error) panic Error_0(RE_IO_ERROR);
+		if (Req_SIO->error) panic (Error(RE_IO_ERROR));
 	}
 	else {
 		while ((len2 = len) > 0) {
@@ -156,7 +156,7 @@ static REBREQ *Req_SIO;
 			len -= len2;
 
 			OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-			if (Req_SIO->error) panic Error_0(RE_IO_ERROR);
+			if (Req_SIO->error) panic (Error(RE_IO_ERROR));
 		}
 	}
 }
@@ -532,7 +532,7 @@ static REBREQ *Req_SIO;
 	REBCNT tail;
 	REBINT disabled = GC_Disabled;
 
-	if (!buf) panic Error_0(RE_NO_BUFFER);
+	if (!buf) panic (Error(RE_NO_BUFFER));
 
 	GC_Disabled = 1;
 

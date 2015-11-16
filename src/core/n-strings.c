@@ -208,7 +208,7 @@ static struct digest {
 
 			REBINT crc32;
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY))
-				raise Error_0(RE_BAD_REFINES);
+				fail (Error(RE_BAD_REFINES));
 			crc32 = cast(REBINT, CRC32(data, len));
 			SET_INTEGER(D_OUT, crc32);
 			return R_OUT;
@@ -221,7 +221,7 @@ static struct digest {
 
 			uLong adler = z_adler32(0L, data, len);
 			if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY))
-				raise Error_0(RE_BAD_REFINES);
+				fail (Error(RE_BAD_REFINES));
 			SET_INTEGER(D_OUT, adler);
 			return R_OUT;
 		}
@@ -284,7 +284,7 @@ static struct digest {
 			}
 		}
 
-		raise Error_Invalid_Arg(D_ARG(ARG_CHECKSUM_WORD));
+		fail (Error_Invalid_Arg(D_ARG(ARG_CHECKSUM_WORD)));
 	}
 	else if (D_REF(ARG_CHECKSUM_TCP)) { // /tcp
 		REBINT ipc = Compute_IPC(data, len);
@@ -417,7 +417,7 @@ static struct digest {
 	if (D_REF(2)) base = VAL_INT32(D_ARG(3)); // /base
 
 	if (!Decode_Binary(D_OUT, BIN_SKIP(ser, index), len, base, 0))
-		raise Error_1(RE_INVALID_DATA, D_ARG(1));
+		fail (Error(RE_INVALID_DATA, D_ARG(1)));
 
 	return R_OUT;
 }
@@ -453,7 +453,7 @@ static struct digest {
 		ser = Encode_Base2(arg, 0, FALSE);
 		break;
 	default:
-		raise Error_Invalid_Arg(D_ARG(3));
+		fail (Error_Invalid_Arg(D_ARG(3)));
 	}
 
 	Val_Init_String(D_OUT, ser);
@@ -474,7 +474,7 @@ static struct digest {
 	REBVAL *key  = D_ARG(2);
 
 	if (!Cloak(TRUE, VAL_BIN_DATA(data), VAL_LEN(data), (REBYTE*)key, 0, D_REF(3)))
-		raise Error_Invalid_Arg(key);
+		fail (Error_Invalid_Arg(key));
 
 	return R_ARG1;
 }
@@ -492,7 +492,7 @@ static struct digest {
 	REBVAL *key  = D_ARG(2);
 
 	if (!Cloak(FALSE, VAL_BIN_DATA(data), VAL_LEN(data), (REBYTE*)key, 0, D_REF(3)))
-		raise Error_Invalid_Arg(key);
+		fail (Error_Invalid_Arg(key));
 
 	return R_ARG1;
 }
@@ -694,7 +694,7 @@ static struct digest {
 	len = -1;
 	if (D_REF(2)) {	// /size
 		len = (REBINT) VAL_INT64(D_ARG(3));
-		if (len < 0) raise Error_Invalid_Arg(D_ARG(3));
+		if (len < 0) fail (Error_Invalid_Arg(D_ARG(3)));
 	}
 	if (IS_INTEGER(arg)) { // || IS_DECIMAL(arg)) {
 		if (len < 0 || len > MAX_HEX_LEN) len = MAX_HEX_LEN;
@@ -711,7 +711,7 @@ static struct digest {
 		*buf = 0;
 	}
 	else
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 
 //	SERIES_TAIL(series) = len;
 //	Val_Init_Series(D_OUT, REB_ISSUE, series);

@@ -187,7 +187,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 /*
 ***********************************************************************/
 {
-	if (!FINITE(dval)) raise Error_0(RE_OVERFLOW);
+	if (!FINITE(dval)) fail (Error(RE_OVERFLOW));
 }
 
 
@@ -287,7 +287,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 
 			case A_DIVIDE:
 			case A_REMAINDER:
-				if (d2 == 0.0) raise Error_0(RE_ZERO_DIVIDE);
+				if (d2 == 0.0) fail (Error(RE_ZERO_DIVIDE));
 				if (action == A_DIVIDE) d1 /= d2;
 				else d1 = fmod(d1, d2);
 				goto setDec;
@@ -299,13 +299,13 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 					goto setDec;
 				}
 				//if (d1 < 0 && d2 < 1 && d2 != -1)
-				//  raise Error_0(RE_POSITIVE);
+				//  fail (Error(RE_POSITIVE));
 				d1 = pow(d1, d2);
 				goto setDec;
 
 			}
 		}
-		raise Error_Math_Args(VAL_TYPE(val), action);
+		fail (Error_Math_Args(VAL_TYPE(val), action));
 	}
 	else {
 		type = VAL_TYPE(val);
@@ -376,7 +376,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 					if (type == REB_PERCENT) break;
 					goto setDec;
 				}
-				raise Error_Bad_Make(type, val);
+				fail (Error_Bad_Make(type, val));
 			}
 
 			case REB_BINARY:
@@ -391,7 +391,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 				REBCNT len;
 				bp = Temp_Byte_Chars_May_Fail(val, MAX_HEX_LEN, &len, FALSE);
 				if (Scan_Hex(&VAL_INT64(D_OUT), bp, len, len) == 0)
-					raise Error_Bad_Make(REB_DECIMAL, val);
+					fail (Error_Bad_Make(REB_DECIMAL, val));
 				d1 = VAL_DECIMAL(D_OUT);
 				break;
 			}
@@ -405,14 +405,14 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 					else if (IS_DECIMAL(arg) || IS_PERCENT(val))
 						d1 = VAL_DECIMAL(arg);
 					else
-						raise Error_Bad_Make(REB_DECIMAL, arg);
+						fail (Error_Bad_Make(REB_DECIMAL, arg));
 
 					if (IS_INTEGER(++arg))
 						exp = (REBDEC)VAL_INT64(arg);
 					else if (IS_DECIMAL(arg) || IS_PERCENT(val))
 						exp = VAL_DECIMAL(arg);
 					else
-						raise Error_Bad_Make(REB_DECIMAL, arg);
+						fail (Error_Bad_Make(REB_DECIMAL, arg));
 
 					while (exp >= 1)            // funky. There must be a better way
 						exp--, d1 *= 10.0, Check_Overflow(d1);
@@ -420,7 +420,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 						exp++, d1 /= 10.0;
 				}
 				else
-					raise Error_Bad_Make(type, val);
+					fail (Error_Bad_Make(type, val));
 			}
 
 			if (type == REB_PERCENT) d1 /= 100.0;
@@ -437,7 +437,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 					SET_TYPE(D_OUT, REB_MONEY);
 					return R_OUT;
 				}
-				if (IS_TIME(arg)) raise Error_Invalid_Arg(arg);
+				if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
 
 				d1 = Round_Dec(d1, num, Dec64(arg));
 				if (IS_INTEGER(arg)) {
@@ -474,16 +474,16 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 		}
 	}
 
-	raise Error_Illegal_Action(VAL_TYPE(val), action);
+	fail (Error_Illegal_Action(VAL_TYPE(val), action));
 
 setDec:
-	if (!FINITE(d1)) raise Error_0(RE_OVERFLOW);
+	if (!FINITE(d1)) fail (Error(RE_OVERFLOW));
 #ifdef not_required
 	if (type == REB_PERCENT) {
 		// Keep percent in smaller range (not to use e notation).
 		if (d1 != 0) {
 			num = (REBINT)floor(log10(fabs(d1)));
-			if (num > 12 || num < -6) raise Error_0(RE_OVERFLOW); // use gcvt
+			if (num > 12 || num < -6) fail (Error(RE_OVERFLOW)); // use gcvt
 		}
 	}
 #endif

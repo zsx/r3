@@ -109,9 +109,12 @@ TVAR struct Reb_Call *CS_Root;	// Root call frame (head of first chunk)
 
 TVAR REBOL_STATE *Saved_State; // Saved state for Catch (CPU state, etc.)
 
-TVAR enum Reb_Fail_Prep TG_Fail_Prep;
-TVAR const char *TG_Fail_C_File;
-TVAR int TG_Fail_C_Line;
+#if !defined(NDEBUG)
+	// In debug builds, the `panic` and `fail` macros capture the file and
+	// line number of instantiation so any Make_Error can pick it up.
+	TVAR const char *TG_Erroring_C_File;
+	TVAR int TG_Erroring_C_Line;
+#endif
 
 //-- Evaluation variables:
 TVAR REBI64	Eval_Cycles;	// Total evaluation counter (upward)

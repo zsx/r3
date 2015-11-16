@@ -61,7 +61,7 @@
 	// Validate and fetch relevant PORT fields:
 	state = BLK_SKIP(port, STD_PORT_STATE);
 	spec  = BLK_SKIP(port, STD_PORT_SPEC);
-	if (!IS_OBJECT(spec)) raise Error_1(RE_INVALID_SPEC, spec);
+	if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
 
 	// Get or setup internal state data:
 	if (!IS_BLOCK(state)) Val_Init_Block(state, Make_Array(127));
@@ -73,13 +73,13 @@
 
 	// Normal block actions done on events:
 	case A_POKE:
-		if (!IS_EVENT(D_ARG(3))) raise Error_Invalid_Arg(D_ARG(3));
+		if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
 		goto act_blk;
 	case A_INSERT:
 	case A_APPEND:
 	//case A_PATH:		// not allowed: port/foo is port object field access
 	//case A_PATH_SET:	// not allowed: above
-		if (!IS_EVENT(arg)) raise Error_Invalid_Arg(arg);
+		if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
 	case A_PICK:
 act_blk:
 		save_port = *D_ARG(1); // save for return
@@ -111,7 +111,7 @@ act_blk:
 		break;
 
 	default:
-		raise Error_Illegal_Action(REB_PORT, action);
+		fail (Error_Illegal_Action(REB_PORT, action));
 	}
 
 	return R_OUT;

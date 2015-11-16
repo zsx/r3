@@ -227,7 +227,7 @@ enum {
 		}
 	}
 
-	if (GET_FLAG(flags, PROT_HIDE)) raise Error_0(RE_BAD_REFINES);
+	if (GET_FLAG(flags, PROT_HIDE)) fail (Error(RE_BAD_REFINES));
 
 	Protect_Value(val, flags);
 
@@ -353,14 +353,14 @@ enum {
 	REBVAL * const block = D_ARG(1);
 
 	REBOL_STATE state;
-	const REBVAL *error;
+	REBSER *error_frame;
 
-	PUSH_TRAP(&error, &state);
+	PUSH_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) return R_NONE;
+	if (error_frame) return R_NONE;
 
 	if (DO_ARRAY_THROWS(D_OUT, block)) {
 		DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -446,13 +446,13 @@ enum {
 		//         false ; no matching body for condition
 		//     ]
 
-		if (index == END_FLAG) raise Error_0(RE_PAST_END);
+		if (index == END_FLAG) fail (Error(RE_PAST_END));
 
 		// While unset is often a chance to "opt-out" of things, the condition
 		// of an IF/UNLESS/EITHER is a spot where opting out is not allowed,
 		// so it seems equally applicable to CASE.
 
-		if (IS_UNSET(safe_temp)) raise Error_0(RE_NO_RETURN);
+		if (IS_UNSET(safe_temp)) fail (Error(RE_NO_RETURN));
 
 		matched = IS_CONDITIONAL_TRUE(safe_temp);
 
@@ -504,7 +504,7 @@ enum {
 		#endif
 
 			// case [first [a b c]] => **error**
-			raise Error_0(RE_PAST_END);
+			fail (Error(RE_PAST_END));
 		}
 
 		if (matched) {
@@ -581,7 +581,7 @@ enum {
 	REBVAL * const handler = D_ARG(7);
 
 	// /ANY would override /NAME, so point out the potential confusion
-	if (any && named) raise Error_0(RE_BAD_REFINES);
+	if (any && named) fail (Error(RE_BAD_REFINES));
 
 	if (DO_ARRAY_THROWS(D_OUT, block)) {
 		if (
@@ -612,7 +612,7 @@ enum {
 				for (; NOT_END(candidate); candidate++) {
 					// !!! Should we test a typeset for illegal name types?
 					if (IS_BLOCK(candidate))
-						raise Error_1(RE_INVALID_ARG, name_list);
+						fail (Error(RE_INVALID_ARG, name_list));
 
 					*temp1 = *candidate;
 					*temp2 = *D_OUT;
@@ -723,7 +723,7 @@ was_caught:
 		// trying to use it to trigger errors, because if THROW just didn't
 		// take errors in the spec it wouldn't guide what *to* use.
 		//
-		raise Error_1(RE_USE_FAIL_FOR_ERROR, value);
+		fail (Error(RE_USE_FAIL_FOR_ERROR, value));
 
 		// Note: Caller can put the ERROR! in a block or use some other
 		// such trick if it wants to actually throw an error.
@@ -911,7 +911,7 @@ was_caught:
 		// does.  However DO of an ERROR! would have to raise an error
 		// anyway, so it might as well raise the one it is given.
 		//
-		raise Error_Is(value);
+		fail (VAL_ERR_OBJECT(value));
 
 	case REB_TASK:
 		Do_Task(value);
@@ -922,7 +922,7 @@ was_caught:
 	// which can do what EVAL can do for types that consume arguments
 	// (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
 	// functions only, EVAL generalizes it.
-	raise Error_0(RE_USE_EVAL_FOR_EVAL);
+	fail (Error(RE_USE_EVAL_FOR_EVAL));
 }
 
 
@@ -1019,7 +1019,7 @@ was_caught:
 	REBVAL * const reason = D_ARG(1);
 
 	if (IS_ERROR(reason)) {
-		raise Error_Is(reason);
+		fail (VAL_ERR_OBJECT(reason));
 	}
 	else if (IS_STRING(reason) || IS_BLOCK(reason)) {
 		// Ultimately we'd like FAIL to use some clever error-creating
@@ -1061,7 +1061,7 @@ was_caught:
 				//
 				//     fail [{Erroring on} (the/safe/side) {for now.}]
 
-				raise Error_0(RE_LIMITED_FAIL_INPUT);
+				fail (Error(RE_LIMITED_FAIL_INPUT));
 			}
 
 			// We just reduce and form the result, but since we allow PAREN!
@@ -1081,7 +1081,7 @@ was_caught:
 			return R_OUT_IS_THROWN;
 		}
 
-		raise Error_Is(D_OUT);
+		fail (VAL_ERR_OBJECT(D_OUT));
 	}
 
 	DEAD_END;
@@ -1184,7 +1184,7 @@ was_caught:
 **
 ***********************************************************************/
 {
-	panic Error_0(RE_MISC);
+	panic (Error(RE_MISC));
 
 	return R_NONE;
 }
@@ -1360,14 +1360,14 @@ was_caught:
 	REBVAL * const handler = D_ARG(3);
 
 	REBOL_STATE state;
-	const REBVAL *error;
+	REBSER *error_frame;
 
-	PUSH_TRAP(&error, &state);
+	PUSH_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) {
+	if (error_frame) {
 		if (with) {
 			if (IS_BLOCK(handler)) {
 				// There's no way to pass 'error' to a block (so just DO it)
@@ -1388,21 +1388,24 @@ was_caught:
 						return R_OUT_IS_THROWN;
 				}
 				else {
+					REBVAL error;
+					Val_Init_Error(&error, error_frame);
+
 					// If the handler takes at least one parameter that
 					// isn't a refinement, try passing it the ERROR! we
 					// trapped.  Apply will do argument checking.
 					//
-					if (Apply_Func_Throws(D_OUT, handler, error, NULL))
+					if (Apply_Func_Throws(D_OUT, handler, &error, NULL))
 						return R_OUT_IS_THROWN;
 				}
 
 				return R_OUT;
 			}
 
-			panic Error_0(RE_MISC); // should not be possible (type-checking)
+			panic (Error(RE_MISC)); // should not be possible (type-checking)
 		}
 
-		*D_OUT = *error;
+		Val_Init_Error(D_OUT, error_frame);
 		return R_OUT;
 	}
 

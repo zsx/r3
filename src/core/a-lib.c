@@ -155,7 +155,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	REBSER *ser;
 
 	REBOL_STATE state;
-	const REBVAL *error;
+	REBSER *error_frame;
 
 	REBVAL start_result;
 
@@ -194,36 +194,35 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 		Val_Init_Binary(val, ser);
 	}
 
-	PUSH_UNHALTABLE_TRAP(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) {
-		// Save error for EXPLAIN and return it
-		*Get_System(SYS_STATE, STATE_LAST_ERROR) = *error;
+	if (error_frame) {
+		// Save error for WHY?
+		REBVAL *error = Get_System(SYS_STATE, STATE_LAST_ERROR);
+		Val_Init_Error(error, error_frame);
 
 		Print_Value(error, 1024, FALSE);
 
-		// !!! Whether or not the Rebol interpreter just throws and quits
-		// in an error case with a bad error code or breaks you into the
-		// console to debug the environment should be controlled by
+		// !!! When running in a script, whether or not the Rebol interpreter
+		// just exits in an error case with a bad error code or breaks you
+		// into the console to debug the environment should be controlled by
 		// a command line option.  Defaulting to returning an error code
 		// seems better, because kicking into an interactive session can
-		// cause logging systems to hang.  For now we throw instead of
-		// just quietly returning a code if the script fails, but add
-		// that option!
+		// cause logging systems to hang.
 
 		// For RE_HALT and all other errors we return the error
 		// number.  Error numbers are not set in stone (currently), but
 		// are never zero...which is why we can use 0 for success.
-		return VAL_ERR_NUM(error);
+		return ERR_NUM(error_frame);
 	}
 
 	if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_RL_START, 0)) {
 		#if !defined(NDEBUG)
 			if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-				raise Error_No_Catch_For_Throw(&out);
+				fail (Error_No_Catch_For_Throw(&out));
 		#endif
 
 		if (
@@ -244,7 +243,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			DEAD_END;
 		}
 
-		raise Error_No_Catch_For_Throw(&out);
+		fail (Error_No_Catch_For_Throw(&out));
 	}
 
 	DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -393,30 +392,31 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	REBVAL out;
 
 	REBOL_STATE state;
-	const REBVAL *error;
+	REBSER *error_frame;
 
 	// assumes it can only be run at the topmost level where
 	// the data stack is completely empty.
 	assert(DSP == -1);
 
-	PUSH_UNHALTABLE_TRAP(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) {
-		if (VAL_ERR_NUM(error) == RE_HALT)
-			return -1; // !!! Revisit hardcoded #
-
+	if (error_frame) {
 		// Save error for WHY?
-		*Get_System(SYS_STATE, STATE_LAST_ERROR) = *error;
+		REBVAL *error = Get_System(SYS_STATE, STATE_LAST_ERROR);
+		Val_Init_Error(error, error_frame);
+
+		if (ERR_NUM(error_frame) == RE_HALT)
+			return -1; // !!! Revisit hardcoded #
 
 		if (result)
 			*result = Value_To_RXI(error);
 		else
 			DS_PUSH(error);
 
-		return -VAL_ERR_NUM(error);
+		return -ERR_NUM(error_frame);
 	}
 
 	code = Scan_Source(text, LEN_BYTES(text));
@@ -453,7 +453,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 			return -2; // Revisit hardcoded #
 		}
 
-		raise Error_No_Catch_For_Throw(&out);
+		fail (Error_No_Catch_For_Throw(&out));
 	}
 
 	DROP_GUARD_SERIES(code);
@@ -830,7 +830,7 @@ extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
 	// For the purpose intended by this routine, use the GC_Mark_Hook (or
 	// its hopeful improved successors.)
 
-	panic Error_0(RE_MISC);
+	panic (Error(RE_MISC));
 }
 
 

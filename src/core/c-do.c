@@ -97,7 +97,7 @@ enum Reb_Param_Mode {
 			REBINT lines = Int32(arg);
 			Trace_Flags = 0;
 			if (lines < 0) {
-				raise Error_Invalid_Arg(arg);
+				fail (Error_Invalid_Arg(arg));
 				return R_UNSET;
 			}
 
@@ -260,7 +260,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	if (IS_GET_WORD(path = pvs->path)) {
 		pvs->select = GET_MUTABLE_VAR(path);
 		if (IS_UNSET(pvs->select))
-			raise Error_1(RE_NO_VALUE, path);
+			fail (Error(RE_NO_VALUE, path));
 	}
 	// object/(expr) case:
 	else if (IS_PAREN(path)) {
@@ -297,13 +297,13 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		pvs->value = pvs->store;
 		break;
 	case PE_BAD_SELECT:
-		raise Error_2(RE_INVALID_PATH, pvs->orig, pvs->path);
+		fail (Error(RE_INVALID_PATH, pvs->orig, pvs->path));
 	case PE_BAD_SET:
-		raise Error_2(RE_BAD_PATH_SET, pvs->orig, pvs->path);
+		fail (Error(RE_BAD_PATH_SET, pvs->orig, pvs->path));
 	case PE_BAD_RANGE:
-		raise Error_Out_Of_Range(pvs->path);
+		fail (Error_Out_Of_Range(pvs->path));
 	case PE_BAD_SET_TYPE:
-		raise Error_2(RE_BAD_FIELD_SET, pvs->path, Type_Of(pvs->setval));
+		fail (Error(RE_BAD_FIELD_SET, pvs->path, Type_Of(pvs->setval)));
 	default:
 		assert(FALSE);
 	}
@@ -351,7 +351,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	if (IS_WORD(pvs.path)) {
 		pvs.value = GET_MUTABLE_VAR(pvs.path);
 		if (IS_UNSET(pvs.value))
-			raise Error_1(RE_NO_VALUE, pvs.path);
+			fail (Error(RE_NO_VALUE, pvs.path));
 	}
 	else pvs.value = pvs.path;
 
@@ -384,11 +384,11 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		// Check for errors:
 		if (NOT_END(pvs.path+1) && !ANY_FUNC(pvs.value)) {
 			// Only function refinements should get by this line:
-			raise Error_2(RE_INVALID_PATH, pvs.orig, pvs.path);
+			fail (Error(RE_INVALID_PATH, pvs.orig, pvs.path));
 		}
 	}
 	else if (!ANY_FUNC(pvs.value))
-		raise Error_2(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value));
+		fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
 
 	// If SET then we don't return anything
 	if (val) {
@@ -438,9 +438,9 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 		pvs.value = pvs.store;
 		break;
 	case PE_BAD_SELECT:
-		raise Error_2(RE_INVALID_PATH, pvs.value, pvs.select);
+		fail (Error(RE_INVALID_PATH, pvs.value, pvs.select));
 	case PE_BAD_SET:
-		raise Error_2(RE_BAD_PATH_SET, pvs.value, pvs.select);
+		fail (Error(RE_BAD_PATH_SET, pvs.value, pvs.select));
 	default:
 		assert(FALSE);
 	}
@@ -492,7 +492,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	if (GET_FLAG(sigs, SIG_ESCAPE) && PG_Boot_Phase >= BOOT_MEZZ) {
 		CLR_SIGNAL(SIG_ESCAPE);
 		Eval_Sigmask = mask;
-		raise Error_Is(TASK_HALT_ERROR);
+		fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
 	}
 
 	Eval_Sigmask = mask;
@@ -583,7 +583,7 @@ void Trace_Arg(REBINT num, const REBVAL *arg, const REBVAL *path)
 	assert(DSP >= dsp_precall);
 	if (DSP > dsp_precall) {
 		PROBE_MSG(DSF_WHERE(call), "UNBALANCED STACK TRAP!!!");
-		panic Error_0(RE_MISC);
+		panic (Error(RE_MISC));
 	}
 
 	MANUALS_LEAK_CHECK(manuals_tail, cs_cast(label_str));
@@ -737,13 +737,13 @@ reevaluate:
 		GET_VAR_INTO(out, value);
 
 	do_fetched_word:
-		if (IS_UNSET(out)) raise Error_1(RE_NO_VALUE, value);
+		if (IS_UNSET(out)) fail (Error(RE_NO_VALUE, value));
 
 		if (ANY_FUNC(out)) {
 			// We can only acquire an infix operator's first arg during the
 			// "lookahead".  Here we are starting a brand new expression.
 			if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
-				raise Error_1(RE_NO_OP_ARG, value);
+				fail (Error(RE_NO_OP_ARG, value));
 
 			// We will reuse the TOS for the OUT of the call frame
 			label = value;
@@ -772,7 +772,7 @@ reevaluate:
 			// `do [x:]` is not as purposefully an assignment of an unset as
 			// something like `do [x: ()]`, so it's an error.
 			assert(IS_UNSET(out));
-			raise Error_1(RE_NEED_VALUE, value);
+			fail (Error(RE_NEED_VALUE, value));
 		}
 
 		if (IS_UNSET(out)) {
@@ -781,10 +781,10 @@ reevaluate:
 
 		#if !defined(NDEBUG)
 			if (LEGACY(OPTIONS_CANT_UNSET_SET_WORDS))
-				raise Error_1(RE_NEED_VALUE, value);
+				fail (Error(RE_NEED_VALUE, value));
 		#endif
 
-			if (!HAS_FRAME(value)) raise Error_1(RE_NOT_BOUND, value);
+			if (!HAS_FRAME(value)) fail (Error(RE_NOT_BOUND, value));
 
 			var = GET_MUTABLE_VAR(value);
 			SET_UNSET(var);
@@ -809,7 +809,7 @@ reevaluate:
 		// to address in general with error display.
 		//
 		if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-			raise Error_1(RE_NO_OP_ARG, value);
+			fail (Error(RE_NO_OP_ARG, value));
 
 	// Value must be the function when a jump here occurs
 	do_function_args:
@@ -856,7 +856,7 @@ reevaluate:
 			// already computed first argument, so it's sitting in `out`
 			*arg = *out;
 			if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-				raise Error_Arg_Type(call, param, Type_Of(arg));
+				fail (Error_Arg_Type(call, param, Type_Of(arg)));
 
 			param++;
 			arg++;
@@ -899,13 +899,13 @@ reevaluate:
 			else if (IS_GET_WORD(refinements)) {
 				*out = *GET_VAR(refinements);
 				if (IS_NONE(out)) continue;
-				if (!IS_WORD(out)) raise Error_1(RE_BAD_REFINE, out);
+				if (!IS_WORD(out)) fail (Error(RE_BAD_REFINE, out));
 				DS_PUSH(out);
 			}
 			else if (IS_WORD(refinements))
 				DS_PUSH(refinements);
 			else if (!IS_NONE(refinements))
-				raise Error_1(RE_BAD_REFINE, out);
+				fail (Error(RE_BAD_REFINE, out));
 		}
 
 		// To make things easier for processing, reverse the refinements on
@@ -1232,14 +1232,14 @@ reevaluate:
 					goto return_index;
 				}
 				if (index == END_FLAG)
-					raise Error_No_Arg(DSF_LABEL(call), param);
+					fail (Error_No_Arg(DSF_LABEL(call), param));
 			}
 
 			ASSERT_VALUE_MANAGED(arg);
 
 			if (IS_UNSET(arg)) {
 				if (mode == PARAM_MODE_REFINE_ARGS)
-					raise Error_0(RE_BAD_REFINE_REVOKE);
+					fail (Error(RE_BAD_REFINE_REVOKE));
 				else if (mode == PARAM_MODE_REFINE_PENDING) {
 					mode = PARAM_MODE_REVOKING;
 
@@ -1274,7 +1274,7 @@ reevaluate:
 			}
 			else {
 				if (mode == PARAM_MODE_REVOKING)
-					raise Error_0(RE_BAD_REFINE_REVOKE);
+					fail (Error(RE_BAD_REFINE_REVOKE));
 				else if (mode == PARAM_MODE_REFINE_PENDING)
 					mode = PARAM_MODE_REFINE_ARGS;
 			}
@@ -1282,7 +1282,7 @@ reevaluate:
 			// If word is typed, verify correct argument datatype:
 			if (mode != PARAM_MODE_REVOKING)
 				if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-					raise Error_Arg_Type(call, param, Type_Of(arg));
+					fail (Error_Arg_Type(call, param, Type_Of(arg)));
 		}
 
 		// If we were scanning and didn't find the refinement we were looking
@@ -1298,7 +1298,7 @@ reevaluate:
 		// not knowing if a refinement isn't on the function until the end.
 
 		if (mode == PARAM_MODE_SCANNING)
-			raise Error_1(RE_BAD_REFINE, DS_TOP);
+			fail (Error(RE_BAD_REFINE, DS_TOP));
 
 		// In the case where the user has said foo/bar/baz, and bar was later
 		// in the spec than baz, then we will have passed it.  We need to
@@ -1373,7 +1373,7 @@ reevaluate:
 			// Hence legal, but we don't pass that into Make_Call.
 
 			if (!IS_WORD(label) && !ANY_FUNC(label))
-				raise Error_1(RE_BAD_REFINE, label); // CC#2226
+				fail (Error(RE_BAD_REFINE, label)); // CC#2226
 
 			// We should only get a label that is the function if said label
 			// is the function value itself.
@@ -1385,7 +1385,7 @@ reevaluate:
 			// may not behave the same as DO-ing the whole block.  Bad.)
 
 			if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-				raise Error_Has_Bad_Type(value);
+				fail (Error_Has_Bad_Type(value));
 
 			refinements = label + 1;
 
@@ -1412,7 +1412,7 @@ reevaluate:
 		// ignoring seems unwise.  It should presumably create a modified
 		// function in that case which acts as if it has the refinement.
 		if (label && !IS_END(label + 1) && ANY_FUNC(out))
-			raise Error_0(RE_TOO_LONG);
+			fail (Error(RE_TOO_LONG));
 
 		index++;
 		break;
@@ -1421,7 +1421,7 @@ reevaluate:
 		DO_NEXT_MAY_THROW_CORE(index, out, block, index + 1, TRUE);
 
 		assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-		if (IS_UNSET(out)) raise Error_1(RE_NEED_VALUE, value);
+		if (IS_UNSET(out)) fail (Error(RE_NEED_VALUE, value));
 		if (index == THROWN_FLAG) goto return_index;
 
 		label = value;
@@ -1459,7 +1459,7 @@ reevaluate:
 
 	case REB_FRAME:
 		// !!! Frame should be hidden from user visibility
-		panic Error_1(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(value)));
+		panic (Error(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(value))));
 
 	default:
 		// Most things just evaluate to themselves
@@ -1811,7 +1811,7 @@ return_index:
 #endif
 
 	// !!! Should these be asserts?
-	if (!ANY_FUNC(func)) raise Error_Invalid_Arg(func);
+	if (!ANY_FUNC(func)) fail (Error_Invalid_Arg(func));
 	if (index > SERIES_TAIL(block)) index = SERIES_TAIL(block);
 
 	call = Make_Call(out, block, index, NULL, func);
@@ -1896,7 +1896,7 @@ return_index:
 					too_many = TRUE;
 					goto no_advance;
 				}
-				raise Error_0(RE_APPLY_TOO_MANY);
+				fail (Error(RE_APPLY_TOO_MANY));
 			}
 		}
 
@@ -1959,11 +1959,11 @@ return_index:
 
 		// Verify allowed argument datatype:
 		if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-			raise Error_Arg_Type(call, param, Type_Of(arg));
+			fail (Error_Arg_Type(call, param, Type_Of(arg)));
 	}
 
 	if (too_many)
-		raise Error_0(RE_APPLY_TOO_MANY);
+		fail (Error(RE_APPLY_TOO_MANY));
 
 	// Pad out any remaining parameters with unset
 
@@ -1998,7 +1998,7 @@ return_index:
 				// a non-refinement, then it's a situation of a required
 				// argument missing or not all the args to a refinement given
 
-				raise Error_No_Arg(DSF_LABEL(call), param);
+				fail (Error_No_Arg(DSF_LABEL(call), param));
 			}
 
 		#if !defined(NDEBUG)
@@ -2138,7 +2138,7 @@ return_index:
 	va_list args;
 	REBVAL *value = FRM_VALUE(Sys_Context, inum);
 
-	if (!ANY_FUNC(value)) raise Error_1(RE_BAD_SYS_FUNC, value);
+	if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
 	va_start(args, inum);
 	result = Apply_Function_Throws(out, value, &args);
@@ -2366,7 +2366,7 @@ return_index:
 				// !!! The function didn't have the refinement so skip
 				// it and leave as unset.
 				// But what will happen now with the arguments?
-				/* if (isrc >= BLK_LEN(wsrc)) raise Error_Invalid_Arg(word); */
+				/* if (isrc >= BLK_LEN(wsrc)) fail (Error_Invalid_Arg(word)); */
 			}
 		}
 		else {

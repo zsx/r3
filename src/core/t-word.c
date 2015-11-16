@@ -85,13 +85,13 @@
 				bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_WORD, &len, TRUE);
 				if (type == REB_ISSUE) sym = Scan_Issue(bp, len);
 				else sym = Scan_Word(bp, len);
-				if (!sym) raise Error_1(RE_BAD_CHAR, arg);
+				if (!sym) fail (Error(RE_BAD_CHAR, arg));
 			}
 			else if (IS_CHAR(arg)) {
 				REBYTE buf[8];
 				sym = Encode_UTF8_Char(&buf[0], VAL_CHAR(arg)); //returns length
 				sym = Scan_Word(&buf[0], sym);
-				if (!sym) raise Error_1(RE_BAD_CHAR, arg);
+				if (!sym) fail (Error(RE_BAD_CHAR, arg));
 			}
 			else if (IS_DATATYPE(arg)) {
 				sym = VAL_TYPE_SYM(arg);
@@ -100,14 +100,14 @@
 				sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;
 			}
 			else
-				raise Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg));
+				fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
 
 			Val_Init_Word_Unbound(D_OUT, type, sym);
 		}
 		break;
 
 	default:
-		raise Error_Illegal_Action(type, action);
+		fail (Error_Illegal_Action(type, action));
 	}
 
 	return R_OUT;

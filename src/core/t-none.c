@@ -83,7 +83,7 @@
 		if (IS_NONE(val)) return R_NONE;
 	default:
 	trap_it:
-		raise Error_Illegal_Action(VAL_TYPE(val), action);
+		fail (Error_Illegal_Action(VAL_TYPE(val), action));
 	}
 
 	return R_OUT;

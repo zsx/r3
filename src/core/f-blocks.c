@@ -264,7 +264,7 @@
 	if (into) {
 		series = VAL_SERIES(into);
 
-		if (IS_PROTECT_SERIES(series)) raise Error_0(RE_PROTECTED);
+		if (IS_PROTECT_SERIES(series)) fail (Error(RE_PROTECTED));
 
 		if (ANY_ARRAY(into)) {
 			// When the target is an any-block, we can do an ordinary

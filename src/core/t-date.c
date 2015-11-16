@@ -324,7 +324,7 @@
 	}
 
 	if (year < 0 || year > MAX_YEAR)
-		raise Error_1(RE_TYPE_LIMIT, Get_Type(REB_DATE));
+		fail (Error(RE_TYPE_LIMIT, Get_Type(REB_DATE)));
 
 	dr.date.year = year;
 	dr.date.month = month+1;
@@ -385,7 +385,7 @@
 
 	diff  = Diff_Date(VAL_DATE(d1), VAL_DATE(d2));
 	if (cast(REBCNT, abs(diff)) > (((1U << 31) - 1) / SECS_IN_DAY))
-		raise Error_0(RE_OVERFLOW);
+		fail (Error(RE_OVERFLOW));
 
 	t1 = VAL_TIME(d1);
 	if (t1 == NO_TIME) t1 = 0L;
@@ -463,7 +463,7 @@
 
 	if (IS_TIME(arg)) {
 		tz = (REBINT)(VAL_TIME(arg) / (ZONE_MINS * MIN_SEC));
-		if (tz < -MAX_ZONE || tz > MAX_ZONE) raise Error_Out_Of_Range(arg);
+		if (tz < -MAX_ZONE || tz > MAX_ZONE) fail (Error_Out_Of_Range(arg));
 		arg++;
 	}
 
@@ -540,7 +540,7 @@
 		tz    = VAL_ZONE(data);
 		if (i > 8) Split_Time(secs, &time);
 	}
-	else panic Error_Invalid_Arg(data); // this should never happen
+	else panic (Error_Invalid_Arg(data)); // this should never happen
 
 	if (val == 0) {
 		val = pvs->store;
@@ -663,7 +663,7 @@
 				time.n = 0;
 			}
 			else {
-				//if (f < 0.0) raise Error_Out_Of_Range(val);
+				//if (f < 0.0) fail (Error_Out_Of_Range(val));
 				time.s = (REBINT)VAL_DECIMAL(val);
 				time.n = (REBINT)((VAL_DECIMAL(val) - time.s) * SEC_SEC);
 			}
@@ -713,7 +713,7 @@ setDate:
 		secs  = VAL_TIME(val);
 	}
 	else if (!(IS_DATATYPE(val) && (action == A_MAKE || action == A_TO)))
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 
 	if (DS_ARGC > 1) arg = D_ARG(2);
 
@@ -797,7 +797,7 @@ setDate:
 //				secs = nsec = day = month = year = tz = 0;
 //				goto fixTime;
 //			}
-			raise Error_Bad_Make(REB_DATE, arg);
+			fail (Error_Bad_Make(REB_DATE, arg));
 
 		case A_RANDOM:	//!!! needs further definition ?  random/zero
 			if (D_REF(2)) {
@@ -818,7 +818,7 @@ setDate:
 			goto setDate;
 		}
 	}
-	raise Error_Illegal_Action(REB_DATE, action);
+	fail (Error_Illegal_Action(REB_DATE, action));
 
 fixTime:
 	Normalize_Time(&secs, &day);

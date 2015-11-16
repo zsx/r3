@@ -589,7 +589,7 @@
 
 /***********************************************************************
 **
-*/	static void Make_Error_Bad_Scan(REBVAL *out, REBCNT errnum, SCAN_STATE *ss, REBCNT tkn, const REBYTE *arg, REBCNT size)
+*/	static REBSER *Error_Bad_Scan(REBCNT errnum, SCAN_STATE *ss, REBCNT tkn, const REBYTE *arg, REBCNT size)
 /*
 **		Scanner error handler
 **
@@ -633,13 +633,13 @@
 	Val_Init_String(&arg1, Copy_Bytes(name, -1));
 	Val_Init_String(&arg2, Copy_Bytes(arg, size));
 
-	frame = Make_Error(errnum, &arg1, &arg2, NULL);
+	frame = Error(errnum, &arg1, &arg2, NULL);
 
-	// Write the NEAREST: information (Make_Error gets it from DSF)
+	// Write the NEAREST: information (`Error()` gets it from DSF)
 	err_obj = cast(ERROR_OBJ*, FRM_VALUES(frame));
 	Val_Init_String(&err_obj->nearest, ser);
 
-	Val_Init_Error(out, frame);
+	return frame;
 }
 
 
@@ -1628,7 +1628,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 			Bind_Values_All_Deep(BLK_HEAD(block), Lib_Context);
 			if (!Construct_Value(value, block)) {
 				if (IS_END(value)) Val_Init_Block(value, block);
-				raise Error_1(RE_MALCONSTRUCT, value);
+				fail (Error(RE_MALCONSTRUCT, value));
 			}
 			emitbuf->tail--; // Unprotect
 			break;
@@ -1658,10 +1658,9 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 #endif
 		if (VAL_TYPE(value)) emitbuf->tail++;
 		else {
-			REBVAL error;
+			REBSER *error_frame;
 		syntax_error:
-			Make_Error_Bad_Scan(
-				&error,
+			error_frame = Error_Bad_Scan(
 				RE_INVALID,
 				scan_state,
 				cast(REBCNT, token),
@@ -1669,11 +1668,11 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				cast(REBCNT, ep - bp)
 			);
 			if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-				*BLK_TAIL(emitbuf) = error;
+				Val_Init_Error(BLK_TAIL(emitbuf), error_frame);
 				emitbuf->tail++;
 				goto exit_block;
 			}
-			raise Error_Is(&error);
+			fail (error_frame);
 
 		missing_error:
 			scan_state->line_count = start;	// where block started
@@ -1682,8 +1681,7 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 				REBYTE tmp_buf[4];	// Temporary error string
 				tmp_buf[0] = mode_char;
 				tmp_buf[1] = 0;
-				Make_Error_Bad_Scan(
-					&error,
+				error_frame = Error_Bad_Scan(
 					RE_MISSING,
 					scan_state,
 					cast(REBCNT, token),
@@ -1691,11 +1689,11 @@ static REBSER *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 					1
 				);
 				if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-					*BLK_TAIL(emitbuf) = error;
+					Val_Init_Error(BLK_TAIL(emitbuf), error_frame);
 					emitbuf->tail++;
 					goto exit_block;
 				}
-				raise Error_Is(&error);
+				fail (error_frame);
 			}
 		}
 

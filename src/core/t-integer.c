@@ -73,7 +73,7 @@
 	}
 	if (IS_DECIMAL(value) || IS_PERCENT(value)) {
 		if (VAL_DECIMAL(value) < MIN_D64 || VAL_DECIMAL(value) >= MAX_D64)
-			raise Error_0(RE_OVERFLOW);
+			fail (Error(RE_OVERFLOW));
 
 		*out = cast(REBI64, VAL_DECIMAL(value));
 		goto check_sign;
@@ -159,7 +159,7 @@
 		// Not using BigNums (yet) so max representation is 8 bytes after
 		// leading 0x00 or 0xFF stripped away
 		if (n > 8)
-			raise Error_1(RE_OUT_OF_RANGE, value);
+			fail (Error(RE_OUT_OF_RANGE, value));
 
 		// Pad out to make sure any missing upper bytes match sign
 		for (fill = n; fill < 8; fill++)
@@ -176,7 +176,7 @@
 
 		if (no_sign && *out < 0) {
 			// bits may become signed via shift due to 63-bit limit
-			raise Error_1(RE_OUT_OF_RANGE, value);
+			fail (Error(RE_OUT_OF_RANGE, value));
 		}
 
 		return;
@@ -193,16 +193,16 @@
 
 		if (len > MAX_HEX_LEN) {
 			// Lacks BINARY!'s accommodation of leading 00s or FFs
-			raise Error_1(RE_OUT_OF_RANGE, value);
+			fail (Error(RE_OUT_OF_RANGE, value));
 		}
 
 		if (!Scan_Hex(out, bp, len, len))
-			raise Error_Bad_Make(REB_INTEGER, value);
+			fail (Error_Bad_Make(REB_INTEGER, value));
 
 		// !!! Unlike binary, always assumes unsigned (should it?).  Yet still
 		// might run afoul of 64-bit range limit.
 		if (*out < 0)
-			raise Error_1(RE_OUT_OF_RANGE, value);
+			fail (Error(RE_OUT_OF_RANGE, value));
 
 		return;
 	}
@@ -222,20 +222,20 @@
 					goto check_sign;
 				}
 
-				raise Error_0(RE_OVERFLOW);
+				fail (Error(RE_OVERFLOW));
 			}
 		}
 		if (Scan_Integer(out, bp, len))
 			goto check_sign;
 
-		raise Error_Bad_Make(REB_INTEGER, value);
+		fail (Error_Bad_Make(REB_INTEGER, value));
 	}
 	else if (IS_LOGIC(value)) {
 		// Rebol's choice is that no integer is uniquely representative of
 		// "falsehood" condition, e.g. `if 0 [print "this prints"]`.  So to
 		// say TO FALSE is 0 would be disingenuous.
 
-		raise Error_Bad_Make(REB_INTEGER, value);
+		fail (Error_Bad_Make(REB_INTEGER, value));
 	}
 	else if (IS_CHAR(value)) {
 		*out = VAL_CHAR(value);
@@ -248,11 +248,11 @@
 		return;
 	}
 	else
-		raise Error_Bad_Make(REB_INTEGER, value);
+		fail (Error_Bad_Make(REB_INTEGER, value));
 
 check_sign:
 	if (no_sign && *out < 0)
-		raise Error_0(RE_POSITIVE);
+		fail (Error(RE_POSITIVE));
 }
 
 
@@ -334,30 +334,30 @@ check_sign:
 					if (IS_DATE(val2)) return T_Date(call_, action);
 				}
 			}
-			raise Error_Math_Args(REB_INTEGER, action);
+			fail (Error_Math_Args(REB_INTEGER, action));
 		}
 	}
 
 	switch (action) {
 
 	case A_ADD:
-		if (REB_I64_ADD_OF(num, arg, &anum)) raise Error_0(RE_OVERFLOW);
+		if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
 		num = anum;
 		break;
 
 	case A_SUBTRACT:
-		if (REB_I64_SUB_OF(num, arg, &anum)) raise Error_0(RE_OVERFLOW);
+		if (REB_I64_SUB_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
 		num = anum;
 		break;
 
 	case A_MULTIPLY:
-		if (REB_I64_MUL_OF(num, arg, &p)) raise Error_0(RE_OVERFLOW);
+		if (REB_I64_MUL_OF(num, arg, &p)) fail (Error(RE_OVERFLOW));
 		num = p;
 		break;
 
 	case A_DIVIDE:
-		if (arg == 0) raise Error_0(RE_ZERO_DIVIDE);
-		if (num == MIN_I64 && arg == -1) raise Error_0(RE_OVERFLOW);
+		if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
+		if (num == MIN_I64 && arg == -1) fail (Error(RE_OVERFLOW));
 		if (num % arg == 0) {
 			num = num / arg;
 			break;
@@ -370,7 +370,7 @@ check_sign:
 		return T_Decimal(call_, action);
 
 	case A_REMAINDER:
-		if (arg == 0) raise Error_0(RE_ZERO_DIVIDE);
+		if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
 		num = REM2(num, arg);
 		break;
 
@@ -379,14 +379,14 @@ check_sign:
 	case A_XOR: num ^= arg; break;
 
 	case A_NEGATE:
-		if (num == MIN_I64) raise Error_0(RE_OVERFLOW);
+		if (num == MIN_I64) fail (Error(RE_OVERFLOW));
 		num = -num;
 		break;
 
 	case A_COMPLEMENT: num = ~num; break;
 
 	case A_ABSOLUTE:
-		if (num == MIN_I64) raise Error_0(RE_OVERFLOW);
+		if (num == MIN_I64) fail (Error(RE_OVERFLOW));
 		if (num < 0) num = -num;
 		break;
 
@@ -412,7 +412,7 @@ check_sign:
 				SET_TYPE(D_OUT, VAL_TYPE(val2));
 				return R_OUT;
 			}
-			if (IS_TIME(val2)) raise Error_Invalid_Arg(val2);
+			if (IS_TIME(val2)) fail (Error_Invalid_Arg(val2));
 			arg = VAL_INT64(val2);
 		}
 		else arg = 0L;
@@ -462,7 +462,7 @@ check_sign:
 		return R_OUT;
 
 	default:
-		raise Error_Illegal_Action(REB_INTEGER, action);
+		fail (Error_Illegal_Action(REB_INTEGER, action));
 	}
 
 	SET_INTEGER(D_OUT, num);

@@ -54,7 +54,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 
 /***********************************************************************
 **
-*/	ATTRIBUTE_NO_RETURN static void Error_Compression(const z_stream *strm, int ret)
+*/	static REBSER *Error_Compression(const z_stream *strm, int ret)
 /*
 **		Zlib gives back string error messages.  We use them or fall
 **		back on the integer code if there is no message.
@@ -69,7 +69,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 		// error might be less useful than leaving as a compression error,
 		// but that is what the old code here historically did.
 
-		raise Error_No_Memory(0);
+		fail (Error_No_Memory(0));
 	}
 
 	if (strm->msg)
@@ -79,7 +79,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	else
 		SET_INTEGER(&arg, ret);
 
-	Error_1(RE_BAD_COMPRESSION, &arg);
+	return Error(RE_BAD_COMPRESSION, &arg);
 }
 
 
@@ -126,7 +126,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	);
 
 	if (ret != Z_OK)
-		raise Error_Compression(&strm, ret);
+		fail (Error_Compression(&strm, ret));
 
 	// http://stackoverflow.com/a/4938401/211160
 	buf_size = deflateBound(&strm, len);
@@ -142,7 +142,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	deflateEnd(&strm);
 
 	if (ret != Z_STREAM_END)
-		raise Error_Compression(&strm, ret);
+		fail (Error_Compression(&strm, ret));
 
 	SET_STR_END(output, buf_size - strm.avail_out);
 	SERIES_TAIL(output) = buf_size - strm.avail_out;
@@ -194,7 +194,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 ***********************************************************************/
 {
 	REBOL_STATE state;
-	const REBVAL *error;
+	REBSER *error_frame;
 
 	REBCNT buf_size;
 	REBSER *output;
@@ -213,7 +213,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 		assert(sizeof(REBCNT) == 4);
 		if (len <= sizeof(REBCNT)) {
 			// !!! Better error message needed
-			raise Error_0(RE_PAST_END);
+			fail (Error(RE_PAST_END));
 		}
 		buf_size = Bytes_To_REBCNT(input + len - sizeof(REBCNT));
 
@@ -227,7 +227,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 			// NOTE: You can hit this if you 'make prep' without doing a full
 			// rebuild.  'make clean' and build again, it should go away.
 			//
-			raise Error_1(RE_SIZE_LIMIT, &temp);
+			fail (Error(RE_SIZE_LIMIT, &temp));
 		}
 	}
 	else {
@@ -266,7 +266,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 			: (gzip ? window_bits_gzip : window_bits_zlib)
 	);
 	if (ret != Z_OK)
-		raise Error_Compression(&strm, ret);
+		fail (Error_Compression(&strm, ret));
 
 	// Zlib internally allocates state which must be freed, and is not series
 	// memory.  *But* the following code is a mixture of Zlib code and Rebol
@@ -277,15 +277,15 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 	// Since we do the trap anyway, this is the way we handle explicit errors
 	// called in the code below also.
 
-	PUSH_UNHALTABLE_TRAP(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) {
+	if (error_frame) {
 		// output will already have been freed
 		inflateEnd(&strm);
-		raise Error_Is(error);
+		fail (error_frame);
 	}
 
 	// Since the initialization succeeded, go ahead and make the output buffer
@@ -317,7 +317,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 				// NOTE: You can hit this on 'make prep' without doing a full
 				// rebuild.  'make clean' and build again, it should go away.
 				//
-				raise Error_1(RE_SIZE_LIMIT, &temp);
+				fail (Error(RE_SIZE_LIMIT, &temp));
 			}
 
 			buf_size = buf_size + strm.avail_in * 3;
@@ -338,7 +338,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 			strm.avail_out += buf_size - old_size;
 		}
 		else
-			raise Error_Compression(&strm, ret);
+			fail (Error_Compression(&strm, ret));
 	}
 
 	SET_STR_END(output, strm.total_out);

@@ -49,7 +49,7 @@ enum Transport_Types {
 	REBSER *obj;
 
 	if (!info || !IS_OBJECT(info))
-		raise Error_On_Port(RE_INVALID_SPEC, port, -10);
+		fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
 	obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
 	MANAGE_SERIES(obj);
@@ -128,7 +128,7 @@ enum Transport_Types {
 	}
 	//Debug_Fmt("Sock: %x", sock);
 	spec = OFV(port, STD_PORT_SPEC);
-	if (!IS_OBJECT(spec)) raise Error_0(RE_INVALID_PORT);
+	if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 
 	// sock->timeout = 4000; // where does this go? !!!
 
@@ -146,7 +146,7 @@ enum Transport_Types {
 			val = Obj_Value(spec, STD_PORT_SPEC_NET_PORT_ID);
 
 			if (OS_DO_DEVICE(sock, RDC_OPEN))
-				raise Error_On_Port(RE_CANNOT_OPEN, port, -12);
+				fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
 			SET_OPEN(sock);
 
 			// Lookup host name (an extra TCP device step):
@@ -155,7 +155,7 @@ enum Transport_Types {
 				sock->special.net.remote_port = IS_INTEGER(val) ? VAL_INT32(val) : 80;
 				result = OS_DO_DEVICE(sock, RDC_LOOKUP);  // sets remote_ip field
 				if (result < 0)
-					raise Error_On_Port(RE_NO_CONNECT, port, sock->error);
+					fail (Error_On_Port(RE_NO_CONNECT, port, sock->error));
 				return R_OUT;
 			}
 
@@ -174,7 +174,7 @@ enum Transport_Types {
 				break;
 			}
 			else
-				raise Error_On_Port(RE_INVALID_SPEC, port, -10);
+				fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
 		case A_CLOSE:
 			return R_OUT;
@@ -186,7 +186,7 @@ enum Transport_Types {
 			break;
 
 		default:
-			raise Error_On_Port(RE_NOT_OPEN, port, -12);
+			fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 		}
 	}
 
@@ -213,7 +213,7 @@ enum Transport_Types {
 			!GET_FLAG(sock->modes, RST_UDP)
 			&& !GET_FLAG(sock->state, RSM_CONNECT)
 		) {
-			raise Error_On_Port(RE_NOT_CONNECTED, port, -15);
+			fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
 		}
 
 		// Setup the read buffer (allocate a buffer if needed):
@@ -231,7 +231,7 @@ enum Transport_Types {
 
 		//Print("(max read length %d)", sock->length);
 		result = OS_DO_DEVICE(sock, RDC_READ); // recv can happen immediately
-		if (result < 0) raise Error_On_Port(RE_READ_ERROR, port, sock->error);
+		if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
 		break;
 
 	case A_WRITE:
@@ -241,7 +241,7 @@ enum Transport_Types {
 		refs = Find_Refines(call_, ALL_WRITE_REFS);
 		if (!GET_FLAG(sock->modes, RST_UDP)
 			&& !GET_FLAG(sock->state, RSM_CONNECT))
-			raise Error_On_Port(RE_NOT_CONNECTED, port, -15);
+			fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
 
 		// Determine length. Clip /PART to size of string if needed.
 		spec = D_ARG(2);
@@ -259,7 +259,7 @@ enum Transport_Types {
 
 		//Print("(write length %d)", len);
 		result = OS_DO_DEVICE(sock, RDC_WRITE); // send can happen immediately
-		if (result < 0) raise Error_On_Port(RE_WRITE_ERROR, port, sock->error);
+		if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
 		if (result == DR_DONE) SET_NONE(OFV(port, STD_PORT_DATA));
 		break;
 
@@ -269,7 +269,7 @@ enum Transport_Types {
 		if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
 			Accept_New_Port(D_OUT, port, sock); // sets D_OUT
 		else
-			raise Error_Out_Of_Range(arg);
+			fail (Error_Out_Of_Range(arg));
 		break;
 
 	case A_QUERY:
@@ -299,7 +299,7 @@ enum Transport_Types {
 	case A_OPEN:
 		result = OS_DO_DEVICE(sock, RDC_CONNECT);
 		if (result < 0)
-			raise Error_On_Port(RE_NO_CONNECT, port, sock->error);
+			fail (Error_On_Port(RE_NO_CONNECT, port, sock->error));
 		break;
 
 	case A_DELETE: // Temporary to TEST error handler!
@@ -313,7 +313,7 @@ enum Transport_Types {
 		break;
 
 	default:
-		raise Error_Illegal_Action(REB_PORT, action);
+		fail (Error_Illegal_Action(REB_PORT, action));
 	}
 
 	return R_OUT;

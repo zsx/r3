@@ -287,7 +287,7 @@ static REBOOL assign_scalar(REBSTU *stu,
 	switch (VAL_TYPE(val)) {
 		case REB_DECIMAL:
 			if (!IS_NUMERIC_TYPE(field->type))
-				raise Error_Has_Bad_Type(val);
+				fail (Error_Has_Bad_Type(val));
 
 			d = VAL_DECIMAL(val);
 			i = (u64) d;
@@ -295,17 +295,17 @@ static REBOOL assign_scalar(REBSTU *stu,
 		case REB_INTEGER:
 			if (!IS_NUMERIC_TYPE(field->type))
 				if (field->type != STRUCT_TYPE_POINTER)
-					raise Error_Has_Bad_Type(val);
+					fail (Error_Has_Bad_Type(val));
 
 			i = (u64) VAL_INT64(val);
 			d = (double)i;
 			break;
 		case REB_STRUCT:
 			if (STRUCT_TYPE_STRUCT != field->type)
-				raise Error_Has_Bad_Type(val);
+				fail (Error_Has_Bad_Type(val));
 			break;
 		default:
-			raise Error_Has_Bad_Type(val);
+			fail (Error_Has_Bad_Type(val));
 	}
 
 	switch (field->type) {
@@ -344,12 +344,12 @@ static REBOOL assign_scalar(REBSTU *stu,
 			break;
 		case STRUCT_TYPE_STRUCT:
 			if (field->size != VAL_STRUCT_LEN(val))
-				raise Error_Invalid_Arg(val);
+				fail (Error_Invalid_Arg(val));
 
 			if (same_fields(field->fields, VAL_STRUCT_FIELDS(val))) {
 				memcpy(data, SERIES_SKIP(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val)), field->size);
 			} else
-				raise Error_Invalid_Arg(val);
+				fail (Error_Invalid_Arg(val));
 			break;
 		default:
 			/* should never be here */
@@ -415,39 +415,39 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 					++ attr;
 					if (IS_INTEGER(attr)) {
 						if (*raw_size > 0) /* duplicate raw-size */
-							raise Error_Invalid_Arg(attr);
+							fail (Error_Invalid_Arg(attr));
 
 						*raw_size = VAL_INT64(attr);
 						if (*raw_size <= 0)
-							raise Error_Invalid_Arg(attr);
+							fail (Error_Invalid_Arg(attr));
 					}
 					else
-						raise Error_Invalid_Arg(attr);
+						fail (Error_Invalid_Arg(attr));
 					break;
 
 				case SYM_RAW_MEMORY:
 					++ attr;
 					if (IS_INTEGER(attr)) {
 						if (*raw_addr != 0) /* duplicate raw-memory */
-							raise Error_Invalid_Arg(attr);
+							fail (Error_Invalid_Arg(attr));
 
 						*raw_addr = VAL_UNT64(attr);
 						if (*raw_addr == 0)
-							raise Error_Invalid_Arg(attr);
+							fail (Error_Invalid_Arg(attr));
 					}
 					else
-						raise Error_Invalid_Arg(attr);
+						fail (Error_Invalid_Arg(attr));
 					break;
 
 				case SYM_EXTERN:
 					++ attr;
 
 					if (*raw_addr != 0) /* raw-memory is exclusive with extern */
-						raise Error_Invalid_Arg(attr);
+						fail (Error_Invalid_Arg(attr));
 
 					if (!IS_BLOCK(attr)
 						|| VAL_LEN(attr) != 2) {
-						raise Error_Invalid_Arg(attr);
+						fail (Error_Invalid_Arg(attr));
 					}
 					else {
 						REBVAL *lib;
@@ -458,17 +458,17 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 						sym = VAL_BLK_SKIP(attr, 1);
 
 						if (!IS_LIBRARY(lib))
-							raise Error_Invalid_Arg(attr);
+							fail (Error_Invalid_Arg(attr));
 						if (IS_CLOSED_LIB(VAL_LIB_HANDLE(lib)))
-							raise Error_0(RE_BAD_LIBRARY);
+							fail (Error(RE_BAD_LIBRARY));
 						if (!ANY_BINSTR(sym))
-							raise Error_Invalid_Arg(sym);
+							fail (Error_Invalid_Arg(sym));
 
 						addr = OS_FIND_FUNCTION(
 							LIB_FD(VAL_LIB_HANDLE(lib)), s_cast(VAL_DATA(sym))
 						);
 						if (!addr)
-							raise Error_1(RE_SYMBOL_NOT_FOUND, sym);
+							fail (Error(RE_SYMBOL_NOT_FOUND, sym));
 
 						*raw_addr = cast(REBUPT, addr);
 					}
@@ -480,16 +480,16 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 					   if (IS_INTEGER(attr)) {
 					   alignment = VAL_INT64(attr);
 					   } else {
-					   raise Error_Invalid_Arg(attr);
+					   fail (Error_Invalid_Arg(attr));
 					   }
 					   break;
 					   */
 				default:
-					raise Error_Invalid_Arg(attr);
+					fail (Error_Invalid_Arg(attr));
 			}
 		}
 		else
-			raise Error_Invalid_Arg(attr);
+			fail (Error_Invalid_Arg(attr));
 
 		++ attr;
 	}
@@ -502,7 +502,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 	REBSER *ser = NULL;
 
 	if (raw_size >= 0 && raw_size != cast(REBINT, VAL_STRUCT_LEN(out)))
-		raise Error_0(RE_INVALID_DATA);
+		fail (Error(RE_INVALID_DATA));
 
 	ser = Make_Series(
 		SERIES_LEN(data_ser) + 1, // include term.
@@ -585,14 +585,14 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 					*init = inner; /* a shortcut for struct intialization */
 				}
 				else
-					raise Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val));
+					fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
 				break;
 			case SYM_REBVAL:
 				field->type = STRUCT_TYPE_REBVAL;
 				field->size = sizeof(REBVAL);
 				break;
 			default:
-				raise Error_Has_Bad_Type(val);
+				fail (Error_Has_Bad_Type(val));
 		}
 	} else if (IS_STRUCT(val)) { //[b: [struct-a] val-a]
 		field->size = SERIES_TAIL(VAL_STRUCT_DATA_BIN(val));
@@ -602,7 +602,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 		*init = val;
 	}
 	else
-		raise Error_Has_Bad_Type(val);
+		fail (Error_Has_Bad_Type(val));
 
 	++ val;
 
@@ -612,11 +612,11 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 		if (DO_ARRAY_THROWS(&ret, val)) {
 			// !!! Does not check for thrown cases...what should this
 			// do in case of THROW, BREAK, QUIT?
-			raise Error_No_Catch_For_Throw(&ret);
+			fail (Error_No_Catch_For_Throw(&ret));
 		}
 
 		if (!IS_INTEGER(&ret))
-			raise Error_Unexpected_Type(REB_INTEGER, VAL_TYPE(val));
+			fail (Error_Unexpected_Type(REB_INTEGER, VAL_TYPE(val)));
 
 		field->dimension = cast(REBCNT, VAL_INT64(&ret));
 		field->array = TRUE;
@@ -627,7 +627,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 	}
 
 	if (NOT_END(val))
-		raise Error_Has_Bad_Type(val);
+		fail (Error_Has_Bad_Type(val));
 
 	return TRUE;
 }
@@ -707,19 +707,19 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 				expect_init = TRUE;
 				if (raw_addr) {
 					/* initialization is not allowed for raw memory struct */
-					raise Error_Invalid_Arg(blk);
+					fail (Error_Invalid_Arg(blk));
 				}
 			} else if (IS_WORD(blk)) {
 				field->sym = VAL_WORD_SYM(blk);
 				expect_init = FALSE;
 			}
 			else
-				raise Error_Has_Bad_Type(blk);
+				fail (Error_Has_Bad_Type(blk));
 
 			++ blk;
 
 			if (!IS_BLOCK(blk))
-				raise Error_Invalid_Arg(blk);
+				fail (Error_Invalid_Arg(blk));
 
 			if (!parse_field_type(field, blk, inner, &init)) { return FALSE; }
 			++ blk;
@@ -729,7 +729,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 			step = (u64)field->size * (u64)field->dimension;
 			if (step > VAL_STRUCT_LIMIT)
-				raise Error_1(RE_SIZE_LIMIT, out);
+				fail (Error(RE_SIZE_LIMIT, out));
 
 			EXPAND_SERIES_TAIL(VAL_STRUCT_DATA_BIN(out), step);
 
@@ -739,7 +739,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
 				if (IS_BLOCK(blk)) {
 					if (Reduce_Block_Throws(init, VAL_SERIES(blk), 0, FALSE))
-						raise Error_No_Catch_For_Throw(init);
+						fail (Error_No_Catch_For_Throw(init));
 
 					++ blk;
 				} else {
@@ -750,7 +750,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 						blk - VAL_BLK_DATA(data)
 					);
 					if (eval_idx == THROWN_FLAG)
-						raise Error_No_Catch_For_Throw(init);
+						fail (Error_No_Catch_For_Throw(init));
 
 					blk = VAL_BLK_SKIP(data, eval_idx);
 				}
@@ -765,7 +765,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 						REBCNT n = 0;
 
 						if (VAL_LEN(init) != field->dimension)
-							raise Error_Invalid_Arg(init);
+							fail (Error_Invalid_Arg(init));
 
 						/* assign */
 						for (n = 0; n < field->dimension; n ++) {
@@ -776,7 +776,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 						}
 					}
 					else
-						raise Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(blk));
+						fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(blk)));
 				} else {
 					/* scalar */
 					if (!assign_scalar(&VAL_STRUCT(out), field, 0, init)) {
@@ -812,7 +812,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 			}
 			*/
 			if (offset > VAL_STRUCT_LIMIT)
-				raise Error_1(RE_SIZE_LIMIT, out);
+				fail (Error(RE_SIZE_LIMIT, out));
 
 			field->done = TRUE;
 
@@ -882,7 +882,7 @@ failed:
 				// !!! Gob and Struct do "sub-dispatch" which may throw
 				// No "PE_THREW" return, however.  (should there be?)
 
-				raise Error_No_Catch_For_Throw(pvs->store);
+				fail (Error_No_Catch_For_Throw(pvs->store));
 			}
 
 			if (!Set_Struct_Var(stu, sel, pvs->select, pvs->value)) {
@@ -989,7 +989,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 
 			// make sure no other field initialization
 			if (VAL_TAIL(spec) != 1)
-				raise Error_Invalid_Arg(spec);
+				fail (Error_Invalid_Arg(spec));
 
 			parse_attr(word, &raw_size, &raw_addr);
 			set_ext_storage(ret, raw_size, raw_addr);
@@ -997,10 +997,10 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			break;
 		}
 		else if (! IS_SET_WORD(word))
-			raise Error_Invalid_Arg(word);
+			fail (Error_Invalid_Arg(word));
 
 		if (IS_END(fld_val))
-			raise Error_1(RE_NEED_VALUE, fld_val);
+			fail (Error(RE_NEED_VALUE, fld_val));
 
 		for (i = 0; i < SERIES_TAIL(fields); i ++) {
 			fld = (struct Struct_Field*)SERIES_SKIP(fields, i);
@@ -1009,11 +1009,11 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 					REBCNT n = 0;
 					if (IS_BLOCK(fld_val)) {
 						if (VAL_LEN(fld_val) != fld->dimension)
-							raise Error_Invalid_Arg(fld_val);
+							fail (Error_Invalid_Arg(fld_val));
 
 						for(n = 0; n < fld->dimension; n ++) {
 							if (!assign_scalar(&VAL_STRUCT(ret), fld, n, VAL_BLK_SKIP(fld_val, n)))
-								raise Error_Invalid_Arg(fld_val);
+								fail (Error_Invalid_Arg(fld_val));
 						}
 					} else if (IS_INTEGER(fld_val)) {
 						void *ptr = cast(void *,
@@ -1024,18 +1024,18 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 						memcpy(SERIES_SKIP(VAL_STRUCT_DATA_BIN(ret), fld->offset), ptr, fld->size * fld->dimension);
 					}
 					else
-						raise Error_Invalid_Arg(fld_val);
+						fail (Error_Invalid_Arg(fld_val));
 				}
 				else {
 					if (!assign_scalar(&VAL_STRUCT(ret), fld, 0, fld_val))
-						raise Error_Invalid_Arg(fld_val);
+						fail (Error_Invalid_Arg(fld_val));
 				}
 				break;
 			}
 		}
 
 		if (i == SERIES_TAIL(fields))
-			raise Error_Invalid_Arg(word); // field not found in the parent struct
+			fail (Error_Invalid_Arg(word)); // field not found in the parent struct
 	}
 }
 
@@ -1080,7 +1080,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 					}
 				}
 				else
-					raise Error_Bad_Make(REB_STRUCT, arg);
+					fail (Error_Bad_Make(REB_STRUCT, arg));
 			}
 			SET_TYPE(ret, REB_STRUCT);
 			break;
@@ -1089,10 +1089,10 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			{
 				arg = D_ARG(2);
 				if (!IS_BINARY(arg))
-					raise Error_Unexpected_Type(REB_BINARY, VAL_TYPE(arg));
+					fail (Error_Unexpected_Type(REB_BINARY, VAL_TYPE(arg)));
 
 				if (VAL_LEN(arg) != SERIES_TAIL(VAL_STRUCT_DATA_BIN(val)))
-					raise Error_Invalid_Arg(arg);
+					fail (Error_Invalid_Arg(arg));
 
 				memcpy(SERIES_DATA(VAL_STRUCT_DATA_BIN(val)),
 					   SERIES_DATA(VAL_SERIES(arg)),
@@ -1118,7 +1118,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 						SET_INTEGER(ret, (REBUPT)SERIES_SKIP(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val)));
 						break;
 					default:
-						raise Error_Cannot_Reflect(REB_STRUCT, arg);
+						fail (Error_Cannot_Reflect(REB_STRUCT, arg));
 				}
 			}
 			break;
@@ -1127,10 +1127,10 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 			SET_INTEGER(ret, SERIES_TAIL(VAL_STRUCT_DATA_BIN(val)));
 			break;
 		default:
-			raise Error_Illegal_Action(REB_STRUCT, action);
+			fail (Error_Illegal_Action(REB_STRUCT, action));
 	}
 	return R_OUT;
 
 is_arg_error:
-	raise Error_Unexpected_Type(REB_STRUCT, VAL_TYPE(arg));
+	fail (Error_Unexpected_Type(REB_STRUCT, VAL_TYPE(arg)));
 }

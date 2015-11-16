@@ -51,7 +51,7 @@
 
 	if (ser) {
 		if (!Echo_File(cast(REBCHR*, ser->data)))
-			raise Error_1(RE_CANNOT_OPEN, val);
+			fail (Error(RE_CANNOT_OPEN, val));
 	}
 
 	return R_OUT;
@@ -377,7 +377,7 @@ static REBFLG Print_Native_Modifying_Throws(
 	case REB_TIME:
 		timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
 chk_neg:
-		if (timeout < 0) raise Error_Out_Of_Range(val);
+		if (timeout < 0) fail (Error_Out_Of_Range(val));
 		break;
 
 	case REB_PORT:
@@ -391,7 +391,7 @@ chk_neg:
 		break;
 
 	default:
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 	}
 
 	// Prevent GC on temp port block:
@@ -431,7 +431,7 @@ chk_neg:
 	REBSER *port = VAL_PORT(val);
 	REBOOL awakened = TRUE; // start by assuming success
 
-	if (SERIES_TAIL(port) < STD_PORT_MAX) panic Error_0(RE_MISC);
+	if (SERIES_TAIL(port) < STD_PORT_MAX) panic (Error(RE_MISC));
 
 	val = OFV(port, STD_PORT_ACTOR);
 	if (IS_NATIVE(val)) {
@@ -441,7 +441,7 @@ chk_neg:
 	val = OFV(port, STD_PORT_AWAKE);
 	if (ANY_FUNC(val)) {
 		if (Apply_Func_Throws(D_OUT, val, D_ARG(2), 0))
-			raise Error_No_Catch_For_Throw(D_OUT);
+			fail (Error_No_Catch_For_Throw(D_OUT));
 
 		if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;
 		SET_TRASH_SAFE(D_OUT);
@@ -460,7 +460,7 @@ chk_neg:
 	REBSER *ser;
 
 	ser = Value_To_REBOL_Path(arg, 0);
-	if (!ser) raise Error_Invalid_Arg(arg);
+	if (!ser) fail (Error_Invalid_Arg(arg));
 	Val_Init_File(D_OUT, ser);
 
 	return R_OUT;
@@ -477,7 +477,7 @@ chk_neg:
 	REBSER *ser;
 
 	ser = Value_To_Local_Path(arg, D_REF(2));
-	if (!ser) raise Error_Invalid_Arg(arg);
+	if (!ser) fail (Error_Invalid_Arg(arg));
 	Val_Init_String(D_OUT, ser);
 
 	return R_OUT;
@@ -520,7 +520,7 @@ chk_neg:
 	else {
 		// Lousy error, but ATM the user can directly edit system/options.
 		// They shouldn't be able to (or if they can, it should be validated)
-		raise Error_Invalid_Arg(current_path);
+		fail (Error_Invalid_Arg(current_path));
 	}
 
 	return R_OUT;
@@ -551,13 +551,13 @@ chk_neg:
 		assert(IS_FILE(arg));
 
 		ser = Value_To_OS_Path(arg, TRUE);
-		if (!ser) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+		if (!ser) fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
 		Val_Init_String(&val, ser); // may be unicode or utf-8
 		Check_Security(SYM_FILE, POL_EXEC, &val);
 
 		n = OS_SET_CURRENT_DIR(cast(REBCHR*, ser->data));  // use len for bool
-		if (!n) raise Error_Invalid_Arg(arg); // !!! ERROR MSG
+		if (!n) fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 	}
 
 	*current_path = *arg;
@@ -590,7 +590,7 @@ chk_neg:
 		return R_UNSET;
 	} else {
 		Make_OS_Error(D_OUT, r);
-		raise Error_1(RE_CALL_FAIL, D_OUT);
+		fail (Error(RE_CALL_FAIL, D_OUT));
 	}
 
 	return R_UNSET;
@@ -717,7 +717,7 @@ chk_neg:
 			input_type = NONE_TYPE;
 		}
 		else
-			raise Error_Invalid_Arg(param);
+			fail (Error_Invalid_Arg(param));
 	}
 
 	// Note that os_output is actually treated as an *input* parameter in the
@@ -747,7 +747,7 @@ chk_neg:
 			output_type = NONE_TYPE;
 		}
 		else
-			raise Error_Invalid_Arg(param);
+			fail (Error_Invalid_Arg(param));
 	}
 
 	(void)input; // suppress unused warning but keep variable
@@ -774,7 +774,7 @@ chk_neg:
 			err_type = NONE_TYPE;
 		}
 		else
-			raise Error_Invalid_Arg(param);
+			fail (Error_Invalid_Arg(param));
 	}
 
 	/* I/O redirection implies /wait */
@@ -823,7 +823,7 @@ chk_neg:
 		cmd = NULL;
 		argc = VAL_LEN(arg);
 
-		if (argc <= 0) raise Error_0(RE_TOO_SHORT);
+		if (argc <= 0) fail (Error(RE_TOO_SHORT));
 
 		argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
 		argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
@@ -845,7 +845,7 @@ chk_neg:
 				cast(REBSER**, SERIES_DATA(argv_saved_sers))[i] = path;
 			}
 			else
-				raise Error_Invalid_Arg(param);
+				fail (Error_Invalid_Arg(param));
 		}
 		argv[argc] = NULL;
 	}
@@ -868,7 +868,7 @@ chk_neg:
 		argv[argc] = NULL;
 	}
 	else
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 
 	r = OS_CREATE_PROCESS(
 		cmd, argc, argv,
@@ -952,7 +952,7 @@ chk_neg:
 
 	if (r != 0) {
 		Make_OS_Error(D_OUT, r);
-		raise Error_1(RE_CALL_FAIL, D_OUT);
+		fail (Error(RE_CALL_FAIL, D_OUT));
 	}
 
 	// We may have waited even if they didn't ask us to explicitly, but
@@ -1265,13 +1265,13 @@ chk_neg:
 								return R_NONE;
 
 							case OS_EPERM:
-								raise Error_0(RE_PERMISSION_DENIED);
+								fail (Error(RE_PERMISSION_DENIED));
 
 							case OS_EINVAL:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 
 							default:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
@@ -1279,7 +1279,7 @@ chk_neg:
 					}
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else {
 				REBINT ret = OS_GET_UID();
@@ -1301,13 +1301,13 @@ chk_neg:
 								return R_NONE;
 
 							case OS_EPERM:
-								raise Error_0(RE_PERMISSION_DENIED);
+								fail (Error(RE_PERMISSION_DENIED));
 
 							case OS_EINVAL:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 
 							default:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
@@ -1315,7 +1315,7 @@ chk_neg:
 					}
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else {
 				REBINT ret = OS_GET_GID();
@@ -1337,13 +1337,13 @@ chk_neg:
 								return R_NONE;
 
 							case OS_EPERM:
-								raise Error_0(RE_PERMISSION_DENIED);
+								fail (Error(RE_PERMISSION_DENIED));
 
 							case OS_EINVAL:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 
 							default:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
@@ -1351,7 +1351,7 @@ chk_neg:
 					}
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else {
 				REBINT ret = OS_GET_EUID();
@@ -1373,13 +1373,13 @@ chk_neg:
 								return R_NONE;
 
 							case OS_EPERM:
-								raise Error_0(RE_PERMISSION_DENIED);
+								fail (Error(RE_PERMISSION_DENIED));
 
 							case OS_EINVAL:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 
 							default:
-								raise Error_Invalid_Arg(val);
+								fail (Error_Invalid_Arg(val));
 						}
 					} else {
 						SET_INTEGER(D_OUT, ret);
@@ -1387,7 +1387,7 @@ chk_neg:
 					}
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else {
 				REBINT ret = OS_GET_EGID();
@@ -1409,19 +1409,19 @@ chk_neg:
 				} else if (IS_BLOCK(val)) {
 					REBVAL *sig = NULL;
 
-					if (VAL_LEN(val) != 2) raise Error_Invalid_Arg(val);
+					if (VAL_LEN(val) != 2) fail (Error_Invalid_Arg(val));
 
 					pid = VAL_BLK_SKIP(val, 0);
-					if (!IS_INTEGER(pid)) raise Error_Invalid_Arg(pid);
+					if (!IS_INTEGER(pid)) fail (Error_Invalid_Arg(pid));
 
 					sig = VAL_BLK_SKIP(val, 1);
-					if (!IS_INTEGER(sig)) raise Error_Invalid_Arg(sig);
+					if (!IS_INTEGER(sig)) fail (Error_Invalid_Arg(sig));
 
 					ret = OS_SEND_SIGNAL(VAL_INT32(pid), VAL_INT32(sig));
 					arg = sig;
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 
 				if (ret < 0) {
 					switch (ret) {
@@ -1429,16 +1429,16 @@ chk_neg:
 							return R_NONE;
 
 						case OS_EPERM:
-							raise Error_0(RE_PERMISSION_DENIED);
+							fail (Error(RE_PERMISSION_DENIED));
 
 						case OS_EINVAL:
-							raise Error_Invalid_Arg(arg);
+							fail (Error_Invalid_Arg(arg));
 
 						case OS_ESRCH:
-							raise Error_1(RE_PROCESS_NOT_FOUND, pid);
+							fail (Error(RE_PROCESS_NOT_FOUND, pid));
 
 						default:
-							raise Error_Invalid_Arg(val);
+							fail (Error_Invalid_Arg(val));
 					}
 				} else {
 					SET_INTEGER(D_OUT, ret);
@@ -1455,6 +1455,6 @@ chk_neg:
 			}
 			break;
 		default:
-			raise Error_Invalid_Arg(field);
+			fail (Error_Invalid_Arg(field));
 	}
 }

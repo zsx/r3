@@ -111,7 +111,7 @@
 	if (!pnum) {
 		REBVAL temp;
 		SET_INTEGER(&temp, ser->tail + 1);
-		raise Error_1(RE_SIZE_LIMIT, &temp);
+		fail (Error(RE_SIZE_LIMIT, &temp));
 	}
 
 	assert(!Is_Array_Series(ser));

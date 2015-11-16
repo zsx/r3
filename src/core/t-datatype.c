@@ -94,7 +94,7 @@
 			);
 		}
 		else
-			raise Error_Cannot_Reflect(VAL_TYPE(value), arg);
+			fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
 		break;
 
 	case A_MAKE:
@@ -103,16 +103,16 @@
 			act = Value_Dispatch[kind];
 			if (act) return act(call_, action);
 			//return R_NONE;
-			raise Error_Bad_Make(kind, arg);
+			fail (Error_Bad_Make(kind, arg));
 		}
 		// if (IS_NONE(arg)) return R_NONE;
 		if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
 			break;
 
-		raise Error_Bad_Make(REB_DATATYPE, arg);
+		fail (Error_Bad_Make(REB_DATATYPE, arg));
 
 	default:
-		raise Error_Illegal_Action(REB_DATATYPE, action);
+		fail (Error_Illegal_Action(REB_DATATYPE, action));
 	}
 
 	return R_OUT;

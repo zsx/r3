@@ -180,7 +180,7 @@ typedef REBFLG (*MAKE_FUNC)(REBVAL *, REBVAL *, enum Reb_Kind);
 	return num;
 
 bad_hex:
-	raise Error_0(RE_INVALID_CHARS);
+	fail (Error(RE_INVALID_CHARS));
 }
 
 
@@ -284,7 +284,7 @@ bad_hex:
 	// !!! need check for NaN, and INF
 	*out = STRTOD(s_cast(buf), &se);
 
-	if (fabs(*out) == HUGE_VAL) raise Error_0(RE_OVERFLOW);
+	if (fabs(*out) == HUGE_VAL) fail (Error(RE_OVERFLOW));
 	return cp;
 }
 
@@ -400,7 +400,7 @@ bad_hex:
 	if ((REBCNT)(cp-bp) != len) return 0;
 	VAL_SET(value, REB_MONEY);
 	VAL_MONEY_AMOUNT(value) = atof((char*)(&buf[0]));
-	if (fabs(VAL_MONEY_AMOUNT(value)) == HUGE_VAL) raise Error_0(RE_OVERFLOW);
+	if (fabs(VAL_MONEY_AMOUNT(value)) == HUGE_VAL) fail (Error(RE_OVERFLOW));
 	return cp;
 #endif
 }

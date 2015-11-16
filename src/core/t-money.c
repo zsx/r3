@@ -97,7 +97,7 @@
 	}
 #endif
 	else
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 
 	memcpy(buf + 12 - len, buf, len); // shift to right side
 	memset(buf, 0, 12 - len);
@@ -131,7 +131,7 @@
 			arg = D_OUT;
 		}
 		else
-			raise Error_Math_Args(REB_MONEY, action);
+			fail (Error_Math_Args(REB_MONEY, action));
 
 		switch (action) {
 		case A_ADD:
@@ -177,7 +177,7 @@
 			break;
 
 		default:
-			raise Error_Illegal_Action(REB_MONEY, action);
+			fail (Error_Illegal_Action(REB_MONEY, action));
 		}
 
 		SET_TYPE(D_OUT, REB_MONEY);
@@ -200,7 +200,7 @@
 				VAL_MONEY_AMOUNT(arg) = int_to_deci(VAL_INT64(arg));
 			else if (IS_DECIMAL(arg) || IS_PERCENT(arg))
 				VAL_MONEY_AMOUNT(arg) = decimal_to_deci(VAL_DECIMAL(arg));
-			else if (!IS_MONEY(arg)) raise Error_Invalid_Arg(arg);
+			else if (!IS_MONEY(arg)) fail (Error_Invalid_Arg(arg));
 		}
 		VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
 			VAL_MONEY_AMOUNT(val),
@@ -251,7 +251,7 @@
 			const REBYTE *end;
 			str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
 			VAL_MONEY_AMOUNT(D_OUT) = string_to_deci(str, &end);
-			if (end == str || *end != 0) raise Error_Bad_Make(REB_MONEY, arg);
+			if (end == str || *end != 0) fail (Error_Bad_Make(REB_MONEY, arg));
 			break;
 		}
 
@@ -268,12 +268,12 @@
 
 		default:
 		err:
-			raise Error_Bad_Make(REB_MONEY, arg);
+			fail (Error_Bad_Make(REB_MONEY, arg));
 		}
 		break;
 
 	default:
-		raise Error_Illegal_Action(REB_MONEY, action);
+		fail (Error_Illegal_Action(REB_MONEY, action));
 	}
 
 	SET_TYPE(D_OUT, REB_MONEY);

@@ -111,12 +111,12 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 				if (TYPE_CHECK(val, VAL_TYPE(value))) return TRUE;
 			}
 			else
-				raise Error_1(RE_INVALID_TYPE, Type_Of(val));
+				fail (Error(RE_INVALID_TYPE, Type_Of(val)));
 		}
 		return FALSE;
 	}
 
-	raise Error_Invalid_Arg(types);
+	fail (Error_Invalid_Arg(types));
 }
 
 
@@ -142,7 +142,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			if (IS_CONDITIONAL_FALSE(D_OUT)) {
 				// !!! Only copies 3 values (and flaky), see CC#2231
 				Val_Init_Block(D_OUT, Copy_Array_At_Max_Shallow(block, i, 3));
-				raise Error_1(RE_ASSERT_FAILED, D_OUT);
+				fail (Error(RE_ASSERT_FAILED, D_OUT));
 			}
 		}
 		SET_TRASH_SAFE(D_OUT);
@@ -162,16 +162,16 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 				val = D_OUT;
 			}
 			else
-				raise Error_Invalid_Arg(value);
+				fail (Error_Invalid_Arg(value));
 
 			type = value+1;
-			if (IS_END(type)) raise Error_0(RE_MISSING_ARG);
+			if (IS_END(type)) fail (Error(RE_MISSING_ARG));
 			if (IS_BLOCK(type) || IS_WORD(type) || IS_TYPESET(type) || IS_DATATYPE(type)) {
 				if (!Is_Type_Of(val, type))
-					raise Error_1(RE_WRONG_TYPE, value);
+					fail (Error(RE_WRONG_TYPE, value));
 			}
 			else
-				raise Error_Invalid_Arg(type);
+				fail (Error_Invalid_Arg(type));
 		}
 	}
 
@@ -239,7 +239,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		assert(ANY_WORD(arg));
 		rel = (VAL_WORD_INDEX(arg) < 0);
 		frame = VAL_WORD_FRAME(arg);
-		if (!frame) raise Error_1(RE_NOT_BOUND, arg);
+		if (!frame) fail (Error(RE_NOT_BOUND, arg));
 	}
 
 	// Block or word to bind:
@@ -255,7 +255,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			if (flags & BIND_ALL)
 				Append_Frame(frame, arg, 0); // not in context, so add it.
 			else
-				raise Error_1(RE_NOT_IN_CONTEXT, arg);
+				fail (Error(RE_NOT_IN_CONTEXT, arg));
 		}
 		return R_ARG1;
 	}
@@ -400,7 +400,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			Init_Obj_Value(D_OUT, VAL_WORD_FRAME(word));
 			return R_OUT;
 		}
-		if (!D_REF(2) && !IS_SET(val)) raise Error_1(RE_NO_VALUE, word);
+		if (!D_REF(2) && !IS_SET(val)) fail (Error(RE_NO_VALUE, word));
 		*D_OUT = *val;
 	}
 	else if (ANY_PATH(word)) {
@@ -409,7 +409,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		if (!val) {
 			val = D_OUT;
 		}
-		if (!D_REF(2) && !IS_SET(val)) raise Error_1(RE_NO_VALUE, word);
+		if (!D_REF(2) && !IS_SET(val)) fail (Error(RE_NO_VALUE, word));
 	}
 	else if (IS_OBJECT(word)) {
 		Assert_Public_Object(word);
@@ -475,7 +475,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			return R_NONE;
 		}
 		else
-			raise Error_Invalid_Arg(word);
+			fail (Error_Invalid_Arg(word));
 	}
 
 	frame = IS_ERROR(val) ? VAL_ERR_OBJECT(val) : VAL_OBJ_FRAME(val);
@@ -585,7 +585,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	REBOOL is_blk  = FALSE;
 
 	if (not_any && !IS_SET(val))
-		raise Error_1(RE_NEED_VALUE, word);
+		fail (Error(RE_NEED_VALUE, word));
 
 	if (ANY_WORD(word)) {
 		Set_Var(word, val);
@@ -616,14 +616,14 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 		tmp = val;
 		for (; NOT_END(key); key++) {
 			if (VAL_GET_EXT(key, EXT_WORD_LOCK))
-				raise Error_Protected_Key(key);
+				fail (Error_Protected_Key(key));
 			if (not_any && is_blk && !IS_END(tmp) && IS_UNSET(tmp++)) {
 				// (Loop won't advance past end)
 				REBVAL key_name;
 				Val_Init_Word_Unbound(
 					&key_name, REB_WORD, VAL_TYPESET_SYM(key)
 				);
-				raise Error_1(RE_NEED_VALUE, &key_name);
+				fail (Error(RE_NEED_VALUE, &key_name));
 			}
 		}
 
@@ -648,11 +648,11 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 				case REB_WORD:
 				case REB_SET_WORD:
 				case REB_LIT_WORD:
-					if (!IS_SET(tmp)) raise Error_1(RE_NEED_VALUE, word);
+					if (!IS_SET(tmp)) fail (Error(RE_NEED_VALUE, word));
 					break;
 				case REB_GET_WORD:
 					if (!IS_SET(IS_WORD(tmp) ? GET_VAR(tmp) : tmp))
-						raise Error_1(RE_NEED_VALUE, word);
+						fail (Error(RE_NEED_VALUE, word));
 				}
 			}
 		}
@@ -662,7 +662,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 			else if (IS_GET_WORD(word))
 				Set_Var(word, IS_WORD(val) ? GET_VAR(val) : val);
 			else
-				raise Error_Invalid_Arg(word);
+				fail (Error_Invalid_Arg(word));
 
 			if (is_blk) {
 				val++;
@@ -700,7 +700,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 	if (ANY_WORD(value)) {
 		word = value;
 
-		if (!HAS_FRAME(word)) raise Error_1(RE_NOT_BOUND, word);
+		if (!HAS_FRAME(word)) fail (Error(RE_NOT_BOUND, word));
 
 		var = GET_MUTABLE_VAR(word);
 		SET_UNSET(var);
@@ -710,9 +710,9 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 
 		for (word = VAL_BLK_DATA(value); NOT_END(word); word++) {
 			if (!ANY_WORD(word))
-				raise Error_Invalid_Arg(word);
+				fail (Error_Invalid_Arg(word));
 
-			if (!HAS_FRAME(word)) raise Error_1(RE_NOT_BOUND, word);
+			if (!HAS_FRAME(word)) fail (Error(RE_NOT_BOUND, word));
 
 			var = GET_MUTABLE_VAR(word);
 			SET_UNSET(var);

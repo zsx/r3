@@ -88,7 +88,7 @@
 
 
 // Structure holding the information about the last point in the stack that
-// wanted to set up an opportunity to intercept a `raise Error_XXX()`
+// wanted to set up an opportunity to intercept a `fail (Error_XXX())`
 
 typedef struct Rebol_State {
 	struct Rebol_State *last_state;
@@ -97,7 +97,7 @@ typedef struct Rebol_State {
 	struct Reb_Call *dsf;
 	REBCNT series_guard_tail;
 	REBCNT value_guard_tail;
-	REBVAL error;
+	REBSER *error_frame;
 	REBINT gc_disable;      // Count of GC_Disables at time of Push
 
 	REBCNT manuals_tail;	// Where GC_Manuals was when state started
@@ -111,19 +111,20 @@ typedef struct Rebol_State {
 
 
 // PUSH_TRAP is a construct which is used to catch errors that have been
-// triggered by the Raise_Core() function--usually invoked via the argument
-// to the `raise` pseudo-"keyword".  (In Rebol user code, the trapping
-// function is manually triggered with a DO of an ERROR! type.)  To call
-// the push, you need a REBOL_STATE value to be passed which it will
-// write into--which is a black box that clients shouldn't inspect.
+// triggered by the Fail_Core() function.  This can be triggered by a usage
+// of the `fail` pseudo-"keyword" in C code, and in Rebol user code by the
+// REBNATIVE(fail).  To call the push, you need a REBOL_STATE value to be
+// passed which it will write into--which is a black box that clients
+// shouldn't inspect.
 //
-// The routine also takes a pointer-to-a-REBVAL-pointer which represents
+// The routine also takes a pointer-to-a-REBSER-pointer which represents
 // an error.  Using the tricky mechanisms of setjmp/longjmp, there will
 // be a first pass of execution where the line of code after the PUSH_TRAP
 // will see the error pointer as being NULL.  If a trap occurs during
 // code before the paired DROP_TRY happens, then the C state will be
 // magically teleported back to the line after the PUSH_TRAP with the
-// error value now non-null and inspectable for handling.
+// error value now non-null and usable, including put into a REBVAL via
+// the `Val_Init_Error()` function.
 //
 // Note: The implementation of this macro was chosen stylistically to
 // hide the result of the setjmp call.  That's because you really can't
@@ -144,9 +145,9 @@ typedef struct Rebol_State {
 		} else { \
 			/* this runs if before the DROP_TRAP a longjmp() happens */ \
 			if (Trapped_Helper_Halted(s)) \
-				Raise_Core(&(s)->error); /* proxy the halt up the stack */ \
+				fail ((s)->error_frame); /* proxy the halt up the stack */ \
 			else \
-				*(e) = cast(const REBVAL*, &(s)->error); \
+				*(e) = (s)->error_frame; \
 		} \
 	} while (0)
 
@@ -176,7 +177,7 @@ typedef struct Rebol_State {
 		} else { \
 			/* this runs if before the DROP_TRAP a longjmp() happens */ \
 			cast(void, Trapped_Helper_Halted(s)); \
-			*(e) = cast(const REBVAL*, &(s)->error); \
+			*(e) = (s)->error_frame; \
 		} \
 	} while (0)
 
@@ -199,6 +200,6 @@ typedef struct Rebol_State {
 		assert(GC_Series_Guard->tail == (s)->series_guard_tail); \
 		assert(GC_Value_Guard->tail == (s)->value_guard_tail); \
 		assert(GC_Disabled == (s)->gc_disable); \
-		assert(IS_TRASH(&(s)->error)); \
+		assert(!(s)->error_frame); \
 		Saved_State = (s)->last_state; \
 	} while (0)

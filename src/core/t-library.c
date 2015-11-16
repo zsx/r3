@@ -57,10 +57,10 @@
 			//RL_Print("%s, %d, Make library action\n", __func__, __LINE__);
 		case A_TO:
 			if (!IS_DATATYPE(val)) {
-				raise Error_Unexpected_Type(REB_LIBRARY, VAL_TYPE(val));
+				fail (Error_Unexpected_Type(REB_LIBRARY, VAL_TYPE(val)));
 			}
 			if (!IS_FILE(arg)) {
-				raise Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg));
+				fail (Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg)));
 			} else {
 				void *lib = NULL;
 				REBCNT error = 0;
@@ -68,7 +68,7 @@
 				lib = OS_OPEN_LIBRARY(cast(REBCHR*, SERIES_DATA(path)), &error);
 				Free_Series(path);
 				if (!lib)
-					raise Error_Bad_Make(REB_LIBRARY, arg);
+					fail (Error_Bad_Make(REB_LIBRARY, arg));
 
 				VAL_LIB_SPEC(D_OUT) = Make_Array(1);
 				MANAGE_SERIES(VAL_LIB_SPEC(D_OUT));
@@ -87,7 +87,7 @@
 			SET_UNSET(D_OUT);
 			break;
 		default:
-			raise Error_Illegal_Action(REB_LIBRARY, action);
+			fail (Error_Illegal_Action(REB_LIBRARY, action));
 	}
 	return R_OUT;
 }

@@ -238,7 +238,7 @@
 			// Add bias to head:
 			REBCNT bias = SERIES_BIAS(series);
 			if (REB_U32_ADD_OF(bias, len, &bias))
-				raise Error_0(RE_OVERFLOW);
+				fail (Error(RE_OVERFLOW));
 
 			if (bias > 0xffff) { //bias is 16-bit, so a simple SERIES_ADD_BIAS could overflow it
 				REBYTE *data = series->data;
@@ -413,7 +413,7 @@
 **
 ***********************************************************************/
 {
-	if (!buf) panic Error_0(RE_NO_BUFFER);
+	if (!buf) panic (Error(RE_NO_BUFFER));
 
 	RESET_TAIL(buf);
 	Unbias_Series(buf, TRUE);
@@ -488,8 +488,8 @@
 {
 	Debug_Fmt("Panic_Series() in %s at line %d", file, line);
 	if (*series->guard == 1020) // should make valgrind or asan alert
-		panic Error_0(RE_MISC);
-	panic Error_0(RE_MISC); // just in case it didn't crash
+		panic (Error(RE_MISC));
+	panic (Error(RE_MISC)); // just in case it didn't crash
 }
 
 #endif

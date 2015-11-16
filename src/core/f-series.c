@@ -129,7 +129,7 @@
 	case A_ODDQ:
 	case A_EVENQ:
 	case A_ABSOLUTE:
-		raise Error_Illegal_Action(VAL_TYPE(value), action);
+		fail (Error_Illegal_Action(VAL_TYPE(value), action));
 
 	default:
 		return -1;

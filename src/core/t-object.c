@@ -96,7 +96,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 		if (!Find_Word_Index(obj, VAL_WORD_SYM(arg), TRUE)) {
 			// bug fix, 'self is protected only in selfish frames
 			if ((VAL_WORD_CANON(arg) == SYM_SELF) && !IS_SELFLESS(obj))
-				raise Error_0(RE_SELF_PROTECTED);
+				fail (Error(RE_SELF_PROTECTED));
 			Expand_Frame(obj, 1, 1); // copy word table also
 			Append_Frame(obj, 0, VAL_WORD_SYM(arg));
 			// val is UNSET
@@ -104,7 +104,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 		return;
 	}
 
-	if (!IS_BLOCK(arg)) raise Error_Invalid_Arg(arg);
+	if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(arg));
 
 	// Process word/value argument block:
 	arg = VAL_BLK_DATA(arg);
@@ -123,7 +123,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 			// release binding table
 			TERM_ARRAY(BUF_COLLECT);
 			Collect_Keys_End(obj);
-			raise Error_Invalid_Arg(word);
+			fail (Error_Invalid_Arg(word));
 		}
 
 		if ((i = binds[VAL_WORD_CANON(word)])) {
@@ -132,7 +132,7 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 				// release binding table
 				TERM_ARRAY(BUF_COLLECT);
 				Collect_Keys_End(obj);
-				raise Error_0(RE_SELF_PROTECTED);
+				fail (Error(RE_SELF_PROTECTED));
 			}
 		} else {
 			// collect the word
@@ -162,12 +162,12 @@ static void Append_Obj(REBSER *obj, REBVAL *arg)
 
 		if (VAL_GET_EXT(key, EXT_WORD_LOCK)) {
 			Collect_Keys_End(obj);
-			raise Error_Protected_Key(key);
+			fail (Error_Protected_Key(key));
 		}
 
 		if (VAL_GET_EXT(key, EXT_WORD_HIDE)) {
 			Collect_Keys_End(obj);
-			raise Error_0(RE_HIDDEN);
+			fail (Error(RE_HIDDEN));
 		}
 
 		if (IS_END(word + 1)) SET_NONE(val);
@@ -288,7 +288,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		&& IS_END(pvs->path+1)
 		&& VAL_GET_EXT(VAL_FRM_KEY(pvs->value, n), EXT_WORD_LOCK)
 	) {
-		raise Error_1(RE_LOCKED_WORD, pvs->select);
+		fail (Error(RE_LOCKED_WORD, pvs->select));
 	}
 
 	pvs->value = VAL_OBJ_VALUES(pvs->value) + n;
@@ -352,7 +352,7 @@ static REBSER *Trim_Object(REBSER *obj)
 					if (IS_BLOCK(VAL_BLK_HEAD(arg))) {
 						arg = VAL_BLK_HEAD(arg);
 						if (!IS_BLOCK(arg + 1))
-							raise Error_Bad_Make(REB_TASK, value);
+							fail (Error_Bad_Make(REB_TASK, value));
 						obj = Make_Module_Spec(arg);
 						VAL_MOD_BODY(value) = VAL_SERIES(arg+1);
 					} else {
@@ -390,7 +390,7 @@ static REBSER *Trim_Object(REBSER *obj)
 
 			//if (IS_NONE(arg)) {obj = Make_Frame(0, TRUE); break;}
 
-			raise Error_Bad_Make(type, arg);
+			fail (Error_Bad_Make(type, arg));
 		}
 
 		// make parent-object ....
@@ -428,7 +428,7 @@ static REBSER *Trim_Object(REBSER *obj)
 				break; // returns obj
 			}
 		}
-		raise Error_Bad_Make(VAL_TYPE(value), value);
+		fail (Error_Bad_Make(VAL_TYPE(value), value));
 
 	case A_TO:
 		// special conversions to object! | error! | module!
@@ -445,19 +445,19 @@ static REBSER *Trim_Object(REBSER *obj)
 			}
 			else if (type == REB_OBJECT) {
 				if (IS_ERROR(arg)) {
-					if (VAL_ERR_NUM(arg) < 100) raise Error_Invalid_Arg(arg);
+					if (VAL_ERR_NUM(arg) < 100) fail (Error_Invalid_Arg(arg));
 					obj = VAL_ERR_OBJECT(arg);
 					break; // returns obj
 				}
 			}
 			else if (type == REB_MODULE) {
 				if (!IS_BLOCK(arg) || IS_EMPTY(arg))
-					raise Error_Bad_Make(REB_MODULE, arg);
+					fail (Error_Bad_Make(REB_MODULE, arg));
 				val = VAL_BLK_DATA(arg); // module spec
-				if (!IS_OBJECT(val)) raise Error_Invalid_Arg(val);
+				if (!IS_OBJECT(val)) fail (Error_Invalid_Arg(val));
 				obj = VAL_OBJ_FRAME(val);
 				val++; // module object
-				if (!IS_OBJECT(val)) raise Error_Invalid_Arg(val);
+				if (!IS_OBJECT(val)) fail (Error_Invalid_Arg(val));
 				VAL_MOD_SPEC(val) = obj;
 				VAL_MOD_BODY(val) = NULL;
 				*value = *val;
@@ -468,18 +468,18 @@ static REBSER *Trim_Object(REBSER *obj)
 		}
 		else
 			type = VAL_TYPE(value);
-		raise Error_Bad_Make(type, arg);
+		fail (Error_Bad_Make(type, arg));
 
 	case A_APPEND:
 		TRAP_PROTECT(VAL_OBJ_FRAME(value));
 		if (!IS_OBJECT(value))
-			raise Error_Illegal_Action(VAL_TYPE(value), action);
+			fail (Error_Illegal_Action(VAL_TYPE(value), action));
 		Append_Obj(VAL_OBJ_FRAME(value), arg);
 		return R_ARG1;
 
 	case A_LENGTH:
 		if (!IS_OBJECT(value))
-			raise Error_Illegal_Action(VAL_TYPE(value), action);
+			fail (Error_Illegal_Action(VAL_TYPE(value), action));
 		SET_INTEGER(D_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) - 1);
 		return R_OUT;
 
@@ -487,7 +487,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		// Note: words are not copied and bindings not changed!
 	{
 		REBU64 types = 0;
-		if (D_REF(ARG_COPY_PART)) raise Error_0(RE_BAD_REFINES);
+		if (D_REF(ARG_COPY_PART)) fail (Error(RE_BAD_REFINES));
 		if (D_REF(ARG_COPY_DEEP)) {
 			types |= D_REF(ARG_COPY_TYPES) ? 0 : TS_STD_SERIES;
 		}
@@ -536,7 +536,7 @@ static REBSER *Trim_Object(REBSER *obj)
 		else if (action == OF_BODY) action = 3;
 
 		if (action < 1 || action > 3)
-			raise Error_Cannot_Reflect(VAL_TYPE(value), arg);
+			fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
 
 		Val_Init_Block(value, Make_Object_Block(VAL_OBJ_FRAME(value), action));
 		break;
@@ -544,7 +544,7 @@ static REBSER *Trim_Object(REBSER *obj)
 	case A_TRIM:
 		if (Find_Refines(call_, ALL_TRIM_REFS)) {
 			// no refinements are allowed
-			raise Error_0(RE_BAD_REFINES);
+			fail (Error(RE_BAD_REFINES));
 		}
 		type = VAL_TYPE(value);
 		obj = Trim_Object(VAL_OBJ_FRAME(value));
@@ -555,10 +555,10 @@ static REBSER *Trim_Object(REBSER *obj)
 			SET_LOGIC(D_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) <= 1);
 			return R_OUT;
 		}
-		raise Error_Illegal_Action(VAL_TYPE(value), action);
+		fail (Error_Illegal_Action(VAL_TYPE(value), action));
 
 	default:
-		raise Error_Illegal_Action(VAL_TYPE(value), action);
+		fail (Error_Illegal_Action(VAL_TYPE(value), action));
 	}
 
 	if (type) {
@@ -604,7 +604,7 @@ is_true:
 			if (VAL_GET_EXT(key, EXT_WORD_HIDE))
 				return PE_BAD_SELECT;
 			if (VAL_GET_EXT(key, EXT_WORD_LOCK))
-				raise Error_Protected_Key(key);
+				fail (Error_Protected_Key(key));
 			pvs->value = val;
 			return PE_SET;
 		}
@@ -623,7 +623,7 @@ is_true:
 	switch (action) {
 	case A_MAKE:
 	case A_TO:
-		raise Error_Bad_Make(REB_FRAME, D_ARG(2));
+		fail (Error_Bad_Make(REB_FRAME, D_ARG(2)));
 	}
 
 	return R_ARG1;

@@ -740,7 +740,7 @@ static void Propagate_All_GC_Marks(void);
 			}
 		#endif
 
-			panic Error_Invalid_Datatype(VAL_TYPE(val));
+			panic (Error_Invalid_Datatype(VAL_TYPE(val)));
 		}
 	}
 }

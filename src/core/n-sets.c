@@ -60,7 +60,7 @@ enum {
 
 		if (ANY_ARRAY(val1)) {
 			if (!ANY_ARRAY(val2))
-				raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+				fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 			// As long as they're both arrays, we're willing to do:
 			//
@@ -77,13 +77,13 @@ enum {
 			//      <abcde>
 
 			if (IS_BINARY(val2))
-				raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+				fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 		}
 		else {
 			// Binaries only operate with other binaries
 
 			if (!IS_BINARY(val2))
-				raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+				fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 		}
 	}
 
@@ -227,7 +227,7 @@ enum {
 	// !!! Is this sensible?
 	if (IS_DATE(val1) || IS_DATE(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		Subtract_Date(val1, val2, D_OUT);
 		return R_OUT;
@@ -235,7 +235,7 @@ enum {
 
 	if (IS_BITSET(val1) || IS_BITSET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		Val_Init_Bitset(D_OUT, Xandor_Binary(A_XOR, val1, val2));
 		return R_OUT;
@@ -243,7 +243,7 @@ enum {
 
 	if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		*D_OUT = *val1;
 		VAL_TYPESET_BITS(D_OUT) ^= VAL_TYPESET_BITS(val2);
@@ -279,7 +279,7 @@ enum {
 
 	if (IS_BITSET(val1) || IS_BITSET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		// !!! 0 was said to be a "special case" in original code
 		Val_Init_Bitset(D_OUT, Xandor_Binary(0, val1, val2));
@@ -288,7 +288,7 @@ enum {
 
 	if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		*D_OUT = *val1;
 		VAL_TYPESET_BITS(D_OUT) &= ~VAL_TYPESET_BITS(val2);
@@ -320,7 +320,7 @@ enum {
 
 	if (IS_BITSET(val1) || IS_BITSET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		Val_Init_Bitset(D_OUT, Xandor_Binary(A_AND, val1, val2));
 		return R_OUT;
@@ -328,7 +328,7 @@ enum {
 
 	if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		*D_OUT = *val1;
 		VAL_TYPESET_BITS(D_OUT) &= VAL_TYPESET_BITS(val2);
@@ -360,7 +360,7 @@ enum {
 
 	if (IS_BITSET(val1) || IS_BITSET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		Val_Init_Bitset(D_OUT, Xandor_Binary(A_OR, val1, val2));
 		return R_OUT;
@@ -368,7 +368,7 @@ enum {
 
 	if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
 		if (VAL_TYPE(val1) != VAL_TYPE(val2))
-			raise Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2));
+			fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
 		*D_OUT = *val1;
 		VAL_TYPESET_BITS(D_OUT) |= VAL_TYPESET_BITS(val2);

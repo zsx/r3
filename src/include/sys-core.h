@@ -398,7 +398,7 @@ enum encoding_opts {
 **		usable value, so you MUST check for it.  It signifies getting
 **		back a THROWN()--see notes in sys-value.h about what that
 **		means.  If you don't know how to handle it, then at least
-**		you need to `raise Error_No_Catch_For_Throw()` on it.  If you *do*
+**		you need to `fail (Error_No_Catch_For_Throw())` on it.  If you *do*
 **		handle it, be aware it's a throw label with OPT_VALUE_THROWN
 **		set in its header, and shouldn't leak to the rest of the system.
 **
@@ -504,153 +504,67 @@ enum encoding_opts {
 **
 **	ERROR HANDLING
 **
-**		Rebol uses a C89-compatible trick to implement two "keywords"
-**		for triggering errors, called `raise` and `panic`.  They look
-**		like you are passing some kind of object to a reserved word:
+**		Rebol has two different ways of raising errors.  One that is
+**		"trappable" from Rebol code by PUSH_TRAP (used by the `trap`
+**		native), called `fail`:
 **
 **			if (Foo_Type(foo) == BAD_FOO) {
-**				raise Error_Bad_Foo_Operation(...);
+**				fail (Error_Bad_Foo_Operation(...));
 **
 **				// this line will never be reached, because it
 **				// longjmp'd up the stack where execution continues
 **			}
 **
+**		The other also takes an pointer to a REBVAL that is REB_ERROR
+**		and will terminate the system using it as a message, if the
+**		system hsa progressed to the point where messages are loaded:
+**
 **			if (Foo_Type(foo_critical) == BAD_FOO) {
-**				panic Error_Bad_Foo_Operation(...);
+**				panic (Error_Bad_Foo_Operation(...));
 **
 **				// this line will never be reached, because it had
 *				// a "panic" and exited the process with a message
 **			}
 **
-**		In actuality, the Error_XXX() function is doing the work of
-**		either ending the process or longjmp'ing.  But `raise` and
-**		`panic` do some tricks to set the stage for which will happen,
-**		with a little syntax cleverness to catch compile time problems.
+**		These are macros that in debug builds will capture the file
+**		and line numbers, and add them to the error object itself.
+**		A "cute" trick was once used to eliminate the need for
+**		parentheses to make them look more "keyword-like".  However
+**		the trick had some bad properties and merely using a space
+**		and having them be lowercase seems close enough.
 **
-**		It's possible to pass a Rebol ERROR! object by using the
-**		form `panic Error_Is(err_value_ptr);`  But there are also macros
-**		which allow you to create and parameterize a new error, such
-**		as `raise Error_2(RE_SOME_ERR_NUM, arg1, arg2);`.  These
-**		macros have an additional benefit in that they can be used
-**		with panic even before the system has gotten to a boot state
-**		far enough that error objects can even be created.
-**
-**		Errors are defined in %errors.r.  These definitions contain a
+**		Errors that originate from C code are created via Make_Error,
+**		and are defined in %errors.r.  These definitions contain a
 **		formatted message template, showing how the arguments will
 **		be displayed when the error is printed.
 **
 ***********************************************************************/
 
-// The same Error_XXX(...) functions are able to be handled as either a
-// panic or a raise "argument".  That's because the `panic` and `raise`
-// "keywords" are actually tricks that store global or thread-local
-// state variables that influence the error function behavior.  A
-// variable of this enum type enforms the Error whether it is to act as
-// a panic (via `Panic_Core()`) or a raise (via `Raise_Core()`)
-//
-enum Reb_Fail_Prep {
-	FAIL_UNPREPARED,
-	FAIL_PREP_PANIC,
-	FAIL_PREP_RAISE
-};
-
-// The ternary ?: operator is used to implement `panic` and `raise`, and
-// the preparing for the handling is done in the condition by a _PREP_
-// macro.  Error triggering is done by the "argument", which winds up in
-// the false branch position.
-//
-// The release build always triggers the error for both panic and raise.
-// Debug builds trigger an assert at the callsite in the case of panics.
-//
 #ifdef NDEBUG
-	// Do assignment, but stay a C89 "expression" and evaluate to FALSE
-	#define RAISE_PREP_ALWAYS_FALSE(file,line) \
-		((TG_Fail_Prep = FAIL_PREP_RAISE) != FAIL_PREP_RAISE)
+	// We don't want release builds to have to pay for the parameter
+	// passing cost *or* the string table cost of having a list of all
+	// the files and line numbers for all the places that originate
+	// errors...
 
-	// Do assignment, but stay a C89 "expression" and evaluate to FALSE
-	#define IF_PANIC_PREP_SHOULD_ASSERT(file,line) \
-		((TG_Fail_Prep = FAIL_PREP_PANIC) != FAIL_PREP_PANIC)
+	#define panic(error_frame) \
+		Panic_Core(0, (error_frame), NULL)
+
+	#define fail(error_frame) \
+		Fail_Core(error_frame)
 #else
-	// We want to do our assignments without short circuiting, and yet
-	// still return FALSE.  The "1 +" keeps a line number of 0 from
-	// stopping the chain before it can do the TG_Fail_Prep assignment.
-	#define RAISE_PREP_ALWAYS_FALSE(file,line) \
-		((TG_Fail_C_File = (file)) && (1 + (TG_Fail_C_Line = (line))) \
-		&& ((TG_Fail_Prep = FAIL_PREP_RAISE) != FAIL_PREP_RAISE))
+	#define panic(error_frame) \
+		do { \
+			TG_Erroring_C_File = __FILE__; \
+			TG_Erroring_C_Line = __LINE__; \
+			Panic_Core(0, (error_frame), NULL); \
+		} while (0)
 
-	// Same as above except this time we want to return TRUE at the end
-	// in order to make the debug build trigger an assert at the panic
-	#define IF_PANIC_PREP_SHOULD_ASSERT(file,line) \
-		((TG_Fail_C_File = (file)) && (1 + (TG_Fail_C_Line = (line))) \
-		&& ((TG_Fail_Prep = FAIL_PREP_RAISE) == FAIL_PREP_RAISE))
-
-#endif
-
-// The `panic` and `raise` macros are styled to end in a dangling `:` for
-// the ternary operator (where the "argument" will be evaluated).  The
-// argument must be NORETURN and thus must be void, which is also checked
-// by the ternary operator (as both arguments must match).
-
-#define panic \
-	IF_PANIC_PREP_SHOULD_ASSERT(__FILE__, __LINE__) ? assert(FALSE) :
-
-#define raise \
-	RAISE_PREP_ALWAYS_FALSE(__FILE__, __LINE__) ? assert(FALSE) :
-
-// If you have an already formed ERROR! REBVAL* itself, with any arguments
-// already fulfilled, you can use this macro:
-//
-//		raise Error_Is(err);
-//		panic Error_Is(err);
-//
-// Originally this was just called Error().  However, Ren/C++ has a class
-// called Error, and there's no way to rename a macro "out of the way"
-// for that collision in its implementation.
-//
-#define Error_Is(err) \
-	((TG_Fail_Prep == FAIL_PREP_RAISE) \
-		? Raise_Core(err) \
-		: Panic_Core( \
-			TG_Fail_Prep == FAIL_PREP_PANIC \
-				? VAL_ERR_NUM(err) \
-				: cast(REBCNT, RE_NO_PREP), \
-			err, \
-			TG_Fail_C_File, \
-			TG_Fail_C_Line, \
-			NULL))
-
-// The `Error_Null()` variadic function lets you trigger an error (when used
-// with raise or panic) where you specify an error ID# and its arguments as
-// REBVAL*.  Unfortunately, variadic macros in ANSI-C are a bit clunky and
-// can't check types or tell when the caller stopped supplying arguments.
-// While naming it with _Null helps hint you need to supply a NULL, these
-// numbered macro forms take care of it for you.  (Also: in debug builds
-// ensures at compile time that you actually passed in REBVAL pointers.)
-//
-#ifdef NDEBUG
-	#define Error_0(num) \
-		Error_Null((num), NULL)
-
-	#define Error_1(num,arg1) \
-		Error_Null((num), (arg1), NULL)
-
-	#define Error_2(num,arg1,arg2) \
-		Error_Null((num), (arg1), (arg2), NULL)
-
-	#define Error_3(num,arg1,arg2,arg3) \
-		Error_Null((num), (arg1), (arg2), (arg3), NULL)
-#else
-	#define Error_0(num) \
-		Error_0_Debug(num)
-
-	#define Error_1(num,arg1) \
-		Error_1_Debug((num), (arg1))
-
-	#define Error_2(num,arg1,arg2) \
-		Error_2_Debug((num), (arg1), (arg2))
-
-	#define Error_3(num,arg1,arg2,arg3) \
-		Error_3_Debug((num), (arg1), (arg2), (arg3))
+	#define fail(error_frame) \
+		do { \
+			TG_Erroring_C_File = __FILE__; \
+			TG_Erroring_C_Line = __LINE__; \
+			Fail_Core(error_frame); \
+		} while (0)
 #endif
 
 
@@ -672,7 +586,7 @@ enum Reb_Fail_Prep {
 #else
 	// Release builds do not pay for the `guard` trick, so they just crash.
 
-	#define Panic_Series(s) panic Error_0(RE_MISC)
+	#define Panic_Series(s) panic (Error(RE_MISC))
 #endif
 
 

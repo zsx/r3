@@ -114,7 +114,7 @@
 	if (into) {
 		assert(ANY_ARRAY(out));
 		series = VAL_SERIES(out);
-		if (IS_PROTECT_SERIES(series)) raise Error_0(RE_PROTECTED);
+		if (IS_PROTECT_SERIES(series)) fail (Error(RE_PROTECTED));
 		VAL_INDEX(out) = Insert_Series(
 			series, VAL_INDEX(out), cast(REBYTE*, values), len
 		);

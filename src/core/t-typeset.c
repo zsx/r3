@@ -167,7 +167,7 @@ const struct {
 			VAL_TYPESET_BITS(value) |= VAL_TYPESET_BITS(val);
 		} else {
 			if (load) return FALSE;
-			raise Error_Invalid_Arg(block);
+			fail (Error_Invalid_Arg(block));
 		}
 	}
 
@@ -264,7 +264,7 @@ const struct {
 		if (IS_DATATYPE(arg)) {
 			DECIDE(TYPE_CHECK(val, VAL_TYPE_KIND(arg)));
 		}
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 
 	case A_MAKE:
 	case A_TO:
@@ -279,13 +279,13 @@ const struct {
 	//		return R_ARG2;
 	//	}
 		if (IS_TYPESET(arg)) return R_ARG2;
-		raise Error_Bad_Make(REB_TYPESET, arg);
+		fail (Error_Bad_Make(REB_TYPESET, arg));
 
 	case A_AND:
 	case A_OR:
 	case A_XOR:
 		if (IS_DATATYPE(arg)) VAL_TYPESET_BITS(arg) = FLAGIT_64(VAL_TYPE_KIND(arg));
-		else if (!IS_TYPESET(arg)) raise Error_Invalid_Arg(arg);
+		else if (!IS_TYPESET(arg)) fail (Error_Invalid_Arg(arg));
 
 		if (action == A_OR) VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
 		else if (action == A_AND) VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
@@ -297,7 +297,7 @@ const struct {
 		return R_ARG1;
 
 	default:
-		raise Error_Illegal_Action(REB_TYPESET, action);
+		fail (Error_Illegal_Action(REB_TYPESET, action));
 	}
 
 is_true:

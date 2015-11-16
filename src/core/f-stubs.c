@@ -86,18 +86,18 @@
 
 	if (IS_INTEGER(val)) {
 		if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 		n = VAL_INT32(val);
 	}
 	else if (IS_DECIMAL(val) || IS_PERCENT(val)) {
 		if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 		n = (REBINT)VAL_DECIMAL(val);
 	}
 	else if (IS_LOGIC(val))
 		n = (VAL_LOGIC(val) ? 1 : 2);
 	else
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 
 	return n;
 }
@@ -111,7 +111,7 @@
 {
 	if (fabs(f) > (REBD32)(0x7FFF)) {
 		DS_PUSH_DECIMAL(f);
-		raise Error_Out_Of_Range(DS_TOP);
+		fail (Error_Out_Of_Range(DS_TOP));
 	}
 	return (REBINT)f;
 }
@@ -127,11 +127,11 @@
 
 	if (IS_DECIMAL(val)) {
 		if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 		n = (REBINT)VAL_DECIMAL(val);
 	} else {
 		if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 		n = VAL_INT32(val);
 	}
 
@@ -155,12 +155,12 @@
 
 	if (IS_DECIMAL(val)) {
 		if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 
 		n = (REBINT)VAL_DECIMAL(val);
 	} else {
 		if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 
 		n = VAL_INT32(val);
 	}
@@ -173,7 +173,7 @@
 	)
 		return n;
 
-	raise Error_Out_Of_Range(val);
+	fail (Error_Out_Of_Range(val));
 }
 
 
@@ -190,7 +190,7 @@
 	if (IS_MONEY(val))
 		return deci_to_int(VAL_MONEY_AMOUNT(val));
 
-	raise Error_Invalid_Arg(val);
+	fail (Error_Invalid_Arg(val));
 }
 
 
@@ -207,7 +207,7 @@
 	if (IS_MONEY(val))
 		return deci_to_decimal(VAL_MONEY_AMOUNT(val));
 
-	raise Error_Invalid_Arg(val);
+	fail (Error_Invalid_Arg(val));
 }
 
 
@@ -227,7 +227,7 @@
 
 	if (IS_DECIMAL(val)) {
 		if (VAL_DECIMAL(val) > MAX_I64 || VAL_DECIMAL(val) < MIN_I64)
-			raise Error_Out_Of_Range(val);
+			fail (Error_Out_Of_Range(val));
 		n = (REBI64)VAL_DECIMAL(val);
 	} else {
 		n = VAL_INT64(val);
@@ -241,7 +241,7 @@
 	)
 		return n;
 
-	raise Error_Out_Of_Range(val);
+	fail (Error_Out_Of_Range(val));
 }
 
 
@@ -252,7 +252,7 @@
 ***********************************************************************/
 {
 	if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < cast(i64, 0))
-		raise Error_Out_Of_Range(val);
+		fail (Error_Out_Of_Range(val));
 
 	return VAL_INT32(val);
 }
@@ -579,7 +579,7 @@
 	if (IS_DECIMAL(arg) || IS_PERCENT(arg))
 		return VAL_DECIMAL(arg) != 0.0;
 
-	raise Error_Invalid_Arg(arg);
+	fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -607,7 +607,7 @@
 		if (is_ser && VAL_TYPE(sval) == VAL_TYPE(lval) && VAL_SERIES(sval) == VAL_SERIES(lval))
 			len = (REBINT)VAL_INDEX(lval) - (REBINT)VAL_INDEX(sval);
 		else
-			raise Error_1(RE_INVALID_PART, lval);
+			fail (Error(RE_INVALID_PART, lval));
 	}
 
 	if (is_ser) {
@@ -676,7 +676,7 @@
 		else if (bval && VAL_TYPE(bval) == VAL_TYPE(lval) && VAL_SERIES(bval) == VAL_SERIES(lval))
 			val = bval;
 		else
-			raise Error_1(RE_INVALID_PART, lval);
+			fail (Error(RE_INVALID_PART, lval));
 
 		len = (REBINT)VAL_INDEX(lval) - (REBINT)VAL_INDEX(val);
 	}
@@ -739,7 +739,7 @@
 {
 	i64 r = n + m;
 	if (r < -maxi || r > maxi) {
-		if (type) raise Error_1(RE_TYPE_LIMIT, Get_Type(type));
+		if (type) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
 		r = r > 0 ? maxi : -maxi;
 	}
 	return r;
@@ -753,7 +753,7 @@
 ***********************************************************************/
 {
 	i64 r = n * m;
-	if (r < -maxi || r > maxi) raise Error_1(RE_TYPE_LIMIT, Get_Type(type));
+	if (r < -maxi || r > maxi) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
 	return (int)r;
 }
 

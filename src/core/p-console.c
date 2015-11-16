@@ -64,7 +64,7 @@
 		// If not open, open it:
 		if (!IS_OPEN(req)) {
 			if (OS_DO_DEVICE(req, RDC_OPEN))
-				raise Error_On_Port(RE_CANNOT_OPEN, port, req->error);
+				fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
 		}
 
 		// If no buffer, create a buffer:
@@ -91,7 +91,7 @@
 #endif
 
 		result = OS_DO_DEVICE(req, RDC_READ);
-		if (result < 0) raise Error_On_Port(RE_READ_ERROR, port, req->error);
+		if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 
 #ifdef nono
 		// Does not belong here!!
@@ -128,7 +128,7 @@
 		return R_FALSE;
 
 	default:
-		raise Error_Illegal_Action(REB_PORT, action);
+		fail (Error_Illegal_Action(REB_PORT, action));
 	}
 
 	return R_OUT;

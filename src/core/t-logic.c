@@ -76,7 +76,7 @@
 		else if (IS_NONE(arg))
 			val2 = FALSE;
 		else
-			raise Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg));
+			fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
 	}
 
 	switch (action) {
@@ -110,7 +110,7 @@
 		goto is_true;
 
 	default:
-		raise Error_Illegal_Action(REB_LOGIC, action);
+		fail (Error_Illegal_Action(REB_LOGIC, action));
 	}
 
 	// Keep other fields AS IS!

@@ -209,7 +209,7 @@
 						}
 						// no other words supported, fall through to error
 					}
-					raise Error_1(RE_BAD_FUNC_DEF, item);
+					fail (Error(RE_BAD_FUNC_DEF, item));
 				}
 				break; // leading block handled if we get here, no more to do
 			}
@@ -291,7 +291,7 @@
 			break;
 
 		default:
-			raise Error_1(RE_BAD_FUNC_DEF, item);
+			fail (Error(RE_BAD_FUNC_DEF, item));
 		}
 	}
 
@@ -461,7 +461,7 @@ REBNATIVE(exit);
 	REBYTE func_flags = 0; // 8-bits in header, reserved type-specific flags
 
 	if (!IS_BLOCK(spec) || !IS_BLOCK(body))
-		raise Error_Bad_Func_Def(spec, body);
+		fail (Error_Bad_Func_Def(spec, body));
 
 	if (!has_return) {
 		// Simpler case: if `make function!` or `make closure!` are used
@@ -582,7 +582,7 @@ REBNATIVE(exit);
 					// cheaper not to.
 				}
 				else
-					raise Error_1(RE_BAD_FUNC_DEF, item);
+					fail (Error(RE_BAD_FUNC_DEF, item));
 			}
 			else if (ANY_WORD(item)) {
 				if (convert_local) {
@@ -608,7 +608,7 @@ REBNATIVE(exit);
 						//
 						// Consider that an error.
 
-						raise Error_1(RE_BAD_FUNC_DEF, item);
+						fail (Error(RE_BAD_FUNC_DEF, item));
 					}
 				}
 
@@ -916,7 +916,7 @@ REBNATIVE(exit);
 	}
 
 	action = Value_Dispatch[type];
-	if (!action) raise Error_Illegal_Action(type, VAL_FUNC_ACT(func));
+	if (!action) fail (Error_Illegal_Action(type, VAL_FUNC_ACT(func)));
 	ret = action(DSF, VAL_FUNC_ACT(func));
 
 	switch (ret) {

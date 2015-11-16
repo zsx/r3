@@ -143,12 +143,12 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 		break;
 
 	case A_MAKE:
-		if (!IS_DATATYPE(value)) raise Error_Invalid_Arg(value);
+		if (!IS_DATATYPE(value)) fail (Error_Invalid_Arg(value));
 
 		// MT_Function checks for `[[spec] [body]]` arg if function/closure
 		// and for `[[spec] extension command-num]` if command
 		if (!MT_Function(D_OUT, arg, VAL_TYPE_KIND(value)))
-			raise Error_Bad_Make(VAL_TYPE_KIND(value), arg);
+			fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
 		return R_OUT;
 
 	case A_COPY:
@@ -215,10 +215,10 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 			return R_OUT;
 
 		default:
-			raise Error_Cannot_Reflect(VAL_TYPE(value), arg);
+			fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
 		}
 		break;
 	}
 
-	raise Error_Illegal_Action(VAL_TYPE(value), action);
+	fail (Error_Illegal_Action(VAL_TYPE(value), action));
 }

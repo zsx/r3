@@ -379,7 +379,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
 	// Empty string:
 	if (idx >= VAL_TAIL(value)) {
-		// !!! Comment said `raise Error_0(RE_PAST_END);`
+		// !!! Comment said `fail (Error(RE_PAST_END));`
 		Append_Unencoded(mold->series, "\"\"");
 		return;
 	}
@@ -1270,7 +1270,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 		break;
 
 	default:
-		panic Error_Invalid_Datatype(VAL_TYPE(value));
+		panic (Error_Invalid_Datatype(VAL_TYPE(value)));
 	}
 	return;
 
@@ -1387,7 +1387,7 @@ append:
 	REBSER *buf = BUF_MOLD;
 	REBINT len;
 
-	if (!buf) panic Error_0(RE_NO_BUFFER);
+	if (!buf) panic (Error(RE_NO_BUFFER));
 
 	if (SERIES_REST(buf) > MAX_COMMON)
 		Remake_Series(buf, MIN_COMMON, SERIES_WIDE(buf), MKS_NONE);

@@ -59,7 +59,7 @@
 static void No_Nones(REBVAL *arg) {
 	arg = VAL_BLK_DATA(arg);
 	for (; NOT_END(arg); arg++) {
-		if (IS_NONE(arg)) raise Error_Invalid_Arg(arg);
+		if (IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
 	}
 }
 
@@ -272,7 +272,7 @@ static void No_Nones(REBVAL *arg) {
 			Val_Init_Series(value, type, Make_Array(len));
 			return;
 		}
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 	}
 
 	ser = Copy_Values_Len_Shallow(arg, 1);
@@ -342,25 +342,25 @@ static struct {
 
 	args = BLK_SKIP(VAL_FUNC_PARAMLIST(sort_flags.compare), 1);
 	if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v1)))) {
-		raise Error_3(
+		fail (Error(
 			RE_EXPECT_ARG,
 			Type_Of(sort_flags.compare),
 			args,
 			Type_Of(cast(const REBVAL*, v1))
-		);
+		));
 	}
 	++ args;
 	if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v2)))) {
-		raise Error_3(
+		fail (Error(
 			RE_EXPECT_ARG,
 			Type_Of(sort_flags.compare),
 			args,
 			Type_Of(cast(const REBVAL*, v2))
-		);
+		));
 	}
 
 	if (Apply_Func_Throws(&out, sort_flags.compare, v1, v2, 0))
-		raise Error_No_Catch_For_Throw(&out);
+		fail (Error_No_Catch_For_Throw(&out));
 
 	if (IS_LOGIC(&out)) {
 		if (VAL_LOGIC(&out)) result = 1;
@@ -417,7 +417,7 @@ static struct {
 	if (!IS_UNSET(skipv)) {
 		skip = Get_Num_Arg(skipv);
 		if (skip <= 0 || len % skip != 0 || skip > len)
-			raise Error_Out_Of_Range(skipv);
+			fail (Error_Out_Of_Range(skipv));
 	}
 
 	// Use fast quicksort library function:
@@ -609,7 +609,7 @@ static struct {
 
 	// Check must be in this order (to avoid checking a non-series value);
 	if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(ser))
-		raise Error_0(RE_PROTECTED);
+		fail (Error(RE_PROTECTED));
 
 	switch (action) {
 
@@ -641,7 +641,7 @@ repick:
 			if (!value) goto is_none;
 			*D_OUT = *value;
 		} else {
-			if (!value) raise Error_Out_Of_Range(arg);
+			if (!value) fail (Error_Out_Of_Range(arg));
 			arg = D_ARG(3);
 			*value = *arg;
 			*D_OUT = *arg;
@@ -654,7 +654,7 @@ repick:
 		if (len > 0) index--;
 		if (len == 0 || index < 0 || index >= tail) {
 			if (action == A_PICK) goto is_none;
-			raise Error_Out_Of_Range(arg);
+			fail (Error_Out_Of_Range(arg));
 		}
 		if (action == A_PICK) {
 pick_it:
@@ -776,14 +776,14 @@ zero_blk:
 
 	case A_TRIM:
 		args = Find_Refines(call_, ALL_TRIM_REFS);
-		if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) raise Error_0(RE_BAD_REFINES);
+		if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
 		Trim_Block(ser, index, args);
 		break;
 
 	case A_SWAP:
 		if (SERIES_WIDE(ser) != SERIES_WIDE(VAL_SERIES(arg)))
-			raise Error_Invalid_Arg(arg);
-		if (IS_PROTECT_SERIES(VAL_SERIES(arg))) raise Error_0(RE_PROTECTED);
+			fail (Error_Invalid_Arg(arg));
+		if (IS_PROTECT_SERIES(VAL_SERIES(arg))) fail (Error(RE_PROTECTED));
 		if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg)) {
 			val = *VAL_BLK_DATA(value);
 			*VAL_BLK_DATA(value) = *VAL_BLK_DATA(arg);
@@ -818,8 +818,8 @@ zero_blk:
 		break;
 
 	case A_RANDOM:
-		if (!IS_BLOCK(value)) raise Error_Illegal_Action(VAL_TYPE(value), action);
-		if (D_REF(2)) raise Error_0(RE_BAD_REFINES); // seed
+		if (!IS_BLOCK(value)) fail (Error_Illegal_Action(VAL_TYPE(value), action));
+		if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
 		if (D_REF(4)) { // /only
 			if (index >= tail) goto is_none;
 			len = (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
@@ -832,7 +832,7 @@ zero_blk:
 		break;
 
 	default:
-		raise Error_Illegal_Action(VAL_TYPE(value), action);
+		fail (Error_Illegal_Action(VAL_TYPE(value), action));
 	}
 
 	if (!value)

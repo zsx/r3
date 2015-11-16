@@ -856,7 +856,7 @@ ConversionResult ConvertUTF8toUTF32 (
 		// !!! Not currently supported.
 		REBVAL num;
 		SET_INTEGER(&num, ch);
-		raise Error_1(RE_CODEPOINT_TOO_HIGH, &num);
+		fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
 	}
 
 	*out = ch;
@@ -887,7 +887,7 @@ ConversionResult ConvertUTF8toUTF32 (
 	for (; len > 0; len--, src++) {
 		if ((ch = *src) >= 0x80) {
 			if (!(src = Back_Scan_UTF8_Char(&ch, src, &len)))
-				raise Error_0(RE_BAD_DECODE);
+				fail (Error(RE_BAD_DECODE));
 
 			if (ch > 0xff) flag = 1;
 		} if (ch == CR && ccr) {

@@ -161,7 +161,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
 			len -= 3;
 			break;
 		default:
-			raise Error_0(RE_BAD_DECODE);
+			fail (Error(RE_BAD_DECODE));
 		}
 		ser = Decode_UTF_String(bp, len, 8); // UTF-8
 	}
@@ -368,7 +368,7 @@ enum COMPARE_CHR_FLAGS {
 	if (!IS_UNSET(skipv)) {
 		skip = Get_Num_Arg(skipv);
 		if (skip <= 0 || len % skip != 0 || skip > len)
-			raise Error_Invalid_Arg(skipv);
+			fail (Error_Invalid_Arg(skipv));
 	}
 
 	// Use fast quicksort library function:
@@ -426,7 +426,7 @@ enum COMPARE_CHR_FLAGS {
 		c = Int32(val);
 		if (c > MAX_CHAR || c < 0) return PE_BAD_SET;
 		if (IS_BINARY(data)) { // special case for binary
-			if (c > 0xff) raise Error_Out_Of_Range(val);
+			if (c > 0xff) fail (Error_Out_Of_Range(val));
 			BIN_HEAD(ser)[n] = (REBYTE)c;
 			return PE_OK;
 		}
@@ -518,7 +518,7 @@ enum COMPARE_CHR_FLAGS {
 
 	// Check must be in this order (to avoid checking a non-series value);
 	if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(VAL_SERIES(value)))
-		raise Error_0(RE_PROTECTED);
+		fail (Error(RE_PROTECTED));
 
 	switch (action) {
 
@@ -551,11 +551,11 @@ find:
 			args |= AM_FIND_CASE;
 
 			if (!IS_BINARY(arg) && !IS_INTEGER(arg) && !IS_BITSET(arg))
-				raise Error_0(RE_NOT_SAME_TYPE);
+				fail (Error(RE_NOT_SAME_TYPE));
 
 			if (IS_INTEGER(arg)) {
 				if (VAL_INT64(arg) < 0 || VAL_INT64(arg) > 255)
-					raise Error_Out_Of_Range(arg);
+					fail (Error_Out_Of_Range(arg));
 				len = 1;
 			}
 		}
@@ -601,7 +601,7 @@ find:
 			|| REB_I32_ADD_OF(index, len, &index)
 			|| index < 0 || index >= tail) {
 			if (action == A_PICK) goto is_none;
-			raise Error_Out_Of_Range(arg);
+			fail (Error_Out_Of_Range(arg));
 		}
 		if (action == A_PICK) {
 pick_it:
@@ -620,11 +620,11 @@ pick_it:
 			else if (IS_INTEGER(arg) && VAL_UNT64(arg) <= MAX_CHAR)
 				c = VAL_INT32(arg);
 			else
-				raise Error_Invalid_Arg(arg);
+				fail (Error_Invalid_Arg(arg));
 
 			ser = VAL_SERIES(value);
 			if (IS_BINARY(value)) {
-				if (c > 0xff) raise Error_Out_Of_Range(arg);
+				if (c > 0xff) fail (Error_Out_Of_Range(arg));
 				BIN_HEAD(ser)[index] = (REBYTE)c;
 			}
 			else {
@@ -690,28 +690,28 @@ zero_str:
 		type = VAL_TYPE(value);
 		if (type == REB_DATATYPE) type = VAL_TYPE_KIND(value);
 
-		if (IS_NONE(arg)) raise Error_Bad_Make(type, arg);
+		if (IS_NONE(arg)) fail (Error_Bad_Make(type, arg));
 
 		ser = (type != REB_BINARY)
 			? make_string(arg, (REBOOL)(action == A_MAKE))
 			: make_binary(arg, (REBOOL)(action == A_MAKE));
 
 		if (ser) goto str_exit;
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 
 	//-- Bitwise:
 
 	case A_AND:
 	case A_OR:
 	case A_XOR:
-		if (!IS_BINARY(arg)) raise Error_Invalid_Arg(arg);
+		if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
 		VAL_LIMIT_SERIES(value);
 		VAL_LIMIT_SERIES(arg);
 		ser = Xandor_Binary(action, value, arg);
 		goto ser_exit;
 
 	case A_COMPLEMENT:
-		if (!IS_BINARY(value)) raise Error_Invalid_Arg(value);
+		if (!IS_BINARY(value)) fail (Error_Invalid_Arg(value));
 		ser = Complement_Binary(value);
 		goto ser_exit;
 
@@ -726,7 +726,7 @@ zero_str:
 			((args & AM_TRIM_AUTO) &&
 			(args & (AM_TRIM_HEAD | AM_TRIM_TAIL | AM_TRIM_LINES | AM_TRIM_ALL | AM_TRIM_WITH)))
 		) {
-			raise Error_0(RE_BAD_REFINES);
+			fail (Error(RE_BAD_REFINES));
 		}
 
 		Trim_String(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN(value), args, D_ARG(ARG_TRIM_STR));
@@ -734,10 +734,10 @@ zero_str:
 
 	case A_SWAP:
 		if (VAL_TYPE(value) != VAL_TYPE(arg))
-			raise Error_0(RE_NOT_SAME_TYPE);
+			fail (Error(RE_NOT_SAME_TYPE));
 
 		if (IS_PROTECT_SERIES(VAL_SERIES(arg)))
-			raise Error_0(RE_PROTECTED);
+			fail (Error(RE_PROTECTED));
 
 		if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg))
 			swap_chars(value, arg);
@@ -774,7 +774,7 @@ zero_str:
 		break;
 
 	default:
-		raise Error_Illegal_Action(VAL_TYPE(value), action);
+		fail (Error_Illegal_Action(VAL_TYPE(value), action));
 	}
 
 	*D_OUT = *value;

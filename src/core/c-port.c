@@ -44,11 +44,11 @@
 {
 	if (Do_Sys_Func_Throws(out, SYS_CTX_MAKE_PORT_P, spec, 0)) {
 		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-		raise Error_No_Catch_For_Throw(out);
+		fail (Error_No_Catch_For_Throw(out));
 	}
 
 	// !!! Shouldn't this be testing for !IS_PORT( ) ?
-	if (IS_NONE(out)) raise Error_1(RE_INVALID_SPEC, spec);
+	if (IS_NONE(out)) fail (Error(RE_INVALID_SPEC, spec));
 }
 
 
@@ -183,7 +183,7 @@
 	else SET_NONE(&ref_only);
 	// Call the system awake function:
 	if (Apply_Func_Throws(&out, awake, port, &tmp, &ref_only, 0))
-		raise Error_No_Catch_For_Throw(&out);
+		fail (Error_No_Catch_For_Throw(&out));
 
 	// Awake function returns 1 for end of WAIT:
 	result = (IS_LOGIC(&out) && VAL_LOGIC(&out)) ? 1 : 0;
@@ -214,7 +214,7 @@
 	while (wt) {
 		if (GET_SIGNAL(SIG_ESCAPE)) {
 			CLR_SIGNAL(SIG_ESCAPE);
-			raise Error_Is(TASK_HALT_ERROR);
+			fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
 		}
 
 		// Process any waiting events:
@@ -325,7 +325,7 @@
 		// Must have a spec object:
 		!IS_OBJECT(BLK_SKIP(port, STD_PORT_SPEC))
 	) {
-		raise Error_0(RE_INVALID_PORT);
+		fail (Error(RE_INVALID_PORT));
 	}
 
 	// Get actor for port, if it has one:
@@ -338,7 +338,7 @@
 		return cast(REBPAF, VAL_FUNC_CODE(actor))(call_, port, action);
 
 	// actor must be an object:
-	if (!IS_OBJECT(actor)) raise Error_0(RE_INVALID_ACTOR);
+	if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
 
 	// Dispatch object function:
 	n = Find_Action(actor, action);
@@ -347,7 +347,7 @@
 		REBVAL action_word;
 		Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
 
-		raise Error_1(RE_NO_PORT_ACTION, &action_word);
+		fail (Error(RE_NO_PORT_ACTION, &action_word));
 	}
 
 	if (Redo_Func_Throws(actor)) {
@@ -412,7 +412,7 @@
 		|| !IS_FRAME(BLK_HEAD(port))
 		|| !IS_OBJECT(BLK_SKIP(port, STD_PORT_SPEC))
 	) {
-		raise Error_0(RE_INVALID_PORT);
+		fail (Error(RE_INVALID_PORT));
 	}
 }
 

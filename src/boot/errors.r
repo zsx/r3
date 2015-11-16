@@ -44,11 +44,6 @@ Internal: [
 	;
 	misc:				{RE_MISC error (if actually happens, add to %errors.r)}
 
-	; The error machinery expects a `raise` or `panic` macro to have signaled
-	; whether the error is meant to be trappable or to exit the process
-	;
-	no-prep:			{raise or panic "keyword" missing from error trigger}
-
 	; !!! Should there be a distinction made between different kinds of
 	; stack overflows?  (Call stack, Data stack?)
 	;
@@ -76,7 +71,6 @@ Internal: [
 	io-error:			{problem with IO}
 	max-words:			{too many words}
 	locked-series:		{locked series expansion}
-	no-saved-state:		{saved state frame is missing}
 	max-events:			{event queue overflow}
 	unexpected-case:	{no case in switch statement}
 	bad-size:			{expected size did not match}

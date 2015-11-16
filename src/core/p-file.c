@@ -53,11 +53,11 @@
 	if (args & AM_OPEN_NEW) {
 		SET_FLAG(file->modes, RFM_NEW);
 		if (!(args & AM_OPEN_WRITE))
-			raise Error_1(RE_BAD_FILE_MODE, path);
+			fail (Error(RE_BAD_FILE_MODE, path));
 	}
 
 	if (!(ser = Value_To_OS_Path(path, TRUE)))
-		raise Error_1(RE_BAD_FILE_PATH, path);
+		fail (Error(RE_BAD_FILE_PATH, path));
 
 	// !!! Original comment said "Convert file name to OS format, let
 	// it GC later."  Then it grabs the series data from inside of it.
@@ -120,7 +120,7 @@
 	REBSER *ser;
 
 	if (!info || !IS_OBJECT(info))
-		raise Error_On_Port(RE_INVALID_SPEC, port, -10);
+		fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
 	obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
 	MANAGE_SERIES(obj);
@@ -149,10 +149,10 @@
 ***********************************************************************/
 {
 	if (Is_Port_Open(port))
-		raise Error_1(RE_ALREADY_OPEN, path);
+		fail (Error(RE_ALREADY_OPEN, path));
 
 	if (OS_DO_DEVICE(file, RDC_OPEN) < 0)
-		raise Error_On_Port(RE_CANNOT_OPEN, port, file->error);
+		fail (Error_On_Port(RE_CANNOT_OPEN, port, file->error));
 
 	Set_Port_Open(port, TRUE);
 }
@@ -181,7 +181,7 @@ REBINT Mode_Syms[] = {
 	REBCNT id = 0;
 	if (IS_WORD(word)) {
 		id = Find_Int(&Mode_Syms[0], VAL_WORD_CANON(word));
-		if (id == NOT_FOUND) raise Error_Invalid_Arg(word);
+		if (id == NOT_FOUND) fail (Error_Invalid_Arg(word));
 	}
 	return id;
 }
@@ -215,7 +215,7 @@ REBINT Mode_Syms[] = {
 	file->common.data = BIN_HEAD(ser);
 	file->length = len;
 	if (OS_DO_DEVICE(file, RDC_READ) < 0)
-		raise Error_On_Port(RE_READ_ERROR, port, file->error);
+		fail (Error_On_Port(RE_READ_ERROR, port, file->error));
 	SERIES_TAIL(ser) = file->actual;
 	STR_TERM(ser);
 
@@ -223,7 +223,7 @@ REBINT Mode_Syms[] = {
 	// NOTE: This code is incorrect for files read in chunks!!!
 	if (args & (AM_READ_STRING | AM_READ_LINES)) {
 		REBSER *nser = Decode_UTF_String(BIN_HEAD(ser), file->actual, -1);
-		if (nser == NULL) raise Error_0(RE_BAD_DECODE);
+		if (nser == NULL) fail (Error(RE_BAD_DECODE));
 		Val_Init_String(out, nser);
 
 		if (args & AM_READ_LINES) Val_Init_Block(out, Split_Lines(out));
@@ -339,12 +339,12 @@ REBINT Mode_Syms[] = {
 
 	// Validate PORT fields:
 	spec = BLK_SKIP(port, STD_PORT_SPEC);
-	if (!IS_OBJECT(spec)) raise Error_1(RE_INVALID_SPEC, spec);
+	if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
 	path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
-	if (!path) raise Error_1(RE_INVALID_SPEC, spec);
+	if (!path) fail (Error(RE_INVALID_SPEC, spec));
 
 	if (IS_URL(path)) path = Obj_Value(spec, STD_PORT_SPEC_HEAD_PATH);
-	else if (!IS_FILE(path)) raise Error_1(RE_INVALID_SPEC, path);
+	else if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
 
 	// Get or setup internal state data:
 	file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file));
@@ -375,12 +375,12 @@ REBINT Mode_Syms[] = {
 		}
 
 		if (file->error)
-			raise Error_On_Port(RE_READ_ERROR, port, file->error);
+			fail (Error_On_Port(RE_READ_ERROR, port, file->error));
 		break;
 
 	case A_APPEND:
 		if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
-			raise Error_1(RE_INVALID_ARG, D_ARG(2));
+			fail (Error(RE_INVALID_ARG, D_ARG(2)));
 		file->special.file.index = file->special.file.size;
 		SET_FLAG(file->modes, RFM_RESEEK);
 
@@ -399,7 +399,7 @@ REBINT Mode_Syms[] = {
 		}
 		else {
 			if (!GET_FLAG(file->modes, RFM_WRITE))
-				raise Error_1(RE_READ_ONLY, path);
+				fail (Error(RE_READ_ONLY, path));
 		}
 
 		// Setup for /append or /seek:
@@ -423,7 +423,7 @@ REBINT Mode_Syms[] = {
 			Cleanup_File(file);
 		}
 
-		if (file->error) raise Error_1(RE_WRITE_ERROR, path);
+		if (file->error) fail (Error(RE_WRITE_ERROR, path));
 		break;
 
 	case A_OPEN:
@@ -435,7 +435,7 @@ REBINT Mode_Syms[] = {
 		break;
 
 	case A_COPY:
-		if (!IS_OPEN(file)) raise Error_1(RE_NOT_OPEN, path); // !!! wrong msg
+		if (!IS_OPEN(file)) fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
 		len = Set_Length(file, D_REF(2) ? VAL_INT64(D_ARG(3)) : -1);
 		Read_File_Port(D_OUT, port, file, path, args, len);
 		break;
@@ -452,14 +452,14 @@ REBINT Mode_Syms[] = {
 		break;
 
 	case A_DELETE:
-		if (IS_OPEN(file)) raise Error_1(RE_NO_DELETE, path);
+		if (IS_OPEN(file)) fail (Error(RE_NO_DELETE, path));
 		Setup_File(file, 0, path);
 		if (OS_DO_DEVICE(file, RDC_DELETE) < 0)
-			raise Error_1(RE_NO_DELETE, path);
+			fail (Error(RE_NO_DELETE, path));
 		break;
 
 	case A_RENAME:
-		if (IS_OPEN(file)) raise Error_1(RE_NO_RENAME, path);
+		if (IS_OPEN(file)) fail (Error(RE_NO_RENAME, path));
 		else {
 			REBSER *target;
 
@@ -467,11 +467,11 @@ REBINT Mode_Syms[] = {
 
 			// Convert file name to OS format:
 			if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
-				raise Error_1(RE_BAD_FILE_PATH, D_ARG(2));
+				fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
 			file->common.data = BIN_DATA(target);
 			OS_DO_DEVICE(file, RDC_RENAME);
 			Free_Series(target);
-			if (file->error) raise Error_1(RE_NO_RENAME, path);
+			if (file->error) fail (Error(RE_NO_RENAME, path));
 		}
 		break;
 
@@ -480,7 +480,7 @@ REBINT Mode_Syms[] = {
 		if (!IS_OPEN(file)) {
 			Setup_File(file, AM_OPEN_WRITE | AM_OPEN_NEW, path);
 			if (OS_DO_DEVICE(file, RDC_CREATE) < 0)
-				raise Error_On_Port(RE_CANNOT_OPEN, port, file->error);
+				fail (Error_On_Port(RE_CANNOT_OPEN, port, file->error));
 			OS_DO_DEVICE(file, RDC_CLOSE);
 		}
 		break;
@@ -546,7 +546,7 @@ REBINT Mode_Syms[] = {
 		SET_FLAG(file->modes, RFM_TRUNCATE);
 		file->length = 0;
 		if (OS_DO_DEVICE(file, RDC_WRITE) < 0)
-			raise Error_1(RE_WRITE_ERROR, path);
+			fail (Error(RE_WRITE_ERROR, path));
 		break;
 
 	/* Not yet implemented:
@@ -566,7 +566,7 @@ REBINT Mode_Syms[] = {
 	*/
 
 	default:
-		raise Error_Illegal_Action(REB_PORT, action);
+		fail (Error_Illegal_Action(REB_PORT, action));
 	}
 
 	return R_OUT;

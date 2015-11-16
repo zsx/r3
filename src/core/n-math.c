@@ -88,7 +88,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = AS_DECIMAL(value);
-	if (kind != TANGENT && (dval < -1 || dval > 1)) raise Error_0(RE_OVERFLOW);
+	if (kind != TANGENT && (dval < -1 || dval > 1)) fail (Error(RE_OVERFLOW));
 
 	if (kind == SINE) dval = asin(dval);
 	else if (kind == COSINE) dval = acos(dval);
@@ -133,7 +133,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = Trig_Value(D_ARG(1), !D_REF(2), TANGENT);
-	if (Eq_Decimal(fabs(dval), pi1 / 2.0)) raise Error_0(RE_OVERFLOW);
+	if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
 	SET_DECIMAL(D_OUT, tan(dval));
 	return R_OUT;
 }
@@ -195,7 +195,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
+	if (dval <= 0) fail (Error(RE_POSITIVE));
 	SET_DECIMAL(D_OUT, log10(dval));
 	return R_OUT;
 }
@@ -208,7 +208,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
+	if (dval <= 0) fail (Error(RE_POSITIVE));
 	SET_DECIMAL(D_OUT, log(dval) / LOG2);
 	return R_OUT;
 }
@@ -221,7 +221,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
+	if (dval <= 0) fail (Error(RE_POSITIVE));
 	SET_DECIMAL(D_OUT, log(dval));
 	return R_OUT;
 }
@@ -234,7 +234,7 @@ enum {SINE, COSINE, TANGENT};
 ***********************************************************************/
 {
 	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval < 0) raise Error_0(RE_POSITIVE);
+	if (dval < 0) fail (Error(RE_POSITIVE));
 	SET_DECIMAL(D_OUT, sqrt(dval));
 	return R_OUT;
 }
@@ -265,7 +265,7 @@ enum {SINE, COSINE, TANGENT};
 	} else {
 		if (b >= 64) {
 			if (D_REF(3)) VAL_INT64(a) = 0;
-			else if (VAL_INT64(a)) raise Error_0(RE_OVERFLOW);
+			else if (VAL_INT64(a)) fail (Error(RE_OVERFLOW));
 		} else
 			if (D_REF(3)) VAL_UNT64(a) <<= b;
 			else {
@@ -273,7 +273,7 @@ enum {SINE, COSINE, TANGENT};
 				d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
 				if (c <= d) {
 					if ((c < d) || (VAL_INT64(a) >= 0))
-						raise Error_0(RE_OVERFLOW);
+						fail (Error(RE_OVERFLOW));
 
 					VAL_INT64(a) = MIN_I64;
 				}
@@ -376,14 +376,14 @@ enum {SINE, COSINE, TANGENT};
 
 		if (strictness == 0 || strictness == 1) return FALSE;
 		//if (strictness >= 2)
-		raise Error_2(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b));
+		fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
 	}
 
 compare:
 	// At this point, both args are of the same datatype.
 	if (!(code = Compare_Types[VAL_TYPE(a)])) return FALSE;
 	result = code(a, b, strictness);
-	if (result < 0) raise Error_2(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b));
+	if (result < 0) fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
 	return result;
 }
 

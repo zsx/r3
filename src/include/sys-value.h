@@ -602,7 +602,7 @@ enum {
 #define UNPROTECT_SERIES(s)  SERIES_CLR_FLAG(s, SER_PROT)
 #define IS_PROTECT_SERIES(s) SERIES_GET_FLAG(s, SER_PROT)
 
-#define TRAP_PROTECT(s) if (IS_PROTECT_SERIES(s)) raise Error_0(RE_PROTECTED)
+#define TRAP_PROTECT(s) if (IS_PROTECT_SERIES(s)) fail (Error(RE_PROTECTED))
 
 #ifdef SERIES_LABELS
 #define LABEL_SERIES(s,l) s->label = (l)

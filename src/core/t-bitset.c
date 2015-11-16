@@ -96,7 +96,7 @@
 	if (IS_BLOCK(data)) {
 		REBINT len = Find_Max_Bit(data);
 		REBSER *ser;
-		if (len < 0 || len > 0xFFFFFF) raise Error_Invalid_Arg(data);
+		if (len < 0 || len > 0xFFFFFF) fail (Error_Invalid_Arg(data));
 		ser = Make_Bitset(len);
 		Set_Bits(ser, data, TRUE);
 		Val_Init_Bitset(out, ser);
@@ -312,7 +312,7 @@ retry:
 		return TRUE;
 	}
 
-	if (!ANY_ARRAY(val)) raise Error_Has_Bad_Type(val);
+	if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
 	val = VAL_BLK_DATA(val);
 	if (IS_SAME_WORD(val, SYM_NOT)) {
@@ -332,11 +332,11 @@ retry:
 				if (IS_CHAR(val)) {
 					n = VAL_CHAR(val);
 span_bits:
-					if (n < c) raise Error_1(RE_PAST_END, val);
+					if (n < c) fail (Error(RE_PAST_END, val));
 					for (; c <= n; c++) Set_Bit(bset, c, set);
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else Set_Bit(bset, c, set);
 			break;
@@ -352,7 +352,7 @@ span_bits:
 					goto span_bits;
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else Set_Bit(bset, n, set);
 			break;
@@ -411,7 +411,7 @@ span_bits:
 	if (ANY_BINSTR(val))
 		return Check_Bit_Str(bset, val, uncased);
 
-	if (!ANY_ARRAY(val)) raise Error_Has_Bad_Type(val);
+	if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
 	// Loop through block of bit specs:
 	for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
@@ -425,12 +425,12 @@ span_bits:
 				if (IS_CHAR(val)) {
 					n = VAL_CHAR(val);
 scan_bits:
-					if (n < c) raise Error_1(RE_PAST_END, val);
+					if (n < c) fail (Error(RE_PAST_END, val));
 					for (; c <= n; c++)
 						if (Check_Bit(bset, c, uncased)) goto found;
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else
 				if (Check_Bit(bset, c, uncased)) goto found;
@@ -447,7 +447,7 @@ scan_bits:
 					goto scan_bits;
 				}
 				else
-					raise Error_Invalid_Arg(val);
+					fail (Error_Invalid_Arg(val));
 			}
 			else
 				if (Check_Bit(bset, n, uncased)) goto found;
@@ -464,7 +464,7 @@ scan_bits:
 			break;
 
 		default:
-			raise Error_Has_Bad_Type(val);
+			fail (Error_Has_Bad_Type(val));
 		}
 	}
 	return FALSE;
@@ -534,7 +534,7 @@ found:
 
 	// Check must be in this order (to avoid checking a non-series value);
 	if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(VAL_SERIES(value)))
-		raise Error_0(RE_PROTECTED);
+		fail (Error(RE_PROTECTED));
 
 	switch (action) {
 
@@ -557,7 +557,7 @@ found:
 	case A_TO:
 		// Determine size of bitset. Returns -1 for errors.
 		len = Find_Max_Bit(arg);
-		if (len < 0 || len > 0x0FFFFFFF) raise Error_Invalid_Arg(arg);
+		if (len < 0 || len > 0x0FFFFFFF) fail (Error_Invalid_Arg(arg));
 
 		ser = Make_Bitset(len);
 		Val_Init_Bitset(value, ser);
@@ -581,12 +581,12 @@ found:
 set_bits:
 		if (BITS_NOT(VAL_SERIES(value))) diff = !diff;
 		if (Set_Bits(VAL_SERIES(value), arg, (REBOOL)diff)) break;
-		raise Error_Invalid_Arg(arg);
+		fail (Error_Invalid_Arg(arg));
 
 	case A_REMOVE:	// #"a" "abc"  remove/part bs "abcd"  yuk: /part ?
-		if (!D_REF(2)) raise Error_0(RE_MISSING_ARG); // /part required
+		if (!D_REF(2)) fail (Error(RE_MISSING_ARG)); // /part required
 		if (Set_Bits(VAL_SERIES(value), D_ARG(3), FALSE)) break;
-		raise Error_Invalid_Arg(D_ARG(3));
+		fail (Error_Invalid_Arg(D_ARG(3)));
 
 	case A_COPY:
 		Val_Init_Series_Index(
@@ -614,13 +614,13 @@ set_bits:
 	case A_OR:
 	case A_XOR:
 		if (!IS_BITSET(arg) && !IS_BINARY(arg))
-			raise Error_Math_Args(VAL_TYPE(arg), action);
+			fail (Error_Math_Args(VAL_TYPE(arg), action));
 		VAL_SERIES(value) = ser = Xandor_Binary(action, value, arg);
 		Trim_Tail_Zeros(ser);
 		break;
 
 	default:
-		raise Error_Illegal_Action(REB_BITSET, action);
+		fail (Error_Illegal_Action(REB_BITSET, action));
 	}
 
 	*D_OUT = *value;

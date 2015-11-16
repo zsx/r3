@@ -100,7 +100,7 @@ typedef enum {
 
 	// Hand-make a FRAME (done for for speed):
 	len = IS_BLOCK(spec) ? VAL_LEN(spec) : 1;
-	if (len == 0) raise Error_Invalid_Arg(spec);
+	if (len == 0) fail (Error_Invalid_Arg(spec));
 	frame = Make_Frame(len, FALSE);
 	SERIES_TAIL(frame) = len+1;
 	SERIES_TAIL(FRM_KEYLIST(frame)) = len + 1;
@@ -116,7 +116,7 @@ typedef enum {
 			// Prevent inconsistent GC state:
 			Free_Series(FRM_KEYLIST(frame));
 			Free_Series(frame);
-			raise Error_Invalid_Arg(spec);
+			fail (Error_Invalid_Arg(spec));
 		}
 		Val_Init_Typeset(word, ALL_64, VAL_WORD_SYM(spec));
 		word++;
@@ -169,7 +169,7 @@ typedef enum {
 		}
 
 	next_iteration:
-		if (VAL_TYPE(var) != type) raise Error_1(RE_INVALID_TYPE, var);
+		if (VAL_TYPE(var) != type) fail (Error(RE_INVALID_TYPE, var));
 		si = VAL_INDEX(var);
 	}
 
@@ -200,11 +200,11 @@ typedef enum {
 		}
 
 	next_iteration:
-		if (!IS_INTEGER(var)) raise Error_Has_Bad_Type(var);
+		if (!IS_INTEGER(var)) fail (Error_Has_Bad_Type(var));
 		start = VAL_INT64(var);
 
 		if (REB_I64_ADD_OF(start, incr, &start))
-			raise Error_0(RE_OVERFLOW);
+			fail (Error(RE_OVERFLOW));
 	}
 
 	return FALSE;
@@ -226,21 +226,21 @@ typedef enum {
 	else if (IS_DECIMAL(start) || IS_PERCENT(start))
 		s = VAL_DECIMAL(start);
 	else
-		raise Error_Invalid_Arg(start);
+		fail (Error_Invalid_Arg(start));
 
 	if (IS_INTEGER(end))
 		e = cast(REBDEC, VAL_INT64(end));
 	else if (IS_DECIMAL(end) || IS_PERCENT(end))
 		e = VAL_DECIMAL(end);
 	else
-		raise Error_Invalid_Arg(end);
+		fail (Error_Invalid_Arg(end));
 
 	if (IS_INTEGER(incr))
 		i = cast(REBDEC, VAL_INT64(incr));
 	else if (IS_DECIMAL(incr) || IS_PERCENT(incr))
 		i = VAL_DECIMAL(incr);
 	else
-		raise Error_Invalid_Arg(incr);
+		fail (Error_Invalid_Arg(incr));
 
 	VAL_SET(var, REB_DECIMAL);
 
@@ -259,7 +259,7 @@ typedef enum {
 		}
 
 	next_iteration:
-		if (!IS_DECIMAL(var)) raise Error_Has_Bad_Type(var);
+		if (!IS_DECIMAL(var)) fail (Error_Has_Bad_Type(var));
 		s = VAL_DECIMAL(var);
 	}
 
@@ -337,12 +337,12 @@ typedef enum {
 			}
 
 		next_iteration:
-			if (VAL_TYPE(var) != type) raise Error_Invalid_Arg(var);
+			if (VAL_TYPE(var) != type) fail (Error_Invalid_Arg(var));
 			VAL_INDEX(var) += inc;
 		}
 	}
 	else
-		raise Error_Invalid_Arg(var);
+		fail (Error_Invalid_Arg(var));
 
 	// !!!!! ???? allowed to write VAR????
 	*var = *D_ARG(1);
@@ -415,12 +415,12 @@ typedef enum {
 		series = VAL_OBJ_FRAME(data);
 		out = FRM_KEYLIST(series); // words (the out local reused)
 		index = 1;
-		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_KEY(frame, 3));
+		//if (frame->tail > 3) fail (Error_Invalid_Arg(FRM_KEY(frame, 3)));
 	}
 	else if (IS_MAP(data)) {
 		series = VAL_SERIES(data);
 		index = 0;
-		//if (frame->tail > 3) raise Error_Invalid_Arg(FRM_KEY(frame, 3));
+		//if (frame->tail > 3) fail (Error_Invalid_Arg(FRM_KEY(frame, 3)));
 	}
 	else {
 		series = VAL_SERIES(data);
@@ -473,7 +473,7 @@ typedef enum {
 								Val_Init_Word_Unbound(
 									&key_name, REB_WORD, VAL_TYPESET_SYM(keys)
 								);
-								raise Error_Invalid_Arg(&key_name);
+								fail (Error_Invalid_Arg(&key_name));
 							}
 							j++;
 						}
@@ -501,7 +501,7 @@ typedef enum {
 								Val_Init_Word_Unbound(
 									&key_name, REB_WORD, VAL_TYPESET_SYM(keys)
 								);
-								raise Error_Invalid_Arg(&key_name);
+								fail (Error_Invalid_Arg(&key_name));
 							}
 							j++;
 						}
@@ -909,7 +909,7 @@ skip_hidden: ;
 			return R_OUT_IS_THROWN;
 		}
 
-		if (IS_UNSET(D_OUT)) raise Error_0(RE_NO_RETURN);
+		if (IS_UNSET(D_OUT)) fail (Error(RE_NO_RETURN));
 
 	} while (IS_CONDITIONAL_FALSE(D_OUT));
 
@@ -946,7 +946,7 @@ skip_hidden: ;
 		}
 
 		if (IS_UNSET(&temp))
-			raise Error_0(RE_NO_RETURN);
+			fail (Error(RE_NO_RETURN));
 
 		if (IS_CONDITIONAL_FALSE(&temp)) {
 			// When the condition evaluates to a LOGIC! false or a NONE!,

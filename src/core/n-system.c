@@ -36,7 +36,7 @@
 /*
 ***********************************************************************/
 {
-	raise Error_Is(TASK_HALT_ERROR);
+	fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
 }
 
 
@@ -230,7 +230,7 @@ const char *evoke_help = "Evoke values:\n"
 				Expand_Stack(Int32s(arg, 1));
 				break;
 			case SYM_CRASH:
-				panic Error_0(RE_MISC);
+				panic (Error(RE_MISC));
 			default:
 				Out_Str(cb_cast(evoke_help), 1);
 			}
@@ -376,7 +376,7 @@ const char *evoke_help = "Evoke values:\n"
 	}
 	return R_OUT;
 err:
-	raise Error_0(RE_BAD_SERIES);
+	fail (Error(RE_BAD_SERIES));
 }
 
 
@@ -421,7 +421,7 @@ err:
 	case SYM_IDENTIFY:
 		codi.action = CODI_ACT_IDENTIFY;
 	case SYM_DECODE:
-		if (!IS_BINARY(val)) raise Error_1(RE_INVALID_ARG, val);
+		if (!IS_BINARY(val)) fail (Error(RE_INVALID_ARG, val));
 		codi.data = VAL_BIN_DATA(D_ARG(3));
 		codi.len  = VAL_LEN(D_ARG(3));
 		break;
@@ -440,11 +440,11 @@ err:
 			codi.extra.other = VAL_BIN_DATA(val);
 		}
 		else
-			raise Error_1(RE_INVALID_ARG, val);
+			fail (Error(RE_INVALID_ARG, val));
 		break;
 
 	default:
-		raise Error_1(RE_INVALID_ARG, D_ARG(2));
+		fail (Error(RE_INVALID_ARG, D_ARG(2)));
 	}
 
 	// Nasty alias, but it must be done:
@@ -453,7 +453,7 @@ err:
 
 	if (codi.error != 0) {
 		if (result == CODI_CHECK) return R_FALSE;
-		raise Error_0(RE_BAD_MEDIA); // need better!!!
+		fail (Error(RE_BAD_MEDIA)); // need better!!!
 	}
 
 	switch (result) {
@@ -509,7 +509,7 @@ err:
 		break;
 
 	default:
-		raise Error_0(RE_BAD_MEDIA); // need better!!!
+		fail (Error(RE_BAD_MEDIA)); // need better!!!
 	}
 
 	return R_OUT;
@@ -528,7 +528,7 @@ err:
 	if (ANY_WORD(val)) {
 		if (VAL_WORD_INDEX(val) < 0) return R_TRUE;
 		frm = VAL_WORD_FRAME(val);
-		if (!frm) raise Error_1(RE_NOT_BOUND, val);
+		if (!frm) fail (Error(RE_NOT_BOUND, val));
 	}
 	else frm = VAL_OBJ_FRAME(D_ARG(1));
 

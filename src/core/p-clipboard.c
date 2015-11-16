@@ -86,12 +86,12 @@
 		// This device is opened on the READ:
 		if (!IS_OPEN(req)) {
 			if (OS_DO_DEVICE(req, RDC_OPEN))
-				raise Error_On_Port(RE_CANNOT_OPEN, port, req->error);
+				fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
 		}
 		// Issue the read request:
 		CLR_FLAG(req->flags, RRF_WIDE); // allow byte or wide chars
 		result = OS_DO_DEVICE(req, RDC_READ);
-		if (result < 0) raise Error_On_Port(RE_READ_ERROR, port, req->error);
+		if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 		if (result > 0) return R_NONE; /* pending */
 
 		// Copy and set the string result:
@@ -119,11 +119,11 @@
 
 	case A_WRITE:
 		if (!IS_STRING(arg) && !IS_BINARY(arg))
-			raise Error_1(RE_INVALID_PORT_ARG, arg);
+			fail (Error(RE_INVALID_PORT_ARG, arg));
 		// This device is opened on the WRITE:
 		if (!IS_OPEN(req)) {
 			if (OS_DO_DEVICE(req, RDC_OPEN))
-				raise Error_On_Port(RE_CANNOT_OPEN, port, req->error);
+				fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
 		}
 
 		refs = Find_Refines(call_, ALL_WRITE_REFS);
@@ -170,13 +170,13 @@
 		result = OS_DO_DEVICE(req, RDC_WRITE);
 		SET_NONE(OFV(port, STD_PORT_DATA)); // GC can collect it
 
-		if (result < 0) raise Error_On_Port(RE_WRITE_ERROR, port, req->error);
+		if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
 		//if (result == DR_DONE) SET_NONE(OFV(port, STD_PORT_DATA));
 		break;
 
 	case A_OPEN:
 		if (OS_DO_DEVICE(req, RDC_OPEN))
-			raise Error_On_Port(RE_CANNOT_OPEN, port, req->error);
+			fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
 		break;
 
 	case A_CLOSE:
@@ -188,7 +188,7 @@
 		return R_FALSE;
 
 	default:
-		raise Error_Illegal_Action(REB_PORT, action);
+		fail (Error_Illegal_Action(REB_PORT, action));
 	}
 
 	return R_ARG1; // port

@@ -76,7 +76,7 @@
 	OS_TASK_READY(0);
 
 	if (Do_At_Throws(&ignored, body, 0))
-		raise Error_No_Catch_For_Throw(&ignored);
+		fail (Error_No_Catch_For_Throw(&ignored));
 
 	Debug_Str("End Task");
 }

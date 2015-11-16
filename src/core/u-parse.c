@@ -215,7 +215,7 @@ void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, 
 		break;
 
 	default:
-		raise Error_1(RE_PARSE_RULE, item);
+		fail (Error(RE_PARSE_RULE, item));
 	}
 
 	return index;
@@ -465,7 +465,7 @@ found1:
 	return index + (is_thru ? 1 : 0);
 
 bad_target:
-	raise Error_1(RE_PARSE_RULE, item);
+	fail (Error(RE_PARSE_RULE, item));
 }
 
 
@@ -598,7 +598,7 @@ bad_target:
 		if (n == SYM_QUOTE) {
 			item = item + 1;
 			(*rule)++;
-			if (IS_END(item)) raise Error_1(RE_PARSE_END, item - 2);
+			if (IS_END(item)) fail (Error(RE_PARSE_END, item - 2));
 			if (IS_PAREN(item)) {
 				// might GC
 				if (DO_ARRAY_THROWS(&save, item)) {
@@ -614,9 +614,9 @@ bad_target:
 
 			item = item + 1;
 			(*rule)++;
-			if (IS_END(item)) raise Error_1(RE_PARSE_END, item - 2);
+			if (IS_END(item)) fail (Error(RE_PARSE_END, item - 2));
 			item = Get_Parse_Value(&save, item); // sub-rules
-			if (!IS_BLOCK(item)) raise Error_1(RE_PARSE_RULE, item - 2);
+			if (!IS_BLOCK(item)) fail (Error(RE_PARSE_RULE, item - 2));
 			if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value)) return NOT_FOUND;
 
 			sub_parse.series = VAL_SERIES(&value);
@@ -636,7 +636,7 @@ bad_target:
 			return NOT_FOUND;
 		}
 		else if (n > 0)
-			raise Error_1(RE_PARSE_RULE, item);
+			fail (Error(RE_PARSE_RULE, item));
 		else
 			item = Get_Parse_Value(&save, item); // variable
 	}
@@ -644,7 +644,7 @@ bad_target:
 		item = Get_Parse_Value(&save, item); // variable
 	}
 	else if (IS_SET_WORD(item) || IS_GET_WORD(item) || IS_SET_PATH(item) || IS_GET_PATH(item))
-		raise Error_1(RE_PARSE_RULE, item);
+		fail (Error(RE_PARSE_RULE, item));
 
 	if (IS_NONE(item)) {
 		return (VAL_TYPE(&value) > REB_NONE) ? NOT_FOUND : index;
@@ -695,7 +695,7 @@ bad_target:
 	const REBVAL *rule_head = rules;
 	REBVAL save;
 
-	if (C_STACK_OVERFLOWING(&flags)) raise Trap_Stack_Overflow();
+	if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
 	//if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
 	flags = 0;
 	word = 0;
@@ -727,7 +727,7 @@ bad_target:
 
 				if (!IS_WORD(item)) {
 					// SET or GET not allowed
-					raise Error_1(RE_PARSE_COMMAND, item);
+					fail (Error(RE_PARSE_COMMAND, item));
 				}
 
 				if (cmd <= SYM_BREAK) { // optimization
@@ -756,8 +756,8 @@ bad_target:
 						SET_FLAG(flags, PF_SET_OR_COPY);
 						item = rules++;
 						if (!(IS_WORD(item) || IS_SET_WORD(item)))
-							raise Error_1(RE_PARSE_VARIABLE, item);
-						if (VAL_CMD(item)) raise Error_1(RE_PARSE_COMMAND, item);
+							fail (Error(RE_PARSE_VARIABLE, item));
+						if (VAL_CMD(item)) fail (Error(RE_PARSE_COMMAND, item));
 						word = item;
 						continue;
 
@@ -833,7 +833,7 @@ bad_target:
 					case SYM_IF:
 						item = rules++;
 						if (IS_END(item)) goto bad_end;
-						if (!IS_PAREN(item)) raise Error_1(RE_PARSE_RULE, item);
+						if (!IS_PAREN(item)) fail (Error(RE_PARSE_RULE, item));
 
 						// might GC
 						if (DO_ARRAY_THROWS(&save, item)) {
@@ -849,7 +849,7 @@ bad_target:
 						}
 
 					case SYM_LIMIT:
-						raise Error_0(RE_NOT_DONE);
+						fail (Error(RE_NOT_DONE));
 						//val = Get_Parse_Value(&save, rules++);
 					//	if (IS_INTEGER(val)) limit = index + Int32(val);
 					//	else if (ANY_SERIES(val)) limit = VAL_INDEX(val);
@@ -881,7 +881,7 @@ bad_target:
 					// !!! Should mutability be enforced?
 					item = GET_MUTABLE_VAR(item);
 					if (!ANY_SERIES(item)) // #1263
-						raise Error_1(RE_PARSE_SERIES, rules - 1);
+						fail (Error(RE_PARSE_SERIES, rules - 1));
 					index = Set_Parse_Series(parse, item);
 					series = parse->series;
 					continue;
@@ -925,7 +925,7 @@ bad_target:
 					item = &save;
 					// CureCode #1263 change
 					//		if (parse->type != VAL_TYPE(item) || VAL_SERIES(item) != parse->series)
-					if (!ANY_SERIES(item)) raise Error_1(RE_PARSE_SERIES, path);
+					if (!ANY_SERIES(item)) fail (Error(RE_PARSE_SERIES, path));
 					index = Set_Parse_Series(parse, item);
 					item = NULL;
 				}
@@ -954,11 +954,11 @@ bad_target:
 			SET_FLAG(flags, PF_WHILE);
 			mincount = maxcount = Int32s(item, 0);
 			item = Get_Parse_Value(&save, rules++);
-			if (IS_END(item)) raise Error_1(RE_PARSE_END, rules - 2);
+			if (IS_END(item)) fail (Error(RE_PARSE_END, rules - 2));
 			if (IS_INTEGER(item)) {
 				maxcount = Int32s(item, 0);
 				item = Get_Parse_Value(&save, rules++);
-				if (IS_END(item)) raise Error_1(RE_PARSE_END, rules - 2);
+				if (IS_END(item)) fail (Error(RE_PARSE_END, rules - 2));
 			}
 		}
 		// else fall through on other values and words
@@ -1217,7 +1217,7 @@ post:
 					}
 					// CHECK FOR QUOTE!!
 					item = Get_Parse_Value(&save, item); // new value
-					if (IS_UNSET(item)) raise Error_1(RE_NO_VALUE, rules - 1);
+					if (IS_UNSET(item)) fail (Error(RE_NO_VALUE, rules - 1));
 					if (IS_END(item)) goto bad_end;
 					if (IS_BLOCK_INPUT(parse)) {
 						index = Modify_Array(GET_FLAG(flags, PF_CHANGE) ? A_CHANGE : A_INSERT,
@@ -1252,9 +1252,9 @@ post:
 	return index;
 
 bad_rule:
-	raise Error_1(RE_PARSE_RULE, rules - 1);
+	fail (Error(RE_PARSE_RULE, rules - 1));
 bad_end:
-	raise Error_1(RE_PARSE_END, rules - 1);
+	fail (Error(RE_PARSE_END, rules - 1));
 	return 0;
 }
 
@@ -1279,7 +1279,7 @@ bad_end:
 	if (IS_NONE(rules) || IS_STRING(rules)) {
 		// !!! Temporary...more informative than having a simple "does not
 		// take type" response based on the spec not accepting string/none
-		raise Error_0(RE_USE_SPLIT_SIMPLE);
+		fail (Error(RE_USE_SPLIT_SIMPLE));
 	}
 
 	assert(IS_BLOCK(rules));

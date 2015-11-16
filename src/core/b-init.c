@@ -96,15 +96,15 @@ static	BOOT_BLK *Boot_Block;
 	printf("%d %s\n", sizeof(dummy->all), "all");
 #endif
 
-	if (cast(REBCNT, VAL_TYPE(&val)) != 123) panic Error_0(RE_REBVAL_ALIGNMENT);
+	if (cast(REBCNT, VAL_TYPE(&val)) != 123) panic (Error(RE_REBVAL_ALIGNMENT));
 	if (sizeof(void *) == 8) {
-		if (sizeof(REBVAL) != 32) panic Error_0(RE_REBVAL_ALIGNMENT);
-		if (sizeof(REBGOB) != 84) panic Error_0(RE_BAD_SIZE);
+		if (sizeof(REBVAL) != 32) panic (Error(RE_REBVAL_ALIGNMENT));
+		if (sizeof(REBGOB) != 84) panic (Error(RE_BAD_SIZE));
 	} else {
-		if (sizeof(REBVAL) != 16) panic Error_0(RE_REBVAL_ALIGNMENT);
-		if (sizeof(REBGOB) != 64) panic Error_0(RE_BAD_SIZE);
+		if (sizeof(REBVAL) != 16) panic (Error(RE_REBVAL_ALIGNMENT));
+		if (sizeof(REBGOB) != 64) panic (Error(RE_BAD_SIZE));
 	}
-	if (sizeof(REBDAT) != 4) panic Error_0(RE_BAD_SIZE);
+	if (sizeof(REBDAT) != 4) panic (Error(RE_BAD_SIZE));
 
 	// The RXIARG structure mirrors the layouts of several value types
 	// for clients who want to extend Rebol but not depend on all of
@@ -128,7 +128,7 @@ static	BOOT_BLK *Boot_Block;
 		offsetof(struct Reb_Object, frame)
 		!= offsetof(struct Reb_Position, series)
 	) {
-		panic Error_0(RE_MISC);
+		panic (Error(RE_MISC));
 	}
 }
 
@@ -172,10 +172,10 @@ static	BOOT_BLK *Boot_Block;
 	if (rebind > 1) Bind_Values_Deep(BLK_HEAD(block), Sys_Context);
 
 	if (Do_At_Throws(&result, block, 0))
-		panic Error_No_Catch_For_Throw(&result);
+		panic (Error_No_Catch_For_Throw(&result));
 
 	if (!IS_UNSET(&result))
-		panic Error_0(RE_MISC);
+		panic (Error(RE_MISC));
 }
 
 
@@ -202,7 +202,7 @@ static	BOOT_BLK *Boot_Block;
 	);
 
 	if (!text || (STR_LEN(text) != NAT_UNCOMPRESSED_SIZE))
-		panic Error_0(RE_BOOT_DATA);
+		panic (Error(RE_BOOT_DATA));
 
 	boot = Scan_Source(STR_HEAD(text), NAT_UNCOMPRESSED_SIZE);
 	Free_Series(text);
@@ -212,9 +212,9 @@ static	BOOT_BLK *Boot_Block;
 	Boot_Block = cast(BOOT_BLK *, VAL_BLK_HEAD(BLK_HEAD(boot)));
 
 	if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
-		panic Error_0(RE_BAD_BOOT_TYPE_BLOCK);
+		panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 	if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
-		panic Error_0(RE_BAD_END_TYPE_WORD);
+		panic (Error(RE_BAD_END_TYPE_WORD));
 
 	// Create low-level string pointers (used by RS_ constants):
 	{
@@ -231,11 +231,11 @@ static	BOOT_BLK *Boot_Block;
 	}
 
 	if (COMPARE_BYTES(cb_cast("end!"), Get_Sym_Name(SYM_END_TYPE)) != 0)
-		panic Error_0(RE_BAD_END_CANON_WORD);
+		panic (Error(RE_BAD_END_CANON_WORD));
 	if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
-		panic Error_0(RE_BAD_TRUE_CANON_WORD);
+		panic (Error(RE_BAD_TRUE_CANON_WORD));
 	if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
-		panic Error_0(RE_BAD_BOOT_STRING);
+		panic (Error(RE_BAD_BOOT_STRING));
 }
 
 
@@ -354,7 +354,7 @@ static	BOOT_BLK *Boot_Block;
 	if ((Native_Limit == 0 && *Native_Functions) || (Native_Count < Native_Limit))
 		Make_Native(D_OUT, VAL_SERIES(D_ARG(1)), *Native_Functions++, REB_NATIVE);
 	else
-		raise Error_0(RE_MAX_NATIVES);
+		fail (Error(RE_MAX_NATIVES));
 	Native_Count++;
 	return R_OUT;
 }
@@ -367,7 +367,7 @@ static	BOOT_BLK *Boot_Block;
 ***********************************************************************/
 {
 	Action_Count++;
-	if (Action_Count >= A_MAX_ACTION) panic Error_0(RE_ACTION_OVERFLOW);
+	if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
 	Make_Native(
 		D_OUT,
 		VAL_SERIES(D_ARG(1)),
@@ -442,7 +442,7 @@ static	BOOT_BLK *Boot_Block;
 	// native: native [spec [block!]]
 	word = VAL_BLK_SKIP(&Boot_Block->booters, 1);
 	if (!IS_SET_WORD(word) || VAL_WORD_SYM(word) != SYM_NATIVE)
-		panic Error_0(RE_NATIVE_BOOT);
+		panic (Error(RE_NATIVE_BOOT));
 	//val = BLK_SKIP(Sys_Context, SYS_CTX_NATIVE);
 	val = Append_Frame(Lib_Context, word, 0);
 	Make_Native(val, VAL_SERIES(word+2), Native_Functions[0], REB_NATIVE);
@@ -645,11 +645,11 @@ static	BOOT_BLK *Boot_Block;
 
 	// Evaluate the block (will eval FRAMEs within):
 	if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
-		panic Error_No_Catch_For_Throw(&result);
+		panic (Error_No_Catch_For_Throw(&result));
 
 	// Expects UNSET! by convention
 	if (!IS_UNSET(&result))
-		panic Error_0(RE_MISC);
+		panic (Error(RE_MISC));
 
 	// Create a global value for it:
 	value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
@@ -1117,13 +1117,22 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 **
 ***********************************************************************/
 {
-	const REBVAL *error;
+	REBSER *error_frame;
 	REBOL_STATE state;
 	REBVAL out;
 
 	const REBYTE transparent[] = "transparent";
 	const REBYTE infix[] = "infix";
 	const REBYTE local[] = "local";
+
+#if defined(TEST_EARLY_BOOT_PANIC)
+	// This is a good place to test if the "pre-booting panic" is working.
+	// It should be unable to present a format string, only the error code.
+	panic (Error(RE_NO_VALUE, NONE_VALUE));
+#elif defined(TEST_EARLY_BOOT_FAIL)
+	// A fail should have the same behavior as a panic at this boot phase.
+	fail (Error(RE_NO_VALUE, NONE_VALUE));
+#endif
 
 	DOUT("Main init");
 
@@ -1211,6 +1220,15 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	SET_UNSET(&Callback_Error);
 	PG_Boot_Phase = BOOT_ERRORS;
 
+#if defined(TEST_MID_BOOT_PANIC)
+	// At this point panics should be able to present the full message.
+	panic (Error(RE_NO_VALUE, NONE_VALUE));
+#elif defined(TEST_MID_BOOT_FAIL)
+	// With no PUSH_TRAP yet, fail should give a localized assert in a debug
+	// build but act like panic does in a release build.
+	fail (Error(RE_NO_VALUE, NONE_VALUE));
+#endif
+
 	// Although the goal is for the core not to depend on any specific
 	// "keywords", there are some native-optimized generators that are not
 	// conceptually "part of the core".  Hence, they rely on some keywords,
@@ -1244,25 +1262,28 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 	SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROT);
 
 	// Special pre-made errors:
-	Val_Init_Error(TASK_STACK_ERROR, Make_Error(RE_STACK_OVERFLOW, NULL));
-	Val_Init_Error(TASK_HALT_ERROR, Make_Error(RE_HALT, NULL));
+	Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
+	Val_Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
 
 	// With error trapping enabled, set up to catch them if they happen.
-	PUSH_UNHALTABLE_TRAP(&error, &state);
+	PUSH_UNHALTABLE_TRAP(&error_frame, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `raise Error` can longjmp here, so 'error' won't be NULL *if* that happens!
+// The first time through the following code 'error_frame' will be NULL, but...
+// `fail` can longjmp here, so 'error_frame' won't be NULL *if* that happens!
 
-	if (error) {
+	if (error_frame) {
+		REBVAL error;
+		Val_Init_Error(&error, error_frame);
+
 		// You shouldn't be able to halt during Init_Core() startup.
 		// The only way you should be able to stop Init_Core() is by raising
 		// an error, at which point the system will Panic out.
 		// !!! TBD: Enforce not being *able* to trigger HALT
-		assert(VAL_ERR_NUM(error) != RE_HALT);
+		assert(ERR_NUM(error_frame) != RE_HALT);
 
 		// If an error was raised during startup, print it and crash.
-		Print_Value(error, 1024, FALSE);
-		panic Error_0(RE_MISC);
+		Print_Value(&error, 1024, FALSE);
+		panic (Error(RE_MISC));
 	}
 
 	Init_Year();
@@ -1288,7 +1309,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 		// Note: You shouldn't be able to throw any uncaught values during
 		// Init_Core() startup, including throws implementing QUIT or EXIT.
 		assert(FALSE);
-		raise Error_No_Catch_For_Throw(&out);
+		fail (Error_No_Catch_For_Throw(&out));
 	}
 
 	// Success of the 'finish-init-core' Rebol code is signified by returning
@@ -1296,7 +1317,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 
 	if (!IS_UNSET(&out)) {
 		Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &out);
-		panic Error_0(RE_MISC);
+		panic (Error(RE_MISC));
 	}
 
 	assert(DSP == -1 && !DSF);

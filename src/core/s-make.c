@@ -619,7 +619,7 @@ cp_same:
 
 		case REB_INTEGER:
 			if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < 0)
-				raise Error_Out_Of_Range(val);
+				fail (Error_Out_Of_Range(val));
 			EXPAND_SERIES_TAIL(series, 1);
 			*BIN_SKIP(series, tail) = (REBYTE)VAL_INT32(val);
 			break;
@@ -657,7 +657,7 @@ cp_same:
 			break;
 
 		default:
-			raise Error_Invalid_Arg(val);
+			fail (Error_Invalid_Arg(val));
 		}
 
 		tail = series->tail;

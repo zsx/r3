@@ -115,7 +115,7 @@
 	// Compute hash for value:
 	len = hser->tail;
 	hash = Hash_Value(key, len);
-	if (!hash) raise Error_Has_Bad_Type(key);
+	if (!hash) fail (Error_Has_Bad_Type(key));
 
 	// Determine skip and first index:
 	skip  = (len == 0) ? 0 : (hash & 0x0000FFFF) % len;
@@ -253,7 +253,7 @@
 				}
 			}
 			else
-				raise Error_Has_Bad_Type(key);
+				fail (Error_Has_Bad_Type(key));
 
 			if (!val) return 0;
 			Append_Value(series, key);
@@ -496,7 +496,7 @@
 	// Check must be in this order (to avoid checking a non-series value);
 	if (action >= A_TAKE && action <= A_SORT) {
 		if(IS_PROTECT_SERIES(series))
-			raise Error_0(RE_PROTECTED);
+			fail (Error(RE_PROTECTED));
 	}
 
 	switch (action) {
@@ -510,7 +510,7 @@
 
 	case A_INSERT:
 	case A_APPEND:
-		if (!IS_BLOCK(arg)) raise Error_Invalid_Arg(val);
+		if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(val));
 		*D_OUT = *val;
 		if (D_REF(AN_DUP)) {
 			n = Int32(D_ARG(AN_COUNT));
@@ -534,16 +534,16 @@
 		// make map! [word val word val]
 		if (IS_BLOCK(arg) || IS_PAREN(arg) || IS_MAP(arg)) {
 			if (MT_Map(D_OUT, arg, REB_MAP)) return R_OUT;
-			raise Error_Invalid_Arg(arg);
+			fail (Error_Invalid_Arg(arg));
 //		} else if (IS_NONE(arg)) {
 //			n = 3; // just a start
 		// make map! 10000
 		} else if (IS_NUMBER(arg)) {
-			if (action == A_TO) raise Error_Invalid_Arg(arg);
+			if (action == A_TO) fail (Error_Invalid_Arg(arg));
 			n = Int32s(arg, 0);
 		}
 		else
-			raise Error_Bad_Make(REB_MAP, Type_Of(arg));
+			fail (Error_Bad_Make(REB_MAP, Type_Of(arg)));
 
 		// positive only
 		series = Make_Map(n);
@@ -552,7 +552,7 @@
 
 	case A_COPY:
 		if (MT_Map(D_OUT, val, REB_MAP)) return R_OUT;
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 
 	case A_CLEAR:
 		Reset_Array(series);
@@ -570,7 +570,7 @@
 		else if (action == OF_BODY)
 			n = 0;
 		else
-			raise Error_Cannot_Reflect(REB_MAP, arg);
+			fail (Error_Cannot_Reflect(REB_MAP, arg));
 		series = Map_To_Block(series, n);
 		Val_Init_Block(D_OUT, series);
 		break;
@@ -579,7 +579,7 @@
 		return (Length_Map(series) == 0) ? R_TRUE : R_FALSE;
 
 	default:
-		raise Error_Illegal_Action(REB_MAP, action);
+		fail (Error_Illegal_Action(REB_MAP, action));
 	}
 
 	return R_OUT;

@@ -198,7 +198,7 @@ const REBCNT Gob_Flag_Words[] = {
 			}
 		}
 		else
-			raise Error_Invalid_Arg(val);
+			fail (Error_Invalid_Arg(val));
 	}
 	arg = sarg;
 
@@ -231,7 +231,7 @@ const REBCNT Gob_Flag_Words[] = {
 		if (IS_WORD(val)) val = GET_VAR(val);
 		if (IS_GOB(val)) {
 			// !!! Temporary error of some kind (supposed to trap, not panic?)
-			if (GOB_PARENT(VAL_GOB(val))) raise Error_0(RE_MISC);
+			if (GOB_PARENT(VAL_GOB(val))) fail (Error(RE_MISC));
 			*ptr++ = VAL_GOB(val);
 			GOB_PARENT(VAL_GOB(val)) = gob;
 			SET_GOB_STATE(VAL_GOB(val), GOBS_NEW);
@@ -609,12 +609,12 @@ is_none:
 		var = blk++;
 		val = blk++;
 		if (!IS_SET_WORD(var))
-			raise Error_2(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var));
+			fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var)));
 		if (IS_END(val) || IS_UNSET(val) || IS_SET_WORD(val))
-			raise Error_1(RE_NEED_VALUE, var);
+			fail (Error(RE_NEED_VALUE, var));
 		Get_Simple_Value_Into(&safe, val);
 		if (!Set_GOB_Var(gob, var, val))
-			raise Error_2(RE_BAD_FIELD_SET, var, Type_Of(val));
+			fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
 	}
 }
 
@@ -719,7 +719,7 @@ is_none:
 					// !!! Gob and Struct do "sub-dispatch" which may throw
 					// No "PE_THREW" return, however.  (should there be?)
 
-					raise Error_No_Catch_For_Throw(pvs->store);
+					fail (Error_No_Catch_For_Throw(pvs->store));
 				}
 
 				Set_GOB_Var(gob, sel, pvs->store); // write it back to gob
@@ -768,7 +768,7 @@ is_none:
 		tail = GOB_PANE(gob) ? GOB_TAIL(gob) : 0;
 	}
 	else if (!(IS_DATATYPE(val) && action == A_MAKE))
-		raise Error_Invalid_Arg(val);
+		fail (Error_Invalid_Arg(val));
 
 	// unary actions
 	switch(action) {
@@ -799,7 +799,7 @@ is_none:
 			ngob->size.y = VAL_PAIR_Y(arg);
 		}
 		else
-			raise Error_Bad_Make(REB_GOB, arg);
+			fail (Error_Bad_Make(REB_GOB, arg));
 		// Allow NONE as argument:
 //		else if (!IS_NONE(arg))
 //			goto is_arg_error;
@@ -807,7 +807,7 @@ is_none:
 		break;
 
 	case A_PICK:
-		if (!IS_NUMBER(arg) && !IS_NONE(arg)) raise Error_Invalid_Arg(arg);
+		if (!IS_NUMBER(arg) && !IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
 		if (!GOB_PANE(gob)) goto is_none;
 		index += Get_Num_Arg(arg) - 1;
 		if (index >= tail) goto is_none;
@@ -820,12 +820,12 @@ is_none:
 		arg = D_ARG(3);
 	case A_CHANGE:
 		if (!IS_GOB(arg)) goto is_arg_error;
-		if (!GOB_PANE(gob) || index >= tail) raise Error_0(RE_PAST_END);
+		if (!GOB_PANE(gob) || index >= tail) fail (Error(RE_PAST_END));
 		if (
 			action == A_CHANGE
 			&& (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
 		) {
-			raise Error_0(RE_NOT_DONE);
+			fail (Error(RE_NOT_DONE));
 		}
 		Insert_Gobs(gob, arg, index, 1, 0);
 		//ngob = *GOB_SKIP(gob, index);
@@ -842,7 +842,7 @@ is_none:
 		index = tail;
 	case A_INSERT:
 		if (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
-			raise Error_0(RE_NOT_DONE);
+			fail (Error(RE_NOT_DONE));
 		if (IS_GOB(arg)) len = 1;
 		else if (IS_BLOCK(arg)) {
 			len = VAL_BLK_LEN(arg);
@@ -939,7 +939,7 @@ is_none:
 		return R_ARG1;
 
 	default:
-		raise Error_Illegal_Action(REB_GOB, action);
+		fail (Error_Illegal_Action(REB_GOB, action));
 	}
 	return R_OUT;
 
@@ -953,7 +953,7 @@ is_none:
 	return R_NONE;
 
 is_arg_error:
-	raise Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg));
+	fail (Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg)));
 
 is_false:
 	return R_FALSE;
