@@ -473,8 +473,9 @@ static void nvg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 static void nvg_rt_text(void* rt, REBSER* text, REBINT index)
 {
 	Rich_Text *ctx = (Rich_Text*)rt;
-	unsigned char *utf8;
+	unsigned char *utf8 = NULL;
 	int utf8_n_char = RL_Get_UTF8_String(text, 0, &utf8);
+	if (!utf8 || utf8_n_char <= 0) return;
 	if (ctx->mode == RT_DRAW) {
 		if (ctx->w > 0) {
 			int i = 0;
