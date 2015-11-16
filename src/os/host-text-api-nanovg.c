@@ -42,6 +42,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
+
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-renderer.h"
