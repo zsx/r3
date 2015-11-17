@@ -504,7 +504,7 @@ static void nvg_rt_text(void* rt, REBSER* text, REBINT index)
 			if (ctx->font_spec.underline) {
 				nvgBeginPath(ctx->nvg);
 				nvgSave(ctx->nvg);
-				nvgStrokeWidth(ctx->nvg, 1);
+				nvgStrokeWidth(ctx->nvg, 1, NVG_LW_FIXED);
 				nvgStrokeColor(ctx->nvg, REBCNT_NVG_COLOR(ctx->font_spec.color));
 				for (i = 0; i < nrows; i++) {
 					nvgMoveTo(ctx->nvg, ctx->x, y0 + ctx->font_spec.size + UNDERLINE_OFFSET);
@@ -525,7 +525,7 @@ static void nvg_rt_text(void* rt, REBSER* text, REBINT index)
 			w = nvgText(ctx->nvg, ctx->x, ctx->y + ctx->font_spec.size, utf8, NULL);
 			if (ctx->font_spec.underline) {
 				nvgBeginPath(ctx->nvg);
-				nvgStrokeWidth(ctx->nvg, 1);
+				nvgStrokeWidth(ctx->nvg, 1, NVG_LW_FIXED);
 				nvgStrokeColor(ctx->nvg, REBCNT_NVG_COLOR(ctx->font_spec.color));
 
 				nvgMoveTo(ctx->nvg, ctx->x, ctx->y + ctx->font_spec.size + UNDERLINE_OFFSET);
