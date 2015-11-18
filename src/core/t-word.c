@@ -61,7 +61,7 @@ REBINT CT_Word(REBVAL *a, REBVAL *b, REBINT mode)
 REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
-    REBVAL *arg = D_ARG(2);
+    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
     REBCNT type = VAL_TYPE(val);
     REBINT diff;
     REBCNT sym;
