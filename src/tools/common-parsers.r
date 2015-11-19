@@ -75,6 +75,8 @@ line-of: function [
         position: at text position
     ]
 
+    line: none
+
     count-line: [(line: 1 + any [line 0])]
 
     parse/all copy/part text next position [
