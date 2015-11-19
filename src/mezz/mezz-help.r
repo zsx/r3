@@ -48,7 +48,7 @@ dump-obj: function [
 
     ; Search for matching strings:
     out: copy []
-    wild: all [string? pat  find pat "*"]
+    wild: all [value? 'pat string? pat  find pat "*"]
 
     for-each [word val] obj [
         ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
