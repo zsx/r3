@@ -373,6 +373,35 @@ enum encoding_opts {
 #define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
 
 
+// The input and output arguments of a Do_State are loaded into a structure
+// that can be referenced from outside of Do.  This offers greater efficiency.
+// It also makes it possible to implement "frameless" natives...which are
+// very tailored constructs that work as if they were part of the switch
+// statement inside the evaluator.
+//
+struct Reb_Do_State {
+    // INPUT PARAMETERS
+
+    REBVAL * out;
+    const REBVAL *value;
+    REBFLG next;
+    REBSER *array; // may come from ANY-ARRAY but treated "like a block"
+    REBFLG lookahead;
+
+    // INPUT AND OUTPUT
+
+    REBCNT index; // will be modified, can also be THROWN_FLAG or END_FLAG
+
+    // STATE VARIABLES
+
+    struct Reb_Call *call;
+
+    // Some operations need a unit of additional storage.  This is a one-
+    // REBVAL-sized cell for saving that data, which a frameless native
+    // can also make use of.
+    REBVAL save;
+};
+
 /***********************************************************************
 **
 **  DO_NEXT_MAY_THROW_CORE and DO_NEXT_MAY_THROW
@@ -411,27 +440,6 @@ enum encoding_opts {
 **      return value...because the function call would never return!
 **      See PUSH_TRAP() and Error() for more information.
 **
-**  Do_At_Throws
-**
-**      Do_At_Throws behaves "as if" it is performing iterated
-**      calls to Do_Next_May_Throw until the end of series is reached.
-**      (Under the hood it is actually more efficient than doing so.)
-**      It is named the way it is because it's expected to usually be
-**      used in an 'if' statement.  It cues you into realizing
-**      that it returns TRUE if a THROW interrupts this current
-**      DO_BLOCK execution--not asking about a "THROWN" that happened
-**      as part of a prior statement.
-**
-**      If it returns FALSE, then the DO completed successfully to
-**      end of input without a throw...and the output contains the
-**      last value evaluated in the block (empty blocks give UNSET!).
-**      If it returns TRUE then it will be the THROWN() value.
-**
-**      NOTE: Because these macros use each of their arguments exactly
-**      once in all builds, they have the same argument evaluation
-**      as a function.  So they are named w/Leading_Caps_Underscores
-**      to convey that they abide by this contract.
-**
 **  DO_ARRAY_THROWS
 **
 **      It is very frequent that one has a GROUP! or a BLOCK! at an
@@ -443,64 +451,50 @@ enum encoding_opts {
 ***********************************************************************/
 
 #if defined(NDEBUG) || !defined(TO_LINUX)
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out,series,index_in,lookahead) \
+    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,lookahead_) \
         do { \
-            const REBVAL *val_at = BLK_SKIP((series),(index_in)); \
-            if (IS_END(val_at)) { \
-                SET_UNSET(out); \
+            struct Reb_Do_State s_; \
+            s_.value = BLK_SKIP((array_),(index_in)); \
+            if (IS_END(s_.value)) { \
+                SET_UNSET(out_); \
                 (index_out) = END_FLAG; \
                 break; \
             } \
-            if (!ANY_EVAL(val_at) && !ANY_EVAL(val_at + 1)) { \
-                *(out) = *BLK_SKIP((series), (index_in)); \
+            if (!ANY_EVAL(s_.value) && !ANY_EVAL(s_.value + 1)) { \
+                *(out_) = *BLK_SKIP((array_), (index_in)); \
                 (index_out) = ((index_in) + 1); \
                 break; \
             } \
-            (index_out) = Do_Core( \
-                (out), \
-                BLK_SKIP((series), (index_in)), \
-                TRUE, \
-                (series), \
-                (index_in) + 1, \
-                (lookahead) \
-            ); \
+            s_.out = (out_); \
+            s_.array = (array_); \
+            s_.index = (index_in) + 1; \
+            s_.lookahead = (lookahead_); \
+            s_.next = TRUE; \
+            Do_Core(&s_); \
+            (index_out) = s_.index; \
         } while (FALSE)
 #else
     // Linux debug builds currently default to running the evaluator on
     // every value--whether it has evaluator behavior or not.
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out,series,index_in,lookahead) \
-        (index_out) = Do_Core( \
-            (out), \
-            BLK_SKIP((series), (index_in)), \
-            TRUE, \
-            (series), \
-            (index_in) + 1, \
-            (lookahead) \
-        );
+    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,lookahead_) \
+        do { \
+            struct Reb_Do_State s_; \
+            s_.value = BLK_SKIP((array_), (index_in)); \
+            s_.out = (out_); \
+            s_.array = (array_); \
+            s_.index = (index_in) + 1; \
+            s_.lookahead = (lookahead_); \
+            s_.next = TRUE; \
+            Do_Core(&s_); \
+            (index_out) = s_.index; \
+        } while (FALSE);
 #endif
 
-#define DO_NEXT_MAY_THROW(index_out,out,series,index) \
-    DO_NEXT_MAY_THROW_CORE((index_out), (out), (series), (index), TRUE)
-
-#define Do_At_Throws(out,series,index) \
-    (THROWN_FLAG == Do_Core( \
-        (out), \
-        BLK_SKIP((series), (index)), \
-        FALSE, \
-        (series), \
-        (index) + 1, \
-        TRUE \
-    ))
+#define DO_NEXT_MAY_THROW(index_out,out,array,index) \
+    DO_NEXT_MAY_THROW_CORE((index_out), (out), (array), (index), TRUE)
 
 #define DO_ARRAY_THROWS(out,array) \
-    (THROWN_FLAG == Do_Core( \
-        (out), \
-        BLK_SKIP(VAL_SERIES(array), VAL_INDEX(array)), \
-        FALSE, \
-        VAL_SERIES(array), \
-        VAL_INDEX(array) + 1, \
-        TRUE \
-    ))
+    Do_At_Throws((out), VAL_SERIES(array), VAL_INDEX(array))
 
 
 /***********************************************************************

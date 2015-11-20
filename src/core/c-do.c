@@ -624,23 +624,19 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call)
 // two other closely-related routines: Apply_Block_Throws() and
 // Redo_Func_Throws().
 //
-REBCNT Do_Core(REBVAL * const out, const REBVAL *value, REBFLG next, REBSER *block, REBCNT index, REBFLG lookahead)
+void Do_Core(struct Reb_Do_State * const s)
 {
+    // Capture the data stack pointer on entry (used by debug checks, but
+    // also refinements are pushed to stack and need to be checked if there
+    // are any that are not processed)
     REBINT dsp_orig = DSP;
 
 #if !defined(NDEBUG)
     static REBCNT count_static = 0;
     REBCNT count;
-
-    // Debug builds that are emulating the old behavior of writing NONE into
-    // refinement args need to know when they should be writing these nones
-    // or leaving what's there during PARAM_MODE_SCANNING/PARAM_MODE_SKIPPING
-    REBFLG write_none;
 #endif
 
     REBFLG infix;
-
-    struct Reb_Call *call;
 
     // Functions don't have "names", though they can be assigned to words.
     // If a function invokes via word lookup (vs. a literal FUNCTION! value),
@@ -661,10 +657,14 @@ REBCNT Do_Core(REBVAL * const out, const REBVAL *value, REBFLG next, REBSER *blo
     // having another pointer by merging with others above later.)
     REBVAL *refine;
 
-    // Most of what this routine does can be done with value pointers and
-    // the data stack.  Some operations need a unit of additional storage.
-    // This is a one-REBVAL-sized cell for saving that data.
-    REBVAL save;
+#if !defined(NDEBUG)
+    // Debug builds that are emulating the old behavior of writing NONE into
+    // refinement args need to know when they should be writing these nones
+    // or leaving what's there during PARAM_MODE_SCANNING/PARAM_MODE_SKIPPING
+    REBFLG write_none;
+#endif
+
+    // First, check the input parameters (debug build only)
 
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -674,14 +674,21 @@ REBCNT Do_Core(REBVAL * const out, const REBVAL *value, REBFLG next, REBSER *blo
     // be returned.
     //
 #ifdef STRESS_CHECK_DO_OUT_POINTER
-    ASSERT_NOT_IN_SERIES_DATA(out);
+    ASSERT_NOT_IN_SERIES_DATA(s->out);
 #else
-    assert(!IN_DATA_STACK(out));
+    assert(!IN_DATA_STACK(s->out));
 #endif
+
+    assert(s->value);
+
+    assert(s->next == TRUE || s->next == FALSE);
+    assert(s->lookahead == TRUE || s->lookahead == FALSE);
+
+    assert(Is_Array_Series(s->array));
 
     // Only need to check this once (C stack size would be the same each
     // time this line is run if it were in a loop)
-    if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&s)) Trap_Stack_Overflow();
 
     // !!! We have to compensate for the passed-in index by subtracting 1,
     // as the looped form below needs an addition each time.  This means most
@@ -689,11 +696,11 @@ REBCNT Do_Core(REBVAL * const out, const REBVAL *value, REBFLG next, REBSER *blo
     // one to before passing in.  Also REBCNT is an unsigned number...and this
     // overlaps the NOT_FOUND value (which Do_Core does not use, but PARSE
     // does).  Not completely ideal, so review.
-    --index;
+    --s->index;
 
 do_at_index:
-    assert(index != END_FLAG && index != THROWN_FLAG);
-    SET_TRASH_SAFE(out);
+    assert(s->index != END_FLAG && s->index != THROWN_FLAG);
+    SET_TRASH_SAFE(s->out);
 
 #ifndef NDEBUG
     // This counter is helpful for tracking a specific invocation.
@@ -713,90 +720,93 @@ do_at_index:
                                       0
             // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
         ) {
-            Val_Init_Block_Index(&save, block, index);
-            PROBE_MSG(&save, "Do_Core() count trap");
+            Val_Init_Block_Index(&s->save, s->array, s->index);
+            PROBE_MSG(&s->save, "Do_Core() count trap");
         }
     }
 #endif
 
-    if (Trace_Flags) Trace_Line(block, index, value);
+    if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
 
 reevaluate:
     if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
 
-    assert(!THROWN(value));
-    assert(!VAL_GET_OPT(value, OPT_VALUE_REEVALUATE));
-    ASSERT_VALUE_MANAGED(value);
+    assert(!THROWN(s->value));
+    assert(!VAL_GET_OPT(s->value, OPT_VALUE_REEVALUATE));
+    ASSERT_VALUE_MANAGED(s->value);
 
     // Someday it may be worth it to micro-optimize these null assignments
     // so they don't happen each time through the loop.
     label = NULL;
     refinements = NULL;
 
-    switch (VAL_TYPE(value)) {
+    switch (VAL_TYPE(s->value)) {
 
     case REB_END:
-        SET_UNSET(out);
-        return END_FLAG;
+        // This means evaluation is over, regardless of whether it was a
+        // DO/NEXT or not...no need to check infix, etc.
+        SET_UNSET(s->out);
+        s->index = END_FLAG;
+        goto return_index;
 
     case REB_WORD:
-        GET_VAR_INTO(out, value);
+        GET_VAR_INTO(s->out, s->value);
 
     do_fetched_word:
-        if (IS_UNSET(out)) fail (Error(RE_NO_VALUE, value));
+        if (IS_UNSET(s->out)) fail (Error(RE_NO_VALUE, s->value));
 
-        if (ANY_FUNC(out)) {
+        if (ANY_FUNC(s->out)) {
             // We can only acquire an infix operator's first arg during the
             // "lookahead".  Here we are starting a brand new expression.
-            if (VAL_GET_EXT(out, EXT_FUNC_INFIX))
-                fail (Error(RE_NO_OP_ARG, value));
+            if (VAL_GET_EXT(s->out, EXT_FUNC_INFIX))
+                fail (Error(RE_NO_OP_ARG, s->value));
 
             // We will reuse the TOS for the OUT of the call frame
-            label = value;
+            label = s->value;
 
-            value = out;
+            s->value = s->out;
 
-            if (Trace_Flags) Trace_Line(block, index, value);
+            if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
             goto do_function_args;
         }
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(out))
-            VAL_SET(out, REB_WORD);
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(s->out))
+            VAL_SET(s->out, REB_WORD);
     #endif
 
-        index++;
+        s->index++;
         break;
 
     case REB_SET_WORD:
         // `index` and `out` are modified
-        DO_NEXT_MAY_THROW_CORE(index, out, block, index + 1, TRUE);
+        DO_NEXT_MAY_THROW_CORE(s->index, s->out, s->array, s->index + 1, TRUE);
 
-        if (index == THROWN_FLAG) goto return_index;
+        if (s->index == THROWN_FLAG) goto return_index;
 
-        if (index == END_FLAG) {
+        if (s->index == END_FLAG) {
             // `do [x:]` is not as purposefully an assignment of an unset as
             // something like `do [x: ()]`, so it's an error.
-            assert(IS_UNSET(out));
-            fail (Error(RE_NEED_VALUE, value));
+            assert(IS_UNSET(s->out));
+            fail (Error(RE_NEED_VALUE, s->value));
         }
 
-        if (IS_UNSET(out)) {
+        if (IS_UNSET(s->out)) {
             // Treat direct assignments of an unset as unsetting the word
             REBVAL *var;
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_CANT_UNSET_SET_WORDS))
-                fail (Error(RE_NEED_VALUE, value));
+                fail (Error(RE_NEED_VALUE, s->value));
         #endif
 
-            if (!HAS_FRAME(value)) fail (Error(RE_NOT_BOUND, value));
+            if (!HAS_FRAME(s->value)) fail (Error(RE_NOT_BOUND, s->value));
 
-            var = GET_MUTABLE_VAR(value);
+            var = GET_MUTABLE_VAR(s->value);
             SET_UNSET(var);
         }
         else
-            Set_Var(value, out);
+            Set_Var(s->value, s->out);
         break;
 
     case REB_NATIVE:
@@ -814,13 +824,13 @@ reevaluate:
         // value may display strangely in the error...but that is a problem
         // to address in general with error display.
         //
-        if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-            fail (Error(RE_NO_OP_ARG, value));
+        if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX))
+            fail (Error(RE_NO_OP_ARG, s->value));
 
     // Value must be the function when a jump here occurs
     do_function_args:
-        assert(ANY_FUNC(value));
-        index++;
+        assert(ANY_FUNC(s->value));
+        s->index++;
         assert(DSP == dsp_orig);
 
         // `out` may contain the pending argument for an infix operation,
@@ -833,36 +843,36 @@ reevaluate:
         // up reading variables out of the frame while it is still
         // being built, and that would be bad.
 
-        call = Make_Call(out, block, index, label, value);
+        s->call = Make_Call(s->out, s->array, s->index, label, s->value);
 
         // Make_Call() put a safe copy of the function value into the
         // call frame.  Refresh our value to point to that one (instead of
         // where it was possibly lingering in the `out` slot).
 
-        value = DSF_FUNC(call);
-        assert(ANY_FUNC(value));
-        infix = VAL_GET_EXT(value, EXT_FUNC_INFIX);
+        s->value = DSF_FUNC(s->call);
+        assert(ANY_FUNC(s->value));
+        infix = VAL_GET_EXT(s->value, EXT_FUNC_INFIX);
 
         // If there are no arguments, just skip the next section
-        if (DSF_NUM_ARGS(call) == 0) goto function_ready_to_call;
+        if (DSF_NUM_ARGS(s->call) == 0) goto function_ready_to_call;
 
         // We assume you can enumerate both the formal parameters (in the
         // spec) and the actual arguments (in the call frame) using pointer
         // incrementation, that they are both terminated by REB_END, and
         // that there are an equal number of values in both.
-        param = VAL_FUNC_PARAM(value, 1);
-        arg = DSF_ARG(call, 1);
+        param = VAL_FUNC_PARAM(s->value, 1);
+        arg = DSF_ARG(s->call, 1);
 
         // Fetch the first argument from output slot before overwriting
         // !!! Redundant check on REB_PATH branch (knows it's not infix)
         if (infix) {
-            assert(index != 0);
+            assert(s->index != 0);
 
             // If func is being called infix, prior evaluation loop has
             // already computed first argument, so it's sitting in `out`
-            *arg = *out;
+            *arg = *s->out;
             if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-                fail (Error_Arg_Type(call, param, Type_Of(arg)));
+                fail (Error_Arg_Type(s->call, param, Type_Of(arg)));
 
             param++;
             arg++;
@@ -900,13 +910,13 @@ reevaluate:
                 // it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
-                if (DO_ARRAY_THROWS(out, refinements)) {
-                    Free_Call(call);
+                if (DO_ARRAY_THROWS(s->out, refinements)) {
+                    Free_Call(s->call);
                     DS_DROP_TO(dsp_orig);
                     goto return_index;
                 }
-                if (IS_NONE(out)) continue;
-                DS_PUSH(out);
+                if (IS_NONE(s->out)) continue;
+                DS_PUSH(s->out);
             }
             else if (IS_GET_WORD(refinements)) {
                 DS_PUSH_TRASH;
@@ -921,7 +931,7 @@ reevaluate:
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
-            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, out));
+            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, s->out));
 
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
@@ -937,9 +947,9 @@ reevaluate:
             REBVAL *temp = DS_AT(dsp_orig + 1);
             refine = DS_TOP;
             while (refine > temp) {
-                *out = *refine;
+                *s->out = *refine;
                 *refine = *temp;
-                *temp = *out;
+                *temp = *s->out;
 
                 refine--;
                 temp++;
@@ -982,11 +992,11 @@ reevaluate:
                 assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
 
                 if (
-                    VAL_GET_EXT(value, EXT_FUNC_HAS_RETURN)
+                    VAL_GET_EXT(s->value, EXT_FUNC_HAS_RETURN)
                     && SYMBOL_TO_CANON(VAL_TYPESET_SYM(param)) == SYM_RETURN
                 ) {
                     *arg = *ROOT_RETURN_NATIVE;
-                    VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(value);
+                    VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(s->value);
                 }
                 // otherwise leave it unset
 
@@ -1136,8 +1146,8 @@ reevaluate:
                 // a scan before to get us started going out of order.  If not,
                 // we would only need to look ahead.)
 
-                param = VAL_FUNC_PARAM(value, 1);
-                arg = DSF_ARG(call, 1);
+                param = VAL_FUNC_PARAM(s->value, 1);
+                arg = DSF_ARG(s->call, 1);
 
             #if !defined(NDEBUG)
                 write_none = FALSE;
@@ -1206,8 +1216,8 @@ reevaluate:
                 // But to use this feature it must also explicitly accept
                 // the UNSET! type (checked after the switch).
                 //
-                if (index < BLK_LEN(block)) {
-                    REBVAL * const quoted = BLK_SKIP(block, index);
+                if (s->index < BLK_LEN(s->array)) {
+                    REBVAL * const quoted = BLK_SKIP(s->array, s->index);
                     if (
                         VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
                         && (
@@ -1217,17 +1227,17 @@ reevaluate:
                         )
                     ) {
                         DO_NEXT_MAY_THROW_CORE(
-                            index, arg, block, index, !infix
+                            s->index, arg, s->array, s->index, !infix
                         );
-                        if (index == THROWN_FLAG) {
-                            *out = *arg;
-                            Free_Call(call);
+                        if (s->index == THROWN_FLAG) {
+                            *s->out = *arg;
+                            Free_Call(s->call);
                             // If we have refinements pending on the data
                             // stack we need to balance those...
                             DS_DROP_TO(dsp_orig);
                             goto return_index;
                         }
-                        if (index == END_FLAG) {
+                        if (s->index == END_FLAG) {
                             // This is legal due to the series end UNSET! trick
                             // (we will type check if unset is actually legal
                             // in a moment below)
@@ -1235,7 +1245,7 @@ reevaluate:
                         }
                     }
                     else {
-                        index++;
+                        s->index++;
                         *arg = *quoted;
                     }
                 }
@@ -1257,17 +1267,19 @@ reevaluate:
                 //     >> foo 1 + 2
                 //     a is 3
                 //
-                DO_NEXT_MAY_THROW_CORE(index, arg, block, index, !infix);
-                if (index == THROWN_FLAG) {
-                    *out = *arg;
-                    Free_Call(call);
+                DO_NEXT_MAY_THROW_CORE(
+                    s->index, arg, s->array, s->index, !infix
+                );
+                if (s->index == THROWN_FLAG) {
+                    *s->out = *arg;
+                    Free_Call(s->call);
                     // If we have refinements pending on the data
                     // stack we need to balance those...
                     DS_DROP_TO(dsp_orig);
                     goto return_index;
                 }
-                if (index == END_FLAG)
-                    fail (Error_No_Arg(DSF_LABEL(call), param));
+                if (s->index == END_FLAG)
+                    fail (Error_No_Arg(DSF_LABEL(s->call), param));
             }
 
             ASSERT_VALUE_MANAGED(arg);
@@ -1317,7 +1329,7 @@ reevaluate:
             // If word is typed, verify correct argument datatype:
             if (mode != PARAM_MODE_REVOKING)
                 if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-                    fail (Error_Arg_Type(call, param, Type_Of(arg)));
+                    fail (Error_Arg_Type(s->call, param, Type_Of(arg)));
         }
 
         // If we were scanning and didn't find the refinement we were looking
@@ -1341,8 +1353,8 @@ reevaluate:
 
         if (DSP != dsp_orig) {
             mode = PARAM_MODE_SCANNING;
-            param = VAL_FUNC_PARAM(value, 1);
-            arg = DSF_ARG(call, 1);
+            param = VAL_FUNC_PARAM(s->value, 1);
+            arg = DSF_ARG(s->call, 1);
 
         #if !defined(NDEBUG)
             write_none = FALSE;
@@ -1353,47 +1365,47 @@ reevaluate:
 
     function_ready_to_call:
         // Execute the function with all arguments ready
-        if (Dispatch_Call_Throws(call)) {
-            index = THROWN_FLAG;
+        if (Dispatch_Call_Throws(s->call)) {
+            s->index = THROWN_FLAG;
             goto return_index;
         }
 
-        if (Trace_Flags) Trace_Return(label, out);
+        if (Trace_Flags) Trace_Return(label, s->out);
 
-        if (VAL_GET_OPT(out, OPT_VALUE_REEVALUATE)) {
+        if (VAL_GET_OPT(s->out, OPT_VALUE_REEVALUATE)) {
             // The return value came from EVAL and we need to "activate" it.
             //
             // !!! As EVAL is the only way this can ever happen, the test
             // could be if the function is a NATIVE! and holds the C
             // function pointer to REBNATIVE(eval)--then reclaim the bit.
 
-            VAL_CLR_OPT(out, OPT_VALUE_REEVALUATE);
+            VAL_CLR_OPT(s->out, OPT_VALUE_REEVALUATE);
 
             // The next evaluation we invoke expects to be able to write into
             // `out` (and not have `value` living in there), so move it!
-            save = *out;
-            value = &save;
+            s->save = *s->out;
+            s->value = &s->save;
 
             // act "as if" value had been in the last position of the last
             // function argument evaluated (or the function itself if no args)
-            index--;
+            s->index--;
 
             goto reevaluate;
         }
         break;
 
     case REB_PATH:
-        label = value;
+        label = s->value;
 
         // returns in word the path item, DS_TOP has value
-        value = Do_Path(out, &label, 0);
-        if (THROWN(out)) {
-            index = THROWN_FLAG;
+        s->value = Do_Path(s->out, &label, 0);
+        if (THROWN(s->out)) {
+            s->index = THROWN_FLAG;
             goto return_index;
         }
 
         // Value returned only for functions that need evaluation
-        if (value && ANY_FUNC(value)) {
+        if (s->value && ANY_FUNC(s->value)) {
             // object/func or func/refinements or object/func/refinement:
 
             assert(label);
@@ -1412,15 +1424,15 @@ reevaluate:
 
             // We should only get a label that is the function if said label
             // is the function value itself.
-            assert(!ANY_FUNC(label) || value == label);
+            assert(!ANY_FUNC(label) || s->value == label);
 
             // Cannot handle infix because prior value is wiped out above
             // (Theoretically we could save it if we are DO-ing a chain of
             // values, and make it work.  But then, a loop of DO/NEXT
             // may not behave the same as DO-ing the whole block.  Bad.)
 
-            if (VAL_GET_EXT(value, EXT_FUNC_INFIX))
-                fail (Error_Has_Bad_Type(value));
+            if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX))
+                fail (Error_Has_Bad_Type(s->value));
 
             refinements = label + 1;
 
@@ -1433,127 +1445,179 @@ reevaluate:
 
             goto do_function_args;
         } else
-            index++;
+            s->index++;
         break;
 
     case REB_GET_PATH:
-        label = value;
+        label = s->value;
 
         // returns in word the path item, DS_TOP has value
-        value = Do_Path(out, &label, 0);
+        s->value = Do_Path(s->out, &label, 0);
 
         // !!! Historically this just ignores a result indicating this is a
         // function with refinements, e.g. ':append/only'.  However that
         // ignoring seems unwise.  It should presumably create a modified
         // function in that case which acts as if it has the refinement.
-        if (label && !IS_END(label + 1) && ANY_FUNC(out))
+        if (label && !IS_END(label + 1) && ANY_FUNC(s->out))
             fail (Error(RE_TOO_LONG));
 
-        index++;
+        s->index++;
         break;
 
     case REB_SET_PATH:
-        DO_NEXT_MAY_THROW_CORE(index, out, block, index + 1, TRUE);
+        DO_NEXT_MAY_THROW_CORE(s->index, s->out, s->array, s->index + 1, TRUE);
 
-        assert(index != END_FLAG || IS_UNSET(out)); // unset if END_FLAG
-        if (IS_UNSET(out)) fail (Error(RE_NEED_VALUE, value));
-        if (index == THROWN_FLAG) goto return_index;
+        assert(s->index != END_FLAG || IS_UNSET(s->out)); // unset if END_FLAG
+        if (IS_UNSET(s->out)) fail (Error(RE_NEED_VALUE, s->value));
+        if (s->index == THROWN_FLAG) goto return_index;
 
-        label = value;
-        Do_Path(&save, &label, out);
+        label = s->value;
+        Do_Path(&s->save, &label, s->out);
         // !!! No guarantee that result of a set-path eval would put the
         // set value in out atm, so can't reverse this yet so that the
         // first Do is into 'save' and the second into 'out'.  (Review)
         break;
 
     case REB_PAREN:
-        if (DO_ARRAY_THROWS(out, value)) {
-            index = THROWN_FLAG;
+        if (DO_ARRAY_THROWS(s->out, s->value)) {
+            s->index = THROWN_FLAG;
             goto return_index;
         }
-        index++;
+        s->index++;
         break;
 
     case REB_LIT_WORD:
-        *out = *value;
-        VAL_SET(out, REB_WORD);
-        index++;
+        *s->out = *s->value;
+        VAL_SET(s->out, REB_WORD);
+        s->index++;
         break;
 
     case REB_GET_WORD:
-        GET_VAR_INTO(out, value);
-        index++;
+        GET_VAR_INTO(s->out, s->value);
+        s->index++;
         break;
 
     case REB_LIT_PATH:
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
-        *out = *value;
-        VAL_SET(out, REB_PATH);
-        index++;
+        *s->out = *s->value;
+        VAL_SET(s->out, REB_PATH);
+        s->index++;
         break;
 
     case REB_FRAME:
         // !!! Frame should be hidden from user visibility
-        panic (Error(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(value))));
+        panic (Error(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(s->value))));
 
     default:
         // Most things just evaluate to themselves
-        assert(!IS_TRASH(value));
-        *out = *value;
-        index++;
+        assert(!IS_TRASH(s->value));
+        *s->out = *s->value;
+        s->index++;
         break;
     }
 
-    if (index >= BLK_LEN(block)) goto return_index;
+    if (s->index >= BLK_LEN(s->array)) {
+        // When running a DO/NEXT, clients may wish to distinguish between
+        // running a step that evaluated to an unset vs. one that was actually
+        // at the end of a block (e.g. implementing `[x:]` vs. `[x: ()]`).
+        // But if running to the end, it's best to go ahead and flag
+        // completion as soon as possible.
+
+        if (!s->next) s->index = END_FLAG;
+        goto return_index;
+    }
 
     // Should not have accumulated any net data stack during the evaluation
     assert(DSP == dsp_orig);
 
     // Should not have a THROWN value if we got here
-    assert(index != THROWN_FLAG && !THROWN(out));
+    assert(s->index != THROWN_FLAG && !THROWN(s->out));
 
     // We do not look ahead for infix dispatch if we are currently processing
     // an infix operation with higher precedence
-    if (lookahead) {
-        value = BLK_SKIP(block, index);
+    if (s->lookahead) {
+        s->value = BLK_SKIP(s->array, s->index);
 
         // Literal infix function values may occur.
-        if (VAL_GET_EXT(value, EXT_FUNC_INFIX)) {
+        if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX)) {
             label = NULL;
-            if (Trace_Flags) Trace_Line(block, index, value);
+            if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
             goto do_function_args;
         }
 
-        if (IS_WORD(value)) {
+        if (IS_WORD(s->value)) {
             // WORD! values may look up to an infix function
 
-            GET_VAR_INTO(&save, value);
-            if (VAL_GET_EXT(&save, EXT_FUNC_INFIX)) {
-                label = value;
-                value = &save;
-                if (Trace_Flags) Trace_Line(block, index, value);
+            GET_VAR_INTO(&s->save, s->value);
+            if (VAL_GET_EXT(&s->save, EXT_FUNC_INFIX)) {
+                label = s->value;
+                s->value = &s->save;
+                if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
                 goto do_function_args;
             }
 
             // Perhaps not an infix function, but we just paid for a variable
             // lookup.  If this isn't just a DO/NEXT, use the work!
-            if (!next) {
-                *out = save;
+            if (!s->next) {
+                *s->out = s->save;
                 goto do_fetched_word;
             }
         }
     }
 
     // Continue evaluating rest of block if not just a DO/NEXT
-    if (!next) goto do_at_index;
+    if (!s->next) goto do_at_index;
 
 return_index:
+    assert(s->next || (s->index == THROWN_FLAG || s->index == END_FLAG));
     assert(DSP == dsp_orig);
-    assert(!IS_TRASH(out));
-    assert((index == THROWN_FLAG) == THROWN(out));
-    assert(index != END_FLAG || index >= BLK_LEN(block));
-    assert(VAL_TYPE(out) < REB_MAX); // cheap check
-    return index;
+    assert(!IS_TRASH(s->out));
+    assert((s->index == THROWN_FLAG) == THROWN(s->out));
+    assert(s->index != END_FLAG || s->index >= BLK_LEN(s->array));
+    assert(VAL_TYPE(s->out) < REB_MAX); // cheap check
+
+    // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
+}
+
+
+//
+//  Do_At_Throws: C
+//
+// Do_At_Throws behaves "as if" it is performing iterated calls to DO_NEXT.
+// (Under the hood it is actually more efficient than doing so.)
+//
+// It is named the way it is because it's expected to usually be used in an
+// 'if' statement.  It cues you into realizing that it returns TRUE if a
+// THROW interrupts this current DO_BLOCK execution--not asking about a
+// "THROWN" that happened as part of a prior statement.
+//
+// If it returns FALSE, then the DO completed successfully to end of input
+// without a throw...and the output contains the last value evaluated in the
+// block (empty blocks give UNSET!).  If it returns TRUE then it will be the
+// THROWN() value.
+//
+// A raised error via a `fail` will longjmp and not return to the caller
+// normally.  If interested in catching these, use PUSH_TRAP().
+//
+REBFLG Do_At_Throws(REBVAL *out, REBSER *array, REBCNT index)
+{
+    struct Reb_Do_State s;
+    s.out = out;
+    s.array = array;
+    s.lookahead = TRUE; // don't suppress the infix lookahead
+    s.next = FALSE; // don't just do the /NEXT item, do them all
+
+    // We always seed the evaluator with an initial value.  It isn't required
+    // to be resident in the same series, in order to facilitate an APPLY-like
+    // situation of putting a path or otherwise at the head.  We aren't doing
+    // that, so we just grab the pointer and advance.
+    s.value = BLK_SKIP(array, index);
+    s.index = index + 1;
+
+    Do_Core(&s);
+    assert(s.index == THROWN_FLAG || s.index == END_FLAG);
+
+    return THROWN_FLAG == s.index;
 }
 
 
