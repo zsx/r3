@@ -863,7 +863,7 @@ REBNATIVE(continue)
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
 //      /next {Do next expression only, return it, update block variable}
-//      var [word!] "Variable updated with new block position"
+//      var [word! none!] "Variable updated with new block position"
 //  ]
 //
 REBNATIVE(do)
@@ -872,7 +872,7 @@ REBNATIVE(do)
     REBVAL * const args_ref = D_ARG(2);
     REBVAL * const arg = D_ARG(3);
     REBVAL * const next_ref = D_ARG(4);
-    REBVAL * const var = D_ARG(5);
+    REBVAL * const var = D_ARG(5); // if NONE!, DO/NEXT only but no var update
 
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)) {
@@ -900,7 +900,7 @@ REBNATIVE(do)
 
     case REB_BLOCK:
     case REB_PAREN:
-        if (D_REF(4)) { // next
+        if (IS_CONDITIONAL_TRUE(next_ref)) {
             DO_NEXT_MAY_THROW(
                 VAL_INDEX(value), D_OUT, VAL_SERIES(value), VAL_INDEX(value)
             );
@@ -912,17 +912,23 @@ REBNATIVE(do)
                 // !!! What if the block was mutated, and D_ARG(1) is no
                 // longer actually the expression that started the throw?
 
-                Set_Var(var, value);
+                if (!IS_NONE(var))
+                    Set_Var(var, value);
                 return R_OUT_IS_THROWN;
             }
 
             if (VAL_INDEX(value) == END_FLAG) {
-                VAL_INDEX(value) = VAL_TAIL(value);
-                Set_Var(D_ARG(5), value);
-                SET_TRASH_SAFE(D_OUT);
+                // If we hit the end, we always want to return unset.
+                if (!IS_NONE(var)) {
+                    // Set a var for DO/NEXT only if we were asked to.
+                    VAL_INDEX(value) = VAL_TAIL(value);
+                    Set_Var(var, value);
+                }
                 return R_UNSET;
             }
-            Set_Var(D_ARG(5), value); // "continuation" of block
+
+            if (!IS_NONE(var))
+                Set_Var(var, value); // "continuation" of block
             return R_OUT;
         }
 
