@@ -891,27 +891,41 @@ reevaluate:
         // should balance!)
 
         for (; refinements && NOT_END(refinements); refinements++) {
+            if (IS_NONE(refinements)) continue;
+
             if (IS_PAREN(refinements)) {
                 // It's okay for us to mess with the `out` slot here, since
                 // any infix parameter or function value that had lived in
-                // that slot has been safely moved to the call frame
+                // that slot has been safely moved to the call frame.  Note
+                // it is not legal to use the data stack directly as the
+                // output location for a DO (might be resized)
+
                 if (DO_ARRAY_THROWS(out, refinements)) {
                     Free_Call(call);
                     DS_DROP_TO(dsp_orig);
                     goto return_index;
                 }
+                if (IS_NONE(out)) continue;
                 DS_PUSH(out);
             }
             else if (IS_GET_WORD(refinements)) {
-                *out = *GET_VAR(refinements);
-                if (IS_NONE(out)) continue;
-                if (!IS_WORD(out)) fail (Error(RE_BAD_REFINE, out));
-                DS_PUSH(out);
+                DS_PUSH_TRASH;
+                *DS_TOP = *GET_VAR(refinements);
+                if (IS_NONE(DS_TOP)) {
+                    DS_DROP;
+                    continue;
+                }
             }
-            else if (IS_WORD(refinements))
+            else
                 DS_PUSH(refinements);
-            else if (!IS_NONE(refinements))
-                fail (Error(RE_BAD_REFINE, out));
+
+            // Whatever we were trying to use as a refinement should now be
+            // on the top of the data stack, and only words are legal ATM
+            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, out));
+
+            // Go ahead and canonize the word symbol so we don't have to
+            // do it each time in order to get a case-insenstive compare
+            VAL_WORD_SYM(DS_TOP) = SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP));
         }
 
         // To make things easier for processing, reverse the refinements on
@@ -965,9 +979,11 @@ reevaluate:
                 // puts a "magic" REBNATIVE(return) value into the arg slot
                 // for pure locals named RETURN: ....used by FUNC and CLOS
 
+                assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
+
                 if (
                     VAL_GET_EXT(value, EXT_FUNC_HAS_RETURN)
-                    && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+                    && SYMBOL_TO_CANON(VAL_TYPESET_SYM(param)) == SYM_RETURN
                 ) {
                     *arg = *ROOT_RETURN_NATIVE;
                     VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(value);
@@ -1003,8 +1019,17 @@ reevaluate:
                 // or behind to know where to put the results we evaluate.
 
                 if (mode == PARAM_MODE_SCANNING) {
+                    // Note that we have already canonized the path words for
+                    // a case-insensitive-comparison to the symbol in the
+                    // function's paramlist.  While it might be tempting to
+                    // canonize those too, they should retain their original
+                    // case for when that symbol is given back to the user to
+                    // indicate a used refinement.
+
                     if (
-                        SAME_SYM(VAL_WORD_SYM(DS_TOP), VAL_TYPESET_SYM(param))
+                        // Already canonized the word on stack when pushing
+                        VAL_WORD_SYM(DS_TOP)
+                        == SYMBOL_TO_CANON(VAL_TYPESET_SYM(param))
                     ) {
                         // If we seeked backwards to find a refinement and it's
                         // the one we are looking for, "consume" it off the
@@ -1073,7 +1098,11 @@ reevaluate:
                 // have been an earlier error)
                 assert(IS_WORD(DS_TOP));
 
-                if (SAME_SYM(VAL_WORD_SYM(DS_TOP), VAL_TYPESET_SYM(param))) {
+                if (
+                    // Already canonized the word on the stack when pushing
+                    VAL_WORD_SYM(DS_TOP)
+                    == SYMBOL_TO_CANON(VAL_TYPESET_SYM(param))
+                ) {
                     // We were lucky and the next refinement we wish to
                     // process lines up with this parameter slot.
 
