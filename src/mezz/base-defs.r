@@ -47,6 +47,10 @@ decode-url: none ; set in sys init
 
 r3-legacy*: none ; set in %mezz-legacy.r
 
+; used only by Ren-C++ as a test of how to patch the lib context prior to
+; boot at the higher levels.
+test-rencpp-low-level-hook: none
+
 ;-- Setup Codecs -------------------------------------------------------------
 
 for-each [codec handler] system/codecs [

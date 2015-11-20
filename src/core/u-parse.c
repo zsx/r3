@@ -1291,10 +1291,6 @@ REBNATIVE(parse)
     parse.result = 0;
     parse.out = D_OUT;
 
-    // Check special return values used to make sure they don't overlap
-    assert(NOT_FOUND != END_FLAG);
-    assert(NOT_FOUND != THROWN_FLAG);
-
     index = Parse_Rules_Loop(&parse, VAL_INDEX(input), VAL_BLK_DATA(rules), 0);
 
     if (index == THROWN_FLAG) {

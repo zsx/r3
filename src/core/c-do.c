@@ -606,7 +606,13 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call)
 // Index is a zero-based index into the block.
 // Op indicates infix operator is being evaluated (precedence);
 // The value (or error) is placed on top of the data stack.
-// 
+//
+// The interface includes flexibility for "APPLY-like scenarios" where the
+// series contains *arguments* to what you want to run, though the actual
+// function or otherwise is not resident in the series.  Hence the caller
+// can seed the evaluative process with a `value` that may not be in the
+// series at all (often, however, it will be at the head of the series).
+//
 // LOOKAHEAD:
 // When we're in mid-dispatch of an infix function, the precedence
 // is such that we don't want to do further infix lookahead while
@@ -618,7 +624,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call)
 // two other closely-related routines: Apply_Block_Throws() and
 // Redo_Func_Throws().
 //
-REBCNT Do_Core(REBVAL * const out, REBFLG next, REBSER *block, REBCNT index, REBFLG lookahead)
+REBCNT Do_Core(REBVAL * const out, const REBVAL *value, REBFLG next, REBSER *block, REBCNT index, REBFLG lookahead)
 {
     REBINT dsp_orig = DSP;
 
@@ -632,7 +638,6 @@ REBCNT Do_Core(REBVAL * const out, REBFLG next, REBSER *block, REBCNT index, REB
     REBFLG write_none;
 #endif
 
-    const REBVAL *value;
     REBFLG infix;
 
     struct Reb_Call *call;
@@ -678,6 +683,14 @@ REBCNT Do_Core(REBVAL * const out, REBFLG next, REBSER *block, REBCNT index, REB
     // time this line is run if it were in a loop)
     if (C_STACK_OVERFLOWING(&value)) Trap_Stack_Overflow();
 
+    // !!! We have to compensate for the passed-in index by subtracting 1,
+    // as the looped form below needs an addition each time.  This means most
+    // of the time we are subtracting one from a value the caller had to add
+    // one to before passing in.  Also REBCNT is an unsigned number...and this
+    // overlaps the NOT_FOUND value (which Do_Core does not use, but PARSE
+    // does).  Not completely ideal, so review.
+    --index;
+
 do_at_index:
     assert(index != END_FLAG && index != THROWN_FLAG);
     SET_TRASH_SAFE(out);
@@ -705,8 +718,6 @@ do_at_index:
         }
     }
 #endif
-
-    value = BLK_SKIP(block, index);
 
     if (Trace_Flags) Trace_Line(block, index, value);
 

@@ -457,25 +457,50 @@ enum encoding_opts {
                 break; \
             } \
             (index_out) = Do_Core( \
-                (out), TRUE, (series), (index_in), (lookahead) \
+                (out), \
+                BLK_SKIP((series), (index_in)), \
+                TRUE, \
+                (series), \
+                (index_in) + 1, \
+                (lookahead) \
             ); \
         } while (FALSE)
 #else
     // Linux debug builds currently default to running the evaluator on
     // every value--whether it has evaluator behavior or not.
     #define DO_NEXT_MAY_THROW_CORE(index_out,out,series,index_in,lookahead) \
-        (index_out) = Do_Core((out), TRUE, (series), (index_in), (lookahead));
+        (index_out) = Do_Core( \
+            (out), \
+            BLK_SKIP((series), (index_in)), \
+            TRUE, \
+            (series), \
+            (index_in) + 1, \
+            (lookahead) \
+        );
 #endif
 
 #define DO_NEXT_MAY_THROW(index_out,out,series,index) \
     DO_NEXT_MAY_THROW_CORE((index_out), (out), (series), (index), TRUE)
 
 #define Do_At_Throws(out,series,index) \
-    (THROWN_FLAG == Do_Core((out), FALSE, (series), (index), TRUE))
+    (THROWN_FLAG == Do_Core( \
+        (out), \
+        BLK_SKIP((series), (index)), \
+        FALSE, \
+        (series), \
+        (index) + 1, \
+        TRUE \
+    ))
 
 #define DO_ARRAY_THROWS(out,array) \
     (THROWN_FLAG == Do_Core( \
-        (out), FALSE, VAL_SERIES(array), VAL_INDEX(array), TRUE))
+        (out), \
+        BLK_SKIP(VAL_SERIES(array), VAL_INDEX(array)), \
+        FALSE, \
+        VAL_SERIES(array), \
+        VAL_INDEX(array) + 1, \
+        TRUE \
+    ))
 
 
 /***********************************************************************

@@ -129,6 +129,11 @@ static void Assert_Basics(void)
     ) {
         panic (Error(RE_MISC));
     }
+
+    // Check special return values used to make sure they don't overlap
+    assert(THROWN_FLAG != END_FLAG);
+    assert(NOT_FOUND != END_FLAG);
+    assert(NOT_FOUND != THROWN_FLAG);
 }
 
 
