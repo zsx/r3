@@ -328,32 +328,6 @@ REBNATIVE(any)
 
 
 //
-//  apply: native [
-//  
-//  "Apply a function to a reduced block of arguments."
-//  
-//      func [any-function!] "Function value to apply"
-//      block [block!] "Block of args, reduced first (unless /only)"
-//      /only "Use arg values as-is, do not reduce the block"
-//  ]
-//
-REBNATIVE(apply)
-{
-    REBVAL * func = D_ARG(1);
-    REBVAL * block = D_ARG(2);
-    REBOOL reduce = !D_REF(3);
-
-    if (Apply_Block_Throws(
-        D_OUT, func, VAL_SERIES(block), VAL_INDEX(block), reduce, NULL
-    )) {
-        return R_OUT_IS_THROWN;
-    }
-
-    return R_OUT;
-}
-
-
-//
 //  attempt: native [
 //  
 //  {Tries to evaluate a block and returns result or NONE on error.}

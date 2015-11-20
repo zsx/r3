@@ -67,7 +67,7 @@ to-png: command [
 ;       dir [file!]
 ;][
 ;   if dir [dir: lib/replace/all to-local-file dir "/" "//"]
-;   if result: apply :req-dir [title text path dir] [
+;   if result: req-dir/title/path text dir [
 ;       return to-rebol-file result
 ;   ]
 ;]

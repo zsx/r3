@@ -216,6 +216,109 @@ has: func [
 ]
 
 
+; APPLY is a historically brittle construct, that has been eclipsed by the
+; evolution of the evaluator.  An APPLY filling in arguments is positionally
+; dependent on the order of the refinements in the function spec, while
+; it is now possible to do through alternative mechanisms...e.g. the
+; ability to revoke refinement requests via UNSET! and to evaluate refinement
+; words via parens or get-words in a PATH!.
+;
+; Delegating APPLY to "userspace" incurs cost, but there's not really any good
+; reason for its existence or usage any longer.  So if it's a little slower,
+; that's a good incentive to switch to using the evaluator proper.  It means
+; that C code for APPLY does not have to be maintained, which is trickier code
+; to read and write than this short function.
+;
+; (It is still lightly optimized as a FUNC with no additional vars in frame)
+;
+apply: func [
+    "Apply a function to a reduced block of arguments."
+
+    ; This does not work with infix operations.  It *could* be adapted to
+    ; work, but as a legacy concept it's easier just to say don't do it.
+    func [function! closure! action! native! routine! command!]
+        "Function value to apply"
+    block [block!]
+        "Block of args, reduced first (unless /only)"
+    /only ;-- reused as whether we are actively fulfilling args
+        "Use arg values as-is, do not reduce the block"
+][
+    block: either only [copy block] [reduce block]
+
+    ; Note: shallow modifying `block` now no longer modifies the original arg
+
+    ; Since /ONLY has done its job, we reuse it to track whether we are
+    ; using args or a refinement or not...
+
+    only: true
+
+    every param words-of first (func: to-path :func) [
+        case [
+            tail? block [
+                ; We still have more words in the function spec, but no more
+                ; values in the block.  This may be okay (if it's refinements)
+                ; or it might not be okay, but let the main evaluator do the
+                ; error delivery when we DO/NEXT on it if it's a problem.
+
+                break
+            ]
+
+            refinement? param [
+                ; A refinement is considered used if in the block in that
+                ; position slot there is a conditionally true value.  Remember
+                ; whether it was in `only` so we know if we should ignore the
+                ; ensuing refinement args or not.
+
+                if only: take block [
+                    append func to-word param ;-- remember func is a path now
+                ]
+            ]
+
+            only [
+                ; User-mode APPLY is built on top of DO.  It requires knowledge
+                ; of the reduced value of refinements, and DO will reduce also.
+                ; So we need to insert a quote on each arg that we have already
+                ; possibly reduced and don't want to again.
+                ;
+                ; Only do this quote if the argument is evaluative...because
+                ; if it's quoted--either a hard quote or soft quote--then it
+                ; would wind up quoting `quote`...
+                ;
+                ; (Remember that this is a legacy construct with bad positional
+                ; invariants that no one should be using anymore.  Also that
+                ; QUOTE as a NATIVE! will be very optimized.)
+
+                block: next either word? param [
+                    insert block 'quote
+                ][
+                    block
+                ]
+            ]
+
+            'default [
+                ; ignoring (e.g. an unused refinement arg in the block slot)
+                take block
+            ]
+        ]
+    ]
+
+    block: head block
+
+    also (
+        ; We use ALSO so the result of the DO/NEXT is what we return, while
+        ; we do a check to make sure all the arguments were consumed.
+
+        do/next compose [
+            (func) ;-- actually a path now, with a FUNCTION! in the first slot
+
+            (head block) ;-- args that were needed, all refinement cues gone
+        ] 'block
+    ) unless tail? block [
+        fail "Too many arguments passed in APPLY block for function."
+    ]
+]
+
+
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine

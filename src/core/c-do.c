@@ -1724,51 +1724,34 @@ REBFLG Compose_Block_Throws(REBVAL *out, REBVAL *block, REBFLG deep, REBFLG only
 
 
 //
-//  Apply_Block_Throws: C
-// 
-// Invoke a function with arguments, either from a C va_list if
-// varargs is non-NULL...or sourced from a block at a certain index.
-// (If using varargs, then the block and the index passed in are
-// used for backtrace purposes only.)  Type checking is performed.
-// 
-// This is the mechanism for calling Rebol functions from C (such as
-// system support functions), and to implement the APPLY native:
-// 
-//     >> apply :append [[a b c] [d e]]
-//     == [a b c d e]
+//  Apply_Func_Core: C
+//
+// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+//
+// Applies function from args provided by C call.  Although the
+// function knows how many total args + refinements + refinement
+// args it takes, it's desirable to be able to pass fewer and
+// have the remainder padded with NONE! + UNSET! as appropriate.
+// So the convention used is that the varargs must be NULL-terminated.
+//
+// Type checking is performed.  This is the mechanism for calling Rebol
+// functions from C (such as system support functions).
 // 
 // Refinements are processed according to the positions in which they
 // were defined in the function spec.  So for instance, /ONLY is in
-// the 5th spot of APPEND (after /PART and its LIMIT):
-// 
-//     >> use-only: true
-//     >> apply :append [[a b c] [d e] none none use-only]
-//     == [a b c [d e]]
-// 
-// (Note: This is brittle, so it's better to use path dispatch
-// when it's an option, e.g. `append/:use-only [a b c] [d e]`)
-// 
+// the 5th spot of APPEND (after /PART and its LIMIT).
+//
 // Any conditionally true value in a refinement position means the
 // refinement will be considered present, while conditional
 // falsehood means absent.  When the function runs, a present
 // refinement's variable will hold its WORD! name unbound
 // (for chaining, while still testing as TRUE?).  Absent refinements
-// will be seen as NONE! from within the function body.
+// will be seen as UNSET! from within the function body.
 // 
-// If 'reduce' (the default behavior of the native) then the block
-// will be evaluated in steps via Do_Next_May_Throw, and the results
-// passed as the arguments.  Otherwise it will be taken as literal
-// values--which is the behavior of the native when /ONLY is used.
-// (Using reduce is not allowed when input is coming from the
-// va_list, as that would require copying them into a series first.)
-// 
-// * Arguments to an unused refinement will still be evaluated if
-// 'reduce' is set, with the result discarded and passed as NONE!.
-// 
-// * The input block or varargs must fulfill the required args, and
-// cannot cut off in the middle of refinement args to anything it
-// has started.  But it may stop supplying arguments at the boundary
-// of any transition to another refinement.
+// The varargs must fulfill the required args, and cannot cut off in the
+// middle of refinement args to anything it has started.  But it may stop
+// supplying arguments at the boundary of any transition to another
+// refinement.
 // 
 // * If there are more processed values in the block than arguments,
 // that will trigger an error.
@@ -1782,11 +1765,9 @@ REBFLG Compose_Block_Throws(REBVAL *out, REBVAL *block, REBFLG deep, REBFLG only
 // 
 // !!! NOTE: This code currently does not process revoking of
 // refinements via unset as the path-based dispatch does in the
-// Do_Core evaluator.  It probably should--though perhaps there
-// should be a better sharing of implementations of the function
-// dispatch in Do_Core and Apply_Block_Throws.
+// Do_Core evaluator.
 //
-REBFLG Apply_Block_Throws(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT index, REBFLG reduce, va_list *varargs)
+REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 {
     struct Reb_Call *call;
 
@@ -1798,256 +1779,6 @@ REBFLG Apply_Block_Throws(REBVAL *out, const REBVAL *func, REBSER *block, REBCNT
 
     REBVAL *refine; // the refinement we may need to go back and revoke
 
-    // `apply x y` behaves as if you wrote `apply/only x reduce y`.
-    // Hence the following should return before erroring on too-many-args:
-    //
-    //     apply does [] [1 2 return 3 4]
-    //
-    // This flag reminds us to error *after* any reducing has finished.
-    //
-    REBFLG too_many = FALSE;
-
-#if !defined(NDEBUG)
-    if (varargs) assert(!reduce); // we'd have to put it in a series to reduce
-#endif
-
-    // !!! Should these be asserts?
-    if (!ANY_FUNC(func)) fail (Error_Invalid_Arg(func));
-    if (index > SERIES_TAIL(block)) index = SERIES_TAIL(block);
-
-    call = Make_Call(out, block, index, NULL, func);
-
-    assert(VAL_FUNC_NUM_PARAMS(func) == DSF_NUM_ARGS(call));
-
-    // Get first parameter (or a REB_END if no parameters)
-    if (VAL_FUNC_NUM_PARAMS(func) > 0)
-        param = VAL_FUNC_PARAM(func, 1);
-    else
-        param = END_VALUE; // triggers `too_many` if loop is entered
-
-    // Get slot to write actual argument for first parameter into (or NULL)
-    arg = (DSF_NUM_ARGS(call) > 0) ? DSF_ARG(call, 1) : NULL;
-
-    for (; varargs || index < BLK_LEN(block); param++, arg++) {
-    no_advance:
-        if (!too_many && IS_END(param)) {
-            if (varargs && !va_arg(*varargs, REBVAL*)) break;
-
-            too_many = TRUE;
-            if (!reduce) break; // we can shortcut if reduce wasn't requested
-
-            // When we have a valid place to reduce arguments into, `arg`
-            // is the ideal spot to do it.  But for excess arguments we
-            // need another place.  `out` is always available, so use that.
-            arg = out;
-        }
-
-        if (varargs) {
-            REBVAL* value = va_arg(*varargs, REBVAL*);
-            if (!value) break; // our convention is "NULL signals no more"
-
-            *arg = *value;
-        }
-        else if (reduce) {
-            DO_NEXT_MAY_THROW(index, arg, block, index);
-            if (index == THROWN_FLAG) {
-                *out = *arg; // `arg` may be equal to `out` (if `too_many`)
-                Free_Call(call);
-                return TRUE;
-            }
-            if (too_many) continue; // don't test `arg` or advance `param`
-        }
-        else {
-            assert(!too_many); // break above would have already given up
-            *arg = *BLK_SKIP(block, index);
-            index++;
-        }
-
-        // *** PURE LOCALS => continue ***
-
-        while (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
-            // We need to skip over "pure locals", e.g. those created in
-            // the spec with a SET-WORD!.  (They are useful for generators)
-            //
-            // The special exception is a RETURN: local, if it is "magic"
-            // (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
-            // that is "magic" and knows to return to *this* function...
-
-            if (
-                VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
-            ) {
-                *arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
-            }
-            else {
-            #if !defined(NDEBUG)
-                // Frame used trash in debug builds
-                SET_UNSET(arg);
-            #endif
-            }
-
-            // We aren't actually consuming the evaluated item in the block,
-            // so keep advancing the parameter as long as it's a pure local.
-            param++;
-            if (IS_END(param)) {
-                if (reduce) {
-                    // Note again that if we are reducing, we must reduce the
-                    // entire block beore reporting the "too many" error!
-                    too_many = TRUE;
-                    goto no_advance;
-                }
-                fail (Error(RE_APPLY_TOO_MANY));
-            }
-        }
-
-        // *** REFINEMENT => continue ***
-
-        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
-            // If we've found a refinement, this resets our ignore state
-            // based on whether or not the arg suggests it is enabled
-
-            refine = arg;
-
-            if (IS_CONDITIONAL_TRUE(arg)) {
-                mode = PARAM_MODE_REFINE_PENDING;
-
-            #ifdef NDEBUG
-                Val_Init_Word_Unbound(arg, REB_WORD, VAL_TYPESET_SYM(param));
-            #else
-                if (TYPE_CHECK(param, REB_LOGIC)) {
-                    // OPTIONS_REFINEMENTS_TRUE at function create
-                    SET_TRUE(arg);
-                } else
-                    Val_Init_Word_Unbound(
-                        arg, REB_WORD, VAL_TYPESET_SYM(param)
-                    );
-            #endif
-            }
-            else {
-                mode = PARAM_MODE_SKIPPING;
-                SET_NONE(arg);
-            }
-            continue;
-        }
-
-        // *** QUOTED OR EVALUATED ITEMS ***
-        // We are passing the value literally so it doesn't matter if it was
-        // quoted or not in the spec...the value is taken verbatim
-
-        if (mode == PARAM_MODE_SKIPPING) {
-        #if !defined(NDEBUG)
-            assert(IS_NONE(refine));
-
-            // Unfortunately the refinement is none in this case, so to
-            // figure out whether we need a NONE or an UNSET in the skipped
-            // args we have to go back to the refine's param...
-
-            if (
-                TYPE_CHECK(
-                    refine - DSF_ARG(call, 1) + VAL_FUNC_PARAM(func, 1),
-                    REB_LOGIC
-                )
-            ) {
-                SET_NONE(arg);
-            }
-            else
-                SET_UNSET(arg);
-        #endif
-
-            continue;
-        }
-
-        // Verify allowed argument datatype:
-        if (!TYPE_CHECK(param, VAL_TYPE(arg)))
-            fail (Error_Arg_Type(call, param, Type_Of(arg)));
-    }
-
-    if (too_many)
-        fail (Error(RE_APPLY_TOO_MANY));
-
-    // Pad out any remaining parameters with unset
-
-    while (!IS_END(param)) {
-        if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
-            // A true local...to be ignored as far as block args go.
-            // Very likely to hit them at the end of the paramlist because
-            // that's where the function generators tack on RETURN:
-
-            if (
-                VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
-            ) {
-                *arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
-            }
-            else {
-            #if !defined(NDEBUG)
-                // Frame used trash in debug builds
-                SET_UNSET(arg);
-            #endif
-            }
-        }
-        else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
-            mode = PARAM_MODE_SKIPPING;
-            SET_NONE(arg);
-            refine = arg;
-        }
-        else {
-            if (mode != PARAM_MODE_SKIPPING) {
-                // If we aren't in ignore mode and we are dealing with
-                // a non-refinement, then it's a situation of a required
-                // argument missing or not all the args to a refinement given
-
-                fail (Error_No_Arg(DSF_LABEL(call), param));
-            }
-
-        #if !defined(NDEBUG)
-            assert(IS_NONE(refine));
-
-            // Unfortunately the refinement is none in this case, so to
-            // figure out whether we need a NONE or an UNSET in the skipped
-            // args we have to go back to the refine's param...
-
-            if (
-                TYPE_CHECK(
-                    refine - DSF_ARG(call, 1) + VAL_FUNC_PARAM(func, 1),
-                    REB_LOGIC
-                )
-            ) {
-                SET_NONE(arg);
-            }
-            else
-                SET_UNSET(arg);
-        #endif
-        }
-
-        arg++;
-        param++;
-    }
-
-    // With the arguments processed and proxied into the call frame, invoke
-    // the function body.
-
-    return Dispatch_Call_Throws(call);
-}
-
-
-//
-//  Apply_Function_Throws: C
-// 
-// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
-// Applies function from args provided by C call.  Although the
-// function knows how many total args + refinements + refinement
-// args it takes, it's desirable to be able to pass fewer and
-// have the remainder padded with NONE!, so the convention used
-// is that the varargs must be NULL-terminated.
-// 
-// returns TRUE if out is THROWN()
-//
-REBFLG Apply_Function_Throws(REBVAL *out, const REBVAL *func, va_list *varargs)
-{
     REBSER *block;
     REBCNT index;
 
@@ -2078,17 +1809,142 @@ REBFLG Apply_Function_Throws(REBVAL *out, const REBVAL *func, va_list *varargs)
         index = 0;
     }
 
-    // Re-use the code powering the APPLY native for handling blocks.
-    // As we pass in a non-NULL va_list*, it gets the values from there.
-    //
-    return Apply_Block_Throws(out, func, block, index, FALSE, varargs);
+    assert(ANY_FUNC(func));
+    assert(index < SERIES_TAIL(block));
+
+    call = Make_Call(out, block, index, NULL, func);
+
+    assert(VAL_FUNC_NUM_PARAMS(func) == DSF_NUM_ARGS(call));
+
+    // Get first parameter (or a REB_END if no parameters)
+    if (VAL_FUNC_NUM_PARAMS(func) > 0)
+        param = VAL_FUNC_PARAM(func, 1);
+    else
+        param = END_VALUE; // triggers `too_many` if loop is entered
+
+    // Get slot to write actual argument for first parameter into (or NULL)
+    arg = (DSF_NUM_ARGS(call) > 0) ? DSF_ARG(call, 1) : NULL;
+
+    for (; varargs || index < BLK_LEN(block); param++, arg++) {
+        REBVAL* value = va_arg(*varargs, REBVAL*);
+        if (!value) break; // our convention is "NULL signals no more"
+
+        *arg = *value;
+
+        // *** PURE LOCALS => continue ***
+
+        while (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+            // We need to skip over "pure locals", e.g. those created in
+            // the spec with a SET-WORD!.  (They are useful for generators)
+            //
+            // The special exception is a RETURN: local, if it is "magic"
+            // (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
+            // that is "magic" and knows to return to *this* function...
+
+            if (
+                VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
+                && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+            ) {
+                *arg = *ROOT_RETURN_NATIVE;
+                VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
+            }
+            else {
+                // Leave as unset.
+            }
+
+            // We aren't actually consuming the evaluated item in the block,
+            // so keep advancing the parameter as long as it's a pure local.
+            param++;
+            if (IS_END(param))
+                fail (Error(RE_APPLY_TOO_MANY));
+        }
+
+        // *** REFINEMENT => continue ***
+
+        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+            // If we've found a refinement, this resets our ignore state
+            // based on whether or not the arg suggests it is enabled
+
+            refine = arg;
+
+            if (IS_CONDITIONAL_TRUE(arg)) {
+                mode = PARAM_MODE_REFINE_PENDING;
+
+                Val_Init_Word_Unbound(arg, REB_WORD, VAL_TYPESET_SYM(param));
+            }
+            else {
+                mode = PARAM_MODE_SKIPPING;
+                SET_NONE(arg);
+            }
+            continue;
+        }
+
+        // *** QUOTED OR EVALUATED ITEMS ***
+        // We are passing the value literally so it doesn't matter if it was
+        // quoted or not in the spec...the value is taken verbatim
+
+        if (mode == PARAM_MODE_SKIPPING) {
+            // Leave as unset
+            continue;
+        }
+
+        // Verify allowed argument datatype:
+        if (!TYPE_CHECK(param, VAL_TYPE(arg)))
+            fail (Error_Arg_Type(call, param, Type_Of(arg)));
+    }
+
+    // Pad out any remaining parameters with unset or none, depending
+
+    while (!IS_END(param)) {
+        if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+            // A true local...to be ignored as far as block args go.
+            // Very likely to hit them at the end of the paramlist because
+            // that's where the function generators tack on RETURN:
+
+            if (
+                VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
+                && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+            ) {
+                *arg = *ROOT_RETURN_NATIVE;
+                VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func);
+            }
+            else {
+                // Leave as unset
+            }
+        }
+        else if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+            mode = PARAM_MODE_SKIPPING;
+            SET_NONE(arg);
+            refine = arg;
+        }
+        else {
+            if (mode != PARAM_MODE_SKIPPING) {
+                // If we aren't in ignore mode and we are dealing with
+                // a non-refinement, then it's a situation of a required
+                // argument missing or not all the args to a refinement given
+
+                fail (Error_No_Arg(DSF_LABEL(call), param));
+            }
+
+            assert(IS_NONE(refine));
+            assert(IS_UNSET(arg));
+        }
+
+        arg++;
+        param++;
+    }
+
+    // With the arguments processed and proxied into the call frame, invoke
+    // the function body.
+
+    return Dispatch_Call_Throws(call);
 }
 
 
 //
-//  Apply_Func_Throws: C
+//  Apply_Throws: C
 // 
-// Applies function from args provided by C call. Zero terminated.
+// Applies function from args provided by C call. NULL terminated.
 // 
 // returns TRUE if out is THROWN()
 //
@@ -2098,10 +1954,10 @@ REBFLG Apply_Func_Throws(REBVAL *out, REBVAL *func, ...)
     va_list args;
 
     va_start(args, func);
-    result = Apply_Function_Throws(out, func, &args);
+    result = Apply_Func_Core(out, func, &args);
 
     // !!! An issue was uncovered here that there can be problems if a
-    // failure is caused inside the Apply_Function_Throws() which does
+    // failure is caused inside the Apply_Func_Core() which does
     // a longjmp() and never returns.  The C standard is explicit that
     // you cannot dodge the call to va_end(), and that call can only be
     // in *this* function (as it passes a local variable directly, and
@@ -2139,7 +1995,7 @@ REBFLG Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     va_start(args, inum);
-    result = Apply_Function_Throws(out, value, &args);
+    result = Apply_Func_Core(out, value, &args);
 
     // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
     va_end(args);
