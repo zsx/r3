@@ -27,7 +27,13 @@ emit-proto: func [proto] [
     if all [
         'format2015 = proto-parser/style
         block? proto-parser/data
-        'native = proto-parser/data/2
+        any [
+            'native = proto-parser/data/2
+            all [
+                path? proto-parser/data/2
+                'native = proto-parser/data/2/1
+            ]
+        ]
         block? proto-parser/data/3
     ] [
 

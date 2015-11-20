@@ -173,6 +173,45 @@ static void Do_Global_Block(REBSER *block, REBINT rebind)
     if (rebind > 0) Bind_Values_Deep(BLK_HEAD(block), Lib_Context);
     if (rebind > 1) Bind_Values_Deep(BLK_HEAD(block), Sys_Context);
 
+    // !!! The words NATIVE and ACTION were bound but paths would not bind.
+    // So you could do `native [spec]` but not `native/frameless [spec]`
+    // because in the later case, it wouldn't have descended into the path
+    // to bind `native`.  This is apparently intentional to avoid binding
+    // deeply in the system context.  This hacky workaround serves to get
+    // the boot binding working well enough to use refinements, but should
+    // be given a review.
+    {
+        REBVAL *item = BLK_HEAD(block);
+        REBVAL *word = NULL;
+        for (; NOT_END(item); item++) {
+            if (
+                IS_WORD(item) && (
+                    VAL_WORD_SYM(item) == SYM_NATIVE
+                    || VAL_WORD_SYM(item) == SYM_ACTION
+                )
+            ) {
+                // Get the bound value from the first `native` word we see
+                word = item;
+            }
+            else if (IS_PATH(item)) {
+                REBVAL *path_item = BLK_HEAD(VAL_SERIES(item));
+                if (
+                    IS_WORD(path_item) && (
+                        VAL_WORD_SYM(path_item) == SYM_NATIVE
+                        || VAL_WORD_SYM(path_item) == SYM_ACTION
+                    )
+                ) {
+                    // overwrite with bound form (we shouldn't have any calls
+                    // to NATIVE in the actions block or to ACTION in the
+                    // block of natives...)
+                    assert(word);
+                    assert(VAL_WORD_SYM(word) == VAL_WORD_SYM(path_item));
+                    *path_item = *word;
+                }
+            }
+        }
+    }
+
     if (Do_At_Throws(&result, block, 0))
         panic (Error_No_Catch_For_Throw(&result));
 
