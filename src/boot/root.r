@@ -27,7 +27,6 @@ typesets        ; block of TYPESETs used by system; expandable
 none-val        ; a value of type NONE!
 unset-val       ; a value of type UNSET!
 empty-block     ; a value that is an empty BLOCK!
-noname          ; noname function word
 
 ;; Tags used in the native-optimized versions of user-function-generators
 ;; FUNC and CLOS

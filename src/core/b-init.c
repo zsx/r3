@@ -543,7 +543,6 @@ static void Init_Root_Context(void)
 
     // Initialize a few fields:
     Val_Init_Block(ROOT_ROOT, frame);
-    Val_Init_Word_Unbound(ROOT_NONAME, REB_WORD, SYM__UNNAMED_);
 }
 
 

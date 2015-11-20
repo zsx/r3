@@ -69,8 +69,6 @@ y
 -
 *
 unsigned
--unnamed-   ; lambda (unnamed) functions
--apply-     ; apply func
 code        ; error field
 delect
 
