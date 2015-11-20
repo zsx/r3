@@ -681,8 +681,12 @@ void Do_Core(struct Reb_Do_State * const s)
 
     assert(s->value);
 
-    assert(s->next == TRUE || s->next == FALSE);
-    assert(s->lookahead == TRUE || s->lookahead == FALSE);
+    // logical xor: http://stackoverflow.com/a/1596970/211160
+    assert(!(s->flags & DO_FLAG_NEXT) != !(s->flags & DO_FLAG_TO_END));
+    assert(
+        !(s->flags & DO_FLAG_LOOKAHEAD)
+        != !(s->flags & DO_FLAG_NO_LOOKAHEAD)
+    );
 
     assert(Is_Array_Series(s->array));
 
@@ -780,7 +784,9 @@ reevaluate:
 
     case REB_SET_WORD:
         // `index` and `out` are modified
-        DO_NEXT_MAY_THROW_CORE(s->index, s->out, s->array, s->index + 1, TRUE);
+        DO_NEXT_MAY_THROW_CORE(
+            s->index, s->out, s->array, s->index + 1, DO_FLAG_LOOKAHEAD
+        );
 
         if (s->index == THROWN_FLAG) goto return_index;
 
@@ -1227,7 +1233,11 @@ reevaluate:
                         )
                     ) {
                         DO_NEXT_MAY_THROW_CORE(
-                            s->index, arg, s->array, s->index, !infix
+                            s->index,
+                            arg,
+                            s->array,
+                            s->index,
+                            infix ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD
                         );
                         if (s->index == THROWN_FLAG) {
                             *s->out = *arg;
@@ -1268,7 +1278,11 @@ reevaluate:
                 //     a is 3
                 //
                 DO_NEXT_MAY_THROW_CORE(
-                    s->index, arg, s->array, s->index, !infix
+                    s->index,
+                    arg,
+                    s->array,
+                    s->index,
+                    infix ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD
                 );
                 if (s->index == THROWN_FLAG) {
                     *s->out = *arg;
@@ -1465,7 +1479,9 @@ reevaluate:
         break;
 
     case REB_SET_PATH:
-        DO_NEXT_MAY_THROW_CORE(s->index, s->out, s->array, s->index + 1, TRUE);
+        DO_NEXT_MAY_THROW_CORE(
+            s->index, s->out, s->array, s->index + 1, DO_FLAG_LOOKAHEAD
+        );
 
         assert(s->index != END_FLAG || IS_UNSET(s->out)); // unset if END_FLAG
         if (IS_UNSET(s->out)) fail (Error(RE_NEED_VALUE, s->value));
@@ -1523,7 +1539,8 @@ reevaluate:
         // But if running to the end, it's best to go ahead and flag
         // completion as soon as possible.
 
-        if (!s->next) s->index = END_FLAG;
+        if (s->flags & DO_FLAG_TO_END)
+            s->index = END_FLAG;
         goto return_index;
     }
 
@@ -1533,9 +1550,7 @@ reevaluate:
     // Should not have a THROWN value if we got here
     assert(s->index != THROWN_FLAG && !THROWN(s->out));
 
-    // We do not look ahead for infix dispatch if we are currently processing
-    // an infix operation with higher precedence
-    if (s->lookahead) {
+    if (s->flags & DO_FLAG_LOOKAHEAD) {
         s->value = BLK_SKIP(s->array, s->index);
 
         // Literal infix function values may occur.
@@ -1558,22 +1573,34 @@ reevaluate:
 
             // Perhaps not an infix function, but we just paid for a variable
             // lookup.  If this isn't just a DO/NEXT, use the work!
-            if (!s->next) {
+            if (s->flags & DO_FLAG_TO_END) {
                 *s->out = s->save;
                 goto do_fetched_word;
             }
         }
     }
+    else {
+        // We do not look ahead for infix dispatch if we are currently
+        // processing an infix operation with higher precedence
+    }
 
     // Continue evaluating rest of block if not just a DO/NEXT
-    if (!s->next) goto do_at_index;
+    if (s->flags & DO_FLAG_TO_END) goto do_at_index;
 
 return_index:
-    assert(s->next || (s->index == THROWN_FLAG || s->index == END_FLAG));
     assert(DSP == dsp_orig);
-    assert(!IS_TRASH(s->out));
+
+#if !defined(NDEBUG)
+    if (s->index < BLK_LEN(s->array))
+        assert(s->index != END_FLAG);
+
+    if (s->flags & DO_FLAG_TO_END)
+        assert(s->index == THROWN_FLAG || s->index == END_FLAG);
+#endif
+
     assert((s->index == THROWN_FLAG) == THROWN(s->out));
-    assert(s->index != END_FLAG || s->index >= BLK_LEN(s->array));
+
+    assert(!IS_TRASH(s->out));
     assert(VAL_TYPE(s->out) < REB_MAX); // cheap check
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
@@ -1604,8 +1631,9 @@ REBFLG Do_At_Throws(REBVAL *out, REBSER *array, REBCNT index)
     struct Reb_Do_State s;
     s.out = out;
     s.array = array;
-    s.lookahead = TRUE; // don't suppress the infix lookahead
-    s.next = FALSE; // don't just do the /NEXT item, do them all
+
+    // don't suppress the infix lookahead
+    s.flags = DO_FLAG_LOOKAHEAD | DO_FLAG_TO_END;
 
     // We always seed the evaluator with an initial value.  It isn't required
     // to be resident in the same series, in order to facilitate an APPLY-like

@@ -373,6 +373,14 @@ enum encoding_opts {
 #define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
 
 
+// The flags are specified either way for clarity.
+enum {
+    DO_FLAG_TO_END = 1 << 0,
+    DO_FLAG_NEXT = 1 << 1,
+    DO_FLAG_LOOKAHEAD = 1 << 2,
+    DO_FLAG_NO_LOOKAHEAD = 1 << 3
+};
+
 // The input and output arguments of a Do_State are loaded into a structure
 // that can be referenced from outside of Do.  This offers greater efficiency.
 // It also makes it possible to implement "frameless" natives...which are
@@ -382,11 +390,10 @@ enum encoding_opts {
 struct Reb_Do_State {
     // INPUT PARAMETERS
 
-    REBVAL * out;
-    const REBVAL *value;
-    REBFLG next;
+    REBVAL *out; // where to write the value, shouldn't be in movable memory
     REBSER *array; // may come from ANY-ARRAY but treated "like a block"
-    REBFLG lookahead;
+    const REBVAL *value; // first value may not live in array.
+    REBCNT flags; // DO_FLAGS or'd together
 
     // INPUT AND OUTPUT
 
@@ -451,7 +458,7 @@ struct Reb_Do_State {
 ***********************************************************************/
 
 #if defined(NDEBUG) || !defined(TO_LINUX)
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,lookahead_) \
+    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
         do { \
             struct Reb_Do_State s_; \
             s_.value = BLK_SKIP((array_),(index_in)); \
@@ -468,30 +475,30 @@ struct Reb_Do_State {
             s_.out = (out_); \
             s_.array = (array_); \
             s_.index = (index_in) + 1; \
-            s_.lookahead = (lookahead_); \
-            s_.next = TRUE; \
+            s_.flags = DO_FLAG_NEXT | (flags_); \
             Do_Core(&s_); \
             (index_out) = s_.index; \
         } while (FALSE)
 #else
     // Linux debug builds currently default to running the evaluator on
     // every value--whether it has evaluator behavior or not.
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,lookahead_) \
+    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
         do { \
             struct Reb_Do_State s_; \
             s_.value = BLK_SKIP((array_), (index_in)); \
             s_.out = (out_); \
             s_.array = (array_); \
             s_.index = (index_in) + 1; \
-            s_.lookahead = (lookahead_); \
-            s_.next = TRUE; \
+            s_.flags = DO_FLAG_NEXT | (flags_); \
             Do_Core(&s_); \
             (index_out) = s_.index; \
         } while (FALSE);
 #endif
 
 #define DO_NEXT_MAY_THROW(index_out,out,array,index) \
-    DO_NEXT_MAY_THROW_CORE((index_out), (out), (array), (index), TRUE)
+    DO_NEXT_MAY_THROW_CORE( \
+        (index_out), (out), (array), (index), DO_FLAG_LOOKAHEAD \
+    )
 
 #define DO_ARRAY_THROWS(out,array) \
     Do_At_Throws((out), VAL_SERIES(array), VAL_INDEX(array))
