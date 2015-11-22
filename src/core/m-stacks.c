@@ -157,7 +157,7 @@ struct Reb_Call *Make_Call(
     REBVAL *out,
     REBSER *block,
     REBCNT index,
-    const REBVAL *label,
+    REBCNT label_sym,
     const REBVAL *func
 ) {
     REBCNT num_vars = VAL_FUNC_NUM_PARAMS(func);
@@ -226,24 +226,11 @@ struct Reb_Call *Make_Call(
     assert(ANY_FUNC(func));
     call->func = *func;
 
-    assert(block); // Don't accept NULL series
     Val_Init_Block_Index(&call->where, block, index);
 
-    // Save symbol describing the function (if we called this as the result of
-    // a word or path lookup)
-    if (!label) {
-        // !!! When a function was not invoked through looking up a word to
-        // (or a word in a path) to use as a label, there were three different
-        // alternate labels used.  One was SYM__APPLY_, another was
-        // ROOT_NONAME, and another was to be the type of the function being
-        // executed.  None are fantastic, but we do the type for now.
-        Val_Init_Word_Unbound(
-            &call->label, REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
-        );
-    }
-    else
-        call->label = *label;
-
+    // Save symbol describing the function (if we didn't call this as the
+    // result of a word or path lookup, it may be a placeholder).
+    Val_Init_Word_Unbound(&call->label, REB_WORD, label_sym);
     assert(IS_WORD(DSF_LABEL(call)));
 
     call->num_vars = num_vars;

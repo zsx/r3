@@ -448,6 +448,7 @@ void Set_Object_Values(REBSER *obj, REBVAL *vals)
 //
 void Val_Init_Series_Index_Core(REBVAL *value, enum Reb_Kind type, REBSER *series, REBCNT index)
 {
+    assert(series);
     ENSURE_SERIES_MANAGED(series);
 
     if (type != REB_IMAGE && type != REB_VECTOR) {

@@ -169,8 +169,9 @@ REBNATIVE(assert)
                 val = GET_VAR(value);
             }
             else if (IS_PATH(value)) {
-                const REBVAL *refinements = value;
-                Do_Path(D_OUT, &refinements, 0);
+                if (Do_Path_Throws(D_OUT, NULL, value, 0))
+                    fail (Error_No_Catch_For_Throw(D_OUT));
+
                 val = D_OUT;
             }
             else
@@ -443,12 +444,10 @@ REBNATIVE(get)
         *D_OUT = *val;
     }
     else if (ANY_PATH(word)) {
-        const REBVAL *refinements = word;
-        REBVAL *val = Do_Path(D_OUT, &refinements, 0);
-        if (!val) {
-            val = D_OUT;
-        }
-        if (!D_REF(2) && !IS_SET(val)) fail (Error(RE_NO_VALUE, word));
+        if (Do_Path_Throws(D_OUT, NULL, word, 0))
+            fail (Error_No_Catch_For_Throw(D_OUT));
+
+        if (!D_REF(2) && !IS_SET(D_OUT)) fail (Error(RE_NO_VALUE, word));
     }
     else if (IS_OBJECT(word)) {
         Assert_Public_Object(word);
@@ -679,7 +678,9 @@ REBNATIVE(set)
 
     if (ANY_PATH(word)) {
         REBVAL dummy;
-        Do_Path(&dummy, &word, val);
+        if (Do_Path_Throws(&dummy, NULL, word, val))
+            fail (Error_No_Catch_For_Throw(&dummy));
+
         // !!! ignores results?
         return R_ARG2;
     }

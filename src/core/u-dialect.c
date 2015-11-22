@@ -73,8 +73,8 @@ REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
             val = GET_MUTABLE_VAR(where);
         }
         else if (IS_PATH(where)) {
-            const REBVAL *where_const = where;
-            Do_Path(&safe, &where_const, 0);
+            if (Do_Path_Throws(&safe, NULL, where, 0))
+                fail (Error_No_Catch_For_Throw(&safe));
             val = &safe;
         }
         else
@@ -168,13 +168,13 @@ static REBVAL *Eval_Arg(REBDIA *dia)
         }
         break;
 
-    case REB_PATH: {
-        const REBVAL *value_const = value;
-        if (Do_Path(&safe, &value_const, 0)) return 0;
+    case REB_PATH:
+        if (Do_Path_Throws(&safe, NULL, value, NULL))
+            fail (Error_No_Catch_For_Throw(&safe));
+        if (ANY_FUNC(&safe)) return NULL;
         DS_PUSH(&safe);
         value = DS_TOP;
         break;
-    }
 
     case REB_LIT_WORD:
         DS_PUSH(value);

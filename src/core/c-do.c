@@ -184,11 +184,11 @@ void Trace_Func(const REBVAL *word, const REBVAL *value)
     else Debug_Line();
 }
 
-void Trace_Return(const REBVAL *word, const REBVAL *value)
+void Trace_Return(REBCNT label_sym, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,6)), Get_Word_Name(word));
+    Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,6)), Get_Sym_Name(label_sym));
     Debug_Values(value, 1, 50);
 }
 
@@ -315,27 +315,53 @@ REBFLG Next_Path_Throws(REBPVS *pvs)
 
 
 //
-//  Do_Path: C
+//  Do_Path_Throws: C
 // 
-// Evaluate a path value. Path_val is updated so
-// result can be used for function refinements.
-// If val is not zero, then this is a SET-PATH.
-// Returns value only if result is a function,
-// otherwise the result is on TOS.
+// Evaluate a path value, given the first value in that path's series.  This
+// evaluator may throw because parens are evaluated, e.g. `foo/(throw 1020)`
 //
-REBVAL *Do_Path(REBVAL *out, const REBVAL **path_val, REBVAL *val)
+// If label_sym is passed in as being non-null, then the caller is implying
+// readiness to process a path which may be a function with refinements.
+// These refinements will be left in order on the data stack in the case
+// that `out` comes back as ANY_FUNC().
+//
+// If a `val` is provided, it is assumed to be a set-path and is set to that
+// value IF the path evaluation did not throw or error.  HOWEVER the set value
+// is NOT put into `out`.  This provides more flexibility on performance in
+// the evaluator, which may already have the `val` where it wants it, and
+// so the extra assignment would just be overhead.
+//
+REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL *val)
 {
     REBPVS pvs;
+    REBINT dsp_orig = DSP;
+
+    assert(ANY_PATH(path));
+
+    // !!! There is a bug in the dispatch such that if you are running a
+    // set path, it does not always assign the output, because it "thinks you
+    // aren't going to look at it".  This presumably originated from before
+    // parens were allowed in paths, and neglects cases like:
+    //
+    //     foo/(throw 1020): value
+    //
+    // We always have to check to see if a throw occurred.  Until this is
+    // streamlined, we have to at minimum set it to something that is *not*
+    // thrown so that we aren't testing uninitialized memory.  A safe trash
+    // will do, which is unset in release builds.
+    //
+    if (val)
+        SET_TRASH_SAFE(out);
 
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
     //
     assert(!IN_DATA_STACK(out));
-    assert(!IN_DATA_STACK(*path_val));
+    assert(!IN_DATA_STACK(path));
     assert(!val || !IN_DATA_STACK(val));
 
     // Not currently robust for reusing passed in path or value as the output
-    assert(out != *path_val && out != val);
+    assert(out != path && out != val);
 
     assert(!val || !THROWN(val));
 
@@ -343,7 +369,7 @@ REBVAL *Do_Path(REBVAL *out, const REBVAL **path_val, REBVAL *val)
     pvs.store = out;        // Space for constructed results
 
     // Get first block value:
-    pvs.orig = *path_val;
+    pvs.orig = path;
     pvs.path = VAL_BLK_DATA(pvs.orig);
 
     // Lookup the value of the variable:
@@ -364,24 +390,26 @@ REBVAL *Do_Path(REBVAL *out, const REBVAL **path_val, REBVAL *val)
     else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
         REBFLG threw = Next_Path_Throws(&pvs);
 
-        // !!! This assertion is triggering (sometimes) in release builds on:
+        // !!! See comments about why the initialization of out is necessary.
+        // Without it this assertion can change on some things:
         //
         //     t: now
         //     t/time: 10:20:03
         //
-        /* assert(threw == THROWN(pvs.value)); */
-        //
-        // It thinks pvs.value has its THROWN bit set when it completed
+        // (It thinks pvs.value has its THROWN bit set when it completed
         // successfully.  It was a PE_USE case where pvs.value was reset to
         // pvs.store, and pvs.store has its thrown bit set.  Valgrind does not
-        // catch any uninitialized variables.
+        // catch any uninitialized variables.)
         //
-        // Seems to point to a problem, but the code appears to work.  A
-        // general review to come back and figure out what the path dispatch
-        // is supposed to do is pending, so leaving this here for now.
+        // There are other cases that do trip valgrind when omitting the
+        // initialization, though not as clearly reproducible.
+        //
+        assert(threw == THROWN(pvs.value));
+
+        if (threw) return TRUE;
 
         // Check for errors:
-        if (NOT_END(pvs.path+1) && !ANY_FUNC(pvs.value)) {
+        if (NOT_END(pvs.path + 1) && !ANY_FUNC(pvs.value)) {
             // Only function refinements should get by this line:
             fail (Error(RE_INVALID_PATH, pvs.orig, pvs.path));
         }
@@ -389,17 +417,144 @@ REBVAL *Do_Path(REBVAL *out, const REBVAL **path_val, REBVAL *val)
     else if (!ANY_FUNC(pvs.value))
         fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
 
-    // If SET then we don't return anything
+    assert(!THROWN(out));
+
     if (val) {
-        return 0;
-    } else {
-        // If storage was not used, then copy final value back to it:
-        if (pvs.value != pvs.store) *pvs.store = *pvs.value;
-        // Return 0 if not function or is :path/word...
-        if (!ANY_FUNC(pvs.value)) return 0;
-        *path_val = pvs.path; // return new path (for func refinements)
-        return pvs.value; // only used for functions
+        // If SET then we don't return anything
+        assert(IS_END(pvs.path) + 1);
+        return FALSE;
     }
+
+    // If storage was not used, then copy final value back to it:
+    if (pvs.value != pvs.store) *pvs.store = *pvs.value;
+
+    // Return 0 if not function or is :path/word...
+    if (!ANY_FUNC(pvs.value)) {
+        assert(IS_END(pvs.path) + 1);
+        return FALSE;
+    }
+
+    if (label_sym) {
+        REBVAL refinement;
+
+        // When a function is hit, path processing stops with it sitting on
+        // the position of what function to dispatch, usually a word.
+
+        if (IS_WORD(pvs.path)) {
+            *label_sym = VAL_WORD_SYM(pvs.path);
+        }
+        else if (ANY_FUNC(pvs.path)) {
+            // You can get an actual function value as a label if you use it
+            // literally with a refinement.  Tricky to make it, but possible:
+            //
+            // do reduce [
+            //     to-path reduce [:append 'only] [a] [b]
+            // ]
+            //
+
+            // !!! When a function was not invoked through looking up a word
+            // (or a word in a path) to use as a label, there were once three
+            // different alternate labels used.  One was SYM__APPLY_, another
+            // was ROOT_NONAME, and another was to be the type of the function
+            // being executed.  None are fantastic, we do the type for now.
+
+            *label_sym = SYM_FROM_KIND(VAL_TYPE(pvs.path));
+        }
+        else
+            fail (Error(RE_BAD_REFINE, pvs.path)); // CC#2226
+
+        // Move on to the refinements (if any)
+        pvs.path = pvs.path + 1;
+
+        // !!! Currently, the mainline path evaluation "punts" on refinements.
+        // When it finds a function, it stops the path evaluation and leaves
+        // the position pvs.path before the list of refinements.
+        //
+        // A more elegant solution would be able to process and notice (for
+        // instance) that `:APPEND/ONLY` should yield a function value that
+        // has been specialized with a refinement.  Path chaining should thus
+        // be able to effectively do this and give the refined function object
+        // back to the evaluator or other client.
+        //
+        // If a label_sym is passed in, we recognize that a function dispatch
+        // is going to be happening.  We do not want to pay to generate the
+        // new series that would be needed to make a temporary function that
+        // will be invoked and immediately GC'd  So we gather the refinements
+        // on the data stack.
+        //
+        // This code simulates that path-processing-to-data-stack, but it
+        // should really be something in dispatch iself.  In any case, we put
+        // refinements on the data stack...and caller knows refinements are
+        // from dsp_orig to DSP (thanks to accounting, all other operations
+        // should balance!)
+
+        for (; NOT_END(pvs.path); pvs.path++) { // "the refinements"
+            if (IS_NONE(pvs.path)) continue;
+
+            if (IS_PAREN(pvs.path)) {
+                // Note it is not legal to use the data stack directly as the
+                // output location for a DO (might be resized)
+
+                if (DO_ARRAY_THROWS(&refinement, pvs.path)) {
+                    *out = refinement;
+                    DS_DROP_TO(dsp_orig);
+                    return TRUE;
+                }
+                if (IS_NONE(&refinement)) continue;
+                DS_PUSH(&refinement);
+            }
+            else if (IS_GET_WORD(pvs.path)) {
+                DS_PUSH_TRASH;
+                *DS_TOP = *GET_VAR(pvs.path);
+                if (IS_NONE(DS_TOP)) {
+                    DS_DROP;
+                    continue;
+                }
+            }
+            else
+                DS_PUSH(pvs.path);
+
+            // Whatever we were trying to use as a refinement should now be
+            // on the top of the data stack, and only words are legal ATM
+            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, DS_TOP));
+
+            // Go ahead and canonize the word symbol so we don't have to
+            // do it each time in order to get a case-insenstive compare
+            VAL_WORD_SYM(DS_TOP) = SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP));
+        }
+
+        // To make things easier for processing, reverse the refinements on
+        // the data stack (we needed to evaluate them in forward order).
+        // This way we can just pop them as we go, and know if they weren't
+        // all consumed if it doesn't get back to `dsp_orig` by the end.
+
+        if (dsp_orig != DSP) {
+            REBVAL *bottom = DS_AT(dsp_orig + 1);
+            REBVAL *top = DS_TOP;
+            while (top > bottom) {
+                refinement = *bottom;
+                *bottom = *top;
+                *top = refinement;
+
+                top--;
+                bottom++;
+            }
+        }
+    }
+    else {
+        // !!! Historically this just ignores a result indicating this is a
+        // function with refinements, e.g. ':append/only'.  However that
+        // ignoring seems unwise.  It should presumably create a modified
+        // function in that case which acts as if it has the refinement.
+        //
+        // If the caller did not pass in a label pointer we assume they are
+        // likely not ready to process any refinements.
+        //
+        if (!IS_END(pvs.path + 1))
+            fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
+    }
+
+    return FALSE;
 }
 
 
@@ -638,12 +793,6 @@ void Do_Core(struct Reb_Do_State * const s)
 
     REBFLG infix;
 
-    // Functions don't have "names", though they can be assigned to words.
-    // If a function invokes via word lookup (vs. a literal FUNCTION! value),
-    // 'label' will be that WORD!, and NULL otherwise.
-    const REBVAL *label;
-
-    const REBVAL *refinements;
     enum Reb_Param_Mode mode; // before refinements, in refinement, skipping...
 
     // We use the convention that "param" refers to the word from the spec
@@ -741,8 +890,7 @@ reevaluate:
 
     // Someday it may be worth it to micro-optimize these null assignments
     // so they don't happen each time through the loop.
-    label = NULL;
-    refinements = NULL;
+    s->label_sym = SYM_0;
 
     switch (VAL_TYPE(s->value)) {
 
@@ -765,9 +913,9 @@ reevaluate:
             if (VAL_GET_EXT(s->out, EXT_FUNC_INFIX))
                 fail (Error(RE_NO_OP_ARG, s->value));
 
-            // We will reuse the TOS for the OUT of the call frame
-            label = s->value;
+            s->label_sym = VAL_WORD_SYM(s->value);
 
+            // `do_function_args` expects the function to be in `value`
             s->value = s->out;
 
             if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
@@ -824,20 +972,23 @@ reevaluate:
         // If we come across an infix function from do_at_index in the loop,
         // we can't actually run it.  It only runs after an evaluation has
         // yielded a value as part of a single "atomic" Do/Next step
-        //
-        // Note: Because this is a function value being hit literally in
-        // a block, it does not have a name.  `label` is NULL.  The function
-        // value may display strangely in the error...but that is a problem
-        // to address in general with error display.
-        //
+
         if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX))
             fail (Error(RE_NO_OP_ARG, s->value));
+
+        // Note: Because this is a function value being hit literally in
+        // a block, it does not have a name.  Use symbol of its VAL_TYPE
+
+        s->label_sym = SYM_FROM_KIND(VAL_TYPE(s->value));
 
     // Value must be the function when a jump here occurs
     do_function_args:
         assert(ANY_FUNC(s->value));
         s->index++;
-        assert(DSP == dsp_orig);
+
+        // There may be refinements pushed to the data stack to process, if
+        // the call originated from a path dispatch.
+        assert(DSP >= dsp_orig);
 
         // `out` may contain the pending argument for an infix operation,
         // and it could also be the backing store of the `value` pointer
@@ -849,7 +1000,9 @@ reevaluate:
         // up reading variables out of the frame while it is still
         // being built, and that would be bad.
 
-        s->call = Make_Call(s->out, s->array, s->index, label, s->value);
+        s->call = Make_Call(
+            s->out, s->array, s->index, s->label_sym, s->value
+        );
 
         // Make_Call() put a safe copy of the function value into the
         // call frame.  Refresh our value to point to that one (instead of
@@ -882,84 +1035,6 @@ reevaluate:
 
             param++;
             arg++;
-        }
-
-        // !!! Currently, path evaluation "punts" on refinements.  When it
-        // finds a function, it stops the path evaluation and passes back
-        // the unprocessed remainder to the evaluator.  A more elegant
-        // solution would be able to process and notice (for instance) that
-        // `:APPEND/ONLY` should yield a function value that has been
-        // specialized with a refinement.  Path chaining should thus be
-        // able to effectively do this and give the refined function object
-        // back to the evaluator or other client.
-        //
-        // That is not implemented yet, and even when it is there will be
-        // a need to "cheat" such that temporary function objects are not
-        // created when they would just be invoked and immediately GC'd.
-        // A trick would be to have the path evaluation gather the refinements
-        // on the data stack as it went and make a decision at the end
-        // about how to handle it.
-        //
-        // This code simulates that path-processing-to-data-stack, but it
-        // should really be something Do_Path does.  In any case, we put the
-        // refinements on the data stack...and we know refinements are from
-        // dsp_orig to DSP (thanks to accounting, all other operations
-        // should balance!)
-
-        for (; refinements && NOT_END(refinements); refinements++) {
-            if (IS_NONE(refinements)) continue;
-
-            if (IS_PAREN(refinements)) {
-                // It's okay for us to mess with the `out` slot here, since
-                // any infix parameter or function value that had lived in
-                // that slot has been safely moved to the call frame.  Note
-                // it is not legal to use the data stack directly as the
-                // output location for a DO (might be resized)
-
-                if (DO_ARRAY_THROWS(s->out, refinements)) {
-                    Free_Call(s->call);
-                    DS_DROP_TO(dsp_orig);
-                    goto return_index;
-                }
-                if (IS_NONE(s->out)) continue;
-                DS_PUSH(s->out);
-            }
-            else if (IS_GET_WORD(refinements)) {
-                DS_PUSH_TRASH;
-                *DS_TOP = *GET_VAR(refinements);
-                if (IS_NONE(DS_TOP)) {
-                    DS_DROP;
-                    continue;
-                }
-            }
-            else
-                DS_PUSH(refinements);
-
-            // Whatever we were trying to use as a refinement should now be
-            // on the top of the data stack, and only words are legal ATM
-            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, s->out));
-
-            // Go ahead and canonize the word symbol so we don't have to
-            // do it each time in order to get a case-insenstive compare
-            VAL_WORD_SYM(DS_TOP) = SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP));
-        }
-
-        // To make things easier for processing, reverse the refinements on
-        // the data stack (we needed to evaluate them in forward order).
-        // This way we can just pop them as we go, and know if they weren't
-        // all consumed if it doesn't get back to `dsp_orig` by the end.
-
-        if (dsp_orig != DSP) {
-            REBVAL *temp = DS_AT(dsp_orig + 1);
-            refine = DS_TOP;
-            while (refine > temp) {
-                *s->out = *refine;
-                *refine = *temp;
-                *temp = *s->out;
-
-                refine--;
-                temp++;
-            }
         }
 
         // This loop goes through the parameter and argument slots, filling in
@@ -1384,7 +1459,7 @@ reevaluate:
             goto return_index;
         }
 
-        if (Trace_Flags) Trace_Return(label, s->out);
+        if (Trace_Flags) Trace_Return(s->label_sym, s->out);
 
         if (VAL_GET_OPT(s->out, OPT_VALUE_REEVALUATE)) {
             // The return value came from EVAL and we need to "activate" it.
@@ -1409,36 +1484,21 @@ reevaluate:
         break;
 
     case REB_PATH:
-        label = s->value;
-
-        // returns in word the path item, DS_TOP has value
-        s->value = Do_Path(s->out, &label, 0);
-        if (THROWN(s->out)) {
+        if (Do_Path_Throws(s->out, &s->label_sym, s->value, 0)) {
             s->index = THROWN_FLAG;
             goto return_index;
         }
 
-        // Value returned only for functions that need evaluation
-        if (s->value && ANY_FUNC(s->value)) {
-            // object/func or func/refinements or object/func/refinement:
+        if (ANY_FUNC(s->out)) {
+            // object/func or func/refinements or object/func/refinement
 
-            assert(label);
+            // Because we passed in a label symbol, the path evaluator was
+            // willing to assume we are going to invoke a function if it
+            // is one.  Hence it left any potential refinements on data stack.
 
-            // You can get an actual function value as a label if you use it
-            // literally with a refinement.  Tricky to make it, but possible:
-            //
-            // do reduce [
-            //     to-path reduce [:append 'only] [a] [b]
-            // ]
-            //
-            // Hence legal, but we don't pass that into Make_Call.
+            assert(DSP >= dsp_orig);
 
-            if (!IS_WORD(label) && !ANY_FUNC(label))
-                fail (Error(RE_BAD_REFINE, label)); // CC#2226
-
-            // We should only get a label that is the function if said label
-            // is the function value itself.
-            assert(!ANY_FUNC(label) || s->value == label);
+            s->value = s->out;
 
             // Cannot handle infix because prior value is wiped out above
             // (Theoretically we could save it if we are DO-ing a chain of
@@ -1448,37 +1508,34 @@ reevaluate:
             if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX))
                 fail (Error_Has_Bad_Type(s->value));
 
-            refinements = label + 1;
-
-            // It's possible to put a literal function value into a path,
-            // but the labeling mechanism currently expects a word or NULL
-            // for what you dispatch from.
-
-            if (ANY_FUNC(label))
-                label = NULL;
-
             goto do_function_args;
-        } else
+        }
+        else {
+            // Path should have been fully processed, no refinements on stack
+            assert(DSP == dsp_orig);
+
             s->index++;
+        }
         break;
 
     case REB_GET_PATH:
-        label = s->value;
-
         // returns in word the path item, DS_TOP has value
-        s->value = Do_Path(s->out, &label, 0);
+        if (Do_Path_Throws(s->out, NULL, s->value, NULL)) {
+            s->index = THROWN_FLAG;
+            goto return_index;
+        }
 
-        // !!! Historically this just ignores a result indicating this is a
-        // function with refinements, e.g. ':append/only'.  However that
-        // ignoring seems unwise.  It should presumably create a modified
-        // function in that case which acts as if it has the refinement.
-        if (label && !IS_END(label + 1) && ANY_FUNC(s->out))
-            fail (Error(RE_TOO_LONG));
+        // We did not pass in a symbol ID
+        assert(DSP == dsp_orig);
 
         s->index++;
         break;
 
     case REB_SET_PATH:
+        // We want the result of the set path to wind up in `out`, so go
+        // ahead and put the result of the evaluation there.  Do_Path_Throws
+        // will *not* put this value in the output when it is making the
+        // variable assignment!
         DO_NEXT_MAY_THROW_CORE(
             s->index, s->out, s->array, s->index + 1, DO_FLAG_LOOKAHEAD
         );
@@ -1487,11 +1544,14 @@ reevaluate:
         if (IS_UNSET(s->out)) fail (Error(RE_NEED_VALUE, s->value));
         if (s->index == THROWN_FLAG) goto return_index;
 
-        label = s->value;
-        Do_Path(&s->save, &label, s->out);
-        // !!! No guarantee that result of a set-path eval would put the
-        // set value in out atm, so can't reverse this yet so that the
-        // first Do is into 'save' and the second into 'out'.  (Review)
+        if (Do_Path_Throws(&s->save, NULL, s->value, s->out)) {
+            s->index = THROWN_FLAG;
+            goto return_index;
+        }
+
+        // We did not pass in a symbol, so not a call... hence we cannot
+        // process refinements.  Should not get any back.
+        assert(DSP == dsp_orig);
         break;
 
     case REB_PAREN:
@@ -1555,7 +1615,9 @@ reevaluate:
 
         // Literal infix function values may occur.
         if (VAL_GET_EXT(s->value, EXT_FUNC_INFIX)) {
-            label = NULL;
+            // !!! Not true, should be OP! when it is reinstated
+            s->label_sym = SYM_NATIVE;
+
             if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
             goto do_function_args;
         }
@@ -1565,7 +1627,7 @@ reevaluate:
 
             GET_VAR_INTO(&s->save, s->value);
             if (VAL_GET_EXT(&s->save, EXT_FUNC_INFIX)) {
-                label = s->value;
+                s->label_sym = VAL_WORD_SYM(s->value);
                 s->value = &s->save;
                 if (Trace_Flags) Trace_Line(s->array, s->index, s->value);
                 goto do_function_args;
@@ -1704,8 +1766,6 @@ void Reduce_Only(REBVAL *out, REBSER *block, REBCNT index, REBVAL *words, REBOOL
             DS_PUSH(v);
         }
         else if (IS_PATH(val)) {
-            const REBVAL *v;
-
             if (ser) {
                 // Check for keyword/path:
                 v = VAL_BLK_DATA(val);
@@ -1717,11 +1777,10 @@ void Reduce_Only(REBVAL *out, REBSER *block, REBCNT index, REBVAL *words, REBOOL
                 }
             }
 
-            v = val;
-
             // pushes val on stack
             DS_PUSH_TRASH_SAFE;
-            Do_Path(DS_TOP, &v, NULL);
+            if (Do_Path_Throws(DS_TOP, NULL, val, NULL))
+                fail (Error_No_Catch_For_Throw(DS_TOP));
         }
         else DS_PUSH(val);
         // No need to check for unwinds (THROWN) here, because unwinds should
@@ -1933,7 +1992,8 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
     assert(ANY_FUNC(func));
     assert(index < SERIES_TAIL(block));
 
-    call = Make_Call(out, block, index, NULL, func);
+    // !!! Better symbol to use?
+    call = Make_Call(out, block, index, SYM_NATIVE, func);
 
     assert(VAL_FUNC_NUM_PARAMS(func) == DSF_NUM_ARGS(call));
 
@@ -2268,7 +2328,7 @@ REBFLG Redo_Func_Throws(REBVAL *func_val)
         DSF_OUT(DSF),
         VAL_SERIES(DSF_WHERE(DSF)),
         VAL_INDEX(DSF_WHERE(DSF)),
-        DSF_LABEL(DSF),
+        VAL_WORD_SYM(DSF_LABEL(DSF)),
         func_val
     );
 
@@ -2384,10 +2444,8 @@ void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
         GET_VAR_INTO(out, val);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
-        // !!! Temporary: make a copy to pass mutable value to Do_Path
-        REBVAL path = *val;
-        const REBVAL *v = &path;
-        Do_Path(out, &v, 0);
+        if (Do_Path_Throws(out, NULL, val, NULL))
+            fail (Error_No_Catch_For_Throw(out));
     }
     else {
         *out = *val;

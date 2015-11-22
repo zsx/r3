@@ -192,7 +192,6 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
     struct Reb_Call *call;
     REBCNT len;
     REBCNT n;
-    REBVAL label;
     REBVAL out;
 
     // Find word in object, verify it is a function.
@@ -207,12 +206,11 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 
     // Create stack frame (use prior stack frame for location info):
     SET_TRASH_SAFE(&out); // OUT slot for function eval result
-    Val_Init_Word_Unbound(&label, REB_WORD, name);
     call = Make_Call(
         &out,
         VAL_SERIES(DSF_WHERE(PRIOR_DSF(DSF))),
         VAL_INDEX(DSF_WHERE(PRIOR_DSF(DSF))),
-        &label,
+        name,
         val
     );
     obj = VAL_FUNC_PARAMLIST(val);  // func words
@@ -644,13 +642,10 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
                     if (IS_WORD(args)) val = GET_MUTABLE_VAR(val);
                 }
                 else if (IS_PATH(val)) {
-                    const REBVAL *path = val;
                     if (IS_WORD(args)) {
-                        if (Do_Path(&save, &path, 0)) {
-                            // !!! comment said "found a function"
-                        } else {
-                            val = &save;
-                        }
+                        if (Do_Path_Throws(&save, NULL, val, NULL))
+                            fail (Error_No_Catch_For_Throw(&save));
+                        val = &save;
                     }
                 }
                 else if (IS_PAREN(val)) {

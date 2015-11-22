@@ -392,7 +392,7 @@ struct Reb_Do_State {
 
     REBVAL *out; // where to write the value, shouldn't be in movable memory
     REBSER *array; // may come from ANY-ARRAY but treated "like a block"
-    const REBVAL *value; // first value may not live in array.
+    const REBVAL *value; // first value passed in may not live in array.
     REBCNT flags; // DO_FLAGS or'd together
 
     // INPUT AND OUTPUT
@@ -402,6 +402,11 @@ struct Reb_Do_State {
     // STATE VARIABLES
 
     struct Reb_Call *call;
+
+    // Functions don't have "names", though they can be assigned to words.
+    // If a function invokes via word lookup (vs. a literal FUNCTION! value),
+    // 'label_sym' will be that WORD!, and a placeholder otherwise.
+    REBCNT label_sym;
 
     // Some operations need a unit of additional storage.  This is a one-
     // REBVAL-sized cell for saving that data, which a frameless native

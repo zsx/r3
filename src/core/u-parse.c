@@ -118,8 +118,8 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
         if (!VAL_CMD(item)) item = GET_VAR(item);
     }
     else if (IS_PATH(item)) {
-        const REBVAL *path = item;
-        if (Do_Path(safe, &path, 0)) return item; // found a function
+        if (Do_Path_Throws(safe, NULL, item, NULL))
+            fail (Error_No_Catch_For_Throw(safe));
         item = safe;
     }
     return item;
@@ -889,38 +889,28 @@ static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rule
             }
         }
         else if (ANY_PATH(item)) {
-            const REBVAL *path = item;
-
             if (IS_PATH(item)) {
-                if (Do_Path(&save, &path, 0)) {
-                    // !!! "found a function" ?
-                }
-                else
-                    item = &save;
+                if (Do_Path_Throws(&save, NULL, item, NULL))
+                    fail (Error_No_Catch_For_Throw(&save));
+                item = &save;
             }
             else if (IS_SET_PATH(item)) {
                 REBVAL tmp;
 
                 Val_Init_Series(&tmp, parse->type, parse->series);
                 VAL_INDEX(&tmp) = index;
-                if (Do_Path(&save, &path, &tmp)) {
-                    // found a function
-                }
-                else
-                    item = &save;
+                if (Do_Path_Throws(&save, NULL, item, &tmp))
+                    fail (Error_No_Catch_For_Throw(&save));
+                item = &save;
             }
             else if (IS_GET_PATH(item)) {
-                if (Do_Path(&save, &path, 0)) {
-                    // found a function
-                }
-                else {
-                    item = &save;
-                    // CureCode #1263 change
-                    //      if (parse->type != VAL_TYPE(item) || VAL_SERIES(item) != parse->series)
-                    if (!ANY_SERIES(item)) fail (Error(RE_PARSE_SERIES, path));
-                    index = Set_Parse_Series(parse, item);
-                    item = NULL;
-                }
+                if (Do_Path_Throws(&save, NULL, item, NULL))
+                    fail (Error_No_Catch_For_Throw(&save));
+                // CureCode #1263 change
+                //      if (parse->type != VAL_TYPE(item) || VAL_SERIES(item) != parse->series)
+                if (!ANY_SERIES(&save)) fail (Error(RE_PARSE_SERIES, item));
+                index = Set_Parse_Series(parse, &save);
+                item = NULL;
             }
 
             if (index > series->tail) index = series->tail;

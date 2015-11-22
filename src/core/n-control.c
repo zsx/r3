@@ -204,12 +204,10 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
                     val2 = m_cast(REBVAL*, GET_VAR(val));
                 }
                 else if (IS_PATH(val)) {
-                    const REBVAL *path = val;
-                    if (Do_Path(&safe, &path, 0)) {
-                        val2 = val; // !!! comment said "found a function"
-                    } else {
-                        val2 = &safe;
-                    }
+                    if (Do_Path_Throws(&safe, NULL, val, NULL))
+                        fail (Error_No_Catch_For_Throw(&safe));
+
+                    val2 = &safe;
                 }
                 else
                     val2 = val;
@@ -1343,7 +1341,6 @@ REBNATIVE(switch)
             GET_VAR_INTO(D_OUT, item);
         }
         else if (IS_GET_PATH(item)) {
-            const REBVAL *path = item;
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
@@ -1353,8 +1350,7 @@ REBNATIVE(switch)
             }
         #endif
 
-            Do_Path(D_OUT, &path, NULL);
-            if (THROWN(D_OUT))
+            if (Do_Path_Throws(D_OUT, NULL, item, NULL))
                 return R_OUT;
         }
         else {
