@@ -106,7 +106,7 @@ namespace agg
 		REBINT italic;
 		REBINT underline;
 		REBINT size;
-		REBYTE* color;
+		REBCNT color;
 		REBINT offset_x;
 		REBINT offset_y;
 		REBINT space_x;
@@ -117,7 +117,6 @@ namespace agg
 		REBINT shadow_blur;
 
 		~font() {
-			delete [] color;
 			delete [] shadow_color;
 		}
 
@@ -136,7 +135,6 @@ namespace agg
 			shadow_y(0),
 			shadow_blur(0)
 		{
-			color = new unsigned char [4];
 			shadow_color = new unsigned char [4];
 		}
 	} FONT;

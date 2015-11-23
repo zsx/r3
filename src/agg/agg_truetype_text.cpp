@@ -152,10 +152,7 @@ namespace agg
 		m_font->italic = 0;
 		m_font->underline = 0;
 		m_font->size = LOG_COORD_Y(12);
-		m_font->color[0] = 0;
-		m_font->color[1] = 0;
-		m_font->color[2] = 0;
-		m_font->color[3] = 255;
+		m_font->color = 0xFF000000;
 		m_font->offset_x = 2;
 		m_font->offset_y = 2;
 		m_font->space_x = 0;
@@ -250,7 +247,10 @@ namespace agg
 
 		//push font
 		attr.bold = m_font->bold;
-		attr.color = rgba8(m_font->color[0],m_font->color[1],m_font->color[2], m_font->color[3]);
+		attr.color = rgba8(m_font->color && 0xFF,
+			(m_font->color >> 8) && 0xFF,
+			(m_font->color >> 16) && 0xFF,
+			(m_font->color >> 24) && 0xFF);
 		attr.italic = m_font->italic;
 		attr.name = (m_font->name) ? m_font->name : FONT_NAME;
 		attr.size = m_font->size;
@@ -310,12 +310,13 @@ namespace agg
 			m_color_changed = m_text_attributes.size() - 1;
 	}
 
-	void rich_text::rt_attr_to_font (text_attributes& attr){
+	void rich_text::rt_attr_to_font(text_attributes& attr) {
 		m_font->bold = attr.bold;
-		m_font->color[0] = attr.color.r;
-		m_font->color[1] = attr.color.g;
-		m_font->color[2] = attr.color.b;
-		m_font->color[3] = attr.color.a;
+		m_font->color = (attr.color.r && 0xFF)
+			| ((attr.color.g && 0xFF) << 8)
+			| ((attr.color.b && 0xFF) << 16)
+			| ((attr.color.a && 0xFF) << 24);
+
 		m_font->italic = attr.italic;
 		m_font->name = attr.name;
 		m_font->name_free = attr.name_free;

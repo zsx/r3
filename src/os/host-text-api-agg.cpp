@@ -167,10 +167,7 @@ extern "C" void agg_rt_center(void* rt)
 extern "C" void agg_rt_color(void* rt, REBCNT color)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
-	font->color[0] = ((REBYTE*)&color)[0];
-	font->color[1] = ((REBYTE*)&color)[1];
-	font->color[2] = ((REBYTE*)&color)[2];
-	font->color[3] = ((REBYTE*)&color)[3];
+	font->color = color;
 	((rich_text*)rt)->rt_push();
 	((rich_text*)rt)->rt_color_change();
 }
