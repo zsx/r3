@@ -13,6 +13,8 @@
 #include "host-text-api.h"
 #include "host-draw-api-nanovg.h"
 
+//#define NO_FRAME_BUFFER //Nsight seems to ignore drawings to the non-default framebuffer
+
 void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 	REBXYF image_oft, REBXYF image_size,
 	REBXYF clip_oft, REBXYF clip_size);
@@ -228,14 +230,18 @@ static void nanovg_begin_frame(REBDRW_CTX *ctx)
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
 
 	//printf("begin win_layer: %d\n", __LINE__);
+#ifndef NO_FRAME_BUFFER
 	nvgBeginLayer(ctx->nvg, ctx->win_layer);
+#endif
 	/* Do NOT clear the win_layer, whose content will be reused, as it might only update part of the screen */
 }
 
 static void nanovg_end_frame(REBDRW_CTX *ctx)
 {
 	if (ctx == NULL) return;
+#ifndef NO_FRAME_BUFFER
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
+#endif
 	//printf("End frame: %d\n", __LINE__);
 	nvgEndFrame(ctx->nvg);
 }
@@ -243,12 +249,13 @@ static void nanovg_end_frame(REBDRW_CTX *ctx)
 static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 {
 	if (ctx == NULL) return;
-
+#ifndef NO_FRAME_BUFFER
 	nvgBeginFrame(ctx->nvg, ctx->ww, ctx->wh, ctx->pixel_ratio);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 	PAINT_LAYER_FULL(ctx, ctx->win_layer, NVG_SOURCE_OVER);
+#endif
 	//printf("End frame: %d\n", __LINE__);
 	nvgEndFrame(ctx->nvg);
 	SDL_GL_SwapWindow(ctx->win);
