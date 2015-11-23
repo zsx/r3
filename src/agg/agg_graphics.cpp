@@ -1303,8 +1303,14 @@ Reb_Print(
             default:
                 return;
 		}
-		if (m_color_profile == NULL)
-			m_color_profile = new rgba8 [256];
+
+		if (m_color_profile
+			&& m_attributes[m_attributes.size() - 1].colors != m_color_profile) {
+			//printf("deleting unreferenced m_color_profile: %p\n", m_color_profile);
+			delete [] m_color_profile;
+		}
+
+		m_color_profile = new rgba8 [256];
 		unsigned num_pnt = colors[0] - 1;
 
 		unsigned o = 3, of = 2, j = 5;
