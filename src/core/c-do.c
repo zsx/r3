@@ -1971,7 +1971,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
 
 //
-//  Apply_Throws: C
+//  Apply_Func_Throws: C
 // 
 // Applies function from args provided by C call. NULL terminated.
 // 
