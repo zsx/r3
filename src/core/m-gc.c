@@ -1083,25 +1083,34 @@ REBCNT Recycle_Core(REBOOL shutdown)
     PG_Reb_Stats->Recycle_Series_Total += PG_Reb_Stats->Recycle_Series;
     PG_Reb_Stats->Recycle_Prior_Eval = Eval_Cycles;
 
-    if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
-        && VAL_INT64(TASK_BALLAST) < MAX_I32) {
-        //increasing ballast by half
-        VAL_INT64(TASK_BALLAST) /= 2;
-        VAL_INT64(TASK_BALLAST) *= 3;
-    } else if (GC_Ballast >= VAL_INT64(TASK_BALLAST) * 2) {
-        //reduce ballast by half
-        VAL_INT64(TASK_BALLAST) /= 2;
+    // Do not adjust task variables or boot strings in shutdown when they
+    // are being freed.
+    //
+    if (!shutdown) {
+        if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
+            && VAL_INT64(TASK_BALLAST) < MAX_I32) {
+            //increasing ballast by half
+            VAL_INT64(TASK_BALLAST) /= 2;
+            VAL_INT64(TASK_BALLAST) *= 3;
+        } else if (GC_Ballast >= VAL_INT64(TASK_BALLAST) * 2) {
+            //reduce ballast by half
+            VAL_INT64(TASK_BALLAST) /= 2;
+        }
+
+        // avoid overflow
+        if (
+            VAL_INT64(TASK_BALLAST) < 0
+            || VAL_INT64(TASK_BALLAST) >= MAX_I32
+        ) {
+            VAL_INT64(TASK_BALLAST) = MAX_I32;
+        }
+
+        GC_Ballast = VAL_INT32(TASK_BALLAST);
+        GC_Disabled = 0;
+
+        if (Reb_Opts->watch_recycle)
+            Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
     }
-
-    /* avoid overflow */
-    if (VAL_INT64(TASK_BALLAST) < 0 || VAL_INT64(TASK_BALLAST) >= MAX_I32) {
-        VAL_INT64(TASK_BALLAST) = MAX_I32;
-    }
-
-    GC_Ballast = VAL_INT32(TASK_BALLAST);
-    GC_Disabled = 0;
-
-    if (Reb_Opts->watch_recycle) Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
 
     ASSERT_NO_GC_MARKS_PENDING();
 
