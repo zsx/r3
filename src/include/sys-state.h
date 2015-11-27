@@ -194,12 +194,14 @@ typedef struct Rebol_State {
 //      are allowed."
 //
 //      http://en.cppreference.com/w/c/program/longjmp
-
+//
+// Note: There used to be more aggressive balancing-oriented asserts, making
+// this a point where outstanding manuals or guarded values and series would
+// have to be balanced.  Those seemed to be more irritating than helpful,
+// so the asserts have been left to the evaluator's bracketing.
+//
 #define DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(s) \
     do { \
-        assert(GC_Series_Guard->tail == (s)->series_guard_tail); \
-        assert(GC_Value_Guard->tail == (s)->value_guard_tail); \
-        assert(GC_Disabled == (s)->gc_disable); \
         assert(!(s)->error_frame); \
         Saved_State = (s)->last_state; \
     } while (0)
