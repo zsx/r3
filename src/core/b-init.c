@@ -57,7 +57,7 @@ static void Assert_Basics(void)
     REBVAL val;
 
 #if defined(SHOW_SIZEOFS)
-    union Reb_Value_Data *dummy;
+    union Reb_Value_Data *dummy_data;
 #endif
 
     VAL_SET(&val, 123);
@@ -68,31 +68,31 @@ static void Assert_Basics(void)
 
 #if defined(SHOW_SIZEOFS)
     // For debugging ports to some systems:
-    printf("%d %s\n", sizeof(dummy->word), "word");
-    printf("%d %s\n", sizeof(dummy->series), "series");
-    printf("%d %s\n", sizeof(dummy->logic), "logic");
-    printf("%d %s\n", sizeof(dummy->integer), "integer");
-    printf("%d %s\n", sizeof(dummy->unteger), "unteger");
-    printf("%d %s\n", sizeof(dummy->decimal), "decimal");
-    printf("%d %s\n", sizeof(dummy->character), "char");
-    printf("%d %s\n", sizeof(dummy->error), "error");
-    printf("%d %s\n", sizeof(dummy->datatype), "datatype");
-    printf("%d %s\n", sizeof(dummy->frame), "frame");
-    printf("%d %s\n", sizeof(dummy->typeset), "typeset");
-    printf("%d %s\n", sizeof(dummy->symbol), "symbol");
-    printf("%d %s\n", sizeof(dummy->time), "time");
-    printf("%d %s\n", sizeof(dummy->tuple), "tuple");
-    printf("%d %s\n", sizeof(dummy->func), "func");
-    printf("%d %s\n", sizeof(dummy->object), "object");
-    printf("%d %s\n", sizeof(dummy->pair), "pair");
-    printf("%d %s\n", sizeof(dummy->event), "event");
-    printf("%d %s\n", sizeof(dummy->library), "library");
-    printf("%d %s\n", sizeof(dummy->structure), "struct");
-    printf("%d %s\n", sizeof(dummy->gob), "gob");
-    printf("%d %s\n", sizeof(dummy->utype), "utype");
-    printf("%d %s\n", sizeof(dummy->money), "money");
-    printf("%d %s\n", sizeof(dummy->handle), "handle");
-    printf("%d %s\n", sizeof(dummy->all), "all");
+    printf("%d %s\n", sizeof(dummy_data->word), "word");
+    printf("%d %s\n", sizeof(dummy_data->series), "series");
+    printf("%d %s\n", sizeof(dummy_data->logic), "logic");
+    printf("%d %s\n", sizeof(dummy_data->integer), "integer");
+    printf("%d %s\n", sizeof(dummy_data->unteger), "unteger");
+    printf("%d %s\n", sizeof(dummy_data->decimal), "decimal");
+    printf("%d %s\n", sizeof(dummy_data->character), "char");
+    printf("%d %s\n", sizeof(dummy_data->error), "error");
+    printf("%d %s\n", sizeof(dummy_data->datatype), "datatype");
+    printf("%d %s\n", sizeof(dummy_data->frame), "frame");
+    printf("%d %s\n", sizeof(dummy_data->typeset), "typeset");
+    printf("%d %s\n", sizeof(dummy_data->symbol), "symbol");
+    printf("%d %s\n", sizeof(dummy_data->time), "time");
+    printf("%d %s\n", sizeof(dummy_data->tuple), "tuple");
+    printf("%d %s\n", sizeof(dummy_data->func), "func");
+    printf("%d %s\n", sizeof(dummy_data->object), "object");
+    printf("%d %s\n", sizeof(dummy_data->pair), "pair");
+    printf("%d %s\n", sizeof(dummy_data->event), "event");
+    printf("%d %s\n", sizeof(dummy_data->library), "library");
+    printf("%d %s\n", sizeof(dummy_data->structure), "struct");
+    printf("%d %s\n", sizeof(dummy_data->gob), "gob");
+    printf("%d %s\n", sizeof(dummy_data->utype), "utype");
+    printf("%d %s\n", sizeof(dummy_data->money), "money");
+    printf("%d %s\n", sizeof(dummy_data->handle), "handle");
+    printf("%d %s\n", sizeof(dummy_data->all), "all");
 #endif
 
     if (cast(REBCNT, VAL_TYPE(&val)) != 123) panic (Error(RE_REBVAL_ALIGNMENT));
