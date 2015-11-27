@@ -375,10 +375,28 @@ enum encoding_opts {
 
 // The flags are specified either way for clarity.
 enum {
-    DO_FLAG_TO_END = 1 << 0,
-    DO_FLAG_NEXT = 1 << 1,
-    DO_FLAG_LOOKAHEAD = 1 << 2,
-    DO_FLAG_NO_LOOKAHEAD = 1 << 3
+    // As exposed by the DO native and its /NEXT refinement, a call to the
+    // evaluator can either run to the finish from a position in an array
+    // or just do one eval.  Rather than achieve execution to the end by
+    // iterative function calls to the /NEXT variant (as in R3-Alpha), Ren-C
+    // offers a controlling flag to do it from within the core evaluator
+    // as a loop.
+    //
+    // However: since running to the end follows a different code path than
+    // performing DO/NEXT several times, it is important to ensure they
+    // achieve equivalent results.  Nuances to preserve this invariant are
+    // mentioned from within the code.
+    //
+    DO_FLAG_NEXT = 1 << 2,
+    DO_FLAG_TO_END = 1 << 3,
+
+    // When we're in mid-dispatch of an infix function, the precedence is such
+    // that we don't want to do further infix lookahead while getting the
+    // arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to
+    // "look ahead" past the 2 to see the infix `*`)
+    //
+    DO_FLAG_LOOKAHEAD = 1 << 4,
+    DO_FLAG_NO_LOOKAHEAD = 1 << 5,
 };
 
 // The input and output arguments of a Do_State are loaded into a structure
@@ -413,6 +431,7 @@ struct Reb_Do_State {
     // can also make use of.
     REBVAL save;
 };
+
 
 /***********************************************************************
 **
