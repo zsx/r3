@@ -1482,6 +1482,9 @@ void Assert_Frame_Core(REBSER *frame)
     REBINT tail;
     REBVAL *frame_value; // "FRAME!-typed value" at head of "frame" series
 
+    REBCNT keys_len;
+    REBCNT values_len;
+
     frame_value = BLK_HEAD(frame);
     if (!IS_FRAME(frame_value)) Panic_Series(frame);
 
@@ -1493,6 +1496,19 @@ void Assert_Frame_Core(REBSER *frame)
 
         if(!FRM_KEYLIST(frame))
             return;
+    }
+
+    if (!FRM_KEYLIST(frame)) {
+        Debug_Fmt("Null keylist found in frame");
+        Panic_Series(frame);
+    }
+
+    values_len = SERIES_LEN(frame);
+    keys_len = SERIES_LEN(FRM_KEYLIST(frame));
+
+    if (keys_len != values_len) {
+        Debug_Fmt("Unequal lengths of key and value series in Assert_Frame");
+        Panic_Series(frame);
     }
 
     value = FRM_VALUES(frame);
