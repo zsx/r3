@@ -352,7 +352,7 @@ REBNATIVE(stack)
 
     if (D_REF(2)) *D_OUT = *DSF_WHERE(call);
     else if (D_REF(3)) {
-        Val_Init_Word_Unbound(D_OUT, REB_WORD, VAL_WORD_SYM(DSF_LABEL(call)));
+        Val_Init_Word_Unbound(D_OUT, REB_WORD, DSF_LABEL_SYM(call));
     }
     else if (D_REF(4)) *D_OUT = *DSF_FUNC(call);
     else if (D_REF(5)) {

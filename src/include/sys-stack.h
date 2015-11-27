@@ -247,7 +247,8 @@ struct Reb_Call {
     REBVAL func;            // copy (important!!) of function for call
 
     REBVAL where;           // block and index of execution
-    REBVAL label;           // func word backtrace
+
+    REBCNT label_sym;       // func word backtrace
 
     // these are "variables"...SELF, RETURN, args, locals
     REBVAL vars[1];     // (array exceeds struct, but cannot be [0] in C++)
@@ -282,11 +283,11 @@ struct Reb_Call {
         CS_Running = (c), \
         (c) ? cast(void, (c)->args_ready = TRUE) : NOOP \
     )
+#define DSF_LABEL_SYM(c)    c_cast(const REBCNT, (c)->label_sym)
 
 #define DSF_OUT(c)      ((c)->out)
 #define PRIOR_DSF(c)    ((c)->prior)
 #define DSF_WHERE(c)    c_cast(const REBVAL*, &(c)->where)
-#define DSF_LABEL(c)    c_cast(const REBVAL*, &(c)->label)
 #define DSF_FUNC(c)     c_cast(const REBVAL*, &(c)->func)
 #define DSF_RETURN(c)   coming@soon
 
@@ -311,6 +312,7 @@ struct Reb_Call {
 #define D_OUT           DSF_OUT(call_)
 #define D_ARG(n)        DSF_ARG(call_, (n))
 #define D_REF(n)        (!IS_NONE(D_ARG(n)))
+#define D_LABEL_SYM     DSF_LABEL_SYM(call_)
 
 // Functions should generally not to detect the arity they were invoked with,
 // (and it doesn't make sense as most implementations get the full list of

@@ -174,11 +174,15 @@ void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
     Debug_Line();
 }
 
-void Trace_Func(const REBVAL *word, const REBVAL *value)
+void Trace_Func(REBCNT label_sym, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,5)), Get_Word_Name(word), Get_Type_Name(value));
+    Debug_Fmt_(
+        cs_cast(BOOT_STR(RS_TRACE,5)),
+        Get_Sym_Name(label_sym),
+        Get_Type_Name(value)
+    );
     if (GET_FLAG(Trace_Flags, 1))
         Debug_Values(DSF_ARG(DSF, 1), DSF_ARGC(DSF), 20);
     else Debug_Line();
@@ -672,7 +676,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call)
     REBCNT series_guard_tail = SERIES_TAIL(GC_Series_Guard);
     REBCNT value_guard_tail = SERIES_TAIL(GC_Value_Guard);
 
-    const REBYTE *label_str = Get_Word_Name(DSF_LABEL(call));
+    const REBYTE *label_str = Get_Sym_Name(DSF_LABEL_SYM(call));
 #endif
 
     const REBVAL * const func = DSF_FUNC(call);
@@ -695,7 +699,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call)
     // Note: if they use that slot for temp space, it subverts this check.
     SET_TRASH_SAFE(out);
 
-    if (Trace_Flags) Trace_Func(DSF_LABEL(call), func);
+    if (Trace_Flags) Trace_Func(DSF_LABEL_SYM(call), func);
 
     switch (VAL_TYPE(func)) {
     case REB_NATIVE:
@@ -1368,7 +1372,7 @@ reevaluate:
                     goto return_index;
                 }
                 if (s->index == END_FLAG)
-                    fail (Error_No_Arg(DSF_LABEL(s->call), param));
+                    fail (Error_No_Arg(DSF_LABEL_SYM(s->call), param));
             }
 
             ASSERT_VALUE_MANAGED(arg);
@@ -2104,7 +2108,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
                 // a non-refinement, then it's a situation of a required
                 // argument missing or not all the args to a refinement given
 
-                fail (Error_No_Arg(DSF_LABEL(call), param));
+                fail (Error_No_Arg(DSF_LABEL_SYM(call), param));
             }
 
             assert(IS_NONE(refine));
@@ -2328,7 +2332,7 @@ REBFLG Redo_Func_Throws(REBVAL *func_val)
         DSF_OUT(DSF),
         VAL_SERIES(DSF_WHERE(DSF)),
         VAL_INDEX(DSF_WHERE(DSF)),
-        VAL_WORD_SYM(DSF_LABEL(DSF)),
+        DSF_LABEL_SYM(DSF),
         func_val
     );
 

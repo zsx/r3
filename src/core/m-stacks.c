@@ -230,8 +230,7 @@ struct Reb_Call *Make_Call(
 
     // Save symbol describing the function (if we didn't call this as the
     // result of a word or path lookup, it may be a placeholder).
-    Val_Init_Word_Unbound(&call->label, REB_WORD, label_sym);
-    assert(IS_WORD(DSF_LABEL(call)));
+    call->label_sym = label_sym;
 
     call->num_vars = num_vars;
 

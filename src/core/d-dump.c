@@ -199,7 +199,7 @@ void Dump_Stack(struct Reb_Call *call, REBINT dsp)
     Debug_Fmt(
         cs_cast(BOOT_STR(RS_STACK, 1)),
         dsp,
-        Get_Word_Name(DSF_LABEL(call)),
+        Get_Sym_Name(DSF_LABEL_SYM(call)),
         m,
         Get_Type_Name(DSF_FUNC(call))
     );

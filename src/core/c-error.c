@@ -289,7 +289,7 @@ REBSER *Make_Backtrace(REBINT start)
     for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
         if (start-- <= 0) {
             val = Alloc_Tail_Array(blk);
-            Val_Init_Word_Unbound(val, REB_WORD, VAL_WORD_SYM(DSF_LABEL(call)));
+            Val_Init_Word_Unbound(val, REB_WORD, DSF_LABEL_SYM(call));
         }
     }
 
@@ -1034,12 +1034,17 @@ REBSER *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 //
 //  Error_No_Arg: C
 //
-REBSER *Error_No_Arg(const REBVAL *label, const REBVAL *key)
+REBSER *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 {
     REBVAL key_word;
+    REBVAL label;
+
     assert(IS_TYPESET(key));
+
     Val_Init_Word_Unbound(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
-    return Error(RE_NO_ARG, label, &key_word, NULL);
+    Val_Init_Word_Unbound(&label, REB_WORD, label_sym);
+
+    return Error(RE_NO_ARG, &label, &key_word, NULL);
 }
 
 
@@ -1172,14 +1177,20 @@ REBSER *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 // Function in frame of `call` expected parameter `param` to be
 // a type different than the arg given (which had `arg_type`)
 //
-REBSER *Error_Arg_Type(const struct Reb_Call *call, const REBVAL *param, const REBVAL *arg_type)
-{
+REBSER *Error_Arg_Type(
+    const struct Reb_Call *call,
+    const REBVAL *param,
+    const REBVAL *arg_type
+) {
     REBVAL param_word;
+    REBVAL label_word;
+
     assert(IS_TYPESET(param));
     Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
+    Val_Init_Word_Unbound(&label_word, REB_WORD, DSF_LABEL_SYM(call));
 
     assert(IS_DATATYPE(arg_type));
-    return Error(RE_EXPECT_ARG, DSF_LABEL(call), arg_type, &param_word, NULL);
+    return Error(RE_EXPECT_ARG, &label_word, arg_type, &param_word, NULL);
 }
 
 

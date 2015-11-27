@@ -577,7 +577,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
     REBVAL *blk;
     REBCNT index = 0;
     REBVAL *set_word = 0;
-    REBVAL *cmd_word;
+    REBCNT cmd_sym;
     REBSER *words;
     REBVAL *args;
     REBVAL *val;
@@ -600,7 +600,8 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
         };
 
         // get command function
-        if (IS_WORD(cmd_word = blk)) {
+        if (IS_WORD(blk)) {
+            cmd_sym = VAL_WORD_SYM(blk);
             // Optimized var fetch:
             n = VAL_WORD_INDEX(blk);
             if (n > 0) func = FRM_VALUES(VAL_WORD_FRAME(blk)) + n;
@@ -631,7 +632,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
             //Debug_Type(args);
             val = blk++;
             index++;
-            if (IS_END(val)) fail (Error_No_Arg(cmd_word, args));
+            if (IS_END(val)) fail (Error_No_Arg(cmd_sym, args));
             //Debug_Type(val);
 
             // actual arg is a word, lookup?
@@ -664,9 +665,12 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
             // check datatype
             if (!TYPE_CHECK(args, VAL_TYPE(val))) {
                 REBVAL arg_word;
+                REBVAL cmd_word;
+
                 Val_Init_Word_Unbound(
                     &arg_word, REB_WORD, VAL_TYPESET_SYM(args)
                 );
+                Val_Init_Word_Unbound(&cmd_word, REB_WORD, cmd_sym);
                 fail (Error(RE_EXPECT_ARG, cmd_word, &arg_word, Type_Of(val)));
             }
 

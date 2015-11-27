@@ -506,7 +506,6 @@ static void Mark_Call_Frames_Deep(void)
         Queue_Mark_Value_Deep(DSF_OUT(call));
         Queue_Mark_Value_Deep(DSF_FUNC(call));
         Queue_Mark_Value_Deep(DSF_WHERE(call));
-        Queue_Mark_Value_Deep(DSF_LABEL(call));
 
         for (index = 1; index <= call->num_vars; index++)
             Queue_Mark_Value_Deep(DSF_VAR(call, index));
