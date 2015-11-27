@@ -403,7 +403,7 @@ enum {
     // "look ahead" past the 2 to see the infix `*`)
     //
     DO_FLAG_LOOKAHEAD = 1 << 4,
-    DO_FLAG_NO_LOOKAHEAD = 1 << 5,
+    DO_FLAG_NO_LOOKAHEAD = 1 << 5
 };
 
 enum Reb_Call_Mode {
