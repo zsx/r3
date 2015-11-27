@@ -1210,6 +1210,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
         blk = Gob_To_Block(VAL_GOB(value));
         Mold_Block_Series(mold, blk, 0, 0);
         End_Mold(mold);
+        Free_Series(blk);
     }
         break;
 
