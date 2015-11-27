@@ -51,7 +51,7 @@ static REB_R Console_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
 
     Validate_Port(port, action);
 
-    arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
     req = cast(REBREQ*, Use_Port_State(port, RDI_STDIO, sizeof(REBREQ)));

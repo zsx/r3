@@ -1115,10 +1115,10 @@ REBFLG Do_Closure_Throws(const REBVAL *func)
 REBFLG Do_Routine_Throws(const REBVAL *routine)
 {
     REBSER *args = Copy_Values_Len_Shallow(
-        DSF_NUM_ARGS(DSF) > 0 ? DSF_ARG(DSF, 1) : NULL,
-        DSF_NUM_ARGS(DSF)
+        DSF_ARGC(DSF) > 0 ? DSF_ARG(DSF, 1) : NULL,
+        DSF_ARGC(DSF)
     );
-    assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_NUM_ARGS(DSF));
+    assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_ARGC(DSF));
 
     Call_Routine(routine, args, DSF_OUT(DSF));
 

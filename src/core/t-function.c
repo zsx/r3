@@ -130,7 +130,7 @@ REBFLG MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
 REBTYPE(Function)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
     case A_TO:

@@ -299,7 +299,7 @@ struct Reb_Call {
 
 // ARGS is the parameters and refinements
 #define DSF_ARG(c,n)    DSF_VAR((c), (n) - 1 + FIRST_PARAM_INDEX)
-#define DSF_NUM_ARGS(c) (DSF_NUM_VARS(c) - (FIRST_PARAM_INDEX - 1))
+#define DSF_ARGC(c)     (DSF_NUM_VARS(c) - (FIRST_PARAM_INDEX - 1))
 
 // !!! The function spec numbers words according to their position.  With
 // definitional return, 0 is SELF, 1 is the RETURN, 2 is the first argument.
@@ -317,4 +317,4 @@ struct Reb_Call {
 // arguments and refinements).  However, several dispatches may go through
 // actions and other locations.  IS_BINARY_ACTION() and other functions could
 // be used to do this more gracefully, but actions need review anyway
-#define DS_ARGC         DSF_NUM_ARGS(call_)
+#define D_ARGC          DSF_ARGC(call_)

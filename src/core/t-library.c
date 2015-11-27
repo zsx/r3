@@ -47,7 +47,7 @@ REBINT CT_Library(REBVAL *a, REBVAL *b, REBINT mode)
 REBTYPE(Library)
 {
     REBVAL *val = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     // unary actions
     switch(action) {

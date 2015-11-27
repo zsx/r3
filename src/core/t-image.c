@@ -803,7 +803,7 @@ static REBSER *Complement_Image(REBVAL *value)
 REBTYPE(Image)
 {
     REBVAL  *value = D_ARG(1);
-    REBVAL  *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBSER  *series;
     REBINT  index;
     REBINT  tail;

@@ -285,7 +285,7 @@ REBNATIVE(to_integer)
 REBTYPE(Integer)
 {
     REBVAL *val = D_ARG(1);
-    REBVAL *val2 = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *val2 = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBI64 num;
     REBI64 arg;
     REBCNT n;

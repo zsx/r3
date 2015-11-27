@@ -699,7 +699,7 @@ REBTYPE(Date)
     else if (!(IS_DATATYPE(val) && (action == A_MAKE || action == A_TO)))
         fail (Error_Invalid_Arg(val));
 
-    if (DS_ARGC > 1) arg = D_ARG(2);
+    if (D_ARGC > 1) arg = D_ARG(2);
 
     if (IS_BINARY_ACT(action)) {
         REBINT  type = VAL_TYPE(arg);
@@ -751,7 +751,7 @@ REBTYPE(Date)
         case A_ODDQ: DECIDE((day & 1) == 0);
 
         case A_PICK:
-            assert(DS_ARGC > 1);
+            assert(D_ARGC > 1);
             Pick_Path(D_OUT, val, arg, 0);
             return R_OUT;
 
@@ -761,7 +761,7 @@ REBTYPE(Date)
 
         case A_MAKE:
         case A_TO:
-            assert(DS_ARGC > 1);
+            assert(D_ARGC > 1);
             if (IS_DATE(arg)) {
                 val = arg;
                 goto ret_val;

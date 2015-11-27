@@ -177,7 +177,7 @@ REBINT Emit_Tuple(const REBVAL *value, REBYTE *out)
 REBTYPE(Tuple)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBYTE  *vp;
     const REBYTE *ap;
     REBCNT len;

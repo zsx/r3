@@ -55,7 +55,7 @@ REBFLG MT_Port(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 REBTYPE(Port)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
 

@@ -180,7 +180,7 @@ void Trace_Func(const REBVAL *word, const REBVAL *value)
     CHECK_DEPTH(depth);
     Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,5)), Get_Word_Name(word), Get_Type_Name(value));
     if (GET_FLAG(Trace_Flags, 1))
-        Debug_Values(DSF_ARG(DSF, 1), DSF_NUM_ARGS(DSF), 20);
+        Debug_Values(DSF_ARG(DSF, 1), DSF_ARGC(DSF), 20);
     else Debug_Line();
 }
 
@@ -1013,7 +1013,7 @@ reevaluate:
         infix = VAL_GET_EXT(s->value, EXT_FUNC_INFIX);
 
         // If there are no arguments, just skip the next section
-        if (DSF_NUM_ARGS(s->call) == 0) goto function_ready_to_call;
+        if (DSF_ARGC(s->call) == 0) goto function_ready_to_call;
 
         // We assume you can enumerate both the formal parameters (in the
         // spec) and the actual arguments (in the call frame) using pointer
@@ -1995,7 +1995,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
     // !!! Better symbol to use?
     call = Make_Call(out, block, index, SYM_NATIVE, func);
 
-    assert(VAL_FUNC_NUM_PARAMS(func) == DSF_NUM_ARGS(call));
+    assert(VAL_FUNC_NUM_PARAMS(func) == DSF_ARGC(call));
 
     // Get first parameter (or a REB_END if no parameters)
     if (VAL_FUNC_NUM_PARAMS(func) > 0)
@@ -2004,7 +2004,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
         param = END_VALUE; // triggers `too_many` if loop is entered
 
     // Get slot to write actual argument for first parameter into (or NULL)
-    arg = (DSF_NUM_ARGS(call) > 0) ? DSF_ARG(call, 1) : NULL;
+    arg = (DSF_ARGC(call) > 0) ? DSF_ARG(call, 1) : NULL;
 
     for (; varargs || index < BLK_LEN(block); param++, arg++) {
         REBVAL* value = va_arg(*varargs, REBVAL*);

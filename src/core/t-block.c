@@ -559,7 +559,7 @@ REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
 REBTYPE(Array)
 {
     REBVAL  *value = D_ARG(1);
-    REBVAL  *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBSER  *ser;
     REBINT  index;
     REBINT  tail;

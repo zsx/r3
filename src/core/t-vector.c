@@ -525,7 +525,7 @@ REBINT PD_Vector(REBPVS *pvs)
 REBTYPE(Vector)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBINT type;
     REBINT size;
     REBSER *vect;

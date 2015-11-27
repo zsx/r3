@@ -302,7 +302,7 @@ REBINT PD_Object(REBPVS *pvs)
 REBTYPE(Object)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBINT n;
     REBVAL *val;
     REBSER *obj, *src_obj;

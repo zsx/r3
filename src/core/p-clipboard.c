@@ -44,7 +44,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action
 
     Validate_Port(port, action);
 
-    arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     req = cast(REBREQ*, Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ)));
 

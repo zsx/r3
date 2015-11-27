@@ -258,7 +258,7 @@ REBCNT Find_Refines(struct Reb_Call *call_, REBCNT mask)
     REBINT n;
     REBCNT result = 0;
 
-    REBINT max = DSF_NUM_ARGS(call_);
+    REBINT max = D_ARGC;
 
     for (n = 0; n < max; n++) {
         if ((mask & (1 << n) && D_REF(n + 1)))

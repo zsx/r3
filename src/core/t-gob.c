@@ -735,7 +735,7 @@ REBINT PD_Gob(REBPVS *pvs)
 REBTYPE(Gob)
 {
     REBVAL *val = D_ARG(1);
-    REBVAL *arg = DS_ARGC > 1 ? D_ARG(2) : NULL;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBGOB *gob = NULL;
     REBGOB *ngob;
     REBCNT index;

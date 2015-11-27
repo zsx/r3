@@ -368,7 +368,7 @@ REBTYPE(Time)
 
     secs = VAL_TIME(val); // note: not always valid REB_TIME (e.g. MAKE)
 
-    if (DS_ARGC > 1) {
+    if (D_ARGC > 1) {
         arg = D_ARG(2);
     }
 

@@ -180,10 +180,10 @@ REBTYPE(Pair)
     val = D_ARG(1);
     x1 = VAL_PAIR_X(val);
     y1 = VAL_PAIR_Y(val);
-    if (DS_ARGC > 1) arg = D_ARG(2);
+    if (D_ARGC > 1) arg = D_ARG(2);
 
     if (IS_BINARY_ACT(action)) {
-        assert(DS_ARGC > 1);
+        assert(D_ARGC > 1);
         n = VAL_TYPE(arg);
 
         if (n == REB_PAIR) {        // handle PAIR - PAIR cases
@@ -285,7 +285,7 @@ REBTYPE(Pair)
             goto setPair;
 
         case A_PICK:
-            assert(DS_ARGC > 1);
+            assert(D_ARGC > 1);
             if (IS_WORD(arg)) {
                 if (VAL_WORD_CANON(arg) == SYM_X)
                     n = 0;
@@ -318,7 +318,7 @@ REBTYPE(Pair)
 
         case A_MAKE:
         case A_TO:
-            assert(DS_ARGC > 1);
+            assert(D_ARGC > 1);
             val = D_ARG(2);
 
             if (IS_PAIR(val)) {
