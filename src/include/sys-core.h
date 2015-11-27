@@ -717,7 +717,7 @@ struct Reb_Do_State {
         } while (0)
 
     #define ASSERT_VALUE_MANAGED(value) \
-        Assert_Value_Managed_Debug(value)
+        assert(Is_Value_Managed(value, TRUE))
 #endif
 
 

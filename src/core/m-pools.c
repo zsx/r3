@@ -1358,28 +1358,44 @@ void Manuals_Leak_Check_Debug(REBCNT manuals_tail, const char *label_str)
     }
 }
 
+#endif
+
 
 //
-//  Assert_Value_Managed_Debug: C
+//  Is_Value_Managed: C
 // 
-// Routine for checking that the pointer passed in is the
-// same as the head of the series that the GC is not tracking,
-// which is used to check for leaks relative to an initial
-// status of outstanding series.
+// Determines if a value would be visible to the garbage collector or not.
+// Defaults to the answer of TRUE if the value has nothing the GC cares if
+// it sees or not.
 //
-void Assert_Value_Managed_Debug(const REBVAL *value)
+// Note: Avoid causing conditional behavior on this casually.  It's really
+// for GC internal use and ASSERT_VALUE_MANAGED.  Most code should work
+// with either managed or unmanaged value states for variables w/o needing
+// this test to know which it has.)
+//
+REBFLG Is_Value_Managed(const REBVAL *value, REBFLG thrown_or_end_ok)
 {
+    if (IS_END(value))
+        return thrown_or_end_ok;
+
+    if (THROWN(value))
+        return thrown_or_end_ok;
+
     if (ANY_OBJECT(value)) {
         REBSER *frame = VAL_OBJ_FRAME(value);
-        ASSERT_SERIES_MANAGED(frame);
-        ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
-
+        if (SERIES_GET_FLAG(frame, SER_MANAGED)) {
+            ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
+            return TRUE;
+        }
+        assert(!SERIES_GET_FLAG(FRM_KEYLIST(frame), SER_MANAGED));
+        return FALSE;
     }
-    else if (ANY_SERIES(value))
-        ASSERT_SERIES_MANAGED(VAL_SERIES(value));
-}
 
-#endif
+    if (ANY_SERIES(value))
+        return SERIES_GET_FLAG(VAL_SERIES(value), SER_MANAGED);
+
+    return TRUE;
+}
 
 
 //
