@@ -1349,10 +1349,12 @@ void Manuals_Leak_Check_Debug(REBCNT manuals_tail, const char *label_str)
     else if (SERIES_TAIL(GC_Manuals) < manuals_tail) {
         Debug_Fmt("Manual series freed from outside of checkpoint.");
 
-        // Note: Should this ever actually happen, this panic won't do
+        // Note: Should this ever actually happen, a Panic_Series won't do
         // that much good in helping debug it.  You'll probably need to
         // add additional checking in the Manage_Series and Free_Series
         // routines that checks against the caller's manuals_tail.
+
+        assert(FALSE);
     }
 }
 
