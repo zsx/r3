@@ -23,10 +23,7 @@
 **  Module:  sys-stack.h
 **  Notes:
 **
-**  This contains the implementations of two important stacks in
-**  the evaluator: the Data Stack and the Call Stack
-**
-**  DATA STACK (CS_*):
+**  This contains the definitions for the DATA STACK (DS_*)
 **
 **  The data stack is mostly for REDUCE and COMPOSE, which use it
 **  as a common buffer for values that are being gathered to be
@@ -41,7 +38,7 @@
 **  Beyond that purpose, the data stack can also be used as a
 **  place to store a value to protect it from the garbage
 **  collector.  The stack must be balanced in the case of success
-**  when a native or action runs.  But if `raise` is used to trigger
+**  when a native or action runs.  But if `fail` is used to trigger
 **  an error, then the stack will be automatically balanced in
 **  the trap handling.
 **
@@ -54,20 +51,12 @@
 **  remain consistent, however: and using DSP and DS_AT it is
 **  possible to work with stack items by index.
 **
-**  CALL STACK (CS_*):
-**
-**  The requirements for the call stack are different from the data
+**  Note: The requirements for the call stack differ from the data
 **  stack, due to a need for pointer stability.  Being an ordinary
 **  series, the data stack will relocate its memory on expansion.
 **  This creates problems for natives and actions where pointers to
 **  parameters are saved to variables from D_ARG(N) macros.  These
 **  would need a refresh after every potential expanding operation.
-**
-**  Having a separate data structure offers other opportunities,
-**  such as hybridizing with CLOSURE! argument objects such that
-**  they would not need to be copied from the data stack.  It also
-**  allows freeing the information tracked by calls from the rule
-**  of being strictly a sequence of REBVALs.
 **
 ***********************************************************************/
 
@@ -178,145 +167,49 @@
 #endif
 
 
-/***********************************************************************
-**
-**  The call stack uses a custom "chunked" allocator to avoid the
-**  overhead of calling Make_Mem on each push and Free_Mem on
-**  each pop.  It keeps one spare chunk allocated, and only frees
-**  a chunk when a full chunk prior to it has the last element
-**  popped out of it.  In memory the situation looks like this:
-**
-**      [chunk->next
-**          (->chunk_left call->prior ...data [arg1][arg2][arg3]...)
-**          (->chunk_left call->prior ...data [arg1]...)
-**          (->chunk_left call->prior ...data [arg1][arg2]...)
-**          ...chunk remaining space...
-**      ]
-**
-**  Each [chunk] contains (calls).  The calls are singly linked
-**  backwards to form the call frame stack, while the chunks are
-**  singly linked forward.  Since the chunk size is a known
-**  constant, it's possible to quickly deduce the chunk a call
-**  lives in from its pointer and the remaining size in the chunk.
-**
-***********************************************************************/
-
-struct Reb_Chunk;
-
-#define CS_CHUNK_PAYLOAD (2048 - sizeof(struct Reb_Chunk*))
-
-struct Reb_Chunk {
-    struct Reb_Chunk *next;
-    REBYTE payload[CS_CHUNK_PAYLOAD];
-};
-
-struct Reb_Call {
-    // How many bytes are left in the memory chunk this call frame lives in
-    // (its own size has already been subtracted from the amount)
-    REBINT chunk_left;
-
-    struct Reb_Call *prior;
-
-    // In an ideal world, it would not be possible for code to get its hands
-    // on words that had been bound into a specific call frame while it
-    // was still being formed...because no executing code would have access
-    // to words that were linked into it.  Unfortunately with stack-relative
-    // addressing, they can get that access:
-    //
-    //      leaker: func [/eval e /gimme g] [
-    //          either gimme [return [g]] [reduce e]
-    //      ]
-    //
-    //      leaker/eval reduce leaker/gimme 10
-    //
-    // Since a leaked word from another instance of a function can give
-    // access to a call frame during its formation, we need a way to tell
-    // when a call frame is finished forming and a candidate for lookup
-    // via Get_Var.  'args_ready' defaults to TRUE in Make_Call and then
-    // is set to FALSE in Dispatch_Call when the function runs.
-    //
-    // !!! For optimization this boolean could be squeaked in lots of
-    // other places, but a regular struct field for clarity right now.
-
-    REBOOL args_ready;  // Function's arguments have finished evaluating
-
-    REBCNT num_vars;    // !!! Redundant with VAL_FUNC_NUM_PARAMS()?
-
-    REBVAL *out;        // where to write the function's output
-
-    REBVAL func;            // copy (important!!) of function for call
-
-    REBVAL where;           // block and index of execution
-
-    REBCNT label_sym;       // func word backtrace
-
-    // these are "variables"...SELF, RETURN, args, locals
-    REBVAL vars[1];     // (array exceeds struct, but cannot be [0] in C++)
-};
-
-#define DSF_NUM_VARS(c) ((c)->num_vars)
-
-// Size must compensate -1 for the already-accounted-for length one array
-#define DSF_SIZE(c) \
-    ( \
-        sizeof(struct Reb_Call) \
-        + sizeof(REBVAL) * (DSF_NUM_VARS(c) > 0 ? DSF_NUM_VARS(c) - 1 : 0) \
-    )
-
-#define DSF_CHUNK(c) \
-    cast(struct Reb_Chunk*, \
-        cast(REBYTE*, (c)) \
-        + DSF_SIZE(c) \
-        + (c)->chunk_left \
-        - sizeof(struct Reb_Chunk) \
-    )
-
-
 // !!! DSF is to be renamed (C)all (S)tack (P)ointer, but being left as DSF
 // in the initial commit to try and cut back on the disruption seen in
 // one commit, as there are already a lot of changes.
 
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
-#define SET_DSF(c) \
-    ( \
-        CS_Running = (c), \
-        (c) ? cast(void, (c)->args_ready = TRUE) : NOOP \
-    )
-#define DSF_LABEL_SYM(c)    c_cast(const REBCNT, (c)->label_sym)
-
-#define DSF_OUT(c)      ((c)->out)
-#define PRIOR_DSF(c)    ((c)->prior)
-#define DSF_WHERE(c)    c_cast(const REBVAL*, &(c)->where)
-#define DSF_FUNC(c)     c_cast(const REBVAL*, &(c)->func)
-#define DSF_RETURN(c)   coming@soon
-
-// VARS includes (*will* include) RETURN dispatching value, locals...
-#ifdef NDEBUG
-    #define DSF_VAR(c,n)    (&(c)->vars[(n) - 1])
-#else
-    #define DSF_VAR(c,n)    DSF_VAR_Debug((c), (n)) // checks arg index bound
-#endif
+#define DSF_OUT(c)          c_cast(REBVAL * const, (c)->out) // writable Lvalue
+#define PRIOR_DSF(c)        ((c)->prior)
+#define DSF_ARRAY(c)        c_cast(REBSER * const, (c)->array) // Lvalue
+#define DSF_EXPR_INDEX(c)   ((c)->expr_index + 0) // Lvalue
+#define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
+#define DSF_FUNC(c)         c_cast(const REBVAL * const, &(c)->func)
+#define DSF_DSP_ORIG(c)     ((c)->dsp_orig + 0) // Lvalue
 
 // ARGS is the parameters and refinements
-#define DSF_ARG(c,n)    DSF_VAR((c), (n) - 1 + FIRST_PARAM_INDEX)
-#define DSF_ARGC(c)     (DSF_NUM_VARS(c) - (FIRST_PARAM_INDEX - 1))
+// 1-based indexing into the arglist (0 slot is for object/function value)
+#ifdef NDEBUG
+    #define DSF_ARG(c,n)    BLK_SKIP((c)->arglist, (n))
+#else
+    #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
+#endif
 
-// !!! The function spec numbers words according to their position.  With
-// definitional return, 0 is SELF, 1 is the RETURN, 2 is the first argument.
-// (without, 1 is the first argument).  This layout is in flux as the
-// workings of locals are rethought...their most sensible location would
-// probably be between the RETURN and the arguments.
+// Note about D_ARGC: A native should generally not detect the arity it
+// was invoked with, (and it doesn't make sense as most implementations get
+// the full list of arguments and refinements).  However, ACTION! dispatch
+// has several different argument counts piping through a switch, and often
+// "cheats" by using the arity instead of being conditional on which action
+// ID ran.  Consider when reviewing the future of ACTION!.
+//
+#define DSF_ARGC(c) \
+    cast(REBCNT, BLK_LEN((c)->arglist) - 1)
 
-// Reference from ds that points to current return value:
-#define D_OUT           DSF_OUT(call_)
-#define D_ARG(n)        DSF_ARG(call_, (n))
-#define D_REF(n)        (!IS_NONE(D_ARG(n)))
-#define D_LABEL_SYM     DSF_LABEL_SYM(call_)
+#define DSF_CELL(c) (&(c)->cell)
 
-// Functions should generally not to detect the arity they were invoked with,
-// (and it doesn't make sense as most implementations get the full list of
-// arguments and refinements).  However, several dispatches may go through
-// actions and other locations.  IS_BINARY_ACTION() and other functions could
-// be used to do this more gracefully, but actions need review anyway
-#define D_ARGC          DSF_ARGC(call_)
+
+// Quick access functions from natives (or compatible functions that name a
+// Reb_Call pointer `call_`) to get some of the common public fields.
+//
+#define D_OUT       DSF_OUT(call_)          // GC-safe slot for output value
+#define D_ARGC      DSF_ARGC(call_)         // count of args+refinements/args
+#define D_ARG(n)    DSF_ARG(call_, (n))     // pass 1 for first arg
+#define D_REF(n)    (!IS_NONE(D_ARG(n)))    // D_REFinement (not D_REFerence)
+#define D_FUNC      DSF_FUNC(call_)         // REBVAL* of running function
+#define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
+#define D_CELL      DSF_CELL(call_)         // GC-safe extra value
+#define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer

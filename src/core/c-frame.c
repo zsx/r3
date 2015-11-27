@@ -1242,7 +1242,7 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
             // the stack, so check for no DSF first...
             while (call) {
                 if (
-                    call->args_ready
+                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
                     && context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
                 ) {
                     REBVAL *value;
@@ -1331,7 +1331,7 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
             struct Reb_Call *call = DSF;
             while (call) {
                 if (
-                    call->args_ready
+                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
                     && context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
                 ) {
                     assert(

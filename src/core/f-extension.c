@@ -189,7 +189,8 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 ***********************************************************************/
 {
     REBVAL *val;
-    struct Reb_Call *call;
+    struct Reb_Call call;
+    struct Reb_Call * const c = &call;
     REBCNT len;
     REBCNT n;
     REBVAL out;
@@ -206,20 +207,22 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
 
     // Create stack frame (use prior stack frame for location info):
     SET_TRASH_SAFE(&out); // OUT slot for function eval result
-    call = Make_Call(
-        &out,
-        VAL_SERIES(DSF_WHERE(PRIOR_DSF(DSF))),
-        VAL_INDEX(DSF_WHERE(PRIOR_DSF(DSF))),
-        name,
-        val
-    );
+    c->flags = 0;
+    c->out = &out;
+    c->array = DSF_ARRAY(PRIOR_DSF(DSF));
+    c->index = DSF_EXPR_INDEX(PRIOR_DSF(DSF));
+    c->label_sym = name;
+    c->func = *val;
+
+    Push_New_Arglist_For_Call(c);
+
     obj = VAL_FUNC_PARAMLIST(val);  // func words
     len = SERIES_TAIL(obj)-1;   // number of args (may include locals)
 
     // Push args. Too short or too long arg frames are handled W/O error.
     // Note that refinements args can be set to anything.
     for (n = 1; n <= len; n++) {
-        REBVAL *arg = DSF_ARG(call, n);
+        REBVAL *arg = DSF_ARG(c, n);
 
         if (n <= RXI_COUNT(rxis))
             RXI_To_Value(arg, rxis[n], RXI_TYPE(rxis, n));
@@ -230,16 +233,16 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
         if (!TYPE_CHECK(BLK_SKIP(obj, n), VAL_TYPE(arg))) {
             result->i2.int32b = n;
             SET_EXT_ERROR(result, RXE_BAD_ARGS);
-            Free_Call(call);
+            Drop_Call_Arglist(c);
             return 0;
         }
     }
 
     // Evaluate the function:
-    if (Dispatch_Call_Throws(call)) {
+    if (Dispatch_Call_Throws(c)) {
         // !!! Does this need handling such that there is a way for the thrown
         // value to "bubble up" out of the callback, or is an error sufficient?
-        fail (Error_No_Catch_For_Throw(DSF_OUT(call)));
+        fail (Error_No_Catch_For_Throw(DSF_OUT(c)));
     }
 
     // Return resulting value from output
@@ -500,13 +503,13 @@ bad_func_def:
 //     spec - same as other funcs
 //     body - [ext-obj func-index]
 //
-REBFLG Do_Command_Throws(const REBVAL *value)
+REBFLG Do_Command_Throws(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
-    REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(value));
+    REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(D_FUNC));
     REBEXT *ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(val, 1))]; // Handler
     REBCNT cmd = cast(REBCNT, Int32(val + 1));
-    REBCNT argc = SERIES_TAIL(VAL_FUNC_PARAMLIST(value)) - 1; // not self
+    REBCNT argc = SERIES_TAIL(VAL_FUNC_PARAMLIST(D_FUNC)) - 1; // not self
 
     REBCNT n;
     RXIFRM frm; // args stored here
@@ -514,7 +517,7 @@ REBFLG Do_Command_Throws(const REBVAL *value)
     // Copy args to command frame (array of args):
     RXA_COUNT(&frm) = argc;
     if (argc > 7) fail (Error(RE_BAD_COMMAND));
-    val = DSF_ARG(DSF, 1);
+    val = D_ARG(1);
     for (n = 1; n <= argc; n++, val++) {
         RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE(val)];
         frm.args[n] = Value_To_RXI(val);
@@ -522,28 +525,27 @@ REBFLG Do_Command_Throws(const REBVAL *value)
 
     // Call the command:
     n = ext->call(cmd, &frm, 0);
-    val = DSF_OUT(DSF);
 
-    assert(!THROWN(val));
+    assert(!THROWN(D_OUT));
 
     switch (n) {
     case RXR_VALUE:
-        RXI_To_Value(val, frm.args[1], RXA_TYPE(&frm, 1));
+        RXI_To_Value(D_OUT, frm.args[1], RXA_TYPE(&frm, 1));
         break;
     case RXR_BLOCK:
-        RXI_To_Block(&frm, val);
+        RXI_To_Block(&frm, D_OUT);
         break;
     case RXR_UNSET:
-        SET_UNSET(val);
+        SET_UNSET(D_OUT);
         break;
     case RXR_NONE:
-        SET_NONE(val);
+        SET_NONE(D_OUT);
         break;
     case RXR_TRUE:
-        SET_TRUE(val);
+        SET_TRUE(D_OUT);
         break;
     case RXR_FALSE:
-        SET_FALSE(val);
+        SET_FALSE(D_OUT);
         break;
 
     case RXR_BAD_ARGS:
@@ -556,7 +558,7 @@ REBFLG Do_Command_Throws(const REBVAL *value)
         fail (Error(RE_COMMAND_FAIL));
 
     default:
-        SET_UNSET(val);
+        SET_UNSET(D_OUT);
     }
 
     return FALSE; // There is currently no interface for commands to "throw"

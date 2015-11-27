@@ -340,7 +340,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBSER *port, REBCNT action)
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
 
-    if (Redo_Func_Throws(actor)) {
+    if (Redo_Func_Throws(call_, actor)) {
         // The throw name will be in D_OUT, with thrown value in task vars
         return R_OUT_IS_THROWN;
     }

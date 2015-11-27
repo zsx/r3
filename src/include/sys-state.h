@@ -94,7 +94,7 @@ typedef struct Rebol_State {
     struct Rebol_State *last_state;
 
     REBINT dsp;
-    struct Reb_Call *dsf;
+    struct Reb_Call *call;
     REBCNT series_guard_tail;
     REBCNT value_guard_tail;
     REBSER *error_frame;

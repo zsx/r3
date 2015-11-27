@@ -350,7 +350,9 @@ REBNATIVE(stack)
     call = Stack_Frame(index);
     if (!call) return R_NONE;
 
-    if (D_REF(2)) *D_OUT = *DSF_WHERE(call);
+    if (D_REF(2)) {
+        Val_Init_Block_Index(D_OUT, DSF_ARRAY(call), DSF_EXPR_INDEX(call));
+    }
     else if (D_REF(3)) {
         Val_Init_Word_Unbound(D_OUT, REB_WORD, DSF_LABEL_SYM(call));
     }

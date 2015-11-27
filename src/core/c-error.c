@@ -42,7 +42,7 @@ void Push_Trap_Helper(REBOL_STATE *s)
     assert(Saved_State || (DSP == -1 && !DSF));
 
     s->dsp = DSP;
-    s->dsf = DSF;
+    s->call = DSF;
 
     s->series_guard_tail = GC_Series_Guard->tail;
     s->value_guard_tail = GC_Value_Guard->tail;
@@ -81,7 +81,6 @@ void Push_Trap_Helper(REBOL_STATE *s)
 //
 REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
 {
-    struct Reb_Call *call = CS_Top;
     REBOOL halted;
 
     // Check for more "error frame validity"?
@@ -89,19 +88,20 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
 
     halted = (ERR_NUM(state->error_frame) == RE_HALT);
 
-    // Restore Rebol call stack frame at time of Push_Trap
-    while (call != state->dsf) {
-        struct Reb_Call *prior = call->prior;
-        Free_Call(call);
-        call = prior;
-    }
-    SET_DSF(state->dsf);
+    // Restore Rebol call stack frame at time of Push_Trap.  Also, our
+    // topmost call state (which may have been pushed but not put into
+    // effect) has been accounted for by the drop.
+    //
+    CS_Running = CS_Top = state->call;
 
     // Restore Rebol data stack pointer at time of Push_Trap
     DS_DROP_TO(state->dsp);
 
     // Free any manual series that were extant at the time of the error
-    // (that were created since this PUSH_TRAP started)
+    // (that were created since this PUSH_TRAP started).  This includes
+    // any arglist series in call frames that have been wiped off the stack.
+    // (Closure series will be managed.)
+    //
     assert(GC_Manuals->tail >= state->manuals_tail);
     while (GC_Manuals->tail != state->manuals_tail) {
         // Freeing the series will update the tail...
@@ -977,7 +977,9 @@ REBSER *Make_Error_Core(REBCNT code, va_list *args)
         // Where (what function) is the error:
         Val_Init_Block(&error_obj->where, Make_Backtrace(0));
         // Nearby location of the error (in block being evaluated):
-        error_obj->nearest = *DSF_WHERE(DSF);
+        Val_Init_Block_Index(
+            &error_obj->nearest, DSF_ARRAY(DSF), DSF_EXPR_INDEX(DSF)
+        );
     }
 
     return frame;

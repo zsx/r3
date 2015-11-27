@@ -498,21 +498,58 @@ static void Mark_Devices_Deep(void)
 //
 static void Mark_Call_Frames_Deep(void)
 {
-    struct Reb_Call *call = CS_Top;
+    struct Reb_Call *c = CS_Top;
 
-    while (call) {
-        REBCNT index;
+    while (c != NULL) {
 
-        Queue_Mark_Value_Deep(DSF_OUT(call));
-        Queue_Mark_Value_Deep(DSF_FUNC(call));
-        Queue_Mark_Value_Deep(DSF_WHERE(call));
+    #if !defined(NDEBUG)
+        const REBYTE *label_str = Get_Sym_Name(c->label_sym);
+    #endif
 
-        for (index = 1; index <= call->num_vars; index++)
-            Queue_Mark_Value_Deep(DSF_VAR(call, index));
+        if (Is_Value_Managed(&c->cell, FALSE))
+            Queue_Mark_Value_Deep(&c->cell);
+
+        Queue_Mark_Value_Deep(&c->func); // never NULL
+
+        Queue_Mark_Value_Deep(c->out); // never NULL
+
+        if (c->value && Is_Value_Managed(c->value, FALSE))
+            Queue_Mark_Value_Deep(c->value);
+
+        QUEUE_MARK_ARRAY_DEEP(c->array); // !!! never NULL (perhaps should be?)
+
+        // !!! symbols are not currently GC'd, but if they were this would
+        // need to keep the label sym alive!
+        /* Mark_Symbol_Still_In_Use?(call->label_sym); */
+
+        // arglist may be NULL (if frameless, closure, etc...)
+        if (c->arglist) {
+            // We wish to GC protect the values in the arglist, *but* the
+            // problem is that the arglist itself may well not be managed,
+            // so we can't QUEUE_MARK_ARRAY_DEEP.  We have to walk this
+            // one manually...
+
+            REBVAL *arg = DSF_ARG(c, 1);
+            while (!IS_END(arg)) {
+                Queue_Mark_Value_Deep(arg);
+                arg++;
+            }
+        }
+
+        // `arg`, `param`, and `refine` may all be NULL
+
+        if (c->arg && Is_Value_Managed(c->arg, FALSE))
+            Queue_Mark_Value_Deep(c->arg);
+
+        if (c->param && Is_Value_Managed(c->param, FALSE))
+            Queue_Mark_Value_Deep(c->param);
+
+        if (c->refine && Is_Value_Managed(c->refine, FALSE))
+            Queue_Mark_Value_Deep(c->refine);
 
         Propagate_All_GC_Marks();
 
-        call = PRIOR_DSF(call);
+        c = c->prior;
     }
 }
 

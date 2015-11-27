@@ -785,40 +785,42 @@ void Clonify_Function(REBVAL *value)
 //
 //  Do_Native_Throws: C
 //
-REBFLG Do_Native_Throws(const REBVAL *func)
+REBFLG Do_Native_Throws(struct Reb_Call *call_)
 {
-    REBVAL *out = DSF_OUT(DSF);
     REB_R ret;
 
     Eval_Natives++;
 
-    if (VAL_FUNC_PARAMLIST(func) == VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)) {
+    if (
+        VAL_FUNC_PARAMLIST(D_FUNC)
+        == VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
+    ) {
         REBVAL name;
 
         // The EXT_FUNC_HAS_RETURN uses the RETURN native and its spec, and
         // the call validation should have ensured we got exactly one
         // parameter--which can be any type.
 
-        assert(DSF_NUM_VARS(DSF) == 1);
+        assert(D_ARGC == 1);
 
-        // The originating `Make_Call()` that produced this return native
+        // The originating `Push_New_Arglist_For_Call()` that produced this return native
         // should have overwritten its code pointer with the identifying
         // series of the function--or closure frame--it wants to jump to.
 
-        assert(VAL_FUNC_CODE(func) != VAL_FUNC_CODE(ROOT_RETURN_NATIVE));
-        ASSERT_SERIES(VAL_FUNC_RETURN_TO(func));
+        assert(VAL_FUNC_CODE(D_FUNC) != VAL_FUNC_CODE(ROOT_RETURN_NATIVE));
+        ASSERT_SERIES(VAL_FUNC_RETURN_TO(D_FUNC));
 
         // We only have a REBSER*, but the goal is to actually THROW a full
         // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
         // the paramlist.  For the moment, how to get that value depends...
 
-        if (IS_FRAME(BLK_HEAD(VAL_FUNC_RETURN_TO(func)))) {
+        if (IS_FRAME(BLK_HEAD(VAL_FUNC_RETURN_TO(D_FUNC)))) {
             // The function was actually a CLOSURE!, so "when it took BIND-OF
             // on 'RETURN" it "would have gotten back an OBJECT!".  We can
             // get that object to use as the throw name just by putting the
             // frame with a REB_OBJECT.
 
-            Val_Init_Object(out, VAL_FUNC_RETURN_TO(func));
+            Val_Init_Object(D_OUT, VAL_FUNC_RETURN_TO(D_FUNC));
         }
         else {
             // It was a stack-relative FUNCTION!, and what we have is more
@@ -834,12 +836,12 @@ REBFLG Do_Native_Throws(const REBVAL *func)
             // ensure that if Reb_Object is more than just one series all the
             // fields can be reconstituted.
 
-            *out = *BLK_HEAD(VAL_FUNC_RETURN_TO(func));
-            assert(IS_FUNCTION(out));
-            assert(VAL_FUNC_PARAMLIST(out) == VAL_FUNC_RETURN_TO(func));
+            *D_OUT = *BLK_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
+            assert(IS_FUNCTION(D_OUT));
+            assert(VAL_FUNC_PARAMLIST(D_OUT) == VAL_FUNC_RETURN_TO(D_FUNC));
         }
 
-        CONVERT_NAME_TO_THROWN(out, DSF_ARG(DSF, 1));
+        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(1));
 
         // Now it's ready to throw!
         return TRUE;
@@ -847,32 +849,32 @@ REBFLG Do_Native_Throws(const REBVAL *func)
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
-    ret = VAL_FUNC_CODE(func)(DSF);
+    ret = VAL_FUNC_CODE(D_FUNC)(call_);
 
     switch (ret) {
     case R_OUT: // for compiler opt
     case R_OUT_IS_THROWN:
         break;
     case R_NONE:
-        SET_NONE(out);
+        SET_NONE(D_OUT);
         break;
     case R_UNSET:
-        SET_UNSET(out);
+        SET_UNSET(D_OUT);
         break;
     case R_TRUE:
-        SET_TRUE(out);
+        SET_TRUE(D_OUT);
         break;
     case R_FALSE:
-        SET_FALSE(out);
+        SET_FALSE(D_OUT);
         break;
     case R_ARG1:
-        *out = *DSF_ARG(DSF, 1);
+        *D_OUT = *D_ARG(1);
         break;
     case R_ARG2:
-        *out = *DSF_ARG(DSF, 2);
+        *D_OUT = *D_ARG(2);
         break;
     case R_ARG3:
-        *out = *DSF_ARG(DSF, 3);
+        *D_OUT = *D_ARG(3);
         break;
     default:
         assert(FALSE);
@@ -880,7 +882,7 @@ REBFLG Do_Native_Throws(const REBVAL *func)
 
     // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
     // check the actions and natives are returning the correct thing.
-    assert(THROWN(out) == (ret == R_OUT_IS_THROWN));
+    assert(THROWN(D_OUT) == (ret == R_OUT_IS_THROWN));
     return ret == R_OUT_IS_THROWN;
 }
 
@@ -888,10 +890,9 @@ REBFLG Do_Native_Throws(const REBVAL *func)
 //
 //  Do_Action_Throws: C
 //
-REBFLG Do_Action_Throws(const REBVAL *func)
+REBFLG Do_Action_Throws(struct Reb_Call *call_)
 {
-    REBVAL *out = DSF_OUT(DSF);
-    REBCNT type = VAL_TYPE(DSF_ARG(DSF, 1));
+    REBCNT type = VAL_TYPE(D_ARG(1));
     REBACT action;
     REB_R ret;
 
@@ -900,40 +901,45 @@ REBFLG Do_Action_Throws(const REBVAL *func)
     assert(type < REB_MAX);
 
     // Handle special datatype test cases (eg. integer?)
-    if (VAL_FUNC_ACT(func) == 0) {
-        VAL_SET(out, REB_LOGIC);
-        VAL_LOGIC(out) = (type == VAL_INT64(BLK_LAST(VAL_FUNC_SPEC(func))));
+    if (VAL_FUNC_ACT(D_FUNC) == 0) {
+        VAL_SET(D_OUT, REB_LOGIC);
+
+        if (type == VAL_INT64(BLK_LAST(VAL_FUNC_SPEC(D_FUNC))))
+            VAL_LOGIC(D_OUT) = TRUE;
+        else
+            VAL_LOGIC(D_OUT) = FALSE;
+
         return FALSE;
     }
 
     action = Value_Dispatch[type];
-    if (!action) fail (Error_Illegal_Action(type, VAL_FUNC_ACT(func)));
-    ret = action(DSF, VAL_FUNC_ACT(func));
+    if (!action) fail (Error_Illegal_Action(type, VAL_FUNC_ACT(D_FUNC)));
+    ret = action(call_, VAL_FUNC_ACT(D_FUNC));
 
     switch (ret) {
     case R_OUT: // for compiler opt
     case R_OUT_IS_THROWN:
         break;
     case R_NONE:
-        SET_NONE(out);
+        SET_NONE(D_OUT);
         break;
     case R_UNSET:
-        SET_UNSET(out);
+        SET_UNSET(D_OUT);
         break;
     case R_TRUE:
-        SET_TRUE(out);
+        SET_TRUE(D_OUT);
         break;
     case R_FALSE:
-        SET_FALSE(out);
+        SET_FALSE(D_OUT);
         break;
     case R_ARG1:
-        *out = *DSF_ARG(DSF, 1);
+        *D_OUT = *D_ARG(1);
         break;
     case R_ARG2:
-        *out = *DSF_ARG(DSF, 2);
+        *D_OUT = *D_ARG(2);
         break;
     case R_ARG3:
-        *out = *DSF_ARG(DSF, 3);
+        *D_OUT = *D_ARG(3);
         break;
     default:
         assert(FALSE);
@@ -941,7 +947,7 @@ REBFLG Do_Action_Throws(const REBVAL *func)
 
     // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
     // check the actions and natives are returning the correct thing.
-    assert(THROWN(out) == (ret == R_OUT_IS_THROWN));
+    assert(THROWN(D_OUT) == (ret == R_OUT_IS_THROWN));
     return ret == R_OUT_IS_THROWN;
 }
 
@@ -949,33 +955,31 @@ REBFLG Do_Action_Throws(const REBVAL *func)
 //
 //  Do_Function_Throws: C
 //
-REBFLG Do_Function_Throws(const REBVAL *func)
+REBFLG Do_Function_Throws(struct Reb_Call *call_)
 {
-    REBVAL *out = DSF_OUT(DSF);
-
     Eval_Functions++;
 
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
-    if (Do_At_Throws(out, VAL_FUNC_BODY(func), 0)) {
+    if (Do_At_Throws(D_OUT, VAL_FUNC_BODY(D_FUNC), 0)) {
         if (
-            IS_NATIVE(out)
-            && VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+            IS_NATIVE(D_OUT)
+            && VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
         ) {
             // Every function responds to non-definitional EXIT
-            CATCH_THROWN(out, out);
+            CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
 
         if (
-            IS_FUNCTION(out)
-            && VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-            && VAL_FUNC_PARAMLIST(out) == VAL_FUNC_PARAMLIST(func)
+            IS_FUNCTION(D_OUT)
+            && VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)
+            && VAL_FUNC_PARAMLIST(D_OUT) == VAL_FUNC_PARAMLIST(D_FUNC)
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(func),
             // a "hacked" REBNATIVE(return) that knew our paramlist, and
             // the gracious cooperation of a throw by Do_Native_Throws()...
 
-            CATCH_THROWN(out, out);
+            CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
 
@@ -992,110 +996,107 @@ REBFLG Do_Function_Throws(const REBVAL *func)
 // Do a closure by cloning its body and rebinding it to
 // a new frame of words/values.
 //
-REBFLG Do_Closure_Throws(const REBVAL *func)
+REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 {
     REBSER *body;
     REBSER *frame;
-    REBVAL *out = DSF_OUT(DSF);
-    REBVAL *key;
-    REBVAL *value;
-    REBCNT word_index;
 
     Eval_Functions++;
 
-    // Copy stack frame variables as the closure object.  The +1 is for
-    // SELF, as the REB_END is already accounted for by Make_Blk.
-
-    frame = Make_Array(DSF->num_vars + 1);
-    value = BLK_HEAD(frame);
-    key = BLK_HEAD(VAL_FUNC_PARAMLIST(func));
-
-    assert(DSF->num_vars == VAL_FUNC_NUM_PARAMS(func));
-
-    SET_FRAME(value, NULL, VAL_FUNC_PARAMLIST(func));
-    value++;
-    key++;
-
-    // If we're using the EXT_FUNC_HAS_RETURN then we need to find that
-    // fake return to the archetypal closure and switch in to a fake return
-    // value indicating this object frame specifically.
-
-    for (word_index = 1; word_index <= DSF->num_vars; word_index++) {
-        if (
-            VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-            && SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)
-        ) {
-            *value = *DSF_VAR(DSF, word_index);
-            assert(IS_NATIVE(value));
-            assert(
-                VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
-                == VAL_FUNC_PARAMLIST(value)
-            );
-            assert(VAL_FUNC_RETURN_TO(value) == VAL_FUNC_PARAMLIST(func));
-            VAL_FUNC_RETURN_TO(value) = frame;
-        }
-        else {
-            *value++ = *DSF_VAR(DSF, word_index);
-        }
-        key++;
+    // The head value of a function/closure paramlist should be the value
+    // of the function/closure itself that has that paramlist.
+    //
+    assert(IS_CLOSURE(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
+#if !defined(NDEBUG)
+    if (
+        VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
+        != VAL_FUNC_PARAMLIST(D_FUNC)
+    ) {
+        Panic_Series(VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
     }
+#endif
 
-    frame->tail = word_index;
-    TERM_ARRAY(frame);
+    // We will extract the arglist from ownership and manual memory management
+    // by the call, to be used in a GC-managed object frame by the closure.
 
-    // We do not Manage_Frame, because we are reusing a word series here
-    // that has already been managed...only manage the outer series
-    ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
-    MANAGE_SERIES(frame);
+    frame = call_->arglist;
+    call_->arglist = NULL;
+
+    // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
+    // are going to be switching it to an OBJECT!.
+
+    SET_FRAME(BLK_HEAD(frame), NULL, VAL_FUNC_PARAMLIST(D_FUNC));
+
+#if !defined(NDEBUG)
+    // !!! A second sweep for the definitional return used to be necessary in
+    // the dispatch of closures since the frame hadn't been created yet to
+    // put in the RETURN_TO slot.  Now that the call's `arglist` is known
+    // to be the pre-created array we'll mutate into a frame, the Do_Core
+    // sweep went ahead and put it in for us.  Temporarily leave in the sweep
+    // with aparanoid check to make sure, but delete this eventually.
+
+    if (VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)) {
+        REBVAL *key = BLK_SKIP(VAL_FUNC_PARAMLIST(D_FUNC), 1);
+        REBVAL *value = BLK_SKIP(frame, 1);
+
+        for (; !IS_END(key); key++, value++) {
+            if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
+                assert(IS_NATIVE(value));
+                assert(
+                    VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
+                    == VAL_FUNC_PARAMLIST(value)
+                );
+                assert(VAL_FUNC_RETURN_TO(value) == frame);
+            }
+        }
+    }
+#endif
 
     ASSERT_FRAME(frame);
 
-    // The head value of a function/closure paramlist should be the value
-    // of the function/closure itself that has that paramlist.
-    assert(IS_CLOSURE(BLK_HEAD(VAL_FUNC_PARAMLIST(func))));
-#if !defined(NDEBUG)
-    if (
-        VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(func)))
-        != VAL_FUNC_PARAMLIST(func)
-    ) {
-        Panic_Series(VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(func))));
-    }
-#endif
+    // We do not Manage_Frame, because we are reusing a word series here
+    // that has already been managed...only extract and manage the arglist
+    //
+    ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
+    MANAGE_SERIES(frame);
 
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this
     // invocation.  (Costly, but that is the mechanics of words.)
     //
-    body = Copy_Array_Deep_Managed(VAL_FUNC_BODY(func));
-    Rebind_Block(VAL_FUNC_PARAMLIST(func), frame, BLK_HEAD(body), REBIND_TYPE);
+    body = Copy_Array_Deep_Managed(VAL_FUNC_BODY(D_FUNC));
+    Rebind_Block(
+        VAL_FUNC_PARAMLIST(D_FUNC), frame, BLK_HEAD(body), REBIND_TYPE
+    );
 
     // Protect the body from garbage collection during the course of the
     // execution.  (We could also protect it by stowing it in the call
     // frame's copy of the closure value, which we might think of as its
     // "archetype", but it may be valuable to keep that as-is.)
+    //
     PUSH_GUARD_SERIES(body);
 
-    if (Do_At_Throws(out, body, 0)) {
+    if (Do_At_Throws(D_OUT, body, 0)) {
         DROP_GUARD_SERIES(body);
         if (
-            IS_NATIVE(out) &&
-            VAL_FUNC_CODE(out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+            IS_NATIVE(D_OUT) &&
+            VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
         ) {
             // Every function responds to non-definitional EXIT
-            CATCH_THROWN(out, out);
+            CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
 
         if (
-            IS_OBJECT(out)
-            && VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)
-            && VAL_OBJ_FRAME(out) == frame
+            IS_OBJECT(D_OUT)
+            && VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)
+            && VAL_OBJ_FRAME(D_OUT) == frame
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
             // a "hacked" REBNATIVE(return) that knew our frame, and
             // the gracious cooperation of a throw by Do_Native_Throws()...
 
-            CATCH_THROWN(out, out);
+            CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
 
@@ -1104,7 +1105,9 @@ REBFLG Do_Closure_Throws(const REBVAL *func)
 
     // References to parts of the closure's copied body may still be
     // extant, but we no longer need to hold this reference on it
+    //
     DROP_GUARD_SERIES(body);
+
     return FALSE;
 }
 
@@ -1112,15 +1115,14 @@ REBFLG Do_Closure_Throws(const REBVAL *func)
 //
 //  Do_Routine_Throws: C
 //
-REBFLG Do_Routine_Throws(const REBVAL *routine)
+REBFLG Do_Routine_Throws(struct Reb_Call *call_)
 {
     REBSER *args = Copy_Values_Len_Shallow(
-        DSF_ARGC(DSF) > 0 ? DSF_ARG(DSF, 1) : NULL,
-        DSF_ARGC(DSF)
+        D_ARGC > 0 ? D_ARG(1) : NULL,
+        D_ARGC
     );
-    assert(VAL_FUNC_NUM_PARAMS(routine) == DSF_ARGC(DSF));
 
-    Call_Routine(routine, args, DSF_OUT(DSF));
+    Call_Routine(D_FUNC, args, D_OUT);
 
     Free_Series(args);
 

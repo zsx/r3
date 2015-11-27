@@ -375,6 +375,13 @@ enum encoding_opts {
 
 // The flags are specified either way for clarity.
 enum {
+    // Calls may be created for use by the Do evaluator or by an apply
+    // originating from inside the C code itself.  If the call is not for
+    // the evaluator, it should not set DO_FLAG_DO and no other flags
+    // should be set.
+    //
+    DO_FLAG_DO = 1 << 0,
+
     // As exposed by the DO native and its /NEXT refinement, a call to the
     // evaluator can either run to the finish from a position in an array
     // or just do one eval.  Rather than achieve execution to the end by
@@ -399,37 +406,203 @@ enum {
     DO_FLAG_NO_LOOKAHEAD = 1 << 5,
 };
 
-// The input and output arguments of a Do_State are loaded into a structure
-// that can be referenced from outside of Do.  This offers greater efficiency.
-// It also makes it possible to implement "frameless" natives...which are
-// very tailored constructs that work as if they were part of the switch
-// statement inside the evaluator.
+enum Reb_Call_Mode {
+    CALL_MODE_0, // no special mode signal
+    CALL_MODE_ARGS, // ordinary arguments before any refinements seen
+    CALL_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
+    CALL_MODE_REFINE_ARGS, // at least one refinement has been found
+    CALL_MODE_SCANNING, // looking for refinements (used out of order)
+    CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
+    CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
+    CALL_MODE_FUNCTION // running an ANY-FUNCTION!
+};
+
 //
-struct Reb_Do_State {
-    // INPUT PARAMETERS
+// `struct Reb_Call`
+//
+// A Reb_Call structure represents the fixed-size portion for a function's
+// call frame.  It is stack allocated, and is used by both Do and Apply.
+// (If a dynamic allocation is necessary for the call frame, that dynamic
+// portion is allocated as an array in `arglist`.)
+//
+// The contents of the call frame are all the input and output parameters
+// for a call to the evaluator--as well as all of the internal state needed
+// by the evaluator loop.  The reason that all the information is exposed
+// in this way is to make it faster and easier to delegate branches in
+// the Do loop--without bearing the overhead of setting up new stack state.
+//
+//
+// NOTE: The ordering of the fields in this structure are specifically done
+// so as to accomplish correct 64-bit alignment of pointers on 64-bit
+// systems (as long as REBCNT and REBINT are 32-bit on such platforms).
+// If modifying the structure, be sensitive to this issue.
+//
+struct Reb_Call {
 
-    REBVAL *out; // where to write the value, shouldn't be in movable memory
-    REBSER *array; // may come from ANY-ARRAY but treated "like a block"
-    const REBVAL *value; // first value passed in may not live in array.
-    REBCNT flags; // DO_FLAGS or'd together
+    // `cell` [INTERNAL, REUSABLE, GC-SAFE cell]
+    //
+    // Some evaluative operations need a unit of additional storage beyond
+    // the one available in `out`.  This is a one-REBVAL-sized cell for
+    // saving that data, and natives may make use of during their call.
+    // At front of struct for alignment.
+    //
+    REBVAL cell;
 
-    // INPUT AND OUTPUT
+    // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
+    //
+    // A copy of the function value when a call is in effect.  This is needed
+    // to make the function value stable, and not get pulled out from under
+    // the call frame.  That could happen due to a modification of the series
+    // where the evaluating function lived.  At front of struct for alignment.
+    //
+    REBVAL func;
 
-    REBCNT index; // will be modified, can also be THROWN_FLAG or END_FLAG
+    // `dsp_orig` [INTERNAL, READ-ONLY]
+    //
+    // The data stack pointer captured on entry to the evaluation.  It is used
+    // by debug checks to make sure the data stack stays balanced after each
+    // sub-operation.  Yet also, refinements are pushed to the data stack and
+    // something to compare against to find out how many is needed.  At this
+    // position to sync alignment with same-sized `flags`.
+    //
+    REBINT dsp_orig;
 
-    // STATE VARIABLES
+    // `flags` [INPUT, READ-ONLY (unless FRAMELESS signaling error)]
+    //
+    // These are DO_FLAG_xxx or'd together.  If the call is being set up
+    // for an Apply as opposed to Do, this must be 0.
+    //
+    REBCNT flags;
 
-    struct Reb_Call *call;
+    // `out` [INPUT pointer of where to write an OUTPUT, GC-SAFE cell]
+    //
+    // This is where to write the result of the evaluation.  It should not be
+    // in "movable" memory, hence not in a series data array.  Often it is
+    // used as an intermediate free location to do calculations en route to
+    // a final result, due to being GC-safe
+    //
+    REBVAL *out;
 
-    // Functions don't have "names", though they can be assigned to words.
-    // If a function invokes via word lookup (vs. a literal FUNCTION! value),
-    // 'label_sym' will be that WORD!, and a placeholder otherwise.
+    // `value` [INPUT, REUSABLE, GC-PROTECTS pointed-to REBVAL]
+    //
+    // This is the value currently being processed.  Callers pass in the
+    // first value pointer...which for any successive evalutions will be
+    // updated via picking from `array` based on `index`.  But having the
+    // caller pass in the initial value gives the *option* of that value
+    // not being resident in the series.
+    //
+    // (Hence if one has the series `[[a b c] [d e]]` it would be possible to
+    // have an independent path value `append/only` and NOT insert it in the
+    // series, yet get the effect of `append/only [a b c] [d e]`.  This only
+    // works for one value, but is a convenient no-cost trick for apply-like
+    // situations...as insertions usually have to "slide down" the values in
+    // the series and may also need to perform alloc/free/copy to expand.)
+    //
+    const REBVAL *value;
+
+    // array [INPUT, READ-ONLY, GC-PROTECTED]
+    //
+    // The array from which new values will be fetched.  Although the
+    // series may have come from a ANY-ARRAY! (e.g. a PATH!), the distinction
+    // does not exist at this point...so it will "evaluate like a block".
+    //
+    REBSER *array;
+
+    // `index` [INPUT, OUTPUT]
+    //
+    // Index into the array from which new values are fetched after the
+    // initial `value`.  Successive fetching is always done by index and
+    // not by incrementing `value` for several reasons, though one is to
+    // avoid crashing if the input array is modified during the evaluation.
+    //
+    // !!! While it doesn't *crash*, a good user-facing explanation of
+    // handling what it does instead seems not to have been articulated!  :-/
+    //
+    // At the end of the evaluation it's the index of the next expression
+    // to be evaluated, THROWN_FLAG, or END_FLAG.
+    //
+    REBCNT index;
+
+    // `label_sym` [INTERNAL, READ-ONLY]
+    //
+    // Functions don't have "names", though they can be assigned
+    // to words.  If a function is invoked via word lookup (vs. a literal
+    // FUNCTION! value), 'label_sym' will be that WORD!, and a placeholder
+    // otherwise.  Placed here for 64-bit alignment after same-size `index`.
+    //
     REBCNT label_sym;
 
-    // Some operations need a unit of additional storage.  This is a one-
-    // REBVAL-sized cell for saving that data, which a frameless native
-    // can also make use of.
-    REBVAL save;
+    // `arglist` [INTERNAL, VALUES MUTABLE and GC-SAFE if FRAMED]
+    //
+    // The arglist is an array containing the evaluated arguments with which
+    // a function is being invoked (if it is not frameless).  It will be a
+    // manually-memory managed series which is freed when the call finishes,
+    // or cleaned up in error processing).
+    //
+    // An exception to this is if `func` is a CLOSURE!.  In that case, it
+    // will take ownership of the constructed array, give it over to GC
+    // management, and set this field to NULL.
+    //
+    REBSER *arglist;
+
+    // `arg` and `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
+    //
+    // We use the convention that "param" refers to the TYPESET! (plus symbol)
+    // from the spec of the function--a.k.a. the "formal argument".  Then
+    // `arg` is the "actual argument"...which is holds the pointer to the
+    // REBVAL slot in the `arglist` for that corresponding `param`.  These
+    // are moved in sync during parameter fulfillment but are available for
+    // reuse by the time the function invocation happens.
+    //
+    REBVAL *arg;
+    REBVAL *param;
+
+    // `refine` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVAL]
+    //
+    // The `arg` slot of the refinement currently being processed.  We have to
+    // remember its address in case we later see all its arguments are UNSET!,
+    // and want to go back and "revoke" it by setting the arg to NONE!.
+    //
+    REBVAL *refine;
+
+    // `prior` [INTERNAL, READ-ONLY]
+    //
+    // The prior call frame (may be NULL if this is the topmost stack call).
+    //
+    struct Reb_Call *prior;
+
+    // `mode` [INTERNAL, READ-ONLY]
+    //
+    // State variable during parameter fulfillment.  So before refinements,
+    // in refinement, skipping...etc.
+    //
+    // One particularly important usage is CALL_MODE_FUNCTION, which needs to
+    // be checked by `Get_Var`.  This is a necessarily evil while FUNCTION!
+    // does not have the semantics of CLOSURE!, because pathological cases
+    // in "stack-relative" addressing can get their hands on "reused" bound
+    // words during the formation process, e.g.:
+    //
+    //      leaker: func [/exec e /gimme g] [
+    //          either gimme [return [g]] [reduce e]
+    //      ]
+    //
+    //      leaker/exec reduce leaker/gimme 10
+    //
+    // Since a leaked word from another instance of a function can give
+    // access to a call frame during its formation, we need a way to tell
+    // when a call frame is finished forming...CALL_MODE_FUNCTION is it.
+    //
+    enum Reb_Call_Mode mode;
+
+    // `expr_index` [INTERNAL, READ-ONLY]
+    //
+    // Although the evaluator has to know what the current `index` is, the
+    // error reporting machinery typically wants to know where the index
+    // was *before* the last evaluation started...in order to present an
+    // idea of the expression that caused the error.  This is the index
+    // of where the currently evaluating expression started.
+    //
+    REBCNT expr_index;
 };
 
 
@@ -484,38 +657,38 @@ struct Reb_Do_State {
 #if defined(NDEBUG) || !defined(TO_LINUX)
     #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
         do { \
-            struct Reb_Do_State s_; \
-            s_.value = BLK_SKIP((array_),(index_in)); \
-            if (IS_END(s_.value)) { \
+            struct Reb_Call c_; \
+            c_.value = BLK_SKIP((array_),(index_in)); \
+            if (IS_END(c_.value)) { \
                 SET_UNSET(out_); \
                 (index_out) = END_FLAG; \
                 break; \
             } \
-            if (!ANY_EVAL(s_.value) && !ANY_EVAL(s_.value + 1)) { \
+            if (!ANY_EVAL(c_.value) && !ANY_EVAL(c_.value + 1)) { \
                 *(out_) = *BLK_SKIP((array_), (index_in)); \
                 (index_out) = ((index_in) + 1); \
                 break; \
             } \
-            s_.out = (out_); \
-            s_.array = (array_); \
-            s_.index = (index_in) + 1; \
-            s_.flags = DO_FLAG_NEXT | (flags_); \
-            Do_Core(&s_); \
-            (index_out) = s_.index; \
+            c_.out = (out_); \
+            c_.array = (array_); \
+            c_.index = (index_in) + 1; \
+            c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
+            Do_Core(&c_); \
+            (index_out) = c_.index; \
         } while (FALSE)
 #else
     // Linux debug builds currently default to running the evaluator on
     // every value--whether it has evaluator behavior or not.
     #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
         do { \
-            struct Reb_Do_State s_; \
-            s_.value = BLK_SKIP((array_), (index_in)); \
-            s_.out = (out_); \
-            s_.array = (array_); \
-            s_.index = (index_in) + 1; \
-            s_.flags = DO_FLAG_NEXT | (flags_); \
-            Do_Core(&s_); \
-            (index_out) = s_.index; \
+            struct Reb_Call c_; \
+            c_.value = BLK_SKIP((array_), (index_in)); \
+            c_.out = (out_); \
+            c_.array = (array_); \
+            c_.index = (index_in) + 1; \
+            c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
+            Do_Core(&c_); \
+            (index_out) = c_.index; \
         } while (FALSE);
 #endif
 
