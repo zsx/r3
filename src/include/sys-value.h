@@ -85,7 +85,6 @@ typedef struct Reb_Series REBSER;
 enum {
     OPT_VALUE_LINE = 0, // Line break occurs before this value
     OPT_VALUE_THROWN,   // Value is /NAME of a THROW (arg via THROWN_ARG)
-    OPT_VALUE_REEVALUATE, // Reevaluate result value
     OPT_VALUE_MAX
 };
 

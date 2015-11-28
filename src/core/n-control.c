@@ -840,21 +840,6 @@ REBNATIVE(do)
     REBVAL * const next_ref = D_ARG(4);
     REBVAL * const var = D_ARG(5); // if NONE!, DO/NEXT only but no var update
 
-#if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)) {
-        switch (VAL_TYPE(value)) {
-
-        case REB_NATIVE:
-        case REB_ACTION:
-        case REB_COMMAND:
-        case REB_CLOSURE:
-        case REB_FUNCTION:
-            VAL_SET_OPT(value, OPT_VALUE_REEVALUATE);
-            return R_ARG1;
-        }
-    }
-#endif
-
     switch (VAL_TYPE(value)) {
     case REB_UNSET:
         // useful for `do if ...` types of scenarios
@@ -908,7 +893,9 @@ REBNATIVE(do)
     case REB_URL:
     case REB_FILE:
     case REB_TAG:
+        //
         // DO native and system/intrinsic/do* must use same arg list:
+        //
         if (Do_Sys_Func_Throws(
             D_OUT,
             SYS_CTX_DO_P,
@@ -924,6 +911,7 @@ REBNATIVE(do)
         return R_OUT;
 
     case REB_ERROR:
+        //
         // FAIL is the preferred operation for triggering errors, as it has
         // a natural behavior for blocks passed to construct readable messages
         // and "FAIL X" more clearly communicates a failure than "DO X"
@@ -941,6 +929,11 @@ REBNATIVE(do)
     // which can do what EVAL can do for types that consume arguments
     // (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
     // functions only, EVAL generalizes it.
+    //
+    // !!! The LEGACY mode for DO that allows it to run functions is,
+    // like EVAL, implemented as part of the evaluator by recognizing
+    // the &N_do native function pointer.
+    //
     fail (Error(RE_USE_EVAL_FOR_EVAL));
 }
 
@@ -983,39 +976,11 @@ REBNATIVE(either)
 //
 REBNATIVE(eval)
 {
-    REBVAL * const value = D_ARG(1);
+    // There should not be any way to call this actual function, because it
+    // will be intercepted by recognizing its identity in the evaluator loop
+    // itself (required to do the "magic")
 
-    // Sets special flag, intercepted by the Do_Core() loop and used
-    // to signal that it should treat the return value as if it had
-    // seen it literally inline at the callsite.
-    //
-    //     >> x: 10
-    //     >> (quote x:) 20
-    //     >> print x
-    //     10 ;-- the quoted x: is not "live"
-    //
-    //     >> x: 10
-    //     >> eval (quote x:) 20
-    //     >> print x
-    //     20 ;-- eval "activates" x: so it's as if you'd written `x: 20`
-    //
-    // This can be used to dispatch arbitrary function values without
-    // putting their arguments into blocks.
-    //
-    //     >> eval :add 10 20
-    //     == 30
-    //
-    // So although eval is just an arity 1 function, it is able to use its
-    // argument as a cue for its "actual arity" before the next value is
-    // to be evaluated.  This means it is doing something no other Rebol
-    // function is able to do.
-    //
-    // Note: Because it is slightly evil, "eval" is a good name for it.
-    // It may confuse people a little because it has no effect on blocks,
-    // but that does reinforce the truth that blocks are actually inert.
-
-    VAL_SET_OPT(value, OPT_VALUE_REEVALUATE);
-    return R_ARG1;
+    fail (Error(RE_MISC));
 }
 
 

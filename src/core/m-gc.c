@@ -1072,7 +1072,8 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = cast(REBVAL**, GC_Value_Guard->data);
         for (n = SERIES_TAIL(GC_Value_Guard); n > 0; n--, vp++) {
-            Queue_Mark_Value_Deep(*vp);
+            if (!IS_END(*vp))
+                Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
         }
 
@@ -1192,17 +1193,20 @@ void Guard_Series_Core(REBSER *series)
 //
 void Guard_Value_Core(const REBVAL *value)
 {
-    // Cheap check; we don't want you to save any values that wouldn't
-    // be safe if the GC saw them.  We exclude REB_END to catch zero
-    // initializations.
-    assert(VAL_TYPE(value) > REB_END && VAL_TYPE(value) < REB_MAX);
+    // Cheap check; require that the value already contain valid data when
+    // the guard call is made (even if GC isn't necessarily going to happen
+    // immediately, and value could theoretically become valid before then.)
+    //
+    assert(VAL_TYPE(value) < REB_MAX);
 
 #ifdef STRESS_CHECK_GUARD_VALUE_POINTER
+    //
     // Technically we should never call this routine to guard a value that
     // lives inside of a series.  Not only would we have to guard the
     // containing series, we would also have to lock the series from
     // being able to resize and reallocate the data pointer.  But this is
     // a somewhat expensive check, so it's only feasible to run occasionally.
+    //
     ASSERT_NOT_IN_SERIES_DATA(value);
 #endif
 

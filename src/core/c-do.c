@@ -45,7 +45,7 @@ REBINT Eval_Depth(void)
     struct Reb_Call *call = DSF;
 
     for (; call != NULL; call = PRIOR_DSF(call), depth++) {
-        assert(call->arglist);
+        //assert(call->arglist);
     }
     return depth;
 }
@@ -752,8 +752,16 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 // generally also means changes to two other semi-parallel routines:
 // `Apply_Block_Throws()` and `Redo_Func_Throws().`
 //
-void Do_Core(struct Reb_Call * const c)
+void Do_Core(struct Reb_Call * const call_)
 {
+    // The argument is called `call_` so that the D_xxx macro accessors will
+    // work just as in a native.  But there's a lot of usage of internal
+    // elements not exposed to the natives, and write access is necessary
+    // (natives are given read-only access if possible to things they should
+    // not write to).  So we alias to `c` (pointer should be optimized out.)
+    //
+    struct Reb_Call * const c = call_;
+
 #if !defined(NDEBUG)
     static REBCNT count_static = 0;
     REBCNT count;
@@ -785,7 +793,7 @@ void Do_Core(struct Reb_Call * const c)
     // See notes below on reference for why this is needed to implement eval.
     // When no eval is in effect we use a REB_END because it's fast to assign,
     // isn't debug-build only like REB_TRASH, and is not a legal result
-    // value type for an evaluation to be handed.
+    // value type for an evaluation...hence can serve as "no eval" signal.
     //
     REBVAL eval;
     SET_END(&eval);
@@ -942,7 +950,6 @@ reevaluate:
     if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
 
     assert(!THROWN(c->value));
-    assert(!VAL_GET_OPT(c->value, OPT_VALUE_REEVALUATE));
     ASSERT_VALUE_MANAGED(c->value);
 
     assert(!c->arglist);
@@ -1082,10 +1089,69 @@ reevaluate:
         //
         assert(DSP >= c->dsp_orig);
 
+        // The EVAL "native" is unique because it cannot be a function that
+        // runs "under the evaluator"...because it *is the evaluator itself*.
+        // Hence it is handled in a special way.
+        //
+        if (
+            VAL_FUNC_PARAMLIST(&c->func)
+            == VAL_FUNC_PARAMLIST(ROOT_EVAL_NATIVE)
+        ) {
+            if (IS_END(&eval)) {
+                //
+                // The next evaluation we invoke expects to be able to write
+                // `out`, and our intermediary value does not live in a series
+                // that is protecting it.  We may need it to survive GC
+                // until the next evaluation is over...could be a while!  :-/
+                //
+                // Since we've now seen *an* eval, pay the cost for a guard.
+                // (Note: you cannot guard a REB_END, so this is done second,
+                // and is the reason these `if` branches are redundant.)
+                //
+                PUSH_GUARD_VALUE(&eval);
+            }
+            else {
+                //
+                // If we're running a chain of evals like `eval eval eval ...`
+                // then the variable won't be a REB_END, and is already
+                // guarded.  So don't guard it again, just do the DO.
+                //
+            }
+
+            // "DO/NEXT" full expression into the `eval` REBVAR slot
+            // (updates index...)
+            //
+            DO_NEXT_MAY_THROW_CORE(
+                c->index, &eval, c->array, c->index, DO_FLAG_LOOKAHEAD
+            );
+
+            if (c->index == THROWN_FLAG) goto return_thrown;
+
+            if (c->index == END_FLAG) {
+                //
+                // EVAL will handle anything the evaluator can, including
+                // an UNSET!, but it errors on END!, e.g. `do [eval]`
+                //
+                assert(VAL_FUNC_NUM_PARAMS(ROOT_EVAL_NATIVE) == 1);
+                fail (Error_No_Arg(
+                    c->label_sym, VAL_FUNC_PARAM(ROOT_EVAL_NATIVE, 1)
+                ));
+            }
+
+            // Jumping to the `reevaluate:` label will skip the fetch from the
+            // array to get the next `value`.  So seed it with the address of
+            // our guarded eval result, and step the index back by one so
+            // the next increment will get our position sync'd in the block.
+            //
+            c->value = &eval;
+            c->index--;
+            goto reevaluate;
+        }
 
         // `out` may contain the pending argument for an infix operation,
         // and it could also be the backing store of the `value` pointer
-        // to the function.  So Push_New_Arglist_For_Call() shouldn't overwrite it!
+        // to the function.  So Push_New_Arglist_For_Call() shouldn't
+        // overwrite it!
         //
         // Note: Although we create the call frame here, we cannot "put
         // it into effect" until all the arguments have been computed.
@@ -1613,49 +1679,51 @@ reevaluate:
         }
 
     function_ready_to_call:
-        // Execute the function with all arguments ready
+        //
+        // Execute the function with all arguments ready.
+        //
+    #if !defined(NDEBUG)
+        //
+        // R3-Alpha DO acted like an "EVAL" when passed a function, hence it
+        // would have an effective arity greater than 1 if that were the case.
+        // It was the only function that could do this.  Ren-C isolates the
+        // concept of a "re-evaluator" into a full-spectrum native that does
+        // *only* that, and is known to be "un-wrappable":
+        //
+        // https://trello.com/c/YMAb89dv
+        //
+        // With the OPT_VALUE_REEVALUATE bit (which had been a cost on every
+        // REBVAL) now gone, we must hook the evaluator to implement the
+        // legacy feature for DO.
+        //
+        if (
+            LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
+            && IS_NATIVE(D_FUNC) && VAL_FUNC_CODE(D_FUNC) == &N_do
+            && ANY_FUNC(D_ARG(1))
+        ) {
+            if (IS_END(&eval))
+                PUSH_GUARD_VALUE(&eval);
+
+            // Grab the argument into the eval storage slot before abandoning
+            // the arglist.
+            //
+            eval = *D_ARG(1);
+            Drop_Call_Arglist(c);
+
+            c->mode = CALL_MODE_0;
+            c->value = &eval;
+            c->index--;
+            goto reevaluate;
+        }
+    #endif
+        //
+        // ...but otherwise, we run it (using the common routine that also
+        // powers the Apply for calling functions directly from C varargs)
         //
         if (Dispatch_Call_Throws(c))
             goto return_thrown;
 
         if (Trace_Flags) Trace_Return(c->label_sym, c->out);
-
-        if (VAL_GET_OPT(c->out, OPT_VALUE_REEVALUATE)) {
-            //
-            // The return value came from EVAL and we need to "activate" it.
-            //
-            // !!! As EVAL is the only way this can ever happen, the test
-            // could be if the function is a NATIVE! and holds the C
-            // function pointer to REBNATIVE(eval)--then reclaim the bit.
-            //
-            VAL_CLR_OPT(c->out, OPT_VALUE_REEVALUATE);
-
-            // The next evaluation we invoke expects to be able to write into
-            // `out` (and not have `value` living in there), so we need to
-            // be able to move it.  But we may need it to survive GC
-            // until the next evaluation is over...could be a while.  :-/
-            //
-            // A Reb_Call is not engaged by the GC unless a call is in effect,
-            // so there'd have to be another way to guard it.  (Also, all
-            // the fields in the Reb_Call are spoken for in terms of purpose.)
-            // We on-demand create a guarded value if-and-only if one happens.
-            //
-            if (IS_END(&eval)) {
-                eval = *c->out;
-                PUSH_GUARD_VALUE(&eval);
-            }
-            else
-                eval = *c->out;
-
-            c->value = &eval;
-
-            // act "as if" value had been in the last position of the last
-            // function argument evaluated (or the function itself if no args)
-            //
-            c->index--;
-
-            goto reevaluate;
-        }
         break;
 
     // [PATH!]
