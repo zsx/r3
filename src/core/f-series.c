@@ -60,13 +60,13 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
         VAL_INDEX(value) = (REBCNT)tail;
         break;
 
-    case A_HEADQ:
+    case A_HEAD_Q:
         DECIDE(index == 0);
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         DECIDE(index >= tail);
 
-    case A_PASTQ:
+    case A_PAST_Q:
         DECIDE(index > tail);
 
     case A_NEXT:
@@ -125,8 +125,8 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
     case A_DIVIDE:
     case A_REMAINDER:
     case A_POWER:
-    case A_ODDQ:
-    case A_EVENQ:
+    case A_ODD_Q:
+    case A_EVEN_Q:
     case A_ABSOLUTE:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
 

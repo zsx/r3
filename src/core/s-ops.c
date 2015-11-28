@@ -225,16 +225,19 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
         p2 = BIN_HEAD(series);
 
         switch (action) {
-        case A_AND:
+        case A_AND_T:
             for (i = 0; i < mt; i++) *p2++ = *p0++ & *p1++;
             CLEAR(p2, t2 - mt);
             return series;
-        case A_OR:
+
+        case A_OR_T:
             for (i = 0; i < mt; i++) *p2++ = *p0++ | *p1++;
             break;
-        case A_XOR:
+
+        case A_XOR_T:
             for (i = 0; i < mt; i++) *p2++ = *p0++ ^ *p1++;
             break;
+
         default:
             // special bit set case EXCLUDE:
             for (i = 0; i < mt; i++) *p2++ = *p0++ & ~*p1++;

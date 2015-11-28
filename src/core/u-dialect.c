@@ -126,7 +126,7 @@ static int Count_Dia_Args(REBVAL *args)
 
     for (; NOT_END(args); args++) {
         if (IS_WORD(args)) {
-            if (VAL_WORD_SYM(args) == SYM__P) { // skip: * type
+            if (VAL_WORD_SYM(args) == SYM_ASTERISK) { // skip: * type
                 if (NOT_END(args+1)) args++;
             } else n++;
         }
@@ -237,7 +237,7 @@ again:
             if (type < REB_MAX) {
                 type--; // the type id
             }
-            else if (type == SYM__P) {
+            else if (type == SYM_ASTERISK) {
                 // repeat: * integer!
                 rept = 1;
                 fargs++;

@@ -428,7 +428,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
         Read_File_Port(D_OUT, port, file, path, args, len);
         break;
 
-    case A_OPENQ:
+    case A_OPEN_Q:
         if (IS_OPEN(file)) return R_TRUE;
         return R_FALSE;
 
@@ -519,13 +519,13 @@ static REB_R File_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
         file->special.file.index += Get_Num_Arg(D_ARG(2));
         goto seeked;
 
-    case A_HEADQ:
+    case A_HEAD_Q:
         DECIDE(file->special.file.index == 0);
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         DECIDE(file->special.file.index >= file->special.file.size);
 
-    case A_PASTQ:
+    case A_PAST_Q:
         DECIDE(file->special.file.index > file->special.file.size);
 
     case A_CLEAR:

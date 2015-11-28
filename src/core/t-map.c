@@ -562,7 +562,7 @@ REBTYPE(Map)
         Val_Init_Block(D_OUT, series);
         break;
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         return (Length_Map(series) == 0) ? R_TRUE : R_FALSE;
 
     default:

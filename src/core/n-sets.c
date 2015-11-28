@@ -246,7 +246,7 @@ REBNATIVE(difference)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_XOR, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(A_XOR_T, val1, val2));
         return R_OUT;
     }
 
@@ -349,7 +349,7 @@ REBNATIVE(intersect)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_AND, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(A_AND_T, val1, val2));
         return R_OUT;
     }
 
@@ -397,7 +397,7 @@ REBNATIVE(union)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_OR, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(A_OR_T, val1, val2));
         return R_OUT;
     }
 

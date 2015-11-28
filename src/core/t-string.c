@@ -694,9 +694,9 @@ zero_str:
 
     //-- Bitwise:
 
-    case A_AND:
-    case A_OR:
-    case A_XOR:
+    case A_AND_T:
+    case A_OR_T:
+    case A_XOR_T:
         if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
         VAL_LIMIT_SERIES(value);
         VAL_LIMIT_SERIES(arg);

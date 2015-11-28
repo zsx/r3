@@ -379,7 +379,7 @@ REBNATIVE(break)
 {
     REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
 
-    *D_OUT = *ROOT_BREAK_NATIVE;
+    *D_OUT = *D_FUNC;
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -578,14 +578,8 @@ REBNATIVE(catch)
 
     if (DO_ARRAY_THROWS(D_OUT, block)) {
         if (
-            (any && (
-                !IS_NATIVE(D_OUT)
-                || VAL_FUNC_CODE(D_OUT) != VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
-            ))
-            || (quit && (
-                IS_NATIVE(D_OUT)
-                && VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
-            ))
+            (any && (!IS_NATIVE(D_OUT) || VAL_FUNC_CODE(D_OUT) != &N_quit))
+            || (quit && (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_quit))
         ) {
             goto was_caught;
         }
@@ -817,7 +811,7 @@ REBNATIVE(continue)
 {
     REBVAL *value = D_REF(1) ? D_ARG(2) : UNSET_VALUE;
 
-    *D_OUT = *ROOT_CONTINUE_NATIVE;
+    *D_OUT = *D_FUNC;
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -1040,7 +1034,7 @@ REBNATIVE(exit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :exit`.
 {
-    *D_OUT = *ROOT_EXIT_NATIVE;
+    *D_OUT = *D_FUNC;
 
     CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 

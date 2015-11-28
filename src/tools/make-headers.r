@@ -99,9 +99,44 @@ output-buffer: make string! 20000
 emit-header "Function Prototypes" %funcs.h
 
 emit-out {
+// When building as C++, the linkage on these functions should be done without
+// "name mangling" so that library clients will not notice a difference
+// between a C++ build and a C build.
+//
 #ifdef __cplusplus
 extern "C" ^{
 #endif
+
+//
+// Native Prototypes: REBNATIVE is a macro which will expand such that
+// REBNATIVE(parse) will define a function named `N_parse`.  The prototypes
+// are included in a system-wide header in order to allow recognizing a
+// given native by identity in the C code, e.g.:
+//
+//     if (VAL_FUNC_CODE(native) == &N_parse) { ... }
+//
+}
+
+boot-booters: load %../boot/booters.r
+boot-natives: load %../boot/tmp-natives.r
+
+nats: append copy boot-booters boot-natives
+
+for-each val nats [
+    if set-word? val [
+        emit-out rejoin ["REBNATIVE(" to-c-name (to word! val) ");"]
+    ]
+]
+
+emit-out {
+
+//
+// Other Prototypes: These are the functions that are scanned for in the %.c
+// files by %make-headers.r, and then their prototypes placed here.  This
+// means it is not necessary to manually keep them in sync to make calls to
+// functions living in different sources.  (`static` functions are skipped
+// by the scan.)
+//
 }
 
 files: sort read %./

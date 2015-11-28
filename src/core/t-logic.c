@@ -78,10 +78,21 @@ REBTYPE(Logic)
 
     switch (action) {
 
-    case A_AND: val1 &= val2; break;
-    case A_OR:  val1 |= val2; break;
-    case A_XOR:  val1 ^= val2; break;
-    case A_COMPLEMENT: val1 = 1 & ~val1; break;
+    case A_AND_T:
+        val1 &= val2;
+        break;
+
+    case A_OR_T:
+        val1 |= val2;
+        break;
+
+    case A_XOR_T:
+        val1 ^= val2;
+        break;
+
+    case A_COMPLEMENT:
+        val1 = 1 & ~val1;
+        break;
 
     case A_RANDOM:
         if (D_REF(2)) { // /seed

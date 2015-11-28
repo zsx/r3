@@ -214,15 +214,19 @@ REBTYPE(Tuple)
             REBINT v = *vp;
             if (ap)
                 a = (REBINT) *ap++;
+
             switch (action) {
             case A_ADD: v += a; break;
+
             case A_SUBTRACT: v -= a; break;
+
             case A_MULTIPLY:
                 if (IS_DECIMAL(arg) || IS_PERCENT(arg))
                     v=(REBINT)(v*dec);
                 else
                     v *= a;
                 break;
+
             case A_DIVIDE:
                 if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
                     if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
@@ -232,13 +236,24 @@ REBTYPE(Tuple)
                     v /= a;
                 }
                 break;
+
             case A_REMAINDER:
                 if (a == 0) fail (Error(RE_ZERO_DIVIDE));
                 v %= a;
                 break;
-            case A_AND: v &= a; break;
-            case A_OR:  v |= a; break;
-            case A_XOR: v ^= a; break;
+
+            case A_AND_T:
+                v &= a;
+                break;
+
+            case A_OR_T:
+                v |= a;
+                break;
+
+            case A_XOR_T:
+                v ^= a;
+                break;
+
             default:
                 fail (Error_Illegal_Action(REB_TUPLE, action));
             }

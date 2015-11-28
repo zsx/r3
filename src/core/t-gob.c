@@ -883,15 +883,15 @@ REBTYPE(Gob)
         index = tail;
         goto set_index;
 
-    case A_HEADQ:
+    case A_HEAD_Q:
         if (index == 0) goto is_true;
         goto is_false;
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         if (index >= tail) goto is_true;
         goto is_false;
 
-    case A_PASTQ:
+    case A_PAST_Q:
         if (index > tail) goto is_true;
         goto is_false;
 

@@ -851,7 +851,7 @@ REBNATIVE(find_script)
 //      data [binary!]
 //  ]
 //
-REBNATIVE(utfq)
+REBNATIVE(utf_q)
 {
     REBINT utf = What_UTF(VAL_BIN_DATA(D_ARG(1)), VAL_LEN(D_ARG(1)));
     SET_INTEGER(D_OUT, utf);
@@ -869,7 +869,7 @@ REBNATIVE(utfq)
 //      num [integer!] "Bit size - positive for BE negative for LE"
 //  ]
 //
-REBNATIVE(invalid_utfq)
+REBNATIVE(invalid_utf_q)
 {
     REBVAL *arg = D_ARG(1);
     REBYTE *bp;

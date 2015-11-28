@@ -50,16 +50,16 @@ const struct {
     REBCNT sym;
     REBU64 bits;
 } Typesets[] = {
-    {SYM_ANY_VALUEX, (cast(REBU64, 1) << REB_MAX) - 2}, // do not include END!
-    {SYM_ANY_WORDX, TS_WORD},
-    {SYM_ANY_PATHX, TS_PATH},
-    {SYM_ANY_FUNCTIONX, TS_FUNCTION},
-    {SYM_ANY_NUMBERX, TS_NUMBER},
-    {SYM_ANY_SCALARX, TS_SCALAR},
-    {SYM_ANY_SERIESX, TS_SERIES},
-    {SYM_ANY_STRINGX, TS_STRING},
-    {SYM_ANY_OBJECTX, TS_OBJECT},
-    {SYM_ANY_ARRAYX, TS_ARRAY},
+    {SYM_ANY_VALUE_X, (cast(REBU64, 1) << REB_MAX) - 2}, // do not include END!
+    {SYM_ANY_WORD_X, TS_WORD},
+    {SYM_ANY_PATH_X, TS_PATH},
+    {SYM_ANY_FUNCTION_X, TS_FUNCTION},
+    {SYM_ANY_NUMBER_X, TS_NUMBER},
+    {SYM_ANY_SCALAR_X, TS_SCALAR},
+    {SYM_ANY_SERIES_X, TS_SERIES},
+    {SYM_ANY_STRING_X, TS_STRING},
+    {SYM_ANY_OBJECT_X, TS_OBJECT},
+    {SYM_ANY_ARRAY_X, TS_ARRAY},
 
     {SYM_0, 0}
 };
@@ -152,8 +152,8 @@ REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
                 TYPE_SET(value, KIND_FROM_SYM(sym));
                 continue;
             } // Special typeset symbols:
-            else if (sym >= SYM_ANY_VALUEX && sym < SYM_DATATYPES)
-                val = BLK_SKIP(types, sym - SYM_ANY_VALUEX);
+            else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
+                val = BLK_SKIP(types, sym - SYM_ANY_VALUE_X);
         }
         if (!val) val = block;
         if (IS_DATATYPE(val)) {
@@ -272,15 +272,20 @@ REBTYPE(Typeset)
         if (IS_TYPESET(arg)) return R_ARG2;
         fail (Error_Bad_Make(REB_TYPESET, arg));
 
-    case A_AND:
-    case A_OR:
-    case A_XOR:
-        if (IS_DATATYPE(arg)) VAL_TYPESET_BITS(arg) = FLAGIT_64(VAL_TYPE_KIND(arg));
-        else if (!IS_TYPESET(arg)) fail (Error_Invalid_Arg(arg));
+    case A_AND_T:
+    case A_OR_T:
+    case A_XOR_T:
+        if (IS_DATATYPE(arg))
+            VAL_TYPESET_BITS(arg) = FLAGIT_64(VAL_TYPE_KIND(arg));
+        else if (!IS_TYPESET(arg))
+            fail (Error_Invalid_Arg(arg));
 
-        if (action == A_OR) VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
-        else if (action == A_AND) VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
-        else VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
+        if (action == A_OR_T)
+            VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
+        else if (action == A_AND_T)
+            VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
+        else
+            VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
         return R_ARG1;
 
     case A_COMPLEMENT:

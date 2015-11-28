@@ -545,7 +545,7 @@ REBTYPE(Object)
         obj = Trim_Object(VAL_OBJ_FRAME(value));
         break;
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         if (IS_OBJECT(value)) {
             SET_LOGIC(D_OUT, SERIES_TAIL(VAL_OBJ_FRAME(value)) <= 1);
             return R_OUT;

@@ -150,7 +150,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
         case A_CLOSE:
             return R_OUT;
 
-        case A_OPENQ:
+        case A_OPEN_Q:
             return R_FALSE;
 
         default:
@@ -212,6 +212,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
         result = OS_DO_DEVICE(req, RDC_WRITE); // send can happen immediately
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         break;
+
     case A_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
@@ -223,7 +224,8 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
             SET_NONE(arg);  // Write is done.
         }
         return R_NONE;
-    case A_OPENQ:
+
+    case A_OPEN_Q:
         return R_TRUE;
 
     case A_CLOSE:

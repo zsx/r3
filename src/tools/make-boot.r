@@ -126,22 +126,6 @@ up-word: func [w] [
 out: make string! 100000
 emit: func [data] [repend out data]
 
-to-c-name: func [word] [
-    word: form word
-    for-each [f t] [
-        "..." "ellipsis"
-        #"-" #"_"
-        #"." #"_"
-        #"?" #"q"
-        #"!" #"x"
-        #"~" ""
-        #"*" "_p"
-        #"+" "_add"
-        #"|" "or_bar"
-    ][replace/all word f t]
-    word
-]
-
 emit-enum: func [word] [emit [tab to-c-name word "," newline]]
 
 emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
@@ -246,9 +230,9 @@ emit {
 
 for-each-record-NO-RETURN type boot-types [
     either paren? type/class [
-        emit-line "TRUE" "" type/name
+        emit-line "" "TRUE" type/name
     ][
-        emit-line "FALSE" "" type/name
+        emit-line "" "FALSE" type/name
     ]
 ]
 emit-end
@@ -832,7 +816,7 @@ for-each word boot-actions [
 emit [tab "A_MAX_ACTION" lf "};"]
 emit {
 
-#define IS_BINARY_ACT(a) ((a) <= A_XOR)
+#define IS_BINARY_ACT(a) ((a) <= A_XOR_T)
 }
 print [n "actions"]
 
@@ -1118,21 +1102,10 @@ boot-booters: load %booters.r
 boot-natives: load %tmp-natives.r
 
 nats: append copy boot-booters boot-natives
-
-n: boot-sys
-;while [n: find n 'native] [
-;   if set-word? first back n [
-;       print index-of n
-;       append nats copy/part back n 3
-;   ]
-;   n: next next n
-;]
-
 nat-count: 0
 
 for-each val nats [
     if set-word? val [
-        emit-line/decl "REBNATIVE(" to word! val ");" ;R3
         nat-count: nat-count + 1
     ]
 ]

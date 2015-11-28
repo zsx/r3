@@ -473,10 +473,10 @@ REBTYPE(Time)
         // unary actions
         switch(action) {
 
-        case A_ODDQ:
+        case A_ODD_Q:
             DECIDE((SECS_IN(secs) & 1) != 0);
 
-        case A_EVENQ:
+        case A_EVEN_Q:
             DECIDE((SECS_IN(secs) & 1) == 0);
 
         case A_NEGATE:

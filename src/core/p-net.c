@@ -176,7 +176,7 @@ static REB_R Transport_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action
         case A_CLOSE:
             return R_OUT;
 
-        case A_OPENQ:
+        case A_OPEN_Q:
             return R_FALSE;
 
         case A_UPDATE:  // allowed after a close
@@ -275,7 +275,7 @@ static REB_R Transport_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action
         Ret_Query_Net(port, sock, D_OUT);
         break;
 
-    case A_OPENQ:
+    case A_OPEN_Q:
         // Connect for clients, bind for servers:
         if (sock->state & ((1<<RSM_CONNECT) | (1<<RSM_BIND))) return R_TRUE;
         return R_FALSE;

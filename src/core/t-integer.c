@@ -380,24 +380,35 @@ REBTYPE(Integer)
         num = REM2(num, arg);
         break;
 
-    case A_AND: num &= arg; break;
-    case A_OR:  num |= arg; break;
-    case A_XOR: num ^= arg; break;
+    case A_AND_T:
+        num &= arg;
+        break;
+
+    case A_OR_T:
+        num |= arg;
+        break;
+
+    case A_XOR_T:
+        num ^= arg;
+        break;
 
     case A_NEGATE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         num = -num;
         break;
 
-    case A_COMPLEMENT: num = ~num; break;
+    case A_COMPLEMENT:
+        num = ~num;
+        break;
 
     case A_ABSOLUTE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         if (num < 0) num = -num;
         break;
 
-    case A_EVENQ: num = ~num;
-    case A_ODDQ:
+    case A_EVEN_Q:
+        num = ~num;
+    case A_ODD_Q:
         if (num & 1)
             return R_TRUE;
         return R_FALSE;

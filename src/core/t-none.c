@@ -67,9 +67,10 @@ REBTYPE(None)
         else
             return IS_NONE(val) ? R_NONE : R_UNSET;
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         if (IS_NONE(val)) return R_TRUE;
         goto trap_it;
+
     case A_INDEX_OF:
     case A_LENGTH:
     case A_SELECT:

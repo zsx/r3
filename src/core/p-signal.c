@@ -192,10 +192,11 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
                     return R_ARG1; //port
                 }
                 break;
+
             case A_CLOSE:
                 return R_OUT;
 
-            case A_OPENQ:
+            case A_OPEN_Q:
                 return R_FALSE;
 
             case A_UPDATE:  // allowed after a close
@@ -249,7 +250,7 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
             OS_DO_DEVICE(req, RDC_CLOSE);
             return R_ARG1;
 
-        case A_OPENQ:
+        case A_OPEN_Q:
             return R_TRUE;
 
         case A_OPEN:

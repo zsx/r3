@@ -317,7 +317,7 @@ REBFLG Set_Bits(REBSER *bset, REBVAL *val, REBOOL set)
 
         case REB_CHAR:
             c = VAL_CHAR(val);
-            if (IS_SAME_WORD(val + 1, SYM__)) {
+            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
                 val += 2;
                 if (IS_CHAR(val)) {
                     n = VAL_CHAR(val);
@@ -334,7 +334,7 @@ span_bits:
         case REB_INTEGER:
             n = Int32s(val, 0);
             if (n > MAX_BITSET) return 0;
-            if (IS_SAME_WORD(val + 1, SYM__)) {
+            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
                 c = n;
                 val += 2;
                 if (IS_INTEGER(val)) {
@@ -409,7 +409,7 @@ REBFLG Check_Bits(REBSER *bset, REBVAL *val, REBFLG uncased)
 
         case REB_CHAR:
             c = VAL_CHAR(val);
-            if (IS_SAME_WORD(val + 1, SYM__)) {
+            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
                 val += 2;
                 if (IS_CHAR(val)) {
                     n = VAL_CHAR(val);
@@ -428,7 +428,7 @@ scan_bits:
         case REB_INTEGER:
             n = Int32s(val, 0);
             if (n > 0xffff) return 0;
-            if (IS_SAME_WORD(val + 1, SYM__)) {
+            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
                 c = n;
                 val += 2;
                 if (IS_INTEGER(val)) {
@@ -588,7 +588,7 @@ set_bits:
         SET_INTEGER(value, len);
         break;
 
-    case A_TAILQ:
+    case A_TAIL_Q:
         // Necessary to make EMPTY? work:
         return (VAL_TAIL(value) == 0) ? R_TRUE : R_FALSE;
 
@@ -596,9 +596,9 @@ set_bits:
         Clear_Series(VAL_SERIES(value));
         break;
 
-    case A_AND:
-    case A_OR:
-    case A_XOR:
+    case A_AND_T:
+    case A_OR_T:
+    case A_XOR_T:
         if (!IS_BITSET(arg) && !IS_BINARY(arg))
             fail (Error_Math_Args(VAL_TYPE(arg), action));
         VAL_SERIES(value) = ser = Xandor_Binary(action, value, arg);

@@ -55,11 +55,11 @@ enum parse_flags {
 #define MAX_PARSE_DEPTH 512
 
 // Returns SYMBOL or 0 if not a command:
-#define GET_CMD(n) (((n) >= SYM_OR_BAR && (n) <= SYM_END) ? (n) : 0)
+#define GET_CMD(n) (((n) >= SYM_BAR && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
 #define HAS_CASE(p) (p->find_flags & AM_FIND_CASE)
-#define IS_OR_BAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM_OR_BAR)
-#define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_SAME_WORD(r, SYM_OR_BAR)) r++;
+#define IS_OR_BAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM_BAR)
+#define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_SAME_WORD(r, SYM_BAR)) r++;
 #define IS_BLOCK_INPUT(p) (p->type >= REB_BLOCK)
 
 static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rules, REBCNT depth);
@@ -726,7 +726,7 @@ static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rule
 
                     switch (cmd) {
 
-                    case SYM_OR_BAR:
+                    case SYM_BAR:
                         return index;   // reached it successfully
 
                     // Note: mincount = maxcount = 1 on entry
@@ -849,7 +849,7 @@ static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rule
                         //goto bad_rule;
                     //  goto post;
 
-                    case SYM_QQ:
+                    case SYM__Q_Q:
                         Print_Parse_Index(parse->type, rules, series, index);
                         continue;
                     }

@@ -57,13 +57,13 @@ REBFLG Catching_Break_Or_Continue(REBVAL *val, REBFLG *stop)
     if (!IS_NATIVE(val))
         return FALSE;
 
-    if (VAL_FUNC_CODE(val) == VAL_FUNC_CODE(ROOT_BREAK_NATIVE)) {
+    if (VAL_FUNC_CODE(val) == &N_break) {
         *stop = TRUE; // was BREAK or BREAK/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
     }
 
-    if (VAL_FUNC_CODE(val) == VAL_FUNC_CODE(ROOT_CONTINUE_NATIVE)) {
+    if (VAL_FUNC_CODE(val) == &N_continue) {
         *stop = FALSE; // was CONTINUE or CONTINUE/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;

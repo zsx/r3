@@ -182,7 +182,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action
         OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
-    case A_OPENQ:
+    case A_OPEN_Q:
         if (IS_OPEN(req)) return R_TRUE;
         return R_FALSE;
 

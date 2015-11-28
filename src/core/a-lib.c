@@ -224,8 +224,8 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 
         if (
             IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
-                || VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+                VAL_FUNC_CODE(&out) == &N_quit
+                || VAL_FUNC_CODE(&out) == &N_exit
             )
         ) {
             int status;
@@ -435,8 +435,8 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
 
         if (
             IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_QUIT_NATIVE)
-                || VAL_FUNC_CODE(&out) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
+                VAL_FUNC_CODE(&out) == &N_quit
+                || VAL_FUNC_CODE(&out) == &N_exit
             )
         ) {
             CATCH_THROWN(&out, &out);

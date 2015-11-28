@@ -28,8 +28,133 @@ REBOL [
 do %r2r3-future.r
 
 
-;-- !!! switch to use spaces when code is transitioned
-code-tab: (comment [rejoin [space space space space]] tab)
+spaced-tab: rejoin [space space space space]
+
+
+to-c-name: function [
+    {Take a Rebol value and transliterate it as a (likely) valid C identifier.}
+
+    value
+        {Any Rebol value (will be FORM'd before processing)}
+    /scope
+        {See scope rules: http://stackoverflow.com/questions/228783/}
+    word [word!]
+        {Either 'global or 'local (defaults global)}
+][
+    c-chars: charset [
+        #"a" - #"z"
+        #"A" - #"Z"
+        #"0" - #"9"
+        #"_"
+    ]
+
+    string: form value
+
+    string: switch/default attempt [to-word string] [
+        ; Take care of special cases of singular symbols
+
+        ; Used specifically by t-routine.c to make SYM_ELLIPSIS
+        ... ["ellipsis"]
+
+        ; Used to make SYM_HYPHEN which is needed by `charset [#"A" - #"Z"]`
+        - ["hyphen"]
+
+        ; Used by u-dialect apparently
+        * ["asterisk"]
+
+        ; None of these are used at present, but included in case
+        . ["period"]
+        ? ["question"]
+        ! ["exclamation"]
+        + ["plus"]
+        ~ ["tilde"]
+        | ["bar"]
+    ][
+        ; If these symbols occur composite in a longer word, they use a
+        ; shorthand; e.g. `true?` => `true_q`
+
+        for-each [reb c] [
+            -   "_"
+            *   "_p"    ; !!! because it symbolizes a (p)ointer in C??
+            .   "_"     ; !!! same as hyphen?
+            ?   "_q"
+            !   "_x"    ; e(x)clamation
+            +   "_a"    ; (a)ddition
+            ~   "_t"
+            |   "_b"
+
+        ][
+            replace/all string (form reb) c
+        ]
+
+        string
+    ]
+
+    if empty? string [
+        fail [
+            "empty identifier produced by to-c-name for"
+            (mold value) "of type" (mold type-of value)
+        ]
+    ]
+
+    comment [
+        ; Don't worry about leading digits at the moment, because currently
+        ; the code will do a to-c-name transformation and then often prepend
+        ; something to it.
+
+        if find charset [#"0" - #"9"] string/1 [
+            fail ["identifier" string "starts with digit in to-c-name"]
+        ]
+    ]
+
+    for-each char string [
+        if char = space [
+            ; !!! The way the callers seem to currently be written is to
+            ; sometimes throw "foo = 2" kinds of strings and expect them to
+            ; be converted to a "C string".  Only check the part up to the
+            ; first space for legitimacy then.  :-/
+            break
+        ]
+
+        unless find c-chars char [
+            fail ["Non-alphanumeric or hyphen in" string "in to-c-name"]
+        ]
+    ]
+
+    unless scope [word: 'global] ; default to assuming global need
+
+    ; Easiest rule is just "never start a global identifier with underscore",
+    ; but we check the C rules.  Since currently this routine is sometimes
+    ; called to produce a partial name, it may not be a problem if that part
+    ; starts with an underscore if something legal will be prepended.  But
+    ; there are no instances of that need so better to plant awareness.
+
+    catch [case/all [
+        string/1 != "_" [throw string]
+
+        word = 'global [
+            fail [
+                "global identifiers in C starting with underscore"
+                "are reserved for standard library usage"
+            ]
+        ]
+
+        word = 'local [
+            unless find charset [#"A" - #"Z"] value/2 [
+                throw string
+            ]
+            fail [
+                "local identifiers in C starting with underscore and then"
+                "a capital letter are reserved for standard library usage"
+            ]
+        ]
+
+        'default [fail "scope word must be 'global or 'local"]
+    ]]
+
+    string
+]
+
 
 ; http://stackoverflow.com/questions/11488616/
 binary-to-c: func [
@@ -45,7 +170,7 @@ binary-to-c: func [
 ] [
     out: make string! 6 * (length data)
     while [not tail? data] [
-        append out code-tab 
+        append out spaced-tab
 
         ;-- grab hexes in groups of 8 bytes
         hexed: enbase/base (copy/part data 8) 16

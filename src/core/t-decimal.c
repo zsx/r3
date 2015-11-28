@@ -309,13 +309,15 @@ REBTYPE(Decimal)
         case A_NEGATE:
             d1 = -d1;
             goto setDec;
+
         case A_ABSOLUTE:
             if (d1 < 0) d1 = -d1;
             goto setDec;
-        case A_EVENQ:
-        case A_ODDQ:
+
+        case A_EVEN_Q:
+        case A_ODD_Q:
             d1 = fabs(fmod(d1, 2.0));
-            DECIDE((action != A_EVENQ) != ((d1 < 0.5) || (d1 >= 1.5)));
+            DECIDE((action != A_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)));
 
         case A_MAKE:
         case A_TO:

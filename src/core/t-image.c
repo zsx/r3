@@ -825,12 +825,27 @@ REBTYPE(Image)
     // Dispatch action:
     switch (action) {
 
-    case A_HEAD: VAL_INDEX(value) = 0; break;
-    case A_TAIL: VAL_INDEX(value) = (REBCNT)tail; break;
-    case A_HEADQ: DECIDE(index == 0);
-    case A_TAILQ: DECIDE(index >= tail);
-    case A_NEXT: if (index < tail) VAL_INDEX(value)++; break;
-    case A_BACK: if (index > 0) VAL_INDEX(value)--; break;
+    case A_HEAD:
+        VAL_INDEX(value) = 0;
+        break;
+
+    case A_TAIL:
+        VAL_INDEX(value) = (REBCNT)tail;
+        break;
+
+    case A_HEAD_Q:
+        DECIDE(index == 0);
+
+    case A_TAIL_Q:
+        DECIDE(index >= tail);
+
+    case A_NEXT:
+        if (index < tail) VAL_INDEX(value)++;
+        break;
+
+    case A_BACK:
+        if (index > 0) VAL_INDEX(value)--;
+        break;
 
     case A_COMPLEMENT:
         series = Complement_Image(value);
@@ -843,10 +858,12 @@ REBTYPE(Image)
             VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
             VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
             return R_OUT;
-        } else {
+        }
+        else {
             SET_INTEGER(D_OUT, index + 1);
             return R_OUT;
         }
+        // fallthrough
     case A_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT;
@@ -877,8 +894,10 @@ REBTYPE(Image)
             if (diff > 0) index--; // For at, pick, poke.
         }
 
-        if (index > tail) index = tail;
-        else if (index < 0) index = 0;
+        if (index > tail)
+            index = tail;
+        else if (index < 0)
+            index = 0;
         VAL_INDEX(value) = (REBCNT)index;
         break;
 

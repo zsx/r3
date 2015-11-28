@@ -126,7 +126,7 @@ pick:
         OS_DO_DEVICE(sock, RDC_CLOSE);
         break;
 
-    case A_OPENQ:
+    case A_OPEN_Q:
         if (IS_OPEN(sock)) return R_TRUE;
         return R_FALSE;
 

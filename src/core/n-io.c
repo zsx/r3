@@ -286,7 +286,7 @@ REBNATIVE(new_line)
 //      position [block! paren!] "Position to check marker"
 //  ]
 //
-REBNATIVE(new_lineq)
+REBNATIVE(new_line_q)
 {
     if VAL_GET_OPT(VAL_BLK_DATA(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
     return R_FALSE;

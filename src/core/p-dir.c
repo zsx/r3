@@ -280,7 +280,7 @@ create:
         if (result < 0) fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
         break;
 
-    case A_OPENQ:
+    case A_OPEN_Q:
         if (IS_BLOCK(state)) return R_TRUE;
         return R_FALSE;
 

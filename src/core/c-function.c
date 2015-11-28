@@ -297,17 +297,6 @@ REBSER *Check_Func_Spec(REBSER *spec)
 }
 
 
-// Generates function prototypes for the natives here to be captured
-// by Make_Native (native's N_XXX functions are not automatically exported)
-
-REBNATIVE(parse);
-REBNATIVE(break);
-REBNATIVE(continue);
-REBNATIVE(quit);
-REBNATIVE(return);
-REBNATIVE(exit);
-
-
 //
 //  Make_Native: C
 //
@@ -327,22 +316,19 @@ void Make_Native(REBVAL *out, REBSER *spec, REBFUN func, REBINT type)
 
     *BLK_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
 
-    // These native routines want to be able to use *themselves* as a throw
-    // name (and other natives want to recognize that name, as might user
-    // code e.g. custom loops wishing to intercept BREAK or CONTINUE)
+    // These native routines want to be recognized by keylist, not by their
+    // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
+    // out for VAL_FUNC_RETURN_TO, and EVAL for 1 test vs. 2 in the eval loop.)
     //
-    if (func == &N_parse)
-        *ROOT_PARSE_NATIVE = *out;
-    else if (func == &N_break)
-        *ROOT_BREAK_NATIVE = *out;
-    else if (func == &N_continue)
-        *ROOT_CONTINUE_NATIVE = *out;
-    else if (func == &N_quit)
-        *ROOT_QUIT_NATIVE = *out;
-    else if (func == &N_return)
+    // PARSE wants to throw its value from nested code to itself, and doesn't
+    // want to thread its known D_FUNC value through the call stack.
+    //
+    if (func == &N_return)
         *ROOT_RETURN_NATIVE = *out;
-    else if (func == &N_exit)
-        *ROOT_EXIT_NATIVE = *out;
+    else if (func == &N_eval)
+        *ROOT_EVAL_NATIVE = *out;
+    else if (func == &N_parse)
+        *ROOT_PARSE_NATIVE = *out;
 }
 
 
@@ -960,12 +946,12 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
     Eval_Functions++;
 
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
+    //
     if (Do_At_Throws(D_OUT, VAL_FUNC_BODY(D_FUNC), 0)) {
-        if (
-            IS_NATIVE(D_OUT)
-            && VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
-        ) {
-            // Every function responds to non-definitional EXIT
+        //
+        // Every function responds to non-definitional EXIT
+        //
+        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
@@ -978,7 +964,7 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
             // Optimized definitional return!!  Courtesy of REBNATIVE(func),
             // a "hacked" REBNATIVE(return) that knew our paramlist, and
             // the gracious cooperation of a throw by Do_Native_Throws()...
-
+            //
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
@@ -1078,10 +1064,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 
     if (Do_At_Throws(D_OUT, body, 0)) {
         DROP_GUARD_SERIES(body);
-        if (
-            IS_NATIVE(D_OUT) &&
-            VAL_FUNC_CODE(D_OUT) == VAL_FUNC_CODE(ROOT_EXIT_NATIVE)
-        ) {
+        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
             // Every function responds to non-definitional EXIT
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;

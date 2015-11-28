@@ -68,7 +68,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 //      value [any-string! char! integer!]
 //  ]
 //
-REBNATIVE(asciiq)
+REBNATIVE(ascii_q)
 {
     return Check_Char_Range(D_ARG(1), 0x7f);
 }
@@ -82,7 +82,7 @@ REBNATIVE(asciiq)
 //      value [any-string! char! integer!]
 //  ]
 //
-REBNATIVE(latin1q)
+REBNATIVE(latin1_q)
 {
     return Check_Char_Range(D_ARG(1), 0xff);
 }
@@ -304,7 +304,7 @@ REBNATIVE(bind)
 //      word [any-word!]
 //  ]
 //
-REBNATIVE(boundq)
+REBNATIVE(bound_q)
 {
     REBVAL *word = D_ARG(1);
 
@@ -351,7 +351,7 @@ REBNATIVE(boundq)
 //      cell [unset! any-value!]
 //  ]
 //
-REBNATIVE(setq)
+REBNATIVE(set_q)
 {
     return IS_UNSET(D_ARG(1)) ? R_FALSE : R_TRUE;
 }
@@ -558,7 +558,7 @@ REBNATIVE(in)
 //      value2
 //  ]
 //
-REBNATIVE(andq)
+REBNATIVE(and_q)
 {
     if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
         return R_TRUE;
@@ -575,7 +575,7 @@ REBNATIVE(andq)
 //      value "(Only FALSE and NONE return TRUE)"
 //  ]
 //
-REBNATIVE(notq)
+REBNATIVE(not_q)
 {
     return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
 }
@@ -590,7 +590,7 @@ REBNATIVE(notq)
 //      value2
 //  ]
 //
-REBNATIVE(orq)
+REBNATIVE(or_q)
 {
     if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
         return R_TRUE;
@@ -608,7 +608,7 @@ REBNATIVE(orq)
 //      value2
 //  ]
 //
-REBNATIVE(xorq)
+REBNATIVE(xor_q)
 {
     // Note: no boolean ^^ in C; normalize to booleans and check unequal
     if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
@@ -824,7 +824,7 @@ REBNATIVE(unset)
 //      value [any-function!]
 //  ]
 //
-REBNATIVE(infixq)
+REBNATIVE(infix_q)
 {
     REBVAL *func = D_ARG(1);
 
@@ -844,7 +844,7 @@ REBNATIVE(infixq)
 //      value
 //  ]
 //
-REBNATIVE(valueq)
+REBNATIVE(value_q)
 {
     const REBVAL *value = D_ARG(1);
 

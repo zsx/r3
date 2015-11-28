@@ -217,10 +217,10 @@ REBTYPE(Money)
         }
         break;
 
-    case A_EVENQ:
-    case A_ODDQ:
+    case A_EVEN_Q:
+    case A_ODD_Q:
         equal = 1 & (REBINT)deci_to_int(VAL_MONEY_AMOUNT(val));
-        if (action == A_EVENQ) equal = !equal;
+        if (action == A_EVEN_Q) equal = !equal;
         if (equal) goto is_true;
         goto is_false;
 

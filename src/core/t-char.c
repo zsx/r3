@@ -74,32 +74,56 @@ REBTYPE(Char)
 
     switch (action) {
 
-    case A_ADD: chr += (REBUNI)arg; break;
+    case A_ADD:
+        chr += cast(REBUNI, arg);
+        break;
+
     case A_SUBTRACT:
-        chr -= (REBUNI)arg;
+        chr -= cast(REBUNI, arg);
         if (IS_CHAR(D_ARG(2))) {
             SET_INTEGER(D_OUT, chr);
             return R_OUT;
         }
         break;
-    case A_MULTIPLY: chr *= arg; break;
+
+    case A_MULTIPLY:
+        chr *= arg;
+        break;
+
     case A_DIVIDE:
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr /= arg;
         break;
+
     case A_REMAINDER:
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr %= arg;
         break;
 
-    case A_AND: chr &= (REBUNI)arg; break;
-    case A_OR:  chr |= (REBUNI)arg; break;
-    case A_XOR: chr ^= (REBUNI)arg; break;
+    case A_AND_T:
+        chr &= cast(REBUNI, arg);
+        break;
 
-    case A_NEGATE: chr = (REBUNI)-chr; break;
-    case A_COMPLEMENT: chr = (REBUNI)~chr; break;
-    case A_EVENQ: chr = (REBUNI)~chr;
-    case A_ODDQ: DECIDE(chr & 1);
+    case A_OR_T:
+        chr |= cast(REBUNI, arg);
+        break;
+
+    case A_XOR_T:
+        chr ^= cast(REBUNI, arg);
+        break;
+
+    case A_NEGATE:
+        chr = cast(REBUNI, -chr);
+        break;
+
+    case A_COMPLEMENT:
+        chr = cast(REBUNI, ~chr);
+        break;
+
+    case A_EVEN_Q:
+        chr = cast(REBUNI, ~chr);
+    case A_ODD_Q:
+        DECIDE(chr & 1);
 
     case A_RANDOM:  //!!! needs further definition ?  random/zero
         if (D_REF(2)) { // /seed

@@ -747,8 +747,10 @@ REBTYPE(Date)
     }
     else {
         switch(action) {
-        case A_EVENQ: day = ~day;
-        case A_ODDQ: DECIDE((day & 1) == 0);
+        case A_EVEN_Q:
+            day = ~day;
+        case A_ODD_Q:
+            DECIDE((day & 1) == 0);
 
         case A_PICK:
             assert(D_ARGC > 1);

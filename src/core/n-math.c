@@ -452,7 +452,7 @@ compare:
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(equalq)
+REBNATIVE(equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_TRUE;
     return R_FALSE;
@@ -467,7 +467,7 @@ REBNATIVE(equalq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(not_equalq)
+REBNATIVE(not_equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_FALSE;
     return R_TRUE;
@@ -482,7 +482,7 @@ REBNATIVE(not_equalq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(equivq)
+REBNATIVE(equiv_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
     return R_FALSE;
@@ -497,7 +497,7 @@ REBNATIVE(equivq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(not_equivq)
+REBNATIVE(not_equiv_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
     return R_TRUE;
@@ -512,7 +512,7 @@ REBNATIVE(not_equivq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(strict_equalq)
+REBNATIVE(strict_equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_TRUE;
     return R_FALSE;
@@ -527,7 +527,7 @@ REBNATIVE(strict_equalq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(strict_not_equalq)
+REBNATIVE(strict_not_equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_FALSE;
     return R_TRUE;
@@ -542,7 +542,7 @@ REBNATIVE(strict_not_equalq)
 //      value2 [any-value!]
 //  ]
 //
-REBNATIVE(sameq)
+REBNATIVE(same_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 3)) return R_TRUE;
     return R_FALSE;
@@ -556,7 +556,7 @@ REBNATIVE(sameq)
 //      value1 value2
 //  ]
 //
-REBNATIVE(lesserq)
+REBNATIVE(lesser_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_FALSE;
     return R_TRUE;
@@ -570,7 +570,7 @@ REBNATIVE(lesserq)
 //      value1 value2
 //  ]
 //
-REBNATIVE(lesser_or_equalq)
+REBNATIVE(lesser_or_equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_FALSE;
     return R_TRUE;
@@ -584,7 +584,7 @@ REBNATIVE(lesser_or_equalq)
 //      value1 value2
 //  ]
 //
-REBNATIVE(greaterq)
+REBNATIVE(greater_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_TRUE;
     return R_FALSE;
@@ -598,7 +598,7 @@ REBNATIVE(greaterq)
 //      value1 value2
 //  ]
 //
-REBNATIVE(greater_or_equalq)
+REBNATIVE(greater_or_equal_q)
 {
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_TRUE;
     return R_FALSE;
@@ -661,7 +661,7 @@ REBNATIVE(minimum)
 //      number [any-number! money! time! pair!]
 //  ]
 //
-REBNATIVE(negativeq)
+REBNATIVE(negative_q)
 {
     REBVAL zero;
     VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
@@ -679,7 +679,7 @@ REBNATIVE(negativeq)
 //      number [any-number! money! time! pair!]
 //  ]
 //
-REBNATIVE(positiveq)
+REBNATIVE(positive_q)
 {
     REBVAL zero;
     VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
@@ -698,7 +698,7 @@ REBNATIVE(positiveq)
 //      value
 //  ]
 //
-REBNATIVE(zeroq)
+REBNATIVE(zero_q)
 {
     REBCNT type = VAL_TYPE(D_ARG(1));
 

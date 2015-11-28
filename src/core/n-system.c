@@ -61,7 +61,7 @@ REBNATIVE(quit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :quit`.
 {
-    *D_OUT = *ROOT_QUIT_NATIVE;
+    *D_OUT = *D_FUNC;
 
     if (D_REF(1)) {
         CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
@@ -557,7 +557,7 @@ REBNATIVE(do_codec)
 //      context [any-word! any-object!] "A reference to the target context"
 //  ]
 //
-REBNATIVE(selflessq)
+REBNATIVE(selfless_q)
 {
     REBVAL *val = D_ARG(1);
     REBSER *frm;
