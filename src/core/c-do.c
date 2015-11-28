@@ -960,6 +960,8 @@ reevaluate:
 
     switch (VAL_TYPE(c->value)) {
 
+    // [END!]
+    //
     case REB_END:
         //
         // This means evaluation is over, regardless of whether it was a
@@ -969,6 +971,8 @@ reevaluate:
         c->index = END_FLAG;
         goto return_index;
 
+    // [WORD!]
+    //
     case REB_WORD:
         GET_VAR_INTO(c->out, c->value);
 
@@ -1001,6 +1005,8 @@ reevaluate:
         c->index++;
         break;
 
+    // [SET-WORD!]
+    //
     case REB_SET_WORD:
         //
         // `index` and `out` are modified
@@ -1041,6 +1047,8 @@ reevaluate:
             Set_Var(c->value, c->out);
         break;
 
+    // [ANY-FUNCTION!]
+    //
     case REB_NATIVE:
     case REB_ACTION:
     case REB_COMMAND:
@@ -1062,6 +1070,7 @@ reevaluate:
         c->func = *c->value;
 
     do_function:
+        //
         // Function to dispatch must be held in `func` when a jump here occurs
         //
         assert(ANY_FUNC(&c->func));
@@ -1649,6 +1658,8 @@ reevaluate:
         }
         break;
 
+    // [PATH!]
+    //
     case REB_PATH:
         if (Do_Path_Throws(c->out, &c->label_sym, c->value, 0))
             goto return_thrown;
@@ -1685,6 +1696,8 @@ reevaluate:
         }
         break;
 
+    // [GET-PATH!]
+    //
     case REB_GET_PATH:
         //
         // returns in word the path item, DS_TOP has value
@@ -1699,6 +1712,8 @@ reevaluate:
         c->index++;
         break;
 
+    // [SET-PATH!]
+    //
     case REB_SET_PATH:
         //
         // We want the result of the set path to wind up in `out`, so go
@@ -1723,6 +1738,8 @@ reevaluate:
         assert(DSP == c->dsp_orig);
         break;
 
+    // [PAREN!]
+    //
     case REB_PAREN:
         if (DO_ARRAY_THROWS(c->out, c->value))
             goto return_thrown;
@@ -1730,17 +1747,23 @@ reevaluate:
         c->index++;
         break;
 
+    // [LIT-WORD!]
+    //
     case REB_LIT_WORD:
         *c->out = *c->value;
         VAL_SET(c->out, REB_WORD);
         c->index++;
         break;
 
+    // [GET-WORD!]
+    //
     case REB_GET_WORD:
         GET_VAR_INTO(c->out, c->value);
         c->index++;
         break;
 
+    // [LIT-PATH!]
+    //
     case REB_LIT_PATH:
         //
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
@@ -1750,12 +1773,16 @@ reevaluate:
         c->index++;
         break;
 
+    // [FRAME!]
+    //
     case REB_FRAME:
         //
         // !!! Frame is slated for destruction, to be replaced by OBJECT!
         //
         panic (Error(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(c->value))));
 
+    // *** [ANY-(other)-TYPE!] ***
+    //
     default:
         //
         // Most things just evaluate to themselves
