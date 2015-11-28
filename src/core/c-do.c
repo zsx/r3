@@ -2226,6 +2226,8 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
     c->label_sym = SYM_NATIVE;
     c->out = out;
 
+    c->mode = CALL_MODE_0;
+
     c->flags = 0;
 
     c->arglist = NULL;
