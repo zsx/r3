@@ -545,17 +545,26 @@ struct Reb_Call {
     //
     REBSER *arglist;
 
-    // `arg` and `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
+    // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
     //
     // We use the convention that "param" refers to the TYPESET! (plus symbol)
-    // from the spec of the function--a.k.a. the "formal argument".  Then
-    // `arg` is the "actual argument"...which is holds the pointer to the
+    // from the spec of the function--a.k.a. the "formal argument".  This
+    // pointer is moved in step with `arg` during argument fulfillment.
+    //
+    REBVAL *param;
+
+    // `arg` [INTERNAL, also CACHE of `BLK_HEAD(arglist)`]
+    //
+    // "arg" is the "actual argument"...which holds the pointer to the
     // REBVAL slot in the `arglist` for that corresponding `param`.  These
-    // are moved in sync during parameter fulfillment but are available for
-    // reuse by the time the function invocation happens.
+    // are moved in sync during parameter fulfillment.
+    //
+    // While a function is running, `arg` is a cache to the data pointer for
+    // arglist.  It is used by the macros ARG() and PARAM()...which index
+    // by integer constants and may be used several times.  Avoiding the
+    // extra indirection can be beneficial.
     //
     REBVAL *arg;
-    REBVAL *param;
 
     // `refine` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVAL]
     //

@@ -1140,12 +1140,12 @@ REBNATIVE(func)
 // 
 // See comments on Make_Function for full notes.
 {
-    REBVAL * const spec = D_ARG(1);
-    REBVAL * const body = D_ARG(2);
+    PARAM spec = {1};
+    PARAM body = {2};
 
     const REBFLG has_return = TRUE;
 
-    Make_Function(D_OUT, REB_FUNCTION, spec, body, has_return);
+    Make_Function(D_OUT, REB_FUNCTION, ARG(spec), ARG(body), has_return);
 
     return R_OUT;
 }
@@ -1179,12 +1179,12 @@ REBNATIVE(clos)
 // 
 // See comments on Make_Function for full notes.
 {
-    REBVAL * const spec = D_ARG(1);
-    REBVAL * const body = D_ARG(2);
+    PARAM spec = {1};
+    PARAM body = {2};
 
     const REBFLG has_return = TRUE;
 
-    Make_Function(D_OUT, REB_CLOSURE, spec, body, has_return);
+    Make_Function(D_OUT, REB_CLOSURE, ARG(spec), ARG(body), has_return);
 
     return R_OUT;
 }

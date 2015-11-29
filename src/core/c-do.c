@@ -682,6 +682,10 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
     SET_TRASH_SAFE(D_OUT);
     SET_TRASH_SAFE(D_CELL); // !!! maybe unnecessary, does arg filling use it?
 
+    // We cache the arglist's data pointer in `arg` for ARG() and PARAM()
+    //
+    call_->arg = BLK_HEAD(call_->arglist);
+
     if (Trace_Flags) Trace_Func(D_LABEL_SYM, D_FUNC);
 
     call_->mode = CALL_MODE_FUNCTION;
@@ -752,16 +756,8 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 // generally also means changes to two other semi-parallel routines:
 // `Apply_Block_Throws()` and `Redo_Func_Throws().`
 //
-void Do_Core(struct Reb_Call * const call_)
+void Do_Core(struct Reb_Call * const c)
 {
-    // The argument is called `call_` so that the D_xxx macro accessors will
-    // work just as in a native.  But there's a lot of usage of internal
-    // elements not exposed to the natives, and write access is necessary
-    // (natives are given read-only access if possible to things they should
-    // not write to).  So we alias to `c` (pointer should be optimized out.)
-    //
-    struct Reb_Call * const c = call_;
-
 #if !defined(NDEBUG)
     static REBCNT count_static = 0;
     REBCNT count;
@@ -1696,7 +1692,7 @@ reevaluate:
         //
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
-            && IS_NATIVE(D_FUNC) && VAL_FUNC_CODE(D_FUNC) == &N_do
+            && IS_NATIVE(&c->func) && VAL_FUNC_CODE(&c->func) == &N_do
             && ANY_FUNC(BLK_SKIP(c->arglist, 1))
         ) {
             if (IS_END(&eval))

@@ -213,3 +213,48 @@
 #define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value
 #define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
+
+
+//
+// The compiler will *not* optimize out const pointers as captures of the
+// arguments.  Hence if you wrote the following inside of a native, you
+// would pay for both a pointer variable *and* an assignment each call:
+//
+//     REBVAL * const foo = ARG(1);
+//
+//     if (IS_INTEGER(foo))) { ... }
+//
+// The real way to get peak performance with no extra storage or cost of
+// assignment is to instead declare an integer constant and use the macro
+// each time:
+//
+//     const int foo = 1;
+//
+//     if (IS_INTEGER(ARG(foo))) { ... }
+//
+// To help make this less error-prone, two types of structs are used to wrap
+// the const integer:
+//
+//     PARAM foo = {1};
+//     REFINE bar = {2};
+//
+//     if (IS_INTEGER(ARG(foo)) && REF(bar)) { ... }
+//
+// In an optimized build, these structures disappear completely, with all
+// addressing done directly into the call frame's cached `vars` pointer
+//
+
+struct Native_Param {
+    int pnum;   // `p` name means ARG() only works with PARAM
+};
+#define PARAM \
+    const struct Native_Param
+
+struct Native_Refine {
+    int rnum;   // `r` name means REF() only works with REFINE
+};
+#define REFINE \
+    const struct Native_Refine
+
+#define ARG(n)  (call_->arg + (n).pnum)
+#define REF(n)  (!IS_NONE(call_->arg + (n).rnum))

@@ -1810,20 +1810,22 @@ REBNATIVE(transcode)
 //
 // Allows BINARY! input only!
 {
-    REBVAL * const input = D_ARG(1);
-    const REBOOL next = D_REF(2);
-    const REBOOL only = D_REF(3);
-    const REBOOL relax = D_REF(4);
+    PARAM source = {1};
+    REFINE next = {2};
+    REFINE only = {3};
+    REFINE relax = {4};
 
     SCAN_STATE scan_state;
 
-    assert(IS_BINARY(input));
+    assert(IS_BINARY(ARG(source)));
 
-    Init_Scan_State(&scan_state, VAL_BIN_DATA(input), VAL_LEN(input));
+    Init_Scan_State(
+        &scan_state, VAL_BIN_DATA(ARG(source)), VAL_LEN(ARG(source))
+    );
 
-    if (next) SET_FLAG(scan_state.opts, SCAN_NEXT);
-    if (only) SET_FLAG(scan_state.opts, SCAN_ONLY);
-    if (relax) SET_FLAG(scan_state.opts, SCAN_RELAX);
+    if (REF(next)) SET_FLAG(scan_state.opts, SCAN_NEXT);
+    if (REF(only)) SET_FLAG(scan_state.opts, SCAN_ONLY);
+    if (REF(relax)) SET_FLAG(scan_state.opts, SCAN_RELAX);
 
     // The scanner always returns an "array" series.  So set the result
     // to a BLOCK! of the results.
@@ -1838,8 +1840,8 @@ REBNATIVE(transcode)
     // (Returning a length 2 block is how TRANSCODE does a "multiple
     // return value, but #1916 discusses a possible "revamp" of this.)
 
-    VAL_INDEX(input) = scan_state.end - VAL_BIN(input);
-    Append_Value(VAL_SERIES(D_OUT), input);
+    VAL_INDEX(ARG(source)) = scan_state.end - VAL_BIN(ARG(source));
+    Append_Value(VAL_SERIES(D_OUT), ARG(source));
 
     return R_OUT;
 }
