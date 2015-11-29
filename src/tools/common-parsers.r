@@ -169,20 +169,24 @@ proto-parser: context [
 
         segment: [
             (style: proto.id: proto.arg.1: none)
-            format2015-func-header
-            | thru newline
+            format2015-func-section
+            | other-segment
         ]
 
-        format2015-func-header: [
+        other-segment: [thru newline]
+
+        format2015-func-section: [
             doubleslashed-lines
             and is-format2015-intro
             function-proto some white-space
-            #"{"
+            function-body
             (
                 style: 'format2015
                 emit-proto proto
             )
         ]
+
+        function-body: #"{"
 
         doubleslashed-lines: [copy lines some ["//" thru newline]]
 
