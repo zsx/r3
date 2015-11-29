@@ -18,7 +18,8 @@ mkdir:  :make-dir
 
 cd: func [
     "Change directory (shell shortcut function)."
-    'path [file! word! path! unset! string!] "Accepts %file, :variables and just words (as dirs)"
+    'path [file! word! path! unset! string!]
+        "Accepts %file, :variables and just words (as dirs)"
 ][
     ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
     switch to-word type-of :path [
@@ -31,7 +32,8 @@ cd: func [
 
 more: func [
     "Print file (shell shortcut function)."
-    'file [file! word! path! string!] "Accepts %file and also just words (as file names)"
+    'file [file! word! path! string!]
+        "Accepts %file and also just words (as file names)"
 ][
     ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
     print deline to-string read switch to-word type-of :file [

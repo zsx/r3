@@ -108,7 +108,8 @@ confirm: func [
 
 list-dir: func [
     "Print contents of a directory (ls)."
-    'path [file! word! path! string! unset!] "Accepts %file, :variables, and just words (as dirs)"
+    'path [file! word! path! string! unset!]
+        "Accepts %file, :variables, and just words (as dirs)"
     /l "Line of info format"
     /f "Files only"
     /d "Dirs only"
@@ -132,7 +133,7 @@ list-dir: func [
     ]
     if r [l: true]
     unless l [l: make string! 62] ; approx width
-    unless indent [indent: ""]
+    indent: any [:indent ""]
     files: attempt [read %./]
     if not files [print ["Not found:" :path] change-dir save-dir exit]
     for-each file files [
