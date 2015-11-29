@@ -838,10 +838,15 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size)
     REBCNT pool_num = FIND_POOL(size);
     REBPOL *pool;
 
+#if !defined(NDEBUG)
+    // !!! What is the usefulness of this flag, for never freeing memory,
+    // in an era with tools like ASAN and Valgrind?
+    //
     if (GC_Stay_Dirty) {
         memset(unbiased, 0xbb, size);
         return;
     }
+#endif
 
     // Verify that size matches pool size:
     if (pool_num < SERIES_POOL) {
