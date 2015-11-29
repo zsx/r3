@@ -95,16 +95,16 @@ REBSER *Copy_Array_At_Max_Shallow(REBSER *array, REBCNT index, REBCNT max)
 
 
 //
-//  Copy_Values_Len_Shallow: C
+//  Copy_Values_Len_Shallow_Extra: C
 // 
 // Shallow copy the first 'len' values of `value[]` into a new
 // series created to hold exactly that many entries.
 //
-REBSER *Copy_Values_Len_Shallow(REBVAL value[], REBCNT len)
+REBSER *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
 {
     REBSER *series;
 
-    series = Make_Series(len + 1, sizeof(REBVAL), MKS_ARRAY);
+    series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_ARRAY);
 
     memcpy(series->data, &value[0], len * sizeof(REBVAL));
     SERIES_TAIL(series) = len;
@@ -183,8 +183,14 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
 // The resulting series will already be under GC management,
 // and hence cannot be freed with Free_Series().
 //
-REBSER *Copy_Array_Core_Managed(REBSER *block, REBCNT index, REBCNT tail, REBOOL deep, REBU64 types)
-{
+REBSER *Copy_Array_Core_Managed(
+    REBSER *block,
+    REBCNT index,
+    REBCNT tail,
+    REBCNT extra,
+    REBOOL deep,
+    REBU64 types
+) {
     REBSER *series;
 
     assert(Is_Array_Series(block));
@@ -192,11 +198,13 @@ REBSER *Copy_Array_Core_Managed(REBSER *block, REBCNT index, REBCNT tail, REBOOL
     if (index > tail) index = tail;
 
     if (index > SERIES_TAIL(block)) {
-        series = Make_Array(0);
+        series = Make_Array(extra);
         MANAGE_SERIES(series);
     }
     else {
-        series = Copy_Values_Len_Shallow(BLK_SKIP(block, index), tail - index);
+        series = Copy_Values_Len_Shallow_Extra(
+            BLK_SKIP(block, index), tail - index, extra
+        );
         MANAGE_SERIES(series);
 
         if (types != 0)
@@ -210,7 +218,7 @@ REBSER *Copy_Array_Core_Managed(REBSER *block, REBCNT index, REBCNT tail, REBOOL
 
 
 //
-//  Copy_Array_At_Deep_Managed: C
+//  Copy_Array_At_Extra_Deep_Managed: C
 // 
 // Deep copy an array, including all series (strings, blocks,
 // parens, objects...) excluding images, bitsets, maps, etc.
@@ -223,14 +231,18 @@ REBSER *Copy_Array_Core_Managed(REBSER *block, REBCNT index, REBCNT tail, REBOOL
 // `array` parameter more than once, and have to be in all-caps
 // to warn against usage with arguments that have side-effects.
 //
-REBSER *Copy_Array_At_Deep_Managed(REBSER *array, REBCNT index)
-{
+REBSER *Copy_Array_At_Extra_Deep_Managed(
+    REBSER *array,
+    REBCNT index,
+    REBCNT extra
+) {
     return Copy_Array_Core_Managed(
         array,
-        index,
-        SERIES_TAIL(array),
+        index, // at
+        SERIES_TAIL(array), // tail
+        extra, // extra
         TRUE, // deep
-        TS_SERIES & ~TS_NOT_COPIED
+        TS_SERIES & ~TS_NOT_COPIED // types
     );
 }
 

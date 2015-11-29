@@ -396,7 +396,12 @@ REBTYPE(Object)
             // make parent none | []
             if (IS_NONE(arg) || (IS_BLOCK(arg) && IS_EMPTY(arg))) {
                 obj = Copy_Array_Core_Managed(
-                    src_obj, 0, SERIES_TAIL(src_obj), TRUE, TS_CLONE
+                    src_obj,
+                    0, // at
+                    SERIES_TAIL(src_obj), // tail
+                    0, // extra
+                    TRUE, // deep
+                    TS_CLONE // types
                 );
                 Rebind_Frame(src_obj, obj);
                 break;  // returns obj

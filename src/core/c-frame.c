@@ -483,7 +483,12 @@ REBSER *Make_Object(REBSER *parent, REBVAL value[])
     if (!value || IS_END(value)) {
         if (parent) {
             object = Copy_Array_Core_Managed(
-                parent, 0, SERIES_TAIL(parent), TRUE, TS_CLONE
+                parent,
+                0, // at
+                SERIES_TAIL(parent), // tail
+                0, // extra
+                TRUE, // deep
+                TS_CLONE // types
             );
         }
         else {

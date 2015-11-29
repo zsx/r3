@@ -751,10 +751,11 @@ zero_blk:
         len = Partial1(value, D_ARG(ARG_COPY_LIMIT));
         VAL_SERIES(value) = Copy_Array_Core_Managed(
             ser,
-            VAL_INDEX(value),
-            VAL_INDEX(value) + len,
-            D_REF(ARG_COPY_DEEP),
-            types
+            VAL_INDEX(value), // at
+            VAL_INDEX(value) + len, // tail
+            0, // extra
+            D_REF(ARG_COPY_DEEP), // deep
+            types // types
         );
         VAL_INDEX(value) = 0;
     }

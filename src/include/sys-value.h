@@ -560,7 +560,7 @@ typedef struct Reb_Tuple {
 // Returns space that a series has available (less terminator):
 #define SERIES_FULL(s) (SERIES_LEN(s) + 1 >= SERIES_REST(s))
 #define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
-#define SERIES_FITS(s,n) ((SERIES_TAIL(s) + (REBCNT)(n) + 1) < SERIES_REST(s))
+#define SERIES_FITS(s,n) ((SERIES_TAIL(s) + (REBCNT)(n) + 1) <= SERIES_REST(s))
 
 // Flag used for extending series at tail:
 #define AT_TAIL ((REBCNT)(~0))  // Extend series at tail
@@ -697,18 +697,17 @@ struct Reb_Position
     Val_Init_Block_Index((v), (s), 0)
 
 
+#define Copy_Values_Len_Shallow(v,l) \
+    Copy_Values_Len_Shallow_Extra((v), (l), 0)
+
 #define Copy_Array_Shallow(a) \
     Copy_Array_At_Shallow((a), 0)
 
 #define Copy_Array_Deep_Managed(a) \
-    Copy_Array_At_Deep_Managed((a), 0)
+    Copy_Array_At_Extra_Deep_Managed((a), 0, 0)
 
-// !!! Ignores capacity request ATM.  As it's a capacity request extra of
-// "whatever it had before" it means the caller did not know how much
-// there was in the first place, so the code should still work but just
-// not take the hint and perhaps reallocate more than it should.  Implement!
-#define Copy_Array_At_Extra_Deep_Managed(a,i,e) \
-    Copy_Array_At_Deep_Managed((a), (i))
+#define Copy_Array_At_Deep_Managed(a,i) \
+    Copy_Array_At_Extra_Deep_Managed((a), (i), 0)
 
 #define Copy_Array_At_Shallow(a,i) \
     Copy_Array_At_Extra_Shallow((a), (i), 0)

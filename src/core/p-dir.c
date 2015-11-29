@@ -214,10 +214,11 @@ static REB_R Dir_Actor(struct Reb_Call *call_, REBSER *port, REBCNT action)
                 D_OUT,
                 Copy_Array_Core_Managed(
                     VAL_SERIES(state),
-                    0,
-                    VAL_BLK_LEN(state),
+                    0, // at
+                    VAL_BLK_LEN(state), // tail
+                    0, // extra
                     FALSE, // !deep
-                    TS_STRING
+                    TS_STRING // types
                 )
             );
         }
