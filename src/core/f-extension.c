@@ -579,7 +579,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
     REBVAL *blk;
     REBCNT index = 0;
     REBVAL *set_word = 0;
-    REBCNT cmd_sym;
+    REBCNT cmd_sym = SYM_COMMAND_TYPE; // !!! to avoid uninitialized use, fix!
     REBSER *words;
     REBVAL *args;
     REBVAL *val;

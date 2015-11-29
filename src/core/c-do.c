@@ -710,7 +710,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
         threw = Do_Routine_Throws(call_);
         break;
     default:
-        assert(FALSE);
+        fail (Error(RE_MISC));
     }
 
     call_->mode = CALL_MODE_0;
