@@ -38,15 +38,11 @@ local-tag       ; marks the beginning of a list of "pure locals"
 ;; Natives can usually be identified by their code pointers and addresses
 ;; (e.g. `VAL_FUNC_CODE(native) == &N_parse`) and know their own values via
 ;; D_FUNC when running.  However, RETURN is special because its code pointer
-;; is overwritten so it must be recognized by its paramlist series.  EVAL is
-;; special because it is tested for frequently and it's quicker to test the
-;; paramlist of a function than to test that it is a native and *then* test
-;; its code pointer.  So we save these in particular.
+;; is overwritten so it must be recognized by its paramlist series.
 ;;
 ;; (PARSE just wants access to its D_FUNC more convenient from a nested call)
 
 return-native
-eval-native
 parse-native
 
 ;; The FUNC and CLOS function generators are native code, and quick access

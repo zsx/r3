@@ -1093,10 +1093,8 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (
-            VAL_FUNC_PARAMLIST(&c->func)
-            == VAL_FUNC_PARAMLIST(ROOT_EVAL_NATIVE)
-        ) {
+        // Test cost 0.31 when paramlist was not extracted
+        if (VAL_FUNC_PARAMLIST(&c->func) == PG_Eval_Paramlist) {
             if (IS_END(&eval)) {
                 //
                 // The next evaluation we invoke expects to be able to write
@@ -1132,10 +1130,10 @@ reevaluate:
                 // EVAL will handle anything the evaluator can, including
                 // an UNSET!, but it errors on END!, e.g. `do [eval]`
                 //
-                assert(VAL_FUNC_NUM_PARAMS(ROOT_EVAL_NATIVE) == 1);
-                fail (Error_No_Arg(
-                    c->label_sym, VAL_FUNC_PARAM(ROOT_EVAL_NATIVE, 1)
-                ));
+                assert(BLK_LEN(PG_Eval_Paramlist) == 2);
+                fail (
+                    Error_No_Arg(c->label_sym, BLK_SKIP(PG_Eval_Paramlist, 1))
+                );
             }
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
@@ -1699,7 +1697,7 @@ reevaluate:
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
             && IS_NATIVE(D_FUNC) && VAL_FUNC_CODE(D_FUNC) == &N_do
-            && ANY_FUNC(D_ARG(1))
+            && ANY_FUNC(BLK_SKIP(c->arglist, 1))
         ) {
             if (IS_END(&eval))
                 PUSH_GUARD_VALUE(&eval);
@@ -1707,7 +1705,7 @@ reevaluate:
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            eval = *D_ARG(1);
+            eval = *BLK_SKIP(c->arglist, 1);
             Drop_Call_Arglist(c);
 
             c->mode = CALL_MODE_0;

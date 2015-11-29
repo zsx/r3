@@ -323,12 +323,26 @@ void Make_Native(REBVAL *out, REBSER *spec, REBFUN func, REBINT type)
     // PARSE wants to throw its value from nested code to itself, and doesn't
     // want to thread its known D_FUNC value through the call stack.
     //
-    if (func == &N_return)
+    if (func == &N_return) {
         *ROOT_RETURN_NATIVE = *out;
-    else if (func == &N_eval)
-        *ROOT_EVAL_NATIVE = *out;
+
+        // Curiously, it turns out that extracting the paramlist to a global
+        // once and comparing against it is about 30% faster than saving to the
+        // root object and extracting VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
+        // each time...
+        //
+        PG_Return_Paramlist = VAL_FUNC_PARAMLIST(out);
+    }
     else if (func == &N_parse)
         *ROOT_PARSE_NATIVE = *out;
+    else if (func == &N_eval) {
+        //
+        // See above note regarding return.  A check for EVAL is done on each
+        // function evaluation, so it's worth it to extract.
+        //
+        PG_Eval_Paramlist = VAL_FUNC_PARAMLIST(out);
+    }
+
 }
 
 
@@ -777,10 +791,7 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
 
     Eval_Natives++;
 
-    if (
-        VAL_FUNC_PARAMLIST(D_FUNC)
-        == VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
-    ) {
+    if (VAL_FUNC_PARAMLIST(D_FUNC) == PG_Return_Paramlist) {
         REBVAL name;
 
         // The EXT_FUNC_HAS_RETURN uses the RETURN native and its spec, and
@@ -1028,10 +1039,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
         for (; !IS_END(key); key++, value++) {
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
-                assert(
-                    VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
-                    == VAL_FUNC_PARAMLIST(value)
-                );
+                assert(PG_Return_Paramlist == VAL_FUNC_PARAMLIST(value));
                 assert(VAL_FUNC_RETURN_TO(value) == frame);
             }
         }

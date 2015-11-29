@@ -70,6 +70,8 @@ PVAR REBVAL PG_End_Val;
 // when implemented that way. Needs research!!!!
 PVAR REBCNT Eval_Signals;   // Signal flags
 
+PVAR REBSER *PG_Eval_Paramlist; // EVAL native's paramlist (never GC'd)
+PVAR REBSER *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
 
 
 /***********************************************************************
