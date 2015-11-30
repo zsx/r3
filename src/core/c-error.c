@@ -1186,7 +1186,7 @@ REBSER *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 // a type different than the arg given (which had `arg_type`)
 //
 REBSER *Error_Arg_Type(
-    const struct Reb_Call *call,
+    REBCNT label_sym,
     const REBVAL *param,
     const REBVAL *arg_type
 ) {
@@ -1195,10 +1195,16 @@ REBSER *Error_Arg_Type(
 
     assert(IS_TYPESET(param));
     Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
-    Val_Init_Word_Unbound(&label_word, REB_WORD, DSF_LABEL_SYM(call));
+    Val_Init_Word_Unbound(&label_word, REB_WORD, label_sym);
 
     assert(IS_DATATYPE(arg_type));
-    return Error(RE_EXPECT_ARG, &label_word, arg_type, &param_word, NULL);
+    return Error(
+        (!DSF || DSF->arg ? RE_EXPECT_ARG : -RE_EXPECT_ARG),
+        &label_word,
+        arg_type,
+        &param_word,
+        NULL
+    );
 }
 
 

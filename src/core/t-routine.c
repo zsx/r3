@@ -487,6 +487,8 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
     ffi_type **args = (ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot));
     REBSER *rebol_args = NULL;
 
+    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+
     if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
     } else {
@@ -495,7 +497,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
     switch (args[idx]->type) {
         case FFI_TYPE_UINT8:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 u8 i = (u8) VAL_INT64(arg);
@@ -505,7 +509,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_SINT8:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 i8 i = (i8) VAL_INT64(arg);
@@ -515,7 +521,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_UINT16:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 u16 i = (u16) VAL_INT64(arg);
@@ -525,7 +533,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_SINT16:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 i16 i = (i16) VAL_INT64(arg);
@@ -535,7 +545,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_UINT32:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 u32 i = (u32) VAL_INT64(arg);
@@ -545,7 +557,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_SINT32:
             if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
 #ifdef BIG_ENDIAN
                 i32 i = (i32) VAL_INT64(arg);
@@ -556,7 +570,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT64:
         case FFI_TYPE_SINT64:
             if (!IS_INTEGER(arg))
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             return &VAL_INT64(arg);
         case FFI_TYPE_POINTER:
             switch (VAL_TYPE(arg)) {
@@ -571,12 +587,16 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
                     return &ptrs[idx];
                 default:
-                    fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                    fail (Error_Arg_Type(
+                        D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    ));
             }
         case FFI_TYPE_FLOAT:
             /* hackish, store the signle precision floating point number in a double precision variable */
             if (!IS_DECIMAL(arg)) {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             } else {
                 float a = (float)VAL_DECIMAL(arg);
                 memcpy(&VAL_DECIMAL(arg), &a, sizeof(a));
@@ -584,21 +604,27 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             }
         case FFI_TYPE_DOUBLE:
             if (!IS_DECIMAL(arg))
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             return &VAL_DECIMAL(arg);
         case FFI_TYPE_STRUCT:
             if (idx == 0) {/* returning a struct */
                 Copy_Struct(&VAL_ROUTINE_RVALUE(rot), &VAL_STRUCT(arg));
             } else {
                 if (!IS_STRUCT(arg))
-                    fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                    fail (Error_Arg_Type(
+                        D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    ));
             }
             return SERIES_SKIP(VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg));
         case FFI_TYPE_VOID:
             if (!idx) {
                 return NULL;
             } else {
-                fail (Error_Arg_Type(DSF, BLK_SKIP(rebol_args, idx), arg));
+                fail (Error_Arg_Type(
+                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                ));
             }
         default:
             fail (Error_Invalid_Arg(arg));
@@ -710,6 +736,8 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
     REBCNT n_fixed = 0; /* number of fixed arguments */
     REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
 
+    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+
     // `is_vararg_routine` is optimized out, but hints static analyzer
     const REBOOL is_vararg_routine
         = ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS);
@@ -771,7 +799,7 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
             if (i <= n_fixed) { /* fix arguments */
                 if (!TYPE_CHECK(BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i), VAL_TYPE(reb_arg))) {
                     fail (Error_Arg_Type(
-                        DSF,
+                        D_LABEL_SYM,
                         BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i),
                         reb_arg
                     ));

@@ -665,16 +665,8 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
             }
 
             // check datatype
-            if (!TYPE_CHECK(args, VAL_TYPE(val))) {
-                REBVAL arg_word;
-                REBVAL cmd_word;
-
-                Val_Init_Word_Unbound(
-                    &arg_word, REB_WORD, VAL_TYPESET_SYM(args)
-                );
-                Val_Init_Word_Unbound(&cmd_word, REB_WORD, cmd_sym);
-                fail (Error(RE_EXPECT_ARG, cmd_word, &arg_word, Type_Of(val)));
-            }
+            if (!TYPE_CHECK(args, VAL_TYPE(val)))
+                fail (Error_Arg_Type(cmd_sym, args, Type_Of(val)));
 
             // put arg into command frame
             n++;

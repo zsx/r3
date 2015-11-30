@@ -1180,7 +1180,7 @@ reevaluate:
             //
             *c->arg = *c->out;
             if (!TYPE_CHECK(c->param, VAL_TYPE(c->arg)))
-                fail (Error_Arg_Type(c, c->param, Type_Of(c->arg)));
+                fail (Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg)));
 
             c->param++;
             c->arg++;
@@ -1535,8 +1535,12 @@ reevaluate:
                 }
                 else {
                     //
-                    // series end UNSET! trick; already unset...
+                    // series end UNSET! trick; already unset unless LEGACY
                     //
+                    c->index = END_FLAG;
+                #if !defined(NDEBUG)
+                    SET_UNSET(c->arg);
+                #endif
                 }
             }
             else {
@@ -1628,9 +1632,23 @@ reevaluate:
 
             // If word is typed, verify correct argument datatype:
             //
-            if (c->mode != CALL_MODE_REVOKING)
-                if (!TYPE_CHECK(c->param, VAL_TYPE(c->arg)))
-                    fail (Error_Arg_Type(c, c->param, Type_Of(c->arg)));
+            if (
+                c->mode != CALL_MODE_REVOKING
+                && !TYPE_CHECK(c->param, VAL_TYPE(c->arg))
+            ) {
+                if (c->index == END_FLAG) {
+                    //
+                    // If the argument was quoted we could point out here that
+                    // it was an elective decision to not take UNSET!.  But
+                    // generally it reads more sensibly to say there's no arg
+                    //
+                    fail (Error_No_Arg(c->label_sym, c->param));
+                }
+                else
+                    fail (
+                        Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg))
+                    );
+            }
         }
 
         // If we were scanning and didn't find the refinement we were looking
@@ -2362,7 +2380,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
         // Verify allowed argument datatype:
         if (!TYPE_CHECK(c->param, VAL_TYPE(c->arg)))
-            fail (Error_Arg_Type(c, c->param, Type_Of(c->arg)));
+            fail (Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg)));
     }
 
     // Pad out any remaining parameters with unset or none, depending
