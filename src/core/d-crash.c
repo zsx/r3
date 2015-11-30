@@ -142,7 +142,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(REBCNT id, REBSER *maybe_frame, va_list *arg
             // We aren't explicitly passed a Rebol ERROR! object, but we
             // consider it "safe" to make one since we're past BOOT_ERRORS
 
-            Val_Init_Error(&error, Make_Error_Core(id, args));
+            Val_Init_Error(&error, Make_Error_Core(id, FALSE, args));
         }
 
         Form_Args(

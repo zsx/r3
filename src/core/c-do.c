@@ -1135,6 +1135,67 @@ reevaluate:
             goto reevaluate;
         }
 
+        // If a native has no refinements to process, it is feasible to
+        // allow it to run "frameless".  Even though the chunk stack is a
+        // very cheap abstraction, it is not zero cost...and some functions
+        // are better implemented as essentially inline hooks to the DO
+        // evaluator.
+        //
+        // (All frameless functions must still be able to run with a call
+        // frame if requested, because debug scenarios would expect those
+        // cells to be inspectable on the stack.)
+        //
+        if (
+            DSP == c->dsp_orig
+            && VAL_GET_EXT(&c->func, EXT_FUNC_FRAMELESS)
+            && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
+        ) {
+            REB_R ret;
+            struct Reb_Call *prior_call = DSF;
+
+            assert(IS_NATIVE(&c->func)); // only NATIVE! can be frameless
+
+            // A NULL arg signifies to the called function that it is being
+            // run frameless.  If it had a frame, then it would be non-NULL
+            // and the source of the frame values.
+            //
+            c->arg = NULL;
+
+            // We might wind up invoking the GC, and we need to make sure
+            // the reusable variables aren't bad data.  `value` should be
+            // good but we don't know what's in the others.
+            //
+            c->param = NULL;
+            c->refine = NULL;
+
+            SET_TRASH_SAFE(&c->cell);
+            SET_TRASH_SAFE(c->out);
+
+            c->prior = CS_Top;
+            CS_Top = c;
+            CS_Running = c;
+
+            c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
+
+            ret = (*VAL_FUNC_CODE(&c->func))(c);
+
+            c->mode = CALL_MODE_0;
+
+            CS_Running = prior_call;
+            CS_Top = c->prior;
+
+            // !!! The delegated routine knows it has to update the index
+            // correctly, but should that mean it updates the throw flag
+            // as well?
+            //
+            assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
+            if (ret == R_OUT_IS_THROWN)
+                goto return_thrown;
+
+            // We're done!
+            break;
+        }
+
         // `out` may contain the pending argument for an infix operation,
         // and it could also be the backing store of the `value` pointer
         // to the function.  So Push_New_Arglist_For_Call() shouldn't

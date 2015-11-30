@@ -747,16 +747,39 @@ REBNATIVE(throw)
 
 
 //
-//  comment: native [
-//  
-//  {Ignores the argument value and returns nothing (no evaluations performed).}
-//  
-//      :value [block! any-string! any-scalar!] "Literal value to be ignored."
+//  comment: native/frameless [
+//
+//  {Ignores the argument value and returns nothing (with no evaluations).}
+//
+//      :value [block! any-string! binary! any-scalar!]
+//          "Literal value to be ignored."
 //  ]
 //
 REBNATIVE(comment)
 {
-    return R_UNSET;
+    PARAM(1, value);
+
+    if (D_FRAMELESS) {
+        D_VALUE = BLK_SKIP(D_ARRAY, D_INDEX);
+
+        if (IS_END(D_VALUE))
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
+
+        if (ANY_EVAL(D_VALUE))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_VALUE)));
+
+        SET_UNSET(D_OUT);
+        D_INDEX++;
+
+        return R_OUT;
+    }
+    else {
+        // Framed!  All the work was already done (at the cost of setting up
+        // state that would just have to be torn down).  Since comment has
+        // no refinements, this should only be called in debug modes.
+
+        return R_UNSET;
+    }
 }
 
 

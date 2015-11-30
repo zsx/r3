@@ -281,6 +281,15 @@ struct Reb_Chunk {
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value
 #define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
 
+#define D_FRAMELESS (!call_->arg)           // Native running w/no call frame
+
+// !!! These should perhaps assert that they're only being used when a
+// frameless native is in action.
+//
+#define D_ARRAY         (call_->array)
+#define D_INDEX         (call_->index)
+#define D_VALUE         (call_->value)
+
 
 //
 // The compiler will *not* optimize out const pointers as captures of the
@@ -332,6 +341,8 @@ struct Native_Refine {
 };
 
 #define ARG(p)  (call_->arg + (p).num)
+
+#define PAR(p)  VAL_FUNC_PARAM(&call_->func, (p).num) // a TYPESET!
 
 #ifdef NDEBUG
     #define REF(r)  (!IS_NONE(ARG(r)))

@@ -342,6 +342,8 @@ static void Init_Constants(void)
 //  {Creates native function (for internal usage only).}
 //
 //      spec [block!]
+//      /frameless
+//          {Native wants delegation to eval its own args and extend DO state}
 //  ]
 //
 REBNATIVE(native)
@@ -351,6 +353,7 @@ REBNATIVE(native)
 // created manually within the C code, as it cannot "run to create itself".
 {
     PARAM(1, spec);
+    REFINE(2, frameless);
 
     if (
         (Native_Limit != 0 || !*Native_Functions)
@@ -360,6 +363,9 @@ REBNATIVE(native)
     }
 
     Make_Native(D_OUT, VAL_SERIES(ARG(spec)), *Native_Functions++, REB_NATIVE);
+
+    if (REF(frameless))
+        VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
 
     Native_Count++;
     return R_OUT;

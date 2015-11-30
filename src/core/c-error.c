@@ -760,7 +760,7 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
 // return to the caller to properly call va_end with no longjmp
 // to skip it.
 //
-REBSER *Make_Error_Core(REBCNT code, va_list *args)
+REBSER *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
 {
     REBSER *root_frame;
 
@@ -979,9 +979,9 @@ REBSER *Make_Error_Core(REBCNT code, va_list *args)
     error_obj->type = type;
 
     // Set backtrace and location information:
-    if (DSF) {
+    if (DSF && (!up_stack || DSF->prior)) {
         // Where (what function) is the error:
-        Val_Init_Block(&error_obj->where, Make_Backtrace(0));
+        Val_Init_Block(&error_obj->where, Make_Backtrace(up_stack ? 1 : 0));
         // Nearby location of the error (in block being evaluated):
         Val_Init_Block_Index(
             &error_obj->nearest, DSF_ARRAY(DSF), DSF_EXPR_INDEX(DSF)
@@ -1009,13 +1009,20 @@ REBSER *Make_Error_Core(REBCNT code, va_list *args)
 // to double-check that too few arguments are not given, though
 // this is not enforced (to help with callsite readability).
 //
-REBSER *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
+// If the error number is negative, this signals that it should not be seen
+// as originating from the current stack frame but rather the frame above.
+// This is useful for frameless natives that are doing argument checking
+// from within their own bodies but do not want to appear in the error's
+// call stack, because if they were not frameless then they wouldn't have
+// been invoked yet.
+//
+REBSER *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
     va_list args;
     REBSER *frame;
 
     va_start(args, num);
-    frame = Make_Error_Core(num, &args);
+    frame = Make_Error_Core((num < 0 ? -num : num), num < 0, &args);
     va_end(args);
 
     return frame;
@@ -1052,7 +1059,9 @@ REBSER *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
     Val_Init_Word_Unbound(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
     Val_Init_Word_Unbound(&label, REB_WORD, label_sym);
 
-    return Error(RE_NO_ARG, &label, &key_word, NULL);
+    return Error(
+        (!DSF || DSF->arg ? RE_NO_ARG : -RE_NO_ARG), &label, &key_word, NULL
+    );
 }
 
 
