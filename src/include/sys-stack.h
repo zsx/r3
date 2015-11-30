@@ -167,6 +167,65 @@
 #endif
 
 
+//
+// CHUNK STACK
+//
+// Like the data stack, the values living in the chunk stack are protected
+// from garbage collection.
+//
+// Unlike the data stack, the chunk stack allows for the pushing and popping
+// of arbitrary-sized arrays of values which will not be relocated during
+// their lifetime.
+//
+// This is accomplished using a custom "chunked" allocator.  The two structs
+// involved are a list of "Chunkers", which internally have a list of
+// "Chunks" threaded between them.  The method keeps one spare chunker
+// allocated, and only frees a chunker when a full chunker prior has the last
+// element popped out of it.  In memory it looks like this:
+//
+//      [chunker->next
+//          (->payload_left size [value1][value2][value3]...)   // chunk 1
+//          (->payload_left size [value1]...)                   // chunk 2
+//          (->payload_left size [value1][value2]...)           // chunk 3
+//          ...remaining payload space in chunker...
+//      ]
+//
+// Since the chunker size is a known constant, it's possible to quickly deduce
+// the chunker a chunk lives in from its pointer and the remaining payload
+// amount in the chunker.
+//
+
+struct Reb_Chunker;
+
+#define CS_CHUNKER_PAYLOAD (2048 - sizeof(struct Reb_Chunker*))
+
+struct Reb_Chunker {
+    struct Reb_Chunker *next;
+    REBYTE payload[CS_CHUNKER_PAYLOAD];
+};
+
+struct Reb_Chunk;
+
+struct Reb_Chunk {
+    //
+    // How many bytes are left in the memory chunker this chunk lives in
+    // (its own size has already been subtracted from the amount)
+    //
+    REBINT payload_left;
+
+    REBCNT size;  // Needed after `payload_left` for 64-bit alignment
+
+    struct Reb_Chunk *prev;
+
+    // The `values` is an array whose real size exceeds the struct.  (It is
+    // set to a size of one because it cannot be [0] in C++.)  When the
+    // value pointer is given back to the user, this is how they speak about
+    // the chunk itself.
+    //
+    REBVAL values[1];
+};
+
+
 // !!! DSF is to be renamed (C)all (S)tack (P)ointer, but being left as DSF
 // in the initial commit to try and cut back on the disruption seen in
 // one commit, as there are already a lot of changes.
@@ -181,10 +240,18 @@
 #define DSF_FUNC(c)         c_cast(const REBVAL * const, &(c)->func)
 #define DSF_DSP_ORIG(c)     ((c)->dsp_orig + 0) // Lvalue
 
+#define DSF_PARAM_HEAD(c) \
+    VAL_FUNC_PARAM(&(c)->func, 1)
+
+#define DSF_ARG_HEAD(c) \
+    (IS_CLOSURE(&(c)->func) \
+        ? BLK_SKIP((c)->arglist.array, 1) \
+        : &(c)->arglist.chunk[1])
+
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)
 #ifdef NDEBUG
-    #define DSF_ARG(c,n)    BLK_SKIP((c)->arglist, (n))
+    #define DSF_ARG(c,n)    ((c)->arg + (n))
 #else
     #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
 #endif
@@ -197,7 +264,7 @@
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
 #define DSF_ARGC(c) \
-    cast(REBCNT, BLK_LEN((c)->arglist) - 1)
+    cast(REBCNT, VAL_FUNC_NUM_PARAMS(&(c)->func))
 
 #define DSF_CELL(c) (&(c)->cell)
 

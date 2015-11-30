@@ -42,6 +42,8 @@ void Push_Trap_Helper(REBOL_STATE *s)
     assert(Saved_State || (DSP == -1 && !DSF));
 
     s->dsp = DSP;
+    s->top_chunk = TG_Top_Chunk;
+
     s->call = DSF;
 
     s->series_guard_tail = GC_Series_Guard->tail;
@@ -96,6 +98,10 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
 
     // Restore Rebol data stack pointer at time of Push_Trap
     DS_DROP_TO(state->dsp);
+
+    // Drop to the chunk state at the time of Push_Trap
+    while (TG_Top_Chunk != state->top_chunk)
+        Drop_Chunk(NULL);
 
     // Free any manual series that were extant at the time of the error
     // (that were created since this PUSH_TRAP started).  This includes

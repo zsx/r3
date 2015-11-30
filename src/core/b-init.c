@@ -29,8 +29,6 @@
 
 #include "sys-core.h"
 
-#include <stddef.h> // for offsetof()
-
 #define EVAL_DOSE 10000
 
 // Boot Vars used locally:

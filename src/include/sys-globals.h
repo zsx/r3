@@ -119,6 +119,9 @@ TVAR REBSER *DS_Series;
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 TVAR struct Reb_Call *CS_Top;   // Last call frame pushed, may be "pending"
 
+TVAR struct Reb_Chunk *TG_Top_Chunk;
+TVAR struct Reb_Chunker *TG_Root_Chunker;
+
 TVAR REBOL_STATE *Saved_State; // Saved state for Catch (CPU state, etc.)
 
 #if !defined(NDEBUG)

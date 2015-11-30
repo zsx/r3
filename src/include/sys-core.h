@@ -53,6 +53,7 @@
 #include <setjmp.h>
 #include <math.h>
 #include <assert.h>
+#include <stddef.h>     // for offsetof()
 
 // Special OS-specific definitions:
 #ifdef OS_DEFS
@@ -543,7 +544,10 @@ struct Reb_Call {
     // will take ownership of the constructed array, give it over to GC
     // management, and set this field to NULL.
     //
-    REBSER *arglist;
+    union {
+        REBSER *array;
+        REBVAL *chunk;
+    } arglist;
 
     // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
     //

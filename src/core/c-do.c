@@ -45,7 +45,6 @@ REBINT Eval_Depth(void)
     struct Reb_Call *call = DSF;
 
     for (; call != NULL; call = PRIOR_DSF(call), depth++) {
-        //assert(call->arglist);
     }
     return depth;
 }
@@ -59,8 +58,6 @@ struct Reb_Call *Stack_Frame(REBCNT n)
     struct Reb_Call *call = DSF;
 
     while (call) {
-        assert(call->arglist);
-
         if (n == 0) return call;
 
         --n;
@@ -682,9 +679,11 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
     SET_TRASH_SAFE(D_OUT);
     SET_TRASH_SAFE(D_CELL); // !!! maybe unnecessary, does arg filling use it?
 
-    // We cache the arglist's data pointer in `arg` for ARG() and PARAM()
+    // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
+    // Note that indexing starts at 1, so we have to step back to the function
+    // slot location vs. the actual first arg.
     //
-    call_->arg = BLK_HEAD(call_->arglist);
+    call_->arg = DSF_ARG_HEAD(call_) - 1;
 
     if (Trace_Flags) Trace_Func(D_LABEL_SYM, D_FUNC);
 
@@ -836,11 +835,6 @@ void Do_Core(struct Reb_Call * const c)
     //
     assert(c->flags & DO_FLAG_DO);
 
-    // We only have arglist in effect when we are running a framed function
-    // (the test can be used to see if a do state is frameless or not)
-    //
-    c->arglist = NULL;
-
     assert(Is_Array_Series(c->array));
 
     // Only need to check this once (C stack size would be the same each
@@ -933,6 +927,7 @@ reevaluate:
     c->param = cast(REBVAL *, 0xDECAFBAD);
     c->arg = cast(REBVAL *, 0xDECAFBAD);
     c->refine = cast(REBVAL *, 0xDECAFBAD);
+    c->arglist.array = NULL;
 
     // Although in the outer loop this call frame is not threaded into the
     // call stack, the `out` value may be shared.  So it could be a value
@@ -947,7 +942,6 @@ reevaluate:
     assert(!THROWN(c->value));
     ASSERT_VALUE_MANAGED(c->value);
 
-    assert(!c->arglist);
     assert(c->mode == CALL_MODE_0);
 
 #if !defined(NDEBUG)
@@ -1159,7 +1153,6 @@ reevaluate:
             // There are no arguments, so just skip the next section.
             // However--prevent GC from choking on helpful temporaries
             //
-            c->arg = NULL;
             c->param = NULL;
             c->refine = NULL;
             goto function_ready_to_call;
@@ -1172,8 +1165,8 @@ reevaluate:
         //
         // We also seed `refine` with NULL so the GC won't choke.
         //
-        c->param = VAL_FUNC_PARAM(&c->func, 1);
-        c->arg = DSF_ARG(c, 1);
+        c->param = DSF_PARAM_HEAD(c);
+        c->arg = DSF_ARG_HEAD(c);
         c->refine = NULL;
 
         // Fetch the first argument from output slot before overwriting
@@ -1255,7 +1248,7 @@ reevaluate:
                     // identifying series if necessary...
                     //
                     VAL_FUNC_RETURN_TO(c->arg) = IS_CLOSURE(&c->func)
-                        ? c->arglist
+                        ? c->arglist.array
                         : VAL_FUNC_PARAMLIST(&c->func);
                 }
 
@@ -1421,8 +1414,8 @@ reevaluate:
                 // a scan before to get us started going out of order.  If not,
                 // we would only need to look ahead.)
                 //
-                c->param = VAL_FUNC_PARAM(&c->func, 1);
-                c->arg = DSF_ARG(c, 1);
+                c->param = DSF_PARAM_HEAD(c);
+                c->arg = DSF_ARG_HEAD(c);
 
             #if !defined(NDEBUG)
                 write_none = FALSE;
@@ -1661,8 +1654,8 @@ reevaluate:
         //
         if (DSP != c->dsp_orig) {
             c->mode = CALL_MODE_SCANNING;
-            c->param = VAL_FUNC_PARAM(&c->func, 1);
-            c->arg = DSF_ARG(c, 1);
+            c->param = DSF_PARAM_HEAD(c);
+            c->arg = DSF_ARG_HEAD(c);
 
         #if !defined(NDEBUG)
             write_none = FALSE;
@@ -1692,7 +1685,7 @@ reevaluate:
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
             && IS_NATIVE(&c->func) && VAL_FUNC_CODE(&c->func) == &N_do
-            && ANY_FUNC(BLK_SKIP(c->arglist, 1))
+            && ANY_FUNC(DSF_ARG_HEAD(c))
         ) {
             if (IS_END(&eval))
                 PUSH_GUARD_VALUE(&eval);
@@ -1700,7 +1693,7 @@ reevaluate:
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            eval = *BLK_SKIP(c->arglist, 1);
+            eval = *DSF_ARG_HEAD(c);
             Drop_Call_Arglist(c);
 
             c->mode = CALL_MODE_0;
@@ -2291,24 +2284,18 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
     c->flags = 0;
 
-    c->arglist = NULL;
+#if !defined(NDEBUG)
+    c->arglist.array = NULL;
+#endif
     Push_New_Arglist_For_Call(c);
 
-    assert(VAL_FUNC_NUM_PARAMS(func) == DSF_ARGC(c));
-
     // Get first parameter (or a REB_END if no parameters), and slot to write
-    // actual argument for first parameter into (or NULL)
+    // actual argument for first parameter into (or a REB_END)
     //
-    if (VAL_FUNC_NUM_PARAMS(func) > 0) {
-        c->param = VAL_FUNC_PARAM(func, 1);
-        c->arg = DSF_ARG(c, 1);
-    }
-    else {
-        c->param = END_VALUE;
-        c->arg = NULL;
-    }
+    c->param = DSF_PARAM_HEAD(c);
+    c->arg = DSF_ARG_HEAD(c);
 
-    for (; varargs || c->index < BLK_LEN(c->array); c->param++, c->arg++) {
+    for (; varargs || !IS_END(c->param); c->param++, c->arg++) {
         c->value = va_arg(*varargs, REBVAL*);
         if (!c->value) break; // our convention is "NULL signals no more"
 
@@ -2616,12 +2603,12 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
 {
     REBSER *paramlist_src = VAL_FUNC_PARAMLIST(DSF_FUNC(call_src));
     REBSER *paramlist_new = VAL_FUNC_PARAMLIST(func_new);
-    REBCNT isrc;        // index position in source frame
-    REBCNT inew;        // index position in target frame
-    REBVAL *param;
-    REBVAL *param2;
 
-    REBVAL *arg;
+    REBVAL *param_src;
+    REBVAL *param_new;
+
+    REBVAL *arg_new;
+    REBVAL *arg_src;
 
     // As part of the "Redo" we are not adding a new function location,
     // label, or place to write the output.  We are substituting new code
@@ -2630,28 +2617,38 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
     struct Reb_Call call_ = *call_src;
     struct Reb_Call * const c = &call_;
 
-    c->arglist = NULL;
     c->func = *func_new;
 
+#if !defined(NDEBUG)
+    c->arglist.array = NULL;
+#endif
     Push_New_Arglist_For_Call(c);
 
     // Foreach arg of the target, copy to source until refinement.
-    arg = DSF_ARG(c, 1);
-    isrc = inew = FIRST_PARAM_INDEX;
+    arg_new = DSF_ARG_HEAD(c);
+    param_new = DSF_PARAM_HEAD(c);
 
-    for (; inew < BLK_LEN(paramlist_new); inew++, isrc++, arg++) {
-        param = BLK_SKIP(paramlist_new, inew);
-        assert(IS_TYPESET(param));
+    arg_src = DSF_ARG_HEAD(DSF);
+    param_src = DSF_PARAM_HEAD(c);
 
-        if (VAL_GET_EXT(param, EXT_WORD_HIDE)) {
+    for (
+        ;
+        !IS_END(param_new);
+        param_new++, arg_new++,
+        param_src = IS_END(param_src) ? param_src : param_src + 1,
+        arg_src = IS_END(arg_src) ? param_src : arg_src + 1
+    ) {
+        assert(IS_TYPESET(param_new));
+
+        if (VAL_GET_EXT(param_new, EXT_WORD_HIDE)) {
             if (
                 VAL_GET_EXT(func_new, EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(param), SYM_RETURN)
+                && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)
             ) {
                 // This pure local is a special magic "definitional return"
                 // (see comments on VAL_FUNC_RETURN_TO)
-                *arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg) = VAL_FUNC_PARAMLIST(func_new);
+                *arg_new = *ROOT_RETURN_NATIVE;
+                VAL_FUNC_RETURN_TO(arg_new) = VAL_FUNC_PARAMLIST(func_new);
             }
             else {
                 // This pure local is not special, so leave as UNSET
@@ -2659,63 +2656,57 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
             continue;
         }
 
-        if (isrc >= BLK_LEN(paramlist_src)) {
-            isrc = BLK_LEN(paramlist_src);
-            param2 = NULL;
-        }
-        else {
-            param2 = BLK_SKIP(paramlist_src, isrc);
-            assert(IS_TYPESET(param2));
-        }
-
-        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+        if (VAL_GET_EXT(param_new, EXT_TYPESET_REFINEMENT)) {
             // At refinement, search for it in source, then continue with words.
 
             // Are we aligned on the refinement already? (a common case)
             if (
-                param2
-                && VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
+                param_src
+                && VAL_GET_EXT(param_src, EXT_TYPESET_REFINEMENT)
                 && (
-                    VAL_TYPESET_CANON(param2)
-                    == VAL_TYPESET_CANON(param)
+                    VAL_TYPESET_CANON(param_src)
+                    == VAL_TYPESET_CANON(param_new)
                 )
             ) {
-                *arg = *DSF_ARG(DSF, isrc);
+                *arg_new = *arg_src;
             }
             else {
                 // No, we need to search for it:
-                isrc = FIRST_PARAM_INDEX;
-                for (; isrc < BLK_LEN(paramlist_src); isrc++) {
-                    param2 = BLK_SKIP(paramlist_src, isrc);
+                arg_src = IS_CLOSURE(&DSF->func)
+                    ? BLK_SKIP(DSF->arglist.array, 1)
+                    : &c->arglist.chunk[1];
+                param_src = BLK_SKIP(paramlist_src, 1);
+
+                for (; !IS_END(param_src); param_src++, arg_src++) {
                     if (
-                        VAL_GET_EXT(param2, EXT_TYPESET_REFINEMENT)
+                        VAL_GET_EXT(param_src, EXT_TYPESET_REFINEMENT)
                         && (
-                            VAL_TYPESET_CANON(param2)
-                            == VAL_TYPESET_CANON(param)
+                            VAL_TYPESET_CANON(param_src)
+                            == VAL_TYPESET_CANON(param_new)
                         )
                     ) {
-                        *arg = *DSF_ARG(DSF, isrc);
+                        *arg_new = *arg_src;
                         break;
                     }
                 }
                 // !!! The function didn't have the refinement so skip
                 // it and leave as unset.
                 // But what will happen now with the arguments?
-                /* if (isrc >= BLK_LEN(wsrc)) fail (Error_Invalid_Arg(word)); */
+                /* ... fail (Error_Invalid_Arg(word)); */
             }
         }
         else {
             if (
-                param2
+                param_src
                 && (
-                    VAL_GET_EXT(param, EXT_TYPESET_QUOTE)
-                    == VAL_GET_EXT(param2, EXT_TYPESET_QUOTE)
+                    VAL_GET_EXT(param_new, EXT_TYPESET_QUOTE)
+                    == VAL_GET_EXT(param_src, EXT_TYPESET_QUOTE)
                 ) && (
-                    VAL_GET_EXT(param, EXT_TYPESET_EVALUATE)
-                    == VAL_GET_EXT(param2, EXT_TYPESET_EVALUATE)
+                    VAL_GET_EXT(param_new, EXT_TYPESET_EVALUATE)
+                    == VAL_GET_EXT(param_src, EXT_TYPESET_EVALUATE)
                 )
             ) {
-                *arg = *DSF_ARG(DSF, isrc);
+                *arg_new = *arg_src;
                 // !!! Should check datatypes for new arg passing!
             }
             else {

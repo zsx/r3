@@ -522,24 +522,12 @@ static void Mark_Call_Frames_Deep(void)
         // need to keep the label sym alive!
         /* Mark_Symbol_Still_In_Use?(call->label_sym); */
 
-        // arglist may be NULL (if frameless, closure, etc...)
-        if (c->arglist) {
-            // We wish to GC protect the values in the arglist, *but* the
-            // problem is that the arglist itself may well not be managed,
-            // so we can't QUEUE_MARK_ARRAY_DEEP.  We have to walk this
-            // one manually...
+        // We do not have to GC-protect the arglist.  If it is a closure then
+        // the args are held alive if there are any references from the body.
+        // If not, then args live in the chunk stack and is protected there.
 
-            REBVAL *arg = DSF_ARG(c, 1);
-            while (!IS_END(arg)) {
-                Queue_Mark_Value_Deep(arg);
-                arg++;
-            }
-        }
-
-        // `arg`, `param`, and `refine` may all be NULL
-
-        if (c->arg && Is_Value_Managed(c->arg, FALSE))
-            Queue_Mark_Value_Deep(c->arg);
+        // `param`, and `refine` may both be NULL
+        // (`arg` is a cache of the head of the arglist or NULL if frameless)
 
         if (c->param && Is_Value_Managed(c->param, FALSE))
             Queue_Mark_Value_Deep(c->param);
@@ -1075,6 +1063,23 @@ REBCNT Recycle_Core(REBOOL shutdown)
             if (!IS_END(*vp))
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
+        }
+
+        // Mark chunk stack (non-movable saved arrays of values)
+        {
+            struct Reb_Chunk *chunk = TG_Top_Chunk;
+            while (chunk) {
+                REBVAL *chunk_value = &chunk->values[0];
+                while (
+                    cast(REBYTE*, chunk_value)
+                    < cast(REBYTE*, chunk) + chunk->size
+                ) {
+                    if (!IS_END(chunk_value))
+                        Queue_Mark_Value_Deep(chunk_value);
+                    chunk_value++;
+                }
+                chunk = chunk->prev;
+            }
         }
 
         // Mark all root series:

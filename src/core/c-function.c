@@ -479,6 +479,9 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
         REBCNT index = 0;
         REBFLG convert_local = FALSE;
 
+        if (item == NULL)
+            Panic_Series(VAL_SERIES(spec));
+
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
                 // Note a "true local" (indicated by a set-word) is considered
@@ -1013,8 +1016,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // We will extract the arglist from ownership and manual memory management
     // by the call, to be used in a GC-managed object frame by the closure.
 
-    frame = call_->arglist;
-    call_->arglist = NULL;
+    frame = call_->arglist.array;
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
