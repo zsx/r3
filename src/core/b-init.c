@@ -352,6 +352,8 @@ REBNATIVE(native)
 // in first place for initialization.  This is a special bootstrap function
 // created manually within the C code, as it cannot "run to create itself".
 {
+    PARAM(1, spec);
+
     if (
         (Native_Limit != 0 || !*Native_Functions)
         && (Native_Count >= Native_Limit)
@@ -359,7 +361,7 @@ REBNATIVE(native)
         fail (Error(RE_MAX_NATIVES));
     }
 
-    Make_Native(D_OUT, VAL_SERIES(D_ARG(1)), *Native_Functions++, REB_NATIVE);
+    Make_Native(D_OUT, VAL_SERIES(ARG(spec)), *Native_Functions++, REB_NATIVE);
 
     Native_Count++;
     return R_OUT;
@@ -387,6 +389,10 @@ REBNATIVE(action)
 // Because words are not bound to the datatypes at the time of action building
 // it accepts integer numbers for bootstrapping.
 {
+    PARAM(1, spec);
+    REFINE(2, typecheck);
+    PARAM(3, typenum);
+
     if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
 
     // The boot generation process is set up so that the action numbers will
@@ -394,12 +400,12 @@ REBNATIVE(action)
     // from overlapping with actions, but the refinement makes it more clear
     // exactly what is going on.
     //
-    if (D_REF(2))
-        assert(VAL_INT32(D_ARG(3)) == cast(REBINT, Action_Count));
+    if (REF(typecheck))
+        assert(VAL_INT32(ARG(typenum)) == cast(REBINT, Action_Count));
 
     Make_Native(
         D_OUT,
-        VAL_SERIES(D_ARG(1)),
+        VAL_SERIES(ARG(spec)),
         cast(REBFUN, cast(REBUPT, Action_Count)),
         REB_ACTION
     );

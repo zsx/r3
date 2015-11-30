@@ -1137,8 +1137,8 @@ REBNATIVE(func)
 // 
 // See comments on Make_Function for full notes.
 {
-    PARAM spec = {1};
-    PARAM body = {2};
+    PARAM(1, spec);
+    PARAM(2, body);
 
     const REBFLG has_return = TRUE;
 
@@ -1176,8 +1176,8 @@ REBNATIVE(clos)
 // 
 // See comments on Make_Function for full notes.
 {
-    PARAM spec = {1};
-    PARAM body = {2};
+    PARAM(1, spec);
+    PARAM(2, body);
 
     const REBFLG has_return = TRUE;
 

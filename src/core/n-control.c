@@ -1131,9 +1131,15 @@ REBNATIVE(if)
 //
 REBNATIVE(protect)
 {
+    PARAM(1, value);
+    REFINE(2, deep);
+    REFINE(3, words);
+    REFINE(4, values);
+    REFINE(5, hide);
+
     REBCNT flags = FLAGIT(PROT_SET);
 
-    if (D_REF(5)) SET_FLAG(flags, PROT_HIDE);
+    if (REF(hide)) SET_FLAG(flags, PROT_HIDE);
     else SET_FLAG(flags, PROT_WORD); // there is no unhide
 
     // accesses arguments 1 - 4

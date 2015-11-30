@@ -232,29 +232,61 @@
 //
 //     if (IS_INTEGER(ARG(foo))) { ... }
 //
-// To help make this less error-prone, two types of structs are used to wrap
-// the const integer:
+// To help make this less error-prone and systemic, this provides some macros:
 //
-//     PARAM foo = {1};
-//     REFINE bar = {2};
+//     PARAM(1, foo);
+//     REFINE(2, bar);
 //
 //     if (IS_INTEGER(ARG(foo)) && REF(bar)) { ... }
 //
+// Under the hood `PARAM(1, foo)` and `REFINE(2, bar)` declare structs.
 // In an optimized build, these structures disappear completely, with all
-// addressing done directly into the call frame's cached `vars` pointer
+// addressing done directly into the call frame's cached `vars` pointer.
+//
+// To aid in debugging, the debug build version of the structures contain
+// the actual pointers to the arguments.
 //
 
 struct Native_Param {
-    int pnum;   // `p` name means ARG() only works with PARAM
+#if !defined(NDEBUG)
+    REBVAL *arg;
+#endif
+
+    int num;
 };
-#define PARAM \
-    const struct Native_Param
 
 struct Native_Refine {
-    int rnum;   // `r` name means REF() only works with REFINE
-};
-#define REFINE \
-    const struct Native_Refine
+#if !defined(NDEBUG)
+    REBOOL cache;
+    REBVAL *arg;
+#endif
 
-#define ARG(n)  (call_->arg + (n).pnum)
-#define REF(n)  (!IS_NONE(call_->arg + (n).rnum))
+    int num;
+};
+
+#define ARG(p)  (call_->arg + (p).num)
+
+#ifdef NDEBUG
+    #define REF(r)  (!IS_NONE(ARG(r)))
+#else
+    // An added useless ?: helps check in debug build to make sure we do not
+    // try to use REF() on something defined as PARAM(), but only REFINE()
+    //
+    #define REF(r)  ((r).cache ? !IS_NONE(ARG(r)) : !IS_NONE(ARG(r)))
+#endif
+
+#ifdef NDEBUG
+    #define PARAM(n,name) \
+        const struct Native_Param name = {n}
+
+    #define REFINE(n,name) \
+        const struct Native_Refine name = {n}
+#else
+    #define PARAM(n,name) \
+        const struct Native_Param name = {call_->arg + (n), (n)}
+
+    #define REFINE(n,name) \
+        const struct Native_Refine name = \
+            {!IS_NONE(call_->arg + (n)), call_->arg + (n), (n)}
+#endif
+

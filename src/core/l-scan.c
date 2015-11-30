@@ -1810,10 +1810,10 @@ REBNATIVE(transcode)
 //
 // Allows BINARY! input only!
 {
-    PARAM source = {1};
-    REFINE next = {2};
-    REFINE only = {3};
-    REFINE relax = {4};
+    PARAM(1, source);
+    REFINE(2, next);
+    REFINE(3, only);
+    REFINE(4, relax);
 
     SCAN_STATE scan_state;
 
