@@ -413,8 +413,6 @@ REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
     else if (!ANY_FUNC(pvs.value))
         fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
 
-    assert(!THROWN(out));
-
     if (val) {
         // If SET then we don't return anything
         assert(IS_END(pvs.path) + 1);
@@ -423,6 +421,8 @@ REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
     // If storage was not used, then copy final value back to it:
     if (pvs.value != pvs.store) *pvs.store = *pvs.value;
+
+    assert(!THROWN(out));
 
     // Return 0 if not function or is :path/word...
     if (!ANY_FUNC(pvs.value)) {
