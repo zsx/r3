@@ -106,6 +106,14 @@ TVAR REBSER *GC_Manuals;    // Manually memory managed (not by GC)
 
 TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
 
+#if !defined(NDEBUG)
+    // This counter is incremented each time through the DO loop, and can be
+    // used for many purposes...including setting breakpoints in routines
+    // other than Do_Next that are contingent on a certain "tick" elapsing.
+    //
+    TVAR REBCNT TG_Do_Count;
+#endif
+
 //-- Evaluation stack:
 TVAR REBSER *DS_Series;
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function

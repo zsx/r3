@@ -663,11 +663,28 @@ struct Reb_Call {
 **
 ***********************************************************************/
 
-#if defined(NDEBUG) || !defined(TO_LINUX)
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
-        do { \
-            struct Reb_Call c_; \
-            c_.value = BLK_SKIP((array_),(index_in)); \
+#ifdef NDEBUG
+    #define SPORADICALLY(modulus) FALSE
+#else
+    #define SPORADICALLY(modulus) (TG_Do_Count % modulus == 0)
+#endif
+
+// This optimized version of the macro will never do an evaluation of a
+// type it doesn't have to.  It uses ANY_EVAL() to see if it can get
+// out of making a function call...sometimes it cannot because there
+// may be an infix lookup possible (we don't know that `[3] + [4]`
+// isn't ever going to work...)
+//
+// The debug build exercises both code paths, by optimizing every other
+// execution to bypass the evaluator if possible...and then throwing
+// the code through Do_Core the other times.  It's a sampling test, but
+// not a bad one for helping keep the methods in sync.
+//
+#define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
+    do { \
+        struct Reb_Call c_; \
+        c_.value = BLK_SKIP((array_),(index_in)); \
+        if (SPORADICALLY(2)) { /* optimize every OTHER execution if DEBUG */ \
             if (IS_END(c_.value)) { \
                 SET_UNSET(out_); \
                 (index_out) = END_FLAG; \
@@ -678,28 +695,14 @@ struct Reb_Call {
                 (index_out) = ((index_in) + 1); \
                 break; \
             } \
-            c_.out = (out_); \
-            c_.array = (array_); \
-            c_.index = (index_in) + 1; \
-            c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
-            Do_Core(&c_); \
-            (index_out) = c_.index; \
-        } while (FALSE)
-#else
-    // Linux debug builds currently default to running the evaluator on
-    // every value--whether it has evaluator behavior or not.
-    #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
-        do { \
-            struct Reb_Call c_; \
-            c_.value = BLK_SKIP((array_), (index_in)); \
-            c_.out = (out_); \
-            c_.array = (array_); \
-            c_.index = (index_in) + 1; \
-            c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
-            Do_Core(&c_); \
-            (index_out) = c_.index; \
-        } while (FALSE);
-#endif
+        } \
+        c_.out = (out_); \
+        c_.array = (array_); \
+        c_.index = (index_in) + 1; \
+        c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
+        Do_Core(&c_); \
+        (index_out) = c_.index; \
+    } while (FALSE)
 
 #define DO_NEXT_MAY_THROW(index_out,out,array,index) \
     DO_NEXT_MAY_THROW_CORE( \

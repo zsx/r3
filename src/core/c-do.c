@@ -759,7 +759,6 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 void Do_Core(struct Reb_Call * const c)
 {
 #if !defined(NDEBUG)
-    static REBCNT count_static = 0;
     REBCNT count;
 #endif
 
@@ -881,7 +880,7 @@ do_at_index:
     // debug behavior to catch those trying to inspect what is conceptually
     // supposed to be a garbage value.
     //
-    if (count_static % 2 == 0)
+    if (SPORADICALLY(2))
         SET_TRASH_SAFE(c->out);
 #endif
 
@@ -890,15 +889,15 @@ do_at_index:
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
     // and read the count...then put that here and recompile with
-    // a breakpoint set.  (The 'count_static' value is captured into a
+    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
     // local 'count' so you still get the right count after recursion.)
     //
     // We bound it at the max unsigned 32-bit because otherwise it would
     // roll over to zero and print a message that wasn't asked for, which
     // is annoying even in a debug build.
     //
-    if (count_static < MAX_U32) {
-        count = ++count_static;
+    if (TG_Do_Count < MAX_U32) {
+        count = ++TG_Do_Count;
         if (count ==
             // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
                                       0
@@ -1201,7 +1200,7 @@ reevaluate:
         // time, and put in a trapping trash the other half...
         //
     #if !defined(NDEBUG)
-        if (count_static % 2 == 0)
+        if (SPORADICALLY(2))
             SET_TRASH_SAFE(c->out);
     #endif
 
