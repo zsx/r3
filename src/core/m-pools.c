@@ -607,12 +607,17 @@ static REBOOL Series_Data_Alloc(REBSER *series, REBCNT length, REBYTE wide, REBC
             while(len < size)
                 len *= 2;
             size = len;
-            SERIES_SET_FLAG(series, SER_POWER_OF_2);
+
+            // Only set the power of 2 flag if it adds information, e.g. if
+            // the size doesn't divide evenly by the item width
+            //
+            if (size % wide != 0)
+                SERIES_SET_FLAG(series, SER_POWER_OF_2);
+            else
+                SERIES_CLR_FLAG(series, SER_POWER_OF_2);
         }
-        else {
-            size = ALIGN(size, 2048);
+        else
             SERIES_CLR_FLAG(series, SER_POWER_OF_2);
-        }
 
         series->data = ALLOC_ARRAY(REBYTE, size);
         if (!series->data)
@@ -716,13 +721,6 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer)
 REBCNT Series_Allocated_Size(REBSER *series)
 {
     REBCNT total = SERIES_TOTAL(series);
-    REBCNT pool_num = FIND_POOL(total);
-
-    if (pool_num < SERIES_POOL) {
-        assert(!SERIES_GET_FLAG(series, SER_POWER_OF_2));
-        assert(Mem_Pools[pool_num].wide >= total);
-        return Mem_Pools[pool_num].wide;
-    }
 
     if (SERIES_GET_FLAG(series, SER_POWER_OF_2)) {
         REBCNT len = 2048;
@@ -731,7 +729,7 @@ REBCNT Series_Allocated_Size(REBSER *series)
         return len;
     }
 
-    return ALIGN(total, 2048);
+    return total;
 }
 
 
