@@ -173,6 +173,8 @@ clear output-buffer
 
 emit-header "Function Argument Enums" %func-args.h
 
+action-list: load %../boot/tmp-actions.r
+
 make-arg-enums: func [word] [
     ; Search file for definition:
     def: find action-list to-set-word word
@@ -217,8 +219,6 @@ make-arg-enums: func [word] [
 
     ;?? output-buffer halt
 ]
-
-action-list: load %../boot/actions.r
 
 for-each word [
     copy

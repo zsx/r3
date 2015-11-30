@@ -216,10 +216,6 @@ REBSER *Check_Func_Spec(REBSER *spec)
             Make_Typeset(VAL_BLK_HEAD(item), typeset, 0);
             break;
 
-        case REB_INTEGER:
-            // special case used by datatype testing actions, e.g. STRING?
-            break;
-
         case REB_WORD:
             typeset++;
             assert(
@@ -898,10 +894,11 @@ REBFLG Do_Action_Throws(struct Reb_Call *call_)
     assert(type < REB_MAX);
 
     // Handle special datatype test cases (eg. integer?)
-    if (VAL_FUNC_ACT(D_FUNC) == 0) {
+    //
+    if (VAL_FUNC_ACT(D_FUNC) < REB_MAX) {
         VAL_SET(D_OUT, REB_LOGIC);
 
-        if (type == VAL_INT64(BLK_LAST(VAL_FUNC_SPEC(D_FUNC))))
+        if (type == VAL_FUNC_ACT(D_FUNC))
             VAL_LOGIC(D_OUT) = TRUE;
         else
             VAL_LOGIC(D_OUT) = FALSE;

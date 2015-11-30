@@ -161,17 +161,18 @@ static void Print_Banner(REBARGS *rargs)
 // 
 // Expects result to be UNSET!
 //
-static void Do_Global_Block(REBSER *block, REBINT rebind)
+static void Do_Global_Block(REBSER *block, REBCNT index, REBINT rebind)
 {
     REBVAL result;
+    REBVAL *item = BLK_SKIP(block, index);
 
     Bind_Values_Set_Forward_Shallow(
-        BLK_HEAD(block), rebind > 1 ? Sys_Context : Lib_Context
+        item, rebind > 1 ? Sys_Context : Lib_Context
     );
 
-    if (rebind < 0) Bind_Values_Shallow(BLK_HEAD(block), Sys_Context);
-    if (rebind > 0) Bind_Values_Deep(BLK_HEAD(block), Lib_Context);
-    if (rebind > 1) Bind_Values_Deep(BLK_HEAD(block), Sys_Context);
+    if (rebind < 0) Bind_Values_Shallow(item, Sys_Context);
+    if (rebind > 0) Bind_Values_Deep(item, Lib_Context);
+    if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
 
     // !!! The words NATIVE and ACTION were bound but paths would not bind.
     // So you could do `native [spec]` but not `native/frameless [spec]`
@@ -181,7 +182,6 @@ static void Do_Global_Block(REBSER *block, REBINT rebind)
     // the boot binding working well enough to use refinements, but should
     // be given a review.
     {
-        REBVAL *item = BLK_HEAD(block);
         REBVAL *word = NULL;
         for (; NOT_END(item); item++) {
             if (
@@ -190,10 +190,19 @@ static void Do_Global_Block(REBSER *block, REBINT rebind)
                     || VAL_WORD_SYM(item) == SYM_ACTION
                 )
             ) {
-                // Get the bound value from the first `native` word we see
+                // Get the bound value from the first `native` or `action`
+                // toplevel word that we find
+                //
                 word = item;
             }
-            else if (IS_PATH(item)) {
+        }
+
+        // Now restart the search so we are sure to pick up any paths that
+        // might come *before* the first bound word.
+        //
+        item = BLK_SKIP(block, index);
+        for (; NOT_END(item); item++) {
+            if (IS_PATH(item)) {
                 REBVAL *path_item = BLK_HEAD(VAL_SERIES(item));
                 if (
                     IS_WORD(path_item) && (
@@ -204,6 +213,7 @@ static void Do_Global_Block(REBSER *block, REBINT rebind)
                     // overwrite with bound form (we shouldn't have any calls
                     // to NATIVE in the actions block or to ACTION in the
                     // block of natives...)
+                    //
                     assert(word);
                     assert(VAL_WORD_SYM(word) == VAL_WORD_SYM(path_item));
                     *path_item = *word;
@@ -212,7 +222,7 @@ static void Do_Global_Block(REBSER *block, REBINT rebind)
         }
     }
 
-    if (Do_At_Throws(&result, block, 0))
+    if (Do_At_Throws(&result, block, index))
         panic (Error_No_Catch_For_Throw(&result));
 
     if (!IS_UNSET(&result))
@@ -302,45 +312,6 @@ static void Init_Datatypes(void)
 
 
 //
-//  Init_Datatype_Checks: C
-// 
-// Create datatype test functions (e.g. integer?, time?, etc)
-// Must be done after typesets are initialized, so this cannot
-// be merged with the above.
-//
-static void Init_Datatype_Checks(void)
-{
-    REBVAL *word = VAL_BLK_HEAD(&Boot_Block->types);
-    REBVAL *value;
-    REBSER *spec;
-    REBCNT sym;
-    REBINT n = 1;
-    REBYTE str[32];
-
-    spec = VAL_SERIES(VAL_BLK_HEAD(&Boot_Block->booters));
-
-    for (word++; NOT_END(word); word++, n++) {
-        COPY_BYTES(str, Get_Word_Name(word), 32);
-        str[31] = '\0';
-        str[LEN_BYTES(str)-1] = '?';
-        sym = Make_Word(str, LEN_BYTES(str));
-        //Print("sym: %s", Get_Sym_Name(sym));
-        value = Append_Frame(Lib_Context, 0, sym);
-        VAL_INT64(BLK_LAST(spec)) = n;  // special datatype id location
-        Make_Native(
-            value,
-            Copy_Array_Shallow(spec),
-            cast(REBFUN, A_TYPE),
-            REB_ACTION
-        );
-    }
-
-    value = Append_Frame(Lib_Context, 0, SYM_DATATYPES);
-    *value = Boot_Block->types;
-}
-
-
-//
 //  Init_Constants: C
 // 
 // Init constant words.
@@ -368,46 +339,72 @@ static void Init_Constants(void)
 
 
 //
-//  Use_Natives: C
-// 
-// Setup to use NATIVE function. If limit == 0, then the
-// native function table will be zero terminated (N_native).
+//  native: native [
 //
-void Use_Natives(const REBFUN *funcs, REBCNT limit)
-{
-    Native_Count = 0;
-    Native_Limit = limit;
-    Native_Functions = funcs;
-}
-
-
+//  {Creates native function (for internal usage only).}
 //
-//  native: native none
+//      spec [block!]
+//  ]
 //
 REBNATIVE(native)
+//
+// The `native` native is searched for explicitly by %make-natives.r and put
+// in first place for initialization.  This is a special bootstrap function
+// created manually within the C code, as it cannot "run to create itself".
 {
-    if ((Native_Limit == 0 && *Native_Functions) || (Native_Count < Native_Limit))
-        Make_Native(D_OUT, VAL_SERIES(D_ARG(1)), *Native_Functions++, REB_NATIVE);
-    else
+    if (
+        (Native_Limit != 0 || !*Native_Functions)
+        && (Native_Count >= Native_Limit)
+    ) {
         fail (Error(RE_MAX_NATIVES));
+    }
+
+    Make_Native(D_OUT, VAL_SERIES(D_ARG(1)), *Native_Functions++, REB_NATIVE);
+
     Native_Count++;
     return R_OUT;
 }
 
 
 //
-//  action: native none
+//  action: native [
+//
+//  {Creates datatype action (for internal usage only).}
+//
+//      spec [block!]
+//      /typecheck typenum [integer! datatype!]
+//  ]
 //
 REBNATIVE(action)
+//
+// The `action` native is searched for explicitly by %make-natives.r and put
+// in second place for initialization (after the `native` native).
+//
+// If /TYPECHECK is used then you can get a fast checker for a datatype:
+//
+//     string?: action/typecheck [value [unset! any-value!]] string!
+//
+// Because words are not bound to the datatypes at the time of action building
+// it accepts integer numbers for bootstrapping.
 {
-    Action_Count++;
     if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
+
+    // The boot generation process is set up so that the action numbers will
+    // conveniently line up to match the type checks to keep the numbers
+    // from overlapping with actions, but the refinement makes it more clear
+    // exactly what is going on.
+    //
+    if (D_REF(2))
+        assert(VAL_INT32(D_ARG(3)) == cast(REBINT, Action_Count));
+
     Make_Native(
         D_OUT,
         VAL_SERIES(D_ARG(1)),
         cast(REBFUN, cast(REBUPT, Action_Count)),
         REB_ACTION
     );
+
+    Action_Count++;
     return R_OUT;
 }
 
@@ -468,31 +465,66 @@ static void Init_Ops(void)
 //
 static void Init_Natives(void)
 {
-    REBVAL *word;
+    REBVAL *item = BLK_HEAD(VAL_SERIES(&Boot_Block->natives));
     REBVAL *val;
 
-    Action_Count = 0;
-    Use_Natives(Native_Funcs, MAX_NATS);
+    Action_Count = 2; // Skip A_TRASH_Q and A_END_Q
+    Native_Count = 0;
+    Native_Limit = MAX_NATS;
+    Native_Functions = Native_Funcs;
 
-    // Construct the first native, which is the NATIVE function creator itself:
-    // native: native [spec [block!]]
-    word = VAL_BLK_SKIP(&Boot_Block->booters, 1);
-    if (!IS_SET_WORD(word) || VAL_WORD_SYM(word) != SYM_NATIVE)
+    // Construct first native, which is the NATIVE function creator itself:
+    //
+    //     native: native [spec [block!]]
+    //
+    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_NATIVE)
         panic (Error(RE_NATIVE_BOOT));
-    //val = BLK_SKIP(Sys_Context, SYS_CTX_NATIVE);
-    val = Append_Frame(Lib_Context, word, 0);
-    Make_Native(val, VAL_SERIES(word+2), Native_Functions[0], REB_NATIVE);
 
-    word += 3; // action: native []
-    //val = BLK_SKIP(Sys_Context, SYS_CTX_ACTION);
-    val = Append_Frame(Lib_Context, word, 0);
-    Make_Native(val, VAL_SERIES(word+2), Native_Functions[1], REB_NATIVE);
-    Native_Count = 2;
-    Native_Functions += 2;
+    val = Append_Frame(Lib_Context, item, 0);
 
-    Action_Marker = SERIES_TAIL(Lib_Context)-1; // Save index for action words.
-    Do_Global_Block(VAL_SERIES(&Boot_Block->actions), -1);
-    Do_Global_Block(VAL_SERIES(&Boot_Block->natives), -1);
+    item++; // skip `native:`
+    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
+    item++; // skip `native` so we're on the `[spec [block!]]`
+    Make_Native(val, VAL_SERIES(item), *Native_Functions++, REB_NATIVE);
+    Native_Count++;
+    item++; // skip spec
+
+    // Construct second native, which is the ACTION function creator:
+    //
+    //     action: native [spec [block!]]
+    //
+    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_ACTION)
+        panic (Error(RE_NATIVE_BOOT));
+
+    val = Append_Frame(Lib_Context, item, 0);
+
+    item++; // skip `action:`
+    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
+    item++; // skip `native`
+    Make_Native(val, VAL_SERIES(item), *Native_Functions++, REB_NATIVE);
+    Native_Count++;
+    item++; // skip spec
+
+    // Save index for action words.  This is used by Get_Action_Sym().  We have
+    // to subtract two to account for our skipped TRASH? and END? tests which
+    // should not be exposed.
+    //
+    Action_Marker = SERIES_TAIL(Lib_Context) - 2;
+    Do_Global_Block(VAL_SERIES(&Boot_Block->actions), 0, -1);
+
+    // Sanity check the symbol transformation
+    //
+    if (0 != strcmp("open", cs_cast(Get_Sym_Name(Get_Action_Sym(A_OPEN)))))
+        panic (Error(RE_NATIVE_BOOT));
+
+    // Do native construction, but start from after NATIVE: and ACTION: as we
+    // built those by hand
+    //
+    Do_Global_Block(
+        VAL_SERIES(&Boot_Block->natives),
+        item - BLK_HEAD(VAL_SERIES(&Boot_Block->natives)),
+        -1
+    );
 }
 
 
@@ -1222,7 +1254,6 @@ void Init_Core(REBARGS *rargs)
     DOUT("Level 3");
     Init_Datatypes();       // Create REBOL datatypes
     Init_Typesets();        // Create standard typesets
-    Init_Datatype_Checks(); // The TYPE? checks
     Init_Constants();       // Constant values
 
     // Run actual code:
@@ -1309,8 +1340,8 @@ void Init_Core(REBARGS *rargs)
     // Initialize mezzanine functions:
     DOUT("Level 5");
     if (PG_Boot_Level >= BOOT_LEVEL_SYS) {
-        Do_Global_Block(VAL_SERIES(&Boot_Block->base), 1);
-        Do_Global_Block(VAL_SERIES(&Boot_Block->sys), 2);
+        Do_Global_Block(VAL_SERIES(&Boot_Block->base), 0, 1);
+        Do_Global_Block(VAL_SERIES(&Boot_Block->sys), 0, 2);
     }
 
     *FRM_VALUE(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;

@@ -15,17 +15,4 @@ REBOL [
     }
 ]
 
-; Special block used as spec to the datatype test functions (e.g. time?):
-["Returns TRUE if it is this type." value [any-value!] 0]
-
-; The native function must be defined first. This is a
-; special boot function created manually within the C code.
-native: native [
-    {Creates native function (for internal usage only).}
-    spec ; [block!] -- no check required, we know it is correct
-]
-
-action: native [
-    {Creates datatype action (for internal usage only).}
-    spec ; [block!] -- no check required, we know it is correct
-]
+; File deprecated, cleanup on makefile rewrite
