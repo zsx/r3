@@ -578,10 +578,11 @@ static void nvgdrw_line(void* gr, REBXYF p1, REBXYF p2)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
-	BEGIN_NVG_PATH(ctx);
+	if (!ctx->stroke) return;
 	nvgMoveTo(ctx->nvg, p1.x, p1.y);
 	nvgLineTo(ctx->nvg, p2.x, p2.y);
-	END_NVG_PATH(ctx);
+	nvgStroke((ctx)->nvg);
+
 }
 
 static void nvgdrw_line_cap(void* gr, REBINT mode)
