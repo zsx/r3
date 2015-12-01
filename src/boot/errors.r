@@ -88,6 +88,8 @@ Internal: [
     no-print-ptr:       {print is missing string pointer}
 
     codepoint-too-high: [{codepoint} :arg1 {too large for current interpreter}]
+
+    debug-only:         {Feature available only in DEBUG builds}
 ]
 
 Syntax: [

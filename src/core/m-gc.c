@@ -1028,10 +1028,12 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     GC_Disabled = 1;
 
+#if !defined(NDEBUG)
     PG_Reb_Stats->Recycle_Counter++;
     PG_Reb_Stats->Recycle_Series = Mem_Pools[SERIES_POOL].free;
 
     PG_Reb_Stats->Mark_Count = 0;
+#endif
 
     // WARNING: These terminate existing open blocks. This could
     // be a problem if code is building a new value at the tail,
@@ -1120,10 +1122,12 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     CHECK_MEMORY(4);
 
+#if !defined(NDEBUG)
     // Compute new stats:
     PG_Reb_Stats->Recycle_Series = Mem_Pools[SERIES_POOL].free - PG_Reb_Stats->Recycle_Series;
     PG_Reb_Stats->Recycle_Series_Total += PG_Reb_Stats->Recycle_Series;
     PG_Reb_Stats->Recycle_Prior_Eval = Eval_Cycles;
+#endif
 
     // Do not adjust task variables or boot strings in shutdown when they
     // are being freed.

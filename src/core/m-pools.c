@@ -296,7 +296,9 @@ void Init_Pools(REBINT scale)
     // !!! Revisit where series init/shutdown goes when the code is more
     // organized to have some of the logic not in the pools file
 
+#if !defined(NDEBUG)
     PG_Reb_Stats = ALLOC(REB_STATS);
+#endif
 
     // Manually allocated series that GC is not responsible for (unless a
     // trap occurs). Holds series pointers.
@@ -341,7 +343,10 @@ void Shutdown_Pools(void)
 
     // !!! Revisit location (just has to be after all series are freed)
     FREE_ARRAY(REBSER*, MAX_EXPAND_LIST, Prior_Expand);
+
+#if !defined(NDEBUG)
     FREE(REB_STATS, PG_Reb_Stats);
+#endif
 
     // Rebol's Alloc_Mem() does not save the size of an allocation, so
     // callers of the Alloc_Free() routine must say how big the memory block
@@ -755,8 +760,10 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     if (cast(REBU64, length) * wide > MAX_I32)
         fail (Error_No_Memory(cast(REBU64, length) * wide));
 
+#if !defined(NDEBUG)
     PG_Reb_Stats->Series_Made++;
     PG_Reb_Stats->Series_Memory += length * wide;
+#endif
 
 //  if (GC_TRIGGER) Recycle();
 
@@ -764,7 +771,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
-#ifndef NDEBUG
+#if !defined(NDEBUG)
     // For debugging purposes, it's nice to be able to crash on some
     // kind of guard for tracking the call stack at the point of allocation
     // if we find some undesirable condition that we want a trace from
@@ -815,7 +822,9 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
     CHECK_MEMORY(2);
 
+#if !defined(NDEBUG)
     if (flags & MKS_ARRAY) PG_Reb_Stats->Blocks++;
+#endif
 
     return series;
 }
@@ -1033,7 +1042,9 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     // We have to de-bias the data pointer before we can free it.
     Free_Unbiased_Series_Data(data_old - (wide * bias_old), size_old);
 
+#if !defined(NDEBUG)
     PG_Reb_Stats->Series_Expanded++;
+#endif
 }
 
 
@@ -1120,7 +1131,9 @@ void GC_Kill_Series(REBSER *series)
 
     assert(!SERIES_FREED(series));
 
+#if !defined(NDEBUG)
     PG_Reb_Stats->Series_Freed++;
+#endif
 
     // Remove series from expansion list, if found:
     for (n = 1; n < MAX_EXPAND_LIST; n++) {
@@ -1458,8 +1471,10 @@ REBCNT Check_Memory(void)
     REBSEG *seg;
     REBSER *series;
 
+#if !defined(NDEBUG)
     //Debug_Str("<ChkMem>");
     PG_Reb_Stats->Free_List_Checked++;
+#endif
 
     // Scan all series headers to check that series->size is correct:
     for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {

@@ -158,6 +158,9 @@ REBNATIVE(stats)
     }
 
     if (D_REF(2)) {
+    #ifdef NDEBUG
+        fail (Error(RE_DEBUG_ONLY));
+    #else
         stats = Get_System(SYS_STANDARD, STD_STATS);
         *D_OUT = *stats;
         if (IS_OBJECT(stats)) {
@@ -191,6 +194,8 @@ REBNATIVE(stats)
             stats++;
             SET_INTEGER(stats, PG_Reb_Stats->Recycle_Counter);
         }
+    #endif
+
         return R_OUT;
     }
 

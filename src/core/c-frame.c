@@ -478,7 +478,9 @@ REBSER *Make_Object(REBSER *parent, REBVAL value[])
     REBSER *words;
     REBSER *object;
 
+#if !defined(NDEBUG)
     PG_Reb_Stats->Objects++;
+#endif
 
     if (!value || IS_END(value)) {
         if (parent) {
