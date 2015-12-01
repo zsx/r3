@@ -241,9 +241,9 @@ static void nanovg_end_frame(REBDRW_CTX *ctx)
 	if (ctx == NULL) return;
 #ifndef NO_FRAME_BUFFER
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
+	nvgEndFrame(ctx->nvg);
 #endif
 	//printf("End frame: %d\n", __LINE__);
-	nvgEndFrame(ctx->nvg);
 }
 
 static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
