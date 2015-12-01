@@ -750,8 +750,6 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 {
     REBSER *series;
 
-    if (C_STACK_OVERFLOWING(&series)) Trap_Stack_Overflow();
-
     // PRESERVE flag only makes sense for Remake_Series, where there is
     // previous data to be kept.
     assert(!(flags & MKS_PRESERVE));
