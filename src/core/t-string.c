@@ -283,7 +283,12 @@ REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!ANY_BINSTR(data)) return FALSE;
     *out = *data++;
     VAL_SET(out, type);
-    i = IS_INTEGER(data) ? Int32(data) - 1 : 0;
+
+    // !!! This did not have special END handling previously, but it would have
+    // taken the 0 branch.  Review if this is sensible.
+    //
+    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
+
     if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;

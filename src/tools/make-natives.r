@@ -145,8 +145,8 @@ append output-buffer {REBOL [
 boot-types: load %../boot/types.r
 n: 0
 for-each-record-NO-RETURN type boot-types [
-    if n < 2 [
-        ;-- We skip TRASH! and END!
+    if n == 0 [
+        ;-- We skip TRASH!
         n: n + 1
         continue
     ]

@@ -396,33 +396,38 @@ REBNATIVE(wait)
         }
     }
 
-    switch (VAL_TYPE(val)) {
-    case REB_INTEGER:
-        timeout = 1000 * Int32(val);
-        goto chk_neg;
+    if (IS_END(val)) {
+        assert(FALSE);
+        timeout = ALL_BITS;
+    }
+    else {
+        switch (VAL_TYPE(val)) {
+        case REB_INTEGER:
+            timeout = 1000 * Int32(val);
+            goto chk_neg;
 
-    case REB_DECIMAL:
-        timeout = (REBINT)(1000 * VAL_DECIMAL(val));
-        goto chk_neg;
+        case REB_DECIMAL:
+            timeout = (REBINT)(1000 * VAL_DECIMAL(val));
+            goto chk_neg;
 
-    case REB_TIME:
-        timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
-chk_neg:
-        if (timeout < 0) fail (Error_Out_Of_Range(val));
-        break;
+        case REB_TIME:
+            timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
+        chk_neg:
+            if (timeout < 0) fail (Error_Out_Of_Range(val));
+            break;
 
-    case REB_PORT:
-        if (!Pending_Port(val)) return R_NONE;
-        ports = Make_Array(1);
-        Append_Value(ports, val);
-        // fall thru...
-    case REB_NONE:
-    case REB_END:
-        timeout = ALL_BITS; // wait for all windows
-        break;
+        case REB_PORT:
+            if (!Pending_Port(val)) return R_NONE;
+            ports = Make_Array(1);
+            Append_Value(ports, val);
+            // fall thru...
+        case REB_NONE:
+            timeout = ALL_BITS; // wait for all windows
+            break;
 
-    default:
-        fail (Error_Invalid_Arg(val));
+        default:
+            fail (Error_Invalid_Arg(val));
+        }
     }
 
     // Prevent GC on temp port block:

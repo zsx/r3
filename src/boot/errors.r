@@ -63,9 +63,9 @@ Internal: [
     bad-boot-type-block: {boot block is wrong size}
     max-natives:        {too many natives}
     action-overflow:    {more actions than we should have}
-    bad-end-canon-word: {END was not found}
-    bad-true-canon-word:    {TRUE was not found}
-    bad-end-type-word:  {the end word is not correct}
+    bad-trash-canon:    {TRASH! was not found}
+    bad-true-canon:     {TRUE was not found}
+    bad-trash-type:     {the TRASH! word is not correct}
     rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
 
     io-error:           {problem with IO}

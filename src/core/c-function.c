@@ -1035,7 +1035,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
         REBVAL *key = BLK_SKIP(VAL_FUNC_PARAMLIST(D_FUNC), 1);
         REBVAL *value = BLK_SKIP(frame, 1);
 
-        for (; !IS_END(key); key++, value++) {
+        for (; NOT_END(key); key++, value++) {
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
                 assert(PG_Return_Paramlist == VAL_FUNC_PARAMLIST(value));

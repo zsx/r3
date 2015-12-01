@@ -791,7 +791,7 @@ static void Mark_Array_Deep_Core(REBSER *array)
         REBVAL *val = BLK_SKIP(array, len);
         // We should never reach the end before len above.
         // Exception is the stack itself.
-        assert(VAL_TYPE(val) != REB_END || (array == DS_Series));
+        assert(NOT_END(val) || (array == DS_Series));
         if (VAL_TYPE(val) == REB_FRAME) {
             assert(len == 0);
             ASSERT_FRAME(array);
@@ -809,7 +809,7 @@ static void Mark_Array_Deep_Core(REBSER *array)
     }
 
 #if !defined(NDEBUG)
-    if (!IS_END(BLK_SKIP(array, len))) {
+    if (NOT_END(BLK_SKIP(array, len))) {
         Debug_Fmt("Found badly terminated array in Mark_Array_Deep_Core()");
         Panic_Series(array);
     }
@@ -1060,7 +1060,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = cast(REBVAL**, GC_Value_Guard->data);
         for (n = SERIES_TAIL(GC_Value_Guard); n > 0; n--, vp++) {
-            if (!IS_END(*vp))
+            if (NOT_END(*vp))
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
         }
@@ -1074,7 +1074,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
                     cast(REBYTE*, chunk_value)
                     < cast(REBYTE*, chunk) + chunk->size
                 ) {
-                    if (!IS_END(chunk_value))
+                    if (NOT_END(chunk_value))
                         Queue_Mark_Value_Deep(chunk_value);
                     chunk_value++;
                 }
@@ -1202,7 +1202,7 @@ void Guard_Value_Core(const REBVAL *value)
     // the guard call is made (even if GC isn't necessarily going to happen
     // immediately, and value could theoretically become valid before then.)
     //
-    assert(VAL_TYPE(value) < REB_MAX);
+    assert(IS_END(value) || VAL_TYPE(value) < REB_MAX);
 
 #ifdef STRESS_CHECK_GUARD_VALUE_POINTER
     //

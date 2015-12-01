@@ -15,7 +15,6 @@ REBOL [
 ]
 
 trash       *   0
-end         1   0
 unset       *   null
 none        *   null
 handle      *   ptr

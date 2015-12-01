@@ -399,7 +399,7 @@ REBNATIVE(check)
         for (n = 0; n < SERIES_TAIL(ser); n++) {
             if (IS_END(BLK_SKIP(ser, n))) goto err;
         }
-        if (!IS_END(BLK_SKIP(ser, n))) goto err;
+        if (NOT_END(BLK_SKIP(ser, n))) goto err;
     }
     else {
         for (n = 0; n < SERIES_TAIL(ser); n++) {

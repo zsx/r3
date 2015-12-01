@@ -317,7 +317,11 @@ REBFLG Set_Bits(REBSER *bset, REBVAL *val, REBOOL set)
 
         case REB_CHAR:
             c = VAL_CHAR(val);
-            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
+
+            // !!! Modified to check for END, used to be just the test for
+            // IS_SAME_WORD() ... is the `else` path actually correct?
+            //
+            if (NOT_END(val + 1) && IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
                 val += 2;
                 if (IS_CHAR(val)) {
                     n = VAL_CHAR(val);

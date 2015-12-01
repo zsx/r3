@@ -1010,6 +1010,9 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
         }
     }
 
+    // if (IS_END(value)) => used to do the same as UNSET!, does this come up?
+    assert(NOT_END(value));
+
     switch (VAL_TYPE(value)) {
     case REB_NONE:
         Emit(mold, "+N", SYM_NONE);
@@ -1256,7 +1259,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
         else Emit(mold, "+T", value);
         break;
 
-    case REB_END:
     case REB_UNSET:
         if (molded) Emit(mold, "+T", value);
         break;

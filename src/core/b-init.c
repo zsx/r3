@@ -58,11 +58,25 @@ static void Assert_Basics(void)
     union Reb_Value_Data *dummy_data;
 #endif
 
+    // !!! This is actually undefined behavior.  There is no requirement for
+    // the compiler to let you "image" the bits in a union in a way that
+    // reveals the endianness of the processor.  (Intuitively speaking, if you
+    // could do such a thing then you would be reaching beneath the abstraction
+    // layer that the standard is seeking to ensure you are "protected" by!)
+    //
+    // So ultimately the build needs to just take the word of the #define
+    // switches saying what the endianness is.  There is no way to implement
+    // this check "correctly".  All that said, in the interim, this usually
+    // works...but should be easy to turn off as it's standards-violating.
+    //
+    val.flags.all = 0;
+    val.flags.bitfields.opts = 123;
+    if (val.flags.all != 123)
+        panic (Error(RE_REBVAL_ALIGNMENT));
+
     VAL_SET(&val, 123);
-#ifdef WATCH_BOOT
-    printf("TYPE(123)=%d val=%d dat=%d gob=%d\n",
-        VAL_TYPE(&val), sizeof(REBVAL), sizeof(REBDAT), sizeof(REBGOB));
-#endif
+    if (VAL_TYPE(&val) != 123)
+        panic (Error(RE_REBVAL_ALIGNMENT));
 
 #if defined(SHOW_SIZEOFS)
     // For debugging ports to some systems:
@@ -93,7 +107,6 @@ static void Assert_Basics(void)
     printf("%d %s\n", sizeof(dummy_data->all), "all");
 #endif
 
-    if (cast(REBCNT, VAL_TYPE(&val)) != 123) panic (Error(RE_REBVAL_ALIGNMENT));
     if (sizeof(void *) == 8) {
         if (sizeof(REBVAL) != 32) panic (Error(RE_REBVAL_ALIGNMENT));
         if (sizeof(REBGOB) != 84) panic (Error(RE_BAD_SIZE));
@@ -262,7 +275,7 @@ static void Load_Boot(void)
     if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
     if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
-        panic (Error(RE_BAD_END_TYPE_WORD));
+        panic (Error(RE_BAD_TRASH_TYPE));
 
     // Create low-level string pointers (used by RS_ constants):
     {
@@ -278,10 +291,10 @@ static void Load_Boot(void)
         }
     }
 
-    if (COMPARE_BYTES(cb_cast("end!"), Get_Sym_Name(SYM_END_TYPE)) != 0)
-        panic (Error(RE_BAD_END_CANON_WORD));
+    if (COMPARE_BYTES(cb_cast("trash!"), Get_Sym_Name(SYM_TRASH_TYPE)) != 0)
+        panic (Error(RE_BAD_TRASH_CANON));
     if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
-        panic (Error(RE_BAD_TRUE_CANON_WORD));
+        panic (Error(RE_BAD_TRUE_CANON));
     if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
 }
@@ -478,7 +491,7 @@ static void Init_Natives(void)
     REBVAL *item = BLK_HEAD(VAL_SERIES(&Boot_Block->natives));
     REBVAL *val;
 
-    Action_Count = 2; // Skip A_TRASH_Q and A_END_Q
+    Action_Count = 1; // Skip A_TRASH_Q
     Native_Count = 0;
     Native_Limit = MAX_NATS;
     Native_Functions = Native_Funcs;
@@ -516,10 +529,10 @@ static void Init_Natives(void)
     item++; // skip spec
 
     // Save index for action words.  This is used by Get_Action_Sym().  We have
-    // to subtract two to account for our skipped TRASH? and END? tests which
-    // should not be exposed.
+    // to subtract tone to account for our skipped TRASH? which should not be
+    // exposed to the user.
     //
-    Action_Marker = SERIES_TAIL(Lib_Context) - 2;
+    Action_Marker = SERIES_TAIL(Lib_Context) - 1;
     Do_Global_Block(VAL_SERIES(&Boot_Block->actions), 0, -1);
 
     // Sanity check the symbol transformation
@@ -617,9 +630,13 @@ static void Init_Root_Context(void)
     SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_PROT);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_LOCK);
 
-    // We can't actually put a REB_END value in the middle of a block,
-    // so we poke this one into a program global
-    SET_END(&PG_End_Val);
+    // We can't actually put an end value in the middle of a block, so we poke
+    // this one into a program global.  We also dynamically allocate it in
+    // order to get uninitialized memory for everything but the header (if
+    // we used a global, C zero-initializes that space)
+    //
+    PG_End_Val = cast(REBVAL*, malloc(sizeof(REBVAL)));
+    SET_END(PG_End_Val);
     assert(IS_END(END_VALUE));
 
     // Initialize a few fields:
@@ -1421,6 +1438,12 @@ void Shutdown_Core(void)
     Recycle_Core(TRUE);
 
     FREE_ARRAY(REBYTE*, RS_MAX, PG_Boot_Strs);
+
+    // Free our end value, that was allocated instead of global in order to
+    // get good trip-ups on anyone trying to use anything but the header out
+    // of it based on uninitialized memory warnings in ASAN/Valgrind.
+    //
+    free(PG_End_Val);
 
     Shutdown_Ports();
     Shutdown_Event_Scheme();

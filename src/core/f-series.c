@@ -163,13 +163,32 @@ REBINT Cmp_Block(const REBVAL *sval, const REBVAL *tval, REBFLG is_case)
      (VAL_INDEX(sval)==VAL_INDEX(tval)))
          return 0;
 
-    while (!IS_END(s) && (VAL_TYPE(s) == VAL_TYPE(t) ||
-                    (IS_NUMBER(s) && IS_NUMBER(t)))) {
+    if (IS_END(s) || IS_END(t)) goto diff_of_ends;
+
+    while (
+        (VAL_TYPE(s) == VAL_TYPE(t) ||
+        (IS_NUMBER(s) && IS_NUMBER(t)))
+    ) {
         if ((diff = Cmp_Value(s, t, is_case)) != 0)
             return diff;
-        s++, t++;
+
+        s++;
+        t++;
+
+        if (IS_END(s) || IS_END(t)) goto diff_of_ends;
     }
+
     return VAL_TYPE(s) - VAL_TYPE(t);
+
+diff_of_ends:
+    // Treat end as if it were a REB_xxx type of 0, so all other types would
+    // compare larger than it.
+    //
+    if (IS_END(s)) {
+        if (IS_END(t)) return 0;
+        return -1;
+    }
+    return 1;
 }
 
 
@@ -186,6 +205,8 @@ REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBFLG is_case)
 
     if (VAL_TYPE(t) != VAL_TYPE(s) && !(IS_NUMBER(s) && IS_NUMBER(t)))
         return VAL_TYPE(s) - VAL_TYPE(t);
+
+    assert(NOT_END(s) && NOT_END(t));
 
     switch(VAL_TYPE(s)) {
 
@@ -299,7 +320,6 @@ chkDecimal:
 
     case REB_NONE:
     case REB_UNSET:
-    case REB_END:
     default:
         break;
 

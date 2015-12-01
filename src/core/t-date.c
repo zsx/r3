@@ -453,7 +453,7 @@ REBFLG MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
         arg++;
     }
 
-    if (!IS_END(arg)) return FALSE;
+    if (NOT_END(arg)) return FALSE;
 
     Normalize_Time(&secs, &day);
     date = Normalize_Date(day, month, year, tz);

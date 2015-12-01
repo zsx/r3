@@ -439,8 +439,8 @@ REBSER *Copy_Buffer(REBSER *buf, void *end)
 void Assert_Series_Term_Core(REBSER *series)
 {
     if (Is_Array_Series(series)) {
-        // REB_END values may not be canonized to zero bytes, check type only
-        if (!IS_END(BLK_SKIP(series, series->tail))) {
+        // END values aren't canonized to zero bytes, check IS_END explicitly
+        if (NOT_END(BLK_SKIP(series, series->tail))) {
             Debug_Fmt("Unterminated blocklike series detected");
             Panic_Series(series);
         }

@@ -237,6 +237,11 @@ static REBCNT Parse_Next_Block(REBPARSE *parse, REBCNT index, const REBVAL *item
         Trace_Value(8, blk);
     }
 
+    // !!! The previous code did not have a handling for this, but it fell
+    // through to `no_result`.  Is that correct?
+    //
+    if (IS_END(blk)) goto no_result;
+
     switch (VAL_TYPE(item)) {
 
     // Look for specific datattype:
@@ -427,6 +432,7 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG
 
 next:       // Check for | (required if not end)
             blk++;
+            if (IS_END(blk)) break;
             if (IS_PAREN(blk)) blk++;
             if (IS_END(blk)) break;
             if (!IS_OR_BAR(blk)) {
@@ -438,7 +444,7 @@ next:       // Check for | (required if not end)
     return NOT_FOUND;
 
 found:
-    if (IS_PAREN(blk + 1)) {
+    if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = evaluated;
@@ -449,7 +455,7 @@ found:
     return index;
 
 found1:
-    if (IS_PAREN(blk + 1)) {
+    if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = save;
@@ -1125,7 +1131,7 @@ post:
                 // !!! if word isn't NULL should we set its var to NONE! ...?
                 if (GET_FLAG(flags, PF_THEN)) {
                     SKIP_TO_BAR(rules);
-                    if (!IS_END(rules)) rules++;
+                    if (NOT_END(rules)) rules++;
                 }
             }
             else {  // Success actions:

@@ -902,7 +902,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size)
 // seem a bit high cost for their benefit.  If this were to be
 // changed to Expand_Series_Noterm it would put more burden
 // on the clients...for a *potential* benefit in being able to
-// write just a REB_END byte into the terminal REBVAL vs. copying
+// write just an END marker into the terminal REBVAL vs. copying
 // the entire value cell.  (Of course, with a good memcpy it
 // might be an irrelevant difference.)  For the moment we reverse
 // the burden by enforcing the assumption that the incoming series

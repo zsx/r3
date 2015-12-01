@@ -69,7 +69,7 @@
 **  call in cases where expansion is necessary.
 **
 **  When Rebol was first open-sourced, there were other deviations from
-**  being a normal series.  It was not terminated with a REB_END, so
+**  being a normal series.  It was not terminated with an END, so
 **  you would be required to call a special DS_TERMINATE() routine to
 **  put the terminator in place before using the data stack with a
 **  routine that expected termination.  It also had to be expanded

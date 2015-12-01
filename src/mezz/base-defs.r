@@ -85,7 +85,7 @@ append system/options/file-types switch/default fourth system/version [
 ] [[%.rx extension]]
 
 internal!: make typeset! [
-    end! unset! frame! handle!
+    unset! frame! handle!
 ]
 
 immediate!: make typeset! [

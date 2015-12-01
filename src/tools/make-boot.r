@@ -810,7 +810,6 @@ emit {
 boot-actions: load %tmp-actions.r
 n: 2 ;-- actions start at 2, for the type checks, skipping TRASH? and END?
 emit-line "A_" "0 = 0" "Unused (would be A_TRASH_Q)"
-emit-line "A_" "1 = 1" "Unused (would be A_END_Q)"
 for-each word boot-actions [
     if set-word? :word [
         emit-line "A_" to word! :word n ;R3

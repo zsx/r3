@@ -32,7 +32,6 @@ REBOL [
 [name       class       mold    form    path    make    typesets]
 
 trash       0           -       -       -       -       -
-end         0           -       -       -       -       -
 unset       none        -       -       -       *       -
 
 ;-- Scalars

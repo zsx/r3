@@ -389,14 +389,14 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
     } else return 0;
 
     // SIZE
-    if (IS_INTEGER(bp)) {
+    if (NOT_END(bp) && IS_INTEGER(bp)) {
         if (Int32(bp) < 0) return 0;
         size = Int32(bp);
         bp++;
     }
 
     // Initial data:
-    if (IS_BLOCK(bp) || IS_BINARY(bp)) {
+    if (NOT_END(bp) && (IS_BLOCK(bp) || IS_BINARY(bp))) {
         REBCNT len = VAL_LEN(bp);
         if (IS_BINARY(bp) && type == 1) return 0;
         if (len > size) size = len;
@@ -407,7 +407,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
     SET_TYPE(value, REB_VECTOR);
 
     // Index offset:
-    if (IS_INTEGER(bp)) {
+    if (NOT_END(bp) && IS_INTEGER(bp)) {
         VAL_INDEX(value) = (Int32s(bp, 1) - 1);
         bp++;
     }

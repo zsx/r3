@@ -546,7 +546,7 @@ REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
         // If the caller did not pass in a label pointer we assume they are
         // likely not ready to process any refinements.
         //
-        if (!IS_END(pvs.path + 1))
+        if (NOT_END(pvs.path + 1))
             fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
     }
 
@@ -785,7 +785,7 @@ void Do_Core(struct Reb_Call * const c)
 #endif
 
     // See notes below on reference for why this is needed to implement eval.
-    // When no eval is in effect we use a REB_END because it's fast to assign,
+    // When no eval is in effect we use END because it's fast to assign,
     // isn't debug-build only like REB_TRASH, and is not a legal result
     // value type for an evaluation...hence can serve as "no eval" signal.
     //
@@ -954,11 +954,7 @@ reevaluate:
     }
 #endif
 
-    switch (VAL_TYPE(c->value)) {
-
-    // [END!]
-    //
-    case REB_END:
+    if (IS_END(c->value)) {
         //
         // This means evaluation is over, regardless of whether it was a
         // DO/NEXT or not...no need to check infix, etc.
@@ -966,7 +962,10 @@ reevaluate:
         SET_UNSET(c->out);
         c->index = END_FLAG;
         goto return_index;
+    }
 
+    switch (VAL_TYPE(c->value)) {
+    //
     // [WORD!]
     //
     case REB_WORD:
@@ -1082,7 +1081,6 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        // Test cost 0.31 when paramlist was not extracted
         if (VAL_FUNC_PARAMLIST(&c->func) == PG_Eval_Paramlist) {
             if (IS_END(&eval)) {
                 //
@@ -1092,16 +1090,14 @@ reevaluate:
                 // until the next evaluation is over...could be a while!  :-/
                 //
                 // Since we've now seen *an* eval, pay the cost for a guard.
-                // (Note: you cannot guard a REB_END, so this is done second,
-                // and is the reason these `if` branches are redundant.)
                 //
                 PUSH_GUARD_VALUE(&eval);
             }
             else {
                 //
                 // If we're running a chain of evals like `eval eval eval ...`
-                // then the variable won't be a REB_END, and is already
-                // guarded.  So don't guard it again, just do the DO.
+                // then the variable won't be an END, and is already guarded.
+                // So don't guard it again, just do the DO.
                 //
             }
 
@@ -1117,7 +1113,7 @@ reevaluate:
             if (c->index == END_FLAG) {
                 //
                 // EVAL will handle anything the evaluator can, including
-                // an UNSET!, but it errors on END!, e.g. `do [eval]`
+                // an UNSET!, but it errors on END, e.g. `do [eval]`
                 //
                 assert(BLK_LEN(PG_Eval_Paramlist) == 2);
                 fail (
@@ -1221,7 +1217,7 @@ reevaluate:
 
         // We assume you can enumerate both the formal parameters (in the
         // spec) and the actual arguments (in the call frame) using pointer
-        // incrementation, that they are both terminated by REB_END, and
+        // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
         //
         // We also seed `refine` with NULL so the GC won't choke.
@@ -1929,7 +1925,7 @@ reevaluate:
     // If we hit an `eval` command, then unguard the GC protected slot where
     // that value was kept during the eval.
     //
-    if (!IS_END(&eval)) {
+    if (NOT_END(&eval)) {
         DROP_GUARD_VALUE(&eval);
         SET_END(&eval);
     }
@@ -2028,7 +2024,7 @@ return_thrown:
     // May have skipped over a drop guard of eval if there was a throw and
     // we didn't make it all the way after the switch.
     //
-    if (!IS_END(&eval)) {
+    if (NOT_END(&eval)) {
         DROP_GUARD_VALUE(&eval);
         SET_END(&eval);
     }
@@ -2368,13 +2364,13 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 #endif
     Push_New_Arglist_For_Call(c);
 
-    // Get first parameter (or a REB_END if no parameters), and slot to write
-    // actual argument for first parameter into (or a REB_END)
+    // Get first parameter (or a END if no parameters), and slot to write
+    // actual argument for first parameter into (or an END)
     //
     c->param = DSF_PARAM_HEAD(c);
     c->arg = DSF_ARG_HEAD(c);
 
-    for (; varargs || !IS_END(c->param); c->param++, c->arg++) {
+    for (; varargs || NOT_END(c->param); c->param++, c->arg++) {
         c->value = va_arg(*varargs, REBVAL*);
         if (!c->value) break; // our convention is "NULL signals no more"
 
@@ -2446,7 +2442,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
     // Pad out any remaining parameters with unset or none, depending
 
-    while (!IS_END(c->param)) {
+    while (NOT_END(c->param)) {
         if (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
             // A true local...to be ignored as far as block args go.
             // Very likely to hit them at the end of the paramlist because
@@ -2712,7 +2708,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
 
     for (
         ;
-        !IS_END(param_new);
+        NOT_END(param_new);
         param_new++, arg_new++,
         param_src = IS_END(param_src) ? param_src : param_src + 1,
         arg_src = IS_END(arg_src) ? param_src : arg_src + 1
@@ -2756,7 +2752,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
                     : &c->arglist.chunk[1];
                 param_src = BLK_SKIP(paramlist_src, 1);
 
-                for (; !IS_END(param_src); param_src++, arg_src++) {
+                for (; NOT_END(param_src); param_src++, arg_src++) {
                     if (
                         VAL_GET_EXT(param_src, EXT_TYPESET_REFINEMENT)
                         && (

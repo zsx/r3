@@ -210,7 +210,7 @@ enum {
 // series and thus has to be checked...
 
 #define TS_NO_GC \
-    (FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET) | FLAGIT_64(REB_NONE) \
+    FLAGIT_64(REB_UNSET) | FLAGIT_64(REB_NONE) \
     | FLAGIT_64(REB_LOGIC) | FLAGIT_64(REB_INTEGER) | FLAGIT_64(REB_DECIMAL) \
     | FLAGIT_64(REB_PERCENT) | FLAGIT_64(REB_MONEY) | FLAGIT_64(REB_CHAR) \
     | FLAGIT_64(REB_PAIR) | FLAGIT_64(REB_TUPLE) | FLAGIT_64(REB_TIME) \
@@ -694,7 +694,10 @@ struct Reb_Call {
                 (index_out) = END_FLAG; \
                 break; \
             } \
-            if (!ANY_EVAL(c_.value) && !ANY_EVAL(c_.value + 1)) { \
+            if ( \
+                !ANY_EVAL(c_.value) \
+                && (IS_END(c_.value + 1) || !ANY_EVAL(c_.value + 1)) \
+            ) { \
                 *(out_) = *BLK_SKIP((array_), (index_in)); \
                 (index_out) = ((index_in) + 1); \
                 break; \
@@ -1087,7 +1090,7 @@ struct Reb_Call {
 **      the block's contents.  You could use a later value element,
 **      but note that the interface as written doesn't have a length
 **      limit.  So although you can control where it starts, it will
-**      keep binding until it hits a REB_END marker value.
+**      keep binding until it hits an END flagged value.
 **
 ***********************************************************************/
 

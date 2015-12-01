@@ -346,7 +346,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     else {
         // Same as above, but in a raw array vs. a series
 
-        // Manually include space for a REB_END (array does this automatically)
+        // Manually include space for an END (array does this automatically)
         c->arglist.chunk = Push_Trash_Chunk(num_slots + 1);
         slot = &c->arglist.chunk[0];
     }

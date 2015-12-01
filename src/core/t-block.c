@@ -84,7 +84,12 @@ REBFLG MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     *out = *data++;
     VAL_SET(out, type);
-    i = IS_INTEGER(data) ? Int32(data) - 1 : 0;
+
+    // !!! This did not have special END handling previously, but it would have
+    // taken the 0 branch.  Review if this is sensible.
+    //
+    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
+
     if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;
@@ -853,13 +858,13 @@ void Assert_Array_Core(const REBSER *series)
     for (len = 0; len < series->tail; len++) {
         value = BLK_SKIP(series, len);
 
-        if (VAL_TYPE(value) == REB_END) {
+        if (IS_END(value)) {
             // Premature end
             Panic_Series(series);
         }
     }
 
-    if (!IS_END(BLK_SKIP(series, SERIES_TAIL(series)))) {
+    if (NOT_END(BLK_SKIP(series, SERIES_TAIL(series)))) {
         // Not legal to not have an END! at all
         Panic_Series(series);
     }

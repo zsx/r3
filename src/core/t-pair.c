@@ -67,6 +67,9 @@ REBFLG MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     else return FALSE;
 
     data++;
+    if (IS_END(data))
+        return FALSE;
+
     if (IS_INTEGER(data)) y = (REBD32)VAL_INT64(data);
     else if (IS_DECIMAL(data)) y = (REBD32)VAL_DECIMAL(data);
     else return FALSE;

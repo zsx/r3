@@ -116,7 +116,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 //
 REBFLG MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
-    if (!IS_END(data+1)) return FALSE;
+    if (NOT_END(data+1)) return FALSE;
 
     if (IS_DECIMAL(data))
         *out = *data;

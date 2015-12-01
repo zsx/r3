@@ -500,9 +500,10 @@ REBNATIVE(set_scheme)
 
         Val_Init_Typeset(
             act,
-            // Typeset is chosen as REB_END to prevent normal invocation;
+            // Typeset is chosen as empty to prevent normal invocation;
             // these actors are only dispatched from the C code.
-            FLAGIT_64(REB_END),
+            // !!! Should the C code type check?
+            0,
             // !!! Because "any word will do", it's just making an args list
             // that looks like [port!]
             SYM_FROM_KIND(REB_PORT)

@@ -703,7 +703,7 @@ REBNATIVE(set)
         for (; NOT_END(key); key++) {
             if (VAL_GET_EXT(key, EXT_WORD_LOCK))
                 fail (Error_Protected_Key(key));
-            if (not_any && is_blk && !IS_END(tmp) && IS_UNSET(tmp++)) {
+            if (not_any && is_blk && NOT_END(tmp) && IS_UNSET(tmp++)) {
                 // (Loop won't advance past end)
                 REBVAL key_name;
                 Val_Init_Word_Unbound(
@@ -1001,3 +1001,19 @@ REBNATIVE(map_gob_offset)
 
     return R_OUT;
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  VAL_TYPE_Debug: C
+//
+// Variant of VAL_TYPE() macro for the debug build which checks to ensure that
+// you never call it on an END marker
+//
+enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
+    assert(NOT_END(v));
+    return cast(enum Reb_Kind, (v)->flags.bitfields.type);
+}
+
+#endif

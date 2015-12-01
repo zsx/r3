@@ -450,8 +450,8 @@ REBSER *Map_To_Object(REBSER *mapser)
             // that function specs did.)
             Val_Init_Typeset(
                 key,
-                // all types except END or UNSET
-                ~((FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET))),
+                // all types except UNSET
+                ~FLAGIT_64(REB_UNSET),
                 VAL_WORD_SYM(mval)
             );
             key++;

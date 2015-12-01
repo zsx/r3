@@ -62,9 +62,14 @@ PVAR REB_OPTS *Reb_Opts;
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
 #endif
 
-// A REB_END value, which comes in handy if you ever need the address of
+// A value with END set, which comes in handy if you ever need the address of
 // an end for a noop to pass to a routine expecting an end-terminated series
-PVAR REBVAL PG_End_Val;
+//
+// It is dynamically allocated via malloc in order to ensure that all parts
+// besides the header are uninitialized memory, to prevent reading of the
+// other three platform words inside of it.
+//
+PVAR REBVAL *PG_End_Val;
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!

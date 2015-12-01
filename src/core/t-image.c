@@ -445,20 +445,26 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
 
     //len = VAL_BLK_LEN(arg);
     block++;
+
+    if (IS_END(block)) return val;
+
     if (IS_BINARY(block)) {
 
         // Load image data:
         Bin_To_RGB(ip, size, VAL_BIN_DATA(block), VAL_LEN(block) / 3);
         block++;
 
+        // !!! Review handling of END here; was not explicit before and
+        // just fell through the binary and integer tests...
+
         // Load alpha channel data:
-        if (IS_BINARY(block)) {
+        if (NOT_END(block) && IS_BINARY(block)) {
             Bin_To_Alpha(ip, size, VAL_BIN_DATA(block), VAL_LEN(block));
 //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
             block++;
         }
 
-        if (IS_INTEGER(block)) {
+        if (NOT_END(block) && IS_INTEGER(block)) {
             VAL_INDEX(val) = (Int32s(block, 1) - 1);
             block++;
         }
@@ -476,9 +482,10 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
         if ((w = Valid_Tuples(block))) fail (Error_Invalid_Arg(block + w - 1));
         Tuples_To_RGBA(ip, size, VAL_BLK_DATA(block), VAL_LEN(block));
     }
-    else if (!IS_END(block)) return 0;
+    else
+        return NULL;
 
-    //if (!IS_END(block)) fail (Error_Invalid_Arg(block));
+    //if (NOT_END(block)) fail (Error_Invalid_Arg(block));
 
     return val;
 }

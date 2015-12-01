@@ -40,19 +40,22 @@
 
 #pragma pack(4)
 
-// Note: b-init.c verifies that lower 8 bits is flags.type
+// Note: b-init.c verifies that lower 8 bits is flags.opts, so that testing
+// for an IS_END is merely testing for an even value of the header.  This
+// allows
+//
 union Reb_Value_Flags {
     struct {
     #ifdef ENDIAN_LITTLE
-        unsigned type:8;    // datatype
         unsigned opts:8;    // special options
+        unsigned type:8;    // datatype
         unsigned exts:8;    // extensions to datatype
         unsigned resv:8;    // reserved for future
     #else
         unsigned resv:8;    // reserved for future
         unsigned exts:8;    // extensions to datatype
-        unsigned opts:8;    // special options
         unsigned type:8;    // datatype
+        unsigned opts:8;    // special options
     #endif
     } bitfields;
 
@@ -66,25 +69,42 @@ typedef struct Reb_Series REBSER;
 // Value type identifier (generally, should be handled as integer):
 
 // get and set only the type (not flags)
-#define VAL_TYPE(v)     cast(enum Reb_Kind, (v)->flags.bitfields.type)
+
+#ifdef NDEBUG
+    #define VAL_TYPE(v)     cast(enum Reb_Kind, (v)->flags.bitfields.type)
+#else
+    // We want to be assured that we are not trying to take the type of a
+    // value that is actually an END marker, because end markers chew out only
+    // one bit--the rest is allowed to be anything (a pointer value, etc.)
+    //
+    #define VAL_TYPE(v)     VAL_TYPE_Debug(v)
+#endif
+
 #define SET_TYPE(v,t)   ((v)->flags.bitfields.type = (t))
 
-// set type, clear all flags
-#define VAL_SET(v,t)    ((v)->flags.all = (t))
+// set type, clear all flags except for NOT_END
+//
+#define VAL_SET(v,t)    ((v)->flags.all = ((t) << 8) + 1)
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
 // version of that type that you can compare against?  :-/
 #define VAL_SET_ZEROED(v,t) (CLEAR((v), sizeof(REBVAL)), VAL_SET((v),(t)))
 
-// Clear type identifier:
-#define SET_END(v)          VAL_SET(v, REB_END)
-#define END_VALUE           &PG_End_Val
+// Setting the END is optimized.  It is possible to signal an END via setting
+// the low bit of any 32/64-bit value, including to add the bit to a pointer,
+// but this routine will wipe all the other bits and just set it to 1.
+//
+#define SET_END(v)          ((v)->flags.all = 0)
+#define IS_END(v)           ((v)->flags.all % 2 == 0)
+#define NOT_END(v)          ((v)->flags.all % 2 == 1)
+#define END_VALUE           PG_End_Val
 
 // Value option flags:
 enum {
-    OPT_VALUE_LINE = 0, // Line break occurs before this value
-    OPT_VALUE_THROWN,   // Value is /NAME of a THROW (arg via THROWN_ARG)
+    OPT_VALUE_NOT_END = 0,  // Not an END signal (so other header bits valid)
+    OPT_VALUE_LINE,         // Line break occurs before this value
+    OPT_VALUE_THROWN,       // Value is /NAME of a THROW (arg via THROWN_ARG)
     OPT_VALUE_MAX
 };
 
@@ -163,8 +183,8 @@ struct Reb_Datatype {
 #define VAL_TYPE_SPEC(v)    ((v)->data.datatype.spec)
 
 // %words.r is arranged so that symbols for types are at the start
-// Although REB_END is 0, the 0 REBCNT used for symbol IDs is reserved
-// for "no symbol"...so the END! word actually is symbol 1.
+// Although REB_TRASH is 0, the 0 REBCNT used for symbol IDs is reserved
+// for "no symbol".  So there is no symbol for the "fake" type TRASH!
 //
 #define IS_KIND_SYM(s)      ((s) < REB_MAX + 1)
 #define KIND_FROM_SYM(s)    cast(enum Reb_Kind, (s) - 1)
@@ -192,14 +212,12 @@ struct Reb_Datatype {
 **  the REBVAL has that info in debug builds to inspect.
 **
 **  The special REB_XXX value of 0 is chosen for trash.  This pattern was
-**  used previously to indicate the value that terminates series (a REB_END).
-**  Changing REB_END's value and triggering alerts on 0 helps find places
-**  that were not consciously managing the termination location and just
-**  "lucked out" due to a zero fill.  Making sure that every update of the
-**  end marker is done consciously provides footing for alternate ideas about
-**  how to terminate arrays which may not cost a "full value" (e.g. a method
-**  which may allow series of length 0 or 1 to fit inside a series node
-**  itself, with no second data array allocated).
+**  used previously to indicate the value that terminates series, which
+**  was known as an END! (or REB_END type).  After a phase of vetting out
+**  the idea that REB_END was 0, the type was removed and converted into
+**  an option bit in the lowest bit of the header.  This means that an
+**  end can be indicated in a header even if it's an arbitrary pointer
+**  (on most platforms) with no value data backing it for the remainder.
 **
 ***********************************************************************/
 
@@ -893,8 +911,6 @@ struct Reb_Position
 **  BLOCKS -- Block is a terminated string of values
 **
 ***********************************************************************/
-
-#define NOT_END(v)      (!IS_END(v))
 
 // Arg is a series:
 #define BLK_HEAD(s)     ((REBVAL *)((s)->data))

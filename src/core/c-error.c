@@ -1181,8 +1181,8 @@ REBSER *Error_Math_Args(enum Reb_Kind type, REBCNT action)
 //
 REBSER *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 {
-    assert(expected != REB_END && expected < REB_MAX);
-    assert(actual != REB_END && actual < REB_MAX);
+    assert(expected < REB_MAX);
+    assert(actual < REB_MAX);
 
     return Error(RE_EXPECT_VAL, Get_Type(expected), Get_Type(actual), NULL);
 }

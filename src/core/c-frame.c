@@ -314,8 +314,8 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
                     typeset = BLK_LAST(BUF_COLLECT);
                     Val_Init_Typeset(
                         typeset,
-                        // Allow all datatypes but END or UNSET (initially):
-                        ~((FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET))),
+                        // Allow all datatypes but UNSET (initially):
+                        ~FLAGIT_64(REB_UNSET),
                         VAL_WORD_SYM(value)
                     );
                 }
@@ -897,7 +897,7 @@ static void Bind_Values_Inner_Loop(REBINT *binds, REBVAL value[], REBSER *frame,
 //
 //  Bind_Values_Core: C
 // 
-// Bind words in an array of values terminated with REB_END
+// Bind words in an array of values terminated with END
 // to a specified frame.  See warnings on the functions like
 // Bind_Values_Deep() about not passing just a singular REBVAL.
 // 
