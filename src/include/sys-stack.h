@@ -232,9 +232,9 @@ struct Reb_Chunk {
 
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
-#define DSF_OUT(c)          c_cast(REBVAL * const, (c)->out) // writable Lvalue
+#define DSF_OUT(c)          cast(REBVAL * const, (c)->out) // writable Lvalue
 #define PRIOR_DSF(c)        ((c)->prior)
-#define DSF_ARRAY(c)        c_cast(REBSER * const, (c)->array) // Lvalue
+#define DSF_ARRAY(c)        cast(REBSER * const, (c)->array) // Lvalue
 #define DSF_EXPR_INDEX(c)   ((c)->expr_index + 0) // Lvalue
 #define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
 #define DSF_FUNC(c)         c_cast(const REBVAL * const, &(c)->func)
