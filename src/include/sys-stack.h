@@ -208,19 +208,28 @@ struct Reb_Chunk;
 
 struct Reb_Chunk {
     //
+    // Pointer to the previous chunk.  We rely upon the fact that the low
+    // bit of this pointer is always 0 in order for it to be an implicit END
+    // for the value array of the previous chunk.
+    //
+    struct Reb_Chunk *prev;
+
+    //
     // How many bytes are left in the memory chunker this chunk lives in
     // (its own size has already been subtracted from the amount)
     //
-    REBINT payload_left;
+    REBCNT payload_left;
 
     REBCNT size;  // Needed after `payload_left` for 64-bit alignment
-
-    struct Reb_Chunk *prev;
 
     // The `values` is an array whose real size exceeds the struct.  (It is
     // set to a size of one because it cannot be [0] in C++.)  When the
     // value pointer is given back to the user, this is how they speak about
     // the chunk itself.
+    //
+    // See note above about how the next chunk's `prev` pointer serves as
+    // an END marker for this array (which may or may not be necessary for
+    // the client's purposes, but function arg lists do make use of it)
     //
     REBVAL values[1];
 };

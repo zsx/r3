@@ -55,6 +55,7 @@ void Init_Stacks(REBCNT size)
     memset(TG_Root_Chunker, 0xBD, sizeof(struct Reb_Chunker));
 #endif
     TG_Root_Chunker->next = NULL;
+    cast(struct Reb_Chunk*, &TG_Root_Chunker->payload)->prev = NULL;
     TG_Top_Chunk = NULL;
 
     CS_Top = NULL;
@@ -129,7 +130,7 @@ void Expand_Stack(REBCNT amount)
 
 
 //
-//  Push_Trash_Chunk: C
+//  Push_Ended_Trash_Chunk: C
 //
 // This doesn't necessarily call Alloc_Mem, because chunks are allocated
 // sequentially inside of "chunker" blocks, in their ordering on the stack.
@@ -137,7 +138,13 @@ void Expand_Stack(REBCNT amount)
 // then only if we aren't stepping into a chunk that we are reusing from
 // a prior expansion).
 //
-REBVAL* Push_Trash_Chunk(REBCNT num_values) {
+// The "Ended" indicates that there is no need to manually put an end in the
+// `num_values` slot.  Chunks are implicitly terminated by their layout,
+// because the pointer which indicates the previous chunk on the next chunk
+// always has its low bit clear (pointers are not odd on 99% of architectures,
+// this is checked by an assertion).
+//
+REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     REBCNT size = (
         sizeof(struct Reb_Chunk)
         + sizeof(REBVAL) * (num_values > 0 ? num_values - 1 : 0)
@@ -150,21 +157,27 @@ REBVAL* Push_Trash_Chunk(REBCNT num_values) {
 
     if (!TG_Top_Chunk) {
         //
-        // If not big enough, a new chunk wouldn't be big enough, either!
+        // If not big enough for the chunk (and a next chunk's prev pointer,
+        // needed to signal END on the values[]), a new chunk wouldn't be
+        // big enough, either!
         //
         // !!! Extend model so that it uses an ordinary ALLOC of memory in
         // cases where no chunk is big enough.
         //
-        assert(size <= CS_CHUNKER_PAYLOAD);
+        assert(size + sizeof(struct Reb_Chunk *) <= CS_CHUNKER_PAYLOAD);
 
         // Claim the root chunk
+        //
         chunk = cast(struct Reb_Chunk*, &TG_Root_Chunker->payload);
         chunk->payload_left = CS_CHUNKER_PAYLOAD - size;
     }
-    else if (TG_Top_Chunk->payload_left >= cast(REBINT, size)) {
+    else if (
+        TG_Top_Chunk->payload_left >= size + sizeof(struct Reb_Chunk *)
+    ) {
         //
-        // Topmost chunker has space.  So advance past the topmost chunk
-        // (whose size will depend upon num_values)
+        // Topmost chunker has space for the chunk *and* a pointer with the
+        // END marker bit (e.g. last bit 0).  So advance past the topmost
+        // chunk (whose size will depend upon num_values)
         //
         chunk = cast(struct Reb_Chunk*,
             cast(REBYTE*, TG_Top_Chunk) + TG_Top_Chunk->size
@@ -193,15 +206,31 @@ REBVAL* Push_Trash_Chunk(REBCNT num_values) {
             chunker->next->next = NULL;
         }
 
+        assert(size + sizeof(struct Reb_Chunk *) <= CS_CHUNKER_PAYLOAD);
+
         chunk = cast(struct Reb_Chunk*, &chunker->next->payload);
         chunk->payload_left = CS_CHUNKER_PAYLOAD - size;
-    }
 
-    assert(chunk->payload_left >= 0);
+        // Though we can usually trust a chunk to have its prev set in advance
+        // by the chunk before it, a new allocation wouldn't be initialized,
+        // so set it manually.
+        //
+        chunk->prev = TG_Top_Chunk;
+    }
 
     chunk->size = size;
 
-    chunk->prev = TG_Top_Chunk;
+    // Set end marker bit in next element.  We save time by going ahead and
+    // setting it to the pointer for this chunk.
+    //
+    cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->prev = chunk;
+    assert(IS_END(&chunk->values[num_values]));
+
+    // chunk->prev is already set, due to the above code running under the
+    // prior allocation...
+    //
+    assert(chunk->prev == TG_Top_Chunk);
+
     TG_Top_Chunk = chunk;
 
 #if !defined(NDEBUG)
@@ -242,7 +271,7 @@ void Drop_Chunk(REBVAL values[])
     //
     assert(!values || CHUNK_FROM_VALUES(values) == chunk);
 
-    // Drop to the prior top call stack frame
+    // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;
 
     if (
@@ -267,9 +296,16 @@ void Drop_Chunk(REBVAL values[])
         }
     }
 
-    // In debug builds we poison the memory for the chunk
+    // In debug builds we poison the memory for the chunk... but not the `prev`
+    // pointer because we expect that to stick around!
+    //
 #if !defined(NDEBUG)
-    memset(chunk, 0xBD, chunk->size);
+    memset(
+        cast(REBYTE*, chunk) + sizeof(struct Reb_Chunk*),
+        0xBD,
+        chunk->size - sizeof(struct Reb_Chunk*)
+    );
+    assert(IS_END(cast(REBVAL*, chunk)));
 #endif
 }
 
@@ -321,13 +357,14 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     if (IS_CLOSURE(&c->func)) {
         c->arglist.array = Make_Array(num_slots);
         c->arglist.array->tail = num_slots;
+        SET_END(BLK_SKIP(c->arglist.array, num_slots));
         slot = BLK_HEAD(c->arglist.array);
     }
     else {
-        // Same as above, but in a raw array vs. a series
-
-        // Manually include space for an END (array does this automatically)
-        c->arglist.chunk = Push_Trash_Chunk(num_slots + 1);
+        // Same as above, but in a raw array vs. a series.  Note that chunks
+        // implicitly have an END at the end; no need to put one there.
+        //
+        c->arglist.chunk = Push_Ended_Trash_Chunk(num_slots);
         slot = &c->arglist.chunk[0];
     }
 
@@ -354,7 +391,6 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         SET_UNSET(slot);
         slot++;
     }
-    SET_END(slot);
 
     // Write some garbage (that won't crash the GC) into the `cell` slot in
     // the debug build.  `out` and `func` are known to be GC-safe.
