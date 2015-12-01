@@ -871,7 +871,6 @@ do_at_index:
     assert(!IS_END(c->value));
     assert(c->index != END_FLAG && c->index != THROWN_FLAG);
 
-    //
     // We should not be linked into the call stack when a function is not
     // running (it is not if we're in this outer loop)
     //
@@ -893,31 +892,6 @@ do_at_index:
     //
     if (SPORADICALLY(2))
         SET_TRASH_SAFE(c->out);
-#endif
-
-#ifndef NDEBUG
-    //
-    // This counter is helpful for tracking a specific invocation.
-    // If you notice a crash, look on the stack for the topmost call
-    // and read the count...then put that here and recompile with
-    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
-    // local 'count' so you still get the right count after recursion.)
-    //
-    // We bound it at the max unsigned 32-bit because otherwise it would
-    // roll over to zero and print a message that wasn't asked for, which
-    // is annoying even in a debug build.
-    //
-    if (TG_Do_Count < MAX_U32) {
-        count = ++TG_Do_Count;
-        if (count ==
-            // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
-                                      0
-            // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
-        ) {
-            Val_Init_Block_Index(&c->cell, c->array, c->index);
-            PROBE_MSG(&c->cell, "Do_Core() count trap");
-        }
-    }
 #endif
 
     if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
@@ -968,6 +942,31 @@ reevaluate:
         Val_Init_Block_Index(&where, c->array, c->index);
         PROBE_MSG(&where, "UNBALANCED STACK TRAP!!!");
         panic (Error(RE_MISC));
+    }
+#endif
+
+#if !defined(NDEBUG)
+    //
+    // This counter is helpful for tracking a specific invocation.
+    // If you notice a crash, look on the stack for the topmost call
+    // and read the count...then put that here and recompile with
+    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
+    // local 'count' so you still get the right count after recursion.)
+    //
+    // We bound it at the max unsigned 32-bit because otherwise it would
+    // roll over to zero and print a message that wasn't asked for, which
+    // is annoying even in a debug build.
+    //
+    if (TG_Do_Count < MAX_U32) {
+        count = ++TG_Do_Count;
+        if (count ==
+            // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
+                                      0
+            // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
+        ) {
+            Val_Init_Block_Index(&c->cell, c->array, c->index);
+            PROBE_MSG(&c->cell, "Do_Core() count trap");
+        }
     }
 #endif
 
