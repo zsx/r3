@@ -360,11 +360,27 @@ struct Native_Refine {
     #define REFINE(n,name) \
         const struct Native_Refine name = {n}
 #else
+    // Capture the argument for debug inspection.  Be sensitive to frameless
+    // usage so that parameters may be declared and used with PAR() even if
+    // they cannot be used with ARG()
+    //
     #define PARAM(n,name) \
-        const struct Native_Param name = {call_->arg + (n), (n)}
+        const struct Native_Param name = { \
+            call_->arg ? call_->arg + (n) : NULL, \
+            (n) \
+        }
 
+    // As above, do a cache and be tolerant of framelessness.  The seeming odd
+    // choice to lie and say a refinement is present in the frameless case is
+    // actually to make any frameless native that tries to use REF() get
+    // confused and hopefully crash...saying FALSE might make the debug build
+    // get cozy with the idea that REF() is legal in a frameless native.
+    //
     #define REFINE(n,name) \
-        const struct Native_Refine name = \
-            {!IS_NONE(call_->arg + (n)), call_->arg + (n), (n)}
+        const struct Native_Refine name = { \
+            call_->arg ? !IS_NONE(call_->arg + (n)) : TRUE, \
+            call_->arg ? call_->arg + (n) : NULL, \
+            (n) \
+        }
 #endif
 
