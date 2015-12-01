@@ -785,18 +785,29 @@ void Do_Core(struct Reb_Call * const c)
 #endif
 
     // See notes below on reference for why this is needed to implement eval.
-    // When no eval is in effect we use END because it's fast to assign,
-    // isn't debug-build only like REB_TRASH, and is not a legal result
-    // value type for an evaluation...hence can serve as "no eval" signal.
     //
     REBVAL eval;
-    SET_END(&eval);
+
+    // Fast short-circuit; and generally shouldn't happen because the calling
+    // macros usually avoid the function call overhead itself on ends.
+    //
+    if (IS_END(c->value)) {
+        SET_UNSET(c->out);
+        c->index = END_FLAG;
+        return;
+    }
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
     // are any that are not processed)
     //
     c->dsp_orig = DSP;
+
+    // When no eval is in effect we use END because it's fast to assign,
+    // isn't debug-build only like REB_TRASH, and is not a legal result
+    // value type for an evaluation...hence can serve as "no eval" signal.
+    //
+    SET_END(&eval);
 
     // Write some garbage (that won't crash the GC) into the `out` slot in
     // the debug build.  We will assume that as the evaluator runs
@@ -853,13 +864,19 @@ void Do_Core(struct Reb_Call * const c)
 
 do_at_index:
     //
+    // We checked for END when we entered the function and short circuited
+    // that, but if we're running DO_FLAG_TO_END then the catch for that is
+    // an index check.  We shouldn't go back and `do_at_index` on an end!
+    //
+    assert(!IS_END(c->value));
+    assert(c->index != END_FLAG && c->index != THROWN_FLAG);
+
+    //
     // We should not be linked into the call stack when a function is not
     // running (it is not if we're in this outer loop)
     //
     assert(c != CS_Top);
     assert(c != CS_Running);
-
-    assert(c->index != END_FLAG && c->index != THROWN_FLAG);
 
     // Save the index at the start of the expression in case it is needed
     // for error reporting.
@@ -953,16 +970,6 @@ reevaluate:
         panic (Error(RE_MISC));
     }
 #endif
-
-    if (IS_END(c->value)) {
-        //
-        // This means evaluation is over, regardless of whether it was a
-        // DO/NEXT or not...no need to check infix, etc.
-        //
-        SET_UNSET(c->out);
-        c->index = END_FLAG;
-        goto return_index;
-    }
 
     switch (VAL_TYPE(c->value)) {
     //
