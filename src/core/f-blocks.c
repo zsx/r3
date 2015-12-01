@@ -133,6 +133,8 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
 {
     REBCNT index;
 
+    if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
+
     for (index = 0; index < len; index++, value++) {
         // By the rules, if we need to do a deep copy on the source
         // series then the values inside it must have already been
