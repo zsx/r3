@@ -417,8 +417,14 @@ REBNATIVE(action)
     // from overlapping with actions, but the refinement makes it more clear
     // exactly what is going on.
     //
-    if (REF(typecheck))
+    if (REF(typecheck)) {
         assert(VAL_INT32(ARG(typenum)) == cast(REBINT, Action_Count));
+
+        // All the type checks run frameless, so we set that flag (as it is
+        // already being checked)
+        //
+        VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
+    }
 
     Make_Native(
         D_OUT,

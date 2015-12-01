@@ -1158,8 +1158,6 @@ reevaluate:
             REB_R ret;
             struct Reb_Call *prior_call = DSF;
 
-            assert(IS_NATIVE(&c->func)); // only NATIVE! can be frameless
-
             // A NULL arg signifies to the called function that it is being
             // run frameless.  If it had a frame, then it would be non-NULL
             // and the source of the frame values.
@@ -1182,7 +1180,41 @@ reevaluate:
 
             c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
 
-            ret = (*VAL_FUNC_CODE(&c->func))(c);
+            if (IS_ACTION(&c->func)) {
+                //
+                // At the moment, the type checking actions run framelessly,
+                // while no other actions do.  These are things like STRING?
+                // and INTEGER?
+                //
+
+                assert(VAL_FUNC_ACT(&c->func) < REB_MAX);
+                assert(VAL_FUNC_NUM_PARAMS(&c->func) == 1);
+
+                DO_NEXT_MAY_THROW(c->index, c->out, c->array, c->index);
+
+                if (c->index == END_FLAG)
+                    fail (Error_No_Arg(
+                        c->label_sym, VAL_FUNC_PARAM(&c->func, 1)
+                    ));
+
+                if (c->index == THROWN_FLAG)
+                    ret = R_OUT_IS_THROWN;
+                else {
+                    if (VAL_TYPE(c->out) == VAL_FUNC_ACT(&c->func))
+                        SET_TRUE(c->out);
+                    else
+                        SET_FALSE(c->out);
+                    ret = R_OUT;
+                }
+            }
+            else {
+                //
+                // Beyond the type-checking actions, only NATIVE! can be
+                // frameless...
+                //
+                assert(IS_NATIVE(&c->func));
+                ret = (*VAL_FUNC_CODE(&c->func))(c);
+            }
 
             c->mode = CALL_MODE_0;
 

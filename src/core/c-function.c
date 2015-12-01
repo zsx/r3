@@ -896,15 +896,16 @@ REBFLG Do_Action_Throws(struct Reb_Call *call_)
 
     assert(type < REB_MAX);
 
-    // Handle special datatype test cases (eg. integer?)
+    // Handle special datatype test cases (eg. integer?).  Note that this
+    // has a frameless implementation which is the one that typically runs
+    // when a frame is not required (such as when running under trace, where
+    // the values need to be inspectable)
     //
     if (VAL_FUNC_ACT(D_FUNC) < REB_MAX) {
-        VAL_SET(D_OUT, REB_LOGIC);
-
         if (type == VAL_FUNC_ACT(D_FUNC))
-            VAL_LOGIC(D_OUT) = TRUE;
+            SET_TRUE(D_OUT);
         else
-            VAL_LOGIC(D_OUT) = FALSE;
+            SET_FALSE(D_OUT);
 
         return FALSE;
     }
