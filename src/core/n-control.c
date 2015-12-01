@@ -784,7 +784,7 @@ REBNATIVE(comment)
 
 
 //
-//  compose: native [
+//  compose: native/frameless [
 //  
 //  {Evaluates a block of expressions, only evaluating parens, and returns a block.}
 //  
@@ -801,17 +801,54 @@ REBNATIVE(compose)
 // !!! Should 'compose quote (a (1 + 2) b)' give back '(a 3 b)' ?
 // !!! What about 'compose quote a/(1 + 2)/b' ?
 {
-    REBVAL *value = D_ARG(1);
-    REBOOL into = D_REF(4);
+    PARAM(1, value);
+    REFINE(2, deep);
+    REFINE(3, only);
+    REFINE(4, into);
+    PARAM(5, out);
+
+    if (D_FRAMELESS) {
+        DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+
+        if (D_INDEX == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
+
+        if (D_INDEX == THROWN_FLAG) {
+            *D_OUT = *D_CELL;
+            return R_OUT_IS_THROWN;
+        }
+
+        if (IS_UNSET(D_CELL))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_CELL)));
+
+        if (!IS_BLOCK(D_CELL)) {
+            *D_OUT = *D_CELL;
+            return R_OUT;
+        }
+
+        if (Compose_Values_Throws(
+            D_OUT, VAL_BLK_HEAD(D_CELL), FALSE, FALSE, FALSE
+        )) {
+            return R_OUT_IS_THROWN;
+        }
+
+        return R_OUT;
+    }
 
     // Only composes BLOCK!, all other arguments evaluate to themselves
-    if (!IS_BLOCK(value)) return R_ARG1;
+    //
+    if (!IS_BLOCK(ARG(value))) return R_ARG1;
 
-    // Compose expects out to contain the target if /INTO
-    if (into) *D_OUT = *D_ARG(5);
+    // Compose_Values_Throws() expects `out` to contain the target if it is
+    // passed TRUE as the `into` flag.
+    //
+    if (REF(into)) *D_OUT = *ARG(out);
 
-    if (Compose_Block_Throws(D_OUT, value, D_REF(2), D_REF(3), into))
+    if (Compose_Values_Throws(
+        D_OUT, VAL_BLK_HEAD(ARG(value)), REF(deep), REF(only), REF(into)
+    )) {
         return R_OUT_IS_THROWN;
+    }
 
     return R_OUT;
 }

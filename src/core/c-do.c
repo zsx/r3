@@ -1144,12 +1144,14 @@ reevaluate:
         // are better implemented as essentially inline hooks to the DO
         // evaluator.
         //
-        // (All frameless functions must still be able to run with a call
+        // All frameless functions must still be able to run with a call
         // frame if requested, because debug scenarios would expect those
-        // cells to be inspectable on the stack.)
+        // cells to be inspectable on the stack.  Hence, if there are any
+        // trace flags set we fall back upon that implementation.
         //
         if (
-            DSP == c->dsp_orig
+            !Trace_Flags
+            && DSP == c->dsp_orig
             && VAL_GET_EXT(&c->func, EXT_FUNC_FRAMELESS)
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
@@ -2209,12 +2211,16 @@ REBFLG Reduce_Block_No_Set_Throws(REBVAL *out, REBSER *block, REBCNT index, REBO
 // 
 // Writes result value at address pointed to by out.
 //
-REBFLG Compose_Block_Throws(REBVAL *out, REBVAL *block, REBFLG deep, REBFLG only, REBOOL into)
-{
-    REBVAL *value;
+REBFLG Compose_Values_Throws(
+    REBVAL *out,
+    REBVAL value[],
+    REBFLG deep,
+    REBFLG only,
+    REBFLG into
+) {
     REBINT dsp_orig = DSP;
 
-    for (value = VAL_BLK_DATA(block); NOT_END(value); value++) {
+    for (; NOT_END(value); value++) {
         if (IS_PAREN(value)) {
             REBVAL evaluated;
 
@@ -2225,27 +2231,39 @@ REBFLG Compose_Block_Throws(REBVAL *out, REBVAL *block, REBFLG deep, REBFLG only
             }
 
             if (IS_BLOCK(&evaluated) && !only) {
+                //
                 // compose [blocks ([a b c]) merge] => [blocks a b c merge]
-                Push_Stack_Values(
-                    cast(REBVAL*, VAL_BLK_DATA(&evaluated)),
-                    VAL_BLK_LEN(&evaluated)
-                );
+                //
+                REBVAL *push = VAL_BLK_DATA(&evaluated);
+                while (!IS_END(push)) {
+                    DS_PUSH(push);
+                    push++;
+                }
             }
             else if (!IS_UNSET(&evaluated)) {
+                //
                 // compose [(1 + 2) inserts as-is] => [3 inserts as-is]
                 // compose/only [([a b c]) unmerged] => [[a b c] unmerged]
+                //
                 DS_PUSH(&evaluated);
             }
             else {
+                //
                 // compose [(print "Unsets *vanish*!")] => []
+                //
             }
         }
         else if (deep) {
             if (IS_BLOCK(value)) {
+                //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
+                //
+
                 REBVAL composed;
 
-                if (Compose_Block_Throws(&composed, value, TRUE, only, into)) {
+                if (Compose_Values_Throws(
+                    &composed, VAL_BLK_HEAD(value), TRUE, only, into
+                )) {
                     *out = composed;
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
@@ -2256,15 +2274,19 @@ REBFLG Compose_Block_Throws(REBVAL *out, REBVAL *block, REBFLG deep, REBFLG only
             else {
                 DS_PUSH(value);
                 if (ANY_ARRAY(value)) {
+                    //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second paren are copies, first paren isn't
+                    //
                     VAL_SERIES(DS_TOP) = Copy_Array_Shallow(VAL_SERIES(value));
                     MANAGE_SERIES(VAL_SERIES(DS_TOP));
                 }
             }
         }
         else {
+            //
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
+            //
             DS_PUSH(value);
         }
     }

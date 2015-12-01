@@ -81,26 +81,6 @@ void Shutdown_Stacks(void)
 
 
 //
-//  Push_Stack_Values: C
-// 
-// Pushes sequential values from a series onto the stack all
-// in one go.  All of this needs review in terms of whether
-// things like COMPOSE should be using arbitrary stack pushes
-//      in the first place or if it should not pile up the stack
-// like this.
-// 
-// !!! Notably simple implementation, just hammering out the
-// client interfaces that made sequential stack memory assumptions.
-//
-void Push_Stack_Values(const REBVAL *values, REBINT length)
-{
-    Insert_Series(
-        DS_Series, SERIES_TAIL(DS_Series), cast(const REBYTE*, values), length
-    );
-}
-
-
-//
 //  Pop_Stack_Values: C
 // 
 // Pop_Stack_Values computed values from the stack into the series
