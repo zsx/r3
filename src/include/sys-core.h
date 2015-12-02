@@ -716,6 +716,10 @@ struct Reb_Call {
         (index_out), (out), (array), (index), DO_FLAG_LOOKAHEAD \
     )
 
+// Note: It is safe for `out` and `array` to be the same variable.  The
+// array and index are extracted, and will be protected from GC by the DO
+// state...so it is legal to DO_ARRAY_THROWS(D_OUT, D_OUT) for instance.
+//
 #define DO_ARRAY_THROWS(out,array) \
     Do_At_Throws((out), VAL_SERIES(array), VAL_INDEX(array))
 

@@ -1152,48 +1152,46 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBFLG trigger) {
         if (IS_UNSET(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
 
-        // Next, evaluate the branch into D_CELL
+        if (IS_CONDITIONAL_TRUE(D_OUT) == trigger) {
+            //
+            // Matched what we were looking for (TRUE for IF, FALSE for UNLESS)
+            // We can now evaluate the branch into D_OUT.
+            //
+            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
+
+            if (D_INDEX == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
+
+            // We know there is no /ONLY because frameless never runs
+            // when you have refinements.  Hence always evaluate blocks.
+            //
+            if (IS_BLOCK(D_OUT)) {
+                if (DO_ARRAY_THROWS(D_OUT, D_OUT)) // array = out is safe
+                    return R_OUT_IS_THROWN;
+                return R_OUT;
+            }
+
+            // Non-blocks return as-is.
+            //
+            return R_OUT;
+        }
+
+        // Even though we know we don't want to take the branch, we still have
+        // to evaluate it (which is the behavior that would have happened if
+        // a frame had been built for us).
         //
-        DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
 
         if (D_INDEX == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
 
-        if (D_INDEX == THROWN_FLAG) {
-            *D_OUT = *D_CELL;
+        if (D_INDEX == THROWN_FLAG)
             return R_OUT_IS_THROWN;
-        }
 
-        // It's legal to pass an unset in literally, and if you do that means
-        // you'll get an unset out no matter what you put in.
-        //
-        // !!! Technically speaking the legacy mode which supports returning
-        // nones on failed IF or UNLESS would return a NONE if the condition
-        // were false.  But as direct values of unsets passed in the condition
-        // weren't legal in historical Rebol, we ignore that case.
-        //
-        if (IS_UNSET(D_CELL))
-            return R_UNSET;
-
-        // Once we've looked at the condition in D_OUT to decide if it is
-        // conditionally false or true, we can overwrite it with the result
-        // of doing the block in D_CELL
-        //
-        if (IS_CONDITIONAL_TRUE(D_OUT) == trigger) {
-            //
-            // We know there is no /ONLY because frameless never runs
-            // when you have refinements.
-            //
-            if (!IS_BLOCK(D_CELL)) {
-                *D_OUT = *D_CELL;
-                return R_OUT;
-            }
-            else if (DO_ARRAY_THROWS(D_OUT, D_CELL))
-                return R_OUT_IS_THROWN;
-        }
-        else
-            SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-
+        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
         return R_OUT;
     }
 
@@ -1279,61 +1277,62 @@ REBNATIVE(either)
         if (IS_UNSET(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
 
-        // If conditionally true, we want the protected D_CELL to be used for
-        // the true branch evaluation, and use D_OUT for scratch space to
-        // do the false branch into.  If false, we want D_CELL to be used for
+        // If conditionally true, we want the protected D_OUT to be used for
+        // the true branch evaluation, and use D_CELL for scratch space to
+        // do the false branch into.  If false, we want D_OUT to be used for
         // the false branch evaluation with the true branch writing into
-        // D_OUT as scratch space.
+        // D_CELL as scratch space.
         //
         if (IS_CONDITIONAL_TRUE(D_OUT)) {
-            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
 
             if (D_INDEX == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
+
+            if (D_INDEX == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
+
+            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
             if (D_INDEX == THROWN_FLAG) {
                 *D_OUT = *D_CELL;
                 return R_OUT_IS_THROWN;
             }
-
-            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-            if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
-
-            if (D_INDEX == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
         }
         else {
-            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-            if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
-
-            if (D_INDEX == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-
             DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
 
             if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
 
             if (D_INDEX == THROWN_FLAG) {
                 *D_OUT = *D_CELL;
                 return R_OUT_IS_THROWN;
             }
+
+            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
+
+            if (D_INDEX == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
         }
 
-        // We know at this point that D_CELL contains what we want to be
+        // We know at this point that D_OUT contains what we want to be
         // working with for the output, and we also know there's no /ONLY.
         //
-        if (!IS_BLOCK(D_CELL)) {
-            *D_OUT = *D_CELL;
+        if (IS_BLOCK(D_OUT)) {
+             if (DO_ARRAY_THROWS(D_OUT, D_OUT)) // array = out is safe
+                return R_OUT_IS_THROWN;
             return R_OUT;
         }
-        else if (DO_ARRAY_THROWS(D_OUT, D_CELL))
-            return R_OUT_IS_THROWN;
 
+        // Return non-blocks as-is
+        //
         return R_OUT;
     }
 
