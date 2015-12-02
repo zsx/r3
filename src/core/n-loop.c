@@ -941,11 +941,22 @@ REBNATIVE(until)
     REBVAL * const block = D_ARG(1);
 
     do {
+    skip_check:
         if (DO_ARRAY_THROWS(D_OUT, block)) {
             REBFLG stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
-                continue;
+
+                // UNTIL is unique because when you get a CONTINUE/WITH, the
+                // usual rule of the /WITH being "what the body would have
+                // returned" becomes also the condition.  It's a very poor
+                // expression of breaking an until to say CONTINUE/WITH TRUE,
+                // as BREAK/WITH TRUE says it much better.
+                //
+                if (!IS_UNSET(D_OUT))
+                    fail (Error(RE_BREAK_NOT_CONTINUE));
+
+                goto skip_check;
             }
             return R_OUT_IS_THROWN;
         }
