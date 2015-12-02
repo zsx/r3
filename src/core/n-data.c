@@ -1016,4 +1016,21 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
     return cast(enum Reb_Kind, (v)->flags.bitfields.type);
 }
 
+
+//
+//  IS_CONDITIONAL_FALSE_Debug: C
+//
+// Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
+// ensure you never call it on an UNSET!
+//
+REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v) {
+    assert(!IS_UNSET(v));
+    if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {
+        assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
+        return TRUE;
+    }
+    assert(!IS_NONE(v) && !(IS_LOGIC(v) && !VAL_LOGIC(v)));
+    return FALSE;
+}
+
 #endif

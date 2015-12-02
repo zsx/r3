@@ -41,8 +41,7 @@
 #pragma pack(4)
 
 // Note: b-init.c verifies that lower 8 bits is flags.opts, so that testing
-// for an IS_END is merely testing for an even value of the header.  This
-// allows
+// for an IS_END is merely testing for an even value of the header.
 //
 union Reb_Value_Flags {
     struct {
@@ -84,7 +83,9 @@ typedef struct Reb_Series REBSER;
 
 // set type, clear all flags except for NOT_END
 //
-#define VAL_SET(v,t)    ((v)->flags.all = ((t) << 8) + 1)
+#define VAL_SET(v,t) \
+    ((v)->flags.all = (1 << OPT_VALUE_NOT_END), \
+     (v)->flags.bitfields.type = (t))
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
@@ -103,6 +104,7 @@ typedef struct Reb_Series REBSER;
 // Value option flags:
 enum {
     OPT_VALUE_NOT_END = 0,  // Not an END signal (so other header bits valid)
+    OPT_VALUE_FALSE,        // Value is conditionally false (optimization)
     OPT_VALUE_LINE,         // Line break occurs before this value
     OPT_VALUE_THROWN,       // Value is /NAME of a THROW (arg via THROWN_ARG)
     OPT_VALUE_MAX
@@ -265,7 +267,10 @@ struct Reb_Datatype {
 #define SET_UNSET(v)    VAL_SET(v, REB_UNSET)
 #define UNSET_VALUE     ROOT_UNSET_VAL
 
-#define SET_NONE(v)     VAL_SET(v, REB_NONE)
+#define SET_NONE(v) \
+    ((v)->flags.all = 1 << OPT_VALUE_NOT_END | 1 << OPT_VALUE_FALSE, \
+     (v)->flags.bitfields.type = REB_NONE)  // compound
+
 #define NONE_VALUE      ROOT_NONE_VAL
 
 // In legacy mode we still support the old convention that an IF that does
@@ -871,24 +876,45 @@ struct Reb_Position
 **
 **  Logic and Logic Bits
 **
+**  For purposes of optimization, logical falsehood is set as one of the
+**  value option bits--as opposed to in a separate place from the header.
+**
+**  Conditional truth and falsehood allows an interpretation where a NONE!
+**  is a "falsey" value as well as logic false.  Unsets are neither
+**  conditionally true nor conditionally false, and so debug builds will
+**  complain if you try to determine which it is--since it likely means
+**  a mistake was made on a decision regarding whether something should be
+**  an "opt out" or an error.
+**
 ***********************************************************************/
 
-#define VAL_LOGIC(v)    ((v)->data.logic)
-#define SET_LOGIC(v,n)  VAL_SET(v, REB_LOGIC), VAL_LOGIC(v) = ((n)!=0) //, VAL_LOGIC_WORDS(v)=0
-#define SET_TRUE(v)     SET_LOGIC(v, TRUE)  // compound statement
-#define SET_FALSE(v)    SET_LOGIC(v, FALSE) // compound statement
-#define VAL_I32(v)      ((v)->data.logic)   // used for handles, etc.
+#define SET_TRUE(v) \
+    ((v)->flags.all = (1 << OPT_VALUE_NOT_END), \
+     (v)->flags.bitfields.type = REB_LOGIC)  // compound
 
-// Conditional truth and falsehood allows an interpretation where a NONE! is
-// a FALSE value.  These macros (like many others in the codebase) capture
-// their parameters multiple times, so multiple evaluations can happen!
-//
-// Unsets are neither conditionally true nor conditionally false.
+#define SET_FALSE(v) \
+    ((v)->flags.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
+     (v)->flags.bitfields.type = REB_LOGIC)  // compound
 
-#define IS_CONDITIONAL_FALSE(v) \
-    (IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)))
-#define IS_CONDITIONAL_TRUE(v) \
-    (!IS_UNSET(v) && !IS_CONDITIONAL_FALSE(v))
+#define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
+
+#define VAL_LOGIC(v)    !VAL_GET_OPT((v), OPT_VALUE_FALSE)
+
+// !!! The logic used to be an I32 but now it's folded in as a value flag
+#define VAL_I32(v)      ((v)->data.rebcnt)   // used for handles, etc.
+
+#ifdef NDEBUG
+    #define IS_CONDITIONAL_FALSE(v) \
+        VAL_GET_OPT((v), OPT_VALUE_FALSE)
+#else
+    // In a debug build, we want to make sure that UNSET! is never asked
+    // about its conditional truth or falsehood; it's neither.
+    //
+    #define IS_CONDITIONAL_FALSE(v) \
+        IS_CONDITIONAL_FALSE_Debug(v)
+#endif
+
+#define IS_CONDITIONAL_TRUE(v) !IS_CONDITIONAL_FALSE(v)
 
 
 /***********************************************************************
@@ -1704,7 +1730,7 @@ struct Reb_All {
 union Reb_Value_Data {
     struct Reb_Word word;
     struct Reb_Position position; // ANY-STRING!, ANY-ARRAY!, BINARY!, VECTOR!
-    REBCNT logic;
+    REBCNT rebcnt;
     REBI64 integer;
     REBU64 unteger;
     REBDEC decimal; // actually a C 'double', typically 64-bit

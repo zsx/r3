@@ -122,7 +122,7 @@ REBTYPE(Logic)
     }
 
     // Keep other fields AS IS!
-    VAL_LOGIC(D_ARG(1)) = val1;
+    SET_LOGIC(D_ARG(1), val1);
     return R_ARG1;
 
 is_false:

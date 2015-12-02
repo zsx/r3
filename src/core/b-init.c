@@ -337,15 +337,23 @@ static void Init_Constants(void)
 
     value = Append_Frame(Lib_Context, 0, SYM_NONE);
     SET_NONE(value);
+    assert(IS_NONE(value));
+    assert(IS_CONDITIONAL_FALSE(value));
 
     value = Append_Frame(Lib_Context, 0, SYM_TRUE);
-    SET_LOGIC(value, TRUE);
+    SET_TRUE(value);
+    assert(VAL_LOGIC(value));
+    assert(IS_CONDITIONAL_TRUE(value));
 
     value = Append_Frame(Lib_Context, 0, SYM_FALSE);
-    SET_LOGIC(value, FALSE);
+    SET_FALSE(value);
+    assert(!VAL_LOGIC(value));
+    assert(IS_CONDITIONAL_FALSE(value));
 
     value = Append_Frame(Lib_Context, 0, SYM_PI);
     SET_DECIMAL(value, pi1);
+    assert(IS_DECIMAL(value));
+    assert(IS_CONDITIONAL_TRUE(value));
 }
 
 
