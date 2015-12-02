@@ -894,13 +894,13 @@ REBNATIVE(continue)
 //
 REBNATIVE(do)
 {
-    REBVAL * const value = D_ARG(1);
-    REBVAL * const args_ref = D_ARG(2);
-    REBVAL * const arg = D_ARG(3);
-    REBVAL * const next_ref = D_ARG(4);
-    REBVAL * const var = D_ARG(5); // if NONE!, DO/NEXT only but no var update
+    PARAM(1, value);
+    REFINE(2, args);
+    PARAM(3, arg);
+    REFINE(4, next);
+    PARAM(5, var); // if NONE!, DO/NEXT only but no var update
 
-    switch (VAL_TYPE(value)) {
+    switch (VAL_TYPE(ARG(value))) {
     case REB_UNSET:
         // useful for `do if ...` types of scenarios
         return R_UNSET;
@@ -911,39 +911,42 @@ REBNATIVE(do)
 
     case REB_BLOCK:
     case REB_PAREN:
-        if (IS_CONDITIONAL_TRUE(next_ref)) {
+        if (REF(next)) {
             DO_NEXT_MAY_THROW(
-                VAL_INDEX(value), D_OUT, VAL_SERIES(value), VAL_INDEX(value)
+                VAL_INDEX(ARG(value)), // updates index of value in call frame
+                D_OUT,
+                VAL_SERIES(ARG(value)),
+                VAL_INDEX(ARG(value))
             );
 
-            if (VAL_INDEX(value) == THROWN_FLAG) {
+            if (VAL_INDEX(ARG(value)) == THROWN_FLAG) {
                 // the throw should make the value irrelevant, but if caught
                 // then have it indicate the start of the thrown expression
 
                 // !!! What if the block was mutated, and D_ARG(1) is no
                 // longer actually the expression that started the throw?
 
-                if (!IS_NONE(var))
-                    Set_Var(var, value);
+                if (!IS_NONE(ARG(var)))
+                    Set_Var(ARG(var), ARG(value));
                 return R_OUT_IS_THROWN;
             }
 
-            if (VAL_INDEX(value) == END_FLAG) {
+            if (VAL_INDEX(ARG(value)) == END_FLAG) {
                 // If we hit the end, we always want to return unset.
-                if (!IS_NONE(var)) {
+                if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
-                    VAL_INDEX(value) = VAL_TAIL(value);
-                    Set_Var(var, value);
+                    VAL_INDEX(ARG(value)) = VAL_TAIL(ARG(value));
+                    Set_Var(ARG(var), ARG(value));
                 }
                 return R_UNSET;
             }
 
-            if (!IS_NONE(var))
-                Set_Var(var, value); // "continuation" of block
+            if (!IS_NONE(ARG(var)))
+                Set_Var(ARG(var), ARG(value)); // "continuation" of block
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, value))
+        if (DO_ARRAY_THROWS(D_OUT, ARG(value)))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -959,11 +962,11 @@ REBNATIVE(do)
         if (Do_Sys_Func_Throws(
             D_OUT,
             SYS_CTX_DO_P,
-            value,
-            args_ref,
-            arg,
-            next_ref,
-            var,
+            ARG(value),
+            ARG(args),
+            ARG(arg),
+            ARG(next),
+            ARG(var),
             NULL
         )) {
             return R_OUT_IS_THROWN;
@@ -978,10 +981,10 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_ERR_OBJECT(value));
+        fail (VAL_ERR_OBJECT(ARG(value)));
 
     case REB_TASK:
-        Do_Task(value);
+        Do_Task(ARG(value));
         return R_ARG1;
     }
 
