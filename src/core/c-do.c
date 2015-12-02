@@ -2472,7 +2472,15 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
             c->refine = c->arg;
 
-            if (IS_CONDITIONAL_TRUE(c->arg)) {
+            if (IS_UNSET(c->arg)) {
+                //
+                // These calls are originating from internal code, so really
+                // shouldn't be passing unsets to refinements here.  But if
+                // it tries to, give an error as if it were missing an arg
+                //
+                fail (Error_No_Arg(c->label_sym, c->param));
+            }
+            else if (IS_CONDITIONAL_TRUE(c->arg)) {
                 c->mode = CALL_MODE_REFINE_PENDING;
 
                 Val_Init_Word_Unbound(

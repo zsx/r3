@@ -280,6 +280,8 @@ REBNATIVE(all)
         DO_NEXT_MAY_THROW(index, D_OUT, block, index);
         if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
+        if (IS_UNSET(D_OUT)) continue;
+
         if (IS_CONDITIONAL_FALSE(D_OUT)) return R_NONE;
     }
 
@@ -317,6 +319,8 @@ REBNATIVE(any)
     while (index < SERIES_TAIL(block)) {
         DO_NEXT_MAY_THROW(index, D_OUT, block, index);
         if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
+
+        if (IS_UNSET(D_OUT)) continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
     }

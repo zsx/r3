@@ -571,7 +571,11 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
             if (!IS_UNSET(D_OUT)) Append_Value(out, D_OUT);
             break;
         case LOOP_EVERY:
-            every_true = every_true && IS_CONDITIONAL_TRUE(D_OUT);
+            if (IS_UNSET(D_OUT)) {
+                // Unsets "opt out" of the vote, as with ANY and ALL
+            }
+            else
+                every_true = every_true && IS_CONDITIONAL_TRUE(D_OUT);
             break;
         default:
             assert(FALSE);
