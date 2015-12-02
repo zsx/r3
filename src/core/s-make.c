@@ -251,7 +251,7 @@ REBSER *Copy_String(REBSER *src, REBCNT index, REBINT length)
     REBSER *dst;
     REBINT n;
 
-    if (length < 0) length = src->tail;
+    if (length < 0) length = src->tail - index;
 
     // Can it be slimmed down?
     if (!BYTE_SIZE(src)) {
