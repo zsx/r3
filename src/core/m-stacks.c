@@ -287,12 +287,10 @@ void Drop_Chunk(REBVAL values[])
         assert(CHUNKER_FROM_CHUNK(chunk) == chunker);
         assert(chunk->payload_left + chunk->size == CS_CHUNKER_PAYLOAD);
 
-        if (TG_Top_Chunk) {
-            TG_Head_Chunk = cast(
-                struct Reb_Chunk*, &CHUNKER_FROM_CHUNK(chunk)->payload
-            );
-        } else
-            TG_Head_Chunk = NULL;
+        assert(TG_Top_Chunk);
+        TG_Head_Chunk = cast(
+            struct Reb_Chunk*, &CHUNKER_FROM_CHUNK(TG_Top_Chunk)->payload
+        );
 
         // When we've completely emptied a chunker, we check to see if the
         // chunker after it is still live.  If so, we free it.  But we
