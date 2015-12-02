@@ -234,6 +234,11 @@ struct Reb_Chunk {
     REBVAL values[1];
 };
 
+// If we do a sizeof(struct Reb_Chunk) then it includes a value in it that we
+// generally don't want for our math, due to C++ "no zero element array" rulerep
+//
+#define BASE_CHUNK_SIZE (sizeof(struct Reb_Chunk) - sizeof(REBVAL))
+
 
 // !!! DSF is to be renamed (C)all (S)tack (P)ointer, but being left as DSF
 // in the initial commit to try and cut back on the disruption seen in

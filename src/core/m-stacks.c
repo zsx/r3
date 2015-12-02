@@ -145,10 +145,7 @@ void Expand_Stack(REBCNT amount)
 // this is checked by an assertion).
 //
 REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
-    REBCNT size = (
-        sizeof(struct Reb_Chunk)
-        + sizeof(REBVAL) * (num_values > 0 ? num_values - 1 : 0)
-    );
+    const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
 
     struct Reb_Chunk *chunk;
 
