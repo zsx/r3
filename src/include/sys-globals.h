@@ -135,7 +135,13 @@ TVAR REBSER *DS_Series;
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 TVAR struct Reb_Call *CS_Top;   // Last call frame pushed, may be "pending"
 
+// We store the head chunk of the current chunker even though it could be
+// computed, because it's quicker to compare to a pointer than to do the
+// math to calculate it on each Drop_Chunk...and it only needs to be updated
+// when a chunk boundary gets crossed (pushing or dropping)
+//
 TVAR struct Reb_Chunk *TG_Top_Chunk;
+TVAR struct Reb_Chunk *TG_Head_Chunk;
 TVAR struct Reb_Chunker *TG_Root_Chunker;
 
 TVAR REBOL_STATE *Saved_State; // Saved state for Catch (CPU state, etc.)

@@ -235,7 +235,7 @@ struct Reb_Chunk {
 };
 
 // If we do a sizeof(struct Reb_Chunk) then it includes a value in it that we
-// generally don't want for our math, due to C++ "no zero element array" rulerep
+// generally don't want for our math, due to C++ "no zero element array" rule
 //
 #define BASE_CHUNK_SIZE (sizeof(struct Reb_Chunk) - sizeof(REBVAL))
 
