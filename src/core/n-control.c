@@ -1006,33 +1006,6 @@ REBNATIVE(do)
 
 
 //
-//  either: native [
-//  
-//  {If TRUE? condition return 1st branch, else 2nd--evaluate blocks as code.}
-//  
-//      condition
-//      true-branch [any-value!]
-//      false-branch [any-value!]
-//  ]
-//
-REBNATIVE(either)
-{
-    REBVAL * const condition = D_ARG(1);
-    REBVAL * const branch = IS_CONDITIONAL_TRUE(condition)
-        ? D_ARG(2) // true-branch
-        : D_ARG(3); // false-branch
-
-    if (!IS_BLOCK(branch)) {
-        *D_OUT = *branch;
-    }
-    else if (DO_ARRAY_THROWS(D_OUT, branch))
-        return R_OUT_IS_THROWN;
-
-    return R_OUT;
-}
-
-
-//
 //  eval: native [
 //  
 //  {(Special) Process received value *inline* as the evaluator loop would.}
@@ -1157,28 +1130,230 @@ REBNATIVE(fail)
 }
 
 
+static REB_R If_Unless_Core(struct Reb_Call *call_, REBFLG trigger) {
+    PARAM(1, condition);
+    PARAM(2, branch);
+    REFINE(3, only);
+
+    assert((trigger == TRUE) || (trigger == FALSE));
+
+    if (D_FRAMELESS) {
+        //
+        // First evaluate the condition into D_OUT
+        //
+        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+        if (D_INDEX == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
+
+        if (D_INDEX == THROWN_FLAG)
+            return R_OUT_IS_THROWN;
+
+        if (IS_UNSET(D_OUT))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
+
+        // Next, evaluate the branch into D_CELL
+        //
+        DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+
+        if (D_INDEX == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
+
+        if (D_INDEX == THROWN_FLAG) {
+            *D_OUT = *D_CELL;
+            return R_OUT_IS_THROWN;
+        }
+
+        // It's legal to pass an unset in literally, and if you do that means
+        // you'll get an unset out no matter what you put in.
+        //
+        // !!! Technically speaking the legacy mode which supports returning
+        // nones on failed IF or UNLESS would return a NONE if the condition
+        // were false.  But as direct values of unsets passed in the condition
+        // weren't legal in historical Rebol, we ignore that case.
+        //
+        if (IS_UNSET(D_CELL))
+            return R_UNSET;
+
+        // Once we've looked at the condition in D_OUT to decide if it is
+        // conditionally false or true, we can overwrite it with the result
+        // of doing the block in D_CELL
+        //
+        if (IS_CONDITIONAL_TRUE(D_OUT) == trigger) {
+            //
+            // We know there is no /ONLY because frameless never runs
+            // when you have refinements.
+            //
+            if (!IS_BLOCK(D_CELL)) {
+                *D_OUT = *D_CELL;
+                return R_OUT;
+            }
+            else if (DO_ARRAY_THROWS(D_OUT, D_CELL))
+                return R_OUT_IS_THROWN;
+        }
+        else
+            SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+
+        return R_OUT;
+    }
+
+    // The framed variation uses the same logic, but is simpler.  This will
+    // run in debug or trace situations, as well as if /ONLY is used.
+    //
+    if (IS_CONDITIONAL_TRUE(ARG(condition)) == trigger) {
+        if (REF(only) || !IS_BLOCK(ARG(branch))) {
+            *D_OUT = *ARG(branch);
+        }
+        else if (DO_ARRAY_THROWS(D_OUT, ARG(branch)))
+            return R_OUT_IS_THROWN;
+    }
+    else
+        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+
+    return R_OUT;
+}
+
+
 //
-//  if: native [
+//  if: native/frameless [
 //  
-//  {If TRUE? condition, return the branch--with blocks evaluated as code.}
+//  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
 //      condition
-//      true-branch [any-value!]
+//      branch [any-value!]
+//      /only "Return block branches literally instead of evaluating them."
 //  ]
 //
 REBNATIVE(if)
 {
-    REBVAL * const condition = D_ARG(1);
-    REBVAL * const branch = D_ARG(2);
+    return If_Unless_Core(call_, TRUE);
+}
 
-    if (IS_CONDITIONAL_FALSE(condition)) {
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+
+//
+//  unless: native/frameless [
+//
+//  {If FALSE? condition, return branch value; evaluate blocks by default.}
+//
+//      condition
+//      branch [any-value!]
+//      /only "Return block branches literally instead of evaluating them."
+//  ]
+//
+REBNATIVE(unless)
+{
+    return If_Unless_Core(call_, FALSE);
+}
+
+
+//
+//  either: native/frameless [
+//
+//  {If TRUE condition? first branch, else second; evaluate blocks by default.}
+//
+//      condition
+//      true-branch [any-value!]
+//      false-branch [any-value!]
+//      /only "Return block arg instead of evaluating it."
+//  ]
+//
+REBNATIVE(either)
+{
+    PARAM(1, condition);
+    PARAM(2, true_branch);
+    PARAM(3, false_branch);
+    REFINE(4, only);
+
+    if (D_FRAMELESS) {
+        //
+        // First evaluate the condition into D_OUT
+        //
+        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+        if (D_INDEX == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
+
+        if (D_INDEX == THROWN_FLAG)
+            return R_OUT_IS_THROWN;
+
+        if (IS_UNSET(D_OUT))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
+
+        // If conditionally true, we want the protected D_CELL to be used for
+        // the true branch evaluation, and use D_OUT for scratch space to
+        // do the false branch into.  If false, we want D_CELL to be used for
+        // the false branch evaluation with the true branch writing into
+        // D_OUT as scratch space.
+        //
+        if (IS_CONDITIONAL_TRUE(D_OUT)) {
+            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
+
+            if (D_INDEX == THROWN_FLAG) {
+                *D_OUT = *D_CELL;
+                return R_OUT_IS_THROWN;
+            }
+
+            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
+
+            if (D_INDEX == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
+        }
+        else {
+            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
+
+            if (D_INDEX == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
+
+            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+
+            if (D_INDEX == END_FLAG)
+                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
+
+            if (D_INDEX == THROWN_FLAG) {
+                *D_OUT = *D_CELL;
+                return R_OUT_IS_THROWN;
+            }
+        }
+
+        // We know at this point that D_CELL contains what we want to be
+        // working with for the output, and we also know there's no /ONLY.
+        //
+        if (!IS_BLOCK(D_CELL)) {
+            *D_OUT = *D_CELL;
+            return R_OUT;
+        }
+        else if (DO_ARRAY_THROWS(D_OUT, D_CELL))
+            return R_OUT_IS_THROWN;
+
+        return R_OUT;
     }
-    else if (!IS_BLOCK(branch)) {
-        *D_OUT = *branch;
+
+    // The framed variation uses the same logic, but is simpler.  This will
+    // run in debug or trace situations, as well as if /ONLY is used.
+    //
+    if (IS_CONDITIONAL_TRUE(ARG(condition))) {
+        if (REF(only) || !IS_BLOCK(ARG(true_branch))) {
+            *D_OUT = *ARG(true_branch);
+        }
+        else if (DO_ARRAY_THROWS(D_OUT, ARG(true_branch)))
+            return R_OUT_IS_THROWN;
     }
-    else if (DO_ARRAY_THROWS(D_OUT, branch))
-        return R_OUT_IS_THROWN;
+    else {
+        if (REF(only) || !IS_BLOCK(ARG(false_branch))) {
+            *D_OUT = *ARG(false_branch);
+        }
+        else if (DO_ARRAY_THROWS(D_OUT, ARG(false_branch)))
+            return R_OUT_IS_THROWN;
+    }
 
     return R_OUT;
 }
@@ -1537,33 +1712,6 @@ REBNATIVE(trap)
     }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    return R_OUT;
-}
-
-
-//
-//  unless: native [
-//  
-//  {If FALSE? condition, return the branch--with blocks evaluated as code.}
-//  
-//      condition
-//      false-branch [any-value!]
-//  ]
-//
-REBNATIVE(unless)
-{
-    REBVAL * const condition = D_ARG(1);
-    REBVAL * const branch = D_ARG(2);
-
-    if (IS_CONDITIONAL_TRUE(condition)) {
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-    }
-    else if (!IS_BLOCK(branch)) {
-        *D_OUT = *branch;
-    }
-    else if (DO_ARRAY_THROWS(D_OUT, branch))
-        return R_OUT_IS_THROWN;
 
     return R_OUT;
 }
