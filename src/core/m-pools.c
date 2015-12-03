@@ -801,7 +801,10 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         }
     }
 
-    series->extra.size = 0;
+    // Note: This used to initialize the "extra" portion of the REBSER to 0.
+    // Such initialization is a bad idea because extra is a union, and it's
+    // undefined behavior to read from it if you don't know which field
+    // was last assigned.
 
     // All series start out in the list of series that must be freed (if not
     // handed to Manage_Series for the GC to take care of.)  The only way
@@ -1153,7 +1156,7 @@ void GC_Kill_Series(REBSER *series)
     series->info = 0; // includes width
     //series->data = BAD_MEM_PTR;
     //series->tail = 0xBAD2BAD2;
-    //series->extra.size = 0xBAD3BAD3;
+    //series->misc.size = 0xBAD3BAD3;
 
     Free_Node(SERIES_POOL, cast(REBNOD*, series));
 

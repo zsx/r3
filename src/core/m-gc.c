@@ -713,8 +713,8 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_MAP:
             ser = VAL_SERIES(val);
             QUEUE_MARK_ARRAY_DEEP(ser);
-            if (ser->extra.series)
-                MARK_SERIES_ONLY(ser->extra.series);
+            if (ser->misc.series)
+                MARK_SERIES_ONLY(ser->misc.series);
             break;
 
         case REB_CALLBACK:

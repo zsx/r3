@@ -81,7 +81,7 @@ static REBSER *Make_Map(REBINT size)
 
     if (size >= MIN_DICT) ser = Make_Hash_Sequence(size);
 
-    blk->extra.series = ser;
+    blk->misc.series = ser;
 
     return blk;
 }
@@ -174,13 +174,13 @@ static void Rehash_Hash(REBSER *series)
     REBCNT key;
     REBCNT *hashes;
 
-    if (!series->extra.series) return;
+    if (!series->misc.series) return;
 
-    hashes = cast(REBCNT*, series->extra.series->data);
+    hashes = cast(REBCNT*, series->misc.series->data);
 
     val = BLK_HEAD(series);
     for (n = 0; n < series->tail; n += 2, val += 2) {
-        key = Find_Key(series, series->extra.series, val, 2, 0, 0);
+        key = Find_Key(series, series->misc.series, val, 2, 0, 0);
         hashes[key] = n/2+1;
     }
 }
@@ -197,7 +197,7 @@ static void Rehash_Hash(REBSER *series)
 //
 static REBCNT Find_Entry(REBSER *series, REBVAL *key, REBVAL *val)
 {
-    REBSER *hser = series->extra.series; // can be null
+    REBSER *hser = series->misc.series; // can be null
     REBCNT *hashes;
     REBCNT hash;
     REBVAL *v;
@@ -258,7 +258,7 @@ static REBCNT Find_Entry(REBSER *series, REBVAL *key, REBVAL *val)
 
         // Add hash table:
         //Print("hash added %d", series->tail);
-        series->extra.series = hser = Make_Hash_Sequence(series->tail);
+        series->misc.series = hser = Make_Hash_Sequence(series->tail);
         MANAGE_SERIES(hser);
         Rehash_Hash(series);
     }
@@ -417,7 +417,7 @@ void Block_As_Map(REBSER *blk)
     REBCNT size = SERIES_TAIL(blk);
 
     if (size >= MIN_DICT) ser = Make_Hash_Sequence(size);
-    blk->extra.series = ser;
+    blk->misc.series = ser;
     Rehash_Hash(blk);
 }
 
@@ -543,7 +543,7 @@ REBTYPE(Map)
 
     case A_CLEAR:
         Reset_Array(series);
-        if (series->extra.series) Clear_Series(series->extra.series);
+        if (series->misc.series) Clear_Series(series->misc.series);
         Val_Init_Map(D_OUT, series);
         break;
 

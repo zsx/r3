@@ -54,7 +54,7 @@ enum {
     VTSF64
 };
 
-#define VECT_TYPE(s) ((s)->extra.size & 0xff)
+#define VECT_TYPE(s) ((s)->misc.size & 0xff)
 
 static REBCNT bit_sizes[4] = {8, 16, 32, 64};
 
@@ -325,10 +325,11 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
     case 32: bits = 2; break;
     case 64: bits = 3; break;
     }
-    ser->extra.size = (dims << 8) | (type << 3) | (sign << 2) | bits;
+    ser->misc.size = (dims << 8) | (type << 3) | (sign << 2) | bits;
 
     return ser;
 }
+
 
 //
 //  Make_Vector_Spec: C
@@ -583,7 +584,7 @@ REBTYPE(Vector)
 
     case A_COPY:
         ser = Copy_Sequence(vect);
-        ser->extra.size = vect->extra.size; // attributes
+        ser->misc.size = vect->misc.size; // attributes
         Val_Init_Vector(value, ser);
         break;
 

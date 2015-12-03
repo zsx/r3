@@ -513,7 +513,7 @@ typedef struct Reb_Tuple {
             REBCNT high:16;
         } area;
         REBUPT all; /* for copying, must have the same size as the union */
-    } extra;
+    } misc;
 
 // !!! There is an issue if this is put earlier in the structure that it
 // mysteriously makes HTTPS reads start timing out.  So it's either alignment
@@ -838,9 +838,9 @@ struct Reb_Position
 #define QUAD_TAIL(s)    (((REBYTE *)((s)->data))+((s)->tail * 4))
 #define QUAD_LEN(s)     (SERIES_TAIL(s))
 
-#define IMG_SIZE(s)     ((s)->extra.size)
-#define IMG_WIDE(s)     ((s)->extra.area.wide)
-#define IMG_HIGH(s)     ((s)->extra.area.high)
+#define IMG_SIZE(s)     ((s)->misc.size)
+#define IMG_WIDE(s)     ((s)->misc.area.wide)
+#define IMG_HIGH(s)     ((s)->misc.area.high)
 #define IMG_DATA(s)     ((REBYTE *)((s)->data))
 
 #define VAL_IMAGE_HEAD(v)   QUAD_HEAD(VAL_SERIES(v))

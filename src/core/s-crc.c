@@ -316,8 +316,8 @@ REBSER *Make_Hash_Sequence(REBCNT len)
 void Val_Init_Map(REBVAL *out, REBSER *ser)
 {
     Val_Init_Series(out, REB_MAP, ser);
-    if (ser->extra.series)
-        ENSURE_SERIES_MANAGED(ser->extra.series);
+    if (ser->misc.series)
+        ENSURE_SERIES_MANAGED(ser->misc.series);
 }
 
 
