@@ -334,11 +334,15 @@ struct Reb_Chunk {
 // addressing done directly into the call frame's cached `vars` pointer.
 //
 // To aid in debugging, the debug build version of the structures contain
-// the actual pointers to the arguments.
+// the actual pointers to the arguments.  It also keeps a copy of a cache
+// of the type for the arguments, because the bitfields inside of a REBVAL
+// must be integer and hence don't show the name of the type.  Whether
+// a refinemnent was in use or not at the time of the call is also cached.
 //
 
 struct Native_Param {
 #if !defined(NDEBUG)
+    enum Reb_Kind kind_cache;
     REBVAL *arg;
 #endif
 
@@ -347,25 +351,13 @@ struct Native_Param {
 
 struct Native_Refine {
 #if !defined(NDEBUG)
-    REBOOL cache;
+    REBOOL used_cache;
     REBVAL *arg;
 #endif
 
     int num;
 };
 
-#define ARG(p)  (call_->arg + (p).num)
-
-#define PAR(p)  VAL_FUNC_PARAM(&call_->func, (p).num) // a TYPESET!
-
-#ifdef NDEBUG
-    #define REF(r)  (!IS_NONE(ARG(r)))
-#else
-    // An added useless ?: helps check in debug build to make sure we do not
-    // try to use REF() on something defined as PARAM(), but only REFINE()
-    //
-    #define REF(r)  ((r).cache ? !IS_NONE(ARG(r)) : !IS_NONE(ARG(r)))
-#endif
 
 #ifdef NDEBUG
     #define PARAM(n,name) \
@@ -380,6 +372,7 @@ struct Native_Refine {
     //
     #define PARAM(n,name) \
         const struct Native_Param name = { \
+            call_->arg ? VAL_TYPE(call_->arg + (n)) : REB_TRASH, \
             call_->arg ? call_->arg + (n) : NULL, \
             (n) \
         }
@@ -398,3 +391,16 @@ struct Native_Refine {
         }
 #endif
 
+
+#define ARG(p)  (call_->arg + (p).num)
+
+#define PAR(p)  VAL_FUNC_PARAM(&call_->func, (p).num) // a TYPESET!
+
+#ifdef NDEBUG
+    #define REF(r)  (!IS_NONE(ARG(r)))
+#else
+    // An added useless ?: helps check in debug build to make sure we do not
+    // try to use REF() on something defined as PARAM(), but only REFINE()
+    //
+    #define REF(r)  ((r).used_cache ? !IS_NONE(ARG(r)) : !IS_NONE(ARG(r)))
+#endif
