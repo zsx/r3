@@ -626,36 +626,3 @@ REBTYPE(Frame)
 
     return R_ARG1;
 }
-
-
-#ifdef GET_OBJ_MODS_FINISHED
-/***********************************************************************
-**
-**  Get_Obj_Mods -- return a block of modified words from an object
-**
-***********************************************************************/
-REBVAL *Get_Obj_Mods(REBFRM *frame, REBVAL **inter_block)
-{
-    REBVAL *obj  = D_ARG(1);
-    REBVAL *words, *val;
-    REBFRM *frm  = VAL_OBJ_FRAME(obj);
-    REBSER *ser  = Make_Array(2);
-    REBOOL clear = D_REF(2);
-
-    val   = BLK_HEAD(frm->values);
-    words = BLK_HEAD(frm->words);
-    for (; NOT_END(val); val++, words++)
-        if (!(VAL_FLAGS(val) & FLAGS_CLEAN)) {
-            Append_Value(ser, words);
-            if (clear) VAL_FLAGS(val) |= FLAGS_CLEAN;
-        }
-    if (!STR_LEN(ser)) {
-        goto is_none;
-    }
-
-    Bind_Values_Shallow(BLK_HEAD(ser), frm);
-    VAL_SERIES(Temp_Blk_Value) = ser;
-
-    return Temp_Blk_Value;
-}
-#endif
