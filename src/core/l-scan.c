@@ -1636,7 +1636,7 @@ static REBSER *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         VAL_LINE(value)=linenum;
         VAL_FLAGS(value)|=FLAGS_LINE;
 #endif
-        if (VAL_TYPE(value)) emitbuf->tail++;
+        if (!IS_END(value)) emitbuf->tail++;
         else {
             REBSER *error_frame;
         syntax_error:
