@@ -559,7 +559,8 @@ REBNATIVE(do_codec)
 //  
 //  "Returns true if the context doesn't bind 'self."
 //  
-//      context [any-word! any-object!] "A reference to the target context"
+//      context [any-word! any-context!]
+//          "A reference to the target context"
 //  ]
 //
 REBNATIVE(selfless_q)

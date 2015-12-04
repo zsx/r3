@@ -635,8 +635,8 @@ static void Init_Root_Context(void)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     VAL_SET(value, REB_OBJECT);
     VAL_FRAME(value) = frame;
-    VAL_OBJ_KEYLIST(value) = NULL;
-    VAL_OBJ_BODY(value) = NULL;
+    VAL_CONTEXT_KEYLIST(value) = NULL;
+    VAL_CONTEXT_BODY(value) = NULL;
 
     // Set all other values to NONE:
     for (n = 1; n < ROOT_MAX; n++) SET_NONE(value + n);
@@ -733,8 +733,8 @@ static void Init_Task_Context(void)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     VAL_SET(value, REB_OBJECT);
     VAL_FRAME(value) = frame;
-    VAL_OBJ_KEYLIST(value) = NULL;
-    VAL_OBJ_BODY(value) = NULL;
+    VAL_CONTEXT_KEYLIST(value) = NULL;
+    VAL_CONTEXT_BODY(value) = NULL;
 
     // Set all other values to NONE:
     for (n = 1; n < TASK_MAX; n++) SET_NONE(value+n);
@@ -1337,9 +1337,9 @@ void Init_Core(REBARGS *rargs)
     );
     LABEL_SERIES(PG_Root_Words, "root words");
     MANAGE_SERIES(PG_Root_Words);
-    VAL_OBJ_KEYLIST(ROOT_SELF) = PG_Root_Words;
-    VAL_OBJ_SPEC(ROOT_SELF) = EMPTY_ARRAY;
-    VAL_OBJ_KEYLIST(FRM_CONTEXT(VAL_FRAME(ROOT_SELF))) = PG_Root_Words;
+    VAL_CONTEXT_KEYLIST(ROOT_SELF) = PG_Root_Words;
+    VAL_CONTEXT_SPEC(ROOT_SELF) = EMPTY_ARRAY;
+    VAL_CONTEXT_KEYLIST(FRM_CONTEXT(VAL_FRAME(ROOT_SELF))) = PG_Root_Words;
     Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));
 
     // Get the words of the TASK context (to avoid it being an exception case)
@@ -1348,9 +1348,9 @@ void Init_Core(REBARGS *rargs)
     );
     LABEL_SERIES(TG_Task_Words, "task words");
     MANAGE_SERIES(TG_Task_Words);
-    VAL_OBJ_KEYLIST(TASK_SELF) = TG_Task_Words;
-    VAL_OBJ_SPEC(TASK_SELF) = EMPTY_ARRAY;
-    VAL_OBJ_KEYLIST(FRM_CONTEXT(VAL_FRAME(TASK_SELF))) = TG_Task_Words;
+    VAL_CONTEXT_KEYLIST(TASK_SELF) = TG_Task_Words;
+    VAL_CONTEXT_SPEC(TASK_SELF) = EMPTY_ARRAY;
+    VAL_CONTEXT_KEYLIST(FRM_CONTEXT(VAL_FRAME(TASK_SELF))) = TG_Task_Words;
 
     // Is it necessary to put the above into an object like for ROOT?
     /*Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));*/

@@ -841,9 +841,9 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 
 static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBSER *keylist = VAL_OBJ_KEYLIST(value);
+    REBSER *keylist = VAL_CONTEXT_KEYLIST(value);
     REBVAL *keys = BLK_HEAD(keylist);
-    REBVAL *vals  = VAL_OBJ_VALUES(value); // first value is context
+    REBVAL *vals  = VAL_CONTEXT_VALUES(value); // first value is context
     REBCNT n;
     REBFLG had_output = FALSE;
 
@@ -871,9 +871,9 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBSER *keylist = VAL_OBJ_KEYLIST(value);
+    REBSER *keylist = VAL_CONTEXT_KEYLIST(value);
     REBVAL *keys = BLK_HEAD(keylist);
-    REBVAL *vals = VAL_OBJ_VALUES(value); // first value is context
+    REBVAL *vals = VAL_CONTEXT_VALUES(value); // first value is context
     REBCNT n;
 
     assert(VAL_FRAME(value));

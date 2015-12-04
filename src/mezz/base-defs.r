@@ -119,10 +119,10 @@ any-path?: func [
     value [any-value!]
 ][find any-path! type-of :value]
 
-any-object?: func [
-    "Return TRUE if value is any type of object."
+any-context?: func [
+    "Return TRUE if value is an OBJECT!, ERROR!, PORT!, or MODULE!"
     value [any-value!]
-][find any-object! type-of :value]
+][find any-context! type-of :value]
 
 any-number?: func [
     "Return TRUE if value is a number (integer or decimal)."

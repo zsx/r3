@@ -636,15 +636,15 @@ REBFLG Make_Error_Object_Throws(
             assert(IS_OBJECT(category)); // SELF: 0
 
             assert(
-                SAME_SYM(VAL_TYPESET_SYM(VAL_OBJ_KEY(category, 1)), SYM_CODE)
+                SAME_SYM(VAL_TYPESET_SYM(VAL_CONTEXT_KEY(category, 1)), SYM_CODE)
             );
-            assert(IS_INTEGER(VAL_OBJ_VALUE(category, 1)));
-            code = cast(REBCNT, VAL_INT32(VAL_OBJ_VALUE(category, 1)));
+            assert(IS_INTEGER(VAL_CONTEXT_VALUE(category, 1)));
+            code = cast(REBCNT, VAL_INT32(VAL_CONTEXT_VALUE(category, 1)));
 
             assert(
-                SAME_SYM(VAL_TYPESET_SYM(VAL_OBJ_KEY(category, 2)), SYM_TYPE)
+                SAME_SYM(VAL_TYPESET_SYM(VAL_CONTEXT_KEY(category, 2)), SYM_TYPE)
             );
-            assert(IS_STRING(VAL_OBJ_VALUE(category, 2)));
+            assert(IS_STRING(VAL_CONTEXT_VALUE(category, 2)));
 
             // Find correct message for ID: (if any)
             message = Find_Word_Value(

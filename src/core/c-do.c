@@ -2902,7 +2902,7 @@ REBSER *Resolve_Path(REBVAL *path, REBCNT *index)
 
     sel = BLK_SKIP(blk, 1);
     while (TRUE) {
-        if (!ANY_OBJECT(val) || !IS_WORD(sel)) return 0;
+        if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
         i = Find_Word_Index(VAL_FRAME(val), VAL_WORD_SYM(sel), FALSE);
         sel++;
         if (IS_END(sel)) {

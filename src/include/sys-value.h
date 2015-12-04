@@ -1088,23 +1088,23 @@ struct Reb_Context {
     REBSER *body; // optional (currently only used by modules)
 };
 
-// Object components
+// Context components
 //
-#define VAL_FRAME(v)        ((v)->data.context.frame)
-#define VAL_OBJ_SPEC(v)         ((v)->data.context.spec)
-#define VAL_OBJ_BODY(v)         ((v)->data.context.body)
+#define VAL_FRAME(v)                ((v)->data.context.frame)
+#define VAL_CONTEXT_SPEC(v)         ((v)->data.context.spec)
+#define VAL_CONTEXT_BODY(v)         ((v)->data.context.body)
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
-#define FRM_KEYLIST(f)          ((f)->misc.series)
-#define VAL_OBJ_KEYLIST(v)      FRM_KEYLIST(VAL_FRAME(v))
+#define FRM_KEYLIST(f)              ((f)->misc.series)
+#define VAL_CONTEXT_KEYLIST(v)      FRM_KEYLIST(VAL_FRAME(v))
 
 // Navigate from frame series to frame components
 //
 #define FRM_CONTEXT(f)      BLK_HEAD(f)
 #define FRM_TYPE(f)         VAL_TYPE(FRM_CONTEXT(f))
-#define FRM_SPEC(f)         VAL_OBJ_SPEC(FRM_CONTEXT(f))
-#define FRM_BODY(f)         VAL_OBJ_BODY(FRM_CONTEXT(f))
+#define FRM_SPEC(f)         VAL_CONTEXT_SPEC(FRM_CONTEXT(f))
+#define FRM_BODY(f)         VAL_CONTEXT_BODY(FRM_CONTEXT(f))
 #define FRM_KEYS(f)         BLK_HEAD(FRM_KEYLIST(f))
 #define FRM_KEY(c,n)        BLK_SKIP(FRM_KEYLIST(c),(n))
 #define FRM_KEY_SYM(c,n)    VAL_TYPESET_SYM(FRM_KEY(c,n))
@@ -1136,11 +1136,11 @@ struct Reb_Context {
 
 // Convenience macros to speak in terms of object values instead of the frame
 //
-#define VAL_OBJ_VALUES(v)       FRM_VALUES(VAL_FRAME(v))
-#define VAL_OBJ_VALUE(v,n)      FRM_VALUE(VAL_FRAME(v), (n))
-#define VAL_OBJ_KEYS(v)         FRM_KEYS(VAL_FRAME(v))
-#define VAL_OBJ_KEY(v,n)        FRM_KEY(VAL_FRAME(v), (n))
-#define VAL_OBJ_KEY_SYM(v,n)    FRM_KEY_SYM(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_VALUES(v)       FRM_VALUES(VAL_FRAME(v))
+#define VAL_CONTEXT_VALUE(v,n)      FRM_VALUE(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_KEYS(v)         FRM_KEYS(VAL_FRAME(v))
+#define VAL_CONTEXT_KEY(v,n)        FRM_KEY(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_KEY_SYM(v,n)    FRM_KEY_SYM(VAL_FRAME(v), (n))
 
 // Object field (series, index):
 #define OFV(s,n)            BLK_SKIP(s,n)
@@ -1158,8 +1158,8 @@ struct Reb_Context {
 **
 ***********************************************************************/
 
-#define VAL_MOD_SPEC(v)     VAL_OBJ_SPEC(v)
-#define VAL_MOD_BODY(v)     VAL_OBJ_BODY(v)
+#define VAL_MOD_SPEC(v)     VAL_CONTEXT_SPEC(v)
+#define VAL_MOD_BODY(v)     VAL_CONTEXT_BODY(v)
 
 #define Val_Init_Module(v,f,s,b) \
     Val_Init_Context((v), REB_MODULE, (f), (s), (b))

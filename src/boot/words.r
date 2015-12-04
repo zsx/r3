@@ -23,7 +23,7 @@ any-number!
 any-scalar!
 any-series!
 any-string!
-any-object!
+any-context!
 any-array! ;-- replacement for any-block! that doesn't conflate with "block"
 
 ;-----------------------------------------------------------------------------

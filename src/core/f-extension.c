@@ -433,7 +433,7 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
     // Check that handle and extension are somewhat valid (not used)
     {
         REBEXT *rebext;
-        REBVAL *handle = VAL_OBJ_VALUE(extension, 1);
+        REBVAL *handle = VAL_CONTEXT_VALUE(extension, 1);
         if (!IS_HANDLE(handle)) goto bad_func_def;
         rebext = &Ext_List[VAL_I32(handle)];
         if (!rebext || !rebext->call) goto bad_func_def;
@@ -513,7 +513,7 @@ REBFLG Do_Command_Throws(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
     REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(D_FUNC));
-    REBEXT *ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(val, 1))]; // Handler
+    REBEXT *ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(val, 1))]; // Handler
     REBCNT cmd = cast(REBCNT, Int32(val + 1));
     REBCNT argc = SERIES_TAIL(VAL_FUNC_PARAMLIST(D_FUNC)) - 1; // not self
 
@@ -683,7 +683,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
         // Call the command (also supports different extension modules):
         func  = BLK_HEAD(VAL_FUNC_BODY(func));
         n = (REBCNT)VAL_INT64(func + 1);
-        ext = &Ext_List[VAL_I32(VAL_OBJ_VALUE(func, 1))]; // Handler
+        ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(func, 1))]; // Handler
         n = ext->call(n, &frm, ctx);
         val = out;
         switch (n) {

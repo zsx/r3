@@ -144,7 +144,7 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
         if (types & FLAGIT_64(VAL_TYPE(value)) & TS_SERIES_OBJ) {
             REBSER *series;
 
-            if (ANY_OBJECT(value)) {
+            if (ANY_CONTEXT(value)) {
                 series = Copy_Array_Shallow(VAL_FRAME(value));
                 VAL_FRAME(value) = series;
             }

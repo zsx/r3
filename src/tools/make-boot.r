@@ -518,7 +518,7 @@ emit {
 #define ANY_EVAL_BLOCK(v) \
     (VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_PAREN)
 
-#define ANY_OBJECT(v) \
+#define ANY_CONTEXT(v) \
     (VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
 
 // If the type has evaluator behavior (vs. just passing through).  So like

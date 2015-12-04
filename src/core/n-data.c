@@ -231,12 +231,18 @@ REBNATIVE(as_pair)
 //  
 //  "Binds words to the specified context."
 //  
-//      word [block! any-word!] "A word or block (modified) (returned)"
-//      context [any-word! any-object!] "A reference to the target context"
-//      /copy {Bind and return a deep copy of a block, don't modify original}
-//      /only "Bind only first block (not deep)"
-//      /new "Add to context any new words found"
-//      /set "Add to context any new set-words found"
+//      word [block! any-word!]
+//          "A word or block (modified) (returned)"
+//      context [any-word! any-context!]
+//          "A reference to the target context"
+//      /copy
+//          "Bind and return a deep copy of a block, don't modify original"
+//      /only
+//          "Bind only first block (not deep)"
+//      /new
+//          "Add to context any new words found"
+//      /set
+//          "Add to context any new set-words found"
 //  ]
 //
 REBNATIVE(bind)
@@ -253,7 +259,7 @@ REBNATIVE(bind)
 
     // Get context from a word, object (or port);
     arg = D_ARG(2);
-    if (ANY_OBJECT(arg))
+    if (ANY_CONTEXT(arg))
         frame = VAL_FRAME(arg);
     else {
         assert(ANY_WORD(arg));
@@ -388,10 +394,14 @@ REBNATIVE(unbind)
 //  {Collect unique words used in a block (used for context construction).}
 //  
 //      block [block!]
-//      /deep "Include nested blocks"
-//      /set "Only include set-words"
-//      /ignore "Ignore prior words"
-//      words [any-object! block! none!] "Words to ignore"
+//      /deep
+//          "Include nested blocks"
+//      /set
+//          "Only include set-words"
+//      /ignore
+//          "Ignore prior words"
+//      words [any-context! block! none!]
+//          "Words to ignore"
 //  ]
 //
 REBNATIVE(collect_words)
@@ -408,8 +418,8 @@ REBNATIVE(collect_words)
     // If ignore, then setup for it:
     if (D_REF(4)) {
         obj = D_ARG(5);
-        if (ANY_OBJECT(obj))
-            prior_values = BLK_SKIP(VAL_OBJ_KEYLIST(obj), 1);
+        if (ANY_CONTEXT(obj))
+            prior_values = BLK_SKIP(VAL_CONTEXT_KEYLIST(obj), 1);
         else if (IS_BLOCK(obj))
             prior_values = VAL_BLK_DATA(obj);
         // else stays 0
@@ -486,9 +496,9 @@ REBNATIVE(opt)
 //
 //  in: native [
 //  
-//  "Returns the word or block in the object's context."
+//  "Returns the word or block bound into the given context."
 //  
-//      object [any-object! block!]
+//      context [any-context! block!]
 //      word [any-word! block! paren!] "(modified if series)"
 //  ]
 //
@@ -619,13 +629,16 @@ REBNATIVE(xor_q)
 //  
 //  {Copy context by setting values in the target from those in the source.}
 //  
-//      target [any-object!] "(modified)"
-//      source [any-object!]
-//      /only from [block! integer!] 
-//      {Only specific words (exports) or new words in target (index to tail)}
+//      target [any-context!] "(modified)"
+//      source [any-context!]
+//      /only
+//          "Only specific words (exports) or new words in target"
+//      from [block! integer!]
+//          "(index to tail)"
 //      /all 
-//      {Set all words, even those in the target that already have a value}
-//      /extend "Add source words to the target if necessary"
+//          "Set all words, even those in the target that already have a value"
+//      /extend
+//          "Add source words to the target if necessary"
 //  ]
 //
 REBNATIVE(resolve)
@@ -690,8 +703,8 @@ REBNATIVE(set)
 
     // Is target an object?
     if (IS_OBJECT(word)) {
-        REBVAL *key = VAL_OBJ_KEY(word, 1); // skip self
-        REBVAL *obj_value = VAL_OBJ_VALUES(D_ARG(1)) + 1;
+        REBVAL *key = VAL_CONTEXT_KEY(word, 1); // skip self
+        REBVAL *obj_value = VAL_CONTEXT_VALUES(D_ARG(1)) + 1;
 
         Assert_Public_Object(word);
         // Check for protected or unset before setting anything.

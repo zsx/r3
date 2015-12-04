@@ -245,7 +245,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
         goto done;
     }
 
-    if (ANY_OBJECT(arg)) {
+    if (ANY_CONTEXT(arg)) {
         ser = Make_Object_Block(VAL_FRAME(arg), 3);
         goto done;
     }

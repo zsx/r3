@@ -34,7 +34,7 @@ static REBOOL Same_Object(REBVAL *val, REBVAL *arg)
 {
     if (
         VAL_TYPE(arg) == VAL_TYPE(val) &&
-        //VAL_OBJ_SPEC(val) == VAL_OBJ_SPEC(arg) &&
+        //VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(arg) &&
         VAL_FRAME(val) == VAL_FRAME(arg)
     ) return TRUE;
     return FALSE;
@@ -565,8 +565,8 @@ REBTYPE(Object)
             D_OUT,
             VAL_TYPE(value),
             frame,
-            VAL_OBJ_SPEC(value),
-            VAL_OBJ_BODY(value)
+            VAL_CONTEXT_SPEC(value),
+            VAL_CONTEXT_BODY(value)
         );
         return R_OUT;
     }
@@ -588,7 +588,7 @@ REBTYPE(Object)
 
         if (action == A_FIND) return R_TRUE;
 
-        *D_OUT = *(VAL_OBJ_VALUES(value) + n);
+        *D_OUT = *(VAL_CONTEXT_VALUES(value) + n);
         return R_OUT;
     }
 
@@ -602,7 +602,7 @@ REBTYPE(Object)
             // constructs to manage.  If they wish to PROTECT it they may,
             // but what we give back here can be modified.
             //
-            Val_Init_Object(D_OUT, VAL_OBJ_SPEC(value));
+            Val_Init_Object(D_OUT, VAL_CONTEXT_SPEC(value));
             return R_OUT;
         }
 
@@ -625,8 +625,8 @@ REBTYPE(Object)
             D_OUT,
             VAL_TYPE(value),
             Trim_Frame(VAL_FRAME(value)),
-            VAL_OBJ_SPEC(value),
-            VAL_OBJ_BODY(value)
+            VAL_CONTEXT_SPEC(value),
+            VAL_CONTEXT_BODY(value)
         );
         return R_OUT;
 

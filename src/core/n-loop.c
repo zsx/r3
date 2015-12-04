@@ -368,7 +368,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
     // Note: `data_is_object` flag is optimized out, but hints static analyzer
     REBVAL *data = D_ARG(2);
     REBSER *series;
-    const REBOOL data_is_object = ANY_OBJECT(data);
+    const REBOOL data_is_object = ANY_CONTEXT(data);
 
     REBSER *out;    // output block (needed for MAP-EACH)
 
@@ -526,7 +526,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 else SET_NONE(vars);
             }
             else if (FALSE) { // !!! was IS_SET_WORD(keys), what was that for?
-                if (ANY_OBJECT(data) || IS_MAP(data))
+                if (ANY_CONTEXT(data) || IS_MAP(data))
                     *vars = *data;
                 else
                     Val_Init_Block_Index(vars, series, index);
@@ -811,9 +811,12 @@ REBNATIVE(forever)
 //  
 //  "Evaluates a block for each value(s) in a series."
 //  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [any-series! any-object! map! none!] "The series to traverse"
-//      body [block!] "Block to evaluate each time"
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [any-series! any-context! map! none!]
+//          "The series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(for_each)
@@ -859,9 +862,12 @@ REBNATIVE(map_each)
 //  
 //  {Returns last TRUE? value if evaluating a block over a series is all TRUE?}
 //  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [any-series! any-object! map! none!] "The series to traverse"
-//      body [block!] "Block to evaluate each time"
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [any-series! any-context! map! none!]
+//          "The series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(every)

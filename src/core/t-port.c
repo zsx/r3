@@ -101,7 +101,7 @@ REBTYPE(Port)
         frame = Copy_Array_Shallow(VAL_FRAME(arg));
         MANAGE_SERIES(frame);
         SERIES_SET_FLAG(frame, SER_FRAME);
-        FRM_KEYLIST(frame) = VAL_OBJ_KEYLIST(arg);
+        FRM_KEYLIST(frame) = VAL_CONTEXT_KEYLIST(arg);
         VAL_SET(FRM_CONTEXT(frame), REB_PORT);
         VAL_FRAME(FRM_CONTEXT(frame)) = frame;
         FRM_SPEC(frame) = EMPTY_ARRAY;

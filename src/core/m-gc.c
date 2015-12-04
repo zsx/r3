@@ -603,7 +603,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             REBSER *frame = VAL_FRAME(val);
 
             assert(FRM_TYPE(frame) == VAL_TYPE(val));
-            assert(FRM_KEYLIST(frame) == VAL_OBJ_KEYLIST(val));
+            assert(FRM_KEYLIST(frame) == VAL_CONTEXT_KEYLIST(val));
             assert(VAL_FRAME(FRM_CONTEXT(frame)) == frame);
 
             QUEUE_MARK_ARRAY_DEEP(frame);
@@ -614,11 +614,11 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 
             QUEUE_MARK_ARRAY_DEEP(FRM_KEYLIST(frame));
 
-            if (VAL_OBJ_BODY(val)) {
+            if (VAL_CONTEXT_BODY(val)) {
                 // Currently only modules hold onto their bodies, so that they
                 // can be reloaded.
                 //
-                QUEUE_MARK_ARRAY_DEEP(VAL_OBJ_BODY(val));
+                QUEUE_MARK_ARRAY_DEEP(VAL_CONTEXT_BODY(val));
             }
             break;
         }

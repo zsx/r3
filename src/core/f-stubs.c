@@ -391,7 +391,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
 {
     REBVAL *obj;
 
-    obj = VAL_OBJ_VALUES(ROOT_SYSTEM) + i1;
+    obj = VAL_CONTEXT_VALUES(ROOT_SYSTEM) + i1;
     if (!i2) return obj;
     assert(IS_OBJECT(obj));
     return Get_Field(VAL_FRAME(obj), i2);
@@ -513,15 +513,15 @@ void Val_Init_Context(
 
     assert(FRM_TYPE(frame) == kind);
     assert(VAL_FRAME(FRM_CONTEXT(frame)) == frame);
-    assert(VAL_OBJ_SPEC(FRM_CONTEXT(frame)) == spec);
-    assert(VAL_OBJ_BODY(FRM_CONTEXT(frame)) == body);
+    assert(VAL_CONTEXT_SPEC(FRM_CONTEXT(frame)) == spec);
+    assert(VAL_CONTEXT_BODY(FRM_CONTEXT(frame)) == body);
 
     VAL_SET(value, kind);
     VAL_FRAME(value) = frame;
-    VAL_OBJ_SPEC(value) = spec;
-    VAL_OBJ_BODY(value) = body;
+    VAL_CONTEXT_SPEC(value) = spec;
+    VAL_CONTEXT_BODY(value) = body;
 
-    assert(ANY_OBJECT(value));
+    assert(ANY_CONTEXT(value));
 }
 
 

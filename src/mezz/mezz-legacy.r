@@ -134,6 +134,14 @@ any-block!: :any-array!
 any-block?: :any-array?
 
 
+; Similarly to the BLOCK! and ANY-BLOCK! problem for understanding the inside
+; and outside of the system, ANY-CONTEXT! is a better name for the superclass
+; of OBJECT!, ERROR!, PORT! and (likely to be killed) MODULE!
+
+any-object!: :any-context!
+any-object?: :any-object?
+
+
 ; By having typesets prefixed with ANY-*, it helps cement the realization
 ; on the user's part that they are not dealing with a concrete type...so
 ; even though this is in the function prototype, they will not get back
@@ -464,7 +472,7 @@ set 'r3-legacy* func [] [
 
             'vars [word! block!]
                 "Word or block of words to set each time (local)"
-            data [any-series! any-object! map! none!]
+            data [any-series! any-context! map! none!]
                 "The series to traverse"
             body [block!]
                 "Block to evaluate each time"

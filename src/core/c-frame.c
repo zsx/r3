@@ -131,7 +131,7 @@ REBSER *Alloc_Frame(REBINT len, REBOOL has_self)
     //
     value = Alloc_Tail_Array(frame);
     VAL_FRAME(value) = frame;
-    VAL_OBJ_KEYLIST(value) = keylist;
+    VAL_CONTEXT_KEYLIST(value) = keylist;
 
 #if !defined(NDEBUG)
     //
@@ -489,8 +489,8 @@ REBSER *Create_Frame(REBSER *keylist, REBSER *spec)
     // frame[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
     VAL_FRAME(value) = frame;
-    VAL_OBJ_KEYLIST(value) = keylist;
-    VAL_OBJ_BODY(value) = NULL;
+    VAL_CONTEXT_KEYLIST(value) = keylist;
+    VAL_CONTEXT_BODY(value) = NULL;
 
     value++;
     len--;
@@ -687,7 +687,7 @@ REBSER *Make_Object_Block(REBSER *frame, REBINT mode)
 //
 void Assert_Public_Object(const REBVAL *value)
 {
-    REBVAL *key = BLK_HEAD(VAL_OBJ_KEYLIST(value));
+    REBVAL *key = BLK_HEAD(VAL_CONTEXT_KEYLIST(value));
 
     for (; NOT_END(key); key++)
         if (VAL_GET_EXT(key, EXT_WORD_HIDE)) fail (Error(RE_HIDDEN));
@@ -777,8 +777,8 @@ REBSER *Merge_Frames(REBSER *parent1, REBSER *parent2)
     VAL_SET(value, FRM_TYPE(parent1));
     FRM_KEYLIST(child) = keylist;
     VAL_FRAME(value) = child;
-    VAL_OBJ_SPEC(value) = EMPTY_ARRAY;
-    VAL_OBJ_BODY(value) = NULL;
+    VAL_CONTEXT_SPEC(value) = EMPTY_ARRAY;
+    VAL_CONTEXT_BODY(value) = NULL;
 
     // Copy parent1 values:
     memcpy(
@@ -1468,7 +1468,7 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
         // be no need for Get_Var_Into.
 
         assert(!IS_SELFLESS(framelike));
-        assert(ANY_OBJECT(FRM_CONTEXT(framelike)));
+        assert(ANY_CONTEXT(FRM_CONTEXT(framelike)));
         *out = *FRM_CONTEXT(framelike);
         return;
     }
@@ -1537,7 +1537,7 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
 //
 REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
 {
-    REBSER *obj = VAL_OBJ_KEYLIST(value);
+    REBSER *obj = VAL_CONTEXT_KEYLIST(value);
     return BLK_SKIP(obj, index);
 }
 
@@ -1597,8 +1597,8 @@ void Assert_Frame_Core(REBSER *frame)
         Panic_Series(frame);
     }
 
-    if (!ANY_OBJECT(BLK_HEAD(frame))) {
-        Debug_Fmt("Element at head of frame is not an ANY_OBJECT");
+    if (!ANY_CONTEXT(BLK_HEAD(frame))) {
+        Debug_Fmt("Element at head of frame is not an ANY_CONTEXT");
         Panic_Series(frame);
     }
 
