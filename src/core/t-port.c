@@ -36,7 +36,7 @@
 REBINT CT_Port(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    return VAL_OBJ_FRAME(a) == VAL_OBJ_FRAME(b);
+    return VAL_FRAME(a) == VAL_FRAME(b);
 }
 
 
@@ -56,6 +56,7 @@ REBTYPE(Port)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
+    REBSER *frame;
 
     switch (action) {
 
@@ -70,6 +71,7 @@ REBTYPE(Port)
         // are going to read the D_ARG(1) slot *implicitly* regardless of
         // what value points to.  And dodgily, we must also make sure the
         // output is set.  Review.
+        //
         if (!IS_PORT(value)) {
             Make_Port(D_OUT, value);
             *D_ARG(1) = *D_OUT;
@@ -77,25 +79,36 @@ REBTYPE(Port)
         } else
             *D_OUT = *value;
     case A_UPDATE:
-    default:
-        return Do_Port_Action(call_, VAL_PORT(value), action); // Result on stack
+        break;
 
     case A_REFLECT:
         return T_Object(call_, action);
 
     case A_MAKE:
         if (!IS_DATATYPE(value)) fail (Error_Bad_Make(REB_PORT, value));
-        Make_Port(value, arg);
-        break;
+        Make_Port(D_OUT, arg);
+        return R_OUT;
 
     case A_TO:
         if (!(IS_DATATYPE(value) && IS_OBJECT(arg)))
             fail (Error_Bad_Make(REB_PORT, arg));
-        value = arg;
-        VAL_SET(value, REB_PORT);
-        break;
+
+        // !!! cannot convert TO a PORT! without copying the whole frame...
+        // which raises the question of why convert an object to a port,
+        // vs. making it as a port to begin with (?)  Look into why
+        // system/standard/port is made with CONTEXT and not with MAKE PORT!
+        //
+        frame = Copy_Array_Shallow(VAL_FRAME(arg));
+        MANAGE_SERIES(frame);
+        SERIES_SET_FLAG(frame, SER_FRAME);
+        FRM_KEYLIST(frame) = VAL_OBJ_KEYLIST(arg);
+        VAL_SET(FRM_CONTEXT(frame), REB_PORT);
+        VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+        FRM_SPEC(frame) = EMPTY_ARRAY;
+        FRM_BODY(frame) = NULL;
+        Val_Init_Port(D_OUT, frame);
+        return R_OUT;
     }
 
-    *D_OUT = *value;
-    return R_OUT;
+    return Do_Port_Action(call_, VAL_FRAME(value), action);
 }

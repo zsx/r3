@@ -423,7 +423,7 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
     } else {
         REBCNT len;
         REBVAL vali;
-        REBSER *user = VAL_OBJ_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+        REBSER *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
         len = user->tail;
         Bind_Values_All_Deep(BLK_HEAD(code), user);
         SET_INTEGER(&vali, len);

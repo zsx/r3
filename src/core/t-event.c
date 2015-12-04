@@ -94,11 +94,11 @@ static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_PORT:
         if (IS_PORT(val)) {
             VAL_EVENT_MODEL(value) = EVM_PORT;
-            VAL_EVENT_SER(value) = VAL_PORT(val);
+            VAL_EVENT_SER(value) = VAL_FRAME(val);
         }
         else if (IS_OBJECT(val)) {
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
-            VAL_EVENT_SER(value) = VAL_OBJ_FRAME(val);
+            VAL_EVENT_SER(value) = VAL_FRAME(val);
         }
         else if (IS_NONE(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;

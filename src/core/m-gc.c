@@ -590,51 +590,38 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 QUEUE_MARK_ARRAY_DEEP(VAL_TYPE_SPEC(val));
             break;
 
-        case REB_ERROR:
-            QUEUE_MARK_ARRAY_DEEP(VAL_ERR_OBJECT(val));
+            QUEUE_MARK_ARRAY_DEEP(VAL_FRAME(val));
             break;
 
         case REB_TASK: // not yet implemented
             break;
 
-        case REB_FRAME:
-            // Mark special word list.
-            //
-            // At the moment this list contains no values which would
-            // require being seen by the GC...however skipping over the
-            // values is a limited optimization.  (For instance: symbols
-            // may become GC'd and need to see the symbol references inside
-            // the values, or typesets might contain dynamically allocated
-            // arrays of user types).
-            //
-            // !!! A more global optimization would be if there was a flag
-            // that was maintained about whether there might be any GC'able
-            // values in an array.  It could start out saying there may
-            // be...but then if it did a visit and didn't see any mark it
-            // as not needing GC.  Then modifications dirty that bit.
-            //
-            QUEUE_MARK_ARRAY_DEEP(VAL_FRM_KEYLIST(val));
-
-            if (VAL_FRM_SPEC(val))
-                QUEUE_MARK_ARRAY_DEEP(VAL_FRM_SPEC(val));
-            // !!! See code below for ANY-WORD! which also deals with FRAME!
-            break;
-
-        case REB_PORT:
         case REB_OBJECT:
-            // Objects currently only have a FRAME, but that protects the
-            // keys wordlist via the FRAME! value in the first slot (which
-            // will be visited along with mapped values via this deep mark)
-            QUEUE_MARK_ARRAY_DEEP(VAL_OBJ_FRAME(val));
-            break;
-
         case REB_MODULE:
-            // A module is an object with an optional body (they currently
-            // do not use the body)
-            QUEUE_MARK_ARRAY_DEEP(VAL_OBJ_FRAME(val));
-            if (VAL_MOD_BODY(val))
-                QUEUE_MARK_ARRAY_DEEP(VAL_MOD_BODY(val));
+        case REB_PORT:
+        case REB_ERROR: {
+            REBSER *frame = VAL_FRAME(val);
+
+            assert(FRM_TYPE(frame) == VAL_TYPE(val));
+            assert(FRM_KEYLIST(frame) == VAL_OBJ_KEYLIST(val));
+            assert(VAL_FRAME(FRM_CONTEXT(frame)) == frame);
+
+            QUEUE_MARK_ARRAY_DEEP(frame);
+
+        #if !defined(NDEBUG)
+            if (!FRM_KEYLIST(frame)) Panic_Series(frame);
+        #endif
+
+            QUEUE_MARK_ARRAY_DEEP(FRM_KEYLIST(frame));
+
+            if (VAL_OBJ_BODY(val)) {
+                // Currently only modules hold onto their bodies, so that they
+                // can be reloaded.
+                //
+                QUEUE_MARK_ARRAY_DEEP(VAL_OBJ_BODY(val));
+            }
             break;
+        }
 
         case REB_FUNCTION:
         case REB_COMMAND:
@@ -654,7 +641,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_ISSUE:
             ser = VAL_WORD_FRAME(val);
             if (ser) {
-                // Word is bound, so mark its context (which may be a FRAME!
+                // Word is bound, so mark its context (which may be a "frame"
                 // series or an identifying function word series).  All
                 // bound words should keep their contexts from being GC'd...
                 // even stack-relative contexts for functions.
@@ -763,6 +750,18 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 // 
 // Mark all series reachable from the array.
 //
+// !!! At one time there was a notion of a "bare series" which would be marked
+// to escape needing to be checked for GC--for instance because it only
+// contained symbol words.  However skipping over the values is a limited
+// optimization.  (For instance: symbols may become GC'd, and need to see the
+// symbol references inside the values...or typesets might be expanded to
+// contain dynamically allocated arrays of user types).
+//
+// !!! A more global optimization would be if there was a flag that was
+// maintained about whether there might be any GC'able values in an array.
+// It could start out saying there may be...but then if it did a visit and
+// didn't see any mark it as not needing GC.  Modifications dirty that bit.
+//
 static void Mark_Array_Deep_Core(REBSER *array)
 {
     REBCNT len;
@@ -774,13 +773,6 @@ static void Mark_Array_Deep_Core(REBSER *array)
     // added already...
 
     if (!SERIES_GET_FLAG(array, SER_MARK)) Panic_Series(array);
-
-    // SER_FRAME is going to replace the FRAME! type for indicating frames,
-    // with the full REBVAL of the frame-holder OBJECT! or otherwise in the
-    // zero slot.  Keylist will be in the series extra field.  Start testing
-    // for that condition now.
-    if (SERIES_GET_FLAG(array, SER_FRAME))
-        assert(IS_FRAME(BLK_HEAD(array)));
 #endif
 
     assert(SERIES_TAIL(array) < SERIES_REST(array)); // overflow
@@ -790,19 +782,6 @@ static void Mark_Array_Deep_Core(REBSER *array)
         // We should never reach the end before len above.
         // Exception is the stack itself.
         assert(NOT_END(val) || (array == DS_Series));
-        if (VAL_TYPE(val) == REB_FRAME) {
-            assert(len == 0);
-            ASSERT_FRAME(array);
-            if ((array == VAL_SERIES(ROOT_ROOT)) || (array == Task_Series)) {
-                // !!! Currently it is allowed that the root frames not
-                // have a wordlist.  This distinct behavior accomodation is
-                // not worth having the variance of behavior, but since
-                // it's there for now... allow it for just those two.
-
-                if(!VAL_FRM_KEYLIST(val))
-                    continue;
-            }
-        }
         Queue_Mark_Value_Deep(val);
     }
 

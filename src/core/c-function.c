@@ -810,7 +810,7 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
         // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
         // the paramlist.  For the moment, how to get that value depends...
 
-        if (IS_FRAME(BLK_HEAD(VAL_FUNC_RETURN_TO(D_FUNC)))) {
+        if (SERIES_GET_FLAG(VAL_FUNC_RETURN_TO(D_FUNC), SER_FRAME)) {
             // The function was actually a CLOSURE!, so "when it took BIND-OF
             // on 'RETURN" it "would have gotten back an OBJECT!".  We can
             // get that object to use as the throw name just by putting the
@@ -1022,7 +1022,12 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
 
-    SET_FRAME(BLK_HEAD(frame), NULL, VAL_FUNC_PARAMLIST(D_FUNC));
+    SERIES_SET_FLAG(frame, SER_FRAME);
+    VAL_SET(FRM_CONTEXT(frame), REB_OBJECT);
+    VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+    FRM_KEYLIST(frame) = VAL_FUNC_PARAMLIST(D_FUNC);
+    FRM_SPEC(frame) = EMPTY_ARRAY;
+    FRM_BODY(frame) = NULL;
 
 #if !defined(NDEBUG)
     // !!! A second sweep for the definitional return used to be necessary in
@@ -1081,7 +1086,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
         if (
             IS_OBJECT(D_OUT)
             && VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)
-            && VAL_OBJ_FRAME(D_OUT) == frame
+            && VAL_FRAME(D_OUT) == frame
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
             // a "hacked" REBNATIVE(return) that knew our frame, and

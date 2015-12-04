@@ -254,7 +254,7 @@ REBNATIVE(bind)
     // Get context from a word, object (or port);
     arg = D_ARG(2);
     if (ANY_OBJECT(arg))
-        frame = VAL_OBJ_FRAME(arg);
+        frame = VAL_FRAME(arg);
     else {
         assert(ANY_WORD(arg));
         rel = (VAL_WORD_INDEX(arg) < 0);
@@ -436,10 +436,6 @@ REBNATIVE(get)
 
     if (ANY_WORD(word)) {
         const REBVAL *val = GET_VAR(word);
-        if (IS_FRAME(val)) {
-            Init_Obj_Value(D_OUT, VAL_WORD_FRAME(word));
-            return R_OUT;
-        }
         if (!D_REF(2) && !IS_SET(val)) fail (Error(RE_NO_VALUE, word));
         *D_OUT = *val;
     }
@@ -451,7 +447,7 @@ REBNATIVE(get)
     }
     else if (IS_OBJECT(word)) {
         Assert_Public_Object(word);
-        Val_Init_Block(D_OUT, Copy_Array_At_Shallow(VAL_OBJ_FRAME(word), 1));
+        Val_Init_Block(D_OUT, Copy_Array_At_Shallow(VAL_FRAME(word), 1));
     }
     else *D_OUT = *word; // all other values
 
@@ -513,7 +509,7 @@ REBNATIVE(in)
                 Get_Simple_Value_Into(&safe, v);
                 v = &safe;
                 if (IS_OBJECT(v)) {
-                    frame = VAL_OBJ_FRAME(v);
+                    frame = VAL_FRAME(v);
                     index = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
                     if (index > 0) {
                         VAL_WORD_INDEX(word) = (REBCNT)index;
@@ -529,7 +525,7 @@ REBNATIVE(in)
             fail (Error_Invalid_Arg(word));
     }
 
-    frame = IS_ERROR(val) ? VAL_ERR_OBJECT(val) : VAL_OBJ_FRAME(val);
+    frame = IS_ERROR(val) ? VAL_FRAME(val) : VAL_FRAME(val);
 
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_PAREN(word)) {
@@ -634,8 +630,8 @@ REBNATIVE(xor_q)
 //
 REBNATIVE(resolve)
 {
-    REBSER *target = VAL_OBJ_FRAME(D_ARG(1));
-    REBSER *source = VAL_OBJ_FRAME(D_ARG(2));
+    REBSER *target = VAL_FRAME(D_ARG(1));
+    REBSER *source = VAL_FRAME(D_ARG(2));
     if (IS_INTEGER(D_ARG(4))) Int32s(D_ARG(4), 1); // check range and sign
     Resolve_Context(target, source, D_ARG(4), D_REF(5), D_REF(6)); // /from /all /expand
     return R_ARG1;

@@ -1044,52 +1044,193 @@ struct Reb_Word {
         == VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, (s2))) \
     ))
 
+
 /***********************************************************************
 **
-**  Frame -- Used to bind words to values.
+**	CONTEXTS
 **
-**      This type of value is used at the head of a frame block.
-**      It should appear in no other place.
+**	The Reb_Context is the basic struct used currently for OBJECT!,
+**	MODULE!, ERROR!, and PORT!...providing behaviors common to ANY-CONTEXT!
+**
+**	It implements a key/value pairing via two parallel series, whose indices
+**	line up in a correspondence.  The "keylist" series contains REBVALs that
+**	are symbol IDs encoded as an extra piece information inside of a TYPESET!.
+**	The "value" REBVALs are in a series called the "frame", which lines up at
+**	the index appropriate for the key.  The index into these series is used
+**	in the "binding" of a WORD! for cached lookup so that the symbol does not
+**	need to be searched for each time.
+**
+**	!!! This "caching" mechanism is not actually "just a cache".  Once bound
+**	the index is treated as permanent.  This is why objects are "append only"
+**	because disruption of the index numbers would break the extant words
+**	with index numbers to that position.  Ren-C intends to undo this by
+**	paying for the check of the symbol number at the time of lookup, and if
+**	it does not match consider it a cache miss and re-lookup...adjusting the
+**	index inside of the word.  For efficiency, some objects could be marked
+**	as not having this property, but it may be just as efficient to check
+**	the symbol match as that bit.
+**
+**	The indices start at 1, which leaves an open slot at the zero position in
+**	both the keylist and the frame.  The frame uses this slot to hold the
+**	value of the OBJECT! itself.  This trick allows the single frame REBSER
+**	pointer to be passed around rather than the REBVAL struct which is 4x
+**	larger, yet still reconstitute the REBVAL if it is needed.
+**
+**	Because a REBSER which contains an object at its head is uniquely capable
+**	of retrieving the keylist by digging into its implicit first OBJECT!
+**	value, it is often considered a unique type called a frame.
 **
 ***********************************************************************/
 
-struct Reb_Frame {
-    REBSER  *keylist;
-    REBSER  *spec;
-//  REBSER  *parent;
+struct Reb_Context {
+    REBSER *frame; // keylist is held in REBSER.misc.series
+    REBSER *spec; // optional (currently only used by modules)
+    REBSER *body; // optional (currently only used by modules)
 };
 
-// Value to frame fields:
-#define VAL_FRM_KEYLIST(v)  ((v)->data.frame.keylist)
-#define VAL_FRM_SPEC(v)     ((v)->data.frame.spec)
-//#define   VAL_FRM_PARENT(v)   ((v)->data.frame.parent)
+// Object components
+//
+#define VAL_FRAME(v)        ((v)->data.context.frame)
+#define VAL_OBJ_SPEC(v)         ((v)->data.context.spec)
+#define VAL_OBJ_BODY(v)         ((v)->data.context.body)
 
-// Word number array (used by Bind_Table):
-#define WORDS_HEAD(w)       ((REBINT *)(w)->data)
-#define WORDS_LAST(w)       (((REBINT *)(w)->data)+(w)->tail-1) // (tail never zero)
+// Special property: keylist pointer is stored in the misc field of REBSER
+//
+#define FRM_KEYLIST(f)          ((f)->misc.series)
+#define VAL_OBJ_KEYLIST(v)      FRM_KEYLIST(VAL_FRAME(v))
 
-// Frame series to frame components:
-#define FRM_KEYLIST(c)  VAL_FRM_KEYLIST(BLK_HEAD(c))
-#define FRM_KEYS(c)     BLK_HEAD(FRM_KEYLIST(c))
-#define FRM_VALUES(c)       BLK_HEAD(c)
-#define FRM_VALUE(c,n)      BLK_SKIP(c,(n))
-
+// Navigate from frame series to frame components
+//
+#define FRM_CONTEXT(f)      BLK_HEAD(f)
+#define FRM_TYPE(f)         VAL_TYPE(FRM_CONTEXT(f))
+#define FRM_SPEC(f)         VAL_OBJ_SPEC(FRM_CONTEXT(f))
+#define FRM_BODY(f)         VAL_OBJ_BODY(FRM_CONTEXT(f))
+#define FRM_KEYS(f)         BLK_HEAD(FRM_KEYLIST(f))
 #define FRM_KEY(c,n)        BLK_SKIP(FRM_KEYLIST(c),(n))
 #define FRM_KEY_SYM(c,n)    VAL_TYPESET_SYM(FRM_KEY(c,n))
+#define FRM_VALUES(f)       BLK_HEAD(f)
+#define FRM_VALUE(f,n)      BLK_SKIP((f),(n))
 
-#define VAL_FRM_KEY(v,n)    BLK_SKIP(FRM_KEYLIST(VAL_OBJ_FRAME(v)),(n))
+// !!! A frame must be able to reconstitute the object it is a frame for
+// from a single pointer.  Because this information is available and because
+// there is a free keylist[0] slot aligning with the position in the value
+// array for that location, the original R3-Alpha decision was to make use
+// of that by putting the word "SELF" in the keylist position...so that a
+// lookup of something bound to index 0 would be able to generate the
+// object.
+//
+// This notion of SELF as a system keyword is deprecated in Ren-C, believing
+// that `bind-of` a known member is a sufficient way for a generator to
+// bootstrap a SELF term at the user level if it needed one.  Other ideas
+// are mitigating the need for SELF, such as `/member/submember` access via
+// path, integrated with dispatch.
+//
+#define IS_SELFLESS(f) \
+    (IS_CLOSURE(FRM_KEYS(f)) || VAL_TYPESET_SYM(FRM_KEYS(f)) == SYM_0)
+
+#ifdef NDEBUG
+    #define ASSERT_FRAME(f) cast(void, 0)
+#else
+    #define ASSERT_FRAME(f) Assert_Frame_Core(f)
+#endif
+
+// Convenience macros to speak in terms of object values instead of the frame
+//
+#define VAL_OBJ_VALUES(v)       FRM_VALUES(VAL_FRAME(v))
+#define VAL_OBJ_VALUE(v,n)      FRM_VALUE(VAL_FRAME(v), (n))
+#define VAL_OBJ_KEYS(v)         FRM_KEYS(VAL_FRAME(v))
+#define VAL_OBJ_KEY(v,n)        FRM_KEY(VAL_FRAME(v), (n))
+#define VAL_OBJ_KEY_SYM(v,n)    FRM_KEY_SYM(VAL_FRAME(v), (n))
 
 // Object field (series, index):
 #define OFV(s,n)            BLK_SKIP(s,n)
 
-#define SET_FRAME(v, s, w) \
-    VAL_FRM_SPEC(v) = (s); \
-    VAL_FRM_KEYLIST(v) = (w); \
-    VAL_SET(v, REB_FRAME)
 
-#define IS_SELFLESS(f) \
-    (IS_CLOSURE(FRM_KEYS(f)) || VAL_TYPESET_SYM(FRM_KEYS(f)) == SYM_0)
+#define Val_Init_Object(v,f) \
+    Val_Init_Context((v), REB_OBJECT, (f), EMPTY_ARRAY, NULL)
 
+
+/***********************************************************************
+**
+**  MODULES - Code isolation units
+**
+**  http://www.rebol.com/r3/docs/concepts/modules-defining.html
+**
+***********************************************************************/
+
+#define VAL_MOD_SPEC(v)     VAL_OBJ_SPEC(v)
+#define VAL_MOD_BODY(v)     VAL_OBJ_BODY(v)
+
+#define Val_Init_Module(v,f,s,b) \
+    Val_Init_Context((v), REB_MODULE, (f), (s), (b))
+
+
+/***********************************************************************
+**
+**  PORTS - External series interface
+**
+***********************************************************************/
+
+#define Val_Init_Port(v,f) \
+    Val_Init_Context((v), REB_PORT, (f), EMPTY_ARRAY, NULL)
+
+
+/***********************************************************************
+**
+**  ERRORS - Error values
+**
+**  At the present time, all ERROR! frames follow an identical
+**  fixed layout.  That layout is in %sysobj.r as standard/error.
+**
+**  Errors can have a maximum of 3 arguments (named arg1, arg2, and
+**  arg3).  There is also an error code which is used to look up
+**  a formatting block that shows where the args are to be inserted
+**  into a message.  The formatting block to use is looked up by
+**  a numeric code established in that table.
+**
+**  !!! The needs of user errors to carry custom information with
+**  custom field names means this rigid design will need to be
+**  enhanced.  System error arguments will likely be named more
+**  meaningfully, but will still use ordering to bridge from the
+**  C calls that create them.
+**
+***********************************************************************/
+
+#define ERR_VALUES(frame)   cast(ERROR_OBJ*, FRM_VALUES(frame))
+#define ERR_NUM(frame)      cast(REBCNT, VAL_INT32(&ERR_VALUES(frame)->code))
+
+#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_FRAME(v))
+#define VAL_ERR_NUM(v)      ERR_NUM(VAL_FRAME(v))
+
+#ifdef NDEBUG
+    #define ASSERT_ERROR(e) (cast(void, 0))
+#else
+    #define ASSERT_ERROR(e) \
+        Assert_Error_Debug(e)
+#endif
+
+#define Val_Init_Error(v,f) \
+    Val_Init_Context((v), REB_ERROR, (f), EMPTY_ARRAY, NULL)
+
+
+
+/***********************************************************************
+**
+**  VARIABLE ACCESS
+**
+**  When a word is bound to a frame by an index, it becomes a means of
+**  reading and writing from a persistent storage location.  The term
+**  "variable" is used to refer to a REBVAL slot reached through a
+**  binding in this way.
+**
+**  All variables can be in a protected state where they cannot be
+**  written.  Hence const access is the default, and a const pointer is
+**  given back which may be inspected but the contents not modified.  If
+**  mutable access is required, one may either demand write access
+**  (and get a failure and longjmp'd error if not possible) or ask
+**  more delicately with a TRY.
+**
+***********************************************************************/
 
 // Gives back a const pointer to var itself, raises error on failure
 // (Failure if unbound or stack-relative with no call on stack)
@@ -1117,103 +1258,6 @@ struct Reb_Frame {
 // NOTE: *value* itself may carry its own PROTECT status if series/object
 #define GET_VAR_INTO(v,w) \
     (Get_Var_Into_Core((v), (w)))
-
-
-/***********************************************************************
-**
-**  OBJECTS - Object Support
-**
-**  The Reb_Object is the basic struct used currently for OBJECT!,
-**  MODULE!, ERROR!, and PORT!.
-**
-***********************************************************************/
-
-struct Reb_Object {
-    // See notes about frames, which actually indicates *two* series.
-    // One is a "keylist" and the other are values associated with
-    // those keys.  At the present time extra pointers are carried
-    // by a special kind of value that sits in the first position of
-    // the series (though that is likely to change).
-    REBSER *frame;
-
-    // The body is currently only retained by modules.
-    REBSER *body;
-};
-
-#define VAL_OBJ_FRAME(v)    ((v)->data.object.frame)
-#define VAL_OBJ_VALUES(v)   FRM_VALUES((v)->data.object.frame)
-#define VAL_OBJ_VALUE(v,n)  FRM_VALUE((v)->data.object.frame, n)
-#define VAL_OBJ_KEYLIST(v)  FRM_KEYLIST((v)->data.object.frame)
-#define VAL_OBJ_KEY(v,n)    BLK_SKIP(VAL_OBJ_KEYLIST(v), (n))
-
-#ifdef NDEBUG
-    #define ASSERT_FRAME(f) cast(void, 0)
-#else
-    #define ASSERT_FRAME(f) Assert_Frame_Core(f)
-#endif
-
-
-/***********************************************************************
-**
-**  MODULES - Code isolation units
-**
-**  http://www.rebol.com/r3/docs/concepts/modules-defining.html
-**
-***********************************************************************/
-
-#define SET_MODULE(v,f) \
-    (VAL_SET((v), REB_MODULE), VAL_OBJ_FRAME(v) = (f), NOOP)
-
-#define VAL_MOD_FRAME(v)    ((v)->data.object.frame)
-#define VAL_MOD_BODY(v)     ((v)->data.object.body)
-#define VAL_MOD_SPEC(v)     VAL_FRM_SPEC(VAL_OBJ_VALUES(v))
-
-
-/***********************************************************************
-**
-**  PORTS - External series interface
-**
-***********************************************************************/
-
-#define VAL_PORT(v)         VAL_OBJ_FRAME(v)
-
-
-/***********************************************************************
-**
-**  ERRORS - Error values
-**
-**  At the present time, all ERROR! frames follow an identical
-**  fixed layout.  That layout is in %sysobj.r as standard/error.
-**
-**  Errors can have a maximum of 3 arguments (named arg1, arg2, and
-**  arg3).  There is also an error code which is used to look up
-**  a formatting block that shows where the args are to be inserted
-**  into a message.  The formatting block to use is looked up by
-**  a numeric code established in that table.
-**
-**  !!! The needs of user errors to carry custom information with
-**  custom field names means this rigid design will need to be
-**  enhanced.  System error arguments will likely be named more
-**  meaningfully, but will still use ordering to bridge from the
-**  C calls that create them.
-**
-***********************************************************************/
-
-#define VAL_ERR_OBJECT(v)   VAL_OBJ_FRAME(v)
-
-#define ERR_VALUES(frame)   cast(ERROR_OBJ*, FRM_VALUES(frame))
-#define ERR_NUM(frame)      cast(REBCNT, VAL_INT32(&ERR_VALUES(frame)->code))
-
-#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_ERR_OBJECT(v))
-#define VAL_ERR_NUM(v)      ERR_NUM(VAL_ERR_OBJECT(v))
-
-#ifdef NDEBUG
-    #define ASSERT_ERROR(e) (cast(void, 0))
-#else
-    #define ASSERT_ERROR(e) \
-        Assert_Error_Debug(e)
-#endif
-
 
 /***********************************************************************
 **
@@ -1661,6 +1705,13 @@ struct Reb_Typeset {
 #define VAL_TYPESET_CANON(v) \
     VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_TYPESET_SYM(v)))
 
+// Word number array (used by Bind_Table):
+#define WORDS_HEAD(w) \
+    cast(REBINT *, (w)->data)
+
+#define WORDS_LAST(w) \
+    (WORDS_HEAD(w) + (w)->tail - 1) // (tail never zero)
+
 
 /***********************************************************************
 **
@@ -1731,13 +1782,12 @@ union Reb_Value_Data {
     REBDEC decimal; // actually a C 'double', typically 64-bit
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
     struct Reb_Datatype datatype;
-    struct Reb_Frame frame;
     struct Reb_Typeset typeset;
     struct Reb_Symbol symbol;
     struct Reb_Time time;
     struct Reb_Tuple tuple;
     struct Reb_Function func;
-    struct Reb_Object object; // ERROR!, OBJECT!, PORT!, MODULE!, (TASK!?)
+    struct Reb_Context context; // ERROR!, OBJECT!, PORT!, MODULE!, (TASK!?)
     struct Reb_Pair pair;
     struct Reb_Event event;
     struct Reb_Library library;

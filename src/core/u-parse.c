@@ -283,7 +283,7 @@ static REBCNT Parse_Next_Block(REBPARSE *parse, REBCNT index, const REBVAL *item
             *parse->out = save;
             return THROWN_FLAG;
         }
-        // old: if (IS_ERROR(item)) Throw_Error(VAL_ERR_OBJECT(item));
+        // old: if (IS_ERROR(item)) Throw_Error(VAL_FRAME(item));
         index = MIN(index, series->tail); // may affect tail
         break;
 

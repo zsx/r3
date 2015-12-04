@@ -438,8 +438,8 @@ REBSER *Map_To_Object(REBSER *mapser)
         if (ANY_WORD(mval) && !IS_NONE(mval+1)) cnt++;
     }
 
-    // See Make_Frame() - cannot use it directly because no Collect_Words
-    frame = Make_Frame(cnt, TRUE);
+    // See Alloc_Frame() - cannot use it directly because no Collect_Words
+    frame = Alloc_Frame(cnt, TRUE);
 
     key = FRM_KEY(frame, 1);
     val  = FRM_VALUE(frame, 1);

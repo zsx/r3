@@ -876,7 +876,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     REBVAL *vals = VAL_OBJ_VALUES(value); // first value is context
     REBCNT n;
 
-    assert(VAL_OBJ_FRAME(value));
+    assert(VAL_FRAME(value));
 
     Pre_Mold(value, mold);
 
@@ -922,12 +922,12 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     // Protect against recursion. !!!!
 
     if (molded) {
-        ASSERT_FRAME(VAL_OBJ_FRAME(value));
+        ASSERT_FRAME(VAL_FRAME(value));
         Mold_Object(value, mold);
         return;
     }
 
-    frame = VAL_ERR_OBJECT(value);
+    frame = VAL_FRAME(value);
     err = VAL_ERR_VALUES(value);
 
     // Form: ** <type> Error:
@@ -1237,6 +1237,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
         Mold_Block_Series(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
         End_Mold(mold);
         break;
+
     case REB_LIBRARY:
         Pre_Mold(value, mold);
 
@@ -1247,12 +1248,13 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
 
         End_Mold(mold);
         break;
+
     case REB_CALLBACK:
         Pre_Mold(value, mold);
         Mold_Block_Series(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
         End_Mold(mold);
         break;
-    case REB_FRAME:
+
     case REB_HANDLE:
         // Value has no printable form, so just print its name.
         if (!molded) Emit(mold, "?T?", value);
@@ -1270,7 +1272,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
 
 append:
     Append_Unencoded_Len(ser, s_cast(buf), len);
-
 }
 
 

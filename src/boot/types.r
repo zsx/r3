@@ -90,9 +90,6 @@ command     (function)  -        -       -      *       function
 closure     (function)  *        -       -      *       function
 function    (function)  *        -       -      *       function
 
-;-- we make FRAME! evaluative so the evaluator can see it to crash on it...
-frame       (frame)     -        -       *      -       -
-
 object      object      *        f*      *      *       object
 module      object      *        f*      *      *       object
 error       object      +        f+      *      *       object

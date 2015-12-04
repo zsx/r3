@@ -1413,7 +1413,7 @@ REBFLG Is_Value_Managed(const REBVAL *value, REBFLG thrown_or_end_ok)
 #endif
 
     if (ANY_OBJECT(value)) {
-        REBSER *frame = VAL_OBJ_FRAME(value);
+        REBSER *frame = VAL_FRAME(value);
         if (SERIES_GET_FLAG(frame, SER_MANAGED)) {
             ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
             return TRUE;

@@ -428,7 +428,7 @@ static REBFLG Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
         SET_GOB_DTYPE(gob, GOBD_NONE);
         if (IS_OBJECT(val)) {
             SET_GOB_DTYPE(gob, GOBD_OBJECT);
-            SET_GOB_DATA(gob, VAL_OBJ_FRAME(val));
+            SET_GOB_DATA(gob, VAL_FRAME(val));
         }
         else if (IS_BLOCK(val)) {
             SET_GOB_DTYPE(gob, GOBD_BLOCK);

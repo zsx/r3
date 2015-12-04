@@ -81,7 +81,7 @@ REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
             val = where;
 
         if (IS_OBJECT(val)) {
-            val = Find_Word_Value(VAL_OBJ_FRAME(val), sym);
+            val = Find_Word_Value(VAL_FRAME(val), sym);
             if (val) return val;
         }
     }
@@ -553,7 +553,7 @@ REBNATIVE(delect)
 
     CLEARS(&dia);
 
-    dia.dialect = VAL_OBJ_FRAME(D_ARG(1));
+    dia.dialect = VAL_FRAME(D_ARG(1));
     dia.args = VAL_SERIES(D_ARG(2));
     dia.argi = VAL_INDEX(D_ARG(2));
     dia.out = VAL_SERIES(D_ARG(3));

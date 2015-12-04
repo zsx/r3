@@ -40,7 +40,7 @@
 //
 REBNATIVE(halt)
 {
-    fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
+    fail (VAL_FRAME(TASK_HALT_ERROR));
 }
 
 
@@ -299,7 +299,7 @@ REBNATIVE(in_context)
 {
     REBVAL *value;
     value = D_ARG(1);
-    VAL_OBJ_FRAME(ROOT_USER_CONTEXT) = VAL_OBJ_FRAME(value);
+    VAL_FRAME(ROOT_USER_CONTEXT) = VAL_FRAME(value);
     return R_UNSET;
 }
 #endif
@@ -572,7 +572,7 @@ REBNATIVE(selfless_q)
         frm = VAL_WORD_FRAME(val);
         if (!frm) fail (Error(RE_NOT_BOUND, val));
     }
-    else frm = VAL_OBJ_FRAME(D_ARG(1));
+    else frm = VAL_FRAME(D_ARG(1));
 
     return IS_SELFLESS(frm) ? R_TRUE : R_FALSE;
 }

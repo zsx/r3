@@ -104,26 +104,60 @@ void Check_Bind_Table(void)
     }
 }
 
+
 //
-//  Make_Frame: C
+//  Alloc_Frame: C
 // 
-// Create a frame of a given size, allocating space for both
-// words and values. Normally used for global frames.
+// Create a frame of a given size, allocating space for both words and values.
 //
-REBSER *Make_Frame(REBINT len, REBOOL has_self)
+// This frame will not have its ANY-OBJECT! REBVAL in the [0] position fully
+// configured, hence this is an "Alloc" instead of a "Make" (because there
+// is still work to be done before it will pass ASSERT_FRAME).
+//
+REBSER *Alloc_Frame(REBINT len, REBOOL has_self)
 {
     REBSER *frame;
-    REBSER *words;
+    REBSER *keylist;
     REBVAL *value;
 
-    words = Make_Array(len + 1); // size + room for SELF
+    keylist = Make_Array(len + 1); // size + room for SELF
     frame = Make_Series((len + 1) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME);
     SET_END(BLK_HEAD(frame)); // !!! Needed since we used Make_Series?
 
     // Note: cannot use Append_Frame for first word.
+
+    // frame[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
+    // are building which contains this frame
+    //
     value = Alloc_Tail_Array(frame);
-    SET_FRAME(value, 0, words);
-    value = Alloc_Tail_Array(words);
+    VAL_FRAME(value) = frame;
+    VAL_OBJ_KEYLIST(value) = keylist;
+
+#if !defined(NDEBUG)
+    //
+    // Type of the embedded object cell must be set to REB_OBJECT, REB_MODULE,
+    // REB_PORT, or REB_ERROR.  This information will be mirrored in instances
+    // of an object initialized with this frame.
+    //
+    VAL_SET(FRM_CONTEXT(frame), REB_TRASH);
+
+    // !!! Modules seemed to be using a FRAME-style series for a spec, as
+    // opposed to a simple array.  This is contentious with the plan for what
+    // an object spec will wind up looking like, and may end up being the
+    // "meta" information.
+    //
+    FRM_SPEC(frame) = cast(REBSER*, 0xBAADF00D);
+
+    // Allowed to be set to NULL, but must be done so explicitly
+    //
+    FRM_BODY(frame) = cast(REBSER*, 0xBAADF00D);
+#endif
+
+    // !!! keylist[0] is currently either the symbol SELF or the symbol 0
+    // depending.  This is to be reviewed with the deprecation of SELF as a
+    // keyword in the language.
+    //
+    value = Alloc_Tail_Array(keylist);
     Val_Init_Typeset(value, ALL_64, has_self ? SYM_SELF : SYM_0);
 
     return frame;
@@ -438,16 +472,31 @@ REBSER *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 // Create a new frame from a word list.
 // The values of the frame are initialized to NONE.
 //
-REBSER *Create_Frame(REBSER *words, REBSER *spec)
+REBSER *Create_Frame(REBSER *keylist, REBSER *spec)
 {
-    REBINT len = SERIES_TAIL(words);
-    REBSER *frame = Make_Array(len);
+    REBINT len = SERIES_TAIL(keylist);
+
+    // Make a frame of same size as keylist (END already accounted for)
+    //
+    REBSER *frame = Make_Series(
+        len + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+    );
+
     REBVAL *value = BLK_HEAD(frame);
 
-    SET_FRAME(value, spec, words);
-
     SERIES_TAIL(frame) = len;
-    for (value++, len--; len > 0; len--, value++) SET_NONE(value); // skip first value (self)
+
+    // frame[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
+    //
+    VAL_FRAME(value) = frame;
+    VAL_OBJ_KEYLIST(value) = keylist;
+    VAL_OBJ_BODY(value) = NULL;
+
+    value++;
+    len--;
+
+    for (; len > 0; len--, value++)
+        SET_NONE(value);
     SET_END(value);
 
     return frame;
@@ -468,74 +517,97 @@ void Rebind_Frame(REBSER *src_frame, REBSER *dst_frame)
 
 
 //
-//  Make_Object: C
+//  Make_Frame_Detect: C
 // 
-// Create an object from a parent object and a spec block.
-// The words within the resultant object are not bound.
+// Create a frame by detecting top-level set-words in an array of values.
+// So if the values were the contents of the block `[a: 10 b: 20]` then the
+// resulting frame would be for two words, `a` and `b`.
 //
-REBSER *Make_Object(REBSER *parent, REBVAL value[])
-{
-    REBSER *words;
-    REBSER *object;
+// Optionally a parent frame may be passed in, which will contribute its
+// keylist of words to the result if provided.
+//
+REBSER *Make_Frame_Detect(
+    enum Reb_Kind kind,
+    REBSER *spec,
+    REBSER *body,
+    REBVAL value[],
+    REBSER *opt_parent
+) {
+    REBSER *keylist;
+    REBSER *frame;
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Objects++;
 #endif
 
-    if (!value || IS_END(value)) {
-        if (parent) {
-            object = Copy_Array_Core_Managed(
-                parent,
+    if (IS_END(value)) {
+        if (opt_parent) {
+            frame = Copy_Array_Core_Managed(
+                opt_parent,
                 0, // at
-                SERIES_TAIL(parent), // tail
+                SERIES_TAIL(opt_parent), // tail
                 0, // extra
                 TRUE, // deep
                 TS_CLONE // types
             );
+            SERIES_SET_FLAG(frame, SER_FRAME);
+            FRM_KEYLIST(frame) = FRM_KEYLIST(opt_parent);
+            VAL_FRAME(FRM_CONTEXT(frame)) = frame;
         }
         else {
-            object = Make_Frame(0, TRUE);
-            MANAGE_FRAME(object);
+            frame = Alloc_Frame(0, TRUE);
+            MANAGE_FRAME(frame);
         }
     }
     else {
-        words = Collect_Frame(parent, &value[0], BIND_ONLY); // GC safe
-        object = Create_Frame(words, 0); // GC safe
-        if (parent) {
+        keylist = Collect_Frame(opt_parent, &value[0], BIND_ONLY); // GC safe
+        frame = Create_Frame(keylist, NULL); // GC safe
+        if (opt_parent) {
             if (Reb_Opts->watch_obj_copy)
-                Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 2)), SERIES_TAIL(parent) - 1, FRM_KEYLIST(object));
+                Debug_Fmt(
+                    cs_cast(BOOT_STR(RS_WATCH, 2)),
+                    SERIES_TAIL(opt_parent) - 1,
+                    FRM_KEYLIST(frame)
+                );
 
             // Bitwise copy parent values (will have bits fixed by Clonify)
             memcpy(
-                FRM_VALUES(object) + 1,
-                FRM_VALUES(parent) + 1,
-                (SERIES_TAIL(parent) - 1) * sizeof(REBVAL)
+                FRM_VALUES(frame) + 1,
+                FRM_VALUES(opt_parent) + 1,
+                (SERIES_TAIL(opt_parent) - 1) * sizeof(REBVAL)
             );
 
             // For values we copied that were blocks and strings, replace
             // their series components with deep copies of themselves:
             Clonify_Values_Len_Managed(
-                BLK_SKIP(object, 1), SERIES_TAIL(object) - 1, TRUE, TS_CLONE
+                BLK_SKIP(frame, 1), SERIES_TAIL(frame) - 1, TRUE, TS_CLONE
             );
 
             // The *word series* might have been reused from the parent,
             // based on whether any words were added, or we could have gotten
             // a fresh one back.  Force our invariant here (as the screws
             // tighten...)
-            ENSURE_SERIES_MANAGED(FRM_KEYLIST(object));
-            MANAGE_SERIES(object);
+            ENSURE_SERIES_MANAGED(FRM_KEYLIST(frame));
+            MANAGE_SERIES(frame);
         }
         else {
-            MANAGE_FRAME(object);
+            MANAGE_FRAME(frame);
         }
 
-        assert(words == FRM_KEYLIST(object));
+        assert(keylist == FRM_KEYLIST(frame));
     }
 
-    ASSERT_SERIES_MANAGED(object);
-    ASSERT_SERIES_MANAGED(FRM_KEYLIST(object));
-    ASSERT_FRAME(object);
-    return object;
+    VAL_SET(FRM_CONTEXT(frame), kind);
+    assert(FRM_TYPE(frame) == kind);
+
+    FRM_SPEC(frame) = spec;
+    FRM_BODY(frame) = body;
+
+    ASSERT_SERIES_MANAGED(frame);
+    ASSERT_SERIES_MANAGED(FRM_KEYLIST(frame));
+    ASSERT_FRAME(frame);
+
+    return frame;
 }
 
 
@@ -545,9 +617,15 @@ REBSER *Make_Object(REBSER *parent, REBVAL value[])
 // Construct an object (partial evaluation of block).
 // Parent can be null. Values are rebound.
 //
-REBSER *Construct_Object(REBSER *parent, REBVAL value[], REBFLG as_is)
+REBSER *Construct_Object(REBVAL value[], REBFLG as_is, REBSER *opt_parent)
 {
-    REBSER *frame = Make_Object(parent, &value[0]);
+    REBSER *frame = Make_Frame_Detect(
+        REB_OBJECT, // type
+        EMPTY_ARRAY, // spec
+        NULL, // body
+        &value[0], // values to scan for toplevel set-words
+        opt_parent // parent
+    );
 
     if (NOT_END(value)) Bind_Values_Shallow(&value[0], frame);
 
@@ -643,11 +721,11 @@ void Make_Module(REBVAL *out, const REBVAL *spec)
 REBSER *Make_Module_Spec(REBVAL *spec)
 {
     // Build standard module header object:
-    REBSER *obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
+    REBSER *obj = VAL_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
     REBSER *frame;
 
     if (spec && IS_BLOCK(spec))
-        frame = Construct_Object(obj, VAL_BLK_DATA(spec), FALSE);
+        frame = Construct_Object(VAL_BLK_DATA(spec), FALSE, obj);
     else
         frame = Copy_Array_Shallow(obj);
 
@@ -665,12 +743,14 @@ REBSER *Make_Module_Spec(REBVAL *spec)
 //
 REBSER *Merge_Frames(REBSER *parent1, REBSER *parent2)
 {
-    REBSER *wrds;
+    REBSER *keylist;
     REBSER *child;
     REBVAL *key;
     REBVAL *value;
     REBCNT n;
     REBINT *binds = WORDS_HEAD(Bind_Table);
+
+    assert(FRM_TYPE(parent1) == FRM_TYPE(parent2));
 
     // Merge parent1 and parent2 words.
     // Keep the binding table.
@@ -683,12 +763,22 @@ REBSER *Merge_Frames(REBSER *parent1, REBSER *parent2)
     );
 
     // Allocate child (now that we know the correct size):
-    wrds = Copy_Array_Shallow(BUF_COLLECT);
-    child = Make_Array(SERIES_TAIL(wrds));
+    keylist = Copy_Array_Shallow(BUF_COLLECT);
+    child = Make_Series(
+        SERIES_TAIL(keylist) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+    );
     value = Alloc_Tail_Array(child);
-    VAL_SET(value, REB_FRAME);
-    VAL_FRM_KEYLIST(value) = wrds;
-    VAL_FRM_SPEC(value) = 0;
+
+    // !!! Currently we assume the child will be of the same type as the
+    // parent...so if the parent was an OBJECT! so will the child be, if
+    // the parent was an ERROR! so will the child be.  This is a new idea
+    // in the post-FRAME! design, so review consequences.
+    //
+    VAL_SET(value, FRM_TYPE(parent1));
+    FRM_KEYLIST(child) = keylist;
+    VAL_FRAME(value) = child;
+    VAL_OBJ_SPEC(value) = EMPTY_ARRAY;
+    VAL_OBJ_BODY(value) = NULL;
 
     // Copy parent1 values:
     memcpy(
@@ -707,7 +797,7 @@ REBSER *Merge_Frames(REBSER *parent1, REBSER *parent2)
     }
 
     // Terminate the child frame:
-    SERIES_TAIL(child) = SERIES_TAIL(wrds);
+    SERIES_TAIL(child) = SERIES_TAIL(keylist);
     TERM_ARRAY(child);
 
     // Deep copy the child
@@ -1292,6 +1382,9 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
         // to produce an OBJECT!-style REBVAL lives in the zero offset
         // of the frame, it's not a value that we can return a direct
         // pointer to.  Use GET_VAR_INTO instead for that.
+        //
+        // !!! When SELF is eliminated as a system concept there will not
+        // be a need for the GET_VAR_INTO distinction.
 
         assert(!IS_SELFLESS(context));
         if (trap) fail (Error(RE_SELF_PROTECTED));
@@ -1315,31 +1408,36 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 //
 void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
 {
-    REBSER *context = VAL_WORD_FRAME(word);
+    REBSER *framelike = VAL_WORD_FRAME(word);
 
-    if (context) {
+    if (framelike) {
         REBINT index = VAL_WORD_INDEX(word);
 
         if (index > 0) {
             assert(
                 SAME_SYM(
                     VAL_WORD_SYM(word),
-                    VAL_TYPESET_SYM(FRM_KEYS(context) + index)
+                    VAL_TYPESET_SYM(FRM_KEYS(framelike) + index)
                 )
             );
 
-            *out = *(FRM_VALUES(context) + index);
+            *out = *(FRM_VALUES(framelike) + index);
             assert(!IS_TRASH_DEBUG(out));
             assert(!THROWN(out));
             return;
         }
 
         if (index < 0) {
+            //
+            // "stack relative" and framelike is actually a paramlist of a
+            // function.  So to get the values we have to look on the call
+            // stack to find them, vs. just having access to them in the frame
+            //
             struct Reb_Call *call = DSF;
             while (call) {
                 if (
                     call->mode == CALL_MODE_FUNCTION // see notes on `mode`
-                    && context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
+                    && framelike == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
                 ) {
                     assert(
                         SAME_SYM(
@@ -1361,14 +1459,17 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
             fail (Error(RE_NO_RELATIVE, word));
         }
 
-        // Key difference between Get_Var_Into and Get_Var...fabricating
-        // an object REBVAL.
+        // Key difference between Get_Var_Into and Get_Var...can return a
+        // SELF.  We don't want to give back a direct pointer to it, because
+        // the user being able to modify the [0] slot in a frame would break
+        // system assumptions.
+        //
+        // !!! With the elimination of SELF as a system concept, there should
+        // be no need for Get_Var_Into.
 
-        // !!! Could fake function frames stow the function value itself
-        // so 'binding-of' can return it and use for binding (vs. TRUE)?
-
-        assert(!IS_SELFLESS(context));
-        Val_Init_Object(out, context);
+        assert(!IS_SELFLESS(framelike));
+        assert(ANY_OBJECT(FRM_CONTEXT(framelike)));
+        *out = *FRM_CONTEXT(framelike);
         return;
     }
 
@@ -1449,7 +1550,7 @@ REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
 //
 REBVAL *Obj_Value(REBVAL *value, REBCNT index)
 {
-    REBSER *obj = VAL_OBJ_FRAME(value);
+    REBSER *obj = VAL_FRAME(value);
 
     if (index >= SERIES_TAIL(obj)) return 0;
     return BLK_SKIP(obj, index);
@@ -1487,13 +1588,19 @@ void Assert_Frame_Core(REBSER *frame)
     REBVAL *value;
     REBVAL *key;
     REBINT tail;
-    REBVAL *frame_value; // "FRAME!-typed value" at head of "frame" series
 
     REBCNT keys_len;
     REBCNT values_len;
 
-    frame_value = BLK_HEAD(frame);
-    if (!IS_FRAME(frame_value)) Panic_Series(frame);
+    if (!SERIES_GET_FLAG(frame, SER_FRAME)) {
+        Debug_Fmt("Frame series does not have SER_FRAME flag set");
+        Panic_Series(frame);
+    }
+
+    if (!ANY_OBJECT(BLK_HEAD(frame))) {
+        Debug_Fmt("Element at head of frame is not an ANY_OBJECT");
+        Panic_Series(frame);
+    }
 
     if ((frame == VAL_SERIES(ROOT_ROOT)) || (frame == Task_Series)) {
         // !!! Currently it is allowed that the root frames not

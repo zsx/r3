@@ -253,10 +253,10 @@ void Trap_Stack_Overflow(void)
         // would be a stack overflow during boot.
 
         Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
-        panic (VAL_ERR_OBJECT(TASK_STACK_ERROR));
+        panic (VAL_FRAME(TASK_STACK_ERROR));
     }
 
-    Saved_State->error_frame = VAL_ERR_OBJECT(TASK_STACK_ERROR);
+    Saved_State->error_frame = VAL_FRAME(TASK_STACK_ERROR);
 
     LONG_JUMP(Saved_State->cpu_state, 1);
 }
@@ -318,7 +318,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 {
     // See %errors.r for the list of data which is loaded into the boot
     // file as objects for the "error catalog"
-    REBSER *categories = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+    REBSER *categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
 
     REBSER *category;
     REBCNT n;
@@ -334,7 +334,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
         assert(FALSE);
         return NULL;
     }
-    category = VAL_OBJ_FRAME(FRM_VALUE(categories, n + 1));
+    category = VAL_FRAME(FRM_VALUE(categories, n + 1));
 
     // Find the correct template in the catalog category (see %errors.r)
     n = code % 100; // 0-based order within category
@@ -379,20 +379,6 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 }
 
 
-//
-//  Val_Init_Error: C
-//
-void Val_Init_Error(REBVAL *out, REBSER *frame)
-{
-    ENSURE_FRAME_MANAGED(frame);
-
-    VAL_SET(out, REB_ERROR);
-    VAL_ERR_OBJECT(out) = frame;
-
-    ASSERT_ERROR(out);
-}
-
-
 #if !defined(NDEBUG)
 
 //
@@ -421,9 +407,9 @@ void Val_Init_Error(REBVAL *out, REBSER *frame)
 //
 static REBSER *Make_Guarded_Arg123_Error_Frame(void)
 {
-    REBSER *root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
+    REBSER *root_frame = VAL_FRAME(ROOT_ERROBJ);
     REBCNT len = SERIES_LEN(root_frame);
-    REBSER *frame = Make_Frame(len + 3, TRUE);
+    REBSER *frame = Alloc_Frame(len + 3, TRUE);
     REBVAL *key = FRM_KEY(frame, 0);
     REBVAL *value = FRM_VALUE(frame, 0);
     REBCNT n;
@@ -474,10 +460,12 @@ static REBSER *Make_Guarded_Arg123_Error_Frame(void)
 // maps out the existing landscape so that if it is to be changed
 // then it can be seen exactly what is changing.
 //
-REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
-{
+REBFLG Make_Error_Object_Throws(
+    REBVAL *out, // output location **MUST BE GC SAFE**!
+    REBVAL *arg
+) {
     // Frame from the error object template defined in %sysobj.r
-    REBSER *root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
+    REBSER *root_frame = VAL_FRAME(ROOT_ERROBJ);
 
     REBSER *frame;
     ERROR_OBJ *error_obj;
@@ -494,10 +482,7 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
         // be inconsistent with a Rebol system error, an error will be
         // raised later in the routine.
 
-        frame = Merge_Frames(
-            root_frame,
-            IS_ERROR(arg) ? VAL_ERR_OBJECT(arg) : VAL_OBJ_FRAME(arg)
-        );
+        frame = Merge_Frames(root_frame, VAL_FRAME(arg));
         error_obj = ERR_VALUES(frame);
     }
     else if (IS_BLOCK(arg)) {
@@ -509,7 +494,19 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Object) and code in REBNATIVE(construct))
 
-        frame = Make_Object(root_frame, VAL_BLK_DATA(arg));
+        frame = Make_Frame_Detect(
+            REB_ERROR, // type
+            EMPTY_ARRAY, // spec
+            NULL, // body
+            VAL_BLK_DATA(arg), // values to scan for toplevel set-words
+            root_frame // parent
+        );
+
+        // Protect the frame from GC by putting into out, which must be
+        // passed in as a GC-protecting value slot.
+        //
+        Val_Init_Error(out, frame);
+
         Rebind_Frame(root_frame, frame);
         Bind_Values_Deep(VAL_BLK_DATA(arg), frame);
 
@@ -541,9 +538,14 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
 
         frame = Copy_Array_Shallow(root_frame);
         MANAGE_SERIES(frame);
-        error_obj = ERR_VALUES(frame);
+        FRM_KEYLIST(frame) = FRM_KEYLIST(root_frame);
+        VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+        VAL_SET(FRM_CONTEXT(frame), REB_ERROR);
+        SERIES_SET_FLAG(frame, SER_FRAME);
 
+        error_obj = ERR_VALUES(frame);
         assert(IS_NONE(&error_obj->code));
+
         // fill in RE_USER (1000) later if it passes the check
 
         Val_Init_String(&error_obj->message, Copy_Sequence_At_Position(arg));
@@ -620,7 +622,7 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
         // this may overlap a combination used by Rebol where we wish to
         // fill in the code.  (No fast lookup for this, must search.)
 
-        REBSER *categories = VAL_OBJ_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+        REBSER *categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
         REBVAL *category;
 
         assert(IS_NONE(&error_obj->code));
@@ -646,7 +648,7 @@ REBFLG Make_Error_Object_Throws(REBVAL *out, REBVAL *arg)
 
             // Find correct message for ID: (if any)
             message = Find_Word_Value(
-                VAL_OBJ_FRAME(category), VAL_WORD_SYM(&error_obj->id)
+                VAL_FRAME(category), VAL_WORD_SYM(&error_obj->id)
             );
 
             if (message) {
@@ -787,7 +789,7 @@ REBSER *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
     }
 
     // Safe to initialize the root frame now...
-    root_frame = VAL_OBJ_FRAME(ROOT_ERROBJ);
+    root_frame = VAL_FRAME(ROOT_ERROBJ);
 
     message = Find_Error_For_Code(&id, &type, code);
     assert(message);
@@ -838,19 +840,40 @@ REBSER *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // frame keylist is already managed)
 
         frame = Copy_Array_Shallow(root_frame);
+        SERIES_SET_FLAG(frame, SER_FRAME);
+
+        // !!! Should tweak root frame during boot so it actually is an ERROR!
+        // (or use literal error construction syntax, if it worked?)
+        //
+        VAL_SET(FRM_CONTEXT(frame), REB_ERROR);
+        VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+        FRM_KEYLIST(frame) = FRM_KEYLIST(root_frame);
+        FRM_SPEC(frame) = EMPTY_ARRAY;
+        FRM_BODY(frame) = NULL;
     }
     else {
         REBVAL *key;
         REBVAL *value;
         REBVAL *temp;
+        REBSER *keylist;
 
         // Should the error be well-formed, we'll need room for the new
         // expected values *and* their new keys in the keylist.
         //
         frame = Copy_Array_Extra_Shallow(root_frame, expected_args);
-        FRM_KEYLIST(frame) = Copy_Array_Extra_Shallow(
+        SERIES_SET_FLAG(frame, SER_FRAME);
+        keylist = Copy_Array_Extra_Shallow(
             FRM_KEYLIST(root_frame), expected_args
         );
+        FRM_KEYLIST(frame) = keylist;
+
+        // !!! Should tweak root frame during boot so it actually is an ERROR!
+        // (or use literal error construction syntax, if it worked?)
+        //
+        VAL_SET(FRM_CONTEXT(frame), REB_ERROR);
+        VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+        FRM_SPEC(frame) = EMPTY_ARRAY;
+        FRM_BODY(frame) = NULL;
 
         key = BLK_SKIP(FRM_KEYLIST(frame), SERIES_LEN(root_frame));
         value = BLK_SKIP(frame, SERIES_LEN(root_frame));
@@ -1307,13 +1330,13 @@ void Init_Errors(REBVAL *errors)
 
     // Create error objects and error type objects:
     *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-    errs = Construct_Object(NULL, VAL_BLK_HEAD(errors), FALSE);
+    errs = Construct_Object(VAL_BLK_HEAD(errors), FALSE, NULL);
 
     Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
     // Create objects for all error types:
     for (val = BLK_SKIP(errs, 1); NOT_END(val); val++) {
-        errs = Construct_Object(NULL, VAL_BLK_HEAD(val), FALSE);
+        errs = Construct_Object(VAL_BLK_HEAD(val), FALSE, NULL);
         Val_Init_Object(val, errs);
     }
 }
@@ -1361,7 +1384,7 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
     if (!IS_OBJECT(policy)) goto error;
 
     // Find the security class in the block: (file net call...)
-    policy = Find_Word_Value(VAL_OBJ_FRAME(policy), sym);
+    policy = Find_Word_Value(VAL_FRAME(policy), sym);
     if (!policy) goto error;
 
     // Obtain the policies for it:
@@ -1462,7 +1485,7 @@ void Assert_Error_Debug(const REBVAL *err)
     assert(IS_ERROR(err));
     assert(VAL_ERR_NUM(err) != 0);
 
-    ASSERT_FRAME(VAL_ERR_OBJECT(err));
+    ASSERT_FRAME(VAL_FRAME(err));
 }
 
 #endif

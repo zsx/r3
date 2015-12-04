@@ -323,7 +323,7 @@ REBNATIVE(load_extension)
     REBCNT error;
     REBYTE *code;
     CFUNC *info; // INFO_FUNC
-    REBSER *obj;
+    REBSER *frame;
     REBVAL *val = D_ARG(1);
     REBEXT *ext;
     CFUNC *call; // RXICAL
@@ -373,20 +373,26 @@ REBNATIVE(load_extension)
     ext->index = Ext_Next++;
 
     // Extension return: dll, info, filename
-    obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION));
-    obj = Copy_Array_Shallow(obj);
+    frame = Copy_Array_Shallow(
+        VAL_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION))
+    );
+    SERIES_SET_FLAG(frame, SER_FRAME);
+    FRM_KEYLIST(frame) = FRM_KEYLIST(
+        VAL_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION))
+    );
+    VAL_FRAME(FRM_CONTEXT(frame)) = frame;
 
     // Shallow copy means we reuse STD_EXTENSION's word list, which is
     // already managed.  We manage our copy to match.
-    MANAGE_SERIES(obj);
-    Val_Init_Object(D_OUT, obj);
+    MANAGE_SERIES(frame);
+    Val_Init_Object(D_OUT, frame);
 
     // Set extension fields needed:
-    val = FRM_VALUE(obj, STD_EXTENSION_LIB_BASE);
+    val = FRM_VALUE(frame, STD_EXTENSION_LIB_BASE);
     VAL_SET(val, REB_HANDLE);
     VAL_I32(val) = ext->index;
-    if (!D_REF(2)) *FRM_VALUE(obj, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
-    Val_Init_Binary(FRM_VALUE(obj, STD_EXTENSION_LIB_BOOT), src);
+    if (!D_REF(2)) *FRM_VALUE(frame, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
+    Val_Init_Binary(FRM_VALUE(frame, STD_EXTENSION_LIB_BOOT), src);
 
     return R_OUT;
 }

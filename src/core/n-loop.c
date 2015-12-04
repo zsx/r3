@@ -99,9 +99,13 @@ static REBSER *Init_Loop(const REBVAL *spec, REBVAL *body_blk, REBSER **fram)
     // Hand-make a FRAME (done for for speed):
     len = IS_BLOCK(spec) ? VAL_LEN(spec) : 1;
     if (len == 0) fail (Error_Invalid_Arg(spec));
-    frame = Make_Frame(len, FALSE);
-    SERIES_TAIL(frame) = len+1;
+    frame = Alloc_Frame(len, FALSE);
+    SERIES_TAIL(frame) = len + 1;
     SERIES_TAIL(FRM_KEYLIST(frame)) = len + 1;
+
+    VAL_SET(FRM_CONTEXT(frame), REB_OBJECT);
+    FRM_SPEC(frame) = EMPTY_ARRAY;
+    FRM_BODY(frame) = NULL;
 
     // Setup for loop:
     word = FRM_KEY(frame, 1); // skip SELF
@@ -131,6 +135,8 @@ static REBSER *Init_Loop(const REBVAL *spec, REBVAL *body_blk, REBSER **fram)
     Bind_Values_Deep(BLK_HEAD(body), frame);
 
     *fram = frame;
+
+    ASSERT_FRAME(frame);
 
     return body;
 }
@@ -405,7 +411,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 
     // Get series info:
     if (data_is_object) {
-        series = VAL_OBJ_FRAME(data);
+        series = VAL_FRAME(data);
         out = FRM_KEYLIST(series); // words (the out local reused)
         index = 1;
         //if (frame->tail > 3) fail (Error_Invalid_Arg(FRM_KEY(frame, 3)));
@@ -667,53 +673,73 @@ skip_hidden: ;
 //  ]
 //
 REBNATIVE(for)
-//
-// FOR var start end bump [ body ]
 {
-    REBSER *body;
+    PARAM(1, word);
+    PARAM(2, start);
+    PARAM(3, end);
+    PARAM(4, bump);
+    PARAM(5, body);
+
+    REBSER *body_copy;
     REBSER *frame;
     REBVAL *var;
-    REBVAL *start = D_ARG(2);
-    REBVAL *end   = D_ARG(3);
-    REBVAL *incr  = D_ARG(4);
 
     // Copy body block, make a frame, bind loop var to it:
-    body = Init_Loop(D_ARG(1), D_ARG(5), &frame);
+    body_copy = Init_Loop(ARG(word), ARG(body), &frame);
     var = FRM_VALUE(frame, 1); // safe: not on stack
-    Val_Init_Object(D_ARG(1), frame); // keep GC safe
-    Val_Init_Block(D_ARG(5), body); // keep GC safe
+    Val_Init_Object(ARG(word), frame); // keep GC safe
+    Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
-    if (IS_INTEGER(start) && IS_INTEGER(end) && IS_INTEGER(incr)) {
+    if (
+        IS_INTEGER(ARG(start))
+        && IS_INTEGER(ARG(end))
+        && IS_INTEGER(ARG(bump))
+    ) {
         if (Loop_Integer_Throws(
             D_OUT,
             var,
-            body,
-            VAL_INT64(start),
-            IS_DECIMAL(end) ? (REBI64)VAL_DECIMAL(end) : VAL_INT64(end),
-            VAL_INT64(incr)
+            body_copy,
+            VAL_INT64(ARG(start)),
+            IS_DECIMAL(ARG(end))
+                ? (REBI64)VAL_DECIMAL(ARG(end))
+                : VAL_INT64(ARG(end)),
+            VAL_INT64(ARG(bump))
         )) {
             return R_OUT_IS_THROWN;
         }
     }
-    else if (ANY_SERIES(start)) {
-        if (ANY_SERIES(end)) {
+    else if (ANY_SERIES(ARG(start))) {
+        if (ANY_SERIES(ARG(end))) {
             if (Loop_Series_Throws(
-                D_OUT, var, body, start, VAL_INDEX(end), Int32(incr)
+                D_OUT,
+                var,
+                body_copy,
+                ARG(start),
+                VAL_INDEX(ARG(end)),
+                Int32(ARG(bump))
             )) {
                 return R_OUT_IS_THROWN;
             }
         }
         else {
             if (Loop_Series_Throws(
-                D_OUT, var, body, start, Int32s(end, 1) - 1, Int32(incr)
+                D_OUT,
+                var,
+                body_copy,
+                ARG(start),
+                Int32s(ARG(end), 1) - 1,
+                Int32(ARG(bump))
             )) {
                 return R_OUT_IS_THROWN;
             }
         }
     }
     else {
-        if (Loop_Number_Throws(D_OUT, var, body, start, end, incr))
+        if (Loop_Number_Throws(
+            D_OUT, var, body_copy, ARG(start), ARG(end), ARG(bump)
+        )) {
             return R_OUT_IS_THROWN;
+        }
     }
 
     return R_OUT;

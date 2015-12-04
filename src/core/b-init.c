@@ -126,16 +126,16 @@ static void Assert_Basics(void)
     // directly to Ren/C's API.  But until then, even adapting the RXIARG
     // doesn't seem to get everything to work...so there are bugs.  The
     // struct layout of certain things must line up, notably that the
-    // frame of an ANY-OBJECT! is as the same location as the series
+    // frame of an ANY-CONTEXT! is as the same location as the series
     // of a ANY-SERIES!
     //
     // In the meantime, this limits flexibility which might require the
-    // answer to VAL_OBJ_FRAME() to be different from VAL_SERIES(), and
+    // answer to VAL_FRAME() to be different from VAL_SERIES(), and
     // lead to trouble if one call were used in lieu of the other.
     // Revisit after RXIARG dependencies have been eliminated.
 
     if (
-        offsetof(struct Reb_Object, frame)
+        offsetof(struct Reb_Context, frame)
         != offsetof(struct Reb_Position, series)
     ) {
         panic (Error(RE_MISC));
@@ -461,18 +461,35 @@ REBNATIVE(context)
 // 
 // Note: Overlaps MAKE OBJECT! code (REBTYPE(Object)'s A_MAKE)
 {
-    REBVAL *spec = D_ARG(1);
-    REBVAL evaluated;
+    PARAM(1, spec);
 
-    Val_Init_Object(D_OUT, Make_Object(0, VAL_BLK_HEAD(spec)));
-    Bind_Values_Deep(VAL_BLK_HEAD(spec), VAL_OBJ_FRAME(D_OUT));
+    Val_Init_Object(
+        D_OUT,
+        Make_Frame_Detect(
+            REB_OBJECT, // kind
+            EMPTY_ARRAY, // spec
+            NULL, // body
+            VAL_BLK_HEAD(ARG(spec)), // values to scan for toplevel SET_WORDs
+            NULL // parent
+        )
+    );
 
-    if (DO_ARRAY_THROWS(&evaluated, spec)) {
-        *D_OUT = evaluated;
+    // !!! This mutates the bindings of the spec block passed in, should it
+    // be making a copy instead (at least by default, perhaps with performance
+    // junkies saying `object/bind` or something like that?
+    //
+    Bind_Values_Deep(VAL_BLK_HEAD(ARG(spec)), VAL_FRAME(D_OUT));
+
+    // The evaluative result of running the spec is ignored and done into a
+    // scratch cell, but needs to be returned if a throw happens.
+    //
+    if (DO_ARRAY_THROWS(D_CELL, ARG(spec))) {
+        *D_OUT = *D_CELL;
         return R_OUT_IS_THROWN;
     }
 
     // On success, return the object (common case)
+    //
     return R_OUT;
 }
 
@@ -613,11 +630,17 @@ static void Init_Root_Context(void)
 
     // Get first value (the SELF for the context):
     value = ROOT_SELF;
-    SET_FRAME(value, 0, 0); // No words or spec (at first)
+
+    // No keylist of words (at first)
+    // !!! Also no `body` (or `spec`, not yet implemented); revisit
+    VAL_SET(value, REB_OBJECT);
+    VAL_FRAME(value) = frame;
+    VAL_OBJ_KEYLIST(value) = NULL;
+    VAL_OBJ_BODY(value) = NULL;
 
     // Set all other values to NONE:
-    for (n = 1; n < ROOT_MAX; n++) SET_NONE(value+n);
-    SET_END(value+ROOT_MAX);
+    for (n = 1; n < ROOT_MAX; n++) SET_NONE(value + n);
+    SET_END(value + ROOT_MAX);
     SERIES_TAIL(frame) = ROOT_MAX;
 
     // Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
@@ -690,6 +713,7 @@ static void Init_Task_Context(void)
     REBVAL *value;
     REBINT n;
     REBSER *frame;
+    REBSER *task_words;
 
     //Print_Str("Task Context");
 
@@ -704,7 +728,13 @@ static void Init_Task_Context(void)
 
     // Get first value (the SELF for the context):
     value = TASK_SELF;
-    SET_FRAME(value, 0, 0); // No words or spec (at first)
+
+    // No keylist of words (at first)
+    // !!! Also no `body` (or `spec`, not yet implemented); revisit
+    VAL_SET(value, REB_OBJECT);
+    VAL_FRAME(value) = frame;
+    VAL_OBJ_KEYLIST(value) = NULL;
+    VAL_OBJ_BODY(value) = NULL;
 
     // Set all other values to NONE:
     for (n = 1; n < TASK_MAX; n++) SET_NONE(value+n);
@@ -740,7 +770,14 @@ static void Init_System_Object(void)
     // subobjects of the system object.
 
     // Create the system object from the sysobj block and bind its fields:
-    frame = Make_Object(0, VAL_BLK_HEAD(&Boot_Block->sysobj));
+    frame = Make_Frame_Detect(
+        REB_OBJECT, // type
+        EMPTY_ARRAY, // spec
+        NULL, // body
+        VAL_BLK_HEAD(&Boot_Block->sysobj), // scan for toplevel set-words
+        NULL // parent
+    );
+
     Bind_Values_Deep(VAL_BLK_HEAD(&Boot_Block->sysobj), Lib_Context);
 
     // Bind it so CONTEXT native will work (only used at topmost depth):
@@ -782,7 +819,10 @@ static void Init_System_Object(void)
 
     // Create system/codecs object:
     value = Get_System(SYS_CODECS, 0);
-    frame = Make_Frame(10, TRUE);
+    frame = Alloc_Frame(10, TRUE);
+    VAL_SET(FRM_CONTEXT(frame), REB_OBJECT);
+    FRM_SPEC(frame) = EMPTY_ARRAY;
+    FRM_BODY(frame) = NULL;
     Val_Init_Object(value, frame);
 
     // Set system/words to be the main context:
@@ -811,7 +851,7 @@ static void Init_Contexts_Object(void)
     // Make the boot context - used to store values created
     // during boot, but processed in REBOL code (e.g. codecs)
 //  value = Get_System(SYS_CONTEXTS, CTX_BOOT);
-//  frame = Make_Frame(4, TRUE);
+//  frame = Alloc_Frame(4, TRUE);
 //  Val_Init_Object(value, frame);
 }
 
@@ -975,7 +1015,7 @@ void Register_Codec(const REBYTE *name, codo dispatcher)
     REBVAL *value = Get_System(SYS_CODECS, 0);
     REBCNT sym = Make_Word(name, LEN_BYTES(name));
 
-    value = Append_Frame(VAL_OBJ_FRAME(value), 0, sym);
+    value = Append_Frame(VAL_FRAME(value), 0, sym);
     SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));
 }
 
@@ -1274,8 +1314,16 @@ void Init_Core(REBARGS *rargs)
     Init_Mold(MIN_COMMON);  // Output buffer
     Init_Frame();           // Frames
 
-    Lib_Context = Make_Frame(600, TRUE); // !! Have MAKE-BOOT compute # of words
-    Sys_Context = Make_Frame(50, TRUE);
+    // !!! Have MAKE-BOOT compute # of words
+    //
+    Lib_Context = Alloc_Frame(600, TRUE);
+    VAL_SET(FRM_CONTEXT(Lib_Context), REB_OBJECT);
+    FRM_SPEC(Lib_Context) = EMPTY_ARRAY;
+    FRM_BODY(Lib_Context) = NULL;
+    Sys_Context = Alloc_Frame(50, TRUE);
+    VAL_SET(FRM_CONTEXT(Sys_Context), REB_OBJECT);
+    FRM_SPEC(Sys_Context) = EMPTY_ARRAY;
+    FRM_BODY(Sys_Context) = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available
@@ -1289,8 +1337,24 @@ void Init_Core(REBARGS *rargs)
     );
     LABEL_SERIES(PG_Root_Words, "root words");
     MANAGE_SERIES(PG_Root_Words);
-    VAL_FRM_KEYLIST(ROOT_SELF) = PG_Root_Words;
+    VAL_OBJ_KEYLIST(ROOT_SELF) = PG_Root_Words;
+    VAL_OBJ_SPEC(ROOT_SELF) = EMPTY_ARRAY;
+    VAL_OBJ_KEYLIST(FRM_CONTEXT(VAL_FRAME(ROOT_SELF))) = PG_Root_Words;
     Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));
+
+    // Get the words of the TASK context (to avoid it being an exception case)
+    TG_Task_Words = Collect_Frame(
+        NULL, VAL_BLK_HEAD(&Boot_Block->task), BIND_ALL
+    );
+    LABEL_SERIES(TG_Task_Words, "task words");
+    MANAGE_SERIES(TG_Task_Words);
+    VAL_OBJ_KEYLIST(TASK_SELF) = TG_Task_Words;
+    VAL_OBJ_SPEC(TASK_SELF) = EMPTY_ARRAY;
+    VAL_OBJ_KEYLIST(FRM_CONTEXT(VAL_FRAME(TASK_SELF))) = TG_Task_Words;
+
+    // Is it necessary to put the above into an object like for ROOT?
+    /*Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));*/
+
 
     // Create main values:
     DOUT("Level 3");

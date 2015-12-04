@@ -413,9 +413,9 @@ REBNATIVE(construct)
         value = D_OUT;
     }
 
-    if (D_REF(2)) parent = VAL_OBJ_FRAME(D_ARG(3));
+    if (D_REF(2)) parent = VAL_FRAME(D_ARG(3));
 
-    frame = Construct_Object(parent, VAL_BLK_DATA(value), D_REF(4));
+    frame = Construct_Object(VAL_BLK_DATA(value), D_REF(4), parent);
     Val_Init_Object(D_OUT, frame);
 
     return R_OUT;

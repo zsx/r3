@@ -112,27 +112,30 @@ static void Set_File_Date(REBREQ *file, REBVAL *val)
 void Ret_Query_File(REBSER *port, REBREQ *file, REBVAL *ret)
 {
     REBVAL *info = In_Object(port, STD_PORT_SCHEME, STD_SCHEME_INFO, 0);
-    REBSER *obj;
+    REBSER *frame;
     REBSER *ser;
 
     if (!info || !IS_OBJECT(info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
-    MANAGE_SERIES(obj);
+    frame = Copy_Array_Shallow(VAL_FRAME(info));
+    FRM_KEYLIST(frame) = FRM_KEYLIST(VAL_FRAME(info));
+    VAL_FRAME(FRM_CONTEXT(frame)) = frame;
+    SERIES_SET_FLAG(frame, SER_FRAME);
+    MANAGE_SERIES(frame);
 
-    Val_Init_Object(ret, obj);
+    Val_Init_Object(ret, frame);
     Val_Init_Word_Unbound(
-        OFV(obj, STD_FILE_INFO_TYPE),
+        OFV(frame, STD_FILE_INFO_TYPE),
         REB_WORD,
         GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE
     );
-    SET_INTEGER(OFV(obj, STD_FILE_INFO_SIZE), file->special.file.size);
-    Set_File_Date(file, OFV(obj, STD_FILE_INFO_DATE));
+    SET_INTEGER(OFV(frame, STD_FILE_INFO_SIZE), file->special.file.size);
+    Set_File_Date(file, OFV(frame, STD_FILE_INFO_DATE));
 
     ser = To_REBOL_Path(file->special.file.path, 0, OS_WIDE, 0);
 
-    Val_Init_File(OFV(obj, STD_FILE_INFO_NAME), ser);
+    Val_Init_File(OFV(frame, STD_FILE_INFO_NAME), ser);
 }
 
 

@@ -145,8 +145,8 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
             REBSER *series;
 
             if (ANY_OBJECT(value)) {
-                series = Copy_Array_Shallow(VAL_OBJ_FRAME(value));
-                VAL_OBJ_FRAME(value) = series;
+                series = Copy_Array_Shallow(VAL_FRAME(value));
+                VAL_FRAME(value) = series;
             }
             else {
                 if (Is_Array_Series(VAL_SERIES(value)))
@@ -375,7 +375,7 @@ REBINT Find_Same_Block(REBSER *blk, const REBVAL *val)
     if (VAL_TYPE(val) >= REB_BLOCK && VAL_TYPE(val) <= REB_MAP)
         compare = VAL_SERIES(val);
     else if (VAL_TYPE(val) >= REB_BLOCK && VAL_TYPE(val) <= REB_PORT)
-        compare = VAL_OBJ_FRAME(val);
+        compare = VAL_FRAME(val);
     else {
         assert(FALSE);
         DEAD_END;
@@ -391,7 +391,7 @@ REBINT Find_Same_Block(REBSER *blk, const REBVAL *val)
         if (
             VAL_TYPE(bp) >= REB_OBJECT &&
             VAL_TYPE(bp) <= REB_PORT &&
-            VAL_OBJ_FRAME(bp) == compare
+            VAL_FRAME(bp) == compare
         ) return index+1;
     }
     return -1;
@@ -413,7 +413,7 @@ void Unmark(REBVAL *val)
     if (ANY_SERIES(val))
         series = VAL_SERIES(val);
     else if (IS_OBJECT(val) || IS_MODULE(val) || IS_ERROR(val) || IS_PORT(val))
-        series = VAL_OBJ_FRAME(val);
+        series = VAL_FRAME(val);
     else
         return;
 

@@ -640,7 +640,7 @@ void Do_Signals(void)
     if (GET_FLAG(sigs, SIG_ESCAPE) && PG_Boot_Phase >= BOOT_MEZZ) {
         CLR_SIGNAL(SIG_ESCAPE);
         Eval_Sigmask = mask;
-        fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
+        fail (VAL_FRAME(TASK_HALT_ERROR));
     }
 
     Eval_Sigmask = mask;
@@ -1942,14 +1942,6 @@ reevaluate:
         c->index++;
         break;
 
-    // [FRAME!]
-    //
-    case REB_FRAME:
-        //
-        // !!! Frame is slated for destruction, to be replaced by OBJECT!
-        //
-        panic (Error(RE_BAD_EVALTYPE, Get_Type(VAL_TYPE(c->value))));
-
     // *** [ANY-(other)-TYPE!] ***
     //
     default:
@@ -2911,11 +2903,11 @@ REBSER *Resolve_Path(REBVAL *path, REBCNT *index)
     sel = BLK_SKIP(blk, 1);
     while (TRUE) {
         if (!ANY_OBJECT(val) || !IS_WORD(sel)) return 0;
-        i = Find_Word_Index(VAL_OBJ_FRAME(val), VAL_WORD_SYM(sel), FALSE);
+        i = Find_Word_Index(VAL_FRAME(val), VAL_WORD_SYM(sel), FALSE);
         sel++;
         if (IS_END(sel)) {
             *index = i;
-            return VAL_OBJ_FRAME(val);
+            return VAL_FRAME(val);
         }
     }
 

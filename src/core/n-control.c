@@ -104,7 +104,7 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 //
 void Protect_Object(REBVAL *value, REBCNT flags)
 {
-    REBSER *series = VAL_OBJ_FRAME(value);
+    REBSER *series = VAL_FRAME(value);
 
     if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
@@ -985,7 +985,7 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_ERR_OBJECT(ARG(value)));
+        fail (VAL_FRAME(ARG(value)));
 
     case REB_TASK:
         Do_Task(ARG(value));
@@ -1061,7 +1061,7 @@ REBNATIVE(fail)
     REBVAL * const reason = D_ARG(1);
 
     if (IS_ERROR(reason)) {
-        fail (VAL_ERR_OBJECT(reason));
+        fail (VAL_FRAME(reason));
     }
     else if (IS_STRING(reason) || IS_BLOCK(reason)) {
         // Ultimately we'd like FAIL to use some clever error-creating
@@ -1123,7 +1123,7 @@ REBNATIVE(fail)
             return R_OUT_IS_THROWN;
         }
 
-        fail (VAL_ERR_OBJECT(D_OUT));
+        fail (VAL_FRAME(D_OUT));
     }
 
     DEAD_END;

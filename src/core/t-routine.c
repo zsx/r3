@@ -855,7 +855,7 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
              VAL_ROUTINE_FUNCPTR(rot),
              rvalue,
              ffi_args);
-    if (IS_ERROR(&Callback_Error)) fail (VAL_ERR_OBJECT(&Callback_Error));
+    if (IS_ERROR(&Callback_Error)) fail (VAL_FRAME(&Callback_Error));
 
     ffi_to_rebol(VAL_ROUTINE_INFO(rot), ((ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot)))[0], rvalue, ret);
 

@@ -344,8 +344,8 @@ REBVAL *Get_Field(REBSER *obj, REBCNT index)
 //
 REBVAL *Get_Object(const REBVAL *objval, REBCNT index)
 {
-    REBSER *obj = VAL_OBJ_FRAME(objval);
-    assert(IS_FRAME(BLK_HEAD(obj)));
+    REBSER *obj = VAL_FRAME(objval);
+    assert(SERIES_GET_FLAG(obj, SER_FRAME));
     assert(index < SERIES_TAIL(obj));
     return FRM_VALUES(obj) + index;
 }
@@ -374,7 +374,7 @@ REBVAL *In_Object(REBSER *base, ...)
             va_end(args);
             return 0;
         }
-        base = VAL_OBJ_FRAME(obj);
+        base = VAL_FRAME(obj);
     }
     va_end(args);
 
@@ -394,7 +394,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
     obj = VAL_OBJ_VALUES(ROOT_SYSTEM) + i1;
     if (!i2) return obj;
     assert(IS_OBJECT(obj));
-    return Get_Field(VAL_OBJ_FRAME(obj), i2);
+    return Get_Field(VAL_FRAME(obj), i2);
 }
 
 
@@ -417,7 +417,7 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 REBSER *Make_Std_Object_Managed(REBCNT index)
 {
     REBSER *result = Copy_Array_Shallow(
-        VAL_OBJ_FRAME(Get_System(SYS_STANDARD, index))
+        VAL_FRAME(Get_System(SYS_STANDARD, index))
     );
     // The system object is accessible by the user, and all of its
     // content is managed already.  We copy the frame shallowly,
@@ -489,27 +489,41 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 
 
 //
-//  Val_Init_Object: C
+//  Val_Init_Context: C
 //
-void Val_Init_Object(REBVAL *value, REBSER *series)
-{
-    ENSURE_FRAME_MANAGED(series);
+// Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
+//
+void Val_Init_Context(
+    REBVAL *value,
+    enum Reb_Kind kind,
+    REBSER *frame,
+    REBSER *spec,
+    REBSER *body
+) {
+#if !defined(NDEBUG)
+    if (!FRM_KEYLIST(frame)) {
+        Debug_Fmt("Frame found with no keylist set");
+        Panic_Series(frame);
+    }
+#endif
 
-    VAL_SET(value, REB_OBJECT);
-    VAL_OBJ_FRAME(value) = series;
+    ENSURE_FRAME_MANAGED(frame);
+
+    assert(SERIES_GET_FLAG(frame, SER_FRAME));
+
+    assert(FRM_TYPE(frame) == kind);
+    assert(VAL_FRAME(FRM_CONTEXT(frame)) == frame);
+    assert(VAL_OBJ_SPEC(FRM_CONTEXT(frame)) == spec);
+    assert(VAL_OBJ_BODY(FRM_CONTEXT(frame)) == body);
+
+    VAL_SET(value, kind);
+    VAL_FRAME(value) = frame;
+    VAL_OBJ_SPEC(value) = spec;
+    VAL_OBJ_BODY(value) = body;
+
+    assert(ANY_OBJECT(value));
 }
 
-
-//
-//  Val_Init_Port: C
-//
-void Val_Init_Port(REBVAL *value, REBSER *series)
-{
-    ENSURE_FRAME_MANAGED(series);
-
-    VAL_SET(value, REB_PORT);
-    VAL_OBJ_FRAME(value) = series;
-}
 
 //
 //  Val_Series_Len: C

@@ -121,7 +121,7 @@ REBFLG Pending_Port(REBVAL *port)
     REBREQ *req;
 
     if (IS_PORT(port)) {
-        state = BLK_SKIP(VAL_PORT(port), STD_PORT_STATE);
+        state = BLK_SKIP(VAL_FRAME(port), STD_PORT_STATE);
         if (IS_BINARY(state)) {
             req = (REBREQ*)VAL_BIN(state);
             if (!GET_FLAG(req->flags, RRF_PENDING)) return FALSE;
@@ -207,7 +207,7 @@ REBINT Wait_Ports(REBSER *ports, REBCNT timeout, REBINT only)
     while (wt) {
         if (GET_SIGNAL(SIG_ESCAPE)) {
             CLR_SIGNAL(SIG_ESCAPE);
-            fail (VAL_ERR_OBJECT(TASK_HALT_ERROR));
+            fail (VAL_FRAME(TASK_HALT_ERROR));
         }
 
         // Process any waiting events:
@@ -285,7 +285,7 @@ void Sieve_Ports(REBSER *ports)
 REBCNT Find_Action(REBVAL *object, REBCNT action)
 {
     return Find_Word_Index(
-        VAL_OBJ_FRAME(object), Get_Action_Sym(action), FALSE
+        VAL_FRAME(object), Get_Action_Sym(action), FALSE
     );
 }
 
@@ -306,12 +306,12 @@ int Do_Port_Action(struct Reb_Call *call_, REBSER *port, REBCNT action)
 
     assert(action < A_MAX_ACTION);
 
+    assert(SERIES_GET_FLAG(port, SER_FRAME));
+
     // Verify valid port (all of these must be false):
     if (
         // Must be = or larger than std port:
         (SERIES_TAIL(port) < STD_PORT_MAX) ||
-        // Must be an object series:
-        !IS_FRAME(BLK_HEAD(port)) ||
         // Must have a spec object:
         !IS_OBJECT(BLK_SKIP(port, STD_PORT_SPEC))
     ) {
@@ -393,11 +393,12 @@ void Secure_Port(REBCNT kind, REBREQ *req, REBVAL *name, REBSER *path)
 //
 void Validate_Port(REBSER *port, REBCNT action)
 {
+    assert(SERIES_GET_FLAG(port, SER_FRAME));
+
     if (
         action >= A_MAX_ACTION
         || port->tail > 50
         || SERIES_WIDE(port) != sizeof(REBVAL)
-        || !IS_FRAME(BLK_HEAD(port))
         || !IS_OBJECT(BLK_SKIP(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));

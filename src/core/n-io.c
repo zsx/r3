@@ -469,7 +469,7 @@ REBNATIVE(wake_up)
 // Calls port awake function.
 {
     REBVAL *val = D_ARG(1);
-    REBSER *port = VAL_PORT(val);
+    REBSER *port = VAL_FRAME(val);
     REBOOL awakened = TRUE; // start by assuming success
 
     if (SERIES_TAIL(port) < STD_PORT_MAX) panic (Error(RE_MISC));
@@ -1003,7 +1003,7 @@ REBNATIVE(call)
     if (input_ser) DROP_GUARD_SERIES(input_ser);
 
     if (flag_info) {
-        REBSER *obj = Make_Frame(2, TRUE);
+        REBSER *obj = Alloc_Frame(2, TRUE);
         REBVAL *val = Append_Frame(obj, NULL, SYM_ID);
         SET_INTEGER(val, pid);
 

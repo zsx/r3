@@ -50,7 +50,7 @@ static void Ret_Query_Net(REBSER *port, REBREQ *sock, REBVAL *ret)
     if (!info || !IS_OBJECT(info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    obj = Copy_Array_Shallow(VAL_OBJ_FRAME(info));
+    obj = Copy_Array_Shallow(VAL_FRAME(info));
     MANAGE_SERIES(obj);
 
     Val_Init_Object(ret, obj);
