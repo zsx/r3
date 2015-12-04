@@ -158,7 +158,7 @@ do*: function [
 make-module*: func [
     "SYS: Called by system on MAKE of MODULE! datatype."
     spec [block!] "As [spec-block body-block opt-mixins-object]"
-    /local body obj mixins hidden w
+    /local body obj mixins hidden w mod
 ][
     ; There may be no mixins argument.  This touches upon questions about the
     ; potentional prevention of "reified" UNSET! as a value that can occur in
@@ -199,58 +199,89 @@ make-module*: func [
 
     ; Collect 'export keyword exports, removing the keywords
     if find body 'export [
-        unless block? select spec 'exports [repend spec ['exports make block! 10]]
-        ; Note: 'export overrides 'hidden, silently for now
-        parse body [while [to 'export remove skip opt remove 'hidden opt [
-            set w any-word! (
-                unless find spec/exports w: to word! w [append spec/exports w]
-            ) |
-            set w block! (append spec/exports collect-words/ignore w spec/exports)
-        ]] to end]
-    ]
+        unless block? select spec 'exports [
+            repend spec ['exports make block! 10]
+        ]
 
-    ; Add exported words at top of context (performance):
-    if block? select spec 'exports [bind/new spec/exports obj]
+        ; Note: 'export overrides 'hidden, silently for now
+        parse body [while [
+            to 'export remove skip opt remove 'hidden opt
+            [
+                set w any-word! (
+                    unless find spec/exports w: to word! w [
+                        append spec/exports w
+                    ]
+                )
+            |
+                set w block! (
+                    append spec/exports collect-words/ignore w spec/exports
+                )
+            ]
+        ] to end]
+    ]
 
     ; Collect 'hidden keyword words, removing the keywords. Ignore exports.
     hidden: none
     if find body 'hidden [
         hidden: make block! 10
         ; Note: Exports are not hidden, silently for now
-        parse body [while [to 'hidden remove skip opt [
-            set w any-word! (
-                unless find select spec 'exports w: to word! w [append hidden w]
-            ) |
-            set w block! (append hidden collect-words/ignore w select spec 'exports)
-        ]] to end]
+        parse body [while [
+            to 'hidden remove skip opt
+            [
+                set w any-word! (
+                    unless find select spec 'exports w: to word! w [
+                        append hidden w]
+                )
+            |
+                set w block! (
+                    append hidden collect-words/ignore w select spec 'exports
+                )
+            ]
+        ] to end]
     ]
 
     ; Add hidden words next to the context (performance):
     if block? hidden [bind/new hidden obj]
 
+    if block? hidden [protect/hide/words hidden]
+
+    mod: to module! reduce [spec obj]
+
+    ; Add exported words at top of context (performance):
+    if block? select spec 'exports [bind/new spec/exports mod]
+
     either find spec/options 'isolate [
+        ;
         ; All words of the module body are module variables:
-        bind/new body obj
+        ;
+        bind/new body mod
+
         ; The module keeps its own variables (not shared with system):
-        if object? mixins [resolve obj mixins]
-        ;resolve obj sys -- no longer done -Carl
-        resolve obj lib
+        ;
+        if object? mixins [resolve mod mixins]
+
+        comment [resolve mod sys] ; no longer done -Carl
+
+        resolve mod lib
     ][
         ; Only top level defined words are module variables.
-        bind/only/set body obj
+        ;
+        bind/only/set body mod
+
         ; The module shares system exported variables:
+        ;
         bind body lib
-        ;bind body sys -- no longer done -Carl
+
+        comment [bind body sys] ; no longer done -Carl
+
         if object? mixins [bind body mixins]
     ]
 
-    bind body obj
-    if block? hidden [protect/hide/words hidden]
-    obj: to module! reduce [spec obj]
+    bind body mod ;-- redundant?
     do body
 
     ;print ["Module created" spec/name spec/version]
-    obj
+    mod
 ]
 
 ; MOVE some of these to SYSTEM?
