@@ -103,13 +103,6 @@
 REBSER *Watcher = 0;
 REBVAL *WatchVar = 0;
 REBVAL *GC_Break_Point(REBVAL *val) {return val;}
-REBVAL *N_watch(struct Reb_Frame *frame, REBVAL **inter_block)
-{
-    WatchVar = Get_Word(FRM_ARG1(frame));
-    Watcher = VAL_SERIES(WatchVar);
-    SET_INTEGER(FRM_ARG1(frame), 0);
-    return Nothing;
-}
 #endif
 
 // This can be put below
