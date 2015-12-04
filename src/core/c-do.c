@@ -2230,7 +2230,7 @@ REBFLG Reduce_Block_No_Set_Throws(REBVAL *out, REBSER *block, REBCNT index, REBO
 
 
 //
-//  Compose_Block_Throws: C
+//  Compose_Values_Throws: C
 // 
 // Compose a block from a block of un-evaluated values and
 // paren blocks that are evaluated.  Performs evaluations, so
