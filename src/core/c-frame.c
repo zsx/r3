@@ -743,7 +743,7 @@ void Resolve_Context(REBSER *target, REBSER *source, REBVAL *only_words, REBFLG 
 
     CHECK_BIND_TABLE;
 
-    if (IS_PROTECT_SERIES(target)) fail (Error(RE_PROTECTED));
+    FAIL_IF_PROTECTED(target);
 
     if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
         i = VAL_INT32(only_words); // never <= 0

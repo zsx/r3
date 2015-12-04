@@ -523,8 +523,8 @@ REBTYPE(Bitset)
     REBINT diff;
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(VAL_SERIES(value)))
-        fail (Error(RE_PROTECTED));
+    if (action >= A_TAKE && action <= A_SORT)
+        FAIL_IF_PROTECTED(VAL_SERIES(value));
 
     switch (action) {
 

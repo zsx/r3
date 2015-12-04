@@ -270,7 +270,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     if (into) {
         series = VAL_SERIES(into);
 
-        if (IS_PROTECT_SERIES(series)) fail (Error(RE_PROTECTED));
+        FAIL_IF_PROTECTED(series);
 
         if (ANY_ARRAY(into)) {
             // When the target is an any-block, we can do an ordinary

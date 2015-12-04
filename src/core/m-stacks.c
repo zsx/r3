@@ -118,7 +118,9 @@ void Pop_Stack_Values(REBVAL *out, REBINT dsp_start, REBOOL into)
     if (into) {
         assert(ANY_ARRAY(out));
         series = VAL_SERIES(out);
-        if (IS_PROTECT_SERIES(series)) fail (Error(RE_PROTECTED));
+
+        FAIL_IF_PROTECTED(series);
+
         VAL_INDEX(out) = Insert_Series(
             series, VAL_INDEX(out), cast(REBYTE*, values), len
         );

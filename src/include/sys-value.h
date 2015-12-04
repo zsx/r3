@@ -610,7 +610,7 @@ enum {
     SER_EXTERNAL    = 1 << 3,   // ->data is external, don't free() on GC
     SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
     SER_ARRAY       = 1 << 5,   // is sizeof(REBVAL) wide and has valid values
-    SER_PROT        = 1 << 6,   // protected from modification
+    SER_PROTECT     = 1 << 6,   // protected from modification
     SER_POWER_OF_2  = 1 << 7    // true alloc size is rounded to power of 2
 };
 
@@ -621,11 +621,9 @@ enum {
 #define LOCK_SERIES(s)    SERIES_SET_FLAG(s, SER_LOCK)
 #define IS_LOCK_SERIES(s) SERIES_GET_FLAG(s, SER_LOCK)
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
-#define PROTECT_SERIES(s) SERIES_SET_FLAG(s, SER_PROT)
-#define UNPROTECT_SERIES(s)  SERIES_CLR_FLAG(s, SER_PROT)
-#define IS_PROTECT_SERIES(s) SERIES_GET_FLAG(s, SER_PROT)
 
-#define TRAP_PROTECT(s) if (IS_PROTECT_SERIES(s)) fail (Error(RE_PROTECTED))
+#define FAIL_IF_PROTECTED(s) \
+    if (SERIES_GET_FLAG(s, SER_PROTECT)) fail (Error(RE_PROTECTED))
 
 #ifdef SERIES_LABELS
 #define LABEL_SERIES(s,l) s->label = (l)

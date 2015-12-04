@@ -83,9 +83,9 @@ void Protect_Series(REBVAL *val, REBCNT flags)
     if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        PROTECT_SERIES(series);
+        SERIES_SET_FLAG(series, SER_PROTECT);
     else
-        UNPROTECT_SERIES(series);
+        SERIES_CLR_FLAG(series, SER_PROTECT);
 
     if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
@@ -108,8 +108,8 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 
     if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
-    if (GET_FLAG(flags, PROT_SET)) PROTECT_SERIES(series);
-    else UNPROTECT_SERIES(series);
+    if (GET_FLAG(flags, PROT_SET)) SERIES_SET_FLAG(series, SER_PROTECT);
+    else SERIES_CLR_FLAG(series, SER_PROTECT);
 
     for (value = FRM_KEYS(series)+1; NOT_END(value); value++) {
         Protect_Key(value, flags);

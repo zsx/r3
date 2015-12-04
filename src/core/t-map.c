@@ -326,7 +326,7 @@ REBINT PD_Map(REBPVS *pvs)
 
     if (!n) return PE_NONE;
 
-    TRAP_PROTECT(VAL_SERIES(data));
+    FAIL_IF_PROTECTED(VAL_SERIES(data));
     pvs->value = VAL_BLK_SKIP(data, ((n-1)*2)+1);
     return PE_OK;
 }
@@ -481,10 +481,8 @@ REBTYPE(Map)
         series = VAL_SERIES(val);
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT) {
-        if(IS_PROTECT_SERIES(series))
-            fail (Error(RE_PROTECTED));
-    }
+    if (action >= A_TAKE && action <= A_SORT)
+        FAIL_IF_PROTECTED(series);
 
     switch (action) {
 

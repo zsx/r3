@@ -439,7 +439,7 @@ REBINT PD_String(REBPVS *pvs)
     else
         return PE_BAD_SELECT;
 
-    TRAP_PROTECT(ser);
+    FAIL_IF_PROTECTED(ser);
 
     if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser, TRUE);
     SET_ANY_CHAR(ser, n, c);
@@ -515,8 +515,8 @@ REBTYPE(String)
     }
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT && IS_PROTECT_SERIES(VAL_SERIES(value)))
-        fail (Error(RE_PROTECTED));
+    if (action >= A_TAKE && action <= A_SORT)
+        FAIL_IF_PROTECTED(VAL_SERIES(value));
 
     switch (action) {
 
@@ -734,8 +734,7 @@ zero_str:
         if (VAL_TYPE(value) != VAL_TYPE(arg))
             fail (Error(RE_NOT_SAME_TYPE));
 
-        if (IS_PROTECT_SERIES(VAL_SERIES(arg)))
-            fail (Error(RE_PROTECTED));
+        FAIL_IF_PROTECTED(VAL_SERIES(arg));
 
         if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg))
             swap_chars(value, arg);

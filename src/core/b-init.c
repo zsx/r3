@@ -629,7 +629,7 @@ static void Init_Root_Context(void)
     assert(IS_UNSET(UNSET_VALUE));
 
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROTECT);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
 
     // Used by FUNC and CLOS generators: RETURN:
@@ -641,7 +641,7 @@ static void Init_Root_Context(void)
     // series saves on allocation time and space...
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
     Append_Value(VAL_SERIES(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_PROT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_PROTECT);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_LOCK);
 
     // We can't actually put an end value in the middle of a block, so we poke
@@ -1335,21 +1335,21 @@ void Init_Core(REBARGS *rargs)
         Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
     );
     SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROTECT);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
         Append_UTF8(NULL, infix, LEN_BYTES(infix))
     );
     SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROTECT);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
         Append_UTF8(NULL, local, LEN_BYTES(local))
     );
     SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROTECT);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));

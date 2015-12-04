@@ -471,7 +471,7 @@ REBTYPE(Object)
         fail (Error_Bad_Make(type, arg));
 
     case A_APPEND:
-        TRAP_PROTECT(VAL_OBJ_FRAME(value));
+        FAIL_IF_PROTECTED(VAL_OBJ_FRAME(value));
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_Obj(VAL_OBJ_FRAME(value), arg);
