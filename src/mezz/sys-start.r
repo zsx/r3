@@ -188,7 +188,7 @@ finish-rl-start: func [
         either 'module = select first code 'type [
             code: reduce [first+ code code]
             if object? tmp: do-needs/no-user first code [append code tmp]
-            import make module! code
+            import do compose [module (code)]
         ][
             do-needs first+ code
             do intern code
@@ -219,7 +219,7 @@ finish-rl-start: func [
             either 'module = select first code 'type [
                 code: reduce [first+ code code]
                 if object? tmp: do-needs/no-user first code [append code tmp]
-                import make module! code
+                import do compose [module (code)]
             ][
                 do-needs first+ code
                 do intern code

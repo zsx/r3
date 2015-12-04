@@ -333,7 +333,7 @@ load-boot-exts: function [
             ]
 
             not delay [
-                hdr: spec-of mod: make module! load-ext-module ext
+                hdr: spec-of mod: do compose [module (load-ext-module ext)]
             ]
 
             ; NOTE: This will error out if the code contains commands but
@@ -855,9 +855,7 @@ load-module: function [
 
             assert/type [hdr object! code block!]
 
-            mod: reduce [hdr code do-needs/no-user hdr]
-
-            mod: catch/quit [make module! mod]
+            mod: catch/quit [module/mixin hdr code (do-needs/no-user hdr)]
         ]
 
         all [not no-lib override?] [

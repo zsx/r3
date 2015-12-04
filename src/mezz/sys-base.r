@@ -139,9 +139,13 @@ do*: function [
         also (
             ; Eval the block or make the module, returned
             either is-module [ ; Import the module and set the var
-                spec: reduce [hdr data do-needs/no-user hdr]
-                also import catch/quit [make module! spec]
+                also (
+                    import catch/quit [
+                        module/mixin hdr data (opt do-needs/no-user hdr)
+                    ]
+                )(
                     if next [set var tail data]
+                )
             ][
                 do-needs hdr  ; Load the script requirements
                 intern data   ; Bind the user script
@@ -153,135 +157,6 @@ do*: function [
             if original-path [change-dir original-path]
         )
     ]
-]
-
-make-module*: func [
-    "SYS: Called by system on MAKE of MODULE! datatype."
-    spec [block!] "As [spec-block body-block opt-mixins-object]"
-    /local body obj mixins hidden w mod
-][
-    ; There may be no mixins argument.  This touches upon questions about the
-    ; potentional prevention of "reified" UNSET! as a value that can occur in
-    ; a block.  The actual mechanical prevention of unsets has been deferred
-    ; in favor of a policy of "making them rather difficult to make and
-    ; outside of the interests of code that would like to pretend they do
-    ; not exist", hence for now we rely on that deference with SET/ANY, and
-    ; keep the code running under its original idea that mixins becomes
-    ; either an OBJECT! or NONE! to maintain status quo.
-
-    set/any [spec body mixins] spec
-    mixins: to-value :mixins
-
-    ; Convert header block to standard header object:
-    if block? :spec [
-        spec: attempt [construct/with :spec system/standard/header]
-    ]
-
-    ; Validate the important fields of header:
-    assert/type [
-        spec object!
-        body block!
-        mixins [object! none!]
-        spec/name [word! none!]
-        spec/type [word! none!]
-        spec/version [tuple! none!]
-        spec/options [block! none!]
-    ]
-
-    ; Module is an object during its initialization:
-    obj: make object! 7 ; arbitrary starting size
-
-    if find spec/options 'extension [
-        append obj 'lib-base ; specific runtime values MUST BE FIRST
-    ]
-
-    unless spec/type [spec/type: 'module] ; in case not set earlier
-
-    ; Collect 'export keyword exports, removing the keywords
-    if find body 'export [
-        unless block? select spec 'exports [
-            repend spec ['exports make block! 10]
-        ]
-
-        ; Note: 'export overrides 'hidden, silently for now
-        parse body [while [
-            to 'export remove skip opt remove 'hidden opt
-            [
-                set w any-word! (
-                    unless find spec/exports w: to word! w [
-                        append spec/exports w
-                    ]
-                )
-            |
-                set w block! (
-                    append spec/exports collect-words/ignore w spec/exports
-                )
-            ]
-        ] to end]
-    ]
-
-    ; Collect 'hidden keyword words, removing the keywords. Ignore exports.
-    hidden: none
-    if find body 'hidden [
-        hidden: make block! 10
-        ; Note: Exports are not hidden, silently for now
-        parse body [while [
-            to 'hidden remove skip opt
-            [
-                set w any-word! (
-                    unless find select spec 'exports w: to word! w [
-                        append hidden w]
-                )
-            |
-                set w block! (
-                    append hidden collect-words/ignore w select spec 'exports
-                )
-            ]
-        ] to end]
-    ]
-
-    ; Add hidden words next to the context (performance):
-    if block? hidden [bind/new hidden obj]
-
-    if block? hidden [protect/hide/words hidden]
-
-    mod: to module! reduce [spec obj]
-
-    ; Add exported words at top of context (performance):
-    if block? select spec 'exports [bind/new spec/exports mod]
-
-    either find spec/options 'isolate [
-        ;
-        ; All words of the module body are module variables:
-        ;
-        bind/new body mod
-
-        ; The module keeps its own variables (not shared with system):
-        ;
-        if object? mixins [resolve mod mixins]
-
-        comment [resolve mod sys] ; no longer done -Carl
-
-        resolve mod lib
-    ][
-        ; Only top level defined words are module variables.
-        ;
-        bind/only/set body mod
-
-        ; The module shares system exported variables:
-        ;
-        bind body lib
-
-        comment [bind body sys] ; no longer done -Carl
-
-        if object? mixins [bind body mixins]
-    ]
-
-    bind body mod ;-- redundant?
-    do body
-
-    ;print ["Module created" spec/name spec/version]
-    mod
 ]
 
 ; MOVE some of these to SYSTEM?

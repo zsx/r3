@@ -93,12 +93,131 @@ object: func [
 
 module: func [
     "Creates a new module."
-    spec [block!] "The header block of the module (modified)"
+    spec [block! object!] "The header block of the module (modified)"
     body [block!] "The body block of the module (modified)"
     /mixin "Mix in words from other modules"
-    words [object!] "Words collected into an object"
+    mixins [object!] "Words collected into an object"
+    /local obj hidden w mod
 ][
-    make module! unbind/deep reduce pick [[spec body] [spec body words]] not mixin
+    mixins: to-value :mixins
+
+    ; !!! Is it a good idea to mess with the given spec and body bindings?
+    ; This was done by MODULE but not seemingly automatically by MAKE MODULE!
+    ;
+    unbind/deep body
+
+    ; Convert header block to standard header object:
+    ;
+    if block? :spec [
+        unbind/deep spec
+        spec: attempt [construct/with :spec system/standard/header]
+    ]
+
+    ; Validate the important fields of header:
+    assert/type [
+        spec object!
+        body block!
+        mixins [object! none!]
+        spec/name [word! none!]
+        spec/type [word! none!]
+        spec/version [tuple! none!]
+        spec/options [block! none!]
+    ]
+
+    ; Module is an object during its initialization:
+    obj: make object! 7 ; arbitrary starting size
+
+    if find spec/options 'extension [
+        append obj 'lib-base ; specific runtime values MUST BE FIRST
+    ]
+
+    unless spec/type [spec/type: 'module] ; in case not set earlier
+
+    ; Collect 'export keyword exports, removing the keywords
+    if find body 'export [
+        unless block? select spec 'exports [
+            repend spec ['exports make block! 10]
+        ]
+
+        ; Note: 'export overrides 'hidden, silently for now
+        parse body [while [
+            to 'export remove skip opt remove 'hidden opt
+            [
+                set w any-word! (
+                    unless find spec/exports w: to word! w [
+                        append spec/exports w
+                    ]
+                )
+            |
+                set w block! (
+                    append spec/exports collect-words/ignore w spec/exports
+                )
+            ]
+        ] to end]
+    ]
+
+    ; Collect 'hidden keyword words, removing the keywords. Ignore exports.
+    hidden: none
+    if find body 'hidden [
+        hidden: make block! 10
+        ; Note: Exports are not hidden, silently for now
+        parse body [while [
+            to 'hidden remove skip opt
+            [
+                set w any-word! (
+                    unless find select spec 'exports w: to word! w [
+                        append hidden w]
+                )
+            |
+                set w block! (
+                    append hidden collect-words/ignore w select spec 'exports
+                )
+            ]
+        ] to end]
+    ]
+
+    ; Add hidden words next to the context (performance):
+    if block? hidden [bind/new hidden obj]
+
+    if block? hidden [protect/hide/words hidden]
+
+    mod: to module! reduce [spec obj]
+
+    ; Add exported words at top of context (performance):
+    if block? select spec 'exports [bind/new spec/exports mod]
+
+    either find spec/options 'isolate [
+        ;
+        ; All words of the module body are module variables:
+        ;
+        bind/new body mod
+
+        ; The module keeps its own variables (not shared with system):
+        ;
+        if object? mixins [resolve mod mixins]
+
+        comment [resolve mod sys] ; no longer done -Carl
+
+        resolve mod lib
+    ][
+        ; Only top level defined words are module variables.
+        ;
+        bind/only/set body mod
+
+        ; The module shares system exported variables:
+        ;
+        bind body lib
+
+        comment [bind body sys] ; no longer done -Carl
+
+        if object? mixins [bind body mixins]
+    ]
+
+    bind body mod ;-- redundant?
+    do body
+
+    ;print ["Module created" spec/name spec/version]
+    mod
 ]
 
 cause-error: func [

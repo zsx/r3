@@ -346,14 +346,16 @@ REBTYPE(Object)
                     return R_OUT;
                 }
 
-                if (target == REB_MODULE) {
-                    Make_Module(D_OUT, arg);
-                    return R_OUT;
-                }
-
                 // make task! [init]
                 if (target == REB_TASK) {
+                    // !!! Tasks were never very well specified, though what
+                    // was intended should be studied.  Why were they objects,
+                    // and was that important?
+                    //
+                    fail (Error(RE_MISC));
+
                     // Does it include a spec?
+                    /*
                     if (IS_BLOCK(VAL_BLK_HEAD(arg))) {
                         arg = VAL_BLK_HEAD(arg);
                         if (!IS_BLOCK(arg + 1))
@@ -364,12 +366,7 @@ REBTYPE(Object)
                         frame = Make_Module_Spec(0);
                         VAL_MOD_BODY(value) = VAL_SERIES(arg);
                     }
-
-                    // !!! Tasks were never very well specified, though what
-                    // was intended should be studied.  Why were they objects,
-                    // and was that important?
-                    //
-                    fail (Error(RE_MISC));
+                    */
                 }
             }
 

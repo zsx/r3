@@ -695,45 +695,6 @@ void Assert_Public_Object(const REBVAL *value)
 
 
 //
-//  Make_Module: C
-// 
-// Create a module from a spec and an init block.
-// Call the Make_Module function in the system/intrinsic object.
-//
-void Make_Module(REBVAL *out, const REBVAL *spec)
-{
-    if (Do_Sys_Func_Throws(out, SYS_CTX_MAKE_MODULE_P, spec, 0)) {
-        // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-        fail (Error_No_Catch_For_Throw(out));
-    }
-
-    // !!! Shouldn't this be testing for !IS_MODULE(out)?
-    if (IS_NONE(out)) fail (Error(RE_INVALID_SPEC, spec));
-}
-
-
-//
-//  Make_Module_Spec: C
-// 
-// Create a module spec object. Holds module name, version,
-// exports, locals, and more. See system/standard/module.
-//
-REBSER *Make_Module_Spec(REBVAL *spec)
-{
-    // Build standard module header object:
-    REBSER *obj = VAL_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
-    REBSER *frame;
-
-    if (spec && IS_BLOCK(spec))
-        frame = Construct_Object(VAL_BLK_DATA(spec), FALSE, obj);
-    else
-        frame = Copy_Array_Shallow(obj);
-
-    return frame;
-}
-
-
-//
 //  Merge_Frames: C
 // 
 // Create a child frame from two parent frames. Merge common fields.
