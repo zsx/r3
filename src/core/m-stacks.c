@@ -80,6 +80,16 @@ void Init_Stacks(REBCNT size)
 void Shutdown_Stacks(void)
 {
     assert(TG_Top_Chunk == cast(struct Reb_Chunk*, &TG_Root_Chunker->payload));
+
+    // Because we always keep one chunker of headroom allocated, and the
+    // push/drop is not designed to manage the last chunk, we *might* have
+    // that next chunk of headroom still allocated.
+    //
+    if (TG_Root_Chunker->next)
+        FREE(struct Reb_Chunker, TG_Root_Chunker->next);
+
+    // OTOH we always have to free the root chunker.
+    //
     FREE(struct Reb_Chunker, TG_Root_Chunker);
 
     assert(!CS_Running);
