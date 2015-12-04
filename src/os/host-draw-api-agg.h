@@ -74,7 +74,7 @@ extern void aggdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
 extern void aggdrw_image_options(void* gr, REBCNT keyCol, REBINT border);
 extern void aggdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points);
 extern void aggdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size);
-extern void aggdrw_line(void* gr, REBXYF p1, REBXYF p2);
+extern void aggdrw_line(void* gr, REBXYF* pts, REBCNT n);
 extern void aggdrw_line_cap(void* gr, REBINT mode);
 extern void aggdrw_line_join(void* gr, REBINT mode);
 extern void aggdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns);

@@ -427,7 +427,7 @@ namespace agg
 		void agg_set_attributes(path_attributes& attr);
 //		bool agg_exists_path();
 		void agg_reset();
-		void agg_line(double x1, double y1, double x2, double y2);
+		void agg_line(REBXYF *pts, REBCNT n);
 		void agg_ellipse(double x,  double y, double rx, double ry);
 		void agg_arrows(REBYTE* color, int head, int tail);
 		void agg_anti_alias(bool mode);

@@ -1591,12 +1591,12 @@ Reb_Print(
 
 
 	void agg_graphics::agg_line(
-				   double x1, double y1,
-				   double x2, double y2
-	)
+					REBXYF *pts,
+					REBCNT n)
 	{
-		m_path.move_to(x1,y1);
-		m_path.line_to(x2,y2);
+		agg_begin_path();
+		m_path.move_to(pts[0].x, pts[0].y);
+		for (REBCNT i = 1; i < n; i ++) m_path.line_to(pts[i].x, pts[i].y);
 	}
 
 

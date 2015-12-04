@@ -143,7 +143,7 @@ static void elliptical_aux(REBXYF r, REBDEC ang, float *x, float *y)
 		*y = r.y;
 	} else if (ang == 270) {
 		*x = 0;
-		*y = - r.y;
+		*y = -r.y;
 	} else if (ang > 90 && ang < 270) {
 		t = tan(nvgDegToRad(ang));
 		*x = -r.x / sqrt(r.x * r.x / (r.y * r.y) * t * t + 1);
@@ -574,15 +574,20 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	nvgRestore(ctx->nvg);
 }
 
-static void nvgdrw_line(void* gr, REBXYF p1, REBXYF p2)
+static void nvgdrw_line(void* gr, REBXYF* p, REBCNT n)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	REBCNT i;
 
-	if (!ctx->stroke) return;
-	nvgMoveTo(ctx->nvg, p1.x, p1.y);
-	nvgLineTo(ctx->nvg, p2.x, p2.y);
+	if (!ctx->stroke || p == NULL || n < 2) return;
+
+	nvgBeginPath(ctx->nvg);
+	nvgMoveTo(ctx->nvg, p[0].x, p[0].y);
+	
+	for (i = 1; i < n; i ++)
+		nvgLineTo(ctx->nvg, p[i].x, p[i].y);
+
 	nvgStroke((ctx)->nvg);
-
 }
 
 static void nvgdrw_line_cap(void* gr, REBINT mode)

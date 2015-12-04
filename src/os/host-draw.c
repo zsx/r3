@@ -385,30 +385,27 @@ static u32* shape_ext_words;
 
 	case CMD_DRAW_LINE:
 		{
-			RXIARG val[2];
+			RXIARG val;
 			REBCNT type;
 			REBCNT n, m = 0;
 			REBSER blk = RXA_SERIES(frm, 1);
+			REBXYF *pts;
 
-			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
+			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
+				if (type == RXT_PAIR) m++;
+			}
+
+			if (m < 2) return RXR_BAD_ARGS;
+
+			pts = malloc(sizeof(REBXYF) * m);
+			for (n = 0, m = 0; (type = RL_GET_VALUE(blk, n, &val)); n++, m++) {
 				if (type == RXT_PAIR) {
-				    switch (++m){
-                        case 1:
-                            rebol_renderer->draw->rebshp_begin(ctx->envr);
-                            break;
-				        case 2:
-							{
-								REBXYF p1 = RXI_LOG_PAIR(val[0]);
-								REBXYF p2 = RXI_LOG_PAIR(val[1]);
-//								rebol_renderer->draw->rebdrw_line(ctx->envr, val[0].pair,val[1].pair);
-								rebol_renderer->draw->rebdrw_line(ctx->envr, p1, p2);
-								val[0] = val[1];
-								m--;
-							}
-                            break;
-				    }
+					REBXYF p = RXI_LOG_PAIR(val);
+					pts[m] = p;
 				}
 			}
+			rebol_renderer->draw->rebdrw_line(ctx->envr, pts, m);
+			free(pts);
 		}
 		break;
 

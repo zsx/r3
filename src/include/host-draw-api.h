@@ -67,7 +67,7 @@ struct REBRDR_DRW {
 	void (*rebdrw_image_options)(void* gr, REBOOL keyColEnabled, REBCNT keyCol, REBINT border);
 	void (*rebdrw_image_scale)(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points);
 	void (*rebdrw_image_pattern)(void* gr, REBINT mode, REBXYF offset, REBXYF size);
-	void (*rebdrw_line)(void* gr, REBXYF p1, REBXYF p2);
+	void (*rebdrw_line)(void* gr, REBXYF *pts, REBCNT n);
 	void (*rebdrw_line_cap)(void* gr, REBINT mode);
 	void (*rebdrw_line_join)(void* gr, REBINT mode);
 	void (*rebdrw_line_pattern)(void* gr, REBCNT col, REBDEC* patterns);

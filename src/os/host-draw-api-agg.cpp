@@ -289,9 +289,9 @@ extern "C" void aggdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, RE
 #endif
 }
 
-extern "C" void aggdrw_line(void* gr, REBXYF p1, REBXYF p2)
+extern "C" void aggdrw_line(void* gr, REBXYF* p, REBCNT n)
 {
-	((agg_graphics*)gr)->agg_line(p1.x, p1.y, p2.x, p2.y);
+	((agg_graphics*)gr)->agg_line(p, n);
 }
 
 extern "C" void aggdrw_line_cap(void* gr, REBINT mode)
