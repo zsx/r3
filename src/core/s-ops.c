@@ -220,8 +220,24 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 //      else
         t2 = MAX(t0, t1);
 
-        series = Make_Binary(t2);
-        SERIES_TAIL(series) = t2;
+        if (IS_BITSET(value)) {
+            //
+            // Although bitsets and binaries share some implementation here,
+            // they have distinct allocation functions...and bitsets need
+            // to set the REBSER.misc.negated union field (BITS_NOT) as
+            // it would be illegal to read it if it were cleared via another
+            // element of the union.
+            //
+            assert(IS_BITSET(arg));
+            series = Make_Bitset(t2 * 8);
+        }
+        else {
+            // Ordinary binary
+            //
+            series = Make_Binary(t2);
+            SERIES_TAIL(series) = t2;
+        }
+
         p2 = BIN_HEAD(series);
 
         switch (action) {

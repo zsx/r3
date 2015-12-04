@@ -31,7 +31,7 @@
 
 #define MAX_BITSET 0x7fffffff
 
-#define BITS_NOT(s) ((s)->misc.size)
+#define BITS_NOT(s) ((s)->misc.negated)
 
 //
 //  CT_Bitset: C
