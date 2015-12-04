@@ -138,10 +138,10 @@ void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg)
     assert(!THROWN(name));
     VAL_SET_OPT(name, OPT_VALUE_THROWN);
 
-    assert(IS_TRASH(TASK_THROWN_ARG));
-    assert(!IS_TRASH(arg));
+    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(!IS_TRASH_DEBUG(arg));
 
-    *TASK_THROWN_ARG = *arg;
+    TG_Thrown_Arg = *arg;
 }
 
 
@@ -160,11 +160,11 @@ void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
     assert(THROWN(thrown));
     VAL_CLR_OPT(thrown, OPT_VALUE_THROWN);
 
-    assert(!IS_TRASH(TASK_THROWN_ARG));
+    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
-    *out = *TASK_THROWN_ARG;
+    *out = TG_Thrown_Arg;
 
-    SET_TRASH_SAFE(TASK_THROWN_ARG);
+    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 }
 
 
@@ -228,11 +228,10 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBSER *frame)
     Saved_State->error_frame = frame;
 
     // If a THROWN() was being processed up the stack when the error was
-    // raised, then it had the thrown argument set.  We ensure that it is
-    // not set any longer (even in release builds, this is needed to keep
-    // it from having a hold on the GC of the thrown value).
+    // raised, then it had the thrown argument set.  Trash it in debug
+    // builds.  (The value will not be kept alive, it is not seen by GC)
 
-    SET_TRASH_SAFE(TASK_THROWN_ARG);
+    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
     LONG_JUMP(Saved_State->cpu_state, 1);
 }

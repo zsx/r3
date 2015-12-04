@@ -119,7 +119,7 @@
                     ? Trap_Stack_Overflow() \
                     : cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Series))) \
             ), \
-        SET_TRASH(DS_TOP) \
+        SET_TRASH_IF_DEBUG(DS_TOP) \
     )
 
 #define DS_PUSH_TRASH_SAFE \
@@ -150,7 +150,7 @@
 
 #define DS_POP_INTO(v) \
     do { \
-        assert(!IS_TRASH(DS_TOP) || VAL_TRASH_SAFE(DS_TOP)); \
+        assert(!IS_TRASH_DEBUG(DS_TOP) || VAL_TRASH_SAFE(DS_TOP)); \
         *(v) = *DS_TOP; \
         DS_DROP; \
     } while (0)

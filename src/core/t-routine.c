@@ -1108,7 +1108,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
     // reserve for returning struct
     temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-    SET_NONE(temp); // should this be SET_TRASH(), e.g. write-only location?
+    SET_NONE(temp); // should this be SET_TRASH_IF_DEBUG(), e.g. write-only location?
 
     VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
     VAL_ROUTINE_LIB(out) = NULL;

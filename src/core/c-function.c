@@ -152,7 +152,7 @@ REBSER *Check_Func_Spec(REBSER *spec)
     // an alarm if that value isn't thrown in (the GC would complain...)
 
     typeset = BLK_HEAD(keylist);
-    SET_TRASH(typeset);
+    SET_TRASH_IF_DEBUG(typeset);
 
     // !!! needs more checks
     for (item = BLK_HEAD(spec); NOT_END(item); item++) {

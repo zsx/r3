@@ -140,13 +140,13 @@ enum {
     #define CONVERT_NAME_TO_THROWN(name,arg) \
         do { \
             VAL_SET_OPT((name), OPT_VALUE_THROWN); \
-            (*TASK_THROWN_ARG = *(arg)); \
+            (TG_Thrown_Arg = *(arg)); \
         } while (0)
 
     #define CATCH_THROWN(arg,thrown) \
         do { \
             VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
-            (*(arg) = *TASK_THROWN_ARG); \
+            (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
     #define CONVERT_NAME_TO_THROWN(n,a) \
@@ -207,41 +207,37 @@ struct Reb_Datatype {
 **
 **  The operations for setting trash are available in both debug and release
 **  builds.  An unsafe trash set turns into a NOOP in release builds, while
-**  a safe trash set turns into a SET_UNSET().  The IS_TRASH() operation for
-**  testing for trash is not available in release builds.
+**  a safe trash set turns into a SET_UNSET().  IS_TRASH_DEBUG() can be used
+**  to test for trash in debug builds, but not in release builds.
 **
 **  Because the trash value saves the filename and line where it originated,
 **  the REBVAL has that info in debug builds to inspect.
 **
-**  The special REB_XXX value of 0 is chosen for trash.  This pattern was
-**  used previously to indicate the value that terminates series, which
-**  was known as an END! (or REB_END type).  After a phase of vetting out
-**  the idea that REB_END was 0, the type was removed and converted into
-**  an option bit in the lowest bit of the header.  This means that an
-**  end can be indicated in a header even if it's an arbitrary pointer
-**  (on most platforms) with no value data backing it for the remainder.
-**
 ***********************************************************************/
 
 #ifdef NDEBUG
-    #define SET_TRASH(v) NOOP
+    #define SET_TRASH_IF_DEBUG(v) NOOP
 
     #define SET_TRASH_SAFE(v) SET_UNSET(v)
-
-    #undef IS_TRASH
 #else
+    enum {
+        EXT_TRASH_SAFE = 0,     // GC safe trash (UNSET! in release build)
+        EXT_TRASH_MAX
+    };
+
     struct Reb_Trash {
-        REBOOL safe; // if "safe" then will be UNSET! in a release build
         const char *filename;
         int line;
     };
 
-    #define VAL_TRASH_SAFE(v) ((v)->data.trash.safe)
+    // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
+    // because VAL_TYPE is supposed to assert on trash
+    //
+    #define IS_TRASH_DEBUG(v)         ((v)->flags.bitfields.type == REB_TRASH)
 
-    #define SET_TRASH(v) \
+    #define SET_TRASH_IF_DEBUG(v) \
         ( \
             VAL_SET((v), REB_TRASH), \
-            (v)->data.trash.safe = FALSE, \
             (v)->data.trash.filename = __FILE__, \
             (v)->data.trash.line = __LINE__, \
             cast(void, 0) \
@@ -250,7 +246,7 @@ struct Reb_Datatype {
     #define SET_TRASH_SAFE(v) \
         ( \
             VAL_SET((v), REB_TRASH), \
-            (v)->data.trash.safe = TRUE, \
+            VAL_SET_EXT((v), EXT_TRASH_SAFE), \
             (v)->data.trash.filename = __FILE__, \
             (v)->data.trash.line = __LINE__, \
             cast(void, 0) \

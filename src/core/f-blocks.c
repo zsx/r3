@@ -352,7 +352,7 @@ REBVAL *Alloc_Tail_Array(REBSER *block)
     tail = BLK_TAIL(block);
     SET_END(tail);
 
-    SET_TRASH(tail - 1); // No-op in release builds
+    SET_TRASH_IF_DEBUG(tail - 1); // No-op in release builds
     return tail - 1;
 }
 

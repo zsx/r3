@@ -1013,6 +1013,7 @@ REBNATIVE(map_gob_offset)
 //
 enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
     assert(NOT_END(v));
+    assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
     return cast(enum Reb_Kind, (v)->flags.bitfields.type);
 }
 

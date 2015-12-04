@@ -717,7 +717,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
     // Function execution should have written *some* actual output value
     // over the trash that we put in the return slot before the call.
     //
-    assert(!IS_TRASH(D_OUT));
+    assert(!IS_TRASH_DEBUG(D_OUT));
 
     assert(VAL_TYPE(D_OUT) < REB_MAX); // cheap check
     ASSERT_VALUE_MANAGED(D_OUT);
@@ -913,8 +913,8 @@ reevaluate:
     // hold valid values.
     //
     c->label_sym = SYM_0;
-    SET_TRASH(&c->func);
-    SET_TRASH(&c->cell);
+    SET_TRASH_IF_DEBUG(&c->func);
+    SET_TRASH_IF_DEBUG(&c->cell);
     c->param = cast(REBVAL *, 0xDECAFBAD);
     c->arg = cast(REBVAL *, 0xDECAFBAD);
     c->refine = cast(REBVAL *, 0xDECAFBAD);
@@ -1956,7 +1956,7 @@ reevaluate:
         //
         // Most things just evaluate to themselves
         //
-        assert(!IS_TRASH(c->value));
+        assert(!IS_TRASH_DEBUG(c->value));
         *c->out = *c->value;
         c->index++;
         break;
@@ -2052,7 +2052,7 @@ return_index:
 
     assert((c->index == THROWN_FLAG) == THROWN(c->out));
 
-    assert(!IS_TRASH(c->out));
+    assert(!IS_TRASH_DEBUG(c->out));
     assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG

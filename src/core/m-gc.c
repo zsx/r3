@@ -499,8 +499,19 @@ static void Mark_Call_Frames_Deep(void)
         const REBYTE *label_str = Get_Sym_Name(c->label_sym);
     #endif
 
+    #ifdef NDEBUG
         if (Is_Value_Managed(&c->cell, FALSE))
             Queue_Mark_Value_Deep(&c->cell);
+    #else
+        // Allow safe trash to be ignored (would be an UNSET! in release build)
+        //
+        if (IS_TRASH_DEBUG(&c->cell))
+            assert(VAL_GET_EXT(&c->cell, EXT_TRASH_SAFE));
+        else {
+            if (Is_Value_Managed(&c->cell, FALSE))
+                Queue_Mark_Value_Deep(&c->cell);
+        }
+    #endif
 
         Queue_Mark_Value_Deep(&c->func); // never NULL
 
@@ -550,6 +561,23 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
     // should have been caught up the stack (before any more calls made).
     //
     assert(!THROWN(val));
+
+#if !defined(NDEBUG)
+    if (IS_TRASH_DEBUG(val)) {
+        // We allow *safe* trash values to be on the stack at the time
+        // of a garbage collection.  These will be UNSET! in the debug
+        // builds and they would not interfere with GC (they only exist
+        // so that at the end of a process you can confirm that if an
+        // UNSET! is in the slot, it was written there purposefully)
+
+        if (VAL_GET_EXT(val, EXT_TRASH_SAFE))
+            return;
+
+        // Otherwise would be uninitialized in a release build!
+        Debug_Fmt("TRASH! (uninitialized) found by Queue_Mark_Value_Deep");
+        assert(FALSE);
+    }
+#endif
 
     switch (VAL_TYPE(val)) {
         case REB_UNSET:
@@ -735,18 +763,6 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             break;
 
         default: {
-        #if !defined(NDEBUG)
-            // We allow *safe* trash values to be on the stack at the time
-            // of a garbage collection.  These will be UNSET! in the debug
-            // builds and they would not interfere with GC (they only exist
-            // so that at the end of a process you can confirm that if an
-            // UNSET! is in the slot, it was written there purposefully)
-            if (IS_TRASH(val)) {
-                assert(VAL_TRASH_SAFE(val));
-                break;
-            }
-        #endif
-
             panic (Error_Invalid_Datatype(VAL_TYPE(val)));
         }
     }

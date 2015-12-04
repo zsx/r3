@@ -259,7 +259,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     {
         REBCNT index;
         for (index = 0; index < num_values; index++)
-            SET_UNSET(&chunk->values[index]);
+            SET_TRASH_IF_DEBUG(&chunk->values[index]);
     }
 #endif
 

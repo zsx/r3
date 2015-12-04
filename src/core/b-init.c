@@ -715,9 +715,10 @@ static void Init_Task_Context(void)
     SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
     SET_INTEGER(TASK_MAX_BALLAST, MEM_BALLAST);
 
-    // The THROWN_ARG lives under the root set, and must be a value
-    // that won't trip up the GC.
-    SET_TRASH_SAFE(TASK_THROWN_ARG);
+    // The thrown arg is not intended to ever be around long enough to be
+    // seen by the GC.
+    //
+    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 }
 
 
@@ -1162,7 +1163,7 @@ void Init_Task(void)
     Init_Frame();
     //Inspect_Series(0);
 
-    SET_TRASH_SAFE(TASK_THROWN_ARG);
+    SET_TRASH_SAFE(&TG_Thrown_Arg);
 }
 
 

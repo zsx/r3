@@ -470,14 +470,27 @@ emit {
 }
 
 new-types: []
+n: 0
 for-each-record-NO-RETURN type boot-types [
     append new-types to-word join type/name "!"
+
+    if n = 0 [
+        ; Do not check for VAL_TYPE() == REB_TRASH.  Trying to get the type of
+        ; something that is trash should cause an assert...hence
+        ; IS_TRASH_DEBUG() is a macro that does not go through VAL_TYPE()
+        ;
+        n: n + 1
+        continue
+    ]
+
     str: uppercase form type/name
     replace/all str #"-" #"_"
     def: join {#define IS_} [str "(v)"]
     len: 31 - length def
     loop to-integer len / 4 [append def tab]
     emit [def "(VAL_TYPE(v)==REB_" str ")" newline]
+
+    n: n + 1
 ]
 
 emit {

@@ -99,6 +99,8 @@ PVAR REBSER *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
 TVAR TASK_CTX *Task_Context; // Main per-task variables
 TVAR REBSER *Task_Series;   // Series that holds Task_Context
 
+TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
+
 //-- Memory and GC:
 TVAR REBPOL *Mem_Pools;     // Memory pool array
 TVAR REBINT GC_Disabled;    // GC disabled counter for critical sections.

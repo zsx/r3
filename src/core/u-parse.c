@@ -1279,7 +1279,7 @@ REBNATIVE(parse)
 
     assert(IS_BLOCK(rules));
 
-    assert(IS_TRASH(D_OUT));
+    assert(IS_TRASH_DEBUG(D_OUT));
 
     parse.series = VAL_SERIES(input);
     parse.type = VAL_TYPE(input);
@@ -1290,7 +1290,7 @@ REBNATIVE(parse)
     index = Parse_Rules_Loop(&parse, VAL_INDEX(input), VAL_BLK_DATA(rules), 0);
 
     if (index == THROWN_FLAG) {
-        assert(!IS_TRASH(D_OUT));
+        assert(!IS_TRASH_DEBUG(D_OUT));
         assert(THROWN(D_OUT));
         if (
             IS_NATIVE(D_OUT)
@@ -1319,7 +1319,7 @@ REBNATIVE(parse)
         return R_OUT_IS_THROWN;
     }
 
-    assert(IS_TRASH(D_OUT));
+    assert(IS_TRASH_DEBUG(D_OUT));
 
     // Parse can fail if the match rule state can't process pending input
     if (index == NOT_FOUND)

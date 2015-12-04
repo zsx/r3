@@ -1329,7 +1329,7 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
             );
 
             *out = *(FRM_VALUES(context) + index);
-            assert(!IS_TRASH(out));
+            assert(!IS_TRASH_DEBUG(out));
             assert(!THROWN(out));
             return;
         }
@@ -1351,7 +1351,7 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
                     );
                     assert(!IS_CLOSURE(DSF_FUNC(call)));
                     *out = *DSF_ARG(call, -index);
-                    assert(!IS_TRASH(out));
+                    assert(!IS_TRASH_DEBUG(out));
                     assert(!THROWN(out));
                     return;
                 }
