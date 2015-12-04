@@ -432,6 +432,83 @@ set 'r3-legacy* func [] [
                 lib/unless :condition :false-branch
             ]
         ])
+
+        ; There is a feature in R3-Alpha, used by R3-GUI, which allows an
+        ; unusual syntax for capturing series positions (like a REPEAT or
+        ; FORALL) with a SET-WORD! in the loop words block:
+        ;
+        ;     >> a: [1 2 3]
+        ;     >> foreach [s: i] a [print ["s:" mold s "i:" i]]
+        ;
+        ;     s: [1 2 3] i: 1
+        ;     s: [2 3] i: 2
+        ;     s: [3] i: 3
+        ;
+        ; This feature was removed from Ren-C due to it not deemed to be
+        ; "Quality", adding semantic questions and complexity to the C loop
+        ; implementation.  (e.g. `foreach [a:] [...] [print "infinite loop"]`)
+        ; That interferes with the goal of "modify with confidence" and
+        ; simplicity.
+        ;
+        ; This shim function implements the behavior in userspace.  Should it
+        ; arise that MAP-EACH is used similarly in a legacy scenario then the
+        ; code could be factored and shared, but it is not likely that the
+        ; core construct will be supporting this in FOR-EACH or EVERY.
+        ;
+        ; Longer-term, a rich LOOP dialect like Lisp's is planned:
+        ;
+        ;    http://www.gigamonkeys.com/book/loop-for-black-belts.html
+        ;
+        foreach: (function [
+            "Evaluates a block for value(s) in a series w/<r3-legacy> 'extra'."
+
+            'vars [word! block!]
+                "Word or block of words to set each time (local)"
+            data [any-series! any-object! map! none!]
+                "The series to traverse"
+            body [block!]
+                "Block to evaluate each time"
+        ][
+            if any [
+                not block? vars
+                lib/foreach item vars [
+                    if set-word? item [break/with false]
+                    true
+                ]
+            ][
+                ; a normal FOREACH
+                return lib/foreach :vars data body
+            ]
+
+            ; Otherwise it's a weird FOREACH.  So handle a block containing at
+            ; least one set-word by doing a transformation of the code into
+            ; a while loop.
+            ;
+            use :vars [
+                position: data
+                while [not tail? position] compose [
+                    (collect [
+                        every item vars [
+                            case [
+                                set-word? item [
+                                    keep compose [(item) position]
+                                ]
+                                word? item [
+                                    keep compose [
+                                        (to-set-word :item) position/1
+                                        position: next position
+                                    ]
+                                ]
+                                true [
+                                    fail "non SET-WORD?/WORD? in FOREACH vars"
+                                ]
+                            ]
+                        ]
+                    ])
+                    (body)
+                ]
+            ]
+        ])
     ]
 
     return none
