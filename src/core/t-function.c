@@ -195,7 +195,7 @@ REBTYPE(Function)
             Val_Init_Block(
                 D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
             );
-            Unbind_Values_Deep(VAL_BLK_HEAD(value));
+            Unbind_Values_Deep(VAL_BLK_HEAD(D_OUT));
             return R_OUT;
 
         case OF_TYPES:
