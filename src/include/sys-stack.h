@@ -358,20 +358,24 @@ struct Native_Refine {
     int num;
 };
 
-
+// The PARAM and REFINE macros use token pasting to name the variables they
+// are declaring `p_name` instead of just `name`.  This prevents collisions
+// with C++ identifiers, so `p_case` and `p_new` instead of just `case` and
+// `new` as the variable names.  (This is only visible in the debugger.)
+//
 #ifdef NDEBUG
     #define PARAM(n,name) \
-        const struct Native_Param name = {n}
+        const struct Native_Param p_##name = {n}
 
     #define REFINE(n,name) \
-        const struct Native_Refine name = {n}
+        const struct Native_Refine p_##name = {n}
 #else
     // Capture the argument for debug inspection.  Be sensitive to frameless
     // usage so that parameters may be declared and used with PAR() even if
     // they cannot be used with ARG()
     //
     #define PARAM(n,name) \
-        const struct Native_Param name = { \
+        const struct Native_Param p_##name = { \
             call_->arg ? VAL_TYPE(call_->arg + (n)) : REB_TRASH, \
             call_->arg ? call_->arg + (n) : NULL, \
             (n) \
@@ -384,23 +388,35 @@ struct Native_Refine {
     // get cozy with the idea that REF() is legal in a frameless native.
     //
     #define REFINE(n,name) \
-        const struct Native_Refine name = { \
+        const struct Native_Refine p_##name = { \
             call_->arg ? !IS_NONE(call_->arg + (n)) : TRUE, \
             call_->arg ? call_->arg + (n) : NULL, \
             (n) \
         }
 #endif
 
+// Though REF can only be used with a REFINE() declaration, ARG can be used
+// with either.
+//
+#define ARG(name) \
+    (call_->arg + (p_##name).num)
 
-#define ARG(p)  (call_->arg + (p).num)
-
-#define PAR(p)  VAL_FUNC_PARAM(&call_->func, (p).num) // a TYPESET!
+#define PAR(name) \
+    VAL_FUNC_PARAM(&call_->func, (p_##name).num) // a TYPESET!
 
 #ifdef NDEBUG
-    #define REF(r)  (!IS_NONE(ARG(r)))
+    #define REF(name) \
+        (!IS_NONE(ARG(name)))
 #else
     // An added useless ?: helps check in debug build to make sure we do not
     // try to use REF() on something defined as PARAM(), but only REFINE()
     //
-    #define REF(r)  ((r).used_cache ? !IS_NONE(ARG(r)) : !IS_NONE(ARG(r)))
+    #define REF(name) \
+        ((p_##name).used_cache ? !IS_NONE(ARG(name)) : !IS_NONE(ARG(name)))
 #endif
+
+// OUT is the write location in the call frame for the output.  Historically
+// it was referred to as D_OUT, but it is used so frequently as to warrant
+// taking the word with no qualifier.  Transition is a work in progress.
+//
+#define OUT D_OUT
