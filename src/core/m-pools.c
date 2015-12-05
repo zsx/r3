@@ -1398,6 +1398,20 @@ REBFLG Is_Value_Managed(const REBVAL *value, REBFLG thrown_or_end_ok)
     if (THROWN(value))
         return thrown_or_end_ok;
 
+#if !defined(NDEBUG)
+    //
+    // !thrown_or_end_ok might as well be the "called from GC setting", and it
+    // might need to be reframed that way.  Because the GC is willing to
+    // consider safe trash to be managed but can't tolerate unsafe trash.
+    //
+    if (!thrown_or_end_ok) {
+        if (IS_TRASH_DEBUG(value)) {
+            assert(VAL_GET_EXT(value, EXT_TRASH_SAFE));
+            return TRUE;
+        }
+    }
+#endif
+
     if (ANY_OBJECT(value)) {
         REBSER *frame = VAL_OBJ_FRAME(value);
         if (SERIES_GET_FLAG(frame, SER_MANAGED)) {

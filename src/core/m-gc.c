@@ -499,19 +499,8 @@ static void Mark_Call_Frames_Deep(void)
         const REBYTE *label_str = Get_Sym_Name(c->label_sym);
     #endif
 
-    #ifdef NDEBUG
         if (Is_Value_Managed(&c->cell, FALSE))
             Queue_Mark_Value_Deep(&c->cell);
-    #else
-        // Allow safe trash to be ignored (would be an UNSET! in release build)
-        //
-        if (IS_TRASH_DEBUG(&c->cell))
-            assert(VAL_GET_EXT(&c->cell, EXT_TRASH_SAFE));
-        else {
-            if (Is_Value_Managed(&c->cell, FALSE))
-                Queue_Mark_Value_Deep(&c->cell);
-        }
-    #endif
 
         Queue_Mark_Value_Deep(&c->func); // never NULL
 
