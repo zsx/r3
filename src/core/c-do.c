@@ -758,7 +758,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 void Do_Core(struct Reb_Call * const c)
 {
 #if !defined(NDEBUG)
-    REBCNT count;
+    REBCNT count = TG_Do_Count;
 #endif
 
 #if !defined(NDEBUG)
