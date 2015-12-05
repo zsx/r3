@@ -393,54 +393,6 @@ set 'r3-legacy* func [] [
             ]
         ])
 
-        ; For reasons of optimization, underuse, aesthetics, and a better
-        ; future strategy for the feature... /only has been removed from
-        ; the conditionals.
-
-        if: (func [
-            {If TRUE condition, return arg; evaluate blocks by default.}
-            condition
-            true-branch [any-value!]
-            /only "Return block arg instead of evaluating it."
-        ][
-            lib/either all [only block? :true-branch] [
-                lib/if :condition [:true-branch]
-            ][
-                lib/if :condition :true-branch
-            ]
-        ])
-
-        either: (func [
-            {If TRUE condition return first arg, else second; evaluate blocks by default.}
-            condition
-            true-branch [any-value!]
-            false-branch [any-value!]
-            /only "Suppress evaluation of block args."
-        ][
-            lib/either :condition [
-                lib/either all [only block? :true-branch] [
-                    :true-branch
-                ] :true-branch
-            ][
-                lib/either all [only block? :false-branch] [
-                    :false-branch
-                ] :false-branch
-            ]
-        ])
-
-        unless: (func [
-            {If FALSE condition, return arg; evaluate blocks by default.}
-            condition
-            false-branch [any-value!]
-            /only "Return block arg instead of evaluating it."
-        ][
-            lib/either all [only block? :false-branch] [
-                lib/unless :condition [:false-branch]
-            ][
-                lib/unless :condition :false-branch
-            ]
-        ])
-
         ; There is a feature in R3-Alpha, used by R3-GUI, which allows an
         ; unusual syntax for capturing series positions (like a REPEAT or
         ; FORALL) with a SET-WORD! in the loop words block:
