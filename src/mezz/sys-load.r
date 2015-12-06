@@ -855,7 +855,9 @@ load-module: function [
 
             assert/type [hdr object! code block!]
 
-            mod: catch/quit [module/mixin hdr code (do-needs/no-user hdr)]
+            mod: catch/quit [
+                module/mixin hdr code (opt do-needs/no-user hdr)
+            ]
         ]
 
         all [not no-lib override?] [
