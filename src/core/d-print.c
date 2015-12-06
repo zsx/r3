@@ -325,6 +325,8 @@ void Debug_Uni(const REBSER *ser)
 }
 
 
+#if !defined(NDEBUG)
+
 //
 //  Debug_Series: C
 //
@@ -377,6 +379,8 @@ void Debug_Series(REBSER *ser)
     assert(GC_Disabled == 1);
     GC_Disabled = disabled;
 }
+
+#endif
 
 
 //

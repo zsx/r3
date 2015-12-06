@@ -623,13 +623,12 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
     REBSER *series = mold->series;
     REBFLG over = FALSE;
 
+#if !defined(NDEBUG)
     if (SERIES_WIDE(VAL_SERIES(value)) == 0) {
-    #if !defined(NDEBUG)
         Debug_Fmt("** Mold_Block() zero series wide, t=%d", VAL_TYPE(value));
-    #endif
-
         Panic_Series(VAL_SERIES(value));
     }
+#endif
 
     // Optimize when no index needed:
     if (VAL_INDEX(value) == 0 && !IS_MAP(value)) // && (VAL_TYPE(value) <= REB_LIT_PATH))

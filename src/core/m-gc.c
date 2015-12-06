@@ -143,10 +143,12 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 //
 static void Push_Array_Marked_Deep(REBSER *series)
 {
+#if !defined(NDEBUG)
     if (!SERIES_GET_FLAG(series, SER_MANAGED)) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
         Panic_Series(series);
     }
+#endif
 
     assert(!SERIES_GET_FLAG(series, SER_EXTERNAL));
     assert(Is_Array_Series(series));

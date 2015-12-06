@@ -829,10 +829,7 @@ struct Reb_Call {
 #if !defined(NDEBUG)
     #define Panic_Series(s) \
         Panic_Series_Debug((s), __FILE__, __LINE__);
-#else
-    // Release builds do not pay for the `guard` trick, so they just crash.
 
-    #define Panic_Series(s) panic (Error(RE_MISC))
 #endif
 
 

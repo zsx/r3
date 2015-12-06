@@ -479,9 +479,6 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
         REBCNT index = 0;
         REBFLG convert_local = FALSE;
 
-        if (item == NULL)
-            Panic_Series(VAL_SERIES(spec));
-
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
                 // Note a "true local" (indicated by a set-word) is considered
