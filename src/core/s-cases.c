@@ -914,15 +914,15 @@ void Init_Char_Cases(void)
     int n;
 
     // Init whitespace table:
-    White_Chars = ALLOC_ARRAY(REBYTE, 34);
+    White_Chars = ALLOC_N(REBYTE, 34);
     memset(White_Chars, 1, 33); // All white chars: NL, CR, BS, etc...
     White_Chars[cast(REBYTE, ' ')] = 3; // space
     White_Chars[cast(REBYTE, '\t')] = 3; // tab
     White_Chars[0] = 0; // special
 
     // Casing tables:
-    Upper_Cases = ALLOC_ARRAY(REBUNI, UNICODE_CASES);
-    Lower_Cases = ALLOC_ARRAY(REBUNI, UNICODE_CASES);
+    Upper_Cases = ALLOC_N(REBUNI, UNICODE_CASES);
+    Lower_Cases = ALLOC_N(REBUNI, UNICODE_CASES);
 
     for (n = 0; n < UNICODE_CASES; n++) {
         UP_CASE(n) = n;
@@ -943,7 +943,7 @@ void Init_Char_Cases(void)
 //
 void Shutdown_Char_Cases(void)
 {
-    FREE_ARRAY(REBUNI, UNICODE_CASES, Upper_Cases);
-    FREE_ARRAY(REBUNI, UNICODE_CASES, Lower_Cases);
-    FREE_ARRAY(REBYTE, 34, White_Chars);
+    FREE_N(REBUNI, UNICODE_CASES, Upper_Cases);
+    FREE_N(REBUNI, UNICODE_CASES, Lower_Cases);
+    FREE_N(REBYTE, 34, White_Chars);
 }

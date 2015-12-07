@@ -270,7 +270,7 @@ newline newline (rebol-lib-macros)
 **      !!! BE SURE YOU ARE EDITING MAKE-OS-EXT.R AND NOT HOST-LIB.H
 **      !!!
 **
-**      These parallel Rebol's ALLOC/ALLOC_ARRAY/FREE macros.
+**      These parallel Rebol's ALLOC/ALLOC_N/FREE macros.
 **      Main difference is that there is only one FREE, as the
 **      hostkit API is not required to remember the size on free.
 **
@@ -292,6 +292,11 @@ newline newline (rebol-lib-macros)
 **      latest standard, C++14 or C++17 etc.) then these macros
 **      are much better than doing the casting of malloc manually.
 **
+**      Note: OS_ALLOC_N/OS_FREE_N used to be called OS_ALLOC_ARRAY
+**      and OS_FREE_ARRAY.  But with the change of Rebol's ANY-BLOCK!
+**      to ANY-ARRAY! the ARRAY term has a more important use.  So
+**      this uses N to mean "allocate N items contiguously".
+**
 **      !!!
 **      !!! **WARNING!**  DO NOT EDIT THIS! (until you've checked...)
 **      !!! BE SURE YOU ARE EDITING MAKE-OS-EXT.R AND NOT HOST-LIB.H
@@ -304,10 +309,10 @@ newline newline (rebol-lib-macros)
     cast(t *, OS_ALLOC_MEM(sizeof(t)))
 #define OS_ALLOC_ZEROFILL(t) \
     cast(t *, memset(OS_ALLOC(t), '\0', sizeof(t)))
-#define OS_ALLOC_ARRAY(t,n) \
+#define OS_ALLOC_N(t,n) \
     cast(t *, OS_ALLOC_MEM(sizeof(t) * (n)))
-#define OS_ALLOC_ARRAY_ZEROFILL(t,n) \
-    cast(t *, memset(OS_ALLOC_ARRAY(t, (n)), '\0', sizeof(t) * (n)))
+#define OS_ALLOC_N_ZEROFILL(t,n) \
+    cast(t *, memset(OS_ALLOC_N(t, (n)), '\0', sizeof(t) * (n)))
 #define OS_FREE(p) \
     OS_FREE_MEM(p)
 

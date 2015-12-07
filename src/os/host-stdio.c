@@ -65,7 +65,7 @@ static REBYTE *Get_Next_Line()
     if (*bp) {
         if (*bp == CR && bp[1] == LF) bp++;
         len = bp - inbuf;
-        out = OS_ALLOC_ARRAY(REBYTE, len + 2);
+        out = OS_ALLOC_N(REBYTE, len + 2);
         COPY_BYTES(out, inbuf, len+1);
         out[len+1] = 0;
         memmove(inbuf, bp + 1, 1 + LEN_BYTES(bp + 1));
@@ -121,7 +121,7 @@ void Open_StdIO(void)
 
     if (Std_IO_Req.error) Host_Crash("stdio open");
 
-    inbuf = OS_ALLOC_ARRAY(REBYTE, inbuf_len);
+    inbuf = OS_ALLOC_N(REBYTE, inbuf_len);
     inbuf[0] = 0;
 }
 

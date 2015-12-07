@@ -94,9 +94,9 @@ REBYTE * OS_Read_Embedded (REBI64 *script_size)
     sec_size = cast(size_t, file_header.e_shnum) * file_header.e_shentsize;
 
 #ifdef __LP64__
-    sec_headers = cast(Elf64_Shdr*, OS_ALLOC_ARRAY(char, sec_size));
+    sec_headers = cast(Elf64_Shdr*, OS_ALLOC_N(char, sec_size));
 #else
-    sec_headers = cast(Elf32_Shdr*, OS_ALLOC_ARRAY(char, sec_size));
+    sec_headers = cast(Elf32_Shdr*, OS_ALLOC_N(char, sec_size));
 #endif
 
     if (sec_headers == NULL) {
@@ -116,7 +116,7 @@ REBYTE * OS_Read_Embedded (REBI64 *script_size)
         goto header_failed;
     }
 
-    shstr = OS_ALLOC_ARRAY(char, sec_headers[file_header.e_shstrndx].sh_size);
+    shstr = OS_ALLOC_N(char, sec_headers[file_header.e_shstrndx].sh_size);
     if (shstr == NULL) {
         ret = NULL;
         goto header_failed;
@@ -147,7 +147,7 @@ REBYTE * OS_Read_Embedded (REBI64 *script_size)
     }
 
     /* will be free'ed by RL_Start */
-    embedded_script = OS_ALLOC_ARRAY(char, sec_headers[i].sh_size);
+    embedded_script = OS_ALLOC_N(char, sec_headers[i].sh_size);
     if (embedded_script == NULL) {
         ret = NULL;
         goto shstr_failed;

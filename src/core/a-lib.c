@@ -890,7 +890,7 @@ RL_API u32 *RL_Map_Words(REBARR *array)
     u32 *words;
     REBVAL *val = ARRAY_HEAD(array);
 
-    words = OS_ALLOC_ARRAY(u32, ARRAY_LEN(array) + 2);
+    words = OS_ALLOC_N(u32, ARRAY_LEN(array) + 2);
 
     for (; NOT_END(val); val++) {
         if (ANY_WORD(val)) words[i++] = VAL_WORD_CANON(val);
@@ -925,7 +925,7 @@ RL_API REBYTE *RL_Word_String(u32 word)
     // !!This code should use a function from c-words.c (but nothing perfect yet.)
     if (word == 0 || word >= ARRAY_LEN(PG_Word_Table.array)) return 0;
     s1 = VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, word));
-    s2 = OS_ALLOC_ARRAY(REBYTE, LEN_BYTES(s1) + 1);
+    s2 = OS_ALLOC_N(REBYTE, LEN_BYTES(s1) + 1);
     COPY_BYTES(s2, s1, LEN_BYTES(s1) + 1);
     return s2;
 }
@@ -1102,7 +1102,7 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
     keys = FRAME_KEY(frame, 1);
 
     // SELF not included, but terminated by 0.
-    syms = OS_ALLOC_ARRAY(u32, FRAME_LEN(frame) + 1);
+    syms = OS_ALLOC_N(u32, FRAME_LEN(frame) + 1);
 
     for (index = 0; index < FRAME_LEN(frame); keys++, index++) {
         syms[index] = VAL_TYPESET_CANON(keys);

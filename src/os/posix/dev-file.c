@@ -102,7 +102,7 @@ static int Is_Dir(const char *path, const char *name)
 
     // !!! No clue why + 13 is needed, and not sure I want to know.
     // It was in the original code, not second-guessing ATM.  --@HF
-    char *pathname = OS_ALLOC_ARRAY(char, len_path + 1 + len_name + 1 + 13);
+    char *pathname = OS_ALLOC_N(char, len_path + 1 + len_name + 1 + 13);
 
     strcpy(pathname, path);
 

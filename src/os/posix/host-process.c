@@ -463,7 +463,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
                 exit(EXIT_FAILURE);
             }
             argv_new = c_cast(
-                const char**, OS_ALLOC_ARRAY(const char*, argc + 3)
+                const char**, OS_ALLOC_N(const char*, argc + 3)
             );
             argv_new[0] = sh;
             argv_new[1] = "-c";
@@ -535,7 +535,7 @@ child_error:
             //printf("stdout_pipe[R]: %d\n", stdout_pipe[R]);
             output_size = BUF_SIZE_CHUNK;
 
-            *output = OS_ALLOC_ARRAY(char, output_size);
+            *output = OS_ALLOC_N(char, output_size);
 
             pfds[nfds].fd = stdout_pipe[R];
             pfds[nfds].events = POLLIN;
@@ -548,7 +548,7 @@ child_error:
             //printf("stderr_pipe[R]: %d\n", stderr_pipe[R]);
             err_size = BUF_SIZE_CHUNK;
 
-            *err = OS_ALLOC_ARRAY(char, err_size);
+            *err = OS_ALLOC_N(char, err_size);
 
             pfds[nfds].fd = stderr_pipe[R];
             pfds[nfds].events = POLLIN;
@@ -565,7 +565,7 @@ child_error:
 
             info_size = 4;
 
-            info = OS_ALLOC_ARRAY(char, info_size);
+            info = OS_ALLOC_N(char, info_size);
 
             close(info_pipe[W]);
             info_pipe[W] = -1;
@@ -688,7 +688,7 @@ child_error:
                         *offset += nbytes;
                         if (*offset >= size) {
                             char *larger =
-                                OS_ALLOC_ARRAY(char, size + BUF_SIZE_CHUNK);
+                                OS_ALLOC_N(char, size + BUF_SIZE_CHUNK);
                             if (!larger) goto kill;
                             memcpy(larger, *buffer, size * sizeof(larger[0]));
                             OS_FREE(*buffer);

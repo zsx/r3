@@ -414,7 +414,7 @@ REBCHR *OS_Get_Locale(int what)
     type = types[what];
 
     len = GetLocaleInfo(0, type, 0, 0);
-    data = OS_ALLOC_ARRAY(wchar_t, len);
+    data = OS_ALLOC_N(wchar_t, len);
     len = GetLocaleInfo(0, type, data, len);
 
     return data;
@@ -472,7 +472,7 @@ REBCHR *OS_List_Env(void)
     }
     len++;
 
-    str = OS_ALLOC_ARRAY(wchar_t, len);
+    str = OS_ALLOC_N(wchar_t, len);
     memmove(str, env, len * sizeof(wchar_t));
 
     FreeEnvironmentStrings(env);
@@ -538,7 +538,7 @@ int OS_Get_Current_Dir(REBCHR **path)
     int len;
 
     len = GetCurrentDirectory(0, NULL); // length, incl terminator.
-    *path = OS_ALLOC_ARRAY(wchar_t, len);
+    *path = OS_ALLOC_N(wchar_t, len);
     GetCurrentDirectory(len, *path);
     len--; // less terminator
 
@@ -876,7 +876,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
             size_t len = wcslen(sh) + wcslen(call) + 1;
 
             // other branch uses _wcsdup and free(), so we can't use
-            // OS_ALLOC_ARRAY here (doesn't matter, not returning it to Rebol)
+            // OS_ALLOC_N here (doesn't matter, not returning it to Rebol)
             cmd = cast(wchar_t*, malloc(len * sizeof(wchar_t)));
             cmd[0] = L'\0';
             wcscat(cmd, sh);
@@ -933,8 +933,8 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
                 dest_len = WideCharToMultiByte(CP_OEMCP, 0, cast(wchar_t*, input), input_len, oem_input, dest_len, NULL, NULL);
                 if (dest_len > 0) {
                     // Not returning memory to Rebol, but we don't realloc or
-                    // free, so it's all right to use OS_ALLOC_ARRAY anyway
-                    oem_input = OS_ALLOC_ARRAY(char, dest_len);
+                    // free, so it's all right to use OS_ALLOC_N anyway
+                    oem_input = OS_ALLOC_N(char, dest_len);
                     if (oem_input != NULL) {
                         WideCharToMultiByte(CP_OEMCP, 0, cast(wchar_t*, input), input_len, oem_input, dest_len, NULL, NULL);
                         input_len = dest_len;
@@ -950,7 +950,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
             output_size = BUF_SIZE_CHUNK;
             *output_len = 0;
 
-            // Might realloc(), can't use OS_ALLOC_ARRAY.  (This memory is not
+            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
             // passed back to Rebol, so it doesn't matter.)
             *output = cast(char*, malloc(output_size));
             handles[count ++] = hOutputRead;
@@ -959,7 +959,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
             err_size = BUF_SIZE_CHUNK;
             *err_len = 0;
 
-            // Might realloc(), can't use OS_ALLOC_ARRAY.  (This memory is not
+            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
             // passed back to Rebol, so it doesn't matter.)
             *err = cast(char*, malloc(err_size));
             handles[count++] = hErrorRead;
@@ -1061,7 +1061,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
                 *output_len = 0;
             }
             // We've already established that output is a malloc()'d pointer,
-            // not one we got back from OS_ALLOC_ARRAY()
+            // not one we got back from OS_ALLOC_N()
             dest = cast(wchar_t*, malloc(*output_len * sizeof(wchar_t)));
             if (dest == NULL) goto cleanup;
             MultiByteToWideChar(CP_OEMCP, 0, *output, *output_len, dest, dest_len);
@@ -1081,7 +1081,7 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
                 *err_len = 0;
             }
             // We've already established that output is a malloc()'d pointer,
-            // not one we got back from OS_ALLOC_ARRAY()
+            // not one we got back from OS_ALLOC_N()
             dest = cast(wchar_t*, malloc(*err_len * sizeof(wchar_t)));
             if (dest == NULL) goto cleanup;
             MultiByteToWideChar(CP_OEMCP, 0, *err, *err_len, dest, dest_len);
@@ -1119,7 +1119,7 @@ kill:
 cleanup:
     if (oem_input != NULL) {
         // Since we didn't need realloc() for oem_input, we used the
-        // OS_ALLOC_ARRAY allocator.
+        // OS_ALLOC_N allocator.
         OS_FREE(oem_input);
     }
 
@@ -1193,7 +1193,7 @@ int OS_Browse(const REBCHR *url, int reserved)
 
     if (!url) url = L"";
 
-    path = OS_ALLOC_ARRAY(wchar_t, MAX_BRW_PATH+4);
+    path = OS_ALLOC_N(wchar_t, MAX_BRW_PATH+4);
     len = MAX_BRW_PATH;
 
     flag = RegQueryValueEx(key, L"", 0, &type, cast(LPBYTE, path), &len);
@@ -1351,7 +1351,7 @@ REBOOL As_OS_Str(REBSER *series, REBCHR **string)
     if ((len = RL_Get_String(series, 0, &str)) < 0) {
         // Latin1 byte string - convert to wide chars
         len = -len;
-        wstr = OS_ALLOC_ARRAY(wchar_t, len + 1);
+        wstr = OS_ALLOC_N(wchar_t, len + 1);
         for (n = 0; n < len; n++)
             wstr[n] = (wchar_t)((unsigned char*)str)[n];
         wstr[len] = 0;
@@ -1404,7 +1404,7 @@ REBYTE * OS_Read_Embedded (REBI64 *script_size)
         return NULL;
     }
 
-    embedded_script = OS_ALLOC_ARRAY(REBYTE, *script_size);
+    embedded_script = OS_ALLOC_N(REBYTE, *script_size);
 
     if (embedded_script == NULL) {
         return NULL;

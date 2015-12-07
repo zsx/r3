@@ -557,7 +557,7 @@ REBNATIVE(set_scheme)
 //
 void Init_Ports(void)
 {
-    Scheme_Actions = ALLOC_ARRAY(SCHEME_ACTIONS, MAX_SCHEMES);
+    Scheme_Actions = ALLOC_N(SCHEME_ACTIONS, MAX_SCHEMES);
     CLEAR(Scheme_Actions, MAX_SCHEMES * sizeof(SCHEME_ACTIONS));
 
     Init_Console_Scheme();
@@ -587,5 +587,5 @@ void Init_Ports(void)
 //
 void Shutdown_Ports(void)
 {
-    FREE_ARRAY(SCHEME_ACTIONS, MAX_SCHEMES, Scheme_Actions);
+    FREE_N(SCHEME_ACTIONS, MAX_SCHEMES, Scheme_Actions);
 }

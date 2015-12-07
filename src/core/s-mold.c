@@ -1462,14 +1462,14 @@ void Init_Mold(REBCNT size)
     );
 
     // Create quoted char escape table:
-    Char_Escapes = cp = ALLOC_ARRAY_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
+    Char_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
     for (c = '@'; c <= '_'; c++) *cp++ = c;
     Char_Escapes[cast(REBYTE, TAB)] = '-';
     Char_Escapes[cast(REBYTE, LF)] = '/';
     Char_Escapes[cast(REBYTE, '"')] = '"';
     Char_Escapes[cast(REBYTE, '^')] = '^';
 
-    URL_Escapes = cp = ALLOC_ARRAY_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
+    URL_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
     //for (c = 0; c <= MAX_URL_CHAR; c++) if (IS_LEX_DELIMIT(c)) cp[c] = ESC_URL;
     for (c = 0; c <= ' '; c++) cp[c] = ESC_URL | ESC_FILE;
     dc = cb_cast(";%\"()[]{}<>");
@@ -1482,6 +1482,6 @@ void Init_Mold(REBCNT size)
 //
 void Shutdown_Mold(void)
 {
-    FREE_ARRAY(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
-    FREE_ARRAY(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
+    FREE_N(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
+    FREE_N(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }

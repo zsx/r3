@@ -99,12 +99,12 @@ REBOOL As_OS_Str(REBSER *series, REBCHR **string)
 
     //empty string check
     if (len == 0) { /* shortcut */
-        *string = OS_ALLOC_ARRAY(REBCHR, 1);
+        *string = OS_ALLOC_N(REBCHR, 1);
         *string[0] = '\0';
     } else {
         //convert to UTF8
         REBCNT utf8_len = RL_Length_As_UTF8(str, len, TRUE, FALSE);
-        *string = OS_ALLOC_ARRAY(char, utf8_len + 1);
+        *string = OS_ALLOC_N(char, utf8_len + 1);
         RL_Encode_UTF8(b_cast(*string), utf8_len, str, &len, TRUE, FALSE);
         (*string)[utf8_len] = '\0';
     }

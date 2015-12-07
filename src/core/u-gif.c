@@ -86,7 +86,7 @@ void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h
     short   *prefix;
     REBYTE  first, *pixel_stack, *suffix, *top_stack;
 
-    suffix = ALLOC_ARRAY(REBYTE,
+    suffix = ALLOC_N(REBYTE,
         MAX_STACK_SIZE * (sizeof(REBYTE) + sizeof(REBYTE) + sizeof(short))
     );
     pixel_stack = suffix + MAX_STACK_SIZE;
@@ -193,7 +193,7 @@ void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h
     }
     *cpp = cp + count + 1;
 
-    FREE_ARRAY(REBYTE,
+    FREE_N(REBYTE,
         MAX_STACK_SIZE * (sizeof(REBYTE) + sizeof(REBYTE) + sizeof(short)),
         suffix
     );
@@ -300,7 +300,7 @@ void Decode_GIF_Image(REBCDI *codi)
             Append_Series(VAL_SERIES(Temp2_Value), (REBMEM *)Temp_Value, 1);
         }
 */
-        dp = codi->extra.bits = ALLOC_ARRAY(u32, w * h);
+        dp = codi->extra.bits = ALLOC_N(u32, w * h);
         codi->w = w;
         codi->h = h;
 

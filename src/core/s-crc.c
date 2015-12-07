@@ -391,7 +391,7 @@ static void Make_CRC32_Table(void) {
     u32 c;
     int n,k;
 
-    crc32_table = ALLOC_ARRAY(u32, 256);
+    crc32_table = ALLOC_N(u32, 256);
 
     for(n=0;n<256;n++) {
         c=(u32)n;
@@ -431,7 +431,7 @@ REBCNT CRC32(REBYTE *buf, REBCNT len)
 //
 void Init_CRC(void)
 {
-    CRC_Table = ALLOC_ARRAY(REBCNT, 256);
+    CRC_Table = ALLOC_N(REBCNT, 256);
     Make_CRC_Table(PRZCRC);
 }
 
@@ -441,9 +441,9 @@ void Init_CRC(void)
 //
 void Shutdown_CRC(void)
 {
-    if (crc32_table) FREE_ARRAY(u32, 256, crc32_table);
+    if (crc32_table) FREE_N(u32, 256, crc32_table);
 
-    FREE_ARRAY(REBCNT, 256, CRC_Table);
+    FREE_N(REBCNT, 256, CRC_Table);
 }
 
 

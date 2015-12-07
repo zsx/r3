@@ -138,7 +138,7 @@ REBCNT Test_Async_Callback(REBSER *obj, REBCNT word)
     // These cannot be on the stack, because they are used
     // when the callback happens later.
     cbi = ALLOC_ZEROFILL(RXICBI);
-    args = ALLOC_ARRAY_ZEROFILL(RXIARG, 4);
+    args = ALLOC_N_ZEROFILL(RXIARG, 4);
     cbi->obj = obj;
     cbi->word = word;
     cbi->args = args;

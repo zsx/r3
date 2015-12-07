@@ -1179,7 +1179,7 @@ REBNATIVE(request_file)
 
     REBRFR fr;
     CLEARS(&fr);
-    fr.files = OS_ALLOC_ARRAY(REBCHR, MAX_FILE_REQ_BUF);
+    fr.files = OS_ALLOC_N(REBCHR, MAX_FILE_REQ_BUF);
     fr.len = MAX_FILE_REQ_BUF/sizeof(REBCHR) - 2;
     fr.files[0] = OS_MAKE_CH('\0');
 
@@ -1252,10 +1252,10 @@ REBNATIVE(get_env)
     if (lenplus < 0) return R_UNSET;
 
     // Two copies...is there a better way?
-    buf = ALLOC_ARRAY(REBCHR, lenplus);
+    buf = ALLOC_N(REBCHR, lenplus);
     OS_GET_ENV(cmd, buf, lenplus);
     Val_Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
-    FREE_ARRAY(REBCHR, lenplus, buf);
+    FREE_N(REBCHR, lenplus, buf);
 
     return R_OUT;
 }

@@ -440,8 +440,13 @@ typedef u16 REBUNI;
 **      a type and do the calculations.
 **
 **      In a C++11 build, an extra check is done to ensure the type
-**      you pass in a FREE or FREE_ARRAY lines up with the type of
+**      you pass in a FREE or FREE_N lines up with the type of
 **      pointer being passed in to be freed.
+**
+**      Note: ALLOC_N/FREE_N used to be called ALLOC_ARRAY/FREE_ARRAY.
+**      But with the change of Rebol's ANY-BLOCK! to ANY-ARRAY! the
+**      ARRAY term has a more important use.  So this uses N to mean
+**      "allocate N items contiguously".
 **
 ***********************************************************************/
 
@@ -451,11 +456,11 @@ typedef u16 REBUNI;
 #define ALLOC_ZEROFILL(t) \
     cast(t *, memset(ALLOC(t), '\0', sizeof(t)))
 
-#define ALLOC_ARRAY(t,n) \
+#define ALLOC_N(t,n) \
     cast(t *, Alloc_Mem(sizeof(t) * (n)))
 
-#define ALLOC_ARRAY_ZEROFILL(t,n) \
-    cast(t *, memset(ALLOC_ARRAY(t, (n)), '\0', sizeof(t) * (n)))
+#define ALLOC_N_ZEROFILL(t,n) \
+    cast(t *, memset(ALLOC_N(t, (n)), '\0', sizeof(t) * (n)))
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
     #include <type_traits>
@@ -469,11 +474,11 @@ typedef u16 REBUNI;
             Free_Mem(p, sizeof(t)); \
         } while (0)
 
-    #define FREE_ARRAY(t,n,p)   \
+    #define FREE_N(t,n,p)   \
         do { \
             static_assert( \
                 std::is_same<decltype(p), std::add_pointer<t>::type>::value, \
-                "mismatched FREE_ARRAY type" \
+                "mismatched FREE_N type" \
             ); \
             Free_Mem(p, sizeof(t) * (n)); \
         } while (0)
@@ -481,7 +486,7 @@ typedef u16 REBUNI;
     #define FREE(t,p) \
         Free_Mem((p), sizeof(t))
 
-    #define FREE_ARRAY(t,n,p)   \
+    #define FREE_N(t,n,p)   \
         Free_Mem((p), sizeof(t) * (n))
 #endif
 

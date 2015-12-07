@@ -280,7 +280,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (len < pad_len)
                 {
                     //make new data input with zero-padding
-                    pad_data = OS_ALLOC_ARRAY(REBYTE, pad_len);
+                    pad_data = OS_ALLOC_N(REBYTE, pad_len);
                     memset(pad_data, 0, pad_len);
                     memcpy(pad_data, dataBuffer, len);
                     dataBuffer = pad_data;

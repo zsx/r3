@@ -548,7 +548,7 @@ REBNATIVE(do_codec)
         //don't free the text binary input buffer during decode (it's the 3rd arg value in fact)
         // See notice in reb-codec.h on reb_codec_image
         if (codi.data) {
-            FREE_ARRAY(REBYTE, codi.len, codi.data);
+            FREE_N(REBYTE, codi.len, codi.data);
         }
         break;
 
@@ -558,7 +558,7 @@ REBNATIVE(do_codec)
         Val_Init_Image(D_OUT, ser);
 
         // See notice in reb-codec.h on reb_codec_image
-        FREE_ARRAY(u32, codi.w * codi.h, codi.extra.bits);
+        FREE_N(u32, codi.w * codi.h, codi.extra.bits);
         break;
 
     case CODI_BLOCK:

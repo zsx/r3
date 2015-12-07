@@ -247,7 +247,7 @@ REBNATIVE(checksum)
                 if (D_REF(ARG_CHECKSUM_KEY)) {
                     REBYTE tmpdigest[20];       // Size must be max of all digest[].len;
                     REBYTE ipad[64],opad[64];   // Size must be max of all digest[].hmacblock;
-                    char *ctx = ALLOC_ARRAY(char, digests[i].ctxsize());
+                    char *ctx = ALLOC_N(char, digests[i].ctxsize());
                     REBVAL *key = D_ARG(ARG_CHECKSUM_KEY_VALUE);
                     REBYTE *keycp = VAL_BIN_AT(key);
                     int keylen = VAL_LEN_AT(key);
@@ -279,7 +279,7 @@ REBNATIVE(checksum)
                     digests[i].update(ctx,tmpdigest,digests[i].len);
                     digests[i].final(BIN_HEAD(digest),ctx);
 
-                    FREE_ARRAY(char, digests[i].ctxsize(), ctx);
+                    FREE_N(char, digests[i].ctxsize(), ctx);
 
                 } else {
                     digests[i].digest(data, len, BIN_HEAD(digest));

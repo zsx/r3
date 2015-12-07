@@ -72,7 +72,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
 
-            req->special.serial.path = ALLOC_ARRAY(REBCHR, MAX_SERIAL_DEV_PATH);
+            req->special.serial.path = ALLOC_N(REBCHR, MAX_SERIAL_DEV_PATH);
             OS_STRNCPY(
                 req->special.serial.path,
                 // !!! This is assuming VAL_DATA contains native chars.

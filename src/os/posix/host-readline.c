@@ -146,15 +146,15 @@ STD_TERM *Init_Terminal(void)
 #endif
 
     // Setup variables:
-    Line_History = OS_ALLOC_ARRAY(char*, MAX_HISTORY + 2);
-    Line_History[0] = OS_ALLOC_ARRAY(char, strlen(empty_line) + 1);
+    Line_History = OS_ALLOC_N(char*, MAX_HISTORY + 2);
+    Line_History[0] = OS_ALLOC_N(char, strlen(empty_line) + 1);
     strcpy(Line_History[0], empty_line);
     Line_Count = 1;
 
     term = OS_ALLOC_ZEROFILL(STD_TERM);
-    term->buffer = OS_ALLOC_ARRAY(char, TERM_BUF_LEN);
+    term->buffer = OS_ALLOC_N(char, TERM_BUF_LEN);
     term->buffer[0] = 0;
-    term->residue = OS_ALLOC_ARRAY(char, TERM_BUF_LEN);
+    term->residue = OS_ALLOC_N(char, TERM_BUF_LEN);
     term->residue[0] = 0;
 
     Term_Init = TRUE;
@@ -214,7 +214,7 @@ static void Write_Char(char c, int n)
 static void Store_Line(STD_TERM *term)
 {
     term->buffer[term->end] = 0;
-    term->out = OS_ALLOC_ARRAY(char, term->end + 1);
+    term->out = OS_ALLOC_N(char, term->end + 1);
     strcpy(term->out, term->buffer);
 
     // If max history, drop older lines (but not [0] empty line):

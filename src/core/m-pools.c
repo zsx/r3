@@ -83,7 +83,7 @@
 //
 //  Alloc_Mem: C
 // 
-// NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_ARRAY
+// NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_N
 // wrapper macros to ensure the memory block being freed matches
 // the appropriate size for the type.
 // 
@@ -106,7 +106,7 @@
 // 
 // Finer-grained allocations are done with memory pooling.  But
 // the blocks of memory used by the pools are still acquired
-// using ALLOC_ARRAY and FREE_ARRAY.
+// using ALLOC_N and FREE_N.
 //
 void *Alloc_Mem(size_t size)
 {
@@ -139,7 +139,7 @@ void *Alloc_Mem(size_t size)
 //
 //  Free_Mem: C
 // 
-// NOTE: Instead of Free_Mem, use the FREE and FREE_ARRAY
+// NOTE: Instead of Free_Mem, use the FREE and FREE_N
 // wrapper macros to ensure the memory block being freed matches
 // the appropriate size for the type.
 //
@@ -272,7 +272,7 @@ void Init_Pools(REBINT scale)
     else if (scale < 0) unscale = -scale, scale = 1;
 
     // Copy pool sizes to new pool structure:
-    Mem_Pools = ALLOC_ARRAY(REBPOL, MAX_POOLS);
+    Mem_Pools = ALLOC_N(REBPOL, MAX_POOLS);
     for (n = 0; n < MAX_POOLS; n++) {
         Mem_Pools[n].segs = NULL;
         Mem_Pools[n].first = NULL;
@@ -285,7 +285,7 @@ void Init_Pools(REBINT scale)
     }
 
     // For pool lookup. Maps size to pool index. (See Find_Pool below)
-    PG_Pool_Map = ALLOC_ARRAY(REBYTE, (4 * MEM_BIG_SIZE) + 1);
+    PG_Pool_Map = ALLOC_N(REBYTE, (4 * MEM_BIG_SIZE) + 1);
 
     // sizes 0 - 8 are pool 0
     for (n = 0; n <= 8; n++) PG_Pool_Map[n] = 0;
@@ -305,7 +305,7 @@ void Init_Pools(REBINT scale)
     GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
     LABEL_SERIES(GC_Manuals, "gc manuals");
 
-    Prior_Expand = ALLOC_ARRAY(REBSER*, MAX_EXPAND_LIST);
+    Prior_Expand = ALLOC_N(REBSER*, MAX_EXPAND_LIST);
     CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
     Prior_Expand[0] = (REBSER*)1;
 }
@@ -332,17 +332,17 @@ void Shutdown_Pools(void)
 
         while (seg) {
             REBSEG *next = seg->next;
-            FREE_ARRAY(char, mem_size, cast(char*, seg));
+            FREE_N(char, mem_size, cast(char*, seg));
             seg = next;
         }
     }
 
-    FREE_ARRAY(REBPOL, MAX_POOLS, Mem_Pools);
+    FREE_N(REBPOL, MAX_POOLS, Mem_Pools);
 
-    FREE_ARRAY(REBYTE, (4 * MEM_BIG_SIZE) + 1, PG_Pool_Map);
+    FREE_N(REBYTE, (4 * MEM_BIG_SIZE) + 1, PG_Pool_Map);
 
     // !!! Revisit location (just has to be after all series are freed)
-    FREE_ARRAY(REBSER*, MAX_EXPAND_LIST, Prior_Expand);
+    FREE_N(REBSER*, MAX_EXPAND_LIST, Prior_Expand);
 
 #if !defined(NDEBUG)
     FREE(REB_STATS, PG_Reb_Stats);
@@ -418,7 +418,7 @@ static void Fill_Pool(REBPOL *pool)
     REBCNT  units = pool->units;
     REBCNT  mem_size = pool->wide * units + sizeof(REBSEG);
 
-    seg = cast(REBSEG *, ALLOC_ARRAY(char, mem_size));
+    seg = cast(REBSEG *, ALLOC_N(char, mem_size));
 
     if (!seg) panic (Error_No_Memory(mem_size));
 
@@ -624,7 +624,7 @@ static REBOOL Series_Data_Alloc(REBSER *series, REBCNT length, REBYTE wide, REBC
         else
             SERIES_CLR_FLAG(series, SER_POWER_OF_2);
 
-        series->data = ALLOC_ARRAY(REBYTE, size);
+        series->data = ALLOC_N(REBYTE, size);
         if (!series->data)
             return FALSE;
 
@@ -870,7 +870,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size)
         pool->free++;
     }
     else {
-        FREE_ARRAY(REBYTE, size, unbiased);
+        FREE_N(REBYTE, size, unbiased);
         Mem_Pools[SYSTEM_POOL].has -= size;
         Mem_Pools[SYSTEM_POOL].free--;
     }

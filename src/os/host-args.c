@@ -245,7 +245,7 @@ void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
     if (i < argc) {
         // rargs->args must be a null-terminated array of pointers
         // but CommandLineToArgvW() may return a non-terminated array
-        rargs->args = OS_ALLOC_ARRAY(REBCHR*, argc - i + 1);
+        rargs->args = OS_ALLOC_N(REBCHR*, argc - i + 1);
         memcpy(rargs->args, &argv[i], (argc - i) * sizeof(REBCHR*));
         rargs->args[argc - i] = NULL;
     }

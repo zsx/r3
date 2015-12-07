@@ -115,7 +115,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
     }
 
     len = wcslen(cp);
-    bin = OS_ALLOC_ARRAY(wchar_t, len + 1);
+    bin = OS_ALLOC_N(wchar_t, len + 1);
     wcsncpy(bin, cp, len);
 
     GlobalUnlock(data);

@@ -788,7 +788,7 @@ void Encode_PNG_Image(REBCDI *codi)
         currentidat=currentidat->next;
     }
 
-    codi->data = ALLOC_ARRAY(REBYTE, imgsize);
+    codi->data = ALLOC_N(REBYTE, imgsize);
     codi->len = imgsize;
 
     cp=(unsigned char *)codi->data;
@@ -828,7 +828,7 @@ void Decode_PNG_Image(REBCDI *codi)
     if (!png_info(codi->data, codi->len, &w, &h )) trap_png();
     codi->w = w;
     codi->h = h;
-    codi->extra.bits = ALLOC_ARRAY(u32, w * h);
+    codi->extra.bits = ALLOC_N(u32, w * h);
     png_load(codi->data, codi->len, cast(char*, codi->extra.bits), &alpha);
 
     //if(alpha) VAL_IMAGE_TRANSP(Temp_Value)=VITT_ALPHA;

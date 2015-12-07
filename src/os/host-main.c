@@ -237,7 +237,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         len_predicted = RL_Length_As_UTF8(
             Main_Args.do_arg, len_uni, TRUE, FALSE
         );
-        do_arg_utf8 = OS_ALLOC_ARRAY(REBYTE, len_predicted + 1);
+        do_arg_utf8 = OS_ALLOC_N(REBYTE, len_predicted + 1);
         len_encoded = RL_Encode_UTF8(
             do_arg_utf8,
             len_predicted + 1,
@@ -317,7 +317,7 @@ void Host_Repl(int *exit_status) {
 
     int input_max = 32768;
     int input_len = 0;
-    REBYTE *input = OS_ALLOC_ARRAY(REBYTE, input_max);
+    REBYTE *input = OS_ALLOC_N(REBYTE, input_max);
 
     REBYTE *line;
     int line_len;
@@ -404,7 +404,7 @@ void Host_Repl(int *exit_status) {
         inside_short_str = FALSE;
 
         if (input_len + line_len > input_max) {
-            REBYTE *tmp = OS_ALLOC_ARRAY(REBYTE, 2 * input_max);
+            REBYTE *tmp = OS_ALLOC_N(REBYTE, 2 * input_max);
             if (!tmp) {
                 OS_FREE(input);
                 Host_Crash("Growing console input buffer failed!");

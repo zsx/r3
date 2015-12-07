@@ -332,7 +332,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
 
     /* one extra for NULL */
     if (make) {
-        stype->elements = OS_ALLOC_ARRAY(ffi_type *, 1 + n_struct_fields(fields));
+        stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
         //printf("allocated stype elements at: %p\n", stype->elements);
         QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
     } else {

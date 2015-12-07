@@ -127,7 +127,7 @@ REBOOL OS_Set_Env(REBCHR *envname, REBCHR *envval)
         // really need to set an environment variable, here's a way
         // that just leaks a string each time you call.
 
-        char *expr = OS_ALLOC_ARRAY(char,
+        char *expr = OS_ALLOC_N(char,
             strlen(envname) + 1 + strlen(envval) + 1
         );
 
@@ -174,7 +174,7 @@ REBCHR *OS_List_Env(void)
     // Note: 'environ' is an extern of a global found in <unistd.h>
     for (n = 0; environ[n]; n++) len += 1 + strlen(environ[n]);
 
-    cp = str = OS_ALLOC_ARRAY(char, len + 1); // +terminator
+    cp = str = OS_ALLOC_N(char, len + 1); // +terminator
     *cp = 0;
 
     // combine all strings into one:

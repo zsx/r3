@@ -72,14 +72,14 @@ REBCHR *OS_Get_Locale(int what)
             if (lang != NULL) { /* duplicate "_" */
                 goto error;
             }
-            lang = OS_ALLOC_ARRAY(char, i + 1);
+            lang = OS_ALLOC_N(char, i + 1);
             if (lang == NULL) goto error;
             strncpy(lang, lang_env, i);
             lang[i] = '\0';
             j = i;
         } else if (lang_env[i] == '.'){
             if (i == j) goto error;
-            territory = OS_ALLOC_ARRAY(char, i - j);
+            territory = OS_ALLOC_N(char, i - j);
             if (territory == NULL) goto error;
             strncpy(territory, lang_env + j + 1, i - j - 1);
             territory[i - j - 1] = '\0';
@@ -103,7 +103,7 @@ REBCHR *OS_Get_Locale(int what)
     ret[2] = iso3166_entry[1];
     ret[3] = iso3166_entry[1];
 
-    locale = OS_ALLOC_ARRAY(char, strlen(ret[what]) + 1);
+    locale = OS_ALLOC_N(char, strlen(ret[what]) + 1);
     strcpy(locale, ret[what]);
     return locale;
 

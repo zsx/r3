@@ -10821,7 +10821,7 @@ REBINT Codec_JPEG_Image(REBCDI *codi)
     if (codi->action == CODI_ACT_DECODE) {
         int w, h;
         jpeg_info(s_cast(codi->data), codi->len, &w, &h);
-        codi->extra.bits = ALLOC_ARRAY(u32, w * h);
+        codi->extra.bits = ALLOC_N(u32, w * h);
         jpeg_load(s_cast(codi->data), codi->len, cast(char*, codi->extra.bits));
         codi->w = w;
         codi->h = h;

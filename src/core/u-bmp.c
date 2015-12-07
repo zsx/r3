@@ -316,7 +316,7 @@ static void Decode_BMP_Image(REBCDI *codi)
             colors = 0;
 
         if (colors) {
-            ctab = ALLOC_ARRAY(RGBQUAD, colors);
+            ctab = ALLOC_N(RGBQUAD, colors);
             for (i = 0; i<colors; i++) {
                 ctab[i].rgbBlue = *cp++;
                 ctab[i].rgbGreen = *cp++;
@@ -337,7 +337,7 @@ static void Decode_BMP_Image(REBCDI *codi)
             colors = bmih.biClrUsed;
 
         if (colors) {
-            ctab = ALLOC_ARRAY(RGBQUAD, colors);
+            ctab = ALLOC_N(RGBQUAD, colors);
             memcpy(ctab, cp, colors * sizeof(RGBQUAD));
             cp += colors * sizeof(RGBQUAD);
         }
@@ -348,7 +348,7 @@ static void Decode_BMP_Image(REBCDI *codi)
 
     codi->w = w;
     codi->h = h;
-    codi->extra.bits = ALLOC_ARRAY(u32, w * h);
+    codi->extra.bits = ALLOC_N(u32, w * h);
 
     dp = cast(REBCNT *, codi->extra.bits);
     dp += w * h - w;
@@ -531,7 +531,7 @@ static void Encode_BMP_Image(REBCDI *codi)
     bmfh.bfOffBits = 14 + 40;
 
     // Create binary string:
-    cp = codi->data = ALLOC_ARRAY(REBYTE, bmfh.bfSize);
+    cp = codi->data = ALLOC_N(REBYTE, bmfh.bfSize);
     codi->len = bmfh.bfSize;
     Unmap_Bytes(&bmfh, &cp, mapBITMAPFILEHEADER);
 

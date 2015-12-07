@@ -101,7 +101,7 @@ DEVICE_CMD Read_DNS(REBREQ *sock)
     HOSTENT *he;
 #endif
 
-    host = OS_ALLOC_ARRAY(char, MAXGETHOSTSTRUCT); // be sure to free it
+    host = OS_ALLOC_N(char, MAXGETHOSTSTRUCT); // be sure to free it
 
 #ifdef HAS_ASYNC_DNS
     if (!GET_FLAG(sock->modes, RST_REVERSE)) // hostname lookup

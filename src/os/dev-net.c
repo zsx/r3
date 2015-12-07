@@ -293,7 +293,7 @@ DEVICE_CMD Lookup_Socket(REBREQ *sock)
     }
 
     // Else, make the lookup request:
-    host = cast(HOSTENT*, OS_ALLOC_ARRAY(char, MAXGETHOSTSTRUCT));
+    host = cast(HOSTENT*, OS_ALLOC_N(char, MAXGETHOSTSTRUCT));
     handle = WSAAsyncGetHostByName(Event_Handle, WM_DNS, s_cast(sock->common.data), cast(char*, host), MAXGETHOSTSTRUCT);
     if (handle != 0) {
         sock->special.net.host_info = host;

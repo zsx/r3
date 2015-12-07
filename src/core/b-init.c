@@ -284,7 +284,7 @@ static void Load_Boot(void)
         REBYTE *cp;
         REBINT i;
 
-        PG_Boot_Strs = ALLOC_ARRAY(REBYTE *, RS_MAX);
+        PG_Boot_Strs = ALLOC_N(REBYTE *, RS_MAX);
         *ROOT_STRINGS = Boot_Block->strings;
         cp = VAL_BIN(ROOT_STRINGS);
         for (i = 0; i < RS_MAX; i++) {
@@ -926,7 +926,7 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
     }
 
     if (codi->action == CODI_ACT_ENCODE) {
-        u16 * data = ALLOC_ARRAY(u16, codi->len);
+        u16 * data = ALLOC_N(u16, codi->len);
         if (codi->w == 1) {
             /* in ASCII */
             REBCNT i = 0;
@@ -1535,7 +1535,7 @@ void Shutdown_Core(void)
     //
     Recycle_Core(TRUE);
 
-    FREE_ARRAY(REBYTE*, RS_MAX, PG_Boot_Strs);
+    FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 
     // Free our end value, that was allocated instead of global in order to
     // get good trip-ups on anyone trying to use anything but the header out

@@ -78,7 +78,7 @@ void OS_Destroy_Graphics(void);
 //
 int OS_Get_Current_Dir(REBCHR **path)
 {
-    *path = OS_ALLOC_ARRAY(char, PATH_MAX);
+    *path = OS_ALLOC_N(char, PATH_MAX);
     if (!getcwd(*path, PATH_MAX-1)) *path[0] = 0;
     return strlen(*path);
 }
