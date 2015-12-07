@@ -167,7 +167,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *leng
 //
 REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
 {
-    REBCNT len = (length && *length) ? *length : VAL_LEN(val);
+    REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;
 
     assert(IS_BINARY(val) || ANY_STR(val));
@@ -189,7 +189,7 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
         MANAGE_SERIES(series);
 
         if (index) *index = 0;
-        if (length) *length = SERIES_TAIL(series);
+        if (length) *length = SERIES_LEN(series);
     }
 
     return series;
@@ -204,14 +204,14 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
 REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 {
         REBSER *series;
-        REBYTE *p0 = VAL_BIN_DATA(value);
-        REBYTE *p1 = VAL_BIN_DATA(arg);
+        REBYTE *p0 = VAL_BIN_AT(value);
+        REBYTE *p1 = VAL_BIN_AT(arg);
         REBYTE *p2;
         REBCNT i;
         REBCNT mt, t1, t0, t2;
 
-        t0 = VAL_LEN(value);
-        t1 = VAL_LEN(arg);
+        t0 = VAL_LEN_AT(value);
+        t1 = VAL_LEN_AT(arg);
 
         mt = MIN(t0, t1); // smaller array size
         // For AND - result is size of shortest input:
@@ -235,7 +235,7 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
             // Ordinary binary
             //
             series = Make_Binary(t2);
-            SERIES_TAIL(series) = t2;
+            SET_SERIES_LEN(series, t2);
         }
 
         p2 = BIN_HEAD(series);
@@ -275,15 +275,17 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 REBSER *Complement_Binary(REBVAL *value)
 {
         REBSER *series;
-        REBYTE *str = VAL_BIN_DATA(value);
-        REBINT len = VAL_LEN(value);
+        REBYTE *str = VAL_BIN_AT(value);
+        REBINT len = VAL_LEN_AT(value);
         REBYTE *out;
 
         series = Make_Binary(len);
-        SERIES_TAIL(series) = len;
+        SET_SERIES_LEN(series, len);
         out = BIN_HEAD(series);
-        for (; len > 0; len--)
-            *out++ = ~ *str++;
+        for (; len > 0; len--) {
+            *out++ = ~(*str);
+            ++str;
+        }
 
         return series;
 }
@@ -303,7 +305,7 @@ void Shuffle_String(REBVAL *value, REBFLG secure)
     REBCNT idx     = VAL_INDEX(value);
     REBUNI swap;
 
-    for (n = VAL_LEN(value); n > 1;) {
+    for (n = VAL_LEN_AT(value); n > 1;) {
         k = idx + (REBCNT)Random_Int(secure) % n;
         n--;
         swap = GET_ANY_CHAR(series, k);
@@ -345,12 +347,12 @@ REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, RE
 
         switch (VAL_TYPE(val)) {
         case REB_BINARY:
-            kp = VAL_BIN_DATA(val);
-            klen = VAL_LEN(val);
+            kp = VAL_BIN_AT(val);
+            klen = VAL_LEN_AT(val);
             break;
         case REB_STRING:
             ser = Temp_Bin_Str_Managed(val, &i, &klen);
-            kp = BIN_SKIP(ser, i);
+            kp = BIN_AT(ser, i);
             break;
         case REB_INTEGER:
             INT_TO_STR(VAL_INT64(val), dst);
@@ -397,11 +399,11 @@ void Trim_Tail(REBSER *src, REBYTE chr)
 
     assert(!Is_Array_Series(src));
 
-    for (tail = SERIES_TAIL(src); tail > 0; tail--) {
-        c = is_uni ? *UNI_SKIP(src, tail - 1) : *BIN_SKIP(src, tail - 1);
+    for (tail = SERIES_LEN(src); tail > 0; tail--) {
+        c = is_uni ? *UNI_AT(src, tail - 1) : *BIN_AT(src, tail - 1);
         if (c != chr) break;
     }
-    SERIES_TAIL(src) = tail;
+    SET_SERIES_LEN(src, tail);
     TERM_SEQUENCE(src);
 }
 
@@ -470,7 +472,7 @@ void Enline_Bytes(REBSER *ser, REBCNT idx, REBCNT len)
 
     // Calculate the size difference by counting the number of LF's
     // that have no CR's in front of them.
-    bp = BIN_SKIP(ser, idx);
+    bp = BIN_AT(ser, idx);
     for (; len > 0; len--) {
         if (*bp == LF && c != CR) cnt++;
         c = *bp++;
@@ -478,9 +480,9 @@ void Enline_Bytes(REBSER *ser, REBCNT idx, REBCNT len)
     if (cnt == 0) return;
 
     // Extend series:
-    len = SERIES_TAIL(ser); // before expansion
+    len = SERIES_LEN(ser); // before expansion
     EXPAND_SERIES_TAIL(ser, cnt);
-    tail = SERIES_TAIL(ser); // after expansion
+    tail = SERIES_LEN(ser); // after expansion
     bp = BIN_HEAD(ser); // expand may change it
 
     // Add missing CRs:
@@ -507,7 +509,7 @@ void Enline_Uni(REBSER *ser, REBCNT idx, REBCNT len)
 
     // Calculate the size difference by counting the number of LF's
     // that have no CR's in front of them.
-    bp = UNI_SKIP(ser, idx);
+    bp = UNI_AT(ser, idx);
     for (; len > 0; len--) {
         if (*bp == LF && c != CR) cnt++;
         c = *bp++;
@@ -515,9 +517,9 @@ void Enline_Uni(REBSER *ser, REBCNT idx, REBCNT len)
     if (cnt == 0) return;
 
     // Extend series:
-    len = SERIES_TAIL(ser); // before expansion
+    len = SERIES_LEN(ser); // before expansion
     EXPAND_SERIES_TAIL(ser, cnt);
-    tail = SERIES_TAIL(ser); // after expansion
+    tail = SERIES_LEN(ser); // after expansion
     bp = UNI_HEAD(ser); // expand may change it
 
     // Add missing CRs:
@@ -762,23 +764,23 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
 // Given a string series, split lines on CR-LF.
 // Series can be bytes or Unicode.
 //
-REBSER *Split_Lines(REBVAL *val)
+REBARR *Split_Lines(REBVAL *val)
 {
-    REBSER *ser = BUF_EMIT; // GC protected (because it is emit buffer)
+    REBARR *array = BUF_EMIT; // GC protected (because it is emit buffer)
     REBSER *str = VAL_SERIES(val);
-    REBCNT len = VAL_LEN(val);
+    REBCNT len = VAL_LEN_AT(val);
     REBCNT idx = VAL_INDEX(val);
     REBCNT start = idx;
     REBSER *out;
     REBUNI c;
 
-    BLK_RESET(ser);
+    RESET_ARRAY(array);
 
     while (idx < len) {
         c = GET_ANY_CHAR(str, idx);
         if (c == LF || c == CR) {
             out = Copy_String(str, start, idx - start);
-            val = Alloc_Tail_Array(ser);
+            val = Alloc_Tail_Array(array);
             Val_Init_String(val, out);
             VAL_SET_OPT(val, OPT_VALUE_LINE);
             idx++;
@@ -791,10 +793,10 @@ REBSER *Split_Lines(REBVAL *val)
     // Possible remainder (no terminator)
     if (idx > start) {
         out = Copy_String(str, start, idx - start);
-        val = Alloc_Tail_Array(ser);
+        val = Alloc_Tail_Array(array);
         Val_Init_String(val, out);
         VAL_SET_OPT(val, OPT_VALUE_LINE);
     }
 
-    return Copy_Array_Shallow(ser);
+    return Copy_Array_Shallow(array);
 }

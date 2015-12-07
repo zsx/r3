@@ -345,7 +345,7 @@ REBVAL *Get_Field(REBFRM *frame, REBCNT index)
 REBVAL *Get_Object(const REBVAL *context, REBCNT index)
 {
     REBFRM *frame = VAL_FRAME(context);
-    assert(SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
+    assert(ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
     assert(index <= FRAME_LEN(frame));
     return FRAME_VAR(frame, index);
 }
@@ -506,7 +506,7 @@ void Val_Init_Context_Core(
     enum Reb_Kind kind,
     REBFRM *frame,
     REBFRM *spec,
-    REBSER *body
+    REBARR *body
 ) {
 #if !defined(NDEBUG)
     if (!FRAME_KEYLIST(frame)) {
@@ -517,7 +517,7 @@ void Val_Init_Context_Core(
 
     ENSURE_FRAME_MANAGED(frame);
 
-    assert(SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
+    assert(ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
 
     assert(FRAME_TYPE(frame) == kind);
     assert(VAL_FRAME(FRAME_CONTEXT(frame)) == frame);
@@ -527,7 +527,7 @@ void Val_Init_Context_Core(
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
-    assert(!spec || SERIES_GET_FLAG(FRAME_VARLIST(spec), SER_FRAME));
+    assert(!spec || ARRAY_GET_FLAG(FRAME_VARLIST(spec), SER_FRAME));
 
     // !!! Nothing was using the body field yet.
     //
@@ -540,11 +540,12 @@ void Val_Init_Context_Core(
 
 
 //
-//  Val_Series_Len: C
+//  Val_Series_Len_At: C
 // 
-// Get length of series, but avoid negative values.
+// Get length of an ANY-SERIES! value, taking the current index into account.
+// Avoid negative values.
 //
-REBCNT Val_Series_Len(const REBVAL *value)
+REBCNT Val_Series_Len_At(const REBVAL *value)
 {
     if (VAL_INDEX(value) >= VAL_TAIL(value)) return 0;
     return VAL_TAIL(value) - VAL_INDEX(value);
@@ -610,7 +611,7 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
     if (is_ser) {
         // Restrict length to the size available:
         if (len >= 0) {
-            maxlen = (REBINT)VAL_LEN(sval);
+            maxlen = (REBINT)VAL_LEN_AT(sval);
             if (len > maxlen) len = maxlen;
         } else {
             len = -len;
@@ -681,7 +682,7 @@ REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval, REBFLG flag)
 
     // Restrict length to the size available:
     if (len >= 0) {
-        maxlen = (REBINT)VAL_LEN(val);
+        maxlen = (REBINT)VAL_LEN_AT(val);
         if (len > maxlen) len = maxlen;
     } else {
         len = -len;
@@ -778,7 +779,7 @@ REBSER *At_Head(REBVAL *value)
 
     if (VAL_INDEX(value) == 0) return src;
 
-    len = VAL_LEN(value);
+    len = VAL_LEN_AT(value);
     wide = SERIES_WIDE(src);
     ser = Make_Series(len, wide, Is_Array_Series(src) ? MKS_ARRAY : MKS_NONE);
 
@@ -794,25 +795,25 @@ REBSER *At_Head(REBVAL *value)
 // 
 // Scan a block, collecting all of its SET words as a block.
 //
-REBSER *Collect_Set_Words(REBVAL *val)
+REBARR *Collect_Set_Words(REBVAL *val)
 {
-    REBCNT cnt = 0;
+    REBCNT count = 0;
     REBVAL *val2 = val;
-    REBSER *ser;
+    REBARR *array;
 
-    for (; NOT_END(val); val++) if (IS_SET_WORD(val)) cnt++;
+    for (; NOT_END(val); val++) if (IS_SET_WORD(val)) count++;
     val = val2;
 
-    ser = Make_Array(cnt);
-    val2 = BLK_HEAD(ser);
+    array = Make_Array(count);
+    val2 = ARRAY_HEAD(array);
     for (; NOT_END(val); val++) {
         if (IS_SET_WORD(val))
             Val_Init_Word_Unbound(val2++, REB_WORD, VAL_WORD_SYM(val));
     }
     SET_END(val2);
-    SERIES_TAIL(ser) = cnt;
+    SET_ARRAY_LEN(array, count);
 
-    return ser;
+    return array;
 }
 
 

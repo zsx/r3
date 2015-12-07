@@ -131,7 +131,7 @@ static REBINT Init_Depth(void)
 
 #define CHECK_DEPTH(d) if ((d = Init_Depth()) < 0) return;\
 
-void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
+void Trace_Line(REBARR *block, REBINT index, const REBVAL *value)
 {
     int depth;
 
@@ -146,11 +146,11 @@ void Trace_Line(REBSER *block, REBINT index, const REBVAL *value)
         if (VAL_TYPE(value) < REB_NATIVE)
             Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), value);
         else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) {
-            REBSER *words = List_Func_Words(value);
+            REBARR *words = List_Func_Words(value);
             Debug_Fmt_(
                 cs_cast(BOOT_STR(RS_TRACE,3)), Get_Type_Name(value), words
             );
-            Free_Series(words);
+            Free_Array(words);
         }
         else
             Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,4)), Get_Type_Name(value));
@@ -366,7 +366,7 @@ REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
     // Get first block value:
     pvs.orig = path;
-    pvs.path = VAL_BLK_DATA(pvs.orig);
+    pvs.path = VAL_ARRAY_AT(pvs.orig);
 
     // Lookup the value of the variable:
     if (IS_WORD(pvs.path)) {
@@ -784,10 +784,10 @@ void Do_Core(struct Reb_Call * const c)
     // newly allocated series should either be (a) freed or (b) delegated
     // to management by the GC...else they'd represent a leak
     //
-    REBCNT manuals_tail = SERIES_TAIL(GC_Manuals);
+    REBCNT manuals_len = SERIES_LEN(GC_Manuals);
 
-    REBCNT series_guard_tail = SERIES_TAIL(GC_Series_Guard);
-    REBCNT value_guard_tail = SERIES_TAIL(GC_Value_Guard);
+    REBCNT series_guard_len = SERIES_LEN(GC_Series_Guard);
+    REBCNT value_guard_len = SERIES_LEN(GC_Value_Guard);
 #endif
 
     // See notes below on reference for why this is needed to implement eval.
@@ -852,8 +852,6 @@ void Do_Core(struct Reb_Call * const c)
     //
     assert(c->flags & DO_FLAG_DO);
 
-    assert(Is_Array_Series(c->array));
-
     // Only need to check this once (C stack size would be the same each
     // time this line is run if it were in a loop)
     //
@@ -903,10 +901,10 @@ do_at_index:
     if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
 
 #if !defined(NDEBUG)
-    MANUALS_LEAK_CHECK(manuals_tail, "Do_Core");
+    MANUALS_LEAK_CHECK(manuals_len, "Do_Core");
 
-    assert(series_guard_tail == SERIES_TAIL(GC_Series_Guard));
-    assert(value_guard_tail == SERIES_TAIL(GC_Value_Guard));
+    assert(series_guard_len == SERIES_LEN(GC_Series_Guard));
+    assert(value_guard_len == SERIES_LEN(GC_Value_Guard));
 #endif
 
 reevaluate:
@@ -1127,9 +1125,9 @@ reevaluate:
                 // EVAL will handle anything the evaluator can, including
                 // an UNSET!, but it errors on END, e.g. `do [eval]`
                 //
-                assert(BLK_LEN(PG_Eval_Paramlist) == 2);
+                assert(ARRAY_LEN(PG_Eval_Paramlist) == 2);
                 fail (
-                    Error_No_Arg(c->label_sym, BLK_SKIP(PG_Eval_Paramlist, 1))
+                    Error_No_Arg(c->label_sym, ARRAY_AT(PG_Eval_Paramlist, 1))
                 );
             }
 
@@ -1595,8 +1593,8 @@ reevaluate:
                 // But to use this feature it must also explicitly accept
                 // the UNSET! type (checked after the switch).
                 //
-                if (c->index < BLK_LEN(c->array)) {
-                    c->value = BLK_SKIP(c->array, c->index);
+                if (c->index < ARRAY_LEN(c->array)) {
+                    c->value = ARRAY_AT(c->array, c->index);
                     if (
                         VAL_GET_EXT(c->param, EXT_TYPESET_EVALUATE)
                         && (
@@ -1971,7 +1969,7 @@ reevaluate:
         SET_END(&eval);
     }
 
-    if (c->index >= BLK_LEN(c->array)) {
+    if (c->index >= ARRAY_LEN(c->array)) {
         //
         // When running a DO/NEXT, clients may wish to distinguish between
         // running a step that evaluated to an unset vs. one that was actually
@@ -1993,7 +1991,7 @@ reevaluate:
     assert(c->index != THROWN_FLAG && !THROWN(c->out));
 
     if (c->flags & DO_FLAG_LOOKAHEAD) {
-        c->value = BLK_SKIP(c->array, c->index);
+        c->value = ARRAY_AT(c->array, c->index);
 
         if (VAL_GET_EXT(c->value, EXT_FUNC_INFIX)) {
             //
@@ -2044,7 +2042,7 @@ return_index:
     assert(DSP == c->dsp_orig);
 
 #if !defined(NDEBUG)
-    if (c->index < BLK_LEN(c->array))
+    if (c->index < ARRAY_LEN(c->array))
         assert(c->index != END_FLAG);
 
     if (c->flags & DO_FLAG_TO_END)
@@ -2092,7 +2090,7 @@ return_thrown:
 // A raised error via a `fail` will longjmp and not return to the caller
 // normally.  If interested in catching these, use PUSH_TRAP().
 //
-REBFLG Do_At_Throws(REBVAL *out, REBSER *array, REBCNT index)
+REBFLG Do_At_Throws(REBVAL *out, REBARR *array, REBCNT index)
 {
     struct Reb_Call call;
     struct Reb_Call * const c = &call;
@@ -2107,7 +2105,7 @@ REBFLG Do_At_Throws(REBVAL *out, REBSER *array, REBCNT index)
     // to be resident in the same series, in order to facilitate an APPLY-like
     // situation of putting a path or otherwise at the head.  We aren't doing
     // that, so we just grab the pointer and advance.
-    c->value = BLK_SKIP(array, index);
+    c->value = ARRAY_AT(array, index);
     c->index = index + 1;
 
     Do_Core(c);
@@ -2118,18 +2116,25 @@ REBFLG Do_At_Throws(REBVAL *out, REBSER *array, REBCNT index)
 
 
 //
-//  Reduce_Block_Throws: C
+//  Reduce_Array_Throws: C
 // 
-// Reduce block from the index position specified in the value.
-// Collect all values from stack and make them a block.
+// Reduce array from the index position specified in the value.
+// Collect all values from stack and make them into a BLOCK! REBVAL.
 //
-REBFLG Reduce_Block_Throws(REBVAL *out, REBSER *block, REBCNT index, REBOOL into)
-{
+// !!! Review generalization of this to produce an array and not a REBVAL
+// of a particular kind.
+//
+REBFLG Reduce_Array_Throws(
+    REBVAL *out,
+    REBARR *array,
+    REBCNT index,
+    REBOOL into
+) {
     REBINT dsp_orig = DSP;
 
-    while (index < BLK_LEN(block)) {
+    while (index < ARRAY_LEN(array)) {
         REBVAL reduced;
-        DO_NEXT_MAY_THROW(index, &reduced, block, index);
+        DO_NEXT_MAY_THROW(index, &reduced, array, index);
         if (index == THROWN_FLAG) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
@@ -2148,23 +2153,28 @@ REBFLG Reduce_Block_Throws(REBVAL *out, REBSER *block, REBCNT index, REBOOL into
 // 
 // Reduce only words and paths not found in word list.
 //
-void Reduce_Only(REBVAL *out, REBSER *block, REBCNT index, REBVAL *words, REBOOL into)
-{
+void Reduce_Only(
+    REBVAL *out,
+    REBARR *block,
+    REBCNT index,
+    REBVAL *words,
+    REBOOL into
+) {
     REBINT dsp_orig = DSP;
     REBVAL *val;
     const REBVAL *v;
-    REBSER *ser = 0;
+    REBARR *arr = 0;
     REBCNT idx = 0;
 
     if (IS_BLOCK(words)) {
-        ser = VAL_SERIES(words);
+        arr = VAL_ARRAY(words);
         idx = VAL_INDEX(words);
     }
 
-    for (val = BLK_SKIP(block, index); NOT_END(val); val++) {
+    for (val = ARRAY_AT(block, index); NOT_END(val); val++) {
         if (IS_WORD(val)) {
             // Check for keyword:
-            if (ser && NOT_FOUND != Find_Word(ser, idx, VAL_WORD_CANON(val))) {
+            if (arr && NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(val))) {
                 DS_PUSH(val);
                 continue;
             }
@@ -2172,11 +2182,11 @@ void Reduce_Only(REBVAL *out, REBSER *block, REBCNT index, REBVAL *words, REBOOL
             DS_PUSH(v);
         }
         else if (IS_PATH(val)) {
-            if (ser) {
+            if (arr) {
                 // Check for keyword/path:
-                v = VAL_BLK_DATA(val);
+                v = VAL_ARRAY_AT(val);
                 if (IS_WORD(v)) {
-                    if (NOT_FOUND != Find_Word(ser, idx, VAL_WORD_CANON(v))) {
+                    if (NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(v))) {
                         DS_PUSH(val);
                         continue;
                     }
@@ -2200,14 +2210,18 @@ void Reduce_Only(REBVAL *out, REBSER *block, REBCNT index, REBVAL *words, REBOOL
 
 
 //
-//  Reduce_Block_No_Set_Throws: C
+//  Reduce_Array_No_Set_Throws: C
 //
-REBFLG Reduce_Block_No_Set_Throws(REBVAL *out, REBSER *block, REBCNT index, REBOOL into)
-{
+REBFLG Reduce_Array_No_Set_Throws(
+    REBVAL *out,
+    REBARR *block,
+    REBCNT index,
+    REBFLG into
+) {
     REBINT dsp_orig = DSP;
 
-    while (index < BLK_LEN(block)) {
-        REBVAL *value = BLK_SKIP(block, index);
+    while (index < ARRAY_LEN(block)) {
+        REBVAL *value = ARRAY_AT(block, index);
         if (IS_SET_WORD(value)) {
             DS_PUSH(value);
             index++;
@@ -2266,7 +2280,7 @@ REBFLG Compose_Values_Throws(
                 //
                 // compose [blocks ([a b c]) merge] => [blocks a b c merge]
                 //
-                REBVAL *push = VAL_BLK_DATA(&evaluated);
+                REBVAL *push = VAL_ARRAY_AT(&evaluated);
                 while (!IS_END(push)) {
                     DS_PUSH(push);
                     push++;
@@ -2294,7 +2308,7 @@ REBFLG Compose_Values_Throws(
                 REBVAL composed;
 
                 if (Compose_Values_Throws(
-                    &composed, VAL_BLK_HEAD(value), TRUE, only, into
+                    &composed, VAL_ARRAY_HEAD(value), TRUE, only, into
                 )) {
                     *out = composed;
                     DS_DROP_TO(dsp_orig);
@@ -2310,8 +2324,8 @@ REBFLG Compose_Values_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second paren are copies, first paren isn't
                     //
-                    VAL_SERIES(DS_TOP) = Copy_Array_Shallow(VAL_SERIES(value));
-                    MANAGE_SERIES(VAL_SERIES(DS_TOP));
+                    VAL_ARRAY(DS_TOP) = Copy_Array_Shallow(VAL_ARRAY(value));
+                    MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
                 }
             }
         }
@@ -2407,7 +2421,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
         c->index = 0;
     }
 
-    assert(c->index <= SERIES_TAIL(c->array));
+    assert(c->index <= ARRAY_LEN(c->array));
 
     assert(ANY_FUNC(func));
     c->func = *func;
@@ -2745,8 +2759,8 @@ void Do_Min_Construct(REBVAL value[])
 //
 REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
 {
-    REBSER *paramlist_src = VAL_FUNC_PARAMLIST(DSF_FUNC(call_src));
-    REBSER *paramlist_new = VAL_FUNC_PARAMLIST(func_new);
+    REBARR *paramlist_src = VAL_FUNC_PARAMLIST(DSF_FUNC(call_src));
+    REBARR *paramlist_new = VAL_FUNC_PARAMLIST(func_new);
 
     REBVAL *param_src;
     REBVAL *param_new;
@@ -2817,9 +2831,9 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
             else {
                 // No, we need to search for it:
                 arg_src = IS_CLOSURE(&DSF->func)
-                    ? BLK_SKIP(DSF->arglist.array, 1)
+                    ? ARRAY_AT(DSF->arglist.array, 1)
                     : &c->arglist.chunk[1];
-                param_src = BLK_SKIP(paramlist_src, 1);
+                param_src = ARRAY_AT(paramlist_src, 1);
 
                 for (; NOT_END(param_src); param_src++, arg_src++) {
                     if (
@@ -2900,16 +2914,16 @@ REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
 {
     REBVAL *sel; // selector
     const REBVAL *val;
-    REBSER *blk;
+    REBARR *blk;
     REBCNT i;
 
     if (VAL_TAIL(path) < 2) return 0;
-    blk = VAL_SERIES(path);
-    sel = BLK_HEAD(blk);
+    blk = VAL_ARRAY(path);
+    sel = ARRAY_HEAD(blk);
     if (!ANY_WORD(sel)) return 0;
     val = GET_VAR(sel);
 
-    sel = BLK_SKIP(blk, 1);
+    sel = ARRAY_AT(blk, 1);
     while (TRUE) {
         if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
         i = Find_Word_Index(VAL_FRAME(val), VAL_WORD_SYM(sel), FALSE);

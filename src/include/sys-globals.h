@@ -63,7 +63,7 @@ PVAR REBUNI *Lower_Cases;
 
 // Other:
 PVAR REBYTE *PG_Pool_Map;   // Memory pool size map (created on boot)
-PVAR REBSER *PG_Root_Words; // Root object word table (reused by threads)
+PVAR REBARR *PG_Root_Words; // Root object word table (reused by threads)
 
 PVAR REBI64 PG_Boot_Time;   // Counter when boot started
 PVAR REBINT Current_Year;
@@ -86,8 +86,8 @@ PVAR REBVAL *PG_End_Val;
 // when implemented that way. Needs research!!!!
 PVAR REBCNT Eval_Signals;   // Signal flags
 
-PVAR REBSER *PG_Eval_Paramlist; // EVAL native's paramlist (never GC'd)
-PVAR REBSER *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
+PVAR REBARR *PG_Eval_Paramlist; // EVAL native's paramlist (never GC'd)
+PVAR REBARR *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
 
 
 /***********************************************************************
@@ -98,7 +98,7 @@ PVAR REBSER *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
 
 TVAR TASK_CTX *Task_Context; // Main per-task variables
 TVAR REBFRM *Task_Frame;    // Frame that holds Task_Context
-TVAR REBSER *TG_Task_Words; // word list for task frame
+TVAR REBARR *TG_Task_Words; // word list for task frame
 
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 
@@ -134,7 +134,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
 #endif
 
 //-- Evaluation stack:
-TVAR REBSER *DS_Series;
+TVAR REBARR *DS_Array;
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 TVAR struct Reb_Call *CS_Top;   // Last call frame pushed, may be "pending"
 

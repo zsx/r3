@@ -138,7 +138,7 @@ static REBFLG Print_Native_Modifying_Throws(
         // instance) it's worth doing a "strange" thing (though no stranger
         // than WRITE) to be able to access the facility.
 
-        Prin_OS_String(VAL_BIN_DATA(value), VAL_LEN(value), OPT_ENC_RAW);
+        Prin_OS_String(VAL_BIN_AT(value), VAL_LEN_AT(value), OPT_ENC_RAW);
 
         // !!! Binary print should never output a newline.  This would seem
         // more natural if PRINT's decision to output newlines was guided
@@ -163,8 +163,8 @@ static REBFLG Print_Native_Modifying_Throws(
         //
         // Currently it effectively FORM REDUCEs the output.
 
-        if (Reduce_Block_Throws(
-            value, VAL_SERIES(value), VAL_INDEX(value), FALSE
+        if (Reduce_Array_Throws(
+            value, VAL_ARRAY(value), VAL_INDEX(value), FALSE
         )) {
             return TRUE;
         }
@@ -260,7 +260,7 @@ REBNATIVE(new_line)
     REBCNT n;
     REBINT skip = -1;
 
-    val = VAL_BLK_DATA(value);
+    val = VAL_ARRAY_AT(value);
     if (D_REF(3)) skip = 1; // all
     if (D_REF(4)) { // skip
         skip = Int32s(D_ARG(5), 1); // size
@@ -288,7 +288,7 @@ REBNATIVE(new_line)
 //
 REBNATIVE(new_line_q)
 {
-    if VAL_GET_OPT(VAL_BLK_DATA(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
+    if VAL_GET_OPT(VAL_ARRAY_AT(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
     return R_FALSE;
 }
 
@@ -371,22 +371,22 @@ REBNATIVE(wait)
 {
     REBVAL *val = D_ARG(1);
     REBINT timeout = 0; // in milliseconds
-    REBSER *ports = NULL;
+    REBARR *ports = NULL;
     REBINT n = 0;
 
     SET_NONE(D_OUT);
 
     if (IS_BLOCK(val)) {
         REBVAL unsafe; // temporary not safe from GC
-        if (Reduce_Block_Throws(
-            &unsafe, VAL_SERIES(val), VAL_INDEX(val), FALSE
+        if (Reduce_Array_Throws(
+            &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
         )) {
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }
 
-        ports = VAL_SERIES(&unsafe);
-        for (val = BLK_HEAD(ports); NOT_END(val); val++) { // find timeout
+        ports = VAL_ARRAY(&unsafe);
+        for (val = ARRAY_HEAD(ports); NOT_END(val); val++) { // find timeout
             if (Pending_Port(val)) n++;
             if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
         }
@@ -445,7 +445,7 @@ REBNATIVE(wait)
     Sieve_Ports(ports);
 
     if (!D_REF(2)) { // not /all ports
-        val = BLK_HEAD(ports);
+        val = ARRAY_HEAD(ports);
         if (IS_PORT(val)) *D_OUT = *val;
         else SET_NONE(D_OUT);
     }
@@ -772,12 +772,12 @@ REBNATIVE(call)
             input_type = STRING_TYPE;
             os_input = cast(char*, Val_Str_To_OS_Managed(&input_ser, param));
             PUSH_GUARD_SERIES(input_ser);
-            input_len = VAL_LEN(param);
+            input_len = VAL_LEN_AT(param);
         }
         else if (IS_BINARY(param)) {
             input_type = BINARY_TYPE;
-            os_input = s_cast(VAL_BIN_DATA(param));
-            input_len = VAL_LEN(param);
+            os_input = s_cast(VAL_BIN_AT(param));
+            input_len = VAL_LEN_AT(param);
         }
         else if (IS_FILE(param)) {
             input_type = FILE_TYPE;
@@ -785,7 +785,7 @@ REBNATIVE(call)
             MANAGE_SERIES(input_ser);
             PUSH_GUARD_SERIES(input_ser);
             os_input = s_cast(SERIES_DATA(input_ser));
-            input_len = SERIES_TAIL(input_ser);
+            input_len = SERIES_LEN(input_ser);
         }
         else if (IS_NONE(param)) {
             input_type = NONE_TYPE;
@@ -815,7 +815,7 @@ REBNATIVE(call)
             MANAGE_SERIES(output_ser);
             PUSH_GUARD_SERIES(output_ser);
             os_output = s_cast(SERIES_DATA(output_ser));
-            output_len = SERIES_TAIL(output_ser);
+            output_len = SERIES_LEN(output_ser);
         }
         else if (IS_NONE(param)) {
             output_type = NONE_TYPE;
@@ -842,7 +842,7 @@ REBNATIVE(call)
             MANAGE_SERIES(err_ser);
             PUSH_GUARD_SERIES(err_ser);
             os_err = s_cast(SERIES_DATA(err_ser));
-            err_len = SERIES_TAIL(err_ser);
+            err_len = SERIES_LEN(err_ser);
         }
         else if (IS_NONE(param)) {
             err_type = NONE_TYPE;
@@ -895,7 +895,7 @@ REBNATIVE(call)
         int i;
 
         cmd = NULL;
-        argc = VAL_LEN(arg);
+        argc = VAL_LEN_AT(arg);
 
         if (argc <= 0) fail (Error(RE_TOO_SHORT));
 
@@ -903,7 +903,7 @@ REBNATIVE(call)
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
         argv = cast(const REBCHR**, SERIES_DATA(argv_ser));
         for (i = 0; i < argc; i ++) {
-            REBVAL *param = VAL_BLK_SKIP(arg, i);
+            REBVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
             if (IS_STRING(param)) {
                 REBSER *ser;
                 argv[i] = Val_Str_To_OS_Managed(&ser, param);
@@ -973,7 +973,7 @@ REBNATIVE(call)
             && output_len > 0) {
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_output, output_len);
-            Append_String(VAL_SERIES(output), ser, 0, SERIES_TAIL(ser));
+            Append_String(VAL_SERIES(output), ser, 0, SERIES_LEN(ser));
             OS_FREE(os_output);
             Free_Series(ser);
         }
@@ -990,7 +990,7 @@ REBNATIVE(call)
             && err_len > 0) {
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_err, err_len);
-            Append_String(VAL_SERIES(err), ser, 0, SERIES_TAIL(ser));
+            Append_String(VAL_SERIES(err), ser, 0, SERIES_LEN(ser));
             OS_FREE(os_err);
             Free_Series(ser);
         }
@@ -1041,38 +1041,36 @@ REBNATIVE(call)
 
 
 //
-//  String_List_To_Block: C
+//  String_List_To_Array: C
 // 
-// Convert a series of null terminated strings to
-// a block of strings separated with '='.
+// Convert a series of null terminated strings to an array of strings
+// separated with '='.
 //
-static REBSER *String_List_To_Block(REBCHR *str)
+static REBARR *String_List_To_Array(REBCHR *str)
 {
     REBCNT n;
     REBCNT len = 0;
     REBCHR *start = str;
     REBCHR *eq;
-    REBSER *blk;
+    REBARR *array;
 
     while ((n = OS_STRLEN(str))) {
         len++;
         str += n + 1; // next
     }
 
-    blk = Make_Array(len * 2);
+    array = Make_Array(len * 2);
 
     str = start;
     while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
-        Val_Init_String(Alloc_Tail_Array(blk), Copy_OS_Str(str, eq - str));
+        Val_Init_String(Alloc_Tail_Array(array), Copy_OS_Str(str, eq - str));
         Val_Init_String(
-            Alloc_Tail_Array(blk), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
+            Alloc_Tail_Array(array), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
         );
         str += n + 1; // next
     }
 
-    Block_As_Map(blk);
-
-    return blk;
+    return array;
 }
 
 
@@ -1091,7 +1089,7 @@ REBSER *Block_To_String_List(REBVAL *blk)
     CLEARS(&mo);
     Reset_Mold(&mo);
 
-    for (value = VAL_BLK_DATA(blk); NOT_END(value); value++) {
+    for (value = VAL_ARRAY_AT(blk); NOT_END(value); value++) {
         Mold_Value(&mo, value, 0);
         Append_Codepoint_Raw(mo.series, 0);
     }
@@ -1102,16 +1100,16 @@ REBSER *Block_To_String_List(REBVAL *blk)
 
 
 //
-//  File_List_To_Block: C
+//  File_List_To_Array: C
 // 
 // Convert file directory and file name list to block.
 //
-static REBSER *File_List_To_Block(const REBCHR *str)
+static REBARR *File_List_To_Array(const REBCHR *str)
 {
     REBCNT n;
     REBCNT len = 0;
     const REBCHR *start = str;
-    REBSER *blk;
+    REBARR *blk;
     REBSER *dir;
 
     while ((n = OS_STRLEN(str))) {
@@ -1211,8 +1209,8 @@ REBNATIVE(request_file)
 
     if (OS_REQUEST_FILE(&fr)) {
         if (GET_FLAG(fr.flags, FRF_MULTI)) {
-            ser = File_List_To_Block(fr.files);
-            Val_Init_Block(D_OUT, ser);
+            REBARR *array = File_List_To_Array(fr.files);
+            Val_Init_Block(D_OUT, array);
         }
         else {
             ser = To_REBOL_Path(fr.files, OS_STRLEN(fr.files), OS_WIDE, 0);
@@ -1322,9 +1320,9 @@ REBNATIVE(set_env)
 //
 REBNATIVE(list_env)
 {
-    REBCHR *result = OS_LIST_ENV();
-
-    Val_Init_Map(D_OUT, String_List_To_Block(result));
+    REBARR *array = String_List_To_Array(OS_LIST_ENV());
+    REBMAP *map = Mutate_Array_Into_Map(array);
+    Val_Init_Map(D_OUT, map);
 
     return R_OUT;
 }
@@ -1509,12 +1507,12 @@ REBNATIVE(access_os)
                 } else if (IS_BLOCK(val)) {
                     REBVAL *sig = NULL;
 
-                    if (VAL_LEN(val) != 2) fail (Error_Invalid_Arg(val));
+                    if (VAL_LEN_AT(val) != 2) fail (Error_Invalid_Arg(val));
 
-                    pid = VAL_BLK_SKIP(val, 0);
+                    pid = VAL_ARRAY_AT_HEAD(val, 0);
                     if (!IS_INTEGER(pid)) fail (Error_Invalid_Arg(pid));
 
-                    sig = VAL_BLK_SKIP(val, 1);
+                    sig = VAL_ARRAY_AT_HEAD(val, 1);
                     if (!IS_INTEGER(sig)) fail (Error_Invalid_Arg(sig));
 
                     ret = OS_SEND_SIGNAL(VAL_INT32(pid), VAL_INT32(sig));

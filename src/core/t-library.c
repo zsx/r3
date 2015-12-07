@@ -69,7 +69,7 @@ REBTYPE(Library)
                     fail (Error_Bad_Make(REB_LIBRARY, arg));
 
                 VAL_LIB_SPEC(D_OUT) = Make_Array(1);
-                MANAGE_SERIES(VAL_LIB_SPEC(D_OUT));
+                MANAGE_ARRAY(VAL_LIB_SPEC(D_OUT));
 
                 Append_Value(VAL_LIB_SPEC(D_OUT), arg);
                 VAL_LIB_HANDLE(D_OUT) = (REBLHL*)Make_Node(LIB_POOL);

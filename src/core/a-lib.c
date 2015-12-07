@@ -52,7 +52,7 @@ extern const REBRXT Reb_To_RXT[REB_MAX];
 extern RXIARG Value_To_RXI(const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
-extern int Do_Callback(REBSER *obj, u32 name, RXIARG *args, RXIARG *result);
+extern int Do_Callback(REBARR *obj, u32 name, RXIARG *args, RXIARG *result);
 
 
 //
@@ -316,17 +316,18 @@ RL_API void RL_Shutdown(REBOOL clean)
 RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
 {
     REBVAL *value;
-    REBSER *ser;
+    REBARR *array;
 
     value = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
-    if (IS_BLOCK(value)) ser = VAL_SERIES(value);
+    if (IS_BLOCK(value))
+        array = VAL_ARRAY(value);
     else {
-        ser = Make_Array(2);
-        Val_Init_Block(value, ser);
+        array = Make_Array(2);
+        Val_Init_Block(value, array);
     }
-    value = Alloc_Tail_Array(ser);
+    value = Alloc_Tail_Array(array);
     Val_Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
-    value = Alloc_Tail_Array(ser);
+    value = Alloc_Tail_Array(array);
     SET_HANDLE_CODE(value, cast(CFUNC*, call));
 
     return Extension_Lib();
@@ -381,7 +382,7 @@ RL_API void RL_Escape(REBINT reserved)
 //
 RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIARG *result)
 {
-    REBSER *code;
+    REBARR *code;
     REBVAL out;
 
     REBOL_STATE state;
@@ -413,25 +414,25 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
     }
 
     code = Scan_Source(text, LEN_BYTES(text));
-    PUSH_GUARD_SERIES(code);
+    PUSH_GUARD_ARRAY(code);
 
     // Bind into lib or user spaces?
     if (flags) {
         // Top words will be added to lib:
-        Bind_Values_Set_Forward_Shallow(BLK_HEAD(code), Lib_Context);
-        Bind_Values_Deep(BLK_HEAD(code), Lib_Context);
+        Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
+        Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
     } else {
         REBCNT len;
         REBVAL vali;
         REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
         len = FRAME_LEN(user) + 1;
-        Bind_Values_All_Deep(BLK_HEAD(code), user);
+        Bind_Values_All_Deep(ARRAY_HEAD(code), user);
         SET_INTEGER(&vali, len);
         Resolve_Context(user, Lib_Context, &vali, FALSE, 0);
     }
 
     if (Do_At_Throws(&out, code, 0)) {
-        DROP_GUARD_SERIES(code);
+        DROP_GUARD_ARRAY(code);
 
         if (
             IS_NATIVE(&out) && (
@@ -449,7 +450,7 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         fail (Error_No_Catch_For_Throw(&out));
     }
 
-    DROP_GUARD_SERIES(code);
+    DROP_GUARD_ARRAY(code);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -535,7 +536,7 @@ RL_API int RL_Do_Block(REBSER *blk, REBCNT flags, RXIARG *result)
 // Returns:
 //     Nothing
 // Arguments:
-//     blk - a pointer to the block series
+//     array - a pointer to the REBVAL array series
 //     flags - set to zero for now
 //     context - command evaluation context struct or zero if not used.
 // Notes:
@@ -544,10 +545,10 @@ RL_API int RL_Do_Block(REBSER *blk, REBCNT flags, RXIARG *result)
 //     used for back-referencing your environment data or for tracking
 //     the evaluation block and its index.
 //
-RL_API void RL_Do_Commands(REBSER *blk, REBCNT flags, REBCEC *context)
+RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 {
     REBVAL out;
-    Do_Commands(&out, blk, context);
+    Do_Commands(&out, array, context);
 }
 
 
@@ -837,11 +838,11 @@ RL_API int RL_Get_String(REBSER *series, u32 index, void **str)
     int len = (index >= series->tail) ? 0 : series->tail - index;
 
     if (BYTE_SIZE(series)) {
-        *str = BIN_SKIP(series, index);
+        *str = BIN_AT(series, index);
         len = -len;
     }
     else {
-        *str = UNI_SKIP(series, index);
+        *str = UNI_AT(series, index);
     }
 
     return len;
@@ -883,13 +884,13 @@ RL_API u32 RL_Map_Word(REBYTE *string)
 //     If the input block contains non-words, they will be skipped.
 //     The array is allocated with OS_ALLOC and you can OS_FREE it any time.
 //
-RL_API u32 *RL_Map_Words(REBSER *series)
+RL_API u32 *RL_Map_Words(REBARR *array)
 {
     REBCNT i = 1;
     u32 *words;
-    REBVAL *val = BLK_HEAD(series);
+    REBVAL *val = ARRAY_HEAD(array);
 
-    words = OS_ALLOC_ARRAY(u32, series->tail + 2);
+    words = OS_ALLOC_ARRAY(u32, ARRAY_LEN(array) + 2);
 
     for (; NOT_END(val); val++) {
         if (ANY_WORD(val)) words[i++] = VAL_WORD_CANON(val);
@@ -922,8 +923,8 @@ RL_API REBYTE *RL_Word_String(u32 word)
 {
     REBYTE *s1, *s2;
     // !!This code should use a function from c-words.c (but nothing perfect yet.)
-    if (word == 0 || word >= PG_Word_Table.series->tail) return 0;
-    s1 = VAL_SYM_NAME(BLK_SKIP(PG_Word_Table.series, word));
+    if (word == 0 || word >= ARRAY_LEN(PG_Word_Table.array)) return 0;
+    s1 = VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, word));
     s2 = OS_ALLOC_ARRAY(REBYTE, LEN_BYTES(s1) + 1);
     COPY_BYTES(s2, s1, LEN_BYTES(s1) + 1);
     return s2;
@@ -973,7 +974,7 @@ RL_API REBUPT RL_Series(REBSER *series, REBCNT what)
 {
     switch (what) {
     case RXI_SER_DATA: return (REBUPT)SERIES_DATA(series);
-    case RXI_SER_TAIL: return SERIES_TAIL(series);
+    case RXI_SER_TAIL: return SERIES_LEN(series);
     case RXI_SER_LEFT: return SERIES_AVAIL(series);
     case RXI_SER_SIZE: return SERIES_REST(series);
     case RXI_SER_WIDE: return SERIES_WIDE(series);
@@ -1041,11 +1042,11 @@ RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 //     index - index of the value in the block (zero based)
 //     result - set to the value of the field
 //
-RL_API int RL_Get_Value(REBSER *series, u32 index, RXIARG *result)
+RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 {
     REBVAL *value;
-    if (index >= series->tail) return 0;
-    value = BLK_SKIP(series, index);
+    if (index >= ARRAY_LEN(array)) return 0;
+    value = ARRAY_AT(array, index);
     *result = Value_To_RXI(value);
     return Reb_To_RXT[VAL_TYPE(value)];
 }
@@ -1064,16 +1065,16 @@ RL_API int RL_Get_Value(REBSER *series, u32 index, RXIARG *result)
 //     val  - new value for field
 //     type - datatype of value
 //
-RL_API int RL_Set_Value(REBSER *series, u32 index, RXIARG val, int type)
+RL_API int RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
     CLEARS(&value);
     RXI_To_Value(&value, val, type);
-    if (index >= series->tail) {
-        Append_Value(series, &value);
+    if (index >= ARRAY_LEN(array)) {
+        Append_Value(array, &value);
         return TRUE;
     }
-    *BLK_SKIP(series, index) = value;
+    *ARRAY_AT(array, index) = value;
     return FALSE;
 }
 

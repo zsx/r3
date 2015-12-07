@@ -39,10 +39,10 @@ struct rebol_series {
     // OPTIONAL Extensions
 };
 
-#define SERIES_TAIL(s) ((s)->tail)
+#define SERIES_LEN(s) ((s)->tail)
 #define SERIES_DATA(s) ((s)->data)
 
-#define BLK_HEAD(s) ((REBVAL *)((s)->data))
+#define ARRAY_HEAD(s) ((REBVAL *)((s)->data))
 #define STR_HEAD(s) ((REBYTE *)((s)->data))
 
 #define IMG_SIZE(s) ((s)->size)

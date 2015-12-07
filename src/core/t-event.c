@@ -81,7 +81,7 @@ static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg)) {
             w = VAL_WORD_CANON(val);
-            for (n = 0, arg = VAL_BLK_HEAD(arg); NOT_END(arg); arg++, n++) {
+            for (n = 0, arg = VAL_ARRAY_HEAD(arg); NOT_END(arg); arg++, n++) {
                 if (IS_WORD(arg) && VAL_WORD_CANON(arg) == w) {
                     VAL_EVENT_TYPE(value) = n;
                     return TRUE;
@@ -94,11 +94,11 @@ static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_PORT:
         if (IS_PORT(val)) {
             VAL_EVENT_MODEL(value) = EVM_PORT;
-            VAL_EVENT_SER(value) = FRAME_VARLIST(VAL_FRAME(val));
+            VAL_EVENT_SER(value) = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
         }
         else if (IS_OBJECT(val)) {
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
-            VAL_EVENT_SER(value) = FRAME_VARLIST(VAL_FRAME(val));
+            VAL_EVENT_SER(value) = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
         }
         else if (IS_NONE(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;
@@ -130,7 +130,7 @@ static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
         else if (IS_LIT_WORD(val) || IS_WORD(val)) {
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             if (IS_BLOCK(arg)) {
-                arg = VAL_BLK_DATA(arg);
+                arg = VAL_ARRAY_AT(arg);
                 for (n = VAL_INDEX(arg); NOT_END(arg); n++, arg++) {
                     if (IS_WORD(arg) && VAL_WORD_CANON(arg) == VAL_WORD_CANON(val)) {
                         VAL_EVENT_DATA(value) = (n+1) << 16;
@@ -155,7 +155,7 @@ static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_FLAGS:
         if (IS_BLOCK(val)) {
             VAL_EVENT_FLAGS(value) &= ~(1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT);
-            for (val = VAL_BLK_HEAD(val); NOT_END(val); val++)
+            for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
                 if (IS_WORD(val))
                     switch (VAL_WORD_CANON(val)) {
                         case SYM_CONTROL:
@@ -212,7 +212,6 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
     REBVAL *arg;
     REBREQ *req;
     REBINT n;
-    REBSER *ser;
 
     switch (sym) {
 
@@ -220,7 +219,7 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
         if (VAL_EVENT_TYPE(value) == 0) goto is_none;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
-            *val = *VAL_BLK_SKIP(arg, VAL_EVENT_TYPE(value));
+            *val = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
             break;
         }
         return FALSE;
@@ -280,7 +279,7 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
             if (IS_BLOCK(arg) && n < (REBINT)VAL_TAIL(arg)) {
-                *val = *VAL_BLK_SKIP(arg, n);
+                *val = *VAL_ARRAY_AT_HEAD(arg, n);
                 break;
             }
             return FALSE;
@@ -289,22 +288,31 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
         break;
 
     case SYM_FLAGS:
-        if (VAL_EVENT_FLAGS(value) & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)) {
-            ser = Make_Array(3);
+        if (
+            VAL_EVENT_FLAGS(value)
+            & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)
+        ) {
+            REBARR *array = Make_Array(3);
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
-                arg = Alloc_Tail_Array(ser);
-                Val_Init_Word_Unbound(arg, REB_WORD, SYM_DOUBLE);
+                Val_Init_Word_Unbound(
+                    Alloc_Tail_Array(array), REB_WORD, SYM_DOUBLE
+                );
             }
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL)) {
-                arg = Alloc_Tail_Array(ser);
-                Val_Init_Word_Unbound(arg, REB_WORD, SYM_CONTROL);
+                arg = Alloc_Tail_Array(array);
+                Val_Init_Word_Unbound(
+                    Alloc_Tail_Array(array), REB_WORD, SYM_CONTROL
+                );
             }
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT)) {
-                arg = Alloc_Tail_Array(ser);
-                Val_Init_Word_Unbound(arg, REB_WORD, SYM_SHIFT);
+                Val_Init_Word_Unbound(
+                    Alloc_Tail_Array(array), REB_WORD, SYM_SHIFT
+                );
             }
-            Val_Init_Block(val, ser);
-        } else SET_NONE(val);
+            Val_Init_Block(val, array);
+        }
+        else
+            SET_NONE(val);
         break;
 
     case SYM_CODE:
@@ -355,7 +363,7 @@ REBFLG MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (IS_BLOCK(data)) {
         CLEARS(out);
-        Set_Event_Vars(out, VAL_BLK_DATA(data));
+        Set_Event_Vars(out, VAL_ARRAY_AT(data));
         VAL_SET(out, REB_EVENT);
         return TRUE;
     }
@@ -407,7 +415,7 @@ is_arg_error:
             fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
 
         // Initialize GOB from block:
-        if (IS_BLOCK(arg)) Set_Event_Vars(D_OUT, VAL_BLK_DATA(arg));
+        if (IS_BLOCK(arg)) Set_Event_Vars(D_OUT, VAL_ARRAY_AT(arg));
         else goto is_arg_error;
     }
     else
@@ -452,7 +460,7 @@ pick_it:
             if (VAL_EVENT_TYPE(value) == 0) goto is_none;
             arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
             if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
-                *D_OUT = *VAL_BLK_SKIP(arg, VAL_EVENT_TYPE(value));
+                *D_OUT = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
                 return R_OUT;
             }
             return R_NONE;
@@ -510,8 +518,8 @@ pick_it:
                 // commented out code it's not possible to determine what that
                 // exactly was supposed to have done.
 
-                if (!IS_BLOCK(BLK_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_OUT;
-                wp = cast(REBWIN *, VAL_BLK_HEAD(BLK_HEAD(Windows) + VAL_EVENT_WIN(value)));
+                if (!IS_BLOCK(ARRAY_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_OUT;
+                wp = cast(REBWIN *, VAL_ARRAY_HEAD(ARRAY_HEAD(Windows) + VAL_EVENT_WIN(value)));
                 *D_OUT = wp->masterFace;
                 return R_OUT;
             }

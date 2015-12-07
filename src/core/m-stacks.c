@@ -69,8 +69,17 @@ void Init_Stacks(REBCNT size)
     CS_Top = NULL;
     CS_Running = NULL;
 
-    DS_Series = Make_Array(size);
-    Set_Root_Series(TASK_STACK, DS_Series, "data stack"); // uses special GC
+    DS_Array = Make_Array(size);
+
+    // !!! Historically the data stack used a "special GC" because it was
+    // not always terminated with an END marker.  It also had some fixed
+    // sized assumptions about how much it would grow during a function
+    // call which let it not check to see if it needed to expand on every
+    // push.  Ren-C turned it into an ordinary series and sought to pin
+    // other things down first, but there may be some optimizations that
+    // get added back in--hopefully that will benefit all series.
+    //
+    Set_Root_Series(TASK_STACK, ARRAY_SERIES(DS_Array), "data stack");
 }
 
 
@@ -111,23 +120,26 @@ void Shutdown_Stacks(void)
 //
 void Pop_Stack_Values(REBVAL *out, REBINT dsp_start, REBOOL into)
 {
-    REBSER *series;
+    REBARR *array;
     REBCNT len = DSP - dsp_start;
-    REBVAL *values = BLK_SKIP(DS_Series, dsp_start + 1);
+    REBVAL *values = ARRAY_AT(DS_Array, dsp_start + 1);
 
     if (into) {
         assert(ANY_ARRAY(out));
-        series = VAL_SERIES(out);
+        array = VAL_ARRAY(out);
 
-        FAIL_IF_PROTECTED_SERIES(series);
+        FAIL_IF_PROTECTED_ARRAY(array);
 
         VAL_INDEX(out) = Insert_Series(
-            series, VAL_INDEX(out), cast(REBYTE*, values), len
+            ARRAY_SERIES(array),
+            VAL_INDEX(out),
+            cast(REBYTE*, values),
+            len // multiplied by width (sizeof(REBVAL)) in Insert_Series
         );
     }
     else {
-        series = Copy_Values_Len_Shallow(values, len);
-        Val_Init_Block(out, series);
+        array = Copy_Values_Len_Shallow(values, len);
+        Val_Init_Block(out, array);
     }
 
     DS_DROP_TO(dsp_start);
@@ -143,9 +155,14 @@ void Pop_Stack_Values(REBVAL *out, REBINT dsp_start, REBOOL into)
 //
 void Expand_Stack(REBCNT amount)
 {
-    if (SERIES_REST(DS_Series) >= STACK_LIMIT) Trap_Stack_Overflow();
-    Extend_Series(DS_Series, amount);
-    Debug_Fmt(cs_cast(BOOT_STR(RS_STACK, 0)), DSP, SERIES_REST(DS_Series));
+    if (SERIES_REST(ARRAY_SERIES(DS_Array)) >= STACK_LIMIT)
+        Trap_Stack_Overflow();
+    Extend_Series(ARRAY_SERIES(DS_Array), amount);
+    Debug_Fmt(
+        cs_cast(BOOT_STR(RS_STACK, 0)),
+        DSP,
+        SERIES_REST(ARRAY_SERIES(DS_Array))
+    );
 }
 
 
@@ -359,11 +376,11 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // function's "Self" REBVAL in the 0 slot.
     //
     assert(ANY_FUNC(&c->func));
-    num_slots = SERIES_LEN(VAL_FUNC_PARAMLIST(&c->func));
+    num_slots = ARRAY_LEN(VAL_FUNC_PARAMLIST(&c->func));
     assert(num_slots >= 1);
 
     // Make REBVALs to hold the arguments.  It will always be at least one
-    // variable long, because function frames start with the value of the
+    // slot long, because function frames start with the value of the
     // function in slot 0.
     //
     // We use the chunk stack unless we are making an ordinary user function
@@ -375,9 +392,9 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     //
     if (IS_CLOSURE(&c->func)) {
         c->arglist.array = Make_Array(num_slots);
-        c->arglist.array->tail = num_slots;
-        SET_END(BLK_SKIP(c->arglist.array, num_slots));
-        slot = BLK_HEAD(c->arglist.array);
+        SET_ARRAY_LEN(c->arglist.array, num_slots);
+        SET_END(ARRAY_AT(c->arglist.array, num_slots));
+        slot = ARRAY_HEAD(c->arglist.array);
     }
     else {
         // Same as above, but in a raw array vs. a series.  Note that chunks
@@ -456,7 +473,7 @@ void Drop_Call_Arglist(struct Reb_Call* c)
         // to trash in the debug build, but doesn't in release.
         //
     #if !defined(NDEBUG)
-        assert(c->arglist.array == cast(REBSER*, 0xDECAFBAD));
+        assert(c->arglist.array == cast(REBARR*, 0xDECAFBAD));
     #endif
     }
     else {

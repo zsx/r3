@@ -234,7 +234,7 @@ static REB_R Transport_Actor(
         if (sock->length < NET_BUF_SIZE/2) Extend_Series(ser, NET_BUF_SIZE);
         sock->length = SERIES_AVAIL(ser);
         sock->common.data = STR_TAIL(ser); // write at tail
-        //if (SERIES_TAIL(ser) == 0)
+        //if (SERIES_LEN(ser) == 0)
         sock->actual = 0;  // Actual for THIS read, not for total.
 
         //Print("(max read length %d)", sock->length);
@@ -253,7 +253,7 @@ static REB_R Transport_Actor(
 
         // Determine length. Clip /PART to size of string if needed.
         spec = D_ARG(2);
-        len = VAL_LEN(spec);
+        len = VAL_LEN_AT(spec);
         if (refs & AM_WRITE_PART) {
             REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
             if (n <= len) len = n;
@@ -262,7 +262,7 @@ static REB_R Transport_Actor(
         // Setup the write:
         *FRAME_VAR(port, STD_PORT_DATA) = *spec;  // keep it GC safe
         sock->length = len;
-        sock->common.data = VAL_BIN_DATA(spec);
+        sock->common.data = VAL_BIN_AT(spec);
         sock->actual = 0;
 
         //Print("(write length %d)", len);

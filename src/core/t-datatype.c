@@ -76,7 +76,7 @@ REBTYPE(Datatype)
             obj = Make_Std_Object_Managed(STD_TYPE_SPEC);
             Set_Object_Values(
                 obj,
-                BLK_HEAD(
+                ARRAY_HEAD(
                     VAL_TYPE_SPEC(FRAME_VAR(Lib_Context, SYM_FROM_KIND(kind)))
                 )
             );
@@ -85,7 +85,7 @@ REBTYPE(Datatype)
         else if (n == OF_TITLE) {
             Val_Init_String(
                 D_OUT,
-                Copy_Array_Shallow(VAL_SERIES(BLK_HEAD(
+                Copy_Sequence(VAL_SERIES(ARRAY_HEAD(
                     VAL_TYPE_SPEC(FRAME_VAR(Lib_Context, SYM_FROM_KIND(kind)))
                 )))
             );

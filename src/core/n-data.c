@@ -44,14 +44,14 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
         return R_TRUE;
     }
 
-    len = VAL_LEN(val);
+    len = VAL_LEN_AT(val);
     if (VAL_BYTE_SIZE(val)) {
-        REBYTE *bp = VAL_BIN_DATA(val);
+        REBYTE *bp = VAL_BIN_AT(val);
         if (limit == 0xff) return R_TRUE; // by definition
         for (; len > 0; len--, bp++)
             if (*bp > limit) return R_FALSE;
     } else {
-        REBUNI *up = VAL_UNI_DATA(val);
+        REBUNI *up = VAL_UNI_AT(val);
         for (; len > 0; len--, up++)
             if (*up > limit) return R_FALSE;
     }
@@ -109,7 +109,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
     }
 
     if (IS_BLOCK(val)) {
-        for (types = VAL_BLK_DATA(val); NOT_END(types); types++) {
+        for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
             val = IS_WORD(types) ? GET_VAR(types) : types;
             if (IS_DATATYPE(val)) {
                 if (VAL_TYPE_KIND(val) == VAL_TYPE(value)) return TRUE;
@@ -138,14 +138,15 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 //
 REBNATIVE(assert)
 {
-    REBVAL *value = D_ARG(1);  // block, logic, or none
+    PARAM(1, conditions);
+    REFINE(2, type);
 
-    if (!D_REF(2)) {
-        REBSER *block = VAL_SERIES(value);
-        REBCNT index = VAL_INDEX(value);
+    if (!REF(type)) {
+        REBARR *block = VAL_ARRAY(ARG(conditions));
+        REBCNT index = VAL_INDEX(ARG(conditions));
         REBCNT i;
 
-        while (index < SERIES_TAIL(block)) {
+        while (index < ARRAY_LEN(block)) {
             i = index;
             DO_NEXT_MAY_THROW(index, D_OUT, block, index);
 
@@ -163,8 +164,9 @@ REBNATIVE(assert)
         // /types [var1 integer!  var2 [integer! decimal!]]
         const REBVAL *val;
         REBVAL *type;
+        REBVAL *value = VAL_ARRAY_AT(ARG(conditions));
 
-        for (value = VAL_BLK_DATA(value); NOT_END(value); value += 2) {
+        for (; NOT_END(value); value += 2) {
             if (IS_WORD(value)) {
                 val = GET_VAR(value);
             }
@@ -254,8 +256,8 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
-    REBSER *target_series;
-    REBSER *array;
+    REBARR *target_series;
+    REBARR *array;
     REBCNT flags;
     REBFLG is_relative;
 
@@ -303,26 +305,28 @@ REBNATIVE(bind)
         return R_ARG1;
     }
 
-    // Copy block if necessary (/copy):
+    // Copy block if necessary (/copy)
+    //
+    // !!! NOTE THIS IS IGNORING THE INDEX!  If you ask to bind, it should
+    // bind forward only from the index you specified, leaving anything
+    // ahead of that point alone.  Not changing it now when finding it
+    // because there could be code that depends on the existing (mis)behavior
+    // but it should be followed up on.
+    //
+    *D_OUT = *ARG(value);
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
-            VAL_SERIES(ARG(value)), VAL_INDEX(ARG(value))
+            VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value))
         );
-        Val_Init_Series_Index(
-            D_OUT, VAL_TYPE(ARG(value)), array, 0
-        );
+        VAL_ARRAY(D_OUT) = array;
     }
-    else {
-        array = VAL_SERIES(ARG(value));
-        Val_Init_Series_Index(
-            D_OUT, VAL_TYPE(ARG(value)), array, VAL_INDEX(ARG(value))
-        );
-    }
+    else
+        array = VAL_ARRAY(ARG(value));
 
     if (is_relative)
         Bind_Relative(target_series, array); //!! needs deep
     else
-        Bind_Values_Core(BLK_HEAD(array), AS_FRAME(target_series), flags);
+        Bind_Values_Core(ARRAY_HEAD(array), AS_FRAME(target_series), flags);
 
     return R_OUT;
 }
@@ -354,7 +358,7 @@ REBNATIVE(bound_q)
         // params start at 1) was converted to hold the value of the
         // function the params belong to.  This returns that stored value.
 
-        *D_OUT = *BLK_HEAD(VAL_WORD_TARGET(word));
+        *D_OUT = *ARRAY_HEAD(VAL_WORD_TARGET(word));
 
         // You should never get a way to a stack relative binding of a
         // closure.  They make an object on each call.
@@ -408,7 +412,7 @@ REBNATIVE(unbind)
     if (ANY_WORD(word))
         UNBIND_WORD(word);
     else
-        Unbind_Values_Core(VAL_BLK_DATA(word), NULL, D_REF(2));
+        Unbind_Values_Core(VAL_ARRAY_AT(word), NULL, D_REF(2));
 
     return R_ARG1;
 }
@@ -426,30 +430,42 @@ REBNATIVE(unbind)
 //          "Only include set-words"
 //      /ignore
 //          "Ignore prior words"
-//      words [any-context! block! none!]
+//      hidden [any-context! block!]
 //          "Words to ignore"
 //  ]
 //
 REBNATIVE(collect_words)
 {
-    REBSER *words;
-    REBCNT modes = 0;
-    REBVAL *values = VAL_BLK_DATA(D_ARG(1));
-    REBVAL *prior_values = NULL;
-    REBVAL *obj;
+    PARAM(1, block);
+    REFINE(2, deep);
+    REFINE(3, set);
+    REFINE(4, ignore);
+    PARAM(5, hidden);
 
-    if (D_REF(2)) modes |= BIND_DEEP;
-    if (!D_REF(3)) modes |= BIND_ALL;
+    REBARR *words;
+    REBCNT modes = 0;
+    REBVAL *values = VAL_ARRAY_AT(D_ARG(1));
+    REBVAL *prior_values;
+
+    if (REF(deep)) modes |= BIND_DEEP;
+    if (!REF(set)) modes |= BIND_ALL;
 
     // If ignore, then setup for it:
-    if (D_REF(4)) {
-        obj = D_ARG(5);
-        if (ANY_CONTEXT(obj))
-            prior_values = BLK_SKIP(FRAME_KEYLIST(VAL_FRAME(obj)), 1);
-        else if (IS_BLOCK(obj))
-            prior_values = VAL_BLK_DATA(obj);
-        // else stays 0
+    if (REF(ignore)) {
+        if (ANY_CONTEXT(ARG(hidden))) {
+            //
+            // !!! These are typesets and not words.  Is Collect_Words able
+            // to handle that?
+            //
+            prior_values = FRAME_KEYS_HEAD(VAL_FRAME(ARG(hidden)));
+        }
+        else {
+            assert(IS_BLOCK(ARG(hidden)));
+            prior_values = VAL_ARRAY_AT(ARG(hidden));
+        }
     }
+    else
+        prior_values = NULL;
 
     words = Collect_Words(values, prior_values, modes);
     Val_Init_Block(D_OUT, words);
@@ -552,7 +568,7 @@ REBNATIVE(in)
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_TAIL(val); i++) {
                 REBVAL safe;
-                v = VAL_BLK_SKIP(val, i);
+                v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);
                 v = &safe;
                 if (IS_OBJECT(v)) {
@@ -576,7 +592,7 @@ REBNATIVE(in)
 
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_PAREN(word)) {
-        Bind_Values_Deep(VAL_BLK_HEAD(word), frame);
+        Bind_Values_Deep(VAL_ARRAY_HEAD(word), frame);
         return R_ARG2;
     }
 
@@ -772,11 +788,11 @@ REBNATIVE(set)
     //     2
     //
     // Extract the value from the block at its index position.  (It may
-    // be recovered again with `value = VAL_BLK_DATA(ARG(value))` if
+    // be recovered again with `value = VAL_ARRAY_AT(ARG(value))` if
     // it is changed.)
     //
     if ((set_with_block = IS_BLOCK(value))) {
-        value = VAL_BLK_DATA(value);
+        value = VAL_ARRAY_AT(value);
 
         // If it's an empty block it's just going to be a no-op, so go ahead
         // and return now so the later code doesn't have to check for it.
@@ -843,9 +859,9 @@ REBNATIVE(set)
         // Refresh value from the arg data if we changed it during checking
         //
         if (set_with_block)
-            value = VAL_BLK_DATA(ARG(value));
+            value = VAL_ARRAY_AT(ARG(value));
         else
-            assert(value == VAL_BLK_DATA(ARG(value))); // didn't change
+            assert(value == VAL_ARRAY_AT(ARG(value))); // didn't change
 
         // Refresh the key so we can check and skip hidden fields
         //
@@ -874,7 +890,7 @@ REBNATIVE(set)
     // Otherwise, it must be a BLOCK!... extract the value at index position
     //
     assert(IS_BLOCK(target));
-    target = VAL_BLK_DATA(target);
+    target = VAL_ARRAY_AT(target);
 
     // SET should be somewhat atomic.  So if we're setting a block of
     // words and giving an alert on unsets, check for any unsets before
@@ -909,11 +925,11 @@ REBNATIVE(set)
 
         // Refresh the target and data pointers from the function args
         //
-        target = VAL_BLK_DATA(ARG(target));
+        target = VAL_ARRAY_AT(ARG(target));
         if (set_with_block)
-            value = VAL_BLK_DATA(ARG(value));
+            value = VAL_ARRAY_AT(ARG(value));
         else
-            assert(value == VAL_BLK_DATA(ARG(value))); // didn't change
+            assert(value == VAL_ARRAY_AT(ARG(value))); // didn't change
     }
 
     // With the assignments checked, do them
@@ -988,7 +1004,7 @@ REBNATIVE(unset)
     else {
         assert(IS_BLOCK(value));
 
-        for (word = VAL_BLK_DATA(value); NOT_END(word); word++) {
+        for (word = VAL_ARRAY_AT(value); NOT_END(word); word++) {
             if (!ANY_WORD(word))
                 fail (Error_Invalid_Arg(word));
 
@@ -1081,7 +1097,7 @@ static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
     REBINT max_depth = 1000; // avoid infinite loops
 
     while (GOB_PANE(gob) && (max_depth-- > 0)) {
-        len = GOB_TAIL(gob);
+        len = GOB_LEN(gob);
         gop = GOB_HEAD(gob) + len - 1;
         for (n = 0; n < len; n++, gop--) {
             if (
@@ -1135,7 +1151,7 @@ REBNATIVE(map_event)
 //
 static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
 {
-    REBSER *blk;
+    REBARR *blk;
     REBVAL *val;
 
     blk = Make_Array(2);

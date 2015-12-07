@@ -63,7 +63,12 @@ union Reb_Value_Flags {
 
 struct Reb_Value;
 typedef struct Reb_Value REBVAL;
+
+struct Reb_Series;
 typedef struct Reb_Series REBSER;
+
+struct Reb_Array;
+typedef struct Reb_Array REBARR;
 
 // Value type identifier (generally, should be handled as integer):
 
@@ -176,7 +181,7 @@ enum {
 
 struct Reb_Datatype {
     enum Reb_Kind kind;
-    REBSER  *spec;
+    REBARR  *spec;
 //  REBINT  min_type;
 //  REBINT  max_type;
 };
@@ -283,7 +288,7 @@ struct Reb_Datatype {
 #endif
 
 #define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
-#define EMPTY_ARRAY     VAL_SERIES(ROOT_EMPTY_BLOCK)
+#define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
 
 #define VAL_INT32(v)    (REBINT)((v)->data.integer)
 #define VAL_INT64(v)    ((v)->data.integer)
@@ -504,6 +509,7 @@ typedef struct Reb_Tuple {
     union {
         REBCNT size;    // used for vectors and bitsets
         REBSER *series; // MAP datatype uses this
+        REBARR *keylist; // used by FRAME
         struct {
             REBCNT wide:16;
             REBCNT high:16;
@@ -523,15 +529,14 @@ typedef struct Reb_Tuple {
 #endif
 };
 
-#define SERIES_TAIL(s)   ((s)->tail)
 #define SERIES_REST(s)   ((s)->rest)
 #define SERIES_FLAGS(s)  ((s)->info)
 #define SERIES_WIDE(s)   (((s)->info) & 0xff)
 #define SERIES_DATA(s)   ((s)->data)
-#define SERIES_SKIP(s,i) (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
+#define SERIES_AT(s,i)   (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
 
-// !!! Ultimately this should replace SERIES_TAIL
-#define SERIES_LEN(s)    SERIES_TAIL(s)
+#define SERIES_LEN(s)           ((s)->tail + 0)
+#define SET_SERIES_LEN(s,l)     ((s)->tail = (l))
 
 // These flags are returned from Do_Next_Core and Do_Next_May_Throw, in
 // order to keep from needing another returned value in addition to the
@@ -574,13 +579,13 @@ typedef struct Reb_Tuple {
 #define TERM_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s)); \
+        memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
     } while (0)
 
 // Returns space that a series has available (less terminator):
 #define SERIES_FULL(s) (SERIES_LEN(s) + 1 >= SERIES_REST(s))
 #define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
-#define SERIES_FITS(s,n) ((SERIES_TAIL(s) + (REBCNT)(n) + 1) <= SERIES_REST(s))
+#define SERIES_FITS(s,n) ((SERIES_LEN(s) + (n) + 1) <= SERIES_REST(s))
 
 // Flag used for extending series at tail:
 #define AT_TAIL ((REBCNT)(~0))  // Extend series at tail
@@ -589,7 +594,7 @@ typedef struct Reb_Tuple {
 #define BYTE_SIZE(s) (((s)->info) & 1)
 #define VAL_BYTE_SIZE(v) (BYTE_SIZE(VAL_SERIES(v)))
 #define VAL_STR_IS_ASCII(v) \
-    (VAL_BYTE_SIZE(v) && All_Bytes_ASCII(VAL_BIN_DATA(v), VAL_LEN(v)))
+    (VAL_BYTE_SIZE(v) && All_Bytes_ASCII(VAL_BIN_AT(v), VAL_LEN_AT(v)))
 
 // Bias is empty space in front of head:
 #define SERIES_BIAS(s)     (REBCNT)((SERIES_FLAGS(s) >> 16) & 0xffff)
@@ -621,8 +626,11 @@ enum {
 #define FAIL_IF_PROTECTED_SERIES(s) \
     if (SERIES_GET_FLAG(s, SER_PROTECT)) fail (Error(RE_PROTECTED))
 
+#define FAIL_IF_PROTECTED_ARRAY(a) \
+    FAIL_IF_PROTECTED_SERIES(ARRAY_SERIES(a))
+
 #define FAIL_IF_PROTECTED_FRAME(f) \
-    FAIL_IF_PROTECTED_SERIES(FRAME_VARLIST(f))
+    FAIL_IF_PROTECTED_ARRAY(FRAME_VARLIST(f))
 
 #ifdef SERIES_LABELS
 #define LABEL_SERIES(s,l) s->label = (l)
@@ -642,7 +650,7 @@ enum {
     #define ASSERT_SERIES(s) \
         do { \
             if (Is_Array_Series(s)) \
-                ASSERT_ARRAY(s); \
+                ASSERT_ARRAY(AS_ARRAY(s)); \
             else \
                 ASSERT_SERIES_TERM(s); \
         } while (0)
@@ -680,9 +688,12 @@ struct Reb_Position
 #endif
 #define VAL_INDEX(v)        ((v)->data.position.index)
 #define VAL_TAIL(v)         (VAL_SERIES(v)->tail)
-#define VAL_LEN(v)          (Val_Series_Len(v))
+#define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
 
-#define VAL_DATA(s)         (VAL_BIN_HEAD(s) + (VAL_INDEX(s) * VAL_SERIES_WIDTH(s)))
+#define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_TAIL(v))
+
+#define VAL_DATA_AT(p) \
+    (VAL_BIN_HEAD(p) + (VAL_INDEX(p) * VAL_SERIES_WIDTH(p)))
 
 #define VAL_SERIES_WIDTH(v) (SERIES_WIDE(VAL_SERIES(v)))
 #define VAL_LIMIT_SERIES(v) if (VAL_INDEX(v) > VAL_TAIL(v)) VAL_INDEX(v) = VAL_TAIL(v)
@@ -715,8 +726,11 @@ struct Reb_Position
 #define Val_Init_Series(v,t,s) \
     Val_Init_Series_Index((v), (t), (s), 0)
 
-#define Val_Init_Block_Index(v,s,i) \
-    Val_Init_Series_Index((v), REB_BLOCK, (s), (i))
+#define Val_Init_Array_Index(v,t,a,i) \
+    Val_Init_Series_Index((v), (t), ARRAY_SERIES(a), (i))
+
+#define Val_Init_Block_Index(v,a,i) \
+    Val_Init_Array_Index((v), REB_BLOCK, (a), (i))
 
 #define Val_Init_Block(v,s) \
     Val_Init_Block_Index((v), (s), 0)
@@ -766,45 +780,48 @@ struct Reb_Position
 #define Val_Init_Bitset(v,s) \
     Val_Init_Series((v), REB_BITSET, (s))
 
-#define SET_STR_END(s,n) (*STR_SKIP(s,n) = 0)
+#define SET_STR_END(s,n) (*STR_AT(s,n) = 0)
 
 // Arg is a binary (byte) series:
 #define BIN_HEAD(s)     ((REBYTE *)((s)->data))
 #define BIN_DATA(s)     ((REBYTE *)((s)->data))
 #define BIN_TAIL(s)     (REBYTE*)STR_TAIL(s)
-#define BIN_SKIP(s, n)  (((REBYTE *)((s)->data))+(n))
-#define BIN_LEN(s)      (SERIES_TAIL(s))
+#define BIN_AT(s, n)    (((REBYTE *)((s)->data))+(n))
+#define BIN_LEN(s)      (SERIES_LEN(s))
 
 // Arg is a unicode series:
 #define UNI_HEAD(s)     ((REBUNI *)((s)->data))
-#define UNI_SKIP(s, n)  (((REBUNI *)((s)->data))+(n))
+#define UNI_AT(s, n)    (((REBUNI *)((s)->data))+(n))
 #define UNI_TAIL(s)     (((REBUNI *)((s)->data))+(s)->tail)
 #define UNI_LAST(s)     (((REBUNI *)((s)->data))+((s)->tail-1)) // make sure tail not zero
-#define UNI_LEN(s)      (SERIES_TAIL(s))
+#define UNI_LEN(s)      (SERIES_LEN(s))
 #define UNI_TERM(s)     (*UNI_TAIL(s) = 0)
 #define UNI_RESET(s)    (UNI_HEAD(s)[(s)->tail = 0] = 0)
 
 // Obsolete (remove after Unicode conversion):
 #define STR_HEAD(s)     ((REBYTE *)((s)->data))
 #define STR_DATA(s)     ((REBYTE *)((s)->data))
-#define STR_SKIP(s, n)  (((REBYTE *)((s)->data))+(n))
+#define STR_AT(s, n)    (((REBYTE *)((s)->data))+(n))
 #define STR_TAIL(s)     (((REBYTE *)((s)->data))+(s)->tail)
 #define STR_LAST(s)     (((REBYTE *)((s)->data))+((s)->tail-1)) // make sure tail not zero
-#define STR_LEN(s)      (SERIES_TAIL(s))
+#define STR_LEN(s)      (SERIES_LEN(s))
 #define STR_TERM(s)     (*STR_TAIL(s) = 0)
 #define STR_RESET(s)    (STR_HEAD(s)[(s)->tail = 0] = 0)
 
 // Arg is a binary value:
-#define VAL_BIN(v)      BIN_HEAD(VAL_SERIES(v))
-#define VAL_BIN_HEAD(v) BIN_HEAD(VAL_SERIES(v))
-#define VAL_BIN_DATA(v) BIN_SKIP(VAL_SERIES(v), VAL_INDEX(v))
-#define VAL_BIN_SKIP(v,n) BIN_SKIP(VAL_SERIES(v), (n))
-#define VAL_BIN_TAIL(v) BIN_SKIP(VAL_SERIES(v), VAL_SERIES(v)->tail)
+//
+// !!! RE: VAL_BIN_AT_HEAD() see remarks on VAL_ARRAY_AT_HEAD()
+//
+#define VAL_BIN(v)              BIN_HEAD(VAL_SERIES(v))
+#define VAL_BIN_HEAD(v)         BIN_HEAD(VAL_SERIES(v))
+#define VAL_BIN_AT(v)           BIN_AT(VAL_SERIES(v), VAL_INDEX(v))
+#define VAL_BIN_AT_HEAD(v,n)    BIN_AT(VAL_SERIES(v), (n))
+#define VAL_BIN_TAIL(v)         BIN_AT(VAL_SERIES(v), VAL_SERIES(v)->tail)
 
 // Arg is a unicode value:
 #define VAL_UNI(v)      UNI_HEAD(VAL_SERIES(v))
 #define VAL_UNI_HEAD(v) UNI_HEAD(VAL_SERIES(v))
-#define VAL_UNI_DATA(v) UNI_SKIP(VAL_SERIES(v), VAL_INDEX(v))
+#define VAL_UNI_AT(v)   UNI_AT(VAL_SERIES(v), VAL_INDEX(v))
 
 // Get a char, from either byte or unicode string:
 #define GET_ANY_CHAR(s,n) \
@@ -838,7 +855,7 @@ struct Reb_Position
 #define QUAD_HEAD(s)    ((REBYTE *)((s)->data))
 #define QUAD_SKIP(s,n)  (((REBYTE *)((s)->data))+(n * 4))
 #define QUAD_TAIL(s)    (((REBYTE *)((s)->data))+((s)->tail * 4))
-#define QUAD_LEN(s)     (SERIES_TAIL(s))
+#define QUAD_LEN(s)     (SERIES_LEN(s))
 
 #define IMG_SIZE(s)     ((s)->misc.size)
 #define IMG_WIDE(s)     ((s)->misc.area.wide)
@@ -851,7 +868,7 @@ struct Reb_Position
 #define VAL_IMAGE_BITS(v)   ((REBCNT *)VAL_IMAGE_HEAD((v)))
 #define VAL_IMAGE_WIDE(v)   (IMG_WIDE(VAL_SERIES(v)))
 #define VAL_IMAGE_HIGH(v)   (IMG_HIGH(VAL_SERIES(v)))
-#define VAL_IMAGE_LEN(v)    VAL_LEN(v)
+#define VAL_IMAGE_LEN(v)    VAL_LEN_AT(v)
 
 #define Val_Init_Image(v,s) \
     Val_Init_Series((v), REB_IMAGE, (s));
@@ -936,43 +953,144 @@ struct Reb_Position
 
 /***********************************************************************
 **
-**  BLOCKS -- Block is a terminated string of values
+**  ARRAYS -- A Rebol array is a series of REBVAL values which is
+**  terminated by an END marker.
 **
 ***********************************************************************/
 
-// Arg is a series:
-#define BLK_HEAD(s)     ((REBVAL *)((s)->data))
-#define BLK_SKIP(s, n)  (((REBVAL *)((s)->data))+(n))
-#define BLK_TAIL(s)     (((REBVAL *)((s)->data))+(s)->tail)
-#define BLK_LAST(s)     (((REBVAL *)((s)->data))+((s)->tail-1)) // make sure tail not zero
-#define BLK_LEN(s)      (SERIES_TAIL(s))
-#define BLK_RESET(b)    (b)->tail = 0, SET_END(BLK_HEAD(b))
+struct Reb_Array {
+    struct Reb_Series series;
+};
 
-#define TERM_ARRAY(s) \
-    do { \
-        assert(Is_Array_Series(s)); \
-        SET_END(BLK_TAIL(s)); \
-    } while (0)
+// These do REBSER <=> REBARR coercion.  Although it's desirable to make
+// them type incompatible for most purposes, some operations require treating
+// one kind of pointer as the other (and they are both Reb_Series)
+//
+// !!! See notes on AS_FRAME about the dodginess of how this is currently
+// done.  But also see the note that it's something that could just be
+// disabled by making arrays and series synonyms in typical "non-type-checking"
+// builds.
+//
+#define AS_ARRAY(s)         (*cast(REBARR**, &(s))) // for `AS_ARRAY(s) = arr;`
+#define ARRAY_SERIES(a)     (&(a)->series)
 
+// HEAD, TAIL, and LAST refer to specific value pointers in the array.  An
+// empty array should have an END marker in its head slot, and since it has
+// no last value then ARRAY_LAST should not be called (this is checked in
+// debug builds).  A fully constructed array should always have an END
+// marker in its last slot, which is one past the last position that is
+// valid for writing a full REBVAL.
+//
+// ARRAY_AT allows picking a value slot by index.  It is zero-based, so
+// ARRAY_AT(a, 0) is the same as ARRAY_HEAD(a).
+//
+#define ARRAY_HEAD(a)       cast(REBVAL *, SERIES_DATA(ARRAY_SERIES(a)))
+#define ARRAY_TAIL(a)       (ARRAY_HEAD(a) + ARRAY_LEN(a))
+#ifdef NDEBUG
+    #define ARRAY_LAST(a)   (ARRAY_HEAD(a) + ARRAY_LEN(a) - 1)
+#else
+    #define ARRAY_LAST(a)   ARRAY_LAST_Debug(a)
+#endif
+#define ARRAY_AT(a, n)      (ARRAY_HEAD(a) + (n))
+
+// As with an ordinary REBSER, a REBARR has separate management of its length
+// and its terminator.  Many routines seek to control these independently for
+// performance reasons (for better or worse).
+//
+#define ARRAY_LEN(a)        SERIES_LEN(&(a)->series)
+#define SET_ARRAY_LEN(a,l)  (SET_SERIES_LEN(ARRAY_SERIES(a), (l)))
+
+// !!! Write more about termination in series documentation.
+//
+#define TERM_ARRAY(a) \
+    SET_END(ARRAY_TAIL(a))
+#define RESET_ARRAY(a) \
+    (SET_ARRAY_LEN((a), 0), TERM_ARRAY(a))
 #define TERM_SERIES(s) \
     Is_Array_Series(s) \
-        ? cast(void, SET_END(BLK_TAIL(s))) \
-        : cast(void, memset(SERIES_SKIP(s, SERIES_TAIL(s)), 0, SERIES_WIDE(s)))
+        ? cast(void, TERM_ARRAY(AS_ARRAY(s))) \
+        : cast(void, memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
+#define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
 
-// Arg is a value:
-#define VAL_BLK_HEAD(v) BLK_HEAD(VAL_SERIES(v))
-#define VAL_BLK_DATA(v) BLK_SKIP(VAL_SERIES(v), VAL_INDEX(v))
-#define VAL_BLK_SKIP(v,n)   BLK_SKIP(VAL_SERIES(v), (n))
-#define VAL_BLK_TAIL(v) BLK_SKIP(VAL_SERIES(v), VAL_SERIES(v)->tail)
-#define VAL_BLK_LEN(v)  VAL_LEN(v)
-#define VAL_TERM_ARRAY(v)   TERM_ARRAY(VAL_SERIES(v))
+// Setting and getting array flags is common enough to want a macro for it
+// vs. having to extract the ARRAY_SERIES to do it each time.
+//
+#define ARRAY_SET_FLAG(a,f)     SERIES_SET_FLAG(ARRAY_SERIES(a), (f))
+#define ARRAY_CLR_FLAG(a,f)     SERIES_CLR_FLAG(ARRAY_SERIES(a), (f))
+#define ARRAY_GET_FLAG(a,f)     SERIES_GET_FLAG(ARRAY_SERIES(a), (f))
 
-#define IS_EMPTY(v)     (VAL_INDEX(v) >= VAL_TAIL(v))
+// These operations do not need to take the value's index position into
+// account; they strictly operate on the array series
+//
+#define VAL_ARRAY(v)            AS_ARRAY(VAL_SERIES(v))
+#define VAL_ARRAY_HEAD(v)       ARRAY_HEAD(VAL_ARRAY(v))
+#define VAL_ARRAY_TAIL(v)       ARRAY_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
+
+// These array operations take the index position into account.  The use
+// of the word AT with a missing index is a hint that the index is coming
+// from the VAL_INDEX() of the value itself.
+//
+#define VAL_ARRAY_AT(v)         ARRAY_AT(VAL_ARRAY(v), VAL_INDEX(v))
+#define VAL_ARRAY_LEN_AT(v)     VAL_LEN_AT(v)
+
+// !!! VAL_ARRAY_AT_HEAD() is a leftover from the old definition of
+// VAL_ARRAY_AT().  Unlike SKIP in Rebol, this definition did *not* take
+// the current index position of the value into account.  It rather extracted
+// the array, counted rom the head, and disregarded the index entirely.
+//
+// The best thing to do with it is probably to rewrite the use cases to
+// not need it.  But at least "AT HEAD" helps communicate what the equivalent
+// operation in Rebol would be...and you know it's not just giving back the
+// head because it's taking an index.  So  it looks weird enough to suggest
+// looking here for what the story is.
+//
+#define VAL_ARRAY_AT_HEAD(v,n) \
+    ARRAY_AT(VAL_ARRAY(v), (n))
 
 #ifdef NDEBUG
     #define ASSERT_ARRAY(s) cast(void, 0)
 #else
     #define ASSERT_ARRAY(s) Assert_Array_Core(s)
+#endif
+
+#define Free_Array(a)           Free_Series(ARRAY_SERIES(a))
+
+
+/***********************************************************************
+**
+**  MAPS
+**
+**  Maps are implemented as a light hashing layer on top of an array.
+**  The hash indices are stored in the series node's "misc", while the
+**  values are retained in pairs as `[key val key val key val ...]`.
+**
+**  When there are too few values to warrant hashing, no hash indices
+**  are made and the array is searched linearly.
+**
+**  As with the type distinction between REBSER/REBFRM and REBSER/REBARR,
+**  there is a distinction between REBSER/REBARR and REBMAP.
+**
+***********************************************************************/
+
+struct Reb_Map {
+    struct Reb_Array pairlist;
+};
+typedef struct Reb_Map REBMAP;
+
+#define MAP_PAIRLIST(m)         (&(m)->pairlist)
+#define MAP_HASHLIST(m)         (ARRAY_SERIES(&(m)->pairlist)->misc.series)
+#define MAP_HASHES(m)           SERIES_DATA(MAP_HASHLIST(m))
+
+// !!! Should there be a MAP_LEN()?  Current implementation has NONE in
+// slots that are unused, so can give a deceptive number.  But so can
+// objects with hidden fields, locals in paramlists, etc.
+
+#define AS_MAP(s)               (*cast(REBMAP**, &(s)))
+
+#ifdef NDEBUG
+    #define VAL_MAP(v)          AS_MAP(VAL_ARRAY(v))
+#else
+    #define VAL_MAP(v)          (*VAL_MAP_Ptr_Debug(v))
 #endif
 
 
@@ -995,9 +1113,9 @@ struct Reb_Symbol {
 #define VAL_SYM_ALIAS(v)    ((v)->data.symbol.alias)
 
 // Return the CANON value for a symbol number:
-#define SYMBOL_TO_CANON(sym) (VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, sym)))
+#define SYMBOL_TO_CANON(sym) (VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, sym)))
 // Return the CANON value for a word value:
-#define WORD_TO_CANON(w) (VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(w))))
+#define WORD_TO_CANON(w) (VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(w))))
 
 
 /***********************************************************************
@@ -1007,9 +1125,24 @@ struct Reb_Symbol {
 ***********************************************************************/
 
 struct Reb_Word {
-    REBSER *target; // Frame (or VAL_FUNC_PARAMLIST) where word is defined
-    REBINT index;   // Index of word in frame (if it's not NULL)
-    REBCNT sym;     // Index of the word's symbol
+    //
+    // The "target" of a word is a specification of where to look for its
+    // value.  If this is a FRAME then it will be the VAL_FRAME_VARLIST
+    // series of that frame.  If the word targets a stack-relative lookup,
+    // such as with FUNCTION!, then the word must bind to something more
+    // persistent than the stack.  Hence it indicates the VAL_FUNC_PARAMLIST
+    // and must pay to walk the stack looking to see if that function is
+    // currently being called to find the stack "var" for that param "key"
+    //
+    REBARR *target;
+
+    // Index of word in frame (if it's not NULL)
+    //
+    REBINT index;
+
+    // Index of the word's symbol
+    //
+    REBCNT sym;
 };
 
 #define IS_SAME_WORD(v, n)      (IS_WORD(v) && VAL_WORD_CANON(v) == n)
@@ -1036,8 +1169,12 @@ struct Reb_Word {
         (VAL_WORD_TARGET(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
 #endif
 
-#define VAL_WORD_CANON(v)       VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(v)))
-#define VAL_WORD_NAME(v)        VAL_SYM_NAME(BLK_SKIP(PG_Word_Table.series, VAL_WORD_SYM(v)))
+#define VAL_WORD_CANON(v) \
+    VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
+
+#define VAL_WORD_NAME(v) \
+    VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
+
 #define VAL_WORD_NAME_STR(v)    STR_HEAD(VAL_WORD_NAME(v))
 
 #define VAL_WORD_TARGET_WORDS(v) VAL_WORD_TARGET(v)->words
@@ -1047,8 +1184,8 @@ struct Reb_Word {
 #define SAME_SYM(s1,s2) \
     ((s1) == (s2) \
     || ( \
-        VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, (s1))) \
-        == VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, (s2))) \
+        VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s1))) \
+        == VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s2))) \
     ))
 
 
@@ -1091,7 +1228,7 @@ struct Reb_Word {
 ***********************************************************************/
 
 typedef struct Reb_Frame {
-    REBSER series; // keylist is held in REBSER.misc.series
+    REBARR array; // keylist is held in REBSER.misc.series
 } REBFRM;
 
 #ifdef NDEBUG
@@ -1119,7 +1256,7 @@ typedef struct Reb_Frame {
 struct Reb_Context {
     REBFRM *frame;
     REBFRM *spec; // optional (currently only used by modules)
-    REBSER *body; // optional (currently not used at all)
+    REBARR *body; // optional (currently not used at all)
 };
 
 // Context components
@@ -1134,19 +1271,19 @@ struct Reb_Context {
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
-#define FRAME_VARLIST(f)            (&(f)->series)
-#define FRAME_KEYLIST(f)            ((f)->series.misc.series)
+#define FRAME_VARLIST(f)            (&(f)->array)
+#define FRAME_KEYLIST(f)            (ARRAY_SERIES(&(f)->array)->misc.keylist)
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that
 // the indexing is legal.  To get a pointer to the first key or value
 // regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
 //
-#define FRAME_KEYS_HEAD(f)          BLK_SKIP(FRAME_KEYLIST(f), 1)
-#define FRAME_VARS_HEAD(f)          BLK_SKIP(FRAME_VARLIST(f), 1)
+#define FRAME_KEYS_HEAD(f)          ARRAY_AT(FRAME_KEYLIST(f), 1)
+#define FRAME_VARS_HEAD(f)          ARRAY_AT(FRAME_VARLIST(f), 1)
 #ifdef NDEBUG
-    #define FRAME_KEY(f,n)          BLK_SKIP(FRAME_KEYLIST(f), (n))
-    #define FRAME_VAR(f,n)          BLK_SKIP(FRAME_VARLIST(f), (n))
+    #define FRAME_KEY(f,n)          ARRAY_AT(FRAME_KEYLIST(f), (n))
+    #define FRAME_VAR(f,n)          ARRAY_AT(FRAME_VARLIST(f), (n))
 #else
     #define FRAME_KEY(f,n)          FRAME_KEY_Debug((f), (n))
     #define FRAME_VAR(f,n)          FRAME_VAR_Debug((f), (n))
@@ -1161,12 +1298,18 @@ struct Reb_Context {
 // (and getting an answer for the length back that was the same as the length
 // requested in frame creation).
 //
-#define FRAME_LEN(f)                (SERIES_LEN(FRAME_VARLIST(f)) - 1)
-#define FRAME_CONTEXT(f)            BLK_HEAD(FRAME_VARLIST(f))
-#define FRAME_ROOTKEY(f)            BLK_HEAD(FRAME_KEYLIST(f))
+#define FRAME_LEN(f)                (ARRAY_LEN(FRAME_VARLIST(f)) - 1)
+#define FRAME_CONTEXT(f)            ARRAY_HEAD(FRAME_VARLIST(f))
+#define FRAME_ROOTKEY(f)            ARRAY_HEAD(FRAME_KEYLIST(f))
 #define FRAME_TYPE(f)               VAL_TYPE(FRAME_CONTEXT(f))
 #define FRAME_SPEC(f)               VAL_CONTEXT_SPEC(FRAME_CONTEXT(f))
 #define FRAME_BODY(f)               VAL_CONTEXT_BODY(FRAME_CONTEXT(f))
+
+#define FREE_FRAME(f) \
+    do { \
+        Free_Array(FRAME_KEYLIST(f)); \
+        Free_Array(FRAME_VARLIST(f)); \
+    } while (0);
 
 // A fully constructed frames can reconstitute the context REBVAL that it is
 // a frame for from a single pointer...the REBVAL sitting in the 0 slot
@@ -1256,7 +1399,7 @@ struct Reb_Context {
 **
 ***********************************************************************/
 
-#define ERR_VALUES(frame)   cast(ERROR_OBJ*, BLK_HEAD(FRAME_VARLIST(frame)))
+#define ERR_VALUES(frame)   cast(ERROR_OBJ*, ARRAY_HEAD(FRAME_VARLIST(frame)))
 #define ERR_NUM(frame)      cast(REBCNT, VAL_INT32(&ERR_VALUES(frame)->code))
 
 #define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_FRAME(v))
@@ -1424,45 +1567,38 @@ typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 typedef struct Reb_Routine_Info REBRIN;
 
 struct Reb_Function {
-    REBSER  *spec;  // Spec block for function
-    REBSER  *args;  // Block of Wordspecs (with typesets)
+    REBARR *spec;  // Array of spec values for function
+    REBARR *paramlist;  // Array of typesets and symbols
     union Reb_Func_Code {
-        REBFUN  code;
-        REBSER  *body;
-        REBCNT  act;
-        REBRIN  *info;
+        REBFUN code;
+        REBARR *body;
+        REBCNT act;
+        REBRIN *info;
     } func;
 };
 
 /* argument to these is a pointer to struct Reb_Function */
 #define FUNC_SPEC(v)      ((v)->spec)   // a series
-#define FUNC_SPEC_BLK(v)  BLK_HEAD((v)->spec)
-#define FUNC_ARGS(v)      ((v)->args)
-#define FUNC_WORDS(v)     FUNC_ARGS(v)
+#define FUNC_SPEC_BLK(v)  ARRAY_HEAD((v)->spec)
+#define FUNC_PARAMLIST(v) ((v)->paramlist)
 #define FUNC_CODE(v)      ((v)->func.code)
 #define FUNC_BODY(v)      ((v)->func.body)
 #define FUNC_ACT(v)       ((v)->func.act)
 #define FUNC_INFO(v)      ((v)->func.info)
-#define FUNC_ARGC(v)      SERIES_TAIL((v)->args)
-
-// !!! In the original formulation, the first parameter in the VAL_FUNC_WORDS
-// started at 1.  The zero slot was left empty, in order for the function's
-// word frames to line up to object frames where the zero slot is SELF.
-// The pending implementation of definitionally scoped return bumps this
-// number to 2, so we establish it as a named constant anticipating that.
-#define FIRST_PARAM_INDEX 1
+#define FUNC_ARGC(v)      ARRAY_TAIL((v)->args)
 
 /* argument is of type REBVAL* */
-#define VAL_FUNC(v)           ((v)->data.func)
-#define VAL_FUNC_SPEC(v)      ((v)->data.func.spec) // a series
-#define VAL_FUNC_SPEC_BLK(v)  BLK_HEAD((v)->data.func.spec)
-#define VAL_FUNC_PARAMLIST(v)     ((v)->data.func.args)
+#define VAL_FUNC(v)                 ((v)->data.func)
+#define VAL_FUNC_SPEC(v)            ((v)->data.func.spec)
+#define VAL_FUNC_PARAMLIST(v)       ((v)->data.func.paramlist)
+
+#define VAL_FUNC_PARAMS_HEAD(v)     ARRAY_AT(VAL_FUNC_PARAMLIST(v), 1)
 
 #define VAL_FUNC_PARAM(v,p) \
-    BLK_SKIP(VAL_FUNC_PARAMLIST(v), FIRST_PARAM_INDEX + (p) - 1)
+    ARRAY_AT(VAL_FUNC_PARAMLIST(v), (p))
 
 #define VAL_FUNC_NUM_PARAMS(v) \
-    (SERIES_TAIL(VAL_FUNC_PARAMLIST(v)) - FIRST_PARAM_INDEX)
+    (ARRAY_LEN(VAL_FUNC_PARAMLIST(v)) - 1)
 
 #define VAL_FUNC_CODE(v)      ((v)->data.func.func.code)
 #define VAL_FUNC_BODY(v)      ((v)->data.func.func.body)
@@ -1549,7 +1685,7 @@ typedef struct Reb_Library_Handle {
 
 struct Reb_Library {
     REBLHL *handle;
-    REBSER *spec;
+    REBARR *spec;
 };
 
 #define LIB_FD(v)           ((v)->fd)
@@ -1590,7 +1726,7 @@ enum {
 ***********************************************************************/
 
 typedef struct Reb_Struct {
-    REBSER  *spec;
+    REBARR  *spec;
     REBSER  *fields;    // fields definition
     REBSER  *data;
 } REBSTU;
@@ -1621,9 +1757,9 @@ struct Reb_Routine_Info {
     } info;
     void    *cif;
     REBSER  *arg_types; /* index 0 is the return type, */
-    REBSER  *fixed_args;
-    REBSER  *all_args;
-    REBSER  *arg_structs; /* for struct arguments */
+    REBARR  *fixed_args;
+    REBARR  *all_args;
+    REBARR  *arg_structs; /* for struct arguments */
     REBSER  *extra_mem; /* extra memory that needs to be free'ed */
     REBINT  abi;
     REBFLG  flags;
@@ -1639,9 +1775,10 @@ enum {
 };
 
 /* argument is REBFCN */
+
 #define ROUTINE_SPEC(v)             FUNC_SPEC(v)
 #define ROUTINE_INFO(v)             FUNC_INFO(v)
-#define ROUTINE_ARGS(v)             FUNC_ARGS(v)
+#define ROUTINE_PARAMLIST(v)        FUNC_PARAMLIST(v)
 #define ROUTINE_FUNCPTR(v)          (ROUTINE_INFO(v)->info.rot.funcptr)
 #define ROUTINE_LIB(v)              (ROUTINE_INFO(v)->info.rot.lib)
 #define ROUTINE_ABI(v)              (ROUTINE_INFO(v)->abi)
@@ -1651,7 +1788,7 @@ enum {
 #define ROUTINE_FFI_ARG_STRUCTS(v)  (ROUTINE_INFO(v)->arg_structs)
 #define ROUTINE_EXTRA_MEM(v)        (ROUTINE_INFO(v)->extra_mem)
 #define ROUTINE_CIF(v)              (ROUTINE_INFO(v)->cif)
-#define ROUTINE_RVALUE(v)           VAL_STRUCT(BLK_HEAD(ROUTINE_FFI_ARG_STRUCTS(v)))
+#define ROUTINE_RVALUE(v)           VAL_STRUCT(ARRAY_HEAD(ROUTINE_FFI_ARG_STRUCTS(v)))
 #define ROUTINE_CLOSURE(v)          (ROUTINE_INFO(v)->info.cb.closure)
 #define ROUTINE_DISPATCHER(v)       (ROUTINE_INFO(v)->info.cb.dispatcher)
 #define CALLBACK_FUNC(v)            (ROUTINE_INFO(v)->info.cb.func)
@@ -1663,7 +1800,7 @@ enum {
 #define RIN_CLOSURE(v)              ((v)->info.cb.closure)
 #define RIN_FUNC(v)                 ((v)->info.cb.func)
 #define RIN_ARGS_STRUCTS(v)         ((v)->arg_structs)
-#define RIN_RVALUE(v)               VAL_STRUCT(BLK_HEAD(RIN_ARGS_STRUCTS(v)))
+#define RIN_RVALUE(v)               VAL_STRUCT(ARRAY_HEAD(RIN_ARGS_STRUCTS(v)))
 
 #define ROUTINE_FLAGS(s)       ((s)->flags)
 #define ROUTINE_SET_FLAG(s, f) (ROUTINE_FLAGS(s) |= (f))
@@ -1676,7 +1813,7 @@ enum {
 #define VAL_ROUTINE(v)              VAL_FUNC(v)
 #define VAL_ROUTINE_SPEC(v)         VAL_FUNC_SPEC(v)
 #define VAL_ROUTINE_INFO(v)         VAL_FUNC_INFO(v)
-#define VAL_ROUTINE_ARGS(v)         VAL_FUNC_PARAMLIST(v)
+#define VAL_ROUTINE_PARAMLIST(v)    VAL_FUNC_PARAMLIST(v)
 #define VAL_ROUTINE_FUNCPTR(v)      (VAL_ROUTINE_INFO(v)->info.rot.funcptr)
 #define VAL_ROUTINE_LIB(v)          (VAL_ROUTINE_INFO(v)->info.rot.lib)
 #define VAL_ROUTINE_ABI(v)          (VAL_ROUTINE_INFO(v)->abi)
@@ -1686,7 +1823,9 @@ enum {
 #define VAL_ROUTINE_FFI_ARG_STRUCTS(v)  (VAL_ROUTINE_INFO(v)->arg_structs)
 #define VAL_ROUTINE_EXTRA_MEM(v)    (VAL_ROUTINE_INFO(v)->extra_mem)
 #define VAL_ROUTINE_CIF(v)          (VAL_ROUTINE_INFO(v)->cif)
-#define VAL_ROUTINE_RVALUE(v)       VAL_STRUCT((REBVAL*)SERIES_DATA(VAL_ROUTINE_INFO(v)->arg_structs))
+
+#define VAL_ROUTINE_RVALUE(v) \
+    VAL_STRUCT(ARRAY_HEAD(VAL_ROUTINE_INFO(v)->arg_structs))
 
 #define VAL_ROUTINE_CLOSURE(v)      (VAL_ROUTINE_INFO(v)->info.cb.closure)
 #define VAL_ROUTINE_DISPATCHER(v)   (VAL_ROUTINE_INFO(v)->info.cb.dispatcher)
@@ -1756,7 +1895,7 @@ struct Reb_Typeset {
 #endif
 
 #define VAL_TYPESET_CANON(v) \
-    VAL_SYM_CANON(BLK_SKIP(PG_Word_Table.series, VAL_TYPESET_SYM(v)))
+    VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, VAL_TYPESET_SYM(v)))
 
 // Word number array (used by Bind_Table):
 #define WORDS_HEAD(w) \

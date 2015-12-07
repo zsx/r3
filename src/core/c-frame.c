@@ -96,8 +96,8 @@ void Check_Bind_Table(void)
     REBCNT  n;
     REBINT *binds = WORDS_HEAD(Bind_Table);
 
-    //Debug_Fmt("Bind Table (Size: %d)", SERIES_TAIL(Bind_Table));
-    for (n = 0; n < SERIES_TAIL(Bind_Table); n++) {
+    //Debug_Fmt("Bind Table (Size: %d)", SERIES_LEN(Bind_Table));
+    for (n = 0; n < SERIES_LEN(Bind_Table); n++) {
         if (binds[n]) {
             Debug_Fmt("Bind table fault: %3d to %3d (%s)", n, binds[n], Get_Sym_Name(n));
         }
@@ -117,7 +117,7 @@ void Check_Bind_Table(void)
 REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
 {
     REBFRM *frame;
-    REBSER *keylist;
+    REBARR *keylist;
     REBVAL *value;
 
     keylist = Make_Array(len + 1); // size + room for SELF
@@ -150,11 +150,11 @@ REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
 
     // Allowed to be set to NULL, but must be done so explicitly
     //
-    FRAME_BODY(frame) = cast(REBSER*, 0xBAADF00D);
+    FRAME_BODY(frame) = cast(REBARR*, 0xBAADF00D);
 #endif
 
     SET_END(FRAME_VARS_HEAD(frame));
-    FRAME_VARLIST(frame)->tail = 1;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), 1);
 
     // !!! keylist[0] is currently either the symbol SELF or the symbol 0
     // depending.  This is to be reviewed with the deprecation of SELF as a
@@ -174,19 +174,19 @@ REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
 //
 void Expand_Frame(REBFRM *frame, REBCNT delta, REBCNT copy)
 {
-    REBSER *keylist = FRAME_KEYLIST(frame);
+    REBARR *keylist = FRAME_KEYLIST(frame);
 
-    Extend_Series(FRAME_VARLIST(frame), delta);
+    Extend_Series(ARRAY_SERIES(FRAME_VARLIST(frame)), delta);
     TERM_ARRAY(FRAME_VARLIST(frame));
 
     // Expand or copy WORDS block:
     if (copy) {
-        REBOOL managed = SERIES_GET_FLAG(keylist, SER_MANAGED);
+        REBOOL managed = ARRAY_GET_FLAG(keylist, SER_MANAGED);
         FRAME_KEYLIST(frame) = Copy_Array_Extra_Shallow(keylist, delta);
-        if (managed) MANAGE_SERIES(FRAME_KEYLIST(frame));
+        if (managed) MANAGE_ARRAY(FRAME_KEYLIST(frame));
     }
     else {
-        Extend_Series(keylist, delta);
+        Extend_Series(ARRAY_SERIES(keylist), delta);
         TERM_ARRAY(keylist);
     }
 }
@@ -204,20 +204,20 @@ void Expand_Frame(REBFRM *frame, REBCNT delta, REBCNT copy)
 //
 REBVAL *Append_Frame(REBFRM *frame, REBVAL *word, REBCNT sym)
 {
-    REBSER *keylist = FRAME_KEYLIST(frame);
+    REBARR *keylist = FRAME_KEYLIST(frame);
     REBVAL *value;
 
     // Add the key to key list
     //
-    EXPAND_SERIES_TAIL(keylist, 1);
-    value = BLK_LAST(keylist);
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(keylist), 1);
+    value = ARRAY_LAST(keylist);
     Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
     TERM_ARRAY(keylist);
 
     // Add an unset value to var list
     //
-    EXPAND_SERIES_TAIL(FRAME_VARLIST(frame), 1);
-    value = BLK_LAST(FRAME_VARLIST(frame));
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(FRAME_VARLIST(frame)), 1);
+    value = ARRAY_LAST(FRAME_VARLIST(frame));
     SET_UNSET(value);
     TERM_ARRAY(FRAME_VARLIST(frame));
 
@@ -252,8 +252,8 @@ REBVAL *Append_Frame(REBFRM *frame, REBVAL *word, REBCNT sym)
 REBFRM *Copy_Frame_Shallow_Extra_Managed(REBFRM *src, REBCNT extra) {
     REBFRM *dest;
 
-    assert(SERIES_GET_FLAG(FRAME_VARLIST(src), SER_FRAME));
-    assert(SERIES_GET_FLAG(FRAME_KEYLIST(src), SER_MANAGED));
+    assert(ARRAY_GET_FLAG(FRAME_VARLIST(src), SER_FRAME));
+    assert(ARRAY_GET_FLAG(FRAME_KEYLIST(src), SER_MANAGED));
 
     if (extra == 0) {
         dest = AS_FRAME(Copy_Array_Shallow(FRAME_VARLIST(src)));
@@ -264,11 +264,11 @@ REBFRM *Copy_Frame_Shallow_Extra_Managed(REBFRM *src, REBCNT extra) {
         FRAME_KEYLIST(dest) = Copy_Array_Extra_Shallow(
             FRAME_KEYLIST(src), extra
         );
-        MANAGE_SERIES(FRAME_KEYLIST(dest));
+        MANAGE_ARRAY(FRAME_KEYLIST(dest));
     }
 
-    SERIES_SET_FLAG(FRAME_VARLIST(dest), SER_FRAME);
-    MANAGE_SERIES(FRAME_VARLIST(dest));
+    ARRAY_SET_FLAG(FRAME_VARLIST(dest), SER_FRAME);
+    MANAGE_ARRAY(FRAME_VARLIST(dest));
 
     VAL_FRAME(FRAME_CONTEXT(dest)) = dest;
 
@@ -304,17 +304,17 @@ void Collect_Keys_Start(REBCNT modes)
 
     CHECK_BIND_TABLE;
 
-    assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
+    assert(ARRAY_LEN(BUF_COLLECT) == 0); // should be empty
 
     // Add the SELF key (or unused key) to slot zero
     if (modes & BIND_NO_SELF)
-        Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_0);
+        Val_Init_Typeset(ARRAY_HEAD(BUF_COLLECT), ALL_64, SYM_0);
     else {
-        Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_SELF);
+        Val_Init_Typeset(ARRAY_HEAD(BUF_COLLECT), ALL_64, SYM_SELF);
         binds[SYM_SELF] = -1;  // (cannot use zero here)
     }
 
-    SERIES_TAIL(BUF_COLLECT) = 1;
+    SET_ARRAY_LEN(BUF_COLLECT, 1);
 }
 
 
@@ -323,27 +323,27 @@ void Collect_Keys_Start(REBCNT modes)
 // 
 // Finish collecting words, and free the Bind_Table for reuse.
 //
-REBSER *Collect_Keys_End(REBFRM *prior)
+REBARR *Collect_Keys_End(REBFRM *prior)
 {
-    REBSER *keylist;
+    REBARR *keylist;
     REBVAL *words;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
     // Reset binding table (note BUF_COLLECT may have expanded):
-    for (words = BLK_HEAD(BUF_COLLECT); NOT_END(words); words++)
+    for (words = ARRAY_HEAD(BUF_COLLECT); NOT_END(words); words++)
         binds[VAL_TYPESET_CANON(words)] = 0;
 
     // If no new words, prior frame
     //
     // !!! Review the +1 logic to account for context/rootkey, is this right?
     //
-    if (prior && SERIES_TAIL(BUF_COLLECT) == FRAME_LEN(prior) + 1) {
-        RESET_TAIL(BUF_COLLECT);  // allow reuse
+    if (prior && ARRAY_LEN(BUF_COLLECT) == FRAME_LEN(prior) + 1) {
+        SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
         keylist = FRAME_KEYLIST(prior);
     }
     else {
         keylist = Copy_Array_Shallow(BUF_COLLECT);
-        RESET_TAIL(BUF_COLLECT);  // allow reuse
+        SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
     }
 
     CHECK_BIND_TABLE;
@@ -367,7 +367,7 @@ void Collect_Context_Keys(REBFRM *prior)
     // does not own.  (It may make the series one larger than necessary if
     // SELF is not required.)
     //
-    RESIZE_SERIES(BUF_COLLECT, FRAME_LEN(prior) + 1);
+    RESIZE_SERIES(ARRAY_SERIES(BUF_COLLECT), FRAME_LEN(prior) + 1);
 
     // Copy the keys, leaving a one cell gap in the beginning of the collect
     // buffer if the frame has a SELF.  Because these are typesets with a
@@ -375,7 +375,9 @@ void Collect_Context_Keys(REBFRM *prior)
     // need any kind of independent identity.
     //
     memcpy(
-        IS_SELFLESS(prior) ? BLK_HEAD(BUF_COLLECT) : BLK_SKIP(BUF_COLLECT, 1),
+        IS_SELFLESS(prior)
+            ? ARRAY_HEAD(BUF_COLLECT)
+            : ARRAY_AT(BUF_COLLECT, 1),
         keys,
         (FRAME_LEN(prior)) * sizeof(REBVAL)
     );
@@ -385,7 +387,7 @@ void Collect_Context_Keys(REBFRM *prior)
         // For a selfless frame we didn't leave a gap for self, so the length
         // is one less than the length of the frame.
         //
-        SERIES_TAIL(BUF_COLLECT) = FRAME_LEN(prior);
+        SET_ARRAY_LEN(BUF_COLLECT, FRAME_LEN(prior));
     }
     else {
         //
@@ -393,8 +395,8 @@ void Collect_Context_Keys(REBFRM *prior)
         // is being deprecated.  However we still must collect it if the
         // frame has it (for now).
         //
-        *BLK_HEAD(BUF_COLLECT) = *BLK_HEAD(FRAME_KEYLIST(prior));
-        SERIES_TAIL(BUF_COLLECT) = FRAME_LEN(prior) + 1;
+        *ARRAY_HEAD(BUF_COLLECT) = *ARRAY_HEAD(FRAME_KEYLIST(prior));
+        SET_ARRAY_LEN(BUF_COLLECT, FRAME_LEN(prior) + 1);
     }
 
     // !!! Note that this collection of binds will not include SELF (?)
@@ -417,9 +419,9 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
             if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
                 if (IS_SET_WORD(value) || modes & BIND_ALL) {
                     REBVAL *typeset;
-                    binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_COLLECT);
-                    EXPAND_SERIES_TAIL(BUF_COLLECT, 1);
-                    typeset = BLK_LAST(BUF_COLLECT);
+                    binds[VAL_WORD_CANON(value)] = ARRAY_LEN(BUF_COLLECT);
+                    EXPAND_SERIES_TAIL(ARRAY_SERIES(BUF_COLLECT), 1);
+                    typeset = ARRAY_LAST(BUF_COLLECT);
                     Val_Init_Typeset(
                         typeset,
                         // Allow all datatypes but UNSET (initially):
@@ -431,10 +433,10 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
                 // If word duplicated:
                 if (modes & BIND_NO_DUP) {
                     // Reset binding table (note BUF_COLLECT may have expanded):
-                    REBVAL *key = BLK_HEAD(BUF_COLLECT);
+                    REBVAL *key = ARRAY_HEAD(BUF_COLLECT);
                     for (; NOT_END(key); key++)
                         binds[VAL_TYPESET_CANON(key)] = 0;
-                    RESET_TAIL(BUF_COLLECT);  // allow reuse
+                    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
                     fail (Error(RE_DUP_VARS, value));
                 }
             }
@@ -442,7 +444,7 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
         }
         // Recurse into sub-blocks:
         if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Frame_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
+            Collect_Frame_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
         // In this mode (foreach native), do not allow non-words:
         //else if (modes & BIND_GET) fail (Error_Invalid_Arg(value));
     }
@@ -468,7 +470,7 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
 //     BIND_GET  - substitute :word with actual word
 //     BIND_NO_SELF - do not add implicit SELF to the frame
 //
-REBSER *Collect_Frame(REBFRM *prior, REBVAL value[], REBCNT modes)
+REBARR *Collect_Frame(REBFRM *prior, REBVAL value[], REBCNT modes)
 {
     Collect_Keys_Start(modes);
 
@@ -501,7 +503,7 @@ static void Collect_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
             Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
         }
         else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Words_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
+            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
     }
 }
 
@@ -511,32 +513,32 @@ static void Collect_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
 // 
 // Collect words from a prior block and new block.
 //
-REBSER *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
+REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 {
-    REBSER *series;
+    REBARR *array;
     REBCNT start;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
     CHECK_BIND_TABLE;
 
-    assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
+    assert(ARRAY_LEN(BUF_COLLECT) == 0); // should be empty
 
     if (prior_value)
         Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
 
-    start = SERIES_TAIL(BUF_COLLECT);
+    start = ARRAY_LEN(BUF_COLLECT);
     Collect_Words_Inner_Loop(binds, &value[0], modes);
 
     // Reset word markers:
-    for (value = BLK_HEAD(BUF_COLLECT); NOT_END(value); value++)
+    for (value = ARRAY_HEAD(BUF_COLLECT); NOT_END(value); value++)
         binds[VAL_WORD_CANON(value)] = 0;
 
-    series = Copy_Array_At_Max_Shallow(
-        BUF_COLLECT, start, SERIES_TAIL(BUF_COLLECT) - start
+    array = Copy_Array_At_Max_Shallow(
+        BUF_COLLECT, start, ARRAY_LEN(BUF_COLLECT) - start
     );
-    RESET_TAIL(BUF_COLLECT);  // allow reuse
+    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
 
     CHECK_BIND_TABLE;
-    return series;
+    return array;
 }
 
 
@@ -546,9 +548,9 @@ REBSER *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 // Create a new frame from a word list.
 // The values of the frame are initialized to NONE.
 //
-REBFRM *Create_Frame(REBSER *keylist, REBSER *spec)
+REBFRM *Create_Frame(REBARR *keylist, REBSER *spec)
 {
-    REBINT len = SERIES_TAIL(keylist);
+    REBINT len = ARRAY_LEN(keylist);
 
     // Make a frame of same size as keylist (END already accounted for)
     //
@@ -556,9 +558,9 @@ REBFRM *Create_Frame(REBSER *keylist, REBSER *spec)
         len + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
     ));
 
-    REBVAL *value = BLK_HEAD(FRAME_VARLIST(frame));
+    REBVAL *value = ARRAY_HEAD(FRAME_VARLIST(frame));
 
-    SERIES_TAIL(FRAME_VARLIST(frame)) = len;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), len);
 
     // frame[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
@@ -608,11 +610,11 @@ void Rebind_Frame_Deep(REBFRM *src_frame, REBFRM *dst_frame, REBFLG modes)
 REBFRM *Make_Frame_Detect(
     enum Reb_Kind kind,
     REBFRM *spec,
-    REBSER *body,
+    REBARR *body,
     REBVAL value[],
     REBFRM *opt_parent
 ) {
-    REBSER *keylist;
+    REBARR *keylist;
     REBFRM *frame;
 
 #if !defined(NDEBUG)
@@ -629,7 +631,7 @@ REBFRM *Make_Frame_Detect(
                 TRUE, // deep
                 TS_CLONE // types
             ));
-            SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
+            ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
             FRAME_KEYLIST(frame) = FRAME_KEYLIST(opt_parent);
             VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
         }
@@ -666,8 +668,8 @@ REBFRM *Make_Frame_Detect(
             // based on whether any words were added, or we could have gotten
             // a fresh one back.  Force our invariant here (as the screws
             // tighten...)
-            ENSURE_SERIES_MANAGED(FRAME_KEYLIST(frame));
-            MANAGE_SERIES(FRAME_VARLIST(frame));
+            ENSURE_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+            MANAGE_ARRAY(FRAME_VARLIST(frame));
         }
         else {
             MANAGE_FRAME(frame);
@@ -682,8 +684,8 @@ REBFRM *Make_Frame_Detect(
     FRAME_SPEC(frame) = spec;
     FRAME_BODY(frame) = body;
 
-    ASSERT_SERIES_MANAGED(FRAME_VARLIST(frame));
-    ASSERT_SERIES_MANAGED(FRAME_KEYLIST(frame));
+    ASSERT_ARRAY_MANAGED(FRAME_VARLIST(frame));
+    ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
     ASSERT_FRAME(frame);
 
     return frame;
@@ -720,7 +722,7 @@ REBFRM *Construct_Frame(
 
 
 //
-//  Make_Object_Block: C
+//  Object_To_Array: C
 // 
 // Return a block containing words, values, or set-word: value
 // pairs for the given object. Note: words are bound to original
@@ -731,11 +733,11 @@ REBFRM *Construct_Frame(
 //     2 for value
 //     3 for words and values
 //
-REBSER *Make_Object_Block(REBFRM *frame, REBINT mode)
+REBARR *Object_To_Array(REBFRM *frame, REBINT mode)
 {
     REBVAL *key = FRAME_KEYS_HEAD(frame);
     REBVAL *var = FRAME_VARS_HEAD(frame);
-    REBSER *block;
+    REBARR *block;
     REBVAL *value;
     REBCNT n;
 
@@ -771,7 +773,7 @@ REBSER *Make_Object_Block(REBFRM *frame, REBINT mode)
 //
 void Assert_Public_Object(const REBVAL *value)
 {
-    REBVAL *key = BLK_HEAD(FRAME_KEYLIST(VAL_FRAME(value)));
+    REBVAL *key = ARRAY_HEAD(FRAME_KEYLIST(VAL_FRAME(value)));
 
     for (; NOT_END(key); key++)
         if (VAL_GET_EXT(key, EXT_WORD_HIDE)) fail (Error(RE_HIDDEN));
@@ -788,7 +790,7 @@ void Assert_Public_Object(const REBVAL *value)
 //
 REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
 {
-    REBSER *keylist;
+    REBARR *keylist;
     REBFRM *child;
     REBVAL *key;
     REBVAL *value;
@@ -810,7 +812,7 @@ REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
     // Allocate child (now that we know the correct size):
     keylist = Copy_Array_Shallow(BUF_COLLECT);
     child = AS_FRAME(Make_Series(
-        SERIES_TAIL(keylist) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+        ARRAY_LEN(keylist) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
     ));
     value = Alloc_Tail_Array(FRAME_VARLIST(child));
 
@@ -835,7 +837,7 @@ REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
     // Update the child tail before making calls to FRAME_VAR(), because the
     // debug build does a length check.
     //
-    SERIES_TAIL(FRAME_VARLIST(child)) = SERIES_TAIL(keylist);
+    SET_ARRAY_LEN(FRAME_VARLIST(child), ARRAY_LEN(keylist));
 
     // Copy parent2 values:
     key = FRAME_KEYS_HEAD(parent2);
@@ -908,7 +910,7 @@ void Resolve_Context(
     }
     else if (IS_BLOCK(only_words)) {
         // Limit exports to only these words:
-        REBVAL *words = VAL_BLK_DATA(only_words);
+        REBVAL *words = VAL_ARRAY_AT(only_words);
         for (; NOT_END(words); words++) {
             if (IS_WORD(words) || IS_SET_WORD(words)) {
                 binds[VAL_WORD_CANON(words)] = -1;
@@ -974,7 +976,7 @@ void Resolve_Context(
                 binds[VAL_TYPESET_CANON(key)] = 0;
         }
         else if (IS_BLOCK(only_words)) {
-            REBVAL *words = VAL_BLK_DATA(only_words);
+            REBVAL *words = VAL_ARRAY_AT(only_words);
             for (; NOT_END(words); words++) {
                 if (IS_WORD(words) || IS_SET_WORD(words))
                     binds[VAL_WORD_CANON(words)] = 0;
@@ -988,7 +990,7 @@ void Resolve_Context(
 
     CHECK_BIND_TABLE;
 
-    RESET_TAIL(BUF_COLLECT);  // allow reuse, trapping ok now
+    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse, trapping ok now
 }
 
 
@@ -998,8 +1000,12 @@ void Resolve_Context(
 // Bind_Values_Core() sets up the binding table and then calls
 // this recursive routine to do the actual binding.
 //
-static void Bind_Values_Inner_Loop(REBINT *binds, REBVAL value[], REBFRM *frame, REBCNT mode)
-{
+static void Bind_Values_Inner_Loop(
+    REBINT *binds,
+    REBVAL value[],
+    REBFRM *frame,
+    REBCNT mode
+) {
     REBFLG selfish = !IS_SELFLESS(frame);
 
     for (; NOT_END(value); value++) {
@@ -1029,11 +1035,11 @@ static void Bind_Values_Inner_Loop(REBINT *binds, REBVAL value[], REBFRM *frame,
         }
         else if (ANY_ARRAY(value) && (mode & BIND_DEEP))
             Bind_Values_Inner_Loop(
-                binds, VAL_BLK_DATA(value), frame, mode
+                binds, VAL_ARRAY_AT(value), frame, mode
             );
         else if ((IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC))
             Bind_Values_Inner_Loop(
-                binds, BLK_HEAD(VAL_FUNC_BODY(value)), frame, mode
+                binds, ARRAY_HEAD(VAL_FUNC_BODY(value)), frame, mode
             );
     }
 }
@@ -1098,14 +1104,14 @@ void Bind_Values_Core(REBVAL value[], REBFRM *frame, REBCNT mode)
 // bound to a particular target (if target is NULL, then all
 // words will be unbound regardless of their VAL_WORD_TARGET).
 //
-void Unbind_Values_Core(REBVAL value[], REBSER *target, REBOOL deep)
+void Unbind_Values_Core(REBVAL value[], REBARR *target, REBOOL deep)
 {
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value) && (!target || VAL_WORD_TARGET(value) == target))
             UNBIND_WORD(value);
 
         if (ANY_ARRAY(value) && deep)
-            Unbind_Values_Core(VAL_BLK_DATA(value), target, TRUE);
+            Unbind_Values_Core(VAL_ARRAY_AT(value), target, TRUE);
     }
 }
 
@@ -1139,10 +1145,10 @@ REBCNT Bind_Word(REBFRM *frame, REBVAL *word)
 //
 static void Bind_Relative_Inner_Loop(
     REBINT *binds,
-    REBSER *paramlist,
-    REBSER *block
+    REBARR *paramlist,
+    REBARR *block
 ) {
-    REBVAL *value = BLK_HEAD(block);
+    REBVAL *value = ARRAY_HEAD(block);
 
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
@@ -1155,7 +1161,7 @@ static void Bind_Relative_Inner_Loop(
             }
         }
         else if (ANY_ARRAY(value))
-            Bind_Relative_Inner_Loop(binds, paramlist, VAL_SERIES(value));
+            Bind_Relative_Inner_Loop(binds, paramlist, VAL_ARRAY(value));
     }
 }
 
@@ -1167,17 +1173,17 @@ static void Bind_Relative_Inner_Loop(
 // To indicate the relative nature of the index, it is set to
 // a negative offset.
 //
-void Bind_Relative(REBSER *paramlist, REBSER *block)
+void Bind_Relative(REBARR *paramlist, REBARR *block)
 {
     REBVAL *param;
     REBINT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
     assert(
-        IS_FUNCTION(BLK_HEAD(paramlist)) || IS_CLOSURE(BLK_HEAD(paramlist))
+        IS_FUNCTION(ARRAY_HEAD(paramlist)) || IS_CLOSURE(ARRAY_HEAD(paramlist))
     );
 
-    param = BLK_SKIP(paramlist, 1);
+    param = ARRAY_AT(paramlist, 1);
 
     CHECK_BIND_TABLE;
 
@@ -1190,7 +1196,7 @@ void Bind_Relative(REBSER *paramlist, REBSER *block)
     Bind_Relative_Inner_Loop(binds, paramlist, block);
 
     // Reset binding table:
-    for (param = BLK_SKIP(paramlist, 1); NOT_END(param); param++)
+    for (param = ARRAY_AT(paramlist, 1); NOT_END(param); param++)
         binds[VAL_TYPESET_CANON(param)] = 0;
 
     CHECK_BIND_TABLE;
@@ -1200,7 +1206,7 @@ void Bind_Relative(REBSER *paramlist, REBSER *block)
 //
 //  Bind_Stack_Word: C
 //
-void Bind_Stack_Word(REBSER *paramlist, REBVAL *word)
+void Bind_Stack_Word(REBARR *paramlist, REBVAL *word)
 {
     REBINT index;
 
@@ -1218,8 +1224,8 @@ void Bind_Stack_Word(REBSER *paramlist, REBVAL *word)
 // Rebind is always deep.
 //
 void Rebind_Values_Deep(
-    REBSER *src_target,
-    REBSER *dst_target,
+    REBARR *src_target,
+    REBARR *dst_target,
     REBVAL value[],
     REBFLG modes
 ) {
@@ -1234,20 +1240,21 @@ void Rebind_Values_Deep(
     // If src_target and dst_target differ, modes must have REBIND_TYPE.
     //
     if (
-        IS_FUNCTION(BLK_HEAD(src_target)) || IS_CLOSURE(BLK_HEAD(src_target))
+        IS_FUNCTION(ARRAY_HEAD(src_target))
+        || IS_CLOSURE(ARRAY_HEAD(src_target))
     ) {
         assert(
             (
-                IS_FUNCTION(BLK_HEAD(dst_target))
-                || IS_CLOSURE(BLK_HEAD(dst_target))
+                IS_FUNCTION(ARRAY_HEAD(dst_target))
+                || IS_CLOSURE(ARRAY_HEAD(dst_target))
             )
             || (modes & REBIND_TYPE)
         );
     }
     else {
         assert(
-            ANY_CONTEXT(BLK_HEAD(dst_target))
-            || (IS_FUNCTION(BLK_HEAD(dst_target)) && (modes & REBIND_TYPE))
+            ANY_CONTEXT(ARRAY_HEAD(dst_target))
+            || (IS_FUNCTION(ARRAY_HEAD(dst_target)) && (modes & REBIND_TYPE))
         );
     }
 #endif
@@ -1255,7 +1262,7 @@ void Rebind_Values_Deep(
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Deep(
-                src_target, dst_target, VAL_BLK_DATA(value), modes
+                src_target, dst_target, VAL_ARRAY_AT(value), modes
             );
         }
         else if (ANY_WORD(value) && VAL_WORD_TARGET(value) == src_target) {
@@ -1271,7 +1278,7 @@ void Rebind_Values_Deep(
             (modes & REBIND_FUNC) && (IS_FUNCTION(value) || IS_CLOSURE(value))
         ) {
             Rebind_Values_Deep(
-                src_target, dst_target, BLK_HEAD(VAL_FUNC_BODY(value)), modes
+                src_target, dst_target, ARRAY_HEAD(VAL_FUNC_BODY(value)), modes
             );
         }
     }
@@ -1283,10 +1290,10 @@ void Rebind_Values_Deep(
 // 
 // Find function param word in function "frame".
 //
-REBCNT Find_Param_Index(REBSER *paramlist, REBCNT sym)
+REBCNT Find_Param_Index(REBARR *paramlist, REBCNT sym)
 {
-    REBVAL *params = BLK_SKIP(paramlist, 1);
-    REBCNT len = SERIES_TAIL(paramlist);
+    REBVAL *params = ARRAY_AT(paramlist, 1);
+    REBCNT len = ARRAY_LEN(paramlist);
 
     REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
 
@@ -1354,14 +1361,14 @@ REBVAL *Find_Word_Value(REBFRM *frame, REBCNT sym)
 //
 //  Find_Word: C
 // 
-// Find word (of any type) in a block... quickly.
+// Find word (of any type) in an array of values... quickly.
 //
-REBCNT Find_Word(REBSER *series, REBCNT index, REBCNT sym)
+REBCNT Find_Word(REBARR *array, REBCNT index, REBCNT sym)
 {
     REBVAL *value;
 
-    for (; index < SERIES_TAIL(series); index++) {
-        value = BLK_SKIP(series, index);
+    for (; index < ARRAY_LEN(array); index++) {
+        value = ARRAY_AT(array, index);
         if (ANY_WORD(value) && sym == VAL_WORD_CANON(value))
             return index;
     }
@@ -1381,7 +1388,7 @@ REBCNT Find_Word(REBSER *series, REBCNT index, REBCNT sym)
 //
 REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 {
-    REBSER *target = VAL_WORD_TARGET(word);
+    REBARR *target = VAL_WORD_TARGET(word);
 
     if (target) {
         REBINT index = VAL_WORD_INDEX(word);
@@ -1498,7 +1505,7 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 //
 void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
 {
-    REBSER *target = VAL_WORD_TARGET(word);
+    REBARR *target = VAL_WORD_TARGET(word);
 
     if (target) {
         REBINT index = VAL_WORD_INDEX(word);
@@ -1516,9 +1523,6 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
         #if !defined(NDEBUG)
             if (IS_TRASH_DEBUG(out)) {
                 Debug_Fmt("Trash value found in frame during Get_Var");
-                PROBE(word);
-                Debug_Series(FRAME_KEYLIST(AS_FRAME(target)));
-                Debug_Series(FRAME_VARLIST(AS_FRAME(target)));
                 Panic_Frame(AS_FRAME(target));
             }
             assert(!THROWN(out));
@@ -1586,7 +1590,7 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
 {
     REBINT index = VAL_WORD_INDEX(word);
     struct Reb_Call *call;
-    REBSER *target = VAL_WORD_TARGET(word);
+    REBARR *target = VAL_WORD_TARGET(word);
 
     assert(!THROWN(value));
 
@@ -1636,8 +1640,8 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
 //
 REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
 {
-    REBSER *keylist = FRAME_KEYLIST(VAL_FRAME(value));
-    return BLK_SKIP(keylist, index);
+    REBARR *keylist = FRAME_KEYLIST(VAL_FRAME(value));
+    return ARRAY_AT(keylist, index);
 }
 
 
@@ -1673,7 +1677,12 @@ void Init_Obj_Value(REBVAL *value, REBFRM *frame)
 void Init_Frame(void)
 {
     // Temporary block used while scanning for frame words:
-    Set_Root_Series(TASK_BUF_COLLECT, Make_Array(100), "word cache"); // just holds words, no GC
+    // "just holds typesets, no GC behavior" (!!! until typeset symbols or
+    // embedded tyeps are GC'd...!)
+    //
+    Set_Root_Series(
+        TASK_BUF_COLLECT, ARRAY_SERIES(Make_Array(100)), "word cache"
+    );
 }
 
 
@@ -1683,8 +1692,8 @@ void Init_Frame(void)
 //  FRAME_KEY_Debug: C
 //
 REBVAL *FRAME_KEY_Debug(REBFRM *f, REBCNT n) {
-    assert(n != 0 && n < BLK_LEN(FRAME_KEYLIST(f)));
-    return BLK_SKIP(FRAME_KEYLIST(f), (n));
+    assert(n != 0 && n < ARRAY_LEN(FRAME_KEYLIST(f)));
+    return ARRAY_AT(FRAME_KEYLIST(f), (n));
 }
 
 
@@ -1692,8 +1701,8 @@ REBVAL *FRAME_KEY_Debug(REBFRM *f, REBCNT n) {
 //  FRAME_VAR_Debug: C
 //
 REBVAL *FRAME_VAR_Debug(REBFRM *f, REBCNT n) {
-    assert(n != 0 && n < BLK_LEN(FRAME_VARLIST(f)));
-    return BLK_SKIP(FRAME_VARLIST(f), (n));
+    assert(n != 0 && n < ARRAY_LEN(FRAME_VARLIST(f)));
+    return ARRAY_AT(FRAME_VARLIST(f), (n));
 }
 
 
@@ -1709,7 +1718,7 @@ void Assert_Frame_Core(REBFRM *frame)
     REBCNT keys_len;
     REBCNT values_len;
 
-    if (!SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME)) {
+    if (!ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME)) {
         Debug_Fmt("Frame series does not have SER_FRAME flag set");
         Panic_Frame(frame);
     }
@@ -1724,8 +1733,8 @@ void Assert_Frame_Core(REBFRM *frame)
         Panic_Frame(frame);
     }
 
-    values_len = SERIES_LEN(FRAME_VARLIST(frame));
-    keys_len = SERIES_LEN(FRAME_KEYLIST(frame));
+    values_len = ARRAY_LEN(FRAME_VARLIST(frame));
+    keys_len = ARRAY_LEN(FRAME_KEYLIST(frame));
 
     if (keys_len != values_len) {
         Debug_Fmt("Unequal lengths of key and value series in Assert_Frame");

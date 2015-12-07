@@ -113,7 +113,7 @@ last: func [
         gob? value [
             ; The C code effectively used 'pick value t' with:
             ;
-            ; t = GOB_PANE(VAL_GOB(val)) ? GOB_TAIL(VAL_GOB(val)) : 0;
+            ; t = GOB_PANE(VAL_GOB(val)) ? GOB_LEN(VAL_GOB(val)) : 0;
             ; VAL_GOB_INDEX(val) = 0;
             ;
             ; Try getting same result with what series does.  :-/

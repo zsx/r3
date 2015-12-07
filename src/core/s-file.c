@@ -92,7 +92,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBINT uni, REBFLG dir)
     if (dir && c != '/') {  // watch for %/c/ case
         SET_ANY_CHAR(dst, n++, '/');
     }
-    SERIES_TAIL(dst) = n;
+    SET_SERIES_LEN(dst, n);
     TERM_SEQUENCE(dst);
 
 #ifdef TO_WINDOWS
@@ -112,7 +112,9 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBINT uni, REBFLG dir)
 REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL dir)
 {
     assert(ANY_BINSTR(val));
-    return To_REBOL_Path(VAL_DATA(val), VAL_LEN(val), (REBOOL)!VAL_BYTE_SIZE(val), dir);
+    return To_REBOL_Path(
+        VAL_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val), dir
+    );
 }
 
 
@@ -190,7 +192,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL uni, REBFLG full)
             OS_FREE(lpath);
         }
         out = UNI_HEAD(dst);
-        n = SERIES_TAIL(dst);
+        n = SERIES_LEN(dst);
     }
 
     // Prescan each file segment for: . .. directory names:
@@ -234,7 +236,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL uni, REBFLG full)
         }
     }
     out[n] = 0;
-    SERIES_TAIL(dst) = n;
+    SET_SERIES_LEN(dst, n);
 //  TERM_SEQUENCE(dst);
 //  Debug_Uni(dst);
 
@@ -250,7 +252,9 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL uni, REBFLG full)
 REBSER *Value_To_Local_Path(REBVAL *val, REBFLG full)
 {
     assert(ANY_BINSTR(val));
-    return To_Local_Path(VAL_DATA(val), VAL_LEN(val), (REBOOL)!VAL_BYTE_SIZE(val), full);
+    return To_Local_Path(
+        VAL_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val), full
+    );
 }
 
 
@@ -268,7 +272,9 @@ REBSER *Value_To_OS_Path(REBVAL *val, REBFLG full)
 
     assert(ANY_BINSTR(val));
 
-    ser = To_Local_Path(VAL_DATA(val), VAL_LEN(val), (REBOOL)!VAL_BYTE_SIZE(val), full);
+    ser = To_Local_Path(
+        VAL_DATA_AT(val), VAL_LEN_AT(val), (REBOOL)!VAL_BYTE_SIZE(val), full
+    );
 
 #ifndef TO_WINDOWS
     // Posix needs UTF8 conversion:

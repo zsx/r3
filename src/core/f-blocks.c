@@ -37,12 +37,13 @@
 // marked for the garbage collector to look into recursively).
 // Terminator included implicitly. Sets TAIL to zero.
 //
-REBSER *Make_Array(REBCNT capacity)
+REBARR *Make_Array(REBCNT capacity)
 {
     REBSER *series = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
-    SET_END(BLK_HEAD(series));
+    REBARR *array = AS_ARRAY(series);
+    SET_END(ARRAY_HEAD(array));
 
-    return series;
+    return array;
 }
 
 
@@ -53,21 +54,29 @@ REBSER *Make_Array(REBCNT capacity)
 // Additional capacity beyond what is required can be added
 // by giving an `extra` count of how many value cells one needs.
 //
-REBSER *Copy_Array_At_Extra_Shallow(REBSER *array, REBCNT index, REBCNT extra)
-{
-    REBCNT len = SERIES_TAIL(array);
-    REBSER *series;
+REBARR *Copy_Array_At_Extra_Shallow(
+    REBARR *original,
+    REBCNT index,
+    REBCNT extra
+) {
+    REBCNT len = ARRAY_LEN(original);
+    REBARR *copy;
 
     if (index > len) return Make_Array(extra);
 
     len -= index;
-    series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_ARRAY);
+    copy = Make_Array(len + extra + 1);
 
-    memcpy(series->data, BLK_SKIP(array, index), len * sizeof(REBVAL));
-    SERIES_TAIL(series) = len;
-    TERM_ARRAY(series);
+    memcpy(
+        ARRAY_SERIES(copy)->data,
+        ARRAY_AT(original, index),
+        len * sizeof(REBVAL)
+    );
 
-    return series;
+    SET_ARRAY_LEN(copy, len);
+    TERM_ARRAY(copy);
+
+    return copy;
 }
 
 
@@ -77,20 +86,28 @@ REBSER *Copy_Array_At_Extra_Shallow(REBSER *array, REBCNT index, REBCNT extra)
 // Shallow copy an array from the given index for given maximum
 // length (clipping if it exceeds the array length)
 //
-REBSER *Copy_Array_At_Max_Shallow(REBSER *array, REBCNT index, REBCNT max)
+REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 {
-    REBSER *series;
+    REBARR *copy;
 
-    if (index > SERIES_TAIL(array)) return Make_Array(0);
-    if (index + max > SERIES_TAIL(array)) max = SERIES_TAIL(array) - index;
+    if (index > ARRAY_LEN(original))
+        return Make_Array(0);
 
-    series = Make_Series(max + 1, sizeof(REBVAL), MKS_ARRAY);
+    if (index + max > ARRAY_LEN(original))
+        max = ARRAY_LEN(original) - index;
 
-    memcpy(series->data, BLK_SKIP(array, index), max * sizeof(REBVAL));
-    SERIES_TAIL(series) = max;
-    TERM_ARRAY(series);
+    copy = Make_Array(max + 1);
 
-    return series;
+    memcpy(
+        ARRAY_SERIES(copy)->data,
+        ARRAY_AT(original, index),
+        max * sizeof(REBVAL)
+    );
+
+    SET_ARRAY_LEN(copy, max);
+    TERM_ARRAY(copy);
+
+    return copy;
 }
 
 
@@ -100,17 +117,18 @@ REBSER *Copy_Array_At_Max_Shallow(REBSER *array, REBCNT index, REBCNT max)
 // Shallow copy the first 'len' values of `value[]` into a new
 // series created to hold exactly that many entries.
 //
-REBSER *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
+REBARR *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
 {
-    REBSER *series;
+    REBARR *array;
 
-    series = Make_Series(len + extra + 1, sizeof(REBVAL), MKS_ARRAY);
+    array = Make_Array(len + extra + 1);
 
-    memcpy(series->data, &value[0], len * sizeof(REBVAL));
-    SERIES_TAIL(series) = len;
-    TERM_ARRAY(series);
+    memcpy(ARRAY_SERIES(array)->data, &value[0], len * sizeof(REBVAL));
 
-    return series;
+    SET_ARRAY_LEN(array, len);
+    TERM_ARRAY(array);
+
+    return array;
 }
 
 
@@ -129,16 +147,22 @@ REBSER *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
 // live inside of an array.  (We also assume the source values
 // are in an array, and assert that they are managed.)
 //
-void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 types)
-{
+void Clonify_Values_Len_Managed(
+    REBVAL value[],
+    REBCNT len,
+    REBOOL deep,
+    REBU64 types
+) {
     REBCNT index;
 
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
 
     for (index = 0; index < len; index++, value++) {
+        //
         // By the rules, if we need to do a deep copy on the source
         // series then the values inside it must have already been
         // marked managed (because they *might* delve another level deep)
+        //
         ASSERT_VALUE_MANAGED(value);
 
         if (types & FLAGIT_64(VAL_TYPE(value)) & TS_SERIES_OBJ) {
@@ -150,11 +174,14 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
                 VAL_FRAME(value) = Copy_Frame_Shallow_Managed(
                     VAL_FRAME(value)
                 );
-                series = FRAME_VARLIST(VAL_FRAME(value));
+                series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(value)));
             }
             else {
-                if (Is_Array_Series(VAL_SERIES(value)))
-                    series = Copy_Array_Shallow(VAL_SERIES(value));
+                if (Is_Array_Series(VAL_SERIES(value))) {
+                    series = ARRAY_SERIES(
+                        Copy_Array_Shallow(VAL_ARRAY(value))
+                    );
+                }
                 else
                     series = Copy_Sequence(VAL_SERIES(value));
                 VAL_SERIES(value) = series;
@@ -169,7 +196,10 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
             //
             if (types & FLAGIT_64(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
-                     BLK_HEAD(series), VAL_TAIL(value), deep, types
+                     ARRAY_HEAD(AS_ARRAY(series)),
+                     VAL_TAIL(value),
+                     deep,
+                     types
                 );
             }
         }
@@ -192,37 +222,35 @@ void Clonify_Values_Len_Managed(REBVAL value[], REBCNT len, REBOOL deep, REBU64 
 // The resulting series will already be under GC management,
 // and hence cannot be freed with Free_Series().
 //
-REBSER *Copy_Array_Core_Managed(
-    REBSER *block,
+REBARR *Copy_Array_Core_Managed(
+    REBARR *original,
     REBCNT index,
     REBCNT tail,
     REBCNT extra,
     REBOOL deep,
     REBU64 types
 ) {
-    REBSER *series;
-
-    assert(Is_Array_Series(block));
+    REBARR *copy;
 
     if (index > tail) index = tail;
 
-    if (index > SERIES_TAIL(block)) {
-        series = Make_Array(extra);
-        MANAGE_SERIES(series);
+    if (index > ARRAY_LEN(original)) {
+        copy = Make_Array(extra);
+        MANAGE_ARRAY(copy);
     }
     else {
-        series = Copy_Values_Len_Shallow_Extra(
-            BLK_SKIP(block, index), tail - index, extra
+        copy = Copy_Values_Len_Shallow_Extra(
+            ARRAY_AT(original, index), tail - index, extra
         );
-        MANAGE_SERIES(series);
+        MANAGE_ARRAY(copy);
 
         if (types != 0)
             Clonify_Values_Len_Managed(
-                BLK_HEAD(series), SERIES_TAIL(series), deep, types
+                ARRAY_HEAD(copy), ARRAY_LEN(copy), deep, types
             );
     }
 
-    return series;
+    return copy;
 }
 
 
@@ -240,15 +268,15 @@ REBSER *Copy_Array_Core_Managed(
 // `array` parameter more than once, and have to be in all-caps
 // to warn against usage with arguments that have side-effects.
 //
-REBSER *Copy_Array_At_Extra_Deep_Managed(
-    REBSER *array,
+REBARR *Copy_Array_At_Extra_Deep_Managed(
+    REBARR *original,
     REBCNT index,
     REBCNT extra
 ) {
     return Copy_Array_Core_Managed(
-        array,
+        original,
         index, // at
-        SERIES_TAIL(array), // tail
+        ARRAY_LEN(original), // tail
         extra, // extra
         TRUE, // deep
         TS_SERIES & ~TS_NOT_COPIED // types
@@ -270,27 +298,30 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     // for into, in order to better show the subtypes allowed here?
     // Currently it can be any-block!, any-string!, or binary!
 
-    REBSER *series;
+    REBARR *array;
     REBVAL *blk = DS_AT(start);
     REBCNT len = DSP - start + 1;
 
     if (into) {
-        series = VAL_SERIES(into);
+        array = VAL_ARRAY(into);
 
-        FAIL_IF_PROTECTED_SERIES(series);
+        FAIL_IF_PROTECTED_ARRAY(array);
 
         if (ANY_ARRAY(into)) {
             // When the target is an any-block, we can do an ordinary
             // insertion of the values via a memcpy()-style operation
 
             VAL_INDEX(into) = Insert_Series(
-                series, VAL_INDEX(into), cast(REBYTE*, blk), len
+                ARRAY_SERIES(array),
+                VAL_INDEX(into),
+                cast(REBYTE*, blk),
+                len
             );
 
             DS_DROP_TO(start);
 
-            Val_Init_Series_Index(
-                DS_TOP, VAL_TYPE(into), series, VAL_INDEX(into)
+            Val_Init_Array_Index(
+                DS_TOP, VAL_TYPE(into), array, VAL_INDEX(into)
             );
         }
         else {
@@ -323,20 +354,23 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
             DS_DROP_TO(start);
 
             // We want index of result just past the last element we inserted
-            Val_Init_Series_Index(
-                DS_TOP, VAL_TYPE(into), series, VAL_INDEX(into)
+            Val_Init_Array_Index(
+                DS_TOP,
+                VAL_TYPE(into),
+                array,
+                VAL_INDEX(into)
             );
         }
     }
     else {
-        series = Make_Series(len + 1, sizeof(REBVAL), MKS_ARRAY);
+        array = Make_Array(len + 1);
 
-        memcpy(series->data, blk, len * sizeof(REBVAL));
-        SERIES_TAIL(series) = len;
-        TERM_ARRAY(series);
+        memcpy(ARRAY_SERIES(array)->data, blk, len * sizeof(REBVAL));
+        SET_ARRAY_LEN(array, len);
+        TERM_ARRAY(array);
 
         DS_DROP_TO(start);
-        Val_Init_Series_Index(DS_TOP, REB_BLOCK, series, 0);
+        Val_Init_Array_Index(DS_TOP, REB_BLOCK, array, 0);
     }
 }
 
@@ -351,12 +385,12 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
 // 
 // Note: Updates the termination and tail.
 //
-REBVAL *Alloc_Tail_Array(REBSER *block)
+REBVAL *Alloc_Tail_Array(REBARR *array)
 {
     REBVAL *tail;
 
-    EXPAND_SERIES_TAIL(block, 1);
-    tail = BLK_TAIL(block);
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(array), 1);
+    tail = ARRAY_TAIL(array);
     SET_END(tail);
 
     SET_TRASH_IF_DEBUG(tail - 1); // No-op in release builds
@@ -377,16 +411,14 @@ REBVAL *Alloc_Tail_Array(REBSER *block)
 // series for the spec, body, and paramlist...the spec and body are blocks,
 // and so recursion would be found when the blocks were output.)
 //
-REBCNT Find_Same_Array(REBSER *search_values, const REBVAL *value)
+REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 {
     REBCNT index = 0;
-    REBSER *array;
+    REBARR *array;
     REBVAL *other;
 
-    assert(Is_Array_Series(search_values));
-
     if (ANY_ARRAY(value) || IS_MAP(value))
-        array = VAL_SERIES(value);
+        array = VAL_ARRAY(value);
     else if (ANY_CONTEXT(value))
         array = FRAME_VARLIST(VAL_FRAME(value));
     else {
@@ -396,9 +428,10 @@ REBCNT Find_Same_Array(REBSER *search_values, const REBVAL *value)
         return NOT_FOUND;
     }
 
-    for (other = BLK_HEAD(search_values); NOT_END(other); other++, index++) {
+    other = ARRAY_HEAD(search_values);
+    for (; NOT_END(other); other++, index++) {
         if (ANY_ARRAY(other) || IS_MAP(other)) {
-            if (array == VAL_SERIES(other))
+            if (array == VAL_ARRAY(other))
                 return index;
         }
         else if (ANY_CONTEXT(other)) {
@@ -425,7 +458,7 @@ void Unmark(REBVAL *val)
     if (ANY_SERIES(val))
         series = VAL_SERIES(val);
     else if (ANY_CONTEXT(val))
-        series = FRAME_VARLIST(VAL_FRAME(val));
+        series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
     else
         return;
 
@@ -433,6 +466,24 @@ void Unmark(REBVAL *val)
 
     SERIES_CLR_FLAG(series, SER_MARK);
 
-    for (val = VAL_BLK_HEAD(val); NOT_END(val); val++)
+    for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
         Unmark(val);
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  ARRAY_LAST_Debug: C
+//
+// This is a debug-only version of ARRAY_LAST() that checks to make sure you
+// don't call it on an empty array...as it has no "last element".  Use
+// ARRAY_TAIL() to get the slot for an end marker.
+//
+REBVAL *ARRAY_LAST_Debug(REBARR *a)
+{
+    assert(ARRAY_LEN(a) != 0);
+    return (ARRAY_HEAD(a) + ARRAY_LEN(a) - 1);
+}
+
+#endif

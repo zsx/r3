@@ -249,7 +249,7 @@
 #endif // HAVE_LIBFFI_AVAILABLE
 
 #define QUEUE_EXTRA_MEM(v, p) do {\
-    *(void**) SERIES_SKIP(v->extra_mem, SERIES_TAIL(v->extra_mem)) = p;\
+    *(void**) SERIES_AT(v->extra_mem, SERIES_LEN(v->extra_mem)) = p;\
     EXPAND_SERIES_TAIL(v->extra_mem, 1);\
 } while (0)
 
@@ -300,8 +300,8 @@ static REBCNT n_struct_fields (REBSER *fields)
 {
     REBCNT n_fields = 0;
     REBCNT i = 0;
-    for (i = 0; i < SERIES_TAIL(fields); i ++) {
-        struct Struct_Field *field = (struct Struct_Field*)SERIES_SKIP(fields, i);
+    for (i = 0; i < SERIES_LEN(fields); i ++) {
+        struct Struct_Field *field = (struct Struct_Field*)SERIES_AT(fields, i);
         if (field->type != STRUCT_TYPE_STRUCT) {
             n_fields += field->dimension;
         } else {
@@ -341,8 +341,8 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
         PUSH_GUARD_SERIES(ser);
     }
 
-    for (i = 0; i < SERIES_TAIL(fields); i ++) {
-        struct Struct_Field *field = (struct Struct_Field*)SERIES_SKIP(fields, i);
+    for (i = 0; i < SERIES_LEN(fields); i ++) {
+        struct Struct_Field *field = (struct Struct_Field*)SERIES_AT(fields, i);
         if (field->type == STRUCT_TYPE_REBVAL) {
             /* don't see a point to pass a rebol value to external functions */
             fail (Error_Invalid_Arg(out));
@@ -381,10 +381,11 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
     if (idx) {
         // when it's first call for return type, all_args has not been initialized yet
         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)
-            && idx > SERIES_TAIL(VAL_ROUTINE_FIXED_ARGS(out))) {
-            rebol_args = (REBVAL*)SERIES_DATA(VAL_ROUTINE_ALL_ARGS(out));
-        } else {
-            rebol_args = (REBVAL*)SERIES_DATA(VAL_ROUTINE_ARGS(out));
+            && idx > ARRAY_LEN(VAL_ROUTINE_FIXED_ARGS(out))) {
+            rebol_args = ARRAY_HEAD(VAL_ROUTINE_ALL_ARGS(out));
+        }
+        else {
+            rebol_args = ARRAY_HEAD(VAL_ROUTINE_PARAMLIST(out));
         }
     }
 
@@ -462,7 +463,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
             return FALSE;
         }
         if (idx == 0) {
-            to = BLK_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+            to = ARRAY_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
         } else {
             to = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
         }
@@ -485,20 +486,20 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
 static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
 {
     ffi_type **args = (ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot));
-    REBSER *rebol_args = NULL;
+    REBARR *rebol_args;
 
     struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
 
-    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
+    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS))
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
-    } else {
-        rebol_args = VAL_ROUTINE_ARGS(rot);
-    }
+    else
+        rebol_args = VAL_ROUTINE_PARAMLIST(rot);
+
     switch (args[idx]->type) {
         case FFI_TYPE_UINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -510,7 +511,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -522,7 +523,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -534,7 +535,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -546,7 +547,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -558,7 +559,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -571,7 +572,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT64:
             if (!IS_INTEGER(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             return &VAL_INT64(arg);
         case FFI_TYPE_POINTER:
@@ -581,21 +582,21 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 case REB_STRING:
                 case REB_BINARY:
                 case REB_VECTOR:
-                    ptrs[idx] = VAL_DATA(arg);
+                    ptrs[idx] = VAL_DATA_AT(arg);
                     return &ptrs[idx];
                 case REB_CALLBACK:
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
                     return &ptrs[idx];
                 default:
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                        D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                     ));
             }
         case FFI_TYPE_FLOAT:
             /* hackish, store the signle precision floating point number in a double precision variable */
             if (!IS_DECIMAL(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             } else {
                 float a = (float)VAL_DECIMAL(arg);
@@ -605,7 +606,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_DOUBLE:
             if (!IS_DECIMAL(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             return &VAL_DECIMAL(arg);
         case FFI_TYPE_STRUCT:
@@ -614,16 +615,16 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             } else {
                 if (!IS_STRUCT(arg))
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                        D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                     ));
             }
-            return SERIES_SKIP(VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg));
+            return SERIES_AT(VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg));
         case FFI_TYPE_VOID:
             if (!idx) {
                 return NULL;
             } else {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, BLK_SKIP(rebol_args, idx), arg
+                    D_LABEL_SYM, ARRAY_AT(rebol_args, idx), arg
                 ));
             }
         default:
@@ -708,7 +709,7 @@ static void ffi_to_rebol(REBRIN *rin,
             SET_TYPE(rebol_ret, REB_STRUCT);
             Copy_Struct(&RIN_RVALUE(rin), &VAL_STRUCT(rebol_ret));
             memcpy(
-                SERIES_SKIP(
+                SERIES_AT(
                     VAL_STRUCT_DATA_BIN(rebol_ret),
                     VAL_STRUCT_OFFSET(rebol_ret)
                 ),
@@ -726,7 +727,7 @@ static void ffi_to_rebol(REBRIN *rin,
 //
 //  Call_Routine: C
 //
-void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
+void Call_Routine(const REBVAL *rot, REBARR *args, REBVAL *ret)
 {
     REBCNT i = 0;
     void *rvalue = NULL;
@@ -758,22 +759,26 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
     }
 
     if (is_vararg_routine) {
-        varargs = BLK_HEAD(args);
+        varargs = ARRAY_HEAD(args);
         if (!IS_BLOCK(varargs))
             fail (Error_Invalid_Arg(varargs));
 
-        n_fixed = SERIES_TAIL(VAL_ROUTINE_FIXED_ARGS(rot)) - 1; /* first arg is 'self */
-        if ((VAL_LEN(varargs) - n_fixed) % 2)
+        // Note: Must subtract 1 because the [0]th element is reserved in
+        // paramlists for the REBVAL of the function itself.
+        //
+        n_fixed = ARRAY_LEN(VAL_ROUTINE_FIXED_ARGS(rot)) - 1;
+
+        if ((VAL_LEN_AT(varargs) - n_fixed) % 2)
             fail (Error_Invalid_Arg(varargs));
 
         ser = Make_Series(
-            n_fixed + (VAL_LEN(varargs) - n_fixed) / 2,
+            n_fixed + (VAL_LEN_AT(varargs) - n_fixed) / 2,
             sizeof(void *),
             MKS_NONE
         );
-    } else if ((SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot))) > 1) {
+    } else if ((SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot))) > 1) {
         ser = Make_Series(
-            SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)) - 1,
+            SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot)) - 1,
             sizeof(void *),
             MKS_NONE
         );
@@ -783,24 +788,25 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
     if (ser)
         ffi_args = cast(void**, SERIES_DATA(ser));
 
-    ffi_args_ptrs = Make_Series(SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
+    ffi_args_ptrs = Make_Series(SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE); // must be big enough
 
     if (is_vararg_routine) {
         REBCNT j = 1;
         ffi_type **arg_types = NULL;
-        /* reset SERIES_TAIL */
-        SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)) = n_fixed + 1;
+
+        // reset length
+        SET_SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot), n_fixed + 1);
 
         VAL_ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(VAL_ROUTINE_FIXED_ARGS(rot));
-        MANAGE_SERIES(VAL_ROUTINE_ALL_ARGS(rot));
+        MANAGE_ARRAY(VAL_ROUTINE_ALL_ARGS(rot));
 
-        for (i = 1, j = 1; i < SERIES_TAIL(VAL_SERIES(varargs)) + 1; i ++, j ++) {
-            REBVAL *reb_arg = VAL_BLK_SKIP(varargs, i - 1);
+        for (i = 1, j = 1; i < SERIES_LEN(VAL_SERIES(varargs)) + 1; i ++, j ++) {
+            REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(varargs, i - 1);
             if (i <= n_fixed) { /* fix arguments */
-                if (!TYPE_CHECK(BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i), VAL_TYPE(reb_arg))) {
+                if (!TYPE_CHECK(ARRAY_AT(VAL_ROUTINE_FIXED_ARGS(rot), i), VAL_TYPE(reb_arg))) {
                     fail (Error_Arg_Type(
                         D_LABEL_SYM,
-                        BLK_SKIP(VAL_ROUTINE_FIXED_ARGS(rot), i),
+                        ARRAY_AT(VAL_ROUTINE_FIXED_ARGS(rot), i),
                         reb_arg
                     ));
                 }
@@ -808,10 +814,10 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
                 /* initialize rin->args */
                 REBVAL *reb_type = NULL;
                 REBVAL *v = NULL;
-                if (i == SERIES_TAIL(VAL_SERIES(varargs))) /* type is missing */
+                if (i == SERIES_LEN(VAL_SERIES(varargs))) /* type is missing */
                     fail (Error_Invalid_Arg(reb_arg));
 
-                reb_type = VAL_BLK_SKIP(varargs, i);
+                reb_type = VAL_ARRAY_AT_HEAD(varargs, i);
                 if (!IS_BLOCK(reb_type))
                     fail (Error_Invalid_Arg(reb_type));
 
@@ -832,7 +838,7 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
         /* series data could have moved */
         arg_types = (ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(rot));
 
-        assert(j == SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)));
+        assert(j == SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot)));
 
         if (FFI_OK != ffi_prep_cif_var((ffi_cif*)VAL_ROUTINE_CIF(rot),
                 cast(ffi_abi, VAL_ROUTINE_ABI(rot)),
@@ -844,8 +850,8 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
             fail (Error_Invalid_Arg(varargs));
         }
     } else {
-        for (i = 1; i < SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(rot)); i ++) {
-            ffi_args[i - 1] = arg_to_ffi(rot, BLK_SKIP(args, i - 1), i, cast(void **, SERIES_DATA(ffi_args_ptrs)));
+        for (i = 1; i < SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(rot)); i ++) {
+            ffi_args[i - 1] = arg_to_ffi(rot, ARRAY_AT(args, i - 1), i, cast(void **, SERIES_DATA(ffi_args_ptrs)));
         }
     }
     prep_rvalue(VAL_ROUTINE_INFO(rot), ret);
@@ -873,8 +879,8 @@ void Call_Routine(const REBVAL *rot, REBSER *args, REBVAL *ret)
 void Free_Routine(REBRIN *rin)
 {
     REBCNT n = 0;
-    for (n = 0; n < SERIES_TAIL(rin->extra_mem); n ++) {
-        void *addr = *(void **)SERIES_SKIP(rin->extra_mem, n);
+    for (n = 0; n < SERIES_LEN(rin->extra_mem); n ++) {
+        void *addr = *(void **)SERIES_AT(rin->extra_mem, n);
         //printf("freeing %p\n", addr);
         OS_FREE(addr);
     }
@@ -889,7 +895,7 @@ void Free_Routine(REBRIN *rin)
 static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
 {
     if (IS_BLOCK(blk)) {
-        REBVAL *t = VAL_BLK_DATA(blk);
+        REBVAL *t = VAL_ARRAY_AT(blk);
         if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
             /* followed by struct definition */
             REBVAL tmp;
@@ -898,7 +904,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             PUSH_GUARD_VALUE(&tmp);
 
             ++ t;
-            if (!IS_BLOCK(t) || VAL_LEN(blk) != 2)
+            if (!IS_BLOCK(t) || VAL_LEN_AT(blk) != 2)
                 fail (Error_Invalid_Arg(blk));
 
             if (!MT_Struct(&tmp, t, REB_STRUCT))
@@ -910,7 +916,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             DROP_GUARD_VALUE(&tmp);
         }
         else {
-            if (VAL_LEN(blk) != 1)
+            if (VAL_LEN_AT(blk) != 1)
                 fail (Error_Invalid_Arg(blk));
 
             if (!rebol_type_to_ffi(out, t, n, make))
@@ -919,14 +925,18 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
     }
     else
         fail (Error_Invalid_Arg(blk));
-
 }
 
-static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user_data)
-{
+
+static void callback_dispatcher(
+    ffi_cif *cif,
+    void *ret,
+    void **args,
+    void *user_data
+) {
     REBRIN *rin = (REBRIN*)user_data;
     REBCNT i = 0;
-    REBSER *ser;
+    REBARR *array;
     REBVAL *elem;
     REBVAL safe;
 
@@ -945,22 +955,22 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
         return;
     }
 
-    ser = Make_Array(1 + cif->nargs);
+    array = Make_Array(1 + cif->nargs);
 
-    // !!! Currently a series must be managed in order to use it with DO,
+    // !!! Currently an array must be managed in order to use it with DO,
     // because the series could be put into a block of a backtrace.  That
     // constraint may need to change (for Ren/C++) so this code is set up
     // so these lines (and the UNSAVE) can be deleted if that happens.
     //
-    MANAGE_SERIES(ser);
-    PUSH_GUARD_SERIES(ser);
+    MANAGE_ARRAY(array);
+    PUSH_GUARD_ARRAY(array);
 
-    elem = Alloc_Tail_Array(ser);
+    elem = Alloc_Tail_Array(array);
     SET_TYPE(elem, REB_FUNCTION);
     VAL_FUNC(elem) = RIN_FUNC(rin);
 
     for (i = 0; i < cif->nargs; i ++) {
-        elem = Alloc_Tail_Array(ser);
+        elem = Alloc_Tail_Array(array);
         switch (cif->arg_types[i]->type) {
             case FFI_TYPE_UINT8:
                 SET_INTEGER(elem, *(u8*)args[i]);
@@ -988,11 +998,11 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
                 SET_INTEGER(elem, *(i64*)args[i]);
                 break;
             case FFI_TYPE_STRUCT:
-                if (!IS_STRUCT(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1)))
-                    fail (Error_Invalid_Arg(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1)));
+                if (!IS_STRUCT(ARRAY_AT(RIN_ARGS_STRUCTS(rin), i + 1)))
+                    fail (Error_Invalid_Arg(ARRAY_AT(RIN_ARGS_STRUCTS(rin), i + 1)));
 
-                Copy_Struct_Val(BLK_SKIP(RIN_ARGS_STRUCTS(rin), i + 1), elem);
-                memcpy(SERIES_SKIP(VAL_STRUCT_DATA_BIN(elem), VAL_STRUCT_OFFSET(elem)),
+                Copy_Struct_Val(ARRAY_AT(RIN_ARGS_STRUCTS(rin), i + 1), elem);
+                memcpy(SERIES_AT(VAL_STRUCT_DATA_BIN(elem), VAL_STRUCT_OFFSET(elem)),
                        args[i],
                        VAL_STRUCT_LEN(elem));
                 break;
@@ -1002,7 +1012,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
         }
     }
 
-    if (Do_At_Throws(&safe, ser, 0)) {
+    if (Do_At_Throws(&safe, array, 0)) {
         // !!! Does not check for thrown cases...what should this
         // do in case of THROW, BREAK, QUIT?
         fail (Error_No_Catch_For_Throw(&safe));
@@ -1039,7 +1049,7 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
             break;
         case FFI_TYPE_STRUCT:
             memcpy(ret,
-                   SERIES_SKIP(VAL_STRUCT_DATA_BIN(elem), VAL_STRUCT_OFFSET(elem)),
+                   SERIES_AT(VAL_STRUCT_DATA_BIN(elem), VAL_STRUCT_OFFSET(elem)),
                    VAL_STRUCT_LEN(elem));
             break;
         default:
@@ -1047,10 +1057,11 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
     }
 
     // !!! Could be a Free_Series if not managed/saved to use with DO
-    DROP_GUARD_SERIES(ser);
+    DROP_GUARD_ARRAY(array);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 }
+
 
 //
 //  MT_Routine: C
@@ -1096,13 +1107,13 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
 #define N_ARGS 8
 
-    VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_SERIES(data));
+    VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
     VAL_ROUTINE_FFI_ARG_TYPES(out) =
         Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
-    VAL_ROUTINE_ARGS(out) = Make_Array(N_ARGS);
+    VAL_ROUTINE_PARAMLIST(out) = Make_Array(N_ARGS);
 
     // first word is ignored, see Do_Args in c-do.c
-    temp = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
+    temp = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
     Val_Init_Typeset(temp, 0, SYM_0);
 
     VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
@@ -1122,7 +1133,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     init_type_map();
 
-    blk = VAL_BLK_DATA(data);
+    blk = VAL_ARRAY_AT(data);
 
     // For all series we created, we must either free them or hand them over
     // to be managed by the garbage collector.  (They will be invisible to
@@ -1132,10 +1143,10 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     // operation were to run, the series would be candidates for GC if
     // they are not linked somehow into the transitive closure of the roots.
     //
-    ENSURE_SERIES_MANAGED(VAL_ROUTINE_SPEC(out)); // probably already managed
+    ENSURE_ARRAY_MANAGED(VAL_ROUTINE_SPEC(out)); // probably already managed
     MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_TYPES(out));
-    MANAGE_SERIES(VAL_ROUTINE_ARGS(out));
-    MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+    MANAGE_ARRAY(VAL_ROUTINE_PARAMLIST(out));
+    MANAGE_ARRAY(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
     if (type == REB_ROUTINE) {
@@ -1145,7 +1156,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
 
-        DO_NEXT_MAY_THROW(fn_idx, &lib, VAL_SERIES(data), 1);
+        DO_NEXT_MAY_THROW(fn_idx, &lib, VAL_ARRAY(data), 1);
         if (fn_idx == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&lib));
 
@@ -1178,10 +1189,10 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 //RL_Print("lib is not open\n");
             }
             TERM_SEQUENCE(VAL_SERIES(&blk[fn_idx]));
-            func = OS_FIND_FUNCTION(LIB_FD(VAL_ROUTINE_LIB(out)), s_cast(VAL_DATA(&blk[fn_idx])));
+            func = OS_FIND_FUNCTION(LIB_FD(VAL_ROUTINE_LIB(out)), s_cast(VAL_DATA_AT(&blk[fn_idx])));
             if (!func) {
                 fail (Error_Invalid_Arg(&blk[fn_idx]));
-                //printf("Couldn't find function: %s\n", VAL_DATA(&blk[2]));
+                //printf("Couldn't find function: %s\n", VAL_DATA_AT(&blk[2]));
             } else {
                 VAL_ROUTINE_FUNCPTR(out) = func;
             }
@@ -1193,7 +1204,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Invalid_Arg(&blk[0]));
 
-        DO_NEXT_MAY_THROW(fn_idx, &fun, VAL_SERIES(data), 1);
+        DO_NEXT_MAY_THROW(fn_idx, &fun, VAL_ARRAY(data), 1);
         if (fn_idx == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&fun));
 
@@ -1206,7 +1217,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
     }
 
-    blk = VAL_BLK_DATA(&blk[0]);
+    blk = VAL_ARRAY_AT(&blk[0]);
     if (NOT_END(blk) && IS_STRING(blk)) {
         ++ blk;
     }
@@ -1221,10 +1232,14 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         }
                         ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS);
                         //Change the argument list to be a block
-                        VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_ARGS(out));
-                        MANAGE_SERIES(VAL_ROUTINE_FIXED_ARGS(out));
-                        Remove_Series(VAL_ROUTINE_ARGS(out), 1, SERIES_TAIL(VAL_ROUTINE_ARGS(out)));
-                        v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
+                        VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_PARAMLIST(out));
+                        MANAGE_ARRAY(VAL_ROUTINE_FIXED_ARGS(out));
+                        Remove_Series(
+                            ARRAY_SERIES(VAL_ROUTINE_PARAMLIST(out)),
+                            1,
+                            ARRAY_LEN(VAL_ROUTINE_PARAMLIST(out))
+                        );
+                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
                         Val_Init_Typeset(v, FLAGIT_64(REB_BLOCK), SYM_VARARGS);
                     } else {
                         REBVAL *v = NULL;
@@ -1232,7 +1247,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                             //... has to be the last argument
                             fail (Error_Invalid_Arg(blk));
                         }
-                        v = Alloc_Tail_Array(VAL_ROUTINE_ARGS(out));
+                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
                         Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
                         EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
@@ -1340,7 +1355,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         args = (ffi_type**)SERIES_DATA(VAL_ROUTINE_FFI_ARG_TYPES(out));
         if (FFI_OK != ffi_prep_cif((ffi_cif*)VAL_ROUTINE_CIF(out),
                 cast(ffi_abi, VAL_ROUTINE_ABI(out)),
-                SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out)) - 1,
+                SERIES_LEN(VAL_ROUTINE_FFI_ARG_TYPES(out)) - 1,
                 args[0],
                 &args[1])) {
             //RL_Print("Couldn't prep CIF\n");
@@ -1408,7 +1423,7 @@ REBTYPE(Routine)
                         Val_Init_Block(
                             ret, Copy_Array_Deep_Managed(VAL_ROUTINE_SPEC(val))
                         );
-                        Unbind_Values_Deep(VAL_BLK_HEAD(val));
+                        Unbind_Values_Deep(VAL_ARRAY_HEAD(val));
                         break;
                     case SYM_ADDR:
                         SET_INTEGER(ret, cast(REBUPT, VAL_ROUTINE_FUNCPTR(val)));
@@ -1457,7 +1472,7 @@ REBTYPE(Callback)
                         Val_Init_Block(
                             ret, Copy_Array_Deep_Managed(VAL_ROUTINE_SPEC(val))
                         );
-                        Unbind_Values_Deep(VAL_BLK_HEAD(val));
+                        Unbind_Values_Deep(VAL_ARRAY_HEAD(val));
                         break;
                     case SYM_ADDR:
                         SET_INTEGER(ret, (REBUPT)VAL_ROUTINE_DISPATCHER(val));

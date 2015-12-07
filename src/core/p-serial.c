@@ -77,7 +77,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
                 req->special.serial.path,
                 // !!! This is assuming VAL_DATA contains native chars.
                 // Should it? (2 bytes on windows, 1 byte on linux/mac)
-                cast(REBCHR*, VAL_DATA(arg)),
+                cast(REBCHR*, VAL_DATA_AT(arg)),
                 MAX_SERIAL_DEV_PATH
             );
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_SPEED);
@@ -174,7 +174,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         if (req->length < 32000/2) Extend_Series(ser, 32000);
         req->length = SERIES_AVAIL(ser);
         req->common.data = STR_TAIL(ser); // write at tail
-        //if (SERIES_TAIL(ser) == 0)
+        //if (SERIES_LEN(ser) == 0)
         req->actual = 0;  // Actual for THIS read, not for total.
 #ifdef DEBUG_SERIAL
         printf("(max read length %d)", req->length);
@@ -196,7 +196,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
 
         // Determine length. Clip /PART to size of string if needed.
         spec = D_ARG(2);
-        len = VAL_LEN(spec);
+        len = VAL_LEN_AT(spec);
         if (refs & AM_WRITE_PART) {
             REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
             if (n <= len) len = n;
@@ -205,7 +205,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         // Setup the write:
         *FRAME_VAR(port, STD_PORT_DATA) = *spec;  // keep it GC safe
         req->length = len;
-        req->common.data = VAL_BIN_DATA(spec);
+        req->common.data = VAL_BIN_AT(spec);
         req->actual = 0;
 
         //Print("(write length %d)", len);

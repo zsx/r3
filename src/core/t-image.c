@@ -265,9 +265,9 @@ void Bin_To_Alpha(REBYTE *rgba, REBCNT size, REBYTE *bin, REBINT len)
 REBFLG Valid_Tuples(REBVAL *blk)
 {
     REBCNT n = VAL_INDEX(blk);
-    REBCNT len = VAL_LEN(blk);
+    REBCNT len = VAL_LEN_AT(blk);
 
-    blk = VAL_BLK_DATA(blk);
+    blk = VAL_ARRAY_AT(blk);
 
     for (; n < len; n++)
         if (!IS_TUPLE(blk+n)) return n+1;
@@ -371,7 +371,7 @@ REBSER *Make_Image_Binary(REBVAL *image)
     REBINT len;
     len =  VAL_IMAGE_LEN(image) * 4;
     ser = Make_Binary(len);
-    SERIES_TAIL(ser) = len;
+    SET_SERIES_LEN(ser, len);
     Image_To_RGBA(VAL_IMAGE_DATA(image), QUAD_HEAD(ser), VAL_IMAGE_LEN(image));
     return ser;
 }
@@ -443,7 +443,7 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
     ip = IMG_DATA(img);
     size = w * h;
 
-    //len = VAL_BLK_LEN(arg);
+    //len = VAL_ARRAY_LEN_AT(arg);
     block++;
 
     if (IS_END(block)) return val;
@@ -451,7 +451,7 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
     if (IS_BINARY(block)) {
 
         // Load image data:
-        Bin_To_RGB(ip, size, VAL_BIN_DATA(block), VAL_LEN(block) / 3);
+        Bin_To_RGB(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block) / 3);
         block++;
 
         // !!! Review handling of END here; was not explicit before and
@@ -459,7 +459,7 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
 
         // Load alpha channel data:
         if (NOT_END(block) && IS_BINARY(block)) {
-            Bin_To_Alpha(ip, size, VAL_BIN_DATA(block), VAL_LEN(block));
+            Bin_To_Alpha(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block));
 //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
             block++;
         }
@@ -480,7 +480,7 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
     }
     else if (IS_BLOCK(block)) {
         if ((w = Valid_Tuples(block))) fail (Error_Invalid_Arg(block + w - 1));
-        Tuples_To_RGBA(ip, size, VAL_BLK_DATA(block), VAL_LEN(block));
+        Tuples_To_RGBA(ip, size, VAL_ARRAY_AT(block), VAL_LEN_AT(block));
     }
     else
         return NULL;
@@ -530,7 +530,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && (n = Valid_Tuples(arg)))
-        fail (Error_Invalid_Arg(VAL_BLK_SKIP(arg, n-1)));
+        fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(arg, n-1)));
 
     // Get the /dup refinement. It specifies fill size.
     if (D_REF(6)) {
@@ -604,9 +604,9 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
             else
                 part = party * w;
         } else if (IS_BINARY(arg)) {
-            part = VAL_LEN(arg) / 4;
+            part = VAL_LEN_AT(arg) / 4;
         } else if (IS_BLOCK(arg)) {
-            part = VAL_LEN(arg);
+            part = VAL_LEN_AT(arg);
         }
         else if (!IS_INTEGER(arg) && !IS_TUPLE(arg))
             fail (Error_Has_Bad_Type(arg));
@@ -646,12 +646,12 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
-            Bin_To_RGBA(ip, part, VAL_BIN_DATA(arg), part, only);
+            Bin_To_RGBA(ip, part, VAL_BIN_AT(arg), part, only);
     } else if (IS_BLOCK(arg)) {
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
-            Tuples_To_RGBA(ip, part, VAL_BLK_DATA(arg), part);
+            Tuples_To_RGBA(ip, part, VAL_ARRAY_AT(arg), part);
     }
     else
         fail (Error_Has_Bad_Type(arg));
@@ -820,7 +820,7 @@ REBTYPE(Image)
     if (action != A_MAKE && action != A_TO) {
         series = VAL_SERIES(value);
         index = VAL_INDEX(value);
-        tail = (REBINT)SERIES_TAIL(series);
+        tail = (REBINT)SERIES_LEN(series);
         if (index > tail) index = tail;
     }
 
@@ -997,7 +997,7 @@ REBTYPE(Image)
             break;
         }
         else if (IS_BINARY(arg)) {
-            diff = VAL_LEN(arg) / 4;
+            diff = VAL_LEN_AT(arg) / 4;
             if (diff == 0) fail (Error_Bad_Make(REB_IMAGE, arg));
             if (diff < 100) w = diff;
             else if (diff < 10000) w = 100;
@@ -1006,7 +1006,7 @@ REBTYPE(Image)
             if (w * h < diff) h++; // partial line
             series = Make_Image(w, h, TRUE);
             Val_Init_Image(value, series);
-            Bin_To_RGBA(IMG_DATA(series), w*h, VAL_BIN_DATA(arg), VAL_LEN(arg)/4, 0);
+            Bin_To_RGBA(IMG_DATA(series), w*h, VAL_BIN_AT(arg), VAL_LEN_AT(arg)/4, 0);
             break;
         }
         fail (Error_Has_Bad_Type(arg));
@@ -1016,7 +1016,7 @@ REBTYPE(Image)
         if (IS_IMAGE(arg)) goto makeCopy;
 
         // make image! [] (or none)
-        if (IS_IMAGE(value) && (IS_NONE(arg) || (IS_BLOCK(arg) && (VAL_BLK_LEN(arg) == 0)))) {
+        if (IS_IMAGE(value) && (IS_NONE(arg) || (IS_BLOCK(arg) && (VAL_ARRAY_LEN_AT(arg) == 0)))) {
             arg = value;
             goto makeCopy;
         }
@@ -1038,7 +1038,7 @@ REBTYPE(Image)
 //      }
         // make image! [size rgb alpha index]
         else if (IS_BLOCK(arg)) {
-            if (Create_Image(VAL_BLK_DATA(arg), value, 0)) break;
+            if (Create_Image(VAL_ARRAY_AT(arg), value, 0)) break;
         }
         fail (Error_Has_Bad_Type(arg));
         break;
@@ -1153,14 +1153,14 @@ REBINT PD_Image(REBPVS *pvs)
 
             case SYM_RGB:
                 nser = Make_Binary(len * 3);
-                SERIES_TAIL(nser) = len * 3;
+                SET_SERIES_LEN(nser, len * 3);
                 RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
                 Val_Init_Binary(val, nser);
                 break;
 
             case SYM_ALPHA:
                 nser = Make_Binary(len);
-                SERIES_TAIL(nser) = len;
+                SET_SERIES_LEN(nser, len);
                 Alpha_To_Bin(QUAD_HEAD(nser), src, len);
                 Val_Init_Binary(val, nser);
                 break;
@@ -1188,7 +1188,7 @@ REBINT PD_Image(REBPVS *pvs)
                     if (n < 0 || n > 255) return PE_BAD_RANGE;
                     Fill_Line((REBCNT *)src, TO_PIXEL_COLOR(n,n,n,0xFF), len, 1);
                 } else if (IS_BINARY(val)) {
-                    Bin_To_RGB(src, len, VAL_BIN_DATA(val), VAL_LEN(val) / 3);
+                    Bin_To_RGB(src, len, VAL_BIN_AT(val), VAL_LEN_AT(val) / 3);
                 } else return PE_BAD_SET;
                 break;
 
@@ -1198,7 +1198,7 @@ REBINT PD_Image(REBPVS *pvs)
                     if (n < 0 || n > 255) return PE_BAD_RANGE;
                     Fill_Alpha_Line(src, (REBYTE)n, len);
                 } else if (IS_BINARY(val)) {
-                    Bin_To_Alpha(src, len, VAL_BIN_DATA(val), VAL_LEN(val));
+                    Bin_To_Alpha(src, len, VAL_BIN_AT(val), VAL_LEN_AT(val));
                 } else return PE_BAD_SET;
                 break;
 

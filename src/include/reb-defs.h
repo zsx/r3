@@ -33,6 +33,7 @@
 
 #ifndef REB_DEF
 typedef void *REBSER;
+typedef void *REBARR;
 typedef void *REBOBJ;
 #endif
 

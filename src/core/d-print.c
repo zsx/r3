@@ -228,7 +228,7 @@ void Display_Backtrace(REBCNT lines)
         }
 
         if (lines == 0) i += 2; // start of next line
-        Prin_OS_String(BIN_SKIP(Trace_Buffer, i), tail - i, OPT_ENC_CRLF_MAYBE);
+        Prin_OS_String(BIN_AT(Trace_Buffer, i), tail - i, OPT_ENC_CRLF_MAYBE);
         //RESET_SERIES(Trace_Buffer);
     }
     else {
@@ -526,9 +526,9 @@ void Debug_Buf(const char *fmt, va_list *args)
     tail = bp - STR_HEAD(buf);
 
     for (n = 0; n < tail; n += len) {
-        len = LEN_BYTES(STR_SKIP(buf, n));
+        len = LEN_BYTES(STR_AT(buf, n));
         if (len > 1024) len = 1024;
-        Debug_String(STR_SKIP(buf, n), len, 0, 0);
+        Debug_String(STR_AT(buf, n), len, 0, 0);
     }
 
     assert(GC_Disabled == 1);

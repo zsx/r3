@@ -48,7 +48,7 @@ enum {
 };
 
 struct Struct_Field {
-    REBSER* spec; /* for nested struct */
+    REBARR* spec; /* for nested struct */
     REBSER* fields; /* for nested struct */
     REBCNT sym;
 

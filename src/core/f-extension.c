@@ -164,22 +164,22 @@ x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 /*
 ***********************************************************************/
     REBCNT n;
-    REBSER *blk;
+    REBARR *array;
     REBVAL *val;
     REBCNT len;
 
-    blk = Make_Array(len = RXA_COUNT(frm));
+    array = Make_Array(len = RXA_COUNT(frm));
     for (n = 1; n <= len; n++) {
-        val = Alloc_Tail_Array(blk);
+        val = Alloc_Tail_Array(array);
         RXI_To_Value(val, frm->args[n], RXA_TYPE(frm, n));
     }
-    Val_Init_Block(out, blk);
+    Val_Init_Block(out, array);
 }
 
 
 /***********************************************************************
 **
-x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
+x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
 /*
 **      Given an object and a word id, call a REBOL function.
 **      The arguments are converted from extension format directly
@@ -217,7 +217,7 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
     Push_New_Arglist_For_Call(c);
 
     obj = VAL_FUNC_PARAMLIST(val);  // func words
-    len = SERIES_TAIL(obj)-1;   // number of args (may include locals)
+    len = ARRAY_LEN(obj) - 1;   // number of args (may include locals)
 
     // Push args. Too short or too long arg frames are handled W/O error.
     // Note that refinements args can be set to anything.
@@ -230,7 +230,7 @@ x*/ REBRXT Do_Callback(REBSER *obj, u32 name, RXIARG *rxis, RXIARG *result)
             SET_NONE(arg);
 
         // Check type for word at the given offset:
-        if (!TYPE_CHECK(BLK_SKIP(obj, n), VAL_TYPE(arg))) {
+        if (!TYPE_CHECK(ARRAY_AT(obj, n), VAL_TYPE(arg))) {
             result->i2.int32b = n;
             SET_EXT_ERROR(result, RXE_BAD_ARGS);
             Drop_Call_Arglist(c);
@@ -437,14 +437,14 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
 
     // See notes in `Make_Function()` about why a copy is *required*.
     VAL_FUNC_SPEC(out) =
-        Copy_Array_At_Deep_Managed(VAL_SERIES(spec), VAL_INDEX(spec));
+        Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
 
     VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(spec));
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
     {
-        REBVAL *args = BLK_HEAD(VAL_FUNC_PARAMLIST(out)) + 1; // skip SELF
+        REBVAL *args = VAL_FUNC_PARAMS_HEAD(out);
         for (; NOT_END(args); args++) {
             if (
                 (3 != ~VAL_TYPESET_BITS(args)) // not END and UNSET (no args)
@@ -463,14 +463,14 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
     VAL_FUNC_BODY(out) = Make_Array(2);
     Append_Value(VAL_FUNC_BODY(out), extension);
     Append_Value(VAL_FUNC_BODY(out), command_num);
-    MANAGE_SERIES(VAL_FUNC_BODY(out));
+    MANAGE_ARRAY(VAL_FUNC_BODY(out));
 
     VAL_SET(out, REB_COMMAND); // clears exts and opts in header...
 
     // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
     // function types, can find the function value from the paramlist.
 
-    *BLK_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
 
     return;
 
@@ -478,11 +478,11 @@ bad_func_def:
     {
         // emulate error before refactoring (improve if it's relevant...)
         REBVAL def;
-        REBSER *series = Make_Array(3);
-        Append_Value(series, spec);
-        Append_Value(series, extension);
-        Append_Value(series, command_num);
-        Val_Init_Block(&def, series);
+        REBARR *array = Make_Array(3);
+        Append_Value(array, spec);
+        Append_Value(array, extension);
+        Append_Value(array, command_num);
+        Val_Init_Block(&def, array);
 
         fail (Error(RE_BAD_FUNC_DEF, &def));
     }
@@ -503,19 +503,18 @@ bad_func_def:
 REBFLG Do_Command_Throws(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
-    REBVAL *val = BLK_HEAD(VAL_FUNC_BODY(D_FUNC));
+    REBVAL *val = ARRAY_HEAD(VAL_FUNC_BODY(D_FUNC));
     REBEXT *ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(val, 1))]; // Handler
     REBCNT cmd = cast(REBCNT, Int32(val + 1));
-    REBCNT argc = SERIES_TAIL(VAL_FUNC_PARAMLIST(D_FUNC)) - 1; // not self
 
     REBCNT n;
     RXIFRM frm; // args stored here
 
     // Copy args to command frame (array of args):
-    RXA_COUNT(&frm) = argc;
-    if (argc > 7) fail (Error(RE_BAD_COMMAND));
+    RXA_COUNT(&frm) = D_ARGC;
+    if (D_ARGC > 7) fail (Error(RE_BAD_COMMAND));
     val = D_ARG(1);
-    for (n = 1; n <= argc; n++, val++) {
+    for (n = 1; n <= D_ARGC; n++, val++) {
         RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE(val)];
         frm.args[n] = Value_To_RXI(val);
     }
@@ -571,13 +570,12 @@ REBFLG Do_Command_Throws(struct Reb_Call *call_)
 // 
 // Returns the last evaluated value, if provided.
 //
-void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
+void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
 {
     REBVAL *blk;
     REBCNT index = 0;
     REBVAL *set_word = 0;
     REBCNT cmd_sym = SYM_COMMAND_TYPE; // !!! to avoid uninitialized use, fix!
-    REBSER *words;
     REBVAL *args;
     REBVAL *val;
     const REBVAL *func; // !!! Why is this called 'func'?  What is this?
@@ -588,7 +586,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
     REBVAL save;
 
     if (ctx) ctx->block = cmds;
-    blk = BLK_HEAD(cmds);
+    blk = ARRAY_HEAD(cmds);
 
     while (NOT_END(blk)) {
 
@@ -621,12 +619,11 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
         index++;
 
         // get command arguments and body
-        words = VAL_FUNC_PARAMLIST(func);
-        RXA_COUNT(&frm) = SERIES_TAIL(VAL_FUNC_PARAMLIST(func)) - 1; // no self
+        RXA_COUNT(&frm) = VAL_FUNC_NUM_PARAMS(func);
 
         // collect each argument (arg list already validated on MAKE)
         n = 0;
-        for (args = BLK_SKIP(words, 1); NOT_END(args); args++) {
+        for (args = VAL_FUNC_PARAMS_HEAD(func); NOT_END(args); args++) {
 
             //Debug_Type(args);
             val = blk++;
@@ -672,7 +669,7 @@ void Do_Commands(REBVAL *out, REBSER *cmds, void *context)
         }
 
         // Call the command (also supports different extension modules):
-        func  = BLK_HEAD(VAL_FUNC_BODY(func));
+        func  = ARRAY_HEAD(VAL_FUNC_BODY(func));
         n = (REBCNT)VAL_INT64(func + 1);
         ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(func, 1))]; // Handler
         n = ext->call(n, &frm, ctx);
@@ -725,7 +722,7 @@ REBNATIVE(do_commands)
     REBCEC ctx;
 
     ctx.envr = 0;
-    ctx.block = VAL_SERIES(D_ARG(1));
+    ctx.block = VAL_ARRAY(D_ARG(1));
     ctx.index = 0;
     Do_Commands(D_OUT, ctx.block, &ctx);
 

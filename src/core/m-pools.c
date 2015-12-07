@@ -947,7 +947,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     // Optimized case of head insertion:
     if (index == 0 && SERIES_BIAS(series) >= delta) {
         series->data -= wide * delta;
-        SERIES_TAIL(series) += delta;
+        SET_SERIES_LEN(series, SERIES_LEN(series) + delta);
         SERIES_REST(series) += delta;
         SERIES_SUB_BIAS(series, delta);
         return;
@@ -970,7 +970,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         memmove(series->data + start + extra, series->data + start, size - start);
         series->tail += delta;
 
-        if ((SERIES_TAIL(series) + SERIES_BIAS(series)) * wide >= SERIES_TOTAL(series)) {
+        if ((SERIES_LEN(series) + SERIES_BIAS(series)) * wide >= SERIES_TOTAL(series)) {
             Dump_Series(series, "Overflow");
             assert(FALSE);
             panic (Error(RE_MISC)); // shouldn't be possible, but code here panic'd
@@ -1014,7 +1014,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     data_old = series->data;
     bias_old = SERIES_BIAS(series);
     size_old = Series_Allocated_Size(series);
-    tail_old = SERIES_TAIL(series);
+    tail_old = SERIES_LEN(series);
 
     series->data = NULL;
     if (!Series_Data_Alloc(
@@ -1106,7 +1106,7 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
         series->tail = 0;
 
     if (flags & MKS_ARRAY)
-        TERM_ARRAY(series);
+        TERM_ARRAY(AS_ARRAY(series));
     else
         TERM_SEQUENCE(series);
 
@@ -1262,10 +1262,10 @@ void Widen_String(REBSER *series, REBOOL preserve)
 
     if (preserve) {
         for (n = 0; n <= tail_old; n++) up[n] = bp[n]; // includes terminator
-        SERIES_TAIL(series) = tail_old;
+        SET_SERIES_LEN(series, tail_old);
     }
     else {
-        SERIES_TAIL(series) = 0;
+        SET_SERIES_LEN(series, 0);
         TERM_SEQUENCE(series);
     }
 
@@ -1328,16 +1328,16 @@ void Manage_Series(REBSER *series)
 void Manage_Frame_Debug(REBFRM *frame)
 {
     if (
-        SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)
-        != SERIES_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)
+        ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)
+        != ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)
     ) {
         // Only one of these will trip...
-        ASSERT_SERIES_MANAGED(FRAME_VARLIST(frame));
-        ASSERT_SERIES_MANAGED(FRAME_KEYLIST(frame));
+        ASSERT_ARRAY_MANAGED(FRAME_VARLIST(frame));
+        ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
     }
 
-    MANAGE_SERIES(FRAME_KEYLIST(frame));
-    MANAGE_SERIES(FRAME_VARLIST(frame));
+    MANAGE_ARRAY(FRAME_KEYLIST(frame));
+    MANAGE_ARRAY(FRAME_VARLIST(frame));
 }
 
 
@@ -1349,27 +1349,27 @@ void Manage_Frame_Debug(REBFRM *frame)
 // which is used to check for leaks relative to an initial
 // status of outstanding series.
 //
-void Manuals_Leak_Check_Debug(REBCNT manuals_tail, const char *label_str)
+void Manuals_Leak_Check_Debug(REBCNT manuals_len, const char *label_str)
 {
-    if (SERIES_TAIL(GC_Manuals) > manuals_tail) {
+    if (SERIES_LEN(GC_Manuals) > manuals_len) {
         REBSER* most_recent =
             cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
 
         Debug_Fmt(
             "%d leaked REBSERs during %s",
-            SERIES_TAIL(GC_Manuals) - manuals_tail,
+            SERIES_LEN(GC_Manuals) - manuals_len,
             label_str
         );
         Debug_Fmt("Panic_Series() on most recent (for valgrind, ASAN)");
         Panic_Series(most_recent);
     }
-    else if (SERIES_TAIL(GC_Manuals) < manuals_tail) {
+    else if (SERIES_LEN(GC_Manuals) < manuals_len) {
         Debug_Fmt("Manual series freed from outside of checkpoint.");
 
         // Note: Should this ever actually happen, a Panic_Series won't do
         // that much good in helping debug it.  You'll probably need to
         // add additional checking in the Manage_Series and Free_Series
-        // routines that checks against the caller's manuals_tail.
+        // routines that checks against the caller's manuals_len.
 
         assert(FALSE);
     }
@@ -1414,11 +1414,11 @@ REBFLG Is_Value_Managed(const REBVAL *value, REBFLG thrown_or_end_ok)
 
     if (ANY_CONTEXT(value)) {
         REBFRM *frame = VAL_FRAME(value);
-        if (SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)) {
-            ASSERT_SERIES_MANAGED(FRAME_KEYLIST(frame));
+        if (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)) {
+            ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
             return TRUE;
         }
-        assert(!SERIES_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED));
+        assert(!ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED));
         return FALSE;
     }
 
@@ -1588,15 +1588,23 @@ void Dump_Series_In_Pool(REBCNT pool_id)
                               SERIES_WIDE(series),
                               SERIES_TOTAL(series),
                               SERIES_BIAS(series),
-                              SERIES_TAIL(series),
+                              SERIES_LEN(series),
                               SERIES_REST(series),
                               SERIES_FLAGS(series)
                              );
                     //Dump_Series(series, "Dump");
                     if (Is_Array_Series(series)) {
-                        Debug_Values(BLK_HEAD(series), SERIES_TAIL(series), 1024); /* FIXME limit */
-                    } else{
-                        Dump_Bytes(series->data, (SERIES_TAIL(series)+1) * SERIES_WIDE(series));
+                        Debug_Values(
+                            ARRAY_HEAD(AS_ARRAY(series)),
+                            SERIES_LEN(series),
+                            1024 // !!! "FIXME limit
+                        );
+                    }
+                    else {
+                        Dump_Bytes(
+                            series->data,
+                            (SERIES_LEN(series) + 1) * SERIES_WIDE(series)
+                        );
                     }
                 }
             }
@@ -1717,7 +1725,7 @@ REBU64 Inspect_Series(REBCNT flags)
                 if (f) Debug_Fmt_("ODD[%d]", SERIES_WIDE(series));
             }
             if (f && SERIES_WIDE(series)) {
-                Debug_Fmt(" units: %-5d tail: %-5d bytes: %-7d", SERIES_REST(series), SERIES_TAIL(series), SERIES_TOTAL(series));
+                Debug_Fmt(" units: %-5d tail: %-5d bytes: %-7d", SERIES_REST(series), SERIES_LEN(series), SERIES_TOTAL(series));
             }
 
             series++;

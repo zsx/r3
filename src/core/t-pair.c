@@ -60,7 +60,7 @@ REBFLG MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (!IS_BLOCK(data)) return FALSE;
 
-    data = VAL_BLK_DATA(data);
+    data = VAL_ARRAY_AT(data);
 
     if (IS_INTEGER(data)) x = (REBD32)VAL_INT64(data);
     else if (IS_DECIMAL(data)) x = (REBD32)VAL_DECIMAL(data);
@@ -332,7 +332,7 @@ REBTYPE(Pair)
                 REBYTE *bp;
                 REBCNT len;
                 // -1234567890x-1234567890
-                bp = Temp_Byte_Chars_May_Fail(val, VAL_LEN(val), &len, FALSE);
+                bp = Temp_Byte_Chars_May_Fail(val, VAL_LEN_AT(val), &len, FALSE);
                 if (Scan_Pair(bp, len, D_OUT)) return R_OUT;
             }
             if (IS_INTEGER(val)) {
@@ -343,7 +343,7 @@ REBTYPE(Pair)
                 x1 = y1 = (REBD32)VAL_DECIMAL(val);
                 goto setPair;
             }
-            if (ANY_ARRAY(val) && VAL_LEN(val) <= 2) {
+            if (ANY_ARRAY(val) && VAL_LEN_AT(val) <= 2) {
                 if (MT_Pair(D_OUT, val, REB_PAIR))
                     return R_OUT;
             }

@@ -87,7 +87,7 @@ static void reverse_string(REBVAL *value, REBCNT len)
     REBUNI c;
 
     if (VAL_BYTE_SIZE(value)) {
-        REBYTE *bp = VAL_BIN_DATA(value);
+        REBYTE *bp = VAL_BIN_AT(value);
 
         for (n = 0, m = len-1; n < len / 2; n++, m--) {
             c = bp[n];
@@ -96,7 +96,7 @@ static void reverse_string(REBVAL *value, REBCNT len)
         }
     }
     else {
-        REBUNI *up = VAL_UNI_DATA(value);
+        REBUNI *up = VAL_UNI_AT(value);
 
         for (n = 0, m = len-1; n < len / 2; n++, m--) {
             c = up[n];
@@ -120,12 +120,12 @@ static REBCNT find_string(REBSER *series, REBCNT index, REBCNT end, REBVAL *targ
     if (ANY_BINSTR(target)) {
         // Do the optimal search or the general search?
         if (BYTE_SIZE(series) && VAL_BYTE_SIZE(target) && !(flags & ~(AM_FIND_CASE|AM_FIND_MATCH)))
-            return Find_Byte_Str(series, start, VAL_BIN_DATA(target), len, !GET_FLAG(flags, ARG_FIND_CASE-1), GET_FLAG(flags, ARG_FIND_MATCH-1));
+            return Find_Byte_Str(series, start, VAL_BIN_AT(target), len, !GET_FLAG(flags, ARG_FIND_CASE-1), GET_FLAG(flags, ARG_FIND_MATCH-1));
         else
             return Find_Str_Str(series, start, index, end, skip, VAL_SERIES(target), VAL_INDEX(target), len, flags & (AM_FIND_MATCH|AM_FIND_CASE));
     }
     else if (IS_BINARY(target)) {
-        return Find_Byte_Str(series, start, VAL_BIN_DATA(target), len, 0, GET_FLAG(flags, ARG_FIND_MATCH-1));
+        return Find_Byte_Str(series, start, VAL_BIN_AT(target), len, 0, GET_FLAG(flags, ARG_FIND_MATCH-1));
     }
     else if (IS_CHAR(target)) {
         return Find_Str_Char(series, start, index, end, skip, VAL_CHAR(target), flags);
@@ -150,8 +150,8 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     }
     // MAKE/TO <type> <binary!>
     else if (IS_BINARY(arg)) {
-        REBYTE *bp = VAL_BIN_DATA(arg);
-        REBCNT len = VAL_LEN(arg);
+        REBYTE *bp = VAL_BIN_AT(arg);
+        REBCNT len = VAL_LEN_AT(arg);
         switch (What_UTF(bp, len)) {
         case 0:
             break;
@@ -166,7 +166,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     }
     // MAKE/TO <type> <any-string>
     else if (ANY_BINSTR(arg)) {
-        ser = Copy_String(VAL_SERIES(arg), VAL_INDEX(arg), VAL_LEN(arg));
+        ser = Copy_String(VAL_SERIES(arg), VAL_INDEX(arg), VAL_LEN_AT(arg));
     }
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
@@ -219,7 +219,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
     // MAKE/TO BINARY! BINARY!
     case REB_BINARY:
-        ser = Copy_Bytes(VAL_BIN_DATA(arg), VAL_LEN(arg));
+        ser = Copy_Bytes(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
         break;
 
     // MAKE/TO BINARY! <any-string>
@@ -229,7 +229,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
     case REB_URL:
     case REB_TAG:
 //  case REB_ISSUE:
-        ser = Make_UTF8_From_Any_String(arg, VAL_LEN(arg), 0);
+        ser = Make_UTF8_From_Any_String(arg, VAL_LEN_AT(arg), 0);
         break;
 
     case REB_BLOCK:
@@ -380,7 +380,7 @@ static void Sort_String(REBVAL *string, REBFLG ccase, REBVAL *skipv, REBVAL *com
     if (rev) thunk |= CC_FLAG_REVERSE;
 
     reb_qsort_r(
-        VAL_DATA(string),
+        VAL_DATA_AT(string),
         len,
         size * SERIES_WIDE(VAL_SERIES(string)),
         &thunk,
@@ -407,16 +407,16 @@ REBINT PD_String(REBPVS *pvs)
     else return PE_BAD_SELECT;
 
     if (val == 0) {
-        if (n < 0 || (REBCNT)n >= SERIES_TAIL(ser)) return PE_NONE;
+        if (n < 0 || (REBCNT)n >= SERIES_LEN(ser)) return PE_NONE;
         if (IS_BINARY(data)) {
-            SET_INTEGER(pvs->store, *BIN_SKIP(ser, n));
+            SET_INTEGER(pvs->store, *BIN_AT(ser, n));
         } else {
             SET_CHAR(pvs->store, GET_ANY_CHAR(ser, n));
         }
         return PE_USE;
     }
 
-    if (n < 0 || (REBCNT)n >= SERIES_TAIL(ser)) return PE_BAD_RANGE;
+    if (n < 0 || (REBCNT)n >= SERIES_LEN(ser)) return PE_BAD_RANGE;
 
     if (IS_CHAR(val)) {
         c = VAL_CHAR(val);
@@ -462,7 +462,7 @@ REBINT PD_File(REBPVS *pvs)
 
     ser = Copy_Sequence_At_Position(pvs->value);
 
-    n = SERIES_TAIL(ser);
+    n = SERIES_LEN(ser);
     if (n > 0) c = GET_ANY_CHAR(ser, n-1);
     if (n == 0 || c != '/') Append_Codepoint_Raw(ser, '/');
 
@@ -564,7 +564,7 @@ find:
             }
         }
 
-        if (ANY_BINSTR(arg)) len = VAL_LEN(arg);
+        if (ANY_BINSTR(arg)) len = VAL_LEN_AT(arg);
 
         if (args & AM_FIND_PART) tail = Partial(value, 0, D_ARG(ARG_FIND_LIMIT), 0);
         ret = 1; // skip size
@@ -583,7 +583,7 @@ find:
             ret++;
             if (ret >= (REBCNT)tail) goto is_none;
             if (IS_BINARY(value)) {
-                SET_INTEGER(value, *BIN_SKIP(VAL_SERIES(value), ret));
+                SET_INTEGER(value, *BIN_AT(VAL_SERIES(value), ret));
             }
             else
                 str_to_char(value, value, ret);
@@ -604,7 +604,7 @@ find:
         if (action == A_PICK) {
 pick_it:
             if (IS_BINARY(value)) {
-                SET_INTEGER(D_OUT, *VAL_BIN_SKIP(value, index));
+                SET_INTEGER(D_OUT, *VAL_BIN_AT_HEAD(value, index));
             }
             else
                 str_to_char(D_OUT, value, index);
@@ -657,7 +657,7 @@ zero_str:
         // if no /part, just return value, else return string:
         if (!D_REF(2)) {
             if (IS_BINARY(value)) {
-                SET_INTEGER(value, *VAL_BIN_SKIP(value, index));
+                SET_INTEGER(value, *VAL_BIN_AT_HEAD(value, index));
             } else
                 str_to_char(value, value, index);
         }
@@ -727,7 +727,7 @@ zero_str:
             fail (Error(RE_BAD_REFINES));
         }
 
-        Trim_String(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN(value), args, D_ARG(ARG_TRIM_STR));
+        Trim_String(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN_AT(value), args, D_ARG(ARG_TRIM_STR));
         break;
 
     case A_SWAP:
@@ -759,7 +759,7 @@ zero_str:
 
     case A_RANDOM:
         if (D_REF(2)) { // seed
-            Set_Random(Compute_CRC(VAL_BIN_DATA(value), VAL_LEN(value)));
+            Set_Random(Compute_CRC(VAL_BIN_AT(value), VAL_LEN_AT(value)));
             return R_UNSET;
         }
         if (D_REF(4)) { // /only

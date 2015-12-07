@@ -71,9 +71,9 @@ REBINT Bin_To_Money(REBVAL *result, REBVAL *val)
     REBYTE buf[MAX_HEX_LEN+4] = {0}; // binary to convert
 
     if (IS_BINARY(val)) {
-        len = VAL_LEN(val);
+        len = VAL_LEN_AT(val);
         if (len > 12) len = 12;
-        memcpy(buf, VAL_BIN_DATA(val), len);
+        memcpy(buf, VAL_BIN_AT(val), len);
     }
 #ifdef removed
     else if (IS_ISSUE(val)) {

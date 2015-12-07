@@ -198,11 +198,11 @@ REBI64 Make_Time(REBVAL *val)
             fail (Error_Out_Of_Range(val));
         secs = DEC_TO_SECS(VAL_DECIMAL(val));
     }
-    else if (ANY_ARRAY(val) && VAL_BLK_LEN(val) <= 3) {
+    else if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) <= 3) {
         REBFLG neg = FALSE;
         REBI64 i;
 
-        val = VAL_BLK_DATA(val);
+        val = VAL_ARRAY_AT(val);
         if (!IS_INTEGER(val)) goto no_time;
         i = Int32(val);
         if (i < 0) i = -i, neg = TRUE;

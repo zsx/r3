@@ -384,15 +384,15 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
     REBINT n;
     REBYTE b;
 
-    len = VAL_LEN(value);
-    src = VAL_BIN_DATA(value);
+    len = VAL_LEN_AT(value);
+    src = VAL_BIN_AT(value);
 
     // Add slop-factor
     series = Prep_String (series, &p, 8 * len + 2 * (len / 8) + 4);
 
     // If the input series was zero length, return empty series
     if (!len) {
-        SERIES_TAIL(series) = 0;
+        SET_SERIES_LEN(series, 0);
         TERM_SEQUENCE(series);
         return series;
     }
@@ -414,7 +414,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
 
     if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
 
-    SERIES_TAIL(series) = DIFF_PTRS(p, series->data);
+    SET_SERIES_LEN(series, DIFF_PTRS(p, series->data));
     return series;
 }
 
@@ -431,8 +431,8 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
     REBYTE *bp;
     REBYTE *src;
 
-    len = VAL_LEN(value);
-    src = VAL_BIN_DATA(value);
+    len = VAL_LEN_AT(value);
+    src = VAL_BIN_AT(value);
 
     // Account for hex, lines, and extra syntax:
     series = Prep_String(series, &bp, len*2 + len/32 + 32);
@@ -440,7 +440,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
 
     // If the input series was zero length, return empty series
     if (!len) {
-        SERIES_TAIL(series) = 0;
+        SET_SERIES_LEN(series, 0);
         TERM_SEQUENCE(series);
         return series;
     }
@@ -454,7 +454,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
     if (*(bp-1) != LF && (len >= 32) && brk) *bp++ = LF;
     *bp = 0;
 
-    SERIES_TAIL(series) = DIFF_PTRS(bp, series->data);
+    SET_SERIES_LEN(series, DIFF_PTRS(bp, series->data));
 
     return series;
 }
@@ -472,7 +472,7 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
     REBCNT len;
     REBINT x, loop;
 
-    len = VAL_LEN(value);
+    len = VAL_LEN_AT(value);
     src = VAL_BIN(value);
 
     // slop-factor
@@ -480,7 +480,7 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
 
     // If the input series was zero length, return empty series
     if (!len) {
-        SERIES_TAIL(series) = 0;
+        SET_SERIES_LEN(series, 0);
         TERM_SEQUENCE(series);
         return series;
     }
@@ -512,7 +512,10 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
     if (*(p-1) != LF && x > 49 && brk) *p++ = LF;
     *p = 0;
 
-    SERIES_TAIL(series) = DIFF_PTRS(p, series->data); /* 4 * (int) (len % 3 ? (len / 3) + 1 : len / 3); */
+    //
+    // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
+    //
+    SET_SERIES_LEN(series, DIFF_PTRS(p, series->data));
 
     return series;
 }

@@ -40,7 +40,7 @@
 // Provide option to prepend dir path.
 // Provide option to use wildcards.
 //
-static int Read_Dir(REBREQ *dir, REBSER *files)
+static int Read_Dir(REBREQ *dir, REBARR *files)
 {
     REBINT result;
     REBCNT len;
@@ -48,7 +48,7 @@ static int Read_Dir(REBREQ *dir, REBSER *files)
     REBSER *name;
     REBREQ file;
 
-    RESET_TAIL(files);
+    SET_ARRAY_LEN(files, 0);
     CLEARS(&file);
 
     // Temporary filename storage:
@@ -200,7 +200,7 @@ static REB_R Dir_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
             Init_Dir_Path(&dir, path, 1, POL_READ);
             Val_Init_Block(state, Make_Array(7)); // initial guess
-            result = Read_Dir(&dir, VAL_SERIES(state));
+            result = Read_Dir(&dir, VAL_ARRAY(state));
             ///OS_FREE(dir.file.path);
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
@@ -213,9 +213,9 @@ static REB_R Dir_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
             Val_Init_Block(
                 D_OUT,
                 Copy_Array_Core_Managed(
-                    VAL_SERIES(state),
+                    VAL_ARRAY(state),
                     0, // at
-                    VAL_BLK_LEN(state), // tail
+                    VAL_ARRAY_LEN_AT(state), // tail
                     0, // extra
                     FALSE, // !deep
                     TS_STRING // types
@@ -276,7 +276,7 @@ create:
         //if (args & ~AM_OPEN_READ) fail (Error(RE_INVALID_SPEC, path));
         Val_Init_Block(state, Make_Array(7));
         Init_Dir_Path(&dir, path, 1, POL_READ);
-        result = Read_Dir(&dir, VAL_SERIES(state));
+        result = Read_Dir(&dir, VAL_ARRAY(state));
         ///OS_FREE(dir.file.path);
         if (result < 0) fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
         break;
@@ -301,7 +301,7 @@ create:
     //-- Port Series Actions (only called if opened as a port)
 
     case A_LENGTH:
-        len = IS_BLOCK(state) ? VAL_BLK_LEN(state) : 0;
+        len = IS_BLOCK(state) ? VAL_ARRAY_LEN_AT(state) : 0;
         SET_INTEGER(D_OUT, len);
         break;
 

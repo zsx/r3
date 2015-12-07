@@ -156,7 +156,7 @@ REBINT OS_Gob_To_Image(REBSER *image, REBGOB *gob)
 // Render DRAW dialect into an image.
 // Clip to keep render inside the image provided.
 //
-REBINT OS_Draw_Image(REBSER *image, REBSER *block)
+REBINT OS_Draw_Image(REBSER *image, REBARR *block)
 {
     return 0;
 }
@@ -168,7 +168,7 @@ REBINT OS_Draw_Image(REBSER *image, REBSER *block)
 // Render EFFECT dialect into an image.
 // Clip to keep render inside the image provided.
 //
-REBINT OS_Effect_Image(REBSER *image, REBSER *block)
+REBINT OS_Effect_Image(REBSER *image, REBARR *block)
 {
     return 0;
 }

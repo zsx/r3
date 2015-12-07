@@ -45,8 +45,8 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 {
     REBFRM *f1;
     REBFRM *f2;
-    REBSER *k1;
-    REBSER *k2;
+    REBARR *k1;
+    REBARR *k2;
     REBCNT n;
 
     if (VAL_TYPE(arg) != VAL_TYPE(val)) return FALSE;
@@ -59,20 +59,27 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
     k1 = FRAME_KEYLIST(f1);
     k2 = FRAME_KEYLIST(f2);
 
-    assert((k1->tail == FRAME_LEN(f1) + 1) && (k2->tail == FRAME_LEN(f2) + 1));
+    // Sanity check that the frame is +1 for the context/rootkey slot
+    //
+    assert(
+        ARRAY_LEN(k1) == FRAME_LEN(f1) + 1
+        && ARRAY_LEN(k2) == FRAME_LEN(f2) + 1
+    );
 
     // Compare each entry:
-    for (n = 1; n < k1->tail; n++) {
+    for (n = 1; n < ARRAY_LEN(k1); n++) {
+        //
         // Do ordinary comparison of the typesets
-        if (Cmp_Value(BLK_SKIP(k1, n), BLK_SKIP(k2, n), FALSE) != 0)
+        //
+        if (Cmp_Value(ARRAY_AT(k1, n), ARRAY_AT(k2, n), FALSE) != 0)
             return FALSE;
 
         // The typesets contain a symbol as well which must match for
         // objects to consider themselves to be equal (but which do not
         // count in comparison of the typesets)
         if (
-            VAL_TYPESET_CANON(BLK_SKIP(k1, n))
-            != VAL_TYPESET_CANON(BLK_SKIP(k2, n))
+            VAL_TYPESET_CANON(ARRAY_AT(k1, n))
+            != VAL_TYPESET_CANON(ARRAY_AT(k2, n))
         ) {
             return FALSE;
         }
@@ -110,7 +117,7 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
     if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(arg));
 
     // Process word/value argument block:
-    arg = VAL_BLK_DATA(arg);
+    arg = VAL_ARRAY_AT(arg);
 
     // Use binding table
     binds = WORDS_HEAD(Bind_Table);
@@ -143,10 +150,10 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
             }
         } else {
             // collect the symbol
-            binds[VAL_WORD_CANON(word)] = SERIES_TAIL(BUF_COLLECT);
-            EXPAND_SERIES_TAIL(BUF_COLLECT, 1);
+            binds[VAL_WORD_CANON(word)] = ARRAY_LEN(BUF_COLLECT);
+            EXPAND_SERIES_TAIL(ARRAY_SERIES(BUF_COLLECT), 1);
             Val_Init_Typeset(
-                BLK_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SYM(word)
+                ARRAY_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SYM(word)
             );
         }
         if (IS_END(word + 1)) break; // fix bug#708
@@ -156,8 +163,8 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
 
     // Append new words to obj
     len = FRAME_LEN(frame) + 1;
-    Expand_Frame(frame, SERIES_TAIL(BUF_COLLECT) - len, 1);
-    for (typeset = BLK_SKIP(BUF_COLLECT, len); NOT_END(typeset); typeset++)
+    Expand_Frame(frame, ARRAY_LEN(BUF_COLLECT) - len, 1);
+    for (typeset = ARRAY_AT(BUF_COLLECT, len); NOT_END(typeset); typeset++)
         Append_Frame(frame, NULL, VAL_TYPESET_SYM(typeset));
 
     // Set new values to obj words
@@ -232,8 +239,8 @@ static REBFRM *Trim_Frame(REBFRM *frame)
     //
     SET_END(var_new);
     SET_END(key_new);
-    SERIES_TAIL(FRAME_VARLIST(frame_new)) = copy_count + 1;
-    SERIES_TAIL(FRAME_KEYLIST(frame_new)) = copy_count + 1;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame_new), copy_count + 1);
+    SET_ARRAY_LEN(FRAME_KEYLIST(frame_new), copy_count + 1);
 
     return frame_new;
 }
@@ -269,7 +276,7 @@ REBFLG MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     REBFRM *frame;
     if (!IS_BLOCK(data)) return FALSE;
 
-    frame = Construct_Frame(type, VAL_BLK_DATA(data), FALSE, NULL);
+    frame = Construct_Frame(type, VAL_ARRAY_AT(data), FALSE, NULL);
 
     Val_Init_Context(out, type, frame, NULL, NULL);
 
@@ -355,7 +362,7 @@ REBTYPE(Object)
                         REB_OBJECT, // type
                         NULL, // spec
                         NULL, // body
-                        VAL_BLK_DATA(arg), // scan for toplevel set-words
+                        VAL_ARRAY_AT(arg), // scan for toplevel set-words
                         NULL // parent
                     );
                     Val_Init_Object(D_OUT, frame);
@@ -364,7 +371,7 @@ REBTYPE(Object)
                     // (functions make a copy of the body they are passed to
                     // be rebound).  This seems wrong.
                     //
-                    Bind_Values_Deep(VAL_BLK_DATA(arg), frame);
+                    Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
 
                     // Do the block into scratch space (we ignore the result,
                     // unless it is thrown in which case it must be returned.
@@ -387,8 +394,8 @@ REBTYPE(Object)
 
                     // Does it include a spec?
                     /*
-                    if (IS_BLOCK(VAL_BLK_HEAD(arg))) {
-                        arg = VAL_BLK_HEAD(arg);
+                    if (IS_BLOCK(VAL_ARRAY_HEAD(arg))) {
+                        arg = VAL_ARRAY_HEAD(arg);
                         if (!IS_BLOCK(arg + 1))
                             fail (Error_Bad_Make(REB_TASK, value));
                         frame = Make_Module_Spec(arg);
@@ -422,7 +429,7 @@ REBTYPE(Object)
 
             // make object! map!
             if (IS_MAP(arg)) {
-                frame = Map_To_Object(VAL_SERIES(arg));
+                frame = Map_To_Object(VAL_MAP(arg));
                 Val_Init_Context(D_OUT, target, frame, NULL, NULL);
                 return R_OUT;
             }
@@ -444,7 +451,7 @@ REBTYPE(Object)
                     TRUE, // deep
                     TS_CLONE // types
                 ));
-                SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
+                ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
                 FRAME_KEYLIST(frame) = FRAME_KEYLIST(src_frame);
                 VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
                 Rebind_Frame_Deep(src_frame, frame, REBIND_FUNC);
@@ -458,12 +465,12 @@ REBTYPE(Object)
                     REB_OBJECT, // type
                     NULL, // spec
                     NULL, // body
-                    VAL_BLK_DATA(arg), // values to scan for toplevel set-words
+                    VAL_ARRAY_AT(arg), // values to scan for toplevel set-words
                     src_frame // parent
                 );
                 Rebind_Frame_Deep(src_frame, frame, REBIND_FUNC);
                 Val_Init_Object(D_OUT, frame);
-                Bind_Values_Deep(VAL_BLK_DATA(arg), frame);
+                Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
 
                 // frame is GC safe, run the bound block body and put the
                 // output into a scratch cell.  We ignore the result unless
@@ -513,7 +520,7 @@ REBTYPE(Object)
             if (!IS_BLOCK(arg))
                 fail (Error_Bad_Make(REB_MODULE, arg));
 
-            item = VAL_BLK_DATA(arg);
+            item = VAL_ARRAY_AT(arg);
 
             // Called from `make-module*`, as `to module! reduce [spec obj]`
             //
@@ -574,8 +581,8 @@ REBTYPE(Object)
         }
         frame = AS_FRAME(Copy_Array_Shallow(FRAME_VARLIST(VAL_FRAME(value))));
         FRAME_KEYLIST(frame) = FRAME_KEYLIST(VAL_FRAME(value));
-        MANAGE_SERIES(FRAME_VARLIST(frame));
-        SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
+        MANAGE_ARRAY(FRAME_VARLIST(frame));
+        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
         VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
         if (types != 0) {
             Clonify_Values_Len_Managed(
@@ -637,7 +644,7 @@ REBTYPE(Object)
         if (action < 1 || action > 3)
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
 
-        Val_Init_Block(D_OUT, Make_Object_Block(VAL_FRAME(value), action));
+        Val_Init_Block(D_OUT, Object_To_Array(VAL_FRAME(value), action));
         return R_OUT;
 
     case A_TRIM:

@@ -32,23 +32,23 @@
 
 //
 //  Modify_Array: C
-// 
-// action: INSERT, APPEND, CHANGE
-// 
-// dst_ser:    target
-// dst_idx:    position
-// src_val:    source
-// flags:        AN_ONLY, AN_PART
-// dst_len:    length to remove
-// dups:        dup count
-// 
-// return: new dst_idx
 //
-REBCNT Modify_Array(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
-{
-    REBCNT tail  = SERIES_TAIL(dst_ser);
-    REBINT ilen  = 1;   // length to be inserted
-    REBINT size;        // total to insert
+// Returns new dst_idx
+//
+REBCNT Modify_Array(
+    REBCNT action,          // INSERT, APPEND, CHANGE
+    REBARR *dst_arr,        // target
+    REBCNT dst_idx,         // position
+    const REBVAL *src_val,  // source
+    REBCNT flags,           // AN_ONLY, AN_PART
+    REBINT dst_len,         // length to remove
+    REBINT dups             // dup count
+) {
+    REBCNT tail = ARRAY_LEN(dst_arr);
+
+    REBINT ilen = 1; // length to be inserted
+
+    REBINT size; // total to insert
 
 #if !defined(NDEBUG)
     REBINT index;
@@ -70,32 +70,33 @@ REBCNT Modify_Array(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL
         if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
             ilen = dst_len;
         else
-            ilen = VAL_LEN(src_val);
+            ilen = VAL_LEN_AT(src_val);
 
         // Are we modifying ourselves? If so, copy src_val block first:
-        if (dst_ser == VAL_SERIES(src_val)) {
-            REBSER *series = Copy_Array_At_Shallow(
-                VAL_SERIES(src_val), VAL_INDEX(src_val)
+        if (dst_arr == VAL_ARRAY(src_val)) {
+            REBARR *copy = Copy_Array_At_Shallow(
+                VAL_ARRAY(src_val), VAL_INDEX(src_val)
             );
-            src_val = BLK_HEAD(series);
+            src_val = ARRAY_HEAD(copy);
         }
         else
-            src_val = VAL_BLK_DATA(src_val); // skips by VAL_INDEX values
+            src_val = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
     }
 
     // Total to insert:
     size = dups * ilen;
 
     if (action != A_CHANGE) {
-        // Always expand dst_ser for INSERT and APPEND actions:
-        Expand_Series(dst_ser, dst_idx, size);
-    } else {
+        // Always expand dst_arr for INSERT and APPEND actions:
+        Expand_Series(ARRAY_SERIES(dst_arr), dst_idx, size);
+    }
+    else {
         if (size > dst_len)
-            Expand_Series(dst_ser, dst_idx, size-dst_len);
+            Expand_Series(ARRAY_SERIES(dst_arr), dst_idx, size-dst_len);
         else if (size < dst_len && GET_FLAG(flags, AN_PART))
-            Remove_Series(dst_ser, dst_idx, dst_len-size);
+            Remove_Series(ARRAY_SERIES(dst_arr), dst_idx, dst_len-size);
         else if (size + dst_idx > tail) {
-            EXPAND_SERIES_TAIL(dst_ser, size - (tail - dst_idx));
+            EXPAND_SERIES_TAIL(ARRAY_SERIES(dst_arr), size - (tail - dst_idx));
         }
     }
 
@@ -103,18 +104,16 @@ REBCNT Modify_Array(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL
 
 #if !defined(NDEBUG)
     for (index = 0; index < ilen; index++) {
-        if (SERIES_GET_FLAG(dst_ser, SER_MANAGED))
+        if (ARRAY_GET_FLAG(dst_arr, SER_MANAGED))
             ASSERT_VALUE_MANAGED(&src_val[index]);
     }
 #endif
 
-    dst_idx *= SERIES_WIDE(dst_ser); // loop invariant
-    ilen  *= SERIES_WIDE(dst_ser); // loop invariant
     for (; dups > 0; dups--) {
-        memcpy(dst_ser->data + dst_idx, src_val, ilen);
+        memcpy(ARRAY_HEAD(dst_arr) + dst_idx, src_val, ilen * sizeof(REBVAL));
         dst_idx += ilen;
     }
-    TERM_ARRAY(dst_ser);
+    TERM_ARRAY(dst_arr);
 
     return tail;
 }
@@ -123,23 +122,21 @@ REBCNT Modify_Array(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL
 //
 //  Modify_String: C
 // 
-// action: INSERT, APPEND, CHANGE
-// 
-// dst_ser:    target
-// dst_idx:    position
-// src_val:    source
-// flags:        AN_PART
-// dst_len:    length to remove
-// dups:        dup count
-// 
-// return: new dst_idx
+// Returns new dst_idx.
 //
-REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
-{
+REBCNT Modify_String(
+    REBCNT action,          // INSERT, APPEND, CHANGE
+    REBSER *dst_ser,        // target
+    REBCNT dst_idx,         // position
+    const REBVAL *src_val,  // source
+    REBCNT flags,           // AN_PART
+    REBINT dst_len,         // length to remove
+    REBINT dups             // dup count
+) {
     REBSER *src_ser = 0;
     REBCNT src_idx = 0;
     REBCNT src_len;
-    REBCNT tail  = SERIES_TAIL(dst_ser);
+    REBCNT tail  = SERIES_LEN(dst_ser);
     REBINT size;        // total to insert
     REBOOL needs_free;
     REBINT limit;
@@ -176,7 +173,7 @@ REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVA
             limit = -1;
         }
         else if (ANY_STR(src_val)) {
-            src_len = VAL_LEN(src_val);
+            src_len = VAL_LEN_AT(src_val);
             if (limit >= 0 && src_len > cast(REBCNT, limit))
                 src_len = limit;
             src_ser = Make_UTF8_From_Any_String(src_val, src_len, 0);
@@ -201,12 +198,12 @@ REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVA
 
     // Use either new src or the one that was passed:
     if (src_ser) {
-        src_len = SERIES_TAIL(src_ser);
+        src_len = SERIES_LEN(src_ser);
     }
     else {
         src_ser = VAL_SERIES(src_val);
         src_idx = VAL_INDEX(src_val);
-        src_len = VAL_LEN(src_val);
+        src_len = VAL_LEN_AT(src_val);
         needs_free = FALSE;
     }
 

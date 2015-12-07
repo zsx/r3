@@ -64,7 +64,7 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
         );
         SET_INTEGER(val, sig[i].si_uid);
 
-        Val_Init_Object(VAL_BLK_SKIP(arg, VAL_TAIL(arg) + i), obj);
+        Val_Init_Object(VAL_ARRAY_AT_HEAD(arg, VAL_TAIL(arg) + i), obj);
     }
 
     VAL_TAIL(arg) += len;
@@ -168,7 +168,7 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
                     fail (Error(RE_INVALID_SPEC, val));
 
                 sigemptyset(&req->special.signal.mask);
-                for(sig = VAL_BLK_SKIP(val, 0); NOT_END(sig); sig ++) {
+                for(sig = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(sig); sig ++) {
                     if (IS_WORD(sig)) {
                         /* handle the special word "ALL" */
                         if (VAL_WORD_CANON(sig) == SYM_ALL) {

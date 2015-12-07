@@ -50,21 +50,6 @@ REBINT CT_Function(REBVAL *a, REBVAL *b, REBINT mode)
 
 
 //
-//  As_Typesets: C
-//
-REBSER *As_Typesets(REBSER *types)
-{
-    REBVAL *val;
-
-    types = Copy_Array_At_Shallow(types, 1);
-    for (val = BLK_HEAD(types); NOT_END(val); val++) {
-        SET_TYPE(val, REB_TYPESET);
-    }
-    return types;
-}
-
-
-//
 //  MT_Function: C
 // 
 // For REB_FUNCTION and REB_CLOSURE "make spec", there is a function spec
@@ -87,24 +72,24 @@ REBFLG MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
 
     if (!IS_BLOCK(def)) return FALSE;
 
-    len = VAL_LEN(def);
+    len = VAL_LEN_AT(def);
     if (len < 2) return FALSE;
 
-    spec = VAL_BLK_HEAD(def);
+    spec = VAL_ARRAY_HEAD(def);
 
     if (!IS_BLOCK(def)) return FALSE;
 
     if (type == REB_COMMAND) {
-        REBVAL *extension = VAL_BLK_SKIP(def, 1);
+        REBVAL *extension = VAL_ARRAY_AT_HEAD(def, 1);
         REBVAL *command_num;
 
         if (len != 3) return FALSE;
-        command_num = VAL_BLK_SKIP(def, 2);
+        command_num = VAL_ARRAY_AT_HEAD(def, 2);
 
         Make_Command(out, spec, extension, command_num);
     }
     else if (type == REB_FUNCTION || type == REB_CLOSURE) {
-        REBVAL *body = VAL_BLK_SKIP(def, 1);
+        REBVAL *body = VAL_ARRAY_AT_HEAD(def, 1);
 
         // Spec-constructed functions do *not* have definitional returns
         // added automatically.  They are part of the generators.
@@ -171,16 +156,16 @@ REBTYPE(Function)
                 // functions made by the optimized generators FUNC and CLOS...
 
                 REBFLG is_fake;
-                REBSER *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+                REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
                 Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
 
                 if (VAL_TYPE(value) == REB_CLOSURE) {
                     // See #2221 for why closure body copies unbind locals
                     Unbind_Values_Core(
-                        VAL_BLK_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
+                        VAL_ARRAY_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
                     );
                 }
-                if (is_fake) Free_Series(body); // was shallow copy
+                if (is_fake) Free_Array(body); // was shallow copy
                 return R_OUT;
             }
 
@@ -195,15 +180,35 @@ REBTYPE(Function)
             Val_Init_Block(
                 D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
             );
-            Unbind_Values_Deep(VAL_BLK_HEAD(D_OUT));
+            Unbind_Values_Deep(VAL_ARRAY_HEAD(D_OUT));
             return R_OUT;
 
-        case OF_TYPES:
-            Val_Init_Block(D_OUT, As_Typesets(VAL_FUNC_PARAMLIST(value)));
+        case OF_TYPES: {
+            REBARR *copy = Make_Array(VAL_FUNC_NUM_PARAMS(value));
+            REBVAL *param;
+            REBVAL *typeset;
+
+            // The typesets have a symbol in them for the parameters, and
+            // ordinary typesets aren't supposed to have it--that's a
+            // special feature for object keys and paramlists!  So clear
+            // that symbol out before giving it back.
+            //
+            param = VAL_FUNC_PARAMS_HEAD(value);
+            typeset = ARRAY_HEAD(copy);
+            for (; NOT_END(param); param++, typeset++) {
+                assert(VAL_TYPESET_SYM(param) != SYM_0);
+                *typeset = *param;
+                VAL_TYPESET_SYM(typeset) = SYM_0;
+            }
+            SET_END(typeset);
+            SET_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
+
+            Val_Init_Block(D_OUT, copy);
             return R_OUT;
+        }
 
         case OF_TITLE:
-            arg = BLK_HEAD(VAL_FUNC_SPEC(value));
+            arg = ARRAY_HEAD(VAL_FUNC_SPEC(value));
             while (NOT_END(arg) && !IS_STRING(arg) && !IS_WORD(arg))
                 arg++;
             if (!IS_STRING(arg)) return R_NONE;

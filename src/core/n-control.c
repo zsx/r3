@@ -91,7 +91,7 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 
     SERIES_SET_FLAG(series, SER_MARK); // recursion protection
 
-    for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
+    for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
         Protect_Value(val, flags);
     }
 }
@@ -106,13 +106,13 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 {
     REBFRM *frame = VAL_FRAME(value);
 
-    if (SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_MARK))
+    if (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MARK))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
     else
-        SERIES_CLR_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
 
     for (value = FRAME_KEY(frame, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
@@ -120,7 +120,7 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_MARK); // recursion protection
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_MARK); // recursion protection
 
     for (value = FRAME_VAR(frame, 1); NOT_END(value); value++) {
         Protect_Value(value, flags);
@@ -193,14 +193,14 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
 
     if (IS_BLOCK(val)) {
         if (D_REF(3)) { // /words
-            for (val = VAL_BLK_DATA(val); NOT_END(val); val++)
+            for (val = VAL_ARRAY_AT(val); NOT_END(val); val++)
                 Protect_Word_Value(val, flags);  // will unmark if deep
             return R_ARG1;
         }
         if (D_REF(4)) { // /values
             REBVAL *val2;
             REBVAL safe;
-            for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
+            for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
                 if (IS_WORD(val)) {
                     // !!! Temporary and ugly cast; since we *are* PROTECT
                     // we allow ourselves to get mutable references to even
@@ -275,12 +275,12 @@ REBNATIVE(all)
 // drawbacks to those wishing to use it on logic values and stay in the
 // logic domain.  (`all [true true]` => true, `all [false true]` is NONE!).
 {
-    REBSER *block = VAL_SERIES(D_ARG(1));
+    REBARR *block = VAL_ARRAY(D_ARG(1));
     REBCNT index = VAL_INDEX(D_ARG(1));
 
     SET_TRUE(D_OUT);
 
-    while (index < SERIES_TAIL(block)) {
+    while (index < ARRAY_LEN(block)) {
         DO_NEXT_MAY_THROW(index, D_OUT, block, index);
         if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
@@ -317,10 +317,10 @@ REBNATIVE(any)
 // case that `FALSE OR X OR Y` matches with `TRUE AND X AND Y` as the
 // "seed" for not affecting the chain.
 {
-    REBSER *block = VAL_SERIES(D_ARG(1));
+    REBARR *block = VAL_ARRAY(D_ARG(1));
     REBCNT index = VAL_INDEX(D_ARG(1));
 
-    while (index < SERIES_TAIL(block)) {
+    while (index < ARRAY_LEN(block)) {
         DO_NEXT_MAY_THROW(index, D_OUT, block, index);
         if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
 
@@ -407,7 +407,7 @@ REBNATIVE(break)
 REBNATIVE(case)
 {
     // We leave D_ARG(1) alone, it is holding 'block' alive from GC
-    REBSER *block = VAL_SERIES(D_ARG(1));
+    REBARR *block = VAL_ARRAY(D_ARG(1));
     REBCNT index = VAL_INDEX(D_ARG(1));
 
     // Save refinement to boolean to free up GC protected call frame slot
@@ -426,7 +426,7 @@ REBNATIVE(case)
 
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
-    while (index < SERIES_TAIL(block)) {
+    while (index < ARRAY_LEN(block)) {
 
         DO_NEXT_MAY_THROW(index, safe_temp, block, index);
 
@@ -601,7 +601,7 @@ REBNATIVE(catch)
 
             if (IS_BLOCK(name_list)) {
                 // Test all the words in the block for a match to catch
-                REBVAL *candidate = VAL_BLK_DATA(name_list);
+                REBVAL *candidate = VAL_ARRAY_AT(name_list);
                 for (; NOT_END(candidate); candidate++) {
                     // !!! Should we test a typeset for illegal name types?
                     if (IS_BLOCK(candidate))
@@ -656,7 +656,7 @@ was_caught:
             return R_OUT;
         }
         else if (ANY_FUNC(handler)) {
-            REBVAL *param = BLK_SKIP(VAL_FUNC_PARAMLIST(handler), 1);
+            REBVAL *param = ARRAY_AT(VAL_FUNC_PARAMLIST(handler), 1);
 
             if (
                 (VAL_FUNC_NUM_PARAMS(handler) == 0)
@@ -766,7 +766,7 @@ REBNATIVE(comment)
     PARAM(1, value);
 
     if (D_FRAMELESS) {
-        D_VALUE = BLK_SKIP(D_ARRAY, D_INDEX);
+        D_VALUE = ARRAY_AT(D_ARRAY, D_INDEX);
 
         if (IS_END(D_VALUE))
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
@@ -833,7 +833,7 @@ REBNATIVE(compose)
         }
 
         if (Compose_Values_Throws(
-            D_OUT, VAL_BLK_HEAD(D_CELL), FALSE, FALSE, FALSE
+            D_OUT, VAL_ARRAY_HEAD(D_CELL), FALSE, FALSE, FALSE
         )) {
             return R_OUT_IS_THROWN;
         }
@@ -851,7 +851,7 @@ REBNATIVE(compose)
     if (REF(into)) *D_OUT = *ARG(out);
 
     if (Compose_Values_Throws(
-        D_OUT, VAL_BLK_HEAD(ARG(value)), REF(deep), REF(only), REF(into)
+        D_OUT, VAL_ARRAY_HEAD(ARG(value)), REF(deep), REF(only), REF(into)
     )) {
         return R_OUT_IS_THROWN;
     }
@@ -921,7 +921,7 @@ REBNATIVE(do)
             DO_NEXT_MAY_THROW(
                 VAL_INDEX(ARG(value)), // updates index of value in call frame
                 D_OUT,
-                VAL_SERIES(ARG(value)),
+                VAL_ARRAY(ARG(value)),
                 VAL_INDEX(ARG(value))
             );
 
@@ -1081,18 +1081,24 @@ REBNATIVE(fail)
         if (IS_BLOCK(reason)) {
             // Check to make sure we're only drawing from the limited types
             // we accept (reserving room for future dialect expansion)
-            REBCNT index = VAL_INDEX(reason);
-            for (; index < SERIES_LEN(VAL_SERIES(reason)); index++) {
-                REBVAL *item = BLK_SKIP(VAL_SERIES(reason), index);
-                if (IS_STRING(item) || IS_SCALAR(item) || IS_PAREN(item))
+            //
+            REBVAL *item = VAL_ARRAY_AT(reason);
+            for (; NOT_END(item); item++) {
+                if (IS_STRING(item) || IS_SCALAR(item))
                     continue;
 
-                // We don't want to dispatch functions directly (use parens)
+                // Leave the paren in and let the reduce take care of it
+                //
+                if (IS_PAREN(item))
+                    continue;
 
+                // Leave words in to be handled by the reduce step as long
+                // as they don't look up to functions.
+                //
                 // !!! This keeps the option open of being able to know that
                 // strings that appear in the block appear in the error
                 // message so it can be templated.
-
+                //
                 if (IS_WORD(item)) {
                     const REBVAL *var = TRY_GET_VAR(item);
                     if (!var || !ANY_FUNC(var))
@@ -1104,14 +1110,15 @@ REBNATIVE(fail)
                 // to Reduce_Block ATM.  For now we force you to use a PAREN!
                 //
                 //     fail [{Erroring on} (the/safe/side) {for now.}]
-
+                //
                 fail (Error(RE_LIMITED_FAIL_INPUT));
             }
 
             // We just reduce and form the result, but since we allow PAREN!
             // it means you can put in pretty much any expression.
-            if (Reduce_Block_Throws(
-                reason, VAL_SERIES(reason), VAL_INDEX(reason), FALSE
+            //
+            if (Reduce_Array_Throws(
+                reason, VAL_ARRAY(reason), VAL_INDEX(reason), FALSE
             )) {
                 *D_OUT = *reason;
                 return R_OUT_IS_THROWN;
@@ -1414,33 +1421,52 @@ REBNATIVE(unprotect)
 //  {Evaluates expressions and returns multiple results.}
 //  
 //      value
-//      /no-set "Keep set-words as-is. Do not set them."
-//      /only "Only evaluate words and paths, not functions"
-//      words [block! none!] "Optional words that are not evaluated (keywords)"
-//      
-//      /into {Output results into a series with no intermediate storage}
-//      out [any-array! any-string! binary!]
+//      /no-set
+//          "Keep set-words as-is. Do not set them."
+//      /only
+//          "Only evaluate words and paths, not functions"
+//      words [block! none!]
+//          "Optional words that are not evaluated (keywords)"
+//      /into
+//          {Output results into a series with no intermediate storage}
+//      target [any-array!]
 //  ]
 //
 REBNATIVE(reduce)
 {
-    if (IS_BLOCK(D_ARG(1))) {
-        REBSER *ser = VAL_SERIES(D_ARG(1));
-        REBCNT index = VAL_INDEX(D_ARG(1));
-        REBOOL into = D_REF(5);
+    PARAM(1, value);
+    REFINE(2, no_set);
+    REFINE(3, only);
+    PARAM(4, words);
+    REFINE(5, into);
+    PARAM(6, target);
 
-        if (into)
-            *D_OUT = *D_ARG(6);
+    if (IS_BLOCK(ARG(value))) {
+        if (REF(into))
+            *D_OUT = *ARG(target);
 
-        if (D_REF(2)) {
-            if (Reduce_Block_No_Set_Throws(D_OUT, ser, index, into))
+        if (REF(no_set)) {
+            if (Reduce_Array_No_Set_Throws(
+                D_OUT, VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value)), REF(into)
+            )) {
                 return R_OUT_IS_THROWN;
+            }
         }
-        else if (D_REF(3))
-            Reduce_Only(D_OUT, ser, index, D_ARG(4), into);
+        else if (REF(only)) {
+            Reduce_Only(
+                D_OUT,
+                VAL_ARRAY(ARG(value)),
+                VAL_INDEX(ARG(value)),
+                ARG(words),
+                REF(into)
+            );
+        }
         else {
-            if (Reduce_Block_Throws(D_OUT, ser, index, into))
+            if (Reduce_Array_Throws(
+                D_OUT, VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value)), REF(into)
+            )) {
                 return R_OUT_IS_THROWN;
+            }
         }
 
         return R_OUT;
@@ -1498,7 +1524,7 @@ REBNATIVE(switch)
 
     REBOOL found = FALSE;
 
-    REBVAL *item = VAL_BLK_DATA(cases);
+    REBVAL *item = VAL_ARRAY_AT(cases);
 
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // default return if no cases run
 

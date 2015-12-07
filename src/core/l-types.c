@@ -126,7 +126,7 @@ REBINT Scan_Hex_Bytes(REBVAL *val, REBCNT maxlen, REBYTE *out)
     REBUNI c;
     REBYTE *start = out;
 
-    len = VAL_LEN(val);
+    len = VAL_LEN_AT(val);
     if (len > maxlen) return 0;
 
     for (cnt = 0; cnt < len; cnt++) {
@@ -757,9 +757,9 @@ const REBYTE *Scan_Any(const REBYTE *cp, REBCNT len, REBVAL *value, REBYTE type)
     MANAGE_SERIES(VAL_SERIES(value));
 
     if (VAL_BYTE_SIZE(value)) {
-        n = Deline_Bytes(VAL_BIN(value), VAL_LEN(value));
+        n = Deline_Bytes(VAL_BIN(value), VAL_LEN_AT(value));
     } else {
-        n = Deline_Uni(VAL_UNI(value), VAL_LEN(value));
+        n = Deline_Uni(VAL_UNI(value), VAL_LEN_AT(value));
     }
     VAL_TAIL(value) = n;
 
@@ -772,13 +772,18 @@ const REBYTE *Scan_Any(const REBYTE *cp, REBCNT len, REBVAL *value, REBYTE type)
 // 
 // Add a new string or tag to a markup block, advancing the tail.
 //
-static void Append_Markup(REBSER *series, enum Reb_Kind type, const REBYTE *bp, REBINT len)
-{
+static void Append_Markup(
+    REBARR *array,
+    enum Reb_Kind type,
+    const REBYTE *bp,
+    REBINT len
+) {
     REBVAL *val;
-    if (SERIES_FULL(series)) Extend_Series(series, 8);
-    val = BLK_TAIL(series);
+    if (SERIES_FULL(ARRAY_SERIES(array)))
+        Extend_Series(ARRAY_SERIES(array), 8);
+    val = ARRAY_TAIL(array);
     SET_END(val);
-    series->tail++;
+    SET_ARRAY_LEN(array, ARRAY_LEN(array) + 1);
     SET_END(val+1);
     Val_Init_Series(val, type, Append_UTF8(0, bp, len));
 }
@@ -790,13 +795,13 @@ static void Append_Markup(REBSER *series, enum Reb_Kind type, const REBYTE *bp, 
 // Scan a string as HTML or XML and convert it to a block
 // of strings and tags.  Return the block as a series.
 //
-REBSER *Load_Markup(const REBYTE *cp, REBINT len)
+REBARR *Load_Markup(const REBYTE *cp, REBINT len)
 {
     const REBYTE *bp = cp;
-    REBSER *series;
+    REBARR *array;
     REBYTE quote;
 
-    series = Make_Array(16);
+    array = Make_Array(16);
 
     while (len > 0) {
         // Look for tag, gathering text as we go:
@@ -805,7 +810,7 @@ REBSER *Load_Markup(const REBYTE *cp, REBINT len)
         if (!IS_LEX_WORD(cp[1]) && cp[1] != '/' && cp[1] != '?' && cp[1] != '!') {
             cp++; len--; continue;
         }
-        if (cp != bp) Append_Markup(series, REB_STRING, bp, cp - bp);
+        if (cp != bp) Append_Markup(array, REB_STRING, bp, cp - bp);
         bp = ++cp;  // skip <
 
         // Check for comment tag:
@@ -818,7 +823,7 @@ REBSER *Load_Markup(const REBYTE *cp, REBINT len)
         // Look for end of tag, watch for quotes:
         for (len--; len > 0; len--, cp++) {
             if (*cp == '>') {
-                Append_Markup(series, REB_TAG, bp, cp - bp);
+                Append_Markup(array, REB_TAG, bp, cp - bp);
                 bp = ++cp; len--;
                 break;
             }
@@ -830,9 +835,9 @@ REBSER *Load_Markup(const REBYTE *cp, REBINT len)
         }
         // Note: if final tag does not end, then it is treated as text.
     }
-    if (cp != bp) Append_Markup(series, REB_STRING, bp, cp - bp);
+    if (cp != bp) Append_Markup(array, REB_STRING, bp, cp - bp);
 
-    return series;
+    return array;
 }
 
 
@@ -856,14 +861,14 @@ REBSER *Load_Markup(const REBYTE *cp, REBINT len)
 // Keep in mind that this function is being called as part of the
 // scanner, so optimal performance is critical.
 //
-REBFLG Construct_Value(REBVAL *out, REBSER *spec)
+REBFLG Construct_Value(REBVAL *out, REBARR *spec)
 {
     REBVAL *val;
     REBCNT sym;
     enum Reb_Kind type;
     MAKE_FUNC func;
 
-    val = BLK_HEAD(spec);
+    val = ARRAY_HEAD(spec);
 
     if (!IS_WORD(val)) return FALSE;
 
@@ -913,12 +918,12 @@ REBFLG Construct_Value(REBVAL *out, REBSER *spec)
         // be bad if it were overwritten partway through, then the val
         // out of the spec referred to again...)
 
-        PUSH_GUARD_SERIES(spec);
+        PUSH_GUARD_ARRAY(spec);
         if (func(out, val, type)) {
-            DROP_GUARD_SERIES(spec);
+            DROP_GUARD_ARRAY(spec);
             return TRUE;
         }
-        DROP_GUARD_SERIES(spec);
+        DROP_GUARD_ARRAY(spec);
     }
 
     return FALSE;
@@ -931,13 +936,14 @@ REBFLG Construct_Value(REBVAL *out, REBSER *spec)
 // Scan an Internet-style header (HTTP, SMTP).
 // Fields with duplicate words will be merged into a block.
 //
-REBSER *Scan_Net_Header(REBSER *blk, REBYTE *str)
+REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
 {
     REBYTE *cp = str;
     REBYTE *start;
     REBVAL *val;
     REBINT len;
-    REBSER *ser;
+    REBARR *array;
+    REBSER *string;
 
     while (IS_LEX_ANY_SPACE(*cp)) cp++; // skip white space
 
@@ -960,31 +966,31 @@ REBSER *Scan_Net_Header(REBSER *blk, REBYTE *str)
             REBCNT sym = Make_Word(start, cp-start);
             cp++;
             // Search if word already present:
-            for (val = BLK_HEAD(blk); NOT_END(val); val += 2) {
+            for (val = ARRAY_HEAD(header); NOT_END(val); val += 2) {
                 if (VAL_WORD_SYM(val) == sym) {
                     // Does it already use a block?
                     if (IS_BLOCK(val+1)) {
                         // Block of values already exists:
-                        val = Alloc_Tail_Array(VAL_SERIES(val+1));
+                        val = Alloc_Tail_Array(VAL_ARRAY(val + 1));
                         SET_NONE(val);
                     }
                     else {
                         // Create new block for values:
                         REBVAL *val2;
-                        ser = Make_Array(2);
-                        val2 = Alloc_Tail_Array(ser); // prior value
+                        array = Make_Array(2);
+                        val2 = Alloc_Tail_Array(array); // prior value
                         *val2 = val[1];
-                        Val_Init_Block(val + 1, ser);
-                        val = Alloc_Tail_Array(ser); // for new value
+                        Val_Init_Block(val + 1, array);
+                        val = Alloc_Tail_Array(array); // for new value
                         SET_NONE(val);
                     }
                     break;
                 }
             }
             if (IS_END(val)) {
-                val = Alloc_Tail_Array(blk); // add new word
+                val = Alloc_Tail_Array(header); // add new word
                 Val_Init_Word_Unbound(val, REB_SET_WORD, sym);
-                val = Alloc_Tail_Array(blk); // for new value
+                val = Alloc_Tail_Array(header); // for new value
                 SET_NONE(val);
             }
         }
@@ -1013,9 +1019,9 @@ REBSER *Scan_Net_Header(REBSER *blk, REBYTE *str)
         }
 
         // Create string value (ignoring lines and indents):
-        ser = Make_Binary(len);
-        ser->tail = len;
-        str = STR_HEAD(ser);
+        string = Make_Binary(len);
+        SET_SERIES_LEN(string, len);
+        str = STR_HEAD(string);
         cp = start;
         // Code below *MUST* mirror that above:
         while (!ANY_CR_LF_END(*cp)) *str++ = *cp++;
@@ -1030,8 +1036,8 @@ REBSER *Scan_Net_Header(REBSER *blk, REBYTE *str)
             else break;
         }
         *str = 0;
-        Val_Init_String(val, ser);
+        Val_Init_String(val, string);
     }
 
-    return blk;
+    return header;
 }

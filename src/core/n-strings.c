@@ -128,8 +128,13 @@ static struct digest {
 //
 REBNATIVE(ajoin)
 {
-    if (Form_Reduce_Throws(D_OUT, VAL_SERIES(D_ARG(1)), VAL_INDEX(D_ARG(1))))
+    PARAM(1, block);
+
+    if (Form_Reduce_Throws(
+        D_OUT, VAL_ARRAY(ARG(block)), VAL_INDEX(ARG(block))
+    )) {
         return R_OUT_IS_THROWN;
+    }
 
     return R_OUT;
 }
@@ -192,7 +197,7 @@ REBNATIVE(spelling_of)
 REBNATIVE(checksum)
 {
     REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
-    REBYTE *data = VAL_BIN_DATA(arg);
+    REBYTE *data = VAL_BIN_AT(arg);
     REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE));
     REBINT sym = SYM_SHA1;
 
@@ -244,8 +249,8 @@ REBNATIVE(checksum)
                     REBYTE ipad[64],opad[64];   // Size must be max of all digest[].hmacblock;
                     char *ctx = ALLOC_ARRAY(char, digests[i].ctxsize());
                     REBVAL *key = D_ARG(ARG_CHECKSUM_KEY_VALUE);
-                    REBYTE *keycp = VAL_BIN_DATA(key);
-                    int keylen = VAL_LEN(key);
+                    REBYTE *keycp = VAL_BIN_AT(key);
+                    int keylen = VAL_LEN_AT(key);
                     int blocklen = digests[i].hmacblock;
                     REBINT j;
 
@@ -280,7 +285,7 @@ REBNATIVE(checksum)
                     digests[i].digest(data, len, BIN_HEAD(digest));
                 }
 
-                SERIES_TAIL(digest) = digests[i].len;
+                SET_SERIES_LEN(digest, digests[i].len);
                 TERM_SEQUENCE(digest);
                 Val_Init_Binary(D_OUT, digest);
 
@@ -411,7 +416,7 @@ REBNATIVE(construct)
     //
     if (IS_STRING(spec_value) || IS_BINARY(spec_value)) {
         REBCNT index;
-        REBSER *array;
+        REBARR *array;
 
         // Just a guess at size:
         array = Make_Array(10);     // Use a std BUF_?
@@ -420,7 +425,8 @@ REBNATIVE(construct)
         // Convert string if necessary. Store back for safety.
         VAL_SERIES(spec_value) = Temp_Bin_Str_Managed(spec_value, &index, 0);
 
-        // !issue! Is this what we really want here?
+        // !!! "Is this what we really want here?" <= but *what is it*?
+        //
         Scan_Net_Header(array, VAL_BIN(spec_value) + index);
         spec_value = D_OUT;
     }
@@ -430,7 +436,7 @@ REBNATIVE(construct)
     Val_Init_Object(
         D_OUT,
         Construct_Frame(
-            REB_OBJECT, VAL_BLK_DATA(spec_value), REF(only), parent
+            REB_OBJECT, VAL_ARRAY_AT(spec_value), REF(only), parent
         )
     );
 
@@ -463,7 +469,7 @@ REBNATIVE(debase)
 
     if (D_REF(2)) base = VAL_INT32(D_ARG(3)); // /base
 
-    if (!Decode_Binary(D_OUT, BIN_SKIP(ser, index), len, base, 0))
+    if (!Decode_Binary(D_OUT, BIN_AT(ser, index), len, base, 0))
         fail (Error(RE_INVALID_DATA, D_ARG(1)));
 
     return R_OUT;
@@ -532,7 +538,7 @@ REBNATIVE(decloak)
     REBVAL *data = D_ARG(1);
     REBVAL *key  = D_ARG(2);
 
-    if (!Cloak(TRUE, VAL_BIN_DATA(data), VAL_LEN(data), (REBYTE*)key, 0, D_REF(3)))
+    if (!Cloak(TRUE, VAL_BIN_AT(data), VAL_LEN_AT(data), (REBYTE*)key, 0, D_REF(3)))
         fail (Error_Invalid_Arg(key));
 
     return R_ARG1;
@@ -556,7 +562,7 @@ REBNATIVE(encloak)
     REBVAL *data = D_ARG(1);
     REBVAL *key  = D_ARG(2);
 
-    if (!Cloak(FALSE, VAL_BIN_DATA(data), VAL_LEN(data), (REBYTE*)key, 0, D_REF(3)))
+    if (!Cloak(FALSE, VAL_BIN_AT(data), VAL_LEN_AT(data), (REBYTE*)key, 0, D_REF(3)))
         fail (Error_Invalid_Arg(key));
 
     return R_ARG1;
@@ -576,12 +582,12 @@ REBNATIVE(dehex)
 // Works for any string.
 {
     REBVAL *arg = D_ARG(1);
-    REBINT len = (REBINT)VAL_LEN(arg); // due to len -= 2 below
+    REBCNT len = VAL_LEN_AT(arg);
     REBUNI n;
     REBSER *ser;
 
     if (VAL_BYTE_SIZE(arg)) {
-        REBYTE *bp = VAL_BIN_DATA(arg);
+        REBYTE *bp = VAL_BIN_AT(arg);
         REBYTE *dp = Reset_Buffer(BUF_FORM, len);
 
         for (; len > 0; len--) {
@@ -597,7 +603,7 @@ REBNATIVE(dehex)
         ser = Copy_String(BUF_FORM, 0, dp - BIN_HEAD(BUF_FORM));
     }
     else {
-        REBUNI *up = VAL_UNI_DATA(arg);
+        REBUNI *up = VAL_UNI_AT(arg);
         REBUNI *dp = (REBUNI*)Reset_Buffer(BUF_MOLD, len);
 
         for (; len > 0; len--) {
@@ -634,7 +640,7 @@ REBNATIVE(deline)
 // Convert CR or CRLF strings to just LF strings.
 {
     REBVAL *val = D_ARG(1);
-    REBINT len = VAL_LEN(val);
+    REBINT len = VAL_LEN_AT(val);
     REBINT n;
 
     if (D_REF(2)) { //lines
@@ -643,10 +649,10 @@ REBNATIVE(deline)
     }
 
     if (VAL_BYTE_SIZE(val)) {
-        REBYTE *bp = VAL_BIN_DATA(val);
+        REBYTE *bp = VAL_BIN_AT(val);
         n = Deline_Bytes(bp, len);
     } else {
-        REBUNI *up = VAL_UNI_DATA(val);
+        REBUNI *up = VAL_UNI_AT(val);
         n = Deline_Uni(up, len);
     }
 
@@ -671,11 +677,11 @@ REBNATIVE(enline)
     REBVAL *val = D_ARG(1);
     REBSER *ser = VAL_SERIES(val);
 
-    if (SERIES_TAIL(ser)) {
+    if (SERIES_LEN(ser)) {
         if (VAL_BYTE_SIZE(val))
-            Enline_Bytes(ser, VAL_INDEX(val), VAL_LEN(val));
+            Enline_Bytes(ser, VAL_INDEX(val), VAL_LEN_AT(val));
         else
-            Enline_Uni(ser, VAL_INDEX(val), VAL_LEN(val));
+            Enline_Uni(ser, VAL_INDEX(val), VAL_LEN_AT(val));
     }
 
     return R_ARG1;
@@ -699,7 +705,7 @@ REBNATIVE(entab)
     REBVAL *val = D_ARG(1);
     REBINT tabsize = TAB_SIZE;
     REBSER *ser;
-    REBCNT len = VAL_LEN(val);
+    REBCNT len = VAL_LEN_AT(val);
 
     if (D_REF(2)) tabsize = Int32s(D_ARG(3), 1);
 
@@ -730,7 +736,7 @@ REBNATIVE(detab)
     REBVAL *val = D_ARG(1);
     REBINT tabsize = TAB_SIZE;
     REBSER *ser;
-    REBCNT len = VAL_LEN(val);
+    REBCNT len = VAL_LEN_AT(val);
 
     if (D_REF(2)) tabsize = Int32s(D_ARG(3), 1);
 
@@ -822,7 +828,7 @@ REBNATIVE(to_hex)
     else
         fail (Error_Invalid_Arg(arg));
 
-//  SERIES_TAIL(series) = len;
+//  SERIES_LEN(series) = len;
 //  Val_Init_Series(D_OUT, REB_ISSUE, series);
     Val_Init_Word_Unbound(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
@@ -843,13 +849,13 @@ REBNATIVE(find_script)
     REBVAL *arg = D_ARG(1);
     REBINT n;
 
-    n = What_UTF(VAL_BIN_DATA(arg), VAL_LEN(arg));
+    n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
 
     if (n != 0 && n != 8) return R_NONE;  // UTF8 only
 
     if (n == 8) VAL_INDEX(arg) += 3;  // BOM8 length
 
-    n = Scan_Header(VAL_BIN_DATA(arg), VAL_LEN(arg)); // returns offset
+    n = Scan_Header(VAL_BIN_AT(arg), VAL_LEN_AT(arg)); // returns offset
 
     if (n == -1) return R_NONE;
 
@@ -869,7 +875,7 @@ REBNATIVE(find_script)
 //
 REBNATIVE(utf_q)
 {
-    REBINT utf = What_UTF(VAL_BIN_DATA(D_ARG(1)), VAL_LEN(D_ARG(1)));
+    REBINT utf = What_UTF(VAL_BIN_AT(D_ARG(1)), VAL_LEN_AT(D_ARG(1)));
     SET_INTEGER(D_OUT, utf);
     return R_OUT;
 }
@@ -890,7 +896,7 @@ REBNATIVE(invalid_utf_q)
     REBVAL *arg = D_ARG(1);
     REBYTE *bp;
 
-    bp = Check_UTF8(VAL_BIN_DATA(arg), VAL_LEN(arg));
+    bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
     if (bp == 0) return R_NONE;
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);

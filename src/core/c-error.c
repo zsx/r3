@@ -46,11 +46,11 @@ void Push_Trap_Helper(REBOL_STATE *s)
 
     s->call = DSF;
 
-    s->series_guard_tail = GC_Series_Guard->tail;
-    s->value_guard_tail = GC_Value_Guard->tail;
+    s->series_guard_len = SERIES_LEN(GC_Series_Guard);
+    s->value_guard_len = SERIES_LEN(GC_Value_Guard);
     s->gc_disable = GC_Disabled;
 
-    s->manuals_tail = SERIES_TAIL(GC_Manuals);
+    s->manuals_len = SERIES_LEN(GC_Manuals);
 
     s->last_state = Saved_State;
     Saved_State = s;
@@ -109,14 +109,16 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     // any arglist series in call frames that have been wiped off the stack.
     // (Closure series will be managed.)
     //
-    assert(GC_Manuals->tail >= state->manuals_tail);
-    while (GC_Manuals->tail != state->manuals_tail) {
+    assert(SERIES_LEN(GC_Manuals) >= state->manuals_len);
+    while (SERIES_LEN(GC_Manuals) != state->manuals_len) {
         // Freeing the series will update the tail...
-        Free_Series(cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1]);
+        Free_Series(
+            cast(REBSER**, GC_Manuals->data)[SERIES_LEN(GC_Manuals) - 1]
+        );
     }
 
-    GC_Series_Guard->tail = state->series_guard_tail;
-    GC_Value_Guard->tail = state->value_guard_tail;
+    SET_SERIES_LEN(GC_Series_Guard, state->series_guard_len);
+    SET_SERIES_LEN(GC_Value_Guard, state->value_guard_len);
 
     GC_Disabled = state->gc_disable;
 
@@ -286,10 +288,10 @@ REBCNT Stack_Depth(void)
 // 
 // Return a block of backtrace words.
 //
-REBSER *Make_Backtrace(REBINT start)
+REBARR *Make_Backtrace(REBINT start)
 {
     REBCNT depth = Stack_Depth();
-    REBSER *blk = Make_Array(depth - start);
+    REBARR *blk = Make_Array(depth - start);
     struct Reb_Call *call;
     REBVAL *val;
 
@@ -414,11 +416,12 @@ static REBFRM *Make_Guarded_Arg123_Error_Frame(void)
     REBVAL *key;
     REBVAL *var;
     REBCNT n;
+    REBCNT root_len = FRAME_LEN(root_frame);
 
     // Update the length to suppress out of bounds assert from FRAME_KEY/VAL
     //
-    FRAME_VARLIST(frame)->tail += 3;
-    FRAME_KEYLIST(frame)->tail += 3;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), root_len + 3);
+    SET_ARRAY_LEN(FRAME_KEYLIST(frame), root_len + 3);
 
     key = FRAME_KEY(frame, FRAME_LEN(root_frame) + 1);
     var = FRAME_KEY(frame, FRAME_LEN(root_frame) + 1);
@@ -496,7 +499,7 @@ REBFLG Make_Error_Object_Throws(
             REB_ERROR, // type
             NULL, // spec
             NULL, // body
-            VAL_BLK_DATA(arg), // values to scan for toplevel set-words
+            VAL_ARRAY_AT(arg), // values to scan for toplevel set-words
             root_frame // parent
         );
 
@@ -506,7 +509,7 @@ REBFLG Make_Error_Object_Throws(
         Val_Init_Error(out, frame);
 
         Rebind_Frame_Deep(root_frame, frame, REBIND_FUNC);
-        Bind_Values_Deep(VAL_BLK_DATA(arg), frame);
+        Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
 
         if (DO_ARRAY_THROWS(&evaluated, arg)) {
             *out = evaluated;
@@ -794,7 +797,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // For a system error coming from a C vararg call, the # of
         // GET-WORD!s in the format block should match the varargs supplied.
 
-        REBVAL *temp = VAL_BLK_HEAD(message);
+        REBVAL *temp = VAL_ARRAY_HEAD(message);
         expected_args = 0;
         while (NOT_END(temp)) {
             if (IS_GET_WORD(temp))
@@ -843,6 +846,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         VAL_SET(FRAME_CONTEXT(frame), REB_ERROR);
     }
     else {
+        REBCNT root_len = FRAME_LEN(root_frame);
         REBVAL *key;
         REBVAL *value;
         REBVAL *temp;
@@ -861,18 +865,18 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // Fix up the tail first so FRAME_KEY and FRAME_VAR don't complain
         // in the debug build that they're accessing beyond the frame length
         //
-        FRAME_VARLIST(frame)->tail += expected_args;
-        FRAME_KEYLIST(frame)->tail += expected_args;
+        SET_ARRAY_LEN(FRAME_VARLIST(frame), root_len + expected_args + 1);
+        SET_ARRAY_LEN(FRAME_KEYLIST(frame), root_len + expected_args + 1);
 
-        key = FRAME_KEY(frame, FRAME_LEN(root_frame) + 1);
-        value = FRAME_VAR(frame, FRAME_LEN(root_frame) + 1);
+        key = FRAME_KEY(frame, root_len + 1);
+        value = FRAME_VAR(frame, root_len + 1);
 
     #ifdef NDEBUG
-        temp = VAL_BLK_HEAD(message);
+        temp = VAL_ARRAY_HEAD(message);
     #else
         // Will get here even for a parameterless string due to throwing in
         // the extra "arguments" of the __FILE__ and __LINE__
-        temp = IS_STRING(message) ? END_VALUE : VAL_BLK_HEAD(message);
+        temp = IS_STRING(message) ? END_VALUE : VAL_ARRAY_HEAD(message);
     #endif
 
         while (NOT_END(temp)) {
@@ -981,11 +985,20 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
     error_obj->id = id;
     error_obj->type = type;
 
-    // Set backtrace and location information:
+    // Set backtrace and location information.  If a frameless native is
+    // running and giving a certain kind of error, it might want us to
+    // pretend it hasn't been called yet...because if it were running
+    // framed it would be erroring on argument fulfillment.  This is
+    // conveyed by the `up_stack` flag.
+    //
     if (DSF && (!up_stack || DSF->prior)) {
+        //
         // Where (what function) is the error:
+        //
         Val_Init_Block(&error_obj->where, Make_Backtrace(up_stack ? 1 : 0));
+
         // Nearby location of the error (in block being evaluated):
+        //
         Val_Init_Block_Index(
             &error_obj->nearest, DSF_ARRAY(DSF), DSF_EXPR_INDEX(DSF)
         );
@@ -1041,10 +1054,10 @@ REBFRM *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     // error that existed before refactoring code out of MT_Function().
 
     REBVAL def;
-    REBSER *series = Make_Array(2);
-    Append_Value(series, spec);
-    Append_Value(series, body);
-    Val_Init_Block(&def, series);
+    REBARR *array = Make_Array(2);
+    Append_Value(array, spec);
+    Append_Value(array, body);
+    Val_Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, NULL);
 }
 
@@ -1311,13 +1324,13 @@ void Init_Errors(REBVAL *errors)
 
     // Create error objects and error type objects:
     *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-    errs = Construct_Frame(REB_OBJECT, VAL_BLK_HEAD(errors), FALSE, NULL);
+    errs = Construct_Frame(REB_OBJECT, VAL_ARRAY_HEAD(errors), FALSE, NULL);
 
     Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
     // Create objects for all error types:
     for (val = FRAME_VAR(errs, 1); NOT_END(val); val++) {
-        errs = Construct_Frame(REB_OBJECT, VAL_BLK_HEAD(val), FALSE, NULL);
+        errs = Construct_Frame(REB_OBJECT, VAL_ARRAY_HEAD(val), FALSE, NULL);
         Val_Init_Object(val, errs);
     }
 }
@@ -1379,7 +1392,7 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
     // Scan block of policies for the class: [file [allow read quit write]]
     len = 0;    // file or url length
     flags = 0;  // policy flags
-    for (policy = VAL_BLK_HEAD(policy); NOT_END(policy); policy += 2) {
+    for (policy = VAL_ARRAY_HEAD(policy); NOT_END(policy); policy += 2) {
 
         // Must be a policy tuple:
         if (!IS_TUPLE(policy+1)) goto error;

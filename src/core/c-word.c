@@ -135,13 +135,13 @@ static void Expand_Word_Table(void)
 
     // Allocate a new hash table:
     Expand_Hash(PG_Word_Table.hashes);
-    // Debug_Fmt("WORD-TABLE: expanded (%d symbols, %d slots)", PG_Word_Table.series->tail, PG_Word_Table.hashes->tail);
+    // Debug_Fmt("WORD-TABLE: expanded (%d symbols, %d slots)", PG_Word_Table.array->tail, PG_Word_Table.hashes->tail);
 
     // Rehash all the symbols:
-    word = BLK_SKIP(PG_Word_Table.series, 1);
+    word = ARRAY_AT(PG_Word_Table.array, 1);
     hashes = (REBCNT *)PG_Word_Table.hashes->data;
     size = PG_Word_Table.hashes->tail;
-    for (n = 1; n < PG_Word_Table.series->tail; n++, word++) {
+    for (n = 1; n < ARRAY_LEN(PG_Word_Table.array); n++, word++) {
         const REBYTE *name = VAL_SYM_NAME(word);
         hash = Hash_Word(name, LEN_BYTES(name));
         skip  = (hash & 0x0000FFFF) % size;
@@ -163,7 +163,7 @@ static void Expand_Word_Table(void)
 //
 static REBCNT Make_Word_Name(const REBYTE *str, REBCNT len)
 {
-    REBCNT pos = SERIES_TAIL(PG_Word_Names);
+    REBCNT pos = SERIES_LEN(PG_Word_Names);
 
     Append_Mem_Extra(PG_Word_Names, str, len, 1); // so we can do next line...
     PG_Word_Names->tail++; // keep terminator for each string
@@ -199,14 +199,17 @@ REBCNT Make_Word(const REBYTE *str, REBCNT len)
     // !!! ...but should the zero length word be a valid word?
 
     // If hash part of word table is too dense, expand it:
-    if (PG_Word_Table.series->tail > PG_Word_Table.hashes->tail/2)
+    if (
+        ARRAY_LEN(PG_Word_Table.array) > SERIES_LEN(PG_Word_Table.hashes) / 2
+    ) {
         Expand_Word_Table();
+    }
 
-    assert(SERIES_TAIL(PG_Word_Table.series) == SERIES_TAIL(Bind_Table));
+    assert(ARRAY_LEN(PG_Word_Table.array) == SERIES_LEN(Bind_Table));
 
     // If word symbol part of word table is full, expand it:
-    if (SERIES_FULL(PG_Word_Table.series)) {
-        Extend_Series(PG_Word_Table.series, 256);
+    if (SERIES_FULL(ARRAY_SERIES(PG_Word_Table.array))) {
+        Extend_Series(ARRAY_SERIES(PG_Word_Table.array), 256);
     }
     if (SERIES_FULL(Bind_Table)) {
         Extend_Series(Bind_Table, 256);
@@ -214,7 +217,7 @@ REBCNT Make_Word(const REBYTE *str, REBCNT len)
     }
 
     size   = (REBINT)PG_Word_Table.hashes->tail;
-    words  = BLK_HEAD(PG_Word_Table.series);
+    words  = ARRAY_HEAD(PG_Word_Table.array);
     hashes = (REBCNT *)PG_Word_Table.hashes->data;
 
     // Hash the word, including a skip factor for lookup:
@@ -238,7 +241,7 @@ REBCNT Make_Word(const REBYTE *str, REBCNT len)
     }
 
 make_sym:
-    n = PG_Word_Table.series->tail;
+    n = ARRAY_LEN(PG_Word_Table.array);
     w = words + n;
     if (h) {
         // Alias word (h = canon word)
@@ -256,8 +259,8 @@ make_sym:
     // These are allowed because of the SERIES_FULL checks above which
     // add one extra to the TAIL check comparision. However, their
     // termination values (nulls) will be missing.
-    PG_Word_Table.series->tail++;
-    Bind_Table->tail++;
+    SET_ARRAY_LEN(PG_Word_Table.array, ARRAY_LEN(PG_Word_Table.array) + 1);
+    SET_SERIES_LEN(Bind_Table, SERIES_LEN(Bind_Table) + 1);
 
     assert(n != SYM_0);
     return n;
@@ -272,7 +275,7 @@ make_sym:
 //
 REBCNT Last_Word_Num(void)
 {
-    return PG_Word_Table.series->tail - 1;
+    return ARRAY_LEN(PG_Word_Table.array) - 1;
 }
 
 
@@ -336,8 +339,10 @@ REBCNT *Val_Word_Sym_Ptr_Debug(const REBVAL *word)
 //
 const REBYTE *Get_Sym_Name(REBCNT num)
 {
-    if (num == 0 || num >= PG_Word_Table.series->tail) return cb_cast("???");
-    return VAL_SYM_NAME(BLK_SKIP(PG_Word_Table.series, num));
+    if (num == 0 || num >= ARRAY_LEN(PG_Word_Table.array))
+        return cb_cast("???");
+
+    return VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, num));
 }
 
 
@@ -401,11 +406,11 @@ void Init_Words(REBFLG only)
         PG_Word_Table.hashes->tail = n;
 
         // The word (symbol) table itself:
-        PG_Word_Table.series = Make_Array(WORD_TABLE_SIZE);
-        Clear_Series(PG_Word_Table.series);
-        SET_NONE(BLK_HEAD(PG_Word_Table.series)); // Put a NONE at head.
-        LABEL_SERIES(PG_Word_Table.series, "word table"); // words are never GC'd
-        PG_Word_Table.series->tail = 1;  // prevent the zero case
+        PG_Word_Table.array = Make_Array(WORD_TABLE_SIZE);
+        Clear_Series(ARRAY_SERIES(PG_Word_Table.array));
+        SET_NONE(ARRAY_HEAD(PG_Word_Table.array)); // Put a NONE at head.
+        LABEL_SERIES(PG_Word_Table.array, "word table"); // words are never GC'd
+        SET_ARRAY_LEN(PG_Word_Table.array, 1);  // prevent the zero case
 
         // A normal char array to hold symbol names:
         PG_Word_Names = Make_Binary(6 * WORD_TABLE_SIZE); // average word size
@@ -414,9 +419,11 @@ void Init_Words(REBFLG only)
 
     // The bind table. Used to cache context indexes for given symbols.
     Bind_Table = Make_Series(
-        SERIES_REST(PG_Word_Table.series), sizeof(REBCNT), MKS_NONE
+        SERIES_REST(ARRAY_SERIES(PG_Word_Table.array)),
+        sizeof(REBCNT),
+        MKS_NONE
     );
     LABEL_SERIES(Bind_Table, "bind table"); // numeric table
     CLEAR_SEQUENCE(Bind_Table);
-    Bind_Table->tail = PG_Word_Table.series->tail;
+    SET_SERIES_LEN(Bind_Table, ARRAY_LEN(PG_Word_Table.array));
 }

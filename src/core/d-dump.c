@@ -48,14 +48,16 @@ void Dump_Series(REBSER *series, const char *memo)
         SERIES_WIDE(series),
         SERIES_TOTAL(series),
         SERIES_BIAS(series),
-        SERIES_TAIL(series),
+        SERIES_LEN(series),
         SERIES_REST(series),
         SERIES_FLAGS(series)
     );
     if (Is_Array_Series(series)) {
-        Dump_Values(BLK_HEAD(series), SERIES_TAIL(series));
+        Dump_Values(ARRAY_HEAD(AS_ARRAY(series)), SERIES_LEN(series));
     } else
-        Dump_Bytes(series->data, (SERIES_TAIL(series)+1) * SERIES_WIDE(series));
+        Dump_Bytes(
+            SERIES_DATA(series), (SERIES_LEN(series) + 1) * SERIES_WIDE(series)
+        );
 }
 
 //
@@ -174,8 +176,8 @@ void Dump_Info(void)
     nums[9] = 0;
     nums[10] = GC_Ballast;
     nums[11] = GC_Disabled;
-    nums[12] = SERIES_TAIL(GC_Series_Guard);
-    nums[13] = SERIES_TAIL(GC_Value_Guard);
+    nums[12] = SERIES_LEN(GC_Series_Guard);
+    nums[13] = SERIES_LEN(GC_Value_Guard);
 
     for (n = 0; n < 14; n++) Debug_Fmt(cs_cast(BOOT_STR(RS_DUMP, n)), nums[n]);
 }
@@ -206,8 +208,8 @@ void Dump_Stack(struct Reb_Call *call, REBINT dsp)
 
     if (call) {
         if (ANY_FUNC(DSF_FUNC(call))) {
-            args = BLK_HEAD(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
-            m = SERIES_TAIL(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
+            args = ARRAY_HEAD(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
+            m = ARRAY_LEN(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
             for (n = 1; n < m; n++)
                 Debug_Fmt("\t%s: %72r", Get_Word_Name(args+n), DSF_ARG(call, n));
         }

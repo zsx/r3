@@ -87,10 +87,12 @@ void Init_Typesets(void)
     REBVAL *value;
     REBINT n;
 
-    Set_Root_Series(ROOT_TYPESETS, Make_Array(40), "typeset presets");
+    Set_Root_Series(
+        ROOT_TYPESETS, ARRAY_SERIES(Make_Array(40)), "typeset presets"
+    );
 
     for (n = 0; Typesets[n].sym != SYM_0; n++) {
-        value = Alloc_Tail_Array(VAL_SERIES(ROOT_TYPESETS));
+        value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));
         VAL_SET(value, REB_TYPESET);
         VAL_TYPESET_BITS(value) = Typesets[n].bits;
 
@@ -137,7 +139,7 @@ REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
 {
     const REBVAL *val;
     REBCNT sym;
-    REBSER *types = VAL_SERIES(ROOT_TYPESETS);
+    REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
 
     VAL_TYPESET_BITS(value) = 0;
 
@@ -153,7 +155,7 @@ REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
                 continue;
             } // Special typeset symbols:
             else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
-                val = BLK_SKIP(types, sym - SYM_ANY_VALUE_X);
+                val = ARRAY_AT(types, sym - SYM_ANY_VALUE_X);
         }
         if (!val) val = block;
         if (IS_DATATYPE(val)) {
@@ -177,7 +179,7 @@ REBFLG MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!IS_BLOCK(data)) return FALSE;
 
-    if (!Make_Typeset(VAL_BLK_HEAD(data), out, TRUE)) return FALSE;
+    if (!Make_Typeset(VAL_ARRAY_HEAD(data), out, TRUE)) return FALSE;
     VAL_SET(out, REB_TYPESET);
 
     return TRUE;
@@ -196,7 +198,7 @@ REBINT Find_Typeset(REBVAL *block)
     VAL_SET(&value, REB_TYPESET);
     Make_Typeset(block, &value, 0);
 
-    val = VAL_BLK_SKIP(ROOT_TYPESETS, 1);
+    val = VAL_ARRAY_AT_HEAD(ROOT_TYPESETS, 1);
 
     for (n = 1; NOT_END(val); val++, n++) {
         if (EQUAL_TYPESET(&value, val)){
@@ -206,20 +208,20 @@ REBINT Find_Typeset(REBVAL *block)
     }
 
 //  Print("Size Typesets: %d", VAL_TAIL(ROOT_TYPESETS));
-    Append_Value(VAL_SERIES(ROOT_TYPESETS), &value);
+    Append_Value(VAL_ARRAY(ROOT_TYPESETS), &value);
     return n;
 }
 
 
 //
-//  Typeset_To_Block: C
+//  Typeset_To_Array: C
 // 
 // Converts typeset value to a block of datatypes.
 // No order is specified.
 //
-REBSER *Typeset_To_Block(REBVAL *tset)
+REBARR *Typeset_To_Array(REBVAL *tset)
 {
-    REBSER *block;
+    REBARR *block;
     REBVAL *value;
     REBINT n;
     REBINT size = 0;
@@ -261,7 +263,7 @@ REBTYPE(Typeset)
     case A_TO:
         if (IS_BLOCK(arg)) {
             VAL_SET(D_OUT, REB_TYPESET);
-            Make_Typeset(VAL_BLK_DATA(arg), D_OUT, 0);
+            Make_Typeset(VAL_ARRAY_AT(arg), D_OUT, 0);
             return R_OUT;
         }
     //  if (IS_NONE(arg)) {

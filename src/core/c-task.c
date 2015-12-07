@@ -65,7 +65,7 @@
 static void Launch_Task(void *task_rebval)
 {
     REBVAL *task = cast(REBVAL*, task_rebval);
-    REBSER *body;
+    REBARR *body;
     REBVAL ignored; // !!! Should result be ignored?
 
     Debug_Str("Begin Task");

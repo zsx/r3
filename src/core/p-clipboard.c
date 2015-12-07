@@ -70,7 +70,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action
             else {
                 REBSER *ser = Make_Binary(len);
                 memcpy(BIN_HEAD(ser), req->common.data, len);
-                SERIES_TAIL(ser) = len;
+                SET_SERIES_LEN(ser, len);
                 Val_Init_Binary(arg, ser);
             }
             OS_FREE(req->common.data); // release the copy buffer
@@ -109,7 +109,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action
         else {
             REBSER *ser = Make_Binary(len);
             memcpy(BIN_HEAD(ser), req->common.data, len);
-            SERIES_TAIL(ser) = len;
+            SET_SERIES_LEN(ser, len);
             Val_Init_Binary(arg, ser);
         }
 
@@ -128,25 +128,26 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action
         refs = Find_Refines(call_, ALL_WRITE_REFS);
 
         // Handle /part refinement:
-        len = VAL_LEN(arg);
+        len = VAL_LEN_AT(arg);
         if (refs & AM_WRITE_PART && VAL_INT32(D_ARG(ARG_WRITE_LIMIT)) < len)
             len = VAL_INT32(D_ARG(ARG_WRITE_LIMIT));
 
         // If bytes, see if we can fit it:
         if (SERIES_WIDE(VAL_SERIES(arg)) == 1) {
 #ifdef ARG_STRINGS_ALLOWED
-            if (!All_Bytes_ASCII(VAL_BIN_DATA(arg), len)) {
+            if (!All_Bytes_ASCII(VAL_BIN_AT(arg), len)) {
                 Val_Init_String(
-                    arg, Copy_Bytes_To_Unicode(VAL_BIN_DATA(arg), len)
+                    arg, Copy_Bytes_To_Unicode(VAL_BIN_AT(arg), len)
                 );
             } else
-                req->common.data = VAL_BIN_DATA(arg);
+                req->common.data = VAL_BIN_AT(arg);
 #endif
 
             // Temp conversion:!!!
             ser = Make_Unicode(len);
-            len = Decode_UTF8(UNI_HEAD(ser), VAL_BIN_DATA(arg), len, FALSE);
-            SERIES_TAIL(ser) = len = abs(len);
+            len = Decode_UTF8(UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE);
+            len = abs(len);
+            SET_SERIES_LEN(ser, len);
             UNI_TERM(ser);
             Val_Init_String(arg, ser);
             req->common.data = cast(REBYTE*, UNI_HEAD(ser));
@@ -155,7 +156,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action
         else
         // If unicode (may be from above conversion), handle it:
         if (SERIES_WIDE(VAL_SERIES(arg)) == sizeof(REBUNI)) {
-            req->common.data = cast(REBYTE *, VAL_UNI_DATA(arg));
+            req->common.data = cast(REBYTE *, VAL_UNI_AT(arg));
             SET_FLAG(req->flags, RRF_WIDE);
         }
 

@@ -88,7 +88,7 @@ REBSER *Copy_Bytes(const REBYTE *src, REBINT len)
 
     dst = Make_Binary(len);
     memcpy(STR_DATA(dst), src, len);
-    SERIES_TAIL(dst) = len;
+    SET_SERIES_LEN(dst, len);
     STR_TERM(dst);
 
     return dst;
@@ -108,7 +108,7 @@ REBSER *Copy_Bytes_To_Unicode(REBYTE *src, REBINT len)
 
     series = Make_Unicode(len);
     dst = UNI_HEAD(series);
-    SERIES_TAIL(series) = len;
+    SET_SERIES_LEN(series, len);
 
     for (; len > 0; len--) {
         *dst++ = (REBUNI)(*src++);
@@ -133,7 +133,7 @@ REBSER *Copy_Wide_Str(void *src, REBINT len)
     if (Is_Wide(str, len)) {
         REBUNI *up;
         dst = Make_Unicode(len);
-        SERIES_TAIL(dst) = len;
+        SET_SERIES_LEN(dst, len);
         up = UNI_HEAD(dst);
         while (len-- > 0) *up++ = *str++;
         *up = 0;
@@ -141,7 +141,7 @@ REBSER *Copy_Wide_Str(void *src, REBINT len)
     else {
         REBYTE *bp;
         dst = Make_Binary(len);
-        SERIES_TAIL(dst) = len;
+        SET_SERIES_LEN(dst, len);
         bp = BIN_HEAD(dst);
         while (len-- > 0) *bp++ = (REBYTE)*str++;
         *bp = 0;
@@ -204,23 +204,23 @@ void Insert_String(REBSER *dst, REBCNT idx, const REBSER *src, REBCNT pos, REBCN
     if (SERIES_WIDE(dst) == SERIES_WIDE(src)) {
 cp_same:
         if (BYTE_SIZE(dst))
-            memcpy(BIN_SKIP(dst, idx), BIN_SKIP(src, pos), len);
+            memcpy(BIN_AT(dst, idx), BIN_AT(src, pos), len);
         else
-            memcpy(UNI_SKIP(dst, idx), UNI_SKIP(src, pos), sizeof(REBUNI) * len);
+            memcpy(UNI_AT(dst, idx), UNI_AT(src, pos), sizeof(REBUNI) * len);
         return;
     }
 
     // Src is 8 and dst is 16:
     if (!BYTE_SIZE(dst)) {
-        bp = BIN_SKIP(src, pos);
-        up = UNI_SKIP(dst, idx);
+        bp = BIN_AT(src, pos);
+        up = UNI_AT(dst, idx);
         for (n = 0; n < len; n++) up[n] = (REBUNI)bp[n];
         return;
     }
 
     // Src is 16 and dst is 8:
-    bp = BIN_SKIP(dst, idx);
-    up = UNI_SKIP(src, pos);
+    bp = BIN_AT(dst, idx);
+    up = UNI_AT(src, pos);
     for (n = 0; n < len; n++) {
         if (up[n] > 0xFF) {
             //Debug_Num("##Widen-series because char value is:", up[n]);
@@ -255,7 +255,7 @@ REBSER *Copy_String(REBSER *src, REBCNT index, REBINT length)
 
     // Can it be slimmed down?
     if (!BYTE_SIZE(src)) {
-        up = UNI_SKIP(src, index);
+        up = UNI_AT(src, index);
         for (n = 0; n < length; n++)
             if (up[n] > 0xff) break;
         if (n < length) wide = sizeof(REBUNI);
@@ -263,7 +263,7 @@ REBSER *Copy_String(REBSER *src, REBCNT index, REBINT length)
 
     dst = Make_Series(length + 1, wide, MKS_NONE);
     Insert_String(dst, 0, src, index, length, TRUE);
-    SERIES_TAIL(dst) = length;
+    SET_SERIES_LEN(dst, length);
     TERM_SEQUENCE(dst);
 
     return dst;
@@ -294,14 +294,14 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
 #ifdef OS_WIDE_CHAR
     if (VAL_BYTE_SIZE(val)) {
         // On windows, we need to convert byte to wide:
-        REBINT n = VAL_LEN(val);
+        REBINT n = VAL_LEN_AT(val);
         REBSER *up = Make_Unicode(n);
 
         // !!!"Leaks" in the sense that the GC has to take care of this
         MANAGE_SERIES(up);
 
-        n = Decode_UTF8(UNI_HEAD(up), VAL_BIN_DATA(val), n, FALSE);
-        SERIES_TAIL(up) = abs(n);
+        n = Decode_UTF8(UNI_HEAD(up), VAL_BIN_AT(val), n, FALSE);
+        SET_SERIES_LEN(up, abs(n));
         UNI_TERM(up);
 
         if (out) *out = up;
@@ -314,17 +314,17 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
 
         if (out) *out = VAL_SERIES(val);
 
-        return cast(REBCHR*, VAL_UNI_DATA(val));
+        return cast(REBCHR*, VAL_UNI_AT(val));
     }
 #else
     if (VAL_STR_IS_ASCII(val)) {
         if (out) *out = VAL_SERIES(val);
 
         // On Linux/Unix we can use ASCII directly (it is valid UTF-8):
-        return cast(REBCHR*, VAL_BIN_DATA(val));
+        return cast(REBCHR*, VAL_BIN_AT(val));
     }
     else {
-        REBCNT n = VAL_LEN(val);
+        REBCNT n = VAL_LEN_AT(val);
 
         // !!! "Leaks" in the sense that the GC has to take care of this
         REBSER *ser = Temp_Bin_Str_Managed(val, 0, &n);
@@ -356,16 +356,16 @@ REBSER *Append_Unencoded_Len(REBSER *dst, const char *src, REBCNT len)
         dst = Make_Binary(len);
         tail = 0;
     } else {
-        tail = SERIES_TAIL(dst);
+        tail = SERIES_LEN(dst);
         EXPAND_SERIES_TAIL(dst, len);
     }
 
     if (BYTE_SIZE(dst)) {
-        memcpy(STR_SKIP(dst, tail), src, len);
+        memcpy(STR_AT(dst, tail), src, len);
         STR_TERM(dst);
     }
     else {
-        up = UNI_SKIP(dst, tail);
+        up = UNI_AT(dst, tail);
         for (; len > 0; len--) *up++ = (REBUNI)*src++;
         *up = 0;
     }
@@ -396,18 +396,18 @@ REBSER *Append_Unencoded(REBSER *dst, const char *src)
 //
 REBSER *Append_Codepoint_Raw(REBSER *dst, REBCNT codepoint)
 {
-    REBCNT tail = SERIES_TAIL(dst);
+    REBCNT tail = SERIES_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, 1);
 
     if (BYTE_SIZE(dst)) {
         assert(codepoint < (1 << 8));
-        *STR_SKIP(dst, tail) = cast(REBYTE, codepoint);
+        *STR_AT(dst, tail) = cast(REBYTE, codepoint);
         STR_TERM(dst);
     }
     else {
         assert(codepoint < (1 << 16));
-        *UNI_SKIP(dst, tail) = cast(REBUNI, codepoint);
+        *UNI_AT(dst, tail) = cast(REBUNI, codepoint);
         UNI_TERM(dst);
     }
 
@@ -448,11 +448,11 @@ REBSER *Make_Series_Codepoint(REBCNT codepoint)
 void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 {
     REBYTE *bp;
-    REBCNT tail = SERIES_TAIL(dst);
+    REBCNT tail = SERIES_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
 
-    bp = BIN_SKIP(dst, tail);
+    bp = BIN_AT(dst, tail);
 
     for (; len > 0; len--)
         *bp++ = (REBYTE)*src++;
@@ -469,11 +469,11 @@ void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 {
     REBUNI *up;
-    REBCNT tail = SERIES_TAIL(dst);
+    REBCNT tail = SERIES_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
 
-    up = UNI_SKIP(dst, tail);
+    up = UNI_AT(dst, tail);
 
     for (; len > 0; len--)
         *up++ = *src++;
@@ -489,7 +489,7 @@ void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 //
 void Append_String(REBSER *dst, const REBSER *src, REBCNT i, REBCNT len)
 {
-    Insert_String(dst, SERIES_TAIL(dst), src, i, len, 0);
+    Insert_String(dst, SERIES_LEN(dst), src, i, len, 0);
 }
 
 
@@ -589,24 +589,24 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
     REBCNT bl;
     void *bp;
 
-    if (limit < 0) limit = VAL_LEN(blk);
+    if (limit < 0) limit = VAL_LEN_AT(blk);
 
     RESET_TAIL(series);
 
-    for (val = VAL_BLK_DATA(blk); limit > 0; val++, limit--) {
+    for (val = VAL_ARRAY_AT(blk); limit > 0; val++, limit--) {
         switch (VAL_TYPE(val)) {
 
         case REB_INTEGER:
             if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < 0)
                 fail (Error_Out_Of_Range(val));
             EXPAND_SERIES_TAIL(series, 1);
-            *BIN_SKIP(series, tail) = (REBYTE)VAL_INT32(val);
+            *BIN_AT(series, tail) = (REBYTE)VAL_INT32(val);
             break;
 
         case REB_BINARY:
-            len = VAL_LEN(val);
+            len = VAL_LEN_AT(val);
             EXPAND_SERIES_TAIL(series, len);
-            memcpy(BIN_SKIP(series, tail), VAL_BIN_DATA(val), len);
+            memcpy(BIN_AT(series, tail), VAL_BIN_AT(val), len);
             break;
 
         case REB_STRING:
@@ -614,14 +614,14 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
         case REB_EMAIL:
         case REB_URL:
         case REB_TAG:
-            len = VAL_LEN(val);
-            bp = VAL_BYTE_SIZE(val) ? VAL_BIN_DATA(val) : (REBYTE*)VAL_UNI_DATA(val);
+            len = VAL_LEN_AT(val);
+            bp = VAL_BYTE_SIZE(val) ? VAL_BIN_AT(val) : (REBYTE*)VAL_UNI_AT(val);
             bl = Length_As_UTF8(
                 bp, len, VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
             );
             EXPAND_SERIES_TAIL(series, bl);
             series->tail = tail + Encode_UTF8(
-                BIN_SKIP(series, tail),
+                BIN_AT(series, tail),
                 bl,
                 bp,
                 &len,
@@ -631,7 +631,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 
         case REB_CHAR:
             EXPAND_SERIES_TAIL(series, 6);
-            len = Encode_UTF8_Char(BIN_SKIP(series, tail), VAL_CHAR(val));
+            len = Encode_UTF8_Char(BIN_AT(series, tail), VAL_CHAR(val));
             series->tail = tail + len;
             break;
 

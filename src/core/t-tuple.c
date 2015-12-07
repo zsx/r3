@@ -363,7 +363,7 @@ REBTYPE(Tuple)
         }
 
         if (ANY_ARRAY(arg)) {
-            if (!MT_Tuple(D_OUT, VAL_BLK_DATA(arg), REB_TUPLE))
+            if (!MT_Tuple(D_OUT, VAL_ARRAY_AT(arg), REB_TUPLE))
                 fail (Error_Bad_Make(REB_TUPLE, arg));
             return R_OUT;
         }
@@ -385,8 +385,8 @@ REBTYPE(Tuple)
             }
         }
         else if (IS_BINARY(arg)) {
-            ap = VAL_BIN_DATA(arg);
-            len = VAL_LEN(arg);
+            ap = VAL_BIN_AT(arg);
+            len = VAL_LEN_AT(arg);
             if (len > MAX_TUPLE) len = MAX_TUPLE;
             VAL_TUPLE_LEN(value) = len;
             for (alen = 0; alen < len; alen++) *vp++ = *ap++;

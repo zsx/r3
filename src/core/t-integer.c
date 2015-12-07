@@ -104,8 +104,8 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         // attempts to "future-proof" for other integer sizes and as an
         // interface could support BigNums in the future.
 
-        REBYTE *bp = VAL_BIN_DATA(value);
-        REBCNT n = VAL_LEN(value);
+        REBYTE *bp = VAL_BIN_AT(value);
+        REBCNT n = VAL_LEN_AT(value);
         REBOOL negative;
         REBINT fill;
 
@@ -208,7 +208,7 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         REBYTE *bp;
         REBCNT len;
         REBDEC dec;
-        bp = Temp_Byte_Chars_May_Fail(value, VAL_LEN(value), &len, FALSE);
+        bp = Temp_Byte_Chars_May_Fail(value, VAL_LEN_AT(value), &len, FALSE);
         if (
             memchr(bp, '.', len)
             || memchr(bp, 'e', len)
@@ -362,8 +362,10 @@ REBTYPE(Integer)
         break;
 
     case A_DIVIDE:
-        if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
-        if (num == MIN_I64 && arg == -1) fail (Error(RE_OVERFLOW));
+        if (arg == 0)
+            fail (Error(RE_ZERO_DIVIDE));
+        if (num == MIN_I64 && arg == -1)
+            fail (Error(RE_OVERFLOW));
         if (num % arg == 0) {
             num = num / arg;
             break;

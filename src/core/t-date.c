@@ -774,8 +774,8 @@ REBTYPE(Date)
                 bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
                 if (Scan_Date(bp, len, D_OUT)) return R_OUT;
             }
-            else if (ANY_ARRAY(arg) && VAL_BLK_LEN(arg) >= 3) {
-                if (MT_Date(D_OUT, VAL_BLK_DATA(arg), REB_DATE)) {
+            else if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
+                if (MT_Date(D_OUT, VAL_ARRAY_AT(arg), REB_DATE)) {
                     return R_OUT;
                 }
             }

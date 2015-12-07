@@ -1133,7 +1133,7 @@ REBCNT Encode_UTF8(REBYTE *dst, REBCNT max, const void *src, REBCNT *len, REBFLG
 int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
 {
     REBUNI *up = UNI_HEAD(src);
-    REBCNT len  = SERIES_TAIL(src);
+    REBCNT len  = SERIES_LEN(src);
     REBCNT tail;
     REBUNI c;
     REBINT n;
@@ -1149,7 +1149,7 @@ int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
         else {
             n = Encode_UTF8_Char(buf, c);
             EXPAND_SERIES_TAIL(dst, n);
-            memcpy(BIN_SKIP(dst, tail), buf, n);
+            memcpy(BIN_AT(dst, tail), buf, n);
             tail += n;
         }
         idx++;
@@ -1157,7 +1157,7 @@ int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
     }
 
     BIN_HEAD(dst)[tail] = 0;
-    SERIES_TAIL(dst) = tail;
+    SET_SERIES_LEN(dst, tail);
     return idx;
 }
 
@@ -1173,10 +1173,10 @@ REBSER *Make_UTF8_Binary(const void *data, REBCNT len, REBCNT extra, REBFLG opts
 {
     REBCNT size = Length_As_UTF8(data, len, opts);
     REBSER *series = Make_Binary(size + extra);
-    SERIES_TAIL(series) = Encode_UTF8(
+    SET_SERIES_LEN(series, Encode_UTF8(
         BIN_HEAD(series), size, data, &len, opts
-    );
-    assert(SERIES_TAIL(series) == size);
+    ));
+    assert(SERIES_LEN(series) == size);
     STR_TERM(series);
     return series;
 }
@@ -1196,17 +1196,17 @@ REBSER *Make_UTF8_From_Any_String(const REBVAL *value, REBCNT len, REBFLG opts)
     if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
         // We can copy a one-byte-per-character series if it doesn't contain
         // codepoints like 128 - 255 (pure ASCII is valid UTF-8)
-        return Copy_Bytes(VAL_BIN_DATA(value), len);
+        return Copy_Bytes(VAL_BIN_AT(value), len);
     }
     else {
         const void *data;
         if (VAL_BYTE_SIZE(value)) {
             opts &= ~OPT_ENC_UNISRC; // remove flag
-            data = VAL_BIN_DATA(value);
+            data = VAL_BIN_AT(value);
         }
         else {
             opts |= OPT_ENC_UNISRC; // add flag
-            data = VAL_UNI_DATA(value);
+            data = VAL_UNI_AT(value);
         }
         return Make_UTF8_Binary(data, len, 0, opts);
     }

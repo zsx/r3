@@ -194,8 +194,14 @@ static REBCNT Set_Mode_Value(REBREQ *file, REBCNT mode, REBVAL *val)
 // 
 // Read from a file port.
 //
-static void Read_File_Port(REBVAL *out, REBFRM *port, REBREQ *file, REBVAL *path, REBCNT args, REBCNT len)
-{
+static void Read_File_Port(
+    REBVAL *out,
+    REBFRM *port,
+    REBREQ *file,
+    REBVAL *path,
+    REBCNT args,
+    REBCNT len
+) {
     REBSER *ser;
 
     // Allocate read result buffer:
@@ -207,7 +213,7 @@ static void Read_File_Port(REBVAL *out, REBFRM *port, REBREQ *file, REBVAL *path
     file->length = len;
     if (OS_DO_DEVICE(file, RDC_READ) < 0)
         fail (Error_On_Port(RE_READ_ERROR, port, file->error));
-    SERIES_TAIL(ser) = file->actual;
+    SET_SERIES_LEN(ser, file->actual);
     STR_TERM(ser);
 
     // Convert to string or block of strings.
@@ -241,7 +247,7 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
         }
         Mold_Value(&mo, data, 0);
         Val_Init_String(data, mo.series); // fall into next section
-        len = SERIES_TAIL(mo.series);
+        len = SERIES_LEN(mo.series);
     }
 
     // Auto convert string to UTF-8
@@ -249,10 +255,10 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
         ser = Make_UTF8_From_Any_String(data, len, OPT_ENC_CRLF_MAYBE);
         MANAGE_SERIES(ser);
         file->common.data = BIN_HEAD(ser);
-        len = SERIES_TAIL(ser);
+        len = SERIES_LEN(ser);
     }
     else {
-        file->common.data = VAL_BIN_DATA(data);
+        file->common.data = VAL_BIN_AT(data);
     }
     file->length = len;
     OS_DO_DEVICE(file, RDC_WRITE);
@@ -397,7 +403,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         if (args & AM_WRITE_SEEK) Set_Seek(file, D_ARG(ARG_WRITE_INDEX));
 
         // Determine length. Clip /PART to size of string if needed.
-        len = VAL_LEN(spec);
+        len = VAL_LEN_AT(spec);
         if (args & AM_WRITE_PART) {
             REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
             if (n <= len) len = n;

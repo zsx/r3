@@ -143,7 +143,7 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG ra
         fail (Error_Compression(&strm, ret));
 
     SET_STR_END(output, buf_size - strm.avail_out);
-    SERIES_TAIL(output) = buf_size - strm.avail_out;
+    SET_SERIES_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
         // GZIP contains its own CRC.  It also has a 32-bit uncompressed
@@ -339,7 +339,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
     }
 
     SET_STR_END(output, strm.total_out);
-    SERIES_TAIL(output) = strm.total_out;
+    SET_SERIES_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic
     if (SERIES_AVAIL(output) > 1024) {

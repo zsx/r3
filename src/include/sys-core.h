@@ -507,7 +507,7 @@ struct Reb_Call {
     // series may have come from a ANY-ARRAY! (e.g. a PATH!), the distinction
     // does not exist at this point...so it will "evaluate like a block".
     //
-    REBSER *array;
+    REBARR *array;
 
     // `index` [INPUT, OUTPUT]
     //
@@ -545,7 +545,7 @@ struct Reb_Call {
     // management, and set this field to NULL.
     //
     union {
-        REBSER *array;
+        REBARR *array;
         REBVAL *chunk;
     } arglist;
 
@@ -557,7 +557,7 @@ struct Reb_Call {
     //
     REBVAL *param;
 
-    // `arg` [INTERNAL, also CACHE of `BLK_HEAD(arglist)`]
+    // `arg` [INTERNAL, also CACHE of `ARRAY_HEAD(arglist)`]
     //
     // "arg" is the "actual argument"...which holds the pointer to the
     // REBVAL slot in the `arglist` for that corresponding `param`.  These
@@ -687,7 +687,7 @@ struct Reb_Call {
 #define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
     do { \
         struct Reb_Call c_; \
-        c_.value = BLK_SKIP((array_),(index_in)); \
+        c_.value = ARRAY_AT((array_),(index_in)); \
         if (SPORADICALLY(2)) { /* optimize every OTHER execution if DEBUG */ \
             if (IS_END(c_.value)) { \
                 SET_UNSET(out_); \
@@ -698,7 +698,7 @@ struct Reb_Call {
                 !ANY_EVAL(c_.value) \
                 && (IS_END(c_.value + 1) || !ANY_EVAL(c_.value + 1)) \
             ) { \
-                *(out_) = *BLK_SKIP((array_), (index_in)); \
+                *(out_) = *ARRAY_AT((array_), (index_in)); \
                 (index_out) = ((index_in) + 1); \
                 break; \
             } \
@@ -721,7 +721,7 @@ struct Reb_Call {
 // state...so it is legal to DO_ARRAY_THROWS(D_OUT, D_OUT) for instance.
 //
 #define DO_ARRAY_THROWS(out,array) \
-    Do_At_Throws((out), VAL_SERIES(array), VAL_INDEX(array))
+    Do_At_Throws((out), VAL_ARRAY(array), VAL_INDEX(array))
 
 
 /***********************************************************************
@@ -830,8 +830,11 @@ struct Reb_Call {
     #define Panic_Series(s) \
         Panic_Series_Debug((s), __FILE__, __LINE__);
 
+    #define Panic_Array(a) \
+        Panic_Series(ARRAY_SERIES(a))
+
     #define Panic_Frame(f) \
-        Panic_Series(FRAME_VARLIST(f))
+        Panic_Array(FRAME_VARLIST(f))
 #endif
 
 
@@ -866,10 +869,16 @@ struct Reb_Call {
 #define MANAGE_SERIES(series) \
     Manage_Series(series)
 
+#define MANAGE_ARRAY(array) \
+    MANAGE_SERIES(ARRAY_SERIES(array))
+
 #define ENSURE_SERIES_MANAGED(series) \
     (SERIES_GET_FLAG((series), SER_MANAGED) \
         ? NOOP \
         : MANAGE_SERIES(series))
+
+#define ENSURE_ARRAY_MANAGED(array) \
+    ENSURE_SERIES_MANAGED(ARRAY_SERIES(array))
 
 // Debug build includes testing that the managed state of the frame and
 // its word series is the same for the "ensure" case.  It also adds a
@@ -877,11 +886,11 @@ struct Reb_Call {
 //
 #ifdef NDEBUG
     #define MANAGE_FRAME(frame) \
-        (MANAGE_SERIES(FRAME_VARLIST(frame)), \
-            MANAGE_SERIES(FRAME_KEYLIST(frame)))
+        (MANAGE_ARRAY(FRAME_VARLIST(frame)), \
+            MANAGE_ARRAY(FRAME_KEYLIST(frame)))
 
     #define ENSURE_FRAME_MANAGED(frame) \
-        (SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
+        (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
             ? NOOP \
             : MANAGE_FRAME(frame))
 
@@ -891,6 +900,9 @@ struct Reb_Call {
     #define ASSERT_SERIES_MANAGED(series) \
         NOOP
 
+    #define ASSERT_ARRAY_MANAGED(array) \
+        NOOP
+
     #define ASSERT_VALUE_MANAGED(value) \
         NOOP
 #else
@@ -898,8 +910,8 @@ struct Reb_Call {
         Manage_Frame_Debug(frame)
 
     #define ENSURE_FRAME_MANAGED(frame) \
-        ((SERIES_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-        && SERIES_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)) \
+        ((ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
+        && ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)) \
             ? NOOP \
             : MANAGE_FRAME(frame))
 
@@ -911,6 +923,9 @@ struct Reb_Call {
             if (!SERIES_GET_FLAG((series), SER_MANAGED)) \
                 Panic_Series(series); \
         } while (0)
+
+    #define ASSERT_ARRAY_MANAGED(array) \
+        ASSERT_SERIES_MANAGED(ARRAY_SERIES(array))
 
     #define ASSERT_VALUE_MANAGED(value) \
         assert(Is_Value_Managed(value, TRUE))
@@ -955,13 +970,16 @@ struct Reb_Call {
 
 //-- Temporary Buffers
 //   These are reused for cases for appending, when length cannot be known.
-#define BUF_EMIT  VAL_SERIES(TASK_BUF_EMIT)
-#define BUF_COLLECT VAL_SERIES(TASK_BUF_COLLECT)
-#define BUF_PRINT VAL_SERIES(TASK_BUF_PRINT)
-#define BUF_FORM  VAL_SERIES(TASK_BUF_FORM)
-#define BUF_MOLD  VAL_SERIES(TASK_BUF_MOLD)
-#define BUF_UTF8  VAL_SERIES(TASK_BUF_UTF8)
-#define MOLD_LOOP VAL_SERIES(TASK_MOLD_LOOP)
+
+#define BUF_EMIT        VAL_ARRAY(TASK_BUF_EMIT)
+#define BUF_COLLECT     VAL_ARRAY(TASK_BUF_COLLECT)
+#define MOLD_LOOP       VAL_ARRAY(TASK_MOLD_LOOP)
+
+#define BUF_PRINT       VAL_SERIES(TASK_BUF_PRINT)
+#define BUF_FORM        VAL_SERIES(TASK_BUF_FORM)
+#define BUF_MOLD        VAL_SERIES(TASK_BUF_MOLD)
+#define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
+
 
 #ifdef OS_WIDE_CHAR
 #define BUF_OS_STR BUF_MOLD
@@ -994,6 +1012,9 @@ struct Reb_Call {
 #define PUSH_GUARD_SERIES(s) \
     Guard_Series_Core(s)
 
+#define PUSH_GUARD_ARRAY(a) \
+    PUSH_GUARD_SERIES(ARRAY_SERIES(a))
+
 #define DROP_GUARD_SERIES(s) \
     do { \
         GC_Series_Guard->tail--; \
@@ -1002,11 +1023,14 @@ struct Reb_Call {
         ]); \
     } while (0)
 
+#define DROP_GUARD_ARRAY(a) \
+    DROP_GUARD_SERIES(ARRAY_SERIES(a))
+
 #define PUSH_GUARD_FRAME(f) \
-    PUSH_GUARD_SERIES(FRAME_VARLIST(f)) // varlist points to/guards keylist
+    PUSH_GUARD_ARRAY(FRAME_VARLIST(f)) // varlist points to/guards keylist
 
 #define DROP_GUARD_FRAME(f) \
-    DROP_GUARD_SERIES(FRAME_VARLIST(f))
+    DROP_GUARD_ARRAY(FRAME_VARLIST(f))
 
 #ifdef NDEBUG
     #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
@@ -1094,7 +1118,7 @@ struct Reb_Call {
 **
 **      Instead write:
 **
-**          Bind_Values_Deep(VAL_BLK_HEAD(block), frame);
+**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), frame);
 **
 **      That will pass the address of the first value element of
 **      the block's contents.  You could use a later value element,
@@ -1159,7 +1183,7 @@ struct Reb_Call {
 // Word Table Structure - used to manage hashed word tables (symbol tables).
 typedef struct rebol_word_table
 {
-    REBSER  *series;    // Global block of words
+    REBARR  *array;     // Global block of words
     REBSER  *hashes;    // Hash table
 //  REBCNT  count;      // Number of units used in hash table
 } WORD_TABLE;

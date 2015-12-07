@@ -237,8 +237,8 @@ REBNATIVE(evoke)
     Check_Security(SYM_DEBUG, POL_READ, 0);
 
     if (IS_BLOCK(arg)) {
-        len = VAL_LEN(arg);
-        arg = VAL_BLK_DATA(arg);
+        len = VAL_LEN_AT(arg);
+        arg = VAL_ARRAY_AT(arg);
     }
     else len = 1;
 
@@ -376,7 +376,11 @@ REBNATIVE(stack)
         SET_INTEGER(D_OUT, Stack_Depth());
     }
     else if (D_REF(8)) {        // limit
-        SET_INTEGER(D_OUT, SERIES_REST(DS_Series) + SERIES_BIAS(DS_Series));
+        SET_INTEGER(
+            D_OUT,
+            SERIES_REST(ARRAY_SERIES(DS_Array))
+                + SERIES_BIAS(ARRAY_SERIES(DS_Array))
+        );
     }
     else {
         Val_Init_Block(D_OUT, Make_Backtrace(index));
@@ -388,33 +392,48 @@ REBNATIVE(stack)
 
 //
 //  check: native [
-//  "Temporary series debug check"
-//   val [any-series!]]
+//
+//  "Run an integrity check on a value in debug builds of the interpreter"
+//
+//      value [any-value!]
+//          {System will terminate abnormally if this value is corrupt.}
+//  ]
 //
 REBNATIVE(check)
+//
+// This forces an integrity check to run on a series.  In R3-Alpha there was
+// no debug build, so this was a simple validity check and it returned an
+// error on not passing.  But Ren-C is designed to have a debug build with
+// checks that aren't designed to fail gracefully.  So this just runs that
+// assert rather than replicating code here that can "tolerate" a bad series.
+// Review the necessity of this native.
 {
-    REBVAL *val;
-    REBSER *ser;
-    REBCNT n;
+    PARAM(1, value);
 
-    ser = VAL_SERIES(val = D_ARG(1));
-    *D_OUT = *val;
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
+    REBVAL *value = ARG(value);
 
-    if (ANY_ARRAY(val)) {
-        for (n = 0; n < SERIES_TAIL(ser); n++) {
-            if (IS_END(BLK_SKIP(ser, n))) goto err;
-        }
-        if (NOT_END(BLK_SKIP(ser, n))) goto err;
+    // !!! Should call generic ASSERT_VALUE macro with more cases
+    //
+    if (ANY_SERIES(value)) {
+        ASSERT_SERIES(VAL_SERIES(value));
     }
-    else {
-        for (n = 0; n < SERIES_TAIL(ser); n++) {
-            if (!*STR_SKIP(ser, n)) goto err;
-        }
-        if (*STR_SKIP(ser, n)) goto err;
+    else if (ANY_CONTEXT(value)) {
+        ASSERT_FRAME(VAL_FRAME(value));
     }
-    return R_OUT;
-err:
-    fail (Error(RE_BAD_SERIES));
+    else if (ANY_FUNC(value)) {
+        ASSERT_ARRAY(VAL_FUNC_SPEC(value));
+        ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
+        if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
+            ASSERT_ARRAY(VAL_FUNC_BODY(value));
+        }
+    }
+
+    return R_TRUE;
+#endif
+
 }
 
 
@@ -460,8 +479,8 @@ REBNATIVE(do_codec)
         codi.action = CODI_ACT_IDENTIFY;
     case SYM_DECODE:
         if (!IS_BINARY(val)) fail (Error(RE_INVALID_ARG, val));
-        codi.data = VAL_BIN_DATA(D_ARG(3));
-        codi.len  = VAL_LEN(D_ARG(3));
+        codi.data = VAL_BIN_AT(D_ARG(3));
+        codi.len  = VAL_LEN_AT(D_ARG(3));
         break;
 
     case SYM_ENCODE:
@@ -474,8 +493,8 @@ REBNATIVE(do_codec)
         }
         else if (IS_STRING(val)) {
             codi.w = VAL_SERIES_WIDTH(val);
-            codi.len = VAL_LEN(val);
-            codi.extra.other = VAL_BIN_DATA(val);
+            codi.len = VAL_LEN_AT(val);
+            codi.extra.other = VAL_BIN_AT(val);
         }
         else
             fail (Error(RE_INVALID_ARG, val));
@@ -543,7 +562,7 @@ REBNATIVE(do_codec)
         break;
 
     case CODI_BLOCK:
-        Val_Init_Block(D_OUT, cast(REBSER*, codi.extra.other));
+        Val_Init_Block(D_OUT, AS_ARRAY(codi.extra.other));
         break;
 
     default:

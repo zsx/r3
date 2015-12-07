@@ -69,13 +69,13 @@ static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
     }
     else {
         assert(ANY_BINSTR(with));
-        n = VAL_LEN(with);
+        n = VAL_LEN_AT(with);
         if (n >= MAX_WITH) n = MAX_WITH-1;
         wlen = n;
         if (VAL_BYTE_SIZE(with)) {
-            bp = VAL_BIN_DATA(with);
+            bp = VAL_BIN_AT(with);
         } else {
-            memcpy(up, VAL_UNI_DATA(with), n * sizeof(REBUNI));
+            memcpy(up, VAL_UNI_AT(with), n * sizeof(REBUNI));
             n = 0;
         }
     }
@@ -92,7 +92,7 @@ static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
     }
 
     SET_ANY_CHAR(ser, n, 0);
-    SERIES_TAIL(ser) = n;
+    SET_SERIES_LEN(ser, n);
 }
 
 
@@ -153,7 +153,7 @@ static void trim_auto(REBSER *ser, REBCNT index, REBCNT tail)
     }
 
     SET_ANY_CHAR(ser, out, 0);
-    SERIES_TAIL(ser) = out;
+    SET_SERIES_LEN(ser, out);
 }
 
 
@@ -189,7 +189,7 @@ static void trim_lines(REBSER *ser, REBCNT index, REBCNT tail)
     if (pad == 2) out--;
 
     SET_ANY_CHAR(ser, out, 0);
-    SERIES_TAIL(ser) = out;
+    SET_SERIES_LEN(ser, out);
 }
 
 
@@ -265,7 +265,7 @@ static void trim_head_tail(REBSER *ser, REBCNT index, REBCNT tail, REBFLG h, REB
     }
 
     SET_ANY_CHAR(ser, out, 0);
-    SERIES_TAIL(ser) = out;
+    SET_SERIES_LEN(ser, out);
 }
 
 

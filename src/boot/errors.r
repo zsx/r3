@@ -79,7 +79,6 @@ Internal: [
     bad-path:           [{bad path:} :arg1]
     not-here:           [:arg1 {not supported on your system}]
     globals-full:       {no more global variable space}
-    bad-series:         {invalid series}
     limit-hit:          [{internal limit reached:} :arg1]
     bad-sys-func:       [{invalid or missing system function:} :arg1]
     invalid-error:      [{error object or fields were not valid:} :arg1]

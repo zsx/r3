@@ -62,7 +62,7 @@ REBSER *Make_Bitset(REBCNT len)
     len = (len + 7) / 8;
     ser = Make_Binary(len);
     Clear_Series(ser);
-    SERIES_TAIL(ser) = len;
+    SET_SERIES_LEN(ser, len);
     BITS_NOT(ser) = 0;
 
     return ser;
@@ -148,12 +148,12 @@ REBINT Find_Max_Bit(REBVAL *val)
         break;
 
     case REB_BINARY:
-        maxi = VAL_LEN(val) * 8 - 1;
+        maxi = VAL_LEN_AT(val) * 8 - 1;
         if (maxi < 0) maxi = 0;
         break;
 
     case REB_BLOCK:
-        for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
+        for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
             n = Find_Max_Bit(val);
             if (n > maxi) maxi = n;
         }
@@ -181,7 +181,7 @@ REBINT Find_Max_Bit(REBVAL *val)
 REBFLG Check_Bit(REBSER *bset, REBCNT c, REBFLG uncased)
 {
     REBCNT i, n = c;
-    REBCNT tail = SERIES_TAIL(bset);
+    REBCNT tail = SERIES_LEN(bset);
     REBFLG flag = 0;
 
     if (uncased) {
@@ -237,14 +237,14 @@ REBFLG Check_Bit_Str(REBSER *bset, REBVAL *val, REBFLG uncased)
 void Set_Bit(REBSER *bset, REBCNT n, REBOOL set)
 {
     REBCNT i = n >> 3;
-    REBCNT tail = SERIES_TAIL(bset);
+    REBCNT tail = SERIES_LEN(bset);
     REBYTE bit;
 
     // Expand if not enough room:
     if (i >= tail) {
         if (!set) return; // no need to expand
         Expand_Series(bset, tail, (i - tail) + 1);
-        CLEAR(BIN_SKIP(bset, tail), (i - tail) + 1);
+        CLEAR(BIN_AT(bset, tail), (i - tail) + 1);
     }
 
     bit = 1 << (7 - ((n) & 7));
@@ -304,7 +304,7 @@ REBFLG Set_Bits(REBSER *bset, REBVAL *val, REBOOL set)
 
     if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
-    val = VAL_BLK_DATA(val);
+    val = VAL_ARRAY_AT(val);
     if (IS_SAME_WORD(val, SYM_NOT)) {
         BITS_NOT(bset) = TRUE;
         val++;
@@ -366,13 +366,13 @@ span_bits:
             if (!IS_SAME_WORD(val, SYM_BITS)) return 0;
             val++;
             if (!IS_BINARY(val)) return 0;
-            n = VAL_LEN(val);
+            n = VAL_LEN_AT(val);
             c = bset->tail;
             if (n >= c) {
                 Expand_Series(bset, c, (n - c));
-                CLEAR(BIN_SKIP(bset, c), (n - c));
+                CLEAR(BIN_AT(bset, c), (n - c));
             }
-            memcpy(BIN_HEAD(bset), VAL_BIN_DATA(val), n);
+            memcpy(BIN_HEAD(bset), VAL_BIN_AT(val), n);
             break;
 
         default:
@@ -407,7 +407,7 @@ REBFLG Check_Bits(REBSER *bset, REBVAL *val, REBFLG uncased)
     if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
     // Loop through block of bit specs:
-    for (val = VAL_BLK_DATA(val); NOT_END(val); val++) {
+    for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
 
         switch (VAL_TYPE(val)) {
 
@@ -501,13 +501,16 @@ REBINT PD_Bitset(REBPVS *pvs)
 //
 void Trim_Tail_Zeros(REBSER *ser)
 {
-    REBCNT tail = SERIES_TAIL(ser);
+    REBCNT len = SERIES_LEN(ser);
     REBYTE *bp = BIN_HEAD(ser);
 
-    for (; tail > 0 && !bp[tail]; tail--);
+    while (len > 0 && bp[len] == 0)
+        len--;
 
-    if (bp[tail]) tail++;
-    SERIES_TAIL(ser) = tail;
+    if (bp[len] != 0)
+        len++;
+
+    SET_SERIES_LEN(ser, len);
 }
 
 
@@ -556,7 +559,7 @@ REBTYPE(Bitset)
         if (IS_INTEGER(arg)) break;
 
         if (IS_BINARY(arg)) {
-            memcpy(BIN_HEAD(ser), VAL_BIN_DATA(arg), len/8 + 1);
+            memcpy(BIN_HEAD(ser), VAL_BIN_AT(arg), len/8 + 1);
             break;
         }
         // FALL THRU...

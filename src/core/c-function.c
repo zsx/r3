@@ -57,15 +57,12 @@
 // Return a block of function words, unbound.
 // Note: skips 0th entry.
 //
-REBSER *List_Func_Words(const REBVAL *func)
+REBARR *List_Func_Words(const REBVAL *func)
 {
-    REBSER *series = VAL_FUNC_PARAMLIST(func);
-    REBVAL *typeset = BLK_SKIP(series, 1);
+    REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
+    REBVAL *typeset = VAL_FUNC_PARAMS_HEAD(func);
 
-    REBSER *block = Make_Array(SERIES_TAIL(series));
-
-    REBCNT n;
-    for (n = 1; n < SERIES_TAIL(series); typeset++, n++) {
+    for (; !IS_END(typeset); typeset++) {
         enum Reb_Kind kind;
 
         if (VAL_GET_EXT(typeset, EXT_WORD_HIDE)) {
@@ -90,11 +87,11 @@ REBSER *List_Func_Words(const REBVAL *func)
         }
 
         Val_Init_Word_Unbound(
-            Alloc_Tail_Array(block), kind, VAL_TYPESET_SYM(typeset)
+            Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(typeset)
         );
     }
 
-    return block;
+    return array;
 }
 
 
@@ -104,16 +101,13 @@ REBSER *List_Func_Words(const REBVAL *func)
 // Return a block of function arg typesets.
 // Note: skips 0th entry.
 //
-REBSER *List_Func_Typesets(REBVAL *func)
+REBARR *List_Func_Typesets(REBVAL *func)
 {
-    REBSER *series = VAL_FUNC_PARAMLIST(func);
-    REBVAL *typeset = BLK_SKIP(series, 1);
+    REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
+    REBVAL *typeset = VAL_FUNC_PARAMS_HEAD(func);
 
-    REBSER *block = Make_Array(SERIES_TAIL(series));
-
-    REBCNT n;
-    for (n = 1; n < SERIES_TAIL(series); typeset++, n++) {
-        REBVAL *value = Alloc_Tail_Array(block);
+    for (; !IS_END(typeset); typeset++) {
+        REBVAL *value = Alloc_Tail_Array(array);
         *value = *typeset;
 
         // !!! It's already a typeset, but this will clear out the header
@@ -123,7 +117,7 @@ REBSER *List_Func_Typesets(REBVAL *func)
         VAL_SET(value, REB_TYPESET);
     }
 
-    return block;
+    return array;
 }
 
 
@@ -136,14 +130,14 @@ REBSER *List_Func_Typesets(REBVAL *func)
 // 
 // Throw an error for invalid values.
 //
-REBSER *Check_Func_Spec(REBSER *spec)
+REBARR *Check_Func_Spec(REBARR *spec)
 {
     REBVAL *item;
-    REBSER *keylist;
+    REBARR *keylist;
     REBVAL *typeset;
 
     keylist = Collect_Frame(
-        NULL, BLK_HEAD(spec), BIND_ALL | BIND_NO_DUP | BIND_NO_SELF
+        NULL, ARRAY_HEAD(spec), BIND_ALL | BIND_NO_DUP | BIND_NO_SELF
     );
 
     // Whatever function is being made, it must fill in the keylist slot 0
@@ -151,11 +145,11 @@ REBSER *Check_Func_Spec(REBSER *spec)
     // the keylist of.  Use SET_TRASH so that the debug build will leave
     // an alarm if that value isn't thrown in (the GC would complain...)
 
-    typeset = BLK_HEAD(keylist);
+    typeset = ARRAY_HEAD(keylist);
     SET_TRASH_IF_DEBUG(typeset);
 
     // !!! needs more checks
-    for (item = BLK_HEAD(spec); NOT_END(item); item++) {
+    for (item = ARRAY_HEAD(spec); NOT_END(item); item++) {
 
         if (ANY_BINSTR(item)) {
             // A goal of the Ren-C design is that core generators like
@@ -184,13 +178,13 @@ REBSER *Check_Func_Spec(REBSER *spec)
 
         switch (VAL_TYPE(item)) {
         case REB_BLOCK:
-            if (typeset == BLK_HEAD(keylist)) {
+            if (typeset == ARRAY_HEAD(keylist)) {
                 // !!! Rebol2 had the ability to put a block in the first
                 // slot before any parameters, in which you could put words.
                 // This is deprecated in favor of the use of tags.  We permit
                 // [catch] and [throw] during Rebol2 => Rebol3 migration.
 
-                REBVAL *attribute = VAL_BLK_DATA(item);
+                REBVAL *attribute = VAL_ARRAY_AT(item);
                 for (; NOT_END(attribute); attribute++) {
                     if (IS_WORD(attribute)) {
                         if (VAL_WORD_SYM(attribute) == SYM_CATCH)
@@ -213,7 +207,7 @@ REBSER *Check_Func_Spec(REBSER *spec)
 
             // Turn block into typeset for parameter at current index
             // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
-            Make_Typeset(VAL_BLK_HEAD(item), typeset, 0);
+            Make_Typeset(VAL_ARRAY_HEAD(item), typeset, 0);
             break;
 
         case REB_WORD:
@@ -288,7 +282,7 @@ REBSER *Check_Func_Spec(REBSER *spec)
         }
     }
 
-    MANAGE_SERIES(keylist);
+    MANAGE_ARRAY(keylist);
     return keylist;
 }
 
@@ -296,10 +290,10 @@ REBSER *Check_Func_Spec(REBSER *spec)
 //
 //  Make_Native: C
 //
-void Make_Native(REBVAL *out, REBSER *spec, REBFUN func, REBINT type)
+void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, REBINT type)
 {
-    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_TAIL(spec));
-    ENSURE_SERIES_MANAGED(spec);
+    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
+    ENSURE_ARRAY_MANAGED(spec);
     VAL_FUNC_SPEC(out) = spec;
     VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(spec);
 
@@ -310,7 +304,7 @@ void Make_Native(REBVAL *out, REBSER *spec, REBFUN func, REBINT type)
     // just the paramlist REBSER can get you the full REBVAL of the function
     // that it is the paramlist for.
 
-    *BLK_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
 
     // These native routines want to be recognized by keylist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
@@ -354,9 +348,9 @@ void Make_Native(REBVAL *out, REBSER *spec, REBFUN func, REBINT type)
 // Free_Series.  This means that the body must currently be shallow
 // copied, and the splicing slot must be in the topmost series.
 //
-REBSER *Get_Maybe_Fake_Func_Body(REBFLG *is_fake, const REBVAL *func)
+REBARR *Get_Maybe_Fake_Func_Body(REBFLG *is_fake, const REBVAL *func)
 {
-    REBSER *fake_body;
+    REBARR *fake_body;
 
     assert(IS_CLOSURE(func) || IS_FUNCTION(func));
 
@@ -369,19 +363,19 @@ REBSER *Get_Maybe_Fake_Func_Body(REBFLG *is_fake, const REBVAL *func)
 
     // See comments in sysobj.r on standard/func-body.
     fake_body = Copy_Array_Shallow(
-        VAL_SERIES(Get_System(SYS_STANDARD, STD_FUNC_BODY))
+        VAL_ARRAY(Get_System(SYS_STANDARD, STD_FUNC_BODY))
     );
 
     // Index 5 (or 4 in zero-based C) should be #TYPE, a FUNCTION! or CLOSURE!
     // !!! Is the binding important in this fake body??
-    assert(IS_ISSUE(BLK_SKIP(fake_body, 4)));
+    assert(IS_ISSUE(ARRAY_AT(fake_body, 4)));
     Val_Init_Word_Unbound(
-        BLK_SKIP(fake_body, 4), REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
+        ARRAY_AT(fake_body, 4), REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
     );
 
     // Index 8 (or 7 in zero-based C) should be #BODY, a "real" body
-    assert(IS_ISSUE(BLK_SKIP(fake_body, 7))); // #BODY
-    Val_Init_Block(BLK_SKIP(fake_body, 7), VAL_FUNC_BODY(func));
+    assert(IS_ISSUE(ARRAY_AT(fake_body, 7))); // #BODY
+    Val_Init_Block(ARRAY_AT(fake_body, 7), VAL_FUNC_BODY(func));
 
     return fake_body;
 }
@@ -462,11 +456,11 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
         // A small optimization will reuse the global empty array for an
         // empty spec instead of copying (as the spec need not be unique)
 
-        if (VAL_LEN(spec) == 0)
+        if (VAL_LEN_AT(spec) == 0)
             VAL_FUNC_SPEC(out) = EMPTY_ARRAY;
         else
             VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                VAL_SERIES(spec), VAL_INDEX(spec)
+                VAL_ARRAY(spec), VAL_INDEX(spec)
             );
     }
     else {
@@ -475,7 +469,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
         // They must decide whether to add a specially handled RETURN
         // local, which will be given a tricky "native" definitional return
 
-        REBVAL *item = BLK_HEAD(VAL_SERIES(spec));
+        REBVAL *item = VAL_ARRAY_HEAD(spec);
         REBCNT index = 0;
         REBFLG convert_local = FALSE;
 
@@ -518,7 +512,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
                     // single block parameter that MAKE FUNCTION! requires.
 
                     VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                        VAL_SERIES(spec), VAL_INDEX(spec)
+                        VAL_ARRAY(spec), VAL_INDEX(spec)
                     );
                     has_return = FALSE;
 
@@ -615,7 +609,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
                     // a configuration setting.
 
                     VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                        VAL_SERIES(spec), VAL_INDEX(spec)
+                        VAL_ARRAY(spec), VAL_INDEX(spec)
                     );
                     has_return = FALSE;
                 }
@@ -632,11 +626,11 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
                 // (e.g. what DOES would manufacture).  Re-use a global
                 // instance of that series as an optimization.
 
-                VAL_FUNC_SPEC(out) = VAL_SERIES(ROOT_RETURN_BLOCK);
+                VAL_FUNC_SPEC(out) = VAL_ARRAY(ROOT_RETURN_BLOCK);
             }
             else {
                 VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-                    VAL_SERIES(spec), VAL_INDEX(spec), 1 // +1 capacity hint
+                    VAL_ARRAY(spec), VAL_INDEX(spec), 1 // +1 capacity hint
                 );
                 Append_Value(VAL_FUNC_SPEC(out), ROOT_RETURN_SET_WORD);
             }
@@ -649,11 +643,11 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
 
-    if (VAL_LEN(body) == 0)
+    if (VAL_LEN_AT(body) == 0)
         VAL_FUNC_BODY(out) = EMPTY_ARRAY;
     else
         VAL_FUNC_BODY(out) = Copy_Array_At_Deep_Managed(
-            VAL_SERIES(body), VAL_INDEX(body)
+            VAL_ARRAY(body), VAL_INDEX(body)
         );
 
     // Even if `has_return` was passed in true, the FUNC or CLOS generator
@@ -673,8 +667,8 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
         //         your code here
         //     ] bind-of 'return
 
-        if (BLK_LEN(VAL_FUNC_BODY(out)) >= 2)
-            VAL_SET_OPT(BLK_HEAD(VAL_FUNC_BODY(out)), OPT_VALUE_LINE);
+        if (ARRAY_LEN(VAL_FUNC_BODY(out)) >= 2)
+            VAL_SET_OPT(ARRAY_HEAD(VAL_FUNC_BODY(out)), OPT_VALUE_LINE);
     }
 
     assert(type == REB_FUNCTION || type == REB_CLOSURE);
@@ -686,7 +680,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
     // given just its identifying series, but where to put it?  We use
     // slot 0 (a trick learned from FRAME! in R3-Alpha's frame series)
 
-    *BLK_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
 
     // The argument and local symbols have been arranged in the function's
     // "frame" and are now in index order.  These numbers are put
@@ -713,7 +707,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
 //
 void Clonify_Function(REBVAL *value)
 {
-    REBSER *paramlist_orig;
+    REBARR *paramlist_orig;
 
     // !!! Conceptually the only types it currently makes sense to speak of
     // copying are functions and closures.  Though the concept is a little
@@ -746,7 +740,7 @@ void Clonify_Function(REBVAL *value)
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
 
     VAL_FUNC_PARAMLIST(value) = Copy_Array_Shallow(paramlist_orig);
-    MANAGE_SERIES(VAL_FUNC_PARAMLIST(value));
+    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
@@ -756,7 +750,7 @@ void Clonify_Function(REBVAL *value)
     Rebind_Values_Deep(
         paramlist_orig,
         VAL_FUNC_PARAMLIST(value),
-        BLK_HEAD(VAL_FUNC_BODY(value)),
+        ARRAY_HEAD(VAL_FUNC_BODY(value)),
         0
     );
 
@@ -772,7 +766,7 @@ void Clonify_Function(REBVAL *value)
     // The first element in the paramlist is the identity of the function
     // value itself.  So we must update this value if we make a copy,
     // so the paramlist does not indicate the original.
-    *BLK_HEAD(VAL_FUNC_PARAMLIST(value)) = *value;
+    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(value)) = *value;
 }
 
 
@@ -800,13 +794,13 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
         // to jump to.
 
         assert(VAL_FUNC_CODE(D_FUNC) != VAL_FUNC_CODE(ROOT_RETURN_NATIVE));
-        ASSERT_SERIES(VAL_FUNC_RETURN_TO(D_FUNC));
+        ASSERT_ARRAY(VAL_FUNC_RETURN_TO(D_FUNC));
 
         // We only have a REBSER*, but the goal is to actually THROW a full
         // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
         // the paramlist.  For the moment, how to get that value depends...
 
-        if (SERIES_GET_FLAG(VAL_FUNC_RETURN_TO(D_FUNC), SER_FRAME)) {
+        if (ARRAY_GET_FLAG(VAL_FUNC_RETURN_TO(D_FUNC), SER_FRAME)) {
             // The function was actually a CLOSURE!, so "when it took BIND-OF
             // on 'RETURN" it "would have gotten back an OBJECT!".  We can
             // get that object to use as the throw name just by putting the
@@ -822,7 +816,7 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
             // sized slot to hold the full function value just for cases
             // like this...
 
-            *D_OUT = *BLK_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
+            *D_OUT = *ARRAY_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
             assert(IS_FUNCTION(D_OUT));
             assert(VAL_FUNC_PARAMLIST(D_OUT) == VAL_FUNC_RETURN_TO(D_FUNC));
         }
@@ -986,7 +980,7 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
 //
 REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 {
-    REBSER *body;
+    REBARR *body;
     REBFRM *frame;
 
     Eval_Functions++;
@@ -994,13 +988,15 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // The head value of a function/closure paramlist should be the value
     // of the function/closure itself that has that paramlist.
     //
-    assert(IS_CLOSURE(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
+    assert(IS_CLOSURE(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
 #if !defined(NDEBUG)
     if (
-        VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
+        VAL_FUNC_PARAMLIST(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
         != VAL_FUNC_PARAMLIST(D_FUNC)
     ) {
-        Panic_Series(VAL_FUNC_PARAMLIST(BLK_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
+        Panic_Array(
+            VAL_FUNC_PARAMLIST(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
+        );
     }
 #endif
 
@@ -1011,13 +1007,13 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     //
     frame = AS_FRAME(call_->arglist.array);
 #if !defined(NDEBUG)
-    call_->arglist.array = cast(REBSER*, 0xDECAFBAD);
+    call_->arglist.array = cast(REBARR*, 0xDECAFBAD);
 #endif
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
 
-    SERIES_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
     VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
     VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
     FRAME_KEYLIST(frame) = VAL_FUNC_PARAMLIST(D_FUNC);
@@ -1050,8 +1046,8 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // We do not Manage_Frame, because we are reusing a word series here
     // that has already been managed...only extract and manage the arglist
     //
-    ASSERT_SERIES_MANAGED(FRAME_KEYLIST(frame));
-    MANAGE_SERIES(FRAME_VARLIST(frame));
+    ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+    MANAGE_ARRAY(FRAME_VARLIST(frame));
 
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this
@@ -1061,7 +1057,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     Rebind_Values_Deep(
         VAL_FUNC_PARAMLIST(D_FUNC),
         FRAME_VARLIST(frame),
-        BLK_HEAD(body),
+        ARRAY_HEAD(body),
         REBIND_TYPE
     );
 
@@ -1070,10 +1066,10 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // frame's copy of the closure value, which we might think of as its
     // "archetype", but it may be valuable to keep that as-is.)
     //
-    PUSH_GUARD_SERIES(body);
+    PUSH_GUARD_ARRAY(body);
 
     if (Do_At_Throws(D_OUT, body, 0)) {
-        DROP_GUARD_SERIES(body);
+        DROP_GUARD_ARRAY(body);
         if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
             // Every function responds to non-definitional EXIT
             CATCH_THROWN(D_OUT, D_OUT);
@@ -1099,7 +1095,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // References to parts of the closure's copied body may still be
     // extant, but we no longer need to hold this reference on it
     //
-    DROP_GUARD_SERIES(body);
+    DROP_GUARD_ARRAY(body);
 
     return FALSE;
 }
@@ -1110,14 +1106,14 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 //
 REBFLG Do_Routine_Throws(struct Reb_Call *call_)
 {
-    REBSER *args = Copy_Values_Len_Shallow(
+    REBARR *args = Copy_Values_Len_Shallow(
         D_ARGC > 0 ? D_ARG(1) : NULL,
         D_ARGC
     );
 
     Call_Routine(D_FUNC, args, D_OUT);
 
-    Free_Series(args);
+    Free_Array(args);
 
     return FALSE; // You cannot "throw" a Rebol value across an FFI boundary
 }

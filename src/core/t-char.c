@@ -153,7 +153,7 @@ REBTYPE(Char)
         case REB_BINARY:
         {
             const REBYTE *bp = VAL_BIN(val);
-            arg = VAL_LEN(val);
+            arg = VAL_LEN_AT(val);
             if (arg == 0) goto bad_make;
             if (*bp > 0x80) {
                 // !!! This test is presumably redundant - temporarily left
@@ -178,7 +178,9 @@ REBTYPE(Char)
 #ifdef removed
 //      case REB_ISSUE:
             // Scan 8 or 16 bit hex str, will throw on error...
-            arg = Scan_Hex_Value(VAL_DATA(val), VAL_LEN(val), (REBOOL)!VAL_BYTE_SIZE(val));
+            arg = Scan_Hex_Value(
+                VAL_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val)
+            );
             if (arg > MAX_UNI || arg < 0) goto bad_make;
             chr = arg;
             break;

@@ -223,7 +223,7 @@ REBINT Hash_Value(const REBVAL *val, REBCNT hash_size)
     case REB_EMAIL:
     case REB_URL:
     case REB_TAG:
-        ret = Hash_String(VAL_BIN_DATA(val), Val_Byte_Len(val));
+        ret = Hash_String(VAL_BIN_AT(val), Val_Byte_Len(val));
         break;
 
     case REB_LOGIC:
@@ -316,11 +316,12 @@ REBSER *Make_Hash_Sequence(REBCNT len)
 // field of the REBSER which needs to be given to memory
 // management as well.
 //
-void Val_Init_Map(REBVAL *out, REBSER *ser)
+void Val_Init_Map(REBVAL *out, REBMAP *map)
 {
-    Val_Init_Series(out, REB_MAP, ser);
-    if (ser->misc.series)
-        ENSURE_SERIES_MANAGED(ser->misc.series);
+    if (MAP_HASHLIST(map))
+        ENSURE_SERIES_MANAGED(MAP_HASHLIST(map));
+
+    Val_Init_Array_Index(out, REB_MAP, MAP_PAIRLIST(map), 0);
 }
 
 
@@ -335,17 +336,19 @@ void Val_Init_Map(REBVAL *out, REBSER *ser)
 REBSER *Hash_Block(const REBVAL *block, REBCNT cased)
 {
     REBCNT n;
-    REBCNT key;
     REBSER *hser;
     REBCNT *hashes;
-    REBSER *series = VAL_SERIES(block);
+    REBARR *array = VAL_ARRAY(block);
+    REBVAL *value;
 
     // Create the hash array (integer indexes):
-    hser = Make_Hash_Sequence(VAL_LEN(block));
-    hashes = (REBCNT*)hser->data;
+    hser = Make_Hash_Sequence(VAL_LEN_AT(block));
+    hashes = cast(REBCNT*, hser->data);
 
-    for (n = VAL_INDEX(block); n < series->tail; n++) {
-        key = Find_Key(series, hser, BLK_SKIP(series, n), 1, cased, 0);
+    value = VAL_ARRAY_AT(block);
+    n = VAL_INDEX(block);
+    for (; NOT_END(value); value++, n++) {
+        REBCNT key = Find_Key_Hashed(array, hser, value, 1, cased, 0);
         hashes[key] = n + 1;
     }
 

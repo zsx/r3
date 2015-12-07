@@ -153,8 +153,8 @@ is_true:
 //
 REBINT Cmp_Block(const REBVAL *sval, const REBVAL *tval, REBFLG is_case)
 {
-    REBVAL  *s = VAL_BLK_DATA(sval);
-    REBVAL  *t = VAL_BLK_DATA(tval);
+    REBVAL  *s = VAL_ARRAY_AT(sval);
+    REBVAL  *t = VAL_ARRAY_AT(tval);
     REBINT  diff;
 
     if (C_STACK_OVERFLOWING(&s)) Trap_Stack_Overflow();
@@ -329,18 +329,18 @@ chkDecimal:
 
 
 //
-//  Find_Block_Simple: C
+//  Find_In_Array_Simple: C
 // 
-// Simple search for a value in a block. Return the index of
+// Simple search for a value in an array. Return the index of
 // the value or the TAIL index if not found.
 //
-REBCNT Find_Block_Simple(REBSER *series, REBCNT index, REBVAL *target)
+REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
 {
-    REBVAL *value = BLK_HEAD(series);
+    REBVAL *value = ARRAY_HEAD(array);
 
-    for (; index < SERIES_TAIL(series); index++) {
+    for (; index < ARRAY_LEN(array); index++) {
         if (0 == Cmp_Value(value+index, target, FALSE)) return index;
     }
 
-    return SERIES_TAIL(series);
+    return ARRAY_LEN(array);
 }

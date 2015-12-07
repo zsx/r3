@@ -86,19 +86,19 @@
 
 // (D)ata (S)tack "(P)ointer" is an integer index into Rebol's data stack
 #define DSP \
-    cast(REBINT, SERIES_TAIL(DS_Series) - 1)
+    cast(REBINT, ARRAY_LEN(DS_Array) - 1)
 
 // Access value at given stack location
 #define DS_AT(d) \
-    BLK_SKIP(DS_Series, (d))
+    ARRAY_AT(DS_Array, (d))
 
 // Most recently pushed item
 #define DS_TOP \
-    BLK_LAST(DS_Series)
+    ARRAY_LAST(DS_Array)
 
 #if !defined(NDEBUG)
     #define IN_DATA_STACK(p) \
-        (SERIES_TAIL(DS_Series) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
+        (ARRAY_LEN(DS_Array) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
 #endif
 
 // PUSHING: Note the DS_PUSH macros inherit the property of SET_XXX that
@@ -112,12 +112,12 @@
 
 #define DS_PUSH_TRASH \
     ( \
-        SERIES_FITS(DS_Series, 1) \
-            ? cast(void, ++DS_Series->tail) \
+        SERIES_FITS(ARRAY_SERIES(DS_Array), 1) \
+            ? cast(void, ++DS_Array->series.tail) \
             : ( \
-                SERIES_REST(DS_Series) >= STACK_LIMIT \
+                SERIES_REST(ARRAY_SERIES(DS_Array)) >= STACK_LIMIT \
                     ? Trap_Stack_Overflow() \
-                    : cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Series))) \
+                    : cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Array))) \
             ), \
         SET_TRASH_IF_DEBUG(DS_TOP) \
     )
@@ -146,7 +146,7 @@
 // POPPING AND "DROPPING"
 
 #define DS_DROP \
-    (--DS_Series->tail, SET_END(BLK_TAIL(DS_Series)), NOOP)
+    (--ARRAY_SERIES(DS_Array)->tail, SET_END(ARRAY_TAIL(DS_Array)), NOOP)
 
 #define DS_POP_INTO(v) \
     do { \
@@ -157,7 +157,8 @@
 
 #ifdef NDEBUG
     #define DS_DROP_TO(dsp) \
-        (DS_Series->tail = (dsp) + 1, SET_END(BLK_TAIL(DS_Series)), NOOP)
+        (SET_ARRAY_LEN(DS_Array, (dsp) + 1), \
+            SET_END(ARRAY_TAIL(DS_Array)), NOOP)
 #else
     #define DS_DROP_TO(dsp) \
         do { \
@@ -248,7 +249,7 @@ struct Reb_Chunk {
 
 #define DSF_OUT(c)          cast(REBVAL * const, (c)->out) // writable Lvalue
 #define PRIOR_DSF(c)        ((c)->prior)
-#define DSF_ARRAY(c)        cast(REBSER * const, (c)->array) // Lvalue
+#define DSF_ARRAY(c)        cast(REBARR * const, (c)->array) // Lvalue
 #define DSF_EXPR_INDEX(c)   ((c)->expr_index + 0) // Lvalue
 #define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
 #define DSF_FUNC(c)         c_cast(const REBVAL * const, &(c)->func)
@@ -259,7 +260,7 @@ struct Reb_Chunk {
 
 #define DSF_ARG_HEAD(c) \
     (IS_CLOSURE(&(c)->func) \
-        ? BLK_SKIP((c)->arglist.array, 1) \
+        ? ARRAY_AT((c)->arglist.array, 1) \
         : &(c)->arglist.chunk[1])
 
 // ARGS is the parameters and refinements

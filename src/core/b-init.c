@@ -172,10 +172,10 @@ static void Print_Banner(REBARGS *rargs)
 // 
 // Expects result to be UNSET!
 //
-static void Do_Global_Block(REBSER *block, REBCNT index, REBINT rebind)
+static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
 {
     REBVAL result;
-    REBVAL *item = BLK_SKIP(block, index);
+    REBVAL *item = ARRAY_AT(block, index);
 
     Bind_Values_Set_Forward_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
@@ -211,10 +211,10 @@ static void Do_Global_Block(REBSER *block, REBCNT index, REBINT rebind)
         // Now restart the search so we are sure to pick up any paths that
         // might come *before* the first bound word.
         //
-        item = BLK_SKIP(block, index);
+        item = ARRAY_AT(block, index);
         for (; NOT_END(item); item++) {
             if (IS_PATH(item)) {
-                REBVAL *path_item = BLK_HEAD(VAL_SERIES(item));
+                REBVAL *path_item = VAL_ARRAY_HEAD(item);
                 if (
                     IS_WORD(path_item) && (
                         VAL_WORD_SYM(path_item) == SYM_NATIVE
@@ -250,7 +250,7 @@ static void Do_Global_Block(REBSER *block, REBCNT index, REBINT rebind)
 //
 static void Load_Boot(void)
 {
-    REBSER *boot;
+    REBARR *boot;
     REBSER *text;
 
     // Decompress binary data in Native_Specs to get the textual source
@@ -268,13 +268,15 @@ static void Load_Boot(void)
     boot = Scan_Source(STR_HEAD(text), NAT_UNCOMPRESSED_SIZE);
     Free_Series(text);
 
-    Set_Root_Series(ROOT_BOOT, boot, "boot block"); // Do not let it get GC'd
+    // Do not let it get GC'd
+    //
+    Set_Root_Series(ROOT_BOOT, ARRAY_SERIES(boot), "boot block");
 
-    Boot_Block = cast(BOOT_BLK *, VAL_BLK_HEAD(BLK_HEAD(boot)));
+    Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
 
     if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
-    if (VAL_WORD_SYM(VAL_BLK_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
+    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
         panic (Error(RE_BAD_TRASH_TYPE));
 
     // Create low-level string pointers (used by RS_ constants):
@@ -307,8 +309,8 @@ static void Load_Boot(void)
 //
 static void Init_Datatypes(void)
 {
-    REBVAL *word = VAL_BLK_HEAD(&Boot_Block->types);
-    REBSER *specs = VAL_SERIES(&Boot_Block->typespecs);
+    REBVAL *word = VAL_ARRAY_HEAD(&Boot_Block->types);
+    REBARR *specs = VAL_ARRAY(&Boot_Block->typespecs);
     REBVAL *value;
     REBINT n;
 
@@ -317,7 +319,7 @@ static void Init_Datatypes(void)
         value = Append_Frame(Lib_Context, word, 0);
         VAL_SET(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
-        VAL_TYPE_SPEC(value) = VAL_SERIES(BLK_SKIP(specs, n));
+        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
     }
 }
 
@@ -383,7 +385,7 @@ REBNATIVE(native)
         fail (Error(RE_MAX_NATIVES));
     }
 
-    Make_Native(D_OUT, VAL_SERIES(ARG(spec)), *Native_Functions++, REB_NATIVE);
+    Make_Native(D_OUT, VAL_ARRAY(ARG(spec)), *Native_Functions++, REB_NATIVE);
 
     if (REF(frameless))
         VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
@@ -436,7 +438,7 @@ REBNATIVE(action)
 
     Make_Native(
         D_OUT,
-        VAL_SERIES(ARG(spec)),
+        VAL_ARRAY(ARG(spec)),
         cast(REBFUN, cast(REBUPT, Action_Count)),
         REB_ACTION
     );
@@ -469,7 +471,7 @@ REBNATIVE(context)
             REB_OBJECT, // kind
             NULL, // spec
             NULL, // body
-            VAL_BLK_HEAD(ARG(spec)), // values to scan for toplevel SET_WORDs
+            VAL_ARRAY_HEAD(ARG(spec)), // values to scan for toplevel SET_WORDs
             NULL // parent
         )
     );
@@ -478,7 +480,7 @@ REBNATIVE(context)
     // be making a copy instead (at least by default, perhaps with performance
     // junkies saying `object/bind` or something like that?
     //
-    Bind_Values_Deep(VAL_BLK_HEAD(ARG(spec)), VAL_FRAME(D_OUT));
+    Bind_Values_Deep(VAL_ARRAY_HEAD(ARG(spec)), VAL_FRAME(D_OUT));
 
     // The evaluative result of running the spec is ignored and done into a
     // scratch cell, but needs to be returned if a throw happens.
@@ -502,7 +504,7 @@ static void Init_Ops(void)
     REBVAL *word;
     REBVAL *val;
 
-    for (word = VAL_BLK_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
+    for (word = VAL_ARRAY_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
         // Append the operator name to the lib frame:
         val = Append_Frame(Lib_Context, word, 0);
 
@@ -519,7 +521,7 @@ static void Init_Ops(void)
 //
 static void Init_Natives(void)
 {
-    REBVAL *item = BLK_HEAD(VAL_SERIES(&Boot_Block->natives));
+    REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
     REBVAL *val;
 
     Action_Count = 1; // Skip A_TRASH_Q
@@ -539,7 +541,7 @@ static void Init_Natives(void)
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(val, VAL_SERIES(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
     Native_Count++;
     item++; // skip spec
 
@@ -555,7 +557,7 @@ static void Init_Natives(void)
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native`
-    Make_Native(val, VAL_SERIES(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
     Native_Count++;
     item++; // skip spec
 
@@ -564,7 +566,7 @@ static void Init_Natives(void)
     // exposed to the user.
     //
     Action_Marker = FRAME_LEN(Lib_Context);
-    Do_Global_Block(VAL_SERIES(&Boot_Block->actions), 0, -1);
+    Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1);
 
     // Sanity check the symbol transformation
     //
@@ -575,8 +577,8 @@ static void Init_Natives(void)
     // built those by hand
     //
     Do_Global_Block(
-        VAL_SERIES(&Boot_Block->natives),
-        item - BLK_HEAD(VAL_SERIES(&Boot_Block->natives)),
+        VAL_ARRAY(&Boot_Block->natives),
+        item - VAL_ARRAY_HEAD(&Boot_Block->natives),
         -1
     );
 }
@@ -624,11 +626,13 @@ static void Init_Root_Context(void)
     frame = AS_FRAME(Make_Series(
         ROOT_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
     ));
-    SET_END(BLK_HEAD(&frame->series)); // !!! Need since using Make_Series?
+
+    // !!! Need since using Make_Series?
+    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
 
     LABEL_SERIES(frame, "root context");
-    LOCK_SERIES(FRAME_VARLIST(frame));
-    Root_Context = cast(ROOT_CTX*, BLK_HEAD(FRAME_VARLIST(frame)));
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
+    Root_Context = cast(ROOT_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
     // Get first value (the SELF for the context):
     value = ROOT_SELF;
@@ -643,7 +647,7 @@ static void Init_Root_Context(void)
     // Set all other values to NONE:
     for (n = 1; n < ROOT_MAX; n++) SET_NONE(value + n);
     SET_END(value + ROOT_MAX);
-    SERIES_TAIL(FRAME_VARLIST(frame)) = ROOT_MAX;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
 
     // Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
     // to pass as an arg if we need an UNSET but don't want to pay for making
@@ -664,10 +668,11 @@ static void Init_Root_Context(void)
     // spec blocks (when the original spec was just []).  Unlike the paramlist
     // a function spec doesn't need unique mutable identity, so a shared
     // series saves on allocation time and space...
+    //
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
-    Append_Value(VAL_SERIES(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_PROTECT);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_RETURN_BLOCK), SER_LOCK);
+    Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_PROTECT);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_LOCK);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
@@ -699,7 +704,7 @@ void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
     // automatically when the root set is removed from consideration.
 
     if (Is_Array_Series(ser))
-        Val_Init_Block(value, ser);
+        Val_Init_Block(value, AS_ARRAY(ser));
     else {
         assert(SERIES_WIDE(ser) == 1 || SERIES_WIDE(ser) == 2);
         Val_Init_String(value, ser);
@@ -724,13 +729,14 @@ static void Init_Task_Context(void)
     frame = AS_FRAME(
         Make_Series(TASK_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME)
     );
-    SET_END(BLK_HEAD(&frame->series)); // !!! Needed since using Make_Series?
+    // !!! Needed since using Make_Series?
+    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
     Task_Frame = frame;
 
     LABEL_SERIES(frame, "task context");
-    LOCK_SERIES(FRAME_VARLIST(frame));
-    MANAGE_SERIES(FRAME_VARLIST(frame));
-    Task_Context = cast(TASK_CTX*, BLK_HEAD(FRAME_VARLIST(frame)));
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
+    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    Task_Context = cast(TASK_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
     // Get first value (the SELF for the context):
     value = TASK_SELF;
@@ -745,7 +751,7 @@ static void Init_Task_Context(void)
     // Set all other values to NONE:
     for (n = 1; n < TASK_MAX; n++) SET_NONE(value+n);
     SET_END(value+TASK_MAX);
-    SERIES_TAIL(FRAME_VARLIST(frame)) = TASK_MAX;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
 
     // Initialize a few fields:
     SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
@@ -766,7 +772,7 @@ static void Init_Task_Context(void)
 static void Init_System_Object(void)
 {
     REBFRM *frame;
-    REBSER *series;
+    REBARR *array;
     REBVAL *value;
     REBCNT n;
     REBVAL result;
@@ -781,14 +787,14 @@ static void Init_System_Object(void)
         REB_OBJECT, // type
         NULL, // spec
         NULL, // body
-        VAL_BLK_HEAD(&Boot_Block->sysobj), // scan for toplevel set-words
+        VAL_ARRAY_HEAD(&Boot_Block->sysobj), // scan for toplevel set-words
         NULL // parent
     );
 
-    Bind_Values_Deep(VAL_BLK_HEAD(&Boot_Block->sysobj), Lib_Context);
+    Bind_Values_Deep(VAL_ARRAY_HEAD(&Boot_Block->sysobj), Lib_Context);
 
     // Bind it so CONTEXT native will work (only used at topmost depth):
-    Bind_Values_Shallow(VAL_BLK_HEAD(&Boot_Block->sysobj), frame);
+    Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), frame);
 
     // Evaluate the block (will eval FRAMEs within):
     if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
@@ -806,10 +812,10 @@ static void Init_System_Object(void)
     // Create system/datatypes block:
 //  value = Get_System(SYS_DATATYPES, 0);
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
-    series = VAL_SERIES(value);
-    Extend_Series(series, REB_MAX - 1);
+    array = VAL_ARRAY(value);
+    Extend_Series(ARRAY_SERIES(array), REB_MAX - 1);
     for (n = 1; n <= REB_MAX; n++) {
-        Append_Value(series, FRAME_VAR(Lib_Context, n));
+        Append_Value(array, FRAME_VAR(Lib_Context, n));
     }
 
     // Create system/catalog/datatypes block:
@@ -818,11 +824,17 @@ static void Init_System_Object(void)
 
     // Create system/catalog/actions block:
     value = Get_System(SYS_CATALOG, CAT_ACTIONS);
-    Val_Init_Block(value, Collect_Set_Words(VAL_BLK_HEAD(&Boot_Block->actions)));
+    Val_Init_Block(
+        value,
+        Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->actions))
+    );
 
     // Create system/catalog/actions block:
     value = Get_System(SYS_CATALOG, CAT_NATIVES);
-    Val_Init_Block(value, Collect_Set_Words(VAL_BLK_HEAD(&Boot_Block->natives)));
+    Val_Init_Block(
+        value,
+        Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->natives))
+    );
 
     // Create system/codecs object:
     value = Get_System(SYS_CODECS, 0);
@@ -901,14 +913,14 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
     if (codi->action == CODI_ACT_DECODE) {
         REBSER *ser = Make_Unicode(codi->len);
         REBINT size = Decode_UTF16(UNI_HEAD(ser), codi->data, codi->len, le, FALSE);
-        SERIES_TAIL(ser) = size;
+        SET_SERIES_LEN(ser, size);
         if (size < 0) { //ASCII
             REBSER *dst = Make_Binary((size = -size));
             Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
             ser = dst;
         }
         codi->data = SERIES_DATA(ser);
-        codi->len = SERIES_TAIL(ser);
+        codi->len = SERIES_LEN(ser);
         codi->w = SERIES_WIDE(ser);
         return CODI_TEXT;
     }
@@ -1079,23 +1091,22 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 static void Init_Main_Args(REBARGS *rargs)
 {
     REBVAL *val;
-    REBSER *ser;
+    REBARR *array;
     REBCHR *data;
     REBCNT n;
 
-
-    ser = Make_Array(3);
+    array = Make_Array(3);
     n = 2; // skip first flag (ROF_EXT)
     val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-    for (val = VAL_BLK_HEAD(val); NOT_END(val); val++) {
+    for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++) {
         VAL_CLR_OPT(val, OPT_VALUE_LINE);
-        if (rargs->options & n) Append_Value(ser, val);
+        if (rargs->options & n) Append_Value(array, val);
         n <<= 1;
     }
-    val = Alloc_Tail_Array(ser);
+    val = Alloc_Tail_Array(array);
     SET_TRUE(val);
     val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
-    Val_Init_Block(val, ser);
+    Val_Init_Block(val, array);
 
     // For compatibility:
     if (rargs->options & RO_QUIET) {
@@ -1105,20 +1116,20 @@ static void Init_Main_Args(REBARGS *rargs)
 
     // Print("script: %s", rargs->script);
     if (rargs->script) {
-        ser = To_REBOL_Path(rargs->script, 0, OS_WIDE, 0);
+        REBSER *ser = To_REBOL_Path(rargs->script, 0, OS_WIDE, 0);
         val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
         Val_Init_File(val, ser);
     }
 
     if (rargs->exe_path) {
-        ser = To_REBOL_Path(rargs->exe_path, 0, OS_WIDE, 0);
+        REBSER *ser = To_REBOL_Path(rargs->exe_path, 0, OS_WIDE, 0);
         val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
         Val_Init_File(val, ser);
     }
 
     // Print("home: %s", rargs->home_dir);
     if (rargs->home_dir) {
-        ser = To_REBOL_Path(rargs->home_dir, 0, OS_WIDE, TRUE);
+        REBSER *ser = To_REBOL_Path(rargs->home_dir, 0, OS_WIDE, TRUE);
         val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
         Val_Init_File(val, ser);
     }
@@ -1131,14 +1142,14 @@ static void Init_Main_Args(REBARGS *rargs)
         n = 0;
         while (rargs->args[n++]) NOOP;
         // n == number_of_args + 1
-        ser = Make_Array(n);
-        Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), ser);
-        SERIES_TAIL(ser) = n - 1;
+        array = Make_Array(n);
+        Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), array);
+        SET_ARRAY_LEN(array, n - 1);
         for (n = 0; (data = rargs->args[n]); ++n)
             Val_Init_String(
-                BLK_SKIP(ser, n), Copy_OS_Str(data, OS_STRLEN(data))
+                ARRAY_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
             );
-        TERM_ARRAY(ser);
+        TERM_ARRAY(array);
     }
 
     Set_Option_String(rargs->debug, OPTIONS_DEBUG);
@@ -1339,10 +1350,10 @@ void Init_Core(REBARGS *rargs)
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     PG_Root_Words = Collect_Frame(
-        NULL, VAL_BLK_HEAD(&Boot_Block->root), BIND_ALL
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), BIND_ALL
     );
     LABEL_SERIES(PG_Root_Words, "root words");
-    MANAGE_SERIES(PG_Root_Words);
+    MANAGE_ARRAY(PG_Root_Words);
     FRAME_KEYLIST(VAL_FRAME(ROOT_SELF)) = PG_Root_Words;
     VAL_CONTEXT_SPEC(ROOT_SELF) = NULL;
     VAL_CONTEXT_BODY(ROOT_SELF) = NULL;
@@ -1352,10 +1363,10 @@ void Init_Core(REBARGS *rargs)
 
     // Get the words of the TASK context (to avoid it being an exception case)
     TG_Task_Words = Collect_Frame(
-        NULL, VAL_BLK_HEAD(&Boot_Block->task), BIND_ALL
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), BIND_ALL
     );
     LABEL_SERIES(ds, "task words");
-    MANAGE_SERIES(TG_Task_Words);
+    MANAGE_ARRAY(TG_Task_Words);
     FRAME_KEYLIST(VAL_FRAME(TASK_SELF)) = TG_Task_Words;
     VAL_CONTEXT_SPEC(TASK_SELF) = NULL;
     VAL_CONTEXT_BODY(TASK_SELF) = NULL;
@@ -1454,8 +1465,8 @@ void Init_Core(REBARGS *rargs)
     // Initialize mezzanine functions:
     DOUT("Level 5");
     if (PG_Boot_Level >= BOOT_LEVEL_SYS) {
-        Do_Global_Block(VAL_SERIES(&Boot_Block->base), 0, 1);
-        Do_Global_Block(VAL_SERIES(&Boot_Block->sys), 0, 2);
+        Do_Global_Block(VAL_ARRAY(&Boot_Block->base), 0, 1);
+        Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2);
     }
 
     *FRAME_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;

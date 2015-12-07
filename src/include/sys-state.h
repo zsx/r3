@@ -96,12 +96,12 @@ typedef struct Rebol_State {
     REBINT dsp;
     struct Reb_Chunk *top_chunk;
     struct Reb_Call *call;
-    REBCNT series_guard_tail;
-    REBCNT value_guard_tail;
+    REBCNT series_guard_len;
+    REBCNT value_guard_len;
     REBFRM *error;
     REBINT gc_disable;      // Count of GC_Disables at time of Push
 
-    REBCNT manuals_tail;    // Where GC_Manuals was when state started
+    REBCNT manuals_len;    // Where GC_Manuals was when state started
 
 #ifdef HAS_POSIX_SIGNAL
     sigjmp_buf cpu_state;

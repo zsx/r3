@@ -158,7 +158,7 @@ void set_vect(REBCNT bits, REBYTE *data, REBCNT n, REBI64 i, REBDEC f) {
 void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 {
     REBCNT idx = VAL_INDEX(blk);
-    REBCNT len = VAL_LEN(blk);
+    REBCNT len = VAL_LEN_AT(blk);
     REBVAL *val;
     REBCNT n = 0;
     REBCNT bits = VECT_TYPE(ser);
@@ -166,7 +166,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
     REBDEC f = 0;
 
     if (IS_BLOCK(blk)) {
-        val = VAL_BLK_DATA(blk);
+        val = VAL_ARRAY_AT(blk);
 
         for (; NOT_END(val); val++) {
             if (IS_INTEGER(val)) {
@@ -183,7 +183,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
         }
     }
     else {
-        REBYTE *data = VAL_BIN_DATA(blk);
+        REBYTE *data = VAL_BIN_AT(blk);
         for (; len > 0; len--, idx++) {
             set_vect(bits, ser->data, n++, (REBI64)(data[idx]), f);
         }
@@ -192,33 +192,33 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 
 
 //
-//  Make_Vector_Block: C
+//  Vector_To_Array: C
 // 
 // Convert a vector to a block.
 //
-REBSER *Make_Vector_Block(REBVAL *vect)
+REBARR *Vector_To_Array(REBVAL *vect)
 {
-    REBCNT len = VAL_LEN(vect);
+    REBCNT len = VAL_LEN_AT(vect);
     REBYTE *data = VAL_SERIES(vect)->data;
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
-    REBSER *ser = NULL;
+    REBARR *array = NULL;
     REBCNT n;
     REBVAL *val;
 
     if (len <= 0)
         fail (Error_Invalid_Arg(vect));
 
-    ser = Make_Array(len);
-    val = BLK_HEAD(ser);
+    array = Make_Array(len);
+    val = ARRAY_HEAD(array);
     for (n = VAL_INDEX(vect); n < VAL_TAIL(vect); n++, val++) {
         VAL_SET(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
 
     SET_END(val);
-    ser->tail = len;
+    SET_ARRAY_LEN(array, len);
 
-    return ser;
+    return array;
 }
 
 
@@ -227,8 +227,8 @@ REBSER *Make_Vector_Block(REBVAL *vect)
 //
 REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
 {
-    REBCNT l1 = VAL_LEN(v1);
-    REBCNT l2 = VAL_LEN(v2);
+    REBCNT l1 = VAL_LEN_AT(v1);
+    REBCNT l2 = VAL_LEN_AT(v2);
     REBCNT len = MIN(l1, l2);
     REBCNT n;
     REBU64 i1;
@@ -272,7 +272,7 @@ void Shuffle_Vector(REBVAL *vect, REBFLG secure)
     if (type == VTSF32) type = VTUI32;
     else if (type == VTSF64) type = VTUI64;
 
-    for (n = VAL_LEN(vect); n > 1;) {
+    for (n = VAL_LEN_AT(vect); n > 1;) {
         k = idx + (REBCNT)Random_Int(secure) % n;
         n--;
         swap = get_vect(type, data, k);
@@ -398,7 +398,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     // Initial data:
     if (NOT_END(bp) && (IS_BLOCK(bp) || IS_BINARY(bp))) {
-        REBCNT len = VAL_LEN(bp);
+        REBCNT len = VAL_LEN_AT(bp);
         if (IS_BINARY(bp) && type == 1) return 0;
         if (len > size) size = len;
         iblk = bp;
@@ -574,7 +574,7 @@ REBTYPE(Vector)
 
     case A_TO:
         // CASE: make vector! [...]
-        if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_BLK_DATA(arg), value)) break;
+        if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_ARRAY_AT(arg), value)) break;
         goto bad_make;
 
     case A_LENGTH:
@@ -625,7 +625,7 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         len = VAL_TAIL(value);
         n = 0;
     } else {
-        len = VAL_LEN(value);
+        len = VAL_LEN_AT(value);
         n = VAL_INDEX(value);
     }
 

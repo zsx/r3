@@ -79,7 +79,7 @@ typedef struct rxi_cmd_frame {
 
 typedef struct rxi_cmd_context {
     void *envr;     // for holding a reference to your environment
-    REBSER *block;  // block being evaluated
+    REBARR *block;  // block being evaluated
     REBCNT index;   // 0-based index of current command in block
 } REBCEC;
 
@@ -156,7 +156,7 @@ enum {
 
 typedef struct rxi_callback_info {
     u32 flags;
-    REBSER *obj;    // object that holds the function
+    REBARR *obj;    // object that holds the function
     u32 word;       // word id for function (name)
     RXIARG *args;   // argument list for function
     RXIARG result;  // result from function

@@ -41,14 +41,14 @@
 //
 REBINT Compare_Binary_Vals(const REBVAL *v1, const REBVAL *v2)
 {
-    REBCNT l1 = VAL_LEN(v1);
-    REBCNT l2 = VAL_LEN(v2);
+    REBCNT l1 = VAL_LEN_AT(v1);
+    REBCNT l2 = VAL_LEN_AT(v2);
     REBCNT len = MIN(l1, l2);
     REBINT n;
 
     if (IS_IMAGE(v1)) len *= 4;
 
-    n = memcmp(VAL_BIN_DATA(v1), VAL_BIN_DATA(v2), len);
+    n = memcmp(VAL_BIN_AT(v1), VAL_BIN_AT(v2), len);
 
     if (n != 0) return n;
 
@@ -212,8 +212,8 @@ REBINT Compare_Uni_Str(REBUNI *u1, REBUNI *u2, REBCNT len, REBOOL uncase)
 //
 REBINT Compare_String_Vals(const REBVAL *v1, const REBVAL *v2, REBOOL uncase)
 {
-    REBCNT l1  = VAL_LEN(v1);
-    REBCNT l2  = VAL_LEN(v2);
+    REBCNT l1  = VAL_LEN_AT(v1);
+    REBCNT l2  = VAL_LEN_AT(v2);
     REBCNT len = MIN(l1, l2);
     REBINT n;
 
@@ -221,15 +221,15 @@ REBINT Compare_String_Vals(const REBVAL *v1, const REBVAL *v2, REBOOL uncase)
 
     if (VAL_BYTE_SIZE(v1)) { // v1 is 8
         if (VAL_BYTE_SIZE(v2))
-            n = Compare_Bytes(VAL_BIN_DATA(v1), VAL_BIN_DATA(v2), len, uncase);
+            n = Compare_Bytes(VAL_BIN_AT(v1), VAL_BIN_AT(v2), len, uncase);
         else
-            n = -Compare_Uni_Byte(VAL_UNI_DATA(v2), VAL_BIN_DATA(v1), len, uncase);
+            n = -Compare_Uni_Byte(VAL_UNI_AT(v2), VAL_BIN_AT(v1), len, uncase);
     }
     else { // v1 is 16
         if (VAL_BYTE_SIZE(v2))
-            n = Compare_Uni_Byte(VAL_UNI_DATA(v1), VAL_BIN_DATA(v2), len, uncase);
+            n = Compare_Uni_Byte(VAL_UNI_AT(v1), VAL_BIN_AT(v2), len, uncase);
         else
-            n = Compare_Uni_Str(VAL_UNI_DATA(v1), VAL_UNI_DATA(v2), len, uncase);
+            n = Compare_Uni_Str(VAL_UNI_AT(v1), VAL_UNI_AT(v2), len, uncase);
     }
 
     if (n != 0) return n;
@@ -309,10 +309,10 @@ REBCNT Find_Byte_Str(REBSER *series, REBCNT index, REBYTE *b2, REBCNT l2, REBFLG
     REBCNT n;
 
     // The pattern empty or is longer than the target:
-    if (l2 == 0 || (l2 + index) > SERIES_TAIL(series)) return NOT_FOUND;
+    if (l2 == 0 || (l2 + index) > SERIES_LEN(series)) return NOT_FOUND;
 
-    b1 = BIN_SKIP(series, index);
-    l1 = SERIES_TAIL(series) - index;
+    b1 = BIN_AT(series, index);
+    l1 = SERIES_LEN(series) - index;
 
     e1 = b1 + (match ? 1 : l1 - (l2 - 1));
 

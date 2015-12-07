@@ -43,8 +43,13 @@ enum {
 // Do set operations on a series.  Case-sensitive if `cased` is TRUE.
 // `skip` is the record size.
 //
-static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2, REBCNT flags, REBCNT cased, REBCNT skip)
-{
+static REBSER *Make_Set_Operation_Series(
+    const REBVAL *val1,
+    const REBVAL *val2,
+    REBCNT flags,
+    REBCNT cased,
+    REBCNT skip
+) {
     REBSER *buffer;     // buffer for building the return series
     REBCNT i;
     REBINT h = TRUE;
@@ -87,14 +92,14 @@ static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2,
     }
 
     // Calculate i as length of result block.
-    i = VAL_LEN(val1);
-    if (flags & SOP_FLAG_BOTH) i += VAL_LEN(val2);
+    i = VAL_LEN_AT(val1);
+    if (flags & SOP_FLAG_BOTH) i += VAL_LEN_AT(val2);
 
     if (ANY_ARRAY(val1)) {
         REBSER *hser = 0;   // hash table for series
         REBSER *hret;       // hash table for return series
 
-        buffer = BUF_EMIT;          // use preallocated shared block
+        buffer = ARRAY_SERIES(BUF_EMIT); // use preallocated shared block
         Resize_Series(buffer, i);
         hret = Make_Hash_Sequence(i);   // allocated
 
@@ -111,14 +116,14 @@ static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2,
 
             // Iterate over first series:
             i = VAL_INDEX(val1);
-            for (; i < SERIES_TAIL(ser); i += skip) {
-                REBVAL *item = BLK_SKIP(ser, i);
+            for (; i < SERIES_LEN(ser); i += skip) {
+                REBVAL *item = ARRAY_AT(AS_ARRAY(ser), i);
                 if (flags & SOP_FLAG_CHECK) {
-                    h = Find_Key(VAL_SERIES(val2), hser, item, skip, cased, 1);
+                    h = Find_Key_Hashed(VAL_ARRAY(val2), hser, item, skip, cased, 1);
                     h = (h >= 0);
                     if (flags & SOP_FLAG_INVERT) h = !h;
                 }
-                if (h) Find_Key(buffer, hret, item, skip, cased, 2);
+                if (h) Find_Key_Hashed(AS_ARRAY(buffer), hret, item, skip, cased, 2);
             }
 
             if (flags & SOP_FLAG_CHECK)
@@ -138,7 +143,7 @@ static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2,
         if (hret)
             Free_Series(hret);
 
-        out_ser = Copy_Array_Shallow(buffer);
+        out_ser = ARRAY_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer)));
         RESET_TAIL(buffer); // required - allow reuse
     }
     else {
@@ -158,7 +163,7 @@ static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2,
 
             // Iterate over first series:
             i = VAL_INDEX(val1);
-            for (; i < SERIES_TAIL(ser); i += skip) {
+            for (; i < SERIES_LEN(ser); i += skip) {
                 uc = GET_ANY_CHAR(ser, i);
                 if (flags & SOP_FLAG_CHECK) {
                     h = (NOT_FOUND != Find_Str_Char(
@@ -181,7 +186,7 @@ static REBSER *Make_Set_Operation_Series(const REBVAL *val1, const REBVAL *val2,
                         buffer,
                         0,
                         0,
-                        SERIES_TAIL(buffer),
+                        SERIES_LEN(buffer),
                         skip,
                         uc,
                         cased ? AM_FIND_CASE : 0

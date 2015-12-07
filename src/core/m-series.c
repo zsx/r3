@@ -90,13 +90,13 @@ void Append_Series(REBSER *series, const REBYTE *data, REBCNT len)
 // the number of units and does not include the terminator
 // (which will be added).
 //
-void Append_Values_Len(REBSER *array, const REBVAL value[], REBCNT len)
+void Append_Values_Len(REBARR *array, const REBVAL value[], REBCNT len)
 {
-    REBYTE *dest = array->data + (sizeof(REBVAL) * array->tail);
+    REBYTE *dest = cast(REBYTE*, ARRAY_TAIL(array));
 
-    assert(Is_Array_Series(array));
-
-    EXPAND_SERIES_TAIL(array, len); // updates tail (hence we calculated dest)
+    // updates tail (hence we calculated dest before)
+    //
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(array), len);
 
     memcpy(dest, &value[0], sizeof(REBVAL) * len);
 
@@ -194,7 +194,7 @@ REBSER *Copy_Sequence_At_Len(REBSER *source, REBCNT index, REBCNT len)
 REBSER *Copy_Sequence_At_Position(const REBVAL *position)
 {
     return Copy_Sequence_At_Len(
-        VAL_SERIES(position), VAL_INDEX(position), VAL_LEN(position)
+        VAL_SERIES(position), VAL_INDEX(position), VAL_LEN_AT(position)
     );
 }
 
@@ -216,8 +216,8 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
     // Optimized case of head removal:
     if (index == 0) {
         if ((REBCNT)len > series->tail) len = series->tail;
-        SERIES_TAIL(series) -= len;
-        if (SERIES_TAIL(series) == 0) {
+        SET_SERIES_LEN(series, SERIES_LEN(series) - len);
+        if (SERIES_LEN(series) == 0) {
             // Reset bias to zero:
             len = SERIES_BIAS(series);
             SERIES_SET_BIAS(series, 0);
@@ -295,12 +295,11 @@ void Remove_Sequence_Last(REBSER *series)
 // 
 // Remove last value from an array.
 //
-void Remove_Array_Last(REBSER *series)
+void Remove_Array_Last(REBARR *array)
 {
-    assert(Is_Array_Series(series));
-    assert(series->tail != 0);
-    series->tail--;
-    TERM_ARRAY(series);
+    assert(ARRAY_LEN(array) != 0);
+    SET_ARRAY_LEN(array, ARRAY_LEN(array) - 1);
+    TERM_ARRAY(array);
 }
 
 
@@ -347,11 +346,10 @@ void Reset_Series(REBSER *series)
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
-void Reset_Array(REBSER *array)
+void Reset_Array(REBARR *array)
 {
-    assert(Is_Array_Series(array));
-    Unbias_Series(array, FALSE);
-    array->tail = 0;
+    Unbias_Series(ARRAY_SERIES(array), FALSE);
+    SET_ARRAY_LEN(array, 0);
     TERM_ARRAY(array);
 }
 
@@ -439,14 +437,19 @@ REBSER *Copy_Buffer(REBSER *buf, void *end)
 void Assert_Series_Term_Core(REBSER *series)
 {
     if (Is_Array_Series(series)) {
+        //
         // END values aren't canonized to zero bytes, check IS_END explicitly
-        if (NOT_END(BLK_SKIP(series, series->tail))) {
+        //
+        if (NOT_END(ARRAY_AT(AS_ARRAY(series), SERIES_LEN(series)))) {
             Debug_Fmt("Unterminated blocklike series detected");
             Panic_Series(series);
         }
     }
     else {
-        // Non-REBVAL-bearing series must have their terminal as all 0 bytes
+        //
+        // If they are terminated, then non-REBVAL-bearing series must have
+        // their terminal element as all 0 bytes (to use this check)
+        //
         int n;
         for (n = 0; n < SERIES_WIDE(series); n++) {
             if (0 != series->data[series->tail * SERIES_WIDE(series) + n]) {

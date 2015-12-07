@@ -61,7 +61,7 @@ REBFLG Is_Port_Open(REBFRM *port)
 {
     REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
     if (!IS_BINARY(state)) return FALSE;
-    return IS_OPEN(VAL_BIN_DATA(state));
+    return IS_OPEN(VAL_BIN_AT(state));
 }
 
 
@@ -75,8 +75,8 @@ void Set_Port_Open(REBFRM *port, REBFLG flag)
 {
     REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
     if (IS_BINARY(state)) {
-        if (flag) SET_OPEN(VAL_BIN_DATA(state));
-        else SET_CLOSED(VAL_BIN_DATA(state));
+        if (flag) SET_OPEN(VAL_BIN_AT(state));
+        else SET_CLOSED(VAL_BIN_AT(state));
     }
 }
 
@@ -139,7 +139,7 @@ REBFLG Pending_Port(REBVAL *port)
 //      0 for nothing to do
 //      1 for wait is satisifed
 //
-REBINT Awake_System(REBSER *ports, REBINT only)
+REBINT Awake_System(REBARR *ports, REBINT only)
 {
     REBVAL *port;
     REBVAL *state;
@@ -196,7 +196,7 @@ REBINT Awake_System(REBSER *ports, REBINT only)
 // Returns:
 //     TRUE when port action happened, or FALSE for timeout.
 //
-REBINT Wait_Ports(REBSER *ports, REBCNT timeout, REBINT only)
+REBINT Wait_Ports(REBARR *ports, REBCNT timeout, REBINT only)
 {
     REBI64 base = OS_DELTA_TIME(0, 0);
     REBCNT time;
@@ -248,7 +248,7 @@ REBINT Wait_Ports(REBSER *ports, REBCNT timeout, REBINT only)
 // Remove all ports not found in the WAKE list.
 // ports could be NULL, in which case the WAKE list is cleared.
 //
-void Sieve_Ports(REBSER *ports)
+void Sieve_Ports(REBARR *ports)
 {
     REBVAL *port;
     REBVAL *waked;
@@ -260,19 +260,19 @@ void Sieve_Ports(REBSER *ports)
     waked = VAL_CONTEXT_VALUE(port, STD_PORT_DATA);
     if (!IS_BLOCK(waked)) return;
 
-    for (n = 0; ports && n < SERIES_TAIL(ports);) {
-        val = BLK_SKIP(ports, n);
+    for (n = 0; ports && n < ARRAY_LEN(ports);) {
+        val = ARRAY_AT(ports, n);
         if (IS_PORT(val)) {
             assert(VAL_TAIL(waked) != 0);
-            if (VAL_TAIL(waked) == Find_Block_Simple(VAL_SERIES(waked), 0, val)) {//not found
-                Remove_Series(ports, n, 1);
+            if (VAL_TAIL(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
+                Remove_Series(ARRAY_SERIES(ports), n, 1);
                 continue;
             }
         }
         n++;
     }
     //clear waked list
-    RESET_SERIES(VAL_SERIES(waked));
+    RESET_ARRAY(VAL_ARRAY(waked));
 }
 
 
@@ -306,7 +306,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
 
     assert(action < A_MAX_ACTION);
 
-    assert(SERIES_GET_FLAG(FRAME_VARLIST(port), SER_FRAME));
+    assert(ARRAY_GET_FLAG(FRAME_VARLIST(port), SER_FRAME));
 
     // Verify valid port (all of these must be false):
     if (
@@ -396,7 +396,7 @@ void Validate_Port(REBFRM *port, REBCNT action)
     if (
         action >= A_MAX_ACTION
         || FRAME_LEN(port) > 50 // !!! ?? why 50 ??
-        || !SERIES_GET_FLAG(FRAME_VARLIST(port), SER_FRAME)
+        || !ARRAY_GET_FLAG(FRAME_VARLIST(port), SER_FRAME)
         || !IS_OBJECT(FRAME_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
@@ -494,8 +494,8 @@ REBNATIVE(set_scheme)
     // The scheme uses a native actor:
     if (Scheme_Actions[n].fun) {
         // Hand build a native function used to reach native scheme actors.
-        REBSER *ser = Make_Array(1);
-        act = Alloc_Tail_Array(ser);
+        REBARR *array = Make_Array(1);
+        act = Alloc_Tail_Array(array);
 
         Val_Init_Typeset(
             act,
@@ -511,9 +511,9 @@ REBNATIVE(set_scheme)
         // !!! Review: If this spec ever got leaked then it would be leaking
         // 'typed' words to the user.  For safety, a single global actor spec
         // could be made at startup.
-        VAL_FUNC_SPEC(actor) = ser;
-        VAL_FUNC_PARAMLIST(actor) = ser;
-        MANAGE_SERIES(ser);
+        VAL_FUNC_SPEC(actor) = array;
+        VAL_FUNC_PARAMLIST(actor) = array;
+        MANAGE_ARRAY(array);
 
         VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);
 
@@ -535,7 +535,9 @@ REBNATIVE(set_scheme)
 
             // Make native function for action:
             func = Obj_Value(actor, n); // function
-            Make_Native(func, VAL_FUNC_SPEC(act), (REBFUN)(map->func), REB_NATIVE);
+            Make_Native(
+                func, VAL_FUNC_SPEC(act), cast(REBFUN, map->func), REB_NATIVE
+            );
         }
     }
     return R_TRUE;

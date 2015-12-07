@@ -194,7 +194,7 @@ static void Binary_To_Decimal(REBVAL *bin, REBVAL *dec)
     REBI64 n = 0;
     REBSER *ser = VAL_SERIES(bin);
     REBCNT idx = VAL_INDEX(bin);
-    REBCNT len = VAL_LEN(bin);
+    REBCNT len = VAL_LEN_AT(bin);
 
     if (len > 8) len = 8;
 
@@ -393,8 +393,8 @@ REBTYPE(Decimal)
 #endif
 
             default:
-                if (ANY_ARRAY(val) && VAL_BLK_LEN(val) == 2) {
-                    arg = VAL_BLK_DATA(val);
+                if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) == 2) {
+                    arg = VAL_ARRAY_AT(val);
                     if (IS_INTEGER(arg))
                         d1 = (REBDEC)VAL_INT64(arg);
                     else if (IS_DECIMAL(arg) || IS_PERCENT(val))
