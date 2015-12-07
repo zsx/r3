@@ -508,7 +508,7 @@ typedef struct Reb_Tuple {
 #endif
     union {
         REBCNT size;    // used for vectors and bitsets
-        REBSER *series; // MAP datatype uses this
+        REBSER *hashlist; // MAP datatype uses this
         REBARR *keylist; // used by FRAME
         struct {
             REBCNT wide:16;
@@ -1073,12 +1073,12 @@ struct Reb_Array {
 ***********************************************************************/
 
 struct Reb_Map {
-    struct Reb_Array pairlist;
+    struct Reb_Array pairlist; // hashlist is held in REBSER.misc.hashlist
 };
 typedef struct Reb_Map REBMAP;
 
 #define MAP_PAIRLIST(m)         (&(m)->pairlist)
-#define MAP_HASHLIST(m)         (ARRAY_SERIES(&(m)->pairlist)->misc.series)
+#define MAP_HASHLIST(m)         (ARRAY_SERIES(&(m)->pairlist)->misc.hashlist)
 #define MAP_HASHES(m)           SERIES_DATA(MAP_HASHLIST(m))
 
 // !!! Should there be a MAP_LEN()?  Current implementation has NONE in
@@ -1228,7 +1228,7 @@ struct Reb_Word {
 ***********************************************************************/
 
 typedef struct Reb_Frame {
-    REBARR array; // keylist is held in REBSER.misc.series
+    REBARR array; // keylist is held in REBSER.misc.keylist
 } REBFRM;
 
 #ifdef NDEBUG

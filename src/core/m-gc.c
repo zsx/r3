@@ -735,10 +735,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             break;
 
         case REB_MAP: {
-            REBARR* array = VAL_ARRAY(val);
-            QUEUE_MARK_ARRAY_DEEP(array);
-            if (ARRAY_SERIES(array)->misc.series)
-                MARK_SERIES_ONLY(ARRAY_SERIES(array)->misc.series);
+            REBMAP* map = VAL_MAP(val);
+            QUEUE_MARK_ARRAY_DEEP(MAP_PAIRLIST(map));
+            if (MAP_HASHLIST(map))
+                MARK_SERIES_ONLY(MAP_HASHLIST(map));
             break;
         }
 
