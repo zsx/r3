@@ -1140,6 +1140,8 @@ static void nvgshp_begin(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 //	printf("%s, %d\n", __FUNCTION__, __LINE__);
+	ctx->last_x = 0;
+	ctx->last_y = 0;
 	nvgBeginPath(ctx->nvg);
 }
 
