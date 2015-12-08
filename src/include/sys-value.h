@@ -164,8 +164,6 @@ enum {
 #define THROWN(v)           (VAL_GET_OPT((v), OPT_VALUE_THROWN))
 
 
-#define IS_SET(v)           (VAL_TYPE(v) > REB_UNSET)
-#define IS_SCALAR(v)        (VAL_TYPE(v) <= REB_DATE)
 
 
 /***********************************************************************

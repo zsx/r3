@@ -493,7 +493,19 @@ for-each-record-NO-RETURN type boot-types [
     n: n + 1
 ]
 
+; These macros are not automatically generated, though perhaps some of them
+; should be.  They are here because all the type concerns tie together...
+; if they are renumbered then tests using > or < might start failing.
+;
+; !!! Consider ways of making this more robust.
+;
 emit {
+#define IS_SET(v) \
+    (VAL_TYPE(v) > REB_UNSET)
+
+#define IS_SCALAR(v) \
+    (VAL_TYPE(v) <= REB_DATE)
+
 #define ANY_SERIES(v) \
     (VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
 
