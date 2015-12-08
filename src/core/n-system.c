@@ -106,17 +106,17 @@ REBNATIVE(recycle)
 
     if (D_REF(2)) {// /on
         GC_Active = TRUE;
-        SET_INT32(TASK_BALLAST, VAL_INT32(TASK_MAX_BALLAST));
+        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
     if (D_REF(3)) {// /ballast
         *TASK_MAX_BALLAST = *D_ARG(4);
-        SET_INT32(TASK_BALLAST, VAL_INT32(TASK_MAX_BALLAST));
+        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
     if (D_REF(5)) { // torture
         GC_Active = TRUE;
-        SET_INT32(TASK_BALLAST, 0);
+        VAL_INT64(TASK_BALLAST) = 0;
     }
 
     count = Recycle();

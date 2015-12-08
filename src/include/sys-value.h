@@ -293,7 +293,6 @@ struct Reb_Datatype {
 #define VAL_INT64(v)    ((v)->data.integer)
 #define VAL_UNT64(v)    ((v)->data.unteger)
 #define SET_INTEGER(v,n) VAL_RESET_HEADER(v, REB_INTEGER), ((v)->data.integer) = (n)
-#define SET_INT32(v,n)  ((v)->data.integer) = (REBINT)(n)
 
 #define MAX_CHAR        0xffff
 #define VAL_CHAR(v)     ((v)->data.character)
