@@ -141,7 +141,6 @@ typedef struct rebol_mold {
 #include "tmp-sysctx.h"
 
 //#include "reb-net.h"
-#include "sys-panics.h"
 #include "tmp-boot.h"
 #include "sys-mem.h"
 #include "tmp-errnums.h"

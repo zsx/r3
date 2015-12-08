@@ -764,33 +764,6 @@ void Make_OS_Error(REBVAL *out, int errnum)
 
 
 //
-//  At_Head: C
-// 
-// Return the series for a value, but if it has an index
-// offset, return a copy of the series from that position.
-// Useful for functions that do not accept index offsets.
-//
-REBSER *At_Head(REBVAL *value)
-{
-    REBCNT len;
-    REBSER *ser;
-    REBSER *src = VAL_SERIES(value);
-    REBYTE wide;
-
-    if (VAL_INDEX(value) == 0) return src;
-
-    len = VAL_LEN_AT(value);
-    wide = SERIES_WIDE(src);
-    ser = Make_Series(len, wide, Is_Array_Series(src) ? MKS_ARRAY : MKS_NONE);
-
-    memcpy(ser->data, src->data + (VAL_INDEX(value) * wide), len * wide);
-    ser->tail = len;
-
-    return ser;
-}
-
-
-//
 //  Collect_Set_Words: C
 // 
 // Scan a block, collecting all of its SET words as a block.
