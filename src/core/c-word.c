@@ -254,7 +254,7 @@ make_sym:
     }
     VAL_SYM_ALIAS(w) = 0;
     VAL_SYM_NINDEX(w) = Make_Word_Name(str, len);
-    VAL_SET(w, REB_HANDLE);
+    VAL_RESET_HEADER(w, REB_HANDLE);
 
     // These are allowed because of the SERIES_FULL checks above which
     // add one extra to the TAIL check comparision. However, their
@@ -291,7 +291,7 @@ void Val_Init_Word(
     REBFRM *frame,
     REBCNT index
 ) {
-    VAL_SET(value, type);
+    VAL_RESET_HEADER(value, type);
     assert(sym != SYM_0);
     VAL_WORD_SYM(value) = sym;
     assert(frame);
@@ -308,7 +308,7 @@ void Val_Init_Word(
 //
 void Val_Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
 {
-    VAL_SET(value, type);
+    VAL_RESET_HEADER(value, type);
     VAL_WORD_TARGET(value) = NULL;
     assert(sym != SYM_0);
     VAL_WORD_SYM(value) = sym;

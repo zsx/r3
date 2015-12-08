@@ -72,7 +72,7 @@ REBTYPE(Word)
         // TO word! ...
         if (type == REB_DATATYPE) type = VAL_TYPE_KIND(val);
         if (ANY_WORD(arg)) {
-            VAL_SET(arg, type);
+            VAL_RESET_HEADER(arg, type);
             return R_ARG2;
         }
         else {

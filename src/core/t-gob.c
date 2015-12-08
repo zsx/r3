@@ -721,7 +721,7 @@ REBINT PD_Gob(REBPVS *pvs)
         index += Int32(pvs->select) - 1;
         if (index >= tail) return PE_NONE;
         gob = *GOB_AT(gob, index);
-        VAL_SET(pvs->store, REB_GOB);
+        VAL_RESET_HEADER(pvs->store, REB_GOB);
         VAL_GOB(pvs->store) = gob;
         VAL_GOB_INDEX(pvs->store) = 0;
         return PE_USE;
@@ -851,7 +851,7 @@ REBTYPE(Gob)
         if (index + len > tail) len = tail - index;
         if (index >= tail) goto is_none;
         if (!D_REF(2)) { // just one value
-            VAL_SET(D_OUT, REB_GOB);
+            VAL_RESET_HEADER(D_OUT, REB_GOB);
             VAL_GOB(D_OUT) = *GOB_AT(gob, index);
             VAL_GOB_INDEX(D_OUT) = 0;
             Remove_Gobs(gob, index, 1);
@@ -928,7 +928,7 @@ REBTYPE(Gob)
     return R_OUT;
 
 set_index:
-    VAL_SET(D_OUT, REB_GOB);
+    VAL_RESET_HEADER(D_OUT, REB_GOB);
     VAL_GOB(D_OUT) = gob;
     VAL_GOB_INDEX(D_OUT) = index;
     return R_OUT;

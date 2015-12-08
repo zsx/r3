@@ -648,8 +648,8 @@ RL_API int RL_Event(REBEVT *evt)
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
-        VAL_SET(event, REB_EVENT);      // (has more space, if we need it)
         event->data.event = *evt;
+        VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
         return 1;
     }
 

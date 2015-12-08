@@ -58,7 +58,7 @@ REBINT CT_Image(REBVAL *a, REBVAL *b, REBINT mode)
 REBFLG MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!Create_Image(data, out, 1)) return FALSE;
-    VAL_SET(out, REB_IMAGE);
+    VAL_RESET_HEADER(out, REB_IMAGE);
     return TRUE;
 }
 
@@ -101,7 +101,7 @@ void Set_Tuple_Pixel(REBYTE *dp, REBVAL *tuple)
     // Pixel to tuple.
     REBYTE *tup = VAL_TUPLE(tuple);
 
-    VAL_SET(tuple, REB_TUPLE);
+    VAL_RESET_HEADER(tuple, REB_TUPLE);
     VAL_TUPLE_LEN(tuple) = 4;
     tup[0] = dp[C_R];
     tup[1] = dp[C_G];
@@ -860,7 +860,7 @@ REBTYPE(Image)
 
     case A_INDEX_OF:
         if (D_REF(2)) {
-            VAL_SET(D_OUT, REB_PAIR);
+            VAL_RESET_HEADER(D_OUT, REB_PAIR);
             VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
             VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
             return R_OUT;
@@ -1146,7 +1146,7 @@ REBINT PD_Image(REBPVS *pvs)
             switch (VAL_WORD_CANON(sel)) {
 
             case SYM_SIZE:
-                VAL_SET(val, REB_PAIR);
+                VAL_RESET_HEADER(val, REB_PAIR);
                 VAL_PAIR_X(val) = (REBD32)VAL_IMAGE_WIDE(data);
                 VAL_PAIR_Y(val) = (REBD32)VAL_IMAGE_HIGH(data);
                 break;

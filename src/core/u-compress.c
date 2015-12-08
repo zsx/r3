@@ -309,7 +309,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
                 REBVAL temp;
-                VAL_SET(&temp, max);
+                VAL_RESET_HEADER(&temp, max);
 
                 // NOTE: You can hit this on 'make prep' without doing a full
                 // rebuild.  'make clean' and build again, it should go away.

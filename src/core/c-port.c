@@ -517,7 +517,7 @@ REBNATIVE(set_scheme)
 
         VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);
 
-        VAL_SET(actor, REB_NATIVE);
+        VAL_RESET_HEADER(actor, REB_NATIVE);
         return R_TRUE;
     }
 

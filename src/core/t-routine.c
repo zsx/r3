@@ -654,7 +654,7 @@ static void prep_rvalue(REBRIN *rin,
             SET_DECIMAL(val, 0);
             break;
         case FFI_TYPE_STRUCT:
-            SET_TYPE(val, REB_STRUCT);
+            VAL_SET_TYPE(val, REB_STRUCT);
             break;
         case FFI_TYPE_VOID:
             SET_UNSET(val);
@@ -706,7 +706,7 @@ static void ffi_to_rebol(REBRIN *rin,
             SET_DECIMAL(rebol_ret, *(double*)ffi_rvalue);
             break;
         case FFI_TYPE_STRUCT:
-            SET_TYPE(rebol_ret, REB_STRUCT);
+            VAL_SET_TYPE(rebol_ret, REB_STRUCT);
             Copy_Struct(&RIN_RVALUE(rin), &VAL_STRUCT(rebol_ret));
             memcpy(
                 SERIES_AT(
@@ -966,7 +966,7 @@ static void callback_dispatcher(
     PUSH_GUARD_ARRAY(array);
 
     elem = Alloc_Tail_Array(array);
-    SET_TYPE(elem, REB_FUNCTION);
+    VAL_SET_TYPE(elem, REB_FUNCTION);
     VAL_FUNC(elem) = RIN_FUNC(rin);
 
     for (i = 0; i < cif->nargs; i ++) {
@@ -1095,7 +1095,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         return FALSE;
     }
 
-    SET_TYPE(out, type);
+    VAL_SET_TYPE(out, type);
 
     VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
     memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));

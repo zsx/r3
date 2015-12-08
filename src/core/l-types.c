@@ -354,7 +354,7 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
     if (len == 0) return 0;
     VAL_MONEY_AMOUNT(value) = string_to_deci(cp, &end);
     if (end != cp + len) return 0;
-    VAL_SET(value, REB_MONEY);
+    VAL_RESET_HEADER(value, REB_MONEY);
 
     return end;
 
@@ -390,7 +390,7 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
     *ep = 0;
 
     if ((REBCNT)(cp-bp) != len) return 0;
-    VAL_SET(value, REB_MONEY);
+    VAL_RESET_HEADER(value, REB_MONEY);
     VAL_MONEY_AMOUNT(value) = atof((char*)(&buf[0]));
     if (fabs(VAL_MONEY_AMOUNT(value)) == HUGE_VAL) fail (Error(RE_OVERFLOW));
     return cp;
@@ -581,7 +581,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     REBOOL at = FALSE;
     REBUNI n;
 
-    VAL_SET(value, REB_EMAIL);
+    VAL_RESET_HEADER(value, REB_EMAIL);
     VAL_SERIES(value) = Make_Binary(len);
     VAL_INDEX(value) = 0;
 
@@ -627,7 +627,7 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (n >= URL_MAX) return 0;
 //  if (*str != ':') return 0;
 
-    VAL_SET(value, REB_URL);
+    VAL_RESET_HEADER(value, REB_URL);
     VAL_SERIES(value) = Make_Binary(len);
     VAL_INDEX(value) = 0;
 
@@ -672,7 +672,7 @@ const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *value)
     VAL_PAIR_Y(value) = (float)atof((char*)(&buf[0])); //n;
 
     if (len > (REBCNT)(xp - cp)) return 0;
-    VAL_SET(value, REB_PAIR);
+    VAL_RESET_HEADER(value, REB_PAIR);
     return xp;
 }
 
@@ -704,7 +704,7 @@ const REBYTE *Scan_Tuple(const REBYTE *cp, REBCNT len, REBVAL *value)
         if (*ep != '.') break;
     }
     if (len > (REBCNT)(ep - cp)) return 0;
-    VAL_SET(value, REB_TUPLE);
+    VAL_RESET_HEADER(value, REB_TUPLE);
     return ep;
 }
 
@@ -748,7 +748,7 @@ const REBYTE *Scan_Any(const REBYTE *cp, REBCNT len, REBVAL *value, REBYTE type)
 {
     REBCNT n;
 
-    VAL_SET(value, type);
+    VAL_RESET_HEADER(value, type);
     VAL_SERIES(value) = Append_UTF8(0, cp, len);
     VAL_INDEX(value) = 0;
 

@@ -540,7 +540,7 @@ REBFLG Make_Error_Object_Throws(
 
         frame = Copy_Frame_Shallow_Managed(root_frame);
 
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR); // !!! fix in Init_Errors()?
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR); // !!! fix in Init_Errors()?
 
         error_obj = ERR_VALUES(frame);
         assert(IS_NONE(&error_obj->code));
@@ -843,7 +843,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // !!! Should tweak root frame during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
     }
     else {
         REBCNT root_len = FRAME_LEN(root_frame);
@@ -860,7 +860,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // !!! Should tweak root frame during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
 
         // Fix up the tail first so FRAME_KEY and FRAME_VAR don't complain
         // in the debug build that they're accessing beyond the frame length

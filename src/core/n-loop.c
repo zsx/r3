@@ -108,7 +108,7 @@ static REBARR *Init_Loop(
     SET_ARRAY_LEN(FRAME_VARLIST(frame), len + 1);
     SET_ARRAY_LEN(FRAME_KEYLIST(frame), len + 1);
 
-    VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
 
@@ -205,7 +205,7 @@ static REBFLG Loop_Integer_Throws(
     REBI64 end,
     REBI64 incr
 ) {
-    VAL_SET(var, REB_INTEGER);
+    VAL_RESET_HEADER(var, REB_INTEGER);
 
     SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
@@ -269,7 +269,7 @@ static REBFLG Loop_Number_Throws(
     else
         fail (Error_Invalid_Arg(incr));
 
-    VAL_SET(var, REB_DECIMAL);
+    VAL_RESET_HEADER(var, REB_DECIMAL);
 
     SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
@@ -560,7 +560,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                     Set_Tuple_Pixel(BIN_AT(series, index), var);
                 }
                 else {
-                    VAL_SET(var, REB_CHAR);
+                    VAL_RESET_HEADER(var, REB_CHAR);
                     VAL_CHAR(var) = GET_ANY_CHAR(series, index);
                 }
             }
@@ -967,7 +967,7 @@ REBNATIVE(repeat)
 
     if (IS_DECIMAL(count) || IS_PERCENT(count)) {
         VAL_INT64(count) = Int64(count);
-        VAL_SET(count, REB_INTEGER);
+        VAL_RESET_HEADER(count, REB_INTEGER);
     }
 
     body = Init_Loop(&frame, D_ARG(1), D_ARG(3));

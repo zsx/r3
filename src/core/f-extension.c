@@ -121,7 +121,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
 /*
 ***********************************************************************/
 {
-    VAL_SET(val, RXT_To_Reb[type]);
+    VAL_RESET_HEADER(val, RXT_To_Reb[type]);
     switch (RXT_Eval_Class[type]) {
     case RXX_64:
         VAL_INT64(val) = arg.int64;
@@ -380,7 +380,7 @@ REBNATIVE(load_extension)
 
     // Set extension fields needed:
     val = FRAME_VAR(frame, STD_EXTENSION_LIB_BASE);
-    VAL_SET(val, REB_HANDLE);
+    VAL_RESET_HEADER(val, REB_HANDLE);
     VAL_I32(val) = ext->index;
     if (!D_REF(2)) *FRAME_VAR(frame, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
     Val_Init_Binary(FRAME_VAR(frame, STD_EXTENSION_LIB_BOOT), src);
@@ -465,7 +465,7 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
     Append_Value(VAL_FUNC_BODY(out), command_num);
     MANAGE_ARRAY(VAL_FUNC_BODY(out));
 
-    VAL_SET(out, REB_COMMAND); // clears exts and opts in header...
+    VAL_RESET_HEADER(out, REB_COMMAND); // clears exts and opts in header...
 
     // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
     // function types, can find the function value from the paramlist.

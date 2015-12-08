@@ -139,7 +139,7 @@ REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
     // REB_PORT, or REB_ERROR.  This information will be mirrored in instances
     // of an object initialized with this frame.
     //
-    VAL_SET(FRAME_CONTEXT(frame), REB_TRASH);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_TRASH);
 
     // !!! Modules seemed to be using a FRAME-style series for a spec, as
     // opposed to a simple array.  This is contentious with the plan for what
@@ -678,7 +678,7 @@ REBFRM *Make_Frame_Detect(
         assert(keylist == FRAME_KEYLIST(frame));
     }
 
-    VAL_SET(FRAME_CONTEXT(frame), kind);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), kind);
     assert(FRAME_TYPE(frame) == kind);
 
     FRAME_SPEC(frame) = spec;
@@ -750,10 +750,10 @@ REBARR *Object_To_Array(REBFRM *frame, REBINT mode)
             if (mode & 1) {
                 value = Alloc_Tail_Array(block);
                 if (mode & 2) {
-                    VAL_SET(value, REB_SET_WORD);
+                    VAL_RESET_HEADER(value, REB_SET_WORD);
                     VAL_SET_OPT(value, OPT_VALUE_LINE);
                 }
-                else VAL_SET(value, REB_WORD);
+                else VAL_RESET_HEADER(value, REB_WORD);
                 VAL_WORD_SYM(value) = VAL_TYPESET_SYM(key);
                 VAL_WORD_TARGET(value) = FRAME_VARLIST(frame);
                 VAL_WORD_INDEX(value) = n;
@@ -821,7 +821,7 @@ REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
     // the parent was an ERROR! so will the child be.  This is a new idea
     // in the post-FRAME! design, so review consequences.
     //
-    VAL_SET(value, FRAME_TYPE(parent1));
+    VAL_RESET_HEADER(value, FRAME_TYPE(parent1));
     FRAME_KEYLIST(child) = keylist;
     VAL_FRAME(value) = child;
     VAL_CONTEXT_SPEC(value) = NULL;

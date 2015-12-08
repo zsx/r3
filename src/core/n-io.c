@@ -339,10 +339,10 @@ REBNATIVE(now)
     }
     else if (D_REF(4)) {    // time
         //if (dat.time == ???) SET_NONE(ret);
-        VAL_SET(ret, REB_TIME);
+        VAL_RESET_HEADER(ret, REB_TIME);
     }
     else if (D_REF(5)) {    // zone
-        VAL_SET(ret, REB_TIME);
+        VAL_RESET_HEADER(ret, REB_TIME);
         VAL_TIME(ret) = VAL_ZONE(ret) * ZONE_MINS * MIN_SEC;
     }
     else if (D_REF(7)) n = Week_Day(VAL_DATE(ret));

@@ -93,7 +93,7 @@ void Init_Typesets(void)
 
     for (n = 0; Typesets[n].sym != SYM_0; n++) {
         value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));
-        VAL_SET(value, REB_TYPESET);
+        VAL_RESET_HEADER(value, REB_TYPESET);
         VAL_TYPESET_BITS(value) = Typesets[n].bits;
 
         *Append_Frame(Lib_Context, NULL, Typesets[n].sym) = *value;
@@ -108,7 +108,7 @@ void Init_Typesets(void)
 //
 void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBCNT sym)
 {
-    VAL_SET(value, REB_TYPESET);
+    VAL_RESET_HEADER(value, REB_TYPESET);
     VAL_TYPESET_SYM(value) = sym;
     VAL_TYPESET_BITS(value) = bits;
 }
@@ -180,7 +180,7 @@ REBFLG MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!IS_BLOCK(data)) return FALSE;
 
     if (!Make_Typeset(VAL_ARRAY_HEAD(data), out, TRUE)) return FALSE;
-    VAL_SET(out, REB_TYPESET);
+    VAL_RESET_HEADER(out, REB_TYPESET);
 
     return TRUE;
 }
@@ -195,7 +195,7 @@ REBINT Find_Typeset(REBVAL *block)
     REBVAL *val;
     REBINT n;
 
-    VAL_SET(&value, REB_TYPESET);
+    VAL_RESET_HEADER(&value, REB_TYPESET);
     Make_Typeset(block, &value, 0);
 
     val = VAL_ARRAY_AT_HEAD(ROOT_TYPESETS, 1);
@@ -262,12 +262,12 @@ REBTYPE(Typeset)
     case A_MAKE:
     case A_TO:
         if (IS_BLOCK(arg)) {
-            VAL_SET(D_OUT, REB_TYPESET);
+            VAL_RESET_HEADER(D_OUT, REB_TYPESET);
             Make_Typeset(VAL_ARRAY_AT(arg), D_OUT, 0);
             return R_OUT;
         }
     //  if (IS_NONE(arg)) {
-    //      VAL_SET(arg, REB_TYPESET);
+    //      VAL_RESET_HEADER(arg, REB_TYPESET);
     //      VAL_TYPESET_BITS(arg) = 0L;
     //      return R_ARG2;
     //  }

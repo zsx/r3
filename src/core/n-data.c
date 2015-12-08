@@ -207,7 +207,7 @@ REBNATIVE(as_pair)
 {
     REBVAL *val = D_ARG(1);
 
-    VAL_SET(D_OUT, REB_PAIR);
+    VAL_RESET_HEADER(D_OUT, REB_PAIR);
 
     if (IS_INTEGER(val)) {
         VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_INT64(val));
@@ -1159,7 +1159,7 @@ static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
     val = Alloc_Tail_Array(blk);
     SET_GOB(val, gob);
     val = Alloc_Tail_Array(blk);
-    VAL_SET(val, REB_PAIR);
+    VAL_RESET_HEADER(val, REB_PAIR);
     VAL_PAIR_X(val) = x;
     VAL_PAIR_Y(val) = y;
 }

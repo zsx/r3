@@ -266,7 +266,7 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
     case SYM_OFFSET:
         if (VAL_EVENT_TYPE(value) == EVT_KEY || VAL_EVENT_TYPE(value) == EVT_KEY_UP)
             goto is_none;
-        VAL_SET(val, REB_PAIR);
+        VAL_RESET_HEADER(val, REB_PAIR);
         VAL_PAIR_X(val) = (REBD32)VAL_EVENT_X(value);
         VAL_PAIR_Y(val) = (REBD32)VAL_EVENT_Y(value);
         break;
@@ -364,7 +364,7 @@ REBFLG MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (IS_BLOCK(data)) {
         CLEARS(out);
         Set_Event_Vars(out, VAL_ARRAY_AT(data));
-        VAL_SET(out, REB_EVENT);
+        VAL_RESET_HEADER(out, REB_EVENT);
         return TRUE;
     }
 
@@ -407,8 +407,8 @@ REBTYPE(Event)
         else if (IS_DATATYPE(value)) {
             if (IS_EVENT(arg)) return R_ARG2;
             //fail (Error_Bad_Make(REB_EVENT, value));
-            VAL_SET(D_OUT, REB_EVENT);
             CLEARS(&(D_OUT->data.event));
+            VAL_RESET_HEADER(D_OUT, REB_EVENT);
         }
         else
 is_arg_error:
@@ -479,36 +479,36 @@ pick_it:
         case EF_KEY:
             if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_none;
             if (VAL_EVENT_FLAGS(value)) {  // !!!!!!!!!!!!! needs mask
-                VAL_SET(D_OUT, REB_CHAR);
+                VAL_RESET_HEADER(D_OUT, REB_CHAR);
                 VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
             } else
                 Val_Init_Word(D_OUT, VAL_EVENT_XY(value));
             return R_OUT;
 
         case EF_OFFSET:
-            VAL_SET(D_OUT, REB_PAIR);
+            VAL_RESET_HEADER(D_OUT, REB_PAIR);
             VAL_PAIR_X(D_OUT) = VAL_EVENT_X(value);
             VAL_PAIR_Y(D_OUT) = VAL_EVENT_Y(value);
             return R_OUT;
 
         case EF_TIME:
-            VAL_SET(D_OUT, REB_INTEGER);
+            VAL_RESET_HEADER(D_OUT, REB_INTEGER);
 //!!            VAL_INT64(D_OUT) = VAL_EVENT_TIME(value);
             return R_OUT;
 
         case EF_SHIFT:
-            VAL_SET(D_OUT, REB_LOGIC);
-            VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0;
+            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
+            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0));
             return R_OUT;
 
         case EF_CONTROL:
-            VAL_SET(D_OUT, REB_LOGIC);
-            VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0;
+            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
+            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0);
             return R_OUT;
 
         case EF_DCLICK:
-            VAL_SET(D_OUT, REB_LOGIC);
-            VAL_LOGIC(D_OUT) = GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0;
+            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
+            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0);
             return R_OUT;
 
 /*          case EF_FACE:

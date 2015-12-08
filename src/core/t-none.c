@@ -44,7 +44,7 @@ REBINT CT_None(REBVAL *a, REBVAL *b, REBINT mode)
 //
 REBFLG MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
     return TRUE;
 }
 

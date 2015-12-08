@@ -354,7 +354,7 @@ void Debug_Series(REBSER *ser)
         // container for now saying it is so we can output it.  It may be
         // a frame and we may not want to Manage_Series here, so we use a
         // raw VAL_SET instead of Val_Init_Block
-        VAL_SET(&value, REB_BLOCK);
+        VAL_RESET_HEADER(&value, REB_BLOCK);
         VAL_SERIES(&value) = ser;
         VAL_INDEX(&value) = 0;
         Debug_Fmt("%r", &value);
@@ -829,7 +829,7 @@ mold_value:
             ser = va_arg(*args, REBSER *);
             // Val_Init_Block would Ensure_Series_Managed, we use a raw
             // VAL_SET instead
-            VAL_SET(&value, REB_BLOCK);
+            VAL_RESET_HEADER(&value, REB_BLOCK);
             VAL_SERIES(&value) = ser;
             VAL_INDEX(&value) = 0;
             vp = &value;

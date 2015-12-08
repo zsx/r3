@@ -1004,7 +1004,7 @@ reevaluate:
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
-            VAL_SET(c->out, REB_WORD);
+            VAL_RESET_HEADER(c->out, REB_WORD);
     #endif
 
         c->index++;
@@ -1927,7 +1927,7 @@ reevaluate:
     //
     case REB_LIT_WORD:
         *c->out = *c->value;
-        VAL_SET(c->out, REB_WORD);
+        VAL_RESET_HEADER(c->out, REB_WORD);
         c->index++;
         break;
 
@@ -1945,7 +1945,7 @@ reevaluate:
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
         //
         *c->out = *c->value;
-        VAL_SET(c->out, REB_PATH);
+        VAL_RESET_HEADER(c->out, REB_PATH);
         c->index++;
         break;
 
@@ -2676,16 +2676,16 @@ void Do_Construct(REBVAL value[])
                     break;
                 default:
                     *temp = *value;
-                    VAL_SET(temp, REB_WORD);
+                    VAL_RESET_HEADER(temp, REB_WORD);
                 }
             }
             else if (IS_LIT_WORD(value)) {
                 *temp = *value;
-                VAL_SET(temp, REB_WORD);
+                VAL_RESET_HEADER(temp, REB_WORD);
             }
             else if (IS_LIT_PATH(value)) {
                 *temp = *value;
-                VAL_SET(temp, REB_PATH);
+                VAL_RESET_HEADER(temp, REB_PATH);
             }
             else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
                 *temp = *value;

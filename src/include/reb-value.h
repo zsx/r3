@@ -68,7 +68,15 @@ struct rebol_value {
 #define VAL_INT32(v)        (REBINT)((v)->data.integer)
 #define VAL_INT64(v)        ((v)->data.integer)
 #define VAL_DECIMAL(v)      ((v)->data.decimal)
-#define VAL_LOGIC(v)        ((v)->data.int32)
+
+// !!! This is no longer how LOGIC! works.  It's a bit in the header.  Which
+// bit it is depends on endianness.  If this is in use then there are two
+// options: either build in the ability to test and set that bit in the
+// header by replicating the internal Reb_Value_Header interpretation, or
+// add something like a RL_Get_Logic() and RL_Set_Logic() API.
+//
+/*#define VAL_LOGIC(v)        ((v)->data.int32) */
+
 #define VAL_TUPLE(v)        ((v)->data.tuple.tuple+1)
 #define VAL_TUPLE_LEN(v)    ((v)->data.tuple.tuple[0])
 #define VAL_COLOR_TUPLE(v)  (TO_RGBA_COLOR(VAL_TUPLE(v)[1], VAL_TUPLE(v)[2], VAL_TUPLE(v)[3], VAL_TUPLE(v)[0] > 3 ? VAL_TUPLE(v)[4] : 0xff)) //always RGBA order

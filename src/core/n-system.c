@@ -147,7 +147,7 @@ REBNATIVE(stats)
 
     if (D_REF(3)) {
         VAL_TIME(D_OUT) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
-        VAL_SET(D_OUT, REB_TIME);
+        VAL_RESET_HEADER(D_OUT, REB_TIME);
         return R_OUT;
     }
 
@@ -167,7 +167,7 @@ REBNATIVE(stats)
             stats = Get_Object(stats, 1);
 
             VAL_TIME(stats) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
-            VAL_SET(stats, REB_TIME);
+            VAL_RESET_HEADER(stats, REB_TIME);
             stats++;
             SET_INTEGER(stats, Eval_Cycles + Eval_Dose - Eval_Count);
             stats++;

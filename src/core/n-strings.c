@@ -168,7 +168,7 @@ REBNATIVE(spelling_of)
         // turn all words into regular words so they'll have no delimiters
         // during the FORMing process
 
-        VAL_SET(value, REB_WORD);
+        VAL_RESET_HEADER(value, REB_WORD);
         series = Copy_Mold_Value(value, TRUE);
     }
 

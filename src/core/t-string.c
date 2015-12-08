@@ -282,7 +282,7 @@ REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (!ANY_BINSTR(data)) return FALSE;
     *out = *data++;
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
 
     // !!! This did not have special END handling previously, but it would have
     // taken the 0 branch.  Review if this is sensible.

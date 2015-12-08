@@ -211,7 +211,7 @@ REBARR *Vector_To_Array(REBVAL *vect)
     array = Make_Array(len);
     val = ARRAY_HEAD(array);
     for (n = VAL_INDEX(vect); n < VAL_TAIL(vect); n++, val++) {
-        VAL_SET(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
+        VAL_RESET_HEADER(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
 
@@ -291,8 +291,8 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
     REBCNT bits = VECT_TYPE(series);
 
     var->data.integer = get_vect(bits, data, index);
-    if (bits >= VTSF08) SET_TYPE(var, REB_DECIMAL);
-    else SET_TYPE(var, REB_INTEGER);
+    if (bits >= VTSF08) VAL_SET_TYPE(var, REB_DECIMAL);
+    else VAL_SET_TYPE(var, REB_INTEGER);
 }
 
 
@@ -405,7 +405,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
         bp++;
     }
 
-    SET_TYPE(value, REB_VECTOR);
+    VAL_SET_TYPE(value, REB_VECTOR);
 
     // Index offset:
     if (NOT_END(bp) && IS_INTEGER(bp)) {
@@ -483,9 +483,9 @@ REBINT PD_Vector(REBPVS *pvs)
         // Get element value:
         pvs->store->data.integer = get_vect(bits, vp, n-1); // 64 bits
         if (bits < VTSF08) {
-            SET_TYPE(pvs->store, REB_INTEGER);
+            VAL_SET_TYPE(pvs->store, REB_INTEGER);
         } else {
-            SET_TYPE(pvs->store, REB_DECIMAL);
+            VAL_SET_TYPE(pvs->store, REB_DECIMAL);
         }
 
         return PE_USE;

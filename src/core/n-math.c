@@ -664,7 +664,7 @@ REBNATIVE(minimum)
 REBNATIVE(negative_q)
 {
     REBVAL zero;
-    VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
+    SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
 
     if (Compare_Modify_Values(D_ARG(1), &zero, -1)) return R_FALSE;
     return R_TRUE;
@@ -682,7 +682,7 @@ REBNATIVE(negative_q)
 REBNATIVE(positive_q)
 {
     REBVAL zero;
-    VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
+    SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
 
     if (Compare_Modify_Values(D_ARG(1), &zero, -2)) return R_TRUE;
 
@@ -704,7 +704,7 @@ REBNATIVE(zero_q)
 
     if (type >= REB_INTEGER && type <= REB_TIME) {
         REBVAL zero;
-        VAL_SET_ZEROED(&zero, type);
+        SET_ZEROED(&zero, type);
 
         if (Compare_Modify_Values(D_ARG(1), &zero, 1)) return R_TRUE;
     }

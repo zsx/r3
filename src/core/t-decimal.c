@@ -125,7 +125,7 @@ REBFLG MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     }
     else return FALSE;
 
-    SET_TYPE(out, type);
+    VAL_SET_TYPE(out, type);
     return TRUE;
 }
 
@@ -200,7 +200,7 @@ static void Binary_To_Decimal(REBVAL *bin, REBVAL *dec)
 
     for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
 
-    VAL_SET(dec, REB_DECIMAL);
+    VAL_RESET_HEADER(dec, REB_DECIMAL);
     VAL_INT64(dec) = n; // aliasing the bits!
 }
 
@@ -254,7 +254,7 @@ REBTYPE(Decimal)
                 else if (!IS_PERCENT(val)) type = VAL_TYPE(val);
             } else if (type == REB_MONEY) {
                 VAL_MONEY_AMOUNT(val) = decimal_to_deci(VAL_DECIMAL(val));
-                VAL_SET(val, REB_MONEY);
+                VAL_RESET_HEADER(val, REB_MONEY);
                 return T_Money(call_, action);
             } else if (type == REB_CHAR) {
                 d2 = (REBDEC)VAL_CHAR(arg);
@@ -363,7 +363,7 @@ REBTYPE(Decimal)
                 REBCNT len;
                 bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_DECIMAL, &len, FALSE);
 
-                VAL_SET(D_OUT, REB_DECIMAL);
+                VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 if (Scan_Decimal(
                     &VAL_DECIMAL(D_OUT), bp, len, type != REB_PERCENT
                 )) {
@@ -429,7 +429,7 @@ REBTYPE(Decimal)
                     VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
                         decimal_to_deci(d1), num, VAL_MONEY_AMOUNT(arg)
                     );
-                    SET_TYPE(D_OUT, REB_MONEY);
+                    VAL_SET_TYPE(D_OUT, REB_MONEY);
                     return R_OUT;
                 }
                 if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
@@ -437,7 +437,7 @@ REBTYPE(Decimal)
                 d1 = Round_Dec(d1, num, Dec64(arg));
                 if (IS_INTEGER(arg)) {
                     VAL_INT64(D_OUT) = cast(REBI64, d1);
-                    SET_TYPE(D_OUT, REB_INTEGER);
+                    VAL_SET_TYPE(D_OUT, REB_INTEGER);
                     return R_OUT;
                 }
                 if (IS_PERCENT(arg)) type = REB_PERCENT;
@@ -482,7 +482,7 @@ setDec:
         }
     }
 #endif
-    VAL_SET(D_OUT, type);
+    VAL_RESET_HEADER(D_OUT, type);
     VAL_DECIMAL(D_OUT) = d1;
     ///if (type == REB_MONEY) VAL_MONEY_DENOM(D_OUT)[0] = 0;
     return R_OUT;

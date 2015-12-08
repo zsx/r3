@@ -555,7 +555,7 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
     VAL_INDEX(&val) = 0;
     if (IS_BINARY(value)) Mold_Binary(&val, mold);
     else {
-        VAL_SET(&val, REB_STRING);
+        VAL_RESET_HEADER(&val, REB_STRING);
         Mold_String_Series(&val, mold);
     }
     Post_Mold(value, mold);
@@ -599,7 +599,7 @@ static void Mold_Array_At(
     // We don't want to use Val_Init_Block because it will create an implicit
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
-    VAL_SET(value, REB_BLOCK);
+    VAL_RESET_HEADER(value, REB_BLOCK);
     VAL_ARRAY(value) = array;
     VAL_INDEX(value) = 0;
 

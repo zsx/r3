@@ -74,7 +74,7 @@ REBFLG MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     else if (IS_DECIMAL(data)) y = (REBD32)VAL_DECIMAL(data);
     else return FALSE;
 
-    VAL_SET(out, REB_PAIR);
+    VAL_RESET_HEADER(out, REB_PAIR);
     VAL_PAIR_X(out) = x;
     VAL_PAIR_Y(out) = y;
     return TRUE;
@@ -119,7 +119,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBFLG maxed)
     else
         fail (Error_Invalid_Arg(b));
 
-    SET_TYPE(out, REB_PAIR);
+    VAL_SET_TYPE(out, REB_PAIR);
     cc = &VAL_PAIR(out);
     if (maxed) {
         cc->x = MAX(aa.x, bb.x);
@@ -355,7 +355,7 @@ REBTYPE(Pair)
     fail (Error_Illegal_Action(REB_PAIR, action));
 
 setPair:
-    VAL_SET(D_OUT, REB_PAIR);
+    VAL_RESET_HEADER(D_OUT, REB_PAIR);
     VAL_PAIR_X(D_OUT) = x1;
     VAL_PAIR_Y(D_OUT) = y1;
     return R_OUT;

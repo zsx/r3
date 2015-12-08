@@ -114,7 +114,7 @@ REBARR *List_Func_Typesets(REBVAL *func)
         // bits.  This may not be desirable over the long run (what if
         // a typeset wishes to encode hiddenness, protectedness, etc?)
 
-        VAL_SET(value, REB_TYPESET);
+        VAL_RESET_HEADER(value, REB_TYPESET);
     }
 
     return array;
@@ -298,7 +298,7 @@ void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, REBINT type)
     VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(spec);
 
     VAL_FUNC_CODE(out) = func;
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
 
     // Save the function value in slot 0 of the paramlist so that having
     // just the paramlist REBSER can get you the full REBVAL of the function
@@ -572,7 +572,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
                 if (convert_local) {
                     if (IS_WORD(item)) {
                         // We convert words to set-words for pure local status
-                        SET_TYPE(item, REB_SET_WORD);
+                        VAL_SET_TYPE(item, REB_SET_WORD);
                     }
                     else if (IS_REFINEMENT(item)) {
                         // A refinement signals us to stop doing the locals
@@ -672,7 +672,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
     }
 
     assert(type == REB_FUNCTION || type == REB_CLOSURE);
-    VAL_SET(out, type); // clears value opts and exts in header...
+    VAL_RESET_HEADER(out, type); // clears value opts and exts in header...
     VAL_EXTS_DATA(out) = func_flags; // ...so we set this after that point
 
     // Now that we've created the function's fields, we pull a trick.  It
@@ -1014,7 +1014,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // are going to be switching it to an OBJECT!.
 
     ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
-    VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
     FRAME_KEYLIST(frame) = VAL_FUNC_PARAMLIST(D_FUNC);
     FRAME_SPEC(frame) = NULL;

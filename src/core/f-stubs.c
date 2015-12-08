@@ -475,7 +475,7 @@ void Val_Init_Series_Index_Core(
         ASSERT_SERIES_TERM(series); // doesn't apply to image/vector
     }
 
-    VAL_SET(value, type);
+    VAL_RESET_HEADER(value, type);
     VAL_SERIES(value) = series;
     VAL_INDEX(value) = index;
 }
@@ -488,7 +488,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 {
     REBYTE *bp;
 
-    VAL_SET(value, REB_TUPLE);
+    VAL_RESET_HEADER(value, REB_TUPLE);
     VAL_TUPLE_LEN(value) = (REBYTE)len;
     for (bp = VAL_TUPLE(value); len > 0; len--)
         *bp++ = *bytes++;

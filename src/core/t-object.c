@@ -420,7 +420,7 @@ REBTYPE(Object)
             if (IS_NUMBER(arg)) {
                 REBINT n = Int32s(arg, 0);
                 frame = Alloc_Frame(n, TRUE);
-                VAL_SET(FRAME_CONTEXT(frame), target);
+                VAL_RESET_HEADER(FRAME_CONTEXT(frame), target);
                 FRAME_SPEC(frame) = NULL;
                 FRAME_BODY(frame) = NULL;
                 Val_Init_Context(D_OUT, target, frame, NULL, NULL);
@@ -539,9 +539,9 @@ REBTYPE(Object)
             // the object passed in.
 
             frame = Copy_Frame_Shallow_Managed(VAL_FRAME(item + 1));
-            VAL_SET(FRAME_CONTEXT(frame), REB_MODULE);
             VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = VAL_FRAME(item);
             assert(VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) == NULL);
+            VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_MODULE);
 
             Val_Init_Module(
                 D_OUT,

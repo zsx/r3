@@ -318,7 +318,7 @@ static REB_R Transport_Actor(
     case A_DELETE: // Temporary to TEST error handler!
         {
             REBVAL *event = Append_Event();     // sets signal
-            VAL_SET(event, REB_EVENT);      // (has more space, if we need it)
+            VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
             VAL_EVENT_TYPE(event) = EVT_ERROR;
             VAL_EVENT_DATA(event) = 101;
             VAL_EVENT_REQ(event) = sock;

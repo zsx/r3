@@ -84,18 +84,19 @@ typedef struct Reb_Array REBARR;
     #define VAL_TYPE(v)     VAL_TYPE_Debug(v)
 #endif
 
-#define SET_TYPE(v,t)   ((v)->flags.bitfields.type = (t))
+#define VAL_SET_TYPE(v,t)   ((v)->flags.bitfields.type = (t))
 
 // set type, clear all flags except for NOT_END
 //
-#define VAL_SET(v,t) \
+#define VAL_RESET_HEADER(v,t) \
     ((v)->flags.all = (1 << OPT_VALUE_NOT_END), \
      (v)->flags.bitfields.type = (t))
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
 // version of that type that you can compare against?  :-/
-#define VAL_SET_ZEROED(v,t) (CLEAR((v), sizeof(REBVAL)), VAL_SET((v),(t)))
+#define SET_ZEROED(v,t) \
+    (CLEAR((v), sizeof(REBVAL)), VAL_RESET_HEADER((v),(t)))
 
 // Setting the END is optimized.  It is possible to signal an END via setting
 // the low bit of any 32/64-bit value, including to add the bit to a pointer,
@@ -240,7 +241,7 @@ struct Reb_Datatype {
 
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            VAL_SET((v), REB_TRASH), \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             (v)->data.trash.filename = __FILE__, \
             (v)->data.trash.line = __LINE__, \
             cast(void, 0) \
@@ -248,7 +249,7 @@ struct Reb_Datatype {
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            VAL_SET((v), REB_TRASH), \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             VAL_SET_EXT((v), EXT_TRASH_SAFE), \
             (v)->data.trash.filename = __FILE__, \
             (v)->data.trash.line = __LINE__, \
@@ -263,7 +264,7 @@ struct Reb_Datatype {
 **
 ***********************************************************************/
 
-#define SET_UNSET(v)    VAL_SET(v, REB_UNSET)
+#define SET_UNSET(v)    VAL_RESET_HEADER(v, REB_UNSET)
 #define UNSET_VALUE     ROOT_UNSET_VAL
 
 #define SET_NONE(v) \
@@ -291,13 +292,13 @@ struct Reb_Datatype {
 #define VAL_INT32(v)    (REBINT)((v)->data.integer)
 #define VAL_INT64(v)    ((v)->data.integer)
 #define VAL_UNT64(v)    ((v)->data.unteger)
-#define SET_INTEGER(v,n) VAL_SET(v, REB_INTEGER), ((v)->data.integer) = (n)
+#define SET_INTEGER(v,n) VAL_RESET_HEADER(v, REB_INTEGER), ((v)->data.integer) = (n)
 #define SET_INT32(v,n)  ((v)->data.integer) = (REBINT)(n)
 
 #define MAX_CHAR        0xffff
 #define VAL_CHAR(v)     ((v)->data.character)
 #define SET_CHAR(v,n) \
-    (VAL_SET((v), REB_CHAR), VAL_CHAR(v) = (n), NOOP)
+    (VAL_RESET_HEADER((v), REB_CHAR), VAL_CHAR(v) = (n), NOOP)
 
 #define IS_NUMBER(v)    (VAL_TYPE(v) == REB_INTEGER || VAL_TYPE(v) == REB_DECIMAL)
 
@@ -310,7 +311,7 @@ struct Reb_Datatype {
 ***********************************************************************/
 
 #define VAL_DECIMAL(v)  ((v)->data.decimal)
-#define SET_DECIMAL(v,n) VAL_SET(v, REB_DECIMAL), VAL_DECIMAL(v) = (n)
+#define SET_DECIMAL(v,n) VAL_RESET_HEADER(v, REB_DECIMAL), VAL_DECIMAL(v) = (n)
 
 
 /***********************************************************************
@@ -333,7 +334,7 @@ struct Reb_Money {
 
 #define VAL_MONEY_AMOUNT(v)     ((v)->data.money.amount)
 #define SET_MONEY_AMOUNT(v,n) \
-    (VAL_SET((v), REB_MONEY), VAL_MONEY_AMOUNT(v) = (n), NOOP)
+    (VAL_RESET_HEADER((v), REB_MONEY), VAL_MONEY_AMOUNT(v) = (n), NOOP)
 
 
 /***********************************************************************
@@ -429,7 +430,7 @@ typedef struct Reb_Tuple {
 #define VAL_PAIR(v)     ((v)->data.pair)
 #define VAL_PAIR_X(v)   ((v)->data.pair.x)
 #define VAL_PAIR_Y(v)   ((v)->data.pair.y)
-#define SET_PAIR(v,x,y) (VAL_SET(v, REB_PAIR),VAL_PAIR_X(v)=(x),VAL_PAIR_Y(v)=(y))
+#define SET_PAIR(v,x,y) (VAL_RESET_HEADER(v, REB_PAIR),VAL_PAIR_X(v)=(x),VAL_PAIR_Y(v)=(y))
 #define VAL_PAIR_X_INT(v) ROUND_TO_INT((v)->data.pair.x)
 #define VAL_PAIR_Y_INT(v) ROUND_TO_INT((v)->data.pair.y)
 
@@ -710,7 +711,7 @@ struct Reb_Position
 // to be a problem in profiling, then on a case-by-case basis those
 // bottlenecks can be replaced with something more like:
 //
-//     VAL_SET(value, REB_XXX);
+//     VAL_RESET_HEADER(value, REB_XXX);
 //     ENSURE_SERIES_MANAGED(series);
 //     VAL_SERIES(value) = series;
 //     VAL_INDEX(value) = index;
@@ -1452,7 +1453,7 @@ struct Reb_Gob {
 
 #define VAL_GOB(v)          ((v)->data.gob.gob)
 #define VAL_GOB_INDEX(v)    ((v)->data.gob.index)
-#define SET_GOB(v,g)        VAL_SET(v, REB_GOB), VAL_GOB(v)=g, VAL_GOB_INDEX(v)=0
+#define SET_GOB(v,g)        VAL_RESET_HEADER(v, REB_GOB), VAL_GOB(v)=g, VAL_GOB_INDEX(v)=0
 
 
 /***********************************************************************
@@ -1650,10 +1651,10 @@ struct Reb_Handle {
     ((v)->data.handle.thing.data)
 
 #define SET_HANDLE_CODE(v,c) \
-    (VAL_SET((v), REB_HANDLE), VAL_HANDLE_CODE(v) = (c))
+    (VAL_RESET_HEADER((v), REB_HANDLE), VAL_HANDLE_CODE(v) = (c))
 
 #define SET_HANDLE_DATA(v,d) \
-    (VAL_SET((v), REB_HANDLE), VAL_HANDLE_DATA(v) = (d))
+    (VAL_RESET_HEADER((v), REB_HANDLE), VAL_HANDLE_DATA(v) = (d))
 
 
 /***********************************************************************

@@ -514,7 +514,7 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
                 word = *item;
-                VAL_SET(&word, REB_WORD);
+                VAL_RESET_HEADER(&word, REB_WORD);
                 item = &word;
             }
 
@@ -1265,7 +1265,7 @@ post:
                         );
 
                         if (IS_LIT_WORD(item))
-                            SET_TYPE(
+                            VAL_SET_TYPE(
                                 ARRAY_AT(AS_ARRAY(series), index - 1),
                                 REB_WORD
                             );

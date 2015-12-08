@@ -74,8 +74,8 @@ static void Assert_Basics(void)
     if (val.flags.all != 123)
         panic (Error(RE_REBVAL_ALIGNMENT));
 
-    VAL_SET(&val, 123);
-    if (VAL_TYPE(&val) != 123)
+    VAL_RESET_HEADER(&val, 63);
+    if (VAL_TYPE(&val) != 63)
         panic (Error(RE_REBVAL_ALIGNMENT));
 
 #if defined(SHOW_SIZEOFS)
@@ -317,7 +317,7 @@ static void Init_Datatypes(void)
     for (n = 0; NOT_END(word); word++, n++) {
         assert(n < REB_MAX);
         value = Append_Frame(Lib_Context, word, 0);
-        VAL_SET(value, REB_DATATYPE);
+        VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
     }
@@ -639,8 +639,8 @@ static void Init_Root_Context(void)
 
     // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_SET(value, REB_OBJECT);
     FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    VAL_RESET_HEADER(value, REB_OBJECT);
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;
 
@@ -743,8 +743,8 @@ static void Init_Task_Context(void)
 
     // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_SET(value, REB_OBJECT);
     FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    VAL_RESET_HEADER(value, REB_OBJECT);
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;
 
@@ -839,7 +839,7 @@ static void Init_System_Object(void)
     // Create system/codecs object:
     value = Get_System(SYS_CODECS, 0);
     frame = Alloc_Frame(10, TRUE);
-    VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
     Val_Init_Object(value, frame);
@@ -1335,11 +1335,11 @@ void Init_Core(REBARGS *rargs)
     // !!! Have MAKE-BOOT compute # of words
     //
     Lib_Context = Alloc_Frame(600, TRUE);
-    VAL_SET(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
     FRAME_SPEC(Lib_Context) = NULL;
     FRAME_BODY(Lib_Context) = NULL;
     Sys_Context = Alloc_Frame(50, TRUE);
-    VAL_SET(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
     FRAME_SPEC(Sys_Context) = NULL;
     FRAME_BODY(Sys_Context) = NULL;
 
