@@ -33,6 +33,7 @@
 
 #ifndef REB_DEF
 typedef void *REBSER;
+typedef void *REBARR;
 typedef void *REBOBJ;
 #endif
 
@@ -40,8 +41,8 @@ typedef void *REBOBJ;
 
 // X/Y coordinate pair as floats:
 struct Reb_Pair {
-	float x;
-	float y;
+    float x;
+    float y;
 };
 
 // !!! Use this instead of struct Reb_Pair when all integer pairs are gone?
@@ -53,18 +54,18 @@ typedef struct Reb_Pair REBXYF;
 
 // X/Y coordinate pair as integers:
 typedef struct rebol_xy_int {
-	int x;
-	int y;
+    int x;
+    int y;
 } REBXYI;
 
 // Standard date and time:
 typedef struct rebol_dat {
-	int year;
-	int month;
-	int day;
-	int time;
-	int nano;
-	int zone;
+    int year;
+    int month;
+    int day;
+    int time;
+    int nano;
+    int zone;
 } REBOL_DAT;  // not same as REBDAT
 
 #pragma pack()

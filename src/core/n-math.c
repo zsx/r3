@@ -34,34 +34,33 @@
 #include <math.h>
 #include <float.h>
 
-#define	LOG2	0.6931471805599453
-#define	EPS		2.718281828459045235360287471
+#define LOG2    0.6931471805599453
+#define EPS     2.718281828459045235360287471
 
 extern const double pi1;
 const double pi1 = 3.14159265358979323846;
 const double pi2 = 2.0 * 3.14159265358979323846;
 
 #ifndef DBL_EPSILON
-#define DBL_EPSILON	2.2204460492503131E-16
+#define DBL_EPSILON 2.2204460492503131E-16
 #endif
 
-#define	AS_DECIMAL(n) (IS_INTEGER(n) ? (REBDEC)VAL_INT64(n) : VAL_DECIMAL(n))
+#define AS_DECIMAL(n) (IS_INTEGER(n) ? (REBDEC)VAL_INT64(n) : VAL_DECIMAL(n))
 
 enum {SINE, COSINE, TANGENT};
 
 
-/***********************************************************************
-**
-*/	static REBDEC Trig_Value(const REBVAL *value, REBOOL degrees, REBCNT which)
-/*
-**	Convert integer arg, if present, to decimal and convert to radians
-**	if necessary.  Clip ranges for correct REBOL behavior.
-**
-***********************************************************************/
+//
+//  Trig_Value: C
+// 
+// Convert integer arg, if present, to decimal and convert to radians
+// if necessary.  Clip ranges for correct REBOL behavior.
+//
+static REBDEC Trig_Value(const REBVAL *value, REBOOL degrees, REBCNT which)
 {
-	REBDEC dval = AS_DECIMAL(value);
+    REBDEC dval = AS_DECIMAL(value);
 
-	if (degrees) {
+    if (degrees) {
         /* get dval between -360.0 and 360.0 */
         dval = fmod (dval, 360.0);
 
@@ -77,560 +76,637 @@ enum {SINE, COSINE, TANGENT};
         dval = dval * pi1 / 180.0; // to radians
     }
 
-	return dval;
+    return dval;
 }
 
 
-/***********************************************************************
-**
-*/	static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT kind)
-/*
-***********************************************************************/
+//
+//  Arc_Trans: C
+//
+static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT kind)
 {
-	REBDEC dval = AS_DECIMAL(value);
-	if (kind != TANGENT && (dval < -1 || dval > 1)) raise Error_0(RE_OVERFLOW);
+    REBDEC dval = AS_DECIMAL(value);
+    if (kind != TANGENT && (dval < -1 || dval > 1)) fail (Error(RE_OVERFLOW));
 
-	if (kind == SINE) dval = asin(dval);
-	else if (kind == COSINE) dval = acos(dval);
-	else dval = atan(dval);
+    if (kind == SINE) dval = asin(dval);
+    else if (kind == COSINE) dval = acos(dval);
+    else dval = atan(dval);
 
-	if (degrees) dval = dval * 180.0 / pi1; // to degrees
+    if (degrees) dval = dval * 180.0 / pi1; // to degrees
 
-	SET_DECIMAL(out, dval);
+    SET_DECIMAL(out, dval);
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(cosine)
-/*
-***********************************************************************/
+//
+//  cosine: native [
+//  
+//  "Returns the trigonometric cosine."
+//  
+//      value [any-number!] "In degrees by default"
+//      /radians "Value is specified in radians"
+//  ]
+//
+REBNATIVE(cosine)
 {
-	REBDEC dval = cos(Trig_Value(D_ARG(1), !D_REF(2), COSINE));
-	if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-	SET_DECIMAL(D_OUT, dval);
-	return R_OUT;
+    REBDEC dval = cos(Trig_Value(D_ARG(1), !D_REF(2), COSINE));
+    if (fabs(dval) < DBL_EPSILON) dval = 0.0;
+    SET_DECIMAL(D_OUT, dval);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(sine)
-/*
-***********************************************************************/
+//
+//  sine: native [
+//  
+//  "Returns the trigonometric sine."
+//  
+//      value [any-number!] "In degrees by default"
+//      /radians "Value is specified in radians"
+//  ]
+//
+REBNATIVE(sine)
 {
-	REBDEC dval = sin(Trig_Value(D_ARG(1), !D_REF(2), SINE));
-	if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-	SET_DECIMAL(D_OUT, dval);
-	return R_OUT;
+    REBDEC dval = sin(Trig_Value(D_ARG(1), !D_REF(2), SINE));
+    if (fabs(dval) < DBL_EPSILON) dval = 0.0;
+    SET_DECIMAL(D_OUT, dval);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(tangent)
-/*
-***********************************************************************/
+//
+//  tangent: native [
+//  
+//  "Returns the trigonometric tangent."
+//  
+//      value [any-number!] "In degrees by default"
+//      /radians "Value is specified in radians"
+//  ]
+//
+REBNATIVE(tangent)
 {
-	REBDEC dval = Trig_Value(D_ARG(1), !D_REF(2), TANGENT);
-	if (Eq_Decimal(fabs(dval), pi1 / 2.0)) raise Error_0(RE_OVERFLOW);
-	SET_DECIMAL(D_OUT, tan(dval));
-	return R_OUT;
+    REBDEC dval = Trig_Value(D_ARG(1), !D_REF(2), TANGENT);
+    if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
+    SET_DECIMAL(D_OUT, tan(dval));
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(arccosine)
-/*
-***********************************************************************/
+//
+//  arccosine: native [
+//  
+//  {Returns the trigonometric arccosine (in degrees by default).}
+//  
+//      value [any-number!]
+//      /radians "Returns result in radians"
+//  ]
+//
+REBNATIVE(arccosine)
 {
-	Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), COSINE);
-	return R_OUT;
+    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), COSINE);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(arcsine)
-/*
-***********************************************************************/
+//
+//  arcsine: native [
+//  
+//  {Returns the trigonometric arcsine (in degrees by default).}
+//  
+//      value [any-number!]
+//      /radians "Returns result in radians"
+//  ]
+//
+REBNATIVE(arcsine)
 {
-	Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), SINE);
-	return R_OUT;
+    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), SINE);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(arctangent)
-/*
-***********************************************************************/
+//
+//  arctangent: native [
+//  
+//  {Returns the trigonometric arctangent (in degrees by default).}
+//  
+//      value [any-number!]
+//      /radians "Returns result in radians"
+//  ]
+//
+REBNATIVE(arctangent)
 {
-	Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), TANGENT);
-	return R_OUT;
+    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), TANGENT);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(exp)
-/*
-***********************************************************************/
+//
+//  exp: native [
+//  
+//  {Raises E (the base of natural logarithm) to the power specified}
+//  
+//      power [any-number!]
+//  ]
+//
+REBNATIVE(exp)
 {
-	REBDEC	dval = AS_DECIMAL(D_ARG(1));
-	static REBDEC eps = EPS;
+    REBDEC  dval = AS_DECIMAL(D_ARG(1));
+    static REBDEC eps = EPS;
 
-	dval = pow(eps, dval);
-//!!!!	Check_Overflow(dval);
-	SET_DECIMAL(D_OUT, dval);
-	return R_OUT;
+    dval = pow(eps, dval);
+//!!!!  Check_Overflow(dval);
+    SET_DECIMAL(D_OUT, dval);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(log_10)
-/*
-***********************************************************************/
+//
+//  log-10: native [
+//  
+//  "Returns the base-10 logarithm."
+//  
+//      value [any-number!]
+//  ]
+//
+REBNATIVE(log_10)
 {
-	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
-	SET_DECIMAL(D_OUT, log10(dval));
-	return R_OUT;
+    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    if (dval <= 0) fail (Error(RE_POSITIVE));
+    SET_DECIMAL(D_OUT, log10(dval));
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(log_2)
-/*
-***********************************************************************/
+//
+//  log-2: native [
+//  
+//  "Return the base-2 logarithm."
+//  
+//      value [any-number!]
+//  ]
+//
+REBNATIVE(log_2)
 {
-	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
-	SET_DECIMAL(D_OUT, log(dval) / LOG2);
-	return R_OUT;
+    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    if (dval <= 0) fail (Error(RE_POSITIVE));
+    SET_DECIMAL(D_OUT, log(dval) / LOG2);
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(log_e)
-/*
-***********************************************************************/
+//
+//  log-e: native [
+//  
+//  {Returns the natural (base-E) logarithm of the given value}
+//  
+//      value [any-number!]
+//  ]
+//
+REBNATIVE(log_e)
 {
-	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval <= 0) raise Error_0(RE_POSITIVE);
-	SET_DECIMAL(D_OUT, log(dval));
-	return R_OUT;
+    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    if (dval <= 0) fail (Error(RE_POSITIVE));
+    SET_DECIMAL(D_OUT, log(dval));
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(square_root)
-/*
-***********************************************************************/
+//
+//  square-root: native [
+//  
+//  "Returns the square root of a number."
+//  
+//      value [any-number!]
+//  ]
+//
+REBNATIVE(square_root)
 {
-	REBDEC dval = AS_DECIMAL(D_ARG(1));
-	if (dval < 0) raise Error_0(RE_POSITIVE);
-	SET_DECIMAL(D_OUT, sqrt(dval));
-	return R_OUT;
+    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    if (dval < 0) fail (Error(RE_POSITIVE));
+    SET_DECIMAL(D_OUT, sqrt(dval));
+    return R_OUT;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(shift)
-/*
-**		shift int bits arithmetic or logical
-**
-***********************************************************************/
+//
+//  shift: native [
+//  
+//  {Shifts an integer left or right by a number of bits.}
+//  
+//      value [integer!]
+//      bits [integer!] "Positive for left shift, negative for right shift"
+//      /logical "Logical shift (sign bit ignored)"
+//  ]
+//
+REBNATIVE(shift)
+//
+// shift int bits arithmetic or logical
 {
-	REBI64 b = VAL_INT64(D_ARG(2));
-	REBVAL *a = D_ARG(1);
-	REBU64 c, d;
+    REBI64 b = VAL_INT64(D_ARG(2));
+    REBVAL *a = D_ARG(1);
+    REBU64 c, d;
 
-	if (b < 0) {
-		// this is defined:
-		c = -(REBU64)b;
-		if (c >= 64) {
-			if (D_REF(3)) VAL_INT64(a) = 0;
-			else VAL_INT64(a) >>= 63;
-		} else {
-			if (D_REF(3)) VAL_UNT64(a) >>= c;
-			else VAL_INT64(a) >>= (REBI64)c;
-		}
-	} else {
-		if (b >= 64) {
-			if (D_REF(3)) VAL_INT64(a) = 0;
-			else if (VAL_INT64(a)) raise Error_0(RE_OVERFLOW);
-		} else
-			if (D_REF(3)) VAL_UNT64(a) <<= b;
-			else {
-				c = (REBU64)MIN_I64 >> b;
-				d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
-				if (c <= d) {
-					if ((c < d) || (VAL_INT64(a) >= 0))
-						raise Error_0(RE_OVERFLOW);
+    if (b < 0) {
+        // this is defined:
+        c = -(REBU64)b;
+        if (c >= 64) {
+            if (D_REF(3)) VAL_INT64(a) = 0;
+            else VAL_INT64(a) >>= 63;
+        } else {
+            if (D_REF(3)) VAL_UNT64(a) >>= c;
+            else VAL_INT64(a) >>= (REBI64)c;
+        }
+    } else {
+        if (b >= 64) {
+            if (D_REF(3)) VAL_INT64(a) = 0;
+            else if (VAL_INT64(a)) fail (Error(RE_OVERFLOW));
+        } else
+            if (D_REF(3)) VAL_UNT64(a) <<= b;
+            else {
+                c = (REBU64)MIN_I64 >> b;
+                d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
+                if (c <= d) {
+                    if ((c < d) || (VAL_INT64(a) >= 0))
+                        fail (Error(RE_OVERFLOW));
 
-					VAL_INT64(a) = MIN_I64;
-				}
-				else
-					VAL_INT64(a) <<= b;
-			}
-	}
-	return R_ARG1;
+                    VAL_INT64(a) = MIN_I64;
+                }
+                else
+                    VAL_INT64(a) <<= b;
+            }
+    }
+    return R_ARG1;
 }
 
 
-/***********************************************************************
-**
-*/	REBOOL Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
-/*
-**		Compare 2 values depending on level of strictness.  It leans
-**		upon the per-type comparison functions (that have a more typical
-**		interface of returning [1, 0, -1] and taking a CASE parameter)
-**		but adds a layer of being able to check for specific types
-**		of equality...which those comparison functions do not discern.
-**
-**		Strictness:
-**			0 - coersed equality
-**			1 - equivalence
-**			2 - strict equality
-**			3 - same (identical bits)
-**
-**		   -1 - greater or equal
-**		   -2 - greater
-**
-**		!!! This routine (may) modify the value cells for 'a' and 'b' in
-**		order to coerce them for easier comparison.  Most usages are
-**		in native code that can overwrite its argument values without
-**		that being a problem, so it doesn't matter.
-**
-***********************************************************************/
+//
+//  Compare_Modify_Values: C
+// 
+// Compare 2 values depending on level of strictness.  It leans
+// upon the per-type comparison functions (that have a more typical
+// interface of returning [1, 0, -1] and taking a CASE parameter)
+// but adds a layer of being able to check for specific types
+// of equality...which those comparison functions do not discern.
+// 
+// Strictness:
+//     0 - coersed equality
+//     1 - equivalence
+//     2 - strict equality
+//     3 - same (identical bits)
+// 
+//    -1 - greater or equal
+//    -2 - greater
+// 
+// !!! This routine (may) modify the value cells for 'a' and 'b' in
+// order to coerce them for easier comparison.  Most usages are
+// in native code that can overwrite its argument values without
+// that being a problem, so it doesn't matter.
+//
+REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
 {
-	REBCNT ta = VAL_TYPE(a);
-	REBCNT tb = VAL_TYPE(b);
-	REBCTF code;
-	REBINT result;
+    REBCNT ta = VAL_TYPE(a);
+    REBCNT tb = VAL_TYPE(b);
+    REBCTF code;
+    REBINT result;
 
-	if (ta != tb) {
-		if (strictness > 1) return FALSE;
+    if (ta != tb) {
+        if (strictness > 1) return FALSE;
 
-		switch (ta) {
-		case REB_INTEGER:
-			if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-				SET_DECIMAL(a, (REBDEC)VAL_INT64(a));
-				goto compare;
-			}
-			else if (tb == REB_MONEY) {
-				SET_MONEY_AMOUNT(a, int_to_deci(VAL_INT64(a)));
-				goto compare;
-			}
-			break;
+        switch (ta) {
+        case REB_INTEGER:
+            if (tb == REB_DECIMAL || tb == REB_PERCENT) {
+                SET_DECIMAL(a, (REBDEC)VAL_INT64(a));
+                goto compare;
+            }
+            else if (tb == REB_MONEY) {
+                SET_MONEY_AMOUNT(a, int_to_deci(VAL_INT64(a)));
+                goto compare;
+            }
+            break;
 
-		case REB_DECIMAL:
-		case REB_PERCENT:
-			if (tb == REB_INTEGER) {
-				SET_DECIMAL(b, (REBDEC)VAL_INT64(b));
-				goto compare;
-			}
-			else if (tb == REB_MONEY) {
-				SET_MONEY_AMOUNT(a, decimal_to_deci(VAL_DECIMAL(a)));
-				goto compare;
-			}
-			else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
-				goto compare;
-			break;
+        case REB_DECIMAL:
+        case REB_PERCENT:
+            if (tb == REB_INTEGER) {
+                SET_DECIMAL(b, (REBDEC)VAL_INT64(b));
+                goto compare;
+            }
+            else if (tb == REB_MONEY) {
+                SET_MONEY_AMOUNT(a, decimal_to_deci(VAL_DECIMAL(a)));
+                goto compare;
+            }
+            else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
+                goto compare;
+            break;
 
-		case REB_MONEY:
-			if (tb == REB_INTEGER) {
-				SET_MONEY_AMOUNT(b, int_to_deci(VAL_INT64(b)));
-				goto compare;
-			}
-			if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-				SET_MONEY_AMOUNT(b, decimal_to_deci(VAL_DECIMAL(b)));
-				goto compare;
-			}
-			break;
+        case REB_MONEY:
+            if (tb == REB_INTEGER) {
+                SET_MONEY_AMOUNT(b, int_to_deci(VAL_INT64(b)));
+                goto compare;
+            }
+            if (tb == REB_DECIMAL || tb == REB_PERCENT) {
+                SET_MONEY_AMOUNT(b, decimal_to_deci(VAL_DECIMAL(b)));
+                goto compare;
+            }
+            break;
 
-		case REB_DATATYPE:
-			if (ANY_WORD(b)) {
-				// Let DATATYPE! compare as a word: `(type-of 3) = 'integer!`
-				REBCNT sym = VAL_TYPE_SYM(a); // save before modify
+        case REB_WORD:
+        case REB_SET_WORD:
+        case REB_GET_WORD:
+        case REB_LIT_WORD:
+        case REB_REFINEMENT:
+        case REB_ISSUE:
+            if (ANY_WORD(b)) goto compare;
+            break;
 
-			#if !defined(NDEBUG)
-				if (LEGACY(OPTIONS_DATATYPE_WORD_STRICT)) break;
-			#endif
+        case REB_STRING:
+        case REB_FILE:
+        case REB_EMAIL:
+        case REB_URL:
+        case REB_TAG:
+            if (ANY_STR(b)) goto compare;
+            break;
+        }
 
-			#if !defined(NDEBUG)
-				if (
-					LEGACY(OPTIONS_GROUP_NOT_PAREN)
-					&& VAL_WORD_SYM(b) == SYM_GROUPX
-					&& VAL_TYPE_KIND(a) == REB_PAREN
-				) {
-					// If comparing PAREN! datatype to GROUP! word, mutate
-					// the fake word made from datatype to have group symbol
-					sym = SYM_GROUPX;
-				}
-			#endif
-
-				Val_Init_Word_Unbound(a, REB_WORD, sym);
-				goto compare;
-			}
-			break;
-
-		case REB_WORD:
-		case REB_SET_WORD:
-		case REB_GET_WORD:
-		case REB_LIT_WORD:
-		case REB_REFINEMENT:
-		case REB_ISSUE:
-			if (ANY_WORD(b)) goto compare;
-
-			if (IS_DATATYPE(b)) {
-				// Let DATATYPE! compare as a word: `(type-of 3) = 'integer!`
-				REBCNT sym = VAL_TYPE_SYM(b); // save before modify
-
-			#if !defined(NDEBUG)
-				if (LEGACY(OPTIONS_DATATYPE_WORD_STRICT)) break;
-			#endif
-
-			#if !defined(NDEBUG)
-				if (
-					LEGACY(OPTIONS_GROUP_NOT_PAREN)
-					&& VAL_WORD_SYM(a) == SYM_GROUPX
-					&& VAL_TYPE_KIND(b) == REB_PAREN
-				) {
-					// If comparing PAREN! datatype to GROUP! word, mutate
-					// the fake word made from datatype to have group symbol
-					sym = SYM_GROUPX;
-				}
-			#endif
-
-				Val_Init_Word_Unbound(b, REB_WORD, sym);
-				goto compare;
-			}
-			break;
-
-		case REB_STRING:
-		case REB_FILE:
-		case REB_EMAIL:
-		case REB_URL:
-		case REB_TAG:
-			if (ANY_STR(b)) goto compare;
-			break;
-		}
-
-		if (strictness == 0 || strictness == 1) return FALSE;
-		//if (strictness >= 2)
-		raise Error_2(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b));
-	}
+        if (strictness == 0 || strictness == 1) return FALSE;
+        //if (strictness >= 2)
+        fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
+    }
 
 compare:
-	// At this point, both args are of the same datatype.
-	if (!(code = Compare_Types[VAL_TYPE(a)])) return FALSE;
-	result = code(a, b, strictness);
-	if (result < 0) raise Error_2(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b));
-	return result ? TRUE : FALSE;
+    // At this point, both args are of the same datatype.
+    if (!(code = Compare_Types[VAL_TYPE(a)])) return FALSE;
+    result = code(a, b, strictness);
+    if (result < 0) fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
+    return result;
 }
 
 
-//	EQUAL? < EQUIV? < STRICT-EQUAL? < SAME?
+//  EQUAL? < EQUIV? < STRICT-EQUAL? < SAME?
 
-/***********************************************************************
-**
-*/	REBNATIVE(equalq)
-/*
-***********************************************************************/
+//
+//  equal?: native [
+//  
+//  "Returns TRUE if the values are equal."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(not_equalq)
-/*
-***********************************************************************/
+//
+//  not-equal?: native [
+//  
+//  "Returns TRUE if the values are not equal."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(not_equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_FALSE;
-	return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_FALSE;
+    return R_TRUE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(equivq)
-/*
-***********************************************************************/
+//
+//  equiv?: native [
+//  
+//  "Returns TRUE if the values are equivalent."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(equiv_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(not_equivq)
-/*
-***********************************************************************/
+//
+//  not-equiv?: native [
+//  
+//  "Returns TRUE if the values are not equivalent."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(not_equiv_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
-	return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
+    return R_TRUE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(strict_equalq)
-/*
-***********************************************************************/
+//
+//  strict-equal?: native [
+//  
+//  "Returns TRUE if the values are strictly equal."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(strict_equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(strict_not_equalq)
-/*
-***********************************************************************/
+//
+//  strict-not-equal?: native [
+//  
+//  "Returns TRUE if the values are not strictly equal."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(strict_not_equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_FALSE;
-	return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_FALSE;
+    return R_TRUE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(sameq)
-/*
-***********************************************************************/
+//
+//  same?: native [
+//  
+//  "Returns TRUE if the values are identical."
+//  
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(same_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 3)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 3)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(lesserq)
-/*
-***********************************************************************/
+//
+//  lesser?: native [
+//  
+//  {Returns TRUE if the first value is less than the second value.}
+//  
+//      value1 value2
+//  ]
+//
+REBNATIVE(lesser_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_FALSE;
-	return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_FALSE;
+    return R_TRUE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(lesser_or_equalq)
-/*
-***********************************************************************/
+//
+//  lesser-or-equal?: native [
+//  
+//  {Returns TRUE if the first value is less than or equal to the second value.}
+//  
+//      value1 value2
+//  ]
+//
+REBNATIVE(lesser_or_equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_FALSE;
-	return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_FALSE;
+    return R_TRUE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(greaterq)
-/*
-***********************************************************************/
+//
+//  greater?: native [
+//  
+//  {Returns TRUE if the first value is greater than the second value.}
+//  
+//      value1 value2
+//  ]
+//
+REBNATIVE(greater_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(greater_or_equalq)
-/*
-***********************************************************************/
+//
+//  greater-or-equal?: native [
+//  
+//  {Returns TRUE if the first value is greater than or equal to the second value.}
+//  
+//      value1 value2
+//  ]
+//
+REBNATIVE(greater_or_equal_q)
 {
-	if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_TRUE;
-	return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_TRUE;
+    return R_FALSE;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(maximum)
-/*
-***********************************************************************/
+//
+//  maximum: native [
+//  
+//  "Returns the greater of the two values."
+//  
+//      value1 [any-scalar! date! any-series!]
+//      value2 [any-scalar! date! any-series!]
+//  ]
+//
+REBNATIVE(maximum)
 {
-	REBVAL a, b;
+    REBVAL a, b;
 
-	if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-		Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 1);
-		return R_OUT;
-	}
+    if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
+        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 1);
+        return R_OUT;
+    }
 
-	a = *D_ARG(1);
-	b = *D_ARG(2);
-	if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
-	return R_ARG2;
+    a = *D_ARG(1);
+    b = *D_ARG(2);
+    if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
+    return R_ARG2;
 }
 
-/***********************************************************************
-**
-*/	REBNATIVE(minimum)
-/*
-***********************************************************************/
+//
+//  minimum: native [
+//  
+//  "Returns the lesser of the two values."
+//  
+//      value1 [any-scalar! date! any-series!]
+//      value2 [any-scalar! date! any-series!]
+//  ]
+//
+REBNATIVE(minimum)
 {
-	REBVAL a, b;
+    REBVAL a, b;
 
-	if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-		Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 0);
-		return R_OUT;
-	}
+    if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
+        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 0);
+        return R_OUT;
+    }
 
-	a = *D_ARG(1);
-	b = *D_ARG(2);
-	if (Compare_Modify_Values(&a, &b, -1)) return R_ARG2;
-	return R_ARG1;
-}
-
-
-/***********************************************************************
-**
-*/	REBNATIVE(negativeq)
-/*
-***********************************************************************/
-{
-	REBVAL zero;
-	VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
-
-	if (Compare_Modify_Values(D_ARG(1), &zero, -1)) return R_FALSE;
-	return R_TRUE;
-}
-
-
-/***********************************************************************
-**
-*/	REBNATIVE(positiveq)
-/*
-***********************************************************************/
-{
-	REBVAL zero;
-	VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
-
-	if (Compare_Modify_Values(D_ARG(1), &zero, -2)) return R_TRUE;
-
-	return R_FALSE;
+    a = *D_ARG(1);
+    b = *D_ARG(2);
+    if (Compare_Modify_Values(&a, &b, -1)) return R_ARG2;
+    return R_ARG1;
 }
 
 
-/***********************************************************************
-**
-*/	REBNATIVE(zeroq)
-/*
-***********************************************************************/
+//
+//  negative?: native [
+//  
+//  "Returns TRUE if the number is negative."
+//  
+//      number [any-number! money! time! pair!]
+//  ]
+//
+REBNATIVE(negative_q)
 {
-	REBCNT type = VAL_TYPE(D_ARG(1));
+    REBVAL zero;
+    VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
 
-	if (type >= REB_INTEGER && type <= REB_TIME) {
-		REBVAL zero;
-		VAL_SET_ZEROED(&zero, type);
+    if (Compare_Modify_Values(D_ARG(1), &zero, -1)) return R_FALSE;
+    return R_TRUE;
+}
 
-		if (Compare_Modify_Values(D_ARG(1), &zero, 1)) return R_TRUE;
-	}
-	return R_FALSE;
+
+//
+//  positive?: native [
+//  
+//  "Returns TRUE if the value is positive."
+//  
+//      number [any-number! money! time! pair!]
+//  ]
+//
+REBNATIVE(positive_q)
+{
+    REBVAL zero;
+    VAL_SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
+
+    if (Compare_Modify_Values(D_ARG(1), &zero, -2)) return R_TRUE;
+
+    return R_FALSE;
+}
+
+
+//
+//  zero?: native [
+//  
+//  {Returns TRUE if the value is zero (for its datatype).}
+//  
+//      value
+//  ]
+//
+REBNATIVE(zero_q)
+{
+    REBCNT type = VAL_TYPE(D_ARG(1));
+
+    if (type >= REB_INTEGER && type <= REB_TIME) {
+        REBVAL zero;
+        VAL_SET_ZEROED(&zero, type);
+
+        if (Compare_Modify_Values(D_ARG(1), &zero, 1)) return R_TRUE;
+    }
+    return R_FALSE;
 }

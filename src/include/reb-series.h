@@ -28,21 +28,21 @@
 ***********************************************************************/
 
 struct rebol_series {
-	REBYTE *data;
-	REBCNT tail;
-	REBCNT rest;
-	REBINT info;
+    REBYTE *data;
+    REBCNT tail;
+    REBCNT rest;
+    REBINT info;
 #if defined(__LP64__) || defined(__LLP64__)
-	REBCNT padding; /* make the size multiple of sizeof(pointer) */
+    REBCNT padding; /* make the size multiple of sizeof(pointer) */
 #endif
-	REBCNT size; // Temp - size of image w/h
-	// OPTIONAL Extensions
+    REBCNT size; // Temp - size of image w/h
+    // OPTIONAL Extensions
 };
 
-#define SERIES_TAIL(s) ((s)->tail)
+#define SERIES_LEN(s) ((s)->tail)
 #define SERIES_DATA(s) ((s)->data)
 
-#define BLK_HEAD(s) ((REBVAL *)((s)->data))
+#define ARRAY_HEAD(s) ((REBVAL *)((s)->data))
 #define STR_HEAD(s) ((REBYTE *)((s)->data))
 
 #define IMG_SIZE(s) ((s)->size)

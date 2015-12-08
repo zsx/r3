@@ -1,18 +1,18 @@
 REBOL [
-	System: "REBOL [R3] Language Interpreter and Run-time Environment"
-	Title: "Canonical words"
-	Rights: {
-		Copyright 2012 REBOL Technologies
-		REBOL is a trademark of REBOL Technologies
-	}
-	License: {
-		Licensed under the Apache License, Version 2.0
-		See: http://www.apache.org/licenses/LICENSE-2.0
-	}
-	Purpose: {
-		These words are used internally by REBOL and must have specific canon
-		word values in order to be correctly identified.
-	}
+    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    Title: "Canonical words"
+    Rights: {
+        Copyright 2012 REBOL Technologies
+        REBOL is a trademark of REBOL Technologies
+    }
+    License: {
+        Licensed under the Apache License, Version 2.0
+        See: http://www.apache.org/licenses/LICENSE-2.0
+    }
+    Purpose: {
+        These words are used internally by REBOL and must have specific canon
+        word values in order to be correctly identified.
+    }
 ]
 
 any-value! ;-- signal start of typesets (SYM_ANY_VALUEX hardcoded reference)
@@ -23,7 +23,7 @@ any-number!
 any-scalar!
 any-series!
 any-string!
-any-object!
+any-context!
 any-array! ;-- replacement for any-block! that doesn't conflate with "block"
 
 ;-----------------------------------------------------------------------------
@@ -35,9 +35,8 @@ datatypes
 ; this list is applied, so you only see typesets in this file.
 ;-----------------------------------------------------------------------------
 
-group! ;-- replacement for paren! type (incubating as normal word for now)
-
 native
+action
 self
 none
 true
@@ -71,9 +70,7 @@ y
 -
 *
 unsigned
--unnamed- 	; lambda (unnamed) functions
--apply-		; apply func
-code		; error field
+code        ; error field
 delect
 
 ; Secure:  (add to system/state/policies object too)
@@ -121,7 +118,7 @@ continue
 
 ; Parse: - These words must not reserved above!!
 parse
-|	 ; must be first
+|    ; must be first
 ; prep words:
 set
 copy
@@ -318,3 +315,12 @@ pid
 ;call/info
 id
 exit-code
+
+; used as error fields in debug builds for C's __FILE__ and __LINE__ of origin
+__FILE__
+__LINE__
+
+; required by OPTIONS_ARG1_ARG2_ARG3_ERROR, assumed to be sequential symbol #s
+arg1
+arg2
+arg3

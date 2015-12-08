@@ -48,94 +48,90 @@
 
 extern void Done_Device(REBUPT handle, int error);
 
-/***********************************************************************
-**
-*/	DEVICE_CMD Init_Events(REBREQ *dr)
-/*
-**		Initialize the event device.
-**
-**		Create a hidden window to handle special events,
-**		such as timers and async DNS.
-**
-***********************************************************************/
+//
+//  Init_Events: C
+// 
+// Initialize the event device.
+// 
+// Create a hidden window to handle special events,
+// such as timers and async DNS.
+//
+DEVICE_CMD Init_Events(REBREQ *dr)
 {
-	REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy
-	SET_FLAG(dev->flags, RDF_INIT);
-	return DR_DONE;
+    REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy
+    SET_FLAG(dev->flags, RDF_INIT);
+    return DR_DONE;
+}
+
+
+//
+//  Poll_Events: C
+// 
+// Poll for events and process them.
+// Returns 1 if event found, else 0.
+//
+DEVICE_CMD Poll_Events(REBREQ *req)
+{
+    int flag = DR_DONE;
+    return flag;    // different meaning compared to most commands
+}
+
+
+//
+//  Query_Events: C
+// 
+// Wait for an event, or a timeout (in milliseconds) specified by
+// req->length. The latter is used by WAIT as the main timing
+// method.
+//
+DEVICE_CMD Query_Events(REBREQ *req)
+{
+    struct timeval tv;
+    int result;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = req->length * 1000;
+    //printf("usec %d\n", tv.tv_usec);
+
+    result = select(0, 0, 0, 0, &tv);
+    if (result < 0) {
+        // !!! set error code
+        printf("ERROR!!!!\n");
+        return DR_ERROR;
+    }
+
+    return DR_DONE;
+}
+
+
+//
+//  Connect_Events: C
+// 
+// Simply keeps the request pending for polling purposes.
+// Use Abort_Device to remove it.
+//
+DEVICE_CMD Connect_Events(REBREQ *req)
+{
+    return DR_PEND; // keep pending
 }
 
 
 /***********************************************************************
 **
-*/	DEVICE_CMD Poll_Events(REBREQ *req)
-/*
-**		Poll for events and process them.
-**		Returns 1 if event found, else 0.
-**
-***********************************************************************/
-{
-	int flag = DR_DONE;
-	return flag;	// different meaning compared to most commands
-}
-
-
-/***********************************************************************
-**
-*/	DEVICE_CMD Query_Events(REBREQ *req)
-/*
-**		Wait for an event, or a timeout (in milliseconds) specified by
-**		req->length. The latter is used by WAIT as the main timing
-**		method.
-**
-***********************************************************************/
-{
-	struct timeval tv;
-	int result;
-
-	tv.tv_sec = 0;
-	tv.tv_usec = req->length * 1000;
-	//printf("usec %d\n", tv.tv_usec);
-
-	result = select(0, 0, 0, 0, &tv);
-	if (result < 0) {
-		// !!! set error code
-		printf("ERROR!!!!\n");
-		return DR_ERROR;
-	}
-
-	return DR_DONE;
-}
-
-
-/***********************************************************************
-**
-*/	DEVICE_CMD Connect_Events(REBREQ *req)
-/*
-**		Simply keeps the request pending for polling purposes.
-**		Use Abort_Device to remove it.
-**
-***********************************************************************/
-{
-	return DR_PEND;	// keep pending
-}
-
-
-/***********************************************************************
-**
-**	Command Dispatch Table (RDC_ enum order)
+**  Command Dispatch Table (RDC_ enum order)
 **
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
-	Init_Events,			// init device driver resources
-	0,	// RDC_QUIT,		// cleanup device driver resources
-	0,	// RDC_OPEN,		// open device unit (port)
-	0,	// RDC_CLOSE,		// close device unit
-	0,	// RDC_READ,		// read from unit
-	0,	// RDC_WRITE,		// write to unit
-	Poll_Events,
-	Connect_Events,
-	Query_Events,
+    Init_Events,            // init device driver resources
+    0,  // RDC_QUIT,        // cleanup device driver resources
+    0,  // RDC_OPEN,        // open device unit (port)
+    0,  // RDC_CLOSE,       // close device unit
+    0,  // RDC_READ,        // read from unit
+    0,  // RDC_WRITE,       // write to unit
+    Poll_Events,
+    Connect_Events,
+    Query_Events,
 };
 
 DEFINE_DEV(Dev_Event, "OS Events", 1, Dev_Cmds, RDC_MAX, 0);

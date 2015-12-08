@@ -30,222 +30,224 @@
 #include "sys-core.h"
 
 
-/***********************************************************************
-**
-*/	REBCNT Modify_Array(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
-/*
-**		action: INSERT, APPEND, CHANGE
-**
-**		dst_ser:	target
-**		dst_idx:	position
-**		src_val:    source
-**		flags:		AN_ONLY, AN_PART
-**		dst_len:	length to remove
-**		dups:		dup count
-**
-**		return: new dst_idx
-**
-***********************************************************************/
-{
-	REBCNT tail  = SERIES_TAIL(dst_ser);
-	REBINT ilen  = 1;	// length to be inserted
-	REBINT size;		// total to insert
+//
+//  Modify_Array: C
+//
+// Returns new dst_idx
+//
+REBCNT Modify_Array(
+    REBCNT action,          // INSERT, APPEND, CHANGE
+    REBARR *dst_arr,        // target
+    REBCNT dst_idx,         // position
+    const REBVAL *src_val,  // source
+    REBCNT flags,           // AN_ONLY, AN_PART
+    REBINT dst_len,         // length to remove
+    REBINT dups             // dup count
+) {
+    REBCNT tail = ARRAY_LEN(dst_arr);
+
+    REBINT ilen = 1; // length to be inserted
+
+    REBINT size; // total to insert
 
 #if !defined(NDEBUG)
-	REBINT index;
+    REBINT index;
 #endif
 
-	if (dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
-	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (IS_UNSET(src_val) || dups < 0) {
+        // If they are effectively asking for "no action" then all we have
+        // to do is return the natural index result for the operation.
+        // (APPEND will return 0, insert the tail of the insertion...so index)
 
-	// Check /PART, compute LEN:
-	if (!GET_FLAG(flags, AN_ONLY) && ANY_BLOCK(src_val)) {
-		// Adjust length of insertion if changing /PART:
-		if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
-			ilen = dst_len;
-		else
-			ilen = VAL_LEN(src_val);
+        return (action == A_APPEND) ? 0 : dst_idx;
+    }
 
-		// Are we modifying ourselves? If so, copy src_val block first:
-		if (dst_ser == VAL_SERIES(src_val)) {
-			REBSER *series = Copy_Array_At_Shallow(
-				VAL_SERIES(src_val), VAL_INDEX(src_val)
-			);
-			src_val = BLK_HEAD(series);
-		}
-		else
-			src_val = VAL_BLK_DATA(src_val); // skips by VAL_INDEX values
-	}
+    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
-	// Total to insert:
-	size = dups * ilen;
+    // Check /PART, compute LEN:
+    if (!GET_FLAG(flags, AN_ONLY) && ANY_ARRAY(src_val)) {
+        // Adjust length of insertion if changing /PART:
+        if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+            ilen = dst_len;
+        else
+            ilen = VAL_LEN_AT(src_val);
 
-	if (action != A_CHANGE) {
-		// Always expand dst_ser for INSERT and APPEND actions:
-		Expand_Series(dst_ser, dst_idx, size);
-	} else {
-		if (size > dst_len)
-			Expand_Series(dst_ser, dst_idx, size-dst_len);
-		else if (size < dst_len && GET_FLAG(flags, AN_PART))
-			Remove_Series(dst_ser, dst_idx, dst_len-size);
-		else if (size + dst_idx > tail) {
-			EXPAND_SERIES_TAIL(dst_ser, size - (tail - dst_idx));
-		}
-	}
+        // Are we modifying ourselves? If so, copy src_val block first:
+        if (dst_arr == VAL_ARRAY(src_val)) {
+            REBARR *copy = Copy_Array_At_Shallow(
+                VAL_ARRAY(src_val), VAL_INDEX(src_val)
+            );
+            src_val = ARRAY_HEAD(copy);
+        }
+        else
+            src_val = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
+    }
 
-	tail = (action == A_APPEND) ? 0 : size + dst_idx;
+    // Total to insert:
+    size = dups * ilen;
+
+    if (action != A_CHANGE) {
+        // Always expand dst_arr for INSERT and APPEND actions:
+        Expand_Series(ARRAY_SERIES(dst_arr), dst_idx, size);
+    }
+    else {
+        if (size > dst_len)
+            Expand_Series(ARRAY_SERIES(dst_arr), dst_idx, size-dst_len);
+        else if (size < dst_len && GET_FLAG(flags, AN_PART))
+            Remove_Series(ARRAY_SERIES(dst_arr), dst_idx, dst_len-size);
+        else if (size + dst_idx > tail) {
+            EXPAND_SERIES_TAIL(ARRAY_SERIES(dst_arr), size - (tail - dst_idx));
+        }
+    }
+
+    tail = (action == A_APPEND) ? 0 : size + dst_idx;
 
 #if !defined(NDEBUG)
-	for (index = 0; index < ilen; index++) {
-		if (SERIES_GET_FLAG(dst_ser, SER_MANAGED))
-			ASSERT_VALUE_MANAGED(&src_val[index]);
-	}
+    for (index = 0; index < ilen; index++) {
+        if (ARRAY_GET_FLAG(dst_arr, SER_MANAGED))
+            ASSERT_VALUE_MANAGED(&src_val[index]);
+    }
 #endif
 
-	dst_idx *= SERIES_WIDE(dst_ser); // loop invariant
-	ilen  *= SERIES_WIDE(dst_ser); // loop invariant
-	for (; dups > 0; dups--) {
-		memcpy(dst_ser->data + dst_idx, src_val, ilen);
-		dst_idx += ilen;
-	}
-	BLK_TERM(dst_ser);
+    for (; dups > 0; dups--) {
+        memcpy(ARRAY_HEAD(dst_arr) + dst_idx, src_val, ilen * sizeof(REBVAL));
+        dst_idx += ilen;
+    }
+    TERM_ARRAY(dst_arr);
 
-	return tail;
+    return tail;
 }
 
 
-/***********************************************************************
-**
-*/	REBCNT Modify_String(REBCNT action, REBSER *dst_ser, REBCNT dst_idx, const REBVAL *src_val, REBCNT flags, REBINT dst_len, REBINT dups)
-/*
-**		action: INSERT, APPEND, CHANGE
-**
-**		dst_ser:	target
-**		dst_idx:	position
-**		src_val:	source
-**		flags:		AN_PART
-**		dst_len:	length to remove
-**		dups:		dup count
-**
-**		return: new dst_idx
-**
-***********************************************************************/
-{
-	REBSER *src_ser = 0;
-	REBCNT src_idx = 0;
-	REBCNT src_len;
-	REBCNT tail  = SERIES_TAIL(dst_ser);
-	REBINT size;		// total to insert
-	REBOOL needs_free;
-	REBINT limit;
+//
+//  Modify_String: C
+// 
+// Returns new dst_idx.
+//
+REBCNT Modify_String(
+    REBCNT action,          // INSERT, APPEND, CHANGE
+    REBSER *dst_ser,        // target
+    REBCNT dst_idx,         // position
+    const REBVAL *src_val,  // source
+    REBCNT flags,           // AN_PART
+    REBINT dst_len,         // length to remove
+    REBINT dups             // dup count
+) {
+    REBSER *src_ser = 0;
+    REBCNT src_idx = 0;
+    REBCNT src_len;
+    REBCNT tail  = SERIES_LEN(dst_ser);
+    REBINT size;        // total to insert
+    REBOOL needs_free;
+    REBINT limit;
 
-	// For INSERT/PART and APPEND/PART
-	if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
-		limit = dst_len; // should be non-negative
-	else
-		limit = -1;
+    // For INSERT/PART and APPEND/PART
+    if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+        limit = dst_len; // should be non-negative
+    else
+        limit = -1;
 
-	if (limit == 0 || dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
-	if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (limit == 0 || dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
+    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
 
-	// If the src_val is not a string, then we need to create a string:
-	if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
-		if (IS_INTEGER(src_val)) {
-			src_ser = Make_Series_Codepoint(Int8u(src_val));
-			needs_free = TRUE;
-			limit = -1;
-		}
-		else if (IS_BLOCK(src_val)) {
-			src_ser = Join_Binary(src_val, limit); // NOTE: it's the shared FORM buffer!
-			needs_free = FALSE;
-			limit = -1;
-		}
-		else if (IS_CHAR(src_val)) {
-			// "UTF-8 was originally specified to allow codepoints with up to
-			// 31 bits (or 6 bytes). But with RFC3629, this was reduced to 4
-			// bytes max. to be more compatible to UTF-16."  So depending on
-			// which RFC you consider "the UTF-8", max size is either 4 or 6.
-			src_ser = Make_Binary(6);
-			src_ser->tail = Encode_UTF8_Char(BIN_HEAD(src_ser), VAL_CHAR(src_val));
-			needs_free = TRUE;
-			limit = -1;
-		}
-		else if (ANY_STR(src_val)) {
-			src_len = VAL_LEN(src_val);
-			if (limit >= 0 && src_len > cast(REBCNT, limit))
-				src_len = limit;
-			src_ser = Make_UTF8_From_Any_String(src_val, src_len, 0);
-			needs_free = TRUE;
-			limit = -1;
-		}
-		else if (!IS_BINARY(src_val))
-			raise Error_Invalid_Arg(src_val);
-	}
-	else if (IS_CHAR(src_val)) {
-		src_ser = Make_Series_Codepoint(VAL_CHAR(src_val));
-		needs_free = TRUE;
-	}
-	else if (IS_BLOCK(src_val)) {
-		src_ser = Form_Tight_Block(src_val);
-		needs_free = TRUE;
-	}
-	else if (!ANY_STR(src_val) || IS_TAG(src_val)) {
-		src_ser = Copy_Form_Value(src_val, 0);
-		needs_free = TRUE;
-	}
+    // If the src_val is not a string, then we need to create a string:
+    if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
+        if (IS_INTEGER(src_val)) {
+            src_ser = Make_Series_Codepoint(Int8u(src_val));
+            needs_free = TRUE;
+            limit = -1;
+        }
+        else if (IS_BLOCK(src_val)) {
+            src_ser = Join_Binary(src_val, limit); // NOTE: it's the shared FORM buffer!
+            needs_free = FALSE;
+            limit = -1;
+        }
+        else if (IS_CHAR(src_val)) {
+            // "UTF-8 was originally specified to allow codepoints with up to
+            // 31 bits (or 6 bytes). But with RFC3629, this was reduced to 4
+            // bytes max. to be more compatible to UTF-16."  So depending on
+            // which RFC you consider "the UTF-8", max size is either 4 or 6.
+            src_ser = Make_Binary(6);
+            src_ser->tail = Encode_UTF8_Char(BIN_HEAD(src_ser), VAL_CHAR(src_val));
+            needs_free = TRUE;
+            limit = -1;
+        }
+        else if (ANY_STR(src_val)) {
+            src_len = VAL_LEN_AT(src_val);
+            if (limit >= 0 && src_len > cast(REBCNT, limit))
+                src_len = limit;
+            src_ser = Make_UTF8_From_Any_String(src_val, src_len, 0);
+            needs_free = TRUE;
+            limit = -1;
+        }
+        else if (!IS_BINARY(src_val))
+            fail (Error_Invalid_Arg(src_val));
+    }
+    else if (IS_CHAR(src_val)) {
+        src_ser = Make_Series_Codepoint(VAL_CHAR(src_val));
+        needs_free = TRUE;
+    }
+    else if (IS_BLOCK(src_val)) {
+        src_ser = Form_Tight_Block(src_val);
+        needs_free = TRUE;
+    }
+    else if (!ANY_STR(src_val) || IS_TAG(src_val)) {
+        src_ser = Copy_Form_Value(src_val, 0);
+        needs_free = TRUE;
+    }
 
-	// Use either new src or the one that was passed:
-	if (src_ser) {
-		src_len = SERIES_TAIL(src_ser);
-	}
-	else {
-		src_ser = VAL_SERIES(src_val);
-		src_idx = VAL_INDEX(src_val);
-		src_len = VAL_LEN(src_val);
-		needs_free = FALSE;
-	}
+    // Use either new src or the one that was passed:
+    if (src_ser) {
+        src_len = SERIES_LEN(src_ser);
+    }
+    else {
+        src_ser = VAL_SERIES(src_val);
+        src_idx = VAL_INDEX(src_val);
+        src_len = VAL_LEN_AT(src_val);
+        needs_free = FALSE;
+    }
 
-	if (limit >= 0) src_len = limit;
+    if (limit >= 0) src_len = limit;
 
-	// If Source == Destination we need to prevent possible conflicts.
-	// Clone the argument just to be safe.
-	// (Note: It may be possible to optimize special cases like append !!)
-	if (dst_ser == src_ser) {
-		assert(!needs_free);
-		src_ser = Copy_Sequence_At_Len(src_ser, src_idx, src_len);
-		needs_free = TRUE;
-		src_idx = 0;
-	}
+    // If Source == Destination we need to prevent possible conflicts.
+    // Clone the argument just to be safe.
+    // (Note: It may be possible to optimize special cases like append !!)
+    if (dst_ser == src_ser) {
+        assert(!needs_free);
+        src_ser = Copy_Sequence_At_Len(src_ser, src_idx, src_len);
+        needs_free = TRUE;
+        src_idx = 0;
+    }
 
-	// Total to insert:
-	size = dups * src_len;
+    // Total to insert:
+    size = dups * src_len;
 
-	if (action != A_CHANGE) {
-		// Always expand dst_ser for INSERT and APPEND actions:
-		Expand_Series(dst_ser, dst_idx, size);
-	} else {
-		if (size > dst_len)
-			Expand_Series(dst_ser, dst_idx, size - dst_len);
-		else if (size < dst_len && GET_FLAG(flags, AN_PART))
-			Remove_Series(dst_ser, dst_idx, dst_len - size);
-		else if (size + dst_idx > tail) {
-			EXPAND_SERIES_TAIL(dst_ser, size - (tail - dst_idx));
-		}
-	}
+    if (action != A_CHANGE) {
+        // Always expand dst_ser for INSERT and APPEND actions:
+        Expand_Series(dst_ser, dst_idx, size);
+    } else {
+        if (size > dst_len)
+            Expand_Series(dst_ser, dst_idx, size - dst_len);
+        else if (size < dst_len && GET_FLAG(flags, AN_PART))
+            Remove_Series(dst_ser, dst_idx, dst_len - size);
+        else if (size + dst_idx > tail) {
+            EXPAND_SERIES_TAIL(dst_ser, size - (tail - dst_idx));
+        }
+    }
 
-	// For dup count:
-	for (; dups > 0; dups--) {
-		Insert_String(dst_ser, dst_idx, src_ser, src_idx, src_len, TRUE);
-		dst_idx += src_len;
-	}
+    // For dup count:
+    for (; dups > 0; dups--) {
+        Insert_String(dst_ser, dst_idx, src_ser, src_idx, src_len, TRUE);
+        dst_idx += src_len;
+    }
 
-	TERM_SERIES(dst_ser);
+    TERM_SEQUENCE(dst_ser);
 
-	if (needs_free) {
-		// If we did not use the series that was passed in, but rather
-		// created an internal temporary one, we need to free it.
-		Free_Series(src_ser);
-	}
+    if (needs_free) {
+        // If we did not use the series that was passed in, but rather
+        // created an internal temporary one, we need to free it.
+        Free_Series(src_ser);
+    }
 
-	return (action == A_APPEND) ? 0 : dst_idx;
+    return (action == A_APPEND) ? 0 : dst_idx;
 }

@@ -30,127 +30,142 @@
 #include "sys-core.h"
 
 // Size of crash buffers
-#define	PANIC_TITLE_SIZE 80
-#define	PANIC_MESSAGE_SIZE 512
+#define PANIC_TITLE_SIZE 80
+#define PANIC_MESSAGE_SIZE 512
 
 
-/***********************************************************************
-**
-*/	ATTRIBUTE_NO_RETURN void Panic_Core(REBCNT id, const REBVAL *maybe_error, const char *c_file, int c_line, va_list *args)
-/*
-**		(va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-**
-**		Print a failure message and abort.  The code adapts to several
-**		different load stages of the system, and uses simpler ways to
-**		report the error when the boot has not progressed enough to
-**		use the more advanced modes.  This allows the same interface
-**		to be used for `panic Error_XXX(...)` and `raise Error_XXX(...)`.
-**
-***********************************************************************/
-{
-	char title[PANIC_TITLE_SIZE];
-	char message[PANIC_MESSAGE_SIZE];
+//
+//  Panic_Core: C
+// 
+// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+// 
+// Print a failure message and abort.  The code adapts to several
+// different load stages of the system, and uses simpler ways to
+// report the error when the boot has not progressed enough to
+// use the more advanced modes.  This allows the same interface
+// to be used for `panic Error_XXX(...)` and `fail (Error_XXX(...))`.
+//
+ATTRIBUTE_NO_RETURN void Panic_Core(
+    REBCNT id,
+    REBFRM *maybe_frame,
+    va_list *args
+) {
+    char title[PANIC_TITLE_SIZE];
+    char message[PANIC_MESSAGE_SIZE];
 
-	title[0] = '\0';
-	message[0] = '\0';
+    title[0] = '\0';
+    message[0] = '\0';
 
-	// We are crashing, so a legitimate time to be disabling the garbage
-	// collector.  (It won't be turned back on.)
-	GC_Disabled++;
+    if (maybe_frame) {
+        ASSERT_FRAME(maybe_frame);
+        assert(FRAME_TYPE(maybe_frame) == REB_ERROR);
+        assert(id == 0);
+        id = ERR_NUM(maybe_frame);
+    }
 
-	if (Reb_Opts && Reb_Opts->crash_dump) {
-		Dump_Info();
-		Dump_Stack(0, 0);
-	}
+    // We are crashing, so a legitimate time to be disabling the garbage
+    // collector.  (It won't be turned back on.)
+    GC_Disabled++;
 
-	strncat(title, "PANIC #", PANIC_TITLE_SIZE - 1);
-	Form_Int(b_cast(title + strlen(title)), id); // !!! no bounding...
+    if (Reb_Opts && Reb_Opts->crash_dump) {
+        Dump_Info();
+        Dump_Stack(0, 0);
+    }
 
-	strncat(message, Str_Panic_Directions, PANIC_MESSAGE_SIZE - 1);
+    strncat(title, "PANIC #", PANIC_TITLE_SIZE - 1);
+    Form_Int(b_cast(title + strlen(title)), id); // !!! no bounding...
+
+    strncat(message, Str_Panic_Directions, PANIC_MESSAGE_SIZE - 1);
 
 #if !defined(NDEBUG)
-	// In debug builds, we have the file and line number to report
-	Form_Args(
-		b_cast(message + strlen(message)),
-		PANIC_MESSAGE_SIZE - 1 - strlen(message),
-		"C Source File %s, Line %d\n",
-		c_file,
-		c_line,
-		NULL
-	);
+    // In debug builds, we may have the file and line number to report if
+    // the call to Panic_Core originated from the `panic` macro.  But we
+    // will not if the panic is being called from a Make_Error call that
+    // is earlier than errors can be made...
+
+    if (TG_Erroring_C_File) {
+        Form_Args(
+            b_cast(message + strlen(message)),
+            PANIC_MESSAGE_SIZE - 1 - strlen(message),
+            "C Source File %s, Line %d\n",
+            TG_Erroring_C_File,
+            TG_Erroring_C_Line,
+            NULL
+        );
+    }
 #endif
 
-	if (PG_Boot_Phase < BOOT_LOADED) {
-		strncat(message, title, PANIC_MESSAGE_SIZE - 1);
-		strncat(
-			message,
-			"\n** Boot Error: (string table not decompressed yet)",
-			PANIC_MESSAGE_SIZE - 1
-		);
-	}
-	else if (PG_Boot_Phase < BOOT_ERRORS && id < RE_INTERNAL_MAX) {
-		// We are panic'ing on one of the errors that can occur during
-		// boot (e.g. before Make_Error() be assured to run).  So we use
-		// the C string constant that was formed by %make-boot.r and
-		// compressed in the boot block.
-		//
-		// Note: These strings currently do not allow arguments.
+    if (PG_Boot_Phase < BOOT_LOADED) {
+        strncat(message, title, PANIC_MESSAGE_SIZE - 1);
+        strncat(
+            message,
+            "\n** Boot Error: (string table not decompressed yet)",
+            PANIC_MESSAGE_SIZE - 1
+        );
+    }
+    else if (PG_Boot_Phase < BOOT_ERRORS && id < RE_INTERNAL_MAX) {
+        // We are panic'ing on one of the errors that can occur during
+        // boot (e.g. before Make_Error() be assured to run).  So we use
+        // the C string constant that was formed by %make-boot.r and
+        // compressed in the boot block.
+        //
+        // Note: These strings currently do not allow arguments.
 
-		const char *format =
-			cs_cast(BOOT_STR(RS_ERROR, id - RE_INTERNAL_FIRST));
-		assert(args && !maybe_error);
-		strncat(message, "\n** Boot Error: ", PANIC_MESSAGE_SIZE - 1);
-		Form_Args_Core(
-			b_cast(message + strlen(message)),
-			PANIC_MESSAGE_SIZE - 1 - strlen(message),
-			format,
-			args
-		);
-	}
-	else if (PG_Boot_Phase < BOOT_ERRORS && id >= RE_INTERNAL_MAX) {
-		strncat(message, title, PANIC_MESSAGE_SIZE - 1);
-		strncat(
-			message,
-			"\n** Boot Error: (error object table not initialized yet)",
-			PANIC_MESSAGE_SIZE - 1
-		);
-	}
-	else {
-		// The system should be theoretically able to make and mold errors.
-		//
-		// !!! If you're trying to panic *during* error molding this
-		// is obviously not going to not work.  All errors pertaining to
-		// molding errors should audited to be in the Boot: category.
+        const char *format =
+            cs_cast(BOOT_STR(RS_ERROR, id - RE_INTERNAL_FIRST));
+        assert(args && !maybe_frame);
+        strncat(message, "\n** Boot Error: ", PANIC_MESSAGE_SIZE - 1);
+        Form_Args_Core(
+            b_cast(message + strlen(message)),
+            PANIC_MESSAGE_SIZE - 1 - strlen(message),
+            format,
+            args
+        );
+    }
+    else if (PG_Boot_Phase < BOOT_ERRORS && id >= RE_INTERNAL_MAX) {
+        strncat(message, title, PANIC_MESSAGE_SIZE - 1);
+        strncat(
+            message,
+            "\n** Boot Error: (error object table not initialized yet)",
+            PANIC_MESSAGE_SIZE - 1
+        );
+    }
+    else {
+        // The system should be theoretically able to make and mold errors.
+        //
+        // !!! If you're trying to panic *during* error molding this
+        // is obviously not going to not work.  All errors pertaining to
+        // molding errors should audited to be in the Boot: category.
 
-		REBVAL error;
+        REBVAL error;
 
-		if (maybe_error) {
-			assert(!args);
-			error = *maybe_error;
-		}
-		else {
-			// We aren't explicitly passed a Rebol ERROR! object, but we
-			// consider it "safe" to make one since we're past BOOT_ERRORS
+        if (maybe_frame) {
+            assert(!args);
+            Val_Init_Error(&error, maybe_frame);
+        }
+        else {
+            // We aren't explicitly passed a Rebol ERROR! object, but we
+            // consider it "safe" to make one since we're past BOOT_ERRORS
 
-			Val_Init_Error(&error, Make_Error_Core(id, c_file, c_line, args));
-		}
+            Val_Init_Error(&error, Make_Error_Core(id, FALSE, args));
+        }
 
-		Form_Args(
-			b_cast(message + strlen(message)),
-			PANIC_MESSAGE_SIZE - 1 - strlen(message),
-			"%v",
-			&error,
-			NULL
-		);
-	}
+        Form_Args(
+            b_cast(message + strlen(message)),
+            PANIC_MESSAGE_SIZE - 1 - strlen(message),
+            "%v",
+            &error,
+            NULL
+        );
+    }
 
-	OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(message));
+    OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(message));
 
-	// Note that since we crash, we never return so that the caller can run
-	// a va_end on the passed-in args.  This is illegal in the general case:
-	//
-	//    http://stackoverflow.com/a/587139/211160
+    // Note that since we crash, we never return so that the caller can run
+    // a va_end on the passed-in args.  This is illegal in the general case:
+    //
+    //    http://stackoverflow.com/a/587139/211160
 
-	DEAD_END;
+    DEAD_END;
 }
 

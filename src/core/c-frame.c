@@ -27,1558 +27,1774 @@
 **
 ***********************************************************************/
 /*
-		This structure is used for:
+        This structure is used for:
 
-			1. Modules
-			2. Objects
-			3. Function frame (arguments)
-			4. Closures
+            1. Modules
+            2. Objects
+            3. Function frame (arguments)
+            4. Closures
 
-		A frame is a block that begins with a special FRAME! value
-		(a datatype that links to the frame word list). That value
-		(SELF) is followed by the values of the words for the frame.
+        A frame is a block that begins with a special FRAME! value
+        (a datatype that links to the frame word list). That value
+        (SELF) is followed by the values of the words for the frame.
 
-		FRAME BLOCK:                            WORD LIST:
-		+----------------------------+          +----------------------------+
-		|    Frame Datatype Value    |--Series->|         SELF word          |
-		+----------------------------+          +----------------------------+
-		|          Value 1           |          |          Word 1            |
-		+----------------------------+          +----------------------------+
-		|          Value 2           |          |          Word 2            |
-		+----------------------------+          +----------------------------+
-		|          Value ...         |          |          Word ...          |
-		+----------------------------+          +----------------------------+
+        FRAME BLOCK:                            WORD LIST:
+        +----------------------------+          +----------------------------+
+        |    Frame Datatype Value    |--Series->|         SELF word          |
+        +----------------------------+          +----------------------------+
+        |          Value 1           |          |          Word 1            |
+        +----------------------------+          +----------------------------+
+        |          Value 2           |          |          Word 2            |
+        +----------------------------+          +----------------------------+
+        |          Value ...         |          |          Word ...          |
+        +----------------------------+          +----------------------------+
 
-		The word list holds word datatype values of the structure:
+        The word list holds word datatype values of the structure:
 
-				Type:   word, 'word, :word, word:, /word
-				Symbol: actual symbol
-				Canon:  canonical symbol
-				Typeset: index of the value's typeset, or zero
+                Type:   word, 'word, :word, word:, /word
+                Symbol: actual symbol
+                Canon:  canonical symbol
+                Typeset: index of the value's typeset, or zero
 
-		This list is used for binding, evaluation, type checking, and
-		can also be used for molding.
+        This list is used for binding, evaluation, type checking, and
+        can also be used for molding.
 
-		When a frame is cloned, only the value block itself need be
-		created. The word list remains the same. For functions, the
-		value block can be pushed on the stack.
+        When a frame is cloned, only the value block itself need be
+        created. The word list remains the same. For functions, the
+        value block can be pushed on the stack.
 
-		Frame creation patterns:
+        Frame creation patterns:
 
-			1. Function specification to frame. Spec is scanned for
-			words and datatypes, from which the word list is created.
-			Closures are identical.
+            1. Function specification to frame. Spec is scanned for
+            words and datatypes, from which the word list is created.
+            Closures are identical.
 
-			2. Object specification to frame. Spec is scanned for
-			word definitions and merged with parent defintions. An
-			option is to allow the words to be typed.
+            2. Object specification to frame. Spec is scanned for
+            word definitions and merged with parent defintions. An
+            option is to allow the words to be typed.
 
-			3. Module words to frame. They are not normally known in
-			advance, they are collected during the global binding of a
-			newly loaded block. This requires either preallocation of
-			the module frame, or some kind of special scan to track
-			the new words.
+            3. Module words to frame. They are not normally known in
+            advance, they are collected during the global binding of a
+            newly loaded block. This requires either preallocation of
+            the module frame, or some kind of special scan to track
+            the new words.
 
-			4. Special frames, such as system natives and actions
-			may be created by specific block scans and appending to
-			a given frame.
+            4. Special frames, such as system natives and actions
+            may be created by specific block scans and appending to
+            a given frame.
 */
 
 #include "sys-core.h"
 
 #define CHECK_BIND_TABLE
 
-/***********************************************************************
-**
-*/	void Check_Bind_Table(void)
-/*
-***********************************************************************/
+//
+//  Check_Bind_Table: C
+//
+void Check_Bind_Table(void)
 {
-	REBCNT	n;
-	REBINT *binds = WORDS_HEAD(Bind_Table);
+    REBCNT  n;
+    REBINT *binds = WORDS_HEAD(Bind_Table);
 
-	//Debug_Fmt("Bind Table (Size: %d)", SERIES_TAIL(Bind_Table));
-	for (n = 0; n < SERIES_TAIL(Bind_Table); n++) {
-		if (binds[n]) {
-			Debug_Fmt("Bind table fault: %3d to %3d (%s)", n, binds[n], Get_Sym_Name(n));
-		}
-	}
-}
-
-/***********************************************************************
-**
-*/  REBSER *Make_Frame(REBINT len, REBOOL has_self)
-/*
-**      Create a frame of a given size, allocating space for both
-**		words and values. Normally used for global frames.
-**
-***********************************************************************/
-{
-	REBSER *frame;
-	REBSER *words;
-	REBVAL *value;
-
-	words = Make_Array(len + 1); // size + room for SELF
-	frame = Make_Series((len + 1) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME);
-	SET_END(BLK_HEAD(frame)); // !!! Needed since we used Make_Series?
-
-	// Note: cannot use Append_Frame for first word.
-	value = Alloc_Tail_Array(frame);
-	SET_FRAME(value, 0, words);
-	value = Alloc_Tail_Array(words);
-	Val_Init_Typeset(value, ALL_64, has_self ? SYM_SELF : SYM_0);
-
-	return frame;
+    //Debug_Fmt("Bind Table (Size: %d)", SERIES_LEN(Bind_Table));
+    for (n = 0; n < SERIES_LEN(Bind_Table); n++) {
+        if (binds[n]) {
+            Debug_Fmt("Bind table fault: %3d to %3d (%s)", n, binds[n], Get_Sym_Name(n));
+        }
+    }
 }
 
 
-/***********************************************************************
-**
-*/  void Expand_Frame(REBSER *frame, REBCNT delta, REBCNT copy)
-/*
-**      Expand a frame. Copy words if flagged.
-**
-***********************************************************************/
+//
+//  Alloc_Frame: C
+// 
+// Create a frame of a given size, allocating space for both words and values.
+//
+// This frame will not have its ANY-OBJECT! REBVAL in the [0] position fully
+// configured, hence this is an "Alloc" instead of a "Make" (because there
+// is still work to be done before it will pass ASSERT_FRAME).
+//
+REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
 {
-	REBSER *keylist = FRM_KEYLIST(frame);
+    REBFRM *frame;
+    REBARR *keylist;
+    REBVAL *value;
 
-	Extend_Series(frame, delta);
-	BLK_TERM(frame);
+    keylist = Make_Array(len + 1); // size + room for SELF
+    frame = AS_FRAME(Make_Series(
+        (len + 1) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+    ));
 
-	// Expand or copy WORDS block:
-	if (copy) {
-		REBOOL managed = SERIES_GET_FLAG(keylist, SER_MANAGED);
-		FRM_KEYLIST(frame) = Copy_Array_Extra_Shallow(keylist, delta);
-		if (managed) MANAGE_SERIES(FRM_KEYLIST(frame));
-	}
-	else {
-		Extend_Series(keylist, delta);
-		BLK_TERM(keylist);
-	}
+    // Note: cannot use Append_Frame for first word.
+
+    // frame[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
+    // are building which contains this frame
+    //
+    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    FRAME_KEYLIST(frame) = keylist;
+
+#if !defined(NDEBUG)
+    //
+    // Type of the embedded object cell must be set to REB_OBJECT, REB_MODULE,
+    // REB_PORT, or REB_ERROR.  This information will be mirrored in instances
+    // of an object initialized with this frame.
+    //
+    VAL_SET(FRAME_CONTEXT(frame), REB_TRASH);
+
+    // !!! Modules seemed to be using a FRAME-style series for a spec, as
+    // opposed to a simple array.  This is contentious with the plan for what
+    // an object spec will wind up looking like, and may end up being the
+    // "meta" information.
+    //
+    FRAME_SPEC(frame) = cast(REBFRM*, 0xBAADF00D);
+
+    // Allowed to be set to NULL, but must be done so explicitly
+    //
+    FRAME_BODY(frame) = cast(REBARR*, 0xBAADF00D);
+#endif
+
+    SET_END(FRAME_VARS_HEAD(frame));
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), 1);
+
+    // !!! keylist[0] is currently either the symbol SELF or the symbol 0
+    // depending.  This is to be reviewed with the deprecation of SELF as a
+    // keyword in the language.
+    //
+    value = Alloc_Tail_Array(keylist);
+    Val_Init_Typeset(value, ALL_64, has_self ? SYM_SELF : SYM_0);
+
+    return frame;
 }
 
 
-/***********************************************************************
-**
-*/  REBVAL *Append_Frame(REBSER *frame, REBVAL *word, REBCNT sym)
-/*
-**      Append a word to the frame word list. Expands the list
-**      if necessary. Returns the value cell for the word. (Set to
-**      UNSET by default to avoid GC corruption.)
-**
-**      If word is not NULL, use the word sym and bind the word value,
-**      otherwise use sym.
-**
-***********************************************************************/
+//
+//  Expand_Frame: C
+// 
+// Expand a frame. Copy words if flagged.
+//
+void Expand_Frame(REBFRM *frame, REBCNT delta, REBCNT copy)
 {
-	REBSER *keylist = FRM_KEYLIST(frame);
-	REBVAL *value;
+    REBARR *keylist = FRAME_KEYLIST(frame);
 
-	// Add to word list:
-	EXPAND_SERIES_TAIL(keylist, 1);
-	value = BLK_LAST(keylist);
-	Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
-	BLK_TERM(keylist);
+    Extend_Series(ARRAY_SERIES(FRAME_VARLIST(frame)), delta);
+    TERM_ARRAY(FRAME_VARLIST(frame));
 
-	// Bind the word to this frame:
-	if (word) {
-		assert(sym == SYM_0);
-		VAL_WORD_FRAME(word) = frame;
-		VAL_WORD_INDEX(word) = frame->tail;
-	}
-	else
-		assert(sym != SYM_0);
-
-	// Add unset value to frame:
-	EXPAND_SERIES_TAIL(frame, 1);
-	value = BLK_LAST(frame);
-	SET_UNSET(value);
-	BLK_TERM(frame);
-
-	return value; // The variable value location for the key we just added.
+    // Expand or copy WORDS block:
+    if (copy) {
+        REBOOL managed = ARRAY_GET_FLAG(keylist, SER_MANAGED);
+        FRAME_KEYLIST(frame) = Copy_Array_Extra_Shallow(keylist, delta);
+        if (managed) MANAGE_ARRAY(FRAME_KEYLIST(frame));
+    }
+    else {
+        Extend_Series(ARRAY_SERIES(keylist), delta);
+        TERM_ARRAY(keylist);
+    }
 }
 
 
-/***********************************************************************
-**
-*/  void Collect_Keys_Start(REBCNT modes)
-/*
-**		Use the Bind_Table to start collecting new keys for a frame.
-**		Use Collect_Keys_End() when done.
-**
-**		WARNING: This routine uses the shared BUF_COLLECT rather than
-**		targeting a new series directly.  This way a frame can be
-**		allocated at exactly the right length when contents are copied.
-**		Therefore do not call code that might call BIND or otherwise
-**		make use of the Bind_Table or BUF_COLLECT.
-**
-***********************************************************************/
+//
+//  Append_Frame: C
+// 
+// Append a word to the frame word list. Expands the list
+// if necessary. Returns the value cell for the word. (Set to
+// UNSET by default to avoid GC corruption.)
+// 
+// If word is not NULL, use the word sym and bind the word value,
+// otherwise use sym.
+//
+REBVAL *Append_Frame(REBFRM *frame, REBVAL *word, REBCNT sym)
 {
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+    REBARR *keylist = FRAME_KEYLIST(frame);
+    REBVAL *value;
 
-	CHECK_BIND_TABLE;
+    // Add the key to key list
+    //
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(keylist), 1);
+    value = ARRAY_LAST(keylist);
+    Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
+    TERM_ARRAY(keylist);
 
-	assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
+    // Add an unset value to var list
+    //
+    EXPAND_SERIES_TAIL(ARRAY_SERIES(FRAME_VARLIST(frame)), 1);
+    value = ARRAY_LAST(FRAME_VARLIST(frame));
+    SET_UNSET(value);
+    TERM_ARRAY(FRAME_VARLIST(frame));
 
-	// Add the SELF key (or unused key) to slot zero
-	if (modes & BIND_NO_SELF)
-		Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_0);
-	else {
-		Val_Init_Typeset(BLK_HEAD(BUF_COLLECT), ALL_64, SYM_SELF);
-		binds[SYM_SELF] = -1;  // (cannot use zero here)
-	}
+    if (word) {
+        //
+        // We want to not just add a key/value pairing to the frame, but we
+        // want to bind a word while we are at it.  Make sure symbol is valid.
+        //
+        assert(sym == SYM_0);
 
-	SERIES_TAIL(BUF_COLLECT) = 1;
+        // When a binding is made to an ordinary frame, the value list is used
+        // as the target and the index is a positive number.  Note that for
+        // stack-relative bindings, the index will be negative and the target
+        // will be a function's PARAMLIST series.
+        //
+        VAL_WORD_TARGET(word) = FRAME_VARLIST(frame);
+        VAL_WORD_INDEX(word) = FRAME_LEN(frame); // new index we just bumped
+    }
+    else
+        assert(sym != SYM_0);
+
+    return value; // The variable value location for the key we just added.
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Collect_Keys_End(REBSER *prior)
-/*
-**		Finish collecting words, and free the Bind_Table for reuse.
-**
-***********************************************************************/
-{
-	REBVAL *words;
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+//
+//  Copy_Frame_Shallow_Extra_Managed: C
+//
+// Makes a copy of a frame.  If no extra storage space is requested, then the
+// same keylist will be used.
+//
+REBFRM *Copy_Frame_Shallow_Extra_Managed(REBFRM *src, REBCNT extra) {
+    REBFRM *dest;
 
-	// Reset binding table (note BUF_COLLECT may have expanded):
-	for (words = BLK_HEAD(BUF_COLLECT); NOT_END(words); words++)
-		binds[VAL_TYPESET_CANON(words)] = 0;
+    assert(ARRAY_GET_FLAG(FRAME_VARLIST(src), SER_FRAME));
+    assert(ARRAY_GET_FLAG(FRAME_KEYLIST(src), SER_MANAGED));
 
-	// If no new words, prior frame:
-	if (prior && SERIES_TAIL(BUF_COLLECT) == SERIES_TAIL(prior)) {
-		RESET_TAIL(BUF_COLLECT);  // allow reuse
-		return FRM_KEYLIST(prior);
-	}
+    if (extra == 0) {
+        dest = AS_FRAME(Copy_Array_Shallow(FRAME_VARLIST(src)));
+        FRAME_KEYLIST(dest) = FRAME_KEYLIST(src);
+    }
+    else {
+        dest = AS_FRAME(Copy_Array_Extra_Shallow(FRAME_VARLIST(src), extra));
+        FRAME_KEYLIST(dest) = Copy_Array_Extra_Shallow(
+            FRAME_KEYLIST(src), extra
+        );
+        MANAGE_ARRAY(FRAME_KEYLIST(dest));
+    }
 
-	prior = Copy_Array_Shallow(BUF_COLLECT);
-	RESET_TAIL(BUF_COLLECT);  // allow reuse
+    ARRAY_SET_FLAG(FRAME_VARLIST(dest), SER_FRAME);
+    MANAGE_ARRAY(FRAME_VARLIST(dest));
 
-	CHECK_BIND_TABLE;
+    VAL_FRAME(FRAME_CONTEXT(dest)) = dest;
 
-	return prior;
+    return dest;
 }
 
 
-/***********************************************************************
-**
-*/  void Collect_Object(REBSER *prior)
-/*
-**		Collect words from a prior object.
-**
-***********************************************************************/
-{
-	REBVAL *keys = FRM_KEYS(prior);
-	REBINT *binds = WORDS_HEAD(Bind_Table);
-	REBINT n;
-
-	// this is necessary for memcpy below to not overwrite memory
-	// BUF_COLLECT does not own
-	RESIZE_SERIES(BUF_COLLECT, SERIES_TAIL(prior));
-
-	// Typeset values in keys (with key symbol) can be copied just as bits
-	assert(SERIES_TAIL(prior) > 0);
-	if (IS_SELFLESS(prior)) {
-		// A selfless frame can use its 0 slot for things other than words
-		// (e.g. a CLOSURE! uses it for the function value of the closure
-		// itself).  Eventually this will be what OBJECT! does, too...and
-		// self will just be a way of establishing a relationship to that
-		// 0 slot object value.
-		memcpy(
-			BLK_HEAD(BUF_COLLECT),
-			keys + 1,
-			(SERIES_TAIL(prior) - 1) * sizeof(REBVAL)
-		);
-	}
-	else {
-		memcpy(
-			BLK_HEAD(BUF_COLLECT), keys, SERIES_TAIL(prior) * sizeof(REBVAL)
-		);
-	}
-
-	SERIES_TAIL(BUF_COLLECT) = SERIES_TAIL(prior);
-	for (n = 1, keys++; NOT_END(keys); keys++) // skips first = SELF
-		binds[VAL_TYPESET_CANON(keys)] = n++;
+//
+//  Copy_Frame_Shallow_Managed: C
+//
+// !!! Make this a macro when there's a place to put it.
+//
+REBFRM *Copy_Frame_Shallow_Managed(REBFRM *src) {
+    return Copy_Frame_Shallow_Extra_Managed(src, 0);
 }
 
 
-/***********************************************************************
-**
-*/ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
-/*
-**		The inner recursive loop used for Collect_Frame function below.
-**
-***********************************************************************/
+//
+//  Collect_Keys_Start: C
+// 
+// Use the Bind_Table to start collecting new keys for a frame.
+// Use Collect_Keys_End() when done.
+// 
+// WARNING: This routine uses the shared BUF_COLLECT rather than
+// targeting a new series directly.  This way a frame can be
+// allocated at exactly the right length when contents are copied.
+// Therefore do not call code that might call BIND or otherwise
+// make use of the Bind_Table or BUF_COLLECT.
+//
+void Collect_Keys_Start(REBCNT modes)
 {
-	for (; NOT_END(value); value++) {
-		if (ANY_WORD(value)) {
-			if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
-				if (IS_SET_WORD(value) || modes & BIND_ALL) {
-					REBVAL *typeset;
-					binds[VAL_WORD_CANON(value)] = SERIES_TAIL(BUF_COLLECT);
-					EXPAND_SERIES_TAIL(BUF_COLLECT, 1);
-					typeset = BLK_LAST(BUF_COLLECT);
-					Val_Init_Typeset(
-						typeset,
-						// Allow all datatypes but END or UNSET (initially):
-						~((FLAGIT_64(REB_END) | FLAGIT_64(REB_UNSET))),
-						VAL_WORD_SYM(value)
-					);
-				}
-			} else {
-				// If word duplicated:
-				if (modes & BIND_NO_DUP) {
-					// Reset binding table (note BUF_COLLECT may have expanded):
-					REBVAL *key = BLK_HEAD(BUF_COLLECT);
-					for (; NOT_END(key); key++)
-						binds[VAL_TYPESET_CANON(key)] = 0;
-					RESET_TAIL(BUF_COLLECT);  // allow reuse
-					raise Error_1(RE_DUP_VARS, value);
-				}
-			}
-			continue;
-		}
-		// Recurse into sub-blocks:
-		if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-			Collect_Frame_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
-		// In this mode (foreach native), do not allow non-words:
-		//else if (modes & BIND_GET) raise Error_Invalid_Arg(value);
-	}
-	BLK_TERM(BUF_COLLECT);
+    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+
+    CHECK_BIND_TABLE;
+
+    assert(ARRAY_LEN(BUF_COLLECT) == 0); // should be empty
+
+    // Add the SELF key (or unused key) to slot zero
+    if (modes & BIND_NO_SELF)
+        Val_Init_Typeset(ARRAY_HEAD(BUF_COLLECT), ALL_64, SYM_0);
+    else {
+        Val_Init_Typeset(ARRAY_HEAD(BUF_COLLECT), ALL_64, SYM_SELF);
+        binds[SYM_SELF] = -1;  // (cannot use zero here)
+    }
+
+    SET_ARRAY_LEN(BUF_COLLECT, 1);
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Collect_Frame(REBSER *prior, REBVAL value[], REBCNT modes)
-/*
-**		Scans a block for words to use in the frame. The list of
-**		words can then be used to create a frame. The Bind_Table is
-**		used to quickly determine duplicate entries.
-**
-**		Returns:
-**			A block of words that can be used for a frame word list.
-**			If no new words, the prior list is returned.
-**
-**		Modes:
-**			BIND_ALL  - scan all words, or just set words
-**			BIND_DEEP - scan sub-blocks too
-**			BIND_GET  - substitute :word with actual word
-**			BIND_NO_SELF - do not add implicit SELF to the frame
-**
-***********************************************************************/
+//
+//  Collect_Keys_End: C
+// 
+// Finish collecting words, and free the Bind_Table for reuse.
+//
+REBARR *Collect_Keys_End(REBFRM *prior)
 {
-	Collect_Keys_Start(modes);
+    REBARR *keylist;
+    REBVAL *words;
+    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-	// Setup binding table with existing words:
-	if (prior) Collect_Object(prior);
+    // Reset binding table (note BUF_COLLECT may have expanded):
+    for (words = ARRAY_HEAD(BUF_COLLECT); NOT_END(words); words++)
+        binds[VAL_TYPESET_CANON(words)] = 0;
 
-	// Scan for words, adding them to BUF_COLLECT and bind table:
-	Collect_Frame_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
+    // If no new words, prior frame
+    //
+    // !!! Review the +1 logic to account for context/rootkey, is this right?
+    //
+    if (prior && ARRAY_LEN(BUF_COLLECT) == FRAME_LEN(prior) + 1) {
+        SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
+        keylist = FRAME_KEYLIST(prior);
+    }
+    else {
+        keylist = Copy_Array_Shallow(BUF_COLLECT);
+        SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
+    }
 
-	return Collect_Keys_End(prior);
+    CHECK_BIND_TABLE;
+
+    return keylist;
 }
 
 
-/***********************************************************************
-**
-*/  static void Collect_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
-/*
-**		Used for Collect_Words() after the binds table has
-**		been set up.
-**
-***********************************************************************/
+//
+//  Collect_Context_Keys: C
+// 
+// Collect words from a prior object.
+//
+void Collect_Context_Keys(REBFRM *prior)
 {
-	for (; NOT_END(value); value++) {
-		if (ANY_WORD(value)
-			&& !binds[VAL_WORD_CANON(value)]
-			&& (modes & BIND_ALL || IS_SET_WORD(value))
-		) {
-			REBVAL *word;
-			binds[VAL_WORD_CANON(value)] = 1;
-			word = Alloc_Tail_Array(BUF_COLLECT);
-			Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
-		}
-		else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-			Collect_Words_Inner_Loop(binds, VAL_BLK_DATA(value), modes);
-	}
+    REBVAL *keys = FRAME_KEYS_HEAD(prior);
+    REBINT *binds = WORDS_HEAD(Bind_Table);
+    REBINT n;
+
+    // this is necessary for memcpy below to not overwrite memory BUF_COLLECT
+    // does not own.  (It may make the series one larger than necessary if
+    // SELF is not required.)
+    //
+    RESIZE_SERIES(ARRAY_SERIES(BUF_COLLECT), FRAME_LEN(prior) + 1);
+
+    // Copy the keys, leaving a one cell gap in the beginning of the collect
+    // buffer if the frame has a SELF.  Because these are typesets with a
+    // symbol, they can be safely memcpy'd as the new typeset values do not
+    // need any kind of independent identity.
+    //
+    memcpy(
+        IS_SELFLESS(prior)
+            ? ARRAY_HEAD(BUF_COLLECT)
+            : ARRAY_AT(BUF_COLLECT, 1),
+        keys,
+        (FRAME_LEN(prior)) * sizeof(REBVAL)
+    );
+
+    if (IS_SELFLESS(prior)) {
+        //
+        // For a selfless frame we didn't leave a gap for self, so the length
+        // is one less than the length of the frame.
+        //
+        SET_ARRAY_LEN(BUF_COLLECT, FRAME_LEN(prior));
+    }
+    else {
+        //
+        // !!! The system key of self is the key in slot 0 for frames, and
+        // is being deprecated.  However we still must collect it if the
+        // frame has it (for now).
+        //
+        *ARRAY_HEAD(BUF_COLLECT) = *ARRAY_HEAD(FRAME_KEYLIST(prior));
+        SET_ARRAY_LEN(BUF_COLLECT, FRAME_LEN(prior) + 1);
+    }
+
+    // !!! Note that this collection of binds will not include SELF (?)
+    //
+    n = 1;
+    for (; NOT_END(keys); keys++)
+        binds[VAL_TYPESET_CANON(keys)] = n++;
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
-/*
-**		Collect words from a prior block and new block.
-**
-***********************************************************************/
+//
+//  Collect_Frame_Inner_Loop: C
+// 
+// The inner recursive loop used for Collect_Frame function below.
+//
+static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
 {
-	REBSER *series;
-	REBCNT start;
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-	CHECK_BIND_TABLE;
+    for (; NOT_END(value); value++) {
+        if (ANY_WORD(value)) {
+            if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
+                if (IS_SET_WORD(value) || modes & BIND_ALL) {
+                    REBVAL *typeset;
+                    binds[VAL_WORD_CANON(value)] = ARRAY_LEN(BUF_COLLECT);
+                    EXPAND_SERIES_TAIL(ARRAY_SERIES(BUF_COLLECT), 1);
+                    typeset = ARRAY_LAST(BUF_COLLECT);
+                    Val_Init_Typeset(
+                        typeset,
+                        // Allow all datatypes but UNSET (initially):
+                        ~FLAGIT_64(REB_UNSET),
+                        VAL_WORD_SYM(value)
+                    );
+                }
+            } else {
+                // If word duplicated:
+                if (modes & BIND_NO_DUP) {
+                    // Reset binding table (note BUF_COLLECT may have expanded):
+                    REBVAL *key = ARRAY_HEAD(BUF_COLLECT);
+                    for (; NOT_END(key); key++)
+                        binds[VAL_TYPESET_CANON(key)] = 0;
+                    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
+                    fail (Error(RE_DUP_VARS, value));
+                }
+            }
+            continue;
+        }
+        // Recurse into sub-blocks:
+        if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
+            Collect_Frame_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
+        // In this mode (foreach native), do not allow non-words:
+        //else if (modes & BIND_GET) fail (Error_Invalid_Arg(value));
+    }
 
-	assert(SERIES_TAIL(BUF_COLLECT) == 0); // should be empty
-
-	if (prior_value)
-		Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
-
-	start = SERIES_TAIL(BUF_COLLECT);
-	Collect_Words_Inner_Loop(binds, &value[0], modes);
-
-	// Reset word markers:
-	for (value = BLK_HEAD(BUF_COLLECT); NOT_END(value); value++)
-		binds[VAL_WORD_CANON(value)] = 0;
-
-	series = Copy_Array_At_Max_Shallow(
-		BUF_COLLECT, start, SERIES_TAIL(BUF_COLLECT) - start
-	);
-	RESET_TAIL(BUF_COLLECT);  // allow reuse
-
-	CHECK_BIND_TABLE;
-	return series;
+    TERM_ARRAY(BUF_COLLECT);
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Create_Frame(REBSER *words, REBSER *spec)
-/*
-**      Create a new frame from a word list.
-**      The values of the frame are initialized to NONE.
-**
-***********************************************************************/
+//
+//  Collect_Frame: C
+// 
+// Scans a block for words to use in the frame. The list of
+// words can then be used to create a frame. The Bind_Table is
+// used to quickly determine duplicate entries.
+// 
+// Returns:
+//     A block of words that can be used for a frame word list.
+//     If no new words, the prior list is returned.
+// 
+// Modes:
+//     BIND_ALL  - scan all words, or just set words
+//     BIND_DEEP - scan sub-blocks too
+//     BIND_GET  - substitute :word with actual word
+//     BIND_NO_SELF - do not add implicit SELF to the frame
+//
+REBARR *Collect_Frame(REBFRM *prior, REBVAL value[], REBCNT modes)
 {
-	REBINT len = SERIES_TAIL(words);
-	REBSER *frame = Make_Array(len);
-	REBVAL *value = BLK_HEAD(frame);
+    Collect_Keys_Start(modes);
 
-	SET_FRAME(value, spec, words);
+    // Setup binding table with existing words:
+    if (prior) Collect_Context_Keys(prior);
 
-	SERIES_TAIL(frame) = len;
-	for (value++, len--; len > 0; len--, value++) SET_NONE(value); // skip first value (self)
-	SET_END(value);
+    // Scan for words, adding them to BUF_COLLECT and bind table:
+    Collect_Frame_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
 
-	return frame;
+    return Collect_Keys_End(prior);
 }
 
 
-/***********************************************************************
-**
-*/  void Rebind_Frame(REBSER *src_frame, REBSER *dst_frame)
-/*
-**      Clone old src_frame to new dst_frame knowing
-**		which types of values need to be copied, deep copied, and rebound.
-**
-***********************************************************************/
+//
+//  Collect_Words_Inner_Loop: C
+// 
+// Used for Collect_Words() after the binds table has
+// been set up.
+//
+static void Collect_Words_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes)
 {
-	// Rebind all values:
-	Rebind_Block(src_frame, dst_frame, BLK_SKIP(dst_frame, 1), REBIND_FUNC);
+    for (; NOT_END(value); value++) {
+        if (ANY_WORD(value)
+            && !binds[VAL_WORD_CANON(value)]
+            && (modes & BIND_ALL || IS_SET_WORD(value))
+        ) {
+            REBVAL *word;
+            binds[VAL_WORD_CANON(value)] = 1;
+            word = Alloc_Tail_Array(BUF_COLLECT);
+            Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
+        }
+        else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
+            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
+    }
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Make_Object(REBSER *parent, REBVAL value[])
-/*
-**      Create an object from a parent object and a spec block.
-**		The words within the resultant object are not bound.
-**
-***********************************************************************/
+//
+//  Collect_Words: C
+// 
+// Collect words from a prior block and new block.
+//
+REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 {
-	REBSER *words;
-	REBSER *object;
+    REBARR *array;
+    REBCNT start;
+    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+    CHECK_BIND_TABLE;
 
-	PG_Reb_Stats->Objects++;
+    assert(ARRAY_LEN(BUF_COLLECT) == 0); // should be empty
 
-	if (!value || IS_END(value)) {
-		if (parent) {
-			object = Copy_Array_Core_Managed(
-				parent, 0, SERIES_TAIL(parent), TRUE, TS_CLONE
-			);
-		}
-		else {
-			object = Make_Frame(0, TRUE);
-			MANAGE_FRAME(object);
-		}
-	}
-	else {
-		words = Collect_Frame(parent, &value[0], BIND_ONLY); // GC safe
-		object = Create_Frame(words, 0); // GC safe
-		if (parent) {
-			if (Reb_Opts->watch_obj_copy)
-				Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 2)), SERIES_TAIL(parent) - 1, FRM_KEYLIST(object));
+    if (prior_value)
+        Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
 
-			// Bitwise copy parent values (will have bits fixed by Clonify)
-			memcpy(
-				FRM_VALUES(object) + 1,
-				FRM_VALUES(parent) + 1,
-				(SERIES_TAIL(parent) - 1) * sizeof(REBVAL)
-			);
+    start = ARRAY_LEN(BUF_COLLECT);
+    Collect_Words_Inner_Loop(binds, &value[0], modes);
 
-			// For values we copied that were blocks and strings, replace
-			// their series components with deep copies of themselves:
-			Clonify_Values_Len_Managed(
-				BLK_SKIP(object, 1), SERIES_TAIL(object) - 1, TRUE, TS_CLONE
-			);
+    // Reset word markers:
+    for (value = ARRAY_HEAD(BUF_COLLECT); NOT_END(value); value++)
+        binds[VAL_WORD_CANON(value)] = 0;
 
-			// The *word series* might have been reused from the parent,
-			// based on whether any words were added, or we could have gotten
-			// a fresh one back.  Force our invariant here (as the screws
-			// tighten...)
-			ENSURE_SERIES_MANAGED(FRM_KEYLIST(object));
-			MANAGE_SERIES(object);
-		}
-		else {
-			MANAGE_FRAME(object);
-		}
+    array = Copy_Array_At_Max_Shallow(
+        BUF_COLLECT, start, ARRAY_LEN(BUF_COLLECT) - start
+    );
+    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
 
-		assert(words == FRM_KEYLIST(object));
-	}
-
-	ASSERT_SERIES_MANAGED(object);
-	ASSERT_SERIES_MANAGED(FRM_KEYLIST(object));
-	ASSERT_FRAME(object);
-	return object;
+    CHECK_BIND_TABLE;
+    return array;
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Construct_Object(REBSER *parent, REBVAL value[], REBFLG as_is)
-/*
-**		Construct an object (partial evaluation of block).
-**		Parent can be null. Values are rebound.
-**
-***********************************************************************/
+//
+//  Create_Frame: C
+// 
+// Create a new frame from a word list.
+// The values of the frame are initialized to NONE.
+//
+REBFRM *Create_Frame(REBARR *keylist, REBSER *spec)
 {
-	REBSER *frame = Make_Object(parent, &value[0]);
+    REBINT len = ARRAY_LEN(keylist);
 
-	if (NOT_END(value)) Bind_Values_Shallow(&value[0], frame);
+    // Make a frame of same size as keylist (END already accounted for)
+    //
+    REBFRM *frame = AS_FRAME(Make_Series(
+        len + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+    ));
 
-	if (as_is) Do_Min_Construct(&value[0]);
-	else Do_Construct(&value[0]);
+    REBVAL *value = ARRAY_HEAD(FRAME_VARLIST(frame));
 
-	return frame;
+    SET_ARRAY_LEN(FRAME_VARLIST(frame), len);
+
+    // frame[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
+    //
+    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    FRAME_KEYLIST(frame) = keylist;
+    VAL_CONTEXT_SPEC(value) = NULL;
+    VAL_CONTEXT_BODY(value) = NULL;
+
+    value++;
+    len--;
+
+    for (; len > 0; len--, value++)
+        SET_NONE(value);
+    SET_END(value);
+
+    return frame;
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Make_Object_Block(REBSER *frame, REBINT mode)
-/*
-**      Return a block containing words, values, or set-word: value
-**      pairs for the given object. Note: words are bound to original
-**      object.
-**
-**      Modes:
-**          1 for word
-**          2 for value
-**          3 for words and values
-**
-***********************************************************************/
+//
+//  Rebind_Frame_Deep: C
+// 
+// Clone old src_frame to new dst_frame knowing
+// which types of values need to be copied, deep copied, and rebound.
+//
+void Rebind_Frame_Deep(REBFRM *src_frame, REBFRM *dst_frame, REBFLG modes)
 {
-	REBVAL *keys = FRM_KEYS(frame);
-	REBVAL *values = FRM_VALUES(frame);
-	REBSER *block;
-	REBVAL *value;
-	REBCNT n;
-
-	n = (mode & 4) ? 0 : 1;
-	block = Make_Array(SERIES_TAIL(frame) * (n + 1));
-
-	for (; n < SERIES_TAIL(frame); n++) {
-		if (!VAL_GET_EXT(keys + n, EXT_WORD_HIDE)) {
-			if (mode & 1) {
-				value = Alloc_Tail_Array(block);
-				if (mode & 2) {
-					VAL_SET(value, REB_SET_WORD);
-					VAL_SET_OPT(value, OPT_VALUE_LINE);
-				}
-				else VAL_SET(value, REB_WORD);
-				VAL_WORD_SYM(value) = VAL_TYPESET_SYM(keys + n);
-				VAL_WORD_INDEX(value) = n;
-				VAL_WORD_FRAME(value) = frame;
-			}
-			if (mode & 2) {
-				Append_Value(block, values+n);
-			}
-		}
-	}
-
-	return block;
+    Rebind_Values_Deep(
+        FRAME_VARLIST(src_frame),
+        FRAME_VARLIST(dst_frame),
+        FRAME_VAR(dst_frame, 1),
+        modes
+    );
 }
 
 
-/***********************************************************************
-**
-*/	void Assert_Public_Object(const REBVAL *value)
-/*
-***********************************************************************/
-{
-	REBVAL *key = BLK_HEAD(VAL_OBJ_KEYLIST(value));
+//
+//  Make_Frame_Detect: C
+// 
+// Create a frame by detecting top-level set-words in an array of values.
+// So if the values were the contents of the block `[a: 10 b: 20]` then the
+// resulting frame would be for two words, `a` and `b`.
+//
+// Optionally a parent frame may be passed in, which will contribute its
+// keylist of words to the result if provided.
+//
+REBFRM *Make_Frame_Detect(
+    enum Reb_Kind kind,
+    REBFRM *spec,
+    REBARR *body,
+    REBVAL value[],
+    REBFRM *opt_parent
+) {
+    REBARR *keylist;
+    REBFRM *frame;
 
-	for (; NOT_END(key); key++)
-		if (VAL_GET_EXT(key, EXT_WORD_HIDE)) raise Error_0(RE_HIDDEN);
+#if !defined(NDEBUG)
+    PG_Reb_Stats->Objects++;
+#endif
+
+    if (IS_END(value)) {
+        if (opt_parent) {
+            frame = AS_FRAME(Copy_Array_Core_Managed(
+                FRAME_VARLIST(opt_parent),
+                0, // at
+                FRAME_LEN(opt_parent) + 1, // tail (+1 for context/rootkey)
+                0, // extra
+                TRUE, // deep
+                TS_CLONE // types
+            ));
+            ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
+            FRAME_KEYLIST(frame) = FRAME_KEYLIST(opt_parent);
+            VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
+        }
+        else {
+            frame = Alloc_Frame(0, TRUE);
+            MANAGE_FRAME(frame);
+        }
+    }
+    else {
+        keylist = Collect_Frame(opt_parent, &value[0], BIND_ONLY); // GC safe
+        frame = Create_Frame(keylist, NULL); // GC safe
+        if (opt_parent) {
+            if (Reb_Opts->watch_obj_copy)
+                Debug_Fmt(
+                    cs_cast(BOOT_STR(RS_WATCH, 2)),
+                    FRAME_LEN(opt_parent),
+                    FRAME_KEYLIST(frame)
+                );
+
+            // Bitwise copy parent values (will have bits fixed by Clonify)
+            memcpy(
+                FRAME_VARS_HEAD(frame),
+                FRAME_VARS_HEAD(opt_parent),
+                (FRAME_LEN(opt_parent)) * sizeof(REBVAL)
+            );
+
+            // For values we copied that were blocks and strings, replace
+            // their series components with deep copies of themselves:
+            Clonify_Values_Len_Managed(
+                FRAME_VAR(frame, 1), FRAME_LEN(frame), TRUE, TS_CLONE
+            );
+
+            // The *word series* might have been reused from the parent,
+            // based on whether any words were added, or we could have gotten
+            // a fresh one back.  Force our invariant here (as the screws
+            // tighten...)
+            ENSURE_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+            MANAGE_ARRAY(FRAME_VARLIST(frame));
+        }
+        else {
+            MANAGE_FRAME(frame);
+        }
+
+        assert(keylist == FRAME_KEYLIST(frame));
+    }
+
+    VAL_SET(FRAME_CONTEXT(frame), kind);
+    assert(FRAME_TYPE(frame) == kind);
+
+    FRAME_SPEC(frame) = spec;
+    FRAME_BODY(frame) = body;
+
+    ASSERT_ARRAY_MANAGED(FRAME_VARLIST(frame));
+    ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+    ASSERT_FRAME(frame);
+
+    return frame;
 }
 
 
-/***********************************************************************
-**
-*/	void Make_Module(REBVAL *out, const REBVAL *spec)
-/*
-**      Create a module from a spec and an init block.
-**		Call the Make_Module function in the system/intrinsic object.
-**
-***********************************************************************/
-{
-	if (Do_Sys_Func_Throws(out, SYS_CTX_MAKE_MODULE_P, spec, 0)) {
-		// Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-		raise Error_No_Catch_For_Throw(out);
-	}
+//
+//  Construct_Frame: C
+// 
+// Construct an object (partial evaluation of block).
+// Parent can be null. Values are rebound.
+//
+REBFRM *Construct_Frame(
+    enum Reb_Kind kind,
+    REBVAL value[],
+    REBFLG as_is,
+    REBFRM *opt_parent
+) {
+    REBFRM *frame = Make_Frame_Detect(
+        kind, // type
+        NULL, // spec
+        NULL, // body
+        &value[0], // values to scan for toplevel set-words
+        opt_parent // parent
+    );
 
-	// !!! Shouldn't this be testing for !IS_MODULE(out)?
-	if (IS_NONE(out)) raise Error_1(RE_INVALID_SPEC, spec);
+    if (NOT_END(value)) Bind_Values_Shallow(&value[0], frame);
+
+    if (as_is) Do_Min_Construct(&value[0]);
+    else Do_Construct(&value[0]);
+
+    return frame;
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Make_Module_Spec(REBVAL *spec)
-/*
-**		Create a module spec object. Holds module name, version,
-**		exports, locals, and more. See system/standard/module.
-**
-***********************************************************************/
+//
+//  Object_To_Array: C
+// 
+// Return a block containing words, values, or set-word: value
+// pairs for the given object. Note: words are bound to original
+// object.
+// 
+// Modes:
+//     1 for word
+//     2 for value
+//     3 for words and values
+//
+REBARR *Object_To_Array(REBFRM *frame, REBINT mode)
 {
-	// Build standard module header object:
-	REBSER *obj = VAL_OBJ_FRAME(Get_System(SYS_STANDARD, STD_SCRIPT));
-	REBSER *frame;
+    REBVAL *key = FRAME_KEYS_HEAD(frame);
+    REBVAL *var = FRAME_VARS_HEAD(frame);
+    REBARR *block;
+    REBVAL *value;
+    REBCNT n;
 
-	if (spec && IS_BLOCK(spec))
-		frame = Construct_Object(obj, VAL_BLK_DATA(spec), FALSE);
-	else
-		frame = Copy_Array_Shallow(obj);
+    assert(!(mode & 4));
+    block = Make_Array(FRAME_LEN(frame) * (mode == 3 ? 2 : 1));
 
-	return frame;
+    n = 1;
+    for (; !IS_END(key); n++, key++, var++) {
+        if (!VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+            if (mode & 1) {
+                value = Alloc_Tail_Array(block);
+                if (mode & 2) {
+                    VAL_SET(value, REB_SET_WORD);
+                    VAL_SET_OPT(value, OPT_VALUE_LINE);
+                }
+                else VAL_SET(value, REB_WORD);
+                VAL_WORD_SYM(value) = VAL_TYPESET_SYM(key);
+                VAL_WORD_TARGET(value) = FRAME_VARLIST(frame);
+                VAL_WORD_INDEX(value) = n;
+            }
+            if (mode & 2) {
+                Append_Value(block, var);
+            }
+        }
+    }
+
+    return block;
 }
 
 
-/***********************************************************************
-**
-*/  REBSER *Merge_Frames(REBSER *parent1, REBSER *parent2)
-/*
-**      Create a child frame from two parent frames. Merge common fields.
-**      Values from the second parent take precedence.
-**
-**		Deep copy and rebind the child.
-**
-***********************************************************************/
+//
+//  Assert_Public_Object: C
+//
+void Assert_Public_Object(const REBVAL *value)
 {
-	REBSER *wrds;
-	REBSER *child;
-	REBVAL *key;
-	REBVAL *value;
-	REBCNT n;
-	REBINT *binds = WORDS_HEAD(Bind_Table);
+    REBVAL *key = ARRAY_HEAD(FRAME_KEYLIST(VAL_FRAME(value)));
 
-	// Merge parent1 and parent2 words.
-	// Keep the binding table.
-	Collect_Keys_Start(BIND_ALL);
-	// Setup binding table and BUF_COLLECT with parent1 words:
-	Collect_Object(parent1);
-	// Add parent2 words to binding table and BUF_COLLECT:
-	Collect_Frame_Inner_Loop(
-		binds, BLK_SKIP(FRM_KEYLIST(parent2), 1), BIND_ALL
-	);
-
-	// Allocate child (now that we know the correct size):
-	wrds = Copy_Array_Shallow(BUF_COLLECT);
-	child = Make_Array(SERIES_TAIL(wrds));
-	value = Alloc_Tail_Array(child);
-	VAL_SET(value, REB_FRAME);
-	VAL_FRM_KEYLIST(value) = wrds;
-	VAL_FRM_SPEC(value) = 0;
-
-	// Copy parent1 values:
-	memcpy(
-		FRM_VALUES(child) + 1,
-		FRM_VALUES(parent1) + 1,
-		(SERIES_TAIL(parent1) - 1) * sizeof(REBVAL)
-	);
-
-	// Copy parent2 values:
-	key = FRM_KEYS(parent2) + 1;
-	value = FRM_VALUES(parent2) + 1;
-	for (; NOT_END(key); key++, value++) {
-		// no need to search when the binding table is available
-		n = binds[VAL_TYPESET_CANON(key)];
-		BLK_HEAD(child)[n] = *value;
-	}
-
-	// Terminate the child frame:
-	SERIES_TAIL(child) = SERIES_TAIL(wrds);
-	BLK_TERM(child);
-
-	// Deep copy the child
-	Clonify_Values_Len_Managed(
-		BLK_SKIP(child, 1), SERIES_TAIL(child) - 1, TRUE, TS_CLONE
-	);
-
-	// Rebind the child
-	Rebind_Block(parent1, child, BLK_SKIP(child, 1), REBIND_FUNC);
-	Rebind_Block(parent2, child, BLK_SKIP(child, 1), REBIND_FUNC | REBIND_TABLE);
-
-	// release the bind table
-	Collect_Keys_End(child);
-
-	return child;
+    for (; NOT_END(key); key++)
+        if (VAL_GET_EXT(key, EXT_WORD_HIDE)) fail (Error(RE_HIDDEN));
 }
 
 
-/***********************************************************************
-**
-*/	void Resolve_Context(REBSER *target, REBSER *source, REBVAL *only_words, REBFLG all, REBFLG expand)
-/*
-**		Only_words can be a block of words or an index in the target
-**		(for new words).
-**
-***********************************************************************/
+//
+//  Merge_Frames: C
+// 
+// Create a child frame from two parent frames. Merge common fields.
+// Values from the second parent take precedence.
+// 
+// Deep copy and rebind the child.
+//
+REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
 {
-	REBINT *binds  = WORDS_HEAD(Bind_Table); // GC safe to do here
-	REBVAL *keys;
-	REBVAL *vals;
-	REBINT n;
-	REBINT m;
-	REBCNT i = 0;
+    REBARR *keylist;
+    REBFRM *child;
+    REBVAL *key;
+    REBVAL *value;
+    REBCNT n;
+    REBINT *binds = WORDS_HEAD(Bind_Table);
 
-	CHECK_BIND_TABLE;
+    assert(FRAME_TYPE(parent1) == FRAME_TYPE(parent2));
 
-	if (IS_PROTECT_SERIES(target)) raise Error_0(RE_PROTECTED);
+    // Merge parent1 and parent2 words.
+    // Keep the binding table.
+    Collect_Keys_Start(BIND_ALL);
+    // Setup binding table and BUF_COLLECT with parent1 words:
+    Collect_Context_Keys(parent1);
+    // Add parent2 words to binding table and BUF_COLLECT:
+    Collect_Frame_Inner_Loop(
+        binds, FRAME_KEYS_HEAD(parent2), BIND_ALL
+    );
 
-	if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
-		i = VAL_INT32(only_words); // never <= 0
-		if (i == 0) i = 1;
-		if (i >= target->tail) return;
-	}
+    // Allocate child (now that we know the correct size):
+    keylist = Copy_Array_Shallow(BUF_COLLECT);
+    child = AS_FRAME(Make_Series(
+        ARRAY_LEN(keylist) + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
+    ));
+    value = Alloc_Tail_Array(FRAME_VARLIST(child));
 
-	Collect_Keys_Start(BIND_NO_SELF);  // DO NOT TRAP IN THIS SECTION
+    // !!! Currently we assume the child will be of the same type as the
+    // parent...so if the parent was an OBJECT! so will the child be, if
+    // the parent was an ERROR! so will the child be.  This is a new idea
+    // in the post-FRAME! design, so review consequences.
+    //
+    VAL_SET(value, FRAME_TYPE(parent1));
+    FRAME_KEYLIST(child) = keylist;
+    VAL_FRAME(value) = child;
+    VAL_CONTEXT_SPEC(value) = NULL;
+    VAL_CONTEXT_BODY(value) = NULL;
 
-	n = 0;
+    // Copy parent1 values:
+    memcpy(
+        FRAME_VARS_HEAD(child),
+        FRAME_VARS_HEAD(parent1),
+        FRAME_LEN(parent1) * sizeof(REBVAL)
+    );
 
-	// If limited resolve, tag the word ids that need to be copied:
-	if (i) {
-		// Only the new words of the target:
-		for (keys = FRM_KEY(target, i); NOT_END(keys); keys++)
-			binds[VAL_TYPESET_CANON(keys)] = -1;
-		n = SERIES_TAIL(target) - 1;
-	}
-	else if (IS_BLOCK(only_words)) {
-		// Limit exports to only these words:
-		REBVAL *words = VAL_BLK_DATA(only_words);
-		for (; NOT_END(words); words++) {
-			if (IS_WORD(words) || IS_SET_WORD(words)) {
-				binds[VAL_WORD_CANON(words)] = -1;
-				n++;
-			}
-		}
-	}
+    // Update the child tail before making calls to FRAME_VAR(), because the
+    // debug build does a length check.
+    //
+    SET_ARRAY_LEN(FRAME_VARLIST(child), ARRAY_LEN(keylist));
 
-	// Expand target as needed:
-	if (expand && n > 0) {
-		// Determine how many new words to add:
-		for (keys = FRM_KEY(target, 1); NOT_END(keys); keys++)
-			if (binds[VAL_TYPESET_CANON(keys)]) n--;
+    // Copy parent2 values:
+    key = FRAME_KEYS_HEAD(parent2);
+    value = FRAME_VARS_HEAD(parent2);
+    for (; NOT_END(key); key++, value++) {
+        // no need to search when the binding table is available
+        n = binds[VAL_TYPESET_CANON(key)];
+        *FRAME_VAR(child, n) = *value;
+    }
 
-		// Expand frame by the amount required:
-		if (n > 0) Expand_Frame(target, n, 0);
-		else expand = 0;
-	}
+    // Terminate the child frame:
+    TERM_ARRAY(FRAME_VARLIST(child));
 
-	// Maps a word to its value index in the source context.
-	// Done by marking all source words (in bind table):
-	keys = FRM_KEYS(source) + 1;
-	for (n = 1; NOT_END(keys); n++, keys++) {
-		if (IS_NONE(only_words) || binds[VAL_TYPESET_CANON(keys)])
-			binds[VAL_TYPESET_CANON(keys)] = n;
-	}
+    // Deep copy the child
+    Clonify_Values_Len_Managed(
+        FRAME_VARS_HEAD(child), FRAME_LEN(child), TRUE, TS_CLONE
+    );
 
-	// Foreach word in target, copy the correct value from source:
-	n = i ? i : 1;
-	vals = FRM_VALUE(target, n);
-	keys = FRM_KEY(target, n);
-	for (; NOT_END(keys); keys++, vals++) {
-		if ((m = binds[VAL_TYPESET_CANON(keys)])) {
-			binds[VAL_TYPESET_CANON(keys)] = 0; // mark it as set
-			if (
-				!VAL_GET_EXT(keys, EXT_WORD_LOCK)
-				&& (all || IS_UNSET(vals))
-			) {
-				if (m < 0) SET_UNSET(vals); // no value in source context
-				else *vals = *FRM_VALUE(source, m);
-				//Debug_Num("type:", VAL_TYPE(vals));
-				//Debug_Str(Get_Word_Name(words));
-			}
-		}
-	}
+    // Rebind the child
+    Rebind_Frame_Deep(parent1, child, REBIND_FUNC);
+    Rebind_Frame_Deep(parent2, child, REBIND_FUNC | REBIND_TABLE);
 
-	// Add any new words and values:
-	if (expand) {
-		REBVAL *val;
-		keys = FRM_KEYS(source) + 1;
-		for (n = 1; NOT_END(keys); n++, keys++) {
-			if (binds[VAL_TYPESET_CANON(keys)]) {
-				// Note: no protect check is needed here
-				binds[VAL_TYPESET_CANON(keys)] = 0;
-				val = Append_Frame(target, 0, VAL_TYPESET_CANON(keys));
-				*val = *FRM_VALUE(source, n);
-			}
-		}
-	}
-	else {
-		// Reset bind table (do not use Collect_End):
-		if (i) {
-			for (keys = FRM_KEY(target, i); NOT_END(keys); keys++)
-				binds[VAL_TYPESET_CANON(keys)] = 0;
-		}
-		else if (IS_BLOCK(only_words)) {
-			REBVAL *words = VAL_BLK_DATA(only_words);
-			for (; NOT_END(words); words++) {
-				if (IS_WORD(words) || IS_SET_WORD(words))
-					binds[VAL_WORD_CANON(words)] = 0;
-			}
-		}
-		else {
-			for (keys = FRM_KEYS(source) + 1; NOT_END(keys); keys++)
-				binds[VAL_TYPESET_CANON(keys)] = 0;
-		}
-	}
+    // release the bind table
+    Collect_Keys_End(child);
 
-	CHECK_BIND_TABLE;
-
-	RESET_TAIL(BUF_COLLECT);  // allow reuse, trapping ok now
+    return child;
 }
 
 
-/***********************************************************************
-**
-*/  static void Bind_Values_Inner_Loop(REBINT *binds, REBVAL value[], REBSER *frame, REBCNT mode)
-/*
-**		Bind_Values_Core() sets up the binding table and then calls
-**		this recursive routine to do the actual binding.
-**
-***********************************************************************/
-{
-	REBFLG selfish = !IS_SELFLESS(frame);
+//
+//  Resolve_Context: C
+// 
+// Only_words can be a block of words or an index in the target
+// (for new words).
+//
+void Resolve_Context(
+    REBFRM *target,
+    REBFRM *source,
+    REBVAL *only_words,
+    REBFLG all,
+    REBFLG expand
+) {
+    REBINT *binds  = WORDS_HEAD(Bind_Table); // GC safe to do here
+    REBVAL *key;
+    REBVAL *var;
+    REBINT n;
+    REBINT m;
+    REBCNT i = 0;
 
-	for (; NOT_END(value); value++) {
-		if (ANY_WORD(value)) {
-			//Print("Word: %s", Get_Sym_Name(VAL_WORD_CANON(value)));
-			// Is the word found in this frame?
-			REBCNT n = binds[VAL_WORD_CANON(value)];
-			if (n != 0) {
-				if (n == NO_RESULT) n = 0; // SELF word
-				assert(n < SERIES_TAIL(frame));
-				// Word is in frame, bind it:
-				VAL_WORD_INDEX(value) = n;
-				VAL_WORD_FRAME(value) = frame;
-			}
-			else if (selfish && VAL_WORD_CANON(value) == SYM_SELF) {
-				VAL_WORD_INDEX(value) = 0;
-				VAL_WORD_FRAME(value) = frame;
-			}
-			else {
-				// Word is not in frame. Add it if option is specified:
-				if ((mode & BIND_ALL) || ((mode & BIND_SET) && (IS_SET_WORD(value)))) {
-					Expand_Frame(frame, 1, 1);
-					Append_Frame(frame, value, 0);
-					binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
-				}
-			}
-		}
-		else if (ANY_BLOCK(value) && (mode & BIND_DEEP))
-			Bind_Values_Inner_Loop(
-				binds, VAL_BLK_DATA(value), frame, mode
-			);
-		else if ((IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC))
-			Bind_Values_Inner_Loop(
-				binds, BLK_HEAD(VAL_FUNC_BODY(value)), frame, mode
-			);
-	}
+    CHECK_BIND_TABLE;
+
+    FAIL_IF_PROTECTED_FRAME(target);
+
+    if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
+        i = VAL_INT32(only_words); // never <= 0
+        if (i == 0) i = 1;
+        if (i > FRAME_LEN(target)) return;
+    }
+
+    Collect_Keys_Start(BIND_NO_SELF);  // DO NOT TRAP IN THIS SECTION
+
+    n = 0;
+
+    // If limited resolve, tag the word ids that need to be copied:
+    if (i != 0) {
+        // Only the new words of the target:
+        for (key = FRAME_KEY(target, i); NOT_END(key); key++)
+            binds[VAL_TYPESET_CANON(key)] = -1;
+        n = FRAME_LEN(target);
+    }
+    else if (IS_BLOCK(only_words)) {
+        // Limit exports to only these words:
+        REBVAL *words = VAL_ARRAY_AT(only_words);
+        for (; NOT_END(words); words++) {
+            if (IS_WORD(words) || IS_SET_WORD(words)) {
+                binds[VAL_WORD_CANON(words)] = -1;
+                n++;
+            }
+        }
+    }
+
+    // Expand target as needed:
+    if (expand && n > 0) {
+        // Determine how many new words to add:
+        for (key = FRAME_KEYS_HEAD(target); NOT_END(key); key++)
+            if (binds[VAL_TYPESET_CANON(key)]) n--;
+
+        // Expand frame by the amount required:
+        if (n > 0) Expand_Frame(target, n, 0);
+        else expand = 0;
+    }
+
+    // Maps a word to its value index in the source context.
+    // Done by marking all source words (in bind table):
+    key = FRAME_KEYS_HEAD(source);
+    for (n = 1; NOT_END(key); n++, key++) {
+        if (IS_UNSET(only_words) || binds[VAL_TYPESET_CANON(key)])
+            binds[VAL_TYPESET_CANON(key)] = n;
+    }
+
+    // Foreach word in target, copy the correct value from source:
+    //
+    var = i != 0 ? FRAME_VAR(target, i) : FRAME_VARS_HEAD(target);
+    key = i != 0 ? FRAME_KEY(target, i) : FRAME_KEYS_HEAD(target);
+    for (; NOT_END(key); key++, var++) {
+        if ((m = binds[VAL_TYPESET_CANON(key)])) {
+            binds[VAL_TYPESET_CANON(key)] = 0; // mark it as set
+            if (
+                !VAL_GET_EXT(key, EXT_WORD_LOCK)
+                && (all || IS_UNSET(var))
+            ) {
+                if (m < 0) SET_UNSET(var); // no value in source context
+                else *var = *FRAME_VAR(source, m);
+                //Debug_Num("type:", VAL_TYPE(vals));
+                //Debug_Str(Get_Word_Name(words));
+            }
+        }
+    }
+
+    // Add any new words and values:
+    if (expand) {
+        key = FRAME_KEYS_HEAD(source);
+        for (n = 1; NOT_END(key); n++, key++) {
+            if (binds[VAL_TYPESET_CANON(key)]) {
+                // Note: no protect check is needed here
+                binds[VAL_TYPESET_CANON(key)] = 0;
+                var = Append_Frame(target, 0, VAL_TYPESET_CANON(key));
+                *var = *FRAME_VAR(source, n);
+            }
+        }
+    }
+    else {
+        // Reset bind table (do not use Collect_End):
+        if (i != 0) {
+            for (key = FRAME_KEY(target, i); NOT_END(key); key++)
+                binds[VAL_TYPESET_CANON(key)] = 0;
+        }
+        else if (IS_BLOCK(only_words)) {
+            REBVAL *words = VAL_ARRAY_AT(only_words);
+            for (; NOT_END(words); words++) {
+                if (IS_WORD(words) || IS_SET_WORD(words))
+                    binds[VAL_WORD_CANON(words)] = 0;
+            }
+        }
+        else {
+            for (key = FRAME_KEYS_HEAD(source); NOT_END(key); key++)
+                binds[VAL_TYPESET_CANON(key)] = 0;
+        }
+    }
+
+    CHECK_BIND_TABLE;
+
+    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse, trapping ok now
 }
 
 
-/***********************************************************************
-**
-*/  void Bind_Values_Core(REBVAL value[], REBSER *frame, REBCNT mode)
-/*
-**		Bind words in an array of values terminated with REB_END
-**		to a specified frame.  See warnings on the functions like
-**		Bind_Values_Deep() about not passing just a singular REBVAL.
-**
-**		Different modes may be applied:
-**
-**          BIND_ONLY - Only bind words found in the frame.
-**          BIND_ALL  - Add words to the frame during the bind.
-**          BIND_SET  - Add set-words to the frame during the bind.
-**                      (note: word must not occur before the SET)
-**          BIND_DEEP - Recurse into sub-blocks.
-**
-**		NOTE: BIND_SET must be used carefully, because it does not
-**		bind prior instances of the word before the set-word. That is
-**		to say that forward references are not allowed.
-**
-***********************************************************************/
-{
-	REBVAL *key;
-	REBCNT index;
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+//
+//  Bind_Values_Inner_Loop: C
+// 
+// Bind_Values_Core() sets up the binding table and then calls
+// this recursive routine to do the actual binding.
+//
+static void Bind_Values_Inner_Loop(
+    REBINT *binds,
+    REBVAL value[],
+    REBFRM *frame,
+    REBCNT mode
+) {
+    REBFLG selfish = !IS_SELFLESS(frame);
 
-	CHECK_MEMORY(4);
-
-	CHECK_BIND_TABLE;
-
-	// Note about optimization: it's not a big win to avoid the
-	// binding table for short blocks (size < 4), because testing
-	// every block for the rare case adds up.
-
-	// Setup binding table
-	for (index = 1; index < frame->tail; index++) {
-		key = FRM_KEY(frame, index);
-		if (!VAL_GET_OPT(key, EXT_WORD_HIDE))
-			binds[VAL_TYPESET_CANON(key)] = index;
-	}
-
-	Bind_Values_Inner_Loop(binds, &value[0], frame, mode);
-
-	// Reset binding table:
-	for (key = FRM_KEYS(frame) + 1; NOT_END(key); key++)
-		binds[VAL_TYPESET_CANON(key)] = 0;
-
-	CHECK_BIND_TABLE;
+    for (; NOT_END(value); value++) {
+        if (ANY_WORD(value)) {
+            //Print("Word: %s", Get_Sym_Name(VAL_WORD_CANON(value)));
+            // Is the word found in this frame?
+            REBCNT n = binds[VAL_WORD_CANON(value)];
+            if (n != 0) {
+                if (n == NO_RESULT) n = 0; // SELF word
+                assert(n <= FRAME_LEN(frame));
+                // Word is in frame, bind it:
+                VAL_WORD_INDEX(value) = n;
+                VAL_WORD_TARGET(value) = FRAME_VARLIST(frame);
+            }
+            else if (selfish && VAL_WORD_CANON(value) == SYM_SELF) {
+                VAL_WORD_INDEX(value) = 0;
+                VAL_WORD_TARGET(value) = FRAME_VARLIST(frame);
+            }
+            else {
+                // Word is not in frame. Add it if option is specified:
+                if ((mode & BIND_ALL) || ((mode & BIND_SET) && (IS_SET_WORD(value)))) {
+                    Expand_Frame(frame, 1, 1);
+                    Append_Frame(frame, value, 0);
+                    binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
+                }
+            }
+        }
+        else if (ANY_ARRAY(value) && (mode & BIND_DEEP))
+            Bind_Values_Inner_Loop(
+                binds, VAL_ARRAY_AT(value), frame, mode
+            );
+        else if ((IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC))
+            Bind_Values_Inner_Loop(
+                binds, ARRAY_HEAD(VAL_FUNC_BODY(value)), frame, mode
+            );
+    }
 }
 
 
-/***********************************************************************
-**
-*/  void Unbind_Values_Core(REBVAL value[], REBSER *frame, REBOOL deep)
-/*
-**		Unbind words in a block, optionally unbinding those which are
-**		bound to a particular frame (if frame is NULL, then all
-**		words will be unbound regardless of their VAL_WORD_FRAME).
-**
-***********************************************************************/
+//
+//  Bind_Values_Core: C
+// 
+// Bind words in an array of values terminated with END
+// to a specified frame.  See warnings on the functions like
+// Bind_Values_Deep() about not passing just a singular REBVAL.
+// 
+// Different modes may be applied:
+// 
+//     BIND_ONLY - Only bind words found in the frame.
+//     BIND_ALL  - Add words to the frame during the bind.
+//     BIND_SET  - Add set-words to the frame during the bind.
+//                 (note: word must not occur before the SET)
+//     BIND_DEEP - Recurse into sub-blocks.
+// 
+// NOTE: BIND_SET must be used carefully, because it does not
+// bind prior instances of the word before the set-word. That is
+// to say that forward references are not allowed.
+//
+void Bind_Values_Core(REBVAL value[], REBFRM *frame, REBCNT mode)
 {
-	for (; NOT_END(value); value++) {
-		if (ANY_WORD(value) && (!frame || VAL_WORD_FRAME(value) == frame))
-			UNBIND_WORD(value);
+    REBVAL *key;
+    REBCNT index;
+    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-		if (ANY_BLOCK(value) && deep)
-			Unbind_Values_Core(VAL_BLK_DATA(value), frame, TRUE);
-	}
+    CHECK_MEMORY(4);
+
+    CHECK_BIND_TABLE;
+
+    // Note about optimization: it's not a big win to avoid the
+    // binding table for short blocks (size < 4), because testing
+    // every block for the rare case adds up.
+
+    // Setup binding table
+    index = 1;
+    key = FRAME_KEYS_HEAD(frame);
+    for (; index <= FRAME_LEN(frame); key++, index++) {
+        if (!VAL_GET_OPT(key, EXT_WORD_HIDE))
+            binds[VAL_TYPESET_CANON(key)] = index;
+    }
+
+    Bind_Values_Inner_Loop(binds, &value[0], frame, mode);
+
+    // Reset binding table:
+    key = FRAME_KEYS_HEAD(frame);
+    for (; NOT_END(key); key++)
+        binds[VAL_TYPESET_CANON(key)] = 0;
+
+    CHECK_BIND_TABLE;
 }
 
 
-/***********************************************************************
-**
-*/  REBCNT Bind_Word(REBSER *frame, REBVAL *word)
-/*
-**		Binds a word to a frame. If word is not part of the
-**		frame, ignore it.
-**
-***********************************************************************/
+//
+//  Unbind_Values_Core: C
+// 
+// Unbind words in a block, optionally unbinding those which are
+// bound to a particular target (if target is NULL, then all
+// words will be unbound regardless of their VAL_WORD_TARGET).
+//
+void Unbind_Values_Core(REBVAL value[], REBARR *target, REBOOL deep)
 {
-	REBCNT n;
+    for (; NOT_END(value); value++) {
+        if (ANY_WORD(value) && (!target || VAL_WORD_TARGET(value) == target))
+            UNBIND_WORD(value);
 
-	n = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
-	if (n != 0) {
-		VAL_WORD_FRAME(word) = frame;
-		VAL_WORD_INDEX(word) = n;
-	}
-	return n;
+        if (ANY_ARRAY(value) && deep)
+            Unbind_Values_Core(VAL_ARRAY_AT(value), target, TRUE);
+    }
 }
 
 
-/***********************************************************************
-**
-*/  static void Bind_Relative_Inner_Loop(REBINT *binds, REBSER *frame, REBSER *block)
-/*
-**      Recursive function for relative function word binding.
-**
-**      Note: frame arg points to an identifying series of the function,
-**      not a normal frame. This will be used to verify the word fetch.
-**
-***********************************************************************/
+//
+//  Bind_Word: C
+// 
+// Binds a word to a frame. If word is not part of the
+// frame, ignore it.
+//
+REBCNT Bind_Word(REBFRM *frame, REBVAL *word)
 {
-	REBVAL *value = BLK_HEAD(block);
+    REBCNT n;
 
-	for (; NOT_END(value); value++) {
-		if (ANY_WORD(value)) {
-			// Is the word (canon sym) found in this frame?
-			REBINT n = binds[VAL_WORD_CANON(value)];
-			if (n != 0) {
-				// Word is in frame, bind it:
-				VAL_WORD_INDEX(value) = n;
-				VAL_WORD_FRAME(value) = frame; // func body
-			}
-		}
-		else if (ANY_BLOCK(value))
-			Bind_Relative_Inner_Loop(binds, frame, VAL_SERIES(value));
-	}
+    n = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
+    if (n != 0) {
+        VAL_WORD_TARGET(word) = FRAME_VARLIST(frame);
+        VAL_WORD_INDEX(word) = n;
+    }
+    return n;
 }
 
 
-/***********************************************************************
-**
-*/  void Bind_Relative(REBSER *paramlist, REBSER *frame, REBSER *block)
-/*
-**      Bind the words of a function block to a stack frame.
-**      To indicate the relative nature of the index, it is set to
-**		a negative offset.
-**
-**		paramlist: VAL_FUNC_PARAMLIST(func)
-**		frame: VAL_FUNC_PARAMLIST(func)
-**		block: block to bind
-**
-***********************************************************************/
-{
-	REBVAL *params;
-	REBINT index;
-	REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+//
+//  Bind_Relative_Inner_Loop: C
+// 
+// Recursive function for relative function word binding.
+// 
+// Note: frame arg points to an identifying series of the function,
+// not a normal frame. This will be used to verify the word fetch.
+//
+static void Bind_Relative_Inner_Loop(
+    REBINT *binds,
+    REBARR *paramlist,
+    REBARR *block
+) {
+    REBVAL *value = ARRAY_HEAD(block);
 
-	params = BLK_SKIP(paramlist, 1);
-
-	CHECK_BIND_TABLE;
-
-	//Dump_Block(words);
-
-	// Setup binding table from the argument word list:
-	for (index = 1; NOT_END(params); params++, index++)
-		binds[VAL_TYPESET_CANON(params)] = -index;
-
-	Bind_Relative_Inner_Loop(binds, frame, block);
-
-	// Reset binding table:
-	for (params = BLK_SKIP(paramlist, 1); NOT_END(params); params++)
-		binds[VAL_TYPESET_CANON(params)] = 0;
-
-	CHECK_BIND_TABLE;
+    for (; NOT_END(value); value++) {
+        if (ANY_WORD(value)) {
+            // Is the word (canon sym) found in this frame?
+            REBINT n = binds[VAL_WORD_CANON(value)];
+            if (n != 0) {
+                // Word is in frame, bind it:
+                VAL_WORD_INDEX(value) = n;
+                VAL_WORD_TARGET(value) = paramlist;
+            }
+        }
+        else if (ANY_ARRAY(value))
+            Bind_Relative_Inner_Loop(binds, paramlist, VAL_ARRAY(value));
+    }
 }
 
 
-/***********************************************************************
-**
-*/  void Bind_Stack_Block(REBSER *frame, REBSER *block)
-/*
-***********************************************************************/
+//
+//  Bind_Relative: C
+// 
+// Bind the words of a function block to a stack frame.
+// To indicate the relative nature of the index, it is set to
+// a negative offset.
+//
+void Bind_Relative(REBARR *paramlist, REBARR *block)
 {
-	Bind_Relative(frame, frame, block);
+    REBVAL *param;
+    REBINT index;
+    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
+
+    assert(
+        IS_FUNCTION(ARRAY_HEAD(paramlist)) || IS_CLOSURE(ARRAY_HEAD(paramlist))
+    );
+
+    param = ARRAY_AT(paramlist, 1);
+
+    CHECK_BIND_TABLE;
+
+    //Dump_Block(words);
+
+    // Setup binding table from the argument word list:
+    for (index = 1; NOT_END(param); param++, index++)
+        binds[VAL_TYPESET_CANON(param)] = -index;
+
+    Bind_Relative_Inner_Loop(binds, paramlist, block);
+
+    // Reset binding table:
+    for (param = ARRAY_AT(paramlist, 1); NOT_END(param); param++)
+        binds[VAL_TYPESET_CANON(param)] = 0;
+
+    CHECK_BIND_TABLE;
 }
 
 
-/***********************************************************************
-**
-*/  void Bind_Stack_Word(REBSER *frame, REBVAL *word)
-/*
-***********************************************************************/
+//
+//  Bind_Stack_Word: C
+//
+void Bind_Stack_Word(REBARR *paramlist, REBVAL *word)
 {
-	REBINT index;
+    REBINT index;
 
-	index = Find_Param_Index(frame, VAL_WORD_SYM(word));
-	if (!index) raise Error_1(RE_NOT_IN_CONTEXT, word);
-	VAL_WORD_FRAME(word) = frame;
-	VAL_WORD_INDEX(word) = -index;
+    index = Find_Param_Index(paramlist, VAL_WORD_SYM(word));
+    if (!index) fail (Error(RE_NOT_IN_CONTEXT, word));
+    VAL_WORD_TARGET(word) = paramlist;
+    VAL_WORD_INDEX(word) = -index;
 }
 
 
-/***********************************************************************
-**
-*/  void Rebind_Block(REBSER *src_frame, REBSER *dst_frame, REBVAL *data, REBFLG modes)
-/*
-**      Rebind all words that reference src frame to dst frame.
-**      Rebind is always deep.
-**
-**		There are two types of frames: relative frames and normal frames.
-**		When frame_src type and frame_dst type differ,
-**		modes must have REBIND_TYPE.
-**
-***********************************************************************/
-{
-	REBINT *binds = WORDS_HEAD(Bind_Table);
+//
+//  Rebind_Values_Deep: C
+// 
+// Rebind all words that reference src target to dst target.
+// Rebind is always deep.
+//
+void Rebind_Values_Deep(
+    REBARR *src_target,
+    REBARR *dst_target,
+    REBVAL value[],
+    REBFLG modes
+) {
+    REBINT *binds = WORDS_HEAD(Bind_Table);
 
-	for (; NOT_END(data); data++) {
-		if (ANY_BLOCK(data))
-			Rebind_Block(src_frame, dst_frame, VAL_BLK_DATA(data), modes);
-		else if (ANY_WORD(data) && VAL_WORD_FRAME(data) == src_frame) {
-			VAL_WORD_FRAME(data) = dst_frame;
-			if (modes & REBIND_TABLE) VAL_WORD_INDEX(data) = binds[VAL_WORD_CANON(data)];
-			if (modes & REBIND_TYPE) VAL_WORD_INDEX(data) = - VAL_WORD_INDEX(data);
-		} else if ((modes & REBIND_FUNC) && (IS_FUNCTION(data) || IS_CLOSURE(data)))
-			Rebind_Block(src_frame, dst_frame, BLK_HEAD(VAL_FUNC_BODY(data)), modes);
-	}
+#if !defined(NDEBUG)
+    //
+    // There are two types of target series: normal targets (VARLIST series
+    // of a context) and stack-relative targets (PARAMLIST series of a
+    // function).
+    //
+    // If src_target and dst_target differ, modes must have REBIND_TYPE.
+    //
+    if (
+        IS_FUNCTION(ARRAY_HEAD(src_target))
+        || IS_CLOSURE(ARRAY_HEAD(src_target))
+    ) {
+        assert(
+            (
+                IS_FUNCTION(ARRAY_HEAD(dst_target))
+                || IS_CLOSURE(ARRAY_HEAD(dst_target))
+            )
+            || (modes & REBIND_TYPE)
+        );
+    }
+    else {
+        assert(
+            ANY_CONTEXT(ARRAY_HEAD(dst_target))
+            || (IS_FUNCTION(ARRAY_HEAD(dst_target)) && (modes & REBIND_TYPE))
+        );
+    }
+#endif
+
+    for (; NOT_END(value); value++) {
+        if (ANY_ARRAY(value)) {
+            Rebind_Values_Deep(
+                src_target, dst_target, VAL_ARRAY_AT(value), modes
+            );
+        }
+        else if (ANY_WORD(value) && VAL_WORD_TARGET(value) == src_target) {
+            VAL_WORD_TARGET(value) = dst_target;
+
+            if (modes & REBIND_TABLE)
+                VAL_WORD_INDEX(value) = binds[VAL_WORD_CANON(value)];
+
+            if (modes & REBIND_TYPE)
+                VAL_WORD_INDEX(value) = -(VAL_WORD_INDEX(value));
+        }
+        else if (
+            (modes & REBIND_FUNC) && (IS_FUNCTION(value) || IS_CLOSURE(value))
+        ) {
+            Rebind_Values_Deep(
+                src_target, dst_target, ARRAY_HEAD(VAL_FUNC_BODY(value)), modes
+            );
+        }
+    }
 }
 
 
-/***********************************************************************
-**
-*/  REBCNT Find_Param_Index(REBSER *paramlist, REBCNT sym)
-/*
-**		Find function param word in function "frame".
-**
-***********************************************************************/
+//
+//  Find_Param_Index: C
+// 
+// Find function param word in function "frame".
+//
+REBCNT Find_Param_Index(REBARR *paramlist, REBCNT sym)
 {
-	REBVAL *params = BLK_SKIP(paramlist, 1);
-	REBCNT len = SERIES_TAIL(paramlist);
+    REBVAL *params = ARRAY_AT(paramlist, 1);
+    REBCNT len = ARRAY_LEN(paramlist);
 
-	REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
+    REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
 
-	REBCNT n;
-	for (n = 1; n < len; n++, params++) {
-		if (
-			sym == VAL_TYPESET_SYM(params)
-			|| canon == VAL_TYPESET_CANON(params)
-		) {
-			return n;
-		}
-	}
+    REBCNT n;
+    for (n = 1; n < len; n++, params++) {
+        if (
+            sym == VAL_TYPESET_SYM(params)
+            || canon == VAL_TYPESET_CANON(params)
+        ) {
+            return n;
+        }
+    }
 
-	return 0;
+    return 0;
 }
 
 
-/***********************************************************************
-**
-*/  REBCNT Find_Word_Index(REBSER *frame, REBCNT sym, REBFLG always)
-/*
-**      Search a frame looking for the given word symbol.
-**      Return the frame index for a word. Locate it by matching
-**      the canon word identifiers. Return 0 if not found.
-**
-***********************************************************************/
+//
+//  Find_Word_Index: C
+// 
+// Search a frame looking for the given word symbol.
+// Return the frame index for a word. Locate it by matching
+// the canon word identifiers. Return 0 if not found.
+//
+REBCNT Find_Word_Index(REBFRM *frame, REBCNT sym, REBFLG always)
 {
-	REBVAL *key = FRM_KEYS(frame) + 1;
-	REBCNT len = SERIES_TAIL(FRM_KEYLIST(frame));
+    REBVAL *key = FRAME_KEYS_HEAD(frame);
+    REBCNT len = FRAME_LEN(frame);
 
-	REBCNT canon = SYMBOL_TO_CANON(sym); // always compare to CANON sym
+    REBCNT canon = SYMBOL_TO_CANON(sym); // always compare to CANON sym
 
-	REBCNT n;
-	for (n = 1; n < len; n++, key++) {
-		if (
-			sym == VAL_TYPESET_SYM(key)
-			|| canon == VAL_TYPESET_CANON(key)
-		) {
-			return (!always && VAL_GET_EXT(key, EXT_WORD_HIDE)) ? 0 : n;
-		}
-	}
+    REBCNT n;
+    for (n = 1; n <= len; n++, key++) {
+        if (
+            sym == VAL_TYPESET_SYM(key)
+            || canon == VAL_TYPESET_CANON(key)
+        ) {
+            return (!always && VAL_GET_EXT(key, EXT_WORD_HIDE)) ? 0 : n;
+        }
+    }
 
-	return 0;
+    // !!! Should this be changed to NOT_FOUND?
+    return 0;
 }
 
 
-/***********************************************************************
-**
-*/  REBVAL *Find_Word_Value(REBSER *frame, REBCNT sym)
-/*
-**      Search a frame looking for the given word symbol and
-**      return the value for the word. Locate it by matching
-**      the canon word identifiers. Return NULL if not found.
-**
-***********************************************************************/
+//
+//  Find_Word_Value: C
+// 
+// Search a frame looking for the given word symbol and
+// return the value for the word. Locate it by matching
+// the canon word identifiers. Return NULL if not found.
+//
+REBVAL *Find_Word_Value(REBFRM *frame, REBCNT sym)
 {
-	REBINT n;
+    REBINT n;
 
-	if (!frame) return 0;
-	n = Find_Word_Index(frame, sym, FALSE);
-	if (n == 0) return 0;
-	return BLK_SKIP(frame, n);
+    if (!frame) return 0;
+    n = Find_Word_Index(frame, sym, FALSE);
+    if (n == 0) return 0;
+    return FRAME_VAR(frame, n);
 }
 
 
-/***********************************************************************
-**
-*/	REBCNT Find_Word(REBSER *series, REBCNT index, REBCNT sym)
-/*
-**		Find word (of any type) in a block... quickly.
-**
-***********************************************************************/
+//
+//  Find_Word: C
+// 
+// Find word (of any type) in an array of values... quickly.
+//
+REBCNT Find_Word(REBARR *array, REBCNT index, REBCNT sym)
 {
-	REBVAL *value;
+    REBVAL *value;
 
-	for (; index < SERIES_TAIL(series); index++) {
-		value = BLK_SKIP(series, index);
-		if (ANY_WORD(value) && sym == VAL_WORD_CANON(value))
-			return index;
-	}
+    for (; index < ARRAY_LEN(array); index++) {
+        value = ARRAY_AT(array, index);
+        if (ANY_WORD(value) && sym == VAL_WORD_CANON(value))
+            return index;
+    }
 
-	return NOT_FOUND;
+    return NOT_FOUND;
 }
 
 
-/***********************************************************************
-**
-*/  REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
-/*
-**      Get the word--variable--value. (Generally, use the macros like
-**      GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
-**		called quite a lot and so attention to performance is important.
-**
-**      Coded assuming most common case is trap=TRUE and writable=FALSE
-**
-***********************************************************************/
+//
+//  Get_Var_Core: C
+// 
+// Get the word--variable--value. (Generally, use the macros like
+// GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
+// called quite a lot and so attention to performance is important.
+// 
+// Coded assuming most common case is trap=TRUE and writable=FALSE
+//
+REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 {
-	REBSER *context = VAL_WORD_FRAME(word);
+    REBARR *target = VAL_WORD_TARGET(word);
 
-	if (context) {
-		REBINT index = VAL_WORD_INDEX(word);
+    if (target) {
+        REBINT index = VAL_WORD_INDEX(word);
 
-		// POSITIVE INDEX: The word is bound directly to a value inside
-		// a frame, and represents the zero-based offset into that series.
-		// This is how values would be picked out of object-like things...
-		// (Including looking up 'append' in the user context.)
+        // POSITIVE INDEX: The word is bound directly to a value inside
+        // a frame, and represents the zero-based offset into that series.
+        // This is how values would be picked out of object-like things...
+        // (Including looking up 'append' in the user context.)
 
-		if (index > 0) {
-			REBVAL *value;
+        if (index > 0) {
+            REBVAL *value;
 
-			assert(
-				SAME_SYM(
-					VAL_WORD_SYM(word),
-					VAL_TYPESET_SYM(FRM_KEYS(context) + index)
-				)
-			);
+            assert(
+                SAME_SYM(
+                    VAL_WORD_SYM(word),
+                    FRAME_KEY_SYM(AS_FRAME(target), index)
+                )
+            );
 
-			if (
-				writable &&
-				VAL_GET_EXT(FRM_KEYS(context) + index, EXT_WORD_LOCK)
-			) {
-				if (trap) raise Error_1(RE_LOCKED_WORD, word);
-				return NULL;
-			}
+            if (
+                writable &&
+                VAL_GET_EXT(FRAME_KEY(AS_FRAME(target), index), EXT_WORD_LOCK)
+            ) {
+                if (trap) fail (Error(RE_LOCKED_WORD, word));
+                return NULL;
+            }
 
-			value = FRM_VALUES(context) + index;
-			assert(!THROWN(value));
-			return value;
-		}
+            value = FRAME_VAR(AS_FRAME(target), index);
+            assert(!THROWN(value));
+            return value;
+        }
 
-		// NEGATIVE INDEX: Word is stack-relative bound to a function with
-		// no persistent frame held by the GC.  The value *might* be found
-		// on the stack (or not, if all instances of the function on the
-		// call stack have finished executing).  We walk backward in the call
-		// stack to see if we can find the function's "identifying series"
-		// in a call frame...and take the first instance we see (even if
-		// multiple invocations are on the stack, most recent wins)
+        // NEGATIVE INDEX: Word is stack-relative bound to a function with
+        // no persistent frame held by the GC.  The value *might* be found
+        // on the stack (or not, if all instances of the function on the
+        // call stack have finished executing).  We walk backward in the call
+        // stack to see if we can find the function's "identifying series"
+        // in a call frame...and take the first instance we see (even if
+        // multiple invocations are on the stack, most recent wins)
 
-		if (index < 0) {
-			struct Reb_Call *call = DSF;
+        if (index < 0) {
+            struct Reb_Call *call = DSF;
 
-			// Get_Var could theoretically be called with no evaluation on
-			// the stack, so check for no DSF first...
-			while (call) {
-				if (
-					call->args_ready
-					&& context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
-				) {
-					REBVAL *value;
+            // Get_Var could theoretically be called with no evaluation on
+            // the stack, so check for no DSF first...
+            while (call) {
+                if (
+                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
+                    && target == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
+                ) {
+                    REBVAL *value;
 
-					assert(!IS_CLOSURE(DSF_FUNC(call)));
+                    assert(!IS_CLOSURE(DSF_FUNC(call)));
 
-					assert(
-						SAME_SYM(
-							VAL_WORD_SYM(word),
-							VAL_TYPESET_SYM(
-								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
-							)
-						)
-					);
+                    assert(
+                        SAME_SYM(
+                            VAL_WORD_SYM(word),
+                            VAL_TYPESET_SYM(
+                                VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+                            )
+                        )
+                    );
 
-					if (
-						writable &&
-						VAL_GET_EXT(
-							VAL_FUNC_PARAM(DSF_FUNC(call), -index),
-							EXT_WORD_LOCK
-						)
-					) {
-						if (trap) raise Error_1(RE_LOCKED_WORD, word);
-						return NULL;
-					}
+                    if (
+                        writable &&
+                        VAL_GET_EXT(
+                            VAL_FUNC_PARAM(DSF_FUNC(call), -index),
+                            EXT_WORD_LOCK
+                        )
+                    ) {
+                        if (trap) fail (Error(RE_LOCKED_WORD, word));
+                        return NULL;
+                    }
 
-					value = DSF_ARG(call, -index);
-					assert(!THROWN(value));
-					return value;
-				}
+                    value = DSF_ARG(call, -index);
+                    assert(!THROWN(value));
+                    return value;
+                }
 
-				call = PRIOR_DSF(call);
-			}
+                call = PRIOR_DSF(call);
+            }
 
-			if (trap) raise Error_1(RE_NO_RELATIVE, word);
-			return NULL;
-		}
+            if (trap) fail (Error(RE_NO_RELATIVE, word));
+            return NULL;
+        }
 
-		// ZERO INDEX: The word is SELF.  Although the information needed
-		// to produce an OBJECT!-style REBVAL lives in the zero offset
-		// of the frame, it's not a value that we can return a direct
-		// pointer to.  Use GET_VAR_INTO instead for that.
+        // ZERO INDEX: The word is SELF.  Although the information needed
+        // to produce an OBJECT!-style REBVAL lives in the zero offset
+        // of the frame, it's not a value that we can return a direct
+        // pointer to.  Use GET_VAR_INTO instead for that.
+        //
+        // !!! When SELF is eliminated as a system concept there will not
+        // be a need for the GET_VAR_INTO distinction.
 
-		assert(!IS_SELFLESS(context));
-		if (trap) raise Error_0(RE_SELF_PROTECTED);
-		return NULL; // is this a case where we should *always* trap?
-	}
+        assert(!IS_SELFLESS(AS_FRAME(target)));
+        if (trap) fail (Error(RE_SELF_PROTECTED));
+        return NULL; // is this a case where we should *always* trap?
+    }
 
-	if (trap) raise Error_1(RE_NOT_BOUND, word);
-	return NULL;
+    if (trap) fail (Error(RE_NOT_BOUND, word));
+    return NULL;
 }
 
 
-/***********************************************************************
-**
-*/  void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
-/*
-**      Variant of Get_Var_Core that always traps and never returns a
-**      direct pointer into a frame.  It is thus able to give back
-**      `self` lookups, and doesn't have to check the word's protection
-**      status before returning.
-**
-**      See comments in Get_Var_Core for what it's actually doing.
-**
-***********************************************************************/
+//
+//  Get_Var_Into_Core: C
+// 
+// Variant of Get_Var_Core that always traps and never returns a
+// direct pointer into a frame.  It is thus able to give back
+// `self` lookups, and doesn't have to check the word's protection
+// status before returning.
+// 
+// See comments in Get_Var_Core for what it's actually doing.
+//
+void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
 {
-	REBSER *context = VAL_WORD_FRAME(word);
+    REBARR *target = VAL_WORD_TARGET(word);
 
-	if (context) {
-		REBINT index = VAL_WORD_INDEX(word);
+    if (target) {
+        REBINT index = VAL_WORD_INDEX(word);
 
-		if (index > 0) {
-			assert(
-				SAME_SYM(
-					VAL_WORD_SYM(word),
-					VAL_TYPESET_SYM(FRM_KEYS(context) + index)
-				)
-			);
+        if (index > 0) {
+            assert(
+                SAME_SYM(
+                    VAL_WORD_SYM(word),
+                    VAL_TYPESET_SYM(FRAME_KEY(AS_FRAME(target), index))
+                )
+            );
 
-			*out = *(FRM_VALUES(context) + index);
-			assert(!IS_TRASH(out));
-			assert(!THROWN(out));
-			return;
-		}
+            *out = *(FRAME_VAR(AS_FRAME(target), index));
 
-		if (index < 0) {
-			struct Reb_Call *call = DSF;
-			while (call) {
-				if (
-					call->args_ready
-					&& context == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
-				) {
-					assert(
-						SAME_SYM(
-							VAL_WORD_SYM(word),
-							VAL_TYPESET_SYM(
-								VAL_FUNC_PARAM(DSF_FUNC(call), -index)
-							)
-						)
-					);
-					assert(!IS_CLOSURE(DSF_FUNC(call)));
-					*out = *DSF_ARG(call, -index);
-					assert(!IS_TRASH(out));
-					assert(!THROWN(out));
-					return;
-				}
-				call = PRIOR_DSF(call);
-			}
+        #if !defined(NDEBUG)
+            if (IS_TRASH_DEBUG(out)) {
+                Debug_Fmt("Trash value found in frame during Get_Var");
+                Panic_Frame(AS_FRAME(target));
+            }
+            assert(!THROWN(out));
+        #endif
 
-			raise Error_1(RE_NO_RELATIVE, word);
-		}
+            return;
+        }
 
-		// Key difference between Get_Var_Into and Get_Var...fabricating
-		// an object REBVAL.
+        if (index < 0) {
+            //
+            // "stack relative" and framelike is actually a paramlist of a
+            // function.  So to get the values we have to look on the call
+            // stack to find them, vs. just having access to them in the frame
+            //
+            struct Reb_Call *call = DSF;
+            while (call) {
+                if (
+                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
+                    && target == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
+                ) {
+                    assert(
+                        SAME_SYM(
+                            VAL_WORD_SYM(word),
+                            VAL_TYPESET_SYM(
+                                VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+                            )
+                        )
+                    );
+                    assert(!IS_CLOSURE(DSF_FUNC(call)));
+                    *out = *DSF_ARG(call, -index);
+                    assert(!IS_TRASH_DEBUG(out));
+                    assert(!THROWN(out));
+                    return;
+                }
+                call = PRIOR_DSF(call);
+            }
 
-		// !!! Could fake function frames stow the function value itself
-		// so 'binding-of' can return it and use for binding (vs. TRUE)?
+            fail (Error(RE_NO_RELATIVE, word));
+        }
 
-		assert(!IS_SELFLESS(context));
-		Val_Init_Object(out, context);
-		return;
-	}
+        // Key difference between Get_Var_Into and Get_Var...can return a
+        // SELF.  We don't want to give back a direct pointer to it, because
+        // the user being able to modify the [0] slot in a frame would break
+        // system assumptions.
+        //
+        // !!! With the elimination of SELF as a system concept, there should
+        // be no need for Get_Var_Into.
 
-	raise Error_1(RE_NOT_BOUND, word);
+        assert(!IS_SELFLESS(AS_FRAME(target)));
+        assert(ANY_CONTEXT(FRAME_CONTEXT(AS_FRAME(target))));
+        *out = *FRAME_CONTEXT(AS_FRAME(target));
+        return;
+    }
+
+    fail (Error(RE_NOT_BOUND, word));
 }
 
 
-/***********************************************************************
-**
-*/  void Set_Var(const REBVAL *word, const REBVAL *value)
-/*
-**      Set the word (variable) value. (Use macro when possible).
-**
-***********************************************************************/
+//
+//  Set_Var: C
+// 
+// Set the word (variable) value. (Use macro when possible).
+//
+void Set_Var(const REBVAL *word, const REBVAL *value)
 {
-	REBINT index = VAL_WORD_INDEX(word);
-	struct Reb_Call *call;
-	REBSER *frm;
+    REBINT index = VAL_WORD_INDEX(word);
+    struct Reb_Call *call;
+    REBARR *target = VAL_WORD_TARGET(word);
 
-	assert(!THROWN(value));
+    assert(!THROWN(value));
 
-	if (!HAS_FRAME(word)) raise Error_1(RE_NOT_BOUND, word);
+    if (!target) fail (Error(RE_NOT_BOUND, word));
 
-	assert(VAL_WORD_FRAME(word));
-//  Print("Set %s to %s [frame: %x idx: %d]", Get_Word_Name(word), Get_Type_Name(value), VAL_WORD_FRAME(word), VAL_WORD_INDEX(word));
+//  Print("Set %s to %s [frame: %x idx: %d]", Get_Word_Name(word), Get_Type_Name(value), VAL_WORD_TARGET(word), VAL_WORD_INDEX(word));
 
-	if (index > 0) {
-		frm = VAL_WORD_FRAME(word);
+    if (index > 0) {
+        assert(
+            SAME_SYM(
+                VAL_WORD_SYM(word),
+                FRAME_KEY_SYM(AS_FRAME(target), index)
+            )
+        );
 
-		assert(
-			SAME_SYM(
-				VAL_WORD_SYM(word),
-				VAL_TYPESET_SYM(FRM_KEYS(frm) + index)
-			)
-		);
+        if (VAL_GET_EXT(FRAME_KEY(AS_FRAME(target), index), EXT_WORD_LOCK))
+            fail (Error(RE_LOCKED_WORD, word));
 
-		if (VAL_GET_EXT(FRM_KEYS(frm) + index, EXT_WORD_LOCK))
-			raise Error_1(RE_LOCKED_WORD, word);
-		FRM_VALUES(frm)[index] = *value;
-		return;
-	}
-	if (index == 0) raise Error_0(RE_SELF_PROTECTED);
+        *FRAME_VAR(AS_FRAME(target), index) = *value;
+        return;
+    }
 
-	// Find relative value:
-	call = DSF;
-	while (VAL_WORD_FRAME(word) != VAL_WORD_FRAME(DSF_LABEL(call))) {
-		call = PRIOR_DSF(call);
-		if (!call) raise Error_1(RE_NO_RELATIVE, word);
-	}
+    if (index == 0) fail (Error(RE_SELF_PROTECTED));
 
-	assert(
-		SAME_SYM(
-			VAL_WORD_SYM(word),
-			VAL_TYPESET_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
-		)
-	);
+    // Find relative value:
+    call = DSF;
+    while (target != VAL_FUNC_PARAMLIST(DSF_FUNC(call))) {
+        call = PRIOR_DSF(call);
+        if (!call) fail (Error(RE_NO_RELATIVE, word));
+    }
 
-	*DSF_ARG(call, -index) = *value;
+    assert(
+        SAME_SYM(
+            VAL_WORD_SYM(word),
+            VAL_TYPESET_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
+        )
+    );
+
+    *DSF_ARG(call, -index) = *value;
 }
 
 
-/***********************************************************************
-**
-*/	REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
-/*
-**		Return pointer to the nth WORD of an object.
-**
-***********************************************************************/
+//
+//  Obj_Word: C
+// 
+// Return pointer to the nth WORD of an object.
+//
+REBVAL *Obj_Word(const REBVAL *value, REBCNT index)
 {
-	REBSER *obj = VAL_OBJ_KEYLIST(value);
-	return BLK_SKIP(obj, index);
+    REBARR *keylist = FRAME_KEYLIST(VAL_FRAME(value));
+    return ARRAY_AT(keylist, index);
 }
 
 
-/***********************************************************************
-**
-*/	REBVAL *Obj_Value(REBVAL *value, REBCNT index)
-/*
-**		Return pointer to the nth VALUE of an object.
-**		Return zero if the index is not valid.
-**
-***********************************************************************/
+//
+//  Obj_Value: C
+// 
+// Return pointer to the nth VALUE of an object.
+// Return zero if the index is not valid.
+//
+REBVAL *Obj_Value(REBVAL *value, REBCNT index)
 {
-	REBSER *obj = VAL_OBJ_FRAME(value);
+    REBFRM *frame = VAL_FRAME(value);
 
-	if (index >= SERIES_TAIL(obj)) return 0;
-	return BLK_SKIP(obj, index);
+    if (index > FRAME_LEN(frame)) return 0;
+    return FRAME_VAR(frame, index);
 }
 
 
-/***********************************************************************
-**
-*/  void Init_Obj_Value(REBVAL *value, REBSER *frame)
-/*
-***********************************************************************/
+//
+//  Init_Obj_Value: C
+//
+void Init_Obj_Value(REBVAL *value, REBFRM *frame)
 {
-	assert(frame);
-	CLEARS(value);
-	Val_Init_Object(value, frame);
+    assert(frame);
+    CLEARS(value);
+    Val_Init_Object(value, frame);
 }
 
 
-/***********************************************************************
-**
-*/	void Init_Frame(void)
-/*
-***********************************************************************/
+//
+//  Init_Frame: C
+//
+void Init_Frame(void)
 {
-	// Temporary block used while scanning for frame words:
-	Set_Root_Series(TASK_BUF_COLLECT, Make_Array(100), "word cache"); // just holds words, no GC
+    // Temporary block used while scanning for frame words:
+    // "just holds typesets, no GC behavior" (!!! until typeset symbols or
+    // embedded tyeps are GC'd...!)
+    //
+    Set_Root_Series(
+        TASK_BUF_COLLECT, ARRAY_SERIES(Make_Array(100)), "word cache"
+    );
 }
 
 
 #ifndef NDEBUG
-/***********************************************************************
-**
-*/  void Assert_Frame_Core(REBSER *frame)
-/*
-***********************************************************************/
+
+//
+//  FRAME_KEY_Debug: C
+//
+REBVAL *FRAME_KEY_Debug(REBFRM *f, REBCNT n) {
+    assert(n != 0 && n < ARRAY_LEN(FRAME_KEYLIST(f)));
+    return ARRAY_AT(FRAME_KEYLIST(f), (n));
+}
+
+
+//
+//  FRAME_VAR_Debug: C
+//
+REBVAL *FRAME_VAR_Debug(REBFRM *f, REBCNT n) {
+    assert(n != 0 && n < ARRAY_LEN(FRAME_VARLIST(f)));
+    return ARRAY_AT(FRAME_VARLIST(f), (n));
+}
+
+
+//
+//  Assert_Frame_Core: C
+//
+void Assert_Frame_Core(REBFRM *frame)
 {
-	REBINT n;
-	REBVAL *value;
-	REBVAL *key;
-	REBINT tail;
-	REBVAL *frame_value; // "FRAME!-typed value" at head of "frame" series
+    REBCNT n;
+    REBVAL *key;
+    REBVAL *var;
 
-	frame_value = BLK_HEAD(frame);
-	if (!IS_FRAME(frame_value)) Panic_Series(frame);
+    REBCNT keys_len;
+    REBCNT values_len;
 
-	if ((frame == VAL_SERIES(ROOT_ROOT)) || (frame == Task_Series)) {
-		// !!! Currently it is allowed that the root frames not
-		// have a wordlist.  This distinct behavior accomodation is
-		// not worth having the variance of behavior, but since
-		// it's there for now... allow it for just those two.
+    if (!ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME)) {
+        Debug_Fmt("Frame series does not have SER_FRAME flag set");
+        Panic_Frame(frame);
+    }
 
-		if(!FRM_KEYLIST(frame))
-			return;
-	}
+    if (!ANY_CONTEXT(FRAME_CONTEXT(frame))) {
+        Debug_Fmt("Element at head of frame is not an ANY_CONTEXT");
+        Panic_Frame(frame);
+    }
 
-	value = FRM_VALUES(frame);
+    if (!FRAME_KEYLIST(frame)) {
+        Debug_Fmt("Null keylist found in frame");
+        Panic_Frame(frame);
+    }
 
-	key = FRM_KEYS(frame);
-	tail = SERIES_TAIL(frame);
+    values_len = ARRAY_LEN(FRAME_VARLIST(frame));
+    keys_len = ARRAY_LEN(FRAME_KEYLIST(frame));
 
-	for (n = 0; n < tail; n++, value++, key++) {
-		if (n == 0) {
-			if (
-				!(IS_TYPESET(key) && (
-					VAL_TYPESET_SYM(key) == SYM_SELF
-					|| VAL_TYPESET_SYM(key) == SYM_0
-				))
-				&& !IS_CLOSURE(key)
-			) {
-				Debug_Fmt("** First frame slot not SELF, SYM_0 or CLOSURE!");
-				Panic_Series(frame);
-			}
-		}
-		else {
-			if (!IS_TYPESET(key)) {
-				Debug_Fmt("** Non-typeset in frame keys: %d\n", VAL_TYPE(key));
-				Panic_Series(FRM_KEYLIST(frame));
-			}
-		}
+    if (keys_len != values_len) {
+        Debug_Fmt("Unequal lengths of key and value series in Assert_Frame");
+        Panic_Frame(frame);
+    }
 
-		if (IS_END(key) || IS_END(value)) {
-			Debug_Fmt(
-				"** Early %s end at index: %d",
-				IS_END(key) ? "key" : "value",
-				n
-			);
-			Panic_Series(frame);
-		}
-	}
+    if (keys_len < 1) {
+        Debug_Fmt("Frame length less than one--cannot hold context value");
+        Panic_Frame(frame);
+    }
 
-	if (NOT_END(key) || NOT_END(value)) {
-		Debug_Fmt(
-			"** Missing %s end at index: %d type: %d",
-			NOT_END(key) ? "key" : "value",
-			n,
-			NOT_END(key) ? VAL_TYPE(key) : VAL_TYPE(value)
-		);
-		Panic_Series(frame);
-	}
+    // The 0th key and var are special and can't be accessed with FRAME_VAR
+    // or FRAME_KEY
+    //
+    key = FRAME_ROOTKEY(frame);
+    var = FRAME_CONTEXT(frame);
+
+    if (
+        !(IS_TYPESET(key) && (
+            VAL_TYPESET_SYM(key) == SYM_SELF
+            || VAL_TYPESET_SYM(key) == SYM_0
+        ))
+        && !IS_CLOSURE(key)
+    ) {
+        Debug_Fmt("First key slot in frame not SELF, SYM_0 or CLOSURE!");
+        Panic_Frame(frame);
+    }
+
+    if (!ANY_CONTEXT(var)) {
+        Debug_Fmt("First value slot in frame not ANY-CONTEXT!");
+        Panic_Frame(frame);
+    }
+
+    key = FRAME_KEYS_HEAD(frame);
+    var = FRAME_VARS_HEAD(frame);
+
+    for (n = 1; n < keys_len; n++, var++, key++) {
+        if (IS_END(key) || IS_END(var)) {
+            Debug_Fmt(
+                "** Early %s end at index: %d",
+                IS_END(key) ? "key" : "var",
+                n
+            );
+            Panic_Frame(frame);
+        }
+
+        if (!IS_TYPESET(key)) {
+            Debug_Fmt("** Non-typeset in frame keys: %d\n", VAL_TYPE(key));
+            Panic_Frame(frame);
+        }
+    }
+
+    if (NOT_END(key) || NOT_END(var)) {
+        Debug_Fmt(
+            "** Missing %s end at index: %d type: %d",
+            NOT_END(key) ? "key" : "var",
+            n,
+            NOT_END(key) ? VAL_TYPE(key) : VAL_TYPE(var)
+        );
+        Panic_Frame(frame);
+    }
 }
 #endif

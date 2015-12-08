@@ -21,15 +21,15 @@
 **
 **  Title: Browser Launch Host
 **  Purpose:
-**		This provides the ability to launch a web browser or file
-**		browser on the host.
+**      This provides the ability to launch a web browser or file
+**      browser on the host.
 **
 ***********************************************************************/
 
 #ifndef __cplusplus
-	// See feature_test_macros(7)
-	// This definition is redundant under C++
-	#define _GNU_SOURCE
+    // See feature_test_macros(7)
+    // This definition is redundant under C++
+    #define _GNU_SOURCE
 #endif
 
 #include <stdlib.h>
@@ -54,13 +54,13 @@
 #endif
 
 #ifdef USE_GTK_FILECHOOSER
-int os_create_file_selection (void 			*libgtk,
-							  char 			*buf,
-							  int 			len,
-							  const char 	*title,
-							  const char 	*path,
-							  int 			save,
-							  int 			multiple);
+int os_create_file_selection (void          *libgtk,
+                              char          *buf,
+                              int           len,
+                              const char    *title,
+                              const char    *path,
+                              int           save,
+                              int           multiple);
 
 int os_init_gtk(void *libgtk);
 #endif
@@ -68,96 +68,92 @@ int os_init_gtk(void *libgtk);
 void OS_Destroy_Graphics(void);
 
 
-/***********************************************************************
-**
-*/	int OS_Get_Current_Dir(REBCHR **path)
-/*
-**		Return the current directory path as a string and
-**		its length in chars (not bytes).
-**
-**		The result should be freed after copy/conversion.
-**
-***********************************************************************/
+//
+//  OS_Get_Current_Dir: C
+// 
+// Return the current directory path as a string and
+// its length in chars (not bytes).
+// 
+// The result should be freed after copy/conversion.
+//
+int OS_Get_Current_Dir(REBCHR **path)
 {
-	*path = OS_ALLOC_ARRAY(char, PATH_MAX);
-	if (!getcwd(*path, PATH_MAX-1)) *path[0] = 0;
-	return strlen(*path);
+    *path = OS_ALLOC_N(char, PATH_MAX);
+    if (!getcwd(*path, PATH_MAX-1)) *path[0] = 0;
+    return strlen(*path);
 }
 
 
-/***********************************************************************
-**
-*/	REBOOL OS_Set_Current_Dir(REBCHR *path)
-/*
-**		Set the current directory to local path. Return FALSE
-**		on failure.
-**
-***********************************************************************/
+//
+//  OS_Set_Current_Dir: C
+// 
+// Set the current directory to local path. Return FALSE
+// on failure.
+//
+REBOOL OS_Set_Current_Dir(REBCHR *path)
 {
-	return chdir(path) == 0;
+    return chdir(path) == 0;
 }
 
 
-/***********************************************************************
-**
-*/	REBOOL OS_Request_File(REBRFR *fr)
-/*
-***********************************************************************/
+//
+//  OS_Request_File: C
+//
+REBOOL OS_Request_File(REBRFR *fr)
 {
-	REBOOL ret = FALSE;
+    REBOOL ret = FALSE;
 #ifdef USE_GTK_FILECHOOSER
-	REBINT error;
-	const char * libs [] = {
-		"libgtk-3.so",
-		"libgtk-3.so.0", /* Some systems, like Ubuntu, don't have libgtk-3.so */
-		NULL
-	};
-	const char **ptr = NULL;
-	void *libgtk = NULL;
-	for (ptr = &libs[0]; *ptr != NULL; ptr ++) {
-		libgtk = OS_Open_Library(*ptr, &error);
-		if (libgtk != NULL) {
-			break;
-		}
-	}
+    REBINT error;
+    const char * libs [] = {
+        "libgtk-3.so",
+        "libgtk-3.so.0", /* Some systems, like Ubuntu, don't have libgtk-3.so */
+        NULL
+    };
+    const char **ptr = NULL;
+    void *libgtk = NULL;
+    for (ptr = &libs[0]; *ptr != NULL; ptr ++) {
+        libgtk = OS_Open_Library(*ptr, &error);
+        if (libgtk != NULL) {
+            break;
+        }
+    }
 
-	if (libgtk == NULL) {
-		//RL_Print("open libgtk-3.so failed: %s\n", dlerror());
-		return FALSE;
-	}
-	if (!os_init_gtk(libgtk)) {
-		//RL_Print("init gtk failed\n");
-		OS_Close_Library(libgtk);
-		return FALSE;
-	}
-	if (os_create_file_selection(libgtk,
-								 fr->files,
-								 fr->len,
-								 fr->title,
-								 fr->dir,
-								 GET_FLAG(fr->flags, FRF_SAVE),
-								 GET_FLAG(fr->flags, FRF_MULTI))) {
-		//RL_Print("file opened returned\n");
-		ret = TRUE;
-	}
-	OS_Close_Library(libgtk);
-	return ret;
+    if (libgtk == NULL) {
+        //RL_Print("open libgtk-3.so failed: %s\n", dlerror());
+        return FALSE;
+    }
+    if (!os_init_gtk(libgtk)) {
+        //RL_Print("init gtk failed\n");
+        OS_Close_Library(libgtk);
+        return FALSE;
+    }
+    if (os_create_file_selection(libgtk,
+                                 fr->files,
+                                 fr->len,
+                                 fr->title,
+                                 fr->dir,
+                                 GET_FLAG(fr->flags, FRF_SAVE),
+                                 GET_FLAG(fr->flags, FRF_MULTI))) {
+        //RL_Print("file opened returned\n");
+        ret = TRUE;
+    }
+    OS_Close_Library(libgtk);
+    return ret;
 #else
-	return ret;
+    return ret;
 #endif
 }
 
 
-/***********************************************************************
-**
-*/	REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
-/*
-**	WARNING: TEMPORARY implementation! Used only by host-core.c
-**  Will be most probably changed in future.
-**
-***********************************************************************/
+//
+//  OS_Request_Dir: C
+// 
+// WARNING: TEMPORARY implementation! Used only by host-core.c
+// Will be most probably changed in future.
+//
+REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 {
-	return FALSE;
+    return FALSE;
 }
 
 // These are repeated several times; there needs to be a way for the host
@@ -177,26 +173,25 @@ void OS_Destroy_Graphics(void);
 
 static int Try_Browser(const char *browser, const REBCHR *url)
 {
-	// Must be compile-time const for '= {...}' style init (-Wc99-extensions)
-	const char *argv[3];
+    // Must be compile-time const for '= {...}' style init (-Wc99-extensions)
+    const char *argv[3];
 
-	argv[0] = browser;
-	argv[1] = url;
-	argv[2] = NULL;
+    argv[0] = browser;
+    argv[1] = url;
+    argv[2] = NULL;
 
-	return OS_Create_Process(browser, 2, argv, 0,
-							NULL, /* pid */
-							NULL, /* exit_code */
-							INHERIT_TYPE, NULL, 0, /* input_type, void *input, u32 input_len, */
-							INHERIT_TYPE, NULL, NULL, /* output_type, void **output, u32 *output_len, */
-							INHERIT_TYPE, NULL, NULL); /* u32 err_type, void **err, u32 *err_len */
+    return OS_Create_Process(browser, 2, argv, 0,
+                            NULL, /* pid */
+                            NULL, /* exit_code */
+                            INHERIT_TYPE, NULL, 0, /* input_type, void *input, u32 input_len, */
+                            INHERIT_TYPE, NULL, NULL, /* output_type, void **output, u32 *output_len, */
+                            INHERIT_TYPE, NULL, NULL); /* u32 err_type, void **err, u32 *err_len */
 }
 
-/***********************************************************************
-**
-*/	int OS_Browse(const REBCHR *url, int reserved)
-/*
-***********************************************************************/
+//
+//  OS_Browse: C
+//
+int OS_Browse(const REBCHR *url, int reserved)
 {
-	return Try_Browser("xdg-open", url) && Try_Browser("x-www-browser", url);
+    return Try_Browser("xdg-open", url) && Try_Browser("x-www-browser", url);
 }
