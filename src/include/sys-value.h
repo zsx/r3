@@ -698,7 +698,6 @@ struct Reb_Position
 #define VAL_SERIES_WIDTH(v) (SERIES_WIDE(VAL_SERIES(v)))
 #define VAL_LIMIT_SERIES(v) if (VAL_INDEX(v) > VAL_TAIL(v)) VAL_INDEX(v) = VAL_TAIL(v)
 
-#define DIFF_PTRS(a,b) (REBCNT)((REBYTE*)a - (REBYTE*)b)
 
 // Note: These macros represent things that used to sometimes be functions,
 // and sometimes were not.  They could be done without a function call, but
