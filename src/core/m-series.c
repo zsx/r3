@@ -126,7 +126,7 @@ void Append_Mem_Extra(REBSER *series, const REBYTE *data, REBCNT len, REBCNT ext
     }
 
     memcpy(series->data + tail, data, len);
-    STR_TERM(series);
+    TERM_SEQUENCE(series);
 }
 
 
@@ -400,7 +400,7 @@ REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
     Unbias_Series(buf, TRUE);
     Expand_Series(buf, 0, len); // sets new tail
 
-    return BIN_DATA(buf);
+    return BIN_HEAD(buf);
 }
 
 

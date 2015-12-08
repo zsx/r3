@@ -494,7 +494,7 @@ RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBC
 
 #ifdef DUMP_INIT_SCRIPT
     f = _open("host-boot.r", _O_CREAT | _O_RDWR, _S_IREAD | _S_IWRITE );
-    _write(f, STR_HEAD(text), LEN_BYTES(STR_HEAD(text)));
+    _write(f, BIN_HEAD(text), LEN_BYTES(BIN_HEAD(text)));
     _close(f);
 #endif
 

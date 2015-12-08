@@ -145,7 +145,14 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
 
     if (Trace_Level) {
         Trace_Value(7, item);
-        Trace_String(8, STR_AT(series, index), series->tail - index);
+
+        // This used STR_AT (obsolete) but it's not clear that this is
+        // necessarily a byte sized series.  Switched to BIN_AT and added
+        // an assert.
+        //
+        assert(BYTE_SIZE(series));
+
+        Trace_String(8, BIN_AT(series, index), SERIES_LEN(series) - index);
     }
 
     if (IS_NONE(item)) return index;

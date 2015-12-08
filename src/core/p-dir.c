@@ -248,7 +248,7 @@ create:
             // Convert file name to OS format:
             if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
                 fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
-            dir.common.data = BIN_DATA(target);
+            dir.common.data = BIN_HEAD(target);
             OS_DO_DEVICE(&dir, RDC_RENAME);
             Free_Series(target);
             if (dir.error) fail (Error(RE_NO_RENAME, path));

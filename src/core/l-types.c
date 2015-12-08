@@ -1021,7 +1021,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
         // Create string value (ignoring lines and indents):
         string = Make_Binary(len);
         SET_SERIES_LEN(string, len);
-        str = STR_HEAD(string);
+        str = BIN_HEAD(string);
         cp = start;
         // Code below *MUST* mirror that above:
         while (!ANY_CR_LF_END(*cp)) *str++ = *cp++;

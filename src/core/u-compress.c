@@ -142,7 +142,7 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG ra
     if (ret != Z_STREAM_END)
         fail (Error_Compression(&strm, ret));
 
-    SET_STR_END(output, buf_size - strm.avail_out);
+    SET_BIN_END(output, buf_size - strm.avail_out);
     SET_SERIES_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
@@ -338,7 +338,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
             fail (Error_Compression(&strm, ret));
     }
 
-    SET_STR_END(output, strm.total_out);
+    SET_BIN_END(output, strm.total_out);
     SET_SERIES_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic

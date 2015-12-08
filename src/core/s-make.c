@@ -46,7 +46,7 @@ REBSER *Make_Binary(REBCNT length)
     // specifically being preallocated at a fixed length.  Until this
     // is straightened out, terminate for both possibilities.
 
-    BIN_DATA(series)[length] = 0;
+    BIN_HEAD(series)[length] = 0;
     TERM_SEQUENCE(series);
     return series;
 }
@@ -87,9 +87,9 @@ REBSER *Copy_Bytes(const REBYTE *src, REBINT len)
     if (len < 0) len = LEN_BYTES(src);
 
     dst = Make_Binary(len);
-    memcpy(STR_DATA(dst), src, len);
+    memcpy(BIN_HEAD(dst), src, len);
     SET_SERIES_LEN(dst, len);
-    STR_TERM(dst);
+    TERM_SEQUENCE(dst);
 
     return dst;
 }
@@ -361,8 +361,8 @@ REBSER *Append_Unencoded_Len(REBSER *dst, const char *src, REBCNT len)
     }
 
     if (BYTE_SIZE(dst)) {
-        memcpy(STR_AT(dst, tail), src, len);
-        STR_TERM(dst);
+        memcpy(BIN_AT(dst, tail), src, len);
+        TERM_SEQUENCE(dst);
     }
     else {
         up = UNI_AT(dst, tail);
@@ -402,8 +402,8 @@ REBSER *Append_Codepoint_Raw(REBSER *dst, REBCNT codepoint)
 
     if (BYTE_SIZE(dst)) {
         assert(codepoint < (1 << 8));
-        *STR_AT(dst, tail) = cast(REBYTE, codepoint);
-        STR_TERM(dst);
+        *BIN_AT(dst, tail) = cast(REBYTE, codepoint);
+        TERM_SEQUENCE(dst);
     }
     else {
         assert(codepoint < (1 << 16));
@@ -642,7 +642,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
         tail = series->tail;
     }
 
-    SET_STR_END(series, tail);
+    SET_BIN_END(series, tail);
 
     return series;  // SHARED FORM SERIES!
 }

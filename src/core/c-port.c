@@ -95,9 +95,9 @@ void *Use_Port_State(REBFRM *port, REBCNT device, REBCNT size)
     // If state is not a binary structure, create it:
     if (!IS_BINARY(state)) {
         REBSER *data = Make_Binary(size);
-        REBREQ *req = (REBREQ*)STR_HEAD(data);
+        REBREQ *req = cast(REBREQ*, BIN_HEAD(data));
         req->clen = size;
-        CLEAR(STR_HEAD(data), size);
+        CLEAR(BIN_HEAD(data), size);
         //data->tail = size; // makes it easier for ACCEPT to clone the port
         SET_FLAG(req->flags, RRF_ALLOC); // not on stack
         req->port = port;

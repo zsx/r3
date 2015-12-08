@@ -233,7 +233,12 @@ static REB_R Transport_Actor(
         sock->length = SERIES_AVAIL(ser); // space available
         if (sock->length < NET_BUF_SIZE/2) Extend_Series(ser, NET_BUF_SIZE);
         sock->length = SERIES_AVAIL(ser);
-        sock->common.data = STR_TAIL(ser); // write at tail
+
+        // This used STR_TAIL (obsolete, equivalent to BIN_TAIL) but was it
+        // sure the series was byte sized?  Added in a check.
+        assert(BYTE_SIZE(ser));
+        sock->common.data = BIN_TAIL(ser); // write at tail
+
         //if (SERIES_LEN(ser) == 0)
         sock->actual = 0;  // Actual for THIS read, not for total.
 

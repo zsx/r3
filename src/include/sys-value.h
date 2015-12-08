@@ -777,12 +777,11 @@ struct Reb_Position
 #define Val_Init_Bitset(v,s) \
     Val_Init_Series((v), REB_BITSET, (s))
 
-#define SET_STR_END(s,n) (*STR_AT(s,n) = 0)
+#define SET_BIN_END(s,n) (*BIN_AT(s,n) = 0)
 
 // Arg is a binary (byte) series:
 #define BIN_HEAD(s)     ((REBYTE *)((s)->data))
-#define BIN_DATA(s)     ((REBYTE *)((s)->data))
-#define BIN_TAIL(s)     (REBYTE*)STR_TAIL(s)
+#define BIN_TAIL(s)     (BIN_HEAD(s) + BIN_LEN(s))
 #define BIN_AT(s, n)    (((REBYTE *)((s)->data))+(n))
 #define BIN_LEN(s)      (SERIES_LEN(s))
 
@@ -794,16 +793,6 @@ struct Reb_Position
 #define UNI_LEN(s)      (SERIES_LEN(s))
 #define UNI_TERM(s)     (*UNI_TAIL(s) = 0)
 #define UNI_RESET(s)    (UNI_HEAD(s)[(s)->tail = 0] = 0)
-
-// Obsolete (remove after Unicode conversion):
-#define STR_HEAD(s)     ((REBYTE *)((s)->data))
-#define STR_DATA(s)     ((REBYTE *)((s)->data))
-#define STR_AT(s, n)    (((REBYTE *)((s)->data))+(n))
-#define STR_TAIL(s)     (((REBYTE *)((s)->data))+(s)->tail)
-#define STR_LAST(s)     (((REBYTE *)((s)->data))+((s)->tail-1)) // make sure tail not zero
-#define STR_LEN(s)      (SERIES_LEN(s))
-#define STR_TERM(s)     (*STR_TAIL(s) = 0)
-#define STR_RESET(s)    (STR_HEAD(s)[(s)->tail = 0] = 0)
 
 // Arg is a binary value:
 //
@@ -832,8 +821,6 @@ struct Reb_Position
 
 #define VAL_ANY_CHAR(v) GET_ANY_CHAR(VAL_SERIES(v), VAL_INDEX(v))
 
-//#define VAL_STR_LAST(v)   STR_LAST(VAL_SERIES(v))
-//#define   VAL_MEM_LEN(v)  (VAL_TAIL(v) * VAL_SERIES_WIDTH(v))
 
 
 /***********************************************************************
@@ -1105,7 +1092,7 @@ struct Reb_Symbol {
 
 // Arg is value:
 #define VAL_SYM_NINDEX(v)   ((v)->data.symbol.name)
-#define VAL_SYM_NAME(v)     (STR_HEAD(PG_Word_Names) + VAL_SYM_NINDEX(v))
+#define VAL_SYM_NAME(v)     (BIN_HEAD(PG_Word_Names) + VAL_SYM_NINDEX(v))
 #define VAL_SYM_CANON(v)    ((v)->data.symbol.canon)
 #define VAL_SYM_ALIAS(v)    ((v)->data.symbol.alias)
 
@@ -1172,7 +1159,7 @@ struct Reb_Word {
 #define VAL_WORD_NAME(v) \
     VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
 
-#define VAL_WORD_NAME_STR(v)    STR_HEAD(VAL_WORD_NAME(v))
+#define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
 
 #define VAL_WORD_TARGET_WORDS(v) VAL_WORD_TARGET(v)->words
 #define VAL_WORD_TARGET_VALUES(v) VAL_WORD_TARGET(v)->values
@@ -1732,7 +1719,7 @@ typedef struct Reb_Struct {
 #define VAL_STRUCT_SPEC(v)  ((v)->data.structure.spec)
 #define VAL_STRUCT_FIELDS(v)  ((v)->data.structure.fields)
 #define VAL_STRUCT_DATA(v)  ((v)->data.structure.data)
-#define VAL_STRUCT_DP(v)    (STR_HEAD(VAL_STRUCT_DATA(v)))
+#define VAL_STRUCT_DP(v)    BIN_HEAD(VAL_STRUCT_DATA(v))
 
 
 /***********************************************************************

@@ -173,7 +173,12 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         req->length = SERIES_AVAIL(ser); // space available
         if (req->length < 32000/2) Extend_Series(ser, 32000);
         req->length = SERIES_AVAIL(ser);
-        req->common.data = STR_TAIL(ser); // write at tail
+
+        // This used STR_TAIL (obsolete, equivalent to BIN_TAIL) but was it
+        // sure the series was byte sized?  Added in a check.
+        assert(BYTE_SIZE(ser));
+        req->common.data = BIN_TAIL(ser); // write at tail
+
         //if (SERIES_LEN(ser) == 0)
         req->actual = 0;  // Actual for THIS read, not for total.
 #ifdef DEBUG_SERIAL

@@ -262,10 +262,10 @@ static void Load_Boot(void)
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!text || (STR_LEN(text) != NAT_UNCOMPRESSED_SIZE))
+    if (!text || (SERIES_LEN(text) != NAT_UNCOMPRESSED_SIZE))
         panic (Error(RE_BOOT_DATA));
 
-    boot = Scan_Source(STR_HEAD(text), NAT_UNCOMPRESSED_SIZE);
+    boot = Scan_Source(SERIES_DATA(text), NAT_UNCOMPRESSED_SIZE);
     Free_Series(text);
 
     // Do not let it get GC'd

@@ -522,13 +522,13 @@ void Debug_Buf(const char *fmt, va_list *args)
     RESET_SERIES(buf);
 
     // Limits output to size of buffer, will not expand it:
-    bp = Form_Args_Core(STR_HEAD(buf), SERIES_REST(buf) - 1, fmt, args);
-    tail = bp - STR_HEAD(buf);
+    bp = Form_Args_Core(BIN_HEAD(buf), SERIES_REST(buf) - 1, fmt, args);
+    tail = bp - BIN_HEAD(buf);
 
     for (n = 0; n < tail; n += len) {
-        len = LEN_BYTES(STR_AT(buf, n));
+        len = LEN_BYTES(BIN_AT(buf, n));
         if (len > 1024) len = 1024;
-        Debug_String(STR_AT(buf, n), len, 0, 0);
+        Debug_String(BIN_AT(buf, n), len, 0, 0);
     }
 
     assert(GC_Disabled == 1);

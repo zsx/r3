@@ -1177,7 +1177,7 @@ REBSER *Make_UTF8_Binary(const void *data, REBCNT len, REBCNT extra, REBFLG opts
         BIN_HEAD(series), size, data, &len, opts
     ));
     assert(SERIES_LEN(series) == size);
-    STR_TERM(series);
+    TERM_SEQUENCE(series);
     return series;
 }
 

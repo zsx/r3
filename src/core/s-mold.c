@@ -159,13 +159,19 @@ REBSER *Prep_String(REBSER *series, REBYTE **str, REBCNT len)
 
     if (!series) {
         series = Make_Binary(len);
-        series->tail = len;
-        *str = STR_HEAD(series);
+        SET_SERIES_LEN(series, len);
+        *str = BIN_HEAD(series);
     }
     else {
+        // This used "STR_AT" (obsolete) but didn't have an explicit case
+        // here that it was byte sized.  Check it, because if you have
+        // unicode characters this would give the wrong pointer.
+        //
+        assert(BYTE_SIZE(series));
+
         tail = SERIES_LEN(series);
         EXPAND_SERIES_TAIL(series, len);
-        *str = STR_AT(series, tail);
+        *str = BIN_AT(series, tail);
     }
     return series;
 }
@@ -281,7 +287,7 @@ typedef struct REB_Str_Flags {
 static void Sniff_String(REBSER *ser, REBCNT idx, REB_STRF *sf)
 {
     // Scan to find out what special chars the string contains?
-    REBYTE *bp = STR_HEAD(ser);
+    REBYTE *bp = SERIES_DATA(ser);
     REBUNI *up = (REBUNI*)bp;
     REBUNI c;
     REBCNT n;
@@ -382,7 +388,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     // Source can be 8 or 16 bits:
     if (uni) up = UNI_HEAD(ser);
-    else bp = STR_HEAD(ser);
+    else bp = BIN_HEAD(ser);
 
     // If it is a short quoted string, emit it as "string":
     if (len <= MAX_QUOTED_STR && sf.quote == 0 && sf.newline < 3) {
@@ -1436,7 +1442,7 @@ REBSER *Mold_Print_Value(const REBVAL *value, REBCNT limit, REBFLG mold)
 
     Mold_Value(&mo, value, mold);
 
-    if (limit != 0 && STR_LEN(mo.series) > limit) {
+    if (limit != 0 && SERIES_LEN(mo.series) > limit) {
         SET_SERIES_LEN(mo.series, limit);
         Append_Unencoded(mo.series, "..."); // adds a null at the tail
     }
