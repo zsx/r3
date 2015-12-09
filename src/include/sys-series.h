@@ -146,6 +146,19 @@ struct Reb_Series_Dynamic {
     // series, which would be helpful as they are necessary
     //
     REBCNT will_be_bias_and_something_else;
+
+#if defined(__LP64__) || defined(__LLP64__)
+    //
+    // The Reb_Series_Dynamic is used in Reb_Series inside of a union with a
+    // REBVAL.  On 64-bit machines this will leave one unused 32-bit slot
+    // (which will couple with the previous REBCNT) and one naturally aligned
+    // 64-bit pointer.  These could be used for some enhancement that would
+    // be available per-dynamic-REBSER on 64-bit architectures.
+    //
+    REBCNT unused_32;
+    void *unused_64;
+#endif
+
 };
 
 struct Reb_Series {
@@ -769,7 +782,7 @@ struct Reb_Frame {
     do { \
         Free_Array(FRAME_KEYLIST(f)); \
         Free_Array(FRAME_VARLIST(f)); \
-    } while (0);
+    } while (0)
 
 #define PUSH_GUARD_FRAME(f) \
     PUSH_GUARD_ARRAY(FRAME_VARLIST(f)) // varlist points to/guards keylist

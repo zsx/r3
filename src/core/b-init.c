@@ -107,14 +107,51 @@ static void Assert_Basics(void)
     printf("%d %s\n", sizeof(dummy_data->all), "all");
 #endif
 
+    // Although the system is designed to be able to function with REBVAL at
+    // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
+    // and 4x(64-bit) on 64-bit platforms is a rather important performance
+    // point.  For the moment we consider it to be essential enough to the
+    // intended function of the system that it refuses to run if not true.
+    //
+    // But if someone is in an odd situation and understands why the size did
+    // not work out as designed, it *should* be possible to comment this out
+    // and keep running.
+    //
     if (sizeof(void *) == 8) {
-        if (sizeof(REBVAL) != 32) panic (Error(RE_REBVAL_ALIGNMENT));
-        if (sizeof(REBGOB) != 84) panic (Error(RE_BAD_SIZE));
-    } else {
-        if (sizeof(REBVAL) != 16) panic (Error(RE_REBVAL_ALIGNMENT));
-        if (sizeof(REBGOB) != 64) panic (Error(RE_BAD_SIZE));
+        if (sizeof(REBVAL) != 32)
+            panic (Error(RE_REBVAL_ALIGNMENT));
     }
-    if (sizeof(REBDAT) != 4) panic (Error(RE_BAD_SIZE));
+    else {
+        if (sizeof(REBVAL) != 16)
+            panic (Error(RE_REBVAL_ALIGNMENT));
+    }
+
+    // In the original conception of R3-Alpha, performance of the graphics
+    // layer was considered very important...and so the GUI would make use
+    // of the custom memory-pooled heap for its "(G)raphic (OB)jects", even
+    // though much of the GUI code itself was written in extensions.  With
+    // the Ren-C branch, the focus is on a more "essential" core.  So the
+    // hope is to either provide generic pooled memory services or have the
+    // graphics layer implement its own allocator--or just use malloc()/new
+    //
+    // But given that external code depends on binary compatibility with an
+    // understanding of what size a GOB is, this helps enforce that by
+    // checking that the size is what the linked-to code is expecting.
+    //
+    if (sizeof(void *) == 8) {
+        if (sizeof(REBGOB) != 84)
+            panic (Error(RE_BAD_SIZE));
+    }
+    else {
+        if (sizeof(REBGOB) != 64)
+            panic (Error(RE_BAD_SIZE));
+    }
+
+    // This checks the size of the `struct reb_date`.
+    // !!! Why this, in particular?
+    //
+    if (sizeof(REBDAT) != 4)
+        panic (Error(RE_BAD_SIZE));
 
     // The RXIARG structure mirrors the layouts of several value types
     // for clients who want to extend Rebol but not depend on all of
@@ -133,7 +170,7 @@ static void Assert_Basics(void)
     // answer to VAL_FRAME() to be different from VAL_SERIES(), and
     // lead to trouble if one call were used in lieu of the other.
     // Revisit after RXIARG dependencies have been eliminated.
-
+    //
     if (
         offsetof(struct Reb_Any_Context, frame)
         != offsetof(struct Reb_Any_Series, series)
@@ -141,7 +178,21 @@ static void Assert_Basics(void)
         panic (Error(RE_MISC));
     }
 
-    // Check special return values used to make sure they don't overlap
+    // The REBSER is designed to place the `info` bits exactly after a
+    // REBVAL and a pointer that can do double-duty as also a terminator
+    // for that REBVAL when viewed as an array of data.
+    //
+    // !!! The info bits actually are going to go at the very head, to
+    // permit REBSER node sizes in multiples of REBVAL.  But this will
+    // require some technical adjustments to how freeness indicator
+    // interacts with the memory pool.
+    //
+    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL) + sizeof(void*))
+        panic (Error(RE_MISC));
+
+    // Check special return values used "in-band" in an unsigned integer that
+    // is otherwise used for indices.  Make sure they don't overlap.
+    //
     assert(THROWN_FLAG != END_FLAG);
     assert(NOT_FOUND != END_FLAG);
     assert(NOT_FOUND != THROWN_FLAG);
