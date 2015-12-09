@@ -29,6 +29,19 @@
 #ifndef VALUE_H
 #define VALUE_H
 
+struct Reb_Series;
+typedef struct Reb_Series REBSER;
+
+struct Reb_Array;
+typedef struct Reb_Array REBARR;
+
+struct Reb_Frame;
+typedef struct Reb_Frame REBFRM;
+
+struct Reb_Map;
+typedef struct Reb_Map REBMAP;
+
+
 /***********************************************************************
 **
 **  REBOL Value Type
@@ -483,117 +496,15 @@ typedef struct Reb_Tuple {
 #endif
 
 
-#ifdef SERIES_LABELS
-#define SERIES_LABEL(s)  ((s)->label)
-#define SET_SERIES_LABEL(s,l) (((s)->label) = (l))
-#else
-#define SERIES_LABEL(s)  "-"
-#define SET_SERIES_LABEL(s,l)
-#endif
-
-// Flag: If wide field is not set, series is free (not used):
-#define SERIES_FREED(s)  (!SERIES_WIDE(s))
-
-// Size in bytes of memory allocated (including bias area):
-#define SERIES_TOTAL(s) ((SERIES_REST(s) + SERIES_BIAS(s)) * (REBCNT)SERIES_WIDE(s))
-// Size in bytes of series (not including bias area):
-#define SERIES_SPACE(s) (SERIES_REST(s) * (REBCNT)SERIES_WIDE(s))
-// Size in bytes being used, including terminator:
-#define SERIES_USED(s) ((SERIES_LEN(s) + 1) * SERIES_WIDE(s))
-
-// Optimized expand when at tail (but, does not reterminate)
-#define EXPAND_SERIES_TAIL(s,l) \
-    if (SERIES_FITS(s, l)) s->content.dynamic.len += l; \
-        else Expand_Series(s, AT_TAIL, l)
-#define RESIZE_SERIES(s,l) \
-    s->content.dynamic.len = 0; \
-    if (!SERIES_FITS(s, l)) Expand_Series(s, AT_TAIL, l); \
-    s->content.dynamic.len = 0
-#define RESET_SERIES(s) s->content.dynamic.len = 0; TERM_SERIES(s)
-#define RESET_TAIL(s) s->content.dynamic.len = 0
-
-// Clear all and clear to tail:
-#define CLEAR_SEQUENCE(s) \
-    do { \
-        assert(!Is_Array_Series(s)); \
-        CLEAR(SERIES_DATA(s), SERIES_SPACE(s)); \
-    } while (0)
-
-#define TERM_SEQUENCE(s) \
-    do { \
-        assert(!Is_Array_Series(s)); \
-        memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
-    } while (0)
-
-// Returns space that a series has available (less terminator):
-#define SERIES_FULL(s) (SERIES_LEN(s) + 1 >= SERIES_REST(s))
-#define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
-#define SERIES_FITS(s,n) ((SERIES_LEN(s) + (n) + 1) <= SERIES_REST(s))
-
-// Flag used for extending series at tail:
-#define AT_TAIL ((REBCNT)(~0))  // Extend series at tail
-
-// Is it a byte-sized series? (this works because no other odd size allowed)
-#define BYTE_SIZE(s) (((s)->info) & 1)
 #define VAL_BYTE_SIZE(v) (BYTE_SIZE(VAL_SERIES(v)))
 #define VAL_STR_IS_ASCII(v) \
     (VAL_BYTE_SIZE(v) && All_Bytes_ASCII(VAL_BIN_AT(v), VAL_LEN_AT(v)))
 
-// Bias is empty space in front of head:
-#define SERIES_BIAS(s)     (REBCNT)((SERIES_FLAGS(s) >> 16) & 0xffff)
-#define MAX_SERIES_BIAS    0x1000
-#define SERIES_SET_BIAS(s,b) (SERIES_FLAGS(s) = (SERIES_FLAGS(s) & 0xffff) | (b << 16))
-#define SERIES_ADD_BIAS(s,b) (SERIES_FLAGS(s) += (b << 16))
-#define SERIES_SUB_BIAS(s,b) (SERIES_FLAGS(s) -= (b << 16))
-
-#define SERIES_SET_FLAG(s, f) cast(void, (SERIES_FLAGS(s) |= ((f) << 8)))
-#define SERIES_CLR_FLAG(s, f) cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
-#define SERIES_GET_FLAG(s, f) (0 != (SERIES_FLAGS(s) & ((f) << 8)))
-
-#define LOCK_SERIES(s)    SERIES_SET_FLAG(s, SER_LOCK)
-#define IS_LOCK_SERIES(s) SERIES_GET_FLAG(s, SER_LOCK)
-#define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
-
-#define FAIL_IF_PROTECTED_SERIES(s) \
-    if (SERIES_GET_FLAG(s, SER_PROTECT)) fail (Error(RE_PROTECTED))
-
-#define FAIL_IF_PROTECTED_ARRAY(a) \
-    FAIL_IF_PROTECTED_SERIES(ARRAY_SERIES(a))
-
-#define FAIL_IF_PROTECTED_FRAME(f) \
-    FAIL_IF_PROTECTED_ARRAY(FRAME_VARLIST(f))
-
-#ifdef SERIES_LABELS
-#define LABEL_SERIES(s,l) s->label = (l)
-#else
-#define LABEL_SERIES(s,l)
-#endif
-
-#ifdef NDEBUG
-    #define ASSERT_SERIES_TERM(s) cast(void, 0)
-#else
-    #define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
-#endif
-
-#ifdef NDEBUG
-    #define ASSERT_SERIES(s) cast(void, 0)
-#else
-    #define ASSERT_SERIES(s) \
-        do { \
-            if (Is_Array_Series(s)) \
-                ASSERT_ARRAY(AS_ARRAY(s)); \
-            else \
-                ASSERT_SERIES_TERM(s); \
-        } while (0)
-#endif
 
 
-//#define LABEL_SERIES(s,l) s->label = (l)
 
-// !!! Remove if not used after port:
-//#define   SERIES_SIDE(s)   ((s)->link.side)
-//#define   SERIES_FRAME(s)  ((s)->link.frame)
-//#define SERIES_NOT_REBOLS(s) SERIES_SET_FLAG(s, SER_XLIB)
+
+
 
 
 /***********************************************************************
@@ -665,23 +576,8 @@ struct Reb_Position
     Val_Init_Block_Index((v), (s), 0)
 
 
-#define Copy_Values_Len_Shallow(v,l) \
-    Copy_Values_Len_Shallow_Extra((v), (l), 0)
 
-#define Copy_Array_Shallow(a) \
-    Copy_Array_At_Shallow((a), 0)
 
-#define Copy_Array_Deep_Managed(a) \
-    Copy_Array_At_Extra_Deep_Managed((a), 0, 0)
-
-#define Copy_Array_At_Deep_Managed(a,i) \
-    Copy_Array_At_Extra_Deep_Managed((a), (i), 0)
-
-#define Copy_Array_At_Shallow(a,i) \
-    Copy_Array_At_Extra_Shallow((a), (i), 0)
-
-#define Copy_Array_Extra_Shallow(a,e) \
-    Copy_Array_At_Extra_Shallow((a), 0, (e))
 
 
 #define Append_Value(a,v) \
@@ -709,49 +605,14 @@ struct Reb_Position
 #define Val_Init_Bitset(v,s) \
     Val_Init_Series((v), REB_BITSET, (s))
 
-#define SET_BIN_END(s,n) (*BIN_AT(s,n) = 0)
-
-// Arg is a binary (byte) series:
-#define BIN_HEAD(s)     ((REBYTE *)SERIES_DATA(s))
-#define BIN_TAIL(s)     (BIN_HEAD(s) + BIN_LEN(s))
-#define BIN_AT(s, n)    ((REBYTE *)SERIES_DATA(s)+(n))
-#define BIN_LEN(s)      (SERIES_LEN(s))
-
-// Arg is a unicode series:
-#define UNI_HEAD(s)     ((REBUNI *)SERIES_DATA(s))
-#define UNI_AT(s, n)    ((REBUNI *)SERIES_DATA(s)+(n))
-#define UNI_TAIL(s)     ((REBUNI *)SERIES_DATA(s)+SERIES_LEN(s))
-#define UNI_LAST(s)     ((REBUNI *)SERIES_DATA(s)+SERIES_LEN(s)-1) // make sure tail not zero
-#define UNI_LEN(s)      (SERIES_LEN(s))
-#define UNI_TERM(s)     (*UNI_TAIL(s) = 0)
-#define UNI_RESET(s)    \
-    (SERIES_SET_LEN((s), 0), \
-    UNI_HEAD(s)[0] = 0)
-
-// Arg is a binary value:
-//
-// !!! RE: VAL_BIN_AT_HEAD() see remarks on VAL_ARRAY_AT_HEAD()
-//
 #define VAL_BIN(v)              BIN_HEAD(VAL_SERIES(v))
 #define VAL_BIN_HEAD(v)         BIN_HEAD(VAL_SERIES(v))
 #define VAL_BIN_AT(v)           BIN_AT(VAL_SERIES(v), VAL_INDEX(v))
 #define VAL_BIN_AT_HEAD(v,n)    BIN_AT(VAL_SERIES(v), (n))
-#define VAL_BIN_TAIL(v)         BIN_AT(VAL_SERIES(v), VAL_SERIES(v)->tail)
-
 // Arg is a unicode value:
 #define VAL_UNI(v)      UNI_HEAD(VAL_SERIES(v))
 #define VAL_UNI_HEAD(v) UNI_HEAD(VAL_SERIES(v))
 #define VAL_UNI_AT(v)   UNI_AT(VAL_SERIES(v), VAL_INDEX(v))
-
-// Get a char, from either byte or unicode string:
-#define GET_ANY_CHAR(s,n) \
-    cast(REBUNI, BYTE_SIZE(s) ? BIN_HEAD(s)[n] : UNI_HEAD(s)[n])
-
-#define SET_ANY_CHAR(s,n,c) \
-    (BYTE_SIZE(s) \
-        ? (BIN_HEAD(s)[n]=(cast(REBYTE, (c)))) \
-        : (UNI_HEAD(s)[n]=(cast(REBUNI, (c)))) \
-    )
 
 #define VAL_ANY_CHAR(v) GET_ANY_CHAR(VAL_SERIES(v), VAL_INDEX(v))
 
@@ -876,66 +737,7 @@ struct Reb_Position
 **
 ***********************************************************************/
 
-struct Reb_Array {
-    struct Reb_Series series;
-};
-
-// These do REBSER <=> REBARR coercion.  Although it's desirable to make
-// them type incompatible for most purposes, some operations require treating
-// one kind of pointer as the other (and they are both Reb_Series)
-//
-// !!! See notes on AS_FRAME about the dodginess of how this is currently
-// done.  But also see the note that it's something that could just be
-// disabled by making arrays and series synonyms in typical "non-type-checking"
-// builds.
-//
-#define AS_ARRAY(s)         (*cast(REBARR**, &(s))) // for `AS_ARRAY(s) = arr;`
-#define ARRAY_SERIES(a)     (&(a)->series)
-
-// HEAD, TAIL, and LAST refer to specific value pointers in the array.  An
-// empty array should have an END marker in its head slot, and since it has
-// no last value then ARRAY_LAST should not be called (this is checked in
-// debug builds).  A fully constructed array should always have an END
-// marker in its last slot, which is one past the last position that is
-// valid for writing a full REBVAL.
-//
-// ARRAY_AT allows picking a value slot by index.  It is zero-based, so
-// ARRAY_AT(a, 0) is the same as ARRAY_HEAD(a).
-//
-#define ARRAY_HEAD(a)       cast(REBVAL *, SERIES_DATA(ARRAY_SERIES(a)))
-#define ARRAY_TAIL(a)       (ARRAY_HEAD(a) + ARRAY_LEN(a))
-#ifdef NDEBUG
-    #define ARRAY_LAST(a)   (ARRAY_HEAD(a) + ARRAY_LEN(a) - 1)
-#else
-    #define ARRAY_LAST(a)   ARRAY_LAST_Debug(a)
-#endif
-#define ARRAY_AT(a, n)      (ARRAY_HEAD(a) + (n))
-
-// As with an ordinary REBSER, a REBARR has separate management of its length
-// and its terminator.  Many routines seek to control these independently for
-// performance reasons (for better or worse).
-//
-#define ARRAY_LEN(a)        SERIES_LEN(&(a)->series)
-#define SET_ARRAY_LEN(a,l)  (SET_SERIES_LEN(ARRAY_SERIES(a), (l)))
-
-// !!! Write more about termination in series documentation.
-//
-#define TERM_ARRAY(a) \
-    SET_END(ARRAY_TAIL(a))
-#define RESET_ARRAY(a) \
-    (SET_ARRAY_LEN((a), 0), TERM_ARRAY(a))
-#define TERM_SERIES(s) \
-    Is_Array_Series(s) \
-        ? cast(void, TERM_ARRAY(AS_ARRAY(s))) \
-        : cast(void, memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
 #define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
-
-// Setting and getting array flags is common enough to want a macro for it
-// vs. having to extract the ARRAY_SERIES to do it each time.
-//
-#define ARRAY_SET_FLAG(a,f)     SERIES_SET_FLAG(ARRAY_SERIES(a), (f))
-#define ARRAY_CLR_FLAG(a,f)     SERIES_CLR_FLAG(ARRAY_SERIES(a), (f))
-#define ARRAY_GET_FLAG(a,f)     SERIES_GET_FLAG(ARRAY_SERIES(a), (f))
 
 // These operations do not need to take the value's index position into
 // account; they strictly operate on the array series
@@ -965,13 +767,7 @@ struct Reb_Array {
 #define VAL_ARRAY_AT_HEAD(v,n) \
     ARRAY_AT(VAL_ARRAY(v), (n))
 
-#ifdef NDEBUG
-    #define ASSERT_ARRAY(s) cast(void, 0)
-#else
-    #define ASSERT_ARRAY(s) Assert_Array_Core(s)
-#endif
 
-#define Free_Array(a)           Free_Series(ARRAY_SERIES(a))
 
 
 /***********************************************************************
@@ -985,25 +781,11 @@ struct Reb_Array {
 **  When there are too few values to warrant hashing, no hash indices
 **  are made and the array is searched linearly.
 **
-**  As with the type distinction between REBSER/REBFRM and REBSER/REBARR,
-**  there is a distinction between REBSER/REBARR and REBMAP.
 **
 ***********************************************************************/
 
-struct Reb_Map {
-    struct Reb_Array pairlist; // hashlist is held in REBSER.misc.hashlist
-};
-typedef struct Reb_Map REBMAP;
 
-#define MAP_PAIRLIST(m)         (&(m)->pairlist)
-#define MAP_HASHLIST(m)         (ARRAY_SERIES(&(m)->pairlist)->misc.hashlist)
-#define MAP_HASHES(m)           SERIES_DATA(MAP_HASHLIST(m))
 
-// !!! Should there be a MAP_LEN()?  Current implementation has NONE in
-// slots that are unused, so can give a deceptive number.  But so can
-// objects with hidden fields, locals in paramlists, etc.
-
-#define AS_MAP(s)               (*cast(REBMAP**, &(s)))
 
 #ifdef NDEBUG
     #define VAL_MAP(v)          AS_MAP(VAL_ARRAY(v))
@@ -1145,31 +927,10 @@ struct Reb_Word {
 **
 ***********************************************************************/
 
-typedef struct Reb_Frame {
-    REBARR array; // keylist is held in REBSER.misc.keylist
-} REBFRM;
 
-#ifdef NDEBUG
-    #define ASSERT_FRAME(f) cast(void, 0)
-#else
-    #define ASSERT_FRAME(f) Assert_Frame_Core(f)
-#endif
 
-// Series-to-Frame cocercion
 //
-// !!! This cast is of a pointer to a type to a pointer to a struct with
-// just that type in it may not technically be legal in the standard w.r.t.
-// strict aliasing.  Review this mechanic.  There's probably a legal way
-// of working around it.  But if worst comes to worst, it can be disabled
-// and the two can be made equivalent--except when doing a build for
-// type checking purposes.
 //
-#ifdef NDEBUG
-    #define AS_FRAME(s)     cast(REBFRM*, (s))
-#else
-    // Put a debug version here that asserts.
-    #define AS_FRAME(s)     cast(REBFRM*, (s))
-#endif
 
 struct Reb_Context {
     REBFRM *frame;
@@ -1177,8 +938,6 @@ struct Reb_Context {
     REBARR *body; // optional (currently not used at all)
 };
 
-// Context components
-//
 #ifdef NDEBUG
     #define VAL_FRAME(v)            ((v)->payload.any_context.frame)
 #else
@@ -1187,49 +946,7 @@ struct Reb_Context {
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
 
-// Special property: keylist pointer is stored in the misc field of REBSER
-//
-#define FRAME_VARLIST(f)            (&(f)->array)
-#define FRAME_KEYLIST(f)            (ARRAY_SERIES(&(f)->array)->misc.keylist)
-
-// The keys and vars are accessed by positive integers starting at 1.  If
-// indexed access is used then the debug build will check to be sure that
-// the indexing is legal.  To get a pointer to the first key or value
-// regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
-//
-#define FRAME_KEYS_HEAD(f)          ARRAY_AT(FRAME_KEYLIST(f), 1)
-#define FRAME_VARS_HEAD(f)          ARRAY_AT(FRAME_VARLIST(f), 1)
-#ifdef NDEBUG
-    #define FRAME_KEY(f,n)          ARRAY_AT(FRAME_KEYLIST(f), (n))
-    #define FRAME_VAR(f,n)          ARRAY_AT(FRAME_VARLIST(f), (n))
-#else
-    #define FRAME_KEY(f,n)          FRAME_KEY_Debug((f), (n))
-    #define FRAME_VAR(f,n)          FRAME_VAR_Debug((f), (n))
-#endif
-#define FRAME_KEY_SYM(f,n)          VAL_TYPESET_SYM(FRAME_KEY((f), (n)))
-
-// Navigate from frame series to context components.  Note that the frame's
-// "length" does not count the [0] cell of either the varlist or the keylist.
-// Hence it must subtract 1.  Internally to the frame building code, the
-// real length of the two series must be accounted for...so the 1 gets put
-// back in, but most clients are only interested in the number of keys/values
-// (and getting an answer for the length back that was the same as the length
-// requested in frame creation).
-//
-#define FRAME_LEN(f)                (ARRAY_LEN(FRAME_VARLIST(f)) - 1)
-#define FRAME_CONTEXT(f)            ARRAY_HEAD(FRAME_VARLIST(f))
-#define FRAME_ROOTKEY(f)            ARRAY_HEAD(FRAME_KEYLIST(f))
-#define FRAME_TYPE(f)               VAL_TYPE(FRAME_CONTEXT(f))
-#define FRAME_SPEC(f)               VAL_CONTEXT_SPEC(FRAME_CONTEXT(f))
-#define FRAME_BODY(f)               VAL_CONTEXT_BODY(FRAME_CONTEXT(f))
-
-#define FREE_FRAME(f) \
-    do { \
-        Free_Array(FRAME_KEYLIST(f)); \
-        Free_Array(FRAME_VARLIST(f)); \
-    } while (0);
-
-// A fully constructed frames can reconstitute the context REBVAL that it is
+// A fully constructed frame can reconstitute the context REBVAL that it is
 // a frame for from a single pointer...the REBVAL sitting in the 0 slot
 // of the frame's varlist.  In a debug build we check to make sure the
 // type of the embedded value matches the type of what is intended (so

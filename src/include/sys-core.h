@@ -114,8 +114,8 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 
 #include "sys-mem.h"
 #include "sys-deci.h"
-#include "sys-series.h" // temporarily backwards, should be after value
 #include "sys-value.h"
+#include "sys-series.h"
 #include "sys-scan.h"
 #include "sys-stack.h"
 #include "sys-do.h"
@@ -483,124 +483,6 @@ enum encoding_opts {
 
 /***********************************************************************
 **
-**  PANIC_SERIES
-**
-**      "Series Panics" will (hopefully) trigger an alert under memory
-**      tools like address sanitizer and valgrind that indicate the
-**      call stack at the moment of allocation of a series.  Then you
-**      should have TWO stacks: the one at the call of the Panic, and
-**      one where that series was alloc'd.
-**
-***********************************************************************/
-
-#if !defined(NDEBUG)
-    #define Panic_Series(s) \
-        Panic_Series_Debug((s), __FILE__, __LINE__);
-
-    #define Panic_Array(a) \
-        Panic_Series(ARRAY_SERIES(a))
-
-    #define Panic_Frame(f) \
-        Panic_Array(FRAME_VARLIST(f))
-#endif
-
-
-/***********************************************************************
-**
-**  SERIES MANAGED MEMORY
-**
-**      When a series is allocated by the Make_Series routine, it is
-**      not initially seen by the garbage collector.  To keep from
-**      leaking it, then it must be either freed with Free_Series or
-**      delegated to the GC to manage with MANAGE_SERIES.
-**
-**      (In debug builds, there is a test at the end of every Rebol
-**      function dispatch that checks to make sure one of those two
-**      things happened for any series allocated during the call.)
-**
-**      The implementation of MANAGE_SERIES is shallow--it only sets
-**      a bit on that *one* series, not the series referenced by
-**      values inside of it.  This means that you cannot build a
-**      hierarchical structure that isn't visible to the GC and
-**      then do a single MANAGE_SERIES call on the root to hand it
-**      over to the garbage collector.  While it would be technically
-**      possible to deeply walk the structure, the efficiency gained
-**      from pre-building the structure with the managed bit set is
-**      significant...so that's how deep copies and the loader do it.
-**
-**      (In debug builds, if any unmanaged series are found inside
-**      of values reachable by the GC, it will raise an alert.)
-**
-***********************************************************************/
-
-#define MANAGE_SERIES(series) \
-    Manage_Series(series)
-
-#define MANAGE_ARRAY(array) \
-    MANAGE_SERIES(ARRAY_SERIES(array))
-
-#define ENSURE_SERIES_MANAGED(series) \
-    (SERIES_GET_FLAG((series), SER_MANAGED) \
-        ? NOOP \
-        : MANAGE_SERIES(series))
-
-#define ENSURE_ARRAY_MANAGED(array) \
-    ENSURE_SERIES_MANAGED(ARRAY_SERIES(array))
-
-// Debug build includes testing that the managed state of the frame and
-// its word series is the same for the "ensure" case.  It also adds a
-// few assert macros.
-//
-#ifdef NDEBUG
-    #define MANAGE_FRAME(frame) \
-        (MANAGE_ARRAY(FRAME_VARLIST(frame)), \
-            MANAGE_ARRAY(FRAME_KEYLIST(frame)))
-
-    #define ENSURE_FRAME_MANAGED(frame) \
-        (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-            ? NOOP \
-            : MANAGE_FRAME(frame))
-
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        NOOP
-
-    #define ASSERT_SERIES_MANAGED(series) \
-        NOOP
-
-    #define ASSERT_ARRAY_MANAGED(array) \
-        NOOP
-
-    #define ASSERT_VALUE_MANAGED(value) \
-        NOOP
-#else
-    #define MANAGE_FRAME(frame) \
-        Manage_Frame_Debug(frame)
-
-    #define ENSURE_FRAME_MANAGED(frame) \
-        ((ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-        && ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)) \
-            ? NOOP \
-            : MANAGE_FRAME(frame))
-
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        Manuals_Leak_Check_Debug((manuals), (label_str))
-
-    #define ASSERT_SERIES_MANAGED(series) \
-        do { \
-            if (!SERIES_GET_FLAG((series), SER_MANAGED)) \
-                Panic_Series(series); \
-        } while (0)
-
-    #define ASSERT_ARRAY_MANAGED(array) \
-        ASSERT_SERIES_MANAGED(ARRAY_SERIES(array))
-
-    #define ASSERT_VALUE_MANAGED(value) \
-        assert(Is_Value_Managed(value, TRUE))
-#endif
-
-
-/***********************************************************************
-**
 **  DEBUG PROBING
 **
 **      Debugging Rebol has traditionally been "printf-style".  Hence
@@ -655,56 +537,6 @@ enum encoding_opts {
 #endif
 
 
-//
-// GUARDING SERIES (OR VALUE CONTENTS) FROM GARBAGE COLLECTION
-//
-// The garbage collector can run anytime the evaluator runs.  So if a series
-// has had MANAGE_SERIES run on it, the potential exists that any C pointers
-// that are outstanding may "go bad" if the series wasn't reachable from
-// the root set.  This is important to remember any time a pointer is held
-// across a call that runs arbitrary user code.
-//
-// This simple stack approach allows pushing protection for a series, and
-// then can release protection only for the last series pushed.  A parallel
-// pair of macros exists for pushing and popping of guard status for values,
-// to protect any series referred to by the value's contents.  (Note: This can
-// only be used on values that do not live inside of series, because there is
-// no way to guarantee a value in a series will keep its address besides
-// guarding the series AND locking it from resizing.)
-//
-// The guard stack is not meant to accumulate, and must be cleared out before
-// a command ends or a PUSH_TRAP/DROP_TRAP.
-//
-
-#define PUSH_GUARD_SERIES(s) \
-    Guard_Series_Core(s)
-
-#define PUSH_GUARD_ARRAY(a) \
-    PUSH_GUARD_SERIES(ARRAY_SERIES(a))
-
-#define DROP_GUARD_SERIES(s) \
-    do { \
-        GC_Series_Guard->content.dynamic.len--; \
-        assert((s) == cast(REBSER **, GC_Series_Guard->content.dynamic.data)[ \
-            GC_Series_Guard->content.dynamic.len \
-        ]); \
-    } while (0)
-
-#define DROP_GUARD_ARRAY(a) \
-    DROP_GUARD_SERIES(ARRAY_SERIES(a))
-
-#define PUSH_GUARD_FRAME(f) \
-    PUSH_GUARD_ARRAY(FRAME_VARLIST(f)) // varlist points to/guards keylist
-
-#define DROP_GUARD_FRAME(f) \
-    DROP_GUARD_ARRAY(FRAME_VARLIST(f))
-
-#ifdef NDEBUG
-    #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
-#else
-    #define ASSERT_NOT_IN_SERIES_DATA(v) \
-        Assert_Not_In_Series_Data_Debug(v)
-#endif
 
 #define PUSH_GUARD_VALUE(v) \
     Guard_Value_Core(v)
