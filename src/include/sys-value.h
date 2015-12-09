@@ -105,16 +105,23 @@ struct Reb_Map;
 typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
 
-/***********************************************************************
-**
-**  REBOL Value Type
-**
-**      This is used for all REBOL values. This is a forward
-**      declaration. See end of this file for actual structure.
-**
-***********************************************************************/
+// A `#pragma pack` of 4 was requested by the R3-Alpha source for the
+// duration of %sys-value.h:
+//
+//     http://stackoverflow.com/questions/3318410/
+//
+// Pushed here and popped at the end of the file to the previous value
+//
+// !!! Compilers are free to ignore pragmas (or error on them), and this can
+// cause a loss of performance...so it might not be worth doing.  Especially
+// because the ordering of fields in REBVAL members is alignment-conscious
+// already.  Since Rebol series indexes (REBINT) and length counts (REBCNT)
+// are still 32-bits on 64-bit platforms, it means that often REBINTs are
+// "paired up" in structures to create a 64-bit alignment for a pointer
+// that comes after them.  So everything is pretty well aligned as-is.
+//
+#pragma pack(push,4)
 
-#pragma pack(4)
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -570,9 +577,9 @@ typedef struct Reb_Tuple {
 **
 ***********************************************************************/
 
-#pragma pack()
+#pragma pack(pop)
 #include "reb-gob.h"
-#pragma pack(4)
+#pragma pack(push,4)
 
 struct Reb_Any_Series
 {
@@ -1630,7 +1637,9 @@ struct Reb_Value
     union Reb_Value_Payload payload;
 };
 
-#pragma pack()
+#pragma pack(pop)
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  DEBUG PROBING
@@ -1681,5 +1690,5 @@ struct Reb_Value
         ]); \
     } while (0)
 
-#endif // value.h
 
+#endif // %sys-value.h
