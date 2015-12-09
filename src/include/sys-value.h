@@ -343,18 +343,54 @@ enum {
 #define SET_ZEROED(v,t) \
     (CLEAR((v), sizeof(REBVAL)), VAL_RESET_HEADER((v),(t)))
 
-// Setting the END is optimized.  It is possible to signal an END via setting
-// the low bit of any 32/64-bit value, including to add the bit to a pointer,
-// but this routine will wipe all the other bits and just set it to 1.
+//=////////////////////////////////////////////////////////////////////////=//
 //
+//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Historically Rebol arrays were always one value longer than their maximum
+// content, and this final slot was used for a special REBVAL called END!.
+// Like a null terminator in a C string, it was possible to start from one
+// point in the series and traverse to find the end marker without needing
+// to maintain a count.  Rebol series store their length also--but it's
+// faster and more general to use the terminator.
+//
+// Ren-C changed this so that end is not a data type, but rather seeing a
+// header slot with the lowest bit set to 0.  (See OPTS_VALUE_NOT_END for
+// an explanation of this choice.)  The upshot is that a data structure
+// designed to hold Rebol arrays is able to terminate an array at full
+// capacity with a pointer-sized value with the lowest 2 bits clear, and
+// use the rest of the bits for other purposes.  (See OPTS_VALUE_REBVAL_DEBUG
+// for why it's the low 2 bits and not just the lowest bit.)
+//
+// This means not only is a full REBVAL not needed to terminate, the sunk cost
+// of an existing pointer can be used to avoid needing even 1/4 of a REBVAL
+// for a header to terminate.  (See the `prev` pointer in `struct Reb_Chunk`
+// from %sys-stack.h for a simple example of the technique.)
+//
+// !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
+// is important to keep these in sync.  R3-Alpha sought to give code the
+// freedom to work with unterminated arrays if the cost of writing terminators
+// was not necessary.  Ren-C pushed back against this to try and be more
+// uniform to get the invariants under control.  A formal balance is still
+// being sought of when terminators will be required and when they will not.
+//
+
+#define IS_END(v)           ((v)->header.all % 2 == 0)
+#define NOT_END(v)          ((v)->header.all % 2 == 1)
+
 #ifdef NDEBUG
     #define SET_END(v)      ((v)->header.all = 0)
 #else
     #define SET_END(v)      SET_END_Debug(v)
 #endif
 
-#define IS_END(v)           ((v)->header.all % 2 == 0)
-#define NOT_END(v)          ((v)->header.all % 2 == 1)
+// Pointer to a global END marker.  Though this global value is allocated to
+// the size of a REBVAL, only the header is initialized.  This means if any
+// of the value payload is accessed, it will trip memory checkers like
+// Valgrind or Address Sanitizer to warn of the mistake.
+//
 #define END_VALUE           PG_End_Val
 
 #ifdef NDEBUG
