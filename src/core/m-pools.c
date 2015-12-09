@@ -576,8 +576,12 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
 // or an operation like expansion.  Currently not exported
 // from this file.
 //
-static REBOOL Series_Data_Alloc(REBSER *series, REBCNT length, REBYTE wide, REBCNT flags)
-{
+static REBOOL Series_Data_Alloc(
+    REBSER *series,
+    REBCNT length,
+    REBYTE wide,
+    REBCNT flags
+) {
     REBCNT size; // size of allocation (possibly bigger than we need)
 
     REBCNT pool_num = FIND_POOL(length * wide);
@@ -585,6 +589,11 @@ static REBOOL Series_Data_Alloc(REBSER *series, REBCNT length, REBYTE wide, REBC
     // Data should have not been allocated yet OR caller has extracted it
     // and nulled it to indicate taking responsibility for freeing it.
     assert(!series->data);
+
+    // !!! See BYTE_SIZE() for the rationale, and consider if this is a
+    // good tradeoff to be making.
+    //
+    assert(wide == 1 || (wide & 1) != 1);
 
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
@@ -814,8 +823,10 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     // managed state, for efficiency?
 
     if (!(flags & MKS_GC_MANUALS)) {
+        //
         // We can only add to the GC_Manuals series if the series itself
         // is not GC_Manuals...
+        //
 
         if (SERIES_FULL(GC_Manuals)) Extend_Series(GC_Manuals, 8);
         cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail++] = series;
@@ -970,10 +981,15 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         memmove(series->data + start + extra, series->data + start, size - start);
         series->tail += delta;
 
-        if ((SERIES_LEN(series) + SERIES_BIAS(series)) * wide >= SERIES_TOTAL(series)) {
+        if (
+            (SERIES_LEN(series) + SERIES_BIAS(series)) * wide
+            >= SERIES_TOTAL(series)
+        ) {
+            // This shouldn't be possible, but R3-Alpha had code checking for
+            // it that panicked.  Should it be made into an assert?
+            //
             Dump_Series(series, "Overflow");
-            assert(FALSE);
-            panic (Error(RE_MISC)); // shouldn't be possible, but code here panic'd
+            panic (Error(RE_MISC));
         }
 
         return;
@@ -1028,7 +1044,8 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     assert(SERIES_BIAS(series) == 0); // should be reset
 
-    // If necessary, add series to the recently expanded list:
+    // If necessary, add series to the recently expanded list
+    //
     if (n_found >= MAX_EXPAND_LIST)
         Prior_Expand[n_available] = series;
 
@@ -1041,6 +1058,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     series->tail = tail_old + delta;
 
     // We have to de-bias the data pointer before we can free it.
+    //
     Free_Unbiased_Series_Data(data_old - (wide * bias_old), size_old);
 
 #if !defined(NDEBUG)
@@ -1181,9 +1199,11 @@ void Free_Series(REBSER *series)
         = &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
 
 #if !defined(NDEBUG)
+    //
     // If a series has already been freed, we'll find out about that
     // below indirectly, so better in the debug build to get a clearer
     // error that won't be conflated with a possible tracking problem
+    //
     if (SERIES_FREED(series)) {
         Debug_Fmt("Trying to Free_Series() on an already freed series");
         Panic_Series(series);
@@ -1191,6 +1211,7 @@ void Free_Series(REBSER *series)
 
     // We can only free a series that is not under management by the
     // garbage collector
+    //
     if (SERIES_GET_FLAG(series, SER_MANAGED)) {
         Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
         Panic_Series(series);
@@ -1200,10 +1221,12 @@ void Free_Series(REBSER *series)
     // Note: Code repeated in Manage_Series()
     assert(GC_Manuals->tail >= 1);
     if (*last_ptr != series) {
+        //
         // If the series is not the last manually added series, then
         // find where it is, then move the last manually added series
         // to that position to preserve it when we chop off the tail
         // (instead of keeping the series we want to free).
+        //
         REBSER **current_ptr = last_ptr - 1;
         while (*current_ptr != series) {
             assert(current_ptr > cast(REBSER**, GC_Manuals->data));
@@ -1214,6 +1237,7 @@ void Free_Series(REBSER *series)
     GC_Manuals->tail--; // !!! Should it ever shrink or save memory?
 
     // With bookkeeping done, use the same routine the GC uses to free
+    //
     GC_Kill_Series(series);
 }
 
@@ -1301,6 +1325,7 @@ void Manage_Series(REBSER *series)
     // Note: Code repeated in Free_Series()
     assert(GC_Manuals->tail >= 1);
     if (*last_ptr != series) {
+        //
         // If the series is not the last manually added series, then
         // find where it is, then move the last manually added series
         // to that position to preserve it when we chop off the tail
@@ -1370,7 +1395,7 @@ void Manuals_Leak_Check_Debug(REBCNT manuals_len, const char *label_str)
         // that much good in helping debug it.  You'll probably need to
         // add additional checking in the Manage_Series and Free_Series
         // routines that checks against the caller's manuals_len.
-
+        //
         assert(FALSE);
     }
 }
