@@ -179,9 +179,140 @@ union Reb_Value_Header {
 #endif
 };
 
-// Value type identifier (generally, should be handled as integer):
+// The value option flags are 8 individual bitflags which apply to every
+// value of every type.  Due to their scarcity, they are chosen carefully.
+//
+enum {
+    // `OPT_VALUE_NOT_END`
+    //
+    // If 1, it means this is *not* an end marker.  The bit is picked
+    // strategically to be in the negative and in the lowest order position.
+    // This means that any even pointer-sized value (such as...all pointers)
+    // will have its zero bit set, and thus implicitly signal an end.
+    //
+    // If this bit is 0, it means that *no other header bits are valid*,
+    // as it may contain arbitrary data used for non-REBVAL purposes.
+    //
+    OPT_VALUE_NOT_END = 0,
 
-// get and set only the type (not flags)
+    // `OPT_VALUE_REBVAL_DEBUG`
+    //
+    // This is for the debug build, to make it safer to use the implementation
+    // trick of OPT_VALUE_NOT_END.  It indicates the slot is "REBVAL sized",
+    // and can be written into--including to be written with SET_END().
+    //
+    // It's again a strategic choice--the 2nd lowest bit and in the negative.
+    // On *most* known platforms, testing an arbitrary pointer value for
+    // this bit will give 0 and suggest it is *not* a REBVAL (while still
+    // indicating an END because of the 0 in the lowest bit).  By checking the
+    // bit before writing a header, a pointer within a container doing
+    // double-duty as an implicit terminator for the contained values can
+    // trigger an alert if the values try to overwrite it.
+    //
+    // !!! This checking feature is not fully implemented, but will be soon.
+    //
+#ifdef NDEBUG
+    //
+    // The assumption that (pointer % 2 = 0) is a very safe one on all known
+    // platforms Rebol might run on.  But although (pointer % 4 = 0) is almost
+    // always true, it has created porting problems for other languages:
+    //
+    // http://stackoverflow.com/questions/19991506
+    //
+    // Hence this check is debug-only, and should be easy to switch off.
+    // The release build should not make assumptions about using this
+    // second bit for any other purpose.
+    //
+    OPT_VALUE_DO_NOT_USE,
+#else
+    // We want to be assured that we are not trying to take the type of a
+    // value that is actually an END marker, because end markers chew out only
+    // one bit--the rest is allowed to be anything (a pointer value, etc.)
+    //
+    OPT_VALUE_REBVAL_DEBUG,
+#endif
+
+    // `OPT_VALUE_FALSE`
+    //
+    // This flag indicates that the attached value is one of the two cases of
+    // Rebol values that are considered "conditionally false".  This means
+    // that IF or WHILE or CASE would consider them to not be a test-positive
+    // for running the associated code.
+    //
+    // The two cases of conditional falsehood are (LOGIC! FALSE), and the
+    // NONE! value.  In order to optimize tests used by conditional constructs,
+    // this header bit is set to 1 for those two values...while all others
+    // set it to 0.
+    //
+    // This means that a LOGIC! does not need to use its data payload, and
+    // can just check this bit to know if it is true or false.  Also, testing
+    // for something being (LOGIC! TRUE) or (LOGIC! FALSE) can be done with
+    // a bit mask against one memory location in the header--not two tests
+    // against the type in the header and some byte in the payload.
+    //
+    OPT_VALUE_FALSE,
+
+    // `OPT_VALUE_LINE`
+    //
+    // If the line marker bit is 1, then when the value is molded it will put
+    // a newline before the value.  The logic is a bit more subtle than that,
+    // because an ANY-PATH! could not be LOADed back if this were allowed.
+    // The bit is set initially by what the scanner detects, and then left
+    // to the user's control after that.
+    //
+    // !!! The native `new-line` is used set this, which has a somewhat
+    // poor name considering its similarity to `newline` the line feed char.
+    //
+    OPT_VALUE_LINE,
+
+    // `OPT_VALUE_THROWN`
+    //
+    // The thrown bit is being phased out, as the concept of a value itself
+    // being "thrown" does not make a lot of sense, compared to the idea
+    // that the evaluator itself is in a "throwing state".  If a thrown bit
+    // can get on a value, then one has to worry about that value getting
+    // copied and showing up somewhere that it doesn't make sense.
+    //
+    // Originally, R3-Alpha did not have a thrown bit on values, rather the
+    // throw itself was represented as a certain kind of ERROR! value.  Ren-C
+    // modifications extended THROW to allow a /NAME that could be a full
+    // REBVAL (instead of a selection from a limited set of words).  This
+    // made it possible to identify a throw by an object, function,
+    // fully bound word, etc.
+    //
+    // But even after the change, the "thrown-ness" was still a property
+    // of the "throw-name REBVAL".  By virtue of being a property on a
+    // value *it could be dropped on the floor and ignored*.  There were
+    // countless examples of this originating in the code.
+    //
+    // As part of the process of stamping out the idea that thrownness comes
+    // from a value, all routines that can potentially return thrown values
+    // have been adapted to return a boolean and adopt the XXX_Throws()
+    // naming convention, so one can write:
+    //
+    //     if (XXX_Throws()) {
+    //        /* handling code */
+    //     }
+    //
+    // This forced every caller to consciously have a code path dealing with
+    // potentially thrown values, reigning in the previous problems.  At
+    // time of writing, the situation is much more under control, and natives
+    // return a flag indicating that they wish to throw a value vs. return
+    // one.  This is checked redundantly against the value bit for now, but
+    // it is likely that the bit will be removed in favor of pushing the
+    // responsibility into the evaluator state.
+    //
+    OPT_VALUE_THROWN,
+
+    OPT_VALUE_MAX
+};
+
+// Reading/writing routines for the 8 "OPTS" flags
+//
+#define VAL_OPTS_DATA(v)    ((v)->header.bitfields.opts)
+#define VAL_SET_OPT(v,n)    SET_FLAG(VAL_OPTS_DATA(v), n)
+#define VAL_GET_OPT(v,n)    GET_FLAG(VAL_OPTS_DATA(v), n)
+#define VAL_CLR_OPT(v,n)    CLR_FLAG(VAL_OPTS_DATA(v), n)
 
 #ifdef NDEBUG
     #define VAL_TYPE(v)     cast(enum Reb_Kind, (v)->header.bitfields.type)
@@ -226,24 +357,10 @@ union Reb_Value_Header {
 #define NOT_END(v)          ((v)->header.all % 2 == 1)
 #define END_VALUE           PG_End_Val
 
-// Value option flags:
-enum {
-    OPT_VALUE_NOT_END = 0,  // Not an END signal (so other header bits valid)
 #ifdef NDEBUG
-    OPT_VALUE_DO_NOT_USE,   // Abusing 2nd pointer bit is not entirely portable
 #else
-    OPT_VALUE_REBVAL_DEBUG, // Slot is a full REBVAL, not just an END proxy
 #endif
-    OPT_VALUE_FALSE,        // Value is conditionally false (optimization)
-    OPT_VALUE_LINE,         // Line break occurs before this value
-    OPT_VALUE_THROWN,       // Value is /NAME of a THROW (arg via THROWN_ARG)
-    OPT_VALUE_MAX
-};
 
-#define VAL_OPTS_DATA(v)    ((v)->header.bitfields.opts)
-#define VAL_SET_OPT(v,n)    SET_FLAG(VAL_OPTS_DATA(v), n)
-#define VAL_GET_OPT(v,n)    GET_FLAG(VAL_OPTS_DATA(v), n)
-#define VAL_CLR_OPT(v,n)    CLR_FLAG(VAL_OPTS_DATA(v), n)
 
 // Used for 8 datatype-dependent flags (or one byte-sized data value)
 #define VAL_EXTS_DATA(v)    ((v)->header.bitfields.exts)
@@ -1156,31 +1273,6 @@ struct Reb_Call;
 enum {
     R_OUT = 0,
 
-    // !!! The open-sourced Rebol3 of 12-Dec-2012 had the concept that
-    // "thrown-ness" was a property of a value (in particular, certain kinds
-    // of ERROR! which were not to ever be leaked directly to userspace).
-    // Ren/C modifications extended THROW to allow a /NAME that could be
-    // a full REBVAL (instead of a selection from a limited set of words)
-    // hence making it possible to identify a throw by an object, function,
-    // fully bound word, etc.  Yet still the "thrown-ness" was a property
-    // of the throw-name REBVAL, and by virtue of being a property on a
-    // value *it could be dropped on the floor and ignored*.  There were
-    // countless examples of this.
-    //
-    // As part of the process of stamping out the idea that thrownness comes
-    // from a value, all routines that can potentially return thrown values
-    // have been adapted to return a boolean and adopt the XXX_Throws()
-    // naming convention, so one can write:
-    //
-    //     if (XXX_Throws()) {
-    //        /* handling code */
-    //     }
-    //
-    // This forced every caller to consciously have a code path dealing with
-    // potentially thrown values, reigning in the previous problems.  Yet
-    // native function implementations didn't have a way to signal that
-    // return result when the stack passed through them.
-    //
     // R_OUT_IS_THROWN is a test of that signaling mechanism.  It is currently
     // being kept in parallel with the THROWN() bit and ensured as matching.
     // Being in the state of doing a stack unwind will likely be knowable
