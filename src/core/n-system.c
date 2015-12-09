@@ -291,18 +291,6 @@ REBNATIVE(evoke)
     return R_UNSET;
 }
 
-#ifdef NOT_USED
-//
-//  in-context: native none
-//
-REBNATIVE(in_context)
-{
-    REBVAL *value;
-    value = D_ARG(1);
-    VAL_FRAME(ROOT_USER_CONTEXT) = VAL_FRAME(value);
-    return R_UNSET;
-}
-#endif
 
 //
 //  limit-usage: native [

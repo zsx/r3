@@ -1818,8 +1818,6 @@ void Shutdown_Scanner(void)
 //  ]
 //
 REBNATIVE(transcode)
-//
-// Allows BINARY! input only!
 {
     PARAM(1, source);
     REFINE(2, next);

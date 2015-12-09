@@ -296,7 +296,7 @@ REBNATIVE(new_line_q)
 //
 //  now: native [
 //  
-//  "Returns date and time."
+//  "Returns current date and time with timezone adjustment."
 //  
 //      /year "Returns year only"
 //      /month "Returns month only"
@@ -311,8 +311,6 @@ REBNATIVE(new_line_q)
 //  ]
 //
 REBNATIVE(now)
-//
-// Return the current date and time with timezone adjustment.
 {
     REBOL_DAT dat;
     REBINT n = -1;
@@ -1346,9 +1344,6 @@ REBNATIVE(list_env)
 //  ]
 //
 REBNATIVE(access_os)
-//
-// access-os word
-// /set value
 {
 #define OS_ENA   -1
 #define OS_EINVAL -2

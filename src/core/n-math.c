@@ -299,8 +299,6 @@ REBNATIVE(square_root)
 //  ]
 //
 REBNATIVE(shift)
-//
-// shift int bits arithmetic or logical
 {
     REBI64 b = VAL_INT64(D_ARG(2));
     REBVAL *a = D_ARG(1);
@@ -458,6 +456,7 @@ REBNATIVE(equal_q)
     return R_FALSE;
 }
 
+
 //
 //  not-equal?: native [
 //  
@@ -472,6 +471,7 @@ REBNATIVE(not_equal_q)
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_FALSE;
     return R_TRUE;
 }
+
 
 //
 //  equiv?: native [
@@ -488,6 +488,7 @@ REBNATIVE(equiv_q)
     return R_FALSE;
 }
 
+
 //
 //  not-equiv?: native [
 //  
@@ -502,6 +503,7 @@ REBNATIVE(not_equiv_q)
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
     return R_TRUE;
 }
+
 
 //
 //  strict-equal?: native [
@@ -518,6 +520,7 @@ REBNATIVE(strict_equal_q)
     return R_FALSE;
 }
 
+
 //
 //  strict-not-equal?: native [
 //  
@@ -532,6 +535,7 @@ REBNATIVE(strict_not_equal_q)
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_FALSE;
     return R_TRUE;
 }
+
 
 //
 //  same?: native [
@@ -548,6 +552,7 @@ REBNATIVE(same_q)
     return R_FALSE;
 }
 
+
 //
 //  lesser?: native [
 //  
@@ -561,6 +566,7 @@ REBNATIVE(lesser_q)
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_FALSE;
     return R_TRUE;
 }
+
 
 //
 //  lesser-or-equal?: native [
@@ -576,6 +582,7 @@ REBNATIVE(lesser_or_equal_q)
     return R_TRUE;
 }
 
+
 //
 //  greater?: native [
 //  
@@ -590,6 +597,7 @@ REBNATIVE(greater_q)
     return R_FALSE;
 }
 
+
 //
 //  greater-or-equal?: native [
 //  
@@ -603,6 +611,7 @@ REBNATIVE(greater_or_equal_q)
     if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_TRUE;
     return R_FALSE;
 }
+
 
 //
 //  maximum: native [
@@ -627,6 +636,7 @@ REBNATIVE(maximum)
     if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
     return R_ARG2;
 }
+
 
 //
 //  minimum: native [

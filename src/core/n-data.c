@@ -403,9 +403,6 @@ REBNATIVE(set_q)
 //  ]
 //
 REBNATIVE(unbind)
-//
-// word | context
-// /deep
 {
     REBVAL *word = D_ARG(1);
 
