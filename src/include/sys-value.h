@@ -706,8 +706,6 @@ struct Reb_Position
 **
 ***********************************************************************/
 
-#define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
-
 // These operations do not need to take the value's index position into
 // account; they strictly operate on the array series
 //
@@ -735,6 +733,8 @@ struct Reb_Position
 //
 #define VAL_ARRAY_AT_HEAD(v,n) \
     ARRAY_AT(VAL_ARRAY(v), (n))
+
+#define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
 
 
 

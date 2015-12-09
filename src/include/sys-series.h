@@ -163,7 +163,7 @@ struct Reb_Series {
         // deliberately set to either NULL or another pointer value in order
         // to serve as an implicit terminator.  Coming soon.
         //
-        /*struct Reb_Value values[1];*/ // disabled until header reordering
+        struct Reb_Value values[1];
     } content;
 
     union {
@@ -614,8 +614,6 @@ struct Reb_Array {
     Is_Array_Series(s) \
         ? cast(void, TERM_ARRAY(AS_ARRAY(s))) \
         : cast(void, memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
-
-#define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARRAY_SERIES to do it each time.
