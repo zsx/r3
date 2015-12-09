@@ -378,17 +378,88 @@ enum encoding_opts {
 #define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
 
 
+// All THROWN values have two parts: the REBVAL arg being thrown and
+// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
+// created with plain THROW instead of THROW/NAME then its name is NONE!).
+// You cannot fit both values into a single value's bits of course, but
+// since only one THROWN() value is supposed to exist on the stack at a
+// time the arg part is stored off to the side when one is produced
+// during an evaluation.  It must be processed before another evaluation
+// is performed, and if the GC or DO are ever given a value with a
+// THROWN() bit they will assert!
+//
+// A reason to favor the name as "the main part" is that having the name
+// value ready-at-hand allows easy testing of it to see if it needs
+// to be passed on.  That happens more often than using the arg, which
+// will occur exactly once (when it is caught).
 
+#ifdef NDEBUG
+    #define CONVERT_NAME_TO_THROWN(name,arg) \
+        do { \
+            VAL_SET_OPT((name), OPT_VALUE_THROWN); \
+            (TG_Thrown_Arg = *(arg)); \
+        } while (0)
 
+    #define CATCH_THROWN(arg,thrown) \
+        do { \
+            VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
+            (*(arg) = TG_Thrown_Arg); \
+        } while (0)
+#else
+    #define CONVERT_NAME_TO_THROWN(n,a) \
+        Convert_Name_To_Thrown_Debug(n, a)
+
+    #define CATCH_THROWN(a,t) \
+        Catch_Thrown_Debug(a, t)
+#endif
+
+#define THROWN(v)           (VAL_GET_OPT((v), OPT_VALUE_THROWN))
 
 
 /***********************************************************************
 **
+**  VARIABLE ACCESS
+**
+**  When a word is bound to a frame by an index, it becomes a means of
+**  reading and writing from a persistent storage location.  The term
+**  "variable" is used to refer to a REBVAL slot reached through a
+**  binding in this way.
+**
+**  All variables can be in a protected state where they cannot be
+**  written.  Hence const access is the default, and a const pointer is
+**  given back which may be inspected but the contents not modified.  If
+**  mutable access is required, one may either demand write access
+**  (and get a failure and longjmp'd error if not possible) or ask
+**  more delicately with a TRY.
 **
 ***********************************************************************/
 
+// Gives back a const pointer to var itself, raises error on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define GET_VAR(w) \
+    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
 
+// Gives back a const pointer to var itself, returns NULL on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define TRY_GET_VAR(w) \
+    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
 
+// Gets mutable pointer to var itself, raises error on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define GET_MUTABLE_VAR(w) \
+    (Get_Var_Core((w), TRUE, TRUE))
+
+// Gets mutable pointer to var itself, returns NULL on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define TRY_GET_MUTABLE_VAR(w) \
+    (Get_Var_Core((w), FALSE, TRUE))
+
+// Makes a copy of the var's value, raises error on failure.
+// (Failure if unbound or stack-relative with no call on stack)
+// Copy means you can change it and not worry about PROTECT status of the var
+// NOTE: *value* itself may carry its own PROTECT status if series/object
+#define GET_VAR_INTO(v,w) \
+    (Get_Var_Into_Core((v), (w)))
 
 
 /***********************************************************************
@@ -481,32 +552,6 @@ enum encoding_opts {
 #endif
 
 
-/***********************************************************************
-**
-**  DEBUG PROBING
-**
-**      Debugging Rebol has traditionally been "printf-style".  Hence
-**      a good mechanism for putting debug info into the executable and
-**      creating IDE files was not in the open source release.  As
-**      these weaknesses are remedied with CMake targets and other
-**      methods, adding probes into the code is still useful.
-**
-**      In order to make it easier to find out where a piece of debug
-**      spew is coming from, the file and line number are included.
-**      You should not check in calls to PROBE, and they are only
-**      in Debug builds.
-**
-***********************************************************************/
-
-#if !defined(NDEBUG)
-    #define PROBE(v) \
-        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
-
-    #define PROBE_MSG(v, m) \
-        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
-#endif
-
-
 #define NO_RESULT   ((REBCNT)(-1))
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS
@@ -535,19 +580,6 @@ enum encoding_opts {
 #else
 #define BUF_OS_STR BUF_FORM
 #endif
-
-
-
-#define PUSH_GUARD_VALUE(v) \
-    Guard_Value_Core(v)
-
-#define DROP_GUARD_VALUE(v) \
-    do { \
-        GC_Value_Guard->content.dynamic.len--; \
-        assert((v) == cast(REBVAL **, GC_Value_Guard->content.dynamic.data)[ \
-            GC_Value_Guard->content.dynamic.len \
-        ]); \
-    } while (0)
 
 
 /***********************************************************************
