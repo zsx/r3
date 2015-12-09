@@ -113,7 +113,7 @@
 #define DS_PUSH_TRASH \
     ( \
         SERIES_FITS(ARRAY_SERIES(DS_Array), 1) \
-            ? cast(void, ++DS_Array->series.tail) \
+            ? cast(void, ++DS_Array->series.content.dynamic.len) \
             : ( \
                 SERIES_REST(ARRAY_SERIES(DS_Array)) >= STACK_LIMIT \
                     ? Trap_Stack_Overflow() \
@@ -146,7 +146,8 @@
 // POPPING AND "DROPPING"
 
 #define DS_DROP \
-    (--ARRAY_SERIES(DS_Array)->tail, SET_END(ARRAY_TAIL(DS_Array)), NOOP)
+    (--ARRAY_SERIES(DS_Array)->content.dynamic.len, \
+        SET_END(ARRAY_TAIL(DS_Array)), NOOP)
 
 #define DS_POP_INTO(v) \
     do { \

@@ -64,11 +64,12 @@ union Reb_Value_Header {
 struct Reb_Value;
 typedef struct Reb_Value REBVAL;
 
-struct Reb_Series;
+// Temporary commenting until header reordering
+/*struct Reb_Series;
 typedef struct Reb_Series REBSER;
 
 struct Reb_Array;
-typedef struct Reb_Array REBARR;
+typedef struct Reb_Array REBARR;*/
 
 // Value type identifier (generally, should be handled as integer):
 
@@ -482,60 +483,6 @@ typedef struct Reb_Tuple {
 #endif
 
 
-/***********************************************************************
-**
-*/  struct Reb_Series
-/*
-**      Series header points to data and keeps track of tail and size.
-**      Additional fields can be used for attributes and GC. Every
-**      string and block in REBOL uses one of these to permit GC
-**      and compaction.
-**
-***********************************************************************/
-{
-    REBYTE  *data;      // series data head
-#ifdef SERIES_LABELS
-    const REBYTE  *label;       // identify the series
-#endif
-
-    REBCNT  tail;       // one past end of useful data
-    REBCNT  rest;       // total number of units from bias to end
-    REBINT  info;       // holds width and flags
-#if defined(__LP64__) || defined(__LLP64__)
-    REBCNT padding; /* make next pointer is naturally aligned */
-#endif
-    union {
-        REBCNT size;    // used for vectors and bitsets
-        REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by FRAME
-        struct {
-            REBCNT wide:16;
-            REBCNT high:16;
-        } area;
-        REBFLG negated; // used by bitsets
-        REBUPT all; /* for copying, must have the same size as the union */
-    } misc;
-
-// !!! There is an issue if this is put earlier in the structure that it
-// mysteriously makes HTTPS reads start timing out.  So it's either alignment
-// or some other issue, which will hopefully be ferreted out by more and
-// stronger checks (ubsan, etc).  For now, putting it at the end seems to work,
-// but it's sketchy so be forewarned, and test `read https://...` if it moves.
-//
-#if !defined(NDEBUG)
-    REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
-#endif
-};
-
-#define SERIES_REST(s)   ((s)->rest)
-#define SERIES_FLAGS(s)  ((s)->info)
-#define SERIES_WIDE(s)   (((s)->info) & 0xff)
-#define SERIES_DATA(s)   ((s)->data)
-#define SERIES_AT(s,i)   (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
-
-#define SERIES_LEN(s)           ((s)->tail + 0)
-#define SET_SERIES_LEN(s,l)     ((s)->tail = (l))
-
 // These flags are returned from Do_Next_Core and Do_Next_May_Throw, in
 // order to keep from needing another returned value in addition to the
 // index (as they both imply that no "next index" exists to be returned)
@@ -562,10 +509,15 @@ typedef struct Reb_Tuple {
 #define SERIES_USED(s) ((SERIES_LEN(s) + 1) * SERIES_WIDE(s))
 
 // Optimized expand when at tail (but, does not reterminate)
-#define EXPAND_SERIES_TAIL(s,l) if (SERIES_FITS(s, l)) s->tail += l; else Expand_Series(s, AT_TAIL, l)
-#define RESIZE_SERIES(s,l) s->tail = 0; if (!SERIES_FITS(s, l)) Expand_Series(s, AT_TAIL, l); s->tail = 0
-#define RESET_SERIES(s) s->tail = 0; TERM_SERIES(s)
-#define RESET_TAIL(s) s->tail = 0
+#define EXPAND_SERIES_TAIL(s,l) \
+    if (SERIES_FITS(s, l)) s->content.dynamic.len += l; \
+        else Expand_Series(s, AT_TAIL, l)
+#define RESIZE_SERIES(s,l) \
+    s->content.dynamic.len = 0; \
+    if (!SERIES_FITS(s, l)) Expand_Series(s, AT_TAIL, l); \
+    s->content.dynamic.len = 0
+#define RESET_SERIES(s) s->content.dynamic.len = 0; TERM_SERIES(s)
+#define RESET_TAIL(s) s->content.dynamic.len = 0
 
 // Clear all and clear to tail:
 #define CLEAR_SEQUENCE(s) \
@@ -600,18 +552,6 @@ typedef struct Reb_Tuple {
 #define SERIES_SET_BIAS(s,b) (SERIES_FLAGS(s) = (SERIES_FLAGS(s) & 0xffff) | (b << 16))
 #define SERIES_ADD_BIAS(s,b) (SERIES_FLAGS(s) += (b << 16))
 #define SERIES_SUB_BIAS(s,b) (SERIES_FLAGS(s) -= (b << 16))
-
-// Series Flags:
-enum {
-    SER_MARK        = 1 << 0,   // was found during GC mark scan.
-    SER_FRAME       = 1 << 1,   // object frame (unsets legal, has key series)
-    SER_LOCK        = 1 << 2,   // size is locked (do not expand it)
-    SER_EXTERNAL    = 1 << 3,   // ->data is external, don't free() on GC
-    SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
-    SER_ARRAY       = 1 << 5,   // is sizeof(REBVAL) wide and has valid values
-    SER_PROTECT     = 1 << 6,   // protected from modification
-    SER_POWER_OF_2  = 1 << 7    // true alloc size is rounded to power of 2
-};
 
 #define SERIES_SET_FLAG(s, f) cast(void, (SERIES_FLAGS(s) |= ((f) << 8)))
 #define SERIES_CLR_FLAG(s, f) cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
@@ -685,7 +625,7 @@ struct Reb_Position
     #define VAL_SERIES(v)   (*VAL_SERIES_Ptr_Debug(v))
 #endif
 #define VAL_INDEX(v)        ((v)->payload.position.index)
-#define VAL_LEN_HEAD(v)     (VAL_SERIES(v)->tail + 0)
+#define VAL_LEN_HEAD(v)     (SERIES_LEN(VAL_SERIES(v)) + 0)
 #define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
 
 #define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
@@ -779,19 +719,21 @@ struct Reb_Position
 #define SET_BIN_END(s,n) (*BIN_AT(s,n) = 0)
 
 // Arg is a binary (byte) series:
-#define BIN_HEAD(s)     ((REBYTE *)((s)->data))
+#define BIN_HEAD(s)     ((REBYTE *)SERIES_DATA(s))
 #define BIN_TAIL(s)     (BIN_HEAD(s) + BIN_LEN(s))
-#define BIN_AT(s, n)    (((REBYTE *)((s)->data))+(n))
+#define BIN_AT(s, n)    ((REBYTE *)SERIES_DATA(s)+(n))
 #define BIN_LEN(s)      (SERIES_LEN(s))
 
 // Arg is a unicode series:
-#define UNI_HEAD(s)     ((REBUNI *)((s)->data))
-#define UNI_AT(s, n)    (((REBUNI *)((s)->data))+(n))
-#define UNI_TAIL(s)     (((REBUNI *)((s)->data))+(s)->tail)
-#define UNI_LAST(s)     (((REBUNI *)((s)->data))+((s)->tail-1)) // make sure tail not zero
+#define UNI_HEAD(s)     ((REBUNI *)SERIES_DATA(s))
+#define UNI_AT(s, n)    ((REBUNI *)SERIES_DATA(s)+(n))
+#define UNI_TAIL(s)     ((REBUNI *)SERIES_DATA(s)+SERIES_LEN(s))
+#define UNI_LAST(s)     ((REBUNI *)SERIES_DATA(s)+SERIES_LEN(s)-1) // make sure tail not zero
 #define UNI_LEN(s)      (SERIES_LEN(s))
 #define UNI_TERM(s)     (*UNI_TAIL(s) = 0)
-#define UNI_RESET(s)    (UNI_HEAD(s)[(s)->tail = 0] = 0)
+#define UNI_RESET(s)    \
+    (SERIES_SET_LEN((s), 0), \
+    UNI_HEAD(s)[0] = 0)
 
 // Arg is a binary value:
 //
@@ -835,18 +777,18 @@ struct Reb_Position
 //  REBINT transp;
 //} REBIMI;
 
-#define QUAD_HEAD(s)    ((REBYTE *)((s)->data))
-#define QUAD_SKIP(s,n)  (((REBYTE *)((s)->data))+(n * 4))
-#define QUAD_TAIL(s)    (((REBYTE *)((s)->data))+((s)->tail * 4))
+#define QUAD_HEAD(s)    ((REBYTE *)SERIES_DATA(s))
+#define QUAD_SKIP(s,n)  ((REBYTE *)SERIES_DATA(s)+(n * 4))
+#define QUAD_TAIL(s)    ((REBYTE *)SERIES_DATA(s)+(SERIES_LEN(s) * 4))
 #define QUAD_LEN(s)     (SERIES_LEN(s))
 
 #define IMG_SIZE(s)     ((s)->misc.size)
 #define IMG_WIDE(s)     ((s)->misc.area.wide)
 #define IMG_HIGH(s)     ((s)->misc.area.high)
-#define IMG_DATA(s)     ((REBYTE *)((s)->data))
+#define IMG_DATA(s)     ((REBYTE *)SERIES_DATA(s))
 
 #define VAL_IMAGE_HEAD(v)   QUAD_HEAD(VAL_SERIES(v))
-#define VAL_IMAGE_TAIL(v)   QUAD_SKIP(VAL_SERIES(v), VAL_SERIES(v)->tail)
+#define VAL_IMAGE_TAIL(v)   QUAD_SKIP(VAL_SERIES(v), VAL_HEAD_LEN(v))
 #define VAL_IMAGE_DATA(v)   QUAD_SKIP(VAL_SERIES(v), VAL_INDEX(v))
 #define VAL_IMAGE_BITS(v)   ((REBCNT *)VAL_IMAGE_HEAD((v)))
 #define VAL_IMAGE_WIDE(v)   (IMG_WIDE(VAL_SERIES(v)))
@@ -1882,10 +1824,10 @@ struct Reb_Typeset {
 
 // Word number array (used by Bind_Table):
 #define WORDS_HEAD(w) \
-    cast(REBINT *, (w)->data)
+    cast(REBINT *, SERIES_DATA(w))
 
 #define WORDS_LAST(w) \
-    (WORDS_HEAD(w) + (w)->tail - 1) // (tail never zero)
+    (WORDS_HEAD(w) + SERIES_LEN(w) - 1) // (tail never zero)
 
 
 /***********************************************************************

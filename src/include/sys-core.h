@@ -81,6 +81,7 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 // files including sys-core.h and reb-host.h can have differing
 // definitions of REBCHR.  (We want it opaque to the core, but the
 // host to have it compatible with the native character type w/o casting)
+//
 #ifdef OS_WIDE_CHAR
     #ifdef NDEBUG
         typedef REBUNI REBCHR;
@@ -101,22 +102,44 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 
 #include "reb-defs.h"
 #include "reb-args.h"
-#include "tmp-bootdefs.h"
-#define PORT_ACTIONS A_CREATE  // port actions begin here
 
 #include "reb-device.h"
 #include "reb-types.h"
 #include "reb-event.h"
 
-#include "sys-deci.h"
+#include "reb-file.h"
+#include "reb-filereq.h"
+#include "reb-math.h"
+#include "reb-codec.h"
 
+#include "sys-mem.h"
+#include "sys-deci.h"
+#include "sys-series.h" // temporarily backwards, should be after value
 #include "sys-value.h"
-#include "tmp-strings.h"
-#include "tmp-funcargs.h"
+#include "sys-scan.h"
+#include "sys-stack.h"
+#include "sys-do.h"
+#include "sys-state.h"
 
 #include "reb-struct.h"
 
+//#include "reb-net.h"
+#include "tmp-strings.h"
+#include "tmp-funcargs.h"
+#include "tmp-bootdefs.h"
+#include "tmp-boot.h"
+#include "tmp-errnums.h"
+#include "tmp-sysobj.h"
+#include "tmp-sysctx.h"
+
+#include "host-lib.h"
+
+
+
 //-- Port actions (for native port schemes):
+
+#define PORT_ACTIONS A_CREATE  // port actions begin here
+
 typedef struct rebol_port_action_map {
     const REBCNT action;
     const REBPAF func;
@@ -131,24 +154,6 @@ typedef struct rebol_mold {
     REBYTE dash;        // for date fields
     REBYTE digits;      // decimal digits
 } REB_MOLD;
-
-#include "reb-file.h"
-#include "reb-filereq.h"
-#include "reb-math.h"
-#include "reb-codec.h"
-
-#include "tmp-sysobj.h"
-#include "tmp-sysctx.h"
-
-//#include "reb-net.h"
-#include "tmp-boot.h"
-#include "sys-mem.h"
-#include "tmp-errnums.h"
-#include "host-lib.h"
-#include "sys-stack.h"
-#include "sys-state.h"
-
-#include "sys-scan.h"
 
 /***********************************************************************
 **
@@ -1016,9 +1021,9 @@ struct Reb_Call {
 
 #define DROP_GUARD_SERIES(s) \
     do { \
-        GC_Series_Guard->tail--; \
-        assert((s) == cast(REBSER **, GC_Series_Guard->data)[ \
-            GC_Series_Guard->tail \
+        GC_Series_Guard->content.dynamic.len--; \
+        assert((s) == cast(REBSER **, GC_Series_Guard->content.dynamic.data)[ \
+            GC_Series_Guard->content.dynamic.len \
         ]); \
     } while (0)
 
@@ -1043,9 +1048,9 @@ struct Reb_Call {
 
 #define DROP_GUARD_VALUE(v) \
     do { \
-        GC_Value_Guard->tail--; \
-        assert((v) == cast(REBVAL **, GC_Value_Guard->data)[ \
-            GC_Value_Guard->tail \
+        GC_Value_Guard->content.dynamic.len--; \
+        assert((v) == cast(REBVAL **, GC_Value_Guard->content.dynamic.data)[ \
+            GC_Value_Guard->content.dynamic.len \
         ]); \
     } while (0)
 

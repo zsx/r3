@@ -588,7 +588,7 @@ static REBOOL Series_Data_Alloc(
 
     // Data should have not been allocated yet OR caller has extracted it
     // and nulled it to indicate taking responsibility for freeing it.
-    assert(!series->data);
+    assert(!series->content.dynamic.data);
 
     // !!! See BYTE_SIZE() for the rationale, and consider if this is a
     // good tradeoff to be making.
@@ -597,8 +597,8 @@ static REBOOL Series_Data_Alloc(
 
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
-        series->data = cast(REBYTE*, Make_Node(pool_num));
-        if (!series->data)
+        series->content.dynamic.data = cast(REBYTE*, Make_Node(pool_num));
+        if (!series->content.dynamic.data)
             return FALSE;
 
         // The pooled allocation might wind up being larger than we asked.
@@ -633,8 +633,8 @@ static REBOOL Series_Data_Alloc(
         else
             SERIES_CLR_FLAG(series, SER_POWER_OF_2);
 
-        series->data = ALLOC_N(REBYTE, size);
-        if (!series->data)
+        series->content.dynamic.data = ALLOC_N(REBYTE, size);
+        if (!series->content.dynamic.data)
             return FALSE;
 
         Mem_Pools[SYSTEM_POOL].has += size;
@@ -663,13 +663,14 @@ static REBOOL Series_Data_Alloc(
 
     // The allocation may have returned more than we requested, so we note
     // that in 'rest' so that the series can expand in and use the space.
-
-    series->rest = size / wide; // wastes remainder if size % wide != 0 :-(
+    // Note that it wastes remainder if size % wide != 0 :-(
+    //
+    series->content.dynamic.rest = size / wide;
 
     // We set the tail of all series to zero initially, but currently do
     // leave series termination to callers.  (This is under review.)
-
-    series->tail = 0;
+    //
+    series->content.dynamic.len = 0;
 
     // See if allocation tripped our need to queue a garbage collection
 
@@ -697,9 +698,9 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer)
                 continue;
 
             assert(
-                (pointer < cast(void *, series->data)) ||
-                (pointer >= cast(void *, (
-                    series->data
+                (pointer < cast(void*, series->content.dynamic.data)) ||
+                (pointer >= cast(void*, (
+                    series->content.dynamic.data
                     - (SERIES_WIDE(series) * SERIES_BIAS(series))
                     + Series_Allocated_Size(series)
                 )))
@@ -787,7 +788,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 #endif
 
     series->info = 0; // start with all flags clear...
-    series->data = NULL;
+    series->content.dynamic.data = NULL;
 
     if (flags & MKS_LOCK) SERIES_SET_FLAG(series, SER_LOCK);
 
@@ -799,7 +800,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
         SERIES_SET_FLAG(series, SER_EXTERNAL);
         series->info |= wide & 0xFF;
-        series->rest = length;
+        series->content.dynamic.rest = length;
     }
     else {
         // Allocate the actual data blob that holds the series elements
@@ -829,7 +830,10 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         //
 
         if (SERIES_FULL(GC_Manuals)) Extend_Series(GC_Manuals, 8);
-        cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail++] = series;
+
+        cast(REBSER**, GC_Manuals->content.dynamic.data)[
+            GC_Manuals->content.dynamic.len++
+        ] = series;
     }
 
     CHECK_MEMORY(2);
@@ -947,7 +951,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     REBYTE *data_old;
     REBCNT size_old;
     REBINT bias_old;
-    REBINT tail_old;
+    REBINT len_old;
 
     // ASSERT_SERIES_TERM(series);
 
@@ -957,8 +961,8 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     // Optimized case of head insertion:
     if (index == 0 && SERIES_BIAS(series) >= delta) {
-        series->data -= wide * delta;
-        SET_SERIES_LEN(series, SERIES_LEN(series) + delta);
+        series->content.dynamic.data -= wide * delta;
+        series->content.dynamic.len += delta;
         SERIES_REST(series) += delta;
         SERIES_SUB_BIAS(series, delta);
         return;
@@ -966,23 +970,29 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     // Range checks:
     if (delta & 0x80000000) fail (Error(RE_PAST_END)); // 2GB max
-    if (index > series->tail) index = series->tail; // clip
+    if (index > series->content.dynamic.len)
+        index = series->content.dynamic.len; // clip
 
     // Width adjusted variables:
     start = index * wide;
     extra = delta * wide;
-    size  = (series->tail + 1) * wide;
+    size  = (series->content.dynamic.len + 1) * wide;
 
     if ((size + extra) <= SERIES_SPACE(series)) {
         // No expansion was needed. Slide data down if necessary.
         // Note that the tail is always moved here. This is probably faster
         // than doing the computation to determine if it needs to be done.
 
-        memmove(series->data + start + extra, series->data + start, size - start);
-        series->tail += delta;
+        memmove(
+            series->content.dynamic.data + start + extra,
+            series->content.dynamic.data + start,
+            size - start
+        );
+
+        series->content.dynamic.len += delta;
 
         if (
-            (SERIES_LEN(series) + SERIES_BIAS(series)) * wide
+            (series->content.dynamic.len + SERIES_BIAS(series)) * wide
             >= SERIES_TOTAL(series)
         ) {
             // This shouldn't be possible, but R3-Alpha had code checking for
@@ -1003,7 +1013,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     if (Reb_Opts->watch_expand) {
         Debug_Fmt(
             "Expand %x wide: %d tail: %d delta: %d",
-            series, wide, series->tail, delta
+            series, wide, series->content.dynamic.len, delta
         );
     }
 #endif
@@ -1014,7 +1024,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     n_available = 0;
     for (n_found = 0; n_found < MAX_EXPAND_LIST; n_found++) {
         if (Prior_Expand[n_found] == series) {
-            x = series->tail + delta + 1; // Double the size
+            x = series->content.dynamic.len + delta + 1; // Double the size
             break;
         }
         if (!Prior_Expand[n_found])
@@ -1027,19 +1037,21 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     }
 #endif
 
-    data_old = series->data;
+    data_old = series->content.dynamic.data;
     bias_old = SERIES_BIAS(series);
     size_old = Series_Allocated_Size(series);
-    tail_old = SERIES_LEN(series);
+    len_old = series->content.dynamic.len;
 
-    series->data = NULL;
+    series->content.dynamic.data = NULL;
     if (!Series_Data_Alloc(
         series,
-        series->tail + delta + x,
+        series->content.dynamic.len + delta + x,
         wide,
         any_block ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
     )) {
-        fail (Error_No_Memory((series->tail + delta + x) * wide));
+        fail (Error_No_Memory(
+            (series->content.dynamic.len + delta + x) * wide)
+        );
     }
 
     assert(SERIES_BIAS(series) == 0); // should be reset
@@ -1049,13 +1061,19 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     if (n_found >= MAX_EXPAND_LIST)
         Prior_Expand[n_available] = series;
 
-    // Copy the series up to the expansion point:
-    memcpy(series->data, data_old, start);
+    // Copy the series up to the expansion point
+    //
+    memcpy(series->content.dynamic.data, data_old, start);
 
-    // Copy the series after the expansion point:
-    // In AT_TAIL cases, this just moves the terminator to the new tail.
-    memcpy(series->data + start + extra, data_old + start, size - start);
-    series->tail = tail_old + delta;
+    // Copy the series after the expansion point.  In AT_TAIL cases, this
+    // just moves the terminator to the new tail.
+    //
+    memcpy(
+        series->content.dynamic.data + start + extra,
+        data_old + start,
+        size - start
+    );
+    series->content.dynamic.len = len_old + delta;
 
     // We have to de-bias the data pointer before we can free it.
     //
@@ -1079,17 +1097,17 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 {
     REBINT bias_old = SERIES_BIAS(series);
     REBINT size_old = Series_Allocated_Size(series);
-    REBCNT tail_old = series->tail;
+    REBCNT len_old = series->content.dynamic.len;
     REBYTE wide_old = SERIES_WIDE(series);
     REBOOL any_block = Is_Array_Series(series);
 
     // Extract the data pointer to take responsibility for it.  (The pointer
     // may have already been extracted if the caller is doing their own
     // updating preservation.)
-    REBYTE *data_old = series->data;
+    REBYTE *data_old = series->content.dynamic.data;
 
-    assert(series->data);
-    series->data = NULL;
+    assert(series->content.dynamic.data);
+    series->content.dynamic.data = NULL;
 
     // SER_EXTERNAL manages its own memory and shouldn't call Remake
     assert(!(flags & MKS_EXTERNAL));
@@ -1109,7 +1127,7 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
         series, units + 1, wide, any_block ? MKS_ARRAY | flags : flags
     )) {
         // Put series back how it was (there may be extant references)
-        series->data = data_old;
+        series->content.dynamic.data = data_old;
         fail (Error_No_Memory((units + 1) * wide));
     }
 
@@ -1118,10 +1136,14 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
         // operations may extract the data pointer ahead of time and do this
         // more selectively)
 
-        series->tail = MIN(tail_old, units);
-        memcpy(series->data, data_old, series->tail * wide);
+        series->content.dynamic.len = MIN(len_old, units);
+        memcpy(
+            series->content.dynamic.data,
+            data_old,
+            series->content.dynamic.len * wide
+        );
     } else
-        series->tail = 0;
+        series->content.dynamic.len = 0;
 
     if (flags & MKS_ARRAY)
         TERM_ARRAY(AS_ARRAY(series));
@@ -1167,8 +1189,11 @@ void GC_Kill_Series(REBSER *series)
     else {
         REBYTE wide = SERIES_WIDE(series);
         REBCNT bias = SERIES_BIAS(series);
-        series->data -= wide * bias;
-        Free_Unbiased_Series_Data(series->data, Series_Allocated_Size(series));
+        series->content.dynamic.data -= wide * bias;
+        Free_Unbiased_Series_Data(
+            series->content.dynamic.data,
+            Series_Allocated_Size(series)
+        );
     }
 
     series->info = 0; // includes width
@@ -1196,7 +1221,9 @@ void GC_Kill_Series(REBSER *series)
 void Free_Series(REBSER *series)
 {
     REBSER ** const last_ptr
-        = &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+        = &cast(REBSER**, GC_Manuals->content.dynamic.data)[
+            GC_Manuals->content.dynamic.len - 1
+        ];
 
 #if !defined(NDEBUG)
     //
@@ -1219,7 +1246,8 @@ void Free_Series(REBSER *series)
 #endif
 
     // Note: Code repeated in Manage_Series()
-    assert(GC_Manuals->tail >= 1);
+    //
+    assert(GC_Manuals->content.dynamic.len >= 1);
     if (*last_ptr != series) {
         //
         // If the series is not the last manually added series, then
@@ -1229,12 +1257,17 @@ void Free_Series(REBSER *series)
         //
         REBSER **current_ptr = last_ptr - 1;
         while (*current_ptr != series) {
-            assert(current_ptr > cast(REBSER**, GC_Manuals->data));
+            assert(
+                current_ptr > cast(REBSER**, GC_Manuals->content.dynamic.data
+            ));
             --current_ptr;
         }
         *current_ptr = *last_ptr;
     }
-    GC_Manuals->tail--; // !!! Should it ever shrink or save memory?
+
+    // !!! Should GC_Manuals ever shrink or save memory?
+    //
+    GC_Manuals->content.dynamic.len--;
 
     // With bookkeeping done, use the same routine the GC uses to free
     //
@@ -1253,10 +1286,10 @@ void Widen_String(REBSER *series, REBOOL preserve)
 {
     REBINT bias_old = SERIES_BIAS(series);
     REBINT size_old = Series_Allocated_Size(series);
-    REBCNT tail_old = series->tail;
+    REBCNT len_old = series->content.dynamic.len;
     REBYTE wide_old = SERIES_WIDE(series);
 
-    REBYTE *data_old = series->data;
+    REBYTE *data_old = series->content.dynamic.data;
 
     REBYTE *bp;
     REBUNI *up;
@@ -1271,25 +1304,25 @@ void Widen_String(REBSER *series, REBOOL preserve)
 
     assert(SERIES_WIDE(series) == 1);
 
-    series->data = NULL;
+    series->content.dynamic.data = NULL;
 
     if (!Series_Data_Alloc(
-        series, tail_old + 1, cast(REBYTE, sizeof(REBUNI)), MKS_NONE
+        series, len_old + 1, cast(REBYTE, sizeof(REBUNI)), MKS_NONE
     )) {
         // Put series back how it was (there may be extant references)
-        series->data = data_old;
-        fail (Error_No_Memory((tail_old + 1) * sizeof(REBUNI)));
+        series->content.dynamic.data = data_old;
+        fail (Error_No_Memory((len_old + 1) * sizeof(REBUNI)));
     }
 
     bp = data_old;
     up = UNI_HEAD(series);
 
     if (preserve) {
-        for (n = 0; n <= tail_old; n++) up[n] = bp[n]; // includes terminator
-        SET_SERIES_LEN(series, tail_old);
+        for (n = 0; n <= len_old; n++) up[n] = bp[n]; // includes terminator
+        series->content.dynamic.len = len_old;
     }
     else {
-        SET_SERIES_LEN(series, 0);
+        series->content.dynamic.len = 0;
         TERM_SEQUENCE(series);
     }
 
@@ -1317,27 +1350,36 @@ void Widen_String(REBSER *series, REBOOL preserve)
 void Manage_Series(REBSER *series)
 {
     REBSER ** const last_ptr
-        = &cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+        = &cast(REBSER**, GC_Manuals->content.dynamic.data)[
+            GC_Manuals->content.dynamic.len - 1
+        ];
 
     assert(!SERIES_GET_FLAG(series, SER_MANAGED));
     SERIES_SET_FLAG(series, SER_MANAGED);
 
     // Note: Code repeated in Free_Series()
-    assert(GC_Manuals->tail >= 1);
+    //
+    assert(GC_Manuals->content.dynamic.len >= 1);
     if (*last_ptr != series) {
         //
         // If the series is not the last manually added series, then
         // find where it is, then move the last manually added series
         // to that position to preserve it when we chop off the tail
         // (instead of keeping the series we want to free).
+        //
         REBSER **current_ptr = last_ptr - 1;
         while (*current_ptr != series) {
-            assert(current_ptr > cast(REBSER**, GC_Manuals->data));
+            assert(
+                current_ptr > cast(REBSER**, GC_Manuals->content.dynamic.data)
+            );
             --current_ptr;
         }
         *current_ptr = *last_ptr;
     }
-    GC_Manuals->tail--; // !!! Should it ever shrink or save memory?
+
+    // !!! Should GC_Manuals ever shrink or save memory?
+    //
+    GC_Manuals->content.dynamic.len--;
 }
 
 
@@ -1376,19 +1418,21 @@ void Manage_Frame_Debug(REBFRM *frame)
 //
 void Manuals_Leak_Check_Debug(REBCNT manuals_len, const char *label_str)
 {
-    if (SERIES_LEN(GC_Manuals) > manuals_len) {
+    if (GC_Manuals->content.dynamic.len > manuals_len) {
         REBSER* most_recent =
-            cast(REBSER**, GC_Manuals->data)[GC_Manuals->tail - 1];
+            cast(REBSER**, GC_Manuals->content.dynamic.data)[
+                GC_Manuals->content.dynamic.len - 1
+            ];
 
         Debug_Fmt(
             "%d leaked REBSERs during %s",
-            SERIES_LEN(GC_Manuals) - manuals_len,
+            GC_Manuals->content.dynamic.len - manuals_len,
             label_str
         );
         Debug_Fmt("Panic_Series() on most recent (for valgrind, ASAN)");
         Panic_Series(most_recent);
     }
-    else if (SERIES_LEN(GC_Manuals) < manuals_len) {
+    else if (GC_Manuals->content.dynamic.len < manuals_len) {
         Debug_Fmt("Manual series freed from outside of checkpoint.");
 
         // Note: Should this ever actually happen, a Panic_Series won't do
@@ -1521,7 +1565,7 @@ REBCNT Check_Memory(void)
         series = (REBSER *) (seg + 1);
         for (count = Mem_Pools[SERIES_POOL].units; count > 0; count--) {
             if (!SERIES_FREED(series)) {
-                if (!SERIES_REST(series) || !series->data)
+                if (!SERIES_REST(series) || !series->content.dynamic.data)
                     goto crash;
                 // Does the size match a known pool?
                 pool_num = FIND_POOL(SERIES_TOTAL(series));
@@ -1564,7 +1608,7 @@ crash:
 // 
 // Dump all series of a given size.
 //
-void Dump_All(REBINT size)
+void Dump_All(REBCNT size)
 {
     REBSEG  *seg;
     REBSER *series;
@@ -1577,7 +1621,13 @@ void Dump_All(REBINT size)
             if (!SERIES_FREED(series)) {
                 if (SERIES_WIDE(series) == size) {
                     //Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SERIES_TOTAL(series), series->data);
-                    Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SERIES_REST(series), (SERIES_LABEL(series) ? SERIES_LABEL(series) : "-"));
+                    Debug_Fmt(
+                        "%3d %4d %4d = \"%s\"",
+                        n++,
+                        series->content.dynamic.len,
+                        SERIES_REST(series),
+                        SERIES_LABEL(series)
+                    );
                 }
             }
             series++;
@@ -1627,7 +1677,7 @@ void Dump_Series_In_Pool(REBCNT pool_id)
                     }
                     else {
                         Dump_Bytes(
-                            series->data,
+                            series->content.dynamic.data,
                             (SERIES_LEN(series) + 1) * SERIES_WIDE(series)
                         );
                     }
@@ -1791,4 +1841,3 @@ REBU64 Inspect_Series(REBCNT flags)
 
     return tot_size;
 }
-

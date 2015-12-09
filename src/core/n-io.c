@@ -1135,9 +1135,9 @@ static REBARR *File_List_To_Array(const REBCHR *str)
         assert(sizeof(wchar_t) == sizeof(REBCHR));
         dir = To_REBOL_Path(str, n, -1, TRUE);
         str += n + 1; // next
-        len = dir->tail;
+        len = SERIES_LEN(dir);
         while ((n = OS_STRLEN(str))) {
-            dir->tail = len;
+            SET_SERIES_LEN(dir, len);
             Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
             Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
             str += n + 1; // next
