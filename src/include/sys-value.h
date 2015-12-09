@@ -116,25 +116,60 @@ typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
 #pragma pack(4)
 
-// Note: b-init.c verifies that lower 8 bits is flags.opts, so that testing
-// for an IS_END is merely testing for an even value of the header.
+//=////////////////////////////////////////////////////////////////////////=//
 //
+//  VALUE HEADER (`struct Reb_Value_Header`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The value header separates its content into 4 8-bit bitfields.  As the
+// order of bitfields is unspecified by the C standard, R3-Alpha used a
+// switch in compilation to specify the two most common layout variants:
+// ENDIAN_BIG and ENDIAN_LITTLE.  A runtime test in %b-init.c verifies that
+// the lower 8 bits is bitfields.opts, and hence a test for OPT_VALUE_NOT_END
+// is merely a test for an odd value of the header.
+//
+// !!! Though this has worked in practice on all the platforms used so far,
+// it reaches beneath the C abstraction layer and doesn't really need to.
+// And it violates the rule that when one member of a union is assigned
+// then the other values are considered invalid.  Bit masking of an
+// ordinary unsigned number could be used instead:
+//
+//    http://stackoverflow.com/a/1053281/211160
+//
+
 union Reb_Value_Header {
+    REBCNT all;             // !!! to set all the flags at once - see notes
+
     struct {
     #ifdef ENDIAN_LITTLE
         unsigned opts:8;    // special options
-        unsigned type:8;    // datatype
+        unsigned lit:1;     // !!! <reserved, lit-bit>
+        unsigned xxxx:1;    // !!! <reserved for future use>
+        unsigned type:6;    // datatype (64 possibilities)
         unsigned exts:8;    // extensions to datatype
-        unsigned resv:8;    // reserved for future
+        unsigned resv:8;    // !!! <reserved for future use>
     #else
-        unsigned resv:8;    // reserved for future
+        unsigned resv:8;    // !!! <reserved for future use>
         unsigned exts:8;    // extensions to datatype
-        unsigned type:8;    // datatype
+        unsigned lit:1;     // !!! <reserved, lit-bit>
+        unsigned xxxx:1;    // !!! <reserved for future use>
+        unsigned type:6;    // datatype (64 possibilities)
         unsigned opts:8;    // special options
     #endif
     } bitfields;
 
-    REBCNT all;             // for setting all the flags at once
+#if defined(__LP64__) || defined(__LLP64__)
+    //
+    // The end of the header must be naturally aligned.  On a 32-bit platform
+    // the 8x4 bits will be 32-bit aligned...but on a 64-bit platform that's
+    // 32 bits short.  Hence there's a 32-bit unused value here for each
+    // value on 64-bit platforms.  One probably wouldn't want to hinge a
+    // feature on something only 64-bit builds could do...but it may be
+    // useful for some cache or optimization trick to do when available.
+    //
+    REBCNT unused;
+#endif
 };
 
 // Value type identifier (generally, should be handled as integer):
