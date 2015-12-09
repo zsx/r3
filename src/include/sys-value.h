@@ -326,6 +326,12 @@ enum {
 
 #define VAL_SET_TYPE(v,t)   ((v)->header.bitfields.type = (t))
 
+// Used for 8 datatype-dependent flags (or one byte-sized data value)
+#define VAL_EXTS_DATA(v)    ((v)->header.bitfields.exts)
+#define VAL_SET_EXT(v,n)    SET_FLAG(VAL_EXTS_DATA(v), n)
+#define VAL_GET_EXT(v,n)    GET_FLAG(VAL_EXTS_DATA(v), n)
+#define VAL_CLR_EXT(v,n)    CLR_FLAG(VAL_EXTS_DATA(v), n)
+
 // set type, clear all flags except for NOT_END
 //
 #ifdef NDEBUG
@@ -342,6 +348,7 @@ enum {
 // version of that type that you can compare against?  :-/
 #define SET_ZEROED(v,t) \
     (CLEAR((v), sizeof(REBVAL)), VAL_RESET_HEADER((v),(t)))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -393,16 +400,269 @@ enum {
 //
 #define END_VALUE           PG_End_Val
 
-#ifdef NDEBUG
-#else
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TRACK payload (not a value type, only in DEBUG)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// `struct Reb_Track` is the value payload in debug builds for any REBVAL
+// whose VAL_TYPE() doesn't need any information beyond the header.  This
+// offers a chance to inject some information into the payload to help
+// know where the value originated.  It is used by TRASH!, UNSET!, NONE!
+// and LOGIC!.
+//
+// In addition to the file and line number where the assignment was made,
+// the "tick count" of the DO loop is also saved.  This means that it can
+// be possible in a repro case to find out which evaluation step produced
+// the value--and at what place in the source.  Repro cases can be set to
+// break on that tick count, if it is deterministic.
+//
+
+#if !defined(NDEBUG)
+    struct Reb_Track {
+        const char *filename;
+        int line;
+        REBCNT count;
+    };
+
+    #define SET_TRACK_PAYLOAD(v) \
+        ( \
+            (v)->payload.track.filename = __FILE__, \
+            (v)->payload.track.line = __LINE__, \
+            (v)->payload.track.count = TG_Do_Count, \
+            cast(void, 0) \
+        )
+
+    #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
+    #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
+    #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
 #endif
 
 
-// Used for 8 datatype-dependent flags (or one byte-sized data value)
-#define VAL_EXTS_DATA(v)    ((v)->header.bitfields.exts)
-#define VAL_SET_EXT(v,n)    SET_FLAG(VAL_EXTS_DATA(v), n)
-#define VAL_GET_EXT(v,n)    GET_FLAG(VAL_EXTS_DATA(v), n)
-#define VAL_CLR_EXT(v,n)    CLR_FLAG(VAL_EXTS_DATA(v), n)
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TRASH! (uses `struct Reb_Track`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Trash is a debugging-only concept.  Nevertheless, REB_TRASH consumes
+// VAL_TYPE #0 (of 64) in the release build.  That offers some benefit since
+// it means one of the 64-bits in a typeset is always available for another
+// use (as trash is not ever supposed to be seen by the user...)
+//
+// It's intended to be a value written into cells in the debug build when
+// the cell is expected to be overwitten with valid data.  By default, the
+// garbage collector will raise an alert if a TRASH! value is not overwritten
+// by the time it sees it...and any attempt to read the type of a trash
+// value with VAL_TYPE() will cause the debug build to assert.  Hence it
+// must be tested for specially.
+//
+// There are some uses of trash which the GC should be able to run while it
+// is extant.  For example, when a native function is called the cell where
+// it is supposed to write its output is set to trash.  However, the garbage
+// collector may run before the native has written its result...so for these
+// cases, use SET_TRASH_SAFE().  It will still trigger assertions if other
+// code tries to use it--it's just that the GC will treat it like an UNSET!.
+//
+// The operations for setting trash are available in both debug and release
+// builds.  An unsafe trash set turns into a NOOP in release builds (it will
+// be "trash" in the sense of being uninitialized memory).  Meanwhile a safe
+// trash set turns into a SET_UNSET() in release builds--so for instance any
+// native that does not write its return result will return unset in release
+// builds.  IS_TRASH_DEBUG() can be used to test for trash in debug builds,
+// but not in release builds...as there is no test for "uninitialized memory".
+//
+// Because the trash value saves the filename and line where it originated,
+// the REBVAL has that info in debug builds to inspect in its `trash` union
+// member.  It also saves the Do tick count in which it was created, to
+// make it easier to pinpoint precisely when it came into existence.
+//
+
+#ifdef NDEBUG
+    #define SET_TRASH_IF_DEBUG(v) NOOP
+
+    #define SET_TRASH_SAFE(v) SET_UNSET(v)
+#else
+    enum {
+        EXT_TRASH_SAFE = 0,     // GC safe trash (UNSET! in release build)
+        EXT_TRASH_MAX
+    };
+
+    // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
+    // because VAL_TYPE is supposed to assert on trash
+    //
+    #define IS_TRASH_DEBUG(v) \
+        ((v)->header.bitfields.type == REB_TRASH)
+
+    #define SET_TRASH_IF_DEBUG(v) \
+        ( \
+            (v)->header.all = \
+                (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
+            (v)->header.bitfields.type = REB_TRASH, \
+            SET_TRACK_PAYLOAD(v) \
+        )
+
+    #define SET_TRASH_SAFE(v) \
+        ( \
+            (v)->header.all = \
+                (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
+            (v)->header.bitfields.type = REB_TRASH, \
+            VAL_SET_EXT((v), EXT_TRASH_SAFE), \
+            SET_TRACK_PAYLOAD(v) \
+        )
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  UNSET! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Unset is one of Rebol's two unit types (the other being NONE!).  Whereas
+// integers can be values like 1, 2, 3... and LOGIC! can be true or false,
+// an UNSET! can be only... unset.  Its type is its value.
+//
+// By default, variable lookups that come back as unset will result in an
+// error, and the average user would not be putting them into blocks on
+// purpose.  Hence the Ren-C branch of Rebol3 pushed forward an initiative
+// to make unsets frequently denote an intent to "opt out" of things.  This
+// involved
+//
+// Since they have no data payload, unsets in the debug build use Reb_Track
+// as their structure to show where-and-when they were assigned.  This is
+// helpful because unset is the default initialization value for several
+// constructs.
+//
+
+#ifdef NDEBUG
+    #define SET_UNSET(v) \
+        VAL_RESET_HEADER((v), REB_UNSET)
+
+#else
+    #define SET_UNSET(v) \
+        (VAL_RESET_HEADER((v), REB_UNSET), SET_TRACK_PAYLOAD(v))
+#endif
+
+// Pointer to a global protected unset value that can be used when a read-only
+// UNSET! value is needed.
+//
+#define UNSET_VALUE ROOT_UNSET_VAL
+
+// In legacy mode Ren-C still supports the old convention that IFs that don't
+// take the true branch or a WHILE loop that never runs a body return a NONE!
+// value instead of an UNSET!.  To track the locations where this decision is
+// made more easily, SET_UNSET_UNLESS_LEGACY_NONE() is used.
+//
+#ifdef NDEBUG
+    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
+        SET_UNSET(v) // LEGACY() only available in Debug builds
+#else
+    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
+        (LEGACY(OPTIONS_NONE_INSTEAD_OF_UNSETS) ? SET_NONE(v) : SET_UNSET(v))
+#endif
+
+#define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
+#define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NONE! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Unlike UNSET!, none values are inactive.  They do not cause errors
+// when they are used in situations like the condition of an IF statement.
+// Instead they are considered to be false--like the LOGIC! #[false] value.
+// So none is considered to be the other "conditionally false" value.
+//
+// Only those two values are conditionally false in Rebol, and testing for
+// conditional truth and falsehood is frequent.  Hence in addition to its
+// type, NONE! also carries a header bit that can be checked for conditional
+// falsehood.
+//
+// Though having tracking information for a none is less frequently useful
+// than for TRASH! or UNSET!, it's there in debug builds just in case it
+// ever serves a purpose, as the REBVAL payload is not being used.
+//
+
+#ifdef NDEBUG
+    #define SET_NONE(v) \
+        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
+         (v)->header.bitfields.type = REB_NONE)  // compound
+#else
+    #define SET_NONE(v) \
+        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
+         (v)->header.bitfields.type = REB_NONE, \
+         SET_TRACK_PAYLOAD(v))  // compound
+#endif
+
+#define NONE_VALUE ROOT_NONE_VAL
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  LOGIC! (fits in header bits, `struct Reb_Track` if DEBUG)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A logic can be either true or false.  For purposes of optimization, logical
+// falsehood is indicated by one of the value option bits in the header--as
+// opposed to in the value payload.  This means it can be tested quickly and
+// that a single check can test for both NONE! and logic false.
+//
+// Conditional truth and falsehood allows an interpretation where a NONE!
+// is a "falsey" value as well as logic false.  Unsets are neither
+// conditionally true nor conditionally false, and so debug builds will
+// complain if you try to determine which it is.  (It likely means a mistake
+// was made in skipping a formal decision-point regarding whether an unset
+// should represent an "opt out" or an error.)
+//
+// Due to no need for payload, it goes ahead and includes a TRACK payload
+// in debug builds.
+//
+
+#ifdef NDEBUG
+    #define SET_TRUE(v) \
+        ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
+         (v)->header.bitfields.type = REB_LOGIC)  // compound
+
+    #define SET_FALSE(v) \
+        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
+         (v)->header.bitfields.type = REB_LOGIC)  // compound
+#else
+    #define SET_TRUE(v) \
+        ((v)->header.all = \
+            (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
+         (v)->header.bitfields.type = REB_LOGIC, \
+         SET_TRACK_PAYLOAD(v))  // compound
+
+    #define SET_FALSE(v) \
+        ((v)->header.all = \
+            (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG) \
+            | (1 << OPT_VALUE_FALSE), \
+         (v)->header.bitfields.type = REB_LOGIC, \
+         SET_TRACK_PAYLOAD(v))  // compound
+#endif
+
+#define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
+#define VAL_LOGIC(v)    !VAL_GET_OPT((v), OPT_VALUE_FALSE)
+
+#ifdef NDEBUG
+    #define IS_CONDITIONAL_FALSE(v) \
+        VAL_GET_OPT((v), OPT_VALUE_FALSE)
+#else
+    // In a debug build, we want to make sure that UNSET! is never asked
+    // about its conditional truth or falsehood; it's neither.
+    //
+    #define IS_CONDITIONAL_FALSE(v) \
+        IS_CONDITIONAL_FALSE_Debug(v)
+#endif
+
+#define IS_CONDITIONAL_TRUE(v) !IS_CONDITIONAL_FALSE(v)
 
 
 /***********************************************************************
@@ -441,91 +701,9 @@ struct Reb_Datatype {
 
 /***********************************************************************
 **
-**  TRASH - Trash Value used in debugging cases where a cell is expected to
-**  be overwritten.  By default, the garbage collector will raise an alert
-**  if a trash value is not overwritten by the time it sees it...but there
-**  are some uses of trash which the GC should be able to run while it is
-**  extant.  For these cases, use SET_TRASH_SAFE.
-**
-**  The operations for setting trash are available in both debug and release
-**  builds.  An unsafe trash set turns into a NOOP in release builds, while
-**  a safe trash set turns into a SET_UNSET().  IS_TRASH_DEBUG() can be used
-**  to test for trash in debug builds, but not in release builds.
-**
-**  Because the trash value saves the filename and line where it originated,
-**  the REBVAL has that info in debug builds to inspect.
-**
-***********************************************************************/
-
-#ifdef NDEBUG
-    #define SET_TRASH_IF_DEBUG(v) NOOP
-
-    #define SET_TRASH_SAFE(v) SET_UNSET(v)
-#else
-    enum {
-        EXT_TRASH_SAFE = 0,     // GC safe trash (UNSET! in release build)
-        EXT_TRASH_MAX
-    };
-
-    struct Reb_Trash {
-        const char *filename;
-        int line;
-    };
-
-    // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
-    // because VAL_TYPE is supposed to assert on trash
-    //
-    #define IS_TRASH_DEBUG(v)         ((v)->header.bitfields.type == REB_TRASH)
-
-    #define SET_TRASH_IF_DEBUG(v) \
-        ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
-            (v)->payload.trash.filename = __FILE__, \
-            (v)->payload.trash.line = __LINE__, \
-            cast(void, 0) \
-        )
-
-    #define SET_TRASH_SAFE(v) \
-        ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
-            VAL_SET_EXT((v), EXT_TRASH_SAFE), \
-            (v)->payload.trash.filename = __FILE__, \
-            (v)->payload.trash.line = __LINE__, \
-            cast(void, 0) \
-        )
-#endif
-
-
-/***********************************************************************
-**
 **  NUMBERS - Integer and other simple scalars
 **
 ***********************************************************************/
-
-#define SET_UNSET(v)    VAL_RESET_HEADER(v, REB_UNSET)
-#define UNSET_VALUE     ROOT_UNSET_VAL
-
-#define SET_NONE(v) \
-    ((v)->header.all = 1 << OPT_VALUE_NOT_END | 1 << OPT_VALUE_FALSE, \
-     (v)->header.bitfields.type = REB_NONE, NOOP)  // compound
-
-#define NONE_VALUE      ROOT_NONE_VAL
-
-// In legacy mode we still support the old convention that an IF that does
-// not take its branch or a WHILE loop that never runs its body return a NONE!
-// value instead of an UNSET!.  To track the locations where this decision is
-// made more easily, SET_UNSET_UNLESS_LEGACY_NONE() is used.
-//
-#ifdef NDEBUG
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        SET_UNSET(v)
-#else
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        (LEGACY(OPTIONS_NONE_INSTEAD_OF_UNSETS) ? SET_NONE(v) : SET_UNSET(v))
-#endif
-
-#define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
-#define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
 
 #define VAL_INT32(v)    (REBINT)((v)->payload.integer)
 #define VAL_INT64(v)    ((v)->payload.integer)
@@ -894,49 +1072,8 @@ struct Reb_Any_Series
 #define TO_COLOR_TUPLE(t) TO_RGBA_COLOR(VAL_TUPLE(t)[0], VAL_TUPLE(t)[1], VAL_TUPLE(t)[2], \
                             VAL_TUPLE_LEN(t) > 3 ? VAL_TUPLE(t)[3] : 0xff)
 
-/***********************************************************************
-**
-**  Logic and Logic Bits
-**
-**  For purposes of optimization, logical falsehood is set as one of the
-**  value option bits--as opposed to in a separate place from the header.
-**
-**  Conditional truth and falsehood allows an interpretation where a NONE!
-**  is a "falsey" value as well as logic false.  Unsets are neither
-**  conditionally true nor conditionally false, and so debug builds will
-**  complain if you try to determine which it is--since it likely means
-**  a mistake was made on a decision regarding whether something should be
-**  an "opt out" or an error.
-**
-***********************************************************************/
-
-#define SET_TRUE(v) \
-    ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
-     (v)->header.bitfields.type = REB_LOGIC)  // compound
-
-#define SET_FALSE(v) \
-    ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
-     (v)->header.bitfields.type = REB_LOGIC)  // compound
-
-#define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
-
-#define VAL_LOGIC(v)    !VAL_GET_OPT((v), OPT_VALUE_FALSE)
-
 // !!! The logic used to be an I32 but now it's folded in as a value flag
 #define VAL_I32(v)      ((v)->payload.rebcnt)   // used for handles, etc.
-
-#ifdef NDEBUG
-    #define IS_CONDITIONAL_FALSE(v) \
-        VAL_GET_OPT((v), OPT_VALUE_FALSE)
-#else
-    // In a debug build, we want to make sure that UNSET! is never asked
-    // about its conditional truth or falsehood; it's neither.
-    //
-    #define IS_CONDITIONAL_FALSE(v) \
-        IS_CONDITIONAL_FALSE_Debug(v)
-#endif
-
-#define IS_CONDITIONAL_TRUE(v) !IS_CONDITIONAL_FALSE(v)
 
 
 /***********************************************************************
@@ -1670,42 +1807,11 @@ struct Reb_Typeset {
     (WORDS_HEAD(w) + SERIES_LEN(w) - 1) // (tail never zero)
 
 
-/***********************************************************************
-**
-**  REBVAL (a.k.a. struct Reb_Value)
-**
-**      The structure/union for all REBOL values. It is designed to
-**      be four C pointers in size (so 16 bytes on 32-bit platforms
-**      and 32 bytes on 64-bit platforms).  Operation will be most
-**      efficient with those nice even sizes, but the rest of the
-**      code in the system should be able to work even if the size
-**      turns out to be different.
-**
-**      Of the four 16/32 bit slots that each value has, one of them
-**      is used for the value's "Flags".  This includes the data
-**      type, such as REB_INTEGER, REB_BLOCK, REB_STRING, etc.  Then
-**      there are 8 bits which are for general purposes that could
-**      apply equally well to any type of value (including whether
-**      the value should have a new-line after it when molded out
-**      inside of a block).  There are 8 bits which are custom to
-**      each type--for instance whether a function is infix or not.
-**      Then there are 8 bits reserved for future use.
-**
-**      (Technically speaking this means a 64-bit build has an
-**      extra 32-bit value it might find a use for.  But it's hard
-**      to think of what feature you'd empower specifically on a
-**      64-bit builds.)
-**
-**      The remaining three pointer-sized things are used to hold
-**      whatever representation that value type needs to express
-**      itself.  Perhaps obviously, an arbitrarily long string will
-**      not fit into 3*32 bits, or even 3*64 bits!  You can fit the
-**      data for an INTEGER or DECIMAL in that, but not a BLOCK
-**      or a FUNCTION (for instance).  So those pointers are used
-**      to point to things, and often they will point to one or
-**      more Rebol Series (REBSER).
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  REBOL VALUE DEFINITION (`struct Reb_Value`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
 
 // Reb_All is a structure type designed specifically for getting at
 // the underlying bits of whichever union member is in effect inside
@@ -1762,7 +1868,7 @@ union Reb_Value_Payload {
     struct Reb_Symbol symbol; // internal
 
 #ifndef NDEBUG
-    struct Reb_Trash trash; // not an actual Rebol value type; debug only
+    struct Reb_Track track; // debug only (for TRASH!, UNSET!, NONE!, LOGIC!)
 #endif
 };
 
