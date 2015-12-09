@@ -177,7 +177,7 @@ REBSER *Copy_OS_Str(void *src, REBINT len)
 //
 void Insert_Char(REBSER *dst, REBCNT index, REBCNT chr)
 {
-    if (index > dst->tail) index = dst->tail;
+    if (index > SERIES_LEN(dst)) index = SERIES_LEN(dst);
     if (chr > 0xFF && BYTE_SIZE(dst)) Widen_String(dst, TRUE);
     Expand_Series(dst, index, 1);
     SET_ANY_CHAR(dst, index, chr);
@@ -197,7 +197,7 @@ void Insert_String(REBSER *dst, REBCNT idx, const REBSER *src, REBCNT pos, REBCN
     REBYTE *bp;
     REBCNT n;
 
-    if (idx > dst->tail) idx = dst->tail;
+    if (idx > SERIES_LEN(dst)) idx = SERIES_LEN(dst);
     if (!no_expand) Expand_Series(dst, idx, len); // tail changed too
 
     // Src and dst have same width (8 or 16):
@@ -251,7 +251,7 @@ REBSER *Copy_String(REBSER *src, REBCNT index, REBINT length)
     REBSER *dst;
     REBINT n;
 
-    if (length < 0) length = src->tail - index;
+    if (length < 0) length = SERIES_LEN(src) - index;
 
     // Can it be slimmed down?
     if (!BYTE_SIZE(src)) {
@@ -620,26 +620,29 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
                 bp, len, VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
             );
             EXPAND_SERIES_TAIL(series, bl);
-            series->tail = tail + Encode_UTF8(
-                BIN_AT(series, tail),
-                bl,
-                bp,
-                &len,
-                VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
+            SET_SERIES_LEN(
+                series,
+                tail + Encode_UTF8(
+                    BIN_AT(series, tail),
+                    bl,
+                    bp,
+                    &len,
+                    VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
+                )
             );
             break;
 
         case REB_CHAR:
             EXPAND_SERIES_TAIL(series, 6);
             len = Encode_UTF8_Char(BIN_AT(series, tail), VAL_CHAR(val));
-            series->tail = tail + len;
+            SET_SERIES_LEN(series, tail + len);
             break;
 
         default:
             fail (Error_Invalid_Arg(val));
         }
 
-        tail = series->tail;
+        tail = SERIES_LEN(series);
     }
 
     SET_BIN_END(series, tail);

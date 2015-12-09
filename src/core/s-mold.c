@@ -247,7 +247,7 @@ void New_Indented_Line(REB_MOLD *mold)
     REBUNI *cp = 0;
 
     // Check output string has content already but no terminator:
-    if (mold->series->tail) {
+    if (SERIES_LEN(mold->series)) {
         cp = UNI_LAST(mold->series);
         if (*cp == ' ' || *cp == '\t') *cp = '\n';
         else cp = 0;
@@ -356,7 +356,7 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
         *up++ = '"';
         up = Emit_Uni_Char(up, chr, parened);
         *up++ = '"';
-        dst->tail = up - UNI_HEAD(dst);
+        SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
     }
     UNI_TERM(dst);
 }
@@ -755,7 +755,7 @@ static void Form_Array_At(
         }
         else {
             // Add a space if needed:
-            if (n < len && mold->series->tail
+            if (n < len && SERIES_LEN(mold->series)
                 && *UNI_LAST(mold->series) != LF
                 && !GET_MOPT(mold, MOPT_TIGHT)
             )

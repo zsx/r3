@@ -200,7 +200,7 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
         n >>= 8;
     }
     bp[8] = 0;
-    ser->tail = 8;
+    SET_SERIES_LEN(ser, 8);
 
     return ser;
 }
@@ -245,7 +245,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
     // MAKE/TO BINARY! <char!>
     case REB_CHAR:
         ser = Make_Binary(6);
-        ser->tail = Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg));
+        SET_SERIES_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
         TERM_SEQUENCE(ser);
         break;
 
@@ -261,9 +261,9 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
     case REB_MONEY:
         ser = Make_Binary(12);
-        ser->tail = 12;
-        deci_to_binary(ser->data, VAL_MONEY_AMOUNT(arg));
-        ser->data[12] = 0;
+        SET_SERIES_LEN(ser, 12);
+        deci_to_binary(SERIES_DATA(ser), VAL_MONEY_AMOUNT(arg));
+        SERIES_DATA(ser)[12] = 0;
         break;
 
     default:
@@ -478,7 +478,7 @@ REBINT PD_File(REBPVS *pvs)
 
     c = GET_ANY_CHAR(arg, 0);
     n = (c == '/' || c == '\\') ? 1 : 0;
-    Append_String(ser, arg, n, arg->tail-n);
+    Append_String(ser, arg, n, SERIES_LEN(arg) - n);
 
     Val_Init_Series(pvs->store, VAL_TYPE(pvs->value), ser);
 

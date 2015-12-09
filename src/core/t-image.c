@@ -396,8 +396,8 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBFLG error)
 
     img = Make_Series(w * h + 1, sizeof(u32), MKS_NONE);
     LABEL_SERIES(img, "make image");
-    img->tail = w * h;
-    RESET_IMAGE(img->data, img->tail); //length in 'pixels'
+    SET_SERIES_LEN(img, w * h);
+    RESET_IMAGE(SERIES_DATA(img), SERIES_LEN(img)); //length in 'pixels'
     IMG_WIDE(img) = w;
     IMG_HIGH(img) = h;
     return img;
@@ -1220,7 +1220,7 @@ REBINT PD_Image(REBPVS *pvs)
     FAIL_IF_PROTECTED_SERIES(series);
 
     // Out of range:
-    if (n == 0 || index < 0 || index >= (REBINT)series->tail) {
+    if (n == 0 || index < 0 || index >= cast(REBINT, SERIES_LEN(series))) {
         if (val) return PE_BAD_SET;
         return PE_NONE;
     }

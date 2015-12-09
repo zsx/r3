@@ -163,12 +163,17 @@ REBCNT Modify_String(
             limit = -1;
         }
         else if (IS_CHAR(src_val)) {
+            //
             // "UTF-8 was originally specified to allow codepoints with up to
             // 31 bits (or 6 bytes). But with RFC3629, this was reduced to 4
             // bytes max. to be more compatible to UTF-16."  So depending on
             // which RFC you consider "the UTF-8", max size is either 4 or 6.
+            //
             src_ser = Make_Binary(6);
-            src_ser->tail = Encode_UTF8_Char(BIN_HEAD(src_ser), VAL_CHAR(src_val));
+            SET_SERIES_LEN(
+                src_ser,
+                Encode_UTF8_Char(BIN_HEAD(src_ser), VAL_CHAR(src_val))
+            );
             needs_free = TRUE;
             limit = -1;
         }

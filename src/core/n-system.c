@@ -529,13 +529,13 @@ REBNATIVE(do_codec)
                 break;
         }
         memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
-        ser->tail = codi.len;
+        SET_SERIES_LEN(ser, codi.len);
         Val_Init_String(D_OUT, ser);
         break;
 
     case CODI_BINARY: //used on encode
         ser = Make_Binary(codi.len);
-        ser->tail = codi.len;
+        SET_SERIES_LEN(ser, codi.len);
 
         // optimize for pass-thru decoders, which leave codi.data NULL
         memcpy(

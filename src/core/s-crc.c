@@ -303,7 +303,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
     ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
     LABEL_SERIES(ser, "make hash array");
     Clear_Series(ser);
-    ser->tail = n;
+    SET_SERIES_LEN(ser, n);
 
     return ser;
 }
@@ -336,23 +336,23 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 REBSER *Hash_Block(const REBVAL *block, REBCNT cased)
 {
     REBCNT n;
-    REBSER *hser;
+    REBSER *hashlist;
     REBCNT *hashes;
     REBARR *array = VAL_ARRAY(block);
     REBVAL *value;
 
     // Create the hash array (integer indexes):
-    hser = Make_Hash_Sequence(VAL_LEN_AT(block));
-    hashes = cast(REBCNT*, hser->data);
+    hashlist = Make_Hash_Sequence(VAL_LEN_AT(block));
+    hashes = cast(REBCNT*, SERIES_DATA(hashlist));
 
     value = VAL_ARRAY_AT(block);
     n = VAL_INDEX(block);
     for (; NOT_END(value); value++, n++) {
-        REBCNT key = Find_Key_Hashed(array, hser, value, 1, cased, 0);
+        REBCNT key = Find_Key_Hashed(array, hashlist, value, 1, cased, 0);
         hashes[key] = n + 1;
     }
 
-    return hser;
+    return hashlist;
 }
 
 

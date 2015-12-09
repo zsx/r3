@@ -113,7 +113,7 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     while (SERIES_LEN(GC_Manuals) != state->manuals_len) {
         // Freeing the series will update the tail...
         Free_Series(
-            cast(REBSER**, GC_Manuals->data)[SERIES_LEN(GC_Manuals) - 1]
+            cast(REBSER**, SERIES_DATA(GC_Manuals))[SERIES_LEN(GC_Manuals) - 1]
         );
     }
 

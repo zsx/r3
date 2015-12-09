@@ -157,7 +157,7 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
 
     if (IS_NONE(item)) return index;
 
-    if (index >= series->tail) return NOT_FOUND;
+    if (index >= SERIES_LEN(series)) return NOT_FOUND;
 
     switch (VAL_TYPE(item)) {
 
@@ -194,7 +194,17 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
 //  case REB_ISSUE:
         // !! Can be optimized (w/o COPY)
         ser = Copy_Form_Value(item, 0);
-        index = Find_Str_Str(series, 0, index, SERIES_LEN(series), 1, ser, 0, ser->tail, flags);
+        index = Find_Str_Str(
+            series,
+            0,
+            index,
+            SERIES_LEN(series),
+            1,
+            ser,
+            0,
+            SERIES_LEN(ser),
+            flags
+        );
         Free_Series(ser);
         break;
 
@@ -215,7 +225,7 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
             return THROWN_FLAG;
         }
 
-        index = MIN(index, series->tail); // may affect tail
+        index = MIN(index, SERIES_LEN(series)); // may affect tail
         break;
 
     default:
@@ -325,7 +335,7 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG
     REBCNT len;
     REBVAL save;
 
-    for (; index <= series->tail; index++) {
+    for (; index <= SERIES_LEN(series); index++) {
 
         for (blk = VAL_ARRAY_HEAD(block); NOT_END(blk); blk++) {
 
@@ -335,8 +345,8 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG
             if (IS_WORD(item)) {
                 if ((cmd = VAL_CMD(item))) {
                     if (cmd == SYM_END) {
-                        if (index >= series->tail) {
-                            index = series->tail;
+                        if (index >= SERIES_LEN(series)) {
+                            index = SERIES_LEN(series);
                             goto found;
                         }
                         goto next;
@@ -499,11 +509,11 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
     // TO a specific index position.
     if (IS_INTEGER(item)) {
         i = (REBCNT)Int32(item) - (is_thru ? 0 : 1);
-        if (i > series->tail) i = series->tail;
+        if (i > SERIES_LEN(series)) i = SERIES_LEN(series);
     }
     // END
     else if (IS_WORD(item) && VAL_WORD_CANON(item) == SYM_END) {
-        i = series->tail;
+        i = SERIES_LEN(series);
     }
     else if (IS_BLOCK(item)) {
         i = To_Thru(parse, index, item, is_thru);
@@ -536,23 +546,59 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
                 if (!IS_STRING(item) && !IS_BINARY(item)) {
                     // !!! Can this be optimized not to use COPY?
                     ser = Copy_Form_Value(item, 0);
-                    i = Find_Str_Str(series, 0, index, series->tail, 1, ser, 0, ser->tail, HAS_CASE(parse));
-                    if (i != NOT_FOUND && is_thru) i += ser->tail;
+                    i = Find_Str_Str(
+                        series,
+                        0,
+                        index,
+                        SERIES_LEN(series),
+                        1,
+                        ser,
+                        0,
+                        SERIES_LEN(ser),
+                        HAS_CASE(parse)
+                    );
+                    if (i != NOT_FOUND && is_thru) i += SERIES_LEN(ser);
                     Free_Series(ser);
                 }
                 else {
-                    i = Find_Str_Str(series, 0, index, series->tail, 1, VAL_SERIES(item), VAL_INDEX(item), VAL_LEN_AT(item), HAS_CASE(parse));
+                    i = Find_Str_Str(
+                        series,
+                        0,
+                        index,
+                        SERIES_LEN(series),
+                        1,
+                        VAL_SERIES(item),
+                        VAL_INDEX(item),
+                        VAL_LEN_AT(item),
+                        HAS_CASE(parse)
+                    );
                     if (i != NOT_FOUND && is_thru) i += VAL_LEN_AT(item);
                 }
             }
             // #"A"
             else if (IS_CHAR(item)) {
-                i = Find_Str_Char(series, 0, index, series->tail, 1, VAL_CHAR(item), HAS_CASE(parse));
+                i = Find_Str_Char(
+                    series,
+                    0,
+                    index,
+                    SERIES_LEN(series),
+                    1,
+                    VAL_CHAR(item),
+                    HAS_CASE(parse)
+                );
                 if (i != NOT_FOUND && is_thru) i++;
             }
             // bitset
             else if (IS_BITSET(item)) {
-                i = Find_Str_Bitset(series, 0, index, series->tail, 1, VAL_BITSET(item), HAS_CASE(parse));
+                i = Find_Str_Bitset(
+                    series,
+                    0,
+                    index,
+                    SERIES_LEN(series),
+                    1,
+                    VAL_BITSET(item),
+                    HAS_CASE(parse)
+                );
                 if (i != NOT_FOUND && is_thru) i++;
             }
             else {
@@ -945,7 +991,7 @@ static REBCNT Parse_Rules_Loop(
                 item = NULL;
             }
 
-            if (index > series->tail) index = series->tail;
+            if (index > SERIES_LEN(series)) index = SERIES_LEN(series);
             if (!item) continue; // for SET and GET cases
         }
 
@@ -959,7 +1005,7 @@ static REBCNT Parse_Rules_Loop(
             }
             // ignore evaluated if it's not THROWN?
 
-            if (index > series->tail) index = series->tail;
+            if (index > SERIES_LEN(series)) index = SERIES_LEN(series);
             continue;
         }
 
@@ -986,7 +1032,10 @@ static REBCNT Parse_Rules_Loop(
         //--------------------------------------------------------------------
 
         item_hold = item;   // a command or literal match value
-        if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_NATIVE) goto bad_rule;
+
+        if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_NATIVE)
+            goto bad_rule;
+
         begin = index;      // input at beginning of match section
         rulen = 0;          // rules consumed (do not use rule++ below)
 
@@ -1001,11 +1050,15 @@ static REBCNT Parse_Rules_Loop(
                 switch (cmd = VAL_WORD_CANON(item)) {
 
                 case SYM_SKIP:
-                    i = (index < series->tail) ? index+1 : NOT_FOUND;
+                    i = (index < SERIES_LEN(series))
+                        ? index + 1
+                        : NOT_FOUND;
                     break;
 
                 case SYM_END:
-                    i = (index < series->tail) ? NOT_FOUND : series->tail;
+                    i = (index < SERIES_LEN(series))
+                        ? NOT_FOUND
+                        : SERIES_LEN(series);
                     break;
 
                 case SYM_TO:
@@ -1153,7 +1206,7 @@ static REBCNT Parse_Rules_Loop(
         rules += rulen;
 
         //if (index > series->tail && index != NOT_FOUND) index = series->tail;
-        if (index > series->tail) index = NOT_FOUND;
+        if (index > SERIES_LEN(series)) index = NOT_FOUND;
 
         //--------------------------------------------------------------------
         // Post Match Processing:

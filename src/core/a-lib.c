@@ -499,7 +499,7 @@ RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBC
 #endif
 
     PUSH_GUARD_SERIES(text);
-    do_result = RL_Do_String(exit_status, text->data, flags, result);
+    do_result = RL_Do_String(exit_status, BIN_HEAD(text), flags, result);
     DROP_GUARD_SERIES(text);
 
     Free_Series(text);
@@ -835,7 +835,12 @@ RL_API void RL_Protect_GC(REBSER *series, u32 flags)
 //
 RL_API int RL_Get_String(REBSER *series, u32 index, void **str)
 {   // ret: len or -len
-    int len = (index >= series->tail) ? 0 : series->tail - index;
+    int len;
+
+    if (index >= SERIES_LEN(series))
+        len = 0;
+    else
+        len = SERIES_LEN(series) - index;
 
     if (BYTE_SIZE(series)) {
         *str = BIN_AT(series, index);
@@ -1001,7 +1006,7 @@ RL_API REBUPT RL_Series(REBSER *series, REBCNT what)
 //
 RL_API int RL_Get_Char(REBSER *series, u32 index)
 {
-    if (index >= series->tail) return -1;
+    if (index >= SERIES_LEN(series)) return -1;
     return GET_ANY_CHAR(series, index);
 }
 
@@ -1021,8 +1026,8 @@ RL_API int RL_Get_Char(REBSER *series, u32 index)
 //
 RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 {
-    if (index >= series->tail) {
-        index = series->tail;
+    if (index >= SERIES_LEN(series)) {
+        index = SERIES_LEN(series);
         EXPAND_SERIES_TAIL(series, 1);
     }
     SET_ANY_CHAR(series, index, chr);

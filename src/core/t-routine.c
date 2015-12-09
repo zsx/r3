@@ -750,7 +750,7 @@ void Call_Routine(const REBVAL *rot, REBARR *args, REBVAL *ret)
      *  Instead of remembering how many times SAVE_SERIES has called, it's easier to
      *  just remember the initial pointer and restore it later.
     **/
-    REBCNT series_guard_tail = GC_Series_Guard->tail;
+    REBCNT series_guard_tail = SERIES_LEN(GC_Series_Guard);
 
     if (VAL_ROUTINE_LIB(rot) != NULL) {
         // lib is NULL when routine is constructed from address directly
@@ -870,8 +870,9 @@ void Call_Routine(const REBVAL *rot, REBARR *args, REBVAL *ret)
     if (ser) Free_Series(ser);
 
     //restore the saved series stack pointer
-    GC_Series_Guard->tail = series_guard_tail;
+    SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
 }
+
 
 //
 //  Free_Routine: C

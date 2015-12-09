@@ -466,9 +466,9 @@ static const REBYTE *Scan_Quote(REBSER *buf, const REBYTE *src, SCAN_STATE *scan
         if (SERIES_LEN(buf) + 1 >= SERIES_REST(buf)) // include term.
             Extend_Series(buf, 1);
 
-        *UNI_AT(buf, buf->tail) = chr;
+        *UNI_TAIL(buf) = chr;
 
-        buf->tail ++;
+        SET_SERIES_LEN(buf, SERIES_LEN(buf) + 1);
     }
 
     src++; // Skip ending quote or brace.
@@ -537,9 +537,12 @@ const REBYTE *Scan_Item(const REBYTE *src, const REBYTE *end, REBUNI term, const
 
         src++;
 
-        *UNI_AT(buf, buf->tail) = c; // not affected by Extend_Series
+        *UNI_TAIL(buf) = c; // not affected by Extend_Series
 
-        if (++(buf->tail) >= SERIES_REST(buf)) Extend_Series(buf, 1);
+        SET_SERIES_LEN(buf, SERIES_LEN(buf) + 1);
+
+        if (SERIES_LEN(buf) >= SERIES_REST(buf))
+            Extend_Series(buf, 1);
     }
 
     if (*src && *src == term) src++;

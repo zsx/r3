@@ -367,7 +367,7 @@ span_bits:
             val++;
             if (!IS_BINARY(val)) return 0;
             n = VAL_LEN_AT(val);
-            c = bset->tail;
+            c = SERIES_LEN(bset);
             if (n >= c) {
                 Expand_Series(bset, c, (n - c));
                 CLEAR(BIN_AT(bset, c), (n - c));

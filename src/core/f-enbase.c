@@ -414,7 +414,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
 
     if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
 
-    SET_SERIES_LEN(series, cast(REBCNT, p - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
     return series;
 }
 
@@ -454,7 +454,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
     if (*(bp-1) != LF && (len >= 32) && brk) *bp++ = LF;
     *bp = 0;
 
-    SET_SERIES_LEN(series, cast(REBCNT, bp - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, bp - SERIES_DATA(series)));
 
     return series;
 }
@@ -515,7 +515,7 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
     //
     // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
     //
-    SET_SERIES_LEN(series, cast(REBCNT, p - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
 
     return series;
 }

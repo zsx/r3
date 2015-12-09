@@ -67,11 +67,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
     len -= index;
     copy = Make_Array(len + extra + 1);
 
-    memcpy(
-        ARRAY_SERIES(copy)->data,
-        ARRAY_AT(original, index),
-        len * sizeof(REBVAL)
-    );
+    memcpy(ARRAY_HEAD(copy), ARRAY_AT(original, index), len * sizeof(REBVAL));
 
     SET_ARRAY_LEN(copy, len);
     TERM_ARRAY(copy);
@@ -98,11 +94,7 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 
     copy = Make_Array(max + 1);
 
-    memcpy(
-        ARRAY_SERIES(copy)->data,
-        ARRAY_AT(original, index),
-        max * sizeof(REBVAL)
-    );
+    memcpy(ARRAY_HEAD(copy), ARRAY_AT(original, index), max * sizeof(REBVAL));
 
     SET_ARRAY_LEN(copy, max);
     TERM_ARRAY(copy);
@@ -123,7 +115,7 @@ REBARR *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
 
     array = Make_Array(len + extra + 1);
 
-    memcpy(ARRAY_SERIES(array)->data, &value[0], len * sizeof(REBVAL));
+    memcpy(ARRAY_HEAD(array), &value[0], len * sizeof(REBVAL));
 
     SET_ARRAY_LEN(array, len);
     TERM_ARRAY(array);
@@ -365,7 +357,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     else {
         array = Make_Array(len + 1);
 
-        memcpy(ARRAY_SERIES(array)->data, blk, len * sizeof(REBVAL));
+        memcpy(ARRAY_HEAD(array), blk, len * sizeof(REBVAL));
         SET_ARRAY_LEN(array, len);
         TERM_ARRAY(array);
 

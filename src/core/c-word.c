@@ -102,10 +102,10 @@ REBINT Get_Hash_Prime(REBCNT size)
 //
 void Expand_Hash(REBSER *ser)
 {
-    REBINT pnum = Get_Hash_Prime(ser->tail + 1);
+    REBINT pnum = Get_Hash_Prime(SERIES_LEN(ser) + 1);
     if (!pnum) {
         REBVAL temp;
-        SET_INTEGER(&temp, ser->tail + 1);
+        SET_INTEGER(&temp, SERIES_LEN(ser) + 1);
         fail (Error(RE_SIZE_LIMIT, &temp));
     }
 
@@ -113,7 +113,7 @@ void Expand_Hash(REBSER *ser)
     Remake_Series(ser, pnum + 1, SERIES_WIDE(ser), MKS_POWER_OF_2);
 
     Clear_Series(ser);
-    ser->tail = pnum;
+    SET_SERIES_LEN(ser, pnum);
 }
 
 
@@ -139,8 +139,8 @@ static void Expand_Word_Table(void)
 
     // Rehash all the symbols:
     word = ARRAY_AT(PG_Word_Table.array, 1);
-    hashes = (REBCNT *)PG_Word_Table.hashes->data;
-    size = PG_Word_Table.hashes->tail;
+    hashes = cast(REBCNT*, SERIES_DATA(PG_Word_Table.hashes));
+    size = SERIES_LEN(PG_Word_Table.hashes);
     for (n = 1; n < ARRAY_LEN(PG_Word_Table.array); n++, word++) {
         const REBYTE *name = VAL_SYM_NAME(word);
         hash = Hash_Word(name, LEN_BYTES(name));
@@ -166,7 +166,10 @@ static REBCNT Make_Word_Name(const REBYTE *str, REBCNT len)
     REBCNT pos = SERIES_LEN(PG_Word_Names);
 
     Append_Mem_Extra(PG_Word_Names, str, len, 1); // so we can do next line...
-    PG_Word_Names->tail++; // keep terminator for each string
+
+    // keep terminator for each string
+    SET_SERIES_LEN(PG_Word_Names, SERIES_LEN(PG_Word_Names) + 1);
+
     return pos;
 }
 
@@ -216,9 +219,9 @@ REBCNT Make_Word(const REBYTE *str, REBCNT len)
         CLEAR_SEQUENCE(Bind_Table);
     }
 
-    size   = (REBINT)PG_Word_Table.hashes->tail;
-    words  = ARRAY_HEAD(PG_Word_Table.array);
-    hashes = (REBCNT *)PG_Word_Table.hashes->data;
+    size = cast(REBINT, SERIES_LEN(PG_Word_Table.hashes));
+    words = ARRAY_HEAD(PG_Word_Table.array);
+    hashes = cast(REBCNT*, SERIES_DATA(PG_Word_Table.hashes));
 
     // Hash the word, including a skip factor for lookup:
     hash  = Hash_Word(str, len);
@@ -403,7 +406,7 @@ void Init_Words(REBFLG only)
         PG_Word_Table.hashes = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
         LABEL_SERIES(PG_Word_Table.hashes, "word hashes"); // pointer array
         Clear_Series(PG_Word_Table.hashes);
-        PG_Word_Table.hashes->tail = n;
+        SET_SERIES_LEN(PG_Word_Table.hashes, n);
 
         // The word (symbol) table itself:
         PG_Word_Table.array = Make_Array(WORD_TABLE_SIZE);

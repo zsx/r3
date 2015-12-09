@@ -217,7 +217,7 @@ void Display_Backtrace(REBCNT lines)
     REBCNT i;
 
     if (Trace_Limit > 0) {
-        tail = Trace_Buffer->tail;
+        tail = SERIES_LEN(Trace_Buffer);
         i = tail - 1;
         for (lines++ ;lines > 0; lines--, i--) {
             i = Find_Str_Char(Trace_Buffer, 0, i, tail, -1, LF, 0);
@@ -250,7 +250,7 @@ void Debug_String(const void *p, REBCNT len, REBOOL uni, REBINT lines)
     GC_Disabled = 1;
 
     if (Trace_Limit > 0) {
-        if (Trace_Buffer->tail >= Trace_Limit)
+        if (SERIES_LEN(Trace_Buffer) >= Trace_Limit)
             Remove_Series(Trace_Buffer, 0, 2000);
         if (len == UNKNOWN) len = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
         // !!! account for unicode!
@@ -473,14 +473,14 @@ void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
         if (n > 0 && VAL_TYPE(value) <= REB_NONE) Debug_Chars('.', 1);
         else {
             out = Mold_Print_Value(value, limit, TRUE); // shared mold buffer
-            for (i1 = i2 = 0; i1 < out->tail; i1++) {
+            for (i1 = i2 = 0; i1 < SERIES_LEN(out); i1++) {
                 uc = GET_ANY_CHAR(out, i1);
                 if (uc < ' ') uc = ' ';
                 if (uc > ' ' || pc > ' ') SET_ANY_CHAR(out, i2++, uc);
                 pc = uc;
             }
             SET_ANY_CHAR(out, i2, 0);
-            Debug_String(out->data, i2, TRUE, 0);
+            Debug_String(SERIES_DATA(out), i2, TRUE, 0);
         }
     }
     Debug_Line();
@@ -895,7 +895,11 @@ REBYTE *Form_Args(REBYTE *bp, REBCNT max, const char *fmt, ...)
 void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 {
     REBSER *out = Mold_Print_Value(value, limit, mold);
-    Prin_OS_String(out->data, out->tail, OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE);
+    Prin_OS_String(
+        SERIES_DATA(out),
+        SERIES_LEN(out),
+        OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE
+    );
 }
 
 

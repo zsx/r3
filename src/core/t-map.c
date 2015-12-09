@@ -285,7 +285,7 @@ static REBCNT Find_Map_Entry(REBMAP *map, REBVAL *key, REBVAL *val)
     }
 
     hash = Find_Key_Hashed(pairlist, hashlist, key, 2, 0, 0);
-    hashes = (REBCNT*)hashlist->data;
+    hashes = cast(REBCNT*, SERIES_DATA(hashlist));
     n = hashes[hash];
 
     // Just a GET of value:

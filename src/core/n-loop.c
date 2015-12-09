@@ -598,8 +598,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 // not a lot that can be done as the series is expected to
                 // be in a good state for the next iteration of the body. :-/
                 memmove(
-                    series->data + (windex * wide),
-                    series->data + (rindex * wide),
+                    SERIES_DATA(series) + (windex * wide),
+                    SERIES_DATA(series) + (rindex * wide),
                     (index - rindex) * wide
                 );
                 windex += index - rindex;

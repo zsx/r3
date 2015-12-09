@@ -157,10 +157,20 @@ static void Push_Array_Marked_Deep(REBARR *array)
     assert(ARRAY_GET_FLAG(array, SER_MARK));
 
     // Add series to the end of the mark stack series and update terminator
+
     if (SERIES_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
-    cast(REBARR **, GC_Mark_Stack->data)[GC_Mark_Stack->tail++] = array;
-    cast(REBARR **, GC_Mark_Stack->data)[GC_Mark_Stack->tail] = NULL;
+
+    cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
+        SERIES_LEN(GC_Mark_Stack)
+    ] = array;
+
+    SET_SERIES_LEN(GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack) + 1);
+
+    cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
+        SERIES_LEN(GC_Mark_Stack)
+    ] = NULL;
 }
+
 
 static void Propagate_All_GC_Marks(void);
 
@@ -304,7 +314,7 @@ static void Queue_Mark_Field_Deep(const REBSTU *stu, struct Struct_Field *field)
         MARK_SERIES_ONLY(field_fields);
         QUEUE_MARK_ARRAY_DEEP(field->spec);
 
-        for (len = 0; len < field_fields->tail; len++) {
+        for (len = 0; len < SERIES_LEN(field_fields); len++) {
             Queue_Mark_Field_Deep(
                 stu, cast(struct Struct_Field*, SERIES_AT(field_fields, len))
             );
@@ -359,7 +369,7 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
     MARK_SERIES_ONLY(stu->data);
 
     series = stu->fields;
-    for (len = 0; len < series->tail; len++) {
+    for (len = 0; len < SERIES_LEN(series); len++) {
         struct Struct_Field *field = cast(struct Struct_Field*,
             SERIES_AT(series, len)
         );
@@ -1004,17 +1014,24 @@ static void Propagate_All_GC_Marks(void)
 {
     assert(!in_mark);
 
-    while (GC_Mark_Stack->tail != 0) {
+    while (SERIES_LEN(GC_Mark_Stack) != 0) {
         // Data pointer may change in response to an expansion during
         // Mark_Array_Deep_Core(), so must be refreshed on each loop.
         //
-        REBARR *array =
-            cast(REBARR **, GC_Mark_Stack->data)[--GC_Mark_Stack->tail];
+        REBARR *array;
+
+        SET_SERIES_LEN(GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack) - 1);
+
+        array = cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
+            SERIES_LEN(GC_Mark_Stack)
+        ];
 
         // Drop the series we are processing off the tail, as we could be
         // queuing more of them (hence increasing the tail).
         //
-        cast(REBARR **, GC_Mark_Stack->data)[GC_Mark_Stack->tail] = NULL;
+        cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
+            SERIES_LEN(GC_Mark_Stack)
+        ] = NULL;
 
         Mark_Array_Deep_Core(array);
     }
@@ -1074,7 +1091,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // the values are marked), or if it's just a data series which
         // should just be marked shallow.
         //
-        sp = cast(REBSER**, GC_Series_Guard->data);
+        sp = cast(REBSER**, SERIES_DATA(GC_Series_Guard));
         for (n = SERIES_LEN(GC_Series_Guard); n > 0; n--, sp++) {
             if (SERIES_GET_FLAG(*sp, SER_FRAME))
                 MARK_FRAME_DEEP(AS_FRAME(*sp));
@@ -1085,7 +1102,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         }
 
         // Mark value stack (temp-saved values):
-        vp = cast(REBVAL**, GC_Value_Guard->data);
+        vp = cast(REBVAL**, SERIES_DATA(GC_Value_Guard));
         for (n = SERIES_LEN(GC_Value_Guard); n > 0; n--, vp++) {
             if (NOT_END(*vp))
                 Queue_Mark_Value_Deep(*vp);
@@ -1217,8 +1234,11 @@ void Guard_Series_Core(REBSER *series)
 
     if (SERIES_FULL(GC_Series_Guard)) Extend_Series(GC_Series_Guard, 8);
 
-    cast(REBSER **, GC_Series_Guard->data)[GC_Series_Guard->tail] = series;
-    GC_Series_Guard->tail++;
+    cast(REBSER **, SERIES_DATA(GC_Series_Guard))[
+        SERIES_LEN(GC_Series_Guard)
+    ] = series;
+
+    SET_SERIES_LEN(GC_Series_Guard, SERIES_LEN(GC_Series_Guard) + 1);
 }
 
 
@@ -1246,8 +1266,11 @@ void Guard_Value_Core(const REBVAL *value)
 
     if (SERIES_FULL(GC_Value_Guard)) Extend_Series(GC_Value_Guard, 8);
 
-    cast(const REBVAL **, GC_Value_Guard->data)[GC_Value_Guard->tail] = value;
-    GC_Value_Guard->tail++;
+    cast(const REBVAL **, SERIES_DATA(GC_Value_Guard))[
+        SERIES_LEN(GC_Value_Guard)
+    ] = value;
+
+    SET_SERIES_LEN(GC_Value_Guard, SERIES_LEN(GC_Value_Guard) + 1);
 }
 
 

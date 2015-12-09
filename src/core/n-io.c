@@ -54,7 +54,7 @@ REBNATIVE(echo)
         ser = To_Local_Path("output.txt", 10, FALSE, TRUE);
 
     if (ser) {
-        if (!Echo_File(cast(REBCHR*, ser->data)))
+        if (!Echo_File(cast(REBCHR*, SERIES_DATA(ser))))
             fail (Error(RE_CANNOT_OPEN, val));
     }
 
@@ -615,13 +615,16 @@ REBNATIVE(change_dir)
         assert(IS_FILE(arg));
 
         ser = Value_To_OS_Path(arg, TRUE);
-        if (!ser) fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
+        if (!ser)
+            fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
         Val_Init_String(&val, ser); // may be unicode or utf-8
         Check_Security(SYM_FILE, POL_EXEC, &val);
 
-        n = OS_SET_CURRENT_DIR(cast(REBCHR*, ser->data));  // use len for bool
-        if (!n) fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
+        n = OS_SET_CURRENT_DIR(cast(REBCHR*, SERIES_DATA(ser)));
+
+        if (n == 0)
+            fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
     }
 
     *current_path = *arg;
@@ -1188,18 +1191,22 @@ REBNATIVE(request_file)
 
     if (D_REF(ARG_REQUEST_FILE_FILE)) {
         ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
-        fr.dir = cast(REBCHR*, ser->data);
-        n = ser->tail;
+        fr.dir = cast(REBCHR*, SERIES_DATA(ser));
+        n = SERIES_LEN(ser);
         if (OS_CH_VALUE(fr.dir[n-1]) != OS_DIR_SEP) {
             if (n+2 > fr.len) n = fr.len - 2;
-            OS_STRNCPY(cast(REBCHR*, fr.files), cast(REBCHR*, ser->data), n);
+            OS_STRNCPY(
+                cast(REBCHR*, fr.files),
+                cast(REBCHR*, SERIES_DATA(ser)),
+                n
+            );
             fr.files[n] = OS_MAKE_CH('\0');
         }
     }
 
     if (D_REF(ARG_REQUEST_FILE_FILTER)) {
         ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
-        fr.filter = cast(REBCHR*, ser->data);
+        fr.filter = cast(REBCHR*, SERIES_DATA(ser));
     }
 
     if (D_REF(ARG_REQUEST_FILE_TITLE)) {
