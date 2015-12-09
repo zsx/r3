@@ -216,7 +216,7 @@ REBTYPE(Decimal)
     REBDEC  d2;
     REBINT  num;
     REBDEC  exp;
-    REBINT  type = 0;
+    enum Reb_Kind type = REB_TRASH;
 
     // all binary actions
     if (IS_BINARY_ACT(action)) {

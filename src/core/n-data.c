@@ -1205,6 +1205,45 @@ REBNATIVE(map_gob_offset)
 #if !defined(NDEBUG)
 
 //
+//  SET_END_Debug: C
+//
+// Variant of SET_END() macro which includes an assert for making sure
+// that the value's header is in "formatted space".
+//
+void SET_END_Debug(REBVAL *v)
+{
+    //
+    // The slot we are trying to write into must have at least been formatted
+    // in the debug build via SET_TRASH().  Otherwise it could be an arbitrary
+    // value with its low bit clear, doing double-duty as an IS_END() marker,
+    // which we cannot overwrite...not even with an END marker.
+    //
+    /* assert(VAL_GET_OPT((v), OPT_VALUE_REBVAL_DEBUG)); */
+
+    ((v)->header.all = (1 << OPT_VALUE_REBVAL_DEBUG));
+}
+
+
+//
+//  VAL_RESET_HEADER_Debug: C
+//
+// Variant of VAL_RESET_HEADER() macro which includes an assert for making
+// sure that a value header is in "formatted space".
+//
+void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
+{
+    // See comments in SET_END_Debug.
+    //
+    /* assert(VAL_GET_OPT(v, OPT_VALUE_REBVAL_DEBUG)); */
+
+    // (t == REB_TRASH) is legal, and SET_TRASH() uses VAL_RESET_HEADER()
+
+    (v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG);
+    (v)->header.bitfields.type = (t);
+}
+
+
+//
 //  VAL_TYPE_Debug: C
 //
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that

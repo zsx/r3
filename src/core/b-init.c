@@ -74,7 +74,7 @@ static void Assert_Basics(void)
     if (val.header.all != 123)
         panic (Error(RE_REBVAL_ALIGNMENT));
 
-    VAL_RESET_HEADER(&val, 63);
+    VAL_RESET_HEADER(&val, cast(enum Reb_Kind, 63));
     if (VAL_TYPE(&val) != 63)
         panic (Error(RE_REBVAL_ALIGNMENT));
 

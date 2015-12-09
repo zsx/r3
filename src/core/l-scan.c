@@ -1410,7 +1410,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                     scan_state->begin = ++(scan_state->end);
                 } else token = REB_PATH;
             }
-            VAL_RESET_HEADER(value, token);
+            VAL_RESET_HEADER(value, cast(enum Reb_Kind, token));
             VAL_ARRAY(value) = block;
             VAL_INDEX(value) = 0;
             token = TOKEN_PATH;
@@ -1445,7 +1445,9 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         case TOKEN_WORD:
             if (len == 0) {bp--; goto syntax_error;}
             Val_Init_Word_Unbound(
-                value, REB_WORD + (token - TOKEN_WORD), Make_Word(bp, len)
+                value,
+                cast(enum Reb_Kind, REB_WORD + (token - TOKEN_WORD)),
+                Make_Word(bp, len)
             );
             break;
 

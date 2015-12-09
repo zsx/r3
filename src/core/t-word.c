@@ -62,7 +62,7 @@ REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBCNT type = VAL_TYPE(val);
+    enum Reb_Kind type = VAL_TYPE(val);
     REBINT diff;
     REBCNT sym;
 

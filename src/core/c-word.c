@@ -309,7 +309,7 @@ void Val_Init_Word(
 // 
 // Initialize a value as a word. Set frame as unbound (no context).
 //
-void Val_Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
+void Val_Init_Word_Unbound(REBVAL *value, enum Reb_Kind type, REBCNT sym)
 {
     VAL_RESET_HEADER(value, type);
     VAL_WORD_TARGET(value) = NULL;

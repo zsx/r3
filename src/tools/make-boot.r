@@ -650,7 +650,7 @@ emit-end
 emit {
 /***********************************************************************
 **
-*/  const REBYTE RXT_To_Reb[RXT_MAX] =
+*/  const enum Reb_Kind RXT_To_Reb[RXT_MAX] =
 /*
 ***********************************************************************/
 ^{
@@ -659,7 +659,7 @@ emit {
 n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
-        emit-line "" 0 n
+        emit-line "" "REB_TRASH" n
     ]
     n: n + 1
 ]

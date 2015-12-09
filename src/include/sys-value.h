@@ -197,9 +197,14 @@ union Reb_Value_Header {
 
 // set type, clear all flags except for NOT_END
 //
-#define VAL_RESET_HEADER(v,t) \
-    ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
-     (v)->header.bitfields.type = (t))
+#ifdef NDEBUG
+    #define VAL_RESET_HEADER(v,t) \
+        ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
+         (v)->header.bitfields.type = (t))
+#else
+    #define VAL_RESET_HEADER(v,t) \
+        VAL_RESET_HEADER_Debug((v), (t))
+#endif
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
@@ -211,7 +216,12 @@ union Reb_Value_Header {
 // the low bit of any 32/64-bit value, including to add the bit to a pointer,
 // but this routine will wipe all the other bits and just set it to 1.
 //
-#define SET_END(v)          ((v)->header.all = 0)
+#ifdef NDEBUG
+    #define SET_END(v)      ((v)->header.all = 0)
+#else
+    #define SET_END(v)      SET_END_Debug(v)
+#endif
+
 #define IS_END(v)           ((v)->header.all % 2 == 0)
 #define NOT_END(v)          ((v)->header.all % 2 == 1)
 #define END_VALUE           PG_End_Val
@@ -219,6 +229,11 @@ union Reb_Value_Header {
 // Value option flags:
 enum {
     OPT_VALUE_NOT_END = 0,  // Not an END signal (so other header bits valid)
+#ifdef NDEBUG
+    OPT_VALUE_DO_NOT_USE,   // Abusing 2nd pointer bit is not entirely portable
+#else
+    OPT_VALUE_REBVAL_DEBUG, // Slot is a full REBVAL, not just an END proxy
+#endif
     OPT_VALUE_FALSE,        // Value is conditionally false (optimization)
     OPT_VALUE_LINE,         // Line break occurs before this value
     OPT_VALUE_THROWN,       // Value is /NAME of a THROW (arg via THROWN_ARG)
@@ -235,14 +250,6 @@ enum {
 #define VAL_SET_EXT(v,n)    SET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_GET_EXT(v,n)    GET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_CLR_EXT(v,n)    CLR_FLAG(VAL_EXTS_DATA(v), n)
-
-
-#ifdef NDEBUG
-#else
-#endif
-
-
-
 
 
 /***********************************************************************
@@ -347,7 +354,7 @@ struct Reb_Datatype {
 
 #define SET_NONE(v) \
     ((v)->header.all = 1 << OPT_VALUE_NOT_END | 1 << OPT_VALUE_FALSE, \
-     (v)->header.bitfields.type = REB_NONE)  // compound
+     (v)->header.bitfields.type = REB_NONE, NOOP)  // compound
 
 #define NONE_VALUE      ROOT_NONE_VAL
 

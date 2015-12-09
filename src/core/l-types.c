@@ -744,8 +744,12 @@ const REBYTE *Scan_Binary(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan any string that does not require special decoding.
 //
-const REBYTE *Scan_Any(const REBYTE *cp, REBCNT len, REBVAL *value, REBYTE type)
-{
+const REBYTE *Scan_Any(
+    const REBYTE *cp,
+    REBCNT len,
+    REBVAL *value,
+    enum Reb_Kind type
+) {
     REBCNT n;
 
     VAL_RESET_HEADER(value, type);

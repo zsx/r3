@@ -710,7 +710,7 @@ REBNATIVE(positive_q)
 //
 REBNATIVE(zero_q)
 {
-    REBCNT type = VAL_TYPE(D_ARG(1));
+    enum Reb_Kind type = VAL_TYPE(D_ARG(1));
 
     if (type >= REB_INTEGER && type <= REB_TIME) {
         REBVAL zero;

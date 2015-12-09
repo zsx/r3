@@ -290,7 +290,7 @@ REBARR *Check_Func_Spec(REBARR *spec)
 //
 //  Make_Native: C
 //
-void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, REBINT type)
+void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, enum Reb_Kind type)
 {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
     ENSURE_ARRAY_MANAGED(spec);
