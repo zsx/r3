@@ -483,13 +483,6 @@ typedef struct Reb_Tuple {
 #endif
 
 
-// These flags are returned from Do_Next_Core and Do_Next_May_Throw, in
-// order to keep from needing another returned value in addition to the
-// index (as they both imply that no "next index" exists to be returned)
-
-#define END_FLAG 0x80000000  // end of block as index
-#define THROWN_FLAG (END_FLAG - 1) // throw as an index
-
 #ifdef SERIES_LABELS
 #define SERIES_LABEL(s)  ((s)->label)
 #define SET_SERIES_LABEL(s,l) (((s)->label) = (l))
@@ -1539,30 +1532,6 @@ struct Reb_Function {
 // value.  The paramlist has that value (it's the REBVAL in slot #0)
 //
 #define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
-
-typedef struct Reb_Path_Value {
-    REBVAL *value;  // modified
-    REBVAL *select; // modified
-    REBVAL *path;   // modified
-    REBVAL *store;  // modified (holds constructed values)
-    REBVAL *setval; // static
-    const REBVAL *orig; // static
-} REBPVS;
-
-enum Path_Eval_Result {
-    PE_OK,
-    PE_SET,
-    PE_USE,
-    PE_NONE,
-    PE_BAD_SELECT,
-    PE_BAD_SET,
-    PE_BAD_RANGE,
-    PE_BAD_SET_TYPE
-};
-
-typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
-
-typedef REBINT (*REBCTF)(REBVAL *a, REBVAL *b, REBINT s);
 
 
 /***********************************************************************
