@@ -188,8 +188,13 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG ra
 // 
 // !!! Does not expose the "streaming" ability of zlib.
 //
-REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REBFLG raw)
-{
+REBSER *Decompress(
+    const REBYTE *input,
+    REBCNT len,
+    REBINT max,
+    REBFLG gzip,
+    REBFLG raw
+) {
     REBOL_STATE state;
     REBFRM *error;
 
@@ -309,7 +314,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
                 REBVAL temp;
-                VAL_RESET_HEADER(&temp, max);
+                SET_INTEGER(&temp, max);
 
                 // NOTE: You can hit this on 'make prep' without doing a full
                 // rebuild.  'make clean' and build again, it should go away.
