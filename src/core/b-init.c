@@ -135,8 +135,8 @@ static void Assert_Basics(void)
     // Revisit after RXIARG dependencies have been eliminated.
 
     if (
-        offsetof(struct Reb_Context, frame)
-        != offsetof(struct Reb_Position, series)
+        offsetof(struct Reb_Any_Context, frame)
+        != offsetof(struct Reb_Any_Series, series)
     ) {
         panic (Error(RE_MISC));
     }

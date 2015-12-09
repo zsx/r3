@@ -333,7 +333,7 @@ REBCNT *VAL_WORD_SYM_Ptr_Debug(const REBVAL *word)
     assert(ANY_WORD(word));
     // loses constness, but that's not the particular concern needed
     // to be caught in the wake of the UNWORD => TYPESET change...
-    return cast(REBCNT*, &word->payload.word.sym);
+    return cast(REBCNT*, &word->payload.any_word.sym);
 }
 
 

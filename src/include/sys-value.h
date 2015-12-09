@@ -1,45 +1,108 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Value and Related Definitions
-**  Module:  sys-value.h
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+// Rebol 3 Language Interpreter and Run-time Environment
+// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2015 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  Summary: Definitions for the Rebol Value Struct (REBVAL) and Helpers
+//  File: %sys-value.h
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// REBVAL is the structure/union for all Rebol values. It's designed to be
+// four C pointers in size (so 16 bytes on 32-bit platforms and 32 bytes
+// on 64-bit platforms).  Operation will be most efficient with those sizes,
+// and there are checks on boot to ensure that `sizeof(REBVAL)` is the
+// correct value for the platform.  But from a mechanical standpoint, the
+// system should be *able* to work even if the size is different.
+//
+// Of the four 32-or-64-bit slots that each value has, the first is used for
+// the value's "Header".  This includes the data type, such as REB_INTEGER,
+// REB_BLOCK, REB_STRING, etc.  Then there are 8 flags which are for general
+// purposes that could apply equally well to any type of value (including
+// whether the value should have a new-line after it when molded out inside
+// of a block).  There are 8 bits which are custom to each type--for
+// instance whether a key in an object is hidden or not.  Then there are
+// 8 bits currently reserved for future use.
+//
+// The remaining content of the REBVAL struct is the "Payload".  It is the
+// size of three (void*) pointers, and is used to hold whatever bits that
+// are needed for the value type to represent itself.  Perhaps obviously,
+// an arbitrarily long string will not fit into 3*32 bits, or even 3*64 bits!
+// You can fit the data for an INTEGER or DECIMAL in that (at least until
+// they become arbitrary precision) but it's not enough for a generic BLOCK!
+// or a FUNCTION! (for instance).  So those pointers are used to point to
+// things, and often they will point to one or more Rebol Series (see
+// %sys-series.h for an explanation of REBSER, REBARR, REBFRM, and REBMAP.)
+//
+// While some REBVALs are in C stack variables, most reside in the allocated
+// memory block for a Rebol series.  The memory block for a series can be
+// resized and require a reallocation, or it may become invalid if the
+// containing series is garbage-collected.  This means that many pointers to
+// REBVAL are unstable, and could become invalid if arbitrary user code
+// is run...this includes values on the data stack, which is implemented as
+// a series under the hood.  (See %sys-stack.h)
+//
+// A REBVAL in a C stack variable does not have to worry about its memory
+// address becoming invalid--but by default the garbage collector does not
+// know that value exists.  So while the address may be stable, any series
+// it has in the payload might go bad.  Use PUSH_GUARD_VALUE() to protect a
+// stack variable, and then DROP_GUARD_VALUE() when the protection is not
+// needed.  (You must always drop the last guard pushed.)
+//
+// For a means of creating a temporary array of GC-protected REBVALs, see
+// the "chunk stack" in %sys-stack.h.  This is used when building function
+// argument frames, which means that the REBVAL* arguments to a function
+// accessed via ARG() will be stable as long as the function is running.
+//
 
 #ifndef VALUE_H
 #define VALUE_H
 
+
+// Forward declaration.  The actual structure for REBVAL can't be defined
+// until all the structs and unions it builds on have been defined.  So you
+// will find it near the end of this file, as `struct Reb_Value`.
+//
+struct Reb_Value;
+typedef struct Reb_Value REBVAL;
+
+
+//
+// Forward declarations of the series subclasses defined in %sys-series.h
+// Because the Reb_Series structure includes a Reb_Value by value, it
+// must be included *after* %sys-value.h
+//
+
 struct Reb_Series;
-typedef struct Reb_Series REBSER;
+typedef struct Reb_Series REBSER; // Rebol series node
 
 struct Reb_Array;
-typedef struct Reb_Array REBARR;
+typedef struct Reb_Array REBARR; // REBSER containing REBVALs ("Rebol Array")
 
 struct Reb_Frame;
-typedef struct Reb_Frame REBFRM;
+typedef struct Reb_Frame REBFRM; // parallel REBARR key/var arrays, +2 values
 
 struct Reb_Map;
-typedef struct Reb_Map REBMAP;
+typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
 
 /***********************************************************************
@@ -73,16 +136,6 @@ union Reb_Value_Header {
 
     REBCNT all;             // for setting all the flags at once
 };
-
-struct Reb_Value;
-typedef struct Reb_Value REBVAL;
-
-// Temporary commenting until header reordering
-/*struct Reb_Series;
-typedef struct Reb_Series REBSER;
-
-struct Reb_Array;
-typedef struct Reb_Array REBARR;*/
 
 // Value type identifier (generally, should be handled as integer):
 
@@ -486,19 +539,19 @@ typedef struct Reb_Tuple {
 #include "reb-gob.h"
 #pragma pack(4)
 
-struct Reb_Position
+struct Reb_Any_Series
 {
-    REBSER  *series;
-    REBCNT  index;
+    REBSER *series;
+    REBCNT index;
 };
 
 #ifdef NDEBUG
-    #define VAL_SERIES(v)   ((v)->payload.position.series)
+    #define VAL_SERIES(v)   ((v)->payload.any_series.series)
 #else
     #define VAL_SERIES(v)   (*VAL_SERIES_Ptr_Debug(v))
 #endif
-#define VAL_INDEX(v)        ((v)->payload.position.index)
-#define VAL_LEN_HEAD(v)     (SERIES_LEN(VAL_SERIES(v)) + 0)
+#define VAL_INDEX(v)        ((v)->payload.any_series.index)
+#define VAL_LEN_HEAD(v)     SERIES_LEN(VAL_SERIES(v))
 #define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
 
 #define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
@@ -793,7 +846,7 @@ struct Reb_Symbol {
 **
 ***********************************************************************/
 
-struct Reb_Word {
+struct Reb_Any_Word {
     //
     // The "target" of a word is a specification of where to look for its
     // value.  If this is a FRAME then it will be the VAL_FRAME_VARLIST
@@ -817,7 +870,7 @@ struct Reb_Word {
 #define IS_SAME_WORD(v, n)      (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
-    #define VAL_WORD_SYM(v) ((v)->payload.word.sym)
+    #define VAL_WORD_SYM(v) ((v)->payload.any_word.sym)
 #else
     // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
     // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
@@ -825,8 +878,8 @@ struct Reb_Word {
     #define VAL_WORD_SYM(v) (*VAL_WORD_SYM_Ptr_Debug(v))
 #endif
 
-#define VAL_WORD_INDEX(v)       ((v)->payload.word.index)
-#define VAL_WORD_TARGET(v)      ((v)->payload.word.target)
+#define VAL_WORD_INDEX(v)       ((v)->payload.any_word.index)
+#define VAL_WORD_TARGET(v)      ((v)->payload.any_word.target)
 #define HAS_TARGET(v)            (VAL_WORD_TARGET(v) != NULL)
 
 #ifdef NDEBUG
@@ -901,7 +954,7 @@ struct Reb_Word {
 //
 //
 
-struct Reb_Context {
+struct Reb_Any_Context {
     REBFRM *frame;
     REBFRM *spec; // optional (currently only used by modules)
     REBARR *body; // optional (currently not used at all)
@@ -1125,31 +1178,31 @@ typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 
 typedef struct Reb_Routine_Info REBRIN;
 
-struct Reb_Function {
+struct Reb_Any_Function {
     REBARR *spec;  // Array of spec values for function
     REBARR *paramlist;  // Array of typesets and symbols
-    union Reb_Func_Code {
+    union Reb_Any_Function_Impl {
         REBFUN code;
         REBARR *body;
         REBCNT act;
         REBRIN *info;
-    } func;
+    } impl;
 };
 
-/* argument to these is a pointer to struct Reb_Function */
+/* argument to these is a pointer to struct Reb_Any_Function */
 #define FUNC_SPEC(v)      ((v)->spec)   // a series
 #define FUNC_SPEC_BLK(v)  ARRAY_HEAD((v)->spec)
 #define FUNC_PARAMLIST(v) ((v)->paramlist)
-#define FUNC_CODE(v)      ((v)->func.code)
-#define FUNC_BODY(v)      ((v)->func.body)
-#define FUNC_ACT(v)       ((v)->func.act)
-#define FUNC_INFO(v)      ((v)->func.info)
+#define FUNC_CODE(v)      ((v)->impl.code)
+#define FUNC_BODY(v)      ((v)->impl.body)
+#define FUNC_ACT(v)       ((v)->impl.act)
+#define FUNC_INFO(v)      ((v)->impl.info)
 #define FUNC_ARGC(v)      ARRAY_TAIL((v)->args)
 
 /* argument is of type REBVAL* */
-#define VAL_FUNC(v)                 ((v)->payload.func)
-#define VAL_FUNC_SPEC(v)            ((v)->payload.func.spec)
-#define VAL_FUNC_PARAMLIST(v)       ((v)->payload.func.paramlist)
+#define VAL_FUNC(v)                 ((v)->payload.any_function)
+#define VAL_FUNC_SPEC(v)            ((v)->payload.any_function.spec)
+#define VAL_FUNC_PARAMLIST(v)       ((v)->payload.any_function.paramlist)
 
 #define VAL_FUNC_PARAMS_HEAD(v)     ARRAY_AT(VAL_FUNC_PARAMLIST(v), 1)
 
@@ -1159,10 +1212,10 @@ struct Reb_Function {
 #define VAL_FUNC_NUM_PARAMS(v) \
     (ARRAY_LEN(VAL_FUNC_PARAMLIST(v)) - 1)
 
-#define VAL_FUNC_CODE(v)      ((v)->payload.func.func.code)
-#define VAL_FUNC_BODY(v)      ((v)->payload.func.func.body)
-#define VAL_FUNC_ACT(v)       ((v)->payload.func.func.act)
-#define VAL_FUNC_INFO(v)      ((v)->payload.func.func.info)
+#define VAL_FUNC_CODE(v)      ((v)->payload.any_function.impl.code)
+#define VAL_FUNC_BODY(v)      ((v)->payload.any_function.impl.body)
+#define VAL_FUNC_ACT(v)       ((v)->payload.any_function.impl.act)
+#define VAL_FUNC_INFO(v)      ((v)->payload.any_function.impl.info)
 
 // EXT_FUNC_HAS_RETURN functions use the RETURN native's function value to give
 // the definitional return its prototype, but overwrite its code pointer to
@@ -1286,7 +1339,7 @@ struct Reb_Routine_Info {
         } rot;
         struct {
             void *closure;
-            struct Reb_Function func;
+            struct Reb_Any_Function func;
             void *dispatcher;
         } cb;
     } info;
@@ -1300,7 +1353,7 @@ struct Reb_Routine_Info {
     REBFLG  flags;
 };
 
-typedef struct Reb_Function REBROT;
+typedef struct Reb_Any_Function REBROT;
 
 enum {
     ROUTINE_MARK = 1,       // routine was found during GC mark scan.
@@ -1501,28 +1554,36 @@ struct Reb_All {
 #define VAL_ALL_BITS(v) ((v)->payload.all.bits)
 
 union Reb_Value_Payload {
-    struct Reb_Word word;
-    struct Reb_Position position; // ANY-STRING!, ANY-ARRAY!, BINARY!, VECTOR!
+    struct Reb_All all;
+
     REBCNT rebcnt;
     REBI64 integer;
     REBU64 unteger;
     REBDEC decimal; // actually a C 'double', typically 64-bit
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
-    struct Reb_Datatype datatype;
-    struct Reb_Typeset typeset;
-    struct Reb_Symbol symbol;
-    struct Reb_Time time;
-    struct Reb_Tuple tuple;
-    struct Reb_Function func;
-    struct Reb_Context any_context; // ERROR!, OBJECT!, PORT!, MODULE!, (TASK!?)
+
     struct Reb_Pair pair;
-    struct Reb_Event event;
-    struct Reb_Library library;
-    struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
-    struct Reb_Gob gob;
     struct Reb_Money money;
     struct Reb_Handle handle;
-    struct Reb_All all;
+    struct Reb_Time time;
+    struct Reb_Tuple tuple;
+    struct Reb_Datatype datatype;
+    struct Reb_Typeset typeset;
+
+    struct Reb_Any_Word any_word;
+    struct Reb_Any_Series any_series;
+    struct Reb_Any_Context any_context;
+
+    struct Reb_Any_Function any_function;
+
+    struct Reb_Library library;
+    struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
+
+    struct Reb_Event event;
+    struct Reb_Gob gob;
+
+    struct Reb_Symbol symbol; // internal
+
 #ifndef NDEBUG
     struct Reb_Trash trash; // not an actual Rebol value type; debug only
 #endif

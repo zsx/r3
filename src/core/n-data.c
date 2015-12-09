@@ -1231,7 +1231,7 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
 REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return &(m_cast(REBVAL*, v))->payload.position.series;
+    return &(m_cast(REBVAL*, v))->payload.any_series.series;
 }
 
 
