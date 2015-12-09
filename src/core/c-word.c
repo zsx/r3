@@ -411,7 +411,14 @@ void Init_Words(REBFLG only)
         // The word (symbol) table itself:
         PG_Word_Table.array = Make_Array(WORD_TABLE_SIZE);
         Clear_Series(ARRAY_SERIES(PG_Word_Table.array));
-        SET_NONE(ARRAY_HEAD(PG_Word_Table.array)); // Put a NONE at head.
+
+        // !!! R3-Alpha would "Put a NONE at the head" here.  Why?  It seemed
+        // to later think it needed to be able to read a symbol out of a none,
+        // which it cannot do.  Changed to a typeset with symbol 0--which
+        // seems to work as intended, but review what the intent is.
+        //
+        Val_Init_Typeset(ARRAY_HEAD(PG_Word_Table.array), ALL_64, SYM_0);
+
         LABEL_SERIES(PG_Word_Table.array, "word table"); // words are never GC'd
         SET_ARRAY_LEN(PG_Word_Table.array, 1);  // prevent the zero case
 
