@@ -290,7 +290,7 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
     REBYTE *data = SERIES_DATA(series);
     REBCNT bits = VECT_TYPE(series);
 
-    var->data.integer = get_vect(bits, data, index);
+    var->payload.integer = get_vect(bits, data, index);
     if (bits >= VTSF08) VAL_SET_TYPE(var, REB_DECIMAL);
     else VAL_SET_TYPE(var, REB_INTEGER);
 }
@@ -481,7 +481,7 @@ REBINT PD_Vector(REBPVS *pvs)
         if (n <= 0 || cast(REBCNT, n) > SERIES_LEN(vect)) return PE_NONE;
 
         // Get element value:
-        pvs->store->data.integer = get_vect(bits, vp, n-1); // 64 bits
+        pvs->store->payload.integer = get_vect(bits, vp, n - 1); // 64 bits
         if (bits < VTSF08) {
             VAL_SET_TYPE(pvs->store, REB_INTEGER);
         } else {

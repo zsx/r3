@@ -1213,10 +1213,11 @@ REBNATIVE(map_gob_offset)
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
 // you never call it on an END marker
 //
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
+enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
+{
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
-    return cast(enum Reb_Kind, (v)->flags.bitfields.type);
+    return cast(enum Reb_Kind, (v)->header.bitfields.type);
 }
 
 
@@ -1227,9 +1228,10 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
 // that you have an ANY-SERIES! value you're calling it on (or one of the
 // exception types that use REBSERs)
 //
-REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v) {
+REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
+{
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return &(m_cast(REBVAL *, v))->data.position.series;
+    return &(m_cast(REBVAL*, v))->payload.position.series;
 }
 
 
@@ -1241,9 +1243,10 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v) {
 //
 // !!! Unfortunately this loses const correctness; fix in C++ build.
 //
-REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v) {
+REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v)
+{
     assert(ANY_CONTEXT(v));
-    return &(m_cast(REBVAL *, v))->data.context.frame;
+    return &(m_cast(REBVAL*, v))->payload.any_context.frame;
 }
 
 
@@ -1253,7 +1256,8 @@ REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v) {
 // Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
 // ensure you never call it on an UNSET!
 //
-REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v) {
+REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
+{
     assert(!IS_UNSET(v));
     if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {
         assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));

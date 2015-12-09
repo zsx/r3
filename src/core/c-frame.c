@@ -130,7 +130,7 @@ REBFRM *Alloc_Frame(REBINT len, REBOOL has_self)
     // frame[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this frame
     //
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
     FRAME_KEYLIST(frame) = keylist;
 
 #if !defined(NDEBUG)
@@ -564,7 +564,7 @@ REBFRM *Create_Frame(REBARR *keylist, REBSER *spec)
 
     // frame[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
+    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
     FRAME_KEYLIST(frame) = keylist;
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;

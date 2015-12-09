@@ -323,17 +323,17 @@ void Val_Init_Word_Unbound(REBVAL *value, REBCNT type, REBCNT sym)
 
 
 //
-//  Val_Word_Sym_Ptr_Debug: C
+//  VAL_WORD_SYM_Ptr_Debug: C
 // 
 // !!! Needed temporarily due to reorganization (though it should
 // be checked via C++ build's static typing eventually...)
 //
-REBCNT *Val_Word_Sym_Ptr_Debug(const REBVAL *word)
+REBCNT *VAL_WORD_SYM_Ptr_Debug(const REBVAL *word)
 {
     assert(ANY_WORD(word));
     // loses constness, but that's not the particular concern needed
     // to be caught in the wake of the UNWORD => TYPESET change...
-    return cast(REBCNT*, &word->data.word.sym);
+    return cast(REBCNT*, &word->payload.word.sym);
 }
 
 

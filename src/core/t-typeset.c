@@ -115,17 +115,17 @@ void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBCNT sym)
 
 
 //
-//  Val_Typeset_Sym_Ptr_Debug: C
+//  VAL_TYPESET_SYM_Ptr_Debug: C
 // 
 // !!! Needed temporarily due to reorganization (though it should
 // be checked via C++ build's static typing eventually...)
 //
-REBCNT *Val_Typeset_Sym_Ptr_Debug(const REBVAL *typeset)
+REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
 {
     assert(IS_TYPESET(typeset));
     // loses constness, but that's not the particular concern needed
     // to be caught in the wake of the UNWORD => TYPESET change...
-    return cast(REBCNT*, &typeset->data.typeset.sym);
+    return cast(REBCNT*, &typeset->payload.typeset.sym);
 }
 
 

@@ -69,9 +69,9 @@ static void Assert_Basics(void)
     // this check "correctly".  All that said, in the interim, this usually
     // works...but should be easy to turn off as it's standards-violating.
     //
-    val.flags.all = 0;
-    val.flags.bitfields.opts = 123;
-    if (val.flags.all != 123)
+    val.header.all = 0;
+    val.header.bitfields.opts = 123;
+    if (val.header.all != 123)
         panic (Error(RE_REBVAL_ALIGNMENT));
 
     VAL_RESET_HEADER(&val, 63);
@@ -639,8 +639,8 @@ static void Init_Root_Context(void)
 
     // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
     VAL_RESET_HEADER(value, REB_OBJECT);
+    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;
 
@@ -743,8 +743,8 @@ static void Init_Task_Context(void)
 
     // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
     VAL_RESET_HEADER(value, REB_OBJECT);
+    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;
 

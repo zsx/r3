@@ -407,8 +407,8 @@ REBTYPE(Event)
         else if (IS_DATATYPE(value)) {
             if (IS_EVENT(arg)) return R_ARG2;
             //fail (Error_Bad_Make(REB_EVENT, value));
-            CLEARS(&(D_OUT->data.event));
             VAL_RESET_HEADER(D_OUT, REB_EVENT);
+            CLEARS(&(D_OUT->payload.event));
         }
         else
 is_arg_error:

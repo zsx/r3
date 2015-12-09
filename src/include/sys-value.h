@@ -43,7 +43,7 @@
 // Note: b-init.c verifies that lower 8 bits is flags.opts, so that testing
 // for an IS_END is merely testing for an even value of the header.
 //
-union Reb_Value_Flags {
+union Reb_Value_Header {
     struct {
     #ifdef ENDIAN_LITTLE
         unsigned opts:8;    // special options
@@ -75,7 +75,7 @@ typedef struct Reb_Array REBARR;
 // get and set only the type (not flags)
 
 #ifdef NDEBUG
-    #define VAL_TYPE(v)     cast(enum Reb_Kind, (v)->flags.bitfields.type)
+    #define VAL_TYPE(v)     cast(enum Reb_Kind, (v)->header.bitfields.type)
 #else
     // We want to be assured that we are not trying to take the type of a
     // value that is actually an END marker, because end markers chew out only
@@ -84,13 +84,13 @@ typedef struct Reb_Array REBARR;
     #define VAL_TYPE(v)     VAL_TYPE_Debug(v)
 #endif
 
-#define VAL_SET_TYPE(v,t)   ((v)->flags.bitfields.type = (t))
+#define VAL_SET_TYPE(v,t)   ((v)->header.bitfields.type = (t))
 
 // set type, clear all flags except for NOT_END
 //
 #define VAL_RESET_HEADER(v,t) \
-    ((v)->flags.all = (1 << OPT_VALUE_NOT_END), \
-     (v)->flags.bitfields.type = (t))
+    ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
+     (v)->header.bitfields.type = (t))
 
 // !!! Questionable idea: does setting all bytes to zero of a type
 // and then poking in a type indicator make the "zero valued"
@@ -102,9 +102,9 @@ typedef struct Reb_Array REBARR;
 // the low bit of any 32/64-bit value, including to add the bit to a pointer,
 // but this routine will wipe all the other bits and just set it to 1.
 //
-#define SET_END(v)          ((v)->flags.all = 0)
-#define IS_END(v)           ((v)->flags.all % 2 == 0)
-#define NOT_END(v)          ((v)->flags.all % 2 == 1)
+#define SET_END(v)          ((v)->header.all = 0)
+#define IS_END(v)           ((v)->header.all % 2 == 0)
+#define NOT_END(v)          ((v)->header.all % 2 == 1)
 #define END_VALUE           PG_End_Val
 
 // Value option flags:
@@ -116,13 +116,13 @@ enum {
     OPT_VALUE_MAX
 };
 
-#define VAL_OPTS_DATA(v)    ((v)->flags.bitfields.opts)
+#define VAL_OPTS_DATA(v)    ((v)->header.bitfields.opts)
 #define VAL_SET_OPT(v,n)    SET_FLAG(VAL_OPTS_DATA(v), n)
 #define VAL_GET_OPT(v,n)    GET_FLAG(VAL_OPTS_DATA(v), n)
 #define VAL_CLR_OPT(v,n)    CLR_FLAG(VAL_OPTS_DATA(v), n)
 
 // Used for 8 datatype-dependent flags (or one byte-sized data value)
-#define VAL_EXTS_DATA(v)    ((v)->flags.bitfields.exts)
+#define VAL_EXTS_DATA(v)    ((v)->header.bitfields.exts)
 #define VAL_SET_EXT(v,n)    SET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_GET_EXT(v,n)    GET_FLAG(VAL_EXTS_DATA(v), n)
 #define VAL_CLR_EXT(v,n)    CLR_FLAG(VAL_EXTS_DATA(v), n)
@@ -185,8 +185,8 @@ struct Reb_Datatype {
 //  REBINT  max_type;
 };
 
-#define VAL_TYPE_KIND(v)        ((v)->data.datatype.kind)
-#define VAL_TYPE_SPEC(v)    ((v)->data.datatype.spec)
+#define VAL_TYPE_KIND(v)        ((v)->payload.datatype.kind)
+#define VAL_TYPE_SPEC(v)    ((v)->payload.datatype.spec)
 
 // %words.r is arranged so that symbols for types are at the start
 // Although REB_TRASH is 0, the 0 REBCNT used for symbol IDs is reserved
@@ -195,10 +195,10 @@ struct Reb_Datatype {
 #define IS_KIND_SYM(s)      ((s) < REB_MAX + 1)
 #define KIND_FROM_SYM(s)    cast(enum Reb_Kind, (s) - 1)
 #define SYM_FROM_KIND(k)    cast(REBCNT, (k) + 1)
-#define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->data.datatype.kind)
+#define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->payload.datatype.kind)
 
-//#define   VAL_MIN_TYPE(v) ((v)->data.datatype.min_type)
-//#define   VAL_MAX_TYPE(v) ((v)->data.datatype.max_type)
+//#define   VAL_MIN_TYPE(v) ((v)->payload.datatype.min_type)
+//#define   VAL_MAX_TYPE(v) ((v)->payload.datatype.max_type)
 
 
 /***********************************************************************
@@ -237,13 +237,13 @@ struct Reb_Datatype {
     // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
     // because VAL_TYPE is supposed to assert on trash
     //
-    #define IS_TRASH_DEBUG(v)         ((v)->flags.bitfields.type == REB_TRASH)
+    #define IS_TRASH_DEBUG(v)         ((v)->header.bitfields.type == REB_TRASH)
 
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
             VAL_RESET_HEADER((v), REB_TRASH), \
-            (v)->data.trash.filename = __FILE__, \
-            (v)->data.trash.line = __LINE__, \
+            (v)->payload.trash.filename = __FILE__, \
+            (v)->payload.trash.line = __LINE__, \
             cast(void, 0) \
         )
 
@@ -251,8 +251,8 @@ struct Reb_Datatype {
         ( \
             VAL_RESET_HEADER((v), REB_TRASH), \
             VAL_SET_EXT((v), EXT_TRASH_SAFE), \
-            (v)->data.trash.filename = __FILE__, \
-            (v)->data.trash.line = __LINE__, \
+            (v)->payload.trash.filename = __FILE__, \
+            (v)->payload.trash.line = __LINE__, \
             cast(void, 0) \
         )
 #endif
@@ -268,8 +268,8 @@ struct Reb_Datatype {
 #define UNSET_VALUE     ROOT_UNSET_VAL
 
 #define SET_NONE(v) \
-    ((v)->flags.all = 1 << OPT_VALUE_NOT_END | 1 << OPT_VALUE_FALSE, \
-     (v)->flags.bitfields.type = REB_NONE)  // compound
+    ((v)->header.all = 1 << OPT_VALUE_NOT_END | 1 << OPT_VALUE_FALSE, \
+     (v)->header.bitfields.type = REB_NONE)  // compound
 
 #define NONE_VALUE      ROOT_NONE_VAL
 
@@ -289,13 +289,13 @@ struct Reb_Datatype {
 #define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
 #define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
 
-#define VAL_INT32(v)    (REBINT)((v)->data.integer)
-#define VAL_INT64(v)    ((v)->data.integer)
-#define VAL_UNT64(v)    ((v)->data.unteger)
-#define SET_INTEGER(v,n) VAL_RESET_HEADER(v, REB_INTEGER), ((v)->data.integer) = (n)
+#define VAL_INT32(v)    (REBINT)((v)->payload.integer)
+#define VAL_INT64(v)    ((v)->payload.integer)
+#define VAL_UNT64(v)    ((v)->payload.unteger)
+#define SET_INTEGER(v,n) VAL_RESET_HEADER(v, REB_INTEGER), ((v)->payload.integer) = (n)
 
 #define MAX_CHAR        0xffff
-#define VAL_CHAR(v)     ((v)->data.character)
+#define VAL_CHAR(v)     ((v)->payload.character)
 #define SET_CHAR(v,n) \
     (VAL_RESET_HEADER((v), REB_CHAR), VAL_CHAR(v) = (n), NOOP)
 
@@ -309,7 +309,7 @@ struct Reb_Datatype {
 **
 ***********************************************************************/
 
-#define VAL_DECIMAL(v)  ((v)->data.decimal)
+#define VAL_DECIMAL(v)  ((v)->payload.decimal)
 #define SET_DECIMAL(v,n) VAL_RESET_HEADER(v, REB_DECIMAL), VAL_DECIMAL(v) = (n)
 
 
@@ -331,7 +331,7 @@ struct Reb_Money {
     deci amount;
 };
 
-#define VAL_MONEY_AMOUNT(v)     ((v)->data.money.amount)
+#define VAL_MONEY_AMOUNT(v)     ((v)->payload.money.amount)
 #define SET_MONEY_AMOUNT(v,n) \
     (VAL_RESET_HEADER((v), REB_MONEY), VAL_MONEY_AMOUNT(v) = (n), NOOP)
 
@@ -366,7 +366,7 @@ struct Reb_Time {
     REBDAT date;
 };
 
-#define VAL_TIME(v) ((v)->data.time.time)
+#define VAL_TIME(v) ((v)->payload.time.time)
 #define TIME_SEC(n) ((REBI64)(n) * 1000000000L)
 
 #define MAX_SECONDS (((i64)1<<31)-1)
@@ -394,11 +394,11 @@ struct Reb_Time {
 
 #define MAX_YEAR        0x3fff
 
-#define VAL_DATE(v)     ((v)->data.time.date)
-#define VAL_YEAR(v)     ((v)->data.time.date.date.year)
-#define VAL_MONTH(v)    ((v)->data.time.date.date.month)
-#define VAL_DAY(v)      ((v)->data.time.date.date.day)
-#define VAL_ZONE(v)     ((v)->data.time.date.date.zone)
+#define VAL_DATE(v)     ((v)->payload.time.date)
+#define VAL_YEAR(v)     ((v)->payload.time.date.date.year)
+#define VAL_MONTH(v)    ((v)->payload.time.date.date.month)
+#define VAL_DAY(v)      ((v)->payload.time.date.date.day)
+#define VAL_ZONE(v)     ((v)->payload.time.date.date.zone)
 
 #define ZONE_MINS 15
 #define ZONE_SECS (ZONE_MINS*60)
@@ -415,8 +415,8 @@ typedef struct Reb_Tuple {
     REBYTE tuple[12];
 } REBTUP;
 
-#define VAL_TUPLE(v)    ((v)->data.tuple.tuple+1)
-#define VAL_TUPLE_LEN(v) ((v)->data.tuple.tuple[0])
+#define VAL_TUPLE(v)    ((v)->payload.tuple.tuple+1)
+#define VAL_TUPLE_LEN(v) ((v)->payload.tuple.tuple[0])
 #define MAX_TUPLE 10
 
 
@@ -426,12 +426,12 @@ typedef struct Reb_Tuple {
 **
 ***********************************************************************/
 
-#define VAL_PAIR(v)     ((v)->data.pair)
-#define VAL_PAIR_X(v)   ((v)->data.pair.x)
-#define VAL_PAIR_Y(v)   ((v)->data.pair.y)
+#define VAL_PAIR(v)     ((v)->payload.pair)
+#define VAL_PAIR_X(v)   ((v)->payload.pair.x)
+#define VAL_PAIR_Y(v)   ((v)->payload.pair.y)
 #define SET_PAIR(v,x,y) (VAL_RESET_HEADER(v, REB_PAIR),VAL_PAIR_X(v)=(x),VAL_PAIR_Y(v)=(y))
-#define VAL_PAIR_X_INT(v) ROUND_TO_INT((v)->data.pair.x)
-#define VAL_PAIR_Y_INT(v) ROUND_TO_INT((v)->data.pair.y)
+#define VAL_PAIR_X_INT(v) ROUND_TO_INT((v)->payload.pair.x)
+#define VAL_PAIR_Y_INT(v) ROUND_TO_INT((v)->payload.pair.y)
 
 
 /***********************************************************************
@@ -440,13 +440,13 @@ typedef struct Reb_Tuple {
 **
 ***********************************************************************/
 
-#define VAL_EVENT_TYPE(v)   ((v)->data.event.type)  //(VAL_EVENT_INFO(v) & 0xff)
-#define VAL_EVENT_FLAGS(v)  ((v)->data.event.flags) //((VAL_EVENT_INFO(v) >> 16) & 0xff)
-#define VAL_EVENT_WIN(v)    ((v)->data.event.win)   //((VAL_EVENT_INFO(v) >> 24) & 0xff)
-#define VAL_EVENT_MODEL(v)  ((v)->data.event.model)
-#define VAL_EVENT_DATA(v)   ((v)->data.event.data)
-#define VAL_EVENT_TIME(v)   ((v)->data.event.time)
-#define VAL_EVENT_REQ(v)    ((v)->data.event.eventee.req)
+#define VAL_EVENT_TYPE(v)   ((v)->payload.event.type)  //(VAL_EVENT_INFO(v) & 0xff)
+#define VAL_EVENT_FLAGS(v)  ((v)->payload.event.flags) //((VAL_EVENT_INFO(v) >> 16) & 0xff)
+#define VAL_EVENT_WIN(v)    ((v)->payload.event.win)   //((VAL_EVENT_INFO(v) >> 24) & 0xff)
+#define VAL_EVENT_MODEL(v)  ((v)->payload.event.model)
+#define VAL_EVENT_DATA(v)   ((v)->payload.event.data)
+#define VAL_EVENT_TIME(v)   ((v)->payload.event.time)
+#define VAL_EVENT_REQ(v)    ((v)->payload.event.eventee.req)
 
 // !!! Because 'eventee.ser' is exported to clients who may not have the full
 // definitions of Rebol's internal types like REBSER available, it is defined
@@ -455,7 +455,7 @@ typedef struct Reb_Tuple {
 // but means that 'v' cannot be const to use this on the right hand side.
 // An m_cast will have to be used in those cases (or split up this macro)
 #define VAL_EVENT_SER(v) \
-    (*cast(REBSER **, &(v)->data.event.eventee.ser))
+    (*cast(REBSER **, &(v)->payload.event.eventee.ser))
 
 #define IS_EVENT_MODEL(v,f) (VAL_EVENT_MODEL(v) == (f))
 
@@ -680,11 +680,11 @@ struct Reb_Position
 };
 
 #ifdef NDEBUG
-    #define VAL_SERIES(v)   ((v)->data.position.series)
+    #define VAL_SERIES(v)   ((v)->payload.position.series)
 #else
     #define VAL_SERIES(v)   (*VAL_SERIES_Ptr_Debug(v))
 #endif
-#define VAL_INDEX(v)        ((v)->data.position.index)
+#define VAL_INDEX(v)        ((v)->payload.position.index)
 #define VAL_LEN_HEAD(v)     (VAL_SERIES(v)->tail + 0)
 #define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
 
@@ -891,19 +891,19 @@ struct Reb_Position
 ***********************************************************************/
 
 #define SET_TRUE(v) \
-    ((v)->flags.all = (1 << OPT_VALUE_NOT_END), \
-     (v)->flags.bitfields.type = REB_LOGIC)  // compound
+    ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
+     (v)->header.bitfields.type = REB_LOGIC)  // compound
 
 #define SET_FALSE(v) \
-    ((v)->flags.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
-     (v)->flags.bitfields.type = REB_LOGIC)  // compound
+    ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
+     (v)->header.bitfields.type = REB_LOGIC)  // compound
 
 #define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
 
 #define VAL_LOGIC(v)    !VAL_GET_OPT((v), OPT_VALUE_FALSE)
 
 // !!! The logic used to be an I32 but now it's folded in as a value flag
-#define VAL_I32(v)      ((v)->data.rebcnt)   // used for handles, etc.
+#define VAL_I32(v)      ((v)->payload.rebcnt)   // used for handles, etc.
 
 #ifdef NDEBUG
     #define IS_CONDITIONAL_FALSE(v) \
@@ -1090,10 +1090,10 @@ struct Reb_Symbol {
 };
 
 // Arg is value:
-#define VAL_SYM_NINDEX(v)   ((v)->data.symbol.name)
+#define VAL_SYM_NINDEX(v)   ((v)->payload.symbol.name)
 #define VAL_SYM_NAME(v)     (BIN_HEAD(PG_Word_Names) + VAL_SYM_NINDEX(v))
-#define VAL_SYM_CANON(v)    ((v)->data.symbol.canon)
-#define VAL_SYM_ALIAS(v)    ((v)->data.symbol.alias)
+#define VAL_SYM_CANON(v)    ((v)->payload.symbol.canon)
+#define VAL_SYM_ALIAS(v)    ((v)->payload.symbol.alias)
 
 // Return the CANON value for a symbol number:
 #define SYMBOL_TO_CANON(sym) (VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, sym)))
@@ -1131,16 +1131,16 @@ struct Reb_Word {
 #define IS_SAME_WORD(v, n)      (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
-    #define VAL_WORD_SYM(v) ((v)->data.word.sym)
+    #define VAL_WORD_SYM(v) ((v)->payload.word.sym)
 #else
     // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
     // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
     // this check is prudent (until further notice...)
-    #define VAL_WORD_SYM(v) (*Val_Word_Sym_Ptr_Debug(v))
+    #define VAL_WORD_SYM(v) (*VAL_WORD_SYM_Ptr_Debug(v))
 #endif
 
-#define VAL_WORD_INDEX(v)       ((v)->data.word.index)
-#define VAL_WORD_TARGET(v)      ((v)->data.word.target)
+#define VAL_WORD_INDEX(v)       ((v)->payload.word.index)
+#define VAL_WORD_TARGET(v)      ((v)->payload.word.target)
 #define HAS_TARGET(v)            (VAL_WORD_TARGET(v) != NULL)
 
 #ifdef NDEBUG
@@ -1245,12 +1245,12 @@ struct Reb_Context {
 // Context components
 //
 #ifdef NDEBUG
-    #define VAL_FRAME(v)            ((v)->data.context.frame)
+    #define VAL_FRAME(v)            ((v)->payload.any_context.frame)
 #else
     #define VAL_FRAME(v)            (*VAL_FRAME_Ptr_Debug(v))
 #endif
-#define VAL_CONTEXT_SPEC(v)         ((v)->data.context.spec)
-#define VAL_CONTEXT_BODY(v)         ((v)->data.context.body)
+#define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
+#define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
@@ -1449,8 +1449,8 @@ struct Reb_Gob {
     REBCNT index;
 };
 
-#define VAL_GOB(v)          ((v)->data.gob.gob)
-#define VAL_GOB_INDEX(v)    ((v)->data.gob.index)
+#define VAL_GOB(v)          ((v)->payload.gob.gob)
+#define VAL_GOB_INDEX(v)    ((v)->payload.gob.index)
 #define SET_GOB(v,g)        VAL_RESET_HEADER(v, REB_GOB), VAL_GOB(v)=g, VAL_GOB_INDEX(v)=0
 
 
@@ -1571,9 +1571,9 @@ struct Reb_Function {
 #define FUNC_ARGC(v)      ARRAY_TAIL((v)->args)
 
 /* argument is of type REBVAL* */
-#define VAL_FUNC(v)                 ((v)->data.func)
-#define VAL_FUNC_SPEC(v)            ((v)->data.func.spec)
-#define VAL_FUNC_PARAMLIST(v)       ((v)->data.func.paramlist)
+#define VAL_FUNC(v)                 ((v)->payload.func)
+#define VAL_FUNC_SPEC(v)            ((v)->payload.func.spec)
+#define VAL_FUNC_PARAMLIST(v)       ((v)->payload.func.paramlist)
 
 #define VAL_FUNC_PARAMS_HEAD(v)     ARRAY_AT(VAL_FUNC_PARAMLIST(v), 1)
 
@@ -1583,10 +1583,10 @@ struct Reb_Function {
 #define VAL_FUNC_NUM_PARAMS(v) \
     (ARRAY_LEN(VAL_FUNC_PARAMLIST(v)) - 1)
 
-#define VAL_FUNC_CODE(v)      ((v)->data.func.func.code)
-#define VAL_FUNC_BODY(v)      ((v)->data.func.func.body)
-#define VAL_FUNC_ACT(v)       ((v)->data.func.func.act)
-#define VAL_FUNC_INFO(v)      ((v)->data.func.func.info)
+#define VAL_FUNC_CODE(v)      ((v)->payload.func.func.code)
+#define VAL_FUNC_BODY(v)      ((v)->payload.func.func.body)
+#define VAL_FUNC_ACT(v)       ((v)->payload.func.func.act)
+#define VAL_FUNC_INFO(v)      ((v)->payload.func.func.info)
 
 // EXT_FUNC_HAS_RETURN functions use the RETURN native's function value to give
 // the definitional return its prototype, but overwrite its code pointer to
@@ -1643,10 +1643,10 @@ struct Reb_Handle {
 };
 
 #define VAL_HANDLE_CODE(v) \
-    ((v)->data.handle.thing.code)
+    ((v)->payload.handle.thing.code)
 
 #define VAL_HANDLE_DATA(v) \
-    ((v)->data.handle.thing.data)
+    ((v)->payload.handle.thing.data)
 
 #define SET_HANDLE_CODE(v,c) \
     (VAL_RESET_HEADER((v), REB_HANDLE), VAL_HANDLE_CODE(v) = (c))
@@ -1674,11 +1674,11 @@ struct Reb_Library {
 #define LIB_FD(v)           ((v)->fd)
 #define LIB_FLAGS(v)        ((v)->flags)
 
-#define VAL_LIB(v)          ((v)->data.library)
-#define VAL_LIB_SPEC(v)     ((v)->data.library.spec)
-#define VAL_LIB_HANDLE(v)   ((v)->data.library.handle)
-#define VAL_LIB_FD(v)       ((v)->data.library.handle->fd)
-#define VAL_LIB_FLAGS(v)    ((v)->data.library.handle->flags)
+#define VAL_LIB(v)          ((v)->payload.library)
+#define VAL_LIB_SPEC(v)     ((v)->payload.library.spec)
+#define VAL_LIB_HANDLE(v)   ((v)->payload.library.handle)
+#define VAL_LIB_FD(v)       ((v)->payload.library.handle->fd)
+#define VAL_LIB_FLAGS(v)    ((v)->payload.library.handle->flags)
 
 enum {
     LIB_MARK = 1,       // library was found during GC mark scan.
@@ -1714,10 +1714,10 @@ typedef struct Reb_Struct {
     REBSER  *data;
 } REBSTU;
 
-#define VAL_STRUCT(v)       ((v)->data.structure)
-#define VAL_STRUCT_SPEC(v)  ((v)->data.structure.spec)
-#define VAL_STRUCT_FIELDS(v)  ((v)->data.structure.fields)
-#define VAL_STRUCT_DATA(v)  ((v)->data.structure.data)
+#define VAL_STRUCT(v)       ((v)->payload.structure)
+#define VAL_STRUCT_SPEC(v)  ((v)->payload.structure.spec)
+#define VAL_STRUCT_FIELDS(v)  ((v)->payload.structure.fields)
+#define VAL_STRUCT_DATA(v)  ((v)->payload.structure.data)
 #define VAL_STRUCT_DP(v)    BIN_HEAD(VAL_STRUCT_DATA(v))
 
 
@@ -1855,7 +1855,7 @@ struct Reb_Typeset {
 
 // Operations when typeset is done with a bitset (currently all typesets)
 
-#define VAL_TYPESET_BITS(v) ((v)->data.typeset.bits)
+#define VAL_TYPESET_BITS(v) ((v)->payload.typeset.bits)
 
 #define TYPE_CHECK(v,n) \
     ((VAL_TYPESET_BITS(v) & FLAGIT_64(n)) != 0)
@@ -1869,12 +1869,12 @@ struct Reb_Typeset {
 // Symbol is SYM_0 unless typeset in object keylist or func paramlist
 
 #ifdef NDEBUG
-    #define VAL_TYPESET_SYM(v) ((v)->data.typeset.sym)
+    #define VAL_TYPESET_SYM(v) ((v)->payload.typeset.sym)
 #else
     // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
     // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
     // this check is prudent (until further notice...)
-    #define VAL_TYPESET_SYM(v) (*Val_Typeset_Sym_Ptr_Debug(v))
+    #define VAL_TYPESET_SYM(v) (*VAL_TYPESET_SYM_Ptr_Debug(v))
 #endif
 
 #define VAL_TYPESET_CANON(v) \
@@ -1946,9 +1946,9 @@ struct Reb_All {
 #endif
 };
 
-#define VAL_ALL_BITS(v) ((v)->data.all.bits)
+#define VAL_ALL_BITS(v) ((v)->payload.all.bits)
 
-union Reb_Value_Data {
+union Reb_Value_Payload {
     struct Reb_Word word;
     struct Reb_Position position; // ANY-STRING!, ANY-ARRAY!, BINARY!, VECTOR!
     REBCNT rebcnt;
@@ -1962,7 +1962,7 @@ union Reb_Value_Data {
     struct Reb_Time time;
     struct Reb_Tuple tuple;
     struct Reb_Function func;
-    struct Reb_Context context; // ERROR!, OBJECT!, PORT!, MODULE!, (TASK!?)
+    struct Reb_Context any_context; // ERROR!, OBJECT!, PORT!, MODULE!, (TASK!?)
     struct Reb_Pair pair;
     struct Reb_Event event;
     struct Reb_Library library;
@@ -1978,8 +1978,8 @@ union Reb_Value_Data {
 
 struct Reb_Value
 {
-    union Reb_Value_Flags flags;
-    union Reb_Value_Data data;
+    union Reb_Value_Header header;
+    union Reb_Value_Payload payload;
 };
 
 #pragma pack()

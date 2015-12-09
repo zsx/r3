@@ -648,8 +648,9 @@ RL_API int RL_Event(REBEVT *evt)
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
-        event->data.event = *evt;
         VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
+        event->payload.event = *evt;
+
         return 1;
     }
 
@@ -675,7 +676,7 @@ RL_API int RL_Update_Event(REBEVT *evt)
     REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
     if (event) {
-        event->data.event = *evt;
+        event->payload.event = *evt;
         return 1;
     }
 
@@ -698,7 +699,7 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 {
     REBVAL * val = Find_Last_Event(model, type);
     if (val != NULL) {
-        return &val->data.event;
+        return &val->payload.event;
     }
     return NULL;
 }
