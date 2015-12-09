@@ -2917,7 +2917,7 @@ REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
     REBARR *blk;
     REBCNT i;
 
-    if (VAL_TAIL(path) < 2) return 0;
+    if (VAL_LEN_HEAD(path) < 2) return 0;
     blk = VAL_ARRAY(path);
     sel = ARRAY_HEAD(blk);
     if (!ANY_WORD(sel)) return 0;

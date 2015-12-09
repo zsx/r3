@@ -197,7 +197,7 @@ void Clonify_Values_Len_Managed(
             if (types & FLAGIT_64(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
                      ARRAY_HEAD(AS_ARRAY(series)),
-                     VAL_TAIL(value),
+                     VAL_LEN_HEAD(value),
                      deep,
                      types
                 );

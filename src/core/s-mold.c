@@ -377,7 +377,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
     CLEARS(&sf);
 
     // Empty string:
-    if (idx >= VAL_TAIL(value)) {
+    if (idx >= VAL_LEN_HEAD(value)) {
         // !!! Comment said `fail (Error(RE_PAST_END));`
         Append_Unencoded(mold->series, "\"\"");
         return;
@@ -397,7 +397,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
         *dp++ = '"';
 
-        for (n = idx; n < VAL_TAIL(value); n++) {
+        for (n = idx; n < VAL_LEN_HEAD(value); n++) {
             c = uni ? up[n] : cast(REBUNI, bp[n]);
             dp = Emit_Uni_Char(dp, c, (REBOOL)GET_MOPT(mold, MOPT_ANSI_ONLY)); // parened
         }
@@ -414,7 +414,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     *dp++ = '{';
 
-    for (n = idx; n < VAL_TAIL(value); n++) {
+    for (n = idx; n < VAL_LEN_HEAD(value); n++) {
 
         c = uni ? up[n] : cast(REBUNI, bp[n]);
         switch (c) {
@@ -456,14 +456,14 @@ static void Mold_Url(const REBVAL *value, REB_MOLD *mold)
     REBSER *ser = VAL_SERIES(value);
 
     // Compute extra space needed for hex encoded characters:
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_URL_ESC(c)) len += 2;
     }
 
     dp = Prep_Uni_Series(mold, len);
 
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_URL_ESC(c)) dp = Form_Hex_Esc_Uni(dp, c);  // c => %xx
         else *dp++ = c;
@@ -481,7 +481,7 @@ static void Mold_File(const REBVAL *value, REB_MOLD *mold)
     REBSER *ser = VAL_SERIES(value);
 
     // Compute extra space needed for hex encoded characters:
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_FILE_ESC(c)) len += 2;
     }
@@ -492,7 +492,7 @@ static void Mold_File(const REBVAL *value, REB_MOLD *mold)
 
     *dp++ = '%';
 
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_FILE_ESC(c)) dp = Form_Hex_Esc_Uni(dp, c);  // c => %xx
         else *dp++ = c;
@@ -652,7 +652,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
         all = FALSE;
 
     // If out of range, do not cause error to avoid error looping.
-    if (VAL_INDEX(value) >= VAL_TAIL(value)) over = TRUE; // Force it into []
+    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) over = TRUE; // Force it into []
 
     if (all || (over && !IS_BLOCK(value) && !IS_PAREN(value))) {
         SET_FLAG(mold->opts, MOPT_MOLD_ALL);
@@ -977,7 +977,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
         if (IS_STRING(value)) // special case: source file line number
-            Append_String(mold->series, VAL_SERIES(value), 0, VAL_TAIL(value));
+            Append_String(mold->series, VAL_SERIES(value), 0, VAL_LEN_HEAD(value));
         else if (IS_BLOCK(value))
             Mold_Simple_Block(mold, VAL_ARRAY_AT(value), 60);
     }

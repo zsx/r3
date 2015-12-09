@@ -170,7 +170,7 @@ static REBSER *Make_Set_Operation_Series(
                         VAL_SERIES(val2),
                         0,
                         VAL_INDEX(val2),
-                        VAL_TAIL(val2),
+                        VAL_LEN_HEAD(val2),
                         skip,
                         uc,
                         cased ? AM_FIND_CASE : 0

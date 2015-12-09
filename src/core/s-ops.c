@@ -88,7 +88,7 @@ REBOOL Is_Wide(const REBUNI *up, REBCNT len)
 //
 REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *length, REBINT opts)
 {
-    REBCNT tail = VAL_TAIL(val);
+    REBCNT tail = VAL_LEN_HEAD(val);
     REBCNT index = VAL_INDEX(val);
     REBCNT len;
     REBUNI c;

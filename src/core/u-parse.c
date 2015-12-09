@@ -86,7 +86,7 @@ static REBCNT Set_Parse_Series(REBPARSE *parse, const REBVAL *item)
         parse->find_flags |= AM_FIND_CASE;
     else
         parse->find_flags &= ~AM_FIND_CASE;
-    return (VAL_INDEX(item) > VAL_TAIL(item)) ? VAL_TAIL(item) : VAL_INDEX(item);
+    return (VAL_INDEX(item) > VAL_LEN_HEAD(item)) ? VAL_LEN_HEAD(item) : VAL_INDEX(item);
 }
 
 
@@ -652,7 +652,7 @@ static REBCNT Do_Eval_Rule(REBPARSE *parse, REBCNT index, const REBVAL **rule)
 
             if (i == THROWN_FLAG) return THROWN_FLAG;
 
-            if (i == VAL_TAIL(&value)) return index;
+            if (i == VAL_LEN_HEAD(&value)) return index;
 
             return NOT_FOUND;
         }
@@ -1073,7 +1073,7 @@ static REBCNT Parse_Rules_Loop(
 
                     if (i == THROWN_FLAG) return THROWN_FLAG;
 
-                    if (i != VAL_TAIL(val)) {
+                    if (i != VAL_LEN_HEAD(val)) {
                         i = NOT_FOUND;
                         break;
                     }
@@ -1385,7 +1385,7 @@ REBNATIVE(parse)
 
     // If the match rules all completed, but the parse position didn't end
     // at (or beyond) the tail of the input series, the parse also failed
-    if (index < VAL_TAIL(input))
+    if (index < VAL_LEN_HEAD(input))
         return R_FALSE; // !!! Would R_NONE be better?
 
     // The parse succeeded...

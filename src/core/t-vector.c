@@ -210,7 +210,7 @@ REBARR *Vector_To_Array(REBVAL *vect)
 
     array = Make_Array(len);
     val = ARRAY_HEAD(array);
-    for (n = VAL_INDEX(vect); n < VAL_TAIL(vect); n++, val++) {
+    for (n = VAL_INDEX(vect); n < VAL_LEN_HEAD(vect); n++, val++) {
         VAL_RESET_HEADER(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
@@ -622,7 +622,7 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     REBYTE l;
 
     if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
-        len = VAL_TAIL(value);
+        len = VAL_LEN_HEAD(value);
         n = 0;
     } else {
         len = VAL_LEN_AT(value);

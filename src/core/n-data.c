@@ -566,7 +566,7 @@ REBNATIVE(in)
         if (IS_WORD(word)) {
             const REBVAL *v;
             REBCNT i;
-            for (i = VAL_INDEX(val); i < VAL_TAIL(val); i++) {
+            for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
                 v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);

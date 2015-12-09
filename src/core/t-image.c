@@ -71,7 +71,7 @@ REBFLG MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 void Reset_Height(REBVAL *value)
 {
     REBCNT w = VAL_IMAGE_WIDE(value);
-    VAL_IMAGE_HIGH(value) = w ? (VAL_TAIL(value) / w) : 0;
+    VAL_IMAGE_HIGH(value) = w ? (VAL_LEN_HEAD(value) / w) : 0;
 }
 
 
@@ -509,7 +509,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     REBINT  dupx, dupy;
     REBOOL  only = 0; // /only
     REBCNT  index = VAL_INDEX(value);
-    REBCNT  tail = VAL_TAIL(value);
+    REBCNT  tail = VAL_LEN_HEAD(value);
     REBINT  n;
     REBINT  x;
     REBINT  w;
@@ -618,7 +618,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
         Expand_Series(VAL_SERIES(value), index, dup * part);
         RESET_IMAGE(VAL_BIN(value) + (index * 4), dup * part); //length in 'pixels'
         Reset_Height(value);
-        tail = VAL_TAIL(value);
+        tail = VAL_LEN_HEAD(value);
         only = 0;
     }
     ip = VAL_IMAGE_HEAD(value);
@@ -689,7 +689,7 @@ REBVAL *Find_Image(struct Reb_Call *call_)
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
     REBCNT  index = VAL_INDEX(value);
-    REBCNT  tail = VAL_TAIL(value);
+    REBCNT  tail = VAL_LEN_HEAD(value);
     REBCNT  len;
     REBCNT  *ip = (REBCNT *)VAL_IMAGE_DATA(value); // NOTE ints not bytes
     REBCNT  *p;
@@ -950,7 +950,7 @@ REBTYPE(Image)
 
     case A_CLEAR:   // clear series
         if (index < tail) {
-            VAL_TAIL(value) = (REBCNT)index;
+            SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             Reset_Height(value);
         }
         break;
@@ -1066,7 +1066,7 @@ REBTYPE(Image)
             h = VAL_PAIR_Y_INT(arg);
             w = MAX(w, 0);
             h = MAX(h, 0);
-            diff = MIN(VAL_TAIL(value), VAL_INDEX(value)); // index offset
+            diff = MIN(VAL_LEN_HEAD(value), VAL_INDEX(value)); // index offset
             diff = MAX(0, diff);
             index = VAL_IMAGE_WIDE(value); // width
             if (index) {
@@ -1132,7 +1132,7 @@ REBINT PD_Image(REBPVS *pvs)
     REBSER *series = VAL_SERIES(data);
     REBCNT *dp;
 
-    len = VAL_TAIL(data) - index;
+    len = VAL_LEN_HEAD(data) - index;
     len = MAX(len, 0);
     src = VAL_IMAGE_DATA(data);
 
@@ -1177,7 +1177,10 @@ REBINT PD_Image(REBPVS *pvs)
             case SYM_SIZE:
                 if (!IS_PAIR(val) || !VAL_PAIR_X(val)) return PE_BAD_SET;
                 VAL_IMAGE_WIDE(data) = VAL_PAIR_X_INT(val);
-                VAL_IMAGE_HIGH(data) = MIN(VAL_PAIR_Y_INT(val), (REBINT)VAL_TAIL(data) / VAL_PAIR_X_INT(val));
+                VAL_IMAGE_HIGH(data) = MIN(
+                    VAL_PAIR_Y_INT(val),
+                    cast(REBINT, VAL_LEN_HEAD(data) / VAL_PAIR_X_INT(val))
+                );
                 break;
 
             case SYM_RGB:

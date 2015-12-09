@@ -223,7 +223,12 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         // This is normally called by the WAKE-UP function.
         arg = FRAME_VAR(port, STD_PORT_DATA);
         if (req->command == RDC_READ) {
-            if (ANY_BINSTR(arg)) VAL_TAIL(arg) += req->actual;
+            if (ANY_BINSTR(arg)) {
+                SET_SERIES_LEN(
+                    VAL_SERIES(arg),
+                    VAL_LEN_HEAD(arg) + req->actual
+                );
+            }
         }
         else if (req->command == RDC_WRITE) {
             SET_NONE(arg);  // Write is done.

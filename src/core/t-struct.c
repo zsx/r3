@@ -980,7 +980,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
             REBUPT raw_addr = 0;
 
             // make sure no other field initialization
-            if (VAL_TAIL(spec) != 1)
+            if (VAL_LEN_HEAD(spec) != 1)
                 fail (Error_Invalid_Arg(spec));
 
             parse_attr(word, &raw_size, &raw_addr);

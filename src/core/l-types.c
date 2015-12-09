@@ -601,7 +601,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     }
     *str = 0;
     if (!at) return 0;
-    VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
+    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
 
     MANAGE_SERIES(VAL_SERIES(value));
 
@@ -643,7 +643,7 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
         else *str++ = *cp++;
     }
     *str = 0;
-    VAL_TAIL(value) = (REBCNT)(str - VAL_BIN(value));
+    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
 
     // All scanned code is assumed to be managed
     MANAGE_SERIES(VAL_SERIES(value));
@@ -761,7 +761,8 @@ const REBYTE *Scan_Any(const REBYTE *cp, REBCNT len, REBVAL *value, REBYTE type)
     } else {
         n = Deline_Uni(VAL_UNI(value), VAL_LEN_AT(value));
     }
-    VAL_TAIL(value) = n;
+
+    SET_SERIES_LEN(VAL_SERIES(value), n);
 
     return cp + len;
 }

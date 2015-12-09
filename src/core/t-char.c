@@ -187,7 +187,7 @@ REBTYPE(Char)
 #endif
 
         case REB_STRING:
-            if (VAL_INDEX(val) >= VAL_TAIL(val))
+            if (VAL_INDEX(val) >= VAL_LEN_HEAD(val))
                 fail (Error_Bad_Make(REB_CHAR, val));
             chr = GET_ANY_CHAR(VAL_SERIES(val), VAL_INDEX(val));
             break;

@@ -251,7 +251,7 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
     // MAKE/TO BINARY! <bitset!>
     case REB_BITSET:
-        ser = Copy_Bytes(VAL_BIN(arg), VAL_TAIL(arg));
+        ser = Copy_Bytes(VAL_BIN(arg), VAL_LEN_HEAD(arg));
         break;
 
     // MAKE/TO BINARY! <image!>
@@ -289,7 +289,7 @@ REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     //
     i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
 
-    if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
+    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;
 }
@@ -433,7 +433,7 @@ REBINT PD_String(REBPVS *pvs)
     }
     else if (ANY_BINSTR(val)) {
         i = VAL_INDEX(val);
-        if (i >= VAL_TAIL(val)) return PE_BAD_SET;
+        if (i >= VAL_LEN_HEAD(val)) return PE_BAD_SET;
         c = GET_ANY_CHAR(VAL_SERIES(val), i);
     }
     else
@@ -510,8 +510,8 @@ REBTYPE(String)
 
     // Common setup code for all actions:
     if (action != A_MAKE && action != A_TO) {
-        index = (REBINT)VAL_INDEX(value);
-        tail  = (REBINT)VAL_TAIL(value);
+        index = cast(REBINT, VAL_INDEX(value));
+        tail = cast(REBINT, VAL_LEN_HEAD(value));
     }
 
     // Check must be in this order (to avoid checking a non-series value);
@@ -669,7 +669,7 @@ zero_str:
         if (index < tail) {
             if (index == 0) Reset_Series(VAL_SERIES(value));
             else {
-                VAL_TAIL(value) = (REBCNT)index;
+                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
                 TERM_SEQUENCE(VAL_SERIES(value));
             }
         }
@@ -703,8 +703,13 @@ zero_str:
     case A_OR_T:
     case A_XOR_T:
         if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
-        VAL_LIMIT_SERIES(value);
-        VAL_LIMIT_SERIES(arg);
+
+        if (VAL_INDEX(value) > VAL_LEN_HEAD(value))
+            VAL_INDEX(value) = VAL_LEN_HEAD(value);
+
+        if (VAL_INDEX(arg) > VAL_LEN_HEAD(arg))
+            VAL_INDEX(arg) = VAL_LEN_HEAD(arg);
+
         ser = Xandor_Binary(action, value, arg);
         goto ser_exit;
 
@@ -736,7 +741,7 @@ zero_str:
 
         FAIL_IF_PROTECTED_SERIES(VAL_SERIES(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg))
+        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg))
             swap_chars(value, arg);
         break;
 

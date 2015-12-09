@@ -157,16 +157,16 @@ REBINT Awake_System(REBARR *ports, REBINT only)
     // Get wait queue block (the state field):
     state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return -10;
-    //Debug_Num("S", VAL_TAIL(state));
+    //Debug_Num("S", VAL_LEN_HEAD(state));
 
     // Get waked queue block:
     waked = VAL_CONTEXT_VALUE(port, STD_PORT_DATA);
     if (!IS_BLOCK(waked)) return -10;
 
     // If there is nothing new to do, return now:
-    if (VAL_TAIL(state) == 0 && VAL_TAIL(waked) == 0) return -1;
+    if (VAL_LEN_HEAD(state) == 0 && VAL_LEN_HEAD(waked) == 0) return -1;
 
-    //Debug_Num("A", VAL_TAIL(waked));
+    //Debug_Num("A", VAL_LEN_HEAD(waked));
     // Get the system port AWAKE function:
     awake = VAL_CONTEXT_VALUE(port, STD_PORT_AWAKE);
     if (!ANY_FUNC(awake)) return -1;
@@ -263,8 +263,8 @@ void Sieve_Ports(REBARR *ports)
     for (n = 0; ports && n < ARRAY_LEN(ports);) {
         val = ARRAY_AT(ports, n);
         if (IS_PORT(val)) {
-            assert(VAL_TAIL(waked) != 0);
-            if (VAL_TAIL(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
+            assert(VAL_LEN_HEAD(waked) != 0);
+            if (VAL_LEN_HEAD(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
                 Remove_Series(ARRAY_SERIES(ports), n, 1);
                 continue;
             }

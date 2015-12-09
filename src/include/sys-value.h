@@ -685,16 +685,15 @@ struct Reb_Position
     #define VAL_SERIES(v)   (*VAL_SERIES_Ptr_Debug(v))
 #endif
 #define VAL_INDEX(v)        ((v)->data.position.index)
-#define VAL_TAIL(v)         (VAL_SERIES(v)->tail)
+#define VAL_LEN_HEAD(v)     (VAL_SERIES(v)->tail + 0)
 #define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
 
-#define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_TAIL(v))
+#define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
 
 #define VAL_DATA_AT(p) \
     (VAL_BIN_HEAD(p) + (VAL_INDEX(p) * VAL_SERIES_WIDTH(p)))
 
 #define VAL_SERIES_WIDTH(v) (SERIES_WIDE(VAL_SERIES(v)))
-#define VAL_LIMIT_SERIES(v) if (VAL_INDEX(v) > VAL_TAIL(v)) VAL_INDEX(v) = VAL_TAIL(v)
 
 
 // Note: These macros represent things that used to sometimes be functions,

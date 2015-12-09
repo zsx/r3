@@ -207,7 +207,7 @@ REBINT Find_Typeset(REBVAL *block)
         }
     }
 
-//  Print("Size Typesets: %d", VAL_TAIL(ROOT_TYPESETS));
+//  Print("Size Typesets: %d", VAL_LEN_HEAD(ROOT_TYPESETS));
     Append_Value(VAL_ARRAY(ROOT_TYPESETS), &value);
     return n;
 }

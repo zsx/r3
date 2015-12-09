@@ -274,7 +274,7 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
 
-    if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
     if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
         panic (Error(RE_BAD_TRASH_TYPE));

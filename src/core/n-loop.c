@@ -166,8 +166,8 @@ static REBFLG Loop_Series_Throws(
 
     *var = *start;
 
-    if (ei >= cast(REBINT, VAL_TAIL(start)))
-        ei = cast(REBINT, VAL_TAIL(start));
+    if (ei >= cast(REBINT, VAL_LEN_HEAD(start)))
+        ei = cast(REBINT, VAL_LEN_HEAD(start));
 
     if (ei < 0) ei = 0;
 
@@ -330,9 +330,8 @@ static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
     bodi = VAL_INDEX(D_ARG(mode+2));
 
     // Starting location when past end with negative skip:
-    if (inc < 0 && VAL_INDEX(var) >= VAL_TAIL(var)) {
-        VAL_INDEX(var) = VAL_TAIL(var) + inc;
-    }
+    if (inc < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
+        VAL_INDEX(var) = VAL_LEN_HEAD(var) + inc;
 
     // NOTE: This math only works for index in positive ranges!
 
@@ -977,7 +976,7 @@ REBNATIVE(repeat)
 
     if (ANY_SERIES(count)) {
         if (Loop_Series_Throws(
-            D_OUT, var, body, count, VAL_TAIL(count) - 1, 1
+            D_OUT, var, body, count, VAL_LEN_HEAD(count) - 1, 1
         )) {
             return R_OUT_IS_THROWN;
         }

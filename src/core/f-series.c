@@ -44,8 +44,8 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
 
     // Common setup code for all actions:
     if (action != A_MAKE && action != A_TO) {
-        index = (REBINT)VAL_INDEX(value);
-        tail  = (REBINT)VAL_TAIL(value);
+        index = cast(REBINT, VAL_INDEX(value));
+        tail = cast(REBINT, VAL_LEN_HEAD(value));
     } else return -1;
 
     switch (action) {

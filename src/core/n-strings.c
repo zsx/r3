@@ -656,7 +656,7 @@ REBNATIVE(deline)
         n = Deline_Uni(up, len);
     }
 
-    VAL_TAIL(val) -= (len - n);
+    SET_SERIES_LEN(VAL_SERIES(val), VAL_LEN_HEAD(val) - (len - n));
 
     return R_ARG1;
 }

@@ -800,7 +800,7 @@ void Call_Routine(const REBVAL *rot, REBARR *args, REBVAL *ret)
         VAL_ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(VAL_ROUTINE_FIXED_ARGS(rot));
         MANAGE_ARRAY(VAL_ROUTINE_ALL_ARGS(rot));
 
-        for (i = 1, j = 1; i < SERIES_LEN(VAL_SERIES(varargs)) + 1; i ++, j ++) {
+        for (i = 1, j = 1; i < VAL_LEN_HEAD(varargs) + 1; i ++, j ++) {
             REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(varargs, i - 1);
             if (i <= n_fixed) { /* fix arguments */
                 if (!TYPE_CHECK(ARRAY_AT(VAL_ROUTINE_FIXED_ARGS(rot), i), VAL_TYPE(reb_arg))) {
@@ -814,7 +814,7 @@ void Call_Routine(const REBVAL *rot, REBARR *args, REBVAL *ret)
                 /* initialize rin->args */
                 REBVAL *reb_type = NULL;
                 REBVAL *v = NULL;
-                if (i == SERIES_LEN(VAL_SERIES(varargs))) /* type is missing */
+                if (i == VAL_LEN_HEAD(varargs)) /* type is missing */
                     fail (Error_Invalid_Arg(reb_arg));
 
                 reb_type = VAL_ARRAY_AT_HEAD(varargs, i);

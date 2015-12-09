@@ -1408,8 +1408,8 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
             //Debug_Fmt("sec: %r %r", policy, name);
             if (Match_Sub_Path(VAL_SERIES(policy), VAL_SERIES(name))) {
                 // Is the match adequate?
-                if (VAL_TAIL(name) >= len) {
-                    len = VAL_TAIL(name);
+                if (VAL_LEN_HEAD(name) >= len) {
+                    len = VAL_LEN_HEAD(name);
                     flags = VAL_TUPLE(policy+1); // non-aligned
                 }
             }

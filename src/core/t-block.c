@@ -90,7 +90,7 @@ REBFLG MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     //
     i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
 
-    if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
+    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;
 }
@@ -546,7 +546,7 @@ REBINT PD_Array(REBPVS *pvs)
         );
     }
 
-    if (n < 0 || (REBCNT)n >= VAL_TAIL(pvs->value)) {
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
         if (pvs->setval) return PE_BAD_SELECT;
         return PE_NONE;
     }
@@ -568,7 +568,7 @@ REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
 
     n = Get_Num_Arg(selector);
     n += VAL_INDEX(block) - 1;
-    if (n < 0 || (REBCNT)n >= VAL_TAIL(block)) return 0;
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
     return VAL_ARRAY_AT_HEAD(block, n);
 }
 
@@ -620,8 +620,8 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    index = (REBINT)VAL_INDEX(value);
-    tail  = (REBINT)VAL_TAIL(value);
+    index = cast(REBINT, VAL_INDEX(value));
+    tail  = cast(REBINT, VAL_LEN_HEAD(value));
     array = VAL_ARRAY(value);
 
     // Check must be in this order (to avoid checking a non-series value);
@@ -766,7 +766,7 @@ zero_blk:
             if (index == 0) Reset_Array(array);
             else {
                 SET_END(ARRAY_AT(array, index));
-                VAL_TAIL(value) = (REBCNT)index;
+                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             }
         }
         break;
@@ -816,7 +816,7 @@ zero_blk:
         //
         FAIL_IF_PROTECTED_ARRAY(VAL_ARRAY(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg)) {
+        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)) {
             val = *VAL_ARRAY_AT(value);
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
             *VAL_ARRAY_AT(arg) = val;

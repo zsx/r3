@@ -941,7 +941,7 @@ REBNATIVE(do)
                 // If we hit the end, we always want to return unset.
                 if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
-                    VAL_INDEX(ARG(value)) = VAL_TAIL(ARG(value));
+                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
                     Set_Var(ARG(var), ARG(value));
                 }
                 return R_UNSET;

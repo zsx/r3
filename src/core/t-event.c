@@ -218,7 +218,7 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
     case SYM_TYPE:
         if (VAL_EVENT_TYPE(value) == 0) goto is_none;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
-        if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
+        if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
             *val = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
             break;
         }
@@ -278,7 +278,7 @@ static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
         if (n & 0xffff0000) {
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
-            if (IS_BLOCK(arg) && n < (REBINT)VAL_TAIL(arg)) {
+            if (IS_BLOCK(arg) && n < cast(REBINT, VAL_LEN_HEAD(arg))) {
                 *val = *VAL_ARRAY_AT_HEAD(arg, n);
                 break;
             }
@@ -459,7 +459,7 @@ pick_it:
         case EF_TYPE:
             if (VAL_EVENT_TYPE(value) == 0) goto is_none;
             arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
-            if (IS_BLOCK(arg) && VAL_TAIL(arg) >= EVT_MAX) {
+            if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
                 *D_OUT = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
                 return R_OUT;
             }

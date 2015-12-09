@@ -136,12 +136,12 @@ REBINT Find_Max_Bit(REBVAL *val)
         n = VAL_INDEX(val);
         if (VAL_BYTE_SIZE(val)) {
             REBYTE *bp = VAL_BIN(val);
-            for (; n < (REBINT)VAL_TAIL(val); n++)
+            for (; n < cast(REBINT, VAL_LEN_HEAD(val)); n++)
                 if (bp[n] > maxi) maxi = bp[n];
         }
         else {
             REBUNI *up = VAL_UNI(val);
-            for (; n < (REBINT)VAL_TAIL(val); n++)
+            for (; n < cast(REBINT, VAL_LEN_HEAD(val)); n++)
                 if (up[n] > maxi) maxi = up[n];
         }
         maxi++;
@@ -217,12 +217,12 @@ REBFLG Check_Bit_Str(REBSER *bset, REBVAL *val, REBFLG uncased)
 
     if (VAL_BYTE_SIZE(val)) {
         REBYTE *bp = VAL_BIN(val);
-        for (; n < VAL_TAIL(val); n++)
+        for (; n < VAL_LEN_HEAD(val); n++)
             if (Check_Bit(bset, bp[n], uncased)) return TRUE;
     }
     else {
         REBUNI *up = VAL_UNI(val);
-        for (; n < VAL_TAIL(val); n++)
+        for (; n < VAL_LEN_HEAD(val); n++)
             if (Check_Bit(bset, up[n], uncased)) return TRUE;
     }
     return FALSE;
@@ -264,12 +264,12 @@ void Set_Bit_Str(REBSER *bset, REBVAL *val, REBOOL set)
 
     if (VAL_BYTE_SIZE(val)) {
         REBYTE *bp = VAL_BIN(val);
-        for (; n < VAL_TAIL(val); n++)
+        for (; n < VAL_LEN_HEAD(val); n++)
             Set_Bit(bset, bp[n], set);
     }
     else {
         REBUNI *up = VAL_UNI(val);
-        for (; n < VAL_TAIL(val); n++)
+        for (; n < VAL_LEN_HEAD(val); n++)
             Set_Bit(bset, up[n], set);
     }
 }
@@ -591,13 +591,13 @@ set_bits:
         return R_OUT;
 
     case A_LENGTH:
-        len = VAL_TAIL(value) * 8;
+        len = VAL_LEN_HEAD(value) * 8;
         SET_INTEGER(value, len);
         break;
 
     case A_TAIL_Q:
         // Necessary to make EMPTY? work:
-        return (VAL_TAIL(value) == 0) ? R_TRUE : R_FALSE;
+        return (VAL_LEN_HEAD(value) == 0) ? R_TRUE : R_FALSE;
 
     case A_CLEAR:
         Clear_Series(VAL_SERIES(value));
