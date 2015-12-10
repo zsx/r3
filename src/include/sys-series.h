@@ -398,7 +398,7 @@ struct Reb_Series {
     #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
 #else
     #define ASSERT_NOT_IN_SERIES_DATA(v) \
-        Assert_Not_In_Series_Data_Debug(v)
+        Assert_Not_In_Series_Data_Debug(v, TRUE)
 #endif
 
 

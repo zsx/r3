@@ -395,6 +395,16 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         SET_ARRAY_LEN(c->arglist.array, num_slots);
         SET_END(ARRAY_AT(c->arglist.array, num_slots));
         slot = ARRAY_HEAD(c->arglist.array);
+
+        // We have to set the lock flag on the series as long as it is on
+        // the stack.  This means that no matter what cleverness the GC
+        // might think it can do shuffling data around, the closure frame
+        // is not a candidate for this cleverness.
+        //
+        // !!! General review: series need to be lockable multiple times,
+        // and it needs to happen with any stack-hold (e.g. PUSH_GUARD)
+        //
+        ARRAY_SET_FLAG(c->arglist.array, SER_LOCK);
     }
     else {
         // Same as above, but in a raw array vs. a series.  Note that chunks
@@ -467,14 +477,20 @@ void Drop_Call_Arglist(struct Reb_Call* c)
 
     if (IS_CLOSURE(&c->func)) {
         //
-        // CLOSURE! should have converted the arglist array to be managed,
-        // and it may have been GC'd by this point (Mark_Call_Frame() does
-        // not keep the arglist alive if it's not needed).  So it sets it
-        // to trash in the debug build, but doesn't in release.
+        // Do_Closure() converted the arglist array to be managed.
         //
-    #if !defined(NDEBUG)
-        assert(c->arglist.array == cast(REBARR*, 0xDECAFBAD));
-    #endif
+        ASSERT_ARRAY_MANAGED(c->arglist.array);
+
+        // Now that it's off the stack (and not generating any definitional
+        // returns) we can unlock it.
+        //
+        // !!! Locking the closure may not be completely necessary, but it
+        // is necessary at least to subvert the check that one does not
+        // use DO to evaluate into movable memory--as we are DO-ing the
+        // arguments into this array for the call.
+        //
+        assert(ARRAY_GET_FLAG(c->arglist.array, SER_LOCK));
+        ARRAY_CLR_FLAG(c->arglist.array, SER_LOCK);
     }
     else {
         // For other function types we drop the chunk.  This is not dangerous

@@ -541,9 +541,17 @@ static void Mark_Call_Frames_Deep(void)
         // need to keep the label sym alive!
         /* Mark_Symbol_Still_In_Use?(call->label_sym); */
 
-        // We don't have to GC-protect the arglist.  If it is a closure then
-        // the args are held alive if there are any references from the body.
-        // If not, then args live in the chunk stack and is protected there.
+        // !!! This hold on the GC for the closure's arglist while it is on
+        // the stack *may* not be strictly necessary.  But at the moment,
+        // the series is locked for the duration of its time on the stack,
+        // to prevent expansion or contraction...and it thus must stay alive
+        // long enough to be unlocked.  It may be the case that it could be
+        // unlocked at the beginning of this dispatch and set to NULL, but
+        // there may be interesting tricks that can be done by knowing a
+        // closure's concrete arg pointers for the duration of its call.
+        //
+        if (IS_CLOSURE(&c->func))
+            QUEUE_MARK_ARRAY_DEEP(c->arglist.array);
 
         // `param`, and `refine` may both be NULL
         // (`arg` is a cache of the head of the arglist or NULL if frameless)

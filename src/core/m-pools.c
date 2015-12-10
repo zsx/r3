@@ -676,7 +676,10 @@ static REBOOL Series_Data_Alloc(
 
     if ((GC_Ballast -= size) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
-    assert(Series_Allocated_Size(series) == size);
+#if !defined(NDEBUG)
+    if (pool_num >= SYSTEM_POOL)
+        assert(Series_Allocation_Unpooled(series) == size);
+#endif
     return TRUE;
 }
 
@@ -686,25 +689,63 @@ static REBOOL Series_Data_Alloc(
 //
 //  Assert_Not_In_Series_Data_Debug: C
 //
-void Assert_Not_In_Series_Data_Debug(const void *pointer)
+void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
 {
     REBSEG *seg;
 
     for (seg = Mem_Pools[SERIES_POOL].segs; seg; seg = seg->next) {
-        REBSER *series = cast(REBSER *, seg + 1);
+        REBSER *series = cast(REBSER*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--, series++) {
             if (SERIES_FREED(series))
                 continue;
 
-            assert(
-                (pointer < cast(void*, series->content.dynamic.data)) ||
-                (pointer >= cast(void*, (
-                    series->content.dynamic.data
-                    - (SERIES_WIDE(series) * SERIES_BIAS(series))
-                    + Series_Allocated_Size(series)
-                )))
-            );
+            // A locked series can be in some cases considered "safe" for the
+            // purposes that this routine is checking for.  Closures use
+            // series to gather their arguments, for instance.
+            //
+            if (locked_ok && SERIES_GET_FLAG(series, SER_LOCK))
+                continue;
+
+            if (pointer < cast(void*,
+                series->content.dynamic.data
+                - (SERIES_WIDE(series) * SERIES_BIAS(series))
+            )) {
+                // The memory lies before the series data allocation.
+                //
+                continue;
+            }
+
+            if (pointer > cast(void*, series->content.dynamic.data
+                + (SERIES_WIDE(series) * SERIES_REST(series))
+            )) {
+                // The memory lies after the series capacity.
+                //
+                continue;
+            }
+
+            // We now have a bad condition, in that the pointer is known to
+            // be inside a series data allocation.  But it could be doubly
+            // bad if the pointer is in the extra head or tail capacity,
+            // because that's effectively free data.  Since we're already
+            // going to be asserting if we get here, go ahead and pay to
+            // check if either of those is the case.
+
+            if (pointer < cast(void*, series->content.dynamic.data)) {
+                Debug_Fmt("Pointer found in freed head capacity of series");
+                assert(FALSE);
+            }
+
+            if (pointer > cast(void*,
+                series->content.dynamic.data
+                + (SERIES_WIDE(series) * SERIES_LEN(series))
+            )) {
+                Debug_Fmt("Pointer found in freed tail capacity of series");
+                assert(FALSE);
+            }
+
+            Debug_Fmt("Pointer not supposed to be in series data, but is.");
+            assert(FALSE);
         }
     }
 }
@@ -713,7 +754,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer)
 
 
 //
-//  Series_Allocated_Size: C
+//  Series_Allocation_Unpooled: C
 // 
 // When we want the actual memory accounting for a series, the
 // whole story may not be told by the element size multiplied
@@ -733,7 +774,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer)
 // for a "rounded up to power of 2" bit.  (Since there are a
 // LOT of series created in Rebol, each byte is scrutinized.)
 //
-REBCNT Series_Allocated_Size(REBSER *series)
+REBCNT Series_Allocation_Unpooled(REBSER *series)
 {
     REBCNT total = SERIES_TOTAL(series);
 
@@ -856,37 +897,24 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 // ahead to account for unused capacity at the head of the
 // allocation.  They also must know the total allocation size.
 //
-static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size)
+static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
 {
-    REBCNT pool_num = FIND_POOL(size);
+    REBCNT pool_num = FIND_POOL(size_unpooled);
     REBPOL *pool;
-
-#if !defined(NDEBUG)
-    // !!! What is the usefulness of this flag, for never freeing memory,
-    // in an era with tools like ASAN and Valgrind?
-    //
-    if (GC_Stay_Dirty) {
-        memset(unbiased, 0xbb, size);
-        return;
-    }
-#endif
-
-    // Verify that size matches pool size:
-    if (pool_num < SERIES_POOL) {
-        /* size < wide when "wide" is not a multiple of element size */
-        assert(Mem_Pools[pool_num].wide >= size);
-    }
 
     if (pool_num < SYSTEM_POOL) {
         REBNOD *node = cast(REBNOD*, unbiased);
+
+        assert(Mem_Pools[pool_num].wide >= size_unpooled);
+
         pool = &Mem_Pools[pool_num];
         *node = pool->first;
         pool->first = node;
         pool->free++;
     }
     else {
-        FREE_N(REBYTE, size, unbiased);
-        Mem_Pools[SYSTEM_POOL].has -= size;
+        FREE_N(REBYTE, size_unpooled, unbiased);
+        Mem_Pools[SYSTEM_POOL].has -= size_unpooled;
         Mem_Pools[SYSTEM_POOL].free--;
     }
 
@@ -1039,7 +1067,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     data_old = series->content.dynamic.data;
     bias_old = SERIES_BIAS(series);
-    size_old = Series_Allocated_Size(series);
+    size_old = Series_Allocation_Unpooled(series);
     len_old = series->content.dynamic.len;
 
     series->content.dynamic.data = NULL;
@@ -1096,7 +1124,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 {
     REBINT bias_old = SERIES_BIAS(series);
-    REBINT size_old = Series_Allocated_Size(series);
+    REBINT size_old = Series_Allocation_Unpooled(series);
     REBCNT len_old = series->content.dynamic.len;
     REBYTE wide_old = SERIES_WIDE(series);
     REBOOL any_block = Is_Array_Series(series);
@@ -1192,7 +1220,7 @@ void GC_Kill_Series(REBSER *series)
         series->content.dynamic.data -= wide * bias;
         Free_Unbiased_Series_Data(
             series->content.dynamic.data,
-            Series_Allocated_Size(series)
+            Series_Allocation_Unpooled(series)
         );
     }
 
@@ -1285,7 +1313,7 @@ void Free_Series(REBSER *series)
 void Widen_String(REBSER *series, REBOOL preserve)
 {
     REBINT bias_old = SERIES_BIAS(series);
-    REBINT size_old = Series_Allocated_Size(series);
+    REBINT size_old = Series_Allocation_Unpooled(series);
     REBCNT len_old = series->content.dynamic.len;
     REBYTE wide_old = SERIES_WIDE(series);
 

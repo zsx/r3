@@ -1002,13 +1002,10 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 
     // We will extract the arglist from ownership and manual memory management
     // by the call, to be used in a GC-managed object frame by the closure.
-    // Since it's not GC protected by the call, it should not be inspected
-    // as it could go bad at any point...set call field to junk in debug.
+    // It will be held alive as long as the call is in effect by the
+    // Reb_Call so that the `arg` pointer will remain valid.
     //
     frame = AS_FRAME(call_->arglist.array);
-#if !defined(NDEBUG)
-    call_->arglist.array = cast(REBARR*, 0xDECAFBAD);
-#endif
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
