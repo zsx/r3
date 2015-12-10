@@ -101,6 +101,9 @@ typedef struct Reb_Array REBARR; // REBSER containing REBVALs ("Rebol Array")
 struct Reb_Frame;
 typedef struct Reb_Frame REBFRM; // parallel REBARR key/var arrays, +2 values
 
+struct Reb_Func;
+typedef struct Reb_Func REBFUN; // function parameters plus function REBVAL
+
 struct Reb_Map;
 typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
@@ -1486,7 +1489,7 @@ enum {
 typedef REBCNT REB_R;
 
 // NATIVE! function
-typedef REB_R (*REBFUN)(struct Reb_Call *call_);
+typedef REB_R (*REBNAT)(struct Reb_Call *call_);
 #define REBNATIVE(n) \
     REB_R N_##n(struct Reb_Call *call_)
 
@@ -1504,38 +1507,35 @@ typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 typedef struct Reb_Routine_Info REBRIN;
 
 struct Reb_Any_Function {
-    REBARR *spec;  // Array of spec values for function
-    REBARR *paramlist;  // Array of typesets and symbols
+    //
+    // Array of spec values for function
+    //
+    REBARR *spec;
+
+    // `func` is a Rebol Array that contains an ANY-FUNCTION! value that
+    // represents the function as its [0]th element, and hence is a single
+    // pointer which can be used to access all the function's properties
+    // via the FUNC_VALUE macro.  The rest of the array is the parameter
+    // definitions (TYPESET! values plus name symbol)
+    //
+    REBFUN *func;
+
     union Reb_Any_Function_Impl {
-        REBFUN code;
+        REBNAT code;
         REBARR *body;
         REBCNT act;
         REBRIN *info;
     } impl;
 };
 
-/* argument to these is a pointer to struct Reb_Any_Function */
-#define FUNC_SPEC(v)      ((v)->spec)   // a series
-#define FUNC_SPEC_BLK(v)  ARRAY_HEAD((v)->spec)
-#define FUNC_PARAMLIST(v) ((v)->paramlist)
-#define FUNC_CODE(v)      ((v)->impl.code)
-#define FUNC_BODY(v)      ((v)->impl.body)
-#define FUNC_ACT(v)       ((v)->impl.act)
-#define FUNC_INFO(v)      ((v)->impl.info)
-#define FUNC_ARGC(v)      ARRAY_TAIL((v)->args)
-
 /* argument is of type REBVAL* */
-#define VAL_FUNC(v)                 ((v)->payload.any_function)
+#define VAL_FUNC(v)                 ((v)->payload.any_function.func)
 #define VAL_FUNC_SPEC(v)            ((v)->payload.any_function.spec)
-#define VAL_FUNC_PARAMLIST(v)       ((v)->payload.any_function.paramlist)
+#define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
 
-#define VAL_FUNC_PARAMS_HEAD(v)     ARRAY_AT(VAL_FUNC_PARAMLIST(v), 1)
-
-#define VAL_FUNC_PARAM(v,p) \
-    ARRAY_AT(VAL_FUNC_PARAMLIST(v), (p))
-
-#define VAL_FUNC_NUM_PARAMS(v) \
-    (ARRAY_LEN(VAL_FUNC_PARAMLIST(v)) - 1)
+#define VAL_FUNC_NUM_PARAMS(v)      FUNC_NUM_PARAMS(VAL_FUNC(v))
+#define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))
+#define VAL_FUNC_PARAM(v,p)         FUNC_PARAM(VAL_FUNC(v), (p))
 
 #define VAL_FUNC_CODE(v)      ((v)->payload.any_function.impl.code)
 #define VAL_FUNC_BODY(v)      ((v)->payload.any_function.impl.body)
@@ -1669,7 +1669,7 @@ struct Reb_Routine_Info {
         } rot;
         struct {
             void *closure;
-            struct Reb_Any_Function func;
+            REBFUN *func;
             void *dispatcher;
         } cb;
     } info;
@@ -1683,7 +1683,7 @@ struct Reb_Routine_Info {
     REBFLG  flags;
 };
 
-typedef struct Reb_Any_Function REBROT;
+typedef REBFUN REBROT;
 
 enum {
     ROUTINE_MARK = 1,       // routine was found during GC mark scan.

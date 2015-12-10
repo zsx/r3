@@ -697,23 +697,84 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 
     switch (VAL_TYPE(D_FUNC)) {
     case REB_NATIVE:
-        threw = Do_Native_Throws(call_);
+        if (VAL_FUNC(D_FUNC) != PG_Return_Func) {
+            //
+            // If it's not a definitional return, we dispatch normally to
+            // the native function.
+            //
+            threw = Do_Native_Throws(call_);
+        }
+        else {
+            REBVAL name;
+
+            // The EXT_FUNC_HAS_RETURN uses the RETURN native and its spec,
+            // and the call validation should have ensured we got exactly one
+            // parameter--which can be any type.
+
+            assert(D_ARGC == 1);
+
+            // The originating `Push_New_Arglist_For_Call()` producing this
+            // return native should have overwritten its code pointer with the
+            // identifying series of the function--or closure frame--it wants
+            // to jump to.
+
+            assert(VAL_FUNC_CODE(D_FUNC) != VAL_FUNC_CODE(ROOT_RETURN_NATIVE));
+            ASSERT_ARRAY(VAL_FUNC_RETURN_TO(D_FUNC));
+
+            // We only have a REBSER*, but want to actually THROW a full
+            // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
+            // the paramlist.  In either case, the value comes from slot [0]
+            // of the RETURN_TO array, but in the debug build do an added
+            // sanity check.
+            //
+        #if !defined(NDEBUG)
+            if (ARRAY_GET_FLAG(VAL_FUNC_RETURN_TO(D_FUNC), SER_FRAME)) {
+                //
+                // The function was actually a CLOSURE!, so "when it took
+                // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
+                //
+                assert(IS_OBJECT(ARRAY_HEAD(VAL_FUNC_RETURN_TO(D_FUNC))));
+            }
+            else {
+                // It was a stack-relative FUNCTION!
+                //
+                REBVAL *return_to = ARRAY_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
+                assert(IS_FUNCTION(return_to));
+                assert(
+                    VAL_FUNC_PARAMLIST(return_to)
+                    == VAL_FUNC_RETURN_TO(D_FUNC)
+                );
+            }
+        #endif
+
+            *D_OUT = *ARRAY_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
+
+            CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(1));
+
+            threw = TRUE;
+        }
         break;
+
     case REB_ACTION:
         threw = Do_Action_Throws(call_);
         break;
+
     case REB_COMMAND:
         threw = Do_Command_Throws(call_);
         break;
+
     case REB_CLOSURE:
         threw = Do_Closure_Throws(call_);
         break;
+
     case REB_FUNCTION:
         threw = Do_Function_Throws(call_);
         break;
+
     case REB_ROUTINE:
         threw = Do_Routine_Throws(call_);
         break;
+
     default:
         fail (Error(RE_MISC));
     }
@@ -1091,7 +1152,7 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (VAL_FUNC_PARAMLIST(&c->func) == PG_Eval_Paramlist) {
+        if (VAL_FUNC(&c->func) == PG_Eval_Func) {
             if (IS_END(&eval)) {
                 //
                 // The next evaluation we invoke expects to be able to write
@@ -1125,10 +1186,8 @@ reevaluate:
                 // EVAL will handle anything the evaluator can, including
                 // an UNSET!, but it errors on END, e.g. `do [eval]`
                 //
-                assert(ARRAY_LEN(PG_Eval_Paramlist) == 2);
-                fail (
-                    Error_No_Arg(c->label_sym, ARRAY_AT(PG_Eval_Paramlist, 1))
-                );
+                assert(ARRAY_LEN(FUNC_PARAMLIST(PG_Eval_Func)) == 2);
+                fail (Error_No_Arg(c->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
             }
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
@@ -1254,7 +1313,7 @@ reevaluate:
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
         //
-        c->param = DSF_PARAM_HEAD(c);
+        c->param = VAL_FUNC_PARAMS_HEAD(&c->func);
 
         if (IS_END(c->param)) {
             //

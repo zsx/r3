@@ -816,7 +816,50 @@ struct Reb_Frame {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  REBMAP (a.k.a. "Rebol Array")
+//  REBFUN (a.k.a. "Func")
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Using a technique strongly parallel to the FRAME, a function is represented
+// as a series which acts as its paramlist, in which the 0th element is an
+// ANY-FUNCTION! value.  Unlike a FRAME, a FUNC does not have values of its
+// own... only parameter definitions (or "params").  The arguments ("args")
+// come from finding a function instantiation on the stack.
+//
+
+struct Reb_Func {
+    struct Reb_Array paramlist;
+};
+
+#ifdef NDEBUG
+    #define AS_FUNC(s)     cast(REBFUN*, (s))
+#else
+    // Put a debug version here that asserts.
+    #define AS_FUNC(s)     cast(REBFUN*, (s))
+#endif
+
+#define FUNC_PARAMLIST(f)       (&(f)->paramlist)
+
+#define FUNC_NUM_PARAMS(f)      (ARRAY_LEN(FUNC_PARAMLIST(f)) - 1)
+#define FUNC_PARAMS_HEAD(f)     ARRAY_AT(FUNC_PARAMLIST(f), 1)
+#ifdef NDEBUG
+    #define FUNC_PARAM(f,n)     ARRAY_AT(FUNC_PARAMLIST(f), (n))
+#else
+    #define FUNC_PARAM(f,n)     FUNC_PARAM_Debug((f), (n))
+#endif
+#define FUNC_PARAM_SYM(f,n)     VAL_TYPESET_SYM(FUNC_PARAM((f), (n)))
+
+#define FUNC_VALUE(f)           ARRAY_HEAD(FUNC_PARAMLIST(f))
+#define FUNC_SPEC(f)            (FUNC_VALUE(f)->payload.any_function.spec)
+#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.any_function.impl.code)
+#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.any_function.impl.body)
+#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.any_function.impl.act)
+#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.any_function.impl.info)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  REBMAP (a.k.a. "Rebol Map")
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //

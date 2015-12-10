@@ -400,13 +400,19 @@ static void Queue_Mark_Routine_Deep(const REBROT *rot)
     MARK_SERIES_ONLY(ROUTINE_EXTRA_MEM(rot));
 
     if (IS_CALLBACK_ROUTINE(ROUTINE_INFO(rot))) {
-        if (FUNC_BODY(&CALLBACK_FUNC(rot))) {
-            QUEUE_MARK_ARRAY_DEEP(FUNC_BODY(&CALLBACK_FUNC(rot)));
-            QUEUE_MARK_ARRAY_DEEP(FUNC_SPEC(&CALLBACK_FUNC(rot)));
-            ARRAY_SET_FLAG(FUNC_PARAMLIST(&CALLBACK_FUNC(rot)), SER_MARK);
+        REBFUN *cb_func = CALLBACK_FUNC(rot);
+        if (cb_func) {
+            // Should take care of spec, body, etc.
+            QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(CALLBACK_FUNC(rot)));
         }
         else {
-            // may be null if called before the callback! is fully constructed
+            // !!! There is a call during MT_Routine that does an evaluation
+            // while creating a callback function, before the CALLBACK_FUNC
+            // has been set.  If the garbage collector is invoked at that
+            // time, this will happen.  This should be reviewed to see if
+            // it can be done another way--e.g. by not making the relevant
+            // series visible to the garbage collector via MANAGE_SERIES()
+            // until fully constructed.
         }
     } else {
         if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
@@ -674,6 +680,9 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:
+            assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
+            assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
+
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val));
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
             break;
@@ -764,7 +773,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_ROUTINE:
             QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_SPEC(val));
             QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_PARAMLIST(val));
-            Queue_Mark_Routine_Deep(&VAL_ROUTINE(val));
+            Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
             break;
 
         case REB_LIBRARY:

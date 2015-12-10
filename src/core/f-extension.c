@@ -439,7 +439,7 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
     VAL_FUNC_SPEC(out) =
         Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
 
-    VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(spec));
+    VAL_FUNC(out) = AS_FUNC(Check_Func_Spec(VAL_FUNC_SPEC(spec)));
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
@@ -470,7 +470,7 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
     // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
     // function types, can find the function value from the paramlist.
 
-    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *FUNC_VALUE(VAL_FUNC(out)) = *out;
 
     return;
 

@@ -36,7 +36,7 @@ static  REBCNT  Native_Count;
 static  REBCNT  Native_Limit;
 static  REBCNT  Action_Count;
 static  REBCNT  Action_Marker;
-static const REBFUN *Native_Functions;
+static const REBNAT *Native_Functions;
 static  BOOT_BLK *Boot_Block;
 
 
@@ -490,7 +490,7 @@ REBNATIVE(action)
     Make_Native(
         D_OUT,
         VAL_ARRAY(ARG(spec)),
-        cast(REBFUN, cast(REBUPT, Action_Count)),
+        cast(REBNAT, cast(REBUPT, Action_Count)),
         REB_ACTION
     );
 

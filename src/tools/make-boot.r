@@ -1140,7 +1140,7 @@ for-each val nats [
 
 print [nat-count "natives"]
 
-emit [newline {const REBFUN Native_Funcs[} nat-count {] = ^{
+emit [newline {const REBNAT Native_Funcs[} nat-count {] = ^{
 }]
 for-each val nats [
     if set-word? val [
@@ -1236,7 +1236,7 @@ emit [
 #define CHECK_TITLE   } checksum to binary! title {
 
 extern const REBYTE Native_Specs[];
-extern const REBFUN Native_Funcs[];
+extern const REBNAT Native_Funcs[];
 
 typedef struct REBOL_Boot_Block ^{
 }

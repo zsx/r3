@@ -494,30 +494,43 @@ REBNATIVE(set_scheme)
     // The scheme uses a native actor:
     if (Scheme_Actions[n].fun) {
         // Hand build a native function used to reach native scheme actors.
-        REBARR *array = Make_Array(1);
-        act = Alloc_Tail_Array(array);
+        REBARR *paramlist = Make_Array(2);
+        REBARR *spec = Make_Array(1);
 
+        // !!! Because "any word will do", it's just making an args list
+        // that looks like [port!]
+        //
+        Val_Init_Word_Unbound(
+            Alloc_Tail_Array(spec), REB_WORD, SYM_FROM_KIND(REB_PORT)
+        );
+        MANAGE_ARRAY(spec);
+
+        Alloc_Tail_Array(paramlist); // for [0] function reference to self
         Val_Init_Typeset(
-            act,
+            Alloc_Tail_Array(paramlist),
             // Typeset is chosen as empty to prevent normal invocation;
             // these actors are only dispatched from the C code.
             // !!! Should the C code type check?
             0,
-            // !!! Because "any word will do", it's just making an args list
-            // that looks like [port!]
             SYM_FROM_KIND(REB_PORT)
         );
+        MANAGE_ARRAY(paramlist);
 
         // !!! Review: If this spec ever got leaked then it would be leaking
         // 'typed' words to the user.  For safety, a single global actor spec
         // could be made at startup.
-        VAL_FUNC_SPEC(actor) = array;
-        VAL_FUNC_PARAMLIST(actor) = array;
-        MANAGE_ARRAY(array);
-
-        VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);
-
+        //
         VAL_RESET_HEADER(actor, REB_NATIVE);
+        VAL_FUNC_SPEC(actor) = spec;
+        VAL_FUNC(actor) = AS_FUNC(paramlist);
+
+        VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
+
+        // Poke the function value itself into the [0] slot (see definition
+        // of `struct Reb_Func` for explanation of why this is needed)
+        //
+        *FUNC_VALUE(VAL_FUNC(actor)) = *actor;
+
         return R_TRUE;
     }
 
@@ -536,7 +549,7 @@ REBNATIVE(set_scheme)
             // Make native function for action:
             func = Obj_Value(actor, n); // function
             Make_Native(
-                func, VAL_FUNC_SPEC(act), cast(REBFUN, map->func), REB_NATIVE
+                func, VAL_FUNC_SPEC(act), cast(REBNAT, map->func), REB_NATIVE
             );
         }
     }

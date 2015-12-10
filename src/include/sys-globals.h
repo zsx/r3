@@ -86,8 +86,8 @@ PVAR REBVAL *PG_End_Val;
 // when implemented that way. Needs research!!!!
 PVAR REBCNT Eval_Signals;   // Signal flags
 
-PVAR REBARR *PG_Eval_Paramlist; // EVAL native's paramlist (never GC'd)
-PVAR REBARR *PG_Return_Paramlist; // RETURN native's paramlist (never GC'd)
+PVAR REBFUN *PG_Eval_Func; // EVAL native func (never GC'd)
+PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
 
 
 /***********************************************************************

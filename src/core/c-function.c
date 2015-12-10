@@ -133,19 +133,19 @@ REBARR *List_Func_Typesets(REBVAL *func)
 REBARR *Check_Func_Spec(REBARR *spec)
 {
     REBVAL *item;
-    REBARR *keylist;
+    REBARR *paramlist;
     REBVAL *typeset;
 
-    keylist = Collect_Frame(
+    paramlist = Collect_Frame(
         NULL, ARRAY_HEAD(spec), BIND_ALL | BIND_NO_DUP | BIND_NO_SELF
     );
 
-    // Whatever function is being made, it must fill in the keylist slot 0
+    // Whatever function is being made, it must fill in the paramlist slot 0
     // with an ANY-FUNCTION! value corresponding to the function that it is
-    // the keylist of.  Use SET_TRASH so that the debug build will leave
+    // the paramlist of.  Use SET_TRASH so that the debug build will leave
     // an alarm if that value isn't thrown in (the GC would complain...)
 
-    typeset = ARRAY_HEAD(keylist);
+    typeset = ARRAY_HEAD(paramlist);
     SET_TRASH_IF_DEBUG(typeset);
 
     // !!! needs more checks
@@ -178,7 +178,7 @@ REBARR *Check_Func_Spec(REBARR *spec)
 
         switch (VAL_TYPE(item)) {
         case REB_BLOCK:
-            if (typeset == ARRAY_HEAD(keylist)) {
+            if (typeset == ARRAY_HEAD(paramlist)) {
                 // !!! Rebol2 had the ability to put a block in the first
                 // slot before any parameters, in which you could put words.
                 // This is deprecated in favor of the use of tags.  We permit
@@ -282,38 +282,42 @@ REBARR *Check_Func_Spec(REBARR *spec)
         }
     }
 
-    MANAGE_ARRAY(keylist);
-    return keylist;
+    MANAGE_ARRAY(paramlist);
+    return paramlist;
 }
 
 
 //
 //  Make_Native: C
 //
-void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, enum Reb_Kind type)
+void Make_Native(REBVAL *out, REBARR *spec, REBNAT code, enum Reb_Kind type)
 {
-    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
-    ENSURE_ARRAY_MANAGED(spec);
-    VAL_FUNC_SPEC(out) = spec;
-    VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(spec);
+    REBARR *paramlist;
 
-    VAL_FUNC_CODE(out) = func;
+    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
+
+    ENSURE_ARRAY_MANAGED(spec);
+
     VAL_RESET_HEADER(out, type);
+    VAL_FUNC_CODE(out) = code;
+    VAL_FUNC_SPEC(out) = spec;
+
+    VAL_FUNC(out) = AS_FUNC(Check_Func_Spec(spec));
 
     // Save the function value in slot 0 of the paramlist so that having
-    // just the paramlist REBSER can get you the full REBVAL of the function
+    // just the paramlist REBARR can get you the full REBVAL of the function
     // that it is the paramlist for.
 
-    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *FUNC_VALUE(out->payload.any_function.func) = *out;
 
-    // These native routines want to be recognized by keylist, not by their
+    // These native routines want to be recognized by paramlist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
     // out for VAL_FUNC_RETURN_TO, and EVAL for 1 test vs. 2 in the eval loop.)
     //
     // PARSE wants to throw its value from nested code to itself, and doesn't
     // want to thread its known D_FUNC value through the call stack.
     //
-    if (func == &N_return) {
+    if (code == &N_return) {
         *ROOT_RETURN_NATIVE = *out;
 
         // Curiously, it turns out that extracting the paramlist to a global
@@ -321,16 +325,16 @@ void Make_Native(REBVAL *out, REBARR *spec, REBFUN func, enum Reb_Kind type)
         // root object and extracting VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
         // each time...
         //
-        PG_Return_Paramlist = VAL_FUNC_PARAMLIST(out);
+        PG_Return_Func = VAL_FUNC(out);
     }
-    else if (func == &N_parse)
+    else if (code == &N_parse)
         *ROOT_PARSE_NATIVE = *out;
-    else if (func == &N_eval) {
+    else if (code == &N_eval) {
         //
         // See above note regarding return.  A check for EVAL is done on each
         // function evaluation, so it's worth it to extract.
         //
-        PG_Eval_Paramlist = VAL_FUNC_PARAMLIST(out);
+        PG_Eval_Func = VAL_FUNC(out);
     }
 
 }
@@ -440,8 +444,13 @@ REBARR *Get_Maybe_Fake_Func_Body(REBFLG *is_fake, const REBVAL *func)
 // `out` or not return...as a failed check on a function spec is
 // raised as an error.
 //
-void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const REBVAL *body, REBFLG has_return)
-{
+void Make_Function(
+    REBVAL *out,
+    enum Reb_Kind type,
+    const REBVAL *spec,
+    const REBVAL *body,
+    REBFLG has_return
+) {
     REBYTE func_flags = 0; // 8-bits in header, reserved type-specific flags
 
     if (!IS_BLOCK(spec) || !IS_BLOCK(body))
@@ -638,7 +647,8 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
     }
 
     // Spec checking will longjmp out with an error if the spec is bad
-    VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(out));
+    //
+    VAL_FUNC(out) = AS_FUNC(Check_Func_Spec(VAL_FUNC_SPEC(out)));
 
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
@@ -680,7 +690,7 @@ void Make_Function(REBVAL *out, enum Reb_Kind type, const REBVAL *spec, const RE
     // given just its identifying series, but where to put it?  We use
     // slot 0 (a trick learned from FRAME! in R3-Alpha's frame series)
 
-    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
+    *FUNC_VALUE(VAL_FUNC(out)) = *out;
 
     // The argument and local symbols have been arranged in the function's
     // "frame" and are now in index order.  These numbers are put
@@ -739,7 +749,7 @@ void Clonify_Function(REBVAL *value)
 
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
 
-    VAL_FUNC_PARAMLIST(value) = Copy_Array_Shallow(paramlist_orig);
+    VAL_FUNC(value) = AS_FUNC(Copy_Array_Shallow(paramlist_orig));
     MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
@@ -766,7 +776,8 @@ void Clonify_Function(REBVAL *value)
     // The first element in the paramlist is the identity of the function
     // value itself.  So we must update this value if we make a copy,
     // so the paramlist does not indicate the original.
-    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(value)) = *value;
+    //
+    *FUNC_VALUE(VAL_FUNC(value)) = *value;
 }
 
 
@@ -778,54 +789,6 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
     REB_R ret;
 
     Eval_Natives++;
-
-    if (VAL_FUNC_PARAMLIST(D_FUNC) == PG_Return_Paramlist) {
-        REBVAL name;
-
-        // The EXT_FUNC_HAS_RETURN uses the RETURN native and its spec, and
-        // the call validation should have ensured we got exactly one
-        // parameter--which can be any type.
-
-        assert(D_ARGC == 1);
-
-        // The originating `Push_New_Arglist_For_Call()` that produced this
-        // return native should have overwritten its code pointer with the
-        // identifying series of the function--or closure frame--it wants
-        // to jump to.
-
-        assert(VAL_FUNC_CODE(D_FUNC) != VAL_FUNC_CODE(ROOT_RETURN_NATIVE));
-        ASSERT_ARRAY(VAL_FUNC_RETURN_TO(D_FUNC));
-
-        // We only have a REBSER*, but the goal is to actually THROW a full
-        // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
-        // the paramlist.  For the moment, how to get that value depends...
-
-        if (ARRAY_GET_FLAG(VAL_FUNC_RETURN_TO(D_FUNC), SER_FRAME)) {
-            // The function was actually a CLOSURE!, so "when it took BIND-OF
-            // on 'RETURN" it "would have gotten back an OBJECT!".  We can
-            // get that object to use as the throw name just by putting the
-            // frame with a REB_OBJECT.
-
-            Val_Init_Object(D_OUT, AS_FRAME(VAL_FUNC_RETURN_TO(D_FUNC)));
-        }
-        else {
-            // It was a stack-relative FUNCTION!, and what we have is more
-            // akin to an object's keylist than it is to the varlist.
-            // Since there was no good WORD! ("unword" in those days) to
-            // put in the 0 slot, it was left empty.  Ren/C uses this value
-            // sized slot to hold the full function value just for cases
-            // like this...
-
-            *D_OUT = *ARRAY_HEAD(VAL_FUNC_RETURN_TO(D_FUNC));
-            assert(IS_FUNCTION(D_OUT));
-            assert(VAL_FUNC_PARAMLIST(D_OUT) == VAL_FUNC_RETURN_TO(D_FUNC));
-        }
-
-        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(1));
-
-        // Now it's ready to throw!
-        return TRUE;
-    }
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
@@ -959,7 +922,7 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(func),
             // a "hacked" REBNATIVE(return) that knew our paramlist, and
-            // the gracious cooperation of a throw by Do_Native_Throws()...
+            // the gracious cooperative throw by Dispatch_Call_Throws()...
             //
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
@@ -1033,7 +996,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
         for (; NOT_END(key); key++, value++) {
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
-                assert(PG_Return_Paramlist == VAL_FUNC_PARAMLIST(value));
+                assert(PG_Return_Func == VAL_FUNC(value));
                 assert(VAL_FUNC_RETURN_TO(value) == FRAME_VARLIST(frame));
             }
         }
@@ -1080,7 +1043,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
             // a "hacked" REBNATIVE(return) that knew our frame, and
-            // the gracious cooperation of a throw by Do_Native_Throws()...
+            // the gracious cooperative throw by Dispatch_Call_Throws()...
 
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
@@ -1183,3 +1146,16 @@ REBNATIVE(clos)
 
     return R_OUT;
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  FUNC_PARAM_Debug: C
+//
+REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
+    assert(n != 0 && n < ARRAY_LEN(FUNC_PARAMLIST(f)));
+    return ARRAY_AT(FUNC_PARAMLIST(f), (n));
+}
+
+#endif

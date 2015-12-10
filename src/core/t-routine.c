@@ -1096,7 +1096,7 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         return FALSE;
     }
 
-    VAL_SET_TYPE(out, type);
+    VAL_RESET_HEADER(out, type);
 
     VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
     memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
@@ -1111,11 +1111,12 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
     VAL_ROUTINE_FFI_ARG_TYPES(out) =
         Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
-    VAL_ROUTINE_PARAMLIST(out) = Make_Array(N_ARGS);
+    VAL_ROUTINE(out) = AS_FUNC(Make_Array(N_ARGS));
 
-    // first word is ignored, see Do_Args in c-do.c
+    // first slot is reserved for the "self", see `struct Reb_Func`
+    //
     temp = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
-    Val_Init_Typeset(temp, 0, SYM_0);
+    *temp = *out;
 
     VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
     // reserve for returning struct
@@ -1219,10 +1220,12 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     }
 
     blk = VAL_ARRAY_AT(&blk[0]);
-    if (NOT_END(blk) && IS_STRING(blk)) {
-        ++ blk;
-    }
-    while (NOT_END(blk)) {
+    for (; NOT_END(blk); blk++) {
+        if (IS_STRING(blk)) {
+            // Notes in the spec, ignore them
+            continue;
+        }
+
         switch (VAL_TYPE(blk)) {
             case REB_WORD:
                 {
@@ -1340,10 +1343,6 @@ REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 break;
             default:
                 fail (Error_Invalid_Arg(blk));
-        }
-        ++ blk;
-        if (IS_STRING(blk)) { /* notes, ignoring */
-            ++ blk;
         }
     }
 
