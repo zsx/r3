@@ -161,7 +161,7 @@ REBINT Find_Key_Hashed(
 
     // Append new value the target series:
     if (mode > 1) {
-        hashes[hash] = ARRAY_LEN(array) + 1;
+        hashes[hash] = (ARRAY_LEN(array) / wide) + 1;
         Append_Values_Len(array, key, wide);
     }
 
