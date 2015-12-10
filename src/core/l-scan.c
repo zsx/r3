@@ -1486,11 +1486,10 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 SET_ARRAY_LEN(emitbuf, ARRAY_LEN(emitbuf) + 1);
                 goto exit_block;
             }
-            Val_Init_Array_Index(
+            Val_Init_Array(
                 value,
                 (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_PAREN,
-                block,
-                0
+                block
             );
             break;
 

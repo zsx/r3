@@ -269,7 +269,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
 
     // to block! typset
     if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-        Val_Init_Array_Index(value, type, Typeset_To_Array(arg), 0);
+        Val_Init_Array(value, type, Typeset_To_Array(arg));
         return;
     }
 
@@ -277,7 +277,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
         // make block! 10
         if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
             len = Int32s(arg, 0);
-            Val_Init_Array_Index(value, type, Make_Array(len), 0);
+            Val_Init_Array(value, type, Make_Array(len));
             return;
         }
         fail (Error_Invalid_Arg(arg));
@@ -286,7 +286,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
     array = Copy_Values_Len_Shallow(arg, 1);
 
 done:
-    Val_Init_Array_Index(value, type, array, 0);
+    Val_Init_Array(value, type, array);
     return;
 }
 

@@ -321,7 +321,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
     if (MAP_HASHLIST(map))
         ENSURE_SERIES_MANAGED(MAP_HASHLIST(map));
 
-    Val_Init_Array_Index(out, REB_MAP, MAP_PAIRLIST(map), 0);
+    Val_Init_Array(out, REB_MAP, MAP_PAIRLIST(map));
 }
 
 

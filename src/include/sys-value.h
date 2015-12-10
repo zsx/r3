@@ -1027,6 +1027,9 @@ struct Reb_Any_Series
 #define Val_Init_Array_Index(v,t,a,i) \
     Val_Init_Series_Index((v), (t), ARRAY_SERIES(a), (i))
 
+#define Val_Init_Array(v,t,a) \
+    Val_Init_Array_Index((v), (t), (a), 0)
+
 #define Val_Init_Block_Index(v,a,i) \
     Val_Init_Array_Index((v), REB_BLOCK, (a), (i))
 

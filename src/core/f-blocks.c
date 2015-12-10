@@ -362,7 +362,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
         TERM_ARRAY(array);
 
         DS_DROP_TO(start);
-        Val_Init_Array_Index(DS_TOP, REB_BLOCK, array, 0);
+        Val_Init_Array(DS_TOP, REB_BLOCK, array);
     }
 }
 
