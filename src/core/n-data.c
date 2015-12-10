@@ -926,7 +926,7 @@ REBNATIVE(set)
         if (set_with_block)
             value = VAL_ARRAY_AT(ARG(value));
         else
-            assert(value == VAL_ARRAY_AT(ARG(value))); // didn't change
+            assert(value == ARG(value)); // didn't change
     }
 
     // With the assignments checked, do them
