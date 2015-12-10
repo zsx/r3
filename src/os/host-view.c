@@ -303,8 +303,8 @@ REBINT Alloc_Window(REBGOB *gob) {
 	REBGOB* parent;
 	REBGOB* topgob;
 
-	w = (REBINT)GOB_LOG_W(gob);
-	h = (REBINT)GOB_LOG_H(gob);
+	w = GOB_LOG_W_INT(gob);
+	h = GOB_LOG_H_INT(gob);
 	img = (REBSER*)RL_MAKE_IMAGE(w,h);
 
 	//search the window(or topmost) gob
