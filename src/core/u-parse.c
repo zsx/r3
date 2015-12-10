@@ -1106,7 +1106,7 @@ static REBCNT Parse_Rules_Loop(
 
                     val = ARRAY_AT(AS_ARRAY(series), index);
 
-                    if (!ANY_BINSTR(val) && !ANY_ARRAY(val)) {
+                    if (IS_END(val) || (!ANY_BINSTR(val) && !ANY_ARRAY(val))) {
                         i = NOT_FOUND;
                         break;
                     }
