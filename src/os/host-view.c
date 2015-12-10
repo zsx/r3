@@ -300,21 +300,13 @@ REBINT Alloc_Window(REBGOB *gob) {
 	REBINT w,h,result;
 	REBSER* img;
 	void* cp;
-	REBGOB* parent;
-	REBGOB* topgob;
 
 	w = GOB_LOG_W_INT(gob);
 	h = GOB_LOG_H_INT(gob);
 	img = (REBSER*)RL_MAKE_IMAGE(w,h);
 
-	//search the window(or topmost) gob
-	topgob = gob;
-	while (GOB_PARENT(topgob) && GOB_PARENT(topgob) != Gob_Root
-		&& GOB_PARENT(topgob) != topgob) // avoid infinite loop
-		topgob = GOB_PARENT(topgob);
-
 	cp = rebcmp_create(Gob_Root, gob);
-	rebcmp_compose(cp, topgob, gob, TRUE);
+	rebcmp_compose(cp, gob, gob, TRUE);
 
 	//copy the composed result to image
 	memcpy((REBYTE *)RL_SERIES(img, RXI_SER_DATA), rebcmp_get_buffer(cp), w * h * 4);

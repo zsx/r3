@@ -173,7 +173,7 @@ static int shm_error_handler(Display *d, XErrorEvent *e) {
 
 		REBINT w = GOB_LOG_W_INT(winGob);
 		REBINT h = GOB_LOG_H_INT(winGob);
-
+		
 		if (ctx->x_image) {
 			XDestroyImage(ctx->x_image); //frees ctx->pixbuf as well
 		}
@@ -595,7 +595,8 @@ static void swap_buffer(REBCMP_CTX* ctx)
 **	Compose content of the specified gob. Main compositing function.
 **
 **  If the ONLY arg is TRUE then the specified gob area will be
-**  rendered to the buffer at 0x0 offset.(used by TO-IMAGE)
+**  rendered to the buffer at 0x0 offset. winGob will be the same as gob in this case
+**  (used by TO-IMAGE)
 **
 ***********************************************************************/
 {
@@ -609,6 +610,8 @@ static void swap_buffer(REBCMP_CTX* ctx)
 	REBINT y = GOB_LOG_Y_INT(gob);
 	REBINT w = GOB_LOG_W_INT(gob);
 	REBINT h = GOB_LOG_H_INT(gob);
+
+	XRectangle win_rect;
 	/*
 	RL_Print("Composing gob: %x (%dx%d, %dx%d) in wingob %x\n", 
 			 gob,
@@ -625,26 +628,24 @@ static void swap_buffer(REBCMP_CTX* ctx)
 	}
 	ctx->Win_Region = XCreateRegion();
 
-	//calculate absolute offset of the gob
-	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
-	{
-		abs_x += GOB_LOG_X(parent_gob);
-		abs_y += GOB_LOG_Y(parent_gob);
-		parent_gob = GOB_PARENT(parent_gob);
-	}
-
-	assert(max_depth > 0);
-
 	//the offset is shifted to render given gob at offset 0x0 (used by TO-IMAGE)
 	if (only){
-		ctx->absOffset.x = -abs_x;
-		ctx->absOffset.y = -abs_y;
 		abs_x = 0;
 		abs_y = 0;
 	} else {
-		ctx->absOffset.x = 0;
-		ctx->absOffset.y = 0;
+		//calculate absolute offset of the gob
+		while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
+		{
+			abs_x += GOB_LOG_X(parent_gob);
+			abs_y += GOB_LOG_Y(parent_gob);
+			parent_gob = GOB_PARENT(parent_gob);
+		}
+
+		assert(max_depth > 0);
 	}
+
+	ctx->absOffset.x = 0;
+	ctx->absOffset.y = 0;
 
 	ctx->New_Clip.x = abs_x;
 	ctx->New_Clip.y = abs_y;
@@ -687,7 +688,7 @@ static void swap_buffer(REBCMP_CTX* ctx)
 		}
 
 		//redraw gobs
-		process_gobs(ctx, winGob);
+		process_gobs(ctx, only? gob : winGob);
 
 		rebcmp_release_buffer(ctx);
 

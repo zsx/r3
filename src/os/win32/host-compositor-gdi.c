@@ -365,24 +365,22 @@ typedef struct compositor_ctx {
 	SetRectRgn(ctx->Win_Clip, 0, 0, GOB_LOG_W_INT(winGob), GOB_LOG_H_INT(winGob));
 	SelectClipRgn(ctx->backDC, ctx->Win_Clip);
 
-	//calculate absolute offset of the gob
-	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
-	{
-		abs_x += GOB_LOG_X(parent_gob);
-		abs_y += GOB_LOG_Y(parent_gob);
-		parent_gob = GOB_PARENT(parent_gob);
-	} 
-
 	//the offset is shifted to render given gob at offset 0x0 (used by TO-IMAGE)
 	if (only){
-		ctx->absOffset.x = -abs_x;
-		ctx->absOffset.y = -abs_y;
 		abs_x = 0;
 		abs_y = 0;
 	} else {
-		ctx->absOffset.x = 0;
-		ctx->absOffset.y = 0;
+		//calculate absolute offset of the gob
+		while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
+		{
+			abs_x += GOB_LOG_X(parent_gob);
+			abs_y += GOB_LOG_Y(parent_gob);
+			parent_gob = GOB_PARENT(parent_gob);
+		}
 	}
+
+	ctx->absOffset.x = 0;
+	ctx->absOffset.y = 0;
 	
 	if (!GET_GOB_STATE(gob, GOBS_NEW)){
 		//calculate absolute old offset of the gob
@@ -410,7 +408,7 @@ typedef struct compositor_ctx {
 	
 	if (intersection_result != NULLREGION)
 		//redraw gobs
-		process_gobs(ctx, winGob);
+		process_gobs(ctx, only ? gob : winGob);
 	
 	//update old GOB area
 	GOB_XO(gob) = GOB_LOG_X(gob);
