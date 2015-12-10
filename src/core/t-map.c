@@ -121,7 +121,20 @@ REBINT Find_Key_Hashed(
     hash = Hash_Value(key, len);
     if (!hash) fail (Error_Has_Bad_Type(key));
 
-    // Determine skip and first index:
+    // The REBCNT[] hash array size is chosen to try and make a large enough
+    // table relative to the data that collisions will be hopefully not
+    // frequent.  But they may still collide.  The method R3-Alpha chose to
+    // deal with collisions was to have a "skip" amount that will go try
+    // another hash bucket until the searched for key is found or a 0
+    // entry in the hashlist is found.
+    //
+    // It is not--by inspection--completely clear how this is guaranteed to
+    // terminate in finding the value with no false negatives.  One would hope
+    // that something about the logic works that two hashings which wound up
+    // overwriting the same buckets could only in a worst case scenario force
+    // one another to visit all the positions.  Review to make sure this
+    // method actually does have a coherent logic behind it.
+    //
     skip  = (len == 0) ? 0 : (hash & 0x0000FFFF) % len;
     if (skip == 0) skip = 1;
     hash = (len == 0) ? 0 : (hash & 0x00FFFF00) % len;
@@ -130,30 +143,41 @@ REBINT Find_Key_Hashed(
     hashes = (REBCNT*)SERIES_DATA(hashlist);
     if (ANY_WORD(key)) {
         while ((n = hashes[hash])) {
-            val = ARRAY_AT(array, (n-1) * wide);
+            val = ARRAY_AT(array, (n - 1) * wide);
             if (
                 ANY_WORD(val) &&
                 (VAL_WORD_SYM(key) == VAL_WORD_SYM(val) ||
                 (!cased && VAL_WORD_CANON(key) == VAL_WORD_CANON(val)))
-            ) return hash;
+            ) {
+                return hash;
+            }
             hash += skip;
             if (hash >= len) hash -= len;
         }
     }
     else if (ANY_BINSTR(key)) {
         while ((n = hashes[hash])) {
-            val = ARRAY_AT(array, (n-1) * wide);
+            val = ARRAY_AT(array, (n - 1) * wide);
             if (
                 VAL_TYPE(val) == VAL_TYPE(key)
-                && 0 == Compare_String_Vals(key, val, (REBOOL)(!IS_BINARY(key) && !cased))
-            ) return hash;
+                && 0 == Compare_String_Vals(
+                    key, val, (!IS_BINARY(key) && !cased)
+                )
+            ) {
+                return hash;
+            }
             hash += skip;
             if (hash >= len) hash -= len;
         }
     } else {
         while ((n = hashes[hash])) {
-            val = ARRAY_AT(array, (n-1) * wide);
-            if (VAL_TYPE(val) == VAL_TYPE(key) && 0 == Cmp_Value(key, val, !cased)) return hash;
+            val = ARRAY_AT(array, (n - 1) * wide);
+            if (
+                VAL_TYPE(val) == VAL_TYPE(key)
+                && 0 == Cmp_Value(key, val, !cased)
+            ) {
+                return hash;
+            }
             hash += skip;
             if (hash >= len) hash -= len;
         }
@@ -176,7 +200,7 @@ REBINT Find_Key_Hashed(
 //
 static void Rehash_Map(REBMAP *map)
 {
-    REBVAL *val;
+    REBVAL *key;
     REBCNT n;
     REBCNT *hashes;
     REBARR *pairlist;
@@ -187,10 +211,10 @@ static void Rehash_Map(REBMAP *map)
     hashes = cast(REBCNT*, SERIES_DATA(MAP_HASHLIST(map)));
     pairlist = MAP_PAIRLIST(map);
 
-    val = ARRAY_HEAD(pairlist);
-    for (n = 0; n < ARRAY_LEN(pairlist); n += 2, val += 2) {
-        REBCNT key = Find_Key_Hashed(pairlist, hashlist, val, 2, 0, 0);
-        hashes[key] = n / 2 + 1;
+    key = ARRAY_HEAD(pairlist);
+    for (n = 0; n < ARRAY_LEN(pairlist); n += 2, key += 2) {
+        REBCNT hash = Find_Key_Hashed(pairlist, hashlist, key, 2, 0, 0);
+        hashes[hash] = n / 2 + 1;
     }
 }
 
