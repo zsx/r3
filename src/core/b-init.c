@@ -52,10 +52,12 @@ static  BOOT_BLK *Boot_Block;
 //
 static void Assert_Basics(void)
 {
-    REBVAL val;
-
-#if defined(SHOW_SIZEOFS)
-    union Reb_Value_Data *dummy_data;
+#if !defined(NDEBUG)
+    #if defined(__LP64__) || defined(__LLP64__)
+        const char *fmt = "%lu %s\n";
+    #else
+        const char *fmt = "%u %s\n";
+    #endif
 #endif
 
     // !!! This is actually undefined behavior.  There is no requirement for
@@ -78,33 +80,40 @@ static void Assert_Basics(void)
     if (VAL_TYPE(&val) != 63)
         panic (Error(RE_REBVAL_ALIGNMENT));
 
-#if defined(SHOW_SIZEOFS)
-    // For debugging ports to some systems:
-    printf("%d %s\n", sizeof(dummy_data->word), "word");
-    printf("%d %s\n", sizeof(dummy_data->series), "series");
-    printf("%d %s\n", sizeof(dummy_data->logic), "logic");
-    printf("%d %s\n", sizeof(dummy_data->integer), "integer");
-    printf("%d %s\n", sizeof(dummy_data->unteger), "unteger");
-    printf("%d %s\n", sizeof(dummy_data->decimal), "decimal");
-    printf("%d %s\n", sizeof(dummy_data->character), "char");
-    printf("%d %s\n", sizeof(dummy_data->error), "error");
-    printf("%d %s\n", sizeof(dummy_data->datatype), "datatype");
-    printf("%d %s\n", sizeof(dummy_data->frame), "frame");
-    printf("%d %s\n", sizeof(dummy_data->typeset), "typeset");
-    printf("%d %s\n", sizeof(dummy_data->symbol), "symbol");
-    printf("%d %s\n", sizeof(dummy_data->time), "time");
-    printf("%d %s\n", sizeof(dummy_data->tuple), "tuple");
-    printf("%d %s\n", sizeof(dummy_data->func), "func");
-    printf("%d %s\n", sizeof(dummy_data->object), "object");
-    printf("%d %s\n", sizeof(dummy_data->pair), "pair");
-    printf("%d %s\n", sizeof(dummy_data->event), "event");
-    printf("%d %s\n", sizeof(dummy_data->library), "library");
-    printf("%d %s\n", sizeof(dummy_data->structure), "struct");
-    printf("%d %s\n", sizeof(dummy_data->gob), "gob");
-    printf("%d %s\n", sizeof(dummy_data->utype), "utype");
-    printf("%d %s\n", sizeof(dummy_data->money), "money");
-    printf("%d %s\n", sizeof(dummy_data->handle), "handle");
-    printf("%d %s\n", sizeof(dummy_data->all), "all");
+    REBVAL dummy;
+
+#if !defined(NDEBUG)
+    #if defined(SHOW_SIZEOFS)
+        union Reb_Value_Payload *dummy_payload;
+    #endif
+
+    #if defined(SHOW_SIZEOFS)
+        //
+        // For debugging ports to some systems
+        //
+        printf(fmt, sizeof(dummy_payload->any_word), "any_word");
+        printf(fmt, sizeof(dummy_payload->any_series), "any_series");
+        printf(fmt, sizeof(dummy_payload->integer), "integer");
+        printf(fmt, sizeof(dummy_payload->unteger), "unteger");
+        printf(fmt, sizeof(dummy_payload->decimal), "decimal");
+        printf(fmt, sizeof(dummy_payload->character), "char");
+        printf(fmt, sizeof(dummy_payload->datatype), "datatype");
+        printf(fmt, sizeof(dummy_payload->typeset), "typeset");
+        printf(fmt, sizeof(dummy_payload->symbol), "symbol");
+        printf(fmt, sizeof(dummy_payload->time), "time");
+        printf(fmt, sizeof(dummy_payload->tuple), "tuple");
+        printf(fmt, sizeof(dummy_payload->any_function), "any_function");
+        printf(fmt, sizeof(dummy_payload->any_context), "any_context");
+        printf(fmt, sizeof(dummy_payload->pair), "pair");
+        printf(fmt, sizeof(dummy_payload->event), "event");
+        printf(fmt, sizeof(dummy_payload->library), "library");
+        printf(fmt, sizeof(dummy_payload->structure), "struct");
+        printf(fmt, sizeof(dummy_payload->gob), "gob");
+        printf(fmt, sizeof(dummy_payload->money), "money");
+        printf(fmt, sizeof(dummy_payload->handle), "handle");
+        printf(fmt, sizeof(dummy_payload->all), "all");
+        fflush(stdout);
+    #endif
 #endif
 
     // Although the system is designed to be able to function with REBVAL at
