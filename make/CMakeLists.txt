@@ -282,6 +282,15 @@ set (CORE_SOURCE
 file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
 list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
+
+add_custom_command(OUTPUT
+	${TOP_SRC_DIR}/boot/tmp-natives.r
+	${TOP_SRC_DIR}/boot/tmp-actions.r
+	COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r
+	DEPENDS
+	${REBOL} ${TOOLS_DIR}/make-natives.r
+)
+
 add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/include/tmp-funcs.h
 	${TOP_SRC_DIR}/include/tmp-funcargs.h
@@ -293,8 +302,8 @@ add_custom_command(OUTPUT
 	${TOOLS_DIR}/common-parsers.r
 	${TOOLS_DIR}/form-header.r
 	${CORE_C_FILES}
-	${TOP_SRC_DIR}/boot/actions.r
-	${TOP_SRC_DIR}/boot/natives.r
+	${TOP_SRC_DIR}/boot/tmp-natives.r
+	${TOP_SRC_DIR}/boot/tmp-actions.r
 	)
 
 add_custom_command(OUTPUT
@@ -325,14 +334,14 @@ add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/boot/errors.r
 	${TOP_SRC_DIR}/boot/words.r
 	${TOP_SRC_DIR}/boot/modes.r
-	${TOP_SRC_DIR}/boot/actions.r
+	${TOP_SRC_DIR}/boot/tmp-actions.r
 	${TOP_SRC_DIR}/boot/sysobj.r
 	${TOP_SRC_DIR}/boot/platforms.r
 
 	${TOP_SRC_DIR}/mezz/boot-files.r
 
 	${TOP_SRC_DIR}/boot/booters.r
-	${TOP_SRC_DIR}/boot/natives.r
+	${TOP_SRC_DIR}/boot/tmp-natives.r
 	${TOP_SRC_DIR}/boot/typespec.r
 	${TOP_SRC_DIR}/boot/root.r
 	${TOP_SRC_DIR}/boot/task.r
