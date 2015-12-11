@@ -290,8 +290,13 @@ REBARR *Check_Func_Spec(REBARR *spec)
 //
 //  Make_Native: C
 //
-void Make_Native(REBVAL *out, REBARR *spec, REBNAT code, enum Reb_Kind type)
-{
+void Make_Native(
+    REBVAL *out,
+    REBARR *spec,
+    REBNAT code,
+    enum Reb_Kind type,
+    REBFLG frameless
+) {
     REBARR *paramlist;
 
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
@@ -299,10 +304,13 @@ void Make_Native(REBVAL *out, REBARR *spec, REBNAT code, enum Reb_Kind type)
     ENSURE_ARRAY_MANAGED(spec);
 
     VAL_RESET_HEADER(out, type);
+    if (frameless)
+        VAL_SET_EXT(out, EXT_FUNC_FRAMELESS);
+
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
 
-    VAL_FUNC(out) = AS_FUNC(Check_Func_Spec(spec));
+    out->payload.any_function.func = AS_FUNC(Check_Func_Spec(spec));
 
     // Save the function value in slot 0 of the paramlist so that having
     // just the paramlist REBARR can get you the full REBVAL of the function
@@ -648,7 +656,8 @@ void Make_Function(
 
     // Spec checking will longjmp out with an error if the spec is bad
     //
-    VAL_FUNC(out) = AS_FUNC(Check_Func_Spec(VAL_FUNC_SPEC(out)));
+    out->payload.any_function.func
+        = AS_FUNC(Check_Func_Spec(VAL_FUNC_SPEC(out)));
 
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
@@ -690,7 +699,7 @@ void Make_Function(
     // given just its identifying series, but where to put it?  We use
     // slot 0 (a trick learned from FRAME! in R3-Alpha's frame series)
 
-    *FUNC_VALUE(VAL_FUNC(out)) = *out;
+    *FUNC_VALUE(out->payload.any_function.func) = *out;
 
     // The argument and local symbols have been arranged in the function's
     // "frame" and are now in index order.  These numbers are put
@@ -749,8 +758,8 @@ void Clonify_Function(REBVAL *value)
 
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
 
-    VAL_FUNC(value) = AS_FUNC(Copy_Array_Shallow(paramlist_orig));
-    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
+    value->payload.any_function.func
+        = AS_FUNC(Copy_Array_Shallow(paramlist_orig));
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
@@ -759,7 +768,7 @@ void Clonify_Function(REBVAL *value)
 
     Rebind_Values_Deep(
         paramlist_orig,
-        VAL_FUNC_PARAMLIST(value),
+        FUNC_PARAMLIST(value->payload.any_function.func),
         ARRAY_HEAD(VAL_FUNC_BODY(value)),
         0
     );
@@ -777,7 +786,9 @@ void Clonify_Function(REBVAL *value)
     // value itself.  So we must update this value if we make a copy,
     // so the paramlist does not indicate the original.
     //
-    *FUNC_VALUE(VAL_FUNC(value)) = *value;
+    *FUNC_VALUE(value->payload.any_function.func) = *value;
+
+    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
 }
 
 
@@ -792,7 +803,7 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
-    ret = VAL_FUNC_CODE(D_FUNC)(call_);
+    ret = FUNC_CODE(D_FUNC)(call_);
 
     switch (ret) {
     case R_OUT: // for compiler opt
@@ -848,8 +859,8 @@ REBFLG Do_Action_Throws(struct Reb_Call *call_)
     // when a frame is not required (such as when running under trace, where
     // the values need to be inspectable)
     //
-    if (VAL_FUNC_ACT(D_FUNC) < REB_MAX) {
-        if (type == VAL_FUNC_ACT(D_FUNC))
+    if (FUNC_ACT(D_FUNC) < REB_MAX) {
+        if (type == FUNC_ACT(D_FUNC))
             SET_TRUE(D_OUT);
         else
             SET_FALSE(D_OUT);
@@ -858,8 +869,8 @@ REBFLG Do_Action_Throws(struct Reb_Call *call_)
     }
 
     action = Value_Dispatch[type];
-    if (!action) fail (Error_Illegal_Action(type, VAL_FUNC_ACT(D_FUNC)));
-    ret = action(call_, VAL_FUNC_ACT(D_FUNC));
+    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(D_FUNC)));
+    ret = action(call_, FUNC_ACT(D_FUNC));
 
     switch (ret) {
     case R_OUT: // for compiler opt
@@ -906,19 +917,25 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
 
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
-    if (Do_At_Throws(D_OUT, VAL_FUNC_BODY(D_FUNC), 0)) {
+    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0)) {
         //
-        // Every function responds to non-definitional EXIT
+        // It threw, so check to see if the throw was intended for this
+        // invocation to catch (return, exit) or if it should be bubbled up.
+        //
+        // First of all, every function responds to non-definitional EXIT
         //
         if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
             CATCH_THROWN(D_OUT, D_OUT);
             return FALSE;
         }
 
+        // A definitional return should only be intercepted if it was for
+        // this particular function invocation.
+        //
         if (
             IS_FUNCTION(D_OUT)
-            && VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)
-            && VAL_FUNC_PARAMLIST(D_OUT) == VAL_FUNC_PARAMLIST(D_FUNC)
+            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
+            && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(func),
             // a "hacked" REBNATIVE(return) that knew our paramlist, and
@@ -951,15 +968,10 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // The head value of a function/closure paramlist should be the value
     // of the function/closure itself that has that paramlist.
     //
-    assert(IS_CLOSURE(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC))));
 #if !defined(NDEBUG)
-    if (
-        VAL_FUNC_PARAMLIST(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
-        != VAL_FUNC_PARAMLIST(D_FUNC)
-    ) {
-        Panic_Array(
-            VAL_FUNC_PARAMLIST(ARRAY_HEAD(VAL_FUNC_PARAMLIST(D_FUNC)))
-        );
+    assert(IS_CLOSURE(FUNC_VALUE(D_FUNC)));
+    if (VAL_FUNC_PARAMLIST(FUNC_VALUE(D_FUNC)) != FUNC_PARAMLIST(D_FUNC)) {
+        Panic_Array(VAL_FUNC_PARAMLIST(FUNC_VALUE(D_FUNC)));
     }
 #endif
 
@@ -976,7 +988,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
     VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
-    FRAME_KEYLIST(frame) = VAL_FUNC_PARAMLIST(D_FUNC);
+    FRAME_KEYLIST(frame) = FUNC_PARAMLIST(D_FUNC);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
     ASSERT_FRAME(frame);
@@ -989,8 +1001,8 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // sweep went ahead and put it in for us.  Temporarily leave in the sweep
     // with aparanoid check to make sure, but delete this eventually.
 
-    if (VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)) {
-        REBVAL *key = VAL_FUNC_PARAM(D_FUNC, 1);
+    if (VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)) {
+        REBVAL *key = FUNC_PARAM(D_FUNC, 1);
         REBVAL *value = FRAME_VAR(frame, 1);
 
         for (; NOT_END(key); key++, value++) {
@@ -1013,9 +1025,9 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
     // of it so that they point specifically to the instances for this
     // invocation.  (Costly, but that is the mechanics of words.)
     //
-    body = Copy_Array_Deep_Managed(VAL_FUNC_BODY(D_FUNC));
+    body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
     Rebind_Values_Deep(
-        VAL_FUNC_PARAMLIST(D_FUNC),
+        FUNC_PARAMLIST(D_FUNC),
         FRAME_VARLIST(frame),
         ARRAY_HEAD(body),
         REBIND_TYPE
@@ -1038,7 +1050,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 
         if (
             IS_OBJECT(D_OUT)
-            && VAL_GET_EXT(D_FUNC, EXT_FUNC_HAS_RETURN)
+            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
             && VAL_FRAME(D_OUT) == frame
         ) {
             // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
@@ -1156,6 +1168,101 @@ REBNATIVE(clos)
 REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
     assert(n != 0 && n < ARRAY_LEN(FUNC_PARAMLIST(f)));
     return ARRAY_AT(FUNC_PARAMLIST(f), (n));
+}
+
+
+//
+//  VAL_FUNC_Debug: C
+//
+REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
+    REBFUN *func = v->payload.any_function.func;
+    union Reb_Value_Header v_header = v->header;
+    union Reb_Value_Header func_header = FUNC_VALUE(func)->header;
+
+    assert(func == FUNC_VALUE(func)->payload.any_function.func);
+    assert(ARRAY_GET_FLAG(FUNC_PARAMLIST(func), SER_ARRAY));
+    assert(ARRAY_GET_FLAG(v->payload.any_function.spec, SER_ARRAY));
+
+    switch (VAL_TYPE(v)) {
+    case REB_NATIVE:
+        //
+        // Only the definitional return is allowed to lie and put a differing
+        // field in besides
+        //
+        if (func != PG_Return_Func) {
+            assert(
+                v->payload.any_function.impl.code == FUNC_CODE(func)
+            );
+        }
+        else {
+            // !!! There's ROOT_RETURN_NATIVE and also the native in the
+            // system context which have the real code in them.  If those
+            // are accounted for then it might be possible to assert that
+            // any returns we see are definitional...but until then we
+            // don't know if it has a valid code field or not.
+            //
+            /*assert(
+                ARRAY_GET_FLAG(v->payload.any_function.impl.body, SER_ARRAY)
+            );*/
+        }
+        break;
+
+    case REB_ACTION:
+        assert(
+            v->payload.any_function.impl.act == FUNC_ACT(func)
+        );
+        break;
+
+    case REB_COMMAND:
+    case REB_FUNCTION:
+    case REB_CLOSURE:
+        assert(
+            v->payload.any_function.impl.body == FUNC_BODY(func)
+        );
+        break;
+
+    case REB_CALLBACK:
+    case REB_ROUTINE:
+        assert(
+            v->payload.any_function.impl.info == FUNC_INFO(func)
+        );
+        break;
+
+    default:
+        assert(FALSE);
+        break;
+    }
+
+    // set OPT_VALUE_LINE on both headers for sake of comparison, we allow
+    // it to be different from the value stored in frame.
+    //
+    // !!! Should formatting flags be moved into their own section, perhaps
+    // the section currently known as "resv: reserved for future use"?
+    //
+    // We also set OPT_VALUE_THROWN as that is not required to be sync'd
+    // with the persistent value in the function.  This bit is deprecated
+    // however, for many of the same reasons it's a nuisance here.
+    //
+    v_header.bitfields.opts
+        |= (1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN);
+    func_header.bitfields.opts
+        |= 1 << OPT_VALUE_LINE | (1 << OPT_VALUE_THROWN);
+
+    if (v_header.all != func_header.all) {
+        REBVAL *func_value = FUNC_VALUE(func);
+        REBFLG frameless_value = VAL_GET_EXT(v, EXT_FUNC_FRAMELESS);
+        REBFLG frameless_func = VAL_GET_EXT(func_value, EXT_FUNC_FRAMELESS);
+        REBFLG has_return_value = VAL_GET_EXT(v, EXT_FUNC_HAS_RETURN);
+        REBFLG has_return_func = VAL_GET_EXT(func_value, EXT_FUNC_HAS_RETURN);
+        REBFLG infix_value = VAL_GET_EXT(v, EXT_FUNC_INFIX);
+        REBFLG infix_func = VAL_GET_EXT(func_value, EXT_FUNC_INFIX);
+
+        Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
+        Debug_Array(v->payload.any_function.spec);
+        Panic_Array(FUNC_PARAMLIST(func));
+    }
+
+    return func;
 }
 
 #endif

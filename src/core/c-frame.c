@@ -1437,17 +1437,17 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
             while (call) {
                 if (
                     call->mode == CALL_MODE_FUNCTION // see notes on `mode`
-                    && target == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
+                    && target == FUNC_PARAMLIST(DSF_FUNC(call))
                 ) {
                     REBVAL *value;
 
-                    assert(!IS_CLOSURE(DSF_FUNC(call)));
+                    assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
 
                     assert(
                         SAME_SYM(
                             VAL_WORD_SYM(word),
                             VAL_TYPESET_SYM(
-                                VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+                                FUNC_PARAM(DSF_FUNC(call), -index)
                             )
                         )
                     );
@@ -1455,7 +1455,7 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
                     if (
                         writable &&
                         VAL_GET_EXT(
-                            VAL_FUNC_PARAM(DSF_FUNC(call), -index),
+                            FUNC_PARAM(DSF_FUNC(call), -index),
                             EXT_WORD_LOCK
                         )
                     ) {
@@ -1541,17 +1541,17 @@ void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
             while (call) {
                 if (
                     call->mode == CALL_MODE_FUNCTION // see notes on `mode`
-                    && target == VAL_FUNC_PARAMLIST(DSF_FUNC(call))
+                    && target == FUNC_PARAMLIST(DSF_FUNC(call))
                 ) {
                     assert(
                         SAME_SYM(
                             VAL_WORD_SYM(word),
                             VAL_TYPESET_SYM(
-                                VAL_FUNC_PARAM(DSF_FUNC(call), -index)
+                                FUNC_PARAM(DSF_FUNC(call), -index)
                             )
                         )
                     );
-                    assert(!IS_CLOSURE(DSF_FUNC(call)));
+                    assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
                     *out = *DSF_ARG(call, -index);
                     assert(!IS_TRASH_DEBUG(out));
                     assert(!THROWN(out));
@@ -1617,7 +1617,7 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
 
     // Find relative value:
     call = DSF;
-    while (target != VAL_FUNC_PARAMLIST(DSF_FUNC(call))) {
+    while (target != FUNC_PARAMLIST(DSF_FUNC(call))) {
         call = PRIOR_DSF(call);
         if (!call) fail (Error(RE_NO_RELATIVE, word));
     }
@@ -1625,7 +1625,7 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
     assert(
         SAME_SYM(
             VAL_WORD_SYM(word),
-            VAL_TYPESET_SYM(VAL_FUNC_PARAM(DSF_FUNC(call), -index))
+            VAL_TYPESET_SYM(FUNC_PARAM(DSF_FUNC(call), -index))
         )
     );
 

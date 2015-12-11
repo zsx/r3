@@ -367,7 +367,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         ));
     }
 
-    if (Apply_Func_Throws(&out, sort_flags.compare, v1, v2, 0))
+    if (Apply_Func_Throws(&out, VAL_FUNC(sort_flags.compare), v1, v2, 0))
         fail (Error_No_Catch_For_Throw(&out));
 
     if (IS_LOGIC(&out)) {

@@ -436,10 +436,13 @@ REBNATIVE(native)
         fail (Error(RE_MAX_NATIVES));
     }
 
-    Make_Native(D_OUT, VAL_ARRAY(ARG(spec)), *Native_Functions++, REB_NATIVE);
-
-    if (REF(frameless))
-        VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
+    Make_Native(
+        D_OUT,
+        VAL_ARRAY(ARG(spec)),
+        *Native_Functions++,
+        REB_NATIVE,
+        REF(frameless)
+    );
 
     Native_Count++;
     return R_OUT;
@@ -491,7 +494,8 @@ REBNATIVE(action)
         D_OUT,
         VAL_ARRAY(ARG(spec)),
         cast(REBNAT, cast(REBUPT, Action_Count)),
-        REB_ACTION
+        REB_ACTION,
+        FALSE
     );
 
     Action_Count++;
@@ -592,7 +596,7 @@ static void Init_Natives(void)
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
     Native_Count++;
     item++; // skip spec
 
@@ -608,7 +612,7 @@ static void Init_Natives(void)
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
     Native_Count++;
     item++; // skip spec
 

@@ -375,8 +375,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.
     //
-    assert(ANY_FUNC(&c->func));
-    num_slots = ARRAY_LEN(VAL_FUNC_PARAMLIST(&c->func));
+    num_slots = ARRAY_LEN(FUNC_PARAMLIST(c->func));
     assert(num_slots >= 1);
 
     // Make REBVALs to hold the arguments.  It will always be at least one
@@ -390,7 +389,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // !!! Though it may seem expensive to create this array, it may be that
     // 0, 1, or 2-element arrays will be very cheap to make in the future.
     //
-    if (IS_CLOSURE(&c->func)) {
+    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
         c->arglist.array = Make_Array(num_slots);
         SET_ARRAY_LEN(c->arglist.array, num_slots);
         SET_END(ARRAY_AT(c->arglist.array, num_slots));
@@ -423,7 +422,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // here instead of the closure function value, as Do_Closure_Throws()
     // is just going to overwrite this slot.
     //
-    *slot = c->func;
+    *slot = *FUNC_VALUE(c->func);
     slot++;
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
@@ -475,7 +474,7 @@ void Drop_Call_Arglist(struct Reb_Call* c)
     assert(c == CS_Top);
     CS_Top = c->prior;
 
-    if (IS_CLOSURE(&c->func)) {
+    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
         //
         // Do_Closure() converted the arglist array to be managed.
         //

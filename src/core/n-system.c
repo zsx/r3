@@ -61,7 +61,7 @@ REBNATIVE(quit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :quit`.
 {
-    *D_OUT = *D_FUNC;
+    *D_OUT = *FUNC_VALUE(D_FUNC);
 
     if (D_REF(1)) {
         CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
@@ -349,13 +349,13 @@ REBNATIVE(stack)
     else if (D_REF(3)) {
         Val_Init_Word_Unbound(D_OUT, REB_WORD, DSF_LABEL_SYM(call));
     }
-    else if (D_REF(4)) *D_OUT = *DSF_FUNC(call);
+    else if (D_REF(4)) *D_OUT = *FUNC_VALUE(DSF_FUNC(call));
     else if (D_REF(5)) {
-        if (ANY_FUNC(DSF_FUNC(call)))
-            len = VAL_FUNC_NUM_PARAMS(DSF_FUNC(call));
-        else
-            len = 0;
-        Val_Init_Block(D_OUT, Copy_Values_Len_Shallow(DSF_ARG(call, 1), len));
+        len = FUNC_NUM_PARAMS(DSF_FUNC(call));
+        Val_Init_Block(
+            D_OUT,
+            Copy_Values_Len_Shallow(DSF_ARGS_HEAD(call), len)
+        );
     }
     else if (D_REF(6)) {        // size
         SET_INTEGER(D_OUT, DSP+1);

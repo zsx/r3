@@ -106,7 +106,7 @@ struct Reb_Call {
     // the call frame.  That could happen due to a modification of the series
     // where the evaluating function lived.  At front of struct for alignment.
     //
-    REBVAL func;
+    REBFUN *func;
 
     // `dsp_orig` [INTERNAL, READ-ONLY]
     //
@@ -512,7 +512,7 @@ struct Native_Refine {
     (call_->arg + (p_##name).num)
 
 #define PAR(name) \
-    VAL_FUNC_PARAM(&call_->func, (p_##name).num) // a TYPESET!
+    FUNC_PARAM(call_->func, (p_##name).num) // a TYPESET!
 
 #ifdef NDEBUG
     #define REF(name) \
@@ -555,14 +555,13 @@ struct Native_Refine {
 #define DSF_ARRAY(c)        cast(REBARR * const, (c)->array) // Lvalue
 #define DSF_EXPR_INDEX(c)   ((c)->expr_index + 0) // Lvalue
 #define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
-#define DSF_FUNC(c)         c_cast(const REBVAL * const, &(c)->func)
+#define DSF_FUNC(c)         ((c)->func)
 #define DSF_DSP_ORIG(c)     ((c)->dsp_orig + 0) // Lvalue
 
-#define DSF_PARAM_HEAD(c) \
-    VAL_FUNC_PARAM(&(c)->func, 1)
+#define DSF_PARAMS_HEAD(c)  FUNC_PARAMS_HEAD((c)->func)
 
-#define DSF_ARG_HEAD(c) \
-    (IS_CLOSURE(&(c)->func) \
+#define DSF_ARGS_HEAD(c) \
+    (IS_CLOSURE(FUNC_VALUE((c)->func)) \
         ? ARRAY_AT((c)->arglist.array, 1) \
         : &(c)->arglist.chunk[1])
 
@@ -582,7 +581,7 @@ struct Native_Refine {
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
 #define DSF_ARGC(c) \
-    cast(REBCNT, VAL_FUNC_NUM_PARAMS(&(c)->func))
+    cast(REBCNT, FUNC_NUM_PARAMS((c)->func))
 
 #define DSF_CELL(c) (&(c)->cell)
 

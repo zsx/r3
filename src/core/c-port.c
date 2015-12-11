@@ -176,7 +176,7 @@ REBINT Awake_System(REBARR *ports, REBINT only)
     if (only) SET_TRUE(&ref_only);
     else SET_NONE(&ref_only);
     // Call the system awake function:
-    if (Apply_Func_Throws(&out, awake, port, &tmp, &ref_only, 0))
+    if (Apply_Func_Throws(&out, VAL_FUNC(awake), port, &tmp, &ref_only, 0))
         fail (Error_No_Catch_For_Throw(&out));
 
     // Awake function returns 1 for end of WAIT:
@@ -340,7 +340,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
 
-    if (Redo_Func_Throws(call_, actor)) {
+    if (Redo_Func_Throws(call_, VAL_FUNC(actor))) {
         // The throw name will be in D_OUT, with thrown value in task vars
         return R_OUT_IS_THROWN;
     }
@@ -522,14 +522,14 @@ REBNATIVE(set_scheme)
         //
         VAL_RESET_HEADER(actor, REB_NATIVE);
         VAL_FUNC_SPEC(actor) = spec;
-        VAL_FUNC(actor) = AS_FUNC(paramlist);
+        actor->payload.any_function.func = AS_FUNC(paramlist);
 
         VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 
         // Poke the function value itself into the [0] slot (see definition
         // of `struct Reb_Func` for explanation of why this is needed)
         //
-        *FUNC_VALUE(VAL_FUNC(actor)) = *actor;
+        *FUNC_VALUE(actor->payload.any_function.func) = *actor;
 
         return R_TRUE;
     }
@@ -549,7 +549,11 @@ REBNATIVE(set_scheme)
             // Make native function for action:
             func = Obj_Value(actor, n); // function
             Make_Native(
-                func, VAL_FUNC_SPEC(act), cast(REBNAT, map->func), REB_NATIVE
+                func,
+                VAL_FUNC_SPEC(act),
+                cast(REBNAT, map->func),
+                REB_NATIVE,
+                FALSE
             );
         }
     }

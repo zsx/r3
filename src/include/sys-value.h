@@ -1529,7 +1529,11 @@ struct Reb_Any_Function {
 };
 
 /* argument is of type REBVAL* */
-#define VAL_FUNC(v)                 ((v)->payload.any_function.func)
+#ifdef NDEBUG
+    #define VAL_FUNC(v)             ((v)->payload.any_function.func + 0)
+#else
+    #define VAL_FUNC(v)             VAL_FUNC_Debug(v)
+#endif
 #define VAL_FUNC_SPEC(v)            ((v)->payload.any_function.spec)
 #define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
 
@@ -1549,6 +1553,11 @@ struct Reb_Any_Function {
 // Do_Native_Throws() sees when someone tries to execute one of these "native
 // returns"...and instead interprets it as a THROW whose /NAME is the function
 // value.  The paramlist has that value (it's the REBVAL in slot #0)
+//
+// This is a special case: the body value of the hacked REBVAL of the return
+// is allowed to be inconsistent with the content of the ROOT_RETURN_NATIVE's
+// actual FUNC.  (In the general case, the [0] element of the FUNC must be
+// consistent with the fields of the value holding it.)
 //
 #define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
 

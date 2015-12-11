@@ -534,7 +534,7 @@ static void Mark_Call_Frames_Deep(void)
         if (Is_Value_Managed(&c->cell, FALSE))
             Queue_Mark_Value_Deep(&c->cell);
 
-        Queue_Mark_Value_Deep(&c->func); // never NULL
+        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func)); // never NULL
 
         Queue_Mark_Value_Deep(c->out); // never NULL
 
@@ -556,7 +556,7 @@ static void Mark_Call_Frames_Deep(void)
         // there may be interesting tricks that can be done by knowing a
         // closure's concrete arg pointers for the duration of its call.
         //
-        if (IS_CLOSURE(&c->func))
+        if (IS_CLOSURE(FUNC_VALUE(c->func)))
             QUEUE_MARK_ARRAY_DEEP(c->arglist.array);
 
         // `param`, and `refine` may both be NULL
