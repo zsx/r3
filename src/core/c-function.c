@@ -692,7 +692,7 @@ void Make_Function(
 
     assert(type == REB_FUNCTION || type == REB_CLOSURE);
     VAL_RESET_HEADER(out, type); // clears value opts and exts in header...
-    VAL_EXTS_DATA(out) = func_flags; // ...so we set this after that point
+    VAL_SET_EXTS_DATA(out, func_flags); // ...so we set this after that point
 
     // Now that we've created the function's fields, we pull a trick.  It
     // would be useful to be able to navigate to a full function value
@@ -1176,8 +1176,8 @@ REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
 //
 REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     REBFUN *func = v->payload.any_function.func;
-    union Reb_Value_Header v_header = v->header;
-    union Reb_Value_Header func_header = FUNC_VALUE(func)->header;
+    struct Reb_Value_Header v_header = v->header;
+    struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
 
     assert(func == FUNC_VALUE(func)->payload.any_function.func);
     assert(ARRAY_GET_FLAG(FUNC_PARAMLIST(func), SER_ARRAY));
@@ -1243,10 +1243,8 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     // with the persistent value in the function.  This bit is deprecated
     // however, for many of the same reasons it's a nuisance here.
     //
-    v_header.bitfields.opts
-        |= (1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN);
-    func_header.bitfields.opts
-        |= 1 << OPT_VALUE_LINE | (1 << OPT_VALUE_THROWN);
+    v_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
+    func_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
 
     if (v_header.all != func_header.all) {
         REBVAL *func_value = FUNC_VALUE(func);

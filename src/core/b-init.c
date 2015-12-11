@@ -60,26 +60,6 @@ static void Assert_Basics(void)
     #endif
 #endif
 
-    // !!! This is actually undefined behavior.  There is no requirement for
-    // the compiler to let you "image" the bits in a union in a way that
-    // reveals the endianness of the processor.  (Intuitively speaking, if you
-    // could do such a thing then you would be reaching beneath the abstraction
-    // layer that the standard is seeking to ensure you are "protected" by!)
-    //
-    // So ultimately the build needs to just take the word of the #define
-    // switches saying what the endianness is.  There is no way to implement
-    // this check "correctly".  All that said, in the interim, this usually
-    // works...but should be easy to turn off as it's standards-violating.
-    //
-    val.header.all = 0;
-    val.header.bitfields.opts = 123;
-    if (val.header.all != 123)
-        panic (Error(RE_REBVAL_ALIGNMENT));
-
-    VAL_RESET_HEADER(&val, cast(enum Reb_Kind, 63));
-    if (VAL_TYPE(&val) != 63)
-        panic (Error(RE_REBVAL_ALIGNMENT));
-
     REBVAL dummy;
 
 #if !defined(NDEBUG)

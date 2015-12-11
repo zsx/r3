@@ -132,88 +132,60 @@ typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The value header separates its content into 4 8-bit bitfields.  As the
-// order of bitfields is unspecified by the C standard, R3-Alpha used a
-// switch in compilation to specify the two most common layout variants:
-// ENDIAN_BIG and ENDIAN_LITTLE.  A runtime test in %b-init.c verifies that
-// the lower 8 bits is bitfields.opts, and hence a test for OPT_VALUE_NOT_END
-// is merely a test for an odd value of the header.
+// The layout of the header corresponds to the following bitfield
+// structure on big endian machines:
 //
-// !!! Though this has worked in practice on all the platforms used so far,
-// it reaches beneath the C abstraction layer and doesn't really need to.
-// And it violates the rule that when one member of a union is assigned
-// then the other values are considered invalid.  Bit masking of an
-// ordinary unsigned number could be used instead:
+//    unsigned resv:8;      // !!! <reserved for future use>
+//    unsigned exts:8;      // extensions to datatype
+//    unsigned opts:8;      // options that can apply to any value
+//    unsigned type:6;      // datatype (64 possibilities)
+//    unsigned settable:1;  // Debug build only--"formatted" for setting
+//    unsigned not_end:1;   // not an end marker
 //
-//    http://stackoverflow.com/a/1053281/211160
+// Due to a desire to be able to assign all the header bits in one go
+// with a native-platform-sized int, this is done with bit masking.
+// Using bitfields would bring in questions of how smart the
+// optimizer is, as well as the endianness of the underlyling machine.
+//
+// We use REBUPT (Rebol's pre-C99 compatibility type for uintptr_t,
+// which is just uintptr_t from C99 on).  Only the low 32 bits are used
+// on 64-bit machines in order to make sure all the features work on
+// 32-bit machines...but could be used for some optimization or caching
+// purpose to enhance the 64-bit build.  No such uses implemented yet.
 //
 
-union Reb_Value_Header {
-    REBCNT all;             // !!! to set all the flags at once - see notes
-
-    struct {
-    #ifdef ENDIAN_LITTLE
-        unsigned opts:8;    // special options
-        unsigned lit:1;     // !!! <reserved, lit-bit>
-        unsigned xxxx:1;    // !!! <reserved for future use>
-        unsigned type:6;    // datatype (64 possibilities)
-        unsigned exts:8;    // extensions to datatype
-        unsigned resv:8;    // !!! <reserved for future use>
-    #else
-        unsigned resv:8;    // !!! <reserved for future use>
-        unsigned exts:8;    // extensions to datatype
-        unsigned lit:1;     // !!! <reserved, lit-bit>
-        unsigned xxxx:1;    // !!! <reserved for future use>
-        unsigned type:6;    // datatype (64 possibilities)
-        unsigned opts:8;    // special options
-    #endif
-    } bitfields;
-
-#if defined(__LP64__) || defined(__LLP64__)
-    //
-    // The end of the header must be naturally aligned.  On a 32-bit platform
-    // the 8x4 bits will be 32-bit aligned...but on a 64-bit platform that's
-    // 32 bits short.  Hence there's a 32-bit unused value here for each
-    // value on 64-bit platforms.  One probably wouldn't want to hinge a
-    // feature on something only 64-bit builds could do...but it may be
-    // useful for some cache or optimization trick to do when available.
-    //
-    REBCNT unused;
-#endif
+struct Reb_Value_Header {
+    REBUPT all;
 };
 
-// The value option flags are 8 individual bitflags which apply to every
-// value of every type.  Due to their scarcity, they are chosen carefully.
+// `NOT_END_MASK`
 //
-enum {
-    // `OPT_VALUE_NOT_END`
-    //
-    // If 1, it means this is *not* an end marker.  The bit is picked
-    // strategically to be in the negative and in the lowest order position.
-    // This means that any even pointer-sized value (such as...all pointers)
-    // will have its zero bit set, and thus implicitly signal an end.
-    //
-    // If this bit is 0, it means that *no other header bits are valid*,
-    // as it may contain arbitrary data used for non-REBVAL purposes.
-    //
-    OPT_VALUE_NOT_END = 0,
+// If set, it means this is *not* an end marker.  The bit is picked
+// strategically to be in the negative and in the lowest order position.
+// This means that any even pointer-sized value (such as...all pointers)
+// will have its zero bit set, and thus implicitly signal an end.
+//
+// If this bit is 0, it means that *no other header bits are valid*,
+// as it may contain arbitrary data used for non-REBVAL purposes.
+//
+#define NOT_END_MASK 0x01
 
-    // `OPT_VALUE_REBVAL_DEBUG`
-    //
-    // This is for the debug build, to make it safer to use the implementation
-    // trick of OPT_VALUE_NOT_END.  It indicates the slot is "REBVAL sized",
-    // and can be written into--including to be written with SET_END().
-    //
-    // It's again a strategic choice--the 2nd lowest bit and in the negative.
-    // On *most* known platforms, testing an arbitrary pointer value for
-    // this bit will give 0 and suggest it is *not* a REBVAL (while still
-    // indicating an END because of the 0 in the lowest bit).  By checking the
-    // bit before writing a header, a pointer within a container doing
-    // double-duty as an implicit terminator for the contained values can
-    // trigger an alert if the values try to overwrite it.
-    //
-    // !!! This checking feature is not fully implemented, but will be soon.
-    //
+// `SETTABLE_MASK_DEBUG`
+//
+// This is for the debug build, to make it safer to use the implementation
+// trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
+// be written into--including to be written with SET_END().
+//
+// It's again a strategic choice--the 2nd lowest bit and in the negative.
+// On *most* known platforms, testing an arbitrary pointer value for
+// this bit will give 0 and suggest it is *not* a REBVAL (while still
+// indicating an END because of the 0 in the lowest bit).  By checking the
+// bit before writing a header, a pointer within a container doing
+// double-duty as an implicit terminator for the contained values can
+// trigger an alert if the values try to overwrite it.
+//
+// !!! This checking feature is not fully implemented, but will be soon.
+//
 #ifdef NDEBUG
     //
     // The assumption that (pointer % 2 = 0) is a very safe one on all known
@@ -226,15 +198,82 @@ enum {
     // The release build should not make assumptions about using this
     // second bit for any other purpose.
     //
-    OPT_VALUE_DO_NOT_USE,
 #else
     // We want to be assured that we are not trying to take the type of a
     // value that is actually an END marker, because end markers chew out only
     // one bit--the rest is allowed to be anything (a pointer value, etc.)
     //
-    OPT_VALUE_REBVAL_DEBUG,
+    #define SETTABLE_MASK_DEBUG 0x02
 #endif
 
+// The type mask comes up a bit and it's a fairly obvious constant, so this
+// hardcodes it for obviousness.  High 6 bits of the lowest byte.
+//
+#define HEADER_TYPE_MASK 0xFC
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Historically Rebol arrays were always one value longer than their maximum
+// content, and this final slot was used for a special REBVAL called END!.
+// Like a null terminator in a C string, it was possible to start from one
+// point in the series and traverse to find the end marker without needing
+// to maintain a count.  Rebol series store their length also--but it's
+// faster and more general to use the terminator.
+//
+// Ren-C changed this so that end is not a data type, but rather seeing a
+// header slot with the lowest bit set to 0.  (See OPTS_VALUE_NOT_END for
+// an explanation of this choice.)  The upshot is that a data structure
+// designed to hold Rebol arrays is able to terminate an array at full
+// capacity with a pointer-sized value with the lowest 2 bits clear, and
+// use the rest of the bits for other purposes.  (See OPTS_VALUE_REBVAL_DEBUG
+// for why it's the low 2 bits and not just the lowest bit.)
+//
+// This means not only is a full REBVAL not needed to terminate, the sunk cost
+// of an existing pointer can be used to avoid needing even 1/4 of a REBVAL
+// for a header to terminate.  (See the `prev` pointer in `struct Reb_Chunk`
+// from %sys-stack.h for a simple example of the technique.)
+//
+// !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
+// is important to keep these in sync.  R3-Alpha sought to give code the
+// freedom to work with unterminated arrays if the cost of writing terminators
+// was not necessary.  Ren-C pushed back against this to try and be more
+// uniform to get the invariants under control.  A formal balance is still
+// being sought of when terminators will be required and when they will not.
+//
+
+#define IS_END(v)           ((v)->header.all % 2 == 0)
+#define NOT_END(v)          ((v)->header.all % 2 == 1)
+
+#ifdef NDEBUG
+    #define SET_END(v)      ((v)->header.all = 0)
+#else
+    #define SET_END(v)      SET_END_Debug(v)
+#endif
+
+// Pointer to a global END marker.  Though this global value is allocated to
+// the size of a REBVAL, only the header is initialized.  This means if any
+// of the value payload is accessed, it will trip memory checkers like
+// Valgrind or Address Sanitizer to warn of the mistake.
+//
+#define END_VALUE           PG_End_Val
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  OPTS FLAGS common to every REBVAL
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The value option flags are 8 individual bitflags which apply to every
+// value of every type.  Due to their scarcity, they are chosen carefully.
+//
+
+enum {
     // `OPT_VALUE_FALSE`
     //
     // This flag indicates that the attached value is one of the two cases of
@@ -310,63 +349,13 @@ enum {
     OPT_VALUE_MAX
 };
 
-// Reading/writing routines for the 8 "OPTS" flags
+// Reading/writing routines for the 8 "OPTS" flags, which are in the lowest
+// 8 bits.  (They need to be lowest for the OPT_NOT_END trick to work.)
 //
-#define VAL_OPTS_DATA(v)    ((v)->header.bitfields.opts)
-#define VAL_SET_OPT(v,n)    SET_FLAG(VAL_OPTS_DATA(v), n)
-#define VAL_GET_OPT(v,n)    GET_FLAG(VAL_OPTS_DATA(v), n)
-#define VAL_CLR_OPT(v,n)    CLR_FLAG(VAL_OPTS_DATA(v), n)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Historically Rebol arrays were always one value longer than their maximum
-// content, and this final slot was used for a special REBVAL called END!.
-// Like a null terminator in a C string, it was possible to start from one
-// point in the series and traverse to find the end marker without needing
-// to maintain a count.  Rebol series store their length also--but it's
-// faster and more general to use the terminator.
-//
-// Ren-C changed this so that end is not a data type, but rather seeing a
-// header slot with the lowest bit set to 0.  (See OPTS_VALUE_NOT_END for
-// an explanation of this choice.)  The upshot is that a data structure
-// designed to hold Rebol arrays is able to terminate an array at full
-// capacity with a pointer-sized value with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See OPTS_VALUE_REBVAL_DEBUG
-// for why it's the low 2 bits and not just the lowest bit.)
-//
-// This means not only is a full REBVAL not needed to terminate, the sunk cost
-// of an existing pointer can be used to avoid needing even 1/4 of a REBVAL
-// for a header to terminate.  (See the `prev` pointer in `struct Reb_Chunk`
-// from %sys-stack.h for a simple example of the technique.)
-//
-// !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
-// is important to keep these in sync.  R3-Alpha sought to give code the
-// freedom to work with unterminated arrays if the cost of writing terminators
-// was not necessary.  Ren-C pushed back against this to try and be more
-// uniform to get the invariants under control.  A formal balance is still
-// being sought of when terminators will be required and when they will not.
-//
-
-#define IS_END(v)           ((v)->header.all % 2 == 0)
-#define NOT_END(v)          ((v)->header.all % 2 == 1)
-
-#ifdef NDEBUG
-    #define SET_END(v)      ((v)->header.all = 0)
-#else
-    #define SET_END(v)      SET_END_Debug(v)
-#endif
-
-// Pointer to a global END marker.  Though this global value is allocated to
-// the size of a REBVAL, only the header is initialized.  This means if any
-// of the value payload is accessed, it will trip memory checkers like
-// Valgrind or Address Sanitizer to warn of the mistake.
-//
-#define END_VALUE           PG_End_Val
+#define VAL_SET_OPT(v,n)    ((v)->header.all |= ((1 << (n)) << 8))
+#define VAL_GET_OPT(v,n)    (((v)->header.all & ((1 << (n)) << 8)) != 0)
+#define VAL_CLR_OPT(v,n) \
+    ((v)->header.all &= ~cast(REBUPT, (1 << (n)) << 8))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -389,17 +378,18 @@ enum {
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        cast(enum Reb_Kind, (v)->header.bitfields.type)
+        cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2)
 #else
     #define VAL_TYPE(v) \
         VAL_TYPE_Debug(v)
 #endif
 
-// SET_TYPE only sets the type bitfield, with other header bits intact.
-// It is more frequent to want to clear the bits, use SET_HEADER for that.
+// SET_TYPE only sets the type bits, with other header bits intact.
+// More frequently one wants to clear the bits, use VAL_RESET_HEADER for that.
 //
 #define VAL_SET_TYPE(v,t) \
-    ((v)->header.bitfields.type = (t))
+    ((v)->header.all &= ~cast(REBUPT, HEADER_TYPE_MASK), \
+        (v)->header.all |= ((t) << 2))
 
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
@@ -408,8 +398,7 @@ enum {
 //
 #ifdef NDEBUG
     #define VAL_RESET_HEADER(v,t) \
-        ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
-         (v)->header.bitfields.type = (t))
+        ((v)->header.all = NOT_END_MASK | ((t) << 2))
 #else
     // The debug build includes an extra check that the value we are about
     // to write the header of is actually a full REBVAL-sized slot...and not
@@ -430,10 +419,20 @@ enum {
 // Reading/writing routines for the 8 "EXTS" flags that are interpreted
 // differently depending on the VAL_TYPE() of the value.
 //
-#define VAL_EXTS_DATA(v)    ((v)->header.bitfields.exts)
-#define VAL_SET_EXT(v,n)    SET_FLAG(VAL_EXTS_DATA(v), n)
-#define VAL_GET_EXT(v,n)    GET_FLAG(VAL_EXTS_DATA(v), n)
-#define VAL_CLR_EXT(v,n)    CLR_FLAG(VAL_EXTS_DATA(v), n)
+#define VAL_SET_EXT(v,n)    ((v)->header.all |= (1 << ((n) + 16)))
+#define VAL_GET_EXT(v,n)    (((v)->header.all & (1 << ((n) + 16))) != 0)
+#define VAL_CLR_EXT(v,n) \
+    ((v)->header.all &= ~cast(REBUPT, 1 << ((n) + 16)))
+
+// The ability to read and write all the EXTS at once as an 8-bit value.
+// Review uses to see if they could be done all as part of the initialization.
+//
+#define VAL_EXTS_DATA(v) \
+    (((v)->header.all & (cast(REBUPT, 0xFF) << 16)) >> 16)
+
+#define VAL_SET_EXTS_DATA(v,e) \
+    (((v)->header.all &= ~(cast(REBUPT, 0xFF) << 16)), \
+        (v)->header.all |= ((e) << 16))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -529,21 +528,17 @@ enum {
     // because VAL_TYPE is supposed to assert on trash
     //
     #define IS_TRASH_DEBUG(v) \
-        ((v)->header.bitfields.type == REB_TRASH)
+        (((v)->header.all & HEADER_TYPE_MASK) == 0)
 
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            (v)->header.all = \
-                (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
-            (v)->header.bitfields.type = REB_TRASH, \
+            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
             SET_TRACK_PAYLOAD(v) \
         )
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            (v)->header.all = \
-                (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
-            (v)->header.bitfields.type = REB_TRASH, \
+            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
             VAL_SET_EXT((v), EXT_TRASH_SAFE), \
             SET_TRACK_PAYLOAD(v) \
         )
@@ -623,13 +618,13 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
-         (v)->header.bitfields.type = REB_NONE)  // compound
+        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
+            NOT_END_MASK)
 #else
     #define SET_NONE(v) \
-        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
-         (v)->header.bitfields.type = REB_NONE, \
-         SET_TRACK_PAYLOAD(v))  // compound
+        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
+            NOT_END_MASK | SETTABLE_MASK_DEBUG, \
+         SET_TRACK_PAYLOAD(v))
 #endif
 
 #define NONE_VALUE ROOT_NONE_VAL
@@ -659,24 +654,20 @@ enum {
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
-        ((v)->header.all = (1 << OPT_VALUE_NOT_END), \
-         (v)->header.bitfields.type = REB_LOGIC)  // compound
+        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK)
 
     #define SET_FALSE(v) \
-        ((v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_FALSE), \
-         (v)->header.bitfields.type = REB_LOGIC)  // compound
+        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            | ((1 << OPT_VALUE_FALSE) << 8))
 #else
     #define SET_TRUE(v) \
-        ((v)->header.all = \
-            (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG), \
-         (v)->header.bitfields.type = REB_LOGIC, \
+        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            | SETTABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v))  // compound
 
     #define SET_FALSE(v) \
-        ((v)->header.all = \
-            (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG) \
-            | (1 << OPT_VALUE_FALSE), \
-         (v)->header.bitfields.type = REB_LOGIC, \
+        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            | SETTABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif
 
@@ -1829,20 +1820,14 @@ struct Reb_Gob {
 
 // Reb_All is a structure type designed specifically for getting at
 // the underlying bits of whichever union member is in effect inside
-// the Reb_Value_Data.  This is in order to hash the values in a
-// generic way that can use the bytes and doesn't have to be custom
-// to each type.  Though many traditional methods of doing this "type
-// punning" might generate arbitrarily broken code, this is being
-// done through a union, for which C99 expanded the "legal" uses:
+// the Reb_Value_Data.  This is not actually legal, although if types
+// line up in unions it could be possibly be made "more legal":
 //
-//     http://stackoverflow.com/questions/11639947/i
-//
-// !!! Why is Reb_All defined this weird way?
+//     http://stackoverflow.com/questions/11639947/
 //
 struct Reb_All {
 #if defined(__LP64__) || defined(__LLP64__)
     REBCNT bits[6];
-    REBINT padding; //make sizeof(REBVAL) 32 bytes
 #else
     REBCNT bits[3];
 #endif
@@ -1888,7 +1873,7 @@ union Reb_Value_Payload {
 
 struct Reb_Value
 {
-    union Reb_Value_Header header;
+    struct Reb_Value_Header header;
     union Reb_Value_Payload payload;
 };
 

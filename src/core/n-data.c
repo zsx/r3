@@ -1218,9 +1218,9 @@ void SET_END_Debug(REBVAL *v)
     // value with its low bit clear, doing double-duty as an IS_END() marker,
     // which we cannot overwrite...not even with an END marker.
     //
-    /* assert(VAL_GET_OPT((v), OPT_VALUE_REBVAL_DEBUG)); */
+    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
 
-    ((v)->header.all = (1 << OPT_VALUE_REBVAL_DEBUG));
+    (v)->header.all = SETTABLE_MASK_DEBUG;
 }
 
 
@@ -1234,12 +1234,11 @@ void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
 {
     // See comments in SET_END_Debug.
     //
-    /* assert(VAL_GET_OPT(v, OPT_VALUE_REBVAL_DEBUG)); */
+    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
 
     // (t == REB_TRASH) is legal, and SET_TRASH() uses VAL_RESET_HEADER()
 
-    (v)->header.all = (1 << OPT_VALUE_NOT_END) | (1 << OPT_VALUE_REBVAL_DEBUG);
-    (v)->header.bitfields.type = (t);
+    (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG | ((t) << 2);
 }
 
 
@@ -1253,7 +1252,7 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
 {
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
-    return cast(enum Reb_Kind, (v)->header.bitfields.type);
+    return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
 }
 
 
