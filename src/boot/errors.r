@@ -221,7 +221,7 @@ Access: [
 ;   socket-open:        [{error opening socket:} :arg1]
     no-script:          [{script not found:} :arg1]
 
-    no-scheme-name:     [{new scheme must have a name:} :arg1]
+    no-scheme-name:     {Scheme has no `name:` field (must be WORD!)}
     no-scheme:          [{missing port scheme:} :arg1]
 
     invalid-spec:       [{invalid spec or options:} :arg1]

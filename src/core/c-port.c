@@ -471,23 +471,23 @@ void Register_Scheme(REBCNT sym, const PORT_ACTION *map, REBPAF fun)
 //
 REBNATIVE(set_scheme)
 {
-    REBVAL *scheme;
+    PARAM(1, scheme);
+
     REBVAL *actor;
-    REBVAL *func;
-    REBVAL *act;
+    REBVAL *name;
     REBCNT n;
     const PORT_ACTION *map = 0;
 
-    scheme = D_ARG(1);
+    name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
+    if (!IS_WORD(name))
+        fail (Error(RE_NO_SCHEME_NAME));
 
-    act = Obj_Value(scheme, STD_SCHEME_NAME);
-    if (!IS_WORD(act)) return R_NONE;
-    actor = Obj_Value(scheme, STD_SCHEME_ACTOR);
+    actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
     if (!actor) return R_NONE;
 
     // Does this scheme have native actor or actions?
     for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].sym; n++) {
-        if (Scheme_Actions[n].sym == VAL_WORD_SYM(act)) break;
+        if (Scheme_Actions[n].sym == VAL_WORD_SYM(name)) break;
     }
     if (n == MAX_SCHEMES || !Scheme_Actions[n].sym) return R_NONE;
 
@@ -544,12 +544,11 @@ REBNATIVE(set_scheme)
         n = Find_Action(actor, map->action);
         if (n) {
             // Get standard action's spec block:
-            act = Get_Action_Value(map->action);
+            REBVAL *act = Get_Action_Value(map->action);
 
             // Make native function for action:
-            func = Obj_Value(actor, n); // function
             Make_Native(
-                func,
+                Obj_Value(actor, n), // function,
                 VAL_FUNC_SPEC(act),
                 cast(REBNAT, map->func),
                 REB_NATIVE,
