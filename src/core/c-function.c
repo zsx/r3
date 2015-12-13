@@ -176,75 +176,79 @@ REBARR *Check_Func_Spec(REBARR *spec)
             continue;
         }
 
-        switch (VAL_TYPE(item)) {
-        case REB_BLOCK:
-            if (typeset == ARRAY_HEAD(paramlist)) {
-                // !!! Rebol2 had the ability to put a block in the first
-                // slot before any parameters, in which you could put words.
-                // This is deprecated in favor of the use of tags.  We permit
-                // [catch] and [throw] during Rebol2 => Rebol3 migration.
+        if (IS_BLOCK(item)) {
+            REBVAL *attribute;
 
-                REBVAL *attribute = VAL_ARRAY_AT(item);
-                for (; NOT_END(attribute); attribute++) {
-                    if (IS_WORD(attribute)) {
-                        if (VAL_WORD_SYM(attribute) == SYM_CATCH)
-                            continue; // ignore it;
-                        if (VAL_WORD_SYM(attribute) == SYM_THROW) {
-                            // !!! Basically a synonym for <transparent>, but
-                            // transparent is now a manipulation done by the
-                            // function generators *before* the internal spec
-                            // is checked...and the flag is removed.  So
-                            // simulating it here is no longer easy...hence
-                            // ignore it;
-                            continue;
-                        }
-                        // no other words supported, fall through to error
-                    }
-                    fail (Error(RE_BAD_FUNC_DEF, item));
-                }
-                break; // leading block handled if we get here, no more to do
+            if (typeset != ARRAY_HEAD(paramlist)) {
+                //
+                // Turn block into typeset for parameter at current index
+                // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
+                //
+                Make_Typeset(VAL_ARRAY_HEAD(item), typeset, 0);
+                continue;
             }
 
-            // Turn block into typeset for parameter at current index
-            // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
-            Make_Typeset(VAL_ARRAY_HEAD(item), typeset, 0);
-            break;
+            // !!! Rebol2 had the ability to put a block in the first
+            // slot before any parameters, in which you could put words.
+            // This is deprecated in favor of the use of tags.  We permit
+            // [catch] and [throw] during Rebol2 => Rebol3 migration.
+            //
+            // !!! Longer-term this will likely be where a typeset goes that
+            // indicates the return type of the function.  The tricky part
+            // of that is there's nowhere to put that typeset.  Adding it
+            // as a key to the frame would add an extra VAR to the frame
+            // also...which would be a possibility, perhaps with a special
+            // symbol ID.  The storage space for the VAR might not need
+            // to be wasted; there may be another use for a value-sized
+            // spot per-invocation.
+            //
+            attribute = VAL_ARRAY_AT(item);
+            for (; NOT_END(attribute); attribute++) {
+                if (IS_WORD(attribute)) {
+                    if (VAL_WORD_SYM(attribute) == SYM_CATCH)
+                        continue; // ignore it;
+                    if (VAL_WORD_SYM(attribute) == SYM_THROW) {
+                        // !!! Basically a synonym for <transparent>, but
+                        // transparent is now a manipulation done by the
+                        // function generators *before* the internal spec
+                        // is checked...and the flag is removed.  So
+                        // simulating it here is no longer easy...hence
+                        // ignore it;
+                        continue;
+                    }
+                    // no other words supported, fall through to error
+                }
+                fail (Error(RE_BAD_FUNC_DEF, item));
+            }
+            continue;
+        }
 
+        if (!ANY_WORD(item))
+            fail (Error(RE_BAD_FUNC_DEF, item));
+
+        typeset++;
+
+        assert(
+            IS_TYPESET(typeset)
+            && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
+        );
+
+        switch (VAL_TYPE(item)) {
         case REB_WORD:
-            typeset++;
-            assert(
-                IS_TYPESET(typeset)
-                && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
-            );
             VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
             break;
 
         case REB_GET_WORD:
-            typeset++;
-            assert(
-                IS_TYPESET(typeset)
-                && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
-            );
             VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
             break;
 
         case REB_LIT_WORD:
-            typeset++;
-            assert(
-                IS_TYPESET(typeset)
-                && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
-            );
             VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
             // will actually only evaluate get-word!, get-path!, and paren!
             VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
             break;
 
         case REB_REFINEMENT:
-            typeset++;
-            assert(
-                IS_TYPESET(typeset)
-                && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
-            );
             VAL_SET_EXT(typeset, EXT_TYPESET_REFINEMENT);
 
         #if !defined(NDEBUG)
@@ -265,15 +269,10 @@ REBARR *Check_Func_Spec(REBARR *spec)
             break;
 
         case REB_SET_WORD:
-            // "True locals"... these will not be visible via WORDS-OF and
+            // "Pure locals"... these will not be visible via WORDS-OF and
             // will be skipped during argument fulfillment.  We re-use the
             // same option flag that is used to hide words other places.
 
-            typeset++;
-            assert(
-                IS_TYPESET(typeset)
-                && VAL_TYPESET_SYM(typeset) == VAL_WORD_SYM(item)
-            );
             VAL_SET_EXT(typeset, EXT_WORD_HIDE);
             break;
 
