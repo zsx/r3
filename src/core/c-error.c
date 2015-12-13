@@ -46,6 +46,12 @@ void Push_Trap_Helper(REBOL_STATE *s)
 
     s->call = DSF;
 
+    // There should not be a Collect_Keys in progress.  (We use a non-zero
+    // length of the collect buffer to tell if a later fail() happens in
+    // the middle of a Collect_Keys.)
+    //
+    assert(ARRAY_LEN(BUF_COLLECT) == 0);
+
     s->series_guard_len = SERIES_LEN(GC_Series_Guard);
     s->value_guard_len = SERIES_LEN(GC_Value_Guard);
     s->gc_disable = GC_Disabled;
@@ -103,6 +109,20 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     // Drop to the chunk state at the time of Push_Trap
     while (TG_Top_Chunk != state->top_chunk)
         Drop_Chunk(NULL);
+
+    // If we were in the middle of a Collect_Keys and an error occurs, then
+    // the thread-global binding lookup table has entries in it that need
+    // to be zeroed out.  We can tell if that's necessary by whether there
+    // is anything accumulated in the collect buffer.
+    //
+    if (ARRAY_LEN(BUF_COLLECT) != 0) {
+        //
+        // !!! Does a shallow copy ATM, so needs to be before the manuals
+        // free... consider passing a flag to say "Don't actually need the
+        // keylist".
+        //
+        Free_Array(Collect_Keys_End(NULL));
+    }
 
     // Free any manual series that were extant at the time of the error
     // (that were created since this PUSH_TRAP started).  This includes

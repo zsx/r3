@@ -169,21 +169,13 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
     // Examine word/value argument block
     for (word = arg; NOT_END(word); word += 2) {
 
-        if (!IS_WORD(word) && !IS_SET_WORD(word)) {
-            // release binding table
-            TERM_ARRAY(BUF_COLLECT);
-            Collect_Keys_End(frame);
+        if (!IS_WORD(word) && !IS_SET_WORD(word))
             fail (Error_Invalid_Arg(word));
-        }
 
         if ((i = binds[VAL_WORD_CANON(word)])) {
             // bug fix, 'self is protected only in selfish frames:
-            if ((VAL_WORD_CANON(word) == SYM_SELF) && !IS_SELFLESS(frame)) {
-                // release binding table
-                TERM_ARRAY(BUF_COLLECT);
-                Collect_Keys_End(frame);
+            if ((VAL_WORD_CANON(word) == SYM_SELF) && !IS_SELFLESS(frame))
                 fail (Error(RE_SELF_PROTECTED));
-            }
         } else {
             // collect the symbol
             binds[VAL_WORD_CANON(word)] = ARRAY_LEN(BUF_COLLECT);

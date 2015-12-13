@@ -329,6 +329,10 @@ REBARR *Collect_Keys_End(REBFRM *prior)
     REBVAL *words;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
+    // We didn't terminate as we were collecting, so terminate now.
+    //
+    TERM_ARRAY(BUF_COLLECT);
+
     // Reset binding table (note BUF_COLLECT may have expanded):
     for (words = ARRAY_HEAD(BUF_COLLECT); NOT_END(words); words++)
         binds[VAL_TYPESET_CANON(words)] = 0;
@@ -448,8 +452,6 @@ static void Collect_Frame_Inner_Loop(REBINT *binds, REBVAL value[], REBCNT modes
         // In this mode (foreach native), do not allow non-words:
         //else if (modes & BIND_GET) fail (Error_Invalid_Arg(value));
     }
-
-    TERM_ARRAY(BUF_COLLECT);
 }
 
 
@@ -808,6 +810,10 @@ REBFRM *Merge_Frames(REBFRM *parent1, REBFRM *parent2)
     Collect_Frame_Inner_Loop(
         binds, FRAME_KEYS_HEAD(parent2), BIND_ALL
     );
+
+    // Collect_Keys_End() terminates, but Collect_Frame_Inner_Loop() doesn't.
+    //
+    TERM_ARRAY(BUF_COLLECT);
 
     // Allocate child (now that we know the correct size):
     keylist = Copy_Array_Shallow(BUF_COLLECT);
