@@ -662,36 +662,36 @@ REBVAL *Get_Action_Value(REBCNT action)
 //
 static void Init_Root_Context(void)
 {
-    REBVAL *value;
-    REBINT n;
     REBFRM *frame;
 
     // Only half the context! (No words)
-    frame = AS_FRAME(Make_Series(
-        ROOT_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
-    ));
+    frame = Alloc_Frame(ROOT_MAX - 1, TRUE);
+    PG_Root_Frame = frame;
 
-    // !!! Need since using Make_Series?
-    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
-
-    LABEL_SERIES(frame, "root context");
+    LABEL_SERIES(FRAME_VARLIST(frame), "root context");
     ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
     Root_Context = cast(ROOT_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
-    // Get first value (the SELF for the context):
-    value = ROOT_SELF;
+    // Get rid of the keylist, we will make another one later in the boot.
+    // (You can't ASSERT_FRAME(PG_Root_Frame) until that happens.)
+    //
+    Free_Array(FRAME_KEYLIST(frame));
+    FRAME_KEYLIST(frame) = NULL;
 
-    // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_RESET_HEADER(value, REB_OBJECT);
-    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
-    VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_BODY(value) = NULL;
+    //
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
+    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
 
     // Set all other values to NONE:
-    for (n = 1; n < ROOT_MAX; n++) SET_NONE(value + n);
-    SET_END(value + ROOT_MAX);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
+    {
+        REBINT n = 1;
+        REBVAL *var = FRAME_VARS_HEAD(frame);
+        for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
+        SET_END(var);
+        SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
+    }
 
     // Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
     // to pass as an arg if we need an UNSET but don't want to pay for making
@@ -727,10 +727,7 @@ static void Init_Root_Context(void)
     SET_END(PG_End_Val);
     assert(IS_END(END_VALUE));
 
-    // Initially the root context is a series but has no keylist to officially
-    // make it an object.  Start it out as a block (change it later in boot)
-    //
-    Val_Init_Block(ROOT_ROOT, FRAME_VARLIST(frame));
+    // Can't ASSERT_FRAME here; no keylist yet...
 }
 
 
@@ -763,39 +760,37 @@ void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
 //
 static void Init_Task_Context(void)
 {
-    REBVAL *value;
-    REBINT n;
     REBFRM *frame;
-    REBSER *task_words;
 
     //Print_Str("Task Context");
 
-    frame = AS_FRAME(
-        Make_Series(TASK_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME)
-    );
-    // !!! Needed since using Make_Series?
-    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
-    Task_Frame = frame;
+    frame = Alloc_Frame(TASK_MAX - 1, TRUE);
+    TG_Task_Frame = frame;
 
-    LABEL_SERIES(frame, "task context");
+    LABEL_SERIES(FRAME_VARLIST(frame), "task context");
     ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
     Task_Context = cast(TASK_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
-    // Get first value (the SELF for the context):
-    value = TASK_SELF;
+    // Get rid of the keylist, we will make another one later in the boot.
+    // (You can't ASSERT_FRAME(TG_Task_Frame) until that happens.)
+    //
+    Free_Array(FRAME_KEYLIST(frame));
+    FRAME_KEYLIST(frame) = NULL;
 
-    // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_RESET_HEADER(value, REB_OBJECT);
-    FRAME_CONTEXT(frame)->payload.any_context.frame = frame;
-    VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_BODY(value) = NULL;
+    //
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
+    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
 
     // Set all other values to NONE:
-    for (n = 1; n < TASK_MAX; n++) SET_NONE(value+n);
-    SET_END(value+TASK_MAX);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
+    {
+        REBINT n = 1;
+        REBVAL *var = FRAME_VARS_HEAD(frame);
+        for (; n < TASK_MAX; n++, var++) SET_NONE(var);
+        SET_END(var);
+        SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
+    }
 
     // Initialize a few fields:
     SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
@@ -805,6 +800,8 @@ static void Init_Task_Context(void)
     // seen by the GC.
     //
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+
+    // Can't ASSERT_FRAME here; no keylist yet...
 }
 
 
@@ -848,9 +845,17 @@ static void Init_System_Object(void)
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));
 
-    // Create a global value for it:
+    // Create a global value for it.  (This is why we are able to say `system`
+    // and have it bound in lines like `sys: system/contexts/sys`)
+    //
     value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
     Val_Init_Object(value, frame);
+
+    // We also add the system object under the root, to ensure it can't be
+    // garbage collected and be able to access it from the C code.  (Someone
+    // could say `system: none` in the Lib_Context and then it would be a
+    // candidate for garbage collection otherwise!)
+    //
     Val_Init_Object(ROOT_SYSTEM, frame);
 
     // Create system/datatypes block:
@@ -1393,31 +1398,20 @@ void Init_Core(REBARGS *rargs)
     //Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
     // Get the words of the ROOT context (to avoid it being an exception case)
-    PG_Root_Words = Collect_Frame(
+    //
+    FRAME_KEYLIST(PG_Root_Frame) = Collect_Frame(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->root), BIND_ALL
     );
-    LABEL_SERIES(PG_Root_Words, "root words");
-    MANAGE_ARRAY(PG_Root_Words);
-    FRAME_KEYLIST(VAL_FRAME(ROOT_SELF)) = PG_Root_Words;
-    VAL_CONTEXT_SPEC(ROOT_SELF) = NULL;
-    VAL_CONTEXT_BODY(ROOT_SELF) = NULL;
-
-    // and convert ROOT_ROOT from a BLOCK! to an OBJECT!
-    Val_Init_Object(ROOT_ROOT, AS_FRAME(VAL_SERIES(ROOT_ROOT)));
+    MANAGE_FRAME(PG_Root_Frame);
+    ASSERT_FRAME(PG_Root_Frame);
 
     // Get the words of the TASK context (to avoid it being an exception case)
-    TG_Task_Words = Collect_Frame(
+    //
+    FRAME_KEYLIST(TG_Task_Frame) = Collect_Frame(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->task), BIND_ALL
     );
-    LABEL_SERIES(ds, "task words");
-    MANAGE_ARRAY(TG_Task_Words);
-    FRAME_KEYLIST(VAL_FRAME(TASK_SELF)) = TG_Task_Words;
-    VAL_CONTEXT_SPEC(TASK_SELF) = NULL;
-    VAL_CONTEXT_BODY(TASK_SELF) = NULL;
-
-    // Is it necessary to put the above into an object like for ROOT?
-    /*Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));*/
-
+    MANAGE_FRAME(TG_Task_Frame);
+    ASSERT_FRAME(TG_Task_Frame);
 
     // Create main values:
     DOUT("Level 3");

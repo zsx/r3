@@ -18,8 +18,6 @@ REBOL [
 ]
 
 self            ; (hand-built CONTEXT! value - but, has no WORD table!)
-root            ; the root context as a block (for GC protection)
-
 system          ; system object
 errobj          ; error object template
 strings         ; low-level strings accessed via Boot_Strs[] (GC protection)

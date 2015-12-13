@@ -1144,8 +1144,8 @@ REBCNT Recycle_Core(REBOOL shutdown)
         }
 
         // Mark all root series:
-        MARK_FRAME_DEEP(VAL_FRAME(ROOT_ROOT));
-        MARK_FRAME_DEEP(Task_Frame);
+        MARK_FRAME_DEEP(PG_Root_Frame);
+        MARK_FRAME_DEEP(TG_Task_Frame);
 
         // Mark potential error object from callback!
         Queue_Mark_Value_Deep(&Callback_Error);

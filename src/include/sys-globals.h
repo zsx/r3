@@ -52,7 +52,9 @@ PVAR REBSER *PG_Word_Names; // Holds all word strings. Never removed.
 PVAR WORD_TABLE PG_Word_Table; // Symbol values accessed by hash
 
 //-- Main contexts:
-PVAR ROOT_CTX *Root_Context; // System root variables
+PVAR REBFRM *PG_Root_Frame; // Frame that holds Root_Context
+PVAR ROOT_CTX *Root_Context; // VARLIST of PG_Root_Frame as a C structure
+
 PVAR REBFRM *Lib_Context;
 PVAR REBFRM *Sys_Context;
 
@@ -63,7 +65,6 @@ PVAR REBUNI *Lower_Cases;
 
 // Other:
 PVAR REBYTE *PG_Pool_Map;   // Memory pool size map (created on boot)
-PVAR REBARR *PG_Root_Words; // Root object word table (reused by threads)
 
 PVAR REBI64 PG_Boot_Time;   // Counter when boot started
 PVAR REBINT Current_Year;
@@ -96,9 +97,8 @@ PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
 **
 ***********************************************************************/
 
-TVAR TASK_CTX *Task_Context; // Main per-task variables
-TVAR REBFRM *Task_Frame;    // Frame that holds Task_Context
-TVAR REBARR *TG_Task_Words; // word list for task frame
+TVAR REBFRM *TG_Task_Frame; // Frame that holds Task_Context
+TVAR TASK_CTX *Task_Context; // VARLIST of Task_Context as a C structure
 
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 
