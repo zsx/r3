@@ -81,7 +81,7 @@ REBVAL *Append_Event(void)
     if (!IS_PORT(port)) return 0; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
+    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return 0;
 
     // Append to tail if room:
@@ -121,7 +121,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
     if (!IS_PORT(port)) return NULL; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
+    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return NULL;
 
     value = VAL_ARRAY_TAIL(state) - 1;

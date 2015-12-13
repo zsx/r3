@@ -1360,7 +1360,7 @@ struct Reb_Any_Context {
 
 // Convenience macros to speak in terms of object values instead of the frame
 //
-#define VAL_CONTEXT_VALUE(v,n)      FRAME_VAR(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_VAR(v,n)        FRAME_VAR(VAL_FRAME(v), (n))
 #define VAL_CONTEXT_KEY(v,n)        FRAME_KEY(VAL_FRAME(v), (n))
 #define VAL_CONTEXT_KEY_SYM(v,n)    FRAME_KEY_SYM(VAL_FRAME(v), (n))
 
