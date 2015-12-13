@@ -783,6 +783,28 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         Append_Codepoint_Raw(mold->series, '[');
     }
 
+#if !defined(NDEBUG)
+    if (VAL_TYPESET_SYM(value) != SYM_0) {
+        //
+        // In debug builds we're probably more interested in the symbol than
+        // the typesets, if we are looking at a PARAMLIST or KEYLIST.
+        //
+        Append_Unencoded(mold->series, "(");
+        Append_UTF8(
+            mold->series, Get_Sym_Name(VAL_TYPESET_SYM(value)), -1 // LEN_BYTES
+        );
+        Append_Unencoded(mold->series, ") ");
+    }
+
+    // REVIEW: should detect when a lot of types are active and condense
+    // only if the number of types is unreasonable (often is for keys/params)
+    //
+    if (TRUE) {
+        Append_Unencoded(mold->series, "...");
+        goto skip_types;
+    }
+#endif
+
     // Convert bits to types (we can make this more efficient !!)
     for (n = 0; n < REB_MAX; n++) {
         if (TYPE_CHECK(value, n)) {
@@ -790,6 +812,10 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         }
     }
     Trim_Tail(mold->series, ' ');
+
+#if !defined(NDEBUG)
+skip_types:
+#endif
 
     if (molded) {
         //Form_Typeset(value, mold & ~(1<<MOPT_MOLD_ALL));
