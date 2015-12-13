@@ -45,48 +45,84 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 {
     REBFRM *f1;
     REBFRM *f2;
-    REBARR *k1;
-    REBARR *k2;
-    REBCNT n;
+    REBVAL *key1;
+    REBVAL *key2;
+    REBVAL *var1;
+    REBVAL *var2;
 
+    // ERROR! and OBJECT! may both be contexts, for instance, but they will
+    // not compare equal just because their keys and fields are equal
+    //
     if (VAL_TYPE(arg) != VAL_TYPE(val)) return FALSE;
 
     f1 = VAL_FRAME(val);
     f2 = VAL_FRAME(arg);
-    if (f1 == f2) return TRUE;
-    if (FRAME_LEN(f1) != FRAME_LEN(f2)) return FALSE;
 
-    k1 = FRAME_KEYLIST(f1);
-    k2 = FRAME_KEYLIST(f2);
-
-    // Sanity check that the frame is +1 for the context/rootkey slot
+    // Short circuit equality: `same?` objects always equal
     //
-    assert(
-        ARRAY_LEN(k1) == FRAME_LEN(f1) + 1
-        && ARRAY_LEN(k2) == FRAME_LEN(f2) + 1
-    );
+    if (f1 == f2) return TRUE;
 
-    // Compare each entry:
-    for (n = 1; n < ARRAY_LEN(k1); n++) {
+    // We can't short circuit on unequal frame lengths alone, because hidden
+    // fields of objects (notably `self`) do not figure into the `equal?`
+    // of their public portions.
+
+    key1 = FRAME_KEYS_HEAD(f1);
+    key2 = FRAME_KEYS_HEAD(f2);
+    var1 = FRAME_VARS_HEAD(f1);
+    var2 = FRAME_VARS_HEAD(f2);
+
+    // Compare each entry, in order.  This order dependence suggests that
+    // an object made with `make object! [a: 1 b: 2]` will not compare equal
+    // to `make object! [b: 1 a: 2]`.  Although Rebol does not allow
+    // positional picking out of objects, it does allow positional setting
+    // currently (which it likely should not), hence they are functionally
+    // distinct for now.  Yet those two should probably be `equal?`.
+    //
+    for (; NOT_END(key1) && NOT_END(key2); key1++, key2++, var1++, var2++) {
+    no_advance:
         //
+        // Hidden vars shouldn't affect the comparison.
+        //
+        if (VAL_GET_EXT(key1, EXT_WORD_HIDE)) {
+            key1++; var1++;
+            if (IS_END(key1)) break;
+            goto no_advance;
+        }
+        if (VAL_GET_EXT(key2, EXT_WORD_HIDE)) {
+            key2++; var2++;
+            if (IS_END(key2)) break;
+            goto no_advance;
+        }
+
         // Do ordinary comparison of the typesets
         //
-        if (Cmp_Value(ARRAY_AT(k1, n), ARRAY_AT(k2, n), FALSE) != 0)
+        if (Cmp_Value(key1, key2, FALSE) != 0)
             return FALSE;
 
         // The typesets contain a symbol as well which must match for
         // objects to consider themselves to be equal (but which do not
         // count in comparison of the typesets)
-        if (
-            VAL_TYPESET_CANON(ARRAY_AT(k1, n))
-            != VAL_TYPESET_CANON(ARRAY_AT(k2, n))
-        ) {
+        //
+        if (VAL_TYPESET_CANON(key1) != VAL_TYPESET_CANON(key2))
             return FALSE;
-        }
 
         // !!! A comment here said "Use Compare_Modify_Values();"...but it
         // doesn't... it calls Cmp_Value (?)
-        if (Cmp_Value(FRAME_VAR(f1, n), FRAME_VAR(f2, n), FALSE) != 0)
+        //
+        if (Cmp_Value(var1, var2, FALSE) != 0)
+            return FALSE;
+    }
+
+    // Either key1 or key2 is at the end here, but the other might contain
+    // all hidden values.  Which is okay.  But if a value isn't hidden,
+    // they don't line up.
+    //
+    for (; NOT_END(key1); key1++, var1++) {
+        if (!VAL_GET_EXT(key1, EXT_WORD_HIDE))
+            return FALSE;
+    }
+    for (; NOT_END(key2); key2++, var2++) {
+        if (!VAL_GET_EXT(key2, EXT_WORD_HIDE))
             return FALSE;
     }
 
