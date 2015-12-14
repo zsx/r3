@@ -433,7 +433,7 @@ static u32* shape_ext_words;
                 RXIARG val;
                 REBCNT type;
                 REBCNT n;
-                REBDEC* pattern = (REBDEC*) OS_ALLOC_ARRAY(REBDEC, len + 1) ;
+                REBDEC* pattern = (REBDEC*) OS_ALLOC_N(REBDEC, len + 1) ;
 
                 pattern[0] = len;
 

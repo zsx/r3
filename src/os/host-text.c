@@ -85,7 +85,7 @@ static u32* text_ext_words;
 	}
 	
 	len = abs(res);
-	wstr = (u32 *)OS_ALLOC_ARRAY(u32, len + 1);
+	wstr = (u32 *)OS_ALLOC_N(u32, len + 1);
 	
 	if (res < 0) {
 		for (n = 0; n < len; n++)

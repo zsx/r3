@@ -85,7 +85,7 @@ static u32* graphics_ext_words;
 **
 ***********************************************************************/
 {
-	Gob_Windows = (struct gob_window *)OS_ALLOC_ARRAY(struct gob_window, MAX_WINDOWS + 1);
+	Gob_Windows = (struct gob_window *)OS_ALLOC_N(struct gob_window, MAX_WINDOWS + 1);
 	CLEAR(Gob_Windows, sizeof(struct gob_window) * (MAX_WINDOWS+1));
 
 	//call OS specific initialization code
@@ -264,7 +264,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 		// Open any new windows:
 		if (GOB_PANE(Gob_Root)) {
 			gp = GOB_HEAD(Gob_Root);
-			for (n = GOB_TAIL(Gob_Root)-1; n >= 0; n--, gp++) {
+			for (n = GOB_LEN(Gob_Root)-1; n >= 0; n--, gp++) {
 				if (!GET_GOB_FLAG(*gp, GOBF_WINDOW))
 					OS_Open_Window(*gp);
 				Draw_Window(0, *gp);

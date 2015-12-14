@@ -118,7 +118,7 @@ typedef struct {
 	SDL_Window *win = NULL;
 
 	//new compositor struct
-	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_ALLOC_ARRAY(REBCMP_CTX, 1);
+	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_ALLOC_N(REBCMP_CTX, 1);
 	int w = GOB_LOG_W_INT(gob);
 	int h = GOB_LOG_H_INT(gob);
 
@@ -221,7 +221,7 @@ typedef struct {
 		//recursively process sub GOBs
 		if (GOB_PANE(gob)) {
 			REBINT n;
-			REBINT len = GOB_TAIL(gob);
+			REBINT len = GOB_LEN(gob);
 			REBGOB **gp = GOB_HEAD(gob);
 
 			for (n = 0; n < len; n++, gp++) {
