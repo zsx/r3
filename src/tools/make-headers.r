@@ -190,8 +190,8 @@ make-arg-enums: func [word] [
     ; Gather arg words:
     for-each w first def [
         if any-word? w [
-            append args uw: uppercase replace/all form to word! w #"-" #"_" ; R3
-            if refinement? w [append refs uw  w: to word! w] ; R3
+            append args uw: uppercase replace/all form to word! w #"-" #"_"
+            if refinement? w [append refs uw  w: to word! w]
         ]
     ]
 
@@ -254,7 +254,7 @@ clear output-buffer
 
 emit-header "REBOL Constants Strings" %str-consts.h
 
-data: to string! read %a-constants.c ;R3
+data: to string! read %a-constants.c
 
 parse data [
     some [

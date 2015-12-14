@@ -746,7 +746,7 @@ code: ""
 n: 0
 for-each str boot-strings [
     either set-word? :str [
-        emit-line/define "#define RS_" to word! str n ;R3
+        emit-line/define "#define RS_" to word! str n
     ][
         n: n + 1
         append code str
@@ -837,7 +837,7 @@ n: 2 ;-- actions start at 2, for the type checks, skipping TRASH? and END?
 emit-line "A_" "0 = 0" "Unused (would be A_TRASH_Q)"
 for-each word boot-actions [
     if set-word? :word [
-        emit-line "A_" to word! :word n ;R3
+        emit-line "A_" to word! :word n
         n: n + 1
     ]
 ]
@@ -899,14 +899,14 @@ make-obj-defs: func [obj prefix depth /selfless /local f] [
         emit-line prefix "SELF = 1" none
     ]
 
-    for-each field words-of obj [ ;R3
+    for-each field words-of obj [
         emit-line prefix field none
     ]
     emit [tab uppercase join prefix "MAX^/"]
     emit "};^/^/"
 
     if depth > 1 [
-        for-each field words-of obj [ ;R3
+        for-each field words-of obj [
             f: join prefix [field #"_"]
             replace/all f "-" "_"
             all [
@@ -1002,8 +1002,8 @@ emit {
 }
 ; Generate ERROR object and append it to bootdefs.h:
 emit-line/code "REBVAL " 'rootvar ";"
-emit-line/code "REBVAL " 'self ";" ;R3
-for-each word words-of ob/standard/error [ ;R3
+emit-line/code "REBVAL " 'self ";"
+for-each word words-of ob/standard/error [
     if word = 'near [word: 'nearest] ; prevents C problem
     emit-line/code "REBVAL " word ";"
 ]
@@ -1169,7 +1169,7 @@ emit [newline {const REBNAT Native_Funcs[} nat-count {] = ^{
 }]
 for-each val nats [
     if set-word? val [
-        emit-line/code "N_" to word! val "," ;R3
+        emit-line/code "N_" to word! val ","
     ]
     ;nat-count: nat-count + 1
 ]
