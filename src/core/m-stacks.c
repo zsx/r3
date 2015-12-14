@@ -128,7 +128,7 @@ void Pop_Stack_Values(REBVAL *out, REBINT dsp_start, REBOOL into)
         assert(ANY_ARRAY(out));
         array = VAL_ARRAY(out);
 
-        FAIL_IF_PROTECTED_ARRAY(array);
+        FAIL_IF_LOCKED_ARRAY(array);
 
         VAL_INDEX(out) = Insert_Series(
             ARRAY_SERIES(array),
@@ -403,7 +403,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         // !!! General review: series need to be lockable multiple times,
         // and it needs to happen with any stack-hold (e.g. PUSH_GUARD)
         //
-        ARRAY_SET_FLAG(c->arglist.array, SER_LOCK);
+        ARRAY_SET_FLAG(c->arglist.array, SER_FIXED_SIZE);
     }
     else {
         // Same as above, but in a raw array vs. a series.  Note that chunks
@@ -488,8 +488,8 @@ void Drop_Call_Arglist(struct Reb_Call* c)
         // use DO to evaluate into movable memory--as we are DO-ing the
         // arguments into this array for the call.
         //
-        assert(ARRAY_GET_FLAG(c->arglist.array, SER_LOCK));
-        ARRAY_CLR_FLAG(c->arglist.array, SER_LOCK);
+        assert(ARRAY_GET_FLAG(c->arglist.array, SER_FIXED_SIZE));
+        ARRAY_CLR_FLAG(c->arglist.array, SER_FIXED_SIZE);
     }
     else {
         // For other function types we drop the chunk.  This is not dangerous

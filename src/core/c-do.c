@@ -1343,7 +1343,7 @@ reevaluate:
 
             // *** PURE LOCALS => continue ***
 
-            if (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+            if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
                 //
                 // When the spec contained a SET-WORD!, that was a "pure
                 // local".  It corresponds to no argument and will not
@@ -2538,7 +2538,7 @@ REBFLG Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 
         // *** PURE LOCALS => continue ***
 
-        while (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+        while (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
             // We need to skip over "pure locals", e.g. those created in
             // the spec with a SET-WORD!.  (They are useful for generators)
             //
@@ -2611,7 +2611,7 @@ REBFLG Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
     // Pad out any remaining parameters with unset or none, depending
 
     while (NOT_END(c->param)) {
-        if (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
             // A true local...to be ignored as far as block args go.
             // Very likely to hit them at the end of the paramlist because
             // that's where the function generators tack on RETURN:
@@ -2883,7 +2883,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
     ) {
         assert(IS_TYPESET(param_new));
 
-        if (VAL_GET_EXT(param_new, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(param_new, EXT_TYPESET_HIDDEN)) {
             if (
                 VAL_GET_EXT(FUNC_VALUE(func_new), EXT_FUNC_HAS_RETURN)
                 && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)

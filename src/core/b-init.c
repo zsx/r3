@@ -666,7 +666,7 @@ static void Init_Root_Context(void)
     PG_Root_Frame = frame;
 
     LABEL_SERIES(FRAME_VARLIST(frame), "root context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
     Root_Context = cast(ROOT_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
     // Get rid of the keylist, we will make another one later in the boot.
@@ -701,8 +701,8 @@ static void Init_Root_Context(void)
     assert(IS_UNSET(UNSET_VALUE));
 
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROTECT);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCKED);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_FIXED_SIZE);
 
     // Used by FUNC and CLOS generators: RETURN:
     Val_Init_Word_Unbound(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
@@ -714,8 +714,8 @@ static void Init_Root_Context(void)
     //
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
     Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_PROTECT);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_LOCK);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_LOCKED);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_FIXED_SIZE);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
@@ -764,7 +764,7 @@ static void Init_Task_Context(void)
     TG_Task_Frame = frame;
 
     LABEL_SERIES(FRAME_VARLIST(frame), "task context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
     Task_Context = cast(TASK_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
     // Get rid of the keylist, we will make another one later in the boot.
@@ -1448,22 +1448,22 @@ void Init_Core(REBARGS *rargs)
         ROOT_TRANSPARENT_TAG,
         Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
         Append_UTF8(NULL, infix, LEN_BYTES(infix))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCKED);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
         Append_UTF8(NULL, local, LEN_BYTES(local))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCKED);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));

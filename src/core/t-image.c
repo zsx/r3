@@ -826,7 +826,7 @@ REBTYPE(Image)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_SERIES(series);
+        FAIL_IF_LOCKED_SERIES(series);
 
     // Dispatch action:
     switch (action) {
@@ -1217,7 +1217,7 @@ REBINT PD_Image(REBPVS *pvs)
     index += n;
     if (n > 0) index--;
 
-    FAIL_IF_PROTECTED_SERIES(series);
+    FAIL_IF_LOCKED_SERIES(series);
 
     // Out of range:
     if (n == 0 || index < 0 || index >= cast(REBINT, SERIES_LEN(series))) {

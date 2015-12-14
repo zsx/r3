@@ -65,7 +65,7 @@ REBARR *List_Func_Words(const REBVAL *func)
     for (; !IS_END(typeset); typeset++) {
         enum Reb_Kind kind;
 
-        if (VAL_GET_EXT(typeset, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(typeset, EXT_TYPESET_HIDDEN)) {
             // "true local" (e.g. it was a SET-WORD! in the spec)
             // treat as invisible and do not expose via WORDS-OF
             continue;
@@ -276,7 +276,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
             // will be skipped during argument fulfillment.  We re-use the
             // same option flag that is used to hide words other places.
 
-            VAL_SET_EXT(typeset, EXT_WORD_HIDE);
+            VAL_SET_EXT(typeset, EXT_TYPESET_HIDDEN);
             break;
 
         default:

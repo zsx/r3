@@ -1226,8 +1226,8 @@ enum {
     EXT_TYPESET_QUOTE = 0,  // Quoted (REDUCE paren/get-word|path if EVALUATE)
     EXT_TYPESET_EVALUATE,   // DO/NEXT performed at callsite when setting
     EXT_TYPESET_REFINEMENT, // Value indicates an optional switch
-    EXT_WORD_LOCK,  // Can't be changed (set with PROTECT)
-    EXT_WORD_HIDE,      // Can't be reflected (set with PROTECT/HIDE)
+    EXT_TYPESET_LOCKED,     // Can't be changed (set with PROTECT)
+    EXT_TYPESET_HIDDEN,     // Can't be reflected (set with PROTECT/HIDE)
     EXT_TYPESET_MAX
 };
 

@@ -83,12 +83,12 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
         //
         // Hidden vars shouldn't affect the comparison.
         //
-        if (VAL_GET_EXT(key1, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(key1, EXT_TYPESET_HIDDEN)) {
             key1++; var1++;
             if (IS_END(key1)) break;
             goto no_advance;
         }
-        if (VAL_GET_EXT(key2, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(key2, EXT_TYPESET_HIDDEN)) {
             key2++; var2++;
             if (IS_END(key2)) break;
             goto no_advance;
@@ -118,11 +118,11 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
     // they don't line up.
     //
     for (; NOT_END(key1); key1++, var1++) {
-        if (!VAL_GET_EXT(key1, EXT_WORD_HIDE))
+        if (!VAL_GET_EXT(key1, EXT_TYPESET_HIDDEN))
             return FALSE;
     }
     for (; NOT_END(key2); key2++, var2++) {
-        if (!VAL_GET_EXT(key2, EXT_WORD_HIDE))
+        if (!VAL_GET_EXT(key2, EXT_TYPESET_HIDDEN))
             return FALSE;
     }
 
@@ -204,10 +204,10 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
         var = FRAME_VAR(frame, i);
         key = FRAME_KEY(frame, i);
 
-        if (VAL_GET_EXT(key, EXT_WORD_LOCK))
+        if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
             fail (Error_Protected_Key(key));
 
-        if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
             fail (Error(RE_HIDDEN));
 
         if (IS_END(word + 1)) SET_NONE(var);
@@ -236,7 +236,7 @@ static REBFRM *Trim_Frame(REBFRM *frame)
     key = FRAME_KEYS_HEAD(frame);
     var = FRAME_VARS_HEAD(frame);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_WORD_HIDE))
+        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
             copy_count++;
     }
 
@@ -253,7 +253,7 @@ static REBFRM *Trim_Frame(REBFRM *frame)
     var_new = FRAME_VARS_HEAD(frame_new);
     key_new = FRAME_KEYS_HEAD(frame_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }
@@ -341,7 +341,7 @@ REBINT PD_Object(REBPVS *pvs)
     if (
         pvs->setval
         && IS_END(pvs->path + 1)
-        && VAL_GET_EXT(FRAME_KEY(frame, n), EXT_WORD_LOCK)
+        && VAL_GET_EXT(FRAME_KEY(frame, n), EXT_TYPESET_LOCKED)
     ) {
         fail (Error(RE_LOCKED_WORD, pvs->select));
     }
@@ -558,7 +558,7 @@ REBTYPE(Object)
         fail (Error_Bad_Make(target, arg));
 
     case A_APPEND:
-        FAIL_IF_PROTECTED_FRAME(VAL_FRAME(value));
+        FAIL_IF_LOCKED_FRAME(VAL_FRAME(value));
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_To_Context(VAL_FRAME(value), arg);

@@ -551,7 +551,7 @@ REBINT PD_Array(REBPVS *pvs)
         return PE_NONE;
     }
 
-    if (pvs->setval) FAIL_IF_PROTECTED_SERIES(VAL_SERIES(pvs->value));
+    if (pvs->setval) FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
     // if valset - check PROTECT on block
     //if (NOT_END(pvs->path+1)) Next_Path(pvs); return PE_OK;
@@ -626,7 +626,7 @@ REBTYPE(Array)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_ARRAY(array);
+        FAIL_IF_LOCKED_ARRAY(array);
 
     switch (action) {
 
@@ -814,7 +814,7 @@ zero_blk:
         //
         // !!! Is relying on action numbers a good idea in general?
         //
-        FAIL_IF_PROTECTED_ARRAY(VAL_ARRAY(arg));
+        FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(arg));
 
         if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)) {
             val = *VAL_ARRAY_AT(value);

@@ -819,13 +819,13 @@ REBNATIVE(set)
             // Hidden words are not shown in the WORDS-OF, and should not
             // count for consideration in positional setting.  Just skip.
             //
-            if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
                 continue;
 
             // Locked words cannot be modified, so a SET should error instead
             // of going ahead and changing them
             //
-            if (VAL_GET_EXT(key, EXT_WORD_LOCK))
+            if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
                 fail (Error_Protected_Key(key));
 
             // If we're setting to a single value and not a block, then
@@ -869,7 +869,7 @@ REBNATIVE(set)
         // padding to NONE if requested
         //
         for (; NOT_END(key); key++, var++) {
-            if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
                 continue;
 
             if (IS_END(value)) {

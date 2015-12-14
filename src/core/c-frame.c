@@ -561,7 +561,7 @@ REBARR *Collect_Keylist_Managed(
             //
             REBVAL *self_key = ARRAY_AT(BUF_COLLECT, 1);
             Val_Init_Typeset(self_key, ALL_64, SYM_SELF);
-            VAL_SET_EXT(self_key, EXT_WORD_HIDE);
+            VAL_SET_EXT(self_key, EXT_TYPESET_HIDDEN);
             binds[VAL_TYPESET_CANON(self_key)] = 1;
             *self_index_out = 1;
             SET_ARRAY_LEN(BUF_COLLECT, 2); // TASK_BUF_COLLECT is at least 2
@@ -735,7 +735,7 @@ REBFRM *Make_Selfish_Frame_Detect(
                 Val_Init_Typeset(
                     FRAME_KEY(frame, self_index), ALL_64, SYM_SELF
                 );
-                VAL_SET_EXT(FRAME_KEY(frame, self_index), EXT_WORD_HIDE);
+                VAL_SET_EXT(FRAME_KEY(frame, self_index), EXT_TYPESET_HIDDEN);
             }
             else {
                 // The parent had a SELF already, so we can reuse its keylist
@@ -751,7 +751,7 @@ REBFRM *Make_Selfish_Frame_Detect(
             Val_Init_Typeset(
                 Alloc_Tail_Array(FRAME_KEYLIST(frame)), ALL_64, SYM_SELF
             );
-            VAL_SET_EXT(FRAME_KEY(frame, self_index), EXT_WORD_HIDE);
+            VAL_SET_EXT(FRAME_KEY(frame, self_index), EXT_TYPESET_HIDDEN);
             Alloc_Tail_Array(FRAME_VARLIST(frame));
             MANAGE_FRAME(frame);
         }
@@ -904,7 +904,7 @@ REBARR *Object_To_Array(REBFRM *frame, REBINT mode)
 
     n = 1;
     for (; !IS_END(key); n++, key++, var++) {
-        if (!VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+        if (!VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
             if (mode & 1) {
                 value = Alloc_Tail_Array(block);
                 if (mode & 2) {
@@ -934,7 +934,7 @@ void Assert_Public_Object(const REBVAL *value)
     REBVAL *key = ARRAY_HEAD(FRAME_KEYLIST(VAL_FRAME(value)));
 
     for (; NOT_END(key); key++)
-        if (VAL_GET_EXT(key, EXT_WORD_HIDE)) fail (Error(RE_HIDDEN));
+        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) fail (Error(RE_HIDDEN));
 }
 
 
@@ -1063,7 +1063,7 @@ void Resolve_Context(
 
     CHECK_BIND_TABLE;
 
-    FAIL_IF_PROTECTED_FRAME(target);
+    FAIL_IF_LOCKED_FRAME(target);
 
     if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
         i = VAL_INT32(only_words); // never <= 0
@@ -1127,7 +1127,7 @@ void Resolve_Context(
         if ((m = binds[VAL_TYPESET_CANON(key)])) {
             binds[VAL_TYPESET_CANON(key)] = 0; // mark it as set
             if (
-                !VAL_GET_EXT(key, EXT_WORD_LOCK)
+                !VAL_GET_EXT(key, EXT_TYPESET_LOCKED)
                 && (all || IS_UNSET(var))
             ) {
                 if (m < 0) SET_UNSET(var); // no value in source context
@@ -1260,7 +1260,7 @@ void Bind_Values_Core(REBVAL value[], REBFRM *frame, REBCNT mode)
     index = 1;
     key = FRAME_KEYS_HEAD(frame);
     for (; index <= FRAME_LEN(frame); key++, index++) {
-        if (!VAL_GET_OPT(key, EXT_WORD_HIDE))
+        if (!VAL_GET_OPT(key, EXT_TYPESET_HIDDEN))
             binds[VAL_TYPESET_CANON(key)] = index;
     }
 
@@ -1509,7 +1509,7 @@ REBCNT Find_Word_Index(REBFRM *frame, REBCNT sym, REBFLG always)
             sym == VAL_TYPESET_SYM(key)
             || canon == VAL_TYPESET_CANON(key)
         ) {
-            return (!always && VAL_GET_EXT(key, EXT_WORD_HIDE)) ? 0 : n;
+            return (!always && VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) ? 0 : n;
         }
     }
 
@@ -1588,7 +1588,9 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 
             if (
                 writable &&
-                VAL_GET_EXT(FRAME_KEY(AS_FRAME(target), index), EXT_WORD_LOCK)
+                VAL_GET_EXT(
+                    FRAME_KEY(AS_FRAME(target), index), EXT_TYPESET_LOCKED
+                )
             ) {
                 if (trap) fail (Error(RE_LOCKED_WORD, word));
                 return NULL;
@@ -1634,7 +1636,7 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
                         writable &&
                         VAL_GET_EXT(
                             FUNC_PARAM(DSF_FUNC(call), -index),
-                            EXT_WORD_LOCK
+                            EXT_TYPESET_LOCKED
                         )
                     ) {
                         if (trap) fail (Error(RE_LOCKED_WORD, word));
@@ -1690,14 +1692,18 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
             )
         );
 
-        if (VAL_GET_EXT(FRAME_KEY(AS_FRAME(target), index), EXT_WORD_LOCK))
+        if (VAL_GET_EXT(FRAME_KEY(AS_FRAME(target), index), EXT_TYPESET_LOCKED))
             fail (Error(RE_LOCKED_WORD, word));
 
         *FRAME_VAR(AS_FRAME(target), index) = *value;
         return;
     }
 
-    if (index == 0) fail (Error(RE_SELF_PROTECTED));
+    // This shouldn't be able to happen, now that 0 is not used to indicate
+    // SELF.  (0 is now reserved for future use.)
+    //
+    if (index == 0)
+        panic (Error(RE_MISC));
 
     // Find relative value:
     call = DSF;

@@ -729,7 +729,7 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
 
     // String series:
 
-    FAIL_IF_PROTECTED_SERIES(VAL_SERIES(val));
+    FAIL_IF_LOCKED_SERIES(VAL_SERIES(val));
 
     len = Partial(val, 0, part, 0);
     n = VAL_INDEX(val);

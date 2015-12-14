@@ -183,9 +183,8 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_LOCK        = 1 << 4,   // series is unexpandable
-    MKS_GC_MANUALS  = 1 << 5,   // used in implementation of series itself
-    MKS_FRAME       = 1 << 6    // is a frame w/key series (and legal UNSETs)
+    MKS_FRAME       = 1 << 4,   // is a frame with varlist and keylist
+    MKS_GC_MANUALS  = 1 << 5    // used in implementation of series itself
 };
 
 // Modes allowed by Copy_Block function:

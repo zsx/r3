@@ -1114,7 +1114,7 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
 
     index = 0;
     for (; NOT_END(key); key++) {
-        if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
             continue;
 
         syms[index] = VAL_TYPESET_CANON(key);
@@ -1170,7 +1170,7 @@ RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
     CLEARS(&value);
     word_id = Find_Word_Index(frame, word_id, FALSE);
     if (word_id == 0) return 0;
-    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_WORD_LOCK)) return 0;
+    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_TYPESET_LOCKED)) return 0;
     RXI_To_Value(FRAME_VAR(frame, word_id), val, type);
     return type;
 }

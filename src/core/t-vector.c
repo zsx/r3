@@ -492,7 +492,7 @@ REBINT PD_Vector(REBPVS *pvs)
     }
 
     //--- Set Value...
-    FAIL_IF_PROTECTED_SERIES(vect);
+    FAIL_IF_LOCKED_SERIES(vect);
 
     if (n <= 0 || cast(REBCNT, n) > SERIES_LEN(vect)) return PE_BAD_RANGE;
 
@@ -540,7 +540,7 @@ REBTYPE(Vector)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_SERIES(vect);
+        FAIL_IF_LOCKED_SERIES(vect);
 
     switch (action) {
 

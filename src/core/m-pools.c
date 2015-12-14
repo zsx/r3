@@ -569,7 +569,7 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
 // 
 // Allocates element array for an already allocated REBSER header
 // structure.  Resets the bias and tail to zero, and sets the new
-// width.  Flags like SER_PROTECT are left as they were, and other
+// width.  Flags like SER_LOCKED are left as they were, and other
 // fields in the series structure are untouched.
 // 
 // This routine can thus be used for an initial construction
@@ -646,7 +646,7 @@ static REBOOL Series_Data_Alloc(
     memset(series->data, 0xff, size);
 #endif
 
-    // Keep the series flags like SER_PROTECT, but use new width and bias to 0
+    // Keep the series flags like SER_LOCKED, but use new width and bias to 0
 
     series->info = ((series->info >> 8) << 8) | wide;
     SERIES_SET_BIAS(series, 0);
@@ -704,7 +704,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
             // purposes that this routine is checking for.  Closures use
             // series to gather their arguments, for instance.
             //
-            if (locked_ok && SERIES_GET_FLAG(series, SER_LOCK))
+            if (locked_ok && SERIES_GET_FLAG(series, SER_FIXED_SIZE))
                 continue;
 
             if (pointer < cast(void*,
@@ -830,8 +830,6 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
     series->info = 0; // start with all flags clear...
     series->content.dynamic.data = NULL;
-
-    if (flags & MKS_LOCK) SERIES_SET_FLAG(series, SER_LOCK);
 
     if (flags & MKS_EXTERNAL) {
         // External series will poke in their own data pointer after the
@@ -1033,7 +1031,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     // We need to expand the current series allocation.
 
-    if (SERIES_GET_FLAG(series, SER_LOCK)) panic (Error(RE_LOCKED_SERIES));
+    if (SERIES_GET_FLAG(series, SER_FIXED_SIZE)) panic (Error(RE_LOCKED_SERIES));
 
 #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
@@ -1137,9 +1135,10 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 
     // SER_EXTERNAL manages its own memory and shouldn't call Remake
     assert(!(flags & MKS_EXTERNAL));
+    assert(!SERIES_GET_FLAG(series, SER_EXTERNAL));
 
-    // SER_LOCK has unexpandable data and shouldn't call Remake
-    assert(!(flags & MKS_LOCK));
+    // SER_FIXED_SIZE has unexpandable data and shouldn't call Remake
+    assert(!SERIES_GET_FLAG(series, SER_FIXED_SIZE));
 
     // We only let you preserve if the data is the same width as original
 #if !defined(NDEBUG)

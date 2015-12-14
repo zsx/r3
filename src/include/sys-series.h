@@ -113,11 +113,11 @@
 enum {
     SER_MARK        = 1 << 0,   // was found during GC mark scan.
     SER_FRAME       = 1 << 1,   // object frame (unsets legal, has key series)
-    SER_LOCK        = 1 << 2,   // size is locked (do not expand it)
+    SER_FIXED_SIZE  = 1 << 2,   // size is fixed (do not expand it)
     SER_EXTERNAL    = 1 << 3,   // ->data is external, don't free() on GC
     SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
     SER_ARRAY       = 1 << 5,   // is sizeof(REBVAL) wide and has valid values
-    SER_PROTECT     = 1 << 6,   // protected from modification
+    SER_LOCKED      = 1 << 6,   // series size or values cannot be modified
     SER_POWER_OF_2  = 1 << 7    // true alloc size is rounded to power of 2
 };
 
@@ -321,8 +321,8 @@ struct Reb_Series {
 
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
 
-#define FAIL_IF_PROTECTED_SERIES(s) \
-    if (SERIES_GET_FLAG(s, SER_PROTECT)) fail (Error(RE_PROTECTED))
+#define FAIL_IF_LOCKED_SERIES(s) \
+    if (SERIES_GET_FLAG(s, SER_LOCKED)) fail (Error(RE_LOCKED))
 
 #ifdef SERIES_LABELS
     #define LABEL_SERIES(s,l) s->label = (l)
@@ -635,8 +635,8 @@ struct Reb_Array {
 #define ARRAY_CLR_FLAG(a,f)     SERIES_CLR_FLAG(ARRAY_SERIES(a), (f))
 #define ARRAY_GET_FLAG(a,f)     SERIES_GET_FLAG(ARRAY_SERIES(a), (f))
 
-#define FAIL_IF_PROTECTED_ARRAY(a) \
-    FAIL_IF_PROTECTED_SERIES(ARRAY_SERIES(a))
+#define FAIL_IF_LOCKED_ARRAY(a) \
+    FAIL_IF_LOCKED_SERIES(ARRAY_SERIES(a))
 
 #define PUSH_GUARD_ARRAY(a) \
     PUSH_GUARD_SERIES(ARRAY_SERIES(a))
@@ -776,8 +776,8 @@ struct Reb_Frame {
 #define FRAME_SPEC(f)           VAL_CONTEXT_SPEC(FRAME_CONTEXT(f))
 #define FRAME_BODY(f)           VAL_CONTEXT_BODY(FRAME_CONTEXT(f))
 
-#define FAIL_IF_PROTECTED_FRAME(f) \
-    FAIL_IF_PROTECTED_ARRAY(FRAME_VARLIST(f))
+#define FAIL_IF_LOCKED_FRAME(f) \
+    FAIL_IF_LOCKED_ARRAY(FRAME_VARLIST(f))
 
 #define FREE_FRAME(f) \
     do { \

@@ -367,7 +367,7 @@ REBINT PD_Map(REBPVS *pvs)
 
     if (!n) return PE_NONE;
 
-    FAIL_IF_PROTECTED_SERIES(VAL_SERIES(data));
+    FAIL_IF_LOCKED_SERIES(VAL_SERIES(data));
     pvs->value = VAL_ARRAY_AT_HEAD(data, ((n-1)*2)+1);
     return PE_OK;
 }
@@ -546,7 +546,7 @@ REBTYPE(Map)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_ARRAY(MAP_PAIRLIST(map));
+        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
 
     switch (action) {
 

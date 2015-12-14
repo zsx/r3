@@ -297,7 +297,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     if (into) {
         array = VAL_ARRAY(into);
 
-        FAIL_IF_PROTECTED_ARRAY(array);
+        FAIL_IF_LOCKED_ARRAY(array);
 
         if (ANY_ARRAY(into)) {
             // When the target is an any-block, we can do an ordinary

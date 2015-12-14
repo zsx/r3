@@ -907,7 +907,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
     // Mold all words and their values:
     for (; !IS_END(key); key++, var++) {
-        if (!VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+        if (!VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
             had_output = TRUE;
             Emit(mold, "N: V\n", VAL_TYPESET_SYM(key), var);
         }
@@ -941,7 +941,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     mold->indent++;
     for (; !IS_END(key); key++, var++) {
         if (
-            !VAL_GET_EXT(key, EXT_WORD_HIDE) &&
+            !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN) &&
             ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
         ){
             New_Indented_Line(mold);

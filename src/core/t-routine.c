@@ -322,7 +322,8 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
         stype = OS_ALLOC(ffi_type);
         QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
     } else {
-        REBSER * ser= Make_Series(2, sizeof(ffi_type), MKS_NONE | MKS_LOCK);
+        REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
+        SERIES_SET_FLAG(ser, SER_FIXED_SIZE);
         stype = cast(ffi_type*, SERIES_DATA(ser));
         PUSH_GUARD_SERIES(ser);
     }
@@ -335,8 +336,12 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
         stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
         //printf("allocated stype elements at: %p\n", stype->elements);
         QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
-    } else {
-        REBSER * ser= Make_Series(2 + n_struct_fields(fields), sizeof(ffi_type *), MKS_NONE | MKS_LOCK);
+    }
+    else {
+        REBSER *ser = Make_Series(
+            2 + n_struct_fields(fields), sizeof(ffi_type *), MKS_NONE
+        );
+        SERIES_SET_FLAG(ser, SER_FIXED_SIZE);
         stype->elements = cast(ffi_type**, SERIES_DATA(ser));
         PUSH_GUARD_SERIES(ser);
     }

@@ -491,7 +491,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
             }
             else if (ANY_CONTEXT(data_value)) {
                 if (VAL_GET_EXT(
-                    VAL_CONTEXT_KEY(data_value, index), EXT_WORD_HIDE
+                    VAL_CONTEXT_KEY(data_value, index), EXT_TYPESET_HIDDEN
                 )) {
                     // Do not evaluate this iteration
                     index++;

@@ -46,13 +46,13 @@ enum {
 static void Protect_Key(REBVAL *key, REBCNT flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
-        if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_WORD_LOCK);
-        else VAL_CLR_EXT(key, EXT_WORD_LOCK);
+        if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_TYPESET_LOCKED);
+        else VAL_CLR_EXT(key, EXT_TYPESET_LOCKED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
-        if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_WORD_HIDE);
-        else VAL_CLR_EXT(key, EXT_WORD_HIDE);
+        if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_TYPESET_HIDDEN);
+        else VAL_CLR_EXT(key, EXT_TYPESET_HIDDEN);
     }
 }
 
@@ -83,9 +83,9 @@ void Protect_Series(REBVAL *val, REBCNT flags)
     if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SERIES_SET_FLAG(series, SER_PROTECT);
+        SERIES_SET_FLAG(series, SER_LOCKED);
     else
-        SERIES_CLR_FLAG(series, SER_PROTECT);
+        SERIES_CLR_FLAG(series, SER_LOCKED);
 
     if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
@@ -110,9 +110,9 @@ void Protect_Object(REBVAL *value, REBCNT flags)
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
     else
-        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
 
     for (value = FRAME_KEY(frame, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
