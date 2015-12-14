@@ -1774,6 +1774,11 @@ void Assert_Frame_Core(REBFRM *frame)
         Panic_Frame(frame);
     }
 
+    if (var->payload.any_context.frame != frame) {
+        Debug_Fmt("Embedded frame in frame context doesn't match frame");
+        Panic_Frame(frame);
+    }
+
     key = FRAME_KEYS_HEAD(frame);
     var = FRAME_VARS_HEAD(frame);
 
