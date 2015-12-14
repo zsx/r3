@@ -55,7 +55,7 @@ bitset      *   ser
 vector      *   ser
 image       *   image
 
-gob         48  ser
+gob         48  ptr
 
 object      49  ptr
 module      *   ptr
