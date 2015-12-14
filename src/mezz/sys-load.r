@@ -350,7 +350,7 @@ load-boot-exts: function [
             ; no extension dispatcher (call) has been provided.
             hdr/name [
                 reduce/into [
-                    hdr/name mod if hdr/checksum [copy hdr/checksum]
+                    hdr/name mod either hdr/checksum [copy hdr/checksum][none]
                 ] system/modules
             ]
         ]
