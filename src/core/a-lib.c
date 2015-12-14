@@ -701,8 +701,8 @@ RL_API int RL_Accumulate_Event(REBEVT *evt)
 	REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
 	if (event) {
-		u32 tmp = event->data.event.data;
-		event->data.event.data = ((tmp & 0xFFFF) + (evt->data & 0xFFFF)) | ((tmp >> 16) + (evt->data >> 16)) << 16;
+		u32 tmp = VAL_EVENT_DATA(event);
+		VAL_EVENT_DATA(event) = ((tmp & 0xFFFF) + (evt->data & 0xFFFF)) | ((tmp >> 16) + (evt->data >> 16)) << 16;
 		return 1;
 	}
 	
@@ -896,7 +896,12 @@ RL_API int RL_Get_String(REBSER *series, u32 index, void **str)
 //
 RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 {
-    int len = (index >= series->tail) ? 0 : series->tail - index;
+    int len;
+
+    if (index >= SERIES_LEN(series))
+        len = 0;
+    else
+        len = SERIES_LEN(series) - index;
 
     if (BYTE_SIZE(series)) {
         *str = BIN_AT(series, index);
