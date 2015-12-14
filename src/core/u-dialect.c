@@ -371,6 +371,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     REBVAL *val;
     REBINT err;
     REBINT n;
+    REBSER *ser;
 
     // Get formal arguments block for this command:
     fargs = FRAME_VAR(dia->dialect, dia->cmd);
@@ -379,14 +380,15 @@ static REBINT Do_Cmd(REBDIA *dia)
     fargs = VAL_ARRAY_AT(fargs);
     size = Count_Dia_Args(fargs); // approximate
 
+    ser = ARRAY_SERIES(dia->out);
     // Preallocate output block (optimize for large blocks):
     if (dia->len > size) size = dia->len;
     if (GET_FLAG(dia->flags, RDIA_ALL)) {
-        Extend_Series(ARRAY_SERIES(dia->out), size + 1);
+        Extend_Series(ser, size + 1);
     }
     else {
-        Resize_Series(ARRAY_SERIES(dia->out), size + 1); // tail = 0
-        CLEAR_SEQUENCE(ARRAY_SERIES(dia->out)); // Ensure entirely cleared
+        Resize_Series(ser, size + 1); // tail = 0
+        CLEAR(SERIES_DATA(ser), SERIES_SPACE(ser)); // Ensure entirely cleared
     }
 
     // Insert command word:
