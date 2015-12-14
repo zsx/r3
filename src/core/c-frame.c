@@ -1653,107 +1653,15 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
             return NULL;
         }
 
-        // ZERO INDEX: The word is SELF.  Although the information needed
-        // to produce an OBJECT!-style REBVAL lives in the zero offset
-        // of the frame, it's not a value that we can return a direct
-        // pointer to.  Use GET_VAR_INTO instead for that.
+        // ZERO INDEX: Once this was used to indicate SELF references.  Now
+        // self is an ordinary (albeit hidden via protect/hide) word in the
+        // frame...so this is available for reuse.
         //
-        // !!! When SELF is eliminated as a system concept there will not
-        // be a need for the GET_VAR_INTO distinction.
-
-        if (trap) fail (Error(RE_SELF_PROTECTED));
-        return NULL; // is this a case where we should *always* trap?
+        panic (Error(RE_MISC));
     }
 
     if (trap) fail (Error(RE_NOT_BOUND, word));
     return NULL;
-}
-
-
-//
-//  Get_Var_Into_Core: C
-// 
-// Variant of Get_Var_Core that always traps and never returns a
-// direct pointer into a frame.  It is thus able to give back
-// `self` lookups, and doesn't have to check the word's protection
-// status before returning.
-// 
-// See comments in Get_Var_Core for what it's actually doing.
-//
-void Get_Var_Into_Core(REBVAL *out, const REBVAL *word)
-{
-    REBARR *target = VAL_WORD_TARGET(word);
-
-    if (target) {
-        REBINT index = VAL_WORD_INDEX(word);
-
-        if (index > 0) {
-            assert(
-                SAME_SYM(
-                    VAL_WORD_SYM(word),
-                    VAL_TYPESET_SYM(FRAME_KEY(AS_FRAME(target), index))
-                )
-            );
-
-            *out = *(FRAME_VAR(AS_FRAME(target), index));
-
-        #if !defined(NDEBUG)
-            if (IS_TRASH_DEBUG(out)) {
-                Debug_Fmt("Trash value found in frame during Get_Var");
-                Panic_Frame(AS_FRAME(target));
-            }
-            assert(!THROWN(out));
-        #endif
-
-            return;
-        }
-
-        if (index < 0) {
-            //
-            // "stack relative" and framelike is actually a paramlist of a
-            // function.  So to get the values we have to look on the call
-            // stack to find them, vs. just having access to them in the frame
-            //
-            struct Reb_Call *call = DSF;
-            while (call) {
-                if (
-                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
-                    && target == FUNC_PARAMLIST(DSF_FUNC(call))
-                ) {
-                    assert(
-                        SAME_SYM(
-                            VAL_WORD_SYM(word),
-                            VAL_TYPESET_SYM(
-                                FUNC_PARAM(DSF_FUNC(call), -index)
-                            )
-                        )
-                    );
-                    assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
-                    *out = *DSF_ARG(call, -index);
-                    assert(!IS_TRASH_DEBUG(out));
-                    assert(!THROWN(out));
-                    return;
-                }
-                call = PRIOR_DSF(call);
-            }
-
-            fail (Error(RE_NO_RELATIVE, word));
-        }
-
-        // Key difference between Get_Var_Into and Get_Var...can return a
-        // SELF.  We don't want to give back a direct pointer to it, because
-        // the user being able to modify the [0] slot in a frame would break
-        // system assumptions.
-        //
-        // !!! With the elimination of SELF as a system concept, there should
-        // be no need for Get_Var_Into.
-
-        assert(ANY_CONTEXT(FRAME_CONTEXT(AS_FRAME(target))));
-        *out = *FRAME_CONTEXT(AS_FRAME(target));
-        return;
-    }
-
-    fail (Error(RE_NOT_BOUND, word));
 }
 
 

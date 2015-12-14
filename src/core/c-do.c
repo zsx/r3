@@ -992,7 +992,7 @@ reevaluate:
     // [WORD!]
     //
     case REB_WORD:
-        GET_VAR_INTO(c->out, c->value);
+        *c->out = *GET_VAR(c->value);
 
     do_fetched_word:
         if (IS_UNSET(c->out)) fail (Error(RE_NO_VALUE, c->value));
@@ -2001,7 +2001,7 @@ reevaluate:
     // [GET-WORD!]
     //
     case REB_GET_WORD:
-        GET_VAR_INTO(c->out, c->value);
+        *c->out = *GET_VAR(c->value);
         c->index++;
         break;
 
@@ -2073,16 +2073,21 @@ reevaluate:
 
         if (IS_WORD(c->value)) {
             //
-            // WORD! values may look up to an infix function.  We get the
-            // value to check into the spare cell, because we cannot write
-            // over ->out if we need to use it as the first argument to
-            // the infix call...
+            // WORD! values may look up to an infix function.  Get the
+            // pointer to the variable temporarily into `arg` to avoid
+            // overwriting `out`, and preserve `value` because we need
+            // to know what the word was for error reports and labeling.
             //
-            GET_VAR_INTO(&c->cell, c->value);
-            if (ANY_FUNC(&c->cell) && VAL_GET_EXT(&c->cell, EXT_FUNC_INFIX)) {
+            // (The mutability cast here is harmless as we do not modify
+            // the variable, we just don't want to limit the usages of
+            // `arg` or introduce more variables to Do_Core than needed.)
+            //
+            c->arg = m_cast(REBVAL*, GET_VAR(c->value));
+
+            if (ANY_FUNC(c->arg) && VAL_GET_EXT(c->arg, EXT_FUNC_INFIX)) {
                 c->label_sym = VAL_WORD_SYM(c->value);
-                if (Trace_Flags) Trace_Line(c->array, c->index, &c->cell);
-                c->func = VAL_FUNC(&c->cell);
+                if (Trace_Flags) Trace_Line(c->array, c->index, c->arg);
+                c->func = VAL_FUNC(c->arg);
                 assert(c->func != PG_Return_Func); // return isn't infix
                 goto do_function;
             }
@@ -2091,7 +2096,7 @@ reevaluate:
             // lookup.  If this isn't just a DO/NEXT, use the work!
             //
             if (c->flags & DO_FLAG_TO_END) {
-                *c->out = c->cell;
+                *c->out = *c->arg;
                 goto do_fetched_word;
             }
         }
@@ -2971,7 +2976,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
 void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
-        GET_VAR_INTO(out, val);
+        *out = *GET_VAR(val);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
         if (Do_Path_Throws(out, NULL, val, NULL))

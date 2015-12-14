@@ -1599,7 +1599,7 @@ REBNATIVE(switch)
             }
         #endif
 
-            GET_VAR_INTO(D_OUT, item);
+            *D_OUT = *GET_VAR(item);
         }
         else if (IS_GET_PATH(item)) {
 

@@ -454,13 +454,6 @@ enum encoding_opts {
 #define TRY_GET_MUTABLE_VAR(w) \
     (Get_Var_Core((w), FALSE, TRUE))
 
-// Makes a copy of the var's value, raises error on failure.
-// (Failure if unbound or stack-relative with no call on stack)
-// Copy means you can change it and not worry about PROTECT status of the var
-// NOTE: *value* itself may carry its own PROTECT status if series/object
-#define GET_VAR_INTO(v,w) \
-    (Get_Var_Into_Core((v), (w)))
-
 
 /***********************************************************************
 **
