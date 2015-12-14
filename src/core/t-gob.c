@@ -599,7 +599,7 @@ static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
         if (IS_END(val) || IS_UNSET(val) || IS_SET_WORD(val))
             fail (Error(RE_NEED_VALUE, var));
         Get_Simple_Value_Into(&safe, val);
-        if (!Set_GOB_Var(gob, var, val))
+        if (!Set_GOB_Var(gob, var, &safe))
             fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
     }
 }
