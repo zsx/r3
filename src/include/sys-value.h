@@ -226,11 +226,11 @@ struct Reb_Value_Header {
 // faster and more general to use the terminator.
 //
 // Ren-C changed this so that end is not a data type, but rather seeing a
-// header slot with the lowest bit set to 0.  (See OPTS_VALUE_NOT_END for
+// header slot with the lowest bit set to 0.  (See NOT_END_MASK for
 // an explanation of this choice.)  The upshot is that a data structure
 // designed to hold Rebol arrays is able to terminate an array at full
 // capacity with a pointer-sized value with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See OPTS_VALUE_REBVAL_DEBUG
+// use the rest of the bits for other purposes.  (See SETTABLE_MASK_DEBUG
 // for why it's the low 2 bits and not just the lowest bit.)
 //
 // This means not only is a full REBVAL not needed to terminate, the sunk cost

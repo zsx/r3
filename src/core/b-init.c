@@ -806,7 +806,9 @@ static void Init_Task_Context(void)
 //
 //  Init_System_Object: C
 // 
-// The system object is defined in boot.r.
+// Evaluate the system object and create the global SYSTEM word.  We do not
+// BIND_ALL here to keep the internal system words out of the global context.
+// (See also N_context() which creates the subobjects of the system object.)
 //
 static void Init_System_Object(void)
 {
@@ -816,12 +818,8 @@ static void Init_System_Object(void)
     REBCNT n;
     REBVAL result;
 
-    // Evaluate the system object and create the global SYSTEM word.
-    // We do not BIND_ALL here to keep the internal system words out
-    // of the global context. See also N_context() which creates the
-    // subobjects of the system object.
-
-    // Create the system object from the sysobj block and bind its fields:
+    // Create the system object from the sysobj block (defined in %sysobj.r)
+    //
     frame = Make_Selfish_Frame_Detect(
         REB_OBJECT, // type
         NULL, // spec
@@ -832,14 +830,17 @@ static void Init_System_Object(void)
 
     Bind_Values_Deep(VAL_ARRAY_HEAD(&Boot_Block->sysobj), Lib_Context);
 
-    // Bind it so CONTEXT native will work (only used at topmost depth):
+    // Bind it so CONTEXT native will work (only used at topmost depth)
+    //
     Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), frame);
 
-    // Evaluate the block (will eval FRAMEs within):
+    // Evaluate the block (will eval FRAMEs within)
+    //
     if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
 
     // Expects UNSET! by convention
+    //
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));
 
@@ -856,8 +857,8 @@ static void Init_System_Object(void)
     //
     Val_Init_Object(ROOT_SYSTEM, frame);
 
-    // Create system/datatypes block:
-//  value = Get_System(SYS_DATATYPES, 0);
+    // Create system/datatypes block
+    //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
     Extend_Series(ARRAY_SERIES(array), REB_MAX - 1);
@@ -865,35 +866,30 @@ static void Init_System_Object(void)
         Append_Value(array, FRAME_VAR(Lib_Context, n));
     }
 
-    // Create system/catalog/datatypes block:
-//  value = Get_System(SYS_CATALOG, CAT_DATATYPES);
-//  Val_Init_Block(value, Copy_Blk(VAL_SERIES(&Boot_Block->types)));
-
-    // Create system/catalog/actions block:
+    // Create system/catalog/actions block
+    //
     value = Get_System(SYS_CATALOG, CAT_ACTIONS);
     Val_Init_Block(
         value,
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->actions))
     );
 
-    // Create system/catalog/actions block:
+    // Create system/catalog/natives block
+    //
     value = Get_System(SYS_CATALOG, CAT_NATIVES);
     Val_Init_Block(
         value,
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->natives))
     );
 
-    // Create system/codecs object:
+    // Create system/codecs object
+    //
     value = Get_System(SYS_CODECS, 0);
     frame = Alloc_Frame(10);
     VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
     Val_Init_Object(value, frame);
-
-    // Set system/words to be the main context:
-//  value = Get_System(SYS_WORDS, 0);
-//  Val_Init_Object(value, Lib_Context);
 }
 
 
