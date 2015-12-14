@@ -279,8 +279,23 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
             QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_CONTENT(gob)));
     }
 
-    if (GOB_DATA(gob) && GOB_DTYPE(gob) && GOB_DTYPE(gob) != GOBD_INTEGER)
-        QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_DATA(gob)));
+    if (GOB_DATA(gob)) {
+        switch (GOB_DTYPE(gob)) {
+        case GOBD_INTEGER:
+        case GOBD_NONE:
+        default:
+            break;
+        case GOBD_OBJECT:
+            QUEUE_MARK_FRAME_DEEP(AS_FRAME(GOB_DATA(gob)));
+            break;
+        case GOBD_STRING:
+        case GOBD_BINARY:
+            MARK_SERIES_ONLY(GOB_DATA(gob));
+            break;
+        case GOBD_BLOCK:
+            QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_DATA(gob)));
+        }
+    }
 }
 
 
