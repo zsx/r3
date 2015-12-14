@@ -44,8 +44,8 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
 
     // Common setup code for all actions:
     if (action != A_MAKE && action != A_TO) {
-        index = (REBINT)VAL_INDEX(value);
-        tail  = (REBINT)VAL_TAIL(value);
+        index = cast(REBINT, VAL_INDEX(value));
+        tail = cast(REBINT, VAL_LEN_HEAD(value));
     } else return -1;
 
     switch (action) {
@@ -112,7 +112,7 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
 
     case A_REMOVE:
         // /PART length
-        FAIL_IF_PROTECTED_SERIES(VAL_SERIES(value));
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
         len = D_REF(2) ? Partial(value, 0, D_ARG(3), 0) : 1;
         index = (REBINT)VAL_INDEX(value);
         if (index < tail && len != 0)

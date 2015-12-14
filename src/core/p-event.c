@@ -81,26 +81,26 @@ REBVAL *Append_Event(void)
     if (!IS_PORT(port)) return 0; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
+    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return 0;
 
     // Append to tail if room:
     if (SERIES_FULL(VAL_SERIES(state))) {
-        if (VAL_TAIL(state) > EVENTS_LIMIT) {
+        if (VAL_LEN_HEAD(state) > EVENTS_LIMIT) {
             panic (Error(RE_MAX_EVENTS));
         } else {
             Extend_Series(VAL_SERIES(state), EVENTS_CHUNK);
             //RL_Print("event queue increased to :%d\n", SERIES_REST(VAL_SERIES(state)));
         }
     }
-    VAL_TAIL(state)++;
+    SET_SERIES_LEN(VAL_SERIES(state), VAL_LEN_HEAD(state) + 1);
     value = VAL_ARRAY_TAIL(state);
     SET_END(value);
     value--;
     SET_NONE(value);
 
     //Dump_Series(VAL_SERIES(state), "state");
-    //Print("Tail: %d %d", VAL_TAIL(state), nn++);
+    //Print("Tail: %d %d", VAL_LEN_HEAD(state), nn++);
 
     return value;
 }
@@ -121,7 +121,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
     if (!IS_PORT(port)) return NULL; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
+    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return NULL;
 
     value = VAL_ARRAY_TAIL(state) - 1;
@@ -191,13 +191,13 @@ act_blk:
         return result; // return condition
 
     case A_CLEAR:
-        VAL_TAIL(state) = 0;
+        SET_SERIES_LEN(VAL_SERIES(state), 0);
         VAL_TERM_ARRAY(state);
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 
     case A_LENGTH:
-        SET_INTEGER(D_OUT, VAL_TAIL(state));
+        SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
     case A_OPEN:

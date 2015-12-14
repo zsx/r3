@@ -203,16 +203,14 @@ void Dump_Stack(struct Reb_Call *call, REBINT dsp)
         dsp,
         Get_Sym_Name(DSF_LABEL_SYM(call)),
         m,
-        Get_Type_Name(DSF_FUNC(call))
+        Get_Type_Name(FUNC_VALUE(DSF_FUNC(call)))
     );
 
     if (call) {
-        if (ANY_FUNC(DSF_FUNC(call))) {
-            args = ARRAY_HEAD(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
-            m = ARRAY_LEN(VAL_FUNC_PARAMLIST(DSF_FUNC(call)));
-            for (n = 1; n < m; n++)
-                Debug_Fmt("\t%s: %72r", Get_Sym_Name(VAL_TYPESET_SYM(args+n)), DSF_ARG(call, n));
-        }
+        args = FUNC_PARAMS_HEAD(DSF_FUNC(call));
+        m = FUNC_NUM_PARAMS((DSF_FUNC(call)));;
+        for (n = 1; n < m; n++)
+            Debug_Fmt("\t%s: %72r", Get_Sym_Name(VAL_TYPESET_SYM(args+n)), DSF_ARG(call, n));
         //Debug_Fmt(Str_Stack[2], PRIOR_DSF(dsf));
         if (PRIOR_DSF(call)) Dump_Stack(PRIOR_DSF(call), dsp);
     }

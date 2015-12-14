@@ -46,6 +46,12 @@ void Push_Trap_Helper(REBOL_STATE *s)
 
     s->call = DSF;
 
+    // There should not be a Collect_Keys in progress.  (We use a non-zero
+    // length of the collect buffer to tell if a later fail() happens in
+    // the middle of a Collect_Keys.)
+    //
+    assert(ARRAY_LEN(BUF_COLLECT) == 0);
+
     s->series_guard_len = SERIES_LEN(GC_Series_Guard);
     s->value_guard_len = SERIES_LEN(GC_Value_Guard);
     s->gc_disable = GC_Disabled;
@@ -104,6 +110,14 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     while (TG_Top_Chunk != state->top_chunk)
         Drop_Chunk(NULL);
 
+    // If we were in the middle of a Collect_Keys and an error occurs, then
+    // the thread-global binding lookup table has entries in it that need
+    // to be zeroed out.  We can tell if that's necessary by whether there
+    // is anything accumulated in the collect buffer.
+    //
+    if (ARRAY_LEN(BUF_COLLECT) != 0)
+        Collect_Keys_End();
+
     // Free any manual series that were extant at the time of the error
     // (that were created since this PUSH_TRAP started).  This includes
     // any arglist series in call frames that have been wiped off the stack.
@@ -113,7 +127,7 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     while (SERIES_LEN(GC_Manuals) != state->manuals_len) {
         // Freeing the series will update the tail...
         Free_Series(
-            cast(REBSER**, GC_Manuals->data)[SERIES_LEN(GC_Manuals) - 1]
+            cast(REBSER**, SERIES_DATA(GC_Manuals))[SERIES_LEN(GC_Manuals) - 1]
         );
     }
 
@@ -320,63 +334,69 @@ REBARR *Make_Backtrace(REBINT start)
 //
 REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 {
-    // See %errors.r for the list of data which is loaded into the boot
-    // file as objects for the "error catalog"
-    REBFRM *categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
-
+    REBFRM *categories;
     REBFRM *category;
     REBCNT n;
     REBVAL *message;
 
+    // See %errors.r for the list of data which is loaded into the boot
+    // file as objects for the "error catalog"
+    //
+    categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+    assert(FRAME_KEY_CANON(categories, 1) == SYM_SELF);
+
     // Find the correct catalog category
     n = code / 100; // 0 for Special, 1 for Internal...
-    if (n > FRAME_LEN(categories))
+    if (SELFISH(n + 1) > FRAME_LEN(categories)) // 1-based, not 0 based
         return NULL;
 
     // Get frame of object representing the elements of the category itself
-    if (!IS_OBJECT(FRAME_VAR(categories, n + 1))) {
+    if (!IS_OBJECT(FRAME_VAR(categories, SELFISH(n + 1)))) {
         assert(FALSE);
         return NULL;
     }
-    category = VAL_FRAME(FRAME_VAR(categories, n + 1));
+    category = VAL_FRAME(FRAME_VAR(categories, SELFISH(n + 1)));
+    assert(FRAME_KEY_CANON(category, 1) == SYM_SELF);
 
     // Find the correct template in the catalog category (see %errors.r)
     n = code % 100; // 0-based order within category
-    if (n + 2 > FRAME_LEN(category)) // +2 account for CODE: TYPE:
+    if (SELFISH(n + 2) > FRAME_LEN(category)) // 1-based (CODE: TYPE:)
         return NULL;
 
     // Sanity check CODE: field of category object
-    if (!IS_INTEGER(FRAME_VAR(category, 1))) {
+    if (!IS_INTEGER(FRAME_VAR(category, SELFISH(1)))) {
         assert(FALSE);
         return NULL;
     }
     assert(
-        cast(REBCNT, VAL_INT32(FRAME_VAR(category, 1))) == (code / 100) * 100
+        (code / 100) * 100
+        == cast(REBCNT, VAL_INT32(FRAME_VAR(category, SELFISH(1))))
     );
 
     // Sanity check TYPE: field of category object
     // !!! Same spelling as what we set in VAL_WORD_SYM(type_out))?
-    if (!IS_STRING(FRAME_VAR(category, 2))) {
+    if (!IS_STRING(FRAME_VAR(category, SELFISH(2)))) {
         assert(FALSE);
         return NULL;
     }
 
-    message = FRAME_VAR(category, n + 3);
+    message = FRAME_VAR(category, SELFISH(n + 3));
 
     // Error message template must be string or block
     assert(IS_BLOCK(message) || IS_STRING(message));
 
     // Success! Write category word from the category list frame key sym,
     // and specific error ID word from the frame key sym within category
+    //
     Val_Init_Word_Unbound(
         type_out,
         REB_WORD,
-        VAL_TYPESET_SYM(FRAME_KEY(categories, (code / 100) + 1))
+        FRAME_KEY_SYM(categories, SELFISH((code / 100) + 1))
     );
     Val_Init_Word_Unbound(
         id_out,
         REB_WORD,
-        VAL_TYPESET_SYM(FRAME_KEY(category, (code % 100) + 3))
+        FRAME_KEY_SYM(category, SELFISH((code % 100) + 3))
     );
 
     return message;
@@ -483,7 +503,7 @@ REBFLG Make_Error_Object_Throws(
         // be inconsistent with a Rebol system error, an error will be
         // raised later in the routine.
 
-        frame = Merge_Frames(root_frame, VAL_FRAME(arg));
+        frame = Merge_Frames_Selfish(root_frame, VAL_FRAME(arg));
         error_obj = ERR_VALUES(frame);
     }
     else if (IS_BLOCK(arg)) {
@@ -495,7 +515,7 @@ REBFLG Make_Error_Object_Throws(
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Object) and code in REBNATIVE(construct))
 
-        frame = Make_Frame_Detect(
+        frame = Make_Selfish_Frame_Detect(
             REB_ERROR, // type
             NULL, // spec
             NULL, // body
@@ -540,7 +560,7 @@ REBFLG Make_Error_Object_Throws(
 
         frame = Copy_Frame_Shallow_Managed(root_frame);
 
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR); // !!! fix in Init_Errors()?
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR); // !!! fix in Init_Errors()?
 
         error_obj = ERR_VALUES(frame);
         assert(IS_NONE(&error_obj->code));
@@ -632,18 +652,22 @@ REBFLG Make_Error_Object_Throws(
             REBCNT code;
             REBVAL *message;
 
-            assert(IS_OBJECT(category)); // SELF: 0
+            assert(IS_OBJECT(category));
+
+            assert(VAL_CONTEXT_KEY_SYM(category, 1) == SYM_SELF);
 
             assert(
-                SAME_SYM(VAL_TYPESET_SYM(VAL_CONTEXT_KEY(category, 1)), SYM_CODE)
+                SAME_SYM(VAL_CONTEXT_KEY_SYM(category, SELFISH(1)), SYM_CODE)
             );
-            assert(IS_INTEGER(VAL_CONTEXT_VALUE(category, 1)));
-            code = cast(REBCNT, VAL_INT32(VAL_CONTEXT_VALUE(category, 1)));
+            assert(IS_INTEGER(VAL_CONTEXT_VAR(category, SELFISH(1))));
+            code = cast(REBCNT,
+                VAL_INT32(VAL_CONTEXT_VAR(category, SELFISH(1)))
+            );
 
             assert(
-                SAME_SYM(VAL_TYPESET_SYM(VAL_CONTEXT_KEY(category, 2)), SYM_TYPE)
+                SAME_SYM(VAL_CONTEXT_KEY_SYM(category, SELFISH(2)), SYM_TYPE)
             );
-            assert(IS_STRING(VAL_CONTEXT_VALUE(category, 2)));
+            assert(IS_STRING(VAL_CONTEXT_VAR(category, SELFISH(2))));
 
             // Find correct message for ID: (if any)
             message = Find_Word_Value(
@@ -660,7 +684,9 @@ REBFLG Make_Error_Object_Throws(
 
                 SET_INTEGER(&error_obj->code,
                     code
-                    + Find_Word_Index(frame, VAL_WORD_SYM(&error_obj->id), FALSE)
+                    + Find_Word_Index(
+                        frame, VAL_WORD_SYM(&error_obj->id), FALSE
+                    )
                     - Find_Word_Index(frame, SYM_TYPE, FALSE)
                     - 1
                 );
@@ -843,7 +869,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // !!! Should tweak root frame during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
     }
     else {
         REBCNT root_len = FRAME_LEN(root_frame);
@@ -860,7 +886,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
         // !!! Should tweak root frame during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_SET(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
 
         // Fix up the tail first so FRAME_KEY and FRAME_VAR don't complain
         // in the debug build that they're accessing beyond the frame length
@@ -1328,8 +1354,10 @@ void Init_Errors(REBVAL *errors)
 
     Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
-    // Create objects for all error types:
-    for (val = FRAME_VAR(errs, 1); NOT_END(val); val++) {
+    // Create objects for all error types (CAT_ERRORS is "selfish", currently
+    // so self is in slot 1 and the actual errors start at frame slot 2)
+    //
+    for (val = FRAME_VAR(errs, SELFISH(1)); NOT_END(val); val++) {
         errs = Construct_Frame(REB_OBJECT, VAL_ARRAY_HEAD(val), FALSE, NULL);
         Val_Init_Object(val, errs);
     }
@@ -1408,8 +1436,8 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
             //Debug_Fmt("sec: %r %r", policy, name);
             if (Match_Sub_Path(VAL_SERIES(policy), VAL_SERIES(name))) {
                 // Is the match adequate?
-                if (VAL_TAIL(name) >= len) {
-                    len = VAL_TAIL(name);
+                if (VAL_LEN_HEAD(name) >= len) {
+                    len = VAL_LEN_HEAD(name);
                     flags = VAL_TUPLE(policy+1); // non-aligned
                 }
             }

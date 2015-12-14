@@ -475,7 +475,7 @@ void Val_Init_Series_Index_Core(
         ASSERT_SERIES_TERM(series); // doesn't apply to image/vector
     }
 
-    VAL_SET(value, type);
+    VAL_RESET_HEADER(value, type);
     VAL_SERIES(value) = series;
     VAL_INDEX(value) = index;
 }
@@ -488,7 +488,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 {
     REBYTE *bp;
 
-    VAL_SET(value, REB_TUPLE);
+    VAL_RESET_HEADER(value, REB_TUPLE);
     VAL_TUPLE_LEN(value) = (REBYTE)len;
     for (bp = VAL_TUPLE(value); len > 0; len--)
         *bp++ = *bytes++;
@@ -547,8 +547,8 @@ void Val_Init_Context_Core(
 //
 REBCNT Val_Series_Len_At(const REBVAL *value)
 {
-    if (VAL_INDEX(value) >= VAL_TAIL(value)) return 0;
-    return VAL_TAIL(value) - VAL_INDEX(value);
+    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
+    return VAL_LEN_HEAD(value) - VAL_INDEX(value);
 }
 
 
@@ -559,8 +559,8 @@ REBCNT Val_Series_Len_At(const REBVAL *value)
 //
 REBCNT Val_Byte_Len(const REBVAL *value)
 {
-    if (VAL_INDEX(value) >= VAL_TAIL(value)) return 0;
-    return (VAL_TAIL(value) - VAL_INDEX(value)) * SERIES_WIDE(VAL_SERIES(value));
+    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
+    return (VAL_LEN_HEAD(value) - VAL_INDEX(value)) * SERIES_WIDE(VAL_SERIES(value));
 }
 
 
@@ -597,8 +597,8 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
     // If lval is not set, use the current len of the target value:
     if (IS_UNSET(lval)) {
         if (!is_ser) return 1;
-        if (VAL_INDEX(sval) >= VAL_TAIL(sval)) return 0;
-        return (VAL_TAIL(sval) - VAL_INDEX(sval));
+        if (VAL_INDEX(sval) >= VAL_LEN_HEAD(sval)) return 0;
+        return (VAL_LEN_HEAD(sval) - VAL_INDEX(sval));
     }
     if (IS_INTEGER(lval) || IS_DECIMAL(lval)) len = Int32(lval);
     else {
@@ -652,8 +652,8 @@ REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval, REBFLG flag)
     // If lval is unset, use the current len of the target value:
     if (IS_UNSET(lval)) {
         val = (bval && ANY_SERIES(bval)) ? bval : aval;
-        if (VAL_INDEX(val) >= VAL_TAIL(val)) return 0;
-        return (VAL_TAIL(val) - VAL_INDEX(val));
+        if (VAL_INDEX(val) >= VAL_LEN_HEAD(val)) return 0;
+        return (VAL_LEN_HEAD(val) - VAL_INDEX(val));
     }
 
     if (IS_INTEGER(lval)) {

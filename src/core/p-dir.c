@@ -64,7 +64,7 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
         if (GET_FLAG(file.modes, RFM_DIR)) len++;
         name = Copy_OS_Str(file.special.file.path, len);
         if (GET_FLAG(file.modes, RFM_DIR))
-            SET_ANY_CHAR(name, name->tail-1, '/');
+            SET_ANY_CHAR(name, SERIES_LEN(name) - 1, '/');
         Val_Init_File(Alloc_Tail_Array(files), name);
     }
 
@@ -103,8 +103,8 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
 
     // We depend on To_Local_Path giving us 2 extra chars for / and *
     ser = Value_To_OS_Path(path, TRUE);
-    len = ser->tail;
-    dir->special.file.path = cast(REBCHR*, ser->data);
+    len = SERIES_LEN(ser);
+    dir->special.file.path = cast(REBCHR*, SERIES_DATA(ser));
 
     Secure_Port(SYM_FILE, dir, path, ser);
 
@@ -248,7 +248,7 @@ create:
             // Convert file name to OS format:
             if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
                 fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
-            dir.common.data = BIN_DATA(target);
+            dir.common.data = BIN_HEAD(target);
             OS_DO_DEVICE(&dir, RDC_RENAME);
             Free_Series(target);
             if (dir.error) fail (Error(RE_NO_RENAME, path));

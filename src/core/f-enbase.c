@@ -210,7 +210,7 @@ static REBSER *Decode_Base2(const REBYTE **src, REBCNT len, REBYTE delim)
     if (count) goto err; // improper modulus
 
     *bp = 0;
-    ser->tail = bp - STR_HEAD(ser);
+    SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
     return ser;
 
 err:
@@ -234,7 +234,7 @@ static REBSER *Decode_Base16(const REBYTE **src, REBCNT len, REBYTE delim)
     REBSER *ser;
 
     ser = Make_Binary(len / 2);
-    bp = STR_HEAD(ser);
+    bp = BIN_HEAD(ser);
     cp = *src;
 
     for (; len > 0; cp++, len--) {
@@ -254,7 +254,7 @@ static REBSER *Decode_Base16(const REBYTE **src, REBCNT len, REBYTE delim)
     if (count & 1) goto err; // improper modulus
 
     *bp = 0;
-    ser->tail = bp - STR_HEAD(ser);
+    SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
     return ser;
 
 err:
@@ -279,7 +279,7 @@ static REBSER *Decode_Base64(const REBYTE **src, REBCNT len, REBYTE delim)
     // Allocate buffer large enough to hold result:
     // Accounts for e bytes decoding into 3 bytes.
     ser = Make_Binary(((len + 3) * 3) / 4);
-    bp = STR_HEAD(ser);
+    bp = BIN_HEAD(ser);
     cp = *src;
 
     for (; len > 0; cp++, len--) {
@@ -331,7 +331,7 @@ static REBSER *Decode_Base64(const REBYTE **src, REBCNT len, REBYTE delim)
     if (flip) goto err;
 
     *bp = 0;
-    ser->tail = bp - STR_HEAD(ser);
+    SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
     return ser;
 
 err:
@@ -414,7 +414,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
 
     if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
 
-    SET_SERIES_LEN(series, cast(REBCNT, p - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
     return series;
 }
 
@@ -454,7 +454,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
     if (*(bp-1) != LF && (len >= 32) && brk) *bp++ = LF;
     *bp = 0;
 
-    SET_SERIES_LEN(series, cast(REBCNT, bp - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, bp - SERIES_DATA(series)));
 
     return series;
 }
@@ -515,7 +515,7 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
     //
     // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
     //
-    SET_SERIES_LEN(series, cast(REBCNT, p - series->data));
+    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
 
     return series;
 }

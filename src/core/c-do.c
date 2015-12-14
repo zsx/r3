@@ -686,34 +686,40 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
     //
     assert(IS_END(call_->param));
     call_->refine = NULL;
-    if (IS_CLOSURE(&call_->func))
+    if (IS_CLOSURE(FUNC_VALUE(call_->func)))
         call_->arg = NULL;
     else
         call_->arg = &call_->arglist.chunk[0];
 
-    if (Trace_Flags) Trace_Func(D_LABEL_SYM, D_FUNC);
+    if (Trace_Flags) Trace_Func(D_LABEL_SYM, FUNC_VALUE(D_FUNC));
 
     call_->mode = CALL_MODE_FUNCTION;
 
-    switch (VAL_TYPE(D_FUNC)) {
+    switch (VAL_TYPE(FUNC_VALUE(D_FUNC))) {
     case REB_NATIVE:
         threw = Do_Native_Throws(call_);
         break;
+
     case REB_ACTION:
         threw = Do_Action_Throws(call_);
         break;
+
     case REB_COMMAND:
         threw = Do_Command_Throws(call_);
         break;
+
     case REB_CLOSURE:
         threw = Do_Closure_Throws(call_);
         break;
+
     case REB_FUNCTION:
         threw = Do_Function_Throws(call_);
         break;
+
     case REB_ROUTINE:
         threw = Do_Routine_Throws(call_);
         break;
+
     default:
         fail (Error(RE_MISC));
     }
@@ -753,7 +759,7 @@ REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
 //     3. Encountered an error
 //
 // For comprehensive notes on the input parameters, output parameters, and
-// internal state variables...see the definition of `struct Reb_Call`.
+// internal state variables...see %sys-do.h and `struct Reb_Call`.
 // 
 // !!! IMPORTANT NOTE !!!
 //
@@ -793,6 +799,13 @@ void Do_Core(struct Reb_Call * const c)
     // See notes below on reference for why this is needed to implement eval.
     //
     REBVAL eval;
+
+    // Definitional Return gives back a "corrupted" REBVAL of a return native,
+    // whose body is actually an indicator of the return target.  The
+    // Reb_Call only stores the FUNC so we must extract this body from the
+    // value if it represents a return_to
+    //
+    REBARR *return_to = NULL;
 
     // Fast short-circuit; and generally shouldn't happen because the calling
     // macros usually avoid the function call overhead itself on ends.
@@ -916,13 +929,13 @@ reevaluate:
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    c->label_sym = SYM_0;
-    SET_TRASH_IF_DEBUG(&c->func);
     SET_TRASH_IF_DEBUG(&c->cell);
-    c->param = cast(REBVAL *, 0xDECAFBAD);
-    c->arg = cast(REBVAL *, 0xDECAFBAD);
-    c->refine = cast(REBVAL *, 0xDECAFBAD);
+    c->func = cast(REBFUN*, 0xDECAFBAD);
+    c->label_sym = SYM_0;
     c->arglist.array = NULL;
+    c->param = cast(REBVAL*, 0xDECAFBAD);
+    c->arg = cast(REBVAL*, 0xDECAFBAD);
+    c->refine = cast(REBVAL*, 0xDECAFBAD);
 
     // Although in the outer loop this call frame is not threaded into the
     // call stack, the `out` value may be shared.  So it could be a value
@@ -979,7 +992,7 @@ reevaluate:
     // [WORD!]
     //
     case REB_WORD:
-        GET_VAR_INTO(c->out, c->value);
+        *c->out = *GET_VAR(c->value);
 
     do_fetched_word:
         if (IS_UNSET(c->out)) fail (Error(RE_NO_VALUE, c->value));
@@ -994,9 +1007,12 @@ reevaluate:
 
             c->label_sym = VAL_WORD_SYM(c->value);
 
-            // `do_function_args` expects the function to be in `func`
+            // `do_function_args` expects the function to be in `func`, and
+            // if it's a definitional return we need to extract its target
             //
-            c->func = *c->out;
+            c->func = VAL_FUNC(c->out);
+            if (c->func == PG_Return_Func)
+                return_to = VAL_FUNC_RETURN_TO(c->out);
 
             if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
             goto do_function;
@@ -1004,7 +1020,7 @@ reevaluate:
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
-            VAL_SET(c->out, REB_WORD);
+            VAL_RESET_HEADER(c->out, REB_WORD);
     #endif
 
         c->index++;
@@ -1072,14 +1088,21 @@ reevaluate:
         //
         c->label_sym = SYM_FROM_KIND(VAL_TYPE(c->value));
 
-        c->func = *c->value;
+        // `do_function_args` expects the function to be in `func`, and
+        // if it's a definitional return we need to extract its target.
+        // Note that you can have a literal definitional return value,
+        // because the user can compose it into a block like any function
+        //
+        c->func = VAL_FUNC(c->value);
+        if (c->func == PG_Return_Func)
+            return_to = VAL_FUNC_RETURN_TO(c->value);
 
     do_function:
         //
         // Function to dispatch must be held in `func` when a jump here occurs
         //
-        assert(ANY_FUNC(&c->func));
-        ASSERT_ARRAY(VAL_FUNC_PARAMLIST(&c->func));
+        assert(ANY_FUNC(FUNC_VALUE(c->func)));
+        ASSERT_ARRAY(FUNC_PARAMLIST(c->func));
         c->index++;
 
         // There may be refinements pushed to the data stack to process, if
@@ -1091,7 +1114,7 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (VAL_FUNC_PARAMLIST(&c->func) == PG_Eval_Paramlist) {
+        if (c->func == PG_Eval_Func) {
             if (IS_END(&eval)) {
                 //
                 // The next evaluation we invoke expects to be able to write
@@ -1125,10 +1148,8 @@ reevaluate:
                 // EVAL will handle anything the evaluator can, including
                 // an UNSET!, but it errors on END, e.g. `do [eval]`
                 //
-                assert(ARRAY_LEN(PG_Eval_Paramlist) == 2);
-                fail (
-                    Error_No_Arg(c->label_sym, ARRAY_AT(PG_Eval_Paramlist, 1))
-                );
+                assert(ARRAY_LEN(FUNC_PARAMLIST(PG_Eval_Func)) == 2);
+                fail (Error_No_Arg(c->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
             }
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
@@ -1155,7 +1176,7 @@ reevaluate:
         if (
             !Trace_Flags
             && DSP == c->dsp_orig
-            && VAL_GET_EXT(&c->func, EXT_FUNC_FRAMELESS)
+            && VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
@@ -1183,27 +1204,27 @@ reevaluate:
 
             c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
 
-            if (IS_ACTION(&c->func)) {
+            if (IS_ACTION(FUNC_VALUE(c->func))) {
                 //
                 // At the moment, the type checking actions run framelessly,
                 // while no other actions do.  These are things like STRING?
                 // and INTEGER?
                 //
 
-                assert(VAL_FUNC_ACT(&c->func) < REB_MAX);
-                assert(VAL_FUNC_NUM_PARAMS(&c->func) == 1);
+                assert(FUNC_ACT(c->func) < REB_MAX);
+                assert(FUNC_NUM_PARAMS(c->func) == 1);
 
                 DO_NEXT_MAY_THROW(c->index, c->out, c->array, c->index);
 
                 if (c->index == END_FLAG)
                     fail (Error_No_Arg(
-                        c->label_sym, VAL_FUNC_PARAM(&c->func, 1)
+                        c->label_sym, FUNC_PARAM(c->func, 1)
                     ));
 
                 if (c->index == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
                 else {
-                    if (VAL_TYPE(c->out) == VAL_FUNC_ACT(&c->func))
+                    if (VAL_TYPE(c->out) == FUNC_ACT(c->func))
                         SET_TRUE(c->out);
                     else
                         SET_FALSE(c->out);
@@ -1215,8 +1236,8 @@ reevaluate:
                 // Beyond the type-checking actions, only NATIVE! can be
                 // frameless...
                 //
-                assert(IS_NATIVE(&c->func));
-                ret = (*VAL_FUNC_CODE(&c->func))(c);
+                assert(IS_NATIVE(FUNC_VALUE(c->func)));
+                ret = (*FUNC_CODE(c->func))(c);
             }
 
             c->mode = CALL_MODE_0;
@@ -1254,7 +1275,7 @@ reevaluate:
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
         //
-        c->param = DSF_PARAM_HEAD(c);
+        c->param = FUNC_PARAMS_HEAD(c->func);
 
         if (IS_END(c->param)) {
             //
@@ -1270,13 +1291,13 @@ reevaluate:
         // grab the arg head.  While fulfilling arguments the GC might be
         // invoked, so we have to initialize `refine` to something too...
         //
-        c->arg = DSF_ARG_HEAD(c);
+        c->arg = DSF_ARGS_HEAD(c);
         c->refine = NULL;
 
         // Fetch the first argument from output slot before overwriting
         // This is a redundant check on REB_PATH branch (knows it's not infix)
         //
-        if (VAL_GET_EXT(&c->func, EXT_FUNC_INFIX)) {
+        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)) {
             assert(c->index != 0);
 
             // If func is being called infix, prior evaluation loop has
@@ -1322,7 +1343,7 @@ reevaluate:
 
             // *** PURE LOCALS => continue ***
 
-            if (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+            if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
                 //
                 // When the spec contained a SET-WORD!, that was a "pure
                 // local".  It corresponds to no argument and will not
@@ -1339,7 +1360,7 @@ reevaluate:
                 assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
 
                 if (
-                    VAL_GET_EXT(&c->func, EXT_FUNC_HAS_RETURN)
+                    VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)
                     && SYMBOL_TO_CANON(VAL_TYPESET_SYM(c->param)) == SYM_RETURN
                 ) {
                     *c->arg = *ROOT_RETURN_NATIVE;
@@ -1351,9 +1372,10 @@ reevaluate:
                     // put that in the spot instead of a FUNCTION!'s
                     // identifying series if necessary...
                     //
-                    VAL_FUNC_RETURN_TO(c->arg) = IS_CLOSURE(&c->func)
-                        ? c->arglist.array
-                        : VAL_FUNC_PARAMLIST(&c->func);
+                    VAL_FUNC_RETURN_TO(c->arg) =
+                        IS_CLOSURE(FUNC_VALUE(c->func))
+                            ? c->arglist.array
+                            : FUNC_PARAMLIST(c->func);
                 }
 
                 // otherwise leave it unset
@@ -1518,8 +1540,8 @@ reevaluate:
                 // a scan before to get us started going out of order.  If not,
                 // we would only need to look ahead.)
                 //
-                c->param = DSF_PARAM_HEAD(c);
-                c->arg = DSF_ARG_HEAD(c);
+                c->param = DSF_PARAMS_HEAD(c);
+                c->arg = DSF_ARGS_HEAD(c);
 
             #if !defined(NDEBUG)
                 write_none = FALSE;
@@ -1608,7 +1630,7 @@ reevaluate:
                             c->arg,
                             c->array,
                             c->index,
-                            VAL_GET_EXT(&c->func, EXT_FUNC_INFIX)
+                            VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)
                                 ? DO_FLAG_NO_LOOKAHEAD
                                 : DO_FLAG_LOOKAHEAD
                         );
@@ -1666,7 +1688,7 @@ reevaluate:
                     c->arg,
                     c->array,
                     c->index,
-                    VAL_GET_EXT(&c->func, EXT_FUNC_INFIX)
+                    VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)
                         ? DO_FLAG_NO_LOOKAHEAD
                         : DO_FLAG_LOOKAHEAD
                 );
@@ -1776,8 +1798,8 @@ reevaluate:
         //
         if (DSP != c->dsp_orig) {
             c->mode = CALL_MODE_SCANNING;
-            c->param = DSF_PARAM_HEAD(c);
-            c->arg = DSF_ARG_HEAD(c);
+            c->param = DSF_PARAMS_HEAD(c);
+            c->arg = DSF_ARGS_HEAD(c);
 
         #if !defined(NDEBUG)
             write_none = FALSE;
@@ -1806,8 +1828,9 @@ reevaluate:
         //
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
-            && IS_NATIVE(&c->func) && VAL_FUNC_CODE(&c->func) == &N_do
-            && ANY_FUNC(DSF_ARG_HEAD(c))
+            && IS_NATIVE(FUNC_VALUE(c->func))
+            && FUNC_CODE(c->func) == &N_do
+            && ANY_FUNC(DSF_ARGS_HEAD(c))
         ) {
             if (IS_END(&eval))
                 PUSH_GUARD_VALUE(&eval);
@@ -1815,7 +1838,7 @@ reevaluate:
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            eval = *DSF_ARG_HEAD(c);
+            eval = *DSF_ARGS_HEAD(c);
             Drop_Call_Arglist(c);
 
             c->mode = CALL_MODE_0;
@@ -1824,7 +1847,48 @@ reevaluate:
             goto reevaluate;
         }
     #endif
-        //
+
+        if (return_to) {
+            //
+            // If it's a definitional return, then we need to do the throw
+            // for the return, named by the value in the return_to.  This
+            // should be the RETURN native with 1 arg as the function, and
+            // the native code pointer should have been replaced by a
+            // REBFUN (if function) or REBFRM (if closure) to jump to.
+            //
+            assert(FUNC_NUM_PARAMS(c->func) == 1);
+            ASSERT_ARRAY(return_to);
+
+            // We only have a REBSER*, but want to actually THROW a full
+            // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
+            // the paramlist.  In either case, the value comes from slot [0]
+            // of the RETURN_TO array, but in the debug build do an added
+            // sanity check.
+            //
+        #if !defined(NDEBUG)
+            if (ARRAY_GET_FLAG(return_to, SER_FRAME)) {
+                //
+                // The function was actually a CLOSURE!, so "when it took
+                // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
+                //
+                assert(IS_OBJECT(FRAME_CONTEXT(AS_FRAME(return_to))));
+            }
+            else {
+                // It was a stack-relative FUNCTION!
+                //
+                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(return_to))));
+                assert(FUNC_PARAMLIST(AS_FUNC(return_to)) == return_to);
+            }
+        #endif
+
+            *c->out = *ARRAY_HEAD(return_to);
+
+            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c));
+            Drop_Call_Arglist(c);
+
+            goto return_thrown;
+        }
+
         // ...but otherwise, we run it (using the common routine that also
         // powers the Apply for calling functions directly from C varargs)
         //
@@ -1858,9 +1922,12 @@ reevaluate:
             if (VAL_GET_EXT(c->out, EXT_FUNC_INFIX))
                 fail (Error_Has_Bad_Type(c->out));
 
-            // do_function expects the value to be in func
+            // `do_function_args` expects the function to be in `func`, and
+            // if it's a definitional return we need to extract its target.
             //
-            c->func = *c->out;
+            c->func = VAL_FUNC(c->out);
+            if (c->func == PG_Return_Func)
+                return_to = VAL_FUNC_RETURN_TO(c->out);
             goto do_function;
         }
         else {
@@ -1927,14 +1994,14 @@ reevaluate:
     //
     case REB_LIT_WORD:
         *c->out = *c->value;
-        VAL_SET(c->out, REB_WORD);
+        VAL_RESET_HEADER(c->out, REB_WORD);
         c->index++;
         break;
 
     // [GET-WORD!]
     //
     case REB_GET_WORD:
-        GET_VAR_INTO(c->out, c->value);
+        *c->out = *GET_VAR(c->value);
         c->index++;
         break;
 
@@ -1945,7 +2012,7 @@ reevaluate:
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
         //
         *c->out = *c->value;
-        VAL_SET(c->out, REB_PATH);
+        VAL_RESET_HEADER(c->out, REB_PATH);
         c->index++;
         break;
 
@@ -1997,24 +2064,31 @@ reevaluate:
             //
             // Literal infix function values may occur.
             //
-
             c->label_sym = SYM_NATIVE; // !!! not true--switch back to op
-
-            c->func = *c->value;
-            if (Trace_Flags) Trace_Line(c->array, c->index, &c->func);
+            c->func = VAL_FUNC(c->value); // no infix return
+            assert(c->func != PG_Return_Func);
+            if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
             goto do_function;
         }
 
         if (IS_WORD(c->value)) {
             //
-            // WORD! values may look up to an infix function.  We get them
-            // into the func variable so it will be there in case it does
-            // and we won't have to copy it...
+            // WORD! values may look up to an infix function.  Get the
+            // pointer to the variable temporarily into `arg` to avoid
+            // overwriting `out`, and preserve `value` because we need
+            // to know what the word was for error reports and labeling.
             //
-            GET_VAR_INTO(&c->func, c->value);
-            if (ANY_FUNC(&c->func) && VAL_GET_EXT(&c->func, EXT_FUNC_INFIX)) {
+            // (The mutability cast here is harmless as we do not modify
+            // the variable, we just don't want to limit the usages of
+            // `arg` or introduce more variables to Do_Core than needed.)
+            //
+            c->arg = m_cast(REBVAL*, GET_VAR(c->value));
+
+            if (ANY_FUNC(c->arg) && VAL_GET_EXT(c->arg, EXT_FUNC_INFIX)) {
                 c->label_sym = VAL_WORD_SYM(c->value);
-                if (Trace_Flags) Trace_Line(c->array, c->index, &c->func);
+                if (Trace_Flags) Trace_Line(c->array, c->index, c->arg);
+                c->func = VAL_FUNC(c->arg);
+                assert(c->func != PG_Return_Func); // return isn't infix
                 goto do_function;
             }
 
@@ -2022,15 +2096,21 @@ reevaluate:
             // lookup.  If this isn't just a DO/NEXT, use the work!
             //
             if (c->flags & DO_FLAG_TO_END) {
-                *c->out = c->func; // ...likely not a function
+                *c->out = *c->arg;
                 goto do_fetched_word;
             }
         }
+
+        // Note: PATH! may contain parens, which would need to be evaluated
+        // during lookahead.  This could cause side-effects if the lookahead
+        // fails.  Consequently, PATH! should not be a candidate for doing
+        // an infix dispatch.
     }
     else {
         //
         // We do not look ahead for infix dispatch if we are currently
-        // processing an infix operation with higher precedence
+        // processing an infix operation with higher precedence, so that will
+        // be the case that `lookahead` is turned off.
         //
     }
 
@@ -2387,10 +2467,16 @@ REBFLG Compose_Values_Throws(
 // refinements via unset as the path-based dispatch does in the
 // Do_Core evaluator.
 //
-REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
+REBFLG Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 {
     struct Reb_Call call;
     struct Reb_Call * const c = &call; // for consistency w/Do_Core
+
+    // Apply_Func does not currently handle definitional returns; it is for
+    // internal dispatch from C to system Rebol code only (and unrelated to
+    // the legacy APPLY construct, which is now written fully in userspace.)
+    //
+    assert(func != PG_Return_Func);
 
     c->dsp_orig = DSP;
 
@@ -2405,11 +2491,11 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
         c->array = DSF_ARRAY(DSF);
         c->index = DSF_EXPR_INDEX(DSF);
     }
-    else if (IS_FUNCTION(func) || IS_CLOSURE(func)) {
+    else if (IS_FUNCTION(FUNC_VALUE(func)) || IS_CLOSURE(FUNC_VALUE(func))) {
         // Stack is empty, so offer up the body of the function itself
         // (if it has a body!)
 
-        c->array = VAL_FUNC_BODY(func);
+        c->array = FUNC_BODY(func);
         c->index = 0;
     }
     else {
@@ -2423,8 +2509,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
     assert(c->index <= ARRAY_LEN(c->array));
 
-    assert(ANY_FUNC(func));
-    c->func = *func;
+    c->func = func;
 
     // !!! Better symbol to use?
     c->label_sym = SYM_NATIVE;
@@ -2442,8 +2527,8 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
     // Get first parameter (or a END if no parameters), and slot to write
     // actual argument for first parameter into (or an END)
     //
-    c->param = DSF_PARAM_HEAD(c);
-    c->arg = DSF_ARG_HEAD(c);
+    c->param = DSF_PARAMS_HEAD(c);
+    c->arg = DSF_ARGS_HEAD(c);
 
     for (; varargs || NOT_END(c->param); c->param++, c->arg++) {
         c->value = va_arg(*varargs, REBVAL*);
@@ -2453,7 +2538,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 
         // *** PURE LOCALS => continue ***
 
-        while (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+        while (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
             // We need to skip over "pure locals", e.g. those created in
             // the spec with a SET-WORD!.  (They are useful for generators)
             //
@@ -2462,11 +2547,11 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
             // that is "magic" and knows to return to *this* function...
 
             if (
-                VAL_GET_EXT(&c->func, EXT_FUNC_HAS_RETURN)
+                VAL_GET_EXT(FUNC_VALUE(func), EXT_FUNC_HAS_RETURN)
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = VAL_FUNC_PARAMLIST(&c->func);
+                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset.
@@ -2526,17 +2611,17 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
     // Pad out any remaining parameters with unset or none, depending
 
     while (NOT_END(c->param)) {
-        if (VAL_GET_EXT(c->param, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
             // A true local...to be ignored as far as block args go.
             // Very likely to hit them at the end of the paramlist because
             // that's where the function generators tack on RETURN:
 
             if (
-                VAL_GET_EXT(&c->func, EXT_FUNC_HAS_RETURN)
+                VAL_GET_EXT(FUNC_VALUE(func), EXT_FUNC_HAS_RETURN)
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = VAL_FUNC_PARAMLIST(&c->func);
+                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset
@@ -2578,7 +2663,7 @@ REBFLG Apply_Func_Core(REBVAL *out, const REBVAL *func, va_list *varargs)
 // 
 // returns TRUE if out is THROWN()
 //
-REBFLG Apply_Func_Throws(REBVAL *out, REBVAL *func, ...)
+REBFLG Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
 {
     REBFLG result;
     va_list args;
@@ -2625,7 +2710,7 @@ REBFLG Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     va_start(args, inum);
-    result = Apply_Func_Core(out, value, &args);
+    result = Apply_Func_Core(out, VAL_FUNC(value), &args);
 
     // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
     va_end(args);
@@ -2676,16 +2761,16 @@ void Do_Construct(REBVAL value[])
                     break;
                 default:
                     *temp = *value;
-                    VAL_SET(temp, REB_WORD);
+                    VAL_RESET_HEADER(temp, REB_WORD);
                 }
             }
             else if (IS_LIT_WORD(value)) {
                 *temp = *value;
-                VAL_SET(temp, REB_WORD);
+                VAL_RESET_HEADER(temp, REB_WORD);
             }
             else if (IS_LIT_PATH(value)) {
                 *temp = *value;
-                VAL_SET(temp, REB_PATH);
+                VAL_RESET_HEADER(temp, REB_PATH);
             }
             else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
                 *temp = *value;
@@ -2757,10 +2842,10 @@ void Do_Min_Construct(REBVAL value[])
 // 
 // Returns TRUE if result is THROWN()
 //
-REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
+REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
 {
-    REBARR *paramlist_src = VAL_FUNC_PARAMLIST(DSF_FUNC(call_src));
-    REBARR *paramlist_new = VAL_FUNC_PARAMLIST(func_new);
+    REBARR *paramlist_src = FUNC_PARAMLIST(DSF_FUNC(call_src));
+    REBARR *paramlist_new = FUNC_PARAMLIST(func_new);
 
     REBVAL *param_src;
     REBVAL *param_new;
@@ -2775,7 +2860,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
     struct Reb_Call call_ = *call_src;
     struct Reb_Call * const c = &call_;
 
-    c->func = *func_new;
+    c->func = func_new;
 
 #if !defined(NDEBUG)
     c->arglist.array = NULL;
@@ -2783,11 +2868,11 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
     Push_New_Arglist_For_Call(c);
 
     // Foreach arg of the target, copy to source until refinement.
-    arg_new = DSF_ARG_HEAD(c);
-    param_new = DSF_PARAM_HEAD(c);
+    arg_new = DSF_ARGS_HEAD(c);
+    param_new = DSF_PARAMS_HEAD(c);
 
-    arg_src = DSF_ARG_HEAD(DSF);
-    param_src = DSF_PARAM_HEAD(c);
+    arg_src = DSF_ARGS_HEAD(DSF);
+    param_src = DSF_PARAMS_HEAD(c);
 
     for (
         ;
@@ -2798,15 +2883,15 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
     ) {
         assert(IS_TYPESET(param_new));
 
-        if (VAL_GET_EXT(param_new, EXT_WORD_HIDE)) {
+        if (VAL_GET_EXT(param_new, EXT_TYPESET_HIDDEN)) {
             if (
-                VAL_GET_EXT(func_new, EXT_FUNC_HAS_RETURN)
+                VAL_GET_EXT(FUNC_VALUE(func_new), EXT_FUNC_HAS_RETURN)
                 && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)
             ) {
                 // This pure local is a special magic "definitional return"
                 // (see comments on VAL_FUNC_RETURN_TO)
                 *arg_new = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg_new) = VAL_FUNC_PARAMLIST(func_new);
+                VAL_FUNC_RETURN_TO(arg_new) = FUNC_PARAMLIST(func_new);
             }
             else {
                 // This pure local is not special, so leave as UNSET
@@ -2830,10 +2915,8 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
             }
             else {
                 // No, we need to search for it:
-                arg_src = IS_CLOSURE(&DSF->func)
-                    ? ARRAY_AT(DSF->arglist.array, 1)
-                    : &c->arglist.chunk[1];
-                param_src = ARRAY_AT(paramlist_src, 1);
+                arg_src = DSF_ARGS_HEAD(DSF);
+                param_src = DSF_PARAMS_HEAD(DSF);
 
                 for (; NOT_END(param_src); param_src++, arg_src++) {
                     if (
@@ -2893,7 +2976,7 @@ REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBVAL *func_new)
 void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
-        GET_VAR_INTO(out, val);
+        *out = *GET_VAR(val);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
         if (Do_Path_Throws(out, NULL, val, NULL))
@@ -2917,7 +3000,7 @@ REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
     REBARR *blk;
     REBCNT i;
 
-    if (VAL_TAIL(path) < 2) return 0;
+    if (VAL_LEN_HEAD(path) < 2) return 0;
     blk = VAL_ARRAY(path);
     sel = ARRAY_HEAD(blk);
     if (!ANY_WORD(sel)) return 0;

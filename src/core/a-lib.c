@@ -494,12 +494,12 @@ RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBC
 
 #ifdef DUMP_INIT_SCRIPT
     f = _open("host-boot.r", _O_CREAT | _O_RDWR, _S_IREAD | _S_IWRITE );
-    _write(f, STR_HEAD(text), LEN_BYTES(STR_HEAD(text)));
+    _write(f, BIN_HEAD(text), LEN_BYTES(BIN_HEAD(text)));
     _close(f);
 #endif
 
     PUSH_GUARD_SERIES(text);
-    do_result = RL_Do_String(exit_status, text->data, flags, result);
+    do_result = RL_Do_String(exit_status, BIN_HEAD(text), flags, result);
     DROP_GUARD_SERIES(text);
 
     Free_Series(text);
@@ -648,8 +648,9 @@ RL_API int RL_Event(REBEVT *evt)
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
-        VAL_SET(event, REB_EVENT);      // (has more space, if we need it)
-        event->data.event = *evt;
+        VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
+        event->payload.event = *evt;
+
         return 1;
     }
 
@@ -675,7 +676,7 @@ RL_API int RL_Update_Event(REBEVT *evt)
     REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
     if (event) {
-        event->data.event = *evt;
+        event->payload.event = *evt;
         return 1;
     }
 
@@ -723,7 +724,7 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 {
     REBVAL * val = Find_Last_Event(model, type);
     if (val != NULL) {
-        return &val->data.event;
+        return &val->payload.event;
     }
     return NULL;
 }
@@ -860,7 +861,12 @@ RL_API void RL_Protect_GC(REBSER *series, u32 flags)
 //
 RL_API int RL_Get_String(REBSER *series, u32 index, void **str)
 {   // ret: len or -len
-    int len = (index >= series->tail) ? 0 : series->tail - index;
+    int len;
+
+    if (index >= SERIES_LEN(series))
+        len = 0;
+    else
+        len = SERIES_LEN(series) - index;
 
     if (BYTE_SIZE(series)) {
         *str = BIN_AT(series, index);
@@ -1065,7 +1071,7 @@ RL_API REBUPT RL_Series(REBSER *series, REBCNT what)
 //
 RL_API int RL_Get_Char(REBSER *series, u32 index)
 {
-    if (index >= series->tail) return -1;
+    if (index >= SERIES_LEN(series)) return -1;
     return GET_ANY_CHAR(series, index);
 }
 
@@ -1085,8 +1091,8 @@ RL_API int RL_Get_Char(REBSER *series, u32 index)
 //
 RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 {
-    if (index >= series->tail) {
-        index = series->tail;
+    if (index >= SERIES_LEN(series)) {
+        index = SERIES_LEN(series);
         EXPAND_SERIES_TAIL(series, 1);
     }
     SET_ANY_CHAR(series, index, chr);
@@ -1160,18 +1166,27 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
 {
     REBCNT index;
     u32 *syms;
-    REBVAL *keys;
+    REBVAL *key;
     REBFRM *frame = AS_FRAME(obj);
 
-    keys = FRAME_KEY(frame, 1);
+    key = FRAME_KEYS_HEAD(frame);
 
-    // SELF not included, but terminated by 0.
+    // We don't include hidden keys (e.g. SELF), but terminate by 0.
+    // Conservative estimate that there are no hidden keys, add one.
+    //
     syms = OS_ALLOC_N(u32, FRAME_LEN(frame) + 1);
 
-    for (index = 0; index < FRAME_LEN(frame); keys++, index++) {
-        syms[index] = VAL_TYPESET_CANON(keys);
+    index = 0;
+    for (; NOT_END(key); key++) {
+        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+            continue;
+
+        syms[index] = VAL_TYPESET_CANON(key);
+        index++;
     }
-    syms[index] = SYM_0;
+
+    syms[index] = SYM_0; // Null terminate
+
     return syms;
 }
 
@@ -1219,7 +1234,7 @@ RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
     CLEARS(&value);
     word_id = Find_Word_Index(frame, word_id, FALSE);
     if (word_id == 0) return 0;
-    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_WORD_LOCK)) return 0;
+    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_TYPESET_LOCKED)) return 0;
     RXI_To_Value(FRAME_VAR(frame, word_id), val, type);
     return type;
 }

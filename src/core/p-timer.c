@@ -92,13 +92,12 @@ act_blk:
         return result; // return condition
 
     case A_CLEAR:
-        VAL_TAIL(state) = 0;
-        VAL_TERM_ARRAY(state);
+        RESET_ARRAY(state);
         CLR_FLAG(Eval_Signals, SIG_EVENT_PORT);
         break;
 
     case A_LENGTH:
-        SET_INTEGER(D_OUT, VAL_TAIL(state));
+        SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
     case A_OPEN:

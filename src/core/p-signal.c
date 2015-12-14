@@ -45,7 +45,7 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
     Extend_Series(VAL_SERIES(arg), len);
 
     for (i = 0; i < len; i ++) {
-        REBFRM *obj = Alloc_Frame(2, TRUE);
+        REBFRM *obj = Alloc_Frame(2);
         REBVAL *val = Append_Frame(
             obj, NULL, Make_Word(signal_no, LEN_BYTES(signal_no))
         );
@@ -64,10 +64,10 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
         );
         SET_INTEGER(val, sig[i].si_uid);
 
-        Val_Init_Object(VAL_ARRAY_AT_HEAD(arg, VAL_TAIL(arg) + i), obj);
+        Val_Init_Object(VAL_ARRAY_AT_HEAD(arg, VAL_LEN_HEAD(arg) + i), obj);
     }
 
-    VAL_TAIL(arg) += len;
+    SET_SERIES_LEN(VAL_SERIES(arg), VAL_LEN_HEAD(arg) + len);
 
     req->actual = 0; /* avoid duplicate updates */
 }

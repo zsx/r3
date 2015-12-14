@@ -179,13 +179,13 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
             }
             else fail (Error_Invalid_Arg(val));
             //if (n >= ser->tail) Expand_Vector(ser);
-            set_vect(bits, ser->data, n++, i, f);
+            set_vect(bits, SERIES_DATA(ser), n++, i, f);
         }
     }
     else {
         REBYTE *data = VAL_BIN_AT(blk);
         for (; len > 0; len--, idx++) {
-            set_vect(bits, ser->data, n++, (REBI64)(data[idx]), f);
+            set_vect(bits, SERIES_DATA(ser), n++, cast(REBI64, data[idx]), f);
         }
     }
 }
@@ -199,7 +199,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 REBARR *Vector_To_Array(REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
-    REBYTE *data = VAL_SERIES(vect)->data;
+    REBYTE *data = SERIES_DATA(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBARR *array = NULL;
     REBCNT n;
@@ -210,8 +210,8 @@ REBARR *Vector_To_Array(REBVAL *vect)
 
     array = Make_Array(len);
     val = ARRAY_HEAD(array);
-    for (n = VAL_INDEX(vect); n < VAL_TAIL(vect); n++, val++) {
-        VAL_SET(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
+    for (n = VAL_INDEX(vect); n < VAL_LEN_HEAD(vect); n++, val++) {
+        VAL_RESET_HEADER(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
 
@@ -233,8 +233,8 @@ REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
     REBCNT n;
     REBU64 i1;
     REBU64 i2;
-    REBYTE *d1 = VAL_SERIES(v1)->data;
-    REBYTE *d2 = VAL_SERIES(v2)->data;
+    REBYTE *d1 = SERIES_DATA(VAL_SERIES(v1));
+    REBYTE *d2 = SERIES_DATA(VAL_SERIES(v2));
     REBCNT b1 = VECT_TYPE(VAL_SERIES(v1));
     REBCNT b2 = VECT_TYPE(VAL_SERIES(v2));
 
@@ -264,7 +264,7 @@ void Shuffle_Vector(REBVAL *vect, REBFLG secure)
     REBCNT n;
     REBCNT k;
     REBU64 swap;
-    REBYTE *data = VAL_SERIES(vect)->data;
+    REBYTE *data = SERIES_DATA(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBCNT idx = VAL_INDEX(vect);
 
@@ -287,12 +287,12 @@ void Shuffle_Vector(REBVAL *vect, REBFLG secure)
 //
 void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 {
-    REBYTE *data = series->data;
+    REBYTE *data = SERIES_DATA(series);
     REBCNT bits = VECT_TYPE(series);
 
-    var->data.integer = get_vect(bits, data, index);
-    if (bits >= VTSF08) SET_TYPE(var, REB_DECIMAL);
-    else SET_TYPE(var, REB_INTEGER);
+    var->payload.integer = get_vect(bits, data, index);
+    if (bits >= VTSF08) VAL_SET_TYPE(var, REB_DECIMAL);
+    else VAL_SET_TYPE(var, REB_INTEGER);
 }
 
 
@@ -315,8 +315,8 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
     // !!! can width help extend the len?
     ser = Make_Series(len + 1, bits/8, MKS_NONE | MKS_POWER_OF_2);
     LABEL_SERIES(ser, "make vector");
-    CLEAR(ser->data, len*bits/8);
-    ser->tail = len;  // !!! another way to do it?
+    CLEAR(SERIES_DATA(ser), (len * bits) / 8);
+    SET_SERIES_LEN(ser, len);
 
     // Store info about the vector (could be moved to flags if necessary):
     switch (bits) {
@@ -405,7 +405,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
         bp++;
     }
 
-    SET_TYPE(value, REB_VECTOR);
+    VAL_SET_TYPE(value, REB_VECTOR);
 
     // Index offset:
     if (NOT_END(bp) && IS_INTEGER(bp)) {
@@ -472,29 +472,29 @@ REBINT PD_Vector(REBPVS *pvs)
 
     n += VAL_INDEX(pvs->value);
     vect = VAL_SERIES(pvs->value);
-    vp   = vect->data;
+    vp = SERIES_DATA(vect);
     bits = VECT_TYPE(vect);
 
     if (pvs->setval == 0) {
 
         // Check range:
-        if (n <= 0 || (REBCNT)n > vect->tail) return PE_NONE;
+        if (n <= 0 || cast(REBCNT, n) > SERIES_LEN(vect)) return PE_NONE;
 
         // Get element value:
-        pvs->store->data.integer = get_vect(bits, vp, n-1); // 64 bits
+        pvs->store->payload.integer = get_vect(bits, vp, n - 1); // 64 bits
         if (bits < VTSF08) {
-            SET_TYPE(pvs->store, REB_INTEGER);
+            VAL_SET_TYPE(pvs->store, REB_INTEGER);
         } else {
-            SET_TYPE(pvs->store, REB_DECIMAL);
+            VAL_SET_TYPE(pvs->store, REB_DECIMAL);
         }
 
         return PE_USE;
     }
 
     //--- Set Value...
-    FAIL_IF_PROTECTED_SERIES(vect);
+    FAIL_IF_LOCKED_SERIES(vect);
 
-    if (n <= 0 || (REBCNT)n > vect->tail) return PE_BAD_RANGE;
+    if (n <= 0 || cast(REBCNT, n) > SERIES_LEN(vect)) return PE_BAD_RANGE;
 
     if (IS_INTEGER(pvs->setval)) {
         i = VAL_INT64(pvs->setval);
@@ -540,7 +540,7 @@ REBTYPE(Vector)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_SERIES(vect);
+        FAIL_IF_LOCKED_SERIES(vect);
 
     switch (action) {
 
@@ -579,7 +579,7 @@ REBTYPE(Vector)
 
     case A_LENGTH:
         //bits = 1 << (vect->size & 3);
-        SET_INTEGER(D_OUT, vect->tail);
+        SET_INTEGER(D_OUT, SERIES_LEN(vect));
         return R_OUT;
 
     case A_COPY:
@@ -611,7 +611,7 @@ bad_make:
 void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 {
     REBSER *vect = VAL_SERIES(value);
-    REBYTE *data = vect->data;
+    REBYTE *data = SERIES_DATA(vect);
     REBCNT bits  = VECT_TYPE(vect);
 //  REBCNT dims  = vect->size >> 8;
     REBCNT len;
@@ -622,7 +622,7 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     REBYTE l;
 
     if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
-        len = VAL_TAIL(value);
+        len = VAL_LEN_HEAD(value);
         n = 0;
     } else {
         len = VAL_LEN_AT(value);
@@ -639,7 +639,7 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     }
 
     c = 0;
-    for (; n < vect->tail; n++) {
+    for (; n < SERIES_LEN(vect); n++) {
         v.i = get_vect(bits, data, n);
         if (bits < VTSF08) {
             l = Emit_Integer(buf, v.i);
@@ -648,7 +648,7 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         }
         Append_Unencoded_Len(mold->series, s_cast(buf), l);
 
-        if ((++c > 7) && (n+1 < vect->tail)) {
+        if ((++c > 7) && (n + 1 < SERIES_LEN(vect))) {
             New_Indented_Line(mold);
             c = 0;
         }
@@ -656,7 +656,12 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
             Append_Codepoint_Raw(mold->series, ' ');
     }
 
-    if (len) mold->series->tail--; // remove final space
+    if (len) {
+        //
+        // remove final space
+        //
+        SET_SERIES_LEN(mold->series, SERIES_LEN(mold->series) - 1);
+    }
 
     if (molded) {
         if (len) New_Indented_Line(mold);

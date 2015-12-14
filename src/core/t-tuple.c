@@ -70,7 +70,7 @@ REBFLG MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     for (; len < 10; len++) *vp++ = 0;
 
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
     return TRUE;
 }
 
@@ -368,7 +368,7 @@ REBTYPE(Tuple)
             return R_OUT;
         }
 
-        VAL_SET(value, REB_TUPLE);
+        VAL_RESET_HEADER(value, REB_TUPLE);
         vp = VAL_TUPLE(value);
         if (IS_ISSUE(arg)) {
             REBUNI c;

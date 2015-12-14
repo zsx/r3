@@ -108,7 +108,7 @@ const REBYTE *Match_Bytes(const REBYTE *src, const REBYTE *pat)
 //
 REBFLG Match_Sub_Path(REBSER *s1, REBSER *s2)
 {
-    REBCNT len = s1->tail;
+    REBCNT len = SERIES_LEN(s1);
     REBCNT n;
     REBUNI c1 = 0;
     REBUNI c2;
@@ -117,7 +117,7 @@ REBFLG Match_Sub_Path(REBSER *s1, REBSER *s2)
 //  Debug_Series(s2);
 
     // s1 len must be <= s2 len
-    if (len > s2->tail) return FALSE;
+    if (len > SERIES_LEN(s2)) return FALSE;
 
     for (n = 0; n < len; n++) { // includes terminator
 

@@ -61,7 +61,7 @@ REBNATIVE(quit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :quit`.
 {
-    *D_OUT = *D_FUNC;
+    *D_OUT = *FUNC_VALUE(D_FUNC);
 
     if (D_REF(1)) {
         CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
@@ -106,17 +106,17 @@ REBNATIVE(recycle)
 
     if (D_REF(2)) {// /on
         GC_Active = TRUE;
-        SET_INT32(TASK_BALLAST, VAL_INT32(TASK_MAX_BALLAST));
+        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
     if (D_REF(3)) {// /ballast
         *TASK_MAX_BALLAST = *D_ARG(4);
-        SET_INT32(TASK_BALLAST, VAL_INT32(TASK_MAX_BALLAST));
+        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
     if (D_REF(5)) { // torture
         GC_Active = TRUE;
-        SET_INT32(TASK_BALLAST, 0);
+        VAL_INT64(TASK_BALLAST) = 0;
     }
 
     count = Recycle();
@@ -147,7 +147,7 @@ REBNATIVE(stats)
 
     if (D_REF(3)) {
         VAL_TIME(D_OUT) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
-        VAL_SET(D_OUT, REB_TIME);
+        VAL_RESET_HEADER(D_OUT, REB_TIME);
         return R_OUT;
     }
 
@@ -167,7 +167,7 @@ REBNATIVE(stats)
             stats = Get_Object(stats, 1);
 
             VAL_TIME(stats) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
-            VAL_SET(stats, REB_TIME);
+            VAL_RESET_HEADER(stats, REB_TIME);
             stats++;
             SET_INTEGER(stats, Eval_Cycles + Eval_Dose - Eval_Count);
             stats++;
@@ -291,18 +291,6 @@ REBNATIVE(evoke)
     return R_UNSET;
 }
 
-#ifdef NOT_USED
-//
-//  in-context: native none
-//
-REBNATIVE(in_context)
-{
-    REBVAL *value;
-    value = D_ARG(1);
-    VAL_FRAME(ROOT_USER_CONTEXT) = VAL_FRAME(value);
-    return R_UNSET;
-}
-#endif
 
 //
 //  limit-usage: native [
@@ -361,13 +349,13 @@ REBNATIVE(stack)
     else if (D_REF(3)) {
         Val_Init_Word_Unbound(D_OUT, REB_WORD, DSF_LABEL_SYM(call));
     }
-    else if (D_REF(4)) *D_OUT = *DSF_FUNC(call);
+    else if (D_REF(4)) *D_OUT = *FUNC_VALUE(DSF_FUNC(call));
     else if (D_REF(5)) {
-        if (ANY_FUNC(DSF_FUNC(call)))
-            len = VAL_FUNC_NUM_PARAMS(DSF_FUNC(call));
-        else
-            len = 0;
-        Val_Init_Block(D_OUT, Copy_Values_Len_Shallow(DSF_ARG(call, 1), len));
+        len = FUNC_NUM_PARAMS(DSF_FUNC(call));
+        Val_Init_Block(
+            D_OUT,
+            Copy_Values_Len_Shallow(DSF_ARGS_HEAD(call), len)
+        );
     }
     else if (D_REF(6)) {        // size
         SET_INTEGER(D_OUT, DSP+1);
@@ -529,13 +517,13 @@ REBNATIVE(do_codec)
                 break;
         }
         memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
-        ser->tail = codi.len;
+        SET_SERIES_LEN(ser, codi.len);
         Val_Init_String(D_OUT, ser);
         break;
 
     case CODI_BINARY: //used on encode
         ser = Make_Binary(codi.len);
-        ser->tail = codi.len;
+        SET_SERIES_LEN(ser, codi.len);
 
         // optimize for pass-thru decoders, which leave codi.data NULL
         memcpy(
@@ -570,35 +558,4 @@ REBNATIVE(do_codec)
     }
 
     return R_OUT;
-}
-
-
-//
-//  selfless?: native [
-//  
-//  "Returns true if the context doesn't bind 'self."
-//  
-//      value [any-word! any-context!]
-//          "Context or example word bound to the target context"
-//  ]
-//
-REBNATIVE(selfless_q)
-{
-    PARAM(1, value);
-
-    REBFRM *frame;
-
-    if (ANY_WORD(ARG(value))) {
-        if (VAL_WORD_INDEX(ARG(value)) < 0)
-            return R_TRUE;
-
-        frame = AS_FRAME(VAL_WORD_TARGET(ARG(value)));
-
-        if (!frame)
-            fail (Error(RE_NOT_BOUND, ARG(value)));
-    }
-    else
-        frame = VAL_FRAME(ARG(value));
-
-    return IS_SELFLESS(frame) ? R_TRUE : R_FALSE;
 }

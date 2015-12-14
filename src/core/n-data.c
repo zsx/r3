@@ -207,7 +207,7 @@ REBNATIVE(as_pair)
 {
     REBVAL *val = D_ARG(1);
 
-    VAL_SET(D_OUT, REB_PAIR);
+    VAL_RESET_HEADER(D_OUT, REB_PAIR);
 
     if (IS_INTEGER(val)) {
         VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_INT64(val));
@@ -403,9 +403,6 @@ REBNATIVE(set_q)
 //  ]
 //
 REBNATIVE(unbind)
-//
-// word | context
-// /deep
 {
     REBVAL *word = D_ARG(1);
 
@@ -566,7 +563,7 @@ REBNATIVE(in)
         if (IS_WORD(word)) {
             const REBVAL *v;
             REBCNT i;
-            for (i = VAL_INDEX(val); i < VAL_TAIL(val); i++) {
+            for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
                 v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);
@@ -822,13 +819,13 @@ REBNATIVE(set)
             // Hidden words are not shown in the WORDS-OF, and should not
             // count for consideration in positional setting.  Just skip.
             //
-            if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
                 continue;
 
             // Locked words cannot be modified, so a SET should error instead
             // of going ahead and changing them
             //
-            if (VAL_GET_EXT(key, EXT_WORD_LOCK))
+            if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
                 fail (Error_Protected_Key(key));
 
             // If we're setting to a single value and not a block, then
@@ -872,7 +869,7 @@ REBNATIVE(set)
         // padding to NONE if requested
         //
         for (; NOT_END(key); key++, var++) {
-            if (VAL_GET_EXT(key, EXT_WORD_HIDE))
+            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
                 continue;
 
             if (IS_END(value)) {
@@ -929,7 +926,7 @@ REBNATIVE(set)
         if (set_with_block)
             value = VAL_ARRAY_AT(ARG(value));
         else
-            assert(value == VAL_ARRAY_AT(ARG(value))); // didn't change
+            assert(value == ARG(value)); // didn't change
     }
 
     // With the assignments checked, do them
@@ -1159,7 +1156,7 @@ static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
     val = Alloc_Tail_Array(blk);
     SET_GOB(val, gob);
     val = Alloc_Tail_Array(blk);
-    VAL_SET(val, REB_PAIR);
+    VAL_RESET_HEADER(val, REB_PAIR);
     VAL_PAIR_X(val) = x;
     VAL_PAIR_Y(val) = y;
 }
@@ -1208,15 +1205,54 @@ REBNATIVE(map_gob_offset)
 #if !defined(NDEBUG)
 
 //
+//  SET_END_Debug: C
+//
+// Variant of SET_END() macro which includes an assert for making sure
+// that the value's header is in "formatted space".
+//
+void SET_END_Debug(REBVAL *v)
+{
+    //
+    // The slot we are trying to write into must have at least been formatted
+    // in the debug build via SET_TRASH().  Otherwise it could be an arbitrary
+    // value with its low bit clear, doing double-duty as an IS_END() marker,
+    // which we cannot overwrite...not even with an END marker.
+    //
+    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
+
+    (v)->header.all = SETTABLE_MASK_DEBUG;
+}
+
+
+//
+//  VAL_RESET_HEADER_Debug: C
+//
+// Variant of VAL_RESET_HEADER() macro which includes an assert for making
+// sure that a value header is in "formatted space".
+//
+void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
+{
+    // See comments in SET_END_Debug.
+    //
+    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
+
+    // (t == REB_TRASH) is legal, and SET_TRASH() uses VAL_RESET_HEADER()
+
+    (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG | ((t) << 2);
+}
+
+
+//
 //  VAL_TYPE_Debug: C
 //
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
 // you never call it on an END marker
 //
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
+enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
+{
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
-    return cast(enum Reb_Kind, (v)->flags.bitfields.type);
+    return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
 }
 
 
@@ -1227,9 +1263,10 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v) {
 // that you have an ANY-SERIES! value you're calling it on (or one of the
 // exception types that use REBSERs)
 //
-REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v) {
+REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
+{
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return &(m_cast(REBVAL *, v))->data.position.series;
+    return &(m_cast(REBVAL*, v))->payload.any_series.series;
 }
 
 
@@ -1241,9 +1278,10 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v) {
 //
 // !!! Unfortunately this loses const correctness; fix in C++ build.
 //
-REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v) {
+REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v)
+{
     assert(ANY_CONTEXT(v));
-    return &(m_cast(REBVAL *, v))->data.context.frame;
+    return &(m_cast(REBVAL*, v))->payload.any_context.frame;
 }
 
 
@@ -1253,7 +1291,8 @@ REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v) {
 // Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
 // ensure you never call it on an UNSET!
 //
-REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v) {
+REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
+{
     assert(!IS_UNSET(v));
     if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {
         assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));

@@ -168,7 +168,7 @@ REBNATIVE(spelling_of)
         // turn all words into regular words so they'll have no delimiters
         // during the FORMing process
 
-        VAL_SET(value, REB_WORD);
+        VAL_RESET_HEADER(value, REB_WORD);
         series = Copy_Mold_Value(value, TRUE);
     }
 
@@ -327,8 +327,6 @@ REBNATIVE(checksum)
 //  ]
 //
 REBNATIVE(compress)
-//
-// Binary and string (gets UTF8 converted).
 {
     const REBOOL gzip = D_REF(4);
     const REBOOL only = D_REF(5);
@@ -359,8 +357,6 @@ REBNATIVE(compress)
 //  ]
 //
 REBNATIVE(decompress)
-//
-// Binary only.
 {
     REBVAL *arg = D_ARG(1);
     REBCNT len;
@@ -456,8 +452,6 @@ REBNATIVE(construct)
 //
 REBNATIVE(debase)
 //
-// Converts a binary base representation string to binary.
-// Input is a STRING, but BINARY is also accepted.
 // BINARY is returned. We don't know the encoding.
 {
     REBINT base = 64;
@@ -487,9 +481,6 @@ REBNATIVE(debase)
 //  ]
 //
 REBNATIVE(enbase)
-//
-// Converts a binary to a binary base representation STRING.
-// Input is BINARY or STRING (UTF8 encoded).
 {
     REBINT base = 64;
     REBSER *ser;
@@ -532,8 +523,6 @@ REBNATIVE(enbase)
 //  ]
 //
 REBNATIVE(decloak)
-//
-// Input is BINARY only. Modifies input.
 {
     REBVAL *data = D_ARG(1);
     REBVAL *key  = D_ARG(2);
@@ -556,8 +545,6 @@ REBNATIVE(decloak)
 //  ]
 //
 REBNATIVE(encloak)
-//
-// Input is BINARY only. Modifies input.
 {
     REBVAL *data = D_ARG(1);
     REBVAL *key  = D_ARG(2);
@@ -578,8 +565,6 @@ REBNATIVE(encloak)
 //  ]
 //
 REBNATIVE(dehex)
-//
-// Works for any string.
 {
     REBVAL *arg = D_ARG(1);
     REBCNT len = VAL_LEN_AT(arg);
@@ -636,8 +621,6 @@ REBNATIVE(dehex)
 //  ]
 //
 REBNATIVE(deline)
-//
-// Convert CR or CRLF strings to just LF strings.
 {
     REBVAL *val = D_ARG(1);
     REBINT len = VAL_LEN_AT(val);
@@ -656,7 +639,7 @@ REBNATIVE(deline)
         n = Deline_Uni(up, len);
     }
 
-    VAL_TAIL(val) -= (len - n);
+    SET_SERIES_LEN(VAL_SERIES(val), VAL_LEN_HEAD(val) - (len - n));
 
     return R_ARG1;
 }

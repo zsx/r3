@@ -650,7 +650,7 @@ emit-end
 emit {
 /***********************************************************************
 **
-*/  const REBYTE RXT_To_Reb[RXT_MAX] =
+*/  const enum Reb_Kind RXT_To_Reb[RXT_MAX] =
 /*
 ***********************************************************************/
 ^{
@@ -659,7 +659,7 @@ emit {
 n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
-        emit-line "" 0 n
+        emit-line "" "REB_TRASH" n
     ]
     n: n + 1
 ]
@@ -746,7 +746,7 @@ code: ""
 n: 0
 for-each str boot-strings [
     either set-word? :str [
-        emit-line/define "#define RS_" to word! str n ;R3
+        emit-line/define "#define RS_" to word! str n
     ][
         n: n + 1
         append code str
@@ -837,7 +837,7 @@ n: 2 ;-- actions start at 2, for the type checks, skipping TRASH? and END?
 emit-line "A_" "0 = 0" "Unused (would be A_TRASH_Q)"
 for-each word boot-actions [
     if set-word? :word [
-        emit-line "A_" to word! :word n ;R3
+        emit-line "A_" to word! :word n
         n: n + 1
     ]
 ]
@@ -879,18 +879,34 @@ change/only at-value platform reduce [
 
 ob: context boot-sysobj
 
-make-obj-defs: func [obj prefix depth /local f] [
+make-obj-defs: func [obj prefix depth /selfless /local f] [
     uppercase prefix
     emit ["enum " prefix "object {" newline]
-    emit-line prefix "SELF = 0" none
-    for-each field words-of obj [ ;R3
+
+    either selfless [
+        ;
+        ; Make sure *next* value starts at 1.  Keys/vars in contexts start
+        ; at 1, and if there's no "userspace" self in the 1 slot, the first
+        ; key has to be...so we make `SYS_CTX_0 = 0` (for instance)
+        ;
+        emit-line prefix "0 = 0" none
+    ][
+        ; The internal generator currently puts SELF at the start of new
+        ; objects in key slot 1, by default.  Eventually MAKE OBJECT! will
+        ; have nothing to do with adding SELF, and it will be entirely a
+        ; by-product of generators.
+        ;
+        emit-line prefix "SELF = 1" none
+    ]
+
+    for-each field words-of obj [
         emit-line prefix field none
     ]
     emit [tab uppercase join prefix "MAX^/"]
     emit "};^/^/"
 
     if depth > 1 [
-        for-each field words-of obj [ ;R3
+        for-each field words-of obj [
             f: join prefix [field #"_"]
             replace/all f "-" "_"
             all [
@@ -985,8 +1001,9 @@ emit {
 ^{
 }
 ; Generate ERROR object and append it to bootdefs.h:
-emit-line/code "REBVAL " 'self ";" ;R3
-for-each word words-of ob/standard/error [ ;R3
+emit-line/code "REBVAL " 'rootvar ";"
+emit-line/code "REBVAL " 'self ";"
+for-each word words-of ob/standard/error [
     if word = 'near [word: 'nearest] ; prevents C problem
     emit-line/code "REBVAL " word ";"
 ]
@@ -1106,7 +1123,15 @@ for-each file first mezz-files [
 
 emit-head "Sys Context" %sysctx.h
 sctx: construct boot-sys
-make-obj-defs sctx "SYS_CTX_" 1
+
+; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
+; constructor, but uses Alloc_Frame() directly.  Rather than try and force
+; it to have a SELF, having some objects that don't helps pave the way
+; to the userspace choice of self-vs-no-self (as with <transparent> on
+; function to have no RETURN)
+;
+make-obj-defs/selfless sctx "SYS_CTX_" 1
+
 write inc/tmp-sysctx.h out
 
 
@@ -1140,11 +1165,11 @@ for-each val nats [
 
 print [nat-count "natives"]
 
-emit [newline {const REBFUN Native_Funcs[} nat-count {] = ^{
+emit [newline {const REBNAT Native_Funcs[} nat-count {] = ^{
 }]
 for-each val nats [
     if set-word? val [
-        emit-line/code "N_" to word! val "," ;R3
+        emit-line/code "N_" to word! val ","
     ]
     ;nat-count: nat-count + 1
 ]
@@ -1236,7 +1261,7 @@ emit [
 #define CHECK_TITLE   } checksum to binary! title {
 
 extern const REBYTE Native_Specs[];
-extern const REBFUN Native_Funcs[];
+extern const REBNAT Native_Funcs[];
 
 typedef struct REBOL_Boot_Block ^{
 }
@@ -1257,6 +1282,7 @@ emit [
 //**** ROOT Context (Root Module):
 
 typedef struct REBOL_Root_Context ^{
+    REBVAL rootvar; // [0] reserved for the context itself
 }
 ]
 
@@ -1265,7 +1291,7 @@ for-each word boot-root [
 ]
 emit ["} ROOT_CTX;" lf lf]
 
-n: 0
+n: 1
 for-each word boot-root [
     emit-line/define "#define ROOT_" word join "(&Root_Context->" [lowercase replace/all form word #"-" #"_" ")"]
     n: n + 1
@@ -1280,6 +1306,7 @@ emit [
 //**** Task Context
 
 typedef struct REBOL_Task_Context ^{
+    REBVAL rootvar; // [0] reserved for the context itself
 }
 ]
 
@@ -1288,7 +1315,7 @@ for-each word boot-task [
 ]
 emit ["} TASK_CTX;" lf lf]
 
-n: 0
+n: 1
 for-each word boot-task [
     emit-line/define "#define TASK_" word join "(&Task_Context->" [lowercase replace/all form word #"-" #"_" ")"]
     n: n + 1

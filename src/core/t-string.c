@@ -200,7 +200,7 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
         n >>= 8;
     }
     bp[8] = 0;
-    ser->tail = 8;
+    SET_SERIES_LEN(ser, 8);
 
     return ser;
 }
@@ -245,13 +245,13 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
     // MAKE/TO BINARY! <char!>
     case REB_CHAR:
         ser = Make_Binary(6);
-        ser->tail = Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg));
+        SET_SERIES_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
         TERM_SEQUENCE(ser);
         break;
 
     // MAKE/TO BINARY! <bitset!>
     case REB_BITSET:
-        ser = Copy_Bytes(VAL_BIN(arg), VAL_TAIL(arg));
+        ser = Copy_Bytes(VAL_BIN(arg), VAL_LEN_HEAD(arg));
         break;
 
     // MAKE/TO BINARY! <image!>
@@ -261,9 +261,9 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
     case REB_MONEY:
         ser = Make_Binary(12);
-        ser->tail = 12;
-        deci_to_binary(ser->data, VAL_MONEY_AMOUNT(arg));
-        ser->data[12] = 0;
+        SET_SERIES_LEN(ser, 12);
+        deci_to_binary(SERIES_DATA(ser), VAL_MONEY_AMOUNT(arg));
+        SERIES_DATA(ser)[12] = 0;
         break;
 
     default:
@@ -282,14 +282,14 @@ REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (!ANY_BINSTR(data)) return FALSE;
     *out = *data++;
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
 
     // !!! This did not have special END handling previously, but it would have
     // taken the 0 branch.  Review if this is sensible.
     //
     i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
 
-    if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
+    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;
 }
@@ -433,13 +433,13 @@ REBINT PD_String(REBPVS *pvs)
     }
     else if (ANY_BINSTR(val)) {
         i = VAL_INDEX(val);
-        if (i >= VAL_TAIL(val)) return PE_BAD_SET;
+        if (i >= VAL_LEN_HEAD(val)) return PE_BAD_SET;
         c = GET_ANY_CHAR(VAL_SERIES(val), i);
     }
     else
         return PE_BAD_SELECT;
 
-    FAIL_IF_PROTECTED_SERIES(ser);
+    FAIL_IF_LOCKED_SERIES(ser);
 
     if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser, TRUE);
     SET_ANY_CHAR(ser, n, c);
@@ -478,7 +478,7 @@ REBINT PD_File(REBPVS *pvs)
 
     c = GET_ANY_CHAR(arg, 0);
     n = (c == '/' || c == '\\') ? 1 : 0;
-    Append_String(ser, arg, n, arg->tail-n);
+    Append_String(ser, arg, n, SERIES_LEN(arg) - n);
 
     Val_Init_Series(pvs->store, VAL_TYPE(pvs->value), ser);
 
@@ -510,13 +510,13 @@ REBTYPE(String)
 
     // Common setup code for all actions:
     if (action != A_MAKE && action != A_TO) {
-        index = (REBINT)VAL_INDEX(value);
-        tail  = (REBINT)VAL_TAIL(value);
+        index = cast(REBINT, VAL_INDEX(value));
+        tail = cast(REBINT, VAL_LEN_HEAD(value));
     }
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_SERIES(VAL_SERIES(value));
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
     switch (action) {
 
@@ -669,7 +669,7 @@ zero_str:
         if (index < tail) {
             if (index == 0) Reset_Series(VAL_SERIES(value));
             else {
-                VAL_TAIL(value) = (REBCNT)index;
+                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
                 TERM_SEQUENCE(VAL_SERIES(value));
             }
         }
@@ -709,8 +709,13 @@ zero_str:
     case A_OR_T:
     case A_XOR_T:
         if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
-        VAL_LIMIT_SERIES(value);
-        VAL_LIMIT_SERIES(arg);
+
+        if (VAL_INDEX(value) > VAL_LEN_HEAD(value))
+            VAL_INDEX(value) = VAL_LEN_HEAD(value);
+
+        if (VAL_INDEX(arg) > VAL_LEN_HEAD(arg))
+            VAL_INDEX(arg) = VAL_LEN_HEAD(arg);
+
         ser = Xandor_Binary(action, value, arg);
         goto ser_exit;
 
@@ -740,9 +745,9 @@ zero_str:
         if (VAL_TYPE(value) != VAL_TYPE(arg))
             fail (Error(RE_NOT_SAME_TYPE));
 
-        FAIL_IF_PROTECTED_SERIES(VAL_SERIES(arg));
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg))
+        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg))
             swap_chars(value, arg);
         break;
 

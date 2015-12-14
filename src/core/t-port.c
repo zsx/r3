@@ -99,7 +99,7 @@ REBTYPE(Port)
         // system/standard/port is made with CONTEXT and not with MAKE PORT!
         //
         frame = Copy_Frame_Shallow_Managed(VAL_FRAME(arg));
-        VAL_SET(FRAME_CONTEXT(frame), REB_PORT);
+        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_PORT);
         Val_Init_Port(D_OUT, frame);
         return R_OUT;
     }

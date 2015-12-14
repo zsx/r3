@@ -46,13 +46,13 @@ enum {
 static void Protect_Key(REBVAL *key, REBCNT flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
-        if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_WORD_LOCK);
-        else VAL_CLR_EXT(key, EXT_WORD_LOCK);
+        if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_TYPESET_LOCKED);
+        else VAL_CLR_EXT(key, EXT_TYPESET_LOCKED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
-        if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_WORD_HIDE);
-        else VAL_CLR_EXT(key, EXT_WORD_HIDE);
+        if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_TYPESET_HIDDEN);
+        else VAL_CLR_EXT(key, EXT_TYPESET_HIDDEN);
     }
 }
 
@@ -83,9 +83,9 @@ void Protect_Series(REBVAL *val, REBCNT flags)
     if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SERIES_SET_FLAG(series, SER_PROTECT);
+        SERIES_SET_FLAG(series, SER_LOCKED);
     else
-        SERIES_CLR_FLAG(series, SER_PROTECT);
+        SERIES_CLR_FLAG(series, SER_LOCKED);
 
     if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
@@ -110,9 +110,9 @@ void Protect_Object(REBVAL *value, REBCNT flags)
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
     else
-        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_PROTECT);
+        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
 
     for (value = FRAME_KEY(frame, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
@@ -387,7 +387,7 @@ REBNATIVE(break)
 {
     REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
 
-    *D_OUT = *D_FUNC;
+    *D_OUT = *FUNC_VALUE(D_FUNC);
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -551,12 +551,16 @@ REBNATIVE(case)
 //  {Catches a throw from a block and returns its value.}
 //  
 //      block [block!] "Block to evaluate"
-//      /name "Catches a named throw"
-//      name-list [block! word! any-function! object!] 
-//      "Names to catch (single name if not block)"
-//      /quit "Special catch for QUIT native"
-//      /any {Catch all throws except QUIT (can be used with /QUIT)}
-//      /with "Handle thrown case with code"
+//      /name
+//          "Catches a named throw" ;-- should it be called /named ?
+//      names [block! word! any-function! object!]
+//          "Names to catch (single name if not block)"
+//      /quit
+//          "Special catch for QUIT native"
+//      /any
+//          {Catch all throws except QUIT (can be used with /QUIT)}
+//      /with
+//          "Handle thrown case with code"
 //      handler [block! any-function!] 
 //      "If FUNCTION!, spec matches [value name]"
 //  ]
@@ -567,100 +571,122 @@ REBNATIVE(catch)
 // it (you have to CATCH/ANY/QUIT).  Currently the label for quitting is the
 // NATIVE! function value for QUIT.
 {
-    REBVAL * const block = D_ARG(1);
+    PARAM(1, block);
+    REFINE(2, name);
+    PARAM(3, names);
+    REFINE(4, quit);
+    REFINE(5, any);
+    REFINE(6, with);
+    PARAM(7, handler);
 
     const REBOOL named = D_REF(2);
     REBVAL * const name_list = D_ARG(3);
 
-    // We save the values into booleans (and reuse their GC-protected slots)
-    const REBOOL quit = D_REF(4);
-    const REBOOL any = D_REF(5);
-
-    const REBOOL with = D_REF(6);
-    REBVAL * const handler = D_ARG(7);
-
     // /ANY would override /NAME, so point out the potential confusion
-    if (any && named) fail (Error(RE_BAD_REFINES));
+    //
+    if (REF(any) && REF(name))
+        fail (Error(RE_BAD_REFINES));
 
-    if (DO_ARRAY_THROWS(D_OUT, block)) {
+    if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
         if (
-            (any && (!IS_NATIVE(D_OUT) || VAL_FUNC_CODE(D_OUT) != &N_quit))
-            || (quit && (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_quit))
+            (
+                REF(any)
+                && (!IS_NATIVE(D_OUT) || VAL_FUNC_CODE(D_OUT) != &N_quit)
+            )
+            || (
+                REF(quit)
+                && (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_quit)
+            )
         ) {
             goto was_caught;
         }
 
-        if (named) {
+        if (REF(name)) {
+            //
             // We use equal? by way of Compare_Modify_Values, and re-use the
             // refinement slots for the mutable space
-            REBVAL * const temp1 = D_ARG(4);
-            REBVAL * const temp2 = D_ARG(5);
+
+            REBVAL * const temp1 = ARG(quit);
+            REBVAL * const temp2 = ARG(any);
 
             // !!! The reason we're copying isn't so the OPT_VALUE_THROWN bit
             // won't confuse the equality comparison...but would it have?
 
-            if (IS_BLOCK(name_list)) {
+            if (IS_BLOCK(ARG(names))) {
+                //
                 // Test all the words in the block for a match to catch
-                REBVAL *candidate = VAL_ARRAY_AT(name_list);
+
+                REBVAL *candidate = VAL_ARRAY_AT(ARG(names));
                 for (; NOT_END(candidate); candidate++) {
+                    //
                     // !!! Should we test a typeset for illegal name types?
+                    //
                     if (IS_BLOCK(candidate))
-                        fail (Error(RE_INVALID_ARG, name_list));
+                        fail (Error(RE_INVALID_ARG, ARG(names)));
 
                     *temp1 = *candidate;
                     *temp2 = *D_OUT;
 
                     // Return the THROW/NAME's arg if the names match
                     // !!! 0 means equal?, but strict-equal? might be better
+                    //
                     if (Compare_Modify_Values(temp1, temp2, 0))
                         goto was_caught;
                 }
             }
             else {
-                *temp1 = *name_list;
+                *temp1 = *ARG(names);
                 *temp2 = *D_OUT;
 
                 // Return the THROW/NAME's arg if the names match
                 // !!! 0 means equal?, but strict-equal? might be better
+                //
                 if (Compare_Modify_Values(temp1, temp2, 0))
                     goto was_caught;
             }
         }
         else {
             // Return THROW's arg only if it did not have a /NAME supplied
+            //
             if (IS_NONE(D_OUT))
                 goto was_caught;
         }
 
         // Throw name is in D_OUT, thrown value is held task local
+        //
         return R_OUT_IS_THROWN;
     }
 
     return R_OUT;
 
 was_caught:
-    if (with) {
+    if (REF(with)) {
+        //
         // We again re-use the refinement slots, but this time as mutable
         // space protected from GC for the handler's arguments
-        REBVAL *thrown_arg = D_ARG(4);
-        REBVAL *thrown_name = D_ARG(5);
+
+        REBVAL *thrown_arg = ARG(any);
+        REBVAL *thrown_name = ARG(quit);
 
         CATCH_THROWN(thrown_arg, D_OUT);
         *thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
 
-        if (IS_BLOCK(handler)) {
+        if (IS_BLOCK(ARG(handler))) {
+            //
             // There's no way to pass args to a block (so just DO it)
-            if (DO_ARRAY_THROWS(D_OUT, handler))
+            //
+            if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
                 return R_OUT_IS_THROWN;
 
             return R_OUT;
         }
-        else if (ANY_FUNC(handler)) {
-            REBVAL *param = ARRAY_AT(VAL_FUNC_PARAMLIST(handler), 1);
+        else if (ANY_FUNC(ARG(handler))) {
+            REBFUN *handler = VAL_FUNC(ARG(handler));
+            REBVAL *param = FUNC_PARAMS_HEAD(handler);
 
             if (
-                (VAL_FUNC_NUM_PARAMS(handler) == 0)
-                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
+                FUNC_NUM_PARAMS(handler) == 0
+                || IS_REFINEMENT(FUNC_PARAM(handler, 1))
             ) {
                 // If the handler is zero arity or takes a first parameter
                 // that is a refinement, call it with no arguments
@@ -669,8 +695,8 @@ was_caught:
                     return R_OUT_IS_THROWN;
             }
             else if (
-                (VAL_FUNC_NUM_PARAMS(handler) == 1)
-                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 2))
+                FUNC_NUM_PARAMS(handler) == 1
+                || IS_REFINEMENT(FUNC_PARAM(handler, 2))
             ) {
                 // If the handler is arity one (with a non-refinement
                 // parameter), or a greater arity with a second parameter that
@@ -696,6 +722,7 @@ was_caught:
     }
 
     // If no handler, just return the caught thing
+    //
     CATCH_THROWN(D_OUT, D_OUT);
     return R_OUT;
 }
@@ -877,7 +904,7 @@ REBNATIVE(continue)
 {
     REBVAL *value = D_REF(1) ? D_ARG(2) : UNSET_VALUE;
 
-    *D_OUT = *D_FUNC;
+    *D_OUT = *FUNC_VALUE(D_FUNC);
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
 
@@ -941,7 +968,7 @@ REBNATIVE(do)
                 // If we hit the end, we always want to return unset.
                 if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
-                    VAL_INDEX(ARG(value)) = VAL_TAIL(ARG(value));
+                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
                     Set_Var(ARG(var), ARG(value));
                 }
                 return R_UNSET;
@@ -1041,7 +1068,7 @@ REBNATIVE(exit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :exit`.
 {
-    *D_OUT = *D_FUNC;
+    *D_OUT = *FUNC_VALUE(D_FUNC);
 
     CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
 
@@ -1572,7 +1599,7 @@ REBNATIVE(switch)
             }
         #endif
 
-            GET_VAR_INTO(D_OUT, item);
+            *D_OUT = *GET_VAR(item);
         }
         else if (IS_GET_PATH(item)) {
 
@@ -1690,14 +1717,16 @@ REBNATIVE(trap)
                 return R_OUT;
             }
             else if (ANY_FUNC(ARG(handler))) {
+                REBFUN *handler = VAL_FUNC(ARG(handler));
+
                 if (
-                    (VAL_FUNC_NUM_PARAMS(ARG(handler)) == 0)
-                    || IS_REFINEMENT(VAL_FUNC_PARAM(ARG(handler), 1))
+                    (FUNC_NUM_PARAMS(handler) == 0)
+                    || IS_REFINEMENT(FUNC_PARAM(handler, 1))
                 ) {
                     // Arity zero handlers (or handlers whose first
                     // parameter is a refinement) we call without the ERROR!
                     //
-                    if (Apply_Func_Throws(D_OUT, ARG(handler), NULL))
+                    if (Apply_Func_Throws(D_OUT, handler, NULL))
                         return R_OUT_IS_THROWN;
                 }
                 else {
@@ -1708,7 +1737,7 @@ REBNATIVE(trap)
                     // isn't a refinement, try passing it the ERROR! we
                     // trapped.  Apply will do argument checking.
                     //
-                    if (Apply_Func_Throws(D_OUT, ARG(handler), &arg, NULL))
+                    if (Apply_Func_Throws(D_OUT, handler, &arg, NULL))
                         return R_OUT_IS_THROWN;
                 }
 

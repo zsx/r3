@@ -159,13 +159,19 @@ REBSER *Prep_String(REBSER *series, REBYTE **str, REBCNT len)
 
     if (!series) {
         series = Make_Binary(len);
-        series->tail = len;
-        *str = STR_HEAD(series);
+        SET_SERIES_LEN(series, len);
+        *str = BIN_HEAD(series);
     }
     else {
+        // This used "STR_AT" (obsolete) but didn't have an explicit case
+        // here that it was byte sized.  Check it, because if you have
+        // unicode characters this would give the wrong pointer.
+        //
+        assert(BYTE_SIZE(series));
+
         tail = SERIES_LEN(series);
         EXPAND_SERIES_TAIL(series, len);
-        *str = STR_AT(series, tail);
+        *str = BIN_AT(series, tail);
     }
     return series;
 }
@@ -241,7 +247,7 @@ void New_Indented_Line(REB_MOLD *mold)
     REBUNI *cp = 0;
 
     // Check output string has content already but no terminator:
-    if (mold->series->tail) {
+    if (SERIES_LEN(mold->series)) {
         cp = UNI_LAST(mold->series);
         if (*cp == ' ' || *cp == '\t') *cp = '\n';
         else cp = 0;
@@ -281,7 +287,7 @@ typedef struct REB_Str_Flags {
 static void Sniff_String(REBSER *ser, REBCNT idx, REB_STRF *sf)
 {
     // Scan to find out what special chars the string contains?
-    REBYTE *bp = STR_HEAD(ser);
+    REBYTE *bp = SERIES_DATA(ser);
     REBUNI *up = (REBUNI*)bp;
     REBUNI c;
     REBCNT n;
@@ -350,7 +356,7 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
         *up++ = '"';
         up = Emit_Uni_Char(up, chr, parened);
         *up++ = '"';
-        dst->tail = up - UNI_HEAD(dst);
+        SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
     }
     UNI_TERM(dst);
 }
@@ -371,7 +377,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
     CLEARS(&sf);
 
     // Empty string:
-    if (idx >= VAL_TAIL(value)) {
+    if (idx >= VAL_LEN_HEAD(value)) {
         // !!! Comment said `fail (Error(RE_PAST_END));`
         Append_Unencoded(mold->series, "\"\"");
         return;
@@ -382,7 +388,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     // Source can be 8 or 16 bits:
     if (uni) up = UNI_HEAD(ser);
-    else bp = STR_HEAD(ser);
+    else bp = BIN_HEAD(ser);
 
     // If it is a short quoted string, emit it as "string":
     if (len <= MAX_QUOTED_STR && sf.quote == 0 && sf.newline < 3) {
@@ -391,7 +397,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
         *dp++ = '"';
 
-        for (n = idx; n < VAL_TAIL(value); n++) {
+        for (n = idx; n < VAL_LEN_HEAD(value); n++) {
             c = uni ? up[n] : cast(REBUNI, bp[n]);
             dp = Emit_Uni_Char(dp, c, (REBOOL)GET_MOPT(mold, MOPT_ANSI_ONLY)); // parened
         }
@@ -408,7 +414,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     *dp++ = '{';
 
-    for (n = idx; n < VAL_TAIL(value); n++) {
+    for (n = idx; n < VAL_LEN_HEAD(value); n++) {
 
         c = uni ? up[n] : cast(REBUNI, bp[n]);
         switch (c) {
@@ -450,14 +456,14 @@ static void Mold_Url(const REBVAL *value, REB_MOLD *mold)
     REBSER *ser = VAL_SERIES(value);
 
     // Compute extra space needed for hex encoded characters:
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_URL_ESC(c)) len += 2;
     }
 
     dp = Prep_Uni_Series(mold, len);
 
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_URL_ESC(c)) dp = Form_Hex_Esc_Uni(dp, c);  // c => %xx
         else *dp++ = c;
@@ -475,7 +481,7 @@ static void Mold_File(const REBVAL *value, REB_MOLD *mold)
     REBSER *ser = VAL_SERIES(value);
 
     // Compute extra space needed for hex encoded characters:
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_FILE_ESC(c)) len += 2;
     }
@@ -486,7 +492,7 @@ static void Mold_File(const REBVAL *value, REB_MOLD *mold)
 
     *dp++ = '%';
 
-    for (n = VAL_INDEX(value); n < VAL_TAIL(value); n++) {
+    for (n = VAL_INDEX(value); n < VAL_LEN_HEAD(value); n++) {
         c = GET_ANY_CHAR(ser, n);
         if (IS_FILE_ESC(c)) dp = Form_Hex_Esc_Uni(dp, c);  // c => %xx
         else *dp++ = c;
@@ -549,7 +555,7 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
     VAL_INDEX(&val) = 0;
     if (IS_BINARY(value)) Mold_Binary(&val, mold);
     else {
-        VAL_SET(&val, REB_STRING);
+        VAL_RESET_HEADER(&val, REB_STRING);
         Mold_String_Series(&val, mold);
     }
     Post_Mold(value, mold);
@@ -593,7 +599,7 @@ static void Mold_Array_At(
     // We don't want to use Val_Init_Block because it will create an implicit
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
-    VAL_SET(value, REB_BLOCK);
+    VAL_RESET_HEADER(value, REB_BLOCK);
     VAL_ARRAY(value) = array;
     VAL_INDEX(value) = 0;
 
@@ -646,7 +652,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
         all = FALSE;
 
     // If out of range, do not cause error to avoid error looping.
-    if (VAL_INDEX(value) >= VAL_TAIL(value)) over = TRUE; // Force it into []
+    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) over = TRUE; // Force it into []
 
     if (all || (over && !IS_BLOCK(value) && !IS_PAREN(value))) {
         SET_FLAG(mold->opts, MOPT_MOLD_ALL);
@@ -749,7 +755,7 @@ static void Form_Array_At(
         }
         else {
             // Add a space if needed:
-            if (n < len && mold->series->tail
+            if (n < len && SERIES_LEN(mold->series)
                 && *UNI_LAST(mold->series) != LF
                 && !GET_MOPT(mold, MOPT_TIGHT)
             )
@@ -777,6 +783,28 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         Append_Codepoint_Raw(mold->series, '[');
     }
 
+#if !defined(NDEBUG)
+    if (VAL_TYPESET_SYM(value) != SYM_0) {
+        //
+        // In debug builds we're probably more interested in the symbol than
+        // the typesets, if we are looking at a PARAMLIST or KEYLIST.
+        //
+        Append_Unencoded(mold->series, "(");
+        Append_UTF8(
+            mold->series, Get_Sym_Name(VAL_TYPESET_SYM(value)), -1 // LEN_BYTES
+        );
+        Append_Unencoded(mold->series, ") ");
+    }
+
+    // REVIEW: should detect when a lot of types are active and condense
+    // only if the number of types is unreasonable (often is for keys/params)
+    //
+    if (TRUE) {
+        Append_Unencoded(mold->series, "...");
+        goto skip_types;
+    }
+#endif
+
     // Convert bits to types (we can make this more efficient !!)
     for (n = 0; n < REB_MAX; n++) {
         if (TYPE_CHECK(value, n)) {
@@ -784,6 +812,10 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         }
     }
     Trim_Tail(mold->series, ' ');
+
+#if !defined(NDEBUG)
+skip_types:
+#endif
 
     if (molded) {
         //Form_Typeset(value, mold & ~(1<<MOPT_MOLD_ALL));
@@ -875,7 +907,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
     // Mold all words and their values:
     for (; !IS_END(key); key++, var++) {
-        if (!VAL_GET_EXT(key, EXT_WORD_HIDE)) {
+        if (!VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
             had_output = TRUE;
             Emit(mold, "N: V\n", VAL_TYPESET_SYM(key), var);
         }
@@ -909,7 +941,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     mold->indent++;
     for (; !IS_END(key); key++, var++) {
         if (
-            !VAL_GET_EXT(key, EXT_WORD_HIDE) &&
+            !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN) &&
             ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
         ){
             New_Indented_Line(mold);
@@ -971,7 +1003,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
         if (IS_STRING(value)) // special case: source file line number
-            Append_String(mold->series, VAL_SERIES(value), 0, VAL_TAIL(value));
+            Append_String(mold->series, VAL_SERIES(value), 0, VAL_LEN_HEAD(value));
         else if (IS_BLOCK(value))
             Mold_Simple_Block(mold, VAL_ARRAY_AT(value), 60);
     }
@@ -1436,7 +1468,7 @@ REBSER *Mold_Print_Value(const REBVAL *value, REBCNT limit, REBFLG mold)
 
     Mold_Value(&mo, value, mold);
 
-    if (limit != 0 && STR_LEN(mo.series) > limit) {
+    if (limit != 0 && SERIES_LEN(mo.series) > limit) {
         SET_SERIES_LEN(mo.series, limit);
         Append_Unencoded(mo.series, "..."); // adds a null at the tail
     }

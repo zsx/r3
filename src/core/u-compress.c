@@ -142,7 +142,7 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG ra
     if (ret != Z_STREAM_END)
         fail (Error_Compression(&strm, ret));
 
-    SET_STR_END(output, buf_size - strm.avail_out);
+    SET_BIN_END(output, buf_size - strm.avail_out);
     SET_SERIES_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
@@ -188,8 +188,13 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG ra
 // 
 // !!! Does not expose the "streaming" ability of zlib.
 //
-REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REBFLG raw)
-{
+REBSER *Decompress(
+    const REBYTE *input,
+    REBCNT len,
+    REBINT max,
+    REBFLG gzip,
+    REBFLG raw
+) {
     REBOL_STATE state;
     REBFRM *error;
 
@@ -309,7 +314,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
                 REBVAL temp;
-                VAL_SET(&temp, max);
+                SET_INTEGER(&temp, max);
 
                 // NOTE: You can hit this on 'make prep' without doing a full
                 // rebuild.  'make clean' and build again, it should go away.
@@ -338,7 +343,7 @@ REBSER *Decompress(const REBYTE *input, REBCNT len, REBINT max, REBFLG gzip, REB
             fail (Error_Compression(&strm, ret));
     }
 
-    SET_STR_END(output, strm.total_out);
+    SET_BIN_END(output, strm.total_out);
     SET_SERIES_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic

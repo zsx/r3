@@ -99,7 +99,7 @@ static REBOOL get_scalar(const REBSTU *stu,
             break;
         case STRUCT_TYPE_STRUCT:
             {
-                SET_TYPE(val, REB_STRUCT);
+                VAL_SET_TYPE(val, REB_STRUCT);
                 VAL_STRUCT_FIELDS(val) = field->fields;
                 VAL_STRUCT_SPEC(val) = field->spec;
 
@@ -508,7 +508,10 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
         Is_Array_Series(data_ser) ? (MKS_ARRAY | MKS_EXTERNAL) : MKS_EXTERNAL
     );
 
-    ser->data = (REBYTE*)raw_addr;
+    // !!! Should probably be a formally named macro for setting a series
+    // MKS_EXTERNAL, vs reaching directly into the implementation of REBSER
+    //
+    ser->content.dynamic.data = cast(REBYTE*, raw_addr);
 
     VAL_STRUCT_DATA_BIN(out) = ser;
     MANAGE_SERIES(ser);
@@ -604,7 +607,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
     ++ val;
 
-    if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
+    if (NOT_END(val) && IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
 
         if (DO_ARRAY_THROWS(&ret, val)) {
@@ -680,7 +683,7 @@ REBFLG MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         MANAGE_SERIES(VAL_STRUCT_DATA_BIN(out));
 
         /* set type early such that GC will handle it correctly, i.e, not collect series in the struct */
-        SET_TYPE(out, REB_STRUCT);
+        VAL_SET_TYPE(out, REB_STRUCT);
 
         if (IS_BLOCK(blk)) {
             parse_attr(blk, &raw_size, &raw_addr);
@@ -957,7 +960,7 @@ void Copy_Struct(const REBSTU *src, REBSTU *dst)
 //
 void Copy_Struct_Val(const REBVAL *src, REBVAL *dst)
 {
-    SET_TYPE(dst, REB_STRUCT);
+    VAL_SET_TYPE(dst, REB_STRUCT);
     Copy_Struct(&VAL_STRUCT(src), &VAL_STRUCT(dst));
 }
 
@@ -980,7 +983,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
             REBUPT raw_addr = 0;
 
             // make sure no other field initialization
-            if (VAL_TAIL(spec) != 1)
+            if (VAL_LEN_HEAD(spec) != 1)
                 fail (Error_Invalid_Arg(spec));
 
             parse_attr(word, &raw_size, &raw_addr);
@@ -1073,7 +1076,7 @@ REBTYPE(Struct)
                 else
                     fail (Error_Bad_Make(REB_STRUCT, arg));
             }
-            SET_TYPE(ret, REB_STRUCT);
+            VAL_SET_TYPE(ret, REB_STRUCT);
             break;
 
         case A_CHANGE:

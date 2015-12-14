@@ -91,6 +91,7 @@ offset?: :offset-of
 
 sign?: :sign-of
 
+suffix?: :suffix-of
 
 ; While `foreach` may have been comfortable for some as a word, its hard
 ; not to see the word `reach` inside of it.  Once you recognize that it's
@@ -184,10 +185,19 @@ bind-of: :bound?
 ;encoding?
 ;file-type?
 ;speed?
-;suffix?
 ;why?
 ;info?
 ;exists?
+
+
+; !!! Technically speaking all frames should be "selfless" in the sense that
+; the system does not have a particular interest in the word "self" as
+; applied to objects.  Generators like OBJECT may choose to establish a
+; self-bearing protocol.
+;
+selfless?: func [context [any-context!]] [
+    fail {selfless? no longer has meaning (all frames are "selfless")}
+]
 
 
 ; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what

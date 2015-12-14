@@ -68,7 +68,7 @@ static void Setup_File(REBREQ *file, REBCNT args, REBVAL *path)
     //
     MANAGE_SERIES(ser);
 
-    file->special.file.path = cast(REBCHR*, ser->data);
+    file->special.file.path = cast(REBCHR*, SERIES_DATA(ser));
 
     SET_FLAG(file->modes, RFM_NAME_MEM);
 
@@ -214,7 +214,7 @@ static void Read_File_Port(
     if (OS_DO_DEVICE(file, RDC_READ) < 0)
         fail (Error_On_Port(RE_READ_ERROR, port, file->error));
     SET_SERIES_LEN(ser, file->actual);
-    STR_TERM(ser);
+    TERM_SEQUENCE(ser);
 
     // Convert to string or block of strings.
     // NOTE: This code is incorrect for files read in chunks!!!
@@ -461,7 +461,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
             // Convert file name to OS format:
             if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
                 fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
-            file->common.data = BIN_DATA(target);
+            file->common.data = BIN_HEAD(target);
             OS_DO_DEVICE(file, RDC_RENAME);
             Free_Series(target);
             if (file->error) fail (Error(RE_NO_RENAME, path));

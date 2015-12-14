@@ -170,10 +170,9 @@ Script: [
     no-catch:           [{Missing CATCH for THROW of} :arg1]
     no-catch-named:     [{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
-    locked-word:        [{protected variable - cannot modify:} :arg1]
-    protected:          {protected value or series - cannot modify}
+    locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
+    locked:             {value or series locked by PROTECT - cannot modify}
     hidden:             {not allowed - would expose or modify hidden values}
-    self-protected:     {cannot set/unset self - it is protected}
     bad-bad:            [:arg1 {error:} :arg2]
 
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
@@ -194,6 +193,7 @@ Script: [
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
 
+    block-skip-wrong:   {Block is not even multiple of skip size}
 ;   bad-prompt:         [{Error executing prompt block}]
 ;   bad-port-action:    [{Cannot use} :arg1 {on this type port}]
 ;   face-error:         [{Invalid graphics face object}]
@@ -221,7 +221,7 @@ Access: [
 ;   socket-open:        [{error opening socket:} :arg1]
     no-script:          [{script not found:} :arg1]
 
-    no-scheme-name:     [{new scheme must have a name:} :arg1]
+    no-scheme-name:     {Scheme has no `name:` field (must be WORD!)}
     no-scheme:          [{missing port scheme:} :arg1]
 
     invalid-spec:       [{invalid spec or options:} :arg1]

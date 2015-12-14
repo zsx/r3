@@ -217,7 +217,7 @@ void Display_Backtrace(REBCNT lines)
     REBCNT i;
 
     if (Trace_Limit > 0) {
-        tail = Trace_Buffer->tail;
+        tail = SERIES_LEN(Trace_Buffer);
         i = tail - 1;
         for (lines++ ;lines > 0; lines--, i--) {
             i = Find_Str_Char(Trace_Buffer, 0, i, tail, -1, LF, 0);
@@ -250,7 +250,7 @@ void Debug_String(const void *p, REBCNT len, REBOOL uni, REBINT lines)
     GC_Disabled = 1;
 
     if (Trace_Limit > 0) {
-        if (Trace_Buffer->tail >= Trace_Limit)
+        if (SERIES_LEN(Trace_Buffer) >= Trace_Limit)
             Remove_Series(Trace_Buffer, 0, 2000);
         if (len == UNKNOWN) len = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
         // !!! account for unicode!
@@ -354,7 +354,7 @@ void Debug_Series(REBSER *ser)
         // container for now saying it is so we can output it.  It may be
         // a frame and we may not want to Manage_Series here, so we use a
         // raw VAL_SET instead of Val_Init_Block
-        VAL_SET(&value, REB_BLOCK);
+        VAL_RESET_HEADER(&value, REB_BLOCK);
         VAL_SERIES(&value) = ser;
         VAL_INDEX(&value) = 0;
         Debug_Fmt("%r", &value);
@@ -473,14 +473,14 @@ void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
         if (n > 0 && VAL_TYPE(value) <= REB_NONE) Debug_Chars('.', 1);
         else {
             out = Mold_Print_Value(value, limit, TRUE); // shared mold buffer
-            for (i1 = i2 = 0; i1 < out->tail; i1++) {
+            for (i1 = i2 = 0; i1 < SERIES_LEN(out); i1++) {
                 uc = GET_ANY_CHAR(out, i1);
                 if (uc < ' ') uc = ' ';
                 if (uc > ' ' || pc > ' ') SET_ANY_CHAR(out, i2++, uc);
                 pc = uc;
             }
             SET_ANY_CHAR(out, i2, 0);
-            Debug_String(out->data, i2, TRUE, 0);
+            Debug_String(SERIES_DATA(out), i2, TRUE, 0);
         }
     }
     Debug_Line();
@@ -522,13 +522,13 @@ void Debug_Buf(const char *fmt, va_list *args)
     RESET_SERIES(buf);
 
     // Limits output to size of buffer, will not expand it:
-    bp = Form_Args_Core(STR_HEAD(buf), SERIES_REST(buf) - 1, fmt, args);
-    tail = bp - STR_HEAD(buf);
+    bp = Form_Args_Core(BIN_HEAD(buf), SERIES_REST(buf) - 1, fmt, args);
+    tail = bp - BIN_HEAD(buf);
 
     for (n = 0; n < tail; n += len) {
-        len = LEN_BYTES(STR_AT(buf, n));
+        len = LEN_BYTES(BIN_AT(buf, n));
         if (len > 1024) len = 1024;
-        Debug_String(STR_AT(buf, n), len, 0, 0);
+        Debug_String(BIN_AT(buf, n), len, 0, 0);
     }
 
     assert(GC_Disabled == 1);
@@ -829,7 +829,7 @@ mold_value:
             ser = va_arg(*args, REBSER *);
             // Val_Init_Block would Ensure_Series_Managed, we use a raw
             // VAL_SET instead
-            VAL_SET(&value, REB_BLOCK);
+            VAL_RESET_HEADER(&value, REB_BLOCK);
             VAL_SERIES(&value) = ser;
             VAL_INDEX(&value) = 0;
             vp = &value;
@@ -895,7 +895,11 @@ REBYTE *Form_Args(REBYTE *bp, REBCNT max, const char *fmt, ...)
 void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 {
     REBSER *out = Mold_Print_Value(value, limit, mold);
-    Prin_OS_String(out->data, out->tail, OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE);
+    Prin_OS_String(
+        SERIES_DATA(out),
+        SERIES_LEN(out),
+        OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE
+    );
 }
 
 

@@ -36,7 +36,7 @@ static  REBCNT  Native_Count;
 static  REBCNT  Native_Limit;
 static  REBCNT  Action_Count;
 static  REBCNT  Action_Marker;
-static const REBFUN *Native_Functions;
+static const REBNAT *Native_Functions;
 static  BOOT_BLK *Boot_Block;
 
 
@@ -52,69 +52,95 @@ static  BOOT_BLK *Boot_Block;
 //
 static void Assert_Basics(void)
 {
-    REBVAL val;
-
-#if defined(SHOW_SIZEOFS)
-    union Reb_Value_Data *dummy_data;
+#if !defined(NDEBUG)
+    #if defined(__LP64__) || defined(__LLP64__)
+        const char *fmt = "%lu %s\n";
+    #else
+        const char *fmt = "%u %s\n";
+    #endif
 #endif
 
-    // !!! This is actually undefined behavior.  There is no requirement for
-    // the compiler to let you "image" the bits in a union in a way that
-    // reveals the endianness of the processor.  (Intuitively speaking, if you
-    // could do such a thing then you would be reaching beneath the abstraction
-    // layer that the standard is seeking to ensure you are "protected" by!)
-    //
-    // So ultimately the build needs to just take the word of the #define
-    // switches saying what the endianness is.  There is no way to implement
-    // this check "correctly".  All that said, in the interim, this usually
-    // works...but should be easy to turn off as it's standards-violating.
-    //
-    val.flags.all = 0;
-    val.flags.bitfields.opts = 123;
-    if (val.flags.all != 123)
-        panic (Error(RE_REBVAL_ALIGNMENT));
+    REBVAL dummy;
 
-    VAL_SET(&val, 123);
-    if (VAL_TYPE(&val) != 123)
-        panic (Error(RE_REBVAL_ALIGNMENT));
+#if !defined(NDEBUG)
+    #if defined(SHOW_SIZEOFS)
+        union Reb_Value_Payload *dummy_payload;
+    #endif
 
-#if defined(SHOW_SIZEOFS)
-    // For debugging ports to some systems:
-    printf("%d %s\n", sizeof(dummy_data->word), "word");
-    printf("%d %s\n", sizeof(dummy_data->series), "series");
-    printf("%d %s\n", sizeof(dummy_data->logic), "logic");
-    printf("%d %s\n", sizeof(dummy_data->integer), "integer");
-    printf("%d %s\n", sizeof(dummy_data->unteger), "unteger");
-    printf("%d %s\n", sizeof(dummy_data->decimal), "decimal");
-    printf("%d %s\n", sizeof(dummy_data->character), "char");
-    printf("%d %s\n", sizeof(dummy_data->error), "error");
-    printf("%d %s\n", sizeof(dummy_data->datatype), "datatype");
-    printf("%d %s\n", sizeof(dummy_data->frame), "frame");
-    printf("%d %s\n", sizeof(dummy_data->typeset), "typeset");
-    printf("%d %s\n", sizeof(dummy_data->symbol), "symbol");
-    printf("%d %s\n", sizeof(dummy_data->time), "time");
-    printf("%d %s\n", sizeof(dummy_data->tuple), "tuple");
-    printf("%d %s\n", sizeof(dummy_data->func), "func");
-    printf("%d %s\n", sizeof(dummy_data->object), "object");
-    printf("%d %s\n", sizeof(dummy_data->pair), "pair");
-    printf("%d %s\n", sizeof(dummy_data->event), "event");
-    printf("%d %s\n", sizeof(dummy_data->library), "library");
-    printf("%d %s\n", sizeof(dummy_data->structure), "struct");
-    printf("%d %s\n", sizeof(dummy_data->gob), "gob");
-    printf("%d %s\n", sizeof(dummy_data->utype), "utype");
-    printf("%d %s\n", sizeof(dummy_data->money), "money");
-    printf("%d %s\n", sizeof(dummy_data->handle), "handle");
-    printf("%d %s\n", sizeof(dummy_data->all), "all");
+    #if defined(SHOW_SIZEOFS)
+        //
+        // For debugging ports to some systems
+        //
+        printf(fmt, sizeof(dummy_payload->any_word), "any_word");
+        printf(fmt, sizeof(dummy_payload->any_series), "any_series");
+        printf(fmt, sizeof(dummy_payload->integer), "integer");
+        printf(fmt, sizeof(dummy_payload->unteger), "unteger");
+        printf(fmt, sizeof(dummy_payload->decimal), "decimal");
+        printf(fmt, sizeof(dummy_payload->character), "char");
+        printf(fmt, sizeof(dummy_payload->datatype), "datatype");
+        printf(fmt, sizeof(dummy_payload->typeset), "typeset");
+        printf(fmt, sizeof(dummy_payload->symbol), "symbol");
+        printf(fmt, sizeof(dummy_payload->time), "time");
+        printf(fmt, sizeof(dummy_payload->tuple), "tuple");
+        printf(fmt, sizeof(dummy_payload->any_function), "any_function");
+        printf(fmt, sizeof(dummy_payload->any_context), "any_context");
+        printf(fmt, sizeof(dummy_payload->pair), "pair");
+        printf(fmt, sizeof(dummy_payload->event), "event");
+        printf(fmt, sizeof(dummy_payload->library), "library");
+        printf(fmt, sizeof(dummy_payload->structure), "struct");
+        printf(fmt, sizeof(dummy_payload->gob), "gob");
+        printf(fmt, sizeof(dummy_payload->money), "money");
+        printf(fmt, sizeof(dummy_payload->handle), "handle");
+        printf(fmt, sizeof(dummy_payload->all), "all");
+        fflush(stdout);
+    #endif
 #endif
 
+    // Although the system is designed to be able to function with REBVAL at
+    // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
+    // and 4x(64-bit) on 64-bit platforms is a rather important performance
+    // point.  For the moment we consider it to be essential enough to the
+    // intended function of the system that it refuses to run if not true.
+    //
+    // But if someone is in an odd situation and understands why the size did
+    // not work out as designed, it *should* be possible to comment this out
+    // and keep running.
+    //
     if (sizeof(void *) == 8) {
-        if (sizeof(REBVAL) != 32) panic (Error(RE_REBVAL_ALIGNMENT));
-        if (sizeof(REBGOB) != 84) panic (Error(RE_BAD_SIZE));
-    } else {
-        if (sizeof(REBVAL) != 16) panic (Error(RE_REBVAL_ALIGNMENT));
-        if (sizeof(REBGOB) != 64) panic (Error(RE_BAD_SIZE));
+        if (sizeof(REBVAL) != 32)
+            panic (Error(RE_REBVAL_ALIGNMENT));
     }
-    if (sizeof(REBDAT) != 4) panic (Error(RE_BAD_SIZE));
+    else {
+        if (sizeof(REBVAL) != 16)
+            panic (Error(RE_REBVAL_ALIGNMENT));
+    }
+
+    // In the original conception of R3-Alpha, performance of the graphics
+    // layer was considered very important...and so the GUI would make use
+    // of the custom memory-pooled heap for its "(G)raphic (OB)jects", even
+    // though much of the GUI code itself was written in extensions.  With
+    // the Ren-C branch, the focus is on a more "essential" core.  So the
+    // hope is to either provide generic pooled memory services or have the
+    // graphics layer implement its own allocator--or just use malloc()/new
+    //
+    // But given that external code depends on binary compatibility with an
+    // understanding of what size a GOB is, this helps enforce that by
+    // checking that the size is what the linked-to code is expecting.
+    //
+    if (sizeof(void *) == 8) {
+        if (sizeof(REBGOB) != 84)
+            panic (Error(RE_BAD_SIZE));
+    }
+    else {
+        if (sizeof(REBGOB) != 64)
+            panic (Error(RE_BAD_SIZE));
+    }
+
+    // This checks the size of the `struct reb_date`.
+    // !!! Why this, in particular?
+    //
+    if (sizeof(REBDAT) != 4)
+        panic (Error(RE_BAD_SIZE));
 
     // The RXIARG structure mirrors the layouts of several value types
     // for clients who want to extend Rebol but not depend on all of
@@ -133,15 +159,29 @@ static void Assert_Basics(void)
     // answer to VAL_FRAME() to be different from VAL_SERIES(), and
     // lead to trouble if one call were used in lieu of the other.
     // Revisit after RXIARG dependencies have been eliminated.
-
+    //
     if (
-        offsetof(struct Reb_Context, frame)
-        != offsetof(struct Reb_Position, series)
+        offsetof(struct Reb_Any_Context, frame)
+        != offsetof(struct Reb_Any_Series, series)
     ) {
         panic (Error(RE_MISC));
     }
 
-    // Check special return values used to make sure they don't overlap
+    // The REBSER is designed to place the `info` bits exactly after a
+    // REBVAL and a pointer that can do double-duty as also a terminator
+    // for that REBVAL when viewed as an array of data.
+    //
+    // !!! The info bits actually are going to go at the very head, to
+    // permit REBSER node sizes in multiples of REBVAL.  But this will
+    // require some technical adjustments to how freeness indicator
+    // interacts with the memory pool.
+    //
+    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL) + sizeof(void*))
+        panic (Error(RE_MISC));
+
+    // Check special return values used "in-band" in an unsigned integer that
+    // is otherwise used for indices.  Make sure they don't overlap.
+    //
     assert(THROWN_FLAG != END_FLAG);
     assert(NOT_FOUND != END_FLAG);
     assert(NOT_FOUND != THROWN_FLAG);
@@ -262,10 +302,10 @@ static void Load_Boot(void)
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!text || (STR_LEN(text) != NAT_UNCOMPRESSED_SIZE))
+    if (!text || (SERIES_LEN(text) != NAT_UNCOMPRESSED_SIZE))
         panic (Error(RE_BOOT_DATA));
 
-    boot = Scan_Source(STR_HEAD(text), NAT_UNCOMPRESSED_SIZE);
+    boot = Scan_Source(SERIES_DATA(text), NAT_UNCOMPRESSED_SIZE);
     Free_Series(text);
 
     // Do not let it get GC'd
@@ -274,7 +314,7 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
 
-    if (VAL_TAIL(&Boot_Block->types) != REB_MAX)
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
     if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
         panic (Error(RE_BAD_TRASH_TYPE));
@@ -317,7 +357,7 @@ static void Init_Datatypes(void)
     for (n = 0; NOT_END(word); word++, n++) {
         assert(n < REB_MAX);
         value = Append_Frame(Lib_Context, word, 0);
-        VAL_SET(value, REB_DATATYPE);
+        VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
     }
@@ -385,10 +425,13 @@ REBNATIVE(native)
         fail (Error(RE_MAX_NATIVES));
     }
 
-    Make_Native(D_OUT, VAL_ARRAY(ARG(spec)), *Native_Functions++, REB_NATIVE);
-
-    if (REF(frameless))
-        VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
+    Make_Native(
+        D_OUT,
+        VAL_ARRAY(ARG(spec)),
+        *Native_Functions++,
+        REB_NATIVE,
+        REF(frameless)
+    );
 
     Native_Count++;
     return R_OUT;
@@ -439,8 +482,9 @@ REBNATIVE(action)
     Make_Native(
         D_OUT,
         VAL_ARRAY(ARG(spec)),
-        cast(REBFUN, cast(REBUPT, Action_Count)),
-        REB_ACTION
+        cast(REBNAT, cast(REBUPT, Action_Count)),
+        REB_ACTION,
+        FALSE
     );
 
     Action_Count++;
@@ -467,7 +511,7 @@ REBNATIVE(context)
 
     Val_Init_Object(
         D_OUT,
-        Make_Frame_Detect(
+        Make_Selfish_Frame_Detect(
             REB_OBJECT, // kind
             NULL, // spec
             NULL, // body
@@ -541,7 +585,7 @@ static void Init_Natives(void)
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
     Native_Count++;
     item++; // skip spec
 
@@ -557,7 +601,7 @@ static void Init_Natives(void)
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE);
+    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
     Native_Count++;
     item++; // skip spec
 
@@ -618,36 +662,35 @@ REBVAL *Get_Action_Value(REBCNT action)
 //
 static void Init_Root_Context(void)
 {
-    REBVAL *value;
-    REBINT n;
-    REBFRM *frame;
+    REBFRM *frame = Alloc_Frame(ROOT_MAX - 1);
+    PG_Root_Frame = frame;
 
-    // Only half the context! (No words)
-    frame = AS_FRAME(Make_Series(
-        ROOT_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME
-    ));
-
-    // !!! Need since using Make_Series?
-    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
-
-    LABEL_SERIES(frame, "root context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
+    LABEL_SERIES(FRAME_VARLIST(frame), "root context");
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
     Root_Context = cast(ROOT_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
-    // Get first value (the SELF for the context):
-    value = ROOT_SELF;
+    // Get rid of the keylist, we will make another one later in the boot.
+    // (You can't ASSERT_FRAME(PG_Root_Frame) until that happens.)  The
+    // new keylist will be managed so we manage the varlist to match.
+    //
+    Free_Array(FRAME_KEYLIST(frame));
+    FRAME_KEYLIST(frame) = NULL;
+    MANAGE_ARRAY(FRAME_VARLIST(frame));
 
-    // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_SET(value, REB_OBJECT);
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
-    VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_BODY(value) = NULL;
+    //
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
+    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
 
     // Set all other values to NONE:
-    for (n = 1; n < ROOT_MAX; n++) SET_NONE(value + n);
-    SET_END(value + ROOT_MAX);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
+    {
+        REBINT n = 1;
+        REBVAL *var = FRAME_VARS_HEAD(frame);
+        for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
+        SET_END(var);
+        SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
+    }
 
     // Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
     // to pass as an arg if we need an UNSET but don't want to pay for making
@@ -658,8 +701,8 @@ static void Init_Root_Context(void)
     assert(IS_UNSET(UNSET_VALUE));
 
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_PROTECT);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCK);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCKED);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_FIXED_SIZE);
 
     // Used by FUNC and CLOS generators: RETURN:
     Val_Init_Word_Unbound(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
@@ -671,8 +714,8 @@ static void Init_Root_Context(void)
     //
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
     Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_PROTECT);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_LOCK);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_LOCKED);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SER_FIXED_SIZE);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
@@ -683,10 +726,7 @@ static void Init_Root_Context(void)
     SET_END(PG_End_Val);
     assert(IS_END(END_VALUE));
 
-    // Initially the root context is a series but has no keylist to officially
-    // make it an object.  Start it out as a block (change it later in boot)
-    //
-    Val_Init_Block(ROOT_ROOT, FRAME_VARLIST(frame));
+    // Can't ASSERT_FRAME here; no keylist yet...
 }
 
 
@@ -719,39 +759,36 @@ void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
 //
 static void Init_Task_Context(void)
 {
-    REBVAL *value;
-    REBINT n;
-    REBFRM *frame;
-    REBSER *task_words;
+    REBFRM *frame = Alloc_Frame(TASK_MAX - 1);
+    frame = Alloc_Frame(TASK_MAX - 1);
+    TG_Task_Frame = frame;
 
-    //Print_Str("Task Context");
-
-    frame = AS_FRAME(
-        Make_Series(TASK_MAX + 1, sizeof(REBVAL), MKS_ARRAY | MKS_FRAME)
-    );
-    // !!! Needed since using Make_Series?
-    SET_END(ARRAY_HEAD(FRAME_VARLIST(frame)));
-    Task_Frame = frame;
-
-    LABEL_SERIES(frame, "task context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCK);
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    LABEL_SERIES(FRAME_VARLIST(frame), "task context");
+    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
     Task_Context = cast(TASK_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
 
-    // Get first value (the SELF for the context):
-    value = TASK_SELF;
+    // Get rid of the keylist, we will make another one later in the boot.
+    // (You can't ASSERT_FRAME(TG_Task_Frame) until that happens.)  The
+    // new keylist will be managed so we manage the varlist to match.
+    //
+    Free_Array(FRAME_KEYLIST(frame));
+    FRAME_KEYLIST(frame) = NULL;
+    MANAGE_ARRAY(FRAME_VARLIST(frame));
 
-    // No keylist of words (at first)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
-    VAL_SET(value, REB_OBJECT);
-    FRAME_CONTEXT(frame)->data.context.frame = frame; // VAL_FRAME() asserts
-    VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_BODY(value) = NULL;
+    //
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
+    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
 
     // Set all other values to NONE:
-    for (n = 1; n < TASK_MAX; n++) SET_NONE(value+n);
-    SET_END(value+TASK_MAX);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
+    {
+        REBINT n = 1;
+        REBVAL *var = FRAME_VARS_HEAD(frame);
+        for (; n < TASK_MAX; n++, var++) SET_NONE(var);
+        SET_END(var);
+        SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
+    }
 
     // Initialize a few fields:
     SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
@@ -761,13 +798,17 @@ static void Init_Task_Context(void)
     // seen by the GC.
     //
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+
+    // Can't ASSERT_FRAME here; no keylist yet...
 }
 
 
 //
 //  Init_System_Object: C
 // 
-// The system object is defined in boot.r.
+// Evaluate the system object and create the global SYSTEM word.  We do not
+// BIND_ALL here to keep the internal system words out of the global context.
+// (See also N_context() which creates the subobjects of the system object.)
 //
 static void Init_System_Object(void)
 {
@@ -777,13 +818,9 @@ static void Init_System_Object(void)
     REBCNT n;
     REBVAL result;
 
-    // Evaluate the system object and create the global SYSTEM word.
-    // We do not BIND_ALL here to keep the internal system words out
-    // of the global context. See also N_context() which creates the
-    // subobjects of the system object.
-
-    // Create the system object from the sysobj block and bind its fields:
-    frame = Make_Frame_Detect(
+    // Create the system object from the sysobj block (defined in %sysobj.r)
+    //
+    frame = Make_Selfish_Frame_Detect(
         REB_OBJECT, // type
         NULL, // spec
         NULL, // body
@@ -793,24 +830,35 @@ static void Init_System_Object(void)
 
     Bind_Values_Deep(VAL_ARRAY_HEAD(&Boot_Block->sysobj), Lib_Context);
 
-    // Bind it so CONTEXT native will work (only used at topmost depth):
+    // Bind it so CONTEXT native will work (only used at topmost depth)
+    //
     Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), frame);
 
-    // Evaluate the block (will eval FRAMEs within):
+    // Evaluate the block (will eval FRAMEs within)
+    //
     if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
 
     // Expects UNSET! by convention
+    //
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));
 
-    // Create a global value for it:
+    // Create a global value for it.  (This is why we are able to say `system`
+    // and have it bound in lines like `sys: system/contexts/sys`)
+    //
     value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
     Val_Init_Object(value, frame);
+
+    // We also add the system object under the root, to ensure it can't be
+    // garbage collected and be able to access it from the C code.  (Someone
+    // could say `system: none` in the Lib_Context and then it would be a
+    // candidate for garbage collection otherwise!)
+    //
     Val_Init_Object(ROOT_SYSTEM, frame);
 
-    // Create system/datatypes block:
-//  value = Get_System(SYS_DATATYPES, 0);
+    // Create system/datatypes block
+    //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
     Extend_Series(ARRAY_SERIES(array), REB_MAX - 1);
@@ -818,35 +866,30 @@ static void Init_System_Object(void)
         Append_Value(array, FRAME_VAR(Lib_Context, n));
     }
 
-    // Create system/catalog/datatypes block:
-//  value = Get_System(SYS_CATALOG, CAT_DATATYPES);
-//  Val_Init_Block(value, Copy_Blk(VAL_SERIES(&Boot_Block->types)));
-
-    // Create system/catalog/actions block:
+    // Create system/catalog/actions block
+    //
     value = Get_System(SYS_CATALOG, CAT_ACTIONS);
     Val_Init_Block(
         value,
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->actions))
     );
 
-    // Create system/catalog/actions block:
+    // Create system/catalog/natives block
+    //
     value = Get_System(SYS_CATALOG, CAT_NATIVES);
     Val_Init_Block(
         value,
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->natives))
     );
 
-    // Create system/codecs object:
+    // Create system/codecs object
+    //
     value = Get_System(SYS_CODECS, 0);
-    frame = Alloc_Frame(10, TRUE);
-    VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
+    frame = Alloc_Frame(10);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
     Val_Init_Object(value, frame);
-
-    // Set system/words to be the main context:
-//  value = Get_System(SYS_WORDS, 0);
-//  Val_Init_Object(value, Lib_Context);
 }
 
 
@@ -1334,12 +1377,12 @@ void Init_Core(REBARGS *rargs)
 
     // !!! Have MAKE-BOOT compute # of words
     //
-    Lib_Context = Alloc_Frame(600, TRUE);
-    VAL_SET(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
+    Lib_Context = Alloc_Frame(600);
+    VAL_RESET_HEADER(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
     FRAME_SPEC(Lib_Context) = NULL;
     FRAME_BODY(Lib_Context) = NULL;
-    Sys_Context = Alloc_Frame(50, TRUE);
-    VAL_SET(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
+    Sys_Context = Alloc_Frame(50);
+    VAL_RESET_HEADER(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
     FRAME_SPEC(Sys_Context) = NULL;
     FRAME_BODY(Sys_Context) = NULL;
 
@@ -1349,31 +1392,18 @@ void Init_Core(REBARGS *rargs)
     //Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
     // Get the words of the ROOT context (to avoid it being an exception case)
-    PG_Root_Words = Collect_Frame(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), BIND_ALL
+    //
+    FRAME_KEYLIST(PG_Root_Frame) = Collect_Keylist_Managed(
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, BIND_ALL
     );
-    LABEL_SERIES(PG_Root_Words, "root words");
-    MANAGE_ARRAY(PG_Root_Words);
-    FRAME_KEYLIST(VAL_FRAME(ROOT_SELF)) = PG_Root_Words;
-    VAL_CONTEXT_SPEC(ROOT_SELF) = NULL;
-    VAL_CONTEXT_BODY(ROOT_SELF) = NULL;
-
-    // and convert ROOT_ROOT from a BLOCK! to an OBJECT!
-    Val_Init_Object(ROOT_ROOT, AS_FRAME(VAL_SERIES(ROOT_ROOT)));
+    ASSERT_FRAME(PG_Root_Frame);
 
     // Get the words of the TASK context (to avoid it being an exception case)
-    TG_Task_Words = Collect_Frame(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), BIND_ALL
+    //
+    FRAME_KEYLIST(TG_Task_Frame) = Collect_Keylist_Managed(
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, BIND_ALL
     );
-    LABEL_SERIES(ds, "task words");
-    MANAGE_ARRAY(TG_Task_Words);
-    FRAME_KEYLIST(VAL_FRAME(TASK_SELF)) = TG_Task_Words;
-    VAL_CONTEXT_SPEC(TASK_SELF) = NULL;
-    VAL_CONTEXT_BODY(TASK_SELF) = NULL;
-
-    // Is it necessary to put the above into an object like for ROOT?
-    /*Val_Init_Object(ROOT_ROOT, VAL_SERIES(ROOT_ROOT));*/
-
+    ASSERT_FRAME(TG_Task_Frame);
 
     // Create main values:
     DOUT("Level 3");
@@ -1418,22 +1448,22 @@ void Init_Core(REBARGS *rargs)
         ROOT_TRANSPARENT_TAG,
         Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SER_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
         Append_UTF8(NULL, infix, LEN_BYTES(infix))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SER_LOCKED);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
         Append_UTF8(NULL, local, LEN_BYTES(local))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCK);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_PROTECT);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SER_LOCKED);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));

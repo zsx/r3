@@ -83,14 +83,14 @@ REBFLG MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!ANY_WORD(VAL_ARRAY_HEAD(data))) return FALSE;
 
     *out = *data++;
-    VAL_SET(out, type);
+    VAL_RESET_HEADER(out, type);
 
     // !!! This did not have special END handling previously, but it would have
     // taken the 0 branch.  Review if this is sensible.
     //
     i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
 
-    if (i > VAL_TAIL(out)) i = VAL_TAIL(out); // clip it
+    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
     VAL_INDEX(out) = i;
     return TRUE;
 }
@@ -269,7 +269,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
 
     // to block! typset
     if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-        Val_Init_Array_Index(value, type, Typeset_To_Array(arg), 0);
+        Val_Init_Array(value, type, Typeset_To_Array(arg));
         return;
     }
 
@@ -277,7 +277,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
         // make block! 10
         if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
             len = Int32s(arg, 0);
-            Val_Init_Array_Index(value, type, Make_Array(len), 0);
+            Val_Init_Array(value, type, Make_Array(len));
             return;
         }
         fail (Error_Invalid_Arg(arg));
@@ -286,7 +286,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
     array = Copy_Values_Len_Shallow(arg, 1);
 
 done:
-    Val_Init_Array_Index(value, type, array, 0);
+    Val_Init_Array(value, type, array);
     return;
 }
 
@@ -367,7 +367,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         ));
     }
 
-    if (Apply_Func_Throws(&out, sort_flags.compare, v1, v2, 0))
+    if (Apply_Func_Throws(&out, VAL_FUNC(sort_flags.compare), v1, v2, 0))
         fail (Error_No_Catch_For_Throw(&out));
 
     if (IS_LOGIC(&out)) {
@@ -546,12 +546,12 @@ REBINT PD_Array(REBPVS *pvs)
         );
     }
 
-    if (n < 0 || (REBCNT)n >= VAL_TAIL(pvs->value)) {
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
         if (pvs->setval) return PE_BAD_SELECT;
         return PE_NONE;
     }
 
-    if (pvs->setval) FAIL_IF_PROTECTED_SERIES(VAL_SERIES(pvs->value));
+    if (pvs->setval) FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
     // if valset - check PROTECT on block
     //if (NOT_END(pvs->path+1)) Next_Path(pvs); return PE_OK;
@@ -568,7 +568,7 @@ REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
 
     n = Get_Num_Arg(selector);
     n += VAL_INDEX(block) - 1;
-    if (n < 0 || (REBCNT)n >= VAL_TAIL(block)) return 0;
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
     return VAL_ARRAY_AT_HEAD(block, n);
 }
 
@@ -620,13 +620,13 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    index = (REBINT)VAL_INDEX(value);
-    tail  = (REBINT)VAL_TAIL(value);
+    index = cast(REBINT, VAL_INDEX(value));
+    tail  = cast(REBINT, VAL_LEN_HEAD(value));
     array = VAL_ARRAY(value);
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_ARRAY(array);
+        FAIL_IF_LOCKED_ARRAY(array);
 
     switch (action) {
 
@@ -766,7 +766,7 @@ zero_blk:
             if (index == 0) Reset_Array(array);
             else {
                 SET_END(ARRAY_AT(array, index));
-                VAL_TAIL(value) = (REBCNT)index;
+                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             }
         }
         break;
@@ -814,9 +814,9 @@ zero_blk:
         //
         // !!! Is relying on action numbers a good idea in general?
         //
-        FAIL_IF_PROTECTED_ARRAY(VAL_ARRAY(arg));
+        FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_TAIL(arg)) {
+        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)) {
             val = *VAL_ARRAY_AT(value);
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
             *VAL_ARRAY_AT(arg) = val;

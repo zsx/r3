@@ -137,7 +137,7 @@ emit-proto: func [
 process: func [file] [
     if verbose [?? file]
     data: read the-file: file
-    data: to-string data ; R3
+    data: to-string data
     proto-parser/emit-proto: :emit-proto
     proto-parser/process data
 ]

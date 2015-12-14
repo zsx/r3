@@ -95,9 +95,9 @@ void *Use_Port_State(REBFRM *port, REBCNT device, REBCNT size)
     // If state is not a binary structure, create it:
     if (!IS_BINARY(state)) {
         REBSER *data = Make_Binary(size);
-        REBREQ *req = (REBREQ*)STR_HEAD(data);
+        REBREQ *req = cast(REBREQ*, BIN_HEAD(data));
         req->clen = size;
-        CLEAR(STR_HEAD(data), size);
+        CLEAR(BIN_HEAD(data), size);
         //data->tail = size; // makes it easier for ACCEPT to clone the port
         SET_FLAG(req->flags, RRF_ALLOC); // not on stack
         req->port = port;
@@ -155,20 +155,20 @@ REBINT Awake_System(REBARR *ports, REBINT only)
     if (!IS_PORT(port)) return -10; // verify it is a port object
 
     // Get wait queue block (the state field):
-    state = VAL_CONTEXT_VALUE(port, STD_PORT_STATE);
+    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return -10;
-    //Debug_Num("S", VAL_TAIL(state));
+    //Debug_Num("S", VAL_LEN_HEAD(state));
 
     // Get waked queue block:
-    waked = VAL_CONTEXT_VALUE(port, STD_PORT_DATA);
+    waked = VAL_CONTEXT_VAR(port, STD_PORT_DATA);
     if (!IS_BLOCK(waked)) return -10;
 
     // If there is nothing new to do, return now:
-    if (VAL_TAIL(state) == 0 && VAL_TAIL(waked) == 0) return -1;
+    if (VAL_LEN_HEAD(state) == 0 && VAL_LEN_HEAD(waked) == 0) return -1;
 
-    //Debug_Num("A", VAL_TAIL(waked));
+    //Debug_Num("A", VAL_LEN_HEAD(waked));
     // Get the system port AWAKE function:
-    awake = VAL_CONTEXT_VALUE(port, STD_PORT_AWAKE);
+    awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (!ANY_FUNC(awake)) return -1;
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
@@ -176,7 +176,7 @@ REBINT Awake_System(REBARR *ports, REBINT only)
     if (only) SET_TRUE(&ref_only);
     else SET_NONE(&ref_only);
     // Call the system awake function:
-    if (Apply_Func_Throws(&out, awake, port, &tmp, &ref_only, 0))
+    if (Apply_Func_Throws(&out, VAL_FUNC(awake), port, &tmp, &ref_only, 0))
         fail (Error_No_Catch_For_Throw(&out));
 
     // Awake function returns 1 for end of WAIT:
@@ -257,14 +257,14 @@ void Sieve_Ports(REBARR *ports)
 
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
     if (!IS_PORT(port)) return;
-    waked = VAL_CONTEXT_VALUE(port, STD_PORT_DATA);
+    waked = VAL_CONTEXT_VAR(port, STD_PORT_DATA);
     if (!IS_BLOCK(waked)) return;
 
     for (n = 0; ports && n < ARRAY_LEN(ports);) {
         val = ARRAY_AT(ports, n);
         if (IS_PORT(val)) {
-            assert(VAL_TAIL(waked) != 0);
-            if (VAL_TAIL(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
+            assert(VAL_LEN_HEAD(waked) != 0);
+            if (VAL_LEN_HEAD(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
                 Remove_Series(ARRAY_SERIES(ports), n, 1);
                 continue;
             }
@@ -340,7 +340,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
 
-    if (Redo_Func_Throws(call_, actor)) {
+    if (Redo_Func_Throws(call_, VAL_FUNC(actor))) {
         // The throw name will be in D_OUT, with thrown value in task vars
         return R_OUT_IS_THROWN;
     }
@@ -471,53 +471,66 @@ void Register_Scheme(REBCNT sym, const PORT_ACTION *map, REBPAF fun)
 //
 REBNATIVE(set_scheme)
 {
-    REBVAL *scheme;
+    PARAM(1, scheme);
+
     REBVAL *actor;
-    REBVAL *func;
-    REBVAL *act;
+    REBVAL *name;
     REBCNT n;
     const PORT_ACTION *map = 0;
 
-    scheme = D_ARG(1);
+    name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
+    if (!IS_WORD(name))
+        fail (Error(RE_NO_SCHEME_NAME));
 
-    act = Obj_Value(scheme, STD_SCHEME_NAME);
-    if (!IS_WORD(act)) return R_NONE;
-    actor = Obj_Value(scheme, STD_SCHEME_ACTOR);
+    actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
     if (!actor) return R_NONE;
 
     // Does this scheme have native actor or actions?
     for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].sym; n++) {
-        if (Scheme_Actions[n].sym == VAL_WORD_SYM(act)) break;
+        if (Scheme_Actions[n].sym == VAL_WORD_SYM(name)) break;
     }
     if (n == MAX_SCHEMES || !Scheme_Actions[n].sym) return R_NONE;
 
     // The scheme uses a native actor:
     if (Scheme_Actions[n].fun) {
         // Hand build a native function used to reach native scheme actors.
-        REBARR *array = Make_Array(1);
-        act = Alloc_Tail_Array(array);
+        REBARR *paramlist = Make_Array(2);
+        REBARR *spec = Make_Array(1);
 
+        // !!! Because "any word will do", it's just making an args list
+        // that looks like [port!]
+        //
+        Val_Init_Word_Unbound(
+            Alloc_Tail_Array(spec), REB_WORD, SYM_FROM_KIND(REB_PORT)
+        );
+        MANAGE_ARRAY(spec);
+
+        Alloc_Tail_Array(paramlist); // for [0] function reference to self
         Val_Init_Typeset(
-            act,
+            Alloc_Tail_Array(paramlist),
             // Typeset is chosen as empty to prevent normal invocation;
             // these actors are only dispatched from the C code.
             // !!! Should the C code type check?
             0,
-            // !!! Because "any word will do", it's just making an args list
-            // that looks like [port!]
             SYM_FROM_KIND(REB_PORT)
         );
+        MANAGE_ARRAY(paramlist);
 
         // !!! Review: If this spec ever got leaked then it would be leaking
         // 'typed' words to the user.  For safety, a single global actor spec
         // could be made at startup.
-        VAL_FUNC_SPEC(actor) = array;
-        VAL_FUNC_PARAMLIST(actor) = array;
-        MANAGE_ARRAY(array);
+        //
+        VAL_RESET_HEADER(actor, REB_NATIVE);
+        VAL_FUNC_SPEC(actor) = spec;
+        actor->payload.any_function.func = AS_FUNC(paramlist);
 
-        VAL_FUNC_CODE(actor) = (REBFUN)(Scheme_Actions[n].fun);
+        VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 
-        VAL_SET(actor, REB_NATIVE);
+        // Poke the function value itself into the [0] slot (see definition
+        // of `struct Reb_Func` for explanation of why this is needed)
+        //
+        *FUNC_VALUE(actor->payload.any_function.func) = *actor;
+
         return R_TRUE;
     }
 
@@ -531,12 +544,15 @@ REBNATIVE(set_scheme)
         n = Find_Action(actor, map->action);
         if (n) {
             // Get standard action's spec block:
-            act = Get_Action_Value(map->action);
+            REBVAL *act = Get_Action_Value(map->action);
 
             // Make native function for action:
-            func = Obj_Value(actor, n); // function
             Make_Native(
-                func, VAL_FUNC_SPEC(act), cast(REBFUN, map->func), REB_NATIVE
+                Obj_Value(actor, n), // function,
+                VAL_FUNC_SPEC(act),
+                cast(REBNAT, map->func),
+                REB_NATIVE,
+                FALSE
             );
         }
     }

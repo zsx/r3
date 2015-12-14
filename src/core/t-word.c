@@ -62,7 +62,7 @@ REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBCNT type = VAL_TYPE(val);
+    enum Reb_Kind type = VAL_TYPE(val);
     REBINT diff;
     REBCNT sym;
 
@@ -72,7 +72,7 @@ REBTYPE(Word)
         // TO word! ...
         if (type == REB_DATATYPE) type = VAL_TYPE_KIND(val);
         if (ANY_WORD(arg)) {
-            VAL_SET(arg, type);
+            VAL_RESET_HEADER(arg, type);
             return R_ARG2;
         }
         else {

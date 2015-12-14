@@ -159,8 +159,8 @@ emit-proto: func [
 
 process: func [file] [
     if verbose [?? file]
-    data: read the-file: file ;R3
-    data: to-string data ; R3
+    data: read the-file: file
+    data: to-string data
 
     proto-parser/proto-prefix: "RL_API "
     proto-parser/emit-proto: :emit-proto
@@ -168,7 +168,7 @@ process: func [file] [
 ]
 
 write-if: func [file data] [
-    if data <> attempt [to string! read file][ ;R3
+    if data <> attempt [to string! read file][
         print ["UPDATE:" file]
         write file data
     ]

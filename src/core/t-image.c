@@ -58,7 +58,7 @@ REBINT CT_Image(REBVAL *a, REBVAL *b, REBINT mode)
 REBFLG MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!Create_Image(data, out, 1)) return FALSE;
-    VAL_SET(out, REB_IMAGE);
+    VAL_RESET_HEADER(out, REB_IMAGE);
     return TRUE;
 }
 
@@ -71,7 +71,7 @@ REBFLG MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 void Reset_Height(REBVAL *value)
 {
     REBCNT w = VAL_IMAGE_WIDE(value);
-    VAL_IMAGE_HIGH(value) = w ? (VAL_TAIL(value) / w) : 0;
+    VAL_IMAGE_HIGH(value) = w ? (VAL_LEN_HEAD(value) / w) : 0;
 }
 
 
@@ -101,7 +101,7 @@ void Set_Tuple_Pixel(REBYTE *dp, REBVAL *tuple)
     // Pixel to tuple.
     REBYTE *tup = VAL_TUPLE(tuple);
 
-    VAL_SET(tuple, REB_TUPLE);
+    VAL_RESET_HEADER(tuple, REB_TUPLE);
     VAL_TUPLE_LEN(tuple) = 4;
     tup[0] = dp[C_R];
     tup[1] = dp[C_G];
@@ -396,8 +396,8 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBFLG error)
 
     img = Make_Series(w * h + 1, sizeof(u32), MKS_NONE);
     LABEL_SERIES(img, "make image");
-    img->tail = w * h;
-    RESET_IMAGE(img->data, img->tail); //length in 'pixels'
+    SET_SERIES_LEN(img, w * h);
+    RESET_IMAGE(SERIES_DATA(img), SERIES_LEN(img)); //length in 'pixels'
     IMG_WIDE(img) = w;
     IMG_HIGH(img) = h;
     return img;
@@ -509,7 +509,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     REBINT  dupx, dupy;
     REBOOL  only = 0; // /only
     REBCNT  index = VAL_INDEX(value);
-    REBCNT  tail = VAL_TAIL(value);
+    REBCNT  tail = VAL_LEN_HEAD(value);
     REBINT  n;
     REBINT  x;
     REBINT  w;
@@ -618,7 +618,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
         Expand_Series(VAL_SERIES(value), index, dup * part);
         RESET_IMAGE(VAL_BIN(value) + (index * 4), dup * part); //length in 'pixels'
         Reset_Height(value);
-        tail = VAL_TAIL(value);
+        tail = VAL_LEN_HEAD(value);
         only = 0;
     }
     ip = VAL_IMAGE_HEAD(value);
@@ -689,7 +689,7 @@ REBVAL *Find_Image(struct Reb_Call *call_)
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
     REBCNT  index = VAL_INDEX(value);
-    REBCNT  tail = VAL_TAIL(value);
+    REBCNT  tail = VAL_LEN_HEAD(value);
     REBCNT  len;
     REBCNT  *ip = (REBCNT *)VAL_IMAGE_DATA(value); // NOTE ints not bytes
     REBCNT  *p;
@@ -826,7 +826,7 @@ REBTYPE(Image)
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_PROTECTED_SERIES(series);
+        FAIL_IF_LOCKED_SERIES(series);
 
     // Dispatch action:
     switch (action) {
@@ -860,7 +860,7 @@ REBTYPE(Image)
 
     case A_INDEX_OF:
         if (D_REF(2)) {
-            VAL_SET(D_OUT, REB_PAIR);
+            VAL_RESET_HEADER(D_OUT, REB_PAIR);
             VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
             VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
             return R_OUT;
@@ -950,7 +950,7 @@ REBTYPE(Image)
 
     case A_CLEAR:   // clear series
         if (index < tail) {
-            VAL_TAIL(value) = (REBCNT)index;
+            SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             Reset_Height(value);
         }
         break;
@@ -1066,7 +1066,7 @@ REBTYPE(Image)
             h = VAL_PAIR_Y_INT(arg);
             w = MAX(w, 0);
             h = MAX(h, 0);
-            diff = MIN(VAL_TAIL(value), VAL_INDEX(value)); // index offset
+            diff = MIN(VAL_LEN_HEAD(value), VAL_INDEX(value)); // index offset
             diff = MAX(0, diff);
             index = VAL_IMAGE_WIDE(value); // width
             if (index) {
@@ -1132,7 +1132,7 @@ REBINT PD_Image(REBPVS *pvs)
     REBSER *series = VAL_SERIES(data);
     REBCNT *dp;
 
-    len = VAL_TAIL(data) - index;
+    len = VAL_LEN_HEAD(data) - index;
     len = MAX(len, 0);
     src = VAL_IMAGE_DATA(data);
 
@@ -1146,7 +1146,7 @@ REBINT PD_Image(REBPVS *pvs)
             switch (VAL_WORD_CANON(sel)) {
 
             case SYM_SIZE:
-                VAL_SET(val, REB_PAIR);
+                VAL_RESET_HEADER(val, REB_PAIR);
                 VAL_PAIR_X(val) = (REBD32)VAL_IMAGE_WIDE(data);
                 VAL_PAIR_Y(val) = (REBD32)VAL_IMAGE_HIGH(data);
                 break;
@@ -1177,7 +1177,10 @@ REBINT PD_Image(REBPVS *pvs)
             case SYM_SIZE:
                 if (!IS_PAIR(val) || !VAL_PAIR_X(val)) return PE_BAD_SET;
                 VAL_IMAGE_WIDE(data) = VAL_PAIR_X_INT(val);
-                VAL_IMAGE_HIGH(data) = MIN(VAL_PAIR_Y_INT(val), (REBINT)VAL_TAIL(data) / VAL_PAIR_X_INT(val));
+                VAL_IMAGE_HIGH(data) = MIN(
+                    VAL_PAIR_Y_INT(val),
+                    cast(REBINT, VAL_LEN_HEAD(data) / VAL_PAIR_X_INT(val))
+                );
                 break;
 
             case SYM_RGB:
@@ -1214,10 +1217,10 @@ REBINT PD_Image(REBPVS *pvs)
     index += n;
     if (n > 0) index--;
 
-    FAIL_IF_PROTECTED_SERIES(series);
+    FAIL_IF_LOCKED_SERIES(series);
 
     // Out of range:
-    if (n == 0 || index < 0 || index >= (REBINT)series->tail) {
+    if (n == 0 || index < 0 || index >= cast(REBINT, SERIES_LEN(series))) {
         if (val) return PE_BAD_SET;
         return PE_NONE;
     }

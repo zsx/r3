@@ -104,11 +104,11 @@ static REBARR *Init_Loop(
     // Hand-make a FRAME (done for for speed):
     len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
     if (len == 0) fail (Error_Invalid_Arg(spec));
-    frame = Alloc_Frame(len, FALSE);
+    frame = Alloc_Frame(len);
     SET_ARRAY_LEN(FRAME_VARLIST(frame), len + 1);
     SET_ARRAY_LEN(FRAME_KEYLIST(frame), len + 1);
 
-    VAL_SET(FRAME_CONTEXT(frame), REB_OBJECT);
+    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
     FRAME_SPEC(frame) = NULL;
     FRAME_BODY(frame) = NULL;
 
@@ -166,8 +166,8 @@ static REBFLG Loop_Series_Throws(
 
     *var = *start;
 
-    if (ei >= cast(REBINT, VAL_TAIL(start)))
-        ei = cast(REBINT, VAL_TAIL(start));
+    if (ei >= cast(REBINT, VAL_LEN_HEAD(start)))
+        ei = cast(REBINT, VAL_LEN_HEAD(start));
 
     if (ei < 0) ei = 0;
 
@@ -205,7 +205,7 @@ static REBFLG Loop_Integer_Throws(
     REBI64 end,
     REBI64 incr
 ) {
-    VAL_SET(var, REB_INTEGER);
+    VAL_RESET_HEADER(var, REB_INTEGER);
 
     SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
@@ -269,7 +269,7 @@ static REBFLG Loop_Number_Throws(
     else
         fail (Error_Invalid_Arg(incr));
 
-    VAL_SET(var, REB_DECIMAL);
+    VAL_RESET_HEADER(var, REB_DECIMAL);
 
     SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
@@ -330,9 +330,8 @@ static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
     bodi = VAL_INDEX(D_ARG(mode+2));
 
     // Starting location when past end with negative skip:
-    if (inc < 0 && VAL_INDEX(var) >= VAL_TAIL(var)) {
-        VAL_INDEX(var) = VAL_TAIL(var) + inc;
-    }
+    if (inc < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
+        VAL_INDEX(var) = VAL_LEN_HEAD(var) + inc;
 
     // NOTE: This math only works for index in positive ranges!
 
@@ -492,7 +491,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
             }
             else if (ANY_CONTEXT(data_value)) {
                 if (VAL_GET_EXT(
-                    VAL_CONTEXT_KEY(data_value, index), EXT_WORD_HIDE
+                    VAL_CONTEXT_KEY(data_value, index), EXT_TYPESET_HIDDEN
                 )) {
                     // Do not evaluate this iteration
                     index++;
@@ -560,7 +559,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                     Set_Tuple_Pixel(BIN_AT(series, index), var);
                 }
                 else {
-                    VAL_SET(var, REB_CHAR);
+                    VAL_RESET_HEADER(var, REB_CHAR);
                     VAL_CHAR(var) = GET_ANY_CHAR(series, index);
                 }
             }
@@ -599,8 +598,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 // not a lot that can be done as the series is expected to
                 // be in a good state for the next iteration of the body. :-/
                 memmove(
-                    series->data + (windex * wide),
-                    series->data + (rindex * wide),
+                    SERIES_DATA(series) + (windex * wide),
+                    SERIES_DATA(series) + (rindex * wide),
                     (index - rindex) * wide
                 );
                 windex += index - rindex;
@@ -967,7 +966,7 @@ REBNATIVE(repeat)
 
     if (IS_DECIMAL(count) || IS_PERCENT(count)) {
         VAL_INT64(count) = Int64(count);
-        VAL_SET(count, REB_INTEGER);
+        VAL_RESET_HEADER(count, REB_INTEGER);
     }
 
     body = Init_Loop(&frame, D_ARG(1), D_ARG(3));
@@ -977,7 +976,7 @@ REBNATIVE(repeat)
 
     if (ANY_SERIES(count)) {
         if (Loop_Series_Throws(
-            D_OUT, var, body, count, VAL_TAIL(count) - 1, 1
+            D_OUT, var, body, count, VAL_LEN_HEAD(count) - 1, 1
         )) {
             return R_OUT_IS_THROWN;
         }

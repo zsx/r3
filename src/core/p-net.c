@@ -206,7 +206,12 @@ static REB_R Transport_Actor(
         // This is normally called by the WAKE-UP function.
         arg = FRAME_VAR(port, STD_PORT_DATA);
         if (sock->command == RDC_READ) {
-            if (ANY_BINSTR(arg)) VAL_TAIL(arg) += sock->actual;
+            if (ANY_BINSTR(arg)) {
+                SET_SERIES_LEN(
+                    VAL_SERIES(arg),
+                    VAL_LEN_HEAD(arg) + sock->actual
+                );
+            }
         }
         else if (sock->command == RDC_WRITE) {
             SET_NONE(arg);  // Write is done.
@@ -233,7 +238,12 @@ static REB_R Transport_Actor(
         sock->length = SERIES_AVAIL(ser); // space available
         if (sock->length < NET_BUF_SIZE/2) Extend_Series(ser, NET_BUF_SIZE);
         sock->length = SERIES_AVAIL(ser);
-        sock->common.data = STR_TAIL(ser); // write at tail
+
+        // This used STR_TAIL (obsolete, equivalent to BIN_TAIL) but was it
+        // sure the series was byte sized?  Added in a check.
+        assert(BYTE_SIZE(ser));
+        sock->common.data = BIN_TAIL(ser); // write at tail
+
         //if (SERIES_LEN(ser) == 0)
         sock->actual = 0;  // Actual for THIS read, not for total.
 
@@ -300,7 +310,7 @@ static REB_R Transport_Actor(
 
     case A_LENGTH:
         arg = FRAME_VAR(port, STD_PORT_DATA);
-        len = ANY_SERIES(arg) ? VAL_TAIL(arg) : 0;
+        len = ANY_SERIES(arg) ? VAL_LEN_HEAD(arg) : 0;
         SET_INTEGER(D_OUT, len);
         break;
 
@@ -313,7 +323,7 @@ static REB_R Transport_Actor(
     case A_DELETE: // Temporary to TEST error handler!
         {
             REBVAL *event = Append_Event();     // sets signal
-            VAL_SET(event, REB_EVENT);      // (has more space, if we need it)
+            VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
             VAL_EVENT_TYPE(event) = EVT_ERROR;
             VAL_EVENT_DATA(event) = 101;
             VAL_EVENT_REQ(event) = sock;

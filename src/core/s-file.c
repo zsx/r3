@@ -185,7 +185,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL uni, REBFLG full)
             REBINT clen = Decode_UTF8(
                 UNI_HEAD(dst), cast(const REBYTE*, lpath), l, FALSE
             );
-            dst->tail = abs(clen);
+            SET_SERIES_LEN(dst, abs(clen));
             //Append_Unencoded(dst, lpath);
 #endif
             Append_Codepoint_Raw(dst, OS_DIR_SEP);

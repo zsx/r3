@@ -183,7 +183,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     case REB_LIT_WORD:
         DS_PUSH(value);
         value = DS_TOP;
-        VAL_SET(value, REB_WORD);
+        VAL_RESET_HEADER(value, REB_WORD);
         break;
 
     case REB_PAREN:

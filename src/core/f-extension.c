@@ -121,7 +121,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
 /*
 ***********************************************************************/
 {
-    VAL_SET(val, RXT_To_Reb[type]);
+    VAL_RESET_HEADER(val, RXT_To_Reb[type]);
     switch (RXT_Eval_Class[type]) {
     case RXX_64:
         VAL_INT64(val) = arg.int64;
@@ -212,7 +212,7 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
     c->array = DSF_ARRAY(PRIOR_DSF(DSF));
     c->index = DSF_EXPR_INDEX(PRIOR_DSF(DSF));
     c->label_sym = name;
-    c->func = *val;
+    c->func = VAL_FUNC(val);
 
     Push_New_Arglist_For_Call(c);
 
@@ -380,7 +380,7 @@ REBNATIVE(load_extension)
 
     // Set extension fields needed:
     val = FRAME_VAR(frame, STD_EXTENSION_LIB_BASE);
-    VAL_SET(val, REB_HANDLE);
+    VAL_RESET_HEADER(val, REB_HANDLE);
     VAL_I32(val) = ext->index;
     if (!D_REF(2)) *FRAME_VAR(frame, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
     Val_Init_Binary(FRAME_VAR(frame, STD_EXTENSION_LIB_BOOT), src);
@@ -417,14 +417,18 @@ REBNATIVE(load_extension)
 // Being able to quarantine the REB_COMMAND machinery to only builds that
 // need it is a working objective.
 //
-void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, const REBVAL *command_num)
-{
+void Make_Command(
+    REBVAL *out,
+    const REBVAL *spec,
+    const REBVAL *extension,
+    const REBVAL *command_num
+) {
     if (!IS_MODULE(extension) && !IS_OBJECT(extension)) goto bad_func_def;
 
     // Check that handle and extension are somewhat valid (not used)
     {
         REBEXT *rebext;
-        REBVAL *handle = VAL_CONTEXT_VALUE(extension, 1);
+        REBVAL *handle = VAL_CONTEXT_VAR(extension, SELFISH(1));
         if (!IS_HANDLE(handle)) goto bad_func_def;
         rebext = &Ext_List[VAL_I32(handle)];
         if (!rebext || !rebext->call) goto bad_func_def;
@@ -435,11 +439,29 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
 
     if (!IS_BLOCK(spec)) goto bad_func_def;
 
+    VAL_RESET_HEADER(out, REB_COMMAND); // clears exts and opts in header...
+
     // See notes in `Make_Function()` about why a copy is *required*.
     VAL_FUNC_SPEC(out) =
         Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
 
-    VAL_FUNC_PARAMLIST(out) = Check_Func_Spec(VAL_FUNC_SPEC(spec));
+    out->payload.any_function.func
+        = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(spec)));
+
+    // There is no "body", but we want to save `extension` and `command_num`
+    // and the only place there is to put it is in the place where a function
+    // body series would go.  So make a 2 element series to store them and
+    // copy the values into it.
+    //
+    VAL_FUNC_BODY(out) = Make_Array(2);
+    Append_Value(VAL_FUNC_BODY(out), extension);
+    Append_Value(VAL_FUNC_BODY(out), command_num);
+    MANAGE_ARRAY(VAL_FUNC_BODY(out));
+
+    // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
+    // function types, can find the function value from the paramlist.
+
+    *FUNC_VALUE(out->payload.any_function.func) = *out;
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
@@ -454,23 +476,6 @@ void Make_Command(REBVAL *out, const REBVAL *spec, const REBVAL *extension, cons
             }
         }
     }
-
-    // There is no "body", but we want to save `extension` and `command_num`
-    // and the only place there is to put it is in the place where a function
-    // body series would go.  So make a 2 element series to store them and
-    // copy the values into it.
-    //
-    VAL_FUNC_BODY(out) = Make_Array(2);
-    Append_Value(VAL_FUNC_BODY(out), extension);
-    Append_Value(VAL_FUNC_BODY(out), command_num);
-    MANAGE_ARRAY(VAL_FUNC_BODY(out));
-
-    VAL_SET(out, REB_COMMAND); // clears exts and opts in header...
-
-    // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
-    // function types, can find the function value from the paramlist.
-
-    *ARRAY_HEAD(VAL_FUNC_PARAMLIST(out)) = *out;
 
     return;
 
@@ -503,8 +508,9 @@ bad_func_def:
 REBFLG Do_Command_Throws(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
-    REBVAL *val = ARRAY_HEAD(VAL_FUNC_BODY(D_FUNC));
-    REBEXT *ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(val, 1))]; // Handler
+    REBVAL *val = ARRAY_HEAD(FUNC_BODY(D_FUNC));
+    // Handler
+    REBEXT *ext = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(val, SELFISH(1)))];
     REBCNT cmd = cast(REBCNT, Int32(val + 1));
 
     REBCNT n;
@@ -671,7 +677,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         // Call the command (also supports different extension modules):
         func  = ARRAY_HEAD(VAL_FUNC_BODY(func));
         n = (REBCNT)VAL_INT64(func + 1);
-        ext = &Ext_List[VAL_I32(VAL_CONTEXT_VALUE(func, 1))]; // Handler
+        ext = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(func, SELFISH(1)))]; // Handler
         n = ext->call(n, &frm, ctx);
         val = out;
         switch (n) {

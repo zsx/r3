@@ -49,7 +49,7 @@ REBFLG MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!IS_WORD(data)) return FALSE;
     sym = VAL_WORD_CANON(data);
     if (sym > REB_MAX) return FALSE;
-    VAL_SET(out, REB_DATATYPE);
+    VAL_RESET_HEADER(out, REB_DATATYPE);
     VAL_TYPE_KIND(out) = KIND_FROM_SYM(sym);
     VAL_TYPE_SPEC(out) = 0;
     return TRUE;

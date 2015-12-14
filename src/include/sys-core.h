@@ -81,6 +81,7 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 // files including sys-core.h and reb-host.h can have differing
 // definitions of REBCHR.  (We want it opaque to the core, but the
 // host to have it compatible with the native character type w/o casting)
+//
 #ifdef OS_WIDE_CHAR
     #ifdef NDEBUG
         typedef REBUNI REBCHR;
@@ -101,22 +102,44 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 
 #include "reb-defs.h"
 #include "reb-args.h"
-#include "tmp-bootdefs.h"
-#define PORT_ACTIONS A_CREATE  // port actions begin here
 
 #include "reb-device.h"
 #include "reb-types.h"
 #include "reb-event.h"
 
-#include "sys-deci.h"
+#include "reb-file.h"
+#include "reb-filereq.h"
+#include "reb-math.h"
+#include "reb-codec.h"
 
+#include "sys-mem.h"
+#include "sys-deci.h"
 #include "sys-value.h"
-#include "tmp-strings.h"
-#include "tmp-funcargs.h"
+#include "sys-series.h"
+#include "sys-scan.h"
+#include "sys-stack.h"
+#include "sys-do.h"
+#include "sys-state.h"
 
 #include "reb-struct.h"
 
+//#include "reb-net.h"
+#include "tmp-strings.h"
+#include "tmp-funcargs.h"
+#include "tmp-bootdefs.h"
+#include "tmp-boot.h"
+#include "tmp-errnums.h"
+#include "tmp-sysobj.h"
+#include "tmp-sysctx.h"
+
+#include "host-lib.h"
+
+
+
 //-- Port actions (for native port schemes):
+
+#define PORT_ACTIONS A_CREATE  // port actions begin here
+
 typedef struct rebol_port_action_map {
     const REBCNT action;
     const REBPAF func;
@@ -131,24 +154,6 @@ typedef struct rebol_mold {
     REBYTE dash;        // for date fields
     REBYTE digits;      // decimal digits
 } REB_MOLD;
-
-#include "reb-file.h"
-#include "reb-filereq.h"
-#include "reb-math.h"
-#include "reb-codec.h"
-
-#include "tmp-sysobj.h"
-#include "tmp-sysctx.h"
-
-//#include "reb-net.h"
-#include "tmp-boot.h"
-#include "sys-mem.h"
-#include "tmp-errnums.h"
-#include "host-lib.h"
-#include "sys-stack.h"
-#include "sys-state.h"
-
-#include "sys-scan.h"
 
 /***********************************************************************
 **
@@ -178,9 +183,8 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_LOCK        = 1 << 4,   // series is unexpandable
-    MKS_GC_MANUALS  = 1 << 5,   // used in implementation of series itself
-    MKS_FRAME       = 1 << 6    // is a frame w/key series (and legal UNSETs)
+    MKS_FRAME       = 1 << 4,   // is a frame with varlist and keylist
+    MKS_GC_MANUALS  = 1 << 5    // used in implementation of series itself
 };
 
 // Modes allowed by Copy_Block function:
@@ -230,7 +234,7 @@ enum {
     BIND_GET = 8,       // Lookup :word and use its word value
     BIND_NO_DUP = 16,   // Do not allow dups during word collection (for specs)
     BIND_FUNC = 32,     // Recurse into functions.
-    BIND_NO_SELF = 64   // Do not bind SELF (in closures)
+    BIND_SELF = 64      // !!! Ensure SYM_SELF in context (transitional flag)
 };
 
 // Modes for Rebind_Values:
@@ -373,354 +377,81 @@ enum encoding_opts {
 #define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
 
 
-// The flags are specified either way for clarity.
-enum {
-    // Calls may be created for use by the Do evaluator or by an apply
-    // originating from inside the C code itself.  If the call is not for
-    // the evaluator, it should not set DO_FLAG_DO and no other flags
-    // should be set.
-    //
-    DO_FLAG_DO = 1 << 0,
-
-    // As exposed by the DO native and its /NEXT refinement, a call to the
-    // evaluator can either run to the finish from a position in an array
-    // or just do one eval.  Rather than achieve execution to the end by
-    // iterative function calls to the /NEXT variant (as in R3-Alpha), Ren-C
-    // offers a controlling flag to do it from within the core evaluator
-    // as a loop.
-    //
-    // However: since running to the end follows a different code path than
-    // performing DO/NEXT several times, it is important to ensure they
-    // achieve equivalent results.  Nuances to preserve this invariant are
-    // mentioned from within the code.
-    //
-    DO_FLAG_NEXT = 1 << 2,
-    DO_FLAG_TO_END = 1 << 3,
-
-    // When we're in mid-dispatch of an infix function, the precedence is such
-    // that we don't want to do further infix lookahead while getting the
-    // arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to
-    // "look ahead" past the 2 to see the infix `*`)
-    //
-    DO_FLAG_LOOKAHEAD = 1 << 4,
-    DO_FLAG_NO_LOOKAHEAD = 1 << 5
-};
-
-enum Reb_Call_Mode {
-    CALL_MODE_0, // no special mode signal
-    CALL_MODE_ARGS, // ordinary arguments before any refinements seen
-    CALL_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
-    CALL_MODE_REFINE_ARGS, // at least one refinement has been found
-    CALL_MODE_SCANNING, // looking for refinements (used out of order)
-    CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
-    CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
-    CALL_MODE_FUNCTION // running an ANY-FUNCTION!
-};
-
+// All THROWN values have two parts: the REBVAL arg being thrown and
+// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
+// created with plain THROW instead of THROW/NAME then its name is NONE!).
+// You cannot fit both values into a single value's bits of course, but
+// since only one THROWN() value is supposed to exist on the stack at a
+// time the arg part is stored off to the side when one is produced
+// during an evaluation.  It must be processed before another evaluation
+// is performed, and if the GC or DO are ever given a value with a
+// THROWN() bit they will assert!
 //
-// `struct Reb_Call`
-//
-// A Reb_Call structure represents the fixed-size portion for a function's
-// call frame.  It is stack allocated, and is used by both Do and Apply.
-// (If a dynamic allocation is necessary for the call frame, that dynamic
-// portion is allocated as an array in `arglist`.)
-//
-// The contents of the call frame are all the input and output parameters
-// for a call to the evaluator--as well as all of the internal state needed
-// by the evaluator loop.  The reason that all the information is exposed
-// in this way is to make it faster and easier to delegate branches in
-// the Do loop--without bearing the overhead of setting up new stack state.
-//
-//
-// NOTE: The ordering of the fields in this structure are specifically done
-// so as to accomplish correct 64-bit alignment of pointers on 64-bit
-// systems (as long as REBCNT and REBINT are 32-bit on such platforms).
-// If modifying the structure, be sensitive to this issue.
-//
-struct Reb_Call {
+// A reason to favor the name as "the main part" is that having the name
+// value ready-at-hand allows easy testing of it to see if it needs
+// to be passed on.  That happens more often than using the arg, which
+// will occur exactly once (when it is caught).
 
-    // `cell` [INTERNAL, REUSABLE, GC-SAFE cell]
-    //
-    // Some evaluative operations need a unit of additional storage beyond
-    // the one available in `out`.  This is a one-REBVAL-sized cell for
-    // saving that data, and natives may make use of during their call.
-    // At front of struct for alignment.
-    //
-    REBVAL cell;
+#ifdef NDEBUG
+    #define CONVERT_NAME_TO_THROWN(name,arg) \
+        do { \
+            VAL_SET_OPT((name), OPT_VALUE_THROWN); \
+            (TG_Thrown_Arg = *(arg)); \
+        } while (0)
 
-    // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
-    //
-    // A copy of the function value when a call is in effect.  This is needed
-    // to make the function value stable, and not get pulled out from under
-    // the call frame.  That could happen due to a modification of the series
-    // where the evaluating function lived.  At front of struct for alignment.
-    //
-    REBVAL func;
+    #define CATCH_THROWN(arg,thrown) \
+        do { \
+            VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
+            (*(arg) = TG_Thrown_Arg); \
+        } while (0)
+#else
+    #define CONVERT_NAME_TO_THROWN(n,a) \
+        Convert_Name_To_Thrown_Debug(n, a)
 
-    // `dsp_orig` [INTERNAL, READ-ONLY]
-    //
-    // The data stack pointer captured on entry to the evaluation.  It is used
-    // by debug checks to make sure the data stack stays balanced after each
-    // sub-operation.  Yet also, refinements are pushed to the data stack and
-    // something to compare against to find out how many is needed.  At this
-    // position to sync alignment with same-sized `flags`.
-    //
-    REBINT dsp_orig;
+    #define CATCH_THROWN(a,t) \
+        Catch_Thrown_Debug(a, t)
+#endif
 
-    // `flags` [INPUT, READ-ONLY (unless FRAMELESS signaling error)]
-    //
-    // These are DO_FLAG_xxx or'd together.  If the call is being set up
-    // for an Apply as opposed to Do, this must be 0.
-    //
-    REBCNT flags;
-
-    // `out` [INPUT pointer of where to write an OUTPUT, GC-SAFE cell]
-    //
-    // This is where to write the result of the evaluation.  It should not be
-    // in "movable" memory, hence not in a series data array.  Often it is
-    // used as an intermediate free location to do calculations en route to
-    // a final result, due to being GC-safe
-    //
-    REBVAL *out;
-
-    // `value` [INPUT, REUSABLE, GC-PROTECTS pointed-to REBVAL]
-    //
-    // This is the value currently being processed.  Callers pass in the
-    // first value pointer...which for any successive evalutions will be
-    // updated via picking from `array` based on `index`.  But having the
-    // caller pass in the initial value gives the *option* of that value
-    // not being resident in the series.
-    //
-    // (Hence if one has the series `[[a b c] [d e]]` it would be possible to
-    // have an independent path value `append/only` and NOT insert it in the
-    // series, yet get the effect of `append/only [a b c] [d e]`.  This only
-    // works for one value, but is a convenient no-cost trick for apply-like
-    // situations...as insertions usually have to "slide down" the values in
-    // the series and may also need to perform alloc/free/copy to expand.)
-    //
-    const REBVAL *value;
-
-    // array [INPUT, READ-ONLY, GC-PROTECTED]
-    //
-    // The array from which new values will be fetched.  Although the
-    // series may have come from a ANY-ARRAY! (e.g. a PATH!), the distinction
-    // does not exist at this point...so it will "evaluate like a block".
-    //
-    REBARR *array;
-
-    // `index` [INPUT, OUTPUT]
-    //
-    // Index into the array from which new values are fetched after the
-    // initial `value`.  Successive fetching is always done by index and
-    // not by incrementing `value` for several reasons, though one is to
-    // avoid crashing if the input array is modified during the evaluation.
-    //
-    // !!! While it doesn't *crash*, a good user-facing explanation of
-    // handling what it does instead seems not to have been articulated!  :-/
-    //
-    // At the end of the evaluation it's the index of the next expression
-    // to be evaluated, THROWN_FLAG, or END_FLAG.
-    //
-    REBCNT index;
-
-    // `label_sym` [INTERNAL, READ-ONLY]
-    //
-    // Functions don't have "names", though they can be assigned
-    // to words.  If a function is invoked via word lookup (vs. a literal
-    // FUNCTION! value), 'label_sym' will be that WORD!, and a placeholder
-    // otherwise.  Placed here for 64-bit alignment after same-size `index`.
-    //
-    REBCNT label_sym;
-
-    // `arglist` [INTERNAL, VALUES MUTABLE and GC-SAFE if FRAMED]
-    //
-    // The arglist is an array containing the evaluated arguments with which
-    // a function is being invoked (if it is not frameless).  It will be a
-    // manually-memory managed series which is freed when the call finishes,
-    // or cleaned up in error processing).
-    //
-    // An exception to this is if `func` is a CLOSURE!.  In that case, it
-    // will take ownership of the constructed array, give it over to GC
-    // management, and set this field to NULL.
-    //
-    union {
-        REBARR *array;
-        REBVAL *chunk;
-    } arglist;
-
-    // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
-    //
-    // We use the convention that "param" refers to the TYPESET! (plus symbol)
-    // from the spec of the function--a.k.a. the "formal argument".  This
-    // pointer is moved in step with `arg` during argument fulfillment.
-    //
-    REBVAL *param;
-
-    // `arg` [INTERNAL, also CACHE of `ARRAY_HEAD(arglist)`]
-    //
-    // "arg" is the "actual argument"...which holds the pointer to the
-    // REBVAL slot in the `arglist` for that corresponding `param`.  These
-    // are moved in sync during parameter fulfillment.
-    //
-    // While a function is running, `arg` is a cache to the data pointer for
-    // arglist.  It is used by the macros ARG() and PARAM()...which index
-    // by integer constants and may be used several times.  Avoiding the
-    // extra indirection can be beneficial.
-    //
-    REBVAL *arg;
-
-    // `refine` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVAL]
-    //
-    // The `arg` slot of the refinement currently being processed.  We have to
-    // remember its address in case we later see all its arguments are UNSET!,
-    // and want to go back and "revoke" it by setting the arg to NONE!.
-    //
-    REBVAL *refine;
-
-    // `prior` [INTERNAL, READ-ONLY]
-    //
-    // The prior call frame (may be NULL if this is the topmost stack call).
-    //
-    struct Reb_Call *prior;
-
-    // `mode` [INTERNAL, READ-ONLY]
-    //
-    // State variable during parameter fulfillment.  So before refinements,
-    // in refinement, skipping...etc.
-    //
-    // One particularly important usage is CALL_MODE_FUNCTION, which needs to
-    // be checked by `Get_Var`.  This is a necessarily evil while FUNCTION!
-    // does not have the semantics of CLOSURE!, because pathological cases
-    // in "stack-relative" addressing can get their hands on "reused" bound
-    // words during the formation process, e.g.:
-    //
-    //      leaker: func [/exec e /gimme g] [
-    //          either gimme [return [g]] [reduce e]
-    //      ]
-    //
-    //      leaker/exec reduce leaker/gimme 10
-    //
-    // Since a leaked word from another instance of a function can give
-    // access to a call frame during its formation, we need a way to tell
-    // when a call frame is finished forming...CALL_MODE_FUNCTION is it.
-    //
-    enum Reb_Call_Mode mode;
-
-    // `expr_index` [INTERNAL, READ-ONLY]
-    //
-    // Although the evaluator has to know what the current `index` is, the
-    // error reporting machinery typically wants to know where the index
-    // was *before* the last evaluation started...in order to present an
-    // idea of the expression that caused the error.  This is the index
-    // of where the currently evaluating expression started.
-    //
-    REBCNT expr_index;
-};
+#define THROWN(v)           (VAL_GET_OPT((v), OPT_VALUE_THROWN))
 
 
 /***********************************************************************
 **
-**  DO_NEXT_MAY_THROW_CORE and DO_NEXT_MAY_THROW
+**  VARIABLE ACCESS
 **
-**      This is a wrapper for the basic building block of Rebol evaluation.
-**      It is a macro stylized to take the index as a parameter, and does
-**      a test using ANY_EVAL() of the value at the position requested...
-**      and possibly the position after it.  It can avoid calling Do_Core
-**      at all in some situations for blocks and other inert types.  This
-**      is disabled in debug builds on Linux by default, but not other
-**      platforms so that the debug versions run the release code path.
+**  When a word is bound to a frame by an index, it becomes a means of
+**  reading and writing from a persistent storage location.  The term
+**  "variable" is used to refer to a REBVAL slot reached through a
+**  binding in this way.
 **
-**      For the central functionality see Do_Next_Core().  The return value
-**      is *not* always a series index, it may return:
-**
-**          END_FLAG if end of series prohibited a full evaluation
-**          THROWN_FLAG if the output is THROWN()--you MUST check!
-**          ...or the next index position for attempting evaluation
-**
-**      v-- !!! IMPORTANT !!!
-**
-**      The THROWN_FLAG means your value does not represent a directly
-**      usable value, so you MUST check for it.  It signifies getting
-**      back a THROWN()--see notes in sys-value.h about what that
-**      means.  If you don't know how to handle it, then at least
-**      you need to `fail (Error_No_Catch_For_Throw())` on it.  If you *do*
-**      handle it, be aware it's a throw label with OPT_VALUE_THROWN
-**      set in its header, and shouldn't leak to the rest of the system.
-**
-**      Note that THROWN() is not an indicator of an error, rather
-**      something that ordinary language constructs might meaningfully
-**      want to process as they bubble up the stack (some examples
-**      would be BREAK, CONTINUE, and even QUIT).  Errors are handled
-**      with a different mechanism using longjmp().  So if an actual
-**      error happened during the DO then there wouldn't even *BE* a
-**      return value...because the function call would never return!
-**      See PUSH_TRAP() and Error() for more information.
-**
-**  DO_ARRAY_THROWS
-**
-**      It is very frequent that one has a GROUP! or a BLOCK! at an
-**      index which already indicates where you want to execute from.
-**      This is like Do_At_Throws which uses that implicit position
-**      for the "AT".  Because it repeats an argument, it is all
-**      caps as a warning about calling with evaluated parameters.
+**  All variables can be in a protected state where they cannot be
+**  written.  Hence const access is the default, and a const pointer is
+**  given back which may be inspected but the contents not modified.  If
+**  mutable access is required, one may either demand write access
+**  (and get a failure and longjmp'd error if not possible) or ask
+**  more delicately with a TRY.
 **
 ***********************************************************************/
 
-#ifdef NDEBUG
-    #define SPORADICALLY(modulus) FALSE
-#else
-    #define SPORADICALLY(modulus) (TG_Do_Count % modulus == 0)
-#endif
+// Gives back a const pointer to var itself, raises error on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define GET_VAR(w) \
+    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
 
-// This optimized version of the macro will never do an evaluation of a
-// type it doesn't have to.  It uses ANY_EVAL() to see if it can get
-// out of making a function call...sometimes it cannot because there
-// may be an infix lookup possible (we don't know that `[3] + [4]`
-// isn't ever going to work...)
-//
-// The debug build exercises both code paths, by optimizing every other
-// execution to bypass the evaluator if possible...and then throwing
-// the code through Do_Core the other times.  It's a sampling test, but
-// not a bad one for helping keep the methods in sync.
-//
-#define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
-    do { \
-        struct Reb_Call c_; \
-        c_.value = ARRAY_AT((array_),(index_in)); \
-        if (SPORADICALLY(2)) { /* optimize every OTHER execution if DEBUG */ \
-            if (IS_END(c_.value)) { \
-                SET_UNSET(out_); \
-                (index_out) = END_FLAG; \
-                break; \
-            } \
-            if ( \
-                !ANY_EVAL(c_.value) \
-                && (IS_END(c_.value + 1) || !ANY_EVAL(c_.value + 1)) \
-            ) { \
-                *(out_) = *ARRAY_AT((array_), (index_in)); \
-                (index_out) = ((index_in) + 1); \
-                break; \
-            } \
-        } \
-        c_.out = (out_); \
-        c_.array = (array_); \
-        c_.index = (index_in) + 1; \
-        c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
-        Do_Core(&c_); \
-        (index_out) = c_.index; \
-    } while (FALSE)
+// Gives back a const pointer to var itself, returns NULL on failure
+// (Failure if unbound or stack-relative with no call on stack)
+#define TRY_GET_VAR(w) \
+    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
 
-#define DO_NEXT_MAY_THROW(index_out,out,array,index) \
-    DO_NEXT_MAY_THROW_CORE( \
-        (index_out), (out), (array), (index), DO_FLAG_LOOKAHEAD \
-    )
+// Gets mutable pointer to var itself, raises error on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define GET_MUTABLE_VAR(w) \
+    (Get_Var_Core((w), TRUE, TRUE))
 
-// Note: It is safe for `out` and `array` to be the same variable.  The
-// array and index are extracted, and will be protected from GC by the DO
-// state...so it is legal to DO_ARRAY_THROWS(D_OUT, D_OUT) for instance.
-//
-#define DO_ARRAY_THROWS(out,array) \
-    Do_At_Throws((out), VAL_ARRAY(array), VAL_INDEX(array))
+// Gets mutable pointer to var itself, returns NULL on failure
+// (Failure if protected, unbound, or stack-relative with no call on stack)
+#define TRY_GET_MUTABLE_VAR(w) \
+    (Get_Var_Core((w), FALSE, TRUE))
 
 
 /***********************************************************************
@@ -813,150 +544,6 @@ struct Reb_Call {
 #endif
 
 
-/***********************************************************************
-**
-**  PANIC_SERIES
-**
-**      "Series Panics" will (hopefully) trigger an alert under memory
-**      tools like address sanitizer and valgrind that indicate the
-**      call stack at the moment of allocation of a series.  Then you
-**      should have TWO stacks: the one at the call of the Panic, and
-**      one where that series was alloc'd.
-**
-***********************************************************************/
-
-#if !defined(NDEBUG)
-    #define Panic_Series(s) \
-        Panic_Series_Debug((s), __FILE__, __LINE__);
-
-    #define Panic_Array(a) \
-        Panic_Series(ARRAY_SERIES(a))
-
-    #define Panic_Frame(f) \
-        Panic_Array(FRAME_VARLIST(f))
-#endif
-
-
-/***********************************************************************
-**
-**  SERIES MANAGED MEMORY
-**
-**      When a series is allocated by the Make_Series routine, it is
-**      not initially seen by the garbage collector.  To keep from
-**      leaking it, then it must be either freed with Free_Series or
-**      delegated to the GC to manage with MANAGE_SERIES.
-**
-**      (In debug builds, there is a test at the end of every Rebol
-**      function dispatch that checks to make sure one of those two
-**      things happened for any series allocated during the call.)
-**
-**      The implementation of MANAGE_SERIES is shallow--it only sets
-**      a bit on that *one* series, not the series referenced by
-**      values inside of it.  This means that you cannot build a
-**      hierarchical structure that isn't visible to the GC and
-**      then do a single MANAGE_SERIES call on the root to hand it
-**      over to the garbage collector.  While it would be technically
-**      possible to deeply walk the structure, the efficiency gained
-**      from pre-building the structure with the managed bit set is
-**      significant...so that's how deep copies and the loader do it.
-**
-**      (In debug builds, if any unmanaged series are found inside
-**      of values reachable by the GC, it will raise an alert.)
-**
-***********************************************************************/
-
-#define MANAGE_SERIES(series) \
-    Manage_Series(series)
-
-#define MANAGE_ARRAY(array) \
-    MANAGE_SERIES(ARRAY_SERIES(array))
-
-#define ENSURE_SERIES_MANAGED(series) \
-    (SERIES_GET_FLAG((series), SER_MANAGED) \
-        ? NOOP \
-        : MANAGE_SERIES(series))
-
-#define ENSURE_ARRAY_MANAGED(array) \
-    ENSURE_SERIES_MANAGED(ARRAY_SERIES(array))
-
-// Debug build includes testing that the managed state of the frame and
-// its word series is the same for the "ensure" case.  It also adds a
-// few assert macros.
-//
-#ifdef NDEBUG
-    #define MANAGE_FRAME(frame) \
-        (MANAGE_ARRAY(FRAME_VARLIST(frame)), \
-            MANAGE_ARRAY(FRAME_KEYLIST(frame)))
-
-    #define ENSURE_FRAME_MANAGED(frame) \
-        (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-            ? NOOP \
-            : MANAGE_FRAME(frame))
-
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        NOOP
-
-    #define ASSERT_SERIES_MANAGED(series) \
-        NOOP
-
-    #define ASSERT_ARRAY_MANAGED(array) \
-        NOOP
-
-    #define ASSERT_VALUE_MANAGED(value) \
-        NOOP
-#else
-    #define MANAGE_FRAME(frame) \
-        Manage_Frame_Debug(frame)
-
-    #define ENSURE_FRAME_MANAGED(frame) \
-        ((ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-        && ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)) \
-            ? NOOP \
-            : MANAGE_FRAME(frame))
-
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        Manuals_Leak_Check_Debug((manuals), (label_str))
-
-    #define ASSERT_SERIES_MANAGED(series) \
-        do { \
-            if (!SERIES_GET_FLAG((series), SER_MANAGED)) \
-                Panic_Series(series); \
-        } while (0)
-
-    #define ASSERT_ARRAY_MANAGED(array) \
-        ASSERT_SERIES_MANAGED(ARRAY_SERIES(array))
-
-    #define ASSERT_VALUE_MANAGED(value) \
-        assert(Is_Value_Managed(value, TRUE))
-#endif
-
-
-/***********************************************************************
-**
-**  DEBUG PROBING
-**
-**      Debugging Rebol has traditionally been "printf-style".  Hence
-**      a good mechanism for putting debug info into the executable and
-**      creating IDE files was not in the open source release.  As
-**      these weaknesses are remedied with CMake targets and other
-**      methods, adding probes into the code is still useful.
-**
-**      In order to make it easier to find out where a piece of debug
-**      spew is coming from, the file and line number are included.
-**      You should not check in calls to PROBE, and they are only
-**      in Debug builds.
-**
-***********************************************************************/
-
-#if !defined(NDEBUG)
-    #define PROBE(v) \
-        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
-
-    #define PROBE_MSG(v, m) \
-        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
-#endif
-
-
 #define NO_RESULT   ((REBCNT)(-1))
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS
@@ -985,114 +572,6 @@ struct Reb_Call {
 #else
 #define BUF_OS_STR BUF_FORM
 #endif
-
-
-//
-// GUARDING SERIES (OR VALUE CONTENTS) FROM GARBAGE COLLECTION
-//
-// The garbage collector can run anytime the evaluator runs.  So if a series
-// has had MANAGE_SERIES run on it, the potential exists that any C pointers
-// that are outstanding may "go bad" if the series wasn't reachable from
-// the root set.  This is important to remember any time a pointer is held
-// across a call that runs arbitrary user code.
-//
-// This simple stack approach allows pushing protection for a series, and
-// then can release protection only for the last series pushed.  A parallel
-// pair of macros exists for pushing and popping of guard status for values,
-// to protect any series referred to by the value's contents.  (Note: This can
-// only be used on values that do not live inside of series, because there is
-// no way to guarantee a value in a series will keep its address besides
-// guarding the series AND locking it from resizing.)
-//
-// The guard stack is not meant to accumulate, and must be cleared out before
-// a command ends or a PUSH_TRAP/DROP_TRAP.
-//
-
-#define PUSH_GUARD_SERIES(s) \
-    Guard_Series_Core(s)
-
-#define PUSH_GUARD_ARRAY(a) \
-    PUSH_GUARD_SERIES(ARRAY_SERIES(a))
-
-#define DROP_GUARD_SERIES(s) \
-    do { \
-        GC_Series_Guard->tail--; \
-        assert((s) == cast(REBSER **, GC_Series_Guard->data)[ \
-            GC_Series_Guard->tail \
-        ]); \
-    } while (0)
-
-#define DROP_GUARD_ARRAY(a) \
-    DROP_GUARD_SERIES(ARRAY_SERIES(a))
-
-#define PUSH_GUARD_FRAME(f) \
-    PUSH_GUARD_ARRAY(FRAME_VARLIST(f)) // varlist points to/guards keylist
-
-#define DROP_GUARD_FRAME(f) \
-    DROP_GUARD_ARRAY(FRAME_VARLIST(f))
-
-#ifdef NDEBUG
-    #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
-#else
-    #define ASSERT_NOT_IN_SERIES_DATA(v) \
-        Assert_Not_In_Series_Data_Debug(v)
-#endif
-
-#define PUSH_GUARD_VALUE(v) \
-    Guard_Value_Core(v)
-
-#define DROP_GUARD_VALUE(v) \
-    do { \
-        GC_Value_Guard->tail--; \
-        assert((v) == cast(REBVAL **, GC_Value_Guard->data)[ \
-            GC_Value_Guard->tail \
-        ]); \
-    } while (0)
-
-
-// Rebol doesn't want to crash in the event of a stack overflow, but would
-// like to gracefully trap it and return the user to the console.  While it
-// is possible for Rebol to set a limit to how deeply it allows function
-// calls in the interpreter to recurse, there's no *portable* way to
-// catch a stack overflow in the C code of the interpreter itself.
-//
-// Hence, by default Rebol will use a non-standard heuristic.  It looks
-// at the compiled addresses of local (stack-allocated) variables in a
-// function, and decides from their relative pointers if memory is growing
-// "up" or "down".  It then extrapolates that C function call frames will
-// be laid out consecutively, and the memory difference between a stack
-// variable in the topmost stacks can be checked against some limit.
-//
-// This has nothing to do with guarantees in the C standard, and compilers
-// can really put variables at any address they feel like:
-//
-//     http://stackoverflow.com/a/1677482/211160
-//
-// Additionally, it puts the burden on every recursive or deeply nested
-// routine to sprinkle calls to the C_STACK_OVERFLOWING macro somewhere
-// in it.  The ideal answer is to make Rebol itself corral an interpreted
-// script such that it can't cause the C code to stack overflow.  Lacking
-// that ideal this technique could break, so build configurations should
-// be able to turn it off if needed.
-//
-// In the meantime, C_STACK_OVERFLOWING is a macro which takes the
-// address of some variable local to the currently executed function.
-// Note that because the limit is noticed before the C stack has *actually*
-// overflowed, you still have a bit of stack room to do the cleanup and
-// raise an error trap.  (You need to take care of any unmanaged series
-// allocations, etc).  So cleaning up that state should be doable without
-// making deep function calls.
-
-#ifdef OS_STACK_GROWS_UP
-    #define C_STACK_OVERFLOWING(address_of_local_var) \
-        (cast(REBUPT, address_of_local_var) >= Stack_Limit)
-#else
-    #define C_STACK_OVERFLOWING(address_of_local_var) \
-        (cast(REBUPT, address_of_local_var) <= Stack_Limit)
-#endif
-
-#define STACK_BOUNDS (4*1024*1000) // note: need a better way to set it !!
-// Also: made somewhat smaller than linker setting to allow trapping it
 
 
 /***********************************************************************

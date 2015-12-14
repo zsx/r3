@@ -466,9 +466,9 @@ static const REBYTE *Scan_Quote(REBSER *buf, const REBYTE *src, SCAN_STATE *scan
         if (SERIES_LEN(buf) + 1 >= SERIES_REST(buf)) // include term.
             Extend_Series(buf, 1);
 
-        *UNI_AT(buf, buf->tail) = chr;
+        *UNI_TAIL(buf) = chr;
 
-        buf->tail ++;
+        SET_SERIES_LEN(buf, SERIES_LEN(buf) + 1);
     }
 
     src++; // Skip ending quote or brace.
@@ -537,9 +537,12 @@ const REBYTE *Scan_Item(const REBYTE *src, const REBYTE *end, REBUNI term, const
 
         src++;
 
-        *UNI_AT(buf, buf->tail) = c; // not affected by Extend_Series
+        *UNI_TAIL(buf) = c; // not affected by Extend_Series
 
-        if (++(buf->tail) >= SERIES_REST(buf)) Extend_Series(buf, 1);
+        SET_SERIES_LEN(buf, SERIES_LEN(buf) + 1);
+
+        if (SERIES_LEN(buf) >= SERIES_REST(buf))
+            Extend_Series(buf, 1);
     }
 
     if (*src && *src == term) src++;
@@ -1392,13 +1395,13 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             value = ARRAY_TAIL(emitbuf);
             if (token == TOKEN_LIT) {
                 token = REB_LIT_PATH;
-                VAL_SET(ARRAY_HEAD(block), REB_WORD);
+                VAL_RESET_HEADER(ARRAY_HEAD(block), REB_WORD);
                 assert(!VAL_WORD_TARGET(ARRAY_HEAD(block)));
             }
             else if (IS_GET_WORD(ARRAY_HEAD(block))) {
                 if (*scan_state->end == ':') goto syntax_error;
                 token = REB_GET_PATH;
-                VAL_SET(ARRAY_HEAD(block), REB_WORD);
+                VAL_RESET_HEADER(ARRAY_HEAD(block), REB_WORD);
                 assert(!VAL_WORD_TARGET(ARRAY_HEAD(block)));
             }
             else {
@@ -1407,7 +1410,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                     scan_state->begin = ++(scan_state->end);
                 } else token = REB_PATH;
             }
-            VAL_SET(value, token);
+            VAL_RESET_HEADER(value, cast(enum Reb_Kind, token));
             VAL_ARRAY(value) = block;
             VAL_INDEX(value) = 0;
             token = TOKEN_PATH;
@@ -1442,7 +1445,9 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         case TOKEN_WORD:
             if (len == 0) {bp--; goto syntax_error;}
             Val_Init_Word_Unbound(
-                value, REB_WORD + (token - TOKEN_WORD), Make_Word(bp, len)
+                value,
+                cast(enum Reb_Kind, REB_WORD + (token - TOKEN_WORD)),
+                Make_Word(bp, len)
             );
             break;
 
@@ -1481,11 +1486,10 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 SET_ARRAY_LEN(emitbuf, ARRAY_LEN(emitbuf) + 1);
                 goto exit_block;
             }
-            Val_Init_Array_Index(
+            Val_Init_Array(
                 value,
                 (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_PAREN,
-                block,
-                0
+                block
             );
             break;
 
@@ -1504,7 +1508,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         case TOKEN_INTEGER:     // or start of DATE
             if (*ep != '/' || mode_char == '/') {
-                VAL_SET(value, REB_INTEGER);
+                VAL_RESET_HEADER(value, REB_INTEGER);
                 if (!Scan_Integer(&VAL_INT64(value), bp, len))
                     goto syntax_error;
             }
@@ -1520,11 +1524,11 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         case TOKEN_DECIMAL:
         case TOKEN_PERCENT:
             // Do not allow 1.2/abc:
-            VAL_SET(value, REB_DECIMAL);
+            VAL_RESET_HEADER(value, REB_DECIMAL);
             if (*ep == '/' || !Scan_Decimal(&VAL_DECIMAL(value), bp, len, 0))
                 goto syntax_error;
             if (bp[len-1] == '%') {
-                VAL_SET(value, REB_PERCENT);
+                VAL_RESET_HEADER(value, REB_PERCENT);
                 VAL_DECIMAL(value) /= 100.0;
             }
             break;
@@ -1537,7 +1541,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         case TOKEN_TIME:
             if (bp[len-1] == ':' && mode_char == '/') { // could be path/10: set
-                VAL_SET(value, REB_INTEGER);
+                VAL_RESET_HEADER(value, REB_INTEGER);
                 if (!Scan_Integer(&VAL_INT64(value), bp, len - 1))
                     goto syntax_error;
                 scan_state->end--;  // put ':' back on end but not beginning
@@ -1564,7 +1568,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             bp += 2; // skip #"
             if (!Scan_UTF8_Char_Escapable(&VAL_CHAR(value), bp))
                 goto syntax_error;
-            VAL_SET(value, REB_CHAR);
+            VAL_RESET_HEADER(value, REB_CHAR);
             break;
 
         case TOKEN_STRING:
@@ -1815,8 +1819,6 @@ void Shutdown_Scanner(void)
 //  ]
 //
 REBNATIVE(transcode)
-//
-// Allows BINARY! input only!
 {
     PARAM(1, source);
     REFINE(2, next);

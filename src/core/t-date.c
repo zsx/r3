@@ -45,7 +45,7 @@ void Set_Date_UTC(REBVAL *val, REBINT y, REBINT m, REBINT d, REBI64 t, REBINT z)
     VAL_DAY(val)   = d;
     VAL_TIME(val)  = t;
     VAL_ZONE(val)  = z;
-    VAL_SET(val, REB_DATE);
+    VAL_RESET_HEADER(val, REB_DATE);
     if (z) Adjust_Date_Zone(val, TRUE);
 }
 
@@ -63,7 +63,7 @@ void Set_Date(REBVAL *val, REBOL_DAT *dat)
     VAL_DAY(val)   = dat->day;
     VAL_ZONE(val)  = dat->zone / ZONE_MINS;
     VAL_TIME(val)  = TIME_SEC(dat->time) + dat->nano;
-    VAL_SET(val, REB_DATE);
+    VAL_RESET_HEADER(val, REB_DATE);
 }
 
 
@@ -380,7 +380,7 @@ void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)
     t2 = VAL_TIME(d2);
     if (t2 == NO_TIME) t2 = 0L;
 
-    VAL_SET(result, REB_TIME);
+    VAL_RESET_HEADER(result, REB_TIME);
     VAL_TIME(result) = (t1 - t2) + ((REBI64)diff * TIME_IN_DAY);
 }
 
@@ -458,7 +458,7 @@ REBFLG MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
     Normalize_Time(&secs, &day);
     date = Normalize_Date(day, month, year, tz);
 
-    VAL_SET(val, REB_DATE);
+    VAL_RESET_HEADER(val, REB_DATE);
     VAL_DATE(val) = date;
     VAL_TIME(val) = secs;
     Adjust_Date_Zone(val, TRUE);
@@ -542,13 +542,13 @@ REBINT PD_Date(REBPVS *pvs)
         case 3:
             if (secs == NO_TIME) return PE_NONE;
             *val = *data;
-            VAL_SET(val, REB_TIME);
+            VAL_RESET_HEADER(val, REB_TIME);
             return PE_USE;
         case 4:
             if (secs == NO_TIME) return PE_NONE;
             *val = *data;
             VAL_TIME(val) = (i64)tz * ZONE_MINS * MIN_SEC;
-            VAL_SET(val, REB_TIME);
+            VAL_RESET_HEADER(val, REB_TIME);
             return PE_USE;
         case 5:
             // date
@@ -664,7 +664,7 @@ REBINT PD_Date(REBPVS *pvs)
 
 setDate:
         data = pvs->value;
-        VAL_SET(data, REB_DATE);
+        VAL_RESET_HEADER(data, REB_DATE);
         VAL_DATE(data) = date;
         VAL_TIME(data) = secs;
         Adjust_Date_Zone(data, TRUE);
@@ -813,7 +813,7 @@ fixDate:
     date = Normalize_Date(day, month, year, tz);
 
 setDate:
-    VAL_SET(D_OUT, REB_DATE);
+    VAL_RESET_HEADER(D_OUT, REB_DATE);
     VAL_DATE(D_OUT) = date;
     VAL_TIME(D_OUT) = secs;
     return R_OUT;

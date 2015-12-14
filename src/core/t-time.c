@@ -129,7 +129,7 @@ const REBYTE *Scan_Time(const REBYTE *cp, REBCNT len, REBVAL *value)
     if (part4 > 0) VAL_TIME(value) += part4;
 
     if (neg) VAL_TIME(value) = -VAL_TIME(value);
-    VAL_SET(value, REB_TIME);
+    VAL_RESET_HEADER(value, REB_TIME);
 
     return cp;
 }
@@ -248,7 +248,7 @@ REBFLG MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (secs == NO_TIME) return FALSE;
 
-    VAL_SET(out, REB_TIME);
+    VAL_RESET_HEADER(out, REB_TIME);
     VAL_TIME(out) = secs;
     VAL_DATE(out).bits = 0;
 
@@ -393,7 +393,7 @@ REBTYPE(Time)
             case A_DIVIDE:
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 //secs /= secs2;
-                VAL_SET(D_OUT, REB_DECIMAL);
+                VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 VAL_DECIMAL(D_OUT) = (REBDEC)secs / (REBDEC)secs2;
                 return R_OUT;
 
@@ -500,12 +500,12 @@ REBTYPE(Time)
                         Dec64(arg) * SEC_SEC
                     );
                     VAL_DECIMAL(arg) /= SEC_SEC;
-                    VAL_SET(arg, REB_DECIMAL);
+                    VAL_RESET_HEADER(arg, REB_DECIMAL);
                     return R_ARG3;
                 }
                 else if (IS_INTEGER(arg)) {
                     VAL_INT64(arg) = Round_Int(secs, 1, Int32(arg) * SEC_SEC) / SEC_SEC;
-                    VAL_SET(arg, REB_INTEGER);
+                    VAL_RESET_HEADER(arg, REB_INTEGER);
                     return R_ARG3;
                 }
                 else fail (Error_Invalid_Arg(arg));
@@ -547,7 +547,7 @@ REBTYPE(Time)
 fixTime:
 setTime:
     VAL_TIME(D_OUT) = secs;
-    VAL_SET(D_OUT, REB_TIME);
+    VAL_RESET_HEADER(D_OUT, REB_TIME);
     return R_OUT;
 
 is_false:

@@ -85,7 +85,7 @@ static REB_R Console_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
 
         // Don't make buffer too large:  Bug #174   ?????
         if (req->length > 1024) req->length = 1024;  //???
-        req->common.data = STR_TAIL(ser); // write at tail  //???
+        req->common.data = BIN_TAIL(ser); // write at tail  //???
         if (SERIES_LEN(ser) == 0) req->actual = 0;  //???
 #endif
 

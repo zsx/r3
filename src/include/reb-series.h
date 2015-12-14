@@ -39,11 +39,19 @@ struct rebol_series {
     // OPTIONAL Extensions
 };
 
-#define SERIES_LEN(s) ((s)->tail)
-#define SERIES_DATA(s) ((s)->data)
+// !!! Getting/setting the length or data pointer of a series is now complex.
+// Based on bitflags in the series, the data may not be allocated at all,
+// but live directly in the series node itself!
+//
+// Hence client code must go through an RL_API, repeat the complexity of the
+// macros internal to Rebol, or become a formal Ren-C client and use the
+// same definitions that the core does.
+//
+// #define SERIES_LEN(s) ((s)->tail)
+// #define SERIES_DATA(s) ((s)->data)
 
-#define ARRAY_HEAD(s) ((REBVAL *)((s)->data))
-#define STR_HEAD(s) ((REBYTE *)((s)->data))
+#define ARRAY_HEAD(s) ((REBVAL *)SERIES_DATA(s))
+#define STR_HEAD(s) ((REBYTE *)SERIES_DATA(s))
 
 #define IMG_SIZE(s) ((s)->size)
 #define IMG_WIDE(s) ((s)->size & 0xffff)

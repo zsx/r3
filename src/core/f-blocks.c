@@ -67,11 +67,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
     len -= index;
     copy = Make_Array(len + extra + 1);
 
-    memcpy(
-        ARRAY_SERIES(copy)->data,
-        ARRAY_AT(original, index),
-        len * sizeof(REBVAL)
-    );
+    memcpy(ARRAY_HEAD(copy), ARRAY_AT(original, index), len * sizeof(REBVAL));
 
     SET_ARRAY_LEN(copy, len);
     TERM_ARRAY(copy);
@@ -98,11 +94,7 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 
     copy = Make_Array(max + 1);
 
-    memcpy(
-        ARRAY_SERIES(copy)->data,
-        ARRAY_AT(original, index),
-        max * sizeof(REBVAL)
-    );
+    memcpy(ARRAY_HEAD(copy), ARRAY_AT(original, index), max * sizeof(REBVAL));
 
     SET_ARRAY_LEN(copy, max);
     TERM_ARRAY(copy);
@@ -123,7 +115,7 @@ REBARR *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
 
     array = Make_Array(len + extra + 1);
 
-    memcpy(ARRAY_SERIES(array)->data, &value[0], len * sizeof(REBVAL));
+    memcpy(ARRAY_HEAD(array), &value[0], len * sizeof(REBVAL));
 
     SET_ARRAY_LEN(array, len);
     TERM_ARRAY(array);
@@ -197,7 +189,7 @@ void Clonify_Values_Len_Managed(
             if (types & FLAGIT_64(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
                      ARRAY_HEAD(AS_ARRAY(series)),
-                     VAL_TAIL(value),
+                     VAL_LEN_HEAD(value),
                      deep,
                      types
                 );
@@ -305,7 +297,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     if (into) {
         array = VAL_ARRAY(into);
 
-        FAIL_IF_PROTECTED_ARRAY(array);
+        FAIL_IF_LOCKED_ARRAY(array);
 
         if (ANY_ARRAY(into)) {
             // When the target is an any-block, we can do an ordinary
@@ -365,12 +357,12 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
     else {
         array = Make_Array(len + 1);
 
-        memcpy(ARRAY_SERIES(array)->data, blk, len * sizeof(REBVAL));
+        memcpy(ARRAY_HEAD(array), blk, len * sizeof(REBVAL));
         SET_ARRAY_LEN(array, len);
         TERM_ARRAY(array);
 
         DS_DROP_TO(start);
-        Val_Init_Array_Index(DS_TOP, REB_BLOCK, array, 0);
+        Val_Init_Array(DS_TOP, REB_BLOCK, array);
     }
 }
 

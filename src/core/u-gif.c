@@ -276,8 +276,8 @@ void Decode_GIF_Image(REBCDI *codi)
 
         w = LSBFirstOrder(cp[4],cp[5]);
         h = LSBFirstOrder(cp[6],cp[7]);
-        // if(w * h * 4 > VAL_STR_LEN(img))
-        //          h = 4 * VAL_STR_LEN(img) / w;
+        // if(w * h * 4 > VAL_SERIES_LEN(img))
+        //          h = 4 * VAL_SERIES_LEN(img) / w;
 
         // Initialize colormap.
         if (local_colormap) {
