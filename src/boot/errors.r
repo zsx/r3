@@ -194,6 +194,7 @@ Script: [
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
 
+    block-skip-wrong:   {Block is not even multiple of skip size}
 ;   bad-prompt:         [{Error executing prompt block}]
 ;   bad-port-action:    [{Cannot use} :arg1 {on this type port}]
 ;   face-error:         [{Invalid graphics face object}]

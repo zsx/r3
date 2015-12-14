@@ -333,7 +333,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 // 
 // Note: hash array contents (indexes) are 1-based!
 //
-REBSER *Hash_Block(const REBVAL *block, REBCNT cased)
+REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBCNT cased)
 {
     REBCNT n;
     REBSER *hashlist;
@@ -346,13 +346,46 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT cased)
     hashes = cast(REBCNT*, SERIES_DATA(hashlist));
 
     value = VAL_ARRAY_AT(block);
+    if (IS_END(value))
+        return hashlist;
+
     n = VAL_INDEX(block);
-    for (; NOT_END(value); value++, n++) {
-        REBCNT key = Find_Key_Hashed(array, hashlist, value, 1, cased, 0);
-        hashes[key] = n + 1;
+    while (TRUE) {
+        REBCNT skip_index = skip;
+
+        REBCNT hash = Find_Key_Hashed(array, hashlist, value, 1, cased, 0);
+        hashes[hash] = (n / skip) + 1;
+
+        while (skip_index != 0) {
+            value++;
+            n++;
+            skip_index--;
+
+            if (IS_END(value)) {
+                if (skip_index != 0) {
+                    //
+                    // !!! It's not clear what to do when hashing something
+                    // for a skip index when the number isn't evenly divisible
+                    // by that amount.  It means a hash lookup will find
+                    // something, but it won't be a "full record".  Just as
+                    // we have to check for ENDs inside the hashed-to material
+                    // here, later code would have to check also.
+                    //
+                    // The conservative thing to do here is to error.  If a
+                    // compelling coherent behavior and rationale in the
+                    // rest of the code can be established.  But more likely
+                    // than not, this will catch bugs in callers vs. be
+                    // a roadblock to them.
+                    //
+                    fail (Error(RE_BLOCK_SKIP_WRONG));
+                }
+
+                return hashlist;
+            }
+        }
     }
 
-    return hashlist;
+    DEAD_END;
 }
 
 

@@ -115,7 +115,7 @@ static REBSER *Make_Set_Operation_Series(
             // Check what is in series1 but not in series2
             //
             if (flags & SOP_FLAG_CHECK)
-                hser = Hash_Block(val2, cased);
+                hser = Hash_Block(val2, skip, cased);
 
             // Iterate over first series
             //
@@ -134,6 +134,16 @@ static REBSER *Make_Set_Operation_Series(
                         AS_ARRAY(buffer), hret, item, skip, cased, 2
                     );
                 }
+            }
+
+            if (i != SERIES_LEN(ser)) {
+                //
+                // In the current philosophy, the semantics of what to do
+                // with things like `intersect/skip [1 2 3] [7] 2` is too
+                // shaky to deal with, so an error is reported if it does
+                // not work out evenly to the skip size.
+                //
+                fail (Error(RE_BLOCK_SKIP_WRONG));
             }
 
             if (flags & SOP_FLAG_CHECK)
