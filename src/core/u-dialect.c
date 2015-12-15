@@ -576,6 +576,7 @@ REBNATIVE(delect)
 
     REBDIA dia;
     REBINT err;
+    REBCNT dsp_orig;
 
     CLEARS(&dia);
 
@@ -594,6 +595,8 @@ REBNATIVE(delect)
         dia.contexts = VAL_ARRAY_AT(dia.contexts);
     }
 
+    dsp_orig = DSP;
+
     if (REF(all)) {
         SET_FLAG(dia.flags, RDIA_ALL);
         Resize_Series(ARRAY_SERIES(dia.out), VAL_LEN_AT(ARG(input)));
@@ -607,6 +610,8 @@ REBNATIVE(delect)
     }
     else
         err = Do_Dia(&dia);
+
+    DS_DROP_TO(dsp_orig);
 
     VAL_INDEX(ARG(input)) = MIN(dia.argi, ARRAY_LEN(dia.args));
 
