@@ -109,9 +109,12 @@ static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT k
 //
 REBNATIVE(cosine)
 {
-    REBDEC dval = cos(Trig_Value(D_ARG(1), !D_REF(2), COSINE));
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    REBDEC dval = cos(Trig_Value(ARG(value), NOT(REF(radians)), COSINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-    SET_DECIMAL(D_OUT, dval);
+    SET_DECIMAL(OUT, dval);
     return R_OUT;
 }
 
@@ -127,9 +130,12 @@ REBNATIVE(cosine)
 //
 REBNATIVE(sine)
 {
-    REBDEC dval = sin(Trig_Value(D_ARG(1), !D_REF(2), SINE));
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    REBDEC dval = sin(Trig_Value(ARG(value), NOT(REF(radians)), SINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-    SET_DECIMAL(D_OUT, dval);
+    SET_DECIMAL(OUT, dval);
     return R_OUT;
 }
 
@@ -145,9 +151,12 @@ REBNATIVE(sine)
 //
 REBNATIVE(tangent)
 {
-    REBDEC dval = Trig_Value(D_ARG(1), !D_REF(2), TANGENT);
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    REBDEC dval = Trig_Value(ARG(value), NOT(REF(radians)), TANGENT);
     if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
-    SET_DECIMAL(D_OUT, tan(dval));
+    SET_DECIMAL(OUT, tan(dval));
     return R_OUT;
 }
 
@@ -163,7 +172,10 @@ REBNATIVE(tangent)
 //
 REBNATIVE(arccosine)
 {
-    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), COSINE);
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), COSINE);
     return R_OUT;
 }
 
@@ -179,7 +191,10 @@ REBNATIVE(arccosine)
 //
 REBNATIVE(arcsine)
 {
-    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), SINE);
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), SINE);
     return R_OUT;
 }
 
@@ -195,7 +210,10 @@ REBNATIVE(arcsine)
 //
 REBNATIVE(arctangent)
 {
-    Arc_Trans(D_OUT, D_ARG(1), !D_REF(2), TANGENT);
+    PARAM(1, value);
+    REFINE(2, radians);
+
+    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), TANGENT);
     return R_OUT;
 }
 

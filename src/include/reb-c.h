@@ -247,6 +247,12 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 #define MAX_U64 U64_C(0xffffffffffffffff)
 
 
+// For strict typing of booleans (as a test), these help.
+//
+#define LOGICAL(x)      ((x) ? TRUE : FALSE)
+#define NOT(x)          LOGICAL(!(x))
+
+
 #ifndef DEF_UINT        // some systems define it, don't define it again
 typedef unsigned int    uint;
 #endif
