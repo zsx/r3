@@ -523,7 +523,7 @@ REBTYPE(Bitset)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBSER *ser;
     REBINT len;
-    REBINT diff;
+    REBOOL diff;
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
@@ -542,7 +542,7 @@ REBTYPE(Bitset)
     case A_COMPLEMENT:
     case A_NEGATE:
         ser = Copy_Sequence(VAL_SERIES(value));
-        BITS_NOT(ser) = !BITS_NOT(VAL_SERIES(value));
+        BITS_NOT(ser) = NOT(BITS_NOT(VAL_SERIES(value)));
         Val_Init_Bitset(value, ser);
         break;
 
@@ -570,10 +570,12 @@ REBTYPE(Bitset)
         goto set_bits;
 
     case A_POKE:
-        diff = Get_Logic_Arg(D_ARG(3));
+        if (!IS_LOGIC(D_ARG(3)))
+            fail (Error_Invalid_Arg(D_ARG(3)));
+        diff = VAL_LOGIC(D_ARG(3));
 set_bits:
-        if (BITS_NOT(VAL_SERIES(value))) diff = !diff;
-        if (Set_Bits(VAL_SERIES(value), arg, (REBOOL)diff)) break;
+        if (BITS_NOT(VAL_SERIES(value))) diff = NOT(diff);
+        if (Set_Bits(VAL_SERIES(value), arg, diff)) break;
         fail (Error_Invalid_Arg(arg));
 
     case A_REMOVE:  // #"a" "abc"  remove/part bs "abcd"  yuk: /part ?
