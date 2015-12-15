@@ -565,24 +565,6 @@ REBCNT Val_Byte_Len(const REBVAL *value)
 
 
 //
-//  Get_Logic_Arg: C
-//
-REBFLG Get_Logic_Arg(REBVAL *arg)
-{
-    if (IS_NONE(arg))
-        return 0;
-    if (IS_INTEGER(arg))
-        return VAL_INT64(arg) != 0;
-    if (IS_LOGIC(arg))
-        return VAL_LOGIC(arg) != 0;
-    if (IS_DECIMAL(arg) || IS_PERCENT(arg))
-        return VAL_DECIMAL(arg) != 0.0;
-
-    fail (Error_Invalid_Arg(arg));
-}
-
-
-//
 //  Partial1: C
 // 
 // Process the /part (or /skip) and other length modifying

@@ -525,6 +525,10 @@ struct Native_Refine {
         ((p_##name).used_cache ? !IS_NONE(ARG(name)) : !IS_NONE(ARG(name)))
 #endif
 
+// Refinement not used (helps with strongly typed REBOOL)
+//
+#define NOT_REF(name) LOGICAL(!REF(name))
+
 // OUT is the write location in the call frame for the output.  Before the
 // call in debug builds this slot is initialized to a trash value, and by
 // the time a native has finished it is expected to not be trash (if the

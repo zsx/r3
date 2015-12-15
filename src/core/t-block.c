@@ -205,26 +205,15 @@ REBCNT Find_In_Array(
 //
 //  Make_Block_Type: C
 // 
-// Value can be:
-//     1. a datatype (e.g. BLOCK!)
-//     2. a value (e.g. [...])
-// 
 // Arg can be:
 //     1. integer (length of block)
 //     2. block (copy it)
 //     3. value (convert to a block)
 //
-void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
+void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
 {
-    enum Reb_Kind type;
     REBCNT len;
     REBARR *array;
-
-    // make block! ...
-    if (IS_DATATYPE(value))
-        type = VAL_TYPE_KIND(value);
-    else  // make [...] ....
-        type = VAL_TYPE(value);
 
     // make block! [1 2 3]
     if (ANY_ARRAY(arg)) {
@@ -269,7 +258,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
 
     // to block! typset
     if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-        Val_Init_Array(value, type, Typeset_To_Array(arg));
+        Val_Init_Array(out, type, Typeset_To_Array(arg));
         return;
     }
 
@@ -277,7 +266,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
         // make block! 10
         if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
             len = Int32s(arg, 0);
-            Val_Init_Array(value, type, Make_Array(len));
+            Val_Init_Array(out, type, Make_Array(len));
             return;
         }
         fail (Error_Invalid_Arg(arg));
@@ -286,7 +275,7 @@ void Make_Block_Type(REBFLG make, REBVAL *value, REBVAL *arg)
     array = Copy_Values_Len_Shallow(arg, 1);
 
 done:
-    Val_Init_Array(value, type, array);
+    Val_Init_Array(out, type, array);
     return;
 }
 
@@ -607,7 +596,18 @@ REBTYPE(Array)
 
     // Special case (to avoid fetch of index and tail below):
     if (action == A_MAKE || action == A_TO) {
-        Make_Block_Type(action == A_MAKE, value, arg); // returned in value
+        //
+        // make block! ...
+        // to block! ...
+        //
+        Make_Block_Type(
+            value, // out
+            IS_DATATYPE(value)
+                ? VAL_TYPE_KIND(value)
+                : VAL_TYPE(value), // type
+            LOGICAL(action == A_MAKE), // make? (as opposed to to?)
+            arg // size, block to copy, or value to convert
+        );
 
         if (ANY_PATH(value)) {
             // Get rid of any line break options on the path's elements
