@@ -260,19 +260,27 @@ void Bin_To_Alpha(REBYTE *rgba, REBCNT size, REBYTE *bin, REBINT len)
 
 
 //
-//  Valid_Tuples: C
+//  Array_Has_Non_Tuple: C
 //
-REBFLG Valid_Tuples(REBVAL *blk)
+// Checks the given ANY-ARRAY! REBVAL from its current index position to
+// the end to see if any of its contents are not TUPLE!.  If so, returns
+// TRUE and `index_out` will contain the index position from the head of
+// the array of the non-tuple.  Otherwise returns FALSE.
+//
+REBOOL Array_Has_Non_Tuple(REBCNT *index_out, REBVAL *blk)
 {
-    REBCNT n = VAL_INDEX(blk);
-    REBCNT len = VAL_LEN_AT(blk);
+    REBCNT len;
 
-    blk = VAL_ARRAY_AT(blk);
+    assert(ANY_ARRAY(blk));
 
-    for (; n < len; n++)
-        if (!IS_TUPLE(blk+n)) return n+1;
+    len = VAL_LEN_HEAD(blk);
+    *index_out = VAL_INDEX(blk);
 
-    return 0;
+    for (; *index_out < len; (*index_out)++)
+        if (!IS_TUPLE(VAL_ARRAY_AT_HEAD(blk, *index_out)))
+            return TRUE;
+
+    return FALSE;
 }
 
 
@@ -479,7 +487,10 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
         }
     }
     else if (IS_BLOCK(block)) {
-        if ((w = Valid_Tuples(block))) fail (Error_Invalid_Arg(block + w - 1));
+        REBCNT bad_index;
+        if (Array_Has_Non_Tuple(&bad_index, block))
+            fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(block, bad_index)));
+
         Tuples_To_RGBA(ip, size, VAL_ARRAY_AT(block), VAL_LEN_AT(block));
     }
     else
@@ -510,7 +521,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     REBOOL  only = 0; // /only
     REBCNT  index = VAL_INDEX(value);
     REBCNT  tail = VAL_LEN_HEAD(value);
-    REBINT  n;
+    REBCNT  n;
     REBINT  x;
     REBINT  w;
     REBINT  y;
@@ -529,8 +540,8 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     if (D_REF(5)) only = 1;
 
     // Validate that block arg is all tuple values:
-    if (IS_BLOCK(arg) && (n = Valid_Tuples(arg)))
-        fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(arg, n-1)));
+    if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
+        fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(arg, n)));
 
     // Get the /dup refinement. It specifies fill size.
     if (D_REF(6)) {
@@ -628,13 +639,17 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
         if (index + dup > tail) dup = tail - index; // clip it
         ip += index * 4;
         if (IS_INTEGER(arg)) { // Alpha channel
-            n = VAL_INT32(arg);
-            if ((n < 0) || (n > 255)) fail (Error_Out_Of_Range(arg));
+            REBINT arg_int = VAL_INT32(arg);
+            if ((arg_int < 0) || (arg_int > 255))
+                fail (Error_Out_Of_Range(arg));
             if (IS_PAIR(count)) // rectangular fill
-                Fill_Alpha_Rect((REBCNT *)ip, (REBYTE)n, w, dupx, dupy);
+                Fill_Alpha_Rect(
+                    cast(REBCNT*, ip), cast(REBYTE, arg_int), w, dupx, dupy
+                );
             else
-                Fill_Alpha_Line(ip, (REBYTE)n, dup);
-        } else if (IS_TUPLE(arg)) { // RGB
+                Fill_Alpha_Line(ip, cast(REBYTE, arg_int), dup);
+        }
+        else if (IS_TUPLE(arg)) { // RGB
             if (IS_PAIR(count)) // rectangular fill
                 Fill_Rect((REBCNT *)ip, TO_PIXEL_TUPLE(arg), w, dupx, dupy, only);
             else
