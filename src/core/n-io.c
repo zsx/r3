@@ -390,15 +390,12 @@ REBNATIVE(wait)
         }
         if (IS_END(val)) {
             if (n == 0) return R_NONE; // has no pending ports!
+            else timeout = ALL_BITS; // no timeout provided
             // SET_NONE(val); // no timeout -- BUG: unterminated block in GC
         }
     }
 
-    if (IS_END(val)) {
-        assert(FALSE);
-        timeout = ALL_BITS;
-    }
-    else {
+    if (NOT_END(val)) {
         switch (VAL_TYPE(val)) {
         case REB_INTEGER:
             timeout = 1000 * Int32(val);
