@@ -245,33 +245,46 @@ REBNATIVE(prin)
 //  
 //  {Sets or clears the new-line marker within a block or paren.}
 //  
-//      position [block! paren!] "Position to change marker (modified)"
-//      value "Set TRUE for newline"
-//      /all "Set/clear marker to end of series"
-//      /skip {Set/clear marker periodically to the end of the series}
+//      position [block! paren!]
+//          "Position to change marker (modified)"
+//      mark
+//          "Set TRUE for newline"
+//      /all
+//          "Set/clear marker to end of series"
+//      /skip
+//          {Set/clear marker periodically to the end of the series}
 //      size [integer!]
 //  ]
 //
 REBNATIVE(new_line)
 {
-    REBVAL *value = D_ARG(1);
-    REBVAL *val;
-    REBOOL cond = IS_CONDITIONAL_TRUE(D_ARG(2));
-    REBCNT n;
-    REBINT skip = -1;
+    PARAM(1, position);
+    PARAM(2, mark);
+    REFINE(3, all);
+    REFINE(4, skip);
+    PARAM(5, size);
 
-    val = VAL_ARRAY_AT(value);
-    if (D_REF(3)) skip = 1; // all
-    if (D_REF(4)) { // skip
-        skip = Int32s(D_ARG(5), 1); // size
+    REBVAL *value = VAL_ARRAY_AT(ARG(position));
+    REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
+    REBINT skip = 0;
+    REBCNT n;
+
+    if (REF(all)) skip = 1;
+
+    if (REF(skip)) {
+        skip = Int32s(ARG(size), 1);
         if (skip < 1) skip = 1;
     }
-    for (n = 0; NOT_END(val); n++, val++) {
-        if (cond ^ (n % skip != 0))
-            VAL_SET_OPT(val, OPT_VALUE_LINE);
+
+    for (n = 0; NOT_END(value); n++, value++) {
+        if ((skip != 0) && (n % skip != 0)) continue;
+
+        if (mark)
+            VAL_SET_OPT(value, OPT_VALUE_LINE);
         else
-            VAL_CLR_OPT(val, OPT_VALUE_LINE);
-        if (skip < 0) break;
+            VAL_CLR_OPT(value, OPT_VALUE_LINE);
+
+        if (skip == 0) break;
     }
 
     return R_ARG1;
@@ -288,7 +301,11 @@ REBNATIVE(new_line)
 //
 REBNATIVE(new_line_q)
 {
-    if VAL_GET_OPT(VAL_ARRAY_AT(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
+    PARAM(1, position);
+
+    if (VAL_GET_OPT(VAL_ARRAY_AT(ARG(position)), OPT_VALUE_LINE))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
