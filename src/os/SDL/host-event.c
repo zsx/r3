@@ -211,7 +211,7 @@ static void Add_Event_Key(REBGOB *gob, REBINT id, REBINT key, REBINT flags)
 	RL_Event(&evt);	// returns 0 if queue is full
 }
 
-static REBFLG state_to_flags(REBFLG flags)
+static REBFLGS state_to_flags(REBFLGS flags)
 {
 	SDL_Keymod mod = SDL_GetModState();
 	if (mod & KMOD_CTRL) {
@@ -428,7 +428,7 @@ void dispatch (SDL_Event *evt)
 			win = SDL_GetWindowFromID(evt->button.windowID);
 			gob = SDL_GetWindowData(win, "GOB");
 			if (gob != NULL) {
-				REBFLG flags = state_to_flags(0);
+				REBFLGS flags = state_to_flags(0);
 				int id = 0;
 				if (evt->button.clicks == 2) {
 					flags |= 1 << EVF_DOUBLE;
