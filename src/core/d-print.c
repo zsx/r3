@@ -106,15 +106,15 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLG opts)
     REBYTE buffer[BUF_SIZE]; // on stack
     REBYTE *buf = &buffer[0];
     REBCNT len2;
-    const REBOOL is_uni = (opts & OPT_ENC_UNISRC) != 0;
+    const REBOOL unicode = (opts & OPT_ENC_UNISRC) != 0;
 
-    const REBYTE *bp = is_uni ? NULL : cast(const REBYTE *, p);
-    const REBUNI *up = is_uni ? cast(const REBUNI *, p) : NULL;
+    const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
+    const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
     if (!p) panic (Error(RE_NO_PRINT_PTR));
 
     // Determine length if not provided:
-    if (len == UNKNOWN) len = is_uni ? Strlen_Uni(up) : LEN_BYTES(bp);
+    if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
 
     SET_FLAG(Req_SIO->flags, RRF_FLUSH);
 
@@ -126,7 +126,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLG opts)
         Do_Signals();
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
-        assert(!is_uni);
+        assert(!unicode);
         Req_SIO->length = len;
 
         // Mutability cast, but RDC_WRITE should not be modifying the buffer
@@ -143,12 +143,12 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLG opts)
             Req_SIO->length = Encode_UTF8(
                 buf,
                 BUF_SIZE - 4,
-                is_uni ? cast(const void *, up) : cast(const void *, bp),
+                unicode ? cast(const void *, up) : cast(const void *, bp),
                 &len2,
                 opts
             );
 
-            if (is_uni) up += len2; else bp += len2;
+            if (unicode) up += len2; else bp += len2;
             len -= len2;
 
             OS_DO_DEVICE(Req_SIO, RDC_WRITE);
@@ -240,11 +240,11 @@ void Display_Backtrace(REBCNT lines)
 //
 //  Debug_String: C
 //
-void Debug_String(const void *p, REBCNT len, REBOOL uni, REBINT lines)
+void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
 {
-    REBUNI uc;
-    const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
-    const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
+    REBUNI uni;
+    const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
+    const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
     REBINT disabled = GC_Disabled;
     GC_Disabled = 1;
@@ -252,18 +252,20 @@ void Debug_String(const void *p, REBCNT len, REBOOL uni, REBINT lines)
     if (Trace_Limit > 0) {
         if (SERIES_LEN(Trace_Buffer) >= Trace_Limit)
             Remove_Series(Trace_Buffer, 0, 2000);
-        if (len == UNKNOWN) len = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
-        // !!! account for unicode!
+
+        if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
+
         for (; len > 0; len--) {
-            uc = uni ? *up++ : *bp++;
-            Append_Codepoint_Raw(Trace_Buffer, uc);
+            uni = unicode ? *up++ : *bp++;
+            Append_Codepoint_Raw(Trace_Buffer, uni);
         }
-        //Append_Unencoded_Len(Trace_Buffer, bp, len);
+
         for (; lines > 0; lines--) Append_Codepoint_Raw(Trace_Buffer, LF);
+        /* Append_Unencoded_Len(Trace_Buffer, bp, len); */ // !!! alternative?
     }
     else {
         Prin_OS_String(
-            p, len, (uni ? OPT_ENC_UNISRC : 0) | OPT_ENC_CRLF_MAYBE
+            p, len, (unicode ? OPT_ENC_UNISRC : 0) | OPT_ENC_CRLF_MAYBE
         );
         for (; lines > 0; lines--) Print_OS_Line();
     }

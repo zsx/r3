@@ -565,7 +565,9 @@ REBNATIVE(what_dir)
         len = OS_GET_CURRENT_DIR(&lpath);
 
         // allocates extra for end `/`
-        ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE);
+        ser = To_REBOL_Path(
+            lpath, len, PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+        );
 
         OS_FREE(lpath);
 
@@ -1122,13 +1124,17 @@ static REBARR *File_List_To_Array(const REBCHR *str)
     n = OS_STRLEN(str);
 
     if (len == 1) {  // First is full file path
-        dir = To_REBOL_Path(str, n, OS_WIDE, 0);
+        dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
         Val_Init_File(Alloc_Tail_Array(blk), dir);
     }
     else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
         assert(sizeof(wchar_t) == sizeof(REBCHR));
-        dir = To_REBOL_Path(str, n, -1, TRUE);
+        dir = To_REBOL_Path(
+            str,
+            n,
+            PATH_OPT_UNI_SRC | PATH_OPT_FORCE_UNI_DEST | PATH_OPT_SRC_IS_DIR
+        );
         str += n + 1; // next
         len = SERIES_LEN(dir);
         while ((n = OS_STRLEN(str))) {
@@ -1140,7 +1146,7 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 #else /* absolute pathes already */
         str += n + 1;
         while ((n = OS_STRLEN(str))) {
-            dir = To_REBOL_Path(str, n, OS_WIDE, FALSE);
+            dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
             Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
             str += n + 1; // next
         }
@@ -1215,7 +1221,9 @@ REBNATIVE(request_file)
             Val_Init_Block(D_OUT, array);
         }
         else {
-            ser = To_REBOL_Path(fr.files, OS_STRLEN(fr.files), OS_WIDE, 0);
+            ser = To_REBOL_Path(
+                fr.files, OS_STRLEN(fr.files), (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+            );
             Val_Init_File(D_OUT, ser);
         }
     } else

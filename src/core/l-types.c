@@ -82,13 +82,13 @@ const REBYTE *Scan_Hex(REBI64 *out, const REBYTE *cp, REBCNT minlen, REBCNT maxl
 // We don't allow a %00 in files, urls, email, etc... so
 // a return of 0 is used to indicate an error.
 //
-REBOOL Scan_Hex2(const REBYTE *bp, REBUNI *n, REBFLG uni)
+REBOOL Scan_Hex2(const REBYTE *bp, REBUNI *n, REBOOL unicode)
 {
     REBUNI c1, c2;
     REBYTE d1, d2;
     REBYTE lex;
 
-    if (uni) {
+    if (unicode) {
         const REBUNI *up = cast(const REBUNI*, bp);
         c1 = up[0];
         c2 = up[1];
@@ -150,19 +150,19 @@ REBINT Scan_Hex_Bytes(REBVAL *val, REBCNT maxlen, REBYTE *out)
 // Result is 32 bits max.
 // Throw errors.
 //
-REBCNT Scan_Hex_Value(const void *p, REBCNT len, REBOOL uni)
+REBCNT Scan_Hex_Value(const void *p, REBCNT len, REBOOL unicode)
 {
     REBUNI c;
     REBCNT n;
     REBYTE lex;
     REBCNT num = 0;
-    const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
-    const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
+    const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
+    const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
     if (len > 8) goto bad_hex;
 
     for (n = 0; n < len; n++) {
-        c = uni ? up[n] : cast(REBUNI, bp[n]);
+        c = unicode ? up[n] : cast(REBUNI, bp[n]);
 
         if (c > 255) goto bad_hex;
 

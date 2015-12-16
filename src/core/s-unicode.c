@@ -868,12 +868,12 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 // dst: the desination array, must always be large enough!
 // src: source binary data
 // len: byte-length of source (not number of chars)
-// ccr: convert CRLF/CR to LF
+// crlf_to_lf: convert CRLF/CR to LF
 // 
 // Returns length in chars (negative if all chars are latin-1).
 // No terminator is added.
 //
-int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBFLG ccr)
+int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBOOL crlf_to_lf)
 {
     int flag = -1;
     REBUNI ch;
@@ -885,7 +885,7 @@ int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBFLG ccr)
                 fail (Error(RE_BAD_DECODE));
 
             if (ch > 0xff) flag = 1;
-        } if (ch == CR && ccr) {
+        } if (ch == CR && crlf_to_lf) {
             if (src[1] == LF) continue;
             ch = LF;
         }
@@ -902,50 +902,56 @@ int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBFLG ccr)
 // dst: the desination array, must always be large enough!
 // src: source binary data
 // len: byte-length of source (not number of chars)
-// lee: little endian encoded
-// ccr: convert CRLF/CR to LF
+// little_endian: little endian encoded
+// crlf_to_lf: convert CRLF/CR to LF
 // 
 // Returns length in chars (negative if all chars are latin-1).
 // No terminator is added.
 //
-int Decode_UTF16(REBUNI *dst, REBYTE *src, REBCNT len, REBFLG lee, REBFLG ccr)
-{
-#define EXPECT_LF 2
-    int flag = -1;
+int Decode_UTF16(
+    REBUNI *dst,
+    REBYTE *src,
+    REBCNT len,
+    REBOOL little_endian,
+    REBOOL crlf_to_lf
+) {
+    REBOOL expect_lf = FALSE;
+    REBOOL latin1 = TRUE;
     UTF32 ch;
     REBUNI *start = dst;
 
-    if (ccr) ccr = 1;
-
     for (; len > 0; len--, src++) {
-
-        // Combine bytes in big or little endian format:
+        //
+        // Combine bytes in big or little endian format
+        //
         ch = *src;
-        if (!lee) ch <<= 8;
+        if (!little_endian) ch <<= 8;
         if (--len <= 0) break;
         src++;
-        ch |= lee ? (UTF32)(*src) << 8 : *src;
+        ch |= little_endian ? (cast(UTF32, *src) << 8) : *src;
 
-        // Skip CR, but add LF (even if missing)
-        if (ccr) {
-            if (ccr == EXPECT_LF && ch != LF) {
-                ccr = 1;
+        if (crlf_to_lf) {
+            //
+            // Skip CR, but add LF (even if missing)
+            //
+            if (expect_lf && ch != LF) {
+                expect_lf = FALSE;
                 *dst++ = LF;
             }
             if (ch == CR) {
-                ccr = EXPECT_LF;
+                expect_lf = TRUE;
                 continue;
             }
         }
 
-        // check for surrogate pair ??
+        // !!! "check for surrogate pair" ??
 
-        if (ch > 0xff) flag = 1;
+        if (ch > 0xff) latin1 = FALSE;
 
-        *dst++ = (REBUNI)ch;
+        *dst++ = cast(REBUNI, ch);
     }
 
-    return (dst - start) * flag;
+    return latin1 ? -(dst - start) : (dst - start);
 }
 
 
@@ -1009,16 +1015,16 @@ REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLG opts)
 {
     REBCNT size = 0;
     REBCNT c;
-    REBOOL uni = (opts & OPT_ENC_UNISRC) != 0;
-    REBOOL ccr = (opts & OPT_ENC_CRLF) != 0;
-    const REBYTE *bp = uni ? NULL : cast(const REBYTE *, p);
-    const REBUNI *up = uni ? cast(const REBUNI *, p) : NULL;
+    REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
+    REBOOL lf_to_crlf = LOGICAL(opts & OPT_ENC_CRLF);
+    const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
+    const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
     for (; len > 0; len--) {
-        c = uni ? *up++ : *bp++;
+        c = unicode ? *up++ : *bp++;
         if (c < (UTF32)0x80) {
 #ifdef TO_WINDOWS
-            if (ccr && c == LF) size++; // because we will add a CR to it
+            if (lf_to_crlf && c == LF) size++; // since we will add a CR to it
 #endif
             size++;
         }
@@ -1078,8 +1084,13 @@ REBCNT Encode_UTF8_Char(REBYTE *dst, REBCNT src)
 // Updates len for source chars used.
 // Does not add a terminator.
 //
-REBCNT Encode_UTF8(REBYTE *dst, REBCNT max, const void *src, REBCNT *len, REBFLG opts)
-{
+REBCNT Encode_UTF8(
+    REBYTE *dst,
+    REBCNT max,
+    const void *src,
+    REBCNT *len,
+    REBFLG opts
+) {
     REBUNI c;
     REBINT n;
     REBYTE buf[8];
@@ -1087,17 +1098,17 @@ REBCNT Encode_UTF8(REBYTE *dst, REBCNT max, const void *src, REBCNT *len, REBFLG
     const REBYTE *bp = cast(const REBYTE*, src);
     const REBUNI *up = cast(const REBUNI*, src);
     REBCNT cnt;
-    REBOOL uni = (opts & OPT_ENC_UNISRC) != 0;
-    REBOOL ccr = (opts & OPT_ENC_CRLF) != 0;
+    REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
+    REBOOL lf_to_crlf = LOGICAL(opts & OPT_ENC_CRLF);
 
     if (len) cnt = *len;
-    else cnt = uni ? Strlen_Uni(up) : LEN_BYTES(bp);
+    else cnt = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
 
     for (; max > 0 && cnt > 0; cnt--) {
-        c = uni ? *up++ : *bp++;
+        c = unicode ? *up++ : *bp++;
         if (c < 0x80) {
 #if defined(TO_WINDOWS)
-            if (ccr && c == LF) {
+            if (lf_to_crlf && c == LF) {
                 // If there's not room, don't try to output CRLF
                 if (2 > max) {bp--; up--; break;}
                 *dst++ = CR;
@@ -1117,7 +1128,10 @@ REBCNT Encode_UTF8(REBYTE *dst, REBCNT max, const void *src, REBCNT *len, REBFLG
         }
     }
 
-    if (len) *len = uni ? up - cast(const REBUNI*, src) : bp - cast(const REBYTE*, src);
+    if (len)
+        *len = unicode
+            ? up - cast(const REBUNI*, src)
+            : bp - cast(const REBYTE*, src);
 
     return dst - bs;
 }

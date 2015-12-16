@@ -393,14 +393,14 @@ REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, RE
 //
 void Trim_Tail(REBSER *src, REBYTE chr)
 {
-    REBOOL is_uni = !BYTE_SIZE(src);
+    REBOOL unicode = !BYTE_SIZE(src);
     REBCNT tail;
     REBUNI c;
 
     assert(!Is_Array_Series(src));
 
     for (tail = SERIES_LEN(src); tail > 0; tail--) {
-        c = is_uni ? *UNI_AT(src, tail - 1) : *BIN_AT(src, tail - 1);
+        c = unicode ? *UNI_AT(src, tail - 1) : *BIN_AT(src, tail - 1);
         if (c != chr) break;
     }
     SET_SERIES_LEN(src, tail);

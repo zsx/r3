@@ -129,7 +129,9 @@ void Ret_Query_File(REBFRM *port, REBREQ *file, REBVAL *ret)
     SET_INTEGER(FRAME_VAR(frame, STD_FILE_INFO_SIZE), file->special.file.size);
     Set_File_Date(file, FRAME_VAR(frame, STD_FILE_INFO_DATE));
 
-    ser = To_REBOL_Path(file->special.file.path, 0, OS_WIDE, 0);
+    ser = To_REBOL_Path(
+        file->special.file.path, 0, (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+    );
 
     Val_Init_File(FRAME_VAR(frame, STD_FILE_INFO_NAME), ser);
 }
