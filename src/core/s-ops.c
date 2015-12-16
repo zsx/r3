@@ -73,10 +73,7 @@ REBOOL Is_Wide(const REBUNI *up, REBCNT len)
 // 
 // Returns a temporary string and sets the length field.
 // 
-// Opts can be:
-//     0 - no special options
-//     1 - allow UTF8 (val is converted to UTF8 during qualification)
-//     2 - allow binary
+// If `allow_utf8`, the constructed result is converted to UTF8.
 // 
 // Checks or converts it:
 // 
@@ -86,8 +83,12 @@ REBOOL Is_Wide(const REBUNI *up, REBCNT len)
 //     4. it does not contain other values ("123 456")
 //     5. it's not empty or only whitespace
 //
-REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *length, REBINT opts)
-{
+REBYTE *Temp_Byte_Chars_May_Fail(
+    const REBVAL *val,
+    REBINT max_len,
+    REBCNT *length,
+    REBOOL allow_utf8
+) {
     REBCNT tail = VAL_LEN_HEAD(val);
     REBCNT index = VAL_INDEX(val);
     REBCNT len;
@@ -109,8 +110,9 @@ REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *leng
     // Copy chars that are valid:
     for (; index < tail; index++) {
         c = GET_ANY_CHAR(src, index);
-        if (opts < 2 && c >= 0x80) {
-            if (opts == 0) fail (Error(RE_INVALID_CHARS));
+        if (c >= 0x80) {
+            if (!allow_utf8) fail (Error(RE_INVALID_CHARS));
+
             len = Encode_UTF8_Char(bp, c);
             max_len -= len;
             bp += len;
@@ -130,7 +132,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(const REBVAL *val, REBINT max_len, REBCNT *leng
         if (!IS_SPACE(c)) fail (Error(RE_INVALID_CHARS));
     }
 
-    *bp= 0;
+    *bp = '\0';
 
     len = bp - BIN_HEAD(BUF_FORM);
     if (len == 0) fail (Error(RE_TOO_SHORT));
