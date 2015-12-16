@@ -38,7 +38,8 @@
 enum {
     RXX_NULL,   // unset
     RXX_PTR,    // any pointer
-    RXX_32,     // logic
+    RXX_LOGIC,  // logic
+    RXX_32,     // char
     RXX_64,     // integer, decimal, etc.
     RXX_SYM,    // word
     RXX_SER,    // string
@@ -80,6 +81,13 @@ x*/ RXIARG Value_To_RXI(const REBVAL *val)
     RXIARG arg;
 
     switch (RXT_Eval_Class[Reb_To_RXT[VAL_TYPE(val)]]) {
+    case RXX_LOGIC:
+        //
+        // LOGIC! changed to just be a header bit, and there is no VAL_I32
+        // in the "payload" any longer.  It must be proxied.
+        //
+        arg.i2.int32a = (VAL_LOGIC(val) == TRUE) ? 1 : 0;
+        break;
     case RXX_64:
         arg.int64 = VAL_INT64(val);
         break;
@@ -123,6 +131,17 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
 {
     VAL_RESET_HEADER(val, RXT_To_Reb[type]);
     switch (RXT_Eval_Class[type]) {
+    case RXX_LOGIC:
+        //
+        // In RXIARG a logic is "in the payload", but it's only a header bit
+        // in an actual REBVAL.  Though it's not technically necessary to
+        // constrain the accepted values to 0 and 1, it helps with the build
+        // that is trying to catch mistakes in REBOOL usage...and also to
+        // lock down the RXIARG interface a bit to make it easier to change.
+        //
+        assert((arg.i2.int32a == 0) || (arg.i2.int32a == 1));
+        SET_LOGIC(val, arg.i2.int32a);
+        break;
     case RXX_64:
         VAL_INT64(val) = arg.int64;
         break;
