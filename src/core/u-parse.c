@@ -64,12 +64,34 @@ enum parse_flags {
 
 static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rules, REBCNT depth);
 
-void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, REBCNT index)
-{
-    REBVAL val;
-    Val_Init_Series(&val, type, series);
-    VAL_INDEX(&val) = index;
-    Debug_Fmt("%r: %r", rules, &val);
+void Print_Parse_Index(
+    enum Reb_Kind type,
+    const REBVAL rule[], // positioned at the current rule
+    REBSER *series,
+    REBCNT index
+) {
+    REBVAL item;
+    Val_Init_Series(&item, type, series);
+    VAL_INDEX(&item) = index;
+
+    // Either the rules or the data could be positioned at the end.  The
+    // data might even be past the end.
+    //
+    // !!! Or does PARSE adjust to ensure it never is past the end, e.g.
+    // when seeking a position given in a variable or modifying?
+    //
+    if (IS_END(rule)) {
+        if (index >= SERIES_LEN(series))
+            Debug_Fmt("[]: ** END **");
+        else
+            Debug_Fmt("[]: %r", &item);
+    }
+    else {
+        if (index >= SERIES_LEN(series))
+            Debug_Fmt("%r: ** END **", rule);
+        else
+            Debug_Fmt("%r: %r", rule, &item);
+    }
 }
 
 
