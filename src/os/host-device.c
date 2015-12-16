@@ -146,7 +146,7 @@ static int Poll_Default(REBDEV *dev)
         }
     }
 
-    return change;
+    return change ? 1 : 0;
 }
 
 

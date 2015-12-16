@@ -276,8 +276,8 @@ static REBFRM *Trim_Frame(REBFRM *frame)
 REBINT CT_Object(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    if (mode == 3) return Same_Object(a, b);
-    return Equal_Object(a, b);
+    if (mode == 3) return Same_Object(a, b) ? 1 : 0;
+    return Equal_Object(a, b) ? 1 : 0;
 }
 
 
@@ -295,7 +295,7 @@ REBINT CT_Frame(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Object: C
 //
-REBFLG MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBFRM *frame;
     if (!IS_BLOCK(data)) return FALSE;

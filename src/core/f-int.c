@@ -95,7 +95,7 @@ REBOOL reb_u32_mul_overflow(u32 x, u32 y, u32 *prod)
 
 REBOOL reb_i64_mul_overflow(i64 x, i64 y, i64 *prod)
 {
-    REBFLG sgn;
+    REBOOL sgn;
     u64 p = 0;
 
     if (!x || !y) {
@@ -103,38 +103,38 @@ REBOOL reb_i64_mul_overflow(i64 x, i64 y, i64 *prod)
         return FALSE;
     }
 
-    sgn = (x < 0);
+    sgn = LOGICAL(x < 0);
     if (sgn) {
         if (x == MIN_I64) {
             switch (y) {
                 case 0:
                     *prod = 0;
-                    return 0;
+                    return FALSE;
                 case 1:
                     *prod = x;
-                    return 0;
+                    return FALSE;
                 default:
-                    return 1;
+                    return TRUE;
             }
         }
         x = -x; /* undefined when x == MIN_I64 */
     }
     if (y < 0) {
-        sgn = !sgn;
+        sgn = NOT(sgn);
         if (y == MIN_I64) {
             switch (x) {
                 case 0:
                     *prod = 0;
-                    return 0;
+                    return FALSE;
                 case 1:
                     if (!sgn) {
-                        return 1;
+                        return TRUE;
                     } else {
                         *prod = y;
-                        return 0;
+                        return FALSE;
                     }
                 default:
-                    return 1;
+                    return TRUE;
             }
         }
         y = -y; /* undefined when y == MIN_I64 */

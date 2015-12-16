@@ -126,7 +126,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 //
 //  Get_Struct_Var: C
 //
-static REBFLG Get_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *val)
+static REBOOL Get_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *val)
 {
     struct Struct_Field *field = NULL;
     REBCNT i = 0;
@@ -360,7 +360,7 @@ static REBOOL assign_scalar(REBSTU *stu,
 //
 //  Set_Struct_Var: C
 //
-static REBFLG Set_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *elem, REBVAL *val)
+static REBOOL Set_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *elem, REBVAL *val)
 {
     struct Struct_Field *field = NULL;
     REBCNT i = 0;
@@ -570,7 +570,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
             case SYM_STRUCT_TYPE:
                 ++ val;
                 if (IS_BLOCK(val)) {
-                    REBFLG res;
+                    REBOOL res;
 
                     res = MT_Struct(inner, val, REB_STRUCT);
 
@@ -620,11 +620,11 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
             fail (Error_Unexpected_Type(REB_INTEGER, VAL_TYPE(val)));
 
         field->dimension = cast(REBCNT, VAL_INT64(&ret));
-        field->array = TRUE;
+        field->array = 1; // TRUE, but bitfield must be integer
         ++ val;
     } else {
         field->dimension = 1; /* scalar */
-        field->array = FALSE;
+        field->array = 0; // FALSE, but bitfield must be integer
     }
 
     if (NOT_END(val))
@@ -644,7 +644,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 //         field4: [type1[3]]
 //         ...
 //     ]
-REBFLG MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     //RL_Print("%s\n", __func__);
     REBINT max_fields = 16;
@@ -814,7 +814,7 @@ REBFLG MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
             if (offset > VAL_STRUCT_LIMIT)
                 fail (Error(RE_SIZE_LIMIT, out));
 
-            field->done = TRUE;
+            field->done = 1; // TRUE, but bitfields must be integer
 
             ++ field_idx;
 

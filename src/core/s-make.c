@@ -191,7 +191,7 @@ void Insert_Char(REBSER *dst, REBCNT index, REBCNT chr)
 // Source and/or destination can be 1 or 2 bytes wide.
 // If destination is not wide enough, it will be widened.
 //
-void Insert_String(REBSER *dst, REBCNT idx, const REBSER *src, REBCNT pos, REBCNT len, REBFLG no_expand)
+void Insert_String(REBSER *dst, REBCNT idx, const REBSER *src, REBCNT pos, REBCNT len, REBOOL no_expand)
 {
     REBUNI *up;
     REBYTE *bp;
@@ -489,7 +489,7 @@ void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 //
 void Append_String(REBSER *dst, const REBSER *src, REBCNT i, REBCNT len)
 {
-    Insert_String(dst, SERIES_LEN(dst), src, i, len, 0);
+    Insert_String(dst, SERIES_LEN(dst), src, i, len, FALSE);
 }
 
 

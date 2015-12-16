@@ -331,7 +331,7 @@ static REBDAT Normalize_Date(REBINT day, REBINT month, REBINT year, REBINT tz)
 // Adjust date and time for the timezone.
 // The result should be used for output, not stored.
 //
-void Adjust_Date_Zone(REBVAL *d, REBFLG to_utc)
+void Adjust_Date_Zone(REBVAL *d, REBOOL to_utc)
 {
     REBI64 secs;
     REBCNT n;
@@ -404,7 +404,7 @@ REBINT Cmp_Date(const REBVAL *d1, const REBVAL *d2)
 // 
 // Given a block of values, construct a date datatype.
 //
-REBFLG MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
+REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 {
     REBI64 secs = NO_TIME;
     REBINT tz = 0;
@@ -785,20 +785,36 @@ REBTYPE(Date)
 //          }
             fail (Error_Bad_Make(REB_DATE, arg));
 
-        case A_RANDOM:  //!!! needs further definition ?  random/zero
-            if (D_REF(2)) {
+        case A_RANDOM: {
+            REFINE(2, seed);
+            REFINE(3, secure);
+            // !!! "needs further definition ?  random/zero" <-- ?
+
+            const REBOOL secure = REF(secure);
+
+            if (REF(seed)) {
+                //
                 // Note that nsecs not set often for dates (requires /precise)
-                Set_Random(((REBI64)year << 48) + ((REBI64)Julian_Date(date) << 32) + secs);
+                //
+                Set_Random(
+                    (cast(REBI64, year) << 48)
+                    + (cast(REBI64, Julian_Date(date)) << 32)
+                    + secs
+                );
                 return R_UNSET;
             }
+
             if (year == 0) break;
-            num = D_REF(3); // secure
-            year = (REBCNT)Random_Range(year, num);
-            month = (REBCNT)Random_Range(12, num);
-            day = (REBCNT)Random_Range(31, num);
+
+            year = cast(REBCNT, Random_Range(year, secure));
+            month = cast(REBCNT, Random_Range(12, secure));
+            day = cast(REBCNT, Random_Range(31, secure));
+
             if (secs != NO_TIME)
-                secs = Random_Range(TIME_IN_DAY, num);
+                secs = Random_Range(TIME_IN_DAY, secure);
+
             goto fixDate;
+        }
 
         case A_ABSOLUTE:
             goto setDate;

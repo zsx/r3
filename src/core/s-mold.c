@@ -97,12 +97,13 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
         case 'C':   // Char
             Append_Codepoint_Raw(series, va_arg(args, REBCNT));
             break;
-        case 'E':   // Series (byte or uni)
-            {
-                REBSER *src = va_arg(args, REBSER*);
-                Insert_String(series, SERIES_LEN(series), src, 0, SERIES_LEN(src), 0);
-            }
+        case 'E': {  // Series (byte or uni)
+            REBSER *src = va_arg(args, REBSER*);
+            Insert_String(
+                series, SERIES_LEN(series), src, 0, SERIES_LEN(src), FALSE
+            );
             break;
+        }
         case 'I':   // Integer
             Append_Int(series, va_arg(args, REBINT));
             break;
@@ -417,6 +418,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
     for (n = idx; n < VAL_LEN_HEAD(value); n++) {
 
         c = unicode ? up[n] : cast(REBUNI, bp[n]);
+
         switch (c) {
         case '{':
         case '}':
@@ -510,7 +512,7 @@ static void Mold_Tag(const REBVAL *value, REB_MOLD *mold)
         VAL_SERIES(value),
         VAL_INDEX(value),
         VAL_LEN_AT(value),
-        0
+        FALSE
     );
     Append_Codepoint_Raw(mold->series, '>');
 
@@ -527,15 +529,15 @@ void Mold_Binary(const REBVAL *value, REB_MOLD *mold)
     switch (Get_System_Int(SYS_OPTIONS, OPTIONS_BINARY_BASE, 16)) {
     default:
     case 16:
-        out = Encode_Base16(value, 0, len > 32);
+        out = Encode_Base16(value, 0, LOGICAL(len > 32));
         break;
     case 64:
         Append_Unencoded(mold->series, "64");
-        out = Encode_Base64(value, 0, len > 64);
+        out = Encode_Base64(value, 0, LOGICAL(len > 64));
         break;
     case 2:
         Append_Codepoint_Raw(mold->series, '2');
-        out = Encode_Base2(value, 0, len > 8);
+        out = Encode_Base2(value, 0, LOGICAL(len > 8));
         break;
     }
 
@@ -638,7 +640,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
     const char *sep;
     REBOOL all = GET_MOPT(mold, MOPT_MOLD_ALL);
     REBSER *series = mold->series;
-    REBFLG over = FALSE;
+    REBOOL over = FALSE;
 
 #if !defined(NDEBUG)
     if (SERIES_WIDE(VAL_SERIES(value)) == 0) {
@@ -748,7 +750,7 @@ static void Form_Array_At(
             wval = Find_Word_Value(frame, VAL_WORD_SYM(val));
             if (wval) val = wval;
         }
-        Mold_Value(mold, val, wval != 0);
+        Mold_Value(mold, val, LOGICAL(wval != 0));
         n++;
         if (GET_MOPT(mold, MOPT_LINES)) {
             Append_Codepoint_Raw(mold->series, LF);
@@ -774,7 +776,7 @@ static void Form_Array_At(
 ***********************************************************************/
 
 
-static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     REBINT n;
 
@@ -840,7 +842,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
         // in the "lie" about the effective bodies of the functions made
         // by the optimized generators FUNC and CLOS...
 
-        REBFLG is_fake;
+        REBOOL is_fake;
         REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
 
         Mold_Array_At(mold, body, 0, 0);
@@ -853,7 +855,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 }
 
 
-static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     REBARR *mapser = VAL_ARRAY(value);
     REBVAL *val;
@@ -895,7 +897,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
     REBVAL *key = FRAME_KEYS_HEAD(VAL_FRAME(value));
     REBVAL *var = FRAME_VARS_HEAD(VAL_FRAME(value));
-    REBFLG had_output = FALSE;
+    REBOOL had_output = FALSE;
 
     // Prevent endless mold loop:
     if (Find_Same_Array(MOLD_LOOP, value) != NOT_FOUND) {
@@ -963,7 +965,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 }
 
 
-static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
+static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     ERROR_OBJ *err;
     REBFRM *frame;
@@ -985,7 +987,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     if (IS_BLOCK(&err->message))
         Form_Array_At(VAL_ARRAY(&err->message), 0, mold, frame);
     else if (IS_STRING(&err->message))
-        Mold_Value(mold, &err->message, 0);
+        Mold_Value(mold, &err->message, FALSE);
     else
         Append_Boot_Str(mold->series, RS_ERRS + 1);
 
@@ -994,7 +996,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
     if (VAL_TYPE(value) > REB_NONE) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
-        Mold_Value(mold, value, 0);
+        Mold_Value(mold, value, FALSE);
     }
 
     // Form: ** Near: location
@@ -1023,7 +1025,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
 // 
 // Mold or form any value to string series tail.
 //
-void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
+void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
 {
     REBYTE buf[60];
     REBINT len;
@@ -1047,7 +1049,14 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
 
         // Forming a string:
         if (!molded) {
-            Insert_String(ser, -1, VAL_SERIES(value), VAL_INDEX(value), VAL_LEN_AT(value), 0);
+            Insert_String(
+                ser,
+                -1,
+                VAL_SERIES(value),
+                VAL_INDEX(value),
+                VAL_LEN_AT(value),
+                FALSE
+            );
             return;
         }
 
@@ -1088,7 +1097,9 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBFLG molded)
         goto append;
 
     case REB_CHAR:
-        Mold_Uni_Char(ser, VAL_CHAR(value), (REBOOL)molded, (REBOOL)GET_MOPT(mold, MOPT_MOLD_ALL));
+        Mold_Uni_Char(
+            ser, VAL_CHAR(value), molded, GET_MOPT(mold, MOPT_MOLD_ALL)
+        );
         break;
 
     case REB_PAIR:
@@ -1328,14 +1339,14 @@ append:
 // 
 // Form a value based on the mold opts provided.
 //
-REBSER *Copy_Form_Value(const REBVAL *value, REBCNT opts)
+REBSER *Copy_Form_Value(const REBVAL *value, REBFLGS opts)
 {
     REB_MOLD mo;
     CLEARS(&mo);
     mo.opts = opts;
     Reset_Mold(&mo);
 
-    Mold_Value(&mo, value, 0);
+    Mold_Value(&mo, value, FALSE);
     return Copy_String(mo.series, 0, -1);
 }
 
@@ -1345,7 +1356,7 @@ REBSER *Copy_Form_Value(const REBVAL *value, REBCNT opts)
 // 
 // Form a value based on the mold opts provided.
 //
-REBSER *Copy_Mold_Value(const REBVAL *value, REBCNT opts)
+REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 {
     REB_MOLD mo;
     CLEARS(&mo);
@@ -1362,7 +1373,7 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBCNT opts)
 // 
 // Reduce a block and then form each value into a string REBVAL.
 //
-REBFLG Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
+REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
 {
     REBINT start = DSP;
     REBINT n;
@@ -1391,7 +1402,7 @@ REBFLG Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
     Reset_Mold(&mo);
 
     for (n = start + 1; n <= DSP; n++)
-        Mold_Value(&mo, DS_AT(n), 0);
+        Mold_Value(&mo, DS_AT(n), FALSE);
 
     DS_DROP_TO(start);
 
@@ -1412,7 +1423,7 @@ REBSER *Form_Tight_Block(const REBVAL *blk)
     Reset_Mold(&mo);
 
     for (val = VAL_ARRAY_AT(blk); NOT_END(val); val++)
-        Mold_Value(&mo, val, 0);
+        Mold_Value(&mo, val, FALSE);
     return Copy_String(mo.series, 0, -1);
 }
 
@@ -1460,7 +1471,7 @@ void Reset_Mold(REB_MOLD *mold)
 // on the mold flag setting.  Can limit string output to a
 // specified size to prevent long console garbage output.
 //
-REBSER *Mold_Print_Value(const REBVAL *value, REBCNT limit, REBFLG mold)
+REBSER *Mold_Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 {
     REB_MOLD mo;
     CLEARS(&mo);

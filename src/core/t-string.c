@@ -40,12 +40,17 @@ REBINT CT_String(REBVAL *a, REBVAL *b, REBINT mode)
     REBINT num;
 
     if (mode == 3)
-        return VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b);
+        return (
+            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
+            ? 1
+            : 0
+        );
 
-    num = Compare_String_Vals(a, b, (REBOOL) !(mode > 1));
-    if (mode >= 0) return (num == 0);
-    if (mode == -1) return (num >= 0);
-    return (num > 0);
+    num = Compare_String_Vals(a, b, NOT(mode > 1));
+
+    if (mode >= 0) return (num == 0) ? 1 : 0;
+    if (mode == -1) return (num >= 0) ? 1 : 0;
+    return (num > 0) ? 1 : 0;
 }
 
 
@@ -63,6 +68,7 @@ static void str_to_char(REBVAL *out, REBVAL *val, REBCNT idx)
     SET_CHAR(out, codepoint);
 }
 
+
 static void swap_chars(REBVAL *val1, REBVAL *val2)
 {
     REBUNI c1;
@@ -79,6 +85,7 @@ static void swap_chars(REBVAL *val1, REBVAL *val2)
     if (BYTE_SIZE(s2) && c1 > 0xff) Widen_String(s2, TRUE);
     SET_ANY_CHAR(s2, VAL_INDEX(val2), c1);
 }
+
 
 static void reverse_string(REBVAL *value, REBCNT len)
 {
@@ -106,8 +113,16 @@ static void reverse_string(REBVAL *value, REBCNT len)
     }
 }
 
-static REBCNT find_string(REBSER *series, REBCNT index, REBCNT end, REBVAL *target, REBCNT len, REBCNT flags, REBINT skip)
-{
+
+static REBCNT find_string(
+    REBSER *series,
+    REBCNT index,
+    REBCNT end,
+    REBVAL *target,
+    REBCNT len,
+    REBCNT flags,
+    REBINT skip
+) {
     REBCNT start = index;
 
     if (flags & (AM_FIND_REVERSE | AM_FIND_LAST)) {
@@ -119,26 +134,82 @@ static REBCNT find_string(REBSER *series, REBCNT index, REBCNT end, REBVAL *targ
 
     if (ANY_BINSTR(target)) {
         // Do the optimal search or the general search?
-        if (BYTE_SIZE(series) && VAL_BYTE_SIZE(target) && !(flags & ~(AM_FIND_CASE|AM_FIND_MATCH)))
-            return Find_Byte_Str(series, start, VAL_BIN_AT(target), len, !GET_FLAG(flags, ARG_FIND_CASE-1), GET_FLAG(flags, ARG_FIND_MATCH-1));
-        else
-            return Find_Str_Str(series, start, index, end, skip, VAL_SERIES(target), VAL_INDEX(target), len, flags & (AM_FIND_MATCH|AM_FIND_CASE));
+        if (
+            BYTE_SIZE(series)
+            && VAL_BYTE_SIZE(target)
+            && !(flags & ~(AM_FIND_CASE|AM_FIND_MATCH))
+        ) {
+            return Find_Byte_Str(
+                series,
+                start,
+                VAL_BIN_AT(target),
+                len,
+                NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)),
+                GET_FLAG(flags, ARG_FIND_MATCH - 1)
+            );
+        }
+        else {
+            return Find_Str_Str(
+                series,
+                start,
+                index,
+                end,
+                skip,
+                VAL_SERIES(target),
+                VAL_INDEX(target),
+                len,
+                flags & (AM_FIND_MATCH|AM_FIND_CASE)
+            );
+        }
     }
     else if (IS_BINARY(target)) {
-        return Find_Byte_Str(series, start, VAL_BIN_AT(target), len, 0, GET_FLAG(flags, ARG_FIND_MATCH-1));
+        const REBOOL uncase = FALSE;
+        return Find_Byte_Str(
+            series,
+            start,
+            VAL_BIN_AT(target),
+            len,
+            uncase, // "don't treat case insensitively"
+            GET_FLAG(flags, ARG_FIND_MATCH - 1)
+        );
     }
     else if (IS_CHAR(target)) {
-        return Find_Str_Char(series, start, index, end, skip, VAL_CHAR(target), flags);
+        return Find_Str_Char(
+            series,
+            start,
+            index,
+            end,
+            skip,
+            VAL_CHAR(target),
+            flags
+        );
     }
     else if (IS_INTEGER(target)) {
-        return Find_Str_Char(series, start, index, end, skip, (REBUNI)VAL_INT32(target), flags);
+        return Find_Str_Char(
+            series,
+            start,
+            index,
+            end,
+            skip,
+            cast(REBUNI, VAL_INT32(target)),
+            flags
+        );
     }
     else if (IS_BITSET(target)) {
-        return Find_Str_Bitset(series, start, index, end, skip, VAL_SERIES(target), flags);
+        return Find_Str_Bitset(
+            series,
+            start,
+            index,
+            end,
+            skip,
+            VAL_SERIES(target),
+            flags
+        );
     }
 
     return NOT_FOUND;
 }
+
 
 static REBSER *make_string(REBVAL *arg, REBOOL make)
 {
@@ -170,7 +241,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     }
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
-        ser = Copy_Mold_Value(arg, TRUE);
+        ser = Copy_Mold_Value(arg, 0 /* opts... MOPT_0? */);
         //ser = Append_UTF8(0, Get_Word_Name(arg), -1);
     }
     // MAKE/TO <type> #"A"
@@ -188,6 +259,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     return ser;
 }
 
+
 static REBSER *Make_Binary_BE64(REBVAL *arg)
 {
     REBSER *ser = Make_Binary(9);
@@ -204,6 +276,7 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
 
     return ser;
 }
+
 
 static REBSER *make_binary(REBVAL *arg, REBOOL make)
 {
@@ -273,10 +346,11 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
     return ser;
 }
 
+
 //
 //  MT_String: C
 //
-REBFLG MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBCNT i;
 
@@ -353,8 +427,15 @@ static int Compare_Chr(void *thunk, const void *v1, const void *v2)
 //
 //  Sort_String: C
 //
-static void Sort_String(REBVAL *string, REBFLG ccase, REBVAL *skipv, REBVAL *compv, REBVAL *part, REBFLG all, REBFLG rev)
-{
+static void Sort_String(
+    REBVAL *string,
+    REBOOL ccase,
+    REBVAL *skipv,
+    REBVAL *compv,
+    REBVAL *part,
+    REBOOL all,
+    REBOOL rev
+) {
     REBCNT len;
     REBCNT skip = 1;
     REBCNT size = 1;
@@ -472,7 +553,7 @@ REBINT PD_File(REBPVS *pvs)
         REB_MOLD mo;
         CLEARS(&mo);
         Reset_Mold(&mo);
-        Mold_Value(&mo, pvs->select, 0);
+        Mold_Value(&mo, pvs->select, FALSE);
         arg = mo.series;
     }
 
@@ -693,8 +774,8 @@ zero_str:
         if (IS_NONE(arg)) fail (Error_Bad_Make(type, arg));
 
         ser = (type != REB_BINARY)
-            ? make_string(arg, (REBOOL)(action == A_MAKE))
-            : make_binary(arg, (REBOOL)(action == A_MAKE));
+            ? make_string(arg, LOGICAL(action == A_MAKE))
+            : make_binary(arg, LOGICAL(action == A_MAKE));
 
         if (ser) goto str_exit;
         fail (Error_Invalid_Arg(arg));

@@ -328,7 +328,7 @@ void Copy_Stack_Values(REBINT start, REBVAL *into)
             // the operation?
 
             REBCNT i;
-            REBCNT flags = 0;
+            REBFLGS flags = 0;
             // you get weird behavior if you don't do this
             if (IS_BINARY(into)) SET_FLAG(flags, AN_SERIES);
             for (i = 0; i < len; i++) {

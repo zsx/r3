@@ -1525,8 +1525,12 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         case TOKEN_PERCENT:
             // Do not allow 1.2/abc:
             VAL_RESET_HEADER(value, REB_DECIMAL);
-            if (*ep == '/' || !Scan_Decimal(&VAL_DECIMAL(value), bp, len, 0))
+            if (
+                *ep == '/'
+                || !Scan_Decimal(&VAL_DECIMAL(value), bp, len, FALSE)
+            ) {
                 goto syntax_error;
+            }
             if (bp[len-1] == '%') {
                 VAL_RESET_HEADER(value, REB_PERCENT);
                 VAL_DECIMAL(value) /= 100.0;
@@ -1737,7 +1741,7 @@ exit_block:
 //
 static REBARR *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 {
-    REBFLG only = GET_FLAG(scan_state->opts, SCAN_ONLY);
+    REBOOL only = GET_FLAG(scan_state->opts, SCAN_ONLY);
     REBARR *array;
     CLR_FLAG(scan_state->opts, SCAN_ONLY);
     array = Scan_Block(scan_state, mode_char);

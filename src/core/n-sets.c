@@ -46,14 +46,14 @@ enum {
 static REBSER *Make_Set_Operation_Series(
     const REBVAL *val1,
     const REBVAL *val2,
-    REBCNT flags,
-    REBCNT cased,
+    REBFLGS flags,
+    REBOOL cased,
     REBCNT skip
 ) {
     REBSER *buffer;     // buffer for building the return series
     REBCNT i;
-    REBINT h = TRUE;
-    REBFLG first_pass = TRUE; // are we in the first pass over the series?
+    REBINT h = 1; // used for both logic true/false and hash check
+    REBOOL first_pass = TRUE; // are we in the first pass over the series?
     REBSER *out_ser;
 
     assert(ANY_SERIES(val1));

@@ -75,10 +75,10 @@ REBINT m_cmp (REBINT n, const REBCNT a[], const REBCNT b[]) {
     return 0;
 }
 
-REBFLG m_is_zero (REBINT n, const REBCNT a[]) {
+REBOOL m_is_zero (REBINT n, const REBCNT a[]) {
     REBINT i;
     for (i = 0; (i < n) && (a[i] == 0); i++);
-    return i == n;
+    return LOGICAL(i == n);
 }
 
 /* unnormalized powers of ten */
@@ -173,8 +173,8 @@ REBINT min_shift_right (const REBCNT a[6]) {
 }
 
 /* Finds out if deci a is zero */
-REBFLG deci_is_zero (const deci a) {
-    return (a.m0 == 0) && (a.m1 == 0) && (a.m2 == 0);
+REBOOL deci_is_zero (const deci a) {
+    return LOGICAL((a.m0 == 0) && (a.m1 == 0) && (a.m2 == 0));
 }
 
 /* Changes the sign of a deci value */
@@ -405,7 +405,7 @@ void make_comparable (REBCNT a[4], REBINT *ea, REBINT *ta, REBCNT b[4], REBINT *
     *eb = *ea;
 }
 
-REBFLG deci_is_equal (deci a, deci b) {
+REBOOL deci_is_equal (deci a, deci b) {
     REBINT ea = a.e, eb = b.e, ta, tb;
 
     // Must be compile-time const for '= {...}' style init (-Wc99-extensions)
@@ -428,10 +428,12 @@ REBFLG deci_is_equal (deci a, deci b) {
     if ((ta == 3) || ((ta == 2) && (sa[0] % 2 == 1))) m_add_1 (sa, 1);
     else if ((tb == 3) || ((tb == 2) && (sb[0] % 2 == 1))) m_add_1 (sb, 1);
 
-    return (m_cmp (3, sa, sb) == 0) && ((a.s == b.s) || m_is_zero (3, sa));
+    return LOGICAL(
+        (m_cmp (3, sa, sb) == 0) && ((a.s == b.s) || m_is_zero (3, sa))
+    );
 }
 
-REBFLG deci_is_lesser_or_equal (deci a, deci b) {
+REBOOL deci_is_lesser_or_equal (deci a, deci b) {
     REBINT ea = a.e, eb = b.e, ta, tb;
 
     // Must be compile-time const for '= {...}' style init (-Wc99-extensions)
@@ -448,15 +450,17 @@ REBFLG deci_is_lesser_or_equal (deci a, deci b) {
     sb[2] = b.m2;
     sb[3] = 0;
 
-    if (a.s && !b.s) return 1;
-    if (!a.s && b.s) return m_is_zero (3, sa) && m_is_zero (3, sb);
+    if (a.s && !b.s) return TRUE;
+    if (!a.s && b.s) return LOGICAL(m_is_zero (3, sa) && m_is_zero (3, sb));
     make_comparable (sa, &ea, &ta, sb, &eb, &tb);
 
     /* round */
     if ((ta == 3) || ((ta == 2) && (sa[0] % 2 == 1))) m_add_1 (sa, 1);
     else if ((tb == 3) || ((tb == 2) && (sb[0] % 2 == 1))) m_add_1 (sb, 1);
 
-    return a.s ? (m_cmp (3, sa, sb) >= 0) : (m_cmp (3, sa, sb) <= 0);
+    return LOGICAL(
+        a.s ? (m_cmp (3, sa, sb) >= 0) : (m_cmp (3, sa, sb) <= 0)
+    );
 }
 
 deci deci_add (deci a, deci b) {
@@ -758,7 +762,7 @@ deci deci_half_even (deci a, deci b) {
     deci c, d, e, f;
     REBCNT sa[3];
     REBINT ta = 0;
-    REBFLG g;
+    REBOOL g;
 
     c = deci_mod (a, b);
 
@@ -856,7 +860,11 @@ deci deci_half_ceil (deci a, deci b) {
     d = deci_add (b, c);
     c.s = 0;
 
-    if (a.s ? deci_is_lesser_or_equal(c, d) : !deci_is_lesser_or_equal(d, c)) {
+    if (
+        a.s
+            ? deci_is_lesser_or_equal(c, d)
+            : NOT(deci_is_lesser_or_equal(d, c))
+    ) {
         /* truncating */
         c.s = !a.s;
     } else {
@@ -904,7 +912,11 @@ deci deci_half_floor (deci a, deci b) {
     d = deci_add (b, c);
     c.s = 0;
 
-    if (a.s ? !deci_is_lesser_or_equal(d, c) : deci_is_lesser_or_equal(c, d)) {
+    if (
+        a.s
+            ? NOT(deci_is_lesser_or_equal(d, c))
+            : deci_is_lesser_or_equal(c, d)
+    ) {
         /* truncating */
         c.s = !a.s;
     } else {
@@ -1375,9 +1387,15 @@ deci deci_sign (deci a) {
     if (a.s) return deci_minus_one; else return deci_one;
 }
 
-REBFLG deci_is_same (deci a, deci b) {
+REBOOL deci_is_same (deci a, deci b) {
     if (deci_is_zero (a)) return deci_is_zero (b);
-    return (a.m0 == b.m0) && (a.m1 == b.m1) && (a.m2 == b.m2) && (a.s == b.s) && (a.e == b.e);
+    return LOGICAL(
+        (a.m0 == b.m0)
+        && (a.m1 == b.m1)
+        && (a.m2 == b.m2)
+        && (a.s == b.s)
+        && (a.e == b.e)
+    );
 }
 
 deci binary_to_deci(const REBYTE s[12]) {

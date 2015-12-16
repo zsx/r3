@@ -474,7 +474,13 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             if (RXA_WORD(frm, 3)) // decrypt refinement
             {
 
-                binary_len = RSA_decrypt(rsa_ctx, dataBuffer, binaryBuffer, RXA_WORD(frm, 4), padding);
+                binary_len = RSA_decrypt(
+                    rsa_ctx,
+                    dataBuffer,
+                    binaryBuffer,
+                    RXA_WORD(frm, 4),
+                    padding ? 1 : 0
+                );
 
                 if (binary_len == -1) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
@@ -482,7 +488,16 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     return RXR_NONE;
                 }
             } else {
-                if (-1 == RSA_encrypt(rsa_ctx, dataBuffer, data_len, binaryBuffer, RXA_WORD(frm, 4), padding)) {
+                if (
+                    -1 == RSA_encrypt(
+                        rsa_ctx,
+                        dataBuffer,
+                        data_len,
+                        binaryBuffer,
+                        RXA_WORD(frm, 4),
+                        padding ? 1 : 0
+                    )
+                ) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
                     RSA_free(rsa_ctx);
                     return RXR_NONE;

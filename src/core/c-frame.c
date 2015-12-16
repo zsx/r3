@@ -390,7 +390,7 @@ void Collect_Keys_End(void)
 // there is a check for duplciates, otherwise the keys are assumed to
 // be unique and copied in using `memcpy` as an optimization.
 //
-void Collect_Context_Keys(REBFRM *frame, REBFLG check_dups)
+void Collect_Context_Keys(REBFRM *frame, REBOOL check_dups)
 {
     REBVAL *key = FRAME_KEYS_HEAD(frame);
     REBINT *binds = WORDS_HEAD(Bind_Table);
@@ -655,7 +655,7 @@ REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 // Clone old src_frame to new dst_frame knowing
 // which types of values need to be copied, deep copied, and rebound.
 //
-void Rebind_Frame_Deep(REBFRM *src_frame, REBFRM *dst_frame, REBFLG modes)
+void Rebind_Frame_Deep(REBFRM *src_frame, REBFRM *dst_frame, REBFLGS modes)
 {
     Rebind_Values_Deep(
         FRAME_VARLIST(src_frame),
@@ -859,7 +859,7 @@ REBFRM *Make_Selfish_Frame_Detect(
 REBFRM *Construct_Frame(
     enum Reb_Kind kind,
     REBVAL value[],
-    REBFLG as_is,
+    REBOOL as_is,
     REBFRM *opt_parent
 ) {
     REBFRM *frame = Make_Selfish_Frame_Detect(
@@ -1051,8 +1051,8 @@ void Resolve_Context(
     REBFRM *target,
     REBFRM *source,
     REBVAL *only_words,
-    REBFLG all,
-    REBFLG expand
+    REBOOL all,
+    REBOOL expand
 ) {
     REBINT *binds  = WORDS_HEAD(Bind_Table); // GC safe to do here
     REBVAL *key;
@@ -1108,7 +1108,7 @@ void Resolve_Context(
 
         // Expand frame by the amount required:
         if (n > 0) Expand_Frame(target, n, 0);
-        else expand = 0;
+        else expand = FALSE;
     }
 
     // Maps a word to its value index in the source context.
@@ -1405,7 +1405,7 @@ void Rebind_Values_Deep(
     REBARR *src_target,
     REBARR *dst_target,
     REBVAL value[],
-    REBFLG modes
+    REBFLGS modes
 ) {
     REBINT *binds = WORDS_HEAD(Bind_Table);
 
@@ -1496,7 +1496,7 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBCNT sym)
 // Return the frame index for a word. Locate it by matching
 // the canon word identifiers. Return 0 if not found.
 //
-REBCNT Find_Word_Index(REBFRM *frame, REBCNT sym, REBFLG always)
+REBCNT Find_Word_Index(REBFRM *frame, REBCNT sym, REBOOL always)
 {
     REBVAL *key = FRAME_KEYS_HEAD(frame);
     REBCNT len = FRAME_LEN(frame);

@@ -252,10 +252,10 @@ REBNATIVE(evoke)
                 Reb_Opts->crash_dump = TRUE;
                 break;
             case SYM_WATCH_RECYCLE:
-                Reb_Opts->watch_recycle = !Reb_Opts->watch_recycle;
+                Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
             case SYM_WATCH_OBJ_COPY:
-                Reb_Opts->watch_obj_copy = !Reb_Opts->watch_obj_copy;
+                Reb_Opts->watch_obj_copy = NOT(Reb_Opts->watch_obj_copy);
                 break;
             case SYM_STACK_SIZE:
                 arg++;
@@ -477,7 +477,7 @@ REBNATIVE(do_codec)
             codi.extra.bits = VAL_IMAGE_BITS(val);
             codi.w = VAL_IMAGE_WIDE(val);
             codi.h = VAL_IMAGE_HIGH(val);
-            codi.alpha = Image_Has_Alpha(val, 0);
+            codi.has_alpha = Image_Has_Alpha(val, FALSE) ? 1 : 0;
         }
         else if (IS_STRING(val)) {
             codi.w = VAL_SERIES_WIDTH(val);

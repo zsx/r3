@@ -43,7 +43,7 @@ REBINT CT_Port(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Port: C
 //
-REBFLG MT_Port(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Port(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     return FALSE;
 }

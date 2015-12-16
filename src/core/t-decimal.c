@@ -107,14 +107,14 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
     int_diff = ua.i - ub.i;
     if (int_diff < 0) int_diff = -int_diff;
 
-    return ((REBU64) int_diff <= max_diff);
+    return LOGICAL(cast(REBU64, int_diff) <= max_diff);
 }
 
 
 //
 //  MT_Decimal: C
 //
-REBFLG MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (NOT_END(data+1)) return FALSE;
 
@@ -133,7 +133,7 @@ REBFLG MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 //  Eq_Decimal: C
 //
-REBFLG Eq_Decimal(REBDEC a, REBDEC b)
+REBOOL Eq_Decimal(REBDEC a, REBDEC b)
 {
     return almost_equal(a, b, 10);
 #ifdef older
@@ -150,7 +150,7 @@ REBFLG Eq_Decimal(REBDEC a, REBDEC b)
 //
 //  Eq_Decimal2: C
 //
-REBFLG Eq_Decimal2(REBDEC a, REBDEC b)
+REBOOL Eq_Decimal2(REBDEC a, REBDEC b)
 {
     return almost_equal(a, b, 0);
 #ifdef older
@@ -163,19 +163,32 @@ REBFLG Eq_Decimal2(REBDEC a, REBDEC b)
 #endif
 }
 
+
 //
 //  CT_Decimal: C
 //
 REBINT CT_Decimal(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode >= 0) {
-        if (mode <= 1) return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 10);
-        if (mode == 2) return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 0);
-        return VAL_INT64(a) == VAL_INT64(b); // bits are identical
+        if (mode <= 1)
+            return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 10) ? 1 : 0;
+
+        if (mode == 2)
+            return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 0) ? 1 : 0;
+
+        return (
+            (VAL_INT64(a) == VAL_INT64(b))
+                ? 1 // bits are identical
+                : 0 // not identical
+        );
     }
-    if (mode == -1) return VAL_DECIMAL(a) >= VAL_DECIMAL(b);
-    return VAL_DECIMAL(a) > VAL_DECIMAL(b);
+
+    if (mode == -1)
+        return (VAL_DECIMAL(a) >= VAL_DECIMAL(b)) ? 1 : 0;
+
+    return (VAL_DECIMAL(a) > VAL_DECIMAL(b)) ? 1 : 0;
 }
+
 
 //
 //  Check_Overflow: C
@@ -365,7 +378,7 @@ REBTYPE(Decimal)
 
                 VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 if (Scan_Decimal(
-                    &VAL_DECIMAL(D_OUT), bp, len, type != REB_PERCENT
+                    &VAL_DECIMAL(D_OUT), bp, len, LOGICAL(type != REB_PERCENT)
                 )) {
                     d1 = VAL_DECIMAL(D_OUT);
                     if (type == REB_PERCENT) break;
@@ -456,8 +469,12 @@ REBTYPE(Decimal)
                 d1 = ((unsigned long) -1)>>1;
             i = (REBINT)d1;
             if (i == 0) goto setDec;
-            if (i < 0)  d1 = -1.0 * (1.0 + (REBDEC)(Random_Int((REBOOL)D_REF(3)) % abs(i)));
-            else d1 = 1.0 + (REBDEC)(Random_Int((REBOOL)D_REF(3)) % i);
+            if (i < 0)  {
+                d1 = -1.0 * (
+                    1.0 + cast(REBDEC, Random_Int(D_REF(3)) % abs(i))
+                );
+            }
+            else d1 = 1.0 + cast(REBDEC, Random_Int(D_REF(3)) % i);
 #else
             d1 = Random_Dec(d1, D_REF(3));
 #endif

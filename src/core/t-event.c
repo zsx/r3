@@ -68,7 +68,7 @@ REBINT Cmp_Event(const REBVAL *t1, const REBVAL *t2)
 //
 //  Set_Event_Var: C
 //
-static REBFLG Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
+static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
 {
     REBVAL *arg;
     REBINT n;
@@ -207,7 +207,7 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
 //
 //  Get_Event_Var: C
 //
-static REBFLG Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
+static REBOOL Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
 {
     REBVAL *arg;
     REBREQ *req;
@@ -359,7 +359,7 @@ is_none:
 //
 //  MT_Event: C
 //
-REBFLG MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (IS_BLOCK(data)) {
         CLEARS(out);

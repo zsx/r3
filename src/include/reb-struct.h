@@ -75,7 +75,7 @@ struct Struct_Data {
     REBSER *data;
     REBCNT offset;
     REBCNT len;
-    REBFLG flags;
+    REBFLGS flags;
 };
 
 #define STRUCT_DATA_BIN(v) (((struct Struct_Data*)SERIES_DATA((v)->data))->data)

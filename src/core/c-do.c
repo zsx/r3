@@ -238,7 +238,7 @@ void Trace_Error(const REBVAL *value)
 // 
 // Evaluate next part of a path.
 //
-REBFLG Next_Path_Throws(REBPVS *pvs)
+REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBVAL *path;
     REBPEF func;
@@ -327,7 +327,7 @@ REBFLG Next_Path_Throws(REBPVS *pvs)
 // the evaluator, which may already have the `val` where it wants it, and
 // so the extra assignment would just be overhead.
 //
-REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL *val)
+REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL *val)
 {
     REBPVS pvs;
     REBINT dsp_orig = DSP;
@@ -384,7 +384,7 @@ REBFLG Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
         // !!! Is this the desired behavior, or should it be an error?
     }
     else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
-        REBFLG threw = Next_Path_Throws(&pvs);
+        REBOOL threw = Next_Path_Throws(&pvs);
 
         // !!! See comments about why the initialization of out is necessary.
         // Without it this assertion can change on some things:
@@ -659,13 +659,13 @@ void Do_Signals(void)
 // 
 // Expects call frame to be ready with all arguments fulfilled.
 //
-REBFLG Dispatch_Call_Throws(struct Reb_Call *call_)
+REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
 {
 #if !defined(NDEBUG)
     const REBYTE *label_str = Get_Sym_Name(D_LABEL_SYM);
 #endif
 
-    REBFLG threw;
+    REBOOL threw;
 
     // We need to save what the DSF was prior to our execution, and
     // cannot simply use our frame's prior...because our frame's
@@ -786,7 +786,7 @@ void Do_Core(struct Reb_Call * const c)
     // refinement args need to know when they should be writing these nones
     // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
     //
-    REBFLG write_none;
+    REBOOL write_none;
 #endif
 
 #if !defined(NDEBUG)
@@ -2134,9 +2134,10 @@ return_index:
 
     if (c->flags & DO_FLAG_TO_END)
         assert(c->index == THROWN_FLAG || c->index == END_FLAG);
-#endif
 
-    assert((c->index == THROWN_FLAG) == THROWN(c->out));
+    if (c->index == THROWN_FLAG)
+        assert(THROWN(c->out));
+#endif
 
     assert(!IS_TRASH_DEBUG(c->out));
     assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
@@ -2177,7 +2178,7 @@ return_thrown:
 // A raised error via a `fail` will longjmp and not return to the caller
 // normally.  If interested in catching these, use PUSH_TRAP().
 //
-REBFLG Do_At_Throws(REBVAL *out, REBARR *array, REBCNT index)
+REBOOL Do_At_Throws(REBVAL *out, REBARR *array, REBCNT index)
 {
     struct Reb_Call call;
     struct Reb_Call * const c = &call;
@@ -2198,7 +2199,7 @@ REBFLG Do_At_Throws(REBVAL *out, REBARR *array, REBCNT index)
     Do_Core(c);
     assert(c->index == THROWN_FLAG || c->index == END_FLAG);
 
-    return THROWN_FLAG == c->index;
+    return LOGICAL(THROWN_FLAG == c->index);
 }
 
 
@@ -2211,7 +2212,7 @@ REBFLG Do_At_Throws(REBVAL *out, REBARR *array, REBCNT index)
 // !!! Review generalization of this to produce an array and not a REBVAL
 // of a particular kind.
 //
-REBFLG Reduce_Array_Throws(
+REBOOL Reduce_Array_Throws(
     REBVAL *out,
     REBARR *array,
     REBCNT index,
@@ -2299,11 +2300,11 @@ void Reduce_Only(
 //
 //  Reduce_Array_No_Set_Throws: C
 //
-REBFLG Reduce_Array_No_Set_Throws(
+REBOOL Reduce_Array_No_Set_Throws(
     REBVAL *out,
     REBARR *block,
     REBCNT index,
-    REBFLG into
+    REBOOL into
 ) {
     REBINT dsp_orig = DSP;
 
@@ -2344,12 +2345,12 @@ REBFLG Reduce_Array_No_Set_Throws(
 // 
 // Writes result value at address pointed to by out.
 //
-REBFLG Compose_Values_Throws(
+REBOOL Compose_Values_Throws(
     REBVAL *out,
     REBVAL value[],
-    REBFLG deep,
-    REBFLG only,
-    REBFLG into
+    REBOOL deep,
+    REBOOL only,
+    REBOOL into
 ) {
     REBINT dsp_orig = DSP;
 
@@ -2474,7 +2475,7 @@ REBFLG Compose_Values_Throws(
 // refinements via unset as the path-based dispatch does in the
 // Do_Core evaluator.
 //
-REBFLG Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
+REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 {
     struct Reb_Call call;
     struct Reb_Call * const c = &call; // for consistency w/Do_Core
@@ -2670,9 +2671,9 @@ REBFLG Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 // 
 // returns TRUE if out is THROWN()
 //
-REBFLG Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
+REBOOL Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
 {
-    REBFLG result;
+    REBOOL result;
     va_list args;
 
     va_start(args, func);
@@ -2708,9 +2709,9 @@ REBFLG Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
 // 
 // Evaluates a SYS function and out contains the result.
 //
-REBFLG Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
+REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 {
-    REBFLG result;
+    REBOOL result;
     va_list args;
     REBVAL *value = FRAME_VAR(Sys_Context, inum);
 
@@ -2849,7 +2850,7 @@ void Do_Min_Construct(REBVAL value[])
 // 
 // Returns TRUE if result is THROWN()
 //
-REBFLG Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
+REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
 {
     REBARR *paramlist_src = FUNC_PARAMLIST(DSF_FUNC(call_src));
     REBARR *paramlist_new = FUNC_PARAMLIST(func_new);

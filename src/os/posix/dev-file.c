@@ -139,13 +139,14 @@ static REBOOL Seek_File_64(REBREQ *file)
 
     if (result < 0) {
         file->error = -RFE_NO_SEEK;
-        return 0;
+        return FALSE;
     }
 
     file->special.file.index = result;
 
-    return 1;
+    return TRUE;
 }
+
 
 static int Get_File_Info(REBREQ *file)
 {
@@ -255,7 +256,7 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
     file->modes = 0;
     strncpy(file->special.file.path, cp, MAX_FILE_NAME);
 
-#if FALSE
+#if 0
     // NOTE: we do not use d_type even if DT_DIR is #define-d.  First of all,
     // it's not a POSIX requirement and not all operating systems support it.
     // (Linux/BSD have it defined in their structs, but Haiku doesn't--for

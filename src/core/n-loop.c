@@ -48,7 +48,7 @@ typedef enum {
 // If FALSE is returned then the throw name `val` was not a break
 // or continue, and needs to be bubbled up or handled another way.
 //
-REBFLG Catching_Break_Or_Continue(REBVAL *val, REBFLG *stop)
+REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 {
     assert(THROWN(val));
 
@@ -153,7 +153,7 @@ static REBARR *Init_Loop(
 //
 //  Loop_Series_Throws: C
 //
-static REBFLG Loop_Series_Throws(
+static REBOOL Loop_Series_Throws(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -177,7 +177,7 @@ static REBFLG Loop_Series_Throws(
         VAL_INDEX(var) = si;
 
         if (Do_At_Throws(out, body, 0)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
                 goto next_iteration;
@@ -197,7 +197,7 @@ static REBFLG Loop_Series_Throws(
 //
 //  Loop_Integer_Throws: C
 //
-static REBFLG Loop_Integer_Throws(
+static REBOOL Loop_Integer_Throws(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -213,7 +213,7 @@ static REBFLG Loop_Integer_Throws(
         VAL_INT64(var) = start;
 
         if (Do_At_Throws(out, body, 0)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
                 goto next_iteration;
@@ -236,7 +236,7 @@ static REBFLG Loop_Integer_Throws(
 //
 //  Loop_Number_Throws: C
 //
-static REBFLG Loop_Number_Throws(
+static REBOOL Loop_Number_Throws(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -277,7 +277,7 @@ static REBFLG Loop_Number_Throws(
         VAL_DECIMAL(var) = s;
 
         if (Do_At_Throws(out, body, 0)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
                 goto next_iteration;
@@ -348,7 +348,7 @@ static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
             }
 
             if (Do_At_Throws(D_OUT, body, bodi)) {
-                REBFLG stop;
+                REBOOL stop;
                 if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                     if (stop) {
                         // Return value has been set in D_OUT, but we need
@@ -411,8 +411,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
     REBINT rindex;  // read
     REBVAL *ds;
 
-    REBFLG stop = FALSE;
-    REBFLG every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_UNSETS
+    REBOOL stop = FALSE;
+    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_UNSETS
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
     if (mode == LOOP_EVERY)
@@ -614,7 +614,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 // Unsets "opt out" of the vote, as with ANY and ALL
             }
             else
-                every_true = every_true && IS_CONDITIONAL_TRUE(D_OUT);
+                every_true = LOGICAL(every_true && IS_CONDITIONAL_TRUE(D_OUT));
             break;
         default:
             assert(FALSE);
@@ -826,7 +826,7 @@ REBNATIVE(forever)
 
     do {
         if (DO_ARRAY_THROWS(D_OUT, block)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
                 continue;
@@ -928,7 +928,7 @@ REBNATIVE(loop)
 
     for (; count > 0; count--) {
         if (DO_ARRAY_THROWS(D_OUT, block)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
                 continue;
@@ -1010,7 +1010,7 @@ REBNATIVE(until)
     do {
     skip_check:
         if (DO_ARRAY_THROWS(D_OUT, block)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
 
@@ -1080,7 +1080,7 @@ REBNATIVE(while)
         }
 
         if (DO_ARRAY_THROWS(D_OUT, body)) {
-            REBFLG stop;
+            REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
                 continue;

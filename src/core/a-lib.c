@@ -428,7 +428,7 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         len = FRAME_LEN(user) + 1;
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
         SET_INTEGER(&vali, len);
-        Resolve_Context(user, Lib_Context, &vali, FALSE, 0);
+        Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
     if (Do_At_Throws(&out, code, 0)) {
@@ -480,8 +480,14 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
 //     As of A104, only compressed scripts are supported, however,
 //     rebin, cloaked, signed, and encrypted formats will be supported.
 //
-RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBCNT flags, REBCNT key, RXIARG *result)
-{
+RL_API int RL_Do_Binary(
+    int *exit_status,
+    const REBYTE *bin,
+    REBINT length,
+    REBCNT flags,
+    REBCNT key,
+    RXIARG *result
+) {
     REBSER *text;
 #ifdef DUMP_INIT_SCRIPT
     int f;
@@ -489,7 +495,7 @@ RL_API int RL_Do_Binary(int *exit_status, const REBYTE *bin, REBINT length, REBC
     int do_result;
 
     text = Decompress(bin, length, -1, FALSE, FALSE);
-    if (!text) return FALSE;
+    if (!text) return 0;
     Append_Codepoint_Raw(text, 0);
 
 #ifdef DUMP_INIT_SCRIPT
@@ -1071,7 +1077,7 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 //     val  - new value for field
 //     type - datatype of value
 //
-RL_API int RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
+RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
     CLEARS(&value);

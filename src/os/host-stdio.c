@@ -75,7 +75,7 @@ static REBYTE *Get_Next_Line()
     return 0; // more input needed
 }
 
-static int Fetch_Buf()
+static REBOOL Fetch_Buf()
 {
     REBCNT len = LEN_BYTES(inbuf);
 
@@ -86,7 +86,7 @@ static int Fetch_Buf()
     OS_Do_Device(&Std_IO_Req, RDC_READ);
 
     // If error, don't crash, just ignore it:
-    if (Std_IO_Req.error) return 0; //Host_Crash("stdio read");
+    if (Std_IO_Req.error) return FALSE; //Host_Crash("stdio read");
 
     // Terminate (LF) last line?
     if (len > 0 && Std_IO_Req.actual == 0) {
@@ -98,7 +98,7 @@ static int Fetch_Buf()
     // Null terminate buffer:
     len = Std_IO_Req.actual;
     Std_IO_Req.common.data[len] = 0;
-    return len > 0;
+    return LOGICAL(len > 0);
 }
 
 

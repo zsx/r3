@@ -38,7 +38,7 @@ static const REBYTE Debase64[128] =
     #define BIN_ERROR   (REBYTE)0x80
     #define BIN_SPACE   (REBYTE)0x40
     #define BIN_VALUE   (REBYTE)0x3f
-    #define IS_BIN_SPACE(c) (Debase64[c] & BIN_SPACE)
+    #define IS_BIN_SPACE(c) LOGICAL(Debase64[c] & BIN_SPACE)
 
     /* Control Chars */
     BIN_ERROR,BIN_ERROR,BIN_ERROR,BIN_ERROR,    /* 80 */
@@ -375,7 +375,7 @@ const REBYTE *Decode_Binary(REBVAL *value, const REBYTE *src, REBCNT len, REBINT
 // 
 // Base2 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
+REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
 {
     REBYTE *p;  // ?? should it be REBYTE? Same with below functions?
     REBYTE *src;
@@ -424,7 +424,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBFLG brk)
 // 
 // Base16 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
+REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
 {
     REBCNT count;
     REBCNT len;
@@ -465,7 +465,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBFLG brk)
 // 
 // Base64 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBFLG brk)
+REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
 {
     REBYTE *p;
     REBYTE *src;

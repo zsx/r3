@@ -100,13 +100,11 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 
     val = IS_WORD(types) ? GET_VAR(types) : types;
 
-    if (IS_DATATYPE(val)) {
-        return (VAL_TYPE_KIND(val) == VAL_TYPE(value));
-    }
+    if (IS_DATATYPE(val))
+        return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
 
-    if (IS_TYPESET(val)) {
-        return (TYPE_CHECK(val, VAL_TYPE(value)));
-    }
+    if (IS_TYPESET(val))
+        return LOGICAL(TYPE_CHECK(val, VAL_TYPE(value)));
 
     if (IS_BLOCK(val)) {
         for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
@@ -259,7 +257,7 @@ REBNATIVE(bind)
     REBARR *target_series;
     REBARR *array;
     REBCNT flags;
-    REBFLG is_relative;
+    REBOOL is_relative;
 
     flags = REF(only) ? 0 : BIND_DEEP;
     if (REF(new)) flags |= BIND_ALL;
@@ -281,7 +279,7 @@ REBNATIVE(bind)
         // frame is just an object frame (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
-        is_relative = (VAL_WORD_INDEX(ARG(target)) < 0);
+        is_relative = LOGICAL(VAL_WORD_INDEX(ARG(target)) < 0);
         target_series = VAL_WORD_TARGET(ARG(target));
         if (!target_series) fail (Error(RE_NOT_BOUND, ARG(target)));
     }
@@ -1291,7 +1289,7 @@ REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v)
 // Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
 // ensure you never call it on an UNSET!
 //
-REBFLG IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
+REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
     assert(!IS_UNSET(v));
     if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {

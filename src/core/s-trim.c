@@ -29,7 +29,7 @@
 
 #include "sys-core.h"
 
-static REBFLG find_in_uni(REBUNI *up, REBINT len, REBUNI c)
+static REBOOL find_in_uni(REBUNI *up, REBINT len, REBUNI c)
 {
     while (len-- > 0) if (*up++ == c) return TRUE;
     return FALSE;
@@ -199,7 +199,7 @@ static void trim_lines(REBSER *ser, REBCNT index, REBCNT tail)
 // Trim from head and tail of each line, trim any leading or
 // trailing lines as well, leaving one at the end if present
 //
-static void trim_head_tail(REBSER *ser, REBCNT index, REBCNT tail, REBFLG h, REBFLG t)
+static void trim_head_tail(REBSER *ser, REBCNT index, REBCNT tail, REBOOL h, REBOOL t)
 {
     REBCNT out = index;
     REBOOL append_line_feed = FALSE;
@@ -289,6 +289,12 @@ void Trim_String(REBSER *ser, REBCNT index, REBCNT len, REBCNT flags, REBVAL *wi
         trim_lines(ser, index, tail);
     }
     else {
-        trim_head_tail(ser, index, tail, flags & AM_TRIM_HEAD, flags & AM_TRIM_TAIL);
+        trim_head_tail(
+            ser,
+            index,
+            tail,
+            LOGICAL(flags & AM_TRIM_HEAD),
+            LOGICAL(flags & AM_TRIM_TAIL)
+        );
     }
 }

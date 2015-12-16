@@ -100,13 +100,13 @@ void Print_OS_Line(void)
 // 
 // The encoding options are OPT_ENC_XXX flags OR'd together.
 //
-void Prin_OS_String(const void *p, REBCNT len, REBFLG opts)
+void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 {
     #define BUF_SIZE 1024
     REBYTE buffer[BUF_SIZE]; // on stack
     REBYTE *buf = &buffer[0];
     REBCNT len2;
-    const REBOOL unicode = (opts & OPT_ENC_UNISRC) != 0;
+    const REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
 
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
@@ -191,7 +191,7 @@ void Out_Str(const REBYTE *bp, REBINT lines)
 //
 //  Enable_Backtrace: C
 //
-void Enable_Backtrace(REBFLG on)
+void Enable_Backtrace(REBOOL on)
 {
     if (on) {
         if (Trace_Limit == 0) {
@@ -280,7 +280,7 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
 //
 void Debug_Line(void)
 {
-    Debug_String(cb_cast(""), UNKNOWN, 0, 1);
+    Debug_String(cb_cast(""), UNKNOWN, FALSE, 1);
 }
 
 
@@ -291,7 +291,7 @@ void Debug_Line(void)
 //
 void Debug_Str(const char *str)
 {
-    Debug_String(cb_cast(str), UNKNOWN, 0, 1);
+    Debug_String(cb_cast(str), UNKNOWN, FALSE, 1);
 }
 
 
@@ -302,7 +302,7 @@ void Debug_Str(const char *str)
 //
 void Debug_Uni(const REBSER *ser)
 {
-    const REBFLG encopts = OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE;
+    const REBFLGS encopts = OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE;
     REBCNT ul;
     REBCNT bl;
     REBYTE buf[1024];
@@ -315,7 +315,7 @@ void Debug_Uni(const REBSER *ser)
     while (size > 0) {
         ul = size;
         bl = Encode_UTF8(buf, 1020, up, &ul, encopts);
-        Debug_String(buf, bl, 0, 0);
+        Debug_String(buf, bl, FALSE, 0);
         size -= ul;
         up += ul;
     }
@@ -394,8 +394,8 @@ void Debug_Num(const REBYTE *str, REBINT num)
 {
     REBYTE buf[40];
 
-    Debug_String(str, UNKNOWN, 0, 0);
-    Debug_String(cb_cast(" "), 1, 0, 0);
+    Debug_String(str, UNKNOWN, FALSE, 0);
+    Debug_String(cb_cast(" "), 1, FALSE, 0);
     Form_Hex_Pad(buf, num, 8);
     Debug_Str(s_cast(buf));
 }
@@ -412,7 +412,7 @@ void Debug_Chars(REBYTE chr, REBCNT num)
 
     memset(spaces, chr, MIN(num, 99));
     spaces[num] = 0;
-    Debug_String(spaces, num, 0, 0);
+    Debug_String(spaces, num, FALSE, 0);
 }
 
 
@@ -530,7 +530,7 @@ void Debug_Buf(const char *fmt, va_list *args)
     for (n = 0; n < tail; n += len) {
         len = LEN_BYTES(BIN_AT(buf, n));
         if (len > 1024) len = 1024;
-        Debug_String(BIN_AT(buf, n), len, 0, 0);
+        Debug_String(BIN_AT(buf, n), len, FALSE, 0);
     }
 
     assert(GC_Disabled == 1);
@@ -600,10 +600,10 @@ void Probe_Core_Debug(const char *msg, const char *file, int line, const REBVAL 
 //
 //  Echo_File: C
 //
-REBFLG Echo_File(REBCHR *file)
+REBOOL Echo_File(REBCHR *file)
 {
     Req_SIO->special.file.path = file;
-    return (DR_ERROR != OS_DO_DEVICE(Req_SIO, RDC_CREATE));
+    return LOGICAL(DR_ERROR != OS_DO_DEVICE(Req_SIO, RDC_CREATE));
 }
 
 
@@ -814,7 +814,7 @@ pick:
             vp = va_arg(*args, REBVAL *);
 mold_value:
             // Form the REBOL value into a reused buffer:
-            ser = Mold_Print_Value(vp, 0, desc != 'v');
+            ser = Mold_Print_Value(vp, 0, LOGICAL(desc != 'v'));
 
             l = max - len - 1;
             if (pad != 1 && l > pad) l = pad;

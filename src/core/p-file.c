@@ -247,7 +247,7 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
         if (args & AM_WRITE_LINES) {
             mo.opts = 1 << MOPT_LINES;
         }
-        Mold_Value(&mo, data, 0);
+        Mold_Value(&mo, data, FALSE);
         Val_Init_String(data, mo.series); // fall into next section
         len = SERIES_LEN(mo.series);
     }

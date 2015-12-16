@@ -1117,14 +1117,14 @@ static void callback_dispatcher(
 //     abi: word "note"
 // ] lib "name"]
 //
-REBFLG MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     ffi_type ** args = NULL;
     REBVAL *blk = NULL;
     REBCNT eval_idx = 0; /* for spec block evaluation */
     REBSER *extra_mem = NULL;
-    REBFLG ret = TRUE;
+    REBOOL ret = TRUE;
     CFUNC *func = NULL;
     REBCNT n = 1; /* arguments start with the index 1 (return type has a index of 0) */
     REBCNT has_return = 0;

@@ -49,7 +49,7 @@
 // REBDIFF: No longer appends current dir to volume when no
 // root slash is provided (that odd MSDOS c:file case).
 //
-REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLG flags)
+REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
 {
     REBOOL saw_colon = FALSE;  // have we hit a ':' yet?
     REBOOL saw_slash = FALSE; // have we hit a '/' yet?
@@ -74,7 +74,9 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLG flags)
     // instance) the target is going to be used as a Win32 native string.
     //
     assert(
-        (flags & PATH_OPT_FORCE_UNI_DEST) ? (flags & PATH_OPT_UNI_SRC) : TRUE
+        (flags & PATH_OPT_FORCE_UNI_DEST)
+            ? LOGICAL(flags & PATH_OPT_UNI_SRC)
+            : TRUE
     );
     dst = ((flags & PATH_OPT_FORCE_UNI_DEST) || (unicode && Is_Wide(up, len)))
         ? Make_Unicode(len + FN_PAD)
@@ -273,7 +275,7 @@ REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
 {
     assert(ANY_BINSTR(val));
     return To_Local_Path(
-        VAL_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val), full
+        VAL_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
     );
 }
 
@@ -283,7 +285,7 @@ REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
 // 
 // Helper to above function.
 //
-REBSER *Value_To_OS_Path(REBVAL *val, REBFLG full)
+REBSER *Value_To_OS_Path(REBVAL *val, REBOOL full)
 {
     REBSER *ser; // will be unicode size
 #ifndef TO_WINDOWS
@@ -293,7 +295,7 @@ REBSER *Value_To_OS_Path(REBVAL *val, REBFLG full)
     assert(ANY_BINSTR(val));
 
     ser = To_Local_Path(
-        VAL_DATA_AT(val), VAL_LEN_AT(val), (REBOOL)!VAL_BYTE_SIZE(val), full
+        VAL_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
     );
 
 #ifndef TO_WINDOWS

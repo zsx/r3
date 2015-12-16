@@ -128,11 +128,6 @@
 #endif
 
 
-#ifndef FALSE
-#define FALSE 0
-#define TRUE (!0)
-#endif
-
 // Creating a void value conveniently is useful for a few reasons.  One is
 // that it can serve as a NO-OP and suppress a compiler warning you might
 // get if you try to use just ';' to do it.  Another is that there is a
@@ -247,22 +242,126 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 #define MAX_U64 U64_C(0xffffffffffffffff)
 
 
-// For strict typing of booleans (as a test), these help.
 //
-#define LOGICAL(x)      ((x) ? TRUE : FALSE)
-#define NOT(x)          LOGICAL(!(x))
+// BOOLEAN DEFINITION
+//
+// Rebol 3 historically built on C89 standard compilers, but the Ren-C branch
+// advanced it to be able to build under C99=>C11 and C++98=>C++17 as well.
+// There is a <stdbool.h> available in C99, but not in C89.  So unless the
+// code abandons C89 support, a custom definition of boolean must be used,
+// which is named REBOOL and uses the values TRUE and FALSE.
+//
+// The code takes advantage of the custom definition with a mode to build in
+// that makes assignments to REBOOL reject integers entirely.  It still
+// allows testing via if() and the logic operations, but merely disables
+// direct assignments or passing integers as parameters to bools:
+//
+//     REBOOL b = 1 > 2;            // illegal: 1 > 2 is 0 (integer) in C
+//     REBOOL b = LOGICAL(1 > 2);   // Ren-C legal form of assignment
+//
+// The macro LOGICAL() lets you convert any truthy C value to a REBOOL, and
+// NOT() lets you do the inverse.  This is better than what was previously
+// used often, a (REBOOL)cast_of_expression.  And it makes it much safer to
+// use ordinary `&` operations to test for flags, more succinctly even:
+//
+//     REBOOL b = GET_FLAG(flags, SOME_FLAG_ORDINAL);
+//     REBOOL b = !GET_FLAG(flags, SOME_FLAG_ORDINAL);
+//
+// vs.
+//
+//     REBOOL b = LOGICAL(flags & SOME_FLAG_BITWISE); // same
+//     REBOOL b = NOT(flags & SOME_FLAG_BITWISE);     // 5 less chars
+//
+// (Bitwise vs. ordinal also permits initializing options by just |'ing them.)
+//
+// The compile-time checks for enforcing this don't lead to a working binary
+// being built.  Hence the source will get out of sync with the check, so a
+// CI build should be added to confirm STRICT_BOOL_COMPILER_TEST works.
+//
+
+#ifndef HAS_BOOL
+    //
+    // Some systems define a cpu-optimal BOOL already.  (Of course, all of
+    // this should have been built into C in 1970.)  But if they don't, go
+    // with whatever the compiler decides `int` is, as it is the default
+    // "speedy choice" for modern CPUs
+    //
+    typedef int BOOL;
+#endif
+
+#ifdef STRICT_BOOL_COMPILER_TEST
+    //
+    // Force type errors on direct assignments of integers to booleans or
+    // vice-versa (leading to a broken executable in the process).  Although
+    // this catches some errors that wouldn't be caught otherwise, it notably
+    // does not notice when a literal 0 is passed to a REBOOL, because that
+    // is a valid pointer value.  However, this case is tested for by the
+    // enum method of declaration in ordinary non-Windows builds.
+    //
+    struct Bool_Dummy { int dummy; };
+    typedef struct Bool_Dummy *REBOOL;
+    #define FALSE cast(struct Bool_Dummy*, 0x6466AE99)
+    #define TRUE cast(struct Bool_Dummy*, 0x0421BD75)
+#else
+    #if (defined(FALSE) && (!FALSE)) && (defined(TRUE) && TRUE)
+
+        #if defined(TO_WINDOWS) && !((FALSE == 0) && (TRUE == 1))
+            //
+            // The Windows API specifically mandates the value of TRUE as 1.
+            // If you are compiling on Windows with something that has
+            // predefined the constant as some other value, it will be
+            // inconsistent...and won't work out.
+            //
+            #error "Compiler's FALSE != 0 or TRUE != 1, invalid for Win32"
+        #else
+            // Outside of Win32, assume any C truthy/falsey definition that
+            // the compiler favors is all right.
+        #endif
+
+        // There's a FALSE and TRUE defined and they are logically false and
+        // true respectively, so just use those definitions but make REBOOL
+        //
+        typedef BOOL REBOOL;
+
+    #elif !defined(FALSE) && !defined(TRUE)
+        //
+        // An enum-based definition would prohibit the usage of TRUE and FALSE
+        // in preprocessor macros, but offer some amount of type safety.
+        //
+        // http://stackoverflow.com/a/23666263/211160
+        //
+        // The tradeoff is worth it, but interferes with the hardcoded Windows
+        // definitions of TRUE as 1 and FALSE as 0.  So only use it outside
+        // of Windows.
+        //
+        #ifdef TO_WINDOWS
+            #define FALSE 0
+            #define TRUE 1
+
+            typedef BOOL REBOOL;
+        #else
+            typedef enum {FALSE = 0, TRUE = !FALSE} REBOOL;
+        #endif
+
+    #else
+        // TRUE and FALSE are defined but are not their logic meanings.
+        //
+        #error "Bad TRUE and FALSE definitions in compiler environment"
+    #endif
+#endif
+
+#define LOGICAL(x) \
+    ((x) ? TRUE : FALSE)
+#define NOT(x) \
+    ((x) ? FALSE : TRUE)
+
+typedef i8 REBOOL8; // Small for struct packing (memory optimization vs CPU)
 
 
 #ifndef DEF_UINT        // some systems define it, don't define it again
 typedef unsigned int    uint;
 #endif
 
-// Some systems define a cpu-optimal BOOL already. It is assumed that the
-// R3 lib will use that same definition (so sizeof() is identical.)
-// (Of course, all of this should have been built into C in 1970.)
-#ifndef HAS_BOOL
-typedef int BOOL;       // (int is used for speed in modern CPUs)
-#endif
 
 // Used for cases where we need 64 bits, even in 32 bit mode.
 // (Note: compatible with FILETIME used in Windows)
@@ -283,8 +382,6 @@ typedef i32             REBINT;     // 32 bit (64 bit defined below)
 typedef u32             REBCNT;     // 32 bit (counting number)
 typedef i64             REBI64;     // 64 bit integer
 typedef u64             REBU64;     // 64 bit unsigned integer
-typedef i8              REBOOL;     // 8  bit flag (for struct usage)
-typedef u32             REBFLG;     // 32 bit flag (for cpu efficiency)
 typedef float           REBD32;     // 32 bit decimal
 typedef double          REBDEC;     // 64 bit decimal
 
@@ -562,10 +659,12 @@ typedef u16 REBUNI;
 **
 ***********************************************************************/
 
+typedef unsigned int REBFLGS; // Collection of bit flags, CPU optimized
+
 #define FLAGIT(f)           (1u << (f))
 #define FLAGIT_64(n)        (cast(REBU64, 1) << (n))
-#define GET_FLAG(v,f)       (((v) & (1u << (f))) != 0)
-#define GET_FLAGS(v,f,g)    (((v) & ((1u << (f)) | (1u << (g)))) != 0)
+#define GET_FLAG(v,f)       LOGICAL((v) & (1u << (f)))
+#define GET_FLAGS(v,f,g)    LOGICAL((v) & ((1u << (f)) | (1u << (g))))
 #define SET_FLAG(v,f)       cast(void, (v) |= (1u << (f)))
 #define CLR_FLAG(v,f)       cast(void, (v) &= ~(1u << (f)))
 #define CLR_FLAGS(v,f,g)    cast(void, (v) &= ~((1u << (f)) | (1u << (g))))

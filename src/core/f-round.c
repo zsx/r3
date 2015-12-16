@@ -85,7 +85,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
 {
     REBDEC r;
     int e;
-    REBFLG v;
+    REBOOL v;
     union {REBDEC d; REBI64 i;} m;
     REBI64 j;
 
@@ -97,7 +97,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
     /* is scale negligible? */
     if (scale < ldexp(fabs(dec), -53)) return dec;
 
-    if ((v = scale >= 1.0)) dec = dec / scale;
+    if ((v = LOGICAL(scale >= 1.0))) dec = dec / scale;
     else {
         r = frexp(scale, &e);
         if (e <= -1022) {

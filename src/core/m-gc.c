@@ -1313,8 +1313,17 @@ void Guard_Value_Core(const REBVAL *value)
 //
 void Init_GC(void)
 {
-    GC_Active = 0;          // TRUE when recycle is enabled (set by RECYCLE func)
-    GC_Disabled = 0;        // GC disabled counter for critical sections.
+    // TRUE when recycle is enabled (set by RECYCLE func)
+    //
+    GC_Active = FALSE;
+
+    // GC disabled counter for critical sections.  Used liberally in R3-Alpha.
+    // But with Ren-C's introduction of the idea that an allocated series is
+    // not seen by the GC until such time as it gets the SER_MANAGED flag
+    // set, there are fewer legitimate justifications to disabling the GC.
+    //
+    GC_Disabled = 0;
+
     GC_Ballast = MEM_BALLAST;
 
     // Temporary series protected from GC. Holds series pointers.

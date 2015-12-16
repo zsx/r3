@@ -386,7 +386,7 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
     REBINT result;
 
     if (ta != tb) {
-        if (strictness > 1) return FALSE;
+        if (strictness > 1) return 0;
 
         switch (ta) {
         case REB_INTEGER:
@@ -443,14 +443,14 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
             break;
         }
 
-        if (strictness == 0 || strictness == 1) return FALSE;
+        if (strictness == 0 || strictness == 1) return 0;
         //if (strictness >= 2)
         fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
     }
 
 compare:
     // At this point, both args are of the same datatype.
-    if (!(code = Compare_Types[VAL_TYPE(a)])) return FALSE;
+    if (!(code = Compare_Types[VAL_TYPE(a)])) return 0;
     result = code(a, b, strictness);
     if (result < 0) fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
     return result;
@@ -645,7 +645,7 @@ REBNATIVE(maximum)
     REBVAL a, b;
 
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 1);
+        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), TRUE);
         return R_OUT;
     }
 
@@ -670,7 +670,7 @@ REBNATIVE(minimum)
     REBVAL a, b;
 
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), 0);
+        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), FALSE);
         return R_OUT;
     }
 

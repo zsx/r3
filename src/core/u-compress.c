@@ -95,7 +95,7 @@ static REBFRM *Error_Compression(const z_stream *strm, int ret)
 // 
 // !!! Does not expose the "streaming" ability of zlib.
 //
-REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBFLG gzip, REBFLG raw)
+REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBOOL gzip, REBOOL raw)
 {
     REBCNT buf_size;
     REBSER *output;
@@ -192,8 +192,8 @@ REBSER *Decompress(
     const REBYTE *input,
     REBCNT len,
     REBINT max,
-    REBFLG gzip,
-    REBFLG raw
+    REBOOL gzip,
+    REBOOL raw
 ) {
     REBOL_STATE state;
     REBFRM *error;

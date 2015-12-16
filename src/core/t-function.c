@@ -44,7 +44,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 //
 REBINT CT_Function(REBVAL *a, REBVAL *b, REBINT mode)
 {
-    if (mode >= 0) return Same_Func(a, b);
+    if (mode >= 0) return Same_Func(a, b) ? 1 : 0;
     return -1;
 }
 
@@ -65,7 +65,7 @@ REBINT CT_Function(REBVAL *a, REBVAL *b, REBINT mode)
 // 
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
-REBFLG MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
+REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
 {
     REBVAL *spec;
     REBCNT len;
@@ -94,7 +94,7 @@ REBFLG MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
         // Spec-constructed functions do *not* have definitional returns
         // added automatically.  They are part of the generators.
 
-        REBFLG has_return = FALSE;
+        REBOOL has_return = FALSE;
 
         if (len != 2) return FALSE;
 
@@ -155,7 +155,7 @@ REBTYPE(Function)
                 // complicit in the "lie" about the effective bodies of the
                 // functions made by the optimized generators FUNC and CLOS...
 
-                REBFLG is_fake;
+                REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
                 Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
 

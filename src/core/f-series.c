@@ -151,7 +151,7 @@ is_true:
 // Compare two blocks and return the difference of the first
 // non-matching value.
 //
-REBINT Cmp_Block(const REBVAL *sval, const REBVAL *tval, REBFLG is_case)
+REBINT Cmp_Block(const REBVAL *sval, const REBVAL *tval, REBOOL is_case)
 {
     REBVAL  *s = VAL_ARRAY_AT(sval);
     REBVAL  *t = VAL_ARRAY_AT(tval);
@@ -199,7 +199,7 @@ diff_of_ends:
 // 
 // is_case TRUE for case sensitive compare
 //
-REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBFLG is_case)
+REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBOOL is_case)
 {
     REBDEC  d1, d2;
 
@@ -271,7 +271,7 @@ chkDecimal:
     case REB_EMAIL:
     case REB_URL:
     case REB_TAG:
-        return Compare_String_Vals(s, t, (REBOOL)!is_case);
+        return Compare_String_Vals(s, t, NOT(is_case));
 
     case REB_BITSET:
     case REB_BINARY:

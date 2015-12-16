@@ -37,25 +37,37 @@
     while (start < stop) *start++ = 0xff000000; \
 } while(0)
 
+
 //
 //  CT_Image: C
 //
 REBINT CT_Image(REBVAL *a, REBVAL *b, REBINT mode)
 {
-    REBINT e;
+    if (mode < 0)
+        return -1;
 
-    if (mode < 0) return -1;
-    if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b);
-    e = VAL_IMAGE_WIDE(a) == VAL_IMAGE_WIDE(a) && VAL_IMAGE_HIGH(b) == VAL_IMAGE_HIGH(b);
-    if (e) e = (0 == Cmp_Value(a, b, mode > 1));
-    return e;
+    if (mode == 3)
+        return (
+            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
+                ? 1
+                : 0
+        );
+
+    if (
+        VAL_IMAGE_WIDE(a) == VAL_IMAGE_WIDE(a)
+        && VAL_IMAGE_HIGH(b) == VAL_IMAGE_HIGH(b)
+    ) {
+        return (0 == Cmp_Value(a, b, LOGICAL(mode > 1))) ? 1 : 0;
+    }
+
+    return 0;
 }
 
 
 //
 //  MT_Image: C
 //
-REBFLG MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!Create_Image(data, out, 1)) return FALSE;
     VAL_RESET_HEADER(out, REB_IMAGE);
@@ -392,7 +404,7 @@ REBSER *Make_Image_Binary(REBVAL *image)
 // If error is TRUE, throw error on bad size.
 // Return zero on oversized image.
 //
-REBSER *Make_Image(REBCNT w, REBCNT h, REBFLG error)
+REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
 {
     REBSER *img;
 
@@ -518,7 +530,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     REBINT  partx, party;
     REBINT  dup = 1;  // /dup count
     REBINT  dupx, dupy;
-    REBOOL  only = 0; // /only
+    REBOOL  only = FALSE; // /only
     REBCNT  index = VAL_INDEX(value);
     REBCNT  tail = VAL_LEN_HEAD(value);
     REBCNT  n;
@@ -537,7 +549,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
     x = index % w; // offset on the line
     y = index / w; // offset line
 
-    if (D_REF(5)) only = 1;
+    if (D_REF(5)) only = TRUE;
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
@@ -630,7 +642,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
         RESET_IMAGE(VAL_BIN(value) + (index * 4), dup * part); //length in 'pixels'
         Reset_Height(value);
         tail = VAL_LEN_HEAD(value);
-        only = 0;
+        only = FALSE;
     }
     ip = VAL_IMAGE_HEAD(value);
 
@@ -720,7 +732,7 @@ REBVAL *Find_Image(struct Reb_Call *call_)
             fail (Error(RE_BAD_REFINE));
 
     if (IS_TUPLE(arg)) {
-        only = (REBOOL)(VAL_TUPLE_LEN(arg) < 4);
+        only = LOGICAL(VAL_TUPLE_LEN(arg) < 4);
         if (D_REF(5)) only = TRUE; // /only flag
         p = Find_Color(ip, TO_PIXEL_TUPLE(arg), len, only);
     } else if (IS_INTEGER(arg)) {
@@ -754,7 +766,7 @@ find_none:
 //
 //  Image_Has_Alpha: C
 //
-REBFLG Image_Has_Alpha(const REBVAL *v, REBFLG save)
+REBOOL Image_Has_Alpha(const REBVAL *v, REBOOL save)
 {
     int i;
     REBCNT *p;
@@ -1021,7 +1033,13 @@ REBTYPE(Image)
             if (w * h < diff) h++; // partial line
             series = Make_Image(w, h, TRUE);
             Val_Init_Image(value, series);
-            Bin_To_RGBA(IMG_DATA(series), w*h, VAL_BIN_AT(arg), VAL_LEN_AT(arg)/4, 0);
+            Bin_To_RGBA(
+                IMG_DATA(series),
+                w * h,
+                VAL_BIN_AT(arg),
+                VAL_LEN_AT(arg) / 4,
+                FALSE
+            );
             break;
         }
         fail (Error_Has_Bad_Type(arg));
@@ -1200,11 +1218,18 @@ REBINT PD_Image(REBPVS *pvs)
 
             case SYM_RGB:
                 if (IS_TUPLE(val)) {
-                    Fill_Line((REBCNT *)src, TO_PIXEL_TUPLE(val), len, 1);
+                    Fill_Line(
+                        cast(REBCNT*, src), TO_PIXEL_TUPLE(val), len, TRUE
+                    );
                 } else if (IS_INTEGER(val)) {
                     n = VAL_INT32(val);
                     if (n < 0 || n > 255) return PE_BAD_RANGE;
-                    Fill_Line((REBCNT *)src, TO_PIXEL_COLOR(n,n,n,0xFF), len, 1);
+                    Fill_Line(
+                        cast(REBCNT*, src),
+                        TO_PIXEL_COLOR(n,n,n,0xFF),
+                        len,
+                        TRUE
+                    );
                 } else if (IS_BINARY(val)) {
                     Bin_To_RGB(src, len, VAL_BIN_AT(val), VAL_LEN_AT(val) / 3);
                 } else return PE_BAD_SET;

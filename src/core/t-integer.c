@@ -131,7 +131,7 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
 
         // default signedness interpretation to high-bit of first byte, but
         // override if the function was called with `no_sign`
-        negative = no_sign ? FALSE : *bp >= 0x80;
+        negative = no_sign ? FALSE : LOGICAL(*bp >= 0x80);
 
         // Consume any leading 0x00 bytes (or 0xFF if negative)
         while (n != 0 && *bp == (negative ? 0xFF : 0x00)) {
@@ -293,7 +293,7 @@ REBTYPE(Integer)
     REBI64 p;
     REBU64 a, b; // for overflow detection
     REBCNT a1, a0, b1, b0;
-    REBFLG sgn;
+    REBOOL sgn;
     REBI64 anum;
 
     num = VAL_INT64(val);
@@ -322,7 +322,7 @@ REBTYPE(Integer)
             case A_DIVIDE:
             case A_REMAINDER:
             case A_POWER:
-                if (IS_DECIMAL(val2) | IS_PERCENT(val2)) {
+                if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
                     SET_DECIMAL(val, (REBDEC)num); // convert main arg
                     return T_Decimal(call_, action);
                 }
@@ -444,7 +444,7 @@ REBTYPE(Integer)
             return R_UNSET;
         }
         if (num == 0) break;
-        num = Random_Range(num, (REBOOL)D_REF(3));  //!!! 64 bits
+        num = Random_Range(num, D_REF(3));  //!!! 64 bits
 #ifdef OLD_METHOD
         if (num < 0)  num = -(1 + (REBI64)(arg % -num));
         else          num =   1 + (REBI64)(arg % num);

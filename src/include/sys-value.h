@@ -353,7 +353,7 @@ enum {
 // 8 bits.  (They need to be lowest for the OPT_NOT_END trick to work.)
 //
 #define VAL_SET_OPT(v,n)    ((v)->header.all |= ((1 << (n)) << 8))
-#define VAL_GET_OPT(v,n)    (((v)->header.all & ((1 << (n)) << 8)) != 0)
+#define VAL_GET_OPT(v,n)    LOGICAL((v)->header.all & ((1 << (n)) << 8))
 #define VAL_CLR_OPT(v,n) \
     ((v)->header.all &= ~cast(REBUPT, (1 << (n)) << 8))
 
@@ -419,8 +419,10 @@ enum {
 // Reading/writing routines for the 8 "EXTS" flags that are interpreted
 // differently depending on the VAL_TYPE() of the value.
 //
-#define VAL_SET_EXT(v,n)    ((v)->header.all |= (1 << ((n) + 16)))
-#define VAL_GET_EXT(v,n)    (((v)->header.all & (1 << ((n) + 16))) != 0)
+#define VAL_SET_EXT(v,n) \
+    ((v)->header.all |= (1 << ((n) + 16)))
+#define VAL_GET_EXT(v,n) \
+    LOGICAL((v)->header.all & (1 << ((n) + 16)))
 #define VAL_CLR_EXT(v,n) \
     ((v)->header.all &= ~cast(REBUPT, 1 << ((n) + 16)))
 
@@ -672,7 +674,7 @@ enum {
 #endif
 
 #define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
-#define VAL_LOGIC(v)    !VAL_GET_OPT((v), OPT_VALUE_FALSE)
+#define VAL_LOGIC(v)    NOT(VAL_GET_OPT((v), OPT_VALUE_FALSE))
 
 #ifdef NDEBUG
     #define IS_CONDITIONAL_FALSE(v) \
@@ -685,7 +687,7 @@ enum {
         IS_CONDITIONAL_FALSE_Debug(v)
 #endif
 
-#define IS_CONDITIONAL_TRUE(v) !IS_CONDITIONAL_FALSE(v)
+#define IS_CONDITIONAL_TRUE(v) NOT(IS_CONDITIONAL_FALSE(v))
 
 
 /***********************************************************************
@@ -1085,7 +1087,7 @@ struct Reb_Any_Series
 
 #define SET_BIT(d,n)    ((d)[(n) >> 3] |= (1 << ((n) & 7)))
 #define CLR_BIT(d,n)    ((d)[(n) >> 3] &= ~(1 << ((n) & 7)))
-#define IS_BIT(d,n)     ((d)[(n) >> 3] & (1 << ((n) & 7)))
+#define IS_BIT(d,n)     LOGICAL((d)[(n) >> 3] & (1 << ((n) & 7)))
 
 #define Val_Init_Bitset(v,s) \
     Val_Init_Series((v), REB_BITSET, (s))
@@ -1333,7 +1335,7 @@ struct Reb_Any_Context {
 // someone who thinks they are initializing a REB_OBJECT from a FRAME does
 // not accidentally get a REB_ERROR, for instance.)
 //
-#if FALSE && defined(NDEBUG)
+#if 0 && defined(NDEBUG)
     //
     // !!! Currently Val_Init_Context_Core does not require the passed in
     // frame to already be managed.  If it did, then it could be this
@@ -1603,7 +1605,7 @@ struct Reb_Handle {
 
 typedef struct Reb_Library_Handle {
     void * fd;
-    REBFLG flags;
+    REBFLGS flags;
 } REBLHL;
 
 struct Reb_Library {
@@ -1684,8 +1686,8 @@ struct Reb_Routine_Info {
     REBARR  *all_args;
     REBARR  *arg_structs; /* for struct arguments */
     REBSER  *extra_mem; /* extra memory that needs to be free'ed */
+    REBCNT  flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
     REBINT  abi;
-    REBFLG  flags;
 };
 
 typedef REBFUN REBROT;
@@ -1728,7 +1730,7 @@ enum {
 #define ROUTINE_FLAGS(s)       ((s)->flags)
 #define ROUTINE_SET_FLAG(s, f) (ROUTINE_FLAGS(s) |= (f))
 #define ROUTINE_CLR_FLAG(s, f) (ROUTINE_FLAGS(s) &= ~(f))
-#define ROUTINE_GET_FLAG(s, f) (ROUTINE_FLAGS(s) &  (f))
+#define ROUTINE_GET_FLAG(s, f) LOGICAL(ROUTINE_FLAGS(s) & (f))
 
 #define IS_CALLBACK_ROUTINE(s) ROUTINE_GET_FLAG(s, ROUTINE_CALLBACK)
 

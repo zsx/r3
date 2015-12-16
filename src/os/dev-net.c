@@ -93,13 +93,13 @@ static REBOOL Nonblocking_Mode(SOCKET sock)
     // Set non-blocking mode. Return TRUE if no error.
 #ifdef FIONBIO
     unsigned long mode = 1;
-    return !IOCTL(sock, FIONBIO, &mode);
+    return NOT(IOCTL(sock, FIONBIO, &mode));
 #else
     int flags;
     flags = fcntl(sock, F_GETFL, 0);
     flags |= O_NONBLOCK;
     //else flags &= ~O_NONBLOCK;
-    return fcntl(sock, F_SETFL, flags) >= 0;
+    return LOGICAL(fcntl(sock, F_SETFL, flags) >= 0);
 #endif
 }
 
