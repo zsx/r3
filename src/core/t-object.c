@@ -402,23 +402,25 @@ REBTYPE(Object)
                 NULL, // spec
                 NULL, // body
                 // scan for toplevel set-words
-                IS_NONE(arg) ? EMPTY_BLOCK : VAL_ARRAY_AT(arg),
+                IS_NONE(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
                 src_frame // parent
             );
             Val_Init_Object(D_OUT, frame);
 
-            // !!! This binds the actual arg data, not a copy of it
-            // (functions make a copy of the body they are passed to
-            // be rebound).  This seems wrong.
-            //
-            Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
+            if (!IS_NONE(arg)) {
+                // !!! This binds the actual arg data, not a copy of it
+                // (functions make a copy of the body they are passed to
+                // be rebound).  This seems wrong.
+                //
+                Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
 
-            // Do the block into scratch space (we ignore the result,
-            // unless it is thrown in which case it must be returned.
-            //
-            if (DO_ARRAY_THROWS(D_CELL, arg)) {
-                *D_OUT = *D_CELL;
-                return R_OUT_IS_THROWN;
+                // Do the block into scratch space (we ignore the result,
+                // unless it is thrown in which case it must be returned.
+                //
+                if (DO_ARRAY_THROWS(D_CELL, arg)) {
+                    *D_OUT = *D_CELL;
+                    return R_OUT_IS_THROWN;
+                }
             }
 
             return R_OUT;
