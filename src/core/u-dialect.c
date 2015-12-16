@@ -36,7 +36,7 @@ typedef struct Reb_Dialect_Parse {
     REBCNT fargi;       // start index in fargs
     REBARR *args;       // argument block
     REBCNT argi;        // current arg index
-    REBINT cmd;         // command id
+    REBCNT cmd;         // command id
     REBINT len;         // limit of current command
     REBARR *out;        // result block
     REBINT outi;        // result block index
