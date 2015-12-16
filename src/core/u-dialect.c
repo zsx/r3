@@ -576,7 +576,7 @@ REBNATIVE(delect)
 
     REBDIA dia;
     REBINT err;
-    REBCNT dsp_orig;
+    REBINT dsp_orig;
 
     CLEARS(&dia);
 
