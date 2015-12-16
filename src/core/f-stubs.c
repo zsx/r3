@@ -619,13 +619,10 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
 //     2. relative to A value (bval is null)
 //     3. relative to B value
 // 
-// Flag: indicates special treatment for CHANGE. As in:
-//     CHANGE/part "abcde" "xy" 3 => "xyde"
-// 
 // NOTE: Can modify the value's index!
 // The result can be negative. ???
 //
-REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval, REBFLG flag)
+REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval)
 {
     REBVAL *val;
     REBINT len;
@@ -638,39 +635,44 @@ REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval, REBFLG flag)
         return (VAL_LEN_HEAD(val) - VAL_INDEX(val));
     }
 
-    if (IS_INTEGER(lval)) {
-        len = Int32(lval);
-        val = flag ? aval : bval;
-    }
-
-    else if (IS_DECIMAL(lval)) {
+    if (IS_INTEGER(lval) || IS_DECIMAL(lval)) {
         len = Int32(lval);
         val = bval;
     }
-
     else {
         // So, lval must be relative to aval or bval series:
-        if (VAL_TYPE(aval) == VAL_TYPE(lval) && VAL_SERIES(aval) == VAL_SERIES(lval))
+        if (
+            VAL_TYPE(aval) == VAL_TYPE(lval)
+            && VAL_SERIES(aval) == VAL_SERIES(lval)
+        ) {
             val = aval;
-        else if (bval && VAL_TYPE(bval) == VAL_TYPE(lval) && VAL_SERIES(bval) == VAL_SERIES(lval))
+        }
+        else if (
+            bval
+            && VAL_TYPE(bval) == VAL_TYPE(lval)
+            && VAL_SERIES(bval) == VAL_SERIES(lval)
+        ) {
             val = bval;
+        }
         else
             fail (Error(RE_INVALID_PART, lval));
 
-        len = (REBINT)VAL_INDEX(lval) - (REBINT)VAL_INDEX(val);
+        len = cast(REBINT, VAL_INDEX(lval)) - cast(REBINT, VAL_INDEX(val));
     }
 
     if (!val) val = aval;
 
-    // Restrict length to the size available:
+    // Restrict length to the size available
+    //
     if (len >= 0) {
         maxlen = (REBINT)VAL_LEN_AT(val);
         if (len > maxlen) len = maxlen;
-    } else {
+    }
+    else {
         len = -len;
-        if (len > (REBINT)VAL_INDEX(val)) len = (REBINT)VAL_INDEX(val);
+        if (len > cast(REBINT, VAL_INDEX(val)))
+            len = cast(REBINT, VAL_INDEX(val));
         VAL_INDEX(val) -= (REBCNT)len;
-//      if ((-len) > (REBINT)VAL_INDEX(val)) len = -(REBINT)VAL_INDEX(val);
     }
 
     return len;

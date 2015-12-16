@@ -362,7 +362,7 @@ static void Sort_String(REBVAL *string, REBFLG ccase, REBVAL *skipv, REBVAL *com
     int (*sfunc)(const void *v1, const void *v2);
 
     // Determine length of sort:
-    len = Partial(string, 0, part, 0);
+    len = Partial(string, 0, part);
     if (len <= 1) return;
 
     // Skip factor:
@@ -566,9 +566,11 @@ find:
 
         if (ANY_BINSTR(arg)) len = VAL_LEN_AT(arg);
 
-        if (args & AM_FIND_PART) tail = Partial(value, 0, D_ARG(ARG_FIND_LIMIT), 0);
+        if (args & AM_FIND_PART)
+            tail = Partial(value, 0, D_ARG(ARG_FIND_LIMIT));
         ret = 1; // skip size
-        if (args & AM_FIND_SKIP) ret = Partial(value, 0, D_ARG(ARG_FIND_SIZE), 0);
+        if (args & AM_FIND_SKIP)
+            ret = Partial(value, 0, D_ARG(ARG_FIND_SIZE));
 
         ret = find_string(VAL_SERIES(value), index, tail, arg, len, args, ret);
 
@@ -635,7 +637,7 @@ pick_it:
 
     case A_TAKE:
         if (D_REF(2)) {
-            len = Partial(value, 0, D_ARG(3), 0);
+            len = Partial(value, 0, D_ARG(3));
             if (len == 0) {
 zero_str:
                 Val_Init_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
@@ -678,7 +680,7 @@ zero_str:
     //-- Creation:
 
     case A_COPY:
-        len = Partial(value, 0, D_ARG(3), 0); // Can modify value index.
+        len = Partial(value, 0, D_ARG(3)); // Can modify value index.
         ser = Copy_String(VAL_SERIES(value), VAL_INDEX(value), len);
         goto ser_exit;
 
@@ -746,7 +748,7 @@ zero_str:
         break;
 
     case A_REVERSE:
-        len = Partial(value, 0, D_ARG(3), 0);
+        len = Partial(value, 0, D_ARG(3));
         if (len > 0) reverse_string(value, len);
         break;
 

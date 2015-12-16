@@ -731,7 +731,7 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
 
     FAIL_IF_LOCKED_SERIES(VAL_SERIES(val));
 
-    len = Partial(val, 0, part, 0);
+    len = Partial(val, 0, part);
     n = VAL_INDEX(val);
     len += n;
 
