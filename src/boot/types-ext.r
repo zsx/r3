@@ -19,7 +19,7 @@ unset       *   null
 none        *   null
 handle      *   ptr
 
-logic       5   32
+logic       5   logic
 integer     *   64
 decimal     *   64
 percent     *   64

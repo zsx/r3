@@ -267,7 +267,14 @@ enum REB_Mold_Opts {
 #define DEC_MOLD_MINIMAL 2  // allow decimal to be integer
 
 // Temporary:
-#define MOPT_ANSI_ONLY  MOPT_MOLD_ALL   // Non ANSI chars are ^() escaped
+#define MOPT_NON_ANSI_PARENED MOPT_MOLD_ALL // Non ANSI chars are ^() escaped
+
+// Options for To_REBOL_Path
+enum {
+    PATH_OPT_UNI_SRC            = 1 << 0, // whether the source series is uni
+    PATH_OPT_FORCE_UNI_DEST     = 1 << 1, // even if just latin1 chars, do uni
+    PATH_OPT_SRC_IS_DIR         = 1 << 2
+};
 
 // Reflector words (words-of, body-of, etc.)
 enum Reb_Reflectors {

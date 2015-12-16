@@ -43,6 +43,7 @@ typedef struct Reb_Dialect_Parse {
     REBINT flags;
     REBINT missed;      // counter of arg misses
     REBVAL *contexts;   // contexts to search for variables
+    REBCNT default_cmd; // index of default_cmd, it's 1 if the object is selfless, 2 otherwise.
 } REBDIA;
 
 enum {
@@ -282,7 +283,7 @@ again:
             SET_NONE(outp);
         } else if (!IS_NONE(outp)) {
             // There's already an arg in this slot, so skip it...
-            if (dia->cmd > 1) outp++;
+            if (dia->cmd > dia->default_cmd) outp++;
             if (!rept) continue; // see if there's another farg that will work for it
             // Look for first empty slot:
             while (NOT_END(outp) && !IS_NONE(outp)) outp++;
@@ -404,7 +405,7 @@ static REBINT Do_Cmd(REBDIA *dia)
         dia->outi++;
         size++;
     }
-    if (dia->cmd > 1) dia->argi++; // default cmd has no word arg
+    if (dia->cmd > dia->default_cmd) dia->argi++; // default cmd has no word arg
 
     // Foreach argument provided:
     for (n = dia->len; n > 0; n--, dia->argi++) {
@@ -421,7 +422,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     }
 
     // If not enough args, pad with NONE values:
-    if (dia->cmd > 1) {
+    if (dia->cmd > dia->default_cmd) {
         for (n = ARRAY_LEN(dia->out); n < size; n++) {
             REBVAL *temp = Alloc_Tail_Array(dia->out);
             SET_NONE(temp);
@@ -458,8 +459,8 @@ static REBINT Do_Dia(REBDIA *dia)
     }
 
     // Handle defaults - process values before a command is reached:
-    if (dia->cmd <= 1) {
-        dia->cmd = 1;
+    if (dia->cmd <= dia->default_cmd) {
+        dia->cmd = dia->default_cmd;
         dia->len = 1;
         err = Do_Cmd(dia); // DEFAULT cmd
         // It must be processed, else it is not in the dialect.
@@ -503,6 +504,7 @@ REBINT Do_Dialect(REBFRM *dialect, REBARR *block, REBCNT *index, REBARR **out)
     REBDIA dia;
     REBINT n;
     REBINT dsp_orig = DSP; // Save stack position
+    REBCNT self_index;
 
     CLEARS(&dia);
 
@@ -519,6 +521,9 @@ REBINT Do_Dialect(REBFRM *dialect, REBARR *block, REBCNT *index, REBARR **out)
     dia.argi = *index;
     dia.out  = *out;
     SET_FLAG(dia.flags, RDIA_NO_CMD);
+
+    self_index = Find_Word_Index(dialect, SYM_SELF, TRUE);
+    dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     //Print("DSP: %d Dinp: %r - %m", DSP, ARRAY_AT(block, *index), block);
     n = Do_Dia(&dia);
@@ -576,7 +581,8 @@ REBNATIVE(delect)
 
     REBDIA dia;
     REBINT err;
-    REBCNT dsp_orig;
+    REBINT dsp_orig;
+    REBCNT self_index;
 
     CLEARS(&dia);
 
@@ -587,6 +593,9 @@ REBNATIVE(delect)
     dia.outi = VAL_INDEX(ARG(output));
 
     if (dia.argi >= ARRAY_LEN(dia.args)) return R_NONE; // end of block
+
+    self_index = Find_Word_Index(dia.dialect, SYM_SELF, TRUE);
+    dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     if (REF(in)) {
         dia.contexts = ARG(where);

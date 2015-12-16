@@ -209,7 +209,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Close_DNS,
     Read_DNS,
     0,  // write
-    Poll_DNS,
+    Poll_DNS
 };
 
 DEFINE_DEV(Dev_DNS, "DNS", 1, Dev_Cmds, RDC_MAX, 0);

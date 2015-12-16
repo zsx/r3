@@ -943,9 +943,7 @@ REBINT Codec_Text(REBCDI *codi)
 //
 //  Codec_UTF16: C
 //
-// le: little endian
-//
-REBINT Codec_UTF16(REBCDI *codi, int le)
+REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
 {
     codi->error = 0;
 
@@ -955,7 +953,9 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
 
     if (codi->action == CODI_ACT_DECODE) {
         REBSER *ser = Make_Unicode(codi->len);
-        REBINT size = Decode_UTF16(UNI_HEAD(ser), codi->data, codi->len, le, FALSE);
+        REBINT size = Decode_UTF16(
+            UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
+        );
         SET_SERIES_LEN(ser, size);
         if (size < 0) { //ASCII
             REBSER *dst = Make_Binary((size = -size));
@@ -974,26 +974,26 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
             /* in ASCII */
             REBCNT i = 0;
             for (i = 0; i < codi->len; i ++) {
-#ifdef ENDIAN_LITTLE
-                if (le) {
+            #ifdef ENDIAN_LITTLE
+                if (little_endian) {
                     data[i] = cast(char*, codi->extra.other)[i];
                 } else {
                     data[i] = cast(char*, codi->extra.other)[i] << 8;
                 }
-#elif defined (ENDIAN_BIG)
-                if (le) {
+            #elif defined (ENDIAN_BIG)
+                if (little_endian) {
                     data[i] = cast(char*, codi->extra.other)[i] << 8;
                 } else {
                     data[i] = cast(char*, codi->extra.other)[i];
                 }
-#else
-#error "Unsupported CPU endian"
-#endif
+            #else
+                #error "Unsupported CPU endian"
+            #endif
             }
         } else if (codi->w == 2) {
             /* already in UTF16 */
-#ifdef ENDIAN_LITTLE
-            if (le) {
+        #ifdef ENDIAN_LITTLE
+            if (little_endian) {
                 memcpy(data, codi->extra.other, codi->len * sizeof(u16));
             } else {
                 REBCNT i = 0;
@@ -1002,8 +1002,8 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
                     data[i] = ((uni & 0xff) << 8) | ((uni & 0xff00) >> 8);
                 }
             }
-#elif defined (ENDIAN_BIG)
-            if (le) {
+        #elif defined (ENDIAN_BIG)
+            if (little_endian) {
                 REBCNT i = 0;
                 for (i = 0; i < codi->len; i ++) {
                     REBUNI uni = cast(REBUNI*, codi->extra.other)[i];
@@ -1012,9 +1012,9 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
             } else {
                 memcpy(data, codi->extra.other, codi->len * sizeof(u16));
             }
-#else
-#error "Unsupported CPU endian"
-#endif
+        #else
+            #error "Unsupported CPU endian"
+        #endif
         } else {
             /* RESERVED for future unicode expansion */
             codi->error = CODI_ERR_NA;
@@ -1030,6 +1030,7 @@ REBINT Codec_UTF16(REBCDI *codi, int le)
     return CODI_ERROR;
 }
 
+
 //
 //  Codec_UTF16LE: C
 //
@@ -1038,6 +1039,7 @@ REBINT Codec_UTF16LE(REBCDI *codi)
     return Codec_UTF16(codi, TRUE);
 }
 
+
 //
 //  Codec_UTF16BE: C
 //
@@ -1045,6 +1047,7 @@ REBINT Codec_UTF16BE(REBCDI *codi)
 {
     return Codec_UTF16(codi, FALSE);
 }
+
 
 //
 //  Codec_Markup: C
@@ -1107,6 +1110,7 @@ static void Set_Option_String(REBCHR *str, REBCNT field)
     }
 }
 
+
 static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 {
     REBVAL *val;
@@ -1125,6 +1129,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
     }
     return n;
 }
+
 
 //
 //  Init_Main_Args: C
@@ -1159,20 +1164,28 @@ static void Init_Main_Args(REBARGS *rargs)
 
     // Print("script: %s", rargs->script);
     if (rargs->script) {
-        REBSER *ser = To_REBOL_Path(rargs->script, 0, OS_WIDE, 0);
+        REBSER *ser = To_REBOL_Path(
+            rargs->script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
+        );
         val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
         Val_Init_File(val, ser);
     }
 
     if (rargs->exe_path) {
-        REBSER *ser = To_REBOL_Path(rargs->exe_path, 0, OS_WIDE, 0);
+        REBSER *ser = To_REBOL_Path(
+            rargs->exe_path, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
+        );
         val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
         Val_Init_File(val, ser);
     }
 
     // Print("home: %s", rargs->home_dir);
     if (rargs->home_dir) {
-        REBSER *ser = To_REBOL_Path(rargs->home_dir, 0, OS_WIDE, TRUE);
+        REBSER *ser = To_REBOL_Path(
+            rargs->home_dir,
+            0,
+            PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+        );
         val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
         Val_Init_File(val, ser);
     }

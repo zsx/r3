@@ -775,7 +775,7 @@ RL_API void *RL_Make_Block(u32 size)
 //     no references to them from REBOL code (C code does nothing.)
 //     However, you can lock strings to prevent deallocation. (?? default)
 //
-RL_API void *RL_Make_String(u32 size, int unicode)
+RL_API void *RL_Make_String(u32 size, REBOOL unicode)
 {
     REBSER *result = unicode ? Make_Unicode(size) : Make_Binary(size);
 
@@ -1299,20 +1299,24 @@ RL_API int RL_Callback(RXICBI *cbi)
 // Arguments:
 // p - pointer to array of bytes or wide characters
 // len - length of src in codepoints (not including terminator)
-// uni - true if src is in wide character format
-// ccr - convert linefeeds into linefeed + carraige-return
+// unicode - true if src is in wide character format
+// lf_to_crlf - convert linefeeds into carraige-return + linefeed
 // 
 // !!! Host code is not supposed to call any Rebol routines except
 // for those in the RL_Api.  This exposes Rebol's internal UTF8
 // length routine, as it was being used by host code.  It should
 // be reviewed along with the rest of the RL_Api.
 //
-RL_API REBCNT RL_Length_As_UTF8(const void *p, REBCNT len, REBOOL uni, REBOOL ccr)
-{
+RL_API REBCNT RL_Length_As_UTF8(
+    const void *p,
+    REBCNT len,
+    REBOOL unicode,
+    REBOOL lf_to_crlf
+) {
     return Length_As_UTF8(
         p,
         len,
-        (uni ? OPT_ENC_UNISRC : 0) | (ccr ? OPT_ENC_CRLF : 0)
+        (unicode ? OPT_ENC_UNISRC : 0) | (lf_to_crlf ? OPT_ENC_CRLF : 0)
     );
 }
 
@@ -1330,8 +1334,8 @@ RL_API REBCNT RL_Length_As_UTF8(const void *p, REBCNT len, REBOOL uni, REBOOL cc
 // max - maximum size of the result in bytes
 // src - source array of bytes or wide characters
 // len - input is source length, updated to reflect src chars used
-// uni - true if src is in wide character format
-// ccr - convert linefeed + carriage-return into just linefeed
+// unicode - true if src is in wide character format
+// crlf_to_lf - convert carriage-return + linefeed into just linefeed
 // 
 // Notes:
 // Does not add a terminator.
@@ -1341,14 +1345,20 @@ RL_API REBCNT RL_Length_As_UTF8(const void *p, REBCNT len, REBOOL uni, REBOOL cc
 // length routine, as it was being used by the Linux host code by
 // Atronix.  Should be reviewed along with the rest of the RL_Api.
 //
-RL_API REBCNT RL_Encode_UTF8(REBYTE *dst, REBINT max, const void *src, REBCNT *len, REBFLG uni, REBFLG ccr)
-{
+RL_API REBCNT RL_Encode_UTF8(
+    REBYTE *dst,
+    REBINT max,
+    const void *src,
+    REBCNT *len,
+    REBOOL unicode,
+    REBOOL crlf_to_lf
+) {
     return Encode_UTF8(
         dst,
         max,
         src,
         len,
-        (uni ? OPT_ENC_UNISRC : 0) | (ccr ? OPT_ENC_CRLF : 0)
+        (unicode ? OPT_ENC_UNISRC : 0) | (crlf_to_lf ? OPT_ENC_CRLF : 0)
     );
 }
 

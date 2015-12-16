@@ -245,33 +245,46 @@ REBNATIVE(prin)
 //  
 //  {Sets or clears the new-line marker within a block or paren.}
 //  
-//      position [block! paren!] "Position to change marker (modified)"
-//      value "Set TRUE for newline"
-//      /all "Set/clear marker to end of series"
-//      /skip {Set/clear marker periodically to the end of the series}
+//      position [block! paren!]
+//          "Position to change marker (modified)"
+//      mark
+//          "Set TRUE for newline"
+//      /all
+//          "Set/clear marker to end of series"
+//      /skip
+//          {Set/clear marker periodically to the end of the series}
 //      size [integer!]
 //  ]
 //
 REBNATIVE(new_line)
 {
-    REBVAL *value = D_ARG(1);
-    REBVAL *val;
-    REBOOL cond = IS_CONDITIONAL_TRUE(D_ARG(2));
-    REBCNT n;
-    REBINT skip = -1;
+    PARAM(1, position);
+    PARAM(2, mark);
+    REFINE(3, all);
+    REFINE(4, skip);
+    PARAM(5, size);
 
-    val = VAL_ARRAY_AT(value);
-    if (D_REF(3)) skip = 1; // all
-    if (D_REF(4)) { // skip
-        skip = Int32s(D_ARG(5), 1); // size
+    REBVAL *value = VAL_ARRAY_AT(ARG(position));
+    REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
+    REBINT skip = 0;
+    REBCNT n;
+
+    if (REF(all)) skip = 1;
+
+    if (REF(skip)) {
+        skip = Int32s(ARG(size), 1);
         if (skip < 1) skip = 1;
     }
-    for (n = 0; NOT_END(val); n++, val++) {
-        if (cond ^ (n % skip != 0))
-            VAL_SET_OPT(val, OPT_VALUE_LINE);
+
+    for (n = 0; NOT_END(value); n++, value++) {
+        if ((skip != 0) && (n % skip != 0)) continue;
+
+        if (mark)
+            VAL_SET_OPT(value, OPT_VALUE_LINE);
         else
-            VAL_CLR_OPT(val, OPT_VALUE_LINE);
-        if (skip < 0) break;
+            VAL_CLR_OPT(value, OPT_VALUE_LINE);
+
+        if (skip == 0) break;
     }
 
     return R_ARG1;
@@ -288,7 +301,11 @@ REBNATIVE(new_line)
 //
 REBNATIVE(new_line_q)
 {
-    if VAL_GET_OPT(VAL_ARRAY_AT(D_ARG(1)), OPT_VALUE_LINE) return R_TRUE;
+    PARAM(1, position);
+
+    if (VAL_GET_OPT(VAL_ARRAY_AT(ARG(position)), OPT_VALUE_LINE))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
@@ -565,7 +582,9 @@ REBNATIVE(what_dir)
         len = OS_GET_CURRENT_DIR(&lpath);
 
         // allocates extra for end `/`
-        ser = To_REBOL_Path(lpath, len, OS_WIDE, TRUE);
+        ser = To_REBOL_Path(
+            lpath, len, PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+        );
 
         OS_FREE(lpath);
 
@@ -1122,13 +1141,17 @@ static REBARR *File_List_To_Array(const REBCHR *str)
     n = OS_STRLEN(str);
 
     if (len == 1) {  // First is full file path
-        dir = To_REBOL_Path(str, n, OS_WIDE, 0);
+        dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
         Val_Init_File(Alloc_Tail_Array(blk), dir);
     }
     else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
         assert(sizeof(wchar_t) == sizeof(REBCHR));
-        dir = To_REBOL_Path(str, n, -1, TRUE);
+        dir = To_REBOL_Path(
+            str,
+            n,
+            PATH_OPT_UNI_SRC | PATH_OPT_FORCE_UNI_DEST | PATH_OPT_SRC_IS_DIR
+        );
         str += n + 1; // next
         len = SERIES_LEN(dir);
         while ((n = OS_STRLEN(str))) {
@@ -1140,7 +1163,7 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 #else /* absolute pathes already */
         str += n + 1;
         while ((n = OS_STRLEN(str))) {
-            dir = To_REBOL_Path(str, n, OS_WIDE, FALSE);
+            dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
             Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
             str += n + 1; // next
         }
@@ -1215,7 +1238,9 @@ REBNATIVE(request_file)
             Val_Init_Block(D_OUT, array);
         }
         else {
-            ser = To_REBOL_Path(fr.files, OS_STRLEN(fr.files), OS_WIDE, 0);
+            ser = To_REBOL_Path(
+                fr.files, OS_STRLEN(fr.files), (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+            );
             Val_Init_File(D_OUT, ser);
         }
     } else

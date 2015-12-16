@@ -79,8 +79,16 @@ REBTYPE(Word)
             if (IS_STRING(arg)) {
                 REBYTE *bp;
                 REBCNT len;
-                // Set sym. Rest is set below.
-                bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_WORD, &len, TRUE);
+                const REBOOL allow_utf8 = TRUE;
+
+                // Set sym. Rest is set below.  If characters in the source
+                // string are > 0x80 they will be encoded to UTF8 to be stored
+                // in the symbol.
+                //
+                bp = Temp_Byte_Chars_May_Fail(
+                    arg, MAX_SCAN_WORD, &len, allow_utf8
+                );
+
                 if (type == REB_ISSUE) sym = Scan_Issue(bp, len);
                 else sym = Scan_Word(bp, len);
                 if (!sym) fail (Error(RE_BAD_CHAR, arg));

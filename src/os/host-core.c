@@ -213,8 +213,12 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (RXA_TYPE(frm, 5) == RXT_NONE) {
                     //destroy context
                     OS_FREE(ctx);
-                    RXA_LOGIC(frm, 1) = TRUE;
-                    RXA_TYPE(frm,1) = RXT_LOGIC;
+
+                    // is an integer, and using 1 instead of TRUE helps with a
+                    // build setting that differentiates int from REBOOL
+                    //
+                    RXA_LOGIC(frm, 1) = 1;
+                    RXA_TYPE(frm, 1) = RXT_LOGIC;
                     return RXR_VALUE;
                 }
 
@@ -262,8 +266,12 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (RXA_TYPE(frm, 6) == RXT_NONE) {
                     //destroy context
                     OS_FREE(ctx);
-                    RXA_LOGIC(frm, 1) = TRUE;
-                    RXA_TYPE(frm,1) = RXT_LOGIC;
+
+                    // is an integer, and using 1 instead of TRUE helps with a
+                    // build setting that differentiates int from REBOOL
+                    //
+                    RXA_LOGIC(frm, 1) = 1;
+                    RXA_TYPE(frm, 1) = RXT_LOGIC;
                     return RXR_VALUE;
                 }
 
@@ -383,7 +391,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RSA_CTX *rsa_ctx = NULL;
 
             if (RXA_WORD(frm, 5)) { //padding refinement
-                padding = (RXA_TYPE(frm, 6) != RXT_NONE);
+                padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_NONE);
             }
 
             words = RL_WORDS_OF_OBJECT(obj);

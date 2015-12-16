@@ -369,7 +369,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
     REBYTE *bp;
     REBUNI *up;
     REBUNI *dp;
-    REBOOL uni = !BYTE_SIZE(ser);
+    REBOOL unicode = NOT(BYTE_SIZE(ser));
     REBCNT n;
     REBUNI c;
 
@@ -384,10 +384,10 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
     }
 
     Sniff_String(ser, idx, &sf);
-    if (!GET_MOPT(mold, MOPT_ANSI_ONLY)) sf.paren = 0;
+    if (!GET_MOPT(mold, MOPT_NON_ANSI_PARENED)) sf.paren = 0;
 
     // Source can be 8 or 16 bits:
-    if (uni) up = UNI_HEAD(ser);
+    if (unicode) up = UNI_HEAD(ser);
     else bp = BIN_HEAD(ser);
 
     // If it is a short quoted string, emit it as "string":
@@ -398,8 +398,8 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
         *dp++ = '"';
 
         for (n = idx; n < VAL_LEN_HEAD(value); n++) {
-            c = uni ? up[n] : cast(REBUNI, bp[n]);
-            dp = Emit_Uni_Char(dp, c, (REBOOL)GET_MOPT(mold, MOPT_ANSI_ONLY)); // parened
+            c = unicode ? up[n] : cast(REBUNI, bp[n]);
+            dp = Emit_Uni_Char(dp, c, GET_MOPT(mold, MOPT_NON_ANSI_PARENED));
         }
 
         *dp++ = '"';
@@ -416,7 +416,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     for (n = idx; n < VAL_LEN_HEAD(value); n++) {
 
-        c = uni ? up[n] : cast(REBUNI, bp[n]);
+        c = unicode ? up[n] : cast(REBUNI, bp[n]);
         switch (c) {
         case '{':
         case '}':
@@ -430,7 +430,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
             *dp++ = c;
             break;
         default:
-            dp = Emit_Uni_Char(dp, c, (REBOOL)GET_MOPT(mold, MOPT_ANSI_ONLY)); // parened
+            dp = Emit_Uni_Char(dp, c, GET_MOPT(mold, MOPT_NON_ANSI_PARENED));
         }
     }
 
