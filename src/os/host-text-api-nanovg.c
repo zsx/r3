@@ -185,8 +185,9 @@ static char * to_utf8(REBCHR *text)
 	if (utf8_len == 0) 	return 0;
 	utf8 = malloc(utf8_len + 1);
 	RL_Encode_UTF8(utf8, utf8_len, text, &len, TRUE, FALSE);
+    utf8[utf8_len] = '\0';
 
-	return utf8;
+    return utf8;
 }
 
 
