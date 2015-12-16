@@ -738,9 +738,9 @@ REBINT What_UTF(REBYTE *bp, REBCNT len)
 // 
 // Returns TRUE if char is legal.
 //
-REBFLG Legal_UTF8_Char(const REBYTE *str, REBCNT len)
+REBOOL Legal_UTF8_Char(const REBYTE *str, REBCNT len)
 {
-    return isLegalUTF8Sequence(str, str + len);
+    return LOGICAL(isLegalUTF8Sequence(str, str + len));
 }
 
 
@@ -982,10 +982,18 @@ REBSER *Decode_UTF_String(REBYTE *bp, REBCNT len, REBINT utf)
     }
 
     if (utf == 0 || utf == 8) {
-        size = Decode_UTF8((REBUNI*)Reset_Buffer(ser, len), bp, len, TRUE);
+        size = Decode_UTF8(
+            cast(REBUNI*, Reset_Buffer(ser, len)), bp, len, TRUE
+        );
     }
     else if (utf == -16 || utf == 16) {
-        size = Decode_UTF16((REBUNI*)Reset_Buffer(ser, len/2 + 1), bp, len, utf < 0, TRUE);
+        size = Decode_UTF16(
+            cast(REBUNI*, Reset_Buffer(ser, (len / 2) + 1)),
+            bp,
+            len,
+            LOGICAL(utf < 0),
+            TRUE
+        );
     }
     else {
         // Encoding is unsupported or not yet implemented.
@@ -1011,7 +1019,7 @@ REBSER *Decode_UTF_String(REBYTE *bp, REBCNT len, REBINT utf)
 // 
 // Returns how long the UTF8 encoded string would be.
 //
-REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLG opts)
+REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLGS opts)
 {
     REBCNT size = 0;
     REBCNT c;
@@ -1089,7 +1097,7 @@ REBCNT Encode_UTF8(
     REBCNT max,
     const void *src,
     REBCNT *len,
-    REBFLG opts
+    REBFLGS opts
 ) {
     REBUNI c;
     REBINT n;
@@ -1183,8 +1191,12 @@ int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
 // null-terminated series. Can reserve extra bytes of space.
 // Resulting series must be either freed or handed to the GC.
 //
-REBSER *Make_UTF8_Binary(const void *data, REBCNT len, REBCNT extra, REBFLG opts)
-{
+REBSER *Make_UTF8_Binary(
+    const void *data,
+    REBCNT len,
+    REBCNT extra,
+    REBFLGS opts
+) {
     REBCNT size = Length_As_UTF8(data, len, opts);
     REBSER *series = Make_Binary(size + extra);
     SET_SERIES_LEN(series, Encode_UTF8(
@@ -1203,8 +1215,11 @@ REBSER *Make_UTF8_Binary(const void *data, REBCNT len, REBCNT extra, REBFLG opts
 // size ANY-STRING! value to a UTF8-encoded series.  Resulting
 // series must be either freed or handed to the GC.
 //
-REBSER *Make_UTF8_From_Any_String(const REBVAL *value, REBCNT len, REBFLG opts)
-{
+REBSER *Make_UTF8_From_Any_String(
+    const REBVAL *value,
+    REBCNT len,
+    REBFLGS opts
+) {
     assert(ANY_STR(value));
 
     if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {

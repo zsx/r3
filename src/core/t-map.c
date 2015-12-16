@@ -63,7 +63,7 @@ REBINT CT_Map(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b);
-    return 0 == Cmp_Block(a, b, 0);
+    return 0 == Cmp_Block(a, b, FALSE);
 }
 
 
@@ -106,7 +106,7 @@ REBINT Find_Key_Hashed(
     REBSER *hashlist,
     const REBVAL *key,
     REBINT wide,
-    REBCNT cased,
+    REBOOL cased,
     REBYTE mode
 ) {
     REBCNT *hashes;
@@ -161,7 +161,7 @@ REBINT Find_Key_Hashed(
             if (
                 VAL_TYPE(val) == VAL_TYPE(key)
                 && 0 == Compare_String_Vals(
-                    key, val, (!IS_BINARY(key) && !cased)
+                    key, val, LOGICAL(!IS_BINARY(key) && !cased)
                 )
             ) {
                 return hash;
@@ -174,7 +174,7 @@ REBINT Find_Key_Hashed(
             val = ARRAY_AT(array, (n - 1) * wide);
             if (
                 VAL_TYPE(val) == VAL_TYPE(key)
-                && 0 == Cmp_Value(key, val, !cased)
+                && 0 == Cmp_Value(key, val, NOT(cased))
             ) {
                 return hash;
             }
@@ -213,7 +213,8 @@ static void Rehash_Map(REBMAP *map)
 
     key = ARRAY_HEAD(pairlist);
     for (n = 0; n < ARRAY_LEN(pairlist); n += 2, key += 2) {
-        REBCNT hash = Find_Key_Hashed(pairlist, hashlist, key, 2, 0, 0);
+        const REBOOL cased = FALSE; // !!! Always false? How to look up cased?
+        REBCNT hash = Find_Key_Hashed(pairlist, hashlist, key, 2, cased, 0);
         hashes[hash] = n / 2 + 1;
     }
 }
@@ -236,6 +237,7 @@ static REBCNT Find_Map_Entry(REBMAP *map, REBVAL *key, REBVAL *val)
     REBCNT hash;
     REBVAL *v;
     REBCNT n;
+    const REBOOL cased = FALSE; // !!! Always false? How to look up cased?
 
     if (IS_NONE(key)) return 0;
 
@@ -259,7 +261,7 @@ static REBCNT Find_Map_Entry(REBMAP *map, REBVAL *key, REBVAL *val)
                 for (n = 0; n < ARRAY_LEN(pairlist); n += 2, v += 2) {
                     if (
                         VAL_TYPE(key) == VAL_TYPE(v)
-                        && 0 == Compare_String_Vals(key, v, !IS_BINARY(v))
+                        && 0 == Compare_String_Vals(key, v, NOT(IS_BINARY(v)))
                     ) {
                         if (val)
                             *++v = *val;
@@ -308,7 +310,7 @@ static REBCNT Find_Map_Entry(REBMAP *map, REBVAL *key, REBVAL *val)
         Rehash_Map(map);
     }
 
-    hash = Find_Key_Hashed(pairlist, hashlist, key, 2, 0, 0);
+    hash = Find_Key_Hashed(pairlist, hashlist, key, 2, cased, 0);
     hashes = cast(REBCNT*, SERIES_DATA(hashlist));
     n = hashes[hash];
 
@@ -392,7 +394,7 @@ static void Append_Map(REBMAP *map, REBVAL *any_array, REBCNT len)
 //
 //  MT_Map: C
 //
-REBFLG MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBCNT n;
     REBMAP *map;

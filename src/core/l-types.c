@@ -32,7 +32,7 @@
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-typedef REBFLG (*MAKE_FUNC)(REBVAL *, REBVAL *, enum Reb_Kind);
+typedef REBOOL (*MAKE_FUNC)(REBVAL *, REBVAL *, enum Reb_Kind);
 #include "tmp-maketypes.h"
 
 
@@ -201,7 +201,7 @@ const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
         if (*cp != '\'') {
             *bp++ = *cp++;
             if (bp >= be) return 0;
-            dig=1;
+            dig = TRUE;
         }
         else cp++;
     if (*cp == ',' || *cp == '.') cp++;
@@ -211,14 +211,14 @@ const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
         if (*cp != '\'') {
             *bp++ = *cp++;
             if (bp >= be) return 0;
-            dig=1;
+            dig = TRUE;
         }
         else cp++;
     if (!dig) return 0;
     if (*cp == 'E' || *cp == 'e') {
             *bp++ = *cp++;
             if (bp >= be) return 0;
-            dig = 0;
+            dig = FALSE;
             if (*cp == '-' || *cp == '+') {
                 *bp++ = *cp++;
                 if (bp >= be) return 0;
@@ -226,7 +226,7 @@ const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
             while (IS_LEX_NUMBER(*cp)) {
                 *bp++ = *cp++;
                 if (bp >= be) return 0;
-                dig=1;
+                dig = TRUE;
             }
             if (!dig) return 0;
     }
@@ -240,7 +240,7 @@ const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
 // 
 // Scan and convert a decimal value.  Return zero if error.
 //
-const REBYTE *Scan_Decimal(REBDEC *out, const REBYTE *cp, REBCNT len, REBFLG dec_only)
+const REBYTE *Scan_Decimal(REBDEC *out, const REBYTE *cp, REBCNT len, REBOOL dec_only)
 {
     const REBYTE *bp = cp;
     REBYTE buf[MAX_NUM_LEN+4];
@@ -252,19 +252,29 @@ const REBYTE *Scan_Decimal(REBDEC *out, const REBYTE *cp, REBCNT len, REBFLG dec
 
     if (*cp == '+' || *cp == '-') *ep++ = *cp++;
     while (IS_LEX_NUMBER(*cp) || *cp == '\'')
-        if (*cp != '\'') *ep++ = *cp++, dig=1;
+        if (*cp != '\'') {
+            *ep++ = *cp++;
+            dig = TRUE;
+        }
         else cp++;
     if (*cp == ',' || *cp == '.') cp++;
     *ep++ = '.';
     while (IS_LEX_NUMBER(*cp) || *cp == '\'')
-        if (*cp != '\'') *ep++ = *cp++, dig=1;
+        if (*cp != '\'') {
+            *ep++ = *cp++;
+            dig = TRUE;
+        }
         else cp++;
     if (!dig) return 0;
     if (*cp == 'E' || *cp == 'e') {
             *ep++ = *cp++;
-            dig = 0;
-            if (*cp == '-' || *cp == '+') *ep++ = *cp++;
-            while (IS_LEX_NUMBER(*cp)) *ep++ = *cp++, dig=1;
+            dig = FALSE;
+            if (*cp == '-' || *cp == '+')
+                *ep++ = *cp++;
+            while (IS_LEX_NUMBER(*cp)) {
+                *ep++ = *cp++;
+                dig= TRUE;
+            }
             if (!dig) return 0;
     }
     if (*cp == '%') {
@@ -866,7 +876,7 @@ REBARR *Load_Markup(const REBYTE *cp, REBINT len)
 // Keep in mind that this function is being called as part of the
 // scanner, so optimal performance is critical.
 //
-REBFLG Construct_Value(REBVAL *out, REBARR *spec)
+REBOOL Construct_Value(REBVAL *out, REBARR *spec)
 {
     REBVAL *val;
     REBCNT sym;

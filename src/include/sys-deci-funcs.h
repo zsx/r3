@@ -26,16 +26,16 @@
 ***********************************************************************/
 
 /* unary operators - logic */
-REBFLG deci_is_zero (const deci a);
+REBOOL deci_is_zero (const deci a);
 
 /* unary operators - deci */
 deci deci_abs (deci a);
 deci deci_negate (deci a);
 
 /* binary operators - logic */
-REBFLG deci_is_equal (deci a, deci b);
-REBFLG deci_is_lesser_or_equal (deci a, deci b);
-REBFLG deci_is_same (deci a, deci b);
+REBOOL deci_is_equal (deci a, deci b);
+REBOOL deci_is_lesser_or_equal (deci a, deci b);
+REBOOL deci_is_same (deci a, deci b);
 
 /* binary operators - deci */
 deci deci_add (deci a, deci b);

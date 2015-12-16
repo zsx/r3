@@ -411,7 +411,7 @@ REBNATIVE(case)
     REBCNT index = VAL_INDEX(D_ARG(1));
 
     // Save refinement to boolean to free up GC protected call frame slot
-    REBFLG all = D_REF(2);
+    REBOOL all = D_REF(2);
 
     // reuse refinement slot for GC safety (const pointer optimized out)
     REBVAL * const safe_temp = D_ARG(2);
@@ -419,7 +419,7 @@ REBNATIVE(case)
     // condition result must survive across potential GC evaluations of
     // the body evaluation re-using `safe-temp`, but can be collapsed to a
     // flag as the full value of the condition is never returned.
-    REBFLG matched;
+    REBOOL matched;
 
     // CASE is in the same family as IF/UNLESS/EITHER, so if there is no
     // matching condition it will return UNSET!.  Set that as default.
@@ -1166,7 +1166,7 @@ REBNATIVE(fail)
 }
 
 
-static REB_R If_Unless_Core(struct Reb_Call *call_, REBFLG trigger) {
+static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);

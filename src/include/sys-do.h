@@ -452,9 +452,9 @@ typedef REBINT (*REBCTF)(REBVAL *a, REBVAL *b, REBINT s);
 //
 // As a further aid, the debug build version of the structures contain the
 // actual pointers to the arguments.  It also keeps a copy of a cache of the
-// type for the arguments, because the bitfields inside of a REBVAL must be
-// integer and hence don't show the name of the type.  Whether a refinemnent
-// was in use or not at the time of the call is also cached.
+// type for the arguments, because the numeric type encoding in the bits of
+// the header requires a debug call (or by-hand-binary decoding) to interpret
+// Whether a refinement was used or not at time of call is also cached.
 //
 
 struct Native_Param {
@@ -499,7 +499,7 @@ struct Native_Refine {
     //
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            call_->arg ? !IS_NONE(call_->arg + (n)) : TRUE, \
+            call_->arg ? NOT(IS_NONE(call_->arg + (n))) : TRUE, \
             call_->arg ? call_->arg + (n) : NULL, \
             (n) \
         }
@@ -516,18 +516,16 @@ struct Native_Refine {
 
 #ifdef NDEBUG
     #define REF(name) \
-        (!IS_NONE(ARG(name)))
+        NOT(IS_NONE(ARG(name)))
 #else
     // An added useless ?: helps check in debug build to make sure we do not
     // try to use REF() on something defined as PARAM(), but only REFINE()
     //
     #define REF(name) \
-        ((p_##name).used_cache ? !IS_NONE(ARG(name)) : !IS_NONE(ARG(name)))
+        ((p_##name).used_cache \
+            ? NOT(IS_NONE(ARG(name))) \
+            : NOT(IS_NONE(ARG(name))))
 #endif
-
-// Refinement not used (helps with strongly typed REBOOL)
-//
-#define NOT_REF(name) LOGICAL(!REF(name))
 
 // OUT is the write location in the call frame for the output.  Before the
 // call in debug builds this slot is initialized to a trash value, and by
@@ -595,7 +593,7 @@ struct Native_Refine {
 #define D_OUT       DSF_OUT(call_)          // GC-safe slot for output value
 #define D_ARGC      DSF_ARGC(call_)         // count of args+refinements/args
 #define D_ARG(n)    DSF_ARG(call_, (n))     // pass 1 for first arg
-#define D_REF(n)    (!IS_NONE(D_ARG(n)))    // D_REFinement (not D_REFerence)
+#define D_REF(n)    LOGICAL(!IS_NONE(D_ARG(n)))    // D_REFinement (not D_REFerence)
 #define D_FUNC      DSF_FUNC(call_)         // REBVAL* of running function
 #define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value

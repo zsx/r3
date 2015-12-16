@@ -135,7 +135,7 @@ REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
 // block - block of datatypes (datatype words ok too)
 // value - value to hold result (can be word-spec type too)
 //
-REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
+REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
 {
     const REBVAL *val;
     REBCNT sym;
@@ -175,7 +175,7 @@ REBFLG Make_Typeset(REBVAL *block, REBVAL *value, REBFLG load)
 //
 //  MT_Typeset: C
 //
-REBFLG MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!IS_BLOCK(data)) return FALSE;
 
@@ -196,7 +196,7 @@ REBINT Find_Typeset(REBVAL *block)
     REBINT n;
 
     VAL_RESET_HEADER(&value, REB_TYPESET);
-    Make_Typeset(block, &value, 0);
+    Make_Typeset(block, &value, FALSE);
 
     val = VAL_ARRAY_AT_HEAD(ROOT_TYPESETS, 1);
 
@@ -263,7 +263,7 @@ REBTYPE(Typeset)
     case A_TO:
         if (IS_BLOCK(arg)) {
             VAL_RESET_HEADER(D_OUT, REB_TYPESET);
-            Make_Typeset(VAL_ARRAY_AT(arg), D_OUT, 0);
+            Make_Typeset(VAL_ARRAY_AT(arg), D_OUT, FALSE);
             return R_OUT;
         }
     //  if (IS_NONE(arg)) {

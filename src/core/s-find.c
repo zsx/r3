@@ -106,7 +106,7 @@ const REBYTE *Match_Bytes(const REBYTE *src, const REBYTE *pat)
 // Return TRUE if s1 is a subpath of s2.
 // Case insensitive.
 //
-REBFLG Match_Sub_Path(REBSER *s1, REBSER *s2)
+REBOOL Match_Sub_Path(REBSER *s1, REBSER *s2)
 {
     REBCNT len = SERIES_LEN(s1);
     REBCNT n;
@@ -132,7 +132,7 @@ REBFLG Match_Sub_Path(REBSER *s1, REBSER *s2)
 
     // a/b matches: a/b, a/b/, a/b/c
     c2 = GET_ANY_CHAR(s2, n);
-    return (
+    return LOGICAL(
             n >= len  // all chars matched
             &&  // Must be at end or at dir sep:
             (c1 == '/' || c1 == '\\'
@@ -300,7 +300,7 @@ REBINT Compare_UTF8(const REBYTE *s1, const REBYTE *s2, REBCNT l2)
 // 
 // NOTE: Series tail must be > index.
 //
-REBCNT Find_Byte_Str(REBSER *series, REBCNT index, REBYTE *b2, REBCNT l2, REBFLG uncase, REBFLG match)
+REBCNT Find_Byte_Str(REBSER *series, REBCNT index, REBYTE *b2, REBCNT l2, REBOOL uncase, REBOOL match)
 {
     REBYTE *b1;
     REBYTE *e1;
@@ -367,7 +367,7 @@ REBCNT Find_Str_Str(REBSER *ser1, REBCNT head, REBCNT index, REBCNT tail, REBINT
     REBUNI c2;
     REBUNI c3;
     REBCNT n = 0;
-    REBOOL uncase = !(flags & AM_FIND_CASE); // uncase = case insenstive
+    REBOOL uncase = NOT(flags & AM_FIND_CASE); // case insenstive
 
     c2 = GET_ANY_CHAR(ser2, index2); // starting char
     if (uncase && c2 < UNICODE_CASES) c2 = LO_CASE(c2);
@@ -413,7 +413,7 @@ REBCNT Find_Str_Str(REBSER *ser1, REBCNT head, REBCNT index, REBCNT tail, REBINT
 REBCNT Find_Str_Char(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT skip, REBUNI c2, REBCNT flags)
 {
     REBUNI c1;
-    REBOOL uncase = !GET_FLAG(flags, ARG_FIND_CASE-1); // uncase = case insenstive
+    REBOOL uncase = NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)); // case insensitive
 
     if (uncase && c2 < UNICODE_CASES) c2 = LO_CASE(c2);
 
@@ -445,7 +445,7 @@ REBCNT Find_Str_Char(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT
 REBCNT Find_Str_Bitset(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT skip, REBSER *bset, REBCNT flags)
 {
     REBUNI c1;
-    REBOOL uncase = !GET_FLAG(flags, ARG_FIND_CASE-1); // uncase = case insenstive
+    REBOOL uncase = NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)); // case insensitive
 
     for (; index >= head && index < tail; index += skip) {
 

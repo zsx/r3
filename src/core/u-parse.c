@@ -57,7 +57,7 @@ enum parse_flags {
 // Returns SYMBOL or 0 if not a command:
 #define GET_CMD(n) (((n) >= SYM_BAR && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
-#define HAS_CASE(p) (p->find_flags & AM_FIND_CASE)
+#define HAS_CASE(p) LOGICAL(p->find_flags & AM_FIND_CASE)
 #define IS_OR_BAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM_BAR)
 #define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_SAME_WORD(r, SYM_BAR)) r++;
 #define IS_ARRAY_INPUT(p) (p->type >= REB_BLOCK)
@@ -175,10 +175,16 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
         index = Find_Str_Str(series, 0, index, SERIES_LEN(series), 1, VAL_SERIES(item), VAL_INDEX(item), VAL_LEN_AT(item), flags);
         break;
 
-    // Do we match to a char set?
     case REB_BITSET:
-        flags = Check_Bit(VAL_SERIES(item), GET_ANY_CHAR(series, index), !HAS_CASE(parse));
-        index = flags ? index + 1 : NOT_FOUND;
+        if (Check_Bit(
+            VAL_SERIES(item), GET_ANY_CHAR(series, index), NOT(HAS_CASE(parse))
+        )) {
+            // We matched to a char set, advance.
+            //
+            index++;
+        }
+        else
+            index = NOT_FOUND;
         break;
 /*
     case REB_DATATYPE:  // Currently: integer!
@@ -285,7 +291,7 @@ static REBCNT Parse_Next_Array(
 
     case REB_LIT_PATH:
         index++;
-        if (IS_PATH(blk) && !Cmp_Block(blk, item, 0)) break;
+        if (IS_PATH(blk) && !Cmp_Block(blk, item, FALSE)) break;
         goto no_result;
 
     case REB_NONE:
@@ -311,7 +317,7 @@ static REBCNT Parse_Next_Array(
     // Match with some other value:
     default:
         index++;
-        if (Cmp_Value(blk, item, (REBOOL)HAS_CASE(parse))) goto no_result;
+        if (Cmp_Value(blk, item, HAS_CASE(parse))) goto no_result;
     }
 
     return index;
@@ -324,7 +330,7 @@ no_result:
 //
 //  To_Thru: C
 //
-static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG is_thru)
+static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBOOL is_thru)
 {
     REBSER *series = parse->series;
     REBCNT type = parse->type;
@@ -401,7 +407,12 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG
                     if (ch1 == *VAL_BIN_AT(item)) {
                         len = VAL_LEN_AT(item);
                         if (len == 1) goto found1;
-                        if (0 == Compare_Bytes(BIN_AT(series, index), VAL_BIN_AT(item), len, 0)) {
+                        if (0 == Compare_Bytes(
+                            BIN_AT(series, index),
+                            VAL_BIN_AT(item),
+                            len,
+                            FALSE
+                        )) {
                             if (is_thru) index += len;
                             goto found;
                         }
@@ -427,7 +438,7 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBFLG
                 }
                 // bitset
                 else if (IS_BITSET(item)) {
-                    if (Check_Bit(VAL_SERIES(item), ch1, !HAS_CASE(parse)))
+                    if (Check_Bit(VAL_SERIES(item), ch1, NOT(HAS_CASE(parse))))
                         goto found1;
                 }
                 else if (ANY_STR(item)) {
@@ -500,7 +511,7 @@ bad_target:
 //     3. value - according to datatype
 //     4. block of values - the first one we hit
 //
-static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG is_thru)
+static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL is_thru)
 {
     REBSER *series = parse->series;
     REBCNT i;
@@ -555,7 +566,9 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
                         ser,
                         0,
                         SERIES_LEN(ser),
-                        HAS_CASE(parse)
+                        (parse->find_flags & AM_FIND_CASE)
+                            ? AM_FIND_CASE
+                            : 0
                     );
                     if (i != NOT_FOUND && is_thru) i += SERIES_LEN(ser);
                     Free_Series(ser);
@@ -570,7 +583,9 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
                         VAL_SERIES(item),
                         VAL_INDEX(item),
                         VAL_LEN_AT(item),
-                        HAS_CASE(parse)
+                        (parse->find_flags & AM_FIND_CASE)
+                            ? AM_FIND_CASE
+                            : 0
                     );
                     if (i != NOT_FOUND && is_thru) i += VAL_LEN_AT(item);
                 }
@@ -584,7 +599,9 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
                     SERIES_LEN(series),
                     1,
                     VAL_CHAR(item),
-                    HAS_CASE(parse)
+                    (parse->find_flags & AM_FIND_CASE)
+                        ? AM_FIND_CASE
+                        : 0
                 );
                 if (i != NOT_FOUND && is_thru) i++;
             }
@@ -597,7 +614,9 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBFLG
                     SERIES_LEN(series),
                     1,
                     VAL_BITSET(item),
-                    HAS_CASE(parse)
+                    (parse->find_flags & AM_FIND_CASE)
+                        ? AM_FIND_CASE
+                        : 0
                 );
                 if (i != NOT_FOUND && is_thru) i++;
             }
@@ -760,7 +779,7 @@ static REBCNT Parse_Rules_Loop(
     const REBVAL *item_hold;
     REBVAL *val;        // spare
     REBCNT rulen;
-    REBFLG flags;
+    REBFLGS flags;
     REBCNT cmd;
     const REBVAL *rule_head = rules;
     REBVAL save;
@@ -1066,7 +1085,7 @@ static REBCNT Parse_Rules_Loop(
                     if (IS_END(rules)) goto bad_end;
                     item = Get_Parse_Value(&save, rules);
                     rulen = 1;
-                    i = Parse_To(parse, index, item, cmd == SYM_THRU);
+                    i = Parse_To(parse, index, item, LOGICAL(cmd == SYM_THRU));
                     break;
 
                 case SYM_QUOTE:
@@ -1085,7 +1104,7 @@ static REBCNT Parse_Rules_Loop(
                     if (0 == Cmp_Value(
                         ARRAY_AT(AS_ARRAY(series), index),
                         item,
-                        parse->find_flags & AM_FIND_CASE
+                        HAS_CASE(parse)
                     )) {
                         i = index + 1;
                     }
@@ -1376,7 +1395,8 @@ REBNATIVE(parse)
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters
-    const REBOOL cased = D_REF(3) || IS_BINARY(input);
+    //
+    const REBOOL cased = LOGICAL(D_REF(3) || IS_BINARY(input));
 
     REBCNT index;
 

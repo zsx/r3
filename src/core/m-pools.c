@@ -1484,7 +1484,7 @@ void Manuals_Leak_Check_Debug(REBCNT manuals_len, const char *label_str)
 // with either managed or unmanaged value states for variables w/o needing
 // this test to know which it has.)
 //
-REBFLG Is_Value_Managed(const REBVAL *value, REBFLG thrown_or_end_ok)
+REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
 {
     if (IS_END(value))
         return thrown_or_end_ok;
@@ -1547,7 +1547,7 @@ void Free_Gob(REBGOB *gob)
 // 
 // Confirm that the series value is in the series pool.
 //
-REBFLG Series_In_Pool(REBSER *series)
+REBOOL Series_In_Pool(REBSER *series)
 {
     REBSEG  *seg;
     REBSER *start;
@@ -1765,7 +1765,7 @@ REBU64 Inspect_Series(REBCNT flags)
     REBSER  *series;
     REBCNT  segs, n, tot, blks, strs, unis, nons, odds, fre;
     REBCNT  str_size, uni_size, blk_size, odd_size, seg_size, fre_size;
-    REBFLG  f = 0;
+    REBOOL  f = FALSE;
     REBINT  pool_num;
 #ifdef SERIES_LABELS
     REBYTE  *kind;
@@ -1788,7 +1788,7 @@ REBU64 Inspect_Series(REBCNT flags)
             if (SERIES_WIDE(series)) {
                 tot++;
                 tot_size += SERIES_TOTAL(series);
-                f = 0;
+                f = FALSE;
             } else {
                 fre++;
             }
@@ -1798,10 +1798,10 @@ REBU64 Inspect_Series(REBCNT flags)
             //if (Find_Root(series)) kind = "ROOT";
             if (!SERIES_FREED(series) && series->label) {
                 Debug_Fmt_("%08x: %16s %s ", series, series->label, kind);
-                f = 1;
+                f = TRUE;
             } else if (!SERIES_FREED(series) && (flags & 0x100)) {
                 Debug_Fmt_("%08x: %s ", series, kind);
-                f = 1;
+                f = TRUE;
             }
 #endif
             if (Is_Array_Series(series)) {

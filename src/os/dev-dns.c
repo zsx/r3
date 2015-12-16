@@ -191,7 +191,7 @@ DEVICE_CMD Poll_DNS(REBREQ *dr)
         else prior = &req->next;
     }
 
-    return change;
+    return change ? 1 : 0; // DEVICE_CMD implicitly returns i32
 }
 
 

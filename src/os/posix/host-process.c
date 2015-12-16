@@ -287,12 +287,27 @@ REBINT OS_Kill(REBINT pid)
 // POSIX previous simple version was just 'return system(call);'
 // This uses 'execvp' which is "POSIX.1 conforming, UNIX compatible"
 //
-int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 flags, u64 *pid, int *exit_code, u32 input_type, char *input, u32 input_len, u32 output_type, char **output, u32 *output_len, u32 err_type, char **err, u32 *err_len)
-{
-    unsigned char flag_wait = FALSE;
-    unsigned char flag_console = FALSE;
-    unsigned char flag_shell = FALSE;
-    unsigned char flag_info = FALSE;
+int OS_Create_Process(
+    const REBCHR *call,
+    int argc,
+    const REBCHR* argv[],
+    u32 flags,
+    u64 *pid,
+    int *exit_code,
+    u32 input_type,
+    char *input,
+    u32 input_len,
+    u32 output_type,
+    char **output,
+    u32 *output_len,
+    u32 err_type,
+    char **err,
+    u32 *err_len
+) {
+    REBOOL flag_wait = FALSE;
+    REBOOL flag_console = FALSE;
+    REBOOL flag_shell = FALSE;
+    REBOOL flag_info = FALSE;
     int stdin_pipe[] = {-1, -1};
     int stdout_pipe[] = {-1, -1};
     int stderr_pipe[] = {-1, -1};

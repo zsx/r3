@@ -187,7 +187,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
                 // Turn block into typeset for parameter at current index
                 // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
                 //
-                Make_Typeset(VAL_ARRAY_HEAD(item), typeset, 0);
+                Make_Typeset(VAL_ARRAY_HEAD(item), typeset, FALSE);
                 continue;
             }
 
@@ -296,7 +296,7 @@ void Make_Native(
     REBARR *spec,
     REBNAT code,
     enum Reb_Kind type,
-    REBFLG frameless
+    REBOOL frameless
 ) {
     REBARR *paramlist;
 
@@ -361,7 +361,7 @@ void Make_Native(
 // Free_Series.  This means that the body must currently be shallow
 // copied, and the splicing slot must be in the topmost series.
 //
-REBARR *Get_Maybe_Fake_Func_Body(REBFLG *is_fake, const REBVAL *func)
+REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 {
     REBARR *fake_body;
 
@@ -458,7 +458,7 @@ void Make_Function(
     enum Reb_Kind type,
     const REBVAL *spec,
     const REBVAL *body,
-    REBFLG has_return
+    REBOOL has_return
 ) {
     REBYTE func_flags = 0; // 8-bits in header, reserved type-specific flags
 
@@ -489,7 +489,7 @@ void Make_Function(
 
         REBVAL *item = VAL_ARRAY_HEAD(spec);
         REBCNT index = 0;
-        REBFLG convert_local = FALSE;
+        REBOOL convert_local = FALSE;
 
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
@@ -796,7 +796,7 @@ void Clonify_Function(REBVAL *value)
 //
 //  Do_Native_Throws: C
 //
-REBFLG Do_Native_Throws(struct Reb_Call *call_)
+REBOOL Do_Native_Throws(struct Reb_Call *call_)
 {
     REB_R ret;
 
@@ -837,15 +837,15 @@ REBFLG Do_Native_Throws(struct Reb_Call *call_)
 
     // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
     // check the actions and natives are returning the correct thing.
-    assert(THROWN(D_OUT) == (ret == R_OUT_IS_THROWN));
-    return ret == R_OUT_IS_THROWN;
+    assert(THROWN(D_OUT) == LOGICAL(ret == R_OUT_IS_THROWN));
+    return LOGICAL(ret == R_OUT_IS_THROWN);
 }
 
 
 //
 //  Do_Action_Throws: C
 //
-REBFLG Do_Action_Throws(struct Reb_Call *call_)
+REBOOL Do_Action_Throws(struct Reb_Call *call_)
 {
     REBCNT type = VAL_TYPE(D_ARG(1));
     REBACT action;
@@ -904,15 +904,15 @@ REBFLG Do_Action_Throws(struct Reb_Call *call_)
 
     // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
     // check the actions and natives are returning the correct thing.
-    assert(THROWN(D_OUT) == (ret == R_OUT_IS_THROWN));
-    return ret == R_OUT_IS_THROWN;
+    assert(THROWN(D_OUT) == LOGICAL(ret == R_OUT_IS_THROWN));
+    return LOGICAL(ret == R_OUT_IS_THROWN);
 }
 
 
 //
 //  Do_Function_Throws: C
 //
-REBFLG Do_Function_Throws(struct Reb_Call *call_)
+REBOOL Do_Function_Throws(struct Reb_Call *call_)
 {
     Eval_Functions++;
 
@@ -959,7 +959,7 @@ REBFLG Do_Function_Throws(struct Reb_Call *call_)
 // Do a closure by cloning its body and rebinding it to
 // a new frame of words/values.
 //
-REBFLG Do_Closure_Throws(struct Reb_Call *call_)
+REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 {
     REBARR *body;
     REBFRM *frame;
@@ -1077,7 +1077,7 @@ REBFLG Do_Closure_Throws(struct Reb_Call *call_)
 //
 //  Do_Routine_Throws: C
 //
-REBFLG Do_Routine_Throws(struct Reb_Call *call_)
+REBOOL Do_Routine_Throws(struct Reb_Call *call_)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         D_ARGC > 0 ? D_ARG(1) : NULL,
@@ -1114,7 +1114,7 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
-    const REBFLG has_return = TRUE;
+    const REBOOL has_return = TRUE;
 
     Make_Function(D_OUT, REB_FUNCTION, ARG(spec), ARG(body), has_return);
 
@@ -1153,7 +1153,7 @@ REBNATIVE(clos)
     PARAM(1, spec);
     PARAM(2, body);
 
-    const REBFLG has_return = TRUE;
+    const REBOOL has_return = TRUE;
 
     Make_Function(D_OUT, REB_CLOSURE, ARG(spec), ARG(body), has_return);
 
@@ -1249,12 +1249,12 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
 
     if (v_header.all != func_header.all) {
         REBVAL *func_value = FUNC_VALUE(func);
-        REBFLG frameless_value = VAL_GET_EXT(v, EXT_FUNC_FRAMELESS);
-        REBFLG frameless_func = VAL_GET_EXT(func_value, EXT_FUNC_FRAMELESS);
-        REBFLG has_return_value = VAL_GET_EXT(v, EXT_FUNC_HAS_RETURN);
-        REBFLG has_return_func = VAL_GET_EXT(func_value, EXT_FUNC_HAS_RETURN);
-        REBFLG infix_value = VAL_GET_EXT(v, EXT_FUNC_INFIX);
-        REBFLG infix_func = VAL_GET_EXT(func_value, EXT_FUNC_INFIX);
+        REBOOL frameless_value = VAL_GET_EXT(v, EXT_FUNC_FRAMELESS);
+        REBOOL frameless_func = VAL_GET_EXT(func_value, EXT_FUNC_FRAMELESS);
+        REBOOL has_return_value = VAL_GET_EXT(v, EXT_FUNC_HAS_RETURN);
+        REBOOL has_return_func = VAL_GET_EXT(func_value, EXT_FUNC_HAS_RETURN);
+        REBOOL infix_value = VAL_GET_EXT(v, EXT_FUNC_INFIX);
+        REBOOL infix_func = VAL_GET_EXT(func_value, EXT_FUNC_INFIX);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
         Debug_Array(v->payload.any_function.spec);

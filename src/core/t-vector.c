@@ -259,7 +259,7 @@ REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
 //
 //  Shuffle_Vector: C
 //
-void Shuffle_Vector(REBVAL *vect, REBFLG secure)
+void Shuffle_Vector(REBVAL *vect, REBOOL secure)
 {
     REBCNT n;
     REBCNT k;
@@ -433,7 +433,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 //
 //  MT_Vector: C
 //
-REBFLG MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (Make_Vector_Spec(data, out)) return TRUE;
     return FALSE;
@@ -608,7 +608,7 @@ bad_make:
 //
 //  Mold_Vector: C
 //
-void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBFLG molded)
+void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     REBSER *vect = VAL_SERIES(value);
     REBYTE *data = SERIES_DATA(vect);

@@ -94,7 +94,7 @@ REBINT Cmp_Gob(const REBVAL *g1, const REBVAL *g2)
 //
 //  Set_Pair: C
 //
-static REBFLG Set_Pair(REBXYF *pair, const REBVAL *val)
+static REBOOL Set_Pair(REBXYF *pair, const REBVAL *val)
 {
     if (IS_PAIR(val)) {
         pair->x = VAL_PAIR_X(val);
@@ -161,7 +161,7 @@ static void Detach_Gob(REBGOB *gob)
 // If index >= tail, an append occurs. Each gob has its parent
 // gob field set. (Call Detach_Gobs() before inserting.)
 //
-static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len, REBFLG change)
+static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len, REBOOL change)
 {
     REBGOB **ptr;
     REBCNT n, count;
@@ -341,7 +341,7 @@ static void Set_Gob_Flag(REBGOB *gob, const REBVAL *word)
 //
 //  Set_GOB_Var: C
 //
-static REBFLG Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
+static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
 {
     switch (VAL_WORD_CANON(word)) {
     case SYM_OFFSET:
@@ -411,9 +411,11 @@ static REBFLG Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
     case SYM_PANE:
         if (GOB_PANE(gob)) Clear_Series(GOB_PANE(gob));
         if (IS_BLOCK(val))
-            Insert_Gobs(gob, VAL_ARRAY_AT(val), 0, VAL_ARRAY_LEN_AT(val), 0);
+            Insert_Gobs(
+                gob, VAL_ARRAY_AT(val), 0, VAL_ARRAY_LEN_AT(val), FALSE
+            );
         else if (IS_GOB(val))
-            Insert_Gobs(gob, val, 0, 1, 0);
+            Insert_Gobs(gob, val, 0, 1, FALSE);
         else if (IS_NONE(val))
             gob->pane = 0;
         else
@@ -481,7 +483,7 @@ static REBFLG Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
 //
 //  Get_GOB_Var: C
 //
-static REBFLG Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
+static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
 {
     switch (VAL_WORD_CANON(word)) {
 
@@ -666,7 +668,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
 //
 //  MT_Gob: C
 //
-REBFLG MT_Gob(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Gob(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBGOB *ngob;
 
@@ -810,7 +812,7 @@ REBTYPE(Gob)
         ) {
             fail (Error(RE_NOT_DONE));
         }
-        Insert_Gobs(gob, arg, index, 1, 0);
+        Insert_Gobs(gob, arg, index, 1, FALSE);
         //ngob = *GOB_AT(gob, index);
         //GOB_PARENT(ngob) = 0;
         //*GOB_AT(gob, index) = VAL_GOB(arg);
@@ -832,7 +834,7 @@ REBTYPE(Gob)
             arg = VAL_ARRAY_AT(arg);
         }
         else goto is_arg_error;;
-        Insert_Gobs(gob, arg, index, len, 0);
+        Insert_Gobs(gob, arg, index, len, FALSE);
         break;
 
     case A_CLEAR:

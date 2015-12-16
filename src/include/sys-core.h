@@ -147,7 +147,7 @@ typedef struct rebol_port_action_map {
 
 typedef struct rebol_mold {
     REBSER *series;     // destination series (uni)
-    REBCNT opts;        // special option flags
+    REBFLGS opts;        // special option flags
     REBINT indent;      // indentation amount
 //  REBYTE space;       // ?
     REBYTE period;      // for decimal point
@@ -263,8 +263,10 @@ enum REB_Mold_Opts {
 #define GET_MOPT(v, f) GET_FLAG(v->opts, f)
 
 // Special flags for decimal formatting:
-#define DEC_MOLD_PERCENT 1  // follow num with %
-#define DEC_MOLD_MINIMAL 2  // allow decimal to be integer
+enum {
+    DEC_MOLD_PERCENT = 1 << 0,      // follow num with %
+    DEC_MOLD_MINIMAL = 1 << 1       // allow decimal to be integer
+};
 
 // Temporary:
 #define MOPT_NON_ANSI_PARENED MOPT_MOLD_ALL // Non ANSI chars are ^() escaped
@@ -419,7 +421,8 @@ enum encoding_opts {
         Catch_Thrown_Debug(a, t)
 #endif
 
-#define THROWN(v)           (VAL_GET_OPT((v), OPT_VALUE_THROWN))
+#define THROWN(v) \
+    VAL_GET_OPT((v), OPT_VALUE_THROWN)
 
 
 /***********************************************************************
@@ -691,11 +694,11 @@ typedef struct rebol_stats {
 
 //-- Options of various kinds:
 typedef struct rebol_opts {
-    REBFLG  watch_obj_copy;
-    REBFLG  watch_recycle;
-    REBFLG  watch_series;
-    REBFLG  watch_expand;
-    REBFLG  crash_dump;
+    REBOOL  watch_obj_copy;
+    REBOOL  watch_recycle;
+    REBOOL  watch_series;
+    REBOOL  watch_expand;
+    REBOOL  crash_dump;
 } REB_OPTS;
 
 typedef struct rebol_time_fields {

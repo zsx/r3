@@ -61,7 +61,7 @@ void Split_Time(REBI64 t, REB_TIMEF *tf)
 // issue, as previous code falsely tried to judge the sign
 // of tf->h, which is always positive.)
 //
-REBI64 Join_Time(REB_TIMEF *tf, REBFLG neg)
+REBI64 Join_Time(REB_TIMEF *tf, REBOOL neg)
 {
     REBI64 t;
 
@@ -77,7 +77,7 @@ REBI64 Join_Time(REB_TIMEF *tf, REBFLG neg)
 const REBYTE *Scan_Time(const REBYTE *cp, REBCNT len, REBVAL *value)
 {
     const REBYTE  *sp;
-    REBYTE  merid = FALSE;
+    REBYTE  merid = '\0';
     REBOOL  neg = FALSE;
     REBINT  part1, part2, part3 = -1;
     REBINT  part4 = -1;
@@ -109,20 +109,25 @@ const REBYTE *Scan_Time(const REBYTE *cp, REBCNT len, REBVAL *value)
         if (part4 == 0) part4 = -1;
     }
     if ((UP_CASE(*cp) == 'A' || UP_CASE(*cp) == 'P') && (UP_CASE(cp[1]) == 'M')) {
-        merid = (REBYTE)UP_CASE(*cp);
+        merid = cast(REBYTE, UP_CASE(*cp));
         cp += 2;
     }
 
     if (part3 >= 0 || part4 < 0) {  // HH:MM mode
-        if (merid) {
+        if (merid != '\0') {
             if (part1 > 12) return 0;
             if (part1 == 12) part1 = 0;
             if (merid == 'P') part1 += 12;
         }
         if (part3 < 0) part3 = 0;
         VAL_TIME(value) = HOUR_TIME(part1) + MIN_TIME(part2) + SEC_TIME(part3);
-    } else {                        // MM:SS mode
-        if (merid) return 0;        // no AM/PM for minutes
+    }
+    else {
+        // MM:SS mode
+
+        if (merid != '\0')
+            return NULL; // no AM/PM for minutes
+
         VAL_TIME(value) = MIN_TIME(part1) + SEC_TIME(part2);
     }
 
@@ -199,7 +204,7 @@ REBI64 Make_Time(REBVAL *val)
         secs = DEC_TO_SECS(VAL_DECIMAL(val));
     }
     else if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) <= 3) {
-        REBFLG neg = FALSE;
+        REBOOL neg = FALSE;
         REBI64 i;
 
         val = VAL_ARRAY_AT(val);
@@ -242,7 +247,7 @@ REBI64 Make_Time(REBVAL *val)
 //
 //  MT_Time: C
 //
-REBFLG MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBI64 secs = Make_Time(data);
 

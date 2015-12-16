@@ -36,7 +36,7 @@
 //
 REBINT CT_Money(REBVAL *a, REBVAL *b, REBINT mode)
 {
-    REBFLG e, g;
+    REBOOL e, g;
 
     if (mode >= 3) e = deci_is_same(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
     else {
@@ -45,27 +45,29 @@ REBINT CT_Money(REBVAL *a, REBVAL *b, REBINT mode)
             g = deci_is_lesser_or_equal(
                 VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
             );
-            if (mode == -1) e |= g;
-            else e = g & !e;
+            if (mode == -1) e = LOGICAL(e || g);
+            else e = LOGICAL(g && !e);
         }
     }
-    return e != 0;;
+    return e ? 1 : 0;
 }
 
 
 //
 //  Emit_Money: C
 //
-REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBCNT opts)
+REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
 {
     return deci_to_string(buf, VAL_MONEY_AMOUNT(value), '$', '.');
 }
 
 
 //
-//  Bin_To_Money: C
+//  Bin_To_Money_May_Fail: C
 //
-REBINT Bin_To_Money(REBVAL *result, REBVAL *val)
+// Will successfully convert or fail (longjmp) with an error.
+//
+void Bin_To_Money_May_Fail(REBVAL *result, REBVAL *val)
 {
     REBCNT len;
     REBYTE buf[MAX_HEX_LEN+4] = {0}; // binary to convert
@@ -99,7 +101,6 @@ REBINT Bin_To_Money(REBVAL *result, REBVAL *val)
     memcpy(buf + 12 - len, buf, len); // shift to right side
     memset(buf, 0, 12 - len);
     VAL_MONEY_AMOUNT(result) = binary_to_deci(buf);
-    return TRUE;
 }
 
 
@@ -253,7 +254,7 @@ REBTYPE(Money)
 
 //      case REB_ISSUE:
         case REB_BINARY:
-            if (!Bin_To_Money(D_OUT, arg)) goto err;
+            Bin_To_Money_May_Fail(D_OUT, arg);
             break;
 
         case REB_LOGIC:
@@ -263,7 +264,6 @@ REBTYPE(Money)
             break;
 
         default:
-        err:
             fail (Error_Bad_Make(REB_MONEY, arg));
         }
         break;

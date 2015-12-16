@@ -207,7 +207,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBFLG Eval_Table[REB_MAX] =
+*/  const REBOOL Eval_Table[REB_MAX] =
 /*
 ** This table is used to bypass a Do_Core evaluation for certain types.  So
 ** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
@@ -286,7 +286,7 @@ for-each-record-NO-RETURN type boot-types [
         ; taken care of by make-headers.r, no need to re-emit
         comment [
             emit-line/up1/decl
-                "extern REBFLG MT_" type/class "(REBVAL *, REBVAL *, REBCNT);"
+                "extern REBOOL MT_" type/class "(REBVAL *, REBVAL *, REBCNT);"
         ]
         append types-used type/class
     ]
@@ -485,10 +485,8 @@ for-each-record-NO-RETURN type boot-types [
 
     str: uppercase form type/name
     replace/all str #"-" #"_"
-    def: join {#define IS_} [str "(v)"]
-    len: 31 - length def
-    loop to-integer len / 4 [append def tab]
-    emit [def "(VAL_TYPE(v)==REB_" str ")" newline]
+    def: join {#define IS_} [str "(v)" space]
+    emit [def "LOGICAL(VAL_TYPE(v)==REB_" str ")" newline]
 
     n: n + 1
 ]
@@ -539,7 +537,7 @@ emit {
 // (though perhaps someday it could be tweaked so that all the evaluated types
 // had a certain bit set?) hence use a small fixed table.
 
-extern const REBFLG Eval_Table[REB_MAX];
+extern const REBOOL Eval_Table[REB_MAX];
 
 #define ANY_EVAL(v) Eval_Table[VAL_TYPE(v)]
 }

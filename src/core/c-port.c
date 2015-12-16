@@ -57,7 +57,7 @@ void Make_Port(REBVAL *out, const REBVAL *spec)
 // Standard method for checking if port is open.
 // A convention. Not all ports use this method.
 //
-REBFLG Is_Port_Open(REBFRM *port)
+REBOOL Is_Port_Open(REBFRM *port)
 {
     REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
     if (!IS_BINARY(state)) return FALSE;
@@ -71,11 +71,11 @@ REBFLG Is_Port_Open(REBFRM *port)
 // Standard method for setting a port open/closed.
 // A convention. Not all ports use this method.
 //
-void Set_Port_Open(REBFRM *port, REBFLG flag)
+void Set_Port_Open(REBFRM *port, REBOOL open)
 {
     REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
     if (IS_BINARY(state)) {
-        if (flag) SET_OPEN(VAL_BIN_AT(state));
+        if (open) SET_OPEN(VAL_BIN_AT(state));
         else SET_CLOSED(VAL_BIN_AT(state));
     }
 }
@@ -115,7 +115,7 @@ void *Use_Port_State(REBFRM *port, REBCNT device, REBCNT size)
 // Return TRUE if port value is pending a signal.
 // Not valid for all ports - requires request struct!!!
 //
-REBFLG Pending_Port(REBVAL *port)
+REBOOL Pending_Port(REBVAL *port)
 {
     REBVAL *state;
     REBREQ *req;
@@ -139,7 +139,7 @@ REBFLG Pending_Port(REBVAL *port)
 //      0 for nothing to do
 //      1 for wait is satisifed
 //
-REBINT Awake_System(REBARR *ports, REBINT only)
+REBINT Awake_System(REBARR *ports, REBOOL only)
 {
     REBVAL *port;
     REBVAL *state;
@@ -196,7 +196,7 @@ REBINT Awake_System(REBARR *ports, REBINT only)
 // Returns:
 //     TRUE when port action happened, or FALSE for timeout.
 //
-REBINT Wait_Ports(REBARR *ports, REBCNT timeout, REBINT only)
+REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
 {
     REBI64 base = OS_DELTA_TIME(0, 0);
     REBCNT time;

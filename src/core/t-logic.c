@@ -50,7 +50,7 @@ REBINT CT_Logic(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Logic: C
 //
-REBFLG MT_Logic(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Logic(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!IS_INTEGER(data)) return FALSE;
     SET_LOGIC(out, VAL_INT64(data) != 0);
@@ -63,8 +63,8 @@ REBFLG MT_Logic(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBTYPE(Logic)
 {
-    REBCNT val1 = VAL_LOGIC(D_ARG(1));
-    REBCNT val2;
+    REBOOL val1 = VAL_LOGIC(D_ARG(1));
+    REBOOL val2;
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     if (IS_BINARY_ACT(action)) {
@@ -79,19 +79,19 @@ REBTYPE(Logic)
     switch (action) {
 
     case A_AND_T:
-        val1 &= val2;
+        val1 = LOGICAL(val1 && val2);
         break;
 
     case A_OR_T:
-        val1 |= val2;
+        val1 = LOGICAL(val1 || val2);
         break;
 
     case A_XOR_T:
-        val1 ^= val2;
+        val1 = LOGICAL(!val1 != !val2);
         break;
 
     case A_COMPLEMENT:
-        val1 = 1 & ~val1;
+        val1 = NOT(val1);
         break;
 
     case A_RANDOM:
@@ -100,34 +100,43 @@ REBTYPE(Logic)
             Set_Random(val1 ? (REBINT)OS_DELTA_TIME(0, 0) : 1);
             return R_UNSET;
         }
-        DECIDE(Random_Int(D_REF(3)) & 1);  // /secure
+        if (Random_Int(D_REF(3)) & 1) // /secure
+            return R_TRUE;
+        return R_FALSE;
 
-    case A_MAKE:
     case A_TO:
         // As a "Rebol conversion", TO falls in line with the rest of the
         // interpreter canon that all non-none non-logic values are
-        // considered effectively "truth".  As a construction routine,
-        // MAKE takes more liberties in the meaning of its parameters,
-        // so it lets zero values be false.
-        if (IS_NONE(arg) ||
-            (IS_LOGIC(arg) && !VAL_LOGIC(arg)) ||
-            (IS_INTEGER(arg) && (action == A_MAKE && VAL_INT64(arg) == 0)) ||
-            ((IS_DECIMAL(arg) || IS_PERCENT(arg)) && (action == A_MAKE && VAL_DECIMAL(arg) == 0.0)) ||
-            (IS_MONEY(arg) && (action == A_MAKE && deci_is_zero(VAL_MONEY_AMOUNT(arg))))
-        ) goto is_false;
-        goto is_true;
+        // considered effectively "truth".
+        //
+        if (IS_CONDITIONAL_TRUE(arg))
+            return R_TRUE;
+        return R_FALSE;
+
+    case A_MAKE:
+        // As a construction routine, MAKE takes more liberties in the
+        // meaning of its parameters, so it lets zero values be false.
+        //
+        // !!! Is there a better idea for MAKE that does not hinge on the
+        // "zero is false" concept?  Is there a reason it should?
+        //
+        if (
+            IS_CONDITIONAL_FALSE(arg)
+            || (IS_INTEGER(arg) && VAL_INT64(arg) == 0)
+            || (
+                (IS_DECIMAL(arg) || IS_PERCENT(arg))
+                && (VAL_DECIMAL(arg) == 0.0)
+            )
+            || (IS_MONEY(arg) && deci_is_zero(VAL_MONEY_AMOUNT(arg)))
+        ) {
+            return R_FALSE;
+        }
+        return R_TRUE;
 
     default:
         fail (Error_Illegal_Action(REB_LOGIC, action));
     }
 
-    // Keep other fields AS IS!
     SET_LOGIC(D_ARG(1), val1);
     return R_ARG1;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }

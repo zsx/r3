@@ -100,9 +100,9 @@ typedef struct term_data {
 } STD_TERM;
 
 // Globals:
-static int  Term_Init = 0;          // Terminal init was successful
-static char **Line_History;     // Prior input lines
-static int Line_Count;          // Number of prior lines
+static REBOOL Term_Initialized = FALSE;     // Terminal init was successful
+static char **Line_History;                 // Prior input lines
+static int Line_Count;                      // Number of prior lines
 
 #ifndef NO_TTY_ATTRIBUTES
 static struct termios Term_Attrs;   // Initial settings, restored on exit
@@ -125,7 +125,7 @@ STD_TERM *Init_Terminal(void)
 #ifndef NO_TTY_ATTRIBUTES
     struct termios attrs;
 
-    if (Term_Init || tcgetattr(0, &Term_Attrs)) return FALSE;
+    if (Term_Initialized || tcgetattr(0, &Term_Attrs)) return NULL;
 
     attrs = Term_Attrs;
 
@@ -157,7 +157,7 @@ STD_TERM *Init_Terminal(void)
     term->residue = OS_ALLOC_N(char, TERM_BUF_LEN);
     term->residue[0] = 0;
 
-    Term_Init = TRUE;
+    Term_Initialized = TRUE;
 
     return term;
 }
@@ -175,7 +175,7 @@ void Quit_Terminal(STD_TERM *term)
 {
     int n;
 
-    if (Term_Init) {
+    if (Term_Initialized) {
 #ifndef NO_TTY_ATTRIBUTES
         tcsetattr(0, TCSADRAIN, &Term_Attrs);
 #endif
@@ -186,7 +186,7 @@ void Quit_Terminal(STD_TERM *term)
         OS_FREE(Line_History);
     }
 
-    Term_Init = FALSE;
+    Term_Initialized = FALSE;
 }
 
 
@@ -368,7 +368,7 @@ static char *Insert_Char(STD_TERM *term, char *cp)
 // Redisplay the line. Blank out extra char at end.
 // Unicode: not yet supported!
 //
-static void Delete_Char(STD_TERM *term, int back)
+static void Delete_Char(STD_TERM *term, REBOOL back)
 {
     int len;
 

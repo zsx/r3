@@ -325,7 +325,7 @@ void Host_Repl(int *exit_status) {
     int line_len;
 
     REBYTE *utf8byte;
-    BOOL inside_short_str = FALSE;
+    REBOOL inside_short_str = FALSE;
     int long_str_level = 0;
 
     while (TRUE) {
@@ -360,7 +360,7 @@ void Host_Repl(int *exit_status) {
             switch (*utf8byte) {
                 case '"':
                     if (long_str_level == 0) {
-                        inside_short_str = !inside_short_str;
+                        inside_short_str = NOT(inside_short_str);
                     }
                     break;
                 case '[':

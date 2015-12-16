@@ -524,7 +524,7 @@ bad_func_def:
 //     spec - same as other funcs
 //     body - [ext-obj func-index]
 //
-REBFLG Do_Command_Throws(struct Reb_Call *call_)
+REBOOL Do_Command_Throws(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
     REBVAL *val = ARRAY_HEAD(FUNC_BODY(D_FUNC));

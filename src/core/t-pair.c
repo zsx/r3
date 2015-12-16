@@ -48,7 +48,7 @@ REBINT CT_Pair(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Pair: C
 //
-REBFLG MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBD32 x;
     REBD32 y;
@@ -99,7 +99,7 @@ REBINT Cmp_Pair(const REBVAL *t1, const REBVAL *t2)
 //
 //  Min_Max_Pair: C
 //
-void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBFLG maxed)
+void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
 {
     REBXYF aa;
     REBXYF bb;
@@ -283,8 +283,8 @@ REBTYPE(Pair)
 
         case A_RANDOM:
             if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-            x1 = (REBD32)Random_Range((REBINT)x1, (REBOOL)D_REF(3));
-            y1 = (REBD32)Random_Range((REBINT)y1, (REBOOL)D_REF(3));
+            x1 = cast(REBD32, Random_Range(cast(REBINT, x1), D_REF(3)));
+            y1 = cast(REBD32, Random_Range(cast(REBINT, y1), D_REF(3)));
             goto setPair;
 
         case A_PICK:

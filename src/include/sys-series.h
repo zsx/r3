@@ -187,7 +187,7 @@ struct Reb_Series {
             REBCNT wide:16;
             REBCNT high:16;
         } area;
-        REBFLG negated; // for bitsets (can't be EXT flag on just one value)
+        REBOOL negated; // for bitsets (can't be EXT flag on just one value)
     } misc;
 
     //
@@ -317,7 +317,7 @@ struct Reb_Series {
     cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
 
 #define SERIES_GET_FLAG(s, f) \
-    (0 != (SERIES_FLAGS(s) & ((f) << 8)))
+    LOGICAL(SERIES_FLAGS(s) & ((f) << 8))
 
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
 
@@ -530,7 +530,7 @@ struct Reb_Series {
 // size is not odd was added to Make_Series; reconsider if this becomes an
 // issue at some point.
 //
-#define BYTE_SIZE(s) (((s)->info) & 1)
+#define BYTE_SIZE(s) LOGICAL(((s)->info) & 1)
 
 //
 // Arg is a unicode series:

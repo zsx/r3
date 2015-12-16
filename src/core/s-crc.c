@@ -333,7 +333,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 // 
 // Note: hash array contents (indexes) are 1-based!
 //
-REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBCNT cased)
+REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
 {
     REBCNT n;
     REBSER *hashlist;

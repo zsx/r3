@@ -29,7 +29,7 @@
 
 // REBOL startup option structure:
 typedef struct rebol_args {
-    REBCNT options;
+    REBFLGS options;
     REBCHR *script;
     REBCHR **args;
     REBCHR *do_arg;

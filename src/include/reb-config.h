@@ -146,7 +146,7 @@ Special internal defines used by RT, not Host-Kit developers:
     #define WIN32_LEAN_AND_MEAN     // trim down the Win32 headers
 #else
     #define OS_DIR_SEP '/'          // rest of the world uses it
-    #define OS_CRLF FALSE           // just LF in strings
+    #define OS_CRLF 0               // just LF in strings
 
     #define API_IMPORT
     // Note: Unsupported by gcc 2.95.3-haiku-121101

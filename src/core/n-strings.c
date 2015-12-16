@@ -169,7 +169,7 @@ REBNATIVE(spelling_of)
         // during the FORMing process
 
         VAL_RESET_HEADER(value, REB_WORD);
-        series = Copy_Mold_Value(value, TRUE);
+        series = Copy_Mold_Value(value, 0 /* opts... MOPT_0? */);
     }
 
     Val_Init_String(D_OUT, series);
@@ -239,7 +239,7 @@ REBNATIVE(checksum)
 
             if (digests[i].index == sym) {
                 REBSER *digest = Make_Series(
-                    digests[i].len + 1, sizeof(char), FALSE
+                    digests[i].len + 1, sizeof(char), MKS_NONE
                 );
 
                 LABEL_SERIES(digest, "checksum digest");

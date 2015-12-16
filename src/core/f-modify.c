@@ -129,7 +129,7 @@ REBCNT Modify_String(
     REBSER *dst_ser,        // target
     REBCNT dst_idx,         // position
     const REBVAL *src_val,  // source
-    REBCNT flags,           // AN_PART
+    REBFLGS flags,          // AN_PART
     REBINT dst_len,         // length to remove
     REBINT dups             // dup count
 ) {

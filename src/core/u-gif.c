@@ -271,7 +271,7 @@ void Decode_GIF_Image(REBCDI *codi)
         if (c != ',') continue;
 
         image_count++;
-        interlaced = (cp[8] & 0x40) != 0;
+        interlaced = LOGICAL(cp[8] & 0x40);
         local_colormap = cp[8] & 0x80;
 
         w = LSBFirstOrder(cp[4],cp[5]);

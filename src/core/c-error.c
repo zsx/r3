@@ -95,7 +95,7 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     ASSERT_FRAME(state->error);
     assert(FRAME_TYPE(state->error) == REB_ERROR);
 
-    halted = (ERR_NUM(state->error) == RE_HALT);
+    halted = LOGICAL(ERR_NUM(state->error) == RE_HALT);
 
     // Restore Rebol call stack frame at time of Push_Trap.  Also, our
     // topmost call state (which may have been pushed but not put into
@@ -481,7 +481,7 @@ static REBFRM *Make_Guarded_Arg123_Error_Frame(void)
 // maps out the existing landscape so that if it is to be changed
 // then it can be seen exactly what is changing.
 //
-REBFLG Make_Error_Object_Throws(
+REBOOL Make_Error_Object_Throws(
     REBVAL *out, // output location **MUST BE GC SAFE**!
     REBVAL *arg
 ) {
@@ -786,7 +786,7 @@ REBFLG Make_Error_Object_Throws(
 // return to the caller to properly call va_end with no longjmp
 // to skip it.
 //
-REBFRM *Make_Error_Core(REBCNT code, REBFLG up_stack, va_list *args)
+REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
 {
     REBFRM *root_frame;
 
@@ -1064,7 +1064,7 @@ REBFRM *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
     REBFRM *frame;
 
     va_start(args, num);
-    frame = Make_Error_Core((num < 0 ? -num : num), num < 0, &args);
+    frame = Make_Error_Core((num < 0 ? -num : num), LOGICAL(num < 0), &args);
     va_end(args);
 
     return frame;

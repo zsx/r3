@@ -143,7 +143,7 @@ typedef RGBQUAD *RGBQUADPTR;
 
 //**********************************************************************
 
-static int longaligned(void) {
+static REBOOL longaligned(void) {
     static char filldata[] = {0,0,1,1,1,1};
     struct {
         unsigned short a;

@@ -43,7 +43,7 @@ REBINT CT_Datatype(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Datatype: C
 //
-REBFLG MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBCNT sym;
     if (!IS_WORD(data)) return FALSE;

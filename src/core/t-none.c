@@ -42,7 +42,7 @@ REBINT CT_None(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_None: C
 //
-REBFLG MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     VAL_RESET_HEADER(out, type);
     return TRUE;

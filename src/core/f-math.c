@@ -51,7 +51,7 @@
 const REBYTE *Grab_Int(const REBYTE *cp, REBINT *val)
 {
     REBINT value = 0;
-    REBINT neg = FALSE;
+    REBOOL neg = FALSE;
 
     if (*cp == '-') cp++, neg = TRUE;
     else if (*cp == '+') cp++;
@@ -244,8 +244,13 @@ REBINT Emit_Integer(REBYTE *buf, REBI64 val)
 //
 //  Emit_Decimal: C
 //
-REBINT Emit_Decimal(REBYTE *cp, REBDEC d, REBFLG trim, REBYTE point, REBINT decimal_digits)
-{
+REBINT Emit_Decimal(
+    REBYTE *cp,
+    REBDEC d,
+    REBFLGS flags, // DEC_MOLD_PERCENT, DEC_MOLD_MINIMAL
+    REBYTE point,
+    REBINT decimal_digits
+) {
     REBYTE *start = cp, *sig, *rve;
     int e, sgn;
     REBINT digits_obtained;
@@ -261,7 +266,7 @@ REBINT Emit_Decimal(REBYTE *cp, REBDEC d, REBFLG trim, REBYTE point, REBINT deci
     /* handle sign */
     if (sgn) *cp++ = '-';
 
-    if (trim == DEC_MOLD_PERCENT) e += 2;
+    if (flags & DEC_MOLD_PERCENT) e += 2;
 
     if ((e > decimal_digits) || (e <= -6)) {
         /* e-format */
@@ -312,7 +317,12 @@ REBINT Emit_Decimal(REBYTE *cp, REBDEC d, REBFLG trim, REBYTE point, REBINT deci
     }
 
     // Add at least one zero after point (unless percent or pair):
-    if (*(cp - 1) == point) {if (trim) cp--; else *cp++ = '0';}
+    if (*(cp - 1) == point) {
+        if ((flags & DEC_MOLD_PERCENT) || (flags & DEC_MOLD_MINIMAL))
+            cp--;
+        else
+            *cp++ = '0';
+    }
 
     // Add E part if needed:
     if (e) {
@@ -321,7 +331,7 @@ REBINT Emit_Decimal(REBYTE *cp, REBDEC d, REBFLG trim, REBYTE point, REBINT deci
         cp = b_cast(strchr(s_cast(cp), 0));
     }
 
-    if (trim == DEC_MOLD_PERCENT) *cp++ = '%';
+    if (flags & DEC_MOLD_PERCENT) *cp++ = '%';
     *cp = 0;
     return cp - start;
 }

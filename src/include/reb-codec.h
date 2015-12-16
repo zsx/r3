@@ -50,7 +50,7 @@ typedef struct reb_codec_image {
     int w;
     int h;
     unsigned int len;
-    int alpha;
+    int has_alpha; // files referring to this are third party (no REBOOL)
     unsigned char *data;
     union {
         u32 *bits;

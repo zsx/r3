@@ -299,7 +299,7 @@ REBSER *Complement_Binary(REBVAL *value)
 // Randomize a string. Return a new string series.
 // Handles both BYTE and UNICODE strings.
 //
-void Shuffle_String(REBVAL *value, REBFLG secure)
+void Shuffle_String(REBVAL *value, REBOOL secure)
 {
     REBCNT n;
     REBCNT k;
@@ -334,7 +334,7 @@ static REBYTE seed_str[SEED_LEN] = {
 // 
 // The key (kp) is passed as a REBVAL or REBYTE (when klen is !0).
 //
-REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, REBFLG as_is)
+REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, REBOOL as_is)
 {
     REBCNT i, n;
     REBYTE src[20];
@@ -395,7 +395,7 @@ REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, RE
 //
 void Trim_Tail(REBSER *src, REBYTE chr)
 {
-    REBOOL unicode = !BYTE_SIZE(src);
+    REBOOL unicode = NOT(BYTE_SIZE(src));
     REBCNT tail;
     REBUNI c;
 

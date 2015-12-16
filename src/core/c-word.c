@@ -375,7 +375,7 @@ const REBYTE *Get_Type_Name(const REBVAL *value)
 // Note that words are kept UTF8 encoded.
 // Positive result if s > t and negative if s < t.
 //
-REBINT Compare_Word(const REBVAL *s, const REBVAL *t, REBFLG is_case)
+REBINT Compare_Word(const REBVAL *s, const REBVAL *t, REBOOL is_case)
 {
     REBYTE *sp = VAL_WORD_NAME(s);
     REBYTE *tp = VAL_WORD_NAME(t);
@@ -396,7 +396,7 @@ REBINT Compare_Word(const REBVAL *s, const REBVAL *t, REBFLG is_case)
 // 
 // Only flags BIND_Table creation only (for threads).
 //
-void Init_Words(REBFLG only)
+void Init_Words(REBOOL only)
 {
     REBCNT n = Get_Hash_Prime(WORD_TABLE_SIZE * 4); // extra to reduce rehashing
 

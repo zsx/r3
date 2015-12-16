@@ -32,6 +32,19 @@
 #include "sys-zlib.h"
 #include <ctype.h> // remove this later !!!!
 
+#ifdef STRICT_BOOL_COMPILER_TEST
+    //
+    // This is third party code that is not written to use REBOOL, and hence
+    // the definitions of TRUE and FALSE used in the "fake" build will trip
+    // it up.  We substitute in normal definitions for this file.  See
+    // the explanations of this test in %reb-c.h for more information.
+    //
+    #undef TRUE
+    #undef FALSE
+    #define TRUE 1
+    #define FALSE 0
+#endif
+
 #if defined(ENDIAN_LITTLE)
 #define CVT_END_L(a) a=(a<<24)|(((a>>8)&255)<<16)|(((a>>16)&255)<<8)|(a>>24)
 #elif defined(ENDIAN_BIG)
@@ -560,7 +573,7 @@ int png_info(unsigned char *buffer, int nbytes, int *w, int *h) {
     return 1;
 }
 
-void png_load(unsigned char *buffer, int nbytes, char *output, REBOOL *alpha) {
+void png_load(unsigned char *buffer, int nbytes, char *output, BOOL *alpha) {
     unsigned char *p;
     int length,ret,adam7pass;
     int awidth,aheight,r,comp_awidth;
@@ -715,12 +728,12 @@ void Encode_PNG_Image(REBCDI *codi)
     unsigned char *linebuf,*cp;
     int x,y,imgsize,ret;
     REBCNT *dp,cv;
-    REBOOL hasalpha;
+    int hasalpha;
 //  z_stream zstream={0}; // Ren/C: changed for -Wmissing-field-initializers
     z_stream zstream;
     memset(&zstream, '\0', sizeof(zstream));
 
-    hasalpha = codi->alpha;
+    hasalpha = codi->has_alpha;
 
     ihdr.width=w;
     CVT_END_L(ihdr.width);
@@ -823,7 +836,7 @@ error:
 void Decode_PNG_Image(REBCDI *codi)
 {
     int w, h;
-    REBOOL alpha = 0;
+    BOOL alpha = 0;
 
     if (!png_info(codi->data, codi->len, &w, &h )) trap_png();
     codi->w = w;

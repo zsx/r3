@@ -46,7 +46,7 @@ REBINT CT_Tuple(REBVAL *a, REBVAL *b, REBINT mode)
 //
 //  MT_Tuple: C
 //
-REBFLG MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBYTE  *vp;
     REBINT len = 0;
@@ -379,7 +379,8 @@ REBTYPE(Tuple)
             if (len > MAX_TUPLE) goto bad_arg; // valid even for UTF-8
             VAL_TUPLE_LEN(value) = len;
             for (alen = 0; alen < len; alen++) {
-                if (!Scan_Hex2(ap, &c, 0)) goto bad_arg;
+                const REBOOL unicode = FALSE;
+                if (!Scan_Hex2(ap, &c, unicode)) goto bad_arg;
                 *vp++ = (REBYTE)c;
                 ap += 2;
             }

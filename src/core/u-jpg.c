@@ -5,6 +5,19 @@
 #include <setjmp.h>
 #include "sys-jpg.h"
 
+#ifdef STRICT_BOOL_COMPILER_TEST
+    //
+    // This is third party code that is not written to use REBOOL, and hence
+    // the definitions of TRUE and FALSE used in the "fake" build will trip
+    // it up.  We substitute in normal definitions for this file.  See
+    // the explanations of this test in %reb-c.h for more information.
+    //
+    #undef TRUE
+    #undef FALSE
+    #define TRUE 1
+    #define FALSE 0
+#endif
+
 /*
  * jdatasrc.c
  *

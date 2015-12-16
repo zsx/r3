@@ -49,7 +49,7 @@ REBINT CT_Array(REBVAL *a, REBVAL *b, REBINT mode)
     if (mode == 3)
         return VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b);
 
-    num = Cmp_Block(a, b, mode > 1);
+    num = Cmp_Block(a, b, LOGICAL(mode > 1));
     if (mode >= 0) return (num == 0);
     if (mode == -1) return (num >= 0);
     return (num > 0);
@@ -74,7 +74,7 @@ static void No_Nones(REBVAL *arg) {
 //     MT_Get_Path
 //     MT_Lit_Path
 //
-REBFLG MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBCNT i;
 
@@ -163,7 +163,8 @@ REBCNT Find_In_Array(
             cnt = 0;
             value = ARRAY_AT(array, index);
             for (val = VAL_ARRAY_AT(target); NOT_END(val); val++, value++) {
-                if (0 != Cmp_Value(value, val, (REBOOL)(flags & AM_FIND_CASE))) break;
+                if (0 != Cmp_Value(value, val, LOGICAL(flags & AM_FIND_CASE)))
+                    break;
                 if (++cnt >= len) {
                     return index;
                 }
@@ -194,7 +195,8 @@ REBCNT Find_In_Array(
     else {
         for (; index >= start && index < end; index += skip) {
             value = ARRAY_AT(array, index);
-            if (0 == Cmp_Value(value, target, (REBOOL)(flags & AM_FIND_CASE))) return index;
+            if (0 == Cmp_Value(value, target, LOGICAL(flags & AM_FIND_CASE)))
+                return index;
             if (flags & AM_FIND_MATCH) break;
         }
         return NOT_FOUND;
@@ -283,8 +285,8 @@ done:
 // WARNING! Not re-entrant. !!!  Must find a way to push it on stack?
 // Fields initialized to zero due to global scope
 static struct {
-    REBFLG cased;
-    REBFLG reverse;
+    REBOOL cased;
+    REBOOL reverse;
     REBCNT offset;
     REBVAL *compare;
 } sort_flags;
@@ -392,12 +394,12 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
 //
 static void Sort_Block(
     REBVAL *block,
-    REBFLG ccase,
+    REBOOL ccase,
     REBVAL *skipv,
     REBVAL *compv,
     REBVAL *part,
-    REBFLG all,
-    REBFLG rev
+    REBOOL all,
+    REBOOL rev
 ) {
     REBCNT len;
     REBCNT skip = 1;
@@ -475,7 +477,7 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 //
 //  Shuffle_Block: C
 //
-void Shuffle_Block(REBVAL *value, REBFLG secure)
+void Shuffle_Block(REBVAL *value, REBOOL secure)
 {
     REBCNT n;
     REBCNT k;

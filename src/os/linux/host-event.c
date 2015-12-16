@@ -636,7 +636,7 @@ static void handle_configure_notify(XEvent *ev, REBGOB *gob)
 static void handle_key(XEvent *ev, REBGOB *gob)
 {
     KeySym keysym;
-    REBFLG flags = Check_Modifiers(0, ev->xkey.state);
+    REBINT flags = Check_Modifiers(0, ev->xkey.state);
     char key_string[8];
     XComposeStatus compose_status;
     int i = 0, key = -1;

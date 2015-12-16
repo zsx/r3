@@ -108,7 +108,7 @@ REBNATIVE(mold)
 }
 
 
-static REBFLG Print_Native_Modifying_Throws(
+static REBOOL Print_Native_Modifying_Throws(
     REBVAL *value, // Value may be modified.  Contents must be GC-safe!
     REBOOL newline
 ) {
@@ -169,7 +169,7 @@ static REBFLG Print_Native_Modifying_Throws(
             return TRUE;
         }
 
-        Prin_Value(value, 0, 0);
+        Prin_Value(value, 0, FALSE);
         if (newline)
             Print_OS_Line();
     }
@@ -179,7 +179,7 @@ static REBFLG Print_Native_Modifying_Throws(
 #endif
         // !!! Full behavior review needed for all types.
 
-        Prin_Value(value, 0, 0);
+        Prin_Value(value, 0, FALSE);
         if (newline)
             Print_OS_Line();
     }
@@ -524,7 +524,7 @@ REBNATIVE(to_rebol_file)
     REBVAL *arg = D_ARG(1);
     REBSER *ser;
 
-    ser = Value_To_REBOL_Path(arg, 0);
+    ser = Value_To_REBOL_Path(arg, FALSE);
     if (!ser) fail (Error_Invalid_Arg(arg));
     Val_Init_File(D_OUT, ser);
 
@@ -613,7 +613,6 @@ REBNATIVE(change_dir)
 {
     REBVAL *arg = D_ARG(1);
     REBSER *ser;
-    REBINT n;
     REBVAL val;
 
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
@@ -635,9 +634,7 @@ REBNATIVE(change_dir)
         Val_Init_String(&val, ser); // may be unicode or utf-8
         Check_Security(SYM_FILE, POL_EXEC, &val);
 
-        n = OS_SET_CURRENT_DIR(cast(REBCHR*, SERIES_DATA(ser)));
-
-        if (n == 0)
+        if (!OS_SET_CURRENT_DIR(cast(REBCHR*, SERIES_DATA(ser))))
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
     }
 
@@ -1107,7 +1104,7 @@ REBSER *Block_To_String_List(REBVAL *blk)
     Reset_Mold(&mo);
 
     for (value = VAL_ARRAY_AT(blk); NOT_END(value); value++) {
-        Mold_Value(&mo, value, 0);
+        Mold_Value(&mo, value, FALSE);
         Append_Codepoint_Raw(mo.series, 0);
     }
     Append_Codepoint_Raw(mo.series, 0);
