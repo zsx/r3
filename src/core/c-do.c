@@ -2793,62 +2793,97 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 //
 void Do_Construct(REBVAL value[])
 {
-    REBVAL *temp;
-    REBINT ssp;  // starting stack pointer
+    REBINT dsp_orig = DSP;
+    REBVAL temp;
+    SET_NONE(&temp);
 
-    DS_PUSH_NONE;
-    temp = DS_TOP;
-    ssp = DSP;
-
+    // This routine reads values from the start to the finish, which means
+    // that if it wishes to do `word1: word2: value` it needs to have some
+    // way of getting to the value and then going back across the words to
+    // set them.  One way of doing it would be to start from the end and
+    // work backward, but this uses the data stack instead to gather set
+    // words and then go back and set them all when a value is found.
+    //
+    // !!! This could also just remember the pointer of the first set
+    // word in a run, but at time of writing this is just patching a bug.
+    //
     for (; NOT_END(value); value++) {
         if (IS_SET_WORD(value)) {
-            // Next line not needed, because SET words are ALWAYS in frame.
-            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_TARGET(value) == frame)
-                DS_PUSH(value);
-        } else {
-            // Get value:
-            if (IS_WORD(value)) {
-                switch (VAL_WORD_CANON(value)) {
-                case SYM_NONE:
-                    SET_NONE(temp);
-                    break;
-                case SYM_TRUE:
-                case SYM_ON:
-                case SYM_YES:
-                    SET_TRUE(temp);
-                    break;
-                case SYM_FALSE:
-                case SYM_OFF:
-                case SYM_NO:
-                    SET_FALSE(temp);
-                    break;
-                default:
-                    *temp = *value;
-                    VAL_RESET_HEADER(temp, REB_WORD);
-                }
-            }
-            else if (IS_LIT_WORD(value)) {
-                *temp = *value;
-                VAL_RESET_HEADER(temp, REB_WORD);
-            }
-            else if (IS_LIT_PATH(value)) {
-                *temp = *value;
-                VAL_RESET_HEADER(temp, REB_PATH);
-            }
-            else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
-                *temp = *value;
-            }
-            else
-                SET_NONE(temp);
+            //
+            // Remember this SET-WORD!.  Come back and set what it is
+            // bound to, once a non-SET-WORD! value is found.
+            //
+            DS_PUSH(value);
+            continue;
+        }
 
-            // Set prior set-words:
-            while (DSP > ssp) {
-                Set_Var(DS_TOP, temp);
-                DS_DROP;
+        // If not a SET-WORD! then consider the argument to represent some
+        // kind of value.
+        //
+        // !!! The historical default is to NONE!, and also to transform
+        // what would be evaluative into non-evaluative.  So:
+        //
+        //     >> construct [a: b/c: d: append "Strange" <defaults>]
+        //     == make object! [
+        //         a: b/c:
+        //         d: 'append
+        //     ]
+        //
+        // A differing philosophy might be that the construction process
+        // only tolerate input that would yield the same output if used
+        // in an evaulative object creation.
+        //
+        if (IS_WORD(value)) {
+            switch (VAL_WORD_CANON(value)) {
+            case SYM_NONE:
+                SET_NONE(&temp);
+                break;
+
+            case SYM_TRUE:
+            case SYM_ON:
+            case SYM_YES:
+                SET_TRUE(&temp);
+                break;
+
+            case SYM_FALSE:
+            case SYM_OFF:
+            case SYM_NO:
+                SET_FALSE(&temp);
+                break;
+
+            default:
+                temp = *value;
+                VAL_RESET_HEADER(&temp, REB_WORD);
             }
         }
+        else if (IS_LIT_WORD(value)) {
+            temp = *value;
+            VAL_RESET_HEADER(&temp, REB_WORD);
+        }
+        else if (IS_LIT_PATH(value)) {
+            temp = *value;
+            VAL_RESET_HEADER(&temp, REB_PATH);
+        }
+        else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
+            temp = *value;
+        }
+        else
+            SET_NONE(&temp);
+
+        // Set prior set-words:
+        while (DSP > dsp_orig) {
+            Set_Var(DS_TOP, &temp);
+            DS_DROP;
+        }
     }
-    DS_DROP; // temp
+
+    // All vars in the frame should have a default value if not set, so if
+    // we reached the end with something like `[a: 10 b: c: d:]` just leave
+    // the trailing words to that default.  However, we must balance the
+    // stack to please the evaluator, so let go of the set-words that we
+    // did not set.
+    //
+    DS_DROP_TO(dsp_orig);
 }
 
 
