@@ -98,6 +98,7 @@ typedef struct Rebol_State {
     struct Reb_Call *call;
     REBCNT series_guard_len;
     REBCNT value_guard_len;
+    REBCNT do_stack_len;
     REBFRM *error;
     REBINT gc_disable;      // Count of GC_Disables at time of Push
 

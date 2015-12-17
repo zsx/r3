@@ -815,12 +815,41 @@ void Do_Core(struct Reb_Call * const c)
     REBARR *return_to = NULL;
 
     // Fast short-circuit; and generally shouldn't happen because the calling
-    // macros usually avoid the function call overhead itself on ends.
+    // macros avoid the function call overhead itself on ends.
+    //
+    // !!! Should the debug build path which calls Do_Core() "SPORADICALLY()"
+    // despite seeing an END not do that, and change this to an assert that
+    // we never call Do_Core() on an END marker?
     //
     if (IS_END(c->value)) {
         SET_UNSET(c->out);
         c->index = END_FLAG;
         return;
+    }
+
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
     }
 
     // Capture the data stack pointer on entry (used by debug checks, but
@@ -829,19 +858,11 @@ void Do_Core(struct Reb_Call * const c)
     //
     c->dsp_orig = DSP;
 
-    // When no eval is in effect we use END because it's fast to assign,
-    // isn't debug-build only like REB_TRASH, and is not a legal result
-    // value type for an evaluation...hence can serve as "no eval" signal.
-    //
-    SET_END(&eval);
-
     // Write some garbage (that won't crash the GC) into the `out` slot in
     // the debug build.  We will assume that as the evaluator runs
     // it will never put anything in out that will crash the GC.
     //
     SET_TRASH_SAFE(c->out);
-
-    c->mode = CALL_MODE_0;
 
     // First, check the input parameters (debug build only)
 
@@ -860,12 +881,16 @@ void Do_Core(struct Reb_Call * const c)
 
     assert(c->value);
 
-    // logical xor: http://stackoverflow.com/a/1596970/211160
+    // Either DO_FLAG_NEXT or DO_FLAG_TO_END must be set, and so must either
+    // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD.
     //
-    assert(!(c->flags & DO_FLAG_NEXT) != !(c->flags & DO_FLAG_TO_END));
     assert(
-        !(c->flags & DO_FLAG_LOOKAHEAD)
-        != !(c->flags & DO_FLAG_NO_LOOKAHEAD)
+        LOGICAL(c->flags & DO_FLAG_NEXT)
+        != LOGICAL(c->flags & DO_FLAG_TO_END)
+    );
+    assert(
+        LOGICAL(c->flags & DO_FLAG_LOOKAHEAD)
+        != LOGICAL(c->flags & DO_FLAG_NO_LOOKAHEAD)
     );
 
     // Apply and Redo_Func are not "DO" frames.
@@ -898,7 +923,6 @@ do_at_index:
     // We should not be linked into the call stack when a function is not
     // running (it is not if we're in this outer loop)
     //
-    assert(c != CS_Top);
     assert(c != CS_Running);
 
     // Save the index at the start of the expression in case it is needed
@@ -927,7 +951,6 @@ do_at_index:
     assert(value_guard_len == SERIES_LEN(GC_Value_Guard));
 #endif
 
-reevaluate:
 #if !defined(NDEBUG)
     //
     // Trash call variables in debug build to make sure they're not reused.
@@ -952,8 +975,21 @@ reevaluate:
     SET_TRASH_SAFE(c->out);
 #endif
 
-    if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+    // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
+    //
+    SET_TRASH_IF_DEBUG(&eval);
 
+    // If we're going to jump to the `reevaluate:` label below we should not
+    // consider it a Recycle() opportunity.  The value residing in `eval`
+    // is a local variable unseen by the GC *by design*--to avoid having
+    // to initialize it or GC-safe de-initialize it each time through
+    // the evaluator loop.  It will only be protected by the GC under
+    // circumstances that wind up extracting its properties during a needed
+    // evaluation (hence protected indirectly via `c->array` or `c->func`.)
+    //
+    if (--Eval_Count <= 0 || Eval_Signals) Do_Signals(); // may Recycle()!
+
+reevaluate:
     assert(!THROWN(c->value));
     ASSERT_VALUE_MANAGED(c->value);
 
@@ -1122,25 +1158,7 @@ reevaluate:
         // Hence it is handled in a special way.
         //
         if (c->func == PG_Eval_Func) {
-            if (IS_END(&eval)) {
-                //
-                // The next evaluation we invoke expects to be able to write
-                // `out`, and our intermediary value does not live in a series
-                // that is protecting it.  We may need it to survive GC
-                // until the next evaluation is over...could be a while!  :-/
-                //
-                // Since we've now seen *an* eval, pay the cost for a guard.
-                //
-                PUSH_GUARD_VALUE(&eval);
-            }
-            else {
-                //
-                // If we're running a chain of evals like `eval eval eval ...`
-                // then the variable won't be an END, and is already guarded.
-                // So don't guard it again, just do the DO.
-                //
-            }
-
+            //
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...)
             //
@@ -1163,6 +1181,12 @@ reevaluate:
             // array to get the next `value`.  So seed it with the address of
             // our guarded eval result, and step the index back by one so
             // the next increment will get our position sync'd in the block.
+            //
+            // If there's any reason to be concerned about the temporary
+            // item being GC'd, it should be taken care of by the implicit
+            // protection from the Do Stack.  (e.g. if it contains a function
+            // that gets evaluated it will wind up in c->func, if it's a
+            // paren or path-containing-paren it winds up in c->array...)
             //
             c->value = &eval;
             c->index--;
@@ -1188,6 +1212,7 @@ reevaluate:
         ) {
             REB_R ret;
             struct Reb_Call *prior_call = DSF;
+            CS_Running = c;
 
             // A NULL arg signifies to the called function that it is being
             // run frameless.  If it had a frame, then it would be non-NULL
@@ -1204,10 +1229,6 @@ reevaluate:
 
             SET_TRASH_SAFE(&c->cell);
             SET_TRASH_SAFE(c->out);
-
-            c->prior = CS_Top;
-            CS_Top = c;
-            CS_Running = c;
 
             c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
 
@@ -1250,7 +1271,6 @@ reevaluate:
             c->mode = CALL_MODE_0;
 
             CS_Running = prior_call;
-            CS_Top = c->prior;
 
             // !!! The delegated routine knows it has to update the index
             // correctly, but should that mean it updates the throw flag
@@ -1839,9 +1859,6 @@ reevaluate:
             && FUNC_CODE(c->func) == &N_do
             && ANY_FUNC(DSF_ARGS_HEAD(c))
         ) {
-            if (IS_END(&eval))
-                PUSH_GUARD_VALUE(&eval);
-
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
@@ -2035,14 +2052,6 @@ reevaluate:
         break;
     }
 
-    // If we hit an `eval` command, then unguard the GC protected slot where
-    // that value was kept during the eval.
-    //
-    if (NOT_END(&eval)) {
-        DROP_GUARD_VALUE(&eval);
-        SET_END(&eval);
-    }
-
     if (c->index >= ARRAY_LEN(c->array)) {
         //
         // When running a DO/NEXT, clients may wish to distinguish between
@@ -2142,19 +2151,18 @@ return_index:
     assert(!IS_TRASH_DEBUG(c->out));
     assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
 
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
     return;
 
 return_thrown:
     c->index = THROWN_FLAG;
-
-    // May have skipped over a drop guard of eval if there was a throw and
-    // we didn't make it all the way after the switch.
-    //
-    if (NOT_END(&eval)) {
-        DROP_GUARD_VALUE(&eval);
-        SET_END(&eval);
-    }
     goto return_index;
 }
 
@@ -2475,10 +2483,15 @@ REBOOL Compose_Values_Throws(
 // refinements via unset as the path-based dispatch does in the
 // Do_Core evaluator.
 //
-REBOOL Apply_Func_Core(REBVAL *out, REBCNT label_sym, REBFUN *func, va_list *varargs)
-{
+REBOOL Apply_Func_Throws_Core(
+    REBVAL *out,
+    REBCNT label_sym,
+    REBFUN *func,
+    va_list *varargs
+) {
     struct Reb_Call call;
     struct Reb_Call * const c = &call; // for consistency w/Do_Core
+    REBOOL threw;
 
     // Apply_Func does not currently handle definitional returns; it is for
     // internal dispatch from C to system Rebol code only (and unrelated to
@@ -2522,7 +2535,32 @@ REBOOL Apply_Func_Core(REBVAL *out, REBCNT label_sym, REBFUN *func, va_list *var
     c->label_sym = label_sym;
     c->out = out;
 
-    c->mode = CALL_MODE_0;
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    //
+    // !!! Repeated code from Do_Core(), find good way to share.
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
+    }
 
     c->flags = 0;
 
@@ -2659,7 +2697,18 @@ REBOOL Apply_Func_Core(REBVAL *out, REBCNT label_sym, REBFUN *func, va_list *var
     // With the arguments processed and proxied into the call frame, invoke
     // the function body.
 
-    return Dispatch_Call_Throws(c);
+    threw = Dispatch_Call_Throws(c);
+
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    // !!! Repeated code with Do_Core(), find way to share.
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
+    return threw;
 }
 
 
@@ -2682,10 +2731,10 @@ REBOOL Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
     // dispatches to the `catch/with [] handler`, so by the time the parameter
     // gets to the invocation any name has been lost.
     //
-    result = Apply_Func_Core(out, SYM_ELLIPSIS, func, &args);
+    result = Apply_Func_Throws_Core(out, SYM_ELLIPSIS, func, &args);
 
     // !!! An issue was uncovered here that there can be problems if a
-    // failure is caused inside the Apply_Func_Core() which does
+    // failure is caused inside the Apply_Func_Throws_Core() which does
     // a longjmp() and never returns.  The C standard is explicit that
     // you cannot dodge the call to va_end(), and that call can only be
     // in *this* function (as it passes a local variable directly, and
@@ -2724,7 +2773,7 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     va_start(args, inum);
-    result = Apply_Func_Core(out, label_sym, VAL_FUNC(value), &args);
+    result = Apply_Func_Throws_Core(out, label_sym, VAL_FUNC(value), &args);
 
     // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
     va_end(args);

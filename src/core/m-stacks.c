@@ -66,7 +66,6 @@ void Init_Stacks(REBCNT size)
     assert(IS_END(&TG_Top_Chunk->values[0]));
     TG_Head_Chunk = TG_Top_Chunk;
 
-    CS_Top = NULL;
     CS_Running = NULL;
 
     DS_Array = Make_Array(size);
@@ -80,6 +79,15 @@ void Init_Stacks(REBCNT size)
     // get added back in--hopefully that will benefit all series.
     //
     Set_Root_Series(TASK_STACK, ARRAY_SERIES(DS_Array), "data stack");
+
+    // Call stack (includes pending functions, parens...)  We seed it with a
+    // NULL in the first spot so that pushes don't have to check for an
+    // empty array.
+    //
+    TG_Do_Stack = Make_Series(128, sizeof(struct Reb_Call*), MKS_NONE);
+    LABEL_SERIES(TG_Do_Stack, "do stack");
+    *cast(struct Reb_Call**, SERIES_DATA(TG_Do_Stack)) = NULL;
+    SET_SERIES_LEN(TG_Do_Stack, 1);
 }
 
 
@@ -88,6 +96,9 @@ void Init_Stacks(REBCNT size)
 //
 void Shutdown_Stacks(void)
 {
+    assert(SERIES_LEN(TG_Do_Stack) == 1);
+    Free_Series(TG_Do_Stack);
+
     assert(TG_Top_Chunk == cast(struct Reb_Chunk*, &TG_Root_Chunker->payload));
 
     // Because we always keep one chunker of headroom allocated, and the
@@ -102,7 +113,6 @@ void Shutdown_Stacks(void)
     FREE(struct Reb_Chunker, TG_Root_Chunker);
 
     assert(!CS_Running);
-    assert(!CS_Top);
 
     assert(DSP == -1);
 }
@@ -441,14 +451,6 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // the debug build.  `out` and `func` are known to be GC-safe.
     //
     SET_TRASH_SAFE(&c->cell);
-
-    // Even though we can't push this stack frame to be CS_Running yet, it
-    // still needs to be considered for GC.  In a recursive DO we can get
-    // many pending frames before we come back to actually putting the
-    // topmost one in effect.
-    //
-    c->prior = CS_Top;
-    CS_Top = c;
 }
 
 
@@ -469,11 +471,6 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 //
 void Drop_Call_Arglist(struct Reb_Call* c)
 {
-    // Drop to the prior top call stack frame
-    //
-    assert(c == CS_Top);
-    CS_Top = c->prior;
-
     if (IS_CLOSURE(FUNC_VALUE(c->func))) {
         //
         // Do_Closure() converted the arglist array to be managed.

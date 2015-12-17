@@ -54,6 +54,7 @@ void Push_Trap_Helper(REBOL_STATE *s)
 
     s->series_guard_len = SERIES_LEN(GC_Series_Guard);
     s->value_guard_len = SERIES_LEN(GC_Value_Guard);
+    s->do_stack_len = SERIES_LEN(TG_Do_Stack);
     s->gc_disable = GC_Disabled;
 
     s->manuals_len = SERIES_LEN(GC_Manuals);
@@ -101,7 +102,7 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     // topmost call state (which may have been pushed but not put into
     // effect) has been accounted for by the drop.
     //
-    CS_Running = CS_Top = state->call;
+    CS_Running = state->call;
 
     // Restore Rebol data stack pointer at time of Push_Trap
     DS_DROP_TO(state->dsp);
@@ -133,6 +134,7 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
 
     SET_SERIES_LEN(GC_Series_Guard, state->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, state->value_guard_len);
+    SET_SERIES_LEN(TG_Do_Stack, state->do_stack_len);
 
     GC_Disabled = state->gc_disable;
 
@@ -289,7 +291,14 @@ REBCNT Stack_Depth(void)
     REBCNT count = 0;
 
     while (call) {
-        count++;
+        if (call->mode == CALL_MODE_FUNCTION) {
+            //
+            // We only count invoked functions (not paren or path evaluations
+            // or "pending" functions that are building their arguments but
+            // have not been formally invoked yet)
+            //
+            count++;
+        }
         call = PRIOR_DSF(call);
     }
 
@@ -306,10 +315,19 @@ REBARR *Make_Backtrace(REBINT start)
 {
     REBCNT depth = Stack_Depth();
     REBARR *blk = Make_Array(depth - start);
-    struct Reb_Call *call;
+    struct Reb_Call *call = DSF;
     REBVAL *val;
 
-    for (call = DSF; call != NULL; call = PRIOR_DSF(call)) {
+    for (; call != NULL; call = PRIOR_DSF(call)) {
+        if (call->mode != CALL_MODE_FUNCTION) {
+            //
+            // The Stack_Depth() routine only considers invoked functions
+            // for the backtrace (not pending functions, not parens or
+            // paths, etc.)  This does the same.
+            //
+            continue;
+        }
+
         if (start-- <= 0) {
             val = Alloc_Tail_Array(blk);
             Val_Init_Word_Unbound(val, REB_WORD, DSF_LABEL_SYM(call));

@@ -538,13 +538,37 @@ static void Mark_Devices_Deep(void)
 //
 static void Mark_Call_Frames_Deep(void)
 {
-    struct Reb_Call *c = CS_Top;
+    struct Reb_Call *c = *(
+        cast(struct Reb_Call**, SERIES_DATA(TG_Do_Stack))
+        + SERIES_LEN(TG_Do_Stack)
+        - 1
+    );
 
-    while (c != NULL) {
+    for (; c != NULL; c = c->prior) {
 
     #if !defined(NDEBUG)
         const REBYTE *label_str = Get_Sym_Name(c->label_sym);
     #endif
+
+        // The array pointer passed to Do_Core is never NULL.
+        //
+        // !!! Perhaps it should be NULL if the call originated from C code.
+        // At the moment, that code forges a block to show in the backtrace
+        // as if it were Rebol, but it might be better to handle it special
+        // in the code doing the stack walks.
+        //
+        QUEUE_MARK_ARRAY_DEEP(c->array);
+
+        if (c->mode == CALL_MODE_0) {
+            //
+            // The only field we protect if no function is pending or running
+            // with this frame is the array itself.  This is important if we
+            // do something like `eval copy quote (recycle)`, because while
+            // evaluating the paren it has no anchor anywhere in the root set
+            // and could be GC'd.  The Reb_Call's array ref is all we have.
+            //
+            continue;
+        }
 
         if (Is_Value_Managed(&c->cell, FALSE))
             Queue_Mark_Value_Deep(&c->cell);
@@ -555,8 +579,6 @@ static void Mark_Call_Frames_Deep(void)
 
         if (c->value && Is_Value_Managed(c->value, FALSE))
             Queue_Mark_Value_Deep(c->value);
-
-        QUEUE_MARK_ARRAY_DEEP(c->array); // !!! never NULL (perhaps should be?)
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
@@ -571,7 +593,15 @@ static void Mark_Call_Frames_Deep(void)
         // there may be interesting tricks that can be done by knowing a
         // closure's concrete arg pointers for the duration of its call.
         //
-        if (IS_CLOSURE(FUNC_VALUE(c->func)))
+        // For the moment the actual transition from being manually managed
+        // to GC-managed happens after all the arguments have been fulfilled.
+        // This means it can only be protected if it's actually gotten to
+        // the CALL_MODE_FUNCTION phase.  It could just be managed the whole
+        // time, but given that CLOSURE! as a type is marked for death and
+        // replacement by a finer-grained "object to create for some 'locals'"
+        // worrying about the change is not necessary.
+        //
+        if (IS_CLOSURE(FUNC_VALUE(c->func)) && c->mode == CALL_MODE_FUNCTION)
             QUEUE_MARK_ARRAY_DEEP(c->arglist.array);
 
         // `param`, and `refine` may both be NULL
@@ -584,8 +614,6 @@ static void Mark_Call_Frames_Deep(void)
             Queue_Mark_Value_Deep(c->refine);
 
         Propagate_All_GC_Marks();
-
-        c = c->prior;
     }
 }
 
