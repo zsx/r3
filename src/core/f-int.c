@@ -174,5 +174,5 @@ REBOOL reb_u64_mul_overflow(u64 x, u64 y, u64 *prod)
     tmp = (x0 * y1 + x1 * y0); /* never overflow, because x1 * y1 == 0 */
     if (tmp >= b) return TRUE;  /*(x0 * y1 + x1 * y0) * b overflows */
 
-    return REB_U64_ADD_OF(tmp << 32, x0 * y0, prod);
+    return LOGICAL(REB_U64_ADD_OF(tmp << 32, x0 * y0, prod));
 }
