@@ -2475,7 +2475,7 @@ REBOOL Compose_Values_Throws(
 // refinements via unset as the path-based dispatch does in the
 // Do_Core evaluator.
 //
-REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
+REBOOL Apply_Func_Core(REBVAL *out, REBCNT label_sym, REBFUN *func, va_list *varargs)
 {
     struct Reb_Call call;
     struct Reb_Call * const c = &call; // for consistency w/Do_Core
@@ -2519,8 +2519,7 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 
     c->func = func;
 
-    // !!! Better symbol to use?
-    c->label_sym = SYM_NATIVE;
+    c->label_sym = label_sym;
     c->out = out;
 
     c->mode = CALL_MODE_0;
@@ -2677,7 +2676,13 @@ REBOOL Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
     va_list args;
 
     va_start(args, func);
-    result = Apply_Func_Core(out, func, &args);
+
+    // !!! Is there a better symbol to use than SYM_ELLIPSIS?  The cases where
+    // we wind up using Apply_Func_Throws are internal code such as that which
+    // dispatches to the `catch/with [] handler`, so by the time the parameter
+    // gets to the invocation any name has been lost.
+    //
+    result = Apply_Func_Core(out, SYM_ELLIPSIS, func, &args);
 
     // !!! An issue was uncovered here that there can be problems if a
     // failure is caused inside the Apply_Func_Core() which does
@@ -2713,12 +2718,13 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 {
     REBOOL result;
     va_list args;
+    REBCNT label_sym = FRAME_KEY_SYM(Sys_Context, inum);
     REBVAL *value = FRAME_VAR(Sys_Context, inum);
 
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     va_start(args, inum);
-    result = Apply_Func_Core(out, VAL_FUNC(value), &args);
+    result = Apply_Func_Core(out, label_sym, VAL_FUNC(value), &args);
 
     // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
     va_end(args);
