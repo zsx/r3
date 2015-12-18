@@ -1432,43 +1432,6 @@ void Manage_Frame_Debug(REBFRM *frame)
     MANAGE_ARRAY(FRAME_VARLIST(frame));
 }
 
-
-//
-//  Manuals_Leak_Check_Debug: C
-// 
-// Routine for checking that the pointer passed in is the
-// same as the head of the series that the GC is not tracking,
-// which is used to check for leaks relative to an initial
-// status of outstanding series.
-//
-void Manuals_Leak_Check_Debug(REBCNT manuals_len, const char *label_str)
-{
-    if (GC_Manuals->content.dynamic.len > manuals_len) {
-        REBSER* most_recent =
-            cast(REBSER**, GC_Manuals->content.dynamic.data)[
-                GC_Manuals->content.dynamic.len - 1
-            ];
-
-        Debug_Fmt(
-            "%d leaked REBSERs during %s",
-            GC_Manuals->content.dynamic.len - manuals_len,
-            label_str
-        );
-        Debug_Fmt("Panic_Series() on most recent (for valgrind, ASAN)");
-        Panic_Series(most_recent);
-    }
-    else if (GC_Manuals->content.dynamic.len < manuals_len) {
-        Debug_Fmt("Manual series freed from outside of checkpoint.");
-
-        // Note: Should this ever actually happen, a Panic_Series won't do
-        // that much good in helping debug it.  You'll probably need to
-        // add additional checking in the Manage_Series and Free_Series
-        // routines that checks against the caller's manuals_len.
-        //
-        assert(FALSE);
-    }
-}
-
 #endif
 
 

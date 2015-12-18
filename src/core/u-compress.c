@@ -195,7 +195,7 @@ REBSER *Decompress(
     REBOOL gzip,
     REBOOL raw
 ) {
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     REBCNT buf_size;

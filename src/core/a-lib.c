@@ -151,7 +151,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     REBVAL *val;
     REBSER *ser;
 
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     REBVAL start_result;
@@ -385,7 +385,7 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
     REBARR *code;
     REBVAL out;
 
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     // assumes it can only be run at the topmost level where

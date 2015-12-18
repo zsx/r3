@@ -151,7 +151,7 @@ TVAR struct Reb_Chunk *TG_Top_Chunk;
 TVAR struct Reb_Chunk *TG_Head_Chunk;
 TVAR struct Reb_Chunker *TG_Root_Chunker;
 
-TVAR REBOL_STATE *Saved_State; // Saved state for Catch (CPU state, etc.)
+TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
 
 #if !defined(NDEBUG)
     // In debug builds, the `panic` and `fail` macros capture the file and

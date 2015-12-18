@@ -443,18 +443,12 @@ struct Reb_Series {
 // few assert macros.
 //
 #ifdef NDEBUG
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        NOOP
-
     #define ASSERT_SERIES_MANAGED(series) \
         NOOP
 
     #define ASSERT_VALUE_MANAGED(value) \
         NOOP
 #else
-    #define MANUALS_LEAK_CHECK(manuals,label_str) \
-        Manuals_Leak_Check_Debug((manuals), (label_str))
-
     #define ASSERT_SERIES_MANAGED(series) \
         do { \
             if (!SERIES_GET_FLAG((series), SER_MANAGED)) \

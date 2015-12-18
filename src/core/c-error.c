@@ -32,15 +32,15 @@
 
 
 //
-//  Push_Trap_Helper: C
+//  Snap_State_Core: C
 // 
-// Used by both TRY and TRY_ANY, whose differentiation comes
-// from how they react to HALT.
+// Used by SNAP_STATE, PUSH_TRAP, and PUSH_UNHALTABLE_TRAP.
 //
-void Push_Trap_Helper(REBOL_STATE *s)
+// **Note:** Modifying this routine likely means a necessary modification to
+// both `Assert_State_Balanced_Debug()` and `Trapped_Helper_Halted()`.
+//
+void Snap_State_Core(struct Reb_State *s)
 {
-    assert(Saved_State || (DSP == -1 && !DSF));
-
     s->dsp = DSP;
     s->top_chunk = TG_Top_Chunk;
 
@@ -59,12 +59,109 @@ void Push_Trap_Helper(REBOL_STATE *s)
 
     s->manuals_len = SERIES_LEN(GC_Manuals);
 
-    s->last_state = Saved_State;
-    Saved_State = s;
-
     // !!! Is this initialization necessary?
     s->error = NULL;
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  Assert_State_Balanced_Debug: C
+//
+// Check that all variables in `state` have returned to what they were at
+// the time of snapshot.
+//
+void Assert_State_Balanced_Debug(
+    struct Reb_State *s,
+    const char *file,
+    int line
+) {
+    REBSER *panic = NULL;
+
+    if (s->dsp != DSP) {
+        Debug_Fmt(
+            "DS_PUSH()x%d without DS_POP/DS_DROP",
+            DSP - s->dsp
+        );
+        goto problem_found;
+    }
+
+    assert(s->top_chunk == TG_Top_Chunk);
+
+    assert(s->call == DSF);
+
+    assert(ARRAY_LEN(BUF_COLLECT) == 0);
+
+    if (s->series_guard_len != SERIES_LEN(GC_Series_Guard)) {
+        Debug_Fmt(
+            "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES",
+            SERIES_LEN(GC_Series_Guard) - s->series_guard_len
+        );
+        panic = *(
+            cast(REBSER**, SERIES_DATA(GC_Series_Guard))
+            + SERIES_LEN(GC_Series_Guard) - 1
+        );
+        goto problem_found;
+    }
+
+    if (s->value_guard_len != SERIES_LEN(GC_Value_Guard)) {
+        Debug_Fmt(
+            "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE",
+            SERIES_LEN(GC_Value_Guard) - s->value_guard_len
+        );
+        PROBE(*(
+            cast(REBVAL**, SERIES_DATA(GC_Value_Guard))
+            + SERIES_LEN(GC_Value_Guard) - 1
+        ));
+        goto problem_found;
+    }
+
+    assert(s->do_stack_len == SERIES_LEN(TG_Do_Stack));
+    assert(s->gc_disable == GC_Disabled);
+
+    // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
+    // instead of SERIES_LEN().  The idea being that although some series
+    // are able to fit in the series node, the GC_Manuals wouldn't ever
+    // pay for that check because it would always be known not to.  Review
+    // this in general for things that may not need "series" overhead,
+    // e.g. a contiguous pointer stack.
+    //
+    if (GC_Manuals->content.dynamic.len > SERIES_LEN(GC_Manuals)) {
+        Debug_Fmt("!!! Manual series freed from outside of checkpoint !!!");
+
+        // Note: Should this ever actually happen, a Panic_Series won't do
+        // any real good in helping debug it.  You'll probably need to
+        // add additional checking in the Manage_Series and Free_Series
+        // routines that checks against the caller's manuals_len.
+        //
+        goto problem_found;
+    }
+    else if (s->manuals_len < SERIES_LEN(GC_Manuals)) {
+        Debug_Fmt(
+            "Alloc_Series()x%d without Free_Series or MANAGE_SERIES",
+            SERIES_LEN(GC_Manuals) - s->manuals_len
+        );
+        panic = *(
+            cast(REBSER**, SERIES_DATA(GC_Manuals))
+            + SERIES_LEN(GC_Manuals) - 1
+        );
+        goto problem_found;
+    }
+
+    assert(s->error == NULL); // !!! necessary?
+
+    return;
+
+problem_found:
+    Debug_Fmt("in File: %s Line: %d", file, line);
+    if (panic)
+        Panic_Series(panic);
+    assert(FALSE);
+    DEAD_END;
+}
+
+#endif
 
 
 //
@@ -88,27 +185,27 @@ void Push_Trap_Helper(REBOL_STATE *s)
 // 
 // Returns whether the trapped error was a RE_HALT or not.
 //
-REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
+REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 {
     REBOOL halted;
 
     // Check for more "error frame validity"?
-    ASSERT_FRAME(state->error);
-    assert(FRAME_TYPE(state->error) == REB_ERROR);
+    ASSERT_FRAME(s->error);
+    assert(FRAME_TYPE(s->error) == REB_ERROR);
 
-    halted = LOGICAL(ERR_NUM(state->error) == RE_HALT);
+    halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
 
     // Restore Rebol call stack frame at time of Push_Trap.  Also, our
     // topmost call state (which may have been pushed but not put into
     // effect) has been accounted for by the drop.
     //
-    CS_Running = state->call;
+    CS_Running = s->call;
 
     // Restore Rebol data stack pointer at time of Push_Trap
-    DS_DROP_TO(state->dsp);
+    DS_DROP_TO(s->dsp);
 
     // Drop to the chunk state at the time of Push_Trap
-    while (TG_Top_Chunk != state->top_chunk)
+    while (TG_Top_Chunk != s->top_chunk)
         Drop_Chunk(NULL);
 
     // If we were in the middle of a Collect_Keys and an error occurs, then
@@ -124,21 +221,21 @@ REBOOL Trapped_Helper_Halted(REBOL_STATE *state)
     // any arglist series in call frames that have been wiped off the stack.
     // (Closure series will be managed.)
     //
-    assert(SERIES_LEN(GC_Manuals) >= state->manuals_len);
-    while (SERIES_LEN(GC_Manuals) != state->manuals_len) {
+    assert(SERIES_LEN(GC_Manuals) >= s->manuals_len);
+    while (SERIES_LEN(GC_Manuals) != s->manuals_len) {
         // Freeing the series will update the tail...
         Free_Series(
             cast(REBSER**, SERIES_DATA(GC_Manuals))[SERIES_LEN(GC_Manuals) - 1]
         );
     }
 
-    SET_SERIES_LEN(GC_Series_Guard, state->series_guard_len);
-    SET_SERIES_LEN(GC_Value_Guard, state->value_guard_len);
-    SET_SERIES_LEN(TG_Do_Stack, state->do_stack_len);
+    SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
+    SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
+    SET_SERIES_LEN(TG_Do_Stack, s->do_stack_len);
 
-    GC_Disabled = state->gc_disable;
+    GC_Disabled = s->gc_disable;
 
-    Saved_State = state->last_state;
+    Saved_State = s->last_state;
 
     return halted;
 }

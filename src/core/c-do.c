@@ -789,20 +789,6 @@ void Do_Core(struct Reb_Call * const c)
     REBOOL write_none;
 #endif
 
-#if !defined(NDEBUG)
-    //
-    // We keep track of the head of the list of series that are not tracked
-    // by garbage collection at the outset of the call.  Then we ensure that
-    // when the call is finished, no accumulation has happened.  So all
-    // newly allocated series should either be (a) freed or (b) delegated
-    // to management by the GC...else they'd represent a leak
-    //
-    REBCNT manuals_len = SERIES_LEN(GC_Manuals);
-
-    REBCNT series_guard_len = SERIES_LEN(GC_Series_Guard);
-    REBCNT value_guard_len = SERIES_LEN(GC_Value_Guard);
-#endif
-
     // See notes below on reference for why this is needed to implement eval.
     //
     REBVAL eval;
@@ -813,6 +799,15 @@ void Do_Core(struct Reb_Call * const c)
     // value if it represents a return_to
     //
     REBARR *return_to = NULL;
+
+#if !defined(NDEBUG)
+    //
+    // The debug build wants to make sure no "state" has accumulated per
+    // evaluator cycle (no manuals allocated that weren't freed, no additions
+    // to buffers like the MOLD stack that haven't been used or popped, etc.)
+    //
+    struct Reb_State state;
+#endif
 
     // Fast short-circuit; and generally shouldn't happen because the calling
     // macros avoid the function call overhead itself on ends.
@@ -851,6 +846,16 @@ void Do_Core(struct Reb_Call * const c)
 
         SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
     }
+
+#if !defined(NDEBUG)
+    //
+    // With TG_Do_Stack set up, we can snapshot the state that we'll be
+    // checking for the balance of after each iteration.  This has a lot in
+    // common with what's done during a PUSH_TRAP for restoring state in
+    // errors, so code is shared...see %sys-state.h
+    //
+    SNAP_STATE(&state);
+#endif
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
@@ -944,12 +949,7 @@ do_at_index:
 
     if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
 
-#if !defined(NDEBUG)
-    MANUALS_LEAK_CHECK(manuals_len, "Do_Core");
-
-    assert(series_guard_len == SERIES_LEN(GC_Series_Guard));
-    assert(value_guard_len == SERIES_LEN(GC_Value_Guard));
-#endif
+    ASSERT_STATE_BALANCED(&state);
 
 #if !defined(NDEBUG)
     //
@@ -2065,9 +2065,11 @@ reevaluate:
         goto return_index;
     }
 
-    // Should not have accumulated any net data stack during the evaluation
+    // There shouldn't have been any "accumulated state", in the sense that
+    // we should be back where we started in terms of the data stack, the
+    // mold buffer position, the outstanding manual series allocations, etc.
     //
-    assert(DSP == c->dsp_orig);
+    ASSERT_STATE_BALANCED(&state);
 
     // Should not have a THROWN value if we got here
     //
@@ -2135,7 +2137,11 @@ reevaluate:
     if (c->flags & DO_FLAG_TO_END) goto do_at_index;
 
 return_index:
-    assert(DSP == c->dsp_orig);
+    //
+    // Jumping here skips the natural check that would be done after the
+    // switch on the value being evaluated, so we assert balance here too.
+    //
+    ASSERT_STATE_BALANCED(&state);
 
 #if !defined(NDEBUG)
     if (c->index < ARRAY_LEN(c->array))

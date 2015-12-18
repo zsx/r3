@@ -980,7 +980,7 @@ static void callback_dispatcher(
     REBVAL *elem;
     REBVAL safe;
 
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     if (IS_ERROR(&Callback_Error)) return;

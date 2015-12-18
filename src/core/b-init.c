@@ -217,6 +217,9 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
     REBVAL result;
     REBVAL *item = ARRAY_AT(block, index);
 
+    struct Reb_State state;
+    SNAP_STATE(&state);
+
     Bind_Values_Set_Forward_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
     );
@@ -275,6 +278,8 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
 
     if (Do_At_Throws(&result, block, index))
         panic (Error_No_Catch_For_Throw(&result));
+
+    ASSERT_STATE_BALANCED(&state);
 
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));
@@ -1324,7 +1329,7 @@ void Init_Year(void)
 void Init_Core(REBARGS *rargs)
 {
     REBFRM *error;
-    REBOL_STATE state;
+    struct Reb_State state;
     REBVAL out;
 
     const REBYTE transparent[] = "transparent";
@@ -1391,10 +1396,12 @@ void Init_Core(REBARGS *rargs)
     // !!! Have MAKE-BOOT compute # of words
     //
     Lib_Context = Alloc_Frame(600);
+    MANAGE_FRAME(Lib_Context); // Expand_Frame() looks like a leak otherwise
     VAL_RESET_HEADER(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
     FRAME_SPEC(Lib_Context) = NULL;
     FRAME_BODY(Lib_Context) = NULL;
     Sys_Context = Alloc_Frame(50);
+    MANAGE_FRAME(Sys_Context); // Expand_Frame() looks like a leak otherwise
     VAL_RESET_HEADER(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
     FRAME_SPEC(Sys_Context) = NULL;
     FRAME_BODY(Sys_Context) = NULL;

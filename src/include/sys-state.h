@@ -1,56 +1,85 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: CPU State
-**  Module:  sys-state.h
-**  Author:  Carl Sassenrath, @HostileFork
-**  Notes:
-**      Rebol is settled upon a stable and pervasive implementation
-**      baseline of ANSI-C (C89).  That commitment provides certain
-**      advantages.  One of the disadvantages is that there is no safe
-**      way to do non-local jumps with stack unwinding (as in C++).  If
-**      you've written some code that performs a raw malloc and then
-**      wants to "throw" with a longjmp, that will leak the malloc.
-**
-**      Basically all code must be aware of "throws", and if one can
-**      happen then there must be explicit handling of the cleanup.
-**      This must be either at the point of the longjmp, or the moment
-**      when the setjmp runs its "true" branch after a non-local jump:
-**
-**          http://stackoverflow.com/questions/1376085/
-**
-**      (Note:  If you are integrating with C++ and a longjmp crosses
-**      a constructed object, abandon all hope...UNLESS you use Ren/C++.
-**      It is careful to avoid this trap, and you don't want to redo
-**      that work.)
-**
-**      !!! v-- TRIAGE NOT YET INTEGRATED IN REN/C
-**
-**      In order to mitigate the inherent failure of trying to emulate
-**      stack unwinding via longjmp, Rebol wraps the abstraction a bit.
-**      If you had allocated any series and they were in "triage" at
-**      the time the "throw" happened, then those will be automatically
-**      freed (the garbage collector didn't know about them yet).
-**
-***********************************************************************/
+//
+// Rebol 3 Language Interpreter and Run-time Environment
+// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2015 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  Summary: CPU and Interpreter State Snapshot/Restore
+//  File: %sys-state.h
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Rebol is settled upon a stable and pervasive implementation baseline of
+// ANSI-C (C89).  That commitment provides certain advantages.
+//
+// One of the *disadvantages* is that there is no safe way to do non-local
+// jumps with stack unwinding (as in C++).  If you've written some code that
+// performs a raw malloc and then wants to "throw" via a `longjmp()`, that
+// will leak the malloc.
+//
+// In order to mitigate the inherent failure of trying to emulate stack
+// unwinding via longjmp, the macros in this file provide an abstraction
+// layer.  These allow Rebol to clean up after itself for some kinds of
+// "dangling" state--such as manually memory managed series that have been
+// made with Alloc_Series() but never passed to either Free_Series() or
+// MANAGE_SERIES().  This covers several potential leaks known-to-Rebol,
+// but custom interception code is needed for any generalized resource
+// that might be leaked in the case of a longjmp().
+//
+// The triggering of the longjmp() is done via "fail", and it's important
+// to know the distinction between a "fail" and a "throw".  In Rebol
+// terminology, a `throw` is a cooperative concept, which does *not* use
+// longjmp(), and instead must cleanly pipe the thrown value up through
+// the OUT pointer that each function call writes into.  The `throw` will
+// climb the stack until somewhere in the backtrace, one of the calls
+// chooses to intercept the thrown value instead of pass it on.
+//
+// By contrast, a `fail` is non-local control that interrupts the stack,
+// and can only be intercepted by points up the stack that have explicitly
+// registered themselves interested.  So comparing these two bits of code:
+//
+//     catch [if 1 < 2 [trap [print ["Foo" (throw "Throwing")]]]]
+//
+//     trap [if 1 < 2 [catch [print ["Foo" (fail "Failing")]]]]
+//
+// In the first case, the THROW is offered to each point up the chain as
+// a special sort of "return value" that only natives can examine.  The
+// `print` will get a chance, the `trap` will get a chance, the `if` will
+// get a chance...but only CATCH will take the opportunity.
+//
+// In the second case, the FAIL is implemented with longjmp().  So it
+// doesn't make a return value...it never reaches the return.  It offers an
+// ERROR! up the stack to native functions that have called PUSH_TRAP() in
+// advance--as a way of registering interest in intercepting failures.  For
+// IF or CATCH or PRINT to have an opportunity, they would need to be chang
+// d to include a PUSH_TRAP() call.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// NOTE: If you are integrating with C++ and a longjmp crosses a constructed
+// object, abandon all hope...UNLESS you use Ren-cpp.  It is careful to
+// avoid this trap, and you don't want to redo that work.
+//
+//     http://stackoverflow.com/questions/1376085/
+//
 
 
 // "Under FreeBSD 5.2.1 and Mac OS X 10.3, setjmp and longjmp save and restore
@@ -77,7 +106,7 @@
 // have enabled in.  One option for suppressing it would be to mark
 // a parameter as 'volatile', but that is implementation-defined.
 // It is best to use a new variable if you encounter such a warning.
-
+//
 #ifdef HAS_POSIX_SIGNAL
     #define SET_JUMP(s) sigsetjmp((s), 1)
     #define LONG_JUMP(s, v) siglongjmp((s), (v))
@@ -90,8 +119,8 @@
 // Structure holding the information about the last point in the stack that
 // wanted to set up an opportunity to intercept a `fail (Error_XXX())`
 
-typedef struct Rebol_State {
-    struct Rebol_State *last_state;
+struct Reb_State {
+    struct Reb_State *last_state;
 
     REBINT dsp;
     struct Reb_Chunk *top_chunk;
@@ -109,49 +138,36 @@ typedef struct Rebol_State {
 #else
     jmp_buf cpu_state;
 #endif
-} REBOL_STATE;
+};
+
+
+// SNAP_STATE will record the interpreter state but not include it into
+// the chain of trapping points.  This is used by PUSH_TRAP but also by
+// debug code that just wants to record the state to make sure it balances
+// back to where it was.
+//
+#define SNAP_STATE(s) \
+    Snap_State_Core(s)
 
 
 // PUSH_TRAP is a construct which is used to catch errors that have been
 // triggered by the Fail_Core() function.  This can be triggered by a usage
 // of the `fail` pseudo-"keyword" in C code, and in Rebol user code by the
-// REBNATIVE(fail).  To call the push, you need a REBOL_STATE value to be
+// REBNATIVE(fail).  To call the push, you need a `struct Reb_State` to be
 // passed which it will write into--which is a black box that clients
 // shouldn't inspect.
 //
-// The routine also takes a pointer-to-a-REBSER-pointer which represents
+// The routine also takes a pointer-to-a-REBFRM-pointer which represents
 // an error.  Using the tricky mechanisms of setjmp/longjmp, there will
 // be a first pass of execution where the line of code after the PUSH_TRAP
 // will see the error pointer as being NULL.  If a trap occurs during
-// code before the paired DROP_TRY happens, then the C state will be
+// code before the paired DROP_TRAP happens, then the C state will be
 // magically teleported back to the line after the PUSH_TRAP with the
 // error value now non-null and usable, including put into a REBVAL via
 // the `Val_Init_Error()` function.
 //
-// Note: The implementation of this macro was chosen stylistically to
-// hide the result of the setjmp call.  That's because you really can't
-// put "setjmp" in arbitrary conditions like `setjmp(...) ? x : y`.  That's
-// against the rules.  So although the preprocessor abuse below is a bit
-// ugly, it helps establish that anyone modifying this code later not be
-// able to avoid the truth of the limitation:
-//
-//      http://stackoverflow.com/questions/30416403/
-
 #define PUSH_TRAP(e,s) \
-    do { \
-        Push_Trap_Helper(s); \
-        assert((s)->last_state != NULL); /* top push MUST handle halts */ \
-        if (!SET_JUMP((s)->cpu_state)) { \
-            /* this branch will always be run */ \
-            *(e) = NULL; \
-        } else { \
-            /* this runs if before the DROP_TRAP a longjmp() happens */ \
-            if (Trapped_Helper_Halted(s)) \
-                fail ((s)->error); /* proxy the halt up the stack */ \
-            else \
-                *(e) = (s)->error; \
-        } \
-    } while (0)
+    PUSH_TRAP_CORE((e), (s), TRUE)
 
 
 // PUSH_UNHALTABLE_TRAP is a form of PUSH_TRAP that will receive RE_HALT in
@@ -168,27 +184,58 @@ typedef struct Rebol_State {
 //
 // Note: Despite the technical needs of low-level clients, there is likely
 // no reasonable use-case for a user-exposed ability to intercept HALTs in
-// Rebol code, for instance with a "TRY/HALTABLE" construction.
-
+// Rebol code, for instance with a "TRAP/HALT" construction.
+//
 #define PUSH_UNHALTABLE_TRAP(e,s) \
+    PUSH_TRAP_CORE((e), (s), FALSE)
+
+
+// Core implementation behind PUSH_TRAP and PUSH_UNHALTABLE_TRAP.
+//
+// Note: The implementation of this macro was chosen stylistically to
+// hide the result of the setjmp call.  That's because you really can't
+// put "setjmp" in arbitrary conditions like `setjmp(...) ? x : y`.  That's
+// against the rules.  So although the preprocessor abuse below is a bit
+// ugly, it helps establish that anyone modifying this code later not be
+// able to avoid the truth of the limitation:
+//
+//      http://stackoverflow.com/questions/30416403/
+//
+#define PUSH_TRAP_CORE(e,s,haltable) \
     do { \
-        Push_Trap_Helper(s); \
+        assert(Saved_State || (DSP == -1 && !DSF)); \
+        Snap_State_Core(s); \
+        (s)->last_state = Saved_State; \
+        Saved_State = (s); \
+        if (haltable) { \
+            /* the topmost TRAP must be PUSH_UNHALTABLE_TRAP */ \
+            assert((s)->last_state != NULL); \
+        } \
         if (!SET_JUMP((s)->cpu_state)) { \
             /* this branch will always be run */ \
             *(e) = NULL; \
-        } else { \
+        } \
+        else { \
             /* this runs if before the DROP_TRAP a longjmp() happens */ \
-            cast(void, Trapped_Helper_Halted(s)); \
-            *(e) = (s)->error; \
+            if (haltable) { \
+               if (Trapped_Helper_Halted(s)) \
+                    fail ((s)->error); /* proxy the halt up the stack */ \
+                else \
+                    *(e) = (s)->error; \
+            } \
+            else { \
+               cast(void, Trapped_Helper_Halted(s)); \
+                *(e) = (s)->error; \
+            } \
         } \
     } while (0)
 
 
-// If either a haltable or non-haltable TRY is PUSHed, it must be DROP'd.
+// If either a haltable or non-haltable TRAP is PUSHed, it must be DROP'd.
 // DROP_TRAP_SAME_STACKLEVEL_AS_PUSH has a long and informative name to
-// remind you that you must DROP_TRY from the same scope you PUSH_TRAP
+// remind you that you must DROP_TRAP from the same scope you PUSH_TRAP
 // from.  (So do not call PUSH_TRAP in a function, then return from that
-// function and DROP_TRY at another stack level.)
+// function and DROP_TRAP at another stack level.)
 //
 //      "If the function that called setjmp has exited (whether by return
 //      or by a different longjmp higher up the stack), the behavior is
@@ -207,3 +254,15 @@ typedef struct Rebol_State {
         assert(!(s)->error); \
         Saved_State = (s)->last_state; \
     } while (0)
+
+
+// ASSERT_STATE_BALANCED is used to check that the situation modeled in a
+// SNAP_STATE has balanced out, without a trap (e.g. it is checked each time
+// the evaluator completes a cycle in the debug build)
+//
+#ifdef NDEBUG
+    #define ASSERT_STATE_BALANCED(s) NOOP
+#else
+    #define ASSERT_STATE_BALANCED(s) \
+        Assert_State_Balanced_Debug((s), __FILE__, __LINE__)
+#endif

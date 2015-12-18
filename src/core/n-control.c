@@ -345,7 +345,7 @@ REBNATIVE(attempt)
 {
     REBVAL * const block = D_ARG(1);
 
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     PUSH_TRAP(&error, &state);
@@ -1699,7 +1699,7 @@ REBNATIVE(trap)
     REFINE(2, with);
     PARAM(3, handler);
 
-    REBOL_STATE state;
+    struct Reb_State state;
     REBFRM *error;
 
     PUSH_TRAP(&error, &state);
