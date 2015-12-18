@@ -1368,7 +1368,7 @@ REBOOL As_OS_Str(REBSER *series, REBCHR **string)
 //
 // Read embedded rebol script from the executable
 //
-REBYTE * OS_Read_Embedded (REBI64 *script_size)
+REBYTE *OS_Read_Embedded(REBI64 *script_size)
 {
 #define PAYLOAD_NAME L"EMBEDDEDREBOL"
 
