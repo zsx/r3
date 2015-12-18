@@ -73,12 +73,6 @@
 #include "sys-core.h"
 #include "sys-int-funcs.h"
 
-#ifdef HAVE_ASAN_INTERFACE_H
-#include <sanitizer/asan_interface.h>
-#else
-#define ASAN_POISON_MEMORY_REGION(reg, mem_size)
-#define ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
-#endif
 
 //
 //  Alloc_Mem: C
@@ -440,7 +434,7 @@ static void Fill_Pool(REBPOL *pool)
         node = (REBNOD*)&pool->first;
     } else {
         node = pool->last;
-        ASAN_UNPOISON_MEMORY_REGION(node, pool->wide);
+        UNPOISON_MEMORY(node, pool->wide);
     }
 
     for (next = (REBYTE *)(seg + 1); units > 0; units--, next += pool->wide) {
@@ -469,10 +463,10 @@ static void Fill_Pool(REBPOL *pool)
 
     *node = 0;
     if (pool->last != NULL) {
-        ASAN_POISON_MEMORY_REGION(pool->last, pool->wide);
+        POISON_MEMORY(pool->last, pool->wide);
     }
     pool->last = node;
-    ASAN_POISON_MEMORY_REGION(seg, mem_size);
+    POISON_MEMORY(seg, mem_size);
 }
 
 
@@ -525,7 +519,7 @@ void *Make_Node(REBCNT pool_id)
     if (!pool->first) Fill_Pool(pool);
     node = pool->first;
 
-    ASAN_UNPOISON_MEMORY_REGION(node, pool->wide);
+    UNPOISON_MEMORY(node, pool->wide);
 
     pool->first = cast(void**, *node);
     if (node == pool->last) {
@@ -552,13 +546,13 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
     if (pool->last == NULL) { //pool is empty
         Fill_Pool(pool); //insert an empty segment, such that this node won't be picked by next Make_Node to enlongate the poisonous time of this area to catch stale pointers
     }
-    ASAN_UNPOISON_MEMORY_REGION(pool->last, pool->wide);
+    UNPOISON_MEMORY(pool->last, pool->wide);
     *(pool->last) = node;
-    ASAN_POISON_MEMORY_REGION(pool->last, pool->wide);
+    POISON_MEMORY(pool->last, pool->wide);
     pool->last = node;
     *node = NULL;
 
-    ASAN_POISON_MEMORY_REGION(node, pool->wide);
+    POISON_MEMORY(node, pool->wide);
 
     pool->free++;
 }
