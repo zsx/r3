@@ -510,6 +510,10 @@ REBCNT Find_Str_Char(
     if (index_orig < lowest || index_orig >= highest || lowest == highest)
         goto return_not_found;
 
+    // Past this point we'll be using the signed index.
+    //
+    index = cast(REBINT, index_orig);
+
     // /MATCH only does one check at the current position for the character
     // and then returns.  It basically subverts any optimization we might
     // try that uses memory range functions/etc, and if "/skip 0" were the
@@ -521,10 +525,6 @@ REBCNT Find_Str_Char(
             goto return_index;
         goto return_not_found;
     }
-
-    // Past this point we'll be using the signed index.
-    //
-    index = cast(REBINT, index_orig);
 
     // If searching a potentially much longer string, take opportunities to
     // use optimized C library functions if possible.
