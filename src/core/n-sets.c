@@ -191,12 +191,12 @@ static REBSER *Make_Set_Operation_Series(
                 uc = GET_ANY_CHAR(ser, i);
                 if (flags & SOP_FLAG_CHECK) {
                     h = (NOT_FOUND != Find_Str_Char(
+                        uc,
                         VAL_SERIES(val2),
                         0,
                         VAL_INDEX(val2),
                         VAL_LEN_HEAD(val2),
                         skip,
-                        uc,
                         cased ? AM_FIND_CASE : 0
                     ));
 
@@ -207,12 +207,12 @@ static REBSER *Make_Set_Operation_Series(
 
                 if (
                     NOT_FOUND == Find_Str_Char(
+                        uc,
                         buffer,
                         0,
                         0,
                         SERIES_LEN(buffer),
                         skip,
-                        uc,
                         cased ? AM_FIND_CASE : 0
                     )
                 ) {

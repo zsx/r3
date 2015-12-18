@@ -615,12 +615,12 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
             // #"A"
             else if (IS_CHAR(item)) {
                 i = Find_Str_Char(
+                    VAL_CHAR(item),
                     series,
                     0,
                     index,
                     SERIES_LEN(series),
                     1,
-                    VAL_CHAR(item),
                     (parse->find_flags & AM_FIND_CASE)
                         ? AM_FIND_CASE
                         : 0

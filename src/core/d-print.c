@@ -220,7 +220,7 @@ void Display_Backtrace(REBCNT lines)
         tail = SERIES_LEN(Trace_Buffer);
         i = tail - 1;
         for (lines++ ;lines > 0; lines--, i--) {
-            i = Find_Str_Char(Trace_Buffer, 0, i, tail, -1, LF, 0);
+            i = Find_Str_Char(LF, Trace_Buffer, 0, i, tail, -1, 0);
             if (i == NOT_FOUND || i == 0) {
                 i = 0;
                 break;

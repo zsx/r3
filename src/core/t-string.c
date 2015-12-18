@@ -175,23 +175,23 @@ static REBCNT find_string(
     }
     else if (IS_CHAR(target)) {
         return Find_Str_Char(
+            VAL_CHAR(target),
             series,
             start,
             index,
             end,
             skip,
-            VAL_CHAR(target),
             flags
         );
     }
     else if (IS_INTEGER(target)) {
         return Find_Str_Char(
+            cast(REBUNI, VAL_INT32(target)),
             series,
             start,
             index,
             end,
             skip,
-            cast(REBUNI, VAL_INT32(target)),
             flags
         );
     }
