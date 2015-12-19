@@ -404,38 +404,6 @@ REBCNT Stack_Depth(void)
 
 
 //
-//  Make_Backtrace: C
-// 
-// Return a block of backtrace words.
-//
-REBARR *Make_Backtrace(REBINT start)
-{
-    REBCNT depth = Stack_Depth();
-    REBARR *blk = Make_Array(depth - start);
-    struct Reb_Call *call = DSF;
-    REBVAL *val;
-
-    for (; call != NULL; call = PRIOR_DSF(call)) {
-        if (call->mode != CALL_MODE_FUNCTION) {
-            //
-            // The Stack_Depth() routine only considers invoked functions
-            // for the backtrace (not pending functions, not parens or
-            // paths, etc.)  This does the same.
-            //
-            continue;
-        }
-
-        if (start-- <= 0) {
-            val = Alloc_Tail_Array(blk);
-            Val_Init_Word_Unbound(val, REB_WORD, DSF_LABEL_SYM(call));
-        }
-    }
-
-    return blk;
-}
-
-
-//
 //  Find_Error_For_Code: C
 // 
 // Find the id word, the error type (category) word, and the error
@@ -1126,17 +1094,30 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
     error_obj->id = id;
     error_obj->type = type;
 
-    // Set backtrace and location information.  If a frameless native is
-    // running and giving a certain kind of error, it might want us to
-    // pretend it hasn't been called yet...because if it were running
-    // framed it would be erroring on argument fulfillment.  This is
-    // conveyed by the `up_stack` flag.
+    // If a frameless native is running it might want us to pretend it hasn't
+    // been called yet for stack display purposes.  This happens for instance
+    // in the case where *if* it were running framed, it would be erroring on
+    // argument fulfillment.  This is conveyed by the `up_stack` flag.
     //
-    if (DSF && (!up_stack || DSF->prior)) {
+    if (up_stack ? LOGICAL(DSF && DSF->prior) : LOGICAL(DSF)) {
         //
-        // Where (what function) is the error:
+        // Set backtrace, in the form of a block of label words that start
+        // from the top of stack and go downward.
         //
-        Val_Init_Block(&error_obj->where, Make_Backtrace(up_stack ? 1 : 0));
+        REBARR *backtrace = Make_Array(SERIES_LEN(TG_Do_Stack));
+        struct Reb_Call *call = up_stack ? DSF->prior : DSF;
+        for (; call != NULL; call = call->prior) {
+            //
+            // Only invoked functions (not pending functions, parens, etc.)
+            //
+            if (call->mode != CALL_MODE_FUNCTION)
+                continue;
+
+            Val_Init_Word_Unbound(
+                Alloc_Tail_Array(backtrace), REB_WORD, DSF_LABEL_SYM(call)
+            );
+        }
+        Val_Init_Block(&error_obj->where, backtrace);
 
         // Nearby location of the error (in block being evaluated):
         //
