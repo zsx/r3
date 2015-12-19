@@ -114,7 +114,7 @@ Script: [
     not-in-context:     [:arg1 {is not in the specified context}]
 
     no-arg:             [:arg1 {is missing its} :arg2 {argument}]
-    expect-arg:         [:arg1 {does not allow} :arg3 {for its} :arg2 {argument}]
+    expect-arg:         [:arg1 {does not allow} :arg2 {for its} :arg3 {argument}]
     expect-val:         [{expected} :arg1 {not} :arg2]
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
