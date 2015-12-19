@@ -50,16 +50,28 @@
 #include <assert.h>
 
 #ifdef _WIN32
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500
-#include <windows.h>
+    //
+    // On Windows it is required to include <windows.h>, and defining the
+    // _WIN32_WINNT constant to 0x0501 specifies the minimum targeted version
+    // is Windows XP.  This is the earliest platform API still supported by
+    // Visual Studio 2015:
+    //
+    //     https://msdn.microsoft.com/en-us/library/6sehtctf.aspx
+    //
+    // R3-Alpha used 0x0500, indicating a minimum target of Windows 2000.  No
+    // Windows-XP-specific dependencies were added in Ren-C, but the version
+    // was bumped to avoid compilation errors in the common case.
+    //
+    #undef _WIN32_WINNT
+    #define _WIN32_WINNT 0x0501
+    #include <windows.h>
 #endif
 
 #include "reb-host.h"       // standard host include files
 #include "host-table.inc"
 
 #ifdef CUSTOM_STARTUP
-#include "host-init.h"
+    #include "host-init.h"
 #endif
 
 /**********************************************************************/
