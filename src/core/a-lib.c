@@ -514,27 +514,6 @@ RL_API int RL_Do_Binary(
 
 
 //
-//  RL_Do_Block: C
-// 
-// Evaluate a block. (not implemented)
-// 
-// Returns:
-//     The datatype of the result or zero if error in the encoding.
-// Arguments:
-//     blk - A pointer to the block series
-//     flags - set to zero for now
-//     result - value returned from evaluation
-// Notes:
-//     Not implemented. Contact Carl on R3 Chat if you think you
-//     could use it for something.
-//
-RL_API int RL_Do_Block(REBSER *blk, REBCNT flags, RXIARG *result)
-{
-    return 0;
-}
-
-
-//
 //  RL_Do_Commands: C
 // 
 // Evaluate a block of extension commands at high speed.
@@ -579,57 +558,6 @@ RL_API void RL_Print(const REBYTE *fmt, ...)
     va_start(args, fmt);
     Debug_Buf(cs_cast(fmt), &args);
     va_end(args);
-}
-
-
-//
-//  RL_Print_TOS: C
-// 
-// Print top REBOL stack value to the console.
-// 
-// Returns:
-//     Nothing
-// Arguments:
-//     mold - should value be MOLDed instead of FORMed.
-//     marker - placed at beginning of line to indicate output.
-// Notes:
-//     This function is used for the main console evaluation
-//     input loop to print the results of evaluation from stack.
-//     The REBOL data stack is an abstract structure that can
-//     change between releases. This function allows the host
-//     to print the result of processed functions.
-//     Marker is usually "==" to show output.
-//     The system/options/result-types determine which values
-//     are automatically printed.
-//
-RL_API void RL_Print_TOS(REBOOL mold, const REBYTE *marker)
-{
-    if (DSP != 0)
-        Debug_Fmt(Str_Stack_Misaligned, DSP);
-
-    // We shouldn't get any THROWN() values exposed to the client
-    assert(!THROWN(DS_TOP));
-
-    if (!IS_UNSET(DS_TOP)) {
-        if (marker) Out_Str(marker, 0);
-        Out_Value(DS_TOP, 500, mold, 1); // limit print length
-    }
-}
-
-
-//
-//  RL_Drop_TOS: C
-// 
-// Drop top REBOL stack value.
-// 
-// Returns:
-//     Nothing
-// Arguments:
-//     Nothing
-//
-RL_API void RL_Drop_TOS(void)
-{
-    DS_DROP;
 }
 
 

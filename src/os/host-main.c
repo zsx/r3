@@ -67,8 +67,33 @@
     #include <windows.h>
 #endif
 
-#include "reb-host.h"       // standard host include files
-#include "host-table.inc"
+
+// !!! Originally %host-main.c was a client of the %reb-host.h (RL_Api).  It
+// did not have access to things like the definition of a REBVAL or a REBSER.
+// The sparse and convoluted nature of the RL_Api presented an awkward
+// barrier, and the "sample console" stagnated as a result.
+//
+// In lieu of a suitable "abstracted" variant of the core services--be that
+// an evolution of RL_Api or otherwise--the console now links directly
+// against the Ren-C core.  This provides full access to the routines and
+// hooks necessary to evolve the console if one were interested.  (The GUI
+// inteface Ren Garden is the flagship console for Ren-C, so that is where
+// most investment will be made.)
+//
+// It is not possible (currently) for the same file to include %host-lib.h
+// and %sys-core.h.  So the linkage needed to load the host function table
+// has been moved to %host-core.c, with a few prototypes inlined here by
+// hand in order to allow this file to compile.
+//
+#include "sys-core.h"
+extern void RL_Version(REBYTE vers[]);
+extern int RL_Start(
+    REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, REBCNT flags
+);
+extern int RL_Init(REBARGS *rargs, void *lib);
+extern void RL_Shutdown(REBOOL clean);
+extern REBOL_HOST_LIB Host_Lib_Init;
+
 
 #ifdef CUSTOM_STARTUP
     #include "host-init.h"
@@ -93,7 +118,7 @@ extern void OS_Init_Graphics(void);
 extern void OS_Destroy_Graphics(void);
 #endif
 
-extern void Init_Core_Ext(void);
+extern void Init_Core_Ext(REBYTE vers[8]);
 extern void Shutdown_Core_Ext(void);
 
 //#define TEST_EXTENSIONS
@@ -110,7 +135,94 @@ extern REBYTE *Get_Str();
 
 /* coverity[+kill] */
 void Host_Crash(const char *reason) {
-    OS_Crash(cb_cast("REBOL Host Failure"), cb_cast(reason));
+    OS_CRASH(cb_cast("REBOL Host Failure"), cb_cast(reason));
+}
+
+
+//  Do_String()
+//
+// This is a version of a routine that was offered by the RL_Api, which has
+// been expanded here in order to permit the necessary customizations for
+// interesting REPL behavior w.r.t. binding, error handling, and response
+// to throws.
+//
+int Do_String(
+    int *exit_status,
+    REBVAL *out,
+    const REBYTE *text
+) {
+    REBARR *code;
+
+    struct Reb_State state;
+    REBFRM *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error) {
+        // Save error for WHY?
+        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
+
+        if (ERR_NUM(error) == RE_HALT) {
+            return -1; // !!! Revisit hardcoded #
+        }
+
+        Val_Init_Error(out, error);
+        *last = *out;
+        return -ERR_NUM(error);
+    }
+
+    code = Scan_Source(text, LEN_BYTES(text));
+    PUSH_GUARD_ARRAY(code);
+
+    // !!! "Bind into lib or user spaces?" <-- what was original intent?
+    //
+    if (FALSE) {
+        // Top words will be added to lib:
+        Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
+        Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
+    }
+    else {
+        REBCNT len;
+        REBVAL vali;
+        REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+        len = FRAME_LEN(user) + 1;
+        Bind_Values_All_Deep(ARRAY_HEAD(code), user);
+        SET_INTEGER(&vali, len);
+        Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
+    }
+
+    if (Do_At_Throws(out, code, 0)) {
+        DROP_GUARD_ARRAY(code);
+
+        // We are at the top level REPL, where we catch QUIT and for
+        // now, also EXIT as meaning you want to leave.
+        //
+        if (
+            IS_NATIVE(out) && (
+                VAL_FUNC_CODE(out) == &N_quit
+                || VAL_FUNC_CODE(out) == &N_exit
+            )
+        ) {
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+            CATCH_THROWN(out, out);
+            *exit_status = Exit_Status_From_Value(out);
+            return -2; // Revisit hardcoded #
+        }
+
+        // This actually gets trapped by the PUSH_TRAP above in this same
+        // routine (we just don't want to repeat the work here, so we fail
+        // to ourself.)
+        //
+        fail (Error_No_Catch_For_Throw(out));
+    }
+
+    DROP_GUARD_ARRAY(code);
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    return 0;
 }
 
 
@@ -122,7 +234,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 
     Host_Lib = &Host_Lib_Init;
 
-    embedded_script = OS_Read_Embedded(&embedded_size);
+    embedded_script = OS_READ_EMBEDDED(&embedded_size);
 
     // !!! Note we may have to free Main_Args.home_dir below after this
     Parse_Args(argc, argv, &Main_Args);
@@ -134,11 +246,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // so this device should open even if there are other problems.
     Open_StdIO();  // also sets up interrupt handler
 
-    // Initialize the REBOL library (reb-lib):
-    if (!CHECK_STRUCT_ALIGN) Host_Crash("Incompatible struct alignment");
     if (!Host_Lib) Host_Crash("Missing host lib");
-    // !!! Second part will become vers[2] < RL_REV on release!!!
-    if (vers[1] != RL_VER || vers[2] != RL_REV) Host_Crash("Incompatible reb-lib DLL");
 
     startup_rc = RL_Init(&Main_Args, Host_Lib);
 
@@ -149,8 +257,10 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     if (startup_rc == 1) Host_Crash("Host-lib wrong size");
     if (startup_rc == 2) Host_Crash("Host-lib wrong version/checksum");
 
-    //Initialize core extension commands
-    Init_Core_Ext();
+    // Initialize core extension commands.  (This also checks struct alignment
+    // and versioning, because it has access to the RL_XXX macros)
+    //
+    Init_Core_Ext(vers);
 
 #ifdef TEST_EXTENSIONS
     Init_Ext_Test();
@@ -234,7 +344,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // can be revisited.  In the meantime, we test for NULL.
 
     if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
-        RXIARG result;
+        REBVAL result;
         REBYTE *do_arg_utf8;
         REBCNT len_uni;
         REBCNT len_predicted;
@@ -265,10 +375,10 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         // Encoding doesn't NULL-terminate on its own.
         do_arg_utf8[len_encoded] = '\0';
     #else
-        do_arg_utf8 = b_cast(Main_Args.do_arg);
+        do_arg_utf8 = b_cast(cast(char*, Main_Args.do_arg));
     #endif
 
-        do_result = RL_Do_String(exit_status, do_arg_utf8, 0, NULL);
+        do_result = Do_String(exit_status, &result, do_arg_utf8);
 
     #ifdef TO_WINDOWS
         OS_FREE(do_arg_utf8);
@@ -289,9 +399,9 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             return TRUE;
         }
         else if (do_result < -2) {
-            // There was an error, so print it out.
-            RL_Print_TOS(FALSE, NULL);
-            RL_Drop_TOS();
+            // There was an error, so print it out (with limited print length)
+            //
+            Out_Value(&result, 500, FALSE, 1);
 
             // We invent a status and exit, but the response to an error
             // should be more flexible.  See #2215.
@@ -303,7 +413,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             assert(do_result >= 0);
 
             // Command completed successfully, we don't print anything.
-            RL_Drop_TOS();
 
             // We quit vs. dropping to interpreter by default, but it would be
             // good to have a more flexible response here too.  See #2215.
@@ -319,7 +428,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 }
 
 
-void Host_Repl(int *exit_status) {
+void Host_Repl(int *exit_status, REBVAL *out) {
     REBOOL why_alert = TRUE;
 
     #define MAX_CONT_LEVEL 80
@@ -439,15 +548,14 @@ void Host_Repl(int *exit_status) {
         input_len = 0;
         cont_level = 0;
 
-        do_result = RL_Do_String(exit_status, input, 0, 0);
+        do_result = Do_String(exit_status, out, input);
 
         if (do_result == -1) {
             // !!! The "Halt" status is communicated via -1, but
             // is not an actual valid "error value".  It cannot be
             // created by user code, and the fact that it is done
             // via the error mechanism is an "implementation detail".
-            // Hence nothing is pushed to the stack.
-
+            //
             Put_Str(halt_str);
         }
         else if (do_result == -2) {
@@ -457,8 +565,8 @@ void Host_Repl(int *exit_status) {
         }
         else if (do_result < -2) {
             // Error occurred, print it without molding (formed)
-            RL_Print_TOS(FALSE, NULL);
-            RL_Drop_TOS();
+            //
+            Out_Value(out, 500, FALSE, 1);
 
             // Tell them about why on the first error only
             if (why_alert) {
@@ -469,12 +577,13 @@ void Host_Repl(int *exit_status) {
         else {
             assert(do_result >= 0);
 
-            // There was no error, and the value is on the top of
-            // stack.  If the value on top of stack is an unset
-            // then nothing will be printed.
-
-            RL_Print_TOS(TRUE, result_str);
-            RL_Drop_TOS();
+            // There was no error.  If the value on top of stack is an unset
+            // then nothing will be printed, otherwise print it out.
+            //
+            if (!IS_UNSET(out)) {
+                Out_Str(result_str, 0); // "=="
+                Out_Value(out, 500, TRUE, 1);
+            }
         }
     }
 
@@ -485,7 +594,7 @@ cleanup_and_return:
 
 
 void Host_Quit() {
-    OS_Quit_Devices(0);
+    OS_QUIT_DEVICES(0);
 #ifndef REB_CORE
     OS_Destroy_Graphics();
 #endif
@@ -534,10 +643,10 @@ int main(int argc, char **argv_ansi)
     // Were we using WinMain we'd be getting our arguments in Unicode, but
     // since we're using an ordinary main() we do not.  However, this call
     // lets us slip out and pick up the arguments in Unicode form.
-    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    argv = cast(REBCHR**, CommandLineToArgvW(GetCommandLineW(), &argc));
 #else
     // Assume no wide character support, and just take the ANSI C args
-    argv = argv_ansi;
+    argv = cast(REBCHR**, argv_ansi);
 #endif
 
     if (Host_Start_Exiting(&exit_status, argc, argv))
@@ -552,7 +661,8 @@ int main(int argc, char **argv_ansi)
             || Main_Args.options & RO_HALT  // --halt option
         )
     ) {
-        Host_Repl(&exit_status);
+        REBVAL value;
+        Host_Repl(&exit_status, &value);
     }
     else
         exit_status = 0; // "success"
