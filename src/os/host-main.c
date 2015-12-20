@@ -100,13 +100,23 @@
 // hand in order to allow this file to compile.
 //
 #include "sys-core.h"
-extern void RL_Version(REBYTE vers[]);
-extern int RL_Start(
-    REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, REBCNT flags
-);
-extern int RL_Init(REBARGS *rargs, void *lib);
-extern void RL_Shutdown(REBOOL clean);
-extern REBOL_HOST_LIB Host_Lib_Init;
+#ifdef __cplusplus
+extern "C" {
+#endif
+    extern void RL_Version(REBYTE vers[]);
+    extern int RL_Start(
+        REBYTE *bin,
+        REBINT len,
+        REBYTE *script,
+        REBINT script_len,
+        REBCNT flags
+    );
+    extern int RL_Init(REBARGS *rargs, void *lib);
+    extern void RL_Shutdown(REBOOL clean);
+    extern REBOL_HOST_LIB Host_Lib_Init;
+#ifdef __cplusplus
+}
+#endif
 
 
 #ifdef CUSTOM_STARTUP
