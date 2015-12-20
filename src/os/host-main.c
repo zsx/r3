@@ -113,6 +113,21 @@ extern "C" {
     );
     extern int RL_Init(REBARGS *rargs, void *lib);
     extern void RL_Shutdown(REBOOL clean);
+    extern REBCNT RL_Length_As_UTF8(
+        const void *p,
+        REBCNT len,
+        REBOOL unicode,
+        REBOOL lf_to_crlf
+    );
+    extern REBCNT RL_Encode_UTF8(
+        REBYTE *dst,
+        REBINT max,
+        const void *src,
+        REBCNT *len,
+        REBOOL unicode,
+        REBOOL crlf_to_lf
+    );
+
     extern REBOL_HOST_LIB Host_Lib_Init;
 #ifdef __cplusplus
 }
