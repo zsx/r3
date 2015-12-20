@@ -765,7 +765,6 @@ void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
 static void Init_Task_Context(void)
 {
     REBFRM *frame = Alloc_Frame(TASK_MAX - 1);
-    frame = Alloc_Frame(TASK_MAX - 1);
     TG_Task_Frame = frame;
 
     LABEL_SERIES(FRAME_VARLIST(frame), "task context");
