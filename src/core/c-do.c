@@ -949,8 +949,6 @@ do_at_index:
 
     if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
 
-    ASSERT_STATE_BALANCED(&state);
-
 #if !defined(NDEBUG)
     //
     // Trash call variables in debug build to make sure they're not reused.
@@ -2052,6 +2050,12 @@ reevaluate:
         break;
     }
 
+    // There shouldn't have been any "accumulated state", in the sense that
+    // we should be back where we started in terms of the data stack, the
+    // mold buffer position, the outstanding manual series allocations, etc.
+    //
+    ASSERT_STATE_BALANCED(&state);
+
     if (c->index >= ARRAY_LEN(c->array)) {
         //
         // When running a DO/NEXT, clients may wish to distinguish between
@@ -2064,12 +2068,6 @@ reevaluate:
             c->index = END_FLAG;
         goto return_index;
     }
-
-    // There shouldn't have been any "accumulated state", in the sense that
-    // we should be back where we started in terms of the data stack, the
-    // mold buffer position, the outstanding manual series allocations, etc.
-    //
-    ASSERT_STATE_BALANCED(&state);
 
     // Should not have a THROWN value if we got here
     //
