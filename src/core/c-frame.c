@@ -1357,9 +1357,20 @@ void Bind_Relative_Deep(REBARR *paramlist, REBARR *block)
     REBINT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-    assert(
+    // !!! Historically, relative binding was not allowed for NATIVE! or
+    // other function types.  It was not desirable for user code to be
+    // capable of binding to the parameters of a native.  However, for
+    // purposes of debug inspection, read-only access presents an
+    // interesting case.  While this avenue is explored, relative bindings
+    // for all function types are being permitted.
+    //
+    // NOTE: This cannot work if the native is invoked framelessly.  A
+    // debug mode must be enabled that prohibits the native from being
+    // frameless if it's to be introspected.
+    //
+    /*assert(
         IS_FUNCTION(ARRAY_HEAD(paramlist)) || IS_CLOSURE(ARRAY_HEAD(paramlist))
-    );
+    );*/
 
     param = ARRAY_AT(paramlist, 1);
 
@@ -1642,6 +1653,9 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
                         if (trap) fail (Error(RE_LOCKED_WORD, word));
                         return NULL;
                     }
+
+                    if (!call->arg)
+                        fail (Error(RE_FRAMELESS_WORD, word));
 
                     value = DSF_ARG(call, -index);
                     assert(!THROWN(value));

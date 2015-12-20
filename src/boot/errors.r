@@ -175,6 +175,8 @@ Script: [
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 
+    frameless-word:     [{variable} :arg1 {optimized out, run with DEBUG ON}]
+
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
     bad-decode:         {missing or unsupported encoding marker}
 ;   no-decode:          [{cannot decode} :arg1 {encoding}]

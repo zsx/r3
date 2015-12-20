@@ -298,8 +298,6 @@ void Make_Native(
     enum Reb_Kind type,
     REBOOL frameless
 ) {
-    REBARR *paramlist;
-
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
@@ -318,6 +316,22 @@ void Make_Native(
     // that it is the paramlist for.
 
     *FUNC_VALUE(out->payload.any_function.func) = *out;
+
+    // Make sure all the vars are marked read only.  This means that any
+    // vars which get bound to the native's args will not be able to modify
+    // them.  Such references are being experimentally allowed in the
+    // debugger.
+    //
+    // !!! Review whether allowing such references is a good or bad idea.
+    //
+    {
+        REBVAL *param;
+        param = VAL_FUNC_PARAMS_HEAD(out);
+        for (; NOT_END(param); param++) {
+            assert(IS_TYPESET(param));
+            VAL_SET_EXT(param, EXT_TYPESET_LOCKED);
+        }
+    }
 
     // These native routines want to be recognized by paramlist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
