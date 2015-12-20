@@ -2112,8 +2112,26 @@ reevaluate:
             // lookup.  If this isn't just a DO/NEXT, use the work!
             //
             if (c->flags & DO_FLAG_TO_END) {
-                *c->out = *c->arg;
-                goto do_fetched_word;
+                //
+                // We need to update the `expr_index` since we are skipping
+                // the whole `do_at_index` preparation for the next cycle.
+                //
+                // !!! The debug-oriented preparations from `do_at_index`
+                // get skipped too.  Should those be factored out into a
+                // separate function to reuse here?  Until this reuse work
+                // is done, the decision to take the shortcut here is done
+                // only half the time in the debug build...to increase the
+                // odds of catching a problem.
+                //
+                if (SPORADICALLY(2)) {
+                    c->expr_index = c->index;
+
+                    *c->out = *c->arg;
+                    goto do_fetched_word;
+                }
+
+                // Falling through (only in the debug build, and only half
+                // the time) should do an ordinary fetch of the word.
             }
         }
 
