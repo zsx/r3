@@ -1345,13 +1345,13 @@ static void Bind_Relative_Inner_Loop(
 
 
 //
-//  Bind_Relative: C
+//  Bind_Relative_Deep: C
 // 
 // Bind the words of a function block to a stack frame.
 // To indicate the relative nature of the index, it is set to
 // a negative offset.
 //
-void Bind_Relative(REBARR *paramlist, REBARR *block)
+void Bind_Relative_Deep(REBARR *paramlist, REBARR *block)
 {
     REBVAL *param;
     REBINT index;

@@ -648,7 +648,7 @@ struct Reb_Array {
     (*Alloc_Tail_Array((a)) = *(v), NOOP)
 
 #define Copy_Values_Len_Shallow(v,l) \
-    Copy_Values_Len_Shallow_Extra((v), (l), 0)
+    Copy_Values_Len_Extra_Shallow((v), (l), 0)
 
 #define Copy_Array_Shallow(a) \
     Copy_Array_At_Shallow((a), 0)

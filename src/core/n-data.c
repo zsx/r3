@@ -322,7 +322,7 @@ REBNATIVE(bind)
         array = VAL_ARRAY(ARG(value));
 
     if (is_relative)
-        Bind_Relative(target_series, array); //!! needs deep
+        Bind_Relative_Deep(target_series, array);
     else
         Bind_Values_Core(ARRAY_HEAD(array), AS_FRAME(target_series), flags);
 

@@ -712,7 +712,7 @@ void Make_Function(
     // body of the closure...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
 
-    Bind_Relative(VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out));
+    Bind_Relative_Deep(VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out));
 }
 
 
@@ -778,7 +778,7 @@ void Clonify_Function(REBVAL *value)
     // in the Copy_Function code.  Evaluate if there is now "dead code"
     // relating to the difference.
 /*
-    Bind_Relative(
+    Bind_Relative_Deep(
         VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
     );
 */

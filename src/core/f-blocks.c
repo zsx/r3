@@ -104,12 +104,12 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 
 
 //
-//  Copy_Values_Len_Shallow_Extra: C
+//  Copy_Values_Len_Extra_Shallow: C
 // 
 // Shallow copy the first 'len' values of `value[]` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
+REBARR *Copy_Values_Len_Extra_Shallow(REBVAL value[], REBCNT len, REBCNT extra)
 {
     REBARR *array;
 
@@ -231,7 +231,7 @@ REBARR *Copy_Array_Core_Managed(
         MANAGE_ARRAY(copy);
     }
     else {
-        copy = Copy_Values_Len_Shallow_Extra(
+        copy = Copy_Values_Len_Extra_Shallow(
             ARRAY_AT(original, index), tail - index, extra
         );
         MANAGE_ARRAY(copy);
