@@ -527,13 +527,6 @@ struct Native_Refine {
             : NOT(IS_NONE(ARG(name))))
 #endif
 
-// OUT is the write location in the call frame for the output.  Before the
-// call in debug builds this slot is initialized to a trash value, and by
-// the time a native has finished it is expected to not be trash (if the
-// return value is R_OUT).
-//
-#define OUT (call_->out)
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

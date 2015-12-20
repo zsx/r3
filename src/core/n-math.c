@@ -114,7 +114,7 @@ REBNATIVE(cosine)
 
     REBDEC dval = cos(Trig_Value(ARG(value), NOT(REF(radians)), COSINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-    SET_DECIMAL(OUT, dval);
+    SET_DECIMAL(D_OUT, dval);
     return R_OUT;
 }
 
@@ -135,7 +135,7 @@ REBNATIVE(sine)
 
     REBDEC dval = sin(Trig_Value(ARG(value), NOT(REF(radians)), SINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
-    SET_DECIMAL(OUT, dval);
+    SET_DECIMAL(D_OUT, dval);
     return R_OUT;
 }
 
@@ -156,7 +156,7 @@ REBNATIVE(tangent)
 
     REBDEC dval = Trig_Value(ARG(value), NOT(REF(radians)), TANGENT);
     if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
-    SET_DECIMAL(OUT, tan(dval));
+    SET_DECIMAL(D_OUT, tan(dval));
     return R_OUT;
 }
 
@@ -175,7 +175,7 @@ REBNATIVE(arccosine)
     PARAM(1, value);
     REFINE(2, radians);
 
-    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), COSINE);
+    Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), COSINE);
     return R_OUT;
 }
 
@@ -194,7 +194,7 @@ REBNATIVE(arcsine)
     PARAM(1, value);
     REFINE(2, radians);
 
-    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), SINE);
+    Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), SINE);
     return R_OUT;
 }
 
@@ -213,7 +213,7 @@ REBNATIVE(arctangent)
     PARAM(1, value);
     REFINE(2, radians);
 
-    Arc_Trans(OUT, ARG(value), NOT(REF(radians)), TANGENT);
+    Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), TANGENT);
     return R_OUT;
 }
 

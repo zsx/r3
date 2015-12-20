@@ -535,7 +535,7 @@ REBNATIVE(backtrace)
             // If we were fetching a single stack level, then the props
             // is our return result (if we found that level and got here)
             //
-            Val_Init_Block(OUT, props);
+            Val_Init_Block(D_OUT, props);
             return R_OUT;
         }
 
@@ -566,7 +566,7 @@ REBNATIVE(backtrace)
     // should have exactly used up all the index slots, leaving index at 0.
     //
     assert(index == 0);
-    Val_Init_Block(OUT, backtrace);
+    Val_Init_Block(D_OUT, backtrace);
     return R_OUT;
 }
 

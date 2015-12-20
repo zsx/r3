@@ -62,9 +62,23 @@
     // Windows-XP-specific dependencies were added in Ren-C, but the version
     // was bumped to avoid compilation errors in the common case.
     //
+    // !!! Note that %sys-core.h includes <windows.h> as well if building
+    // for windows.  The redundant inclusion should not create a problem.
+    // (So better to do the inclusion just to test that it doesn't.)
+    //
     #undef _WIN32_WINNT
     #define _WIN32_WINNT 0x0501
     #include <windows.h>
+
+    // Put any dependencies that include <windows.h> here
+    //
+    /* #include "..." */
+    /* #include "..." */
+
+    // Undefine the Windows version of IS_ERROR to avoid compiler warning
+    // when Rebol redefines it.  (Rebol defines IS_XXX for all datatypes.)
+    //
+    #undef IS_ERROR
 #endif
 
 
@@ -351,11 +365,11 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBCNT len_encoded;
         int do_result;
 
-        // On Windows, do_arg is a REBCHR*.  We need to get it into UTF8.
+        // On Windows, do_arg is a REBUNI*.  We need to get it into UTF8.
         // !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
         // so this should be more seamless.
     #ifdef TO_WINDOWS
-        len_uni = wcslen(Main_Args.do_arg);
+        len_uni = wcslen(cast(WCHAR*, Main_Args.do_arg));
         len_predicted = RL_Length_As_UTF8(
             Main_Args.do_arg, len_uni, TRUE, FALSE
         );
