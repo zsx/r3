@@ -1719,6 +1719,9 @@ void Set_Var(const REBVAL *word, const REBVAL *value)
         )
     );
 
+    if (VAL_GET_EXT(FUNC_PARAM(AS_FUNC(target), -index), EXT_TYPESET_LOCKED))
+        fail (Error(RE_LOCKED_WORD, word));
+
     *DSF_ARG(call, -index) = *value;
 }
 
