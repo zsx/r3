@@ -756,6 +756,138 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
 }
 
 
+#if !defined(NDEBUG)
+
+//
+// The entry checks to DO are for verifying that the setup of the Reb_Call
+// passed in was valid.  They run just once for each Do_Core() call, and
+// are only in the debug build.
+//
+static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
+{
+    // The caller must preload ->value with the first value to process.  It
+    // may be resident in the array passed that will be used to fetch further
+    // values, or it may not.
+    //
+    assert(c->value);
+
+    // Though we can protect the value written into the target pointer 'out'
+    // from GC during the course of evaluation, we can't protect the
+    // underlying value from relocation.  Technically this would be a problem
+    // for any series which might be modified while this call is running, but
+    // most notably it applies to the data stack--where output used to always
+    // be returned.
+    //
+#ifdef STRESS_CHECK_DO_OUT_POINTER
+    ASSERT_NOT_IN_SERIES_DATA(c->out);
+#else
+    assert(!IN_DATA_STACK(c->out));
+#endif
+
+    // Either DO_FLAG_NEXT or DO_FLAG_TO_END must be set, and so must either
+    // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD.
+    //
+    assert(
+        LOGICAL(c->flags & DO_FLAG_NEXT)
+        != LOGICAL(c->flags & DO_FLAG_TO_END)
+    );
+    assert(
+        LOGICAL(c->flags & DO_FLAG_LOOKAHEAD)
+        != LOGICAL(c->flags & DO_FLAG_NO_LOOKAHEAD)
+    );
+
+    // Apply and Redo_Func are not "DO" frames.
+    //
+    assert(c->flags & DO_FLAG_DO);
+
+    // Snapshot the "tick count" to assist in showing the value of the tick
+    // count at each level in a stack, so breakpoints can be strategically
+    // set for that tick based on higher levels than the value you might
+    // see during a crash.
+    //
+    c->do_count = TG_Do_Count;
+    return c->do_count;
+}
+
+
+//
+// The iteration preamble takes care of clearing out variables and preparing
+// the state for a new "/NEXT" evaluation.  It's a way of ensuring in the
+// debug build that one evaluation does not leak data into the next, and
+// making the code shareable allows code paths that jump to later spots
+// in the switch (vs. starting at the top) to reuse the work.
+//
+static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
+    //
+    // The ->mode is examined by parts of the system as a sign of whether
+    // the stack represents a function call frame or not.  If it is changed
+    // from CALL_MODE_0 during an evaluation step, it must be changed back.
+    //
+    assert(c->mode == CALL_MODE_0);
+
+    // We should not be linked into the call stack when a function is not
+    // running (it is not if we're in this outer loop)
+    //
+    assert(c != CS_Running);
+
+    // We checked for END when we entered Do_Core() and short circuited
+    // that, but if we're running DO_FLAG_TO_END then the catch for that is
+    // an index check.  We shouldn't go back and `do_at_index` on an end!
+    //
+    assert(!IS_END(c->value));
+    assert(c->index != END_FLAG && c->index != THROWN_FLAG);
+
+    // The value we are processing should not be THROWN() and any series in
+    // it should be under management by the garbage collector.
+    //
+    // !!! THROWN() bit on individual values is in the process of being
+    // deprecated, in favor of the evaluator being in a "throwing state".
+    //
+    assert(!THROWN(c->value));
+    ASSERT_VALUE_MANAGED(c->value);
+
+    // Trash call variables in debug build to make sure they're not reused.
+    // Note that this call frame will *not* be seen by the GC unless it gets
+    // chained in via a function execution, so it's okay to put "non-GC safe"
+    // trash in at this point...though by the time of that call, they must
+    // hold valid values.
+    //
+    SET_TRASH_IF_DEBUG(&c->cell);
+    c->func = cast(REBFUN*, 0xDECAFBAD);
+    c->label_sym = SYM_0;
+    c->arglist.array = NULL;
+    c->param = cast(REBVAL*, 0xDECAFBAD);
+    c->arg = cast(REBVAL*, 0xDECAFBAD);
+    c->refine = cast(REBVAL*, 0xDECAFBAD);
+
+    // This counter is helpful for tracking a specific invocation.
+    // If you notice a crash, look on the stack for the topmost call
+    // and read the count...then put that here and recompile with
+    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
+    // local 'count' so you still get the right count after recursion.)
+    //
+    // We bound it at the max unsigned 32-bit because otherwise it would
+    // roll over to zero and print a message that wasn't asked for, which
+    // is annoying even in a debug build.
+    //
+    if (TG_Do_Count < MAX_U32) {
+        c->do_count = ++TG_Do_Count;
+        if (c->do_count ==
+            // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
+                                      0
+            // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
+        ) {
+            Val_Init_Block_Index(&c->cell, c->array, c->index);
+            PROBE_MSG(&c->cell, "Do_Core() count trap");
+        }
+    }
+
+    return c->do_count;
+}
+
+#endif
+
+
 //
 //  Do_Core: C
 // 
@@ -768,27 +900,30 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
 // For comprehensive notes on the input parameters, output parameters, and
 // internal state variables...see %sys-do.h and `struct Reb_Call`.
 // 
-// !!! IMPORTANT NOTE !!!
+// NOTES:
 //
-// Changing the behavior of the parameter fulfillment in this core routine
-// generally also means changes to two other semi-parallel routines:
-// `Apply_Block_Throws()` and `Redo_Func_Throws().`
+// 1. This is a very long routine.  That is largely on purpose, because it
+//    does not contain repeated portions...and is a critical performance
+//    bottleneck in the system.  So dividing it for the sake of "having
+//    more functions" wouldn't be a good idea, especially since the target
+//    is compilers that are so simple they may not have proper inlining
+//    (which is only a "hint" to the compiler even if it's supported).
+//
+// 2. Changing the behavior of the parameter fulfillment in this core routine
+//    generally also means changes to two other semi-parallel routines:
+//    `Apply_Block_Throws()` and `Redo_Func_Throws().`  Review the impacts
+//    of any changes on all three.
+//
+// !!! There is currently no "locking" or other protection on the arrays that
+// are in the call stack and executing.  Each iteration must be prepared for
+// the case that the array has been modified out from under it.  The code
+// evaluator will not crash, but re-fetches...ending the evaluation if the
+// array has been shortened to before the index, and using possibly new
+// values.  The benefits of this self-modifying lenience should be reviewed
+// to inform a decision regarding the locking of arrays during evaluation.
 //
 void Do_Core(struct Reb_Call * const c)
 {
-#if !defined(NDEBUG)
-    REBCNT count = TG_Do_Count;
-#endif
-
-#if !defined(NDEBUG)
-    //
-    // Debug builds that are emulating the old behavior of writing NONE into
-    // refinement args need to know when they should be writing these nones
-    // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
-    //
-    REBOOL write_none;
-#endif
-
     // See notes below on reference for why this is needed to implement eval.
     //
     REBVAL eval;
@@ -807,6 +942,18 @@ void Do_Core(struct Reb_Call * const c)
     // to buffers like the MOLD stack that haven't been used or popped, etc.)
     //
     struct Reb_State state;
+
+    // Debug builds that are emulating the old behavior of writing NONE into
+    // refinement args need to know when they should be writing these nones
+    // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
+    //
+    REBOOL write_none;
+
+    // This is just a reflection of `c->do_count`, kept in sync so it's less
+    // effort to browse stack levels and see what the count is.
+    //
+    REBCNT do_count;
+    cast(void, do_count); // suppress unused warning
 #endif
 
     // Fast short-circuit; and generally shouldn't happen because the calling
@@ -821,6 +968,11 @@ void Do_Core(struct Reb_Call * const c)
         c->index = END_FLAG;
         return;
     }
+
+    // Only need to check this once (C stack size would be the same each
+    // time this line is run if it were in a loop)
+    //
+    if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
 
     // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
     // in progress that the GC need worry about) and push it to the Do Stack.
@@ -855,6 +1007,11 @@ void Do_Core(struct Reb_Call * const c)
     // errors, so code is shared...see %sys-state.h
     //
     SNAP_STATE(&state);
+
+    // Entry verification checks, to make sure the caller provided good
+    // parameters.  (Broken into separate routine
+    //
+    do_count = Do_Entry_Checks_Debug(c);
 #endif
 
     // Capture the data stack pointer on entry (used by debug checks, but
@@ -862,50 +1019,6 @@ void Do_Core(struct Reb_Call * const c)
     // are any that are not processed)
     //
     c->dsp_orig = DSP;
-
-    // Write some garbage (that won't crash the GC) into the `out` slot in
-    // the debug build.  We will assume that as the evaluator runs
-    // it will never put anything in out that will crash the GC.
-    //
-    SET_TRASH_SAFE(c->out);
-
-    // First, check the input parameters (debug build only)
-
-    // Though we can protect the value written into the target pointer 'out'
-    // from GC during the course of evaluation, we can't protect the
-    // underlying value from relocation.  Technically this would be a problem
-    // for any series which might be modified while this call is running, but
-    // most notably it applies to the data stack--where output used to always
-    // be returned.
-    //
-#ifdef STRESS_CHECK_DO_OUT_POINTER
-    ASSERT_NOT_IN_SERIES_DATA(c->out);
-#else
-    assert(!IN_DATA_STACK(c->out));
-#endif
-
-    assert(c->value);
-
-    // Either DO_FLAG_NEXT or DO_FLAG_TO_END must be set, and so must either
-    // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD.
-    //
-    assert(
-        LOGICAL(c->flags & DO_FLAG_NEXT)
-        != LOGICAL(c->flags & DO_FLAG_TO_END)
-    );
-    assert(
-        LOGICAL(c->flags & DO_FLAG_LOOKAHEAD)
-        != LOGICAL(c->flags & DO_FLAG_NO_LOOKAHEAD)
-    );
-
-    // Apply and Redo_Func are not "DO" frames.
-    //
-    assert(c->flags & DO_FLAG_DO);
-
-    // Only need to check this once (C stack size would be the same each
-    // time this line is run if it were in a loop)
-    //
-    if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
 
     // !!! We have to compensate for the passed-in index by subtracting 1,
     // as the looped form below needs an addition each time.  This means most
@@ -916,62 +1029,22 @@ void Do_Core(struct Reb_Call * const c)
     //
     --c->index;
 
-do_at_index:
+    // Write some garbage (that won't crash the GC) into the `out` slot in
+    // the debug build.  We will assume that as the evaluator runs
+    // it will never put anything in out that will crash the GC.
     //
-    // We checked for END when we entered the function and short circuited
-    // that, but if we're running DO_FLAG_TO_END then the catch for that is
-    // an index check.  We shouldn't go back and `do_at_index` on an end!
+    // !!! See remarks below which seem to think it necessary to do this
+    // on each iteration...research why this was being done 3 times (?!)
     //
-    assert(!IS_END(c->value));
-    assert(c->index != END_FLAG && c->index != THROWN_FLAG);
+    /*SET_TRASH_SAFE(c->out);*/
 
-    // We should not be linked into the call stack when a function is not
-    // running (it is not if we're in this outer loop)
-    //
-    assert(c != CS_Running);
+do_at_index:
+    if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
 
     // Save the index at the start of the expression in case it is needed
     // for error reporting.
     //
     c->expr_index = c->index;
-
-#if !defined(NDEBUG)
-    //
-    // Every other call in the debug build we put safe trash in the output
-    // slot.  This gives a spread of release build behavior (trusting that
-    // the out value is GC safe from previous evaluations)...as well as a
-    // debug behavior to catch those trying to inspect what is conceptually
-    // supposed to be a garbage value.
-    //
-    if (SPORADICALLY(2))
-        SET_TRASH_SAFE(c->out);
-#endif
-
-    if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
-
-#if !defined(NDEBUG)
-    //
-    // Trash call variables in debug build to make sure they're not reused.
-    // Note that this call frame will *not* be seen by the GC unless it gets
-    // chained in via a function execution, so it's okay to put "non-GC safe"
-    // trash in at this point...though by the time of that call, they must
-    // hold valid values.
-    //
-    SET_TRASH_IF_DEBUG(&c->cell);
-    c->func = cast(REBFUN*, 0xDECAFBAD);
-    c->label_sym = SYM_0;
-    c->arglist.array = NULL;
-    c->param = cast(REBVAL*, 0xDECAFBAD);
-    c->arg = cast(REBVAL*, 0xDECAFBAD);
-    c->refine = cast(REBVAL*, 0xDECAFBAD);
-
-    // Although in the outer loop this call frame is not threaded into the
-    // call stack, the `out` value may be shared.  So it could be a value
-    // pointed to at another level which *is* on the stack.  Hence we must
-    // always write safe trash into it for this debug check.
-    //
-    SET_TRASH_SAFE(c->out);
-#endif
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     //
@@ -988,34 +1061,31 @@ do_at_index:
     if (--Eval_Count <= 0 || Eval_Signals) Do_Signals(); // may Recycle()!
 
 reevaluate:
-    assert(!THROWN(c->value));
-    ASSERT_VALUE_MANAGED(c->value);
+    // Although in the outer loop this call frame is not threaded into the
+    // call stack, the `out` value may be shared.  So it could be a value
+    // pointed to at another level which *is* on the stack.  Hence we must
+    // always write safe trash into it for this debug check.
+    //
+    // !!! REVIEW: This was overruling an earlier bit of writing that said:
+    // "Every other call in the debug build we put safe trash in the output
+    // slot.  This gives a spread of release build behavior (trusting that
+    // the out value is GC safe from previous evaluations)...as well as a
+    // debug behavior to catch those trying to inspect what is conceptually
+    // supposed to be a garbage value."  Determine what the exact meaning
+    // of this was, and why it had two contradicting calls.
+    //
+    /*if (SPORADICALLY(2)) SET_TRASH_SAFE(c->out);*/
+    SET_TRASH_SAFE(c->out);
 
-    assert(c->mode == CALL_MODE_0);
-
+    // The "Preamble" is only in debug builds, and it is what trashes the
+    // various state variables in order to ensure that one iteration of Do
+    // doesn't leak its state to be observed by the next.
+    //
+    // (It also allows one to catch a certain tick count in the evaluator
+    // with a probe and a breakpoint opportunity.)
+    //
 #if !defined(NDEBUG)
-    //
-    // This counter is helpful for tracking a specific invocation.
-    // If you notice a crash, look on the stack for the topmost call
-    // and read the count...then put that here and recompile with
-    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
-    // local 'count' so you still get the right count after recursion.)
-    //
-    // We bound it at the max unsigned 32-bit because otherwise it would
-    // roll over to zero and print a message that wasn't asked for, which
-    // is annoying even in a debug build.
-    //
-    if (TG_Do_Count < MAX_U32) {
-        count = ++TG_Do_Count;
-        if (count ==
-            // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
-                                      0
-            // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
-        ) {
-            Val_Init_Block_Index(&c->cell, c->array, c->index);
-            PROBE_MSG(&c->cell, "Do_Core() count trap");
-        }
-    }
+    do_count = Do_Evaluation_Preamble_Debug(c);
 #endif
 
     switch (VAL_TYPE(c->value)) {
@@ -1167,8 +1237,8 @@ reevaluate:
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
-            // our guarded eval result, and step the index back by one so
-            // the next increment will get our position sync'd in the block.
+            // eval result, and step the index back by one so the next
+            // increment will get our position sync'd in the block.
             //
             // If there's any reason to be concerned about the temporary
             // item being GC'd, it should be taken care of by the implicit
@@ -2104,24 +2174,18 @@ reevaluate:
             if (c->flags & DO_FLAG_TO_END) {
                 //
                 // We need to update the `expr_index` since we are skipping
-                // the whole `do_at_index` preparation for the next cycle.
+                // the whole `do_at_index` preparation for the next cycle,
+                // and also need to run the "Preamble" in debug builds to
+                // properly update the tick count and clear out state.
                 //
-                // !!! The debug-oriented preparations from `do_at_index`
-                // get skipped too.  Should those be factored out into a
-                // separate function to reuse here?  Until this reuse work
-                // is done, the decision to take the shortcut here is done
-                // only half the time in the debug build...to increase the
-                // odds of catching a problem.
-                //
-                if (SPORADICALLY(2)) {
-                    c->expr_index = c->index;
+                c->expr_index = c->index;
+                *c->out = *c->arg;
 
-                    *c->out = *c->arg;
-                    goto do_fetched_word;
-                }
+            #if !defined(NDEBUG)
+                do_count = Do_Evaluation_Preamble_Debug(c);
+            #endif
 
-                // Falling through (only in the debug build, and only half
-                // the time) should do an ordinary fetch of the word.
+                goto do_fetched_word;
             }
         }
 

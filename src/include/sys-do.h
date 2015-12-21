@@ -266,6 +266,16 @@ struct Reb_Call {
     // of where the currently evaluating expression started.
     //
     REBCNT expr_index;
+
+    // `do_count` [INTERNAL, DEBUG, READ-ONLY]
+    //
+    // The `do_count` represents the expression evaluation "tick" where the
+    // Reb_Call is starting its processing.  This is helpful for setting
+    // breakpoints on certain ticks in reproducible situations.
+    //
+#if !defined(NDEBUG)
+    REBCNT do_count;
+#endif
 };
 
 // Each iteration of DO bumps a global count, that in deterministic repro
