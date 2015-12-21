@@ -809,6 +809,7 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
     return c->do_count;
 }
 
+#include "debugbreak.h"
 
 //
 // The iteration preamble takes care of clearing out variables and preparing
@@ -879,6 +880,7 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
         ) {
             Val_Init_Block_Index(&c->cell, c->array, c->index);
             PROBE_MSG(&c->cell, "Do_Core() count trap");
+            debug_break();
         }
     }
 
