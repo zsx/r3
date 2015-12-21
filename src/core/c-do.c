@@ -994,16 +994,6 @@ reevaluate:
     assert(c->mode == CALL_MODE_0);
 
 #if !defined(NDEBUG)
-    assert(DSP >= c->dsp_orig);
-    if (DSP > c->dsp_orig) {
-        REBVAL where;
-        Val_Init_Block_Index(&where, c->array, c->index);
-        PROBE_MSG(&where, "UNBALANCED STACK TRAP!!!");
-        panic (Error(RE_MISC));
-    }
-#endif
-
-#if !defined(NDEBUG)
     //
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
