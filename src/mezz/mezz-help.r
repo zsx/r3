@@ -328,7 +328,7 @@ dump-obj: function [
         print-args/extra "^/REFINEMENTS:" refl
     ]
 
-    exit ; return unset
+    () ; return unset
 ]
 
 about: func [

@@ -402,20 +402,22 @@ enum encoding_opts {
 // will occur exactly once (when it is caught).
 
 #ifdef NDEBUG
-    #define CONVERT_NAME_TO_THROWN(name,arg) \
+    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
         do { \
+            if (from) VAL_SET_OPT((name), OPT_VALUE_EXIT_FROM); \
             VAL_SET_OPT((name), OPT_VALUE_THROWN); \
             (TG_Thrown_Arg = *(arg)); \
         } while (0)
 
     #define CATCH_THROWN(arg,thrown) \
         do { \
+            VAL_CLR_OPT((thrown), OPT_VALUE_EXIT_FROM); \
             VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
             (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
-    #define CONVERT_NAME_TO_THROWN(n,a) \
-        Convert_Name_To_Thrown_Debug(n, a)
+    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
+        Convert_Name_To_Thrown_Debug(name, arg, from)
 
     #define CATCH_THROWN(a,t) \
         Catch_Thrown_Debug(a, t)

@@ -335,7 +335,7 @@ void Make_Native(
 
     // These native routines want to be recognized by paramlist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
-    // out for VAL_FUNC_RETURN_TO, and EVAL for 1 test vs. 2 in the eval loop.)
+    // out for VAL_FUNC_RETURN_FROM, and EVAL for 1 test vs. 2 in the eval loop.)
     //
     // PARSE wants to throw its value from nested code to itself, and doesn't
     // want to thread its known D_FUNC value through the call stack.
@@ -393,16 +393,10 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
         VAL_ARRAY(Get_System(SYS_STANDARD, STD_FUNC_BODY))
     );
 
-    // Index 5 (or 4 in zero-based C) should be #TYPE, a FUNCTION! or CLOSURE!
-    // !!! Is the binding important in this fake body??
-    assert(IS_ISSUE(ARRAY_AT(fake_body, 4)));
-    Val_Init_Word_Unbound(
-        ARRAY_AT(fake_body, 4), REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
-    );
-
-    // Index 8 (or 7 in zero-based C) should be #BODY, a "real" body
-    assert(IS_ISSUE(ARRAY_AT(fake_body, 7))); // #BODY
-    Val_Init_Block(ARRAY_AT(fake_body, 7), VAL_FUNC_BODY(func));
+    // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
+    assert(IS_ISSUE(ARRAY_AT(fake_body, 4))); // #BODY
+    Val_Init_Array(ARRAY_AT(fake_body, 4), REB_PAREN, VAL_FUNC_BODY(func));
+    VAL_SET_OPT(ARRAY_AT(fake_body, 4), OPT_VALUE_LINE);
 
     return fake_body;
 }
@@ -932,36 +926,8 @@ REBOOL Do_Function_Throws(struct Reb_Call *call_)
 
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
-    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0)) {
-        //
-        // It threw, so check to see if the throw was intended for this
-        // invocation to catch (return, exit) or if it should be bubbled up.
-        //
-        // First of all, every function responds to non-definitional EXIT
-        //
-        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
-        // A definitional return should only be intercepted if it was for
-        // this particular function invocation.
-        //
-        if (
-            IS_FUNCTION(D_OUT)
-            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
-            && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
-        ) {
-            // Optimized definitional return!!  Courtesy of REBNATIVE(func),
-            // a "hacked" REBNATIVE(return) that knew our paramlist, and
-            // the gracious cooperative throw by Dispatch_Call_Throws()...
-            //
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
+    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0))
         return TRUE; // throw wasn't for us...
-    }
 
     return FALSE;
 }
@@ -1011,7 +977,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 #if !defined(NDEBUG)
     // !!! A second sweep for the definitional return used to be necessary in
     // the dispatch of closures since the frame hadn't been created yet to
-    // put in the RETURN_TO slot.  Now that the call's `arglist` is known
+    // put in the RETURN_FROM slot.  Now that the call's `arglist` is known
     // to be the pre-created array we'll mutate into a frame, the Do_Core
     // sweep went ahead and put it in for us.  Temporarily leave in the sweep
     // with aparanoid check to make sure, but delete this eventually.
@@ -1024,7 +990,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
                 assert(PG_Return_Func == VAL_FUNC(value));
-                assert(VAL_FUNC_RETURN_TO(value) == FRAME_VARLIST(frame));
+                assert(VAL_FUNC_RETURN_FROM(value) == FRAME_VARLIST(frame));
             }
         }
     }
@@ -1057,25 +1023,6 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 
     if (Do_At_Throws(D_OUT, body, 0)) {
         DROP_GUARD_ARRAY(body);
-        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
-            // Every function responds to non-definitional EXIT
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
-        if (
-            IS_OBJECT(D_OUT)
-            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
-            && VAL_FRAME(D_OUT) == frame
-        ) {
-            // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
-            // a "hacked" REBNATIVE(return) that knew our frame, and
-            // the gracious cooperative throw by Dispatch_Call_Throws()...
-
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
         return TRUE; // throw wasn't for us
     }
 
@@ -1256,10 +1203,19 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     //
     // We also set OPT_VALUE_THROWN as that is not required to be sync'd
     // with the persistent value in the function.  This bit is deprecated
-    // however, for many of the same reasons it's a nuisance here.
+    // however, for many of the same reasons it's a nuisance here.  The
+    // OPT_VALUE_EXIT_FROM needs to be handled in the same way.
     //
-    v_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
-    func_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
+    v_header.all |= (
+        (1 << OPT_VALUE_EXIT_FROM)
+        | (1 << OPT_VALUE_LINE)
+        | (1 << OPT_VALUE_THROWN)
+    ) << 8;
+    func_header.all |= (
+        (1 << OPT_VALUE_EXIT_FROM)
+        | (1 << OPT_VALUE_LINE)
+        | (1 << OPT_VALUE_THROWN)
+    ) << 8;
 
     if (v_header.all != func_header.all) {
         REBVAL *func_value = FUNC_VALUE(func);

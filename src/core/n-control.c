@@ -389,7 +389,7 @@ REBNATIVE(break)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     return R_OUT_IS_THROWN;
 }
@@ -772,7 +772,7 @@ REBNATIVE(throw)
         SET_NONE(D_OUT);
     }
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     // Throw name is in D_OUT, thrown value is held task local
     return R_OUT_IS_THROWN;
@@ -906,7 +906,7 @@ REBNATIVE(continue)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     return R_OUT_IS_THROWN;
 }
@@ -1056,21 +1056,100 @@ REBNATIVE(eval)
 //
 //  exit: native [
 //  
-//  {Leave whatever enclosing Rebol state EXIT's block *actually* runs in.}
+//  {Leave enclosing function, or jump /FROM.}
 //  
-//      /with "Result for enclosing state (default is UNSET!)"
+//      /with
+//          "Result for enclosing state (default is UNSET!)"
 //      value [any-value!]
+//      /from
+//          "Jump the stack to return from a specific frame or call"
+//      target [any-function! object!]
+//          "Function or frame to exit from (identifying OBJECT! if CLOSURE!)"
 //  ]
 //
 REBNATIVE(exit)
 //
 // EXIT is implemented via a THROWN() value that bubbles up through
-// the stack.  It uses the value of its own native function as the
-// name of the throw, like `throw/name value :exit`.
+// the stack.
 {
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    REFINE(1, with);
+    PARAM(2, value);
+    REFINE(3, from);
+    PARAM(4, target);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
+    struct Reb_Call *call = DSF->prior; // don't count this EXIT
+
+    for (; call != NULL; call = call->prior) {
+        if (call->mode != CALL_MODE_FUNCTION) {
+            //
+            // Don't consider pending calls, or parens, or any non-invoked
+            // function as a candidate to target with EXIT.
+            //
+            // !!! The inability to exit these things is because of technical
+            // limitation rather than either being expressly undesirable.
+            // Both cases are likely desirable and could be addressed.
+            //
+            continue;
+        }
+
+    #if !defined(NDEBUG)
+        //
+        // Though the Ren-C default is to allow exiting from natives (and not
+        // to provide the poor invariant of different behavior based on whether
+        // the containing function is native or not), the legacy switch lets
+        // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
+        //
+        if (
+            LEGACY(OPTIONS_DONT_EXIT_NATIVES)
+            && !IS_FUNCTION(FUNC_VALUE(call->func))
+            && !IS_CLOSURE(FUNC_VALUE(call->func))
+        ) {
+            continue;
+        }
+    #endif
+
+        if (!REF(from)) break; // Take first actual frame if "plain" EXIT
+
+        // If a function matches the queried one, use this frame.
+        //
+        // !!! When an actual FRAME! type exists to identify specific
+        // instantiations, that should be supported as well.
+        //
+        if (
+            IS_OBJECT(ARG(target))
+            && IS_CLOSURE(FUNC_VALUE(call->func))
+            && AS_FRAME(call->arglist.array) == VAL_FRAME(ARG(target))
+        ) {
+            break;
+        }
+        else {
+            assert(ANY_FUNC(ARG(target)));
+            if (VAL_FUNC(ARG(target)) == call->func) break;
+        }
+    }
+
+    // NULL here means we didn't find a match (either plain exit but no
+    // frames higher, or the requested function isn't on the stack.)
+    //
+    if (call == NULL)
+        fail (Error(RE_INVALID_EXIT));
+
+    if (IS_CLOSURE(FUNC_VALUE(call->func))) {
+        //
+        // CLOSURE! is different because the EXIT_FROM uses the object for
+        // the specific instance as the target.
+        //
+        *D_OUT = *FRAME_CONTEXT(AS_FRAME(call->arglist.array));
+    }
+    else {
+        //
+        // !!! Other function types have a problem in that only the most
+        // recent call frame will be exited, this is to be fixed.
+        //
+        *D_OUT = *FUNC_VALUE(call->func);
+    }
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE);
 
     return R_OUT_IS_THROWN;
 }
@@ -1516,7 +1595,7 @@ REBNATIVE(return)
 // There is a RETURN native defined, and its native function spec is
 // utilized to create the appropriate help and calling protocol
 // information for values that have overridden its VAL_FUNC_CODE
-// slot with a VAL_FUNC_RETURN_TO spec.
+// slot with a VAL_FUNC_RETURN_FROM spec.
 // 
 // However: this native is unset and its actual code body should
 // never be able to be called.  The non-definitional return construct

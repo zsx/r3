@@ -89,6 +89,8 @@ Internal: [
     codepoint-too-high: [{codepoint} :arg1 {too large for current interpreter}]
 
     debug-only:         {Feature available only in DEBUG builds}
+
+    invalid-exit:       {Frame does not exist on the stack to EXIT from}
 ]
 
 Syntax: [

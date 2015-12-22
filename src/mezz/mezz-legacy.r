@@ -359,6 +359,7 @@ set 'r3-legacy* func [] [
     system/options/break-with-overrides: true
     system/options/none-instead-of-unsets: true
     system/options/arg1-arg2-arg3-error: true
+    system/options/dont-exit-natives: true
 
     append system/contexts/user compose [
 

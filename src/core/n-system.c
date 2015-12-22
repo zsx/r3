@@ -64,10 +64,10 @@ REBNATIVE(quit)
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
     if (D_REF(1)) {
-        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
+        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2), FALSE);
     }
     else if (D_REF(3)) {
-        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(4));
+        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(4), FALSE);
     }
     else {
         // Chosen to do it this way because returning to a calling script it
@@ -76,7 +76,7 @@ REBNATIVE(quit)
 
         // (UNSET! will be translated to 0 if it gets caught for the shell)
 
-        CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE);
+        CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE, FALSE);
     }
 
     return R_OUT_IS_THROWN;

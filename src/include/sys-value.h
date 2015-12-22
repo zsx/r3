@@ -346,6 +346,21 @@ enum {
     //
     OPT_VALUE_THROWN,
 
+    // This is a bit used in conjunction with OPT_VALUE_THROWN, which could
+    // also be folded in to be a model of being in an "exiting state".  The
+    // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
+    // where the frame desired to be targeted is marked with this flag.
+    // Currently it is indicated by either the object of the FRAME! (for
+    // a CLOSURE!) or the paramlist for all other ANY-FUNCTION!.
+    //
+    // !!! WARNING - In the current scheme this will only jump up to the most
+    // recent instantiation of the function, as it does not have unique
+    // identity in relative binding.  When FUNCTION! and its kind are updated
+    // to use a new technique that brings it to parity with CLOSURE! in this
+    // regard, then that will fix this.
+    //
+    OPT_VALUE_EXIT_FROM,
+
     OPT_VALUE_MAX
 };
 
@@ -1557,7 +1572,7 @@ struct Reb_Any_Function {
 // actual FUNC.  (In the general case, the [0] element of the FUNC must be
 // consistent with the fields of the value holding it.)
 //
-#define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
+#define VAL_FUNC_RETURN_FROM(v) VAL_FUNC_BODY(v)
 
 
 /***********************************************************************

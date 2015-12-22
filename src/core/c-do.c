@@ -731,6 +731,50 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
         fail (Error(RE_MISC));
     }
 
+    // A definitional return should only be intercepted if it was for this
+    // particular function invocation.  Definitional return abilities have
+    // been extended to natives and actions, in order to permit stack
+    // control in debug situations (and perhaps some non-debug capabilities
+    // will be discovered as well).
+    //
+    // NOTE: Used to check EXT_FUNC_HAS_RETURN, but the debug scenarios
+    // permit returning from natives or functions/closures without any
+    // notion of definitional return.  See notes on OPT_VALUE_EXIT_FROM.
+    //
+    if (threw && VAL_GET_OPT(D_OUT, OPT_VALUE_EXIT_FROM)) {
+        if (IS_OBJECT(D_OUT)) {
+            //
+            // CLOSURE! doesn't identify itself by its paramlist, but by
+            // the specific identity of instance from its OBJECT! frame
+            //
+            if (
+                IS_CLOSURE(FUNC_VALUE(D_FUNC))
+                && VAL_FRAME(D_OUT) == AS_FRAME(call_->arglist.array)
+            ) {
+                CATCH_THROWN(D_OUT, D_OUT);
+                threw = FALSE;
+            }
+        }
+        else {
+            assert(ANY_FUNC(D_OUT));
+
+            // All other function types identify by paramlist.
+            //
+            // !!! This means that it is not possible to target a specific
+            // instance of a function in a recursive context.  Only the most
+            // recent call will be matched.  This is a technical limitation
+            // of non-CLOSURE!s that is being researched to address.
+            //
+            if (
+                !IS_CLOSURE(FUNC_VALUE(D_FUNC))
+                && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
+            ) {
+                CATCH_THROWN(D_OUT, D_OUT);
+                threw = FALSE;
+            }
+        }
+    }
+
     call_->mode = CALL_MODE_0;
 
     // Function execution should have written *some* actual output value
@@ -933,9 +977,9 @@ void Do_Core(struct Reb_Call * const c)
     // Definitional Return gives back a "corrupted" REBVAL of a return native,
     // whose body is actually an indicator of the return target.  The
     // Reb_Call only stores the FUNC so we must extract this body from the
-    // value if it represents a return_to
+    // value if it represents a exit_from
     //
-    REBARR *return_to = NULL;
+    REBARR *exit_from = NULL;
 
 #if !defined(NDEBUG)
     //
@@ -1115,7 +1159,7 @@ reevaluate:
             //
             c->func = VAL_FUNC(c->out);
             if (c->func == PG_Return_Func)
-                return_to = VAL_FUNC_RETURN_TO(c->out);
+                exit_from = VAL_FUNC_RETURN_FROM(c->out);
 
             if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
             goto do_function;
@@ -1198,7 +1242,7 @@ reevaluate:
         //
         c->func = VAL_FUNC(c->value);
         if (c->func == PG_Return_Func)
-            return_to = VAL_FUNC_RETURN_TO(c->value);
+            exit_from = VAL_FUNC_RETURN_FROM(c->value);
 
     do_function:
         //
@@ -1337,8 +1381,21 @@ reevaluate:
             // as well?
             //
             assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
-            if (ret == R_OUT_IS_THROWN)
-                goto return_thrown;
+            if (ret == R_OUT_IS_THROWN) {
+                //
+                // We're bypassing Dispatch_Function, but we still want to
+                // be able to handle EXIT/FROM requests to this stack level
+                //
+                if (
+                    VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
+                    && !IS_OBJECT(c->out)
+                    && VAL_FUNC(c->out) == c->func
+                ) {
+                    CATCH_THROWN(c->out, c->out);
+                }
+                else
+                    goto return_thrown;
+            }
 
             // We're done!
             break;
@@ -1459,7 +1516,7 @@ reevaluate:
                     // put that in the spot instead of a FUNCTION!'s
                     // identifying series if necessary...
                     //
-                    VAL_FUNC_RETURN_TO(c->arg) =
+                    VAL_FUNC_RETURN_FROM(c->arg) =
                         IS_CLOSURE(FUNC_VALUE(c->func))
                             ? c->arglist.array
                             : FUNC_PARAMLIST(c->func);
@@ -1932,42 +1989,42 @@ reevaluate:
         }
     #endif
 
-        if (return_to) {
+        if (exit_from) {
             //
             // If it's a definitional return, then we need to do the throw
-            // for the return, named by the value in the return_to.  This
+            // for the return, named by the value in the exit_from.  This
             // should be the RETURN native with 1 arg as the function, and
             // the native code pointer should have been replaced by a
             // REBFUN (if function) or REBFRM (if closure) to jump to.
             //
             assert(FUNC_NUM_PARAMS(c->func) == 1);
-            ASSERT_ARRAY(return_to);
+            ASSERT_ARRAY(exit_from);
 
             // We only have a REBSER*, but want to actually THROW a full
             // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
             // the paramlist.  In either case, the value comes from slot [0]
-            // of the RETURN_TO array, but in the debug build do an added
+            // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
         #if !defined(NDEBUG)
-            if (ARRAY_GET_FLAG(return_to, SER_FRAME)) {
+            if (ARRAY_GET_FLAG(exit_from, SER_FRAME)) {
                 //
                 // The function was actually a CLOSURE!, so "when it took
                 // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
                 //
-                assert(IS_OBJECT(FRAME_CONTEXT(AS_FRAME(return_to))));
+                assert(IS_OBJECT(FRAME_CONTEXT(AS_FRAME(exit_from))));
             }
             else {
                 // It was a stack-relative FUNCTION!
                 //
-                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(return_to))));
-                assert(FUNC_PARAMLIST(AS_FUNC(return_to)) == return_to);
+                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(exit_from))));
+                assert(FUNC_PARAMLIST(AS_FUNC(exit_from)) == exit_from);
             }
         #endif
 
-            *c->out = *ARRAY_HEAD(return_to);
+            *c->out = *ARRAY_HEAD(exit_from);
 
-            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c));
+            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
             Drop_Call_Arglist(c);
 
             goto return_thrown;
@@ -2011,7 +2068,7 @@ reevaluate:
             //
             c->func = VAL_FUNC(c->out);
             if (c->func == PG_Return_Func)
-                return_to = VAL_FUNC_RETURN_TO(c->out);
+                exit_from = VAL_FUNC_RETURN_FROM(c->out);
             goto do_function;
         }
         else {
@@ -2674,7 +2731,7 @@ REBOOL Apply_Func_Throws_Core(
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
+                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset.
@@ -2744,7 +2801,7 @@ REBOOL Apply_Func_Throws_Core(
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
+                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset
@@ -3094,9 +3151,9 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
                 && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)
             ) {
                 // This pure local is a special magic "definitional return"
-                // (see comments on VAL_FUNC_RETURN_TO)
+                // (see comments on VAL_FUNC_RETURN_FROM)
                 *arg_new = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg_new) = FUNC_PARAMLIST(func_new);
+                VAL_FUNC_RETURN_FROM(arg_new) = FUNC_PARAMLIST(func_new);
             }
             else {
                 // This pure local is not special, so leave as UNSET

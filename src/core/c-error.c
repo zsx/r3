@@ -249,9 +249,11 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 // Sets a task-local value to be associated with the name and
 // mark it as the proxy value indicating a THROW().
 //
-void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg)
+void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg, REBOOL from)
 {
     assert(!THROWN(name));
+
+    if (from) VAL_SET_OPT((name), OPT_VALUE_EXIT_FROM);
     VAL_SET_OPT(name, OPT_VALUE_THROWN);
 
     assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
@@ -275,6 +277,7 @@ void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
 {
     assert(THROWN(thrown));
     VAL_CLR_OPT(thrown, OPT_VALUE_THROWN);
+    VAL_CLR_OPT(thrown, OPT_VALUE_EXIT_FROM);
 
     assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
 

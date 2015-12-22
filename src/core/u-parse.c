@@ -920,7 +920,9 @@ static REBCNT Parse_Rules_Loop(
                             }
 
                             *parse->out = *ROOT_PARSE_NATIVE;
-                            CONVERT_NAME_TO_THROWN(parse->out, &evaluated);
+                            CONVERT_NAME_TO_THROWN(
+                                parse->out, &evaluated, FALSE
+                            );
 
                             // Implicitly returns whatever's in parse->out
                             return THROWN_FLAG;
@@ -1320,7 +1322,7 @@ post:
                     );
 
                     *parse->out = *ROOT_PARSE_NATIVE;
-                    CONVERT_NAME_TO_THROWN(parse->out, &captured);
+                    CONVERT_NAME_TO_THROWN(parse->out, &captured, FALSE);
 
                     // Implicitly returns whatever's in parse->out
                     return THROWN_FLAG;
