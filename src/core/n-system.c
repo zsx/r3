@@ -318,24 +318,97 @@ REBNATIVE(limit_usage)
 
 
 //
+//  Where_For_Call: C
+//
+// Each call frame maintains the array it is executing in, the current index
+// in that array, and the index of where the current expression started.
+// This can be deduced into a segment of code to display in the debug views
+// to indicate roughly "what's running" at that stack level.
+//
+// Unfortunately, Rebol doesn't formalize this very well.  There is no lock
+// on segments of blocks during their evaluation, and it's possible for
+// self-modifying code to scramble the blocks being executed.  The DO
+// evaluator is robust in terms of not *crashing*, but the semantics may well
+// suprise users.
+//
+// !!! Should blocks on the stack be locked from modification, at least by
+// default unless a special setting for self-modifying code unlocks it?
+//
+// So long as WHERE information is unreliable, this has to check that
+// `expr_index` (where the evaluation started) and `index` (where the
+// evaluation thinks it currently is) aren't out of bounds here.  We could
+// be giving back positions now unrelated to the call...but it won't crash!
+//
+REBARR *Where_For_Call(struct Reb_Call *call)
+{
+    // WARNING: MIN is a C macro and repeats its arguments.
+    //
+    REBCNT start = MIN(ARRAY_LEN(call->array), call->expr_index);
+    REBCNT end = MIN(ARRAY_LEN(call->array), call->index);
+
+    REBARR *where;
+    REBOOL pending;
+
+    assert(call->mode != CALL_MODE_0);
+    pending = (call->mode != CALL_MODE_FUNCTION);
+
+    // Do a shallow copy so that the WHERE information only includes
+    // the range of the array being executed up to the point of
+    // currently relevant evaluation, not all the way to the tail
+    // of the block (where future potential evaluation would be)
+    //
+    where = Copy_Values_Len_Extra_Shallow(
+        ARRAY_AT(DSF_ARRAY(call), start),
+        end - start,
+        pending ? 1 : 0
+    );
+
+    // Making a shallow copy offers another advantage, that it's
+    // possible to get rid of the newline marker on the first element,
+    // that would visually disrupt the backtrace for no reason.
+    //
+    if (end - start > 0)
+        VAL_CLR_OPT(ARRAY_HEAD(where), OPT_VALUE_LINE);
+
+    // We add an ellipsis to a pending frame to make it a little bit
+    // clearer what is going on.  If someone sees a where that looks
+    // like just `* [print]` the asterisk alone doesn't quite send
+    // home the message that print is not running and it is
+    // argument fulfillment that is why it's not "on the stack"
+    // yet, so `* [print ...]` is an attempt to say that better.
+    //
+    // !!! This is in-band, which can be mixed up with literal usage
+    // of ellipsis.  Could there be a better "out-of-band" conveyance?
+    // Might the system use colorization in a value option bit.
+    //
+    if (pending)
+        Val_Init_Word_Unbound(
+            Alloc_Tail_Array(where), REB_WORD, SYM_ELLIPSIS
+        );
+
+    return where;
+}
+
+
+//
 //  backtrace: native [
 //  
-//  "Returns backtrace with label symbols, include properties if requested"
+//  "Returns backtrace with WHERE blocks, or other queried property."
 //
 //      /limit
 //          "Limit the length of the backtrace"
-//      depth [none! integer!]
-//          "Max stack levels to return, none for no limit"
+//      frames [none! integer!]
+//          "Max number of frames (pending and active), none for no limit"
 //      /at
-//          "Return only a single backtrace record"
+//          "Return only a single backtrace property"
 //      level [integer!]
-//          "Stack level to return properties for"
+//          "Stack level to return property for"
 //      /function
-//          "List function value in properties"
-//      /where
-//          "List block evaluation position in properties"
+//          "Query function value"
+//      /label
+//          "Query word used to invoke function (NONE! if anyonymous)"
 //      /args
-//          "List args block in properties (may be modified since invocation)"
+//          "Query invocation args (may be modified since invocation)"
 //      /only
 //          "Do not list depths, only the selected properties"
 //  ]
@@ -343,22 +416,24 @@ REBNATIVE(limit_usage)
 REBNATIVE(backtrace)
 {
     REFINE(1, limit);
-    PARAM(2, depth);
+    PARAM(2, frames);
     REFINE(3, at);
     PARAM(4, level);
     REFINE(5, function);
-    REFINE(6, where);
+    REFINE(6, label);
     REFINE(7, args);
     REFINE(8, only);
 
-    REBCNT n = 1;
-    REBCNT depth;
-    REBCNT level;
+    REBCNT number; // stack level number in the loop (no pending frames)
+    REBCNT queried_number; // synonym for the "level" from /AT
 
-    REBCNT index;
+    REBCNT row; // row we're on (includes pending frames and maybe ellipsis)
+    REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
+
+    REBCNT index; // backwards-counting index for slots in backtrace array
 
     REBARR *backtrace;
-    struct Reb_Call *call = DSF->prior; // skip REBNATIVE(backtrace)
+    struct Reb_Call *call;
 
     Check_Security(SYM_DEBUG, POL_READ, 0);
 
@@ -371,21 +446,27 @@ REBNATIVE(backtrace)
     }
 
     if (REF(limit)) {
-        if (IS_NONE(ARG(depth)))
-            depth = MAX_U32; // NONE is no limit--as many frames as possible
+        if (IS_NONE(ARG(frames)))
+            max_rows = MAX_U32; // NONE is no limit--as many frames as possible
         else {
-            if (VAL_INT32(ARG(depth)) < 0)
-                fail (Error_Invalid_Arg(ARG(depth)));
-            depth = VAL_INT32(ARG(depth));
+            if (VAL_INT32(ARG(frames)) < 0)
+                fail (Error_Invalid_Arg(ARG(frames)));
+            max_rows = VAL_INT32(ARG(frames)) + 1; // + 1 for ellipsis
         }
     }
     else
-        depth = 20; // On an 80x25 terminal leaves room to type...
+        max_rows = 20; // On an 80x25 terminal leaves room to type afterward
 
     if (REF(at)) {
-        if (VAL_INT32(ARG(level)) < 1)
+        //
+        // If we're asking for a specific stack level via /AT, then we aren't
+        // building an array result, just returning a single value.
+        //
+        // See notes on handling of breakpoint below for why 0 is accepted.
+        //
+        if (VAL_INT32(ARG(level)) < 0)
             fail (Error_Invalid_Arg(ARG(level)));
-        level = VAL_INT32(ARG(level));
+        queried_number = VAL_INT32(ARG(level));
     }
     else {
         // We're going to build our backtrace in reverse.  This is done so
@@ -396,78 +477,99 @@ REBNATIVE(backtrace)
         // !!! This could also be done by over-allocating and then setting
         // the series bias, though that reaches beneath the series layer
         // and makes assumptions about the implementation.  And this isn't
-        // *that* complicated.
+        // *that* complicated, considering.
         //
-        index = 1;
-        for (; call != NULL; call = PRIOR_DSF(call)) {
-            if (call->mode != CALL_MODE_FUNCTION) continue;
+        index = 0;
+        row = 0;
+        for (call = DSF->prior; call != NULL; call = PRIOR_DSF(call)) {
+            if (call->mode == CALL_MODE_0) continue;
 
-            if (index > depth) {
-                ++index; break; // just one slot for ellipsis
-            }
-
-            // index and props for all other slots, unless /ONLY
+            // index and property, unless /ONLY in which case it will just
+            // be the property.
             //
-            index += REF(only) ? 1 : 2;
+            ++index;
+            if (!REF(only))
+                ++index;
+
+            ++row;
+
+            if (row >= max_rows) {
+                //
+                // Past our depth, so this entry is an ellipsis.  Notice that
+                // the base case of `/FRAMES 0` produces max_rows of 1, which
+                // means you will get just an ellipsis row.
+                //
+                break;
+            }
         }
 
-        // Because our depth count started at 1 index started at 1 (so the
-        // check against the depth limit was right), but for the actual
-        // element count we need to decrement it.
-        //
-        --index;
-
-        // Reset the call for the second walk
-        //
-        call = DSF->prior;
-
-        // Worst case scenario in terms of size, the backtrace will be all
-        // pairs of integers with property blocks (Objects?).  The user
-        // should be able to pick from the result by integer with 1 being
-        // the topmost stack level.
-        //
-        // We never show backtrace itself (this currently running native)
-        // in the list, hence a (-1) * 2.  But we may add a SYM_ELLIPSIS to
-        // the start if output has been truncated, so that adds 1 element.
-        //
         backtrace = Make_Array(index);
         SET_ARRAY_LEN(backtrace, index);
         TERM_ARRAY(backtrace);
     }
 
-    for (; call != NULL; call = PRIOR_DSF(call)) {
-        REBARR *props;
+    row = 0;
+    number = 0;
+    for (call = DSF->prior; call != NULL; call = call->prior) {
         REBCNT len;
         REBVAL *temp;
+        REBOOL pending;
 
+        // Only consider invoked or pending functions in the backtrace.
         //
-        // Only consider invoked functions (not pending ones or parens)
+        // !!! The pending functions aren't actually being "called" yet,
+        // their frames are in a partial state of construction.  However it
+        // gives a fuller picture to see them in the backtrace.  It may
+        // be interesting to see GROUP! stack levels that are being
+        // executed as well (as they are something like DO).
         //
-        if (call->mode != CALL_MODE_FUNCTION)
+        if (call->mode == CALL_MODE_0)
             continue;
 
+        if (call->mode == CALL_MODE_FUNCTION) {
+            pending = FALSE;
+
+            ++number;
+        }
+        else
+            pending = TRUE;
+
+        ++row;
+
         if (REF(at)) {
-            if (n != level) {
-                ++n;
+            if (number != queried_number)
                 continue;
-            }
         }
         else {
-            if (n > depth) {
+            if (row >= max_rows) {
                 //
                 // If there's more stack levels to be shown than we were asked
-                // to show, then put an ellipsis in the list and break.
+                // to show, then put an `+ ...` in the list and break.
                 //
                 temp = ARRAY_AT(backtrace, --index);
-                Val_Init_Word_Unbound(temp, REB_WORD, SYM_ELLIPSIS);
-                if (!REF(only))
+                Val_Init_Word_Unbound(temp, REB_WORD, SYM_PLUS);
+                if (!REF(only)) {
+                    //
+                    // In the non-/ONLY backtrace, the pairing of the ellipsis
+                    // with a plus is used in order to keep the "record size"
+                    // of the list at an even 2.  Asterisk might have been
+                    // used but that is taken for "pending frames".
+                    //
+                    // !!! Review arbitrary symbolic choices.
+                    //
+                    temp = ARRAY_AT(backtrace, --index);
+                    Val_Init_Word_Unbound(temp, REB_WORD, SYM_ASTERISK);
                     VAL_SET_OPT(temp, OPT_VALUE_LINE); // put on own line
+                }
                 break;
             }
         }
 
         // The /ONLY case is bare bones and just gives a block of the label
         // symbols (at this point in time).
+        //
+        // !!! Should /ONLY omit pending frames?  Should it have a less
+        // "loaded" name for the refinement?
         //
         if (REF(only)) {
             if (REF(at)) {
@@ -477,34 +579,28 @@ REBNATIVE(backtrace)
 
             temp = ARRAY_AT(backtrace, --index);
             Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
-            ++n;
             continue;
         }
 
-        // Make the properties list array the right size for the refinements
-        // that were requested.
+        // We're either going to write the queried property into the list
+        // of backtrace elements, or return it as the single result if /AT
         //
-        len = (
-            1 // label always in the list
-            + REF(function) ? 1 : 0
-            + REF(where) ? 1 : 0
-            + REF(args) ? 1 : 0
-        );
-        props = Make_Array(len);
+        temp = REF(at) ? D_OUT : ARRAY_AT(backtrace, --index);
 
-        Val_Init_Word_Unbound(
-            Alloc_Tail_Array(props), REB_WORD, DSF_LABEL_SYM(call)
-        );
-
-        if (REF(function))
-            *Alloc_Tail_Array(props) = *FUNC_VALUE(DSF_FUNC(call));
-
-        if (REF(where))
-            Val_Init_Block_Index(
-                Alloc_Tail_Array(props), DSF_ARRAY(call), DSF_EXPR_INDEX(call)
-            );
-
-        if (REF(args)) {
+        // The queried properties currently override each other; there is
+        // no way to ask for more than one.
+        //
+        // !!! Should it return an object or block if more than one is
+        // requested?  It should at least give an incompatible refinement
+        // error if it can't support multiple queries in one call.
+        //
+        if (REF(label)) {
+            Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
+        }
+        else if (REF(function)) {
+            *temp = *FUNC_VALUE(DSF_FUNC(call));
+        }
+        else if (REF(args)) {
             //
             // There may be "pure local" arguments that should be hidden (in
             // definitional return there's at least RETURN:).  So the
@@ -518,32 +614,50 @@ REBNATIVE(backtrace)
             REBVAL *arg = DSF_ARGS_HEAD(call);
             REBVAL *dest = ARRAY_HEAD(array);
 
-            for (; NOT_END(param); param++, arg++, dest++) {
-                if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN))
-                    continue;
-                *dest = *arg;
+            if (pending) {
+                //
+                // Don't want to give arguments for pending frames, they may
+                // be partially constructed or will be revoked
+                //
+                Val_Init_Word_Unbound(temp, REB_WORD, SYM_ELLIPSIS);
             }
+            else {
+                for (; NOT_END(param); param++, arg++) {
+                    if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN))
+                        continue;
+                    *dest++ = *arg;
+                }
 
-            SET_ARRAY_LEN(array, dest - ARRAY_HEAD(array));
-            TERM_ARRAY(array);
+                SET_ARRAY_LEN(array, dest - ARRAY_HEAD(array));
+                TERM_ARRAY(array);
 
-            Val_Init_Block(Alloc_Tail_Array(props), array);
+                Val_Init_Block(temp, array);
+            }
         }
+        else {
+            // `WHERE` is the default to query, because it provides the most
+            // data -- not just knowing the function being called but also the
+            // context of its invocation.
+
+            Val_Init_Block(temp, Where_For_Call(call));
+        }
+
+        // Try and keep the numbering in sync with query used by host to get
+        // function frames to do binding in the REPL with.
+        //
+        if (!pending)
+            assert(Call_For_Stack_Level(number, TRUE) == call);
 
         if (REF(at)) {
             //
-            // If we were fetching a single stack level, then the props
-            // is our return result (if we found that level and got here)
+            // If we were fetching a single stack level, then `temp` above
+            // is our singular return result.
             //
-            Val_Init_Block(D_OUT, props);
             return R_OUT;
         }
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
-        //
-        temp = ARRAY_AT(backtrace, --index);
-        Val_Init_Block(temp, props);
 
         // The integer identifying the stack level (used to refer to it
         // in other debugging commands).  Since we're going in reverse, we
@@ -551,13 +665,23 @@ REBNATIVE(backtrace)
         // the newline break marker.
         //
         temp = ARRAY_AT(backtrace, --index);
-        SET_INTEGER(temp, n);
+        if (pending) {
+            //
+            // You cannot (or should not) switch to inspect a pending frame,
+            // as it is partially constructed.  It gets a "*" in the list
+            // instead of a number.
+            //
+            Val_Init_Word_Unbound(temp, REB_WORD, SYM_ASTERISK);
+        }
+        else
+            SET_INTEGER(temp, number);
         VAL_SET_OPT(temp, OPT_VALUE_LINE);
-        ++n;
     }
 
     // If we ran out of stack levels before finding the single one requested
     // via /AT, return a NONE!
+    //
+    // !!! Would it be better to give an error?
     //
     if (REF(at))
         return R_NONE;
@@ -572,6 +696,54 @@ REBNATIVE(backtrace)
 
 
 //
+//  Call_For_Stack_Level: C
+//
+// !!! Unfortunate repetition of logic inside of BACKTRACE; find a way to
+// unify the logic for omitting things like breakpoint frames, or either
+// considering pending frames or not...
+//
+// Returns NULL if the given level number does not correspond to a running
+// function on the stack.
+//
+struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
+{
+    struct Reb_Call *call = DSF;
+
+    // We may need to skip some number of frames, if there have been stack
+    // levels added since the numeric reference point that "level" was
+    // supposed to refer to has changed.  For now that's only allowed to
+    // be one level, because it's rather fuzzy which stack levels to
+    // omit otherwise (pending? parens?)
+    //
+    if (skip_current)
+        call = call->prior;
+
+    for (; call != NULL; call = call->prior) {
+        //
+        // Exclude pending functions, parens...any Do_Core levels that are
+        // not currently running functions.  (BACKTRACE includes pending
+        // functions for display purposes, but does not number them.)
+        //
+        if (call->mode != CALL_MODE_FUNCTION) continue;
+
+        if (level == 0) {
+            //
+            // There really is no "level 0" in a stack unless you
+            // are at a breakpoint.  Ordinary calls to backtrace
+            // will get lists back that start at 1.
+            //
+            return FALSE;
+        }
+
+        --level;
+        if (level == 0)
+            return call;
+    }
+
+    return NULL;
+}
+
+
 //  check: native [
 //
 //  "Run an integrity check on a value in debug builds of the interpreter"
