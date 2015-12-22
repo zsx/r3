@@ -3029,12 +3029,41 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
     REBVAL *arg_new;
     REBVAL *arg_src;
 
+    REBOOL threw;
+
     // As part of the "Redo" we are not adding a new function location,
     // label, or place to write the output.  We are substituting new code
     // and perhaps adjusting the arguments in our re-doing call.
 
     struct Reb_Call call_ = *call_src;
     struct Reb_Call * const c = &call_;
+
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    //
+    // !!! Repeated code from Do_Core(), find good way to share.
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
+    }
 
     c->func = func_new;
 
@@ -3140,7 +3169,18 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
         }
     }
 
-    return Dispatch_Call_Throws(c);
+    threw = Dispatch_Call_Throws(c);
+
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    // !!! Repeated code with Do_Core(), find way to share.
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
+    return threw;
 }
 
 
