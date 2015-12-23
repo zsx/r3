@@ -153,11 +153,9 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 
     struct Reb_State state;
     REBFRM *error;
+    int error_num;
 
-    REBVAL start_result;
-
-    int result;
-    REBVAL out;
+    REBVAL result;
 
     if (bin) {
         ser = Decompress(bin, len, -1, FALSE, FALSE);
@@ -216,22 +214,22 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         return ERR_NUM(error);
     }
 
-    if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_RL_START, 0)) {
+    if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_RL_START, 0)) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-                fail (Error_No_Catch_For_Throw(&out));
+                fail (Error_No_Catch_For_Throw(&result));
         #endif
 
         if (
-            IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == &N_quit
-                || VAL_FUNC_CODE(&out) == &N_exit
+            IS_NATIVE(&result) && (
+                VAL_FUNC_CODE(&result) == &N_quit
+                || VAL_FUNC_CODE(&result) == &N_exit
             )
         ) {
             int status;
 
-            CATCH_THROWN(&out, &out);
-            status = Exit_Status_From_Value(&out);
+            CATCH_THROWN(&result, &result);
+            status = Exit_Status_From_Value(&result);
 
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -240,7 +238,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
             DEAD_END;
         }
 
-        fail (Error_No_Catch_For_Throw(&out));
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -249,16 +247,16 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     // convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
     // FINISH_RL_START indicates something went wrong.
 
-    if (IS_UNSET(&out))
-        result = 0;
+    if (IS_UNSET(&result))
+        error_num = 0; // no error
     else {
         assert(FALSE); // should not happen (raise an error instead)
         Debug_Fmt("** finish-rl-start returned non-NONE!:");
-        Debug_Fmt("%r", &out);
-        result = RE_MISC;
+        Debug_Fmt("%r", &result);
+        error_num = RE_MISC;
     }
 
-    return result;
+    return error_num;
 }
 
 
@@ -383,10 +381,14 @@ RL_API void RL_Escape(REBINT reserved)
 //     "sample" console code (which wound up being the "only"
 //     console code for quite some time).
 //
-RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIARG *result)
-{
+RL_API int RL_Do_String(
+    int *exit_status,
+    const REBYTE *text,
+    REBCNT flags,
+    RXIARG *out
+) {
     REBARR *code;
-    REBVAL out;
+    REBVAL result;
 
     struct Reb_State state;
     REBFRM *error;
@@ -408,8 +410,8 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         if (ERR_NUM(error) == RE_HALT)
             return -1; // !!! Revisit hardcoded #
 
-        if (result)
-            *result = Value_To_RXI(last);
+        if (out)
+            *out = Value_To_RXI(last);
         else
             DS_PUSH(last);
 
@@ -434,35 +436,35 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&out, code, 0)) {
+    if (Do_At_Throws(&result, code, 0)) {
         DROP_GUARD_ARRAY(code);
 
         if (
-            IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == &N_quit
-                || VAL_FUNC_CODE(&out) == &N_exit
+            IS_NATIVE(&result) && (
+                VAL_FUNC_CODE(&result) == &N_quit
+                || VAL_FUNC_CODE(&result) == &N_exit
             )
         ) {
-            CATCH_THROWN(&out, &out);
+            CATCH_THROWN(&result, &result);
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-            *exit_status = Exit_Status_From_Value(&out);
+            *exit_status = Exit_Status_From_Value(&result);
             return -2; // Revisit hardcoded #
         }
 
-        fail (Error_No_Catch_For_Throw(&out));
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     DROP_GUARD_ARRAY(code);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    if (result)
-        *result = Value_To_RXI(&out);
+    if (out)
+        *out = Value_To_RXI(&result);
     else
-        DS_PUSH(&out);
+        DS_PUSH(&result);
 
-    return Reb_To_RXT[VAL_TYPE(&out)];
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -489,13 +491,13 @@ RL_API int RL_Do_Binary(
     REBINT length,
     REBCNT flags,
     REBCNT key,
-    RXIARG *result
+    RXIARG *out
 ) {
     REBSER *text;
 #ifdef DUMP_INIT_SCRIPT
     int f;
 #endif
-    int do_result;
+    int maybe_rxt; // could be REBRXT, or negative number for error :-/
 
     text = Decompress(bin, length, -1, FALSE, FALSE);
     if (!text) return 0;
@@ -508,11 +510,11 @@ RL_API int RL_Do_Binary(
 #endif
 
     PUSH_GUARD_SERIES(text);
-    do_result = RL_Do_String(exit_status, BIN_HEAD(text), flags, result);
+    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(text), flags, out);
     DROP_GUARD_SERIES(text);
 
     Free_Series(text);
-    return do_result;
+    return maybe_rxt;
 }
 
 
@@ -535,8 +537,11 @@ RL_API int RL_Do_Binary(
 //
 RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 {
-    REBVAL out;
-    Do_Commands(&out, array, context);
+    REBVAL result;
+    Do_Commands(&result, array, context);
+
+    // !!! Ignored result?  Throws?  etc.  But it's old  RL_Api, so...not
+    // really a core concern going forward in Ren-C.
 }
 
 

@@ -1346,7 +1346,7 @@ void Init_Core(REBARGS *rargs)
 {
     REBFRM *error;
     struct Reb_State state;
-    REBVAL out;
+    REBVAL result;
 
     const REBYTE transparent[] = "transparent";
     const REBYTE infix[] = "infix";
@@ -1545,18 +1545,19 @@ void Init_Core(REBARGS *rargs)
 
     assert(DSP == -1 && !DSF);
 
-    if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_INIT_CORE, 0)) {
+
+    if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_INIT_CORE, 0)) {
         // Note: You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
         assert(FALSE);
-        fail (Error_No_Catch_For_Throw(&out));
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     // Success of the 'finish-init-core' Rebol code is signified by returning
     // a UNSET! (all other return results indicate an error state)
 
-    if (!IS_UNSET(&out)) {
-        Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &out);
+    if (!IS_UNSET(&result)) {
+        Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &result);
         panic (Error(RE_MISC));
     }
 

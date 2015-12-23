@@ -146,9 +146,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     REBVAL *waked;
     REBVAL *awake;
     REBVAL tmp;
-    REBVAL ref_only;
-    REBINT result;
-    REBVAL out;
+    REBVAL result;
 
     // Get the system port object:
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -173,16 +171,22 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
 
-    if (only) SET_TRUE(&ref_only);
-    else SET_NONE(&ref_only);
     // Call the system awake function:
-    if (Apply_Func_Throws(&out, VAL_FUNC(awake), port, &tmp, &ref_only, 0))
-        fail (Error_No_Catch_For_Throw(&out));
+    //
+    if (Apply_Func_Throws(
+        &result,
+        VAL_FUNC(awake),
+        port,
+        &tmp,
+        only ? TRUE_VALUE : NONE_VALUE, // /ONLY
+        0
+    )) {
+        fail (Error_No_Catch_For_Throw(&result));
+    }
 
     // Awake function returns 1 for end of WAIT:
-    result = (IS_LOGIC(&out) && VAL_LOGIC(&out)) ? 1 : 0;
-
-    return result;
+    //
+    return (IS_LOGIC(&result) && VAL_LOGIC(&result)) ? 1 : 0;
 }
 
 
