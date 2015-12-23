@@ -429,8 +429,10 @@ enum {
 // the header made it the `zero?` of that type.  Review uses.
 //
 #define SET_ZEROED(v,t) \
-    (CLEAR((v), sizeof(REBVAL)), VAL_RESET_HEADER((v),(t)))
+    (VAL_RESET_HEADER((v),(t)), \
+        CLEAR(&(v)->payload, sizeof(union Reb_Value_Payload)))
 
+//
 // Reading/writing routines for the 8 "EXTS" flags that are interpreted
 // differently depending on the VAL_TYPE() of the value.
 //
