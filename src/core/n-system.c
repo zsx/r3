@@ -350,7 +350,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     REBOOL pending;
 
     assert(call->mode != CALL_MODE_0);
-    pending = (call->mode != CALL_MODE_FUNCTION);
+    pending = NOT(call->mode == CALL_MODE_FUNCTION);
 
     // Do a shallow copy so that the WHERE information only includes
     // the range of the array being executed up to the point of
@@ -732,7 +732,7 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
             // are at a breakpoint.  Ordinary calls to backtrace
             // will get lists back that start at 1.
             //
-            return FALSE;
+            return NULL;
         }
 
         --level;
