@@ -2624,7 +2624,7 @@ REBOOL Compose_Values_Throws(
 
 
 //
-//  Apply_Func_Core: C
+//  Apply_Func_Throws_Core: C
 //
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
@@ -2880,7 +2880,7 @@ REBOOL Apply_Func_Throws_Core(
 
     // With the arguments processed and proxied into the call frame, invoke
     // the function body.
-
+    //
     threw = Dispatch_Call_Throws(c);
 
     // Drop this Reb_Call that we pushed at the beginning from the Do Stack
