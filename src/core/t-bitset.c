@@ -612,9 +612,10 @@ set_bits:
     case A_XOR_T:
         if (!IS_BITSET(arg) && !IS_BINARY(arg))
             fail (Error_Math_Args(VAL_TYPE(arg), action));
-        VAL_SERIES(value) = ser = Xandor_Binary(action, value, arg);
+        ser = Xandor_Binary(action, value, arg);
         Trim_Tail_Zeros(ser);
-        break;
+        Val_Init_Series(D_OUT, VAL_TYPE(value), ser);
+        return R_OUT;
 
     default:
         fail (Error_Illegal_Action(REB_BITSET, action));
