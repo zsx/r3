@@ -953,7 +953,6 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
         ) {
             Val_Init_Block_Index(&c->cell, c->array, c->index);
             PROBE_MSG(&c->cell, "Do_Core() count trap");
-            debug_break();
         }
     }
 
