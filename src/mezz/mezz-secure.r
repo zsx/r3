@@ -43,7 +43,7 @@ secure: function/with [
         ] [print ["  " t "-" d]]
         print "Settings for read, write, and execute are also available."
         print "Type: help/doc secure for detailed documentation and examples."
-        exit
+        return ()
     ]
 
     if policy = 'query [
@@ -77,7 +77,7 @@ secure: function/with [
         n: make-policy 'all policy
         for-each word words-of pol-obj [set word n]
         set-policies pol-obj
-        exit
+        return ()
     ]
 
     ; Set each policy target separately:
@@ -88,7 +88,7 @@ secure: function/with [
 
     ; ADD: check for policy level reductions!
     set-policies pol-obj
-    exit
+    return ()
 ][
     ; Permanent values and sub-functions of SECURE:
 

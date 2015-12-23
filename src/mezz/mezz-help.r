@@ -148,7 +148,7 @@ dump-obj: function [
                 license - show user license
                 usage - program cmd line options
         }
-        exit
+        return ()
     ]
 
 ;           Word completion:
@@ -211,19 +211,19 @@ dump-obj: function [
                 "It is of the general type" value/type newline
             ]
         ]
-        if any [:word = 'unset! not value? :word] [exit]
+        if any [:word = 'unset! not value? :word] [return ()]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
-            exit
+            return ()
         ]
         if all [word? :word datatype? get :word] [
             print ["No values defined for" word]
-            exit
+            return ()
         ]
         print ["No information on" word]
-        exit
+        return ()
     ]
 
     ; Print type name with proper singular article:
@@ -236,7 +236,7 @@ dump-obj: function [
     ; Print literal values:
     if not any [word? :word path? :word][
         print [mold :word "is" type-name :word]
-        exit
+        return ()
     ]
 
     ; Get value (may be a function, so handle with ":")
@@ -246,7 +246,7 @@ dump-obj: function [
             not value? 'value
         ][
             print ["No information on" word "(path has no value)"]
-            exit
+            return ()
         ]
     ][
         value: get :word
@@ -254,7 +254,7 @@ dump-obj: function [
     unless any-function? :value [
         prin [uppercase mold word "is" type-name :value "of value: "]
         print either any [object? value port? value]  [print "" dump-obj value][mold :value]
-        exit
+        return ()
     ]
 
     ; Must be a function...
@@ -286,12 +286,12 @@ dump-obj: function [
         tab uppercase mold word " is " type-name :value " value."
     ]
 
-    unless args: find spec-of :value any-word! [exit]
+    unless args: find spec-of :value any-word! [return ()]
     clear find args /local
 
     ;-- Print arg lists:
     print-args: func [label list /extra /local str] [
-        if empty? list [exit]
+        if empty? list [return ()]
         print label
         for-each arg list [
             str: ajoin [tab arg/1]
@@ -425,7 +425,7 @@ what: func [
         append/dup clear vals #" " size
         print [head change vals word any [arg ""]]
     ]
-    exit
+    return ()
 ]
 
 pending: does [
@@ -476,7 +476,7 @@ why?: function [
     ][
         print "No information is available."
     ]
-    exit
+    return ()
 ]
 
 ; GUI demos not available in Core build
@@ -488,7 +488,7 @@ why?: function [
 ;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r none][
 ;       either err/id = 'protocol [print "Cannot load demo from web."][do err]
 ;   ]
-;   exit
+;   return ()
 ;]
 ;
 ;load-gui: function [
@@ -500,5 +500,5 @@ why?: function [
 ;    ] [
 ;        do data
 ;    ]
-;    exit
+;    return ()
 ;]
