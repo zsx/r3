@@ -596,7 +596,7 @@ enum {
 // Pointer to a global protected unset value that can be used when a read-only
 // UNSET! value is needed.
 //
-#define UNSET_VALUE ROOT_UNSET_VAL
+#define UNSET_VALUE (&PG_Unset_Value[0])
 
 // In legacy mode Ren-C still supports the old convention that IFs that don't
 // take the true branch or a WHILE loop that never runs a body return a NONE!
@@ -644,7 +644,7 @@ enum {
          SET_TRACK_PAYLOAD(v))
 #endif
 
-#define NONE_VALUE ROOT_NONE_VAL
+#define NONE_VALUE (&PG_None_Value[0])
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -703,6 +703,10 @@ enum {
 #endif
 
 #define IS_CONDITIONAL_TRUE(v) NOT(IS_CONDITIONAL_FALSE(v))
+
+#define FALSE_VALUE (&PG_False_Value[0])
+#define TRUE_VALUE (&PG_True_Value[0])
+
 
 
 /***********************************************************************

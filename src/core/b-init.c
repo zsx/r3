@@ -697,14 +697,31 @@ static void Init_Root_Context(void)
         SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
     }
 
-    // Set the UNSET_VAL to UNSET!, so we have a sample UNSET! value
-    // to pass as an arg if we need an UNSET but don't want to pay for making
-    // a new one.  (There is also a NONE_VALUE for this purpose for NONE!s,
-    // and an empty block as well.)
-    SET_UNSET(ROOT_UNSET_VAL);
-    assert(IS_NONE(NONE_VALUE));
-    assert(IS_UNSET(UNSET_VALUE));
+    // These values are simple isolated UNSET, NONE, TRUE, and FALSE values
+    // that can be used in lieu of initializing them.  They are initialized
+    // as two-element series in order to ensure that their address is not
+    // treated as an array.  They are unsettable (in debug builds), to avoid
+    // their values becoming overwritten.
+    //
+    // It is presumed that these types will never need to have GC behavior,
+    // and thus can be stored safely in program globals without mention in
+    // the root set.  Should that change, they could be explicitly added
+    // to the GC's root set.
 
+    SET_UNSET(&PG_Unset_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_Unset_Value[1]);
+
+    SET_NONE(&PG_None_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_None_Value[1]);
+
+    SET_FALSE(&PG_False_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
+
+    SET_TRUE(&PG_True_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
+
+    // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
+    //
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_LOCKED);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SER_FIXED_SIZE);
