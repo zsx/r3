@@ -434,22 +434,17 @@ source: make function! [[
             ; experience just needs to be gathered, so compensate.
             ;
             f: backtrace/at/function (
-                (either zero? arg [arg + 1] [arg]) ; if BREAKPOINT, compensate
+                1 ; if BREAKPOINT, compensate differently (it's called "0")
                 + 1 ; CASE
                 + 1 ; SOURCE
             )
-            if all [
-                :f == :breakpoint
-                arg != 0
-            ][
-                f: backtrace/at/function (
-                    arg
-                    + 1 ; IF
-                    + 1 ; CASE
-                    + 1 ; SOURCE
-                    + 1 ; BREAKPOINT
-                )
-            ]
+            f: backtrace/at/function (
+                arg
+                ; if breakpoint there, bump 0 up to a 1, 1 to a 2, etc.
+                + (either :f == :breakpoint [1] [0])
+                + 1 ; CASE
+                + 1 ; SOURCE
+            )
         ]
 
         'default [
