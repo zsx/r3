@@ -44,8 +44,9 @@ REBINT Eval_Depth(void)
     REBINT depth = 0;
     struct Reb_Call *call = DSF;
 
-    for (; call != NULL; call = PRIOR_DSF(call), depth++) {
-    }
+    for (; call != NULL; call = PRIOR_DSF(call), depth++)
+        NOOP;
+
     return depth;
 }
 
