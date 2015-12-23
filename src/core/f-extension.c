@@ -198,7 +198,7 @@ x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 
 /***********************************************************************
 **
-x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
+x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
 /*
 **      Given an object and a word id, call a REBOL function.
 **      The arguments are converted from extension format directly
@@ -212,22 +212,22 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
     struct Reb_Call * const c = &call;
     REBCNT len;
     REBCNT n;
-    REBVAL out;
+    REBVAL result;
 
     // Find word in object, verify it is a function.
     if (!(val = Find_Word_Value(AS_FRAME(obj), name))) {
-        SET_EXT_ERROR(result, RXE_NO_WORD);
+        SET_EXT_ERROR(out, RXE_NO_WORD);
         return 0;
     }
     if (!ANY_FUNC(val)) {
-        SET_EXT_ERROR(result, RXE_NOT_FUNC);
+        SET_EXT_ERROR(out, RXE_NOT_FUNC);
         return 0;
     }
 
     // Create stack frame (use prior stack frame for location info):
-    SET_TRASH_SAFE(&out); // OUT slot for function eval result
+    SET_TRASH_SAFE(&result);
     c->flags = 0;
-    c->out = &out;
+    c->out = &result;
     c->array = DSF_ARRAY(PRIOR_DSF(DSF));
     c->index = DSF_EXPR_INDEX(PRIOR_DSF(DSF));
     c->label_sym = name;
@@ -250,8 +250,8 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
 
         // Check type for word at the given offset:
         if (!TYPE_CHECK(ARRAY_AT(obj, n), VAL_TYPE(arg))) {
-            result->i2.int32b = n;
-            SET_EXT_ERROR(result, RXE_BAD_ARGS);
+            out->i2.int32b = n;
+            SET_EXT_ERROR(out, RXE_BAD_ARGS);
             Drop_Call_Arglist(c);
             return 0;
         }
@@ -265,8 +265,8 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
     }
 
     // Return resulting value from output
-    *result = Value_To_RXI(&out);
-    return Reb_To_RXT[VAL_TYPE(&out)];
+    *out = Value_To_RXI(&result);
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
