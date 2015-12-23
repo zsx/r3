@@ -604,13 +604,22 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 
 
 //
-//  Do_Signals: C
+//  Do_Signals_Throws: C
 // 
-// Special events to process during evaluation.
-// Search for SET_SIGNAL to find them.
+// Special events to process periodically during evaluation. Search for
+// SET_SIGNAL to find them.  (Note: Not to be confused with SIGINT and unix
+// signals, although possibly triggered by one.)
 //
-void Do_Signals(void)
+// Currently the ability of a signal to THROW comes from the processing of
+// breakpoints.  The RESUME instruction is able to execute code with /DO,
+// and that code may escape the
+//
+REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    REBVAL result;
+    struct Reb_State state;
+    REBFRM *error;
+
     REBCNT sigs;
     REBCNT mask;
 
@@ -623,7 +632,10 @@ void Do_Signals(void)
             Check_Security(SYM_EVAL, POL_EXEC, 0);
     }
 
-    if (!(Eval_Signals & Eval_Sigmask)) return;
+    if (!(Eval_Signals & Eval_Sigmask)) {
+        SET_UNSET(out);
+        return FALSE;
+    }
 
     // Be careful of signal loops! EG: do not PRINT from here.
     sigs = Eval_Signals & (mask = Eval_Sigmask);
@@ -643,14 +655,31 @@ void Do_Signals(void)
     }
 #endif
 
-    // Escape only allowed after MEZZ boot (no handlers):
-    if (GET_FLAG(sigs, SIG_ESCAPE) && PG_Boot_Phase >= BOOT_MEZZ) {
-        CLR_SIGNAL(SIG_ESCAPE);
+    // Breaking only allowed after MEZZ boot
+    //
+    if (GET_FLAG(sigs, SIG_INTERRUPT) && PG_Boot_Phase >= BOOT_MEZZ) {
+        CLR_SIGNAL(SIG_INTERRUPT);
         Eval_Sigmask = mask;
+
+        if (Do_Breakpoint_Throws(out, TRUE, UNSET_VALUE, FALSE))
+            return TRUE;
+
+        return FALSE;
+    }
+
+    // Halting only allowed after MEZZ boot
+    //
+    if (GET_FLAG(sigs, SIG_HALT) && PG_Boot_Phase >= BOOT_MEZZ) {
+        CLR_SIGNAL(SIG_HALT);
+        Eval_Sigmask = mask;
+
         fail (VAL_FRAME(TASK_HALT_ERROR));
     }
 
     Eval_Sigmask = mask;
+
+    SET_UNSET(out);
+    return FALSE;
 }
 
 
@@ -1104,7 +1133,27 @@ do_at_index:
     // circumstances that wind up extracting its properties during a needed
     // evaluation (hence protected indirectly via `c->array` or `c->func`.)
     //
-    if (--Eval_Count <= 0 || Eval_Signals) Do_Signals(); // may Recycle()!
+    if (--Eval_Count <= 0 || Eval_Signals) {
+        //
+        // Note that Do_Signals_Throws() may do a recycle step of the GC, or
+        // it may spawn an entire interactive debugging session via
+        // breakpoint before it returns.  It may also FAIL and longjmp out.
+        //
+        if (Do_Signals_Throws(c->out))
+            goto return_thrown;
+
+        if (!IS_UNSET(c->out)) {
+            //
+            // !!! What to do with something like a Ctrl-C-based breakpoint
+            // session that does something like `resume/with 10`?  We are
+            // "in-between" evaluations, so that 10 really has no meaning
+            // and is just going to get discarded.  FAIL for now to alert
+            // the user that something is off, but perhaps the failure
+            // should be contained in a sandbox and restart the break?
+            //
+            fail (Error(RE_MISC));
+        }
+    }
 
 reevaluate:
     // Although in the outer loop this call frame is not threaded into the

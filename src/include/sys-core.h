@@ -225,6 +225,9 @@ enum {
 // Garbage collection marker function (GC Hook)
 typedef void (*REBMRK)(void);
 
+// Breakpoint hook callback
+typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
+
 // Modes allowed by Bind related functions:
 enum {
     BIND_ONLY = 0,      // Only bind the words found in the context.
@@ -321,9 +324,32 @@ enum Insert_Arg_Nums {
 };
 
 enum rebol_signals {
+    //
+    // SIG_RECYCLE indicates a need to run the garbage collector, when
+    // running it synchronously could be dangerous.  This is important in
+    // particular during memory allocation, which can detect crossing a
+    // memory usage boundary that suggests GC'ing would be good...but might
+    // be in the middle of code that is halfway through manipulating a
+    // managed series.
+    //
     SIG_RECYCLE,
-    SIG_ESCAPE,
+
+    // SIG_HALT means return to the topmost level of the evaluator, regardless
+    // of how deep a debug stack might be.  It is the only instruction besides
+    // QUIT and RESUME that can currently get past a breakpoint sandbox.
+    //
+    SIG_HALT,
+
+    // SIG_INTERRUPT indicates a desire to enter an interactive debugging
+    // state.  Because the ability to manage such a state may not be
+    // registered by the host, this could generate an error.
+    //
+    SIG_INTERRUPT,
+
+    // SIG_EVENT_PORT is to-be-documented
+    //
     SIG_EVENT_PORT,
+
     SIG_MAX
 };
 

@@ -146,6 +146,10 @@ const REBYTE halt_str[] = "[escape]";
 const REBYTE prompt_str[] = ">> ";
 const REBYTE result_str[] = "== ";
 const REBYTE why_str[] = "** Note: use WHY? for more error information\n\n";
+const REBYTE breakpoint_str[] =
+    "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n\n";
+const REBYTE interrupted_str[] =
+    "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n\n";
 
 #ifdef TO_WINDOWS
 HINSTANCE App_Instance = 0;
@@ -178,6 +182,92 @@ void Host_Crash(const char *reason) {
 }
 
 
+// Current stack level displayed in the REPL, where bindings are assumed to
+// be made for evaluations.  So if the prompt reads `[3]>>`, and a string
+// of text is typed in to be loaded as code, that code will be bound to
+// the user context, then the lib context, then to the variables of whatever
+// function is located at stack level 3.
+//
+extern REBCNT HG_Stack_Level;
+REBCNT HG_Stack_Level = 1;
+
+
+// The DEBUG command is a host-specific "native", which modifies state that
+// is specific to controlling variables and behaviors in the REPL.  Since
+// the core itself seeks to avoid having any UI and only provide evaluation
+// services, C code for DEBUG must either be within the host, or the DEBUG
+// native would need to implement an abstract protocol that could make
+// callbacks into the host.
+//
+// A standard or library might evolve so that every host does not reimplement
+// the debug logic.  However, much of the debugging behavior depends on the
+// nature of the host (textual vs. GUI), as well as being able to modify
+// state known to the host and not the core.  So for the moment, DEBUG is
+// implemented entirely in the host...while commands like BREAKPOINT have
+// their implementation in the core with a callback to the host to implement
+// the host-specific portion.
+//
+// !!! Can the REBNATIVE with source-in-comment declaration style be
+// something that non-core code can use, vs. this handmade variant?
+//
+const REBYTE N_debug_spec[] =
+    " {Dialect for interactive debugging, see documentation for details}"
+    " 'value [unset! integer! block!]"
+        " {Stack level to inspect or dialect block, or enter debug mode}"
+    "";
+REB_R N_debug(struct Reb_Call *call_) {
+    PARAM(1, value);
+    REBVAL *value = ARG(value);
+
+    if (IS_UNSET(value)) {
+        //
+        // e.g. just `>> debug` and [enter] in the console.  Ideally this
+        // would shift the REPL into a mode where all commands issued were
+        // assumed to be in the debug dialect, similar to Ren Garden's
+        // modalities like `debug>>`.
+        //
+        Debug_Fmt("Sorry, there is no debug>> 'mode' yet in the console.");
+        goto modify_with_confidence;
+    }
+
+    if (IS_INTEGER(value)) {
+        struct Reb_Call *call;
+
+        if (VAL_INT32(value) < 0)
+            fail (Error_Invalid_Arg(value));
+
+        // We pass TRUE here to account for an extra stack level... the one
+        // added by DEBUG itself, which presumably should not count.
+        //
+        if (!(call = Call_For_Stack_Level(VAL_INT32(value), TRUE)))
+            fail (Error_Invalid_Arg(value));
+
+        HG_Stack_Level = VAL_INT32(value);
+
+        Val_Init_Block(D_OUT, Where_For_Call(call));
+        return R_OUT;
+    }
+
+    assert(IS_BLOCK(value));
+
+    Debug_Fmt(
+        "Sorry, but the `debug [...]` dialect is not defined yet.\n"
+        "Change the stack with an integer, or try these commands:\n"
+        "\n"
+        "    BREAKPOINT, RESUME, BACKTRACE\n"
+    );
+
+modify_with_confidence:
+    Debug_Fmt(
+        "(Note: Ren-C is 'modify-with-confidence'...so just because a debug\n"
+        "feature you want isn't implemented doesn't mean you can't add it!)\n"
+    );
+
+    return R_NONE;
+}
+
+
+//
 //  Do_String()
 //
 // This is a version of a routine that was offered by the RL_Api, which has
@@ -185,17 +275,34 @@ void Host_Crash(const char *reason) {
 // interesting REPL behavior w.r.t. binding, error handling, and response
 // to throws.
 //
+// !!! Now that this code has been moved into the host, the convoluted
+// integer-return-scheme can be eliminated and the code integrated more
+// clearly into the surrounding calls.
+//
 int Do_String(
     int *exit_status,
     REBVAL *out,
-    const REBYTE *text
+    const REBYTE *text,
+    REBOOL at_breakpoint
 ) {
     REBARR *code;
 
     struct Reb_State state;
     REBFRM *error;
 
-    PUSH_UNHALTABLE_TRAP(&error, &state);
+    // Breakpoint REPLs are nested, and we may wish to jump out of them to
+    // the topmost level via a HALT.  However, all other errors need to be
+    // confined, so that if one is doing evaluations during the pause of
+    // a breakpoint an error doesn't "accidentally resume" by virtue of
+    // jumping the stack out of the REPL.
+    //
+    // The topmost layer REPL, however, needs to catch halts in order to
+    // keep control and not crash out.
+    //
+    if (at_breakpoint)
+        PUSH_TRAP(&error, &state);
+    else
+        PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
@@ -205,6 +312,7 @@ int Do_String(
         REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
 
         if (ERR_NUM(error) == RE_HALT) {
+            assert(!at_breakpoint);
             return -1; // !!! Revisit hardcoded #
         }
 
@@ -216,14 +324,18 @@ int Do_String(
     code = Scan_Source(text, LEN_BYTES(text));
     PUSH_GUARD_ARRAY(code);
 
-    // !!! "Bind into lib or user spaces?" <-- what was original intent?
-    //
-    if (FALSE) {
-        // Top words will be added to lib:
-        Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
-        Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
-    }
-    else {
+    // Where code ends up being bound when loaded at the REPL prompt should
+    // be more generally configurable.  (It may be, for instance, that one
+    // wants to run something with it not bound at all.)  Such choices
+    // must come from this REPL host...not from the interpreter itself.
+    {
+        // First the scanned code is bound into the user context with a
+        // fallback to the lib context.
+        //
+        // !!! This code is very old, and is how the REPL has bound since
+        // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
+        // review of why it's written exactly this way.
+        //
         REBCNT len;
         REBVAL vali;
         REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
@@ -231,30 +343,77 @@ int Do_String(
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
         SET_INTEGER(&vali, len);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
+
+        // If we're stopped at a breakpoint, the REPL should have a concept
+        // of what stack level it is inspecting (conveyed by the |#|>> in the
+        // prompt).  This does a binding pass using the function for that
+        // stack level, just the way a body is bound during Make_Function()
+        //
+        if (at_breakpoint) {
+            REBFUN *func = Call_For_Stack_Level(HG_Stack_Level, FALSE)->func;
+            Bind_Relative_Deep(FUNC_PARAMLIST(func), code);
+        }
+
+        // !!! This was unused code that used to be in Do_String from
+        // RL_Api.  It was an alternative path under `flags` which said
+        // "Bind into lib or user spaces?" and then "Top words will be
+        // added to lib".  Is it relevant in any way?
+        //
+        /* Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
+        Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context); */
     }
 
     if (Do_At_Throws(out, code, 0)) {
         DROP_GUARD_ARRAY(code);
 
-        // We are at the top level REPL, where we catch QUIT and for
-        // now, also EXIT as meaning you want to leave.
-        //
-        if (
-            IS_NATIVE(out) && (
-                VAL_FUNC_CODE(out) == &N_quit
-                || VAL_FUNC_CODE(out) == &N_exit
-            )
-        ) {
-            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-            CATCH_THROWN(out, out);
-            *exit_status = Exit_Status_From_Value(out);
-            return -2; // Revisit hardcoded #
+        if (at_breakpoint) {
+            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_resume) {
+                //
+                // This means we're done with the embedded REPL.  We want to
+                // resume and may be returning a piece of code that will be
+                // run by the finishing BREAKPOINT command in the target
+                // environment.
+                //
+                // We'll never return a halt, so we reuse -1 (in this very
+                // temporary scheme built on the very clunky historical REPL,
+                // which will not last much longer...fingers crossed.)
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                CATCH_THROWN(out, out);
+                *exit_status = -1;
+                return -1;
+            }
+
+            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_quit) {
+                //
+                // It would be frustrating if the system did not respond to
+                // a QUIT and forced you to do `resume/with [quit]`.  So
+                // this is *not* caught, rather passed back up with the
+                // special -2 status code.
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                CATCH_THROWN(out, out);
+                *exit_status = -2;
+                return -2;
+            }
+        }
+        else {
+            // We are at the top level REPL, where we catch QUIT and for
+            // now, also EXIT as meaning you want to leave.
+            //
+            if (
+                IS_NATIVE(out) && (
+                    VAL_FUNC_CODE(out) == &N_quit
+                    || VAL_FUNC_CODE(out) == &N_exit
+                )
+            ) {
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                CATCH_THROWN(out, out);
+                *exit_status = Exit_Status_From_Value(out);
+                return -2; // Revisit hardcoded #
+            }
         }
 
-        // This actually gets trapped by the PUSH_TRAP above in this same
-        // routine (we just don't want to repeat the work here, so we fail
-        // to ourself.)
-        //
         fail (Error_No_Catch_For_Throw(out));
     }
 
@@ -270,6 +429,10 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     REBINT startup_rc;
     REBYTE *embedded_script = NULL;
     REBI64 embedded_size = 0;
+
+    const REBYTE debug_str[] = "debug";
+    REBCNT debug_sym;
+    REBFRM *user_context;
 
     Host_Lib = &Host_Lib_Init;
 
@@ -346,6 +509,30 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     OS_Init_Graphics();
 #endif // REB_CORE
 
+    // Register host-specific DEBUG native in user and lib contexts.  (See
+    // notes on N_debug regarding why the C code implementing DEBUG is in
+    // the host and not part of Rebol Core.)
+    //
+    debug_sym = Make_Word(debug_str, LEN_BYTES(debug_str));
+    user_context = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+    if (
+        !Find_Word_Index(Lib_Context, debug_sym, TRUE)
+        && !Find_Word_Index(user_context, debug_sym, TRUE)
+    ) {
+        REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+        REBVAL debug_native;
+        Make_Native(&debug_native, spec, &N_debug, REB_NATIVE, FALSE);
+
+        *Append_Frame(Lib_Context, 0, debug_sym) = debug_native;
+        *Append_Frame(user_context, 0, debug_sym) = debug_native;
+    }
+    else {
+        // It's already there--e.g. someone added REBNATIVE(debug).  Assert
+        // about it in the debug build, otherwise don't add the host version.
+        //
+        assert(FALSE);
+    }
+
     // Call sys/start function. If a compressed script is provided, it will be
     // decompressed, stored in system/options/boot-host, loaded, and evaluated.
     // Returns: 0: ok, -1: error, 1: bad data.
@@ -417,44 +604,54 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         do_arg_utf8 = b_cast(cast(char*, Main_Args.do_arg));
     #endif
 
-        do_result = Do_String(exit_status, &result, do_arg_utf8);
+        do_result = Do_String(exit_status, &result, do_arg_utf8, FALSE);
 
     #ifdef TO_WINDOWS
         OS_FREE(do_arg_utf8);
     #endif
 
         if (do_result == -1) {
+            //
             // The user canceled via a HALT signal, e.g. Ctrl-C.  For now we
             // print a halt message and exit with a made-up error code.
-
+            //
+            // !!! This behavior of not breaking into the debugger should
+            // be configurable.  It is based on the idea of being a "good
+            // command line citizen", but certainly someone might wish to
+            // have it act like a breakpoint if they would know what to
+            // do in a debug scenario.  For now we save that for the REPL.
+            //
+            // Exiting with "100" is arbitrary, should be configurable.
+            //
             Put_Str(halt_str);
-
-            *exit_status = 100; // !!! Arbitrary number, should be configurable
+            *exit_status = 100;
             return TRUE;
         }
         else if (do_result == -2) {
+            //
             // There was a purposeful QUIT or EXIT, exit_status has any /WITH
             // translated into an integer
+            //
             return TRUE;
         }
         else if (do_result < -2) {
             // There was an error, so print it out (with limited print length)
             //
+            // !!! We invent a status and exit, but the response to an error
+            // should be more flexible, and the error code is arbitrary and
+            // needs to be configurable.  See #2215.
+            //
             Out_Value(&result, 500, FALSE, 1);
-
-            // We invent a status and exit, but the response to an error
-            // should be more flexible.  See #2215.
-
-            *exit_status = 101; // !!! Arbitrary number, should be configurable
+            *exit_status = 101;
             return TRUE;
         }
         else {
-            assert(do_result >= 0);
-
             // Command completed successfully, we don't print anything.
-
+            //
             // We quit vs. dropping to interpreter by default, but it would be
             // good to have a more flexible response here too.  See #2215.
+            //
+            assert(do_result >= 0);
             *exit_status = 0;
             return TRUE;
         }
@@ -467,7 +664,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 }
 
 
-void Host_Repl(int *exit_status, REBVAL *out) {
+void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
     REBOOL why_alert = TRUE;
 
     #define MAX_CONT_LEVEL 80
@@ -499,7 +696,23 @@ void Host_Repl(int *exit_status, REBVAL *out) {
             for (level = 1; level < cont_level; level++) {
                 Put_Str(cont_str);
             }
-        } else {
+        }
+        else {
+            if (at_breakpoint) {
+                //
+                // If we're stopped at a breakpoint, then the REPL has a
+                // modality to it of "which stack level you are examining".
+                // This is conveyed through an integer of the stack depth,
+                // which is put into the prompt:
+                //
+                //     |3|>> ...
+                //
+                REBYTE buf_int[MAX_INT_LEN];
+                Put_Str(cb_cast("|"));
+                Form_Int(&buf_int[0], HG_Stack_Level);
+                Put_Str(buf_int);
+                Put_Str(cb_cast("|"));
+            }
             Put_Str(prompt_str);
         }
 
@@ -587,9 +800,18 @@ void Host_Repl(int *exit_status, REBVAL *out) {
         input_len = 0;
         cont_level = 0;
 
-        do_result = Do_String(exit_status, out, input);
+        do_result = Do_String(exit_status, out, input, at_breakpoint);
 
         if (do_result == -1) {
+            //
+            // If we're inside a breakpoint, this actually means "resume",
+            // because Do_String doesn't do any error trapping if we pass
+            // in `at_breakpoint = TRUE`.  Hence any HALT longjmp would
+            // have bypassed this, so the -1 signal is reused (for now).
+            //
+            if (at_breakpoint)
+                goto cleanup_and_return;
+
             // !!! The "Halt" status is communicated via -1, but
             // is not an actual valid "error value".  It cannot be
             // created by user code, and the fact that it is done
@@ -641,6 +863,88 @@ void Host_Quit() {
 }
 
 
+//
+//  Host_Breakpoint_Quitting_Hook()
+//
+// This hook is registered with the core as the function that gets called
+// when a breakpoint triggers.
+//
+// There are only two options for leaving the hook.  One is to return TRUE
+// and thus signal a QUIT, where `instruction` is the value to quit /WITH.
+// The other choice is to return FALSE, where `instruction` is a purposefully
+// constructed "resume instruction".
+//
+// (Note: See remarks in the implementation of `REBNATIVE(resume)` for the
+// format of resume instructions.  But generally speaking, the host does not
+// need to know the details, as this represents a protocol that is supposed
+// to only be between BREAKPOINT and RESUME.  So the host just needs to
+// bubble up the argument to a throw that had the RESUME native's name on it,
+// when that type of throw is caught.)
+//
+// The ways in which a breakpoint hook can be exited are constrained in
+// order to "sandbox" it somewhat.  Though a nested REPL may be invoked in
+// response to a breakpoint--as is done here--continuation should be done
+// purposefully vs. "accidentally resuming" just because a FAIL or a THROW
+// happened.  One does not want to hit a breakpoint, then mistype a variable
+// name and trigger an error that does a longjmp that effectively cancels
+// the interactive breakpoint session!
+//
+// Hence RESUME and QUIT should be the only ways to get out of the breakpoint.
+// Note that RESUME/DO provides a loophole, where it's possible to run code
+// that performs a THROW or FAIL which is not trapped by the sandbox.
+//
+REBOOL Host_Breakpoint_Quitting_Hook(
+    REBVAL *instruction_out,
+    REBOOL interrupted
+) {
+    int exit_status;
+    REBCNT old_stack_level;
+
+    // Notify the user that the breakpoint or interruption was hit.
+    //
+    if (interrupted)
+        Put_Str(interrupted_str);
+    else
+        Put_Str(breakpoint_str);
+
+    // We save the stack level from before, so that we can put it back when
+    // we resume.  Each new breakpoint nesting hit will default to debugging
+    // stack level 1...e.g. the level that called breakpoint.
+    //
+    old_stack_level = HG_Stack_Level;
+    if (Call_For_Stack_Level(1, FALSE) != NULL)
+        HG_Stack_Level = 1;
+    else
+        HG_Stack_Level = 0; // Happens if you just type "breakpoint"
+
+    // Spawn nested REPL.
+    //
+    Host_Repl(&exit_status, instruction_out, TRUE);
+
+    // Restore stack level, which is presumably still valid (there shouldn't
+    // have been any way to "delete levels from the stack above" while we
+    // were nested).
+    //
+    // !!! It might be nice if the prompt had a way of conveying that you were
+    // in nested breaks, and give the numberings of them adjusted:
+    //
+    //     |14|6|1|>> ...
+    //
+    // Or maybe that's TMI?
+    //
+    HG_Stack_Level = old_stack_level;
+
+    // We get -1 for RESUME and -2 for QUIT, under the current convoluted
+    // scheme of return codes.
+    //
+    // !!! Eliminate return codes now that RL_Api dependence is gone and
+    // speak in terms of the REBVALs themselves.
+    //
+    assert(exit_status == -1 || exit_status == -2);
+    return LOGICAL(exit_status == -2);
+}
+
+
 /***********************************************************************
 **
 **  MAIN ENTRY POINT
@@ -678,6 +982,12 @@ int main(int argc, char **argv_ansi)
     REBINT startup_rc;
     REBCHR **argv;
 
+    //
+    // !!! Register EXPERIMENTAL breakpoint hook.  Note that %host-main.c is
+    // not really expected to stick around as the main REPL...
+    //
+    PG_Breakpoint_Quitting_Hook = &Host_Breakpoint_Quitting_Hook;
+
 #ifdef TO_WINDOWS
     // Were we using WinMain we'd be getting our arguments in Unicode, but
     // since we're using an ordinary main() we do not.  However, this call
@@ -701,7 +1011,7 @@ int main(int argc, char **argv_ansi)
         )
     ) {
         REBVAL value;
-        Host_Repl(&exit_status, &value);
+        Host_Repl(&exit_status, &value, FALSE);
     }
     else
         exit_status = 0; // "success"

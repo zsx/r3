@@ -432,6 +432,8 @@ REBNATIVE(backtrace)
 
     REBCNT index; // backwards-counting index for slots in backtrace array
 
+    REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
+
     REBARR *backtrace;
     struct Reb_Call *call;
 
@@ -529,10 +531,27 @@ REBNATIVE(backtrace)
         if (call->mode == CALL_MODE_FUNCTION) {
             pending = FALSE;
 
-            ++number;
+            if (
+                first
+                && IS_NATIVE(FUNC_VALUE(call->func))
+                && FUNC_CODE(call->func) == &N_breakpoint
+            ) {
+                // Omitting BREAKPOINTs from the list entirely presents a
+                // skewed picture of what's going on.  But giving them
+                // "index 1" means that inspecting the frame you're actually
+                // interested in (the one where you put the breakpoint) bumps
+                // to 2, which feels unnatural.
+                //
+                // Compromise by not incrementing the stack numbering for
+                // this case, leaving a leading breakpoint frame at index 0.
+            }
+            else
+                ++number;
         }
         else
             pending = TRUE;
+
+        first = FALSE;
 
         ++row;
 
@@ -648,6 +667,12 @@ REBNATIVE(backtrace)
         if (!pending)
             assert(Call_For_Stack_Level(number, TRUE) == call);
 
+        // Try and keep the numbering in sync with query used by host to get
+        // function frames to do binding in the REPL with.
+        //
+        if (!pending)
+            assert(Call_For_Stack_Level(number, TRUE) == call);
+
         if (REF(at)) {
             //
             // If we were fetching a single stack level, then `temp` above
@@ -708,6 +733,7 @@ REBNATIVE(backtrace)
 struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
 {
     struct Reb_Call *call = DSF;
+    REBOOL first = TRUE;
 
     // We may need to skip some number of frames, if there have been stack
     // levels added since the numeric reference point that "level" was
@@ -726,6 +752,22 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
         //
         if (call->mode != CALL_MODE_FUNCTION) continue;
 
+        if (
+            first
+            && IS_NATIVE(FUNC_VALUE(call->func))
+            && FUNC_CODE(call->func) == &N_breakpoint
+        ) {
+            // this is considered the "0".  Return it only if 0 was requested
+            // specifically (you don't "count down to it");
+            //
+            if (level == 0)
+                return call;
+            else {
+                first = FALSE;
+                continue; // don't count it, e.g. don't decrement level
+            }
+        }
+
         if (level == 0) {
             //
             // There really is no "level 0" in a stack unless you
@@ -734,6 +776,8 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
             //
             return NULL;
         }
+
+        first = FALSE;
 
         --level;
         if (level == 0)
@@ -744,6 +788,442 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
 }
 
 
+//
+// Index values for the properties in a "resume instruction" (see notes on
+// REBNATIVE(resume))
+//
+enum {
+    RESUME_INST_MODE = 0,   // FALSE if /WITH, TRUE if /DO, NONE! if default
+    RESUME_INST_PAYLOAD,    // code block to /DO or value of /WITH
+    RESUME_INST_TARGET,     // unwind target, NONE! to return from breakpoint
+    RESUME_INST_MAX
+};
+
+
+//
+//  Do_Breakpoint_Throws: C
+//
+// A call to Do_Breakpoint_Throws does delegation to a hook in the host, which
+// (if registered) will generally start an interactive session for probing the
+// environment at the break.  The `resume` native cooperates by being able to
+// give back a value (or give back code to run to produce a value) that the
+// call to breakpoint returns.
+//
+// RESUME has another feature, which is to be able to actually unwind and
+// simulate a return /AT a function *further up the stack*.  (This may be
+// switched to a feature of a "STEP OUT" command at some point.)
+//
+REBOOL Do_Breakpoint_Throws(
+    REBVAL *out,
+    REBOOL interrupted, // Ctrl-C (as opposed to a BREAKPOINT)
+    const REBVAL *default_value,
+    REBOOL do_default
+) {
+    REBVAL temp;
+    REBVAL *target = NONE_VALUE;
+
+    if (!PG_Breakpoint_Quitting_Hook) {
+        //
+        // Host did not register any breakpoint handler, so raise an error
+        // about this as early as possible.
+        //
+        fail (Error(RE_HOST_NO_BREAKPOINT));
+    }
+
+    // We call the breakpoint hook in a loop, in order to keep running if any
+    // inadvertent FAILs or THROWs occur during the interactive session.
+    // Only a conscious call of RESUME speaks the protocol to break the loop.
+    //
+    while (TRUE) {
+        struct Reb_State state;
+        REBFRM *error;
+
+    push_trap:
+        PUSH_TRAP(&error, &state);
+
+        // The host may return a block of code to execute, but cannot
+        // while evaluating do a THROW or a FAIL that causes an effective
+        // "resumption".  Halt is the exception, hence we PUSH_TRAP and
+        // not PUSH_UNHALTABLE_TRAP.  QUIT is also an exception, but a
+        // desire to quit is indicated by the return value of the breakpoint
+        // hook (which may or may not decide to request a quit based on the
+        // QUIT command being run).
+        //
+        // The core doesn't want to get involved in presenting UI, so if
+        // an error makes it here and wasn't trapped by the host first that
+        // is a bug in the host.  It should have done its own PUSH_TRAP.
+        //
+        if (error) {
+        #if !defined(NDEBUG)
+            REBVAL error_value;
+            Val_Init_Error(&error_value, error);
+            PROBE_MSG(&error_value, "Error not trapped during breakpoint:");
+            Panic_Array(FRAME_VARLIST(error));
+        #endif
+
+            // In release builds, if an error managed to leak out of the
+            // host's breakpoint hook somehow...just re-push the trap state
+            // and try it again.
+            //
+            goto push_trap;
+        }
+
+        // Call the host's breakpoint hook.
+        //
+        if (PG_Breakpoint_Quitting_Hook(&temp, interrupted)) {
+            //
+            // If a breakpoint hook returns TRUE that means it wants to quit.
+            // The value should be the /WITH value (as in QUIT/WITH)
+            //
+            assert(!THROWN(&temp));
+            *out = *ROOT_QUIT_NATIVE;
+            CONVERT_NAME_TO_THROWN(out, &temp, FALSE);
+            return TRUE; // TRUE = threw
+        }
+
+        // If a breakpoint handler returns FALSE, then it should have passed
+        // back a "resume instruction" triggered by a call like:
+        //
+        //     resume/do [fail "This is how to fail from a breakpoint"]
+        //
+        // So now that the handler is done, we will allow any code handed back
+        // to do whatever FAIL it likes vs. trapping that here in a loop.
+        //
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+        // Decode and process the "resume instruction"
+        {
+            struct Reb_Call *call;
+            REBVAL *mode;
+            REBVAL *payload;
+
+            assert(IS_PAREN(&temp));
+            assert(VAL_LEN_HEAD(&temp) == RESUME_INST_MAX);
+
+            mode = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_MODE);
+            payload = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_PAYLOAD);
+            target = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_TARGET);
+
+            // The first thing we need to do is determine if the target we
+            // want to return to has another breakpoint sandbox blocking
+            // us.  If so, what we need to do is actually retransmit the
+            // resume instruction so it can break that wall, vs. transform
+            // it into an EXIT/FROM that would just get intercepted.
+            //
+            if (!IS_NONE(target)) {
+                REBOOL found = FALSE;
+
+                for (call = DSF; call != NULL; call = call->prior) {
+                    if (call->mode != CALL_MODE_FUNCTION)
+                        continue;
+
+                    if (
+                        call != DSF
+                        && VAL_TYPE(FUNC_VALUE(call->func)) == REB_NATIVE
+                        && FUNC_CODE(call->func) == &N_breakpoint
+                    ) {
+                        // We hit a breakpoint (that wasn't this call to
+                        // breakpoint, at the current DSF) before finding
+                        // the sought after target.  Retransmit the resume
+                        // instruction so that level will get it instead.
+                        //
+                        *out = *ROOT_RESUME_NATIVE;
+                        CONVERT_NAME_TO_THROWN(out, &temp, FALSE);
+                        return TRUE; // TRUE = thrown
+                    }
+
+                    if (IS_OBJECT(target)) {
+                        if (VAL_TYPE(FUNC_VALUE(call->func)) != REB_CLOSURE)
+                            continue;
+                        if (
+                            VAL_FRAME(target) == AS_FRAME(call->arglist.array)
+                        ) {
+                            // Found a closure matching the target before we
+                            // reached a breakpoint, no need to retransmit.
+                            //
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                    else {
+                        assert(ANY_FUNC(target));
+                        if (VAL_TYPE(FUNC_VALUE(call->func)) == REB_CLOSURE)
+                            continue;
+                        if (VAL_FUNC(target) == call->func) {
+                            //
+                            // Found a function matching the target before we
+                            // reached a breakpoint, no need to retransmit.
+                            //
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                }
+
+                // RESUME should not have been willing to use a target that
+                // is not on the stack.
+                //
+                assert(found);
+            }
+
+            if (IS_NONE(mode)) {
+                //
+                // If the resume instruction had no /DO or /WITH of its own,
+                // then it doesn't override whatever the breakpoint provided
+                // as a default.  (If neither the breakpoint nor the resume
+                // provided a /DO or a /WITH, result will be UNSET.)
+                //
+                goto return_default; // heeds `target`
+            }
+
+            assert(IS_LOGIC(mode));
+
+            if (VAL_LOGIC(mode)) {
+                if (DO_ARRAY_THROWS(&temp, payload)) {
+                    //
+                    // Throwing is not compatible with /AT currently.
+                    //
+                    if (!IS_NONE(target))
+                        fail (Error_No_Catch_For_Throw(&temp));
+
+                    // Just act as if the BREAKPOINT call itself threw
+                    //
+                    *out = temp;
+                    return TRUE; // TRUE = thrown
+                }
+
+                // Ordinary evaluation result...
+            }
+            else
+                temp = *payload;
+        }
+
+        // The resume instruction will be GC'd.
+        //
+        goto return_temp;
+    }
+
+    DEAD_END;
+
+return_default:
+
+    if (do_default) {
+        if (DO_ARRAY_THROWS(&temp, default_value)) {
+            //
+            // If the code throws, we're no longer in the sandbox...so we
+            // bubble it up.  Note that breakpoint runs this code at its
+            // level... so even if you request a higher target, any throws
+            // will be processed as if they originated at the BREAKPOINT
+            // frame.  To do otherwise would require the EXIT/FROM protocol
+            // to add support for DO-ing at the receiving point.
+            //
+            *out = temp;
+            return TRUE; // TRUE = thrown
+        }
+    }
+    else
+        temp = *default_value; // generally UNSET! if no /WITH
+
+return_temp:
+
+    // The easy case is that we just want to return from breakpoint
+    // directly, signaled by the target being NONE!.
+    //
+    if (IS_NONE(target)) {
+        *out = temp;
+        return FALSE; // FALSE = not thrown
+    }
+
+    // If the target is a function, then we're looking to simulate a return
+    // from something up the stack.  This uses the same mechanic as
+    // definitional returns--a throw named by the function or closure frame.
+    //
+    // !!! There is a weak spot in definitional returns for FUNCTION! that
+    // they can only return to the most recent invocation; which is a weak
+    // spot of FUNCTION! in general with stack relative variables.  Also,
+    // natives do not currently respond to definitional returns...though
+    // they can do so just as well as FUNCTION! can.
+    //
+    *out = *target;
+    CONVERT_NAME_TO_THROWN(out, &temp, TRUE);
+
+    return TRUE; // TRUE = thrown
+}
+
+
+//
+//  breakpoint: native [
+//
+//  "Signal breakpoint to the host, such as a Read-Eval-Print-Loop (REPL)"
+//
+//      /with
+//          "Return the given value if breakpoint does not trigger"
+//      value [unset! any-value!]
+//          "Default value to use"
+//      /do
+//          "Evaluate given code if breakpoint does not trigger"
+//      code [block!]
+//          "Default code to evaluate"
+//  ]
+//
+REBNATIVE(breakpoint)
+{
+    REFINE(1, with);
+    PARAM(2, value);
+    REFINE(3, do);
+    PARAM(4, code);
+
+    if (REF(with) && REF(do)) {
+        //
+        // /WITH and /DO both dictate a default return result, (/DO evaluates
+        // and /WITH does not)  They are mutually exclusive.
+        //
+        fail (Error(RE_BAD_REFINES));
+    }
+
+    if (Do_Breakpoint_Throws(
+        D_OUT,
+        FALSE, // not a Ctrl-C, it's an actual BREAKPOINT
+        REF(with) ? ARG(value) : (REF(do) ? ARG(code) : UNSET_VALUE),
+        REF(do)
+    )) {
+        return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
+}
+
+
+//
+//  resume: native [
+//
+//  {Resume after a breakpoint, can evaluate code in the breaking context.}
+//
+//      /with
+//          "Return the given value as return value from BREAKPOINT"
+//      value [unset! any-value!]
+//          "Value to use"
+//      /do
+//          "Evaluate given code as return value from BREAKPOINT"
+//      code [block!]
+//          "Code to evaluate"
+//      /at
+//          "Return from another call up stack besides the breakpoint"
+//      level [integer!]
+//          "Stack level number in BACKTRACE to target in unwinding"
+//  ]
+//
+REBNATIVE(resume)
+//
+// The host breakpoint hook makes a wall to prevent arbitrary THROWs and
+// FAILs from ending the interactive inspection.  But RESUME is special, and
+// it makes a very specific instruction (with a throw /NAME of the RESUME
+// native) to signal a desire to end the interactive session.
+//
+// When the BREAKPOINT native gets control back from the hook, it interprets
+// and executes the instruction.  This offers the additional benefit that
+// each host doesn't have to rewrite interpretation in the hook--they only
+// need to recognize a RESUME throw and pass the argument back.
+{
+    REFINE(1, with);
+    PARAM(2, value);
+    REFINE(3, do);
+    PARAM(4, code);
+    REFINE(5, at);
+    PARAM(6, level);
+
+    struct Reb_Call *target;
+    REBARR *instruction;
+
+    if (REF(with) && REF(do)) {
+        //
+        // /WITH and /DO both dictate a default return result, (/DO evaluates
+        // and /WITH does not)  They are mutually exclusive.
+        //
+        fail (Error(RE_BAD_REFINES));
+    }
+
+    // We don't actually want to run the code for a /DO here.  If we tried
+    // to run code from this stack level--and it failed or threw without
+    // some special protocol--we'd stay stuck in the breakpoint's sandbox.
+    //
+    // The /DO code we received needs to actually be run by the host's
+    // breakpoint hook, once it knows that non-local jumps to above the break
+    // level (throws, returns, fails) actually intended to be "resuming".
+
+    instruction = Make_Array(RESUME_INST_MAX);
+
+    if (REF(with)) {
+        SET_FALSE(ARRAY_AT(instruction, RESUME_INST_MODE)); // don't DO value
+        *ARRAY_AT(instruction, RESUME_INST_PAYLOAD) = *ARG(value);
+    }
+    else if (REF(do)) {
+        SET_TRUE(ARRAY_AT(instruction, RESUME_INST_MODE)); // DO the value
+        *ARRAY_AT(instruction, RESUME_INST_PAYLOAD) = *ARG(code);
+    }
+    else
+        SET_NONE(ARRAY_AT(instruction, RESUME_INST_MODE)); // use default
+
+    if (REF(at)) {
+        //
+        // We want BREAKPOINT to resume /AT a higher stack level (using the
+        // same machinery that definitionally-scoped return would to do it).
+
+        if (VAL_INT32(ARG(level)) < 0)
+            fail (Error_Invalid_Arg(ARG(level)));
+
+        // !!! `target` should just be a "FRAME!" (once the new type exists)
+
+        if (!(target = Call_For_Stack_Level(VAL_INT32(ARG(level)), TRUE)))
+            fail (Error_Invalid_Arg(ARG(level)));
+
+        if (IS_OBJECT(FUNC_VALUE(target->func))) {
+            //
+            // !!! A CLOSURE! instantiation can be successfully identified
+            // by its frame, as it is a unique object.  Which is good, but
+            // the associated costs suggest another approach which would be
+            // cheaper and applicable to all functions...hence closure is
+            // scheduled to be removed from Ren-C
+            //
+            Val_Init_Object(
+                ARRAY_AT(instruction, RESUME_INST_TARGET),
+                AS_FRAME(target->arglist.array)
+            );
+        }
+        else {
+            // See notes on OPT_VALUE_EXIT_FROM regarding non-CLOSURE!s and
+            // their present inability to target arbitrary frames.
+            //
+            *ARRAY_AT(instruction, RESUME_INST_TARGET)
+                = *FUNC_VALUE(target->func);
+        }
+    }
+    else {
+        // We just want BREAKPOINT itself to return, indicated by NONE target.
+        //
+        SET_NONE(ARRAY_AT(instruction, RESUME_INST_TARGET));
+    }
+
+    SET_ARRAY_LEN(instruction, RESUME_INST_MAX);
+    TERM_ARRAY(instruction);
+
+    // We put the resume instruction into a PAREN! just to make it a little
+    // bit more unusual than a BLOCK!.  More hardened approaches might put
+    // a special symbol as a "magic number" or somehow version the protocol,
+    // but for now we'll assume that the only decoder is BREAKPOINT and it
+    // will be kept in sync.
+    //
+    Val_Init_Array(D_CELL, REB_PAREN, instruction);
+
+    // Throw the instruction with the name of the RESUME function
+    //
+    *D_OUT = *FUNC_VALUE(D_FUNC);
+    CONVERT_NAME_TO_THROWN(D_OUT, D_CELL, FALSE);
+    return R_OUT_IS_THROWN;
+}
+
+
+//
 //  check: native [
 //
 //  "Run an integrity check on a value in debug builds of the interpreter"

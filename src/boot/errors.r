@@ -90,6 +90,8 @@ Internal: [
 
     debug-only:         {Feature available only in DEBUG builds}
 
+    host-no-breakpoint: {Interpreter host code has no breakpoint handler}
+
     invalid-exit:       {Frame does not exist on the stack to EXIT from}
 ]
 

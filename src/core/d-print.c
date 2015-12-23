@@ -123,7 +123,16 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     buffer[0] = 0; // for debug tracing
 
     if (opts & OPT_ENC_RAW) {
-        Do_Signals();
+        //
+        // !!! See notes on other invocations about the questions raised by
+        // calls to Do_Signals_Throws() by places that do not have a clear
+        // path up to return results from an interactive breakpoint.
+        //
+        REBVAL result;
+        if (Do_Signals_Throws(&result))
+            fail (Error_No_Catch_For_Throw(&result));
+        if (IS_SET(&result))
+            fail (Error(RE_MISC));
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
         assert(!unicode);
@@ -138,7 +147,16 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     }
     else {
         while ((len2 = len) > 0) {
-            Do_Signals();
+            //
+            // !!! See notes on other invocations about the questions raised by
+            // calls to Do_Signals_Throws() by places that do not have a clear
+            // path up to return results from an interactive breakpoint.
+            //
+            REBVAL result;
+            if (Do_Signals_Throws(&result))
+                fail (Error_No_Catch_For_Throw(&result));
+            if (IS_SET(&result))
+                fail (Error(RE_MISC));
 
             Req_SIO->length = Encode_UTF8(
                 buf,

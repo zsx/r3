@@ -818,7 +818,18 @@ static REBCNT Parse_Rules_Loop(
 
         //Print_Parse_Index(parse->type, rules, series, index);
 
-        if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+        if (--Eval_Count <= 0 || Eval_Signals) {
+            //
+            // !!! See notes on other invocations about the questions raised by
+            // calls to Do_Signals_Throws() by places that do not have a clear
+            // path up to return results from an interactive breakpoint.
+            //
+            REBVAL result;
+            if (Do_Signals_Throws(&result))
+                fail (Error_No_Catch_For_Throw(&result));
+            if (IS_SET(&result))
+                fail (Error(RE_MISC));
+        }
 
         //--------------------------------------------------------------------
         // Pre-Rule Processing Section

@@ -90,6 +90,12 @@ PVAR REBCNT Eval_Signals;   // Signal flags
 PVAR REBFUN *PG_Eval_Func; // EVAL native func (never GC'd)
 PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
 
+// Hook called when BREAKPOINT is hit.  It will return TRUE if the breakpoint
+// is quitting, or FALSE if it is continuing.  (Note that if one is HALTing,
+// then it won't return at all...because that is done via longjmp.)
+//
+PVAR REBBRK PG_Breakpoint_Quitting_Hook;
+
 
 /***********************************************************************
 **

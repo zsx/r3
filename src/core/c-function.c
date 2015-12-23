@@ -323,6 +323,8 @@ void Make_Native(
     // debugger.
     //
     // !!! Review whether allowing such references is a good or bad idea.
+    // Note also that this protection can be undone in user mode, which
+    // suggests the need for another bit that PROTECT checks.
     //
     {
         REBVAL *param;
@@ -359,7 +361,12 @@ void Make_Native(
         //
         PG_Eval_Func = VAL_FUNC(out);
     }
-
+    else if (code == &N_resume) {
+        *ROOT_RESUME_NATIVE = *out;
+    }
+    else if (code == &N_quit) {
+        *ROOT_QUIT_NATIVE = *out;
+    }
 }
 
 

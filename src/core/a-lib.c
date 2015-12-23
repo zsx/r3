@@ -351,7 +351,10 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
 //
 RL_API void RL_Escape(REBINT reserved)
 {
-    SET_SIGNAL(SIG_ESCAPE);
+    // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
+    // to quit entirely vs. begin an interactive debugging session?
+    //
+    SET_SIGNAL(SIG_INTERRUPT);
 }
 
 

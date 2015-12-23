@@ -386,14 +386,88 @@ license: func [
     print system/license
 ]
 
-source: func [
-    "Prints the source code for a word."
-    'word [word! path!]
+; !!! MAKE is used here to deliberately avoid the use of an abstraction,
+; because of the adaptation of SOURCE to be willing to take an index that
+; indicates the caller's notion of a stack frame.  (So `source 3` would
+; give the source of the function they saw labeled as 3 in BACKTRACE.)
+;
+; The problem is that if FUNCTION is implemented using its own injection of
+; unknown stack levels, it's not possible to count how many stack levels
+; the call to source itself introduced.
+;
+source: make function! [[
+    "Prints the source code for a function."
+    'arg [integer! word! path! any-function!]
+        {If integer then the function backtrace for that index is shown}
+
+    f: name: ; pure locals
 ][
-    if not value? word [print [word "undefined"] exit]
-    print head insert mold get word reduce [word ": "]
-    exit
-]
+    case [
+        any [word? :arg path? :arg] [
+            name: arg
+            f: get/any arg
+        ]
+
+        integer? :arg [
+            name: rejoin ["backtrace-" arg]
+
+            ; We add two here because we assume the caller meant to be
+            ; using as point of reference what BACKTRACE would have told
+            ; *them* that index 1 was... not counting when SOURCE and this
+            ; nested CASE is on the stack.
+            ;
+            ; !!! A maze of questions are opened by this kind of trick,
+            ; which are beyond the scope of this comment.
+
+            ; The usability rule for backtraces is that 0 is the number
+            ; given to a breakpoint if it's the top of the stack (after
+            ; backtrace removes itself from consideration).  If running
+            ; SOURCE when under a breakpoint, the rule will not apply...
+            ; hence the numbering will start at 1 and the breakpoint is
+            ; now 3 deep in the stack (after SOURCE+CASE).  Yet the
+            ; caller is asking about 1, 2, 3... or even 0 for what they
+            ; saw in the backtrace as the breakpoint.
+            ;
+            ; This is an interim convoluted answer to how to resolve it,
+            ; which would likely be done better with a /relative refinement
+            ; to backtrace.  Before investing in that, some usability
+            ; experience just needs to be gathered, so compensate.
+            ;
+            f: backtrace/at/function (
+                (either zero? arg [arg + 1] [arg]) ; if BREAKPOINT, compensate
+                + 1 ; CASE
+                + 1 ; SOURCE
+            )
+            if all [
+                :f == :breakpoint
+                arg != 0
+            ][
+                f: backtrace/at/function (
+                    arg
+                    + 1 ; IF
+                    + 1 ; CASE
+                    + 1 ; SOURCE
+                    + 1 ; BREAKPOINT
+                )
+            ]
+        ]
+
+        'default [
+            name: "anonymous"
+            f: :arg
+        ]
+    ]
+
+    either any-function? :f [
+        print rejoin [mold name ":" space mold :f]
+    ][
+        either integer? arg [
+            print ["Stack level" arg "does not exist in backtrace"]
+        ][
+            print [type-of :f "is not a function"]
+        ]
+    ]
+]]
 
 what: func [
     {Prints a list of known functions.}
