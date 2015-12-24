@@ -671,12 +671,6 @@ REBNATIVE(backtrace)
         if (!pending)
             assert(Call_For_Stack_Level(number, TRUE) == call);
 
-        // Try and keep the numbering in sync with query used by host to get
-        // function frames to do binding in the REPL with.
-        //
-        if (!pending)
-            assert(Call_For_Stack_Level(number, TRUE) == call);
-
         if (REF(at)) {
             //
             // If we were fetching a single stack level, then `temp` above
@@ -761,7 +755,7 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
         // not currently running functions.  (BACKTRACE includes pending
         // functions for display purposes, but does not number them.)
         //
-        if (call->mode != CALL_MODE_FUNCTION) continue;
+        if (call->mode == CALL_MODE_0) continue;
 
         if (
             first
@@ -789,6 +783,13 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
         }
 
         first = FALSE;
+
+        if (call->mode != CALL_MODE_FUNCTION) {
+            //
+            // Pending frames don't get numbered
+            //
+            continue;
+        }
 
         --level;
         if (level == 0)
