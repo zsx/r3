@@ -259,7 +259,8 @@ struct Reb_Value_Header {
     // marker...which we cannot overwrite...not even with another END marker.
     //
     #define SET_END(v) \
-        (Assert_REBVAL_Writable(v), (v)->header.all = WRITABLE_MASK_DEBUG)
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = WRITABLE_MASK_DEBUG)
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to
@@ -403,7 +404,7 @@ enum {
         cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2)
 #else
     #define VAL_TYPE(v) \
-        VAL_TYPE_Debug(v)
+        VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
 
 // SET_TYPE only sets the type bits, with other header bits intact.
@@ -427,7 +428,7 @@ enum {
     // internal pointer of a container structure.
     //
     #define VAL_RESET_HEADER(v,t) \
-        (Assert_REBVAL_Writable(v), \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
 #endif
 
@@ -686,7 +687,7 @@ enum {
             NOT_END_MASK | (REB_NONE << 2))
 #else
     #define SET_NONE(v) \
-        (Assert_REBVAL_Writable(v), \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
                 NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
             SET_TRACK_PAYLOAD(v))
@@ -726,13 +727,13 @@ enum {
             | ((1 << OPT_VALUE_FALSE) << 8))
 #else
     #define SET_TRUE(v) \
-        (Assert_REBVAL_Writable(v), \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v))  // compound
 
     #define SET_FALSE(v) \
-        (Assert_REBVAL_Writable(v), \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
             | WRITABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
          SET_TRACK_PAYLOAD(v))  // compound

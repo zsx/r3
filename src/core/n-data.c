@@ -1232,9 +1232,12 @@ REBNATIVE(map_gob_offset)
 //
 // There's also benefit in catching writes to other unanticipated locations.
 //
-void Assert_REBVAL_Writable(REBVAL *v)
+void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
 {
-    assert((v)->header.all & WRITABLE_MASK_DEBUG);
+    if (NOT((v)->header.all & WRITABLE_MASK_DEBUG)) {
+        Debug_Fmt("Non-writable value found at %s:%d", file, line);
+        assert((v)->header.all & WRITABLE_MASK_DEBUG); // for message
+    }
 }
 
 
@@ -1244,10 +1247,16 @@ void Assert_REBVAL_Writable(REBVAL *v)
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
 // you never call it on an END marker or on REB_TRASH.
 //
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
+enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
 {
-    assert(NOT_END(v));
-    assert(!IS_TRASH_DEBUG(v));
+    if (IS_END(v)) {
+        Debug_Fmt("Unexpected END in VAL_TYPE(), %s:%d", file, line);
+        assert(NOT_END(v)); // for message
+    }
+    if (IS_TRASH_DEBUG(v)) {
+        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
+        assert(!IS_TRASH_DEBUG(v)); // for message
+    }
     return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
 }
 
