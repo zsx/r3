@@ -1123,7 +1123,7 @@ emit-head "Sys Context" %sysctx.h
 sctx: construct boot-sys
 
 ; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
-; constructor, but uses Alloc_Frame() directly.  Rather than try and force
+; constructor, but uses Alloc_Context() directly.  Rather than try and force
 ; it to have a SELF, having some objects that don't helps pave the way
 ; to the userspace choice of self-vs-no-self (as with <transparent> on
 ; function to have no RETURN)
@@ -1279,7 +1279,7 @@ emit [
 
 //**** ROOT Context (Root Module):
 
-typedef struct REBOL_Root_Context ^{
+typedef struct REBOL_Root_Vars ^{
     REBVAL rootvar; // [0] reserved for the context itself
 }
 ]
@@ -1287,11 +1287,11 @@ typedef struct REBOL_Root_Context ^{
 for-each word boot-root [
     emit-line/code "REBVAL " word ";"
 ]
-emit ["} ROOT_CTX;" lf lf]
+emit ["} ROOT_VARS;" lf lf]
 
 n: 1
 for-each word boot-root [
-    emit-line/define "#define ROOT_" word join "(&Root_Context->" [lowercase replace/all form word #"-" #"_" ")"]
+    emit-line/define "#define ROOT_" word join "(&Root_Vars->" [lowercase replace/all form word #"-" #"_" ")"]
     n: n + 1
 ]
 emit ["#define ROOT_MAX " n lf]
@@ -1311,11 +1311,11 @@ typedef struct REBOL_Task_Context ^{
 for-each word boot-task [
     emit-line/code "REBVAL " word ";"
 ]
-emit ["} TASK_CTX;" lf lf]
+emit ["} TASK_VARS;" lf lf]
 
 n: 1
 for-each word boot-task [
-    emit-line/define "#define TASK_" word join "(&Task_Context->" [lowercase replace/all form word #"-" #"_" ")"]
+    emit-line/define "#define TASK_" word join "(&Task_Vars->" [lowercase replace/all form word #"-" #"_" ")"]
     n: n + 1
 ]
 emit ["#define TASK_MAX " n lf]

@@ -620,7 +620,7 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     REBCNT sigs;
     REBCNT mask;
@@ -675,7 +675,7 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         CLR_SIGNAL(SIG_HALT);
         Eval_Sigmask = mask;
 
-        fail (VAL_FRAME(TASK_HALT_ERROR));
+        fail (VAL_CONTEXT(TASK_HALT_ERROR));
     }
 
     Eval_Sigmask = mask;
@@ -776,11 +776,11 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
         if (IS_OBJECT(D_OUT)) {
             //
             // CLOSURE! doesn't identify itself by its paramlist, but by
-            // the specific identity of instance from its OBJECT! frame
+            // the specific identity of instance from its OBJECT! context
             //
             if (
                 IS_CLOSURE(FUNC_VALUE(D_FUNC))
-                && VAL_FRAME(D_OUT) == AS_FRAME(call_->arglist.array)
+                && VAL_CONTEXT(D_OUT) == AS_CONTEXT(call_->arglist.array)
             ) {
                 CATCH_THROWN(D_OUT, D_OUT);
                 threw = FALSE;
@@ -1143,6 +1143,7 @@ do_at_index:
         //
         if (Do_Signals_Throws(c->out))
             goto return_thrown;
+        Recycle();
 
         if (!IS_UNSET(c->out)) {
             //
@@ -1562,9 +1563,9 @@ reevaluate:
                     *c->arg = *ROOT_RETURN_NATIVE;
 
                     // CLOSURE! wants definitional return to indicate the
-                    // object frame corresponding to the *specific* closure
+                    // object context corresponding to the *specific* closure
                     // instance...not the "archetypal" closure value.  It
-                    // will co-opt the arglist frame for this purpose, so
+                    // will co-opt the arglist array for this purpose, so
                     // put that in the spot instead of a FUNCTION!'s
                     // identifying series if necessary...
                     //
@@ -2047,7 +2048,7 @@ reevaluate:
             // for the return, named by the value in the exit_from.  This
             // should be the RETURN native with 1 arg as the function, and
             // the native code pointer should have been replaced by a
-            // REBFUN (if function) or REBFRM (if closure) to jump to.
+            // REBFUN (if function) or REBCON (if closure) to jump to.
             //
             assert(FUNC_NUM_PARAMS(c->func) == 1);
             ASSERT_ARRAY(exit_from);
@@ -2059,12 +2060,12 @@ reevaluate:
             // sanity check.
             //
         #if !defined(NDEBUG)
-            if (ARRAY_GET_FLAG(exit_from, SER_FRAME)) {
+            if (ARRAY_GET_FLAG(exit_from, SER_CONTEXT)) {
                 //
                 // The function was actually a CLOSURE!, so "when it took
                 // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
                 //
-                assert(IS_OBJECT(FRAME_CONTEXT(AS_FRAME(exit_from))));
+                assert(IS_OBJECT(CONTEXT_VALUE(AS_CONTEXT(exit_from))));
             }
             else {
                 // It was a stack-relative FUNCTION!
@@ -2461,7 +2462,7 @@ void Reduce_Only(
     for (val = ARRAY_AT(block, index); NOT_END(val); val++) {
         if (IS_WORD(val)) {
             // Check for keyword:
-            if (arr && NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(val))) {
+            if (arr && NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(val))) {
                 DS_PUSH(val);
                 continue;
             }
@@ -2473,7 +2474,7 @@ void Reduce_Only(
                 // Check for keyword/path:
                 v = VAL_ARRAY_AT(val);
                 if (IS_WORD(v)) {
-                    if (NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(v))) {
+                    if (NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(v))) {
                         DS_PUSH(val);
                         continue;
                     }
@@ -2965,8 +2966,8 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 {
     REBOOL result;
     va_list args;
-    REBCNT label_sym = FRAME_KEY_SYM(Sys_Context, inum);
-    REBVAL *value = FRAME_VAR(Sys_Context, inum);
+    REBCNT label_sym = CONTEXT_KEY_SYM(Sys_Context, inum);
+    REBVAL *value = CONTEXT_VAR(Sys_Context, inum);
 
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
@@ -3331,7 +3332,7 @@ void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 // 
 // Given a path, return a context and index for its terminal.
 //
-REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
+REBCON *Resolve_Path(REBVAL *path, REBCNT *index)
 {
     REBVAL *sel; // selector
     const REBVAL *val;
@@ -3347,11 +3348,11 @@ REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
     sel = ARRAY_AT(blk, 1);
     while (TRUE) {
         if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
-        i = Find_Word_Index(VAL_FRAME(val), VAL_WORD_SYM(sel), FALSE);
+        i = Find_Word_In_Context(VAL_CONTEXT(val), VAL_WORD_SYM(sel), FALSE);
         sel++;
         if (IS_END(sel)) {
             *index = i;
-            return VAL_FRAME(val);
+            return VAL_CONTEXT(val);
         }
     }
 

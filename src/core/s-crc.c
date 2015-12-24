@@ -261,7 +261,7 @@ REBINT Hash_Value(const REBVAL *val, REBCNT hash_size)
         //
         // !!! http://stackoverflow.com/a/33577210/211160
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_FRAME(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(val)) >> 4);
         break;
 
     case REB_DATATYPE:

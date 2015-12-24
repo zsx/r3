@@ -96,7 +96,7 @@ void Init_Typesets(void)
         VAL_RESET_HEADER(value, REB_TYPESET);
         VAL_TYPESET_BITS(value) = Typesets[n].bits;
 
-        *Append_Frame(Lib_Context, NULL, Typesets[n].sym) = *value;
+        *Append_Context(Lib_Context, NULL, Typesets[n].sym) = *value;
     }
 }
 

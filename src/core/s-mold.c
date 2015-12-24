@@ -733,7 +733,7 @@ static void Form_Array_At(
     REBARR *array,
     REBCNT index,
     REB_MOLD *mold,
-    REBFRM *frame
+    REBCON *context
 ) {
     // Form a series (part_mold means mold non-string values):
     REBINT n;
@@ -746,8 +746,8 @@ static void Form_Array_At(
     for (n = 0; n < len;) {
         val = ARRAY_AT(array, index + n);
         wval = 0;
-        if (frame && (IS_WORD(val) || IS_GET_WORD(val))) {
-            wval = Find_Word_Value(frame, VAL_WORD_SYM(val));
+        if (context && (IS_WORD(val) || IS_GET_WORD(val))) {
+            wval = Find_Word_Value(context, VAL_WORD_SYM(val));
             if (wval) val = wval;
         }
         Mold_Value(mold, val, LOGICAL(wval != 0));
@@ -895,8 +895,8 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
 static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *key = FRAME_KEYS_HEAD(VAL_FRAME(value));
-    REBVAL *var = FRAME_VARS_HEAD(VAL_FRAME(value));
+    REBVAL *key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *var = CONTEXT_VARS_HEAD(VAL_CONTEXT(value));
     REBOOL had_output = FALSE;
 
     // Prevent endless mold loop:
@@ -925,8 +925,8 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *key = FRAME_KEYS_HEAD(VAL_FRAME(value));
-    REBVAL *var = FRAME_VARS_HEAD(VAL_FRAME(value));
+    REBVAL *key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *var = CONTEXT_VARS_HEAD(VAL_CONTEXT(value));
 
     Pre_Mold(value, mold);
 
@@ -968,7 +968,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     ERROR_OBJ *err;
-    REBFRM *frame;
+    REBCON *context;
 
     // Protect against recursion. !!!!
 
@@ -977,7 +977,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         return;
     }
 
-    frame = VAL_FRAME(value);
+    context = VAL_CONTEXT(value);
     err = VAL_ERR_VALUES(value);
 
     // Form: ** <type> Error:
@@ -985,7 +985,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Append: error message ARG1, ARG2, etc.
     if (IS_BLOCK(&err->message))
-        Form_Array_At(VAL_ARRAY(&err->message), 0, mold, frame);
+        Form_Array_At(VAL_ARRAY(&err->message), 0, mold, context);
     else if (IS_STRING(&err->message))
         Mold_Value(mold, &err->message, FALSE);
     else

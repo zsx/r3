@@ -40,7 +40,7 @@
 //
 REBNATIVE(halt)
 {
-    fail (VAL_FRAME(TASK_HALT_ERROR));
+    fail (VAL_CONTEXT(TASK_HALT_ERROR));
 }
 
 
@@ -502,7 +502,7 @@ REBNATIVE(backtrace)
             if (row >= max_rows) {
                 //
                 // Past our depth, so this entry is an ellipsis.  Notice that
-                // the base case of `/FRAMES 0` produces max_rows of 1, which
+                // the base case of `/LIMIT 0` produces max_rows of 1, which
                 // means you will get just an ellipsis row.
                 //
                 break;
@@ -860,7 +860,7 @@ REBOOL Do_Breakpoint_Throws(
     //
     while (TRUE) {
         struct Reb_State state;
-        REBFRM *error;
+        REBCON *error;
 
     push_trap:
         PUSH_TRAP(&error, &state);
@@ -884,7 +884,7 @@ REBOOL Do_Breakpoint_Throws(
 
             Val_Init_Error(&error_value, error);
             PROBE_MSG(&error_value, "Error not trapped during breakpoint:");
-            Panic_Array(FRAME_VARLIST(error));
+            Panic_Array(CONTEXT_VARLIST(error));
         #endif
 
             // In release builds, if an error managed to leak out of the
@@ -964,7 +964,7 @@ REBOOL Do_Breakpoint_Throws(
                         if (VAL_TYPE(FUNC_VALUE(call->func)) != REB_CLOSURE)
                             continue;
                         if (
-                            VAL_FRAME(target) == AS_FRAME(call->arglist.array)
+                            VAL_CONTEXT(target) == AS_CONTEXT(call->arglist.array)
                         ) {
                             // Found a closure matching the target before we
                             // reached a breakpoint, no need to retransmit.
@@ -1221,7 +1221,7 @@ REBNATIVE(resume)
             //
             Val_Init_Object(
                 ARRAY_AT(instruction, RESUME_INST_TARGET),
-                AS_FRAME(target->arglist.array)
+                AS_CONTEXT(target->arglist.array)
             );
         }
         else {
@@ -1288,7 +1288,7 @@ REBNATIVE(check)
         ASSERT_SERIES(VAL_SERIES(value));
     }
     else if (ANY_CONTEXT(value)) {
-        ASSERT_FRAME(VAL_FRAME(value));
+        ASSERT_CONTEXT(VAL_CONTEXT(value));
     }
     else if (ANY_FUNC(value)) {
         ASSERT_ARRAY(VAL_FUNC_SPEC(value));

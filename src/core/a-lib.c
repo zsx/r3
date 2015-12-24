@@ -152,7 +152,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     REBSER *ser;
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
     int error_num;
 
     REBVAL result;
@@ -162,7 +162,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         ser = Decompress(bin, len, -1, FALSE, FALSE);
         if (!ser) return 1;
 
-        val = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
+        val = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
         Val_Init_Binary(val, ser);
     }
 
@@ -186,7 +186,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         }
         OS_FREE(script);
 
-        val = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
+        val = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
         Val_Init_Binary(val, ser);
     }
 
@@ -317,7 +317,7 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
     REBVAL *value;
     REBARR *array;
 
-    value = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
+    value = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
     if (IS_BLOCK(value))
         array = VAL_ARRAY(value);
     else {
@@ -391,7 +391,7 @@ RL_API int RL_Do_String(
     REBARR *code;
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     REBVAL result;
     VAL_INIT_WRITABLE_DEBUG(&result);
@@ -431,11 +431,11 @@ RL_API int RL_Do_String(
         Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
     }
     else {
-        REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+        REBCON *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
         VAL_INIT_WRITABLE_DEBUG(&vali);
-        SET_INTEGER(&vali, FRAME_LEN(user) + 1);
+        SET_INTEGER(&vali, CONTEXT_LEN(user) + 1);
 
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
@@ -1054,14 +1054,14 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
     REBCNT index;
     u32 *syms;
     REBVAL *key;
-    REBFRM *frame = AS_FRAME(obj);
+    REBCON *context = AS_CONTEXT(obj);
 
-    key = FRAME_KEYS_HEAD(frame);
+    key = CONTEXT_KEYS_HEAD(context);
 
     // We don't include hidden keys (e.g. SELF), but terminate by 0.
     // Conservative estimate that there are no hidden keys, add one.
     //
-    syms = OS_ALLOC_N(u32, FRAME_LEN(frame) + 1);
+    syms = OS_ALLOC_N(u32, CONTEXT_LEN(context) + 1);
 
     index = 0;
     for (; NOT_END(key); key++) {
@@ -1092,10 +1092,10 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
 //
 RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 {
-    REBFRM *frame = AS_FRAME(obj);
+    REBCON *context = AS_CONTEXT(obj);
     REBVAL *value;
-    if (!(word = Find_Word_Index(frame, word, FALSE))) return 0;
-    value = FRAME_VAR(frame, word);
+    if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
+    value = CONTEXT_VAR(context, word);
     *result = Value_To_RXI(value);
     return Reb_To_RXT[VAL_TYPE(value)];
 }
@@ -1116,13 +1116,15 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 //
 RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
 {
-    REBFRM *frame = AS_FRAME(obj);
+    REBCON *context = AS_CONTEXT(obj);
 
-    word_id = Find_Word_Index(frame, word_id, FALSE);
+    word_id = Find_Word_In_Context(context, word_id, FALSE);
     if (word_id == 0) return 0;
 
-    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_TYPESET_LOCKED)) return 0;
-    RXI_To_Value(FRAME_VAR(frame, word_id), val, type);
+    if (VAL_GET_EXT(CONTEXT_KEY(context, word_id), EXT_TYPESET_LOCKED))
+        return 0;
+
+    RXI_To_Value(CONTEXT_VAR(context, word_id), val, type);
 
     return type;
 }

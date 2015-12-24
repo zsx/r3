@@ -52,11 +52,11 @@ PVAR REBSER *PG_Word_Names; // Holds all word strings. Never removed.
 PVAR WORD_TABLE PG_Word_Table; // Symbol values accessed by hash
 
 //-- Main contexts:
-PVAR REBFRM *PG_Root_Frame; // Frame that holds Root_Context
-PVAR ROOT_CTX *Root_Context; // VARLIST of PG_Root_Frame as a C structure
+PVAR REBCON *PG_Root_Context; // Frame that holds Root_Vars
+PVAR ROOT_VARS *Root_Vars; // VARLIST of PG_Root_Context as a C structure
 
-PVAR REBFRM *Lib_Context;
-PVAR REBFRM *Sys_Context;
+PVAR REBCON *Lib_Context;
+PVAR REBCON *Sys_Context;
 
 //-- Various char tables:
 PVAR REBYTE *White_Chars;
@@ -114,8 +114,8 @@ PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 **
 ***********************************************************************/
 
-TVAR REBFRM *TG_Task_Frame; // Frame that holds Task_Context
-TVAR TASK_CTX *Task_Context; // VARLIST of Task_Context as a C structure
+TVAR REBCON *TG_Task_Context; // Frame that holds Task_Vars
+TVAR TASK_VARS *Task_Vars; // VARLIST of Task_Vars as a C structure
 
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 

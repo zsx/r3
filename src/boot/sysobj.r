@@ -203,7 +203,7 @@ standard: context [
         where:
             none
 
-        ; Arguments will be allocated in the frame at creation time if
+        ; Arguments will be allocated in the context at creation time if
         ; necessary (errors with no arguments will just have a message)
     ]
 

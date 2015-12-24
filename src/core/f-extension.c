@@ -217,7 +217,7 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
     VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Find word in object, verify it is a function.
-    if (!(val = Find_Word_Value(AS_FRAME(obj), name))) {
+    if (!(val = Find_Word_Value(AS_CONTEXT(obj), name))) {
         SET_EXT_ERROR(out, RXE_NO_WORD);
         return 0;
     }
@@ -342,12 +342,16 @@ REBNATIVE(load_extension)
 // quit() - cleanup anything needed
 // call() - dispatch a native
 {
+    PARAM(1, name);
+    REFINE(2, dispatch);
+    PARAM(3, function);
+
     REBCHR *name;
     void *dll;
     REBCNT error;
     REBYTE *code;
     CFUNC *info; // INFO_FUNC
-    REBFRM *frame;
+    REBCON *context;
     REBVAL *val = D_ARG(1);
     REBEXT *ext;
     CFUNC *call; // RXICAL
@@ -355,7 +359,7 @@ REBNATIVE(load_extension)
     int Remove_after_first_run;
     //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-    if (!D_REF(2)) { // No /dispatch, use the DLL file:
+    if (!REF(dispatch)) { // No /dispatch, use the DLL file:
 
         if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
 
@@ -397,17 +401,20 @@ REBNATIVE(load_extension)
     ext->index = Ext_Next++;
 
     // Extension return: dll, info, filename
-    frame = Copy_Frame_Shallow_Managed(
-        VAL_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION))
+    context = Copy_Context_Shallow_Managed(
+        VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION))
     );
-    Val_Init_Object(D_OUT, frame);
+    Val_Init_Object(D_OUT, context);
 
     // Set extension fields needed:
-    val = FRAME_VAR(frame, STD_EXTENSION_LIB_BASE);
+    val = CONTEXT_VAR(context, STD_EXTENSION_LIB_BASE);
     VAL_RESET_HEADER(val, REB_HANDLE);
     VAL_I32(val) = ext->index;
-    if (!D_REF(2)) *FRAME_VAR(frame, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
-    Val_Init_Binary(FRAME_VAR(frame, STD_EXTENSION_LIB_BOOT), src);
+
+    if (!D_REF(2))
+        *CONTEXT_VAR(context, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
+
+    Val_Init_Binary(CONTEXT_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
     return R_OUT;
 }
@@ -633,7 +640,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
             cmd_sym = VAL_WORD_SYM(blk);
             // Optimized var fetch:
             n = VAL_WORD_INDEX(blk);
-            if (n > 0) func = FRAME_VAR(AS_FRAME(VAL_WORD_TARGET(blk)), n);
+            if (n > 0) func = CONTEXT_VAR(AS_CONTEXT(VAL_WORD_TARGET(blk)), n);
             else func = GET_VAR(blk); // fallback
         } else func = blk;
 

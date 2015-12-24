@@ -895,7 +895,7 @@ void Call_Routine(const REBROT *rot, REBARR *args, REBVAL *ret)
     );
 
     if (IS_ERROR(&Callback_Error))
-        fail (VAL_FRAME(&Callback_Error));
+        fail (VAL_CONTEXT(&Callback_Error));
 
     ffi_to_rebol(
         ROUTINE_INFO(rot),
@@ -981,7 +981,7 @@ static void callback_dispatcher(
     REBVAL *elem;
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     REBVAL safe;
     VAL_INIT_WRITABLE_DEBUG(&safe);

@@ -152,16 +152,16 @@ static void Assert_Basics(void)
     // directly to Ren/C's API.  But until then, even adapting the RXIARG
     // doesn't seem to get everything to work...so there are bugs.  The
     // struct layout of certain things must line up, notably that the
-    // frame of an ANY-CONTEXT! is as the same location as the series
+    // `context` of an ANY-CONTEXT! is as the same location as the `series`
     // of a ANY-SERIES!
     //
     // In the meantime, this limits flexibility which might require the
-    // answer to VAL_FRAME() to be different from VAL_SERIES(), and
+    // answer to VAL_CONTEXT() to be different from VAL_SERIES(), and
     // lead to trouble if one call were used in lieu of the other.
     // Revisit after RXIARG dependencies have been eliminated.
     //
     if (
-        offsetof(struct Reb_Any_Context, frame)
+        offsetof(struct Reb_Any_Context, context)
         != offsetof(struct Reb_Any_Series, series)
     ) {
         panic (Error(RE_MISC));
@@ -364,7 +364,7 @@ static void Init_Datatypes(void)
 
     for (n = 0; NOT_END(word); word++, n++) {
         assert(n < REB_MAX);
-        value = Append_Frame(Lib_Context, word, 0);
+        value = Append_Context(Lib_Context, word, 0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
@@ -385,22 +385,22 @@ static void Init_Constants(void)
     REBVAL *value;
     extern const double pi1;
 
-    value = Append_Frame(Lib_Context, 0, SYM_NONE);
+    value = Append_Context(Lib_Context, 0, SYM_NONE);
     SET_NONE(value);
     assert(IS_NONE(value));
     assert(IS_CONDITIONAL_FALSE(value));
 
-    value = Append_Frame(Lib_Context, 0, SYM_TRUE);
+    value = Append_Context(Lib_Context, 0, SYM_TRUE);
     SET_TRUE(value);
     assert(VAL_LOGIC(value));
     assert(IS_CONDITIONAL_TRUE(value));
 
-    value = Append_Frame(Lib_Context, 0, SYM_FALSE);
+    value = Append_Context(Lib_Context, 0, SYM_FALSE);
     SET_FALSE(value);
     assert(!VAL_LOGIC(value));
     assert(IS_CONDITIONAL_FALSE(value));
 
-    value = Append_Frame(Lib_Context, 0, SYM_PI);
+    value = Append_Context(Lib_Context, 0, SYM_PI);
     SET_DECIMAL(value, pi1);
     assert(IS_DECIMAL(value));
     assert(IS_CONDITIONAL_TRUE(value));
@@ -519,7 +519,7 @@ REBNATIVE(context)
 
     Val_Init_Object(
         D_OUT,
-        Make_Selfish_Frame_Detect(
+        Make_Selfish_Context_Detect(
             REB_OBJECT, // kind
             NULL, // spec
             NULL, // body
@@ -532,7 +532,7 @@ REBNATIVE(context)
     // be making a copy instead (at least by default, perhaps with performance
     // junkies saying `object/bind` or something like that?
     //
-    Bind_Values_Deep(VAL_ARRAY_HEAD(ARG(spec)), VAL_FRAME(D_OUT));
+    Bind_Values_Deep(VAL_ARRAY_HEAD(ARG(spec)), VAL_CONTEXT(D_OUT));
 
     // The evaluative result of running the spec is ignored and done into a
     // scratch cell, but needs to be returned if a throw happens.
@@ -558,7 +558,7 @@ static void Init_Ops(void)
 
     for (word = VAL_ARRAY_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
         // Append the operator name to the lib frame:
-        val = Append_Frame(Lib_Context, word, 0);
+        val = Append_Context(Lib_Context, word, 0);
 
         // leave UNSET!, functions will be filled in later...
         cast(void, cast(REBUPT, val));
@@ -588,7 +588,7 @@ static void Init_Natives(void)
     if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_NATIVE)
         panic (Error(RE_NATIVE_BOOT));
 
-    val = Append_Frame(Lib_Context, item, 0);
+    val = Append_Context(Lib_Context, item, 0);
 
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
@@ -604,7 +604,7 @@ static void Init_Natives(void)
     if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_ACTION)
         panic (Error(RE_NATIVE_BOOT));
 
-    val = Append_Frame(Lib_Context, item, 0);
+    val = Append_Context(Lib_Context, item, 0);
 
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
@@ -617,7 +617,7 @@ static void Init_Natives(void)
     // to subtract tone to account for our skipped TRASH? which should not be
     // exposed to the user.
     //
-    Action_Marker = FRAME_LEN(Lib_Context);
+    Action_Marker = CONTEXT_LEN(Lib_Context);
     Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1);
 
     // Sanity check the symbol transformation
@@ -643,7 +643,7 @@ static void Init_Natives(void)
 //
 REBCNT Get_Action_Sym(REBCNT action)
 {
-    return FRAME_KEY_SYM(Lib_Context, Action_Marker + action);
+    return CONTEXT_KEY_SYM(Lib_Context, Action_Marker + action);
 }
 
 
@@ -654,7 +654,7 @@ REBCNT Get_Action_Sym(REBCNT action)
 //
 REBVAL *Get_Action_Value(REBCNT action)
 {
-    return FRAME_VAR(Lib_Context, Action_Marker+action);
+    return CONTEXT_VAR(Lib_Context, Action_Marker + action);
 }
 
 
@@ -665,39 +665,39 @@ REBVAL *Get_Action_Value(REBCNT action)
 // stored. Called early, so it cannot depend on any other
 // system structures or values.
 // 
-// Note that the Root_Context's word table is unset!
+// Note that the Root_Vars's word table is unset!
 // None of its values are exported.
 //
 static void Init_Root_Context(void)
 {
-    REBFRM *frame = Alloc_Frame(ROOT_MAX - 1);
-    PG_Root_Frame = frame;
+    REBCON *root = Alloc_Context(ROOT_MAX - 1);
+    PG_Root_Context = root;
 
-    LABEL_SERIES(FRAME_VARLIST(frame), "root context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
-    Root_Context = cast(ROOT_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
+    LABEL_SERIES(CONTEXT_VARLIST(root), "root context");
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(root), SER_FIXED_SIZE);
+    Root_Vars = cast(ROOT_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(root)));
 
     // Get rid of the keylist, we will make another one later in the boot.
-    // (You can't ASSERT_FRAME(PG_Root_Frame) until that happens.)  The
+    // (You can't ASSERT_CONTEXT(PG_Root_Context) until that happens.)  The
     // new keylist will be managed so we manage the varlist to match.
     //
-    Free_Array(FRAME_KEYLIST(frame));
-    FRAME_KEYLIST(frame) = NULL;
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    Free_Array(CONTEXT_KEYLIST(root));
+    CONTEXT_KEYLIST(root) = NULL;
+    MANAGE_ARRAY(CONTEXT_VARLIST(root));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
-    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
+    VAL_RESET_HEADER(CONTEXT_VALUE(root), REB_OBJECT);
+    VAL_CONTEXT_SPEC(CONTEXT_VALUE(root)) = NULL;
+    VAL_CONTEXT_BODY(CONTEXT_VALUE(root)) = NULL;
 
     // Set all other values to NONE:
     {
         REBINT n = 1;
-        REBVAL *var = FRAME_VARS_HEAD(frame);
+        REBVAL *var = CONTEXT_VARS_HEAD(root);
         for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
         SET_END(var);
-        SET_ARRAY_LEN(FRAME_VARLIST(frame), ROOT_MAX);
+        SET_ARRAY_LEN(CONTEXT_VARLIST(root), ROOT_MAX);
     }
 
     // These values are simple isolated UNSET, NONE, TRUE, and FALSE values
@@ -764,7 +764,7 @@ static void Init_Root_Context(void)
     PG_End_Val->header.all = 0; // read-only end
     assert(IS_END(END_VALUE));
 
-    // Can't ASSERT_FRAME here; no keylist yet...
+    // Can't ASSERT_CONTEXT here; no keylist yet...
 }
 
 
@@ -797,34 +797,34 @@ void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
 //
 static void Init_Task_Context(void)
 {
-    REBFRM *frame = Alloc_Frame(TASK_MAX - 1);
-    TG_Task_Frame = frame;
+    REBCON *task = Alloc_Context(TASK_MAX - 1);
+    TG_Task_Context = task;
 
-    LABEL_SERIES(FRAME_VARLIST(frame), "task context");
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FIXED_SIZE);
-    Task_Context = cast(TASK_CTX*, ARRAY_HEAD(FRAME_VARLIST(frame)));
+    LABEL_SERIES(CONTEXT_VARLIST(task), "task context");
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(task), SER_FIXED_SIZE);
+    Task_Vars = cast(TASK_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(task)));
 
     // Get rid of the keylist, we will make another one later in the boot.
-    // (You can't ASSERT_FRAME(TG_Task_Frame) until that happens.)  The
+    // (You can't ASSERT_CONTEXT(TG_Task_Context) until that happens.)  The
     // new keylist will be managed so we manage the varlist to match.
     //
-    Free_Array(FRAME_KEYLIST(frame));
-    FRAME_KEYLIST(frame) = NULL;
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    Free_Array(CONTEXT_KEYLIST(task));
+    CONTEXT_KEYLIST(task) = NULL;
+    MANAGE_ARRAY(CONTEXT_VARLIST(task));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = NULL;
-    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) = NULL;
+    VAL_RESET_HEADER(CONTEXT_VALUE(task), REB_OBJECT);
+    VAL_CONTEXT_SPEC(CONTEXT_VALUE(task)) = NULL;
+    VAL_CONTEXT_BODY(CONTEXT_VALUE(task)) = NULL;
 
     // Set all other values to NONE:
     {
         REBINT n = 1;
-        REBVAL *var = FRAME_VARS_HEAD(frame);
+        REBVAL *var = CONTEXT_VARS_HEAD(task);
         for (; n < TASK_MAX; n++, var++) SET_NONE(var);
         SET_END(var);
-        SET_ARRAY_LEN(FRAME_VARLIST(frame), TASK_MAX);
+        SET_ARRAY_LEN(CONTEXT_VARLIST(task), TASK_MAX);
     }
 
     // Initialize a few fields:
@@ -837,7 +837,7 @@ static void Init_Task_Context(void)
     VAL_INIT_WRITABLE_DEBUG(&TG_Thrown_Arg);
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
-    // Can't ASSERT_FRAME here; no keylist yet...
+    // Can't ASSERT_CONTEXT here; no keylist yet...
 }
 
 
@@ -850,7 +850,7 @@ static void Init_Task_Context(void)
 //
 static void Init_System_Object(void)
 {
-    REBFRM *frame;
+    REBCON *system;
     REBARR *array;
     REBVAL *value;
     REBCNT n;
@@ -860,7 +860,7 @@ static void Init_System_Object(void)
 
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
-    frame = Make_Selfish_Frame_Detect(
+    system = Make_Selfish_Context_Detect(
         REB_OBJECT, // type
         NULL, // spec
         NULL, // body
@@ -872,9 +872,9 @@ static void Init_System_Object(void)
 
     // Bind it so CONTEXT native will work (only used at topmost depth)
     //
-    Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), frame);
+    Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), system);
 
-    // Evaluate the block (will eval FRAMEs within).  Expects UNSET!.
+    // Evaluate the block (will eval CONTEXTs within).  Expects UNSET!.
     //
     if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
@@ -884,15 +884,15 @@ static void Init_System_Object(void)
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
     //
-    value = Append_Frame(Lib_Context, 0, SYM_SYSTEM);
-    Val_Init_Object(value, frame);
+    value = Append_Context(Lib_Context, 0, SYM_SYSTEM);
+    Val_Init_Object(value, system);
 
     // We also add the system object under the root, to ensure it can't be
     // garbage collected and be able to access it from the C code.  (Someone
     // could say `system: none` in the Lib_Context and then it would be a
     // candidate for garbage collection otherwise!)
     //
-    Val_Init_Object(ROOT_SYSTEM, frame);
+    Val_Init_Object(ROOT_SYSTEM, system);
 
     // Create system/datatypes block
     //
@@ -900,7 +900,7 @@ static void Init_System_Object(void)
     array = VAL_ARRAY(value);
     Extend_Series(ARRAY_SERIES(array), REB_MAX - 1);
     for (n = 1; n <= REB_MAX; n++) {
-        Append_Value(array, FRAME_VAR(Lib_Context, n));
+        Append_Value(array, CONTEXT_VAR(Lib_Context, n));
     }
 
     // Create system/catalog/actions block
@@ -921,12 +921,15 @@ static void Init_System_Object(void)
 
     // Create system/codecs object
     //
-    value = Get_System(SYS_CODECS, 0);
-    frame = Alloc_Frame(10);
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    FRAME_SPEC(frame) = NULL;
-    FRAME_BODY(frame) = NULL;
-    Val_Init_Object(value, frame);
+    {
+        REBCON *codecs = Alloc_Context(10);
+
+        value = Get_System(SYS_CODECS, 0);
+        VAL_RESET_HEADER(CONTEXT_VALUE(codecs), REB_OBJECT);
+        CONTEXT_SPEC(codecs) = NULL;
+        CONTEXT_BODY(codecs) = NULL;
+        Val_Init_Object(value, codecs);
+    }
 }
 
 
@@ -936,7 +939,7 @@ static void Init_System_Object(void)
 static void Init_Contexts_Object(void)
 {
     REBVAL *value;
-//  REBFRM *frame;
+//  REBCON *context;
 
     value = Get_System(SYS_CONTEXTS, CTX_SYS);
     Val_Init_Object(value, Sys_Context);
@@ -950,8 +953,8 @@ static void Init_Contexts_Object(void)
     // Make the boot context - used to store values created
     // during boot, but processed in REBOL code (e.g. codecs)
 //  value = Get_System(SYS_CONTEXTS, CTX_BOOT);
-//  frame = Alloc_Frame(4, TRUE);
-//  Val_Init_Object(value, frame);
+//  context = Alloc_Context(4, TRUE);
+//  Val_Init_Object(value, context);
 }
 
 //
@@ -1117,7 +1120,7 @@ void Register_Codec(const REBYTE *name, codo dispatcher)
     REBVAL *value = Get_System(SYS_CODECS, 0);
     REBCNT sym = Make_Word(name, LEN_BYTES(name));
 
-    value = Append_Frame(VAL_FRAME(value), 0, sym);
+    value = Append_Context(VAL_CONTEXT(value), 0, sym);
     SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));
 }
 
@@ -1311,7 +1314,7 @@ void Init_Task(void)
     Init_Stacks(STACK_MIN/4);
     Init_Scanner();
     Init_Mold(MIN_COMMON/4);
-    Init_Frame();
+    Init_Collector();
     //Inspect_Series(0);
 
     SET_TRASH_SAFE(&TG_Thrown_Arg);
@@ -1360,7 +1363,7 @@ void Init_Year(void)
 //
 void Init_Core(REBARGS *rargs)
 {
-    REBFRM *error;
+    REBCON *error;
     struct Reb_State state;
 
     const REBYTE transparent[] = "transparent";
@@ -1425,20 +1428,20 @@ void Init_Core(REBARGS *rargs)
     Init_Stacks(STACK_MIN * 4);
     Init_Scanner();
     Init_Mold(MIN_COMMON);  // Output buffer
-    Init_Frame();           // Frames
+    Init_Collector();           // Frames
 
     // !!! Have MAKE-BOOT compute # of words
     //
-    Lib_Context = Alloc_Frame(600);
-    MANAGE_FRAME(Lib_Context); // Expand_Frame() looks like a leak otherwise
-    VAL_RESET_HEADER(FRAME_CONTEXT(Lib_Context), REB_OBJECT);
-    FRAME_SPEC(Lib_Context) = NULL;
-    FRAME_BODY(Lib_Context) = NULL;
-    Sys_Context = Alloc_Frame(50);
-    MANAGE_FRAME(Sys_Context); // Expand_Frame() looks like a leak otherwise
-    VAL_RESET_HEADER(FRAME_CONTEXT(Sys_Context), REB_OBJECT);
-    FRAME_SPEC(Sys_Context) = NULL;
-    FRAME_BODY(Sys_Context) = NULL;
+    Lib_Context = Alloc_Context(600);
+    MANAGE_CONTEXT(Lib_Context); // Expand_Context() looks like a leak otherwise
+    VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
+    CONTEXT_SPEC(Lib_Context) = NULL;
+    CONTEXT_BODY(Lib_Context) = NULL;
+    Sys_Context = Alloc_Context(50);
+    MANAGE_CONTEXT(Sys_Context); // Expand_Context() looks like a leak otherwise
+    VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
+    CONTEXT_SPEC(Sys_Context) = NULL;
+    CONTEXT_BODY(Sys_Context) = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available
@@ -1447,17 +1450,17 @@ void Init_Core(REBARGS *rargs)
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
-    FRAME_KEYLIST(PG_Root_Frame) = Collect_Keylist_Managed(
+    CONTEXT_KEYLIST(PG_Root_Context) = Collect_Keylist_Managed(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, BIND_ALL
     );
-    ASSERT_FRAME(PG_Root_Frame);
+    ASSERT_CONTEXT(PG_Root_Context);
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
-    FRAME_KEYLIST(TG_Task_Frame) = Collect_Keylist_Managed(
+    CONTEXT_KEYLIST(TG_Task_Context) = Collect_Keylist_Managed(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, BIND_ALL
     );
-    ASSERT_FRAME(TG_Task_Frame);
+    ASSERT_CONTEXT(TG_Task_Context);
 
     // Create main values:
     DOUT("Level 3");
@@ -1557,8 +1560,8 @@ void Init_Core(REBARGS *rargs)
         Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2);
     }
 
-    *FRAME_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;
-    *FRAME_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
+    *CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;
+    *CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
 
     // No longer needs protecting:
     SET_NONE(ROOT_BOOT);

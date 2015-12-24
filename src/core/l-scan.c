@@ -581,14 +581,14 @@ static const REBYTE *Skip_Tag(const REBYTE *cp)
 // 
 // Scanner error handler
 //
-static REBFRM *Error_Bad_Scan(
+static REBCON *Error_Bad_Scan(
     REBCNT errnum,
     SCAN_STATE *ss,
     REBCNT tkn,
     const REBYTE *arg,
     REBCNT size
 ) {
-    REBFRM *frame;
+    REBCON *error;
 
     const REBYTE *name;
     const REBYTE *cp;
@@ -628,13 +628,14 @@ static REBFRM *Error_Bad_Scan(
     Val_Init_String(&arg1, Copy_Bytes(name, -1));
     Val_Init_String(&arg2, Copy_Bytes(arg, size));
 
-    frame = Error(errnum, &arg1, &arg2, NULL);
+    error = Error(errnum, &arg1, &arg2, NULL);
 
-    // Write the NEAREST: information (`Error()` gets it from DSF)
-    err_obj = cast(ERROR_OBJ*, ARRAY_HEAD(FRAME_VARLIST(frame)));
+    // Write the NEAR information (`Error()` gets it from DSF)
+    //
+    err_obj = cast(ERROR_OBJ*, ARRAY_HEAD(CONTEXT_VARLIST(error)));
     Val_Init_String(&err_obj->nearest, ser);
 
-    return frame;
+    return error;
 }
 
 
@@ -1654,7 +1655,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         if (!IS_END(value))
             SET_ARRAY_LEN(emitbuf, ARRAY_LEN(emitbuf) + 1);
         else {
-            REBFRM *error;
+            REBCON *error;
         syntax_error:
             error = Error_Bad_Scan(
                 RE_INVALID,

@@ -713,7 +713,7 @@ void Make_Function(
     // Now that we've created the function's fields, we pull a trick.  It
     // would be useful to be able to navigate to a full function value
     // given just its identifying series, but where to put it?  We use
-    // slot 0 (a trick learned from FRAME! in R3-Alpha's frame series)
+    // slot 0 (a trick learned from R3-Alpha's object strategy)
 
     *FUNC_VALUE(out->payload.any_function.func) = *out;
 
@@ -949,7 +949,7 @@ REBOOL Do_Function_Throws(struct Reb_Call *call_)
 REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 {
     REBARR *body;
-    REBFRM *frame;
+    REBCON *context;
 
     Eval_Functions++;
 
@@ -968,18 +968,18 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // It will be held alive as long as the call is in effect by the
     // Reb_Call so that the `arg` pointer will remain valid.
     //
-    frame = AS_FRAME(call_->arglist.array);
+    context = AS_CONTEXT(call_->arglist.array);
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
 
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
-    FRAME_KEYLIST(frame) = FUNC_PARAMLIST(D_FUNC);
-    FRAME_SPEC(frame) = NULL;
-    FRAME_BODY(frame) = NULL;
-    ASSERT_FRAME(frame);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
+    VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
+    CONTEXT_KEYLIST(context) = FUNC_PARAMLIST(D_FUNC);
+    CONTEXT_SPEC(context) = NULL;
+    CONTEXT_BODY(context) = NULL;
+    ASSERT_CONTEXT(context);
 
 #if !defined(NDEBUG)
     // !!! A second sweep for the definitional return used to be necessary in
@@ -991,23 +991,25 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 
     if (VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)) {
         REBVAL *key = FUNC_PARAM(D_FUNC, 1);
-        REBVAL *value = FRAME_VAR(frame, 1);
+        REBVAL *value = CONTEXT_VAR(context, 1);
 
         for (; NOT_END(key); key++, value++) {
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
                 assert(PG_Return_Func == VAL_FUNC(value));
-                assert(VAL_FUNC_RETURN_FROM(value) == FRAME_VARLIST(frame));
+                assert(
+                    VAL_FUNC_RETURN_FROM(value) == CONTEXT_VARLIST(context)
+                );
             }
         }
     }
 #endif
 
-    // We do not Manage_Frame, because we are reusing a word series here
+    // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed...only extract and manage the arglist
     //
-    ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
+    MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this
@@ -1016,7 +1018,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
     Rebind_Values_Deep(
         FUNC_PARAMLIST(D_FUNC),
-        FRAME_VARLIST(frame),
+        CONTEXT_VARLIST(context),
         ARRAY_HEAD(body),
         REBIND_TYPE
     );

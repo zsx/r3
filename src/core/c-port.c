@@ -57,9 +57,9 @@ void Make_Port(REBVAL *out, const REBVAL *spec)
 // Standard method for checking if port is open.
 // A convention. Not all ports use this method.
 //
-REBOOL Is_Port_Open(REBFRM *port)
+REBOOL Is_Port_Open(REBCON *port)
 {
-    REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
+    REBVAL *state = CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BINARY(state)) return FALSE;
     return IS_OPEN(VAL_BIN_AT(state));
 }
@@ -71,9 +71,9 @@ REBOOL Is_Port_Open(REBFRM *port)
 // Standard method for setting a port open/closed.
 // A convention. Not all ports use this method.
 //
-void Set_Port_Open(REBFRM *port, REBOOL open)
+void Set_Port_Open(REBCON *port, REBOOL open)
 {
-    REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
+    REBVAL *state = CONTEXT_VAR(port, STD_PORT_STATE);
     if (IS_BINARY(state)) {
         if (open) SET_OPEN(VAL_BIN_AT(state));
         else SET_CLOSED(VAL_BIN_AT(state));
@@ -88,9 +88,9 @@ void Set_Port_Open(REBFRM *port, REBOOL open)
 // The size is that of a binary structure used by
 // the port for storing internal information.
 //
-void *Use_Port_State(REBFRM *port, REBCNT device, REBCNT size)
+void *Use_Port_State(REBCON *port, REBCNT device, REBCNT size)
 {
-    REBVAL *state = FRAME_VAR(port, STD_PORT_STATE);
+    REBVAL *state = CONTEXT_VAR(port, STD_PORT_STATE);
 
     // If state is not a binary structure, create it:
     if (!IS_BINARY(state)) {
@@ -121,7 +121,7 @@ REBOOL Pending_Port(REBVAL *port)
     REBREQ *req;
 
     if (IS_PORT(port)) {
-        state = FRAME_VAR(VAL_FRAME(port), STD_PORT_STATE);
+        state = CONTEXT_VAR(VAL_CONTEXT(port), STD_PORT_STATE);
         if (IS_BINARY(state)) {
             req = (REBREQ*)VAL_BIN(state);
             if (!GET_FLAG(req->flags, RRF_PENDING)) return FALSE;
@@ -215,7 +215,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
     while (wt) {
         if (GET_SIGNAL(SIG_HALT)) {
             CLR_SIGNAL(SIG_HALT);
-            fail (VAL_FRAME(TASK_HALT_ERROR));
+            fail (VAL_CONTEXT(TASK_HALT_ERROR));
         }
 
         if (GET_SIGNAL(SIG_INTERRUPT)) {
@@ -316,8 +316,8 @@ void Sieve_Ports(REBARR *ports)
 //
 REBCNT Find_Action(REBVAL *object, REBCNT action)
 {
-    return Find_Word_Index(
-        VAL_FRAME(object), Get_Action_Sym(action), FALSE
+    return Find_Word_In_Context(
+        VAL_CONTEXT(object), Get_Action_Sym(action), FALSE
     );
 }
 
@@ -331,27 +331,27 @@ REBCNT Find_Action(REBVAL *object, REBCNT action)
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
-int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
+int Do_Port_Action(struct Reb_Call *call_, REBCON *port, REBCNT action)
 {
     REBVAL *actor;
     REBCNT n = 0;
 
     assert(action < A_MAX_ACTION);
 
-    assert(ARRAY_GET_FLAG(FRAME_VARLIST(port), SER_FRAME));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(port), SER_CONTEXT));
 
     // Verify valid port (all of these must be false):
     if (
         // Must be = or larger than std port:
-        (FRAME_LEN(port) < STD_PORT_MAX - 1) ||
+        (CONTEXT_LEN(port) < STD_PORT_MAX - 1) ||
         // Must have a spec object:
-        !IS_OBJECT(FRAME_VAR(port, STD_PORT_SPEC))
+        !IS_OBJECT(CONTEXT_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
     }
 
     // Get actor for port, if it has one:
-    actor = FRAME_VAR(port, STD_PORT_ACTOR);
+    actor = CONTEXT_VAR(port, STD_PORT_ACTOR);
 
     if (IS_NONE(actor)) return R_NONE;
 
@@ -426,13 +426,13 @@ void Secure_Port(REBCNT kind, REBREQ *req, REBVAL *name, REBSER *path)
 // Because port actors are exposed to the user level, we must
 // prevent them from being called with invalid values.
 //
-void Validate_Port(REBFRM *port, REBCNT action)
+void Validate_Port(REBCON *port, REBCNT action)
 {
     if (
         action >= A_MAX_ACTION
-        || FRAME_LEN(port) > 50 // !!! ?? why 50 ??
-        || !ARRAY_GET_FLAG(FRAME_VARLIST(port), SER_FRAME)
-        || !IS_OBJECT(FRAME_VAR(port, STD_PORT_SPEC))
+        || CONTEXT_LEN(port) > 50 // !!! ?? why 50 ??
+        || !ARRAY_GET_FLAG(CONTEXT_VARLIST(port), SER_CONTEXT)
+        || !IS_OBJECT(CONTEXT_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
     }

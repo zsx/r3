@@ -104,25 +104,26 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 //
 void Protect_Object(REBVAL *value, REBCNT flags)
 {
-    REBFRM *frame = VAL_FRAME(value);
+    REBCON *context = VAL_CONTEXT(value);
 
-    if (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MARK))
+    if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MARK))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
+        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
     else
-        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
+        ARRAY_CLR_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
 
-    for (value = FRAME_KEY(frame, 1); NOT_END(value); value++) {
+    for (value = CONTEXT_KEY(context, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
     }
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_MARK); // recursion protection
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_MARK); // recursion protection
 
-    for (value = FRAME_VAR(frame, 1); NOT_END(value); value++) {
+    value = CONTEXT_VARS_HEAD(context);
+    for (; NOT_END(value); value++) {
         Protect_Value(value, flags);
     }
 }
@@ -137,7 +138,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     REBVAL *val;
 
     if (ANY_WORD(word) && HAS_TARGET(word) && VAL_WORD_INDEX(word) > 0) {
-        key = FRAME_KEY(AS_FRAME(VAL_WORD_TARGET(word)), VAL_WORD_INDEX(word));
+        key = CONTEXT_KEY(AS_CONTEXT(VAL_WORD_TARGET(word)), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
             // Ignore existing mutability state, by casting away the const.
@@ -149,12 +150,12 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     }
     else if (ANY_PATH(word)) {
         REBCNT index;
-        REBFRM *frame;
-        if ((frame = Resolve_Path(word, &index))) {
-            key = FRAME_KEY(frame, index);
+        REBCON *context;
+        if ((context = Resolve_Path(word, &index))) {
+            key = CONTEXT_KEY(context, index);
             Protect_Key(key, flags);
             if (GET_FLAG(flags, PROT_DEEP)) {
-                val = FRAME_VAR(frame, index);
+                val = CONTEXT_VAR(context, index);
                 Protect_Value(val, flags);
                 Unmark(val);
             }
@@ -349,7 +350,7 @@ REBNATIVE(attempt)
     REBVAL * const block = D_ARG(1);
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     PUSH_TRAP(&error, &state);
 
@@ -1017,7 +1018,7 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_FRAME(ARG(value)));
+        fail (VAL_CONTEXT(ARG(value)));
 
     case REB_TASK:
         Do_Task(ARG(value));
@@ -1121,7 +1122,7 @@ REBNATIVE(exit)
         if (
             IS_OBJECT(ARG(target))
             && IS_CLOSURE(FUNC_VALUE(call->func))
-            && AS_FRAME(call->arglist.array) == VAL_FRAME(ARG(target))
+            && AS_CONTEXT(call->arglist.array) == VAL_CONTEXT(ARG(target))
         ) {
             break;
         }
@@ -1142,7 +1143,7 @@ REBNATIVE(exit)
         // CLOSURE! is different because the EXIT_FROM uses the object for
         // the specific instance as the target.
         //
-        *D_OUT = *FRAME_CONTEXT(AS_FRAME(call->arglist.array));
+        *D_OUT = *CONTEXT_VALUE(AS_CONTEXT(call->arglist.array));
     }
     else {
         //
@@ -1172,7 +1173,7 @@ REBNATIVE(fail)
     REBVAL * const reason = D_ARG(1);
 
     if (IS_ERROR(reason)) {
-        fail (VAL_FRAME(reason));
+        fail (VAL_CONTEXT(reason));
     }
     else if (IS_STRING(reason) || IS_BLOCK(reason)) {
         // Ultimately we'd like FAIL to use some clever error-creating
@@ -1241,7 +1242,7 @@ REBNATIVE(fail)
             return R_OUT_IS_THROWN;
         }
 
-        fail (VAL_FRAME(D_OUT));
+        fail (VAL_CONTEXT(D_OUT));
     }
 
     DEAD_END;
@@ -1782,7 +1783,7 @@ REBNATIVE(trap)
     PARAM(3, handler);
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     PUSH_TRAP(&error, &state);
 

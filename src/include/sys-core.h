@@ -183,8 +183,7 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_FRAME       = 1 << 4,   // is a frame with varlist and keylist
-    MKS_GC_MANUALS  = 1 << 5    // used in implementation of series itself
+    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
 };
 
 // Modes allowed by Copy_Block function:
@@ -457,7 +456,7 @@ enum encoding_opts {
 **
 **  VARIABLE ACCESS
 **
-**  When a word is bound to a frame by an index, it becomes a means of
+**  When a word is bound to a context by an index, it becomes a means of
 **  reading and writing from a persistent storage location.  The term
 **  "variable" is used to refer to a REBVAL slot reached through a
 **  binding in this way.
@@ -625,7 +624,7 @@ enum encoding_opts {
 **
 **          REBVAL *block = D_ARG(1);
 **          REBVAL *something = D_ARG(2);
-**          Bind_Values_Deep(block, frame);
+**          Bind_Values_Deep(block, context);
 **
 **      What will happen is that the block will be treated as an
 **      array of values and get incremented.  In the above case it
@@ -634,7 +633,7 @@ enum encoding_opts {
 **
 **      Instead write:
 **
-**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), frame);
+**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), context);
 **
 **      That will pass the address of the first value element of
 **      the block's contents.  You could use a later value element,
@@ -644,21 +643,21 @@ enum encoding_opts {
 **
 ***********************************************************************/
 
-#define Bind_Values_Deep(values,frame) \
-    Bind_Values_Core((values), (frame), BIND_DEEP)
+#define Bind_Values_Deep(values,context) \
+    Bind_Values_Core((values), (context), BIND_DEEP)
 
-#define Bind_Values_All_Deep(values,frame) \
-    Bind_Values_Core((values), (frame), BIND_ALL | BIND_DEEP)
+#define Bind_Values_All_Deep(values,context) \
+    Bind_Values_Core((values), (context), BIND_ALL | BIND_DEEP)
 
-#define Bind_Values_Shallow(values, frame) \
-    Bind_Values_Core((values), (frame), BIND_ONLY)
+#define Bind_Values_Shallow(values, context) \
+    Bind_Values_Core((values), (context), BIND_ONLY)
 
 // Gave this a complex name to warn of its peculiarities.  Calling with
 // just BIND_SET is shallow and tricky because the set words must occur
 // before the uses (to be applied to bindings of those uses)!
 //
-#define Bind_Values_Set_Forward_Shallow(values, frame) \
-    Bind_Values_Core((values), (frame), BIND_SET)
+#define Bind_Values_Set_Forward_Shallow(values, context) \
+    Bind_Values_Core((values), (context), BIND_SET)
 
 #define Unbind_Values_Deep(values) \
     Unbind_Values_Core((values), NULL, TRUE)

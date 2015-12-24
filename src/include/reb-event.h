@@ -65,7 +65,7 @@ enum {
 enum {
     EVM_DEVICE,     // I/O request holds the port pointer
     EVM_PORT,       // event holds port pointer
-    EVM_OBJECT,     // event holds object frame pointer
+    EVM_OBJECT,     // event holds object context pointer
     EVM_GUI,        // GUI event uses system/view/event/port
     EVM_CALLBACK,   // Callback event uses system/ports/callback port
     EVM_MAX

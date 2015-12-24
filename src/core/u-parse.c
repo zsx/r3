@@ -337,7 +337,7 @@ static REBCNT Parse_Next_Array(
             *parse->out = save;
             return THROWN_FLAG;
         }
-        // old: if (IS_ERROR(item)) Throw_Error(VAL_FRAME(item));
+        // old: if (IS_ERROR(item)) Throw_Error(VAL_CONTEXT(item));
         index = MIN(index, ARRAY_LEN(array)); // may affect tail
         break;
 

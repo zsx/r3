@@ -190,8 +190,8 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     REBOOL halted;
 
     // Check for more "error frame validity"?
-    ASSERT_FRAME(s->error);
-    assert(FRAME_TYPE(s->error) == REB_ERROR);
+    ASSERT_CONTEXT(s->error);
+    assert(CONTEXT_TYPE(s->error) == REB_ERROR);
 
     halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
 
@@ -297,10 +297,10 @@ void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
 // passed to this routine then it has not been caught by its
 // intended recipient, and is being treated as an error.
 //
-ATTRIBUTE_NO_RETURN void Fail_Core(REBFRM *frame)
+ATTRIBUTE_NO_RETURN void Fail_Core(REBCON *error)
 {
-    ASSERT_FRAME(frame);
-    assert(FRAME_TYPE(frame) == REB_ERROR);
+    ASSERT_CONTEXT(error);
+    assert(CONTEXT_TYPE(error) == REB_ERROR);
 
 #if !defined(NDEBUG)
     // All calls to Fail_Core should originate from the `fail` macro,
@@ -318,12 +318,12 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBFRM *frame)
     // purpose in Init_Core()...)
 
     if (PG_Boot_Phase < BOOT_DONE) {
-        REBVAL error;
-        VAL_INIT_WRITABLE_DEBUG(&error);
+        REBVAL error_value;
+        VAL_INIT_WRITABLE_DEBUG(&error_value);
 
-        Val_Init_Error(&error, frame);
+        Val_Init_Error(&error_value, error);
         Debug_Fmt("** Error raised during Init_Core(), should not happen!");
-        Debug_Fmt("%v", &error);
+        Debug_Fmt("%v", &error_value);
         assert(FALSE);
     }
 #endif
@@ -334,20 +334,20 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBFRM *frame)
         // arguments and information, however, so that should be the panic
 
         Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
-        panic (frame);
+        panic (error);
     }
 
     if (Trace_Level) {
         Debug_Fmt(
             cs_cast(BOOT_STR(RS_TRACE, 10)),
-            &ERR_VALUES(frame)->type,
-            &ERR_VALUES(frame)->id
+            &ERR_VALUES(error)->type,
+            &ERR_VALUES(error)->id
         );
     }
 
-    // We pass the error as a frame rather than as a value.
+    // We pass the error as a context rather than as a value.
 
-    Saved_State->error = frame;
+    Saved_State->error = error;
 
     // If a THROWN() was being processed up the stack when the error was
     // raised, then it had the thrown argument set.  Trash it in debug
@@ -375,10 +375,10 @@ void Trap_Stack_Overflow(void)
         // would be a stack overflow during boot.
 
         Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
-        panic (VAL_FRAME(TASK_STACK_ERROR));
+        panic (VAL_CONTEXT(TASK_STACK_ERROR));
     }
 
-    Saved_State->error = VAL_FRAME(TASK_STACK_ERROR);
+    Saved_State->error = VAL_CONTEXT(TASK_STACK_ERROR);
 
     LONG_JUMP(Saved_State->cpu_state, 1);
 }
@@ -422,69 +422,69 @@ REBCNT Stack_Depth(void)
 //
 REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 {
-    REBFRM *categories;
-    REBFRM *category;
+    REBCON *categories;
+    REBCON *category;
     REBCNT n;
     REBVAL *message;
 
     // See %errors.r for the list of data which is loaded into the boot
     // file as objects for the "error catalog"
     //
-    categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
-    assert(FRAME_KEY_CANON(categories, 1) == SYM_SELF);
+    categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
+    assert(CONTEXT_KEY_CANON(categories, 1) == SYM_SELF);
 
     // Find the correct catalog category
     n = code / 100; // 0 for Special, 1 for Internal...
-    if (SELFISH(n + 1) > FRAME_LEN(categories)) // 1-based, not 0 based
+    if (SELFISH(n + 1) > CONTEXT_LEN(categories)) // 1-based, not 0 based
         return NULL;
 
-    // Get frame of object representing the elements of the category itself
-    if (!IS_OBJECT(FRAME_VAR(categories, SELFISH(n + 1)))) {
+    // Get context of object representing the elements of the category itself
+    if (!IS_OBJECT(CONTEXT_VAR(categories, SELFISH(n + 1)))) {
         assert(FALSE);
         return NULL;
     }
-    category = VAL_FRAME(FRAME_VAR(categories, SELFISH(n + 1)));
-    assert(FRAME_KEY_CANON(category, 1) == SYM_SELF);
+    category = VAL_CONTEXT(CONTEXT_VAR(categories, SELFISH(n + 1)));
+    assert(CONTEXT_KEY_CANON(category, 1) == SYM_SELF);
 
     // Find the correct template in the catalog category (see %errors.r)
     n = code % 100; // 0-based order within category
-    if (SELFISH(n + 2) > FRAME_LEN(category)) // 1-based (CODE: TYPE:)
+    if (SELFISH(n + 2) > CONTEXT_LEN(category)) // 1-based (CODE: TYPE:)
         return NULL;
 
     // Sanity check CODE: field of category object
-    if (!IS_INTEGER(FRAME_VAR(category, SELFISH(1)))) {
+    if (!IS_INTEGER(CONTEXT_VAR(category, SELFISH(1)))) {
         assert(FALSE);
         return NULL;
     }
     assert(
         (code / 100) * 100
-        == cast(REBCNT, VAL_INT32(FRAME_VAR(category, SELFISH(1))))
+        == cast(REBCNT, VAL_INT32(CONTEXT_VAR(category, SELFISH(1))))
     );
 
     // Sanity check TYPE: field of category object
     // !!! Same spelling as what we set in VAL_WORD_SYM(type_out))?
-    if (!IS_STRING(FRAME_VAR(category, SELFISH(2)))) {
+    if (!IS_STRING(CONTEXT_VAR(category, SELFISH(2)))) {
         assert(FALSE);
         return NULL;
     }
 
-    message = FRAME_VAR(category, SELFISH(n + 3));
+    message = CONTEXT_VAR(category, SELFISH(n + 3));
 
     // Error message template must be string or block
     assert(IS_BLOCK(message) || IS_STRING(message));
 
-    // Success! Write category word from the category list frame key sym,
-    // and specific error ID word from the frame key sym within category
+    // Success! Write category word from the category list context key sym,
+    // and specific error ID word from the context key sym within category
     //
     Val_Init_Word_Unbound(
         type_out,
         REB_WORD,
-        FRAME_KEY_SYM(categories, SELFISH((code / 100) + 1))
+        CONTEXT_KEY_SYM(categories, SELFISH((code / 100) + 1))
     );
     Val_Init_Word_Unbound(
         id_out,
         REB_WORD,
-        FRAME_KEY_SYM(category, SELFISH((code % 100) + 3))
+        CONTEXT_KEY_SYM(category, SELFISH((code % 100) + 3))
     );
 
     return message;
@@ -494,7 +494,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 #if !defined(NDEBUG)
 
 //
-//  Make_Guarded_Arg123_Error_Frame: C
+//  Make_Guarded_Arg123_Error: C
 // 
 // Needed only for compatibility trick to "fake in" ARG1: ARG2: ARG3:
 // 
@@ -510,29 +510,29 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 // enabled and disabled dynamically in the legacy settings, at the
 // cost of creating a new error object each time.
 // 
-// To make code handling it like the regular error frame (and keep that
+// To make code handling it like the regular error context (and keep that
 // code "relatively uncontaminated" by the #ifdefs), it must behave
 // as GC managed.  So it has to be guarded, thus the client drops the
 // guard and it will wind up being freed since it's not in the root set.
 // This is a bit inefficient but it's for legacy mode only, so best
 // to bend to the expectations of the non-legacy code.
 //
-static REBFRM *Make_Guarded_Arg123_Error_Frame(void)
+static REBCON *Make_Guarded_Arg123_Error(void)
 {
-    REBFRM *root_frame = VAL_FRAME(ROOT_ERROBJ);
-    REBFRM *frame = Copy_Frame_Shallow_Extra_Managed(root_frame, 3);
+    REBCON *root_error = VAL_CONTEXT(ROOT_ERROBJ);
+    REBCON *error = Copy_Context_Shallow_Extra_Managed(root_error, 3);
     REBVAL *key;
     REBVAL *var;
     REBCNT n;
-    REBCNT root_len = FRAME_LEN(root_frame);
+    REBCNT root_len = CONTEXT_LEN(root_error);
 
-    // Update the length to suppress out of bounds assert from FRAME_KEY/VAL
+    // Update the length to suppress out of bounds assert from CONTEXT_KEY/VAL
     //
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), root_len + 3);
-    SET_ARRAY_LEN(FRAME_KEYLIST(frame), root_len + 3);
+    SET_ARRAY_LEN(CONTEXT_VARLIST(error), root_len + 3);
+    SET_ARRAY_LEN(CONTEXT_KEYLIST(error), root_len + 3);
 
-    key = FRAME_KEY(frame, FRAME_LEN(root_frame) + 1);
-    var = FRAME_KEY(frame, FRAME_LEN(root_frame) + 1);
+    key = CONTEXT_KEY(error, CONTEXT_LEN(root_error) + 1);
+    var = CONTEXT_KEY(error, CONTEXT_LEN(root_error) + 1);
 
     for (n = 0; n < 3; n++, key++, var++) {
         Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
@@ -542,9 +542,9 @@ static REBFRM *Make_Guarded_Arg123_Error_Frame(void)
     SET_END(key);
     SET_END(var);
 
-    MANAGE_FRAME(frame);
-    PUSH_GUARD_FRAME(frame);
-    return frame;
+    MANAGE_CONTEXT(error);
+    PUSH_GUARD_CONTEXT(error);
+    return error;
 }
 
 #endif
@@ -574,14 +574,15 @@ REBOOL Make_Error_Object_Throws(
     REBVAL *arg
 ) {
     // Frame from the error object template defined in %sysobj.r
-    REBFRM *root_frame = VAL_FRAME(ROOT_ERROBJ);
+    //
+    REBCON *root_error = VAL_CONTEXT(ROOT_ERROBJ); // !!! actually an OBJECT!
 
-    REBFRM *frame;
+    REBCON *error;
     ERROR_OBJ *error_obj;
 
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-        root_frame = Make_Guarded_Arg123_Error_Frame();
+        root_error = Make_Guarded_Arg123_Error();
 #endif
 
     if (IS_ERROR(arg) || IS_OBJECT(arg)) {
@@ -591,8 +592,8 @@ REBOOL Make_Error_Object_Throws(
         // be inconsistent with a Rebol system error, an error will be
         // raised later in the routine.
 
-        frame = Merge_Frames_Selfish(root_frame, VAL_FRAME(arg));
-        error_obj = ERR_VALUES(frame);
+        error = Merge_Contexts_Selfish(root_error, VAL_CONTEXT(arg));
+        error_obj = ERR_VALUES(error);
     }
     else if (IS_BLOCK(arg)) {
         // If a block, then effectively MAKE OBJECT! on it.  Afterward,
@@ -604,21 +605,21 @@ REBOOL Make_Error_Object_Throws(
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Object) and code in REBNATIVE(construct))
 
-        frame = Make_Selfish_Frame_Detect(
+        error = Make_Selfish_Context_Detect(
             REB_ERROR, // type
             NULL, // spec
             NULL, // body
             VAL_ARRAY_AT(arg), // values to scan for toplevel set-words
-            root_frame // parent
+            root_error // parent
         );
 
-        // Protect the frame from GC by putting into out, which must be
+        // Protect the error from GC by putting into out, which must be
         // passed in as a GC-protecting value slot.
         //
-        Val_Init_Error(out, frame);
+        Val_Init_Error(out, error);
 
-        Rebind_Frame_Deep(root_frame, frame, REBIND_FUNC);
-        Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
+        Rebind_Context_Deep(root_error, error, REBIND_FUNC);
+        Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
 
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
@@ -626,16 +627,18 @@ REBOOL Make_Error_Object_Throws(
             *out = evaluated;
 
         #if !defined(NDEBUG)
-            // Let our fake root_frame that had arg1: arg2: arg3: on it be
+            //
+            // Let our fake root_error that had arg1: arg2: arg3: on it be
             // garbage collected.
+            //
             if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-                DROP_GUARD_FRAME(root_frame);
+                DROP_GUARD_CONTEXT(root_error);
         #endif
 
             return TRUE;
         }
 
-        error_obj = ERR_VALUES(frame);
+        error_obj = ERR_VALUES(error);
     }
     else if (IS_STRING(arg)) {
         //
@@ -647,13 +650,15 @@ REBOOL Make_Error_Object_Throws(
         //     message: "whatever the string was" ;-- default none
         //
         // Minus the code number and message, this is the default state of
-        // root_frame if not overridden.
+        // root_error if not overridden.
 
-        frame = Copy_Frame_Shallow_Managed(root_frame);
+        error = Copy_Context_Shallow_Managed(root_error);
 
-        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR); // !!! fix in Init_Errors()?
+        // !!! fix in Init_Errors()?
+        //
+        VAL_RESET_HEADER(CONTEXT_VALUE(error), REB_ERROR);
 
-        error_obj = ERR_VALUES(frame);
+        error_obj = ERR_VALUES(error);
         assert(IS_NONE(&error_obj->code));
 
         // fill in RE_USER (1000) later if it passes the check
@@ -735,7 +740,7 @@ REBOOL Make_Error_Object_Throws(
         // this may overlap a combination used by Rebol where we wish to
         // fill in the code.  (No fast lookup for this, must search.)
 
-        REBFRM *categories = VAL_FRAME(Get_System(SYS_CATALOG, CAT_ERRORS));
+        REBCON *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
         REBVAL *category;
 
         assert(IS_NONE(&error_obj->code));
@@ -765,7 +770,7 @@ REBOOL Make_Error_Object_Throws(
 
             // Find correct message for ID: (if any)
             message = Find_Word_Value(
-                VAL_FRAME(category), VAL_WORD_SYM(&error_obj->id)
+                VAL_CONTEXT(category), VAL_WORD_SYM(&error_obj->id)
             );
 
             if (message) {
@@ -778,10 +783,10 @@ REBOOL Make_Error_Object_Throws(
 
                 SET_INTEGER(&error_obj->code,
                     code
-                    + Find_Word_Index(
-                        frame, VAL_WORD_SYM(&error_obj->id), FALSE
+                    + Find_Word_In_Context(
+                        error, VAL_WORD_SYM(&error_obj->id), FALSE
                     )
-                    - Find_Word_Index(frame, SYM_TYPE, FALSE)
+                    - Find_Word_In_Context(error, SYM_TYPE, FALSE)
                     - 1
                 );
             }
@@ -845,13 +850,13 @@ REBOOL Make_Error_Object_Throws(
     assert(IS_INTEGER(&error_obj->code));
 
 #if !defined(NDEBUG)
-    // Let our fake root_frame that had arg1: arg2: arg3: on it be
+    // Let our fake root_error that had arg1: arg2: arg3: on it be
     // garbage collected.
     if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-        DROP_GUARD_FRAME(root_frame);
+        DROP_GUARD_CONTEXT(root_error);
 #endif
 
-    Val_Init_Error(out, frame);
+    Val_Init_Error(out, error);
     return FALSE;
 }
 
@@ -880,7 +885,7 @@ REBOOL Make_Error_Object_Throws(
 // return to the caller to properly call va_end with no longjmp
 // to skip it.
 //
-REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
+REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
 {
 #if !defined(NDEBUG)
     // The legacy error mechanism expects us to have exactly three fields
@@ -890,9 +895,9 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
     const REBCNT *arg1_arg2_arg3 = legacy_data;
 #endif
 
-    REBFRM *root_frame;
+    REBCON *root_error;
 
-    REBFRM *frame; // Error object frame
+    REBCON *error;
     ERROR_OBJ *error_obj; // Error object values
     REBCNT expected_args;
 
@@ -909,8 +914,8 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         DEAD_END;
     }
 
-    // Safe to initialize the root frame now...
-    root_frame = VAL_FRAME(ROOT_ERROBJ);
+    // Safe to initialize the root error now...
+    root_error = VAL_CONTEXT(ROOT_ERROBJ);
 
     message = Find_Error_For_Code(&id, &type, code);
     assert(message);
@@ -958,17 +963,17 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
     if (expected_args == 0) {
         // If there are no arguments, we don't need to make a new keylist...
         // just a new varlist to hold this instance's settings. (root
-        // frame keylist is already managed)
+        // error keylist is already managed)
 
-        frame = Copy_Frame_Shallow_Managed(root_frame);
+        error = Copy_Context_Shallow_Managed(root_error);
 
-        // !!! Should tweak root frame during boot so it actually is an ERROR!
+        // !!! Should tweak root error during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(CONTEXT_VALUE(error), REB_ERROR);
     }
     else {
-        REBCNT root_len = FRAME_LEN(root_frame);
+        REBCNT root_len = CONTEXT_LEN(root_error);
         REBVAL *key;
         REBVAL *value;
         REBVAL *temp;
@@ -977,21 +982,21 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         // Should the error be well-formed, we'll need room for the new
         // expected values *and* their new keys in the keylist.
         //
-        frame = Copy_Frame_Shallow_Extra_Managed(root_frame, expected_args);
+        error = Copy_Context_Shallow_Extra_Managed(root_error, expected_args);
 
-        // !!! Should tweak root frame during boot so it actually is an ERROR!
+        // !!! Should tweak root error during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
         //
-        VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_ERROR);
+        VAL_RESET_HEADER(CONTEXT_VALUE(error), REB_ERROR);
 
-        // Fix up the tail first so FRAME_KEY and FRAME_VAR don't complain
-        // in the debug build that they're accessing beyond the frame length
+        // Fix up the tail first so CONTEXT_KEY and CONTEXT_VAR don't complain
+        // in the debug build that they're accessing beyond the error length
         //
-        SET_ARRAY_LEN(FRAME_VARLIST(frame), root_len + expected_args + 1);
-        SET_ARRAY_LEN(FRAME_KEYLIST(frame), root_len + expected_args + 1);
+        SET_ARRAY_LEN(CONTEXT_VARLIST(error), root_len + expected_args + 1);
+        SET_ARRAY_LEN(CONTEXT_KEYLIST(error), root_len + expected_args + 1);
 
-        key = FRAME_KEY(frame, root_len + 1);
-        value = FRAME_VAR(frame, root_len + 1);
+        key = CONTEXT_KEY(error, root_len + 1);
+        value = CONTEXT_VAR(error, root_len + 1);
 
     #ifdef NDEBUG
         temp = VAL_ARRAY_HEAD(message);
@@ -1098,7 +1103,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         SET_END(value);
     }
 
-    error_obj = ERR_VALUES(frame);
+    error_obj = ERR_VALUES(error);
 
     // Set error number:
     SET_INTEGER(&error_obj->code, code);
@@ -1139,7 +1144,7 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         );
     }
 
-    return frame;
+    return error;
 }
 
 
@@ -1167,23 +1172,23 @@ REBFRM *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
 // call stack, because if they were not frameless then they wouldn't have
 // been invoked yet.
 //
-REBFRM *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
+REBCON *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
     va_list args;
-    REBFRM *frame;
+    REBCON *error;
 
     va_start(args, num);
-    frame = Make_Error_Core((num < 0 ? -num : num), LOGICAL(num < 0), &args);
+    error = Make_Error_Core((num < 0 ? -num : num), LOGICAL(num < 0), &args);
     va_end(args);
 
-    return frame;
+    return error;
 }
 
 
 //
 //  Error_Bad_Func_Def: C
 //
-REBFRM *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
+REBCON *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 {
     // !!! Improve this error; it's simply a direct emulation of arity-1
     // error that existed before refactoring code out of MT_Function().
@@ -1202,7 +1207,7 @@ REBFRM *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 //
 //  Error_No_Arg: C
 //
-REBFRM *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
+REBCON *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 {
     REBVAL key_word;
     REBVAL label;
@@ -1223,7 +1228,7 @@ REBFRM *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 //
 //  Error_Invalid_Datatype: C
 //
-REBFRM *Error_Invalid_Datatype(REBCNT id)
+REBCON *Error_Invalid_Datatype(REBCNT id)
 {
     REBVAL id_value;
     VAL_INIT_WRITABLE_DEBUG(&id_value);
@@ -1236,7 +1241,7 @@ REBFRM *Error_Invalid_Datatype(REBCNT id)
 //
 //  Error_No_Memory: C
 //
-REBFRM *Error_No_Memory(REBCNT bytes)
+REBCON *Error_No_Memory(REBCNT bytes)
 {
     REBVAL bytes_value;
     VAL_INIT_WRITABLE_DEBUG(&bytes_value);
@@ -1254,7 +1259,7 @@ REBFRM *Error_No_Memory(REBCNT bytes)
 // becomes a catch all for "unexpected input" when a more
 // specific error would be more useful.
 //
-REBFRM *Error_Invalid_Arg(const REBVAL *value)
+REBCON *Error_Invalid_Arg(const REBVAL *value)
 {
     return Error(RE_INVALID_ARG, value, NULL);
 }
@@ -1263,7 +1268,7 @@ REBFRM *Error_Invalid_Arg(const REBVAL *value)
 //
 //  Error_No_Catch_For_Throw: C
 //
-REBFRM *Error_No_Catch_For_Throw(REBVAL *thrown)
+REBCON *Error_No_Catch_For_Throw(REBVAL *thrown)
 {
     REBVAL arg;
     VAL_INIT_WRITABLE_DEBUG(&arg);
@@ -1283,7 +1288,7 @@ REBFRM *Error_No_Catch_For_Throw(REBVAL *thrown)
 // 
 // <type> type is not allowed here
 //
-REBFRM *Error_Has_Bad_Type(const REBVAL *value)
+REBCON *Error_Has_Bad_Type(const REBVAL *value)
 {
     return Error(RE_INVALID_TYPE, Type_Of(value), NULL);
 }
@@ -1294,7 +1299,7 @@ REBFRM *Error_Has_Bad_Type(const REBVAL *value)
 // 
 // value out of range: <value>
 //
-REBFRM *Error_Out_Of_Range(const REBVAL *arg)
+REBCON *Error_Out_Of_Range(const REBVAL *arg)
 {
     return Error(RE_OUT_OF_RANGE, arg, NULL);
 }
@@ -1303,7 +1308,7 @@ REBFRM *Error_Out_Of_Range(const REBVAL *arg)
 //
 //  Error_Protected_Key: C
 //
-REBFRM *Error_Protected_Key(REBVAL *key)
+REBCON *Error_Protected_Key(REBVAL *key)
 {
     REBVAL key_name;
     VAL_INIT_WRITABLE_DEBUG(&key_name);
@@ -1318,7 +1323,7 @@ REBFRM *Error_Protected_Key(REBVAL *key)
 //
 //  Error_Illegal_Action: C
 //
-REBFRM *Error_Illegal_Action(REBCNT type, REBCNT action)
+REBCON *Error_Illegal_Action(REBCNT type, REBCNT action)
 {
     REBVAL action_word;
     VAL_INIT_WRITABLE_DEBUG(&action_word);
@@ -1332,7 +1337,7 @@ REBFRM *Error_Illegal_Action(REBCNT type, REBCNT action)
 //
 //  Error_Math_Args: C
 //
-REBFRM *Error_Math_Args(enum Reb_Kind type, REBCNT action)
+REBCON *Error_Math_Args(enum Reb_Kind type, REBCNT action)
 {
     REBVAL action_word;
     VAL_INIT_WRITABLE_DEBUG(&action_word);
@@ -1346,7 +1351,7 @@ REBFRM *Error_Math_Args(enum Reb_Kind type, REBCNT action)
 //
 //  Error_Unexpected_Type: C
 //
-REBFRM *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
+REBCON *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 {
     assert(expected < REB_MAX);
     assert(actual < REB_MAX);
@@ -1361,7 +1366,7 @@ REBFRM *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 // Function in frame of `call` expected parameter `param` to be
 // a type different than the arg given (which had `arg_type`)
 //
-REBFRM *Error_Arg_Type(
+REBCON *Error_Arg_Type(
     REBCNT label_sym,
     const REBVAL *param,
     const REBVAL *arg_type
@@ -1389,7 +1394,7 @@ REBFRM *Error_Arg_Type(
 //
 //  Error_Bad_Make: C
 //
-REBFRM *Error_Bad_Make(REBCNT type, const REBVAL *spec)
+REBCON *Error_Bad_Make(REBCNT type, const REBVAL *spec)
 {
     return Error(RE_BAD_MAKE_ARG, Get_Type(type), spec, NULL);
 }
@@ -1398,7 +1403,7 @@ REBFRM *Error_Bad_Make(REBCNT type, const REBVAL *spec)
 //
 //  Error_Cannot_Reflect: C
 //
-REBFRM *Error_Cannot_Reflect(REBCNT type, const REBVAL *arg)
+REBCON *Error_Cannot_Reflect(REBCNT type, const REBVAL *arg)
 {
     return Error(RE_CANNOT_USE, arg, Get_Type(type), NULL);
 }
@@ -1407,9 +1412,9 @@ REBFRM *Error_Cannot_Reflect(REBCNT type, const REBVAL *arg)
 //
 //  Error_On_Port: C
 //
-REBFRM *Error_On_Port(REBCNT errnum, REBFRM *port, REBINT err_code)
+REBCON *Error_On_Port(REBCNT errnum, REBCON *port, REBINT err_code)
 {
-    REBVAL *spec = FRAME_VAR(port, STD_PORT_SPEC);
+    REBVAL *spec = CONTEXT_VAR(port, STD_PORT_SPEC);
     REBVAL *val;
 
     REBVAL err_code_value;
@@ -1475,20 +1480,20 @@ int Exit_Status_From_Value(REBVAL *value)
 //
 void Init_Errors(REBVAL *errors)
 {
-    REBFRM *errs;
+    REBCON *errs;
     REBVAL *val;
 
     // Create error objects and error type objects:
     *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-    errs = Construct_Frame(REB_OBJECT, VAL_ARRAY_HEAD(errors), FALSE, NULL);
+    errs = Construct_Context(REB_OBJECT, VAL_ARRAY_HEAD(errors), FALSE, NULL);
 
     Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
     // Create objects for all error types (CAT_ERRORS is "selfish", currently
-    // so self is in slot 1 and the actual errors start at frame slot 2)
+    // so self is in slot 1 and the actual errors start at context slot 2)
     //
-    for (val = FRAME_VAR(errs, SELFISH(1)); NOT_END(val); val++) {
-        errs = Construct_Frame(REB_OBJECT, VAL_ARRAY_HEAD(val), FALSE, NULL);
+    for (val = CONTEXT_VAR(errs, SELFISH(1)); NOT_END(val); val++) {
+        errs = Construct_Context(REB_OBJECT, VAL_ARRAY_HEAD(val), FALSE, NULL);
         Val_Init_Object(val, errs);
     }
 }
@@ -1536,7 +1541,7 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
     if (!IS_OBJECT(policy)) goto error;
 
     // Find the security class in the block: (file net call...)
-    policy = Find_Word_Value(VAL_FRAME(policy), sym);
+    policy = Find_Word_Value(VAL_CONTEXT(policy), sym);
     if (!policy) goto error;
 
     // Obtain the policies for it:

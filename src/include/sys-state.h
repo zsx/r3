@@ -128,7 +128,7 @@ struct Reb_State {
     REBCNT series_guard_len;
     REBCNT value_guard_len;
     REBCNT do_stack_len;
-    REBFRM *error;
+    REBCON *error;
     REBINT gc_disable;      // Count of GC_Disables at time of Push
 
     REBCNT manuals_len;    // Where GC_Manuals was when state started
@@ -157,7 +157,7 @@ struct Reb_State {
 // passed which it will write into--which is a black box that clients
 // shouldn't inspect.
 //
-// The routine also takes a pointer-to-a-REBFRM-pointer which represents
+// The routine also takes a pointer-to-a-REBCON-pointer which represents
 // an error.  Using the tricky mechanisms of setjmp/longjmp, there will
 // be a first pass of execution where the line of code after the PUSH_TRAP
 // will see the error pointer as being NULL.  If a trap occurs during

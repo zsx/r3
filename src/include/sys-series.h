@@ -112,7 +112,7 @@
 //
 enum {
     SER_MARK        = 1 << 0,   // was found during GC mark scan.
-    SER_FRAME       = 1 << 1,   // object frame (unsets legal, has key series)
+    SER_CONTEXT     = 1 << 1,   // object context (has key series)
     SER_FIXED_SIZE  = 1 << 2,   // size is fixed (do not expand it)
     SER_EXTERNAL    = 1 << 3,   // ->data is external, don't free() on GC
     SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
@@ -182,7 +182,7 @@ struct Reb_Series {
     union {
         REBCNT size;    // used for vectors and bitsets
         REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by FRAME
+        REBARR *keylist; // used by CONTEXT
         struct {
             REBCNT wide:16;
             REBCNT high:16;
@@ -438,10 +438,6 @@ struct Reb_Series {
         ? NOOP \
         : MANAGE_SERIES(series))
 
-// Debug build includes testing that the managed state of the frame and
-// its word series is the same for the "ensure" case.  It also adds a
-// few assert macros.
-//
 #ifdef NDEBUG
     #define ASSERT_SERIES_MANAGED(series) \
         NOOP
@@ -574,7 +570,7 @@ struct Reb_Array {
 // them type incompatible for most purposes, some operations require treating
 // one kind of pointer as the other (and they are both Reb_Series)
 //
-// !!! See notes on AS_FRAME about the dodginess of how this is currently
+// !!! See notes on AS_CONTEXT about the dodginess of how this is currently
 // done.  But also see the note that it's something that could just be
 // disabled by making arrays and series synonyms in "non-type-check" builds.
 //
@@ -689,12 +685,12 @@ struct Reb_Array {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  REBFRM (a.k.a. "Frame")
+//  REBCON (a.k.a. "Context")
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// In Rebol terminology, a "frame" is an abstraction which gives two parallel
-// array series, whose indices line up in a correspondence:
+// In Rebol terminology, a "context" is an abstraction which gives two
+// parallel arrays, whose indices line up in a correspondence:
 //
 // * "keylist" - an array that contains TYPESET! values, but which have a
 //   symbol ID encoded as an extra piece of information for that key.
@@ -702,19 +698,19 @@ struct Reb_Array {
 // * "varlist" - an array of equal length to the keylist, which holds an
 //   arbitrary REBVAL in each position that corresponds to its key.
 //
-// There is an additional aspect of a frame which is that it holds two
+// There is an additional aspect of a context which is that it holds two
 // extra values in the 0 slot of each array (hence indexing the keys and
 // vars is done 1-based).
 //
 
-struct Reb_Frame {
+struct Reb_Context {
     struct Reb_Array varlist; // keylist is held in ->misc.keylist
 };
 
 #ifdef NDEBUG
-    #define ASSERT_FRAME(f) cast(void, 0)
+    #define ASSERT_CONTEXT(f) cast(void, 0)
 #else
-    #define ASSERT_FRAME(f) Assert_Frame_Core(f)
+    #define ASSERT_CONTEXT(f) Assert_Context_Core(f)
 #endif
 
 // Series-to-Frame cocercion
@@ -727,85 +723,90 @@ struct Reb_Frame {
 // type checking purposes.
 //
 #ifdef NDEBUG
-    #define AS_FRAME(s)     cast(REBFRM*, (s))
+    #define AS_CONTEXT(s)       cast(REBCON*, (s))
 #else
     // Put a debug version here that asserts.
-    #define AS_FRAME(s)     cast(REBFRM*, (s))
+    #define AS_CONTEXT(s)       cast(REBCON*, (s))
 #endif
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
-#define FRAME_VARLIST(f)        (&(f)->varlist)
-#define FRAME_KEYLIST(f)        (ARRAY_SERIES(FRAME_VARLIST(f))->misc.keylist)
+#define CONTEXT_VARLIST(f)      (&(f)->varlist)
+#define CONTEXT_KEYLIST(f)      (ARRAY_SERIES(CONTEXT_VARLIST(f))->misc.keylist)
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that
 // the indexing is legal.  To get a pointer to the first key or value
 // regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
 //
-#define FRAME_KEYS_HEAD(f)      ARRAY_AT(FRAME_KEYLIST(f), 1)
-#define FRAME_VARS_HEAD(f)      ARRAY_AT(FRAME_VARLIST(f), 1)
+#define CONTEXT_KEYS_HEAD(f)    ARRAY_AT(CONTEXT_KEYLIST(f), 1)
+#define CONTEXT_VARS_HEAD(f)    ARRAY_AT(CONTEXT_VARLIST(f), 1)
 #ifdef NDEBUG
-    #define FRAME_KEY(f,n)      ARRAY_AT(FRAME_KEYLIST(f), (n))
-    #define FRAME_VAR(f,n)      ARRAY_AT(FRAME_VARLIST(f), (n))
+    #define CONTEXT_KEY(f,n)    ARRAY_AT(CONTEXT_KEYLIST(f), (n))
+    #define CONTEXT_VAR(f,n)    ARRAY_AT(CONTEXT_VARLIST(f), (n))
 #else
-    #define FRAME_KEY(f,n)      FRAME_KEY_Debug((f), (n))
-    #define FRAME_VAR(f,n)      FRAME_VAR_Debug((f), (n))
+    #define CONTEXT_KEY(f,n)    CONTEXT_KEY_Debug((f), (n))
+    #define CONTEXT_VAR(f,n)    CONTEXT_VAR_Debug((f), (n))
 #endif
-#define FRAME_KEY_SYM(f,n)      VAL_TYPESET_SYM(FRAME_KEY((f), (n)))
-#define FRAME_KEY_CANON(f,n)    VAL_TYPESET_CANON(FRAME_KEY((f), (n)))
+#define CONTEXT_KEY_SYM(f,n)    VAL_TYPESET_SYM(CONTEXT_KEY((f), (n)))
+#define CONTEXT_KEY_CANON(f,n)  VAL_TYPESET_CANON(CONTEXT_KEY((f), (n)))
 
-// Navigate from frame series to context components.  Note that the frame's
+// Navigate from context to context components.  Note that the context's
 // "length" does not count the [0] cell of either the varlist or the keylist.
-// Hence it must subtract 1.  Internally to the frame building code, the
+// Hence it must subtract 1.  Internally to the context building code, the
 // real length of the two series must be accounted for...so the 1 gets put
 // back in, but most clients are only interested in the number of keys/values
 // (and getting an answer for the length back that was the same as the length
-// requested in frame creation).
+// requested in context creation).
 //
-#define FRAME_LEN(f)            (ARRAY_LEN(FRAME_VARLIST(f)) - 1)
-#define FRAME_CONTEXT(f)        ARRAY_HEAD(FRAME_VARLIST(f))
-#define FRAME_ROOTKEY(f)        ARRAY_HEAD(FRAME_KEYLIST(f))
-#define FRAME_TYPE(f)           VAL_TYPE(FRAME_CONTEXT(f))
-#define FRAME_SPEC(f)           VAL_CONTEXT_SPEC(FRAME_CONTEXT(f))
-#define FRAME_BODY(f)           VAL_CONTEXT_BODY(FRAME_CONTEXT(f))
+#define CONTEXT_LEN(f)          (ARRAY_LEN(CONTEXT_VARLIST(f)) - 1)
+#define CONTEXT_VALUE(f)        ARRAY_HEAD(CONTEXT_VARLIST(f))
+#define CONTEXT_ROOTKEY(f)      ARRAY_HEAD(CONTEXT_KEYLIST(f))
+#define CONTEXT_TYPE(f)         VAL_TYPE(CONTEXT_VALUE(f))
+#define CONTEXT_SPEC(f)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(f))
+#define CONTEXT_BODY(f)         VAL_CONTEXT_BODY(CONTEXT_VALUE(f))
 
-#define FAIL_IF_LOCKED_FRAME(f) \
-    FAIL_IF_LOCKED_ARRAY(FRAME_VARLIST(f))
+#define FAIL_IF_LOCKED_CONTEXT(f) \
+    FAIL_IF_LOCKED_ARRAY(CONTEXT_VARLIST(f))
 
-#define FREE_FRAME(f) \
+#define FREE_CONTEXT(f) \
     do { \
-        Free_Array(FRAME_KEYLIST(f)); \
-        Free_Array(FRAME_VARLIST(f)); \
+        Free_Array(CONTEXT_KEYLIST(f)); \
+        Free_Array(CONTEXT_VARLIST(f)); \
     } while (0)
 
-#define PUSH_GUARD_FRAME(f) \
-    PUSH_GUARD_ARRAY(FRAME_VARLIST(f)) // varlist points to/guards keylist
+#define PUSH_GUARD_CONTEXT(f) \
+    PUSH_GUARD_ARRAY(CONTEXT_VARLIST(f)) // varlist points to/guards keylist
 
-#define DROP_GUARD_FRAME(f) \
-    DROP_GUARD_ARRAY(FRAME_VARLIST(f))
+#define DROP_GUARD_CONTEXT(f) \
+    DROP_GUARD_ARRAY(CONTEXT_VARLIST(f))
 
 #ifdef NDEBUG
-    #define MANAGE_FRAME(frame) \
-        (MANAGE_ARRAY(FRAME_VARLIST(frame)), \
-            MANAGE_ARRAY(FRAME_KEYLIST(frame)))
+    #define MANAGE_CONTEXT(context) \
+        (MANAGE_ARRAY(CONTEXT_VARLIST(context)), \
+            MANAGE_ARRAY(CONTEXT_KEYLIST(context)))
 
-    #define ENSURE_FRAME_MANAGED(frame) \
-        (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
+    #define ENSURE_CONTEXT_MANAGED(context) \
+        (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED) \
             ? NOOP \
-            : MANAGE_FRAME(frame))
+            : MANAGE_CONTEXT(context))
 #else
-    #define MANAGE_FRAME(frame) \
-        Manage_Frame_Debug(frame)
+    //
+    // Debug build includes testing that the managed state of the context and
+    // its word series is the same for the "ensure" case.  It also adds a
+    // few assert macros.
+    //
+    #define MANAGE_CONTEXT(context) \
+        Manage_Context_Debug(context)
 
-    #define ENSURE_FRAME_MANAGED(frame) \
-        ((ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED) \
-        && ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)) \
+    #define ENSURE_CONTEXT_MANAGED(context) \
+        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED) \
+        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED)) \
             ? NOOP \
-            : MANAGE_FRAME(frame))
+            : MANAGE_CONTEXT(context))
 
-    #define Panic_Frame(f) \
-        Panic_Array(FRAME_VARLIST(f))
+    #define Panic_Context(f) \
+        Panic_Array(CONTEXT_VARLIST(f))
 #endif
 
 
@@ -815,9 +816,9 @@ struct Reb_Frame {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Using a technique strongly parallel to the FRAME, a function is represented
-// as a series which acts as its paramlist, in which the 0th element is an
-// ANY-FUNCTION! value.  Unlike a FRAME, a FUNC does not have values of its
+// Using a technique strongly parallel to CONTEXT, a function is identified
+// by a series which acts as its paramlist, in which the 0th element is an
+// ANY-FUNCTION! value.  Unlike a CONTEXT, a FUNC does not have values of its
 // own... only parameter definitions (or "params").  The arguments ("args")
 // come from finding a function instantiation on the stack.
 //

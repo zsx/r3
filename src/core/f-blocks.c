@@ -163,10 +163,10 @@ void Clonify_Values_Len_Managed(
             //
             REBSER *series;
             if (ANY_CONTEXT(value)) {
-                VAL_FRAME(value) = Copy_Frame_Shallow_Managed(
-                    VAL_FRAME(value)
+                VAL_CONTEXT(value) = Copy_Context_Shallow_Managed(
+                    VAL_CONTEXT(value)
                 );
-                series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(value)));
+                series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(value)));
             }
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
@@ -308,7 +308,7 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 // !!! This was used for detection of cycles during MOLD.  The idea is that
 // while it is outputting a series, it doesn't want to see that series
 // again.  For the moment the only places to worry about with that are
-// context frames and block series or maps.  (Though a function contains
+// context varlists and block series or maps.  (Though a function contains
 // series for the spec, body, and paramlist...the spec and body are blocks,
 // and so recursion would be found when the blocks were output.)
 //
@@ -321,7 +321,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
     if (ANY_ARRAY(value) || IS_MAP(value))
         array = VAL_ARRAY(value);
     else if (ANY_CONTEXT(value))
-        array = FRAME_VARLIST(VAL_FRAME(value));
+        array = CONTEXT_VARLIST(VAL_CONTEXT(value));
     else {
         // Value being worked with is not a candidate for containing an
         // array that could form a loop with one of the search_list values
@@ -336,7 +336,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
                 return index;
         }
         else if (ANY_CONTEXT(other)) {
-            if (array == FRAME_VARLIST(VAL_FRAME(other)))
+            if (array == CONTEXT_VARLIST(VAL_CONTEXT(other)))
                 return index;
         }
     }
@@ -359,7 +359,7 @@ void Unmark(REBVAL *val)
     if (ANY_SERIES(val))
         series = VAL_SERIES(val);
     else if (ANY_CONTEXT(val))
-        series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
+        series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(val)));
     else
         return;
 

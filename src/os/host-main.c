@@ -288,7 +288,7 @@ int Do_String(
     REBARR *code;
 
     struct Reb_State state;
-    REBFRM *error;
+    REBCON *error;
 
     // Breakpoint REPLs are nested, and we may wish to jump out of them to
     // the topmost level via a HALT.  However, all other errors need to be
@@ -336,12 +336,12 @@ int Do_String(
         // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
         // review of why it's written exactly this way.
         //
-        REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+        REBCON *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
         VAL_INIT_WRITABLE_DEBUG(&vali);
 
-        SET_INTEGER(&vali, FRAME_LEN(user) + 1);
+        SET_INTEGER(&vali, CONTEXT_LEN(user) + 1);
 
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
@@ -434,7 +434,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 
     const REBYTE debug_str[] = "debug";
     REBCNT debug_sym;
-    REBFRM *user_context;
+    REBCON *user_context;
 
     Host_Lib = &Host_Lib_Init;
 
@@ -516,10 +516,10 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // the host and not part of Rebol Core.)
     //
     debug_sym = Make_Word(debug_str, LEN_BYTES(debug_str));
-    user_context = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
+    user_context = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
     if (
-        !Find_Word_Index(Lib_Context, debug_sym, TRUE)
-        && !Find_Word_Index(user_context, debug_sym, TRUE)
+        !Find_Word_In_Context(Lib_Context, debug_sym, TRUE)
+        && !Find_Word_In_Context(user_context, debug_sym, TRUE)
     ) {
         REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
 
@@ -528,8 +528,8 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 
         Make_Native(&debug_native, spec, &N_debug, REB_NATIVE, FALSE);
 
-        *Append_Frame(Lib_Context, 0, debug_sym) = debug_native;
-        *Append_Frame(user_context, 0, debug_sym) = debug_native;
+        *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
+        *Append_Context(user_context, 0, debug_sym) = debug_native;
     }
     else {
         // It's already there--e.g. someone added REBNATIVE(debug).  Assert

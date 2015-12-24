@@ -51,7 +51,7 @@
 // they become arbitrary precision) but it's not enough for a generic BLOCK!
 // or a FUNCTION! (for instance).  So those pointers are used to point to
 // things, and often they will point to one or more Rebol Series (see
-// %sys-series.h for an explanation of REBSER, REBARR, REBFRM, and REBMAP.)
+// %sys-series.h for an explanation of REBSER, REBARR, REBCON, and REBMAP.)
 //
 // While some REBVALs are in C stack variables, most reside in the allocated
 // memory block for a Rebol series.  The memory block for a series can be
@@ -98,8 +98,8 @@ typedef struct Reb_Series REBSER; // Rebol series node
 struct Reb_Array;
 typedef struct Reb_Array REBARR; // REBSER containing REBVALs ("Rebol Array")
 
-struct Reb_Frame;
-typedef struct Reb_Frame REBFRM; // parallel REBARR key/var arrays, +2 values
+struct Reb_Context;
+typedef struct Reb_Context REBCON; // parallel REBARR key/var arrays, +2 values
 
 struct Reb_Func;
 typedef struct Reb_Func REBFUN; // function parameters plus function REBVAL
@@ -358,7 +358,7 @@ enum {
     // also be folded in to be a model of being in an "exiting state".  The
     // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
     // where the frame desired to be targeted is marked with this flag.
-    // Currently it is indicated by either the object of the FRAME! (for
+    // Currently it is indicated by either the object of the call frame (for
     // a CLOSURE!) or the paramlist for all other ANY-FUNCTION!.
     //
     // !!! WARNING - In the current scheme this will only jump up to the most
@@ -1199,8 +1199,8 @@ struct Reb_Symbol {
 struct Reb_Any_Word {
     //
     // The "target" of a word is a specification of where to look for its
-    // value.  If this is a FRAME then it will be the VAL_FRAME_VARLIST
-    // series of that frame.  If the word targets a stack-relative lookup,
+    // value.  If this is a CONTEXT then it will be the VAL_CONTEXT_VARLIST
+    // series of that context.  If the word targets a stack-relative lookup,
     // such as with FUNCTION!, then the word must bind to something more
     // persistent than the stack.  Hence it indicates the VAL_FUNC_PARAMLIST
     // and must pay to walk the stack looking to see if that function is
@@ -1208,7 +1208,7 @@ struct Reb_Any_Word {
     //
     REBARR *target;
 
-    // Index of word in frame (if it's not NULL)
+    // Index of word in context (if it's not NULL)
     //
     REBINT index;
 
@@ -1355,13 +1355,13 @@ struct Reb_Typeset {
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // The Reb_Any_Context is the basic struct used currently for OBJECT!,
-// MODULE!, ERROR!, and PORT!.  It builds upon the "frame" datatype REBFRM,
+// MODULE!, ERROR!, and PORT!.  It builds upon the context datatype REBCON,
 // which permits the storage of associated KEYS and VARS.  (See the comments
-// on `struct Reb_Frame` that are in %sys-series.h).
+// on `struct Reb_Context` that are in %sys-series.h).
 //
 // Contexts coordinate with words, which can have their VAL_WORD_TARGET()
-// set to a context's frame pointer.  Then they cache the index of that
-// word's symbol in the frame's keylist, for a fast lookup to get to the
+// set to a context's series pointer.  Then they cache the index of that
+// word's symbol in the context's keylist, for a fast lookup to get to the
 // corresponding var.  The key is a typeset which has several EXT flags
 // controlling behaviors like whether the var is protected or hidden.
 //
@@ -1384,46 +1384,46 @@ struct Reb_Typeset {
 //
 
 struct Reb_Any_Context {
-    REBFRM *frame;
-    REBFRM *spec; // optional (currently only used by modules)
+    REBCON *context;
+    REBCON *spec; // optional (currently only used by modules)
     REBARR *body; // optional (currently not used at all)
 };
 
 #ifdef NDEBUG
-    #define VAL_FRAME(v)            ((v)->payload.any_context.frame)
+    #define VAL_CONTEXT(v)            ((v)->payload.any_context.context)
 #else
-    #define VAL_FRAME(v)            (*VAL_FRAME_Ptr_Debug(v))
+    #define VAL_CONTEXT(v)            (*VAL_CONTEXT_Ptr_Debug(v))
 #endif
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
 
-// A fully constructed frame can reconstitute the context REBVAL that it is
-// a frame for from a single pointer...the REBVAL sitting in the 0 slot
-// of the frame's varlist.  In a debug build we check to make sure the
+// A fully constructed context can reconstitute the ANY-CONTEXT! REBVAL that is
+// its canon form from a single pointer...the REBVAL sitting in the 0 slot
+// of the context's varlist.  In a debug build we check to make sure the
 // type of the embedded value matches the type of what is intended (so
-// someone who thinks they are initializing a REB_OBJECT from a FRAME does
+// someone who thinks they are initializing a REB_OBJECT from a CONTEXT does
 // not accidentally get a REB_ERROR, for instance.)
 //
 #if 0 && defined(NDEBUG)
     //
     // !!! Currently Val_Init_Context_Core does not require the passed in
-    // frame to already be managed.  If it did, then it could be this
+    // context to already be managed.  If it did, then it could be this
     // simple and not be a "bad macro".  Review if it's worthwhile to change
-    // the prerequisite that this is only called on managed frames.
+    // the prerequisite that this is only called on managed contexts.
     //
     #define Val_Init_Context(o,t,f,s,b) \
-        (*(o) = *FRAME_CONTEXT(f))
+        (*(o) = *CONTEXT_VALUE(f))
 #else
     #define Val_Init_Context(o,t,f,s,b) \
         Val_Init_Context_Core((o), (t), (f), (s), (b))
 #endif
 
-// Convenience macros to speak in terms of object values instead of the frame
+// Convenience macros to speak in terms of object values instead of the context
 //
-#define VAL_CONTEXT_VAR(v,n)        FRAME_VAR(VAL_FRAME(v), (n))
-#define VAL_CONTEXT_KEY(v,n)        FRAME_KEY(VAL_FRAME(v), (n))
-#define VAL_CONTEXT_KEY_SYM(v,n)    FRAME_KEY_SYM(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_VAR(v,n)        CONTEXT_VAR(VAL_CONTEXT(v), (n))
+#define VAL_CONTEXT_KEY(v,n)        CONTEXT_KEY(VAL_CONTEXT(v), (n))
+#define VAL_CONTEXT_KEY_SYM(v,n)    CONTEXT_KEY_SYM(VAL_CONTEXT(v), (n))
 
 // The movement of the SELF word into the domain of the object generators
 // means that an object may wind up having a hidden SELF key (and it may not).
@@ -1491,11 +1491,11 @@ struct Reb_Any_Context {
 // `fail()` C macro inside the source, and the various routines in %c-error.c
 //
 
-#define ERR_VALUES(frame)   cast(ERROR_OBJ*, ARRAY_HEAD(FRAME_VARLIST(frame)))
-#define ERR_NUM(frame)      cast(REBCNT, VAL_INT32(&ERR_VALUES(frame)->code))
+#define ERR_VALUES(e)   cast(ERROR_OBJ*, ARRAY_HEAD(CONTEXT_VARLIST(e)))
+#define ERR_NUM(e)      cast(REBCNT, VAL_INT32(&ERR_VALUES(e)->code))
 
-#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_FRAME(v))
-#define VAL_ERR_NUM(v)      ERR_NUM(VAL_FRAME(v))
+#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_CONTEXT(v))
+#define VAL_ERR_NUM(v)      ERR_NUM(VAL_CONTEXT(v))
 
 #define Val_Init_Error(o,f) \
     Val_Init_Context((o), REB_ERROR, (f), NULL, NULL)
@@ -1567,7 +1567,7 @@ typedef REB_R (*REBACT)(struct Reb_Call *call_, REBCNT a);
     REB_R T_##n(struct Reb_Call *call_, REBCNT action)
 
 // PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Call *call_, REBFRM *p, REBCNT a);
+typedef REB_R (*REBPAF)(struct Reb_Call *call_, REBCON *p, REBCNT a);
 
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);

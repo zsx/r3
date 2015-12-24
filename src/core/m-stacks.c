@@ -298,9 +298,9 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
 //
 //  Drop_Chunk: C
 //
-// Free a call frame.  This only occasionally requires an actual
-// call to Free_Mem(), due to allocating call frames sequentially
-// in chunks of memory.
+// Free an array of previously pushed REBVALs that are protected by GC.  This
+// only occasionally requires an actual call to Free_Mem(), due to allocating
+// call these arrays sequentially inside of chunks in memory.
 //
 void Drop_Chunk(REBVAL values[])
 {

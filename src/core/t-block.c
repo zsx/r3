@@ -244,7 +244,7 @@ void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
     }
 
     if (ANY_CONTEXT(arg)) {
-        array = Object_To_Array(VAL_FRAME(arg), 3);
+        array = Context_To_Array(VAL_CONTEXT(arg), 3);
         goto done;
     }
 
@@ -521,7 +521,7 @@ REBINT PD_Array(REBPVS *pvs)
         n = Int32(pvs->select) + VAL_INDEX(pvs->value) - 1;
     }
     else if (IS_WORD(pvs->select)) {
-        n = Find_Word(
+        n = Find_Word_In_Array(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
             VAL_WORD_CANON(pvs->select)

@@ -291,14 +291,14 @@ void Val_Init_Word(
     REBVAL *value,
     enum Reb_Kind type,
     REBINT sym,
-    REBFRM *frame,
+    REBCON *context,
     REBCNT index
 ) {
     VAL_RESET_HEADER(value, type);
     assert(sym != SYM_0);
     VAL_WORD_SYM(value) = sym;
-    assert(frame);
-    VAL_WORD_TARGET(value) = FRAME_VARLIST(frame);
+    assert(context);
+    VAL_WORD_TARGET(value) = CONTEXT_VARLIST(context);
     VAL_WORD_INDEX(value) = index;
     assert(ANY_WORD(value));
 }

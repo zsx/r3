@@ -378,8 +378,9 @@ void Debug_Series(REBSER *ser)
 
         // May not actually be a REB_BLOCK, but we put it in a value
         // container for now saying it is so we can output it.  It may be
-        // a frame and we may not want to Manage_Series here, so we use a
+        // a context and we may not want to Manage_Series here, so we use a
         // raw VAL_SET instead of Val_Init_Block
+        //
         VAL_RESET_HEADER(&value, REB_BLOCK);
         VAL_SERIES(&value) = ser;
         VAL_INDEX(&value) = 0;

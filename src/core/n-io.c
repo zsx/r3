@@ -485,22 +485,22 @@ REBNATIVE(wake_up)
     PARAM(1, port);
     PARAM(2, event);
 
-    REBFRM *frame = VAL_FRAME(ARG(port));
+    REBCON *port = VAL_CONTEXT(ARG(port));
     REBOOL awakened = TRUE; // start by assuming success
     REBVAL *value;
 
-    if (FRAME_LEN(frame) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
+    if (CONTEXT_LEN(port) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
 
-    value = FRAME_VAR(frame, STD_PORT_ACTOR);
+    value = CONTEXT_VAR(port, STD_PORT_ACTOR);
     if (IS_NATIVE(value)) {
         //
         // We don't pass `value` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
-        Do_Port_Action(call_, frame, A_UPDATE);
+        Do_Port_Action(call_, port, A_UPDATE);
     }
 
-    value = FRAME_VAR(frame, STD_PORT_AWAKE);
+    value = CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (ANY_FUNC(value)) {
         if (Apply_Func_Throws(D_OUT, VAL_FUNC(value), ARG(event), 0))
             fail (Error_No_Catch_For_Throw(D_OUT));
@@ -1029,16 +1029,13 @@ REBNATIVE(call)
     if (input_ser) DROP_GUARD_SERIES(input_ser);
 
     if (flag_info) {
-        REBFRM *frame = Alloc_Frame(2);
-        REBVAL *val = Append_Frame(frame, NULL, SYM_ID);
-        SET_INTEGER(val, pid);
+        REBCON *info = Alloc_Context(2);
 
-        if (flag_wait) {
-            val = Append_Frame(frame, NULL, SYM_EXIT_CODE);
-            SET_INTEGER(val, exit_code);
-        }
+        SET_INTEGER(Append_Context(info, NULL, SYM_ID), pid);
+        if (flag_wait)
+            SET_INTEGER(Append_Context(info, NULL, SYM_EXIT_CODE), exit_code);
 
-        Val_Init_Object(D_OUT, frame);
+        Val_Init_Object(D_OUT, info);
         return R_OUT;
     }
 

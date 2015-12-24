@@ -71,11 +71,11 @@
 **          does not protect its contents (if it holds values).
 **          Reserved for non-block system series.
 **
-**      Root_Context - protects all series listed. This list is
+**      Root_Vars - protects all series listed. This list is
 **          used by Sweep as the root of the in-use memory tree.
 **          Reserved for important system series only.
 **
-**      Task_Context - protects all series listed. This list is
+**      Task_Vars - protects all series listed. This list is
 **          the same as Root, but per the current task context.
 **
 **      Save_Series - protects temporary series. Used with the
@@ -193,11 +193,11 @@ static void Propagate_All_GC_Marks(void);
     } while (0)
 
 
-#define QUEUE_MARK_FRAME_DEEP(f) \
+#define QUEUE_MARK_CONTEXT_DEEP(f) \
     do { \
-        assert(ARRAY_GET_FLAG(FRAME_VARLIST(f), SER_FRAME)); \
-        QUEUE_MARK_ARRAY_DEEP(FRAME_KEYLIST(f)); \
-        QUEUE_MARK_ARRAY_DEEP(FRAME_VARLIST(f)); \
+        assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(f), SER_CONTEXT)); \
+        QUEUE_MARK_ARRAY_DEEP(CONTEXT_KEYLIST(f)); \
+        QUEUE_MARK_ARRAY_DEEP(CONTEXT_VARLIST(f)); \
     } while (0)
 
 
@@ -211,10 +211,10 @@ static void Propagate_All_GC_Marks(void);
         Propagate_All_GC_Marks(); \
     } while (0)
 
-#define MARK_FRAME_DEEP(f) \
+#define MARK_CONTEXT_DEEP(f) \
     do { \
         assert(!in_mark); \
-        QUEUE_MARK_FRAME_DEEP(f); \
+        QUEUE_MARK_CONTEXT_DEEP(f); \
         Propagate_All_GC_Marks(); \
     } while (0)
 
@@ -296,7 +296,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
         default:
             break;
         case GOBD_OBJECT:
-            QUEUE_MARK_FRAME_DEEP(AS_FRAME(GOB_DATA(gob)));
+            QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(GOB_DATA(gob)));
             break;
         case GOBD_STRING:
         case GOBD_BINARY:
@@ -482,7 +482,7 @@ static void Queue_Mark_Event_Deep(const REBVAL *value)
         while (req) {
             // Comment says void* ->port is "link back to REBOL port object"
             if (req->port)
-                QUEUE_MARK_FRAME_DEEP(AS_FRAME(cast(REBSER*, req->port)));
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(cast(REBSER*, req->port)));
             req = req->next;
         }
     }
@@ -510,7 +510,7 @@ static void Mark_Devices_Deep(void)
 
         for (req = dev->pending; req; req = req->next)
             if (req->port)
-                MARK_FRAME_DEEP(AS_FRAME(cast(REBSER*, req->port)));
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(cast(REBSER*, req->port)));
     }
 }
 
@@ -660,8 +660,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             // of having to keep alive "user types" or other things...but
             // that might be needed in the future.
             //
-            // The symbol stored for object/frame typesets is effectively
-            // unbound, and hence has no frame to be preserved.
+            // The symbol stored for typesets in contexts is effectively
+            // unbound, and hence has no context to be preserved (until
+            // such time as symbols are GC'd and this needs to be noted...)
+            //
             break;
 
         case REB_HANDLE:
@@ -680,31 +682,31 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_MODULE:
         case REB_PORT:
         case REB_ERROR: {
-            REBFRM *frame = VAL_FRAME(val);
+            REBCON *context = VAL_CONTEXT(val);
 
-            assert(FRAME_TYPE(frame) == VAL_TYPE(val));
-            assert(VAL_FRAME(FRAME_CONTEXT(frame)) == frame);
+            assert(CONTEXT_TYPE(context) == VAL_TYPE(val));
+            assert(VAL_CONTEXT(CONTEXT_VALUE(context)) == context);
             assert(
                 VAL_CONTEXT_SPEC(val)
-                == VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame))
+                == VAL_CONTEXT_SPEC(CONTEXT_VALUE(context))
             );
             assert(
                 VAL_CONTEXT_BODY(val)
-                == VAL_CONTEXT_BODY(FRAME_CONTEXT(frame))
+                == VAL_CONTEXT_BODY(CONTEXT_VALUE(context))
             );
 
-            QUEUE_MARK_FRAME_DEEP(frame);
+            QUEUE_MARK_CONTEXT_DEEP(context);
 
             if (VAL_CONTEXT_SPEC(val)) {
                 //
                 // !!! Under the module system, the spec is actually another
-                // frame of an object constructed with the various pieces
+                // context of an object constructed with the various pieces
                 // of module information.  This idea is being reviewed to
                 // see if what is called the "object spec" should be
                 // something more like a function spec, with the module
                 // information going in something called a "meta"
                 //
-                QUEUE_MARK_FRAME_DEEP(VAL_CONTEXT_SPEC(val));
+                QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val));
             }
 
             if (VAL_CONTEXT_BODY(val)) {
@@ -743,8 +745,8 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // bound words should keep their contexts from being GC'd...
                 // even stack-relative contexts for functions.
 
-                if (ARRAY_GET_FLAG(array, SER_FRAME))
-                    QUEUE_MARK_FRAME_DEEP(AS_FRAME(array));
+                if (ARRAY_GET_FLAG(array, SER_CONTEXT))
+                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(array));
                 else
                     QUEUE_MARK_ARRAY_DEEP(array);
             }
@@ -872,12 +874,12 @@ static void Mark_Array_Deep_Core(REBARR *array)
     //
     if (!ARRAY_GET_FLAG(array, SER_MARK)) Panic_Array(array);
 
-    // Make sure that a frame's varlist wasn't marked without also marking
+    // Make sure that a context's varlist wasn't marked without also marking
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
-    // frame instead of QUEUE_MARK_FRAME.
+    // context instead of QUEUE_MARK_CONTEXT.
     //
-    if (ARRAY_GET_FLAG(array, SER_FRAME))
-        assert(ARRAY_GET_FLAG(FRAME_KEYLIST(AS_FRAME(array)), SER_MARK));
+    if (ARRAY_GET_FLAG(array, SER_CONTEXT))
+        assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(AS_CONTEXT(array)), SER_MARK));
 #endif
 
 #ifdef HEAVY_CHECKS
@@ -1147,14 +1149,14 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark series that have been temporarily protected from garbage
         // collection with PUSH_GUARD_SERIES.  We have to check if the
-        // series is a frame (so the keylist gets marked) or an array (so
+        // series is a context (so the keylist gets marked) or an array (so
         // the values are marked), or if it's just a data series which
         // should just be marked shallow.
         //
         sp = cast(REBSER**, SERIES_DATA(GC_Series_Guard));
         for (n = SERIES_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-            if (SERIES_GET_FLAG(*sp, SER_FRAME))
-                MARK_FRAME_DEEP(AS_FRAME(*sp));
+            if (SERIES_GET_FLAG(*sp, SER_CONTEXT))
+                MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
             else if (Is_Array_Series(*sp))
                 MARK_ARRAY_DEEP(AS_ARRAY(*sp));
             else
@@ -1187,8 +1189,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
         }
 
         // Mark all root series:
-        MARK_FRAME_DEEP(PG_Root_Frame);
-        MARK_FRAME_DEEP(TG_Task_Frame);
+        //
+        MARK_CONTEXT_DEEP(PG_Root_Context);
+        MARK_CONTEXT_DEEP(TG_Task_Context);
 
         // Mark potential error object from callback!
         Queue_Mark_Value_Deep(&Callback_Error);

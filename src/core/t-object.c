@@ -35,7 +35,7 @@ static REBOOL Same_Object(REBVAL *val, REBVAL *arg)
     if (
         VAL_TYPE(arg) == VAL_TYPE(val) &&
         //VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(arg) &&
-        VAL_FRAME(val) == VAL_FRAME(arg)
+        VAL_CONTEXT(val) == VAL_CONTEXT(arg)
     ) return TRUE;
     return FALSE;
 }
@@ -43,8 +43,8 @@ static REBOOL Same_Object(REBVAL *val, REBVAL *arg)
 
 static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 {
-    REBFRM *f1;
-    REBFRM *f2;
+    REBCON *f1;
+    REBCON *f2;
     REBVAL *key1;
     REBVAL *key2;
     REBVAL *var1;
@@ -55,8 +55,8 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
     //
     if (VAL_TYPE(arg) != VAL_TYPE(val)) return FALSE;
 
-    f1 = VAL_FRAME(val);
-    f2 = VAL_FRAME(arg);
+    f1 = VAL_CONTEXT(val);
+    f2 = VAL_CONTEXT(arg);
 
     // Short circuit equality: `same?` objects always equal
     //
@@ -66,10 +66,10 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
     // fields of objects (notably `self`) do not figure into the `equal?`
     // of their public portions.
 
-    key1 = FRAME_KEYS_HEAD(f1);
-    key2 = FRAME_KEYS_HEAD(f2);
-    var1 = FRAME_VARS_HEAD(f1);
-    var2 = FRAME_VARS_HEAD(f2);
+    key1 = CONTEXT_KEYS_HEAD(f1);
+    key2 = CONTEXT_KEYS_HEAD(f2);
+    var1 = CONTEXT_VARS_HEAD(f1);
+    var2 = CONTEXT_VARS_HEAD(f2);
 
     // Compare each entry, in order.  This order dependence suggests that
     // an object made with `make object! [a: 1 b: 2]` will not compare equal
@@ -130,7 +130,7 @@ static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
 }
 
 
-static void Append_To_Context(REBFRM *frame, REBVAL *arg)
+static void Append_To_Context(REBCON *context, REBVAL *arg)
 {
     REBCNT i, len;
     REBVAL *word;
@@ -139,9 +139,9 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
 
     // Can be a word:
     if (ANY_WORD(arg)) {
-        if (!Find_Word_Index(frame, VAL_WORD_SYM(arg), TRUE)) {
-            Expand_Frame(frame, 1, 1); // copy word table also
-            Append_Frame(frame, 0, VAL_WORD_SYM(arg));
+        if (!Find_Word_In_Context(context, VAL_WORD_SYM(arg), TRUE)) {
+            Expand_Context(context, 1, 1); // copy word table also
+            Append_Context(context, 0, VAL_WORD_SYM(arg));
             // val is UNSET
         }
         return;
@@ -160,7 +160,7 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
     // Setup binding table with obj words.  Binding table is empty so don't
     // bother checking for duplicates.
     //
-    Collect_Context_Keys(frame, FALSE);
+    Collect_Context_Keys(context, FALSE);
 
     // Examine word/value argument block
     for (word = arg; NOT_END(word); word += 2) {
@@ -188,11 +188,11 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
 
     // Append new words to obj
     //
-    len = FRAME_LEN(frame) + 1;
-    Expand_Frame(frame, ARRAY_LEN(BUF_COLLECT) - len, 1);
+    len = CONTEXT_LEN(context) + 1;
+    Expand_Context(context, ARRAY_LEN(BUF_COLLECT) - len, 1);
     for (key = ARRAY_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
-        Append_Frame(frame, NULL, VAL_TYPESET_SYM(key));
+        Append_Context(context, NULL, VAL_TYPESET_SYM(key));
     }
 
     // Set new values to obj words
@@ -201,8 +201,8 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
         REBVAL *var;
 
         i = binds[VAL_WORD_CANON(word)];
-        var = FRAME_VAR(frame, i);
-        key = FRAME_KEY(frame, i);
+        var = CONTEXT_VAR(context, i);
+        key = CONTEXT_KEY(context, i);
 
         if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
             fail (Error_Protected_Key(key));
@@ -221,37 +221,37 @@ static void Append_To_Context(REBFRM *frame, REBVAL *arg)
 }
 
 
-static REBFRM *Trim_Frame(REBFRM *frame)
+static REBCON *Trim_Context(REBCON *context)
 {
     REBVAL *var;
     REBCNT copy_count = 0;
-    REBFRM *frame_new;
+    REBCON *context_new;
     REBVAL *var_new;
     REBVAL *key;
     REBVAL *key_new;
 
-    // First pass: determine size of new frame to create by subtracting out
+    // First pass: determine size of new context to create by subtracting out
     // any UNSET!, NONE!, or hidden fields
     //
-    key = FRAME_KEYS_HEAD(frame);
-    var = FRAME_VARS_HEAD(frame);
+    key = CONTEXT_KEYS_HEAD(context);
+    var = CONTEXT_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
         if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
             copy_count++;
     }
 
-    // Create new frame based on the size found
+    // Create new context based on the size found
     //
-    frame_new = Alloc_Frame(copy_count);
-    VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame_new)) = NULL;
-    VAL_CONTEXT_BODY(FRAME_CONTEXT(frame_new)) = NULL;
+    context_new = Alloc_Context(copy_count);
+    VAL_CONTEXT_SPEC(CONTEXT_VALUE(context_new)) = NULL;
+    VAL_CONTEXT_BODY(CONTEXT_VALUE(context_new)) = NULL;
 
     // Second pass: copy the values that were not skipped in the first pass
     //
-    key = FRAME_KEYS_HEAD(frame);
-    var = FRAME_VARS_HEAD(frame);
-    var_new = FRAME_VARS_HEAD(frame_new);
-    key_new = FRAME_KEYS_HEAD(frame_new);
+    key = CONTEXT_KEYS_HEAD(context);
+    var = CONTEXT_VARS_HEAD(context);
+    var_new = CONTEXT_VARS_HEAD(context_new);
+    key_new = CONTEXT_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
         if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
             *var_new++ = *var;
@@ -259,14 +259,14 @@ static REBFRM *Trim_Frame(REBFRM *frame)
         }
     }
 
-    // Terminate the new frame
+    // Terminate the new context
     //
     SET_END(var_new);
     SET_END(key_new);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame_new), copy_count + 1);
-    SET_ARRAY_LEN(FRAME_KEYLIST(frame_new), copy_count + 1);
+    SET_ARRAY_LEN(CONTEXT_VARLIST(context_new), copy_count + 1);
+    SET_ARRAY_LEN(CONTEXT_KEYLIST(context_new), copy_count + 1);
 
-    return frame_new;
+    return context_new;
 }
 
 
@@ -282,9 +282,9 @@ REBINT CT_Object(REBVAL *a, REBVAL *b, REBINT mode)
 
 
 //
-//  CT_Frame: C
+//  CT_Context: C
 //
-REBINT CT_Frame(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Context(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     return VAL_SERIES(a) == VAL_SERIES(b);
@@ -297,12 +297,12 @@ REBINT CT_Frame(REBVAL *a, REBVAL *b, REBINT mode)
 //
 REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
-    REBFRM *frame;
+    REBCON *context;
     if (!IS_BLOCK(data)) return FALSE;
 
-    frame = Construct_Frame(type, VAL_ARRAY_AT(data), FALSE, NULL);
+    context = Construct_Context(type, VAL_ARRAY_AT(data), FALSE, NULL);
 
-    Val_Init_Context(out, type, frame, NULL, NULL);
+    Val_Init_Context(out, type, context, NULL, NULL);
 
     if (type == REB_ERROR) {
         REBVAL result;
@@ -325,30 +325,30 @@ REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 REBINT PD_Object(REBPVS *pvs)
 {
     REBCNT n;
-    REBFRM *frame = VAL_FRAME(pvs->value);
+    REBCON *context = VAL_CONTEXT(pvs->value);
 
     if (IS_WORD(pvs->select)) {
-        n = Find_Word_Index(frame, VAL_WORD_SYM(pvs->select), FALSE);
+        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->select), FALSE);
     }
     else
         return PE_BAD_SELECT;
 
-    // !!! Can Find_Word_Index give back an index longer than the frame?!
+    // !!! Can Find_Word_In_Context give back an index longer than the context?!
     // There was a check here.  Adding a test for now, look into it.
     //
-    assert(n <= FRAME_LEN(frame));
-    if (n == 0 || n > FRAME_LEN(frame))
+    assert(n <= CONTEXT_LEN(context));
+    if (n == 0 || n > CONTEXT_LEN(context))
         return PE_BAD_SELECT;
 
     if (
         pvs->setval
         && IS_END(pvs->path + 1)
-        && VAL_GET_EXT(FRAME_KEY(frame, n), EXT_TYPESET_LOCKED)
+        && VAL_GET_EXT(CONTEXT_KEY(context, n), EXT_TYPESET_LOCKED)
     ) {
         fail (Error(RE_LOCKED_WORD, pvs->select));
     }
 
-    pvs->value = FRAME_VAR(frame, n);
+    pvs->value = CONTEXT_VAR(context, n);
     return PE_SET;
 }
 
@@ -362,8 +362,8 @@ REBTYPE(Object)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBFRM *frame;
-    REBFRM *src_frame;
+    REBCON *context;
+    REBCON *src_context;
     enum Reb_Kind target;
 
     switch (action) {
@@ -384,11 +384,11 @@ REBTYPE(Object)
 
         if (IS_DATATYPE(value)) {
             target = VAL_TYPE_KIND(value);
-            src_frame = NULL;
+            src_context = NULL;
         }
         else {
             target = VAL_TYPE(value);
-            src_frame = VAL_FRAME(value);
+            src_context = VAL_CONTEXT(value);
         }
 
         if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_NONE(arg))) {
@@ -396,25 +396,25 @@ REBTYPE(Object)
             // make object! [init]
             //
             // First we scan the object for top-level set words in
-            // order to make an appropriately sized frame.  Then
+            // order to make an appropriately sized context.  Then
             // we put it into an object in D_OUT to GC protect it.
             //
-            frame = Make_Selfish_Frame_Detect(
+            context = Make_Selfish_Context_Detect(
                 REB_OBJECT, // type
                 NULL, // spec
                 NULL, // body
                 // scan for toplevel set-words
                 IS_NONE(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
-                src_frame // parent
+                src_context // parent
             );
-            Val_Init_Object(D_OUT, frame);
+            Val_Init_Object(D_OUT, context);
 
             if (!IS_NONE(arg)) {
                 // !!! This binds the actual arg data, not a copy of it
                 // (functions make a copy of the body they are passed to
                 // be rebound).  This seems wrong.
                 //
-                Bind_Values_Deep(VAL_ARRAY_AT(arg), frame);
+                Bind_Values_Deep(VAL_ARRAY_AT(arg), context);
 
                 // Do the block into scratch space (we ignore the result,
                 // unless it is thrown in which case it must be returned.
@@ -436,9 +436,9 @@ REBTYPE(Object)
             // be selfish should not be hardcoded in the C, but part of
             // the generator choice by the person doing the derivation.
             //
-            frame = Merge_Frames_Selfish(src_frame, VAL_FRAME(arg));
-            MANAGE_FRAME(frame);
-            Val_Init_Object(D_OUT, frame);
+            context = Merge_Contexts_Selfish(src_context, VAL_CONTEXT(arg));
+            MANAGE_CONTEXT(context);
+            Val_Init_Object(D_OUT, context);
             return R_OUT;
         }
 
@@ -459,11 +459,11 @@ REBTYPE(Object)
             REBINT n = Int32s(arg, 0);
 
             // !!! Temporary!  Ultimately SELF will be a user protocol.
-            // We use Make_Selfish_Frame while MAKE is filling in for
+            // We use Make_Selfish_Context while MAKE is filling in for
             // what will be responsibility of the generators, just to
             // get "completely fake SELF" out of index slot [0]
             //
-            frame = Make_Selfish_Frame_Detect(
+            context = Make_Selfish_Context_Detect(
                 target, // type
                 NULL, // spec
                 NULL, // body
@@ -474,18 +474,18 @@ REBTYPE(Object)
             // !!! Allocation when SELF is not the responsibility of MAKE
             // will be more basic and look like this.
             //
-            /* frame = Alloc_Frame(n);
-            VAL_RESET_HEADER(FRAME_CONTEXT(frame), target);
-            FRAME_SPEC(frame) = NULL;
-            FRAME_BODY(frame) = NULL; */
-            Val_Init_Context(D_OUT, target, frame, NULL, NULL);
+            /* context = Alloc_Context(n);
+            VAL_RESET_HEADER(CONTEXT_VALUE(context), target);
+            CONTEXT_SPEC(context) = NULL;
+            CONTEXT_BODY(context) = NULL; */
+            Val_Init_Context(D_OUT, target, context, NULL, NULL);
             return R_OUT;
         }
 
         // make object! map!
         if (IS_MAP(arg)) {
-            frame = Map_To_Object(VAL_MAP(arg));
-            Val_Init_Context(D_OUT, target, frame, NULL, NULL);
+            context = Alloc_Context_From_Map(VAL_MAP(arg));
+            Val_Init_Context(D_OUT, target, context, NULL, NULL);
             return R_OUT;
         }
         fail (Error_Bad_Make(target, arg));
@@ -505,10 +505,10 @@ REBTYPE(Object)
         else if (target == REB_OBJECT) {
             if (IS_ERROR(arg)) {
                 if (VAL_ERR_NUM(arg) < 100) fail (Error_Invalid_Arg(arg));
-                frame = VAL_FRAME(arg);
-                break; // returns frame
+                context = VAL_CONTEXT(arg);
+                break; // returns context
             }
-            Val_Init_Object(D_OUT, VAL_FRAME(arg));
+            Val_Init_Object(D_OUT, VAL_CONTEXT(arg));
             return R_OUT;
         }
         else if (target == REB_MODULE) {
@@ -530,31 +530,31 @@ REBTYPE(Object)
             if (!IS_OBJECT(item + 1))
                 fail (Error_Invalid_Arg(item + 1));
 
-            // !!! We must make a shallow copy of the frame, otherwise there
-            // is no way to change the frame type to module without wrecking
+            // !!! We must make a shallow copy of the context, otherwise there
+            // is no way to change the context type to module without wrecking
             // the object passed in.
 
-            frame = Copy_Frame_Shallow_Managed(VAL_FRAME(item + 1));
-            VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) = VAL_FRAME(item);
-            assert(VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) == NULL);
-            VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_MODULE);
+            context = Copy_Context_Shallow_Managed(VAL_CONTEXT(item + 1));
+            VAL_CONTEXT_SPEC(CONTEXT_VALUE(context)) = VAL_CONTEXT(item);
+            assert(VAL_CONTEXT_BODY(CONTEXT_VALUE(context)) == NULL);
+            VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_MODULE);
 
             // !!! Again, not how this should be done but... if there is a
             // self we set it to the module we just made.  (Here we tolerate
             // it if there wasn't one in the object copied from.)
             //
             {
-                REBCNT self_index = Find_Word_Index(frame, SYM_SELF, TRUE);
+                REBCNT self_index = Find_Word_In_Context(context, SYM_SELF, TRUE);
                 if (self_index != 0) {
-                    assert(FRAME_KEY_CANON(frame, self_index) == SYM_SELF);
-                    *FRAME_VAR(frame, self_index) = *FRAME_CONTEXT(frame);
+                    assert(CONTEXT_KEY_CANON(context, self_index) == SYM_SELF);
+                    *CONTEXT_VAR(context, self_index) = *CONTEXT_VALUE(context);
                 }
             }
 
             Val_Init_Module(
                 D_OUT,
-                frame,
-                VAL_FRAME(item),
+                context,
+                VAL_CONTEXT(item),
                 NULL
             );
             return R_OUT;
@@ -562,16 +562,16 @@ REBTYPE(Object)
         fail (Error_Bad_Make(target, arg));
 
     case A_APPEND:
-        FAIL_IF_LOCKED_FRAME(VAL_FRAME(value));
+        FAIL_IF_LOCKED_CONTEXT(VAL_CONTEXT(value));
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        Append_To_Context(VAL_FRAME(value), arg);
+        Append_To_Context(VAL_CONTEXT(value), arg);
         return R_ARG1;
 
     case A_LENGTH:
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        SET_INTEGER(D_OUT, FRAME_LEN(VAL_FRAME(value)));
+        SET_INTEGER(D_OUT, CONTEXT_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
     case A_COPY:
@@ -587,15 +587,17 @@ REBTYPE(Object)
             if (IS_DATATYPE(arg)) types |= FLAGIT_64(VAL_TYPE_KIND(arg));
             else types |= VAL_TYPESET_BITS(arg);
         }
-        frame = AS_FRAME(Copy_Array_Shallow(FRAME_VARLIST(VAL_FRAME(value))));
-        FRAME_KEYLIST(frame) = FRAME_KEYLIST(VAL_FRAME(value));
-        MANAGE_ARRAY(FRAME_VARLIST(frame));
-        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
-        VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
+        context = AS_CONTEXT(
+            Copy_Array_Shallow(CONTEXT_VARLIST(VAL_CONTEXT(value)))
+        );
+        CONTEXT_KEYLIST(context) = CONTEXT_KEYLIST(VAL_CONTEXT(value));
+        MANAGE_ARRAY(CONTEXT_VARLIST(context));
+        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+        VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
         if (types != 0) {
             Clonify_Values_Len_Managed(
-                FRAME_VARS_HEAD(frame),
-                FRAME_LEN(frame),
+                CONTEXT_VARS_HEAD(context),
+                CONTEXT_LEN(context),
                 D_REF(ARG_COPY_DEEP),
                 types
             );
@@ -603,7 +605,7 @@ REBTYPE(Object)
         Val_Init_Context(
             D_OUT,
             VAL_TYPE(value),
-            frame,
+            context,
             VAL_CONTEXT_SPEC(value),
             VAL_CONTEXT_BODY(value)
         );
@@ -617,17 +619,17 @@ REBTYPE(Object)
         if (!IS_WORD(arg))
             return R_NONE;
 
-        n = Find_Word_Index(VAL_FRAME(value), VAL_WORD_SYM(arg), FALSE);
+        n = Find_Word_In_Context(VAL_CONTEXT(value), VAL_WORD_SYM(arg), FALSE);
 
         if (n <= 0)
             return R_NONE;
 
-        if (cast(REBCNT, n) > FRAME_LEN(VAL_FRAME(value)))
+        if (cast(REBCNT, n) > CONTEXT_LEN(VAL_CONTEXT(value)))
             return R_NONE;
 
         if (action == A_FIND) return R_TRUE;
 
-        *D_OUT = *FRAME_VAR(VAL_FRAME(value), n);
+        *D_OUT = *CONTEXT_VAR(VAL_CONTEXT(value), n);
         return R_OUT;
     }
 
@@ -652,7 +654,7 @@ REBTYPE(Object)
         if (action < 1 || action > 3)
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
 
-        Val_Init_Block(D_OUT, Object_To_Array(VAL_FRAME(value), action));
+        Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), action));
         return R_OUT;
 
     case A_TRIM:
@@ -663,7 +665,7 @@ REBTYPE(Object)
         Val_Init_Context(
             D_OUT,
             VAL_TYPE(value),
-            Trim_Frame(VAL_FRAME(value)),
+            Trim_Context(VAL_CONTEXT(value)),
             VAL_CONTEXT_SPEC(value),
             VAL_CONTEXT_BODY(value)
         );
@@ -671,7 +673,7 @@ REBTYPE(Object)
 
     case A_TAIL_Q:
         if (IS_OBJECT(value)) {
-            SET_LOGIC(D_OUT, FRAME_LEN(VAL_FRAME(value)) == 0);
+            SET_LOGIC(D_OUT, CONTEXT_LEN(VAL_CONTEXT(value)) == 0);
             return R_OUT;
         }
         fail (Error_Illegal_Action(VAL_TYPE(value), action));

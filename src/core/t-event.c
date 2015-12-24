@@ -94,11 +94,11 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_PORT:
         if (IS_PORT(val)) {
             VAL_EVENT_MODEL(value) = EVM_PORT;
-            VAL_EVENT_SER(value) = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
+            VAL_EVENT_SER(value) = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_OBJECT(val)) {
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
-            VAL_EVENT_SER(value) = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
+            VAL_EVENT_SER(value) = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_NONE(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;
@@ -234,13 +234,13 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
         // Event holds a port:
         else if (IS_EVENT_MODEL(value, EVM_PORT)) {
             Val_Init_Port(
-                val, AS_FRAME(VAL_EVENT_SER(m_cast(REBVAL*, value)))
+                val, AS_CONTEXT(VAL_EVENT_SER(m_cast(REBVAL*, value)))
             );
         }
         // Event holds an object:
         else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
             Val_Init_Object(
-                val, AS_FRAME(VAL_EVENT_SER(m_cast(REBVAL*, value)))
+                val, AS_CONTEXT(VAL_EVENT_SER(m_cast(REBVAL*, value)))
             );
         }
         else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
@@ -251,7 +251,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
             // Event holds the IO-Request, which has the PORT:
             req = VAL_EVENT_REQ(value);
             if (!req || !req->port) goto is_none;
-            Val_Init_Port(val, AS_FRAME(cast(REBSER*, req->port)));
+            Val_Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
         }
         break;
 

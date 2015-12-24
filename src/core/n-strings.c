@@ -406,7 +406,7 @@ REBNATIVE(construct)
     REFINE(4, only);
 
     REBVAL *spec_value = ARG(spec);
-    REBFRM *parent = NULL;
+    REBCON *parent = NULL;
 
     // !!! What is this?
     //
@@ -427,11 +427,11 @@ REBNATIVE(construct)
         spec_value = D_OUT;
     }
 
-    if (REF(with)) parent = VAL_FRAME(ARG(object));
+    if (REF(with)) parent = VAL_CONTEXT(ARG(object));
 
     Val_Init_Object(
         D_OUT,
-        Construct_Frame(
+        Construct_Context(
             REB_OBJECT, VAL_ARRAY_AT(spec_value), REF(only), parent
         )
     );

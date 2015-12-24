@@ -1480,25 +1480,25 @@ void Manage_Series(REBSER *series)
 #if !defined(NDEBUG)
 
 //
-//  Manage_Frame_Debug: C
+//  Manage_Context_Debug: C
 // 
-// Special handler for making sure frames are managed by the GC,
+// Special handler for making sure contexts are managed by the GC,
 // specifically.  If you've poked in a wordlist from somewhere
 // else you might not be able to use this.
 //
-void Manage_Frame_Debug(REBFRM *frame)
+void Manage_Context_Debug(REBCON *context)
 {
     if (
-        ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)
-        != ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED)
+        ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED)
+        != ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED)
     ) {
         // Only one of these will trip...
-        ASSERT_ARRAY_MANAGED(FRAME_VARLIST(frame));
-        ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+        ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
+        ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
     }
 
-    MANAGE_ARRAY(FRAME_KEYLIST(frame));
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    MANAGE_ARRAY(CONTEXT_KEYLIST(context));
+    MANAGE_ARRAY(CONTEXT_VARLIST(context));
 }
 
 #endif
@@ -1539,12 +1539,12 @@ REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
 #endif
 
     if (ANY_CONTEXT(value)) {
-        REBFRM *frame = VAL_FRAME(value);
-        if (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MANAGED)) {
-            ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
+        REBCON *context = VAL_CONTEXT(value);
+        if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED)) {
+            ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
             return TRUE;
         }
-        assert(!ARRAY_GET_FLAG(FRAME_KEYLIST(frame), SER_MANAGED));
+        assert(!ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED));
         return FALSE;
     }
 

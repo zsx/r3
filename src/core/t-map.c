@@ -483,14 +483,14 @@ REBMAP *Mutate_Array_Into_Map(REBARR *array)
 
 
 //
-//  Map_To_Object: C
+//  Alloc_Context_From_Map: C
 //
-REBFRM *Map_To_Object(REBMAP *map)
+REBCON *Alloc_Context_From_Map(REBMAP *map)
 {
     REBCNT cnt = 0;
     REBVAL *mval;
 
-    REBFRM *frame;
+    REBCON *context;
     REBVAL *key;
     REBVAL *var;
 
@@ -500,10 +500,10 @@ REBFRM *Map_To_Object(REBMAP *map)
         if (ANY_WORD(mval) && !IS_NONE(mval + 1)) cnt++;
     }
 
-    // See Alloc_Frame() - cannot use it directly because no Collect_Words
-    frame = Alloc_Frame(cnt);
-    key = FRAME_KEY(frame, 1);
-    var = FRAME_VAR(frame, 1);
+    // See Alloc_Context() - cannot use it directly because no Collect_Words
+    context = Alloc_Context(cnt);
+    key = CONTEXT_KEYS_HEAD(context);
+    var = CONTEXT_VARS_HEAD(context);
 
     mval = ARRAY_HEAD(MAP_PAIRLIST(map));
 
@@ -526,10 +526,10 @@ REBFRM *Map_To_Object(REBMAP *map)
     SET_END(key);
     SET_END(var);
 
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), cnt + 1);
-    SET_ARRAY_LEN(FRAME_KEYLIST(frame), cnt + 1);
+    SET_ARRAY_LEN(CONTEXT_VARLIST(context), cnt + 1);
+    SET_ARRAY_LEN(CONTEXT_KEYLIST(context), cnt + 1);
 
-    return frame;
+    return context;
 }
 
 
