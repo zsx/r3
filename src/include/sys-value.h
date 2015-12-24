@@ -472,31 +472,38 @@ enum {
 // the value--and at what place in the source.  Repro cases can be set to
 // break on that tick count, if it is deterministic.
 //
-
+// This feature can be helpful to enable, but it can also create problems
+// in terms of making memory that would look "free" appear available.
+//
+#define TRACK_EMPTY_PAYLOADS // for now, helpful to know...
 #if !defined(NDEBUG)
-    struct Reb_Track {
-        const char *filename;
-        int line;
-        REBCNT count;
-    };
+    #ifdef TRACK_EMPTY_PAYLOADS
+        struct Reb_Track {
+            const char *filename;
+            int line;
+            REBCNT count;
+        };
 
-    #define SET_TRACK_PAYLOAD(v) \
-        ( \
-            (v)->payload.track.filename = __FILE__, \
-            (v)->payload.track.line = __LINE__, \
-            (v)->payload.track.count = TG_Do_Count, \
-            NOOP \
-        )
+        #define SET_TRACK_PAYLOAD(v) \
+            ( \
+                (v)->payload.track.filename = __FILE__, \
+                (v)->payload.track.line = __LINE__, \
+                (v)->payload.track.count = TG_Do_Count, \
+                NOOP \
+            )
 
-    #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
-    #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
-    #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
+        #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
+        #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
+        #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
+    #else
+        #define SET_TRACK_PAYLOAD(v) NOOP
+    #endif
 #endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  TRASH! (uses `struct Reb_Track`)
+//  TRASH! (may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -532,7 +539,11 @@ enum {
 // member.  It also saves the Do tick count in which it was created, to
 // make it easier to pinpoint precisely when it came into existence.
 //
-
+// !!! If we're not using TRACK_EMPTY_PAYLOADS, should this POISON_MEMORY() on
+// the payload to help catch invalid reads?  Trash values don't hang around
+// that long, except for the case of the values in the extra "->rest" capacity
+// of series.  Would that be too many memory poisonings to handle efficiently?
+//
 #ifdef NDEBUG
     #define SET_TRASH_IF_DEBUG(v) NOOP
 
@@ -566,7 +577,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  UNSET! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//  UNSET! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -616,7 +627,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NONE! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//  NONE! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -651,7 +662,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  LOGIC! (fits in header bits, `struct Reb_Track` if DEBUG)
+//  LOGIC! (type and value fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -1894,7 +1905,7 @@ union Reb_Value_Payload {
 
     struct Reb_Symbol symbol; // internal
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(TRACK_EMPTY_PAYLOADS)
     struct Reb_Track track; // debug only (for TRASH!, UNSET!, NONE!, LOGIC!)
 #endif
 };
