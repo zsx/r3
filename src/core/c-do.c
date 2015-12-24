@@ -2694,7 +2694,8 @@ REBOOL Apply_Func_Throws_Core(
         // position by copying the block and position it was at.
 
         c->array = DSF_ARRAY(DSF);
-        c->index = DSF_EXPR_INDEX(DSF);
+        c->index = DSF->index;
+        c->expr_index = DSF->expr_index;
     }
     else if (IS_FUNCTION(FUNC_VALUE(func)) || IS_CLOSURE(FUNC_VALUE(func))) {
         // Stack is empty, so offer up the body of the function itself
@@ -2702,6 +2703,7 @@ REBOOL Apply_Func_Throws_Core(
 
         c->array = FUNC_BODY(func);
         c->index = 0;
+        c->expr_index = 0;
     }
     else {
         // We got nothin'.  Give back the specially marked "top level"
@@ -2710,9 +2712,11 @@ REBOOL Apply_Func_Throws_Core(
 
         c->array = EMPTY_ARRAY;
         c->index = 0;
+        c->expr_index = 0;
     }
 
     assert(c->index <= ARRAY_LEN(c->array));
+    assert(c->index >= c->expr_index);
 
     c->func = func;
 

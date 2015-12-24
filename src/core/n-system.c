@@ -349,6 +349,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     REBARR *where;
     REBOOL pending;
 
+    assert(end >= start);
     assert(call->mode != CALL_MODE_0);
     pending = NOT(call->mode == CALL_MODE_FUNCTION);
 
