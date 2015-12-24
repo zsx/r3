@@ -1185,9 +1185,6 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 //
 REBNATIVE(request_file)
 {
-    REBSER *ser;
-    REBINT n;
-
     // !!! This routine used to have an ENABLE_GC and DISABLE_GC
     // reference.  It is not clear what that was protecting, but
     // this code should be reviewed with GC "torture mode", and
@@ -1205,9 +1202,11 @@ REBNATIVE(request_file)
     if (D_REF(ARG_REQUEST_FILE_MULTI)) SET_FLAG(fr.flags, FRF_MULTI);
 
     if (D_REF(ARG_REQUEST_FILE_FILE)) {
-        ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+        REBSER *ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+        REBINT n = SERIES_LEN(ser);
+
         fr.dir = cast(REBCHR*, SERIES_DATA(ser));
-        n = SERIES_LEN(ser);
+
         if (OS_CH_VALUE(fr.dir[n-1]) != OS_DIR_SEP) {
             if (n+2 > fr.len) n = fr.len - 2;
             OS_STRNCPY(
@@ -1220,7 +1219,7 @@ REBNATIVE(request_file)
     }
 
     if (D_REF(ARG_REQUEST_FILE_FILTER)) {
-        ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
+        REBSER *ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
         fr.filter = cast(REBCHR*, SERIES_DATA(ser));
     }
 
@@ -1235,17 +1234,17 @@ REBNATIVE(request_file)
             Val_Init_Block(D_OUT, array);
         }
         else {
-            ser = To_REBOL_Path(
+            REBSER *ser = To_REBOL_Path(
                 fr.files, OS_STRLEN(fr.files), (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
             );
             Val_Init_File(D_OUT, ser);
         }
     } else
-        ser = 0;
+        SET_NONE(D_OUT);
 
     OS_FREE(fr.files);
 
-    return ser ? R_OUT : R_NONE;
+    return R_OUT;
 }
 
 
