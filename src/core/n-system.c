@@ -394,7 +394,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
 //
 //  backtrace: native [
 //  
-//  "Returns backtrace with WHERE blocks, or other queried property."
+//  "Gives backtrace with WHERE blocks, or other queried property."
 //
 //      /limit
 //          "Limit the length of the backtrace"
@@ -410,8 +410,10 @@ REBARR *Where_For_Call(struct Reb_Call *call)
 //          "Query word used to invoke function (NONE! if anyonymous)"
 //      /args
 //          "Query invocation args (may be modified since invocation)"
+//      /brief
+//          "Do not list depths, just the selected properties on one line"
 //      /only
-//          "Do not list depths, only the selected properties"
+//          "Only return the backtrace, do not print to the console"
 //  ]
 //
 REBNATIVE(backtrace)
@@ -423,7 +425,8 @@ REBNATIVE(backtrace)
     REFINE(5, function);
     REFINE(6, label);
     REFINE(7, args);
-    REFINE(8, only);
+    REFINE(8, brief);
+    REFINE(9, only);
 
     REBCNT number; // stack level number in the loop (no pending frames)
     REBCNT queried_number; // synonym for the "level" from /AT
@@ -487,11 +490,11 @@ REBNATIVE(backtrace)
         for (call = DSF->prior; call != NULL; call = PRIOR_DSF(call)) {
             if (call->mode == CALL_MODE_0) continue;
 
-            // index and property, unless /ONLY in which case it will just
+            // index and property, unless /BRIEF in which case it will just
             // be the property.
             //
             ++index;
-            if (!REF(only))
+            if (!REF(brief))
                 ++index;
 
             ++row;
@@ -568,7 +571,7 @@ REBNATIVE(backtrace)
                 //
                 temp = ARRAY_AT(backtrace, --index);
                 Val_Init_Word_Unbound(temp, REB_WORD, SYM_PLUS);
-                if (!REF(only)) {
+                if (!REF(brief)) {
                     //
                     // In the non-/ONLY backtrace, the pairing of the ellipsis
                     // with a plus is used in order to keep the "record size"
@@ -588,10 +591,10 @@ REBNATIVE(backtrace)
         // The /ONLY case is bare bones and just gives a block of the label
         // symbols (at this point in time).
         //
-        // !!! Should /ONLY omit pending frames?  Should it have a less
+        // !!! Should /BRIEF omit pending frames?  Should it have a less
         // "loaded" name for the refinement?
         //
-        if (REF(only)) {
+        if (REF(brief)) {
             if (REF(at)) {
                 Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
                 return R_OUT;
@@ -717,7 +720,14 @@ REBNATIVE(backtrace)
     //
     assert(index == 0);
     Val_Init_Block(D_OUT, backtrace);
-    return R_OUT;
+    if (REF(only))
+        return R_OUT;
+
+    // If they didn't use /ONLY we assume they want it printed out.
+    //
+    Prin_Value(D_OUT, 0, TRUE); // TRUE = mold
+    Print_OS_Line();
+    return R_UNSET;
 }
 
 
