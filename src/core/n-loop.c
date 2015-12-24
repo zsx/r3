@@ -162,7 +162,7 @@ static REBOOL Loop_Series_Throws(
     REBINT ii
 ) {
     REBINT si = VAL_INDEX(start);
-    REBCNT type = VAL_TYPE(start);
+    enum Reb_Kind type = VAL_TYPE(start);
 
     *var = *start;
 
@@ -308,7 +308,7 @@ static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
     REBSER *dat;
     REBINT idx;
     REBINT inc = 1;
-    REBCNT type;
+    enum Reb_Kind type;
     REBVAL *ds;
 
     var = GET_MUTABLE_VAR(D_ARG(1));

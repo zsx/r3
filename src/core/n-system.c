@@ -911,7 +911,9 @@ REBOOL Do_Breakpoint_Throws(
             // it into an EXIT/FROM that would just get intercepted.
             //
             if (!IS_NONE(target)) {
+            #if !defined(NDEBUG)
                 REBOOL found = FALSE;
+            #endif
 
                 for (call = DSF; call != NULL; call = call->prior) {
                     if (call->mode != CALL_MODE_FUNCTION)
@@ -941,7 +943,9 @@ REBOOL Do_Breakpoint_Throws(
                             // Found a closure matching the target before we
                             // reached a breakpoint, no need to retransmit.
                             //
+                        #if !defined(NDEBUG)
                             found = TRUE;
+                        #endif
                             break;
                         }
                     }
@@ -954,7 +958,9 @@ REBOOL Do_Breakpoint_Throws(
                             // Found a function matching the target before we
                             // reached a breakpoint, no need to retransmit.
                             //
+                        #if !defined(NDEBUG)
                             found = TRUE;
+                        #endif
                             break;
                         }
                     }
@@ -963,7 +969,9 @@ REBOOL Do_Breakpoint_Throws(
                 // RESUME should not have been willing to use a target that
                 // is not on the stack.
                 //
+            #if !defined(NDEBUG)
                 assert(found);
+            #endif
             }
 
             if (IS_NONE(mode)) {

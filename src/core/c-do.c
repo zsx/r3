@@ -1405,7 +1405,7 @@ reevaluate:
                 if (c->index == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
                 else {
-                    if (VAL_TYPE(c->out) == FUNC_ACT(c->func))
+                    if (cast(REBCNT, VAL_TYPE(c->out)) == FUNC_ACT(c->func))
                         SET_TRUE(c->out);
                     else
                         SET_FALSE(c->out);
