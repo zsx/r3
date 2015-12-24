@@ -581,7 +581,6 @@ enum encoding_opts {
 #endif
 
 
-#define NO_RESULT   ((REBCNT)(-1))
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS
 #define ALL_64      ((REBU64)0xffffffffffffffffLL)

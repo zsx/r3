@@ -1206,7 +1206,6 @@ static void Bind_Values_Inner_Loop(
             // Is the word found in this context?
             REBCNT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
-                if (n == NO_RESULT) n = 0; // SELF word
                 assert(n <= CONTEXT_LEN(context));
                 // Word is in context, bind it:
                 VAL_WORD_INDEX(value) = n;
