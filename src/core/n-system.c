@@ -634,8 +634,18 @@ REBNATIVE(backtrace)
             //
             REBARR *array = Make_Array(FUNC_NUM_PARAMS(DSF_FUNC(call)));
             REBVAL *param = FUNC_PARAMS_HEAD(DSF_FUNC(call));
-            REBVAL *arg = DSF_ARGS_HEAD(call);
             REBVAL *dest = ARRAY_HEAD(array);
+            REBVAL *arg;
+
+            if (DSF_FRAMELESS(call)) {
+                //
+                // If the native is frameless, we cannot get its args because
+                // it evaluated in place.  Tell them args are optimized out.
+                //
+                fail (Error(RE_FRAMELESS_CALL));
+            }
+
+            arg = DSF_ARGS_HEAD(call);
 
             if (pending) {
                 //

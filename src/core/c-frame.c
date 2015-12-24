@@ -1654,7 +1654,7 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
                         return NULL;
                     }
 
-                    if (!call->arg)
+                    if (DSF_FRAMELESS(call))
                         fail (Error(RE_FRAMELESS_WORD, word));
 
                     value = DSF_ARG(call, -index);

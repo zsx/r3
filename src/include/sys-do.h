@@ -578,6 +578,8 @@ struct Native_Refine {
     #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
 #endif
 
+#define DSF_FRAMELESS(c)    (!(c)->arg)
+
 // Note about D_ARGC: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
 // the full list of arguments and refinements).  However, ACTION! dispatch
@@ -602,7 +604,7 @@ struct Native_Refine {
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value
 #define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
 
-#define D_FRAMELESS (!call_->arg)           // Native running w/no call frame
+#define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
 
 // !!! These should perhaps assert that they're only being used when a
 // frameless native is in action.
