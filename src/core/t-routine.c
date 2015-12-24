@@ -1009,8 +1009,7 @@ static void callback_dispatcher(
     PUSH_GUARD_ARRAY(array);
 
     elem = Alloc_Tail_Array(array);
-    VAL_SET_TYPE(elem, REB_FUNCTION);
-    elem->payload.any_function.func = RIN_FUNC(rin);
+    *elem = *FUNC_VALUE(RIN_FUNC(rin));
 
     for (i = 0; i < cif->nargs; i ++) {
         elem = Alloc_Tail_Array(array);
