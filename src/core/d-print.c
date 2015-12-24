@@ -129,6 +129,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         // path up to return results from an interactive breakpoint.
         //
         REBVAL result;
+        VAL_INIT_WRITABLE_DEBUG(&result);
+
         if (Do_Signals_Throws(&result))
             fail (Error_No_Catch_For_Throw(&result));
         if (IS_SET(&result))
@@ -153,6 +155,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             // path up to return results from an interactive breakpoint.
             //
             REBVAL result;
+            VAL_INIT_WRITABLE_DEBUG(&result);
+
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
             if (IS_SET(&result))
@@ -370,6 +374,8 @@ void Debug_Series(REBSER *ser)
         Debug_Str(s_cast(BIN_HEAD(ser)));
     else if (Is_Array_Series(ser)) {
         REBVAL value;
+        VAL_INIT_WRITABLE_DEBUG(&value);
+
         // May not actually be a REB_BLOCK, but we put it in a value
         // container for now saying it is so we can output it.  It may be
         // a frame and we may not want to Manage_Series here, so we use a
@@ -377,8 +383,10 @@ void Debug_Series(REBSER *ser)
         VAL_RESET_HEADER(&value, REB_BLOCK);
         VAL_SERIES(&value) = ser;
         VAL_INDEX(&value) = 0;
+
         Debug_Fmt("%r", &value);
-    } else if (SERIES_WIDE(ser) == sizeof(REBUNI))
+    }
+    else if (SERIES_WIDE(ser) == sizeof(REBUNI))
         Debug_Uni(ser);
     else if (ser == Bind_Table) {
         // Dump bind table somehow?
@@ -847,11 +855,17 @@ mold_value:
 
         case 'm':  // Mold a series
             ser = va_arg(*args, REBSER *);
+
             // Val_Init_Block would Ensure_Series_Managed, we use a raw
-            // VAL_SET instead
+            // VAL_SET instead.
+            //
+            // !!! Better approach?  Can the series be passed directly?
+            //
+            VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
             VAL_SERIES(&value) = ser;
             VAL_INDEX(&value) = 0;
+
             vp = &value;
             goto mold_value;
 

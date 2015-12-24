@@ -642,17 +642,16 @@ REBNATIVE(greater_or_equal_q)
 //
 REBNATIVE(maximum)
 {
-    REBVAL a, b;
-
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
         Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), TRUE);
         return R_OUT;
     }
-
-    a = *D_ARG(1);
-    b = *D_ARG(2);
-    if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
-    return R_ARG2;
+    else {
+        REBVAL a = *D_ARG(1);
+        REBVAL b = *D_ARG(2);
+        if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
+        return R_ARG2;
+    }
 }
 
 
@@ -667,17 +666,17 @@ REBNATIVE(maximum)
 //
 REBNATIVE(minimum)
 {
-    REBVAL a, b;
-
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
         Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), FALSE);
         return R_OUT;
     }
+    else {
+        REBVAL a = *D_ARG(1);
+        REBVAL b = *D_ARG(2);
 
-    a = *D_ARG(1);
-    b = *D_ARG(2);
-    if (Compare_Modify_Values(&a, &b, -1)) return R_ARG2;
-    return R_ARG1;
+        if (Compare_Modify_Values(&a, &b, -1)) return R_ARG2;
+        return R_ARG1;
+    }
 }
 
 
@@ -692,6 +691,8 @@ REBNATIVE(minimum)
 REBNATIVE(negative_q)
 {
     REBVAL zero;
+    VAL_INIT_WRITABLE_DEBUG(&zero);
+
     SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
 
     if (Compare_Modify_Values(D_ARG(1), &zero, -1)) return R_FALSE;
@@ -710,6 +711,8 @@ REBNATIVE(negative_q)
 REBNATIVE(positive_q)
 {
     REBVAL zero;
+    VAL_INIT_WRITABLE_DEBUG(&zero);
+
     SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
 
     if (Compare_Modify_Values(D_ARG(1), &zero, -2)) return R_TRUE;
@@ -732,6 +735,8 @@ REBNATIVE(zero_q)
 
     if (type >= REB_INTEGER && type <= REB_TIME) {
         REBVAL zero;
+        VAL_INIT_WRITABLE_DEBUG(&zero);
+
         SET_ZEROED(&zero, type);
 
         if (Compare_Modify_Values(D_ARG(1), &zero, 1)) return R_TRUE;

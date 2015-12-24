@@ -594,6 +594,8 @@ static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
 
     while (NOT_END(blk)) {
         REBVAL safe;
+        VAL_INIT_WRITABLE_DEBUG(&safe);
+
         var = blk++;
         val = blk++;
         if (!IS_SET_WORD(var))

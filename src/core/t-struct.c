@@ -138,6 +138,8 @@ static REBOOL Get_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *val)
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     REBVAL elem;
+                    VAL_INIT_WRITABLE_DEBUG(&elem);
+
                     get_scalar(stu, field, n, &elem);
                     Append_Value(array, &elem);
                 }
@@ -271,7 +273,7 @@ static REBOOL same_fields(REBSER *tgt, REBSER *src)
 static REBOOL assign_scalar(REBSTU *stu,
                             struct Struct_Field *field,
                             REBCNT n, /* element index, starting from 0 */
-                            REBVAL *val)
+                            const REBVAL *val)
 {
     u64 i = 0;
     double d = 0;
@@ -609,6 +611,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
     if (NOT_END(val) && IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
+        VAL_INIT_WRITABLE_DEBUG(&ret);
 
         if (DO_ARRAY_THROWS(&ret, val)) {
             // !!! Does not check for thrown cases...what should this
@@ -735,6 +738,8 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
             if (expect_init) {
                 REBVAL safe; // result of reduce or do (GC saved during eval)
+                VAL_INIT_WRITABLE_DEBUG(&safe);
+
                 init = &safe;
 
                 if (IS_BLOCK(blk)) {
@@ -791,11 +796,9 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         memcpy(SERIES_AT(VAL_STRUCT_DATA_BIN(out), ((REBCNT)offset) + n * field->size), SERIES_DATA(VAL_STRUCT_DATA_BIN(init)), field->size);
                     }
                 } else if (field->type == STRUCT_TYPE_REBVAL) {
-                    REBVAL unset;
                     REBCNT n = 0;
-                    SET_UNSET(&unset);
                     for (n = 0; n < field->dimension; n ++) {
-                        if (!assign_scalar(&VAL_STRUCT(out), field, n, &unset)) {
+                        if (!assign_scalar(&VAL_STRUCT(out), field, n, UNSET_VALUE)) {
                             //RL_Print("Failed to assign element value\n");
                             goto failed;
                         }

@@ -851,6 +851,7 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
     if (ch > 0xFFFF) {
         // !!! Not currently supported.
         REBVAL num;
+        VAL_INIT_WRITABLE_DEBUG(&num);
         SET_INTEGER(&num, ch);
         fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
     }

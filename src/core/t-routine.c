@@ -939,6 +939,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
         if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
             /* followed by struct definition */
             REBVAL tmp;
+            VAL_INIT_WRITABLE_DEBUG(&tmp);
 
             SET_NONE(&tmp); // GC should not reach uninitialized values
             PUSH_GUARD_VALUE(&tmp);
@@ -978,10 +979,12 @@ static void callback_dispatcher(
     REBCNT i = 0;
     REBARR *array;
     REBVAL *elem;
-    REBVAL safe;
 
     struct Reb_State state;
     REBFRM *error;
+
+    REBVAL safe;
+    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     if (IS_ERROR(&Callback_Error)) return;
 
@@ -1160,7 +1163,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
     // reserve for returning struct
     temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-    SET_NONE(temp); // should this be SET_TRASH_IF_DEBUG(), e.g. write-only location?
+
+    // !!! should this be VAL_INIT_WRITABLE_DEBUG(), e.g. write-only location?
+    //
+    SET_NONE(temp);
 
     VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
     VAL_ROUTINE_LIB(out) = NULL;
@@ -1192,7 +1198,9 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (type == REB_ROUTINE) {
         REBINT fn_idx = 0;
+
         REBVAL lib;
+        VAL_INIT_WRITABLE_DEBUG(&lib);
 
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
@@ -1240,7 +1248,9 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         }
     } else if (type == REB_CALLBACK) {
         REBINT fn_idx = 0;
+
         REBVAL fun;
+        VAL_INIT_WRITABLE_DEBUG(&fun);
 
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Invalid_Arg(&blk[0]));

@@ -410,7 +410,6 @@ void Init_Words(REBOOL only)
 
         // The word (symbol) table itself:
         PG_Word_Table.array = Make_Array(WORD_TABLE_SIZE);
-        Clear_Series(ARRAY_SERIES(PG_Word_Table.array));
 
         // !!! R3-Alpha would "Put a NONE at the head" here.  Why?  It seemed
         // to later think it needed to be able to read a symbol out of a none,

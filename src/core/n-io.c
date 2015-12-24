@@ -393,6 +393,8 @@ REBNATIVE(wait)
 
     if (IS_BLOCK(val)) {
         REBVAL unsafe; // temporary not safe from GC
+        VAL_INIT_WRITABLE_DEBUG(&unsafe);
+
         if (Reduce_Array_Throws(
             &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
         )) {
@@ -612,9 +614,6 @@ REBNATIVE(what_dir)
 REBNATIVE(change_dir)
 {
     REBVAL *arg = D_ARG(1);
-    REBSER *ser;
-    REBVAL val;
-
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
 
     if (IS_URL(arg)) {
@@ -625,6 +624,11 @@ REBNATIVE(change_dir)
         // !!! Should it at least check for a trailing `/`?
     }
     else {
+        REBSER *ser;
+
+        REBVAL val;
+        VAL_INIT_WRITABLE_DEBUG(&val);
+
         assert(IS_FILE(arg));
 
         ser = Value_To_OS_Path(arg, TRUE);

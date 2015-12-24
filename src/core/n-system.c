@@ -841,8 +841,10 @@ REBOOL Do_Breakpoint_Throws(
     const REBVAL *default_value,
     REBOOL do_default
 ) {
-    REBVAL temp;
     REBVAL *target = NONE_VALUE;
+
+    REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
 
     if (!PG_Breakpoint_Quitting_Hook) {
         //
@@ -878,6 +880,8 @@ REBOOL Do_Breakpoint_Throws(
         if (error) {
         #if !defined(NDEBUG)
             REBVAL error_value;
+            VAL_INIT_WRITABLE_DEBUG(&error_value);
+
             Val_Init_Error(&error_value, error);
             PROBE_MSG(&error_value, "Error not trapped during breakpoint:");
             Panic_Array(FRAME_VARLIST(error));

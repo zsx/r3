@@ -482,8 +482,10 @@ REBINT PD_Date(REBPVS *pvs)
     REBDAT date;
     REBCNT day, month, year;
     REBINT num;
-    REBVAL dat;
     REB_TIMEF time;
+
+    REBVAL dat;
+    VAL_INIT_WRITABLE_DEBUG(&dat);
 
     // !zone! - adjust date by zone (unless /utc given)
 

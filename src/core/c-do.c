@@ -243,7 +243,9 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBVAL *path;
     REBPEF func;
+
     REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
 
     // Path must have dispatcher, else return:
     func = Path_Dispatch[VAL_TYPE(pvs->value)];
@@ -261,7 +263,6 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     }
     // object/(expr) case:
     else if (IS_PAREN(path)) {
-
         if (DO_ARRAY_THROWS(&temp, path)) {
             *pvs->value = temp;
             return TRUE;
@@ -433,6 +434,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
     if (label_sym) {
         REBVAL refinement;
+        VAL_INIT_WRITABLE_DEBUG(&refinement);
 
         // When a function is hit, path processing stops as soon as the
         // processed sub-path resolves to a function. The path is still sitting
@@ -617,7 +619,6 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
-    REBVAL result;
     struct Reb_State state;
     REBFRM *error;
 
@@ -927,7 +928,7 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    SET_TRASH_IF_DEBUG(&c->cell);
+    VAL_INIT_WRITABLE_DEBUG(&c->cell);
     c->func = cast(REBFUN*, 0xDECAFBAD);
     c->label_sym = SYM_0;
     c->arglist.array = NULL;
@@ -999,17 +1000,6 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
 //
 void Do_Core(struct Reb_Call * const c)
 {
-    // See notes below on reference for why this is needed to implement eval.
-    //
-    REBVAL eval;
-
-    // Definitional Return gives back a "corrupted" REBVAL of a return native,
-    // whose body is actually an indicator of the return target.  The
-    // Reb_Call only stores the FUNC so we must extract this body from the
-    // value if it represents a exit_from
-    //
-    REBARR *exit_from = NULL;
-
 #if !defined(NDEBUG)
     //
     // The debug build wants to make sure no "state" has accumulated per
@@ -1028,8 +1018,19 @@ void Do_Core(struct Reb_Call * const c)
     // effort to browse stack levels and see what the count is.
     //
     REBCNT do_count;
-    cast(void, do_count); // suppress unused warning
 #endif
+
+    // Definitional Return gives back a "corrupted" REBVAL of a return native,
+    // whose body is actually an indicator of the return target.  The
+    // Reb_Call only stores the FUNC so we must extract this body from the
+    // value if it represents a exit_from
+    //
+    REBARR *exit_from = NULL;
+
+    // See notes below on reference for why this is needed to implement eval.
+    //
+    REBVAL eval;
+    VAL_INIT_WRITABLE_DEBUG(&eval);
 
     // Fast short-circuit; and generally shouldn't happen because the calling
     // macros avoid the function call overhead itself on ends.
@@ -1122,6 +1123,7 @@ do_at_index:
     c->expr_index = c->index;
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
+    // It does not have to be GC safe (for reasons explained below).
     //
     SET_TRASH_IF_DEBUG(&eval);
 
@@ -1181,6 +1183,7 @@ reevaluate:
     //
 #if !defined(NDEBUG)
     do_count = Do_Evaluation_Preamble_Debug(c);
+    cast(void, do_count); // suppress unused warning
 #endif
 
     switch (VAL_TYPE(c->value)) {
@@ -2414,12 +2417,16 @@ REBOOL Reduce_Array_Throws(
 
     while (index < ARRAY_LEN(array)) {
         REBVAL reduced;
+        VAL_INIT_WRITABLE_DEBUG(&reduced);
+
         DO_NEXT_MAY_THROW(index, &reduced, array, index);
+
         if (index == THROWN_FLAG) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
             return TRUE;
         }
+
         DS_PUSH(&reduced);
     }
 
@@ -2508,6 +2515,8 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
         else {
             REBVAL reduced;
+            VAL_INIT_WRITABLE_DEBUG(&reduced);
+
             DO_NEXT_MAY_THROW(index, &reduced, block, index);
             if (index == THROWN_FLAG) {
                 *out = reduced;
@@ -2549,6 +2558,7 @@ REBOOL Compose_Values_Throws(
     for (; NOT_END(value); value++) {
         if (IS_PAREN(value)) {
             REBVAL evaluated;
+            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
             if (DO_ARRAY_THROWS(&evaluated, value)) {
                 *out = evaluated;
@@ -2583,9 +2593,9 @@ REBOOL Compose_Values_Throws(
             if (IS_BLOCK(value)) {
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
-                //
 
                 REBVAL composed;
+                VAL_INIT_WRITABLE_DEBUG(&composed);
 
                 if (Compose_Values_Throws(
                     &composed, VAL_ARRAY_HEAD(value), TRUE, only, into
@@ -2982,7 +2992,9 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 void Do_Construct(REBVAL value[])
 {
     REBINT dsp_orig = DSP;
+
     REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
     SET_NONE(&temp);
 
     // This routine reads values from the start to the finish, which means

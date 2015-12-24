@@ -138,6 +138,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         // molding errors should audited to be in the Boot: category.
 
         REBVAL error;
+        VAL_INIT_WRITABLE_DEBUG(&error);
 
         if (maybe_frame) {
             assert(!args);

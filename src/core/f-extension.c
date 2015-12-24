@@ -212,7 +212,9 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
     struct Reb_Call * const c = &call;
     REBCNT len;
     REBCNT n;
+
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Find word in object, verify it is a function.
     if (!(val = Find_Word_Value(AS_FRAME(obj), name))) {
@@ -225,6 +227,7 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
     }
 
     // Create stack frame (use prior stack frame for location info):
+    //
     SET_TRASH_SAFE(&result);
     c->flags = 0;
     c->out = &result;
@@ -298,7 +301,9 @@ REBNATIVE(do_callback)
 
     if (!n) {
         REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
         SET_INTEGER(&temp, GET_EXT_ERROR(&cbi->result));
+
         fail (Error(RE_INVALID_ARG, &temp));
     }
 
@@ -608,7 +613,9 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
     REBCNT n;
     REBEXT *ext;
     REBCEC *ctx = cast(REBCEC*, context);
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (ctx) ctx->block = cmds;
     blk = ARRAY_HEAD(cmds);
@@ -616,7 +623,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
     while (NOT_END(blk)) {
 
         // var: command result
-        if IS_SET_WORD(blk) {
+        if (IS_SET_WORD(blk)) {
             set_word = blk++;
             index++;
         };
@@ -632,6 +639,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
 
         if (!IS_COMMAND(func)) {
             REBVAL commandx_word;
+            VAL_INIT_WRITABLE_DEBUG(&commandx_word);
             Val_Init_Word_Unbound(
                 &commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
             );

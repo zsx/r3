@@ -563,6 +563,8 @@ REBNATIVE(in)
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
+                VAL_INIT_WRITABLE_DEBUG(&safe);
+
                 v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);
                 v = &safe;
@@ -763,6 +765,8 @@ REBNATIVE(set)
 
     if (ANY_PATH(target)) {
         REBVAL dummy;
+        VAL_INIT_WRITABLE_DEBUG(&dummy);
+
         if (Do_Path_Throws(&dummy, NULL, target, value))
             fail (Error_No_Catch_For_Throw(&dummy));
 
@@ -835,6 +839,8 @@ REBNATIVE(set)
 
             if (!REF(any) && IS_UNSET(value)) {
                 REBVAL key_name;
+                VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                 Val_Init_Word_Unbound(
                     &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                 );
@@ -1203,40 +1209,32 @@ REBNATIVE(map_gob_offset)
 #if !defined(NDEBUG)
 
 //
-//  SET_END_Debug: C
+//  Assert_REBVAL_Writable: C
 //
-// Variant of SET_END() macro which includes an assert for making sure
-// that the value's header is in "formatted space".
+// If this check fails, then you've done something along the lines of:
 //
-void SET_END_Debug(REBVAL *v)
+//     REBVAL value;
+//     SET_INTEGER(&value, 10);
+//
+// It needs to be "formatted" so it can be written to:
+//
+//     REBVAL value;
+//     VAL_INIT_WRITABLE_DEBUG(&value);
+//     SET_INTEGER(&value, 10);
+//
+// This is only needed for REBVALs that are not resident in series, e.g.
+// stack variables.
+//
+// The check helps avoid various catastrophies that might ensue if "implicit
+// end markers" could be overwritten.  These are the ENDs that are actually
+// pointers doing double duty inside a data structure, and there is no REBVAL
+// storage backing the position.
+//
+// There's also benefit in catching writes to other unanticipated locations.
+//
+void Assert_REBVAL_Writable(REBVAL *v)
 {
-    //
-    // The slot we are trying to write into must have at least been formatted
-    // in the debug build via SET_TRASH().  Otherwise it could be an arbitrary
-    // value with its low bit clear, doing double-duty as an IS_END() marker,
-    // which we cannot overwrite...not even with an END marker.
-    //
-    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
-
-    (v)->header.all = SETTABLE_MASK_DEBUG;
-}
-
-
-//
-//  VAL_RESET_HEADER_Debug: C
-//
-// Variant of VAL_RESET_HEADER() macro which includes an assert for making
-// sure that a value header is in "formatted space".
-//
-void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
-{
-    // See comments in SET_END_Debug.
-    //
-    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
-
-    // (t == REB_TRASH) is legal, and SET_TRASH() uses VAL_RESET_HEADER()
-
-    (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG | ((t) << 2);
+    assert((v)->header.all & WRITABLE_MASK_DEBUG);
 }
 
 
@@ -1244,12 +1242,12 @@ void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
 //  VAL_TYPE_Debug: C
 //
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker
+// you never call it on an END marker or on REB_TRASH.
 //
 enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
 {
     assert(NOT_END(v));
-    assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
+    assert(!IS_TRASH_DEBUG(v));
     return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
 }
 

@@ -517,6 +517,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
+                    VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                     Val_Init_Word_Unbound(
                         &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                     );
@@ -539,6 +541,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
+                        VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                         Val_Init_Word_Unbound(
                             &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                         );
@@ -1041,45 +1045,54 @@ REBNATIVE(until)
 //  
 //  {While a condition block is TRUE, evaluates another block.}
 //  
-//      cond-block [block!]
-//      body-block [block!]
+//      condition [block!]
+//      body [block!]
 //  ]
 //
 REBNATIVE(while)
 {
-    REBVAL * const condition = D_ARG(1);
-    REBVAL * const body = D_ARG(2);
+    PARAM(1, condition);
+    PARAM(2, body);
 
     // We need to keep the condition and body safe from GC, so we can't
     // use a D_ARG slot for evaluating the condition (can't overwrite
-    // D_OUT because that's the last loop's value we might return)
-    REBVAL temp;
+    // D_OUT because that's the last loop's value we might return).  Our
+    // temporary value is called "unsafe" because it is not protected
+    // from GC (no need to, as it doesn't need to stay live across eval)
+    //
+    REBVAL unsafe;
+    VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
     // If the loop body never runs (and condition doesn't error or throw),
     // we want to return an UNSET!
+    //
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
     do {
-        if (DO_ARRAY_THROWS(&temp, condition)) {
+        if (DO_ARRAY_THROWS(&unsafe, ARG(condition))) {
+            //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
-            *D_OUT = temp;
+            //
+            *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(&temp))
+        if (IS_UNSET(&unsafe))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(&temp)) {
+        if (IS_CONDITIONAL_FALSE(&unsafe)) {
+            //
             // When the condition evaluates to a LOGIC! false or a NONE!,
             // WHILE returns whatever the last value was that the body
             // evaluated to (or none if no body evaluations yet).
+            //
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, body)) {
+        if (DO_ARRAY_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;

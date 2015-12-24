@@ -191,10 +191,11 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT Find_Typeset(REBVAL *block)
 {
-    REBVAL value;
     REBVAL *val;
     REBINT n;
 
+    REBVAL value;
+    VAL_INIT_WRITABLE_DEBUG(&value);
     VAL_RESET_HEADER(&value, REB_TYPESET);
     Make_Typeset(block, &value, FALSE);
 

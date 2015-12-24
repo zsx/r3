@@ -67,7 +67,9 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
 {
     REBVAL *val;
+
     REBVAL safe;
+    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
@@ -155,7 +157,9 @@ static int Count_Dia_Args(REBVAL *args)
 static REBVAL *Eval_Arg(REBDIA *dia)
 {
     REBVAL *value = ARRAY_AT(dia->args, dia->argi);
+
     REBVAL safe;
+    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     switch (VAL_TYPE(value)) {
 

@@ -674,6 +674,41 @@ static REBOOL Series_Data_Alloc(
     if (pool_num >= SYSTEM_POOL)
         assert(Series_Allocation_Unpooled(series) == size);
 #endif
+
+#if !defined(NDEBUG)
+    if (flags & MKS_ARRAY) {
+        REBCNT n;
+
+        PG_Reb_Stats->Blocks++;
+
+        // For REBVAL-valued-arrays, we mark as trash to mark the "settable"
+        // bit, heeded by both SET_END() and RESET_HEADER().  See remarks on
+        // WRITABLE_MASK_DEBUG for why this is done.
+        //
+        // Note that the "len" field of the series (its number of valid
+        // elements as maintained by the client) will be 0.  As far as this
+        // layer is concerned, we've given back `length` entries for the
+        // caller to manage...they do not know about the ->rest
+        //
+        for (n = 0; n < length; n++)
+            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(series), n));
+
+        // !!! We should intentionally mark the overage range as being a
+        // kind of trash that is both not an end *and* not possible to set.
+        // (The series must go through an expansion to overrule this.)  That
+        // is complicated logic that is likely best done in the context of
+        // a simplifying review of the series mechanics themselves, so
+        // for now we just use ordinary trash...which means we don't get
+        // as much potential debug warning as we might when writing into
+        // bias or tail capacity.
+        //
+        for(; n < series->content.dynamic.rest; n++) {
+            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(series), n));
+          /*VAL_SET_OPT(ARRAY_AT(AS_ARRAY(series), n), OPT_VALUE_READ_ONLY);*/
+        }
+    }
+#endif
+
     return TRUE;
 }
 
@@ -840,6 +875,13 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
             Free_Node(SERIES_POOL, cast(REBNOD*, series));
             fail (Error_No_Memory(length * wide));
         }
+
+        // <<IMPORTANT>> - The capacity that will be given back as the ->rest
+        // field may be larger than the requested size.  The memory pool API
+        // is able to give back the size of the actual allocated block--which
+        // includes any overage.  So to keep that from going to waste it is
+        // recorded as the block's capacity, in case it ever needs to grow
+        // it might be able to save on a reallocation.
     }
 
     // Note: This used to initialize the "extra" portion of the REBSER to 0.
@@ -847,14 +889,15 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     // undefined behavior to read from it if you don't know which field
     // was last assigned.
 
-    // All series start out in the list of series that must be freed (if not
-    // handed to Manage_Series for the GC to take care of.)  The only way
-    // the series will be cleaned up automatically is if a trap happens
-
+    // All series (besides the series that is the list of manual series
+    // itself) start out in the list of manual series.  The only way
+    // the series will be cleaned up automatically is if a trap happens,
+    // or if it winds up handed to the GC to manage with MANAGE_SERIES().
+    //
     // !!! Should there be a MKS_MANAGED to start a series out in the
     // managed state, for efficiency?
-
-    if (!(flags & MKS_GC_MANUALS)) {
+    //
+    if (NOT(flags & MKS_GC_MANUALS)) {
         //
         // We can only add to the GC_Manuals series if the series itself
         // is not GC_Manuals...
@@ -868,10 +911,6 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     }
 
     CHECK_MEMORY(2);
-
-#if !defined(NDEBUG)
-    if (flags & MKS_ARRAY) PG_Reb_Stats->Blocks++;
-#endif
 
     return series;
 }
@@ -958,7 +997,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
 void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 {
     REBYTE wide = SERIES_WIDE(series);
-    REBOOL any_block = Is_Array_Series(series);
+    const REBOOL any_array = Is_Array_Series(series);
 
     REBCNT start;
     REBCNT size;
@@ -975,14 +1014,28 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     if (delta == 0) return;
 
-    any_block = Is_Array_Series(series);
-
     // Optimized case of head insertion:
     if (index == 0 && SERIES_BIAS(series) >= delta) {
         series->content.dynamic.data -= wide * delta;
         series->content.dynamic.len += delta;
         SERIES_REST(series) += delta;
         SERIES_SUB_BIAS(series, delta);
+
+    #if !defined(NDEBUG)
+        if (any_array) {
+            //
+            // When the bias region was marked, it was made "unsettable" if
+            // this was a debug build.  Now that the memory is included in
+            // the array again, we want it to be "settable", but still trash
+            // until the caller puts something there.
+            //
+            // !!! The unsettable feature is currently not implemented,
+            // but when it is this will be useful.
+            //
+            for (index = 0; index < delta; index++)
+                VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(series), index));
+        }
+    #endif
         return;
     }
 
@@ -1020,12 +1073,34 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             panic (Error(RE_MISC));
         }
 
+    #if !defined(NDEBUG)
+        if (any_array) {
+            //
+            // The opened up area needs to be set to "settable" trash in the
+            // debug build.  This takes care of making "unsettable" values
+            // settable (if part of the expansion is in what was formerly the
+            // ->rest), as well as just making sure old data which was in
+            // the expanded region doesn't get left over on accident.
+            //
+            // !!! The unsettable feature is not currently implemented, but
+            // when it is this will be useful.
+            //
+            while (delta != 0) {
+                --delta;
+                VAL_INIT_WRITABLE_DEBUG(
+                    ARRAY_AT(AS_ARRAY(series), index + delta)
+                );
+            }
+        }
+    #endif
+
         return;
     }
 
     // We need to expand the current series allocation.
 
-    if (SERIES_GET_FLAG(series, SER_FIXED_SIZE)) panic (Error(RE_LOCKED_SERIES));
+    if (SERIES_GET_FLAG(series, SER_FIXED_SIZE))
+        panic (Error(RE_LOCKED_SERIES));
 
 #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
@@ -1065,7 +1140,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         series,
         series->content.dynamic.len + delta + x,
         wide,
-        any_block ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
+        any_array ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
     )) {
         fail (Error_No_Memory(
             (series->content.dynamic.len + delta + x) * wide)
@@ -1117,7 +1192,7 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
     REBINT size_old = Series_Allocation_Unpooled(series);
     REBCNT len_old = series->content.dynamic.len;
     REBYTE wide_old = SERIES_WIDE(series);
-    REBOOL any_block = Is_Array_Series(series);
+    REBOOL any_array = Is_Array_Series(series);
 
     // Extract the data pointer to take responsibility for it.  (The pointer
     // may have already been extracted if the caller is doing their own
@@ -1143,7 +1218,7 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 #endif
 
     if (!Series_Data_Alloc(
-        series, units + 1, wide, any_block ? MKS_ARRAY | flags : flags
+        series, units + 1, wide, any_array ? MKS_ARRAY | flags : flags
     )) {
         // Put series back how it was (there may be extant references)
         series->content.dynamic.data = data_old;

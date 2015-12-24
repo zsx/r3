@@ -190,6 +190,8 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
 
     while (NOT_END(blk)) {
         REBVAL safe;
+        VAL_INIT_WRITABLE_DEBUG(&safe);
+
         var = blk++;
         val = blk++;
         if (IS_END(val))

@@ -306,6 +306,8 @@ REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (type == REB_ERROR) {
         REBVAL result;
+        VAL_INIT_WRITABLE_DEBUG(&result);
+
         if (Make_Error_Object_Throws(&result, out)) {
             *out = result;
             return FALSE;

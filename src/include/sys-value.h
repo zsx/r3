@@ -170,7 +170,7 @@ struct Reb_Value_Header {
 //
 #define NOT_END_MASK 0x01
 
-// `SETTABLE_MASK_DEBUG`
+// `WRITABLE_MASK_DEBUG`
 //
 // This is for the debug build, to make it safer to use the implementation
 // trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
@@ -203,7 +203,7 @@ struct Reb_Value_Header {
     // value that is actually an END marker, because end markers chew out only
     // one bit--the rest is allowed to be anything (a pointer value, etc.)
     //
-    #define SETTABLE_MASK_DEBUG 0x02
+    #define WRITABLE_MASK_DEBUG 0x02
 #endif
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
@@ -230,7 +230,7 @@ struct Reb_Value_Header {
 // an explanation of this choice.)  The upshot is that a data structure
 // designed to hold Rebol arrays is able to terminate an array at full
 // capacity with a pointer-sized value with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See SETTABLE_MASK_DEBUG
+// use the rest of the bits for other purposes.  (See WRITABLE_MASK_DEBUG
 // for why it's the low 2 bits and not just the lowest bit.)
 //
 // This means not only is a full REBVAL not needed to terminate, the sunk cost
@@ -252,7 +252,14 @@ struct Reb_Value_Header {
 #ifdef NDEBUG
     #define SET_END(v)      ((v)->header.all = 0)
 #else
-    #define SET_END(v)      SET_END_Debug(v)
+    //
+    // The slot we are trying to write into must have at least been formatted
+    // in the debug build VAL_INIT_WRITABLE_DEBUG().  Otherwise it could be a
+    // pointer with its low bit clear, doing double-duty as an IS_END(),
+    // marker...which we cannot overwrite...not even with another END marker.
+    //
+    #define SET_END(v) \
+        (Assert_REBVAL_Writable(v), (v)->header.all = WRITABLE_MASK_DEBUG)
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to
@@ -408,8 +415,7 @@ enum {
 
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
-// that the value is a full cell which can be written to).  It is legal
-// to use this to set REB_TRASH in the debug build.
+// that the value is a full cell which can be written to).
 //
 #ifdef NDEBUG
     #define VAL_RESET_HEADER(v,t) \
@@ -421,7 +427,8 @@ enum {
     // internal pointer of a container structure.
     //
     #define VAL_RESET_HEADER(v,t) \
-        VAL_RESET_HEADER_Debug((v),(t)) // not a `do {}` for macro inlining
+        (Assert_REBVAL_Writable(v), \
+            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
 #endif
 
 // !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
@@ -436,16 +443,21 @@ enum {
 // Reading/writing routines for the 8 "EXTS" flags that are interpreted
 // differently depending on the VAL_TYPE() of the value.
 //
+
 #define VAL_SET_EXT(v,n) \
     ((v)->header.all |= (1 << ((n) + 16)))
+
 #define VAL_GET_EXT(v,n) \
     LOGICAL((v)->header.all & (1 << ((n) + 16)))
+
 #define VAL_CLR_EXT(v,n) \
     ((v)->header.all &= ~cast(REBUPT, 1 << ((n) + 16)))
 
+//
 // The ability to read and write all the EXTS at once as an 8-bit value.
 // Review uses to see if they could be done all as part of the initialization.
 //
+
 #define VAL_EXTS_DATA(v) \
     (((v)->header.all & (cast(REBUPT, 0xFF) << 16)) >> 16)
 
@@ -545,6 +557,10 @@ enum {
 // of series.  Would that be too many memory poisonings to handle efficiently?
 //
 #ifdef NDEBUG
+    #define MARK_VAL_READ_ONLY_DEBUG(v) NOOP
+
+    #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
+
     #define SET_TRASH_IF_DEBUG(v) NOOP
 
     #define SET_TRASH_SAFE(v) SET_UNSET(v)
@@ -560,15 +576,33 @@ enum {
     #define IS_TRASH_DEBUG(v) \
         (((v)->header.all & HEADER_TYPE_MASK) == 0)
 
+    // This particularly virulent form of trashing will make the resultant
+    // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
+    // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
+    //
+    #define MARK_VAL_READ_ONLY_DEBUG(v) \
+        ((v)->header.all &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
+
+    // The debug build requires that any value slot that's going to be written
+    // to via VAL_RESET_HEADER() be marked writable.  Series and other value
+    // containers do this automatically, but if you make a REBVAL as a stack
+    // variable then it will have to be done before any write can happen.
+    //
+    #define VAL_INIT_WRITABLE_DEBUG(v) \
+        ( \
+            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
+            SET_TRACK_PAYLOAD(v) \
+        )
+
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             SET_TRACK_PAYLOAD(v) \
         )
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             VAL_SET_EXT((v), EXT_TRASH_SAFE), \
             SET_TRACK_PAYLOAD(v) \
         )
@@ -648,13 +682,14 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
-            NOT_END_MASK)
+        ((v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+            NOT_END_MASK | (REB_NONE << 2))
 #else
     #define SET_NONE(v) \
-        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
-            NOT_END_MASK | SETTABLE_MASK_DEBUG, \
-         SET_TRACK_PAYLOAD(v))
+        (Assert_REBVAL_Writable(v), \
+            (v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+                NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
+            SET_TRACK_PAYLOAD(v))
 #endif
 
 #define NONE_VALUE (&PG_None_Value[0])
@@ -691,13 +726,15 @@ enum {
             | ((1 << OPT_VALUE_FALSE) << 8))
 #else
     #define SET_TRUE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
-            | SETTABLE_MASK_DEBUG, \
+        (Assert_REBVAL_Writable(v), \
+            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+                | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v))  // compound
 
     #define SET_FALSE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
-            | SETTABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
+        (Assert_REBVAL_Writable(v), \
+            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            | WRITABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif
 

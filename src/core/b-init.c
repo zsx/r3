@@ -214,11 +214,12 @@ static void Print_Banner(REBARGS *rargs)
 //
 static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
 {
-    REBVAL result;
     REBVAL *item = ARRAY_AT(block, index);
 
     struct Reb_State state;
-    SNAP_STATE(&state);
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     Bind_Values_Set_Forward_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
@@ -275,6 +276,8 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
             }
         }
     }
+
+    SNAP_STATE(&state);
 
     if (Do_At_Throws(&result, block, index))
         panic (Error_No_Catch_For_Throw(&result));
@@ -708,17 +711,29 @@ static void Init_Root_Context(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
+    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[0]);
     SET_UNSET(&PG_Unset_Value[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_Unset_Value[1]);
+    MARK_VAL_READ_ONLY_DEBUG(&PG_Unset_Value[1]);
 
+    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[0]);
     SET_NONE(&PG_None_Value[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_None_Value[1]);
+    MARK_VAL_READ_ONLY_DEBUG(&PG_None_Value[1]);
 
+    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[0]);
     SET_FALSE(&PG_False_Value[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
+    MARK_VAL_READ_ONLY_DEBUG(&PG_False_Value[1]);
 
+    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[0]);
     SET_TRUE(&PG_True_Value[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
+    MARK_VAL_READ_ONLY_DEBUG(&PG_True_Value[1]);
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
@@ -742,10 +757,11 @@ static void Init_Root_Context(void)
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
     // order to get uninitialized memory for everything but the header (if
-    // we used a global, C zero-initializes that space)
+    // we used a global, C zero-initializes that space).  Mark it unsettable
+    // in the debug build for good measure.
     //
     PG_End_Val = cast(REBVAL*, malloc(sizeof(REBVAL)));
-    SET_END(PG_End_Val);
+    PG_End_Val->header.all = 0; // read-only end
     assert(IS_END(END_VALUE));
 
     // Can't ASSERT_FRAME here; no keylist yet...
@@ -818,6 +834,7 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
+    VAL_INIT_WRITABLE_DEBUG(&TG_Thrown_Arg);
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
     // Can't ASSERT_FRAME here; no keylist yet...
@@ -837,7 +854,9 @@ static void Init_System_Object(void)
     REBARR *array;
     REBVAL *value;
     REBCNT n;
+
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
@@ -855,13 +874,10 @@ static void Init_System_Object(void)
     //
     Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), frame);
 
-    // Evaluate the block (will eval FRAMEs within)
+    // Evaluate the block (will eval FRAMEs within).  Expects UNSET!.
     //
     if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
-
-    // Expects UNSET! by convention
-    //
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));
 
@@ -1346,11 +1362,13 @@ void Init_Core(REBARGS *rargs)
 {
     REBFRM *error;
     struct Reb_State state;
-    REBVAL result;
 
     const REBYTE transparent[] = "transparent";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
 #if defined(TEST_EARLY_BOOT_PANIC)
     // This is a good place to test if the "pre-booting panic" is working.
@@ -1457,7 +1475,10 @@ void Init_Core(REBARGS *rargs)
     Init_Ports();
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
+
+    VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
     SET_UNSET(&Callback_Error);
+
     PG_Boot_Phase = BOOT_ERRORS;
 
 #if defined(TEST_MID_BOOT_PANIC)
@@ -1513,6 +1534,7 @@ void Init_Core(REBARGS *rargs)
 
     if (error) {
         REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
         Val_Init_Error(&temp, error);
 
         // You shouldn't be able to halt during Init_Core() startup.
@@ -1544,7 +1566,6 @@ void Init_Core(REBARGS *rargs)
     PG_Boot_Phase = BOOT_MEZZ;
 
     assert(DSP == -1 && !DSF);
-
 
     if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_INIT_CORE, 0)) {
         // Note: You shouldn't be able to throw any uncaught values during

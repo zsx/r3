@@ -42,7 +42,9 @@ static REB_R DNS_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
     REBVAL *arg;
     REBCNT len;
     REBOOL sync = FALSE; // act synchronously
+
     REBVAL tmp;
+    VAL_INIT_WRITABLE_DEBUG(&tmp);
 
     Validate_Port(port, action);
 

@@ -224,6 +224,7 @@ REBSER *Decompress(
 
         if (max >= 0 && buf_size > cast(REBCNT, max)) {
             REBVAL temp;
+            VAL_INIT_WRITABLE_DEBUG(&temp);
             SET_INTEGER(&temp, max);
 
             // NOTE: You can hit this if you 'make prep' without doing a full
@@ -314,6 +315,7 @@ REBSER *Decompress(
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
                 REBVAL temp;
+                VAL_INIT_WRITABLE_DEBUG(&temp);
                 SET_INTEGER(&temp, max);
 
                 // NOTE: You can hit this on 'make prep' without doing a full

@@ -156,6 +156,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     int error_num;
 
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (bin) {
         ser = Decompress(bin, len, -1, FALSE, FALSE);
@@ -388,10 +389,12 @@ RL_API int RL_Do_String(
     RXIARG *out
 ) {
     REBARR *code;
-    REBVAL result;
 
     struct Reb_State state;
     REBFRM *error;
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
@@ -426,13 +429,15 @@ RL_API int RL_Do_String(
         // Top words will be added to lib:
         Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
-    } else {
-        REBCNT len;
-        REBVAL vali;
+    }
+    else {
         REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
-        len = FRAME_LEN(user) + 1;
+
+        REBVAL vali;
+        VAL_INIT_WRITABLE_DEBUG(&vali);
+        SET_INTEGER(&vali, FRAME_LEN(user) + 1);
+
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
-        SET_INTEGER(&vali, len);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
@@ -538,6 +543,7 @@ RL_API int RL_Do_Binary(
 RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 {
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result); // !!! necessary?  presumably...
     Do_Commands(&result, array, context);
 
     // !!! Ignored result?  Throws?  etc.  But it's old  RL_Api, so...not
@@ -1016,13 +1022,16 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
-    CLEARS(&value);
+    VAL_INIT_WRITABLE_DEBUG(&value);
     RXI_To_Value(&value, val, type);
+
     if (index >= ARRAY_LEN(array)) {
         Append_Value(array, &value);
         return TRUE;
     }
+
     *ARRAY_AT(array, index) = value;
+
     return FALSE;
 }
 
@@ -1108,12 +1117,13 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
 {
     REBFRM *frame = AS_FRAME(obj);
-    REBVAL value;
-    CLEARS(&value);
+
     word_id = Find_Word_Index(frame, word_id, FALSE);
     if (word_id == 0) return 0;
+
     if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_TYPESET_LOCKED)) return 0;
     RXI_To_Value(FRAME_VAR(frame, word_id), val, type);
+
     return type;
 }
 

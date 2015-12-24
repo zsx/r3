@@ -145,8 +145,11 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     REBVAL *state;
     REBVAL *waked;
     REBVAL *awake;
+
     REBVAL tmp;
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&tmp);
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Get the system port object:
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -168,6 +171,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     // Get the system port AWAKE function:
     awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (!ANY_FUNC(awake)) return -1;
+
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
 
@@ -216,6 +220,8 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
 
         if (GET_SIGNAL(SIG_INTERRUPT)) {
             REBVAL result;
+            VAL_INIT_WRITABLE_DEBUG(&result);
+
             CLR_SIGNAL(SIG_INTERRUPT);
             if (Do_Breakpoint_Throws(&result, TRUE, UNSET_VALUE, FALSE)) {
                 //
@@ -361,6 +367,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
     actor = Obj_Value(actor, n);
     if (!n || !actor || !ANY_FUNC(actor)) {
         REBVAL action_word;
+        VAL_INIT_WRITABLE_DEBUG(&action_word);
         Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
 
         fail (Error(RE_NO_PORT_ACTION, &action_word));
@@ -399,9 +406,11 @@ int Do_Port_Action(struct Reb_Call *call_, REBFRM *port, REBCNT action)
 void Secure_Port(REBCNT kind, REBREQ *req, REBVAL *name, REBSER *path)
 {
     REBYTE *flags;
-    REBVAL val;
 
+    REBVAL val;
+    VAL_INIT_WRITABLE_DEBUG(&val);
     Val_Init_String(&val, path);
+
     flags = Security_Policy(kind, &val); // policy flags
 
     // Check policy integer:

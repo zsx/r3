@@ -286,7 +286,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     {
         REBCNT index;
         for (index = 0; index < num_values; index++)
-            SET_TRASH_IF_DEBUG(&chunk->values[index]);
+            VAL_INIT_WRITABLE_DEBUG(&chunk->values[index]);
     }
 #endif
 
@@ -450,6 +450,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // Write some garbage (that won't crash the GC) into the `cell` slot in
     // the debug build.  `out` and `func` are known to be GC-safe.
     //
+    VAL_INIT_WRITABLE_DEBUG(&c->cell);
     SET_TRASH_SAFE(&c->cell);
 }
 

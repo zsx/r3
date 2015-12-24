@@ -71,6 +71,7 @@ void Print_Parse_Index(
     REBCNT index
 ) {
     REBVAL item;
+    VAL_INIT_WRITABLE_DEBUG(&item);
     Val_Init_Series(&item, type, series);
     VAL_INDEX(&item) = index;
 
@@ -163,7 +164,9 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
     REBSER *ser;
     REBCNT flags = parse->find_flags | AM_FIND_MATCH | AM_FIND_TAIL;
     int rewrite_needed;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value(7, item);
@@ -279,7 +282,9 @@ static REBCNT Parse_Next_Array(
     // !!! THIS CODE NEEDS CLEANUP AND REWRITE BASED ON OTHER CHANGES
     REBARR *array = AS_ARRAY(parse->series);
     REBVAL *blk = ARRAY_AT(array, index);
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value(7, item);
@@ -361,7 +366,9 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBOOL
     REBCNT cmd;
     REBCNT i;
     REBCNT len;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     for (; index <= SERIES_LEN(series); index++) {
 
@@ -500,6 +507,8 @@ next:       // Check for | (required if not end)
 found:
     if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
+        VAL_INIT_WRITABLE_DEBUG(&evaluated);
+
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = evaluated;
             return THROWN_FLAG;
@@ -511,6 +520,8 @@ found:
 found1:
     if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
+        VAL_INIT_WRITABLE_DEBUG(&evaluated);
+
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = save;
             return THROWN_FLAG;
@@ -554,6 +565,7 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
     else {
         if (IS_ARRAY_INPUT(parse)) {
             REBVAL word; /// !!!Temp, but where can we put it?
+            VAL_INIT_WRITABLE_DEBUG(&word);
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
                 word = *item;
@@ -674,11 +686,14 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
 //
 static REBCNT Do_Eval_Rule(REBPARSE *parse, REBCNT index, const REBVAL **rule)
 {
-    REBVAL value;
     const REBVAL *item = *rule;
     REBCNT n;
     REBPARSE newparse;
+
+    REBVAL value;
     REBVAL save; // REVIEW: Could this just reuse value?
+    VAL_INIT_WRITABLE_DEBUG(&value);
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     // First, check for end of input:
     if (index >= SERIES_LEN(parse->series)) {
@@ -804,7 +819,9 @@ static REBCNT Parse_Rules_Loop(
     REBFLGS flags;
     REBCNT cmd;
     const REBVAL *rule_head = rules;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
     //if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
@@ -825,6 +842,8 @@ static REBCNT Parse_Rules_Loop(
             // path up to return results from an interactive breakpoint.
             //
             REBVAL result;
+            VAL_INIT_WRITABLE_DEBUG(&result);
+
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
             if (IS_SET(&result))
@@ -921,6 +940,7 @@ static REBCNT Parse_Rules_Loop(
                     case SYM_RETURN:
                         if (IS_PAREN(rules)) {
                             REBVAL evaluated;
+                            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
                             if (DO_ARRAY_THROWS(&evaluated, rules)) {
                                 // If the paren evaluation result gives a
@@ -993,6 +1013,8 @@ static REBCNT Parse_Rules_Loop(
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(item)) {
                     REBVAL temp;
+                    VAL_INIT_WRITABLE_DEBUG(&temp);
+
                     Val_Init_Series_Index(&temp, parse->type, series, index);
 
                     Set_Var(item, &temp);
@@ -1028,6 +1050,7 @@ static REBCNT Parse_Rules_Loop(
             }
             else if (IS_SET_PATH(item)) {
                 REBVAL tmp;
+                VAL_INIT_WRITABLE_DEBUG(&tmp);
 
                 Val_Init_Series(&tmp, parse->type, parse->series);
                 VAL_INDEX(&tmp) = index;
@@ -1051,6 +1074,7 @@ static REBCNT Parse_Rules_Loop(
 
         if (IS_PAREN(item)) {
             REBVAL evaluated;
+            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
             // might GC
             if (DO_ARRAY_THROWS(&evaluated, item)) {
@@ -1284,6 +1308,8 @@ post:
                 count = (begin > index) ? 0 : index - begin; // how much we advanced the input
                 if (GET_FLAG(flags, PF_COPY)) {
                     REBVAL temp;
+                    VAL_INIT_WRITABLE_DEBUG(&temp);
+
                     Val_Init_Series(
                         &temp,
                         parse->type,
@@ -1322,6 +1348,8 @@ post:
                     // See notes on PARSE's return in handling of SYM_RETURN
 
                     REBVAL captured;
+                    VAL_INIT_WRITABLE_DEBUG(&captured);
+
                     Val_Init_Series(
                         &captured,
                         parse->type,

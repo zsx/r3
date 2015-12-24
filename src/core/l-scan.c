@@ -590,15 +590,17 @@ static REBFRM *Error_Bad_Scan(
 ) {
     REBFRM *frame;
 
-    ERROR_OBJ *err_obj;
-    REBVAL arg1;
-    REBVAL arg2;
-
     const REBYTE *name;
     const REBYTE *cp;
     const REBYTE *bp;
     REBSER *ser;
     REBCNT len = 0;
+
+    ERROR_OBJ *err_obj;
+    REBVAL arg1;
+    REBVAL arg2;
+    VAL_INIT_WRITABLE_DEBUG(&arg1);
+    VAL_INIT_WRITABLE_DEBUG(&arg2);
 
     assert(errnum != 0);
 

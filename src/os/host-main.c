@@ -336,12 +336,14 @@ int Do_String(
         // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
         // review of why it's written exactly this way.
         //
-        REBCNT len;
-        REBVAL vali;
         REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
-        len = FRAME_LEN(user) + 1;
+
+        REBVAL vali;
+        VAL_INIT_WRITABLE_DEBUG(&vali);
+
+        SET_INTEGER(&vali, FRAME_LEN(user) + 1);
+
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
-        SET_INTEGER(&vali, len);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
 
         // If we're stopped at a breakpoint, the REPL should have a concept
@@ -520,7 +522,10 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         && !Find_Word_Index(user_context, debug_sym, TRUE)
     ) {
         REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+
         REBVAL debug_native;
+        VAL_INIT_WRITABLE_DEBUG(&debug_native);
+
         Make_Native(&debug_native, spec, &N_debug, REB_NATIVE, FALSE);
 
         *Append_Frame(Lib_Context, 0, debug_sym) = debug_native;
@@ -570,12 +575,14 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // can be revisited.  In the meantime, we test for NULL.
 
     if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
-        REBVAL result;
         REBYTE *do_arg_utf8;
         REBCNT len_uni;
         REBCNT len_predicted;
         REBCNT len_encoded;
         int do_result;
+
+        REBVAL result;
+        VAL_INIT_WRITABLE_DEBUG(&result);
 
         // On Windows, do_arg is a REBUNI*.  We need to get it into UTF8.
         // !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
@@ -1011,6 +1018,8 @@ int main(int argc, char **argv_ansi)
         )
     ) {
         REBVAL value;
+        VAL_INIT_WRITABLE_DEBUG(&value);
+
         Host_Repl(&exit_status, &value, FALSE);
     }
     else

@@ -331,6 +331,8 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
     const void *tmp = NULL;
 
     REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
+
     if (!sort_flags.reverse) { /*swap v1 and v2 */
         tmp = v1;
         v1 = v2;
@@ -582,9 +584,11 @@ REBTYPE(Array)
     REBINT  index;
     REBINT  tail;
     REBINT  len;
-    REBVAL  val;
     REBCNT  args;
     REBCNT  ret;
+
+    REBVAL val;
+    VAL_INIT_WRITABLE_DEBUG(&val);
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
