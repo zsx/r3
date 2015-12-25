@@ -1143,7 +1143,6 @@ do_at_index:
         //
         if (Do_Signals_Throws(c->out))
             goto return_thrown;
-        Recycle();
 
         if (!IS_UNSET(c->out)) {
             //
