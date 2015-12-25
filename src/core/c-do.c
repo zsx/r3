@@ -2247,7 +2247,7 @@ reevaluate:
     if (c->flags & DO_FLAG_LOOKAHEAD) {
         c->value = ARRAY_AT(c->array, c->index);
 
-        if (VAL_GET_EXT(c->value, EXT_FUNC_INFIX)) {
+        if (ANY_FUNC(c->value) && VAL_GET_EXT(c->value, EXT_FUNC_INFIX)) {
             //
             // Literal infix function values may occur.
             //
