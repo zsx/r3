@@ -30,7 +30,7 @@
 #include "sys-core.h"
 
 
-static REBOOL Same_Object(REBVAL *val, REBVAL *arg)
+static REBOOL Same_Context(REBVAL *val, REBVAL *arg)
 {
     if (
         VAL_TYPE(arg) == VAL_TYPE(val) &&
@@ -41,7 +41,7 @@ static REBOOL Same_Object(REBVAL *val, REBVAL *arg)
 }
 
 
-static REBOOL Equal_Object(REBVAL *val, REBVAL *arg)
+static REBOOL Equal_Context(REBVAL *val, REBVAL *arg)
 {
     REBCON *f1;
     REBCON *f2;
@@ -271,31 +271,20 @@ static REBCON *Trim_Context(REBCON *context)
 
 
 //
-//  CT_Object: C
-//
-REBINT CT_Object(REBVAL *a, REBVAL *b, REBINT mode)
-{
-    if (mode < 0) return -1;
-    if (mode == 3) return Same_Object(a, b) ? 1 : 0;
-    return Equal_Object(a, b) ? 1 : 0;
-}
-
-
-//
 //  CT_Context: C
 //
 REBINT CT_Context(REBVAL *a, REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    return VAL_SERIES(a) == VAL_SERIES(b);
+    if (mode == 3) return Same_Context(a, b) ? 1 : 0;
+    return Equal_Context(a, b) ? 1 : 0;
 }
 
 
-
 //
-//  MT_Object: C
+//  MT_Context: C
 //
-REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     REBCON *context;
     if (!IS_BLOCK(data)) return FALSE;
@@ -320,9 +309,9 @@ REBOOL MT_Object(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
 
 //
-//  PD_Object: C
+//  PD_Context: C
 //
-REBINT PD_Object(REBPVS *pvs)
+REBINT PD_Context(REBPVS *pvs)
 {
     REBCNT n;
     REBCON *context = VAL_CONTEXT(pvs->value);
@@ -358,7 +347,7 @@ REBINT PD_Object(REBPVS *pvs)
 // 
 // Handles object!, module!, and error! datatypes.
 //
-REBTYPE(Object)
+REBTYPE(Context)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;

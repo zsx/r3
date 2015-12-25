@@ -82,7 +82,7 @@ REBTYPE(Port)
         break;
 
     case A_REFLECT:
-        return T_Object(call_, action);
+        return T_Context(call_, action);
 
     case A_MAKE:
         if (!IS_DATATYPE(value)) fail (Error_Bad_Make(REB_PORT, value));
