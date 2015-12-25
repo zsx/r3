@@ -605,7 +605,7 @@ void Make_Function(
                 if (convert_local) {
                     if (IS_WORD(item)) {
                         // We convert words to set-words for pure local status
-                        VAL_SET_TYPE(item, REB_SET_WORD);
+                        VAL_SET_TYPE_BITS(item, REB_SET_WORD);
                     }
                     else if (IS_REFINEMENT(item)) {
                         // A refinement signals us to stop doing the locals

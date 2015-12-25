@@ -166,9 +166,10 @@ REBNATIVE(spelling_of)
     }
     else {
         // turn all words into regular words so they'll have no delimiters
-        // during the FORMing process
-
-        VAL_RESET_HEADER(value, REB_WORD);
+        // during the FORMing process.  Use SET_TYPE and not reset header
+        // because the binding bits need to stay consistent
+        //
+        VAL_SET_TYPE_BITS(value, REB_WORD);
         series = Copy_Mold_Value(value, 0 /* opts... MOPT_0? */);
     }
 

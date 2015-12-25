@@ -407,10 +407,20 @@ enum {
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
 
-// SET_TYPE only sets the type bits, with other header bits intact.
-// More frequently one wants to clear the bits, use VAL_RESET_HEADER for that.
+// SET_TYPE_BITS only sets the type, with other header bits intact.  This
+// should be used when you are sure that the new type payload is in sync with
+// the type and bits (for instance, changing from one ANY-WORD! type to
+// another, the binding needs to be in sync with the header bits)
 //
-#define VAL_SET_TYPE(v,t) \
+// NOTE: The header MUST already be valid and initialized to use this!  For
+// fresh value creation, one wants to use VAL_RESET_HEADER to clear bits and
+// set the type.
+//
+// !!! Is it worth the effort to add a debugging flag into the value to
+// disallow calling this routine if VAL_RESET_HEADER has not been run, or
+// are there too few instances to be worth it and is _BITS enough a hint?
+//
+#define VAL_SET_TYPE_BITS(v,t) \
     ((v)->header.all &= ~cast(REBUPT, HEADER_TYPE_MASK), \
         (v)->header.all |= ((t) << 2))
 

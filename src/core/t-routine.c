@@ -659,7 +659,7 @@ static void prep_rvalue(REBRIN *rin,
             SET_DECIMAL(val, 0);
             break;
         case FFI_TYPE_STRUCT:
-            VAL_SET_TYPE(val, REB_STRUCT);
+            VAL_RESET_HEADER(val, REB_STRUCT);
             break;
         case FFI_TYPE_VOID:
             SET_UNSET(val);
@@ -711,7 +711,7 @@ static void ffi_to_rebol(REBRIN *rin,
             SET_DECIMAL(rebol_ret, *(double*)ffi_rvalue);
             break;
         case FFI_TYPE_STRUCT:
-            VAL_SET_TYPE(rebol_ret, REB_STRUCT);
+            VAL_RESET_HEADER(rebol_ret, REB_STRUCT);
             Copy_Struct(&RIN_RVALUE(rin), &VAL_STRUCT(rebol_ret));
             memcpy(
                 SERIES_AT(

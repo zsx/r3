@@ -185,7 +185,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     case REB_LIT_WORD:
         DS_PUSH(value);
         value = DS_TOP;
-        VAL_RESET_HEADER(value, REB_WORD);
+        VAL_SET_TYPE_BITS(value, REB_WORD); // don't reset header - keeps binding
         break;
 
     case REB_PAREN:

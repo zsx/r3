@@ -569,7 +569,11 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
                 word = *item;
-                VAL_RESET_HEADER(&word, REB_WORD);
+
+                // Only set type--don't reset the header, because that could
+                // make the word binding inconsistent with the bits.
+                //
+                VAL_SET_TYPE_BITS(&word, REB_WORD);
                 item = &word;
             }
 
@@ -1400,7 +1404,11 @@ post:
                         );
 
                         if (IS_LIT_WORD(item))
-                            VAL_SET_TYPE(
+                            //
+                            // Only set the type, not the whole header (in
+                            // order to keep binding information)
+                            //
+                            VAL_SET_TYPE_BITS(
                                 ARRAY_AT(AS_ARRAY(series), index - 1),
                                 REB_WORD
                             );

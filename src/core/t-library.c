@@ -76,7 +76,7 @@ REBTYPE(Library)
                 VAL_LIB_FD(D_OUT) = lib;
                 USE_LIB(VAL_LIB_HANDLE(D_OUT));
                 OPEN_LIB(VAL_LIB_HANDLE(D_OUT));
-                VAL_SET_TYPE(D_OUT, REB_LIBRARY);
+                VAL_RESET_HEADER(D_OUT, REB_LIBRARY);
             }
             break;
         case A_CLOSE:

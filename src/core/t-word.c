@@ -72,7 +72,11 @@ REBTYPE(Word)
         // TO word! ...
         if (type == REB_DATATYPE) type = VAL_TYPE_KIND(val);
         if (ANY_WORD(arg)) {
-            VAL_RESET_HEADER(arg, type);
+            //
+            // Only reset the type, not all the header bits (the bits must
+            // stay in sync with the binding state)
+            //
+            VAL_SET_TYPE_BITS(arg, type);
             return R_ARG2;
         }
         else {

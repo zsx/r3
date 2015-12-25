@@ -1218,8 +1218,13 @@ reevaluate:
         }
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
-            VAL_RESET_HEADER(c->out, REB_WORD);
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out)) {
+            //
+            // Only set the type, not reset the whole header, because the
+            // binding in the payload needs to be in sync with the header bits.
+            //
+            VAL_SET_TYPE_BITS(c->out, REB_WORD);
+        }
     #endif
 
         c->index++;
@@ -2187,7 +2192,11 @@ reevaluate:
     //
     case REB_LIT_WORD:
         *c->out = *c->value;
-        VAL_RESET_HEADER(c->out, REB_WORD);
+
+        // We only want to reset the type, not the whole header--because the
+        // header bits contain information like EXT_WORD_BOUND.
+        //
+        VAL_SET_TYPE_BITS(c->out, REB_WORD);
         c->index++;
         break;
 
@@ -2205,7 +2214,11 @@ reevaluate:
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
         //
         *c->out = *c->value;
-        VAL_RESET_HEADER(c->out, REB_PATH);
+
+        // We only set the type, in order to preserve the header bits... there
+        // currently aren't any for ANY-PATH!, but there might be.
+        //
+        VAL_SET_TYPE_BITS(c->out, REB_PATH);
         c->index++;
         break;
 
@@ -3053,16 +3066,16 @@ void Do_Construct(REBVAL value[])
 
             default:
                 temp = *value;
-                VAL_RESET_HEADER(&temp, REB_WORD);
+                VAL_SET_TYPE_BITS(&temp, REB_WORD);
             }
         }
         else if (IS_LIT_WORD(value)) {
             temp = *value;
-            VAL_RESET_HEADER(&temp, REB_WORD);
+            VAL_SET_TYPE_BITS(&temp, REB_WORD);
         }
         else if (IS_LIT_PATH(value)) {
             temp = *value;
-            VAL_RESET_HEADER(&temp, REB_PATH);
+            VAL_SET_TYPE_BITS(&temp, REB_PATH);
         }
         else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
             temp = *value;

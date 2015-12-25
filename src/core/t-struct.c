@@ -99,7 +99,7 @@ static REBOOL get_scalar(const REBSTU *stu,
             break;
         case STRUCT_TYPE_STRUCT:
             {
-                VAL_SET_TYPE(val, REB_STRUCT);
+                VAL_RESET_HEADER(val, REB_STRUCT);
                 VAL_STRUCT_FIELDS(val) = field->fields;
                 VAL_STRUCT_SPEC(val) = field->spec;
 
@@ -686,7 +686,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         MANAGE_SERIES(VAL_STRUCT_DATA_BIN(out));
 
         /* set type early such that GC will handle it correctly, i.e, not collect series in the struct */
-        VAL_SET_TYPE(out, REB_STRUCT);
+        VAL_RESET_HEADER(out, REB_STRUCT);
 
         if (IS_BLOCK(blk)) {
             parse_attr(blk, &raw_size, &raw_addr);
@@ -963,7 +963,7 @@ void Copy_Struct(const REBSTU *src, REBSTU *dst)
 //
 void Copy_Struct_Val(const REBVAL *src, REBVAL *dst)
 {
-    VAL_SET_TYPE(dst, REB_STRUCT);
+    VAL_RESET_HEADER(dst, REB_STRUCT);
     Copy_Struct(&VAL_STRUCT(src), &VAL_STRUCT(dst));
 }
 
@@ -1079,7 +1079,7 @@ REBTYPE(Struct)
                 else
                     fail (Error_Bad_Make(REB_STRUCT, arg));
             }
-            VAL_SET_TYPE(ret, REB_STRUCT);
+            VAL_RESET_HEADER(ret, REB_STRUCT);
             break;
 
         case A_CHANGE:
