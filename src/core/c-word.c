@@ -298,9 +298,12 @@ void Val_Init_Word(
     assert(sym != SYM_0);
     VAL_WORD_SYM(value) = sym;
     assert(context);
-    VAL_WORD_TARGET(value) = CONTEXT_VARLIST(context);
+    VAL_WORD_CONTEXT(value) = context;
     VAL_WORD_INDEX(value) = index;
     assert(ANY_WORD(value));
+
+    // !!! Assert that the key in that position matches?!  Seems sensible
+    // (add it when other changes done)
 }
 
 
@@ -312,7 +315,7 @@ void Val_Init_Word(
 void Val_Init_Word_Unbound(REBVAL *value, enum Reb_Kind type, REBCNT sym)
 {
     VAL_RESET_HEADER(value, type);
-    VAL_WORD_TARGET(value) = NULL;
+    VAL_WORD_CONTEXT(value) = NULL;
     assert(sym != SYM_0);
     VAL_WORD_SYM(value) = sym;
 #ifndef NDEBUG

@@ -137,8 +137,12 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     REBVAL *key;
     REBVAL *val;
 
-    if (ANY_WORD(word) && HAS_TARGET(word) && VAL_WORD_INDEX(word) > 0) {
-        key = CONTEXT_KEY(AS_CONTEXT(VAL_WORD_TARGET(word)), VAL_WORD_INDEX(word));
+    if (
+        ANY_WORD(word)
+        && HAS_CONTEXT(word)
+        && !IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
+    ) {
+        key = CONTEXT_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
             // Ignore existing mutability state, by casting away the const.

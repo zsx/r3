@@ -738,17 +738,21 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_LIT_WORD:
         case REB_REFINEMENT:
         case REB_ISSUE: {
-            REBARR* array = VAL_WORD_TARGET(val);
-            if (array) {
+            REBCON* context = VAL_WORD_CONTEXT(val);
+            if (context) {
                 // Word is bound, so mark its context (which may be a "frame"
                 // series or an identifying function word series).  All
                 // bound words should keep their contexts from being GC'd...
                 // even stack-relative contexts for functions.
 
-                if (ARRAY_GET_FLAG(array, SER_CONTEXT))
-                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(array));
-                else
-                    QUEUE_MARK_ARRAY_DEEP(array);
+                if (!IS_FRAME_CONTEXT(context))
+                    QUEUE_MARK_CONTEXT_DEEP(context);
+                else {
+                    // !!! Just the paramlist; make this bleed through the
+                    // CONTEXT abstraction less...
+                    //
+                    QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(context));
+                }
             }
             else {
             #ifndef NDEBUG
@@ -757,7 +761,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // we require it to be a special value for checking.
 
                 if (VAL_WORD_INDEX(val) != WORD_INDEX_UNBOUND)
-                    Panic_Array(array);
+                    Panic_Context(context);
             #endif
             }
             break;
@@ -899,8 +903,13 @@ static void Mark_Array_Deep_Core(REBARR *array)
 #endif
 
     value = ARRAY_HEAD(array);
-    for (; NOT_END(value); value++)
+    for (; NOT_END(value); value++) {
+    #if !defined(NDEBUG)
+        if (IS_TRASH_DEBUG(value))
+            Panic_Array(array);
+    #endif
         Queue_Mark_Value_Deep(value);
+    }
 }
 
 

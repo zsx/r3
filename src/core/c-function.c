@@ -783,8 +783,8 @@ void Clonify_Function(REBVAL *value)
     // word list we saved in VAL_FUNC_PARAMLIST(value)
 
     Rebind_Values_Deep(
-        paramlist_orig,
-        FUNC_PARAMLIST(value->payload.any_function.func),
+        AS_CONTEXT(paramlist_orig),
+        AS_CONTEXT(FUNC_PARAMLIST(value->payload.any_function.func)),
         ARRAY_HEAD(VAL_FUNC_BODY(value)),
         0
     );
@@ -1017,10 +1017,10 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     //
     body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
     Rebind_Values_Deep(
-        FUNC_PARAMLIST(D_FUNC),
-        CONTEXT_VARLIST(context),
+        AS_CONTEXT(FUNC_PARAMLIST(D_FUNC)),
+        context,
         ARRAY_HEAD(body),
-        REBIND_TYPE
+        0
     );
 
     // Protect the body from garbage collection during the course of the

@@ -809,6 +809,14 @@ struct Reb_Context {
         Panic_Array(CONTEXT_VARLIST(f))
 #endif
 
+// In the gradual shift to where FRAME! can be an ANY-CONTEXT (even though
+// it's only one series with its data coming out of the stack) we can
+// discern it based on whether the type in the first slot is an
+// ANY-FUNCTION!.  Should never be a closure.
+//
+#define IS_FRAME_CONTEXT(c) \
+    ANY_FUNC(CONTEXT_VALUE(c))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

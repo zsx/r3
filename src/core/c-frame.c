@@ -204,6 +204,10 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
     REBARR *keylist = CONTEXT_KEYLIST(context);
     REBVAL *value;
 
+    // Cannot append to frames (should this be checked just by FIXED_SIZE?)
+    //
+    assert(!IS_FRAME_CONTEXT(context));
+
     // Add the key to key list
     //
     EXPAND_SERIES_TAIL(ARRAY_SERIES(keylist), 1);
@@ -230,7 +234,7 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        VAL_WORD_TARGET(word) = CONTEXT_VARLIST(context);
+        VAL_WORD_CONTEXT(word) = context;
         VAL_WORD_INDEX(word) = CONTEXT_LEN(context); // length we just bumped
     }
     else
@@ -665,12 +669,7 @@ REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
 //
 void Rebind_Context_Deep(REBCON *src, REBCON *dst, REBFLGS modes)
 {
-    Rebind_Values_Deep(
-        CONTEXT_VARLIST(src),
-        CONTEXT_VARLIST(dst),
-        CONTEXT_VARS_HEAD(dst),
-        modes
-    );
+    Rebind_Values_Deep(src, dst, CONTEXT_VARS_HEAD(dst), modes);
 }
 
 
@@ -890,7 +889,7 @@ REBCON *Construct_Context(
 
 
 //
-//  Object_To_Array: C
+//  Context_To_Array: C
 // 
 // Return a block containing words, values, or set-word: value
 // pairs for the given object. Note: words are bound to original
@@ -909,6 +908,8 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
     REBVAL *value;
     REBCNT n;
 
+    assert(!IS_FRAME_CONTEXT(context)); // not currently implemented
+
     assert(!(mode & 4));
     block = Make_Array(CONTEXT_LEN(context) * (mode == 3 ? 2 : 1));
 
@@ -923,7 +924,7 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
                 }
                 else VAL_RESET_HEADER(value, REB_WORD);
                 VAL_WORD_SYM(value) = VAL_TYPESET_SYM(key);
-                VAL_WORD_TARGET(value) = CONTEXT_VARLIST(context);
+                VAL_WORD_CONTEXT(value) = context;
                 VAL_WORD_INDEX(value) = n;
             }
             if (mode & 2) {
@@ -1203,17 +1204,24 @@ static void Bind_Values_Inner_Loop(
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
             //Print("Word: %s", Get_Sym_Name(VAL_WORD_CANON(value)));
-            // Is the word found in this context?
+
             REBCNT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
+                //
+                // Word is in context, bind it
+                //
                 assert(n <= CONTEXT_LEN(context));
-                // Word is in context, bind it:
                 VAL_WORD_INDEX(value) = n;
-                VAL_WORD_TARGET(value) = CONTEXT_VARLIST(context);
+                VAL_WORD_CONTEXT(value) = context;
             }
             else {
-                // Word is not in context. Add it if option is specified:
-                if ((mode & BIND_ALL) || ((mode & BIND_SET) && (IS_SET_WORD(value)))) {
+                //
+                // Word is not in context, so add it if option is specified
+                //
+                if (
+                    (mode & BIND_ALL)
+                    || ((mode & BIND_SET) && (IS_SET_WORD(value)))
+                ) {
                     Expand_Context(context, 1, 1);
                     Append_Context(context, value, 0);
                     binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
@@ -1293,16 +1301,19 @@ void Bind_Values_Core(REBVAL value[], REBCON *context, REBCNT mode)
 // 
 // Unbind words in a block, optionally unbinding those which are
 // bound to a particular target (if target is NULL, then all
-// words will be unbound regardless of their VAL_WORD_TARGET).
+// words will be unbound regardless of their VAL_WORD_CONTEXT).
 //
-void Unbind_Values_Core(REBVAL value[], REBARR *target, REBOOL deep)
+void Unbind_Values_Core(REBVAL value[], REBCON *context, REBOOL deep)
 {
     for (; NOT_END(value); value++) {
-        if (ANY_WORD(value) && (!target || VAL_WORD_TARGET(value) == target))
+        if (
+            ANY_WORD(value)
+            && (!context || VAL_WORD_CONTEXT(value) == context)
+        ) {
             UNBIND_WORD(value);
-
-        if (ANY_ARRAY(value) && deep)
-            Unbind_Values_Core(VAL_ARRAY_AT(value), target, TRUE);
+        }
+        else if (ANY_ARRAY(value) && deep)
+            Unbind_Values_Core(VAL_ARRAY_AT(value), context, TRUE);
     }
 }
 
@@ -1319,7 +1330,7 @@ REBCNT Bind_Word(REBCON *context, REBVAL *word)
 
     n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (n != 0) {
-        VAL_WORD_TARGET(word) = CONTEXT_VARLIST(context);
+        VAL_WORD_CONTEXT(word) = context;
         VAL_WORD_INDEX(word) = n;
     }
     return n;
@@ -1345,7 +1356,7 @@ static void Bind_Relative_Inner_Loop(
             if (n != 0) {
                 // Word is in frame, bind it:
                 VAL_WORD_INDEX(value) = n;
-                VAL_WORD_TARGET(value) = paramlist;
+                VAL_WORD_CONTEXT(value) = AS_CONTEXT(paramlist);
             }
         }
         else if (ANY_ARRAY(value))
@@ -1364,7 +1375,7 @@ static void Bind_Relative_Inner_Loop(
 void Bind_Relative_Deep(REBARR *paramlist, REBARR *block)
 {
     REBVAL *param;
-    REBINT index;
+    REBCNT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
     // !!! Historically, relative binding was not allowed for NATIVE! or
@@ -1382,20 +1393,23 @@ void Bind_Relative_Deep(REBARR *paramlist, REBARR *block)
         IS_FUNCTION(ARRAY_HEAD(paramlist)) || IS_CLOSURE(ARRAY_HEAD(paramlist))
     );*/
 
-    param = ARRAY_AT(paramlist, 1);
-
     CHECK_BIND_TABLE;
 
     //Dump_Block(words);
 
-    // Setup binding table from the argument word list:
-    for (index = 1; NOT_END(param); param++, index++)
-        binds[VAL_TYPESET_CANON(param)] = -index;
+    // Setup binding table from the argument word list
+    //
+    index = 1;
+    param = ARRAY_AT(paramlist, 1);
+    for (; NOT_END(param); param++, index++)
+        binds[VAL_TYPESET_CANON(param)] = index;
 
     Bind_Relative_Inner_Loop(binds, paramlist, block);
 
-    // Reset binding table:
-    for (param = ARRAY_AT(paramlist, 1); NOT_END(param); param++)
+    // Reset binding table
+    //
+    param = ARRAY_AT(paramlist, 1);
+    for (; NOT_END(param); param++)
         binds[VAL_TYPESET_CANON(param)] = 0;
 
     CHECK_BIND_TABLE;
@@ -1411,8 +1425,8 @@ void Bind_Stack_Word(REBARR *paramlist, REBVAL *word)
 
     index = Find_Param_Index(paramlist, VAL_WORD_SYM(word));
     if (!index) fail (Error(RE_NOT_IN_CONTEXT, word));
-    VAL_WORD_TARGET(word) = paramlist;
-    VAL_WORD_INDEX(word) = -index;
+    VAL_WORD_CONTEXT(word) = AS_CONTEXT(paramlist);
+    VAL_WORD_INDEX(word) = index;
 }
 
 
@@ -1423,61 +1437,28 @@ void Bind_Stack_Word(REBARR *paramlist, REBVAL *word)
 // Rebind is always deep.
 //
 void Rebind_Values_Deep(
-    REBARR *src_target,
-    REBARR *dst_target,
+    REBCON *src,
+    REBCON *dst,
     REBVAL value[],
     REBFLGS modes
 ) {
     REBINT *binds = WORDS_HEAD(Bind_Table);
 
-#if !defined(NDEBUG)
-    //
-    // There are two types of target series: normal targets (VARLIST series
-    // of a context) and stack-relative targets (PARAMLIST series of a
-    // function).
-    //
-    // If src_target and dst_target differ, modes must have REBIND_TYPE.
-    //
-    if (
-        IS_FUNCTION(ARRAY_HEAD(src_target))
-        || IS_CLOSURE(ARRAY_HEAD(src_target))
-    ) {
-        assert(
-            (
-                IS_FUNCTION(ARRAY_HEAD(dst_target))
-                || IS_CLOSURE(ARRAY_HEAD(dst_target))
-            )
-            || (modes & REBIND_TYPE)
-        );
-    }
-    else {
-        assert(
-            ANY_CONTEXT(ARRAY_HEAD(dst_target))
-            || (IS_FUNCTION(ARRAY_HEAD(dst_target)) && (modes & REBIND_TYPE))
-        );
-    }
-#endif
-
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
-            Rebind_Values_Deep(
-                src_target, dst_target, VAL_ARRAY_AT(value), modes
-            );
+            Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), modes);
         }
-        else if (ANY_WORD(value) && VAL_WORD_TARGET(value) == src_target) {
-            VAL_WORD_TARGET(value) = dst_target;
+        else if (ANY_WORD(value) && VAL_WORD_CONTEXT(value) == src) {
+            VAL_WORD_CONTEXT(value) = dst;
 
             if (modes & REBIND_TABLE)
                 VAL_WORD_INDEX(value) = binds[VAL_WORD_CANON(value)];
-
-            if (modes & REBIND_TYPE)
-                VAL_WORD_INDEX(value) = -(VAL_WORD_INDEX(value));
         }
         else if (
             (modes & REBIND_FUNC) && (IS_FUNCTION(value) || IS_CLOSURE(value))
         ) {
             Rebind_Values_Deep(
-                src_target, dst_target, ARRAY_HEAD(VAL_FUNC_BODY(value)), modes
+                src, dst, ARRAY_HEAD(VAL_FUNC_BODY(value)), modes
             );
         }
     }
@@ -1585,109 +1566,124 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBCNT sym)
 // 
 // Coded assuming most common case is trap=TRUE and writable=FALSE
 //
-REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
+REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 {
-    REBARR *target = VAL_WORD_TARGET(word);
+    REBCON *context = VAL_WORD_CONTEXT(any_word);
+    REBCNT index;
 
-    if (target) {
-        REBINT index = VAL_WORD_INDEX(word);
+    if (!context) {
+        if (trap) fail (Error(RE_NOT_BOUND, any_word));
+        return NULL;
+    }
 
-        // POSITIVE INDEX: The word is bound directly to a value inside
-        // a frame, and represents the zero-based offset into that series.
+    index = VAL_WORD_INDEX(any_word);
+
+    // Word's boundness or unboundness should be indicated by context
+    //
+    assert(index != WORD_INDEX_UNBOUND);
+
+    if (!IS_FRAME_CONTEXT(context)) {
+        //
+        // NOT A FRAME: The word is bound directly to a value inside a
+        // varlist, and represents the zero-based offset into that series.
         // This is how values would be picked out of object-like things...
-        // (Including looking up 'append' in the user context.)
+        // (Including e.g. looking up 'append' in the user context.)
 
-        if (index > 0) {
-            REBVAL *value;
+        REBVAL *value;
 
-            assert(
-                SAME_SYM(
-                    VAL_WORD_SYM(word),
-                    CONTEXT_KEY_SYM(AS_CONTEXT(target), index)
-                )
-            );
+        assert(
+            SAME_SYM(
+                VAL_WORD_SYM(any_word), CONTEXT_KEY_SYM(context, index)
+            )
+        );
 
-            if (
-                writable &&
-                VAL_GET_EXT(
-                    CONTEXT_KEY(AS_CONTEXT(target), index), EXT_TYPESET_LOCKED
-                )
-            ) {
-                if (trap) fail (Error(RE_LOCKED_WORD, word));
-                return NULL;
-            }
-
-            value = CONTEXT_VAR(AS_CONTEXT(target), index);
-            assert(!THROWN(value));
-            return value;
+        if (
+            writable &&
+            VAL_GET_EXT(CONTEXT_KEY(context, index), EXT_TYPESET_LOCKED)
+        ) {
+            if (trap) fail (Error(RE_LOCKED_WORD, any_word));
+            return NULL;
         }
 
-        // NEGATIVE INDEX: Word is stack-relative bound to a function with
-        // no persistent frame held by the GC.  The value *might* be found
+        value = CONTEXT_VAR(context, index);
+        assert(!THROWN(value));
+        return value;
+    }
+    else {
+        //
+        // FRAME CONTEXT: Word is stack-relative bound to a function with
+        // no persistent varlist held by the GC.  The value *might* be found
         // on the stack (or not, if all instances of the function on the
         // call stack have finished executing).  We walk backward in the call
         // stack to see if we can find the function's "identifying series"
         // in a call frame...and take the first instance we see (even if
         // multiple invocations are on the stack, most recent wins)
 
-        if (index < 0) {
-            struct Reb_Call *call = DSF;
+        struct Reb_Call *call = DSF;
+        REBVAL *value;
 
-            // Get_Var could theoretically be called with no evaluation on
-            // the stack, so check for no DSF first...
-            while (call) {
-                if (
-                    call->mode == CALL_MODE_FUNCTION // see notes on `mode`
-                    && target == FUNC_PARAMLIST(DSF_FUNC(call))
-                ) {
-                    REBVAL *value;
+        // Get_Var could theoretically be called with no evaluation on
+        // the stack, so check for no DSF first...
 
-                    assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
-
-                    assert(
-                        SAME_SYM(
-                            VAL_WORD_SYM(word),
-                            VAL_TYPESET_SYM(
-                                FUNC_PARAM(DSF_FUNC(call), -index)
-                            )
-                        )
-                    );
-
-                    if (
-                        writable &&
-                        VAL_GET_EXT(
-                            FUNC_PARAM(DSF_FUNC(call), -index),
-                            EXT_TYPESET_LOCKED
-                        )
-                    ) {
-                        if (trap) fail (Error(RE_LOCKED_WORD, word));
-                        return NULL;
-                    }
-
-                    if (DSF_FRAMELESS(call))
-                        fail (Error(RE_FRAMELESS_WORD, word));
-
-                    value = DSF_ARG(call, -index);
-                    assert(!THROWN(value));
-                    return value;
-                }
-
-                call = PRIOR_DSF(call);
+        while (TRUE) {
+            if (!call) {
+                //
+                // Historically, trying to get a value from a context not
+                // on the stack in non-trapping concepts has been treated
+                // the same as an unbound.  See #1914.
+                //
+                // !!! Is trying to access a variable that is no longer
+                // available via a FRAME! that's gone off stack materially
+                // different in the sense it should warrant an error in
+                // all cases, trap or not?
+                //
+                if (trap) fail (Error(RE_NO_RELATIVE, any_word));
+                return NULL;
             }
 
-            if (trap) fail (Error(RE_NO_RELATIVE, word));
+            if (
+                call->mode == CALL_MODE_FUNCTION // see notes on `mode`
+                && AS_ARRAY(context) == FUNC_PARAMLIST(DSF_FUNC(call))
+            ) {
+                break;
+            }
+
+            call = PRIOR_DSF(call);
+        }
+
+        assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
+
+        assert(
+            SAME_SYM(
+                VAL_WORD_SYM(any_word),
+                VAL_TYPESET_SYM(FUNC_PARAM(DSF_FUNC(call), index))
+            )
+        );
+
+        if (
+            writable &&
+            VAL_GET_EXT(FUNC_PARAM(DSF_FUNC(call), index), EXT_TYPESET_LOCKED)
+        ) {
+            if (trap) fail (Error(RE_LOCKED_WORD, any_word));
             return NULL;
         }
 
-        // ZERO INDEX: Once this was used to indicate SELF references.  Now
-        // self is an ordinary (albeit hidden via protect/hide) word in the
-        // frame...so this is available for reuse.
-        //
-        panic (Error(RE_MISC));
+        if (DSF_FRAMELESS(call)) {
+            //
+            // !!! Trying to get a variable from a frameless native is a
+            // little bit different and probably shouldn't be willing to
+            // fail in an "oh it's unbound but that's okay" way.  Because
+            // the data should be there, it's just been "optimized out"
+            //
+            fail (Error(RE_FRAMELESS_WORD, any_word));
+        }
+
+        value = DSF_ARG(call, index);
+        assert(!THROWN(value));
+        return value;
     }
 
-    if (trap) fail (Error(RE_NOT_BOUND, word));
-    return NULL;
+    DEAD_END;
 }
 
 

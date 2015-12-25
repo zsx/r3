@@ -254,10 +254,9 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
-    REBARR *target_series;
+    REBCON *target;
     REBARR *array;
     REBCNT flags;
-    REBOOL is_relative;
 
     flags = REF(only) ? 0 : BIND_DEEP;
     if (REF(new)) flags |= BIND_ALL;
@@ -265,10 +264,9 @@ REBNATIVE(bind)
 
     if (ANY_CONTEXT(ARG(target))) {
         //
-        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
+        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
         //
-        target_series = CONTEXT_VARLIST(VAL_CONTEXT(ARG(target)));
-        is_relative = FALSE;
+        target = VAL_CONTEXT(ARG(target));
     }
     else {
         //
@@ -279,23 +277,22 @@ REBNATIVE(bind)
         // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
-        is_relative = LOGICAL(VAL_WORD_INDEX(ARG(target)) < 0);
-        target_series = VAL_WORD_TARGET(ARG(target));
-        if (!target_series) fail (Error(RE_NOT_BOUND, ARG(target)));
+        target = VAL_WORD_CONTEXT(ARG(target));
+        if (!target) fail (Error(RE_NOT_BOUND, ARG(target)));
     }
 
     // Bind single word:
     if (ANY_WORD(ARG(value))) {
-        if (is_relative) {
-            Bind_Stack_Word(target_series, ARG(value));
+        if (IS_FRAME_CONTEXT(target)) {
+            Bind_Stack_Word(AS_ARRAY(target), ARG(value));
             return R_ARG1;
         }
-        if (!Bind_Word(AS_CONTEXT(target_series), ARG(value))) {
+        if (!Bind_Word(target, ARG(value))) {
             if (flags & BIND_ALL) {
                 //
                 // not in context, BIND_ALL means add it if it's not.
                 //
-                Append_Context(AS_CONTEXT(target_series), ARG(value), 0);
+                Append_Context(target, ARG(value), 0);
             }
             else
                 fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
@@ -321,10 +318,10 @@ REBNATIVE(bind)
     else
         array = VAL_ARRAY(ARG(value));
 
-    if (is_relative)
-        Bind_Relative_Deep(target_series, array);
+    if (IS_FRAME_CONTEXT(target))
+        Bind_Relative_Deep(AS_ARRAY(target), array);
     else
-        Bind_Values_Core(ARRAY_HEAD(array), AS_CONTEXT(target_series), flags);
+        Bind_Values_Core(ARRAY_HEAD(array), target, flags);
 
     return R_OUT;
 }
@@ -342,36 +339,22 @@ REBNATIVE(bound_q)
 {
     REBVAL *word = D_ARG(1);
 
-    if (!HAS_TARGET(word)) return R_NONE;
+    if (!HAS_CONTEXT(word)) return R_NONE;
 
-    if (VAL_WORD_INDEX(word) < 0) {
-        // Function frames use negative numbers to indicate they are
-        // "stack relative" bindings.  Hence there is no way to get
-        // their value if the function is not running.  (This is why
-        // if you leak a local word to your caller and they look it
-        // up they get an error).
-        //
-        // Historically there was nothing you could do with a function
-        // word frame.  But then slot 0 (which had been unused, as the
-        // params start at 1) was converted to hold the value of the
-        // function the params belong to.  This returns that stored value.
+    // The canon value for a non-frame context lives in the [0] cell, and
+    // right now the value used for a frame context is the value of the
+    // function paramlist itself.  This is also found in the [0] cell.
+    //
+    // !!! The decoding will become trickier :-/  A function paramlist is
+    // not sufficient to be a FRAME! and identify a specific call...
+    //
+    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT(word));
 
-        *D_OUT = *ARRAY_HEAD(VAL_WORD_TARGET(word));
-
-        // You should never get a way to a stack relative binding of a
-        // closure.  They make an object on each call.
-
-        assert(IS_FUNCTION(D_OUT));
-    }
-    else {
-        // It's an OBJECT!, ERROR!, MODULE!, PORT...we're not creating it
-        // so we have to take its word on its canon value (which lives in
-        // [0] of the varlist)
-        //
-        *D_OUT = *CONTEXT_VALUE(AS_CONTEXT(VAL_WORD_TARGET(word)));
-
-        assert(ANY_CONTEXT(D_OUT));
-    }
+    assert(
+        IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
+            ? IS_FUNCTION(D_OUT)
+            : ANY_CONTEXT(D_OUT)
+    );
 
     return R_OUT;
 }
@@ -587,9 +570,9 @@ REBNATIVE(in)
                     index = Find_Word_In_Context(
                         context, VAL_WORD_SYM(word), FALSE
                     );
-                    if (index > 0) {
+                    if (index != 0) {
                         VAL_WORD_INDEX(word) = index;
-                        VAL_WORD_TARGET(word) = CONTEXT_VARLIST(context);
+                        VAL_WORD_CONTEXT(word) = context;
                         *D_OUT = *word;
                         return R_OUT;
                     }
@@ -610,13 +593,13 @@ REBNATIVE(in)
     }
 
     index = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
-
-    if (index > 0) {
-        VAL_WORD_INDEX(word) = index;
-        VAL_WORD_TARGET(word) = CONTEXT_VARLIST(context);
-        *D_OUT = *word;
-    } else
+    if (index == 0)
         return R_NONE;
+
+    VAL_WORD_INDEX(word) = index;
+    VAL_WORD_CONTEXT(word) = context;
+    *D_OUT = *word;
+
     return R_OUT;
 }
 
@@ -1016,7 +999,7 @@ REBNATIVE(unset)
     if (ANY_WORD(value)) {
         word = value;
 
-        if (!HAS_TARGET(word)) fail (Error(RE_NOT_BOUND, word));
+        if (!HAS_CONTEXT(word)) fail (Error(RE_NOT_BOUND, word));
 
         var = GET_MUTABLE_VAR(word);
         SET_UNSET(var);
@@ -1028,7 +1011,7 @@ REBNATIVE(unset)
             if (!ANY_WORD(word))
                 fail (Error_Invalid_Arg(word));
 
-            if (!HAS_TARGET(word)) fail (Error(RE_NOT_BOUND, word));
+            if (!HAS_CONTEXT(word)) fail (Error(RE_NOT_BOUND, word));
 
             var = GET_MUTABLE_VAR(word);
             SET_UNSET(var);

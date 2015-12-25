@@ -40,11 +40,11 @@ REBINT CT_Word(REBVAL *a, REBVAL *b, REBINT mode)
     if (mode >= 0) {
         e = VAL_WORD_CANON(a) == VAL_WORD_CANON(b);
         if (mode == 1) e &= VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b)
-            && VAL_WORD_TARGET(a) == VAL_WORD_TARGET(b);
+            && VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b);
         else if (mode >= 2) {
             e = (VAL_WORD_SYM(a) == VAL_WORD_SYM(b) &&
                 VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b) &&
-                VAL_WORD_TARGET(a) == VAL_WORD_TARGET(b));
+                VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b));
         }
     } else {
         diff = Compare_Word(a, b, FALSE);

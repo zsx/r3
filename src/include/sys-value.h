@@ -1198,21 +1198,36 @@ struct Reb_Symbol {
 
 struct Reb_Any_Word {
     //
-    // The "target" of a word is a specification of where to look for its
-    // value.  If this is a CONTEXT then it will be the VAL_CONTEXT_VARLIST
-    // series of that context.  If the word targets a stack-relative lookup,
-    // such as with FUNCTION!, then the word must bind to something more
-    // persistent than the stack.  Hence it indicates the VAL_FUNC_PARAMLIST
-    // and must pay to walk the stack looking to see if that function is
-    // currently being called to find the stack "var" for that param "key"
+    // The context to look in to find the word's value.  It is valid if the
+    // word has been bound, and null otherwise.
     //
-    REBARR *target;
+    // Note that if the ANY-CONTEXT! to which this word is bound is a FRAME!,
+    // then that frame may no longer be on the stack.  Hence the space for
+    // the variable is no longer allocated.  Tracking mechanisms must be used
+    // to make sure the word can keep track of this fact.
+    //
+    // !!! Tracking mechanism is currently under development.
+    //
+    // Also note that the expense involved in doing a lookup to a context
+    // that is a FRAME! is greater than one that is not (such as an OBJECT!)
+    // This is because in the current implementation, the stack must be
+    // walked to find the required frame.
+    //
+    REBCON *context;
 
-    // Index of word in context (if it's not NULL)
+    // Index of word in context (if `context` is not NULL)
     //
-    REBINT index;
+    // Note: The index is rather large, especially on 64 bit systems, and it
+    // may not be that a context has 2^32 or 2^64 words in it.  It might
+    // be acceptable to borrow some bits from this number.
+    //
+    REBCNT index;
 
     // Index of the word's symbol
+    //
+    // Note: Future expansion plans are to have symbol entries tracked by
+    // pointer and garbage collected, likely as series nodes.  A full pointer
+    // sized value is required here.
     //
     REBCNT sym;
 };
@@ -1231,16 +1246,16 @@ struct Reb_Any_Word {
 #endif
 
 #define VAL_WORD_INDEX(v)       ((v)->payload.any_word.index)
-#define VAL_WORD_TARGET(v)      ((v)->payload.any_word.target)
-#define HAS_TARGET(v)            (VAL_WORD_TARGET(v) != NULL)
+#define VAL_WORD_CONTEXT(v)     ((v)->payload.any_word.context)
+#define HAS_CONTEXT(v)          (VAL_WORD_CONTEXT(v) != NULL)
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (VAL_WORD_TARGET(v)=NULL)
+        (VAL_WORD_CONTEXT(v)=NULL)
 #else
-    #define WORD_INDEX_UNBOUND MIN_I32
+    #define WORD_INDEX_UNBOUND 0
     #define UNBIND_WORD(v) \
-        (VAL_WORD_TARGET(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
+        (VAL_WORD_CONTEXT(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
 #endif
 
 #define VAL_WORD_CANON(v) \
@@ -1250,9 +1265,6 @@ struct Reb_Any_Word {
     VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
 
 #define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
-
-#define VAL_WORD_TARGET_WORDS(v) VAL_WORD_TARGET(v)->words
-#define VAL_WORD_TARGET_VALUES(v) VAL_WORD_TARGET(v)->values
 
 // Is it the same symbol? Quick check, then canon check:
 #define SAME_SYM(s1,s2) \
@@ -1359,7 +1371,7 @@ struct Reb_Typeset {
 // which permits the storage of associated KEYS and VARS.  (See the comments
 // on `struct Reb_Context` that are in %sys-series.h).
 //
-// Contexts coordinate with words, which can have their VAL_WORD_TARGET()
+// Contexts coordinate with words, which can have their VAL_WORD_CONTEXT()
 // set to a context's series pointer.  Then they cache the index of that
 // word's symbol in the context's keylist, for a fast lookup to get to the
 // corresponding var.  The key is a typeset which has several EXT flags

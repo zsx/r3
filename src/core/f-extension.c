@@ -161,8 +161,10 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         break;
     case RXX_SYM:
         VAL_WORD_SYM(val) = arg.i2.int32a;
-        VAL_WORD_TARGET(val) = 0;
-        VAL_WORD_INDEX(val) = 0;
+        VAL_WORD_CONTEXT(val) = NULL;
+    #if !defined(NDEBUG)
+        VAL_WORD_INDEX(val) = WORD_INDEX_UNBOUND;
+    #endif
         break;
     case RXX_IMAGE:
         VAL_SERIES(val) = cast(REBSER*, arg.iwh.image);
@@ -636,13 +638,10 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         };
 
         // get command function
-        if (IS_WORD(blk)) {
-            cmd_sym = VAL_WORD_SYM(blk);
-            // Optimized var fetch:
-            n = VAL_WORD_INDEX(blk);
-            if (n > 0) func = CONTEXT_VAR(AS_CONTEXT(VAL_WORD_TARGET(blk)), n);
-            else func = GET_VAR(blk); // fallback
-        } else func = blk;
+        if (IS_WORD(blk))
+            func = GET_VAR(blk);
+        else
+            func = blk;
 
         if (!IS_COMMAND(func)) {
             REBVAL commandx_word;

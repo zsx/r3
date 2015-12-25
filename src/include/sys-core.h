@@ -241,9 +241,8 @@ enum {
 
 // Modes for Rebind_Values:
 enum {
-    REBIND_TYPE = 1,    // Change frame type when rebinding
-    REBIND_FUNC = 2,    // Rebind function and closure bodies
-    REBIND_TABLE = 4    // Use bind table when rebinding
+    REBIND_FUNC = 1,    // Rebind function and closure bodies
+    REBIND_TABLE = 2    // Use bind table when rebinding
 };
 
 // Mold and form options:

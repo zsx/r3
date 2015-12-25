@@ -159,7 +159,7 @@ void Trace_Line(REBARR *block, REBINT index, const REBVAL *value)
     /*if (ANY_WORD(value)) {
         word = value;
         if (IS_WORD(value)) value = GET_VAR(word);
-        Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_TARGET(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
+        Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
     }
     if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, DSF);
     else
@@ -1258,7 +1258,7 @@ reevaluate:
                 fail (Error(RE_NEED_VALUE, c->value));
         #endif
 
-            if (!HAS_TARGET(c->value)) fail (Error(RE_NOT_BOUND, c->value));
+            if (!HAS_CONTEXT(c->value)) fail (Error(RE_NOT_BOUND, c->value));
 
             var = GET_MUTABLE_VAR(c->value);
             SET_UNSET(var);
@@ -3104,7 +3104,7 @@ void Do_Min_Construct(REBVAL value[])
     for (; NOT_END(value); value++) {
         if (IS_SET_WORD(value)) {
             // Next line not needed, because SET words are ALWAYS in frame.
-            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_TARGET(value) == frame)
+            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_CONTEXT(value) == frame)
                 DS_PUSH(value);
         } else {
             // Get value:

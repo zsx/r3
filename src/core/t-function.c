@@ -162,7 +162,9 @@ REBTYPE(Function)
                 if (VAL_TYPE(value) == REB_CLOSURE) {
                     // See #2221 for why closure body copies unbind locals
                     Unbind_Values_Core(
-                        VAL_ARRAY_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
+                        VAL_ARRAY_HEAD(D_OUT),
+                        AS_CONTEXT(VAL_FUNC_PARAMLIST(value)),
+                        TRUE
                     );
                 }
                 if (is_fake) Free_Array(body); // was shallow copy
