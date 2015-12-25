@@ -964,7 +964,7 @@ REBNATIVE(do)
                 // longer actually the expression that started the throw?
 
                 if (!IS_NONE(ARG(var)))
-                    Set_Var(ARG(var), ARG(value));
+                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
                 return R_OUT_IS_THROWN;
             }
 
@@ -973,13 +973,18 @@ REBNATIVE(do)
                 if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
                     VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
-                    Set_Var(ARG(var), ARG(value));
+                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
                 }
                 return R_UNSET;
             }
 
-            if (!IS_NONE(ARG(var)))
-                Set_Var(ARG(var), ARG(value)); // "continuation" of block
+            if (!IS_NONE(ARG(var))) {
+                //
+                // "continuation" of block
+                //
+                *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
+            }
+
             return R_OUT;
         }
 

@@ -1017,7 +1017,7 @@ static REBCNT Parse_Rules_Loop(
 
                     Val_Init_Series_Index(&temp, parse->type, series, index);
 
-                    Set_Var(item, &temp);
+                    *GET_MUTABLE_VAR(item) = temp;
 
                     continue;
                 }
@@ -1319,7 +1319,7 @@ post:
                             ))
                             : Copy_String(series, begin, count) // condenses;
                     );
-                    Set_Var(word, &temp);
+                    *GET_MUTABLE_VAR(word) = temp;
                 }
                 else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
                     REBVAL *var = GET_MUTABLE_VAR(word); // traps if protected

@@ -742,7 +742,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         }
 
         if (set_word) {
-            Set_Var(set_word, val);
+            *GET_MUTABLE_VAR(set_word) = *val;
             set_word = 0;
         }
     }

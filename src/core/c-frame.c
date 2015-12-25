@@ -1692,65 +1692,6 @@ REBVAL *Get_Var_Core(const REBVAL *word, REBOOL trap, REBOOL writable)
 
 
 //
-//  Set_Var: C
-// 
-// Set the word (variable) value. (Use macro when possible).
-//
-void Set_Var(const REBVAL *word, const REBVAL *value)
-{
-    REBINT index = VAL_WORD_INDEX(word);
-    struct Reb_Call *call;
-    REBARR *target = VAL_WORD_TARGET(word);
-
-    assert(!THROWN(value));
-
-    if (!target) fail (Error(RE_NOT_BOUND, word));
-
-//  Print("Set %s to %s [frame: %x idx: %d]", Get_Word_Name(word), Get_Type_Name(value), VAL_WORD_TARGET(word), VAL_WORD_INDEX(word));
-
-    if (index > 0) {
-        assert(
-            SAME_SYM(
-                VAL_WORD_SYM(word),
-                CONTEXT_KEY_SYM(AS_CONTEXT(target), index)
-            )
-        );
-
-        if (VAL_GET_EXT(CONTEXT_KEY(AS_CONTEXT(target), index), EXT_TYPESET_LOCKED))
-            fail (Error(RE_LOCKED_WORD, word));
-
-        *CONTEXT_VAR(AS_CONTEXT(target), index) = *value;
-        return;
-    }
-
-    // This shouldn't be able to happen, now that 0 is not used to indicate
-    // SELF.  (0 is now reserved for future use.)
-    //
-    if (index == 0)
-        panic (Error(RE_MISC));
-
-    // Find relative value:
-    call = DSF;
-    while (target != FUNC_PARAMLIST(DSF_FUNC(call))) {
-        call = PRIOR_DSF(call);
-        if (!call) fail (Error(RE_NO_RELATIVE, word));
-    }
-
-    assert(
-        SAME_SYM(
-            VAL_WORD_SYM(word),
-            VAL_TYPESET_SYM(FUNC_PARAM(DSF_FUNC(call), -index))
-        )
-    );
-
-    if (VAL_GET_EXT(FUNC_PARAM(AS_FUNC(target), -index), EXT_TYPESET_LOCKED))
-        fail (Error(RE_LOCKED_WORD, word));
-
-    *DSF_ARG(call, -index) = *value;
-}
-
-
-//
 //  Obj_Word: C
 // 
 // Return pointer to the nth WORD of an object.

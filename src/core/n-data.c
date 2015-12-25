@@ -775,7 +775,7 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(target)) {
-        Set_Var(target, value);
+        *GET_MUTABLE_VAR(target) = *value;
         return R_ARG2;
     }
 
@@ -952,8 +952,9 @@ REBNATIVE(set)
     // With the assignments checked, do them
     //
     for (; NOT_END(target); target++) {
-        if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target))
-            Set_Var(target, value);
+        if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
+            *GET_MUTABLE_VAR(target) = *value;
+        }
         else if (IS_GET_WORD(target)) {
             //
             // !!! Does a get of a WORD!, but what about of a PATH!?
@@ -961,7 +962,9 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            Set_Var(target, IS_WORD(value) ? GET_VAR(value) : value);
+            *GET_MUTABLE_VAR(target) = IS_WORD(value)
+                ? *GET_VAR(value)
+                : *value;
         }
         else
             fail (Error_Invalid_Arg(target));

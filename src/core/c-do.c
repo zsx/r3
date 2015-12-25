@@ -1265,7 +1265,7 @@ reevaluate:
             SET_UNSET(var);
         }
         else
-            Set_Var(c->value, c->out);
+            *GET_MUTABLE_VAR(c->value) = *c->out;
         break;
 
     // [ANY-FUNCTION!]
@@ -3073,7 +3073,7 @@ void Do_Construct(REBVAL value[])
 
         // Set prior set-words:
         while (DSP > dsp_orig) {
-            Set_Var(DS_TOP, &temp);
+            *GET_MUTABLE_VAR(DS_TOP) = temp;
             DS_DROP;
         }
     }
@@ -3112,7 +3112,7 @@ void Do_Min_Construct(REBVAL value[])
             *temp = *value;
             // Set prior set-words:
             while (DSP > ssp) {
-                Set_Var(DS_TOP, temp);
+                *GET_MUTABLE_VAR(DS_TOP) = *temp;
                 DS_DROP;
             }
         }

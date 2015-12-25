@@ -138,19 +138,17 @@ REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
 REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
 {
     const REBVAL *val;
-    REBCNT sym;
     REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
 
     VAL_TYPESET_BITS(value) = 0;
 
     for (; NOT_END(block); block++) {
         val = NULL;
-        if (IS_WORD(block)) {
+        if (IS_WORD(block) && !(val = TRY_GET_VAR(block))) {
             //Print("word: %s", Get_Word_Name(block));
-            sym = VAL_WORD_SYM(block);
-            if (VAL_WORD_TARGET(block)) { // Get word value
-                val = GET_VAR(block);
-            } else if (IS_KIND_SYM(sym)) { // Accept datatype word
+            REBCNT sym = VAL_WORD_SYM(block);
+
+            if (IS_KIND_SYM(sym)) { // Accept datatype word
                 TYPE_SET(value, KIND_FROM_SYM(sym));
                 continue;
             } // Special typeset symbols:
