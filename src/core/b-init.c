@@ -682,7 +682,7 @@ static void Init_Root_Context(void)
     // new keylist will be managed so we manage the varlist to match.
     //
     Free_Array(CONTEXT_KEYLIST(root));
-    CONTEXT_KEYLIST(root) = NULL;
+    INIT_CONTEXT_KEYLIST(root, NULL);
     MANAGE_ARRAY(CONTEXT_VARLIST(root));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
@@ -809,7 +809,7 @@ static void Init_Task_Context(void)
     // new keylist will be managed so we manage the varlist to match.
     //
     Free_Array(CONTEXT_KEYLIST(task));
-    CONTEXT_KEYLIST(task) = NULL;
+    INIT_CONTEXT_KEYLIST(task, NULL);
     MANAGE_ARRAY(CONTEXT_VARLIST(task));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
@@ -1450,16 +1450,16 @@ void Init_Core(REBARGS *rargs)
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
-    CONTEXT_KEYLIST(PG_Root_Context) = Collect_Keylist_Managed(
+    INIT_CONTEXT_KEYLIST(PG_Root_Context, Collect_Keylist_Managed(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, BIND_ALL
-    );
+    ));
     ASSERT_CONTEXT(PG_Root_Context);
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
-    CONTEXT_KEYLIST(TG_Task_Context) = Collect_Keylist_Managed(
+    INIT_CONTEXT_KEYLIST(TG_Task_Context, Collect_Keylist_Managed(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, BIND_ALL
-    );
+    ));
     ASSERT_CONTEXT(TG_Task_Context);
 
     // Create main values:

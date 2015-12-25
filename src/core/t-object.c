@@ -579,7 +579,7 @@ REBTYPE(Context)
         context = AS_CONTEXT(
             Copy_Array_Shallow(CONTEXT_VARLIST(VAL_CONTEXT(value)))
         );
-        CONTEXT_KEYLIST(context) = CONTEXT_KEYLIST(VAL_CONTEXT(value));
+        INIT_CONTEXT_KEYLIST(context, CONTEXT_KEYLIST(VAL_CONTEXT(value)));
         MANAGE_ARRAY(CONTEXT_VARLIST(context));
         ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
         VAL_CONTEXT(CONTEXT_VALUE(context)) = context;

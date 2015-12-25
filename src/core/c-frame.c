@@ -130,7 +130,7 @@ REBCON *Alloc_Context(REBINT len)
     // are building which contains this context
     //
     CONTEXT_VALUE(context)->payload.any_context.context = context;
-    CONTEXT_KEYLIST(context) = keylist;
+    INIT_CONTEXT_KEYLIST(context, keylist);
 
 #if !defined(NDEBUG)
     //
@@ -179,7 +179,9 @@ void Expand_Context(REBCON *context, REBCNT delta, REBCNT copy)
     // Expand or copy WORDS block:
     if (copy) {
         REBOOL managed = ARRAY_GET_FLAG(keylist, SER_MANAGED);
-        CONTEXT_KEYLIST(context) = Copy_Array_Extra_Shallow(keylist, delta);
+        INIT_CONTEXT_KEYLIST(
+            context, Copy_Array_Extra_Shallow(keylist, delta)
+        );
         if (managed) MANAGE_ARRAY(CONTEXT_KEYLIST(context));
     }
     else {
@@ -259,12 +261,13 @@ REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
 
     if (extra == 0) {
         dest = AS_CONTEXT(Copy_Array_Shallow(CONTEXT_VARLIST(src)));
-        CONTEXT_KEYLIST(dest) = CONTEXT_KEYLIST(src);
+        INIT_CONTEXT_KEYLIST(dest, CONTEXT_KEYLIST(src));
     }
     else {
         dest = AS_CONTEXT(Copy_Array_Extra_Shallow(CONTEXT_VARLIST(src), extra));
-        CONTEXT_KEYLIST(dest) = Copy_Array_Extra_Shallow(
-            CONTEXT_KEYLIST(src), extra
+        INIT_CONTEXT_KEYLIST(
+            dest,
+            Copy_Array_Extra_Shallow(CONTEXT_KEYLIST(src), extra)
         );
         MANAGE_ARRAY(CONTEXT_KEYLIST(dest));
     }
@@ -730,13 +733,16 @@ REBCON *Make_Selfish_Context_Detect(
                 // If we didn't find a SELF in the parent context, add it.
                 // (this means we need a new keylist, too)
                 //
-                CONTEXT_KEYLIST(context) = Copy_Array_Core_Managed(
-                    CONTEXT_KEYLIST(opt_parent),
-                    0, // at
-                    CONTEXT_LEN(opt_parent) + 1, // tail (+1 for rootkey)
-                    1, // one extra for self
-                    FALSE, // !deep (keylists shouldn't need it...)
-                    TS_CLONE // types (overkill for a keylist?)
+                INIT_CONTEXT_KEYLIST(
+                    context,
+                    Copy_Array_Core_Managed(
+                        CONTEXT_KEYLIST(opt_parent),
+                        0, // at
+                        CONTEXT_LEN(opt_parent) + 1, // tail (+1 for rootkey)
+                        1, // one extra for self
+                        FALSE, // !deep (keylists shouldn't need it...)
+                        TS_CLONE // types (overkill for a keylist?)
+                    )
                 );
 
                 self_index = CONTEXT_LEN(opt_parent) + 1;
@@ -750,7 +756,7 @@ REBCON *Make_Selfish_Context_Detect(
             else {
                 // The parent had a SELF already, so we can reuse its keylist
                 //
-                CONTEXT_KEYLIST(context) = CONTEXT_KEYLIST(opt_parent);
+                INIT_CONTEXT_KEYLIST(context, CONTEXT_KEYLIST(opt_parent));
             }
 
             VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
@@ -779,7 +785,7 @@ REBCON *Make_Selfish_Context_Detect(
         //
         context = AS_CONTEXT(Make_Array(len));
         ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
-        CONTEXT_KEYLIST(context) = keylist;
+        INIT_CONTEXT_KEYLIST(context, keylist);
         MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
         // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
@@ -1001,7 +1007,7 @@ REBCON *Merge_Contexts_Selfish(REBCON *parent1, REBCON *parent2)
     // so review consequences.
     //
     VAL_RESET_HEADER(value, CONTEXT_TYPE(parent1));
-    CONTEXT_KEYLIST(child) = keylist;
+    INIT_CONTEXT_KEYLIST(child, keylist);
     VAL_CONTEXT(value) = child;
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_BODY(value) = NULL;

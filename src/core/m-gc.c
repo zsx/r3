@@ -184,37 +184,37 @@ static void Propagate_All_GC_Marks(void);
 // Deferred form for marking series that prevents potentially overflowing the
 // C execution stack.
 
-#define QUEUE_MARK_ARRAY_DEEP(s) \
+#define QUEUE_MARK_ARRAY_DEEP(a) \
     do { \
-        if (!ARRAY_GET_FLAG((s), SER_MARK)) { \
-            ARRAY_SET_FLAG((s), SER_MARK); \
-            Push_Array_Marked_Deep(s); \
+        if (!ARRAY_GET_FLAG((a), SER_MARK)) { \
+            ARRAY_SET_FLAG((a), SER_MARK); \
+            Push_Array_Marked_Deep(a); \
         } \
     } while (0)
 
 
-#define QUEUE_MARK_CONTEXT_DEEP(f) \
+#define QUEUE_MARK_CONTEXT_DEEP(c) \
     do { \
-        assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(f), SER_CONTEXT)); \
-        QUEUE_MARK_ARRAY_DEEP(CONTEXT_KEYLIST(f)); \
-        QUEUE_MARK_ARRAY_DEEP(CONTEXT_VARLIST(f)); \
+        assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_CONTEXT)); \
+        QUEUE_MARK_ARRAY_DEEP(CONTEXT_KEYLIST(c)); \
+        QUEUE_MARK_ARRAY_DEEP(CONTEXT_VARLIST(c)); \
     } while (0)
 
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
 
-#define MARK_ARRAY_DEEP(s) \
+#define MARK_ARRAY_DEEP(a) \
     do { \
         assert(!in_mark); \
-        QUEUE_MARK_ARRAY_DEEP(s); \
+        QUEUE_MARK_ARRAY_DEEP(a); \
         Propagate_All_GC_Marks(); \
     } while (0)
 
-#define MARK_CONTEXT_DEEP(f) \
+#define MARK_CONTEXT_DEEP(c) \
     do { \
         assert(!in_mark); \
-        QUEUE_MARK_CONTEXT_DEEP(f); \
+        QUEUE_MARK_CONTEXT_DEEP(c); \
         Propagate_All_GC_Marks(); \
     } while (0)
 
@@ -725,10 +725,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:
-        #if !defined(NDEBUG)
-            if (!ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), SER_PARAMLIST))
-               Panic_Array(VAL_FUNC_PARAMLIST(val));
-        #endif
+            assert(ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), SER_PARAMLIST));
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 

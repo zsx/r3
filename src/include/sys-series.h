@@ -370,7 +370,7 @@ struct Reb_Series {
 #define TERM_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
+        memset(SERIES_AT((s), SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
     } while (0)
 
 #ifdef NDEBUG
@@ -432,29 +432,29 @@ struct Reb_Series {
 // reachable by the GC, it will raise an alert.)
 //
 
-#define MANAGE_SERIES(series) \
-    Manage_Series(series)
+#define MANAGE_SERIES(s) \
+    Manage_Series(s)
 
-#define ENSURE_SERIES_MANAGED(series) \
-    (SERIES_GET_FLAG((series), SER_MANAGED) \
+#define ENSURE_SERIES_MANAGED(s) \
+    (SERIES_GET_FLAG((s), SER_MANAGED) \
         ? NOOP \
-        : MANAGE_SERIES(series))
+        : MANAGE_SERIES(s))
 
 #ifdef NDEBUG
-    #define ASSERT_SERIES_MANAGED(series) \
+    #define ASSERT_SERIES_MANAGED(s) \
         NOOP
 
-    #define ASSERT_VALUE_MANAGED(value) \
+    #define ASSERT_VALUE_MANAGED(v) \
         NOOP
 #else
-    #define ASSERT_SERIES_MANAGED(series) \
+    #define ASSERT_SERIES_MANAGED(s) \
         do { \
-            if (!SERIES_GET_FLAG((series), SER_MANAGED)) \
-                Panic_Series(series); \
+            if (!SERIES_GET_FLAG((s), SER_MANAGED)) \
+                Panic_Series(s); \
         } while (0)
 
-    #define ASSERT_VALUE_MANAGED(value) \
-        assert(Is_Value_Managed(value, TRUE))
+    #define ASSERT_VALUE_MANAGED(v) \
+        assert(Is_Value_Managed((v), TRUE))
 #endif
 
 
@@ -576,7 +576,7 @@ struct Reb_Array {
 // done.  But also see the note that it's something that could just be
 // disabled by making arrays and series synonyms in "non-type-check" builds.
 //
-#define AS_ARRAY(s)         (*cast(REBARR**, &(s))) // `AS_ARRAY(s) = arr;`
+#define AS_ARRAY(s)         (cast(REBARR*, (s)))
 #define ARRAY_SERIES(a)     (&(a)->series)
 
 // HEAD, TAIL, and LAST refer to specific value pointers in the array.  An
@@ -710,9 +710,9 @@ struct Reb_Context {
 };
 
 #ifdef NDEBUG
-    #define ASSERT_CONTEXT(f) cast(void, 0)
+    #define ASSERT_CONTEXT(c) cast(void, 0)
 #else
-    #define ASSERT_CONTEXT(f) Assert_Context_Core(f)
+    #define ASSERT_CONTEXT(c) Assert_Context_Core(c)
 #endif
 
 // Series-to-Frame cocercion
@@ -741,25 +741,38 @@ struct Reb_Context {
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
-#define CONTEXT_VARLIST(f)      (&(f)->varlist)
-#define CONTEXT_KEYLIST(f)      (ARRAY_SERIES(CONTEXT_VARLIST(f))->misc.keylist)
+#define CONTEXT_VARLIST(c) \
+    (IS_FRAME_CONTEXT(c) \
+        ? NULL /* won't ever have a series...lives in chunk stack */ \
+        : &(c)->varlist)
+
+#define CONTEXT_KEYLIST(c) \
+    (IS_FRAME_CONTEXT(c) \
+        ? AS_ARRAY(c) \
+        : ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist)
+
+#define INIT_CONTEXT_KEYLIST(c,k) \
+    do { \
+        assert(!IS_FRAME_CONTEXT(c)); \
+        ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist = (k); \
+    } while (0)
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that
 // the indexing is legal.  To get a pointer to the first key or value
 // regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
 //
-#define CONTEXT_KEYS_HEAD(f)    ARRAY_AT(CONTEXT_KEYLIST(f), 1)
-#define CONTEXT_VARS_HEAD(f)    ARRAY_AT(CONTEXT_VARLIST(f), 1)
+#define CONTEXT_KEYS_HEAD(c)    ARRAY_AT(CONTEXT_KEYLIST(c), 1)
+#define CONTEXT_VARS_HEAD(c)    ARRAY_AT(CONTEXT_VARLIST(c), 1)
 #ifdef NDEBUG
-    #define CONTEXT_KEY(f,n)    ARRAY_AT(CONTEXT_KEYLIST(f), (n))
-    #define CONTEXT_VAR(f,n)    ARRAY_AT(CONTEXT_VARLIST(f), (n))
+    #define CONTEXT_KEY(c,n)    ARRAY_AT(CONTEXT_KEYLIST(c), (n))
+    #define CONTEXT_VAR(c,n)    ARRAY_AT(CONTEXT_VARLIST(c), (n))
 #else
-    #define CONTEXT_KEY(f,n)    CONTEXT_KEY_Debug((f), (n))
-    #define CONTEXT_VAR(f,n)    CONTEXT_VAR_Debug((f), (n))
+    #define CONTEXT_KEY(c,n)    CONTEXT_KEY_Debug((c), (n))
+    #define CONTEXT_VAR(c,n)    CONTEXT_VAR_Debug((c), (n))
 #endif
-#define CONTEXT_KEY_SYM(f,n)    VAL_TYPESET_SYM(CONTEXT_KEY((f), (n)))
-#define CONTEXT_KEY_CANON(f,n)  VAL_TYPESET_CANON(CONTEXT_KEY((f), (n)))
+#define CONTEXT_KEY_SYM(c,n)    VAL_TYPESET_SYM(CONTEXT_KEY((c), (n)))
+#define CONTEXT_KEY_CANON(c,n)  VAL_TYPESET_CANON(CONTEXT_KEY((c), (n)))
 
 // Navigate from context to context components.  Note that the context's
 // "length" does not count the [0] cell of either the varlist or the keylist.
@@ -769,54 +782,54 @@ struct Reb_Context {
 // (and getting an answer for the length back that was the same as the length
 // requested in context creation).
 //
-#define CONTEXT_LEN(f)          (ARRAY_LEN(CONTEXT_VARLIST(f)) - 1)
-#define CONTEXT_VALUE(f)        ARRAY_HEAD(CONTEXT_VARLIST(f))
-#define CONTEXT_ROOTKEY(f)      ARRAY_HEAD(CONTEXT_KEYLIST(f))
-#define CONTEXT_TYPE(f)         VAL_TYPE(CONTEXT_VALUE(f))
-#define CONTEXT_SPEC(f)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(f))
-#define CONTEXT_BODY(f)         VAL_CONTEXT_BODY(CONTEXT_VALUE(f))
+#define CONTEXT_LEN(c)          (ARRAY_LEN(CONTEXT_VARLIST(c)) - 1)
+#define CONTEXT_VALUE(c)        ARRAY_HEAD(CONTEXT_VARLIST(c))
+#define CONTEXT_ROOTKEY(c)      ARRAY_HEAD(CONTEXT_KEYLIST(c))
+#define CONTEXT_TYPE(c)         VAL_TYPE(CONTEXT_VALUE(c))
+#define CONTEXT_SPEC(c)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(c))
+#define CONTEXT_BODY(c)         VAL_CONTEXT_BODY(CONTEXT_VALUE(c))
 
-#define FAIL_IF_LOCKED_CONTEXT(f) \
-    FAIL_IF_LOCKED_ARRAY(CONTEXT_VARLIST(f))
+#define FAIL_IF_LOCKED_CONTEXT(c) \
+    FAIL_IF_LOCKED_ARRAY(CONTEXT_VARLIST(c))
 
-#define FREE_CONTEXT(f) \
+#define FREE_CONTEXT(c) \
     do { \
-        Free_Array(CONTEXT_KEYLIST(f)); \
-        Free_Array(CONTEXT_VARLIST(f)); \
+        Free_Array(CONTEXT_KEYLIST(c)); \
+        Free_Array(CONTEXT_VARLIST(c)); \
     } while (0)
 
-#define PUSH_GUARD_CONTEXT(f) \
-    PUSH_GUARD_ARRAY(CONTEXT_VARLIST(f)) // varlist points to/guards keylist
+#define PUSH_GUARD_CONTEXT(c) \
+    PUSH_GUARD_ARRAY(CONTEXT_VARLIST(c)) // varlist points to/guards keylist
 
-#define DROP_GUARD_CONTEXT(f) \
-    DROP_GUARD_ARRAY(CONTEXT_VARLIST(f))
+#define DROP_GUARD_CONTEXT(c) \
+    DROP_GUARD_ARRAY(CONTEXT_VARLIST(c))
 
 #ifdef NDEBUG
-    #define MANAGE_CONTEXT(context) \
-        (MANAGE_ARRAY(CONTEXT_VARLIST(context)), \
-            MANAGE_ARRAY(CONTEXT_KEYLIST(context)))
+    #define MANAGE_CONTEXT(c) \
+        (MANAGE_ARRAY(CONTEXT_VARLIST(c)), \
+            MANAGE_ARRAY(CONTEXT_KEYLIST(c)))
 
-    #define ENSURE_CONTEXT_MANAGED(context) \
-        (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED) \
+    #define ENSURE_CONTEXT_MANAGED(c) \
+        (ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_MANAGED) \
             ? NOOP \
-            : MANAGE_CONTEXT(context))
+            : MANAGE_CONTEXT(c))
 #else
     //
     // Debug build includes testing that the managed state of the context and
     // its word series is the same for the "ensure" case.  It also adds a
     // few assert macros.
     //
-    #define MANAGE_CONTEXT(context) \
-        Manage_Context_Debug(context)
+    #define MANAGE_CONTEXT(c) \
+        Manage_Context_Debug(c)
 
-    #define ENSURE_CONTEXT_MANAGED(context) \
-        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED) \
-        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED)) \
+    #define ENSURE_CONTEXT_MANAGED(c) \
+        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_MANAGED) \
+        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(c), SER_MANAGED)) \
             ? NOOP \
-            : MANAGE_CONTEXT(context))
+            : MANAGE_CONTEXT(c))
 
-    #define Panic_Context(f) \
-        Panic_Array(CONTEXT_VARLIST(f))
+    #define Panic_Context(c) \
+        Panic_Array(CONTEXT_VARLIST(c))
 #endif
 
 

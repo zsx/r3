@@ -980,7 +980,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
     VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
-    CONTEXT_KEYLIST(context) = FUNC_PARAMLIST(D_FUNC);
+    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(D_FUNC));
     CONTEXT_SPEC(context) = NULL;
     CONTEXT_BODY(context) = NULL;
     ASSERT_CONTEXT(context);

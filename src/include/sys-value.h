@@ -1073,7 +1073,7 @@ struct Reb_Any_Series
 // These operations do not need to take the value's index position into
 // account; they strictly operate on the array series
 //
-#define VAL_ARRAY(v)            AS_ARRAY(VAL_SERIES(v))
+#define VAL_ARRAY(v)            (*cast(REBARR**, &VAL_SERIES(v)))
 #define VAL_ARRAY_HEAD(v)       ARRAY_HEAD(VAL_ARRAY(v))
 #define VAL_ARRAY_TAIL(v)       ARRAY_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
 
@@ -1199,6 +1199,14 @@ struct Reb_Symbol {
 #define WORD_TO_CANON(w) \
     VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(w)))
 
+// Is it the same symbol? Quick check, then canon check:
+#define SAME_SYM(s1,s2) \
+    ((s1) == (s2) \
+    || ( \
+        VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s1))) \
+        == VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s2))) \
+    ))
+
 
 /***********************************************************************
 **
@@ -1296,14 +1304,6 @@ struct Reb_Any_Word {
     VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
 
 #define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
-
-// Is it the same symbol? Quick check, then canon check:
-#define SAME_SYM(s1,s2) \
-    ((s1) == (s2) \
-    || ( \
-        VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s1))) \
-        == VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s2))) \
-    ))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
