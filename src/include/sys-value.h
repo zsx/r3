@@ -1206,6 +1206,11 @@ struct Reb_Symbol {
 **
 ***********************************************************************/
 
+enum {
+    EXT_WORD_BOUND = 0,         // is bound to a context
+    EXT_WORD_MAX
+};
+
 struct Reb_Any_Word {
     //
     // The context to look in to find the word's value.  It is valid if the
@@ -1242,30 +1247,46 @@ struct Reb_Any_Word {
     REBCNT sym;
 };
 
-#define IS_SAME_WORD(v, n)      (IS_WORD(v) && VAL_WORD_CANON(v) == n)
-
 #ifdef NDEBUG
-    #define VAL_WORD_SYM(v) ((v)->payload.any_word.sym)
+    #define ENSURE_ANY_WORD(w,b) \
+        c_cast(const struct Reb_Any_Word*, &(w)->payload.any_word)
 #else
-    // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-    // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
-    // this check is prudent (until further notice...)
+    // When fetching properties of a word, the debug build is able to verify
+    // that not only is the REBVAL's type an ANY-WORD! type, but it can also
+    // enforce that the word is bound by passing TRUE for `b`.
     //
-    #define VAL_WORD_SYM(v) \
-        (*VAL_WORD_SYM_Ptr_Debug(v))
+    #define ENSURE_ANY_WORD(w,b) \
+        (ENSURE_ANY_WORD_Debug((w), (b)))
 #endif
 
-#define VAL_WORD_INDEX(v)       ((v)->payload.any_word.index)
-#define VAL_WORD_CONTEXT(v)     ((v)->payload.any_word.context)
-#define HAS_CONTEXT(v)          (VAL_WORD_CONTEXT(v) != NULL)
+#define IS_WORD_BOUND(v) \
+    (cast(void, ENSURE_ANY_WORD((v), FALSE)), \
+        VAL_GET_EXT((v), EXT_WORD_BOUND))
+
+#define IS_WORD_UNBOUND(v)      NOT(IS_WORD_BOUND(v))
+
+#define VAL_WORD_SYM(v)         (ENSURE_ANY_WORD((v), FALSE)->sym)
+#define VAL_WORD_INDEX(v)       (ENSURE_ANY_WORD((v), TRUE)->index)
+#define VAL_WORD_CONTEXT(v)     (ENSURE_ANY_WORD((v), TRUE)->context)
+
+#define INIT_WORD_SYM(v,s)      ((v)->payload.any_word.sym = (s))
+#define INIT_WORD_INDEX(v,i)    ((v)->payload.any_word.index = (i))
+#define INIT_WORD_CONTEXT(v,c)  ((v)->payload.any_word.context = (c))
+
+#define IS_SAME_WORD(v, n) \
+    (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (VAL_WORD_CONTEXT(v)=NULL)
+        VAL_CLR_EXT((v), EXT_WORD_BOUND)
 #else
-    #define WORD_INDEX_UNBOUND 0
+    #define WORD_INDEX_UNBOUND_DEBUG 0
+    #define WORD_CONTEXT_UNBOUND_DEBUG NULL
+
     #define UNBIND_WORD(v) \
-        (VAL_WORD_CONTEXT(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND), \
+            INIT_WORD_CONTEXT((v), WORD_CONTEXT_UNBOUND_DEBUG), \
+            INIT_WORD_INDEX((v), WORD_INDEX_UNBOUND_DEBUG))
 #endif
 
 #define VAL_WORD_CANON(v) \

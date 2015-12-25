@@ -139,7 +139,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
 
     if (
         ANY_WORD(word)
-        && HAS_CONTEXT(word)
+        && IS_WORD_BOUND(word)
         && !IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
     ) {
         key = CONTEXT_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));

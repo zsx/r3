@@ -288,19 +288,22 @@ REBCNT Last_Word_Num(void)
 // Initialize an ANY-WORD! type with a binding to a context.
 //
 void Val_Init_Word(
-    REBVAL *value,
+    REBVAL *out,
     enum Reb_Kind type,
     REBINT sym,
     REBCON *context,
     REBCNT index
 ) {
-    VAL_RESET_HEADER(value, type);
     assert(sym != SYM_0);
-    VAL_WORD_SYM(value) = sym;
-    assert(context);
-    VAL_WORD_CONTEXT(value) = context;
-    VAL_WORD_INDEX(value) = index;
-    assert(ANY_WORD(value));
+    assert(context && context != WORD_CONTEXT_UNBOUND_DEBUG);
+
+    VAL_RESET_HEADER(out, type);
+    INIT_WORD_SYM(out, sym);
+    INIT_WORD_CONTEXT(out, context);
+    INIT_WORD_INDEX(out, index);
+    VAL_SET_EXT(out, EXT_WORD_BOUND);
+
+    assert(ANY_WORD(out));
 
     // !!! Assert that the key in that position matches?!  Seems sensible
     // (add it when other changes done)
@@ -312,31 +315,21 @@ void Val_Init_Word(
 // 
 // Initialize a value as a word. Set frame as unbound (no context).
 //
-void Val_Init_Word_Unbound(REBVAL *value, enum Reb_Kind type, REBCNT sym)
+void Val_Init_Word_Unbound(REBVAL *out, enum Reb_Kind type, REBCNT sym)
 {
-    VAL_RESET_HEADER(value, type);
-    VAL_WORD_CONTEXT(value) = NULL;
     assert(sym != SYM_0);
-    VAL_WORD_SYM(value) = sym;
-#ifndef NDEBUG
-    VAL_WORD_INDEX(value) = WORD_INDEX_UNBOUND;
+
+    VAL_RESET_HEADER(out, type);
+    INIT_WORD_SYM(out, sym);
+
+#if !defined(NDEBUG)
+    INIT_WORD_INDEX(out, WORD_INDEX_UNBOUND_DEBUG);
+    INIT_WORD_CONTEXT(out, WORD_CONTEXT_UNBOUND_DEBUG);
 #endif
-    assert(ANY_WORD(value));
-}
 
+    assert(!VAL_GET_EXT(out, EXT_WORD_BOUND)); // reminder
 
-//
-//  VAL_WORD_SYM_Ptr_Debug: C
-// 
-// !!! Needed temporarily due to reorganization (though it should
-// be checked via C++ build's static typing eventually...)
-//
-REBCNT *VAL_WORD_SYM_Ptr_Debug(const REBVAL *word)
-{
-    assert(ANY_WORD(word));
-    // loses constness, but that's not the particular concern needed
-    // to be caught in the wake of the UNWORD => TYPESET change...
-    return cast(REBCNT*, &word->payload.any_word.sym);
+    assert(ANY_WORD(out));
 }
 
 
@@ -439,3 +432,40 @@ void Init_Words(REBOOL only)
     CLEAR_SEQUENCE(Bind_Table);
     SET_SERIES_LEN(Bind_Table, ARRAY_LEN(PG_Word_Table.array));
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  ENSURE_ANY_WORD_Debug: C
+//
+// This is the debug implementation of ENSURE_ANY_WORD (a Noop in the release
+// build).  It returns the Any_Word payload of a REBVAL after ensuring that
+// its type is actually an ANY-WORD!.  It can optionally require that the
+// word be bound, as well.
+//
+const struct Reb_Any_Word* ENSURE_ANY_WORD_Debug(
+    const REBVAL *any_word,
+    REBOOL must_be_bound
+) {
+    const struct Reb_Any_Word *payload = &any_word->payload.any_word;
+
+    assert(ANY_WORD(any_word));
+
+    // We don't use IS_WORD_BOUND here because it calls ENSURE_WORD and would
+    // lead to an infinite recursion.
+    //
+    if (VAL_GET_EXT(any_word, EXT_WORD_BOUND)) {
+        assert(payload->index != WORD_INDEX_UNBOUND_DEBUG);
+        assert(payload->context != WORD_CONTEXT_UNBOUND_DEBUG);
+    }
+    else {
+        if (must_be_bound) assert(FALSE);
+        assert(payload->index == WORD_INDEX_UNBOUND_DEBUG);
+        assert(payload->context == WORD_CONTEXT_UNBOUND_DEBUG);
+    }
+
+    return payload;
+}
+
+#endif

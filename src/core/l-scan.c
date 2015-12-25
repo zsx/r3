@@ -1399,13 +1399,13 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             if (token == TOKEN_LIT) {
                 token = REB_LIT_PATH;
                 VAL_RESET_HEADER(ARRAY_HEAD(block), REB_WORD);
-                assert(!HAS_CONTEXT(ARRAY_HEAD(block)));
+                assert(IS_WORD_UNBOUND(ARRAY_HEAD(block)));
             }
             else if (IS_GET_WORD(ARRAY_HEAD(block))) {
                 if (*scan_state->end == ':') goto syntax_error;
                 token = REB_GET_PATH;
                 VAL_RESET_HEADER(ARRAY_HEAD(block), REB_WORD);
-                assert(!HAS_CONTEXT(ARRAY_HEAD(block)));
+                assert(IS_WORD_UNBOUND(ARRAY_HEAD(block)));
             }
             else {
                 if (*scan_state->end == ':') {

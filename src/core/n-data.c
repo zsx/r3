@@ -277,8 +277,10 @@ REBNATIVE(bind)
         // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
+        if (IS_WORD_UNBOUND(ARG(target)))
+            fail (Error(RE_NOT_BOUND, ARG(target)));
+
         target = VAL_WORD_CONTEXT(ARG(target));
-        if (!target) fail (Error(RE_NOT_BOUND, ARG(target)));
     }
 
     // Bind single word:
@@ -339,7 +341,7 @@ REBNATIVE(bound_q)
 {
     REBVAL *word = D_ARG(1);
 
-    if (!HAS_CONTEXT(word)) return R_NONE;
+    if (IS_WORD_UNBOUND(word)) return R_NONE;
 
     // The canon value for a non-frame context lives in the [0] cell, and
     // right now the value used for a frame context is the value of the
@@ -571,8 +573,9 @@ REBNATIVE(in)
                         context, VAL_WORD_SYM(word), FALSE
                     );
                     if (index != 0) {
-                        VAL_WORD_INDEX(word) = index;
-                        VAL_WORD_CONTEXT(word) = context;
+                        INIT_WORD_INDEX(word, index);
+                        INIT_WORD_CONTEXT(word, context);
+                        VAL_SET_EXT(word, EXT_WORD_BOUND);
                         *D_OUT = *word;
                         return R_OUT;
                     }
@@ -596,8 +599,9 @@ REBNATIVE(in)
     if (index == 0)
         return R_NONE;
 
-    VAL_WORD_INDEX(word) = index;
-    VAL_WORD_CONTEXT(word) = context;
+    INIT_WORD_INDEX(word, index);
+    INIT_WORD_CONTEXT(word, context);
+    VAL_SET_EXT(word, EXT_WORD_BOUND);
     *D_OUT = *word;
 
     return R_OUT;
@@ -999,7 +1003,8 @@ REBNATIVE(unset)
     if (ANY_WORD(value)) {
         word = value;
 
-        if (!HAS_CONTEXT(word)) fail (Error(RE_NOT_BOUND, word));
+        if (IS_WORD_UNBOUND(word))
+            fail (Error(RE_NOT_BOUND, word));
 
         var = GET_MUTABLE_VAR(word);
         SET_UNSET(var);
@@ -1011,7 +1016,8 @@ REBNATIVE(unset)
             if (!ANY_WORD(word))
                 fail (Error_Invalid_Arg(word));
 
-            if (!HAS_CONTEXT(word)) fail (Error(RE_NOT_BOUND, word));
+            if (IS_WORD_UNBOUND(word))
+                fail (Error(RE_NOT_BOUND, word));
 
             var = GET_MUTABLE_VAR(word);
             SET_UNSET(var);

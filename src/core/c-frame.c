@@ -234,8 +234,9 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        VAL_WORD_CONTEXT(word) = context;
-        VAL_WORD_INDEX(word) = CONTEXT_LEN(context); // length we just bumped
+        INIT_WORD_CONTEXT(word, context);
+        INIT_WORD_INDEX(word, CONTEXT_LEN(context)); // length we just bumped
+        VAL_SET_EXT(word, EXT_WORD_BOUND);
     }
     else
         assert(sym != SYM_0);
@@ -923,9 +924,10 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
                     VAL_SET_OPT(value, OPT_VALUE_LINE);
                 }
                 else VAL_RESET_HEADER(value, REB_WORD);
-                VAL_WORD_SYM(value) = VAL_TYPESET_SYM(key);
-                VAL_WORD_CONTEXT(value) = context;
-                VAL_WORD_INDEX(value) = n;
+                INIT_WORD_SYM(value, VAL_TYPESET_SYM(key));
+                INIT_WORD_CONTEXT(value, context);
+                INIT_WORD_INDEX(value, n);
+                VAL_SET_EXT(value, EXT_WORD_BOUND);
             }
             if (mode & 2) {
                 Append_Value(block, var);
@@ -1211,8 +1213,9 @@ static void Bind_Values_Inner_Loop(
                 // Word is in context, bind it
                 //
                 assert(n <= CONTEXT_LEN(context));
-                VAL_WORD_INDEX(value) = n;
-                VAL_WORD_CONTEXT(value) = context;
+                INIT_WORD_INDEX(value, n);
+                INIT_WORD_CONTEXT(value, context);
+                VAL_SET_EXT(value, EXT_WORD_BOUND);
             }
             else {
                 //
@@ -1330,8 +1333,9 @@ REBCNT Bind_Word(REBCON *context, REBVAL *word)
 
     n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (n != 0) {
-        VAL_WORD_CONTEXT(word) = context;
-        VAL_WORD_INDEX(word) = n;
+        INIT_WORD_CONTEXT(word, context);
+        INIT_WORD_INDEX(word, n);
+        VAL_SET_EXT(word, EXT_WORD_BOUND);
     }
     return n;
 }
@@ -1355,8 +1359,9 @@ static void Bind_Relative_Inner_Loop(
             REBINT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
                 // Word is in frame, bind it:
-                VAL_WORD_INDEX(value) = n;
-                VAL_WORD_CONTEXT(value) = AS_CONTEXT(paramlist);
+                INIT_WORD_INDEX(value, n);
+                INIT_WORD_CONTEXT(value, AS_CONTEXT(paramlist));
+                VAL_SET_EXT(value, EXT_WORD_BOUND);
             }
         }
         else if (ANY_ARRAY(value))
@@ -1424,9 +1429,12 @@ void Bind_Stack_Word(REBARR *paramlist, REBVAL *word)
     REBINT index;
 
     index = Find_Param_Index(paramlist, VAL_WORD_SYM(word));
-    if (!index) fail (Error(RE_NOT_IN_CONTEXT, word));
-    VAL_WORD_CONTEXT(word) = AS_CONTEXT(paramlist);
-    VAL_WORD_INDEX(word) = index;
+    if (index == 0)
+        fail (Error(RE_NOT_IN_CONTEXT, word));
+
+    INIT_WORD_CONTEXT(word, AS_CONTEXT(paramlist));
+    INIT_WORD_INDEX(word, index);
+    VAL_SET_EXT(word, EXT_WORD_BOUND);
 }
 
 
@@ -1448,11 +1456,15 @@ void Rebind_Values_Deep(
         if (ANY_ARRAY(value)) {
             Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), modes);
         }
-        else if (ANY_WORD(value) && VAL_WORD_CONTEXT(value) == src) {
-            VAL_WORD_CONTEXT(value) = dst;
+        else if (
+            ANY_WORD(value)
+            && IS_WORD_BOUND(value)
+            && VAL_WORD_CONTEXT(value) == src
+        ) {
+            INIT_WORD_CONTEXT(value, dst);
 
             if (modes & REBIND_TABLE)
-                VAL_WORD_INDEX(value) = binds[VAL_WORD_CANON(value)];
+                INIT_WORD_INDEX(value, binds[VAL_WORD_CANON(value)]);
         }
         else if (
             (modes & REBIND_FUNC) && (IS_FUNCTION(value) || IS_CLOSURE(value))
@@ -1568,19 +1580,19 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBCNT sym)
 //
 REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 {
-    REBCON *context = VAL_WORD_CONTEXT(any_word);
+    REBCON *context;
     REBCNT index;
 
-    if (!context) {
+    if (IS_WORD_UNBOUND(any_word)) {
         if (trap) fail (Error(RE_NOT_BOUND, any_word));
         return NULL;
     }
 
-    index = VAL_WORD_INDEX(any_word);
+    context = VAL_WORD_CONTEXT(any_word);
+    assert(context != WORD_CONTEXT_UNBOUND_DEBUG);
 
-    // Word's boundness or unboundness should be indicated by context
-    //
-    assert(index != WORD_INDEX_UNBOUND);
+    index = VAL_WORD_INDEX(any_word);
+    assert(index != WORD_INDEX_UNBOUND_DEBUG);
 
     if (!IS_FRAME_CONTEXT(context)) {
         //

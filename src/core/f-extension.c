@@ -129,7 +129,10 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
 /*
 ***********************************************************************/
 {
+    // !!! Should use proper Val_Init routines
+    //
     VAL_RESET_HEADER(val, RXT_To_Reb[type]);
+
     switch (RXT_Eval_Class[type]) {
     case RXX_LOGIC:
         //
@@ -160,11 +163,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         VAL_ALL_BITS(val)[2] = arg.i2.int32a;
         break;
     case RXX_SYM:
-        VAL_WORD_SYM(val) = arg.i2.int32a;
-        VAL_WORD_CONTEXT(val) = NULL;
-    #if !defined(NDEBUG)
-        VAL_WORD_INDEX(val) = WORD_INDEX_UNBOUND;
-    #endif
+        Val_Init_Word_Unbound(val, RXT_To_Reb[type], arg.i2.int32a);
         break;
     case RXX_IMAGE:
         VAL_SERIES(val) = cast(REBSER*, arg.iwh.image);

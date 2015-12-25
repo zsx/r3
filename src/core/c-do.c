@@ -522,11 +522,14 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
-            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, DS_TOP));
+            //
+            if (!IS_WORD(DS_TOP))
+                fail (Error(RE_BAD_REFINE, DS_TOP));
 
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
-            VAL_WORD_SYM(DS_TOP) = SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP));
+            //
+            INIT_WORD_SYM(DS_TOP, SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP)));
         }
 
         // To make things easier for processing, reverse the refinements on
@@ -1263,7 +1266,8 @@ reevaluate:
                 fail (Error(RE_NEED_VALUE, c->value));
         #endif
 
-            if (!HAS_CONTEXT(c->value)) fail (Error(RE_NOT_BOUND, c->value));
+            if (IS_WORD_UNBOUND(c->value))
+                fail (Error(RE_NOT_BOUND, c->value));
 
             var = GET_MUTABLE_VAR(c->value);
             SET_UNSET(var);

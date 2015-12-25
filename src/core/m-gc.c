@@ -737,14 +737,14 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_GET_WORD:
         case REB_LIT_WORD:
         case REB_REFINEMENT:
-        case REB_ISSUE: {
-            REBCON* context = VAL_WORD_CONTEXT(val);
-            if (context) {
+        case REB_ISSUE:
+            if (IS_WORD_BOUND(val)) {
                 // Word is bound, so mark its context (which may be a "frame"
                 // series or an identifying function word series).  All
                 // bound words should keep their contexts from being GC'd...
                 // even stack-relative contexts for functions.
-
+                //
+                REBCON* context = VAL_WORD_CONTEXT(val);
                 if (!IS_FRAME_CONTEXT(context))
                     QUEUE_MARK_CONTEXT_DEEP(context);
                 else {
@@ -754,18 +754,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                     QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(context));
                 }
             }
-            else {
-            #ifndef NDEBUG
-                // Word is not bound to any frame; which means its index
-                // is uninitialized in release builds.  But in debug builds
-                // we require it to be a special value for checking.
-
-                if (VAL_WORD_INDEX(val) != WORD_INDEX_UNBOUND)
-                    Panic_Context(context);
-            #endif
-            }
             break;
-        }
 
         case REB_NONE:
         case REB_LOGIC:
