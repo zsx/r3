@@ -1317,7 +1317,13 @@ void Unbind_Values_Core(REBVAL value[], REBCON *context, REBOOL deep)
     for (; NOT_END(value); value++) {
         if (
             ANY_WORD(value)
-            && (!context || VAL_WORD_CONTEXT(value) == context)
+            && (
+                !context
+                || (
+                    IS_WORD_BOUND(value)
+                    && VAL_WORD_CONTEXT(value) == context
+                )
+            )
         ) {
             UNBIND_WORD(value);
         }
