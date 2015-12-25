@@ -549,6 +549,7 @@ REBNATIVE(set_scheme)
             0,
             SYM_FROM_KIND(REB_PORT)
         );
+        ARRAY_SET_FLAG(paramlist, SER_PARAMLIST);
         MANAGE_ARRAY(paramlist);
 
         // !!! Review: If this spec ever got leaked then it would be leaking

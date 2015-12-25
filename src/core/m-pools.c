@@ -643,7 +643,12 @@ static REBOOL Series_Data_Alloc(
     // Keep the series flags like SER_LOCKED, but use new width and bias to 0
 
     series->info = ((series->info >> 8) << 8) | wide;
-    SERIES_SET_BIAS(series, 0);
+
+    // Note: Bias field may contain other flags at some point.  Because
+    // SERIES_SET_BIAS() uses bit masking on an existing value, we are sure
+    // here to clear out the whole value for starters.
+    //
+    series->content.dynamic.bias = 0;
 
     if (flags & MKS_ARRAY) {
         assert(wide == sizeof(REBVAL));

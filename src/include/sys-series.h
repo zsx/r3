@@ -118,7 +118,8 @@ enum {
     SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
     SER_ARRAY       = 1 << 5,   // is sizeof(REBVAL) wide and has valid values
     SER_LOCKED      = 1 << 6,   // series size or values cannot be modified
-    SER_POWER_OF_2  = 1 << 7    // true alloc size is rounded to power of 2
+    SER_POWER_OF_2  = 1 << 7,   // true alloc size is rounded to power of 2
+    SER_PARAMLIST   = 1 << 8    // series is the parameter list of a function
 };
 
 struct Reb_Series_Dynamic {
@@ -145,7 +146,7 @@ struct Reb_Series_Dynamic {
     // it were here then it would free up a number of flags for the
     // series, which would be helpful as they are necessary
     //
-    REBCNT will_be_bias_and_something_else;
+    REBCNT bias;
 
 #if defined(__LP64__) || defined(__LLP64__)
     //
@@ -293,18 +294,19 @@ struct Reb_Series {
 //
 
 #define SERIES_BIAS(s) \
-    cast(REBCNT, (SERIES_FLAGS(s) >> 16) & 0xffff)
+    cast(REBCNT, ((s)->content.dynamic.bias >> 16) & 0xffff)
 
 #define MAX_SERIES_BIAS 0x1000 \
 
 #define SERIES_SET_BIAS(s,b) \
-    (SERIES_FLAGS(s) = (SERIES_FLAGS(s) & 0xffff) | (b << 16))
+    ((s)->content.dynamic.bias = \
+        ((s)->content.dynamic.bias & 0xffff) | (b << 16))
 
 #define SERIES_ADD_BIAS(s,b) \
-    (SERIES_FLAGS(s) += (b << 16))
+    ((s)->content.dynamic.bias += (b << 16))
 
 #define SERIES_SUB_BIAS(s,b) \
-    (SERIES_FLAGS(s) -= (b << 16))
+    ((s)->content.dynamic.bias -= (b << 16))
 
 //
 // Series flags
@@ -729,6 +731,14 @@ struct Reb_Context {
     #define AS_CONTEXT(s)       cast(REBCON*, (s))
 #endif
 
+// In the gradual shift to where FRAME! can be an ANY-CONTEXT (even though
+// it's only one series with its data coming out of the stack) we can
+// discern it based on whether the type in the first slot is an
+// ANY-FUNCTION!.  Should never be a closure.
+//
+#define IS_FRAME_CONTEXT(c) \
+    ARRAY_GET_FLAG(AS_ARRAY(c), SER_PARAMLIST)
+
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
 #define CONTEXT_VARLIST(f)      (&(f)->varlist)
@@ -808,14 +818,6 @@ struct Reb_Context {
     #define Panic_Context(f) \
         Panic_Array(CONTEXT_VARLIST(f))
 #endif
-
-// In the gradual shift to where FRAME! can be an ANY-CONTEXT (even though
-// it's only one series with its data coming out of the stack) we can
-// discern it based on whether the type in the first slot is an
-// ANY-FUNCTION!.  Should never be a closure.
-//
-#define IS_FRAME_CONTEXT(c) \
-    ANY_FUNC(CONTEXT_VALUE(c))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -725,6 +725,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:
+        #if !defined(NDEBUG)
+            if (!ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), SER_PARAMLIST))
+               Panic_Array(VAL_FUNC_PARAMLIST(val));
+        #endif
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 

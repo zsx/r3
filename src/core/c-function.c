@@ -142,6 +142,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
     paramlist = Collect_Keylist_Managed(
         NULL, ARRAY_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
     );
+    ARRAY_SET_FLAG(paramlist, SER_PARAMLIST);
 
     // Whatever function is being made, it must fill in the paramlist slot 0
     // with an ANY-FUNCTION! value corresponding to the function that it is
@@ -743,6 +744,7 @@ void Make_Function(
 void Clonify_Function(REBVAL *value)
 {
     REBARR *paramlist_orig;
+    REBARR *paramlist_copy;
 
     // !!! Conceptually the only types it currently makes sense to speak of
     // copying are functions and closures.  Though the concept is a little
@@ -773,9 +775,11 @@ void Clonify_Function(REBVAL *value)
     // function, sharing each others "stack relative locals".
 
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
+    paramlist_copy = Copy_Array_Shallow(paramlist_orig);
 
-    value->payload.any_function.func
-        = AS_FUNC(Copy_Array_Shallow(paramlist_orig));
+    ARRAY_SET_FLAG(paramlist_copy, SER_PARAMLIST);
+
+    value->payload.any_function.func = AS_FUNC(paramlist_copy);
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
