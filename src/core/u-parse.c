@@ -684,10 +684,8 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
                 );
                 if (i != NOT_FOUND && is_thru) i++;
             }
-            else {
-                assert(FALSE);
-                DEAD_END;
-            }
+            else
+                fail (Error(RE_PARSE_RULE, item));
         }
     }
 
