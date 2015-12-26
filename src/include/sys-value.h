@@ -246,8 +246,21 @@ struct Reb_Value_Header {
 // being sought of when terminators will be required and when they will not.
 //
 
-#define IS_END(v)           ((v)->header.all % 2 == 0)
-#define NOT_END(v)          ((v)->header.all % 2 == 1)
+// The debug build puts REB_MAX in the type slot, to distinguish it from the
+// 0 that signifies REB_TRASH.  That can be checked to ensure a writable
+// value isn't a trash, but a non-writable value (e.g. a pointer) could be
+// any bit pattern in the type slot.  Only check if it's a Rebol-initialized
+// value slot...and then, tolerate "GC safe trash" (an unset in release)
+//
+#define IS_END(v) \
+    (assert( \
+        !((v)->header.all & WRITABLE_MASK_DEBUG) \
+        || ((((v)->header.all & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
+            || VAL_GET_EXT((v), EXT_TRASH_SAFE) \
+        ) \
+    ), (v)->header.all % 2 == 0)
+
+#define NOT_END(v)          NOT(IS_END(v))
 
 #ifdef NDEBUG
     #define SET_END(v)      ((v)->header.all = 0)
@@ -260,7 +273,7 @@ struct Reb_Value_Header {
     //
     #define SET_END(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = WRITABLE_MASK_DEBUG)
+            (v)->header.all = WRITABLE_MASK_DEBUG | (REB_MAX << 2))
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to

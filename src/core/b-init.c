@@ -185,6 +185,14 @@ static void Assert_Basics(void)
     assert(THROWN_FLAG != END_FLAG);
     assert(NOT_FOUND != END_FLAG);
     assert(NOT_FOUND != THROWN_FLAG);
+
+    // The END marker logic currently uses REB_MAX for the type bits.  That's
+    // okay up until the REB_MAX bumps to 64.  If you hit this then some
+    // other value needs to be chosen in the debug build to represent the
+    // type value for END's bits.  (REB_TRASH is just a poor choice, because
+    // you'd like to catch IS_END() tests on trash.)
+    //
+    assert(REB_MAX < 64);
 }
 
 
