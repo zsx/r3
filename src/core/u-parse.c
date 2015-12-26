@@ -136,15 +136,41 @@ static REBCNT Set_Parse_Series(REBPARSE *parse, const REBVAL *item)
 static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 {
     if (IS_WORD(item)) {
-        // !!! Should this be getting mutable variables?  If not, how
-        // does it guarantee it is honoring the protection status?
-        if (!VAL_CMD(item)) item = GET_VAR(item);
+        const REBVAL *var;
+
+        if (VAL_CMD(item)) return item;
+
+        // If `item` is not bound, there will be a fail() during GET_VAR
+        //
+        var = GET_VAR(item);
+
+        // While NONE! is legal and represents a no-op in parse, if a
+        // you write `parse "" [to undefined-value]`...and undefined-value
+        // is bound...you may get an UNSET! back.  This should be an
+        // error, as it is in the evaluator.  (See how this is handled
+        // by REB_WORD in %c-do.c)
+        //
+        if (IS_UNSET(var))
+            fail (Error(RE_NO_VALUE, item));
+
+        return var;
     }
-    else if (IS_PATH(item)) {
+
+    if (IS_PATH(item)) {
+        //
+        // !!! REVIEW: how should GET-PATH! be handled?
+
         if (Do_Path_Throws(safe, NULL, item, NULL))
             fail (Error_No_Catch_For_Throw(safe));
-        item = safe;
+
+        // See notes above about UNSET!
+        //
+        if (IS_UNSET(safe))
+            fail (Error(RE_NO_VALUE, item));
+
+        return safe;
     }
+
     return item;
 }
 
