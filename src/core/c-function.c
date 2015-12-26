@@ -886,6 +886,35 @@ void Make_Function(
     Bind_Relative_Deep(
         VAL_FUNC(out), ARR_HEAD(VAL_FUNC_BODY(out)), TS_ANY_WORD
     );
+
+#if !defined(NDEBUG)
+    if (LEGACY(OPTIONS_MUTABLE_FUNCTION_BODIES))
+        return; // don't run protection code below
+#endif
+
+    // All the series inside of a function body are "relatively bound".  This
+    // means that there's only one copy of the body, but the series handle
+    // is "viewed" differently based on which call it represents.  Though
+    // each of these views compares uniquely, there's only one series behind
+    // it...hence the series must be read only to keep modifying a view
+    // that seems to have one identity but then affecting another.
+    //
+    // !!! The above is true in the specific-binding branch, but the rule
+    // is applied to pre-specific-binding to prepare it for that future.
+    //
+    // !!! This protection needs to be system level, as the user is able to
+    // unprotect conventional protection via UNPROTECT.
+    //
+    // !!! The protect interface is based on REBVALs at the moment, which
+    // is used by the mandatory Unmark() routine as well.  Easier to use
+    // than to figure out how to modify it to take series for this ATM.
+    //
+    REBVAL new_body;
+    Val_Init_Block(&new_body, VAL_FUNC_BODY(out));
+
+    Protect_Series(&new_body, FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET));
+    assert(GET_ARR_FLAG(VAL_ARRAY(&new_body), SERIES_FLAG_LOCKED));
+    Unmark(&new_body);
 }
 
 

@@ -320,7 +320,7 @@ load-boot-exts: function [
 ][
     loud-print "Loading boot extensions..."
 
-    ext-objs: []
+    ext-objs: copy []
 
     for-each [spec caller] boot-exts [
         append ext-objs load-extension/dispatch spec caller

@@ -328,6 +328,7 @@ enum {
 };
 
 // Flags used for Protect functions
+//
 enum {
     PROT_SET,
     PROT_DEEP,

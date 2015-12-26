@@ -186,7 +186,7 @@ Script: [
     no-catch-named:     [{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
     locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
-    locked:             {value or series locked by PROTECT - cannot modify}
+    locked:             {value or series locked - cannot modify}
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 

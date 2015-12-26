@@ -873,7 +873,7 @@ prf: func [
 
     seed: rejoin [#{} label seed]
 
-    p-md5: clear #{}
+    p-md5: copy #{}
     a: seed ; A(0)
     while [output-length > length p-md5] [
         a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
@@ -881,7 +881,7 @@ prf: func [
 
     ]
 
-    p-sha1: clear #{}
+    p-sha1: copy #{}
     a: seed ; A(0)
     while [output-length > length p-sha1] [
         a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
@@ -927,7 +927,7 @@ do-commands: func [
         ]
     ]
     debug ["writing bytes:" length ctx/msg]
-    ctx/resp: clear []
+    ctx/resp: copy []
     write ctx/connection ctx/msg
 
     unless no-wait [

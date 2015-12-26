@@ -1080,6 +1080,7 @@ set 'r3-legacy* func [] [
     system/options/lit-word-decay: true
     system/options/broken-case-semantics: true
     system/options/exit-functions-only: true
+    system/options/mutable-function-bodies: true
     system/options/refinements-blank: true
     system/options/no-switch-evals: true
     system/options/no-switch-fallthrough: true

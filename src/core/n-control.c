@@ -34,7 +34,7 @@
 //
 //  Protect_Key: C
 //
-static void Protect_Key(REBVAL *key, REBCNT flags)
+static void Protect_Key(REBVAL *key, REBFLGS flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET)) SET_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
@@ -57,7 +57,7 @@ static void Protect_Key(REBVAL *key, REBCNT flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Value(REBVAL *value, REBCNT flags)
+void Protect_Value(REBVAL *value, REBFLGS flags)
 {
     if (ANY_SERIES(value) || IS_MAP(value))
         Protect_Series(value, flags);
@@ -71,7 +71,7 @@ void Protect_Value(REBVAL *value, REBCNT flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Series(REBVAL *val, REBCNT flags)
+void Protect_Series(REBVAL *val, REBFLGS flags)
 {
     REBSER *series = VAL_SERIES(val);
 
@@ -97,7 +97,7 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Object(REBVAL *value, REBCNT flags)
+void Protect_Object(REBVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
@@ -127,7 +127,7 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 //
 //  Protect_Word_Value: C
 //
-static void Protect_Word_Value(REBVAL *word, REBCNT flags)
+static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 {
     REBVAL *key;
     REBVAL *val;
@@ -174,7 +174,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
 // 
 // Protect takes a HIDE parameter as #5.
 //
-static int Protect(struct Reb_Frame *frame_, REBCNT flags)
+static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
 {
     PARAM(1, value);
     REFINE(2, deep);
@@ -1474,7 +1474,7 @@ REBNATIVE(protect)
     REFINE(4, values);
     REFINE(5, hide);
 
-    REBCNT flags = FLAGIT(PROT_SET);
+    REBFLGS flags = FLAGIT(PROT_SET);
 
     if (REF(hide)) SET_FLAG(flags, PROT_HIDE);
     else SET_FLAG(flags, PROT_WORD); // there is no unhide

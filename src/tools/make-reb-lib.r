@@ -115,8 +115,9 @@ gen-doc: func [name proto text] [
 ]
 
 pads: func [start col] [
+    str: copy ""
     col: col - offset-of start tail start
-    head insert/dup clear "" #" " col
+    head insert/dup str #" " col
 ]
 
 emit-proto: func [

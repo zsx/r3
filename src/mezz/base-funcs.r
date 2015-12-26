@@ -211,12 +211,14 @@ use: func [
     eval func compose [<durable> <no-return> /local (vars)] body
 ]
 
-object: func [
-    {Defines a unique object.}
-    blk [block!] {Object words and values (modified)}
-][
-    make object! append blk blank
-]
+; !!! Historically OBJECT was essentially a synonym for CONTEXT with the
+; ability to tolerate a spec of `[a:]` by transforming it to `[a: none].
+; The tolerance of ending with a set-word has been added to the context
+; native, which avoids the need to mutate (or copy) the spec to add the none.
+;
+; !!! Ren-C intends to grow object into a richer construct with a spec.
+;
+object: :context
 
 module: func [
     "Creates a new module."
