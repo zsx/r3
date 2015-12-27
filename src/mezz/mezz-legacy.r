@@ -356,24 +356,6 @@ apply: func [
 ;
 set 'r3-legacy* func [] [
 
-    ; NOTE: these flags only work in debug builds.  A better availability
-    ; test for the functionality is needed, as these flags may be expired
-    ; at different times on a case-by-case basis.
-    ;
-    system/options/lit-word-decay: true
-    system/options/do-runs-functions: true
-    system/options/broken-case-semantics: true
-    system/options/exit-functions-only: true
-    system/options/refinements-true: true
-    system/options/no-switch-evals: true
-    system/options/no-switch-fallthrough: true
-    system/options/forever-64-bit-ints: true
-    system/options/print-forms-everything: true
-    system/options/break-with-overrides: true
-    system/options/none-instead-of-unsets: true
-    system/options/arg1-arg2-arg3-error: true
-    system/options/dont-exit-natives: true
-
     append system/contexts/user compose [
 
         and: (:and*)
@@ -589,7 +571,57 @@ set 'r3-legacy* func [] [
             take/last bt
             bt
         ])
+
+        ; Historical GET in Rebol allowed any type that wasn't UNSET!.  If
+        ; you said something like `get 1` this would be passed through as `1`.
+        ; Both Ren-C and Red have removed that feature, and it is also
+        ; questionable to use it as a way of getting the fields of an
+        ; object (likely better suited to reflection.)  In any case, R3-Gui
+        ; was dependent on the fallthrough behavior and other legacy clients
+        ; may be also, so this is a more tolerant variant of LIB/GET
+        ;
+        get: (function [
+            {Gets the value of a word or path, or values of an object.}
+            word "Word, path, object to get"
+            /any "Allows word to have no value (allows unset)"
+        ][
+            any_GET: any
+            any: :lib/any
+
+            either any [
+                none? :word
+                any-word? :word
+                any-path? :word
+                any-context? :word
+            ][
+                lib/get/:any_GET :word
+            ][
+                :word
+            ]
+        ])
     ]
+
+    ; NOTE: these flags only work in debug builds.  A better availability
+    ; test for the functionality is needed, as these flags may be expired
+    ; at different times on a case-by-case basis.
+    ;
+    ; (We don't flip these switches until after the above functions have been
+    ; created, so that the shims can use Ren-C features like word-valued
+    ; refinements/etc.)
+    ;
+    system/options/lit-word-decay: true
+    system/options/do-runs-functions: true
+    system/options/broken-case-semantics: true
+    system/options/exit-functions-only: true
+    system/options/refinements-true: true
+    system/options/no-switch-evals: true
+    system/options/no-switch-fallthrough: true
+    system/options/forever-64-bit-ints: true
+    system/options/print-forms-everything: true
+    system/options/break-with-overrides: true
+    system/options/none-instead-of-unsets: true
+    system/options/arg1-arg2-arg3-error: true
+    system/options/dont-exit-natives: true
 
     return none
 ]
