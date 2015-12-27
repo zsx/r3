@@ -1587,8 +1587,10 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBCNT sym)
 // Get the word--variable--value. (Generally, use the macros like
 // GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
 // called quite a lot and so attention to performance is important.
-// 
-// Coded assuming most common case is trap=TRUE and writable=FALSE
+//
+// If `trap` is TRUE, return NULL instead of raising errors on unbounds.
+//
+// Coded assuming most common case is trap=FALSE and writable=FALSE
 //
 REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 {
@@ -1596,8 +1598,9 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
     REBCNT index;
 
     if (IS_WORD_UNBOUND(any_word)) {
-        if (trap) fail (Error(RE_NOT_BOUND, any_word));
-        return NULL;
+        if (trap) return NULL;
+
+        fail (Error(RE_NOT_BOUND, any_word));
     }
 
     context = VAL_WORD_CONTEXT(any_word);
@@ -1625,8 +1628,9 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
             writable &&
             VAL_GET_EXT(CONTEXT_KEY(context, index), EXT_TYPESET_LOCKED)
         ) {
-            if (trap) fail (Error(RE_LOCKED_WORD, any_word));
-            return NULL;
+            if (trap) return NULL;
+
+            fail (Error(RE_LOCKED_WORD, any_word));
         }
 
         value = CONTEXT_VAR(context, index);
@@ -1660,9 +1664,10 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
                 // available via a FRAME! that's gone off stack materially
                 // different in the sense it should warrant an error in
                 // all cases, trap or not?
-                //
-                if (trap) fail (Error(RE_NO_RELATIVE, any_word));
-                return NULL;
+
+                if (trap) return NULL;
+
+                fail (Error(RE_NO_RELATIVE, any_word));
             }
 
             if (
@@ -1688,8 +1693,9 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
             writable &&
             VAL_GET_EXT(FUNC_PARAM(DSF_FUNC(call), index), EXT_TYPESET_LOCKED)
         ) {
-            if (trap) fail (Error(RE_LOCKED_WORD, any_word));
-            return NULL;
+            if (trap) return NULL;
+
+            fail (Error(RE_LOCKED_WORD, any_word));
         }
 
         if (DSF_FRAMELESS(call)) {
@@ -1698,6 +1704,11 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
             // little bit different and probably shouldn't be willing to
             // fail in an "oh it's unbound but that's okay" way.  Because
             // the data should be there, it's just been "optimized out"
+            //
+            // We ignore the `trap` setting for this unusual case, which
+            // generally should only be possible in debugging scenarios
+            // (how else would one get access to a binding to a native's
+            // locals and args??)
             //
             fail (Error(RE_FRAMELESS_WORD, any_word));
         }
