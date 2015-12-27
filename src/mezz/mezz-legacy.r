@@ -153,7 +153,7 @@ any-block?: :any-array?
 ; of OBJECT!, ERROR!, PORT! and (likely to be killed) MODULE!
 
 any-object!: :any-context!
-any-object?: :any-object?
+any-object?: :any-context?
 
 
 ; By having typesets prefixed with ANY-*, it helps cement the realization
