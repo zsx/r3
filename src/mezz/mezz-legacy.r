@@ -110,6 +110,19 @@ suffix?: :suffix-of
 foreach: :for-each
 
 
+; Ren-C's FOR-NEXT is a more lenient version of FORALL, which allows you to
+; switch the variable being iterated to any other type of series--NONE will
+; terminate the enumeration, so will reaching the tail.  (R3-Alpha let you
+; switch series, but only if the type matched what you initially started
+; enumerating).
+;
+; Additionally, it adds FOR-BACK to do a reverse enumeration.  Both of these
+; are simply variations of FOR-SKIP with 1 and -1 respectively.
+;
+forall: :for-next
+forskip: :for-skip
+
+
 ; The distinctions between Rebol's types is important to articulate.
 ; So using the term "BLOCK" generically to mean any composite
 ; series--as well as specificially the bracketed block type--is a
@@ -533,7 +546,7 @@ set 'r3-legacy* func [] [
             ; accounting for the removal of stack.  If we find a number
             ; that is less than the offset requested, strip the remainder.
             ;
-            forall bt [
+            for-next bt [
                 unless integer? bt/1 [continue]
 
                 bt/1: bt/1 - 1 ;; clears new-line marker, have to reset it

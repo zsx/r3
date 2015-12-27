@@ -229,7 +229,7 @@ cause-error: func [
     ; Make sure it's a block:
     args: compose [(:args)]
     ; Filter out functional values:
-    forall args [
+    for-next args [
         if any-function? first args [
             change/only args spec-of first args
         ]
