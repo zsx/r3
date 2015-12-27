@@ -391,7 +391,6 @@ static REBINT Do_Cmd(REBDIA *dia)
     }
     else {
         Resize_Series(ser, size + 1); // tail = 0
-        CLEAR(SERIES_DATA(ser), SERIES_SPACE(ser)); // Ensure entirely cleared
     }
 
     // Insert command word:
