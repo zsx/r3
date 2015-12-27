@@ -249,7 +249,7 @@ init-schemes: func [
             unless block? ports [return none]
 
             ; Are any of the requested ports awake?
-            forall ports [
+            for-next ports [
                 if port: find waked first ports [return true]
             ]
 

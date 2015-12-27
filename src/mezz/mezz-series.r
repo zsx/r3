@@ -386,14 +386,14 @@ extract: func [
         unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
         if unset? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
-        forskip series width [forall pos [
+        for-skip series width [for-next pos [
             if none? set/any 'val pick series pos/1 [set/any 'val value]
             output: insert/only output :val
         ]]
     ][
         if unset? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
-        forskip series width [
+        for-skip series width [
             if none? set/any 'val pick series pos [set/any 'val value]
             output: insert/only output :val
         ]

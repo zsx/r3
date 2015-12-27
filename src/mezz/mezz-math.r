@@ -90,7 +90,7 @@ minimum-of: func [
     size: any [size 1]
     if 1 > size [cause-error 'script 'out-of-range size]
     spot: series
-    forskip series size [
+    for-skip series size [
         if lesser? first series first spot [spot: series]
     ]
     spot
@@ -106,7 +106,7 @@ maximum-of: func [
     size: any [:size 1]
     if 1 > size [cause-error 'script 'out-of-range size]
     spot: series
-    forskip series size [
+    for-skip series size [
         if greater? first series first spot [spot: series]
     ]
     spot

@@ -57,7 +57,7 @@ binary-to-c: either system/version/4 = 3 [
     ; Windows MSVC 6 compatible format (as integer chars):
     func [comp-data /local out] [
         out: make string! 4 * (length comp-data)
-        forall comp-data [
+        for-next comp-data [
             out: insert out reduce [to-integer/unsigned first comp-data ", "]
             if zero? ((index-of comp-data) // 10) [out: insert out "^/^-"]
         ]
@@ -68,11 +68,11 @@ binary-to-c: either system/version/4 = 3 [
     ; Other compilers (as hex-escaped char strings "\x00"):
     func [comp-data /local out] [
         out: make string! 4 * (length comp-data)
-        forall comp-data [
+        for-next comp-data [
             data: copy/part comp-data 16
             comp-data: skip comp-data 15
             data: enbase/base data 16
-            forall data [
+            for-next data [
                 insert data "\x"
                 data: skip data 3
             ]

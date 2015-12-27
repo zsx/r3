@@ -451,43 +451,67 @@ enum encoding_opts {
     VAL_GET_OPT((v), OPT_VALUE_THROWN)
 
 
-/***********************************************************************
-**
-**  VARIABLE ACCESS
-**
-**  When a word is bound to a context by an index, it becomes a means of
-**  reading and writing from a persistent storage location.  The term
-**  "variable" is used to refer to a REBVAL slot reached through a
-**  binding in this way.
-**
-**  All variables can be in a protected state where they cannot be
-**  written.  Hence const access is the default, and a const pointer is
-**  given back which may be inspected but the contents not modified.  If
-**  mutable access is required, one may either demand write access
-**  (and get a failure and longjmp'd error if not possible) or ask
-**  more delicately with a TRY.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VARIABLE ACCESS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// When a word is bound to a context by an index, it becomes a means of
+// reading and writing from a persistent storage location.  We use "variable"
+// or just VAR to refer to REBVAL slots reached via binding in this way.
+// More narrowly, a VAR that represents an argument to a function invocation
+// may be called an ARG (and an ARG's "persistence" is only as long as that
+// function call is on the stack).
+//
+// All variables can be put in a protected state where they cannot be written.
+// This protection status is marked on the KEY of the context.  Again, more
+// narrowly we may refer to a KEY that represents a parameter to a function
+// as a PARAM.
+//
+// The GET_VAR() function takes the conservative default that only const
+// access is needed.  A const pointer to a REBVAL is given back which may be
+// inspected, but the contents not modified.  While a bound variable that is
+// assigned UNSET! will return a REB_UNSET value, trying to GET_VAR() on an
+// unbound variable will raise an error.
+//
+// TRY_GET_VAR() also provides const access.  But it will return NULL instead
+// of failing if the variable is unbound.  (One uncommon exception to this is
+// if a word somehow becomes bound to a PARAM of a NATIVE!, which can happen
+// during debugging inspection.  Because it's possible for natives to be
+// "frameless" and optimize out the need to store arguments, a bound variable
+// into a frameless native may nevertheless fail during TRY_GET_VAR().)
+//
+// GET_MUTABLE_VAR() and TRY_GET_MUTABLE_VAR() offer a parallel facilities
+// for getting a non-const REBVAL back.  They will fail if the variable is
+// either unbound -or- marked with OPT_TYPESET_LOCKED to protect them against
+// modification.  The TRY variation will fail quietly by returning NULL
+// (with the same caveat about frameless natives mentioned above.)
+//
 
 // Gives back a const pointer to var itself, raises error on failure
 // (Failure if unbound or stack-relative with no call on stack)
+//
 #define GET_VAR(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
+    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
 
 // Gives back a const pointer to var itself, returns NULL on failure
 // (Failure if unbound or stack-relative with no call on stack)
+//
 #define TRY_GET_VAR(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
+    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
 
 // Gets mutable pointer to var itself, raises error on failure
 // (Failure if protected, unbound, or stack-relative with no call on stack)
+//
 #define GET_MUTABLE_VAR(w) \
-    (Get_Var_Core((w), TRUE, TRUE))
+    (Get_Var_Core((w), FALSE, TRUE))
 
 // Gets mutable pointer to var itself, returns NULL on failure
 // (Failure if protected, unbound, or stack-relative with no call on stack)
+//
 #define TRY_GET_MUTABLE_VAR(w) \
-    (Get_Var_Core((w), FALSE, TRUE))
+    (Get_Var_Core((w), TRUE, TRUE))
 
 
 /***********************************************************************

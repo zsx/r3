@@ -297,83 +297,78 @@ static REBOOL Loop_Number_Throws(
 
 
 //
-//  Loop_All: C
-// 
-// 0: forall
-// 1: forskip
+//  Loop_Skip: C
 //
-static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
-{
-    REBVAL *var;
-    REBARR *body;
-    REBCNT bodi;
-    REBSER *dat;
-    REBINT idx;
-    REBINT inc = 1;
-    enum Reb_Kind type;
-    REBVAL *ds;
+// Provides the core implementation behind FOR-NEXT, FOR-BACK, and FOR-SKIP
+//
+static REB_R Loop_Skip(
+    REBVAL *out,
+    REBVAL *word, // MODIFIED - Must be GC safe!
+    REBINT skip,
+    REBVAL *body // Must be GC safe!
+) {
+    REBVAL *var = GET_MUTABLE_VAR(word); // may fail()
 
-    var = GET_MUTABLE_VAR(D_ARG(1));
+    SET_UNSET_UNLESS_LEGACY_NONE(out);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-
-    // Useful when the caller does an evaluation like `forall (any ...) [...]`
-    // and wishes the code to effectively "opt-out" of the loop on an unset
-    // or a none.
-    if (IS_NONE(var) || IS_UNSET(var)) return R_OUT;
-
-    // Save the starting var value:
-    *D_ARG(1) = *var;
-
-    if (mode == 1) inc = Int32(D_ARG(2));
-
-    type = VAL_TYPE(var);
-    body = VAL_ARRAY(D_ARG(mode+2));
-    bodi = VAL_INDEX(D_ARG(mode+2));
-
-    // Starting location when past end with negative skip:
-    if (inc < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
-        VAL_INDEX(var) = VAL_LEN_HEAD(var) + inc;
-
-    // NOTE: This math only works for index in positive ranges!
-
-    if (ANY_SERIES(var)) {
-        while (TRUE) {
-            dat = VAL_SERIES(var);
-            idx = VAL_INDEX(var);
-            if (idx < 0) break;
-            if (idx >= cast(REBINT, SERIES_LEN(dat))) {
-                if (inc >= 0) break;
-                idx = SERIES_LEN(dat) + inc; // negative
-                if (idx < 0) break;
-                VAL_INDEX(var) = idx;
-            }
-
-            if (Do_At_Throws(D_OUT, body, bodi)) {
-                REBOOL stop;
-                if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                    if (stop) {
-                        // Return value has been set in D_OUT, but we need
-                        // to reset var to its initial value
-                        *var = *D_ARG(1);
-                        return R_OUT;
-                    }
-                    goto next_iteration;
-                }
-                return R_OUT_IS_THROWN;
-            }
-
-        next_iteration:
-            if (VAL_TYPE(var) != type) fail (Error_Invalid_Arg(var));
-            VAL_INDEX(var) += inc;
-        }
-    }
-    else
+    // Though we can only iterate on a series, NONE! is used as a way of
+    // opting out.  This could be useful, e.g. `for-next (any ...) [...]`
+    //
+    // !!! Is this a good case for unset opting out?  (R3-Alpha didn't.)
+    //
+    if (IS_NONE(var))
+        return R_OUT;
+    if (!ANY_SERIES(var))
         fail (Error_Invalid_Arg(var));
 
-    // !!!!! ???? allowed to write VAR????
-    *var = *D_ARG(1);
+    // Save the starting var value, assume `word` is a GC protected slot
+    //
+    *word = *var;
 
+    // Starting location when past end with negative skip:
+    //
+    if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
+        VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
+
+    while (TRUE) {
+        REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
+        REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
+
+        if (index < 0) break;
+        if (index >= len) {
+            if (skip >= 0) break;
+            index = len + skip; // negative
+            if (index < 0) break;
+            VAL_INDEX(var) = index;
+        }
+
+        if (DO_ARRAY_THROWS(out, body)) {
+            REBOOL stop;
+            if (Catching_Break_Or_Continue(out, &stop)) {
+                if (stop) goto restore_var_and_return;
+
+                goto next_iteration;
+            }
+            return R_OUT_IS_THROWN;
+        }
+
+    next_iteration:
+        //
+        // !!! The code in the body is allowed to modify the var.  However,
+        // R3-Alpha checked to make sure that the type of the var did not
+        // change.  This seemed like an arbitrary limitation and Ren-C
+        // removed it, only checking that it's a series.
+        //
+        if (IS_NONE(var))
+            return R_OUT;
+        if (!ANY_SERIES(var))
+            fail (Error_Invalid_Arg(var));
+
+        VAL_INDEX(var) += skip;
+    }
+
+restore_var_and_return:
+    *var = *word;
     return R_OUT;
 }
 
@@ -788,35 +783,69 @@ REBNATIVE(for)
 
 
 //
-//  forall: native [
+//  for-next: native [
 //  
-//  "Evaluates a block for every value in a series."
+//  "Evaluates a block for each position until the end, using NEXT to skip"
 //  
 //      'word [word!] 
-//      {Word that refers to the series, set to each position in series}
-//      body [block!] "Block to evaluate each time"
+//          "Word that refers to the series, set to positions in the series"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
-REBNATIVE(forall)
+REBNATIVE(for_next)
 {
-    return Loop_All(call_, 0);
+    PARAM(1, word);
+    PARAM(2, body);
+
+    return Loop_Skip(D_OUT, ARG(word), 1, ARG(body));
 }
 
 
 //
-//  forskip: native [
-//  
-//  "Evaluates a block for periodic values in a series."
-//  
-//      'word [word!] 
-//      {Word that refers to the series, set to each position in series}
-//      size [integer! decimal!] "Number of positions to skip each time"
-//      body [block!] "Block to evaluate each time"
+//  for-back: native [
+//
+//  "Evaluates a block for each position until the start, using BACK to skip"
+//
+//      'word [word!]
+//          "Word that refers to the series, set to positions in the series"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
-REBNATIVE(forskip)
+REBNATIVE(for_back)
 {
-    return Loop_All(call_, 1);
+    PARAM(1, word);
+    PARAM(2, body);
+
+    return Loop_Skip(D_OUT, ARG(word), -1, ARG(body));
+}
+
+
+//
+//  for-skip: native [
+//  
+//  "Evaluates a block for periodic values in a series"
+//  
+//      'word [word!] 
+//          "Word that refers to the series, set to positions in the series"
+//      skip [integer!]
+//          "Number of positions to skip each time"
+//      body [block!]
+//          "Block to evaluate each time"
+//  ]
+//
+REBNATIVE(for_skip)
+{
+    PARAM(1, word);
+    PARAM(2, skip);
+    PARAM(3, body);
+
+    // !!! Should this fail on 0?  It could be that the loop will break for
+    // some other reason, and the author didn't wish to special case to
+    // rule out zero... generality may dictate allowing it.
+
+    return Loop_Skip(D_OUT, ARG(word), Int32(ARG(skip)), ARG(body));
 }
 
 
