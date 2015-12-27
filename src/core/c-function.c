@@ -142,6 +142,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
     paramlist = Collect_Keylist_Managed(
         NULL, ARRAY_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
     );
+    ARRAY_SET_FLAG(paramlist, SER_PARAMLIST);
 
     // Whatever function is being made, it must fill in the paramlist slot 0
     // with an ANY-FUNCTION! value corresponding to the function that it is
@@ -298,8 +299,6 @@ void Make_Native(
     enum Reb_Kind type,
     REBOOL frameless
 ) {
-    REBARR *paramlist;
-
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
@@ -319,9 +318,27 @@ void Make_Native(
 
     *FUNC_VALUE(out->payload.any_function.func) = *out;
 
+    // Make sure all the vars are marked read only.  This means that any
+    // vars which get bound to the native's args will not be able to modify
+    // them.  Such references are being experimentally allowed in the
+    // debugger.
+    //
+    // !!! Review whether allowing such references is a good or bad idea.
+    // Note also that this protection can be undone in user mode, which
+    // suggests the need for another bit that PROTECT checks.
+    //
+    {
+        REBVAL *param;
+        param = VAL_FUNC_PARAMS_HEAD(out);
+        for (; NOT_END(param); param++) {
+            assert(IS_TYPESET(param));
+            VAL_SET_EXT(param, EXT_TYPESET_LOCKED);
+        }
+    }
+
     // These native routines want to be recognized by paramlist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
-    // out for VAL_FUNC_RETURN_TO, and EVAL for 1 test vs. 2 in the eval loop.)
+    // out for VAL_FUNC_RETURN_FROM, and EVAL for 1 test vs. 2 in the eval loop.)
     //
     // PARSE wants to throw its value from nested code to itself, and doesn't
     // want to thread its known D_FUNC value through the call stack.
@@ -345,7 +362,12 @@ void Make_Native(
         //
         PG_Eval_Func = VAL_FUNC(out);
     }
-
+    else if (code == &N_resume) {
+        *ROOT_RESUME_NATIVE = *out;
+    }
+    else if (code == &N_quit) {
+        *ROOT_QUIT_NATIVE = *out;
+    }
 }
 
 
@@ -379,16 +401,10 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
         VAL_ARRAY(Get_System(SYS_STANDARD, STD_FUNC_BODY))
     );
 
-    // Index 5 (or 4 in zero-based C) should be #TYPE, a FUNCTION! or CLOSURE!
-    // !!! Is the binding important in this fake body??
-    assert(IS_ISSUE(ARRAY_AT(fake_body, 4)));
-    Val_Init_Word_Unbound(
-        ARRAY_AT(fake_body, 4), REB_WORD, SYM_FROM_KIND(VAL_TYPE(func))
-    );
-
-    // Index 8 (or 7 in zero-based C) should be #BODY, a "real" body
-    assert(IS_ISSUE(ARRAY_AT(fake_body, 7))); // #BODY
-    Val_Init_Block(ARRAY_AT(fake_body, 7), VAL_FUNC_BODY(func));
+    // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
+    assert(IS_ISSUE(ARRAY_AT(fake_body, 4))); // #BODY
+    Val_Init_Array(ARRAY_AT(fake_body, 4), REB_PAREN, VAL_FUNC_BODY(func));
+    VAL_SET_OPT(ARRAY_AT(fake_body, 4), OPT_VALUE_LINE);
 
     return fake_body;
 }
@@ -590,7 +606,7 @@ void Make_Function(
                 if (convert_local) {
                     if (IS_WORD(item)) {
                         // We convert words to set-words for pure local status
-                        VAL_SET_TYPE(item, REB_SET_WORD);
+                        VAL_SET_TYPE_BITS(item, REB_SET_WORD);
                     }
                     else if (IS_REFINEMENT(item)) {
                         // A refinement signals us to stop doing the locals
@@ -698,7 +714,7 @@ void Make_Function(
     // Now that we've created the function's fields, we pull a trick.  It
     // would be useful to be able to navigate to a full function value
     // given just its identifying series, but where to put it?  We use
-    // slot 0 (a trick learned from FRAME! in R3-Alpha's frame series)
+    // slot 0 (a trick learned from R3-Alpha's object strategy)
 
     *FUNC_VALUE(out->payload.any_function.func) = *out;
 
@@ -712,7 +728,7 @@ void Make_Function(
     // body of the closure...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
 
-    Bind_Relative(VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out));
+    Bind_Relative_Deep(VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out));
 }
 
 
@@ -728,6 +744,7 @@ void Make_Function(
 void Clonify_Function(REBVAL *value)
 {
     REBARR *paramlist_orig;
+    REBARR *paramlist_copy;
 
     // !!! Conceptually the only types it currently makes sense to speak of
     // copying are functions and closures.  Though the concept is a little
@@ -758,9 +775,11 @@ void Clonify_Function(REBVAL *value)
     // function, sharing each others "stack relative locals".
 
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
+    paramlist_copy = Copy_Array_Shallow(paramlist_orig);
 
-    value->payload.any_function.func
-        = AS_FUNC(Copy_Array_Shallow(paramlist_orig));
+    ARRAY_SET_FLAG(paramlist_copy, SER_PARAMLIST);
+
+    value->payload.any_function.func = AS_FUNC(paramlist_copy);
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
@@ -768,8 +787,8 @@ void Clonify_Function(REBVAL *value)
     // word list we saved in VAL_FUNC_PARAMLIST(value)
 
     Rebind_Values_Deep(
-        paramlist_orig,
-        FUNC_PARAMLIST(value->payload.any_function.func),
+        AS_CONTEXT(paramlist_orig),
+        AS_CONTEXT(FUNC_PARAMLIST(value->payload.any_function.func)),
         ARRAY_HEAD(VAL_FUNC_BODY(value)),
         0
     );
@@ -778,7 +797,7 @@ void Clonify_Function(REBVAL *value)
     // in the Copy_Function code.  Evaluate if there is now "dead code"
     // relating to the difference.
 /*
-    Bind_Relative(
+    Bind_Relative_Deep(
         VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
     );
 */
@@ -918,36 +937,8 @@ REBOOL Do_Function_Throws(struct Reb_Call *call_)
 
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
-    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0)) {
-        //
-        // It threw, so check to see if the throw was intended for this
-        // invocation to catch (return, exit) or if it should be bubbled up.
-        //
-        // First of all, every function responds to non-definitional EXIT
-        //
-        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
-        // A definitional return should only be intercepted if it was for
-        // this particular function invocation.
-        //
-        if (
-            IS_FUNCTION(D_OUT)
-            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
-            && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
-        ) {
-            // Optimized definitional return!!  Courtesy of REBNATIVE(func),
-            // a "hacked" REBNATIVE(return) that knew our paramlist, and
-            // the gracious cooperative throw by Dispatch_Call_Throws()...
-            //
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
+    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0))
         return TRUE; // throw wasn't for us...
-    }
 
     return FALSE;
 }
@@ -962,7 +953,7 @@ REBOOL Do_Function_Throws(struct Reb_Call *call_)
 REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 {
     REBARR *body;
-    REBFRM *frame;
+    REBCON *context;
 
     Eval_Functions++;
 
@@ -981,46 +972,48 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // It will be held alive as long as the call is in effect by the
     // Reb_Call so that the `arg` pointer will remain valid.
     //
-    frame = AS_FRAME(call_->arglist.array);
+    context = AS_CONTEXT(call_->arglist.array);
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
 
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_FRAME);
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    VAL_FRAME(FRAME_CONTEXT(frame)) = frame;
-    FRAME_KEYLIST(frame) = FUNC_PARAMLIST(D_FUNC);
-    FRAME_SPEC(frame) = NULL;
-    FRAME_BODY(frame) = NULL;
-    ASSERT_FRAME(frame);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
+    VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
+    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(D_FUNC));
+    CONTEXT_SPEC(context) = NULL;
+    CONTEXT_BODY(context) = NULL;
+    ASSERT_CONTEXT(context);
 
 #if !defined(NDEBUG)
     // !!! A second sweep for the definitional return used to be necessary in
     // the dispatch of closures since the frame hadn't been created yet to
-    // put in the RETURN_TO slot.  Now that the call's `arglist` is known
+    // put in the RETURN_FROM slot.  Now that the call's `arglist` is known
     // to be the pre-created array we'll mutate into a frame, the Do_Core
     // sweep went ahead and put it in for us.  Temporarily leave in the sweep
     // with aparanoid check to make sure, but delete this eventually.
 
     if (VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)) {
         REBVAL *key = FUNC_PARAM(D_FUNC, 1);
-        REBVAL *value = FRAME_VAR(frame, 1);
+        REBVAL *value = CONTEXT_VAR(context, 1);
 
         for (; NOT_END(key); key++, value++) {
             if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
                 assert(IS_NATIVE(value));
                 assert(PG_Return_Func == VAL_FUNC(value));
-                assert(VAL_FUNC_RETURN_TO(value) == FRAME_VARLIST(frame));
+                assert(
+                    VAL_FUNC_RETURN_FROM(value) == CONTEXT_VARLIST(context)
+                );
             }
         }
     }
 #endif
 
-    // We do not Manage_Frame, because we are reusing a word series here
+    // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed...only extract and manage the arglist
     //
-    ASSERT_ARRAY_MANAGED(FRAME_KEYLIST(frame));
-    MANAGE_ARRAY(FRAME_VARLIST(frame));
+    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
+    MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this
@@ -1028,10 +1021,10 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     //
     body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
     Rebind_Values_Deep(
-        FUNC_PARAMLIST(D_FUNC),
-        FRAME_VARLIST(frame),
+        AS_CONTEXT(FUNC_PARAMLIST(D_FUNC)),
+        context,
         ARRAY_HEAD(body),
-        REBIND_TYPE
+        0
     );
 
     // Protect the body from garbage collection during the course of the
@@ -1043,25 +1036,6 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 
     if (Do_At_Throws(D_OUT, body, 0)) {
         DROP_GUARD_ARRAY(body);
-        if (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_exit) {
-            // Every function responds to non-definitional EXIT
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
-        if (
-            IS_OBJECT(D_OUT)
-            && VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)
-            && VAL_FRAME(D_OUT) == frame
-        ) {
-            // Optimized definitional return!!  Courtesy of REBNATIVE(clos),
-            // a "hacked" REBNATIVE(return) that knew our frame, and
-            // the gracious cooperative throw by Dispatch_Call_Throws()...
-
-            CATCH_THROWN(D_OUT, D_OUT);
-            return FALSE;
-        }
-
         return TRUE; // throw wasn't for us
     }
 
@@ -1242,10 +1216,19 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     //
     // We also set OPT_VALUE_THROWN as that is not required to be sync'd
     // with the persistent value in the function.  This bit is deprecated
-    // however, for many of the same reasons it's a nuisance here.
+    // however, for many of the same reasons it's a nuisance here.  The
+    // OPT_VALUE_EXIT_FROM needs to be handled in the same way.
     //
-    v_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
-    func_header.all |= ((1 << OPT_VALUE_LINE) | (1 << OPT_VALUE_THROWN)) << 8;
+    v_header.all |= (
+        (1 << OPT_VALUE_EXIT_FROM)
+        | (1 << OPT_VALUE_LINE)
+        | (1 << OPT_VALUE_THROWN)
+    ) << 8;
+    func_header.all |= (
+        (1 << OPT_VALUE_EXIT_FROM)
+        | (1 << OPT_VALUE_LINE)
+        | (1 << OPT_VALUE_THROWN)
+    ) << 8;
 
     if (v_header.all != func_header.all) {
         REBVAL *func_value = FUNC_VALUE(func);

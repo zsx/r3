@@ -151,19 +151,18 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     REBVAL *val;
     REBSER *ser;
 
-    REBOL_STATE state;
-    REBFRM *error;
+    struct Reb_State state;
+    REBCON *error;
+    int error_num;
 
-    REBVAL start_result;
-
-    int result;
-    REBVAL out;
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (bin) {
         ser = Decompress(bin, len, -1, FALSE, FALSE);
         if (!ser) return 1;
 
-        val = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
+        val = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
         Val_Init_Binary(val, ser);
     }
 
@@ -187,7 +186,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         }
         OS_FREE(script);
 
-        val = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
+        val = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
         Val_Init_Binary(val, ser);
     }
 
@@ -216,22 +215,22 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         return ERR_NUM(error);
     }
 
-    if (Do_Sys_Func_Throws(&out, SYS_CTX_FINISH_RL_START, 0)) {
+    if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_RL_START, 0)) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-                fail (Error_No_Catch_For_Throw(&out));
+                fail (Error_No_Catch_For_Throw(&result));
         #endif
 
         if (
-            IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == &N_quit
-                || VAL_FUNC_CODE(&out) == &N_exit
+            IS_NATIVE(&result) && (
+                VAL_FUNC_CODE(&result) == &N_quit
+                || VAL_FUNC_CODE(&result) == &N_exit
             )
         ) {
             int status;
 
-            CATCH_THROWN(&out, &out);
-            status = Exit_Status_From_Value(&out);
+            CATCH_THROWN(&result, &result);
+            status = Exit_Status_From_Value(&result);
 
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -240,7 +239,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
             DEAD_END;
         }
 
-        fail (Error_No_Catch_For_Throw(&out));
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -249,16 +248,16 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     // convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
     // FINISH_RL_START indicates something went wrong.
 
-    if (IS_UNSET(&out))
-        result = 0;
+    if (IS_UNSET(&result))
+        error_num = 0; // no error
     else {
         assert(FALSE); // should not happen (raise an error instead)
         Debug_Fmt("** finish-rl-start returned non-NONE!:");
-        Debug_Fmt("%r", &out);
-        result = RE_MISC;
+        Debug_Fmt("%r", &result);
+        error_num = RE_MISC;
     }
 
-    return result;
+    return error_num;
 }
 
 
@@ -318,7 +317,7 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
     REBVAL *value;
     REBARR *array;
 
-    value = FRAME_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
+    value = CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
     if (IS_BLOCK(value))
         array = VAL_ARRAY(value);
     else {
@@ -351,7 +350,10 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
 //
 RL_API void RL_Escape(REBINT reserved)
 {
-    SET_SIGNAL(SIG_ESCAPE);
+    // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
+    // to quit entirely vs. begin an interactive debugging session?
+    //
+    SET_SIGNAL(SIG_INTERRUPT);
 }
 
 
@@ -380,13 +382,19 @@ RL_API void RL_Escape(REBINT reserved)
 //     "sample" console code (which wound up being the "only"
 //     console code for quite some time).
 //
-RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIARG *result)
-{
+RL_API int RL_Do_String(
+    int *exit_status,
+    const REBYTE *text,
+    REBCNT flags,
+    RXIARG *out
+) {
     REBARR *code;
-    REBVAL out;
 
-    REBOL_STATE state;
-    REBFRM *error;
+    struct Reb_State state;
+    REBCON *error;
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
@@ -405,8 +413,8 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         if (ERR_NUM(error) == RE_HALT)
             return -1; // !!! Revisit hardcoded #
 
-        if (result)
-            *result = Value_To_RXI(last);
+        if (out)
+            *out = Value_To_RXI(last);
         else
             DS_PUSH(last);
 
@@ -421,45 +429,47 @@ RL_API int RL_Do_String(int *exit_status, const REBYTE *text, REBCNT flags, RXIA
         // Top words will be added to lib:
         Bind_Values_Set_Forward_Shallow(ARRAY_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARRAY_HEAD(code), Lib_Context);
-    } else {
-        REBCNT len;
+    }
+    else {
+        REBCON *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+
         REBVAL vali;
-        REBFRM *user = VAL_FRAME(Get_System(SYS_CONTEXTS, CTX_USER));
-        len = FRAME_LEN(user) + 1;
+        VAL_INIT_WRITABLE_DEBUG(&vali);
+        SET_INTEGER(&vali, CONTEXT_LEN(user) + 1);
+
         Bind_Values_All_Deep(ARRAY_HEAD(code), user);
-        SET_INTEGER(&vali, len);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&out, code, 0)) {
+    if (Do_At_Throws(&result, code, 0)) {
         DROP_GUARD_ARRAY(code);
 
         if (
-            IS_NATIVE(&out) && (
-                VAL_FUNC_CODE(&out) == &N_quit
-                || VAL_FUNC_CODE(&out) == &N_exit
+            IS_NATIVE(&result) && (
+                VAL_FUNC_CODE(&result) == &N_quit
+                || VAL_FUNC_CODE(&result) == &N_exit
             )
         ) {
-            CATCH_THROWN(&out, &out);
+            CATCH_THROWN(&result, &result);
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-            *exit_status = Exit_Status_From_Value(&out);
+            *exit_status = Exit_Status_From_Value(&result);
             return -2; // Revisit hardcoded #
         }
 
-        fail (Error_No_Catch_For_Throw(&out));
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     DROP_GUARD_ARRAY(code);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    if (result)
-        *result = Value_To_RXI(&out);
+    if (out)
+        *out = Value_To_RXI(&result);
     else
-        DS_PUSH(&out);
+        DS_PUSH(&result);
 
-    return Reb_To_RXT[VAL_TYPE(&out)];
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -486,13 +496,13 @@ RL_API int RL_Do_Binary(
     REBINT length,
     REBCNT flags,
     REBCNT key,
-    RXIARG *result
+    RXIARG *out
 ) {
     REBSER *text;
 #ifdef DUMP_INIT_SCRIPT
     int f;
 #endif
-    int do_result;
+    int maybe_rxt; // could be REBRXT, or negative number for error :-/
 
     text = Decompress(bin, length, -1, FALSE, FALSE);
     if (!text) return 0;
@@ -505,32 +515,11 @@ RL_API int RL_Do_Binary(
 #endif
 
     PUSH_GUARD_SERIES(text);
-    do_result = RL_Do_String(exit_status, BIN_HEAD(text), flags, result);
+    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(text), flags, out);
     DROP_GUARD_SERIES(text);
 
     Free_Series(text);
-    return do_result;
-}
-
-
-//
-//  RL_Do_Block: C
-// 
-// Evaluate a block. (not implemented)
-// 
-// Returns:
-//     The datatype of the result or zero if error in the encoding.
-// Arguments:
-//     blk - A pointer to the block series
-//     flags - set to zero for now
-//     result - value returned from evaluation
-// Notes:
-//     Not implemented. Contact Carl on R3 Chat if you think you
-//     could use it for something.
-//
-RL_API int RL_Do_Block(REBSER *blk, REBCNT flags, RXIARG *result)
-{
-    return 0;
+    return maybe_rxt;
 }
 
 
@@ -553,8 +542,12 @@ RL_API int RL_Do_Block(REBSER *blk, REBCNT flags, RXIARG *result)
 //
 RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 {
-    REBVAL out;
-    Do_Commands(&out, array, context);
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result); // !!! necessary?  presumably...
+    Do_Commands(&result, array, context);
+
+    // !!! Ignored result?  Throws?  etc.  But it's old  RL_Api, so...not
+    // really a core concern going forward in Ren-C.
 }
 
 
@@ -579,57 +572,6 @@ RL_API void RL_Print(const REBYTE *fmt, ...)
     va_start(args, fmt);
     Debug_Buf(cs_cast(fmt), &args);
     va_end(args);
-}
-
-
-//
-//  RL_Print_TOS: C
-// 
-// Print top REBOL stack value to the console.
-// 
-// Returns:
-//     Nothing
-// Arguments:
-//     mold - should value be MOLDed instead of FORMed.
-//     marker - placed at beginning of line to indicate output.
-// Notes:
-//     This function is used for the main console evaluation
-//     input loop to print the results of evaluation from stack.
-//     The REBOL data stack is an abstract structure that can
-//     change between releases. This function allows the host
-//     to print the result of processed functions.
-//     Marker is usually "==" to show output.
-//     The system/options/result-types determine which values
-//     are automatically printed.
-//
-RL_API void RL_Print_TOS(REBOOL mold, const REBYTE *marker)
-{
-    if (DSP != 0)
-        Debug_Fmt(Str_Stack_Misaligned, DSP);
-
-    // We shouldn't get any THROWN() values exposed to the client
-    assert(!THROWN(DS_TOP));
-
-    if (!IS_UNSET(DS_TOP)) {
-        if (marker) Out_Str(marker, 0);
-        Out_Value(DS_TOP, 500, mold, 1); // limit print length
-    }
-}
-
-
-//
-//  RL_Drop_TOS: C
-// 
-// Drop top REBOL stack value.
-// 
-// Returns:
-//     Nothing
-// Arguments:
-//     Nothing
-//
-RL_API void RL_Drop_TOS(void)
-{
-    DS_DROP;
 }
 
 
@@ -1149,13 +1091,16 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
-    CLEARS(&value);
+    VAL_INIT_WRITABLE_DEBUG(&value);
     RXI_To_Value(&value, val, type);
+
     if (index >= ARRAY_LEN(array)) {
         Append_Value(array, &value);
         return TRUE;
     }
+
     *ARRAY_AT(array, index) = value;
+
     return FALSE;
 }
 
@@ -1178,14 +1123,14 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
     REBCNT index;
     u32 *syms;
     REBVAL *key;
-    REBFRM *frame = AS_FRAME(obj);
+    REBCON *context = AS_CONTEXT(obj);
 
-    key = FRAME_KEYS_HEAD(frame);
+    key = CONTEXT_KEYS_HEAD(context);
 
     // We don't include hidden keys (e.g. SELF), but terminate by 0.
     // Conservative estimate that there are no hidden keys, add one.
     //
-    syms = OS_ALLOC_N(u32, FRAME_LEN(frame) + 1);
+    syms = OS_ALLOC_N(u32, CONTEXT_LEN(context) + 1);
 
     index = 0;
     for (; NOT_END(key); key++) {
@@ -1216,10 +1161,10 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
 //
 RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 {
-    REBFRM *frame = AS_FRAME(obj);
+    REBCON *context = AS_CONTEXT(obj);
     REBVAL *value;
-    if (!(word = Find_Word_Index(frame, word, FALSE))) return 0;
-    value = FRAME_VAR(frame, word);
+    if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
+    value = CONTEXT_VAR(context, word);
     *result = Value_To_RXI(value);
     return Reb_To_RXT[VAL_TYPE(value)];
 }
@@ -1240,13 +1185,16 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 //
 RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
 {
-    REBFRM *frame = AS_FRAME(obj);
-    REBVAL value;
-    CLEARS(&value);
-    word_id = Find_Word_Index(frame, word_id, FALSE);
+    REBCON *context = AS_CONTEXT(obj);
+
+    word_id = Find_Word_In_Context(context, word_id, FALSE);
     if (word_id == 0) return 0;
-    if (VAL_GET_EXT(FRAME_KEY(frame, word_id), EXT_TYPESET_LOCKED)) return 0;
-    RXI_To_Value(FRAME_VAR(frame, word_id), val, type);
+
+    if (VAL_GET_EXT(CONTEXT_KEY(context, word_id), EXT_TYPESET_LOCKED))
+        return 0;
+
+    RXI_To_Value(CONTEXT_VAR(context, word_id), val, type);
+
     return type;
 }
 

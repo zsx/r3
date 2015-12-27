@@ -129,7 +129,10 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
 /*
 ***********************************************************************/
 {
+    // !!! Should use proper Val_Init routines
+    //
     VAL_RESET_HEADER(val, RXT_To_Reb[type]);
+
     switch (RXT_Eval_Class[type]) {
     case RXX_LOGIC:
         //
@@ -160,9 +163,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         VAL_ALL_BITS(val)[2] = arg.i2.int32a;
         break;
     case RXX_SYM:
-        VAL_WORD_SYM(val) = arg.i2.int32a;
-        VAL_WORD_TARGET(val) = 0;
-        VAL_WORD_INDEX(val) = 0;
+        Val_Init_Word_Unbound(val, RXT_To_Reb[type], arg.i2.int32a);
         break;
     case RXX_IMAGE:
         VAL_SERIES(val) = cast(REBSER*, arg.iwh.image);
@@ -198,7 +199,7 @@ x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 
 /***********************************************************************
 **
-x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
+x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
 /*
 **      Given an object and a word id, call a REBOL function.
 **      The arguments are converted from extension format directly
@@ -212,22 +213,25 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
     struct Reb_Call * const c = &call;
     REBCNT len;
     REBCNT n;
-    REBVAL out;
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Find word in object, verify it is a function.
-    if (!(val = Find_Word_Value(AS_FRAME(obj), name))) {
-        SET_EXT_ERROR(result, RXE_NO_WORD);
+    if (!(val = Find_Word_Value(AS_CONTEXT(obj), name))) {
+        SET_EXT_ERROR(out, RXE_NO_WORD);
         return 0;
     }
     if (!ANY_FUNC(val)) {
-        SET_EXT_ERROR(result, RXE_NOT_FUNC);
+        SET_EXT_ERROR(out, RXE_NOT_FUNC);
         return 0;
     }
 
     // Create stack frame (use prior stack frame for location info):
-    SET_TRASH_SAFE(&out); // OUT slot for function eval result
+    //
+    SET_TRASH_SAFE(&result);
     c->flags = 0;
-    c->out = &out;
+    c->out = &result;
     c->array = DSF_ARRAY(PRIOR_DSF(DSF));
     c->index = DSF_EXPR_INDEX(PRIOR_DSF(DSF));
     c->label_sym = name;
@@ -250,8 +254,8 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
 
         // Check type for word at the given offset:
         if (!TYPE_CHECK(ARRAY_AT(obj, n), VAL_TYPE(arg))) {
-            result->i2.int32b = n;
-            SET_EXT_ERROR(result, RXE_BAD_ARGS);
+            out->i2.int32b = n;
+            SET_EXT_ERROR(out, RXE_BAD_ARGS);
             Drop_Call_Arglist(c);
             return 0;
         }
@@ -265,8 +269,8 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *result)
     }
 
     // Return resulting value from output
-    *result = Value_To_RXI(&out);
-    return Reb_To_RXT[VAL_TYPE(&out)];
+    *out = Value_To_RXI(&result);
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -298,7 +302,9 @@ REBNATIVE(do_callback)
 
     if (!n) {
         REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
         SET_INTEGER(&temp, GET_EXT_ERROR(&cbi->result));
+
         fail (Error(RE_INVALID_ARG, &temp));
     }
 
@@ -337,12 +343,16 @@ REBNATIVE(load_extension)
 // quit() - cleanup anything needed
 // call() - dispatch a native
 {
+    PARAM(1, name);
+    REFINE(2, dispatch);
+    PARAM(3, function);
+
     REBCHR *name;
     void *dll;
     REBCNT error;
     REBYTE *code;
     CFUNC *info; // INFO_FUNC
-    REBFRM *frame;
+    REBCON *context;
     REBVAL *val = D_ARG(1);
     REBEXT *ext;
     CFUNC *call; // RXICAL
@@ -350,7 +360,7 @@ REBNATIVE(load_extension)
     int Remove_after_first_run;
     //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-    if (!D_REF(2)) { // No /dispatch, use the DLL file:
+    if (!REF(dispatch)) { // No /dispatch, use the DLL file:
 
         if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
 
@@ -392,17 +402,20 @@ REBNATIVE(load_extension)
     ext->index = Ext_Next++;
 
     // Extension return: dll, info, filename
-    frame = Copy_Frame_Shallow_Managed(
-        VAL_FRAME(Get_System(SYS_STANDARD, STD_EXTENSION))
+    context = Copy_Context_Shallow_Managed(
+        VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION))
     );
-    Val_Init_Object(D_OUT, frame);
+    Val_Init_Object(D_OUT, context);
 
     // Set extension fields needed:
-    val = FRAME_VAR(frame, STD_EXTENSION_LIB_BASE);
+    val = CONTEXT_VAR(context, STD_EXTENSION_LIB_BASE);
     VAL_RESET_HEADER(val, REB_HANDLE);
     VAL_I32(val) = ext->index;
-    if (!D_REF(2)) *FRAME_VAR(frame, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
-    Val_Init_Binary(FRAME_VAR(frame, STD_EXTENSION_LIB_BOOT), src);
+
+    if (!D_REF(2))
+        *CONTEXT_VAR(context, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
+
+    Val_Init_Binary(CONTEXT_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
     return R_OUT;
 }
@@ -608,7 +621,9 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
     REBCNT n;
     REBEXT *ext;
     REBCEC *ctx = cast(REBCEC*, context);
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (ctx) ctx->block = cmds;
     blk = ARRAY_HEAD(cmds);
@@ -616,22 +631,20 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
     while (NOT_END(blk)) {
 
         // var: command result
-        if IS_SET_WORD(blk) {
+        if (IS_SET_WORD(blk)) {
             set_word = blk++;
             index++;
         };
 
         // get command function
-        if (IS_WORD(blk)) {
-            cmd_sym = VAL_WORD_SYM(blk);
-            // Optimized var fetch:
-            n = VAL_WORD_INDEX(blk);
-            if (n > 0) func = FRAME_VAR(AS_FRAME(VAL_WORD_TARGET(blk)), n);
-            else func = GET_VAR(blk); // fallback
-        } else func = blk;
+        if (IS_WORD(blk))
+            func = GET_VAR(blk);
+        else
+            func = blk;
 
         if (!IS_COMMAND(func)) {
             REBVAL commandx_word;
+            VAL_INIT_WRITABLE_DEBUG(&commandx_word);
             Val_Init_Word_Unbound(
                 &commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
             );
@@ -727,7 +740,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         }
 
         if (set_word) {
-            Set_Var(set_word, val);
+            *GET_MUTABLE_VAR(set_word) = *val;
             set_word = 0;
         }
     }

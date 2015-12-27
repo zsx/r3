@@ -23,8 +23,13 @@ REBOL [
         make        - It can be made with #[datatype] method
         typesets    - what typesets the type belongs to
 
+        Note that if there is `somename` in the class column, that means you
+        will find the ACTION! dispatch for that type in `REBTYPE(Somename)`.
+
         If the (CLASS) is in a paren that means it has evaluator behavior,
         vs. being passed through as-is.  (e.g. a lit-word is "evaluative")
+        This is used to build the table used for fast lookup of whether the
+        evaluator needs to be called on a given type.
     }
 ]
 
@@ -76,29 +81,30 @@ typeset     typeset     +       f*      -       *       -
 
 ;-- Order dependent: next few words
 
-word        (word)      +        *       -      -       word
-set-word    (word)      +        *       -      -       word
-get-word    (word)      +        *       -      -       word
-lit-word    (word)      +        *       -      -       word
-refinement  word        +        *       -      -       word
-issue       word        +        *       -      -       word
+word        (word)      +       *       -       -       word
+set-word    (word)      +       *       -       -       word
+get-word    (word)      +       *       -       -       word
+lit-word    (word)      +       *       -       -       word
+refinement  word        +       *       -       -       word
+issue       word        +       *       -       -       word
 
-native      (function)  *        -       -      *       function
-action      (function)  *        -       -      *       function
-routine     (routine)   *        -       -      *       function
-command     (function)  -        -       -      *       function
-closure     (function)  *        -       -      *       function
-function    (function)  *        -       -      *       function
+native      (function)  *       -       -       *       function
+action      (function)  *       -       -       *       function
+routine     (routine)   *       -       -       *       function
+command     (function)  -       -       -       *       function
+closure     (function)  *       -       -       *       function
+function    (function)  *       -       -       *       function
 
-object      object      *        f*      *      *       object
-module      object      *        f*      *      *       object
-error       object      +        f+      *      *       object
-task        object      +        +       *      *       object
-port        port        object   object  object -       object
+object      context     *       f*      *       *       context
+frame       context     *       f*      *       *       context
+module      context     *       f*      *       *       context
+error       context     +       f+      *       *       context
+task        context     +       +       *       *       context
+port        port        context context context -       context
 
-gob         gob         *        *       *      *       -
-event       event       *        *       *      *       -
-callback    callback    -        -       -      -       -
-handle      0           -        -       -      -       -
-struct      struct      *        *       *      *       -
-library     library     -        -       -      -       -
+gob         gob         *       *       *       *       -
+event       event       *       *       *       *       -
+callback    callback    -       -       -       -       -
+handle      0           -       -       -       -       -
+struct      struct      *       *       *       *       -
+library     library     -       -       -       -       -

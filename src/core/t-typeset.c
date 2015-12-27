@@ -58,7 +58,7 @@ const struct {
     {SYM_ANY_SCALAR_X, TS_SCALAR},
     {SYM_ANY_SERIES_X, TS_SERIES},
     {SYM_ANY_STRING_X, TS_STRING},
-    {SYM_ANY_CONTEXT_X, TS_OBJECT},
+    {SYM_ANY_CONTEXT_X, TS_CONTEXT},
     {SYM_ANY_ARRAY_X, TS_ARRAY},
 
     {SYM_0, 0}
@@ -96,7 +96,7 @@ void Init_Typesets(void)
         VAL_RESET_HEADER(value, REB_TYPESET);
         VAL_TYPESET_BITS(value) = Typesets[n].bits;
 
-        *Append_Frame(Lib_Context, NULL, Typesets[n].sym) = *value;
+        *Append_Context(Lib_Context, NULL, Typesets[n].sym) = *value;
     }
 }
 
@@ -138,19 +138,17 @@ REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
 REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
 {
     const REBVAL *val;
-    REBCNT sym;
     REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
 
     VAL_TYPESET_BITS(value) = 0;
 
     for (; NOT_END(block); block++) {
         val = NULL;
-        if (IS_WORD(block)) {
+        if (IS_WORD(block) && !(val = TRY_GET_VAR(block))) {
             //Print("word: %s", Get_Word_Name(block));
-            sym = VAL_WORD_SYM(block);
-            if (VAL_WORD_TARGET(block)) { // Get word value
-                val = GET_VAR(block);
-            } else if (IS_KIND_SYM(sym)) { // Accept datatype word
+            REBCNT sym = VAL_WORD_SYM(block);
+
+            if (IS_KIND_SYM(sym)) { // Accept datatype word
                 TYPE_SET(value, KIND_FROM_SYM(sym));
                 continue;
             } // Special typeset symbols:
@@ -191,10 +189,11 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT Find_Typeset(REBVAL *block)
 {
-    REBVAL value;
     REBVAL *val;
     REBINT n;
 
+    REBVAL value;
+    VAL_INIT_WRITABLE_DEBUG(&value);
     VAL_RESET_HEADER(&value, REB_TYPESET);
     Make_Typeset(block, &value, FALSE);
 

@@ -244,7 +244,7 @@ void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
     }
 
     if (ANY_CONTEXT(arg)) {
-        array = Object_To_Array(VAL_FRAME(arg), 3);
+        array = Context_To_Array(VAL_CONTEXT(arg), 3);
         goto done;
     }
 
@@ -327,11 +327,11 @@ static int Compare_Val(void *thunk, const void *v1, const void *v2)
 static int Compare_Call(void *thunk, const void *v1, const void *v2)
 {
     REBVAL *args = NULL;
-    REBVAL out;
-
-    REBINT result = -1;
-
+    REBINT tristate = -1;
     const void *tmp = NULL;
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (!sort_flags.reverse) { /*swap v1 and v2 */
         tmp = v1;
@@ -358,23 +358,23 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         ));
     }
 
-    if (Apply_Func_Throws(&out, VAL_FUNC(sort_flags.compare), v1, v2, 0))
-        fail (Error_No_Catch_For_Throw(&out));
+    if (Apply_Func_Throws(&result, VAL_FUNC(sort_flags.compare), v1, v2, 0))
+        fail (Error_No_Catch_For_Throw(&result));
 
-    if (IS_LOGIC(&out)) {
-        if (VAL_LOGIC(&out)) result = 1;
+    if (IS_LOGIC(&result)) {
+        if (VAL_LOGIC(&result)) tristate = 1;
     }
-    else if (IS_INTEGER(&out)) {
-        if (VAL_INT64(&out) > 0) result = 1;
-        if (VAL_INT64(&out) == 0) result = 0;
+    else if (IS_INTEGER(&result)) {
+        if (VAL_INT64(&result) > 0) tristate = 1;
+        if (VAL_INT64(&result) == 0) tristate = 0;
     }
-    else if (IS_DECIMAL(&out)) {
-        if (VAL_DECIMAL(&out) > 0) result = 1;
-        if (VAL_DECIMAL(&out) == 0) result = 0;
+    else if (IS_DECIMAL(&result)) {
+        if (VAL_DECIMAL(&result) > 0) tristate = 1;
+        if (VAL_DECIMAL(&result) == 0) tristate = 0;
     }
-    else if (IS_CONDITIONAL_TRUE(&out)) result = 1;
+    else if (IS_CONDITIONAL_TRUE(&result)) tristate = 1;
 
-    return result;
+    return tristate;
 }
 
 
@@ -521,7 +521,7 @@ REBINT PD_Array(REBPVS *pvs)
         n = Int32(pvs->select) + VAL_INDEX(pvs->value) - 1;
     }
     else if (IS_WORD(pvs->select)) {
-        n = Find_Word(
+        n = Find_Word_In_Array(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
             VAL_WORD_CANON(pvs->select)
@@ -584,9 +584,11 @@ REBTYPE(Array)
     REBINT  index;
     REBINT  tail;
     REBINT  len;
-    REBVAL  val;
     REBCNT  args;
     REBCNT  ret;
+
+    REBVAL val;
+    VAL_INIT_WRITABLE_DEBUG(&val);
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))

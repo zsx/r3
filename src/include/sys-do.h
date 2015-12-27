@@ -266,6 +266,16 @@ struct Reb_Call {
     // of where the currently evaluating expression started.
     //
     REBCNT expr_index;
+
+    // `do_count` [INTERNAL, DEBUG, READ-ONLY]
+    //
+    // The `do_count` represents the expression evaluation "tick" where the
+    // Reb_Call is starting its processing.  This is helpful for setting
+    // breakpoints on certain ticks in reproducible situations.
+    //
+#if !defined(NDEBUG)
+    REBCNT do_count;
+#endif
 };
 
 // Each iteration of DO bumps a global count, that in deterministic repro
@@ -527,13 +537,6 @@ struct Native_Refine {
             : NOT(IS_NONE(ARG(name))))
 #endif
 
-// OUT is the write location in the call frame for the output.  Before the
-// call in debug builds this slot is initialized to a trash value, and by
-// the time a native has finished it is expected to not be trash (if the
-// return value is R_OUT).
-//
-#define OUT (call_->out)
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -575,6 +578,8 @@ struct Native_Refine {
     #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
 #endif
 
+#define DSF_FRAMELESS(c)    (!(c)->arg)
+
 // Note about D_ARGC: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
 // the full list of arguments and refinements).  However, ACTION! dispatch
@@ -599,7 +604,7 @@ struct Native_Refine {
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value
 #define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
 
-#define D_FRAMELESS (!call_->arg)           // Native running w/no call frame
+#define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
 
 // !!! These should perhaps assert that they're only being used when a
 // frameless native is in action.

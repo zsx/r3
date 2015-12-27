@@ -123,7 +123,18 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     buffer[0] = 0; // for debug tracing
 
     if (opts & OPT_ENC_RAW) {
-        Do_Signals();
+        //
+        // !!! See notes on other invocations about the questions raised by
+        // calls to Do_Signals_Throws() by places that do not have a clear
+        // path up to return results from an interactive breakpoint.
+        //
+        REBVAL result;
+        VAL_INIT_WRITABLE_DEBUG(&result);
+
+        if (Do_Signals_Throws(&result))
+            fail (Error_No_Catch_For_Throw(&result));
+        if (IS_SET(&result))
+            fail (Error(RE_MISC));
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
         assert(!unicode);
@@ -138,7 +149,18 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     }
     else {
         while ((len2 = len) > 0) {
-            Do_Signals();
+            //
+            // !!! See notes on other invocations about the questions raised by
+            // calls to Do_Signals_Throws() by places that do not have a clear
+            // path up to return results from an interactive breakpoint.
+            //
+            REBVAL result;
+            VAL_INIT_WRITABLE_DEBUG(&result);
+
+            if (Do_Signals_Throws(&result))
+                fail (Error_No_Catch_For_Throw(&result));
+            if (IS_SET(&result))
+                fail (Error(RE_MISC));
 
             Req_SIO->length = Encode_UTF8(
                 buf,
@@ -220,7 +242,7 @@ void Display_Backtrace(REBCNT lines)
         tail = SERIES_LEN(Trace_Buffer);
         i = tail - 1;
         for (lines++ ;lines > 0; lines--, i--) {
-            i = Find_Str_Char(Trace_Buffer, 0, i, tail, -1, LF, 0);
+            i = Find_Str_Char(LF, Trace_Buffer, 0, i, tail, -1, 0);
             if (i == NOT_FOUND || i == 0) {
                 i = 0;
                 break;
@@ -352,15 +374,20 @@ void Debug_Series(REBSER *ser)
         Debug_Str(s_cast(BIN_HEAD(ser)));
     else if (Is_Array_Series(ser)) {
         REBVAL value;
+        VAL_INIT_WRITABLE_DEBUG(&value);
+
         // May not actually be a REB_BLOCK, but we put it in a value
         // container for now saying it is so we can output it.  It may be
-        // a frame and we may not want to Manage_Series here, so we use a
+        // a context and we may not want to Manage_Series here, so we use a
         // raw VAL_SET instead of Val_Init_Block
+        //
         VAL_RESET_HEADER(&value, REB_BLOCK);
         VAL_SERIES(&value) = ser;
         VAL_INDEX(&value) = 0;
+
         Debug_Fmt("%r", &value);
-    } else if (SERIES_WIDE(ser) == sizeof(REBUNI))
+    }
+    else if (SERIES_WIDE(ser) == sizeof(REBUNI))
         Debug_Uni(ser);
     else if (ser == Bind_Table) {
         // Dump bind table somehow?
@@ -829,11 +856,17 @@ mold_value:
 
         case 'm':  // Mold a series
             ser = va_arg(*args, REBSER *);
+
             // Val_Init_Block would Ensure_Series_Managed, we use a raw
-            // VAL_SET instead
+            // VAL_SET instead.
+            //
+            // !!! Better approach?  Can the series be passed directly?
+            //
+            VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
             VAL_SERIES(&value) = ser;
             VAL_INDEX(&value) = 0;
+
             vp = &value;
             goto mold_value;
 

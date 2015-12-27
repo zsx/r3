@@ -162,7 +162,9 @@ REBTYPE(Function)
                 if (VAL_TYPE(value) == REB_CLOSURE) {
                     // See #2221 for why closure body copies unbind locals
                     Unbind_Values_Core(
-                        VAL_ARRAY_HEAD(D_OUT), VAL_FUNC_PARAMLIST(value), TRUE
+                        VAL_ARRAY_HEAD(D_OUT),
+                        AS_CONTEXT(VAL_FUNC_PARAMLIST(value)),
+                        TRUE
                     );
                 }
                 if (is_fake) Free_Array(body); // was shallow copy
@@ -208,12 +210,32 @@ REBTYPE(Function)
         }
 
         case OF_TITLE:
+            //
+            // Get the first STRING! before any parameter definitions, or
+            // NONE! if there isn't one.
+            //
+            // !!! Is the "TITLE" actually something that should be canonized
+            // by the reflection API, or is it entirely up to how the spec is
+            // interpreted by HELP?  The policy on allowing strings to be
+            // skipped and preserved leans toward the latter concept.
+            //
             arg = ARRAY_HEAD(VAL_FUNC_SPEC(value));
-            while (NOT_END(arg) && !IS_STRING(arg) && !IS_WORD(arg))
-                arg++;
-            if (!IS_STRING(arg)) return R_NONE;
-            Val_Init_String(D_OUT, Copy_Sequence(VAL_SERIES(arg)));
-            return R_OUT;
+            for (; NOT_END(arg); arg++) {
+                if (IS_STRING(arg)) {
+                    Val_Init_String(D_OUT, Copy_Sequence(VAL_SERIES(arg)));
+                    return R_OUT;
+                }
+
+                if (ANY_WORD(arg)) {
+                    //
+                    // Parameter, so no title after this point.  Note that
+                    // "ANY-WORD!" includes ISSUE!, which currently doesn't
+                    // have meaning in function specs.
+                    //
+                    break;
+                }
+            }
+            return R_NONE;
 
         default:
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));

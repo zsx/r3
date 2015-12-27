@@ -65,7 +65,7 @@ REBTYPE(Datatype)
     REBVAL *arg = D_ARG(2);
     REBACT act;
     enum Reb_Kind kind = VAL_TYPE_KIND(value);
-    REBFRM *obj;
+    REBCON *obj;
     REBINT n;
 
     switch (action) {
@@ -77,7 +77,7 @@ REBTYPE(Datatype)
             Set_Object_Values(
                 obj,
                 ARRAY_HEAD(
-                    VAL_TYPE_SPEC(FRAME_VAR(Lib_Context, SYM_FROM_KIND(kind)))
+                    VAL_TYPE_SPEC(CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(kind)))
                 )
             );
             Val_Init_Object(D_OUT, obj);
@@ -86,7 +86,7 @@ REBTYPE(Datatype)
             Val_Init_String(
                 D_OUT,
                 Copy_Sequence(VAL_SERIES(ARRAY_HEAD(
-                    VAL_TYPE_SPEC(FRAME_VAR(Lib_Context, SYM_FROM_KIND(kind)))
+                    VAL_TYPE_SPEC(CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(kind)))
                 )))
             );
         }

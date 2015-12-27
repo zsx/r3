@@ -77,7 +77,7 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 //
 //  Init_Loop: C
 // 
-// Initialize standard for loops (copy block, make frame, bind).
+// Initialize standard for loops (copy block, make context, bind).
 // Spec: WORD or [WORD ...]
 // 
 // Note that because we are copying the block in order to rebind it, the
@@ -86,11 +86,11 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 // items before its VAL_INDEX() omitted.
 //
 static REBARR *Init_Loop(
-    REBFRM **frame_out,
+    REBCON **context_out,
     const REBVAL *spec,
     REBVAL *body
 ) {
-    REBFRM *frame;
+    REBCON *context;
     REBINT len;
     REBVAL *key;
     REBVAL *var;
@@ -101,26 +101,28 @@ static REBARR *Init_Loop(
     // For :WORD format, get the var's value:
     if (IS_GET_WORD(spec)) spec = GET_VAR(spec);
 
-    // Hand-make a FRAME (done for for speed):
+    // Hand-make a CONTEXT (done for for speed):
     len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
     if (len == 0) fail (Error_Invalid_Arg(spec));
-    frame = Alloc_Frame(len);
-    SET_ARRAY_LEN(FRAME_VARLIST(frame), len + 1);
-    SET_ARRAY_LEN(FRAME_KEYLIST(frame), len + 1);
 
-    VAL_RESET_HEADER(FRAME_CONTEXT(frame), REB_OBJECT);
-    FRAME_SPEC(frame) = NULL;
-    FRAME_BODY(frame) = NULL;
+    context = Alloc_Context(len);
+    SET_ARRAY_LEN(CONTEXT_VARLIST(context), len + 1);
+    SET_ARRAY_LEN(CONTEXT_KEYLIST(context), len + 1);
+
+    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
+    CONTEXT_SPEC(context) = NULL;
+    CONTEXT_BODY(context) = NULL;
 
     // Setup for loop:
-    key = FRAME_KEY(frame, 1); // skip SELF
-    var = FRAME_VAR(frame, 1);
+    key = CONTEXT_KEYS_HEAD(context);
+    var = CONTEXT_VARS_HEAD(context);
+
     if (IS_BLOCK(spec)) spec = VAL_ARRAY_AT(spec);
 
-    // Optimally create the FOREACH frame:
+    // Optimally create the FOREACH context:
     while (len-- > 0) {
         if (!IS_WORD(spec) && !IS_SET_WORD(spec)) {
-            FREE_FRAME(frame);
+            FREE_CONTEXT(context);
             fail (Error_Invalid_Arg(spec));
         }
 
@@ -142,9 +144,9 @@ static REBARR *Init_Loop(
     body_out = Copy_Array_At_Deep_Managed(
         VAL_ARRAY(body), VAL_INDEX(body)
     );
-    Bind_Values_Deep(ARRAY_HEAD(body_out), frame);
+    Bind_Values_Deep(ARRAY_HEAD(body_out), context);
 
-    *frame_out = frame;
+    *context_out = context;
 
     return body_out;
 }
@@ -162,7 +164,7 @@ static REBOOL Loop_Series_Throws(
     REBINT ii
 ) {
     REBINT si = VAL_INDEX(start);
-    REBCNT type = VAL_TYPE(start);
+    enum Reb_Kind type = VAL_TYPE(start);
 
     *var = *start;
 
@@ -308,7 +310,7 @@ static REB_R Loop_All(struct Reb_Call *call_, REBINT mode)
     REBSER *dat;
     REBINT idx;
     REBINT inc = 1;
-    REBCNT type;
+    enum Reb_Kind type;
     REBVAL *ds;
 
     var = GET_MUTABLE_VAR(D_ARG(1));
@@ -388,9 +390,9 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
     PARAM(2, data);
     PARAM(3, body);
 
-    // `vars` frame (plus var and key for iterating over it)
+    // `vars` context (plus var and key for iterating over it)
     //
-    REBFRM *frame;
+    REBCON *context;
 
     // `data` series and index (where data is the series/object/map/etc. that
     // the loop is iterating over)
@@ -422,8 +424,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 
     if (IS_NONE(data_value) || IS_UNSET(data_value)) return R_OUT;
 
-    body_copy = Init_Loop(&frame, ARG(vars), ARG(body));
-    Val_Init_Object(ARG(vars), frame); // keep GC safe
+    body_copy = Init_Loop(&context, ARG(vars), ARG(body));
+    Val_Init_Object(ARG(vars), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
     if (mode == LOOP_MAP_EACH) {
@@ -442,14 +444,16 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 
     // Get series info:
     if (ANY_CONTEXT(data_value)) {
-        series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(data_value)));
+        series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(data_value)));
         index = 1;
-        //if (frame->tail > 3) fail (Error_Invalid_Arg(FRAME_KEY(frame, 3)));
+        //if (context->tail > 3)
+        //  fail (Error_Invalid_Arg(CONTEXT_KEY(context, 3)));
     }
     else if (IS_MAP(data_value)) {
         series = VAL_SERIES(data_value);
         index = 0;
-        //if (frame->tail > 3) fail (Error_Invalid_Arg(FRAME_KEY(frame, 3)));
+        //if (context->tail > 3)
+        //  fail (Error_Invalid_Arg(CONTEXT_KEY(context, 3)));
     }
     else {
         series = VAL_SERIES(data_value);
@@ -473,8 +477,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
         REBCNT i;
         REBCNT j = 0;
 
-        REBVAL *key = FRAME_KEY(frame, 1);
-        REBVAL *var = FRAME_VAR(frame, 1);
+        REBVAL *key = CONTEXT_KEY(context, 1);
+        REBVAL *var = CONTEXT_VAR(context, 1);
 
         rindex = index;  // remember starting spot
 
@@ -504,7 +508,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                         var,
                         REB_WORD,
                         VAL_TYPESET_SYM(VAL_CONTEXT_KEY(data_value, index)),
-                        AS_FRAME(series),
+                        AS_CONTEXT(series),
                         index
                     );
                     if (NOT_END(var + 1)) {
@@ -517,6 +521,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
+                    VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                     Val_Init_Word_Unbound(
                         &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                     );
@@ -539,6 +545,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
+                        VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                         Val_Init_Word_Unbound(
                             &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                         );
@@ -714,13 +722,13 @@ REBNATIVE(for)
     PARAM(5, body);
 
     REBARR *body_copy;
-    REBFRM *frame;
+    REBCON *context;
     REBVAL *var;
 
-    // Copy body block, make a frame, bind loop var to it:
-    body_copy = Init_Loop(&frame, ARG(word), ARG(body));
-    var = FRAME_VAR(frame, 1); // safe: not on stack
-    Val_Init_Object(ARG(word), frame); // keep GC safe
+    // Copy body block, make a context, bind loop var to it:
+    body_copy = Init_Loop(&context, ARG(word), ARG(body));
+    var = CONTEXT_VAR(context, 1); // safe: not on stack
+    Val_Init_Object(ARG(word), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
     if (
@@ -955,7 +963,7 @@ REBNATIVE(loop)
 REBNATIVE(repeat)
 {
     REBARR *body;
-    REBFRM *frame;
+    REBCON *context;
     REBVAL *var;
     REBVAL *count = D_ARG(2);
 
@@ -969,9 +977,9 @@ REBNATIVE(repeat)
         VAL_RESET_HEADER(count, REB_INTEGER);
     }
 
-    body = Init_Loop(&frame, D_ARG(1), D_ARG(3));
-    var = FRAME_VAR(frame, 1); // safe: not on stack
-    Val_Init_Object(D_ARG(1), frame); // keep GC safe
+    body = Init_Loop(&context, D_ARG(1), D_ARG(3));
+    var = CONTEXT_VAR(context, 1); // safe: not on stack
+    Val_Init_Object(D_ARG(1), context); // keep GC safe
     Val_Init_Block(D_ARG(3), body); // keep GC safe
 
     if (ANY_SERIES(count)) {
@@ -1041,45 +1049,54 @@ REBNATIVE(until)
 //  
 //  {While a condition block is TRUE, evaluates another block.}
 //  
-//      cond-block [block!]
-//      body-block [block!]
+//      condition [block!]
+//      body [block!]
 //  ]
 //
 REBNATIVE(while)
 {
-    REBVAL * const condition = D_ARG(1);
-    REBVAL * const body = D_ARG(2);
+    PARAM(1, condition);
+    PARAM(2, body);
 
     // We need to keep the condition and body safe from GC, so we can't
     // use a D_ARG slot for evaluating the condition (can't overwrite
-    // D_OUT because that's the last loop's value we might return)
-    REBVAL temp;
+    // D_OUT because that's the last loop's value we might return).  Our
+    // temporary value is called "unsafe" because it is not protected
+    // from GC (no need to, as it doesn't need to stay live across eval)
+    //
+    REBVAL unsafe;
+    VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
     // If the loop body never runs (and condition doesn't error or throw),
     // we want to return an UNSET!
+    //
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
     do {
-        if (DO_ARRAY_THROWS(&temp, condition)) {
+        if (DO_ARRAY_THROWS(&unsafe, ARG(condition))) {
+            //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
-            *D_OUT = temp;
+            //
+            *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(&temp))
+        if (IS_UNSET(&unsafe))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(&temp)) {
+        if (IS_CONDITIONAL_FALSE(&unsafe)) {
+            //
             // When the condition evaluates to a LOGIC! false or a NONE!,
             // WHILE returns whatever the last value was that the body
             // evaluated to (or none if no body evaluations yet).
+            //
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, body)) {
+        if (DO_ARRAY_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;

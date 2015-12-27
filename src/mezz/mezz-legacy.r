@@ -359,6 +359,7 @@ set 'r3-legacy* func [] [
     system/options/break-with-overrides: true
     system/options/none-instead-of-unsets: true
     system/options/arg1-arg2-arg3-error: true
+    system/options/dont-exit-natives: true
 
     append system/contexts/user compose [
 
@@ -478,6 +479,102 @@ set 'r3-legacy* func [] [
                     (body)
                 ]
             ]
+        ])
+
+        ; The name STACK is a noun that really suits a variable name, and
+        ; the interim choice for this functionality in Ren-C is "backtrace".
+        ; Because it is a debug-privilege API it might wind up under DEBUG
+        ; or some part of a REFLECT dialect over the long term.
+        ;
+        ; Several refinements have been renamed or are no longer relevant,
+        ; and it has a zero-arity default.  This wraps what functionality of
+        ; R3-Alpha's STACK corresponds in a terribly inefficient way, which
+        ; will likely never matter because odds are no one used it.
+        ;
+        ; !!! This routine would require review if anyone finds it of
+        ; actual interest, it's just here to show how it *could* be done.
+        ;
+        stack: (function [
+            "Returns stack backtrace or other values."
+            offset [integer!] "Relative backward offset"
+            /block "Block evaluation position"
+            /word "Function or object name, if known"
+            /func "Function value"
+            /args "Block of args (may be modified)"
+            /size "Current stack size (in value units)"
+            /depth "Stack depth (frames)"
+            /limit "Stack bounds (auto expanding)"
+        ][
+            func_STACK: :func
+            func: :lib/func
+
+            ; Get the full backtrace to start with because we need to filter
+            ;
+            bt: backtrace/limit/:args/(
+                either block 'where none
+            )/(
+                either func_STACK 'function none
+            ) none
+
+            ; The backtrace is going to have STACK in it, in slot number 1.
+            ; But the caller doesn't want to see STACK.  So remove it.
+            ;
+            take/part (find bt 1) 2
+
+            if depth [
+                count: 0
+                for-each item bt [
+                    if integer? item [count: count + 1]
+                ]
+                return count
+            ]
+
+            ; Now renumber all the stack entries to bump them down by 1,
+            ; accounting for the removal of stack.  If we find a number
+            ; that is less than the offset requested, strip the remainder.
+            ;
+            forall bt [
+                unless integer? bt/1 [continue]
+
+                bt/1: bt/1 - 1 ;; clears new-line marker, have to reset it
+                new-line bt true
+
+                if bt/1 < offset [
+                    clear bt
+                    break
+                ]
+            ]
+
+            ; If a singular property was requested, then select it out and
+            ; return it.
+            ;
+            case [
+                any [block func_STACK args] [
+                    prop: select bt offset
+                    return to-value if prop [
+                        second prop
+                    ]
+                ]
+
+                word [
+                    prop: select bt offset
+                    return to-value if prop [
+                        first prop
+                    ]
+                ]
+
+                size [fail "STACK/SIZE no longer supported"]
+
+                limit [fail "STACK/LIMIT no longer supported"]
+            ]
+
+            ; Or by default just return the backtrace/only minus the
+            ; last thing (the above is more a test for backtrace than
+            ; anything...hence very roundabout)
+            ;
+            bt: backtrace/only
+            take/last bt
+            bt
         ])
     ]
 

@@ -31,12 +31,12 @@
 #include "reb-dialect.h"
 
 typedef struct Reb_Dialect_Parse {
-    REBFRM *dialect;    // dialect object
+    REBCON *dialect;    // dialect object
     REBARR *fargs;      // formal arg block
     REBCNT fargi;       // start index in fargs
     REBARR *args;       // argument block
     REBCNT argi;        // current arg index
-    REBINT cmd;         // command id
+    REBCNT cmd;         // command id
     REBINT len;         // limit of current command
     REBARR *out;        // result block
     REBINT outi;        // result block index
@@ -67,7 +67,9 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
 {
     REBVAL *val;
+
     REBVAL safe;
+    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
@@ -82,7 +84,7 @@ REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
             val = where;
 
         if (IS_OBJECT(val)) {
-            val = Find_Word_Value(VAL_FRAME(val), sym);
+            val = Find_Word_Value(VAL_CONTEXT(val), sym);
             if (val) return val;
         }
     }
@@ -96,25 +98,23 @@ REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
 // Given a word, check to see if it is in the dialect object.
 // If so, return its index. If not, return 0.
 //
-static int Find_Command(REBFRM *dialect, REBVAL *word)
+static int Find_Command(REBCON *dialect, REBVAL *word)
 {
     REBINT n;
 
-    if (VAL_WORD_INDEX(word) <= 0)
-        return 0;
-
-    if (dialect == AS_FRAME(VAL_WORD_TARGET(word)))
+    if (IS_WORD_BOUND(word) && dialect == VAL_WORD_CONTEXT(word))
         n = VAL_WORD_INDEX(word);
     else {
-        if ((n = Find_Word_Index(dialect, VAL_WORD_SYM(word), FALSE))) {
-            VAL_WORD_TARGET(word) = FRAME_VARLIST(dialect);
-            VAL_WORD_INDEX(word) = n;
+        if ((n = Find_Word_In_Context(dialect, VAL_WORD_SYM(word), FALSE))) {
+            INIT_WORD_CONTEXT(word, dialect);
+            INIT_WORD_INDEX(word, n);
+            VAL_SET_EXT(word, EXT_WORD_BOUND);
         }
         else return 0;
     }
 
     // If keyword (not command) return negated index:
-    if (IS_NONE(FRAME_VAR(dialect, n))) return -n;
+    if (IS_NONE(CONTEXT_VAR(dialect, n))) return -n;
     return n;
 }
 
@@ -155,7 +155,9 @@ static int Count_Dia_Args(REBVAL *args)
 static REBVAL *Eval_Arg(REBDIA *dia)
 {
     REBVAL *value = ARRAY_AT(dia->args, dia->argi);
+
     REBVAL safe;
+    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     switch (VAL_TYPE(value)) {
 
@@ -184,7 +186,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     case REB_LIT_WORD:
         DS_PUSH(value);
         value = DS_TOP;
-        VAL_RESET_HEADER(value, REB_WORD);
+        VAL_SET_TYPE_BITS(value, REB_WORD); // don't reset header - keeps binding
         break;
 
     case REB_PAREN:
@@ -375,7 +377,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     REBSER *ser;
 
     // Get formal arguments block for this command:
-    fargs = FRAME_VAR(dia->dialect, dia->cmd);
+    fargs = CONTEXT_VAR(dia->dialect, dia->cmd);
     if (!IS_BLOCK(fargs)) return -REB_DIALECT_BAD_SPEC;
     dia->fargs = VAL_ARRAY(fargs);
     fargs = VAL_ARRAY_AT(fargs);
@@ -398,7 +400,7 @@ static REBINT Do_Cmd(REBDIA *dia)
         Val_Init_Word(
             val,
             GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
-            FRAME_KEY_SYM(dia->dialect, dia->cmd),
+            CONTEXT_KEY_SYM(dia->dialect, dia->cmd),
             dia->dialect,
             dia->cmd
         );
@@ -499,7 +501,7 @@ static REBINT Do_Dia(REBDIA *dia)
 //     3. Encountering a new CMD
 //     4. End of the dialect block
 //
-REBINT Do_Dialect(REBFRM *dialect, REBARR *block, REBCNT *index, REBARR **out)
+REBINT Do_Dialect(REBCON *dialect, REBARR *block, REBCNT *index, REBARR **out)
 {
     REBDIA dia;
     REBINT n;
@@ -522,7 +524,7 @@ REBINT Do_Dialect(REBFRM *dialect, REBARR *block, REBCNT *index, REBARR **out)
     dia.out  = *out;
     SET_FLAG(dia.flags, RDIA_NO_CMD);
 
-    self_index = Find_Word_Index(dialect, SYM_SELF, TRUE);
+    self_index = Find_Word_In_Context(dialect, SYM_SELF, TRUE);
     dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     //Print("DSP: %d Dinp: %r - %m", DSP, ARRAY_AT(block, *index), block);
@@ -586,7 +588,7 @@ REBNATIVE(delect)
 
     CLEARS(&dia);
 
-    dia.dialect = VAL_FRAME(ARG(dialect));
+    dia.dialect = VAL_CONTEXT(ARG(dialect));
     dia.args = VAL_ARRAY(ARG(input));
     dia.argi = VAL_INDEX(ARG(input));
     dia.out = VAL_ARRAY(ARG(output));
@@ -594,7 +596,7 @@ REBNATIVE(delect)
 
     if (dia.argi >= ARRAY_LEN(dia.args)) return R_NONE; // end of block
 
-    self_index = Find_Word_Index(dia.dialect, SYM_SELF, TRUE);
+    self_index = Find_Word_In_Context(dia.dialect, SYM_SELF, TRUE);
     dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     if (REF(in)) {

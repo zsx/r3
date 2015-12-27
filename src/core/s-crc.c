@@ -261,7 +261,7 @@ REBINT Hash_Value(const REBVAL *val, REBCNT hash_size)
         //
         // !!! http://stackoverflow.com/a/33577210/211160
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_FRAME(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(val)) >> 4);
         break;
 
     case REB_DATATYPE:
@@ -296,6 +296,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
     n = Get_Hash_Prime(len * 2); // best when 2X # of keys
     if (!n) {
         REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
         SET_INTEGER(&temp, len);
         fail (Error(RE_SIZE_LIMIT, &temp));
     }

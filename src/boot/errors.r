@@ -89,6 +89,10 @@ Internal: [
     codepoint-too-high: [{codepoint} :arg1 {too large for current interpreter}]
 
     debug-only:         {Feature available only in DEBUG builds}
+
+    host-no-breakpoint: {Interpreter host code has no breakpoint handler}
+
+    invalid-exit:       {Frame does not exist on the stack to EXIT from}
 ]
 
 Syntax: [
@@ -114,7 +118,7 @@ Script: [
     not-in-context:     [:arg1 {is not in the specified context}]
 
     no-arg:             [:arg1 {is missing its} :arg2 {argument}]
-    expect-arg:         [:arg1 {does not allow} :arg3 {for its} :arg2 {argument}]
+    expect-arg:         [:arg1 {does not allow} :arg2 {for its} :arg3 {argument}]
     expect-val:         [{expected} :arg1 {not} :arg2]
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
@@ -174,6 +178,9 @@ Script: [
     locked:             {value or series locked by PROTECT - cannot modify}
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
+
+    frameless-word:     [{variable} :arg1 {optimized out, run with DEBUG ON}]
+    frameless-call:     {arguments optimized out, run with DEBUG ON}
 
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
     bad-decode:         {missing or unsupported encoding marker}

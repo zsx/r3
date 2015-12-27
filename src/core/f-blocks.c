@@ -104,12 +104,12 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 
 
 //
-//  Copy_Values_Len_Shallow_Extra: C
+//  Copy_Values_Len_Extra_Shallow: C
 // 
 // Shallow copy the first 'len' values of `value[]` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Shallow_Extra(REBVAL value[], REBCNT len, REBCNT extra)
+REBARR *Copy_Values_Len_Extra_Shallow(REBVAL value[], REBCNT len, REBCNT extra)
 {
     REBARR *array;
 
@@ -163,10 +163,10 @@ void Clonify_Values_Len_Managed(
             //
             REBSER *series;
             if (ANY_CONTEXT(value)) {
-                VAL_FRAME(value) = Copy_Frame_Shallow_Managed(
-                    VAL_FRAME(value)
+                VAL_CONTEXT(value) = Copy_Context_Shallow_Managed(
+                    VAL_CONTEXT(value)
                 );
-                series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(value)));
+                series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(value)));
             }
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
@@ -231,7 +231,7 @@ REBARR *Copy_Array_Core_Managed(
         MANAGE_ARRAY(copy);
     }
     else {
-        copy = Copy_Values_Len_Shallow_Extra(
+        copy = Copy_Values_Len_Extra_Shallow(
             ARRAY_AT(original, index), tail - index, extra
         );
         MANAGE_ARRAY(copy);
@@ -277,97 +277,6 @@ REBARR *Copy_Array_At_Extra_Deep_Managed(
 
 
 //
-//  Copy_Stack_Values: C
-// 
-// Copy computed values from the stack into the series
-// specified by "into", or if into is NULL then store it as a
-// block on top of the stack.  (Also checks to see if into
-// is protected, and will trigger a trap if that is the case.)
-//
-void Copy_Stack_Values(REBINT start, REBVAL *into)
-{
-    // REVIEW: Can we change the interface to not take a REBVAL
-    // for into, in order to better show the subtypes allowed here?
-    // Currently it can be any-block!, any-string!, or binary!
-
-    REBARR *array;
-    REBVAL *blk = DS_AT(start);
-    REBCNT len = DSP - start + 1;
-
-    if (into) {
-        array = VAL_ARRAY(into);
-
-        FAIL_IF_LOCKED_ARRAY(array);
-
-        if (ANY_ARRAY(into)) {
-            // When the target is an any-block, we can do an ordinary
-            // insertion of the values via a memcpy()-style operation
-
-            VAL_INDEX(into) = Insert_Series(
-                ARRAY_SERIES(array),
-                VAL_INDEX(into),
-                cast(REBYTE*, blk),
-                len
-            );
-
-            DS_DROP_TO(start);
-
-            Val_Init_Array_Index(
-                DS_TOP, VAL_TYPE(into), array, VAL_INDEX(into)
-            );
-        }
-        else {
-            // When the target is a string or binary series, we defer
-            // to the same code used by A_INSERT.  Because the interface
-            // does not take a memory address and count, we insert
-            // the values one by one.
-
-            // REVIEW: Is there a way to do this without the loop,
-            // which may be able to make a better guess of how much
-            // to expand the target series by based on the size of
-            // the operation?
-
-            REBCNT i;
-            REBFLGS flags = 0;
-            // you get weird behavior if you don't do this
-            if (IS_BINARY(into)) SET_FLAG(flags, AN_SERIES);
-            for (i = 0; i < len; i++) {
-                VAL_INDEX(into) += Modify_String(
-                    A_INSERT,
-                    VAL_SERIES(into),
-                    VAL_INDEX(into) + i,
-                    blk + i,
-                    flags,
-                    1, // insert one element at a time
-                    1 // duplication count
-                );
-            }
-
-            DS_DROP_TO(start);
-
-            // We want index of result just past the last element we inserted
-            Val_Init_Array_Index(
-                DS_TOP,
-                VAL_TYPE(into),
-                array,
-                VAL_INDEX(into)
-            );
-        }
-    }
-    else {
-        array = Make_Array(len + 1);
-
-        memcpy(ARRAY_HEAD(array), blk, len * sizeof(REBVAL));
-        SET_ARRAY_LEN(array, len);
-        TERM_ARRAY(array);
-
-        DS_DROP_TO(start);
-        Val_Init_Array(DS_TOP, REB_BLOCK, array);
-    }
-}
-
-
-//
 //  Alloc_Tail_Array: C
 // 
 // Append a REBVAL-size slot to Rebol Array series at its tail.
@@ -399,7 +308,7 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 // !!! This was used for detection of cycles during MOLD.  The idea is that
 // while it is outputting a series, it doesn't want to see that series
 // again.  For the moment the only places to worry about with that are
-// context frames and block series or maps.  (Though a function contains
+// context varlists and block series or maps.  (Though a function contains
 // series for the spec, body, and paramlist...the spec and body are blocks,
 // and so recursion would be found when the blocks were output.)
 //
@@ -412,7 +321,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
     if (ANY_ARRAY(value) || IS_MAP(value))
         array = VAL_ARRAY(value);
     else if (ANY_CONTEXT(value))
-        array = FRAME_VARLIST(VAL_FRAME(value));
+        array = CONTEXT_VARLIST(VAL_CONTEXT(value));
     else {
         // Value being worked with is not a candidate for containing an
         // array that could form a loop with one of the search_list values
@@ -427,7 +336,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
                 return index;
         }
         else if (ANY_CONTEXT(other)) {
-            if (array == FRAME_VARLIST(VAL_FRAME(other)))
+            if (array == CONTEXT_VARLIST(VAL_CONTEXT(other)))
                 return index;
         }
     }
@@ -450,7 +359,7 @@ void Unmark(REBVAL *val)
     if (ANY_SERIES(val))
         series = VAL_SERIES(val);
     else if (ANY_CONTEXT(val))
-        series = ARRAY_SERIES(FRAME_VARLIST(VAL_FRAME(val)));
+        series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(val)));
     else
         return;
 

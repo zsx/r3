@@ -148,7 +148,7 @@ dump-obj: function [
                 license - show user license
                 usage - program cmd line options
         }
-        exit
+        return ()
     ]
 
 ;           Word completion:
@@ -211,19 +211,19 @@ dump-obj: function [
                 "It is of the general type" value/type newline
             ]
         ]
-        if any [:word = 'unset! not value? :word] [exit]
+        if any [:word = 'unset! not value? :word] [return ()]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
-            exit
+            return ()
         ]
         if all [word? :word datatype? get :word] [
             print ["No values defined for" word]
-            exit
+            return ()
         ]
         print ["No information on" word]
-        exit
+        return ()
     ]
 
     ; Print type name with proper singular article:
@@ -236,7 +236,7 @@ dump-obj: function [
     ; Print literal values:
     if not any [word? :word path? :word][
         print [mold :word "is" type-name :word]
-        exit
+        return ()
     ]
 
     ; Get value (may be a function, so handle with ":")
@@ -246,7 +246,7 @@ dump-obj: function [
             not value? 'value
         ][
             print ["No information on" word "(path has no value)"]
-            exit
+            return ()
         ]
     ][
         value: get :word
@@ -254,7 +254,7 @@ dump-obj: function [
     unless any-function? :value [
         prin [uppercase mold word "is" type-name :value "of value: "]
         print either any [object? value port? value]  [print "" dump-obj value][mold :value]
-        exit
+        return ()
     ]
 
     ; Must be a function...
@@ -286,12 +286,12 @@ dump-obj: function [
         tab uppercase mold word " is " type-name :value " value."
     ]
 
-    unless args: find spec-of :value any-word! [exit]
+    unless args: find spec-of :value any-word! [return ()]
     clear find args /local
 
     ;-- Print arg lists:
     print-args: func [label list /extra /local str] [
-        if empty? list [exit]
+        if empty? list [return ()]
         print label
         for-each arg list [
             str: ajoin [tab arg/1]
@@ -328,7 +328,7 @@ dump-obj: function [
         print-args/extra "^/REFINEMENTS:" refl
     ]
 
-    exit ; return unset
+    () ; return unset
 ]
 
 about: func [
@@ -386,14 +386,83 @@ license: func [
     print system/license
 ]
 
-source: func [
-    "Prints the source code for a word."
-    'word [word! path!]
+; !!! MAKE is used here to deliberately avoid the use of an abstraction,
+; because of the adaptation of SOURCE to be willing to take an index that
+; indicates the caller's notion of a stack frame.  (So `source 3` would
+; give the source of the function they saw labeled as 3 in BACKTRACE.)
+;
+; The problem is that if FUNCTION is implemented using its own injection of
+; unknown stack levels, it's not possible to count how many stack levels
+; the call to source itself introduced.
+;
+source: make function! [[
+    "Prints the source code for a function."
+    'arg [integer! word! path! any-function!]
+        {If integer then the function backtrace for that index is shown}
+
+    f: name: ; pure locals
 ][
-    if not value? word [print [word "undefined"] exit]
-    print head insert mold get word reduce [word ": "]
-    exit
-]
+    case [
+        any [word? :arg path? :arg] [
+            name: arg
+            f: get/any arg
+        ]
+
+        integer? :arg [
+            name: rejoin ["backtrace-" arg]
+
+            ; We add two here because we assume the caller meant to be
+            ; using as point of reference what BACKTRACE would have told
+            ; *them* that index 1 was... not counting when SOURCE and this
+            ; nested CASE is on the stack.
+            ;
+            ; !!! A maze of questions are opened by this kind of trick,
+            ; which are beyond the scope of this comment.
+
+            ; The usability rule for backtraces is that 0 is the number
+            ; given to a breakpoint if it's the top of the stack (after
+            ; backtrace removes itself from consideration).  If running
+            ; SOURCE when under a breakpoint, the rule will not apply...
+            ; hence the numbering will start at 1 and the breakpoint is
+            ; now 3 deep in the stack (after SOURCE+CASE).  Yet the
+            ; caller is asking about 1, 2, 3... or even 0 for what they
+            ; saw in the backtrace as the breakpoint.
+            ;
+            ; This is an interim convoluted answer to how to resolve it,
+            ; which would likely be done better with a /relative refinement
+            ; to backtrace.  Before investing in that, some usability
+            ; experience just needs to be gathered, so compensate.
+            ;
+            f: backtrace/at/function (
+                1 ; if BREAKPOINT, compensate differently (it's called "0")
+                + 1 ; CASE
+                + 1 ; SOURCE
+            )
+            f: backtrace/at/function (
+                arg
+                ; if breakpoint there, bump 0 up to a 1, 1 to a 2, etc.
+                + (either :f == :breakpoint [1] [0])
+                + 1 ; CASE
+                + 1 ; SOURCE
+            )
+        ]
+
+        'default [
+            name: "anonymous"
+            f: :arg
+        ]
+    ]
+
+    either any-function? :f [
+        print rejoin [mold name ":" space mold :f]
+    ][
+        either integer? arg [
+            print ["Stack level" arg "does not exist in backtrace"]
+        ][
+            print [type-of :f "is not a function"]
+        ]
+    ]
+]]
 
 what: func [
     {Prints a list of known functions.}
@@ -425,7 +494,7 @@ what: func [
         append/dup clear vals #" " size
         print [head change vals word any [arg ""]]
     ]
-    exit
+    return ()
 ]
 
 pending: does [
@@ -476,7 +545,7 @@ why?: function [
     ][
         print "No information is available."
     ]
-    exit
+    return ()
 ]
 
 ; GUI demos not available in Core build
@@ -488,7 +557,7 @@ why?: function [
 ;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r none][
 ;       either err/id = 'protocol [print "Cannot load demo from web."][do err]
 ;   ]
-;   exit
+;   return ()
 ;]
 ;
 ;load-gui: function [
@@ -500,5 +569,5 @@ why?: function [
 ;    ] [
 ;        do data
 ;    ]
-;    exit
+;    return ()
 ;]

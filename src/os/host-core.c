@@ -40,7 +40,15 @@
 #include <stdlib.h> //for free()
 #include <assert.h>
 
+// For the moment, we move the inclusion of the host-table.inc into this
+// file.  It cannot be included in the same file that uses the definitions
+// from %sys-core.h, because it expects the conventions of %reb-host.h.
+// However the %host-main.c wishes to use the %sys-core.h conventions at
+// this point in time, vs. be trapped with the RL_Api...
+//
 #include "reb-host.h"
+#include "host-table.inc"
+
 
 #include "png/lodepng.h"
 
@@ -52,7 +60,7 @@
 #define INCLUDE_EXT_DATA
 #include "host-ext-core.h"
 
-extern void Init_Core_Ext(void);
+extern void Init_Core_Ext(REBYTE vers[8]);
 
 // Encapping is not a feature supported by Ren/C
 //REBYTE *encapBuffer = NULL;
@@ -666,8 +674,25 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 // 
 // Initialize special variables of the core extension.
 //
-void Init_Core_Ext(void)
+void Init_Core_Ext(REBYTE vers[8])
 {
+    // Because %host-main.c wants access to %sys-core.h, it does not include
+    // %reb-host.h, and hence can't check these macros.  It's done here
+    // instead for now.
+
+    if (!CHECK_STRUCT_ALIGN)
+        OS_CRASH(
+            cb_cast("Init_Core_Ext()"),
+            cb_cast("Incompatible struct alignment")
+        );
+
+    // !!! "Second part will become vers[2] < RL_REV on release" (?)
+    if (vers[1] != RL_VER || vers[2] != RL_REV)
+        OS_CRASH(
+            cb_cast("Init_Core_Ext()"),
+            cb_cast("Incompatible reb-lib DLL")
+        );
+
 #ifdef TO_WINDOWS
     if (!CryptAcquireContextW(
         &gCryptProv, 0, 0, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT

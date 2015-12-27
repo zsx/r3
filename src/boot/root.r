@@ -21,8 +21,6 @@ system          ; system object
 errobj          ; error object template
 strings         ; low-level strings accessed via Boot_Strs[] (GC protection)
 typesets        ; block of TYPESETs used by system; expandable
-none-val        ; a value of type NONE!
-unset-val       ; a value of type UNSET!
 empty-block     ; a value that is an empty BLOCK!
 
 ;; Tags used in the native-optimized versions of user-function-generators
@@ -41,6 +39,15 @@ local-tag       ; marks the beginning of a list of "pure locals"
 
 return-native
 parse-native
+
+;; The BREAKPOINT instruction needs to be able to re-transmit a RESUME
+;; instruction in the case that it wants to leapfrog another breakpoint
+;; sandbox on the stack, and needs access to the resume native for the label
+;; of the retransmitted throw.  It also might need to generate a QUIT
+;; throw if the breakpoint hook signaled it.
+
+resume-native
+quit-native
 
 ;; The FUNC and CLOS function generators are native code, and quick access
 ;; to a block containing [RETURN:] is useful to share across all of the

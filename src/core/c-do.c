@@ -44,8 +44,9 @@ REBINT Eval_Depth(void)
     REBINT depth = 0;
     struct Reb_Call *call = DSF;
 
-    for (; call != NULL; call = PRIOR_DSF(call), depth++) {
-    }
+    for (; call != NULL; call = PRIOR_DSF(call), depth++)
+        NOOP;
+
     return depth;
 }
 
@@ -158,7 +159,7 @@ void Trace_Line(REBARR *block, REBINT index, const REBVAL *value)
     /*if (ANY_WORD(value)) {
         word = value;
         if (IS_WORD(value)) value = GET_VAR(word);
-        Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_TARGET(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
+        Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
     }
     if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, DSF);
     else
@@ -242,7 +243,9 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBVAL *path;
     REBPEF func;
+
     REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
 
     // Path must have dispatcher, else return:
     func = Path_Dispatch[VAL_TYPE(pvs->value)];
@@ -260,7 +263,6 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     }
     // object/(expr) case:
     else if (IS_PAREN(path)) {
-
         if (DO_ARRAY_THROWS(&temp, path)) {
             *pvs->value = temp;
             return TRUE;
@@ -432,6 +434,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
     if (label_sym) {
         REBVAL refinement;
+        VAL_INIT_WRITABLE_DEBUG(&refinement);
 
         // When a function is hit, path processing stops as soon as the
         // processed sub-path resolves to a function. The path is still sitting
@@ -519,11 +522,14 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
-            if (!IS_WORD(DS_TOP)) fail (Error(RE_BAD_REFINE, DS_TOP));
+            //
+            if (!IS_WORD(DS_TOP))
+                fail (Error(RE_BAD_REFINE, DS_TOP));
 
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
-            VAL_WORD_SYM(DS_TOP) = SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP));
+            //
+            INIT_WORD_SYM(DS_TOP, SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP)));
         }
 
         // To make things easier for processing, reverse the refinements on
@@ -604,13 +610,21 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 
 
 //
-//  Do_Signals: C
+//  Do_Signals_Throws: C
 // 
-// Special events to process during evaluation.
-// Search for SET_SIGNAL to find them.
+// Special events to process periodically during evaluation. Search for
+// SET_SIGNAL to find them.  (Note: Not to be confused with SIGINT and unix
+// signals, although possibly triggered by one.)
 //
-void Do_Signals(void)
+// Currently the ability of a signal to THROW comes from the processing of
+// breakpoints.  The RESUME instruction is able to execute code with /DO,
+// and that code may escape the
+//
+REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    struct Reb_State state;
+    REBCON *error;
+
     REBCNT sigs;
     REBCNT mask;
 
@@ -623,7 +637,10 @@ void Do_Signals(void)
             Check_Security(SYM_EVAL, POL_EXEC, 0);
     }
 
-    if (!(Eval_Signals & Eval_Sigmask)) return;
+    if (!(Eval_Signals & Eval_Sigmask)) {
+        SET_UNSET(out);
+        return FALSE;
+    }
 
     // Be careful of signal loops! EG: do not PRINT from here.
     sigs = Eval_Signals & (mask = Eval_Sigmask);
@@ -643,14 +660,31 @@ void Do_Signals(void)
     }
 #endif
 
-    // Escape only allowed after MEZZ boot (no handlers):
-    if (GET_FLAG(sigs, SIG_ESCAPE) && PG_Boot_Phase >= BOOT_MEZZ) {
-        CLR_SIGNAL(SIG_ESCAPE);
+    // Breaking only allowed after MEZZ boot
+    //
+    if (GET_FLAG(sigs, SIG_INTERRUPT) && PG_Boot_Phase >= BOOT_MEZZ) {
+        CLR_SIGNAL(SIG_INTERRUPT);
         Eval_Sigmask = mask;
-        fail (VAL_FRAME(TASK_HALT_ERROR));
+
+        if (Do_Breakpoint_Throws(out, TRUE, UNSET_VALUE, FALSE))
+            return TRUE;
+
+        return FALSE;
+    }
+
+    // Halting only allowed after MEZZ boot
+    //
+    if (GET_FLAG(sigs, SIG_HALT) && PG_Boot_Phase >= BOOT_MEZZ) {
+        CLR_SIGNAL(SIG_HALT);
+        Eval_Sigmask = mask;
+
+        fail (VAL_CONTEXT(TASK_HALT_ERROR));
     }
 
     Eval_Sigmask = mask;
+
+    SET_UNSET(out);
+    return FALSE;
 }
 
 
@@ -731,6 +765,50 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
         fail (Error(RE_MISC));
     }
 
+    // A definitional return should only be intercepted if it was for this
+    // particular function invocation.  Definitional return abilities have
+    // been extended to natives and actions, in order to permit stack
+    // control in debug situations (and perhaps some non-debug capabilities
+    // will be discovered as well).
+    //
+    // NOTE: Used to check EXT_FUNC_HAS_RETURN, but the debug scenarios
+    // permit returning from natives or functions/closures without any
+    // notion of definitional return.  See notes on OPT_VALUE_EXIT_FROM.
+    //
+    if (threw && VAL_GET_OPT(D_OUT, OPT_VALUE_EXIT_FROM)) {
+        if (IS_OBJECT(D_OUT)) {
+            //
+            // CLOSURE! doesn't identify itself by its paramlist, but by
+            // the specific identity of instance from its OBJECT! context
+            //
+            if (
+                IS_CLOSURE(FUNC_VALUE(D_FUNC))
+                && VAL_CONTEXT(D_OUT) == AS_CONTEXT(call_->arglist.array)
+            ) {
+                CATCH_THROWN(D_OUT, D_OUT);
+                threw = FALSE;
+            }
+        }
+        else {
+            assert(ANY_FUNC(D_OUT));
+
+            // All other function types identify by paramlist.
+            //
+            // !!! This means that it is not possible to target a specific
+            // instance of a function in a recursive context.  Only the most
+            // recent call will be matched.  This is a technical limitation
+            // of non-CLOSURE!s that is being researched to address.
+            //
+            if (
+                !IS_CLOSURE(FUNC_VALUE(D_FUNC))
+                && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
+            ) {
+                CATCH_THROWN(D_OUT, D_OUT);
+                threw = FALSE;
+            }
+        }
+    }
+
     call_->mode = CALL_MODE_0;
 
     // Function execution should have written *some* actual output value
@@ -756,94 +834,20 @@ REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
 }
 
 
+#if !defined(NDEBUG)
+
 //
-//  Do_Core: C
-// 
-// Evaluate the code block until we have:
+// The entry checks to DO are for verifying that the setup of the Reb_Call
+// passed in was valid.  They run just once for each Do_Core() call, and
+// are only in the debug build.
 //
-//     1. An irreducible value (return next index)
-//     2. Reached the end of the block (return END_FLAG)
-//     3. Encountered an error
-//
-// For comprehensive notes on the input parameters, output parameters, and
-// internal state variables...see %sys-do.h and `struct Reb_Call`.
-// 
-// !!! IMPORTANT NOTE !!!
-//
-// Changing the behavior of the parameter fulfillment in this core routine
-// generally also means changes to two other semi-parallel routines:
-// `Apply_Block_Throws()` and `Redo_Func_Throws().`
-//
-void Do_Core(struct Reb_Call * const c)
+static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
 {
-#if !defined(NDEBUG)
-    REBCNT count = TG_Do_Count;
-#endif
-
-#if !defined(NDEBUG)
+    // The caller must preload ->value with the first value to process.  It
+    // may be resident in the array passed that will be used to fetch further
+    // values, or it may not.
     //
-    // Debug builds that are emulating the old behavior of writing NONE into
-    // refinement args need to know when they should be writing these nones
-    // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
-    //
-    REBOOL write_none;
-#endif
-
-#if !defined(NDEBUG)
-    //
-    // We keep track of the head of the list of series that are not tracked
-    // by garbage collection at the outset of the call.  Then we ensure that
-    // when the call is finished, no accumulation has happened.  So all
-    // newly allocated series should either be (a) freed or (b) delegated
-    // to management by the GC...else they'd represent a leak
-    //
-    REBCNT manuals_len = SERIES_LEN(GC_Manuals);
-
-    REBCNT series_guard_len = SERIES_LEN(GC_Series_Guard);
-    REBCNT value_guard_len = SERIES_LEN(GC_Value_Guard);
-#endif
-
-    // See notes below on reference for why this is needed to implement eval.
-    //
-    REBVAL eval;
-
-    // Definitional Return gives back a "corrupted" REBVAL of a return native,
-    // whose body is actually an indicator of the return target.  The
-    // Reb_Call only stores the FUNC so we must extract this body from the
-    // value if it represents a return_to
-    //
-    REBARR *return_to = NULL;
-
-    // Fast short-circuit; and generally shouldn't happen because the calling
-    // macros usually avoid the function call overhead itself on ends.
-    //
-    if (IS_END(c->value)) {
-        SET_UNSET(c->out);
-        c->index = END_FLAG;
-        return;
-    }
-
-    // Capture the data stack pointer on entry (used by debug checks, but
-    // also refinements are pushed to stack and need to be checked if there
-    // are any that are not processed)
-    //
-    c->dsp_orig = DSP;
-
-    // When no eval is in effect we use END because it's fast to assign,
-    // isn't debug-build only like REB_TRASH, and is not a legal result
-    // value type for an evaluation...hence can serve as "no eval" signal.
-    //
-    SET_END(&eval);
-
-    // Write some garbage (that won't crash the GC) into the `out` slot in
-    // the debug build.  We will assume that as the evaluator runs
-    // it will never put anything in out that will crash the GC.
-    //
-    SET_TRASH_SAFE(c->out);
-
-    c->mode = CALL_MODE_0;
-
-    // First, check the input parameters (debug build only)
+    assert(c->value);
 
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -858,85 +862,76 @@ void Do_Core(struct Reb_Call * const c)
     assert(!IN_DATA_STACK(c->out));
 #endif
 
-    assert(c->value);
-
-    // logical xor: http://stackoverflow.com/a/1596970/211160
+    // Either DO_FLAG_NEXT or DO_FLAG_TO_END must be set, and so must either
+    // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD.
     //
-    assert(!(c->flags & DO_FLAG_NEXT) != !(c->flags & DO_FLAG_TO_END));
     assert(
-        !(c->flags & DO_FLAG_LOOKAHEAD)
-        != !(c->flags & DO_FLAG_NO_LOOKAHEAD)
+        LOGICAL(c->flags & DO_FLAG_NEXT)
+        != LOGICAL(c->flags & DO_FLAG_TO_END)
+    );
+    assert(
+        LOGICAL(c->flags & DO_FLAG_LOOKAHEAD)
+        != LOGICAL(c->flags & DO_FLAG_NO_LOOKAHEAD)
     );
 
     // Apply and Redo_Func are not "DO" frames.
     //
     assert(c->flags & DO_FLAG_DO);
 
-    // Only need to check this once (C stack size would be the same each
-    // time this line is run if it were in a loop)
+    // Snapshot the "tick count" to assist in showing the value of the tick
+    // count at each level in a stack, so breakpoints can be strategically
+    // set for that tick based on higher levels than the value you might
+    // see during a crash.
     //
-    if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
+    c->do_count = TG_Do_Count;
+    return c->do_count;
+}
 
-    // !!! We have to compensate for the passed-in index by subtracting 1,
-    // as the looped form below needs an addition each time.  This means most
-    // of the time we are subtracting one from a value the caller had to add
-    // one to before passing in.  Also REBCNT is an unsigned number...and this
-    // overlaps the NOT_FOUND value (which Do_Core does not use, but PARSE
-    // does).  Not completely ideal, so review.
-    //
-    --c->index;
+#include "debugbreak.h"
 
-do_at_index:
+//
+// The iteration preamble takes care of clearing out variables and preparing
+// the state for a new "/NEXT" evaluation.  It's a way of ensuring in the
+// debug build that one evaluation does not leak data into the next, and
+// making the code shareable allows code paths that jump to later spots
+// in the switch (vs. starting at the top) to reuse the work.
+//
+static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     //
-    // We checked for END when we entered the function and short circuited
+    // The ->mode is examined by parts of the system as a sign of whether
+    // the stack represents a function call frame or not.  If it is changed
+    // from CALL_MODE_0 during an evaluation step, it must be changed back.
+    //
+    assert(c->mode == CALL_MODE_0);
+
+    // We should not be linked into the call stack when a function is not
+    // running (it is not if we're in this outer loop)
+    //
+    assert(c != CS_Running);
+
+    // We checked for END when we entered Do_Core() and short circuited
     // that, but if we're running DO_FLAG_TO_END then the catch for that is
     // an index check.  We shouldn't go back and `do_at_index` on an end!
     //
     assert(!IS_END(c->value));
     assert(c->index != END_FLAG && c->index != THROWN_FLAG);
 
-    // We should not be linked into the call stack when a function is not
-    // running (it is not if we're in this outer loop)
+    // The value we are processing should not be THROWN() and any series in
+    // it should be under management by the garbage collector.
     //
-    assert(c != CS_Top);
-    assert(c != CS_Running);
-
-    // Save the index at the start of the expression in case it is needed
-    // for error reporting.
+    // !!! THROWN() bit on individual values is in the process of being
+    // deprecated, in favor of the evaluator being in a "throwing state".
     //
-    c->expr_index = c->index;
+    assert(!THROWN(c->value));
+    ASSERT_VALUE_MANAGED(c->value);
 
-#if !defined(NDEBUG)
-    //
-    // Every other call in the debug build we put safe trash in the output
-    // slot.  This gives a spread of release build behavior (trusting that
-    // the out value is GC safe from previous evaluations)...as well as a
-    // debug behavior to catch those trying to inspect what is conceptually
-    // supposed to be a garbage value.
-    //
-    if (SPORADICALLY(2))
-        SET_TRASH_SAFE(c->out);
-#endif
-
-    if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
-
-#if !defined(NDEBUG)
-    MANUALS_LEAK_CHECK(manuals_len, "Do_Core");
-
-    assert(series_guard_len == SERIES_LEN(GC_Series_Guard));
-    assert(value_guard_len == SERIES_LEN(GC_Value_Guard));
-#endif
-
-reevaluate:
-#if !defined(NDEBUG)
-    //
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets
     // chained in via a function execution, so it's okay to put "non-GC safe"
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    SET_TRASH_IF_DEBUG(&c->cell);
+    VAL_INIT_WRITABLE_DEBUG(&c->cell);
     c->func = cast(REBFUN*, 0xDECAFBAD);
     c->label_sym = SYM_0;
     c->arglist.array = NULL;
@@ -944,33 +939,6 @@ reevaluate:
     c->arg = cast(REBVAL*, 0xDECAFBAD);
     c->refine = cast(REBVAL*, 0xDECAFBAD);
 
-    // Although in the outer loop this call frame is not threaded into the
-    // call stack, the `out` value may be shared.  So it could be a value
-    // pointed to at another level which *is* on the stack.  Hence we must
-    // always write safe trash into it for this debug check.
-    //
-    SET_TRASH_SAFE(c->out);
-#endif
-
-    if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
-
-    assert(!THROWN(c->value));
-    ASSERT_VALUE_MANAGED(c->value);
-
-    assert(c->mode == CALL_MODE_0);
-
-#if !defined(NDEBUG)
-    assert(DSP >= c->dsp_orig);
-    if (DSP > c->dsp_orig) {
-        REBVAL where;
-        Val_Init_Block_Index(&where, c->array, c->index);
-        PROBE_MSG(&where, "UNBALANCED STACK TRAP!!!");
-        panic (Error(RE_MISC));
-    }
-#endif
-
-#if !defined(NDEBUG)
-    //
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
     // and read the count...then put that here and recompile with
@@ -982,8 +950,8 @@ reevaluate:
     // is annoying even in a debug build.
     //
     if (TG_Do_Count < MAX_U32) {
-        count = ++TG_Do_Count;
-        if (count ==
+        c->do_count = ++TG_Do_Count;
+        if (c->do_count ==
             // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
                                       0
             // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
@@ -992,6 +960,233 @@ reevaluate:
             PROBE_MSG(&c->cell, "Do_Core() count trap");
         }
     }
+
+    return c->do_count;
+}
+
+#endif
+
+
+//
+//  Do_Core: C
+// 
+// Evaluate the code block until we have:
+//
+//     1. An irreducible value (return next index)
+//     2. Reached the end of the block (return END_FLAG)
+//     3. Encountered an error
+//
+// For comprehensive notes on the input parameters, output parameters, and
+// internal state variables...see %sys-do.h and `struct Reb_Call`.
+// 
+// NOTES:
+//
+// 1. This is a very long routine.  That is largely on purpose, because it
+//    does not contain repeated portions...and is a critical performance
+//    bottleneck in the system.  So dividing it for the sake of "having
+//    more functions" wouldn't be a good idea, especially since the target
+//    is compilers that are so simple they may not have proper inlining
+//    (which is only a "hint" to the compiler even if it's supported).
+//
+// 2. Changing the behavior of the parameter fulfillment in this core routine
+//    generally also means changes to two other semi-parallel routines:
+//    `Apply_Block_Throws()` and `Redo_Func_Throws().`  Review the impacts
+//    of any changes on all three.
+//
+// !!! There is currently no "locking" or other protection on the arrays that
+// are in the call stack and executing.  Each iteration must be prepared for
+// the case that the array has been modified out from under it.  The code
+// evaluator will not crash, but re-fetches...ending the evaluation if the
+// array has been shortened to before the index, and using possibly new
+// values.  The benefits of this self-modifying lenience should be reviewed
+// to inform a decision regarding the locking of arrays during evaluation.
+//
+void Do_Core(struct Reb_Call * const c)
+{
+#if !defined(NDEBUG)
+    //
+    // The debug build wants to make sure no "state" has accumulated per
+    // evaluator cycle (no manuals allocated that weren't freed, no additions
+    // to buffers like the MOLD stack that haven't been used or popped, etc.)
+    //
+    struct Reb_State state;
+
+    // Debug builds that are emulating the old behavior of writing NONE into
+    // refinement args need to know when they should be writing these nones
+    // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
+    //
+    REBOOL write_none;
+
+    // This is just a reflection of `c->do_count`, kept in sync so it's less
+    // effort to browse stack levels and see what the count is.
+    //
+    REBCNT do_count;
+#endif
+
+    // Definitional Return gives back a "corrupted" REBVAL of a return native,
+    // whose body is actually an indicator of the return target.  The
+    // Reb_Call only stores the FUNC so we must extract this body from the
+    // value if it represents a exit_from
+    //
+    REBARR *exit_from = NULL;
+
+    // See notes below on reference for why this is needed to implement eval.
+    //
+    REBVAL eval;
+    VAL_INIT_WRITABLE_DEBUG(&eval);
+
+    // Fast short-circuit; and generally shouldn't happen because the calling
+    // macros avoid the function call overhead itself on ends.
+    //
+    // !!! Should the debug build path which calls Do_Core() "SPORADICALLY()"
+    // despite seeing an END not do that, and change this to an assert that
+    // we never call Do_Core() on an END marker?
+    //
+    if (IS_END(c->value)) {
+        SET_UNSET(c->out);
+        c->index = END_FLAG;
+        return;
+    }
+
+    // Only need to check this once (C stack size would be the same each
+    // time this line is run if it were in a loop)
+    //
+    if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
+
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
+    }
+
+#if !defined(NDEBUG)
+    //
+    // With TG_Do_Stack set up, we can snapshot the state that we'll be
+    // checking for the balance of after each iteration.  This has a lot in
+    // common with what's done during a PUSH_TRAP for restoring state in
+    // errors, so code is shared...see %sys-state.h
+    //
+    SNAP_STATE(&state);
+
+    // Entry verification checks, to make sure the caller provided good
+    // parameters.  (Broken into separate routine
+    //
+    do_count = Do_Entry_Checks_Debug(c);
+#endif
+
+    // Capture the data stack pointer on entry (used by debug checks, but
+    // also refinements are pushed to stack and need to be checked if there
+    // are any that are not processed)
+    //
+    c->dsp_orig = DSP;
+
+    // !!! We have to compensate for the passed-in index by subtracting 1,
+    // as the looped form below needs an addition each time.  This means most
+    // of the time we are subtracting one from a value the caller had to add
+    // one to before passing in.  Also REBCNT is an unsigned number...and this
+    // overlaps the NOT_FOUND value (which Do_Core does not use, but PARSE
+    // does).  Not completely ideal, so review.
+    //
+    --c->index;
+
+    // Write some garbage (that won't crash the GC) into the `out` slot in
+    // the debug build.  We will assume that as the evaluator runs
+    // it will never put anything in out that will crash the GC.
+    //
+    // !!! See remarks below which seem to think it necessary to do this
+    // on each iteration...research why this was being done 3 times (?!)
+    //
+    /*SET_TRASH_SAFE(c->out);*/
+
+do_at_index:
+    if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
+
+    // Save the index at the start of the expression in case it is needed
+    // for error reporting.
+    //
+    c->expr_index = c->index;
+
+    // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
+    // It does not have to be GC safe (for reasons explained below).
+    //
+    SET_TRASH_IF_DEBUG(&eval);
+
+    // If we're going to jump to the `reevaluate:` label below we should not
+    // consider it a Recycle() opportunity.  The value residing in `eval`
+    // is a local variable unseen by the GC *by design*--to avoid having
+    // to initialize it or GC-safe de-initialize it each time through
+    // the evaluator loop.  It will only be protected by the GC under
+    // circumstances that wind up extracting its properties during a needed
+    // evaluation (hence protected indirectly via `c->array` or `c->func`.)
+    //
+    if (--Eval_Count <= 0 || Eval_Signals) {
+        //
+        // Note that Do_Signals_Throws() may do a recycle step of the GC, or
+        // it may spawn an entire interactive debugging session via
+        // breakpoint before it returns.  It may also FAIL and longjmp out.
+        //
+        if (Do_Signals_Throws(c->out))
+            goto return_thrown;
+
+        if (!IS_UNSET(c->out)) {
+            //
+            // !!! What to do with something like a Ctrl-C-based breakpoint
+            // session that does something like `resume/with 10`?  We are
+            // "in-between" evaluations, so that 10 really has no meaning
+            // and is just going to get discarded.  FAIL for now to alert
+            // the user that something is off, but perhaps the failure
+            // should be contained in a sandbox and restart the break?
+            //
+            fail (Error(RE_MISC));
+        }
+    }
+
+reevaluate:
+    // Although in the outer loop this call frame is not threaded into the
+    // call stack, the `out` value may be shared.  So it could be a value
+    // pointed to at another level which *is* on the stack.  Hence we must
+    // always write safe trash into it for this debug check.
+    //
+    // !!! REVIEW: This was overruling an earlier bit of writing that said:
+    // "Every other call in the debug build we put safe trash in the output
+    // slot.  This gives a spread of release build behavior (trusting that
+    // the out value is GC safe from previous evaluations)...as well as a
+    // debug behavior to catch those trying to inspect what is conceptually
+    // supposed to be a garbage value."  Determine what the exact meaning
+    // of this was, and why it had two contradicting calls.
+    //
+    /*if (SPORADICALLY(2)) SET_TRASH_SAFE(c->out);*/
+    SET_TRASH_SAFE(c->out);
+
+    // The "Preamble" is only in debug builds, and it is what trashes the
+    // various state variables in order to ensure that one iteration of Do
+    // doesn't leak its state to be observed by the next.
+    //
+    // (It also allows one to catch a certain tick count in the evaluator
+    // with a probe and a breakpoint opportunity.)
+    //
+#if !defined(NDEBUG)
+    do_count = Do_Evaluation_Preamble_Debug(c);
+    cast(void, do_count); // suppress unused warning
 #endif
 
     switch (VAL_TYPE(c->value)) {
@@ -1019,15 +1214,20 @@ reevaluate:
             //
             c->func = VAL_FUNC(c->out);
             if (c->func == PG_Return_Func)
-                return_to = VAL_FUNC_RETURN_TO(c->out);
+                exit_from = VAL_FUNC_RETURN_FROM(c->out);
 
             if (Trace_Flags) Trace_Line(c->array, c->index, c->value);
             goto do_function;
         }
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
-            VAL_RESET_HEADER(c->out, REB_WORD);
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out)) {
+            //
+            // Only set the type, not reset the whole header, because the
+            // binding in the payload needs to be in sync with the header bits.
+            //
+            VAL_SET_TYPE_BITS(c->out, REB_WORD);
+        }
     #endif
 
         c->index++;
@@ -1066,13 +1266,14 @@ reevaluate:
                 fail (Error(RE_NEED_VALUE, c->value));
         #endif
 
-            if (!HAS_TARGET(c->value)) fail (Error(RE_NOT_BOUND, c->value));
+            if (IS_WORD_UNBOUND(c->value))
+                fail (Error(RE_NOT_BOUND, c->value));
 
             var = GET_MUTABLE_VAR(c->value);
             SET_UNSET(var);
         }
         else
-            Set_Var(c->value, c->out);
+            *GET_MUTABLE_VAR(c->value) = *c->out;
         break;
 
     // [ANY-FUNCTION!]
@@ -1102,7 +1303,7 @@ reevaluate:
         //
         c->func = VAL_FUNC(c->value);
         if (c->func == PG_Return_Func)
-            return_to = VAL_FUNC_RETURN_TO(c->value);
+            exit_from = VAL_FUNC_RETURN_FROM(c->value);
 
     do_function:
         //
@@ -1122,25 +1323,7 @@ reevaluate:
         // Hence it is handled in a special way.
         //
         if (c->func == PG_Eval_Func) {
-            if (IS_END(&eval)) {
-                //
-                // The next evaluation we invoke expects to be able to write
-                // `out`, and our intermediary value does not live in a series
-                // that is protecting it.  We may need it to survive GC
-                // until the next evaluation is over...could be a while!  :-/
-                //
-                // Since we've now seen *an* eval, pay the cost for a guard.
-                //
-                PUSH_GUARD_VALUE(&eval);
-            }
-            else {
-                //
-                // If we're running a chain of evals like `eval eval eval ...`
-                // then the variable won't be an END, and is already guarded.
-                // So don't guard it again, just do the DO.
-                //
-            }
-
+            //
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...)
             //
@@ -1161,8 +1344,14 @@ reevaluate:
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
-            // our guarded eval result, and step the index back by one so
-            // the next increment will get our position sync'd in the block.
+            // eval result, and step the index back by one so the next
+            // increment will get our position sync'd in the block.
+            //
+            // If there's any reason to be concerned about the temporary
+            // item being GC'd, it should be taken care of by the implicit
+            // protection from the Do Stack.  (e.g. if it contains a function
+            // that gets evaluated it will wind up in c->func, if it's a
+            // paren or path-containing-paren it winds up in c->array...)
             //
             c->value = &eval;
             c->index--;
@@ -1188,6 +1377,7 @@ reevaluate:
         ) {
             REB_R ret;
             struct Reb_Call *prior_call = DSF;
+            CS_Running = c;
 
             // A NULL arg signifies to the called function that it is being
             // run frameless.  If it had a frame, then it would be non-NULL
@@ -1204,10 +1394,6 @@ reevaluate:
 
             SET_TRASH_SAFE(&c->cell);
             SET_TRASH_SAFE(c->out);
-
-            c->prior = CS_Top;
-            CS_Top = c;
-            CS_Running = c;
 
             c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
 
@@ -1231,7 +1417,7 @@ reevaluate:
                 if (c->index == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
                 else {
-                    if (VAL_TYPE(c->out) == FUNC_ACT(c->func))
+                    if (cast(REBCNT, VAL_TYPE(c->out)) == FUNC_ACT(c->func))
                         SET_TRUE(c->out);
                     else
                         SET_FALSE(c->out);
@@ -1250,15 +1436,27 @@ reevaluate:
             c->mode = CALL_MODE_0;
 
             CS_Running = prior_call;
-            CS_Top = c->prior;
 
             // !!! The delegated routine knows it has to update the index
             // correctly, but should that mean it updates the throw flag
             // as well?
             //
             assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
-            if (ret == R_OUT_IS_THROWN)
-                goto return_thrown;
+            if (ret == R_OUT_IS_THROWN) {
+                //
+                // We're bypassing Dispatch_Function, but we still want to
+                // be able to handle EXIT/FROM requests to this stack level
+                //
+                if (
+                    VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
+                    && !IS_OBJECT(c->out)
+                    && VAL_FUNC(c->out) == c->func
+                ) {
+                    CATCH_THROWN(c->out, c->out);
+                }
+                else
+                    goto return_thrown;
+            }
 
             // We're done!
             break;
@@ -1373,13 +1571,13 @@ reevaluate:
                     *c->arg = *ROOT_RETURN_NATIVE;
 
                     // CLOSURE! wants definitional return to indicate the
-                    // object frame corresponding to the *specific* closure
+                    // object context corresponding to the *specific* closure
                     // instance...not the "archetypal" closure value.  It
-                    // will co-opt the arglist frame for this purpose, so
+                    // will co-opt the arglist array for this purpose, so
                     // put that in the spot instead of a FUNCTION!'s
                     // identifying series if necessary...
                     //
-                    VAL_FUNC_RETURN_TO(c->arg) =
+                    VAL_FUNC_RETURN_FROM(c->arg) =
                         IS_CLOSURE(FUNC_VALUE(c->func))
                             ? c->arglist.array
                             : FUNC_PARAMLIST(c->func);
@@ -1839,9 +2037,6 @@ reevaluate:
             && FUNC_CODE(c->func) == &N_do
             && ANY_FUNC(DSF_ARGS_HEAD(c))
         ) {
-            if (IS_END(&eval))
-                PUSH_GUARD_VALUE(&eval);
-
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
@@ -1855,42 +2050,42 @@ reevaluate:
         }
     #endif
 
-        if (return_to) {
+        if (exit_from) {
             //
             // If it's a definitional return, then we need to do the throw
-            // for the return, named by the value in the return_to.  This
+            // for the return, named by the value in the exit_from.  This
             // should be the RETURN native with 1 arg as the function, and
             // the native code pointer should have been replaced by a
-            // REBFUN (if function) or REBFRM (if closure) to jump to.
+            // REBFUN (if function) or REBCON (if closure) to jump to.
             //
             assert(FUNC_NUM_PARAMS(c->func) == 1);
-            ASSERT_ARRAY(return_to);
+            ASSERT_ARRAY(exit_from);
 
             // We only have a REBSER*, but want to actually THROW a full
             // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
             // the paramlist.  In either case, the value comes from slot [0]
-            // of the RETURN_TO array, but in the debug build do an added
+            // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
         #if !defined(NDEBUG)
-            if (ARRAY_GET_FLAG(return_to, SER_FRAME)) {
+            if (ARRAY_GET_FLAG(exit_from, SER_CONTEXT)) {
                 //
                 // The function was actually a CLOSURE!, so "when it took
                 // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
                 //
-                assert(IS_OBJECT(FRAME_CONTEXT(AS_FRAME(return_to))));
+                assert(IS_OBJECT(CONTEXT_VALUE(AS_CONTEXT(exit_from))));
             }
             else {
                 // It was a stack-relative FUNCTION!
                 //
-                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(return_to))));
-                assert(FUNC_PARAMLIST(AS_FUNC(return_to)) == return_to);
+                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(exit_from))));
+                assert(FUNC_PARAMLIST(AS_FUNC(exit_from)) == exit_from);
             }
         #endif
 
-            *c->out = *ARRAY_HEAD(return_to);
+            *c->out = *ARRAY_HEAD(exit_from);
 
-            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c));
+            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
             Drop_Call_Arglist(c);
 
             goto return_thrown;
@@ -1934,7 +2129,7 @@ reevaluate:
             //
             c->func = VAL_FUNC(c->out);
             if (c->func == PG_Return_Func)
-                return_to = VAL_FUNC_RETURN_TO(c->out);
+                exit_from = VAL_FUNC_RETURN_FROM(c->out);
             goto do_function;
         }
         else {
@@ -2001,7 +2196,11 @@ reevaluate:
     //
     case REB_LIT_WORD:
         *c->out = *c->value;
-        VAL_RESET_HEADER(c->out, REB_WORD);
+
+        // We only want to reset the type, not the whole header--because the
+        // header bits contain information like EXT_WORD_BOUND.
+        //
+        VAL_SET_TYPE_BITS(c->out, REB_WORD);
         c->index++;
         break;
 
@@ -2019,7 +2218,11 @@ reevaluate:
         // !!! Aliases a REBSER under two value types, likely bad, see CC#2233
         //
         *c->out = *c->value;
-        VAL_RESET_HEADER(c->out, REB_PATH);
+
+        // We only set the type, in order to preserve the header bits... there
+        // currently aren't any for ANY-PATH!, but there might be.
+        //
+        VAL_SET_TYPE_BITS(c->out, REB_PATH);
         c->index++;
         break;
 
@@ -2035,13 +2238,11 @@ reevaluate:
         break;
     }
 
-    // If we hit an `eval` command, then unguard the GC protected slot where
-    // that value was kept during the eval.
+    // There shouldn't have been any "accumulated state", in the sense that
+    // we should be back where we started in terms of the data stack, the
+    // mold buffer position, the outstanding manual series allocations, etc.
     //
-    if (NOT_END(&eval)) {
-        DROP_GUARD_VALUE(&eval);
-        SET_END(&eval);
-    }
+    ASSERT_STATE_BALANCED(&state);
 
     if (c->index >= ARRAY_LEN(c->array)) {
         //
@@ -2056,10 +2257,6 @@ reevaluate:
         goto return_index;
     }
 
-    // Should not have accumulated any net data stack during the evaluation
-    //
-    assert(DSP == c->dsp_orig);
-
     // Should not have a THROWN value if we got here
     //
     assert(c->index != THROWN_FLAG && !THROWN(c->out));
@@ -2067,7 +2264,7 @@ reevaluate:
     if (c->flags & DO_FLAG_LOOKAHEAD) {
         c->value = ARRAY_AT(c->array, c->index);
 
-        if (VAL_GET_EXT(c->value, EXT_FUNC_INFIX)) {
+        if (ANY_FUNC(c->value) && VAL_GET_EXT(c->value, EXT_FUNC_INFIX)) {
             //
             // Literal infix function values may occur.
             //
@@ -2103,7 +2300,19 @@ reevaluate:
             // lookup.  If this isn't just a DO/NEXT, use the work!
             //
             if (c->flags & DO_FLAG_TO_END) {
+                //
+                // We need to update the `expr_index` since we are skipping
+                // the whole `do_at_index` preparation for the next cycle,
+                // and also need to run the "Preamble" in debug builds to
+                // properly update the tick count and clear out state.
+                //
+                c->expr_index = c->index;
                 *c->out = *c->arg;
+
+            #if !defined(NDEBUG)
+                do_count = Do_Evaluation_Preamble_Debug(c);
+            #endif
+
                 goto do_fetched_word;
             }
         }
@@ -2126,7 +2335,11 @@ reevaluate:
     if (c->flags & DO_FLAG_TO_END) goto do_at_index;
 
 return_index:
-    assert(DSP == c->dsp_orig);
+    //
+    // Jumping here skips the natural check that would be done after the
+    // switch on the value being evaluated, so we assert balance here too.
+    //
+    ASSERT_STATE_BALANCED(&state);
 
 #if !defined(NDEBUG)
     if (c->index < ARRAY_LEN(c->array))
@@ -2142,19 +2355,18 @@ return_index:
     assert(!IS_TRASH_DEBUG(c->out));
     assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
 
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
     return;
 
 return_thrown:
     c->index = THROWN_FLAG;
-
-    // May have skipped over a drop guard of eval if there was a throw and
-    // we didn't make it all the way after the switch.
-    //
-    if (NOT_END(&eval)) {
-        DROP_GUARD_VALUE(&eval);
-        SET_END(&eval);
-    }
     goto return_index;
 }
 
@@ -2222,12 +2434,16 @@ REBOOL Reduce_Array_Throws(
 
     while (index < ARRAY_LEN(array)) {
         REBVAL reduced;
+        VAL_INIT_WRITABLE_DEBUG(&reduced);
+
         DO_NEXT_MAY_THROW(index, &reduced, array, index);
+
         if (index == THROWN_FLAG) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
             return TRUE;
         }
+
         DS_PUSH(&reduced);
     }
 
@@ -2262,7 +2478,7 @@ void Reduce_Only(
     for (val = ARRAY_AT(block, index); NOT_END(val); val++) {
         if (IS_WORD(val)) {
             // Check for keyword:
-            if (arr && NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(val))) {
+            if (arr && NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(val))) {
                 DS_PUSH(val);
                 continue;
             }
@@ -2274,7 +2490,7 @@ void Reduce_Only(
                 // Check for keyword/path:
                 v = VAL_ARRAY_AT(val);
                 if (IS_WORD(v)) {
-                    if (NOT_FOUND != Find_Word(arr, idx, VAL_WORD_CANON(v))) {
+                    if (NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(v))) {
                         DS_PUSH(val);
                         continue;
                     }
@@ -2316,6 +2532,8 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
         else {
             REBVAL reduced;
+            VAL_INIT_WRITABLE_DEBUG(&reduced);
+
             DO_NEXT_MAY_THROW(index, &reduced, block, index);
             if (index == THROWN_FLAG) {
                 *out = reduced;
@@ -2357,6 +2575,7 @@ REBOOL Compose_Values_Throws(
     for (; NOT_END(value); value++) {
         if (IS_PAREN(value)) {
             REBVAL evaluated;
+            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
             if (DO_ARRAY_THROWS(&evaluated, value)) {
                 *out = evaluated;
@@ -2391,9 +2610,9 @@ REBOOL Compose_Values_Throws(
             if (IS_BLOCK(value)) {
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
-                //
 
                 REBVAL composed;
+                VAL_INIT_WRITABLE_DEBUG(&composed);
 
                 if (Compose_Values_Throws(
                     &composed, VAL_ARRAY_HEAD(value), TRUE, only, into
@@ -2432,7 +2651,7 @@ REBOOL Compose_Values_Throws(
 
 
 //
-//  Apply_Func_Core: C
+//  Apply_Func_Throws_Core: C
 //
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
@@ -2475,10 +2694,15 @@ REBOOL Compose_Values_Throws(
 // refinements via unset as the path-based dispatch does in the
 // Do_Core evaluator.
 //
-REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
-{
+REBOOL Apply_Func_Throws_Core(
+    REBVAL *out,
+    REBCNT label_sym,
+    REBFUN *func,
+    va_list *varargs
+) {
     struct Reb_Call call;
     struct Reb_Call * const c = &call; // for consistency w/Do_Core
+    REBOOL threw;
 
     // Apply_Func does not currently handle definitional returns; it is for
     // internal dispatch from C to system Rebol code only (and unrelated to
@@ -2497,7 +2721,8 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
         // position by copying the block and position it was at.
 
         c->array = DSF_ARRAY(DSF);
-        c->index = DSF_EXPR_INDEX(DSF);
+        c->index = DSF->index;
+        c->expr_index = DSF->expr_index;
     }
     else if (IS_FUNCTION(FUNC_VALUE(func)) || IS_CLOSURE(FUNC_VALUE(func))) {
         // Stack is empty, so offer up the body of the function itself
@@ -2505,6 +2730,7 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 
         c->array = FUNC_BODY(func);
         c->index = 0;
+        c->expr_index = 0;
     }
     else {
         // We got nothin'.  Give back the specially marked "top level"
@@ -2513,17 +2739,43 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 
         c->array = EMPTY_ARRAY;
         c->index = 0;
+        c->expr_index = 0;
     }
 
     assert(c->index <= ARRAY_LEN(c->array));
+    assert(c->index >= c->expr_index);
 
     c->func = func;
 
-    // !!! Better symbol to use?
-    c->label_sym = SYM_NATIVE;
+    c->label_sym = label_sym;
     c->out = out;
 
-    c->mode = CALL_MODE_0;
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    //
+    // !!! Repeated code from Do_Core(), find good way to share.
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
+    }
 
     c->flags = 0;
 
@@ -2559,7 +2811,7 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
+                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset.
@@ -2629,7 +2881,7 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
                 && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
             ) {
                 *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(c->arg) = FUNC_PARAMLIST(func);
+                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
             }
             else {
                 // Leave as unset
@@ -2659,8 +2911,19 @@ REBOOL Apply_Func_Core(REBVAL *out, REBFUN *func, va_list *varargs)
 
     // With the arguments processed and proxied into the call frame, invoke
     // the function body.
+    //
+    threw = Dispatch_Call_Throws(c);
 
-    return Dispatch_Call_Throws(c);
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    // !!! Repeated code with Do_Core(), find way to share.
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
+    return threw;
 }
 
 
@@ -2677,10 +2940,16 @@ REBOOL Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
     va_list args;
 
     va_start(args, func);
-    result = Apply_Func_Core(out, func, &args);
+
+    // !!! Is there a better symbol to use than SYM_ELLIPSIS?  The cases where
+    // we wind up using Apply_Func_Throws are internal code such as that which
+    // dispatches to the `catch/with [] handler`, so by the time the parameter
+    // gets to the invocation any name has been lost.
+    //
+    result = Apply_Func_Throws_Core(out, SYM_ELLIPSIS, func, &args);
 
     // !!! An issue was uncovered here that there can be problems if a
-    // failure is caused inside the Apply_Func_Core() which does
+    // failure is caused inside the Apply_Func_Throws_Core() which does
     // a longjmp() and never returns.  The C standard is explicit that
     // you cannot dodge the call to va_end(), and that call can only be
     // in *this* function (as it passes a local variable directly, and
@@ -2713,12 +2982,13 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 {
     REBOOL result;
     va_list args;
-    REBVAL *value = FRAME_VAR(Sys_Context, inum);
+    REBCNT label_sym = CONTEXT_KEY_SYM(Sys_Context, inum);
+    REBVAL *value = CONTEXT_VAR(Sys_Context, inum);
 
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     va_start(args, inum);
-    result = Apply_Func_Core(out, VAL_FUNC(value), &args);
+    result = Apply_Func_Throws_Core(out, label_sym, VAL_FUNC(value), &args);
 
     // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
     va_end(args);
@@ -2738,62 +3008,99 @@ REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
 //
 void Do_Construct(REBVAL value[])
 {
-    REBVAL *temp;
-    REBINT ssp;  // starting stack pointer
+    REBINT dsp_orig = DSP;
 
-    DS_PUSH_NONE;
-    temp = DS_TOP;
-    ssp = DSP;
+    REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
+    SET_NONE(&temp);
 
+    // This routine reads values from the start to the finish, which means
+    // that if it wishes to do `word1: word2: value` it needs to have some
+    // way of getting to the value and then going back across the words to
+    // set them.  One way of doing it would be to start from the end and
+    // work backward, but this uses the data stack instead to gather set
+    // words and then go back and set them all when a value is found.
+    //
+    // !!! This could also just remember the pointer of the first set
+    // word in a run, but at time of writing this is just patching a bug.
+    //
     for (; NOT_END(value); value++) {
         if (IS_SET_WORD(value)) {
-            // Next line not needed, because SET words are ALWAYS in frame.
-            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_TARGET(value) == frame)
-                DS_PUSH(value);
-        } else {
-            // Get value:
-            if (IS_WORD(value)) {
-                switch (VAL_WORD_CANON(value)) {
-                case SYM_NONE:
-                    SET_NONE(temp);
-                    break;
-                case SYM_TRUE:
-                case SYM_ON:
-                case SYM_YES:
-                    SET_TRUE(temp);
-                    break;
-                case SYM_FALSE:
-                case SYM_OFF:
-                case SYM_NO:
-                    SET_FALSE(temp);
-                    break;
-                default:
-                    *temp = *value;
-                    VAL_RESET_HEADER(temp, REB_WORD);
-                }
-            }
-            else if (IS_LIT_WORD(value)) {
-                *temp = *value;
-                VAL_RESET_HEADER(temp, REB_WORD);
-            }
-            else if (IS_LIT_PATH(value)) {
-                *temp = *value;
-                VAL_RESET_HEADER(temp, REB_PATH);
-            }
-            else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
-                *temp = *value;
-            }
-            else
-                SET_NONE(temp);
+            //
+            // Remember this SET-WORD!.  Come back and set what it is
+            // bound to, once a non-SET-WORD! value is found.
+            //
+            DS_PUSH(value);
+            continue;
+        }
 
-            // Set prior set-words:
-            while (DSP > ssp) {
-                Set_Var(DS_TOP, temp);
-                DS_DROP;
+        // If not a SET-WORD! then consider the argument to represent some
+        // kind of value.
+        //
+        // !!! The historical default is to NONE!, and also to transform
+        // what would be evaluative into non-evaluative.  So:
+        //
+        //     >> construct [a: b/c: d: append "Strange" <defaults>]
+        //     == make object! [
+        //         a: b/c:
+        //         d: 'append
+        //     ]
+        //
+        // A differing philosophy might be that the construction process
+        // only tolerate input that would yield the same output if used
+        // in an evaulative object creation.
+        //
+        if (IS_WORD(value)) {
+            switch (VAL_WORD_CANON(value)) {
+            case SYM_NONE:
+                SET_NONE(&temp);
+                break;
+
+            case SYM_TRUE:
+            case SYM_ON:
+            case SYM_YES:
+                SET_TRUE(&temp);
+                break;
+
+            case SYM_FALSE:
+            case SYM_OFF:
+            case SYM_NO:
+                SET_FALSE(&temp);
+                break;
+
+            default:
+                temp = *value;
+                VAL_SET_TYPE_BITS(&temp, REB_WORD);
             }
         }
+        else if (IS_LIT_WORD(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_WORD);
+        }
+        else if (IS_LIT_PATH(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_PATH);
+        }
+        else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
+            temp = *value;
+        }
+        else
+            SET_NONE(&temp);
+
+        // Set prior set-words:
+        while (DSP > dsp_orig) {
+            *GET_MUTABLE_VAR(DS_TOP) = temp;
+            DS_DROP;
+        }
     }
-    DS_DROP; // temp
+
+    // All vars in the frame should have a default value if not set, so if
+    // we reached the end with something like `[a: 10 b: c: d:]` just leave
+    // the trailing words to that default.  However, we must balance the
+    // stack to please the evaluator, so let go of the set-words that we
+    // did not set.
+    //
+    DS_DROP_TO(dsp_orig);
 }
 
 
@@ -2814,14 +3121,14 @@ void Do_Min_Construct(REBVAL value[])
     for (; NOT_END(value); value++) {
         if (IS_SET_WORD(value)) {
             // Next line not needed, because SET words are ALWAYS in frame.
-            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_TARGET(value) == frame)
+            //if (VAL_WORD_INDEX(value) > 0 && VAL_WORD_CONTEXT(value) == frame)
                 DS_PUSH(value);
         } else {
             // Get value:
             *temp = *value;
             // Set prior set-words:
             while (DSP > ssp) {
-                Set_Var(DS_TOP, temp);
+                *GET_MUTABLE_VAR(DS_TOP) = *temp;
                 DS_DROP;
             }
         }
@@ -2861,12 +3168,41 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
     REBVAL *arg_new;
     REBVAL *arg_src;
 
+    REBOOL threw;
+
     // As part of the "Redo" we are not adding a new function location,
     // label, or place to write the output.  We are substituting new code
     // and perhaps adjusting the arguments in our re-doing call.
 
     struct Reb_Call call_ = *call_src;
     struct Reb_Call * const c = &call_;
+
+    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // in progress that the GC need worry about) and push it to the Do Stack.
+    // If the state transitions to something the GC should start protecting
+    // fields of the Reb_Call for, it will.
+    //
+    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
+    //
+    // !!! Repeated code from Do_Core(), find good way to share.
+    {
+        c->mode = CALL_MODE_0;
+
+        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
+
+        // The Do Stack was seeded with a NULL in the 0 position so that it
+        // is not necessary to check for it being empty before the -1
+        //
+        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack) - 1
+        ];
+
+        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+            SERIES_LEN(TG_Do_Stack)
+        ] = c;
+
+        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
+    }
 
     c->func = func_new;
 
@@ -2897,9 +3233,9 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
                 && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)
             ) {
                 // This pure local is a special magic "definitional return"
-                // (see comments on VAL_FUNC_RETURN_TO)
+                // (see comments on VAL_FUNC_RETURN_FROM)
                 *arg_new = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_TO(arg_new) = FUNC_PARAMLIST(func_new);
+                VAL_FUNC_RETURN_FROM(arg_new) = FUNC_PARAMLIST(func_new);
             }
             else {
                 // This pure local is not special, so leave as UNSET
@@ -2972,7 +3308,18 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
         }
     }
 
-    return Dispatch_Call_Throws(c);
+    threw = Dispatch_Call_Throws(c);
+
+    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    //
+    // !!! Repeated code with Do_Core(), find way to share.
+    //
+    TG_Do_Stack->content.dynamic.len--;
+    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
+        TG_Do_Stack->content.dynamic.len
+    ]);
+
+    return threw;
 }
 
 
@@ -3001,7 +3348,7 @@ void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 // 
 // Given a path, return a context and index for its terminal.
 //
-REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
+REBCON *Resolve_Path(REBVAL *path, REBCNT *index)
 {
     REBVAL *sel; // selector
     const REBVAL *val;
@@ -3017,11 +3364,11 @@ REBFRM *Resolve_Path(REBVAL *path, REBCNT *index)
     sel = ARRAY_AT(blk, 1);
     while (TRUE) {
         if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
-        i = Find_Word_Index(VAL_FRAME(val), VAL_WORD_SYM(sel), FALSE);
+        i = Find_Word_In_Context(VAL_CONTEXT(val), VAL_WORD_SYM(sel), FALSE);
         sel++;
         if (IS_END(sel)) {
             *index = i;
-            return VAL_FRAME(val);
+            return VAL_CONTEXT(val);
         }
     }
 

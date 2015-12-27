@@ -254,10 +254,9 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
-    REBARR *target_series;
+    REBCON *target;
     REBARR *array;
     REBCNT flags;
-    REBOOL is_relative;
 
     flags = REF(only) ? 0 : BIND_DEEP;
     if (REF(new)) flags |= BIND_ALL;
@@ -265,10 +264,9 @@ REBNATIVE(bind)
 
     if (ANY_CONTEXT(ARG(target))) {
         //
-        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
+        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
         //
-        target_series = FRAME_VARLIST(VAL_FRAME(ARG(target)));
-        is_relative = FALSE;
+        target = VAL_CONTEXT(ARG(target));
     }
     else {
         //
@@ -276,26 +274,27 @@ REBNATIVE(bind)
         //
         // !!! Should we allow binding into FUNCTION! paramlists?  If not,
         // why not?  Were it a closure, it would be legal because a closure's
-        // frame is just an object frame (at the moment).
+        // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
-        is_relative = LOGICAL(VAL_WORD_INDEX(ARG(target)) < 0);
-        target_series = VAL_WORD_TARGET(ARG(target));
-        if (!target_series) fail (Error(RE_NOT_BOUND, ARG(target)));
+        if (IS_WORD_UNBOUND(ARG(target)))
+            fail (Error(RE_NOT_BOUND, ARG(target)));
+
+        target = VAL_WORD_CONTEXT(ARG(target));
     }
 
     // Bind single word:
     if (ANY_WORD(ARG(value))) {
-        if (is_relative) {
-            Bind_Stack_Word(target_series, ARG(value));
+        if (IS_FRAME_CONTEXT(target)) {
+            Bind_Stack_Word(AS_ARRAY(target), ARG(value));
             return R_ARG1;
         }
-        if (!Bind_Word(AS_FRAME(target_series), ARG(value))) {
+        if (!Bind_Word(target, ARG(value))) {
             if (flags & BIND_ALL) {
                 //
                 // not in context, BIND_ALL means add it if it's not.
                 //
-                Append_Frame(AS_FRAME(target_series), ARG(value), 0);
+                Append_Context(target, ARG(value), 0);
             }
             else
                 fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
@@ -321,10 +320,10 @@ REBNATIVE(bind)
     else
         array = VAL_ARRAY(ARG(value));
 
-    if (is_relative)
-        Bind_Relative(target_series, array); //!! needs deep
+    if (IS_FRAME_CONTEXT(target))
+        Bind_Relative_Deep(AS_ARRAY(target), array);
     else
-        Bind_Values_Core(ARRAY_HEAD(array), AS_FRAME(target_series), flags);
+        Bind_Values_Core(ARRAY_HEAD(array), target, flags);
 
     return R_OUT;
 }
@@ -342,36 +341,22 @@ REBNATIVE(bound_q)
 {
     REBVAL *word = D_ARG(1);
 
-    if (!HAS_TARGET(word)) return R_NONE;
+    if (IS_WORD_UNBOUND(word)) return R_NONE;
 
-    if (VAL_WORD_INDEX(word) < 0) {
-        // Function frames use negative numbers to indicate they are
-        // "stack relative" bindings.  Hence there is no way to get
-        // their value if the function is not running.  (This is why
-        // if you leak a local word to your caller and they look it
-        // up they get an error).
-        //
-        // Historically there was nothing you could do with a function
-        // word frame.  But then slot 0 (which had been unused, as the
-        // params start at 1) was converted to hold the value of the
-        // function the params belong to.  This returns that stored value.
+    // The canon value for a non-frame context lives in the [0] cell, and
+    // right now the value used for a frame context is the value of the
+    // function paramlist itself.  This is also found in the [0] cell.
+    //
+    // !!! The decoding will become trickier :-/  A function paramlist is
+    // not sufficient to be a FRAME! and identify a specific call...
+    //
+    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT(word));
 
-        *D_OUT = *ARRAY_HEAD(VAL_WORD_TARGET(word));
-
-        // You should never get a way to a stack relative binding of a
-        // closure.  They make an object on each call.
-
-        assert(IS_FUNCTION(D_OUT));
-    }
-    else {
-        // It's an OBJECT!, ERROR!, MODULE!, PORT...we're not creating it
-        // so we have to take its word on its canon value (which lives in
-        // [0] of the varlist)
-        //
-        *D_OUT = *FRAME_CONTEXT(AS_FRAME(VAL_WORD_TARGET(word)));
-
-        assert(ANY_CONTEXT(D_OUT));
-    }
+    assert(
+        IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
+            ? IS_FUNCTION(D_OUT)
+            : ANY_CONTEXT(D_OUT)
+    );
 
     return R_OUT;
 }
@@ -452,7 +437,7 @@ REBNATIVE(collect_words)
             // !!! These are typesets and not words.  Is Collect_Words able
             // to handle that?
             //
-            prior_values = FRAME_KEYS_HEAD(VAL_FRAME(ARG(hidden)));
+            prior_values = CONTEXT_KEYS_HEAD(VAL_CONTEXT(ARG(hidden)));
         }
         else {
             assert(IS_BLOCK(ARG(hidden)));
@@ -473,27 +458,35 @@ REBNATIVE(collect_words)
 //  
 //  {Gets the value of a word or path, or values of an object.}
 //  
-//      word "Word, path, object to get"
-//      /any "Allows word to have no value (allows unset)"
+//      source [none! any-word! any-path! object!]
+//          "Word, path, object to get"
+//      /any
+//          "Allows source to have no value (allows unset)" ; !!! rename /OPT
 //  ]
 //
 REBNATIVE(get)
+//
+// !!! Why does this need to take NONE! and OBJECT! ?  (Used to take any
+// value and pass it through, e.g. `get 1` was 1, removed that.)
 {
-    REBVAL *word = D_ARG(1);
+    PARAM(1, source);
+    REFINE(2, any);
 
-    if (ANY_WORD(word)) {
-        const REBVAL *val = GET_VAR(word);
-        if (!D_REF(2) && !IS_SET(val)) fail (Error(RE_NO_VALUE, word));
-        *D_OUT = *val;
-    }
-    else if (ANY_PATH(word)) {
-        if (Do_Path_Throws(D_OUT, NULL, word, 0))
-            fail (Error_No_Catch_For_Throw(D_OUT));
+    REBVAL *source = ARG(source);
 
-        if (!D_REF(2) && !IS_SET(D_OUT)) fail (Error(RE_NO_VALUE, word));
+    if (ANY_WORD(source)) {
+        *D_OUT = *GET_VAR(source);
     }
-    else if (IS_OBJECT(word)) {
-        Assert_Public_Object(word);
+    else if (ANY_PATH(source)) {
+        if (Do_Path_Throws(D_OUT, NULL, source, NULL))
+            return R_OUT_IS_THROWN;
+    }
+    else if (ANY_CONTEXT(source)) {
+        //
+        // !!! This should really extract out the visible values instead of
+        // refusing to allow them just because of hidden, if this is kept.
+        //
+        Assert_Public_Object(source);
 
         // !!! This is a questionable feature, e.g.
         //
@@ -504,10 +497,16 @@ REBNATIVE(get)
         // VALUES-OF reflector or otherwise gotten rid of.
         //
         Val_Init_Block(
-            D_OUT, Copy_Array_At_Shallow(FRAME_VARLIST(VAL_FRAME(word)), 1)
+            D_OUT,
+            Copy_Array_At_Shallow(CONTEXT_VARLIST(VAL_CONTEXT(source)), 1)
         );
     }
-    else *D_OUT = *word; // all other values
+    else {
+        assert(IS_NONE(source));
+        *D_OUT = *source;
+    }
+
+    if (!REF(any) && !IS_SET(D_OUT)) fail (Error(RE_NO_VALUE, source));
 
     return R_OUT;
 }
@@ -555,7 +554,7 @@ REBNATIVE(in)
     REBVAL *val  = D_ARG(1); // object, error, port, block
     REBVAL *word = D_ARG(2);
     REBCNT index;
-    REBFRM *frame;
+    REBCON *context;
 
     if (IS_BLOCK(val) || IS_PAREN(val)) {
         if (IS_WORD(word)) {
@@ -563,15 +562,20 @@ REBNATIVE(in)
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
+                VAL_INIT_WRITABLE_DEBUG(&safe);
+
                 v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);
                 v = &safe;
                 if (IS_OBJECT(v)) {
-                    frame = VAL_FRAME(v);
-                    index = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
-                    if (index > 0) {
-                        VAL_WORD_INDEX(word) = index;
-                        VAL_WORD_TARGET(word) = FRAME_VARLIST(frame);
+                    context = VAL_CONTEXT(v);
+                    index = Find_Word_In_Context(
+                        context, VAL_WORD_SYM(word), FALSE
+                    );
+                    if (index != 0) {
+                        INIT_WORD_INDEX(word, index);
+                        INIT_WORD_CONTEXT(word, context);
+                        VAL_SET_EXT(word, EXT_WORD_BOUND);
                         *D_OUT = *word;
                         return R_OUT;
                     }
@@ -583,22 +587,23 @@ REBNATIVE(in)
             fail (Error_Invalid_Arg(word));
     }
 
-    frame = IS_ERROR(val) ? VAL_FRAME(val) : VAL_FRAME(val);
+    context = IS_ERROR(val) ? VAL_CONTEXT(val) : VAL_CONTEXT(val);
 
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_PAREN(word)) {
-        Bind_Values_Deep(VAL_ARRAY_HEAD(word), frame);
+        Bind_Values_Deep(VAL_ARRAY_HEAD(word), context);
         return R_ARG2;
     }
 
-    index = Find_Word_Index(frame, VAL_WORD_SYM(word), FALSE);
-
-    if (index > 0) {
-        VAL_WORD_INDEX(word) = index;
-        VAL_WORD_TARGET(word) = FRAME_VARLIST(frame);
-        *D_OUT = *word;
-    } else
+    index = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
+    if (index == 0)
         return R_NONE;
+
+    INIT_WORD_INDEX(word, index);
+    INIT_WORD_CONTEXT(word, context);
+    VAL_SET_EXT(word, EXT_WORD_BOUND);
+    *D_OUT = *word;
+
     return R_OUT;
 }
 
@@ -704,8 +709,8 @@ REBNATIVE(resolve)
     }
 
     Resolve_Context(
-        VAL_FRAME(ARG(target)),
-        VAL_FRAME(ARG(source)),
+        VAL_CONTEXT(ARG(target)),
+        VAL_CONTEXT(ARG(source)),
         ARG(from),
         REF(all),
         REF(extend)
@@ -757,12 +762,14 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(target)) {
-        Set_Var(target, value);
+        *GET_MUTABLE_VAR(target) = *value;
         return R_ARG2;
     }
 
     if (ANY_PATH(target)) {
         REBVAL dummy;
+        VAL_INIT_WRITABLE_DEBUG(&dummy);
+
         if (Do_Path_Throws(&dummy, NULL, target, value))
             fail (Error_No_Catch_For_Throw(&dummy));
 
@@ -805,7 +812,7 @@ REBNATIVE(set)
         // like `set object [a: 0 b: 0 c: 0] 1020` will set all the fields
         // to 1020 is a bit of a strange feature for the primitive.
 
-        REBVAL *key = FRAME_KEYS_HEAD(VAL_FRAME(target));
+        REBVAL *key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(target));
         REBVAL *var;
 
         // To make SET somewhat atomic, before setting any of the object's
@@ -835,6 +842,8 @@ REBNATIVE(set)
 
             if (!REF(any) && IS_UNSET(value)) {
                 REBVAL key_name;
+                VAL_INIT_WRITABLE_DEBUG(&key_name);
+
                 Val_Init_Word_Unbound(
                     &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                 );
@@ -860,8 +869,8 @@ REBNATIVE(set)
 
         // Refresh the key so we can check and skip hidden fields
         //
-        key = FRAME_KEYS_HEAD(VAL_FRAME(target));
-        var = FRAME_VARS_HEAD(VAL_FRAME(target));
+        key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(target));
+        var = CONTEXT_VARS_HEAD(VAL_CONTEXT(target));
 
         // With the assignments validated, set the variables in the object,
         // padding to NONE if requested
@@ -930,8 +939,9 @@ REBNATIVE(set)
     // With the assignments checked, do them
     //
     for (; NOT_END(target); target++) {
-        if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target))
-            Set_Var(target, value);
+        if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
+            *GET_MUTABLE_VAR(target) = *value;
+        }
         else if (IS_GET_WORD(target)) {
             //
             // !!! Does a get of a WORD!, but what about of a PATH!?
@@ -939,7 +949,9 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            Set_Var(target, IS_WORD(value) ? GET_VAR(value) : value);
+            *GET_MUTABLE_VAR(target) = IS_WORD(value)
+                ? *GET_VAR(value)
+                : *value;
         }
         else
             fail (Error_Invalid_Arg(target));
@@ -991,7 +1003,8 @@ REBNATIVE(unset)
     if (ANY_WORD(value)) {
         word = value;
 
-        if (!HAS_TARGET(word)) fail (Error(RE_NOT_BOUND, word));
+        if (IS_WORD_UNBOUND(word))
+            fail (Error(RE_NOT_BOUND, word));
 
         var = GET_MUTABLE_VAR(word);
         SET_UNSET(var);
@@ -1003,7 +1016,8 @@ REBNATIVE(unset)
             if (!ANY_WORD(word))
                 fail (Error_Invalid_Arg(word));
 
-            if (!HAS_TARGET(word)) fail (Error(RE_NOT_BOUND, word));
+            if (IS_WORD_UNBOUND(word))
+                fail (Error(RE_NOT_BOUND, word));
 
             var = GET_MUTABLE_VAR(word);
             SET_UNSET(var);
@@ -1203,40 +1217,35 @@ REBNATIVE(map_gob_offset)
 #if !defined(NDEBUG)
 
 //
-//  SET_END_Debug: C
+//  Assert_REBVAL_Writable: C
 //
-// Variant of SET_END() macro which includes an assert for making sure
-// that the value's header is in "formatted space".
+// If this check fails, then you've done something along the lines of:
 //
-void SET_END_Debug(REBVAL *v)
+//     REBVAL value;
+//     SET_INTEGER(&value, 10);
+//
+// It needs to be "formatted" so it can be written to:
+//
+//     REBVAL value;
+//     VAL_INIT_WRITABLE_DEBUG(&value);
+//     SET_INTEGER(&value, 10);
+//
+// This is only needed for REBVALs that are not resident in series, e.g.
+// stack variables.
+//
+// The check helps avoid various catastrophies that might ensue if "implicit
+// end markers" could be overwritten.  These are the ENDs that are actually
+// pointers doing double duty inside a data structure, and there is no REBVAL
+// storage backing the position.
+//
+// There's also benefit in catching writes to other unanticipated locations.
+//
+void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
 {
-    //
-    // The slot we are trying to write into must have at least been formatted
-    // in the debug build via SET_TRASH().  Otherwise it could be an arbitrary
-    // value with its low bit clear, doing double-duty as an IS_END() marker,
-    // which we cannot overwrite...not even with an END marker.
-    //
-    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
-
-    (v)->header.all = SETTABLE_MASK_DEBUG;
-}
-
-
-//
-//  VAL_RESET_HEADER_Debug: C
-//
-// Variant of VAL_RESET_HEADER() macro which includes an assert for making
-// sure that a value header is in "formatted space".
-//
-void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
-{
-    // See comments in SET_END_Debug.
-    //
-    /* assert((v)->header.all & SETTABLE_MASK_DEBUG); */
-
-    // (t == REB_TRASH) is legal, and SET_TRASH() uses VAL_RESET_HEADER()
-
-    (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG | ((t) << 2);
+    if (NOT((v)->header.all & WRITABLE_MASK_DEBUG)) {
+        Debug_Fmt("Non-writable value found at %s:%d", file, line);
+        assert((v)->header.all & WRITABLE_MASK_DEBUG); // for message
+    }
 }
 
 
@@ -1244,12 +1253,18 @@ void VAL_RESET_HEADER_Debug(REBVAL *v, enum Reb_Kind t)
 //  VAL_TYPE_Debug: C
 //
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker
+// you never call it on an END marker or on REB_TRASH.
 //
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v)
+enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
 {
-    assert(NOT_END(v));
-    assert(!IS_TRASH_DEBUG(v)); // REB_TRASH is not a valid type to check for
+    if (IS_END(v)) {
+        Debug_Fmt("Unexpected END in VAL_TYPE(), %s:%d", file, line);
+        assert(NOT_END(v)); // for message
+    }
+    if (IS_TRASH_DEBUG(v)) {
+        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
+        assert(!IS_TRASH_DEBUG(v)); // for message
+    }
     return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
 }
 
@@ -1269,17 +1284,17 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
 
 
 //
-//  VAL_FRAME_Ptr_Debug: C
+//  VAL_CONTEXT_Ptr_Debug: C
 //
-// Variant of VAL_FRAME() macro for the debug build which checks to ensure
+// Variant of VAL_CONTEXT() macro for the debug build which checks to ensure
 // that you have an ANY-CONTEXT! value you're calling it on.
 //
 // !!! Unfortunately this loses const correctness; fix in C++ build.
 //
-REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v)
+REBCON **VAL_CONTEXT_Ptr_Debug(const REBVAL *v)
 {
     assert(ANY_CONTEXT(v));
-    return &(m_cast(REBVAL*, v))->payload.any_context.frame;
+    return &(m_cast(REBVAL*, v))->payload.any_context.context;
 }
 
 
@@ -1291,7 +1306,7 @@ REBFRM **VAL_FRAME_Ptr_Debug(const REBVAL *v)
 //
 REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
-    assert(!IS_UNSET(v));
+    assert(!IS_END(v) && !IS_UNSET(v) && !IS_TRASH_DEBUG(v));
     if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {
         assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
         return TRUE;

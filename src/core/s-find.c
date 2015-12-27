@@ -399,19 +399,30 @@ REBCNT Find_Str_Str(REBSER *ser1, REBCNT head, REBCNT index, REBCNT tail, REBINT
 }
 
 
+#if !defined(NDEBUG)
+
 //
-//  Find_Str_Char: C
+//  Find_Str_Char_Old: C
 // 
-// General purpose find a char in a string.
-// 
-// Supports: forward/reverse with skip, cased/uncase, Unicode/byte.
-// 
-// Skip can be set positive or negative (for reverse).
-// 
-// Flags are set according to ALL_FIND_REFS
+// The Find_Str_Char routine turned out to be kind of a bottleneck in code
+// that was heavily reliant on PARSE, so it became slightly interesting to
+// try and optimize it a bit.  The old routine is kept around for the
+// moment (and maybe indefinitely) as a debug check to make sure the
+// optimized routine gives back the same answer.
 //
-REBCNT Find_Str_Char(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT skip, REBUNI c2, REBCNT flags)
-{
+// Note: the old routine did not handle negative skips correctly, because
+// index is unsigned and it tries to use a comparison crossing zero.  This
+// is handled by the new version, and will be vetted separately.
+//
+static REBCNT Find_Str_Char_Old(
+    REBSER *ser,
+    REBCNT head,
+    REBCNT index,
+    REBCNT tail,
+    REBINT skip,
+    REBUNI c2,
+    REBCNT flags
+) {
     REBUNI c1;
     REBOOL uncase = NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)); // case insensitive
 
@@ -429,6 +440,234 @@ REBCNT Find_Str_Char(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT
 
     return NOT_FOUND;
 }
+
+#endif
+
+
+//
+//  Find_Str_Char: C
+//
+// General purpose find a char in a string, which works with both unicode and
+// byte-sized strings.  Supports AM_FIND_CASE for case-sensitivity (as
+// opposed to the case-insensitive default) and AM_FIND_MATCH to check only
+// the character at the current position and then stop.
+//
+// Skip can be set positive or negative (for reverse), and will be bounded
+// by the `start` and `end`.
+//
+// Note that features like "/LAST" are handled at a higher level and
+// translated into SKIP=(-1) and starting at (highest - 1).
+//
+// *This routine is called a lot*, especially in PARSE.  So the seeming
+// micro-optimization of it was motivated by that.  It's not all that
+// complicated, in truth.  For the near-term, the old implementation of the
+// routine is run in parallel as a debug check to ensure the same result
+// is coming from the optimized code.
+//
+REBCNT Find_Str_Char(
+    REBUNI uni,         // character to look for
+    REBSER *series,     // series with width sizeof(REBYTE) or sizeof(REBUNI)
+    REBCNT lowest,      // lowest return index
+    REBCNT index_orig,  // first index to examine (if out of range, NOT_FOUND)
+    REBCNT highest,     // *one past* highest return result (e.g. SERIES_LEN)
+    REBINT skip,        // step amount while searching, can be negative!
+    REBFLGS flags       // AM_FIND_CASE, AM_FIND_MATCH
+) {
+    // Because the skip may be negative, and we don't check before we step
+    // and may "cross zero", it's necessary to use a signed index to be
+    // able to notice that crossing.
+    //
+    REBINT index;
+
+    // We establish an array of two potential cases we are looking for.
+    // If there aren't actually two, this array sets both to be the same (vs.
+    // using something like a '\0' in one cell if they are) because FIND is
+    // able to seek NUL in strings.
+    //
+    REBUNI casings[2];
+
+    if (LOGICAL(flags & AM_FIND_CASE)) { // case-*sensitive*
+        casings[0] = uni;
+        casings[1] = uni;
+    }
+    else {
+        casings[0] = uni < UNICODE_CASES ? LO_CASE(uni) : uni;
+        casings[1] = uni < UNICODE_CASES ? UP_CASE(uni) : uni;
+    }
+
+    assert(lowest <= SERIES_LEN(series));
+    assert(index_orig <= SERIES_LEN(series));
+    assert(highest <= SERIES_LEN(series));
+
+    // !!! Would skip = 0 be a clearer expression of /MATCH, as in "there
+    // is no skip count"?  Perhaps in the interface as /SKIP NONE and then
+    // translated to 0 for this internal call?
+    //
+    assert(skip != 0);
+
+    // Rest of routine assumes we are inside of the range to begin with.
+    //
+    if (index_orig < lowest || index_orig >= highest || lowest == highest)
+        goto return_not_found;
+
+    // Past this point we'll be using the signed index.
+    //
+    index = cast(REBINT, index_orig);
+
+    // /MATCH only does one check at the current position for the character
+    // and then returns.  It basically subverts any optimization we might
+    // try that uses memory range functions/etc, and if "/skip 0" were the
+    // replacement for match it would have to be handled separately anyway.
+    //
+    if (LOGICAL(flags & AM_FIND_MATCH)) {
+        REBUNI single = GET_ANY_CHAR(series, index_orig);
+        if (single == casings[0] || single == casings[1])
+            goto return_index;
+        goto return_not_found;
+    }
+
+    // If searching a potentially much longer string, take opportunities to
+    // use optimized C library functions if possible.
+    //
+    if (BYTE_SIZE(series)) {
+        REBYTE *bp = BIN_HEAD(series);
+        REBYTE breakset[3];
+
+        // We need to cover when the lowercase or uppercase variant of a
+        // unicode character is <= 0xFF even though the character itself
+        // is not.  Build our breakset while we're doing the test.  Note
+        // that this handles the case-sensitive version fine because it
+        // will be noticed if breakset[0] and breakset[1] are the same.
+        //
+        if (casings[0] > 0xFF) {
+            if (casings[1] > 0xFF) goto return_not_found;
+
+            breakset[0] = cast(REBYTE, casings[1]);
+            breakset[1] = '\0';
+        }
+        else {
+            breakset[0] = cast(REBYTE, casings[0]);
+
+            if (casings[1] > 0xFF || casings[1] == casings[0]) {
+                breakset[1] = '\0';
+            }
+            else {
+                breakset[1] = cast(REBYTE, casings[1]);
+                breakset[2] = '\0';
+            }
+        }
+
+        // breakset[0] will be '\0' if we're literally searching for a '\0'.
+        // But it will also be '\0' if no candidate we were searching for
+        // would be byte-sized, and hence won't be found...so return NOT_FOUND
+        // if the latter is true.
+        //
+        if (breakset[0] == '\0' && uni != '\0')
+            goto return_not_found;
+
+        if (skip == 1 && breakset[1] == '\0') {
+            //
+            // For case-sensitive comparisons, or if the character has no
+            // distinction in upper and lower cases, or if only one of the
+            // two unicode casings is byte-sized...we can use use the
+            // optimized `memchr()` operation to find the single byte.
+            // This can only work if SKIP is 1.
+            //
+            void *v = memchr(bp + index, breakset[0], highest - index);
+            if (v) {
+                index = cast(REBYTE*, v) - bp;
+                goto return_index;
+            }
+        }
+        else {
+            // If the comparison is case-insensitive and the character has
+            // a distinct upper and lower case, there are two candidate
+            // characters we are looking for.
+            //
+            // We use a threshold to decide if it's worth it to use a library
+            // routine that can only search forward to null terminators vs.
+            // a for loop we can limit, run reverse, or skip by more than 1.
+            // (<string.h> routines also can't be used to hunt for a 0 byte.)
+            //
+            if (
+                skip == 1
+                && (SERIES_LEN(series) - highest) < ((highest - lowest) / 2)
+                && uni != '\0'
+            ) {
+                // The `strpbrk()` optimized routine can be used to check for
+                // a set of characters.  But we allow embedded null
+                // terminators...and it searches only up to a '\0' and then
+                // returns NULL--which would give back no information.
+                // `strcspn()` gives us an answer we can use for repeat calls
+                // (which should be rare).
+                //
+                while (TRUE) {
+                    index += strcspn(
+                        cast(char*, bp + index), cast(char*, breakset)
+                    );
+                    if (index >= cast(REBINT, highest))
+                        goto return_not_found;
+
+                    index++; // skip the embedded NUL and try again.
+                }
+            }
+            else {
+                // We're skipping by more than one, going in reverse, or
+                // looking for a NULL byte.  Can't use any fancy tricks
+                // (besides the trick of precalculating the casings)
+                //
+                while (TRUE) {
+                    if (bp[index] == breakset[0] || bp[index] == breakset[1])
+                        goto return_index;
+
+                    index += skip;
+                    if (index < cast(REBINT, lowest)) break;
+                    if (index >= cast(REBINT, highest)) break;
+                }
+            }
+        }
+    }
+    else {
+        REBUNI *up = UNI_HEAD(series);
+
+        // Can't actually use wchar_t routines in the general case, because
+        // REBUNI and wchar_t may not be the same size...though on Win32
+        // compilers must guarantee `sizeof(wchar_t) == 2`.  But consider
+        // adapting `casings` for a similar optimization to what's being
+        // done for byte-sized strings at some later date, perhaps based
+        // on a check of `sizeof(wchar_t) == sizeof(REBUNI)`.
+        //
+        while (TRUE) {
+            if (up[index] == casings[0] || up[index] == casings[1])
+                goto return_index;
+
+            index += skip;
+            if (index < cast(REBINT, lowest)) break;
+            if (index >= cast(REBINT, highest)) break;
+        }
+    }
+
+return_not_found:
+
+#if !defined(NDEBUG)
+    assert(NOT_FOUND == Find_Str_Char_Old(
+        series, lowest, index_orig, highest, skip, uni, flags
+    ));
+#endif
+    return NOT_FOUND;
+
+return_index:
+
+#if !defined(NDEBUG)
+    assert(cast(REBCNT, index) == Find_Str_Char_Old(
+        series, lowest, index_orig, highest, skip, uni, flags
+    ));
+#endif
+
+    assert(index >= 0);
+    return cast(REBCNT, index);
+}
+
 
 
 //

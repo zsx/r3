@@ -41,7 +41,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "reb-host.h"
+// REBCHR is defined differently in the host code from in the core code.  This
+// makes it easy for the host to speak to its native character type (wchar_t
+// on Windows, char elsewhere) and hard for the core, because the REBCHR is
+// a struct--on purpose, to prevent code from assuming a character size.
+//
+// Since %host-main.c is where Parse_Args is called, and it uses %sys-core.h,
+// we have to use sys-core here to make sure that Parse_Args() uses a
+// compatible definition of REBCHR.  (The C++ build cares about the type
+// difference in the linking.)
+//
+#include "sys-core.h"
 
 // REBOL Option --Words:
 
@@ -98,7 +108,12 @@ static int find_option_word(REBCHR *word)
     REBCHR buf[16];
 
     // Some shells will pass us the line terminator. Ignore it.
-    if (word[0] == '\r' || word[0] == '\n') return RO_IGNORE;
+    if (
+        OS_CH_EQUAL(word[0], '\r')
+        || OS_CH_EQUAL(word[0], '\n')
+    ) {
+        return RO_IGNORE;
+    }
 
     OS_STRNCPY(buf, word, 15);
 
@@ -121,11 +136,12 @@ static int find_option_char(REBCHR chr, const struct arg_chr list[])
     int i;
 
     // Some shells will pass us the line terminator. Ignore it.
-    if (chr == '\r' || chr == '\n') return RO_IGNORE;
+    if (OS_CH_EQUAL(chr, '\r') || OS_CH_EQUAL(chr, '\n'))
+        return RO_IGNORE;
 
     for (i = 0; list[i].flag; i++) {
-        if (chr < list[i].cflg) break;
-        if (chr == list[i].cflg) return list[i].flag;
+        if (OS_CH_VALUE(chr) < list[i].cflg) break;
+        if (OS_CH_VALUE(chr) == list[i].cflg) return list[i].flag;
     }
     return 0;
 }
@@ -188,15 +204,15 @@ void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
     // First arg is path to execuable (on most systems):
     if (argc > 0) rargs->exe_path = *argv;
 
-    OS_Get_Current_Dir(&rargs->home_dir);
+    OS_GET_CURRENT_DIR(&rargs->home_dir);
 
     // Parse each argument:
     for (i = 1; i < argc ; i++) {
         arg = argv[i];
-        if (arg == 0) continue; // shell bug
-        if (*arg == '-') {
-            if (arg[1] == '-') {
-                if (arg[2] == 0) {
+        if (arg == NULL) continue; // shell bug
+        if (OS_CH_EQUAL(*arg, '-')) {
+            if (OS_CH_EQUAL(arg[1], '-')) {
+                if (OS_CH_EQUAL(arg[2], 0)) {
                     // -- (end of options)
                     ++i;
                     break;
@@ -212,7 +228,7 @@ void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
             }
             else {
                 // -x option chars
-                while (*++arg) {
+                while (OS_CH_VALUE(*++arg) != '\0') {
                     flag = find_option_char(*arg, arg_chars);
                     if (!flag) goto error;
                     if (flag & RO_EXT) {
@@ -223,9 +239,9 @@ void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
                 }
             }
         }
-        else if (*arg == '+') {
+        else if (OS_CH_EQUAL(*arg, '+')) {
             // +x option chars
-            while (*++arg) {
+            while (OS_CH_VALUE(*++arg) != '\0') {
                 flag = find_option_char(*arg, arg_chars2);
                 if (!flag) goto error;
                 if (flag & RO_EXT) {
@@ -251,7 +267,7 @@ void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
     }
 
     // empty script name for only setting args
-    if (rargs->script && rargs->script[0] == 0)
+    if (rargs->script && OS_CH_VALUE(rargs->script[0]) == '\0')
         rargs->script = NULL;
 
     return;

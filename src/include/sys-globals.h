@@ -52,11 +52,11 @@ PVAR REBSER *PG_Word_Names; // Holds all word strings. Never removed.
 PVAR WORD_TABLE PG_Word_Table; // Symbol values accessed by hash
 
 //-- Main contexts:
-PVAR REBFRM *PG_Root_Frame; // Frame that holds Root_Context
-PVAR ROOT_CTX *Root_Context; // VARLIST of PG_Root_Frame as a C structure
+PVAR REBCON *PG_Root_Context; // Frame that holds Root_Vars
+PVAR ROOT_VARS *Root_Vars; // VARLIST of PG_Root_Context as a C structure
 
-PVAR REBFRM *Lib_Context;
-PVAR REBFRM *Sys_Context;
+PVAR REBCON *Lib_Context;
+PVAR REBCON *Sys_Context;
 
 //-- Various char tables:
 PVAR REBYTE *White_Chars;
@@ -74,6 +74,17 @@ PVAR REB_OPTS *Reb_Opts;
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
 #endif
 
+// These are some canon UNSET, NONE, TRUE, and FALSE values.  They are here
+// in two-element arrays in order that those using them don't accidentally
+// pass them to routines that will increment the pointer as if they are
+// arrays--they are singular values, and the second element is set to
+// be trash to trap any unwanted access.
+//
+PVAR REBVAL PG_Unset_Value[2];
+PVAR REBVAL PG_None_Value[2];
+PVAR REBVAL PG_False_Value[2];
+PVAR REBVAL PG_True_Value[2];
+
 // A value with END set, which comes in handy if you ever need the address of
 // an end for a noop to pass to a routine expecting an end-terminated series
 //
@@ -90,6 +101,12 @@ PVAR REBCNT Eval_Signals;   // Signal flags
 PVAR REBFUN *PG_Eval_Func; // EVAL native func (never GC'd)
 PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
 
+// Hook called when BREAKPOINT is hit.  It will return TRUE if the breakpoint
+// is quitting, or FALSE if it is continuing.  (Note that if one is HALTing,
+// then it won't return at all...because that is done via longjmp.)
+//
+PVAR REBBRK PG_Breakpoint_Quitting_Hook;
+
 
 /***********************************************************************
 **
@@ -97,8 +114,8 @@ PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
 **
 ***********************************************************************/
 
-TVAR REBFRM *TG_Task_Frame; // Frame that holds Task_Context
-TVAR TASK_CTX *Task_Context; // VARLIST of Task_Context as a C structure
+TVAR REBCON *TG_Task_Context; // Frame that holds Task_Vars
+TVAR TASK_VARS *Task_Vars; // VARLIST of Task_Vars as a C structure
 
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 
@@ -129,10 +146,18 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     TVAR REBCNT TG_Do_Count;
 #endif
 
+// Each time Do_Core is called a Reb_Call* is pushed to the Do_Stack.  Some
+// of the pushed entries will represent parens or paths being executed, and
+// some will represent functions that are gathering arguments...hence they
+// have been "pushed" but are not yet actually running.  This stack must
+// be filtered to get an understanding of something like a "backtrace of
+// currently running functions".
+//
+TVAR REBSER *TG_Do_Stack;
+
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
-TVAR struct Reb_Call *CS_Top;   // Last call frame pushed, may be "pending"
 
 // We store the head chunk of the current chunker even though it could be
 // computed, because it's quicker to compare to a pointer than to do the
@@ -143,7 +168,7 @@ TVAR struct Reb_Chunk *TG_Top_Chunk;
 TVAR struct Reb_Chunk *TG_Head_Chunk;
 TVAR struct Reb_Chunker *TG_Root_Chunker;
 
-TVAR REBOL_STATE *Saved_State; // Saved state for Catch (CPU state, etc.)
+TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
 
 #if !defined(NDEBUG)
     // In debug builds, the `panic` and `fail` macros capture the file and

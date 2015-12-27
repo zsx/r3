@@ -119,7 +119,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
     else
         fail (Error_Invalid_Arg(b));
 
-    VAL_SET_TYPE(out, REB_PAIR);
+    VAL_RESET_HEADER(out, REB_PAIR);
     cc = &VAL_PAIR(out);
     if (maxed) {
         cc->x = MAX(aa.x, bb.x);

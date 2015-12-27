@@ -34,7 +34,7 @@
 //
 //  DNS_Actor: C
 //
-static REB_R DNS_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
+static REB_R DNS_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
 {
     REBVAL *spec;
     REBREQ *sock;
@@ -42,7 +42,9 @@ static REB_R DNS_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
     REBVAL *arg;
     REBCNT len;
     REBOOL sync = FALSE; // act synchronously
+
     REBVAL tmp;
+    VAL_INIT_WRITABLE_DEBUG(&tmp);
 
     Validate_Port(port, action);
 
@@ -50,7 +52,7 @@ static REB_R DNS_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
     *D_OUT = *D_ARG(1);
 
     sock = cast(REBREQ*, Use_Port_State(port, RDI_DNS, sizeof(*sock)));
-    spec = FRAME_VAR(port, STD_PORT_SPEC);
+    spec = CONTEXT_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 
     sock->timeout = 4000; // where does this go? !!!

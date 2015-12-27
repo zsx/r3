@@ -109,31 +109,33 @@ static void Set_File_Date(REBREQ *file, REBVAL *val)
 // 
 // Query file and set RET value to resulting STD_FILE_INFO object.
 //
-void Ret_Query_File(REBFRM *port, REBREQ *file, REBVAL *ret)
+void Ret_Query_File(REBCON *port, REBREQ *file, REBVAL *ret)
 {
     REBVAL *info = In_Object(port, STD_PORT_SCHEME, STD_SCHEME_INFO, 0);
-    REBFRM *frame;
+    REBCON *context;
     REBSER *ser;
 
     if (!info || !IS_OBJECT(info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    frame = Copy_Frame_Shallow_Managed(VAL_FRAME(info));
+    context = Copy_Context_Shallow_Managed(VAL_CONTEXT(info));
 
-    Val_Init_Object(ret, frame);
+    Val_Init_Object(ret, context);
     Val_Init_Word_Unbound(
-        FRAME_VAR(frame, STD_FILE_INFO_TYPE),
+        CONTEXT_VAR(context, STD_FILE_INFO_TYPE),
         REB_WORD,
         GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE
     );
-    SET_INTEGER(FRAME_VAR(frame, STD_FILE_INFO_SIZE), file->special.file.size);
-    Set_File_Date(file, FRAME_VAR(frame, STD_FILE_INFO_DATE));
+    SET_INTEGER(
+        CONTEXT_VAR(context, STD_FILE_INFO_SIZE), file->special.file.size
+    );
+    Set_File_Date(file, CONTEXT_VAR(context, STD_FILE_INFO_DATE));
 
     ser = To_REBOL_Path(
         file->special.file.path, 0, (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
     );
 
-    Val_Init_File(FRAME_VAR(frame, STD_FILE_INFO_NAME), ser);
+    Val_Init_File(CONTEXT_VAR(context, STD_FILE_INFO_NAME), ser);
 }
 
 
@@ -142,7 +144,7 @@ void Ret_Query_File(REBFRM *port, REBREQ *file, REBVAL *ret)
 // 
 // Open a file port.
 //
-static void Open_File_Port(REBFRM *port, REBREQ *file, REBVAL *path)
+static void Open_File_Port(REBCON *port, REBREQ *file, REBVAL *path)
 {
     if (Is_Port_Open(port))
         fail (Error(RE_ALREADY_OPEN, path));
@@ -198,7 +200,7 @@ static REBCNT Set_Mode_Value(REBREQ *file, REBCNT mode, REBVAL *val)
 //
 static void Read_File_Port(
     REBVAL *out,
-    REBFRM *port,
+    REBCON *port,
     REBREQ *file,
     REBVAL *path,
     REBCNT args,
@@ -317,7 +319,7 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 // 
 // Internal port handler for files.
 //
-static REB_R File_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
+static REB_R File_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
 {
     REBVAL *spec;
     REBVAL *path;
@@ -333,7 +335,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBFRM *port, REBCNT action)
     *D_OUT = *D_ARG(1);
 
     // Validate PORT fields:
-    spec = FRAME_VAR(port, STD_PORT_SPEC);
+    spec = CONTEXT_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
     path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
     if (!path) fail (Error(RE_INVALID_SPEC, spec));

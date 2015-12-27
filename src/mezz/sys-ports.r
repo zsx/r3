@@ -134,8 +134,10 @@ make-port*: func [
                     ; a STRING!, and so the attempt to convert `s1` to TUPLE!
                     ; would always fail.  Ren-C permits this conversion.
 
-                    attempt [s1: to tuple! s1]
-                    emit host s1
+                    unless empty? trim s1 [
+                        attempt [s1: to tuple! s1]
+                        emit host s1
+                    ]
                 )
             ]
         ]

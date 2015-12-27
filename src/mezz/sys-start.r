@@ -69,7 +69,7 @@ finish-init-core: func [
 
     ; returning anything but UNSET! would cause a "panic" error (quits)
     ;
-    exit
+    return ()
 
 ] system/options
 
@@ -236,5 +236,5 @@ finish-rl-start: func [
 
     ; returning anything but UNSET! would cause a "panic" error (quits)
     ;
-    exit
+    return ()
 ] system/options

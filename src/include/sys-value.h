@@ -51,7 +51,7 @@
 // they become arbitrary precision) but it's not enough for a generic BLOCK!
 // or a FUNCTION! (for instance).  So those pointers are used to point to
 // things, and often they will point to one or more Rebol Series (see
-// %sys-series.h for an explanation of REBSER, REBARR, REBFRM, and REBMAP.)
+// %sys-series.h for an explanation of REBSER, REBARR, REBCON, and REBMAP.)
 //
 // While some REBVALs are in C stack variables, most reside in the allocated
 // memory block for a Rebol series.  The memory block for a series can be
@@ -98,8 +98,8 @@ typedef struct Reb_Series REBSER; // Rebol series node
 struct Reb_Array;
 typedef struct Reb_Array REBARR; // REBSER containing REBVALs ("Rebol Array")
 
-struct Reb_Frame;
-typedef struct Reb_Frame REBFRM; // parallel REBARR key/var arrays, +2 values
+struct Reb_Context;
+typedef struct Reb_Context REBCON; // parallel REBARR key/var arrays, +2 values
 
 struct Reb_Func;
 typedef struct Reb_Func REBFUN; // function parameters plus function REBVAL
@@ -170,7 +170,7 @@ struct Reb_Value_Header {
 //
 #define NOT_END_MASK 0x01
 
-// `SETTABLE_MASK_DEBUG`
+// `WRITABLE_MASK_DEBUG`
 //
 // This is for the debug build, to make it safer to use the implementation
 // trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
@@ -203,7 +203,7 @@ struct Reb_Value_Header {
     // value that is actually an END marker, because end markers chew out only
     // one bit--the rest is allowed to be anything (a pointer value, etc.)
     //
-    #define SETTABLE_MASK_DEBUG 0x02
+    #define WRITABLE_MASK_DEBUG 0x02
 #endif
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
@@ -230,7 +230,7 @@ struct Reb_Value_Header {
 // an explanation of this choice.)  The upshot is that a data structure
 // designed to hold Rebol arrays is able to terminate an array at full
 // capacity with a pointer-sized value with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See SETTABLE_MASK_DEBUG
+// use the rest of the bits for other purposes.  (See WRITABLE_MASK_DEBUG
 // for why it's the low 2 bits and not just the lowest bit.)
 //
 // This means not only is a full REBVAL not needed to terminate, the sunk cost
@@ -246,13 +246,34 @@ struct Reb_Value_Header {
 // being sought of when terminators will be required and when they will not.
 //
 
-#define IS_END(v)           ((v)->header.all % 2 == 0)
-#define NOT_END(v)          ((v)->header.all % 2 == 1)
+// The debug build puts REB_MAX in the type slot, to distinguish it from the
+// 0 that signifies REB_TRASH.  That can be checked to ensure a writable
+// value isn't a trash, but a non-writable value (e.g. a pointer) could be
+// any bit pattern in the type slot.  Only check if it's a Rebol-initialized
+// value slot...and then, tolerate "GC safe trash" (an unset in release)
+//
+#define IS_END(v) \
+    (assert( \
+        !((v)->header.all & WRITABLE_MASK_DEBUG) \
+        || ((((v)->header.all & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
+            || VAL_GET_EXT((v), EXT_TRASH_SAFE) \
+        ) \
+    ), (v)->header.all % 2 == 0)
+
+#define NOT_END(v)          NOT(IS_END(v))
 
 #ifdef NDEBUG
     #define SET_END(v)      ((v)->header.all = 0)
 #else
-    #define SET_END(v)      SET_END_Debug(v)
+    //
+    // The slot we are trying to write into must have at least been formatted
+    // in the debug build VAL_INIT_WRITABLE_DEBUG().  Otherwise it could be a
+    // pointer with its low bit clear, doing double-duty as an IS_END(),
+    // marker...which we cannot overwrite...not even with another END marker.
+    //
+    #define SET_END(v) \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = WRITABLE_MASK_DEBUG | (REB_MAX << 2))
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to
@@ -346,6 +367,21 @@ enum {
     //
     OPT_VALUE_THROWN,
 
+    // This is a bit used in conjunction with OPT_VALUE_THROWN, which could
+    // also be folded in to be a model of being in an "exiting state".  The
+    // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
+    // where the frame desired to be targeted is marked with this flag.
+    // Currently it is indicated by either the object of the call frame (for
+    // a CLOSURE!) or the paramlist for all other ANY-FUNCTION!.
+    //
+    // !!! WARNING - In the current scheme this will only jump up to the most
+    // recent instantiation of the function, as it does not have unique
+    // identity in relative binding.  When FUNCTION! and its kind are updated
+    // to use a new technique that brings it to parity with CLOSURE! in this
+    // regard, then that will fix this.
+    //
+    OPT_VALUE_EXIT_FROM,
+
     OPT_VALUE_MAX
 };
 
@@ -381,20 +417,29 @@ enum {
         cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2)
 #else
     #define VAL_TYPE(v) \
-        VAL_TYPE_Debug(v)
+        VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
 
-// SET_TYPE only sets the type bits, with other header bits intact.
-// More frequently one wants to clear the bits, use VAL_RESET_HEADER for that.
+// SET_TYPE_BITS only sets the type, with other header bits intact.  This
+// should be used when you are sure that the new type payload is in sync with
+// the type and bits (for instance, changing from one ANY-WORD! type to
+// another, the binding needs to be in sync with the header bits)
 //
-#define VAL_SET_TYPE(v,t) \
+// NOTE: The header MUST already be valid and initialized to use this!  For
+// fresh value creation, one wants to use VAL_RESET_HEADER to clear bits and
+// set the type.
+//
+// !!! Is it worth the effort to add a debugging flag into the value to
+// disallow calling this routine if VAL_RESET_HEADER has not been run, or
+// are there too few instances to be worth it and is _BITS enough a hint?
+//
+#define VAL_SET_TYPE_BITS(v,t) \
     ((v)->header.all &= ~cast(REBUPT, HEADER_TYPE_MASK), \
         (v)->header.all |= ((t) << 2))
 
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
-// that the value is a full cell which can be written to).  It is legal
-// to use this to set REB_TRASH in the debug build.
+// that the value is a full cell which can be written to).
 //
 #ifdef NDEBUG
     #define VAL_RESET_HEADER(v,t) \
@@ -406,7 +451,8 @@ enum {
     // internal pointer of a container structure.
     //
     #define VAL_RESET_HEADER(v,t) \
-        VAL_RESET_HEADER_Debug((v),(t)) // not a `do {}` for macro inlining
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
 #endif
 
 // !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
@@ -414,21 +460,28 @@ enum {
 // the header made it the `zero?` of that type.  Review uses.
 //
 #define SET_ZEROED(v,t) \
-    (CLEAR((v), sizeof(REBVAL)), VAL_RESET_HEADER((v),(t)))
+    (VAL_RESET_HEADER((v),(t)), \
+        CLEAR(&(v)->payload, sizeof(union Reb_Value_Payload)))
 
+//
 // Reading/writing routines for the 8 "EXTS" flags that are interpreted
 // differently depending on the VAL_TYPE() of the value.
 //
+
 #define VAL_SET_EXT(v,n) \
     ((v)->header.all |= (1 << ((n) + 16)))
+
 #define VAL_GET_EXT(v,n) \
     LOGICAL((v)->header.all & (1 << ((n) + 16)))
+
 #define VAL_CLR_EXT(v,n) \
     ((v)->header.all &= ~cast(REBUPT, 1 << ((n) + 16)))
 
+//
 // The ability to read and write all the EXTS at once as an 8-bit value.
 // Review uses to see if they could be done all as part of the initialization.
 //
+
 #define VAL_EXTS_DATA(v) \
     (((v)->header.all & (cast(REBUPT, 0xFF) << 16)) >> 16)
 
@@ -455,31 +508,38 @@ enum {
 // the value--and at what place in the source.  Repro cases can be set to
 // break on that tick count, if it is deterministic.
 //
-
+// This feature can be helpful to enable, but it can also create problems
+// in terms of making memory that would look "free" appear available.
+//
+#define TRACK_EMPTY_PAYLOADS // for now, helpful to know...
 #if !defined(NDEBUG)
-    struct Reb_Track {
-        const char *filename;
-        int line;
-        REBCNT count;
-    };
+    #ifdef TRACK_EMPTY_PAYLOADS
+        struct Reb_Track {
+            const char *filename;
+            int line;
+            REBCNT count;
+        };
 
-    #define SET_TRACK_PAYLOAD(v) \
-        ( \
-            (v)->payload.track.filename = __FILE__, \
-            (v)->payload.track.line = __LINE__, \
-            (v)->payload.track.count = TG_Do_Count, \
-            NOOP \
-        )
+        #define SET_TRACK_PAYLOAD(v) \
+            ( \
+                (v)->payload.track.filename = __FILE__, \
+                (v)->payload.track.line = __LINE__, \
+                (v)->payload.track.count = TG_Do_Count, \
+                NOOP \
+            )
 
-    #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
-    #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
-    #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
+        #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
+        #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
+        #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
+    #else
+        #define SET_TRACK_PAYLOAD(v) NOOP
+    #endif
 #endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  TRASH! (uses `struct Reb_Track`)
+//  TRASH! (may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -515,8 +575,16 @@ enum {
 // member.  It also saves the Do tick count in which it was created, to
 // make it easier to pinpoint precisely when it came into existence.
 //
-
+// !!! If we're not using TRACK_EMPTY_PAYLOADS, should this POISON_MEMORY() on
+// the payload to help catch invalid reads?  Trash values don't hang around
+// that long, except for the case of the values in the extra "->rest" capacity
+// of series.  Would that be too many memory poisonings to handle efficiently?
+//
 #ifdef NDEBUG
+    #define MARK_VAL_READ_ONLY_DEBUG(v) NOOP
+
+    #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
+
     #define SET_TRASH_IF_DEBUG(v) NOOP
 
     #define SET_TRASH_SAFE(v) SET_UNSET(v)
@@ -532,15 +600,33 @@ enum {
     #define IS_TRASH_DEBUG(v) \
         (((v)->header.all & HEADER_TYPE_MASK) == 0)
 
+    // This particularly virulent form of trashing will make the resultant
+    // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
+    // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
+    //
+    #define MARK_VAL_READ_ONLY_DEBUG(v) \
+        ((v)->header.all &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
+
+    // The debug build requires that any value slot that's going to be written
+    // to via VAL_RESET_HEADER() be marked writable.  Series and other value
+    // containers do this automatically, but if you make a REBVAL as a stack
+    // variable then it will have to be done before any write can happen.
+    //
+    #define VAL_INIT_WRITABLE_DEBUG(v) \
+        ( \
+            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
+            SET_TRACK_PAYLOAD(v) \
+        )
+
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             SET_TRACK_PAYLOAD(v) \
         )
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            (v)->header.all = NOT_END_MASK | SETTABLE_MASK_DEBUG, \
+            VAL_RESET_HEADER((v), REB_TRASH), \
             VAL_SET_EXT((v), EXT_TRASH_SAFE), \
             SET_TRACK_PAYLOAD(v) \
         )
@@ -549,7 +635,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  UNSET! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//  UNSET! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -581,7 +667,7 @@ enum {
 // Pointer to a global protected unset value that can be used when a read-only
 // UNSET! value is needed.
 //
-#define UNSET_VALUE ROOT_UNSET_VAL
+#define UNSET_VALUE (&PG_Unset_Value[0])
 
 // In legacy mode Ren-C still supports the old convention that IFs that don't
 // take the true branch or a WHILE loop that never runs a body return a NONE!
@@ -599,7 +685,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NONE! (unit type - fits in header bits, `struct Reb_Track` if DEBUG)
+//  NONE! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -620,21 +706,22 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
-            NOT_END_MASK)
+        ((v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+            NOT_END_MASK | (REB_NONE << 2))
 #else
     #define SET_NONE(v) \
-        ((v)->header.all = (REB_NONE << 2) | ((1 << OPT_VALUE_FALSE) << 8) | \
-            NOT_END_MASK | SETTABLE_MASK_DEBUG, \
-         SET_TRACK_PAYLOAD(v))
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+                NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
+            SET_TRACK_PAYLOAD(v))
 #endif
 
-#define NONE_VALUE ROOT_NONE_VAL
+#define NONE_VALUE (&PG_None_Value[0])
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  LOGIC! (fits in header bits, `struct Reb_Track` if DEBUG)
+//  LOGIC! (type and value fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -663,13 +750,15 @@ enum {
             | ((1 << OPT_VALUE_FALSE) << 8))
 #else
     #define SET_TRUE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
-            | SETTABLE_MASK_DEBUG, \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+                | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v))  // compound
 
     #define SET_FALSE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
-            | SETTABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
+        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            | WRITABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif
 
@@ -688,6 +777,10 @@ enum {
 #endif
 
 #define IS_CONDITIONAL_TRUE(v) NOT(IS_CONDITIONAL_FALSE(v))
+
+#define FALSE_VALUE (&PG_False_Value[0])
+#define TRUE_VALUE (&PG_True_Value[0])
+
 
 
 /***********************************************************************
@@ -993,7 +1086,7 @@ struct Reb_Any_Series
 // These operations do not need to take the value's index position into
 // account; they strictly operate on the array series
 //
-#define VAL_ARRAY(v)            AS_ARRAY(VAL_SERIES(v))
+#define VAL_ARRAY(v)            (*cast(REBARR**, &VAL_SERIES(v)))
 #define VAL_ARRAY_HEAD(v)       ARRAY_HEAD(VAL_ARRAY(v))
 #define VAL_ARRAY_TAIL(v)       ARRAY_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
 
@@ -1119,6 +1212,14 @@ struct Reb_Symbol {
 #define WORD_TO_CANON(w) \
     VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(w)))
 
+// Is it the same symbol? Quick check, then canon check:
+#define SAME_SYM(s1,s2) \
+    ((s1) == (s2) \
+    || ( \
+        VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s1))) \
+        == VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s2))) \
+    ))
+
 
 /***********************************************************************
 **
@@ -1126,51 +1227,87 @@ struct Reb_Symbol {
 **
 ***********************************************************************/
 
+enum {
+    EXT_WORD_BOUND = 0,         // is bound to a context
+    EXT_WORD_MAX
+};
+
 struct Reb_Any_Word {
     //
-    // The "target" of a word is a specification of where to look for its
-    // value.  If this is a FRAME then it will be the VAL_FRAME_VARLIST
-    // series of that frame.  If the word targets a stack-relative lookup,
-    // such as with FUNCTION!, then the word must bind to something more
-    // persistent than the stack.  Hence it indicates the VAL_FUNC_PARAMLIST
-    // and must pay to walk the stack looking to see if that function is
-    // currently being called to find the stack "var" for that param "key"
+    // The context to look in to find the word's value.  It is valid if the
+    // word has been bound, and null otherwise.
     //
-    REBARR *target;
+    // Note that if the ANY-CONTEXT! to which this word is bound is a FRAME!,
+    // then that frame may no longer be on the stack.  Hence the space for
+    // the variable is no longer allocated.  Tracking mechanisms must be used
+    // to make sure the word can keep track of this fact.
+    //
+    // !!! Tracking mechanism is currently under development.
+    //
+    // Also note that the expense involved in doing a lookup to a context
+    // that is a FRAME! is greater than one that is not (such as an OBJECT!)
+    // This is because in the current implementation, the stack must be
+    // walked to find the required frame.
+    //
+    REBCON *context;
 
-    // Index of word in frame (if it's not NULL)
+    // Index of word in context (if `context` is not NULL)
     //
-    REBINT index;
+    // Note: The index is rather large, especially on 64 bit systems, and it
+    // may not be that a context has 2^32 or 2^64 words in it.  It might
+    // be acceptable to borrow some bits from this number.
+    //
+    REBCNT index;
 
     // Index of the word's symbol
+    //
+    // Note: Future expansion plans are to have symbol entries tracked by
+    // pointer and garbage collected, likely as series nodes.  A full pointer
+    // sized value is required here.
     //
     REBCNT sym;
 };
 
-#define IS_SAME_WORD(v, n)      (IS_WORD(v) && VAL_WORD_CANON(v) == n)
-
 #ifdef NDEBUG
-    #define VAL_WORD_SYM(v) ((v)->payload.any_word.sym)
+    #define ENSURE_ANY_WORD(w,b) \
+        c_cast(const struct Reb_Any_Word*, &(w)->payload.any_word)
 #else
-    // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-    // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
-    // this check is prudent (until further notice...)
+    // When fetching properties of a word, the debug build is able to verify
+    // that not only is the REBVAL's type an ANY-WORD! type, but it can also
+    // enforce that the word is bound by passing TRUE for `b`.
     //
-    #define VAL_WORD_SYM(v) \
-        (*VAL_WORD_SYM_Ptr_Debug(v))
+    #define ENSURE_ANY_WORD(w,b) \
+        (ENSURE_ANY_WORD_Debug((w), (b)))
 #endif
 
-#define VAL_WORD_INDEX(v)       ((v)->payload.any_word.index)
-#define VAL_WORD_TARGET(v)      ((v)->payload.any_word.target)
-#define HAS_TARGET(v)            (VAL_WORD_TARGET(v) != NULL)
+#define IS_WORD_BOUND(v) \
+    (cast(void, ENSURE_ANY_WORD((v), FALSE)), \
+        VAL_GET_EXT((v), EXT_WORD_BOUND))
+
+#define IS_WORD_UNBOUND(v)      NOT(IS_WORD_BOUND(v))
+
+#define VAL_WORD_SYM(v)         (ENSURE_ANY_WORD((v), FALSE)->sym)
+#define VAL_WORD_INDEX(v)       (ENSURE_ANY_WORD((v), TRUE)->index)
+#define VAL_WORD_CONTEXT(v)     (ENSURE_ANY_WORD((v), TRUE)->context)
+
+#define INIT_WORD_SYM(v,s)      ((v)->payload.any_word.sym = (s))
+#define INIT_WORD_INDEX(v,i)    ((v)->payload.any_word.index = (i))
+#define INIT_WORD_CONTEXT(v,c)  ((v)->payload.any_word.context = (c))
+
+#define IS_SAME_WORD(v, n) \
+    (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (VAL_WORD_TARGET(v)=NULL)
+        VAL_CLR_EXT((v), EXT_WORD_BOUND)
 #else
-    #define WORD_INDEX_UNBOUND MIN_I32
+    #define WORD_INDEX_UNBOUND_DEBUG 0
+    #define WORD_CONTEXT_UNBOUND_DEBUG NULL
+
     #define UNBIND_WORD(v) \
-        (VAL_WORD_TARGET(v)=NULL, VAL_WORD_INDEX(v)=WORD_INDEX_UNBOUND)
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND), \
+            INIT_WORD_CONTEXT((v), WORD_CONTEXT_UNBOUND_DEBUG), \
+            INIT_WORD_INDEX((v), WORD_INDEX_UNBOUND_DEBUG))
 #endif
 
 #define VAL_WORD_CANON(v) \
@@ -1180,17 +1317,6 @@ struct Reb_Any_Word {
     VAL_SYM_NAME(ARRAY_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
 
 #define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
-
-#define VAL_WORD_TARGET_WORDS(v) VAL_WORD_TARGET(v)->words
-#define VAL_WORD_TARGET_VALUES(v) VAL_WORD_TARGET(v)->values
-
-// Is it the same symbol? Quick check, then canon check:
-#define SAME_SYM(s1,s2) \
-    ((s1) == (s2) \
-    || ( \
-        VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s1))) \
-        == VAL_SYM_CANON(ARRAY_AT(PG_Word_Table.array, (s2))) \
-    ))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1285,13 +1411,13 @@ struct Reb_Typeset {
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // The Reb_Any_Context is the basic struct used currently for OBJECT!,
-// MODULE!, ERROR!, and PORT!.  It builds upon the "frame" datatype REBFRM,
+// MODULE!, ERROR!, and PORT!.  It builds upon the context datatype REBCON,
 // which permits the storage of associated KEYS and VARS.  (See the comments
-// on `struct Reb_Frame` that are in %sys-series.h).
+// on `struct Reb_Context` that are in %sys-series.h).
 //
-// Contexts coordinate with words, which can have their VAL_WORD_TARGET()
-// set to a context's frame pointer.  Then they cache the index of that
-// word's symbol in the frame's keylist, for a fast lookup to get to the
+// Contexts coordinate with words, which can have their VAL_WORD_CONTEXT()
+// set to a context's series pointer.  Then they cache the index of that
+// word's symbol in the context's keylist, for a fast lookup to get to the
 // corresponding var.  The key is a typeset which has several EXT flags
 // controlling behaviors like whether the var is protected or hidden.
 //
@@ -1314,46 +1440,46 @@ struct Reb_Typeset {
 //
 
 struct Reb_Any_Context {
-    REBFRM *frame;
-    REBFRM *spec; // optional (currently only used by modules)
+    REBCON *context;
+    REBCON *spec; // optional (currently only used by modules)
     REBARR *body; // optional (currently not used at all)
 };
 
 #ifdef NDEBUG
-    #define VAL_FRAME(v)            ((v)->payload.any_context.frame)
+    #define VAL_CONTEXT(v)            ((v)->payload.any_context.context)
 #else
-    #define VAL_FRAME(v)            (*VAL_FRAME_Ptr_Debug(v))
+    #define VAL_CONTEXT(v)            (*VAL_CONTEXT_Ptr_Debug(v))
 #endif
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
 
-// A fully constructed frame can reconstitute the context REBVAL that it is
-// a frame for from a single pointer...the REBVAL sitting in the 0 slot
-// of the frame's varlist.  In a debug build we check to make sure the
+// A fully constructed context can reconstitute the ANY-CONTEXT! REBVAL that is
+// its canon form from a single pointer...the REBVAL sitting in the 0 slot
+// of the context's varlist.  In a debug build we check to make sure the
 // type of the embedded value matches the type of what is intended (so
-// someone who thinks they are initializing a REB_OBJECT from a FRAME does
+// someone who thinks they are initializing a REB_OBJECT from a CONTEXT does
 // not accidentally get a REB_ERROR, for instance.)
 //
 #if 0 && defined(NDEBUG)
     //
     // !!! Currently Val_Init_Context_Core does not require the passed in
-    // frame to already be managed.  If it did, then it could be this
+    // context to already be managed.  If it did, then it could be this
     // simple and not be a "bad macro".  Review if it's worthwhile to change
-    // the prerequisite that this is only called on managed frames.
+    // the prerequisite that this is only called on managed contexts.
     //
     #define Val_Init_Context(o,t,f,s,b) \
-        (*(o) = *FRAME_CONTEXT(f))
+        (*(o) = *CONTEXT_VALUE(f))
 #else
     #define Val_Init_Context(o,t,f,s,b) \
         Val_Init_Context_Core((o), (t), (f), (s), (b))
 #endif
 
-// Convenience macros to speak in terms of object values instead of the frame
+// Convenience macros to speak in terms of object values instead of the context
 //
-#define VAL_CONTEXT_VAR(v,n)        FRAME_VAR(VAL_FRAME(v), (n))
-#define VAL_CONTEXT_KEY(v,n)        FRAME_KEY(VAL_FRAME(v), (n))
-#define VAL_CONTEXT_KEY_SYM(v,n)    FRAME_KEY_SYM(VAL_FRAME(v), (n))
+#define VAL_CONTEXT_VAR(v,n)        CONTEXT_VAR(VAL_CONTEXT(v), (n))
+#define VAL_CONTEXT_KEY(v,n)        CONTEXT_KEY(VAL_CONTEXT(v), (n))
+#define VAL_CONTEXT_KEY_SYM(v,n)    CONTEXT_KEY_SYM(VAL_CONTEXT(v), (n))
 
 // The movement of the SELF word into the domain of the object generators
 // means that an object may wind up having a hidden SELF key (and it may not).
@@ -1421,11 +1547,11 @@ struct Reb_Any_Context {
 // `fail()` C macro inside the source, and the various routines in %c-error.c
 //
 
-#define ERR_VALUES(frame)   cast(ERROR_OBJ*, ARRAY_HEAD(FRAME_VARLIST(frame)))
-#define ERR_NUM(frame)      cast(REBCNT, VAL_INT32(&ERR_VALUES(frame)->code))
+#define ERR_VALUES(e)   cast(ERROR_OBJ*, ARRAY_HEAD(CONTEXT_VARLIST(e)))
+#define ERR_NUM(e)      cast(REBCNT, VAL_INT32(&ERR_VALUES(e)->code))
 
-#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_FRAME(v))
-#define VAL_ERR_NUM(v)      ERR_NUM(VAL_FRAME(v))
+#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_CONTEXT(v))
+#define VAL_ERR_NUM(v)      ERR_NUM(VAL_CONTEXT(v))
 
 #define Val_Init_Error(o,f) \
     Val_Init_Context((o), REB_ERROR, (f), NULL, NULL)
@@ -1497,7 +1623,7 @@ typedef REB_R (*REBACT)(struct Reb_Call *call_, REBCNT a);
     REB_R T_##n(struct Reb_Call *call_, REBCNT action)
 
 // PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Call *call_, REBFRM *p, REBCNT a);
+typedef REB_R (*REBPAF)(struct Reb_Call *call_, REBCON *p, REBCNT a);
 
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
@@ -1557,7 +1683,7 @@ struct Reb_Any_Function {
 // actual FUNC.  (In the general case, the [0] element of the FUNC must be
 // consistent with the fields of the value holding it.)
 //
-#define VAL_FUNC_RETURN_TO(v) VAL_FUNC_BODY(v)
+#define VAL_FUNC_RETURN_FROM(v) VAL_FUNC_BODY(v)
 
 
 /***********************************************************************
@@ -1873,7 +1999,7 @@ union Reb_Value_Payload {
 
     struct Reb_Symbol symbol; // internal
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(TRACK_EMPTY_PAYLOADS)
     struct Reb_Track track; // debug only (for TRASH!, UNSET!, NONE!, LOGIC!)
 #endif
 };

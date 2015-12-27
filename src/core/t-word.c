@@ -39,12 +39,20 @@ REBINT CT_Word(REBVAL *a, REBVAL *b, REBINT mode)
     REBINT diff;
     if (mode >= 0) {
         e = VAL_WORD_CANON(a) == VAL_WORD_CANON(b);
-        if (mode == 1) e &= VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b)
-            && VAL_WORD_TARGET(a) == VAL_WORD_TARGET(b);
+        if (mode == 1) {
+            if (IS_WORD_UNBOUND(a) || IS_WORD_UNBOUND(b))
+                e &= IS_WORD_BOUND(a) == IS_WORD_BOUND(b);
+            else
+                e &= VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b)
+                    && VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b);
+        }
         else if (mode >= 2) {
-            e = (VAL_WORD_SYM(a) == VAL_WORD_SYM(b) &&
-                VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b) &&
-                VAL_WORD_TARGET(a) == VAL_WORD_TARGET(b));
+            if (IS_WORD_UNBOUND(a) || IS_WORD_UNBOUND(b))
+                e &= IS_WORD_BOUND(a) == IS_WORD_BOUND(b);
+            else
+                e = (VAL_WORD_SYM(a) == VAL_WORD_SYM(b) &&
+                    VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b) &&
+                    VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b));
         }
     } else {
         diff = Compare_Word(a, b, FALSE);
@@ -72,7 +80,11 @@ REBTYPE(Word)
         // TO word! ...
         if (type == REB_DATATYPE) type = VAL_TYPE_KIND(val);
         if (ANY_WORD(arg)) {
-            VAL_RESET_HEADER(arg, type);
+            //
+            // Only reset the type, not all the header bits (the bits must
+            // stay in sync with the binding state)
+            //
+            VAL_SET_TYPE_BITS(arg, type);
             return R_ARG2;
         }
         else {

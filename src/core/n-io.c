@@ -393,6 +393,8 @@ REBNATIVE(wait)
 
     if (IS_BLOCK(val)) {
         REBVAL unsafe; // temporary not safe from GC
+        VAL_INIT_WRITABLE_DEBUG(&unsafe);
+
         if (Reduce_Array_Throws(
             &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
         )) {
@@ -483,22 +485,22 @@ REBNATIVE(wake_up)
     PARAM(1, port);
     PARAM(2, event);
 
-    REBFRM *frame = VAL_FRAME(ARG(port));
+    REBCON *port = VAL_CONTEXT(ARG(port));
     REBOOL awakened = TRUE; // start by assuming success
     REBVAL *value;
 
-    if (FRAME_LEN(frame) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
+    if (CONTEXT_LEN(port) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
 
-    value = FRAME_VAR(frame, STD_PORT_ACTOR);
+    value = CONTEXT_VAR(port, STD_PORT_ACTOR);
     if (IS_NATIVE(value)) {
         //
         // We don't pass `value` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
-        Do_Port_Action(call_, frame, A_UPDATE);
+        Do_Port_Action(call_, port, A_UPDATE);
     }
 
-    value = FRAME_VAR(frame, STD_PORT_AWAKE);
+    value = CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (ANY_FUNC(value)) {
         if (Apply_Func_Throws(D_OUT, VAL_FUNC(value), ARG(event), 0))
             fail (Error_No_Catch_For_Throw(D_OUT));
@@ -612,9 +614,6 @@ REBNATIVE(what_dir)
 REBNATIVE(change_dir)
 {
     REBVAL *arg = D_ARG(1);
-    REBSER *ser;
-    REBVAL val;
-
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
 
     if (IS_URL(arg)) {
@@ -625,6 +624,11 @@ REBNATIVE(change_dir)
         // !!! Should it at least check for a trailing `/`?
     }
     else {
+        REBSER *ser;
+
+        REBVAL val;
+        VAL_INIT_WRITABLE_DEBUG(&val);
+
         assert(IS_FILE(arg));
 
         ser = Value_To_OS_Path(arg, TRUE);
@@ -1025,16 +1029,13 @@ REBNATIVE(call)
     if (input_ser) DROP_GUARD_SERIES(input_ser);
 
     if (flag_info) {
-        REBFRM *frame = Alloc_Frame(2);
-        REBVAL *val = Append_Frame(frame, NULL, SYM_ID);
-        SET_INTEGER(val, pid);
+        REBCON *info = Alloc_Context(2);
 
-        if (flag_wait) {
-            val = Append_Frame(frame, NULL, SYM_EXIT_CODE);
-            SET_INTEGER(val, exit_code);
-        }
+        SET_INTEGER(Append_Context(info, NULL, SYM_ID), pid);
+        if (flag_wait)
+            SET_INTEGER(Append_Context(info, NULL, SYM_EXIT_CODE), exit_code);
 
-        Val_Init_Object(D_OUT, frame);
+        Val_Init_Object(D_OUT, info);
         return R_OUT;
     }
 
@@ -1185,9 +1186,6 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 //
 REBNATIVE(request_file)
 {
-    REBSER *ser;
-    REBINT n;
-
     // !!! This routine used to have an ENABLE_GC and DISABLE_GC
     // reference.  It is not clear what that was protecting, but
     // this code should be reviewed with GC "torture mode", and
@@ -1205,9 +1203,11 @@ REBNATIVE(request_file)
     if (D_REF(ARG_REQUEST_FILE_MULTI)) SET_FLAG(fr.flags, FRF_MULTI);
 
     if (D_REF(ARG_REQUEST_FILE_FILE)) {
-        ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+        REBSER *ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+        REBINT n = SERIES_LEN(ser);
+
         fr.dir = cast(REBCHR*, SERIES_DATA(ser));
-        n = SERIES_LEN(ser);
+
         if (OS_CH_VALUE(fr.dir[n-1]) != OS_DIR_SEP) {
             if (n+2 > fr.len) n = fr.len - 2;
             OS_STRNCPY(
@@ -1220,7 +1220,7 @@ REBNATIVE(request_file)
     }
 
     if (D_REF(ARG_REQUEST_FILE_FILTER)) {
-        ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
+        REBSER *ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
         fr.filter = cast(REBCHR*, SERIES_DATA(ser));
     }
 
@@ -1235,17 +1235,17 @@ REBNATIVE(request_file)
             Val_Init_Block(D_OUT, array);
         }
         else {
-            ser = To_REBOL_Path(
+            REBSER *ser = To_REBOL_Path(
                 fr.files, OS_STRLEN(fr.files), (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
             );
             Val_Init_File(D_OUT, ser);
         }
     } else
-        ser = 0;
+        SET_NONE(D_OUT);
 
     OS_FREE(fr.files);
 
-    return ser ? R_OUT : R_NONE;
+    return R_OUT;
 }
 
 

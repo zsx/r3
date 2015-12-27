@@ -152,6 +152,7 @@ options: context [  ; Options supplied to REBOL during startup
     print-forms-everything: false
     break-with-overrides: false
     none-instead-of-unsets: false
+    dont-exit-natives: false
 
     ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
     ; on the new behavior).  The points are retained in the code for purpose
@@ -182,17 +183,15 @@ standard: context [
     ; (substituted in #BODY), this template is used to "lie" when asked what
     ; the BODY-OF the function is.
     ;
-    ; The substitution locations are hardcoded at index 5 (function! or
-    ; closure!) and index 8 in the block.  It does not "scan" to find #TYPE
-    ; or #BODY, just asserts the positions are ISSUE!.
+    ; The substitution location is hardcoded at index 5.  It does not "scan"
+    ; to find #BODY, just asserts the position is an ISSUE!.
     ;
     func-body: [
-        comment {boilerplate is equivalent user code (simulated, optimized)}
-        return: make #TYPE [
+        return: make function! [
             [{Returns a value from a function.} value [any-value!]]
-            [throw/name :value bind-of 'return]
+            [exit/at/with (bind-of 'return) :value]
         ]
-        catch/name #BODY bind-of 'return
+        #BODY
     ]
 
     error: context [ ; Template used for all errors:
@@ -204,7 +203,7 @@ standard: context [
         where:
             none
 
-        ; Arguments will be allocated in the frame at creation time if
+        ; Arguments will be allocated in the context at creation time if
         ; necessary (errors with no arguments will just have a message)
     ]
 

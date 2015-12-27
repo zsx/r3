@@ -334,7 +334,7 @@ REBTYPE(Integer)
                 if (n > 0) {
                     if (IS_TIME(val2)) {
                         VAL_TIME(val) = SEC_TIME(VAL_INT64(val));
-                        VAL_SET_TYPE(val, REB_TIME);
+                        VAL_SET_TYPE_BITS(val, REB_TIME);
                         return T_Time(call_, action);
                     }
                     if (IS_DATE(val2)) return T_Date(call_, action);
@@ -423,12 +423,12 @@ REBTYPE(Integer)
                 VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
                     int_to_deci(num), n, VAL_MONEY_AMOUNT(val2)
                 );
-                VAL_SET_TYPE(D_OUT, REB_MONEY);
+                VAL_SET_TYPE_BITS(D_OUT, REB_MONEY);
                 return R_OUT;
             }
             if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
                 VAL_DECIMAL(D_OUT) = Round_Dec((REBDEC)num, n, VAL_DECIMAL(val2));
-                VAL_SET_TYPE(D_OUT, VAL_TYPE(val2));
+                VAL_SET_TYPE_BITS(D_OUT, VAL_TYPE(val2));
                 return R_OUT;
             }
             if (IS_TIME(val2)) fail (Error_Invalid_Arg(val2));

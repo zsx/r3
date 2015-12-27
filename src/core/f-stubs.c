@@ -273,7 +273,7 @@ REBCNT Find_Refines(struct Reb_Call *call_, REBCNT mask)
 //
 void Val_Init_Datatype(REBVAL *value, REBINT n)
 {
-    *value = *FRAME_VAR(Lib_Context, n + 1);
+    *value = *CONTEXT_VAR(Lib_Context, n + 1);
 }
 
 
@@ -285,8 +285,8 @@ void Val_Init_Datatype(REBVAL *value, REBINT n)
 //
 REBVAL *Get_Type(REBCNT index)
 {
-    assert(index <= FRAME_LEN(Lib_Context));
-    return FRAME_VAR(Lib_Context, index + 1);
+    assert(index <= CONTEXT_LEN(Lib_Context));
+    return CONTEXT_VAR(Lib_Context, index + 1);
 }
 
 
@@ -298,7 +298,7 @@ REBVAL *Get_Type(REBCNT index)
 //
 REBVAL *Type_Of(const REBVAL *value)
 {
-    return FRAME_VAR(Lib_Context, VAL_TYPE(value) + 1);
+    return CONTEXT_VAR(Lib_Context, VAL_TYPE(value) + 1);
 }
 
 
@@ -309,7 +309,7 @@ REBVAL *Type_Of(const REBVAL *value)
 //
 REBINT Get_Type_Sym(REBCNT type)
 {
-    return FRAME_KEY_SYM(Lib_Context, type + 1);
+    return CONTEXT_KEY_SYM(Lib_Context, type + 1);
 }
 
 
@@ -318,10 +318,10 @@ REBINT Get_Type_Sym(REBCNT type)
 // 
 // Get the name of a field of an object.
 //
-const REBYTE *Get_Field_Name(REBFRM *frame, REBCNT index)
+const REBYTE *Get_Field_Name(REBCON *context, REBCNT index)
 {
-    assert(index <= FRAME_LEN(frame));
-    return Get_Sym_Name(FRAME_KEY_SYM(frame, index));
+    assert(index <= CONTEXT_LEN(context));
+    return Get_Sym_Name(CONTEXT_KEY_SYM(context, index));
 }
 
 
@@ -330,10 +330,10 @@ const REBYTE *Get_Field_Name(REBFRM *frame, REBCNT index)
 // 
 // Get an instance variable from an object series.
 //
-REBVAL *Get_Field(REBFRM *frame, REBCNT index)
+REBVAL *Get_Field(REBCON *context, REBCNT index)
 {
-    assert(index <= FRAME_LEN(frame));
-    return FRAME_VAR(frame, index);
+    assert(index <= CONTEXT_LEN(context));
+    return CONTEXT_VAR(context, index);
 }
 
 
@@ -342,12 +342,13 @@ REBVAL *Get_Field(REBFRM *frame, REBCNT index)
 // 
 // Get an instance variable from an ANY-CONTEXT! value.
 //
-REBVAL *Get_Object(const REBVAL *context, REBCNT index)
+REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
-    REBFRM *frame = VAL_FRAME(context);
-    assert(ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
-    assert(index <= FRAME_LEN(frame));
-    return FRAME_VAR(frame, index);
+    REBCON *context = VAL_CONTEXT(any_context);
+
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT));
+    assert(index <= CONTEXT_LEN(context));
+    return CONTEXT_VAR(context, index);
 }
 
 
@@ -357,7 +358,7 @@ REBVAL *Get_Object(const REBVAL *context, REBCNT index)
 // Get value from nested list of objects. List is null terminated.
 // Returns object value, else returns 0 if not found.
 //
-REBVAL *In_Object(REBFRM *base, ...)
+REBVAL *In_Object(REBCON *base, ...)
 {
     REBVAL *context = NULL;
     REBCNT n;
@@ -365,16 +366,16 @@ REBVAL *In_Object(REBFRM *base, ...)
 
     va_start(args, base);
     while ((n = va_arg(args, REBCNT))) {
-        if (n > FRAME_LEN(base)) {
+        if (n > CONTEXT_LEN(base)) {
             va_end(args);
             return NULL;
         }
-        context = FRAME_VAR(base, n);
+        context = CONTEXT_VAR(base, n);
         if (!ANY_CONTEXT(context)) {
             va_end(args);
             return NULL;
         }
-        base = VAL_FRAME(context);
+        base = VAL_CONTEXT(context);
     }
     va_end(args);
 
@@ -391,10 +392,10 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
 {
     REBVAL *obj;
 
-    obj = FRAME_VAR(VAL_FRAME(ROOT_SYSTEM), i1);
+    obj = CONTEXT_VAR(VAL_CONTEXT(ROOT_SYSTEM), i1);
     if (i2 == 0) return obj;
     assert(IS_OBJECT(obj));
-    return Get_Field(VAL_FRAME(obj), i2);
+    return Get_Field(VAL_CONTEXT(obj), i2);
 }
 
 
@@ -414,10 +415,10 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 //
 //  Make_Std_Object_Managed: C
 //
-REBFRM *Make_Std_Object_Managed(REBCNT index)
+REBCON *Make_Std_Object_Managed(REBCNT index)
 {
-    REBFRM *frame = Copy_Frame_Shallow_Managed(
-        VAL_FRAME(Get_System(SYS_STANDARD, index))
+    REBCON *context = Copy_Context_Shallow_Managed(
+        VAL_CONTEXT(Get_System(SYS_STANDARD, index))
     );
 
     //
@@ -425,18 +426,18 @@ REBFRM *Make_Std_Object_Managed(REBCNT index)
     // series in one will modify all...is this right (?)
     //
 
-    return frame;
+    return context;
 }
 
 
 //
 //  Set_Object_Values: C
 //
-void Set_Object_Values(REBFRM *frame, REBVAL value[])
+void Set_Object_Values(REBCON *context, REBVAL value[])
 {
     REBVAL *var;
 
-    var = FRAME_VARS_HEAD(frame);
+    var = CONTEXT_VARS_HEAD(context);
     for (; NOT_END(var); var++) {
         if (IS_END(value)) SET_NONE(var);
         else *var = *value++;
@@ -504,36 +505,36 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 void Val_Init_Context_Core(
     REBVAL *out,
     enum Reb_Kind kind,
-    REBFRM *frame,
-    REBFRM *spec,
+    REBCON *context,
+    REBCON *spec,
     REBARR *body
 ) {
 #if !defined(NDEBUG)
-    if (!FRAME_KEYLIST(frame)) {
-        Debug_Fmt("Frame found with no keylist set");
-        Panic_Frame(frame);
+    if (!CONTEXT_KEYLIST(context)) {
+        Debug_Fmt("Context found with no keylist set");
+        Panic_Context(context);
     }
 #endif
 
-    ENSURE_FRAME_MANAGED(frame);
+    ENSURE_CONTEXT_MANAGED(context);
 
-    assert(ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_FRAME));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT));
 
-    assert(FRAME_TYPE(frame) == kind);
-    assert(VAL_FRAME(FRAME_CONTEXT(frame)) == frame);
-    assert(VAL_CONTEXT_SPEC(FRAME_CONTEXT(frame)) == spec);
-    assert(VAL_CONTEXT_BODY(FRAME_CONTEXT(frame)) == body);
+    assert(CONTEXT_TYPE(context) == kind);
+    assert(VAL_CONTEXT(CONTEXT_VALUE(context)) == context);
+    assert(VAL_CONTEXT_SPEC(CONTEXT_VALUE(context)) == spec);
+    assert(VAL_CONTEXT_BODY(CONTEXT_VALUE(context)) == body);
 
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
-    assert(!spec || ARRAY_GET_FLAG(FRAME_VARLIST(spec), SER_FRAME));
+    assert(!spec || ARRAY_GET_FLAG(CONTEXT_VARLIST(spec), SER_CONTEXT));
 
     // !!! Nothing was using the body field yet.
     //
     assert(!body);
 
-    *out = *FRAME_CONTEXT(frame);
+    *out = *CONTEXT_VALUE(context);
 
     assert(ANY_CONTEXT(out));
 }

@@ -298,7 +298,7 @@ chkDecimal:
     case REB_OBJECT:
     case REB_MODULE:
     case REB_PORT:
-        return VAL_FRAME(s) - VAL_FRAME(t);
+        return VAL_CONTEXT(s) - VAL_CONTEXT(t);
 
     case REB_NATIVE:
         return &VAL_FUNC_CODE(s) - &VAL_FUNC_CODE(t);

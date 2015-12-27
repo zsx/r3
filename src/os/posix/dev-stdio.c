@@ -75,18 +75,42 @@ extern void Put_Str(const REBYTE *buf);
 
 static int interrupted = 0;
 
+
+//
+// Hook reigtered via `signal()`.  The parallel implementation in the Windows
+// code is `Handle_Break()`
+//
 static void Handle_Signal(int sig)
 {
     RL_Escape(0); /* This will cause the next evalution escaped */
     interrupted = 1;
 }
 
+
 static void Init_Signals(void)
 {
+    // SIGINT is the interrupt, usually tied to "Ctrl-C"
+    //
     signal(SIGINT, Handle_Signal);
-    signal(SIGHUP, Handle_Signal);
+
+    // SIGTERM is sent on "polite request to end", e.g. default unix `kill`
+    //
     signal(SIGTERM, Handle_Signal);
+
+    // SIGHUP is sent on a hangup, e.g. user's terminal disconnected
+    //
+    signal(SIGHUP, Handle_Signal);
+
+    // SIGQUIT is used to terminate a program in a way that is designed to
+    // debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
+    // program exit functions like deletion of temporary files may be
+    // skipped to provide more state to analyze in a debugging scenario.
+    //
+    // -- no handler
+
+    // SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
 }
+
 
 static void Close_Stdio(void)
 {
@@ -101,6 +125,7 @@ static void Close_Stdio(void)
         Std_Echo = 0;
     }
 }
+
 
 //
 //  Quit_IO: C

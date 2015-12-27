@@ -58,7 +58,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 // Zlib gives back string error messages.  We use them or fall
 // back on the integer code if there is no message.
 //
-static REBFRM *Error_Compression(const z_stream *strm, int ret)
+static REBCON *Error_Compression(const z_stream *strm, int ret)
 {
     REBVAL arg;
 
@@ -195,8 +195,8 @@ REBSER *Decompress(
     REBOOL gzip,
     REBOOL raw
 ) {
-    REBOL_STATE state;
-    REBFRM *error;
+    struct Reb_State state;
+    REBCON *error;
 
     REBCNT buf_size;
     REBSER *output;
@@ -224,6 +224,7 @@ REBSER *Decompress(
 
         if (max >= 0 && buf_size > cast(REBCNT, max)) {
             REBVAL temp;
+            VAL_INIT_WRITABLE_DEBUG(&temp);
             SET_INTEGER(&temp, max);
 
             // NOTE: You can hit this if you 'make prep' without doing a full
@@ -314,6 +315,7 @@ REBSER *Decompress(
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
                 REBVAL temp;
+                VAL_INIT_WRITABLE_DEBUG(&temp);
                 SET_INTEGER(&temp, max);
 
                 // NOTE: You can hit this on 'make prep' without doing a full

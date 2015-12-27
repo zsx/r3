@@ -183,8 +183,7 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_FRAME       = 1 << 4,   // is a frame with varlist and keylist
-    MKS_GC_MANUALS  = 1 << 5    // used in implementation of series itself
+    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
 };
 
 // Modes allowed by Copy_Block function:
@@ -200,8 +199,8 @@ enum {
 
 #define TS_NOT_COPIED (FLAGIT_64(REB_IMAGE) | FLAGIT_64(REB_VECTOR) | FLAGIT_64(REB_TASK) | FLAGIT_64(REB_PORT))
 #define TS_STD_SERIES (TS_SERIES & ~TS_NOT_COPIED)
-#define TS_SERIES_OBJ ((TS_SERIES | TS_OBJECT) & ~TS_NOT_COPIED)
-#define TS_ARRAYS_OBJ ((TS_ARRAY | TS_OBJECT) & ~TS_NOT_COPIED)
+#define TS_SERIES_OBJ ((TS_SERIES | TS_CONTEXT) & ~TS_NOT_COPIED)
+#define TS_ARRAYS_OBJ ((TS_ARRAY | TS_CONTEXT) & ~TS_NOT_COPIED)
 
 #define TS_FUNCLOS (FLAGIT_64(REB_FUNCTION) | FLAGIT_64(REB_CLOSURE))
 #define TS_CLONE ((TS_SERIES | TS_FUNCLOS) & ~TS_NOT_COPIED)
@@ -225,6 +224,9 @@ enum {
 // Garbage collection marker function (GC Hook)
 typedef void (*REBMRK)(void);
 
+// Breakpoint hook callback
+typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
+
 // Modes allowed by Bind related functions:
 enum {
     BIND_ONLY = 0,      // Only bind the words found in the context.
@@ -239,9 +241,8 @@ enum {
 
 // Modes for Rebind_Values:
 enum {
-    REBIND_TYPE = 1,    // Change frame type when rebinding
-    REBIND_FUNC = 2,    // Rebind function and closure bodies
-    REBIND_TABLE = 4    // Use bind table when rebinding
+    REBIND_FUNC = 1,    // Rebind function and closure bodies
+    REBIND_TABLE = 2    // Use bind table when rebinding
 };
 
 // Mold and form options:
@@ -321,9 +322,32 @@ enum Insert_Arg_Nums {
 };
 
 enum rebol_signals {
+    //
+    // SIG_RECYCLE indicates a need to run the garbage collector, when
+    // running it synchronously could be dangerous.  This is important in
+    // particular during memory allocation, which can detect crossing a
+    // memory usage boundary that suggests GC'ing would be good...but might
+    // be in the middle of code that is halfway through manipulating a
+    // managed series.
+    //
     SIG_RECYCLE,
-    SIG_ESCAPE,
+
+    // SIG_HALT means return to the topmost level of the evaluator, regardless
+    // of how deep a debug stack might be.  It is the only instruction besides
+    // QUIT and RESUME that can currently get past a breakpoint sandbox.
+    //
+    SIG_HALT,
+
+    // SIG_INTERRUPT indicates a desire to enter an interactive debugging
+    // state.  Because the ability to manage such a state may not be
+    // registered by the host, this could generate an error.
+    //
+    SIG_INTERRUPT,
+
+    // SIG_EVENT_PORT is to-be-documented
+    //
     SIG_EVENT_PORT,
+
     SIG_MAX
 };
 
@@ -402,20 +426,22 @@ enum encoding_opts {
 // will occur exactly once (when it is caught).
 
 #ifdef NDEBUG
-    #define CONVERT_NAME_TO_THROWN(name,arg) \
+    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
         do { \
+            if (from) VAL_SET_OPT((name), OPT_VALUE_EXIT_FROM); \
             VAL_SET_OPT((name), OPT_VALUE_THROWN); \
             (TG_Thrown_Arg = *(arg)); \
         } while (0)
 
     #define CATCH_THROWN(arg,thrown) \
         do { \
+            VAL_CLR_OPT((thrown), OPT_VALUE_EXIT_FROM); \
             VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
             (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
-    #define CONVERT_NAME_TO_THROWN(n,a) \
-        Convert_Name_To_Thrown_Debug(n, a)
+    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
+        Convert_Name_To_Thrown_Debug(name, arg, from)
 
     #define CATCH_THROWN(a,t) \
         Catch_Thrown_Debug(a, t)
@@ -429,7 +455,7 @@ enum encoding_opts {
 **
 **  VARIABLE ACCESS
 **
-**  When a word is bound to a frame by an index, it becomes a means of
+**  When a word is bound to a context by an index, it becomes a means of
 **  reading and writing from a persistent storage location.  The term
 **  "variable" is used to refer to a REBVAL slot reached through a
 **  binding in this way.
@@ -554,7 +580,6 @@ enum encoding_opts {
 #endif
 
 
-#define NO_RESULT   ((REBCNT)(-1))
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS
 #define ALL_64      ((REBU64)0xffffffffffffffffLL)
@@ -597,7 +622,7 @@ enum encoding_opts {
 **
 **          REBVAL *block = D_ARG(1);
 **          REBVAL *something = D_ARG(2);
-**          Bind_Values_Deep(block, frame);
+**          Bind_Values_Deep(block, context);
 **
 **      What will happen is that the block will be treated as an
 **      array of values and get incremented.  In the above case it
@@ -606,7 +631,7 @@ enum encoding_opts {
 **
 **      Instead write:
 **
-**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), frame);
+**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), context);
 **
 **      That will pass the address of the first value element of
 **      the block's contents.  You could use a later value element,
@@ -616,21 +641,21 @@ enum encoding_opts {
 **
 ***********************************************************************/
 
-#define Bind_Values_Deep(values,frame) \
-    Bind_Values_Core((values), (frame), BIND_DEEP)
+#define Bind_Values_Deep(values,context) \
+    Bind_Values_Core((values), (context), BIND_DEEP)
 
-#define Bind_Values_All_Deep(values,frame) \
-    Bind_Values_Core((values), (frame), BIND_ALL | BIND_DEEP)
+#define Bind_Values_All_Deep(values,context) \
+    Bind_Values_Core((values), (context), BIND_ALL | BIND_DEEP)
 
-#define Bind_Values_Shallow(values, frame) \
-    Bind_Values_Core((values), (frame), BIND_ONLY)
+#define Bind_Values_Shallow(values, context) \
+    Bind_Values_Core((values), (context), BIND_ONLY)
 
 // Gave this a complex name to warn of its peculiarities.  Calling with
 // just BIND_SET is shallow and tricky because the set words must occur
 // before the uses (to be applied to bindings of those uses)!
 //
-#define Bind_Values_Set_Forward_Shallow(values, frame) \
-    Bind_Values_Core((values), (frame), BIND_SET)
+#define Bind_Values_Set_Forward_Shallow(values, context) \
+    Bind_Values_Core((values), (context), BIND_SET)
 
 #define Unbind_Values_Deep(values) \
     Unbind_Values_Core((values), NULL, TRUE)

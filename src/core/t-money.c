@@ -177,7 +177,7 @@ REBTYPE(Money)
             fail (Error_Illegal_Action(REB_MONEY, action));
         }
 
-        VAL_SET_TYPE(D_OUT, REB_MONEY);
+        VAL_RESET_HEADER(D_OUT, REB_MONEY);
         return R_OUT;
     }
 
@@ -207,12 +207,12 @@ REBTYPE(Money)
         if (D_REF(2)) {
             if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
                 VAL_DECIMAL(D_OUT) = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));
-                VAL_SET_TYPE(D_OUT, VAL_TYPE(arg));
+                VAL_RESET_HEADER(D_OUT, VAL_TYPE(arg));
                 return R_OUT;
             }
             if (IS_INTEGER(arg)) {
                 VAL_INT64(D_OUT) = deci_to_int(VAL_MONEY_AMOUNT(D_OUT));;
-                VAL_SET_TYPE(D_OUT, REB_INTEGER);
+                VAL_RESET_HEADER(D_OUT, REB_INTEGER);
                 return R_OUT;
             }
         }
@@ -272,7 +272,7 @@ REBTYPE(Money)
         fail (Error_Illegal_Action(REB_MONEY, action));
     }
 
-    VAL_SET_TYPE(D_OUT, REB_MONEY);
+    VAL_RESET_HEADER(D_OUT, REB_MONEY);
     return R_OUT;
 
 is_true:  return R_TRUE;

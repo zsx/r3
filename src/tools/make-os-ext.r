@@ -497,6 +497,8 @@ form-header/gen "Host Table Definition" %host-table.inc %make-os-ext.r
 
 newline
 
+"extern REBOL_HOST_LIB Host_Lib_Init;" newline
+
 "REBOL_HOST_LIB Host_Lib_Init = {"
 
 {

@@ -104,25 +104,26 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 //
 void Protect_Object(REBVAL *value, REBCNT flags)
 {
-    REBFRM *frame = VAL_FRAME(value);
+    REBCON *context = VAL_CONTEXT(value);
 
-    if (ARRAY_GET_FLAG(FRAME_VARLIST(frame), SER_MARK))
+    if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MARK))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
+        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
     else
-        ARRAY_CLR_FLAG(FRAME_VARLIST(frame), SER_LOCKED);
+        ARRAY_CLR_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
 
-    for (value = FRAME_KEY(frame, 1); NOT_END(value); value++) {
+    for (value = CONTEXT_KEY(context, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
     }
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    ARRAY_SET_FLAG(FRAME_VARLIST(frame), SER_MARK); // recursion protection
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_MARK); // recursion protection
 
-    for (value = FRAME_VAR(frame, 1); NOT_END(value); value++) {
+    value = CONTEXT_VARS_HEAD(context);
+    for (; NOT_END(value); value++) {
         Protect_Value(value, flags);
     }
 }
@@ -136,8 +137,12 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     REBVAL *key;
     REBVAL *val;
 
-    if (ANY_WORD(word) && HAS_TARGET(word) && VAL_WORD_INDEX(word) > 0) {
-        key = FRAME_KEY(AS_FRAME(VAL_WORD_TARGET(word)), VAL_WORD_INDEX(word));
+    if (
+        ANY_WORD(word)
+        && IS_WORD_BOUND(word)
+        && !IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
+    ) {
+        key = CONTEXT_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
             // Ignore existing mutability state, by casting away the const.
@@ -149,12 +154,12 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     }
     else if (ANY_PATH(word)) {
         REBCNT index;
-        REBFRM *frame;
-        if ((frame = Resolve_Path(word, &index))) {
-            key = FRAME_KEY(frame, index);
+        REBCON *context;
+        if ((context = Resolve_Path(word, &index))) {
+            key = CONTEXT_KEY(context, index);
             Protect_Key(key, flags);
             if (GET_FLAG(flags, PROT_DEEP)) {
-                val = FRAME_VAR(frame, index);
+                val = CONTEXT_VAR(context, index);
                 Protect_Value(val, flags);
                 Unmark(val);
             }
@@ -199,7 +204,10 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
         }
         if (D_REF(4)) { // /values
             REBVAL *val2;
+
             REBVAL safe;
+            VAL_INIT_WRITABLE_DEBUG(&safe);
+
             for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
                 if (IS_WORD(val)) {
                     // !!! Temporary and ugly cast; since we *are* PROTECT
@@ -345,8 +353,8 @@ REBNATIVE(attempt)
 {
     REBVAL * const block = D_ARG(1);
 
-    REBOL_STATE state;
-    REBFRM *error;
+    struct Reb_State state;
+    REBCON *error;
 
     PUSH_TRAP(&error, &state);
 
@@ -389,7 +397,7 @@ REBNATIVE(break)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     return R_OUT_IS_THROWN;
 }
@@ -772,7 +780,7 @@ REBNATIVE(throw)
         SET_NONE(D_OUT);
     }
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     // Throw name is in D_OUT, thrown value is held task local
     return R_OUT_IS_THROWN;
@@ -906,7 +914,7 @@ REBNATIVE(continue)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
 
     return R_OUT_IS_THROWN;
 }
@@ -960,7 +968,7 @@ REBNATIVE(do)
                 // longer actually the expression that started the throw?
 
                 if (!IS_NONE(ARG(var)))
-                    Set_Var(ARG(var), ARG(value));
+                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
                 return R_OUT_IS_THROWN;
             }
 
@@ -969,13 +977,18 @@ REBNATIVE(do)
                 if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
                     VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
-                    Set_Var(ARG(var), ARG(value));
+                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
                 }
                 return R_UNSET;
             }
 
-            if (!IS_NONE(ARG(var)))
-                Set_Var(ARG(var), ARG(value)); // "continuation" of block
+            if (!IS_NONE(ARG(var))) {
+                //
+                // "continuation" of block
+                //
+                *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
+            }
+
             return R_OUT;
         }
 
@@ -1014,7 +1027,7 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_FRAME(ARG(value)));
+        fail (VAL_CONTEXT(ARG(value)));
 
     case REB_TASK:
         Do_Task(ARG(value));
@@ -1056,21 +1069,100 @@ REBNATIVE(eval)
 //
 //  exit: native [
 //  
-//  {Leave whatever enclosing Rebol state EXIT's block *actually* runs in.}
+//  {Leave enclosing function, or jump /FROM.}
 //  
-//      /with "Result for enclosing state (default is UNSET!)"
+//      /with
+//          "Result for enclosing state (default is UNSET!)"
 //      value [any-value!]
+//      /from
+//          "Jump the stack to return from a specific frame or call"
+//      target [any-function! object!]
+//          "Function or frame to exit from (identifying OBJECT! if CLOSURE!)"
 //  ]
 //
 REBNATIVE(exit)
 //
 // EXIT is implemented via a THROWN() value that bubbles up through
-// the stack.  It uses the value of its own native function as the
-// name of the throw, like `throw/name value :exit`.
+// the stack.
 {
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    REFINE(1, with);
+    PARAM(2, value);
+    REFINE(3, from);
+    PARAM(4, target);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, D_REF(1) ? D_ARG(2) : UNSET_VALUE);
+    struct Reb_Call *call = DSF->prior; // don't count this EXIT
+
+    for (; call != NULL; call = call->prior) {
+        if (call->mode != CALL_MODE_FUNCTION) {
+            //
+            // Don't consider pending calls, or parens, or any non-invoked
+            // function as a candidate to target with EXIT.
+            //
+            // !!! The inability to exit these things is because of technical
+            // limitation rather than either being expressly undesirable.
+            // Both cases are likely desirable and could be addressed.
+            //
+            continue;
+        }
+
+    #if !defined(NDEBUG)
+        //
+        // Though the Ren-C default is to allow exiting from natives (and not
+        // to provide the poor invariant of different behavior based on whether
+        // the containing function is native or not), the legacy switch lets
+        // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
+        //
+        if (
+            LEGACY(OPTIONS_DONT_EXIT_NATIVES)
+            && !IS_FUNCTION(FUNC_VALUE(call->func))
+            && !IS_CLOSURE(FUNC_VALUE(call->func))
+        ) {
+            continue;
+        }
+    #endif
+
+        if (!REF(from)) break; // Take first actual frame if "plain" EXIT
+
+        // If a function matches the queried one, use this frame.
+        //
+        // !!! When an actual FRAME! type exists to identify specific
+        // instantiations, that should be supported as well.
+        //
+        if (
+            IS_OBJECT(ARG(target))
+            && IS_CLOSURE(FUNC_VALUE(call->func))
+            && AS_CONTEXT(call->arglist.array) == VAL_CONTEXT(ARG(target))
+        ) {
+            break;
+        }
+        else {
+            assert(ANY_FUNC(ARG(target)));
+            if (VAL_FUNC(ARG(target)) == call->func) break;
+        }
+    }
+
+    // NULL here means we didn't find a match (either plain exit but no
+    // frames higher, or the requested function isn't on the stack.)
+    //
+    if (call == NULL)
+        fail (Error(RE_INVALID_EXIT));
+
+    if (IS_CLOSURE(FUNC_VALUE(call->func))) {
+        //
+        // CLOSURE! is different because the EXIT_FROM uses the object for
+        // the specific instance as the target.
+        //
+        *D_OUT = *CONTEXT_VALUE(AS_CONTEXT(call->arglist.array));
+    }
+    else {
+        //
+        // !!! Other function types have a problem in that only the most
+        // recent call frame will be exited, this is to be fixed.
+        //
+        *D_OUT = *FUNC_VALUE(call->func);
+    }
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE);
 
     return R_OUT_IS_THROWN;
 }
@@ -1090,7 +1182,7 @@ REBNATIVE(fail)
     REBVAL * const reason = D_ARG(1);
 
     if (IS_ERROR(reason)) {
-        fail (VAL_FRAME(reason));
+        fail (VAL_CONTEXT(reason));
     }
     else if (IS_STRING(reason) || IS_BLOCK(reason)) {
         // Ultimately we'd like FAIL to use some clever error-creating
@@ -1159,7 +1251,7 @@ REBNATIVE(fail)
             return R_OUT_IS_THROWN;
         }
 
-        fail (VAL_FRAME(D_OUT));
+        fail (VAL_CONTEXT(D_OUT));
     }
 
     DEAD_END;
@@ -1516,7 +1608,7 @@ REBNATIVE(return)
 // There is a RETURN native defined, and its native function spec is
 // utilized to create the appropriate help and calling protocol
 // information for values that have overridden its VAL_FUNC_CODE
-// slot with a VAL_FUNC_RETURN_TO spec.
+// slot with a VAL_FUNC_RETURN_FROM spec.
 // 
 // However: this native is unset and its actual code body should
 // never be able to be called.  The non-definitional return construct
@@ -1699,8 +1791,8 @@ REBNATIVE(trap)
     REFINE(2, with);
     PARAM(3, handler);
 
-    REBOL_STATE state;
-    REBFRM *error;
+    struct Reb_State state;
+    REBCON *error;
 
     PUSH_TRAP(&error, &state);
 
@@ -1731,6 +1823,7 @@ REBNATIVE(trap)
                 }
                 else {
                     REBVAL arg;
+                    VAL_INIT_WRITABLE_DEBUG(&arg);
                     Val_Init_Error(&arg, error);
 
                     // If the handler takes at least one parameter that

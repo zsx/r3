@@ -125,7 +125,7 @@ REBOOL MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     }
     else return FALSE;
 
-    VAL_SET_TYPE(out, type);
+    VAL_SET_TYPE_BITS(out, type);
     return TRUE;
 }
 
@@ -442,7 +442,7 @@ REBTYPE(Decimal)
                     VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
                         decimal_to_deci(d1), num, VAL_MONEY_AMOUNT(arg)
                     );
-                    VAL_SET_TYPE(D_OUT, REB_MONEY);
+                    VAL_SET_TYPE_BITS(D_OUT, REB_MONEY);
                     return R_OUT;
                 }
                 if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
@@ -450,7 +450,7 @@ REBTYPE(Decimal)
                 d1 = Round_Dec(d1, num, Dec64(arg));
                 if (IS_INTEGER(arg)) {
                     VAL_INT64(D_OUT) = cast(REBI64, d1);
-                    VAL_SET_TYPE(D_OUT, REB_INTEGER);
+                    VAL_SET_TYPE_BITS(D_OUT, REB_INTEGER);
                     return R_OUT;
                 }
                 if (IS_PERCENT(arg)) type = REB_PERCENT;

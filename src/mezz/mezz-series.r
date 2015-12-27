@@ -184,28 +184,53 @@ replace: func [
     either tail [target] [save-target]
 ]
 
-reword: func [
+
+reword: function [
     "Make a string or binary based on a template and substitution values."
-    source [any-string! binary!] "Template series with escape sequences"
-    values [map! object! block!] "Keyword literals and value expressions"
-    /case "Characters are case-sensitive"  ;!!! Note CASE is redefined in here!
-    /only "Use values as-is, do not reduce the block, insert block values"
-    /escape "Choose your own escape char(s) or [begin end] delimiters"
-    char [char! any-string! binary! block! none!] {Default "$"}
-    /into "Insert into a buffer instead (returns position after insert)"
-    output [any-string! binary!] "The buffer series (modified)"
-    /local char-end vals word wtype cword out fout rule a b w v c
+
+    ; !!! "It's big, it's complex, but it works. Placeholder for a native."
+
+    source [any-string! binary!]
+        "Template series with escape sequences"
+    values [map! object! block!]
+        "Keyword literals and value expressions"
+    /case
+        "Characters are case-sensitive"  ;!!! Note CASE is redefined in here!
+    /only
+        "Use values as-is, do not reduce the block, insert block values"
+    /escape
+        "Choose your own escape char(s) or [begin end] delimiters"
+    char [char! any-string! binary! block! none!]
+        {Default "$"}
+    /into
+        "Insert into a buffer instead (returns position after insert)"
+    output [any-string! binary!]
+        "The buffer series (modified)"
 ][
-    assert/type [local none!]  ; Prevent locals injection
+    case_REWORD: case
+    case: :lib/case
+
     unless into [output: make source length source]
+
     ; Determine the datatype to convert the keywords to internally
     ; Case-sensitive map keys must be binary, tags are special-cased by parse
-    wtype: lib/case [case binary! tag? source string! 'else type-of source]
+    ;
+    wtype: case [
+        case_REWORD binary!
+        tag? source string!
+        'default type-of source
+    ]
+
     ; Determine the escape delimiter(s), if any
-    lib/case/all [
+    ;
+    char: none
+    char-end: none
+    case/all [
         not escape [char: "$"]
         block? char [
-            ; Have to use parse here because ASSERT/type is broken
+            ;
+            ; !!! Have to use parse here because ASSERT/type is broken
+            ;
             rule: [char! | any-string! | binary!]
             unless parse c: char [set char rule set char-end opt rule] [
                 cause-error 'script 'invalid-arg reduce [c]
@@ -214,7 +239,8 @@ reword: func [
         char? char [char: to wtype char]
         char? char-end [char-end: to wtype char-end]
     ]
-    lib/case [
+
+    case [
         ; Check whether values is a map of the kind we can use internally
         all [
             map? values      ; Must be a map to use series keys with no dups
@@ -225,9 +251,11 @@ reword: func [
                 true
             ]
         ] [vals: values]  ; Success, so use it
-        ; Otherwise, convert keywords to wtype and eliminate duplicates and empties
-        ; Last duplicate keyword wins; empty keywords, unset or none vals removed
+
+        ; Otherwise, convert keywords to wtype, remove duplicates and empties
+        ; Last duplicate keyword wins; empty keywords + unset + none removed
         ; Any trailing delimiter is added to the end of the key for convenience
+        ;
         all [
             vals: make map! length values  ; Make a new map internally
             not only block? values  ; Should we evaluate value expressions?
@@ -236,7 +264,7 @@ reword: func [
                 w: first+ values  ; Keywords are not evaluated
                 set/any 'v do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
-                lib/case [
+                case [
                     wtype = type-of :w none
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
@@ -248,10 +276,13 @@ reword: func [
                 ]
             ]
         ]
-        'else [  ; /only doesn't apply, just assign raw values
+
+        'default [
+            ; /only doesn't apply, just assign raw values
+
             for-each [w v] values [  ; for-each can be used on all values types
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
-                lib/case [
+                case [
                     wtype = type-of :w none
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
@@ -264,11 +295,15 @@ reword: func [
             ]
         ]
     ]
+
     ; Construct the reword rule
+    ;
     word: make block! 2 * length vals
     for-each w vals [word: reduce/into [w '|] word]
     word: head remove back word
+
     ; Convert keyword if the type doesn't match
+    ;
     cword: pick [(w: to wtype w)] wtype <> type-of source
     set/any [out: fout:] pick [
         [   ; Convert to string if type combination needs it
@@ -279,15 +314,17 @@ reword: func [
             (output: insert output a)
         ]
     ] or~ tag? source and~ binary? source not binary? output
+
     escape: [
         copy w word cword out (
-            output: insert output lib/case [
+            output: insert output case [
                 block? v: select vals w [either only [v] :v]
                 any-function? :v [apply :v [:b]]
                 'else :v
             ]
         ) a:
     ]
+
     rule: either empty? char [
         ; No starting escape string, use TO multi
         [a: any [to word b: [escape | skip]] to end fout]
@@ -296,11 +333,13 @@ reword: func [
         if wtype <> type-of char [char: to wtype char]
         [a: any [to char b: char [escape | none]] to end fout]
     ]
-    either case [parse/case source rule] [parse source rule]
+
+    parse/:case_REWORD source rule
+
     ; Return end of output with /into, head otherwise
     either into [output] [head output]
 ]
-; It's big, it's complex, but it works. Placeholder for a native.
+
 
 move: func [
     "Move a value or span of values in a series."

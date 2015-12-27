@@ -47,7 +47,7 @@
 //
 ATTRIBUTE_NO_RETURN void Panic_Core(
     REBCNT id,
-    REBFRM *maybe_frame,
+    REBCON *opt_error,
     va_list *args
 ) {
     char title[PANIC_TITLE_SIZE];
@@ -56,11 +56,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     title[0] = '\0';
     message[0] = '\0';
 
-    if (maybe_frame) {
-        ASSERT_FRAME(maybe_frame);
-        assert(FRAME_TYPE(maybe_frame) == REB_ERROR);
+    if (opt_error) {
+        ASSERT_CONTEXT(opt_error);
+        assert(CONTEXT_TYPE(opt_error) == REB_ERROR);
         assert(id == 0);
-        id = ERR_NUM(maybe_frame);
+        id = ERR_NUM(opt_error);
     }
 
     // We are crashing, so a legitimate time to be disabling the garbage
@@ -113,7 +113,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
         const char *format =
             cs_cast(BOOT_STR(RS_ERROR, id - RE_INTERNAL_FIRST));
-        assert(args && !maybe_frame);
+        assert(args && !opt_error);
         strncat(message, "\n** Boot Error: ", PANIC_MESSAGE_SIZE - 1);
         Form_Args_Core(
             b_cast(message + strlen(message)),
@@ -138,10 +138,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         // molding errors should audited to be in the Boot: category.
 
         REBVAL error;
+        VAL_INIT_WRITABLE_DEBUG(&error);
 
-        if (maybe_frame) {
+        if (opt_error) {
             assert(!args);
-            Val_Init_Error(&error, maybe_frame);
+            Val_Init_Error(&error, opt_error);
         }
         else {
             // We aren't explicitly passed a Rebol ERROR! object, but we

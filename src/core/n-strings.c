@@ -166,9 +166,10 @@ REBNATIVE(spelling_of)
     }
     else {
         // turn all words into regular words so they'll have no delimiters
-        // during the FORMing process
-
-        VAL_RESET_HEADER(value, REB_WORD);
+        // during the FORMing process.  Use SET_TYPE and not reset header
+        // because the binding bits need to stay consistent
+        //
+        VAL_SET_TYPE_BITS(value, REB_WORD);
         series = Copy_Mold_Value(value, 0 /* opts... MOPT_0? */);
     }
 
@@ -406,7 +407,7 @@ REBNATIVE(construct)
     REFINE(4, only);
 
     REBVAL *spec_value = ARG(spec);
-    REBFRM *parent = NULL;
+    REBCON *parent = NULL;
 
     // !!! What is this?
     //
@@ -427,11 +428,11 @@ REBNATIVE(construct)
         spec_value = D_OUT;
     }
 
-    if (REF(with)) parent = VAL_FRAME(ARG(object));
+    if (REF(with)) parent = VAL_CONTEXT(ARG(object));
 
     Val_Init_Object(
         D_OUT,
-        Construct_Frame(
+        Construct_Context(
             REB_OBJECT, VAL_ARRAY_AT(spec_value), REF(only), parent
         )
     );

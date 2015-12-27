@@ -64,12 +64,35 @@ enum parse_flags {
 
 static REBCNT Parse_Rules_Loop(REBPARSE *parse, REBCNT index, const REBVAL *rules, REBCNT depth);
 
-void Print_Parse_Index(enum Reb_Kind type, const REBVAL *rules, REBSER *series, REBCNT index)
-{
-    REBVAL val;
-    Val_Init_Series(&val, type, series);
-    VAL_INDEX(&val) = index;
-    Debug_Fmt("%r: %r", rules, &val);
+void Print_Parse_Index(
+    enum Reb_Kind type,
+    const REBVAL rule[], // positioned at the current rule
+    REBSER *series,
+    REBCNT index
+) {
+    REBVAL item;
+    VAL_INIT_WRITABLE_DEBUG(&item);
+    Val_Init_Series(&item, type, series);
+    VAL_INDEX(&item) = index;
+
+    // Either the rules or the data could be positioned at the end.  The
+    // data might even be past the end.
+    //
+    // !!! Or does PARSE adjust to ensure it never is past the end, e.g.
+    // when seeking a position given in a variable or modifying?
+    //
+    if (IS_END(rule)) {
+        if (index >= SERIES_LEN(series))
+            Debug_Fmt("[]: ** END **");
+        else
+            Debug_Fmt("[]: %r", &item);
+    }
+    else {
+        if (index >= SERIES_LEN(series))
+            Debug_Fmt("%r: ** END **", rule);
+        else
+            Debug_Fmt("%r: %r", rule, &item);
+    }
 }
 
 
@@ -113,15 +136,41 @@ static REBCNT Set_Parse_Series(REBPARSE *parse, const REBVAL *item)
 static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 {
     if (IS_WORD(item)) {
-        // !!! Should this be getting mutable variables?  If not, how
-        // does it guarantee it is honoring the protection status?
-        if (!VAL_CMD(item)) item = GET_VAR(item);
+        const REBVAL *var;
+
+        if (VAL_CMD(item)) return item;
+
+        // If `item` is not bound, there will be a fail() during GET_VAR
+        //
+        var = GET_VAR(item);
+
+        // While NONE! is legal and represents a no-op in parse, if a
+        // you write `parse "" [to undefined-value]`...and undefined-value
+        // is bound...you may get an UNSET! back.  This should be an
+        // error, as it is in the evaluator.  (See how this is handled
+        // by REB_WORD in %c-do.c)
+        //
+        if (IS_UNSET(var))
+            fail (Error(RE_NO_VALUE, item));
+
+        return var;
     }
-    else if (IS_PATH(item)) {
+
+    if (IS_PATH(item)) {
+        //
+        // !!! REVIEW: how should GET-PATH! be handled?
+
         if (Do_Path_Throws(safe, NULL, item, NULL))
             fail (Error_No_Catch_For_Throw(safe));
-        item = safe;
+
+        // See notes above about UNSET!
+        //
+        if (IS_UNSET(safe))
+            fail (Error(RE_NO_VALUE, item));
+
+        return safe;
     }
+
     return item;
 }
 
@@ -141,7 +190,9 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
     REBSER *ser;
     REBCNT flags = parse->find_flags | AM_FIND_MATCH | AM_FIND_TAIL;
     int rewrite_needed;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value(7, item);
@@ -257,7 +308,9 @@ static REBCNT Parse_Next_Array(
     // !!! THIS CODE NEEDS CLEANUP AND REWRITE BASED ON OTHER CHANGES
     REBARR *array = AS_ARRAY(parse->series);
     REBVAL *blk = ARRAY_AT(array, index);
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value(7, item);
@@ -310,7 +363,7 @@ static REBCNT Parse_Next_Array(
             *parse->out = save;
             return THROWN_FLAG;
         }
-        // old: if (IS_ERROR(item)) Throw_Error(VAL_FRAME(item));
+        // old: if (IS_ERROR(item)) Throw_Error(VAL_CONTEXT(item));
         index = MIN(index, ARRAY_LEN(array)); // may affect tail
         break;
 
@@ -339,7 +392,9 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBOOL
     REBCNT cmd;
     REBCNT i;
     REBCNT len;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     for (; index <= SERIES_LEN(series); index++) {
 
@@ -478,6 +533,8 @@ next:       // Check for | (required if not end)
 found:
     if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
+        VAL_INIT_WRITABLE_DEBUG(&evaluated);
+
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = evaluated;
             return THROWN_FLAG;
@@ -489,6 +546,8 @@ found:
 found1:
     if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
         REBVAL evaluated;
+        VAL_INIT_WRITABLE_DEBUG(&evaluated);
+
         if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
             *parse->out = save;
             return THROWN_FLAG;
@@ -532,10 +591,15 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
     else {
         if (IS_ARRAY_INPUT(parse)) {
             REBVAL word; /// !!!Temp, but where can we put it?
+            VAL_INIT_WRITABLE_DEBUG(&word);
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
                 word = *item;
-                VAL_RESET_HEADER(&word, REB_WORD);
+
+                // Only set type--don't reset the header, because that could
+                // make the word binding inconsistent with the bits.
+                //
+                VAL_SET_TYPE_BITS(&word, REB_WORD);
                 item = &word;
             }
 
@@ -593,12 +657,12 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
             // #"A"
             else if (IS_CHAR(item)) {
                 i = Find_Str_Char(
+                    VAL_CHAR(item),
                     series,
                     0,
                     index,
                     SERIES_LEN(series),
                     1,
-                    VAL_CHAR(item),
                     (parse->find_flags & AM_FIND_CASE)
                         ? AM_FIND_CASE
                         : 0
@@ -620,10 +684,8 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
                 );
                 if (i != NOT_FOUND && is_thru) i++;
             }
-            else {
-                assert(FALSE);
-                DEAD_END;
-            }
+            else
+                fail (Error(RE_PARSE_RULE, item));
         }
     }
 
@@ -652,11 +714,14 @@ static REBCNT Parse_To(REBPARSE *parse, REBCNT index, const REBVAL *item, REBOOL
 //
 static REBCNT Do_Eval_Rule(REBPARSE *parse, REBCNT index, const REBVAL **rule)
 {
-    REBVAL value;
     const REBVAL *item = *rule;
     REBCNT n;
     REBPARSE newparse;
+
+    REBVAL value;
     REBVAL save; // REVIEW: Could this just reuse value?
+    VAL_INIT_WRITABLE_DEBUG(&value);
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     // First, check for end of input:
     if (index >= SERIES_LEN(parse->series)) {
@@ -782,7 +847,9 @@ static REBCNT Parse_Rules_Loop(
     REBFLGS flags;
     REBCNT cmd;
     const REBVAL *rule_head = rules;
+
     REBVAL save;
+    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
     //if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
@@ -796,7 +863,20 @@ static REBCNT Parse_Rules_Loop(
 
         //Print_Parse_Index(parse->type, rules, series, index);
 
-        if (--Eval_Count <= 0 || Eval_Signals) Do_Signals();
+        if (--Eval_Count <= 0 || Eval_Signals) {
+            //
+            // !!! See notes on other invocations about the questions raised by
+            // calls to Do_Signals_Throws() by places that do not have a clear
+            // path up to return results from an interactive breakpoint.
+            //
+            REBVAL result;
+            VAL_INIT_WRITABLE_DEBUG(&result);
+
+            if (Do_Signals_Throws(&result))
+                fail (Error_No_Catch_For_Throw(&result));
+            if (IS_SET(&result))
+                fail (Error(RE_MISC));
+        }
 
         //--------------------------------------------------------------------
         // Pre-Rule Processing Section
@@ -888,6 +968,7 @@ static REBCNT Parse_Rules_Loop(
                     case SYM_RETURN:
                         if (IS_PAREN(rules)) {
                             REBVAL evaluated;
+                            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
                             if (DO_ARRAY_THROWS(&evaluated, rules)) {
                                 // If the paren evaluation result gives a
@@ -898,7 +979,9 @@ static REBCNT Parse_Rules_Loop(
                             }
 
                             *parse->out = *ROOT_PARSE_NATIVE;
-                            CONVERT_NAME_TO_THROWN(parse->out, &evaluated);
+                            CONVERT_NAME_TO_THROWN(
+                                parse->out, &evaluated, FALSE
+                            );
 
                             // Implicitly returns whatever's in parse->out
                             return THROWN_FLAG;
@@ -958,9 +1041,11 @@ static REBCNT Parse_Rules_Loop(
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(item)) {
                     REBVAL temp;
+                    VAL_INIT_WRITABLE_DEBUG(&temp);
+
                     Val_Init_Series_Index(&temp, parse->type, series, index);
 
-                    Set_Var(item, &temp);
+                    *GET_MUTABLE_VAR(item) = temp;
 
                     continue;
                 }
@@ -993,6 +1078,7 @@ static REBCNT Parse_Rules_Loop(
             }
             else if (IS_SET_PATH(item)) {
                 REBVAL tmp;
+                VAL_INIT_WRITABLE_DEBUG(&tmp);
 
                 Val_Init_Series(&tmp, parse->type, parse->series);
                 VAL_INDEX(&tmp) = index;
@@ -1016,6 +1102,7 @@ static REBCNT Parse_Rules_Loop(
 
         if (IS_PAREN(item)) {
             REBVAL evaluated;
+            VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
             // might GC
             if (DO_ARRAY_THROWS(&evaluated, item)) {
@@ -1249,6 +1336,8 @@ post:
                 count = (begin > index) ? 0 : index - begin; // how much we advanced the input
                 if (GET_FLAG(flags, PF_COPY)) {
                     REBVAL temp;
+                    VAL_INIT_WRITABLE_DEBUG(&temp);
+
                     Val_Init_Series(
                         &temp,
                         parse->type,
@@ -1258,7 +1347,7 @@ post:
                             ))
                             : Copy_String(series, begin, count) // condenses;
                     );
-                    Set_Var(word, &temp);
+                    *GET_MUTABLE_VAR(word) = temp;
                 }
                 else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
                     REBVAL *var = GET_MUTABLE_VAR(word); // traps if protected
@@ -1287,6 +1376,8 @@ post:
                     // See notes on PARSE's return in handling of SYM_RETURN
 
                     REBVAL captured;
+                    VAL_INIT_WRITABLE_DEBUG(&captured);
+
                     Val_Init_Series(
                         &captured,
                         parse->type,
@@ -1298,7 +1389,7 @@ post:
                     );
 
                     *parse->out = *ROOT_PARSE_NATIVE;
-                    CONVERT_NAME_TO_THROWN(parse->out, &captured);
+                    CONVERT_NAME_TO_THROWN(parse->out, &captured, FALSE);
 
                     // Implicitly returns whatever's in parse->out
                     return THROWN_FLAG;
@@ -1337,7 +1428,11 @@ post:
                         );
 
                         if (IS_LIT_WORD(item))
-                            VAL_SET_TYPE(
+                            //
+                            // Only set the type, not the whole header (in
+                            // order to keep binding information)
+                            //
+                            VAL_SET_TYPE_BITS(
                                 ARRAY_AT(AS_ARRAY(series), index - 1),
                                 REB_WORD
                             );

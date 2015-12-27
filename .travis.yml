@@ -70,4 +70,9 @@ script:
     - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
     # A minimal sanity check that the built R3 does _something_. Eventually, we
     # should run the full test suite.
+
+    # Run once but don't pipe output, in case it prints out useful crash msg
+    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}'; fi
+
+    # Run a second time with piped output to return success/faiure to Travis
     - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}' | grep OK; fi
