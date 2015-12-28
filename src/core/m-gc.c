@@ -1358,17 +1358,14 @@ void Init_GC(void)
 
     // Temporary series protected from GC. Holds series pointers.
     GC_Series_Guard = Make_Series(15, sizeof(REBSER *), MKS_NONE);
-    LABEL_SERIES(GC_Series_Guard, "gc series save");
 
     // Temporary values protected from GC. Holds value pointers.
     GC_Value_Guard = Make_Series(15, sizeof(REBVAL *), MKS_NONE);
-    LABEL_SERIES(GC_Value_Guard, "gc value save");
 
     // The marking queue used in lieu of recursion to ensure that deeply
     // nested structures don't cause the C stack to overflow.
     GC_Mark_Stack = Make_Series(100, sizeof(REBARR *), MKS_NONE);
     TERM_SEQUENCE(GC_Mark_Stack);
-    LABEL_SERIES(GC_Mark_Stack, "gc mark stack");
 }
 
 

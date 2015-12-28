@@ -214,10 +214,6 @@ struct Reb_Series {
 
 #if !defined(NDEBUG)
     REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
-
-    #ifdef SERIES_LABELS
-        const REBYTE *label;       // identify the series
-    #endif
 #endif
 };
 
@@ -241,14 +237,6 @@ struct Reb_Series {
 
 #define SERIES_LEN(s)           ((s)->content.dynamic.len + 0)
 #define SET_SERIES_LEN(s,l)     ((s)->content.dynamic.len = (l))
-
-#ifdef SERIES_LABELS
-    #define SERIES_LABEL(s)             ((s)->label)
-    #define SET_SERIES_LABEL(s,l)       (((s)->label) = (l))
-#else
-    #define SERIES_LABEL(s)             "-"
-    #define SET_SERIES_LABEL(s,l)       NOOP
-#endif
 
 // The pooled allocator for REBSERs has an enumeration function where all
 // nodes can be visited, and this is used by the garbage collector.  This
@@ -325,12 +313,6 @@ struct Reb_Series {
 
 #define FAIL_IF_LOCKED_SERIES(s) \
     if (SERIES_GET_FLAG(s, SER_LOCKED)) fail (Error(RE_LOCKED))
-
-#ifdef SERIES_LABELS
-    #define LABEL_SERIES(s,l) s->label = (l)
-#else
-    #define LABEL_SERIES(s,l)
-#endif
 
 //
 // Optimized expand when at tail (but, does not reterminate)

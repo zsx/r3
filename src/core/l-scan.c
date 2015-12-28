@@ -1589,12 +1589,10 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         case TOKEN_STRING:
             // During scan above, string was stored in UNI_BUF (with Uni width)
             Val_Init_String(value, Pop_Molded_String(&mo));
-            LABEL_SERIES(VAL_SERIES(value), "scan string");
             break;
 
         case TOKEN_BINARY:
             Scan_Binary(bp, len, value);
-            LABEL_SERIES(VAL_SERIES(value), "scan binary");
             break;
 
         case TOKEN_PAIR:
@@ -1607,22 +1605,18 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         case TOKEN_FILE:
             Scan_File(bp, len, value);
-            LABEL_SERIES(VAL_SERIES(value), "scan file");
             break;
 
         case TOKEN_EMAIL:
             Scan_Email(bp, len, value);
-            LABEL_SERIES(VAL_SERIES(value), "scan email");
             break;
 
         case TOKEN_URL:
             Scan_URL(bp, len, value);
-            LABEL_SERIES(VAL_SERIES(value), "scan url");
             break;
 
         case TOKEN_TAG:
             Scan_Any(bp+1, len-2, value, REB_TAG);
-            LABEL_SERIES(VAL_SERIES(value), "scan tag");
             break;
 
         case TOKEN_CONSTRUCT:
@@ -1733,7 +1727,6 @@ exit_block:
 
     len = ARRAY_LEN(emitbuf);
     block = Copy_Values_Len_Shallow(ARRAY_AT(emitbuf, begin), len - begin);
-    LABEL_SERIES(block, "scan block");
     ASSERT_SERIES_TERM(ARRAY_SERIES(block));
 
     SET_ARRAY_LEN(emitbuf, begin);

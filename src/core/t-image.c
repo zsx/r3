@@ -415,7 +415,6 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
     }
 
     img = Make_Series(w * h + 1, sizeof(u32), MKS_NONE);
-    LABEL_SERIES(img, "make image");
     SET_SERIES_LEN(img, w * h);
     RESET_IMAGE(SERIES_DATA(img), SERIES_LEN(img)); //length in 'pixels'
     IMG_WIDE(img) = w;

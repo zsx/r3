@@ -243,8 +243,6 @@ REBNATIVE(checksum)
                     digests[i].len + 1, sizeof(char), MKS_NONE
                 );
 
-                LABEL_SERIES(digest, "checksum digest");
-
                 if (D_REF(ARG_CHECKSUM_KEY)) {
                     REBYTE tmpdigest[20];       // Size must be max of all digest[].len;
                     REBYTE ipad[64],opad[64];   // Size must be max of all digest[].hmacblock;
