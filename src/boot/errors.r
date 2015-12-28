@@ -196,6 +196,7 @@ Script: [
     parse-variable:     [{PARSE - expected a variable, not:} :arg1]
     parse-command:      [{PARSE - command cannot be used as variable:} :arg1]
     parse-series:       [{PARSE - input must be a series:} :arg1]
+    parse-non-logic:    [{Non-logic PARSE? result:} :arg1 {use PARSE instead}]
 
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
