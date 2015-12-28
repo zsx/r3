@@ -1473,47 +1473,54 @@ bad_end:
 
 
 //
-//  parse: native [
-//  
-//  {Parses a string or block series according to grammar rules.}
-//  
-//      input [any-series!] "Input series to parse"
-//      rules [block! string! none!] "Rules to parse by"
-//      /case "Uses case-sensitive comparison"
-//      /all "(ignored refinement left for Rebol2 transitioning)"
-//  ]
+// Shared implementation routine for PARSE? and PARSE.  The difference is that
+// PARSE? only returns whether or not a set of rules completed to the end.
+// PARSE is more general purpose in terms of the result it provides, and
+// it defaults to returning the input.
 //
-REBNATIVE(parse)
+static REB_R Parse_Core(struct Reb_Call *call_, REBOOL logic)
 {
-    REBVAL *input = D_ARG(1);
-    REBVAL *rules = D_ARG(2);
-
-    // We always want "case-sensitivity" on binary bytes, vs. treating as
-    // case-insensitive bytes for ASCII characters
-    //
-    const REBOOL cased = LOGICAL(D_REF(3) || IS_BINARY(input));
+    PARAM(1, input);
+    PARAM(2, rules);
+    REFINE(3, case);
+    REFINE(4, all);
 
     REBCNT index;
-
     REBPARSE parse;
 
-    if (IS_NONE(rules) || IS_STRING(rules)) {
-        // !!! Temporary...more informative than having a simple "does not
-        // take type" response based on the spec not accepting string/none
+    if (IS_NONE(ARG(rules)) || IS_STRING(ARG(rules))) {
+        //
+        // !!! R3-Alpha supported "simple parse", which was cued by the rules
+        // being either NONE! or a STRING!.  Though this functionality does
+        // not exist in Ren-C, it's more informative to give an error telling
+        // where to look for the functionality than a generic "parse doesn't
+        // take that type" error.
+        //
         fail (Error(RE_USE_SPLIT_SIMPLE));
     }
 
-    assert(IS_BLOCK(rules));
+    assert(IS_BLOCK(ARG(rules)));
 
+    // The native dispatcher should have pre-filled the output slot with a
+    // trash value in the debug build.  We double-check the expectation of
+    // whether the parse loop overwites this slot with a result or not.
+    //
     assert(IS_TRASH_DEBUG(D_OUT));
 
-    parse.series = VAL_SERIES(input);
-    parse.type = VAL_TYPE(input);
-    parse.find_flags = cased ? AM_FIND_CASE : 0;
+    parse.series = VAL_SERIES(ARG(input));
+    parse.type = VAL_TYPE(ARG(input));
+
+    // We always want "case-sensitivity" on binary bytes, vs. treating as
+    // case-insensitive bytes for ASCII characters.
+    //
+    parse.find_flags = REF(case) || IS_BINARY(ARG(input)) ? AM_FIND_CASE : 0;
+
     parse.result = 0;
     parse.out = D_OUT;
 
-    index = Parse_Rules_Loop(&parse, VAL_INDEX(input), VAL_ARRAY_AT(rules), 0);
+    index = Parse_Rules_Loop(
+        &parse, VAL_INDEX(ARG(input)), VAL_ARRAY_AT(ARG(rules)), 0
+    );
 
     if (index == THROWN_FLAG) {
         assert(!IS_TRASH_DEBUG(D_OUT));
@@ -1536,26 +1543,98 @@ REBNATIVE(parse)
             // When parse interrupts itself by throwing, it indicates so
             // by using the throw name of its own REB_NATIVE-valued function.
             // This handles that branch and catches the result value.
-
+            //
             CATCH_THROWN(D_OUT, D_OUT);
+
+            // In the logic case, we are only concerned with matching.  If
+            // a construct that can return arbitrary values is used, then
+            // failure is triggered with a specific error, saying PARSE must
+            // be used instead of PARSE?.
+            //
+            // !!! Review if this is the best semantics for a parsing variant
+            // that is committed to only returning logic TRUE or FALSE, in
+            // spite of existence of rules that allow the general PARSE to
+            // do otherwise.
+            //
+            if (logic && !IS_LOGIC(D_OUT))
+                fail (Error(RE_PARSE_NON_LOGIC, D_OUT));
+
             return R_OUT;
         }
 
         // All other throws should just bubble up uncaught.
+        //
         return R_OUT_IS_THROWN;
     }
 
+    // If the loop returned to us, it shouldn't have put anything in out.
+    //
     assert(IS_TRASH_DEBUG(D_OUT));
 
-    // Parse can fail if the match rule state can't process pending input
+    // Parse can fail if the match rule state can't process pending input.
+    //
     if (index == NOT_FOUND)
-        return R_FALSE; // !!! Would R_NONE be better?
+        return logic ? R_FALSE : R_NONE;
 
     // If the match rules all completed, but the parse position didn't end
-    // at (or beyond) the tail of the input series, the parse also failed
-    if (index < VAL_LEN_HEAD(input))
-        return R_FALSE; // !!! Would R_NONE be better?
+    // at (or beyond) the tail of the input series, the parse also failed.
+    //
+    if (index < VAL_LEN_HEAD(ARG(input)))
+        return logic ? R_FALSE : R_NONE;
 
-    // The parse succeeded...
-    return R_TRUE; // !!! Would 'input' be a more useful "true"?  See CC#2165
+    // The end was reached...if doing a logic-based PARSE? then return TRUE.
+    //
+    if (logic) return R_TRUE;
+
+    // Otherwise it's PARSE so return the input (a series, hence conditionally
+    // true, yet more informative for chaining.)  See #2165.
+    //
+    *D_OUT = *ARG(input);
+    return R_OUT;
+}
+
+
+//
+//  parse?: native [
+//
+//  ; NOTE: If changing this, also update PARSE
+//
+//  "Determines if a series matches the given grammar rules or not."
+//
+//      input [any-series!]
+//          "Input series to parse"
+//      rules [block! string! none!]
+//          "Rules to parse by (STRING! and NONE! are deprecated)"
+//      /case
+//          "Uses case-sensitive comparison"
+//      /all
+//          "(ignored refinement left for Rebol2 transitioning)"
+//  ]
+//
+REBNATIVE(parse_q)
+{
+    return Parse_Core(call_, TRUE);
+}
+
+
+//
+//  parse: native [
+//
+//  ; NOTE: If changing this, also update PARSE?
+//
+//  "Parses a series according to grammar rules and returns a result."
+//
+//      input [any-series!]
+//          "Input series to parse (default result for successful match)"
+//      rules [block! string! none!]
+//          "Rules to parse by (STRING! and NONE! are deprecated)"
+//      /case
+//          "Uses case-sensitive comparison"
+//      /all
+//          "(ignored refinement left for Rebol2 transitioning)"
+//  ]
+//
+REBNATIVE(parse)
+{
+    return Parse_Core(call_, FALSE);
 }

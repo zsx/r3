@@ -381,15 +381,33 @@ set 'r3-legacy* func [] [
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
 
-        ; Add simple parse back in by delegating to split, and return a LOGIC!
+        ; Ren-C removed the "simple parse" functionality, which has been
+        ; superseded by SPLIT.  For the legacy parse implementation, add
+        ; it back in (more or less) by delegating to split.
+        ;
+        ; Also, as an experiment Ren-C has been changed so that a successful
+        ; parse returns the input, while an unsuccessful one returns none.
+        ; Historically PARSE returned LOGIC!, this restores that behavior.
+        ;
         parse: (function [
-            {Parses a string or block series according to grammar rules.}
-            input [any-series!] "Input series to parse"
-            rules [block! string! none!] "Rules (string! is <r3-legacy>, use SPLIT)"
-            /case "Uses case-sensitive comparison"
-            /all "Ignored refinement for <r3-legacy>"
+            "Parses a string or block series according to grammar rules."
+
+            input [any-series!]
+                "Input series to parse"
+            rules [block! string! none!]
+                "Rules (string! is <r3-legacy>, use SPLIT)"
+            /case
+                "Uses case-sensitive comparison"
+            /all
+                "Ignored refinement for <r3-legacy>"
         ][
-            lib/case [
+            case_PARSE: case
+            case: :lib/case
+
+            comment [all_PARSE: all] ;-- Not used
+            all: :lib/all
+
+            case [
                 none? rules [
                     split input charset reduce [tab space cr lf]
                 ]
@@ -399,16 +417,22 @@ set 'r3-legacy* func [] [
                 ]
 
                 true [
-                    ; !!! We could write this as:
+                    ; This requires system/options/refinements-true to work.
                     ;
-                    ;     lib/parse/:case input rules
+                    ; Note that the heuristic here is not 100% right,
+                    ; but probably works most of the time.  The goal is
+                    ; to determine when PARSE would have returned true
+                    ; when the new PARSE returns a series on success.  But
+                    ; old parse *could* have returned a series as well with
+                    ; RETURN...if that happens and the RETURN just so
+                    ; happens to be the input, this will return TRUE.
                     ;
-                    ; However, system/options/refinements-true has been set.
-                    ; We could move the set to after the function is defined,
-                    ; but probably best since this is "mixed up" code to use
-                    ; the pattern that works either way.
-                    ;
-                    true? apply :lib/parse [input rules case]
+                    result: lib/parse/:case_PARSE input rules
+                    case [
+                        none? result [false]
+                        same? result input [true]
+                        'default [result]
+                    ]
                 ]
             ]
         ])
