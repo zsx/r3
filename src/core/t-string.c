@@ -237,7 +237,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     }
     // MAKE/TO <type> <any-string>
     else if (ANY_BINSTR(arg)) {
-        ser = Copy_String(VAL_SERIES(arg), VAL_INDEX(arg), VAL_LEN_AT(arg));
+        ser = Copy_String_Slimming(VAL_SERIES(arg), VAL_INDEX(arg), VAL_LEN_AT(arg));
     }
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
@@ -781,7 +781,7 @@ zero_str:
             } else
                 str_to_char(value, value, index);
         }
-        else Val_Init_Series(value, VAL_TYPE(value), Copy_String(ser, index, len));
+        else Val_Init_Series(value, VAL_TYPE(value), Copy_String_Slimming(ser, index, len));
         Remove_Series(ser, index, len);
         break;
 
@@ -799,7 +799,7 @@ zero_str:
 
     case A_COPY:
         len = Partial(value, 0, D_ARG(3)); // Can modify value index.
-        ser = Copy_String(VAL_SERIES(value), VAL_INDEX(value), len);
+        ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
         goto ser_exit;
 
     case A_MAKE:

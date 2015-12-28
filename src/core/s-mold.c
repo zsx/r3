@@ -1574,20 +1574,16 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mold, REBCNT len)
         (len == END_FLAG) || (len <= SERIES_LEN(mold->series) - mold->start)
     );
 
-    string = Copy_Sequence_At_Len(
+    // The copy process looks at the characters in range and will make a
+    // BYTE_SIZE() target string out of the REBUNIs if possible...
+    //
+    string = Copy_String_Slimming(
         mold->series,
         mold->start,
         (len == END_FLAG)
             ? SERIES_LEN(mold->series) - mold->start
             : len
     );
-
-    // The buffer is unicode, so the string will also be unicode.
-    //
-    // !!! Should be able to generate a string with byte chars if only byte
-    // chars are in the buffer.  Investigate.
-    //
-    assert(SERIES_WIDE(string) == sizeof(REBUNI));
 
     SET_SERIES_LEN(mold->series, mold->start);
 

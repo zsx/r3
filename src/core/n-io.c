@@ -1160,14 +1160,14 @@ static REBARR *File_List_To_Array(const REBCHR *str)
         while ((n = OS_STRLEN(str))) {
             SET_SERIES_LEN(dir, len);
             Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
-            Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
+            Val_Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
             str += n + 1; // next
         }
 #else /* absolute pathes already */
         str += n + 1;
         while ((n = OS_STRLEN(str))) {
             dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
-            Val_Init_File(Alloc_Tail_Array(blk), Copy_String(dir, 0, -1));
+            Val_Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
             str += n + 1; // next
         }
 #endif

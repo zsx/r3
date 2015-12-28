@@ -162,7 +162,7 @@ REBNATIVE(spelling_of)
         // Grab the data out of all string types, which has no delimiters
         // included (they are added in the forming process)
 
-        series = Copy_String(VAL_SERIES(value), VAL_INDEX(value), -1);
+        series = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), -1);
     }
     else {
         // turn all words into regular words so they'll have no delimiters
@@ -585,7 +585,7 @@ REBNATIVE(dehex)
         }
 
         *dp = '\0';
-        ser = Copy_String(BYTE_BUF, 0, dp - BIN_HEAD(BYTE_BUF));
+        ser = Copy_String_Slimming(BYTE_BUF, 0, dp - BIN_HEAD(BYTE_BUF));
     }
     else {
         REBUNI *up = VAL_UNI_AT(ARG(value));

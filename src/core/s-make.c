@@ -235,14 +235,14 @@ cp_same:
 
 
 //
-//  Copy_String: C
+//  Copy_String_Slimming: C
 // 
-// Copies a portion of any string (byte or unicode).
-// Will slim the string, if needed.
-// 
-// The index + length must be in range unsigned int 32.
+// Copies a portion of any string (byte or unicode).  If the input is a
+// wide REBUNI string, the range of copied characters will be examined to
+// see if they could fit in a byte-size series.  The string will be
+// "slimmed" if possible.
 //
-REBSER *Copy_String(REBSER *src, REBCNT index, REBINT length)
+REBSER *Copy_String_Slimming(REBSER *src, REBCNT index, REBINT length)
 {
     REBUNI *up;
     REBYTE wide = 1;

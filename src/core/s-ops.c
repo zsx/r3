@@ -799,7 +799,7 @@ REBARR *Split_Lines(REBVAL *val)
     while (idx < len) {
         c = GET_ANY_CHAR(str, idx);
         if (c == LF || c == CR) {
-            out = Copy_String(str, start, idx - start);
+            out = Copy_String_Slimming(str, start, idx - start);
             val = Alloc_Tail_Array(array);
             Val_Init_String(val, out);
             VAL_SET_OPT(val, OPT_VALUE_LINE);
@@ -812,7 +812,7 @@ REBARR *Split_Lines(REBVAL *val)
     }
     // Possible remainder (no terminator)
     if (idx > start) {
-        out = Copy_String(str, start, idx - start);
+        out = Copy_String_Slimming(str, start, idx - start);
         val = Alloc_Tail_Array(array);
         Val_Init_String(val, out);
         VAL_SET_OPT(val, OPT_VALUE_LINE);
