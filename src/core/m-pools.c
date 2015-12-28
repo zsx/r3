@@ -297,7 +297,6 @@ void Init_Pools(REBINT scale)
     // Manually allocated series that GC is not responsible for (unless a
     // trap occurs). Holds series pointers.
     GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
-    LABEL_SERIES(GC_Manuals, "gc manuals");
 
     Prior_Expand = ALLOC_N(REBSER*, MAX_EXPAND_LIST);
     CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
@@ -1688,7 +1687,7 @@ void Dump_All(REBCNT size)
                         n++,
                         series->content.dynamic.len,
                         SERIES_REST(series),
-                        SERIES_LABEL(series)
+                        "-" // !label
                     );
                 }
             }
@@ -1721,7 +1720,7 @@ void Dump_Series_In_Pool(REBCNT pool_id)
                               Str_Dump, //"%s Series %x %s: Wide: %2d Size: %6d - Bias: %d Tail: %d Rest: %d Flags: %x"
                               "Dump",
                               series,
-                              (SERIES_LABEL(series) ? SERIES_LABEL(series) : "-"),
+                              "-", // !label
                               SERIES_WIDE(series),
                               SERIES_TOTAL(series),
                               SERIES_BIAS(series),
@@ -1830,17 +1829,6 @@ REBU64 Inspect_Series(REBCNT flags)
                 fre++;
             }
 
-#ifdef SERIES_LABELS
-            kind = "----";
-            //if (Find_Root(series)) kind = "ROOT";
-            if (!SERIES_FREED(series) && series->label) {
-                Debug_Fmt_("%08x: %16s %s ", series, series->label, kind);
-                f = TRUE;
-            } else if (!SERIES_FREED(series) && (flags & 0x100)) {
-                Debug_Fmt_("%08x: %s ", series, kind);
-                f = TRUE;
-            }
-#endif
             if (Is_Array_Series(series)) {
                 blks++;
                 blk_size += SERIES_TOTAL(series);

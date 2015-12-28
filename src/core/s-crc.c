@@ -302,7 +302,6 @@ REBSER *Make_Hash_Sequence(REBCNT len)
     }
 
     ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
-    LABEL_SERIES(ser, "make hash array");
     Clear_Series(ser);
     SET_SERIES_LEN(ser, n);
 

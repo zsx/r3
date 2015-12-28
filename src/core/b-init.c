@@ -691,7 +691,6 @@ static void Init_Root_Context(void)
     REBCON *root = Alloc_Context(ROOT_MAX - 1);
     PG_Root_Context = root;
 
-    LABEL_SERIES(CONTEXT_VARLIST(root), "root context");
     ARRAY_SET_FLAG(CONTEXT_VARLIST(root), SER_FIXED_SIZE);
     Root_Vars = cast(ROOT_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(root)));
 
@@ -793,8 +792,6 @@ static void Init_Root_Context(void)
 //
 void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
 {
-    LABEL_SERIES(ser, label);
-
     // Note that the Val_Init routines call Manage_Series and make the
     // series GC Managed.  They will hence be freed on shutdown
     // automatically when the root set is removed from consideration.
@@ -818,7 +815,6 @@ static void Init_Task_Context(void)
     REBCON *task = Alloc_Context(TASK_MAX - 1);
     TG_Task_Context = task;
 
-    LABEL_SERIES(CONTEXT_VARLIST(task), "task context");
     ARRAY_SET_FLAG(CONTEXT_VARLIST(task), SER_FIXED_SIZE);
     Task_Vars = cast(TASK_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(task)));
 

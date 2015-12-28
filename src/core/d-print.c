@@ -219,7 +219,6 @@ void Enable_Backtrace(REBOOL on)
         if (Trace_Limit == 0) {
             Trace_Limit = 100000;
             Trace_Buffer = Make_Binary(Trace_Limit);
-            LABEL_SERIES(Trace_Buffer, "trace-buffer");
         }
     }
     else {

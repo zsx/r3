@@ -400,7 +400,6 @@ void Init_Words(REBOOL only)
         // Create the hash for locating words quickly:
         // Note that the TAIL is never changed for this series.
         PG_Word_Table.hashes = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
-        LABEL_SERIES(PG_Word_Table.hashes, "word hashes"); // pointer array
         Clear_Series(PG_Word_Table.hashes);
         SET_SERIES_LEN(PG_Word_Table.hashes, n);
 
@@ -414,12 +413,10 @@ void Init_Words(REBOOL only)
         //
         Val_Init_Typeset(ARRAY_HEAD(PG_Word_Table.array), ALL_64, SYM_0);
 
-        LABEL_SERIES(PG_Word_Table.array, "word table"); // words are never GC'd
         SET_ARRAY_LEN(PG_Word_Table.array, 1);  // prevent the zero case
 
         // A normal char array to hold symbol names:
         PG_Word_Names = Make_Binary(6 * WORD_TABLE_SIZE); // average word size
-        LABEL_SERIES(PG_Word_Names, "word names");
     }
 
     // The bind table. Used to cache context indexes for given symbols.
@@ -428,7 +425,6 @@ void Init_Words(REBOOL only)
         sizeof(REBCNT),
         MKS_NONE
     );
-    LABEL_SERIES(Bind_Table, "bind table"); // numeric table
     CLEAR_SEQUENCE(Bind_Table);
     SET_SERIES_LEN(Bind_Table, ARRAY_LEN(PG_Word_Table.array));
 }

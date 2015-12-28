@@ -314,7 +314,6 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
     if (len > 0x7fffffff) return 0;
     // !!! can width help extend the len?
     ser = Make_Series(len + 1, bits/8, MKS_NONE | MKS_POWER_OF_2);
-    LABEL_SERIES(ser, "make vector");
     CLEAR(SERIES_DATA(ser), (len * bits) / 8);
     SET_SERIES_LEN(ser, len);
 

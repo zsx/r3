@@ -44,7 +44,7 @@ void Dump_Series(REBSER *series, const char *memo)
         Str_Dump, //"%s Series %x %s: Wide: %2d Size: %6d - Bias: %d Tail: %d Rest: %d Flags: %x"
         memo,
         series,
-        (SERIES_LABEL(series) ? SERIES_LABEL(series) : "-"),
+        "-", // !label
         SERIES_WIDE(series),
         SERIES_TOTAL(series),
         SERIES_BIAS(series),
