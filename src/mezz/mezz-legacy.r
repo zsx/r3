@@ -350,11 +350,25 @@ apply: func [
 ]
 
 
+r3-legacy-mode: off
+
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
 ;
+; Legacy mode is specifically intended to assist in porting efforts to
+; Ren-C, not as a permanent operating mode.  While contributions making it
+; work more seamlessly are more than welcome, scheduling of improvements to
+; the legacy mode are on a strictly "as-needed" basis.
+;
 set 'r3-legacy* func [] [
+
+    ; There's no clean "shutdown" of legacy mode at this time to go back to
+    ; plain Ren-C.  The code that enables legacy mode also is allowed to use
+    ; Ren-C features, which would not be available if running a second time
+    ; while legacy mode is on.  Hence make running multiple times a no-op.
+    ;
+    if r3-legacy-mode [return none]
 
     append system/contexts/user compose [
 
@@ -623,5 +637,6 @@ set 'r3-legacy* func [] [
     system/options/arg1-arg2-arg3-error: true
     system/options/dont-exit-natives: true
 
+    r3-legacy-mode: on
     return none
 ]

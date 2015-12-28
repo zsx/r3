@@ -946,18 +946,6 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
 
 
 //
-//  Assert_Public_Object: C
-//
-void Assert_Public_Object(const REBVAL *value)
-{
-    REBVAL *key = ARRAY_HEAD(CONTEXT_KEYLIST(VAL_CONTEXT(value)));
-
-    for (; NOT_END(key); key++)
-        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) fail (Error(RE_HIDDEN));
-}
-
-
-//
 //  Merge_Contexts_Selfish: C
 // 
 // Create a child context from two parent contexts. Merge common fields.
