@@ -421,6 +421,9 @@ static void Init_Constants(void)
 //  {Creates native function (for internal usage only).}
 //
 //      spec [block!]
+//      /body
+//          {Equivalent body of Rebol code matching native's implementation}
+//      code [block!]
 //      /frameless
 //          {Native wants delegation to eval its own args and extend DO state}
 //  ]
@@ -430,9 +433,16 @@ REBNATIVE(native)
 // The `native` native is searched for explicitly by %make-natives.r and put
 // in first place for initialization.  This is a special bootstrap function
 // created manually within the C code, as it cannot "run to create itself".
+//
+// !!! The body is currently commentary only.  It should be stored somewhere;
+// there is no room for it in the REBVAL, and there may be a purpose for the
+// series "extra" bits of generic series other than this.  So the place to
+// put it would likely be a table of "native sources" off to the side.
 {
     PARAM(1, spec);
-    REFINE(2, frameless);
+    REFINE(2, body);
+    PARAM(3, code);
+    REFINE(4, frameless);
 
     if (
         (Native_Limit != 0 || !*Native_Functions)
