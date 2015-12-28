@@ -594,12 +594,10 @@ REBCNT Find_Str_Char(
                 && (SERIES_LEN(series) - highest) < ((highest - lowest) / 2)
                 && uni != '\0'
             ) {
-                // The `strpbrk()` optimized routine can be used to check for
-                // a set of characters.  But we allow embedded null
-                // terminators...and it searches only up to a '\0' and then
-                // returns NULL--which would give back no information.
-                // `strcspn()` gives us an answer we can use for repeat calls
-                // (which should be rare).
+                // The `strcspn()` optimized routine can be used to check for
+                // a set of characters, and returns the number of characters
+                // read before a match was found.  It will be the length of
+                // the string if no match.
                 //
                 while (TRUE) {
                     index += strcspn(
@@ -608,7 +606,7 @@ REBCNT Find_Str_Char(
                     if (index >= cast(REBINT, highest))
                         goto return_not_found;
 
-                    index++; // skip the embedded NUL and try again.
+                    goto return_index;
                 }
             }
             else {
