@@ -1345,7 +1345,7 @@ post:
                             ? ARRAY_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(series), begin, count
                             ))
-                            : Copy_String(series, begin, count) // condenses;
+                            : Copy_String_Slimming(series, begin, count) // condenses;
                     );
                     *GET_MUTABLE_VAR(word) = temp;
                 }
@@ -1385,7 +1385,7 @@ post:
                             ? ARRAY_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(series), begin, count
                             ))
-                            : Copy_String(series, begin, count) // condenses
+                            : Copy_String_Slimming(series, begin, count) // condenses
                     );
 
                     *parse->out = *ROOT_PARSE_NATIVE;
