@@ -143,25 +143,3 @@ any-array?: func [
     "Return TRUE if value is a series containing all the same type."
     value [any-value!]
 ][find any-array! type-of :value]
-
-true?: func [
-    "Returns true if an expression can be used as true."
-    val ; Note: No [any-value!] - we want unset! to fail.
-] [not not :val]
-
-quote: func [
-    "Returns the value passed to it without evaluation."
-    :value [any-value!]
-] [
-    :value
-]
-
-something?: func [
-    "Returns whether a value is neither a NONE! nor unset"
-    value [unset! any-value!]
-][
-    all [
-        set? :value
-        not equal? :value none
-    ]
-]

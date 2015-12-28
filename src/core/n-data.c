@@ -1082,6 +1082,118 @@ REBNATIVE(value_q)
 }
 
 
+//
+//  true?: native/body [
+//
+//  "Returns true if an expression can be used as true (errors on UNSET!)."
+//
+//      value ; Note: No [any-value!] - we want unset! to fail.
+//  ][
+//      not not :val
+//  ]
+//
+REBNATIVE(true_q)
+{
+    PARAM(1, value);
+
+    return IS_CONDITIONAL_TRUE(ARG(value)) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  false?: native/body [
+//
+//  "Returns false if an expression is either LOGIC! false or a NONE!."
+//
+//      value ; Note: No [any-value!] - we want unset! to fail.
+//  ][
+//      either any [
+//          none? :value
+//          value = false
+//      ][
+//          true
+//      ][
+//          false
+//      ]
+//  ]
+//
+REBNATIVE(false_q)
+//
+// TBD: Make frameless
+{
+    PARAM(1, value);
+
+    return IS_CONDITIONAL_FALSE(ARG(value)) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  quote: native/body [
+//
+//  "Returns the value passed to it without evaluation."
+//
+//      :value [any-value!]
+//  ][
+//      :value
+//  ]
+//
+REBNATIVE(quote)
+//
+// TBD: Make frameless
+{
+    PARAM(1, value);
+
+    *D_OUT = *ARG(value);
+    return R_OUT;
+}
+
+
+//
+//  nothing?: native/body [
+//
+//  "Returns whether a value is either a NONE! or UNSET!"
+//
+//      value [unset! any-value!]
+//  ][
+//      any [
+//          unset? :value
+//          none? :value
+//      ]
+//  ]
+//
+REBNATIVE(nothing_q)
+//
+// TBD: Make frameless
+{
+    PARAM(1, value);
+
+    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  something?: native/body [
+//
+//  "Returns whether a value something besides a NONE! or UNSET!"
+//
+//      value [unset! any-value!]
+//  ][
+//      all [
+//          set? :value
+//          not none? value
+//      ]
+//  ]
+//
+REBNATIVE(something_q)
+//
+// TBD: Make frameless
+{
+    PARAM(1, value);
+
+    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_FALSE : R_TRUE;
+}
+
+
 //** SERIES ************************************************************
 
 
