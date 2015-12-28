@@ -483,23 +483,39 @@ REBNATIVE(get)
     }
     else if (ANY_CONTEXT(source)) {
         //
-        // !!! This should really extract out the visible values instead of
-        // refusing to allow them just because of hidden, if this is kept.
+        // !!! This is a questionable feature, a shallow copy of the vars of
+        // the context being put into a BLOCK!:
         //
-        Assert_Public_Object(source);
-
-        // !!! This is a questionable feature, e.g.
-        //
-        //     >> get object [a: 10 b: 20]
+        //     >> get make object! [a: 10 b: 20]
         //     == [10 20]
         //
         // Certainly an oddity for GET.  Should either be turned into a
-        // VALUES-OF reflector or otherwise gotten rid of.
+        // VARS-OF reflector or otherwise gotten rid of.  It is also another
+        // potentially "order-dependent" exposure of the object's fields,
+        // which may lead to people expecting an order.
+
+        // !!! The array we create may have extra unused capacity, due to
+        // the LEN including hidden fields which aren't going to be copied.
         //
-        Val_Init_Block(
-            D_OUT,
-            Copy_Array_At_Shallow(CONTEXT_VARLIST(VAL_CONTEXT(source)), 1)
-        );
+        REBARR *array = Make_Array(CONTEXT_LEN(VAL_CONTEXT(source)));
+        REBVAL *dest = ARRAY_HEAD(array);
+
+        REBVAL *key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(source));
+        REBVAL *var = CONTEXT_VARS_HEAD(VAL_CONTEXT(source));
+
+        for (; NOT_END(key); key++, var++) {
+            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+                continue;
+
+            // This only copies the value bits, so this is a "shallow" copy
+            //
+            *dest = *var;
+            ++dest;
+        }
+
+        SET_END(dest);
+        SET_ARRAY_LEN(array, dest - ARRAY_HEAD(array));
+        Val_Init_Block(D_OUT, array);
     }
     else {
         assert(IS_NONE(source));
