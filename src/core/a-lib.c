@@ -700,7 +700,9 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 //
 RL_API void *RL_Make_Block(u32 size)
 {
-    return Make_Array(size);
+    REBARR * array = Make_Array(size);
+    MANAGE_ARRAY(array);
+    return array;
 }
 
 
@@ -752,7 +754,9 @@ RL_API void *RL_Make_String(u32 size, REBOOL unicode)
 //
 RL_API void *RL_Make_Image(u32 width, u32 height)
 {
-    return Make_Image(width, height, FALSE);
+    REBSER *ser = Make_Image(width, height, FALSE);
+    MANAGE_SERIES(ser);
+    return ser;
 }
 
 
