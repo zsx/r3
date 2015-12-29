@@ -421,7 +421,8 @@ void Resize_Series(REBSER *series, REBCNT size)
 // 
 // Setup to reuse a shared buffer. Expand it if needed.
 // 
-// NOTE:The tail is set to the length position.
+// NOTE: The length will be set to the supplied value, but the series will
+// not be terminated.
 //
 REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
 {
@@ -431,7 +432,7 @@ REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
     Unbias_Series(buf, TRUE);
     Expand_Series(buf, 0, len); // sets new tail
 
-    return BIN_HEAD(buf);
+    return SERIES_DATA_RAW(buf);
 }
 
 
@@ -447,8 +448,9 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 
     assert(!Is_Array_Series(buf));
 
-    len = BYTE_SIZE(buf) ? ((REBYTE *)end) - BIN_HEAD(buf)
-        : ((REBUNI *)end) - UNI_HEAD(buf);
+    len = BYTE_SIZE(buf)
+        ? cast(REBYTE*, end) - BIN_HEAD(buf)
+        : cast(REBUNI*, end) - UNI_HEAD(buf);
 
     if (index) len -= index;
 

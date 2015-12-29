@@ -139,7 +139,7 @@ static void Expand_Word_Table(void)
 
     // Rehash all the symbols:
     word = ARRAY_AT(PG_Word_Table.array, 1);
-    hashes = cast(REBCNT*, SERIES_DATA(PG_Word_Table.hashes));
+    hashes = SERIES_HEAD(REBCNT, PG_Word_Table.hashes);
     size = SERIES_LEN(PG_Word_Table.hashes);
     for (n = 1; n < ARRAY_LEN(PG_Word_Table.array); n++, word++) {
         const REBYTE *name = VAL_SYM_NAME(word);
@@ -221,7 +221,7 @@ REBCNT Make_Word(const REBYTE *str, REBCNT len)
 
     size = cast(REBINT, SERIES_LEN(PG_Word_Table.hashes));
     words = ARRAY_HEAD(PG_Word_Table.array);
-    hashes = cast(REBCNT*, SERIES_DATA(PG_Word_Table.hashes));
+    hashes = SERIES_HEAD(REBCNT, PG_Word_Table.hashes);
 
     // Hash the word, including a skip factor for lookup:
     hash  = Hash_Word(str, len);

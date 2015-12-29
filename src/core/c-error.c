@@ -100,9 +100,10 @@ void Assert_State_Balanced_Debug(
             "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES",
             SERIES_LEN(GC_Series_Guard) - s->series_guard_len
         );
-        panic = *(
-            cast(REBSER**, SERIES_DATA(GC_Series_Guard))
-            + SERIES_LEN(GC_Series_Guard) - 1
+        panic = *SERIES_AT(
+            REBSER*,
+            GC_Series_Guard,
+            SERIES_LEN(GC_Series_Guard) - 1
         );
         goto problem_found;
     }
@@ -112,9 +113,10 @@ void Assert_State_Balanced_Debug(
             "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE",
             SERIES_LEN(GC_Value_Guard) - s->value_guard_len
         );
-        PROBE(*(
-            cast(REBVAL**, SERIES_DATA(GC_Value_Guard))
-            + SERIES_LEN(GC_Value_Guard) - 1
+        PROBE(*SERIES_AT(
+            REBVAL*,
+            GC_Value_Guard,
+            SERIES_LEN(GC_Value_Guard) - 1
         ));
         goto problem_found;
     }
@@ -144,10 +146,11 @@ void Assert_State_Balanced_Debug(
             "Make_Series()x%d without Free_Series or MANAGE_SERIES",
             SERIES_LEN(GC_Manuals) - s->manuals_len
         );
-        panic = *(
-            cast(REBSER**, SERIES_DATA(GC_Manuals))
-            + SERIES_LEN(GC_Manuals) - 1
-        );
+        panic = *(SERIES_AT(
+            REBSER*,
+            GC_Manuals,
+            SERIES_LEN(GC_Manuals) - 1
+        ));
         goto problem_found;
     }
 
@@ -230,7 +233,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     while (SERIES_LEN(GC_Manuals) != s->manuals_len) {
         // Freeing the series will update the tail...
         Free_Series(
-            cast(REBSER**, SERIES_DATA(GC_Manuals))[SERIES_LEN(GC_Manuals) - 1]
+            *SERIES_AT(REBSER*, GC_Manuals, SERIES_LEN(GC_Manuals) - 1)
         );
     }
 

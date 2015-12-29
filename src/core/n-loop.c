@@ -404,8 +404,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
     REBARR *mapped; // output block of mapped-to values (needed for MAP-EACH)
 
     REBINT tail;
-    REBINT windex;  // write
-    REBINT rindex;  // read
+    REBINT write_index;
+    REBINT read_index;
     REBVAL *ds;
 
     REBOOL stop = FALSE;
@@ -465,7 +465,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
         }
     }
 
-    windex = index;
+    write_index = index;
 
     // Iterate over each value in the data series block:
     while (index < (tail = SERIES_LEN(series))) {
@@ -475,7 +475,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
         REBVAL *key = CONTEXT_KEY(context, 1);
         REBVAL *var = CONTEXT_VAR(context, 1);
 
-        rindex = index;  // remember starting spot
+        read_index = index;  // remember starting spot
 
         // Set the FOREACH loop variables from the series:
         for (i = 1; !IS_END(key); i++, key++, var++) {
@@ -571,7 +571,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 
         assert(IS_END(key) && IS_END(var));
 
-        if (index == rindex) {
+        if (index == read_index) {
             // the word block has only set-words: for-each [a:] [1 2 3][]
             index++;
         }
@@ -594,18 +594,19 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
         case LOOP_REMOVE_EACH:
             // If FALSE return (or unset), copy values to the write location
             if (IS_CONDITIONAL_FALSE(D_OUT) || IS_UNSET(D_OUT)) {
-                REBYTE wide = SERIES_WIDE(series);
+                //
                 // memory areas may overlap, so use memmove and not memcpy!
-
+                //
                 // !!! This seems a slow way to do it, but there's probably
                 // not a lot that can be done as the series is expected to
                 // be in a good state for the next iteration of the body. :-/
+                //
                 memmove(
-                    SERIES_DATA(series) + (windex * wide),
-                    SERIES_DATA(series) + (rindex * wide),
-                    (index - rindex) * wide
+                    SERIES_AT_RAW(series, write_index),
+                    SERIES_AT_RAW(series, read_index),
+                    (index - read_index) * SERIES_WIDE(series)
                 );
-                windex += index - rindex;
+                write_index += index - read_index;
             }
             break;
         case LOOP_MAP_EACH:
@@ -666,8 +667,9 @@ skip_hidden: ;
 
     case LOOP_REMOVE_EACH:
         // Remove hole (updates tail):
-        if (windex < index) Remove_Series(series, windex, index - windex);
-        SET_INTEGER(D_OUT, index - windex);
+        if (write_index < index)
+            Remove_Series(series, write_index, index - write_index);
+        SET_INTEGER(D_OUT, index - write_index);
         return R_OUT;
 
     case LOOP_MAP_EACH:

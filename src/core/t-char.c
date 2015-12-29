@@ -179,7 +179,7 @@ REBTYPE(Char)
 //      case REB_ISSUE:
             // Scan 8 or 16 bit hex str, will throw on error...
             arg = Scan_Hex_Value(
-                VAL_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val)
+                VAL_RAW_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val)
             );
             if (arg > MAX_UNI || arg < 0) goto bad_make;
             chr = arg;

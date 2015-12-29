@@ -48,7 +48,15 @@ REBINT Compare_Binary_Vals(const REBVAL *v1, const REBVAL *v2)
 
     if (IS_IMAGE(v1)) len *= 4;
 
-    n = memcmp(VAL_BIN_AT(v1), VAL_BIN_AT(v2), len);
+    // Image is not "byte size" (note multiplied by 4 above) but still calls
+    // binary compare...can't use VAL_BIN_AT as long as it does, because
+    // that asserts BYTE_SIZE().
+    //
+    n = memcmp(
+        SERIES_AT_RAW(VAL_SERIES(v1), VAL_INDEX(v1)),
+        SERIES_AT_RAW(VAL_SERIES(v2), VAL_INDEX(v2)),
+        len
+    );
 
     if (n != 0) return n;
 

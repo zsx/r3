@@ -68,7 +68,7 @@ static void Setup_File(REBREQ *file, REBCNT args, REBVAL *path)
     //
     MANAGE_SERIES(ser);
 
-    file->special.file.path = cast(REBCHR*, SERIES_DATA(ser));
+    file->special.file.path = SERIES_HEAD(REBCHR, ser);
 
     SET_FLAG(file->modes, RFM_NAME_MEM);
 

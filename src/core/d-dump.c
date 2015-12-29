@@ -56,7 +56,8 @@ void Dump_Series(REBSER *series, const char *memo)
         Dump_Values(ARRAY_HEAD(AS_ARRAY(series)), SERIES_LEN(series));
     } else
         Dump_Bytes(
-            SERIES_DATA(series), (SERIES_LEN(series) + 1) * SERIES_WIDE(series)
+            SERIES_DATA_RAW(series),
+            (SERIES_LEN(series) + 1) * SERIES_WIDE(series)
         );
 }
 

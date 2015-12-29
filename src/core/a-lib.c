@@ -927,7 +927,7 @@ RL_API u32 RL_Find_Word(u32 *words, u32 word)
 RL_API REBUPT RL_Series(REBSER *series, REBCNT what)
 {
     switch (what) {
-    case RXI_SER_DATA: return (REBUPT)SERIES_DATA(series);
+    case RXI_SER_DATA: return cast(REBUPT, SERIES_DATA_RAW(series));
     case RXI_SER_TAIL: return SERIES_LEN(series);
     case RXI_SER_LEFT: return SERIES_AVAIL(series);
     case RXI_SER_SIZE: return SERIES_REST(series);

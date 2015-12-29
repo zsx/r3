@@ -78,13 +78,14 @@ struct Struct_Data {
     REBFLGS flags;
 };
 
-#define STRUCT_DATA_BIN(v) (((struct Struct_Data*)SERIES_DATA((v)->data))->data)
-#define STRUCT_OFFSET(v) (((struct Struct_Data*)SERIES_DATA((v)->data))->offset)
-#define STRUCT_LEN(v) (((struct Struct_Data*)SERIES_DATA((v)->data))->len)
-#define STRUCT_FLAGS(v) (((struct Struct_Data*)SERIES_DATA((v)->data))->flags)
+#define STRUCT_DATA_BIN(v) (SERIES_HEAD(struct Struct_Data, (v)->data)->data)
+#define STRUCT_OFFSET(v) (SERIES_HEAD(struct Struct_Data, (v)->data)->offset)
+#define STRUCT_LEN(v) (SERIES_HEAD(struct Struct_Data, (v)->data)->len)
+#define STRUCT_FLAGS(v) (SERIES_HEAD(struct Struct_Data, (v)->data)->flags)
 
-#define VAL_STRUCT_DATA_BIN(v) (((struct Struct_Data*)SERIES_DATA(VAL_STRUCT_DATA(v)))->data)
-#define VAL_STRUCT_OFFSET(v) (((struct Struct_Data*)SERIES_DATA(VAL_STRUCT_DATA(v)))->offset)
-#define VAL_STRUCT_LEN(v) (((struct Struct_Data*)SERIES_DATA(VAL_STRUCT_DATA(v)))->len)
-#define VAL_STRUCT_FLAGS(v) (((struct Struct_Data*)SERIES_DATA(VAL_STRUCT_DATA(v)))->flags)
-#define VAL_STRUCT_LIMIT    MAX_U32
+#define VAL_STRUCT_DATA_BIN(v) STRUCT_DATA_BIN(&VAL_STRUCT(v))
+#define VAL_STRUCT_OFFSET(v) STRUCT_OFFSET(&VAL_STRUCT(v))
+#define VAL_STRUCT_LEN(v) STRUCT_LEN(&VAL_STRUCT(v))
+#define VAL_STRUCT_FLAGS(v) STRUCT_FLAGS(&VAL_STRUCT(v))
+
+#define VAL_STRUCT_LIMIT MAX_U32

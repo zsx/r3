@@ -104,7 +104,7 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
     // We depend on To_Local_Path giving us 2 extra chars for / and *
     ser = Value_To_OS_Path(path, TRUE);
     len = SERIES_LEN(ser);
-    dir->special.file.path = cast(REBCHR*, SERIES_DATA(ser));
+    dir->special.file.path = SERIES_HEAD(REBCHR, ser);
 
     Secure_Port(SYM_FILE, dir, path, ser);
 

@@ -346,8 +346,13 @@ err:
 // 
 // Scan and convert a binary string.
 //
-const REBYTE *Decode_Binary(REBVAL *value, const REBYTE *src, REBCNT len, REBINT base, REBYTE delim)
-{
+const REBYTE *Decode_Binary(
+    REBVAL *value,
+    const REBYTE *src,
+    REBCNT len,
+    REBINT base,
+    REBYTE delim
+) {
     REBSER *ser = 0;
 
     switch (base) {
@@ -388,7 +393,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
     src = VAL_BIN_AT(value);
 
     // Add slop-factor
-    series = Prep_String (series, &p, 8 * len + 2 * (len / 8) + 4);
+    series = Prep_String(series, &p, 8 * len + 2 * (len / 8) + 4);
 
     // If the input series was zero length, return empty series
     if (!len) {
@@ -414,7 +419,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
 
     if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
 
-    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
+    SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
     return series;
 }
 
@@ -454,7 +459,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
     if (*(bp-1) != LF && (len >= 32) && brk) *bp++ = LF;
     *bp = 0;
 
-    SET_SERIES_LEN(series, cast(REBCNT, bp - SERIES_DATA(series)));
+    SET_SERIES_LEN(series, cast(REBCNT, bp - BIN_HEAD(series)));
 
     return series;
 }
@@ -501,7 +506,10 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
         p[2] = p[3] = '=';
         *p++ = Enbase64[src[x] >> 2];
         if ((len - x) >= 1)
-            *p++ = Enbase64[((src[x] & 0x3) << 4) + ((len - x) == 1 ? 0 : src[x + 1] >> 4)];
+            *p++ = Enbase64[
+                ((src[x] & 0x3) << 4)
+                + ((len - x) == 1 ? 0 : src[x + 1] >> 4)
+            ];
         else p++;
         if ((len - x) == 2)
             *p++ = Enbase64[(src[x + 1] & 0xF) << 2];
@@ -515,7 +523,7 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
     //
     // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
     //
-    SET_SERIES_LEN(series, cast(REBCNT, p - SERIES_DATA(series)));
+    SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
 
     return series;
 }

@@ -63,11 +63,12 @@ static REBCON *Error_Compression(const z_stream *strm, int ret)
     REBVAL arg;
 
     if (ret == Z_MEM_ERROR) {
+        //
         // We do not technically know the amount of memory that zlib asked
         // for and did not get.  Hence categorizing it as an "out of memory"
         // error might be less useful than leaving as a compression error,
         // but that is what the old code here historically did.
-
+        //
         fail (Error_No_Memory(0));
     }
 
@@ -95,8 +96,13 @@ static REBCON *Error_Compression(const z_stream *strm, int ret)
 // 
 // !!! Does not expose the "streaming" ability of zlib.
 //
-REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBOOL gzip, REBOOL raw)
-{
+REBSER *Compress(
+    REBSER *input,
+    REBINT index,
+    REBCNT len,
+    REBOOL gzip,
+    REBOOL raw
+) {
     REBCNT buf_size;
     REBSER *output;
     int ret;
@@ -127,6 +133,7 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBOOL gzip, REBOOL ra
         fail (Error_Compression(&strm, ret));
 
     // http://stackoverflow.com/a/4938401/211160
+    //
     buf_size = deflateBound(&strm, len);
 
     strm.avail_in = len;
@@ -146,16 +153,21 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBOOL gzip, REBOOL ra
     SET_SERIES_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
+        //
         // GZIP contains its own CRC.  It also has a 32-bit uncompressed
-        // length (and CRC), conveniently (and perhaps confusingly) at the
-        // tail in the same format that Rebol used.
+        // length, conveniently (and perhaps confusingly) at the tail in the
+        // same format that R3-Alpha and Rebol2 used.
 
         REBCNT gzip_len = Bytes_To_REBCNT(
-            SERIES_DATA(output) + buf_size - strm.avail_out - sizeof(REBCNT)
+            SERIES_DATA_RAW(output)
+            + buf_size
+            - strm.avail_out
+            - sizeof(REBCNT)
         );
         assert(len == gzip_len);
     }
     else if (!raw) {
+        //
         // Add 32-bit length to the end.
         //
         // !!! In ZLIB format the length can be found by decompressing, but
@@ -164,13 +176,14 @@ REBSER *Compress(REBSER *input, REBINT index, REBCNT len, REBOOL gzip, REBOOL ra
         // expecting the data to be in a known format...though it means that
         // clients who wanted to decompress to a known allocation size would
         // have to save the size somewhere.
-
+        //
         REBYTE out_size[sizeof(REBCNT)];
         REBCNT_To_Bytes(out_size, cast(REBCNT, len));
         Append_Series(output, cast(REBYTE*, out_size), sizeof(REBCNT));
     }
 
     // !!! Trim if more than 1K extra capacity, review logic
+    //
     if (SERIES_AVAIL(output) > 1024) {
         REBSER *smaller = Copy_Sequence(output);
         Free_Series(output);
@@ -209,9 +222,10 @@ REBSER *Decompress(
     strm.total_out = 0;
 
     if (gzip || !raw) {
+        //
         // Both gzip and Rebol's envelope have the size living in the last
         // 4 bytes of the payload.
-
+        //
         assert(sizeof(REBCNT) == 4);
         if (len <= sizeof(REBCNT)) {
             // !!! Better error message needed
@@ -221,7 +235,7 @@ REBSER *Decompress(
 
         // If we know the size is too big go ahead and report an error
         // before doing the buffer allocation
-
+        //
         if (max >= 0 && buf_size > cast(REBCNT, max)) {
             REBVAL temp;
             VAL_INIT_WRITABLE_DEBUG(&temp);
@@ -262,6 +276,7 @@ REBSER *Decompress(
     strm.next_in = input;
 
     // !!! Zlib can detect decompression...use window_bits_detect_zlib_gzip?
+    //
     ret = inflateInit2(
         &strm,
         raw
@@ -279,38 +294,47 @@ REBSER *Decompress(
     //
     // Since we do the trap anyway, this is the way we handle explicit errors
     // called in the code below also.
-
+    //
     PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
+        //
         // output will already have been freed
+        //
         inflateEnd(&strm);
         fail (error);
     }
 
     // Since the initialization succeeded, go ahead and make the output buffer
+    //
     output = Make_Binary(buf_size);
     strm.avail_out = buf_size;
     strm.next_out = BIN_HEAD(output);
 
     // Loop through and allocate a larger buffer each time we find the
     // decompression did not run to completion.  Stop if we exceed max.
+    //
     while (TRUE) {
 
         // Perform the inflation
+        //
         ret = inflate(&strm, Z_NO_FLUSH);
 
         if (ret == Z_STREAM_END) {
+            //
             // Finished with the buffer being big enough...
+            //
             break;
         }
 
         if (ret == Z_OK) {
+            //
             // Still more data to come.  Use remaining data amount to guess
             // size to add.
+            //
             REBCNT old_size = buf_size;
 
             if (max >= 0 && buf_size >= cast(REBCNT, max)) {
@@ -337,6 +361,7 @@ REBSER *Decompress(
 
             // Extending keeps the content but may realloc the pointer, so
             // put it at the same spot to keep writing to
+            //
             strm.next_out = BIN_HEAD(output) + old_size - strm.avail_out;
 
             strm.avail_out += buf_size - old_size;
@@ -349,6 +374,7 @@ REBSER *Decompress(
     SET_SERIES_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic
+    //
     if (SERIES_AVAIL(output) > 1024) {
         REBSER *smaller = Copy_Sequence(output);
         Free_Series(output);
@@ -358,6 +384,7 @@ REBSER *Decompress(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     // Make this the last thing done so strm variables can be read up to end
+    //
     inflateEnd(&strm);
 
     return output;

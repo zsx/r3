@@ -179,13 +179,15 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
             }
             else fail (Error_Invalid_Arg(val));
             //if (n >= ser->tail) Expand_Vector(ser);
-            set_vect(bits, SERIES_DATA(ser), n++, i, f);
+            set_vect(bits, SERIES_DATA_RAW(ser), n++, i, f);
         }
     }
     else {
         REBYTE *data = VAL_BIN_AT(blk);
         for (; len > 0; len--, idx++) {
-            set_vect(bits, SERIES_DATA(ser), n++, cast(REBI64, data[idx]), f);
+            set_vect(
+                bits, SERIES_DATA_RAW(ser), n++, cast(REBI64, data[idx]), f
+            );
         }
     }
 }
@@ -199,7 +201,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 REBARR *Vector_To_Array(REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
-    REBYTE *data = SERIES_DATA(VAL_SERIES(vect));
+    REBYTE *data = SERIES_DATA_RAW(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBARR *array = NULL;
     REBCNT n;
@@ -233,8 +235,8 @@ REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
     REBCNT n;
     REBU64 i1;
     REBU64 i2;
-    REBYTE *d1 = SERIES_DATA(VAL_SERIES(v1));
-    REBYTE *d2 = SERIES_DATA(VAL_SERIES(v2));
+    REBYTE *d1 = SERIES_DATA_RAW(VAL_SERIES(v1));
+    REBYTE *d2 = SERIES_DATA_RAW(VAL_SERIES(v2));
     REBCNT b1 = VECT_TYPE(VAL_SERIES(v1));
     REBCNT b2 = VECT_TYPE(VAL_SERIES(v2));
 
@@ -264,7 +266,7 @@ void Shuffle_Vector(REBVAL *vect, REBOOL secure)
     REBCNT n;
     REBCNT k;
     REBU64 swap;
-    REBYTE *data = SERIES_DATA(VAL_SERIES(vect));
+    REBYTE *data = SERIES_DATA_RAW(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBCNT idx = VAL_INDEX(vect);
 
@@ -287,7 +289,7 @@ void Shuffle_Vector(REBVAL *vect, REBOOL secure)
 //
 void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 {
-    REBYTE *data = SERIES_DATA(series);
+    REBYTE *data = SERIES_DATA_RAW(series);
     REBCNT bits = VECT_TYPE(series);
 
     var->payload.integer = get_vect(bits, data, index);
@@ -314,7 +316,7 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
     if (len > 0x7fffffff) return 0;
     // !!! can width help extend the len?
     ser = Make_Series(len + 1, bits/8, MKS_NONE | MKS_POWER_OF_2);
-    CLEAR(SERIES_DATA(ser), (len * bits) / 8);
+    CLEAR(SERIES_DATA_RAW(ser), (len * bits) / 8);
     SET_SERIES_LEN(ser, len);
 
     // Store info about the vector (could be moved to flags if necessary):
@@ -471,7 +473,7 @@ REBINT PD_Vector(REBPVS *pvs)
 
     n += VAL_INDEX(pvs->value);
     vect = VAL_SERIES(pvs->value);
-    vp = SERIES_DATA(vect);
+    vp = SERIES_DATA_RAW(vect);
     bits = VECT_TYPE(vect);
 
     if (pvs->setval == 0) {
@@ -610,7 +612,7 @@ bad_make:
 void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     REBSER *vect = VAL_SERIES(value);
-    REBYTE *data = SERIES_DATA(vect);
+    REBYTE *data = SERIES_DATA_RAW(vect);
     REBCNT bits  = VECT_TYPE(vect);
 //  REBCNT dims  = vect->size >> 8;
     REBCNT len;

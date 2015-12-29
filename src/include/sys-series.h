@@ -232,11 +232,37 @@ struct Reb_Series {
 #define SERIES_REST(s)   ((s)->content.dynamic.rest)
 #define SERIES_FLAGS(s)  ((s)->info)
 #define SERIES_WIDE(s)   (((s)->info) & 0xff)
-#define SERIES_DATA(s)   ((s)->content.dynamic.data + 0) // +0 => Lvalue!
-#define SERIES_AT(s,i)   (SERIES_DATA(s) + (SERIES_WIDE(s) * i))
 
 #define SERIES_LEN(s)           ((s)->content.dynamic.len + 0)
 #define SET_SERIES_LEN(s,l)     ((s)->content.dynamic.len = (l))
+
+// Raw access does not demand that the caller know the contained type.  So
+// for instance a generic debugging routine might just want a byte pointer
+// but have no element type pointer to pass in.
+//
+#define SERIES_DATA_RAW(s)      ((s)->content.dynamic.data + 0) // Lvalue!
+#define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * i))
+
+//
+// In general, requesting a pointer into the series data requires passing in
+// a type which is the correct size for the series.  A pointer is given back
+// to that type.
+//
+// Note that series indexing in C is zero based.  So as far as SERIES is
+// concerned, `SERIES_HEAD(t, s)` is the same as `SERIES_AT(t, s, 0)`
+//
+
+#define SERIES_AT(t,s,i) \
+    (assert(SERIES_WIDE(s) == sizeof(t)), cast(t*, SERIES_AT_RAW((s), (i))))
+
+#define SERIES_HEAD(t,s) \
+    SERIES_AT(t, (s), 0)
+
+#define SERIES_TAIL(t,s) \
+    SERIES_AT(t, (s), SERIES_LEN(s))
+
+#define SERIES_LAST(t,s) \
+    (assert(SERIES_LEN(s) != 0), SERIES_AT(t, (s), SERIES_LEN(s) - 1))
 
 // The pooled allocator for REBSERs has an enumeration function where all
 // nodes can be visited, and this is used by the garbage collector.  This
@@ -346,13 +372,13 @@ struct Reb_Series {
 #define CLEAR_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        CLEAR(SERIES_DATA(s), SERIES_SPACE(s)); \
+        CLEAR(SERIES_DATA_RAW(s), SERIES_SPACE(s)); \
     } while (0)
 
 #define TERM_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        memset(SERIES_AT((s), SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
+        memset(SERIES_AT_RAW((s), SERIES_LEN(s)), 0, SERIES_WIDE(s)); \
     } while (0)
 
 #ifdef NDEBUG
@@ -471,9 +497,9 @@ struct Reb_Series {
 #define DROP_GUARD_SERIES(s) \
     do { \
         GC_Series_Guard->content.dynamic.len--; \
-        assert((s) == cast(REBSER **, SERIES_DATA(GC_Series_Guard))[ \
-            SERIES_LEN(GC_Series_Guard) \
-        ]); \
+        assert((s) == \
+            *SERIES_AT(REBSER*, GC_Series_Guard, SERIES_LEN(GC_Series_Guard)) \
+        ); \
     } while (0)
 
 
@@ -483,45 +509,84 @@ struct Reb_Series {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! To be organized, documented...
+// The current implementation of Rebol's ANY-STRING! type has two different
+// series widths that are used.  One is the BYTE_SIZED() series which encodes
+// ASCII in the low bits, and Latin-1 extensions in the range 0x80 - 0xFF.
+// So long as a codepoint can fit in this range, the string can be stored in
+// single bytes:
+//
+// https://en.wikipedia.org/wiki/Latin-1_Supplement_(Unicode_block)
+//
+// (Note: This is not to be confused with the other "byte-width" encoding,
+// which is UTF-8.  Rebol series routines are not set up to handle insertions
+// or manipulations of UTF-8 encoded data in a Reb_Any_String payload at
+// this time...it is a format used only in I/O.)
+//
+// The second format that is used puts codepoints into a 16-bit REBUNI-sized
+// element.  If an insertion of a string or character into a byte sized
+// string cannot be represented in 0xFF or lower, then the target string will
+// be "widened"--doubling the storage space taken and requiring updating of
+// the character data in memory.  At this time there are no "in-place"
+// cases where a string is reduced from REBUNI to byte sized, but operations
+// like Copy_String_Slimming() will scan a source string to see if a byte-size
+// copy can be made from a REBUNI-sized one without loss of information.
+//
+// Byte-sized series are also used by the BINARY! datatype.  There is no
+// technical difference between such series used as strings or used as binary,
+// the difference comes from being marked REB_BINARY or REB_STRING in the
+// header of the value carrying the series.
+//
+// For easier type-correctness, the series macros are given with names BIN_XXX
+// and UNI_XXX.  There aren't distinct data types for the series themselves,
+// just REBSER* is used.  Hence BIN_LEN() and UNI_LEN() aren't needed as you
+// could just use SERIES_LEN(), but it helps a bit for readability...and an
+// assert is included to ensure the size matches up.
 //
 
-//
-// Arg is a binary (byte) series:
-//
-
-#define BIN_LEN(s)      SERIES_LEN(s)
-#define BIN_HEAD(s)     cast(REBYTE*, SERIES_DATA(s))
-#define BIN_TAIL(s)     (BIN_HEAD(s) + BIN_LEN(s))
-#define BIN_AT(s, n)    (BIN_HEAD(s) + (n))
-
-#define SET_BIN_END(s,n) (*BIN_AT(s,n) = 0)
-
-// Is it a byte-sized series? (this )
+// Is it a byte-sized series?
 //
 // !!! This trick in R3-Alpha "works because no other odd size allowed".  Is
 // it worth it to prohibit odd sizes for this trick?  An assertion that the
 // size is not odd was added to Make_Series; reconsider if this becomes an
 // issue at some point.
 //
-#define BYTE_SIZE(s) LOGICAL(((s)->info) & 1)
+#define BYTE_SIZE(s)    LOGICAL(((s)->info) & 1)
 
 //
-// Arg is a unicode series:
+// BIN_XXX: Binary or byte-size string seres macros
 //
 
-#define UNI_LEN(s)      SERIES_LEN(s)
-#define SET_UNI_LEN(s)  SET_SERIES_LEN(s)
+#define BIN_AT(s,n)     SERIES_AT(REBYTE, (s), (n))
+#define BIN_HEAD(s)     SERIES_HEAD(REBYTE, (s))
+#define BIN_TAIL(s)     SERIES_TAIL(REBYTE, (s))
+#define BIN_LAST(s)     SERIES_LAST(REBYTE, (s))
 
-#define UNI_HEAD(s)     cast(REBUNI*, SERIES_DATA(s))
-#define UNI_TAIL(s)     (UNI_HEAD(s) + UNI_LEN(s))
-#define UNI_LAST(s)     (UNI_HEAD(s) + UNI_LEN(s) - 1) // ensure tail != 0
-#define UNI_AT(s, n)    (UNI_HEAD(s) + (n))
+#define BIN_LEN(s)      (assert(BYTE_SIZE(s)), SERIES_LEN(s))
+
+#define SET_BIN_END(s,n) (*BIN_AT(s,n) = 0)
+
+//
+// UNI_XXX: Unicode string series macros
+//
+
+#define UNI_LEN(s) \
+    (assert(SERIES_WIDE(s) == sizeof(REBUNI), SERIES_LEN(s))
+
+#define SET_UNI_LEN(s,l) \
+    (assert(SERIES_WIDE(s) == sizeof(REBUNI), SET_SERIES_LEN((s), (l)))
+
+#define UNI_AT(s,n)     SERIES_AT(REBUNI, (s), (n))
+#define UNI_HEAD(s)     SERIES_HEAD(REBUNI, (s))
+#define UNI_TAIL(s)     SERIES_TAIL(REBUNI, (s))
+#define UNI_LAST(s)     SERIES_LAST(REBUNI, (s))
 
 #define UNI_TERM(s)     (*UNI_TAIL(s) = 0)
 #define UNI_RESET(s)    (UNI_HEAD(s)[(s)->tail = 0] = 0)
 
+//
 // Get a char, from either byte or unicode string:
+//
+
 #define GET_ANY_CHAR(s,n) \
     cast(REBUNI, BYTE_SIZE(s) ? BIN_HEAD(s)[n] : UNI_HEAD(s)[n])
 
@@ -568,24 +633,22 @@ struct Reb_Array {
 // marker in its last slot, which is one past the last position that is
 // valid for writing a full REBVAL.
 //
-// ARRAY_AT allows picking a value slot by index.  It is zero-based, so
-// ARRAY_AT(a, 0) is the same as ARRAY_HEAD(a).
-//
-#define ARRAY_HEAD(a)       cast(REBVAL *, SERIES_DATA(ARRAY_SERIES(a)))
-#define ARRAY_TAIL(a)       (ARRAY_HEAD(a) + ARRAY_LEN(a))
-#ifdef NDEBUG
-    #define ARRAY_LAST(a)   (ARRAY_HEAD(a) + ARRAY_LEN(a) - 1)
-#else
-    #define ARRAY_LAST(a)   ARRAY_LAST_Debug(a)
-#endif
-#define ARRAY_AT(a, n)      (ARRAY_HEAD(a) + (n))
+
+#define ARRAY_AT(a, n)      SERIES_AT(REBVAL, ARRAY_SERIES(a), (n))
+#define ARRAY_HEAD(a)       SERIES_HEAD(REBVAL, ARRAY_SERIES(a))
+#define ARRAY_TAIL(a)       SERIES_TAIL(REBVAL, ARRAY_SERIES(a))
+#define ARRAY_LAST(a)       SERIES_LAST(REBVAL, ARRAY_SERIES(a))
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to control these independently for
 // performance reasons (for better or worse).
 //
-#define ARRAY_LEN(a)        SERIES_LEN(&(a)->series)
-#define SET_ARRAY_LEN(a,l)  SET_SERIES_LEN(ARRAY_SERIES(a), (l))
+#define ARRAY_LEN(a) \
+    (assert(Is_Array_Series(ARRAY_SERIES(a))), SERIES_LEN(ARRAY_SERIES(a)))
+
+#define SET_ARRAY_LEN(a,l) \
+    (assert(Is_Array_Series(ARRAY_SERIES(a))), \
+        SET_SERIES_LEN(ARRAY_SERIES(a), (l)))
 
 //
 // !!! Write more about termination in series documentation.
@@ -600,7 +663,8 @@ struct Reb_Array {
 #define TERM_SERIES(s) \
     Is_Array_Series(s) \
         ? cast(void, TERM_ARRAY(AS_ARRAY(s))) \
-        : cast(void, memset(SERIES_AT(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
+        : cast( \
+            void, memset(SERIES_AT_RAW(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARRAY_SERIES to do it each time.
@@ -883,7 +947,7 @@ struct Reb_Map {
 
 #define MAP_PAIRLIST(m)         (&(m)->pairlist)
 #define MAP_HASHLIST(m)         (ARRAY_SERIES(&(m)->pairlist)->misc.hashlist)
-#define MAP_HASHES(m)           SERIES_DATA(MAP_HASHLIST(m))
+#define MAP_HASHES(m)           SERIES_HEAD(MAP_HASHLIST(m))
 
 // !!! Should there be a MAP_LEN()?  Current implementation has NONE in
 // slots that are unused, so can give a deceptive number.  But so can

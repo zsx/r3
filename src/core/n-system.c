@@ -1359,7 +1359,7 @@ REBNATIVE(do_codec)
             codi.has_alpha = Image_Has_Alpha(val, FALSE) ? 1 : 0;
         }
         else if (IS_STRING(val)) {
-            codi.w = VAL_SERIES_WIDTH(val);
+            codi.w = SERIES_WIDE(VAL_SERIES(val));
             codi.len = VAL_LEN_AT(val);
             codi.extra.other = VAL_BIN_AT(val);
         }
