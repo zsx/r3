@@ -326,7 +326,7 @@ static void Load_Boot(void)
 
     // Do not let it get GC'd
     //
-    Set_Root_Series(ROOT_BOOT, ARRAY_SERIES(boot), "boot block");
+    Set_Root_Series(ROOT_BOOT, ARRAY_SERIES(boot));
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
 
@@ -790,7 +790,7 @@ static void Init_Root_Context(void)
 // 
 // Used to set block and string values in the ROOT context.
 //
-void Set_Root_Series(REBVAL *value, REBSER *ser, const char *label)
+void Set_Root_Series(REBVAL *value, REBSER *ser)
 {
     // Note that the Val_Init routines call Manage_Series and make the
     // series GC Managed.  They will hence be freed on shutdown

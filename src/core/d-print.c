@@ -992,5 +992,5 @@ void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 //
 void Init_Raw_Print(void)
 {
-    Set_Root_Series(TASK_BYTE_BUF,  Make_Binary(1000), "form buffer");
+    Set_Root_Series(TASK_BYTE_BUF,  Make_Binary(1000));
 }
