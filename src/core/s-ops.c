@@ -174,15 +174,25 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
 
     assert(IS_BINARY(val) || ANY_STR(val));
 
-    if (len == 0 || IS_BINARY(val) || VAL_STR_IS_ASCII(val)) {
-        // If it's zero length, BINARY!, or an ANY-STRING! whose bytes are
-        // all values less than 128, we reuse the series.
-
+    // !!! This used to check `len == 0` and reuse a zero length string.
+    // However, the zero length string could have the wrong width.  We are
+    // expected to be returning a BYTE_SIZE() string, and that confused
+    // things.  It's not a good idea to mutate the source string (e.g.
+    // reallocate under a new width) so consider having an EMPTY_BYTE_STRING
+    // like EMPTY_ARRAY which is protected to hand back.
+    //
+    if (IS_BINARY(val) || VAL_STR_IS_ASCII(val)) {
+        //
+        // It's BINARY!, or an ANY-STRING! whose codepoints are all values in
+        // ASCII (0x00 => 0x7F), hence not needing any UTF-8 encoding.
+        //
         series = VAL_SERIES(val);
         ASSERT_SERIES_MANAGED(series);
 
-        if (index) *index = VAL_INDEX(val);
-        if (length) *length = len;
+        if (index)
+            *index = VAL_INDEX(val);
+        if (length)
+            *length = len;
     }
     else {
         // UTF-8 conversion is required, and we manage the result.
@@ -190,10 +200,30 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
         series = Make_UTF8_From_Any_String(val, len, OPT_ENC_CRLF_MAYBE);
         MANAGE_SERIES(series);
 
-        if (index) *index = 0;
-        if (length) *length = SERIES_LEN(series);
+    #if !defined(NDEBUG)
+        //
+        // Also, PROTECT the result in the debug build...because since the
+        // caller doesn't know if a new series was created or if the initial
+        // data is being used, they should not be modifying it!  (We don't
+        // want to protect the original data, because we wouldn't know when
+        // we were allowed to unlock it...there's no later call in this
+        // model to clean up the series.)
+        {
+            REBVAL protect;
+            Val_Init_String(&protect, series);
+            Protect_Value(&protect, FLAGIT(PROT_SET));
+
+            // just a string...not /DEEP...shouldn't need to Unmark()
+        }
+    #endif
+
+        if (index)
+            *index = 0;
+        if (length)
+            *length = SERIES_LEN(series);
     }
 
+    assert(BYTE_SIZE(series));
     return series;
 }
 
