@@ -640,7 +640,7 @@ REBOOL Make_Error_Object_Throws(
         //
         Val_Init_Error(out, error);
 
-        Rebind_Context_Deep(root_error, error, REBIND_FUNC);
+        Rebind_Context_Deep(root_error, error, NULL);
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
 
         VAL_INIT_WRITABLE_DEBUG(&evaluated);

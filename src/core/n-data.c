@@ -254,7 +254,9 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
-    REBCON *target;
+    REBCON *context = NULL;
+    REBFUN *func = NULL;
+
     REBARR *array;
     REBCNT flags;
 
@@ -264,9 +266,10 @@ REBNATIVE(bind)
 
     if (ANY_CONTEXT(ARG(target))) {
         //
-        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
+        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
         //
-        target = VAL_CONTEXT(ARG(target));
+        assert(!IS_FRAME(ARG(target))); // !!! not implemented yet
+        context = VAL_CONTEXT(ARG(target));
     }
     else {
         //
@@ -277,29 +280,55 @@ REBNATIVE(bind)
         // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
-        if (IS_WORD_UNBOUND(ARG(target)))
+        if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_NORMAL)) {
+            context = VAL_WORD_CONTEXT(ARG(target));
+        }
+        else if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_FRAME)) {
+            //
+            // !!! None of these should exist yet...
+            //
+            assert(FALSE);
+        }
+        else if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_RELATIVE)) {
+            //
+            // When FRAME! exists, asking for the binding from a relative
+            // binding will give back a specific FRAME!.  There should not
+            // be any way to get a standalone relatively bound word that
+            // doesn't have a frame to fill it in.
+            //
+            // For now you'll get this by trying to bind via a local or arg.
+            //
+            func = VAL_WORD_FUNC(ARG(target));
+        }
+        else
             fail (Error(RE_NOT_BOUND, ARG(target)));
-
-        target = VAL_WORD_CONTEXT(ARG(target));
     }
 
-    // Bind single word:
     if (ANY_WORD(ARG(value))) {
-        if (IS_FRAME_CONTEXT(target)) {
-            Bind_Stack_Word(AS_ARRAY(target), ARG(value));
+        //
+        // Bind a single word
+
+        if (func) {
+            //
+            // Note: BIND_ALL has no effect on "frames".
+            //
+            Bind_Stack_Word(func, ARG(value)); // may fail()
             return R_ARG1;
         }
-        if (!Bind_Word(target, ARG(value))) {
-            if (flags & BIND_ALL) {
-                //
-                // not in context, BIND_ALL means add it if it's not.
-                //
-                Append_Context(target, ARG(value), 0);
-            }
-            else
-                fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
+
+        assert(context);
+
+        if (Try_Bind_Word(context, ARG(value)))
+            return R_ARG1;
+
+        // not in context, BIND_ALL means add it if it's not.
+        //
+        if (flags & BIND_ALL) {
+            Append_Context(context, ARG(value), 0);
+            return R_ARG1;
         }
-        return R_ARG1;
+
+        fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
     }
 
     // Copy block if necessary (/copy)
@@ -320,10 +349,16 @@ REBNATIVE(bind)
     else
         array = VAL_ARRAY(ARG(value));
 
-    if (IS_FRAME_CONTEXT(target))
-        Bind_Relative_Deep(AS_ARRAY(target), array);
-    else
-        Bind_Values_Core(ARRAY_HEAD(array), target, flags);
+    if (context)
+        Bind_Values_Core(ARRAY_HEAD(array), context, flags);
+    else {
+        // This code is temporary, but it doesn't have any non-deep option
+        // at this time...
+        //
+        assert(flags & BIND_DEEP);
+        assert(NOT(flags & BIND_SET));
+        Bind_Relative_Deep(func, array);
+    }
 
     return R_OUT;
 }
@@ -589,9 +624,9 @@ REBNATIVE(in)
                         context, VAL_WORD_SYM(word), FALSE
                     );
                     if (index != 0) {
-                        INIT_WORD_INDEX(word, index);
+                        VAL_SET_EXT(word, EXT_WORD_BOUND_NORMAL);
                         INIT_WORD_CONTEXT(word, context);
-                        VAL_SET_EXT(word, EXT_WORD_BOUND);
+                        INIT_WORD_INDEX(word, index);
                         *D_OUT = *word;
                         return R_OUT;
                     }
@@ -599,11 +634,11 @@ REBNATIVE(in)
             }
             return R_NONE;
         }
-        else
-            fail (Error_Invalid_Arg(word));
+
+        fail (Error_Invalid_Arg(word));
     }
 
-    context = IS_ERROR(val) ? VAL_CONTEXT(val) : VAL_CONTEXT(val);
+    context = VAL_CONTEXT(val);
 
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_PAREN(word)) {
@@ -615,11 +650,11 @@ REBNATIVE(in)
     if (index == 0)
         return R_NONE;
 
-    INIT_WORD_INDEX(word, index);
-    INIT_WORD_CONTEXT(word, context);
-    VAL_SET_EXT(word, EXT_WORD_BOUND);
-    *D_OUT = *word;
-
+    VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
+    INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
+    VAL_SET_EXT(D_OUT, EXT_WORD_BOUND_NORMAL);
+    INIT_WORD_CONTEXT(D_OUT, context);
+    INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
 }
 
@@ -1408,21 +1443,6 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
     return &(m_cast(REBVAL*, v))->payload.any_series.series;
-}
-
-
-//
-//  VAL_CONTEXT_Ptr_Debug: C
-//
-// Variant of VAL_CONTEXT() macro for the debug build which checks to ensure
-// that you have an ANY-CONTEXT! value you're calling it on.
-//
-// !!! Unfortunately this loses const correctness; fix in C++ build.
-//
-REBCON **VAL_CONTEXT_Ptr_Debug(const REBVAL *v)
-{
-    assert(ANY_CONTEXT(v));
-    return &(m_cast(REBVAL*, v))->payload.any_context.context;
 }
 
 

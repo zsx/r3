@@ -33,28 +33,74 @@
 //
 //  CT_Word: C
 //
+// !!! The R3-Alpha code did a non-ordering comparison; it only tells whether
+// the words are equal or not (1 or 0).  This creates bad invariants for
+// sorting etc.  Review.
+//
 REBINT CT_Word(REBVAL *a, REBVAL *b, REBINT mode)
 {
     REBINT e;
     REBINT diff;
     if (mode >= 0) {
-        e = VAL_WORD_CANON(a) == VAL_WORD_CANON(b);
-        if (mode == 1) {
-            if (IS_WORD_UNBOUND(a) || IS_WORD_UNBOUND(b))
-                e &= IS_WORD_BOUND(a) == IS_WORD_BOUND(b);
-            else
-                e &= VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b)
-                    && VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b);
+        if (mode >= 2) {
+            //
+            // Symbols must be exact match, case-sensitively
+            //
+            if (VAL_WORD_SYM(a) != VAL_WORD_SYM(b))
+                return 0;
         }
-        else if (mode >= 2) {
-            if (IS_WORD_UNBOUND(a) || IS_WORD_UNBOUND(b))
-                e &= IS_WORD_BOUND(a) == IS_WORD_BOUND(b);
-            else
-                e = (VAL_WORD_SYM(a) == VAL_WORD_SYM(b) &&
-                    VAL_WORD_INDEX(a) == VAL_WORD_INDEX(b) &&
-                    VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b));
+        else {
+            // Different cases acceptable, only check for a canon match
+            //
+            if (VAL_WORD_CANON(a) != VAL_WORD_CANON(b))
+                return 0;
         }
-    } else {
+
+        if (mode >= 1) {
+            //
+            // Check binding information
+
+            if (VAL_WORD_INDEX(a) != VAL_WORD_INDEX(b))
+                return 0;
+
+            if (VAL_GET_EXT(a, EXT_WORD_BOUND_NORMAL)) {
+                if (!VAL_GET_EXT(b, EXT_WORD_BOUND_NORMAL))
+                    return 0;
+
+                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
+            }
+
+            if (VAL_GET_EXT(a, EXT_WORD_BOUND_RELATIVE)) {
+                if (!VAL_GET_EXT(b, EXT_WORD_BOUND_RELATIVE)) {
+                    //
+                    // !!! We'll need to be able to compare a relative bound
+                    // word to a frame bound word, but frame bound words do
+                    // not yet exist (at time of writing).
+                    //
+                    assert(!VAL_GET_EXT(b, EXT_WORD_BOUND_FRAME));
+                    return 0;
+                }
+
+                return (VAL_WORD_FUNC(a) == VAL_WORD_FUNC(b)) ? 1 : 0;
+            }
+
+            if (VAL_GET_EXT(a, EXT_WORD_BOUND_FRAME)) {
+                //
+                // !!! These don't exist yet!
+                //
+                assert(FALSE);
+            }
+
+            // `a` isn't bound, so it matches if `b` is unbound too.
+
+            assert(IS_WORD_UNBOUND(a));
+            if (IS_WORD_BOUND(b))
+                return 0;
+        }
+
+        return 1;
+    }
+    else {
         diff = Compare_Word(a, b, FALSE);
         if (mode == -1) e = diff >= 0;
         else e = diff > 0;

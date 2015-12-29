@@ -254,12 +254,6 @@ enum {
     BIND_SELF = 64      // !!! Ensure SYM_SELF in context (transitional flag)
 };
 
-// Modes for Rebind_Values:
-enum {
-    REBIND_FUNC = 1,    // Rebind function and closure bodies
-    REBIND_TABLE = 2    // Use bind table when rebinding
-};
-
 // Flags used for Protect functions
 enum {
     PROT_SET,

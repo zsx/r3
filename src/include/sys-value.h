@@ -1225,7 +1225,9 @@ struct Reb_Symbol {
 ***********************************************************************/
 
 enum {
-    EXT_WORD_BOUND = 0,         // is bound to a context
+    EXT_WORD_BOUND_NORMAL = 0,      // is bound to a normally GC'd context
+    EXT_WORD_BOUND_FRAME,           // fixed binding to a specific frame
+    EXT_WORD_BOUND_RELATIVE,        // must lookup frame for function instance
     EXT_WORD_MAX
 };
 
@@ -1246,7 +1248,11 @@ struct Reb_Any_Word {
     // This is because in the current implementation, the stack must be
     // walked to find the required frame.
     //
-    REBCON *context;
+    union {
+        REBCON *con; // for EXT_WORD_BOUND_NORMAL
+        // !!! TBD: EXT_WORD_BOUND_FRAME
+        REBFUN *func; // for EXT_WORD_BOUND_RELATIVE
+    } context;
 
     // Index of word in context (if `context` is not NULL)
     //
@@ -1265,46 +1271,61 @@ struct Reb_Any_Word {
     REBCNT sym;
 };
 
-#ifdef NDEBUG
-    #define ENSURE_ANY_WORD(w,b) \
-        c_cast(const struct Reb_Any_Word*, &(w)->payload.any_word)
-#else
-    // When fetching properties of a word, the debug build is able to verify
-    // that not only is the REBVAL's type an ANY-WORD! type, but it can also
-    // enforce that the word is bound by passing TRUE for `b`.
-    //
-    #define ENSURE_ANY_WORD(w,b) \
-        (ENSURE_ANY_WORD_Debug((w), (b)))
-#endif
-
 #define IS_WORD_BOUND(v) \
-    (cast(void, ENSURE_ANY_WORD((v), FALSE)), \
-        VAL_GET_EXT((v), EXT_WORD_BOUND))
+    (assert(ANY_WORD(v)), \
+        VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) \
+        || VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
+        || VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)) // !!! => test together
 
-#define IS_WORD_UNBOUND(v)      NOT(IS_WORD_BOUND(v))
+#define IS_WORD_UNBOUND(v) \
+    NOT(IS_WORD_BOUND(v))
 
-#define VAL_WORD_SYM(v)         (ENSURE_ANY_WORD((v), FALSE)->sym)
-#define VAL_WORD_INDEX(v)       (ENSURE_ANY_WORD((v), TRUE)->index)
-#define VAL_WORD_CONTEXT(v)     (ENSURE_ANY_WORD((v), TRUE)->context)
+#define VAL_WORD_SYM(v) \
+    (assert(ANY_WORD(v)), (v)->payload.any_word.sym)
+#define INIT_WORD_SYM(v,s) \
+    (assert(ANY_WORD(v)), (v)->payload.any_word.sym = (s))
 
-#define INIT_WORD_SYM(v,s)      ((v)->payload.any_word.sym = (s))
-#define INIT_WORD_INDEX(v,i)    ((v)->payload.any_word.index = (i))
-#define INIT_WORD_CONTEXT(v,c)  ((v)->payload.any_word.context = (c))
+#define VAL_WORD_INDEX(v) \
+    (assert(ANY_WORD(v)), (v)->payload.any_word.index)
+#define INIT_WORD_INDEX(v,i) \
+    (assert(!VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) || \
+        SAME_SYM( \
+            VAL_WORD_SYM(v), CONTEXT_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
+        )), \
+        (v)->payload.any_word.index = (i))
+
+#define VAL_WORD_CONTEXT(v) \
+    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL)), \
+        (v)->payload.any_word.context.con)
+#define INIT_WORD_CONTEXT(v,c) \
+    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) \
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
+        (v)->payload.any_word.context.con = (c))
+
+#define VAL_WORD_FUNC(v) \
+    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
+        (v)->payload.any_word.context.func)
+#define INIT_WORD_FUNC(v,f) \
+    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE) \
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL)), \
+        (v)->payload.any_word.context.func = (f))
 
 #define IS_SAME_WORD(v, n) \
     (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        VAL_CLR_EXT((v), EXT_WORD_BOUND)
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND_NORMAL), \
+            VAL_CLR_EXT((v), EXT_WORD_BOUND_FRAME), \
+            VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE))
 #else
-    #define WORD_INDEX_UNBOUND_DEBUG 0
-    #define WORD_CONTEXT_UNBOUND_DEBUG NULL
-
     #define UNBIND_WORD(v) \
-        (VAL_CLR_EXT((v), EXT_WORD_BOUND), \
-            INIT_WORD_CONTEXT((v), WORD_CONTEXT_UNBOUND_DEBUG), \
-            INIT_WORD_INDEX((v), WORD_INDEX_UNBOUND_DEBUG))
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND_NORMAL), \
+            VAL_CLR_EXT((v), EXT_WORD_BOUND_FRAME), \
+            VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE), \
+            (v)->payload.any_word.index = 0)
 #endif
 
 #define VAL_WORD_CANON(v) \
@@ -1437,16 +1458,28 @@ struct Reb_Typeset {
 //
 
 struct Reb_Any_Context {
-    REBCON *context;
+    union {
+        REBCON *con;
+        void* frame; // !!! TBD: frame pointer type goes here!
+    } context;
+
     REBCON *spec; // optional (currently only used by modules)
     REBARR *body; // optional (currently not used at all)
 };
 
-#ifdef NDEBUG
-    #define VAL_CONTEXT(v)            ((v)->payload.any_context.context)
-#else
-    #define VAL_CONTEXT(v)            (*VAL_CONTEXT_Ptr_Debug(v))
-#endif
+#define VAL_CONTEXT(v) \
+    (assert(ANY_CONTEXT(v) && !IS_FRAME(v)), \
+        (v)->payload.any_context.context.con)
+
+#define INIT_VAL_CONTEXT(v,c) \
+    ((v)->payload.any_context.context.con = (c))
+
+#define VAL_FRAME(v) \
+    (assert(IS_FRAME(v)), \
+        (v)->payload.any_context.context.frame)
+
+#define INIT_VAL_FRAME(v,f) \
+    ((v)->payload.any_context.context.frame = (f))
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)

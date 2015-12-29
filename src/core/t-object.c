@@ -582,7 +582,7 @@ REBTYPE(Context)
         INIT_CONTEXT_KEYLIST(context, CONTEXT_KEYLIST(VAL_CONTEXT(value)));
         MANAGE_ARRAY(CONTEXT_VARLIST(context));
         ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
-        VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
+        INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CONTEXT_VARS_HEAD(context),
