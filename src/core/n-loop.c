@@ -953,20 +953,42 @@ REBNATIVE(every)
 //  
 //  "Evaluates a block a specified number of times."
 //  
-//      count [any-number!] "Number of repetitions"
-//      block [block!] "Block to evaluate"
+//      count [any-number! logic! none!]
+//          "Repetitions (true loops infinitely, FALSE? doesn't run)"
+//      block [block!]
+//          "Block to evaluate"
 //  ]
 //
 REBNATIVE(loop)
 {
-    REBI64 count = Int64(D_ARG(1));
-    REBVAL * const block = D_ARG(2);
-    REBVAL *ds;
+    PARAM(1, count);
+    PARAM(2, block);
+
+    REBI64 count;
 
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if the loop does not run
 
+    if (IS_CONDITIONAL_FALSE(ARG(count))) {
+        //
+        // A NONE! or LOGIC! FALSE means don't run the loop at all.
+        //
+        return R_OUT;
+    }
+    else if (IS_LOGIC(ARG(count))) {
+        //
+        // (Must be TRUE).  Run forever.  As a micro-optimization we don't
+        // complicate the condition checking in the loop, but seed with a
+        // *very* large integer.  In the off chance that we exhaust it, the
+        // code jumps up here, re-seeds it, and loops again.
+        //
+    restart:
+        count = MAX_I64;
+    }
+    else
+        count = Int64(ARG(count));
+
     for (; count > 0; count--) {
-        if (DO_ARRAY_THROWS(D_OUT, block)) {
+        if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -974,6 +996,13 @@ REBNATIVE(loop)
             }
             return R_OUT_IS_THROWN;
         }
+    }
+
+    if (IS_LOGIC(ARG(count))) {
+        //
+        // Rare case, "infinite" loop exhausted MAX_I64 steps...
+        //
+        goto restart;
     }
 
     return R_OUT;
