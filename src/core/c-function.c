@@ -728,7 +728,7 @@ void Make_Function(
     // body of the closure...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
 
-    Bind_Relative_Deep(VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out));
+    Bind_Relative_Deep(VAL_FUNC(out), VAL_FUNC_BODY(out));
 }
 
 
@@ -743,7 +743,7 @@ void Make_Function(
 //
 void Clonify_Function(REBVAL *value)
 {
-    REBARR *paramlist_orig;
+    REBFUN *func_orig;
     REBARR *paramlist_copy;
 
     // !!! Conceptually the only types it currently makes sense to speak of
@@ -774,8 +774,8 @@ void Clonify_Function(REBVAL *value)
     // two calls on the stack would be seen as recursions of the same
     // function, sharing each others "stack relative locals".
 
-    paramlist_orig = VAL_FUNC_PARAMLIST(value);
-    paramlist_copy = Copy_Array_Shallow(paramlist_orig);
+    func_orig = VAL_FUNC(value);
+    paramlist_copy = Copy_Array_Shallow(FUNC_PARAMLIST(func_orig));
 
     ARRAY_SET_FLAG(paramlist_copy, OPT_SER_PARAMLIST);
 
@@ -786,11 +786,10 @@ void Clonify_Function(REBVAL *value)
     // Remap references in the body from paramlist_orig to our new copied
     // word list we saved in VAL_FUNC_PARAMLIST(value)
 
-    Rebind_Values_Deep(
-        AS_CONTEXT(paramlist_orig),
-        AS_CONTEXT(FUNC_PARAMLIST(value->payload.any_function.func)),
-        ARRAY_HEAD(VAL_FUNC_BODY(value)),
-        0
+    Rebind_Values_Relative_Deep(
+        func_orig,
+        value->payload.any_function.func,
+        ARRAY_HEAD(VAL_FUNC_BODY(value))
     );
 
     // The above phrasing came from deep cloning code, while the below was
@@ -979,7 +978,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
 
     ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
-    VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
+    INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
     INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(D_FUNC));
     CONTEXT_SPEC(context) = NULL;
     CONTEXT_BODY(context) = NULL;
@@ -1020,12 +1019,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // invocation.  (Costly, but that is the mechanics of words.)
     //
     body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
-    Rebind_Values_Deep(
-        AS_CONTEXT(FUNC_PARAMLIST(D_FUNC)),
-        context,
-        ARRAY_HEAD(body),
-        0
-    );
+    Rebind_Values_Closure_Deep(D_FUNC, context, ARRAY_HEAD(body));
 
     // Protect the body from garbage collection during the course of the
     // execution.  (We could also protect it by stowing it in the call

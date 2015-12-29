@@ -676,17 +676,16 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_PORT:
         case REB_ERROR: {
             REBCON *context = VAL_CONTEXT(val);
-
             assert(CONTEXT_TYPE(context) == VAL_TYPE(val));
-            assert(VAL_CONTEXT(CONTEXT_VALUE(context)) == context);
-            assert(
-                VAL_CONTEXT_SPEC(val)
-                == VAL_CONTEXT_SPEC(CONTEXT_VALUE(context))
-            );
-            assert(
-                VAL_CONTEXT_BODY(val)
-                == VAL_CONTEXT_BODY(CONTEXT_VALUE(context))
-            );
+
+        #if !defined(NDEBUG)
+            {
+                REBVAL *value = CONTEXT_VALUE(context);
+                assert(VAL_CONTEXT(value) == context);
+                assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
+                assert(VAL_CONTEXT_BODY(val) == VAL_CONTEXT_BODY(value));
+            }
+        #endif
 
             QUEUE_MARK_CONTEXT_DEEP(context);
 
@@ -732,21 +731,34 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_LIT_WORD:
         case REB_REFINEMENT:
         case REB_ISSUE:
-            if (IS_WORD_BOUND(val)) {
-                // Word is bound, so mark its context (which may be a "frame"
-                // series or an identifying function word series).  All
-                // bound words should keep their contexts from being GC'd...
-                // even stack-relative contexts for functions.
-                //
+            //
+            // All bound words should keep their contexts from being GC'd...
+            // even stack-relative contexts for functions.
+            //
+            if (VAL_GET_EXT(val, EXT_WORD_BOUND_NORMAL)) {
                 REBCON* context = VAL_WORD_CONTEXT(val);
-                if (!IS_FRAME_CONTEXT(context))
-                    QUEUE_MARK_CONTEXT_DEEP(context);
-                else {
-                    // !!! Just the paramlist; make this bleed through the
-                    // CONTEXT abstraction less...
-                    //
-                    QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(context));
-                }
+                QUEUE_MARK_CONTEXT_DEEP(context);
+            }
+            else if (VAL_GET_EXT(val, EXT_WORD_BOUND_FRAME)) {
+                //
+                // !!! These don't exist yet (but soon, will...)
+                //
+                assert(FALSE);
+            }
+            else if (VAL_GET_EXT(val, EXT_WORD_BOUND_RELATIVE)) {
+                //
+                // Marking the function's paramlist should be enough to
+                // mark all the function's properties (there is an embedded
+                // function value...)
+                //
+                REBFUN* func = VAL_WORD_FUNC(val);
+                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+            }
+            else {
+                // The word is unbound...make sure index is 0 in debug build.
+            #if !defined(NDEBUG)
+                assert(VAL_WORD_INDEX(val) == 0);
+            #endif
             }
             break;
 

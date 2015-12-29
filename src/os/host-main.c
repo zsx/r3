@@ -353,7 +353,7 @@ int Do_String(
         //
         if (at_breakpoint) {
             REBFUN *func = Call_For_Stack_Level(HG_Stack_Level, FALSE)->func;
-            Bind_Relative_Deep(FUNC_PARAMLIST(func), code);
+            Bind_Relative_Deep(func, code);
         }
 
         // !!! This was unused code that used to be in Do_String from

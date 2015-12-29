@@ -290,18 +290,18 @@ REBCNT Last_Word_Num(void)
 void Val_Init_Word(
     REBVAL *out,
     enum Reb_Kind type,
-    REBINT sym,
+    REBCNT sym,
     REBCON *context,
     REBCNT index
 ) {
     assert(sym != SYM_0);
-    assert(context && context != WORD_CONTEXT_UNBOUND_DEBUG);
+    assert(context);
 
     VAL_RESET_HEADER(out, type);
+    VAL_SET_EXT(out, EXT_WORD_BOUND_NORMAL);
     INIT_WORD_SYM(out, sym);
     INIT_WORD_CONTEXT(out, context);
     INIT_WORD_INDEX(out, index);
-    VAL_SET_EXT(out, EXT_WORD_BOUND);
 
     assert(ANY_WORD(out));
 
@@ -323,13 +323,11 @@ void Val_Init_Word_Unbound(REBVAL *out, enum Reb_Kind type, REBCNT sym)
     INIT_WORD_SYM(out, sym);
 
 #if !defined(NDEBUG)
-    INIT_WORD_INDEX(out, WORD_INDEX_UNBOUND_DEBUG);
-    INIT_WORD_CONTEXT(out, WORD_CONTEXT_UNBOUND_DEBUG);
+    INIT_WORD_INDEX(out, 0);
 #endif
 
-    assert(!VAL_GET_EXT(out, EXT_WORD_BOUND)); // reminder
-
     assert(ANY_WORD(out));
+    assert(IS_WORD_UNBOUND(out));
 }
 
 
@@ -428,40 +426,3 @@ void Init_Words(REBOOL only)
     CLEAR_SEQUENCE(Bind_Table);
     SET_SERIES_LEN(Bind_Table, ARRAY_LEN(PG_Word_Table.array));
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  ENSURE_ANY_WORD_Debug: C
-//
-// This is the debug implementation of ENSURE_ANY_WORD (a Noop in the release
-// build).  It returns the Any_Word payload of a REBVAL after ensuring that
-// its type is actually an ANY-WORD!.  It can optionally require that the
-// word be bound, as well.
-//
-const struct Reb_Any_Word* ENSURE_ANY_WORD_Debug(
-    const REBVAL *any_word,
-    REBOOL must_be_bound
-) {
-    const struct Reb_Any_Word *payload = &any_word->payload.any_word;
-
-    assert(ANY_WORD(any_word));
-
-    // We don't use IS_WORD_BOUND here because it calls ENSURE_WORD and would
-    // lead to an infinite recursion.
-    //
-    if (VAL_GET_EXT(any_word, EXT_WORD_BOUND)) {
-        assert(payload->index != WORD_INDEX_UNBOUND_DEBUG);
-        assert(payload->context != WORD_CONTEXT_UNBOUND_DEBUG);
-    }
-    else {
-        if (must_be_bound) assert(FALSE);
-        assert(payload->index == WORD_INDEX_UNBOUND_DEBUG);
-        assert(payload->context == WORD_CONTEXT_UNBOUND_DEBUG);
-    }
-
-    return payload;
-}
-
-#endif
