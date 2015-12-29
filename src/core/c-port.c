@@ -338,7 +338,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCON *port, REBCNT action)
 
     assert(action < A_MAX_ACTION);
 
-    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(port), SER_CONTEXT));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(port), OPT_SER_CONTEXT));
 
     // Verify valid port (all of these must be false):
     if (
@@ -431,7 +431,7 @@ void Validate_Port(REBCON *port, REBCNT action)
     if (
         action >= A_MAX_ACTION
         || CONTEXT_LEN(port) > 50 // !!! ?? why 50 ??
-        || !ARRAY_GET_FLAG(CONTEXT_VARLIST(port), SER_CONTEXT)
+        || !ARRAY_GET_FLAG(CONTEXT_VARLIST(port), OPT_SER_CONTEXT)
         || !IS_OBJECT(CONTEXT_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
@@ -549,7 +549,7 @@ REBNATIVE(set_scheme)
             0,
             SYM_FROM_KIND(REB_PORT)
         );
-        ARRAY_SET_FLAG(paramlist, SER_PARAMLIST);
+        ARRAY_SET_FLAG(paramlist, OPT_SER_PARAMLIST);
         MANAGE_ARRAY(paramlist);
 
         // !!! Review: If this spec ever got leaked then it would be leaking

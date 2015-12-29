@@ -104,7 +104,7 @@ REBCNT Modify_Array(
 
 #if !defined(NDEBUG)
     for (index = 0; index < ilen; index++) {
-        if (ARRAY_GET_FLAG(dst_arr, SER_MANAGED))
+        if (ARRAY_GET_FLAG(dst_arr, OPT_SER_MANAGED))
             ASSERT_VALUE_MANAGED(&src_val[index]);
     }
 #endif

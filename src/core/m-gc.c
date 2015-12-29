@@ -31,7 +31,7 @@
 **
 **      From an optimization perspective, there is an attempt to not incur
 **      function call overhead just to check if a GC-aware item has its
-**      SER_MARK flag set.  So the flag is checked by a macro before making
+**      OPT_SER_MARK flag set.  So the flag is checked by a macro before making
 **      any calls to process the references inside of an item.
 **
 **      "Shallow" marking only requires setting the flag, and is suitable for
@@ -144,17 +144,17 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 static void Push_Array_Marked_Deep(REBARR *array)
 {
 #if !defined(NDEBUG)
-    if (!ARRAY_GET_FLAG(array, SER_MANAGED)) {
+    if (!ARRAY_GET_FLAG(array, OPT_SER_MANAGED)) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
         Panic_Array(array);
     }
 #endif
 
-    assert(!ARRAY_GET_FLAG(array, SER_EXTERNAL));
-    assert(ARRAY_GET_FLAG(array, SER_ARRAY));
+    assert(!ARRAY_GET_FLAG(array, OPT_SER_EXTERNAL));
+    assert(ARRAY_GET_FLAG(array, OPT_SER_ARRAY));
 
     // set by calling macro (helps catch direct calls of this function)
-    assert(ARRAY_GET_FLAG(array, SER_MARK));
+    assert(ARRAY_GET_FLAG(array, OPT_SER_MARK));
 
     // Add series to the end of the mark stack series and update terminator
 
@@ -182,8 +182,8 @@ static void Propagate_All_GC_Marks(void);
 
 #define QUEUE_MARK_ARRAY_DEEP(a) \
     do { \
-        if (!ARRAY_GET_FLAG((a), SER_MARK)) { \
-            ARRAY_SET_FLAG((a), SER_MARK); \
+        if (!ARRAY_GET_FLAG((a), OPT_SER_MARK)) { \
+            ARRAY_SET_FLAG((a), OPT_SER_MARK); \
             Push_Array_Marked_Deep(a); \
         } \
     } while (0)
@@ -191,7 +191,7 @@ static void Propagate_All_GC_Marks(void);
 
 #define QUEUE_MARK_CONTEXT_DEEP(c) \
     do { \
-        assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_CONTEXT)); \
+        assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_CONTEXT)); \
         QUEUE_MARK_ARRAY_DEEP(CONTEXT_KEYLIST(c)); \
         QUEUE_MARK_ARRAY_DEEP(CONTEXT_VARLIST(c)); \
     } while (0)
@@ -219,7 +219,7 @@ static void Propagate_All_GC_Marks(void);
 // for which deep marking is not necessary (such as an 'typed' words block)
 
 #ifdef NDEBUG
-    #define MARK_SERIES_ONLY(s) SERIES_SET_FLAG((s), SER_MARK)
+    #define MARK_SERIES_ONLY(s) SERIES_SET_FLAG((s), OPT_SER_MARK)
 #else
     #define MARK_SERIES_ONLY(s) Mark_Series_Only_Debug(s)
 #endif
@@ -239,12 +239,12 @@ static void Propagate_All_GC_Marks(void);
 //
 static void Mark_Series_Only_Debug(REBSER *series)
 {
-    if (!SERIES_GET_FLAG(series, SER_MANAGED)) {
+    if (!SERIES_GET_FLAG(series, OPT_SER_MANAGED)) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
         Panic_Series(series);
     }
 
-    SERIES_SET_FLAG(series, SER_MARK);
+    SERIES_SET_FLAG(series, OPT_SER_MARK);
 }
 #endif
 
@@ -270,7 +270,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        SERIES_SET_FLAG(GOB_PANE(gob), SER_MARK);
+        SERIES_SET_FLAG(GOB_PANE(gob), OPT_SER_MARK);
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
             Queue_Mark_Gob_Deep(*pane);
@@ -280,7 +280,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 
     if (GOB_CONTENT(gob)) {
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
-            SERIES_SET_FLAG(GOB_CONTENT(gob), SER_MARK);
+            SERIES_SET_FLAG(GOB_CONTENT(gob), OPT_SER_MARK);
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
             QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_CONTENT(gob)));
     }
@@ -376,7 +376,7 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
     MARK_SERIES_ONLY(stu->fields);
     MARK_SERIES_ONLY(STRUCT_DATA_BIN(stu));
 
-    assert(!SERIES_GET_FLAG(stu->data, SER_EXTERNAL));
+    assert(!SERIES_GET_FLAG(stu->data, OPT_SER_EXTERNAL));
     assert(SERIES_LEN(stu->data) == 1);
     MARK_SERIES_ONLY(stu->data);
 
@@ -718,7 +718,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:
-            assert(ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), SER_PARAMLIST));
+            assert(ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), OPT_SER_PARAMLIST));
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 
@@ -776,7 +776,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             break;
 
         case REB_IMAGE:
-            //SERIES_SET_FLAG(VAL_SERIES_SIDE(val), SER_MARK); //????
+            //SERIES_SET_FLAG(VAL_SERIES_SIDE(val), OPT_SER_MARK); //????
             MARK_SERIES_ONLY(VAL_SERIES(val));
             break;
 
@@ -859,14 +859,14 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // We should have marked this series at queueing time to keep it from
     // being doubly added before the queue had a chance to be processed
     //
-    if (!ARRAY_GET_FLAG(array, SER_MARK)) Panic_Array(array);
+    if (!ARRAY_GET_FLAG(array, OPT_SER_MARK)) Panic_Array(array);
 
     // Make sure that a context's varlist wasn't marked without also marking
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
     // context instead of QUEUE_MARK_CONTEXT.
     //
-    if (ARRAY_GET_FLAG(array, SER_CONTEXT))
-        assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(AS_CONTEXT(array)), SER_MARK));
+    if (ARRAY_GET_FLAG(array, OPT_SER_CONTEXT))
+        assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(AS_CONTEXT(array)), OPT_SER_MARK));
 #endif
 
 #ifdef HEAVY_CHECKS
@@ -881,7 +881,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // For a lighter check, make sure it's marked as a value-bearing array
     // and that it hasn't been freed.
     //
-    assert(ARRAY_GET_FLAG(array, SER_ARRAY));
+    assert(ARRAY_GET_FLAG(array, OPT_SER_ARRAY));
     assert(!SERIES_FREED(ARRAY_SERIES(array)));
 #endif
 
@@ -933,15 +933,15 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(REBOOL shutdown)
             if (SERIES_FREED(series))
                 continue;
 
-            if (SERIES_GET_FLAG(series, SER_MANAGED)) {
-                if (shutdown || !SERIES_GET_FLAG(series, SER_MARK)) {
+            if (SERIES_GET_FLAG(series, OPT_SER_MANAGED)) {
+                if (shutdown || !SERIES_GET_FLAG(series, OPT_SER_MARK)) {
                     GC_Kill_Series(series);
                     count++;
                 } else
-                    SERIES_CLR_FLAG(series, SER_MARK);
+                    SERIES_CLR_FLAG(series, OPT_SER_MARK);
             }
             else
-                assert(!SERIES_GET_FLAG(series, SER_MARK));
+                assert(!SERIES_GET_FLAG(series, OPT_SER_MARK));
         }
     }
 
@@ -1057,7 +1057,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
 //  Propagate_All_GC_Marks: C
 // 
 // The Mark Stack is a series containing series pointers.  They
-// have already had their SER_MARK set to prevent being added
+// have already had their OPT_SER_MARK set to prevent being added
 // to the stack multiple times, but the items they can reach
 // are not necessarily marked yet.
 // 
@@ -1143,7 +1143,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         //
         sp = SERIES_HEAD(REBSER*, GC_Series_Guard);
         for (n = SERIES_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-            if (SERIES_GET_FLAG(*sp, SER_CONTEXT))
+            if (SERIES_GET_FLAG(*sp, OPT_SER_CONTEXT))
                 MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
             else if (Is_Array_Series(*sp))
                 MARK_ARRAY_DEEP(AS_ARRAY(*sp));
@@ -1342,7 +1342,7 @@ void Init_GC(void)
 
     // GC disabled counter for critical sections.  Used liberally in R3-Alpha.
     // But with Ren-C's introduction of the idea that an allocated series is
-    // not seen by the GC until such time as it gets the SER_MANAGED flag
+    // not seen by the GC until such time as it gets the OPT_SER_MANAGED flag
     // set, there are fewer legitimate justifications to disabling the GC.
     //
     GC_Disabled = 0;

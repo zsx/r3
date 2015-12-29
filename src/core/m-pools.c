@@ -562,7 +562,7 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
 // 
 // Allocates element array for an already allocated REBSER header
 // structure.  Resets the bias and tail to zero, and sets the new
-// width.  Flags like SER_LOCKED are left as they were, and other
+// width.  Flags like OPT_SER_LOCKED are left as they were, and other
 // fields in the series structure are untouched.
 // 
 // This routine can thus be used for an initial construction
@@ -600,7 +600,7 @@ static REBOOL Series_Data_Alloc(
         assert(size >= length * wide);
 
         // We don't round to power of 2 for allocations in memory pools
-        SERIES_CLR_FLAG(series, SER_POWER_OF_2);
+        SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
     }
     else {
         // ...the allocation is too big for a pool.  But instead of just
@@ -619,12 +619,12 @@ static REBOOL Series_Data_Alloc(
             // the size doesn't divide evenly by the item width
             //
             if (size % wide != 0)
-                SERIES_SET_FLAG(series, SER_POWER_OF_2);
+                SERIES_SET_FLAG(series, OPT_SER_POWER_OF_2);
             else
-                SERIES_CLR_FLAG(series, SER_POWER_OF_2);
+                SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
         }
         else
-            SERIES_CLR_FLAG(series, SER_POWER_OF_2);
+            SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
 
         series->content.dynamic.data = ALLOC_N(REBYTE, size);
         if (!series->content.dynamic.data)
@@ -639,7 +639,7 @@ static REBOOL Series_Data_Alloc(
     memset(series->data, 0xff, size);
 #endif
 
-    // Keep the series flags like SER_LOCKED, but use new width and bias to 0
+    // Keep the series flags like OPT_SER_LOCKED, but use new width and bias to 0
 
     series->info = ((series->info >> 8) << 8) | wide;
 
@@ -651,11 +651,11 @@ static REBOOL Series_Data_Alloc(
 
     if (flags & MKS_ARRAY) {
         assert(wide == sizeof(REBVAL));
-        SERIES_SET_FLAG(series, SER_ARRAY);
+        SERIES_SET_FLAG(series, OPT_SER_ARRAY);
         assert(Is_Array_Series(series));
     }
     else {
-        SERIES_CLR_FLAG(series, SER_ARRAY);
+        SERIES_CLR_FLAG(series, OPT_SER_ARRAY);
         assert(!Is_Array_Series(series));
     }
 
@@ -737,7 +737,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
             // purposes that this routine is checking for.  Closures use
             // series to gather their arguments, for instance.
             //
-            if (locked_ok && SERIES_GET_FLAG(series, SER_FIXED_SIZE))
+            if (locked_ok && SERIES_GET_FLAG(series, OPT_SER_FIXED_SIZE))
                 continue;
 
             if (pointer < cast(void*,
@@ -811,7 +811,7 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 {
     REBCNT total = SERIES_TOTAL(series);
 
-    if (SERIES_GET_FLAG(series, SER_POWER_OF_2)) {
+    if (SERIES_GET_FLAG(series, OPT_SER_POWER_OF_2)) {
         REBCNT len = 2048;
         while(len < total)
             len *= 2;
@@ -868,7 +868,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         // External series will poke in their own data pointer after the
         // REBSER header allocation is done
 
-        SERIES_SET_FLAG(series, SER_EXTERNAL);
+        SERIES_SET_FLAG(series, OPT_SER_EXTERNAL);
         series->info |= wide & 0xFF;
         series->content.dynamic.rest = length;
     }
@@ -1103,7 +1103,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 
     // We need to expand the current series allocation.
 
-    if (SERIES_GET_FLAG(series, SER_FIXED_SIZE))
+    if (SERIES_GET_FLAG(series, OPT_SER_FIXED_SIZE))
         panic (Error(RE_LOCKED_SERIES));
 
 #ifndef NDEBUG
@@ -1206,18 +1206,18 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
     assert(series->content.dynamic.data);
     series->content.dynamic.data = NULL;
 
-    // SER_EXTERNAL manages its own memory and shouldn't call Remake
+    // OPT_SER_EXTERNAL manages its own memory and shouldn't call Remake
     assert(!(flags & MKS_EXTERNAL));
-    assert(!SERIES_GET_FLAG(series, SER_EXTERNAL));
+    assert(!SERIES_GET_FLAG(series, OPT_SER_EXTERNAL));
 
-    // SER_FIXED_SIZE has unexpandable data and shouldn't call Remake
-    assert(!SERIES_GET_FLAG(series, SER_FIXED_SIZE));
+    // OPT_SER_FIXED_SIZE has unexpandable data and shouldn't call Remake
+    assert(!SERIES_GET_FLAG(series, OPT_SER_FIXED_SIZE));
 
     // We only let you preserve if the data is the same width as original
 #if !defined(NDEBUG)
     if (flags & MKS_PRESERVE) {
         assert(wide == wide_old);
-        if (flags & MKS_ARRAY) assert(SERIES_GET_FLAG(series, SER_ARRAY));
+        if (flags & MKS_ARRAY) assert(SERIES_GET_FLAG(series, OPT_SER_ARRAY));
     }
 #endif
 
@@ -1279,7 +1279,7 @@ void GC_Kill_Series(REBSER *series)
         if (Prior_Expand[n] == series) Prior_Expand[n] = 0;
     }
 
-    if (SERIES_GET_FLAG(series, SER_EXTERNAL)) {
+    if (SERIES_GET_FLAG(series, OPT_SER_EXTERNAL)) {
         // External series have their REBSER GC'd when Rebol doesn't need it,
         // but the data pointer itself is not one that Rebol allocated
         // !!! Should the external owner be told about the GC/free event?
@@ -1337,7 +1337,7 @@ void Free_Series(REBSER *series)
     // We can only free a series that is not under management by the
     // garbage collector
     //
-    if (SERIES_GET_FLAG(series, SER_MANAGED)) {
+    if (SERIES_GET_FLAG(series, OPT_SER_MANAGED)) {
         Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
         Panic_Series(series);
     }
@@ -1452,8 +1452,8 @@ void Manage_Series(REBSER *series)
             GC_Manuals->content.dynamic.len - 1
         ];
 
-    assert(!SERIES_GET_FLAG(series, SER_MANAGED));
-    SERIES_SET_FLAG(series, SER_MANAGED);
+    assert(!SERIES_GET_FLAG(series, OPT_SER_MANAGED));
+    SERIES_SET_FLAG(series, OPT_SER_MANAGED);
 
     // Note: Code repeated in Free_Series()
     //
@@ -1493,8 +1493,8 @@ void Manage_Series(REBSER *series)
 void Manage_Context_Debug(REBCON *context)
 {
     if (
-        ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED)
-        != ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED)
+        ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MANAGED)
+        != ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED)
     ) {
         // Only one of these will trip...
         ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
@@ -1544,16 +1544,16 @@ REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
 
     if (ANY_CONTEXT(value)) {
         REBCON *context = VAL_CONTEXT(value);
-        if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MANAGED)) {
+        if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MANAGED)) {
             ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
             return TRUE;
         }
-        assert(!ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), SER_MANAGED));
+        assert(!ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED));
         return FALSE;
     }
 
     if (ANY_SERIES(value))
-        return SERIES_GET_FLAG(VAL_SERIES(value), SER_MANAGED);
+        return SERIES_GET_FLAG(VAL_SERIES(value), OPT_SER_MANAGED);
 
     return TRUE;
 }

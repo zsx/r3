@@ -329,7 +329,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
         QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
     } else {
         REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
-        SERIES_SET_FLAG(ser, SER_FIXED_SIZE);
+        SERIES_SET_FLAG(ser, OPT_SER_FIXED_SIZE);
         stype = SERIES_HEAD(ffi_type, ser);
         PUSH_GUARD_SERIES(ser);
     }
@@ -347,7 +347,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
         REBSER *ser = Make_Series(
             2 + n_struct_fields(fields), sizeof(ffi_type *), MKS_NONE
         );
-        SERIES_SET_FLAG(ser, SER_FIXED_SIZE);
+        SERIES_SET_FLAG(ser, OPT_SER_FIXED_SIZE);
         stype->elements = SERIES_HEAD(ffi_type*, ser);
         PUSH_GUARD_SERIES(ser);
     }

@@ -142,7 +142,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
     paramlist = Collect_Keylist_Managed(
         NULL, ARRAY_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
     );
-    ARRAY_SET_FLAG(paramlist, SER_PARAMLIST);
+    ARRAY_SET_FLAG(paramlist, OPT_SER_PARAMLIST);
 
     // Whatever function is being made, it must fill in the paramlist slot 0
     // with an ANY-FUNCTION! value corresponding to the function that it is
@@ -777,7 +777,7 @@ void Clonify_Function(REBVAL *value)
     paramlist_orig = VAL_FUNC_PARAMLIST(value);
     paramlist_copy = Copy_Array_Shallow(paramlist_orig);
 
-    ARRAY_SET_FLAG(paramlist_copy, SER_PARAMLIST);
+    ARRAY_SET_FLAG(paramlist_copy, OPT_SER_PARAMLIST);
 
     value->payload.any_function.func = AS_FUNC(paramlist_copy);
 
@@ -977,7 +977,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
 
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
     VAL_CONTEXT(CONTEXT_VALUE(context)) = context;
     INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(D_FUNC));
@@ -1155,8 +1155,8 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
 
     assert(func == FUNC_VALUE(func)->payload.any_function.func);
-    assert(ARRAY_GET_FLAG(FUNC_PARAMLIST(func), SER_ARRAY));
-    assert(ARRAY_GET_FLAG(v->payload.any_function.spec, SER_ARRAY));
+    assert(ARRAY_GET_FLAG(FUNC_PARAMLIST(func), OPT_SER_ARRAY));
+    assert(ARRAY_GET_FLAG(v->payload.any_function.spec, OPT_SER_ARRAY));
 
     switch (VAL_TYPE(v)) {
     case REB_NATIVE:
@@ -1177,7 +1177,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             // don't know if it has a valid code field or not.
             //
             /*assert(
-                ARRAY_GET_FLAG(v->payload.any_function.impl.body, SER_ARRAY)
+                ARRAY_GET_FLAG(v->payload.any_function.impl.body, OPT_SER_ARRAY)
             );*/
         }
         break;

@@ -70,16 +70,16 @@ void Protect_Series(REBVAL *val, REBCNT flags)
 {
     REBSER *series = VAL_SERIES(val);
 
-    if (SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
+    if (SERIES_GET_FLAG(series, OPT_SER_MARK)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SERIES_SET_FLAG(series, SER_LOCKED);
+        SERIES_SET_FLAG(series, OPT_SER_LOCKED);
     else
-        SERIES_CLR_FLAG(series, SER_LOCKED);
+        SERIES_CLR_FLAG(series, OPT_SER_LOCKED);
 
     if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-    SERIES_SET_FLAG(series, SER_MARK); // recursion protection
+    SERIES_SET_FLAG(series, OPT_SER_MARK); // recursion protection
 
     for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
         Protect_Value(val, flags);
@@ -96,13 +96,13 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 {
     REBCON *context = VAL_CONTEXT(value);
 
-    if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_MARK))
+    if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MARK))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
+        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_LOCKED);
     else
-        ARRAY_CLR_FLAG(CONTEXT_VARLIST(context), SER_LOCKED);
+        ARRAY_CLR_FLAG(CONTEXT_VARLIST(context), OPT_SER_LOCKED);
 
     for (value = CONTEXT_KEY(context, 1); NOT_END(value); value++) {
         Protect_Key(value, flags);
@@ -110,7 +110,7 @@ void Protect_Object(REBVAL *value, REBCNT flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_MARK); // recursion protection
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MARK); // recursion protection
 
     value = CONTEXT_VARS_HEAD(context);
     for (; NOT_END(value); value++) {

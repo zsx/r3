@@ -122,7 +122,7 @@ REBCON *Alloc_Context(REBINT len)
 
     keylist = Make_Array(len + 1); // size + room for ROOTKEY (SYM_0)
     context = AS_CONTEXT(Make_Array(len + 1));
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
 
     // Note: cannot use Append_Frame for first word.
 
@@ -178,7 +178,7 @@ void Expand_Context(REBCON *context, REBCNT delta, REBCNT copy)
 
     // Expand or copy WORDS block:
     if (copy) {
-        REBOOL managed = ARRAY_GET_FLAG(keylist, SER_MANAGED);
+        REBOOL managed = ARRAY_GET_FLAG(keylist, OPT_SER_MANAGED);
         INIT_CONTEXT_KEYLIST(
             context, Copy_Array_Extra_Shallow(keylist, delta)
         );
@@ -256,8 +256,8 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
 REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
     REBCON *dest;
 
-    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(src), SER_CONTEXT));
-    assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(src), SER_MANAGED));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(src), OPT_SER_CONTEXT));
+    assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(src), OPT_SER_MANAGED));
 
     if (extra == 0) {
         dest = AS_CONTEXT(Copy_Array_Shallow(CONTEXT_VARLIST(src)));
@@ -272,7 +272,7 @@ REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
         MANAGE_ARRAY(CONTEXT_KEYLIST(dest));
     }
 
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(dest), SER_CONTEXT);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(dest), OPT_SER_CONTEXT);
     MANAGE_ARRAY(CONTEXT_VARLIST(dest));
 
     VAL_CONTEXT(CONTEXT_VALUE(dest)) = dest;
@@ -726,7 +726,7 @@ REBCON *Make_Selfish_Context_Detect(
                 TRUE, // deep
                 TS_CLONE // types
             ));
-            ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+            ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
 
             if (self_index == 0) {
                 //
@@ -784,7 +784,7 @@ REBCON *Make_Selfish_Context_Detect(
         // Make a context of same size as keylist (END already accounted for)
         //
         context = AS_CONTEXT(Make_Array(len));
-        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT);
+        ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
         INIT_CONTEXT_KEYLIST(context, keylist);
         MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
@@ -985,7 +985,7 @@ REBCON *Merge_Contexts_Selfish(REBCON *parent1, REBCON *parent2)
     // Allocate child (now that we know the correct size):
     keylist = Copy_Array_Shallow(BUF_COLLECT);
     child = AS_CONTEXT(Make_Array(ARRAY_LEN(keylist)));
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(child), SER_CONTEXT);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(child), OPT_SER_CONTEXT);
 
     value = Alloc_Tail_Array(CONTEXT_VARLIST(child));
 
@@ -1799,8 +1799,8 @@ void Assert_Context_Core(REBCON *context)
     REBCNT keys_len;
     REBCNT values_len;
 
-    if (!ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT)) {
-        Debug_Fmt("Frame series does not have SER_CONTEXT flag set");
+    if (!ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT)) {
+        Debug_Fmt("Frame series does not have OPT_SER_CONTEXT flag set");
         Panic_Context(context);
     }
 
