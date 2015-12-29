@@ -1802,10 +1802,8 @@ REBINT Scan_Header(const REBYTE *src, REBCNT len)
 //
 void Init_Scanner(void)
 {
-    Set_Root_Series(
-        TASK_BUF_EMIT, ARRAY_SERIES(Make_Array(511)), "emit block"
-    );
-    Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020), "utf8 buffer");
+    Set_Root_Series(TASK_BUF_EMIT, ARRAY_SERIES(Make_Array(511)));
+    Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
 }
 
 

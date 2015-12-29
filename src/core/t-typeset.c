@@ -87,9 +87,7 @@ void Init_Typesets(void)
     REBVAL *value;
     REBINT n;
 
-    Set_Root_Series(
-        ROOT_TYPESETS, ARRAY_SERIES(Make_Array(40)), "typeset presets"
-    );
+    Set_Root_Series(ROOT_TYPESETS, ARRAY_SERIES(Make_Array(40)));
 
     for (n = 0; Typesets[n].sym != SYM_0; n++) {
         value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));

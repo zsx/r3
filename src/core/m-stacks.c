@@ -78,7 +78,7 @@ void Init_Stacks(REBCNT size)
     // other things down first, but there may be some optimizations that
     // get added back in--hopefully that will benefit all series.
     //
-    Set_Root_Series(TASK_STACK, ARRAY_SERIES(DS_Array), "data stack");
+    Set_Root_Series(TASK_STACK, ARRAY_SERIES(DS_Array));
 
     // Call stack (includes pending functions, parens...)  We seed it with a
     // NULL in the first spot so that pushes don't have to check for an
