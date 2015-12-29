@@ -779,7 +779,7 @@ RL_API void RL_Protect_GC(REBSER *series, u32 flags)
 {
     // !!! With series flags in short supply, this undesirable routine
     // was removed along with SER_KEEP.  (Note that it is not possible
-    // to simply flip off the SER_MANAGED bit, because there is more
+    // to simply flip off the OPT_SER_MANAGED bit, because there is more
     // involved in tracking the managed state than just that bit.)
     //
     // For the purpose intended by this routine, use the GC_Mark_Hook (or

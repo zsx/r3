@@ -346,7 +346,7 @@ REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
     REBCON *context = VAL_CONTEXT(any_context);
 
-    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
     assert(index <= CONTEXT_LEN(context));
     return CONTEXT_VAR(context, index);
 }
@@ -518,7 +518,7 @@ void Val_Init_Context_Core(
 
     ENSURE_CONTEXT_MANAGED(context);
 
-    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), SER_CONTEXT));
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
 
     assert(CONTEXT_TYPE(context) == kind);
     assert(VAL_CONTEXT(CONTEXT_VALUE(context)) == context);
@@ -528,7 +528,7 @@ void Val_Init_Context_Core(
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
-    assert(!spec || ARRAY_GET_FLAG(CONTEXT_VARLIST(spec), SER_CONTEXT));
+    assert(!spec || ARRAY_GET_FLAG(CONTEXT_VARLIST(spec), OPT_SER_CONTEXT));
 
     // !!! Nothing was using the body field yet.
     //

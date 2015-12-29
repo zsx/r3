@@ -2072,7 +2072,7 @@ reevaluate:
             // sanity check.
             //
         #if !defined(NDEBUG)
-            if (ARRAY_GET_FLAG(exit_from, SER_CONTEXT)) {
+            if (ARRAY_GET_FLAG(exit_from, OPT_SER_CONTEXT)) {
                 //
                 // The function was actually a CLOSURE!, so "when it took
                 // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".

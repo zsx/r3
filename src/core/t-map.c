@@ -468,7 +468,7 @@ REBMAP *Mutate_Array_Into_Map(REBARR *array)
 
     // See note above--can't have this array be accessible via some ANY-BLOCK!
     //
-    assert(!ARRAY_GET_FLAG(array, SER_MANAGED));
+    assert(!ARRAY_GET_FLAG(array, OPT_SER_MANAGED));
 
     map = AS_MAP(array);
 
@@ -648,7 +648,7 @@ REBTYPE(Map)
 //
 REBMAP **VAL_MAP_Ptr_Debug(const REBVAL *v) {
     assert(VAL_TYPE(v) == REB_MAP);
-    assert(SERIES_GET_FLAG(VAL_SERIES(v), SER_ARRAY));
+    assert(SERIES_GET_FLAG(VAL_SERIES(v), OPT_SER_ARRAY));
 
     // Note: hashlist may or may not be present
 

@@ -363,9 +363,9 @@ void Unmark(REBVAL *val)
     else
         return;
 
-    if (!SERIES_GET_FLAG(series, SER_MARK)) return; // avoid loop
+    if (!SERIES_GET_FLAG(series, OPT_SER_MARK)) return; // avoid loop
 
-    SERIES_CLR_FLAG(series, SER_MARK);
+    SERIES_CLR_FLAG(series, OPT_SER_MARK);
 
     for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
         Unmark(val);

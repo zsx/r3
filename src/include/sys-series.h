@@ -111,15 +111,134 @@
 // Series Flags
 //
 enum {
-    SER_MARK        = 1 << 0,   // was found during GC mark scan.
-    SER_CONTEXT     = 1 << 1,   // object context (has key series)
-    SER_FIXED_SIZE  = 1 << 2,   // size is fixed (do not expand it)
-    SER_EXTERNAL    = 1 << 3,   // ->data is external, don't free() on GC
-    SER_MANAGED     = 1 << 4,   // series is managed by garbage collection
-    SER_ARRAY       = 1 << 5,   // is sizeof(REBVAL) wide and has valid values
-    SER_LOCKED      = 1 << 6,   // series size or values cannot be modified
-    SER_POWER_OF_2  = 1 << 7,   // true alloc size is rounded to power of 2
-    SER_PARAMLIST   = 1 << 8    // series is the parameter list of a function
+    // `OPT_SER_MARK` is used in the "mark and sweep" method of garbage
+    // collection.  It is also used for other purposes which need to go
+    // through and set a generic bit, e.g. to protect against loops in
+    // the transitive closure ("if you hit a SER_MARK, then you've already
+    // processed this series").
+    //
+    // Because of the dual purpose, it's important to be sure to not run
+    // garbage collection while one of these alternate uses is in effect.
+    // It's also important to reset the bit when done, as GC assumes when
+    // it starts that all bits are cleared.  (The GC itself clears all
+    // the bits by enumerating every series in the series pool during the
+    // sweeping phase.)
+    //
+    // !!! With more series bits now available, the dual purpose is something
+    // that should be reexamined--so long as bits are free, why reuse if it
+    // creates more risk?
+    //
+    OPT_SER_MARK = 1 << 0,
+
+    // `OPT_SER_MANAGED` indicates that a series is managed by garbage
+    // collection.  If this bit is not set, then during the GC's sweeping
+    // phase the simple fact that it hasn't been SER_MARK'd won't be enough
+    // to let it be considered for freeing.
+    //
+    // See MANAGE_SERIES for details on the lifecycle of a series (how it
+    // starts out manually managed, and then must either become managed or be
+    // freed before the evaluation that created it ends).
+    //
+    OPT_SER_MANAGED = 1 << 1,
+
+    // `OPT_SER_ARRAY` indicates that this is a series of REBVAL values, and
+    // is suitable for using as the payload of an ANY-ARRAY! value.  When a
+    // series carries this bit, that means that if it is also SER_MANAGED
+    // then the garbage collector will process its transitive closure to
+    // make sure all the values it contains (and the values its references
+    // contain) do not have series GC'd out from under them.
+    //
+    // (In R3-Alpha, whether a series was an array or not was tested by if
+    // its width was sizeof(REBVAL).  The Ren-C approach allows for the
+    // creation of series that contain items that incidentally happen to be
+    // the same size as a REBVAL, while not actually being REBVALs.)
+    //
+    OPT_SER_ARRAY = 1 << 2,
+
+    // `OPT_SER_CONTEXT` indicates that this series represents the "varlist"
+    // of a context.  A second series can be reached from it via the `->misc`
+    // field in the series node, which is a second array known as a "keylist".
+    //
+    // See notes on REBCON for further details about what a context is.
+    //
+    OPT_SER_CONTEXT = 1 << 3,
+
+    // `OPT_SER_PARAMLIST` indicates that this series is an array that
+    // represents the parameter list of a function.
+    //
+    // !!! Due to some changes in the workings related to FRAME!, it may be
+    // that this flag will not be needed.
+    //
+    OPT_SER_PARAMLIST = 1 << 4,
+
+    // `OPT_SER_LOCKED` indicates that the series size or values cannot be
+    // modified.  This check is honored by some layers of abstraction, but
+    // if one manages to get a raw pointer into a value in the series data
+    // then by that point it cannot be enforced.
+    //
+    // !!! Could the 'writable' flag be used for this in the debug build,
+    // if the locking process went through and cleared writability...then
+    // put it back if the series were unlocked?
+    //
+    // This is related to the feature in PROTECT (OPT_TYPESET_LOCKED) which
+    // protects a certain variable in a context from being changed.  Yet
+    // it is distinct as it's a protection on a series itself--which ends
+    // up affecting all variable content with that series in the payload.
+    //
+    OPT_SER_LOCKED = 1 << 5,
+
+    // `OPT_SER_FIXED_SIZE` indicates that the size is fixed, and the series
+    // cannot be expanded or contracted.  Values within the series are still
+    // writable, assuming OPT_SER_LOCKED isn't set.
+    //
+    // !!! Is there checking in all paths?  Do series contractions check this?
+    //
+    // One important reason for ensuring a series is fixed size is to avoid
+    // the possibility of the data pointer being reallocated.  This allows
+    // code to ignore the usual rule that it is unsafe to hold a pointer to
+    // a value inside the series data.
+    //
+    // !!! Strictly speaking, OPT_SER_NO_RELOCATE could be a different thing
+    // from fixed size... if there would be a reason to reallocate besides
+    // changing size (such as memory compaction).
+    //
+    OPT_SER_FIXED_SIZE  = 1 << 6,
+
+    // `OPT_SER_POWER_OF_2` is flagged when an allocation size was rounded to
+    // a power of 2.  This flag was introduced in Ren-C when accounting was
+    // added to make sure the system's notion of how much memory allocation
+    // was outstanding would balance out to zero by the time of exiting the
+    // interpreter.
+    //
+    // The problem was that the allocation size was measured in terms of the
+    // number of elements.  If the elements themselves were not the size of
+    // a power of 2, then to get an even power-of-2 size of memory allocated
+    // the memory block would not be an even multiple of the element size.
+    // Rather than track the actual memory allocation size as a 32-bit number,
+    // a single bit flag remembering that the allocation was a power of 2
+    // was enough to recreate the number to balance accounting at free time.
+    //
+    // !!! The rationale for why series were ever allocated to a power of 2
+    // should be revisited.  Current conventional wisdom suggests that asking
+    // for the amount of memory you need and not using powers of 2 is
+    // generally a better idea:
+    //
+    // http://stackoverflow.com/questions/3190146/
+    //
+    OPT_SER_POWER_OF_2  = 1 << 7,
+
+    // `OPT_SER_EXTERNAL` indicates that when the series was created, the
+    // `->data` pointer was poked in by the creator.  It takes responsibility
+    // for freeing it, so don't free() on GC.
+    //
+    // !!! It's not clear what the lifetime management of data used in this
+    // way is.  If the external system receives no notice when Rebol is done
+    // with the data and GC's the series, how does it know when it's safe
+    // to free the data or not?  The feature is not used by the core or
+    // Ren-Cpp, but by relatively old extensions...so there may be no good
+    // answer in the case of those clients (likely either leaks or crashes).
+    //
+    OPT_SER_EXTERNAL = 1 << 8
 };
 
 struct Reb_Series_Dynamic {
@@ -335,10 +454,10 @@ struct Reb_Series {
 #define SERIES_GET_FLAG(s, f) \
     LOGICAL(SERIES_FLAGS(s) & ((f) << 8))
 
-#define Is_Array_Series(s) SERIES_GET_FLAG((s), SER_ARRAY)
+#define Is_Array_Series(s) SERIES_GET_FLAG((s), OPT_SER_ARRAY)
 
 #define FAIL_IF_LOCKED_SERIES(s) \
-    if (SERIES_GET_FLAG(s, SER_LOCKED)) fail (Error(RE_LOCKED))
+    if (SERIES_GET_FLAG(s, OPT_SER_LOCKED)) fail (Error(RE_LOCKED))
 
 //
 // Optimized expand when at tail (but, does not reterminate)
@@ -444,7 +563,7 @@ struct Reb_Series {
     Manage_Series(s)
 
 #define ENSURE_SERIES_MANAGED(s) \
-    (SERIES_GET_FLAG((s), SER_MANAGED) \
+    (SERIES_GET_FLAG((s), OPT_SER_MANAGED) \
         ? NOOP \
         : MANAGE_SERIES(s))
 
@@ -457,7 +576,7 @@ struct Reb_Series {
 #else
     #define ASSERT_SERIES_MANAGED(s) \
         do { \
-            if (!SERIES_GET_FLAG((s), SER_MANAGED)) \
+            if (!SERIES_GET_FLAG((s), OPT_SER_MANAGED)) \
                 Panic_Series(s); \
         } while (0)
 
@@ -783,7 +902,7 @@ struct Reb_Context {
 // ANY-FUNCTION!.  Should never be a closure.
 //
 #define IS_FRAME_CONTEXT(c) \
-    ARRAY_GET_FLAG(AS_ARRAY(c), SER_PARAMLIST)
+    ARRAY_GET_FLAG(AS_ARRAY(c), OPT_SER_PARAMLIST)
 
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
@@ -856,7 +975,7 @@ struct Reb_Context {
             MANAGE_ARRAY(CONTEXT_KEYLIST(c)))
 
     #define ENSURE_CONTEXT_MANAGED(c) \
-        (ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_MANAGED) \
+        (ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_MANAGED) \
             ? NOOP \
             : MANAGE_CONTEXT(c))
 #else
@@ -869,8 +988,8 @@ struct Reb_Context {
         Manage_Context_Debug(c)
 
     #define ENSURE_CONTEXT_MANAGED(c) \
-        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(c), SER_MANAGED) \
-        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(c), SER_MANAGED)) \
+        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_MANAGED) \
+        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(c), OPT_SER_MANAGED)) \
             ? NOOP \
             : MANAGE_CONTEXT(c))
 
