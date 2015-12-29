@@ -419,72 +419,96 @@ alter: func [
     ) [append series :value]
 ]
 
-collect: func [
-    "Evaluates a block, storing values via KEEP function, and returns block of collected values."
-    body [block!] "Block to evaluate"
-    /into "Insert into a buffer instead (returns position after insert)"
-    output [any-series!] "The buffer series (modified)"
-][
-    ; Due to the desire to still be able to use COLLECT in <r3-legacy> mode,
-    ; the "true valued refinements switch" must be respected.  This is even
-    ; though the function captures a modality at the time a switch is on,
-    ; because collect *makes* a function.  :-/
+collect-with: collect: none
 
-    ; This is sad, because @HostileFork considered the ability to add a
-    ; language feature as powerful as COLLECT to be a compass point driving
-    ; the repairs and cleanups in Ren/C.  Most of those are invisible, but
-    ; in this case it cannot be to keep working in legacy mode.
-    ;
-    ; But as long as the concern is polluting Ren/C's mezzanine to where it
-    ; can't be "perfect", the "perfect" version is separated out entirely
-    ; instead of intermingled.  :-)
+use [collect-proto] [
+    collect-proto: func [with] [compose [
 
-    either system/options/refinements-true [
-        ; Note: because this is a Mezzanine it was loaded with the word valued
-        ; refinements and unset-unused-refinements, and remembers that...even
-        ; when the legacy mode is enabled.  Compatibility to not touch code.
-        if unset? :output [output: none]
+    "Evaluate body, and return block of values collected via keep function."
 
-        ;; Rebol2, R3-Alpha, Red ;;
+    (if/only with [
+        'word [word! lit-word!]
+            "Word to which keep function will be assigned (<local> if word!)"
+    ])
 
-        unless output [output: make block! 16]
-        do func [keep] body func [
-            value [any-type!] /only
+    body [block!]
+        "Block to evaluate"
+    /into
+        "Insert into a buffer instead (returns position after insert)"
+    output [any-series!]
+        "The buffer series (modified)"
+
+    (if/only with [keeper:])
+    ]]
+
+    collect-with: func (collect-proto true) [
+
+        ; Due to the desire to be able to use COLLECT in <r3-legacy> mode,
+        ; the "true valued refinements switch" must be respected.  This is even
+        ; though the function captures a modality at the time a switch is on,
+        ; because collect *makes* a function.  :-/
+
+        either not system/options/refinements-true [
+
+            ;; Ren/C version ... adds `with` feature
+
+            output: any [:output make block! 16]
+
+            keeper: func [
+                value [any-value!] /only
+            ][
+                output: insert/:only output :value
+                :value
+            ]
+
+            either word? word [
+                ;
+                ; A plain `word` indicates that the body is not already bound to
+                ; that word.  FUNC does binding and variable creation so let it
+                ; do the work.
+                ;
+                eval func reduce [<transparent> word] body :keeper
+            ][
+                ; A lit-word `word` indicates that the word for the keeper already
+                ; exists.  Set the variable and DO the body bound as-is.
+                ;
+                set word :keeper
+                do body
+            ]
+
+            either into [output] [head output]
         ][
-            output: apply :insert [output :value none none only]
-            :value
-        ]
-        either into [output] [head output]
-    ][
-        ;; Ren/C ;;
+            ;; Legacy .. no WITH feature
 
-        output: any [:output make block! 16]
-        eval func [<transparent> keep] body func [
-            value [any-value!] /only
-        ][
-            output: insert/:only output :value
-            :value
+            ; Note: because this is a Mezzanine it was loaded with the word
+            ; valued refinements and unset-unused-refinements, and remembers
+            ; that...even when the legacy mode is enabled.  Compatibility to
+            ; not touch code.
+            ;
+            if unset? :output [output: none]
+
+            assert [word = 'keep] ; no WITH
+
+            unless output [output: make block! 16]
+            do func [keep] body func [
+                value [any-type!] /only
+            ][
+                output: apply :insert [output :value none none only]
+                :value
+            ]
+            either into [output] [head output]
         ]
-        either into [output] [head output]
     ]
 
-    ; Note that the addition of the <transparent> ties into the successful
-    ; implementation of definitional return.  Since COLLECT is receiving
-    ; raw body material from an outside caller, that may have one or more
-    ; RETURNs in it that have been definitionally bound to their callers.
-    ; Since FUNC is a generator which makes a local RETURN, it would
-    ; destroy those bindings unless told not to.  You can choose one way
-    ; or another, but the right choice here is to leave the bindings as is
+    ; Classic version of COLLECT which assumes that the word you want to use
+    ; is KEEP, and that the body needs to be deep copied and rebound (via FUNC)
+    ; to a new variable to hold the keeping function.
     ;
-    ; Note also that removing the ability for DO to evaluate functions in
-    ; this way is critical to being able to write a wrapper for DO.  If
-    ; evaluation of this form is allowed to become part of a function,
-    ; you could never emulate its behavior.  So only one primitive was
-    ; made that can do this inline evaluation trick: EVAL.
-    ;
-    ; As another small point of contrast, ANY-TYPE! is less obvious than
-    ; ANY-VALUE!...it sounds like it might mean "any DATATYPE! value"
+    collect: func (collect-proto false) [
+        collect-with keep body
+    ]
 ]
+
 
 format: function [
     "Format a string according to the format dialect."
