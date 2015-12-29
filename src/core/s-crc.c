@@ -343,7 +343,7 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
 
     // Create the hash array (integer indexes):
     hashlist = Make_Hash_Sequence(VAL_LEN_AT(block));
-    hashes = cast(REBCNT*, SERIES_DATA(hashlist));
+    hashes = SERIES_HEAD(REBCNT, hashlist);
 
     value = VAL_ARRAY_AT(block);
     if (IS_END(value))

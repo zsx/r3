@@ -370,21 +370,3 @@ void Unmark(REBVAL *val)
     for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
         Unmark(val);
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  ARRAY_LAST_Debug: C
-//
-// This is a debug-only version of ARRAY_LAST() that checks to make sure you
-// don't call it on an empty array...as it has no "last element".  Use
-// ARRAY_TAIL() to get the slot for an end marker.
-//
-REBVAL *ARRAY_LAST_Debug(REBARR *a)
-{
-    assert(ARRAY_LEN(a) != 0);
-    return (ARRAY_HEAD(a) + ARRAY_LEN(a) - 1);
-}
-
-#endif

@@ -130,7 +130,7 @@ REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
 {
     assert(ANY_BINSTR(val));
     return To_REBOL_Path(
-        VAL_DATA_AT(val),
+        VAL_RAW_DATA_AT(val),
         VAL_LEN_AT(val),
         (
             (VAL_BYTE_SIZE(val) ? PATH_OPT_UNI_SRC : 0)
@@ -275,7 +275,7 @@ REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
 {
     assert(ANY_BINSTR(val));
     return To_Local_Path(
-        VAL_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
+        VAL_RAW_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
     );
 }
 
@@ -295,7 +295,7 @@ REBSER *Value_To_OS_Path(REBVAL *val, REBOOL full)
     assert(ANY_BINSTR(val));
 
     ser = To_Local_Path(
-        VAL_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
+        VAL_RAW_DATA_AT(val), VAL_LEN_AT(val), NOT(VAL_BYTE_SIZE(val)), full
     );
 
 #ifndef TO_WINDOWS

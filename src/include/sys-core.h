@@ -260,6 +260,15 @@ enum {
     REBIND_TABLE = 2    // Use bind table when rebinding
 };
 
+// Flags used for Protect functions
+enum {
+    PROT_SET,
+    PROT_DEEP,
+    PROT_HIDE,
+    PROT_WORD,
+    PROT_MAX
+};
+
 // Mold and form options:
 enum REB_Mold_Opts {
     MOPT_MOLD_ALL,      // Output lexical types in #[type...] format

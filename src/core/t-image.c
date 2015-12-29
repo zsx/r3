@@ -411,12 +411,12 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
     if (w > 0xFFFF || h > 0xFFFF) {
         if (error)
             fail (Error(RE_SIZE_LIMIT, Get_Type(REB_IMAGE)));
-        return 0;
+        return NULL;
     }
 
     img = Make_Series(w * h + 1, sizeof(u32), MKS_NONE);
     SET_SERIES_LEN(img, w * h);
-    RESET_IMAGE(SERIES_DATA(img), SERIES_LEN(img)); //length in 'pixels'
+    RESET_IMAGE(SERIES_DATA_RAW(img), SERIES_LEN(img)); //length in 'pixels'
     IMG_WIDE(img) = w;
     IMG_HIGH(img) = h;
     return img;

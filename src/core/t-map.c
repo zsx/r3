@@ -140,7 +140,7 @@ REBINT Find_Key_Hashed(
     hash = (len == 0) ? 0 : (hash & 0x00FFFF00) % len;
 
     // Scan hash table for match:
-    hashes = (REBCNT*)SERIES_DATA(hashlist);
+    hashes = SERIES_HEAD(REBCNT, hashlist);
     if (ANY_WORD(key)) {
         while ((n = hashes[hash])) {
             val = ARRAY_AT(array, (n - 1) * wide);
@@ -208,7 +208,7 @@ static void Rehash_Map(REBMAP *map)
 
     if (!hashlist) return;
 
-    hashes = cast(REBCNT*, SERIES_DATA(MAP_HASHLIST(map)));
+    hashes = SERIES_HEAD(REBCNT, MAP_HASHLIST(map));
     pairlist = MAP_PAIRLIST(map);
 
     key = ARRAY_HEAD(pairlist);
@@ -311,7 +311,7 @@ static REBCNT Find_Map_Entry(REBMAP *map, REBVAL *key, REBVAL *val)
     }
 
     hash = Find_Key_Hashed(pairlist, hashlist, key, 2, cased, 0);
-    hashes = cast(REBCNT*, SERIES_DATA(hashlist));
+    hashes = SERIES_HEAD(REBCNT, hashlist);
     n = hashes[hash];
 
     // Just a GET of value:

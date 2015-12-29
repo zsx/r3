@@ -996,11 +996,8 @@ struct Reb_Any_Series
 
 #define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
 
-#define VAL_DATA_AT(p) \
-    (VAL_BIN_HEAD(p) + (VAL_INDEX(p) * VAL_SERIES_WIDTH(p)))
-
-#define VAL_SERIES_WIDTH(v) \
-    SERIES_WIDE(VAL_SERIES(v))
+#define VAL_RAW_DATA_AT(v) \
+    SERIES_AT_RAW(VAL_SERIES(v), VAL_INDEX(v))
 
 
 // Note: These macros represent things that used to sometimes be functions,
@@ -1137,14 +1134,14 @@ struct Reb_Any_Series
 
 #define QUAD_LEN(s)         SERIES_LEN(s)
 
-#define QUAD_HEAD(s)        cast(REBYTE*, SERIES_DATA(s))
+#define QUAD_HEAD(s)        SERIES_DATA_RAW(s)
 #define QUAD_SKIP(s,n)      (QUAD_HEAD(s) + ((n) * 4))
 #define QUAD_TAIL(s)        (QUAD_HEAD(s) + (QUAD_LEN(s) * 4))
 
 #define IMG_SIZE(s)         ((s)->misc.size)
 #define IMG_WIDE(s)         ((s)->misc.area.wide)
 #define IMG_HIGH(s)         ((s)->misc.area.high)
-#define IMG_DATA(s)         cast(REBYTE*, SERIES_DATA(s))
+#define IMG_DATA(s)         SERIES_DATA_RAW(s)
 
 #define VAL_IMAGE_HEAD(v)   QUAD_HEAD(VAL_SERIES(v))
 #define VAL_IMAGE_TAIL(v)   QUAD_SKIP(VAL_SERIES(v), VAL_LEN_HEAD(v))
@@ -1398,7 +1395,7 @@ struct Reb_Typeset {
 
 // Word number array (used by Bind_Table):
 #define WORDS_HEAD(w) \
-    cast(REBINT *, SERIES_DATA(w))
+    SERIES_HEAD(REBINT, (w))
 
 #define WORDS_LAST(w) \
     (WORDS_HEAD(w) + SERIES_LEN(w) - 1) // (tail never zero)

@@ -85,7 +85,7 @@ void Init_Stacks(REBCNT size)
     // empty array.
     //
     TG_Do_Stack = Make_Series(128, sizeof(struct Reb_Call*), MKS_NONE);
-    *cast(struct Reb_Call**, SERIES_DATA(TG_Do_Stack)) = NULL;
+    *SERIES_HEAD(struct Reb_Call*, TG_Do_Stack) = NULL;
     SET_SERIES_LEN(TG_Do_Stack, 1);
 }
 

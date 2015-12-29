@@ -288,13 +288,13 @@ typedef struct REB_Str_Flags {
 static void Sniff_String(REBSER *ser, REBCNT idx, REB_STRF *sf)
 {
     // Scan to find out what special chars the string contains?
-    REBYTE *bp = SERIES_DATA(ser);
-    REBUNI *up = (REBUNI*)bp;
+    REBYTE *bp = SERIES_DATA_RAW(ser);
+    REBUNI *up = cast(REBUNI*, bp);
     REBUNI c;
     REBCNT n;
 
     for (n = idx; n < SERIES_LEN(ser); n++) {
-        c = (BYTE_SIZE(ser)) ? (REBUNI)(bp[n]) : up[n];
+        c = BYTE_SIZE(ser) ? cast(REBUNI, bp[n]) : up[n];
         switch (c) {
         case '{':
             sf->brace_in++;

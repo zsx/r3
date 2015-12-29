@@ -160,15 +160,11 @@ static void Push_Array_Marked_Deep(REBARR *array)
 
     if (SERIES_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
 
-    cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
-        SERIES_LEN(GC_Mark_Stack)
-    ] = array;
+    *SERIES_AT(REBARR*, GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack)) = array;
 
     SET_SERIES_LEN(GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack) + 1);
 
-    cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
-        SERIES_LEN(GC_Mark_Stack)
-    ] = NULL;
+    *SERIES_AT(REBARR*, GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack)) = NULL;
 }
 
 
@@ -331,7 +327,7 @@ static void Queue_Mark_Field_Deep(const REBSTU *stu, struct Struct_Field *field)
 
         for (len = 0; len < SERIES_LEN(field_fields); len++) {
             Queue_Mark_Field_Deep(
-                stu, cast(struct Struct_Field*, SERIES_AT(field_fields, len))
+                stu, SERIES_AT(struct Struct_Field, field_fields, len)
             );
         }
     }
@@ -340,8 +336,9 @@ static void Queue_Mark_Field_Deep(const REBSTU *stu, struct Struct_Field *field)
 
         assert(field->size == sizeof(REBVAL));
         for (i = 0; i < field->dimension; i ++) {
-            REBVAL *data = cast(REBVAL*,
+            REBVAL *data = cast(REBVAL*, // !!! What? Is this an ARRAY!?
                 SERIES_AT(
+                    REBYTE,
                     STRUCT_DATA_BIN(stu),
                     STRUCT_OFFSET(stu) + field->offset + i * field->size
                 )
@@ -385,9 +382,8 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
 
     series = stu->fields;
     for (len = 0; len < SERIES_LEN(series); len++) {
-        struct Struct_Field *field = cast(struct Struct_Field*,
-            SERIES_AT(series, len)
-        );
+        struct Struct_Field *field
+            = SERIES_AT(struct Struct_Field, series, len);
 
         Queue_Mark_Field_Deep(stu, field);
     }
@@ -538,11 +534,8 @@ static void Mark_Devices_Deep(void)
 //
 static void Mark_Call_Frames_Deep(void)
 {
-    struct Reb_Call *c = *(
-        cast(struct Reb_Call**, SERIES_DATA(TG_Do_Stack))
-        + SERIES_LEN(TG_Do_Stack)
-        - 1
-    );
+    struct Reb_Call *c =
+        *SERIES_AT(struct Reb_Call*, TG_Do_Stack, SERIES_LEN(TG_Do_Stack) - 1);
 
     for (; c != NULL; c = c->prior) {
 
@@ -1083,16 +1076,12 @@ static void Propagate_All_GC_Marks(void)
 
         SET_SERIES_LEN(GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack) - 1);
 
-        array = cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
-            SERIES_LEN(GC_Mark_Stack)
-        ];
+        array = *SERIES_AT(REBARR*, GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack));
 
         // Drop the series we are processing off the tail, as we could be
         // queuing more of them (hence increasing the tail).
         //
-        cast(REBARR **, SERIES_DATA(GC_Mark_Stack))[
-            SERIES_LEN(GC_Mark_Stack)
-        ] = NULL;
+        *SERIES_AT(REBARR*, GC_Mark_Stack, SERIES_LEN(GC_Mark_Stack)) = NULL;
 
         Mark_Array_Deep_Core(array);
     }
@@ -1152,7 +1141,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // the values are marked), or if it's just a data series which
         // should just be marked shallow.
         //
-        sp = cast(REBSER**, SERIES_DATA(GC_Series_Guard));
+        sp = SERIES_HEAD(REBSER*, GC_Series_Guard);
         for (n = SERIES_LEN(GC_Series_Guard); n > 0; n--, sp++) {
             if (SERIES_GET_FLAG(*sp, SER_CONTEXT))
                 MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
@@ -1163,7 +1152,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         }
 
         // Mark value stack (temp-saved values):
-        vp = cast(REBVAL**, SERIES_DATA(GC_Value_Guard));
+        vp = SERIES_HEAD(REBVAL*, GC_Value_Guard);
         for (n = SERIES_LEN(GC_Value_Guard); n > 0; n--, vp++) {
             if (NOT_END(*vp))
                 Queue_Mark_Value_Deep(*vp);
@@ -1296,9 +1285,11 @@ void Guard_Series_Core(REBSER *series)
 
     if (SERIES_FULL(GC_Series_Guard)) Extend_Series(GC_Series_Guard, 8);
 
-    cast(REBSER **, SERIES_DATA(GC_Series_Guard))[
+    *SERIES_AT(
+        REBSER*,
+        GC_Series_Guard,
         SERIES_LEN(GC_Series_Guard)
-    ] = series;
+    ) = series;
 
     SET_SERIES_LEN(GC_Series_Guard, SERIES_LEN(GC_Series_Guard) + 1);
 }
@@ -1328,9 +1319,11 @@ void Guard_Value_Core(const REBVAL *value)
 
     if (SERIES_FULL(GC_Value_Guard)) Extend_Series(GC_Value_Guard, 8);
 
-    cast(const REBVAL **, SERIES_DATA(GC_Value_Guard))[
+    *SERIES_AT(
+        const REBVAL*,
+        GC_Value_Guard,
         SERIES_LEN(GC_Value_Guard)
-    ] = value;
+    ) = value;
 
     SET_SERIES_LEN(GC_Value_Guard, SERIES_LEN(GC_Value_Guard) + 1);
 }

@@ -30,16 +30,6 @@
 #include "sys-core.h"
 
 
-// Local flags used for Protect functions below:
-enum {
-    PROT_SET,
-    PROT_DEEP,
-    PROT_HIDE,
-    PROT_WORD,
-    PROT_MAX
-};
-
-
 //
 //  Protect_Key: C
 //
@@ -62,7 +52,7 @@ static void Protect_Key(REBVAL *key, REBCNT flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-static void Protect_Value(REBVAL *value, REBCNT flags)
+void Protect_Value(REBVAL *value, REBCNT flags)
 {
     if (ANY_SERIES(value) || IS_MAP(value))
         Protect_Series(value, flags);

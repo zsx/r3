@@ -321,7 +321,7 @@ static void Load_Boot(void)
     if (!text || (SERIES_LEN(text) != NAT_UNCOMPRESSED_SIZE))
         panic (Error(RE_BOOT_DATA));
 
-    boot = Scan_Source(SERIES_DATA(text), NAT_UNCOMPRESSED_SIZE);
+    boot = Scan_Source(BIN_HEAD(text), NAT_UNCOMPRESSED_SIZE);
     Free_Series(text);
 
     // Do not let it get GC'd
@@ -1016,7 +1016,7 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
             Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
             ser = dst;
         }
-        codi->data = SERIES_DATA(ser);
+        codi->data = SERIES_DATA_RAW(ser); // !!! REBUNI?  REBYTE?
         codi->len = SERIES_LEN(ser);
         codi->w = SERIES_WIDE(ser);
         return CODI_TEXT;

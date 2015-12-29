@@ -68,16 +68,18 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
         switch (action) {
 
         case A_OPEN:
-            arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);  //Should Obj_Value really return a char* ?
+            arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
 
             req->special.serial.path = ALLOC_N(REBCHR, MAX_SERIAL_DEV_PATH);
             OS_STRNCPY(
                 req->special.serial.path,
+                //
                 // !!! This is assuming VAL_DATA contains native chars.
                 // Should it? (2 bytes on windows, 1 byte on linux/mac)
-                cast(REBCHR*, VAL_DATA_AT(arg)),
+                //
+                SERIES_AT(REBCHR, VAL_SERIES(arg), VAL_INDEX(arg)),
                 MAX_SERIAL_DEV_PATH
             );
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_SPEED);

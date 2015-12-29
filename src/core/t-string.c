@@ -335,8 +335,8 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
     case REB_MONEY:
         ser = Make_Binary(12);
         SET_SERIES_LEN(ser, 12);
-        deci_to_binary(SERIES_DATA(ser), VAL_MONEY_AMOUNT(arg));
-        SERIES_DATA(ser)[12] = 0;
+        deci_to_binary(BIN_HEAD(ser), VAL_MONEY_AMOUNT(arg));
+        BIN_HEAD(ser)[12] = 0;
         break;
 
     default:
@@ -461,7 +461,7 @@ static void Sort_String(
     if (rev) thunk |= CC_FLAG_REVERSE;
 
     reb_qsort_r(
-        VAL_DATA_AT(string),
+        VAL_RAW_DATA_AT(string),
         len,
         size * SERIES_WIDE(VAL_SERIES(string)),
         &thunk,
@@ -889,10 +889,22 @@ zero_str:
         break;
 
     case A_RANDOM:
-        if (D_REF(2)) { // seed
-            Set_Random(Compute_CRC(VAL_BIN_AT(value), VAL_LEN_AT(value)));
+        if (D_REF(2)) { // /seed
+            //
+            // Use the string contents as a seed.  R3-Alpha would try and
+            // treat it as byte-sized hence only take half the data into
+            // account if it were REBUNI-wide.  This multiplies the number
+            // of bytes by the width and offsets by the size.
+            //
+            Set_Random(
+                Compute_CRC(
+                    SERIES_AT_RAW(VAL_SERIES(value), VAL_INDEX(value)),
+                    VAL_LEN_AT(value) * SERIES_WIDE(VAL_SERIES(value))
+                )
+            );
             return R_UNSET;
         }
+
         if (D_REF(4)) { // /only
             if (index >= tail) goto is_none;
             index += (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure

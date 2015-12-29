@@ -1067,13 +1067,17 @@ void Do_Core(struct Reb_Call * const c)
         // The Do Stack was seeded with a NULL in the 0 position so that it
         // is not necessary to check for it being empty before the -1
         //
-        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        c->prior = *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack) - 1
-        ];
+        );
 
-        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack)
-        ] = c;
+        ) = c;
 
         SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
     }
@@ -2766,13 +2770,17 @@ REBOOL Apply_Func_Throws_Core(
         // The Do Stack was seeded with a NULL in the 0 position so that it
         // is not necessary to check for it being empty before the -1
         //
-        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        c->prior = *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack) - 1
-        ];
+        );
 
-        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack)
-        ] = c;
+        ) = c;
 
         SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
     }
@@ -3193,13 +3201,17 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
         // The Do Stack was seeded with a NULL in the 0 position so that it
         // is not necessary to check for it being empty before the -1
         //
-        c->prior = cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        c->prior = *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack) - 1
-        ];
+        );
 
-        cast(struct Reb_Call **, SERIES_DATA(TG_Do_Stack))[
+        *SERIES_AT(
+            struct Reb_Call*,
+            TG_Do_Stack,
             SERIES_LEN(TG_Do_Stack)
-        ] = c;
+        ) = c;
 
         SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
     }
