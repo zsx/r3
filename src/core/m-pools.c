@@ -283,9 +283,12 @@ void Init_Pools(REBINT scale)
 
     // sizes 0 - 8 are pool 0
     for (n = 0; n <= 8; n++) PG_Pool_Map[n] = 0;
-    for (; n <= 16 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_TINY_POOL     + ((n-1) / MEM_MIN_SIZE);
-    for (; n <= 32 * MEM_MIN_SIZE; n++) PG_Pool_Map[n] = MEM_SMALL_POOLS-4 + ((n-1) / (MEM_MIN_SIZE * 4));
-    for (; n <=  4 * MEM_BIG_SIZE; n++) PG_Pool_Map[n] = MEM_MID_POOLS     + ((n-1) / MEM_BIG_SIZE);
+    for (; n <= 16 * MEM_MIN_SIZE; n++)
+        PG_Pool_Map[n] = MEM_TINY_POOL + ((n-1) / MEM_MIN_SIZE);
+    for (; n <= 32 * MEM_MIN_SIZE; n++)
+        PG_Pool_Map[n] = MEM_SMALL_POOLS-4 + ((n-1) / (MEM_MIN_SIZE * 4));
+    for (; n <=  4 * MEM_BIG_SIZE; n++)
+        PG_Pool_Map[n] = MEM_MID_POOLS + ((n-1) / MEM_BIG_SIZE);
 
     // !!! Revisit where series init/shutdown goes when the code is more
     // organized to have some of the logic not in the pools file
@@ -302,6 +305,11 @@ void Init_Pools(REBINT scale)
     CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
     Prior_Expand[0] = (REBSER*)1;
 }
+
+
+#if !defined(NDEBUG)
+    #include <stdio.h>
+#endif
 
 
 //
@@ -347,19 +355,28 @@ void Shutdown_Pools(void)
     // as well as to be able to set boundaries on mem usage without "ulimit".
     // The tracked number of total memory used should balance to 0 here.
     //
+#if !defined(NDEBUG)
     if (PG_Mem_Usage != 0) {
-        /* assert(FALSE); */
-
-        // This tells you about the leaked allocations, but if you want to
-        // actually get a list of where they came from you need to use
-        // Valgrind or Leak Sanitizer (or similar).  This assert should
-        // thus have some kind of switch to disable it when using with
-        // one of those tools, to allow for a normal exit to read the report.
         //
-        // !!! Ideally we would print the number here, but Rebol's
-        // print mechanisms (e.g. Debug_Fmt) use memory...and we don't
-        // want to link in `printf`.  Is there a more basic printer?
+        // The release build of the core doesn't want to link in printf.
+        // It's used here because all the alloc-dependent outputting code
+        // will not work at this point.  Exit normally instead of asserting
+        // to make it easier for those tools.
+        //
+        if (PG_Mem_Usage <= MAX_U32)
+            printf("*** PG_Mem_Usage = %u ***\n", cast(REBCNT, PG_Mem_Usage));
+        else
+            printf("*** PG_Mem_Usage > MAX_U32 ***\n");
+
+        printf(
+            "Memory accounting imbalance: Rebol internally tracks how much\n"
+            "memory it uses to know when to garbage collect, etc.  For\n"
+            "some reason this accounting did not balance to zero on exit.\n"
+            "Run under Valgrind with --leak-check=full --track-origins=yes\n"
+            "to find out why this is happening.\n"
+        );
     }
+#endif
 }
 
 
