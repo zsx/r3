@@ -352,6 +352,8 @@ struct Reb_Series {
 //
 #define SERIES_DATA_RAW(s)      ((s)->content.dynamic.data + 0) // Lvalue!
 #define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * i))
+#define SERIES_SET_EXTERNAL_DATA(s, p) \
+	((s)->content.dynamic.data = cast(REBYTE*, (p)))
 
 //
 // In general, requesting a pointer into the series data requires passing in
