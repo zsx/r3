@@ -68,10 +68,12 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     //
     GC_Disabled++;
 
+#if !defined(NDEBUG)
     if (Reb_Opts && Reb_Opts->crash_dump) {
         Dump_Info();
         Dump_Stack(0, 0);
     }
+#endif
 
     strncat(title, "PANIC #", PANIC_TITLE_BUF_SIZE - 0);
     Form_Int(b_cast(title + strlen(title)), id); // !!! no bounding...

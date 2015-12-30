@@ -199,6 +199,9 @@ REBNATIVE(stats)
         return R_OUT;
     }
 
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
     if (D_REF(5)) {
         REBVAL *pool_id = D_ARG(6);
         Dump_Series_In_Pool(VAL_INT32(pool_id));
@@ -207,11 +210,13 @@ REBNATIVE(stats)
 
     if (D_REF(1)) flags = 3;
     n = Inspect_Series(flags);
+#endif
 
     SET_INTEGER(D_OUT, n);
 
     return R_OUT;
 }
+
 
 const char *evoke_help = "Evoke values:\n"
     "[stack-size n] crash-dump delect\n"
@@ -231,6 +236,9 @@ const char *evoke_help = "Evoke values:\n"
 //
 REBNATIVE(evoke)
 {
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
     REBVAL *arg = D_ARG(1);
     REBCNT len;
 
@@ -289,6 +297,7 @@ REBNATIVE(evoke)
     }
 
     return R_UNSET;
+#endif
 }
 
 
@@ -1301,19 +1310,6 @@ REBNATIVE(check)
     return R_TRUE;
 #endif
 
-}
-
-
-//
-//  ds: native [
-//  "Temporary stack debug"
-//      ; No arguments
-//  ]
-//
-REBNATIVE(ds)
-{
-    Dump_Stack(0, 0);
-    return R_UNSET;
 }
 
 

@@ -31,6 +31,8 @@
 #include "sys-core.h"
 #include "mem-series.h" // low-level series memory access
 
+#if !defined(NDEBUG)
+
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif
@@ -239,4 +241,6 @@ void Dump_Stack(struct Reb_Call *call, REBINT dsp)
     Print("%%c %c", (REBINT)'X');
     Print("%s %d %x", "test", 1234, 1234);
     getchar();
+#endif
+
 #endif

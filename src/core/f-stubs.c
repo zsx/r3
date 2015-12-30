@@ -509,8 +509,6 @@ void Val_Init_Context_Core(
     REBCON *spec,
     REBARR *body
 ) {
-    REBVAL *value;
-
 #if !defined(NDEBUG)
     if (!CONTEXT_KEYLIST(context)) {
         Debug_Fmt("Context found with no keylist set");
@@ -522,16 +520,20 @@ void Val_Init_Context_Core(
 
     assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
 
-    // !!! This isn't strictly necessary, but the macro expansions are
-    // fairly long (as they include asserts and such).  C is only required
-    // to support 4095-char strings, so it gets long.  Revisit.
-    //
-    value = CONTEXT_VALUE(context);
+#if !defined(NDEBUG)
+    {
+        // !!! `value` isn't strictly necessary, but the macro expansions are
+        // fairly long (as they include asserts and such).  C is only required
+        // to support 4095-char strings, so it gets long.  Revisit.
+        //
+        REBVAL *value = CONTEXT_VALUE(context);
 
-    assert(CONTEXT_TYPE(context) == kind);
-    assert(VAL_CONTEXT(value) == context);
-    assert(VAL_CONTEXT_SPEC(value) == spec);
-    assert(VAL_CONTEXT_BODY(value) == body);
+        assert(CONTEXT_TYPE(context) == kind);
+        assert(VAL_CONTEXT(value) == context);
+        assert(VAL_CONTEXT_SPEC(value) == spec);
+        assert(VAL_CONTEXT_BODY(value) == body);
+    }
+#endif
 
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
