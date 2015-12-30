@@ -1090,10 +1090,10 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         return;
     }
 
-    // Range checks:
+    // Range checks
+    //
+    assert(index <= series->content.dynamic.len);
     if (delta & 0x80000000) fail (Error(RE_PAST_END)); // 2GB max
-    if (index > series->content.dynamic.len)
-        index = series->content.dynamic.len; // clip
 
     // Width adjusted variables:
     start = index * wide;
@@ -1211,7 +1211,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     //
     memcpy(series->content.dynamic.data, data_old, start);
 
-    // Copy the series after the expansion point.  In AT_TAIL cases, this
+    // Copy the series after the expansion point.  If at tail, this
     // just moves the terminator to the new tail.
     //
     memcpy(

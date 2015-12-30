@@ -189,13 +189,20 @@ void Insert_Char(REBSER *dst, REBCNT index, REBCNT chr)
 // Source and/or destination can be 1 or 2 bytes wide.
 // If destination is not wide enough, it will be widened.
 //
-void Insert_String(REBSER *dst, REBCNT idx, const REBSER *src, REBCNT pos, REBCNT len, REBOOL no_expand)
-{
+void Insert_String(
+    REBSER *dst,
+    REBCNT idx,
+    const REBSER *src,
+    REBCNT pos,
+    REBCNT len,
+    REBOOL no_expand
+) {
     REBUNI *up;
     REBYTE *bp;
     REBCNT n;
 
-    if (idx > SERIES_LEN(dst)) idx = SERIES_LEN(dst);
+    assert(idx <= SERIES_LEN(dst));
+
     if (!no_expand) Expand_Series(dst, idx, len); // tail changed too
 
     // Src and dst have same width (8 or 16):
