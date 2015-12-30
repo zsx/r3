@@ -396,9 +396,6 @@ struct Reb_Series {
 #define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
 #define SERIES_FITS(s,n) ((SERIES_LEN(s) + (n) + 1) <= SERIES_REST(s))
 
-// Flag used for extending series at tail:
-#define AT_TAIL ((REBCNT)(~0))  // Extend series at tail
-
 //
 // Series flags
 //
@@ -424,13 +421,13 @@ struct Reb_Series {
 #define EXPAND_SERIES_TAIL(s,l) \
     do { \
         if (SERIES_FITS((s), (l))) (s)->content.dynamic.len += (l); \
-        else Expand_Series((s), AT_TAIL, (l)); \
+        else Expand_Series((s), SERIES_LEN(s), (l)); \
     } while (0)
 
 #define RESIZE_SERIES(s,l) \
     do { \
         (s)->content.dynamic.len = 0; \
-        if (!SERIES_FITS((s), (l))) Expand_Series((s), AT_TAIL, (l)); \
+        if (!SERIES_FITS((s), (l))) Expand_Series((s), SERIES_LEN(s), (l)); \
         (s)->content.dynamic.len = 0; \
     } while (0)
 

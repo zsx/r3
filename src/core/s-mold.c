@@ -508,7 +508,7 @@ static void Mold_Tag(const REBVAL *value, REB_MOLD *mold)
     Append_Codepoint_Raw(mold->series, '<');
     Insert_String(
         mold->series,
-        AT_TAIL,
+        SERIES_LEN(mold->series), // "insert" at tail (append)
         VAL_SERIES(value),
         VAL_INDEX(value),
         VAL_LEN_AT(value),
@@ -1066,7 +1066,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         if (!molded) {
             Insert_String(
                 ser,
-                -1,
+                SERIES_LEN(ser), // "insert" at tail (append)
                 VAL_SERIES(value),
                 VAL_INDEX(value),
                 VAL_LEN_AT(value),
