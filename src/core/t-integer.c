@@ -80,7 +80,7 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         *out = deci_to_int(VAL_MONEY_AMOUNT(value));
         goto check_sign;
     }
-    else if (IS_BINARY(value)) { // must be before ANY_STR() test...
+    else if (IS_BINARY(value)) { // must be before ANY_STRING() test...
 
         // Rebol3 creates 8-byte big endian for signed 64-bit integers.
         // Rebol2 created 4-byte big endian for signed 32-bit integers.
@@ -204,7 +204,7 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
 
         return;
     }
-    else if (ANY_STR(value)) {
+    else if (ANY_STRING(value)) {
         REBYTE *bp;
         REBCNT len;
         REBDEC dec;

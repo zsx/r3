@@ -507,7 +507,7 @@ emit {
 #define ANY_SERIES(v) \
     (VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
 
-#define ANY_STR(v) \
+#define ANY_STRING(v) \
     (VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
 
 #define ANY_BINSTR(v) \

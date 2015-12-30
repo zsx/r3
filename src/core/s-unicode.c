@@ -1221,7 +1221,7 @@ REBSER *Make_UTF8_From_Any_String(
     REBCNT len,
     REBFLGS opts
 ) {
-    assert(ANY_STR(value));
+    assert(ANY_STRING(value));
 
     if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
         // We can copy a one-byte-per-character series if it doesn't contain

@@ -172,7 +172,7 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
     REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;
 
-    assert(IS_BINARY(val) || ANY_STR(val));
+    assert(IS_BINARY(val) || ANY_STRING(val));
 
     // !!! This used to check `len == 0` and reuse a zero length string.
     // However, the zero length string could have the wrong width.  We are

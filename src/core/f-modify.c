@@ -177,7 +177,7 @@ REBCNT Modify_String(
             needs_free = TRUE;
             limit = -1;
         }
-        else if (ANY_STR(src_val)) {
+        else if (ANY_STRING(src_val)) {
             src_len = VAL_LEN_AT(src_val);
             if (limit >= 0 && src_len > cast(REBCNT, limit))
                 src_len = limit;
@@ -196,7 +196,7 @@ REBCNT Modify_String(
         src_ser = Form_Tight_Block(src_val);
         needs_free = TRUE;
     }
-    else if (!ANY_STR(src_val) || IS_TAG(src_val)) {
+    else if (!ANY_STRING(src_val) || IS_TAG(src_val)) {
         src_ser = Copy_Form_Value(src_val, 0);
         needs_free = TRUE;
     }
