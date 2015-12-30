@@ -32,8 +32,6 @@
 #define CHECK_MEMORY(n)
 #endif
 
-typedef void *REBNOD;           // Just used for linking free nodes
-
 /***********************************************************************
 **
 */  typedef struct rebol_mem_segment
@@ -67,7 +65,7 @@ typedef void *REBNOD;           // Just used for linking free nodes
 
 /***********************************************************************
 **
-*/  typedef struct rebol_mem_pool
+*/  struct rebol_mem_pool
 /*
 **      Pools manage fixed sized blocks of memory.
 **
@@ -83,7 +81,7 @@ typedef void *REBNOD;           // Just used for linking free nodes
 //  UL      total;              // total bytes for all segs
 //  char    *name;              // identifying string
 //  UL      extra;              // reserved
-} REBPOL;
+};
 
 
 /***********************************************************************

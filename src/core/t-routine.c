@@ -103,6 +103,8 @@
 #include <stdio.h>
 #include "sys-core.h"
 
+#include "mem-pools.h" // low-level memory pool access
+
 #ifdef HAVE_LIBFFI_AVAILABLE
     #include <ffi.h>
 #else

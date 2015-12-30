@@ -71,7 +71,10 @@
 //#define INSPECT_SERIES
 
 #include "sys-core.h"
+
+#include "mem-pools.h" // low-level memory pool access
 #include "mem-series.h" // low-level series memory access
+
 #include "sys-int-funcs.h"
 
 
@@ -583,9 +586,17 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
 {
     REBPOL *pool = &Mem_Pools[pool_id];
 
-    if (pool->last == NULL) { //pool is empty
-        Fill_Pool(pool); //insert an empty segment, such that this node won't be picked by next Make_Node to enlongate the poisonous time of this area to catch stale pointers
+    if (pool->last == NULL) {
+        //
+        // Pool is empty, so fill it.
+        //
+        Fill_Pool(pool);
     }
+
+    // insert an empty segment, such that this node won't be picked by
+    // next Make_Node to enlongate the poisonous time of this area to
+    // catch stale pointers
+
     UNPOISON_MEMORY(pool->last, pool->wide);
     *(pool->last) = node;
     POISON_MEMORY(pool->last, pool->wide);

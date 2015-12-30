@@ -96,7 +96,10 @@
 ***********************************************************************/
 
 #include "sys-core.h"
+
+#include "mem-pools.h" // low-level memory pool access
 #include "mem-series.h" // low-level series memory access
+
 #include "reb-evtypes.h"
 
 //-- For Serious Debugging:

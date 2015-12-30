@@ -303,8 +303,6 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
     len *= SERIES_WIDE(series);
     data = series->content.dynamic.data + start;
     memmove(data, data + len, length - (start + len));
-
-    CHECK_MEMORY(5);
 }
 
 

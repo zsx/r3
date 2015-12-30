@@ -1272,8 +1272,6 @@ void Bind_Values_Core(REBVAL value[], REBCON *context, REBCNT mode)
     REBCNT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-    CHECK_MEMORY(4);
-
     CHECK_BIND_TABLE;
 
     // Note about optimization: it's not a big win to avoid the

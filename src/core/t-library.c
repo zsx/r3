@@ -29,6 +29,10 @@
 
 #include "sys-core.h"
 
+// !!! Why is there a "LIB_POOL"?  Does that really need optimization?
+//
+#include "mem-pools.h" // low-level memory pool access
+
 //
 //  CT_Library: C
 //

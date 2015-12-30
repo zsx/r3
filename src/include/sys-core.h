@@ -112,7 +112,14 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 #include "reb-math.h"
 #include "reb-codec.h"
 
-#include "sys-mem.h"
+// !!! These definitions used to be in %sys-mem.h, which is now %mem-pools.h
+// REBNOD appears in the Free_Node API, while REBPOL is used in globals
+// The rest is not necessary to expose to the whole system, but perhaps
+// these two shouldn't be in this specific location.
+//
+typedef void* REBNOD; // Just used for linking free nodes
+typedef struct rebol_mem_pool REBPOL;
+
 #include "sys-deci.h"
 #include "sys-value.h"
 #include "sys-series.h"

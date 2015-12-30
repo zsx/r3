@@ -29,6 +29,8 @@
 
 #include "sys-core.h"
 
+#include "mem-pools.h" // low-level memory pool access
+
 const REBCNT Gob_Flag_Words[] = {
     SYM_RESIZE,      GOBF_RESIZE,
     SYM_NO_TITLE,    GOBF_NO_TITLE,
