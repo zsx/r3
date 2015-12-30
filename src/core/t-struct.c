@@ -542,10 +542,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
         Is_Array_Series(data_ser) ? (MKS_ARRAY | MKS_EXTERNAL) : MKS_EXTERNAL
     );
 
-    // !!! Should probably be a formally named macro for setting a series
-    // MKS_EXTERNAL, vs reaching directly into the implementation of REBSER
-    //
-    ser->content.dynamic.data = cast(REBYTE*, raw_addr);
+    SERIES_SET_EXTERNAL_DATA(ser, raw_addr);
 
     VAL_STRUCT_DATA_BIN(out) = ser;
     MANAGE_SERIES(ser);
