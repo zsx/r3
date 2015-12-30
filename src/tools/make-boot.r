@@ -486,7 +486,7 @@ for-each-record-NO-RETURN type boot-types [
     str: uppercase form type/name
     replace/all str #"-" #"_"
     def: join {#define IS_} [str "(v)" space]
-    emit [def "LOGICAL(VAL_TYPE(v)==REB_" str ")" newline]
+    emit [def "LOGICAL(NOT_END(v) && VAL_TYPE(v)==REB_" str ")" newline]
 
     n: n + 1
 ]
