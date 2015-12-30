@@ -439,7 +439,7 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
         case REB_EMAIL:
         case REB_URL:
         case REB_TAG:
-            if (ANY_STR(b)) goto compare;
+            if (ANY_STRING(b)) goto compare;
             break;
         }
 

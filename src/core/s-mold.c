@@ -1060,7 +1060,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     }
 
     // Special handling of string series: {
-    if (ANY_STR(value) && !IS_TAG(value)) {
+    if (ANY_STRING(value) && !IS_TAG(value)) {
 
         // Forming a string:
         if (!molded) {

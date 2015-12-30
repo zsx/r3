@@ -1313,7 +1313,7 @@ REBNATIVE(set_env)
     // !!! By passing NULL we don't get backing series to protect!
     cmd = Val_Str_To_OS_Managed(NULL, arg1);
 
-    if (ANY_STR(arg2)) {
+    if (ANY_STRING(arg2)) {
         // !!! By passing NULL we don't get backing series to protect!
         REBCHR *value = Val_Str_To_OS_Managed(NULL, arg2);
         success = OS_SET_ENV(cmd, value);
