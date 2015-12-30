@@ -310,26 +310,17 @@ struct Reb_Series {
         REBOOL negated; // for bitsets (can't be EXT flag on just one value)
     } misc;
 
-    //
     // `info` is the information about the series which needs to be known
     // even if it is not using a dynamic allocation.  So even if the alloc
     // size, length, and bias aren't relevant...the series flags need to
     // be known...including the flag of whether this is a dynamic series
     // node or not!
     //
-    REBCNT info;
-
-#if defined(__LP64__) || defined(__LLP64__)
+    // !!! Only the low 32-bits are used on 64-bit platforms.  There could
+    // be some interesting added caching feature or otherwise that would use
+    // it, while not making any feature specifically require a 64-bit CPU.
     //
-    // We need to make sure the next position is naturally aligned.  32-bit
-    // platforms it will be, but on 64-bit platforms it won't.  This means
-    // that there is an unused 32-bit quantity in each series on 64-bit
-    // platforms, similar to the unused 32-bit quantity in each value on
-    // 64-bit platforms.  It might be useful for some kind of enhancement
-    // in caching or otherwise that a 64-bit build could offer...
-    //
-    REBCNT unused;
-#endif
+    REBUPT info;
 
 #if !defined(NDEBUG)
     REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series

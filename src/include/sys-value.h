@@ -612,8 +612,13 @@ enum {
     // containers do this automatically, but if you make a REBVAL as a stack
     // variable then it will have to be done before any write can happen.
     //
+    // An alignment check to the size of a pointer is commented out due to
+    // being expensive to run on every value in the system, but should be
+    // added under an "intense checks" switch.
+    //
     #define VAL_INIT_WRITABLE_DEBUG(v) \
         ( \
+            /* assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0), */ \
             (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
             SET_TRACK_PAYLOAD(v) \
         )
