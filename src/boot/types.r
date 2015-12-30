@@ -26,7 +26,7 @@ REBOL [
         Note that if there is `somename` in the class column, that means you
         will find the ACTION! dispatch for that type in `REBTYPE(Somename)`.
 
-        If the (CLASS) is in a paren that means it has evaluator behavior,
+        If the (CLASS) is in a GROUP! that means it has evaluator behavior,
         vs. being passed through as-is.  (e.g. a lit-word is "evaluative")
         This is used to build the table used for fast lookup of whether the
         evaluator needs to be called on a given type.
@@ -67,7 +67,7 @@ image       image       +       +       *       *       [series]
 vector      vector      -       -       *       *       [series]
 
 block       array       *       f*      *       *       [series array]
-paren       (array)      *      f*      *       *       [series array]
+group       (array)     *       f*      *       *       [series array]
 
 path        (array)     *       *       *       *       [series path array]
 set-path    (array)     *       *       *       *       [series path array]

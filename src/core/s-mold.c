@@ -656,7 +656,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
     // If out of range, do not cause error to avoid error looping.
     if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) over = TRUE; // Force it into []
 
-    if (all || (over && !IS_BLOCK(value) && !IS_PAREN(value))) {
+    if (all || (over && !IS_BLOCK(value) && !IS_GROUP(value))) {
         SET_FLAG(mold->opts, MOPT_MOLD_ALL);
         Pre_Mold(value, mold); // #[block! part
         //if (over) Append_Unencoded(mold->series, "[]");
@@ -680,7 +680,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
             else sep = 0;
             break;
 
-        case REB_PAREN:
+        case REB_GROUP:
             sep = "()";
             break;
 
@@ -1199,7 +1199,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_BLOCK:
-    case REB_PAREN:
+    case REB_GROUP:
         if (!molded)
             Form_Array_At(VAL_ARRAY(value), VAL_INDEX(value), mold, 0);
         else
@@ -1217,12 +1217,20 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Mold_Vector(value, mold, molded);
         break;
 
-    case REB_DATATYPE:
+    case REB_DATATYPE: {
+        REBCNT sym = VAL_TYPE_SYM(value);
+    #if !defined(NDEBUG)
+        if (LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)) {
+            if (VAL_TYPE_KIND(value) == REB_GROUP)
+                sym = SYM_PAREN_X; // e_Xclamation point (GROUP!)
+        }
+    #endif
         if (!molded)
-            Emit(mold, "N", VAL_TYPE_SYM(value));
+            Emit(mold, "N", sym);
         else
-            Emit(mold, "+DN", SYM_DATATYPE_TYPE, VAL_TYPE_SYM(value));
+            Emit(mold, "+DN", SYM_DATATYPE_TYPE, sym);
         break;
+    }
 
     case REB_TYPESET:
         Mold_Typeset(value, mold, molded);

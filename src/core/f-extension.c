@@ -683,9 +683,9 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
                         val = &save;
                     }
                 }
-                else if (IS_PAREN(val)) {
+                else if (IS_GROUP(val)) {
                     if (DO_ARRAY_THROWS(&save, val)) {
-                        // !!! Should this paren evaluation be able to "bubble
+                        // !!! Should this GROUP! evaluation be able to "bubble
                         // up" so that returns and throws can be caught up
                         // the stack, or is raising an error here sufficient?
 

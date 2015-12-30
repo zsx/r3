@@ -35,6 +35,16 @@ datatypes
 ; this list is applied, so you only see typesets in this file.
 ;-----------------------------------------------------------------------------
 
+; For the moment, TO-WORD of a datatype is willing to canonize a datatype
+; as a word.  Long term, that specialization is not desirable because it
+; is effectively building keywords deep into the system.  Better would be
+; if datatypes could be communicated e.g. by #[()] for "groups" or "parens".
+;
+; Hardcoding in the GROUP! symbol is necessary for a legacy switch to be
+; willing to convert a "group!" into the word GROUP!
+;
+paren!
+
 native
 action
 self

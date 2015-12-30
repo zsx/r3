@@ -597,7 +597,7 @@ REBNATIVE(opt)
 //  "Returns the word or block bound into the given context."
 //  
 //      context [any-context! block!]
-//      word [any-word! block! paren!] "(modified if series)"
+//      word [any-word! block! group!] "(modified if series)"
 //  ]
 //
 REBNATIVE(in)
@@ -607,7 +607,7 @@ REBNATIVE(in)
     REBCNT index;
     REBCON *context;
 
-    if (IS_BLOCK(val) || IS_PAREN(val)) {
+    if (IS_BLOCK(val) || IS_GROUP(val)) {
         if (IS_WORD(word)) {
             const REBVAL *v;
             REBCNT i;
@@ -641,7 +641,7 @@ REBNATIVE(in)
     context = VAL_CONTEXT(val);
 
     // Special form: IN object block
-    if (IS_BLOCK(word) || IS_PAREN(word)) {
+    if (IS_BLOCK(word) || IS_GROUP(word)) {
         Bind_Values_Deep(VAL_ARRAY_HEAD(word), context);
         return R_ARG2;
     }

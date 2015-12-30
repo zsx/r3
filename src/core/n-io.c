@@ -247,9 +247,9 @@ REBNATIVE(prin)
 //
 //  new-line: native [
 //  
-//  {Sets or clears the new-line marker within a block or paren.}
+//  {Sets or clears the new-line marker within a block or group.}
 //  
-//      position [block! paren!]
+//      position [block! group!]
 //          "Position to change marker (modified)"
 //      mark
 //          "Set TRUE for newline"
@@ -298,9 +298,9 @@ REBNATIVE(new_line)
 //
 //  new-line?: native [
 //  
-//  {Returns the state of the new-line marker within a block or paren.}
+//  {Returns the state of the new-line marker within a block or group.}
 //  
-//      position [block! paren!] "Position to check marker"
+//      position [block! group!] "Position to check marker"
 //  ]
 //
 REBNATIVE(new_line_q)

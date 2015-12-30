@@ -557,7 +557,7 @@ static void Mark_Call_Frames_Deep(void)
             // The only field we protect if no function is pending or running
             // with this frame is the array itself.  This is important if we
             // do something like `eval copy quote (recycle)`, because while
-            // evaluating the paren it has no anchor anywhere in the root set
+            // evaluating the group it has no anchor anywhere in the root set
             // and could be GC'd.  The Reb_Call's array ref is all we have.
             //
             continue;
@@ -797,7 +797,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             break;
 
         case REB_BLOCK:
-        case REB_PAREN:
+        case REB_GROUP:
         case REB_PATH:
         case REB_SET_PATH:
         case REB_GET_PATH:

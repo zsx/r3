@@ -25,6 +25,15 @@ REBOL [
     }
 ]
 
+; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN! for
+; compatibility as pointing to the same datatype).  Older Rebols haven't
+; heard of GROUP!, so establish the reverse compatibility.
+;
+unless value? 'group! [
+    group!: :paren!
+    group?: :paren?
+]
+
 ; Older versions of Rebol had a different concept of what FUNCTION meant
 ; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
 ; did locals-gathering by default named FUNCT overtook it, with the name
@@ -108,7 +117,7 @@ unless value? 'fail [
                     unless any [
                         any-scalar? :item
                         string? :item
-                        paren? :item
+                        group? :item
                         all [
                             word? :item
                             not any-function? get :item

@@ -59,26 +59,3 @@ empty?: :tail?
 bind?: :bound?
 
 rebol.com: http://www.rebol.com
-
-; GROUP! is a better name than PAREN! for many reasons.  It's a complete word,
-; it's no more characters, it doesn't have the same first two letters as
-; PATH! so it mentally and typographically hashes better from one of the two
-; other array types, it describes the function of what it does in the
-; evaluator (where "BLOCK! blocks evaluation of the contents, the GROUP!
-; does normal evaluation but limits it to the group)...
-;
-; Historically, changing the name of a type was especially burdensome because
-; the name would be encoded when you did a TO-WORD on it, such as in order
-; to perform a SWITCH.  (Rebol2 added TYPE?/WORD to make this convenient.)
-; There was an attempt to make GROUP! a "hacked" internal synonym for purposes
-; of comparison, but the real problem was realized to be SWITCH's inability
-; to evaluate.  Once you could `switch type-of x [:integer! [...]]` and have
-; the get-word fetch whatever integer was bound to, it opened the doors
-; for type synonyms and removed the need for hacks.
-;
-; It is still a question of what WORD! will own the concept, and what the
-; datatype will look like when it is molded out, but that can wait.  For now,
-; the word is the historical PAREN! but GROUP! is a synonym.
-
-group?: :paren?
-group!: :paren!

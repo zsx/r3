@@ -582,7 +582,7 @@ REBTYPE(Map)
     case A_MAKE:
     case A_TO:
         // make map! [word val word val]
-        if (IS_BLOCK(arg) || IS_PAREN(arg) || IS_MAP(arg)) {
+        if (IS_BLOCK(arg) || IS_GROUP(arg) || IS_MAP(arg)) {
             if (MT_Map(D_OUT, arg, REB_MAP)) return R_OUT;
             fail (Error_Invalid_Arg(arg));
 //      } else if (IS_NONE(arg)) {

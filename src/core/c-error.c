@@ -417,7 +417,7 @@ REBCNT Stack_Depth(void)
     while (call) {
         if (call->mode == CALL_MODE_FUNCTION) {
             //
-            // We only count invoked functions (not paren or path evaluations
+            // We only count invoked functions (not group or path evaluations
             // or "pending" functions that are building their arguments but
             // have not been formally invoked yet)
             //

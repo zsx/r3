@@ -153,6 +153,7 @@ options: context [  ; Options supplied to REBOL during startup
     break-with-overrides: false
     none-instead-of-unsets: false
     dont-exit-natives: false
+    paren-instead-of-group: false
 
     ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
     ; on the new behavior).  The points are retained in the code for purpose

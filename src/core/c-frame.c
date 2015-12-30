@@ -1748,7 +1748,7 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
                 //
                 // Currently the only `mode` in which a frame should be
                 // considered as a legitimate match is CALL_MODE_FUNCTION.
-                // Other call types include a paren being recursed or
+                // Other call types include a GROUP! being recursed or
                 // a function whose frame is pending and doesn't have all
                 // the arguments ready yet... these shouldn't count.
                 //

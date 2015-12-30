@@ -135,13 +135,13 @@ parsing-at: func [
     /end {Drop the default tail check (allows evaluation at the tail).}
 ] [
     use [result position][
-        block: compose/only [to-value (to paren! block)]
+        block: compose/only [to-value (to group! block)]
         if not end [
             block: compose/deep [all [not tail? (word) (block)]]
         ]
         block: compose/deep [result: either position: (block) [[:position]] [[end skip]]]
         use compose [(word)] compose/deep [
-            [(to set-word! :word) (to paren! block) result]
+            [(to set-word! :word) (to group! block) result]
         ]
     ]
 ]
