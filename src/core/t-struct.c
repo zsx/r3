@@ -543,6 +543,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
     );
 
     SERIES_SET_EXTERNAL_DATA(ser, raw_addr);
+    SET_SERIES_LEN(ser, SERIES_LEN(VAL_STRUCT_DATA_BIN(out)));
 
     VAL_STRUCT_DATA_BIN(out) = ser;
     MANAGE_SERIES(ser);
