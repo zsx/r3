@@ -38,7 +38,7 @@ typedef struct reb_parse {
 } REBPARSE;
 
 enum parse_flags {
-    PF_SET_OR_COPY, // test PF_COPY first; if false, this means PF_SET
+    PF_SET,
     PF_COPY,
     PF_NOT,
     PF_NOT2,
@@ -991,10 +991,11 @@ static REBCNT Parse_Rules_Loop(
 
                     case SYM_COPY:
                         SET_FLAG(flags, PF_COPY);
+                        goto set_or_copy_pre_rule;
                     case SYM_SET:
-                        SET_FLAG(flags, PF_SET_OR_COPY);
+                        SET_FLAG(flags, PF_SET);
+                    set_or_copy_pre_rule:
                         item = rule++;
-
                         if (!(IS_WORD(item) || IS_SET_WORD(item)))
                             fail (Error(RE_PARSE_VARIABLE, item));
 
@@ -1115,7 +1116,9 @@ static REBCNT Parse_Rules_Loop(
                 }
                 // Any other cmd must be a match command, so proceed...
 
-            } else { // It's not a PARSE command, get or set it:
+            }
+            else {
+                // It's not a PARSE command, get or set it
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(item)) {
@@ -1341,7 +1344,7 @@ static REBCNT Parse_Rules_Loop(
             }
             else if (IS_BLOCK(item)) {
                 item = VAL_ARRAY_AT(item);
-                i = Parse_Rules_Loop(p, index, item, depth+1);
+                i = Parse_Rules_Loop(p, index, item, depth + 1);
 
                 if (i == THROWN_FLAG) return THROWN_FLAG;
 
@@ -1351,12 +1354,13 @@ static REBCNT Parse_Rules_Loop(
                     break;
                 }
             }
-            // Parse according to datatype:
             else {
+                // Parse according to datatype
+
                 if (Is_Array_Series(p->series))
-                    i = Parse_Next_Array(p, index, item, depth+1);
+                    i = Parse_Next_Array(p, index, item, depth + 1);
                 else
-                    i = Parse_Next_String(p, index, item, depth+1);
+                    i = Parse_Next_String(p, index, item, depth + 1);
 
                 // i may be THROWN_FLAG
             }
@@ -1367,20 +1371,33 @@ static REBCNT Parse_Rules_Loop(
             // i: indicates new index or failure of the match, but
             // that does not mean failure of the rule, because optional
             // matches can still succeed, if if the last match failed.
+            //
             if (i != NOT_FOUND) {
                 count++; // may overflow to negative
-                if (count < 0) count = MAX_I32; // the forever case
-                // If input did not advance:
+
+                if (count < 0)
+                    count = MAX_I32; // the forever case
+
                 if (i == index && !GET_FLAG(flags, PF_WHILE)) {
-                    if (count < mincount) index = NOT_FOUND; // was not enough
+                    //
+                    // input did not advance
+
+                    if (count < mincount) {
+                        index = NOT_FOUND; // was not enough
+                    }
                     break;
                 }
             }
-            //if (i >= series->tail) {     // OLD check: no more input
             else {
-                if (count < mincount) index = NOT_FOUND; // was not enough
-                else if (i != NOT_FOUND) index = i;
-                // else keep index as is.
+                if (count < mincount) {
+                    index = NOT_FOUND; // was not enough
+                }
+                else if (i != NOT_FOUND) {
+                    index = i;
+                }
+                else {
+                    // just keep index as is.
+                }
                 break;
             }
             index = i;
@@ -1434,7 +1451,7 @@ static REBCNT Parse_Rules_Loop(
                     );
                     *GET_MUTABLE_VAR(word) = temp;
                 }
-                else if (GET_FLAG(flags, PF_SET_OR_COPY)) {
+                else if (GET_FLAG(flags, PF_SET)) {
                     REBVAL *var = GET_MUTABLE_VAR(word); // traps if protected
 
                     if (Is_Array_Series(p->series)) {
