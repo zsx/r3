@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #include <stdlib.h>
 #include <string.h>
 #include "sys-core.h"

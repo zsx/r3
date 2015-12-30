@@ -191,7 +191,7 @@ Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd);
 ------------------------------------------------------------------------ */
 
 #ifdef CVTUTF_DEBUG
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #endif
 
 static const int halfShift  = 10; /* used for shifting by 10 bits */

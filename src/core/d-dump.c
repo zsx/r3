@@ -27,7 +27,8 @@
 **
 ***********************************************************************/
 
-#include <stdio.h>
+//#include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
+
 #include "sys-core.h"
 #include "mem-series.h" // low-level series memory access
 

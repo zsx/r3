@@ -1,6 +1,6 @@
 #include "sys-core.h"
 #include <string.h>
-#include <stdio.h>
+//#include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #include <stdlib.h>
 
 #define MD5_DEFINED

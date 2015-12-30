@@ -32,7 +32,7 @@
  * Implements the RSA public encryption algorithm. Uses the bigint library to
  * perform its calculations.
  */
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>

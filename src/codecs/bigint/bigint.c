@@ -63,7 +63,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
-#include <stdio.h>
+//#include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #include <time.h>
 //#include "os_port.h"
 #include "bigint_config.h"
