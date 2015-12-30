@@ -683,7 +683,7 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 // 
 // Allocate a series suitable for storing Rebol values.  This series
 // can be used as a backing store for a BLOCK!, but also for any
-// other Rebol Array type (PAREN!, PATH!, GET-PATH!, SET-PATH!, or
+// other Rebol Array type (GROUP!, PATH!, GET-PATH!, SET-PATH!, or
 // LIT-PATH!).
 // 
 // Returns:

@@ -248,7 +248,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
 
         case REB_LIT_WORD:
             VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
-            // will actually only evaluate get-word!, get-path!, and paren!
+            // will actually only evaluate get-word!, get-path!, and group!
             VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
             break;
 
@@ -403,7 +403,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
     // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
     assert(IS_ISSUE(ARRAY_AT(fake_body, 4))); // #BODY
-    Val_Init_Array(ARRAY_AT(fake_body, 4), REB_PAREN, VAL_FUNC_BODY(func));
+    Val_Init_Array(ARRAY_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
     VAL_SET_OPT(ARRAY_AT(fake_body, 4), OPT_VALUE_LINE);
 
     return fake_body;

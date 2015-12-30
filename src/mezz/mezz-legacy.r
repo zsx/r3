@@ -54,8 +54,29 @@ op?: func [
 ]
 
 
-; It would be nicer to use type!/type? instead of datatype!/datatype?  :-/
-; The compatibility layer may have to struggle with that change down the line
+; GROUP! is a better name than PAREN! for many reasons.  It's a complete word,
+; it's no more characters, it doesn't have the same first two letters as
+; PATH! so it mentally and typographically hashes better from one of the two
+; other array types, it describes the function of what it does in the
+; evaluator (where "BLOCK! blocks evaluation of the contents, the GROUP!
+; does normal evaluation but limits it to the group)...
+;
+; Historically, changing the name of a type was especially burdensome because
+; the name would be encoded when you did a TO-WORD on it, such as in order
+; to perform a SWITCH.  (Rebol2 added TYPE?/WORD to make this convenient.)
+; Now it is possible to use get-words in SWITCH to lookup, so things should
+; be easier.
+;
+; What one uses in one's code is one's own choice.  But the internal canon
+; for the term in Ren-C's code and mezzanine is GROUP!
+;
+paren?: :group?
+paren!: :group!
+to-paren: :to-group
+
+
+; The TYPE?/WORD primitive is adjusted to give back PAREN! as the word if
+; the legacy switch for it is enabled.
 ;
 ; The previous /WORD refinement was common because things like SWITCH
 ; statements wanted to operate on the word for the datatype, since in
@@ -70,11 +91,14 @@ type?: function [
     /word "No longer in TYPE-OF, as WORD! and DATATYPE! can be EQUAL?"
 ][
     either word [
-        ; Right now TO-WORD is still returning PAREN! for a PAREN! type,
-        ; so the EITHER isn't necessary.  But it's a talking point about
-        ; TYPE?/WORD's compatibility story if TO-WORD changed.
         ;
-        either (word: to-word type-of :value) = 'group! [paren!] [word]
+        ; For legacy compatibility, type?/word will return PAREN! instead
+        ; of the Ren-C standard GROUP! if the switch is on.
+        ;
+        either all [
+            (word: to-word type-of :value) = 'group!
+            system/options/paren-instead-of-group
+        ] [paren!] [word]
     ][
         type-of :value
     ]
@@ -660,6 +684,7 @@ set 'r3-legacy* func [] [
     system/options/none-instead-of-unsets: true
     system/options/arg1-arg2-arg3-error: true
     system/options/dont-exit-natives: true
+    system/options/paren-instead-of-group: true
 
     r3-legacy-mode: on
     return none

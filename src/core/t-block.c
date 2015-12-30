@@ -36,7 +36,7 @@
 // "Compare Type" dispatcher for the following types:
 // 
 //     CT_Block(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Paren(REBVAL *a, REBVAL *b, REBINT mode)
+//     CT_Group(REBVAL *a, REBVAL *b, REBINT mode)
 //     CT_Path(REBVAL *a, REBVAL *b, REBINT mode)
 //     CT_Set_Path(REBVAL *a, REBVAL *b, REBINT mode)
 //     CT_Get_Path(REBVAL *a, REBVAL *b, REBINT mode)
@@ -68,7 +68,7 @@ static void No_Nones(REBVAL *arg) {
 // "Make Type" dispatcher for the following subtypes:
 // 
 //     MT_Block
-//     MT_Paren
+//     MT_Group
 //     MT_Path
 //     MT_Set_Path
 //     MT_Get_Path
@@ -501,7 +501,7 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 // Path dispatch for the following types:
 // 
 //     PD_Block(REBPVS *pvs)
-//     PD_Paren(REBPVS *pvs)
+//     PD_Group(REBPVS *pvs)
 //     PD_Path(REBPVS *pvs)
 //     PD_Get_Path(REBPVS *pvs)
 //     PD_Set_Path(REBPVS *pvs)
@@ -570,7 +570,7 @@ REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
 // Implementation of type dispatch of the following:
 // 
 //     REBTYPE(Block)
-//     REBTYPE(Paren)
+//     REBTYPE(Group)
 //     REBTYPE(Path)
 //     REBTYPE(Get_Path)
 //     REBTYPE(Set_Path)

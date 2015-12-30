@@ -275,7 +275,7 @@ static REBCNT Parse_Next_String(REBPARSE *parse, REBCNT index, const REBVAL *ite
         break;
 
     // Do an expression:
-    case REB_PAREN:
+    case REB_GROUP:
         // might GC
         if (DO_ARRAY_THROWS(&save, item)) {
             *parse->out = save;
@@ -357,7 +357,7 @@ static REBCNT Parse_Next_Array(
         break;
 
     // Do an expression:
-    case REB_PAREN:
+    case REB_GROUP:
         // might GC
         if (DO_ARRAY_THROWS(&save, item)) {
             *parse->out = save;
@@ -415,7 +415,7 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBOOL
                     else if (cmd == SYM_QUOTE) {
                         item = ++blk; // next item is the quoted value
                         if (IS_END(item)) goto bad_target;
-                        if (IS_PAREN(item)) {
+                        if (IS_GROUP(item)) {
                             // might GC
                             if (DO_ARRAY_THROWS(&save, item)) {
                                 *parse->out = save;
@@ -520,7 +520,7 @@ static REBCNT To_Thru(REBPARSE *parse, REBCNT index, const REBVAL *block, REBOOL
 next:       // Check for | (required if not end)
             blk++;
             if (IS_END(blk)) break;
-            if (IS_PAREN(blk)) blk++;
+            if (IS_GROUP(blk)) blk++;
             if (IS_END(blk)) break;
             if (!IS_OR_BAR(blk)) {
                 item = blk;
@@ -531,7 +531,7 @@ next:       // Check for | (required if not end)
     return NOT_FOUND;
 
 found:
-    if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
+    if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
         REBVAL evaluated;
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
@@ -544,7 +544,7 @@ found:
     return index;
 
 found1:
-    if (NOT_END(blk + 1) && IS_PAREN(blk + 1)) {
+    if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
         REBVAL evaluated;
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
@@ -750,7 +750,7 @@ static REBCNT Do_Eval_Rule(REBPARSE *parse, REBCNT index, const REBVAL **rule)
             item = item + 1;
             (*rule)++;
             if (IS_END(item)) fail (Error(RE_PARSE_END, item - 2));
-            if (IS_PAREN(item)) {
+            if (IS_GROUP(item)) {
                 // might GC
                 if (DO_ARRAY_THROWS(&save, item)) {
                     *parse->out = save;
@@ -966,12 +966,12 @@ static REBCNT Parse_Rules_Loop(
                     // happens to be, e.g. 'parse data [return ("abc")]'
 
                     case SYM_RETURN:
-                        if (IS_PAREN(rules)) {
+                        if (IS_GROUP(rules)) {
                             REBVAL evaluated;
                             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
                             if (DO_ARRAY_THROWS(&evaluated, rules)) {
-                                // If the paren evaluation result gives a
+                                // If the group evaluation result gives a
                                 // THROW, BREAK, CONTINUE, etc then we'll
                                 // return that
                                 *parse->out = evaluated;
@@ -1005,7 +1005,7 @@ static REBCNT Parse_Rules_Loop(
                     case SYM_IF:
                         item = rules++;
                         if (IS_END(item)) goto bad_end;
-                        if (!IS_PAREN(item)) fail (Error(RE_PARSE_RULE, item));
+                        if (!IS_GROUP(item)) fail (Error(RE_PARSE_RULE, item));
 
                         // might GC
                         if (DO_ARRAY_THROWS(&save, item)) {
@@ -1100,7 +1100,7 @@ static REBCNT Parse_Rules_Loop(
             if (!item) continue; // for SET and GET cases
         }
 
-        if (IS_PAREN(item)) {
+        if (IS_GROUP(item)) {
             REBVAL evaluated;
             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
@@ -1178,7 +1178,7 @@ static REBCNT Parse_Rules_Loop(
                 case SYM_QUOTE:
                     if (IS_END(rules)) goto bad_end;
                     rulen = 1;
-                    if (IS_PAREN(rules)) {
+                    if (IS_GROUP(rules)) {
                         // might GC
                         if (DO_ARRAY_THROWS(&save, rules)) {
                             *parse->out = save;

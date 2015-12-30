@@ -132,7 +132,7 @@ Script: [
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
 
-    limited-fail-input: {FAIL requires complex expressions to be in a PAREN!}
+    limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]
     invalid-type:       [:arg1 {type is not allowed here}]

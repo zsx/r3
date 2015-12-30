@@ -915,7 +915,7 @@ REBNATIVE(continue)
 //  
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
-//      source [unset! none! block! paren! string! binary! url! file! tag! 
+//      source [unset! none! block! group! string! binary! url! file! tag!
 //      error! any-function!]
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
@@ -941,7 +941,7 @@ REBNATIVE(do)
         return R_NONE;
 
     case REB_BLOCK:
-    case REB_PAREN:
+    case REB_GROUP:
         if (REF(next)) {
             DO_NEXT_MAY_THROW(
                 VAL_INDEX(ARG(value)), // updates index of value in call frame
@@ -1196,9 +1196,9 @@ REBNATIVE(fail)
                 if (IS_STRING(item) || IS_SCALAR(item))
                     continue;
 
-                // Leave the paren in and let the reduce take care of it
+                // Leave the group in and let the reduce take care of it
                 //
-                if (IS_PAREN(item))
+                if (IS_GROUP(item))
                     continue;
 
                 // Leave words in to be handled by the reduce step as long
@@ -1216,14 +1216,14 @@ REBNATIVE(fail)
 
                 // The only way to tell if a path resolves to a function
                 // or not is to actually evaluate it, and we are delegating
-                // to Reduce_Block ATM.  For now we force you to use a PAREN!
+                // to Reduce_Block ATM.  For now we force you to use a GROUP!
                 //
                 //     fail [{Erroring on} (the/safe/side) {for now.}]
                 //
                 fail (Error(RE_LIMITED_FAIL_INPUT));
             }
 
-            // We just reduce and form the result, but since we allow PAREN!
+            // We just reduce and form the result, but since we allow GROUP!
             // it means you can put in pretty much any expression.
             //
             if (Reduce_Array_Throws(
@@ -1653,12 +1653,12 @@ REBNATIVE(switch)
             continue;
         }
 
-        // GET-WORD!, GET-PATH!, and PAREN! are evaluated (an escaping
+        // GET-WORD!, GET-PATH!, and GROUP! are evaluated (an escaping
         // mechanism as in lit-quotes of function specs to avoid quoting)
         // You can still evaluate to one of these, e.g. `(quote :foo)` to
         // use parens to produce a GET-WORD! to test against.
 
-        if (IS_PAREN(item)) {
+        if (IS_GROUP(item)) {
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
@@ -1747,7 +1747,7 @@ REBNATIVE(switch)
         // let cases that do not have a block after them be evaluated
         // (if necessary) and the last one to fall through and be the
         // result.  This offers a nicer syntax for a default, especially
-        // when PAREN! is taken into account.
+        // when GROUP! is taken into account.
         //
         // However, running in legacy compatibility mode we need to squash
         // the value into a NONE! so it doesn't fall through.

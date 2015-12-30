@@ -42,7 +42,7 @@ last?: single?: func [
 
 extend: func [
     "Extend an object, map, or block type with word and value pair."
-    obj [object! map! block! paren!] {object to extend (modified)}
+    obj [object! map! block! group!] {object to extend (modified)}
     word [any-word!]
     val
 ][

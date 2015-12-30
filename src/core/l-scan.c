@@ -734,8 +734,8 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 // TOKEN_ in the scanner state.  The TOKEN_ type returned will
 // correspond directly to a Rebol datatype if it isn't an
 // ANY-ARRAY! (e.g. TOKEN_INTEGER for INTEGER! or TOKEN_STRING
-// for STRING!).  When a block or paren delimiter was found it
-// will indicate that (e.g. TOKEN_BLOCK_BEGIN or TOKEN_PAREN_END).
+// for STRING!).  When a block or group delimiter was found it
+// will indicate that (e.g. TOKEN_BLOCK_BEGIN or TOKEN_GROUP_END).
 // Hence the routine will have to be called multiple times during
 // the array's content scan.
 // 
@@ -1324,7 +1324,7 @@ static REBARR *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 //
 //  Scan_Block: C
 // 
-// Scan a block (or paren) and return it.
+// Scan a block (or group) and return it.
 // Sub scanners may return bad by setting value type to zero.
 //
 static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
@@ -1499,7 +1499,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             }
             Val_Init_Array(
                 value,
-                (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_PAREN,
+                (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_GROUP,
                 block
             );
             break;

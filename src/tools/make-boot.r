@@ -196,7 +196,7 @@ emit {
 }
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     emit-line/var "T_" type/class type/name
 ]
@@ -229,7 +229,7 @@ emit {
 }
 
 for-each-record-NO-RETURN type boot-types [
-    either paren? type/class [
+    either group? type/class [
         emit-line "" "TRUE" type/name
     ][
         emit-line "" "FALSE" type/name
@@ -251,7 +251,7 @@ emit {
 }
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     emit-line/var "PD_" switch/default type/path [
         * [type/class]
@@ -275,7 +275,7 @@ emit newline
 types-used: []
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     if all [
         type/make = '*
@@ -305,7 +305,7 @@ emit {
 }
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     either type/make = '* [
         emit-line/var "MT_" type/class type/name
@@ -330,7 +330,7 @@ emit newline
 types-used: []
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     if all [
         word? type/class
@@ -358,7 +358,7 @@ emit {
 }
 
 for-each-record-NO-RETURN type boot-types [
-    if paren? type/class [type/class: first type/class]
+    if group? type/class [type/class: first type/class]
 
     emit-line/var "CT_" type/class type/name
 ]
@@ -387,7 +387,7 @@ write inc/tmp-comptypes.h out
 ;}
 ;
 ;for-each-record-NO-RETURN type boot-types [
-;   if paren? type/class [type/class: first type/class]
+;   if group? type/class [type/class: first type/class]
 ;
 ;   f: "Mold_"
 ;   switch/default type/mold [
@@ -412,7 +412,7 @@ write inc/tmp-comptypes.h out
 ;^{
 ;}
 ;for-each-record-NO-RETURN type boot-types [
-;   if paren? type/class [type/class: first type/class]
+;   if group? type/class [type/class: first type/class]
 ;   f: "Mold_"
 ;   switch/default type/form [
 ;       *  [t: type/class]
@@ -526,13 +526,13 @@ emit {
     (VAL_TYPE(v) >= REB_NATIVE && VAL_TYPE(v) <= REB_FUNCTION)
 
 #define ANY_EVAL_BLOCK(v) \
-    (VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_PAREN)
+    (VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
 
 #define ANY_CONTEXT(v) \
     (VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
 
 // If the type has evaluator behavior (vs. just passing through).  So like
-// WORD!, PAREN!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
+// WORD!, GROUP!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
 // The types are not arranged in an order that makes a super fast test easy
 // (though perhaps someday it could be tweaked so that all the evaluated types
 // had a certain bit set?) hence use a small fixed table.
@@ -1107,7 +1107,7 @@ for-each section [boot-base boot-sys boot-mezz] [
     ]
     remove-tests get section
 
-    ;-- Expectation is that section does not return result; PAREN! makes unset
+    ;-- Expectation is that section does not return result; GROUP! makes unset
     append get section [()]
 
     mezz-files: next mezz-files

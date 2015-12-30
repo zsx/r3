@@ -923,7 +923,7 @@ REBOOL Do_Breakpoint_Throws(
             REBVAL *mode;
             REBVAL *payload;
 
-            assert(IS_PAREN(&temp));
+            assert(IS_GROUP(&temp));
             assert(VAL_LEN_HEAD(&temp) == RESUME_INST_MAX);
 
             mode = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_MODE);
@@ -1241,13 +1241,13 @@ REBNATIVE(resume)
     SET_ARRAY_LEN(instruction, RESUME_INST_MAX);
     TERM_ARRAY(instruction);
 
-    // We put the resume instruction into a PAREN! just to make it a little
+    // We put the resume instruction into a GROUP! just to make it a little
     // bit more unusual than a BLOCK!.  More hardened approaches might put
     // a special symbol as a "magic number" or somehow version the protocol,
     // but for now we'll assume that the only decoder is BREAKPOINT and it
     // will be kept in sync.
     //
-    Val_Init_Array(D_CELL, REB_PAREN, instruction);
+    Val_Init_Array(D_CELL, REB_GROUP, instruction);
 
     // Throw the instruction with the name of the RESUME function
     //

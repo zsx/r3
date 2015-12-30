@@ -258,7 +258,7 @@ chkDecimal:
         return Cmp_Date(s, t);
 
     case REB_BLOCK:
-    case REB_PAREN:
+    case REB_GROUP:
     case REB_MAP:
     case REB_PATH:
     case REB_SET_PATH:

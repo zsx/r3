@@ -1369,7 +1369,7 @@ struct Reb_Any_Word {
 // a value slot when it's constrained to the types in the typeset
 //
 enum {
-    EXT_TYPESET_QUOTE = 0,  // Quoted (REDUCE paren/get-word|path if EVALUATE)
+    EXT_TYPESET_QUOTE = 0,  // Quoted (REDUCE group/get-word|path if EVALUATE)
     EXT_TYPESET_EVALUATE,   // DO/NEXT performed at callsite when setting
     EXT_TYPESET_REFINEMENT, // Value indicates an optional switch
     EXT_TYPESET_LOCKED,     // Can't be changed (set with PROTECT)

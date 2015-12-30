@@ -191,6 +191,6 @@ math: function/with [
     ; WARNING: uses recursion for parens.
     primary: [
         set prim-val [any-number! | word!]
-        | set prim-val paren! (prim-val: translate to-block :prim-val)
+        | set prim-val group! (prim-val: translate to-block :prim-val)
     ]
 ]

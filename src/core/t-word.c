@@ -158,7 +158,18 @@ REBTYPE(Word)
                 if (!sym) fail (Error(RE_BAD_CHAR, arg));
             }
             else if (IS_DATATYPE(arg)) {
+            #if defined(NDEBUG)
                 sym = VAL_TYPE_SYM(arg);
+            #else
+                if (
+                    LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)
+                    && VAL_TYPE_KIND(arg) == REB_GROUP
+                ) {
+                    sym = SYM_PAREN_X; // e_Xclamation point (GROUP!)
+                }
+                else
+                    sym = VAL_TYPE_SYM(arg);
+            #endif
             }
             else if (IS_LOGIC(arg)) {
                 sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;

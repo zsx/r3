@@ -262,7 +262,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             fail (Error(RE_NO_VALUE, path));
     }
     // object/(expr) case:
-    else if (IS_PAREN(path)) {
+    else if (IS_GROUP(path)) {
         if (DO_ARRAY_THROWS(&temp, path)) {
             *pvs->value = temp;
             return TRUE;
@@ -497,7 +497,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
         for (; NOT_END(pvs.path); pvs.path++) { // "the refinements"
             if (IS_NONE(pvs.path)) continue;
 
-            if (IS_PAREN(pvs.path)) {
+            if (IS_GROUP(pvs.path)) {
                 // Note it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
@@ -571,7 +571,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 //  Pick_Path: C
 // 
 // Lightweight version of Do_Path used for A_PICK actions.
-// Does not do paren evaluation, hence not designed to throw.
+// Does not do GROUP! evaluation, hence not designed to throw.
 //
 void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 {
@@ -1053,7 +1053,7 @@ void Do_Core(struct Reb_Call * const c)
     //
     if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
 
-    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // Mark this Reb_Call state as "inert" (e.g. no FUNCTION! or GROUP! eval
     // in progress that the GC need worry about) and push it to the Do Stack.
     // If the state transitions to something the GC should start protecting
     // fields of the Reb_Call for, it will.
@@ -1355,7 +1355,7 @@ reevaluate:
             // item being GC'd, it should be taken care of by the implicit
             // protection from the Do Stack.  (e.g. if it contains a function
             // that gets evaluated it will wind up in c->func, if it's a
-            // paren or path-containing-paren it winds up in c->array...)
+            // GROUP! or PATH!-containing-GROUP! it winds up in c->array...)
             //
             c->value = &eval;
             c->index--;
@@ -1829,7 +1829,7 @@ reevaluate:
                     if (
                         VAL_GET_EXT(c->param, EXT_TYPESET_EVALUATE)
                         && (
-                            IS_PAREN(c->value)
+                            IS_GROUP(c->value)
                             || IS_GET_WORD(c->value)
                             || IS_GET_PATH(c->value)
                         )
@@ -1994,8 +1994,8 @@ reevaluate:
         //
         //     append/(second [only asdhjas])/(print "hi") [a b c] [d]
         //
-        // ...it would never make it to the print.  Here we do all the path
-        // and paren evals up front and check that things are words or NONE,
+        // ...it would never make it to the print.  Here we do all the PATH!
+        // and GROUP! evals up front and check that things are words or NONE,
         // not knowing if a refinement isn't on the function until the end.
         //
         if (c->mode == CALL_MODE_SCANNING)
@@ -2187,9 +2187,9 @@ reevaluate:
         assert(DSP == c->dsp_orig);
         break;
 
-    // [PAREN!]
+    // [GROUP!]
     //
-    case REB_PAREN:
+    case REB_GROUP:
         if (DO_ARRAY_THROWS(c->out, c->value))
             goto return_thrown;
 
@@ -2557,10 +2557,9 @@ REBOOL Reduce_Array_No_Set_Throws(
 //
 //  Compose_Values_Throws: C
 // 
-// Compose a block from a block of un-evaluated values and
-// paren blocks that are evaluated.  Performs evaluations, so
-// if 'into' is provided, then its series must be protected from
-// garbage collection.
+// Compose a block from a block of un-evaluated values and GROUP! arrays that
+// are evaluated.  This calls into Do_Core, so if 'into' is provided, then its
+// series must be protected from garbage collection.
 // 
 //     deep - recurse into sub-blocks
 //     only - parens that return blocks are kept as blocks
@@ -2577,7 +2576,7 @@ REBOOL Compose_Values_Throws(
     REBINT dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {
-        if (IS_PAREN(value)) {
+        if (IS_GROUP(value)) {
             REBVAL evaluated;
             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
@@ -2633,7 +2632,7 @@ REBOOL Compose_Values_Throws(
                 if (ANY_ARRAY(value)) {
                     //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
-                    // !!! path and second paren are copies, first paren isn't
+                    // !!! path and second group are copies, first group isn't
                     //
                     VAL_ARRAY(DS_TOP) = Copy_Array_Shallow(VAL_ARRAY(value));
                     MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
@@ -2754,7 +2753,7 @@ REBOOL Apply_Func_Throws_Core(
     c->label_sym = label_sym;
     c->out = out;
 
-    // Mark this Reb_Call state as "inert" (e.g. no function or paren eval
+    // Mark this Reb_Call state as "inert" (e.g. no FUNCTION! or GROUP! eval
     // in progress that the GC need worry about) and push it to the Do Stack.
     // If the state transitions to something the GC should start protecting
     // fields of the Reb_Call for, it will.

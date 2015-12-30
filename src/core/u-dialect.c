@@ -189,7 +189,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
         VAL_SET_TYPE_BITS(value, REB_WORD); // don't reset header - keeps binding
         break;
 
-    case REB_PAREN:
+    case REB_GROUP:
         if (DO_ARRAY_THROWS(&safe, value)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
