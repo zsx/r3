@@ -1125,7 +1125,9 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             // This shouldn't be possible, but R3-Alpha had code checking for
             // it that panicked.  Should it be made into an assert?
             //
-            Dump_Series(series, "Overflow");
+        #if !defined(NDEBUG)
+            Panic_Series(series);
+        #endif
             panic (Error(RE_MISC));
         }
 
@@ -1651,6 +1653,8 @@ REBOOL Series_In_Pool(REBSER *series)
 }
 
 
+#if !defined(NDEBUG)
+
 //
 //  Check_Memory: C
 // 
@@ -1943,3 +1947,5 @@ REBU64 Inspect_Series(REBCNT flags)
 
     return tot_size;
 }
+
+#endif
