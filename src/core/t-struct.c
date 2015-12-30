@@ -56,11 +56,34 @@ static const REBINT type_to_sym [STRUCT_TYPE_MAX] = {
     //STRUCT_TYPE_MAX
 };
 
+#define NOT_ACCESSIBLE(s) SERIES_DATA_NOT_ACCESSIBLE(STRUCT_DATA_BIN(s))
+
+#define STU_TO_VAL(s) cast(REBVAL*, ((REBYTE*)(s) - offsetof(REBVAL, payload)))
+
+static void fail_if_non_accessible(const REBVAL *val)
+{
+    if (NOT_ACCESSIBLE(&VAL_STRUCT(val))) {
+        REBSER *data = VAL_STRUCT_DATA_BIN(val);
+        REBVAL i;
+
+        VAL_INIT_WRITABLE_DEBUG(&i);
+        SET_INTEGER(&i, cast(REBUPT, SERIES_DATA_RAW(data)));
+        fail (Error(RE_BAD_MEMORY, &i, val));
+    }
+}
+
 static REBOOL get_scalar(const REBSTU *stu,
                   const struct Struct_Field *field,
                   REBCNT n, /* element index, starting from 0 */
                   REBVAL *val)
 {
+    if (NOT_ACCESSIBLE(stu)) {
+        if (field->type != STRUCT_TYPE_STRUCT) {
+            SET_UNSET(val);
+            return FALSE;
+        }
+    }
+
     REBYTE *data = SERIES_AT(
         REBYTE,
         STRUCT_DATA_BIN(stu),
@@ -174,6 +197,9 @@ static void Set_Struct_Vars(REBSTU *strut, REBVAL *blk)
 // 
 // Used by MOLD to create a block.
 //
+// Cannot fail(), because fail() could call MOLD on a struct!, which will end
+// up infinitive recursive calls
+//
 REBARR *Struct_To_Array(const REBSTU *stu)
 {
     REBARR *array = Make_Array(10);
@@ -187,6 +213,8 @@ REBARR *Struct_To_Array(const REBSTU *stu)
     // root series being returned is done being used or is safe from GC!
     //
     MANAGE_ARRAY(array);
+
+    // fail_if_non_accessible(STU_TO_VAL(stu));
 
     for(i = 0; i < SERIES_LEN(stu->fields); i++, field ++) {
         REBVAL *val = NULL;
@@ -543,6 +571,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
     );
 
     SERIES_SET_EXTERNAL_DATA(ser, raw_addr);
+    SERIES_SET_FLAG(ser, OPT_SER_ACCESSIBLE); // accessible by default
     SET_SERIES_LEN(ser, SERIES_LEN(VAL_STRUCT_DATA_BIN(out)));
 
     VAL_STRUCT_DATA_BIN(out) = ser;
@@ -931,6 +960,8 @@ REBINT PD_Struct(REBPVS *pvs)
     if (!IS_WORD(pvs->select)) {
         return PE_BAD_SELECT;
     }
+
+    fail_if_non_accessible(pvs->value);
     if (! pvs->setval || NOT_END(pvs->path + 1)) {
         if (!Get_Struct_Var(stu, pvs->select, pvs->store)) {
             return PE_BAD_SELECT;
@@ -975,6 +1006,8 @@ REBINT PD_Struct(REBPVS *pvs)
 REBINT Cmp_Struct(const REBVAL *s, const REBVAL *t)
 {
     REBINT n = VAL_STRUCT_FIELDS(s) - VAL_STRUCT_FIELDS(t);
+    fail_if_non_accessible(s);
+    fail_if_non_accessible(t);
     if (n != 0) {
         return n;
     }
@@ -1022,6 +1055,8 @@ REBINT CT_Struct(REBVAL *a, REBVAL *b, REBINT mode)
 //
 void Copy_Struct(const REBSTU *src, REBSTU *dst)
 {
+    fail_if_non_accessible(STU_TO_VAL(src));
+
     /* Read only fields */
     dst->spec = src->spec;
     dst->fields = src->fields;
@@ -1039,6 +1074,7 @@ void Copy_Struct(const REBSTU *src, REBSTU *dst)
 //
 void Copy_Struct_Val(const REBVAL *src, REBVAL *dst)
 {
+    fail_if_non_accessible(src);
     VAL_RESET_HEADER(dst, REB_STRUCT);
     Copy_Struct(&VAL_STRUCT(src), &VAL_STRUCT(dst));
 }
@@ -1199,6 +1235,7 @@ REBTYPE(Struct)
                 n = VAL_WORD_CANON(arg); // zero on error
                 switch (n) {
                     case SYM_VALUES:
+                        fail_if_non_accessible(val);
                         Val_Init_Binary(ret, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_LEN(val)));
                         break;
                     case SYM_SPEC:
