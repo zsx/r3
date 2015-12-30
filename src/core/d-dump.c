@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include "sys-core.h"
+#include "mem-series.h" // low-level series memory access
 
 #ifdef _MSC_VER
 #define snprintf _snprintf

@@ -383,20 +383,6 @@ struct Reb_Series {
 #define SERIES_LAST(t,s) \
     (assert(SERIES_LEN(s) != 0), SERIES_AT(t, (s), SERIES_LEN(s) - 1))
 
-// The pooled allocator for REBSERs has an enumeration function where all
-// nodes can be visited, and this is used by the garbage collector.  This
-// includes nodes that have never been allocated or have been freed, so
-// "in-band" inside the REBSER there must be some way to tell if a node is
-// live or not.
-//
-// When the pool is initially allocated it is memset() to zero, hence the
-// signal must be some field or bit being zero that is not otherwise used.
-// The signal currently used is the "width" being zero.  The only downside
-// of this is that it means the sizes range from 1-255, whereas if 0 was
-// available the width could always be incremented by 1 and range 1-256.
-//
-#define SERIES_FREED(s)  (0 == SERIES_WIDE(s))
-
 //
 // Series size measurements:
 //
@@ -421,25 +407,6 @@ struct Reb_Series {
 
 // Flag used for extending series at tail:
 #define AT_TAIL ((REBCNT)(~0))  // Extend series at tail
-
-//
-// Bias is empty space in front of head:
-//
-
-#define SERIES_BIAS(s) \
-    cast(REBCNT, ((s)->content.dynamic.bias >> 16) & 0xffff)
-
-#define MAX_SERIES_BIAS 0x1000 \
-
-#define SERIES_SET_BIAS(s,b) \
-    ((s)->content.dynamic.bias = \
-        ((s)->content.dynamic.bias & 0xffff) | (b << 16))
-
-#define SERIES_ADD_BIAS(s,b) \
-    ((s)->content.dynamic.bias += (b << 16))
-
-#define SERIES_SUB_BIAS(s,b) \
-    ((s)->content.dynamic.bias -= (b << 16))
 
 //
 // Series flags
@@ -501,20 +468,20 @@ struct Reb_Series {
     } while (0)
 
 #ifdef NDEBUG
-    #define ASSERT_SERIES_TERM(s) cast(void, 0)
+    #define ASSERT_SERIES_TERM(s) NOOP
 #else
     #define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
 #endif
 
 #ifdef NDEBUG
-    #define ASSERT_SERIES(s) cast(void, 0)
+    #define ASSERT_SERIES(s) NOOP
 #else
     #define ASSERT_SERIES(s) \
         do { \
             if (Is_Array_Series(s)) \
-                ASSERT_ARRAY(AS_ARRAY(s)); \
+                Assert_Array_Core(AS_ARRAY(s)); \
             else \
-                ASSERT_SERIES_TERM(s); \
+                Assert_Series_Core(s); \
         } while (0)
 #endif
 

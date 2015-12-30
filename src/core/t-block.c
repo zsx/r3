@@ -883,24 +883,25 @@ is_none:
 
 
 #if !defined(NDEBUG)
+
 //
 //  Assert_Array_Core: C
 //
-void Assert_Array_Core(const REBARR *array)
+void Assert_Array_Core(REBARR *array)
 {
     REBCNT len;
-    REBVAL *value;
 
-    if (SERIES_FREED(ARRAY_SERIES(array)))
-        Panic_Array(array);
+    // Basic integrity checks (series is not marked free, etc.)  Note that
+    // we don't use ASSERT_SERIES the macro here, because that checks to
+    // see if the series is an array...and if so, would call this routine!
+    //
+    Assert_Series_Core(ARRAY_SERIES(array));
 
     if (!Is_Array_Series(ARRAY_SERIES(array)))
         Panic_Array(array);
 
-    assert(ARRAY_LEN(array) < SERIES_REST(ARRAY_SERIES(array)));
-
     for (len = 0; len < ARRAY_LEN(array); len++) {
-        value = ARRAY_AT(array, len);
+        REBVAL *value = ARRAY_AT(array, len);
 
         if (IS_END(value)) {
             // Premature end
