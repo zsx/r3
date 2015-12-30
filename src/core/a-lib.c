@@ -45,7 +45,7 @@ REBOL_HOST_LIB *Host_Lib;
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <io.h>
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #endif
 
 extern const REBRXT Reb_To_RXT[REB_MAX];

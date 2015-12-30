@@ -428,7 +428,7 @@ typedef int boolean;
 #include <sys/types.h>
 #endif
 
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 
 /*
  * We need memory copying and zeroing functions, plus strncpy().
@@ -1675,8 +1675,9 @@ EXTERN(void) jpeg_destroy_decompress JPP((j_decompress_ptr cinfo));
 
 /* Standard data source and destination managers: stdio streams. */
 /* Caller is responsible for opening the file before and closing after. */
-EXTERN(void) jpeg_stdio_dest JPP((j_compress_ptr cinfo, FILE * outfile));
-EXTERN(void) jpeg_stdio_src JPP((j_decompress_ptr cinfo, FILE * infile));
+// !!! No <stdio.h> in Ren-C release builds
+//EXTERN(void) jpeg_stdio_dest JPP((j_compress_ptr cinfo, FILE * outfile));
+//EXTERN(void) jpeg_stdio_src JPP((j_decompress_ptr cinfo, FILE * infile));
 
 /* Default parameter setup for compression */
 EXTERN(void) jpeg_set_defaults JPP((j_compress_ptr cinfo));
@@ -2817,7 +2818,12 @@ typedef struct backing_store_struct {
   char temp_name[TEMP_NAME_LENGTH]; /* name if it's a file */
 #else
   /* For a typical implementation with temp files, we need: */
-  FILE * temp_file;     /* stdio reference to temp file */
+  //
+  // !!! No <stdio.h> in Ren-C release builds.  This is actually okay here
+  // because this backing store is never used...it just does normal
+  // memory allocation and assumes virtual memory will handle it
+  //
+  //FILE * temp_file;     /* stdio reference to temp file */
   char temp_name[TEMP_NAME_LENGTH]; /* name of temp file */
 #endif
 #endif
@@ -2832,6 +2838,10 @@ typedef struct backing_store_struct {
  * just take an error exit.)
  */
 
+// !!! Though this looks like it depends on backing_store_info and hence
+// might introduce a core dependency on <stdio.h>, it actually just errors
+// if it gets called--which it never should (apparently).
+//
 EXTERN(void) jpeg_open_backing_store JPP((j_common_ptr cinfo,
                       backing_store_ptr info,
                       long total_bytes_needed));

@@ -311,11 +311,6 @@ void Init_Pools(REBINT scale)
 }
 
 
-#if !defined(NDEBUG)
-    #include <stdio.h>
-#endif
-
-
 //
 //  Shutdown_Pools: C
 // 

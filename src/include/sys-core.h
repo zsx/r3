@@ -55,6 +55,39 @@
 #include <assert.h>
 #include <stddef.h>     // for offsetof()
 
+#ifdef NDEBUG
+    //
+    // The core build of Rebol seeks to not be dependent on stdio.h.  The
+    // premise was to be free of historical baggage of the implementation
+    // of things like printf and to speak alternative protocols.  Hence
+    // it is decoupled from the "host".  (There are other choices related
+    // to this decoupling, such as not assuming the allocator is malloc())
+    //
+    // The alternative interface spoken (Host Kit) is questionable, and
+    // generally the only known hosts are "fat" and wind up including
+    // things like printf anyway.  However, the idea of not setting printf in
+    // stone and replacing it with Rebol's string logic is reasonable.
+    //
+    // These definitions will help catch uses of <stdio.h> in the release
+    // build, and give a hopefully informative error.
+    //
+    #if !defined(REN_C_STDIO_OK)
+        #define printf $dont_include_stdio_h$
+        #define fprintf $dont_include_stdio_h$
+        #define putc $dont_include_stdio_h$
+    #endif
+#else
+    // Desire to not bake in <stdio.h> notwithstanding, in debug builds it
+    // can be convenient (or even essential) to have access to stdio.  This
+    // is especially true when trying to debug the core I/O routines and
+    // unicode/UTF8 conversions that Rebol seeks to replace stdio with.
+    //
+    // Hence debug builds are allowed to use stdio.h conveniently.  The
+    // release build should catch if any of these aren't #if !defined(NDEBUG)
+    //
+    #include <stdio.h>
+#endif
+
 // Special OS-specific definitions:
 #ifdef OS_DEFS
     #ifdef TO_WINDOWS
@@ -62,11 +95,6 @@
     #undef IS_ERROR
     #endif
     //#error The target platform must be specified (TO_* define)
-#endif
-
-#ifdef OS_IO
-    #include <stdio.h>
-    #include <stdarg.h>
 #endif
 
 // Local includes:

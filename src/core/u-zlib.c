@@ -67,7 +67,7 @@
  */
 
 #ifdef MAKECRCH
-#  include <stdio.h>
+// #  include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #  ifndef DYNAMIC_CRC_TABLE
 #    define DYNAMIC_CRC_TABLE
 #  endif /* !DYNAMIC_CRC_TABLE */
@@ -3965,7 +3965,7 @@ local void tr_static_init()
  */
 #ifdef GEN_TREES_H
 #  ifndef DEBUG
-#    include <stdio.h>
+// #    include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #  endif
 
 #  define SEPARATOR(i, last, width) \
@@ -6109,7 +6109,7 @@ local void fixedtables(
 }
 
 #ifdef MAKEFIXED
-#include <stdio.h>
+// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 
 /*
    Write out the inffixed.h that is #include'd above.  Defining MAKEFIXED also

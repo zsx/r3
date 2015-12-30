@@ -199,7 +199,7 @@ typedef unsigned Long ULong;
 #endif
 
 #ifdef DEBUG
-#include "stdio.h"
+// #include "stdio.h" // !!! No <stdio.h> in Ren-C release builds
 #define Bug(x) {fprintf(stderr, "%s\n", x); exit(1);}
 #endif
 

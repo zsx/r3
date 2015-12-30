@@ -42,7 +42,6 @@
 ***********************************************************************/
 
 #include "sys-core.h"
-#include <stdio.h>
 
 #define WORD_TABLE_SIZE 1024  // initial size in words
 
