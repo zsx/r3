@@ -27,6 +27,7 @@
 ***********************************************************************/
 
 #include "sys-core.h"
+#include "mem-series.h" // low-level series memory access
 #include "sys-int-funcs.h"
 
 
@@ -507,6 +508,20 @@ void Assert_Series_Term_Core(REBSER *series)
             }
         }
     }
+}
+
+
+//
+//  Assert_Series_Core: C
+//
+void Assert_Series_Core(REBSER *series)
+{
+    if (SERIES_FREED(series))
+        Panic_Series(series);
+
+    assert(SERIES_LEN(series) < SERIES_REST(series));
+
+    Assert_Series_Term_Core(series);
 }
 
 

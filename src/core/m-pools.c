@@ -71,6 +71,7 @@
 //#define INSPECT_SERIES
 
 #include "sys-core.h"
+#include "mem-series.h" // low-level series memory access
 #include "sys-int-funcs.h"
 
 
@@ -320,6 +321,29 @@ void Init_Pools(REBINT scale)
 void Shutdown_Pools(void)
 {
     REBCNT n;
+
+    // !!! Ideally we would free all the manual series by calling them out by
+    // name and not "cheat" here, to be sure everything is under control.
+    // But for the moment we use the same sweep as the garbage collector,
+    // except sweeping the series it *wasn't* responsible for freeing.
+    {
+        REBSEG *seg = Mem_Pools[SERIES_POOL].segs;
+        REBCNT n;
+
+        for (; seg != NULL; seg = seg->next) {
+            REBSER *series = cast(REBSER*, seg + 1);
+            for (n = Mem_Pools[SERIES_POOL].units; n > 0; n--, series++) {
+                if (SERIES_FREED(series))
+                    continue;
+
+                // Free_Series asserts that a manual series is freed from
+                // the manuals list.  But the GC_Manuals series was never
+                // added to itself (it couldn't be!)
+                if (series != GC_Manuals)
+                    Free_Series(series);
+            }
+        }
+    }
 
     // Can't use Free_Series() because GC_Manuals couldn't be put in
     // the manuals list...
