@@ -1271,3 +1271,22 @@ REBTYPE(Struct)
 is_arg_error:
     fail (Error_Unexpected_Type(REB_STRUCT, VAL_TYPE(arg)));
 }
+
+//
+//  destroy-struct-storage: native [
+//
+//  {Destroy the external memory associated the struct}
+//      s   [struct!]
+//      /free func [routine!] {Specify the function to free the memory}
+//  ]
+//
+REBNATIVE(destroy_struct_storage)
+{
+    PARAM(1, val);
+    REFINE(2, free_q);
+    PARAM(3, free_func);
+
+    return Destroy_External_Storage(D_OUT,
+                                    VAL_STRUCT_DATA_BIN(ARG(val)),
+                                    REF(free_q)? ARG(free_func) : NULL);
+}
