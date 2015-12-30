@@ -238,7 +238,14 @@ enum {
     // Ren-Cpp, but by relatively old extensions...so there may be no good
     // answer in the case of those clients (likely either leaks or crashes).
     //
-    OPT_SER_EXTERNAL = 1 << 8
+    OPT_SER_EXTERNAL = 1 << 8,
+
+    // `OPT_SER_ACCESSIBLE` indicates that the external memory pointed by `->data`
+    // is accessible. This is not check at every access to the `->data` for the
+    // performance consideration, only on those that are known to have possible
+    // external memory storage (currently only struct! could have such serieses)
+    //
+    OPT_SER_ACCESSIBLE = 1 << 9
 };
 
 struct Reb_Series_Dynamic {
@@ -416,6 +423,12 @@ struct Reb_Series {
 #define FAIL_IF_LOCKED_SERIES(s) \
     if (SERIES_GET_FLAG(s, OPT_SER_LOCKED)) fail (Error(RE_LOCKED))
 
+//
+// Series external data accessible
+//
+#define SERIES_DATA_NOT_ACCESSIBLE(s) \
+    (SERIES_GET_FLAG(s, OPT_SER_EXTERNAL) \
+     && !SERIES_GET_FLAG(s, OPT_SER_ACCESSIBLE))
 //
 // Optimized expand when at tail (but, does not reterminate)
 //

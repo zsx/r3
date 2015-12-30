@@ -344,3 +344,57 @@ REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
 
     return ARRAY_LEN(array);
 }
+
+//
+//  Destroy_External_Storage: C
+//
+// Destroy the external storage pointed by `->data` by calling the routine!
+// `free_func` if it's not NULL
+//
+// out            Result
+// ser            The series
+// free_func    A routine! to free the storage, if it's NULL, only mark the
+//         external storage non-accessible
+//
+REB_R Destroy_External_Storage(REBVAL *out,
+                               REBSER *ser,
+                               REBVAL *free_func)
+{
+    SET_UNSET_UNLESS_LEGACY_NONE(out);
+
+    if (!SERIES_GET_FLAG(ser, OPT_SER_EXTERNAL)) {
+        fail (Error(RE_NO_EXTERNAL_STORAGE));
+    }
+    if (!SERIES_GET_FLAG(ser, OPT_SER_ACCESSIBLE)) {
+        REBVAL i;
+        VAL_INIT_WRITABLE_DEBUG(&i);
+        SET_INTEGER(&i, cast(REBUPT, SERIES_DATA_RAW(ser)));
+
+        fail (Error(RE_ALREADY_DESTROYED, &i));
+    }
+    SERIES_CLR_FLAG(ser, OPT_SER_ACCESSIBLE);
+    if (free_func) {
+        REBVAL safe;
+        REBARR *array;
+        REBVAL *elem;
+        REBOOL threw;
+
+        array = Make_Array(2);
+        MANAGE_ARRAY(array);
+        PUSH_GUARD_ARRAY(array);
+
+        elem = Alloc_Tail_Array(array);
+        *elem = *free_func;
+
+        elem = Alloc_Tail_Array(array);
+        SET_INTEGER(elem, cast(REBUPT, SERIES_DATA_RAW(ser)));
+
+        VAL_INIT_WRITABLE_DEBUG(&safe);
+        threw = Do_At_Throws(&safe, array, 0);
+
+        DROP_GUARD_ARRAY(array);
+
+        if (threw) return R_OUT_IS_THROWN;
+    }
+    return R_OUT;
+}
