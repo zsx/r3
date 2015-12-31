@@ -205,6 +205,7 @@ REBSER *Copy_Sequence_At_Len(REBSER *original, REBCNT index, REBCNT len)
         (len + 1) * SERIES_WIDE(original)
     );
     copy->content.dynamic.len = len;
+    TERM_SEQUENCE(copy);
     return copy;
 }
 
