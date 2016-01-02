@@ -271,6 +271,9 @@ Access: [
     process-not-found:  [{process not found:} :arg1]
 
     symbol-not-found:   [{symbol not found:} :arg1]
+    bad-memory:         [{non-accessible memory at} :arg1 {in} :arg2]
+    no-external-storage: [{no external storage in the series}]
+    already-destroyed:  [{storage at} :arg1 {already destroyed}]
 ]
 
 Command: [
