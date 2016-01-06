@@ -1565,30 +1565,8 @@ reevaluate:
                 // puts a "magic" REBNATIVE(return) value into the arg slot
                 // for pure locals named RETURN: ....used by FUNC and CLOS
                 //
-
-                assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
-
-                if (
-                    VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)
-                    && SYMBOL_TO_CANON(VAL_TYPESET_SYM(c->param)) == SYM_RETURN
-                ) {
-                    *c->arg = *ROOT_RETURN_NATIVE;
-
-                    // CLOSURE! wants definitional return to indicate the
-                    // object context corresponding to the *specific* closure
-                    // instance...not the "archetypal" closure value.  It
-                    // will co-opt the arglist array for this purpose, so
-                    // put that in the spot instead of a FUNCTION!'s
-                    // identifying series if necessary...
-                    //
-                    VAL_FUNC_RETURN_FROM(c->arg) =
-                        IS_CLOSURE(FUNC_VALUE(c->func))
-                            ? c->arglist.array
-                            : FUNC_PARAMLIST(c->func);
-                }
-
-                // otherwise leave it unset
-
+                // Leave this arg value as an UNSET!
+                //
                 continue;
             }
 
@@ -2806,27 +2784,16 @@ REBOOL Apply_Func_Throws_Core(
         // *** PURE LOCALS => continue ***
 
         while (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
-            // We need to skip over "pure locals", e.g. those created in
-            // the spec with a SET-WORD!.  (They are useful for generators)
             //
-            // The special exception is a RETURN: local, if it is "magic"
-            // (e.g. FUNC and CLOS made it).  Then it gets a REBNATIVE(return)
-            // that is "magic" and knows to return to *this* function...
-
-            if (
-                VAL_GET_EXT(FUNC_VALUE(func), EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
-            ) {
-                *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
-            }
-            else {
-                // Leave as unset.
-            }
-
-            // We aren't actually consuming the evaluated item in the block,
-            // so keep advancing the parameter as long as it's a pure local.
+            // We need to skip over "pure locals", e.g. those created in
+            // the spec with a SET-WORD!.  This includes definitional return,
+            // which will have a value filled in at dispatch time.
+            //
+            // (We're not actually consuming an evaluated item in the block,
+            // so keep advancing the parameter as long as it's a pure local.)
+            //
             c->param++;
+            c->arg++;
             if (IS_END(c->param))
                 fail (Error(RE_APPLY_TOO_MANY));
         }
@@ -2879,20 +2846,13 @@ REBOOL Apply_Func_Throws_Core(
 
     while (NOT_END(c->param)) {
         if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+            //
             // A true local...to be ignored as far as block args go.
             // Very likely to hit them at the end of the paramlist because
             // that's where the function generators tack on RETURN:
-
-            if (
-                VAL_GET_EXT(FUNC_VALUE(func), EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(c->param), SYM_RETURN)
-            ) {
-                *c->arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_FROM(c->arg) = FUNC_PARAMLIST(func);
-            }
-            else {
-                // Leave as unset
-            }
+            //
+            // Leave as UNSET!
+            //
         }
         else if (VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
             c->mode = CALL_MODE_SKIPPING;
@@ -3239,18 +3199,9 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
         assert(IS_TYPESET(param_new));
 
         if (VAL_GET_EXT(param_new, EXT_TYPESET_HIDDEN)) {
-            if (
-                VAL_GET_EXT(FUNC_VALUE(func_new), EXT_FUNC_HAS_RETURN)
-                && SAME_SYM(VAL_TYPESET_SYM(param_new), SYM_RETURN)
-            ) {
-                // This pure local is a special magic "definitional return"
-                // (see comments on VAL_FUNC_RETURN_FROM)
-                *arg_new = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_FROM(arg_new) = FUNC_PARAMLIST(func_new);
-            }
-            else {
-                // This pure local is not special, so leave as UNSET
-            }
+            //
+            // Pure local... leave as UNSET!
+            //
             continue;
         }
 

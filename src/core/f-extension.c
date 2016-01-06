@@ -478,7 +478,7 @@ void Make_Command(
         Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
 
     out->payload.any_function.func
-        = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(spec)));
+        = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(spec), SYM_0));
 
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function
