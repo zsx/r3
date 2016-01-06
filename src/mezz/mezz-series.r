@@ -223,7 +223,7 @@ reword: function [
 
     ; Determine the escape delimiter(s), if any
     ;
-    char: none
+    char: to-value :char
     char-end: none
     case/all [
         not escape [char: "$"]
