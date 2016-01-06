@@ -130,11 +130,24 @@ REBARR *List_Func_Typesets(REBVAL *func)
 // 
 // Throw an error for invalid values.
 //
-REBARR *Make_Paramlist_Managed(REBARR *spec)
+REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
 {
     REBVAL *item;
     REBARR *paramlist;
     REBVAL *typeset;
+
+    // Use a temporary to hold a value being "bubbled" toward the end if there
+    // was a request for a canon symbol to be moved to the end.  (Feature used
+    // by definitional return.)
+    //
+    // !!! This could be done more efficiently as a feature of Collect_Keylist
+    // when it was forming the array, but that efficiency would be at the cost
+    // of burdening Collect_Keylist's interface and adding overhead for more
+    // common binding operations than function spec analysis.
+    //
+    REBVAL bubble;
+    VAL_INIT_WRITABLE_DEBUG(&bubble);
+    SET_END(&bubble); // not holding a value being bubbled to end...
 
     // Start by reusing the code that makes keylists out of Rebol-structured
     // data.  Scan for words (BIND_ALL) and error on duplicates (BIND_NO_DUP)
@@ -283,6 +296,36 @@ REBARR *Make_Paramlist_Managed(REBARR *spec)
         default:
             fail (Error(RE_BAD_FUNC_DEF, item));
         }
+
+        if (VAL_TYPESET_CANON(typeset) == opt_sym_last) {
+            //
+            // If we find the canon symbol we were looking for then grab it
+            // into the bubble.
+            //
+            assert(opt_sym_last != SYM_0 && IS_END(&bubble));
+            bubble = *typeset;
+        }
+        else if (NOT_END(&bubble)) {
+            //
+            // If we already found our bubble, keep moving the typeset bits
+            // back one slot to cover up each hole left.
+            //
+            *(typeset - 1) = *typeset;
+        }
+    }
+
+    // Note the above code leaves us in the final typeset position... the loop
+    // is incrementing the *spec* and bumps the typeset on demand.
+    //
+    assert(IS_END(typeset + 1));
+
+    // If we were looking for something to bubble to the end, assert we've
+    // found it...and place it in that final slot.  (It may have come from
+    // the last slot so it's a No-Op, but no reason to check that.)
+    //
+    if (opt_sym_last != SYM_0) {
+        assert(NOT_END(&bubble));
+        *typeset = bubble;
     }
 
     return paramlist;
@@ -310,7 +353,8 @@ void Make_Native(
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
 
-    out->payload.any_function.func = AS_FUNC(Make_Paramlist_Managed(spec));
+    out->payload.any_function.func
+        = AS_FUNC(Make_Paramlist_Managed(spec, SYM_0));
 
     // Save the function value in slot 0 of the paramlist so that having
     // just the paramlist REBARR can get you the full REBVAL of the function
@@ -352,6 +396,15 @@ void Make_Native(
         // each time...
         //
         PG_Return_Func = VAL_FUNC(out);
+
+        // The definitional return code canonizes symbols to see if they are
+        // return or not, but doesn't canonize SYM_RETURN.  Double-check it
+        // does not have to.
+        //
+        // !!! Is there a better point in the bootstrap for this check, where
+        // it's late enough to not fail the word table lookup?
+        //
+        assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
     }
     else if (code == &N_parse)
         *ROOT_PARSE_NATIVE = *out;
@@ -462,8 +515,10 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // 
 // While MAKE FUNCTION! has no RETURN, all functions still have EXIT as a
 // non-definitional alternative.  Ren/C adds a /WITH refinement so it can
-// behave equivalently to old-non-definitonal return.  While not ideal, it
-// could help in code which needed to be <transparent>.
+// behave equivalently to old-non-definitonal return.  There is even a way to
+// identify specific points up the call stack to exit from via EXIT/FROM, so
+// not having definitional return has several alternate options for generators
+// that wish to use them.
 // 
 // This function will either successfully place a function value into
 // `out` or not return...as a failed check on a function spec is
@@ -482,14 +537,15 @@ void Make_Function(
         fail (Error_Bad_Func_Def(spec, body));
 
     if (!has_return) {
+        //
         // Simpler case: if `make function!` or `make closure!` are used
         // then the function is "effectively <transparent>".   There is no
         // definitional return automatically added.  Non-definitional EXIT
         // and EXIT/WITH will still be available.
-
+        //
         // A small optimization will reuse the global empty array for an
         // empty spec instead of copying (as the spec need not be unique)
-
+        //
         if (VAL_LEN_AT(spec) == 0)
             VAL_FUNC_SPEC(out) = EMPTY_ARRAY;
         else
@@ -509,6 +565,7 @@ void Make_Function(
 
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
+                //
                 // Note a "true local" (indicated by a set-word) is considered
                 // to be tacit approval of wanting a definitional return
                 // by the generator.  This helps because Red's model
@@ -544,7 +601,7 @@ void Make_Function(
                     // independent parameters can save the need for a REDUCE
                     // or COMPOSE that is generally required to composite a
                     // single block parameter that MAKE FUNCTION! requires.
-
+                    //
                     VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(spec), VAL_INDEX(spec)
                     );
@@ -571,7 +628,7 @@ void Make_Function(
                     // ANY-FUNCTION!).  An INFIX function generator is thus
                     // kind of tempting that returns an INFIX! (OP!), so
                     // this will remain under consideration.
-
+                    //
                     SET_FLAG(func_flags, EXT_FUNC_INFIX);
                 }
                 else if (
@@ -591,7 +648,7 @@ void Make_Function(
                     // Having a tag that lets you mark a run of locals is
                     // useful.  It will convert WORD! to SET-WORD! in the
                     // spec, and stop at the next refinement.
-
+                    //
                     convert_local = TRUE;
 
                     // See notes about how we *could* remove ANY-STRING!s like
@@ -605,17 +662,20 @@ void Make_Function(
             else if (ANY_WORD(item)) {
                 if (convert_local) {
                     if (IS_WORD(item)) {
+                        //
                         // We convert words to set-words for pure local status
+                        //
                         VAL_SET_TYPE_BITS(item, REB_SET_WORD);
                     }
                     else if (IS_REFINEMENT(item)) {
+                        //
                         // A refinement signals us to stop doing the locals
                         // conversion.  Historically, help hides any
                         // refinements that appear behind a /local, so
                         // presumably it would do the same with <local>...
                         // but mechanically there is no way to tell
                         // Check_Func_Spec to hide a refinement.
-
+                        //
                         convert_local = FALSE;
                     }
                     else {
@@ -625,12 +685,13 @@ void Make_Function(
                         //     func [a b <local> 'c #d :e]
                         //
                         // Consider that an error.
-
+                        //
                         fail (Error(RE_BAD_FUNC_DEF, item));
                     }
                 }
 
                 if (SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
+                    //
                     // Although return: is explicitly tolerated,  all these
                     // would cancel a definitional return:
                     //
@@ -641,7 +702,7 @@ void Make_Function(
                     // The last one because /local is actually "just an ordinary
                     // refinement".  The choice of HELP to omit it could be
                     // a configuration setting.
-
+                    //
                     VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(spec), VAL_INDEX(spec)
                     );
@@ -651,15 +712,17 @@ void Make_Function(
         }
 
         if (has_return) {
+            //
             // No prior RETURN (or other issue) stopping definitional return!
             // Add the "true local" RETURN: to the spec.
-
+            //
             if (index == 0) {
+                //
                 // If the incoming spec was [] and we are turning it to
                 // [return:], then that's a relatively common pattern
                 // (e.g. what DOES would manufacture).  Re-use a global
                 // instance of that series as an optimization.
-
+                //
                 VAL_FUNC_SPEC(out) = VAL_ARRAY(ROOT_RETURN_BLOCK);
             }
             else {
@@ -671,14 +734,21 @@ void Make_Function(
         }
     }
 
-    // Spec checking will longjmp out with an error if the spec is bad
+    // Spec checking will longjmp out with an error if the spec is bad.
+    // For efficiency, we tell the paramlist what symbol we would like to
+    // have located in the final slot if its symbol is found (so SYM_RETURN
+    // if the function has a optimized definitional return).
     //
-    out->payload.any_function.func
-        = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(out)));
+    out->payload.any_function.func = AS_FUNC(
+        Make_Paramlist_Managed(
+            VAL_FUNC_SPEC(out),
+            has_return ? SYM_RETURN : SYM_0
+        )
+    );
 
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
-
+    //
     if (VAL_LEN_AT(body) == 0)
         VAL_FUNC_BODY(out) = EMPTY_ARRAY;
     else
@@ -689,22 +759,22 @@ void Make_Function(
     // Even if `has_return` was passed in true, the FUNC or CLOS generator
     // may have seen something to turn it off and turned it false.  But if
     // it's still on, then signal we want the fancy fake return!
-
+    //
     if (has_return) {
+        //
+        // Make_Paramlist above should have ensured it's in the last slot.
+        //
+    #if !defined(NDEBUG)
+        REBVAL *param = ARRAY_LAST(AS_ARRAY(out->payload.any_function.func));
+        assert(VAL_TYPESET_CANON(param) == SYM_RETURN);
+        assert(VAL_GET_EXT(param, EXT_TYPESET_HIDDEN));
+    #endif
+
+        // Flag that this function has a definitional return, so Dispatch_Call
+        // knows to write the "hacked" function in that final local.  (Arg
+        // fulfillment should leave the hidden parameter unset)
+        //
         SET_FLAG(func_flags, EXT_FUNC_HAS_RETURN);
-
-        // Boilerplate says:
-        //
-        //     catch/name [your code here] bind-of 'return
-        //
-        // Visually for BODY-OF it's better to give user code its own line:
-        //
-        //     catch/name [
-        //         your code here
-        //     ] bind-of 'return
-
-        if (ARRAY_LEN(VAL_FUNC_BODY(out)) >= 2)
-            VAL_SET_OPT(ARRAY_HEAD(VAL_FUNC_BODY(out)), OPT_VALUE_LINE);
     }
 
     assert(type == REB_FUNCTION || type == REB_CLOSURE);
@@ -715,7 +785,7 @@ void Make_Function(
     // would be useful to be able to navigate to a full function value
     // given just its identifying series, but where to put it?  We use
     // slot 0 (a trick learned from R3-Alpha's object strategy)
-
+    //
     *FUNC_VALUE(out->payload.any_function.func) = *out;
 
     // The argument and local symbols have been arranged in the function's
@@ -727,7 +797,7 @@ void Make_Function(
     // with an object frame.  The reason is that this is only the "archetype"
     // body of the closure...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
-
+    //
     Bind_Relative_Deep(VAL_FUNC(out), VAL_FUNC_BODY(out));
 }
 
@@ -930,13 +1000,37 @@ REBOOL Do_Action_Throws(struct Reb_Call *call_)
 //
 //  Do_Function_Throws: C
 //
-REBOOL Do_Function_Throws(struct Reb_Call *call_)
+REBOOL Do_Function_Throws(struct Reb_Call *c)
 {
     Eval_Functions++;
 
+    // !!! repeated code in Do_Closure (should disappear in unification)
+    //
+    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+        //
+        // If the closure has a native-optimized version of definitional
+        // return, the local for this return should so far have just been
+        // ensured in last slot...and left unset by any arg filling process.
+        //
+        REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func)];
+
+    #if !defined(NDEBUG)
+        REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+        assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
+        assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
+        assert(IS_UNSET(last_arg));
+    #endif
+
+        // Now fill in the var for that local with a "hacked up" native
+        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
+        //
+        *last_arg = *ROOT_RETURN_NATIVE;
+        VAL_FUNC_RETURN_FROM(last_arg) = FUNC_PARAMLIST(c->func);
+    }
+
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
-    if (Do_At_Throws(D_OUT, FUNC_BODY(D_FUNC), 0))
+    if (Do_At_Throws(c->out, FUNC_BODY(c->func), 0))
         return TRUE; // throw wasn't for us...
 
     return FALSE;
@@ -949,7 +1043,7 @@ REBOOL Do_Function_Throws(struct Reb_Call *call_)
 // Do a closure by cloning its body and rebinding it to
 // a new frame of words/values.
 //
-REBOOL Do_Closure_Throws(struct Reb_Call *call_)
+REBOOL Do_Closure_Throws(struct Reb_Call *c)
 {
     REBARR *body;
     REBCON *context;
@@ -960,9 +1054,9 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // of the function/closure itself that has that paramlist.
     //
 #if !defined(NDEBUG)
-    assert(IS_CLOSURE(FUNC_VALUE(D_FUNC)));
-    if (VAL_FUNC_PARAMLIST(FUNC_VALUE(D_FUNC)) != FUNC_PARAMLIST(D_FUNC)) {
-        Panic_Array(VAL_FUNC_PARAMLIST(FUNC_VALUE(D_FUNC)));
+    assert(IS_CLOSURE(FUNC_VALUE(c->func)));
+    if (VAL_FUNC_PARAMLIST(FUNC_VALUE(c->func)) != FUNC_PARAMLIST(c->func)) {
+        Panic_Array(VAL_FUNC_PARAMLIST(FUNC_VALUE(c->func)));
     }
 #endif
 
@@ -971,7 +1065,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // It will be held alive as long as the call is in effect by the
     // Reb_Call so that the `arg` pointer will remain valid.
     //
-    context = AS_CONTEXT(call_->arglist.array);
+    context = AS_CONTEXT(c->arglist.array);
 
     // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
     // are going to be switching it to an OBJECT!.
@@ -979,34 +1073,10 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
     INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
-    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(D_FUNC));
+    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(c->func));
     CONTEXT_SPEC(context) = NULL;
     CONTEXT_BODY(context) = NULL;
     ASSERT_CONTEXT(context);
-
-#if !defined(NDEBUG)
-    // !!! A second sweep for the definitional return used to be necessary in
-    // the dispatch of closures since the frame hadn't been created yet to
-    // put in the RETURN_FROM slot.  Now that the call's `arglist` is known
-    // to be the pre-created array we'll mutate into a frame, the Do_Core
-    // sweep went ahead and put it in for us.  Temporarily leave in the sweep
-    // with aparanoid check to make sure, but delete this eventually.
-
-    if (VAL_GET_EXT(FUNC_VALUE(D_FUNC), EXT_FUNC_HAS_RETURN)) {
-        REBVAL *key = FUNC_PARAM(D_FUNC, 1);
-        REBVAL *value = CONTEXT_VAR(context, 1);
-
-        for (; NOT_END(key); key++, value++) {
-            if (SAME_SYM(VAL_TYPESET_SYM(key), SYM_RETURN)) {
-                assert(IS_NATIVE(value));
-                assert(PG_Return_Func == VAL_FUNC(value));
-                assert(
-                    VAL_FUNC_RETURN_FROM(value) == CONTEXT_VARLIST(context)
-                );
-            }
-        }
-    }
-#endif
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed...only extract and manage the arglist
@@ -1018,8 +1088,32 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     // of it so that they point specifically to the instances for this
     // invocation.  (Costly, but that is the mechanics of words.)
     //
-    body = Copy_Array_Deep_Managed(FUNC_BODY(D_FUNC));
-    Rebind_Values_Closure_Deep(D_FUNC, context, ARRAY_HEAD(body));
+    body = Copy_Array_Deep_Managed(FUNC_BODY(c->func));
+    Rebind_Values_Closure_Deep(c->func, context, ARRAY_HEAD(body));
+
+    // !!! repeated code in Do_Function (should disappear in unification)
+    //
+    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+        //
+        // If the closure has a native-optimized version of definitional
+        // return, the local for this return should so far have just been
+        // ensured in last slot...and left unset by any arg filling process.
+        //
+        REBVAL *last_arg = CONTEXT_VAR(context, CONTEXT_LEN(context));
+
+    #if !defined(NDEBUG)
+        REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+        assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
+        assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
+        assert(IS_UNSET(last_arg));
+    #endif
+
+        // Now fill in the var for that local with a "hacked up" native
+        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
+        //
+        *last_arg = *ROOT_RETURN_NATIVE;
+        VAL_FUNC_RETURN_FROM(last_arg) = CONTEXT_VARLIST(context);
+    }
 
     // Protect the body from garbage collection during the course of the
     // execution.  (We could also protect it by stowing it in the call
@@ -1028,7 +1122,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *call_)
     //
     PUSH_GUARD_ARRAY(body);
 
-    if (Do_At_Throws(D_OUT, body, 0)) {
+    if (Do_At_Throws(c->out, body, 0)) {
         DROP_GUARD_ARRAY(body);
         return TRUE; // throw wasn't for us
     }
