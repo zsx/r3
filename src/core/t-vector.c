@@ -444,7 +444,7 @@ REBOOL MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 //  CT_Vector: C
 //
-REBINT CT_Vector(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Vector(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT n = Compare_Vector(a, b);  // needs to be expanded for equality
     if (mode >= 0) {

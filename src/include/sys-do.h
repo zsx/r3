@@ -137,7 +137,7 @@ struct Reb_Call {
     // `value` [INPUT, REUSABLE, GC-PROTECTS pointed-to REBVAL]
     //
     // This is the value currently being processed.  Callers pass in the
-    // first value pointer...which for any successive evalutions will be
+    // first value pointer...which for any successive evaluations will be
     // updated via picking from `array` based on `index`.  But having the
     // caller pass in the initial value gives the *option* of that value
     // not being resident in the series.
@@ -429,7 +429,7 @@ enum Path_Eval_Result {
 
 typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
 
-typedef REBINT (*REBCTF)(REBVAL *a, REBVAL *b, REBINT s);
+typedef REBINT (*REBCTF)(const REBVAL *a, const REBVAL *b, REBINT s);
 
 
 //=////////////////////////////////////////////////////////////////////////=//

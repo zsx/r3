@@ -33,7 +33,7 @@
 //
 //  CT_Datatype: C
 //
-REBINT CT_Datatype(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Datatype(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE_KIND(a) == VAL_TYPE_KIND(b));
     return -1;

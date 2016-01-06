@@ -167,7 +167,7 @@ REBOOL Eq_Decimal2(REBDEC a, REBDEC b)
 //
 //  CT_Decimal: C
 //
-REBINT CT_Decimal(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Decimal(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) {
         if (mode <= 1)

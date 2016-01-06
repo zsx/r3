@@ -70,7 +70,7 @@ void Set_Date(REBVAL *val, REBOL_DAT *dat)
 //
 //  CT_Date: C
 //
-REBINT CT_Date(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Date(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Date(a, b);
     if (mode >= 2)

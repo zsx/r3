@@ -165,7 +165,7 @@ void Emit_Time(REB_MOLD *mold, const REBVAL *value)
 //
 //  CT_Time: C
 //
-REBINT CT_Time(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Time(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Time(a, b);
     if (mode >= 0)  return (num == 0);

@@ -36,7 +36,7 @@
 //
 //  CT_Bitset: C
 //
-REBINT CT_Bitset(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Bitset(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b);
     if (mode >= 0) return (

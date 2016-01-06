@@ -35,7 +35,7 @@
 //
 //  CT_Integer: C
 //
-REBINT CT_Integer(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Integer(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0)  return (VAL_INT64(a) == VAL_INT64(b));
     if (mode == -1) return (VAL_INT64(a) >= VAL_INT64(b));

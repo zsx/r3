@@ -36,7 +36,7 @@
 //
 //  CT_Library: C
 //
-REBINT CT_Library(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Library(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     if (mode >= 0) {

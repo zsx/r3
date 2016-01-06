@@ -42,7 +42,7 @@
 //     CT_Get_Path(REBVAL *a, REBVAL *b, REBINT mode)
 //     CT_Lit_Path(REBVAL *a, REBVAL *b, REBINT mode)
 //
-REBINT CT_Array(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Array(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num;
 

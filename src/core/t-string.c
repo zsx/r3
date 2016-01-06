@@ -35,7 +35,7 @@
 //
 //  CT_String: C
 //
-REBINT CT_String(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_String(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num;
 

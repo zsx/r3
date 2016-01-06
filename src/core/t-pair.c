@@ -33,7 +33,7 @@
 //
 //  CT_Pair: C
 //
-REBINT CT_Pair(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Pair(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) return Cmp_Pair(a, b) == 0; // works for INTEGER=0 too (spans x y)
     if (IS_PAIR(b) && 0 == VAL_INT64(b)) { // for negative? and positive?
