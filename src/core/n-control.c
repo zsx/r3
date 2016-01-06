@@ -369,12 +369,11 @@ REBNATIVE(attempt)
 //
 //  break: native [
 //  
-//  {Breaks out of a loop, while, until, repeat, for-each, etc.}
+//  {Exit the current iteration of a loop and stop iterating further.}
 //  
-//      /with "Forces the loop function to return a value"
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
 //      value [any-value!]
-//      /return {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
-//      return-value [any-value!]
 //  ]
 //
 REBNATIVE(break)
@@ -383,7 +382,10 @@ REBNATIVE(break)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :break`.
 {
-    REBVAL *value = D_REF(1) ? D_ARG(2) : (D_REF(3) ? D_ARG(4) : UNSET_VALUE);
+    REFINE(1, with);
+    PARAM(2, value);
+
+    REBVAL *value = REF(with) ? ARG(value) : UNSET_VALUE;
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
@@ -888,9 +890,10 @@ REBNATIVE(compose)
 //
 //  continue: native [
 //  
-//  "Throws control back to top of loop."
+//  "Throws control back to top of loop for next iteration."
 //  
-//      /with {Act as if loop body finished current evaluation with a value}
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
 //      value [any-value!]
 //  ]
 //
@@ -900,7 +903,10 @@ REBNATIVE(continue)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :continue`.
 {
-    REBVAL *value = D_REF(1) ? D_ARG(2) : UNSET_VALUE;
+    REFINE(1, with);
+    PARAM(2, value);
+
+    REBVAL *value = REF(with) ? ARG(value) : UNSET_VALUE;
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 

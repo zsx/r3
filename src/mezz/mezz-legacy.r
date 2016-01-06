@@ -237,6 +237,29 @@ selfless?: func [context [any-context!]] [
 ]
 
 
+; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
+; the word RETURN in the refinement (return from where, who?) became only
+; more confusing with the introduction of definitional return.
+;
+; Renaming rationale: https://trello.com/c/c4T1UZEE
+; New features of WITH: https://trello.com/c/cOgdiOAD
+;
+lib-break: :break ; overwriting lib/break for now
+break: func [
+    {Exit the current iteration of a loop and stop iterating further.}
+
+    /with
+        {Act as if loop body finished current evaluation with a value}
+    value [any-value!]
+
+    /return ;-- Overrides RETURN!
+        {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
+    return-value [any-value!]
+][
+    lib-break/with either return :return-value :value
+]
+
+
 ; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what
 ; is done with the error if one happens.  It also has historical baggage with
 ; TRY/CATCH constructs. TRAP does not have that, and better parallels CATCH
