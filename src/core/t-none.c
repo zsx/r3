@@ -32,7 +32,7 @@
 //
 //  CT_None: C
 //
-REBINT CT_None(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_None(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE(a) == VAL_TYPE(b));
     return -1;

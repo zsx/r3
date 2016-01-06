@@ -41,7 +41,7 @@
 //
 //  CT_Image: C
 //
-REBINT CT_Image(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Image(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0)
         return -1;

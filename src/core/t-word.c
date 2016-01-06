@@ -37,7 +37,7 @@
 // the words are equal or not (1 or 0).  This creates bad invariants for
 // sorting etc.  Review.
 //
-REBINT CT_Word(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT e;
     REBINT diff;

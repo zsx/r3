@@ -30,7 +30,7 @@
 #include "sys-core.h"
 
 
-static REBOOL Same_Context(REBVAL *val, REBVAL *arg)
+static REBOOL Same_Context(const REBVAL *val, const REBVAL *arg)
 {
     if (
         VAL_TYPE(arg) == VAL_TYPE(val) &&
@@ -41,7 +41,7 @@ static REBOOL Same_Context(REBVAL *val, REBVAL *arg)
 }
 
 
-static REBOOL Equal_Context(REBVAL *val, REBVAL *arg)
+static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
 {
     REBCON *f1;
     REBCON *f2;
@@ -273,7 +273,7 @@ static REBCON *Trim_Context(REBCON *context)
 //
 //  CT_Context: C
 //
-REBINT CT_Context(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Context(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     if (mode == 3) return Same_Context(a, b) ? 1 : 0;

@@ -29,7 +29,7 @@
 
 #include "sys-core.h"
 
-static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
+static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
 {
     if (VAL_TYPE(val) == VAL_TYPE(arg) &&
         VAL_FUNC_SPEC(val) == VAL_FUNC_SPEC(arg) &&
@@ -42,7 +42,7 @@ static REBOOL Same_Func(REBVAL *val, REBVAL *arg)
 //
 //  CT_Function: C
 //
-REBINT CT_Function(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) return Same_Func(a, b) ? 1 : 0;
     return -1;

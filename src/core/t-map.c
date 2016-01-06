@@ -59,7 +59,7 @@
 //
 //  CT_Map: C
 //
-REBINT CT_Map(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Map(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b);

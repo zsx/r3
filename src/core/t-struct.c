@@ -1019,7 +1019,7 @@ REBINT Cmp_Struct(const REBVAL *s, const REBVAL *t)
 //
 //  CT_Struct: C
 //
-REBINT CT_Struct(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Struct(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     //printf("comparing struct a (%p) with b (%p), mode: %d\n", a, b, mode);
     switch (mode) {

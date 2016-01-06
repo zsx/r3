@@ -68,7 +68,7 @@ const struct {
 //
 //  CT_Typeset: C
 //
-REBINT CT_Typeset(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Typeset(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     return EQUAL_TYPESET(a, b);

@@ -33,7 +33,7 @@
 //
 //  CT_Tuple: C
 //
-REBINT CT_Tuple(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Tuple(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Tuple(a, b);
     if (mode > 1) return (num == 0 && VAL_TUPLE_LEN(a) == VAL_TUPLE_LEN(b));

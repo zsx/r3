@@ -53,7 +53,7 @@ const REBCNT Gob_Flag_Words[] = {
 //
 //  CT_Gob: C
 //
-REBINT CT_Gob(REBVAL *a, REBVAL *b, REBINT mode)
+REBINT CT_Gob(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0)
         return VAL_GOB(a) == VAL_GOB(b) && VAL_GOB_INDEX(a) == VAL_GOB_INDEX(b);
