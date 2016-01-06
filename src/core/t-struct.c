@@ -77,6 +77,8 @@ static REBOOL get_scalar(const REBSTU *stu,
                   REBCNT n, /* element index, starting from 0 */
                   REBVAL *val)
 {
+    REBYTE *data;
+
     if (NOT_ACCESSIBLE(stu)) {
         if (field->type != STRUCT_TYPE_STRUCT) {
             SET_UNSET(val);
@@ -84,7 +86,7 @@ static REBOOL get_scalar(const REBSTU *stu,
         }
     }
 
-    REBYTE *data = SERIES_AT(
+    data = SERIES_AT(
         REBYTE,
         STRUCT_DATA_BIN(stu),
         STRUCT_OFFSET(stu) + field->offset + n * field->size
