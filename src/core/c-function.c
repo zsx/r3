@@ -467,6 +467,11 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     Val_Init_Array(ARRAY_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
     VAL_SET_OPT(ARRAY_AT(fake_body, 4), OPT_VALUE_LINE);
 
+    // !!! This should not be necessary as there is a line break in the
+    // template...look into why the line didn't make it to the body.
+    //
+    VAL_SET_OPT(ARRAY_AT(fake_body, 0), OPT_VALUE_LINE);
+
     return fake_body;
 }
 
