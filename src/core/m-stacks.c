@@ -404,13 +404,26 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         SET_END(ARRAY_AT(c->arglist.array, num_slots));
         slot = ARRAY_HEAD(c->arglist.array);
 
+        // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
+        // be marked safe from GC.  It is managed because the pointer makes
+        // its way into bindings that ANY-WORD! values may have, and they
+        // need to not crash.
+        //
+        // !!! Note that theoretically pending mode arrays do not need GC
+        // access as no running could could get them, but the debugger is
+        // able to access this information.  GC protection for pending
+        // frames could be issued on demand by the debugger, however.
+        //
+        MANAGE_ARRAY(c->arglist.array);
+
         // We have to set the lock flag on the series as long as it is on
         // the stack.  This means that no matter what cleverness the GC
         // might think it can do shuffling data around, the closure frame
         // is not a candidate for this cleverness.
         //
-        // !!! General review: series need to be lockable multiple times,
-        // and it needs to happen with any stack-hold (e.g. PUSH_GUARD)
+        // !!! Review the overall philosophy of not allowing the frame of
+        // functions/closures to grow.  It is very likely a good idea, but
+        // there may be reasons to introduce some kind of flexibility.
         //
         ARRAY_SET_FLAG(c->arglist.array, OPT_SER_FIXED_SIZE);
     }
@@ -460,33 +473,29 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 // Free a call frame's arglist series.  These are done in a stack, so the
 // call being dropped needs to be the last one pushed.
 //
-// Note that if a `fail` occurs this function will *not* be called, because
-// a longjmp will skip the code that would have called it.  The point
-// where it longjmps to will not be able to read the stack-allocated Reb_Call,
-// because that stack will be done.
+// NOTES:
 //
-// Hence there cannot be anything in the Reb_Call structure that would not
-// be able to be freed by the trap handlers implicitly (no malloc'd members,
-// no cleanup needing imperative code, etc.)
+// * If a FAIL occurs this function will *not* be called, because a longjmp
+//   will skip the code that would have called it.  The stack-allocated
+//   Reb_Call cannot contain anything that can't be freed by the PUSH_TRAP
+//   handling implicitly--so no malloc'd members, no cleanup needing imperative
+//   code, etc.  (The arglist stack pointer is tracked so it is covered.)
+//
+// * If a THROW occurs during argument acquisition, then this routine will be
+//   called to free the arglist.  But it may not have reached dispatch for
+//   the call, so nothing can be checked here that assumes it did.
 //
 void Drop_Call_Arglist(struct Reb_Call* c)
 {
     if (IS_CLOSURE(FUNC_VALUE(c->func))) {
         //
-        // Do_Closure() converted the arglist array to be managed.
+        // Nothing to do, array was managed.
+        //
+        // !!! Impending plan to merge approaches, so REBSERs can have their
+        // data backed by the stack and then "go bad" from a stack drop
+        // without actually being freed.
         //
         ASSERT_ARRAY_MANAGED(c->arglist.array);
-
-        // Now that it's off the stack (and not generating any definitional
-        // returns) we can unlock it.
-        //
-        // !!! Locking the closure may not be completely necessary, but it
-        // is necessary at least to subvert the check that one does not
-        // use DO to evaluate into movable memory--as we are DO-ing the
-        // arguments into this array for the call.
-        //
-        assert(ARRAY_GET_FLAG(c->arglist.array, OPT_SER_FIXED_SIZE));
-        ARRAY_CLR_FLAG(c->arglist.array, OPT_SER_FIXED_SIZE);
     }
     else {
         // For other function types we drop the chunk.  This is not dangerous

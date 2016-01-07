@@ -1887,7 +1887,7 @@ void Assert_Context_Core(REBCON *context)
     REBVAL *var;
 
     REBCNT keys_len;
-    REBCNT values_len;
+    REBCNT vars_len;
 
     if (!ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT)) {
         Debug_Fmt("Frame series does not have OPT_SER_CONTEXT flag set");
@@ -1904,11 +1904,11 @@ void Assert_Context_Core(REBCON *context)
         Panic_Context(context);
     }
 
-    values_len = ARRAY_LEN(CONTEXT_VARLIST(context));
+    vars_len = ARRAY_LEN(CONTEXT_VARLIST(context));
     keys_len = ARRAY_LEN(CONTEXT_KEYLIST(context));
 
-    if (keys_len != values_len) {
-        Debug_Fmt("Unequal lengths of key and value series in Assert_Context");
+    if (keys_len != vars_len) {
+        Debug_Fmt("Unequal lengths of key and var series in Assert_Context");
         Panic_Context(context);
     }
 

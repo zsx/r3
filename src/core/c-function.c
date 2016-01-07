@@ -328,6 +328,14 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
         *typeset = bubble;
     }
 
+    // Make sure the parameter list does not expand.
+    //
+    // !!! Should more precautions be taken, at some point locking and
+    // protecting the whole array?  (It will be changed more by the caller,
+    // but after that.)
+    //
+    ARRAY_SET_FLAG(paramlist, OPT_SER_FIXED_SIZE);
+
     return paramlist;
 }
 
@@ -1079,10 +1087,11 @@ REBOOL Do_Closure_Throws(struct Reb_Call *c)
     ASSERT_CONTEXT(context);
 
     // We do not Manage_Context, because we are reusing a word series here
-    // that has already been managed...only extract and manage the arglist
+    // that has already been managed.  The arglist array was managed when
+    // created and kept alive by Mark_Call_Frames
     //
     ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
-    MANAGE_ARRAY(CONTEXT_VARLIST(context));
+    ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
 
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this

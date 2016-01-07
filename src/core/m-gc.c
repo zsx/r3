@@ -581,25 +581,24 @@ static void Mark_Call_Frames_Deep(void)
         // need to keep the label sym alive!
         /* Mark_Symbol_Still_In_Use?(call->label_sym); */
 
-        // !!! This hold on the GC for the closure's arglist while it is on
-        // the stack *may* not be strictly necessary.  But at the moment,
-        // the series is locked for the duration of its time on the stack,
-        // to prevent expansion or contraction...and it thus must stay alive
-        // long enough to be unlocked.  It may be the case that it could be
-        // unlocked at the beginning of this dispatch and set to NULL, but
-        // there may be interesting tricks that can be done by knowing a
-        // closure's concrete arg pointers for the duration of its call.
+        // In the current implementation (under review) functions use
+        // stack-based chunks to gather their arguments, and closures use
+        // ordinary arrays.  If the call mode is CALL_MODE_PENDING then
+        // the arglist is under construction, but guaranteed to have all
+        // cells be safe for garbage collection.
         //
-        // For the moment the actual transition from being manually managed
-        // to GC-managed happens after all the arguments have been fulfilled.
-        // This means it can only be protected if it's actually gotten to
-        // the CALL_MODE_FUNCTION phase.  It could just be managed the whole
-        // time, but given that CLOSURE! as a type is marked for death and
-        // replacement by a finer-grained "object to create for some 'locals'"
-        // worrying about the change is not necessary.
-        //
-        if (IS_CLOSURE(FUNC_VALUE(c->func)) && c->mode == CALL_MODE_FUNCTION)
+        if (IS_CLOSURE(FUNC_VALUE(c->func))) {
             QUEUE_MARK_ARRAY_DEEP(c->arglist.array);
+        }
+        else if (!VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)) {
+            //
+            // The arglist chunk may be NULL for a "frameless" native, but if
+            // it isn't we walk the data in the chunk.
+            //
+            REBVAL *arg = c->arglist.chunk;
+            for (; NOT_END(arg); ++arg)
+                Queue_Mark_Value_Deep(arg);
+        }
 
         // `param`, and `refine` may both be NULL
         // (`arg` is a cache of the head of the arglist or NULL if frameless)
@@ -904,7 +903,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     value = ARRAY_HEAD(array);
     for (; NOT_END(value); value++) {
     #if !defined(NDEBUG)
-        if (IS_TRASH_DEBUG(value))
+        if (IS_TRASH_DEBUG(value) && !VAL_GET_EXT(value, EXT_TRASH_SAFE))
             Panic_Array(array);
     #endif
         Queue_Mark_Value_Deep(value);
