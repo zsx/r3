@@ -1032,6 +1032,7 @@ void Do_Core(struct Reb_Call * const c)
 
     // See notes below on reference for why this is needed to implement eval.
     //
+    REBOOL eval_normal; // EVAL/ONLY can trigger this to FALSE
     REBVAL eval;
     VAL_INIT_WRITABLE_DEBUG(&eval);
 
@@ -1130,9 +1131,12 @@ do_at_index:
     c->expr_index = c->index;
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
-    // It does not have to be GC safe (for reasons explained below).
+    // It does not have to be GC safe (for reasons explained below).  We
+    // also need to reset evaluation to normal vs. a kind of "inline quoting"
+    // in case EVAL/ONLY had enabled that.
     //
     SET_TRASH_IF_DEBUG(&eval);
+    eval_normal = TRUE;
 
     // If we're going to jump to the `reevaluate:` label below we should not
     // consider it a Recycle() opportunity.  The value residing in `eval`
@@ -1240,12 +1244,16 @@ reevaluate:
     // [SET-WORD!]
     //
     case REB_SET_WORD:
-        //
-        // `index` and `out` are modified
-        //
-        DO_NEXT_MAY_THROW_CORE(
-            c->index, c->out, c->array, c->index + 1, DO_FLAG_LOOKAHEAD
-        );
+        if (eval_normal) {
+            //
+            // not doing args for EVAL/ONLY - `index` and `out` are modified
+            //
+            DO_NEXT_MAY_THROW_CORE(
+                c->index, c->out, c->array, c->index + 1, DO_FLAG_LOOKAHEAD
+            );
+        }
+        else
+            DO_NEXT_QUOTED(c->index, c->out, c->array, c->index + 1);
 
         if (c->index == THROWN_FLAG) goto return_thrown;
 
@@ -1329,7 +1337,9 @@ reevaluate:
         if (c->func == PG_Eval_Func) {
             //
             // "DO/NEXT" full expression into the `eval` REBVAR slot
-            // (updates index...)
+            // (updates index...).  (There is an /ONLY switch to suppress
+            // normal evaluation but it does not apply to the value being
+            // retriggered itself, just any arguments it consumes.)
             //
             DO_NEXT_MAY_THROW_CORE(
                 c->index, &eval, c->array, c->index, DO_FLAG_LOOKAHEAD
@@ -1342,9 +1352,21 @@ reevaluate:
                 // EVAL will handle anything the evaluator can, including
                 // an UNSET!, but it errors on END, e.g. `do [eval]`
                 //
-                assert(ARRAY_LEN(FUNC_PARAMLIST(PG_Eval_Func)) == 2);
                 fail (Error_No_Arg(c->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
             }
+
+            // There's only one refinement to EVAL and that is /ONLY.  It can
+            // push one refinement to the stack or none.  The state will
+            // twist up the evaluator for the next evaluation only.
+            //
+            if (DSP > c->dsp_orig) {
+                assert(DSP == c->dsp_orig + 1);
+                assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY); // canonized on push
+                DS_DROP;
+                eval_normal = FALSE;
+            }
+            else
+                eval_normal = TRUE;
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
@@ -1373,10 +1395,14 @@ reevaluate:
         // cells to be inspectable on the stack.  Hence, if there are any
         // trace flags set we fall back upon that implementation.
         //
+        // (EVAL/ONLY also suppresses frameless abilities, because the
+        // burden of the flag would be too much to pass through.)
+        //
         if (
             !Trace_Flags
             && DSP == c->dsp_orig
             && VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)
+            && eval_normal // avoid framelessness if EVAL/ONLY used
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
@@ -1811,6 +1837,7 @@ reevaluate:
                             || IS_GET_WORD(c->value)
                             || IS_GET_PATH(c->value)
                         )
+                        && eval_normal
                     ) {
                         DO_NEXT_MAY_THROW_CORE(
                             c->index,
@@ -1870,15 +1897,25 @@ reevaluate:
                 //     >> foo 1 + 2
                 //     a is 3
                 //
-                DO_NEXT_MAY_THROW_CORE(
-                    c->index,
-                    c->arg,
-                    c->array,
-                    c->index,
-                    VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)
-                        ? DO_FLAG_NO_LOOKAHEAD
-                        : DO_FLAG_LOOKAHEAD
-                );
+                // Special outlier EVAL/ONLY can be used to subvert this:
+                //
+                //     >> eval/only :foo 1 + 2
+                //     a is 1
+                //     ** Script error: + operator is missing an argument
+                //
+                if (eval_normal) {
+                    DO_NEXT_MAY_THROW_CORE(
+                        c->index,
+                        c->arg,
+                        c->array,
+                        c->index,
+                        VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)
+                            ? DO_FLAG_NO_LOOKAHEAD
+                            : DO_FLAG_LOOKAHEAD
+                    );
+                }
+                else
+                    DO_NEXT_QUOTED(c->index, c->arg, c->array, c->index);
 
                 if (c->index == THROWN_FLAG) {
                     *c->out = *c->arg;
@@ -2148,9 +2185,13 @@ reevaluate:
         // will *not* put this value in the output when it is making the
         // variable assignment!
         //
-        DO_NEXT_MAY_THROW_CORE(
-            c->index, c->out, c->array, c->index + 1, DO_FLAG_LOOKAHEAD
-        );
+        if (eval_normal) {
+            DO_NEXT_MAY_THROW_CORE(
+                c->index, c->out, c->array, c->index + 1, DO_FLAG_LOOKAHEAD
+            );
+        }
+        else
+            DO_NEXT_QUOTED(c->index, c->out, c->array, c->index + 1);
 
         assert(c->index != END_FLAG || IS_UNSET(c->out)); // unset if END_FLAG
         if (IS_UNSET(c->out)) fail (Error(RE_NEED_VALUE, c->value));

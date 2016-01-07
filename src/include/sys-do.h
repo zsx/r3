@@ -381,7 +381,7 @@ struct Reb_Call {
         c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
         Do_Core(&c_); \
         (index_out) = c_.index; \
-    } while (FALSE)
+    } while (0)
 
 #define DO_NEXT_MAY_THROW(index_out,out,array,index) \
     DO_NEXT_MAY_THROW_CORE( \
@@ -394,6 +394,22 @@ struct Reb_Call {
 //
 #define DO_ARRAY_THROWS(out,array) \
     Do_At_Throws((out), VAL_ARRAY(array), VAL_INDEX(array))
+
+// This macro is used internally to process from an unknown index a new item
+// without evaluation.  It is used to implement EVAL/ONLY and probably does
+// not have any other interesting use.
+//
+#define DO_NEXT_QUOTED(index_out,out_,array_,index_in) \
+    do { \
+        if ((index_in) >= ARRAY_LEN(array_)) { \
+            (index_out) = END_FLAG; \
+            SET_UNSET(out_); \
+        } \
+        else { \
+            *(out_) = *ARRAY_AT((array_), (index_in)); \
+            (index_out) = (index_in) + 1; \
+        } \
+    } while (0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

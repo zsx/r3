@@ -1049,7 +1049,9 @@ REBNATIVE(do)
 //  {(Special) Process received value *inline* as the evaluator loop would.}
 //  
 //      value [any-value!] 
-//      {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
+//          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
+//      /only
+//          {Suppress evaluation on any ensuing arguments value consumes}
 //  ]
 //
 REBNATIVE(eval)
