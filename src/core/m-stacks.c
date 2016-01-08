@@ -175,6 +175,8 @@ void Expand_Stack(REBCNT amount)
 }
 
 
+#define V(p) cast(void*, (p))
+
 //
 //  Push_Ended_Trash_Chunk: C
 //
@@ -266,7 +268,68 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     // setting it to the pointer for this chunk.
     //
     cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->prev = chunk;
-    assert(IS_END(&chunk->values[num_values]));
+    //assert(IS_END(&chunk->values[num_values]));
+
+#if !defined(NDEBUG)
+    if (NOT_END(&chunk->values[num_values])) {
+        //
+        // !!! DEBUG SPEW FOR #208/#211
+        //
+        // Reports of problems on some 64-bit Linux and Windows 7 systems could
+        // not be reproduced on the build farm or on similar-seeming systems.
+        // The "trick" of using a pointer to implicitly terminate sequential
+        // Rebol values in memory didn't take on these machines.  This looks
+        // at the bits to try and reconstruct a picture of why that is, without
+        // needing physical access to the problematic machines.
+
+        struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
+        struct Reb_Chunk *next
+            = cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size);
+
+        printf("CONGRATULATIONS!  You repro'd issue #208, #211\n");
+        printf("    https://github.com/metaeducation/ren-c/issues/208\n");
+        printf("    https://github.com/metaeducation/ren-c/issues/211\n");
+        printf("\n");
+        printf("chunker %p sizeof %d\n", V(chunker), cast(int, sizeof(chunker)));
+        printf("    next %p @ %p\n", V(chunker->next), V(&chunker->next));
+        printf("    payload @ %p\n", V(&chunker->payload));
+        printf("\n");
+        printf("chunk %p sizeof %d\n", V(chunk), cast(int, sizeof(chunk)));
+        printf("    prev %p @ %p\n", V(chunk->prev), V(&chunk->prev));
+        printf("    left %u @ %p\n",
+            chunk->payload_left,
+            V(&chunk->payload_left)
+        );
+        printf("    size %u @ %p\n", chunk->size, V(&chunk->size));
+        printf("    values @ %p\n", V(&chunk->values));
+        printf("    values[num_values] @ %p\n", V(&chunk->values[num_values]));
+        printf("\n");
+        printf("next %p - sizeof %d\n", V(next), cast(int, sizeof(next)));
+        printf("    prev %p @ %p\n", V(next->prev), V(&next->prev));
+        printf("    header.all %u\n",
+            cast(REBCNT, cast(REBVAL*, &next->prev)->header.all)
+        );
+        printf("\n");
+
+        // For the heck of it, try setting it to END through the value and
+        // see if it changes the bits.  This is undermining strict aliasing
+        // and points to the idea that the unnatural end check will likely
+        // need to be done via a char* cast, which may be the actual problem,
+        // as we are writing a pointer and reading an intptr_t
+        //
+        printf("Trying end value write.  (Strict aliasing?  What's that?)\n");
+        printf("\n");
+        chunk->values[num_values].header.all = WRITABLE_MASK_DEBUG;
+        SET_END(&chunk->values[num_values]);
+        printf("    prev %p @ %p\n", V(next->prev), V(&next->prev));
+        printf("    header.all %u\n",
+            cast(REBCNT, cast(REBVAL*, &next->prev)->header.all)
+        );
+        printf("\n");
+        printf("PLEASE SEND THIS REPORT TO THE CARTOON FORK NEAREST YOU.\n");
+        exit(0);
+    }
+#endif
 
     // chunk->prev is already set, due to the above code running under the
     // prior allocation...
