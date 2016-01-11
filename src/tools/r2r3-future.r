@@ -1,37 +1,47 @@
 REBOL [
-    Title: "Rebol2 and R3-Alpha Future Bridge to Ren/C"
+    Title: "Rebol2 and R3-Alpha Future Bridge to Ren-C"
     Rights: {
-        Rebol is Copyright 1997-2015 REBOL Technologies
-        REBOL is a trademark of REBOL Technologies
+        Rebol 3 Language Interpreter and Run-time Environment
+        "Ren-C" branch @ https://github.com/metaeducation/ren-c
 
-        Ren/C is Copyright 2015 MetaEducation
+        Copyright 2012 REBOL Technologies
+        Copyright 2012-2015 Rebol Open Source Contributors
+        REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "@HostileFork"
     Purpose: {
-        These routines can be run from a Rebol2 or R3-Alpha
-        to make them act more like Ren/C (which aims to
-        implement a finalized Rebol3 standard).
+        These routines can be run from R3-Alpha or Rebol2 to make them act
+        more like the vision of Rebol3-Beta and beyond (as conceived by the
+        "Ren-C" initiative).
 
-        !!! Rebol2 support intended but not yet implemented.
+        It also must remain possible to run it from Ren-C without disrupting
+        the environment.  This is because the primary motivation for its
+        existence is to shim older R3-MAKE utilities to be compatible with
+        Ren-C...and the script is run without knowing whether the R3-MAKE
+        you are using is old or new.  No canonized versioning strategy has
+        been yet chosen, so words are "sniffed" for existing definitions in
+        this somewhat simplistic method.
 
-        !!! This file is a placeholder for a good design, at time of writing
-        it has repeated patterns that are just for expedience.  It is
-        awaiting someone who has a vested interest in legacy code to become
-        a "maintenance czar" for the concept.
+        !!! Because the primary purpose is for Ren-C's bootstrap, the file
+        is focused squarely on those needs.  However, it is a beginning for
+        a more formalized compatibility effort.  Hence it is awaiting someone
+        who has a vested interest in Rebol2 or R3-Alpha code to become a
+        "maintenance czar" to extend the concept.  In the meantime it will
+        remain fairly bare-bones, but enhanced if-and-when needed.
     }
-]
+    Description: {
+        Currently uses a simple dialect for remapping constructs:
 
-; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN! for
-; compatibility as pointing to the same datatype).  Older Rebols haven't
-; heard of GROUP!, so establish the reverse compatibility.
-;
-unless value? 'group! [
-    group!: :paren!
-    group?: :paren?
+        word! <as> [get-word! | (expression)]
+            If the word is unset, set it to new value (otherwise leave it)
+
+        word! <to> word!
+            If left word defined, give right word its value, unset the left
+            (Note: was >>, which was clearer, but not a WORD! in Rebol2)
+    }
 ]
 
 ; Older versions of Rebol had a different concept of what FUNCTION meant
@@ -43,71 +53,121 @@ unless (copy/part words-of :function 2) = [spec body] [
     function: :funct
 ]
 
-unless value? 'length [length: :length? unset 'length?]
-unless value? 'index-of [index-of: :index? unset 'index?]
-unless value? 'offset-of [offset-of: :offset? unset 'offset?]
-unless value? 'type-of [type-of: :type? unset 'type?]
+unless find words-of :set /opt [
+    ;
+    ; SET/OPT is the Ren-C replacement for SET/ANY, with /ANY supported
+    ; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
+    ;
+    lib-set: :set ; overwriting lib/set for now
+    set: func [
+        {Sets a word, path, block of words, or context to specified value(s).}
 
-unless value? 'opt [
-    opt: func [
-        {NONEs become unset, all other value types pass through. (See: TO-VALUE)}
+        ;-- Note: any-context! not defined until after migrations
+        target [any-word! any-path! block! any-object!]
+            {Word, block of words, path, or object to be set (modified)}
+
+        ;-- Note: any-value! not defined until after migrations
+        value [any-type!]
+            "Value or block of values"
+        /opt
+            "Value is optional, and if no value is provided then unset the word"
+        /pad
+            {For objects, set remaining words to NONE if block is too short}
+        /any
+            "Deprecated legacy synonym for /opt"
+    ][
+        set_ANY: any
+        any: :lib/any ;-- in case it needs to be used
+        opt_ANY: opt
+        opt: none ;-- no OPT defined yet, but just in case, keep clear
+
+        apply :lib-set [target :value (any [opt_ANY set_ANY]) pad]
+    ]
+]
+
+migrations: [
+    ;
+    ; Note: EVERY cannot be written in R3-Alpha because there is no way
+    ; to write loop wrappers, given lack of definitionally scoped return
+    ; or <transparent>
+    ;
+    for-each <as> :foreach
+
+    ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
+    ; for compatibility as pointing to the same datatype).  Older Rebols
+    ; haven't heard of GROUP!, so establish the reverse compatibility.
+    ;
+    group! <as> :paren!
+    group? <as> :paren?
+
+    ; Not having category members have the same name as the category
+    ; themselves helps both cognition and clarity inside the source of the
+    ; implementation.
+    ;
+    any-array? <as> :any-block?
+    any-array! <as> :any-block!
+    any-context? <as> :any-object?
+    any-context! <as> :any-object!
+
+    ; *all* typesets now ANY-XXX to help distinguish them from concrete types
+    ; https://trello.com/c/d0Nw87kp
+    ;
+    any-scalar? <as> :scalar?
+    any-scalar! <as> :scalar!
+    any-series? <as> :series?
+    any-series! <as> :series!
+    any-number? <as> :number?
+    any-number! <as> :number!
+    any-value? <as> (func [item [any-type!]] [not unset? :item])
+    any-value! <as> :any-type!
+
+    ; Renamings to conform to ?-means-returns-true-false rule
+    ; https://trello.com/c/BxLP8Nch
+    ;
+    length? <to> length
+    index? <to> index-of
+    offset? <to> offset-of
+    type? <to> type-of
+
+    ; "optional" (a.k.a. UNSET!) handling
+    opt <as> (func [
+        {NONE! to unset, all other value types pass through.}
         value [any-type!]
     ][
         either none? get/any 'value [()][
             get/any 'value
         ]
-    ]
-]
+    ])
 
-unless value? 'to-value [
-    to-value: func [
+    to-value <as> (func [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
         value [any-type!]
-    ] [
+    ][
         either unset? get/any 'value [none][:value]
-    ]
-]
+    ])
 
-unless value? 'something? [
-    something?: func [value [any-type!]] [
+    something? <as> (func [value [any-type!]] [
         not any [
             unset? :value
             none? :value
         ]
-    ]
-]
+    ])
 
-unless value? 'for-each [
-    for-each: :foreach
-    ;unset 'foreach ;-- tolerate it (for now, maybe indefinitely?)
+    ; It is not possible to make a version of eval that does something other
+    ; than everything DO does in an older Rebol.  Which points to why exactly
+    ; it's important to have only one function like eval in existence.
+    ;
+    eval <as> :do
 
-    ; Note: EVERY cannot be written in R3-Alpha because there is no way
-    ; to write loop wrappers, given lack of definitionally scoped return
-    ; or <transparent>
-]
-
-; *all* typesets now are ANY-XXX to help distinguish them from concrete types
-; https://trello.com/c/d0Nw87kp
-;
-unless value? 'any-scalar? [any-scalar?: :scalar? any-scalar!: scalar!]
-unless value? 'any-series? [any-series?: :series? any-series!: series!]
-unless value? 'any-number? [any-number?: :number? any-number!: number!]
-unless value? 'any-value? [
-    any-value?: func [item [any-type!]] [not unset? :item]
-    any-value!: any-type!
-]
-
-; It is not possible to make a version of eval that does something other
-; than everything DO does in an older Rebol.  Which points to why exactly
-; it's important to have only one function like eval in existence.
-unless value? 'eval [
-    eval: :do
-]
-
-unless value? 'fail [
-    fail: func [
-        {Interrupts execution by reporting an error (a TRAP can intercept it).}
-        reason [error! string! block!] "ERROR! value, message string, or failure spec"
+    ; Ren-C's FAIL dialect is still being designed, but the basic is to be
+    ; able to ramp up from simple strings to block-composed messages to
+    ; fully specifying ERROR! object fields.  Most commonly it is a synonym
+    ; for `do make error! form [...]`.
+    ;
+    fail <as> (func [
+        {Interrupts execution by reporting an error (TRAP can intercept it).}
+        reason [error! string! block!]
+            "ERROR! value, message string, or failure spec"
     ][
         case [
             error? reason [do error]
@@ -124,29 +184,53 @@ unless value? 'fail [
                         ]
                     ][
                         do make error! (
-                            "FAIL requires complex expressions to be in a PAREN!"
+                            "FAIL requires complex expressions in a GROUP!"
                         )
                     ]
                 ]
                 do make error! form reduce reason
             ]
         ]
-    ]
+    ])
+
+    ; R3-Alpha and Rebol2 did not allow you to make custom infix operators.
+    ; There is no way to get a conditional infix AND using those binaries.
+    ; In some cases, the bitwise and will be good enough for logic purposes...
+    ;
+    and* <as> :and
+    and? <as> (func [a b] [true? all [:a :b]])
+    and <as> :and ; see above
+
+    or+ <as> :or
+    or? <as> (func [a b] [true? any [:a :b]])
+    or <as> :or ; see above
+
+    xor- <as> :xor
+    xor? <as> (func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]])
 ]
 
-; R3-Alpha and Rebol2 did not allow you to make custom infix operators.
-; There is no way to get a conditional infix AND using those binaries.
-; In some cases, the bitwise and will be good enough for logic purposes...
+
+; Main remapping... use parse to process the dialect
 ;
-unless value? 'and* [
-    and*: :and
-    and?: func [a b] [and* true? :a true? :b]
-]
-unless value? 'or+ [
-    or+: :or
-    or?: func [a b] [or+ true? :a true? :b]
-]
-unless value? 'xor- [
-    xor-: :xor
-    xor?: func [a b] [xor- true? :a true? :b]
+unless parse migrations [
+    some [
+        ;-- Note: GROUP! defined during migration, so use PAREN! here
+        [set left word! <as> set right [get-word! | paren!]] (
+            unless value? left [
+                set left either paren? right [reduce right] [get right]
+            ]
+        )
+    |
+        [set left word! <to> set right word!] (
+            unless value? right [
+                set right get left
+                unset left
+            ]
+        )
+    ]
+][
+    print ["last left:" mold left]
+    print ["last right:" mold right]
+
+    do make error! "%r2r3-future.r did not parse migrations completely"
 ]
