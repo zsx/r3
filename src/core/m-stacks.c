@@ -271,14 +271,29 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     // be false.  Our chunk should be a multiple of 4 bytes in total size,
     // but check that here with an assert.
     //
-    assert(size % 4 == 0);
-    chunk->size = size;
+    {
+        // !!! Test: see if writing the REBUPT through both a REBVAL* and
+        // its chunk size forces read coherence.  Worst case scenario this
+        // could be done at the `char` byte level and be "legitimate".  But
+        // looking for something less awkward for source expedience, at
+        // least for the present time..
+        //
+        REBVAL *secondary = cast(REBVAL*, &chunk->size);
+        secondary->header.all = size;
+        assert(size % 4 == 0);
+        chunk->size = size;
+    }
 
     // Set size also in next element to 0, so it can serve as a terminator
     // for the data range of this until it gets its real size (if ever)
-    //
-    cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->size = 0;
-    assert(IS_END(&chunk->values[num_values]));
+    {
+        // !!! See note above RE: secondary
+        //
+        REBVAL *secondary = cast(REBVAL*, cast(REBYTE*, chunk) + size);
+        secondary->header.all = 0;
+        cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->size = 0;
+        assert(IS_END(&chunk->values[num_values]));
+    }
 
     chunk->prev = TG_Top_Chunk;
 
