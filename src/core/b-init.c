@@ -168,16 +168,11 @@ static void Assert_Basics(void)
         panic (Error(RE_MISC));
     }
 
-    // The REBSER is designed to place the `info` bits exactly after a
-    // REBVAL and a pointer that can do double-duty as also a terminator
-    // for that REBVAL when viewed as an array of data.
+    // The REBSER is designed to place the `info` bits exactly after a REBVAL
+    // so they can do double-duty as also a terminator for that REBVAL when
+    // enumerated as an ARRAY.
     //
-    // !!! The info bits actually are going to go at the very head, to
-    // permit REBSER node sizes in multiples of REBVAL.  But this will
-    // require some technical adjustments to how freeness indicator
-    // interacts with the memory pool.
-    //
-    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL) + sizeof(void*))
+    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL))
         panic (Error(RE_MISC));
 
     // Check special return values used "in-band" in an unsigned integer that
