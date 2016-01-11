@@ -228,19 +228,39 @@ struct Reb_Chunk;
 
 struct Reb_Chunk {
     //
+    // We start the chunk with a REBUPT (unsigned integer size of a pointer)
+    // because we are relying upon the fact that the low bit of this value
+    // is always 0 in order for it to be an implicit END for the value array
+    // of the previous chunk.  We know sizes are even so we leverage that.
+    //
+    REBUPT size;
+
+    // How many bytes are left in the memory chunker this chunk lives in
+    // (its own size has already been subtracted from the amount)
+    //
+    REBUPT payload_left;
+
+#if defined(__LP64__) || defined(__LLP64__)
+    //
+    // !!! Sizes above are wasteful compared to theory!  Both the size and
+    // payload_left could fit into a single REBUPT, so this is wasting a
+    // pointer...saving only 2 pointers per chunk instead of 3 over a full
+    // REBVAL termination.
+    //
+    // However it would be easy enough to get the 3 by masking the REBUPT's
+    // high and low portions on 64-bit, and using a separate REBCNT field
+    // on 32-bit.  This would complicate the code for now, and a previous
+    // field test of a riskier technique showed it to not work on some
+    // machines.  So this is a test to see if this follows the rules.
+    //
+#endif
+
+    //
     // Pointer to the previous chunk.  We rely upon the fact that the low
     // bit of this pointer is always 0 in order for it to be an implicit END
     // for the value array of the previous chunk.
     //
     struct Reb_Chunk *prev;
-
-    //
-    // How many bytes are left in the memory chunker this chunk lives in
-    // (its own size has already been subtracted from the amount)
-    //
-    REBCNT payload_left;
-
-    REBCNT size;  // Needed after `payload_left` for 64-bit alignment
 
     // The `values` is an array whose real size exceeds the struct.  (It is
     // set to a size of one because it cannot be [0] in C++.)  When the

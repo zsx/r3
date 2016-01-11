@@ -298,24 +298,19 @@ struct Reb_Series {
         //
         struct Reb_Series_Dynamic dynamic;
 
-        // !!! Not yet implemented, but 0 or 1 length series (and maybe other
-        // lengths) can be held directly in the series node, with the misc
-        // deliberately set to either NULL or another pointer value in order
-        // to serve as an implicit terminator.  Coming soon.
+        // !!! Not yet implemented, but 0 or 1 length arrays can be held
+        // directly in the series node.  The low bit of info set to zero
+        // signals an IS_END().  This technique is being tested in deployment
+        // on the chunk stack, and will be brought here too (assuming the
+        // new implicit terminator tests don't show problems like the last.)
+        //
+        // It is thus an "array" of effectively up to length two.  Either the
+        // [0] full element is a REB_END, or the [0] element is another value
+        // and the [1] element is read-only and passes IS_END() to terminate
+        // but can't have any other value written.
         //
         struct Reb_Value values[1];
     } content;
-
-    union {
-        REBCNT size;    // used for vectors and bitsets
-        REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by CONTEXT
-        struct {
-            REBCNT wide:16;
-            REBCNT high:16;
-        } area;
-        REBOOL negated; // for bitsets (can't be EXT flag on just one value)
-    } misc;
 
     // `info` is the information about the series which needs to be known
     // even if it is not using a dynamic allocation.  So even if the alloc
@@ -327,7 +322,21 @@ struct Reb_Series {
     // be some interesting added caching feature or otherwise that would use
     // it, while not making any feature specifically require a 64-bit CPU.
     //
+    // !!! The low bit of info is required to be 0 when used with the trick
+    // of implicitly terminating series data.  Not yet implemented.
+    //
     REBUPT info;
+
+    union {
+        REBCNT size;    // used for vectors and bitsets
+        REBSER *hashlist; // MAP datatype uses this
+        REBARR *keylist; // used by CONTEXT
+        struct {
+            REBCNT wide:16;
+            REBCNT high:16;
+        } area;
+        REBOOL negated; // for bitsets (can't be EXT flag on just one value)
+    } misc;
 
 #if !defined(NDEBUG)
     REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series

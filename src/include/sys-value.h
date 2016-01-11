@@ -160,13 +160,21 @@ struct Reb_Value_Header {
 
 // `NOT_END_MASK`
 //
-// If set, it means this is *not* an end marker.  The bit is picked
-// strategically to be in the negative and in the lowest order position.
-// This means that any even pointer-sized value (such as...all pointers)
-// will have its zero bit set, and thus implicitly signal an end.
+// If set, it means this is *not* an end marker.  The bit has been picked
+// strategically to be in the negative sense, and in the lowest bit position.
+// This means that any even-valued unsigned integer REBUPT value can be used
+// to implicitly signal an end.
 //
-// If this bit is 0, it means that *no other header bits are valid*,
-// as it may contain arbitrary data used for non-REBVAL purposes.
+// If this bit is 0, it means that *no other header bits are valid*, as it
+// may contain arbitrary data used for non-REBVAL purposes.
+//
+// Note that the value doing double duty as a number for one purpose and an
+// END marker as another *must* be another REBUPT.  It cannot be a pointer
+// (despite being guaranteed-REBUPT-sized, and despite having a value that
+// is 0 when you mod it by 2.  So-called "type-punning" is unsafe with a
+// likelihood of invoking "undefined behavior", while it's the compiler's
+// responsibility to guarantee that pointers to memory of the same type of
+// data be compatibly read-and-written.
 //
 #define NOT_END_MASK 0x01
 
@@ -177,31 +185,23 @@ struct Reb_Value_Header {
 // be written into--including to be written with SET_END().
 //
 // It's again a strategic choice--the 2nd lowest bit and in the negative.
-// On *most* known platforms, testing an arbitrary pointer value for
-// this bit will give 0 and suggest it is *not* a REBVAL (while still
-// indicating an END because of the 0 in the lowest bit).  By checking the
-// bit before writing a header, a pointer within a container doing
+// This means any REBUPT value whose % 4 within a container doing
 // double-duty as an implicit terminator for the contained values can
 // trigger an alert if the values try to overwrite it.
 //
-// !!! This checking feature is not fully implemented, but will be soon.
-//
 #ifdef NDEBUG
     //
-    // The assumption that (pointer % 2 = 0) is a very safe one on all known
-    // platforms Rebol might run on.  But although (pointer % 4 = 0) is almost
-    // always true, it has created porting problems for other languages:
-    //
-    // http://stackoverflow.com/questions/19991506
-    //
-    // Hence this check is debug-only, and should be easy to switch off.
-    // The release build should not make assumptions about using this
-    // second bit for any other purpose.
+    // Though in the abstract it is desirable to have a way to protect an
+    // individual value from writing even in the release build, this is
+    // a debug-only check...it makes every value header initialization have
+    // to do two writes instead of one (one to format, then later to write
+    // and check that it is properly formatted space)
     //
 #else
     // We want to be assured that we are not trying to take the type of a
     // value that is actually an END marker, because end markers chew out only
-    // one bit--the rest is allowed to be anything (a pointer value, etc.)
+    // one bit--the rest of the REBUPT bits besides the bottom two may be
+    // anything necessary for the purpose.
     //
     #define WRITABLE_MASK_DEBUG 0x02
 #endif
@@ -229,14 +229,15 @@ struct Reb_Value_Header {
 // header slot with the lowest bit set to 0.  (See NOT_END_MASK for
 // an explanation of this choice.)  The upshot is that a data structure
 // designed to hold Rebol arrays is able to terminate an array at full
-// capacity with a pointer-sized value with the lowest 2 bits clear, and
+// capacity with a pointer-sized integer with the lowest 2 bits clear, and
 // use the rest of the bits for other purposes.  (See WRITABLE_MASK_DEBUG
 // for why it's the low 2 bits and not just the lowest bit.)
 //
 // This means not only is a full REBVAL not needed to terminate, the sunk cost
-// of an existing pointer can be used to avoid needing even 1/4 of a REBVAL
-// for a header to terminate.  (See the `prev` pointer in `struct Reb_Chunk`
-// from %sys-stack.h for a simple example of the technique.)
+// of an existing 32-bit or 64-bit number (depending on platform) can be used
+// to avoid needing even 1/4 of a REBVAL for a header to terminate.  (See the
+// `size` field in `struct Reb_Chunk` from %sys-stack.h for a simple example
+// of the technique.)
 //
 // !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
 // is important to keep these in sync.  R3-Alpha sought to give code the
