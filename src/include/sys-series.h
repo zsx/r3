@@ -476,6 +476,10 @@ struct Reb_Series {
     #define ASSERT_SERIES_TERM(s) Assert_Series_Term_Core(s)
 #endif
 
+// Just a No-Op note to point out when a series may-or-may-not be terminated
+//
+#define NOTE_SERIES_MAYBE_TERM(s) NOOP
+
 #ifdef NDEBUG
     #define ASSERT_SERIES(s) NOOP
 #else
