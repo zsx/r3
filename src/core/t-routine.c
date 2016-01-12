@@ -1346,8 +1346,8 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         switch (VAL_TYPE(blk)) {
             case REB_WORD:
                 {
+                    REBVAL *v = NULL;
                     if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
-                        REBVAL *v = NULL;
                         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
                             fail (Error_Invalid_Arg(blk)); /* duplicate ellipsis */
                         }
@@ -1362,8 +1362,8 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         );
                         v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
                         Val_Init_Typeset(v, FLAGIT_64(REB_BLOCK), SYM_VARARGS);
-                    } else {
-                        REBVAL *v = NULL;
+                    }
+                    else {
                         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
                             //... has to be the last argument
                             fail (Error_Invalid_Arg(blk));
@@ -1375,6 +1375,12 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         ++ blk;
                         process_type_block(out, blk, n, TRUE);
                     }
+
+                    // Function dispatch needs to know whether parameters are
+                    // to be hard quoted, soft quoted, refinements, or
+                    // evaluated.  This is signaled with bits on the typeset.
+                    //
+                    VAL_SET_EXT(v, EXT_TYPESET_EVALUATE);
                 }
                 n ++;
                 break;
