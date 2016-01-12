@@ -99,7 +99,7 @@ array: func [
 ][
     if block? size [
         if tail? rest: next size [rest: none]
-        unless integer? set/any 'size first size [
+        unless integer? set/opt 'size first size [
             cause-error 'script 'expect-arg reduce ['array 'size type-of :size]
         ]
     ]
@@ -262,7 +262,7 @@ reword: function [
         ] [
             while [not tail? values] [
                 w: first+ values  ; Keywords are not evaluated
-                set/any 'v do/next values 'values
+                set/opt 'v do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
                     wtype = type-of :w none
@@ -305,7 +305,7 @@ reword: function [
     ; Convert keyword if the type doesn't match
     ;
     cword: pick [(w: to wtype w)] wtype <> type-of source
-    set/any [out: fout:] pick [
+    set/opt [out: fout:] pick [
         [   ; Convert to string if type combination needs it
             (output: insert output to string! copy/part a b)
             (output: insert output to string! a)
@@ -387,14 +387,14 @@ extract: func [
         if unset? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
-            if none? set/any 'val pick series pos/1 [set/any 'val value]
+            if none? set/opt 'val pick series pos/1 [set/opt 'val value]
             output: insert/only output :val
         ]]
     ][
         if unset? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [
-            if none? set/any 'val pick series pos [set/any 'val value]
+            if none? set/opt 'val pick series pos [set/opt 'val value]
             output: insert/only output :val
         ]
     ]

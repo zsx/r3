@@ -36,5 +36,5 @@ check-set: func [
     'target [set-word! set-path!]
     value [unset! any-value!]
 ][
-    any-value? set/any target :value
+    any-value? set/opt target :value
 ]
