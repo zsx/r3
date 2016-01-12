@@ -670,7 +670,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
     ++ val;
 
-    if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
+    if (NOT_END(val) && IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
         VAL_INIT_WRITABLE_DEBUG(&ret);
 
