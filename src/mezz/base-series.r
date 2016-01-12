@@ -144,7 +144,7 @@ repend: func [
     /dup {Duplicates the insert a specified number of times}
     count [any-number! pair!]
 ][
-    either set? :value [
+    either any-value? :value [
         append/part/:only/dup series reduce :value :limit :count
     ][
         head series ;-- simulating result of appending () returns the head
@@ -156,7 +156,7 @@ join: func [
     value "Base value" [unset! any-value!]
     rest "Value or block of values" [unset! any-value!]
 ][
-    either set? :value [
+    either any-value? :value [
         value: either any-series? :value [copy value] [form :value]
         repend value :rest
     ][

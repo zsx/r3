@@ -126,7 +126,7 @@ do*: function [
             header: hdr
             parent: :scr
             path: what-dir
-            args: :arg
+            args: to-value :arg
         ]
 
         ; Print out the script info
