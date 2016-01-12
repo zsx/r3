@@ -271,27 +271,28 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     // be false.  Our chunk should be a multiple of 4 bytes in total size,
     // but check that here with an assert.
     //
+    // The memory address for the chunk size matches that of a REBVAL's
+    // `header.all`, but since a `struct Reb_Chunk` is distinct from a REBVAL
+    // they won't necessarily have write/read coherence, even though the
+    // fields themselves are the same type.  Taking the address of the REBUPT
+    // creates a pointer, which without a `restrict` keyword is defined as
+    // being subject to "aliasing".  Hence a write to the pointer could affect
+    // any other value of that type.  This is necessary for the trick.
     {
-        // !!! Test: see if writing the REBUPT through both a REBVAL* and
-        // its chunk size forces read coherence.  Worst case scenario this
-        // could be done at the `char` byte level and be "legitimate".  But
-        // looking for something less awkward for source expedience, at
-        // least for the present time..
-        //
-        REBVAL *secondary = cast(REBVAL*, &chunk->size);
-        secondary->header.all = size;
+        REBUPT *alias = &chunk->size;
         assert(size % 4 == 0);
-        chunk->size = size;
+        *alias = size;
     }
 
     // Set size also in next element to 0, so it can serve as a terminator
     // for the data range of this until it gets its real size (if ever)
     {
-        // !!! See note above RE: secondary
+        // See note above RE: aliasing.
         //
-        REBVAL *secondary = cast(REBVAL*, cast(REBYTE*, chunk) + size);
-        secondary->header.all = 0;
-        cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->size = 0;
+        REBUPT *alias = &cast(
+            struct Reb_Chunk*,
+            cast(REBYTE*, chunk) + size)->size;
+        *alias = 0;
         assert(IS_END(&chunk->values[num_values]));
     }
 
