@@ -29,3 +29,12 @@ wrap: func [
 ][
     do bind/copy/set body make object! 0
 ]
+
+check-set: func [
+    "Set optional value via set-word or set-path, TRUE unless UNSET!"
+
+    'target [set-word! set-path!]
+    value [unset! any-value!]
+][
+    any-value? set/any target :value
+]
