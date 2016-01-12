@@ -357,18 +357,26 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 //
 void Unmark(REBVAL *val)
 {
-    REBSER *series;
-    if (ANY_SERIES(val))
-        series = VAL_SERIES(val);
+    REBARR *array;
+
+    if (ANY_ARRAY(val))
+        array = VAL_ARRAY(val);
     else if (ANY_CONTEXT(val))
-        series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(val)));
-    else
+        array = CONTEXT_VARLIST(VAL_CONTEXT(val));
+    else {
+        // Shouldn't have marked recursively any non-array series (no need)
+        //
+        assert(
+            !ANY_SERIES(val)
+            || !SERIES_GET_FLAG(VAL_SERIES(val), OPT_SER_MARK)
+        );
         return;
+    }
 
-    if (!SERIES_GET_FLAG(series, OPT_SER_MARK)) return; // avoid loop
+    if (!ARRAY_GET_FLAG(array, OPT_SER_MARK)) return; // avoid loop
 
-    SERIES_CLR_FLAG(series, OPT_SER_MARK);
+    ARRAY_CLR_FLAG(array, OPT_SER_MARK);
 
-    for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
+    for (val = ARRAY_HEAD(array); NOT_END(val); val++)
         Unmark(val);
 }
