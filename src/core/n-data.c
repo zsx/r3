@@ -491,21 +491,21 @@ REBNATIVE(collect_words)
 //
 //  get: native [
 //  
-//  {Gets the value of a word or path, or values of an object.}
+//  {Gets the value of a word or path, or values of a context.}
 //  
-//      source [none! any-word! any-path! object!]
-//          "Word, path, object to get"
-//      /any
-//          "Allows source to have no value (allows unset)" ; !!! rename /OPT
+//      source [none! any-word! any-path! any-context!]
+//          "Word, path, context to get"
+//      /opt
+//          "The source may optionally have no value (allows returning UNSET!)"
 //  ]
 //
 REBNATIVE(get)
 //
-// !!! Why does this need to take NONE! and OBJECT! ?  (Used to take any
-// value and pass it through, e.g. `get 1` was 1, removed that.)
+// !!! Review if handling ANY-CONTEXT! is a good idea, or if that should be
+// an independent reflector like VALUES-OF.
 {
     PARAM(1, source);
-    REFINE(2, any);
+    REFINE(2, opt);
 
     REBVAL *source = ARG(source);
 
@@ -557,7 +557,8 @@ REBNATIVE(get)
         *D_OUT = *source;
     }
 
-    if (!REF(any) && !IS_SET(D_OUT)) fail (Error(RE_NO_VALUE, source));
+    if (!REF(opt) && IS_UNSET(D_OUT))
+        fail (Error(RE_NO_VALUE, source));
 
     return R_OUT;
 }
@@ -780,8 +781,8 @@ REBNATIVE(resolve)
 //          {Word, block of words, path, or object to be set (modified)}
 //      value [any-value!]
 //          "Value or block of values"
-//      /any
-//          "Allows setting words to any value, including unset"
+//      /opt
+//          "Value is optional, and if no value is provided unset the target"
 //      /pad
 //          {For objects, set remaining words to NONE if block is too short}
 //  ]
@@ -790,7 +791,7 @@ REBNATIVE(set)
 {
     PARAM(1, target);
     PARAM(2, value);
-    REFINE(3, any);
+    REFINE(3, opt);
     REFINE(4, pad);
 
     // Pointers independent from the arguments.  If we change them, they can
@@ -800,12 +801,7 @@ REBNATIVE(set)
     REBVAL *value = ARG(value);
     REBOOL set_with_block;
 
-    // Though Ren-C permits `x: ()`, you still have to say `set/any x ()` to
-    // keep from getting an error.
-    //
-    // !!! This would likely be more clear as `set/opt`
-    //
-    if (!REF(any) && !IS_SET(value))
+    if (!REF(opt) && !IS_SET(value))
         fail (Error(RE_NEED_VALUE, target));
 
     // Simple request to set a word variable.  Allows ANY-WORD, which means
@@ -891,7 +887,7 @@ REBNATIVE(set)
             //
             if (!set_with_block) continue;
 
-            if (!REF(any) && IS_UNSET(value)) {
+            if (!REF(opt) && IS_UNSET(value)) {
                 REBVAL key_name;
                 VAL_INIT_WRITABLE_DEBUG(&key_name);
 
@@ -951,7 +947,7 @@ REBNATIVE(set)
     // words and giving an alert on unsets, check for any unsets before
     // setting half the values and interrupting.
     //
-    if (!REF(any)) {
+    if (!REF(opt)) {
         for (; NOT_END(target) && NOT_END(value); target++) {
             switch (VAL_TYPE(target)) {
             case REB_WORD:

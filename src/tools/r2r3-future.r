@@ -85,6 +85,34 @@ unless find words-of :set /opt [
     ]
 ]
 
+unless find words-of :get /opt [
+    ;
+    ; GET/OPT is the Ren-C replacement for GET/ANY, with /ANY supported
+    ; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
+    ;
+    lib-get: :get
+    get: function [
+        {Gets the value of a word or path, or values of a context.}
+        source
+            "Word, path, context to get"
+        /opt
+            "The source may optionally have no value (allows returning UNSET!)"
+        /any
+            "Deprecated legacy synonym for /OPT"
+    ][
+        set_ANY: any
+        any: :lib/any ;-- in case it needs to be used
+        opt_ANY: opt
+        opt: none ;-- no OPT defined yet, but just in case, keep clear
+
+        apply :lib-get [source (any [opt_ANY set_ANY])]
+    ]
+]
+
+
+; === ABOVE ROUTINES NEEDED TO RUN BELOW ===
+
+
 migrations: [
     ;
     ; Note: EVERY cannot be written in R3-Alpha because there is no way
@@ -134,8 +162,8 @@ migrations: [
         {NONE! to unset, all other value types pass through.}
         value [any-type!]
     ][
-        either none? get/any 'value [()][
-            get/any 'value
+        either none? get/opt 'value [()][
+            get/opt 'value
         ]
     ])
 
@@ -143,7 +171,7 @@ migrations: [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
         value [any-type!]
     ][
-        either unset? get/any 'value [none][:value]
+        either unset? get/opt 'value [none][:value]
     ])
 
     something? <as> (func [value [any-type!]] [

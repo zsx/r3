@@ -46,6 +46,12 @@ REBOL [
     }
 ]
 
+; This identifies if r3-legacy mode is has been turned on, useful mostly only
+; for turning it off again.
+;
+r3-legacy-mode: off
+
+
 op?: func [
     "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
     value [any-value!]
@@ -260,6 +266,85 @@ break: func [
 ]
 
 
+; SET has a refinement called /ANY which doesn't communicate as well in the
+; Ren-C world as OPT.  OPT is the marker on functions to mark parameters as
+; optional...OPT is the function to convert NONE! to UNSET! while passing
+; all else through.  It has a narrower and more communicative focus of purpose
+; than /ANY does (also ANY is a very common function with a very different
+; meaning and sense)
+;
+lib-set: :set ; overwriting lib/set for now
+set: func [
+    {Sets a word, path, block of words, or context to specified value(s).}
+
+    target [any-word! any-path! block! any-context!]
+        {Word, block of words, path, or object to be set (modified)}
+    value [any-value!]
+        "Value or block of values"
+    /opt
+        "Value is optional, and if no value is provided then unset the word"
+    /pad
+        {For objects, set remaining words to NONE if block is too short}
+    /any
+        "Deprecated legacy synonym for /opt"
+][
+    lib-set/(
+        case [
+            any 'opt ;-- Note: refinement, not native ANY []
+            opt 'opt ;-- Note: refinement, not native OPT
+            'default none
+        ]
+    )/:pad target :value
+]
+
+
+; This version of get supports the legacy /ANY switch that has been replaced
+; by /OPT (but since the switch is new, it would be disruptive to remove it
+; entirely immediately... /ANY will be moved to the r3-legacy mode after
+; more codebases have adapted to /OPT.  If it is to stay even longer, it may
+; need to be done via a thinner legacy proxy which can rename refinements but
+; not cost a function body execution.)
+;
+; Historical GET in Rebol allowed any type that wasn't UNSET!.  If you said
+; something like `get 1` this would be passed through as `1`.  Both Ren-C and
+; Red have removed that feature, so it's only enabled in legacy mode.  R3-Gui
+; was dependent on the fallthrough behavior and other legacy clients may be
+; also, so this is a more tolerant variant of LIB/GET for now.
+;
+; Note: It is questionable to use it as a way of getting the fields of an
+; object (likely better suited to reflection)--the SET parallel actually
+; assumes a positional ordering of fields, disallowed in PICK (should be the
+; same rule, probably neither should work.)
+;
+lib-get: :get
+get: function [
+    {Gets the value of a word or path, or values of a context.}
+    source
+        "Word, path, context to get"
+    /opt
+        "The source may optionally have no value (allows returning UNSET!)"
+    /any
+        "Deprecated legacy synonym for /OPT"
+][
+    any_GET: any
+    any: :lib/any
+    opt_GET: opt
+    opt: :lib/opt
+
+    either any [
+        none? :source
+        any-word? :source
+        any-path? :source
+        any-context? :source
+    ][
+        lib-get/(either any [opt_GET any_GET] 'opt none) :source
+    ][
+        if system/options/get-will-get-anything [:source]
+        fail ["GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)]
+    ]
+]
+
+
 ; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what
 ; is done with the error if one happens.  It also has historical baggage with
 ; TRY/CATCH constructs. TRAP does not have that, and better parallels CATCH
@@ -396,8 +481,6 @@ apply: func [
     ]
 ]
 
-
-r3-legacy-mode: off
 
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
@@ -656,34 +739,6 @@ set 'r3-legacy* func [] [
             take/last bt
             bt
         ])
-
-        ; Historical GET in Rebol allowed any type that wasn't UNSET!.  If
-        ; you said something like `get 1` this would be passed through as `1`.
-        ; Both Ren-C and Red have removed that feature, and it is also
-        ; questionable to use it as a way of getting the fields of an
-        ; object (likely better suited to reflection.)  In any case, R3-Gui
-        ; was dependent on the fallthrough behavior and other legacy clients
-        ; may be also, so this is a more tolerant variant of LIB/GET
-        ;
-        get: (function [
-            {Gets the value of a word or path, or values of an object.}
-            word "Word, path, object to get"
-            /any "Allows word to have no value (allows unset)"
-        ][
-            any_GET: any
-            any: :lib/any
-
-            either any [
-                none? :word
-                any-word? :word
-                any-path? :word
-                any-context? :word
-            ][
-                lib/get/:any_GET :word
-            ][
-                :word
-            ]
-        ])
     ]
 
     ; NOTE: these flags only work in debug builds.  A better availability
@@ -708,6 +763,7 @@ set 'r3-legacy* func [] [
     system/options/arg1-arg2-arg3-error: true
     system/options/dont-exit-natives: true
     system/options/paren-instead-of-group: true
+    system/options/get-will-get-anything: true
 
     r3-legacy-mode: on
     return none

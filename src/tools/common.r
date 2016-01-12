@@ -218,7 +218,7 @@ for-each-record-NO-RETURN: func [
 
     table: next table
 
-    set/any quote result: while [not empty? table] [
+    set/opt quote result: while [not empty? table] [
         if (length headings) > (length table) [
             fail {Element count isn't even multiple of header count}
         ]

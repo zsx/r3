@@ -130,7 +130,7 @@ load-header: function/with [
     ;    bad-checksum
     ;    bad-compress
     ;
-    ; Note: set/any and :var used - prevent malicious code errors.
+    ; Note: set/opt and :var used - prevent malicious code errors.
     ; Commented assert statements are for documentation and testing.
     ;
     end: none ;-- locals are now unset by default, added after that change
@@ -145,10 +145,10 @@ load-header: function/with [
         ]
 
         ; get 'rebol keyword
-        set/any [key: rest:] transcode/only data none
+        set/opt [key: rest:] transcode/only data none
 
         ; get header block
-        set/any [hdr: rest:] transcode/next/error rest none
+        set/opt [hdr: rest:] transcode/next/error rest none
 
         not block? :hdr [
             ; header block is incomplete
@@ -751,7 +751,7 @@ load-module: function [
             delay: no-share: none  hdr: spec-of mod
             assert/type [hdr/options [block! none!]]
         ]
-        block? mod [set/any [hdr: code:] mod]
+        block? mod [set/opt [hdr: code:] mod]
 
         ; module/block mod used later for override testing
 
@@ -782,7 +782,7 @@ load-module: function [
                 hdr/options: append any [hdr/options make block! 1] 'private
             ]
         ]
-        not tuple? set/any 'modver :hdr/version [
+        not tuple? set/opt 'modver :hdr/version [
             modver: 0.0.0 ; get version
         ]
 
@@ -798,7 +798,7 @@ load-module: function [
                 module? :mod0 [hdr0: spec-of mod0] ; final header
                 block? :mod0 [hdr0: first mod0] ; cached preparsed header
                 ;assert/type [name0 word! hdr0 object! sum0 [binary! none!]] none
-                not tuple? set/any 'ver0 :hdr0/version [ver0: 0.0.0]
+                not tuple? set/opt 'ver0 :hdr0/version [ver0: 0.0.0]
             ]
 
             ; Compare it to the module we want to load

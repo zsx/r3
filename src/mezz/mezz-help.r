@@ -97,7 +97,7 @@ dump-obj: function [
     /doc "Open web browser to related documentation."
     /local value args item type-name types tmp print-args
 ][
-    if unset? get/any 'word [
+    unless value? 'word [
         print trim/auto {
             Use HELP or ? to see built-in info:
 
@@ -242,7 +242,7 @@ dump-obj: function [
     ; Get value (may be a function, so handle with ":")
     either path? :word [
         if any [
-            error? set/any 'value trap [get :word] ;trap reduce [to-get-path word]
+            error? set/opt 'value trap [get :word] ;trap reduce [to-get-path word]
             not value? 'value
         ][
             print ["No information on" word "(path has no value)"]
@@ -405,7 +405,7 @@ source: make function! [[
     case [
         any [word? :arg path? :arg] [
             name: arg
-            f: get/any arg
+            set/opt 'f get/opt arg
         ]
 
         integer? :arg [
