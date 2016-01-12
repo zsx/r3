@@ -398,14 +398,14 @@ REBNATIVE(bound_q)
 
 
 //
-//  set?: native [
+//  any-value?: native [
 //  
-//  "Returns whether a value is set."
+//  "Returns whether a data cell contains a value."
 //  
 //      cell [unset! any-value!]
 //  ]
 //
-REBNATIVE(set_q)
+REBNATIVE(any_value_q)
 {
     return IS_UNSET(D_ARG(1)) ? R_FALSE : R_TRUE;
 }
@@ -1214,7 +1214,7 @@ REBNATIVE(nothing_q)
 //      value [unset! any-value!]
 //  ][
 //      all [
-//          set? :value
+//          any-value? :value
 //          not none? value
 //      ]
 //  ]

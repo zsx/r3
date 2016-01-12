@@ -443,8 +443,8 @@ load: function [
             sftype: file-type? source
             ftype: case [
                 all [
-                    set? :ftype 'unbound = ftype
-                    set? :sftype 'extension = sftype
+                    any-value? :ftype 'unbound = ftype
+                    any-value? :sftype 'extension = sftype
                 ] [sftype]
                 type [ftype]
                 'default [sftype]
@@ -478,7 +478,7 @@ load: function [
 
         ;-- Bind code to user context:
         not any [
-            all [set? :ftype 'unbound = ftype]
+            all [any-value? :ftype 'unbound = ftype]
             'module = select hdr 'type
             find select hdr 'options 'unbound
         ][
@@ -585,7 +585,7 @@ do-needs: function [
         )
 
         ; Collect any mixins into the object (if we are doing that)
-        if all [set? :mixins mixin? mod] [
+        if all [any-value? :mixins mixin? mod] [
             resolve/extend/only mixins mod select spec-of mod 'exports
         ]
         mod
@@ -771,7 +771,7 @@ load-module: function [
         ]
 
         ; Unify hdr/name and /as name
-        set? :name [hdr/name: name] ; rename /as name
+        any-value? :name [hdr/name: name] ; rename /as name
         unset? :name [name: :hdr/name]
         all [not no-lib not word? :name] [ ; requires name for full import
             ; Unnamed module can't be imported to lib, so /no-lib here
@@ -871,7 +871,7 @@ load-module: function [
         ]
 
         all [not no-lib override?] [
-            unless set? :modsum [modsum: none]
+            unless any-value? :modsum [modsum: none]
             case/all [
                 pos [pos/2: mod pos/3: modsum] ; replace delayed module
 
