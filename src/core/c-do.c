@@ -1268,21 +1268,10 @@ reevaluate:
 
         if (IS_UNSET(c->out)) {
             //
-            // Treat direct assignments of an unset as unsetting the word
+            // Assignments of unsets such as `x: ()` are not allowed, and SET
+            // has to be used to do it (with the /OPT refinement)
             //
-
-            REBVAL *var;
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_CANT_UNSET_SET_WORDS))
-                fail (Error(RE_NEED_VALUE, c->value));
-        #endif
-
-            if (IS_WORD_UNBOUND(c->value))
-                fail (Error(RE_NOT_BOUND, c->value));
-
-            var = GET_MUTABLE_VAR(c->value);
-            SET_UNSET(var);
+            fail (Error(RE_NEED_VALUE, c->value));
         }
         else
             *GET_MUTABLE_VAR(c->value) = *c->out;

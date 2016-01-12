@@ -163,7 +163,6 @@ options: context [  ; Options supplied to REBOL during startup
     ; would mean adapting the mezzanine (or finding a way to mark a routine
     ; as not being in the mezzanine and following a different rule.)
 
-    cant-unset-set-words: false
     arg1-arg2-arg3-error: false
 ]
 
