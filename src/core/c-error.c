@@ -564,7 +564,6 @@ static REBCON *Make_Guarded_Arg123_Error(void)
     SET_END(key);
     SET_END(var);
 
-    MANAGE_CONTEXT(error);
     PUSH_GUARD_CONTEXT(error);
     return error;
 }
