@@ -1501,7 +1501,13 @@ void Manage_Series(REBSER *series)
             GC_Manuals->content.dynamic.len - 1
         ];
 
-    assert(!SERIES_GET_FLAG(series, OPT_SER_MANAGED));
+#if !defined(NDEBUG)
+    if (SERIES_GET_FLAG(series, OPT_SER_MANAGED)) {
+        Debug_Fmt("Attempt to manage already managed series");
+        Panic_Series(series);
+    }
+#endif
+
     SERIES_SET_FLAG(series, OPT_SER_MANAGED);
 
     // Note: Code repeated in Free_Series()
