@@ -252,5 +252,25 @@ default: func [
     unless all [value? word not none? get word] [set word :value] :value
 ]
 
+
+ensure: func [
+    {Pass through a value that isn't NONE! or UNSET!, but FAIL on all else.}
+    value [opt-any-value!]
+    /type
+    types [block! datatype! typeset!]
+        {FAIL only if not one of these types (block converts to TYPESET!)}
+][
+    unless find (case [
+        unset? :types [any-something!]
+        block? :types [make typeset! types]
+        typeset? :types [types]
+        datatype? :types [reduce [types]] ;-- we'll find DATATYPE! in a block
+    ]) type-of :value [
+        fail ["ENSURE did not expect value to have type" (type-of :value)]
+    ]
+    :value
+]
+
+
 secure: func ['d] [boot-print "SECURE is disabled"]
 
