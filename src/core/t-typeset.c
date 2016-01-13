@@ -91,8 +91,12 @@ void Init_Typesets(void)
 
     for (n = 0; Typesets[n].sym != SYM_0; n++) {
         value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));
-        VAL_RESET_HEADER(value, REB_TYPESET);
-        VAL_TYPESET_BITS(value) = Typesets[n].bits;
+
+        // Note: the symbol in the typeset is not the symbol of a word holding
+        // the typesets, rather an extra data field used when the typeset is
+        // in a context key slot to identify that field's name
+        //
+        Val_Init_Typeset(value, Typesets[n].bits, SYM_0);
 
         *Append_Context(Lib_Context, NULL, Typesets[n].sym) = *value;
     }

@@ -796,14 +796,14 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
             mold->series, Get_Sym_Name(VAL_TYPESET_SYM(value)), -1 // LEN_BYTES
         );
         Append_Unencoded(mold->series, ") ");
-    }
 
-    // REVIEW: should detect when a lot of types are active and condense
-    // only if the number of types is unreasonable (often is for keys/params)
-    //
-    if (TRUE) {
-        Append_Unencoded(mold->series, "...");
-        goto skip_types;
+        // REVIEW: should detect when a lot of types are active and condense
+        // only if the number of types is unreasonable (often for keys/params)
+        //
+        if (TRUE) {
+            Append_Unencoded(mold->series, "...");
+            goto skip_types;
+        }
     }
 #endif
 
