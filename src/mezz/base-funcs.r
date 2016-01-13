@@ -254,17 +254,32 @@ default: func [
 
 
 ensure: func [
-    {Pass through a value that isn't NONE! or UNSET!, but FAIL on all else.}
+    {Pass through a value that isn't UNSET! or FALSE?, but FAIL otherwise}
     value [opt-any-value!]
+    /only
+        {Only check the value isn't UNSET!--FALSE and NONE okay}
     /type
     types [block! datatype! typeset!]
         {FAIL only if not one of these types (block converts to TYPESET!)}
+
+    ; !!! To be rewritten as a native once behavior is pinned down.
 ][
+    unless any-value? :value [
+        unless type [fail "ENSURE did not expect value to be UNSET!"]
+    ]
+
+    unless type [
+        unless any [value only] [
+            fail ["ENSURE did not expect value to be" (mold :value)]
+        ]
+        return :value
+    ]
+
     unless find (case [
-        unset? :types [any-something!]
         block? :types [make typeset! types]
         typeset? :types [types]
         datatype? :types [reduce [types]] ;-- we'll find DATATYPE! in a block
+        fail 'unreachable
     ]) type-of :value [
         fail ["ENSURE did not expect value to have type" (type-of :value)]
     ]
@@ -273,4 +288,3 @@ ensure: func [
 
 
 secure: func ['d] [boot-print "SECURE is disabled"]
-
