@@ -1246,7 +1246,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
     if (type == REB_ROUTINE) {
-        REBINT fn_idx = 0;
+        REBCNT fn_idx = 0;
 
         REBVAL lib;
         VAL_INIT_WRITABLE_DEBUG(&lib);
@@ -1315,7 +1315,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
             }
         }
     } else if (type == REB_CALLBACK) {
-        REBINT fn_idx = 0;
+        REBCNT fn_idx = 0;
 
         REBVAL fun;
         VAL_INIT_WRITABLE_DEBUG(&fun);
