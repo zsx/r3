@@ -402,7 +402,7 @@ REBNATIVE(bound_q)
 //  
 //  "Returns whether a data cell contains a value."
 //  
-//      cell [unset! any-value!]
+//      cell [opt-any-value!]
 //  ]
 //
 REBNATIVE(any_value_q)
@@ -569,7 +569,7 @@ REBNATIVE(get)
 //  
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
 //  
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(to_value)
@@ -583,7 +583,7 @@ REBNATIVE(to_value)
 //  
 //  {NONEs become unset, all other value types pass through. (See: TO-VALUE)}
 //  
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(opt)
@@ -779,7 +779,7 @@ REBNATIVE(resolve)
 //  
 //      target [any-word! any-path! block! any-context!]
 //          {Word, block of words, path, or object to be set (modified)}
-//      value [any-value!]
+//      value [opt-any-value!]
 //          "Value or block of values"
 //      /opt
 //          "Value is optional, and if no value is provided unset the target"
@@ -1022,7 +1022,7 @@ REBNATIVE(set)
 //  
 //  "Returns the datatype of a value."
 //  
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(type_of)
@@ -1116,9 +1116,9 @@ REBNATIVE(value_q)
 //
 //  true?: native/body [
 //
-//  "Returns true if an expression can be used as true (errors on UNSET!)."
+//  "Returns true if a value can be used as true (errors on UNSET!)."
 //
-//      value ; Note: No [any-value!] - we want unset! to fail.
+//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail
 //  ][
 //      not not :val
 //  ]
@@ -1134,9 +1134,9 @@ REBNATIVE(true_q)
 //
 //  false?: native/body [
 //
-//  "Returns false if an expression is either LOGIC! false or a NONE!."
+//  "Returns false if a value is either LOGIC! false or a NONE!."
 //
-//      value ; Note: No [any-value!] - we want unset! to fail.
+//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail.
 //  ][
 //      either any [
 //          none? :value
@@ -1163,7 +1163,7 @@ REBNATIVE(false_q)
 //
 //  "Returns the value passed to it without evaluation."
 //
-//      :value [any-value!]
+//      :value [opt-any-value!]
 //  ][
 //      :value
 //  ]
@@ -1184,7 +1184,7 @@ REBNATIVE(quote)
 //
 //  "Returns whether a value is either a NONE! or UNSET!"
 //
-//      value [unset! any-value!]
+//      value [opt-any-value!]
 //  ][
 //      any [
 //          unset? :value
@@ -1207,7 +1207,7 @@ REBNATIVE(nothing_q)
 //
 //  "Returns whether a value something besides a NONE! or UNSET!"
 //
-//      value [unset! any-value!]
+//      value [opt-any-value!]
 //  ][
 //      all [
 //          any-value? :value

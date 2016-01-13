@@ -695,7 +695,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
 // Finds a value in a series and returns the series at the start of it.
 // 
 //      1 image
-//      2 value [any-value!]
+//      2 value [opt-any-value!]
 //      3 /part {Limits the search to a given length or position.}
 //      4 range [any-number! any-series! port!]
 //      5 /only {ignore alpha value.}

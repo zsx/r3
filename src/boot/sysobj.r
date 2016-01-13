@@ -189,7 +189,7 @@ standard: context [
     ;
     func-body: [
         return: make function! [
-            [{Returns a value from a function.} value [any-value!]]
+            [{Returns a value from a function.} value [opt-any-value!]]
             [exit/at/with (bind-of 'return) :value]
         ]
         #BODY

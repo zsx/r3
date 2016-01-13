@@ -34,7 +34,7 @@ check-set: func [
     "Set optional value via set-word or set-path, TRUE unless UNSET!"
 
     'target [set-word! set-path!]
-    value [unset! any-value!]
+    value [opt-any-value!]
 ][
     any-value? set/opt target :value
 ]

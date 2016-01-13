@@ -29,7 +29,7 @@ action: none ; for boot only
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
     value [file! url! string! binary! tag!]
-    arg [any-value!]
+    arg [opt-any-value!]
         "Args passed as system/script/args to a script (normally a string)"
     var [unset! word!]
         "If do next expression only, variable updated with new block position"

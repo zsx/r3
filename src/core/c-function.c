@@ -494,7 +494,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // the spec, then potentially build an entity whose full "body" acts like:
 // 
 //     return: make function! [
-//         [{Returns a value from a function.} value [any-value!]]
+//         [{Returns a value from a function.} value [opt-any-value!]]
 //         [throw/name :value bind-of 'return]
 //     ]
 //     catch/name (body) bind-of 'return

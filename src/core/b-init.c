@@ -476,7 +476,7 @@ REBNATIVE(action)
 //
 // If /TYPECHECK is used then you can get a fast checker for a datatype:
 //
-//     string?: action/typecheck [value [unset! any-value!]] string!
+//     string?: action/typecheck [value [opt-any-value!]] string!
 //
 // Because words are not bound to the datatypes at the time of action building
 // it accepts integer numbers for bootstrapping.

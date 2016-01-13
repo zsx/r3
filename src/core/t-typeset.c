@@ -30,7 +30,6 @@
 #include "sys-core.h"
 
 
-
 //
 // symbol-to-typeset-bits mapping table
 //
@@ -50,7 +49,10 @@ const struct {
     REBCNT sym;
     REBU64 bits;
 } Typesets[] = {
-    {SYM_ANY_VALUE_X, (cast(REBU64, 1) << REB_MAX) - 2}, // do not include END!
+    {SYM_ANY_NOTHING_X, TS_NOTHING},
+    {SYM_ANY_SOMETHING_X, TS_SOMETHING},
+    {SYM_ANY_VALUE_X, TS_VALUE},
+    {SYM_OPT_ANY_VALUE_X, TS_VALUE | (cast(REBU64, 1) << REB_UNSET)},
     {SYM_ANY_WORD_X, TS_WORD},
     {SYM_ANY_PATH_X, TS_PATH},
     {SYM_ANY_FUNCTION_X, TS_FUNCTION},
@@ -154,8 +156,8 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
                 TYPE_SET(value, KIND_FROM_SYM(sym));
                 continue;
             } // Special typeset symbols:
-            else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
-                val = ARRAY_AT(types, sym - SYM_ANY_VALUE_X);
+            else if (sym >= SYM_ANY_NOTHING_X && sym < SYM_DATATYPES)
+                val = ARRAY_AT(types, sym - SYM_ANY_NOTHING_X);
         }
         if (!val) val = block;
         if (IS_DATATYPE(val)) {
