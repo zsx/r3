@@ -355,7 +355,10 @@ RL_API void RL_Escape(REBINT reserved)
     // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
     // to quit entirely vs. begin an interactive debugging session?
     //
-    SET_SIGNAL(SIG_INTERRUPT);
+    // !!! For now default to halting, but use SIG_INTERRUPT when a decision
+    // is made about how to debug break.
+    //
+    SET_SIGNAL(SIG_HALT);
 }
 
 
