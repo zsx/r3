@@ -135,6 +135,9 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 //  ]
 //
 REBNATIVE(assert)
+//
+// !!! Should this be a mezzanine routine, built atop ENSURE as a native?
+// Given the existence of ENSURE/TYPE, is ASSERT/TYPE necessary?
 {
     PARAM(1, conditions);
     REFINE(2, type);
@@ -178,8 +181,15 @@ REBNATIVE(assert)
                 fail (Error_Invalid_Arg(value));
 
             type = value+1;
+
             if (IS_END(type)) fail (Error(RE_MISSING_ARG));
-            if (IS_BLOCK(type) || IS_WORD(type) || IS_TYPESET(type) || IS_DATATYPE(type)) {
+
+            if (
+                IS_BLOCK(type)
+                || IS_WORD(type)
+                || IS_TYPESET(type)
+                || IS_DATATYPE(type)
+            ) {
                 if (!Is_Type_Of(val, type))
                     fail (Error(RE_WRONG_TYPE, value));
             }
@@ -188,7 +198,7 @@ REBNATIVE(assert)
         }
     }
 
-    return R_TRUE;
+    return R_UNSET;
 }
 
 
