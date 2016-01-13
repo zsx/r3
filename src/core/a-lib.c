@@ -215,7 +215,9 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         return ERR_NUM(error);
     }
 
-    if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_RL_START, 0)) {
+    if (Apply_Func_Throws(
+        &result, Sys_Func(SYS_CTX_FINISH_RL_START), END_VALUE
+    )) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
                 fail (Error_No_Catch_For_Throw(&result));

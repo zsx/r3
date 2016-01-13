@@ -2807,7 +2807,20 @@ REBOOL Apply_Func_Throws_Core(
 
     for (; varargs || NOT_END(c->param); c->param++, c->arg++) {
         c->value = va_arg(*varargs, REBVAL*);
-        if (!c->value) break; // our convention is "NULL signals no more"
+        if (IS_END(c->value)) {
+            //
+            // The convention for the varargs is to use a REBVAL* that points
+            // to an END marker.  While it may seem tempting to support NULL
+            // as well (or alternately), C's variable argument machinery has
+            // a problem.  It would only be legal if you did (REBVAL*)NULL,
+            // because NULL is defined as 0 and to be sure to work on all
+            // platforms you can't assume that the int integer 0 is the same
+            // size or bit pattern as a pointer.  As long as a cast would be
+            // necessary, the argument of it looking cleaner goes away...and
+            // an END value makes it line up better with the array-based code.
+            //
+            break;
+        }
 
         *c->arg = *c->value;
 
@@ -2971,26 +2984,21 @@ REBOOL Apply_Func_Throws(REBVAL *out, REBFUN *func, ...)
 
 
 //
-//  Do_Sys_Func_Throws: C
+//  Sys_Func: C
 // 
-// Evaluates a SYS function and out contains the result.
+// There are a number of Rebol functions that are built into the executable
+// which are numbered by integer.  These functions can be called from C code
+// that has REBVAL* arguments in its hand by the REBVAL mechanics.  Use with
+// Apply_Func_Throws...
 //
-REBOOL Do_Sys_Func_Throws(REBVAL *out, REBCNT inum, ...)
+REBFUN *Sys_Func(REBCNT inum)
 {
-    REBOOL result;
-    va_list args;
-    REBCNT label_sym = CONTEXT_KEY_SYM(Sys_Context, inum);
     REBVAL *value = CONTEXT_VAR(Sys_Context, inum);
 
-    if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
+    if (!ANY_FUNC(value))
+        fail (Error(RE_BAD_SYS_FUNC, value));
 
-    va_start(args, inum);
-    result = Apply_Func_Throws_Core(out, label_sym, VAL_FUNC(value), &args);
-
-    // !!! See notes in Apply_Func_Throws about va_end() and longjmp()
-    va_end(args);
-
-    return result;
+    return VAL_FUNC(value);
 }
 
 

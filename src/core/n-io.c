@@ -506,7 +506,7 @@ REBNATIVE(wake_up)
 
     value = CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (ANY_FUNC(value)) {
-        if (Apply_Func_Throws(D_OUT, VAL_FUNC(value), ARG(event), 0))
+        if (Apply_Func_Throws(D_OUT, VAL_FUNC(value), ARG(event), END_VALUE))
             fail (Error_No_Catch_For_Throw(D_OUT));
 
         if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;

@@ -358,8 +358,15 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         ));
     }
 
-    if (Apply_Func_Throws(&result, VAL_FUNC(sort_flags.compare), v1, v2, 0))
+    if (Apply_Func_Throws(
+        &result,
+        VAL_FUNC(sort_flags.compare),
+        v1,
+        v2,
+        END_VALUE
+    )) {
         fail (Error_No_Catch_For_Throw(&result));
+    }
 
     if (IS_LOGIC(&result)) {
         if (VAL_LOGIC(&result)) tristate = 1;

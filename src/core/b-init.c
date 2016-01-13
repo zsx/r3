@@ -1580,7 +1580,9 @@ void Init_Core(REBARGS *rargs)
 
     assert(DSP == -1 && !DSF);
 
-    if (Do_Sys_Func_Throws(&result, SYS_CTX_FINISH_INIT_CORE, 0)) {
+    if (Apply_Func_Throws(
+        &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_VALUE
+    )) {
         // Note: You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
         assert(FALSE);
