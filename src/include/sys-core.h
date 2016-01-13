@@ -679,13 +679,6 @@ enum encoding_opts {
 #define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
 
 
-#ifdef OS_WIDE_CHAR
-#define BUF_OS_STR UNI_BUF
-#else
-#define BUF_OS_STR BYTE_BUF
-#endif
-
-
 /***********************************************************************
 **
 **  BINDING CONVENIENCE MACROS

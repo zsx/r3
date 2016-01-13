@@ -51,15 +51,19 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
     SET_ARRAY_LEN(files, 0);
     CLEARS(&file);
 
-    // Temporary filename storage:
-    fname = BUF_OS_STR;
-    file.special.file.path = cast(REBCHR*, Reset_Buffer(fname, MAX_FILE_NAME));
+    // Temporary filename storage; native OS API character size (REBCHR) varies
+    //
+    fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR), MKS_NONE);
+    file.special.file.path = SERIES_HEAD(REBCHR, fname);
 
     SET_FLAG(dir->modes, RFM_DIR);
 
     dir->common.data = cast(REBYTE*, &file);
 
-    while ((result = OS_DO_DEVICE(dir, RDC_READ)) == 0 && !GET_FLAG(dir->flags, RRF_DONE)) {
+    while (
+        (result = OS_DO_DEVICE(dir, RDC_READ)) == 0
+        && !GET_FLAG(dir->flags, RRF_DONE)
+    ) {
         len = OS_STRLEN(file.special.file.path);
         if (GET_FLAG(file.modes, RFM_DIR)) len++;
         name = Copy_OS_Str(file.special.file.path, len);
@@ -76,6 +80,8 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
     ) {
         result = 0;  // no matches found, but not an error
     }
+
+    Free_Series(fname);
 
     return result;
 }
