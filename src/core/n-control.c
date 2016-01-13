@@ -691,7 +691,7 @@ was_caught:
                 // If the handler is zero arity or takes a first parameter
                 // that is a refinement, call it with no arguments
                 //
-                if (Apply_Func_Throws(D_OUT, handler, NULL))
+                if (Apply_Func_Throws(D_OUT, handler, END_VALUE))
                     return R_OUT_IS_THROWN;
             }
             else if (
@@ -702,7 +702,7 @@ was_caught:
                 // parameter), or a greater arity with a second parameter that
                 // is a refinement...call it with *just* the thrown value.
                 //
-                if (Apply_Func_Throws(D_OUT, handler, thrown_arg, NULL))
+                if (Apply_Func_Throws(D_OUT, handler, thrown_arg, END_VALUE))
                     return R_OUT_IS_THROWN;
             }
             else {
@@ -711,7 +711,7 @@ was_caught:
                 // checking that the arguments are legal for the call.
                 //
                 if (Apply_Func_Throws(
-                    D_OUT, handler, thrown_arg, thrown_name, NULL
+                    D_OUT, handler, thrown_arg, thrown_name, END_VALUE
                 )) {
                     return R_OUT_IS_THROWN;
                 }
@@ -999,17 +999,15 @@ REBNATIVE(do)
     case REB_FILE:
     case REB_TAG:
         //
-        // DO native and system/intrinsic/do* must use same arg list:
+        // See code called in system/intrinsic/do*
         //
-        if (Do_Sys_Func_Throws(
+        if (Apply_Func_Throws(
             D_OUT,
-            SYS_CTX_DO_P,
+            Sys_Func(SYS_CTX_DO_P),
             ARG(value),
-            ARG(args),
-            ARG(arg),
-            ARG(next),
-            ARG(var),
-            NULL
+            REF(args) ? ARG(arg) : UNSET_VALUE,
+            REF(next) ? ARG(var) : UNSET_VALUE,
+            END_VALUE
         )) {
             return R_OUT_IS_THROWN;
         }
@@ -1816,7 +1814,7 @@ REBNATIVE(trap)
                     // Arity zero handlers (or handlers whose first
                     // parameter is a refinement) we call without the ERROR!
                     //
-                    if (Apply_Func_Throws(D_OUT, handler, NULL))
+                    if (Apply_Func_Throws(D_OUT, handler, END_VALUE))
                         return R_OUT_IS_THROWN;
                 }
                 else {
@@ -1828,7 +1826,7 @@ REBNATIVE(trap)
                     // isn't a refinement, try passing it the ERROR! we
                     // trapped.  Apply will do argument checking.
                     //
-                    if (Apply_Func_Throws(D_OUT, handler, &arg, NULL))
+                    if (Apply_Func_Throws(D_OUT, handler, &arg, END_VALUE))
                         return R_OUT_IS_THROWN;
                 }
 
