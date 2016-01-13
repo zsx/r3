@@ -67,7 +67,7 @@ REBNATIVE(echo)
 //  
 //  "Converts a value to a human-readable string."
 //  
-//      value [any-value!] "The value to form"
+//      value [opt-any-value!] "The value to form"
 //  ]
 //
 REBNATIVE(form)
@@ -82,7 +82,7 @@ REBNATIVE(form)
 //  
 //  "Converts a value to a REBOL-readable string."
 //  
-//      value [any-value!] "The value to mold"
+//      value [opt-any-value!] "The value to mold"
 //      /only {For a block value, mold only its contents, no outer []}
 //      /all "Use construction syntax"
 //      /flat "No indentation"
@@ -197,7 +197,7 @@ static REBOOL Print_Native_Modifying_Throws(
 //  
 //  "Outputs a value followed by a line break."
 //  
-//      value [any-value!] "The value to print"
+//      value [opt-any-value!] "The value to print"
 //  ]
 //
 REBNATIVE(print)
@@ -219,7 +219,7 @@ REBNATIVE(print)
 //  
 //  "Outputs a value with no line break."
 //  
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(prin)

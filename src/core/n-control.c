@@ -236,8 +236,8 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
 //  
 //  {Returns the first value, but also evaluates the second.}
 //  
-//      value1 [any-value!]
-//      value2 [any-value!]
+//      value1 [opt-any-value!]
+//      value2 [opt-any-value!]
 //  ]
 //
 REBNATIVE(also)
@@ -373,7 +373,7 @@ REBNATIVE(attempt)
 //  
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(break)
@@ -733,7 +733,7 @@ was_caught:
 //  
 //  "Throws control back to a previous catch."
 //  
-//      value [any-value!] "Value returned from catch"
+//      value [opt-any-value!] "Value returned from catch"
 //      /name "Throws to a named catch"
 //      name-value [word! any-function! object!]
 //  ]
@@ -745,6 +745,7 @@ REBNATIVE(throw)
     REBVAL * const name_value = D_ARG(3);
 
     if (IS_ERROR(value)) {
+        //
         // We raise an alert from within the implementation of throw for
         // trying to use it to trigger errors, because if THROW just didn't
         // take errors in the spec it wouldn't guide what *to* use.
@@ -894,7 +895,7 @@ REBNATIVE(compose)
 //  
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(continue)
@@ -1046,7 +1047,7 @@ REBNATIVE(do)
 //  
 //  {(Special) Process received value *inline* as the evaluator loop would.}
 //  
-//      value [any-value!] 
+//      value [opt-any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
 //      /only
 //          {Suppress evaluation on any ensuing arguments value consumes}
@@ -1069,7 +1070,7 @@ REBNATIVE(eval)
 //  
 //      /with
 //          "Result for enclosing state (default is UNSET!)"
-//      value [any-value!]
+//      value [opt-any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
 //      target [any-function! object!]
@@ -1214,7 +1215,7 @@ REBNATIVE(fail)
                 // strings that appear in the block appear in the error
                 // message so it can be templated.
                 //
-                if (IS_WORD(item)) {
+                if (IS_WORD(item) || IS_GET_WORD(item)) {
                     const REBVAL *var = TRY_GET_VAR(item);
                     if (!var || !ANY_FUNC(var))
                         continue;
@@ -1342,7 +1343,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
 //      condition
-//      branch [any-value!]
+//      branch [opt-any-value!]
 //      /only "Return block branches literally instead of evaluating them."
 //  ]
 //
@@ -1358,7 +1359,7 @@ REBNATIVE(if)
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
 //      condition
-//      branch [any-value!]
+//      branch [opt-any-value!]
 //      /only "Return block branches literally instead of evaluating them."
 //  ]
 //
@@ -1374,8 +1375,8 @@ REBNATIVE(unless)
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
 //      condition
-//      true-branch [any-value!]
-//      false-branch [any-value!]
+//      true-branch [opt-any-value!]
+//      false-branch [opt-any-value!]
 //      /only "Return block arg instead of evaluating it."
 //  ]
 //
@@ -1596,7 +1597,7 @@ REBNATIVE(reduce)
 //  
 //  "Returns a value from a function."
 //  
-//      value [any-value!]
+//      value [opt-any-value!]
 //  ]
 //
 REBNATIVE(return)

@@ -455,7 +455,7 @@ use [collect-proto] [
             output: any [:output make block! 16]
 
             keeper: func [
-                value [any-value!] /only
+                value [opt-any-value!] /only
             ][
                 output: insert/:only output :value
                 :value

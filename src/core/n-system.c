@@ -50,7 +50,7 @@ REBNATIVE(halt)
 //  {Stop evaluating and return control to command shell or calling script.}
 //  
 //      /with {Yield a result (mapped to an integer if given to shell)}
-//      value [any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
+//      value [opt-any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
 //      /return "(deprecated synonym for /WITH)"
 //      return-value
 //  ]
@@ -1101,7 +1101,7 @@ return_temp:
 //
 //      /with
 //          "Return the given value if breakpoint does not trigger"
-//      value [unset! any-value!]
+//      value [opt-any-value!]
 //          "Default value to use"
 //      /do
 //          "Evaluate given code if breakpoint does not trigger"
@@ -1144,7 +1144,7 @@ REBNATIVE(breakpoint)
 //
 //      /with
 //          "Return the given value as return value from BREAKPOINT"
-//      value [unset! any-value!]
+//      value [opt-any-value!]
 //          "Value to use"
 //      /do
 //          "Evaluate given code as return value from BREAKPOINT"
@@ -1271,7 +1271,7 @@ REBNATIVE(resume)
 //
 //  "Run an integrity check on a value in debug builds of the interpreter"
 //
-//      value [any-value!]
+//      value [opt-any-value!]
 //          {System will terminate abnormally if this value is corrupt.}
 //  ]
 //

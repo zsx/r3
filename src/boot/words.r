@@ -15,7 +15,10 @@ REBOL [
     }
 ]
 
-any-value! ;-- signal start of typesets (SYM_ANY_VALUEX hardcoded reference)
+any-nothing! ;-- signal typesets start (SYM_ANY_NOTHING_X hardcoded reference)
+any-something!
+any-value!
+opt-any-value! ;-- temporary until <opt> or #opt or similar are settled
 any-word!
 any-path!
 any-function!

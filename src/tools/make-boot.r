@@ -549,6 +549,23 @@ emit {
 **  REBOL Typeset Defines
 **
 ***********************************************************************/
+
+#define TS_NOTHING \
+    (((cast(REBU64, 1) << REB_UNSET)) | ((cast(REBU64, 1) << REB_NONE)))
+
+// ANY-SOMETHING! is the base "all bits" typeset that just does not include
+// UNSET! or NONE!.  TRASH! is a purely internal type, but is removed anyway.
+//
+#define TS_SOMETHING \
+    (((cast(REBU64, 1) << REB_MAX) - 1) /* all typeset bits */ \
+    - TS_NOTHING - ((cast(REBU64, 1) << REB_TRASH)))
+
+// ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
+// count UNSET! (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
+// clear from for reasons including that it looks a lot like ANY-DATATYPE!)
+//
+#define TS_VALUE (TS_SOMETHING | ((cast(REBU64, 1) << REB_NONE)))
+
 }
 
 typeset-sets: []

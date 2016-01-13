@@ -66,7 +66,7 @@ unless find words-of :set /opt [
         target [any-word! any-path! block! any-object!]
             {Word, block of words, path, or object to be set (modified)}
 
-        ;-- Note: any-value! not defined until after migrations
+        ;-- Note: opt-any-value! not defined until after migrations
         value [any-type!]
             "Value or block of values"
         /opt
@@ -146,8 +146,14 @@ migrations: [
     any-series! <as> :series!
     any-number? <as> :number?
     any-number! <as> :number!
+
+    ; ANY-VALUE! is anything that isn't UNSET!.  OPT-ANY-VALUE! is a
+    ; placeholder for [<opt> ANY-VALUE!] or [#opt ANY-VALUE] in function specs,
+    ; a final format has not been picked for the generator to use.
+    ;
     any-value? <as> (func [item [any-type!]] [not unset? :item])
-    any-value! <as> :any-type!
+    any-value! <as> (difference any-type! (make typeset! [unset!]))
+    opt-any-value! <as> :any-type!
 
     ; Renamings to conform to ?-means-returns-true-false rule
     ; https://trello.com/c/BxLP8Nch

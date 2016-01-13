@@ -97,49 +97,50 @@ system/options/result-types: make typeset! [
     immediate! any-series! bitset! image! object! map! gob!
 ]
 
+
 ;-- Create "To-Datatype" conversion functions early in bootstrap:
 
 any-string?: func [
     "Return TRUE if value is any type of string."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-string! type-of :value]
 
 any-function?: func [
     "Return TRUE if value is any type of function."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-function! type-of :value]
 
 any-word?: func [
     "Return TRUE if value is any type of word."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-word! type-of :value]
 
 any-path?: func [
     "Return TRUE if value is any type of path."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-path! type-of :value]
 
 any-context?: func [
     "Return TRUE if value is an OBJECT!, ERROR!, PORT!, or MODULE!"
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-context! type-of :value]
 
 any-number?: func [
     "Return TRUE if value is a number (integer or decimal)."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-number! type-of :value]
 
 any-series?: func [
     "Return TRUE if value is any type of series."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-series! type-of :value]
 
 any-scalar?: func [
     "Return TRUE if value is any type of scalar."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-scalar! type-of :value]
 
 any-array?: func [
     "Return TRUE if value is a series containing all the same type."
-    value [any-value!]
+    value [opt-any-value!]
 ][find any-array! type-of :value]

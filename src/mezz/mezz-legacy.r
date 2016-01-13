@@ -54,7 +54,7 @@ r3-legacy-mode: off
 
 op?: func [
     "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
-    value [any-value!]
+    value [opt-any-value!]
 ][
     either any-function? :value [:infix? :value] false
 ]
@@ -93,7 +93,7 @@ to-paren: :to-group
 ;
 type?: function [
     "Returns the datatype of a value <r3-legacy>."
-    value [any-value!]
+    value [opt-any-value!]
     /word "No longer in TYPE-OF, as WORD! and DATATYPE! can be EQUAL?"
 ][
     either word [
@@ -208,7 +208,7 @@ series?: :any-series?
 ; is "really, any legal Rebol value, type or otherwise".  So ANY-VALUE! is
 ; the better word for that.  Added for backwards compatibility.
 ;
-any-type!: :any-value!
+any-type!: :opt-any-value!
 
 ; !!! BIND? and BOUND? will have to go, but it's not clear exactly if
 ; BIND-OF or CONTEXT-OF or what is the right term.  So a mass renaming
@@ -256,11 +256,11 @@ break: func [
 
     /with
         {Act as if loop body finished current evaluation with a value}
-    value [any-value!]
+    value [opt-any-value!]
 
     /return ;-- Overrides RETURN!
         {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
-    return-value [any-value!]
+    return-value [opt-any-value!]
 ][
     lib-break/with either return :return-value :value
 ]
@@ -279,7 +279,7 @@ set: func [
 
     target [any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
-    value [any-value!]
+    value [opt-any-value!]
         "Value or block of values"
     /opt
         "Value is optional, and if no value is provided then unset the word"
