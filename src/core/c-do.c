@@ -628,6 +628,8 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     REBCNT sigs;
     REBCNT mask;
 
+    assert(Saved_State || PG_Boot_Phase < BOOT_MEZZ);
+
     // Accumulate evaluation counter and reset countdown:
     if (Eval_Count <= 0) {
         //Debug_Num("Poll:", (REBINT) Eval_Cycles);

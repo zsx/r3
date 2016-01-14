@@ -808,6 +808,10 @@ void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
 
         do_result = Do_String(exit_status, out, input, at_breakpoint);
 
+        // NOTE: Although the operation has finished at this point, it may
+        // be that a Ctrl-C set up a pending FAIL, which will be triggered
+        // during output below.  See the PUSH_UNHALTABLE_TRAP in the caller.
+
         if (do_result == -1) {
             //
             // If we're inside a breakpoint, this actually means "resume",
@@ -1008,7 +1012,9 @@ int main(int argc, char **argv_ansi)
         goto cleanup_and_exit; // exit status is set...
 
 #if !defined(ENCAP)
-    // Console line input loop (just an example, can be improved):
+    //
+    // Call the console line input loop function if necessary
+    //
     if (
         !(Main_Args.options & RO_CGI)
         && (
@@ -1016,10 +1022,48 @@ int main(int argc, char **argv_ansi)
             || Main_Args.options & RO_HALT  // --halt option
         )
     ) {
+        struct Reb_State state;
+        REBCON *error;
+
         REBVAL value;
         VAL_INIT_WRITABLE_DEBUG(&value);
 
+    push_trap:
+        //
+        // The R3-Alpha host kit did not have a policy articulated on dealing
+        // with the interrupt nature of the SIGINT signals sent by Ctrl-C
+        //
+        // https://en.wikipedia.org/wiki/Unix_signal
+        //
+        // Guarding against errors being longjmp'd when an evaluation is in
+        // effect isn't the only time these signals are processed.  Rebol's
+        // Process_Signals currently happens during I/O, such as printing.
+        // As a consequence, a Ctrl-C can be picked up and then triggered
+        // during an Out_Value, jumping the stack from there.
+        //
+        // This means a top-level trap must be run, even though no eval is
+        // in effect.  The most convenient place to do this is here, outside
+        // the REPL call that has the I/O.
+        //
+        PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+        if (error) {
+            //
+            // If a HALT happens and manages to get here, just go set up the
+            // trap again and call into the REPL again.  (It wasn't an
+            // evaluation error because those have their own traps, it was a
+            // halt that happened during output.)
+            //
+            assert(ERR_NUM(error) == RE_HALT);
+            goto push_trap;
+        }
+
         Host_Repl(&exit_status, &value, FALSE);
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
     }
     else
         exit_status = 0; // "success"
