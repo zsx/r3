@@ -214,6 +214,11 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
     REBCNT wt = 1;
     REBCNT res = (timeout >= 1000) ? 0 : 16;  // OS dependent?
 
+    // Waiting opens the doors to pressing Ctrl-C, which may get this code
+    // to throw an error.  There needs to be a state to catch it.
+    //
+    assert(Saved_State != NULL);
+
     while (wt) {
         if (GET_SIGNAL(SIG_HALT)) {
             CLR_SIGNAL(SIG_HALT);
