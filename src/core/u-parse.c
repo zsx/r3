@@ -1263,6 +1263,11 @@ static REBCNT Parse_Rules_Loop(
                     break;
 
                 case SYM_QUOTE:
+                    //
+                    // !!! Disallow QUOTE on string series, see #2253
+                    //
+                    if (!Is_Array_Series(p->series)) goto bad_rule;
+
                     if (IS_END(rule)) goto bad_end;
                     rules_consumed = 1;
                     if (IS_GROUP(rule)) {
