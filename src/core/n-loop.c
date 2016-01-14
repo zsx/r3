@@ -99,7 +99,7 @@ static REBARR *Init_Loop(
     assert(IS_BLOCK(body));
 
     // For :WORD format, get the var's value:
-    if (IS_GET_WORD(spec)) spec = GET_VAR(spec);
+    if (IS_GET_WORD(spec)) spec = GET_OPT_VAR_MAY_FAIL(spec);
 
     // Hand-make a CONTEXT (done for for speed):
     len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
@@ -307,7 +307,7 @@ static REB_R Loop_Skip(
     REBINT skip,
     REBVAL *body // Must be GC safe!
 ) {
-    REBVAL *var = GET_MUTABLE_VAR(word); // may fail()
+    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
 
     SET_UNSET_UNLESS_LEGACY_NONE(out);
 

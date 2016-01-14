@@ -143,7 +143,7 @@ void Trace_Line(REBARR *block, REBINT index, const REBVAL *value)
 
     Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,1)), index+1, value);
     if (IS_WORD(value) || IS_GET_WORD(value)) {
-        value = GET_VAR(value);
+        value = GET_OPT_VAR_MAY_FAIL(value);
         if (VAL_TYPE(value) < REB_NATIVE)
             Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), value);
         else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) {
@@ -158,7 +158,7 @@ void Trace_Line(REBARR *block, REBINT index, const REBVAL *value)
     }
     /*if (ANY_WORD(value)) {
         word = value;
-        if (IS_WORD(value)) value = GET_VAR(word);
+        if (IS_WORD(value)) value = GET_OPT_VAR_MAY_FAIL(word);
         Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
     }
     if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, DSF);
@@ -257,7 +257,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
     // object/:field case:
     if (IS_GET_WORD(path = pvs->path)) {
-        pvs->select = GET_MUTABLE_VAR(path);
+        pvs->select = GET_MUTABLE_VAR_MAY_FAIL(path);
         if (IS_UNSET(pvs->select))
             fail (Error(RE_NO_VALUE, path));
     }
@@ -372,7 +372,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
 
     // Lookup the value of the variable:
     if (IS_WORD(pvs.path)) {
-        pvs.value = GET_MUTABLE_VAR(pvs.path);
+        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.path);
         if (IS_UNSET(pvs.value))
             fail (Error(RE_NO_VALUE, pvs.path));
     }
@@ -511,7 +511,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
             }
             else if (IS_GET_WORD(pvs.path)) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *GET_VAR(pvs.path);
+                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.path);
                 if (IS_NONE(DS_TOP)) {
                     DS_DROP;
                     continue;
@@ -1204,7 +1204,7 @@ reevaluate:
     // [WORD!]
     //
     case REB_WORD:
-        *c->out = *GET_VAR(c->value);
+        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
 
     do_fetched_word:
         if (IS_UNSET(c->out)) fail (Error(RE_NO_VALUE, c->value));
@@ -1276,7 +1276,7 @@ reevaluate:
             fail (Error(RE_NEED_VALUE, c->value));
         }
         else
-            *GET_MUTABLE_VAR(c->value) = *c->out;
+            *GET_MUTABLE_VAR_MAY_FAIL(c->value) = *c->out;
         break;
 
     // [ANY-FUNCTION!]
@@ -2221,7 +2221,7 @@ reevaluate:
     // [GET-WORD!]
     //
     case REB_GET_WORD:
-        *c->out = *GET_VAR(c->value);
+        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
         c->index++;
         break;
 
@@ -2300,7 +2300,7 @@ reevaluate:
             // the variable, we just don't want to limit the usages of
             // `arg` or introduce more variables to Do_Core than needed.)
             //
-            c->arg = m_cast(REBVAL*, GET_VAR(c->value));
+            c->arg = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(c->value));
 
             if (ANY_FUNC(c->arg) && VAL_GET_EXT(c->arg, EXT_FUNC_INFIX)) {
                 c->label_sym = VAL_WORD_SYM(c->value);
@@ -2496,7 +2496,7 @@ void Reduce_Only(
                 DS_PUSH(val);
                 continue;
             }
-            v = GET_VAR(val);
+            v = GET_OPT_VAR_MAY_FAIL(val);
             DS_PUSH(v);
         }
         else if (IS_PATH(val)) {
@@ -3096,7 +3096,7 @@ void Do_Construct(REBVAL value[])
 
         // Set prior set-words:
         while (DSP > dsp_orig) {
-            *GET_MUTABLE_VAR(DS_TOP) = temp;
+            *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = temp;
             DS_DROP;
         }
     }
@@ -3135,7 +3135,7 @@ void Do_Min_Construct(REBVAL value[])
             *temp = *value;
             // Set prior set-words:
             while (DSP > ssp) {
-                *GET_MUTABLE_VAR(DS_TOP) = *temp;
+                *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = *temp;
                 DS_DROP;
             }
         }
@@ -3333,7 +3333,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *call_src, REBFUN *func_new)
 void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
-        *out = *GET_VAR(val);
+        *out = *GET_OPT_VAR_MAY_FAIL(val);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
         if (Do_Path_Throws(out, NULL, val, NULL))
@@ -3361,7 +3361,7 @@ REBCON *Resolve_Path(REBVAL *path, REBCNT *index)
     blk = VAL_ARRAY(path);
     sel = ARRAY_HEAD(blk);
     if (!ANY_WORD(sel)) return 0;
-    val = GET_VAR(sel);
+    val = GET_OPT_VAR_MAY_FAIL(sel);
 
     sel = ARRAY_AT(blk, 1);
     while (TRUE) {

@@ -153,7 +153,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 
         // If `item` is not bound, there will be a fail() during GET_VAR
         //
-        var = GET_VAR(item);
+        var = GET_OPT_VAR_MAY_FAIL(item);
 
         // While NONE! is legal and represents a no-op in parse, if a
         // you write `parse "" [to undefined-value]`...and undefined-value
@@ -465,7 +465,7 @@ static REBCNT To_Thru(
                 else {
                     // !!! Should mutability be enforced?  It might have to
                     // be if set/copy are used...
-                    item = GET_MUTABLE_VAR(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
                 }
             }
             else if (IS_PATH(item)) {
@@ -1127,7 +1127,7 @@ static REBCNT Parse_Rules_Loop(
 
                     Val_Init_Series_Index(&temp, p->type, p->series, index);
 
-                    *GET_MUTABLE_VAR(item) = temp;
+                    *GET_MUTABLE_VAR_MAY_FAIL(item) = temp;
 
                     continue;
                 }
@@ -1135,7 +1135,7 @@ static REBCNT Parse_Rules_Loop(
                 // :word - change the index for the series to a new position
                 if (IS_GET_WORD(item)) {
                     // !!! Should mutability be enforced?
-                    item = GET_MUTABLE_VAR(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
                     if (!ANY_SERIES(item)) // #1263
                         fail (Error(RE_PARSE_SERIES, rule - 1));
                     index = Set_Parse_Series(p, item);
@@ -1145,7 +1145,7 @@ static REBCNT Parse_Rules_Loop(
                 // word - some other variable
                 if (IS_WORD(item)) {
                     // !!! Should mutability be enforced?
-                    item = GET_MUTABLE_VAR(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
                 }
 
                 // item can still be 'word or /word
@@ -1454,10 +1454,10 @@ static REBCNT Parse_Rules_Loop(
                             ))
                             : Copy_String_Slimming(p->series, begin, count)
                     );
-                    *GET_MUTABLE_VAR(word) = temp;
+                    *GET_MUTABLE_VAR_MAY_FAIL(word) = temp;
                 }
                 else if (GET_FLAG(flags, PF_SET)) {
-                    REBVAL *var = GET_MUTABLE_VAR(word); // traps if protected
+                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
 
                     if (Is_Array_Series(p->series)) {
                         if (count == 0) SET_NONE(var);

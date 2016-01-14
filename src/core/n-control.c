@@ -137,7 +137,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
         if (GET_FLAG(flags, PROT_DEEP)) {
             // Ignore existing mutability state, by casting away the const.
             // (Most routines should DEFINITELY not do this!)
-            val = m_cast(REBVAL*, GET_VAR(word));
+            val = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(word));
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -203,7 +203,7 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
                     // !!! Temporary and ugly cast; since we *are* PROTECT
                     // we allow ourselves to get mutable references to even
                     // protected values so we can no-op protect them.
-                    val2 = m_cast(REBVAL*, GET_VAR(val));
+                    val2 = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(val));
                 }
                 else if (IS_PATH(val)) {
                     if (Do_Path_Throws(&safe, NULL, val, NULL))
@@ -965,7 +965,7 @@ REBNATIVE(do)
                 // longer actually the expression that started the throw?
 
                 if (!IS_NONE(ARG(var)))
-                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
+                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
                 return R_OUT_IS_THROWN;
             }
 
@@ -974,7 +974,7 @@ REBNATIVE(do)
                 if (!IS_NONE(ARG(var))) {
                     // Set a var for DO/NEXT only if we were asked to.
                     VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
-                    *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
+                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
                 }
                 return R_UNSET;
             }
@@ -983,7 +983,7 @@ REBNATIVE(do)
                 //
                 // "continuation" of block
                 //
-                *GET_MUTABLE_VAR(ARG(var)) = *ARG(value);
+                *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
             }
 
             return R_OUT;
@@ -1216,7 +1216,7 @@ REBNATIVE(fail)
                 // message so it can be templated.
                 //
                 if (IS_WORD(item) || IS_GET_WORD(item)) {
-                    const REBVAL *var = TRY_GET_VAR(item);
+                    const REBVAL *var = TRY_GET_OPT_VAR(item);
                     if (!var || !ANY_FUNC(var))
                         continue;
                 }
@@ -1688,7 +1688,7 @@ REBNATIVE(switch)
             }
         #endif
 
-            *D_OUT = *GET_VAR(item);
+            *D_OUT = *GET_OPT_VAR_MAY_FAIL(item);
         }
         else if (IS_GET_PATH(item)) {
 
