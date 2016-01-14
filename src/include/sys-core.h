@@ -523,47 +523,36 @@ enum encoding_opts {
 // narrowly we may refer to a KEY that represents a parameter to a function
 // as a PARAM.
 //
-// The GET_VAR() function takes the conservative default that only const
-// access is needed.  A const pointer to a REBVAL is given back which may be
-// inspected, but the contents not modified.  While a bound variable that is
-// assigned UNSET! will return a REB_UNSET value, trying to GET_VAR() on an
-// unbound variable will raise an error.
+// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
+// only const access is needed.  A const pointer to a REBVAL is given back
+// which may be inspected, but the contents not modified.  While a bound
+// variable that is assigned UNSET! will return a REB_UNSET value, trying
+// to GET_OPT_VAR_MAY_FAIL() on an unbound variable will raise an error.
 //
-// TRY_GET_VAR() also provides const access.  But it will return NULL instead
-// of failing if the variable is unbound.  (One uncommon exception to this is
+// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
+// instead of fail on unbound variables.  (One uncommon exception to this is
 // if a word somehow becomes bound to a PARAM of a NATIVE!, which can happen
 // during debugging inspection.  Because it's possible for natives to be
 // "frameless" and optimize out the need to store arguments, a bound variable
-// into a frameless native may nevertheless fail during TRY_GET_VAR().)
+// into a frameless native may nevertheless fail during TRY_GET_OPT_VAR().)
 //
-// GET_MUTABLE_VAR() and TRY_GET_MUTABLE_VAR() offer a parallel facilities
-// for getting a non-const REBVAL back.  They will fail if the variable is
-// either unbound -or- marked with OPT_TYPESET_LOCKED to protect them against
-// modification.  The TRY variation will fail quietly by returning NULL
-// (with the same caveat about frameless natives mentioned above.)
+// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
+// facilities for getting a non-const REBVAL back.  They will fail if the
+// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
+// them against modification.  The TRY variation will fail quietly by
+// returning NULL (with the same caveat about frameless natives mentioned
+// above.)
 //
 
-// Gives back a const pointer to var itself, raises error on failure
-// (Failure if unbound or stack-relative with no call on stack)
-//
-#define GET_VAR(w) \
+#define GET_OPT_VAR_MAY_FAIL(w) \
     c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
 
-// Gives back a const pointer to var itself, returns NULL on failure
-// (Failure if unbound or stack-relative with no call on stack)
-//
-#define TRY_GET_VAR(w) \
+#define TRY_GET_OPT_VAR(w) \
     c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
 
-// Gets mutable pointer to var itself, raises error on failure
-// (Failure if protected, unbound, or stack-relative with no call on stack)
-//
-#define GET_MUTABLE_VAR(w) \
+#define GET_MUTABLE_VAR_MAY_FAIL(w) \
     (Get_Var_Core((w), FALSE, TRUE))
 
-// Gets mutable pointer to var itself, returns NULL on failure
-// (Failure if protected, unbound, or stack-relative with no call on stack)
-//
 #define TRY_GET_MUTABLE_VAR(w) \
     (Get_Var_Core((w), TRUE, TRUE))
 

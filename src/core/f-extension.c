@@ -638,7 +638,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
 
         // get command function
         if (IS_WORD(blk))
-            func = GET_VAR(blk);
+            func = GET_OPT_VAR_MAY_FAIL(blk);
         else
             func = blk;
 
@@ -674,7 +674,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
                 if (IS_WORD(val)) {
                     // !!! The "mutable" is probably not necessary here
                     // However, this code is not written for val to be const
-                    if (IS_WORD(args)) val = GET_MUTABLE_VAR(val);
+                    if (IS_WORD(args)) val = GET_MUTABLE_VAR_MAY_FAIL(val);
                 }
                 else if (IS_PATH(val)) {
                     if (IS_WORD(args)) {
@@ -740,7 +740,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         }
 
         if (set_word) {
-            *GET_MUTABLE_VAR(set_word) = *val;
+            *GET_MUTABLE_VAR_MAY_FAIL(set_word) = *val;
             set_word = 0;
         }
     }

@@ -98,7 +98,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 {
     const REBVAL *val;
 
-    val = IS_WORD(types) ? GET_VAR(types) : types;
+    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
 
     if (IS_DATATYPE(val))
         return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
@@ -108,7 +108,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 
     if (IS_BLOCK(val)) {
         for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
-            val = IS_WORD(types) ? GET_VAR(types) : types;
+            val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
             if (IS_DATATYPE(val)) {
                 if (VAL_TYPE_KIND(val) == VAL_TYPE(value)) return TRUE;
             }
@@ -169,7 +169,7 @@ REBNATIVE(assert)
 
         for (; NOT_END(value); value += 2) {
             if (IS_WORD(value)) {
-                val = GET_VAR(value);
+                val = GET_OPT_VAR_MAY_FAIL(value);
             }
             else if (IS_PATH(value)) {
                 if (Do_Path_Throws(D_OUT, NULL, value, 0))
@@ -520,7 +520,7 @@ REBNATIVE(get)
     REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
-        *D_OUT = *GET_VAR(source);
+        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source);
     }
     else if (ANY_PATH(source)) {
         if (Do_Path_Throws(D_OUT, NULL, source, NULL))
@@ -819,7 +819,7 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(target)) {
-        *GET_MUTABLE_VAR(target) = *value;
+        *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
         return R_ARG2;
     }
 
@@ -975,7 +975,7 @@ REBNATIVE(set)
                 // elements to the same value, it makes a difference if
                 // it's a get-word for the !set_with_block too.
                 //
-                if (!IS_SET(IS_WORD(value) ? GET_VAR(value) : value))
+                if (!IS_SET(IS_WORD(value) ? GET_OPT_VAR_MAY_FAIL(value) : value))
                     fail (Error(RE_NEED_VALUE, target));
                 break;
             }
@@ -997,7 +997,7 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            *GET_MUTABLE_VAR(target) = *value;
+            *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
         }
         else if (IS_GET_WORD(target)) {
             //
@@ -1006,8 +1006,8 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            *GET_MUTABLE_VAR(target) = IS_WORD(value)
-                ? *GET_VAR(value)
+            *GET_MUTABLE_VAR_MAY_FAIL(target) = IS_WORD(value)
+                ? *GET_OPT_VAR_MAY_FAIL(value)
                 : *value;
         }
         else
@@ -1063,7 +1063,7 @@ REBNATIVE(unset)
         if (IS_WORD_UNBOUND(word))
             fail (Error(RE_NOT_BOUND, word));
 
-        var = GET_MUTABLE_VAR(word);
+        var = GET_MUTABLE_VAR_MAY_FAIL(word);
         SET_UNSET(var);
     }
     else {
@@ -1076,7 +1076,7 @@ REBNATIVE(unset)
             if (IS_WORD_UNBOUND(word))
                 fail (Error(RE_NOT_BOUND, word));
 
-            var = GET_MUTABLE_VAR(word);
+            var = GET_MUTABLE_VAR_MAY_FAIL(word);
             SET_UNSET(var);
         }
     }
@@ -1116,7 +1116,7 @@ REBNATIVE(value_q)
 {
     const REBVAL *value = D_ARG(1);
 
-    if (ANY_WORD(value) && !(value = TRY_GET_VAR(value)))
+    if (ANY_WORD(value) && !(value = TRY_GET_OPT_VAR(value)))
         return R_FALSE;
     if (IS_UNSET(value)) return R_FALSE;
     return R_TRUE;

@@ -148,7 +148,7 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
 
     for (; NOT_END(block); block++) {
         val = NULL;
-        if (IS_WORD(block) && !(val = TRY_GET_VAR(block))) {
+        if (IS_WORD(block) && !(val = TRY_GET_OPT_VAR(block))) {
             //Print("word: %s", Get_Word_Name(block));
             REBCNT sym = VAL_WORD_SYM(block);
 

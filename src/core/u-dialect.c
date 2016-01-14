@@ -73,7 +73,7 @@ REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
-            val = GET_MUTABLE_VAR(where);
+            val = GET_MUTABLE_VAR_MAY_FAIL(where);
         }
         else if (IS_PATH(where)) {
             if (Do_Path_Throws(&safe, NULL, where, 0))
