@@ -196,11 +196,30 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
+        //
         // Save error for WHY?
+        //
         REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
         Val_Init_Error(last, error);
 
+        // !!! We are not allowed to ask for a print operation that can take
+        // arbitrarily long without allowing for cancellation via Ctrl-C,
+        // but here we are wanting to print an error.  If you're printing
+        // out an error and get a halt, it won't print the halt.
+        //
+        PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+        if (error) {
+            assert(ERR_NUM(error) == RE_HALT);
+            return ERR_NUM(error);
+        }
+
         Print_Value(last, 1024, FALSE);
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // !!! When running in a script, whether or not the Rebol interpreter
         // just exits in an error case with a bad error code or breaks you
@@ -212,6 +231,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         // For RE_HALT and all other errors we return the error
         // number.  Error numbers are not set in stone (currently), but
         // are never zero...which is why we can use 0 for success.
+        //
         return ERR_NUM(error);
     }
 

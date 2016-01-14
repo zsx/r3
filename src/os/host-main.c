@@ -580,8 +580,25 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBCNT len_encoded;
         int do_result;
 
+        struct Reb_State state;
+        REBCON *error;
+
         REBVAL result;
         VAL_INIT_WRITABLE_DEBUG(&result);
+
+        // See notes regarding unix signals and Ctrl-C in main() for why
+        // this must be pushed in order to handle potential breaks during
+        // outputting a value.
+        //
+        PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+        if (error) {
+            *exit_status = 100; // made up number, used again below
+            return TRUE;
+        }
 
         // On Windows, do_arg is a REBUNI*.  We need to get it into UTF8.
         // !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
@@ -628,17 +645,19 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             // do in a debug scenario.  For now we save that for the REPL.
             //
             // Exiting with "100" is arbitrary, should be configurable.
+            // used again above.  (Not defining as a constant because this
+            // should be rethought, and it signals that.)
             //
             Put_Str(halt_str);
             *exit_status = 100;
-            return TRUE;
+            goto return_status_and_drop;
         }
         else if (do_result == -2) {
             //
             // There was a purposeful QUIT or EXIT, exit_status has any /WITH
             // translated into an integer
             //
-            return TRUE;
+            goto return_status_and_drop;
         }
         else if (do_result < -2) {
             // There was an error, so print it out (with limited print length)
@@ -649,7 +668,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             //
             Out_Value(&result, 500, FALSE, 1);
             *exit_status = 101;
-            return TRUE;
+            goto return_status_and_drop;
         }
         else {
             // Command completed successfully, we don't print anything.
@@ -659,13 +678,19 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             //
             assert(do_result >= 0);
             *exit_status = 0;
+
+        return_status_and_drop:
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
             return TRUE;
         }
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
     }
 #endif //!ENCAP
 
     // If we get here we didn't have something happen that translates to
     // needing us to definitely exit.  So `exit_status` is uninitialized.
+    //
     return FALSE;
 }
 
