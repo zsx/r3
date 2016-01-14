@@ -224,7 +224,7 @@ static void Read_File_Port(
     // NOTE: This code is incorrect for files read in chunks!!!
     if (args & (AM_READ_STRING | AM_READ_LINES)) {
         REBSER *nser = Decode_UTF_String(BIN_HEAD(ser), file->actual, -1);
-        if (nser == NULL) fail (Error(RE_BAD_DECODE));
+        if (nser == NULL) fail (Error(RE_BAD_UTF8));
         Val_Init_String(out, nser);
 
         if (args & AM_READ_LINES) Val_Init_Block(out, Split_Lines(out));

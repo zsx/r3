@@ -231,7 +231,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
             len -= 3;
             break;
         default:
-            fail (Error(RE_BAD_DECODE));
+            fail (Error(RE_BAD_UTF8));
         }
         ser = Decode_UTF_String(bp, len, 8); // UTF-8
     }

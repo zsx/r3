@@ -883,7 +883,7 @@ int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBOOL crlf_to_lf)
     for (; len > 0; len--, src++) {
         if ((ch = *src) >= 0x80) {
             if (!(src = Back_Scan_UTF8_Char(&ch, src, &len)))
-                fail (Error(RE_BAD_DECODE));
+                fail (Error(RE_BAD_UTF8));
 
             if (ch > 0xff) flag = 1;
         } if (ch == CR && crlf_to_lf) {
