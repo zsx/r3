@@ -86,7 +86,8 @@ Internal: [
     hash-overflow:      {Hash ran out of space}
     no-print-ptr:       {print is missing string pointer}
 
-    codepoint-too-high: [{codepoint} :arg1 {too large for current interpreter}]
+    bad-utf8:           {invalid UTF-8 byte sequence found during decoding}
+    codepoint-too-high: [{codepoint} :arg1 {too large (or data is not UTF-8)}]
 
     debug-only:         {Feature available only in DEBUG builds}
 
@@ -183,7 +184,6 @@ Script: [
     frameless-call:     {arguments optimized out, run with DEBUG ON}
 
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
-    bad-decode:         {missing or unsupported encoding marker}
 ;   no-decode:          [{cannot decode} :arg1 {encoding}]
     wrong-denom:        [:arg1 {not same denomination as} :arg2]
 ;   bad-convert:        [{invalid conversion value:} :arg1]
