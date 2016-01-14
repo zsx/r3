@@ -197,24 +197,26 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 
     if (error) {
         //
-        // Save error for WHY?
-        //
-        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Val_Init_Error(last, error);
-
         // !!! We are not allowed to ask for a print operation that can take
         // arbitrarily long without allowing for cancellation via Ctrl-C,
         // but here we are wanting to print an error.  If you're printing
         // out an error and get a halt, it won't print the halt.
         //
-        PUSH_UNHALTABLE_TRAP(&error, &state);
+        REBCON *halt_error;
+
+        // Save error for WHY?
+        //
+        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
+        Val_Init_Error(last, error);
+
+        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
-        if (error) {
-            assert(ERR_NUM(error) == RE_HALT);
-            return ERR_NUM(error);
+        if (halt_error) {
+            assert(ERR_NUM(halt_error) == RE_HALT);
+            return ERR_NUM(halt_error);
         }
 
         Print_Value(last, 1024, FALSE);
