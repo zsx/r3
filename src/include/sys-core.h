@@ -72,9 +72,9 @@
     // build, and give a hopefully informative error.
     //
     #if !defined(REN_C_STDIO_OK)
-        #define printf $dont_include_stdio_h$
-        #define fprintf $dont_include_stdio_h$
-        #define putc $dont_include_stdio_h$
+        #define printf dont_include_stdio_h
+        #define fprintf dont_include_stdio_h
+        #define putc dont_include_stdio_h
     #endif
 #else
     // Desire to not bake in <stdio.h> notwithstanding, in debug builds it
