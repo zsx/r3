@@ -54,7 +54,7 @@ void Snap_State_Core(struct Reb_State *s)
 
     s->series_guard_len = SERIES_LEN(GC_Series_Guard);
     s->value_guard_len = SERIES_LEN(GC_Value_Guard);
-    s->do_stack_len = SERIES_LEN(TG_Do_Stack);
+    s->do_stack = TG_Do_Stack;
     s->gc_disable = GC_Disabled;
 
     s->manuals_len = SERIES_LEN(GC_Manuals);
@@ -121,7 +121,7 @@ void Assert_State_Balanced_Debug(
         goto problem_found;
     }
 
-    assert(s->do_stack_len == SERIES_LEN(TG_Do_Stack));
+    assert(s->do_stack == TG_Do_Stack);
     assert(s->gc_disable == GC_Disabled);
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
@@ -239,7 +239,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
-    SET_SERIES_LEN(TG_Do_Stack, s->do_stack_len);
+    TG_Do_Stack = s->do_stack;
     SET_SERIES_LEN(UNI_BUF, s->uni_buf_len);
     TERM_SERIES(UNI_BUF); // see remarks on termination in Pop/Drop Molds
 
@@ -1143,8 +1143,20 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         // Set backtrace, in the form of a block of label words that start
         // from the top of stack and go downward.
         //
-        REBARR *backtrace = Make_Array(SERIES_LEN(TG_Do_Stack));
+        REBCNT backtrace_len = 0;
+        REBARR *backtrace;
+
+        // Count the number of entries that the backtrace will have
+        //
         struct Reb_Call *call = up_stack ? DSF->prior : DSF;
+        for (; call != NULL; call = call->prior)
+            ++backtrace_len;
+
+        backtrace = Make_Array(backtrace_len);
+
+        // Reset the call pointer and fill those entries.
+        //
+        call = up_stack ? DSF->prior : DSF;
         for (; call != NULL; call = call->prior) {
             //
             // Only invoked functions (not pending functions, parens, etc.)
