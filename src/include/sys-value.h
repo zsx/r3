@@ -1089,7 +1089,10 @@ struct Reb_Any_Series
 // These operations do not need to take the value's index position into
 // account; they strictly operate on the array series
 //
-#define VAL_ARRAY(v)            (*cast(REBARR**, &VAL_SERIES(v)))
+// Must use `(old_style)cast_here` because we may-or-may-not be casting away
+// constness in the process, e.g. a series extracted from a const REBVAL.
+//
+#define VAL_ARRAY(v)            (*(REBARR**)(&VAL_SERIES(v)))
 #define VAL_ARRAY_HEAD(v)       ARRAY_HEAD(VAL_ARRAY(v))
 #define VAL_ARRAY_TAIL(v)       ARRAY_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
 

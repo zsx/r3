@@ -764,7 +764,7 @@ struct Reb_Call {
             assert((indexor_out) > 1); \
             --(indexor_out); \
         } \
-        cast(void, dummy); \
+        (void)dummy; \
     } while (0)
 
 // Note: It is safe for `out` and `array` to be the same variable.  The
