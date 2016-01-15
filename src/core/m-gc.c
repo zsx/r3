@@ -547,14 +547,43 @@ static void Mark_Call_Frames_Deep(void)
         const REBYTE *label_str = Get_Sym_Name(c->label_sym);
     #endif
 
-        // The array pointer passed to Do_Core is never NULL.
+        // !!! There are now going to be two, and perhaps three (?), ways of
+        // holding the values being enumerated.  One problem is that the
+        // remainder of a vararg list cannot be enumerated without killing
+        // the enumeration, so there has to be a way to do that...and one
+        // would be to finish the enumeration but put in a dynamic source
+        // (ARRAY being a natural choice, but we're in mid-GC of arrays and
+        // don't want to make one, so some kind of pre-GC phase that took
+        // the outstanding vararg-based enumerations and made series for
+        // them would be required).
         //
-        // !!! Perhaps it should be NULL if the call originated from C code.
-        // At the moment, that code forges a block to show in the backtrace
-        // as if it were Rebol, but it might be better to handle it special
-        // in the code doing the stack walks.
+        // GENERAL THEORY: vararg and memory series are "lazy realized" as
+        // arrays, this lazy realization can happen if you need to do a
+        // debug backtrace or error.  GCs lazy realize all pending frames
+        // before the GC starts.
         //
-        QUEUE_MARK_ARRAY_DEEP(c->array);
+        if (c->indexor == END_FLAG) {
+            //
+            // This is possible, because the frame could be sitting at the
+            // end of a block when a function runs, e.g. `do [zero-arity]`.
+            // That frame will stay on the stack while the zero-arity
+            // function is running, which could be arbitrarily long...so
+            // a GC could happen.
+        }
+        else if (c->indexor == VARARGS_FLAG) {
+            //
+            // !!! This needs to be written!  But we can *temporarily* hope
+            // for the best, because the existing Apply calls are only
+            // allowed to use DO_FLAG_EVAL_ONLY to supply their arguments.
+            // It's not safe to use full evaluation in varargs until this
+            // code is written, so see assert in Do_Varargs_Core()
+            //
+            //assert(FALSE);
+        }
+        else {
+            assert(c->indexor != THROWN_FLAG);
+            QUEUE_MARK_ARRAY_DEEP(c->source.array);
+        }
 
         if (c->mode == CALL_MODE_0) {
             //

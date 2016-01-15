@@ -358,9 +358,9 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         ));
     }
 
-    if (Apply_Func_Throws(
+    if (Apply_Only_Throws(
         &result,
-        VAL_FUNC(sort_flags.compare),
+        sort_flags.compare,
         v1,
         v2,
         END_VALUE

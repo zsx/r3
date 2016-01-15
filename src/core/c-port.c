@@ -41,7 +41,7 @@
 //
 void Make_Port(REBVAL *out, const REBVAL *spec)
 {
-    if (Apply_Func_Throws(
+    if (Apply_Only_Throws(
         out, Sys_Func(SYS_CTX_MAKE_PORT_P), spec, END_VALUE
     )) {
         // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
@@ -147,6 +147,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     REBVAL *state;
     REBVAL *waked;
     REBVAL *awake;
+    REBVAL awake_only;
 
     REBVAL tmp;
     REBVAL result;
@@ -177,14 +178,25 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
 
+    if (only) {
+        //
+        // If we're using /ONLY, we need path AWAKE/ONLY to call.  (Ren-C's
+        // varargs API does not support positionally-provided refinements.)
+        //
+        REBARR *array = Make_Array(2);
+        Append_Value(array, awake);
+        Val_Init_Word_Unbound(Alloc_Tail_Array(array), REB_WORD, SYM_ONLY);
+
+        Val_Init_Array(&awake_only, REB_PATH, array);
+    }
+
     // Call the system awake function:
     //
-    if (Apply_Func_Throws(
+    if (Apply_Only_Throws(
         &result,
-        VAL_FUNC(awake),
+        only ? &awake_only : awake,
         port,
         &tmp,
-        only ? TRUE_VALUE : NONE_VALUE, // /ONLY
         END_VALUE
     )) {
         fail (Error_No_Catch_For_Throw(&result));
@@ -553,7 +565,9 @@ REBNATIVE(set_scheme)
             // Typeset is chosen as empty to prevent normal invocation;
             // these actors are only dispatched from the C code.
             // !!! Should the C code type check?
-            0,
+            // !!! New answer is yes...ALL_64 for now until it can be
+            // deduced what the intention was.
+            ALL_64,
             SYM_FROM_KIND(REB_PORT)
         );
         ARRAY_SET_FLAG(paramlist, OPT_SER_PARAMLIST);

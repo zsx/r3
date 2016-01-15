@@ -442,13 +442,22 @@ REBNATIVE(case)
         //         false [print "skipped"]
         //         false ; no matching body for condition
         //     ]
+        //
+        if (index == END_FLAG) {
+        #if !defined(NDEBUG)
+            if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
+                // case [first [a b c]] => true ;-- in Rebol2
+                return R_TRUE;
+            }
+        #endif
 
-        if (index == END_FLAG) fail (Error(RE_PAST_END));
+            fail (Error(RE_PAST_END));
+        }
 
         // While unset is often a chance to "opt-out" of things, the condition
         // of an IF/UNLESS/EITHER is a spot where opting out is not allowed,
         // so it seems equally applicable to CASE.
-
+        //
         if (IS_UNSET(safe_temp)) fail (Error(RE_NO_RETURN));
 
         matched = IS_CONDITIONAL_TRUE(safe_temp);
@@ -492,21 +501,9 @@ REBNATIVE(case)
             return R_OUT_IS_THROWN;
         }
 
-        if (index == END_FLAG) {
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
-                // case [first [a b c]] => true ;-- in Rebol2
-                return R_TRUE;
-            }
-        #endif
-
-            // case [first [a b c]] => **error**
-            fail (Error(RE_PAST_END));
-        }
-
         if (matched) {
-
             if (IS_BLOCK(safe_temp)) {
+                //
                 // The classical implementation of CASE is defined to give two
                 // evals for things like:
                 //
@@ -516,7 +513,7 @@ REBNATIVE(case)
                 // This puts it more closely in the spirit of being a kind of
                 // "optimized IF-ELSE" as `if true stuff` would also behave
                 // in the manner of running that block.
-
+                //
                 if (DO_ARRAY_THROWS(D_OUT, safe_temp))
                     return R_OUT_IS_THROWN;
             }
@@ -661,17 +658,18 @@ REBNATIVE(catch)
 
 was_caught:
     if (REF(with)) {
-        //
+        REBVAL *handler = ARG(handler);
+
         // We again re-use the refinement slots, but this time as mutable
         // space protected from GC for the handler's arguments
-
+        //
         REBVAL *thrown_arg = ARG(any);
         REBVAL *thrown_name = ARG(quit);
 
         CATCH_THROWN(thrown_arg, D_OUT);
         *thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
 
-        if (IS_BLOCK(ARG(handler))) {
+        if (IS_BLOCK(handler)) {
             //
             // There's no way to pass args to a block (so just DO it)
             //
@@ -680,29 +678,32 @@ was_caught:
 
             return R_OUT;
         }
-        else if (ANY_FUNC(ARG(handler))) {
-            REBFUN *handler = VAL_FUNC(ARG(handler));
-            REBVAL *param = FUNC_PARAMS_HEAD(handler);
+        else if (ANY_FUNC(handler)) {
+            REBVAL *param = VAL_FUNC_PARAMS_HEAD(handler);
+
+            //
+            // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Varargs_Core()!
+            //
 
             if (
-                FUNC_NUM_PARAMS(handler) == 0
-                || IS_REFINEMENT(FUNC_PARAM(handler, 1))
+                VAL_FUNC_NUM_PARAMS(handler) == 0
+                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
             ) {
                 // If the handler is zero arity or takes a first parameter
                 // that is a refinement, call it with no arguments
                 //
-                if (Apply_Func_Throws(D_OUT, handler, END_VALUE))
+                if (Apply_Only_Throws(D_OUT, handler, END_VALUE))
                     return R_OUT_IS_THROWN;
             }
             else if (
-                FUNC_NUM_PARAMS(handler) == 1
-                || IS_REFINEMENT(FUNC_PARAM(handler, 2))
+                VAL_FUNC_NUM_PARAMS(handler) == 1
+                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 2))
             ) {
                 // If the handler is arity one (with a non-refinement
                 // parameter), or a greater arity with a second parameter that
                 // is a refinement...call it with *just* the thrown value.
                 //
-                if (Apply_Func_Throws(D_OUT, handler, thrown_arg, END_VALUE))
+                if (Apply_Only_Throws(D_OUT, handler, thrown_arg, END_VALUE))
                     return R_OUT_IS_THROWN;
             }
             else {
@@ -710,7 +711,7 @@ was_caught:
                 // thrown arg and the thrown name.  Let Apply take care of
                 // checking that the arguments are legal for the call.
                 //
-                if (Apply_Func_Throws(
+                if (Apply_Only_Throws(
                     D_OUT, handler, thrown_arg, thrown_name, END_VALUE
                 )) {
                     return R_OUT_IS_THROWN;
@@ -794,17 +795,15 @@ REBNATIVE(comment)
     PARAM(1, value);
 
     if (D_FRAMELESS) {
-        D_VALUE = ARRAY_AT(D_ARRAY, D_INDEX);
-
-        if (IS_END(D_VALUE))
+        if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        if (ANY_EVAL(D_VALUE))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_VALUE)));
+        DO_NEXT_REFETCH_QUOTED(D_OUT, D_CALL);
+
+        if (ANY_EVAL(D_OUT))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_OUT)));
 
         SET_UNSET(D_OUT);
-        D_INDEX++;
-
         return R_OUT;
     }
     else {
@@ -842,12 +841,12 @@ REBNATIVE(compose)
     PARAM(5, out);
 
     if (D_FRAMELESS) {
-        DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
-
-        if (D_INDEX == END_FLAG)
+        if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        if (D_INDEX == THROWN_FLAG) {
+        DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
+
+        if (D_INDEXOR == THROWN_FLAG) {
             *D_OUT = *D_CELL;
             return R_OUT_IS_THROWN;
         }
@@ -863,6 +862,7 @@ REBNATIVE(compose)
         if (Compose_Values_Throws(
             D_OUT, VAL_ARRAY_HEAD(D_CELL), FALSE, FALSE, FALSE
         )) {
+            D_INDEXOR = THROWN_FLAG;
             return R_OUT_IS_THROWN;
         }
 
@@ -969,20 +969,19 @@ REBNATIVE(do)
                 return R_OUT_IS_THROWN;
             }
 
-            if (VAL_INDEX(ARG(value)) == END_FLAG) {
-                // If we hit the end, we always want to return unset.
-                if (!IS_NONE(ARG(var))) {
-                    // Set a var for DO/NEXT only if we were asked to.
-                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
-                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
-                }
-                return R_UNSET;
-            }
-
             if (!IS_NONE(ARG(var))) {
                 //
-                // "continuation" of block
+                // "continuation" of block...turn END_FLAG into the end so it
+                // can test TAIL? as true to know the evaluation finished.
                 //
+                // !!! Is there merit to setting to NONE! instead?  Easier to
+                // test and similar to FIND.  On the downside, "lossy" in
+                // that after the DOs are finished the var can't be used to
+                // recover the series again...you'd have to save it.
+                //
+                if (VAL_INDEX(ARG(value)) == END_FLAG)
+                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
+
                 *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
             }
 
@@ -1002,7 +1001,7 @@ REBNATIVE(do)
         //
         // See code called in system/intrinsic/do*
         //
-        if (Apply_Func_Throws(
+        if (Apply_Only_Throws(
             D_OUT,
             Sys_Func(SYS_CTX_DO_P),
             ARG(value),
@@ -1263,57 +1262,52 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
     assert((trigger == TRUE) || (trigger == FALSE));
 
     if (D_FRAMELESS) {
-        //
-        // First evaluate the condition into D_OUT
-        //
-        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-        if (D_INDEX == END_FLAG)
+        if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
-        if (D_INDEX == THROWN_FLAG)
+        // First evaluate the condition into D_OUT
+        //
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+
+        if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
+
+        if (D_INDEXOR == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
 
         if (IS_UNSET(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
 
         if (IS_CONDITIONAL_TRUE(D_OUT) == trigger) {
             //
-            // Matched what we were looking for (TRUE for IF, FALSE for UNLESS)
-            // We can now evaluate the branch into D_OUT.
+            // Matched what we're looking for (TRUE for IF, FALSE for UNLESS)
+            // DO_NEXT once to produce what would have been `ARG(branch)`
             //
-            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-            if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
-
-            if (D_INDEX == THROWN_FLAG)
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
+
+            // Non-blocks return as-is.
+            //
+            if (!IS_BLOCK(D_OUT))
+                return R_OUT;
 
             // We know there is no /ONLY because frameless never runs
             // when you have refinements.  Hence always evaluate blocks.
             //
-            if (IS_BLOCK(D_OUT)) {
-                if (DO_ARRAY_THROWS(D_OUT, D_OUT)) // array = out is safe
-                    return R_OUT_IS_THROWN;
-                return R_OUT;
+            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+                D_INDEXOR = THROWN_FLAG; // must be consistent (debug checked)
+                return R_OUT_IS_THROWN;
             }
 
-            // Non-blocks return as-is.
-            //
             return R_OUT;
         }
 
-        // Even though we know we don't want to take the branch, we still have
-        // to evaluate it (which is the behavior that would have happened if
-        // a frame had been built for us).
+        // Note that even when we don't *take* the branch, a frameless native
+        // needs to evaluate to get what would have been `ARG(branch)`.
         //
-        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-        if (D_INDEX == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
-
-        if (D_INDEX == THROWN_FLAG)
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
 
         SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
@@ -1388,16 +1382,18 @@ REBNATIVE(either)
     REFINE(4, only);
 
     if (D_FRAMELESS) {
-        //
-        // First evaluate the condition into D_OUT
-        //
-        DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-        if (D_INDEX == END_FLAG)
+        if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
-        if (D_INDEX == THROWN_FLAG)
+        // First evaluate the condition into D_OUT
+        //
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+
+        if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
+
+        if (D_INDEXOR == END_FLAG)
+            fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
 
         if (IS_UNSET(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
@@ -1409,41 +1405,35 @@ REBNATIVE(either)
         // D_CELL as scratch space.
         //
         if (IS_CONDITIONAL_TRUE(D_OUT)) {
-            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
 
-            if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
-
-            if (D_INDEX == THROWN_FLAG)
+            if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
 
-            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
-
-            if (D_INDEX == END_FLAG)
+            if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            if (D_INDEX == THROWN_FLAG) {
+            DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
+
+            if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = *D_CELL;
                 return R_OUT_IS_THROWN;
             }
         }
         else {
-            DO_NEXT_MAY_THROW(D_INDEX, D_CELL, D_ARRAY, D_INDEX);
+            DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
 
-            if (D_INDEX == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
-
-            if (D_INDEX == THROWN_FLAG) {
+            if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = *D_CELL;
                 return R_OUT_IS_THROWN;
             }
 
-            DO_NEXT_MAY_THROW(D_INDEX, D_OUT, D_ARRAY, D_INDEX);
-
-            if (D_INDEX == END_FLAG)
+            if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            if (D_INDEX == THROWN_FLAG)
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+
+            if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
         }
 
@@ -1451,8 +1441,10 @@ REBNATIVE(either)
         // working with for the output, and we also know there's no /ONLY.
         //
         if (IS_BLOCK(D_OUT)) {
-             if (DO_ARRAY_THROWS(D_OUT, D_OUT)) // array = out is safe
+            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+                D_INDEXOR = THROWN_FLAG; // must be consistent (debug checked)
                 return R_OUT_IS_THROWN;
+            }
             return R_OUT;
         }
 
@@ -1798,24 +1790,25 @@ REBNATIVE(trap)
 
     if (error) {
         if (REF(with)) {
-            if (IS_BLOCK(ARG(handler))) {
+            REBVAL *handler = ARG(handler);
+
+            if (IS_BLOCK(handler)) {
                 // There's no way to pass 'error' to a block (so just DO it)
                 if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
                 return R_OUT;
             }
-            else if (ANY_FUNC(ARG(handler))) {
-                REBFUN *handler = VAL_FUNC(ARG(handler));
+            else if (ANY_FUNC(handler)) {
 
                 if (
-                    (FUNC_NUM_PARAMS(handler) == 0)
-                    || IS_REFINEMENT(FUNC_PARAM(handler, 1))
+                    (VAL_FUNC_NUM_PARAMS(handler) == 0)
+                    || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
                 ) {
                     // Arity zero handlers (or handlers whose first
                     // parameter is a refinement) we call without the ERROR!
                     //
-                    if (Apply_Func_Throws(D_OUT, handler, END_VALUE))
+                    if (Apply_Only_Throws(D_OUT, handler, END_VALUE))
                         return R_OUT_IS_THROWN;
                 }
                 else {
@@ -1827,7 +1820,7 @@ REBNATIVE(trap)
                     // isn't a refinement, try passing it the ERROR! we
                     // trapped.  Apply will do argument checking.
                     //
-                    if (Apply_Func_Throws(D_OUT, handler, &arg, END_VALUE))
+                    if (Apply_Only_Throws(D_OUT, handler, &arg, END_VALUE))
                         return R_OUT_IS_THROWN;
                 }
 

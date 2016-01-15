@@ -822,7 +822,10 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                     if (eval_idx == THROWN_FLAG)
                         fail (Error_No_Catch_For_Throw(init));
 
-                    blk = VAL_ARRAY_AT_HEAD(data, eval_idx);
+                    if (eval_idx == END_FLAG)
+                        blk = VAL_ARRAY_TAIL(data);
+                    else
+                        blk = VAL_ARRAY_AT_HEAD(data, eval_idx);
                 }
 
                 if (field->array) {
