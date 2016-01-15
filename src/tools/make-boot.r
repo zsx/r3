@@ -499,37 +499,37 @@ for-each-record-NO-RETURN type boot-types [
 ;
 emit {
 #define IS_SET(v) \
-    (VAL_TYPE(v) > REB_UNSET)
+    LOGICAL(VAL_TYPE(v) > REB_UNSET)
 
 #define IS_SCALAR(v) \
-    (VAL_TYPE(v) <= REB_DATE)
+    LOGICAL(VAL_TYPE(v) <= REB_DATE)
 
 #define ANY_SERIES(v) \
-    (VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
+    LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_STRING(v) \
-    (VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
+    LOGICAL(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
 
 #define ANY_BINSTR(v) \
-    (VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
+    LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
 #define ANY_ARRAY(v) \
-    (VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
+    LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_WORD(v) \
-    (VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)
+    LOGICAL(VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)
 
 #define ANY_PATH(v) \
-    (VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
+    LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_FUNC(v) \
-    (VAL_TYPE(v) >= REB_NATIVE && VAL_TYPE(v) <= REB_FUNCTION)
+    LOGICAL(VAL_TYPE(v) >= REB_NATIVE && VAL_TYPE(v) <= REB_FUNCTION)
 
 #define ANY_EVAL_BLOCK(v) \
-    (VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
+    LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
 
 #define ANY_CONTEXT(v) \
-    (VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
+    LOGICAL(VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
 
 // If the type has evaluator behavior (vs. just passing through).  So like
 // WORD!, GROUP!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
