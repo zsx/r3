@@ -279,7 +279,7 @@ REBINT Compare_UTF8(const REBYTE *s1, const REBYTE *s2, REBCNT l2)
             assert(s1); // UTF8 should have already been verified good
         }
         if (c2 > 127) {
-            s2 = Back_Scan_UTF8_Char(&c1, s2, &l2);
+            s2 = Back_Scan_UTF8_Char(&c2, s2, &l2);
             assert(s2); // UTF8 should have already been verified good
         }
         if (c1 != c2) {
