@@ -476,7 +476,22 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // args) or not.
     //
     while (--num_slots) {
+        //
+        // In Rebol2 and R3-Alpha, unused refinement arguments were set to
+        // NONE! (and refinements were TRUE as opposed to the WORD! of the
+        // refinement itself).  We captured the state of the legacy flag at
+        // the time of function creation, so that both kinds of functions
+        // can coexist at the same time.
+        //
+    #ifdef NDEBUG
         SET_UNSET(slot);
+    #else
+        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+            SET_NONE(slot);
+        else
+            SET_UNSET(slot);
+    #endif
+
         slot++;
     }
 

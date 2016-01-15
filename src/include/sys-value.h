@@ -1606,6 +1606,11 @@ enum {
     EXT_FUNC_INFIX = 0,     // called with "infix" protocol
     EXT_FUNC_HAS_RETURN,    // function "fakes" a definitionally scoped return
     EXT_FUNC_FRAMELESS,     // native hooks into DO state and does own arg eval
+
+#if !defined(NDEBUG)
+    EXT_FUNC_LEGACY,        // TRUE-valued refinements, NONE! for unused args
+#endif
+
     EXT_FUNC_MAX
 };
 

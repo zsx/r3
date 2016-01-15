@@ -1091,12 +1091,6 @@ void Do_Core(struct Reb_Call * const c)
     //
     struct Reb_State state;
 
-    // Debug builds that are emulating the old behavior of writing NONE into
-    // refinement args need to know when they should be writing these nones
-    // or leaving what's there during CALL_MODE_SCANNING/CALL_MODE_SKIPPING
-    //
-    REBOOL write_none;
-
     // This is just a reflection of `c->do_count`, kept in sync so it's less
     // effort to browse stack levels and see what the count is.
     //
@@ -1627,10 +1621,6 @@ reevaluate:
         //
         c->mode = CALL_MODE_ARGS;
 
-    #if !defined(NDEBUG)
-        write_none = FALSE;
-    #endif
-
         for (; NOT_END(c->param); c->param++, c->arg++) {
         no_advance:
             assert(IS_TYPESET(c->param));
@@ -1660,13 +1650,8 @@ reevaluate:
                 // Hunting a refinement?  Quickly disregard this if we are
                 // doing such a scan and it isn't a refinement.
                 //
-                if (c->mode == CALL_MODE_SCANNING) {
-                #if !defined(NDEBUG)
-                    if (write_none)
-                        SET_NONE(c->arg);
-                #endif
+                if (c->mode == CALL_MODE_SCANNING)
                     continue;
-                }
             }
             else {
                 // *** REFINEMENTS => continue ***
@@ -1707,20 +1692,20 @@ reevaluate:
                         c->mode = CALL_MODE_REFINE_PENDING;
                         c->refine = c->arg;
 
-                    #if !defined(NDEBUG)
-                        write_none = FALSE;
+                        Val_Init_Word(
+                            c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
+                        );
 
-                        if (TYPE_CHECK(c->param, REB_LOGIC)) {
-                            //
-                            // OPTIONS_REFINEMENTS_TRUE at function create
+                    #if !defined(NDEBUG)
+                        if (VAL_GET_EXT(
+                            FUNC_VALUE(c->func), EXT_FUNC_LEGACY
+                        )) {
+                            // OPTIONS_REFINEMENTS_TRUE at function create,
+                            // so ovewrite the WORD! with TRUE
                             //
                             SET_TRUE(c->refine);
                         }
-                        else
                     #endif
-                            Val_Init_Word(
-                                c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
-                            );
 
                         continue;
                     }
@@ -1728,19 +1713,9 @@ reevaluate:
                     // ...else keep scanning, but if it's unset then set it
                     // to none because we *might* not revisit this spot again.
                     //
-                    if (IS_UNSET(c->arg)) {
+                    if (IS_UNSET(c->arg))
                         SET_NONE(c->arg);
 
-                    #if !defined(NDEBUG)
-                        if (TYPE_CHECK(c->param, REB_LOGIC))
-                            write_none = TRUE;
-                    #endif
-                    }
-                    else {
-                    #if !defined(NDEBUG)
-                        write_none = FALSE;
-                    #endif
-                    }
                     continue;
                 }
 
@@ -1751,18 +1726,8 @@ reevaluate:
                     // them as unsets (or set nones in legacy mode)
                     //
                     c->mode = CALL_MODE_SKIPPING;
-                    if (IS_UNSET(c->arg)) {
+                    if (IS_UNSET(c->arg))
                         SET_NONE(c->arg);
-
-                    #if !defined(NDEBUG)
-                        //
-                        // We need to know if we need to write nones into args
-                        // based on the legacy switch capture.
-                        //
-                        if (TYPE_CHECK(c->param, REB_LOGIC))
-                            write_none = TRUE;
-                    #endif
-                    }
 
                     continue;
                 }
@@ -1784,18 +1749,18 @@ reevaluate:
 
                     DS_DROP;
 
-                    #if !defined(NDEBUG)
-                        if (TYPE_CHECK(c->param, REB_LOGIC)) {
-                            //
-                            // OPTIONS_REFINEMENTS_TRUE at function create
-                            //
-                            SET_TRUE(c->refine);
-                        }
-                        else
-                    #endif
-                            Val_Init_Word(
-                                c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
-                            );
+                    Val_Init_Word(
+                        c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
+                    );
+
+                #if !defined(NDEBUG)
+                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY)) {
+                        // OPTIONS_REFINEMENTS_TRUE at function create, so
+                        // ovewrite the word we put in the refine slot
+                        //
+                        SET_TRUE(c->refine);
+                    }
+                #endif
 
                     continue;
                 }
@@ -1803,7 +1768,6 @@ reevaluate:
                 // We weren't lucky and need to scan
 
                 c->mode = CALL_MODE_SCANNING;
-
                 assert(IS_WORD(DS_TOP));
 
                 // We have to reset to the beginning if we are going to scan,
@@ -1815,10 +1779,6 @@ reevaluate:
                 c->param = DSF_PARAMS_HEAD(c);
                 c->arg = DSF_ARGS_HEAD(c);
 
-            #if !defined(NDEBUG)
-                write_none = FALSE;
-            #endif
-
                 // We might have a function with no normal args, where a
                 // refinement is the first parameter...and we don't want to
                 // run the loop's arg++/param++ we get if we `continue`
@@ -1828,16 +1788,9 @@ reevaluate:
 
             if (c->mode == CALL_MODE_SKIPPING) {
                 //
-                // In release builds we just skip because the args are already
-                // UNSET.  But in debug builds we may need to overwrite the
-                // unset default with none if this function was created while
-                // legacy mode was on.
+                // Just skip because the args are already UNSET! (or NONE! if
+                // we are in LEGACY_OPTIONS_REFINEMENT_TRUE mode
                 //
-            #if !defined(NDEBUG)
-                if (write_none)
-                    SET_NONE(c->arg);
-            #endif
-
                 continue;
             }
 
@@ -1865,10 +1818,16 @@ reevaluate:
                     //     >> do [foo]
                     //     == "special allowance"
                     //
-                    // Pre-empts the later type checking in order to inject a
+                #if !defined(NDEBUG)
+                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+                        SET_UNSET(c->arg); // was NONE by default...
+                    else
+                        assert(IS_UNSET(c->arg)); // already is unset...
+                #endif
+
+                    // Pre-empt the later type checking in order to inject a
                     // more specific message than "doesn't take UNSET!"
                     //
-                    assert(IS_UNSET(c->arg));
                     if (!TYPE_CHECK(c->param, REB_UNSET))
                         fail (Error_No_Arg(c->label_sym, c->param));
                 }
@@ -2060,11 +2019,6 @@ reevaluate:
             c->mode = CALL_MODE_SCANNING;
             c->param = DSF_PARAMS_HEAD(c);
             c->arg = DSF_ARGS_HEAD(c);
-
-        #if !defined(NDEBUG)
-            write_none = FALSE;
-        #endif
-
             goto no_advance;
         }
 
@@ -2841,7 +2795,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
             // In use--and used refinements must be added to the PATH!
             //
             ignoring = FALSE;
-            Val_Init_Word_Unbound(path, REB_WORD, VAL_TYPESET_SYM(param));
+            Val_Init_Word(path, REB_WORD, VAL_TYPESET_SYM(param));
             ++path;
             continue;
         }
