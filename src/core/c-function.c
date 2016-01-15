@@ -266,18 +266,6 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
         case REB_REFINEMENT:
             VAL_SET_EXT(typeset, EXT_TYPESET_REFINEMENT);
 
-        #if !defined(NDEBUG)
-            // Because Mezzanine functions are written to depend on the idea
-            // that when they get a refinement it will be a WORD! and not a
-            // LOGIC!, we have to capture the desire to get LOGIC! vs WORD!
-            // at function creation time...not dispatch time.  We encode the
-            // bit in the refinement's typeset that it accepts.
-            if (LEGACY(OPTIONS_REFINEMENTS_TRUE)) {
-                VAL_TYPESET_BITS(typeset) =
-                    (FLAGIT_64(REB_LOGIC) | FLAGIT_64(REB_NONE));
-                break;
-            }
-        #endif
             // Refinements can nominally be only WORD! or NONE!
             VAL_TYPESET_BITS(typeset) =
                 (FLAGIT_64(REB_WORD) | FLAGIT_64(REB_NONE));
@@ -788,6 +776,17 @@ void Make_Function(
         SET_FLAG(func_flags, EXT_FUNC_HAS_RETURN);
     }
 
+#if !defined(NDEBUG)
+    //
+    // Because Mezzanine functions are written to depend on the idea that when
+    // they get a refinement it will be a WORD! and not a LOGIC!, we have to
+    // capture the desire to get LOGIC! vs WORD! at function creation time,
+    // not dispatch time.
+    //
+    if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
+        SET_FLAG(func_flags, EXT_FUNC_LEGACY);
+#endif
+
     assert(type == REB_FUNCTION || type == REB_CLOSURE);
     VAL_RESET_HEADER(out, type); // clears value opts and exts in header...
     VAL_SET_EXTS_DATA(out, func_flags); // ...so we set this after that point
@@ -1029,7 +1028,11 @@ REBOOL Do_Function_Throws(struct Reb_Call *c)
         REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
         assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
         assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
-        assert(IS_UNSET(last_arg));
+
+        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+            assert(IS_NONE(last_arg));
+        else
+            assert(IS_UNSET(last_arg));
     #endif
 
         // Now fill in the var for that local with a "hacked up" native

@@ -185,7 +185,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
         //
         REBARR *array = Make_Array(2);
         Append_Value(array, awake);
-        Val_Init_Word_Unbound(Alloc_Tail_Array(array), REB_WORD, SYM_ONLY);
+        Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_ONLY);
 
         Val_Init_Array(&awake_only, REB_PATH, array);
     }
