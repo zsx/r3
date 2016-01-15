@@ -777,6 +777,8 @@ static REBCNT Do_Eval_Rule(REBPARSE *p, REBCNT index, const REBVAL **rule)
     REBCNT n;
     REBPARSE newparse;
 
+    REBIXO indexor = index;
+
     REBVAL value;
     REBVAL save; // REVIEW: Could this just reuse value?
     VAL_INIT_WRITABLE_DEBUG(&value);
@@ -793,8 +795,8 @@ static REBCNT Do_Eval_Rule(REBPARSE *p, REBCNT index, const REBVAL **rule)
 
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
     //
-    DO_NEXT_MAY_THROW(index, &value, AS_ARRAY(p->series), index);
-    if (index == THROWN_FLAG) {
+    DO_NEXT_MAY_THROW(indexor, &value, AS_ARRAY(p->series), indexor);
+    if (indexor == THROWN_FLAG) {
         *p->out = value;
         return THROWN_FLAG;
     }

@@ -129,7 +129,7 @@ REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
     assert(IS_TYPESET(typeset));
     // loses constness, but that's not the particular concern needed
     // to be caught in the wake of the UNWORD => TYPESET change...
-    return cast(REBCNT*, &typeset->payload.typeset.sym);
+    return (REBCNT*)(&typeset->payload.typeset.sym);
 }
 
 

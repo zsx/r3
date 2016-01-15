@@ -117,6 +117,84 @@ enum {
 };
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  DO INDEX OR FLAG (a.k.a. "INDEXOR")
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// * END_FLAG if end of series prohibited a full evaluation
+//
+// * THROWN_FLAG if the output is THROWN()--you MUST check!
+//
+// * ...or the next index position where one might continue evaluation
+//
+// ===========================((( IMPORTANT )))==============================
+//
+//      The THROWN_FLAG means your value does not represent a directly
+//      usable value, so you MUST check for it.  It signifies getting
+//      back a THROWN()--see notes in sys-value.h about what that means.
+//      If you don't know how to handle it, then at least do:
+//
+//              fail (Error_No_Catch_For_Throw(out));
+//
+//      If you *do* handle it, be aware it's a throw label with
+//      OPT_VALUE_THROWN set in its header, and shouldn't leak to the
+//      rest of the system.
+//
+// ===========================================================================
+//
+// Note that THROWN() is not an indicator of an error, rather something that
+// ordinary language constructs might meaningfully want to process as they
+// bubble up the stack.  Some examples would be BREAK, RETURN, and QUIT.
+//
+// Errors are handled with a different mechanism using longjmp().  So if an
+// actual error happened during the DO then there wouldn't even *BE* a return
+// value...because the function call would never return!  See PUSH_TRAP()
+// and fail() for more information.
+//
+
+#define END_FLAG 0x80000000  // end of block as index
+#define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
+
+// The VARARGS_FLAG is the index used when a C varargs list is the input.
+// Because access to a `va_list` is strictly increasing through va_arg(),
+// there is no way to track an index; fetches are indexed automatically
+// and sequentially without possibility for mutation of the list.  Should
+// this index be used it will always be the index of a DO_NEXT until either
+// an END_FLAG or a THROWN_FLAG is reached.
+//
+#define VARARGS_FLAG (END_FLAG - 0xBD)
+
+// This is not an actual DO state flag that you would see in a Reb_Call's
+// index, but it is a value that is returned in case a non-continuable
+// DO_NEXT call is made on varargs.  One can make the observation that it
+// is incomplete only--not resume.
+//
+#define VARARGS_INCOMPLETE_FLAG (END_FLAG - 0xAE)
+
+// The C build simply defines a REBIXO as a synonym for a REBCNT.  But in
+// the C++ build, the indexor is a more restrictive class...which redefines
+// a subset of operations for REBCNT but does *not* implicitly cast to a
+// REBCNT.  Hence if a THROWN_FLAG, END_FLAG, VARARGS_FLAG etc. is used with
+// integer math or put into a REBCNT variable not expecting such flags, this
+// situation will be caught.
+//
+#if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
+    typedef REBCNT REBIXO;
+#else
+    #include "sys-do-cpp.h"
+
+    typedef Reb_Indexor REBIXO;
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  REBOL DO STATE (a.k.a. Reb_Call)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // A Reb_Call structure represents the fixed-size portion for a function's
 // call frame.  It is stack allocated, and is used by both Do and Apply.
 // (If a dynamic allocation is necessary for the call frame, that dynamic
@@ -283,15 +361,10 @@ struct Reb_Call {
     // At the end of the evaluation it's the index of the next expression
     // to be evaluated, THROWN_FLAG, or END_FLAG.
     //
-    // !!! This should be a separate type, REBIXR and called "indexor"
-    // (INDEX-OR-a-flag).  The C++ build could check you never did math on
-    // a flag state, only coerce to REBCNT for non-flag states, etc.  Name
-    // "indexor" different enough to cue the C build also.
-    //
     // What might happen if they are on a branch during the conversion where
     // they assumed it was vararg and it changes?
     //
-    REBCNT indexor;
+    REBIXO indexor;
 
     // `label_sym` [INTERNAL, READ-ONLY]
     //
@@ -389,7 +462,7 @@ struct Reb_Call {
     // idea of the expression that caused the error.  This is the index
     // of where the currently evaluating expression started.
     //
-    REBCNT expr_index;
+    REBIXO expr_index;
 
     // `do_count` [INTERNAL, DEBUG, READ-ONLY]
     //
@@ -414,63 +487,6 @@ struct Reb_Call {
 #else
     #define SPORADICALLY(modulus) (TG_Do_Count % modulus == 0)
 #endif
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  AUGMENTED INDEX FLAGS FOR DO (a.k.a. "INDEXOR" flags)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// * END_FLAG if end of series prohibited a full evaluation
-//
-// * THROWN_FLAG if the output is THROWN()--you MUST check!
-//
-// * ...or the next index position where one might continue evaluation
-//
-// ===========================((( IMPORTANT )))==============================
-//
-//      The THROWN_FLAG means your value does not represent a directly
-//      usable value, so you MUST check for it.  It signifies getting
-//      back a THROWN()--see notes in sys-value.h about what that means.
-//      If you don't know how to handle it, then at least do:
-//
-//              fail (Error_No_Catch_For_Throw(out));
-//
-//      If you *do* handle it, be aware it's a throw label with
-//      OPT_VALUE_THROWN set in its header, and shouldn't leak to the
-//      rest of the system.
-//
-// ===========================================================================
-//
-// Note that THROWN() is not an indicator of an error, rather something that
-// ordinary language constructs might meaningfully want to process as they
-// bubble up the stack.  Some examples would be BREAK, RETURN, and QUIT.
-//
-// Errors are handled with a different mechanism using longjmp().  So if an
-// actual error happened during the DO then there wouldn't even *BE* a return
-// value...because the function call would never return!  See PUSH_TRAP()
-// and fail() for more information.
-//
-
-#define END_FLAG 0x80000000  // end of block as index
-#define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
-
-// The VARARGS_FLAG is the index used when a C varargs list is the input.
-// Because access to a `va_list` is strictly increasing through va_arg(),
-// there is no way to track an index; fetches are indexed automatically
-// and sequentially without possibility for mutation of the list.  Should
-// this index be used it will always be the index of a DO_NEXT until either
-// an END_FLAG or a THROWN_FLAG is reached.
-//
-#define VARARGS_FLAG (END_FLAG - 0xBD)
-
-// This is not an actual DO state flag that you would see in a Reb_Call's
-// index, but it is a value that is returned in case a non-continuable
-// DO_NEXT call is made on varargs.  One can make the observation that it
-// is incomplete only--not resume.
-//
-#define VARARGS_INCOMPLETE_FLAG (END_FLAG - 0xAE)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -569,7 +585,10 @@ struct Reb_Call {
 #define FETCH_NEXT_ONLY_MAYBE_END_RAW(c) \
     do { \
         if ((c)->eval_fetched) { \
-            (c)->value = (c)->eval_fetched; \
+            if (IS_END((c)->eval_fetched)) \
+                (c)->value = NULL; /* could be debug only */ \
+            else \
+                (c)->value = (c)->eval_fetched; \
             (c)->eval_fetched = NULL; \
             break; \
         } \
@@ -641,7 +660,7 @@ struct Reb_Call {
                         (indexor_out) = END_FLAG; \
                         (value_out) = NULL; /* this could be debug only */ \
                     } else \
-                        (indexor_out) = ((indexor_in) + 1); \
+                        (indexor_out) = (indexor_in) + 1; \
                     break; \
                 } \
             } \
@@ -748,8 +767,10 @@ struct Reb_Call {
 #define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index) \
     do { \
         union Reb_Call_Source source; \
+        REBIXO indexor_ = index + 1; \
+        REBVAL *value_ = ARRAY_AT((array_in), (index)); \
         const REBVAL *dummy; /* need for varargs continuation, not array */ \
-        if (ARRAY_LEN(array_in) == 0) { \
+        if (IS_END(value_)) { \
             SET_UNSET(out); \
             (indexor_out) = END_FLAG; \
             break; \
@@ -757,12 +778,12 @@ struct Reb_Call {
         source.array = (array_in); \
         DO_CORE_REFETCH_MAY_THROW( \
             dummy, (indexor_out), (out), \
-            (source), (index) + 1, ARRAY_AT((array_in), (index)), NULL, \
+            (source), indexor_, value_, NULL, \
             DO_FLAG_LOOKAHEAD \
         ); \
         if ((indexor_out) != END_FLAG && (indexor_out) != THROWN_FLAG) { \
             assert((indexor_out) > 1); \
-            --(indexor_out); \
+            (indexor_out) = (indexor_out) - 1; \
         } \
         (void)dummy; \
     } while (0)
@@ -772,7 +793,7 @@ struct Reb_Call {
 // state...so it is legal to DO_ARRAY_THROWS(D_OUT, D_OUT) for instance.
 //
 #define DO_ARRAY_THROWS(out,array) \
-    Do_At_Throws((out), VAL_ARRAY(array), VAL_INDEX(array))
+    Do_At_Throws((out), VAL_ARRAY(m_cast(REBVAL*, array)), VAL_INDEX(array))
 
 // Lowercase, because doesn't repeat array parameter.  If macro picked head
 // off itself, it would need to be uppercase!

@@ -1246,7 +1246,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
     if (type == REB_ROUTINE) {
-        REBCNT fn_idx = 0;
+        REBIXO indexor = 0;
 
         REBVAL lib;
         VAL_INIT_WRITABLE_DEBUG(&lib);
@@ -1254,13 +1254,13 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
 
-        DO_NEXT_MAY_THROW(fn_idx, &lib, VAL_ARRAY(data), 1);
-        if (fn_idx == THROWN_FLAG)
+        DO_NEXT_MAY_THROW(indexor, &lib, VAL_ARRAY(data), 1);
+        if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&lib));
 
         if (IS_INTEGER(&lib)) {
-            if (NOT_END(&blk[fn_idx]))
-                fail (Error_Invalid_Arg(&blk[fn_idx]));
+            if (indexor != END_FLAG)
+                fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
 
             //treated as a pointer to the function
             if (VAL_INT64(&lib) == 0)
@@ -1275,6 +1275,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
             REBSER *byte_sized;
             REBCNT b_index;
             REBCNT b_len;
+            REBCNT fn_idx = cast(REBCNT, indexor);
 
             if (!IS_LIBRARY(&lib))
                 fail (Error_Invalid_Arg(&lib));
@@ -1315,7 +1316,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
             }
         }
     } else if (type == REB_CALLBACK) {
-        REBCNT fn_idx = 0;
+        REBIXO indexor = 0;
 
         REBVAL fun;
         VAL_INIT_WRITABLE_DEBUG(&fun);
@@ -1323,16 +1324,16 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Invalid_Arg(&blk[0]));
 
-        DO_NEXT_MAY_THROW(fn_idx, &fun, VAL_ARRAY(data), 1);
-        if (fn_idx == THROWN_FLAG)
+        DO_NEXT_MAY_THROW(indexor, &fun, VAL_ARRAY(data), 1);
+        if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&fun));
 
         if (!IS_FUNCTION(&fun))
             fail (Error_Invalid_Arg(&fun));
         VAL_CALLBACK_FUNC(out) = VAL_FUNC(&fun);
 
-        if (fn_idx != END_FLAG)
-            fail (Error_Invalid_Arg(&blk[fn_idx]));
+        if (indexor != END_FLAG)
+            fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
 
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
     }

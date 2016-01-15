@@ -724,7 +724,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         REBVAL *blk = VAL_ARRAY_AT(data);
         REBINT field_idx = 0; /* for field index */
         u64 offset = 0; /* offset in data */
-        REBCNT eval_idx = 0; /* for spec block evaluation */
+        REBIXO eval_idx = 0; /* for spec block evaluation */
         REBVAL *init = NULL; /* for result to save in data */
         REBOOL expect_init = FALSE;
         REBINT raw_size = -1;

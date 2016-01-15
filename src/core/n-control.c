@@ -274,13 +274,13 @@ REBNATIVE(all)
 // logic domain.  (`all [true true]` => true, `all [false true]` is NONE!).
 {
     REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBCNT index = VAL_INDEX(D_ARG(1));
+    REBIXO indexor = VAL_INDEX(D_ARG(1));
 
     SET_TRUE(D_OUT);
 
-    while (index < ARRAY_LEN(block)) {
-        DO_NEXT_MAY_THROW(index, D_OUT, block, index);
-        if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
+    while (indexor != END_FLAG) {
+        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
+        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
 
         if (IS_UNSET(D_OUT)) continue;
 
@@ -316,11 +316,11 @@ REBNATIVE(any)
 // "seed" for not affecting the chain.
 {
     REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBCNT index = VAL_INDEX(D_ARG(1));
+    REBIXO indexor = VAL_INDEX(D_ARG(1));
 
-    while (index < ARRAY_LEN(block)) {
-        DO_NEXT_MAY_THROW(index, D_OUT, block, index);
-        if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
+    while (indexor != END_FLAG) {
+        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
+        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
 
         if (IS_UNSET(D_OUT)) continue;
 
@@ -406,15 +406,18 @@ REBNATIVE(break)
 //
 REBNATIVE(case)
 {
+    PARAM(1, block);
+    REFINE(2, all);
+
     // We leave D_ARG(1) alone, it is holding 'block' alive from GC
-    REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBCNT index = VAL_INDEX(D_ARG(1));
+    REBARR *block = VAL_ARRAY(ARG(block));
+    REBIXO indexor = VAL_INDEX(ARG(block));
 
     // Save refinement to boolean to free up GC protected call frame slot
-    REBOOL all = D_REF(2);
+    REBOOL all = REF(all);
 
     // reuse refinement slot for GC safety (const pointer optimized out)
-    REBVAL * const safe_temp = D_ARG(2);
+    REBVAL * const safe_temp = ARG(all);
 
     // condition result must survive across potential GC evaluations of
     // the body evaluation re-using `safe-temp`, but can be collapsed to a
@@ -426,11 +429,20 @@ REBNATIVE(case)
 
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
-    while (index < ARRAY_LEN(block)) {
+    // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
+    // between DOing an array that literally contains an UNSET! and an empty
+    // array, because both give back an unset value and an end position.
+    // We'd like CASE to allow `case []` but not `case [#[unset!]]` so we
+    // must do a special check to permit the former.
+    //
+    if (IS_END(VAL_ARRAY_AT(ARG(block))))
+        return R_OUT;
 
-        DO_NEXT_MAY_THROW(index, safe_temp, block, index);
+    while (indexor != END_FLAG) {
 
-        if (index == THROWN_FLAG) {
+        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
+
+        if (indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
             return R_OUT_IS_THROWN;
         }
@@ -443,7 +455,7 @@ REBNATIVE(case)
         //         false ; no matching body for condition
         //     ]
         //
-        if (index == END_FLAG) {
+        if (indexor == END_FLAG) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
                 // case [first [a b c]] => true ;-- in Rebol2
@@ -483,20 +495,23 @@ REBNATIVE(case)
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS) && !matched) {
+            //
             // case [true add 1 2] => 3
             // case [false add 1 2] => 2 ;-- in Rebol2
-            index++;
+            //
+            indexor = indexor + 1;
 
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
+            //
             SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
             continue;
         }
     #endif
 
-        DO_NEXT_MAY_THROW(index, safe_temp, block, index);
+        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
 
-        if (index == THROWN_FLAG) {
+        if (indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
             return R_OUT_IS_THROWN;
         }
@@ -950,14 +965,16 @@ REBNATIVE(do)
     case REB_BLOCK:
     case REB_GROUP:
         if (REF(next)) {
+            REBIXO indexor = VAL_INDEX(ARG(value));
+
             DO_NEXT_MAY_THROW(
-                VAL_INDEX(ARG(value)), // updates index of value in call frame
+                indexor, // updated
                 D_OUT,
                 VAL_ARRAY(ARG(value)),
-                VAL_INDEX(ARG(value))
+                indexor
             );
 
-            if (VAL_INDEX(ARG(value)) == THROWN_FLAG) {
+            if (indexor == THROWN_FLAG) {
                 // the throw should make the value irrelevant, but if caught
                 // then have it indicate the start of the thrown expression
 
@@ -979,8 +996,10 @@ REBNATIVE(do)
                 // that after the DOs are finished the var can't be used to
                 // recover the series again...you'd have to save it.
                 //
-                if (VAL_INDEX(ARG(value)) == END_FLAG)
+                if (indexor == END_FLAG)
                     VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
+                else
+                    VAL_INDEX(ARG(value)) = cast(REBCNT, indexor);
 
                 *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
             }
@@ -1028,14 +1047,19 @@ REBNATIVE(do)
         return R_ARG1;
     }
 
-    // Note: it is not possible to write a wrapper function in Rebol
-    // which can do what EVAL can do for types that consume arguments
-    // (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
-    // functions only, EVAL generalizes it.
+#if !defined(NDEBUG)
     //
     // !!! The LEGACY mode for DO that allows it to run functions is,
     // like EVAL, implemented as part of the evaluator by recognizing
     // the &N_do native function pointer.
+    //
+    assert(!LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
+#endif
+
+    // Note: it is not possible to write a wrapper function in Rebol
+    // which can do what EVAL can do for types that consume arguments
+    // (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
+    // functions only, EVAL generalizes it.
     //
     fail (Error(RE_USE_EVAL_FOR_EVAL));
 }

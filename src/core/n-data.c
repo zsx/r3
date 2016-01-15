@@ -144,14 +144,15 @@ REBNATIVE(assert)
 
     if (!REF(type)) {
         REBARR *block = VAL_ARRAY(ARG(conditions));
-        REBCNT index = VAL_INDEX(ARG(conditions));
+        REBIXO indexor = VAL_INDEX(ARG(conditions));
         REBCNT i;
 
-        while (index < ARRAY_LEN(block)) {
-            i = index;
-            DO_NEXT_MAY_THROW(index, D_OUT, block, index);
+        while (indexor != END_FLAG) {
+            i = cast(REBCNT, indexor);
 
-            if (index == THROWN_FLAG) return R_OUT_IS_THROWN;
+            DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
+            if (indexor == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
 
             if (IS_CONDITIONAL_FALSE(D_OUT)) {
                 // !!! Only copies 3 values (and flaky), see CC#2231

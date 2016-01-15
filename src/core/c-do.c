@@ -134,7 +134,7 @@ static REBINT Init_Depth(void)
 
 void Trace_Line(
     union Reb_Call_Source source,
-    REBINT index,
+    REBIXO indexor,
     const REBVAL *value
 ) {
     int depth;
@@ -144,7 +144,17 @@ void Trace_Line(
 
     CHECK_DEPTH(depth);
 
-    Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,1)), index+1, value);
+    if (indexor == END_FLAG) {
+        Debug_Fmt_("END_FLAG...");
+    }
+    else if (indexor == VARARGS_FLAG) {
+        Debug_Fmt_("VARARGS_FLAG...");
+    }
+    else {
+        REBCNT index = cast(REBCNT, indexor);
+        Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,1)), index, value);
+    }
+
     if (IS_WORD(value) || IS_GET_WORD(value)) {
         value = GET_OPT_VAR_MAY_FAIL(value);
         if (VAL_TYPE(value) < REB_NATIVE)
@@ -952,9 +962,7 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // where END_FLAG directly implies prefetch input was exhausted and
     // c->value must be NULL.
     //
-    // !!! Should a debug variable be added to track if we have an eval_fetch
-    // even if it might be NULL, so we can assert indexor is END_FLAG only
-    // if there is an eval in progress.
+    assert(c->indexor != END_FLAG || IS_END(c->eval_fetched));
 
     // The value we are processing should not be THROWN() and any series in
     // it should be under management by the garbage collector.
@@ -1008,11 +1016,16 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
                     "Do_Core() count trap (va_list, no nondestructive fetch)"
                 );
             }
+            else if (c->indexor == END_FLAG) {
+                assert(c->value != NULL);
+                Debug_Fmt("Performing EVAL at end of array (no args)");
+                PROBE_MSG(c->value, "Do_Core() count trap");
+            }
             else {
                 REBVAL dump;
                 VAL_INIT_WRITABLE_DEBUG(&dump);
 
-                assert(c->indexor > 0);
+                assert(cast(REBCNT, c->indexor) > 0);
                 PROBE_MSG(c->value, "Do_Core() count trap");
                 Val_Init_Block_Index(&dump, c->source.array, c->indexor - 1);
                 PROBE_MSG(&dump, "Do_Core() next up...");
@@ -1439,7 +1452,11 @@ reevaluate:
             // case for c->value) but we are splicing in eval over that,
             // which keeps the switch from crashing.
             //
-            c->eval_fetched = c->value;
+            if (c->value)
+                c->eval_fetched = c->value;
+            else
+                c->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
+
             c->value = &eval;
             goto reevaluate; // we don't move index!
         }
@@ -2443,7 +2460,7 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c) {
 // or a DO/NEXT at the position given.  Option to provide an element that
 // may not be resident in the array to kick off the execution.
 //
-REBCNT Do_Array_At_Core(
+REBIXO Do_Array_At_Core(
     REBVAL *out,
     const REBVAL *opt_first,
     REBARR *array,
@@ -2515,7 +2532,7 @@ REBCNT Do_Array_At_Core(
 // Returns THROWN_FLAG, END_FLAG--or if DO_FLAG_NEXT is used it may return
 // VARARGS_INCOMPLETE_FLAG.
 //
-REBCNT Do_Varargs_Core(
+REBIXO Do_Varargs_Core(
     REBVAL *out,
     const REBVAL *opt_first,
     va_list *varargs,
@@ -2597,7 +2614,7 @@ REBCNT Do_Varargs_Core(
 // the caller to bump the value pointer as necessary.  But an index-based
 // interface is likely useful to avoid the bookkeeping required for the caller.
 //
-REBCNT Do_Values_At_Core(
+REBIXO Do_Values_At_Core(
     REBVAL *out,
     REBFLGS flags,
     const REBVAL *opt_head,
@@ -2643,7 +2660,7 @@ REBVAL *Sys_Func(REBCNT inum)
 //
 REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 {
-    REBCNT flag;
+    REBIXO indexor;
     va_list args;
 
 #ifdef VA_END_IS_MANDATORY
@@ -2665,14 +2682,14 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
     }
 #endif
 
-    flag = Do_Varargs_Core(
+    indexor = Do_Varargs_Core(
         out,
         applicand, // opt_first
         &args,
         DO_FLAG_NEXT | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
     );
 
-    if (flag == VARARGS_INCOMPLETE_FLAG) {
+    if (indexor == VARARGS_INCOMPLETE_FLAG) {
         //
         // Not consuming all the arguments given suggests a problem as far
         // as this interface is concerned.  To tolerate incomplete states,
@@ -2703,8 +2720,8 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 #endif
 
-    assert(flag == THROWN_FLAG || flag == END_FLAG);
-    return LOGICAL(flag == THROWN_FLAG);
+    assert(indexor == THROWN_FLAG || indexor == END_FLAG);
+    return LOGICAL(indexor == THROWN_FLAG);
 }
 
 
@@ -2743,7 +2760,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 //
 REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
 {
-    REBCNT index;
+    REBIXO indexor;
 
     // Upper bound on the length of the args we might need for a redo
     // invocation is the total number of parameters to the *old* function's
@@ -2819,7 +2836,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // Invoke DO with the special mode requesting non-evaluation on all
     // args, as they were evaluated the first time around.
     //
-    index = Do_Array_At_Core(
+    indexor = Do_Array_At_Core(
         c->out,
         &first, // path not in array but will be "virtual" first array element
         code_array,
@@ -2827,7 +2844,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
         DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
     );
 
-    if (index != THROWN_FLAG && index != END_FLAG) {
+    if (indexor != THROWN_FLAG && indexor != END_FLAG) {
         //
         // We may not have stopped the invocation by virtue of the args
         // all not getting consumed, but we can raise an error now that it
@@ -2837,7 +2854,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
         fail (Error(RE_MISC));
     }
 
-    return LOGICAL(index == THROWN_FLAG);
+    return LOGICAL(indexor == THROWN_FLAG);
 }
 
 
@@ -2866,14 +2883,29 @@ REBOOL Reduce_Array_Throws(
     REBOOL into
 ) {
     REBINT dsp_orig = DSP;
+    REBIXO indexor = index;
 
-    while (index < ARRAY_LEN(array)) {
+    // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
+    // between DOing an array that literally contains an UNSET! and an empty
+    // array, because both give back an unset value and an end position.
+    // We'd like REDUCE to treat `reduce []` and `reduce [#[unset!]]` in
+    // a different way, so must do a special check to handle the former.
+    //
+    if (IS_END(ARRAY_AT(array, index))) {
+        if (into)
+            return FALSE;
+
+        Val_Init_Block(out, Make_Array(0));
+        return FALSE;
+    }
+
+    while (indexor != END_FLAG) {
         REBVAL reduced;
         VAL_INIT_WRITABLE_DEBUG(&reduced);
 
-        DO_NEXT_MAY_THROW(index, &reduced, array, index);
+        DO_NEXT_MAY_THROW(indexor, &reduced, array, indexor);
 
-        if (index == THROWN_FLAG) {
+        if (indexor == THROWN_FLAG) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
             return TRUE;
@@ -2958,6 +2990,7 @@ REBOOL Reduce_Array_No_Set_Throws(
     REBOOL into
 ) {
     REBINT dsp_orig = DSP;
+    REBIXO indexor = index;
 
     while (index < ARRAY_LEN(block)) {
         REBVAL *value = ARRAY_AT(block, index);
@@ -2969,8 +3002,8 @@ REBOOL Reduce_Array_No_Set_Throws(
             REBVAL reduced;
             VAL_INIT_WRITABLE_DEBUG(&reduced);
 
-            DO_NEXT_MAY_THROW(index, &reduced, block, index);
-            if (index == THROWN_FLAG) {
+            DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor);
+            if (indexor == THROWN_FLAG) {
                 *out = reduced;
                 DS_DROP_TO(dsp_orig);
                 return TRUE;

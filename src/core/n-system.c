@@ -377,7 +377,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     // WARNING: MIN is a C macro and repeats its arguments.
     //
     start = MIN(ARRAY_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
-    end = MIN(ARRAY_LEN(DSF_ARRAY(call)), call->expr_index);
+    end = MIN(ARRAY_LEN(DSF_ARRAY(call)), cast(REBCNT, call->expr_index));
 
     assert(end >= start);
     assert(call->mode != CALL_MODE_0);
