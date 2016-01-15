@@ -1270,10 +1270,7 @@ reevaluate:
         *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
 
     do_retrieved_word:
-        if (IS_UNSET(c->out))
-            fail (Error(RE_NO_VALUE, c->value));
-
-        if (ANY_FUNC(c->out)) {
+        if (ANY_FUNC(c->out)) { // check before checking unset, for speed
             //
             // As mentioned in #1934, we only dispatch infix functions as
             // infix when they are looked up from words.  Yet that can only
@@ -1298,6 +1295,9 @@ reevaluate:
             FETCH_NEXT_ONLY_MAYBE_END(c);
             goto do_function_maybe_end_ok;
         }
+
+        if (IS_UNSET(c->out))
+            fail (Error(RE_NO_VALUE, c->value));
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out)) {
