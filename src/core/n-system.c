@@ -350,13 +350,34 @@ REBNATIVE(limit_usage)
 //
 REBARR *Where_For_Call(struct Reb_Call *call)
 {
-    // WARNING: MIN is a C macro and repeats its arguments.
-    //
-    REBCNT start = MIN(ARRAY_LEN(call->array), call->expr_index);
-    REBCNT end = MIN(ARRAY_LEN(call->array), call->index);
+    REBCNT start;
+    REBCNT end;
 
     REBARR *where;
     REBOOL pending;
+
+    if (DSF_IS_VARARGS(call)) {
+        //
+        // !!! Not yet implemented: the reporting of errors that occur when
+        // a C vararg list is used.  The historical instances of this were
+        // system calls that really would be difficult to know what was
+        // going wrong--and there wasn't much notice or tolerance of failure,
+        // but Ren-C is going to permit these calls everywhere and needs
+        // a better story.
+        //
+        // What needs to happen is that the args must be reified; it would
+        // make it impossible to continue evaluating after this point unless
+        // the varargs were transformed into an array.  This is similar to
+        // what needs to be done if there is a GC in the middle of an
+        // arbitrary varargs-based evaluation.
+        //
+        assert(FALSE);
+    }
+
+    // WARNING: MIN is a C macro and repeats its arguments.
+    //
+    start = MIN(ARRAY_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
+    end = MIN(ARRAY_LEN(DSF_ARRAY(call)), call->expr_index);
 
     assert(end >= start);
     assert(call->mode != CALL_MODE_0);

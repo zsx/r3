@@ -27,6 +27,96 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// The primary routine that performs DO and DO/NEXT is called Do_Core().  It
+// takes a single parameter which holds the running state of the evaluator.
+// This state may be allocated on the C variable stack:  Do_Core() is
+// written such that a longjmp up to a failure handler above it can run
+// safely and clean up even though intermediate stacks have vanished.
+//
+// Ren-C can not only run the evaluator across a REBSER-style series of
+// input based on index, it can also fetch those values from a standard C
+// array of REBVAL[].  Alternately, it can enumerate through C's `va_list`,
+// providing the ability to pass pointers as REBVAL* to comma-separated input
+// at the source level.
+//
+// To provide even greater flexibility, it allows the very first element's
+// pointer in an evaluation to come from an arbitrary source.  It doesn't
+// have to be resident in the same sequence from which ensuing values are
+// pulled, allowing a free head value (such as a FUNCTION! REBVAL in a local
+// C variable) to be evaluated in combination from another source (like a
+// va_list or series representing the arguments.)  This avoids the cost and
+// complexity of allocating a series to combine the values together.
+//
+// These features alone would not cover the case when REBVAL pointers that
+// are originating with C source were intended to be supplied to a function
+// with no evaluation.  In R3-Alpha, the only way in an evaluative context
+// to suppress such evaluations would be by adding elements (such as QUOTE).
+// Besides the cost and labor of inserting these, the risk is that the
+// intended functions to be called without evaluation, if they quoted
+// arguments would then receive the QUOTE instead of the arguments.
+//
+// The problem was solved by adding a feature to the evaluator which was
+// also opened up as a new privileged native called EVAL.  EVAL's refinements
+// completely encompass evaluation possibilities in R3-Alpha, but it was also
+// necessary to consider cases where a value was intended to be provided
+// *without* evaluation.  This introduced EVAL/ONLY.
+//
+
+
+//
+// DO_FLAGS
+//
+// Used by low level routines, these flags specify behaviors which are
+// exposed at a higher level through EVAL, EVAL/ONLY, and EVAL/NOFIX
+//
+// The flags are specified either way for clarity.
+//
+enum {
+    DO_FLAG_0 = 0, // unused
+
+    // As exposed by the DO native and its /NEXT refinement, a call to the
+    // evaluator can either run to the finish from a position in an array
+    // or just do one eval.  Rather than achieve execution to the end by
+    // iterative function calls to the /NEXT variant (as in R3-Alpha), Ren-C
+    // offers a controlling flag to do it from within the core evaluator
+    // as a loop.
+    //
+    // However: since running to the end follows a different code path than
+    // performing DO/NEXT several times, it is important to ensure they
+    // achieve equivalent results.  There are nuances to preserve this
+    // invariant and especially in light of potential interaction with
+    // DO_FLAG_LOOKAHEAD.
+    //
+    // NOTE: DO_FLAG_NEXT is *non-continuable* with varargs.  This is due to
+    // contention with DO_FLAG_LOOKAHEAD which would not be able to "un-fetch"
+    // in the case of a lookahead for infix that failed (and NO_LOOKAHEAD is
+    // very rare with API clients).  But also, the va_list could need a
+    // conversion to an array during evaluation...and any continuation would
+    // need to be sensitive to this change, which is extra trouble for very
+    // little likely benefit.
+    //
+    DO_FLAG_NEXT = 1 << 1,
+    DO_FLAG_TO_END = 1 << 2,
+
+    // When we're in mid-dispatch of an infix function, the precedence is such
+    // that we don't want to do further infix lookahead while getting the
+    // arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to
+    // "look ahead" past the 2 to see the infix `*`)
+    //
+    // Actions taken during lookahead may have no side effects.  If it's used
+    // to evaluate a form of source input that cannot be backtracked (e.g.
+    // a C variable argument list) then it will not be possible to resume.
+    //
+    DO_FLAG_LOOKAHEAD = 1 << 3,
+    DO_FLAG_NO_LOOKAHEAD = 1 << 4,
+
+    // Write more comments here when feeling in more of a commenting mood
+    //
+    DO_FLAG_EVAL_NORMAL = 1 << 5,
+    DO_FLAG_EVAL_ONLY = 1 << 6
+};
+
+
 // A Reb_Call structure represents the fixed-size portion for a function's
 // call frame.  It is stack allocated, and is used by both Do and Apply.
 // (If a dynamic allocation is necessary for the call frame, that dynamic
@@ -39,39 +129,6 @@
 // the Do loop--without bearing the overhead of setting up new stack state.
 //
 
-// The flags are specified either way for clarity.
-enum {
-    // Calls may be created for use by the Do evaluator or by an apply
-    // originating from inside the C code itself.  If the call is not for
-    // the evaluator, it should not set DO_FLAG_DO and no other flags
-    // should be set.
-    //
-    DO_FLAG_DO = 1 << 0,
-
-    // As exposed by the DO native and its /NEXT refinement, a call to the
-    // evaluator can either run to the finish from a position in an array
-    // or just do one eval.  Rather than achieve execution to the end by
-    // iterative function calls to the /NEXT variant (as in R3-Alpha), Ren-C
-    // offers a controlling flag to do it from within the core evaluator
-    // as a loop.
-    //
-    // However: since running to the end follows a different code path than
-    // performing DO/NEXT several times, it is important to ensure they
-    // achieve equivalent results.  Nuances to preserve this invariant are
-    // mentioned from within the code.
-    //
-    DO_FLAG_NEXT = 1 << 2,
-    DO_FLAG_TO_END = 1 << 3,
-
-    // When we're in mid-dispatch of an infix function, the precedence is such
-    // that we don't want to do further infix lookahead while getting the
-    // arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to
-    // "look ahead" past the 2 to see the infix `*`)
-    //
-    DO_FLAG_LOOKAHEAD = 1 << 4,
-    DO_FLAG_NO_LOOKAHEAD = 1 << 5
-};
-
 enum Reb_Call_Mode {
     CALL_MODE_0, // no special mode signal
     CALL_MODE_ARGS, // ordinary arguments before any refinements seen
@@ -81,6 +138,11 @@ enum Reb_Call_Mode {
     CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
     CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
     CALL_MODE_FUNCTION // running an ANY-FUNCTION!
+};
+
+union Reb_Call_Source {
+    REBARR *array;
+    va_list *varargs;
 };
 
 // NOTE: The ordering of the fields in `Reb_Call` are specifically done so
@@ -149,15 +211,64 @@ struct Reb_Call {
     // situations...as insertions usually have to "slide down" the values in
     // the series and may also need to perform alloc/free/copy to expand.)
     //
+    // !!! The ramifications of using a disconnected value on debugging
+    // which is *not* part of the series is that the "where" will come up
+    // with missing information.  This is not the only case where the
+    // optimization of not making a series or not making a frame creates
+    // a problem--and in general, optimization will interfere with almost any
+    // debug feedback.  The proposed solution is to have a "debug mode" which
+    // causes more conservatism--for instance, if it is noticed in an
+    // evaluation that the value pointer does *not* line up at the head of
+    // the series for the evaluation given, it would be cached somewhere...
+    // then if any problem needing a where came up, a series would be made
+    // to put it in.  (The where series is paying for a copy anyway.)
+    //
     const REBVAL *value;
 
-    // array [INPUT, READ-ONLY, GC-PROTECTED]
+    // `eval_fetched` [INTERNAL, READ-ONLY, GC-PROTECTS pointed-to REBVAL]
     //
-    // The array from which new values will be fetched.  Although the
-    // series may have come from a ANY-ARRAY! (e.g. a PATH!), the distinction
-    // does not exist at this point...so it will "evaluate like a block".
+    // Mechanically speaking, running an EVAL has to overwrite `value` from
+    // the natural pre-fetching course, so that the evaluated value can be
+    // simulated as living in the line of execution.  Because fetching moves
+    // forward only, we'd lose the next value if we didn't save it somewhere.
     //
-    REBARR *array;
+    // This pointer saves the prefetched value that eval overwrites, and
+    // by virtue of not being NULL signals to just use the value on the
+    // next fetch instead of fetching again.
+    //
+    const REBVAL *eval_fetched;
+
+    // source.array, source.varargs [INPUT, READ-ONLY, GC-PROTECTED]
+    //
+    // This is the source from which new values will be fetched.  The most
+    // common dispatch of the evaluator is on values that live inside of a
+    // Rebol BLOCK! or GROUP!...but something to know is that the `array`
+    // could have come from any ANY-ARRAY! (e.g. a PATH!).  The fact that it
+    // came from a value marked REB_PATH is not known here: value-bearing
+    // series will all "evaluate like a block".
+    //
+    // In addition to working with a source of values in a traditional series,
+    // in Ren-C it is also possible to feed the evaluator arbitrary REBVAL*s
+    // through a variable argument list.  It is not necessary to dynamically
+    // allocate an array to use as input for an impromptu evaluation: the
+    // stack parameters of a function call are enumerated.  However...
+    //
+    // === The `varargs` list is *NOT* random access like an array is!!! ===
+    //
+    // http://en.cppreference.com/w/c/variadic
+    //
+    // See notes on `index` about how this is managed via VARARGS_FLAG.
+    //
+    // !!! It is extremely desirable to implicitly GC protect the C function
+    // arguments but a bit difficult to do so; one good implementation idea
+    // would be to merge it with the idea of a third category of using
+    // an in-memory array block of values; where at the point of a GC
+    // actually happening then *that* would be the opportunity where the
+    // cost were paid to advance through the remaining arguments, copying
+    // them into some safe location and then picking up the enumeration
+    // through memory.
+    //
+    union Reb_Call_Source source;
 
     // `index` [INPUT, OUTPUT]
     //
@@ -172,7 +283,15 @@ struct Reb_Call {
     // At the end of the evaluation it's the index of the next expression
     // to be evaluated, THROWN_FLAG, or END_FLAG.
     //
-    REBCNT index;
+    // !!! This should be a separate type, REBIXR and called "indexor"
+    // (INDEX-OR-a-flag).  The C++ build could check you never did math on
+    // a flag state, only coerce to REBCNT for non-flag states, etc.  Name
+    // "indexor" different enough to cue the C build also.
+    //
+    // What might happen if they are on a branch during the conversion where
+    // they assumed it was vararg and it changes?
+    //
+    REBCNT indexor;
 
     // `label_sym` [INTERNAL, READ-ONLY]
     //
@@ -205,7 +324,12 @@ struct Reb_Call {
     // from the spec of the function--a.k.a. the "formal argument".  This
     // pointer is moved in step with `arg` during argument fulfillment.
     //
-    REBVAL *param;
+    // (Note: It is const because we don't want to be changing the params,
+    // but also because it is used as a temporary to store value if it is
+    // advanced but we'd like to hold the old one...this makes it important
+    // to protect it from GC if we have advanced beyond as well!)
+    //
+    const REBVAL *param;
 
     // `arg` [INTERNAL, also CACHE of `ARRAY_HEAD(arglist)`]
     //
@@ -294,29 +418,9 @@ struct Reb_Call {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DO_NEXT_MAY_THROW and DO_ARRAY_THROWS
+//  AUGMENTED INDEX FLAGS FOR DO (a.k.a. "INDEXOR" flags)
 //
 //=////////////////////////////////////////////////////////////////////////=//
-//
-// This is an optimized wrapper for the basic building block of Rebol
-// evaluation.  They are macros designed to minimize overhead and be
-// guaranteed to be inlined at the callsite.  For the central functionality,
-// see `Do_Core()`.
-//
-// The optimized version of the macro will never do an evaluation of a
-// type it doesn't have to.  It uses ANY_EVAL() to see if it can get
-// out of making a function call...sometimes it cannot because there
-// may be an infix lookup possible (we don't know that `[3] + [4]`
-// isn't ever going to work...)
-//
-// The debug build exercises both code paths, by optimizing every other
-// execution to bypass the evaluator if possible...and then throwing
-// the code through Do_Core the other times.  It's a sampling test, but
-// not a bad one for helping keep the methods in sync.
-//
-// DO_NEXT_MAY_THROW takes in an array and a REBCNT offset into that array
-// of where to execute.  Although the return value is a REBCNT, it is *NOT*
-// always a series index!!!  It may return:
 //
 // * END_FLAG if end of series prohibited a full evaluation
 //
@@ -348,45 +452,320 @@ struct Reb_Call {
 // value...because the function call would never return!  See PUSH_TRAP()
 // and fail() for more information.
 //
+
+#define END_FLAG 0x80000000  // end of block as index
+#define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
+
+// The VARARGS_FLAG is the index used when a C varargs list is the input.
+// Because access to a `va_list` is strictly increasing through va_arg(),
+// there is no way to track an index; fetches are indexed automatically
+// and sequentially without possibility for mutation of the list.  Should
+// this index be used it will always be the index of a DO_NEXT until either
+// an END_FLAG or a THROWN_FLAG is reached.
+//
+#define VARARGS_FLAG (END_FLAG - 0xBD)
+
+// This is not an actual DO state flag that you would see in a Reb_Call's
+// index, but it is a value that is returned in case a non-continuable
+// DO_NEXT call is made on varargs.  One can make the observation that it
+// is incomplete only--not resume.
+//
+#define VARARGS_INCOMPLETE_FLAG (END_FLAG - 0xAE)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  DO's "FRAMELESS" API => *LOWEST* LEVEL EVALUATOR HOOKING
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This API is used internally in the implementation of Do_Core.  It does
+// not speak in terms of arrays or indices, it works entirely by setting
+// up a call frame (c), and threading that frame's state through successive
+// operations, vs. setting it up and disposing it on each DO/NEXT step.
+//
+// Like higher level APIs that move through the input series, the frameless
+// API can move at full DO/NEXT intervals.  Unlike the higher APIs, the
+// possibility exists to move by single elements at a time--regardless of
+// if the default evaluation rules would consume larger expressions.  Also
+// making it different is the ability to resume after a DO/NEXT on value
+// sources that aren't random access (such as C's va_arg list).
+//
+// One invariant of access is that the input may only advance.  Before any
+// operations are called, any low-level client must have already seeded
+// c->value with a valid "fetched" REBVAL*.  END is not valid, so callers
+// beginning a Do_To_End must pre-check that condition themselves before
+// calling Do_Core.  And if an operation sets the c->index to END_FLAG then
+// that must be checked--it's not legal to call more operations on a call
+// frame after a fetch reports the end.
+//
+// Operations are:
+//
+//  FETCH_NEXT_ONLY_MAYBE_END
+//
+//      Retrieve next pointer for examination to c->value.  The previous
+//      c->value pointer is overwritten.  (No REBVAL bits are moved by
+//      this operation, only the 'currently processing' pointer reassigned.)
+//      c->index may be set to END_FLAG if the end of input is reached.
+//
+// DO_NEXT_REFETCH_MAY_THROW
+//
+//      Executes the already-fetched pointer, consuming as much of the input
+//      as necessary to complete a /NEXT (or failing with an error).  This
+//      writes the computed REBVAL into a destination location.  After the
+//      operation, the next c->value pointer will already be fetched and
+//      waiting for examination or use.  c->index may be set to either
+//      THROWN_FLAG or END_FLAG by this operation.
+//
+// DO_NEXT_REFETCH_QUOTED
+//
+//      This operation is fairly trivial in the sense that it just assigns
+//      the REBVAL bits pointed to by the current value to the destination
+//      cell.  Then it does a simple fetch.  The main reason for making an
+//      operation vs just having callers do the two steps is to monitor
+//      when some of the input has been "consumed" vs. merely fetched.
+//
+//      !!! This is unenforceable in the C build, but in the C++ build it
+//      could be ensured c->value was only dereferenced via * and stored
+//      to targets through this routine.
+//
+// This is not intending to be a "published" API of Rebol/Ren-C.  But the
+// privileged level of access can be used by natives that feel they can
+// optimize performance by working with the evaluator directly.  Code written
+// in a frameless native can be essentially equally as fast as writing code
+// inside of the main `switch()` statement of Do_Core(), as they hook out
+// quickly once a function is identified.
+//
+// (So for instance, the implementation of `QUOTE` does not require setting
+// up memory on the stack, enumerating parameters and checking parameter
+// counts, checking to see the parameter is quoted and doing a quote refetch
+// into that slot...then dispatching the function, checking that value,
+// moving it to the output, freeing the stack memory.  `QUOTE` can just
+// make sure it's not the end of the input, then call DO_NEXT_REFETCH_QUOTED
+// itself and be done.)
+//
+// !!! If a native works at the frameless API level, that foregoes automatic
+// parameter checking, and the absence of a call frame for debugging or
+// tracing insight.  Hence each frameless native must still be able to run
+// in a "framed" mode if necessary.  Error reporting has some help to say
+// whether the error came from what would correspond to parameter fulfillment
+// vs. execution were it an ordinary native.
+//
+// !!! For better or worse, Do_Core does not lock the series it is iterating.
+// This means any arbitrary user code (or system code) could theoretically
+// disrupt a series out from under it, and then crash the system on the
+// next fetch.  Hence an array and an index are used, and in terms of "crash
+// avoidance" (albeit not necessarily "semantic sensibility) it's necessary
+// to clip the index to be within the range of the series.  In theory it
+// would be possible to track the cases where clipping the index was needed
+// or not, though it might be better to just lock the series being evaluated
+// currently...this is an open question.
+//
+
+//
+// FETCH_NEXT_ONLY_MAYBE_END (see notes above)
+//
+
+#define FETCH_NEXT_ONLY_MAYBE_END_RAW(c) \
+    do { \
+        if ((c)->eval_fetched) { \
+            (c)->value = (c)->eval_fetched; \
+            (c)->eval_fetched = NULL; \
+            break; \
+        } \
+        if ((c)->indexor != VARARGS_FLAG) { \
+            if ((c)->indexor < ARRAY_LEN((c)->source.array)) { \
+                assert((c)->value != \
+                    ARRAY_AT((c)->source.array, (c)->indexor)); \
+                (c)->value = ARRAY_AT((c)->source.array, (c)->indexor); \
+                (c)->indexor = (c)->indexor + 1; \
+            } \
+            else { \
+                (c)->value = NULL; \
+                (c)->indexor = END_FLAG; \
+            } \
+        } \
+        else { \
+            (c)->value = va_arg((c)->source.varargs, REBVAL*); \
+            if (IS_END((c)->value)) { \
+                (c)->value = NULL; \
+                (c)->indexor = END_FLAG; \
+            } \
+        } \
+    } while (0)
+
+#ifdef NDEBUG
+    #define FETCH_NEXT_ONLY_MAYBE_END(c) \
+        FETCH_NEXT_ONLY_MAYBE_END_RAW(c)
+#else
+    #define FETCH_NEXT_ONLY_MAYBE_END(c) \
+        do { \
+            Trace_Fetch_Debug("FETCH_NEXT_ONLY_MAYBE_END", (c), FALSE); \
+            FETCH_NEXT_ONLY_MAYBE_END_RAW(c); \
+            Trace_Fetch_Debug("FETCH_NEXT_ONLY_MAYBE_END", (c), TRUE); \
+        } while (0)
+#endif
+
+// This macro is the workhorse behind DO_NEXT_REFETCH_MAY_THROW.  It is also
+// reused by the higher level DO_NEXT_MAY_THROW operation, because it does
+// a useful trick.  It is able to do a quick test to see if a value has no
+// evaluator behavior, and if so avoid a recursive call to Do_Core().
+//
+// However, "inert" values can have evaluator behavior--so this requires a
+// lookahead check.  Using varargs has already taken one step further than
+// it can by using a "prefetch", and it cannot lookahead again without
+// saving the value in another location.  Hence the trick is not used with
+// vararg input, and INTEGER!/BLOCK!/etc. go through Do_Core() in that case.
+//
+// IMPORTANT:
+//
+//  * `index_out` and `index_in` can be the same variable (and usually are)
+//  * `value_out` and `value_in` can be the same variable (and usually are)
+//
+#define DO_CORE_REFETCH_MAY_THROW( \
+    value_out,indexor_out,out_,source_,indexor_in,value_in,eval_fetched,flags_ \
+) \
+    do { \
+        struct Reb_Call c_; \
+        if (!eval_fetched && indexor_in != VARARGS_FLAG) { \
+            if (SPORADICALLY(2)) { /* every OTHER execution fast if DEBUG */ \
+                if ( \
+                    !ANY_EVAL(value_in) \
+                    && (IS_END((value_in) + 1) || !ANY_EVAL((value_in) + 1)) \
+                ) { \
+                    assert(!IS_TRASH_DEBUG(value_in)); \
+                    *(out_) = *(value_in); \
+                    assert(!IS_TRASH_DEBUG(out_)); \
+                    (value_out) = ARRAY_AT((source_).array, (indexor_in)); \
+                    if (IS_END(value_out)) { \
+                        (indexor_out) = END_FLAG; \
+                        (value_out) = NULL; /* this could be debug only */ \
+                    } else \
+                        (indexor_out) = ((indexor_in) + 1); \
+                    break; \
+                } \
+            } \
+        } \
+        c_.out = (out_); \
+        c_.source = (source_); \
+        c_.value = (value_in); \
+        c_.indexor = (indexor_in); \
+        c_.flags = DO_FLAG_EVAL_NORMAL | DO_FLAG_NEXT | (flags_); \
+        Do_Core(&c_); \
+        assert(c_.indexor == VARARGS_FLAG || (indexor_in) != c_.indexor); \
+        (indexor_out) = c_.indexor; \
+        (value_out) = c_.value; \
+    } while (0)
+
+//
+// DO_NEXT_REFETCH_MAY_THROW (see notes above)
+//
+
+#ifdef NDEBUG
+    #define DO_NEXT_REFETCH_MAY_THROW(dest,c,flags) \
+        DO_CORE_REFETCH_MAY_THROW( \
+            (c)->value, (c)->indexor, dest, /* outputs */ \
+            (c)->source, (c)->indexor, (c)->value, (c)->eval_fetched, \
+            flags /* inputs */) \
+
+#else
+    #define DO_NEXT_REFETCH_MAY_THROW(dest,c,flags) \
+        do { \
+            Trace_Fetch_Debug("DO_NEXT_REFETCH_MAY_THROW", (c), FALSE); \
+            DO_CORE_REFETCH_MAY_THROW( \
+                (c)->value, (c)->indexor, dest, /* outputs */ \
+                (c)->source, (c)->indexor, (c)->value, (c)->eval_fetched, \
+                flags /* inputs */); \
+            Trace_Fetch_Debug("DO_NEXT_REFETCH_MAY_THROW", (c), TRUE); \
+        } while (0)
+#endif
+
+//
+// DO_NEXT_REFETCH_QUOTED (see notes above)
+//
+
+#ifdef NDEBUG
+    #define DO_NEXT_REFETCH_QUOTED(dest,c) \
+        do { \
+            *dest = *(c)->value; \
+            FETCH_NEXT_ONLY_MAYBE_END(c); \
+        } while (0)
+
+#else
+    #define DO_NEXT_REFETCH_QUOTED(dest,c) \
+        do { \
+            Trace_Fetch_Debug("DO_NEXT_REFETCH_QUOTED", (c), FALSE); \
+            *dest = *(c)->value; \
+            FETCH_NEXT_ONLY_MAYBE_END(c); \
+            Trace_Fetch_Debug("DO_NEXT_REFETCH_QUOTED", (c), TRUE); \
+        } while (0)
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  BASIC API: DO_NEXT_MAY_THROW and DO_ARRAY_THROWS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This is an optimized wrapper for the basic building block of Rebol
+// evaluation.  They are macros designed to minimize overhead and be
+// guaranteed to be inlined at the callsite.  For the central functionality,
+// see `Do_Core()`.
+//
+// The optimized version of the macro will never do an evaluation of a type
+// it doesn't have to.  It uses ANY_EVAL() to see if it can get out of making
+// a function call...sometimes it cannot because there may be an infix lookup
+// possible (we don't know that `[3] + [4]` isn't ever going to work...)  For
+// this reason the optimization cannot work with a varargs list, as the
+// va_list in C cannot be "peeked ahead at" and then put back (while the
+// Rebol array data is random access).
+//
+// The debug build exercises both code paths, by optimizing every other
+// execution to bypass the evaluator if possible...and then throwing
+// the code through Do_Core the other times.  It's a sampling test, but
+// not a bad one for helping keep the methods in sync.
+//
+// DO_NEXT_MAY_THROW takes in an array and a REBCNT offset into that array
+// of where to execute.  Although the return value is a REBCNT, it is *NOT*
+// always a series index!!!  It may return:
+//
 // DO_ARRAY_THROWS is another helper for the frequent case where one has a
 // BLOCK! or a GROUP! at an index which already indicates the point where
 // execution is to start.
 //
+// (The "Throws" name is because it's expected to usually be used in an
+// 'if' statement.  It cues you into realizing that it returns TRUE if a
+// THROW interrupts this current DO_BLOCK execution--not asking about a
+// "THROWN" that happened as part of a prior statement.)
+//
+// If it returns FALSE, then the DO completed successfully to end of input
+// without a throw...and the output contains the last value evaluated in the
+// block (empty blocks give UNSET!).  If it returns TRUE then it will be the
+// THROWN() value.
+//
 
-#define END_FLAG 0x80000000  // end of block as index
-#define THROWN_FLAG (END_FLAG - 1) // throw as an index
-
-#define DO_NEXT_MAY_THROW_CORE(index_out,out_,array_,index_in,flags_) \
+#define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index) \
     do { \
-        struct Reb_Call c_; \
-        c_.value = ARRAY_AT((array_),(index_in)); \
-        if (SPORADICALLY(2)) { /* optimize every OTHER execution if DEBUG */ \
-            if (IS_END(c_.value)) { \
-                SET_UNSET(out_); \
-                (index_out) = END_FLAG; \
-                break; \
-            } \
-            if ( \
-                !ANY_EVAL(c_.value) \
-                && (IS_END(c_.value + 1) || !ANY_EVAL(c_.value + 1)) \
-            ) { \
-                *(out_) = *ARRAY_AT((array_), (index_in)); \
-                (index_out) = ((index_in) + 1); \
-                break; \
-            } \
+        union Reb_Call_Source source; \
+        const REBVAL *dummy; /* need for varargs continuation, not array */ \
+        if (ARRAY_LEN(array_in) == 0) { \
+            SET_UNSET(out); \
+            (indexor_out) = END_FLAG; \
+            break; \
         } \
-        c_.out = (out_); \
-        c_.array = (array_); \
-        c_.index = (index_in) + 1; \
-        c_.flags = DO_FLAG_DO | DO_FLAG_NEXT | (flags_); \
-        Do_Core(&c_); \
-        (index_out) = c_.index; \
+        source.array = (array_in); \
+        DO_CORE_REFETCH_MAY_THROW( \
+            dummy, (indexor_out), (out), \
+            (source), (index) + 1, ARRAY_AT((array_in), (index)), NULL, \
+            DO_FLAG_LOOKAHEAD \
+        ); \
+        if ((indexor_out) != END_FLAG && (indexor_out) != THROWN_FLAG) { \
+            assert((indexor_out) > 1); \
+            --(indexor_out); \
+        } \
+        cast(void, dummy); \
     } while (0)
-
-#define DO_NEXT_MAY_THROW(index_out,out,array,index) \
-    DO_NEXT_MAY_THROW_CORE( \
-        (index_out), (out), (array), (index), DO_FLAG_LOOKAHEAD \
-    )
 
 // Note: It is safe for `out` and `array` to be the same variable.  The
 // array and index are extracted, and will be protected from GC by the DO
@@ -395,21 +774,22 @@ struct Reb_Call {
 #define DO_ARRAY_THROWS(out,array) \
     Do_At_Throws((out), VAL_ARRAY(array), VAL_INDEX(array))
 
-// This macro is used internally to process from an unknown index a new item
-// without evaluation.  It is used to implement EVAL/ONLY and probably does
-// not have any other interesting use.
+// Lowercase, because doesn't repeat array parameter.  If macro picked head
+// off itself, it would need to be uppercase!
 //
-#define DO_NEXT_QUOTED(index_out,out_,array_,index_in) \
-    do { \
-        if ((index_in) >= ARRAY_LEN(array_)) { \
-            (index_out) = END_FLAG; \
-            SET_UNSET(out_); \
-        } \
-        else { \
-            *(out_) = *ARRAY_AT((array_), (index_in)); \
-            (index_out) = (index_in) + 1; \
-        } \
-    } while (0)
+
+#define Do_At_Throws(out,array,index) \
+    LOGICAL(THROWN_FLAG == Do_Array_At_Core( \
+        (out), NULL, (array), (index), \
+        DO_FLAG_TO_END | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD \
+    ))
+
+// Because Do_Core can seed with a single value, we seed with our value and
+// an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
+//
+#define DO_VALUE_THROWS(out,value) \
+    LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, 0, \
+        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_NORMAL))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -571,10 +951,18 @@ struct Native_Refine {
 
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
+#define DSF_IS_VARARGS(c) \
+    ((c)->indexor == VARARGS_FLAG)
+
+#define DSF_ARRAY(c) \
+    (assert(!DSF_IS_VARARGS(c)), (c)->source.array)
+
+#define DSF_INDEX(c) \
+    (assert(!DSF_IS_VARARGS(c)), (c)->indexor == END_FLAG \
+        ? ARRAY_LEN((c)->source.array) : (c)->indexor - 1)
+
 #define DSF_OUT(c)          cast(REBVAL * const, (c)->out) // writable Lvalue
 #define PRIOR_DSF(c)        ((c)->prior)
-#define DSF_ARRAY(c)        cast(REBARR * const, (c)->array) // Lvalue
-#define DSF_EXPR_INDEX(c)   ((c)->expr_index + 0) // Lvalue
 #define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
 #define DSF_FUNC(c)         ((c)->func)
 #define DSF_DSP_ORIG(c)     ((c)->dsp_orig + 0) // Lvalue
@@ -594,7 +982,8 @@ struct Native_Refine {
     #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
 #endif
 
-#define DSF_FRAMELESS(c)    (!(c)->arg)
+#define DSF_FRAMELESS(c) \
+    ((c)->arg ? FALSE : (assert(!DSF_IS_VARARGS(c)), TRUE))
 
 // Note about D_ARGC: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
@@ -622,9 +1011,9 @@ struct Native_Refine {
 
 #define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
 
-// !!! These should perhaps assert that they're only being used when a
-// frameless native is in action.
-//
-#define D_ARRAY         (call_->array)
-#define D_INDEX         (call_->index)
-#define D_VALUE         (call_->value)
+// !!! frameless stuff broken completely by prefetch, but will be easier now
+#define D_CALL      call_
+#define D_ARRAY     (call_->source.array)
+#define D_INDEXOR   (call_->indexor)
+#define D_VALUE     (call_->value)
+

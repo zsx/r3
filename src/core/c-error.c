@@ -1158,11 +1158,28 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
         }
         Val_Init_Block(&error_obj->where, backtrace);
 
-        // Nearby location of the error (in block being evaluated):
+        // Nearby location of the error...
         //
-        Val_Init_Block_Index(
-            &error_obj->nearest, DSF_ARRAY(DSF), DSF_EXPR_INDEX(DSF)
-        );
+        if (DSF_IS_VARARGS(DSF)) {
+            //
+            // !!! There should be a good logic for giving back errors if
+            // the call is originating from C, hence the position is in
+            // system code.  An empty block is not a good answer; what one
+            // could do is finish out the arg enumeration and on-demand
+            // mutate the varargs into a series which could be introspected.
+            //
+            // The assert is a reminder to investigate that mechanism if this
+            // kind of error happens vs. sweep under the rug.  (Will be common
+            // for Ren-C invocations as an API.)
+            //
+            assert(FALSE);
+            Val_Init_Block_Index(&error_obj->nearest, EMPTY_ARRAY, 0);
+        }
+        else {
+            Val_Init_Block_Index(
+                &error_obj->nearest, DSF_ARRAY(DSF), DSF_INDEX(DSF)
+            );
+        }
     }
 
     return error;

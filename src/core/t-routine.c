@@ -1330,7 +1330,8 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         if (!IS_FUNCTION(&fun))
             fail (Error_Invalid_Arg(&fun));
         VAL_CALLBACK_FUNC(out) = VAL_FUNC(&fun);
-        if (NOT_END(&blk[fn_idx]))
+
+        if (fn_idx != END_FLAG)
             fail (Error_Invalid_Arg(&blk[fn_idx]));
 
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);

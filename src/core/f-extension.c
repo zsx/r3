@@ -232,8 +232,14 @@ x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
     SET_TRASH_SAFE(&result);
     c->flags = 0;
     c->out = &result;
-    c->array = DSF_ARRAY(PRIOR_DSF(DSF));
-    c->index = DSF_EXPR_INDEX(PRIOR_DSF(DSF));
+
+    //
+    // !!! This duplicates call frame building and type checking, and should
+    // be adapted to use one of the variations, perhaps Do_Values_At_Core()
+    //
+
+    c->source = PRIOR_DSF(DSF)->source;
+    c->indexor = PRIOR_DSF(DSF)->indexor;
     c->label_sym = name;
     c->func = VAL_FUNC(val);
 
