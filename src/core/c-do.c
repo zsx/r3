@@ -1121,34 +1121,21 @@ void Do_Core(struct Reb_Call * const c)
     //
     if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
 
-    // Mark this Reb_Call state as "inert" (e.g. no FUNCTION! or GROUP! eval
-    // in progress that the GC need worry about) and push it to the Do Stack.
-    // If the state transitions to something the GC should start protecting
-    // fields of the Reb_Call for, it will.
+    // Mark this Reb_Call state as "inert" so no no FUNCTION! eval is in
+    // progress that the GC need worry about.
     //
     // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
-    {
-        c->mode = CALL_MODE_0;
+    //
+    c->mode = CALL_MODE_0;
 
-        if (SERIES_FULL(TG_Do_Stack)) Extend_Series(TG_Do_Stack, 8);
-
-        // The Do Stack was seeded with a NULL in the 0 position so that it
-        // is not necessary to check for it being empty before the -1
-        //
-        c->prior = *SERIES_AT(
-            struct Reb_Call*,
-            TG_Do_Stack,
-            SERIES_LEN(TG_Do_Stack) - 1
-        );
-
-        *SERIES_AT(
-            struct Reb_Call*,
-            TG_Do_Stack,
-            SERIES_LEN(TG_Do_Stack)
-        ) = c;
-
-        SET_SERIES_LEN(TG_Do_Stack, SERIES_LEN(TG_Do_Stack) + 1);
-    }
+    // Chain this call onto the call stack.  Note that this is just for
+    // purposes of walking the stack at a given moment...since the call frames
+    // are blown away by longjmp (for instance) there will be no opportunity
+    // to use this list for cleanup.  Tracking information for any structures
+    // that need cleanup must be done separately.
+    //
+    c->prior = TG_Do_Stack;
+    TG_Do_Stack = c;
 
 #if !defined(NDEBUG)
     //
@@ -2447,12 +2434,10 @@ return_indexor:
     Do_Exit_Checks_Debug(c);
 #endif
 
-    // Drop this Reb_Call that we pushed at the beginning from the Do Stack
+    // Restore the top of stack (if there is a fail() and associated longjmp,
+    // this restoration will be done by the Drop_Trap helper.)
     //
-    TG_Do_Stack->content.dynamic.len--;
-    assert(c == cast(struct Reb_Call **, TG_Do_Stack->content.dynamic.data)[
-        TG_Do_Stack->content.dynamic.len
-    ]);
+    TG_Do_Stack = c->prior;
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
 }

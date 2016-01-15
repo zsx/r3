@@ -538,8 +538,10 @@ static void Mark_Devices_Deep(void)
 //
 static void Mark_Call_Frames_Deep(void)
 {
-    struct Reb_Call *c =
-        *SERIES_AT(struct Reb_Call*, TG_Do_Stack, SERIES_LEN(TG_Do_Stack) - 1);
+    // The GC must consider all entries, not just those that have been pushed
+    // into active evaluation.
+    //
+    struct Reb_Call *c = TG_Do_Stack;
 
     for (; c != NULL; c = c->prior) {
 

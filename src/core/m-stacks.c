@@ -83,13 +83,10 @@ void Init_Stacks(REBCNT size)
     //
     Set_Root_Series(TASK_STACK, ARRAY_SERIES(DS_Array));
 
-    // Call stack (includes pending functions, parens...)  We seed it with a
-    // NULL in the first spot so that pushes don't have to check for an
-    // empty array.
+    // Call stack (includes pending functions, parens...anything that sets
+    // up a `struct Reb_Call` and calls Do_Core())  Singly linked.
     //
-    TG_Do_Stack = Make_Series(128, sizeof(struct Reb_Call*), MKS_NONE);
-    *SERIES_HEAD(struct Reb_Call*, TG_Do_Stack) = NULL;
-    SET_SERIES_LEN(TG_Do_Stack, 1);
+    TG_Do_Stack = NULL;
 }
 
 
@@ -98,8 +95,7 @@ void Init_Stacks(REBCNT size)
 //
 void Shutdown_Stacks(void)
 {
-    assert(SERIES_LEN(TG_Do_Stack) == 1);
-    Free_Series(TG_Do_Stack);
+    assert(TG_Do_Stack == NULL);
 
     assert(TG_Top_Chunk == cast(struct Reb_Chunk*, &TG_Root_Chunker->payload));
 
