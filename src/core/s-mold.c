@@ -1400,24 +1400,18 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 //
 REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
 {
-    REBINT start = DSP;
-    REBINT n;
+    REBIXO indexor = index;
 
     REB_MOLD mo;
     CLEARS(&mo);
 
     Push_Mold(&mo);
 
-    while (index < ARRAY_LEN(block)) {
-        DO_NEXT_MAY_THROW(index, out, block, index);
-        if (index == THROWN_FLAG)
+    while (indexor != END_FLAG) {
+        DO_NEXT_MAY_THROW(indexor, out, block, indexor);
+        if (indexor == THROWN_FLAG)
             return TRUE;
 
-        // Note: Form_Reduce was one of the motivators for a "mold stack"
-        // (as opposed to mold assuming it could write at the beginning of
-        // the UNI_BUF each time).  Without a mold stack, all the values
-        // had to be reduced into a side structure before any molding started.
-        //
         Mold_Value(&mo, out, FALSE);
     }
 
