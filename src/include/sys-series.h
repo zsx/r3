@@ -379,9 +379,12 @@ struct Reb_Series {
 // Note that series indexing in C is zero based.  So as far as SERIES is
 // concerned, `SERIES_HEAD(t, s)` is the same as `SERIES_AT(t, s, 0)`
 //
+// !!! C++11 note: can't use cast helper here and have the const of an
+// incoming REBVAL be ignored... must use `(old_cast)casting_style`
+//
 
 #define SERIES_AT(t,s,i) \
-    (assert(SERIES_WIDE(s) == sizeof(t)), cast(t*, SERIES_AT_RAW((s), (i))))
+    (assert(SERIES_WIDE(s) == sizeof(t)), (t*)(SERIES_AT_RAW((s), (i))))
 
 #define SERIES_HEAD(t,s) \
     SERIES_AT(t, (s), 0)
@@ -764,9 +767,8 @@ struct Reb_Array {
 
 #define TERM_SERIES(s) \
     Is_Array_Series(s) \
-        ? cast(void, TERM_ARRAY(AS_ARRAY(s))) \
-        : cast( \
-            void, memset(SERIES_AT_RAW(s, SERIES_LEN(s)), 0, SERIES_WIDE(s)))
+        ? (void)TERM_ARRAY(AS_ARRAY(s)) \
+        : (void)memset(SERIES_AT_RAW(s, SERIES_LEN(s)), 0, SERIES_WIDE(s))
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARRAY_SERIES to do it each time.
