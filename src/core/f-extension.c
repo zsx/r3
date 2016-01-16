@@ -199,79 +199,131 @@ x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
 
 /***********************************************************************
 **
-x*/ REBRXT Do_Callback(REBARR *obj, u32 name, RXIARG *rxis, RXIARG *out)
+x*/ REBRXT Do_Callback(RXIARG *out, REBFUN *func, REBCNT label_sym, RXIARG *rxis)
 /*
 **      Given an object and a word id, call a REBOL function.
 **      The arguments are converted from extension format directly
 **      to the data stack. The result is passed back in ext format,
 **      with the datatype returned or zero if there was a problem.
 **
+**      NOTE: This does not appear to be used by the Ren-C core.  It
+**      had to be adapted for the unified prefetch evaluator.  The
+**      method it uses is just to build an array to use in the call,
+**      see notes on Redo_Func_Throws() for a similar implementation.
+**
 ***********************************************************************/
 {
-    REBVAL *val;
-    struct Reb_Call call;
-    struct Reb_Call * const c = &call;
-    REBCNT len;
+    // Upper bound on the length of the args we might need for an
+    // invocation is the total number of parameters (if it had no
+    // refinements or locals).
+    //
+    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(func));
+    REBVAL *code = ARRAY_HEAD(code_array);
+
+    // The first element of our path will be the function, followed by its
+    // refinements.  It has an upper bound on length that is to consider the
+    // opposite case where it had only refinements and then the function
+    // at the head...
+    //
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(func) + 1);
+    REBVAL *path = ARRAY_HEAD(path_array);
+    REBVAL first;
+
+    // We'll walk through the original functions params, assuming that the
+    // desire of the caller is based on position of the refinement in the
+    // list (brittle, but that's how R3-Alpha did APPLY!)
+    //
+    REBVAL *param = FUNC_PARAMS_HEAD(func);
+    REBOOL ignoring = FALSE;
+
     REBCNT n;
 
+    REBIXO indexor;
     REBVAL result;
     VAL_INIT_WRITABLE_DEBUG(&result);
 
-    // Find word in object, verify it is a function.
-    if (!(val = Find_Word_Value(AS_CONTEXT(obj), name))) {
-        SET_EXT_ERROR(out, RXE_NO_WORD);
-        return 0;
-    }
-    if (!ANY_FUNC(val)) {
-        SET_EXT_ERROR(out, RXE_NOT_FUNC);
-        return 0;
-    }
+    *path = *FUNC_VALUE(func);
+    ++path;
 
-    // Create stack frame (use prior stack frame for location info):
-    //
-    SET_TRASH_SAFE(&result);
-    c->flags = 0;
-    c->out = &result;
+    for (n = 1; n <= RXI_COUNT(rxis); n++, param++) {
+        REBVAL arg;
+        RXI_To_Value(&arg, rxis[n], RXI_TYPE(rxis, n));
 
-    //
-    // !!! This duplicates call frame building and type checking, and should
-    // be adapted to use one of the variations, perhaps Do_Values_At_Core()
-    //
-
-    c->source = PRIOR_DSF(DSF)->source;
-    c->indexor = PRIOR_DSF(DSF)->indexor;
-    c->label_sym = name;
-    c->func = VAL_FUNC(val);
-
-    Push_New_Arglist_For_Call(c);
-
-    obj = VAL_FUNC_PARAMLIST(val);  // func words
-    len = ARRAY_LEN(obj) - 1;   // number of args (may include locals)
-
-    // Push args. Too short or too long arg frames are handled W/O error.
-    // Note that refinements args can be set to anything.
-    for (n = 1; n <= len; n++) {
-        REBVAL *arg = DSF_ARG(c, n);
-
-        if (n <= RXI_COUNT(rxis))
-            RXI_To_Value(arg, rxis[n], RXI_TYPE(rxis, n));
-        else
-            SET_NONE(arg);
-
-        // Check type for word at the given offset:
-        if (!TYPE_CHECK(ARRAY_AT(obj, n), VAL_TYPE(arg))) {
-            out->i2.int32b = n;
-            SET_EXT_ERROR(out, RXE_BAD_ARGS);
-            Drop_Call_Arglist(c);
-            return 0;
+        if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN)) {
+             //
+             // Pure local... don't add a code arg for it (can't)!
+             //
+             continue;
         }
+
+        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+            if (IS_CONDITIONAL_FALSE(&arg)) {
+                //
+                // If the refinement is not in use, do not add it and ignore
+                // args until the next refinement.
+                //
+                ignoring = TRUE;
+                continue;
+            }
+
+            // In use--and used refinements must be added to the PATH!
+            //
+            ignoring = FALSE;
+            Val_Init_Word_Unbound(path, REB_WORD, VAL_TYPESET_SYM(param));
+            ++path;
+            continue;
+        }
+
+        // Otherwise it should be a quoted or normal argument.  If ignoring
+        // then pass on it, otherwise add the arg to the code as-is.
+        //
+        if (ignoring) continue;
+
+        *code++ = arg;
     }
 
-    // Evaluate the function:
-    if (Dispatch_Call_Throws(c)) {
+    SET_END(code);
+    SET_ARRAY_LEN(code_array, code - ARRAY_HEAD(code_array));
+    MANAGE_ARRAY(code_array);
+
+    SET_END(path);
+    SET_ARRAY_LEN(path_array, path - ARRAY_HEAD(path_array));
+    Val_Init_Array(&first, REB_PATH, path_array); // manages
+
+    // Invoke DO with the special mode requesting non-evaluation on all
+    // args, as they were evaluated the first time around.
+    //
+    indexor = Do_Array_At_Core(
+        &result,
+        &first, // path not in array but will be "virtual" first array element
+        code_array,
+        0, // index
+        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
+    );
+
+    // Used to report a special error on bad args, using the limited checking
+    // that was done when this function filled a call frame.  For now, we
+    // assume that the ordinary line of failure will suffice.  If not, it
+    // could be trapped.
+    //
+    /* SET_EXT_ERROR(out, RXE_BAD_ARGS); */
+
+    if (indexor != THROWN_FLAG && indexor != END_FLAG) {
+        //
+        // We may not have stopped the invocation by virtue of the args
+        // all not getting consumed, but we can raise an error now that it
+        // did not.
+        //
+        assert(FALSE);
+        fail (Error(RE_MISC));
+    }
+
+    if (indexor == THROWN_FLAG) {
+        //
         // !!! Does this need handling such that there is a way for the thrown
         // value to "bubble up" out of the callback, or is an error sufficient?
-        fail (Error_No_Catch_For_Throw(DSF_OUT(c)));
+        //
+        fail (Error_No_Catch_For_Throw(&result));
     }
 
     // Return resulting value from output
@@ -295,6 +347,7 @@ REBNATIVE(do_callback)
     RXICBI *cbi;
     REBVAL *event = D_ARG(1);
     REBCNT n;
+    REBVAL *val;
 
     // Sanity checks:
     if (VAL_EVENT_TYPE(event) != EVT_CALLBACK)
@@ -302,7 +355,19 @@ REBNATIVE(do_callback)
     if (!(cbi = cast(RXICBI*, VAL_EVENT_SER(event))))
         return R_NONE;
 
-    n = Do_Callback(cbi->obj, cbi->word, cbi->args, &(cbi->result));
+    // Find word in object, verify it is a function
+    //
+    val = Find_Word_Value(AS_CONTEXT(cbi->obj), cbi->word);
+    if (!val) {
+        SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
+        return 0;
+    }
+    if (!ANY_FUNC(val)) {
+        SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
+        return 0;
+    }
+
+    n = Do_Callback(&cbi->result, VAL_FUNC(val), cbi->word, cbi->args);
 
     SET_FLAG(cbi->flags, RXC_DONE);
 

@@ -52,7 +52,12 @@ extern const REBRXT Reb_To_RXT[REB_MAX];
 extern RXIARG Value_To_RXI(const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
-extern int Do_Callback(REBARR *obj, u32 name, RXIARG *args, RXIARG *result);
+extern int Do_Callback(
+    RXIARG *result,
+    REBFUN *func,
+    REBCNT label_sym,
+    RXIARG *args
+);
 
 
 //
@@ -1259,8 +1264,22 @@ RL_API int RL_Callback(RXICBI *cbi)
     REBEVT evt;
 
     // Synchronous callback?
+    //
     if (!GET_FLAG(cbi->flags, RXC_ASYNC)) {
-        return Do_Callback(cbi->obj, cbi->word, cbi->args, &(cbi->result));
+        //
+        // Find word in object, verify it is a function
+        //
+        REBVAL *val = Find_Word_Value(AS_CONTEXT(cbi->obj), cbi->word);
+        if (!val) {
+            SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
+            return 0;
+        }
+        if (!ANY_FUNC(val)) {
+            SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
+            return 0;
+        }
+
+        return Do_Callback(&cbi->result, VAL_FUNC(val), cbi->word, cbi->args);
     }
 
     CLEARS(&evt);
