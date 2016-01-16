@@ -892,9 +892,9 @@ void Clonify_Function(REBVAL *value)
 
 
 //
-//  Do_Native_Throws: C
+//  Do_Native_Core: C
 //
-REBOOL Do_Native_Throws(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *call_)
 {
     REB_R ret;
 
@@ -933,17 +933,14 @@ REBOOL Do_Native_Throws(struct Reb_Call *call_)
         assert(FALSE);
     }
 
-    // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
-    // check the actions and natives are returning the correct thing.
-    assert(THROWN(D_OUT) == LOGICAL(ret == R_OUT_IS_THROWN));
-    return LOGICAL(ret == R_OUT_IS_THROWN);
+    return ret == R_OUT_IS_THROWN ? CALL_MODE_THROWN : CALL_MODE_0;
 }
 
 
 //
-//  Do_Action_Throws: C
+//  Do_Action_Core: C
 //
-REBOOL Do_Action_Throws(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *call_)
 {
     REBCNT type = VAL_TYPE(D_ARG(1));
     REBACT action;
@@ -964,7 +961,7 @@ REBOOL Do_Action_Throws(struct Reb_Call *call_)
         else
             SET_FALSE(D_OUT);
 
-        return FALSE;
+        return CALL_MODE_0;
     }
 
     action = Value_Dispatch[type];
@@ -1000,17 +997,14 @@ REBOOL Do_Action_Throws(struct Reb_Call *call_)
         assert(FALSE);
     }
 
-    // The VAL_OPT_THROWN bit is being eliminated, but used temporarily to
-    // check the actions and natives are returning the correct thing.
-    assert(THROWN(D_OUT) == LOGICAL(ret == R_OUT_IS_THROWN));
-    return LOGICAL(ret == R_OUT_IS_THROWN);
+    return ret == R_OUT_IS_THROWN ? CALL_MODE_THROWN : CALL_MODE_0;
 }
 
 
 //
-//  Do_Function_Throws: C
+//  Do_Function_Core: C
 //
-REBOOL Do_Function_Throws(struct Reb_Call *c)
+enum Reb_Call_Mode Do_Function_Core(struct Reb_Call *c)
 {
     Eval_Functions++;
 
@@ -1045,19 +1039,19 @@ REBOOL Do_Function_Throws(struct Reb_Call *c)
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
     if (Do_At_Throws(c->out, FUNC_BODY(c->func), 0))
-        return TRUE; // throw wasn't for us...
+        return CALL_MODE_THROWN;
 
-    return FALSE;
+    return CALL_MODE_0;
 }
 
 
 //
-//  Do_Closure_Throws: C
+//  Do_Closure_Core: C
 // 
 // Do a closure by cloning its body and rebinding it to
 // a new frame of words/values.
 //
-REBOOL Do_Closure_Throws(struct Reb_Call *c)
+enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
 {
     REBARR *body;
     REBCON *context;
@@ -1139,7 +1133,7 @@ REBOOL Do_Closure_Throws(struct Reb_Call *c)
 
     if (Do_At_Throws(c->out, body, 0)) {
         DROP_GUARD_ARRAY(body);
-        return TRUE; // throw wasn't for us
+        return CALL_MODE_THROWN;
     }
 
     // References to parts of the closure's copied body may still be
@@ -1147,14 +1141,14 @@ REBOOL Do_Closure_Throws(struct Reb_Call *c)
     //
     DROP_GUARD_ARRAY(body);
 
-    return FALSE;
+    return CALL_MODE_0;
 }
 
 
 //
-//  Do_Routine_Throws: C
+//  Do_Routine_Core: C
 //
-REBOOL Do_Routine_Throws(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Routine_Core(struct Reb_Call *call_)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         D_ARGC > 0 ? D_ARG(1) : NULL,
@@ -1165,7 +1159,7 @@ REBOOL Do_Routine_Throws(struct Reb_Call *call_)
 
     Free_Array(args);
 
-    return FALSE; // You cannot "throw" a Rebol value across an FFI boundary
+    return CALL_MODE_0; // Cannot "throw" a Rebol value across an FFI boundary
 }
 
 
