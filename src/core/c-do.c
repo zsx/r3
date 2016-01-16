@@ -703,150 +703,6 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 }
 
 
-//
-//  Dispatch_Call_Throws: C
-// 
-// Expects call frame to be ready with all arguments fulfilled.
-//
-REBOOL Dispatch_Call_Throws(struct Reb_Call *call_)
-{
-#if !defined(NDEBUG)
-    const REBYTE *label_str = Get_Sym_Name(D_LABEL_SYM);
-#endif
-
-    REBOOL threw;
-
-    // We need to save what the DSF was prior to our execution, and
-    // cannot simply use our frame's prior...because our frame's
-    // prior call frame may be a *pending* frame that we do not want
-    // to put in effect when we are finished.
-    //
-    struct Reb_Call *call_orig = CS_Running;
-    CS_Running = call_;
-
-    assert(DSP == D_DSP_ORIG);
-
-    // Although the Make_Call wrote safe trash into the output and cell slots,
-    // we need to do it again for the dispatch, since the spots are used to
-    // do argument fulfillment into.
-    //
-    SET_TRASH_SAFE(D_OUT);
-    SET_TRASH_SAFE(D_CELL); // !!! maybe unnecessary, does arg filling use it?
-
-    // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
-    // If it's a closure we can't do this, and we must clear out arg and
-    // refine so they don't linger pointing to a frame that may be GC'd
-    // during the call.  The param in the keylist should still be okay.
-    //
-    assert(IS_END(call_->param));
-    call_->refine = NULL;
-    if (IS_CLOSURE(FUNC_VALUE(call_->func)))
-        call_->arg = NULL;
-    else
-        call_->arg = &call_->arglist.chunk[0];
-
-    if (Trace_Flags) Trace_Func(D_LABEL_SYM, FUNC_VALUE(D_FUNC));
-
-    call_->mode = CALL_MODE_FUNCTION;
-
-    switch (VAL_TYPE(FUNC_VALUE(D_FUNC))) {
-    case REB_NATIVE:
-        threw = Do_Native_Throws(call_);
-        break;
-
-    case REB_ACTION:
-        threw = Do_Action_Throws(call_);
-        break;
-
-    case REB_COMMAND:
-        threw = Do_Command_Throws(call_);
-        break;
-
-    case REB_CLOSURE:
-        threw = Do_Closure_Throws(call_);
-        break;
-
-    case REB_FUNCTION:
-        threw = Do_Function_Throws(call_);
-        break;
-
-    case REB_ROUTINE:
-        threw = Do_Routine_Throws(call_);
-        break;
-
-    default:
-        fail (Error(RE_MISC));
-    }
-
-    // A definitional return should only be intercepted if it was for this
-    // particular function invocation.  Definitional return abilities have
-    // been extended to natives and actions, in order to permit stack
-    // control in debug situations (and perhaps some non-debug capabilities
-    // will be discovered as well).
-    //
-    // NOTE: Used to check EXT_FUNC_HAS_RETURN, but the debug scenarios
-    // permit returning from natives or functions/closures without any
-    // notion of definitional return.  See notes on OPT_VALUE_EXIT_FROM.
-    //
-    if (threw && VAL_GET_OPT(D_OUT, OPT_VALUE_EXIT_FROM)) {
-        if (IS_OBJECT(D_OUT)) {
-            //
-            // CLOSURE! doesn't identify itself by its paramlist, but by
-            // the specific identity of instance from its OBJECT! context
-            //
-            if (
-                IS_CLOSURE(FUNC_VALUE(D_FUNC))
-                && VAL_CONTEXT(D_OUT) == AS_CONTEXT(call_->arglist.array)
-            ) {
-                CATCH_THROWN(D_OUT, D_OUT);
-                threw = FALSE;
-            }
-        }
-        else {
-            assert(ANY_FUNC(D_OUT));
-
-            // All other function types identify by paramlist.
-            //
-            // !!! This means that it is not possible to target a specific
-            // instance of a function in a recursive context.  Only the most
-            // recent call will be matched.  This is a technical limitation
-            // of non-CLOSURE!s that is being researched to address.
-            //
-            if (
-                !IS_CLOSURE(FUNC_VALUE(D_FUNC))
-                && VAL_FUNC_PARAMLIST(D_OUT) == FUNC_PARAMLIST(D_FUNC)
-            ) {
-                CATCH_THROWN(D_OUT, D_OUT);
-                threw = FALSE;
-            }
-        }
-    }
-
-    call_->mode = CALL_MODE_0;
-
-    // Function execution should have written *some* actual output value
-    // over the trash that we put in the return slot before the call.
-    //
-    assert(!IS_TRASH_DEBUG(D_OUT));
-
-    assert(VAL_TYPE(D_OUT) < REB_MAX); // cheap check
-    ASSERT_VALUE_MANAGED(D_OUT);
-    assert(threw == THROWN(D_OUT));
-
-    // Remove this call frame from the call stack (it will be dropped from GC
-    // consideration when the args are freed).
-    //
-    CS_Running = call_orig;
-
-    // This may need to free a manual series, so we have to do it before we
-    // run the manuals leak check.
-    //
-    Drop_Call_Arglist(call_);
-
-    return threw;
-}
-
-
 #if !defined(NDEBUG)
 
 #include "debugbreak.h"
@@ -982,6 +838,7 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     VAL_INIT_WRITABLE_DEBUG(&c->cell);
     c->func = cast(REBFUN*, 0xDECAFBAD);
     c->label_sym = SYM_0;
+    c->label_str = "(no current label)";
     c->arglist.array = NULL;
     c->param = cast(REBVAL*, 0xDECAFBAD);
     c->arg = cast(REBVAL*, 0xDECAFBAD);
@@ -1109,6 +966,11 @@ void Do_Core(struct Reb_Call * const c)
     //
     REBCNT do_count;
 #endif
+
+    // It's necessary to track the running call frame (or is it?  could it
+    // be searched and found?  natives have access as a parameter...)
+    //
+    struct Reb_Call *call_orig;
 
     // Definitional Return gives back a "corrupted" REBVAL of a return native,
     // whose body is actually an indicator of the return target.  The
@@ -1296,6 +1158,10 @@ reevaluate:
 
             c->label_sym = VAL_WORD_SYM(c->value);
 
+        #if !defined(NDEBUG)
+            c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+        #endif
+
             // `do_function_maybe_end_ok` expects the function to be in `func`
             // and if it's a definitional return we extract its target
             //
@@ -1372,6 +1238,10 @@ reevaluate:
         // a block, it does not have a name.  Use symbol of its VAL_TYPE
         //
         c->label_sym = SYM_FROM_KIND(VAL_TYPE(c->value));
+
+    #if !defined(NDEBUG)
+        c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+    #endif
 
         // `do_function_maybe_end_ok` expects the function to be in `func`,
         // and if it's a definitional return we need to extract its target.
@@ -2118,13 +1988,151 @@ reevaluate:
             NOTE_THROWING(goto return_indexor);
         }
 
-        // ...but otherwise, we run it (using the common routine that also
-        // powers the Apply for calling functions directly from C varargs)
+
+////////// ACTUAL FUNCTION DISPATCH (formerly Dispatch_Call_Throws)
+//
+// !!! There is a reason this is being integrated directly into what is
+// already the longest function in the source.  (Patience!)
+//
+
+        // We need to save what the DSF was prior to our execution, and
+        // cannot simply use our frame's prior...because our frame's
+        // prior call frame may be a *pending* frame that we do not want
+        // to put in effect when we are finished.
         //
-        if (Dispatch_Call_Throws(c)) {
+        call_orig = CS_Running;
+        CS_Running = c;
+
+        assert(DSP == c->dsp_orig);
+
+        // Although the Make_Call wrote safe trash into the output and cell slots,
+        // we need to do it again for the dispatch, since the spots are used to
+        // do argument fulfillment into.
+        //
+        SET_TRASH_SAFE(c->out);
+        SET_TRASH_SAFE(&c->cell); // !!! unnecessary, does arg filling use it?
+        // !!! Note that cell may go away if a bit more coherence goes through
+
+        // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
+        // If it's a closure we can't do this, and we must clear out arg and
+        // refine so they don't linger pointing to a frame that may be GC'd
+        // during the call.  The param in the keylist should still be okay.
+        //
+        assert(IS_END(c->param));
+        c->refine = NULL;
+        if (IS_CLOSURE(FUNC_VALUE(c->func)))
+            c->arg = NULL;
+        else
+            c->arg = &c->arglist.chunk[0];
+
+        if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
+
+        c->mode = CALL_MODE_FUNCTION;
+
+        // We have to update the mode anyway, so rather than have a separate
+        // `REBOOL threw` we have the sub-routine take care of writing the
+        // mode and then make a special mode for thrown...
+        //
+        switch (VAL_TYPE(FUNC_VALUE(c->func))) {
+        case REB_NATIVE:
+            c->mode = Do_Native_Core(c);
+            break;
+
+        case REB_ACTION:
+            c->mode = Do_Action_Core(c);
+            break;
+
+        case REB_COMMAND:
+            c->mode = Do_Command_Core(c);
+            break;
+
+        case REB_CLOSURE:
+            c->mode = Do_Closure_Core(c);
+            break;
+
+        case REB_FUNCTION:
+            c->mode = Do_Function_Core(c);
+            break;
+
+        case REB_ROUTINE:
+            c->mode = Do_Routine_Core(c);
+            break;
+
+        default:
+            fail (Error(RE_MISC));
+        }
+
+    #if !defined(NDEBUG)
+        assert(c->mode == CALL_MODE_0 || c->mode == CALL_MODE_THROWN);
+        assert(THROWN(c->out) == LOGICAL(c->mode == CALL_MODE_THROWN));
+    #endif
+
+        // A definitional return should only be intercepted if it was for this
+        // particular function invocation.  Definitional return abilities have
+        // been extended to natives and actions, in order to permit stack
+        // control in debug situations (and perhaps some non-debug capabilities
+        // will be discovered as well).
+        //
+        // NOTE: Used to check EXT_FUNC_HAS_RETURN, but the debug scenarios
+        // permit returning from natives or functions/closures without any
+        // notion of definitional return.  See notes on OPT_VALUE_EXIT_FROM.
+        //
+        if (
+            c->mode == CALL_MODE_THROWN
+            && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
+        ) {
+            if (IS_OBJECT(c->out)) {
+                //
+                // CLOSURE! doesn't identify itself by its paramlist, but by
+                // the specific identity of instance from its OBJECT! context
+                //
+                if (
+                    IS_CLOSURE(FUNC_VALUE(c->func))
+                    && VAL_CONTEXT(c->out) == AS_CONTEXT(c->arglist.array)
+                ) {
+                    CATCH_THROWN(c->out, c->out);
+                    c->mode = CALL_MODE_0;
+                }
+            }
+            else {
+                assert(ANY_FUNC(c->out));
+
+                // All other function types identify by paramlist.
+                //
+                // !!! This means that it is not possible to target a specific
+                // instance of a function in a recursive context.  Only the
+                // most recent call will be matched.  This is a limitation
+                // of non-CLOSURE!s that is being researched to address.
+                //
+                if (
+                    !IS_CLOSURE(FUNC_VALUE(c->func))
+                    && VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)
+                ) {
+                    CATCH_THROWN(c->out, c->out);
+                    c->mode = CALL_MODE_0;
+                }
+            }
+        }
+
+        // Remove this call frame from the call stack (it will be dropped
+        // from GC consideration when the args are freed).
+        //
+        CS_Running = call_orig;
+
+        // This may need to free a manual series, so we have to do it before we
+        // run the manuals leak check.
+        //
+        Drop_Call_Arglist(c);
+
+        if (c->mode == CALL_MODE_THROWN) {
             c->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
+
+//
+//
+////////// END ACTUAL FUNCTION DISPATCH (formerly Dispatch_Call_Throws)
+
 
         if (Trace_Flags) Trace_Return(c->label_sym, c->out);
         break;
@@ -2330,6 +2338,10 @@ reevaluate:
             if (ANY_FUNC(c->param) && VAL_GET_EXT(c->param, EXT_FUNC_INFIX)) {
                 c->label_sym = VAL_WORD_SYM(c->value);
 
+            #if !defined(NDEBUG)
+                c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+            #endif
+
                 c->func = VAL_FUNC(c->param);
                 assert(c->func != PG_Return_Func); // return wouldn't be infix
 
@@ -2445,8 +2457,13 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c) {
     if (c->indexor == THROWN_FLAG)
         assert(THROWN(c->out));
 
+    // Function execution should have written *some* actual output value
+    // over the trash that we put in the return slot before the call.
+    //
     assert(!IS_TRASH_DEBUG(c->out));
     assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
+
+    ASSERT_VALUE_MANAGED(c->out);
 }
 
 #endif

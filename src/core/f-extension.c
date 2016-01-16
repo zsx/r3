@@ -598,7 +598,7 @@ bad_func_def:
 
 
 //
-//  Do_Command_Throws: C
+//  Do_Command_Core: C
 // 
 // Evaluates the arguments for a command function and creates
 // a resulting stack frame (struct or object) for command processing.
@@ -608,7 +608,7 @@ bad_func_def:
 //     spec - same as other funcs
 //     body - [ext-obj func-index]
 //
-REBOOL Do_Command_Throws(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Command_Core(struct Reb_Call *call_)
 {
     // All of these were checked above on definition:
     REBVAL *val = ARRAY_HEAD(FUNC_BODY(D_FUNC));
@@ -666,7 +666,7 @@ REBOOL Do_Command_Throws(struct Reb_Call *call_)
         SET_UNSET(D_OUT);
     }
 
-    return FALSE; // There is currently no interface for commands to "throw"
+    return CALL_MODE_0; // no interface to throw, and make CALL_MODE_THROWN
 }
 
 

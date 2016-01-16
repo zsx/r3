@@ -215,7 +215,8 @@ enum Reb_Call_Mode {
     CALL_MODE_SCANNING, // looking for refinements (used out of order)
     CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
     CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
-    CALL_MODE_FUNCTION // running an ANY-FUNCTION!
+    CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
+    CALL_MODE_THROWN    // a function has THROWN and call frame is ending
 };
 
 union Reb_Call_Source {
@@ -464,14 +465,23 @@ struct Reb_Call {
     //
     REBIXO expr_index;
 
+#if !defined(NDEBUG)
+    //
     // `do_count` [INTERNAL, DEBUG, READ-ONLY]
     //
     // The `do_count` represents the expression evaluation "tick" where the
     // Reb_Call is starting its processing.  This is helpful for setting
     // breakpoints on certain ticks in reproducible situations.
     //
-#if !defined(NDEBUG)
     REBCNT do_count;
+
+    // `label_str` [INTERNAL, DEBUG, READ-ONLY]
+    //
+    // Knowing the label symbol is not as handy as knowing the actual string
+    // of the function this call represents (if any).  It is in UTF8 format,
+    // and cast to `char*` to help debuggers that have trouble with REBYTE.
+    //
+    const char *label_str;
 #endif
 };
 
