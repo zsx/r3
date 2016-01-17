@@ -1234,9 +1234,8 @@ struct Reb_Symbol {
 ***********************************************************************/
 
 enum {
-    EXT_WORD_BOUND_NORMAL = 0,      // is bound to a normally GC'd context
-    EXT_WORD_BOUND_FRAME,           // fixed binding to a specific frame
-    EXT_WORD_BOUND_RELATIVE,        // must lookup frame for function instance
+    EXT_WORD_BOUND_SPECIFIC = 0,    // is bound to a normally GC'd context
+    EXT_WORD_BOUND_RELATIVE,        // var is found by combining w/extra info
     EXT_WORD_MAX
 };
 
@@ -1258,10 +1257,9 @@ struct Reb_Any_Word {
     // walked to find the required frame.
     //
     union {
-        REBCON *con; // for EXT_WORD_BOUND_NORMAL
-        // !!! TBD: EXT_WORD_BOUND_FRAME
-        REBFUN *func; // for EXT_WORD_BOUND_RELATIVE
-    } context;
+        REBCON *specific; // for EXT_WORD_BOUND_SPECIFIC
+        REBFUN *relative; // for EXT_WORD_BOUND_RELATIVE
+    } binding;
 
     // Index of word in context (if `context` is not NULL)
     //
@@ -1282,8 +1280,7 @@ struct Reb_Any_Word {
 
 #define IS_WORD_BOUND(v) \
     (assert(ANY_WORD(v)), \
-        VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) \
-        || VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
+        VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
         || VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)) // !!! => test together
 
 #define IS_WORD_UNBOUND(v) \
@@ -1297,42 +1294,42 @@ struct Reb_Any_Word {
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.index)
 #define INIT_WORD_INDEX(v,i) \
-    (assert(!VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) || \
+    (assert(!VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) || \
         SAME_SYM( \
             VAL_WORD_SYM(v), CONTEXT_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
         )), \
         (v)->payload.any_word.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
-    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL)), \
-        (v)->payload.any_word.context.con)
-#define INIT_WORD_CONTEXT(v,c) \
-    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
-        (v)->payload.any_word.context.con = (c))
+    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)), \
+        (v)->payload.any_word.binding.specific)
 
-#define VAL_WORD_FUNC(v) \
-    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
-        (v)->payload.any_word.context.func)
-#define INIT_WORD_FUNC(v,f) \
+#define VAL_WORD_CONTEXT_MAY_REIFY(v) \
+    (assert(ANY_WORD(v)), VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)) \
+        ? (v)->payload.any_word.binding.specific \
+        : Frame_For_Call_May_Reify(Call_For_Relative_Word((v), FALSE), TRUE)
+
+#define INIT_WORD_SPECIFIC(v,context) \
+    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
+        ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context)), \
+        (v)->payload.any_word.binding.specific = (context))
+
+#define INIT_WORD_RELATIVE(v,func) \
     (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_FRAME) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_NORMAL)), \
-        (v)->payload.any_word.context.func = (f))
+        && !VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)), \
+        (v)->payload.any_word.binding.relative = (func))
 
 #define IS_SAME_WORD(v, n) \
     (IS_WORD(v) && VAL_WORD_CANON(v) == n)
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (VAL_CLR_EXT((v), EXT_WORD_BOUND_NORMAL), \
-            VAL_CLR_EXT((v), EXT_WORD_BOUND_FRAME), \
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND_SPECIFIC), \
             VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE))
 #else
     #define UNBIND_WORD(v) \
-        (VAL_CLR_EXT((v), EXT_WORD_BOUND_NORMAL), \
-            VAL_CLR_EXT((v), EXT_WORD_BOUND_FRAME), \
+        (VAL_CLR_EXT((v), EXT_WORD_BOUND_SPECIFIC), \
             VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE), \
             (v)->payload.any_word.index = 0)
 #endif
@@ -1467,28 +1464,16 @@ struct Reb_Typeset {
 //
 
 struct Reb_Any_Context {
-    union {
-        REBCON *con;
-        void* frame; // !!! TBD: frame pointer type goes here!
-    } context;
-
+    REBCON *context;
     REBCON *spec; // optional (currently only used by modules)
     REBARR *body; // optional (currently not used at all)
 };
 
 #define VAL_CONTEXT(v) \
-    (assert(ANY_CONTEXT(v) && !IS_FRAME(v)), \
-        (v)->payload.any_context.context.con)
+    (assert(ANY_CONTEXT(v)), (v)->payload.any_context.context)
 
 #define INIT_VAL_CONTEXT(v,c) \
-    ((v)->payload.any_context.context.con = (c))
-
-#define VAL_FRAME(v) \
-    (assert(IS_FRAME(v)), \
-        (v)->payload.any_context.context.frame)
-
-#define INIT_VAL_FRAME(v,f) \
-    ((v)->payload.any_context.context.frame = (f))
+    ((v)->payload.any_context.context = (c))
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)

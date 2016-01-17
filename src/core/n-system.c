@@ -992,7 +992,8 @@ REBOOL Do_Breakpoint_Throws(
                         if (VAL_TYPE(FUNC_VALUE(call->func)) != REB_CLOSURE)
                             continue;
                         if (
-                            VAL_CONTEXT(target) == AS_CONTEXT(call->arglist.array)
+                            VAL_CONTEXT(target)
+                            == AS_CONTEXT(call->frame.context)
                         ) {
                             // Found a closure matching the target before we
                             // reached a breakpoint, no need to retransmit.
@@ -1241,20 +1242,18 @@ REBNATIVE(resume)
 
         if (IS_OBJECT(FUNC_VALUE(target->func))) {
             //
-            // !!! A CLOSURE! instantiation can be successfully identified
-            // by its frame, as it is a unique object.  Which is good, but
-            // the associated costs suggest another approach which would be
-            // cheaper and applicable to all functions...hence closure is
-            // scheduled to be removed from Ren-C
+            // !!! A CLOSURE! or FUNCTION! instantiation can be successfully
+            // identified by its frame, as it is a unique object.
             //
             Val_Init_Object(
                 ARRAY_AT(instruction, RESUME_INST_TARGET),
-                AS_CONTEXT(target->arglist.array)
+                AS_CONTEXT(target->frame.context)
             );
         }
         else {
-            // See notes on OPT_VALUE_EXIT_FROM regarding non-CLOSURE!s and
-            // their present inability to target arbitrary frames.
+            // See notes on OPT_VALUE_EXIT_FROM regarding non-FUNCTION! and
+            // non-CLOSURE!s and their present inability to target arbitrary
+            // frames.
             //
             *ARRAY_AT(instruction, RESUME_INST_TARGET)
                 = *FUNC_VALUE(target->func);

@@ -297,9 +297,9 @@ void Val_Init_Word_Bound(
     assert(context);
 
     VAL_RESET_HEADER(out, type);
-    VAL_SET_EXT(out, EXT_WORD_BOUND_NORMAL);
+    VAL_SET_EXT(out, EXT_WORD_BOUND_SPECIFIC);
     INIT_WORD_SYM(out, sym);
-    INIT_WORD_CONTEXT(out, context);
+    INIT_WORD_SPECIFIC(out, context);
     INIT_WORD_INDEX(out, index);
 
     assert(ANY_WORD(out));

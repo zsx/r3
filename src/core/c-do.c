@@ -774,6 +774,19 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
         != LOGICAL(c->flags & DO_FLAG_EVAL_ONLY)
     );
 
+    // This flag is managed solely by the frame code; shouldn't come in set
+    //
+    assert(NOT(c->flags & DO_FLAG_FRAME_CONTEXT));
+
+#if !defined(NDEBUG)
+    //
+    // This has to be nulled out in the debug build by the code itself inline,
+    // because sometimes one stackvars call ends and then another starts
+    // before the debug preamble is run.  Give it an initial NULL here though.
+    //
+    c->frame.stackvars = NULL;
+#endif
+
     // Snapshot the "tick count" to assist in showing the value of the tick
     // count at each level in a stack, so breakpoints can be strategically
     // set for that tick based on higher levels than the value you might
@@ -839,7 +852,6 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     c->func = cast(REBFUN*, 0xDECAFBAD);
     c->label_sym = SYM_0;
     c->label_str = "(no current label)";
-    c->arglist.array = NULL;
     c->param = cast(REBVAL*, 0xDECAFBAD);
     c->arg = cast(REBVAL*, 0xDECAFBAD);
     c->refine = cast(REBVAL*, 0xDECAFBAD);
@@ -1748,15 +1760,14 @@ reevaluate:
                     // the thrown value would have to wind up in that case.)
                     //
                     if (DO_VALUE_THROWS(c->out, c->value)) {
-                        Drop_Call_Arglist(c);
-
+                        //
                         // If we have refinements pending on the data
                         // stack we need to balance those...
                         //
                         DS_DROP_TO(c->dsp_orig);
 
                         c->indexor = THROWN_FLAG;
-                        NOTE_THROWING(goto return_indexor);
+                        NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
 
                     *c->arg = *c->out;
@@ -1812,13 +1823,13 @@ reevaluate:
 
                     if (c->indexor == THROWN_FLAG) {
                         *c->out = *c->arg;
-                        Drop_Call_Arglist(c);
 
                         // If we have refinements pending on the data
                         // stack we need to balance those...
                         //
                         DS_DROP_TO(c->dsp_orig);
-                        NOTE_THROWING(goto return_indexor);
+
+                        NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
                 }
                 else
@@ -1937,12 +1948,11 @@ reevaluate:
             // the arglist.
             //
             eval = *DSF_ARGS_HEAD(c);
-            Drop_Call_Arglist(c);
 
-            c->mode = CALL_MODE_0;
             c->eval_fetched = c->value;
             c->value = &eval;
-            goto reevaluate;
+
+            goto drop_call_and_reevaluate;
         }
     #endif
 
@@ -1982,10 +1992,9 @@ reevaluate:
             *c->out = *ARRAY_HEAD(exit_from);
 
             CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
-            Drop_Call_Arglist(c);
 
             c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
+            NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 
 
@@ -2013,17 +2022,14 @@ reevaluate:
         SET_TRASH_SAFE(&c->cell); // !!! unnecessary, does arg filling use it?
         // !!! Note that cell may go away if a bit more coherence goes through
 
-        // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
-        // If it's a closure we can't do this, and we must clear out arg and
-        // refine so they don't linger pointing to a frame that may be GC'd
-        // during the call.  The param in the keylist should still be okay.
-        //
         assert(IS_END(c->param));
         c->refine = NULL;
-        if (IS_CLOSURE(FUNC_VALUE(c->func)))
-            c->arg = NULL;
-        else
-            c->arg = &c->arglist.chunk[0];
+
+        // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
+        // Note that even if the frame becomes "reified" as a context, the
+        // data pointer will still be the same over the stack level lifetime.
+        //
+        c->arg = &c->frame.stackvars[0];
 
         if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
 
@@ -2083,34 +2089,36 @@ reevaluate:
         ) {
             if (IS_OBJECT(c->out)) {
                 //
-                // CLOSURE! doesn't identify itself by its paramlist, but by
-                // the specific identity of instance from its OBJECT! context
+                // This identifies an exit from a *specific* functiion
+                // invocation.  We can only match it if we have a reified
+                // frame context.
                 //
                 if (
-                    IS_CLOSURE(FUNC_VALUE(c->func))
-                    && VAL_CONTEXT(c->out) == AS_CONTEXT(c->arglist.array)
+                    (c->flags & DO_FLAG_FRAME_CONTEXT) &&
+                    VAL_CONTEXT(c->out) == AS_CONTEXT(c->frame.context)
                 ) {
                     CATCH_THROWN(c->out, c->out);
                     c->mode = CALL_MODE_0;
                 }
             }
-            else {
-                assert(ANY_FUNC(c->out));
-
-                // All other function types identify by paramlist.
+            else if (ANY_FUNC(c->out)) {
                 //
-                // !!! This means that it is not possible to target a specific
-                // instance of a function in a recursive context.  Only the
-                // most recent call will be matched.  This is a limitation
-                // of non-CLOSURE!s that is being researched to address.
+                // This identifies an exit from whichever instance of the
+                // function is most recent on the stack.  This can be used
+                // to exit without reifying a frame.  If exiting dynamically
+                // when all that was named was a function, but definitionally
+                // scoped returns should ideally have a trick for having
+                // the behavior of a reified frame without needing to do
+                // so (for now, they use this path in FUNCTION!)
                 //
-                if (
-                    !IS_CLOSURE(FUNC_VALUE(c->func))
-                    && VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)
-                ) {
+                if (VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)) {
                     CATCH_THROWN(c->out, c->out);
                     c->mode = CALL_MODE_0;
                 }
+
+            }
+            else {
+                assert(FALSE); // no other low-level EXIT/FROM supported
             }
         }
 
@@ -2119,15 +2127,61 @@ reevaluate:
         //
         CS_Running = call_orig;
 
-        // This may need to free a manual series, so we have to do it before we
-        // run the manuals leak check.
-        //
-        Drop_Call_Arglist(c);
-
-        if (c->mode == CALL_MODE_THROWN) {
+        if (c->mode == CALL_MODE_THROWN)
             c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
+
+    drop_call_and_reevaluate:
+    drop_call_and_return_thrown:
+        //
+        // The same label is currently used for both these outcomes, and
+        // which happens depends on whether eval_fetched is NULL or not
+        //
+        if (c->flags & DO_FLAG_FRAME_CONTEXT) {
+            Drop_Chunk(ARRAY_HEAD(CONTEXT_VARLIST(c->frame.context)));
+
+            if (ARRAY_GET_FLAG(
+                CONTEXT_VARLIST(c->frame.context), OPT_SER_MANAGED
+            )) {
+                // Context at some point became managed and hence may still
+                // have outstanding references.  The accessible flag should
+                // have been cleared by the drop chunk above.
+                //
+                assert(
+                    !ARRAY_GET_FLAG(
+                        CONTEXT_VARLIST(c->frame.context), OPT_SER_ACCESSIBLE
+                    )
+                );
+            }
+            else {
+                // If nothing happened that might have caused the context to
+                // become managed (e.g. Val_Init_Word() using it or a
+                // Val_Init_Object() for the frame) then the varlist can just
+                // go away...
+                //
+                Free_Array(CONTEXT_VARLIST(c->frame.context));
+            }
         }
+        else
+            Drop_Chunk(c->frame.stackvars);
+
+    #if !defined(NDEBUG)
+        //
+        // There are two entry points to Push_Arglist_For_Call at the moment,
+        // so this can't be done by the debug routine at top of loop.
+        //
+        c->frame.stackvars = NULL;
+    #endif
+
+        // Redundant given above but eval and other cases don't reset it,
+        // so we need to ensure it done here...
+        //
+        c->mode = CALL_MODE_0;
+
+        if (c->eval_fetched)
+            goto reevaluate;
+
+        if (c->indexor == THROWN_FLAG)
+            NOTE_THROWING(goto return_indexor);
 
 //
 //

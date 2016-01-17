@@ -255,17 +255,22 @@ struct Reb_Chunk {
     //
 #endif
 
+    // If this serves as the backing memory for a REBSER array of REBVALs,
+    // then when the data goes away it is necessary to mark that array as
+    // not having its memory any more.  This cannot be managed purely by the
+    // client, because a fail() can longjmp...and the chunk stack needs enough
+    // information stored to find that series to mark.
     //
-    // Pointer to the previous chunk.  We rely upon the fact that the low
-    // bit of this pointer is always 0 in order for it to be an implicit END
-    // for the value array of the previous chunk.
+    REBARR *opt_holder;
+
+    // Pointer to the previous chunk.
     //
     struct Reb_Chunk *prev;
 
     // The `values` is an array whose real size exceeds the struct.  (It is
-    // set to a size of one because it cannot be [0] in C++.)  When the
-    // value pointer is given back to the user, this is how they speak about
-    // the chunk itself.
+    // set to a size of one because it cannot be [0] if the sources wind
+    // up being built as C++.)  When the value pointer is given back to the
+    // user, this is how they speak about the chunk itself.
     //
     // See note above about how the next chunk's `prev` pointer serves as
     // an END marker for this array (which may or may not be necessary for

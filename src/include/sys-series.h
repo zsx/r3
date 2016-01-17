@@ -240,12 +240,20 @@ enum {
     //
     OPT_SER_EXTERNAL = 1 << 8,
 
-    // `OPT_SER_ACCESSIBLE` indicates that the external memory pointed by `->data`
-    // is accessible. This is not check at every access to the `->data` for the
-    // performance consideration, only on those that are known to have possible
-    // external memory storage (currently only struct! could have such serieses)
+    // `OPT_SER_ACCESSIBLE` indicates that the external memory pointed by
+    // `->data` is accessible. This is not checked at every access to the
+    // `->data` for the performance consideration, only on those that are
+    // known to have possible external memory storage.  Currently this is
+    // used for STRUCT! and to note when an OPT_SER_STACK series has had its
+    // stack level popped (there's no data to lookup for words bound to it)
     //
-    OPT_SER_ACCESSIBLE = 1 << 9
+    OPT_SER_ACCESSIBLE = 1 << 9,
+
+    // `OPT_SER_STACK` indicates that this series data lives on the stack.
+    // This is a work in progress to unify objects and function call frames
+    // as a prelude to unifying FUNCTION! and CLOSURE!.
+    //
+    OPT_SER_STACK = 1 << 10
 };
 
 struct Reb_Series_Dynamic {
@@ -954,30 +962,7 @@ struct Reb_Context {
 #define DROP_GUARD_CONTEXT(c) \
     DROP_GUARD_ARRAY(CONTEXT_VARLIST(c))
 
-#ifdef NDEBUG
-    #define MANAGE_CONTEXT(c) \
-        (MANAGE_ARRAY(CONTEXT_VARLIST(c)), \
-            MANAGE_ARRAY(CONTEXT_KEYLIST(c)))
-
-    #define ENSURE_CONTEXT_MANAGED(c) \
-        (ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_MANAGED) \
-            ? NOOP \
-            : MANAGE_CONTEXT(c))
-#else
-    //
-    // Debug build includes testing that the managed state of the context and
-    // its word series is the same for the "ensure" case.  It also adds a
-    // few assert macros.
-    //
-    #define MANAGE_CONTEXT(c) \
-        Manage_Context_Debug(c)
-
-    #define ENSURE_CONTEXT_MANAGED(c) \
-        ((ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_MANAGED) \
-        && ARRAY_GET_FLAG(CONTEXT_KEYLIST(c), OPT_SER_MANAGED)) \
-            ? NOOP \
-            : MANAGE_CONTEXT(c))
-
+#if! defined(NDEBUG)
     #define Panic_Context(c) \
         Panic_Array(CONTEXT_VARLIST(c))
 #endif

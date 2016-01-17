@@ -1054,51 +1054,17 @@ enum Reb_Call_Mode Do_Function_Core(struct Reb_Call *c)
 enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
 {
     REBARR *body;
-    REBCON *context;
+    REBCON *context = Frame_For_Call_May_Reify(c, FALSE);
 
     Eval_Functions++;
 
-    // The head value of a function/closure paramlist should be the value
-    // of the function/closure itself that has that paramlist.
-    //
-#if !defined(NDEBUG)
-    assert(IS_CLOSURE(FUNC_VALUE(c->func)));
-    if (VAL_FUNC_PARAMLIST(FUNC_VALUE(c->func)) != FUNC_PARAMLIST(c->func)) {
-        Panic_Array(VAL_FUNC_PARAMLIST(FUNC_VALUE(c->func)));
-    }
-#endif
-
-    // We will extract the arglist from ownership and manual memory management
-    // by the call, to be used in a GC-managed object frame by the closure.
-    // It will be held alive as long as the call is in effect by the
-    // Reb_Call so that the `arg` pointer will remain valid.
-    //
-    context = AS_CONTEXT(c->arglist.array);
-
-    // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
-    // are going to be switching it to an OBJECT!.
-
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
-    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
-    INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
-    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(c->func));
-    CONTEXT_SPEC(context) = NULL;
-    CONTEXT_BODY(context) = NULL;
-    ASSERT_CONTEXT(context);
-
-    // We do not Manage_Context, because we are reusing a word series here
-    // that has already been managed.  The arglist array was managed when
-    // created and kept alive by Mark_Call_Frames
-    //
-    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
-    ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
-
     // Clone the body of the closure to allow us to rebind words inside
     // of it so that they point specifically to the instances for this
-    // invocation.  (Costly, but that is the mechanics of words.)
+    // invocation.  (Costly, but that is the mechanics of words at the
+    // present time, until true relative binding is implemented.)
     //
     body = Copy_Array_Deep_Managed(FUNC_BODY(c->func));
-    Rebind_Values_Closure_Deep(c->func, context, ARRAY_HEAD(body));
+    Rebind_Values_Closure_Deep(c->func, c->frame.context, ARRAY_HEAD(body));
 
     // !!! repeated code in Do_Function (should disappear in unification)
     //
@@ -1108,7 +1074,10 @@ enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
         // return, the local for this return should so far have just been
         // ensured in last slot...and left unset by any arg filling process.
         //
-        REBVAL *last_arg = CONTEXT_VAR(context, CONTEXT_LEN(context));
+        REBVAL *last_arg = CONTEXT_VAR(
+            c->frame.context,
+            CONTEXT_LEN(c->frame.context)
+        );
 
     #if !defined(NDEBUG)
         REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
@@ -1121,7 +1090,7 @@ enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
         // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
         //
         *last_arg = *ROOT_RETURN_NATIVE;
-        VAL_FUNC_RETURN_FROM(last_arg) = CONTEXT_VARLIST(context);
+        VAL_FUNC_RETURN_FROM(last_arg) = CONTEXT_VARLIST(c->frame.context);
     }
 
     // Protect the body from garbage collection during the course of the

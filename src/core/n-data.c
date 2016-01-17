@@ -291,28 +291,14 @@ REBNATIVE(bind)
         // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(ARG(target)));
-        if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_NORMAL)) {
-            context = VAL_WORD_CONTEXT(ARG(target));
-        }
-        else if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_FRAME)) {
-            //
-            // !!! None of these should exist yet...
-            //
-            assert(FALSE);
-        }
-        else if (VAL_GET_EXT(ARG(target), EXT_WORD_BOUND_RELATIVE)) {
-            //
-            // When FRAME! exists, asking for the binding from a relative
-            // binding will give back a specific FRAME!.  There should not
-            // be any way to get a standalone relatively bound word that
-            // doesn't have a frame to fill it in.
-            //
-            // For now you'll get this by trying to bind via a local or arg.
-            //
-            func = VAL_WORD_FUNC(ARG(target));
-        }
-        else
+        if (IS_WORD_UNBOUND(ARG(target)))
             fail (Error(RE_NOT_BOUND, ARG(target)));
+
+        // The word in hand may be a relatively bound one.  To return a
+        // specific frame, this needs to ensure that the Reb_Call's frame
+        // is a real context, not just a chunk of data.
+        //
+        context = VAL_WORD_CONTEXT_MAY_REIFY(ARG(target));
     }
 
     if (ANY_WORD(ARG(value))) {
@@ -396,13 +382,7 @@ REBNATIVE(bound_q)
     // !!! The decoding will become trickier :-/  A function paramlist is
     // not sufficient to be a FRAME! and identify a specific call...
     //
-    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT(word));
-
-    assert(
-        IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
-            ? IS_FUNCTION(D_OUT)
-            : ANY_CONTEXT(D_OUT)
-    );
+    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT_MAY_REIFY(word));
 
     return R_OUT;
 }
@@ -636,8 +616,8 @@ REBNATIVE(in)
                         context, VAL_WORD_SYM(word), FALSE
                     );
                     if (index != 0) {
-                        VAL_SET_EXT(word, EXT_WORD_BOUND_NORMAL);
-                        INIT_WORD_CONTEXT(word, context);
+                        VAL_SET_EXT(word, EXT_WORD_BOUND_SPECIFIC);
+                        INIT_WORD_SPECIFIC(word, context);
                         INIT_WORD_INDEX(word, index);
                         *D_OUT = *word;
                         return R_OUT;
@@ -664,8 +644,8 @@ REBNATIVE(in)
 
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
     INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
-    VAL_SET_EXT(D_OUT, EXT_WORD_BOUND_NORMAL);
-    INIT_WORD_CONTEXT(D_OUT, context);
+    VAL_SET_EXT(D_OUT, EXT_WORD_BOUND_SPECIFIC);
+    INIT_WORD_SPECIFIC(D_OUT, context);
     INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
 }

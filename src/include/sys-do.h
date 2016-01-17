@@ -113,7 +113,17 @@ enum {
     // Write more comments here when feeling in more of a commenting mood
     //
     DO_FLAG_EVAL_NORMAL = 1 << 5,
-    DO_FLAG_EVAL_ONLY = 1 << 6
+    DO_FLAG_EVAL_ONLY = 1 << 6,
+
+    // Not all function invocations require there to be a persistent frame
+    // that identifies it.  One will be needed if there are going to be
+    // words bound into the frame (in a way that cannot be finessed through
+    // relative binding)
+    //
+    // Note: This flag is not paired, but if it were the alternative would
+    // be DO_FLAG_FRAME_CHUNK...which is the default assumption.
+    //
+    DO_FLAG_FRAME_CONTEXT = 1 << 7
 };
 
 
@@ -206,6 +216,13 @@ enum {
 // in this way is to make it faster and easier to delegate branches in
 // the Do loop--without bearing the overhead of setting up new stack state.
 //
+// A stack-allocated Reb_Call cannot contain anything that can't be freed by
+// the PUSH_TRAP handling implicitly--so no malloc'd members, no cleanup
+// needing imperative code, etc.  Any allocations must be of things that the
+// GC or otherwise will take care of, because a Reb_Call will just vanish
+// if there is an error while it's running that doesn't get trapped inside
+// of it somewhere.
+//
 
 enum Reb_Call_Mode {
     CALL_MODE_0, // no special mode signal
@@ -242,10 +259,11 @@ struct Reb_Call {
 
     // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
     //
-    // A copy of the function value when a call is in effect.  This is needed
-    // to make the function value stable, and not get pulled out from under
-    // the call frame.  That could happen due to a modification of the series
-    // where the evaluating function lived.  At front of struct for alignment.
+    // If a function call is currently in effect, `func` holds a pointer to
+    // the function being run.  Because functions are identified and passed
+    // by a platform pointer as their paramlist REBSER*, you must use
+    // `FUNC_VALUE(c->func)` to get a pointer to a canon REBVAL representing
+    // that function (to examine its function flags, for instance).
     //
     REBFUN *func;
 
@@ -376,21 +394,29 @@ struct Reb_Call {
     //
     REBCNT label_sym;
 
-    // `arglist` [INTERNAL, VALUES MUTABLE and GC-SAFE if FRAMED]
+    // `frame` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "frameless"]
     //
-    // The arglist is an array containing the evaluated arguments with which
-    // a function is being invoked (if it is not frameless).  It will be a
-    // manually-memory managed series which is freed when the call finishes,
-    // or cleaned up in error processing).
+    // The dynamic portion of the call frame has args with which a function is
+    // being invoked (if it is not frameless).  The data is resident in the
+    // "chunk stack".
     //
-    // An exception to this is if `func` is a CLOSURE!.  In that case, it
-    // will take ownership of the constructed array, give it over to GC
-    // management, and set this field to NULL.
+    // If a client of this array is a NATIVE!, then it will access the data
+    // directly by offset index (e.g. `PARAM(3,...)`).  But if it is a
+    // FUNCTION! implemented by the user, it has words for arguments and
+    // locals to access by, and hence a FRAME!.  The frame is like an OBJECT!
+    // but since its data also lives in the chunk stack, words bound into it
+    // won't be able to fetch the data after the call has completed.
+    //
+    // !!! For debugging purposes, it will be necessary to request natives
+    // to not "run framelessly" (though that means not-even-a-chunk frame).
+    // This might also request not to run as "just a chunk" so that the
+    // content of the native frame would be inspectable by words bound into
+    // the frame by the debugger.
     //
     union {
-        REBARR *array;
-        REBVAL *chunk;
-    } arglist;
+        REBCON *context;
+        REBVAL *stackvars;
+    } frame;
 
     // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
     //
@@ -1000,10 +1026,17 @@ struct Native_Refine {
 
 #define DSF_PARAMS_HEAD(c)  FUNC_PARAMS_HEAD((c)->func)
 
+// It's not clear exactly in which situations one might be using this; while
+// it seems that when filling function args you could just assume it hasn't
+// been reified, there may be "pre-reification" in the future, and also a
+// tail call optimization or some other "reuser" of a frame may jump in and
+// reuse a frame that's been reified after its initial "chunk only" state.
+// For now check the flag and don't just assume it's a raw frame.
+//
 #define DSF_ARGS_HEAD(c) \
-    (IS_CLOSURE(FUNC_VALUE((c)->func)) \
-        ? ARRAY_AT((c)->arglist.array, 1) \
-        : &(c)->arglist.chunk[1])
+    (((c)->flags & DO_FLAG_FRAME_CONTEXT) \
+        ? CONTEXT_VARS_HEAD((c)->frame.context) \
+        : &(c)->frame.stackvars[1])
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)
