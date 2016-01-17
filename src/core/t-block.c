@@ -62,6 +62,7 @@ static void No_Nones(REBVAL *arg) {
     }
 }
 
+
 //
 //  MT_Array: C
 // 
@@ -79,8 +80,11 @@ REBOOL MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     REBCNT i;
 
     if (!ANY_ARRAY(data)) return FALSE;
-    if (type >= REB_PATH && type <= REB_LIT_PATH)
-        if (!ANY_WORD(VAL_ARRAY_HEAD(data))) return FALSE;
+    if (type >= REB_PATH && type <= REB_LIT_PATH) {
+        REBVAL *head = VAL_ARRAY_HEAD(data);
+        if (IS_END(head) || !ANY_WORD(head))
+            return FALSE;
+    }
 
     *out = *data++;
     VAL_RESET_HEADER(out, type);
