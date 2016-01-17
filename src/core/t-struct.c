@@ -224,7 +224,7 @@ REBARR *Struct_To_Array(const REBSTU *stu)
 
         /* required field name */
         val = Alloc_Tail_Array(array);
-        Val_Init_Word_Unbound(val, REB_SET_WORD, field->sym);
+        Val_Init_Word(val, REB_SET_WORD, field->sym);
 
         /* required type */
         type_blk = Alloc_Tail_Array(array);
@@ -236,14 +236,14 @@ REBARR *Struct_To_Array(const REBSTU *stu)
             DS_PUSH_NONE;
             nested = DS_TOP;
 
-            Val_Init_Word_Unbound(val, REB_WORD, SYM_STRUCT_TYPE);
+            Val_Init_Word(val, REB_WORD, SYM_STRUCT_TYPE);
             get_scalar(stu, field, 0, nested);
             val = Alloc_Tail_Array(VAL_ARRAY(type_blk));
             Val_Init_Block(val, Struct_To_Array(&VAL_STRUCT(nested)));
 
             DS_DROP;
         } else
-            Val_Init_Word_Unbound(val, REB_WORD, type_to_sym[field->type]);
+            Val_Init_Word(val, REB_WORD, type_to_sym[field->type]);
 
         /* optional dimension */
         if (field->dimension > 1) {

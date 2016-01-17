@@ -834,7 +834,7 @@ REBNATIVE(to_hex)
 
 //  SERIES_LEN(series) = len;
 //  Val_Init_Series(D_OUT, REB_ISSUE, series);
-    Val_Init_Word_Unbound(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
+    Val_Init_Word(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
     return R_OUT;
 }

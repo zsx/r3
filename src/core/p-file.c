@@ -121,7 +121,7 @@ void Ret_Query_File(REBCON *port, REBREQ *file, REBVAL *ret)
     context = Copy_Context_Shallow_Managed(VAL_CONTEXT(info));
 
     Val_Init_Object(ret, context);
-    Val_Init_Word_Unbound(
+    Val_Init_Word(
         CONTEXT_VAR(context, STD_FILE_INFO_TYPE),
         REB_WORD,
         GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE

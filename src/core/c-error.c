@@ -498,12 +498,12 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     // Success! Write category word from the category list context key sym,
     // and specific error ID word from the context key sym within category
     //
-    Val_Init_Word_Unbound(
+    Val_Init_Word(
         type_out,
         REB_WORD,
         CONTEXT_KEY_SYM(categories, SELFISH((code / 100) + 1))
     );
-    Val_Init_Word_Unbound(
+    Val_Init_Word(
         id_out,
         REB_WORD,
         CONTEXT_KEY_SYM(category, SELFISH((code % 100) + 3))
@@ -1152,7 +1152,7 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
             if (call->mode != CALL_MODE_FUNCTION)
                 continue;
 
-            Val_Init_Word_Unbound(
+            Val_Init_Word(
                 Alloc_Tail_Array(backtrace), REB_WORD, DSF_LABEL_SYM(call)
             );
         }
@@ -1237,8 +1237,8 @@ REBCON *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 
     assert(IS_TYPESET(key));
 
-    Val_Init_Word_Unbound(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
-    Val_Init_Word_Unbound(&label, REB_WORD, label_sym);
+    Val_Init_Word(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
+    Val_Init_Word(&label, REB_WORD, label_sym);
 
     return Error(
         (!DSF || DSF->arg ? RE_NO_ARG : -RE_NO_ARG), &label, &key_word, NULL
@@ -1335,7 +1335,7 @@ REBCON *Error_Protected_Key(REBVAL *key)
     VAL_INIT_WRITABLE_DEBUG(&key_name);
 
     assert(IS_TYPESET(key));
-    Val_Init_Word_Unbound(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
+    Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
 
     return Error(RE_LOCKED_WORD, &key_name, NULL);
 }
@@ -1349,7 +1349,7 @@ REBCON *Error_Illegal_Action(REBCNT type, REBCNT action)
     REBVAL action_word;
     VAL_INIT_WRITABLE_DEBUG(&action_word);
 
-    Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+    Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
     return Error(RE_CANNOT_USE, &action_word, Get_Type(type), NULL);
 }
@@ -1363,7 +1363,7 @@ REBCON *Error_Math_Args(enum Reb_Kind type, REBCNT action)
     REBVAL action_word;
     VAL_INIT_WRITABLE_DEBUG(&action_word);
 
-    Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+    Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
     return Error(RE_NOT_RELATED, &action_word, Get_Type(type), NULL);
 }
@@ -1398,8 +1398,8 @@ REBCON *Error_Arg_Type(
     VAL_INIT_WRITABLE_DEBUG(&label_word);
 
     assert(IS_TYPESET(param));
-    Val_Init_Word_Unbound(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
-    Val_Init_Word_Unbound(&label_word, REB_WORD, label_sym);
+    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
+    Val_Init_Word(&label_word, REB_WORD, label_sym);
 
     assert(IS_DATATYPE(arg_type));
     return Error(
@@ -1606,7 +1606,7 @@ REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
         policy = name ? name : 0;
 error:
         if (!policy) {
-            Val_Init_Word_Unbound(DS_TOP, REB_WORD, sym);
+            Val_Init_Word(DS_TOP, REB_WORD, sym);
             policy = DS_TOP;
         }
         fail (Error(errcode, policy));
@@ -1626,7 +1626,7 @@ void Trap_Security(REBCNT flag, REBCNT sym, REBVAL *value)
 {
     if (flag == SEC_THROW) {
         if (!value) {
-            Val_Init_Word_Unbound(DS_TOP, REB_WORD, sym);
+            Val_Init_Word(DS_TOP, REB_WORD, sym);
             value = DS_TOP;
         }
         fail (Error(RE_SECURITY, value));

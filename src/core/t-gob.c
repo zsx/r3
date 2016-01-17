@@ -294,7 +294,7 @@ static REBARR *Gob_Flags_To_Array(REBGOB *gob)
     for (i = 0; Gob_Flag_Words[i]; i += 2) {
         if (GET_GOB_FLAG(gob, Gob_Flag_Words[i+1])) {
             val = Alloc_Tail_Array(array);
-            Val_Init_Word_Unbound(val, REB_WORD, Gob_Flag_Words[i]);
+            Val_Init_Word(val, REB_WORD, Gob_Flag_Words[i]);
         }
     }
 
@@ -627,7 +627,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
 
     for (n = 0; words[n]; n++) {
         val = Alloc_Tail_Array(array);
-        Val_Init_Word_Unbound(val, REB_SET_WORD, words[n]);
+        Val_Init_Word(val, REB_SET_WORD, words[n]);
         vals[n] = Alloc_Tail_Array(array);
         SET_NONE(vals[n]);
     }
@@ -660,7 +660,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
             sym = SYM_EFFECT;
             break;
         }
-        Val_Init_Word_Unbound(val1, REB_SET_WORD, sym);
+        Val_Init_Word(val1, REB_SET_WORD, sym);
         Get_GOB_Var(gob, val1, val);
     }
 

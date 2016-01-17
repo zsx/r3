@@ -163,7 +163,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         VAL_ALL_BITS(val)[2] = arg.i2.int32a;
         break;
     case RXX_SYM:
-        Val_Init_Word_Unbound(val, RXT_To_Reb[type], arg.i2.int32a);
+        Val_Init_Word(val, RXT_To_Reb[type], arg.i2.int32a);
         break;
     case RXX_IMAGE:
         VAL_SERIES(val) = cast(REBSER*, arg.iwh.image);
@@ -645,7 +645,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         if (!IS_COMMAND(func)) {
             REBVAL commandx_word;
             VAL_INIT_WRITABLE_DEBUG(&commandx_word);
-            Val_Init_Word_Unbound(
+            Val_Init_Word(
                 &commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
             );
             fail (Error(RE_EXPECT_VAL, &commandx_word, blk));

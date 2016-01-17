@@ -282,11 +282,11 @@ REBCNT Last_Word_Num(void)
 
 
 //
-//  Val_Init_Word: C
+//  Val_Init_Word_Bound: C
 // 
 // Initialize an ANY-WORD! type with a binding to a context.
 //
-void Val_Init_Word(
+void Val_Init_Word_Bound(
     REBVAL *out,
     enum Reb_Kind type,
     REBCNT sym,
@@ -310,11 +310,12 @@ void Val_Init_Word(
 
 
 //
-//  Val_Init_Word_Unbound: C
+//  Val_Init_Word: C
 // 
-// Initialize a value as a word. Set frame as unbound (no context).
+// Initialize a value as a word. Set frame as unbound--no context.  (See
+// also Val_Init_Word_Bound)
 //
-void Val_Init_Word_Unbound(REBVAL *out, enum Reb_Kind type, REBCNT sym)
+void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBCNT sym)
 {
     assert(sym != SYM_0);
 

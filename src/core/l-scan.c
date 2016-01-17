@@ -1455,7 +1455,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             }
         case TOKEN_WORD:
             if (len == 0) {bp--; goto syntax_error;}
-            Val_Init_Word_Unbound(
+            Val_Init_Word(
                 value,
                 cast(enum Reb_Kind, REB_WORD + (token - TOKEN_WORD)),
                 Make_Word(bp, len)
@@ -1463,9 +1463,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             break;
 
         case TOKEN_REFINE:
-            Val_Init_Word_Unbound(
-                value, REB_REFINEMENT, Make_Word(bp + 1, len - 1)
-            );
+            Val_Init_Word(value, REB_REFINEMENT, Make_Word(bp + 1, len - 1));
             break;
 
         case TOKEN_ISSUE:
@@ -1480,7 +1478,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 REBCNT sym = Scan_Issue(bp + 1, len - 1);
                 if (sym == SYM_0)
                     goto syntax_error;
-                Val_Init_Word_Unbound(value, REB_ISSUE, sym);
+                Val_Init_Word(value, REB_ISSUE, sym);
             }
             break;
 

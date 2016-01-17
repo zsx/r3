@@ -901,9 +901,7 @@ REBNATIVE(set)
                 REBVAL key_name;
                 VAL_INIT_WRITABLE_DEBUG(&key_name);
 
-                Val_Init_Word_Unbound(
-                    &key_name, REB_WORD, VAL_TYPESET_SYM(key)
-                );
+                Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                 fail (Error(RE_NEED_VALUE, &key_name));
             }
 

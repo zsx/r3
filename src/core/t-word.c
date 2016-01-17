@@ -177,7 +177,7 @@ REBTYPE(Word)
             else
                 fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
 
-            Val_Init_Word_Unbound(D_OUT, type, sym);
+            Val_Init_Word(D_OUT, type, sym);
         }
         break;
 

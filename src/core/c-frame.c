@@ -624,7 +624,7 @@ static void Collect_Words_Inner_Loop(
             REBVAL *word;
             binds[VAL_WORD_CANON(value)] = 1;
             word = Alloc_Tail_Array(BUF_COLLECT);
-            Val_Init_Word_Unbound(word, REB_WORD, VAL_WORD_SYM(value));
+            Val_Init_Word(word, REB_WORD, VAL_WORD_SYM(value));
         }
         else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
             Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);

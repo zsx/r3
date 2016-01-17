@@ -499,7 +499,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
 
                 // Alternate between word and value parts of object:
                 if (j == 0) {
-                    Val_Init_Word(
+                    Val_Init_Word_Bound(
                         var,
                         REB_WORD,
                         VAL_TYPESET_SYM(VAL_CONTEXT_KEY(data_value, index)),
@@ -518,9 +518,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                     REBVAL key_name;
                     VAL_INIT_WRITABLE_DEBUG(&key_name);
 
-                    Val_Init_Word_Unbound(
-                        &key_name, REB_WORD, VAL_TYPESET_SYM(key)
-                    );
+                    Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                     fail (Error_Invalid_Arg(&key_name));
                 }
                 j++;
@@ -542,7 +540,7 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                         REBVAL key_name;
                         VAL_INIT_WRITABLE_DEBUG(&key_name);
 
-                        Val_Init_Word_Unbound(
+                        Val_Init_Word(
                             &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                         );
                         fail (Error_Invalid_Arg(&key_name));

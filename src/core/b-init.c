@@ -755,7 +755,7 @@ static void Init_Root_Context(void)
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), OPT_SER_FIXED_SIZE);
 
     // Used by FUNC and CLOS generators: RETURN:
-    Val_Init_Word_Unbound(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
+    Val_Init_Word(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
 
     // Make a series that's just [return:], that is made often in function
     // spec blocks (when the original spec was just []).  Unlike the paramlist
@@ -1175,7 +1175,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
         while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
         n = Make_Word(buf, n);
         val = Get_System(SYS_OPTIONS, field);
-        Val_Init_Word_Unbound(val, REB_WORD, n);
+        Val_Init_Word(val, REB_WORD, n);
     }
     return n;
 }

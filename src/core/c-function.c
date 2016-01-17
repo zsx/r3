@@ -86,9 +86,7 @@ REBARR *List_Func_Words(const REBVAL *func)
             kind = REB_WORD;
         }
 
-        Val_Init_Word_Unbound(
-            Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(typeset)
-        );
+        Val_Init_Word(Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(typeset));
     }
 
     return array;
