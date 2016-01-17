@@ -426,7 +426,6 @@ REBTYPE(Context)
             // the generator choice by the person doing the derivation.
             //
             context = Merge_Contexts_Selfish(src_context, VAL_CONTEXT(arg));
-            MANAGE_CONTEXT(context);
             Val_Init_Object(D_OUT, context);
             return R_OUT;
         }
@@ -580,7 +579,6 @@ REBTYPE(Context)
             Copy_Array_Shallow(CONTEXT_VARLIST(VAL_CONTEXT(value)))
         );
         INIT_CONTEXT_KEYLIST(context, CONTEXT_KEYLIST(VAL_CONTEXT(value)));
-        MANAGE_ARRAY(CONTEXT_VARLIST(context));
         ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
         INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
         if (types != 0) {

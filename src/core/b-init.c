@@ -1442,13 +1442,22 @@ void Init_Core(REBARGS *rargs)
 
     // !!! Have MAKE-BOOT compute # of words
     //
+    // Must manage, else Expand_Context() looks like a leak
+    //
     Lib_Context = Alloc_Context(600);
-    MANAGE_CONTEXT(Lib_Context); // Expand_Context() looks like a leak otherwise
+    MANAGE_ARRAY(CONTEXT_VARLIST(Lib_Context));
+    MANAGE_ARRAY(CONTEXT_KEYLIST(Lib_Context));
+
     VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
     CONTEXT_SPEC(Lib_Context) = NULL;
     CONTEXT_BODY(Lib_Context) = NULL;
+
+    // Must manage, else Expand_Context() looks like a leak
+    //
     Sys_Context = Alloc_Context(50);
-    MANAGE_CONTEXT(Sys_Context); // Expand_Context() looks like a leak otherwise
+    MANAGE_ARRAY(CONTEXT_VARLIST(Sys_Context));
+    MANAGE_ARRAY(CONTEXT_KEYLIST(Sys_Context));
+
     VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
     CONTEXT_SPEC(Sys_Context) = NULL;
     CONTEXT_BODY(Sys_Context) = NULL;

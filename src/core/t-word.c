@@ -63,8 +63,8 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
             if (VAL_WORD_INDEX(a) != VAL_WORD_INDEX(b))
                 return 0;
 
-            if (VAL_GET_EXT(a, EXT_WORD_BOUND_NORMAL)) {
-                if (!VAL_GET_EXT(b, EXT_WORD_BOUND_NORMAL))
+            if (VAL_GET_EXT(a, EXT_WORD_BOUND_SPECIFIC)) {
+                if (!VAL_GET_EXT(b, EXT_WORD_BOUND_SPECIFIC))
                     return 0;
 
                 return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
@@ -74,21 +74,17 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                 if (!VAL_GET_EXT(b, EXT_WORD_BOUND_RELATIVE)) {
                     //
                     // !!! We'll need to be able to compare a relative bound
-                    // word to a frame bound word, but frame bound words do
-                    // not yet exist (at time of writing).
+                    // word to a frame bound word... but for the moment
+                    // the only guesstimation of equality would be if the
+                    // word were equal when considered in the current
+                    // stack level, e.g. a stack-relative comparison...and
+                    // that broken dependency isn't worth hacking in here.
                     //
-                    assert(!VAL_GET_EXT(b, EXT_WORD_BOUND_FRAME));
                     return 0;
                 }
 
-                return (VAL_WORD_FUNC(a) == VAL_WORD_FUNC(b)) ? 1 : 0;
-            }
-
-            if (VAL_GET_EXT(a, EXT_WORD_BOUND_FRAME)) {
-                //
-                // !!! These don't exist yet!
-                //
-                assert(FALSE);
+                return (a->payload.any_word.binding.relative
+                    == b->payload.any_word.binding.relative) ? 1 : 0;
             }
 
             // `a` isn't bound, so it matches if `b` is unbound too.

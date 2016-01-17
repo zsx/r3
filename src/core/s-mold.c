@@ -930,7 +930,21 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
     REBVAL *key = CONTEXT_KEYS_HEAD(VAL_CONTEXT(value));
-    REBVAL *var = CONTEXT_VARS_HEAD(VAL_CONTEXT(value));
+    REBVAL *var;
+
+    if (
+        !ARRAY_GET_FLAG(CONTEXT_VARLIST(VAL_CONTEXT(value)), OPT_SER_STACK) ||
+        ARRAY_GET_FLAG(CONTEXT_VARLIST(VAL_CONTEXT(value)), OPT_SER_ACCESSIBLE)
+    ) {
+        var = CONTEXT_VARS_HEAD(VAL_CONTEXT(value));
+    }
+    else {
+        // If something like a function call has gone of the stack, the data
+        // for the vars will no longer be available.  The keys should still
+        // be good, however.
+        //
+        var = NULL;
+    }
 
     Pre_Mold(value, mold);
 
@@ -945,19 +959,29 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     Append_Value(MOLD_STACK, value);
 
     mold->indent++;
-    for (; !IS_END(key); key++, var++) {
+    for (; !IS_END(key); var ? (++key, ++var) : ++key) {
         if (
-            !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN) &&
-            ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
+            !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)
+            && (
+                !var ||
+                ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
+            )
         ){
             New_Indented_Line(mold);
+
             Append_UTF8(
                 mold->series, Get_Sym_Name(VAL_TYPESET_SYM(key)), -1
             );
+
             Append_Unencoded(mold->series, ": ");
-            if (IS_WORD(var) && !GET_MOPT(mold, MOPT_MOLD_ALL))
-                Append_Codepoint_Raw(mold->series, '\'');
-            Mold_Value(mold, var, TRUE);
+
+            if (var) {
+                if (IS_WORD(var) && !GET_MOPT(mold, MOPT_MOLD_ALL))
+                    Append_Codepoint_Raw(mold->series, '\'');
+                Mold_Value(mold, var, TRUE);
+            }
+            else
+                Append_Unencoded(mold->series, ": --optimized out--");
         }
     }
     mold->indent--;

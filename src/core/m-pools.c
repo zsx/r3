@@ -1536,33 +1536,6 @@ void Manage_Series(REBSER *series)
 }
 
 
-#if !defined(NDEBUG)
-
-//
-//  Manage_Context_Debug: C
-// 
-// Special handler for making sure contexts are managed by the GC,
-// specifically.  If you've poked in a wordlist from somewhere
-// else you might not be able to use this.
-//
-void Manage_Context_Debug(REBCON *context)
-{
-    if (
-        ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MANAGED)
-        != ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED)
-    ) {
-        // Only one of these will trip...
-        ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
-        ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
-    }
-
-    MANAGE_ARRAY(CONTEXT_KEYLIST(context));
-    MANAGE_ARRAY(CONTEXT_VARLIST(context));
-}
-
-#endif
-
-
 //
 //  Is_Value_Managed: C
 // 

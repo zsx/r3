@@ -1145,13 +1145,10 @@ REBNATIVE(exit)
 
         // If a function matches the queried one, use this frame.
         //
-        // !!! When an actual FRAME! type exists to identify specific
-        // instantiations, that should be supported as well.
-        //
         if (
             IS_OBJECT(ARG(target))
-            && IS_CLOSURE(FUNC_VALUE(call->func))
-            && AS_CONTEXT(call->arglist.array) == VAL_CONTEXT(ARG(target))
+            && (call->flags & DO_FLAG_FRAME_CONTEXT)
+            && call->frame.context == VAL_CONTEXT(ARG(target))
         ) {
             break;
         }
@@ -1164,23 +1161,17 @@ REBNATIVE(exit)
     // NULL here means we didn't find a match (either plain exit but no
     // frames higher, or the requested function isn't on the stack.)
     //
+    // !!! Do we need to check?  It costs time, instead we could leave
+    // the error up to the throw.  For the moment it's good to find the
+    // bad exits earlier, but long term it probably shouldn't check here.
+    //
     if (call == NULL)
         fail (Error(RE_INVALID_EXIT));
 
-    if (IS_CLOSURE(FUNC_VALUE(call->func))) {
-        //
-        // CLOSURE! is different because the EXIT_FROM uses the object for
-        // the specific instance as the target.
-        //
-        *D_OUT = *CONTEXT_VALUE(AS_CONTEXT(call->arglist.array));
-    }
-    else {
-        //
-        // !!! Other function types have a problem in that only the most
-        // recent call frame will be exited, this is to be fixed.
-        //
+    if (call->flags & DO_FLAG_FRAME_CONTEXT)
+        *D_OUT = *CONTEXT_VALUE(call->frame.context);
+    else
         *D_OUT = *FUNC_VALUE(call->func);
-    }
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE);
 

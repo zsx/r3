@@ -191,7 +191,7 @@ void Expand_Stack(REBCNT amount)
 // always has its low bit clear (pointers are not odd on 99% of architectures,
 // this is checked by an assertion).
 //
-REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
+REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
 
     struct Reb_Chunk *chunk;
@@ -294,6 +294,8 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
 
     chunk->prev = TG_Top_Chunk;
 
+    chunk->opt_holder = NULL;
+
     TG_Top_Chunk = chunk;
 
 #if !defined(NDEBUG)
@@ -333,6 +335,17 @@ void Drop_Chunk(REBVAL values[])
     // containing the chunk pointer has been longjmp'd past into oblivion.)
     //
     assert(!values || CHUNK_FROM_VALUES(values) == chunk);
+
+    if (chunk->opt_holder) {
+        assert(
+            ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_EXTERNAL)
+            && ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_STACK)
+            && ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_ARRAY)
+        );
+        assert(ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_ACCESSIBLE));
+        ARRAY_CLR_FLAG(chunk->opt_holder, OPT_SER_ACCESSIBLE);
+        ARRAY_SERIES(chunk->opt_holder)->content.dynamic.data = NULL; // debug?
+    }
 
     // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;
@@ -396,10 +409,10 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     REBCNT num_slots; // args and other key/value slots (e.g. func value in 0)
 
     // Should not already have an arglist.  We zero out the union field for
-    // the series, so that's the one we should check.
+    // the chunk, so that's the one we should check.
     //
 #if !defined(NDEBUG)
-    assert(!c->arglist.array);
+    assert(!c->frame.stackvars);
 #endif
 
     // `num_vars` is the total number of elements in the series, including the
@@ -412,61 +425,27 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // slot long, because function frames start with the value of the
     // function in slot 0.
     //
-    // We use the chunk stack unless we are making an ordinary user function
-    // (what R3-Alpha called a CLOSURE!)  In that case, we make a series.
-    // CLOSURE! will wind up managing this series and taking it over.
+    // We start by allocating the data for the args and locals on the chunk
+    // stack.  However, this can be "promoted" into being the data for a
+    // frame context if it becomes necessary to refer to the variables
+    // via words or an object value.  That object's data will still be this
+    // chunk, but the chunk can be freed...so the words can't be looked up.
     //
-    // !!! Though it may seem expensive to create this array, it may be that
-    // 0, 1, or 2-element arrays will be very cheap to make in the future.
+    // Note that chunks implicitly have an END at the end; no need to
+    // put one there.
     //
-    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
-        c->arglist.array = Make_Array(num_slots);
-        SET_ARRAY_LEN(c->arglist.array, num_slots);
-        SET_END(ARRAY_AT(c->arglist.array, num_slots));
-        slot = ARRAY_HEAD(c->arglist.array);
+    c->frame.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
+    c->flags &= ~DO_FLAG_FRAME_CONTEXT; // clear flag - it's just the chunk
 
-        // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
-        // be marked safe from GC.  It is managed because the pointer makes
-        // its way into bindings that ANY-WORD! values may have, and they
-        // need to not crash.
-        //
-        // !!! Note that theoretically pending mode arrays do not need GC
-        // access as no running could could get them, but the debugger is
-        // able to access this information.  GC protection for pending
-        // frames could be issued on demand by the debugger, however.
-        //
-        MANAGE_ARRAY(c->arglist.array);
-
-        // We have to set the lock flag on the series as long as it is on
-        // the stack.  This means that no matter what cleverness the GC
-        // might think it can do shuffling data around, the closure frame
-        // is not a candidate for this cleverness.
-        //
-        // !!! Review the overall philosophy of not allowing the frame of
-        // functions/closures to grow.  It is very likely a good idea, but
-        // there may be reasons to introduce some kind of flexibility.
-        //
-        ARRAY_SET_FLAG(c->arglist.array, OPT_SER_FIXED_SIZE);
-    }
-    else {
-        // Same as above, but in a raw array vs. a series.  Note that chunks
-        // implicitly have an END at the end; no need to put one there.
-        //
-        c->arglist.chunk = Push_Ended_Trash_Chunk(num_slots);
-        slot = &c->arglist.chunk[0];
-    }
-
-    // This will be a function or closure frame, and we always have the
-    // 0th element set to the value of the function itself.  This allows
-    // the single REBSER* to be able to lead us back to access the entire
-    // REBVAL worth of information.
+    // !!! The [0] slot is not used for anything unless the context becomes
+    // reified.  Is there some property that would be meaningful to keep track
+    // of, but only in frames that have not been reified?  Put GC safe trash
+    // there to "leave it blank" so chunk stack walk won't crash, but consider
+    // if there's anything useful for this space.
     //
-    // !!! Review to see if there's a cheap way to put the closure frame
-    // here instead of the closure function value, as Do_Closure_Throws()
-    // is just going to overwrite this slot.
-    //
-    *slot = *FUNC_VALUE(c->func);
-    slot++;
+    slot = &c->frame.stackvars[0];
+    SET_TRASH_SAFE(slot);
+    ++slot;
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
     // and Apply_Block as they go along.  But the frame has to survive
@@ -504,51 +483,119 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 
 
 //
-//  Drop_Call_Arglist: C
-// 
-// Free a call frame's arglist series.  These are done in a stack, so the
-// call being dropped needs to be the last one pushed.
+//  Frame_For_Call: C
 //
-// NOTES:
+// A Reb_Call does not allocate a REBSER for its frame to be used in the
+// context by default.  But one can be allocated on demand, even for a NATIVE!
+// in order to have a binding location for the debugger (for instance).
+// If it becomes necessary to create words bound into the frame that is
+// another case where the frame needs to be brought into existence.
 //
-// * If a FAIL occurs this function will *not* be called, because a longjmp
-//   will skip the code that would have called it.  The stack-allocated
-//   Reb_Call cannot contain anything that can't be freed by the PUSH_TRAP
-//   handling implicitly--so no malloc'd members, no cleanup needing imperative
-//   code, etc.  (The arglist stack pointer is tracked so it is covered.)
+// If there's already a frame this will return it, otherwise create it.
 //
-// * If a THROW occurs during argument acquisition, then this routine will be
-//   called to free the arglist.  But it may not have reached dispatch for
-//   the call, so nothing can be checked here that assumes it did.
-//
-void Drop_Call_Arglist(struct Reb_Call* c)
+REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
 {
-    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
+    REBCON *context;
+    struct Reb_Chunk *chunk;
+
+    if (c->flags & DO_FLAG_FRAME_CONTEXT)
+        return c->frame.context;
+
+    if (DSF_FRAMELESS(c)) {
         //
-        // Nothing to do, array was managed.
+        // Cannot get a frame for a frameless native.  Suggest running in
+        // debug mode.
         //
-        // !!! Impending plan to merge approaches, so REBSERs can have their
-        // data backed by the stack and then "go bad" from a stack drop
-        // without actually being freed.
+        // !!! Debug mode to disable optimizations not currently hammmered out.
         //
-        ASSERT_ARRAY_MANAGED(c->arglist.array);
-    }
-    else {
-        // For other function types we drop the chunk.  This is not dangerous
-        // for natives/etc. because there is no word binding to "leak" and be
-        // dereferenced after the call.  But FUNCTION! words have some issues
-        // related to this leak.
-        //
-        // !!! Review if a performant FUNCTION!/CLOSURE! unification exists,
-        // to plug this problem with FUNCTION!.
-        //
-        Drop_Chunk(c->arglist.chunk);
+        fail (Error(RE_FRAMELESS_CALL));
     }
 
-#if !defined(NDEBUG)
-    c->arglist.array = NULL;
-    c->arg = cast(REBVAL *, 0xDECAFBAD);
-#endif
+    context = AS_CONTEXT(Make_Series(
+        ARRAY_LEN(FUNC_PARAMLIST(c->func)) + 1, // low level, account for END
+        sizeof(REBVAL),
+        MKS_EXTERNAL // don't alloc (or free) any data, trust us to do it
+    ));
+
+    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ARRAY);
+    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_STACK);
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
+
+    SET_ARRAY_LEN(AS_ARRAY(context), ARRAY_LEN(FUNC_PARAMLIST(c->func)));
+
+    // We have to set the lock flag on the series as long as it is on
+    // the stack.  This means that no matter what cleverness the GC
+    // might think it can do shuffling data around, the closure frame
+    // is not a candidate for this cleverness.
+    //
+    // !!! Review the overall philosophy of not allowing the frame of
+    // functions/closures to grow.  It is very likely a good idea, but
+    // there may be reasons to introduce some kind of flexibility.
+    //
+    ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_FIXED_SIZE);
+
+    // We do not Manage_Context, because we are reusing a word series here
+    // that has already been managed.  The arglist array was managed when
+    // created and kept alive by Mark_Call_Frames
+    //
+    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(c->func));
+    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
+
+    // We do not manage the varlist, because we'd like to be able to free
+    // it *if* nothing happens that causes it to be managed.  Note that
+    // initializing word REBVALs that are bound into it will ensure
+    // managedness, as will creating a REBVAL for it.
+    //
+    if (ensure_managed)
+        ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context));
+    else {
+        // Might there be a version that doesn't ensure but also accepts if
+        // it happens to be managed?  (Current non-ensuring client assumes
+        // it's not managed...
+        //
+        assert(!ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MANAGED));
+    }
+
+    // Give this series the data from what was in the chunk, and make note
+    // of the series in the chunk so that it can be marked as "gone bad"
+    // when that chunk gets freed (could happen during a fail() or when
+    // the stack frame finishes normally)
+    //
+    ARRAY_SERIES(AS_ARRAY(context))->content.dynamic.data
+        = cast(REBYTE*, c->frame.stackvars);
+    chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
+    assert(!chunk->opt_holder);
+    chunk->opt_holder = AS_ARRAY(context);
+    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ACCESSIBLE);
+
+    // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
+    // be marked safe from GC.  It is managed because the pointer makes
+    // its way into bindings that ANY-WORD! values may have, and they
+    // need to not crash.
+    //
+    // !!! Note that theoretically pending mode arrays do not need GC
+    // access as no running could could get them, but the debugger is
+    // able to access this information.  GC protection for pending
+    // frames could be issued on demand by the debugger, however.
+    //
+    // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
+    // are going to be switching it to an OBJECT!.
+    //
+    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
+    INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
+    CONTEXT_SPEC(context) = NULL;
+    CONTEXT_BODY(context) = NULL;
+    ASSERT_CONTEXT(context);
+    c->frame.context = context;
+
+    // Finally we mark the flags to say this contains a valid frame, so that
+    // future calls to this routine will return it instead of making another.
+    // This flag must be cleared when the call is finished (as the Reb_Call
+    // will be blown away if there's an error, no concerns about that).
+    //
+    c->flags |= DO_FLAG_FRAME_CONTEXT;
+
+    return context;
 }
 
 

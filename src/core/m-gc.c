@@ -154,8 +154,24 @@ static void Push_Array_Marked_Deep(REBARR *array)
     }
 #endif
 
-    assert(!ARRAY_GET_FLAG(array, OPT_SER_EXTERNAL));
     assert(ARRAY_GET_FLAG(array, OPT_SER_ARRAY));
+
+    if (ARRAY_GET_FLAG(array, OPT_SER_STACK)) {
+        //
+        // If the array's storage was on the stack and that stack level has
+        // been popped, its data has been nulled out, and the series only
+        // exists for to keep words or objects holding it from crashing.
+        //
+        if (!ARRAY_GET_FLAG(array, OPT_SER_ACCESSIBLE))
+            return;
+    }
+    else {
+        // There are no other examples currently of "external" series (ones
+        // that don't have their memory managed by the series) besides the
+        // stack that are value-bearing at this time--may change.
+        //
+        assert(!ARRAY_GET_FLAG(array, OPT_SER_EXTERNAL));
+    }
 
     // set by calling macro (helps catch direct calls of this function)
     assert(ARRAY_GET_FLAG(array, OPT_SER_MARK));
@@ -618,17 +634,27 @@ static void Mark_Call_Frames_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (IS_CLOSURE(FUNC_VALUE(c->func))) {
-            QUEUE_MARK_ARRAY_DEEP(c->arglist.array);
+        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)) {
+            //
+            // Optimized native: it didn't need a variable-sized chunk
+            // allocated for its args and locals because it was able to do
+            // its work just processing the block input directly.  So nothing
+            // in `c->frame` to GC protect.
+            //
         }
-        else if (!VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)) {
+        else if (c->flags & DO_FLAG_FRAME_CONTEXT) {
             //
-            // The arglist chunk may be NULL for a "frameless" native, but if
-            // it isn't we walk the data in the chunk.
+            // Though a Reb_Call starts off with just a chunk of memory, it
+            // may be promoted to a context (backed by a data pointer of
+            // that chunk of memory).
             //
-            REBVAL *arg = c->arglist.chunk;
-            for (; NOT_END(arg); ++arg)
-                Queue_Mark_Value_Deep(arg);
+            QUEUE_MARK_CONTEXT_DEEP(c->frame.context);
+        }
+        else  {
+            // If it's just sequential REBVALs sitting in memory in the chunk
+            // stack, then the chunk stack walk already took care of it.
+            // (the chunk stack can be used for things other than the call
+            // stack, so long as they are stack-like in a call relative way)
         }
 
         // `param`, and `refine` may both be NULL
@@ -769,15 +795,9 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             // All bound words should keep their contexts from being GC'd...
             // even stack-relative contexts for functions.
             //
-            if (VAL_GET_EXT(val, EXT_WORD_BOUND_NORMAL)) {
+            if (VAL_GET_EXT(val, EXT_WORD_BOUND_SPECIFIC)) {
                 REBCON* context = VAL_WORD_CONTEXT(val);
                 QUEUE_MARK_CONTEXT_DEEP(context);
-            }
-            else if (VAL_GET_EXT(val, EXT_WORD_BOUND_FRAME)) {
-                //
-                // !!! These don't exist yet (but soon, will...)
-                //
-                assert(FALSE);
             }
             else if (VAL_GET_EXT(val, EXT_WORD_BOUND_RELATIVE)) {
                 //
@@ -785,7 +805,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // mark all the function's properties (there is an embedded
                 // function value...)
                 //
-                REBFUN* func = VAL_WORD_FUNC(val);
+                REBFUN* func = val->payload.any_word.binding.relative;
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
             }
             else {

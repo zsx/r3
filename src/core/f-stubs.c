@@ -516,9 +516,20 @@ void Val_Init_Context_Core(
     }
 #endif
 
-    ENSURE_CONTEXT_MANAGED(context);
-
+    // Some contexts (stack frames in particular) start out unmanaged, and
+    // then check to see if an operation like Val_Init_Context set them to
+    // managed.  If not, they will free the context.  This avoids the need
+    // for the garbage collector to have to deal with the series if there's
+    // no reason too.  (See also INIT_WORD_SPECIFIC() for how a word set
+    // up with a binding ensures what it's bound to becomes managed.)
+    //
+    ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context));
     assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
+
+    // Should we assume or assert that all context keylists are "pre-managed"?
+    //
+    /*assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED));*/
+    ENSURE_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
 
 #if !defined(NDEBUG)
     {
