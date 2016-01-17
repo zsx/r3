@@ -1009,7 +1009,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
             }
             if (IS_END(val)) {
                 val = Alloc_Tail_Array(header); // add new word
-                Val_Init_Word_Unbound(val, REB_SET_WORD, sym);
+                Val_Init_Word(val, REB_SET_WORD, sym);
                 val = Alloc_Tail_Array(header); // for new value
                 SET_NONE(val);
             }

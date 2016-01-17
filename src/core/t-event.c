@@ -295,22 +295,16 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
             & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)
         ) {
             REBARR *array = Make_Array(3);
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE)) {
-                Val_Init_Word_Unbound(
-                    Alloc_Tail_Array(array), REB_WORD, SYM_DOUBLE
-                );
-            }
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL)) {
-                arg = Alloc_Tail_Array(array);
-                Val_Init_Word_Unbound(
-                    Alloc_Tail_Array(array), REB_WORD, SYM_CONTROL
-                );
-            }
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT)) {
-                Val_Init_Word_Unbound(
-                    Alloc_Tail_Array(array), REB_WORD, SYM_SHIFT
-                );
-            }
+
+            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE))
+                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_DOUBLE);
+
+            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL))
+                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_CONTROL);
+
+            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT))
+                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_SHIFT);
+
             Val_Init_Block(val, array);
         }
         else
@@ -484,7 +478,7 @@ pick_it:
                 VAL_RESET_HEADER(D_OUT, REB_CHAR);
                 VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
             } else
-                Val_Init_Word(D_OUT, VAL_EVENT_XY(value));
+                Val_Init_Word_Bound(D_OUT, VAL_EVENT_XY(value));
             return R_OUT;
 
         case EF_OFFSET:

@@ -776,7 +776,7 @@ REBARR *Collect_Set_Words(REBVAL *val)
     val2 = ARRAY_HEAD(array);
     for (; NOT_END(val); val++) {
         if (IS_SET_WORD(val))
-            Val_Init_Word_Unbound(val2++, REB_WORD, VAL_WORD_SYM(val));
+            Val_Init_Word(val2++, REB_WORD, VAL_WORD_SYM(val));
     }
     SET_END(val2);
     SET_ARRAY_LEN(array, count);

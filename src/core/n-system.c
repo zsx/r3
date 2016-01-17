@@ -392,9 +392,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     // Might the system use colorization in a value option bit.
     //
     if (pending)
-        Val_Init_Word_Unbound(
-            Alloc_Tail_Array(where), REB_WORD, SYM_ELLIPSIS
-        );
+        Val_Init_Word(Alloc_Tail_Array(where), REB_WORD, SYM_ELLIPSIS);
 
     return where;
 }
@@ -579,7 +577,7 @@ REBNATIVE(backtrace)
                 // to show, then put an `+ ...` in the list and break.
                 //
                 temp = ARRAY_AT(backtrace, --index);
-                Val_Init_Word_Unbound(temp, REB_WORD, SYM_PLUS);
+                Val_Init_Word(temp, REB_WORD, SYM_PLUS);
                 if (!REF(brief)) {
                     //
                     // In the non-/ONLY backtrace, the pairing of the ellipsis
@@ -590,7 +588,7 @@ REBNATIVE(backtrace)
                     // !!! Review arbitrary symbolic choices.
                     //
                     temp = ARRAY_AT(backtrace, --index);
-                    Val_Init_Word_Unbound(temp, REB_WORD, SYM_ASTERISK);
+                    Val_Init_Word(temp, REB_WORD, SYM_ASTERISK);
                     VAL_SET_OPT(temp, OPT_VALUE_LINE); // put on own line
                 }
                 break;
@@ -605,12 +603,12 @@ REBNATIVE(backtrace)
         //
         if (REF(brief)) {
             if (REF(at)) {
-                Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
+                Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
                 return R_OUT;
             }
 
             temp = ARRAY_AT(backtrace, --index);
-            Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
+            Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
             continue;
         }
 
@@ -627,7 +625,7 @@ REBNATIVE(backtrace)
         // error if it can't support multiple queries in one call.
         //
         if (REF(label)) {
-            Val_Init_Word_Unbound(temp, REB_WORD, DSF_LABEL_SYM(call));
+            Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
         }
         else if (REF(function)) {
             *temp = *FUNC_VALUE(DSF_FUNC(call));
@@ -661,7 +659,7 @@ REBNATIVE(backtrace)
                 // Don't want to give arguments for pending frames, they may
                 // be partially constructed or will be revoked
                 //
-                Val_Init_Word_Unbound(temp, REB_WORD, SYM_ELLIPSIS);
+                Val_Init_Word(temp, REB_WORD, SYM_ELLIPSIS);
             }
             else {
                 for (; NOT_END(param); param++, arg++) {
@@ -713,7 +711,7 @@ REBNATIVE(backtrace)
             // as it is partially constructed.  It gets a "*" in the list
             // instead of a number.
             //
-            Val_Init_Word_Unbound(temp, REB_WORD, SYM_ASTERISK);
+            Val_Init_Word(temp, REB_WORD, SYM_ASTERISK);
         }
         else
             SET_INTEGER(temp, number);

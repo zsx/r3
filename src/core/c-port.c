@@ -375,7 +375,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCON *port, REBCNT action)
     if (!n || !actor || !ANY_FUNC(actor)) {
         REBVAL action_word;
         VAL_INIT_WRITABLE_DEBUG(&action_word);
-        Val_Init_Word_Unbound(&action_word, REB_WORD, Get_Action_Sym(action));
+        Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
@@ -542,7 +542,7 @@ REBNATIVE(set_scheme)
         // !!! Because "any word will do", it's just making an args list
         // that looks like [port!]
         //
-        Val_Init_Word_Unbound(
+        Val_Init_Word(
             Alloc_Tail_Array(spec), REB_WORD, SYM_FROM_KIND(REB_PORT)
         );
         MANAGE_ARRAY(spec);

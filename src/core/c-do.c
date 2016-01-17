@@ -1650,7 +1650,7 @@ reevaluate:
                         }
                         else
                     #endif
-                            Val_Init_Word_Unbound(
+                            Val_Init_Word(
                                 c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
                             );
 
@@ -1725,7 +1725,7 @@ reevaluate:
                         }
                         else
                     #endif
-                            Val_Init_Word_Unbound(
+                            Val_Init_Word(
                                 c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
                             );
 
@@ -2862,9 +2862,7 @@ REBOOL Apply_Func_Throws_Core(
             else if (IS_CONDITIONAL_TRUE(c->arg)) {
                 c->mode = CALL_MODE_REFINE_PENDING;
 
-                Val_Init_Word_Unbound(
-                    c->arg, REB_WORD, VAL_TYPESET_SYM(c->param)
-                );
+                Val_Init_Word(c->arg, REB_WORD, VAL_TYPESET_SYM(c->param));
             }
             else {
                 c->mode = CALL_MODE_SKIPPING;

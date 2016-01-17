@@ -396,7 +396,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     // Insert command word:
     if (!GET_FLAG(dia->flags, RDIA_NO_CMD)) {
         val = Alloc_Tail_Array(dia->out);
-        Val_Init_Word(
+        Val_Init_Word_Bound(
             val,
             GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
             CONTEXT_KEY_SYM(dia->dialect, dia->cmd),
