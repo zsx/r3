@@ -291,7 +291,7 @@ REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     context = Construct_Context(type, VAL_ARRAY_AT(data), FALSE, NULL);
 
-    Val_Init_Context(out, type, context, NULL, NULL);
+    Val_Init_Context(out, type, context);
 
     if (type == REB_ERROR) {
         REBVAL result;
@@ -466,14 +466,14 @@ REBTYPE(Context)
             VAL_RESET_HEADER(CONTEXT_VALUE(context), target);
             CONTEXT_SPEC(context) = NULL;
             CONTEXT_BODY(context) = NULL; */
-            Val_Init_Context(D_OUT, target, context, NULL, NULL);
+            Val_Init_Context(D_OUT, target, context);
             return R_OUT;
         }
 
         // make object! map!
         if (IS_MAP(arg)) {
             context = Alloc_Context_From_Map(VAL_MAP(arg));
-            Val_Init_Context(D_OUT, target, context, NULL, NULL);
+            Val_Init_Context(D_OUT, target, context);
             return R_OUT;
         }
         fail (Error_Bad_Make(target, arg));
@@ -522,7 +522,7 @@ REBTYPE(Context)
             // is no way to change the context type to module without wrecking
             // the object passed in.
 
-            context = Copy_Context_Shallow_Managed(VAL_CONTEXT(item + 1));
+            context = Copy_Context_Shallow(VAL_CONTEXT(item + 1));
             VAL_CONTEXT_SPEC(CONTEXT_VALUE(context)) = VAL_CONTEXT(item);
             assert(VAL_CONTEXT_BODY(CONTEXT_VALUE(context)) == NULL);
             VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_MODULE);
@@ -539,12 +539,7 @@ REBTYPE(Context)
                 }
             }
 
-            Val_Init_Module(
-                D_OUT,
-                context,
-                VAL_CONTEXT(item),
-                NULL
-            );
+            Val_Init_Module(D_OUT, context);
             return R_OUT;
         }
         fail (Error_Bad_Make(target, arg));
@@ -589,13 +584,7 @@ REBTYPE(Context)
                 types
             );
         }
-        Val_Init_Context(
-            D_OUT,
-            VAL_TYPE(value),
-            context,
-            VAL_CONTEXT_SPEC(value),
-            VAL_CONTEXT_BODY(value)
-        );
+        Val_Init_Context(D_OUT, VAL_TYPE(value), context);
         return R_OUT;
     }
 
@@ -652,9 +641,7 @@ REBTYPE(Context)
         Val_Init_Context(
             D_OUT,
             VAL_TYPE(value),
-            Trim_Context(VAL_CONTEXT(value)),
-            VAL_CONTEXT_SPEC(value),
-            VAL_CONTEXT_BODY(value)
+            Trim_Context(VAL_CONTEXT(value))
         );
         return R_OUT;
 

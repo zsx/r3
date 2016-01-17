@@ -166,7 +166,7 @@ void Clonify_Values_Len_Managed(
                 assert(!IS_FRAME(value)); // !!! Don't exist yet...
                 INIT_VAL_CONTEXT(
                     value,
-                    Copy_Context_Shallow_Managed(VAL_CONTEXT(value))
+                    Copy_Context_Shallow(VAL_CONTEXT(value))
                 );
                 series = ARRAY_SERIES(CONTEXT_VARLIST(VAL_CONTEXT(value)));
             }

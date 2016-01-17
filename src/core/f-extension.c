@@ -473,7 +473,7 @@ REBNATIVE(load_extension)
     ext->index = Ext_Next++;
 
     // Extension return: dll, info, filename
-    context = Copy_Context_Shallow_Managed(
+    context = Copy_Context_Shallow(
         VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION))
     );
     Val_Init_Object(D_OUT, context);

@@ -889,31 +889,16 @@ struct Reb_Context {
     #define AS_CONTEXT(s)       cast(REBCON*, (s))
 #endif
 
-// In the gradual shift to where FRAME! can be an ANY-CONTEXT (even though
-// it's only one series with its data coming out of the stack) we can
-// discern it based on whether the type in the first slot is an
-// ANY-FUNCTION!.  Should never be a closure.
-//
-#define IS_FRAME_CONTEXT(c) \
-    ARRAY_GET_FLAG(AS_ARRAY(c), OPT_SER_PARAMLIST)
-
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
 #define CONTEXT_VARLIST(c) \
-    (IS_FRAME_CONTEXT(c) \
-        ? NULL /* won't ever have a series...lives in chunk stack */ \
-        : &(c)->varlist)
+    (&(c)->varlist)
 
 #define CONTEXT_KEYLIST(c) \
-    (IS_FRAME_CONTEXT(c) \
-        ? AS_ARRAY(c) \
-        : ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist)
+    (ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist)
 
 #define INIT_CONTEXT_KEYLIST(c,k) \
-    do { \
-        assert(!IS_FRAME_CONTEXT(c)); \
-        ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist = (k); \
-    } while (0)
+    (ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist = (k))
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that

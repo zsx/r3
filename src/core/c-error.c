@@ -542,7 +542,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 static REBCON *Make_Guarded_Arg123_Error(void)
 {
     REBCON *root_error = VAL_CONTEXT(ROOT_ERROBJ);
-    REBCON *error = Copy_Context_Shallow_Extra_Managed(root_error, 3);
+    REBCON *error = Copy_Context_Shallow_Extra(root_error, 3);
     REBVAL *key;
     REBVAL *var;
     REBCNT n;
@@ -564,6 +564,7 @@ static REBCON *Make_Guarded_Arg123_Error(void)
     SET_END(key);
     SET_END(var);
 
+    MANAGE_ARRAY(CONTEXT_VARLIST(error));
     PUSH_GUARD_CONTEXT(error);
     return error;
 }
@@ -673,7 +674,7 @@ REBOOL Make_Error_Object_Throws(
         // Minus the code number and message, this is the default state of
         // root_error if not overridden.
 
-        error = Copy_Context_Shallow_Managed(root_error);
+        error = Copy_Context_Shallow(root_error);
 
         // !!! fix in Init_Errors()?
         //
@@ -906,6 +907,8 @@ REBOOL Make_Error_Object_Throws(
 // return to the caller to properly call va_end with no longjmp
 // to skip it.
 //
+// !!! Result is managed.  See notes at end for why.
+//
 REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
 {
 #if !defined(NDEBUG)
@@ -986,7 +989,7 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
         // just a new varlist to hold this instance's settings. (root
         // error keylist is already managed)
 
-        error = Copy_Context_Shallow_Managed(root_error);
+        error = Copy_Context_Shallow(root_error);
 
         // !!! Should tweak root error during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
@@ -1003,7 +1006,7 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
         // Should the error be well-formed, we'll need room for the new
         // expected values *and* their new keys in the keylist.
         //
-        error = Copy_Context_Shallow_Extra_Managed(root_error, expected_args);
+        error = Copy_Context_Shallow_Extra(root_error, expected_args);
 
         // !!! Should tweak root error during boot so it actually is an ERROR!
         // (or use literal error construction syntax, if it worked?)
@@ -1194,6 +1197,14 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
         }
     }
 
+    // !!! We create errors and then fail() on them without ever putting them
+    // into a REBVAL.  This means that if left unmanaged, they would count as
+    // manual memory that the fail() needed to clean up...but the fail()
+    // plans on reporting this error (!).  In these cases the GC doesn't run
+    // but the cleanup does, so for now manage the error in the hopes it
+    // will be used up quickly.
+    //
+    MANAGE_ARRAY(CONTEXT_VARLIST(error));
     return error;
 }
 

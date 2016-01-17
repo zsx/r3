@@ -50,7 +50,7 @@ static void Ret_Query_Net(REBCON *port, REBREQ *sock, REBVAL *out)
     if (!std_info || !IS_OBJECT(std_info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    info = Copy_Context_Shallow_Managed(VAL_CONTEXT(std_info));
+    info = Copy_Context_Shallow(VAL_CONTEXT(std_info));
 
     Set_Tuple(
         CONTEXT_VAR(info, STD_NET_INFO_LOCAL_IP),
@@ -93,7 +93,7 @@ static void Accept_New_Port(REBVAL *out, REBCON *port, REBREQ *sock)
     nsock->next = 0;
 
     // Create a new port using ACCEPT request passed by sock->common.sock:
-    port = Copy_Context_Shallow_Managed(port);
+    port = Copy_Context_Shallow(port);
     Val_Init_Port(out, port); // Also for GC protect
 
     SET_NONE(CONTEXT_VAR(port, STD_PORT_DATA)); // just to be sure.

@@ -118,7 +118,7 @@ void Ret_Query_File(REBCON *port, REBREQ *file, REBVAL *ret)
     if (!info || !IS_OBJECT(info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    context = Copy_Context_Shallow_Managed(VAL_CONTEXT(info));
+    context = Copy_Context_Shallow(VAL_CONTEXT(info));
 
     Val_Init_Object(ret, context);
     Val_Init_Word(
