@@ -417,9 +417,10 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 //
 REBCON *Make_Std_Object_Managed(REBCNT index)
 {
-    REBCON *context = Copy_Context_Shallow_Managed(
+    REBCON *context = Copy_Context_Shallow(
         VAL_CONTEXT(Get_System(SYS_STANDARD, index))
     );
+    MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
     //
     // !!! Shallow copy... values are all the same and modifications of
@@ -500,64 +501,67 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 //  Val_Init_Context_Core: C
 //
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
-// Only needed in debug build, as
 //
-void Val_Init_Context_Core(
-    REBVAL *out,
-    enum Reb_Kind kind,
-    REBCON *context,
-    REBCON *spec,
-    REBARR *body
-) {
+// A fully constructed context can reconstitute the ANY-CONTEXT! REBVAL that
+// is its canon form from a single pointer...the REBVAL sitting in the 0 slot
+// of the context's varlist.
+//
+void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCON *context) {
+    //
+    // In a debug build we check to make sure the type of the embedded value
+    // matches the type of what is intended (so someone who thinks they are
+    // initializing a REB_OBJECT from a CONTEXT does not accidentally get a
+    // REB_ERROR, for instance.)  It's a point for several other integrity
+    // checks as well.
+    //
 #if !defined(NDEBUG)
+    REBVAL *value = CONTEXT_VALUE(context);
+
+    assert(ANY_CONTEXT(value));
+    assert(CONTEXT_TYPE(context) == kind);
+
+    assert(VAL_CONTEXT(value) == context);
+
     if (!CONTEXT_KEYLIST(context)) {
         Debug_Fmt("Context found with no keylist set");
         Panic_Context(context);
     }
+
+    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
+
+    // !!! Historically spec is a frame of an object for a "module spec",
+    // may want to use another word of that and make a block "spec"
+    //
+    assert(
+        !CONTEXT_SPEC(context)
+        || ARRAY_GET_FLAG(
+            CONTEXT_VARLIST(CONTEXT_SPEC(context)),
+            OPT_SER_CONTEXT
+        )
+    );
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
     // then check to see if an operation like Val_Init_Context set them to
     // managed.  If not, they will free the context.  This avoids the need
     // for the garbage collector to have to deal with the series if there's
-    // no reason too.  (See also INIT_WORD_SPECIFIC() for how a word set
-    // up with a binding ensures what it's bound to becomes managed.)
+    // no reason too.
+    //
+    // Here is a case of where we mark the context as having an extant usage,
+    // so that at minimum this value must become unreachable from the root GC
+    // set before they are GC'd.  For another case, see INIT_WORD_SPECIFIC(),
+    // where an ANY-WORD! can mark a context as in use.
     //
     ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context));
-    assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT));
 
-    // Should we assume or assert that all context keylists are "pre-managed"?
+    // Keylists are different, because they may-or-may-not-be-reused by some
+    // operations.  There needs to be a uniform policy on their management,
+    // or certain routines would return "sometimes managed, sometimes not"
+    // keylist series...a bad invariant.
     //
-    /*assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED));*/
-    ENSURE_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
-
-#if !defined(NDEBUG)
-    {
-        // !!! `value` isn't strictly necessary, but the macro expansions are
-        // fairly long (as they include asserts and such).  C is only required
-        // to support 4095-char strings, so it gets long.  Revisit.
-        //
-        REBVAL *value = CONTEXT_VALUE(context);
-
-        assert(CONTEXT_TYPE(context) == kind);
-        assert(VAL_CONTEXT(value) == context);
-        assert(VAL_CONTEXT_SPEC(value) == spec);
-        assert(VAL_CONTEXT_BODY(value) == body);
-    }
-#endif
-
-    // !!! Historically spec is a frame of an object for a "module spec",
-    // may want to use another word of that and make a block "spec"
-    //
-    assert(!spec || ARRAY_GET_FLAG(CONTEXT_VARLIST(spec), OPT_SER_CONTEXT));
-
-    // !!! Nothing was using the body field yet.
-    //
-    assert(!body);
+    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
 
     *out = *CONTEXT_VALUE(context);
-
-    assert(ANY_CONTEXT(out));
 }
 
 

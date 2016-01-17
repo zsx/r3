@@ -1313,6 +1313,7 @@ struct Reb_Any_Word {
     (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
         && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
         ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context)), \
+        assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED)), \
         (v)->payload.any_word.binding.specific = (context))
 
 #define INIT_WORD_RELATIVE(v,func) \
@@ -1478,27 +1479,6 @@ struct Reb_Any_Context {
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
 #define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
 
-// A fully constructed context can reconstitute the ANY-CONTEXT! REBVAL that is
-// its canon form from a single pointer...the REBVAL sitting in the 0 slot
-// of the context's varlist.  In a debug build we check to make sure the
-// type of the embedded value matches the type of what is intended (so
-// someone who thinks they are initializing a REB_OBJECT from a CONTEXT does
-// not accidentally get a REB_ERROR, for instance.)
-//
-#if 0 && defined(NDEBUG)
-    //
-    // !!! Currently Val_Init_Context_Core does not require the passed in
-    // context to already be managed.  If it did, then it could be this
-    // simple and not be a "bad macro".  Review if it's worthwhile to change
-    // the prerequisite that this is only called on managed contexts.
-    //
-    #define Val_Init_Context(o,t,f,s,b) \
-        (*(o) = *CONTEXT_VALUE(f))
-#else
-    #define Val_Init_Context(o,t,f,s,b) \
-        Val_Init_Context_Core((o), (t), (f), (s), (b))
-#endif
-
 // Convenience macros to speak in terms of object values instead of the context
 //
 #define VAL_CONTEXT_VAR(v,n)        CONTEXT_VAR(VAL_CONTEXT(v), (n))
@@ -1521,8 +1501,8 @@ struct Reb_Any_Context {
 //
 #define SELFISH(n) (n + 1)
 
-#define Val_Init_Object(v,f) \
-    Val_Init_Context((v), REB_OBJECT, (f), NULL, NULL)
+#define Val_Init_Object(v,c) \
+    Val_Init_Context((v), REB_OBJECT, (c))
 
 
 /***********************************************************************
@@ -1536,8 +1516,8 @@ struct Reb_Any_Context {
 #define VAL_MOD_SPEC(v)     VAL_CONTEXT_SPEC(v)
 #define VAL_MOD_BODY(v)     VAL_CONTEXT_BODY(v)
 
-#define Val_Init_Module(v,f,s,b) \
-    Val_Init_Context((v), REB_MODULE, (f), (s), (b))
+#define Val_Init_Module(v,c) \
+    Val_Init_Context((v), REB_MODULE, (c))
 
 
 /***********************************************************************
@@ -1546,8 +1526,8 @@ struct Reb_Any_Context {
 **
 ***********************************************************************/
 
-#define Val_Init_Port(v,f) \
-    Val_Init_Context((v), REB_PORT, (f), NULL, NULL)
+#define Val_Init_Port(v,c) \
+    Val_Init_Context((v), REB_PORT, (c))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1577,8 +1557,8 @@ struct Reb_Any_Context {
 #define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_CONTEXT(v))
 #define VAL_ERR_NUM(v)      ERR_NUM(VAL_CONTEXT(v))
 
-#define Val_Init_Error(o,f) \
-    Val_Init_Context((o), REB_ERROR, (f), NULL, NULL)
+#define Val_Init_Error(v,c) \
+    Val_Init_Context((v), REB_ERROR, (c))
 
 
 /***********************************************************************

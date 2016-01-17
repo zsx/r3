@@ -98,7 +98,7 @@ REBTYPE(Port)
         // vs. making it as a port to begin with (?)  Look into why
         // system/standard/port is made with CONTEXT and not with MAKE PORT!
         //
-        context = Copy_Context_Shallow_Managed(VAL_CONTEXT(arg));
+        context = Copy_Context_Shallow(VAL_CONTEXT(arg));
         VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_PORT);
         Val_Init_Port(D_OUT, context);
         return R_OUT;

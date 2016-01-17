@@ -131,6 +131,7 @@ REBCON *Alloc_Context(REBCNT len)
     //
     CONTEXT_VALUE(context)->payload.any_context.context = context;
     INIT_CONTEXT_KEYLIST(context, keylist);
+    MANAGE_ARRAY(keylist);
 
 #if !defined(NDEBUG)
     //
@@ -206,10 +207,6 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
     REBARR *keylist = CONTEXT_KEYLIST(context);
     REBVAL *value;
 
-    // Cannot append to frames (should this be checked just by FIXED_SIZE?)
-    //
-    assert(!IS_FRAME_CONTEXT(context));
-
     // Add the key to key list
     //
     EXPAND_SERIES_TAIL(ARRAY_SERIES(keylist), 1);
@@ -250,12 +247,12 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
 
 
 //
-//  Copy_Context_Shallow_Extra_Managed: C
+//  Copy_Context_Shallow_Extra: C
 //
 // Makes a copy of a context.  If no extra storage space is requested, then
 // the same keylist will be used.
 //
-REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
+REBCON *Copy_Context_Shallow_Extra(REBCON *src, REBCNT extra) {
     REBCON *dest;
 
     assert(ARRAY_GET_FLAG(CONTEXT_VARLIST(src), OPT_SER_CONTEXT));
@@ -275,7 +272,6 @@ REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
     }
 
     ARRAY_SET_FLAG(CONTEXT_VARLIST(dest), OPT_SER_CONTEXT);
-    MANAGE_ARRAY(CONTEXT_VARLIST(dest));
 
     INIT_VAL_CONTEXT(CONTEXT_VALUE(dest), dest);
 
@@ -288,8 +284,8 @@ REBCON *Copy_Context_Shallow_Extra_Managed(REBCON *src, REBCNT extra) {
 //
 // !!! Make this a macro when there's a place to put it.
 //
-REBCON *Copy_Context_Shallow_Managed(REBCON *src) {
-    return Copy_Context_Shallow_Extra_Managed(src, 0);
+REBCON *Copy_Context_Shallow(REBCON *src) {
+    return Copy_Context_Shallow_Extra(src, 0);
 }
 
 
@@ -771,8 +767,6 @@ REBCON *Make_Selfish_Context_Detect(
             );
             VAL_SET_EXT(CONTEXT_KEY(context, self_index), EXT_TYPESET_HIDDEN);
             Alloc_Tail_Array(CONTEXT_VARLIST(context));
-            MANAGE_ARRAY(CONTEXT_VARLIST(context));
-            MANAGE_ARRAY(CONTEXT_KEYLIST(context));
         }
     }
     else {
@@ -789,7 +783,6 @@ REBCON *Make_Selfish_Context_Detect(
         context = AS_CONTEXT(Make_Array(len));
         ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
         INIT_CONTEXT_KEYLIST(context, keylist);
-        MANAGE_ARRAY(CONTEXT_VARLIST(context));
 
         // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
         //
@@ -861,8 +854,6 @@ REBCON *Make_Selfish_Context_Detect(
     if (opt_parent)
         Rebind_Context_Deep(opt_parent, context, NULL);
 
-    ASSERT_ARRAY_MANAGED(CONTEXT_VARLIST(context));
-    ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(context));
     ASSERT_CONTEXT(context);
 
     return context;
@@ -917,8 +908,6 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
     REBARR *block;
     REBVAL *value;
     REBCNT n;
-
-    assert(!IS_FRAME_CONTEXT(context)); // not currently implemented
 
     assert(!(mode & 4));
     block = Make_Array(CONTEXT_LEN(context) * (mode == 3 ? 2 : 1));
@@ -985,8 +974,11 @@ REBCON *Merge_Contexts_Selfish(REBCON *parent1, REBCON *parent2)
     //
     TERM_ARRAY(BUF_COLLECT);
 
-    // Allocate child (now that we know the correct size):
+    // Allocate child (now that we know the correct size).  Obey invariant
+    // that keylists are always managed.
+    //
     keylist = Copy_Array_Shallow(BUF_COLLECT);
+    MANAGE_ARRAY(keylist);
     child = AS_CONTEXT(Make_Array(ARRAY_LEN(keylist)));
     ARRAY_SET_FLAG(CONTEXT_VARLIST(child), OPT_SER_CONTEXT);
 

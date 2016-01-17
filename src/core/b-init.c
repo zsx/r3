@@ -694,7 +694,11 @@ static void Init_Root_Context(void)
     // (You can't ASSERT_CONTEXT(PG_Root_Context) until that happens.)  The
     // new keylist will be managed so we manage the varlist to match.
     //
-    Free_Array(CONTEXT_KEYLIST(root));
+    // !!! We let it get GC'd, which is a bit wasteful, but the interface
+    // for Alloc_Context() wants to manage the keylist in general.  This
+    // is done for convenience.
+    //
+    /*Free_Array(CONTEXT_KEYLIST(root));*/
     INIT_CONTEXT_KEYLIST(root, NULL);
     MANAGE_ARRAY(CONTEXT_VARLIST(root));
 
@@ -818,7 +822,11 @@ static void Init_Task_Context(void)
     // (You can't ASSERT_CONTEXT(TG_Task_Context) until that happens.)  The
     // new keylist will be managed so we manage the varlist to match.
     //
-    Free_Array(CONTEXT_KEYLIST(task));
+    // !!! We let it get GC'd, which is a bit wasteful, but the interface
+    // for Alloc_Context() wants to manage the keylist in general.  This
+    // is done for convenience.
+    //
+    /*Free_Array(CONTEXT_KEYLIST(task));*/
     INIT_CONTEXT_KEYLIST(task, NULL);
     MANAGE_ARRAY(CONTEXT_VARLIST(task));
 
@@ -949,7 +957,6 @@ static void Init_System_Object(void)
 static void Init_Contexts_Object(void)
 {
     REBVAL *value;
-//  REBCON *context;
 
     value = Get_System(SYS_CONTEXTS, CTX_SYS);
     Val_Init_Object(value, Sys_Context);
@@ -959,12 +966,6 @@ static void Init_Contexts_Object(void)
 
     value = Get_System(SYS_CONTEXTS, CTX_USER);  // default for new code evaluation
     Val_Init_Object(value, Lib_Context);
-
-    // Make the boot context - used to store values created
-    // during boot, but processed in REBOL code (e.g. codecs)
-//  value = Get_System(SYS_CONTEXTS, CTX_BOOT);
-//  context = Alloc_Context(4, TRUE);
-//  Val_Init_Object(value, context);
 }
 
 //
@@ -1446,7 +1447,6 @@ void Init_Core(REBARGS *rargs)
     //
     Lib_Context = Alloc_Context(600);
     MANAGE_ARRAY(CONTEXT_VARLIST(Lib_Context));
-    MANAGE_ARRAY(CONTEXT_KEYLIST(Lib_Context));
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
     CONTEXT_SPEC(Lib_Context) = NULL;
@@ -1456,7 +1456,6 @@ void Init_Core(REBARGS *rargs)
     //
     Sys_Context = Alloc_Context(50);
     MANAGE_ARRAY(CONTEXT_VARLIST(Sys_Context));
-    MANAGE_ARRAY(CONTEXT_KEYLIST(Sys_Context));
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
     CONTEXT_SPEC(Sys_Context) = NULL;

@@ -127,11 +127,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
     REBVAL *key;
     REBVAL *val;
 
-    if (
-        ANY_WORD(word)
-        && IS_WORD_BOUND(word)
-        && !IS_FRAME_CONTEXT(VAL_WORD_CONTEXT(word))
-    ) {
+    if (ANY_WORD(word) && IS_WORD_BOUND(word)) {
         key = CONTEXT_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
