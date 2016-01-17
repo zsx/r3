@@ -362,22 +362,22 @@ REBVAL *In_Object(REBCON *base, ...)
 {
     REBVAL *context = NULL;
     REBCNT n;
-    va_list args;
+    va_list varargs;
 
-    va_start(args, base);
-    while ((n = va_arg(args, REBCNT))) {
+    va_start(varargs, base);
+    while ((n = va_arg(varargs, REBCNT))) {
         if (n > CONTEXT_LEN(base)) {
-            va_end(args);
+            va_end(varargs);
             return NULL;
         }
         context = CONTEXT_VAR(base, n);
         if (!ANY_CONTEXT(context)) {
-            va_end(args);
+            va_end(varargs);
             return NULL;
         }
         base = VAL_CONTEXT(context);
     }
-    va_end(args);
+    va_end(varargs);
 
     return context;
 }

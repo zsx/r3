@@ -48,7 +48,7 @@
 ATTRIBUTE_NO_RETURN void Panic_Core(
     REBCNT id,
     REBCON *opt_error,
-    va_list *args
+    va_list *varargs_ptr
 ) {
     char title[PANIC_TITLE_BUF_SIZE + 1]; // account for null terminator
     char message[PANIC_BUF_SIZE + 1]; // "
@@ -115,11 +115,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
         // !!! These strings currently do not heed arguments, so if they
         // use a format specifier it will be ignored.  Technically it
-        // *may* be possible at some levels of boot to use `args`.  If it
+        // *may* be possible at some levels of boot to use the args.  If it
         // becomes a priority then find a way to safely report them
         // (perhaps a subset like integer!, otherwise just print type #?)
         //
-        assert(args && !opt_error);
+        assert(varargs_ptr && !opt_error);
 
         strncat(
             message, "\n** Boot Error: ", PANIC_BUF_SIZE - strlen(message)
@@ -163,14 +163,14 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         Push_Mold(&mo);
 
         if (opt_error) {
-            assert(!args);
+            assert(!varargs_ptr);
             Val_Init_Error(&error, opt_error);
         }
         else {
             // We aren't explicitly passed a Rebol ERROR! object, but we
             // consider it "safe" to make one since we're past BOOT_ERRORS
 
-            Val_Init_Error(&error, Make_Error_Core(id, FALSE, args));
+            Val_Init_Error(&error, Make_Error_Core(id, FALSE, varargs_ptr));
         }
 
         Mold_Value(&mo, &error, FALSE);

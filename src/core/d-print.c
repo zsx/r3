@@ -551,7 +551,7 @@ void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
 // will not exceed its max size.  No line termination
 // is supplied after the print.
 //
-void Debug_Buf(const char *fmt, va_list *args)
+void Debug_Buf(const char *fmt, va_list *varargs_ptr)
 {
     REBCNT len;
     REBCNT sub;
@@ -565,7 +565,7 @@ void Debug_Buf(const char *fmt, va_list *args)
 
     Push_Mold(&mo);
 
-    Form_Args_Core(&mo, fmt, args);
+    Form_Args_Core(&mo, fmt, varargs_ptr);
 
     bytes = Pop_Molded_UTF8(&mo);
 
@@ -600,10 +600,10 @@ void Debug_Buf(const char *fmt, va_list *args)
 //
 void Debug_Fmt_(const char *fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-    Debug_Buf(fmt, &args);
-    va_end(args);
+    va_list varargs;
+    va_start(varargs, fmt);
+    Debug_Buf(fmt, &varargs);
+    va_end(varargs);
 }
 
 
@@ -801,7 +801,7 @@ REBUNI *Form_Uni_Hex(REBUNI *out, REBCNT n)
 // calls and unicode support.  It simplified the code, at the cost of
 // becoming slightly more "bootstrapped".
 //
-void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *args)
+void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *varargs_ptr)
 {
     REBYTE *cp;
     REBINT pad;
@@ -847,7 +847,7 @@ pick:
             // All va_arg integer arguments will be coerced to platform 'int'
             cp = Form_Int_Pad(
                 buf,
-                cast(REBI64, va_arg(*args, int)),
+                cast(REBI64, va_arg(*varargs_ptr, int)),
                 MAX_SCAN_DECIMAL,
                 pad,
                 padding
@@ -856,7 +856,7 @@ pick:
             break;
 
         case 's':
-            cp = va_arg(*args, REBYTE *);
+            cp = va_arg(*varargs_ptr, REBYTE *);
             if (pad == 1) pad = LEN_BYTES(cp);
             if (pad < 0) {
                 pad = -pad;
@@ -876,7 +876,11 @@ pick:
 
         case 'r':   // use Mold
         case 'v':   // use Form
-            Mold_Value(mo, va_arg(*args, REBVAL *), LOGICAL(desc != 'v'));
+            Mold_Value(
+                mo,
+                va_arg(*varargs_ptr, const REBVAL*),
+                LOGICAL(desc != 'v')
+            );
 
             // !!! This used to "filter out ctrl chars", which isn't a bad
             // idea as a mold option (MOPT_FILTER_CTRL) but it would involve
@@ -895,20 +899,25 @@ pick:
             //
             VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
-            VAL_SERIES(&value) = va_arg(*args, REBSER *);
+            VAL_SERIES(&value) = va_arg(*varargs_ptr, REBSER *);
             VAL_INDEX(&value) = 0;
             Mold_Value(mo, &value, TRUE);
             break;
 
         case 'c':
-            Append_Codepoint_Raw(ser, cast(REBYTE, va_arg(*args, REBINT)));
+            Append_Codepoint_Raw(
+                ser,
+                cast(REBYTE, va_arg(*varargs_ptr, REBINT))
+            );
             break;
 
         case 'x':
             Append_Codepoint_Raw(ser, '#');
             if (pad == 1) pad = 8;
             cp = Form_Hex_Pad(
-                buf, cast(REBU64, cast(REBUPT, va_arg(*args, REBYTE*))), pad
+                buf,
+                cast(REBU64, cast(REBUPT, va_arg(*varargs_ptr, REBYTE*))),
+                pad
             );
             Append_Unencoded_Len(ser, s_cast(buf), cp - buf);
             break;

@@ -221,7 +221,7 @@ enum Reb_Call_Mode {
 
 union Reb_Call_Source {
     REBARR *array;
-    va_list *varargs;
+    va_list *varargs_ptr;
 };
 
 // NOTE: The ordering of the fields in `Reb_Call` are specifically done so
@@ -317,7 +317,7 @@ struct Reb_Call {
     //
     const REBVAL *eval_fetched;
 
-    // source.array, source.varargs [INPUT, READ-ONLY, GC-PROTECTED]
+    // source.array, source.varargs_ptr [INPUT, READ-ONLY, GC-PROTECTED]
     //
     // This is the source from which new values will be fetched.  The most
     // common dispatch of the evaluator is on values that live inside of a
@@ -615,7 +615,7 @@ struct Reb_Call {
             } \
         } \
         else { \
-            (c)->value = va_arg((c)->source.varargs, REBVAL*); \
+            (c)->value = va_arg(*(c)->source.varargs_ptr, const REBVAL*); \
             if (IS_END((c)->value)) { \
                 (c)->value = NULL; \
                 (c)->indexor = END_FLAG; \
