@@ -600,10 +600,10 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 //
 RL_API void RL_Print(const REBYTE *fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-    Debug_Buf(cs_cast(fmt), &args);
-    va_end(args);
+    va_list varargs;
+    va_start(varargs, fmt);
+    Debug_Buf(cs_cast(fmt), &varargs);
+    va_end(varargs);
 }
 
 

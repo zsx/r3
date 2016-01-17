@@ -2552,7 +2552,7 @@ REBIXO Do_Array_At_Core(
 REBIXO Do_Varargs_Core(
     REBVAL *out,
     const REBVAL *opt_first,
-    va_list *varargs,
+    va_list *varargs_ptr,
     REBFLGS flags
 ) {
     struct Reb_Call c;
@@ -2562,7 +2562,7 @@ REBIXO Do_Varargs_Core(
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        c.value = va_arg(varargs, REBVAL*);
+        c.value = va_arg(*varargs_ptr, const REBVAL*);
     }
 
     if (IS_END(c.value)) {
@@ -2572,7 +2572,7 @@ REBIXO Do_Varargs_Core(
 
     c.out = out;
     c.indexor = VARARGS_FLAG;
-    c.source.varargs = varargs;
+    c.source.varargs_ptr = varargs_ptr;
 
     // !!! See notes in %m-gc.c about what needs to be done before it can
     // be safe to let arbitrary evaluations happen in varargs scenarios.
@@ -2678,14 +2678,14 @@ REBVAL *Sys_Func(REBCNT inum)
 REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 {
     REBIXO indexor;
-    va_list args;
+    va_list varargs;
 
 #ifdef VA_END_IS_MANDATORY
     struct Reb_State state;
     REBCON *error;
 #endif
 
-    va_start(args, applicand); // must mention last param before the "..."
+    va_start(varargs, applicand); // must mention last param before the "..."
 
 #ifdef VA_END_IS_MANDATORY
     PUSH_TRAP(&error, &state);
@@ -2694,7 +2694,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        va_end(args); // interject cleanup of whatever va_start() set up...
+        va_end(varargs); // interject cleanup of whatever va_start() set up...
         fail (error); // ...then just retrigger error
     }
 #endif
@@ -2702,7 +2702,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
     indexor = Do_Varargs_Core(
         out,
         applicand, // opt_first
-        &args,
+        &varargs,
         DO_FLAG_NEXT | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
     );
 
@@ -2715,7 +2715,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         fail (Error(RE_APPLY_TOO_MANY));
     }
 
-    va_end(args);
+    va_end(varargs);
     //
     // ^-- This va_end() will *not* be called if a fail() happens to longjmp
     // during the apply.  But is that a problem, you ask?  No survey has

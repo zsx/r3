@@ -906,7 +906,7 @@ REBOOL Make_Error_Object_Throws(
 // return to the caller to properly call va_end with no longjmp
 // to skip it.
 //
-REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
+REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
 {
 #if !defined(NDEBUG)
     // The legacy error mechanism expects us to have exactly three fields
@@ -931,7 +931,7 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
     assert(code != 0);
 
     if (PG_Boot_Phase < BOOT_ERRORS) {
-        Panic_Core(code, NULL, args);
+        Panic_Core(code, NULL, varargs_ptr);
         DEAD_END;
     }
 
@@ -1029,7 +1029,7 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
 
         while (NOT_END(temp)) {
             if (IS_GET_WORD(temp)) {
-                REBVAL *arg = va_arg(*args, REBVAL*);
+                const REBVAL *arg = va_arg(*varargs_ptr, const REBVAL*);
 
                 if (!arg) {
                     // Terminating with a NULL is optional but can help
@@ -1224,12 +1224,16 @@ REBCON *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *args)
 //
 REBCON *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
-    va_list args;
+    va_list varargs;
     REBCON *error;
 
-    va_start(args, num);
-    error = Make_Error_Core((num < 0 ? -num : num), LOGICAL(num < 0), &args);
-    va_end(args);
+    va_start(varargs, num);
+    error = Make_Error_Core(
+        (num < 0 ? -num : num),
+        LOGICAL(num < 0),
+        &varargs
+    );
+    va_end(varargs);
 
     return error;
 }

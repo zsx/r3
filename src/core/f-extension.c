@@ -269,7 +269,7 @@ x*/ REBRXT Do_Callback(RXIARG *out, REBFUN *func, REBCNT label_sym, RXIARG *rxis
             // In use--and used refinements must be added to the PATH!
             //
             ignoring = FALSE;
-            Val_Init_Word_Unbound(path, REB_WORD, VAL_TYPESET_SYM(param));
+            Val_Init_Word(path, REB_WORD, VAL_TYPESET_SYM(param));
             ++path;
             continue;
         }
