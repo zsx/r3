@@ -2786,15 +2786,6 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(c->func));
     REBVAL *code = ARRAY_HEAD(code_array);
 
-    // The first element of our path will be the function, followed by its
-    // refinements.  It has an upper bound on length that is to consider the
-    // opposite case where it had only refinements and then the function
-    // at the head...
-    //
-    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
-    REBVAL *path = ARRAY_HEAD(path_array);
-    REBVAL first;
-
     // We'll walk through the original functions param and arglist only, and
     // accept the error-checking the evaluator provides at this time (types,
     // refinement presence or absence matching).
@@ -2804,6 +2795,17 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     REBVAL *param = FUNC_PARAMS_HEAD(c->func);
     REBVAL *arg = DSF_ARGS_HEAD(c);
     REBOOL ignoring = FALSE;
+
+    // The first element of our path will be the function, followed by its
+    // refinements.  It has an upper bound on length that is to consider the
+    // opposite case where it had only refinements and then the function
+    // at the head...
+    //
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
+    REBVAL *path = ARRAY_HEAD(path_array);
+
+    REBVAL first;
+    VAL_INIT_WRITABLE_DEBUG(&first);
 
     *path = *FUNC_VALUE(func_new);
     ++path;
