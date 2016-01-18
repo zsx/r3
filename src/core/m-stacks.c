@@ -36,7 +36,7 @@
 #define CHUNKER_FROM_CHUNK(c) \
     cast(struct Reb_Chunker*, \
         cast(REBYTE*, (c)) \
-        + (c)->size \
+        + (c)->size.bits \
         + (c)->payload_left \
         - sizeof(struct Reb_Chunker) \
     )
@@ -58,13 +58,13 @@ void Init_Stacks(REBCNT size)
     TG_Root_Chunker->next = NULL;
     TG_Top_Chunk = cast(struct Reb_Chunk*, &TG_Root_Chunker->payload);
     TG_Top_Chunk->prev = NULL;
-    TG_Top_Chunk->size = BASE_CHUNK_SIZE; // zero values for initial chunk
+    TG_Top_Chunk->size.bits = BASE_CHUNK_SIZE; // zero values for initial chunk
     TG_Top_Chunk->payload_left = CS_CHUNKER_PAYLOAD - BASE_CHUNK_SIZE;
 
     // Implicit termination trick--see OPT_VALUE_NOT_END and related notes
     cast(
         struct Reb_Chunk*, cast(REBYTE*, TG_Top_Chunk) + BASE_CHUNK_SIZE
-    )->size = 0;
+    )->size.bits = 0;
     assert(IS_END(&TG_Top_Chunk->values[0]));
 
     TG_Head_Chunk = TG_Top_Chunk;
@@ -211,7 +211,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
         // chunk (whose size will depend upon num_values)
         //
         chunk = cast(struct Reb_Chunk*,
-            cast(REBYTE*, TG_Top_Chunk) + TG_Top_Chunk->size
+            cast(REBYTE*, TG_Top_Chunk) + TG_Top_Chunk->size.bits
         );
 
         // top's payload_left accounted for previous chunk, account for ours
@@ -268,16 +268,16 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     // but check that here with an assert.
     //
     // The memory address for the chunk size matches that of a REBVAL's
-    // `header.all`, but since a `struct Reb_Chunk` is distinct from a REBVAL
+    // `header`, but since a `struct Reb_Chunk` is distinct from a REBVAL
     // they won't necessarily have write/read coherence, even though the
-    // fields themselves are the same type.  Taking the address of the REBUPT
+    // fields themselves are the same type.  Taking the address of the size
     // creates a pointer, which without a `restrict` keyword is defined as
     // being subject to "aliasing".  Hence a write to the pointer could affect
-    // any other value of that type.  This is necessary for the trick.
+    // *any* other value of that type.  This is necessary for the trick.
     {
-        REBUPT *alias = &chunk->size;
+        struct Reb_Value_Header *alias = &chunk->size;
         assert(size % 4 == 0);
-        *alias = size;
+        alias->bits = size;
     }
 
     // Set size also in next element to 0, so it can serve as a terminator
@@ -285,10 +285,10 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     {
         // See note above RE: aliasing.
         //
-        REBUPT *alias = &cast(
+        struct Reb_Value_Header *alias = &cast(
             struct Reb_Chunk*,
             cast(REBYTE*, chunk) + size)->size;
-        *alias = 0;
+        alias->bits = 0;
         assert(IS_END(&chunk->values[num_values]));
     }
 
@@ -357,7 +357,7 @@ void Drop_Chunk(REBVAL values[])
             cast(REBYTE*, chunk) - sizeof(struct Reb_Chunker*)
         );
         assert(CHUNKER_FROM_CHUNK(chunk) == chunker);
-        assert(chunk->payload_left + chunk->size == CS_CHUNKER_PAYLOAD);
+        assert(chunk->payload_left + chunk->size.bits == CS_CHUNKER_PAYLOAD);
 
         assert(TG_Top_Chunk);
         TG_Head_Chunk = cast(
@@ -382,7 +382,7 @@ void Drop_Chunk(REBVAL values[])
     memset(
         cast(REBYTE*, chunk) + sizeof(struct Reb_Chunk*),
         0xBD,
-        chunk->size - sizeof(struct Reb_Chunk*)
+        chunk->size.bits - sizeof(struct Reb_Chunk*)
     );
     assert(IS_END(cast(REBVAL*, chunk)));
 #endif

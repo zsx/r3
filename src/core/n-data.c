@@ -1434,9 +1434,9 @@ REBNATIVE(map_gob_offset)
 //
 void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
 {
-    if (NOT((v)->header.all & WRITABLE_MASK_DEBUG)) {
+    if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
         Debug_Fmt("Non-writable value found at %s:%d", file, line);
-        assert((v)->header.all & WRITABLE_MASK_DEBUG); // for message
+        assert((v)->header.bits & WRITABLE_MASK_DEBUG); // for message
     }
 }
 
@@ -1457,7 +1457,7 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
         Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
         assert(!IS_TRASH_DEBUG(v)); // for message
     }
-    return cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2);
+    return cast(enum Reb_Kind, ((v)->header.bits & HEADER_TYPE_MASK) >> 2);
 }
 
 

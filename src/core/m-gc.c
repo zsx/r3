@@ -777,7 +777,6 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:
-            assert(ARRAY_GET_FLAG(VAL_FUNC_PARAMLIST(val), OPT_SER_PARAMLIST));
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 
@@ -1232,7 +1231,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
                 REBVAL *chunk_value = &chunk->values[0];
                 while (
                     cast(REBYTE*, chunk_value)
-                    < cast(REBYTE*, chunk) + chunk->size
+                    < cast(REBYTE*, chunk) + chunk->size.bits
                 ) {
                     if (NOT_END(chunk_value))
                         Queue_Mark_Value_Deep(chunk_value);

@@ -570,7 +570,6 @@ REBNATIVE(set_scheme)
             ALL_64,
             SYM_FROM_KIND(REB_PORT)
         );
-        ARRAY_SET_FLAG(paramlist, OPT_SER_PARAMLIST);
         MANAGE_ARRAY(paramlist);
 
         // !!! Review: If this spec ever got leaked then it would be leaking

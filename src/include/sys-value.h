@@ -155,7 +155,7 @@ typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 //
 
 struct Reb_Value_Header {
-    REBUPT all;
+    REBUPT bits;
 };
 
 // `NOT_END_MASK`
@@ -255,16 +255,16 @@ struct Reb_Value_Header {
 //
 #define IS_END(v) \
     (assert( \
-        !((v)->header.all & WRITABLE_MASK_DEBUG) \
-        || ((((v)->header.all & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
+        !((v)->header.bits & WRITABLE_MASK_DEBUG) \
+        || ((((v)->header.bits & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
             || VAL_GET_EXT((v), EXT_TRASH_SAFE) \
         ) \
-    ), (v)->header.all % 2 == 0)
+    ), (v)->header.bits % 2 == 0)
 
 #define NOT_END(v)          NOT(IS_END(v))
 
 #ifdef NDEBUG
-    #define SET_END(v)      ((v)->header.all = 0)
+    #define SET_END(v)      ((v)->header.bits = 0)
 #else
     //
     // The slot we are trying to write into must have at least been formatted
@@ -274,7 +274,7 @@ struct Reb_Value_Header {
     //
     #define SET_END(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = WRITABLE_MASK_DEBUG | (REB_MAX << 2))
+            (v)->header.bits = WRITABLE_MASK_DEBUG | (REB_MAX << 2))
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to
@@ -389,10 +389,10 @@ enum {
 // Reading/writing routines for the 8 "OPTS" flags, which are in the lowest
 // 8 bits.  (They need to be lowest for the OPT_NOT_END trick to work.)
 //
-#define VAL_SET_OPT(v,n)    ((v)->header.all |= ((1 << (n)) << 8))
-#define VAL_GET_OPT(v,n)    LOGICAL((v)->header.all & ((1 << (n)) << 8))
+#define VAL_SET_OPT(v,n)    ((v)->header.bits |= ((1 << (n)) << 8))
+#define VAL_GET_OPT(v,n)    LOGICAL((v)->header.bits & ((1 << (n)) << 8))
 #define VAL_CLR_OPT(v,n) \
-    ((v)->header.all &= ~cast(REBUPT, (1 << (n)) << 8))
+    ((v)->header.bits &= ~cast(REBUPT, (1 << (n)) << 8))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -415,7 +415,7 @@ enum {
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        cast(enum Reb_Kind, ((v)->header.all & HEADER_TYPE_MASK) >> 2)
+        cast(enum Reb_Kind, ((v)->header.bits & HEADER_TYPE_MASK) >> 2)
 #else
     #define VAL_TYPE(v) \
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
@@ -435,8 +435,8 @@ enum {
 // are there too few instances to be worth it and is _BITS enough a hint?
 //
 #define VAL_SET_TYPE_BITS(v,t) \
-    ((v)->header.all &= ~cast(REBUPT, HEADER_TYPE_MASK), \
-        (v)->header.all |= ((t) << 2))
+    ((v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK), \
+        (v)->header.bits |= ((t) << 2))
 
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
@@ -444,7 +444,7 @@ enum {
 //
 #ifdef NDEBUG
     #define VAL_RESET_HEADER(v,t) \
-        ((v)->header.all = NOT_END_MASK | ((t) << 2))
+        ((v)->header.bits = NOT_END_MASK | ((t) << 2))
 #else
     // The debug build includes an extra check that the value we are about
     // to write the header of is actually a full REBVAL-sized slot...and not
@@ -453,7 +453,7 @@ enum {
     //
     #define VAL_RESET_HEADER(v,t) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
+            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
 #endif
 
 // !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
@@ -470,13 +470,13 @@ enum {
 //
 
 #define VAL_SET_EXT(v,n) \
-    ((v)->header.all |= (1 << ((n) + 16)))
+    ((v)->header.bits |= (1 << ((n) + 16)))
 
 #define VAL_GET_EXT(v,n) \
-    LOGICAL((v)->header.all & (1 << ((n) + 16)))
+    LOGICAL((v)->header.bits & (1 << ((n) + 16)))
 
 #define VAL_CLR_EXT(v,n) \
-    ((v)->header.all &= ~cast(REBUPT, 1 << ((n) + 16)))
+    ((v)->header.bits &= ~cast(REBUPT, 1 << ((n) + 16)))
 
 //
 // The ability to read and write all the EXTS at once as an 8-bit value.
@@ -484,11 +484,11 @@ enum {
 //
 
 #define VAL_EXTS_DATA(v) \
-    (((v)->header.all & (cast(REBUPT, 0xFF) << 16)) >> 16)
+    (((v)->header.bits & (cast(REBUPT, 0xFF) << 16)) >> 16)
 
 #define VAL_SET_EXTS_DATA(v,e) \
-    (((v)->header.all &= ~(cast(REBUPT, 0xFF) << 16)), \
-        (v)->header.all |= ((e) << 16))
+    (((v)->header.bits &= ~(cast(REBUPT, 0xFF) << 16)), \
+        (v)->header.bits |= ((e) << 16))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -599,14 +599,14 @@ enum {
     // because VAL_TYPE is supposed to assert on trash
     //
     #define IS_TRASH_DEBUG(v) \
-        (((v)->header.all & HEADER_TYPE_MASK) == 0)
+        (((v)->header.bits & HEADER_TYPE_MASK) == 0)
 
     // This particularly virulent form of trashing will make the resultant
     // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
     // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
     //
     #define MARK_VAL_READ_ONLY_DEBUG(v) \
-        ((v)->header.all &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
+        ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
 
     // The debug build requires that any value slot that's going to be written
     // to via VAL_RESET_HEADER() be marked writable.  Series and other value
@@ -620,7 +620,7 @@ enum {
     #define VAL_INIT_WRITABLE_DEBUG(v) \
         ( \
             /* assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0), */ \
-            (v)->header.all = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
+            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
             SET_TRACK_PAYLOAD(v) \
         )
 
@@ -712,12 +712,12 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+        ((v)->header.bits = ((1 << OPT_VALUE_FALSE) << 8) | \
             NOT_END_MASK | (REB_NONE << 2))
 #else
     #define SET_NONE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = ((1 << OPT_VALUE_FALSE) << 8) | \
+            (v)->header.bits = ((1 << OPT_VALUE_FALSE) << 8) | \
                 NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
             SET_TRACK_PAYLOAD(v))
 #endif
@@ -749,21 +749,21 @@ enum {
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK)
+        ((v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK)
 
     #define SET_FALSE(v) \
-        ((v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+        ((v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
             | ((1 << OPT_VALUE_FALSE) << 8))
 #else
     #define SET_TRUE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v))  // compound
 
     #define SET_FALSE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.all = (REB_LOGIC << 2) | NOT_END_MASK \
+            (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
             | WRITABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif

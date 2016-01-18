@@ -617,7 +617,7 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
 // from this file.
 //
 static REBOOL Series_Data_Alloc(
-    REBSER *series,
+    REBSER *s,
     REBCNT length,
     REBYTE wide,
     REBCNT flags
@@ -628,7 +628,7 @@ static REBOOL Series_Data_Alloc(
 
     // Data should have not been allocated yet OR caller has extracted it
     // and nulled it to indicate taking responsibility for freeing it.
-    assert(!series->content.dynamic.data);
+    assert(!s->content.dynamic.data);
 
     // !!! See BYTE_SIZE() for the rationale, and consider if this is a
     // good tradeoff to be making.
@@ -637,8 +637,8 @@ static REBOOL Series_Data_Alloc(
 
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
-        series->content.dynamic.data = cast(REBYTE*, Make_Node(pool_num));
-        if (!series->content.dynamic.data)
+        s->content.dynamic.data = cast(REBYTE*, Make_Node(pool_num));
+        if (!s->content.dynamic.data)
             return FALSE;
 
         // The pooled allocation might wind up being larger than we asked.
@@ -647,7 +647,7 @@ static REBOOL Series_Data_Alloc(
         assert(size >= length * wide);
 
         // We don't round to power of 2 for allocations in memory pools
-        SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
+        SERIES_CLR_FLAG(s, OPT_SER_POWER_OF_2);
     }
     else {
         // ...the allocation is too big for a pool.  But instead of just
@@ -666,15 +666,15 @@ static REBOOL Series_Data_Alloc(
             // the size doesn't divide evenly by the item width
             //
             if (size % wide != 0)
-                SERIES_SET_FLAG(series, OPT_SER_POWER_OF_2);
+                SERIES_SET_FLAG(s, OPT_SER_POWER_OF_2);
             else
-                SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
+                SERIES_CLR_FLAG(s, OPT_SER_POWER_OF_2);
         }
         else
-            SERIES_CLR_FLAG(series, OPT_SER_POWER_OF_2);
+            SERIES_CLR_FLAG(s, OPT_SER_POWER_OF_2);
 
-        series->content.dynamic.data = ALLOC_N(REBYTE, size);
-        if (!series->content.dynamic.data)
+        s->content.dynamic.data = ALLOC_N(REBYTE, size);
+        if (!s->content.dynamic.data)
             return FALSE;
 
         Mem_Pools[SYSTEM_POOL].has += size;
@@ -683,39 +683,39 @@ static REBOOL Series_Data_Alloc(
 
 #ifdef CHAFF
     // REVIEW: Rely completely on address sanitizer "poisoning" instead?
-    memset(series->data, 0xff, size);
+    memset(s->data, 0xff, size);
 #endif
 
-    // Keep the series flags like OPT_SER_LOCKED, but use new width and bias to 0
-
-    series->info = ((series->info >> 8) << 8) | wide;
+    // Keep tflags like OPT_SER_LOCKED, but use new width and bias to 0
+    //
+    SERIES_SET_WIDE(s, wide);
 
     // Note: Bias field may contain other flags at some point.  Because
     // SERIES_SET_BIAS() uses bit masking on an existing value, we are sure
     // here to clear out the whole value for starters.
     //
-    series->content.dynamic.bias = 0;
+    s->content.dynamic.bias = 0;
 
     if (flags & MKS_ARRAY) {
         assert(wide == sizeof(REBVAL));
-        SERIES_SET_FLAG(series, OPT_SER_ARRAY);
-        assert(Is_Array_Series(series));
+        SERIES_SET_FLAG(s, OPT_SER_ARRAY);
+        assert(Is_Array_Series(s));
     }
     else {
-        SERIES_CLR_FLAG(series, OPT_SER_ARRAY);
-        assert(!Is_Array_Series(series));
+        SERIES_CLR_FLAG(s, OPT_SER_ARRAY);
+        assert(!Is_Array_Series(s));
     }
 
     // The allocation may have returned more than we requested, so we note
     // that in 'rest' so that the series can expand in and use the space.
     // Note that it wastes remainder if size % wide != 0 :-(
     //
-    series->content.dynamic.rest = size / wide;
+    s->content.dynamic.rest = size / wide;
 
     // We set the tail of all series to zero initially, but currently do
     // leave series termination to callers.  (This is under review.)
     //
-    series->content.dynamic.len = 0;
+    s->content.dynamic.len = 0;
 
     // See if allocation tripped our need to queue a garbage collection
 
@@ -723,7 +723,7 @@ static REBOOL Series_Data_Alloc(
 
 #if !defined(NDEBUG)
     if (pool_num >= SYSTEM_POOL)
-        assert(Series_Allocation_Unpooled(series) == size);
+        assert(Series_Allocation_Unpooled(s) == size);
 #endif
 
 #if !defined(NDEBUG)
@@ -742,7 +742,7 @@ static REBOOL Series_Data_Alloc(
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(series), n));
+            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(s), n));
 
         // !!! We should intentionally mark the overage range as being a
         // kind of trash that is both not an end *and* not possible to set.
@@ -753,8 +753,8 @@ static REBOOL Series_Data_Alloc(
         // as much potential debug warning as we might when writing into
         // bias or tail capacity.
         //
-        for(; n < series->content.dynamic.rest; n++) {
-            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(series), n));
+        for(; n < s->content.dynamic.rest; n++) {
+            VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(s), n));
           /*VAL_SET_OPT(ARRAY_AT(AS_ARRAY(series), n), OPT_VALUE_READ_ONLY);*/
         }
     }
@@ -879,7 +879,7 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 //
 REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 {
-    REBSER *series;
+    REBSER *s;
 
     // PRESERVE flag only makes sense for Remake_Series, where there is
     // previous data to be kept.
@@ -896,34 +896,53 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
 //  if (GC_TRIGGER) Recycle();
 
-    series = cast(REBSER*, Make_Node(SERIES_POOL));
+    s = cast(REBSER*, Make_Node(SERIES_POOL));
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
 #if !defined(NDEBUG)
+    //
     // For debugging purposes, it's nice to be able to crash on some
     // kind of guard for tracking the call stack at the point of allocation
     // if we find some undesirable condition that we want a trace from
-    series->guard = cast(REBINT*, malloc(sizeof(*series->guard)));
-    free(series->guard);
+    //
+    s->guard = cast(REBINT*, malloc(sizeof(*s->guard)));
+    free(s->guard);
 #endif
 
-    series->info = 0; // start with all flags clear...
-    series->content.dynamic.data = NULL;
+    // The trick which is used to allow s->info to pose as an IS_END() marker
+    // for data traversals inside the series node as REBVAL* has to write to
+    // the info through an aliased pointer to stay on the right side of the
+    // compiler.  Because writing to a `Reb_Series.info` does not naturally
+    // signal memory coherence with accesses through a `Reb_Value.header`
+    // as those are members of different structs.  Creating a generic alias
+    // pointer tells the optimizer all bets are off and any write to the alias
+    // could invalidate any Reb_Value_Header-typed field anywhere...
+    {
+        struct Reb_Value_Header *alias = &s->info;
+        alias->bits = 0; // no NOT_END_MASK, no WRITABLE_MASK_DEBUG set...
+
+        // Make sure it worked (so that if we interpreted the REBSER content
+        // as a REBVAL it would appear terminated if the [1] slot was read.)
+        //
+        assert(IS_END(&s->content.values[1]));
+    }
+
+    s->content.dynamic.data = NULL;
 
     if (flags & MKS_EXTERNAL) {
         // External series will poke in their own data pointer after the
         // REBSER header allocation is done
 
-        SERIES_SET_FLAG(series, OPT_SER_EXTERNAL);
-        series->info |= wide & 0xFF;
-        series->content.dynamic.rest = length;
+        SERIES_SET_FLAG(s, OPT_SER_EXTERNAL);
+        SERIES_SET_WIDE(s, wide);
+        s->content.dynamic.rest = length;
     }
     else {
         // Allocate the actual data blob that holds the series elements
 
-        if (!Series_Data_Alloc(series, length, wide, flags)) {
-            Free_Node(SERIES_POOL, cast(REBNOD*, series));
+        if (!Series_Data_Alloc(s, length, wide, flags)) {
+            Free_Node(SERIES_POOL, cast(REBNOD*, s));
             fail (Error_No_Memory(length * wide));
         }
 
@@ -958,12 +977,17 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
         cast(REBSER**, GC_Manuals->content.dynamic.data)[
             GC_Manuals->content.dynamic.len++
-        ] = series;
+        ] = s;
     }
 
     CHECK_MEMORY(2);
 
-    return series;
+    assert(
+        NOT(s->info.bits & NOT_END_MASK)
+        && NOT(s->info.bits & WRITABLE_MASK_DEBUG)
+    );
+
+    return s;
 }
 
 
@@ -1343,7 +1367,7 @@ void GC_Kill_Series(REBSER *series)
         );
     }
 
-    series->info = 0; // includes width
+    series->info.bits = 0; // includes width
     //series->data = BAD_MEM_PTR;
     //series->tail = 0xBAD2BAD2;
     //series->misc.size = 0xBAD3BAD3;
@@ -1756,7 +1780,7 @@ void Dump_Series_In_Pool(REBCNT pool_id)
                               SERIES_BIAS(series),
                               SERIES_LEN(series),
                               SERIES_REST(series),
-                              SERIES_FLAGS(series)
+                              series->info.bits // flags + width
                              );
                     //Dump_Series(series, "Dump");
                     if (Is_Array_Series(series)) {

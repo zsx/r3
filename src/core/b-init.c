@@ -778,7 +778,7 @@ static void Init_Root_Context(void)
     // in the debug build for good measure.
     //
     PG_End_Val = cast(REBVAL*, malloc(sizeof(REBVAL)));
-    PG_End_Val->header.all = 0; // read-only end
+    PG_End_Val->header.bits = 0; // read-only end
     assert(IS_END(END_VALUE));
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
