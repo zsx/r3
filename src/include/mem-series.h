@@ -46,6 +46,21 @@
 #define SERIES_FREED(s)  (0 == SERIES_WIDE(s))
 
 //
+// Non-series-internal code needs to read SERIES_WIDE but should not be
+// needing to set it directly.
+//
+// !!! Can't `assert((w) < MAX_SERIES_WIDE)` without triggering "range of
+// type makes this always false" warning; C++ build could sense if it's a
+// REBYTE and dodge the comparison if so.
+//
+
+#define MAX_SERIES_WIDE 0x100 \
+
+#define SERIES_SET_WIDE(s,w) \
+    ((s)->info.bits = ((s)->info.bits & 0xffff) | (w << 16))
+
+
+//
 // Bias is empty space in front of head:
 //
 

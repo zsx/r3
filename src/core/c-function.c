@@ -153,7 +153,6 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     paramlist = Collect_Keylist_Managed(
         NULL, ARRAY_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
     );
-    ARRAY_SET_FLAG(paramlist, OPT_SER_PARAMLIST);
 
     // Whatever function is being made, it must fill in the paramlist slot 0
     // with an ANY-FUNCTION! value corresponding to the function that it is
@@ -857,8 +856,6 @@ void Clonify_Function(REBVAL *value)
     func_orig = VAL_FUNC(value);
     paramlist_copy = Copy_Array_Shallow(FUNC_PARAMLIST(func_orig));
 
-    ARRAY_SET_FLAG(paramlist_copy, OPT_SER_PARAMLIST);
-
     value->payload.any_function.func = AS_FUNC(paramlist_copy);
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
@@ -1267,18 +1264,18 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     // however, for many of the same reasons it's a nuisance here.  The
     // OPT_VALUE_EXIT_FROM needs to be handled in the same way.
     //
-    v_header.all |= (
+    v_header.bits |= (
         (1 << OPT_VALUE_EXIT_FROM)
         | (1 << OPT_VALUE_LINE)
         | (1 << OPT_VALUE_THROWN)
     ) << 8;
-    func_header.all |= (
+    func_header.bits |= (
         (1 << OPT_VALUE_EXIT_FROM)
         | (1 << OPT_VALUE_LINE)
         | (1 << OPT_VALUE_THROWN)
     ) << 8;
 
-    if (v_header.all != func_header.all) {
+    if (v_header.bits != func_header.bits) {
         REBVAL *func_value = FUNC_VALUE(func);
         REBOOL frameless_value = VAL_GET_EXT(v, EXT_FUNC_FRAMELESS);
         REBOOL frameless_func = VAL_GET_EXT(func_value, EXT_FUNC_FRAMELESS);

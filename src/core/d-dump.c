@@ -54,7 +54,7 @@ void Dump_Series(REBSER *series, const char *memo)
         SERIES_BIAS(series),
         SERIES_LEN(series),
         SERIES_REST(series),
-        SERIES_FLAGS(series)
+        series->info.bits // flags + width
     );
     if (Is_Array_Series(series)) {
         Dump_Values(ARRAY_HEAD(AS_ARRAY(series)), SERIES_LEN(series));

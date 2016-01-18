@@ -111,6 +111,30 @@
 // Series Flags
 //
 enum {
+    // `OPT_SER_0_IS_FALSE` represents the lowest bit and should always be
+    // set to zero.  This is because it means that when the REBSER's
+    // contents are interpreted as value data, then the info bits can do
+    // double-duty serving as an END marker.  For a description of the
+    // method see notes on NOT_END_MASK.
+    //
+    OPT_SER_0_IS_FALSE = 1 << 0,
+
+    // `OPT_SER_1_IS_FALSE` is the second lowest bit, and it is set to zero
+    // as a safety precaution.  In the debug build this is checked by value
+    // writes to ensure that when the info flags are serving double duty
+    // as an END marker, they do not get overwritten by rogue code that
+    // thought a REBVAL* pointing at the memory had a full value's worth
+    // of memory to write into.  See WRITABLE_MASK_DEBUG.
+    //
+    OPT_SER_1_IS_FALSE = 1 << 1,
+
+    // `OPT_SER_HAS_DYNAMIC` indicates that this series has a dynamically
+    // allocated portion.  If it does not, then its data pointer is the
+    // address of the embedded value inside of it (marked terminated by
+    // the OPT_SER_0_IS_ZERO if it has an element in it)
+    //
+    OPT_SER_HAS_DYNAMIC = 1 << 2,
+
     // `OPT_SER_MARK` is used in the "mark and sweep" method of garbage
     // collection.  It is also used for other purposes which need to go
     // through and set a generic bit, e.g. to protect against loops in
@@ -128,7 +152,7 @@ enum {
     // that should be reexamined--so long as bits are free, why reuse if it
     // creates more risk?
     //
-    OPT_SER_MARK = 1 << 0,
+    OPT_SER_MARK = 1 << 3,
 
     // `OPT_SER_MANAGED` indicates that a series is managed by garbage
     // collection.  If this bit is not set, then during the GC's sweeping
@@ -139,7 +163,7 @@ enum {
     // starts out manually managed, and then must either become managed or be
     // freed before the evaluation that created it ends).
     //
-    OPT_SER_MANAGED = 1 << 1,
+    OPT_SER_MANAGED = 1 << 4,
 
     // `OPT_SER_ARRAY` indicates that this is a series of REBVAL values, and
     // is suitable for using as the payload of an ANY-ARRAY! value.  When a
@@ -153,7 +177,7 @@ enum {
     // creation of series that contain items that incidentally happen to be
     // the same size as a REBVAL, while not actually being REBVALs.)
     //
-    OPT_SER_ARRAY = 1 << 2,
+    OPT_SER_ARRAY = 1 << 5,
 
     // `OPT_SER_CONTEXT` indicates that this series represents the "varlist"
     // of a context.  A second series can be reached from it via the `->misc`
@@ -161,15 +185,7 @@ enum {
     //
     // See notes on REBCON for further details about what a context is.
     //
-    OPT_SER_CONTEXT = 1 << 3,
-
-    // `OPT_SER_PARAMLIST` indicates that this series is an array that
-    // represents the parameter list of a function.
-    //
-    // !!! Due to some changes in the workings related to FRAME!, it may be
-    // that this flag will not be needed.
-    //
-    OPT_SER_PARAMLIST = 1 << 4,
+    OPT_SER_CONTEXT = 1 << 6,
 
     // `OPT_SER_LOCKED` indicates that the series size or values cannot be
     // modified.  This check is honored by some layers of abstraction, but
@@ -185,7 +201,7 @@ enum {
     // it is distinct as it's a protection on a series itself--which ends
     // up affecting all variable content with that series in the payload.
     //
-    OPT_SER_LOCKED = 1 << 5,
+    OPT_SER_LOCKED = 1 << 7,
 
     // `OPT_SER_FIXED_SIZE` indicates that the size is fixed, and the series
     // cannot be expanded or contracted.  Values within the series are still
@@ -202,7 +218,7 @@ enum {
     // from fixed size... if there would be a reason to reallocate besides
     // changing size (such as memory compaction).
     //
-    OPT_SER_FIXED_SIZE  = 1 << 6,
+    OPT_SER_FIXED_SIZE  = 1 << 8,
 
     // `OPT_SER_POWER_OF_2` is flagged when an allocation size was rounded to
     // a power of 2.  This flag was introduced in Ren-C when accounting was
@@ -225,7 +241,7 @@ enum {
     //
     // http://stackoverflow.com/questions/3190146/
     //
-    OPT_SER_POWER_OF_2  = 1 << 7,
+    OPT_SER_POWER_OF_2  = 1 << 9,
 
     // `OPT_SER_EXTERNAL` indicates that when the series was created, the
     // `->data` pointer was poked in by the creator.  It takes responsibility
@@ -238,7 +254,7 @@ enum {
     // Ren-Cpp, but by relatively old extensions...so there may be no good
     // answer in the case of those clients (likely either leaks or crashes).
     //
-    OPT_SER_EXTERNAL = 1 << 8,
+    OPT_SER_EXTERNAL = 1 << 10,
 
     // `OPT_SER_ACCESSIBLE` indicates that the external memory pointed by
     // `->data` is accessible. This is not checked at every access to the
@@ -247,13 +263,13 @@ enum {
     // used for STRUCT! and to note when an OPT_SER_STACK series has had its
     // stack level popped (there's no data to lookup for words bound to it)
     //
-    OPT_SER_ACCESSIBLE = 1 << 9,
+    OPT_SER_ACCESSIBLE = 1 << 11,
 
     // `OPT_SER_STACK` indicates that this series data lives on the stack.
     // This is a work in progress to unify objects and function call frames
     // as a prelude to unifying FUNCTION! and CLOSURE!.
     //
-    OPT_SER_STACK = 1 << 10
+    OPT_SER_STACK = 1 << 12 // going away
 };
 
 struct Reb_Series_Dynamic {
@@ -306,16 +322,17 @@ struct Reb_Series {
         //
         struct Reb_Series_Dynamic dynamic;
 
-        // !!! Not yet implemented, but 0 or 1 length arrays can be held
-        // directly in the series node.  The low bit of info set to zero
-        // signals an IS_END().  This technique is being tested in deployment
-        // on the chunk stack, and will be brought here too (assuming the
-        // new implicit terminator tests don't show problems like the last.)
+        // If not OPT_SER_HAS_DYNAMIC, 0 or 1 length arrays can be held
+        // directly in the series node.  The OPT_SER_0_IS_FALSE bit is set to
+        // zero and signals an IS_END().
         //
         // It is thus an "array" of effectively up to length two.  Either the
-        // [0] full element is a REB_END, or the [0] element is another value
+        // [0] full element is IS_END(), or the [0] element is another value
         // and the [1] element is read-only and passes IS_END() to terminate
-        // but can't have any other value written.
+        // (but can't have any other value written, as the info bits are
+        // marked as unwritable by OPT_SER_1_IS_FALSE...this protects the
+        // rest of the bits in the debug build as it is checked whenver a
+        // REBVAL tries to write a new header.)
         //
         struct Reb_Value values[1];
     } content;
@@ -326,14 +343,15 @@ struct Reb_Series {
     // be known...including the flag of whether this is a dynamic series
     // node or not!
     //
+    // The lowest 2 bits of info are required to be 0 when used with the trick
+    // of implicitly terminating series data.  See OPT_SER_0_IS_FALSE and
+    // OPT_SER_1_IS_FALSE for more information.
+    //
     // !!! Only the low 32-bits are used on 64-bit platforms.  There could
     // be some interesting added caching feature or otherwise that would use
     // it, while not making any feature specifically require a 64-bit CPU.
     //
-    // !!! The low bit of info is required to be 0 when used with the trick
-    // of implicitly terminating series data.  Not yet implemented.
-    //
-    REBUPT info;
+    struct Reb_Value_Header info;
 
     union {
         REBCNT size;    // used for vectors and bitsets
@@ -364,8 +382,9 @@ struct Reb_Series {
 #endif
 
 #define SERIES_REST(s)   ((s)->content.dynamic.rest)
-#define SERIES_FLAGS(s)  ((s)->info)
-#define SERIES_WIDE(s)   (((s)->info) & 0xff)
+
+#define SERIES_WIDE(s) \
+    cast(REBYTE, ((s)->info.bits >> 16) & 0xff)
 
 #define SERIES_LEN(s)           ((s)->content.dynamic.len + 0)
 #define SET_SERIES_LEN(s,l)     ((s)->content.dynamic.len = (l))
@@ -375,9 +394,10 @@ struct Reb_Series {
 // but have no element type pointer to pass in.
 //
 #define SERIES_DATA_RAW(s)      ((s)->content.dynamic.data + 0) // Lvalue!
-#define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * i))
-#define SERIES_SET_EXTERNAL_DATA(s, p) \
-	((s)->content.dynamic.data = cast(REBYTE*, (p)))
+#define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * (i)))
+
+#define SERIES_SET_EXTERNAL_DATA(s,p) \
+    ((s)->content.dynamic.data = cast(REBYTE*, (p)))
 
 //
 // In general, requesting a pointer into the series data requires passing in
@@ -392,7 +412,8 @@ struct Reb_Series {
 //
 
 #define SERIES_AT(t,s,i) \
-    (assert(SERIES_WIDE(s) == sizeof(t)), (t*)(SERIES_AT_RAW((s), (i))))
+    (assert(SERIES_WIDE(s) == sizeof(t)), \
+        (t*)(SERIES_DATA_RAW(s) + (sizeof(t) * (i))))
 
 #define SERIES_HEAD(t,s) \
     SERIES_AT(t, (s), 0)
@@ -429,14 +450,14 @@ struct Reb_Series {
 // Series flags
 //
 
-#define SERIES_SET_FLAG(s, f) \
-    cast(void, (SERIES_FLAGS(s) |= ((f) << 8)))
+#define SERIES_SET_FLAG(s,f) \
+    cast(void, ((s)->info.bits |= (f)))
 
-#define SERIES_CLR_FLAG(s, f) \
-    cast(void, (SERIES_FLAGS(s) &= ~((f) << 8)))
+#define SERIES_CLR_FLAG(s,f) \
+    cast(void, ((s)->info.bits &= ~(f)))
 
-#define SERIES_GET_FLAG(s, f) \
-    LOGICAL(SERIES_FLAGS(s) & ((f) << 8))
+#define SERIES_GET_FLAG(s,f) \
+    LOGICAL((s)->info.bits & (f))
 
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), OPT_SER_ARRAY)
 
@@ -663,7 +684,7 @@ struct Reb_Series {
 // size is not odd was added to Make_Series; reconsider if this becomes an
 // issue at some point.
 //
-#define BYTE_SIZE(s)    LOGICAL(((s)->info) & 1)
+#define BYTE_SIZE(s)    LOGICAL(((s)->info.bits) & (1 << 16))
 
 //
 // BIN_XXX: Binary or byte-size string seres macros

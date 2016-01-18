@@ -228,12 +228,16 @@ struct Reb_Chunk;
 
 struct Reb_Chunk {
     //
-    // We start the chunk with a REBUPT (unsigned integer size of a pointer)
-    // because we are relying upon the fact that the low bit of this value
-    // is always 0 in order for it to be an implicit END for the value array
-    // of the previous chunk.  We know sizes are even so we leverage that.
+    // We start the chunk with a Reb_Value_Header, which has as its `bits`
+    // field a REBUPT (unsigned integer size of a pointer).  We are relying
+    // on the fact that the low 2 bits of this value is always 0 in order
+    // for it to be an implicit END for the value array of the previous chunk.
     //
-    REBUPT size;
+    // (REBVALs are multiples of 4 bytes in size on all platforms Rebol
+    // will run on, hence the low two bits of a byte size of N REBVALs will
+    // always have the two lowest bits clear.)
+    //
+    struct Reb_Value_Header size;
 
     // How many bytes are left in the memory chunker this chunk lives in
     // (its own size has already been subtracted from the amount)
