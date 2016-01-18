@@ -211,7 +211,7 @@ REBCNT HG_Stack_Level = 1;
 //
 const REBYTE N_debug_spec[] =
     " {Dialect for interactive debugging, see documentation for details}"
-    " 'value [unset! integer! block!]"
+    " 'value [unset! integer! frame! any-function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
 REB_R N_debug(struct Reb_Call *call_) {
@@ -229,19 +229,14 @@ REB_R N_debug(struct Reb_Call *call_) {
         goto modify_with_confidence;
     }
 
-    if (IS_INTEGER(value)) {
+    if (IS_INTEGER(value) || IS_FRAME(value) || ANY_FUNC(value)) {
         struct Reb_Call *call;
-
-        if (VAL_INT32(value) < 0)
-            fail (Error_Invalid_Arg(value));
 
         // We pass TRUE here to account for an extra stack level... the one
         // added by DEBUG itself, which presumably should not count.
         //
-        if (!(call = Call_For_Stack_Level(VAL_INT32(value), TRUE)))
+        if (!(call = Call_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
             fail (Error_Invalid_Arg(value));
-
-        HG_Stack_Level = VAL_INT32(value);
 
         Val_Init_Block(D_OUT, Where_For_Call(call));
         return R_OUT;
@@ -251,7 +246,8 @@ REB_R N_debug(struct Reb_Call *call_) {
 
     Debug_Fmt(
         "Sorry, but the `debug [...]` dialect is not defined yet.\n"
-        "Change the stack with an integer, or try these commands:\n"
+        "Change the stack level (integer!, frame!, any-function!)\n"
+        "Or try out these commands:\n"
         "\n"
         "    BREAKPOINT, RESUME, BACKTRACE\n"
     );
@@ -351,8 +347,15 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            REBFUN *func = Call_For_Stack_Level(HG_Stack_Level, FALSE)->func;
-            Bind_Relative_Deep(func, code);
+            struct Reb_Call *call;
+
+            REBVAL level;
+            VAL_INIT_WRITABLE_DEBUG(&level);
+            SET_INTEGER(&level, HG_Stack_Level);
+
+            call = Call_For_Stack_Level(NULL, &level, FALSE);
+            assert(call);
+            Bind_Relative_Deep(call->func, code);
         }
 
         // !!! This was unused code that used to be in Do_String from
@@ -947,10 +950,17 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     // stack level 1...e.g. the level that called breakpoint.
     //
     old_stack_level = HG_Stack_Level;
-    if (Call_For_Stack_Level(1, FALSE) != NULL)
-        HG_Stack_Level = 1;
-    else
-        HG_Stack_Level = 0; // Happens if you just type "breakpoint"
+
+    {
+        REBVAL level;
+        VAL_INIT_WRITABLE_DEBUG(&level);
+        SET_INTEGER(&level, 1);
+
+        if (Call_For_Stack_Level(NULL, &level, FALSE) != NULL)
+            HG_Stack_Level = 1;
+        else
+            HG_Stack_Level = 0; // Happens if you just type "breakpoint"
+    }
 
     // Spawn nested REPL.
     //

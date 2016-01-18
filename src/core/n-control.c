@@ -1109,76 +1109,42 @@ REBNATIVE(eval)
 //      value [opt-any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
-//      target [any-function! object!]
-//          "Function or frame to exit from (identifying OBJECT! if CLOSURE!)"
+//      level [frame! any-function! integer!]
+//          "Frame or function to exit from (for #, use RESUME under debugger)"
 //  ]
 //
 REBNATIVE(exit)
 //
 // EXIT is implemented via a THROWN() value that bubbles up through
 // the stack.
+//
+// !!! Allowing to pass an INTEGER! to exit from a function based on its
+// BACKTRACE number is a bit low-level, and perhaps should be restricted to
+// a debugging mode (though it is a useful tool in "code golf").
 {
     REFINE(1, with);
     PARAM(2, value);
     REFINE(3, from);
-    PARAM(4, target);
+    PARAM(4, level);
 
-    struct Reb_Call *call = DSF->prior; // don't count this EXIT
+    const REBOOL skip_current = TRUE; // don't count this exit
 
-    for (; call != NULL; call = call->prior) {
-        if (call->mode != CALL_MODE_FUNCTION) {
-            //
-            // Don't consider pending calls, or parens, or any non-invoked
-            // function as a candidate to target with EXIT.
-            //
-            // !!! The inability to exit these things is because of technical
-            // limitation rather than either being expressly undesirable.
-            // Both cases are likely desirable and could be addressed.
-            //
-            continue;
-        }
+    // Will come back with the next level up (if any) should level be UNSET!
+    // (e.g. when !REF(from))
 
-    #if !defined(NDEBUG)
-        //
-        // Though the Ren-C default is to allow exiting from natives (and not
-        // to provide the poor invariant of different behavior based on whether
-        // the containing function is native or not), the legacy switch lets
-        // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
-        //
-        if (
-            LEGACY(OPTIONS_DONT_EXIT_NATIVES)
-            && !IS_FUNCTION(FUNC_VALUE(call->func))
-            && !IS_CLOSURE(FUNC_VALUE(call->func))
-        ) {
-            continue;
-        }
-    #endif
-
-        if (!REF(from)) break; // Take first actual frame if "plain" EXIT
-
-        // If a function matches the queried one, use this frame.
-        //
-        if (
-            IS_OBJECT(ARG(target))
-            && (call->flags & DO_FLAG_FRAME_CONTEXT)
-            && call->frame.context == VAL_CONTEXT(ARG(target))
-        ) {
-            break;
-        }
-        else {
-            assert(ANY_FUNC(ARG(target)));
-            if (VAL_FUNC(ARG(target)) == call->func) break;
-        }
-    }
+    struct Reb_Call *call = Call_For_Stack_Level(
+        NULL, ARG(level), skip_current
+    );
 
     // NULL here means we didn't find a match (either plain exit but no
     // frames higher, or the requested function isn't on the stack.)
     //
-    // !!! Do we need to check?  It costs time, instead we could leave
-    // the error up to the throw.  For the moment it's good to find the
-    // bad exits earlier, but long term it probably shouldn't check here.
+    // !!! For ANY-FUNCTION! and FRAME! do we really need to check here?  It
+    // costs time.  Instead we could leave the error up to the throw.  Not
+    // a performance priority so better to notify earlier for now, but long
+    // term it probably shouldn't be climbing the stack unless it has to.
     //
-    if (call == NULL)
+    if (!call)
         fail (Error(RE_INVALID_EXIT));
 
     if (call->flags & DO_FLAG_FRAME_CONTEXT)

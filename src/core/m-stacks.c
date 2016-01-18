@@ -578,10 +578,7 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
     // able to access this information.  GC protection for pending
     // frames could be issued on demand by the debugger, however.
     //
-    // Formerly the arglist's 0 slot had a CLOSURE! value in it, but we now
-    // are going to be switching it to an OBJECT!.
-    //
-    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
+    VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
     CONTEXT_SPEC(context) = NULL;
     CONTEXT_BODY(context) = NULL;
