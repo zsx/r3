@@ -491,7 +491,6 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	REBCNT type;
 	REBCNT n, len = 0;
 
-	printf("FIXME: %s, %d\n", __FUNCTION__, __LINE__);
 //	printf("scaling image size: (%d, %d)\n", w, h);
 	for (n = 0; (type = RL_GET_VALUE(points, n, &a)); n++) {
 		if (type == RXT_PAIR){
@@ -504,74 +503,33 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	if (!len) return;
 
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
-#if 0
-	nvgSave(ctx->nvg);
-
-	//paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, p[1].x, p[1].y, 0, image, 1.0f);
-
-	nvgBeginPath(ctx->nvg);
-
-	nvgMoveTo(ctx->nvg, p[0].x, p[0].y);
-
-	switch (len) {
-		case 2:
-			nvgLineTo(ctx->nvg, p[1].x, p[0].y);
-			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(ctx->nvg, p[0].x, p[1].y);
-			//w = p[1].x - p[0].x;
-			//h = p[1].y - p[0].y;
-			break;
-		case 3:
-			printf("FIXME: %d\n", __LINE__);
-			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
-			nvgLineTo(ctx->nvg, p[0].x, p[2].y);
-			//w = p[1].x - p[0].x;
-			//h = p[1].y - p[0].y;
-			break;
-		case 4:
-			printf("FIXME: %d\n", __LINE__);
-			nvgLineTo(ctx->nvg, p[1].x, p[1].y);
-			nvgLineTo(ctx->nvg, p[2].x, p[2].y);
-			nvgLineTo(ctx->nvg, p[3].x, p[3].y);
-			//w = p[1].x - p[0].x;
-			//h = p[1].y - p[0].y;
-			break;
-	}
-
-	nvgClosePath(ctx->nvg);
-	paint = nvgImagePattern(ctx->nvg, p[0].x, p[0].y, w, h, 0, image, 1.0f);
-	nvgBlendMode(ctx->nvg, NVG_SOURCE_OVER);
-	nvgFillPaint(ctx->nvg, paint);
-
-	nvgFill(ctx->nvg);
-#endif
 
 	switch (len) {
 	case 2:
-		nvgPaintImage(ctx->nvg, image, p[0].x, p[1].y, p[1].x, p[1].y, p[0].x, p[0].y, p[1].x,p[0].y);
+		nvgPaintImage(ctx->nvg, image,
+            p[0].x, p[1].y,
+            p[1].x, p[1].y,
+            p[0].x, p[0].y,
+            p[1].x, p[0].y);
 		break;
 	case 3:
-		printf("FIXME: %d\n", __LINE__);
-		nvgLineTo(ctx->nvg, p[1].x, p[1].y);
-		nvgLineTo(ctx->nvg, p[2].x, p[2].y);
-		nvgLineTo(ctx->nvg, p[0].x, p[2].y);
-		//w = p[1].x - p[0].x;
-		//h = p[1].y - p[0].y;
+        nvgPaintImage(ctx->nvg, image,
+            p[0].x, p[2].y,
+            p[2].x, p[2].y,
+            p[0].x, p[0].y,
+            p[1].x, p[1].y);
 		break;
 	case 4:
-		printf("FIXME: %d\n", __LINE__);
-		nvgLineTo(ctx->nvg, p[1].x, p[1].y);
-		nvgLineTo(ctx->nvg, p[2].x, p[2].y);
-		nvgLineTo(ctx->nvg, p[3].x, p[3].y);
-		//w = p[1].x - p[0].x;
-		//h = p[1].y - p[0].y;
+        nvgPaintImage(ctx->nvg, image,
+            p[3].x, p[3].y,
+            p[2].x, p[2].y,
+            p[0].x, p[0].y,
+            p[1].x, p[1].y);
 		break;
 	}
 	nvgFlush(ctx->nvg);
 
 	nvgDeleteImage(ctx->nvg, image);
-	nvgRestore(ctx->nvg);
 }
 
 static void nvgdrw_line(void* gr, REBXYF* p, REBCNT n)
