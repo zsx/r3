@@ -734,6 +734,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_OBJECT:
         case REB_MODULE:
         case REB_PORT:
+        case REB_FRAME:
         case REB_ERROR: {
             REBCON *context = VAL_CONTEXT(val);
             assert(CONTEXT_TYPE(context) == VAL_TYPE(val));

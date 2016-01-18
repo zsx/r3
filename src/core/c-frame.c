@@ -1975,8 +1975,6 @@ void Assert_Context_Core(REBCON *context)
         Panic_Context(context);
     }
 
-    assert(!IS_FRAME(var)); // !!! these don't actually exist just yet...
-
     if (var->payload.any_context.context != context) {
         Debug_Fmt("Embedded ANY-CONTEXT!'s context doesn't match context");
         Panic_Context(context);

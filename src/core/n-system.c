@@ -376,8 +376,8 @@ REBARR *Where_For_Call(struct Reb_Call *call)
 
     // WARNING: MIN is a C macro and repeats its arguments.
     //
-    start = MIN(ARRAY_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
-    end = MIN(ARRAY_LEN(DSF_ARRAY(call)), cast(REBCNT, call->expr_index));
+    start = MIN(ARRAY_LEN(DSF_ARRAY(call)), cast(REBCNT, call->expr_index));
+    end = MIN(ARRAY_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
 
     assert(end >= start);
     assert(call->mode != CALL_MODE_0);
@@ -387,12 +387,31 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     // the range of the array being executed up to the point of
     // currently relevant evaluation, not all the way to the tail
     // of the block (where future potential evaluation would be)
-    //
-    where = Copy_Values_Len_Extra_Shallow(
-        ARRAY_AT(DSF_ARRAY(call), start),
-        end - start,
-        pending ? 1 : 0
-    );
+    {
+        REBCNT n = 0;
+
+        REBCNT len =
+            1 // fake function word (compensates for prefetch)
+            + (end - start) // data from expr_index to the current index
+            + (pending ? 1 : 0); // if it's pending we put "..." to show that
+
+        where = Make_Array(len);
+
+        // !!! Due to "prefetch" the expr_index will be *past* the invocation
+        // of the function.  So this is a lie, as a placeholder for what a
+        // real debug mode would need to actually save the data to show.
+        // If the execution were a path or anything other than a word, this
+        // will lose it.
+        //
+        Val_Init_Word(ARRAY_AT(where, n), REB_WORD, call->label_sym);
+        ++n;
+
+        for (n = 1; n < len; ++n)
+            *ARRAY_AT(where, n) = *ARRAY_AT(DSF_ARRAY(call), start + n - 1);
+
+        SET_ARRAY_LEN(where, len);
+        TERM_ARRAY(where);
+    }
 
     // Making a shallow copy offers another advantage, that it's
     // possible to get rid of the newline marker on the first element,
@@ -420,44 +439,96 @@ REBARR *Where_For_Call(struct Reb_Call *call)
 
 
 //
+//  where-of: native [
+//
+//  "Get execution point summary for a function call (if still on stack)"
+//
+//      level [frame! any-function! integer! none!]
+//  ]
+//
+REBNATIVE(where_of)
+//
+// !!! This routine should probably be used to get the information for the
+// where of an error, which should likely be out-of-band.
+{
+    PARAM(1, level);
+
+    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
+    if (!call)
+        fail (Error_Invalid_Arg(ARG(level)));
+
+    Val_Init_Block(D_OUT, Where_For_Call(call));
+    return R_OUT;
+}
+
+
+//
+//  label-of: native [
+//
+//  "Get word label used to invoke a function call (if still on stack)"
+//
+//      level [frame! any-function! integer! none!]
+//  ]
+//
+REBNATIVE(label_of)
+{
+    PARAM(1, level);
+
+    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
+    if (!call)
+        fail (Error_Invalid_Arg(ARG(level)));
+
+    Val_Init_Word(D_OUT, REB_WORD, call->label_sym);
+    return R_OUT;
+}
+
+
+//
+//  function-of: native [
+//
+//  "Get the ANY-FUNCTION! that a call corresponds to (if still on stack)"
+//
+//      level [frame! integer! none!]
+//  ]
+//
+REBNATIVE(function_of)
+{
+    PARAM(1, level);
+
+    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
+    if (!call)
+        fail (Error_Invalid_Arg(ARG(level)));
+
+    *D_OUT = *FUNC_VALUE(call->func);
+    return R_OUT;
+}
+
+//
 //  backtrace: native [
 //  
-//  "Gives backtrace with WHERE blocks, or other queried property."
+//  "Backtrace to find a specific FRAME!, or other queried property."
 //
+//      'level [unset! none! integer! function!]
+//          "Stack level to return frame for (none to list)"
 //      /limit
 //          "Limit the length of the backtrace"
 //      frames [none! integer!]
 //          "Max number of frames (pending and active), none for no limit"
-//      /at
-//          "Return only a single backtrace property"
-//      level [integer!]
-//          "Stack level to return property for"
-//      /function
-//          "Query function value"
-//      /label
-//          "Query word used to invoke function (NONE! if anyonymous)"
-//      /args
-//          "Query invocation args (may be modified since invocation)"
 //      /brief
-//          "Do not list depths, just the selected properties on one line"
-//      /only
-//          "Only return the backtrace, do not print to the console"
+//          "Do not list depths, just function labels on one line"
+//      /only ;-- should this be /QUIET or similar?
+//          "Return backtrace data without printing it to the console"
 //  ]
 //
 REBNATIVE(backtrace)
 {
-    REFINE(1, limit);
-    PARAM(2, frames);
-    REFINE(3, at);
-    PARAM(4, level);
-    REFINE(5, function);
-    REFINE(6, label);
-    REFINE(7, args);
-    REFINE(8, brief);
-    REFINE(9, only);
+    PARAM(1, level);
+    REFINE(2, limit);
+    PARAM(3, frames);
+    REFINE(4, brief);
+    REFINE(5, only);
 
     REBCNT number; // stack level number in the loop (no pending frames)
-    REBCNT queried_number; // synonym for the "level" from /AT
 
     REBCNT row; // row we're on (includes pending frames and maybe ellipsis)
     REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
@@ -466,15 +537,24 @@ REBNATIVE(backtrace)
 
     REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
 
+    REBVAL *level = ARG(level);
+
+    // Note: Running this code path is *intentionally* redundant with
+    // Call_For_Stack_Level, as a way of keeping the numbers listed in a
+    // backtrace lined up with what that routine returns.  This isn't a very
+    // performance-critical routine, so it's good to have the doublecheck.
+    //
+    REBOOL get_frame = !IS_UNSET(level) && !IS_NONE(level);
+
     REBARR *backtrace;
     struct Reb_Call *call;
 
     Check_Security(SYM_DEBUG, POL_READ, 0);
 
-    if (REF(limit) && REF(at)) {
+    if (get_frame && (REF(limit) || REF(brief))) {
         //
         // /LIMIT assumes that you are returning a list of backtrace items,
-        // while /AT assumes exactly one.  They are mutually exclusive.
+        // while specifying a level gives one.  They are mutually exclusive.
         //
         fail (Error(RE_BAD_REFINES));
     }
@@ -491,16 +571,12 @@ REBNATIVE(backtrace)
     else
         max_rows = 20; // On an 80x25 terminal leaves room to type afterward
 
-    if (REF(at)) {
-        //
-        // If we're asking for a specific stack level via /AT, then we aren't
-        // building an array result, just returning a single value.
+    if (get_frame) {
         //
         // See notes on handling of breakpoint below for why 0 is accepted.
         //
-        if (VAL_INT32(ARG(level)) < 0)
-            fail (Error_Invalid_Arg(ARG(level)));
-        queried_number = VAL_INT32(ARG(level));
+        if (IS_INTEGER(level) && VAL_INT32(level) < 0)
+            fail (Error_Invalid_Arg(level));
     }
     else {
         // We're going to build our backtrace in reverse.  This is done so
@@ -566,9 +642,9 @@ REBNATIVE(backtrace)
             if (
                 first
                 && IS_NATIVE(FUNC_VALUE(call->func))
-                && FUNC_CODE(call->func) == &N_breakpoint
+                && FUNC_CODE(call->func) == &N_pause
             ) {
-                // Omitting BREAKPOINTs from the list entirely presents a
+                // Omitting breakpoints from the list entirely presents a
                 // skewed picture of what's going on.  But giving them
                 // "index 1" means that inspecting the frame you're actually
                 // interested in (the one where you put the breakpoint) bumps
@@ -587,9 +663,29 @@ REBNATIVE(backtrace)
 
         ++row;
 
-        if (REF(at)) {
-            if (number != queried_number)
-                continue;
+    #if !defined(NDEBUG)
+        //
+        // Try and keep the numbering in sync with query used by host to get
+        // function frames to do binding in the REPL with.
+        //
+        if (!pending) {
+            REBVAL temp;
+            VAL_INIT_WRITABLE_DEBUG(&temp);
+            SET_INTEGER(&temp, number);
+            assert(Call_For_Stack_Level(NULL, &temp, TRUE) == call);
+        }
+    #endif
+
+        if (get_frame) {
+            if (IS_INTEGER(level)) {
+                if (number != cast(REBCNT, VAL_INT32(level))) // is positive
+                    continue;
+            }
+            else {
+                assert(ANY_FUNC(level));
+                if (call->func != VAL_FUNC(level))
+                    continue;
+            }
         }
         else {
             if (row >= max_rows) {
@@ -616,106 +712,31 @@ REBNATIVE(backtrace)
             }
         }
 
+        if (get_frame) {
+            //
+            // If we were fetching a single stack level, then our result will
+            // be a FRAME! (which can be queried for further properties via
+            // `where-of`, `label-of`, `function-of`, etc.)
+            //
+            Val_Init_Context(
+                D_OUT, REB_FRAME, Frame_For_Call_May_Reify(call, FALSE)
+            );
+            return R_OUT;
+        }
+
         // The /ONLY case is bare bones and just gives a block of the label
         // symbols (at this point in time).
         //
         // !!! Should /BRIEF omit pending frames?  Should it have a less
         // "loaded" name for the refinement?
         //
+        temp = ARRAY_AT(backtrace, --index);
         if (REF(brief)) {
-            if (REF(at)) {
-                Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
-                return R_OUT;
-            }
-
-            temp = ARRAY_AT(backtrace, --index);
             Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
             continue;
         }
 
-        // We're either going to write the queried property into the list
-        // of backtrace elements, or return it as the single result if /AT
-        //
-        temp = REF(at) ? D_OUT : ARRAY_AT(backtrace, --index);
-
-        // The queried properties currently override each other; there is
-        // no way to ask for more than one.
-        //
-        // !!! Should it return an object or block if more than one is
-        // requested?  It should at least give an incompatible refinement
-        // error if it can't support multiple queries in one call.
-        //
-        if (REF(label)) {
-            Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
-        }
-        else if (REF(function)) {
-            *temp = *FUNC_VALUE(DSF_FUNC(call));
-        }
-        else if (REF(args)) {
-            //
-            // There may be "pure local" arguments that should be hidden (in
-            // definitional return there's at least RETURN:).  So the
-            // array could end up being larger than it needs to be.
-            //
-            // !!! Wouldn't this be perhaps more useful if it came back as an
-            // object, so you knew what the values corresponded to?
-            //
-            REBARR *array = Make_Array(FUNC_NUM_PARAMS(DSF_FUNC(call)));
-            REBVAL *param = FUNC_PARAMS_HEAD(DSF_FUNC(call));
-            REBVAL *dest = ARRAY_HEAD(array);
-            REBVAL *arg;
-
-            if (DSF_FRAMELESS(call)) {
-                //
-                // If the native is frameless, we cannot get its args because
-                // it evaluated in place.  Tell them args are optimized out.
-                //
-                fail (Error(RE_FRAMELESS_CALL));
-            }
-
-            arg = DSF_ARGS_HEAD(call);
-
-            if (pending) {
-                //
-                // Don't want to give arguments for pending frames, they may
-                // be partially constructed or will be revoked
-                //
-                Val_Init_Word(temp, REB_WORD, SYM_ELLIPSIS);
-            }
-            else {
-                for (; NOT_END(param); param++, arg++) {
-                    if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN))
-                        continue;
-                    *dest++ = *arg;
-                }
-
-                SET_ARRAY_LEN(array, dest - ARRAY_HEAD(array));
-                TERM_ARRAY(array);
-
-                Val_Init_Block(temp, array);
-            }
-        }
-        else {
-            // `WHERE` is the default to query, because it provides the most
-            // data -- not just knowing the function being called but also the
-            // context of its invocation.
-
-            Val_Init_Block(temp, Where_For_Call(call));
-        }
-
-        // Try and keep the numbering in sync with query used by host to get
-        // function frames to do binding in the REPL with.
-        //
-        if (!pending)
-            assert(Call_For_Stack_Level(number, TRUE) == call);
-
-        if (REF(at)) {
-            //
-            // If we were fetching a single stack level, then `temp` above
-            // is our singular return result.
-            //
-            return R_OUT;
-        }
+        Val_Init_Block(temp, Where_For_Call(call));
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
@@ -732,10 +753,19 @@ REBNATIVE(backtrace)
             // as it is partially constructed.  It gets a "*" in the list
             // instead of a number.
             //
+            // !!! This may be too restrictive; though it is true you can't
+            // resume/from or exit/from a pending frame (due to the index
+            // not knowing how many values it would have consumed if a
+            // call were to complete), inspecting the existing args could
+            // be okay.  Disallowing it offers more flexibility in the
+            // dealings with the arguments, however (for instance: not having
+            // to initialize not-yet-filled args could be one thing).
+            //
             Val_Init_Word(temp, REB_WORD, SYM_ASTERISK);
         }
         else
             SET_INTEGER(temp, number);
+
         VAL_SET_OPT(temp, OPT_VALUE_LINE);
     }
 
@@ -744,7 +774,7 @@ REBNATIVE(backtrace)
     //
     // !!! Would it be better to give an error?
     //
-    if (REF(at))
+    if (get_frame)
         return R_NONE;
 
     // Return accumulated backtrace otherwise.  The reverse filling process
@@ -766,17 +796,36 @@ REBNATIVE(backtrace)
 //
 //  Call_For_Stack_Level: C
 //
-// !!! Unfortunate repetition of logic inside of BACKTRACE; find a way to
-// unify the logic for omitting things like breakpoint frames, or either
-// considering pending frames or not...
+// Level can be an UNSET!, an INTEGER!, an ANY-FUNCTION!, or a FRAME!.  If
+// level is UNSET! then it means give whatever the first call found is.
 //
 // Returns NULL if the given level number does not correspond to a running
 // function on the stack.
 //
-struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
-{
+// Can optionally give back the index number of the stack level (counting
+// where the most recently pushed stack level is the lowest #)
+//
+// !!! Unfortunate repetition of logic inside of BACKTRACE; find a way to
+// unify the logic for omitting things like breakpoint frames, or either
+// considering pending frames or not...
+//
+struct Reb_Call *Call_For_Stack_Level(
+    REBCNT *number_out,
+    const REBVAL *level,
+    REBOOL skip_current
+) {
     struct Reb_Call *call = DSF;
     REBOOL first = TRUE;
+    REBINT num = 0;
+
+    if (IS_INTEGER(level)) {
+        if (VAL_INT32(level) < 0) {
+            //
+            // !!! fail() here, or just return NULL?
+            //
+            return NULL;
+        }
+    }
 
     // We may need to skip some number of frames, if there have been stack
     // levels added since the numeric reference point that "level" was
@@ -788,30 +837,39 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
         call = call->prior;
 
     for (; call != NULL; call = call->prior) {
-        //
-        // Exclude pending functions, parens...any Do_Core levels that are
-        // not currently running functions.  (BACKTRACE includes pending
-        // functions for display purposes, but does not number them.)
-        //
-        if (call->mode == CALL_MODE_0) continue;
+        if (call->mode != CALL_MODE_FUNCTION) {
+            //
+            // Don't consider pending calls, or GROUP!, or any non-invoked
+            // function as a candidate to target.
+            //
+            // !!! The inability to target a GROUP! by number is an artifact
+            // of implementation, in that there's no hook in Do_Core() at
+            // the point of group evaluation to process the return.  The
+            // matter is different with a pending function call, because its
+            // arguments are only partially processed--hence something
+            // like a RESUME/AT or an EXIT/FROM would not know which array
+            // index to pick up running from.
+            //
+            continue;
+        }
 
         if (
             first
             && IS_NATIVE(FUNC_VALUE(call->func))
-            && FUNC_CODE(call->func) == &N_breakpoint
+            && FUNC_CODE(call->func) == &N_pause
         ) {
             // this is considered the "0".  Return it only if 0 was requested
             // specifically (you don't "count down to it");
             //
-            if (level == 0)
-                return call;
+            if (IS_INTEGER(level) && num == VAL_INT32(level))
+                goto return_maybe_set_number_out;
             else {
                 first = FALSE;
                 continue; // don't count it, e.g. don't decrement level
             }
         }
 
-        if (level == 0) {
+        if (IS_INTEGER(level) && num == VAL_INT32(level)) {
             //
             // There really is no "level 0" in a stack unless you
             // are at a breakpoint.  Ordinary calls to backtrace
@@ -829,12 +887,56 @@ struct Reb_Call *Call_For_Stack_Level(REBCNT level, REBOOL skip_current)
             continue;
         }
 
-        --level;
-        if (level == 0)
-            return call;
+    #if !defined(NDEBUG)
+        //
+        // Though the Ren-C default is to allow exiting from natives (and not
+        // to provide the poor invariant of different behavior based on whether
+        // the containing function is native or not), the legacy switch lets
+        // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
+        //
+        if (
+            LEGACY(OPTIONS_DONT_EXIT_NATIVES)
+            && !IS_FUNCTION(FUNC_VALUE(call->func))
+            && !IS_CLOSURE(FUNC_VALUE(call->func))
+        ) {
+            continue;
+        }
+    #endif
+
+        if (IS_UNSET(level) || IS_NONE(level)) {
+            //
+            // Take first actual frame if unset or none
+            //
+            goto return_maybe_set_number_out;
+        }
+        else if (IS_INTEGER(level)) {
+            ++num;
+            if (num == VAL_INT32(level))
+                goto return_maybe_set_number_out;
+        }
+        else if (IS_FRAME(level)) {
+            if (
+                (call->flags & DO_FLAG_FRAME_CONTEXT)
+                && call->frame.context == VAL_CONTEXT(level)
+            ) {
+                goto return_maybe_set_number_out;
+            }
+        }
+        else {
+            assert(ANY_FUNC(level));
+            if (VAL_FUNC(level) == call->func)
+                goto return_maybe_set_number_out;
+        }
     }
 
+    // Didn't find it...
+    //
     return NULL;
+
+return_maybe_set_number_out:
+    if (number_out)
+        *number_out = num;
+    return call;
 }
 
 
@@ -976,7 +1078,7 @@ REBOOL Do_Breakpoint_Throws(
                     if (
                         call != DSF
                         && VAL_TYPE(FUNC_VALUE(call->func)) == REB_NATIVE
-                        && FUNC_CODE(call->func) == &N_breakpoint
+                        && FUNC_CODE(call->func) == &N_pause
                     ) {
                         // We hit a breakpoint (that wasn't this call to
                         // breakpoint, at the current DSF) before finding
@@ -1115,40 +1217,26 @@ return_temp:
 
 
 //
-//  breakpoint: native [
+//  pause: native [
 //
 //  "Signal breakpoint to the host, such as a Read-Eval-Print-Loop (REPL)"
 //
-//      /with
-//          "Return the given value if breakpoint does not trigger"
-//      value [opt-any-value!]
-//          "Default value to use"
-//      /do
-//          "Evaluate given code if breakpoint does not trigger"
-//      code [block!]
-//          "Default code to evaluate"
+//      /default
+//          "Run the given code if breakpoint does not trigger"
+//      :code [group!]
+//          "GROUP! is captured, and only evaluated upon RESUME"
 //  ]
 //
-REBNATIVE(breakpoint)
+REBNATIVE(pause)
 {
-    REFINE(1, with);
-    PARAM(2, value);
-    REFINE(3, do);
-    PARAM(4, code);
-
-    if (REF(with) && REF(do)) {
-        //
-        // /WITH and /DO both dictate a default return result, (/DO evaluates
-        // and /WITH does not)  They are mutually exclusive.
-        //
-        fail (Error(RE_BAD_REFINES));
-    }
+    REFINE(1, default);
+    PARAM(2, code);
 
     if (Do_Breakpoint_Throws(
         D_OUT,
         FALSE, // not a Ctrl-C, it's an actual BREAKPOINT
-        REF(with) ? ARG(value) : (REF(do) ? ARG(code) : UNSET_VALUE),
-        REF(do)
+        REF(default) ? ARG(code) : UNSET_VALUE,
+        REF(default) // execute
     )) {
         return R_OUT_IS_THROWN;
     }
@@ -1172,8 +1260,8 @@ REBNATIVE(breakpoint)
 //          "Code to evaluate"
 //      /at
 //          "Return from another call up stack besides the breakpoint"
-//      level [integer!]
-//          "Stack level number in BACKTRACE to target in unwinding"
+//      level [frame! any-function! integer!]
+//          "Stack level to target in unwinding (can be BACKTRACE #)"
 //  ]
 //
 REBNATIVE(resume)
@@ -1237,7 +1325,7 @@ REBNATIVE(resume)
 
         // !!! `target` should just be a "FRAME!" (once the new type exists)
 
-        if (!(target = Call_For_Stack_Level(VAL_INT32(ARG(level)), TRUE)))
+        if (!(target = Call_For_Stack_Level(NULL, ARG(level), TRUE)))
             fail (Error_Invalid_Arg(ARG(level)));
 
         if (IS_OBJECT(FUNC_VALUE(target->func))) {

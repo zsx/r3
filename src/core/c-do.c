@@ -1974,13 +1974,12 @@ reevaluate:
         #if !defined(NDEBUG)
             if (ARRAY_GET_FLAG(exit_from, OPT_SER_CONTEXT)) {
                 //
-                // The function was actually a CLOSURE!, so "when it took
-                // BIND-OF on 'RETURN" it "would have gotten back an OBJECT!".
+                // Request to exit from a specific FRAME!
                 //
-                assert(IS_OBJECT(CONTEXT_VALUE(AS_CONTEXT(exit_from))));
+                assert(IS_FRAME(CONTEXT_VALUE(AS_CONTEXT(exit_from))));
             }
             else {
-                // It was a stack-relative FUNCTION!
+                // Request to dynamically exit from first ANY-FUNCTION! found
                 //
                 assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(exit_from))));
                 assert(FUNC_PARAMLIST(AS_FUNC(exit_from)) == exit_from);
@@ -2095,7 +2094,7 @@ reevaluate:
             c->mode == CALL_MODE_THROWN
             && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
         ) {
-            if (IS_OBJECT(c->out)) {
+            if (IS_FRAME(c->out)) {
                 //
                 // This identifies an exit from a *specific* functiion
                 // invocation.  We can only match it if we have a reified

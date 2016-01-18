@@ -1300,6 +1300,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     case REB_OBJECT:
     case REB_MODULE:
     case REB_PORT:
+    case REB_FRAME:
         if (!molded) Form_Object(value, mold);
         else Mold_Object(value, mold);
         break;
