@@ -1846,34 +1846,32 @@ reevaluate:
 
                 #if !defined(NDEBUG)
                     //
-                    // We captured the "true-valued-refinements" legacy switch
-                    // and decided whether to make the refinement true or the
-                    // word value of the refinement.  We use the same switch
-                    // to cover whether the unused args are NONE or UNSET...
-                    // but decide which it is by looking at what was filled
-                    // in for the refinement.  UNSET is the default.
+                    // Sanity check that the refinement revoking type is good,
+                    // whether legacy (true/false) or Ren-C (WORD! of the
+                    // refinement itself).
                     //
-                    if (!IS_WORD(c->refine)) {
+                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY)) {
                         assert(IS_LOGIC(c->refine));
-                        SET_NONE(c->arg);
+                        assert(IS_NONE(c->arg)); // is actually already none
+                    }
+                    else {
+                        assert(IS_WORD(c->refine));
+                        assert(IS_UNSET(c->arg));
                     }
                 #endif
 
                     SET_NONE(c->refine); // ...revoke the refinement.
                 }
                 else if (c->mode == CALL_MODE_REVOKING) {
-                #ifdef NDEBUG
                     //
-                    // Don't have to do anything, it's unset
+                    // We are revoking arguments to a refinement that have
+                    // never been filled, so they should be vacant.
                     //
-                #else
-                    //
-                    // We have overwritten the refinement so we don't know if
-                    // it was LOGIC! or WORD!, but we don't need to know that
-                    // because we can just copy whatever the previous arg
-                    // was set to...
-                    //
-                    *c->arg = *(c->arg - 1);
+                #if !defined(NDEBUG)
+                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+                        assert(IS_NONE(c->arg));
+                    else
+                        assert(IS_UNSET(c->arg));
                 #endif
                 }
             }
