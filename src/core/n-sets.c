@@ -522,7 +522,8 @@ REBNATIVE(unique)
         //
         // Bitsets and typesets already unique (by definition)
         //
-        return R_ARG1;
+        *D_OUT = *ARG(series);
+        return R_OUT;
     }
 
     Val_Init_Series(

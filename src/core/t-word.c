@@ -127,7 +127,8 @@ REBTYPE(Word)
             // stay in sync with the binding state)
             //
             VAL_SET_TYPE_BITS(arg, type);
-            return R_ARG2;
+            *D_OUT = *D_ARG(2);
+            return R_OUT;
         }
         else {
             if (IS_STRING(arg)) {

@@ -291,7 +291,8 @@ REBNATIVE(new_line)
         if (skip == 0) break;
     }
 
-    return R_ARG1;
+    *D_OUT = *ARG(position);
+    return R_OUT;
 }
 
 
@@ -617,7 +618,9 @@ REBNATIVE(what_dir)
 //
 REBNATIVE(change_dir)
 {
-    REBVAL *arg = D_ARG(1);
+    PARAM(1, path);
+
+    REBVAL *arg = ARG(path);
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
 
     if (IS_URL(arg)) {
@@ -648,7 +651,8 @@ REBNATIVE(change_dir)
 
     *current_path = *arg;
 
-    return R_ARG1;
+    *D_OUT = *ARG(path);
+    return R_OUT;
 }
 
 

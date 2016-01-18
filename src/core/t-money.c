@@ -172,11 +172,13 @@ REBTYPE(Money)
     switch(action) {
     case A_NEGATE:
         VAL_MONEY_AMOUNT(val).s = !VAL_MONEY_AMOUNT(val).s;
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     case A_ABSOLUTE:
         VAL_MONEY_AMOUNT(val).s = 0;
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     case A_ROUND:
         arg = D_ARG(3);
@@ -229,7 +231,8 @@ REBTYPE(Money)
             break;
 
         case REB_MONEY:
-            return R_ARG2;
+            *D_OUT = *D_ARG(2);
+            return R_OUT;
 
         case REB_STRING:
         {

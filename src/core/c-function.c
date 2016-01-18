@@ -894,7 +894,7 @@ void Clonify_Function(REBVAL *value)
 //
 //  Do_Native_Core: C
 //
-enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *c)
 {
     REB_R ret;
 
@@ -902,32 +902,23 @@ enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *call_)
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
-    ret = FUNC_CODE(D_FUNC)(call_);
+    ret = FUNC_CODE(c->func)(c);
 
     switch (ret) {
-    case R_OUT: // for compiler opt
+    case R_OUT: // put sequentially in switch() for jump-table optimization
     case R_OUT_IS_THROWN:
         break;
     case R_NONE:
-        SET_NONE(D_OUT);
+        SET_NONE(c->out);
         break;
     case R_UNSET:
-        SET_UNSET(D_OUT);
+        SET_UNSET(c->out);
         break;
     case R_TRUE:
-        SET_TRUE(D_OUT);
+        SET_TRUE(c->out);
         break;
     case R_FALSE:
-        SET_FALSE(D_OUT);
-        break;
-    case R_ARG1:
-        *D_OUT = *D_ARG(1);
-        break;
-    case R_ARG2:
-        *D_OUT = *D_ARG(2);
-        break;
-    case R_ARG3:
-        *D_OUT = *D_ARG(3);
+        SET_FALSE(c->out);
         break;
     default:
         assert(FALSE);
@@ -940,9 +931,9 @@ enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *call_)
 //
 //  Do_Action_Core: C
 //
-enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *c)
 {
-    REBCNT type = VAL_TYPE(D_ARG(1));
+    REBCNT type = VAL_TYPE(DSF_ARG(c, 1));
     REBACT action;
     REB_R ret;
 
@@ -955,43 +946,34 @@ enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *call_)
     // when a frame is not required (such as when running under trace, where
     // the values need to be inspectable)
     //
-    if (FUNC_ACT(D_FUNC) < REB_MAX) {
-        if (type == FUNC_ACT(D_FUNC))
-            SET_TRUE(D_OUT);
+    if (FUNC_ACT(c->func) < REB_MAX) {
+        if (type == FUNC_ACT(c->func))
+            SET_TRUE(c->out);
         else
-            SET_FALSE(D_OUT);
+            SET_FALSE(c->out);
 
         return CALL_MODE_0;
     }
 
     action = Value_Dispatch[type];
-    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(D_FUNC)));
-    ret = action(call_, FUNC_ACT(D_FUNC));
+    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(c->func)));
+    ret = action(c, FUNC_ACT(c->func));
 
     switch (ret) {
-    case R_OUT: // for compiler opt
+    case R_OUT: // put sequentially in switch() for jump-table optimization
     case R_OUT_IS_THROWN:
         break;
     case R_NONE:
-        SET_NONE(D_OUT);
+        SET_NONE(c->out);
         break;
     case R_UNSET:
-        SET_UNSET(D_OUT);
+        SET_UNSET(c->out);
         break;
     case R_TRUE:
-        SET_TRUE(D_OUT);
+        SET_TRUE(c->out);
         break;
     case R_FALSE:
-        SET_FALSE(D_OUT);
-        break;
-    case R_ARG1:
-        *D_OUT = *D_ARG(1);
-        break;
-    case R_ARG2:
-        *D_OUT = *D_ARG(2);
-        break;
-    case R_ARG3:
-        *D_OUT = *D_ARG(3);
+        SET_FALSE(c->out);
         break;
     default:
         assert(FALSE);
@@ -1117,14 +1099,14 @@ enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
 //
 //  Do_Routine_Core: C
 //
-enum Reb_Call_Mode Do_Routine_Core(struct Reb_Call *call_)
+enum Reb_Call_Mode Do_Routine_Core(struct Reb_Call *c)
 {
     REBARR *args = Copy_Values_Len_Shallow(
-        D_ARGC > 0 ? D_ARG(1) : NULL,
-        D_ARGC
+        DSF_ARGC(c) > 0 ? DSF_ARG(c, 1) : NULL,
+        DSF_ARGC(c)
     );
 
-    Call_Routine(D_FUNC, args, D_OUT);
+    Call_Routine(c->func, args, c->out);
 
     Free_Array(args);
 

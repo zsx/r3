@@ -506,12 +506,14 @@ REBTYPE(Time)
                     );
                     VAL_DECIMAL(arg) /= SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_DECIMAL);
-                    return R_ARG3;
+                    *D_OUT = *D_ARG(3);
+                    return R_OUT;
                 }
                 else if (IS_INTEGER(arg)) {
                     VAL_INT64(arg) = Round_Int(secs, 1, Int32(arg) * SEC_SEC) / SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_INTEGER);
-                    return R_ARG3;
+                    *D_OUT = *D_ARG(3);
+                    return R_OUT;
                 }
                 else fail (Error_Invalid_Arg(arg));
             }
@@ -536,7 +538,8 @@ REBTYPE(Time)
 
 ///     case A_POKE:
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
-///         return R_ARG3;
+///         *D_OUT = *D_ARG(3);
+///         return R_OUT;
 
         case A_MAKE:
         case A_TO:
