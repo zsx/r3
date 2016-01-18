@@ -318,26 +318,30 @@ REBNATIVE(square_root)
 //
 REBNATIVE(shift)
 {
-    REBI64 b = VAL_INT64(D_ARG(2));
-    REBVAL *a = D_ARG(1);
+    PARAM(1, value);
+    PARAM(2, bits);
+    REFINE(3, logical);
+
+    REBI64 b = VAL_INT64(ARG(bits));
+    REBVAL *a = ARG(value);
     REBU64 c, d;
 
     if (b < 0) {
         // this is defined:
         c = -(REBU64)b;
         if (c >= 64) {
-            if (D_REF(3)) VAL_INT64(a) = 0;
+            if (REF(logical)) VAL_INT64(a) = 0;
             else VAL_INT64(a) >>= 63;
         } else {
-            if (D_REF(3)) VAL_UNT64(a) >>= c;
+            if (REF(logical)) VAL_UNT64(a) >>= c;
             else VAL_INT64(a) >>= (REBI64)c;
         }
     } else {
         if (b >= 64) {
-            if (D_REF(3)) VAL_INT64(a) = 0;
+            if (REF(logical)) VAL_INT64(a) = 0;
             else if (VAL_INT64(a)) fail (Error(RE_OVERFLOW));
         } else
-            if (D_REF(3)) VAL_UNT64(a) <<= b;
+            if (REF(logical)) VAL_UNT64(a) <<= b;
             else {
                 c = (REBU64)MIN_I64 >> b;
                 d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
@@ -351,7 +355,9 @@ REBNATIVE(shift)
                     VAL_INT64(a) <<= b;
             }
     }
-    return R_ARG1;
+
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 
@@ -644,14 +650,16 @@ REBNATIVE(maximum)
 {
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
         Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), TRUE);
-        return R_OUT;
     }
     else {
         REBVAL a = *D_ARG(1);
         REBVAL b = *D_ARG(2);
-        if (Compare_Modify_Values(&a, &b, -1)) return R_ARG1;
-        return R_ARG2;
+        if (Compare_Modify_Values(&a, &b, -1))
+            *D_OUT = *D_ARG(1);
+        else
+            *D_OUT = *D_ARG(2);
     }
+    return R_OUT;
 }
 
 
@@ -668,15 +676,17 @@ REBNATIVE(minimum)
 {
     if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
         Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), FALSE);
-        return R_OUT;
     }
     else {
         REBVAL a = *D_ARG(1);
         REBVAL b = *D_ARG(2);
 
-        if (Compare_Modify_Values(&a, &b, -1)) return R_ARG2;
-        return R_ARG1;
+        if (Compare_Modify_Values(&a, &b, -1))
+            *D_OUT = *D_ARG(2);
+        else
+            *D_OUT = *D_ARG(1);
     }
+    return R_OUT;
 }
 
 

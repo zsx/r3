@@ -2033,11 +2033,21 @@ reevaluate:
 
         if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
 
+        assert(c->indexor != THROWN_FLAG);
+
         c->mode = CALL_MODE_FUNCTION;
 
-        // We have to update the mode anyway, so rather than have a separate
-        // `REBOOL threw` we have the sub-routine take care of writing the
-        // mode and then make a special mode for thrown...
+        // If the Do_XXX_Core function dispatcher throws, we can't let it
+        // write `c->indexor` directly to become THROWN_FLAG because we may
+        // "recover" from the throw by realizing it was a RETURN.  If that
+        // is the case, the function we called is the one that returned...
+        // so there could still be code after it to execute, and that index
+        // will be needed.
+        //
+        // Rather than have a separate `REBOOL threw`, this goes ahead and
+        // overwrites `c->mode` with a special state DO_MODE_THROWN.  It was
+        // going to need to be updated anyway back to DO_MODE_0, so no harm
+        // in reusing it for the indicator.
         //
         switch (VAL_TYPE(FUNC_VALUE(c->func))) {
         case REB_NATIVE:
@@ -2115,7 +2125,6 @@ reevaluate:
                     CATCH_THROWN(c->out, c->out);
                     c->mode = CALL_MODE_0;
                 }
-
             }
             else {
                 assert(FALSE); // no other low-level EXIT/FROM supported

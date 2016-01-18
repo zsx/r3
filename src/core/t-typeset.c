@@ -272,9 +272,13 @@ REBTYPE(Typeset)
     //  if (IS_NONE(arg)) {
     //      VAL_RESET_HEADER(arg, REB_TYPESET);
     //      VAL_TYPESET_BITS(arg) = 0L;
-    //      return R_ARG2;
+    //      *D_OUT = *D_ARG(2);
+    //      return R_OUT;
     //  }
-        if (IS_TYPESET(arg)) return R_ARG2;
+        if (IS_TYPESET(arg)) {
+            *D_OUT = *D_ARG(2);
+            return R_OUT;
+        }
         fail (Error_Bad_Make(REB_TYPESET, arg));
 
     case A_AND_T:
@@ -291,11 +295,13 @@ REBTYPE(Typeset)
             VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
         else
             VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     case A_COMPLEMENT:
         VAL_TYPESET_BITS(val) = ~VAL_TYPESET_BITS(val);
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     default:
         fail (Error_Illegal_Action(REB_TYPESET, action));

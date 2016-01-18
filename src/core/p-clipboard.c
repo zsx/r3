@@ -191,7 +191,8 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action
         fail (Error_Illegal_Action(REB_PORT, action));
     }
 
-    return R_ARG1; // port
+    *D_OUT = *D_ARG(1); // port
+    return R_OUT;
 }
 
 

@@ -640,7 +640,8 @@ REBNATIVE(delect)
 
     if (err < 0) fail (Error_Invalid_Arg(ARG(input))); // !!! make better error
 
-    return R_ARG2;
+    *D_OUT = *ARG(input);
+    return R_OUT;
 }
 
 

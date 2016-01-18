@@ -189,7 +189,8 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
                 if (OS_DO_DEVICE(req, RDC_OPEN))
                     fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
                 if (action == A_OPEN) {
-                    return R_ARG1; //port
+                    *D_OUT = *D_ARG(1); // port
+                    return R_OUT;
                 }
                 break;
 
@@ -248,7 +249,8 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
 
         case A_CLOSE:
             OS_DO_DEVICE(req, RDC_CLOSE);
-            return R_ARG1;
+            *D_OUT = *D_ARG(1);
+            return R_OUT;
 
         case A_OPEN_Q:
             return R_TRUE;

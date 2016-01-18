@@ -137,6 +137,5 @@ REBTYPE(Logic)
         fail (Error_Illegal_Action(REB_LOGIC, action));
     }
 
-    SET_LOGIC(D_ARG(1), val1);
-    return R_ARG1;
+    return val1 ? R_TRUE : R_FALSE;
 }

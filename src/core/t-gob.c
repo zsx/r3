@@ -925,7 +925,8 @@ REBTYPE(Gob)
             *GOB_AT(gob, tail-index-1) = *GOB_AT(gob, index);
             *GOB_AT(gob, index) = ngob;
         }
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     default:
         fail (Error_Illegal_Action(REB_GOB, action));

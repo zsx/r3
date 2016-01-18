@@ -549,7 +549,8 @@ REBTYPE(Context)
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_To_Context(VAL_CONTEXT(value), arg);
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     case A_LENGTH:
         if (!IS_OBJECT(value))

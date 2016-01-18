@@ -310,19 +310,23 @@ REBNATIVE(bind)
             // Note: BIND_ALL has no effect on "frames".
             //
             Bind_Stack_Word(func, ARG(value)); // may fail()
-            return R_ARG1;
+            *D_OUT = *ARG(value);
+            return R_OUT;
         }
 
         assert(context);
 
-        if (Try_Bind_Word(context, ARG(value)))
-            return R_ARG1;
+        if (Try_Bind_Word(context, ARG(value))) {
+            *D_OUT = *ARG(value);
+            return R_OUT;
+        }
 
         // not in context, BIND_ALL means add it if it's not.
         //
         if (flags & BIND_ALL) {
             Append_Context(context, ARG(value), 0);
-            return R_ARG1;
+            *D_OUT = *ARG(value);
+            return R_OUT;
         }
 
         fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
@@ -413,14 +417,18 @@ REBNATIVE(any_value_q)
 //
 REBNATIVE(unbind)
 {
-    REBVAL *word = D_ARG(1);
+    PARAM(1, word);
+    REFINE(2, deep);
+
+    REBVAL *word = ARG(word);
 
     if (ANY_WORD(word))
         UNBIND_WORD(word);
     else
-        Unbind_Values_Core(VAL_ARRAY_AT(word), NULL, D_REF(2));
+        Unbind_Values_Core(VAL_ARRAY_AT(word), NULL, REF(deep));
 
-    return R_ARG1;
+    *D_OUT = *word;
+    return R_OUT;
 }
 
 
@@ -565,7 +573,13 @@ REBNATIVE(get)
 //
 REBNATIVE(to_value)
 {
-    return IS_UNSET(D_ARG(1)) ? R_NONE : R_ARG1;
+    PARAM(1, value);
+
+    if (IS_UNSET(ARG(value)))
+        return R_NONE;
+
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 
@@ -579,7 +593,13 @@ REBNATIVE(to_value)
 //
 REBNATIVE(opt)
 {
-    return IS_NONE(D_ARG(1)) ? R_UNSET : R_ARG1;
+    PARAM(1, value);
+
+    if (IS_NONE(ARG(value)))
+        return R_UNSET;
+
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 
@@ -593,9 +613,16 @@ REBNATIVE(opt)
 //  ]
 //
 REBNATIVE(in)
+//
+// !!! The argument names here are bad... not necessarily a context and not
+// necessarily a word.  `code` or `source` to be bound in a `target`, perhaps?
 {
-    REBVAL *val  = D_ARG(1); // object, error, port, block
-    REBVAL *word = D_ARG(2);
+    PARAM(1, context);
+    PARAM(2, word);
+
+    REBVAL *val = ARG(context); // object, error, port, block
+    REBVAL *word = ARG(word);
+
     REBCNT index;
     REBCON *context;
 
@@ -635,7 +662,8 @@ REBNATIVE(in)
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_GROUP(word)) {
         Bind_Values_Deep(VAL_ARRAY_HEAD(word), context);
-        return R_ARG2;
+        *D_OUT = *word;
+        return R_OUT;
     }
 
     index = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
@@ -759,7 +787,8 @@ REBNATIVE(resolve)
         REF(extend)
     );
 
-    return R_ARG1;
+    *D_OUT = *ARG(target);
+    return R_OUT;
 }
 
 
@@ -801,7 +830,7 @@ REBNATIVE(set)
     //
     if (ANY_WORD(target)) {
         *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
-        return R_ARG2;
+        goto return_value_arg;
     }
 
     if (ANY_PATH(target)) {
@@ -814,7 +843,7 @@ REBNATIVE(set)
         // If not a throw, then there is no result out of a setting a path,
         // we should return the value we passed in to set with.
         //
-        return R_ARG2;
+        goto return_value_arg;
     }
 
     // If the target is either a context or a block, and the value used
@@ -838,7 +867,7 @@ REBNATIVE(set)
         // and return now so the later code doesn't have to check for it.
         //
         if (IS_END(value))
-            return R_ARG2;
+            goto return_value_arg;
     }
 
     if (ANY_CONTEXT(target)) {
@@ -924,7 +953,7 @@ REBNATIVE(set)
             if (set_with_block) value++;
         }
 
-        return R_ARG2;
+        goto return_value_arg;
     }
 
     // Otherwise, it must be a BLOCK!... extract the value at index position
@@ -1002,7 +1031,9 @@ REBNATIVE(set)
         }
     }
 
-    return R_ARG2;
+return_value_arg:
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 
@@ -1219,20 +1250,29 @@ REBNATIVE(something_q)
 
 //
 //  dump: native [
+//
 //  "Temporary debug dump"
-//   v]
+//
+//      value [opt-any-value!]
+//  ]
 //
 REBNATIVE(dump)
 {
-#ifdef _DEBUG
-    REBVAL *arg = D_ARG(1);
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
+    PARAM(1, value);
 
-    if (ANY_SERIES(arg))
-        Dump_Series(VAL_SERIES(arg), "=>");
+    REBVAL *value = ARG(value);
+
+    if (ANY_SERIES(value))
+        Dump_Series(VAL_SERIES(value), "=>");
     else
-        Dump_Values(arg, 1);
+        Dump_Values(value, 1);
+
+    *D_OUT = *value;
+    return R_OUT;
 #endif
-    return R_ARG1;
 }
 
 
@@ -1289,7 +1329,9 @@ static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
 //
 REBNATIVE(map_event)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, event);
+
+    REBVAL *val = ARG(event);
     REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
     REBXYF xy;
 
@@ -1299,7 +1341,9 @@ REBNATIVE(map_event)
         VAL_EVENT_SER(val) = cast(REBSER*, Map_Gob_Inner(gob, &xy));
         SET_EVENT_XY(val, ROUND_TO_INT(xy.x), ROUND_TO_INT(xy.y));
     }
-    return R_ARG1;
+
+    *D_OUT = *ARG(event);
+    return R_OUT;
 }
 
 

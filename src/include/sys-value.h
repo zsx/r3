@@ -1614,10 +1614,7 @@ enum {
     R_UNSET, // => SET_UNSET(D_OUT); return R_OUT;
     R_NONE, // => SET_NONE(D_OUT); return R_OUT;
     R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
-    R_FALSE, // => SET_FALSE(D_OUT); return R_OUT;
-    R_ARG1, // => *D_OUT = *D_ARG(1); return R_OUT;
-    R_ARG2, // => *D_OUT = *D_ARG(2); return R_OUT;
-    R_ARG3 // => *D_OUT = *D_ARG(3); return R_OUT;
+    R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
 };
 typedef REBCNT REB_R;
 

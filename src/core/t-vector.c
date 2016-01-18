@@ -552,7 +552,8 @@ REBTYPE(Vector)
     case A_POKE:
         // Third argument to pick path is the
         Pick_Path(D_OUT, value, arg, D_ARG(3));
-        return R_ARG3;
+        *D_OUT = *D_ARG(3);
+        return R_OUT;
 
     case A_MAKE:
         // We only allow MAKE VECTOR! ...
@@ -592,7 +593,8 @@ REBTYPE(Vector)
     case A_RANDOM:
         if (D_REF(2) || D_REF(4)) fail (Error(RE_BAD_REFINES)); // /seed /only
         Shuffle_Vector(value, D_REF(3));
-        return R_ARG1;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));

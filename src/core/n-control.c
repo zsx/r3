@@ -168,27 +168,32 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
 //
 static int Protect(struct Reb_Call *call_, REBCNT flags)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, value);
+    REFINE(2, deep);
+    REFINE(3, words);
+    REFINE(4, values);
+
+    REBVAL *val = ARG(value);
 
     // flags has PROT_SET bit (set or not)
 
     Check_Security(SYM_PROTECT, POL_WRITE, val);
 
-    if (D_REF(2)) SET_FLAG(flags, PROT_DEEP);
-    //if (D_REF(3)) SET_FLAG(flags, PROT_WORD);
+    if (REF(deep)) SET_FLAG(flags, PROT_DEEP);
+    //if (REF(words)) SET_FLAG(flags, PROT_WORD);
 
     if (IS_WORD(val) || IS_PATH(val)) {
         Protect_Word_Value(val, flags); // will unmark if deep
-        return R_ARG1;
+        goto return_value_arg;
     }
 
     if (IS_BLOCK(val)) {
-        if (D_REF(3)) { // /words
+        if (REF(words)) {
             for (val = VAL_ARRAY_AT(val); NOT_END(val); val++)
                 Protect_Word_Value(val, flags);  // will unmark if deep
-            return R_ARG1;
+            goto return_value_arg;
         }
-        if (D_REF(4)) { // /values
+        if (REF(values)) {
             REBVAL *val2;
 
             REBVAL safe;
@@ -213,7 +218,7 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
                 Protect_Value(val2, flags);
                 if (GET_FLAG(flags, PROT_DEEP)) Unmark(val2);
             }
-            return R_ARG1;
+            goto return_value_arg;
         }
     }
 
@@ -223,7 +228,9 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
 
     if (GET_FLAG(flags, PROT_DEEP)) Unmark(val);
 
-    return R_ARG1;
+return_value_arg:
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 
@@ -238,7 +245,11 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
 //
 REBNATIVE(also)
 {
-    return R_ARG1;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    *D_OUT = *ARG(value1);
+    return R_OUT;
 }
 
 
@@ -882,7 +893,12 @@ REBNATIVE(compose)
 
     // Only composes BLOCK!, all other arguments evaluate to themselves
     //
-    if (!IS_BLOCK(ARG(value))) return R_ARG1;
+    // !!! Is this sensible?
+    //
+    if (!IS_BLOCK(ARG(value))) {
+        *D_OUT = *ARG(value);
+        return R_OUT;
+    }
 
     // Compose_Values_Throws() expects `out` to contain the target if it is
     // passed TRUE as the `into` flag.
@@ -1040,7 +1056,8 @@ REBNATIVE(do)
 
     case REB_TASK:
         Do_Task(ARG(value));
-        return R_ARG1;
+        *D_OUT = *ARG(value);
+        return R_OUT;
     }
 
 #if !defined(NDEBUG)
@@ -1591,7 +1608,8 @@ REBNATIVE(reduce)
         return R_OUT;
     }
 
-    return R_ARG1;
+    *D_OUT = *ARG(value);
+    return R_OUT;
 }
 
 

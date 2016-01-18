@@ -570,7 +570,8 @@ static REB_R File_Actor(struct Reb_Call *call_, REBCON *port, REBCNT action)
 
 seeked:
     SET_FLAG(file->modes, RFM_RESEEK);
-    return R_ARG1;
+    *D_OUT = *D_ARG(1);
+    return R_OUT;
 
 is_true:
     return R_TRUE;

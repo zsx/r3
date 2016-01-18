@@ -399,9 +399,15 @@ REBTYPE(Event)
 
     if (action == A_MAKE) {
         // Clone an existing event?
-        if (IS_EVENT(value)) return R_ARG1;
+        if (IS_EVENT(value)) {
+            *D_OUT = *D_ARG(1);
+            return R_OUT;
+        }
         else if (IS_DATATYPE(value)) {
-            if (IS_EVENT(arg)) return R_ARG2;
+            if (IS_EVENT(arg)) {
+                *D_OUT = *D_ARG(2);
+                return R_OUT;
+            }
             //fail (Error_Bad_Make(REB_EVENT, value));
             VAL_RESET_HEADER(D_OUT, REB_EVENT);
             CLEARS(&(D_OUT->payload.event));

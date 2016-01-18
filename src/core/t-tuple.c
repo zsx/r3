@@ -301,7 +301,8 @@ REBTYPE(Tuple)
 
 /// case A_POKE:
 ///     Pick_Path(D_OUT, value, arg, D_ARG(3));
-///     return R_ARG3;
+///     *D_OUT = *D_ARG(3);
+///     return R_OUT;
 
     case A_REVERSE:
         if (D_REF(2)) {
@@ -343,7 +344,8 @@ REBTYPE(Tuple)
     case A_MAKE:
     case A_TO:
         if (IS_TUPLE(arg)) {
-            return R_ARG2;
+            *D_OUT = *D_ARG(2);
+            return R_OUT;
         }
 
         // !!! Net lookup parses IP addresses out of `tcp://93.184.216.34` or

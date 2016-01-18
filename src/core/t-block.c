@@ -882,8 +882,10 @@ zero_blk:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
-    if (!value)
-        return R_ARG1;
+    if (!value) {
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+    }
 
     *D_OUT = *value;
     return R_OUT;

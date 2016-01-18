@@ -906,7 +906,8 @@ REBTYPE(Image)
 
     case A_POKE:
         Pick_Path(D_OUT, value, arg, D_ARG(3));
-        return R_ARG3;
+        *D_OUT = *D_ARG(3);
+        return R_OUT;
 
     case A_SKIP:
     case A_AT:

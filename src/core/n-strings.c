@@ -523,13 +523,23 @@ REBNATIVE(enbase)
 //
 REBNATIVE(decloak)
 {
-    REBVAL *data = D_ARG(1);
-    REBVAL *key  = D_ARG(2);
+    PARAM(1, data);
+    PARAM(2, key);
+    REFINE(3, with);
 
-    if (!Cloak(TRUE, VAL_BIN_AT(data), VAL_LEN_AT(data), (REBYTE*)key, 0, D_REF(3)))
-        fail (Error_Invalid_Arg(key));
+    if (!Cloak(
+        TRUE,
+        VAL_BIN_AT(ARG(data)),
+        VAL_LEN_AT(ARG(data)),
+        cast(REBYTE*, ARG(key)),
+        0,
+        REF(with)
+    )) {
+        fail (Error_Invalid_Arg(ARG(key)));
+    }
 
-    return R_ARG1;
+    *D_OUT = *ARG(data);
+    return R_OUT;
 }
 
 
@@ -545,13 +555,23 @@ REBNATIVE(decloak)
 //
 REBNATIVE(encloak)
 {
-    REBVAL *data = D_ARG(1);
-    REBVAL *key  = D_ARG(2);
+    PARAM(1, data);
+    PARAM(2, key);
+    REFINE(3, with);
 
-    if (!Cloak(FALSE, VAL_BIN_AT(data), VAL_LEN_AT(data), (REBYTE*)key, 0, D_REF(3)))
-        fail (Error_Invalid_Arg(key));
+    if (!Cloak(
+        FALSE,
+        VAL_BIN_AT(ARG(data)),
+        VAL_LEN_AT(ARG(data)),
+        cast(REBYTE*, ARG(key)),
+        0,
+        REF(with))
+    ) {
+        fail (Error_Invalid_Arg(ARG(key)));
+    }
 
-    return R_ARG1;
+    *D_OUT = *ARG(data);
+    return R_OUT;
 }
 
 
@@ -643,11 +663,14 @@ REBNATIVE(dehex)
 //
 REBNATIVE(deline)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, string);
+    REFINE(2, lines);
+
+    REBVAL *val = ARG(string);
     REBINT len = VAL_LEN_AT(val);
     REBINT n;
 
-    if (D_REF(2)) { //lines
+    if (REF(lines)) {
         Val_Init_Block(D_OUT, Split_Lines(val));
         return R_OUT;
     }
@@ -662,7 +685,8 @@ REBNATIVE(deline)
 
     SET_SERIES_LEN(VAL_SERIES(val), VAL_LEN_HEAD(val) - (len - n));
 
-    return R_ARG1;
+    *D_OUT = *ARG(string);
+    return R_OUT;
 }
 
 
@@ -678,7 +702,9 @@ REBNATIVE(enline)
 //
 // Convert LF to CRLF or native format.
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, series);
+
+    REBVAL *val = ARG(series);
     REBSER *ser = VAL_SERIES(val);
 
     if (SERIES_LEN(ser)) {
@@ -688,7 +714,8 @@ REBNATIVE(enline)
             Enline_Uni(ser, VAL_INDEX(val), VAL_LEN_AT(val));
     }
 
-    return R_ARG1;
+    *D_OUT = *ARG(series);
+    return R_OUT;
 }
 
 
@@ -850,7 +877,9 @@ REBNATIVE(to_hex)
 //
 REBNATIVE(find_script)
 {
-    REBVAL *arg = D_ARG(1);
+    PARAM(1, script);
+
+    REBVAL *arg = ARG(script);
     REBINT n;
 
     n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
@@ -865,7 +894,8 @@ REBNATIVE(find_script)
 
     VAL_INDEX(arg) += n;
 
-    return R_ARG1;
+    *D_OUT = *ARG(script);
+    return R_OUT;
 }
 
 
@@ -897,14 +927,20 @@ REBNATIVE(utf_q)
 //
 REBNATIVE(invalid_utf_q)
 {
-    REBVAL *arg = D_ARG(1);
+    PARAM(1, data);
+    REFINE(2, utf);
+    PARAM(3, num);
+
+    REBVAL *arg = ARG(data);
     REBYTE *bp;
 
     bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
     if (bp == 0) return R_NONE;
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);
-    return R_ARG1;
+
+    *D_OUT = *arg;
+    return R_OUT;
 }
 
 
