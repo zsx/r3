@@ -150,7 +150,7 @@ REBCON *Alloc_Context(REBCNT len)
 
     // Allowed to be set to NULL, but must be done so explicitly
     //
-    CONTEXT_BODY(context) = cast(REBARR*, 0xBAADF00D);
+    CONTEXT_STACKVARS(context) = cast(REBVAL*, 0xBAADF00D);
 #endif
 
     SET_END(CONTEXT_VARS_HEAD(context));
@@ -700,7 +700,7 @@ void Rebind_Context_Deep(REBCON *src, REBCON *dst, REBINT *opt_binds)
 REBCON *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
     REBCON *spec,
-    REBARR *body,
+    REBVAL *stackvars,
     REBVAL value[],
     REBCON *opt_parent
 ) {
@@ -788,7 +788,7 @@ REBCON *Make_Selfish_Context_Detect(
         //
         CONTEXT_VALUE(context)->payload.any_context.context = context;
         VAL_CONTEXT_SPEC(CONTEXT_VALUE(context)) = NULL;
-        VAL_CONTEXT_BODY(CONTEXT_VALUE(context)) = NULL;
+        VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(context)) = NULL;
 
         // !!! This code was inlined from Create_Frame() because it was only
         // used once here, and it filled the context vars with NONE!.  For
@@ -830,7 +830,7 @@ REBCON *Make_Selfish_Context_Detect(
     assert(CONTEXT_TYPE(context) == kind);
 
     CONTEXT_SPEC(context) = spec;
-    CONTEXT_BODY(context) = body;
+    CONTEXT_STACKVARS(context) = stackvars;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
     // the object we just created.  (It is indeed a copy of the [0] element,
@@ -993,7 +993,7 @@ REBCON *Merge_Contexts_Selfish(REBCON *parent1, REBCON *parent2)
     INIT_CONTEXT_KEYLIST(child, keylist);
     INIT_VAL_CONTEXT(value, child);
     VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_BODY(value) = NULL;
+    VAL_CONTEXT_STACKVARS(value) = NULL;
 
     // Copy parent1 values:
     memcpy(

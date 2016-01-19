@@ -717,6 +717,12 @@ static REBOOL Series_Data_Alloc(
     //
     s->content.dynamic.len = 0;
 
+    // Currently once a series becomes dynamic, it never goes back.  There is
+    // no shrinking process that will pare it back to fit completely inside
+    // the REBSER node.
+    //
+    SERIES_SET_FLAG(s, OPT_SER_HAS_DYNAMIC);
+
     // See if allocation tripped our need to queue a garbage collection
 
     if ((GC_Ballast -= size) <= 0) SET_SIGNAL(SIG_RECYCLE);
@@ -931,8 +937,20 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     s->content.dynamic.data = NULL;
 
     if (flags & MKS_EXTERNAL) {
+        //
         // External series will poke in their own data pointer after the
         // REBSER header allocation is done
+        //
+        // !!! For the moment, external series are conflated with the frame
+        // series that have only stack data and no dynamic data.  Hence we
+        // initialize the REBVAL as writable here, but also set the length
+        // and rest fields.  How exactly are external series used, and how
+        // much of a problem is it to share the flag?  Could they set their
+        // own length, rest, wide, height vs. doing it here, where those
+        // fields could conceivably be just turned around and overwritten by
+        // the use of the slot as a REBVAL?
+        //
+        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
 
         SERIES_SET_FLAG(s, OPT_SER_EXTERNAL);
         SERIES_SET_WIDE(s, wide);

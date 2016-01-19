@@ -1422,8 +1422,6 @@ reevaluate:
                 ret = (*FUNC_CODE(c->func))(c);
             }
 
-            c->mode = CALL_MODE_0;
-
             CS_Running = prior_call;
 
             // If frameless, use SET_UNSET(D_OUT) instead of R_UNSET, etc.
@@ -1435,20 +1433,12 @@ reevaluate:
                 // We're bypassing Dispatch_Function, but we still want to
                 // be able to handle EXIT/FROM requests to this stack level
                 //
-                if (
-                    VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
-                    && !IS_OBJECT(c->out)
-                    && VAL_FUNC(c->out) == c->func
-                ) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->indexor = END_FLAG; // signal to return
-                    c->value = NULL; // could be debug only...
-                }
-                else {
-                    assert(c->indexor == THROWN_FLAG);
-                    NOTE_THROWING(goto return_indexor);
-                }
+                c->mode = CALL_MODE_THROWN;
+                assert(THROWN(c->out));
+                goto handle_possible_exit_thrown;
             }
+
+            c->mode = CALL_MODE_0;
 
             // We're done!
             break;
@@ -1950,7 +1940,8 @@ reevaluate:
             c->eval_fetched = c->value;
             c->value = &eval;
 
-            goto drop_call_and_reevaluate;
+            c->mode = CALL_MODE_0;
+            goto drop_call_for_legacy_do_function;
         }
     #endif
 
@@ -1971,22 +1962,22 @@ reevaluate:
             // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
-        #if !defined(NDEBUG)
             if (ARRAY_GET_FLAG(exit_from, OPT_SER_CONTEXT)) {
                 //
                 // Request to exit from a specific FRAME!
                 //
-                assert(IS_FRAME(CONTEXT_VALUE(AS_CONTEXT(exit_from))));
+                *c->out = *CONTEXT_VALUE(AS_CONTEXT(exit_from));
+                assert(IS_FRAME(c->out));
+                PROBE_MSG(c->out, "exit_from frame");
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
+                // that has a given parameter list
                 //
-                assert(IS_FUNCTION(FUNC_VALUE(AS_FUNC(exit_from))));
-                assert(FUNC_PARAMLIST(AS_FUNC(exit_from)) == exit_from);
+                *c->out = *FUNC_VALUE(AS_FUNC(exit_from));
+                assert(IS_FUNCTION(c->out));
+                assert(VAL_FUNC_PARAMLIST(c->out) == exit_from);
             }
-        #endif
-
-            *c->out = *ARRAY_HEAD(exit_from);
 
             CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
 
@@ -2080,63 +2071,16 @@ reevaluate:
         assert(THROWN(c->out) == LOGICAL(c->mode == CALL_MODE_THROWN));
     #endif
 
-        // A definitional return should only be intercepted if it was for this
-        // particular function invocation.  Definitional return abilities have
-        // been extended to natives and actions, in order to permit stack
-        // control in debug situations (and perhaps some non-debug capabilities
-        // will be discovered as well).
-        //
-        // NOTE: Used to check EXT_FUNC_HAS_RETURN, but the debug scenarios
-        // permit returning from natives or functions/closures without any
-        // notion of definitional return.  See notes on OPT_VALUE_EXIT_FROM.
-        //
-        if (
-            c->mode == CALL_MODE_THROWN
-            && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
-        ) {
-            if (IS_FRAME(c->out)) {
-                //
-                // This identifies an exit from a *specific* functiion
-                // invocation.  We can only match it if we have a reified
-                // frame context.
-                //
-                if (
-                    (c->flags & DO_FLAG_FRAME_CONTEXT) &&
-                    VAL_CONTEXT(c->out) == AS_CONTEXT(c->frame.context)
-                ) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_0;
-                }
-            }
-            else if (ANY_FUNC(c->out)) {
-                //
-                // This identifies an exit from whichever instance of the
-                // function is most recent on the stack.  This can be used
-                // to exit without reifying a frame.  If exiting dynamically
-                // when all that was named was a function, but definitionally
-                // scoped returns should ideally have a trick for having
-                // the behavior of a reified frame without needing to do
-                // so (for now, they use this path in FUNCTION!)
-                //
-                if (VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_0;
-                }
-            }
-            else {
-                assert(FALSE); // no other low-level EXIT/FROM supported
-            }
-        }
-
         // Remove this call frame from the call stack (it will be dropped
         // from GC consideration when the args are freed).
         //
         CS_Running = call_orig;
 
-        if (c->mode == CALL_MODE_THROWN)
-            c->indexor = THROWN_FLAG;
 
-    drop_call_and_reevaluate:
+#if !defined(NDEBUG)
+    drop_call_for_legacy_do_function:
+#endif
+
     drop_call_and_return_thrown:
         //
         // The same label is currently used for both these outcomes, and
@@ -2165,29 +2109,118 @@ reevaluate:
                 // go away...
                 //
                 Free_Array(CONTEXT_VARLIST(c->frame.context));
+                //
+                // NOTE: Even though we've freed the pointer, we still compare
+                // it for identity below when checking to see if this was the
+                // stack level being thrown to!
             }
         }
         else
             Drop_Chunk(c->frame.stackvars);
 
     #if !defined(NDEBUG)
+        if (c->eval_fetched) {
+            //
+            // All the eval wanted to do was get the call frame cleaned up.
+            //
+            // !!! This is only needed by the legacy implementation of DO
+            // for EVAL of functions, because it has to drop the pushed
+            // call with arguments.  Is there a cleaner way?
+            //
+            assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
+            assert(c->mode == CALL_MODE_0 && c->indexor != THROWN_FLAG);
+            goto reevaluate;
+        }
+    #endif
+
+        // A definitional return should only be intercepted if it was for this
+        // particular function invocation.  Definitional return abilities have
+        // been extended to natives and actions, in order to permit stack
+        // control in debug situations (and perhaps some non-debug capabilities
+        // will be discovered as well).
         //
-        // There are two entry points to Push_Arglist_For_Call at the moment,
-        // so this can't be done by the debug routine at top of loop.
+    handle_possible_exit_thrown:
+        if (
+            c->mode == CALL_MODE_THROWN
+            && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
+        ) {
+            if (IS_FRAME(c->out)) {
+                //
+                // This identifies an exit from a *specific* functiion
+                // invocation.  We can only match it if we have a reified
+                // frame context.
+                //
+                if (
+                    (c->flags & DO_FLAG_FRAME_CONTEXT) &&
+                    VAL_CONTEXT(c->out) == AS_CONTEXT(c->frame.context)
+                ) {
+                    CATCH_THROWN(c->out, c->out);
+                    c->mode = CALL_MODE_0;
+                }
+                else {
+                    PROBE_MSG(c->out, "passing on exit_from");
+                }
+            }
+            else if (ANY_FUNC(c->out)) {
+                //
+                // This identifies an exit from whichever instance of the
+                // function is most recent on the stack.  This can be used
+                // to exit without reifying a frame.  If exiting dynamically
+                // when all that was named was a function, but definitionally
+                // scoped returns should ideally have a trick for having
+                // the behavior of a reified frame without needing to do
+                // so (for now, they use this path in FUNCTION!)
+                //
+                if (VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)) {
+                    CATCH_THROWN(c->out, c->out);
+                    c->mode = CALL_MODE_0;
+                }
+            }
+            else if (IS_INTEGER(c->out)) {
+                //
+                // If it's an integer, we drop the value at each stack level
+                // until 1 is reached...
+                //
+                if (VAL_INT32(c->out) == 1) {
+                    CATCH_THROWN(c->out, c->out);
+                    c->mode = CALL_MODE_0;
+                }
+                else {
+                    // don't reset header (keep thrown flag as is), just bump
+                    // the count down by one...
+                    //
+                    --c->out->payload.integer;
+                    //
+                    // ...and stay in thrown mode...
+                }
+            }
+            else {
+                assert(FALSE); // no other low-level EXIT/FROM supported
+            }
+        }
+
+    #if !defined(NDEBUG)
+        //
+        // No longer need to check c->frame.context for thrown status if it
+        // was used, so overwrite the dead pointer in the union.  Note there
+        // are two entry points to Push_Arglist_For_Call at the moment,
+        // so this clearing can't be done by the debug routine at top of loop.
         //
         c->frame.stackvars = NULL;
     #endif
 
-        // Redundant given above but eval and other cases don't reset it,
-        // so we need to ensure it done here...
+        // If the throw wasn't intercepted as an exit from this function call,
+        // accept the throw.  We only care about the mode getting set cleanly
+        // back to CALL_MODE_0 if the evaluator didn't throw and keeps going.
         //
-        c->mode = CALL_MODE_0;
-
-        if (c->eval_fetched)
-            goto reevaluate;
-
-        if (c->indexor == THROWN_FLAG)
+        if (c->mode == CALL_MODE_THROWN) {
+            c->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
+        }
+        else if (c->indexor == THROWN_FLAG)
+            NOTE_THROWING(goto return_indexor);
+        else
+            assert(c->mode == CALL_MODE_0);
 
 //
 //

@@ -1312,7 +1312,7 @@ struct Reb_Any_Word {
 #define INIT_WORD_SPECIFIC(v,context) \
     (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
         && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
-        ENSURE_ARRAY_MANAGED(CONTEXT_VARLIST(context)), \
+        ENSURE_SERIES_MANAGED(CONTEXT_SERIES(context)), \
         assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED)), \
         (v)->payload.any_word.binding.specific = (context))
 
@@ -1467,7 +1467,7 @@ struct Reb_Typeset {
 struct Reb_Any_Context {
     REBCON *context;
     REBCON *spec; // optional (currently only used by modules)
-    REBARR *body; // optional (currently not used at all)
+    REBVAL *stackvars;
 };
 
 #define VAL_CONTEXT(v) \
@@ -1477,7 +1477,12 @@ struct Reb_Any_Context {
     ((v)->payload.any_context.context = (c))
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
-#define VAL_CONTEXT_BODY(v)         ((v)->payload.any_context.body)
+
+#define VAL_CONTEXT_STACKVARS(v)    ((v)->payload.any_context.stackvars)
+
+#define VAL_CONTEXT_STACKVARS_LEN(v) \
+    (assert(ANY_CONTEXT(v)), \
+        CHUNK_LEN_FROM_VALUES((v)->payload.any_context.stackvars))
 
 // Convenience macros to speak in terms of object values instead of the context
 //

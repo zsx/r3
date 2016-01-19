@@ -702,11 +702,11 @@ static void Init_Root_Context(void)
     INIT_CONTEXT_KEYLIST(root, NULL);
     MANAGE_ARRAY(CONTEXT_VARLIST(root));
 
-    // !!! Also no `body` (or `spec`, not yet implemented); revisit
+    // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CONTEXT_VALUE(root), REB_OBJECT);
     VAL_CONTEXT_SPEC(CONTEXT_VALUE(root)) = NULL;
-    VAL_CONTEXT_BODY(CONTEXT_VALUE(root)) = NULL;
+    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(root)) = NULL;
 
     // Set all other values to NONE:
     {
@@ -834,7 +834,7 @@ static void Init_Task_Context(void)
     //
     VAL_RESET_HEADER(CONTEXT_VALUE(task), REB_OBJECT);
     VAL_CONTEXT_SPEC(CONTEXT_VALUE(task)) = NULL;
-    VAL_CONTEXT_BODY(CONTEXT_VALUE(task)) = NULL;
+    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(task)) = NULL;
 
     // Set all other values to NONE:
     {
@@ -945,7 +945,7 @@ static void Init_System_Object(void)
         value = Get_System(SYS_CODECS, 0);
         VAL_RESET_HEADER(CONTEXT_VALUE(codecs), REB_OBJECT);
         CONTEXT_SPEC(codecs) = NULL;
-        CONTEXT_BODY(codecs) = NULL;
+        CONTEXT_STACKVARS(codecs) = NULL;
         Val_Init_Object(value, codecs);
     }
 }
@@ -1450,7 +1450,7 @@ void Init_Core(REBARGS *rargs)
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
     CONTEXT_SPEC(Lib_Context) = NULL;
-    CONTEXT_BODY(Lib_Context) = NULL;
+    CONTEXT_STACKVARS(Lib_Context) = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
     //
@@ -1459,7 +1459,7 @@ void Init_Core(REBARGS *rargs)
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
     CONTEXT_SPEC(Sys_Context) = NULL;
-    CONTEXT_BODY(Sys_Context) = NULL;
+    CONTEXT_STACKVARS(Sys_Context) = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available

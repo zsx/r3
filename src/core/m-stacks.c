@@ -29,10 +29,6 @@
 #include "sys-core.h"
 
 
-#define CHUNK_FROM_VALUES(cv) \
-    cast(struct Reb_Chunk *, cast(REBYTE*, (cv)) \
-        - offsetof(struct Reb_Chunk, values))
-
 #define CHUNKER_FROM_CHUNK(c) \
     cast(struct Reb_Chunker*, \
         cast(REBYTE*, (c)) \
@@ -294,7 +290,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
 
     chunk->prev = TG_Top_Chunk;
 
-    chunk->opt_holder = NULL;
+    chunk->opt_context = NULL;
 
     TG_Top_Chunk = chunk;
 
@@ -336,15 +332,34 @@ void Drop_Chunk(REBVAL values[])
     //
     assert(!values || CHUNK_FROM_VALUES(values) == chunk);
 
-    if (chunk->opt_holder) {
+    if (chunk->opt_context) {
+        REBARR *varlist = CONTEXT_VARLIST(chunk->opt_context);
         assert(
-            ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_EXTERNAL)
-            && ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_STACK)
-            && ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_ARRAY)
+            ARRAY_GET_FLAG(varlist, OPT_SER_EXTERNAL)
+            && ARRAY_GET_FLAG(varlist, OPT_SER_STACK)
+            && ARRAY_GET_FLAG(varlist, OPT_SER_ARRAY)
         );
-        assert(ARRAY_GET_FLAG(chunk->opt_holder, OPT_SER_ACCESSIBLE));
-        ARRAY_CLR_FLAG(chunk->opt_holder, OPT_SER_ACCESSIBLE);
-        ARRAY_SERIES(chunk->opt_holder)->content.dynamic.data = NULL; // debug?
+        assert(ARRAY_GET_FLAG(varlist, OPT_SER_ACCESSIBLE));
+        assert(
+            CONTEXT_STACKVARS(chunk->opt_context) == &TG_Top_Chunk->values[0]
+        );
+        ARRAY_CLR_FLAG(varlist, OPT_SER_ACCESSIBLE);
+
+    #if !defined(NDEBUG)
+        //
+        // The general idea of the "canon" values inside of ANY-CONTEXT!
+        // and ANY-FUNCTION! at their slot [0] positions of varlist and
+        // paramlist respectively was that all REBVAL instances of that
+        // context or object would mirror those bits.  Because we have
+        // OPT_SER_ACCESSIBLE then it's possible to keep this invariant
+        // and let a stale stackvars pointer be bad inside the context to
+        // match any extant REBVALs, but debugging will be more obvious if
+        // the bits are deliberately set to bad--even if this is incongruous
+        // with those values.  Thus there is no check that these bits line
+        // up and we turn the ones in the context itself to garbage here.
+        //
+        CONTEXT_STACKVARS(chunk->opt_context) = cast(REBVAL*, 0xDECAFBAD);
+    #endif
     }
 
     // Drop to the prior top chunk
@@ -435,7 +450,12 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // put one there.
     //
     c->frame.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
-    c->flags &= ~DO_FLAG_FRAME_CONTEXT; // clear flag - it's just the chunk
+    assert(CHUNK_LEN_FROM_VALUES(c->frame.stackvars) == num_slots);
+
+    // For starters clear the context flag; it's just the chunk with no
+    // "reification" (Frame_For_Call_May_Reify() might change this)
+    //
+    c->flags &= ~DO_FLAG_FRAME_CONTEXT;
 
     // !!! The [0] slot is not used for anything unless the context becomes
     // reified.  Is there some property that would be meaningful to keep track
@@ -483,7 +503,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 
 
 //
-//  Frame_For_Call: C
+//  Frame_For_Call_May_Reify: C
 //
 // A Reb_Call does not allocate a REBSER for its frame to be used in the
 // context by default.  But one can be allocated on demand, even for a NATIVE!
@@ -518,10 +538,7 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
     ));
 
     ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ARRAY);
-    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_STACK);
     ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
-
-    SET_ARRAY_LEN(AS_ARRAY(context), ARRAY_LEN(FUNC_PARAMLIST(c->func)));
 
     // We have to set the lock flag on the series as long as it is on
     // the stack.  This means that no matter what cleverness the GC
@@ -556,18 +573,6 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
         assert(!ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_MANAGED));
     }
 
-    // Give this series the data from what was in the chunk, and make note
-    // of the series in the chunk so that it can be marked as "gone bad"
-    // when that chunk gets freed (could happen during a fail() or when
-    // the stack frame finishes normally)
-    //
-    ARRAY_SERIES(AS_ARRAY(context))->content.dynamic.data
-        = cast(REBYTE*, c->frame.stackvars);
-    chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
-    assert(!chunk->opt_holder);
-    chunk->opt_holder = AS_ARRAY(context);
-    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ACCESSIBLE);
-
     // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
     // be marked safe from GC.  It is managed because the pointer makes
     // its way into bindings that ANY-WORD! values may have, and they
@@ -581,15 +586,27 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
     CONTEXT_SPEC(context) = NULL;
-    CONTEXT_BODY(context) = NULL;
-    ASSERT_CONTEXT(context);
-    c->frame.context = context;
+
+    // Give this series the data from what was in the chunk, and make note
+    // of the series in the chunk so that it can be marked as "gone bad"
+    // when that chunk gets freed (could happen during a fail() or when
+    // the stack frame finishes normally)
+    //
+    CONTEXT_STACKVARS(context) = c->frame.stackvars;
+    chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
+    assert(!chunk->opt_context);
+    chunk->opt_context = context;
+
+    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_STACK);
+    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ACCESSIBLE);
 
     // Finally we mark the flags to say this contains a valid frame, so that
     // future calls to this routine will return it instead of making another.
     // This flag must be cleared when the call is finished (as the Reb_Call
     // will be blown away if there's an error, no concerns about that).
     //
+    ASSERT_CONTEXT(context);
+    c->frame.context = context;
     c->flags |= DO_FLAG_FRAME_CONTEXT;
 
     return context;

@@ -259,13 +259,13 @@ struct Reb_Chunk {
     //
 #endif
 
-    // If this serves as the backing memory for a REBSER array of REBVALs,
-    // then when the data goes away it is necessary to mark that array as
+    // If this serves as the backing memory for a context's stackvars then
+    // when the data goes away it is necessary to mark that context as
     // not having its memory any more.  This cannot be managed purely by the
     // client, because a fail() can longjmp...and the chunk stack needs enough
     // information stored to find that series to mark.
     //
-    REBARR *opt_holder;
+    REBCON *opt_context;
 
     // Pointer to the previous chunk.
     //
@@ -287,6 +287,14 @@ struct Reb_Chunk {
 // generally don't want for our math, due to C++ "no zero element array" rule
 //
 #define BASE_CHUNK_SIZE (sizeof(struct Reb_Chunk) - sizeof(REBVAL))
+
+#define CHUNK_FROM_VALUES(v) \
+    cast(struct Reb_Chunk *, cast(REBYTE*, (v)) \
+        - offsetof(struct Reb_Chunk, values))
+
+#define CHUNK_LEN_FROM_VALUES(v) \
+    ((CHUNK_FROM_VALUES(v)->size.bits - offsetof(struct Reb_Chunk, values)) \
+        / sizeof(REBVAL))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

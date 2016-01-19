@@ -244,7 +244,7 @@ static REBCON *Trim_Context(REBCON *context)
     //
     context_new = Alloc_Context(copy_count);
     VAL_CONTEXT_SPEC(CONTEXT_VALUE(context_new)) = NULL;
-    VAL_CONTEXT_BODY(CONTEXT_VALUE(context_new)) = NULL;
+    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(context_new)) = NULL;
 
     // Second pass: copy the values that were not skipped in the first pass
     //
@@ -524,7 +524,7 @@ REBTYPE(Context)
 
             context = Copy_Context_Shallow(VAL_CONTEXT(item + 1));
             VAL_CONTEXT_SPEC(CONTEXT_VALUE(context)) = VAL_CONTEXT(item);
-            assert(VAL_CONTEXT_BODY(CONTEXT_VALUE(context)) == NULL);
+            assert(VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(context)) == NULL);
             VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_MODULE);
 
             // !!! Again, not how this should be done but... if there is a
