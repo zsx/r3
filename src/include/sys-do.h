@@ -233,7 +233,7 @@ enum Reb_Call_Mode {
     CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
     CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
-    CALL_MODE_THROWN    // a function has THROWN and call frame is ending
+    CALL_MODE_THROWN // function threw (sometimes may be intercepted)
 };
 
 union Reb_Call_Source {

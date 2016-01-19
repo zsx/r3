@@ -1110,7 +1110,7 @@ REBNATIVE(eval)
 //      /from
 //          "Jump the stack to return from a specific frame or call"
 //      level [frame! any-function! integer!]
-//          "Frame or function to exit from (for #, use RESUME under debugger)"
+//          "Frame, function, or stack index to exit from"
 //  ]
 //
 REBNATIVE(exit)
@@ -1127,30 +1127,39 @@ REBNATIVE(exit)
     REFINE(3, from);
     PARAM(4, level);
 
-    const REBOOL skip_current = TRUE; // don't count this exit
+    REBVAL *level = ARG(level);
 
-    // Will come back with the next level up (if any) should level be UNSET!
-    // (e.g. when !REF(from))
+    if (IS_UNSET(level)) {
+        //
+        // The thrown exit protocol understands integers to be a count down
+        // of how many frames to skip.  If no /FROM argument is provided
+        // that means they want to exit from the function that called exit,
+        // so the protocol here is to use a count of 2 (that way exit does
+        // not exit itself...)
+        //
+        SET_INTEGER(D_OUT, 2);
+    }
+    else if (IS_INTEGER(level)) {
+        //
+        // Pursuant to the above, if we get an integer we want to bump it
+        // up by 1 from what the user asked for, in order to account for
+        // EXIT's exit from itself.
+        //
+        // (Note that if a refinement like /WITH is used it is possible to
+        // wind up in a debug stack during argument fulfillment to an exit,
+        // so you may actually have reason to "EXIT from an EXIT"...so better
+        // to use the count than to have a rule like "EXIT rejects EXITs")
+        //
+        if (VAL_INT32(level) < 0)
+            fail (Error(RE_INVALID_EXIT));
 
-    struct Reb_Call *call = Call_For_Stack_Level(
-        NULL, ARG(level), skip_current
-    );
+        SET_INTEGER(D_OUT, VAL_INT32(level) + 1);
+    }
+    else {
+        assert(IS_FRAME(level) || ANY_FUNC(level));
 
-    // NULL here means we didn't find a match (either plain exit but no
-    // frames higher, or the requested function isn't on the stack.)
-    //
-    // !!! For ANY-FUNCTION! and FRAME! do we really need to check here?  It
-    // costs time.  Instead we could leave the error up to the throw.  Not
-    // a performance priority so better to notify earlier for now, but long
-    // term it probably shouldn't be climbing the stack unless it has to.
-    //
-    if (!call)
-        fail (Error(RE_INVALID_EXIT));
-
-    if (call->flags & DO_FLAG_FRAME_CONTEXT)
-        *D_OUT = *CONTEXT_VALUE(call->frame.context);
-    else
-        *D_OUT = *FUNC_VALUE(call->func);
+        *D_OUT = *level;
+    }
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE);
 

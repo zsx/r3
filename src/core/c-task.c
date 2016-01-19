@@ -62,8 +62,21 @@
 //
 //  Launch_Task: C
 //
+// !!! TASK! was an unfinished feature of R3-Alpha.  While the code had been
+// reigned in from what was apparently a large number of global variables,
+// there was no articulated story of how different threads of execution
+// would interact safely with the same data.  Because synchronization was
+// not accounted for in the memory pools or otherwise, these tasks would
+// have to lock down large parts of the system to run and not risk crashing
+// another thread.
+//
+// Ren-C has moved along without it but not quite yet deleted the code due
+// to wanting to understand what the original goal was.  Over time what code
+// there was has been commented out entirely, so it will likely be removed.
+//
 static void Launch_Task(void *task_rebval)
 {
+/*
     REBVAL *task = cast(REBVAL*, task_rebval);
     REBARR *body;
 
@@ -80,6 +93,7 @@ static void Launch_Task(void *task_rebval)
         fail (Error_No_Catch_For_Throw(&ignored));
 
     Debug_Str("End Task");
+*/
 }
 
 

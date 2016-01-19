@@ -36,14 +36,15 @@
 //   of memory containing equally-sized elements.
 //
 // * The user-level value type ANY-SERIES!.  This might be more accurately
-//   called POSITION!, because it includes both a pointer to a REBSER of
+//   called ITERATOR!, because it includes both a pointer to a REBSER of
 //   data and an index offset into that data.  Attempts to reconcile all
 //   the naming issues from historical Rebol have not yielded a satisfying
 //   alternative, so the ambiguity has stuck.
 //
-// This file regards the first interpretation of the word series.  For more
-// on the ANY-SERIES! value type and its embedded index, see %sys-value.h
-// in the definition of `struct Reb_Any_Series`.
+// This file regards the first meaning of the word "series" and covers the
+// low-level implementation details of a REBSER and its variants.  For info
+// about the higher-level ANY-SERIES! value type and its embedded index,
+// see %sys-value.h in the definition of `struct Reb_Any_Series`.
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -65,7 +66,7 @@
 // REBSERs may be either manually memory managed or delegated to the garbage
 // collector.  Free_Series() may only be called on manual series.  See
 // MANAGE_SERIES() and PUSH_GUARD_SERIES() for remarks on how to work safely
-// with pointers to garbage collected series, to avoid having them be GC'd
+// with pointers to garbage-collected series, to avoid having them be GC'd
 // out from under the code while working with them.
 //
 // This file defines series subclasses which are type-incompatible with
@@ -81,31 +82,29 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This structure is a small fixed-size header for the series, containing
-// information about its content.  Every string and block in REBOL uses one
-// of these to permit GC and compaction.
+// This structure is a small descriptor for a series, and contains information
+// about its content and flags.  Every string and block in REBOL has one.
 //
-// The REBSER is fixed-size, and is allocated as a "node" from a memory pool
-// that quickly grants and releases memory ranges that are sizeof(REBSER)
+// The REBSER is fixed-size, and is allocated as a "node" from a memory pool.
+// That pool quickly grants and releases memory ranges that are sizeof(REBSER)
 // without needing to use malloc() and free() for each individual allocation.
 // These nodes can also be enumerated in the pool without needing the series
-// to be tracked via a linked list or other structure.  That enumeration is
-// done for instance by the garbage collector.
+// to be tracked via a linked list or other structure.  The garbage collector
+// is one example of code that performs such an enumeration.
 //
 // A REBSER node pointer will remain valid as long as outstanding references
 // to the series exist in values visible to the GC.  On the other hand, the
 // series's data pointer may be freed and reallocated to respond to the needs
-// of resizing--and in the future may be reallocated just as an idle task
-// by the GC to reclaim or optimize space.  Hence pointers into data in a
+// of resizing.  (In the future, it may be reallocated just as an idle task
+// by the GC to reclaim or optimize space.)  Hence pointers into data in a
 // managed series *must not be held onto across evaluations*.
 //
-// !!! An upcoming feature is the ability to avoid a dynamic allocation for
-// the series data values in cases of short series (of lengths 0, 1, or
-// perhaps even 2 or more if series nodes can be drawn from different pools).
-// This would mean putting the values directly into the series node itself,
-// and using the implicit terminating tricks of END to terminate with a
-// misc pointer doing double duty for another purpose.  The groundwork is
-// laid but there are still some details to work out.
+// If the data requirements of a series are small, then rather than using the
+// space in the REBSER to track a dynamic allocation, the data is included
+// directly in the node itself.  The capacity is chosen to be exactly enough
+// to store a single REBVAL so that length 0 or 1 series can be represented.
+// However, that same amount of capacity may be used by arbitrary series (such
+// as strings) if they too are small enough to fit.
 //
 
 // Series Flags
@@ -269,7 +268,14 @@ enum {
     // This is a work in progress to unify objects and function call frames
     // as a prelude to unifying FUNCTION! and CLOSURE!.
     //
-    OPT_SER_STACK = 1 << 12 // going away
+    // !!! Ultimately this flag may be unnecessary because stack-based and
+    // dynamic series will "hybridize" so that they may have some stack
+    // fields and some fields in dynamic memory.  The foundation already
+    // exists, and both can be stored in the same REBSER.  It's just a problem
+    // of mapping index numbers in the function paramlist into either the
+    // stack array or the dynamic array during binding in an efficient way.
+    //
+    OPT_SER_STACK = 1 << 12
 };
 
 struct Reb_Series_Dynamic {
@@ -354,6 +360,7 @@ struct Reb_Series {
     struct Reb_Value_Header info;
 
     union {
+        REBCNT len; // length of non-arrays/strings when !OPT_SER_HAS_DYNAMIC
         REBCNT size;    // used for vectors and bitsets
         REBSER *hashlist; // MAP datatype uses this
         REBARR *keylist; // used by CONTEXT
@@ -386,14 +393,65 @@ struct Reb_Series {
 #define SERIES_WIDE(s) \
     cast(REBYTE, ((s)->info.bits >> 16) & 0xff)
 
-#define SERIES_LEN(s)           ((s)->content.dynamic.len + 0)
-#define SET_SERIES_LEN(s,l)     ((s)->content.dynamic.len = (l))
+//
+// Series flags
+//
+// !!! These should be renamed to the more readable SET_SERIES_FLAG, etc.
+//
+
+#define SERIES_SET_FLAG(s,f) \
+    cast(void, ((s)->info.bits |= (f)))
+
+#define SERIES_CLR_FLAG(s,f) \
+    cast(void, ((s)->info.bits &= ~(f)))
+
+#define SERIES_GET_FLAG(s,f) \
+    LOGICAL((s)->info.bits & (f))
+
+//
+// The mechanics of the macros that get or set the length of a series are a
+// little bit complicated.  This is due to the optimization that allows data
+// which is sizeof(REBVAL) or smaller to fit directly inside the series node.
+//
+// If a series is dynamically allocated out of the memory pools, then its
+// data doesn't live in the REBSER node.  Without the data itself taking up
+// space, there's room for a length in the node.
+//
+// If a series is not "dynamic" (e.g. has a full pooled allocation) then its
+// length is stored in the `misc` field -unless- it is an ARRAY of values.
+// If it is an array then it is assumed that even length 0 arrays might want
+// to use the misc field for other purposes.  Hence the length is derived from
+// the presence or absence of an END marker in the first slot.
+//
+
+#define SERIES_LEN(s) \
+    (SERIES_GET_FLAG((s), OPT_SER_HAS_DYNAMIC) \
+        ? ((s)->content.dynamic.len + 0) \
+        : SERIES_GET_FLAG((s), OPT_SER_ARRAY) \
+            ? (SERIES_GET_FLAG((s), OPT_SER_STACK) \
+                ? VAL_CONTEXT_STACKVARS_LEN(&(s)->content.values[0]) \
+                : (IS_END(&(s)->content.values[0]) ? 0 : 1)) \
+            : (s)->misc.len)
+
+#define SET_SERIES_LEN(s,l) \
+    (assert(!SERIES_GET_FLAG((s), OPT_SER_STACK)), \
+        SERIES_GET_FLAG((s), OPT_SER_HAS_DYNAMIC) \
+        ? ((s)->content.dynamic.len = (l)) \
+        : SERIES_GET_FLAG((s), OPT_SER_ARRAY) \
+            ? 1337 /* trust the END marker? */ \
+            : ((s)->misc.len = (l)))
 
 // Raw access does not demand that the caller know the contained type.  So
 // for instance a generic debugging routine might just want a byte pointer
 // but have no element type pointer to pass in.
 //
-#define SERIES_DATA_RAW(s)      ((s)->content.dynamic.data + 0) // Lvalue!
+#define SERIES_DATA_RAW(s) \
+    (SERIES_GET_FLAG((s), OPT_SER_HAS_DYNAMIC) \
+        ? ((s)->content.dynamic.data + 0) /* Lvalue! */ \
+        : (SERIES_GET_FLAG((s), OPT_SER_STACK) \
+            ? cast(REBYTE*, VAL_CONTEXT_STACKVARS(&(s)->content.values[0])) \
+            : cast(REBYTE*, (&(s)->content.values[0]))))
+
 #define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * (i)))
 
 #define SERIES_SET_EXTERNAL_DATA(s,p) \
@@ -446,18 +504,6 @@ struct Reb_Series {
 #define SERIES_AVAIL(s) (SERIES_REST(s) - (SERIES_LEN(s) + 1))
 #define SERIES_FITS(s,n) ((SERIES_LEN(s) + (n) + 1) <= SERIES_REST(s))
 
-//
-// Series flags
-//
-
-#define SERIES_SET_FLAG(s,f) \
-    cast(void, ((s)->info.bits |= (f)))
-
-#define SERIES_CLR_FLAG(s,f) \
-    cast(void, ((s)->info.bits &= ~(f)))
-
-#define SERIES_GET_FLAG(s,f) \
-    LOGICAL((s)->info.bits & (f))
 
 #define Is_Array_Series(s) SERIES_GET_FLAG((s), OPT_SER_ARRAY)
 
@@ -910,10 +956,20 @@ struct Reb_Context {
     #define AS_CONTEXT(s)       cast(REBCON*, (s))
 #endif
 
-// Special property: keylist pointer is stored in the misc field of REBSER
-//
 #define CONTEXT_VARLIST(c) \
     (&(c)->varlist)
+
+// If you want to talk generically about a context just for the purposes of
+// setting its series flags (for instance) and not to access the "varlist"
+// data, then use CONTEXT_SERIES(), as actual var access is hybridized
+// between stack vars and dynamic vars...so there's not always a "varlist"
+//
+#define CONTEXT_SERIES(c) \
+    ARRAY_SERIES(CONTEXT_VARLIST(c))
+
+//
+// Special property: keylist pointer is stored in the misc field of REBSER
+//
 
 #define CONTEXT_KEYLIST(c) \
     (ARRAY_SERIES(CONTEXT_VARLIST(c))->misc.keylist)
@@ -938,6 +994,15 @@ struct Reb_Context {
 #define CONTEXT_KEY_SYM(c,n)    VAL_TYPESET_SYM(CONTEXT_KEY((c), (n)))
 #define CONTEXT_KEY_CANON(c,n)  VAL_TYPESET_CANON(CONTEXT_KEY((c), (n)))
 
+// There may not be any dynamic or stack allocation available for a stack
+// allocated context, and in that case it will have to come out of the
+// REBSER node data itself.
+//
+#define CONTEXT_VALUE(c) \
+    (ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_STACK) \
+        ? &ARRAY_SERIES(CONTEXT_VARLIST(c))->content.values[0] \
+        : ARRAY_HEAD(CONTEXT_VARLIST(c)))
+
 // Navigate from context to context components.  Note that the context's
 // "length" does not count the [0] cell of either the varlist or the keylist.
 // Hence it must subtract 1.  Internally to the context building code, the
@@ -947,11 +1012,10 @@ struct Reb_Context {
 // requested in context creation).
 //
 #define CONTEXT_LEN(c)          (ARRAY_LEN(CONTEXT_VARLIST(c)) - 1)
-#define CONTEXT_VALUE(c)        ARRAY_HEAD(CONTEXT_VARLIST(c))
 #define CONTEXT_ROOTKEY(c)      ARRAY_HEAD(CONTEXT_KEYLIST(c))
 #define CONTEXT_TYPE(c)         VAL_TYPE(CONTEXT_VALUE(c))
 #define CONTEXT_SPEC(c)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(c))
-#define CONTEXT_BODY(c)         VAL_CONTEXT_BODY(CONTEXT_VALUE(c))
+#define CONTEXT_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(c))
 
 #define FAIL_IF_LOCKED_CONTEXT(c) \
     FAIL_IF_LOCKED_ARRAY(CONTEXT_VARLIST(c))

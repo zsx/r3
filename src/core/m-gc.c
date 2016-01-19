@@ -646,9 +646,21 @@ static void Mark_Call_Frames_Deep(void)
             //
             // Though a Reb_Call starts off with just a chunk of memory, it
             // may be promoted to a context (backed by a data pointer of
-            // that chunk of memory).
+            // that chunk of memory).  This context *may not be managed yet*
+            // in the current implementation.
             //
-            QUEUE_MARK_CONTEXT_DEEP(c->frame.context);
+            if (
+                ARRAY_GET_FLAG(
+                    CONTEXT_VARLIST(c->frame.context),
+                    OPT_SER_MANAGED
+                )
+            ) {
+                QUEUE_MARK_CONTEXT_DEEP(c->frame.context);
+            }
+            else {
+                // Just mark the keylist...
+                QUEUE_MARK_ARRAY_DEEP(CONTEXT_KEYLIST(c->frame.context));
+            }
         }
         else  {
             // If it's just sequential REBVALs sitting in memory in the chunk
@@ -744,7 +756,20 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 REBVAL *value = CONTEXT_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
                 assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
-                assert(VAL_CONTEXT_BODY(val) == VAL_CONTEXT_BODY(value));
+
+                // Though the general rule is that canon values should match
+                // the bits of any instance, an exception is made in the
+                // case of the stackvars.  The danger of reusing the memory
+                // is high after freeing since the chunk stack pointers
+                // remain live, so the canon value has the field trashed
+                // in debug builds.
+                //
+                if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_STACK)) {
+                    assert(
+                        VAL_CONTEXT_STACKVARS(val)
+                        == VAL_CONTEXT_STACKVARS(value)
+                    );
+                }
             }
         #endif
 
@@ -762,13 +787,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val));
             }
 
-            if (VAL_CONTEXT_BODY(val)) {
-                //
-                // !!! The feature of holding onto bodies is currently not
-                // implemented.
-                //
-                QUEUE_MARK_ARRAY_DEEP(VAL_CONTEXT_BODY(val));
-            }
+            // If CONTEXT_STACKVARS is not NULL, the marking will be taken
+            // care of in the walk of the chunk stack (which may hold data for
+            // other stack-like REBVAL arrays that are not in contexts)
+
             break;
         }
 

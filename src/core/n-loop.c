@@ -111,7 +111,7 @@ static REBARR *Init_Loop(
 
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
     CONTEXT_SPEC(context) = NULL;
-    CONTEXT_BODY(context) = NULL;
+    CONTEXT_STACKVARS(context) = NULL;
 
     // Setup for loop:
     key = CONTEXT_KEYS_HEAD(context);
