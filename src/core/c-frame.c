@@ -280,7 +280,7 @@ REBCON *Copy_Context_Shallow_Extra(REBCON *src, REBCNT extra) {
 
 
 //
-//  Copy_Context_Shallow_Managed: C
+//  Copy_Context_Shallow: C
 //
 // !!! Make this a macro when there's a place to put it.
 //
@@ -1364,7 +1364,6 @@ static void Bind_Relative_Inner_Loop(
                 VAL_SET_EXT(value, EXT_WORD_BOUND_RELATIVE);
                 INIT_WORD_RELATIVE(value, func);
                 INIT_WORD_INDEX(value, n);
-
             }
         }
         else if (ANY_ARRAY(value))

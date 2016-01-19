@@ -498,7 +498,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 
 
 //
-//  Val_Init_Context_Core: C
+//  Val_Init_Context: C
 //
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
 //

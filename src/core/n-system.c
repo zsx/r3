@@ -544,7 +544,7 @@ REBNATIVE(backtrace)
     // backtrace lined up with what that routine returns.  This isn't a very
     // performance-critical routine, so it's good to have the doublecheck.
     //
-    REBOOL get_frame = !IS_UNSET(level) && !IS_NONE(level);
+    REBOOL get_frame = NOT(IS_UNSET(level) || IS_NONE(level));
 
     REBARR *backtrace;
     struct Reb_Call *call;
@@ -669,10 +669,20 @@ REBNATIVE(backtrace)
         // function frames to do binding in the REPL with.
         //
         if (!pending) {
-            REBVAL temp;
-            VAL_INIT_WRITABLE_DEBUG(&temp);
-            SET_INTEGER(&temp, number);
-            assert(Call_For_Stack_Level(NULL, &temp, TRUE) == call);
+            REBCNT temp_number;
+            REBVAL temp_value;
+            VAL_INIT_WRITABLE_DEBUG(&temp_value);
+            SET_INTEGER(&temp_value, number);
+
+            if (
+                Call_For_Stack_Level(&temp_number, &temp_value, TRUE) != call
+                || temp_number != number
+            ) {
+                Debug_Fmt(
+                    "%d != Call_For_Stack_Level %d", number, temp_number
+                );
+                assert(FALSE);
+            }
         }
     #endif
 
@@ -853,30 +863,28 @@ struct Reb_Call *Call_For_Stack_Level(
             continue;
         }
 
-        if (
-            first
-            && IS_NATIVE(FUNC_VALUE(call->func))
-            && FUNC_CODE(call->func) == &N_pause
-        ) {
-            // this is considered the "0".  Return it only if 0 was requested
-            // specifically (you don't "count down to it");
-            //
-            if (IS_INTEGER(level) && num == VAL_INT32(level))
-                goto return_maybe_set_number_out;
+        if (first) {
+            if (
+                IS_NATIVE(FUNC_VALUE(call->func))
+                && FUNC_CODE(call->func) == &N_pause
+            ) {
+                // this is considered the "0".  Return it only if 0 was requested
+                // specifically (you don't "count down to it");
+                //
+                if (IS_INTEGER(level) && num == VAL_INT32(level))
+                    goto return_maybe_set_number_out;
+                else {
+                    first = FALSE;
+                    continue;
+                }
+            }
             else {
-                first = FALSE;
-                continue; // don't count it, e.g. don't decrement level
+                ++num; // bump up from 0
             }
         }
 
-        if (IS_INTEGER(level) && num == VAL_INT32(level)) {
-            //
-            // There really is no "level 0" in a stack unless you
-            // are at a breakpoint.  Ordinary calls to backtrace
-            // will get lists back that start at 1.
-            //
-            return NULL;
-        }
+        if (IS_INTEGER(level) && num == VAL_INT32(level))
+            goto return_maybe_set_number_out;
 
         first = FALSE;
 
@@ -886,22 +894,6 @@ struct Reb_Call *Call_For_Stack_Level(
             //
             continue;
         }
-
-    #if !defined(NDEBUG)
-        //
-        // Though the Ren-C default is to allow exiting from natives (and not
-        // to provide the poor invariant of different behavior based on whether
-        // the containing function is native or not), the legacy switch lets
-        // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
-        //
-        if (
-            LEGACY(OPTIONS_DONT_EXIT_NATIVES)
-            && !IS_FUNCTION(FUNC_VALUE(call->func))
-            && !IS_CLOSURE(FUNC_VALUE(call->func))
-        ) {
-            continue;
-        }
-    #endif
 
         if (IS_UNSET(level) || IS_NONE(level)) {
             //
