@@ -421,7 +421,8 @@ void Drop_Chunk(REBVAL values[])
 //
 void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     REBVAL *slot;
-    REBCNT num_slots; // args and other key/value slots (e.g. func value in 0)
+    REBCNT num_slots;
+    REBARR *varlist;
 
     // Should not already have an arglist.  We zero out the union field for
     // the chunk, so that's the one we should check.
@@ -433,39 +434,60 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.
     //
-    num_slots = ARRAY_LEN(FUNC_PARAMLIST(c->func));
-    assert(num_slots >= 1);
-
-    // Make REBVALs to hold the arguments.  It will always be at least one
-    // slot long, because function frames start with the value of the
-    // function in slot 0.
-    //
-    // We start by allocating the data for the args and locals on the chunk
-    // stack.  However, this can be "promoted" into being the data for a
-    // frame context if it becomes necessary to refer to the variables
-    // via words or an object value.  That object's data will still be this
-    // chunk, but the chunk can be freed...so the words can't be looked up.
-    //
-    // Note that chunks implicitly have an END at the end; no need to
-    // put one there.
-    //
-    c->frame.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
-    assert(CHUNK_LEN_FROM_VALUES(c->frame.stackvars) == num_slots);
+    num_slots = FUNC_NUM_PARAMS(c->func);
 
     // For starters clear the context flag; it's just the chunk with no
     // "reification" (Frame_For_Call_May_Reify() might change this)
     //
     c->flags &= ~DO_FLAG_FRAME_CONTEXT;
 
-    // !!! The [0] slot is not used for anything unless the context becomes
-    // reified.  Is there some property that would be meaningful to keep track
-    // of, but only in frames that have not been reified?  Put GC safe trash
-    // there to "leave it blank" so chunk stack walk won't crash, but consider
-    // if there's anything useful for this space.
+    // Make REBVALs to hold the arguments.  It will always be at least one
+    // slot long, because function frames start with the value of the
+    // function in slot 0.
     //
-    slot = &c->frame.stackvars[0];
-    SET_TRASH_SAFE(slot);
-    ++slot;
+    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
+        //
+        // !!! In the near term, it's hoped that CLOSURE! will go away and
+        // that stack frames can be "hybrids" with some pooled allocated
+        // vars that survive a call, and some that go away when the stack
+        // frame is finished.  The groundwork for this is laid but it's not
+        // quite ready--so the classic interpretation is that it's all or
+        // nothing... CLOSURE!'s variables args and locals all survive the
+        // end of the call, and none of a FUNCTION!'s do.
+        //
+        varlist = Make_Array(num_slots + 1);
+        SET_ARRAY_LEN(varlist, num_slots + 1);
+        SET_END(ARRAY_AT(varlist, num_slots + 1));
+        ARRAY_SET_FLAG(varlist, OPT_SER_FIXED_SIZE);
+
+        // Skip the [0] slot which will be filled with the CONTEXT_VALUE
+        //
+        slot = ARRAY_AT(varlist, 1);
+
+        // The NULL stackvars will be picked up by the reification; reuse the
+        // work that function does vs. duplicating it here.
+        //
+        c->frame.stackvars = NULL;
+    }
+    else {
+        // We start by allocating the data for the args and locals on the chunk
+        // stack.  However, this can be "promoted" into being the data for a
+        // frame context if it becomes necessary to refer to the variables
+        // via words or an object value.  That object's data will still be this
+        // chunk, but the chunk can be freed...so the words can't be looked up.
+        //
+        // Note that chunks implicitly have an END at the end; no need to
+        // put one there.
+        //
+        c->frame.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
+        assert(CHUNK_LEN_FROM_VALUES(c->frame.stackvars) == num_slots);
+        slot = &c->frame.stackvars[0];
+
+        // For now there's no hybridization; a context with stackvars has
+        // no pooled allocation.
+        //
+        varlist = NULL;
+    }
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
     // and Apply_Block as they go along.  But the frame has to survive
@@ -474,7 +496,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // scanning knows when it has filled a refinement slot (and hence its
     // args) or not.
     //
-    while (--num_slots) {
+    while (num_slots--) {
         //
         // In Rebol2 and R3-Alpha, unused refinement arguments were set to
         // NONE! (and refinements were TRUE as opposed to the WORD! of the
@@ -492,6 +514,16 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     #endif
 
         slot++;
+    }
+
+    if (varlist) {
+        //
+        // If we had to create a pooled array allocation to store any vars
+        // that will outlive the series, there's no way to avoid reifying
+        // the context (have to hold onto the allocated varlist pointer
+        // somewhere...)
+        //
+        Frame_For_Call_May_Reify(c, varlist, FALSE);
     }
 
     // Write some garbage (that won't crash the GC) into the `cell` slot in
@@ -513,8 +545,11 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 //
 // If there's already a frame this will return it, otherwise create it.
 //
-REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
-{
+REBCON *Frame_For_Call_May_Reify(
+    struct Reb_Call *c,
+    REBARR *opt_varlist, // if a CLOSURE! and varlist is preallocated
+    REBOOL ensure_managed
+) {
     REBCON *context;
     struct Reb_Chunk *chunk;
 
@@ -531,11 +566,19 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
         fail (Error(RE_FRAMELESS_CALL));
     }
 
-    context = AS_CONTEXT(Make_Series(
-        ARRAY_LEN(FUNC_PARAMLIST(c->func)) + 1, // low level, account for END
-        sizeof(REBVAL),
-        MKS_EXTERNAL // don't alloc (or free) any data, trust us to do it
-    ));
+    if (opt_varlist) {
+        context = AS_CONTEXT(opt_varlist);
+        assert(ARRAY_GET_FLAG(AS_ARRAY(context), OPT_SER_HAS_DYNAMIC));
+    }
+    else {
+        context = AS_CONTEXT(Make_Series(
+            1, // length report will not come from this, but from end marker
+            sizeof(REBVAL),
+            MKS_EXTERNAL // don't alloc (or free) any data, trust us to do it
+        ));
+
+        assert(!ARRAY_GET_FLAG(AS_ARRAY(context), OPT_SER_HAS_DYNAMIC));
+    }
 
     ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ARRAY);
     ARRAY_SET_FLAG(CONTEXT_VARLIST(context), OPT_SER_CONTEXT);
@@ -593,12 +636,18 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
     // the stack frame finishes normally)
     //
     CONTEXT_STACKVARS(context) = c->frame.stackvars;
-    chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
-    assert(!chunk->opt_context);
-    chunk->opt_context = context;
+    if (c->frame.stackvars) {
+        assert(!opt_varlist);
 
-    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_STACK);
-    ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ACCESSIBLE);
+        chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
+        assert(!chunk->opt_context);
+        chunk->opt_context = context;
+
+        ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_STACK);
+        ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_ACCESSIBLE);
+    }
+    else
+        assert(opt_varlist);
 
     // Finally we mark the flags to say this contains a valid frame, so that
     // future calls to this routine will return it instead of making another.
@@ -625,7 +674,7 @@ REBCON *Frame_For_Call_May_Reify(struct Reb_Call *c, REBOOL ensure_managed)
 REBVAL *DSF_ARG_Debug(struct Reb_Call *call, REBCNT n)
 {
     assert(n != 0 && n <= DSF_ARGC(call));
-    return &call->arg[n];
+    return &call->arg[n - 1];
 }
 
 #endif

@@ -2098,7 +2098,8 @@ reevaluate:
         // which happens depends on whether eval_fetched is NULL or not
         //
         if (c->flags & DO_FLAG_FRAME_CONTEXT) {
-            Drop_Chunk(ARRAY_HEAD(CONTEXT_VARLIST(c->frame.context)));
+            if (CONTEXT_STACKVARS(c->frame.context) != NULL)
+                Drop_Chunk(CONTEXT_STACKVARS(c->frame.context));
 
             if (ARRAY_GET_FLAG(
                 CONTEXT_VARLIST(c->frame.context), OPT_SER_MANAGED

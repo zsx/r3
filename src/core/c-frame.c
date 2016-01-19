@@ -1329,6 +1329,7 @@ REBCNT Try_Bind_Word(REBCON *context, REBVAL *word)
 
     n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (n != 0) {
+        UNBIND_WORD(word); // get rid of binding if it had one
         VAL_SET_EXT(word, EXT_WORD_BOUND_SPECIFIC);
         INIT_WORD_SPECIFIC(word, context);
         INIT_WORD_INDEX(word, n);
@@ -1897,18 +1898,18 @@ void Init_Collector(void)
 //
 //  CONTEXT_KEY_Debug: C
 //
-REBVAL *CONTEXT_KEY_Debug(REBCON *f, REBCNT n) {
-    assert(n != 0 && n < ARRAY_LEN(CONTEXT_KEYLIST(f)));
-    return ARRAY_AT(CONTEXT_KEYLIST(f), (n));
+REBVAL *CONTEXT_KEY_Debug(REBCON *c, REBCNT n) {
+    assert(n != 0 && n < ARRAY_LEN(CONTEXT_KEYLIST(c)));
+    return CONTEXT_KEYS_HEAD(c) + (n) - 1;
 }
 
 
 //
 //  CONTEXT_VAR_Debug: C
 //
-REBVAL *CONTEXT_VAR_Debug(REBCON *f, REBCNT n) {
-    assert(n != 0 && n < ARRAY_LEN(CONTEXT_VARLIST(f)));
-    return ARRAY_AT(CONTEXT_VARLIST(f), (n));
+REBVAL *CONTEXT_VAR_Debug(REBCON *c, REBCNT n) {
+    assert(n != 0 && n < ARRAY_LEN(CONTEXT_VARLIST(c)));
+    return CONTEXT_VARS_HEAD(c) + (n) - 1;
 }
 
 
@@ -1942,14 +1943,19 @@ void Assert_Context_Core(REBCON *context)
     vars_len = ARRAY_LEN(CONTEXT_VARLIST(context));
     keys_len = ARRAY_LEN(CONTEXT_KEYLIST(context));
 
-    if (keys_len != vars_len) {
-        Debug_Fmt("Unequal lengths of key and var series in Assert_Context");
+    if (keys_len < 1) {
+        Debug_Fmt("Keylist length less than one--cannot hold rootkey");
         Panic_Context(context);
     }
 
-    if (keys_len < 1) {
-        Debug_Fmt("Frame length less than one--cannot hold context value");
-        Panic_Context(context);
+    if (ARRAY_GET_FLAG(CONTEXT_VARLIST(context), OPT_SER_STACK)) {
+        assert(vars_len == 1);
+    }
+    else {
+        if (keys_len != vars_len) {
+            Debug_Fmt("Unequal lengths of key/var series in Assert_Context");
+            Panic_Context(context);
+        }
     }
 
     // The 0th key and var are special and can't be accessed with CONTEXT_VAR

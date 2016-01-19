@@ -428,9 +428,7 @@ struct Reb_Series {
     (SERIES_GET_FLAG((s), OPT_SER_HAS_DYNAMIC) \
         ? ((s)->content.dynamic.len + 0) \
         : SERIES_GET_FLAG((s), OPT_SER_ARRAY) \
-            ? (SERIES_GET_FLAG((s), OPT_SER_STACK) \
-                ? VAL_CONTEXT_STACKVARS_LEN(&(s)->content.values[0]) \
-                : (IS_END(&(s)->content.values[0]) ? 0 : 1)) \
+            ? (IS_END(&(s)->content.values[0]) ? 0 : 1) \
             : (s)->misc.len)
 
 #define SET_SERIES_LEN(s,l) \
@@ -448,14 +446,13 @@ struct Reb_Series {
 #define SERIES_DATA_RAW(s) \
     (SERIES_GET_FLAG((s), OPT_SER_HAS_DYNAMIC) \
         ? ((s)->content.dynamic.data + 0) /* Lvalue! */ \
-        : (SERIES_GET_FLAG((s), OPT_SER_STACK) \
-            ? cast(REBYTE*, VAL_CONTEXT_STACKVARS(&(s)->content.values[0])) \
-            : cast(REBYTE*, (&(s)->content.values[0]))))
+        : cast(REBYTE*, &(s)->content.values[0]))
 
 #define SERIES_AT_RAW(s,i)      (SERIES_DATA_RAW(s) + (SERIES_WIDE(s) * (i)))
 
 #define SERIES_SET_EXTERNAL_DATA(s,p) \
-    ((s)->content.dynamic.data = cast(REBYTE*, (p)))
+    (SERIES_SET_FLAG((s), OPT_SER_HAS_DYNAMIC), \
+        (s)->content.dynamic.data = cast(REBYTE*, (p)))
 
 //
 // In general, requesting a pointer into the series data requires passing in
@@ -983,10 +980,14 @@ struct Reb_Context {
 // regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
 //
 #define CONTEXT_KEYS_HEAD(c)    ARRAY_AT(CONTEXT_KEYLIST(c), 1)
-#define CONTEXT_VARS_HEAD(c)    ARRAY_AT(CONTEXT_VARLIST(c), 1)
+#define CONTEXT_VARS_HEAD(c) \
+    ARRAY_GET_FLAG(CONTEXT_VARLIST(c), OPT_SER_STACK) \
+        ? VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(c)) \
+        : ARRAY_AT(CONTEXT_VARLIST(c), 1)
+
 #ifdef NDEBUG
-    #define CONTEXT_KEY(c,n)    ARRAY_AT(CONTEXT_KEYLIST(c), (n))
-    #define CONTEXT_VAR(c,n)    ARRAY_AT(CONTEXT_VARLIST(c), (n))
+    #define CONTEXT_KEY(c,n)    (CONTEXT_KEYS_HEAD(c)[(n) - 1])
+    #define CONTEXT_VAR(c,n)    (CONTEXT_VARS_HEAD(c)[(n) - 1])
 #else
     #define CONTEXT_KEY(c,n)    CONTEXT_KEY_Debug((c), (n))
     #define CONTEXT_VAR(c,n)    CONTEXT_VAR_Debug((c), (n))
@@ -1011,7 +1012,7 @@ struct Reb_Context {
 // (and getting an answer for the length back that was the same as the length
 // requested in context creation).
 //
-#define CONTEXT_LEN(c)          (ARRAY_LEN(CONTEXT_VARLIST(c)) - 1)
+#define CONTEXT_LEN(c)          (ARRAY_LEN(CONTEXT_KEYLIST(c)) - 1)
 #define CONTEXT_ROOTKEY(c)      ARRAY_HEAD(CONTEXT_KEYLIST(c))
 #define CONTEXT_TYPE(c)         VAL_TYPE(CONTEXT_VALUE(c))
 #define CONTEXT_SPEC(c)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(c))
