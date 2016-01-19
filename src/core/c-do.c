@@ -1429,13 +1429,22 @@ reevaluate:
             assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
 
             if (ret == R_OUT_IS_THROWN) {
-                //
-                // We're bypassing Dispatch_Function, but we still want to
-                // be able to handle EXIT/FROM requests to this stack level
-                //
-                c->mode = CALL_MODE_THROWN;
                 assert(THROWN(c->out));
-                goto handle_possible_exit_thrown;
+
+                // There are actually "two kinds of throws"...one that can't
+                // be resumed (such as that which might happen during a
+                // parameter fulfillment) and one that might be resumable
+                // (like a throw during a DO_ARRAY of a fulfilled parameter).
+                // A frameless native must make this distinction to line up
+                // with the distinction from normal evaluation.
+                //
+                if (c->mode == CALL_MODE_THROW_PENDING) {
+                    assert(c->indexor != THROWN_FLAG);
+                    goto handle_possible_exit_thrown;
+                }
+
+                assert(c->indexor == THROWN_FLAG);
+                NOTE_THROWING(goto return_indexor);
             }
 
             c->mode = CALL_MODE_0;
@@ -2039,27 +2048,27 @@ reevaluate:
         //
         switch (VAL_TYPE(FUNC_VALUE(c->func))) {
         case REB_NATIVE:
-            c->mode = Do_Native_Core(c);
+            Do_Native_Core(c);
             break;
 
         case REB_ACTION:
-            c->mode = Do_Action_Core(c);
+            Do_Action_Core(c);
             break;
 
         case REB_COMMAND:
-            c->mode = Do_Command_Core(c);
+            Do_Command_Core(c);
             break;
 
         case REB_CLOSURE:
-            c->mode = Do_Closure_Core(c);
+            Do_Closure_Core(c);
             break;
 
         case REB_FUNCTION:
-            c->mode = Do_Function_Core(c);
+            Do_Function_Core(c);
             break;
 
         case REB_ROUTINE:
-            c->mode = Do_Routine_Core(c);
+            Do_Routine_Core(c);
             break;
 
         default:
@@ -2067,8 +2076,11 @@ reevaluate:
         }
 
     #if !defined(NDEBUG)
-        assert(c->mode == CALL_MODE_0 || c->mode == CALL_MODE_THROWN);
-        assert(THROWN(c->out) == LOGICAL(c->mode == CALL_MODE_THROWN));
+        assert(
+            c->mode == CALL_MODE_FUNCTION
+            || c->mode == CALL_MODE_THROW_PENDING
+        );
+        assert(THROWN(c->out) == LOGICAL(c->mode == CALL_MODE_THROW_PENDING));
     #endif
 
         // Remove this call frame from the call stack (it will be dropped
@@ -2118,21 +2130,6 @@ reevaluate:
         else
             Drop_Chunk(c->frame.stackvars);
 
-    #if !defined(NDEBUG)
-        if (c->eval_fetched) {
-            //
-            // All the eval wanted to do was get the call frame cleaned up.
-            //
-            // !!! This is only needed by the legacy implementation of DO
-            // for EVAL of functions, because it has to drop the pushed
-            // call with arguments.  Is there a cleaner way?
-            //
-            assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-            assert(c->mode == CALL_MODE_0 && c->indexor != THROWN_FLAG);
-            goto reevaluate;
-        }
-    #endif
-
         // A definitional return should only be intercepted if it was for this
         // particular function invocation.  Definitional return abilities have
         // been extended to natives and actions, in order to permit stack
@@ -2141,7 +2138,7 @@ reevaluate:
         //
     handle_possible_exit_thrown:
         if (
-            c->mode == CALL_MODE_THROWN
+            c->mode == CALL_MODE_THROW_PENDING
             && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
         ) {
             if (IS_FRAME(c->out)) {
@@ -2209,18 +2206,33 @@ reevaluate:
         c->frame.stackvars = NULL;
     #endif
 
+    #if !defined(NDEBUG)
+        if (c->eval_fetched) {
+            //
+            // All the eval wanted to do was get the call frame cleaned up.
+            //
+            // !!! This is only needed by the legacy implementation of DO
+            // for EVAL of functions, because it has to drop the pushed
+            // call with arguments.  Is there a cleaner way?
+            //
+            assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
+            assert(c->mode == CALL_MODE_0 && c->indexor != THROWN_FLAG);
+            goto reevaluate;
+        }
+    #endif
+
         // If the throw wasn't intercepted as an exit from this function call,
         // accept the throw.  We only care about the mode getting set cleanly
         // back to CALL_MODE_0 if the evaluator didn't throw and keeps going.
         //
-        if (c->mode == CALL_MODE_THROWN) {
+        if (c->mode == CALL_MODE_THROW_PENDING) {
             c->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
         else if (c->indexor == THROWN_FLAG)
             NOTE_THROWING(goto return_indexor);
         else
-            assert(c->mode == CALL_MODE_0);
+            c->mode = CALL_MODE_0;
 
 //
 //
