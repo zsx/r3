@@ -995,7 +995,7 @@ void Do_Function_Core(struct Reb_Call *c)
         // return, the local for this return should so far have just been
         // ensured in last slot...and left unset by any arg filling process.
         //
-        REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func)];
+        REBVAL *last_arg = DSF_ARG(c, FUNC_NUM_PARAMS(c->func));
 
     #if !defined(NDEBUG)
         REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
@@ -1031,7 +1031,7 @@ void Do_Function_Core(struct Reb_Call *c)
 void Do_Closure_Core(struct Reb_Call *c)
 {
     REBARR *body;
-    REBCON *context = Frame_For_Call_May_Reify(c, FALSE);
+    REBCON *context = Frame_For_Call_May_Reify(c, NULL, FALSE);
 
     Eval_Functions++;
 

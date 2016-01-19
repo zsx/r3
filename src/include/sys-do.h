@@ -949,8 +949,8 @@ struct Native_Refine {
     //
     #define PARAM(n,name) \
         const struct Native_Param p_##name = { \
-            call_->arg ? VAL_TYPE(call_->arg + (n)) : REB_TRASH, \
-            call_->arg ? call_->arg + (n) : NULL, \
+            call_->arg ? VAL_TYPE(call_->arg + (n) - 1) : REB_TRASH, \
+            call_->arg ? call_->arg + (n) - 1 : NULL, \
             (n) \
         }
 
@@ -962,8 +962,8 @@ struct Native_Refine {
     //
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            call_->arg ? NOT(IS_NONE(call_->arg + (n))) : TRUE, \
-            call_->arg ? call_->arg + (n) : NULL, \
+            call_->arg ? NOT(IS_NONE(call_->arg + (n) - 1)) : TRUE, \
+            call_->arg ? call_->arg + (n) - 1 : NULL, \
             (n) \
         }
 #endif
@@ -972,7 +972,7 @@ struct Native_Refine {
 // with either.
 //
 #define ARG(name) \
-    (call_->arg + (p_##name).num)
+    (call_->arg + (p_##name).num - 1)
 
 #define PAR(name) \
     FUNC_PARAM(call_->func, (p_##name).num) // a TYPESET!
@@ -1036,12 +1036,12 @@ struct Native_Refine {
 #define DSF_ARGS_HEAD(c) \
     (((c)->flags & DO_FLAG_FRAME_CONTEXT) \
         ? CONTEXT_VARS_HEAD((c)->frame.context) \
-        : &(c)->frame.stackvars[1])
+        : &(c)->frame.stackvars[0])
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)
 #ifdef NDEBUG
-    #define DSF_ARG(c,n)    ((c)->arg + (n))
+    #define DSF_ARG(c,n)    ((c)->arg + (n) - 1)
 #else
     #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
 #endif

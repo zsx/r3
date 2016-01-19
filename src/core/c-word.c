@@ -323,7 +323,7 @@ void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBCNT sym)
     INIT_WORD_SYM(out, sym);
 
 #if !defined(NDEBUG)
-    INIT_WORD_INDEX(out, 0);
+    out->payload.any_word.index = 0;
 #endif
 
     assert(ANY_WORD(out));

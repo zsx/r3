@@ -1261,13 +1261,20 @@ struct Reb_Any_Word {
         REBFUN *relative; // for EXT_WORD_BOUND_RELATIVE
     } binding;
 
-    // Index of word in context (if `context` is not NULL)
+    // Index of word in context (if word is bound, e.g. `context` is not NULL)
     //
-    // Note: The index is rather large, especially on 64 bit systems, and it
-    // may not be that a context has 2^32 or 2^64 words in it.  It might
-    // be acceptable to borrow some bits from this number.
+    // !!! Intended logic is that if the index is positive, then the word
+    // is looked for in the context's pooled memory data pointer.  If the
+    // index is negative or 0, then it's assumed to be a stack variable,
+    // and looked up in the CONTEXT_STACKVARS data.
     //
-    REBCNT index;
+    // But or now there are no examples of contexts which have both pooled
+    // and stack memory, and the general issue of mapping the numbers has
+    // not been solved.  However, both pointers are available to a context
+    // so it's awaiting some solution for a reasonably-performing way to
+    // do the mapping from [1 2 3 4 5 6] to [-3 -2 -1 0 1 2] (or whatever)
+    //
+    REBINT index;
 
     // Index of the word's symbol
     //
@@ -1291,13 +1298,18 @@ struct Reb_Any_Word {
 #define INIT_WORD_SYM(v,s) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.sym = (s))
 
+// !!! Today indices for both stackvars and durable vars in the varlist are
+// done with positive numbers.  But when "hybrids" exist, the indexing scheme
+// will need to differentiate...with positive numbers for the durable vars
+// and negative numbers for the stack vars, to distingiush where to get data.
+//
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.index)
 #define INIT_WORD_INDEX(v,i) \
-    (assert(!VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) || \
-        SAME_SYM( \
+    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
+        ? (i) >= 1 && SAME_SYM( \
             VAL_WORD_SYM(v), CONTEXT_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
-        )), \
+        ) : (i) >= 1), \
         (v)->payload.any_word.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
@@ -1307,7 +1319,8 @@ struct Reb_Any_Word {
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
     (assert(ANY_WORD(v)), VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)) \
         ? (v)->payload.any_word.binding.specific \
-        : Frame_For_Call_May_Reify(Call_For_Relative_Word((v), FALSE), TRUE)
+        : Frame_For_Call_May_Reify( \
+            Call_For_Relative_Word((v), FALSE), NULL, TRUE)
 
 #define INIT_WORD_SPECIFIC(v,context) \
     (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \

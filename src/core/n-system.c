@@ -729,7 +729,7 @@ REBNATIVE(backtrace)
             // `where-of`, `label-of`, `function-of`, etc.)
             //
             Val_Init_Context(
-                D_OUT, REB_FRAME, Frame_For_Call_May_Reify(call, FALSE)
+                D_OUT, REB_FRAME, Frame_For_Call_May_Reify(call, NULL, FALSE)
             );
             return R_OUT;
         }
