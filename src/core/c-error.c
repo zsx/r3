@@ -546,7 +546,7 @@ static REBCON *Make_Guarded_Arg123_Error(void)
     REBVAL *key;
     REBVAL *var;
     REBCNT n;
-    REBCNT root_len = CONTEXT_LEN(root_error);
+    REBCNT root_len = ARRAY_LEN(CONTEXT_VARLIST(root_error));
 
     // Update the length to suppress out of bounds assert from CONTEXT_KEY/VAL
     //
@@ -554,7 +554,7 @@ static REBCON *Make_Guarded_Arg123_Error(void)
     SET_ARRAY_LEN(CONTEXT_KEYLIST(error), root_len + 3);
 
     key = CONTEXT_KEY(error, CONTEXT_LEN(root_error) + 1);
-    var = CONTEXT_KEY(error, CONTEXT_LEN(root_error) + 1);
+    var = CONTEXT_VAR(error, CONTEXT_LEN(root_error) + 1);
 
     for (n = 0; n < 3; n++, key++, var++) {
         Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
