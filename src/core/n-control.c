@@ -884,7 +884,13 @@ REBNATIVE(compose)
         if (Compose_Values_Throws(
             D_OUT, VAL_ARRAY_HEAD(D_CELL), FALSE, FALSE, FALSE
         )) {
-            D_INDEXOR = THROWN_FLAG;
+            // Here we want to be able to recover in situations like:
+            //
+            //     compose [(exit/from :compose)] print "this should print"
+            //
+            // So we can't overwrite the index.  Signal check for exit.
+            //
+            D_MODE = CALL_MODE_THROW_PENDING;
             return R_OUT_IS_THROWN;
         }
 
@@ -1299,7 +1305,15 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             // when you have refinements.  Hence always evaluate blocks.
             //
             if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
-                D_INDEXOR = THROWN_FLAG; // must be consistent (debug checked)
+                //
+                // This throw might be resumable, consider a case like:
+                //
+                //     if true [exit/from :if] print "Hello"
+                //
+                // If D_INDEXOR were overwritten, then `print "Hello"` could
+                // never be resumed.  Signal check for exit first.
+                //
+                D_MODE = CALL_MODE_THROW_PENDING;
                 return R_OUT_IS_THROWN;
             }
 
@@ -1445,7 +1459,15 @@ REBNATIVE(either)
         //
         if (IS_BLOCK(D_OUT)) {
             if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
-                D_INDEXOR = THROWN_FLAG; // must be consistent (debug checked)
+                //
+                // This throw might be resumable, consider a case like:
+                //
+                //     if either true [exit/from :either] [] print "Hello"
+                //
+                // If D_INDEXOR were overwritten, then `print "Hello"` could
+                // never be resumed.  Signal check for exit first.
+                //
+                D_MODE = CALL_MODE_THROW_PENDING;
                 return R_OUT_IS_THROWN;
             }
             return R_OUT;

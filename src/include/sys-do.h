@@ -233,7 +233,7 @@ enum Reb_Call_Mode {
     CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
     CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
-    CALL_MODE_THROWN // function threw (sometimes may be intercepted)
+    CALL_MODE_THROW_PENDING // function threw (sometimes may be intercepted)
 };
 
 union Reb_Call_Source {
@@ -1067,7 +1067,7 @@ struct Native_Refine {
 #define D_OUT       DSF_OUT(call_)          // GC-safe slot for output value
 #define D_ARGC      DSF_ARGC(call_)         // count of args+refinements/args
 #define D_ARG(n)    DSF_ARG(call_, (n))     // pass 1 for first arg
-#define D_REF(n)    LOGICAL(!IS_NONE(D_ARG(n)))    // D_REFinement (not D_REFerence)
+#define D_REF(n)    NOT(IS_NONE(D_ARG(n)))  // D_REFinement (not D_REFerence)
 #define D_FUNC      DSF_FUNC(call_)         // REBVAL* of running function
 #define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
 #define D_CELL      DSF_CELL(call_)         // GC-safe extra value
@@ -1075,9 +1075,13 @@ struct Native_Refine {
 
 #define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
 
-// !!! frameless stuff broken completely by prefetch, but will be easier now
+// Frameless native access
+//
+// !!! Should `call_` just be renamed to `c_` to make this briefer and be used
+// directly?  It is helpful to have macros to find the usages, however.
+//
 #define D_CALL      call_
 #define D_ARRAY     (call_->source.array)
 #define D_INDEXOR   (call_->indexor)
 #define D_VALUE     (call_->value)
-
+#define D_MODE      (call_->mode)

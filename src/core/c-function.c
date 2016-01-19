@@ -891,7 +891,7 @@ void Clonify_Function(REBVAL *value)
 //
 //  Do_Native_Core: C
 //
-enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *c)
+void Do_Native_Core(struct Reb_Call *c)
 {
     REB_R ret;
 
@@ -903,7 +903,9 @@ enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *c)
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
+        break;
     case R_OUT_IS_THROWN:
+        c->mode = CALL_MODE_THROW_PENDING;
         break;
     case R_NONE:
         SET_NONE(c->out);
@@ -920,15 +922,13 @@ enum Reb_Call_Mode Do_Native_Core(struct Reb_Call *c)
     default:
         assert(FALSE);
     }
-
-    return ret == R_OUT_IS_THROWN ? CALL_MODE_THROWN : CALL_MODE_0;
 }
 
 
 //
 //  Do_Action_Core: C
 //
-enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *c)
+void Do_Action_Core(struct Reb_Call *c)
 {
     REBCNT type = VAL_TYPE(DSF_ARG(c, 1));
     REBACT action;
@@ -949,7 +949,7 @@ enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *c)
         else
             SET_FALSE(c->out);
 
-        return CALL_MODE_0;
+        return;
     }
 
     action = Value_Dispatch[type];
@@ -958,7 +958,9 @@ enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *c)
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
+        break;
     case R_OUT_IS_THROWN:
+        c->mode = CALL_MODE_THROW_PENDING;
         break;
     case R_NONE:
         SET_NONE(c->out);
@@ -975,15 +977,13 @@ enum Reb_Call_Mode Do_Action_Core(struct Reb_Call *c)
     default:
         assert(FALSE);
     }
-
-    return ret == R_OUT_IS_THROWN ? CALL_MODE_THROWN : CALL_MODE_0;
 }
 
 
 //
 //  Do_Function_Core: C
 //
-enum Reb_Call_Mode Do_Function_Core(struct Reb_Call *c)
+void Do_Function_Core(struct Reb_Call *c)
 {
     Eval_Functions++;
 
@@ -1018,9 +1018,7 @@ enum Reb_Call_Mode Do_Function_Core(struct Reb_Call *c)
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
     if (Do_At_Throws(c->out, FUNC_BODY(c->func), 0))
-        return CALL_MODE_THROWN;
-
-    return CALL_MODE_0;
+        c->mode = CALL_MODE_THROW_PENDING;
 }
 
 
@@ -1030,7 +1028,7 @@ enum Reb_Call_Mode Do_Function_Core(struct Reb_Call *c)
 // Do a closure by cloning its body and rebinding it to
 // a new frame of words/values.
 //
-enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
+void Do_Closure_Core(struct Reb_Call *c)
 {
     REBARR *body;
     REBCON *context = Frame_For_Call_May_Reify(c, FALSE);
@@ -1079,24 +1077,20 @@ enum Reb_Call_Mode Do_Closure_Core(struct Reb_Call *c)
     //
     PUSH_GUARD_ARRAY(body);
 
-    if (Do_At_Throws(c->out, body, 0)) {
-        DROP_GUARD_ARRAY(body);
-        return CALL_MODE_THROWN;
-    }
+    if (Do_At_Throws(c->out, body, 0))
+        c->mode = CALL_MODE_THROW_PENDING;
 
     // References to parts of the closure's copied body may still be
     // extant, but we no longer need to hold this reference on it
     //
     DROP_GUARD_ARRAY(body);
-
-    return CALL_MODE_0;
 }
 
 
 //
 //  Do_Routine_Core: C
 //
-enum Reb_Call_Mode Do_Routine_Core(struct Reb_Call *c)
+void Do_Routine_Core(struct Reb_Call *c)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         DSF_ARGC(c) > 0 ? DSF_ARG(c, 1) : NULL,
@@ -1107,7 +1101,8 @@ enum Reb_Call_Mode Do_Routine_Core(struct Reb_Call *c)
 
     Free_Array(args);
 
-    return CALL_MODE_0; // Cannot "throw" a Rebol value across an FFI boundary
+    // Note: cannot "throw" a Rebol value across an FFI boundary.  If you
+    // could this would set `c->mode = CALL_MODE_THROW_PENDING` in that case.
 }
 
 
