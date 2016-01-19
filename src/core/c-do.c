@@ -1977,7 +1977,6 @@ reevaluate:
                 //
                 *c->out = *CONTEXT_VALUE(AS_CONTEXT(exit_from));
                 assert(IS_FRAME(c->out));
-                PROBE_MSG(c->out, "exit_from frame");
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
@@ -2153,9 +2152,6 @@ reevaluate:
                 ) {
                     CATCH_THROWN(c->out, c->out);
                     c->mode = CALL_MODE_0;
-                }
-                else {
-                    PROBE_MSG(c->out, "passing on exit_from");
                 }
             }
             else if (ANY_FUNC(c->out)) {

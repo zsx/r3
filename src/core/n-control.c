@@ -1135,6 +1135,36 @@ REBNATIVE(exit)
 
     REBVAL *level = ARG(level);
 
+#if !defined(NDEBUG)
+    //
+    // Though the Ren-C default is to allow exiting from natives (and not
+    // to provide the poor invariant of different behavior based on whether
+    // the containing function is native or not), the legacy switch lets
+    // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
+    //
+    if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
+        struct Reb_Call *call = call_->prior;
+        while (
+            call != NULL
+            && !IS_FUNCTION(FUNC_VALUE(call->func))
+            && !IS_CLOSURE(FUNC_VALUE(call->func))
+        ) {
+            call = call->prior;
+        }
+
+        if (call == NULL)
+            fail (Error(RE_INVALID_EXIT));
+
+        *D_OUT = *FUNC_VALUE(call->func);
+
+        CONVERT_NAME_TO_THROWN(
+            D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE
+        );
+
+        return R_OUT_IS_THROWN;
+    }
+#endif
+
     if (IS_UNSET(level)) {
         //
         // The thrown exit protocol understands integers to be a count down
