@@ -79,11 +79,7 @@
 // it will be automatically restored to where it was at the PUSH_TRAP().
 //
 // At the moment, the data stack is *mostly* implemented as a typical series.
-// Pushing unfilled slots on the stack (via PUSH_TRASH_UNSAFE) partially
-// inlines Alloc_Tail_List, so it only pays for the function call in cases
-// where expansion is necessary.
-//
-// When Rebol was first open-sourced, there were other deviations from being
+// When Rebol was first open-sourced, there were some deviations from being
 // a normal series.  It was not terminated with an END, so you would be
 // required to call a special DS_TERMINATE() routine to put the terminator
 // in place before using the data stack with a routine that expected
@@ -94,8 +90,8 @@
 // corrupt memory.
 //
 // Overall, optimizing the stack structure should be easier now that it has
-// a more dedicated purpose.  So those tricks are not being used for the
-// moment.  Future profiling can try those and other approaches when a stable
+// a more dedicated purpose.  So those tricks are not being used *for the
+// moment*.  Future profiling can try those and other approaches when a stable
 // and complete system has been achieved.
 //
 
@@ -126,16 +122,10 @@
 // you have put a valid value into the slot you pushed.
 
 #define DS_PUSH_TRASH \
-    ( \
-        SERIES_FITS(ARRAY_SERIES(DS_Array), 1) \
-            ? cast(void, ++DS_Array->series.content.dynamic.len) \
-            : ( \
-                SERIES_REST(ARRAY_SERIES(DS_Array)) >= STACK_LIMIT \
-                    ? Trap_Stack_Overflow() \
-                    : cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Array))) \
-            ), \
-        SET_TRASH_IF_DEBUG(DS_TOP) \
-    )
+    (SERIES_REST(ARRAY_SERIES(DS_Array)) >= STACK_LIMIT \
+        ? Trap_Stack_Overflow() \
+        : cast(void, cast(REBUPT, Alloc_Tail_Array(DS_Array))), \
+    SET_TRASH_IF_DEBUG(DS_TOP))
 
 #define DS_PUSH_TRASH_SAFE \
     (DS_PUSH_TRASH, SET_TRASH_SAFE(DS_TOP), NOOP)
