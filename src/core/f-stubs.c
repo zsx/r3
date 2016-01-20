@@ -535,7 +535,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCON *context) {
     assert(
         IS_FRAME(CONTEXT_VALUE(context))
             ? ANY_FUNC(FUNC_VALUE(CONTEXT_FUNC(context)))
-            : (!CONTEXT_SPEC(context)
+            : NOT(CONTEXT_SPEC(context)
                 || ANY_CONTEXT(CONTEXT_VALUE(CONTEXT_SPEC(context)))
             )
     );
