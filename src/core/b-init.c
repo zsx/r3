@@ -531,6 +531,9 @@ REBNATIVE(context)
 {
     PARAM(1, spec);
 
+    REBVAL dummy; // doesn't need GC-safety for this use (at time of writing)
+    VAL_INIT_WRITABLE_DEBUG(&dummy);
+
     Val_Init_Object(
         D_OUT,
         Make_Selfish_Context_Detect(
@@ -551,8 +554,8 @@ REBNATIVE(context)
     // The evaluative result of running the spec is ignored and done into a
     // scratch cell, but needs to be returned if a throw happens.
     //
-    if (DO_ARRAY_THROWS(D_CELL, ARG(spec))) {
-        *D_OUT = *D_CELL;
+    if (DO_ARRAY_THROWS(&dummy, ARG(spec))) {
+        *D_OUT = dummy;
         return R_OUT_IS_THROWN;
     }
 

@@ -525,12 +525,6 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         //
         Frame_For_Call_May_Reify(c, varlist, FALSE);
     }
-
-    // Write some garbage (that won't crash the GC) into the `cell` slot in
-    // the debug build.  `out` and `func` are known to be GC-safe.
-    //
-    VAL_INIT_WRITABLE_DEBUG(&c->cell);
-    SET_TRASH_SAFE(&c->cell);
 }
 
 
@@ -561,7 +555,7 @@ REBCON *Frame_For_Call_May_Reify(
         // This is an a-priori creation of pooled data... arg isn't ready to
         // check yet.
         //
-        assert(c->mode == CALL_MODE_0);
+        assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
         context = AS_CONTEXT(opt_varlist);
         assert(ARRAY_GET_FLAG(AS_ARRAY(context), OPT_SER_HAS_DYNAMIC));
     }

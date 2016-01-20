@@ -599,7 +599,7 @@ static void Mark_Call_Frames_Deep(void)
             QUEUE_MARK_ARRAY_DEEP(c->source.array);
         }
 
-        if (c->mode == CALL_MODE_0) {
+        if (c->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
             //
             // The only field we protect if no function is pending or running
             // with this frame is the array itself.  This is important if we
@@ -609,9 +609,6 @@ static void Mark_Call_Frames_Deep(void)
             //
             continue;
         }
-
-        if (Is_Value_Managed(&c->cell, FALSE))
-            Queue_Mark_Value_Deep(&c->cell);
 
         QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func)); // never NULL
 

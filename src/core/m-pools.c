@@ -1592,12 +1592,6 @@ void Manage_Series(REBSER *series)
 //
 REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
 {
-    if (IS_END(value))
-        return thrown_or_end_ok;
-
-    if (THROWN(value))
-        return thrown_or_end_ok;
-
 #if !defined(NDEBUG)
     //
     // !thrown_or_end_ok might as well be the "called from GC setting", and it
@@ -1611,6 +1605,12 @@ REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
         }
     }
 #endif
+
+    if (IS_END(value))
+        return thrown_or_end_ok;
+
+    if (THROWN(value))
+        return thrown_or_end_ok;
 
     if (ANY_CONTEXT(value)) {
         REBCON *context = VAL_CONTEXT(value);
