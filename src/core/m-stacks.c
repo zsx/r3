@@ -556,21 +556,26 @@ REBCON *Frame_For_Call_May_Reify(
     if (c->flags & DO_FLAG_FRAME_CONTEXT)
         return c->frame.context;
 
-    if (DSF_FRAMELESS(c)) {
-        //
-        // Cannot get a frame for a frameless native.  Suggest running in
-        // debug mode.
-        //
-        // !!! Debug mode to disable optimizations not currently hammmered out.
-        //
-        fail (Error(RE_FRAMELESS_CALL));
-    }
-
     if (opt_varlist) {
+        //
+        // This is an a-priori creation of pooled data... arg isn't ready to
+        // check yet.
+        //
+        assert(c->mode == CALL_MODE_0);
         context = AS_CONTEXT(opt_varlist);
         assert(ARRAY_GET_FLAG(AS_ARRAY(context), OPT_SER_HAS_DYNAMIC));
     }
     else {
+        assert(c->mode == CALL_MODE_FUNCTION);
+        if (DSF_FRAMELESS(c)) {
+            //
+            // After-the-fact attempt to create a frame for a frameless native.
+            // Suggest running in debug mode.
+            //
+            // !!! Debug mode disabling optimizations not yet written.
+            //
+            fail (Error(RE_FRAMELESS_CALL));
+        }
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),
