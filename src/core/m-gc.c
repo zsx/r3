@@ -755,7 +755,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             {
                 REBVAL *value = CONTEXT_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
-                assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
+                if (IS_FRAME(val))
+                    assert(VAL_CONTEXT_FUNC(val) == VAL_CONTEXT_FUNC(value));
+                else
+                    assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
 
                 // Though the general rule is that canon values should match
                 // the bits of any instance, an exception is made in the
@@ -775,16 +778,21 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 
             QUEUE_MARK_CONTEXT_DEEP(context);
 
-            if (VAL_CONTEXT_SPEC(val)) {
-                //
-                // !!! Under the module system, the spec is actually another
-                // context of an object constructed with the various pieces
-                // of module information.  This idea is being reviewed to
-                // see if what is called the "object spec" should be
-                // something more like a function spec, with the module
-                // information going in something called a "meta"
-                //
-                QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val));
+            if (IS_FRAME(val)) {
+                QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(VAL_CONTEXT_FUNC(val)));
+            }
+            else {
+                if (VAL_CONTEXT_SPEC(val)) {
+                    //
+                    // !!! Under the module system, the spec is another
+                    // context of an object constructed with the various pieces
+                    // of module information.  This idea is being reviewed to
+                    // see if what is called the "object spec" should be
+                    // something more like a function spec, with the module
+                    // information going in something called a "meta"
+                    //
+                    QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val));
+                }
             }
 
             // If CONTEXT_STACKVARS is not NULL, the marking will be taken

@@ -533,11 +533,11 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCON *context) {
     // may want to use another word of that and make a block "spec"
     //
     assert(
-        !CONTEXT_SPEC(context)
-        || ARRAY_GET_FLAG(
-            CONTEXT_VARLIST(CONTEXT_SPEC(context)),
-            OPT_SER_CONTEXT
-        )
+        IS_FRAME(CONTEXT_VALUE(context))
+            ? ANY_FUNC(FUNC_VALUE(CONTEXT_FUNC(context)))
+            : (!CONTEXT_SPEC(context)
+                || ANY_CONTEXT(CONTEXT_VALUE(CONTEXT_SPEC(context)))
+            )
     );
 #endif
 

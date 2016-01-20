@@ -1015,7 +1015,21 @@ struct Reb_Context {
 #define CONTEXT_LEN(c)          (ARRAY_LEN(CONTEXT_KEYLIST(c)) - 1)
 #define CONTEXT_ROOTKEY(c)      ARRAY_HEAD(CONTEXT_KEYLIST(c))
 #define CONTEXT_TYPE(c)         VAL_TYPE(CONTEXT_VALUE(c))
-#define CONTEXT_SPEC(c)         VAL_CONTEXT_SPEC(CONTEXT_VALUE(c))
+
+#define INIT_CONTEXT_SPEC(c,s) \
+    (assert(!IS_FRAME(CONTEXT_VALUE(c))), \
+        VAL_CONTEXT_SPEC(CONTEXT_VALUE(c)) = (s))
+
+#define CONTEXT_SPEC(c) \
+    (VAL_CONTEXT_SPEC(CONTEXT_VALUE(c)) + 0)
+
+#define INIT_CONTEXT_FUNC(c,f) \
+    (assert(IS_FRAME(CONTEXT_VALUE(c))), \
+        VAL_CONTEXT_FUNC(CONTEXT_VALUE(c)) = (f))
+
+#define CONTEXT_FUNC(c) \
+    (VAL_CONTEXT_FUNC(CONTEXT_VALUE(c)) + 0)
+
 #define CONTEXT_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(c))
 
 #define FAIL_IF_LOCKED_CONTEXT(c) \

@@ -944,7 +944,7 @@ static void Init_System_Object(void)
 
         value = Get_System(SYS_CODECS, 0);
         VAL_RESET_HEADER(CONTEXT_VALUE(codecs), REB_OBJECT);
-        CONTEXT_SPEC(codecs) = NULL;
+        INIT_CONTEXT_SPEC(codecs, NULL);
         CONTEXT_STACKVARS(codecs) = NULL;
         Val_Init_Object(value, codecs);
     }
@@ -1449,7 +1449,7 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CONTEXT_VARLIST(Lib_Context));
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
-    CONTEXT_SPEC(Lib_Context) = NULL;
+    INIT_CONTEXT_SPEC(Lib_Context, NULL);
     CONTEXT_STACKVARS(Lib_Context) = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
@@ -1458,7 +1458,7 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CONTEXT_VARLIST(Sys_Context));
 
     VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
-    CONTEXT_SPEC(Sys_Context) = NULL;
+    INIT_CONTEXT_SPEC(Sys_Context, NULL);
     CONTEXT_STACKVARS(Sys_Context) = NULL;
 
     DOUT("Level 2");
