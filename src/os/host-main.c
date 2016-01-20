@@ -348,6 +348,7 @@ int Do_String(
         //
         if (at_breakpoint) {
             struct Reb_Call *call;
+            REBCON *frame;
 
             REBVAL level;
             VAL_INIT_WRITABLE_DEBUG(&level);
@@ -355,7 +356,14 @@ int Do_String(
 
             call = Call_For_Stack_Level(NULL, &level, FALSE);
             assert(call);
-            Bind_Relative_Deep(call->func, code);
+
+            // Need to manage because it may be no words get bound into it,
+            // and we're not putting it into a FRAME! value, so it might leak
+            // otherwise if it's reified.
+            //
+            frame = Frame_For_Call_May_Reify(call, NULL, TRUE);
+
+            Bind_Values_Deep(ARRAY_HEAD(code), frame);
         }
 
         // !!! This was unused code that used to be in Do_String from
