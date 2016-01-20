@@ -146,7 +146,10 @@ REBCON *Alloc_Context(REBCNT len)
     // an object spec will wind up looking like, and may end up being the
     // "meta" information.
     //
-    CONTEXT_SPEC(context) = cast(REBCON*, 0xBAADF00D);
+    // !!! This should likely corrupt the data for the CONTEXT_FUNC as well
+    //
+    CONTEXT_VALUE(context)->payload.any_context.more.spec
+        =  cast(REBCON*, 0xBAADF00D);
 
     // Allowed to be set to NULL, but must be done so explicitly
     //
@@ -829,7 +832,7 @@ REBCON *Make_Selfish_Context_Detect(
     VAL_RESET_HEADER(CONTEXT_VALUE(context), kind);
     assert(CONTEXT_TYPE(context) == kind);
 
-    CONTEXT_SPEC(context) = spec;
+    INIT_CONTEXT_SPEC(context, spec);
     CONTEXT_STACKVARS(context) = stackvars;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
@@ -1899,7 +1902,7 @@ void Init_Collector(void)
 //  CONTEXT_KEY_Debug: C
 //
 REBVAL *CONTEXT_KEY_Debug(REBCON *c, REBCNT n) {
-    assert(n != 0 && n < ARRAY_LEN(CONTEXT_KEYLIST(c)));
+    assert(n != 0 && n <= CONTEXT_LEN(c));
     return CONTEXT_KEYS_HEAD(c) + (n) - 1;
 }
 
@@ -1908,7 +1911,7 @@ REBVAL *CONTEXT_KEY_Debug(REBCON *c, REBCNT n) {
 //  CONTEXT_VAR_Debug: C
 //
 REBVAL *CONTEXT_VAR_Debug(REBCON *c, REBCNT n) {
-    assert(n != 0 && n < ARRAY_LEN(CONTEXT_VARLIST(c)));
+    assert(n != 0 && n <= CONTEXT_LEN(c));
     return CONTEXT_VARS_HEAD(c) + (n) - 1;
 }
 

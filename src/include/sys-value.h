@@ -1479,8 +1479,12 @@ struct Reb_Typeset {
 
 struct Reb_Any_Context {
     REBCON *context;
-    REBCON *spec; // optional (currently only used by modules)
     REBVAL *stackvars;
+
+    union {
+        REBCON *spec; // used by REB_MODULE
+        REBFUN *func; // used by REB_FRAME
+    } more;
 };
 
 #define VAL_CONTEXT(v) \
@@ -1489,7 +1493,9 @@ struct Reb_Any_Context {
 #define INIT_VAL_CONTEXT(v,c) \
     ((v)->payload.any_context.context = (c))
 
-#define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.spec)
+#define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.more.spec)
+
+#define VAL_CONTEXT_FUNC(v)         ((v)->payload.any_context.more.func)
 
 #define VAL_CONTEXT_STACKVARS(v)    ((v)->payload.any_context.stackvars)
 

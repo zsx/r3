@@ -110,7 +110,7 @@ static REBARR *Init_Loop(
     SET_ARRAY_LEN(CONTEXT_KEYLIST(context), len + 1);
 
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_OBJECT);
-    CONTEXT_SPEC(context) = NULL;
+    INIT_CONTEXT_SPEC(context, NULL);
     CONTEXT_STACKVARS(context) = NULL;
 
     // Setup for loop:

@@ -628,7 +628,7 @@ REBCON *Frame_For_Call_May_Reify(
     //
     VAL_RESET_HEADER(CONTEXT_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CONTEXT_VALUE(context), context);
-    CONTEXT_SPEC(context) = NULL;
+    INIT_CONTEXT_FUNC(context, c->func);
 
     // Give this series the data from what was in the chunk, and make note
     // of the series in the chunk so that it can be marked as "gone bad"

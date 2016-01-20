@@ -480,9 +480,9 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // 
 //     return: make function! [
 //         [{Returns a value from a function.} value [opt-any-value!]]
-//         [throw/name :value bind-of 'return]
+//         [exit/from/with (context-of 'return) :value]
 //     ]
-//     catch/name (body) bind-of 'return
+//     (body goes here)
 // 
 // This pattern addresses "Definitional Return" in a way that does not
 // technically require building RETURN in as a language keyword in any

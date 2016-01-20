@@ -56,6 +56,5 @@ max: :maximum
 abs: :absolute
 empty?: :tail?
 ---: :comment
-bind?: :bound?
 
 rebol.com: http://www.rebol.com

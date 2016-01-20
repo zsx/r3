@@ -495,13 +495,22 @@ REBNATIVE(function_of)
 {
     PARAM(1, level);
 
-    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
-    if (!call)
-        fail (Error_Invalid_Arg(ARG(level)));
+    REBVAL *level = ARG(level);
 
-    *D_OUT = *FUNC_VALUE(call->func);
+    if (IS_FRAME(level)) {
+        *D_OUT = *FUNC_VALUE(VAL_CONTEXT_FUNC(level));
+    }
+    else {
+        struct Reb_Call *call = Call_For_Stack_Level(NULL, level, TRUE);
+        if (!call)
+            fail (Error_Invalid_Arg(level));
+
+        *D_OUT = *FUNC_VALUE(call->func);
+    }
+
     return R_OUT;
 }
+
 
 //
 //  backtrace: native [

@@ -366,27 +366,27 @@ REBNATIVE(bind)
 
 
 //
-//  bound?: native [
+//  context-of: native [
 //  
 //  "Returns the context in which a word is bound."
 //  
 //      word [any-word!]
 //  ]
 //
-REBNATIVE(bound_q)
+REBNATIVE(context_of)
 {
-    REBVAL *word = D_ARG(1);
+    PARAM(1, word);
 
-    if (IS_WORD_UNBOUND(word)) return R_NONE;
+    if (IS_WORD_UNBOUND(ARG(word))) return R_NONE;
 
-    // The canon value for a non-frame context lives in the [0] cell, and
-    // right now the value used for a frame context is the value of the
-    // function paramlist itself.  This is also found in the [0] cell.
+    // Requesting the context of a word that is relatively bound may result
+    // in that word having a FRAME! incarnated as a REBSER node (if it
+    // was not already reified.)
     //
-    // !!! The decoding will become trickier :-/  A function paramlist is
-    // not sufficient to be a FRAME! and identify a specific call...
+    // !!! Mechanically it is likely that in the future, all FRAME!s for
+    // user functions will be reified from the moment of invocation.
     //
-    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT_MAY_REIFY(word));
+    *D_OUT = *CONTEXT_VALUE(VAL_WORD_CONTEXT_MAY_REIFY(ARG(word)));
 
     return R_OUT;
 }

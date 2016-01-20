@@ -210,16 +210,13 @@ series?: :any-series?
 ;
 any-type!: :opt-any-value!
 
-; !!! BIND? and BOUND? will have to go, but it's not clear exactly if
-; BIND-OF or CONTEXT-OF or what is the right term.  So a mass renaming
-; effort has not been undertaken, especially given the number of bootstrap
-; references.  When the new name final decision comes, then BIND? and BOUND?
-; will be the ones with their home in the legacy module...
-
-bind-of: :bound?
-;bind?
-;bound?
-
+; BIND? and BOUND? didn't fit the naming convention of returning LOGIC! if
+; they end in a question mark.  Also, CONTEXT-OF is more explicit about the
+; type of the return result, which makes it more useful than BINDING-OF or
+; BIND-OF as a name.  (Result can be an ANY-CONTEXT!, including FRAME!)
+;
+bound?: :context-of
+bind?: :context-of
 
 ; !!! These less common cases still linger as question mark routines that
 ; don't return LOGIC!, and they seem like they need greater rethinking in

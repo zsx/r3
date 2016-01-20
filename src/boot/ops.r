@@ -18,7 +18,7 @@ REBOL [
 
         and:
 
-            set (bind/new first [<>] bind? 'func) func [...] [...]
+            set (bind/new first [<>] context-of 'func) func [...] [...]
 
         You may be able to get an assignment with the second.  BUT
         it could be too late for references that have already been
