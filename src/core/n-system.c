@@ -651,7 +651,10 @@ REBNATIVE(backtrace)
             if (
                 first
                 && IS_NATIVE(FUNC_VALUE(call->func))
-                && FUNC_CODE(call->func) == &N_pause
+                && (
+                    FUNC_CODE(call->func) == &N_pause
+                    || FUNC_CODE(call->func) == &N_breakpoint
+                )
             ) {
                 // Omitting breakpoints from the list entirely presents a
                 // skewed picture of what's going on.  But giving them
@@ -875,7 +878,10 @@ struct Reb_Call *Call_For_Stack_Level(
         if (first) {
             if (
                 IS_NATIVE(FUNC_VALUE(call->func))
-                && FUNC_CODE(call->func) == &N_pause
+                && (
+                    FUNC_CODE(call->func) == &N_pause
+                    || FUNC_CODE(call->func) == N_breakpoint
+                )
             ) {
                 // this is considered the "0".  Return it only if 0 was requested
                 // specifically (you don't "count down to it");
@@ -1079,7 +1085,10 @@ REBOOL Do_Breakpoint_Throws(
                     if (
                         call != DSF
                         && VAL_TYPE(FUNC_VALUE(call->func)) == REB_NATIVE
-                        && FUNC_CODE(call->func) == &N_pause
+                        && (
+                            FUNC_CODE(call->func) == &N_pause
+                            || FUNC_CODE(call->func) == &N_breakpoint
+                        )
                     ) {
                         // We hit a breakpoint (that wasn't this call to
                         // breakpoint, at the current DSF) before finding
@@ -1218,26 +1227,51 @@ return_temp:
 
 
 //
+//  breakpoint: native [
+//
+//  "Signal breakpoint to the host (simple variant of PAUSE dialect)"
+//
+//  ]
+//
+REBNATIVE(breakpoint)
+//
+// The reason BREAKPOINT needs to exist as a native is to be recognized by
+// BACKTRACE as being a "0" stack level (e.g. probably not interesting to be
+// where you are probing variables).  Backtrace should not *always* skip the
+// most recent stack level however, because of a "Ctrl-C"-like debugging
+// break, where the most recent stack level *is* the one to inspect.
+{
+    if (Do_Breakpoint_Throws(
+        D_OUT,
+        FALSE, // not a Ctrl-C, it's an actual BREAKPOINT
+        UNSET_VALUE, // default result if RESUME does not override
+        FALSE // !execute (don't try to evaluate the UNSET_VALUE)
+    )) {
+        return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
+}
+
+
+//
 //  pause: native [
 //
-//  "Signal breakpoint to the host, such as a Read-Eval-Print-Loop (REPL)"
+//  "Pause in the debugger before running the provided code"
 //
-//      /default
-//          "Run the given code if breakpoint does not trigger"
-//      :code [group!]
-//          "GROUP! is captured, and only evaluated upon RESUME"
+//      :code [group!] ;-- or LIT-WORD! name or BLOCK! for dialect
+//          "Run the given code if breakpoint does not override"
 //  ]
 //
 REBNATIVE(pause)
 {
-    REFINE(1, default);
-    PARAM(2, code);
+    PARAM(1, code);
 
     if (Do_Breakpoint_Throws(
         D_OUT,
         FALSE, // not a Ctrl-C, it's an actual BREAKPOINT
-        REF(default) ? ARG(code) : UNSET_VALUE,
-        REF(default) // execute
+        ARG(code), // default result if RESUME does not override
+        TRUE // execute (run the GROUP! as code, don't return as-is)
     )) {
         return R_OUT_IS_THROWN;
     }
