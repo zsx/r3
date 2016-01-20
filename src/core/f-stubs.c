@@ -532,13 +532,13 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCON *context) {
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
-    assert(
-        IS_FRAME(CONTEXT_VALUE(context))
-            ? ANY_FUNC(FUNC_VALUE(CONTEXT_FUNC(context)))
-            : NOT(CONTEXT_SPEC(context)
-                || ANY_CONTEXT(CONTEXT_VALUE(CONTEXT_SPEC(context)))
-            )
-    );
+    if (IS_FRAME(CONTEXT_VALUE(context)))
+        assert(ANY_FUNC(FUNC_VALUE(CONTEXT_FUNC(context))));
+    else
+        assert(
+            NOT(CONTEXT_SPEC(context))
+            || ANY_CONTEXT(CONTEXT_VALUE(CONTEXT_SPEC(context)))
+        );
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
