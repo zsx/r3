@@ -561,10 +561,6 @@ static void Mark_Call_Frames_Deep(void)
 
     for (; c != NULL; c = c->prior) {
 
-    #if !defined(NDEBUG)
-        const REBYTE *label_str = Get_Sym_Name(c->label_sym);
-    #endif
-
         // !!! There are now going to be two, and perhaps three (?), ways of
         // holding the values being enumerated.  One problem is that the
         // remainder of a vararg list cannot be enumerated without killing
