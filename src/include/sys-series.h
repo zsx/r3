@@ -986,8 +986,8 @@ struct Reb_Context {
         : ARRAY_AT(CONTEXT_VARLIST(c), 1)
 
 #ifdef NDEBUG
-    #define CONTEXT_KEY(c,n)    (CONTEXT_KEYS_HEAD(c)[(n) - 1])
-    #define CONTEXT_VAR(c,n)    (CONTEXT_VARS_HEAD(c)[(n) - 1])
+    #define CONTEXT_KEY(c,n)    (CONTEXT_KEYS_HEAD(c) + (n) - 1)
+    #define CONTEXT_VAR(c,n)    (CONTEXT_VARS_HEAD(c) + (n) - 1)
 #else
     #define CONTEXT_KEY(c,n)    CONTEXT_KEY_Debug((c), (n))
     #define CONTEXT_VAR(c,n)    CONTEXT_VAR_Debug((c), (n))
