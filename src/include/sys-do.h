@@ -225,7 +225,7 @@ enum {
 //
 
 enum Reb_Call_Mode {
-    CALL_MODE_0, // no special mode signal
+    CALL_MODE_GUARD_ARRAY_ONLY, // no special mode signal
     CALL_MODE_ARGS, // ordinary arguments before any refinements seen
     CALL_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
     CALL_MODE_REFINE_ARGS, // at least one refinement has been found
@@ -248,15 +248,6 @@ union Reb_Call_Source {
 //
 struct Reb_Call {
     //
-    // `cell` [INTERNAL, REUSABLE, GC-SAFE cell]
-    //
-    // Some evaluative operations need a unit of additional storage beyond
-    // the one available in `out`.  This is a one-REBVAL-sized cell for
-    // saving that data, and natives may make use of during their call.
-    // At front of struct for alignment.
-    //
-    REBVAL cell;
-
     // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
     //
     // If a function call is currently in effect, `func` holds a pointer to
@@ -1026,6 +1017,22 @@ struct Native_Refine {
 
 #define DSF_PARAMS_HEAD(c)  FUNC_PARAMS_HEAD((c)->func)
 
+// Though `arg` is in use to point at the arguments during evaluation, the
+// other parameter fulfillment pointers `param` and `refine` are free for
+// use.  Since the GC is aware of these pointers, it can protect whatever
+// they are pointing at.  This can be useful for routines that have a local
+// memory cell.  This does not require a push or a pop of anything--it only
+// protects as long as the native is running.  (This trick is available to
+// the dispatchers as well.)
+//
+// Using X and Y instead of 1 and 2 to avoid confusing with PARAM(#)s
+//
+#define DSF_PROTECT_X(c,v) \
+    ((c)->param = (v))
+
+#define DSF_PROTECT_Y(c,v) \
+    ((c)->refine = (v))
+
 // It's not clear exactly in which situations one might be using this; while
 // it seems that when filling function args you could just assume it hasn't
 // been reified, there may be "pre-reification" in the future, and also a
@@ -1059,8 +1066,6 @@ struct Native_Refine {
 #define DSF_ARGC(c) \
     cast(REBCNT, FUNC_NUM_PARAMS((c)->func))
 
-#define DSF_CELL(c) (&(c)->cell)
-
 // Quick access functions from natives (or compatible functions that name a
 // Reb_Call pointer `call_`) to get some of the common public fields.
 //
@@ -1070,8 +1075,10 @@ struct Native_Refine {
 #define D_REF(n)    NOT(IS_NONE(D_ARG(n)))  // D_REFinement (not D_REFerence)
 #define D_FUNC      DSF_FUNC(call_)         // REBVAL* of running function
 #define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
-#define D_CELL      DSF_CELL(call_)         // GC-safe extra value
 #define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
+
+#define D_PROTECT_X(v)      DSF_PROTECT_X(call_, (v))
+#define D_PROTECT_Y(v)      DSF_PROTECT_Y(call_, (v))
 
 #define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
 

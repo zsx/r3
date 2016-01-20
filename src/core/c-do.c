@@ -807,10 +807,11 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
 static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     //
     // The ->mode is examined by parts of the system as a sign of whether
-    // the stack represents a function call frame or not.  If it is changed
-    // from CALL_MODE_0 during an evaluation step, it must be changed back.
+    // the stack represents a function invocation or not.  If it is changed
+    // from CALL_MODE_GUARD_ARRAY_ONLY during an evaluation step, it must
+    // be changed back before a next step is to run.
     //
-    assert(c->mode == CALL_MODE_0);
+    assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
 
     // We should not be linked into the call stack when a function is not
     // running (it is not if we're in this outer loop)
@@ -848,7 +849,6 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    VAL_INIT_WRITABLE_DEBUG(&c->cell);
     c->func = cast(REBFUN*, 0xDECAFBAD);
     c->label_sym = SYM_0;
     c->label_str = "(no current label)";
@@ -967,14 +967,11 @@ void Do_Core(struct Reb_Call * const c)
 {
 #if !defined(NDEBUG)
     //
-    // The debug build wants to make sure no "state" has accumulated per
-    // evaluator cycle (no manuals allocated that weren't freed, no additions
-    // to buffers like the MOLD stack that haven't been used or popped, etc.)
+    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
     //
     struct Reb_State state;
 
-    // This is just a reflection of `c->do_count`, kept in sync so it's less
-    // effort to browse stack levels and see what the count is.
+    // Cache of `c->do_count` (to make it quicker to see in the debugger)
     //
     REBCNT do_count;
 #endif
@@ -997,26 +994,16 @@ void Do_Core(struct Reb_Call * const c)
     REBVAL eval;
     VAL_INIT_WRITABLE_DEBUG(&eval);
 
-    // Only need to check this once (C stack size would be the same each
-    // time this line is run if it were in a loop)
+    // Check just once (stack level would be constant if checked in a loop)
     //
     if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
 
-    // Mark this Reb_Call state as "inert" so no no FUNCTION! eval is in
-    // progress that the GC need worry about.
-    //
-    // (Note that even in CALL_MODE_0, the `c->array` will be GC protected.)
-    //
-    c->mode = CALL_MODE_0;
-
-    // Chain this call onto the call stack.  Note that this is just for
-    // purposes of walking the stack at a given moment...since the call frames
-    // are blown away by longjmp (for instance) there will be no opportunity
-    // to use this list for cleanup.  Tracking information for any structures
-    // that need cleanup must be done separately.
+    // Chain the call state into the stack, and mark it as generally not
+    // having valid fields to GC protect (more valid during function calls).
     //
     c->prior = TG_Do_Stack;
     TG_Do_Stack = c;
+    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
 #if !defined(NDEBUG)
     //
@@ -1114,6 +1101,7 @@ value_ready_for_do_next:
             fail (Error(RE_MISC));
         }
     }
+    Recycle();
 
 reevaluate:
     //
@@ -1381,7 +1369,6 @@ reevaluate:
             c->param = NULL;
             c->refine = NULL;
 
-            SET_TRASH_SAFE(&c->cell);
             SET_TRASH_SAFE(c->out);
 
             c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
@@ -1447,7 +1434,7 @@ reevaluate:
                 NOTE_THROWING(goto return_indexor);
             }
 
-            c->mode = CALL_MODE_0;
+            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
             // We're done!
             break;
@@ -1949,7 +1936,7 @@ reevaluate:
             c->eval_fetched = c->value;
             c->value = &eval;
 
-            c->mode = CALL_MODE_0;
+            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
             goto drop_call_for_legacy_do_function;
         }
     #endif
@@ -2010,13 +1997,11 @@ reevaluate:
 
         assert(DSP == c->dsp_orig);
 
-        // Although the Make_Call wrote safe trash into the output and cell slots,
-        // we need to do it again for the dispatch, since the spots are used to
+        // Although the Make_Call wrote safe trash into the output slot, we
+        // need to do it again for the dispatch, since the spots are used to
         // do argument fulfillment into.
         //
         SET_TRASH_SAFE(c->out);
-        SET_TRASH_SAFE(&c->cell); // !!! unnecessary, does arg filling use it?
-        // !!! Note that cell may go away if a bit more coherence goes through
 
         assert(IS_END(c->param));
         c->refine = NULL;
@@ -2152,7 +2137,7 @@ reevaluate:
                     VAL_CONTEXT(c->out) == AS_CONTEXT(c->frame.context)
                 ) {
                     CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_0;
+                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
             }
             else if (ANY_FUNC(c->out)) {
@@ -2167,7 +2152,7 @@ reevaluate:
                 //
                 if (VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)) {
                     CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_0;
+                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
             }
             else if (IS_INTEGER(c->out)) {
@@ -2177,7 +2162,7 @@ reevaluate:
                 //
                 if (VAL_INT32(c->out) == 1) {
                     CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_0;
+                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
                 else {
                     // don't reset header (keep thrown flag as is), just bump
@@ -2213,14 +2198,15 @@ reevaluate:
             // call with arguments.  Is there a cleaner way?
             //
             assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-            assert(c->mode == CALL_MODE_0 && c->indexor != THROWN_FLAG);
+            assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
+            assert(c->indexor != THROWN_FLAG);
             goto reevaluate;
         }
     #endif
 
         // If the throw wasn't intercepted as an exit from this function call,
         // accept the throw.  We only care about the mode getting set cleanly
-        // back to CALL_MODE_0 if the evaluator didn't throw and keeps going.
+        // back to CALL_MODE_GUARD_ARRAY_ONLY if evaluation continues...
         //
         if (c->mode == CALL_MODE_THROW_PENDING) {
             c->indexor = THROWN_FLAG;
@@ -2229,7 +2215,7 @@ reevaluate:
         else if (c->indexor == THROWN_FLAG)
             NOTE_THROWING(goto return_indexor);
         else
-            c->mode = CALL_MODE_0;
+            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
 //
 //
@@ -2333,9 +2319,26 @@ reevaluate:
         if (IS_UNSET(c->out))
             fail (Error(RE_NEED_VALUE, c->param));
 
-        if (Do_Path_Throws(&c->cell, NULL, c->param, c->out)) {
-            c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
+        // !!! The evaluation ordering of SET-PATH! evaluation seems to break
+        // the "left-to-right" nature of the language:
+        //
+        //     >> foo: make object! [bar: 10]
+        //
+        //     >> foo/(print "left" 'bar): (print "right" 20)
+        //     right
+        //     left
+        //     == 20
+        //
+        // In addition to seeming "wrong" it also necessitates an extra cell
+        // of storage.  This should be reviewed along with Do_Path generally.
+        {
+            REBVAL temp;
+            VAL_INIT_WRITABLE_DEBUG(&temp);
+            if (Do_Path_Throws(&temp, NULL, c->param, c->out)) {
+                c->indexor = THROWN_FLAG;
+                *c->out = temp;
+                NOTE_THROWING(goto return_indexor);
+            }
         }
 
         // We did not pass in a symbol, so not a call... hence we cannot

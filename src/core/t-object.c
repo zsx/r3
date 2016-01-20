@@ -399,6 +399,9 @@ REBTYPE(Context)
             Val_Init_Object(D_OUT, context);
 
             if (!IS_NONE(arg)) {
+                REBVAL dummy;
+                VAL_INIT_WRITABLE_DEBUG(&dummy);
+
                 // !!! This binds the actual arg data, not a copy of it
                 // (functions make a copy of the body they are passed to
                 // be rebound).  This seems wrong.
@@ -408,8 +411,8 @@ REBTYPE(Context)
                 // Do the block into scratch space (we ignore the result,
                 // unless it is thrown in which case it must be returned.
                 //
-                if (DO_ARRAY_THROWS(D_CELL, arg)) {
-                    *D_OUT = *D_CELL;
+                if (DO_ARRAY_THROWS(&dummy, arg)) {
+                    *D_OUT = dummy;
                     return R_OUT_IS_THROWN;
                 }
             }

@@ -1030,8 +1030,10 @@ void Do_Function_Core(struct Reb_Call *c)
 //
 void Do_Closure_Core(struct Reb_Call *c)
 {
-    REBARR *body;
     REBCON *context = Frame_For_Call_May_Reify(c, NULL, FALSE);
+
+    REBVAL body;
+    VAL_INIT_WRITABLE_DEBUG(&body);
 
     Eval_Functions++;
 
@@ -1040,8 +1042,11 @@ void Do_Closure_Core(struct Reb_Call *c)
     // invocation.  (Costly, but that is the mechanics of words at the
     // present time, until true relative binding is implemented.)
     //
-    body = Copy_Array_Deep_Managed(FUNC_BODY(c->func));
-    Rebind_Values_Closure_Deep(c->func, c->frame.context, ARRAY_HEAD(body));
+    VAL_RESET_HEADER(&body, REB_BLOCK);
+    VAL_ARRAY(&body) = Copy_Array_Deep_Managed(FUNC_BODY(c->func));
+    VAL_INDEX(&body) = 0;
+
+    Rebind_Values_Closure_Deep(c->func, c->frame.context, VAL_ARRAY_AT(&body));
 
     // !!! repeated code in Do_Function (should disappear in unification)
     //
@@ -1071,19 +1076,16 @@ void Do_Closure_Core(struct Reb_Call *c)
     }
 
     // Protect the body from garbage collection during the course of the
-    // execution.  (We could also protect it by stowing it in the call
-    // frame's copy of the closure value, which we might think of as its
-    // "archetype", but it may be valuable to keep that as-is.)
+    // execution.  (This is inexpensive...it just points `c->param` to it.)
     //
-    PUSH_GUARD_ARRAY(body);
+    DSF_PROTECT_X(c, &body);
 
-    if (Do_At_Throws(c->out, body, 0))
+    if (DO_ARRAY_THROWS(c->out, &body))
         c->mode = CALL_MODE_THROW_PENDING;
 
     // References to parts of the closure's copied body may still be
-    // extant, but we no longer need to hold this reference on it
-    //
-    DROP_GUARD_ARRAY(body);
+    // extant, but we no longer need to hold it from GC.  Fortunately the
+    // DSF_PROTECT_X will be implicitly dropped when the call ends.
 }
 
 

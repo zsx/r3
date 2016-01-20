@@ -380,7 +380,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     end = MIN(ARRAY_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
 
     assert(end >= start);
-    assert(call->mode != CALL_MODE_0);
+    assert(call->mode != CALL_MODE_GUARD_ARRAY_ONLY);
     pending = NOT(call->mode == CALL_MODE_FUNCTION);
 
     // Do a shallow copy so that the WHERE information only includes
@@ -601,7 +601,7 @@ REBNATIVE(backtrace)
         index = 0;
         row = 0;
         for (call = DSF->prior; call != NULL; call = PRIOR_DSF(call)) {
-            if (call->mode == CALL_MODE_0) continue;
+            if (call->mode == CALL_MODE_GUARD_ARRAY_ONLY) continue;
 
             // index and property, unless /BRIEF in which case it will just
             // be the property.
@@ -642,7 +642,7 @@ REBNATIVE(backtrace)
         // be interesting to see GROUP! stack levels that are being
         // executed as well (as they are something like DO).
         //
-        if (call->mode == CALL_MODE_0)
+        if (call->mode == CALL_MODE_GUARD_ARRAY_ONLY)
             continue;
 
         if (call->mode == CALL_MODE_FUNCTION) {
@@ -1321,6 +1321,9 @@ REBNATIVE(resume)
     struct Reb_Call *target;
     REBARR *instruction;
 
+    REBVAL cell;
+    VAL_INIT_WRITABLE_DEBUG(&cell);
+
     if (REF(with) && REF(do)) {
         //
         // /WITH and /DO both dictate a default return result, (/DO evaluates
@@ -1397,12 +1400,12 @@ REBNATIVE(resume)
     // but for now we'll assume that the only decoder is BREAKPOINT and it
     // will be kept in sync.
     //
-    Val_Init_Array(D_CELL, REB_GROUP, instruction);
+    Val_Init_Array(&cell, REB_GROUP, instruction);
 
     // Throw the instruction with the name of the RESUME function
     //
     *D_OUT = *FUNC_VALUE(D_FUNC);
-    CONVERT_NAME_TO_THROWN(D_OUT, D_CELL, FALSE);
+    CONVERT_NAME_TO_THROWN(D_OUT, &cell, FALSE);
     return R_OUT_IS_THROWN;
 }
 

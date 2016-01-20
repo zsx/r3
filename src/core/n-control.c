@@ -841,13 +841,17 @@ REBNATIVE(comment)
 //
 //  compose: native/frameless [
 //  
-//  {Evaluates a block of expressions, only evaluating parens, and returns a block.}
+//  {Evaluates only the GROUP!s in a block of expressions, returning a block.}
 //  
-//      value "Block to compose"
-//      /deep "Compose nested blocks"
+//      value
+//          "Block to compose (or any other type evaluates to itself)"
+//                                          ; ^-- is this sensible?
+//      /deep
+//          "Compose nested blocks"
 //      /only 
-//      {Insert a block as a single value (not the contents of the block)}
-//      /into {Output results into a series with no intermediate storage}
+//          {Insert a block as a single value (not the contents of the block)}
+//      /into
+//          {Output results into a series with no intermediate storage}
 //      out [any-array! any-string! binary!]
 //  ]
 //
@@ -863,26 +867,36 @@ REBNATIVE(compose)
     PARAM(5, out);
 
     if (D_FRAMELESS) {
+        //
+        // The ARG(value) is unavailable in a frameless evaluation, so we'll
+        // have to evaluate it here.  Note that the usage does not require
+        // it to be GC-safe (at time of writing).
+        //
+        REBVAL value;
+        VAL_INIT_WRITABLE_DEBUG(&value);
+        SET_TRASH_SAFE(&value); // !!! could c->out offer this before a GC?
+        D_PROTECT_X(&value); // must be protected to save its content values[]
+
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(&value, D_CALL, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG) {
-            *D_OUT = *D_CELL;
+            *D_OUT = value;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(D_CELL))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_CELL)));
+        if (IS_UNSET(&value))
+            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(&value)));
 
-        if (!IS_BLOCK(D_CELL)) {
-            *D_OUT = *D_CELL;
+        if (!IS_BLOCK(&value)) {
+            *D_OUT = value;
             return R_OUT;
         }
 
         if (Compose_Values_Throws(
-            D_OUT, VAL_ARRAY_HEAD(D_CELL), FALSE, FALSE, FALSE
+            D_OUT, VAL_ARRAY_HEAD(&value), FALSE, FALSE, FALSE
         )) {
             // Here we want to be able to recover in situations like:
             //
@@ -897,9 +911,7 @@ REBNATIVE(compose)
         return R_OUT;
     }
 
-    // Only composes BLOCK!, all other arguments evaluate to themselves
-    //
-    // !!! Is this sensible?
+    // !!! See above--should all non-BLOCK! be evaluating to themselves?
     //
     if (!IS_BLOCK(ARG(value))) {
         *D_OUT = *ARG(value);
@@ -1428,6 +1440,9 @@ REBNATIVE(either)
     PARAM(3, false_branch);
     REFINE(4, only);
 
+    REBVAL dummy; // Place to write unused result, no GC safety needed
+    VAL_INIT_WRITABLE_DEBUG(&dummy);
+
     if (D_FRAMELESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
@@ -1446,10 +1461,10 @@ REBNATIVE(either)
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
 
         // If conditionally true, we want the protected D_OUT to be used for
-        // the true branch evaluation, and use D_CELL for scratch space to
+        // the true branch evaluation, and use `dummy` for scratch space to
         // do the false branch into.  If false, we want D_OUT to be used for
         // the false branch evaluation with the true branch writing into
-        // D_CELL as scratch space.
+        // `dummy` as scratch space.
         //
         if (IS_CONDITIONAL_TRUE(D_OUT)) {
             DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
@@ -1460,18 +1475,18 @@ REBNATIVE(either)
             if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
-                *D_OUT = *D_CELL;
+                *D_OUT = dummy;
                 return R_OUT_IS_THROWN;
             }
         }
         else {
-            DO_NEXT_REFETCH_MAY_THROW(D_CELL, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
-                *D_OUT = *D_CELL;
+                *D_OUT = dummy;
                 return R_OUT_IS_THROWN;
             }
 
