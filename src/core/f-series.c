@@ -225,6 +225,7 @@ REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBOOL is_case)
         if (is_case) return THE_SIGN(VAL_CHAR(s) - VAL_CHAR(t));
         return THE_SIGN((REBINT)(UP_CASE(VAL_CHAR(s)) - UP_CASE(VAL_CHAR(t))));
 
+    case REB_PERCENT:
     case REB_DECIMAL:
     case REB_MONEY:
             d1 = VAL_DECIMAL(s);
@@ -301,7 +302,7 @@ chkDecimal:
         return VAL_CONTEXT(s) - VAL_CONTEXT(t);
 
     case REB_NATIVE:
-        return &VAL_FUNC_CODE(s) - &VAL_FUNC_CODE(t);
+        return VAL_FUNC_CODE(s) - VAL_FUNC_CODE(t);
 
     case REB_ACTION:
     case REB_COMMAND:
