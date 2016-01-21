@@ -346,7 +346,12 @@ static REBCNT Parse_Next_Array(
 
     if (Trace_Level) {
         Trace_Value(7, item);
-        Trace_Value(8, blk);
+        if (IS_END(blk)) {
+            const char *end_str = "** END **";
+            Trace_String(8, cb_cast(end_str), strlen(end_str));
+        }
+        else
+            Trace_Value(9, blk);
     }
 
     // !!! The previous code did not have a handling for this, but it fell
