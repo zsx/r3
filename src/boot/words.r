@@ -129,11 +129,10 @@ quit
 ;return ;-- covered by parse below
 continue
 
-; Parse: - These words must not reserved above!!
-parse
-|    ; must be first
-; prep words:
-set
+; PARSE - These words must not be reserved above!!  The range of consecutive
+; index numbers are used by PARSE to detect keywords.
+;
+set ; must be first first (SYM_SET referred to by GET_VAR() in %u-parse.c)
 copy
 some
 any
@@ -153,7 +152,8 @@ limit
 ??
 accept
 break
-; match words:
+; ^--prep words above
+; v--match words below
 skip
 to
 thru
@@ -161,7 +161,7 @@ quote
 do
 into
 only
-end  ; must be last
+end  ; must be last (SYM_END referred to by GET_VAR() in %u-parse.c)
 
 ; Event:
 type

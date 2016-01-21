@@ -39,6 +39,8 @@ enum Value_Types {
     TOKEN_GET,
     TOKEN_LIT,
     TOKEN_NONE,     // not needed
+    TOKEN_BAR,
+    TOKEN_LIT_BAR,
     TOKEN_LOGIC,    // not needed
     TOKEN_INTEGER,
     TOKEN_DECIMAL,
@@ -147,6 +149,8 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
     LEX_SPECIAL_PLUS,               /* 2B + - positive number */
     LEX_SPECIAL_MINUS,              /* 2D - - date, negative number */
     LEX_SPECIAL_TILDE,              /* 7E ~ - complement number */
+    LEX_SPECIAL_BAR,                /* 7C | - expression barrier */
+
                                     /** Any of these can follow - or ~ : */
     LEX_SPECIAL_PERIOD,             /* 2E . - decimal number */
     LEX_SPECIAL_COMMA,              /* 2C , - decimal number */

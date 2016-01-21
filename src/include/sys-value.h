@@ -691,6 +691,44 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  BAR! and LIT-BAR! (fits in header bits, may use `struct Reb_Track`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The "expression barrier" is denoted by a lone vertical bar `|`, and it
+// has the special property of being rejected for argument fulfillment, but
+// ignored at interstitial positions.  So:
+//
+//     append [a b c] | [d e f] print "Hello"   ;-- will cause an error
+//     append [a b c] [d e f] | print "Hello"   ;-- is legal
+//
+// This makes it similar to an UNSET! in behavior, but given its specialized
+// purpose unlikely to conflict as being needed to be passed as an actual
+// parameter.  Literal unsets in source are treated differently by the
+// evaluator than unsets in variables or coming from the result of a function
+// call, so that `append [a b c] something-that-returns-a-bar` is legal.
+//
+// The other loophole for making barriers is the LIT-BAR!, which can allow
+// passing a BAR! by value.  So `append [a b c] '|` would work.
+//
+
+#ifdef NDEBUG
+    #define SET_BAR(v) \
+        VAL_RESET_HEADER((v), REB_BAR)
+
+    #define SET_LIT_BAR(v) \
+        VAL_RESET_HEADER((v), REB_LIT_BAR)
+#else
+    #define SET_BAR(v) \
+        (VAL_RESET_HEADER((v), REB_BAR), SET_TRACK_PAYLOAD(v))
+
+    #define SET_LIT_BAR(v) \
+        (VAL_RESET_HEADER((v), REB_LIT_BAR), SET_TRACK_PAYLOAD(v))
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  NONE! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
