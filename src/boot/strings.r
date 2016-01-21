@@ -71,18 +71,24 @@ info:
 ;   "lower security"
 ;   "execute a system shell command: "
 
+; !!! This R3-Alpha concept of using numbered "resource strings" is not
+; very maintainable.  It would probably be better to just hardcode the
+; strings in the source :-/ ... but assuming it's interesting to override
+; them they should be override-able somewhere.  Review general solutoin.
+;
 trace:
-    "trace"
-    "%-02d: %50r"
-    " : %50r"
-    " : %s %50m"
-    " : %s"
-    "--> %s"
-    "<-- %s =="
-    "Parse match: %r"
-    "Parse input: %s"
-    "Parse back: %r"
-    "**: error : %r %r" ; 10
+    "trace" ; 0
+    "%-02d: %50r" ; 1
+    " : %50r" ; 2
+    " : %s %50m" ; 3
+    " : %s" ; 4
+    "--> %s" ; 5
+    "<-- %s ==" ; 6
+    "Parse match: %r" ; 7
+    "Parse input: %s" ; 8 - input is an ANY-STRING!
+    "Parse input: %r" ; 9 - input is an ANY-ARRAY!
+    "Parse back: %r" ; 10
+    "**: error : %r %r" ; 11
 
 stack:
     "STACK Expanded - DSP: %d MAX: %d"

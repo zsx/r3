@@ -221,6 +221,7 @@ void Trace_Value(REBINT n, const REBVAL *value)
     Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,n)), value);
 }
 
+
 //
 //  Trace_String: C
 //
@@ -243,7 +244,11 @@ void Trace_Error(const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE, 10)), &VAL_ERR_VALUES(value)->type, &VAL_ERR_VALUES(value)->id);
+    Debug_Fmt(
+        cs_cast(BOOT_STR(RS_TRACE, 11)),
+        &VAL_ERR_VALUES(value)->type,
+        &VAL_ERR_VALUES(value)->id
+    );
 }
 
 
