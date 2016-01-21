@@ -1101,7 +1101,6 @@ value_ready_for_do_next:
             fail (Error(RE_MISC));
         }
     }
-    Recycle();
 
 reevaluate:
     //
