@@ -179,7 +179,7 @@ const REBYTE Lex_Map[256] =
     /* 79 y   */    LEX_WORD,
     /* 7A z   */    LEX_WORD,
     /* 7B {   */    LEX_DELIMIT|LEX_DELIMIT_LEFT_BRACE,
-    /* 7C |   */    LEX_WORD,
+    /* 7C |   */    LEX_SPECIAL|LEX_SPECIAL_BAR,
     /* 7D }   */    LEX_DELIMIT|LEX_DELIMIT_RIGHT_BRACE,
     /* 7E ~   */    LEX_WORD,  //LEX_SPECIAL|LEX_SPECIAL_TILDE,
     /* 7F DEL */    LEX_DEFAULT,
@@ -976,6 +976,12 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
         case LEX_SPECIAL_APOSTROPHE:
             if (IS_LEX_NUMBER(cp[1])) return -TOKEN_LIT;        // no '2nd
             if (cp[1] == ':') return -TOKEN_LIT;                // no ':X
+            if (
+                cp[1] == '|'
+                && (IS_LEX_DELIMIT(cp[2]) || IS_LEX_ANY_SPACE(cp[2]))
+            ) {
+                return TOKEN_LIT_BAR; // '| is a LIT-BAR!, '|foo is LIT-WORD!
+            }
             if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
                 return TOKEN_LIT; /* common case */
             if (!IS_LEX_WORD(cp[1])) {
@@ -1045,6 +1051,17 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 }
                 return -TOKEN_WORD;
             }
+            type = TOKEN_WORD;
+            goto scanword;
+
+        case LEX_SPECIAL_BAR:
+            //
+            // `|` standalone should become a BAR!, so if followed by a
+            // delimiter or space.  However `|a|` and `a|b` are left as
+            // legal words (at least for the time being).
+            //
+            if (IS_LEX_DELIMIT(cp[1]) || IS_LEX_ANY_SPACE(cp[1]))
+                return TOKEN_BAR;
             type = TOKEN_WORD;
             goto scanword;
 
@@ -1439,6 +1456,16 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             line = TRUE;
             scan_state->head_line = ep;
             continue;
+
+        case TOKEN_BAR:
+            SET_BAR(value);
+            ++bp;
+            break;
+
+        case TOKEN_LIT_BAR:
+            SET_LIT_BAR(value);
+            ++bp;
+            break;
 
         case TOKEN_LIT:
         case TOKEN_GET:

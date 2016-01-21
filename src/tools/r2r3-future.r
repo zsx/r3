@@ -53,6 +53,16 @@ unless (copy/part words-of :function 2) = [spec body] [
     function: :funct
 ]
 
+; A lone vertical bar is an "expression barrier" in Ren-C, but a word character
+; in other situations.  Having a word behave as a function that returns an
+; UNSET! in older Rebols is not quite the same, but can have a similar effect
+; in terms of creating errors if picked up by normal function args.
+;
+if word? '| [
+    set '| does []
+]
+
+
 unless find words-of :set /opt [
     ;
     ; SET/OPT is the Ren-C replacement for SET/ANY, with /ANY supported

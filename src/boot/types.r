@@ -42,6 +42,8 @@ unset       none        -       -       -       *       -
 ;-- Scalars
 
 none        none        +       +       -       *       -
+bar         (none)      +       +       -       *       -
+lit-bar     (none)      +       +       -       *       -
 logic       logic       *       *       -       *       -
 integer     integer     *       *       -       -       [number scalar]
 decimal     decimal     *       *       -       *       [number scalar]

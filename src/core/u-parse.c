@@ -55,11 +55,10 @@ enum parse_flags {
 #define MAX_PARSE_DEPTH 512
 
 // Returns SYMBOL or 0 if not a command:
-#define GET_CMD(n) (((n) >= SYM_BAR && (n) <= SYM_END) ? (n) : 0)
+#define GET_CMD(n) (((n) >= SYM_SET && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
 #define HAS_CASE(p) LOGICAL(p->find_flags & AM_FIND_CASE)
-#define IS_OR_BAR(v) (IS_WORD(v) && VAL_WORD_CANON(v) == SYM_BAR)
-#define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_SAME_WORD(r, SYM_BAR)) r++;
+#define SKIP_TO_BAR(r) while (NOT_END(r) && !IS_BAR(r)) r++;
 
 // Parse_Rules_Loop is used before it is defined, need forward declaration
 //
@@ -146,6 +145,9 @@ static REBCNT Set_Parse_Series(REBPARSE *p, const REBVAL *item)
 //
 static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 {
+    if (IS_BAR(item))
+        return item;
+
     if (IS_WORD(item)) {
         const REBVAL *var;
 
@@ -443,7 +445,10 @@ static REBCNT To_Thru(
             item = blk;
 
             // Deal with words and commands
-            if (IS_WORD(item)) {
+            if (IS_BAR(item)) {
+                goto bad_target;
+            }
+            else if (IS_WORD(item)) {
                 if ((cmd = VAL_CMD(item))) {
                     if (cmd == SYM_END) {
                         if (index >= SERIES_LEN(p->series)) {
@@ -463,7 +468,6 @@ static REBCNT To_Thru(
                             }
                             item = &save;
                         }
-
                     }
                     else goto bad_target;
                 }
@@ -576,7 +580,7 @@ static REBCNT To_Thru(
             if (IS_END(blk)) break;
             if (IS_GROUP(blk)) blk++;
             if (IS_END(blk)) break;
-            if (!IS_OR_BAR(blk)) {
+            if (!IS_BAR(blk)) {
                 item = blk;
                 goto bad_target;
             }
@@ -931,7 +935,7 @@ static REBCNT Parse_Rules_Loop(
     VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
-    //if (depth > MAX_PARSE_DEPTH) vTrap_Word(RE_LIMIT_HIT, SYM_PARSE, 0);
+
     flags = 0;
     word = 0;
     mincount = maxcount = 1;
@@ -968,9 +972,11 @@ static REBCNT Parse_Rules_Loop(
 
         item = rule++;
 
-        // If word, set-word, or get-word, process it:
-        if (VAL_TYPE(item) >= REB_WORD && VAL_TYPE(item) <= REB_GET_WORD) {
+        if (IS_BAR(item))
+            return index;   // reached it successfully
 
+        // If word, set-word, or get-word, process it:
+        if ((VAL_TYPE(item) >= REB_WORD && VAL_TYPE(item) <= REB_GET_WORD)) {
             // Is it a command word?
             if ((cmd = VAL_CMD(item))) {
 
@@ -980,9 +986,6 @@ static REBCNT Parse_Rules_Loop(
                 if (cmd <= SYM_BREAK) { // optimization
 
                     switch (cmd) {
-                    case SYM_BAR:
-                        return index;   // reached it successfully
-
                     // Note: mincount = maxcount = 1 on entry
                     case SYM_WHILE:
                         SET_FLAG(flags, PF_WHILE);
@@ -1245,6 +1248,9 @@ static REBCNT Parse_Rules_Loop(
 
             item = item_hold;
 
+            if (IS_BAR(item)) {
+                goto bad_rule; // !!! Is this possible?
+            }
             if (IS_WORD(item)) {
 
                 switch (cmd = VAL_WORD_CANON(item)) {

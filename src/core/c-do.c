@@ -1143,6 +1143,33 @@ reevaluate:
 
     switch (VAL_TYPE(c->value)) {
     //
+    // [BAR! and LIT-BAR!]
+    //
+    // If an expression barrier is seen in between expressions, it is an
+    // interstitial and is skipped.  It doesn't "count", so a DO/NEXT will
+    // pass by as many REB_BARs as it has to in order to get to a "real"
+    // evaluation point (or, to the end).
+    //
+    // It wipes the slate of any previous evaluations by clearing c->out.
+    //
+    // LIT-BAR! is the only way to pass a BAR!, because BAR! cannot be
+    // picked up by quoting--even hard quoting.  It decays into an ordinary
+    // BAR! as part of its evaluation, but in that decay it can suitably
+    // be passed as a parameter.
+    //
+    case REB_BAR:
+        SET_UNSET(c->out);
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        if (c->indexor != END_FLAG)
+            goto value_ready_for_do_next; // keep going, even if [| | | ...]
+        break;
+
+    case REB_LIT_BAR:
+        SET_BAR(c->out);
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        break;
+
+    //
     // [WORD!]
     //
     case REB_WORD:
@@ -1689,6 +1716,21 @@ reevaluate:
                 || c->mode == CALL_MODE_REFINE_ARGS
                 || c->mode == CALL_MODE_REVOKING
             );
+
+            // No argument--quoted or otherwise--is allowed to be directly
+            // filled by a literal expression barrier.  Not even if it is able
+            // to accept the type BAR! (other means must be used, e.g.
+            // LIT-BAR! decaying to a BAR! in the slot).
+            //
+            // Since we prefetched, this can look before a possible DO/NEXT.
+            //
+            // !!! Technically this is an additional check of c->indexor for
+            // the END_FLAG, so it would suggest better performance if the
+            // check were done on each non-END-flag-checked branch, but for
+            // now it is checked in one place for simplicity.
+            //
+            if (c->indexor != END_FLAG && IS_BAR(c->value))
+                fail (Error(RE_EXPRESSION_BARRIER));
 
             // *** QUOTED OR EVALUATED ITEMS ***
 

@@ -1114,6 +1114,14 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     assert(NOT_END(value));
 
     switch (VAL_TYPE(value)) {
+    case REB_BAR:
+        Append_Unencoded(ser, "|");
+        break;
+
+    case REB_LIT_BAR:
+        Append_Unencoded(ser, "'|");
+        break;
+
     case REB_NONE:
         Emit(mold, "+N", SYM_NONE);
         break;

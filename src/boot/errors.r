@@ -125,6 +125,8 @@ Script: [
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
     apply-too-many:     {Too many values in processed argument block of APPLY.}
 
+    expression-barrier: {Expression barrier hit while processing arguments}
+
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 
     ; !!! Temporary errors while faulty constructs are still outstanding
