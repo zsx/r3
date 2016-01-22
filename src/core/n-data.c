@@ -512,8 +512,21 @@ REBNATIVE(get)
         *D_OUT = *GET_OPT_VAR_MAY_FAIL(source);
     }
     else if (ANY_PATH(source)) {
+        //
+        // Since `source` is in the local frame, it is a copy of the user's
+        // value so it's okay to tweak its path type to ensure it's GET-PATH!
+        //
+        VAL_SET_TYPE_BITS(source, REB_GET_PATH);
+
+        // Here we DO it, which means that `get 'foo/bar` will act the same
+        // as `:foo/bar` for all types.
+        //
         if (Do_Path_Throws(D_OUT, NULL, source, NULL))
             return R_OUT_IS_THROWN;
+
+        // !!! Should this prohibit GROUP! evaluations?  Failure to do so
+        // could make a GET able to have side-effects, which may not be
+        // desirable, at least without a refinement.
     }
     else if (ANY_CONTEXT(source)) {
         //
