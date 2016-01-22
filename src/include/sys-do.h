@@ -123,7 +123,13 @@ enum {
     // Note: This flag is not paired, but if it were the alternative would
     // be DO_FLAG_FRAME_CHUNK...which is the default assumption.
     //
-    DO_FLAG_FRAME_CONTEXT = 1 << 7
+    DO_FLAG_FRAME_CONTEXT = 1 << 7,
+
+    // A pre-built frame can be executed "in-place" without a new allocation.
+    // It will be type checked, and also any BAR! parameters will indicate
+    // a desire to acquire that argument (permitting partial specialization).
+    //
+    DO_FLAG_EXECUTE_FRAME = 1 << 8
 };
 
 
@@ -229,9 +235,9 @@ enum Reb_Call_Mode {
     CALL_MODE_ARGS, // ordinary arguments before any refinements seen
     CALL_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
     CALL_MODE_REFINE_ARGS, // at least one refinement has been found
-    CALL_MODE_SCANNING, // looking for refinements (used out of order)
-    CALL_MODE_SKIPPING, // in the process of skipping an unused refinement
-    CALL_MODE_REVOKING, // found an unset and aiming to revoke refinement use
+    CALL_MODE_SEEK_REFINE_WORD, // looking for refinements (used out of order)
+    CALL_MODE_REFINE_SKIP, // in the process of skipping an unused refinement
+    CALL_MODE_REFINE_REVOKE, // found an unset and aiming to revoke refinement use
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
     CALL_MODE_THROW_PENDING // function threw (sometimes may be intercepted)
 };

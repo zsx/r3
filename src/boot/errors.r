@@ -124,6 +124,7 @@ Script: [
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
     apply-too-many:     {Too many values in processed argument block of APPLY.}
+    local-injection:    [{Attempt to inject value to local} :arg1 {in} :arg2]
 
     expression-barrier: {Expression barrier hit while processing arguments}
 
@@ -208,6 +209,8 @@ Script: [
 ;   bad-port-action:    [{Cannot use} :arg1 {on this type port}]
 ;   face-error:         [{Invalid graphics face object}]
 ;   face-reused:        [{Face object reused (in more than one pane):} :arg1]
+
+    frame-already-used: [{Frame currently in use by a function call} :arg1]
 ]
 
 Math: [

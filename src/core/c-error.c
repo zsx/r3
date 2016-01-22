@@ -625,7 +625,7 @@ REBOOL Make_Error_Object_Throws(
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
-        // code in REBTYPE(Object) and code in REBNATIVE(construct))
+        // code in REBTYPE(Context) and code in REBNATIVE(construct))
 
         error = Make_Selfish_Context_Detect(
             REB_ERROR, // type
@@ -1451,6 +1451,35 @@ REBCON *Error_Arg_Type(
         &label_word,
         arg_type,
         &param_word,
+        NULL
+    );
+}
+
+
+//
+//  Error_Local_Injection: C
+//
+// An attempt was made to use a FRAME! to preload a value into a local when
+// calling a function to directly use that frame.  The operational invariant
+// of a function when it starts is that locals are unset.
+//
+REBCON *Error_Local_Injection(
+    REBCNT label_sym,
+    const REBVAL *param
+) {
+    REBVAL param_word;
+    REBVAL label_word;
+    VAL_INIT_WRITABLE_DEBUG(&param_word);
+    VAL_INIT_WRITABLE_DEBUG(&label_word);
+
+    assert(IS_TYPESET(param));
+    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
+    Val_Init_Word(&label_word, REB_WORD, label_sym);
+
+    return Error(
+        RE_LOCAL_INJECTION,
+        &param_word,
+        &label_word,
         NULL
     );
 }

@@ -527,7 +527,7 @@ REBNATIVE(context)
 // The spec block has already been bound to Lib_Context, to
 // allow any embedded values and functions to evaluate.
 // 
-// Note: Overlaps MAKE OBJECT! code (REBTYPE(Object)'s A_MAKE)
+// Note: Overlaps code in REBTYPE(Context)'s A_MAKE handling
 {
     PARAM(1, spec);
 
