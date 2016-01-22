@@ -191,7 +191,7 @@ void Dump_Info(void)
 //
 //  Dump_Stack: C
 //
-void Dump_Stack(struct Reb_Call *call, REBINT dsp)
+void Dump_Stack(struct Reb_Call *call, REBDSP dsp)
 {
     REBINT n;
     REBINT m;

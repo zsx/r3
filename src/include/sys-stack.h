@@ -95,9 +95,17 @@
 // and complete system has been achieved.
 //
 
+// A signed integer is currently used to represent the data stack pointer.
+// It is an `int` instead of a `REBINT` in order to leverage the native
+// performance of the integer type unconstrained by bit size, as data stack
+// pointers are not stored in REBVALs or similar, and performance in comparing
+// and manipulation is more important than hte size.
+//
+typedef int REBDSP;
+
 // (D)ata (S)tack "(P)ointer" is an integer index into Rebol's data stack
 #define DSP \
-    cast(REBINT, ARRAY_LEN(DS_Array) - 1)
+    cast(REBDSP, ARRAY_LEN(DS_Array) - 1)
 
 // Access value at given stack location
 #define DS_AT(d) \

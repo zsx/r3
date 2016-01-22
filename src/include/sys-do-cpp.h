@@ -68,7 +68,7 @@
 // be representing.
 //
 class Reb_Indexor {
-    REBCNT bits;
+    unsigned int bits;
     const char* name;
 
     static constexpr const char* array_index_name = "(array index)";

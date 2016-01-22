@@ -122,7 +122,7 @@
 struct Reb_State {
     struct Reb_State *last_state;
 
-    REBINT dsp;
+    REBDSP dsp;
     struct Reb_Chunk *top_chunk;
     struct Reb_Call *call;
     REBCNT series_guard_len;
