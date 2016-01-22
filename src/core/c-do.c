@@ -1506,7 +1506,6 @@ reevaluate:
         // invoked, so we have to initialize `refine` to something too...
         //
         c->arg = DSF_ARGS_HEAD(c);
-        c->refine = NULL;
 
     do_function_arglist_in_progress:
         //
@@ -1541,6 +1540,153 @@ reevaluate:
         no_advance:
             assert(IS_TYPESET(c->param));
 
+            // If the frame was pre-built then we want to skip most parameter
+            // fulfillment logic.  However, refinements throw a wrench in
+            // it because of specialization, because a refinement may be
+            // specialized but an argument to it not, or vice-versa.  The
+            // `c->mode` and `c->refine` must be updated to allow fallthrough
+            // to normal fulfillment.
+            //
+            if ((c->flags & DO_FLAG_EXECUTE_FRAME)) {
+                //
+                // !!! Currently there is no support for calling a FRAME! with
+                // additional refinements beyond the specialization.  So you
+                // can't specialize `frame: :APPEND/ONLY` and then call it as
+                // `frame/DUP/ONLY` which would require checking for duplicate
+                // refinements and other things.  In the long term that should
+                // be implemented.
+                //
+                assert(c->mode != CALL_MODE_SEEK_REFINE_WORD);
+
+                if (IS_BAR(c->arg)) {
+                    if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+                        //
+                        // Pure local, so if told to fulfill ordinarily then
+                        // that would just be an UNSET!
+                        //
+                        SET_UNSET(c->arg);
+                        continue;
+                    }
+
+                    if (VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
+                        //
+                        // With a BAR! in a refinement slot, we take that to
+                        // mean that the refinement is not supplied.
+                        //
+                        SET_NONE(c->arg);
+                        c->refine = c->arg;
+                        c->mode = CALL_MODE_REFINE_SKIP;
+                        continue;
+                    }
+
+                    if (
+                        c->mode == CALL_MODE_REFINE_REVOKE
+                        || c->mode == CALL_MODE_REFINE_SKIP
+                    ) {
+                        //
+                        // A BAR! in a refinement slot where the refinement is
+                        // not being taken...either because there was a BAR!
+                        // or a FALSE in the refinement slot or it's being
+                        // revoked due to an UNSET! being seen...will just
+                        // act like an UNSET!
+                        //
+                        SET_UNSET(c->arg);
+                        continue;
+                    }
+
+                    // Any other kind of argument we fall through to normal
+                    // processing to either fulfill the argument or deliver
+                    // the appropriate error.
+                    //
+                    // !!! Currently ordinary dispatch is written to expect
+                    // that the frame was filled with UNSET!  Since ordinary
+                    // dispatch is going to be more common than fulfilling a
+                    // partially specialized arg, we restore that invariant.
+                    //
+                    SET_UNSET(c->arg);
+                    goto fulfill_non_refinement_non_local;
+                }
+
+                // Otherwise, it's not a BAR!, but a value to use...
+
+                if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+                    //
+                    // "Pure locals" are expected by functions to be unset.
+                    // If frame dispatch were allowed to poke values into
+                    // that locals it is "locals injection" and would
+                    // undermine the function's ability to assume that the
+                    // local was UNSET! at function start.
+                    //
+                    // !!! This should be reviewed in terms of potential
+                    // "continuation"--an issue that would also need to
+                    // suppress type checking.  What if a FRAME! could be
+                    // thrown and then later resumed with a memory of an
+                    // intermediate state?  Such frames would need the ability
+                    // to have any value in a locals slot.
+                    //
+                    if (!IS_UNSET(c->arg))
+                        fail (Error_Local_Injection(c->label_sym, c->param));
+
+                    continue;
+                }
+
+                // Refinements that are considered to be specified must be
+                // coerced into the proper WORD! value of that refinement.
+                // An UNSET! is not considered to be coercible.
+                //
+                if (VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
+                    if (IS_UNSET(c->arg)) {
+                        //
+                        // !!! More specific "refinement unset" error?
+                        //
+                        fail (Error_Arg_Type(
+                            c->label_sym, c->param, Type_Of(c->arg))
+                        );
+                    }
+                    else if (IS_CONDITIONAL_TRUE(c->arg)) {
+                        Val_Init_Word(
+                            c->arg, REB_WORD, VAL_TYPESET_SYM(c->param)
+                        );
+                        c->mode = CALL_MODE_REFINE_PENDING;
+                        continue;
+                    }
+                    else {
+                        SET_NONE(c->arg);
+                        c->mode = CALL_MODE_REFINE_SKIP;
+                        continue;
+                    }
+                }
+
+                // If it's an ordinary arg then the revoking/pending logic
+                // is repeated here.  This repetition is unfortunate, but if
+                // control were to be passed to normal argument fulfillment
+                // it would mean stuffing `c->value` from the `c->arg` (which
+                // is dubious) as well as doing a mode check to know not to
+                // do full evaluation.
+                //
+                if (
+                    c->mode == CALL_MODE_REFINE_REVOKE
+                    || c->mode == CALL_MODE_REFINE_SKIP
+                ) {
+                    //
+                    // !!! Technically should it be different errors when you
+                    // are given a conditionally false refinement and then
+                    // a frame value, vs a conditionally true one and not all
+                    // unset values in a revoke?
+                    //
+                    if (!IS_UNSET(c->arg))
+                        fail (Error(RE_BAD_REFINE_REVOKE));
+
+                    continue;
+                }
+                else if (c->mode == CALL_MODE_REFINE_PENDING) {
+                    c->mode = CALL_MODE_REFINE_ARGS;
+                    continue;
+                }
+
+                goto type_check_arg;
+            }
+
             // *** PURE LOCALS => continue ***
 
             if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
@@ -1566,7 +1712,7 @@ reevaluate:
                 // Hunting a refinement?  Quickly disregard this if we are
                 // doing such a scan and it isn't a refinement.
                 //
-                if (c->mode == CALL_MODE_SCANNING)
+                if (c->mode == CALL_MODE_SEEK_REFINE_WORD)
                     continue;
             }
             else {
@@ -1583,7 +1729,7 @@ reevaluate:
                 // *definition*.  Hence we may have to seek refinements ahead
                 // or behind to know where to put the results we evaluate.
                 //
-                if (c->mode == CALL_MODE_SCANNING) {
+                if (c->mode == CALL_MODE_SEEK_REFINE_WORD) {
                     //
                     // Note that we have already canonized the path words for
                     // a case-insensitive-comparison to the symbol in the
@@ -1641,7 +1787,7 @@ reevaluate:
                     // refinement slot is still unset, skip the args and leave
                     // them as unsets (or set nones in legacy mode)
                     //
-                    c->mode = CALL_MODE_SKIPPING;
+                    c->mode = CALL_MODE_REFINE_SKIP;
                     if (IS_UNSET(c->arg))
                         SET_NONE(c->arg);
 
@@ -1683,7 +1829,7 @@ reevaluate:
 
                 // We weren't lucky and need to scan
 
-                c->mode = CALL_MODE_SCANNING;
+                c->mode = CALL_MODE_SEEK_REFINE_WORD;
                 assert(IS_WORD(DS_TOP));
 
                 // We have to reset to the beginning if we are going to scan,
@@ -1702,7 +1848,7 @@ reevaluate:
                 goto no_advance;
             }
 
-            if (c->mode == CALL_MODE_SKIPPING) {
+            if (c->mode == CALL_MODE_REFINE_SKIP) {
                 //
                 // Just skip because the args are already UNSET! (or NONE! if
                 // we are in LEGACY_OPTIONS_REFINEMENT_TRUE mode
@@ -1710,11 +1856,12 @@ reevaluate:
                 continue;
             }
 
+        fulfill_non_refinement_non_local:
             assert(
                 c->mode == CALL_MODE_ARGS
                 || c->mode == CALL_MODE_REFINE_PENDING
                 || c->mode == CALL_MODE_REFINE_ARGS
-                || c->mode == CALL_MODE_REVOKING
+                || c->mode == CALL_MODE_REFINE_REVOKE
             );
 
             // No argument--quoted or otherwise--is allowed to be directly
@@ -1874,7 +2021,7 @@ reevaluate:
                 if (c->mode == CALL_MODE_REFINE_ARGS)
                     fail (Error(RE_BAD_REFINE_REVOKE));
                 else if (c->mode == CALL_MODE_REFINE_PENDING) {
-                    c->mode = CALL_MODE_REVOKING;
+                    c->mode = CALL_MODE_REFINE_REVOKE;
 
                 #if !defined(NDEBUG)
                     //
@@ -1894,7 +2041,7 @@ reevaluate:
 
                     SET_NONE(c->refine); // ...revoke the refinement.
                 }
-                else if (c->mode == CALL_MODE_REVOKING) {
+                else if (c->mode == CALL_MODE_REFINE_REVOKE) {
                     //
                     // We are revoking arguments to a refinement that have
                     // never been filled, so they should be vacant.
@@ -1908,20 +2055,22 @@ reevaluate:
                 }
             }
             else {
-                if (c->mode == CALL_MODE_REVOKING)
+                if (c->mode == CALL_MODE_REFINE_REVOKE)
                     fail (Error(RE_BAD_REFINE_REVOKE));
                 else if (c->mode == CALL_MODE_REFINE_PENDING)
                     c->mode = CALL_MODE_REFINE_ARGS;
             }
 
-            // If word is typed, verify correct argument datatype:
+            // Don't type check the argument if it's being revoked.
             //
-            if (
-                c->mode != CALL_MODE_REVOKING
-                && !TYPE_CHECK(c->param, VAL_TYPE(c->arg))
-            ) {
-                fail (Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg)));
+            if (c->mode == CALL_MODE_REFINE_REVOKE) {
+                assert(IS_UNSET(c->arg));
+                continue;
             }
+
+        type_check_arg:
+            if (!TYPE_CHECK(c->param, VAL_TYPE(c->arg)))
+                fail (Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg)));
         }
 
         // If we were scanning and didn't find the refinement we were looking
@@ -1936,7 +2085,7 @@ reevaluate:
         // and GROUP! evals up front and check that things are words or NONE,
         // not knowing if a refinement isn't on the function until the end.
         //
-        if (c->mode == CALL_MODE_SCANNING)
+        if (c->mode == CALL_MODE_SEEK_REFINE_WORD)
             fail (Error(RE_BAD_REFINE, DS_TOP));
 
         // In the case where the user has said foo/bar/baz, and bar was later
@@ -1944,7 +2093,7 @@ reevaluate:
         // restart the scan (which may wind up failing)
         //
         if (DSP != c->dsp_orig) {
-            c->mode = CALL_MODE_SCANNING;
+            c->mode = CALL_MODE_SEEK_REFINE_WORD;
             c->param = DSF_PARAMS_HEAD(c);
             c->arg = DSF_ARGS_HEAD(c);
             goto no_advance;
@@ -2052,11 +2201,62 @@ reevaluate:
         assert(IS_END(c->param));
         c->refine = NULL;
 
-        // We cache the arglist's data pointer in `arg` for ARG() and PARAM().
-        // Note that even if the frame becomes "reified" as a context, the
-        // data pointer will still be the same over the stack level lifetime.
-        //
-        c->arg = &c->frame.stackvars[0];
+    #if !defined(NDEBUG)
+        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+            REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+            assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
+            assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
+        }
+    #endif
+
+        if (c->flags & DO_FLAG_FRAME_CONTEXT) {
+            //
+            // !!! For the moment we cache the series data pointer in arg.
+            // For arbitrary series this is not legal to do, because a
+            // resize could relocate it...but we know the argument list will
+            // not expand in the current implementation.  However, a memory
+            // compactor would likely prefer that there not be too many
+            // locked series in order to more freely rearrange memory, so
+            // this is a tradeoff.
+            //
+            assert(ARRAY_GET_FLAG(
+                AS_ARRAY(c->frame.context), OPT_SER_FIXED_SIZE
+            ));
+            c->arg = CONTEXT_VARS_HEAD(c->frame.context);
+
+            // If the function has a native-optimized version of definitional
+            // return, the local for this return should so far have just been
+            // ensured in last slot...and left unset by the arg filling.
+            //
+            // Now fill in the var for that local with a "hacked up" native
+            // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
+            // usually, but not if it's reusing a frame.
+            //
+            if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+                REBVAL *last_arg = CONTEXT_VAR(
+                    c->frame.context,
+                    CONTEXT_LEN(c->frame.context)
+                );
+                assert(IS_UNSET(last_arg));
+                *last_arg = *ROOT_RETURN_NATIVE;
+                VAL_FUNC_RETURN_FROM(last_arg)
+                    = CONTEXT_VARLIST(c->frame.context);
+            }
+        }
+        else {
+            // We cache the arglist's data pointer in `arg` for ARG().
+            // Note that even if the frame becomes "reified" as a context, the
+            // data pointer will be the same over the stack level lifetime.
+            //
+            c->arg = &c->frame.stackvars[0];
+
+            if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+                REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func) - 1];
+                assert(IS_UNSET(last_arg));
+                *last_arg = *ROOT_RETURN_NATIVE;
+                VAL_FUNC_RETURN_FROM(last_arg) = FUNC_PARAMLIST(c->func);
+            }
+        }
 
         if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
 
@@ -2117,7 +2317,6 @@ reevaluate:
         // from GC consideration when the args are freed).
         //
         CS_Running = call_orig;
-
 
 #if !defined(NDEBUG)
     drop_call_for_legacy_do_function:
@@ -2224,6 +2423,10 @@ reevaluate:
             }
         }
 
+        // If running a frame execution then clear that flag out.
+        //
+        c->flags &= ~DO_FLAG_EXECUTE_FRAME;
+
     #if !defined(NDEBUG)
         //
         // No longer need to check c->frame.context for thrown status if it
@@ -2270,6 +2473,41 @@ reevaluate:
 
         if (Trace_Flags) Trace_Return(c->label_sym, c->out);
         break;
+
+    // [FRAME!]
+    //
+    // If a literal FRAME! is hit in the source, then its associated function
+    // will be executed with the data.  Any BAR! in the frame will be treated
+    // as if it is an unfulfilled parameter and go through ordinary parameter
+    // fulfillment logic.
+    //
+    case REB_FRAME:
+        //
+        // While *technically* possible that a context could be in use by more
+        // than one function at a time, this is a dangerous enough idea to
+        // prohibit unless some special situation arises and it's explicitly
+        // said what is meant to be done.
+        //
+        /*if (VAL_GET_EXT(c->value, EXT_CONTEXT_RUNNING))
+           fail (Error(RE_FRAME_ALREADY_USED, c->value)); */
+
+        assert(c->frame.stackvars == NULL);
+        c->frame.context = VAL_CONTEXT(c->value);
+        c->func = VAL_CONTEXT_FUNC(c->value);
+
+        if (ARRAY_GET_FLAG(
+            CONTEXT_VARLIST(VAL_CONTEXT(c->value)), OPT_SER_STACK)
+        ) {
+            c->arg = VAL_CONTEXT_STACKVARS(c->value);
+        }
+        else
+            c->arg = CONTEXT_VARS_HEAD(VAL_CONTEXT(c->value));
+
+        c->param = CONTEXT_KEYS_HEAD(VAL_CONTEXT(c->value));
+
+        c->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        goto do_function_arglist_in_progress;
 
     // [PATH!]
     //

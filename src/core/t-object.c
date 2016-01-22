@@ -380,6 +380,56 @@ REBTYPE(Context)
             src_context = VAL_CONTEXT(value);
         }
 
+        if (target == REB_FRAME) {
+            REBARR *varlist;
+            REBCNT n;
+            REBVAL *var;
+
+            // !!! Current experiment for making frames lets you give it
+            // a FUNCTION! only.
+            //
+            if (!ANY_FUNC(arg))
+                fail (Error_Bad_Make(target, arg));
+
+            // In order to have the frame survive the call to MAKE and be
+            // returned to the user it can't be stack allocated, because it
+            // would immediately become useless.  Allocate dynamically.
+            //
+            varlist = Make_Array(ARRAY_LEN(VAL_FUNC_PARAMLIST(arg)));
+            ARRAY_SET_FLAG(varlist, OPT_SER_CONTEXT);
+            ARRAY_SET_FLAG(varlist, OPT_SER_FIXED_SIZE);
+
+            // Fill in the rootvar information for the context canon REBVAL
+            //
+            var = ARRAY_HEAD(varlist);
+            VAL_RESET_HEADER(var, REB_FRAME);
+            INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
+            INIT_CONTEXT_KEYLIST(AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg));
+            ASSERT_ARRAY_MANAGED(CONTEXT_KEYLIST(AS_CONTEXT(varlist)));
+            INIT_CONTEXT_FUNC(AS_CONTEXT(varlist), VAL_FUNC(arg));
+            CONTEXT_STACKVARS(AS_CONTEXT(varlist)) = NULL;
+            ++var;
+
+            // !!! This is a current experiment for choosing that the value
+            // used to indicate a parameter has not been "specialized" is
+            // a BAR!.  This is contentious with the idea that someone might
+            // want to pass a BAR! as a parameter literally.  How to deal
+            // with this is not yet completely figured out--it could involve
+            // a new kind of "LIT-BAR!-decay" whereby instead LIT-BAR! was
+            // used with the understanding that it meant to act as a BAR!.
+            // Review needed once some experience is had with this.
+            //
+            for (n = 1; n <= VAL_FUNC_NUM_PARAMS(arg); ++n, ++var)
+                SET_BAR(var);
+
+            SET_END(var);
+            SET_ARRAY_LEN(varlist, ARRAY_LEN(VAL_FUNC_PARAMLIST(arg)));
+
+            ASSERT_CONTEXT(AS_CONTEXT(varlist));
+            Val_Init_Context(D_OUT, REB_FRAME, AS_CONTEXT(varlist));
+            return R_OUT;
+        }
+
         if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_NONE(arg))) {
             //
             // make object! [init]

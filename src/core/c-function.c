@@ -975,34 +975,6 @@ void Do_Function_Core(struct Reb_Call *c)
 {
     Eval_Functions++;
 
-    // !!! repeated code in Do_Closure (should disappear in unification)
-    //
-    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
-        //
-        // If the closure has a native-optimized version of definitional
-        // return, the local for this return should so far have just been
-        // ensured in last slot...and left unset by any arg filling process.
-        //
-        REBVAL *last_arg = DSF_ARG(c, FUNC_NUM_PARAMS(c->func));
-
-    #if !defined(NDEBUG)
-        REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
-        assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-        assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
-
-        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
-            assert(IS_NONE(last_arg));
-        else
-            assert(IS_UNSET(last_arg));
-    #endif
-
-        // Now fill in the var for that local with a "hacked up" native
-        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
-        //
-        *last_arg = *ROOT_RETURN_NATIVE;
-        VAL_FUNC_RETURN_FROM(last_arg) = FUNC_PARAMLIST(c->func);
-    }
-
     // Functions have a body series pointer, but no VAL_INDEX, so use 0
     //
     if (Do_At_Throws(c->out, FUNC_BODY(c->func), 0))
@@ -1035,33 +1007,6 @@ void Do_Closure_Core(struct Reb_Call *c)
     VAL_INDEX(&body) = 0;
 
     Rebind_Values_Closure_Deep(c->func, c->frame.context, VAL_ARRAY_AT(&body));
-
-    // !!! repeated code in Do_Function (should disappear in unification)
-    //
-    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
-        //
-        // If the closure has a native-optimized version of definitional
-        // return, the local for this return should so far have just been
-        // ensured in last slot...and left unset by any arg filling process.
-        //
-        REBVAL *last_arg = CONTEXT_VAR(
-            c->frame.context,
-            CONTEXT_LEN(c->frame.context)
-        );
-
-    #if !defined(NDEBUG)
-        REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
-        assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-        assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
-        assert(IS_UNSET(last_arg));
-    #endif
-
-        // Now fill in the var for that local with a "hacked up" native
-        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
-        //
-        *last_arg = *ROOT_RETURN_NATIVE;
-        VAL_FUNC_RETURN_FROM(last_arg) = CONTEXT_VARLIST(c->frame.context);
-    }
 
     // Protect the body from garbage collection during the course of the
     // execution.  (This is inexpensive...it just points `c->param` to it.)
