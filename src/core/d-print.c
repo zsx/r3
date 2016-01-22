@@ -321,7 +321,7 @@ void Debug_Str(const char *str)
 // 
 // Print debug unicode string followed by a newline.
 //
-void Debug_Uni(const REBSER *ser)
+void Debug_Uni(REBSER *ser)
 {
     const REBFLGS encopts = OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE;
     REBCNT ul;
