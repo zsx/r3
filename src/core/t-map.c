@@ -351,12 +351,37 @@ REBINT PD_Map(REBPVS *pvs)
 //
 static void Append_Map(REBMAP *map, REBVAL *any_array, REBCNT len)
 {
-    REBVAL *value = VAL_ARRAY_AT(any_array);
+    REBVAL *item = VAL_ARRAY_AT(any_array);
     REBCNT n = 0;
 
-    while (n < len && NOT_END(value) && NOT_END(value + 1)) {
-        Find_Map_Entry(map, value, value + 1, TRUE);
-        value += 2;
+    while (n < len && NOT_END(item)) {
+        if (IS_BAR(item)) {
+            //
+            // A BAR! between map pairs is okay, e.g. `make map! [a b | c d]`
+            //
+            ++item;
+            ++n;
+            continue;
+        }
+
+        if (IS_END(item + 1)) {
+            //
+            // Keys with no value not allowed, e.g. `make map! [1 "foo" 2]`
+            //
+            fail (Error(RE_PAST_END));
+        }
+
+        if (IS_BAR(item + 1)) {
+            //
+            // Expression barriers allowed between items but not as the
+            // mapped-to value for a key, e.g. `make map! [1 "foo" 2 |]`
+            //
+            fail (Error(RE_EXPRESSION_BARRIER));
+        }
+
+        Find_Map_Entry(map, item, item + 1, TRUE);
+
+        item += 2;
         n += 2;
     }
 }
@@ -373,9 +398,8 @@ REBOOL MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!IS_BLOCK(data) && !IS_MAP(data)) return FALSE;
 
     n = VAL_ARRAY_LEN_AT(data);
-    if (n & 1) return FALSE;
 
-    map = Make_Map(n / 2);
+    map = Make_Map(1 + n / 3); // prudential allocation, think at BARs: map[1 2 | 3 4 | ...]
 
     Append_Map(map, data, UNKNOWN);
 
