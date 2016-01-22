@@ -648,6 +648,15 @@ REBCON *Frame_For_Call_May_Reify(
     else
         assert(opt_varlist);
 
+    // A reification of a frame for native code should not allow changing
+    // the values out from under it, because that could cause it to crash
+    // the interpreter.  (Generally speaking, modification should only be
+    // possible in the debugger anyway.)  For now, protect unless it's a
+    // user function.
+    //
+    if (!IS_FUNCTION(FUNC_VALUE(c->func)) && !IS_CLOSURE(FUNC_VALUE(c->func)))
+        ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_LOCKED);
+
     // Finally we mark the flags to say this contains a valid frame, so that
     // future calls to this routine will return it instead of making another.
     // This flag must be cleared when the call is finished (as the Reb_Call

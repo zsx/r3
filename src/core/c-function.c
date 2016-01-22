@@ -355,23 +355,11 @@ void Make_Native(
 
     *FUNC_VALUE(out->payload.any_function.func) = *out;
 
-    // Make sure all the vars are marked read only.  This means that any
-    // vars which get bound to the native's args will not be able to modify
-    // them.  Such references are being experimentally allowed in the
-    // debugger.
-    //
-    // !!! Review whether allowing such references is a good or bad idea.
-    // Note also that this protection can be undone in user mode, which
-    // suggests the need for another bit that PROTECT checks.
-    //
-    {
-        REBVAL *param;
-        param = VAL_FUNC_PARAMS_HEAD(out);
-        for (; NOT_END(param); param++) {
-            assert(IS_TYPESET(param));
-            VAL_SET_EXT(param, EXT_TYPESET_LOCKED);
-        }
-    }
+    // Note: used to set the keys of natives as read-only so that the debugger
+    // couldn't manipulate the values in a native frame out from under it,
+    // potentially crashing C code (vs. just causing userspace code to
+    // error).  That protection is now done to the frame series on reification
+    // in order to be able to MAKE FRAME! and reuse the native's paramlist.
 
     // These native routines want to be recognized by paramlist, not by their
     // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
