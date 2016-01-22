@@ -1450,7 +1450,13 @@ void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
 enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
 {
     if (IS_END(v)) {
-        Debug_Fmt("Unexpected END in VAL_TYPE(), %s:%d", file, line);
+        //
+        // Seeing a bit pattern that has the low bit to 0 may be a purposeful
+        // end signal, or it could be something that's garbage data and just
+        // happens to have its zero bit set.  Since half of all possible
+        // bit patterns are even, it's more worth it than usual to point out.
+        //
+        Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
         assert(NOT_END(v)); // for message
     }
     if (IS_TRASH_DEBUG(v)) {
