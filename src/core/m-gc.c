@@ -421,7 +421,7 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
 // is processed via recursion.  Deeply nested RValue structs could
 // in theory overflow the C stack.
 //
-static void Queue_Mark_Routine_Deep(const REBROT *rot)
+static void Queue_Mark_Routine_Deep(REBROT *rot)
 {
     QUEUE_MARK_ARRAY_DEEP(ROUTINE_SPEC(rot));
     ROUTINE_SET_FLAG(ROUTINE_INFO(rot), ROUTINE_MARK);

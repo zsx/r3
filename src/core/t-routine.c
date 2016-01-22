@@ -770,7 +770,7 @@ static void ffi_to_rebol(REBRIN *rin,
 //
 //  Call_Routine: C
 //
-void Call_Routine(const REBROT *rot, REBARR *args, REBVAL *ret)
+void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
 {
     REBCNT i = 0;
     void *rvalue = NULL;

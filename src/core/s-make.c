@@ -192,7 +192,7 @@ void Insert_Char(REBSER *dst, REBCNT index, REBCNT chr)
 void Insert_String(
     REBSER *dst,
     REBCNT idx,
-    const REBSER *src,
+    REBSER *src,
     REBCNT pos,
     REBCNT len,
     REBOOL no_expand
@@ -492,7 +492,7 @@ void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 // 
 // Append a byte or unicode string to a unicode string.
 //
-void Append_String(REBSER *dst, const REBSER *src, REBCNT i, REBCNT len)
+void Append_String(REBSER *dst, REBSER *src, REBCNT i, REBCNT len)
 {
     Insert_String(dst, SERIES_LEN(dst), src, i, len, FALSE);
 }
