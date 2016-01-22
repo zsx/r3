@@ -1665,7 +1665,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         if (line) {
             line = FALSE;
-            VAL_SET_OPT(value, OPT_VALUE_LINE);
+            SET_VAL_FLAG(value, VALUE_FLAG_LINE);
         }
 
 #ifdef TEST_SCAN
@@ -1744,7 +1744,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 exit_block:
     Drop_Mold_If_Pushed(&mo);
 
-    if (line && value) VAL_SET_OPT(value, OPT_VALUE_LINE);
+    if (line && value) SET_VAL_FLAG(value, VALUE_FLAG_LINE);
 
 #ifdef TEST_SCAN
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);

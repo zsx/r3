@@ -834,7 +834,7 @@ REBARR *Split_Lines(REBVAL *val)
             out = Copy_String_Slimming(str, start, idx - start);
             val = Alloc_Tail_Array(array);
             Val_Init_String(val, out);
-            VAL_SET_OPT(val, OPT_VALUE_LINE);
+            SET_VAL_FLAG(val, VALUE_FLAG_LINE);
             idx++;
             if (c == CR && GET_ANY_CHAR(str, idx) == LF)
                 idx++;
@@ -847,7 +847,7 @@ REBARR *Split_Lines(REBVAL *val)
         out = Copy_String_Slimming(str, start, idx - start);
         val = Alloc_Tail_Array(array);
         Val_Init_String(val, out);
-        VAL_SET_OPT(val, OPT_VALUE_LINE);
+        SET_VAL_FLAG(val, VALUE_FLAG_LINE);
     }
 
     return Copy_Array_Shallow(array);

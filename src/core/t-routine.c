@@ -1382,7 +1382,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                     // to be hard quoted, soft quoted, refinements, or
                     // evaluated.  This is signaled with bits on the typeset.
                     //
-                    VAL_SET_EXT(v, EXT_TYPESET_EVALUATE);
+                    SET_VAL_FLAG(v, TYPESET_FLAG_EVALUATE);
                 }
                 n ++;
                 break;

@@ -482,15 +482,15 @@ enum encoding_opts {
 #ifdef NDEBUG
     #define CONVERT_NAME_TO_THROWN(name,arg,from) \
         do { \
-            if (from) VAL_SET_OPT((name), OPT_VALUE_EXIT_FROM); \
-            VAL_SET_OPT((name), OPT_VALUE_THROWN); \
+            if (from) SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM); \
+            SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
             (TG_Thrown_Arg = *(arg)); \
         } while (0)
 
     #define CATCH_THROWN(arg,thrown) \
         do { \
-            VAL_CLR_OPT((thrown), OPT_VALUE_EXIT_FROM); \
-            VAL_CLR_OPT((thrown), OPT_VALUE_THROWN); \
+            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_EXIT_FROM); \
+            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_THROWN); \
             (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
@@ -502,7 +502,7 @@ enum encoding_opts {
 #endif
 
 #define THROWN(v) \
-    VAL_GET_OPT((v), OPT_VALUE_THROWN)
+    GET_VAL_FLAG((v), VALUE_FLAG_THROWN)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -178,6 +178,9 @@ struct Reb_Value_Header {
 //
 #define NOT_END_MASK 0x01
 
+#define GENERAL_VALUE_BIT 8
+#define TYPE_SPECIFIC_BIT 16
+
 // `WRITABLE_MASK_DEBUG`
 //
 // This is for the debug build, to make it safer to use the implementation
@@ -257,7 +260,7 @@ struct Reb_Value_Header {
     (assert( \
         !((v)->header.bits & WRITABLE_MASK_DEBUG) \
         || ((((v)->header.bits & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
-            || VAL_GET_EXT((v), EXT_TRASH_SAFE) \
+            || GET_VAL_FLAG((v), TRASH_FLAG_SAFE) \
         ) \
     ), (v)->header.bits % 2 == 0)
 
@@ -296,7 +299,7 @@ struct Reb_Value_Header {
 //
 
 enum {
-    // `OPT_VALUE_FALSE`
+    // `VALUE_FLAG_FALSE`
     //
     // This flag indicates that the attached value is one of the two cases of
     // Rebol values that are considered "conditionally false".  This means
@@ -314,9 +317,9 @@ enum {
     // a bit mask against one memory location in the header--not two tests
     // against the type in the header and some byte in the payload.
     //
-    OPT_VALUE_FALSE,
+    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
 
-    // `OPT_VALUE_LINE`
+    // `VALUE_FLAG_LINE`
     //
     // If the line marker bit is 1, then when the value is molded it will put
     // a newline before the value.  The logic is a bit more subtle than that,
@@ -327,9 +330,9 @@ enum {
     // !!! The native `new-line` is used set this, which has a somewhat
     // poor name considering its similarity to `newline` the line feed char.
     //
-    OPT_VALUE_LINE,
+    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 1),
 
-    // `OPT_VALUE_THROWN`
+    // `VALUE_FLAG_THROWN`
     //
     // The thrown bit is being phased out, as the concept of a value itself
     // being "thrown" does not make a lot of sense, compared to the idea
@@ -366,9 +369,9 @@ enum {
     // it is likely that the bit will be removed in favor of pushing the
     // responsibility into the evaluator state.
     //
-    OPT_VALUE_THROWN,
+    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
 
-    // This is a bit used in conjunction with OPT_VALUE_THROWN, which could
+    // This is a bit used in conjunction with VALUE_FLAG_THROWN, which could
     // also be folded in to be a model of being in an "exiting state".  The
     // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
     // where the frame desired to be targeted is marked with this flag.
@@ -381,18 +384,51 @@ enum {
     // to use a new technique that brings it to parity with CLOSURE! in this
     // regard, then that will fix this.
     //
-    OPT_VALUE_EXIT_FROM,
-
-    OPT_VALUE_MAX
+    VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3)
 };
 
-// Reading/writing routines for the 8 "OPTS" flags, which are in the lowest
-// 8 bits.  (They need to be lowest for the OPT_NOT_END trick to work.)
+// VALUE_FLAG_e flags both generically applicable to all values and specific
+// to a single value type.  To be a little on the safe side, the masking
+// routines
 //
-#define VAL_SET_OPT(v,n)    ((v)->header.bits |= ((1 << (n)) << 8))
-#define VAL_GET_OPT(v,n)    LOGICAL((v)->header.bits & ((1 << (n)) << 8))
-#define VAL_CLR_OPT(v,n) \
-    ((v)->header.bits &= ~cast(REBUPT, (1 << (n)) << 8))
+#ifdef NDEBUG
+    #define SET_VAL_FLAG(v,f) \
+        ((v)->header.bits |= (f))
+
+    #define GET_VAL_FLAG(v,f) \
+        LOGICAL((v)->header.bits & (f))
+
+    #define CLEAR_VAL_FLAG(v,f) \
+        ((v)->header.bits &= ~cast(REBUPT, (f)))
+#else
+    // For safety in the debug build, all the type-specific flags include
+    // their type as part of the flag.  This type is checked first, and then
+    // masked out to use the single-bit-flag value which is intended.  The
+    // check uses the bits of an exemplar type to identify the category
+    // (e.g. REB_FUNCTION for ANY-FUNCTION!, REB_OBJECT for ANY-CONTEXT!)
+
+    #define SET_VAL_FLAG(v,f) \
+        (Assert_Flags_Are_For_Value((v), (f)), \
+            (v)->header.bits |= ((f) & ~HEADER_TYPE_MASK))
+
+    #define GET_VAL_FLAG(v,f) \
+        (Assert_Flags_Are_For_Value((v), (f)), \
+            LOGICAL((v)->header.bits & ((f) & ~HEADER_TYPE_MASK)))
+
+    #define CLEAR_VAL_FLAG(v,f) \
+        (Assert_Flags_Are_For_Value((v), (f)), \
+            (v)->header.bits &= ~cast(REBUPT, (f) & ~HEADER_TYPE_MASK))
+#endif
+
+//
+// Setting and clearing multiple flags works, so these names make that "clear"
+//
+
+#define SET_VAL_FLAGS(v,f) \
+    SET_VAL_FLAG((v), (f))
+
+#define CLEAR_VAL_FLAGS(v,f) \
+    CLEAR_VAL_FLAG((v), (f))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -465,30 +501,17 @@ enum {
         CLEAR(&(v)->payload, sizeof(union Reb_Value_Payload)))
 
 //
-// Reading/writing routines for the 8 "EXTS" flags that are interpreted
-// differently depending on the VAL_TYPE() of the value.
-//
-
-#define VAL_SET_EXT(v,n) \
-    ((v)->header.bits |= (1 << ((n) + 16)))
-
-#define VAL_GET_EXT(v,n) \
-    LOGICAL((v)->header.bits & (1 << ((n) + 16)))
-
-#define VAL_CLR_EXT(v,n) \
-    ((v)->header.bits &= ~cast(REBUPT, 1 << ((n) + 16)))
-
-//
 // The ability to read and write all the EXTS at once as an 8-bit value.
 // Review uses to see if they could be done all as part of the initialization.
 //
 
 #define VAL_EXTS_DATA(v) \
-    (((v)->header.bits & (cast(REBUPT, 0xFF) << 16)) >> 16)
+    (((v)->header.bits & \
+        (cast(REBUPT, 0xFF) << TYPE_SPECIFIC_BIT)) >> TYPE_SPECIFIC_BIT)
 
 #define VAL_SET_EXTS_DATA(v,e) \
-    (((v)->header.bits &= ~(cast(REBUPT, 0xFF) << 16)), \
-        (v)->header.bits |= ((e) << 16))
+    (((v)->header.bits &= ~(cast(REBUPT, 0xFF) << TYPE_SPECIFIC_BIT)), \
+        (v)->header.bits |= ((e) << TYPE_SPECIFIC_BIT))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -591,8 +614,9 @@ enum {
     #define SET_TRASH_SAFE(v) SET_UNSET(v)
 #else
     enum {
-        EXT_TRASH_SAFE = 0,     // GC safe trash (UNSET! in release build)
-        EXT_TRASH_MAX
+        // GC safe trash (UNSET! in release build)
+        //
+        TRASH_FLAG_SAFE = (1 << TYPE_SPECIFIC_BIT) | (REB_TRASH << 2)
     };
 
     // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
@@ -633,7 +657,7 @@ enum {
     #define SET_TRASH_SAFE(v) \
         ( \
             VAL_RESET_HEADER((v), REB_TRASH), \
-            VAL_SET_EXT((v), EXT_TRASH_SAFE), \
+            SET_VAL_FLAG((v), TRASH_FLAG_SAFE), \
             SET_TRACK_PAYLOAD(v) \
         )
 #endif
@@ -750,14 +774,13 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.bits = ((1 << OPT_VALUE_FALSE) << 8) | \
-            NOT_END_MASK | (REB_NONE << 2))
+        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | (REB_NONE << 2))
 #else
     #define SET_NONE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = ((1 << OPT_VALUE_FALSE) << 8) | \
-                NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
-            SET_TRACK_PAYLOAD(v))
+            (v)->header.bits = VALUE_FLAG_FALSE | \
+            NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
+        SET_TRACK_PAYLOAD(v))
 #endif
 
 #define NONE_VALUE (&PG_None_Value[0])
@@ -791,27 +814,27 @@ enum {
 
     #define SET_FALSE(v) \
         ((v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
-            | ((1 << OPT_VALUE_FALSE) << 8))
+            | VALUE_FLAG_FALSE)
 #else
     #define SET_TRUE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
-         SET_TRACK_PAYLOAD(v))  // compound
+         SET_TRACK_PAYLOAD(v)) // compound
 
     #define SET_FALSE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
-            | WRITABLE_MASK_DEBUG | ((1 << OPT_VALUE_FALSE) << 8), \
+            | WRITABLE_MASK_DEBUG | VALUE_FLAG_FALSE, \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif
 
 #define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
-#define VAL_LOGIC(v)    NOT(VAL_GET_OPT((v), OPT_VALUE_FALSE))
+#define VAL_LOGIC(v)    NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE))
 
 #ifdef NDEBUG
     #define IS_CONDITIONAL_FALSE(v) \
-        VAL_GET_OPT((v), OPT_VALUE_FALSE)
+        GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
 #else
     // In a debug build, we want to make sure that UNSET! is never asked
     // about its conditional truth or falsehood; it's neither.
@@ -1271,10 +1294,20 @@ struct Reb_Symbol {
 **
 ***********************************************************************/
 
+#ifdef NDEBUG
+    #define WORD_FLAG 0
+#else
+    #define WORD_FLAG (REB_WORD << 2) // interpreted to mean ANY-WORD!
+#endif
+
 enum {
-    EXT_WORD_BOUND_SPECIFIC = 0,    // is bound to a normally GC'd context
-    EXT_WORD_BOUND_RELATIVE,        // var is found by combining w/extra info
-    EXT_WORD_MAX
+    // is bound to a normally GC'd context
+    //
+    WORD_FLAG_BOUND_SPECIFIC = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG,
+
+    // var is found by combining w/extra info
+    //
+    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG
 };
 
 struct Reb_Any_Word {
@@ -1295,8 +1328,8 @@ struct Reb_Any_Word {
     // walked to find the required frame.
     //
     union {
-        REBCON *specific; // for EXT_WORD_BOUND_SPECIFIC
-        REBFUN *relative; // for EXT_WORD_BOUND_RELATIVE
+        REBCON *specific; // for WORD_FLAG_BOUND_SPECIFIC
+        REBFUN *relative; // for WORD_FLAG_BOUND_RELATIVE
     } binding;
 
     // Index of word in context (if word is bound, e.g. `context` is not NULL)
@@ -1325,8 +1358,8 @@ struct Reb_Any_Word {
 
 #define IS_WORD_BOUND(v) \
     (assert(ANY_WORD(v)), \
-        VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
-        || VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)) // !!! => test together
+        GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
+        || GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE)) // !!! => test both
 
 #define IS_WORD_UNBOUND(v) \
     NOT(IS_WORD_BOUND(v))
@@ -1344,32 +1377,32 @@ struct Reb_Any_Word {
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.index)
 #define INIT_WORD_INDEX(v,i) \
-    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
         ? (i) >= 1 && SAME_SYM( \
             VAL_WORD_SYM(v), CONTEXT_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
         ) : (i) >= 1), \
         (v)->payload.any_word.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
-    (assert(ANY_WORD(v) && VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)), \
+    (assert(ANY_WORD(v) && GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
         (v)->payload.any_word.binding.specific)
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (assert(ANY_WORD(v)), VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)) \
+    (assert(ANY_WORD(v)), GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)) \
         ? (v)->payload.any_word.binding.specific \
         : Frame_For_Call_May_Reify( \
             Call_For_Relative_Word((v), FALSE), NULL, TRUE)
 
 #define INIT_WORD_SPECIFIC(v,context) \
-    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE)), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
+        && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE)), \
         ENSURE_SERIES_MANAGED(CONTEXT_SERIES(context)), \
         assert(ARRAY_GET_FLAG(CONTEXT_KEYLIST(context), OPT_SER_MANAGED)), \
         (v)->payload.any_word.binding.specific = (context))
 
 #define INIT_WORD_RELATIVE(v,func) \
-    (assert(VAL_GET_EXT((v), EXT_WORD_BOUND_RELATIVE) \
-        && !VAL_GET_EXT((v), EXT_WORD_BOUND_SPECIFIC)), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE) \
+        && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
         (v)->payload.any_word.binding.relative = (func))
 
 #define IS_SAME_WORD(v, n) \
@@ -1377,12 +1410,12 @@ struct Reb_Any_Word {
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (VAL_CLR_EXT((v), EXT_WORD_BOUND_SPECIFIC), \
-            VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE))
+        (CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC), \
+            CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE))
 #else
     #define UNBIND_WORD(v) \
-        (VAL_CLR_EXT((v), EXT_WORD_BOUND_SPECIFIC), \
-            VAL_CLR_EXT((v), EXT_WORD_BOUND_RELATIVE), \
+        (CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC), \
+            CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE), \
             (v)->payload.any_word.index = 0)
 #endif
 
@@ -1423,16 +1456,49 @@ struct Reb_Any_Word {
 //      make typeset! [<hide> <quote> <protect> string! integer!]
 //
 
-// Option flags used with VAL_GET_EXT().  These describe properties of
+#ifdef NDEBUG
+    #define TYPESET_FLAG 0
+#else
+    #define TYPESET_FLAG (REB_TYPESET << 2) // interpreted to mean ANY-TYPESET!
+#endif
+
+// Option flags used with GET_VAL_FLAG().  These describe properties of
 // a value slot when it's constrained to the types in the typeset
 //
 enum {
-    EXT_TYPESET_QUOTE = 0,  // Quoted (REDUCE group/get-word|path if EVALUATE)
-    EXT_TYPESET_EVALUATE,   // DO/NEXT performed at callsite when setting
-    EXT_TYPESET_REFINEMENT, // Value indicates an optional switch
-    EXT_TYPESET_LOCKED,     // Can't be changed (set with PROTECT)
-    EXT_TYPESET_HIDDEN,     // Can't be reflected (set with PROTECT/HIDE)
-    EXT_TYPESET_MAX
+    // Quoted (REDUCE group/get-word|path if EVALUATE)
+    //
+    TYPESET_FLAG_QUOTE = (1 << (TYPE_SPECIFIC_BIT + 0)) | TYPESET_FLAG,
+
+    // DO/NEXT performed at callsite when setting
+    //
+    TYPESET_FLAG_EVALUATE = (1 << (TYPE_SPECIFIC_BIT + 1)) | TYPESET_FLAG,
+
+    // Value indicates an optional switch
+    //
+    TYPESET_FLAG_REFINEMENT = (1 << (TYPE_SPECIFIC_BIT + 2)) | TYPESET_FLAG,
+
+    // Can't be changed (set with PROTECT)
+    //
+    TYPESET_FLAG_LOCKED = (1 << (TYPE_SPECIFIC_BIT + 3)) | TYPESET_FLAG,
+
+    // Can't be reflected (set with PROTECT/HIDE) or local in spec as `foo:`
+    //
+    TYPESET_FLAG_HIDDEN = (1 << (TYPE_SPECIFIC_BIT + 4)) | TYPESET_FLAG,
+
+    // Can't be bound to beyond the current bindings.
+    //
+    // !!! This flag was implied in R3-Alpha by TYPESET_FLAG_HIDDEN.  However,
+    // the movement of SELF out of being a hardcoded keyword in the binding
+    // machinery made it start to be considered as being a by-product of the
+    // generator, and hence a "userspace" word (like definitional return).
+    // To avoid disrupting all object instances with a visible SELF, it was
+    // made hidden...which worked until a bugfix restored the functionality
+    // of checking to not bind to hidden things.  UNBINDABLE is an interim
+    // solution to separate the property of bindability from visibility, as
+    // the SELF solution shakes out--so that SELF may be hidden but bind.
+    //
+    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG
 };
 
 struct Reb_Typeset {
@@ -1632,16 +1698,33 @@ struct Reb_Any_Context {
 **
 ***********************************************************************/
 
-enum {
-    EXT_FUNC_INFIX = 0,     // called with "infix" protocol
-    EXT_FUNC_HAS_RETURN,    // function "fakes" a definitionally scoped return
-    EXT_FUNC_FRAMELESS,     // native hooks into DO state and does own arg eval
-
-#if !defined(NDEBUG)
-    EXT_FUNC_LEGACY,        // TRUE-valued refinements, NONE! for unused args
+#ifdef NDEBUG
+    #define FUNC_FLAG 0
+#else
+    #define FUNC_FLAG (REB_FUNCTION << 2) // interpreted to mean ANY-FUNCTION!
 #endif
 
-    EXT_FUNC_MAX
+enum {
+    // called with "infix" protocol
+    //
+    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG,
+
+    // function "fakes" a definitionally scoped return
+    //
+    FUNC_FLAG_HAS_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG,
+
+    // native hooks into DO state and does own arg eval
+    //
+    FUNC_FLAG_FRAMELESS = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG,
+
+#if !defined(NDEBUG)
+    //
+    // TRUE-valued refinements, NONE! for unused args
+    //
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG,
+#endif
+
+    FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
 };
 
 struct Reb_Call;
@@ -1738,7 +1821,7 @@ struct Reb_Any_Function {
 #define VAL_FUNC_ACT(v)       ((v)->payload.any_function.impl.act)
 #define VAL_FUNC_INFO(v)      ((v)->payload.any_function.impl.info)
 
-// EXT_FUNC_HAS_RETURN functions use the RETURN native's function value to give
+// FUNC_FLAG_HAS_RETURN functions use the RETURN native's function value to give
 // the definitional return its prototype, but overwrite its code pointer to
 // hold the paramlist of the target.
 //

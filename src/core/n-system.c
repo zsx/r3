@@ -418,7 +418,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     // that would visually disrupt the backtrace for no reason.
     //
     if (end - start > 0)
-        VAL_CLR_OPT(ARRAY_HEAD(where), OPT_VALUE_LINE);
+        CLEAR_VAL_FLAG(ARRAY_HEAD(where), VALUE_FLAG_LINE);
 
     // We add an ellipsis to a pending frame to make it a little bit
     // clearer what is going on.  If someone sees a where that looks
@@ -728,7 +728,7 @@ REBNATIVE(backtrace)
                     //
                     temp = ARRAY_AT(backtrace, --index);
                     Val_Init_Word(temp, REB_WORD, SYM_ASTERISK);
-                    VAL_SET_OPT(temp, OPT_VALUE_LINE); // put on own line
+                    SET_VAL_FLAG(temp, VALUE_FLAG_LINE); // put on own line
                 }
                 break;
             }
@@ -788,7 +788,7 @@ REBNATIVE(backtrace)
         else
             SET_INTEGER(temp, number);
 
-        VAL_SET_OPT(temp, OPT_VALUE_LINE);
+        SET_VAL_FLAG(temp, VALUE_FLAG_LINE);
     }
 
     // If we ran out of stack levels before finding the single one requested
@@ -1377,7 +1377,7 @@ REBNATIVE(resume)
             );
         }
         else {
-            // See notes on OPT_VALUE_EXIT_FROM regarding non-FUNCTION! and
+            // See notes on VALUE_FLAG_EXIT_FROM regarding non-FUNCTION! and
             // non-CLOSURE!s and their present inability to target arbitrary
             // frames.
             //

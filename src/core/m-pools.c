@@ -761,7 +761,7 @@ static REBOOL Series_Data_Alloc(
         //
         for(; n < s->content.dynamic.rest; n++) {
             VAL_INIT_WRITABLE_DEBUG(ARRAY_AT(AS_ARRAY(s), n));
-          /*VAL_SET_OPT(ARRAY_AT(AS_ARRAY(series), n), OPT_VALUE_READ_ONLY);*/
+          /*SET_VAL_FLAG(ARRAY_AT(AS_ARRAY(series), n), VALUE_FLAG_READ_ONLY);*/
         }
     }
 #endif
@@ -1600,7 +1600,7 @@ REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
     //
     if (!thrown_or_end_ok) {
         if (IS_TRASH_DEBUG(value)) {
-            assert(VAL_GET_EXT(value, EXT_TRASH_SAFE));
+            assert(GET_VAL_FLAG(value, TRASH_FLAG_SAFE));
             return TRUE;
         }
     }

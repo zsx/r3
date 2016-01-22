@@ -494,11 +494,6 @@ REBNATIVE(action)
     //
     if (REF(typecheck)) {
         assert(VAL_INT32(ARG(typenum)) == cast(REBINT, Action_Count));
-
-        // All the type checks run frameless, so we set that flag (as it is
-        // already being checked)
-        //
-        VAL_SET_EXT(D_OUT, EXT_FUNC_FRAMELESS);
     }
 
     Make_Native(
@@ -506,7 +501,7 @@ REBNATIVE(action)
         VAL_ARRAY(ARG(spec)),
         cast(REBNAT, cast(REBUPT, Action_Count)),
         REB_ACTION,
-        FALSE
+        REF(typecheck) // frameless? (all typechecks run framelessly)
     );
 
     Action_Count++;
@@ -1201,7 +1196,7 @@ static void Init_Main_Args(REBARGS *rargs)
     n = 2; // skip first flag (ROF_EXT)
     val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
     for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++) {
-        VAL_CLR_OPT(val, OPT_VALUE_LINE);
+        CLEAR_VAL_FLAG(val, VALUE_FLAG_LINE);
         if (rargs->options & n) Append_Value(array, val);
         n <<= 1;
     }

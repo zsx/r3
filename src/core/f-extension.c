@@ -249,14 +249,14 @@ x*/ REBRXT Do_Callback(RXIARG *out, REBFUN *func, REBCNT label_sym, RXIARG *rxis
         REBVAL arg;
         RXI_To_Value(&arg, rxis[n], RXI_TYPE(rxis, n));
 
-        if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN)) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
              //
              // Pure local... don't add a code arg for it (can't)!
              //
              continue;
         }
 
-        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
             if (IS_CONDITIONAL_FALSE(&arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore

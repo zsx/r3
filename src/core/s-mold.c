@@ -617,7 +617,7 @@ static void Mold_Array_At(
 
     value = ARRAY_AT(array, index);
     while (NOT_END(value)) {
-        if (VAL_GET_OPT(value, OPT_VALUE_LINE)) {
+        if (GET_VAL_FLAG(value, VALUE_FLAG_LINE)) {
             if (sep[1] || line_flag) New_Indented_Line(mold);
             had_lines = TRUE;
         }
@@ -630,7 +630,7 @@ static void Mold_Array_At(
 
     if (sep[1]) {
         mold->indent--;
-        if (VAL_GET_OPT(value, OPT_VALUE_LINE) || had_lines)
+        if (GET_VAL_FLAG(value, VALUE_FLAG_LINE) || had_lines)
             New_Indented_Line(mold);
         Append_Codepoint_Raw(out, sep[1]);
     }
@@ -913,7 +913,7 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
     // Mold all words and their values:
     for (; !IS_END(key); key++, var++) {
-        if (!VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
+        if (!GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             had_output = TRUE;
             Emit(mold, "N: V\n", VAL_TYPESET_SYM(key), var);
         }
@@ -961,7 +961,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     mold->indent++;
     for (; !IS_END(key); var ? (++key, ++var) : ++key) {
         if (
-            !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)
+            !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)
             && (
                 !var ||
                 ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))

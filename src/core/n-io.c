@@ -284,9 +284,9 @@ REBNATIVE(new_line)
         if ((skip != 0) && (n % skip != 0)) continue;
 
         if (mark)
-            VAL_SET_OPT(value, OPT_VALUE_LINE);
+            SET_VAL_FLAG(value, VALUE_FLAG_LINE);
         else
-            VAL_CLR_OPT(value, OPT_VALUE_LINE);
+            CLEAR_VAL_FLAG(value, VALUE_FLAG_LINE);
 
         if (skip == 0) break;
     }
@@ -308,7 +308,7 @@ REBNATIVE(new_line_q)
 {
     PARAM(1, position);
 
-    if (VAL_GET_OPT(VAL_ARRAY_AT(ARG(position)), OPT_VALUE_LINE))
+    if (GET_VAL_FLAG(VAL_ARRAY_AT(ARG(position)), VALUE_FLAG_LINE))
         return R_TRUE;
 
     return R_FALSE;

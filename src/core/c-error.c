@@ -275,8 +275,8 @@ void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg, REBOOL from)
 {
     assert(!THROWN(name));
 
-    if (from) VAL_SET_OPT((name), OPT_VALUE_EXIT_FROM);
-    VAL_SET_OPT(name, OPT_VALUE_THROWN);
+    if (from) SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM);
+    SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
 
     assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
     assert(!IS_TRASH_DEBUG(arg));
@@ -298,8 +298,8 @@ void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg, REBOOL from)
 void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
 {
     assert(THROWN(thrown));
-    VAL_CLR_OPT(thrown, OPT_VALUE_THROWN);
-    VAL_CLR_OPT(thrown, OPT_VALUE_EXIT_FROM);
+    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
+    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_EXIT_FROM);
 
     assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
