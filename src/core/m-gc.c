@@ -627,7 +627,7 @@ static void Mark_Call_Frames_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)) {
+        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)) {
             //
             // Optimized native: it didn't need a variable-sized chunk
             // allocated for its args and locals because it was able to do
@@ -700,7 +700,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         // so that at the end of a process you can confirm that if an
         // UNSET! is in the slot, it was written there purposefully)
 
-        if (VAL_GET_EXT(val, EXT_TRASH_SAFE))
+        if (GET_VAL_FLAG(val, TRASH_FLAG_SAFE))
             return;
 
         // Otherwise would be uninitialized in a release build!
@@ -818,11 +818,11 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             // All bound words should keep their contexts from being GC'd...
             // even stack-relative contexts for functions.
             //
-            if (VAL_GET_EXT(val, EXT_WORD_BOUND_SPECIFIC)) {
+            if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_SPECIFIC)) {
                 REBCON* context = VAL_WORD_CONTEXT(val);
                 QUEUE_MARK_CONTEXT_DEEP(context);
             }
-            else if (VAL_GET_EXT(val, EXT_WORD_BOUND_RELATIVE)) {
+            else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_RELATIVE)) {
                 //
                 // Marking the function's paramlist should be enough to
                 // mark all the function's properties (there is an embedded
@@ -979,7 +979,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     value = ARRAY_HEAD(array);
     for (; NOT_END(value); value++) {
     #if !defined(NDEBUG)
-        if (IS_TRASH_DEBUG(value) && !VAL_GET_EXT(value, EXT_TRASH_SAFE))
+        if (IS_TRASH_DEBUG(value) && !GET_VAL_FLAG(value, TRASH_FLAG_SAFE))
             Panic_Array(array);
     #endif
         Queue_Mark_Value_Deep(value);

@@ -489,8 +489,8 @@ static REB_R Loop_Each(struct Reb_Call *call_, LOOP_MODE mode)
                 *var = *ARRAY_AT(AS_ARRAY(series), index);
             }
             else if (ANY_CONTEXT(data_value)) {
-                if (VAL_GET_EXT(
-                    VAL_CONTEXT_KEY(data_value, index), EXT_TYPESET_HIDDEN
+                if (GET_VAL_FLAG(
+                    VAL_CONTEXT_KEY(data_value, index), TYPESET_FLAG_HIDDEN
                 )) {
                     // Do not evaluate this iteration
                     index++;

@@ -57,7 +57,7 @@ void Init_Stacks(REBCNT size)
     TG_Top_Chunk->size.bits = BASE_CHUNK_SIZE; // zero values for initial chunk
     TG_Top_Chunk->payload_left = CS_CHUNKER_PAYLOAD - BASE_CHUNK_SIZE;
 
-    // Implicit termination trick--see OPT_VALUE_NOT_END and related notes
+    // Implicit termination trick--see VALUE_FLAG_NOT_END and related notes
     cast(
         struct Reb_Chunk*, cast(REBYTE*, TG_Top_Chunk) + BASE_CHUNK_SIZE
     )->size.bits = 0;
@@ -507,7 +507,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     #ifdef NDEBUG
         SET_UNSET(slot);
     #else
-        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
             SET_NONE(slot);
         else
             SET_UNSET(slot);

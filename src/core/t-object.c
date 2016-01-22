@@ -83,12 +83,12 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
         //
         // Hidden vars shouldn't affect the comparison.
         //
-        if (VAL_GET_EXT(key1, EXT_TYPESET_HIDDEN)) {
+        if (GET_VAL_FLAG(key1, TYPESET_FLAG_HIDDEN)) {
             key1++; var1++;
             if (IS_END(key1)) break;
             goto no_advance;
         }
-        if (VAL_GET_EXT(key2, EXT_TYPESET_HIDDEN)) {
+        if (GET_VAL_FLAG(key2, TYPESET_FLAG_HIDDEN)) {
             key2++; var2++;
             if (IS_END(key2)) break;
             goto no_advance;
@@ -118,11 +118,11 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
     // they don't line up.
     //
     for (; NOT_END(key1); key1++, var1++) {
-        if (!VAL_GET_EXT(key1, EXT_TYPESET_HIDDEN))
+        if (!GET_VAL_FLAG(key1, TYPESET_FLAG_HIDDEN))
             return FALSE;
     }
     for (; NOT_END(key2); key2++, var2++) {
-        if (!VAL_GET_EXT(key2, EXT_TYPESET_HIDDEN))
+        if (!GET_VAL_FLAG(key2, TYPESET_FLAG_HIDDEN))
             return FALSE;
     }
 
@@ -204,10 +204,10 @@ static void Append_To_Context(REBCON *context, REBVAL *arg)
         var = CONTEXT_VAR(context, i);
         key = CONTEXT_KEY(context, i);
 
-        if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
             fail (Error_Protected_Key(key));
 
-        if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             fail (Error(RE_HIDDEN));
 
         if (IS_END(word + 1)) SET_NONE(var);
@@ -236,7 +236,7 @@ static REBCON *Trim_Context(REBCON *context)
     key = CONTEXT_KEYS_HEAD(context);
     var = CONTEXT_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             copy_count++;
     }
 
@@ -253,7 +253,7 @@ static REBCON *Trim_Context(REBCON *context)
     var_new = CONTEXT_VARS_HEAD(context_new);
     key_new = CONTEXT_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
+        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }
@@ -332,7 +332,7 @@ REBINT PD_Context(REBPVS *pvs)
     if (
         pvs->setval
         && IS_END(pvs->path + 1)
-        && VAL_GET_EXT(CONTEXT_KEY(context, n), EXT_TYPESET_LOCKED)
+        && GET_VAL_FLAG(CONTEXT_KEY(context, n), TYPESET_FLAG_LOCKED)
     ) {
         fail (Error(RE_LOCKED_WORD, pvs->select));
     }

@@ -238,7 +238,7 @@ REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        VAL_SET_EXT(word, EXT_WORD_BOUND_SPECIFIC);
+        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
         INIT_WORD_SPECIFIC(word, context);
         INIT_WORD_INDEX(word, len); // length we just bumped
     }
@@ -575,7 +575,12 @@ REBARR *Collect_Keylist_Managed(
             //
             REBVAL *self_key = ARRAY_AT(BUF_COLLECT, 1);
             Val_Init_Typeset(self_key, ALL_64, SYM_SELF);
-            VAL_SET_EXT(self_key, EXT_TYPESET_HIDDEN);
+
+            // !!! See notes on the flags about why SELF is set hidden but
+            // not unbindable with TYPESET_FLAG_UNBINDABLE.
+            //
+            SET_VAL_FLAG(self_key, TYPESET_FLAG_HIDDEN);
+
             binds[VAL_TYPESET_CANON(self_key)] = 1;
             *self_index_out = 1;
             SET_ARRAY_LEN(BUF_COLLECT, 2); // TASK_BUF_COLLECT is at least 2
@@ -750,8 +755,12 @@ REBCON *Make_Selfish_Context_Detect(
                 Val_Init_Typeset(
                     CONTEXT_KEY(context, self_index), ALL_64, SYM_SELF
                 );
-                VAL_SET_EXT(
-                    CONTEXT_KEY(context, self_index), EXT_TYPESET_HIDDEN
+
+                // !!! See notes on the flags about why SELF is set hidden but
+                // not unbindable with TYPESET_FLAG_UNBINDABLE.
+                //
+                SET_VAL_FLAG(
+                    CONTEXT_KEY(context, self_index), TYPESET_FLAG_HIDDEN
                 );
             }
             else {
@@ -768,7 +777,14 @@ REBCON *Make_Selfish_Context_Detect(
             Val_Init_Typeset(
                 Alloc_Tail_Array(CONTEXT_KEYLIST(context)), ALL_64, SYM_SELF
             );
-            VAL_SET_EXT(CONTEXT_KEY(context, self_index), EXT_TYPESET_HIDDEN);
+
+            // !!! See notes on the flags about why SELF is set hidden but
+            // not unbindable with TYPESET_FLAG_UNBINDABLE.
+            //
+            SET_VAL_FLAG(
+                CONTEXT_KEY(context, self_index), TYPESET_FLAG_HIDDEN
+            );
+
             Alloc_Tail_Array(CONTEXT_VARLIST(context));
         }
     }
@@ -917,16 +933,16 @@ REBARR *Context_To_Array(REBCON *context, REBINT mode)
 
     n = 1;
     for (; !IS_END(key); n++, key++, var++) {
-        if (!VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) {
+        if (!GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             if (mode & 1) {
                 value = Alloc_Tail_Array(block);
                 if (mode & 2) {
                     VAL_RESET_HEADER(value, REB_SET_WORD);
-                    VAL_SET_OPT(value, OPT_VALUE_LINE);
+                    SET_VAL_FLAG(value, VALUE_FLAG_LINE);
                 }
                 else VAL_RESET_HEADER(value, REB_WORD);
                 INIT_WORD_SYM(value, VAL_TYPESET_SYM(key));
-                VAL_SET_EXT(value, EXT_WORD_BOUND_SPECIFIC);
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
             }
@@ -1132,7 +1148,7 @@ void Resolve_Context(
         if ((m = binds[VAL_TYPESET_CANON(key)])) {
             binds[VAL_TYPESET_CANON(key)] = 0; // mark it as set
             if (
-                !VAL_GET_EXT(key, EXT_TYPESET_LOCKED)
+                !GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
                 && (all || IS_UNSET(var))
             ) {
                 if (m < 0) SET_UNSET(var); // no value in source context
@@ -1197,8 +1213,6 @@ static void Bind_Values_Inner_Loop(
 ) {
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
-            //Print("Word: %s", Get_Sym_Name(VAL_WORD_CANON(value)));
-
             REBCNT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
                 //
@@ -1209,12 +1223,11 @@ static void Bind_Values_Inner_Loop(
                 enum Reb_Kind kind = VAL_TYPE(value);
                 assert(n <= CONTEXT_LEN(context));
                 VAL_RESET_HEADER(value, kind);
-                VAL_SET_EXT(value, EXT_WORD_BOUND_SPECIFIC);
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
             }
             else {
-                //
                 // Word is not in context, so add it if option is specified
                 //
                 if (
@@ -1278,7 +1291,7 @@ void Bind_Values_Core(REBVAL value[], REBCON *context, REBCNT mode)
     index = 1;
     key = CONTEXT_KEYS_HEAD(context);
     for (; index <= CONTEXT_LEN(context); key++, index++) {
-        if (!VAL_GET_OPT(key, EXT_TYPESET_HIDDEN))
+        if (!GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
             binds[VAL_TYPESET_CANON(key)] = index;
     }
 
@@ -1333,7 +1346,7 @@ REBCNT Try_Bind_Word(REBCON *context, REBVAL *word)
     n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (n != 0) {
         UNBIND_WORD(word); // get rid of binding if it had one
-        VAL_SET_EXT(word, EXT_WORD_BOUND_SPECIFIC);
+        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
         INIT_WORD_SPECIFIC(word, context);
         INIT_WORD_INDEX(word, n);
     }
@@ -1365,7 +1378,7 @@ static void Bind_Relative_Inner_Loop(
                 //
                 enum Reb_Kind kind = VAL_TYPE(value);
                 VAL_RESET_HEADER(value, kind);
-                VAL_SET_EXT(value, EXT_WORD_BOUND_RELATIVE);
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE);
                 INIT_WORD_RELATIVE(value, func);
                 INIT_WORD_INDEX(value, n);
             }
@@ -1441,7 +1454,7 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
 
     kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
     VAL_RESET_HEADER(word, kind);
-    VAL_SET_EXT(word, EXT_WORD_BOUND_RELATIVE);
+    SET_VAL_FLAG(word, WORD_FLAG_BOUND_RELATIVE);
     INIT_WORD_RELATIVE(word, func);
     INIT_WORD_INDEX(word, index);
 }
@@ -1465,7 +1478,7 @@ void Rebind_Values_Deep(
         }
         else if (
             ANY_WORD(value)
-            && VAL_GET_EXT(value, EXT_WORD_BOUND_SPECIFIC)
+            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC)
             && VAL_WORD_CONTEXT(value) == src
         ) {
             INIT_WORD_SPECIFIC(value, dst);
@@ -1512,7 +1525,7 @@ void Rebind_Values_Relative_Deep(
         }
         else if (
             ANY_WORD(value)
-            && VAL_GET_EXT(value, EXT_WORD_BOUND_RELATIVE)
+            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
             && value->payload.any_word.binding.relative == src
         ) {
             INIT_WORD_RELATIVE(value, dst);
@@ -1537,7 +1550,7 @@ void Rebind_Values_Closure_Deep(REBFUN *src, REBCON *dst, REBVAL value[]) {
         }
         else if (
             ANY_WORD(value)
-            && VAL_GET_EXT(value, EXT_WORD_BOUND_RELATIVE)
+            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
             && value->payload.any_word.binding.relative == src
         ) {
             // Note that VAL_RESET_HEADER(value...) is a macro for setting
@@ -1546,7 +1559,7 @@ void Rebind_Values_Closure_Deep(REBFUN *src, REBCON *dst, REBVAL value[]) {
             //
             enum Reb_Kind kind = VAL_TYPE(value);
             VAL_RESET_HEADER(value, kind);
-            VAL_SET_EXT(value, EXT_WORD_BOUND_SPECIFIC);
+            SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
             INIT_WORD_SPECIFIC(value, dst);
         }
     }
@@ -1602,7 +1615,7 @@ REBCNT Find_Word_In_Context(REBCON *context, REBCNT sym, REBOOL always)
             sym == VAL_TYPESET_SYM(key)
             || canon == VAL_TYPESET_CANON(key)
         ) {
-            return (!always && VAL_GET_EXT(key, EXT_TYPESET_HIDDEN)) ? 0 : n;
+            return (!always && GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) ? 0 : n;
         }
     }
 
@@ -1740,7 +1753,7 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
 //
 REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 {
-    if (VAL_GET_EXT(any_word, EXT_WORD_BOUND_SPECIFIC)) {
+    if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_SPECIFIC)) {
         //
         // The word is bound directly to a value inside a varlist, and
         // represents the zero-based offset into that series.  This is how
@@ -1779,7 +1792,7 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 
         if (
             writable &&
-            VAL_GET_EXT(CONTEXT_KEY(context, index), EXT_TYPESET_LOCKED)
+            GET_VAL_FLAG(CONTEXT_KEY(context, index), TYPESET_FLAG_LOCKED)
         ) {
             if (trap) return NULL;
 
@@ -1790,7 +1803,7 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         assert(!THROWN(value));
         return value;
     }
-    else if (VAL_GET_EXT(any_word, EXT_WORD_BOUND_RELATIVE)) {
+    else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_RELATIVE)) {
         //
         // RELATIVE CONTEXT: Word is stack-relative bound to a function with
         // no persistent varlist held by the GC.  The value *might* be found
@@ -1821,7 +1834,7 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 
         if (
             writable &&
-            VAL_GET_EXT(FUNC_PARAM(DSF_FUNC(call), index), EXT_TYPESET_LOCKED)
+            GET_VAL_FLAG(FUNC_PARAM(DSF_FUNC(call), index), TYPESET_FLAG_LOCKED)
         ) {
             if (trap) return NULL;
 

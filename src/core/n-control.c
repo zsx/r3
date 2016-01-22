@@ -36,13 +36,17 @@
 static void Protect_Key(REBVAL *key, REBCNT flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
-        if (GET_FLAG(flags, PROT_SET)) VAL_SET_EXT(key, EXT_TYPESET_LOCKED);
-        else VAL_CLR_EXT(key, EXT_TYPESET_LOCKED);
+        if (GET_FLAG(flags, PROT_SET)) SET_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
+        else CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
-        if GET_FLAG(flags, PROT_SET) VAL_SET_EXT(key, EXT_TYPESET_HIDDEN);
-        else VAL_CLR_EXT(key, EXT_TYPESET_HIDDEN);
+        if (GET_FLAG(flags, PROT_SET))
+            SET_VAL_FLAGS(key, TYPESET_FLAG_HIDDEN | TYPESET_FLAG_UNBINDABLE);
+        else
+            CLEAR_VAL_FLAGS(
+                key, TYPESET_FLAG_HIDDEN | TYPESET_FLAG_UNBINDABLE
+            );
     }
 }
 
@@ -628,7 +632,7 @@ REBNATIVE(catch)
             REBVAL * const temp1 = ARG(quit);
             REBVAL * const temp2 = ARG(any);
 
-            // !!! The reason we're copying isn't so the OPT_VALUE_THROWN bit
+            // !!! The reason we're copying isn't so the VALUE_FLAG_THROWN bit
             // won't confuse the equality comparison...but would it have?
 
             if (IS_BLOCK(ARG(names))) {

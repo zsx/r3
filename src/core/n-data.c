@@ -538,7 +538,7 @@ REBNATIVE(get)
         REBVAL *var = CONTEXT_VARS_HEAD(VAL_CONTEXT(source));
 
         for (; NOT_END(key); key++, var++) {
-            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
                 continue;
 
             // This only copies the value bits, so this is a "shallow" copy
@@ -643,7 +643,7 @@ REBNATIVE(in)
                         context, VAL_WORD_SYM(word), FALSE
                     );
                     if (index != 0) {
-                        VAL_SET_EXT(word, EXT_WORD_BOUND_SPECIFIC);
+                        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
                         INIT_WORD_SPECIFIC(word, context);
                         INIT_WORD_INDEX(word, index);
                         *D_OUT = *word;
@@ -672,7 +672,7 @@ REBNATIVE(in)
 
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
     INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
-    VAL_SET_EXT(D_OUT, EXT_WORD_BOUND_SPECIFIC);
+    SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND_SPECIFIC);
     INIT_WORD_SPECIFIC(D_OUT, context);
     INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
@@ -891,13 +891,13 @@ REBNATIVE(set)
             // Hidden words are not shown in the WORDS-OF, and should not
             // count for consideration in positional setting.  Just skip.
             //
-            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
                 continue;
 
             // Locked words cannot be modified, so a SET should error instead
             // of going ahead and changing them
             //
-            if (VAL_GET_EXT(key, EXT_TYPESET_LOCKED))
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
                 fail (Error_Protected_Key(key));
 
             // If we're setting to a single value and not a block, then
@@ -941,7 +941,7 @@ REBNATIVE(set)
         // padding to NONE if requested
         //
         for (; NOT_END(key); key++, var++) {
-            if (VAL_GET_EXT(key, EXT_TYPESET_HIDDEN))
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
                 continue;
 
             if (IS_END(value)) {
@@ -1107,7 +1107,7 @@ REBNATIVE(infix_q)
     REBVAL *func = D_ARG(1);
 
     assert(ANY_FUNC(func));
-    if (VAL_GET_EXT(func, EXT_FUNC_INFIX))
+    if (GET_VAL_FLAG(func, FUNC_FLAG_INFIX))
         return R_TRUE;
 
     return R_FALSE;
@@ -1468,6 +1468,29 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
 
 
 //
+//  Assert_Flags_Are_For_Value: C
+//
+// This check is used by GET_VAL_FLAG, SET_VAL_FLAG, CLEAR_VAL_FLAG to avoid
+// accidentally checking or setting a type-specific flag on the wrong type
+// of value in the debug build.
+//
+void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
+    if ((f & HEADER_TYPE_MASK) == 0)
+        return; // flag applies to any value (or trash)
+
+    if (((f & HEADER_TYPE_MASK) >> 2) == REB_FUNCTION) {
+        assert(ANY_FUNC(v));
+    }
+    else if (((f & HEADER_TYPE_MASK) >> 2) == REB_OBJECT) {
+        assert(ANY_CONTEXT(v));
+    }
+    else if (((f & HEADER_TYPE_MASK) >> 2) == REB_WORD) {
+        assert(ANY_WORD(v));
+    }
+}
+
+
+//
 //  VAL_SERIES_Ptr_Debug: C
 //
 // Variant of VAL_SERIES() macro for the debug build which checks to ensure
@@ -1490,7 +1513,7 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
 REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
     assert(!IS_END(v) && !IS_UNSET(v) && !IS_TRASH_DEBUG(v));
-    if (VAL_GET_OPT(v, OPT_VALUE_FALSE)) {
+    if (GET_VAL_FLAG(v, VALUE_FLAG_FALSE)) {
         assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
         return TRUE;
     }

@@ -628,7 +628,7 @@ REBTYPE(Array)
             // Get rid of any line break options on the path's elements
             REBVAL *clear = VAL_ARRAY_HEAD(value);
             for (; NOT_END(clear); clear++) {
-                VAL_CLR_OPT(clear, OPT_VALUE_LINE);
+                CLEAR_VAL_FLAG(clear, VALUE_FLAG_LINE);
             }
         }
         *D_OUT = *value;

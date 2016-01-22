@@ -65,16 +65,16 @@ REBARR *List_Func_Words(const REBVAL *func)
     for (; !IS_END(typeset); typeset++) {
         enum Reb_Kind kind;
 
-        if (VAL_GET_EXT(typeset, EXT_TYPESET_HIDDEN)) {
+        if (GET_VAL_FLAG(typeset, TYPESET_FLAG_HIDDEN)) {
             // "true local" (e.g. it was a SET-WORD! in the spec)
             // treat as invisible and do not expose via WORDS-OF
             continue;
         }
 
-        if (VAL_GET_EXT(typeset, EXT_TYPESET_REFINEMENT))
+        if (GET_VAL_FLAG(typeset, TYPESET_FLAG_REFINEMENT))
             kind = REB_REFINEMENT;
-        else if (VAL_GET_EXT(typeset, EXT_TYPESET_QUOTE)) {
-            if (VAL_GET_EXT(typeset, EXT_TYPESET_EVALUATE))
+        else if (GET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE)) {
+            if (GET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE))
                 kind = REB_LIT_WORD;
             else
                 kind = REB_GET_WORD;
@@ -82,7 +82,7 @@ REBARR *List_Func_Words(const REBVAL *func)
         else {
             // Currently there's no meaning for non-quoted non-evaluating
             // things (only 3 param types for foo:, 'foo, :foo)
-            assert(VAL_GET_EXT(typeset, EXT_TYPESET_EVALUATE));
+            assert(GET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE));
             kind = REB_WORD;
         }
 
@@ -249,21 +249,21 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
 
         switch (VAL_TYPE(item)) {
         case REB_WORD:
-            VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE);
             break;
 
         case REB_GET_WORD:
-            VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE);
             break;
 
         case REB_LIT_WORD:
-            VAL_SET_EXT(typeset, EXT_TYPESET_QUOTE);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE);
             // will actually only evaluate get-word!, get-path!, and group!
-            VAL_SET_EXT(typeset, EXT_TYPESET_EVALUATE);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE);
             break;
 
         case REB_REFINEMENT:
-            VAL_SET_EXT(typeset, EXT_TYPESET_REFINEMENT);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_REFINEMENT);
 
             // Refinements can nominally be only WORD! or NONE!
             VAL_TYPESET_BITS(typeset) =
@@ -275,7 +275,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
             // will be skipped during argument fulfillment.  We re-use the
             // same option flag that is used to hide words other places.
 
-            VAL_SET_EXT(typeset, EXT_TYPESET_HIDDEN);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_HIDDEN);
             break;
 
         default:
@@ -341,7 +341,7 @@ void Make_Native(
 
     VAL_RESET_HEADER(out, type);
     if (frameless)
-        VAL_SET_EXT(out, EXT_FUNC_FRAMELESS);
+        SET_VAL_FLAG(out, FUNC_FLAG_FRAMELESS);
 
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
@@ -408,7 +408,7 @@ void Make_Native(
 //
 //  Get_Maybe_Fake_Func_Body: C
 // 
-// The EXT_FUNC_HAS_RETURN tricks used for definitional scoping acceleration
+// The FUNC_FLAG_HAS_RETURN tricks used for definitional scoping acceleration
 // make it seem like a generator authored more code in the function's
 // body...but the code isn't *actually* there and an optimized internal
 // trick is used.
@@ -423,7 +423,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
     assert(IS_CLOSURE(func) || IS_FUNCTION(func));
 
-    if (!VAL_GET_EXT(func, EXT_FUNC_HAS_RETURN)) {
+    if (!GET_VAL_FLAG(func, FUNC_FLAG_HAS_RETURN)) {
         *is_fake = FALSE;
         return VAL_FUNC_BODY(func);
     }
@@ -438,12 +438,12 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
     assert(IS_ISSUE(ARRAY_AT(fake_body, 4))); // #BODY
     Val_Init_Array(ARRAY_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
-    VAL_SET_OPT(ARRAY_AT(fake_body, 4), OPT_VALUE_LINE);
+    SET_VAL_FLAG(ARRAY_AT(fake_body, 4), VALUE_FLAG_LINE);
 
     // !!! This should not be necessary as there is a line break in the
     // template...look into why the line didn't make it to the body.
     //
-    VAL_SET_OPT(ARRAY_AT(fake_body, 0), OPT_VALUE_LINE);
+    SET_VAL_FLAG(ARRAY_AT(fake_body, 0), VALUE_FLAG_LINE);
 
     return fake_body;
 }
@@ -517,7 +517,8 @@ void Make_Function(
     const REBVAL *body,
     REBOOL has_return
 ) {
-    REBYTE func_flags = 0; // 8-bits in header, reserved type-specific flags
+    assert(type == REB_FUNCTION || type == REB_CLOSURE);
+    VAL_RESET_HEADER(out, type); // clears value opts and exts in header...
 
     if (!IS_BLOCK(spec) || !IS_BLOCK(body))
         fail (Error_Bad_Func_Def(spec, body));
@@ -615,7 +616,7 @@ void Make_Function(
                     // kind of tempting that returns an INFIX! (OP!), so
                     // this will remain under consideration.
                     //
-                    SET_FLAG(func_flags, EXT_FUNC_INFIX);
+                    SET_VAL_FLAG(out, FUNC_FLAG_INFIX);
                 }
                 else if (
                     0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)
@@ -753,14 +754,14 @@ void Make_Function(
     #if !defined(NDEBUG)
         REBVAL *param = ARRAY_LAST(AS_ARRAY(out->payload.any_function.func));
         assert(VAL_TYPESET_CANON(param) == SYM_RETURN);
-        assert(VAL_GET_EXT(param, EXT_TYPESET_HIDDEN));
+        assert(GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN));
     #endif
 
         // Flag that this function has a definitional return, so Dispatch_Call
         // knows to write the "hacked" function in that final local.  (Arg
         // fulfillment should leave the hidden parameter unset)
         //
-        SET_FLAG(func_flags, EXT_FUNC_HAS_RETURN);
+        SET_VAL_FLAG(out, FUNC_FLAG_HAS_RETURN);
     }
 
 #if !defined(NDEBUG)
@@ -771,12 +772,8 @@ void Make_Function(
     // not dispatch time.
     //
     if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
-        SET_FLAG(func_flags, EXT_FUNC_LEGACY);
+        SET_VAL_FLAG(out, FUNC_FLAG_LEGACY);
 #endif
-
-    assert(type == REB_FUNCTION || type == REB_CLOSURE);
-    VAL_RESET_HEADER(out, type); // clears value opts and exts in header...
-    VAL_SET_EXTS_DATA(out, func_flags); // ...so we set this after that point
 
     // Now that we've created the function's fields, we pull a trick.  It
     // would be useful to be able to navigate to a full function value
@@ -1183,36 +1180,45 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         break;
     }
 
-    // set OPT_VALUE_LINE on both headers for sake of comparison, we allow
+    // set VALUE_FLAG_LINE on both headers for sake of comparison, we allow
     // it to be different from the value stored in frame.
     //
     // !!! Should formatting flags be moved into their own section, perhaps
     // the section currently known as "resv: reserved for future use"?
     //
-    // We also set OPT_VALUE_THROWN as that is not required to be sync'd
+    // We also set VALUE_FLAG_THROWN as that is not required to be sync'd
     // with the persistent value in the function.  This bit is deprecated
     // however, for many of the same reasons it's a nuisance here.  The
-    // OPT_VALUE_EXIT_FROM needs to be handled in the same way.
+    // VALUE_FLAG_EXIT_FROM needs to be handled in the same way.
     //
     v_header.bits |= (
-        (1 << OPT_VALUE_EXIT_FROM)
-        | (1 << OPT_VALUE_LINE)
-        | (1 << OPT_VALUE_THROWN)
-    ) << 8;
+        VALUE_FLAG_EXIT_FROM
+        | VALUE_FLAG_LINE
+        | VALUE_FLAG_THROWN
+    );
     func_header.bits |= (
-        (1 << OPT_VALUE_EXIT_FROM)
-        | (1 << OPT_VALUE_LINE)
-        | (1 << OPT_VALUE_THROWN)
-    ) << 8;
+        VALUE_FLAG_EXIT_FROM
+        | VALUE_FLAG_LINE
+        | VALUE_FLAG_THROWN
+    );
 
     if (v_header.bits != func_header.bits) {
+        //
+        // If this happens, these help with debugging if stopped at breakpoint.
+        //
         REBVAL *func_value = FUNC_VALUE(func);
-        REBOOL frameless_value = VAL_GET_EXT(v, EXT_FUNC_FRAMELESS);
-        REBOOL frameless_func = VAL_GET_EXT(func_value, EXT_FUNC_FRAMELESS);
-        REBOOL has_return_value = VAL_GET_EXT(v, EXT_FUNC_HAS_RETURN);
-        REBOOL has_return_func = VAL_GET_EXT(func_value, EXT_FUNC_HAS_RETURN);
-        REBOOL infix_value = VAL_GET_EXT(v, EXT_FUNC_INFIX);
-        REBOOL infix_func = VAL_GET_EXT(func_value, EXT_FUNC_INFIX);
+        REBOOL frameless_value
+            = GET_VAL_FLAG(v, FUNC_FLAG_FRAMELESS);
+        REBOOL frameless_func
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_FRAMELESS);
+        REBOOL has_return_value
+            = GET_VAL_FLAG(v, FUNC_FLAG_HAS_RETURN);
+        REBOOL has_return_func
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_HAS_RETURN);
+        REBOOL infix_value
+            = GET_VAL_FLAG(v, FUNC_FLAG_INFIX);
+        REBOOL infix_func
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_INFIX);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
         Debug_Array(v->payload.any_function.spec);

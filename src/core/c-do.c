@@ -1184,7 +1184,7 @@ reevaluate:
             // side is ready in `out`.  Here we are starting a brand new
             // expression, and may have nothing at all in `out` to use.
             //
-            if (VAL_GET_EXT(c->out, EXT_FUNC_INFIX))
+            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
                 fail (Error(RE_NO_OP_ARG, c->value));
 
             c->label_sym = VAL_WORD_SYM(c->value);
@@ -1379,7 +1379,7 @@ reevaluate:
         if (
             !Trace_Flags
             && DSP == c->dsp_orig
-            && VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_FRAMELESS)
+            && GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)
             && eval_normal // avoid framelessness if EVAL/ONLY used
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
@@ -1559,7 +1559,7 @@ reevaluate:
                 assert(c->mode != CALL_MODE_SEEK_REFINE_WORD);
 
                 if (IS_BAR(c->arg)) {
-                    if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+                    if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
                         //
                         // Pure local, so if told to fulfill ordinarily then
                         // that would just be an UNSET!
@@ -1568,7 +1568,7 @@ reevaluate:
                         continue;
                     }
 
-                    if (VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
+                    if (GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
                         //
                         // With a BAR! in a refinement slot, we take that to
                         // mean that the refinement is not supplied.
@@ -1609,7 +1609,7 @@ reevaluate:
 
                 // Otherwise, it's not a BAR!, but a value to use...
 
-                if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+                if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
                     //
                     // "Pure locals" are expected by functions to be unset.
                     // If frame dispatch were allowed to poke values into
@@ -1634,7 +1634,7 @@ reevaluate:
                 // coerced into the proper WORD! value of that refinement.
                 // An UNSET! is not considered to be coercible.
                 //
-                if (VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
+                if (GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
                     if (IS_UNSET(c->arg)) {
                         //
                         // !!! More specific "refinement unset" error?
@@ -1689,7 +1689,7 @@ reevaluate:
 
             // *** PURE LOCALS => continue ***
 
-            if (VAL_GET_EXT(c->param, EXT_TYPESET_HIDDEN)) {
+            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
                 //
                 // When the spec contained a SET-WORD!, that was a "pure
                 // local".  It corresponds to no argument and will not
@@ -1698,7 +1698,7 @@ reevaluate:
                 // because you don't have to go find /local (!), you can
                 // really put it wherever is convenient--no position rule.
                 //
-                // A special trick for functions marked EXT_FUNC_HAS_RETURN
+                // A special trick for functions marked FUNC_FLAG_HAS_RETURN
                 // puts a "magic" REBNATIVE(return) value into the arg slot
                 // for pure locals named RETURN: ....used by FUNC and CLOS
                 //
@@ -1707,7 +1707,7 @@ reevaluate:
                 continue;
             }
 
-            if (!VAL_GET_EXT(c->param, EXT_TYPESET_REFINEMENT)) {
+            if (!GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
                 //
                 // Hunting a refinement?  Quickly disregard this if we are
                 // doing such a scan and it isn't a refinement.
@@ -1759,8 +1759,8 @@ reevaluate:
                         );
 
                     #if !defined(NDEBUG)
-                        if (VAL_GET_EXT(
-                            FUNC_VALUE(c->func), EXT_FUNC_LEGACY
+                        if (GET_VAL_FLAG(
+                            FUNC_VALUE(c->func), FUNC_FLAG_LEGACY
                         )) {
                             // OPTIONS_REFINEMENTS_TRUE at function create,
                             // so ovewrite the WORD! with TRUE
@@ -1816,7 +1816,7 @@ reevaluate:
                     );
 
                 #if !defined(NDEBUG)
-                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY)) {
+                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY)) {
                         // OPTIONS_REFINEMENTS_TRUE at function create, so
                         // ovewrite the word we put in the refine slot
                         //
@@ -1881,7 +1881,7 @@ reevaluate:
 
             // *** QUOTED OR EVALUATED ITEMS ***
 
-            if (VAL_GET_EXT(c->param, EXT_TYPESET_QUOTE)) {
+            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_QUOTE)) {
                 if (c->indexor == END_FLAG) {
                     //
                     // If a function has a quoted argument whose types permit
@@ -1897,7 +1897,7 @@ reevaluate:
                     //     == "special allowance"
                     //
                 #if !defined(NDEBUG)
-                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
                         SET_UNSET(c->arg); // was NONE by default...
                     else
                         assert(IS_UNSET(c->arg)); // already is unset...
@@ -1910,7 +1910,7 @@ reevaluate:
                         fail (Error_No_Arg(c->label_sym, c->param));
                 }
                 else if (
-                    VAL_GET_EXT(c->param, EXT_TYPESET_EVALUATE) // soft quote
+                    GET_VAL_FLAG(c->param, TYPESET_FLAG_EVALUATE) // soft quote
                     && eval_normal // we're not in never-evaluating EVAL/ONLY
                     && (
                         IS_GROUP(c->value)
@@ -1919,7 +1919,7 @@ reevaluate:
                     )
                 ) {
                     // These cases are "soft quoted", because both the flags
-                    // EXT_TYPESET_QUOTE and EXT_TYPESET_EVALUATE are set.
+                    // TYPESET_FLAG_QUOTE and TYPESET_FLAG_EVALUATE are set.
                     //
                     //     >> foo: function ['a] [print [{a is} a]
                     //
@@ -1972,7 +1972,7 @@ reevaluate:
                 // !!! Note: ROUTINE! does not set any bits on the symbols
                 // and will need to be made to...
                 //
-                // assert(VAL_GET_EXT(param, EXT_TYPESET_EVALUATE));
+                // assert(GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE));
 
                 if (c->indexor == END_FLAG)
                     fail (Error_No_Arg(DSF_LABEL_SYM(c), c->param));
@@ -1995,7 +1995,7 @@ reevaluate:
                     DO_NEXT_REFETCH_MAY_THROW(
                         c->arg,
                         c,
-                        VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_INFIX)
+                        GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_INFIX)
                             ? DO_FLAG_NO_LOOKAHEAD
                             : DO_FLAG_LOOKAHEAD
                     );
@@ -2029,7 +2029,7 @@ reevaluate:
                     // whether legacy (true/false) or Ren-C (WORD! of the
                     // refinement itself).
                     //
-                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY)) {
+                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY)) {
                         assert(IS_LOGIC(c->refine));
                         assert(IS_NONE(c->arg)); // is actually already none
                     }
@@ -2047,7 +2047,7 @@ reevaluate:
                     // never been filled, so they should be vacant.
                     //
                 #if !defined(NDEBUG)
-                    if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_LEGACY))
+                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
                         assert(IS_NONE(c->arg));
                     else
                         assert(IS_UNSET(c->arg));
@@ -2113,7 +2113,7 @@ reevaluate:
         //
         // https://trello.com/c/YMAb89dv
         //
-        // With the OPT_VALUE_REEVALUATE bit (which had been a cost on every
+        // With the VALUE_FLAG_REEVALUATE bit (which had been a cost on every
         // REBVAL) now gone, we must hook the evaluator to implement the
         // legacy feature for DO.
         //
@@ -2202,10 +2202,10 @@ reevaluate:
         c->refine = NULL;
 
     #if !defined(NDEBUG)
-        if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
             REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
             assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-            assert(VAL_GET_EXT(last_param, EXT_TYPESET_HIDDEN));
+            assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
         }
     #endif
 
@@ -2232,7 +2232,7 @@ reevaluate:
             // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
             // usually, but not if it's reusing a frame.
             //
-            if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
                 REBVAL *last_arg = CONTEXT_VAR(
                     c->frame.context,
                     CONTEXT_LEN(c->frame.context)
@@ -2250,7 +2250,7 @@ reevaluate:
             //
             c->arg = &c->frame.stackvars[0];
 
-            if (VAL_GET_EXT(FUNC_VALUE(c->func), EXT_FUNC_HAS_RETURN)) {
+            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
                 REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func) - 1];
                 assert(IS_UNSET(last_arg));
                 *last_arg = *ROOT_RETURN_NATIVE;
@@ -2369,7 +2369,7 @@ reevaluate:
     handle_possible_exit_thrown:
         if (
             c->mode == CALL_MODE_THROW_PENDING
-            && VAL_GET_OPT(c->out, OPT_VALUE_EXIT_FROM)
+            && GET_VAL_FLAG(c->out, VALUE_FLAG_EXIT_FROM)
         ) {
             if (IS_FRAME(c->out)) {
                 //
@@ -2488,7 +2488,7 @@ reevaluate:
         // prohibit unless some special situation arises and it's explicitly
         // said what is meant to be done.
         //
-        /*if (VAL_GET_EXT(c->value, EXT_CONTEXT_RUNNING))
+        /*if (GET_VAL_FLAG(c->value, EXT_CONTEXT_RUNNING))
            fail (Error(RE_FRAME_ALREADY_USED, c->value)); */
 
         assert(c->frame.stackvars == NULL);
@@ -2532,7 +2532,7 @@ reevaluate:
             // values, and make it work.  But then, a loop of DO/NEXT
             // may not behave the same as DO-ing the whole block.  Bad.)
             //
-            if (VAL_GET_EXT(c->out, EXT_FUNC_INFIX))
+            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
                 fail (Error_Has_Bad_Type(c->out));
 
             // `do_function_maybe_end_ok` expects the function to be in `func`
@@ -2644,7 +2644,7 @@ reevaluate:
     // [LIT-WORD!]
     //
     // Note we only want to reset the type, not the whole header--because the
-    // header bits contain information like EXT_WORD_BOUND.
+    // header bits contain information like WORD_FLAG_BOUND.
     //
     case REB_LIT_WORD:
         DO_NEXT_REFETCH_QUOTED(c->out, c);
@@ -2724,7 +2724,7 @@ reevaluate:
         if (IS_WORD(c->value)) {
             c->param = GET_OPT_VAR_MAY_FAIL(c->value);
 
-            if (ANY_FUNC(c->param) && VAL_GET_EXT(c->param, EXT_FUNC_INFIX)) {
+            if (ANY_FUNC(c->param) && GET_VAL_FLAG(c->param, FUNC_FLAG_INFIX)) {
                 c->label_sym = VAL_WORD_SYM(c->value);
 
             #if !defined(NDEBUG)
@@ -3200,14 +3200,14 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     ++path;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (VAL_GET_EXT(param, EXT_TYPESET_HIDDEN)) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
              //
              // Pure local... don't add a code arg for it (can't)!
              //
              continue;
         }
 
-        if (VAL_GET_EXT(param, EXT_TYPESET_REFINEMENT)) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
             if (IS_CONDITIONAL_FALSE(arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore

@@ -26,7 +26,7 @@ does: func [
 ; We do use the RETURN native spec (for now) to provide the prototype for
 ; the fake definitional return.  But the only way you should be able to get
 ; at *that* return is through the FUNC and CLOS generators (when they hack
-; out its function pointer to do implement the EXT_FUNC_HAS_RETURN)
+; out its function pointer to do implement the FUNC_FLAG_HAS_RETURN)
 ;
 return: does [
     fail "RETURN called--but no function generator providing it in use"

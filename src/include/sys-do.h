@@ -155,7 +155,7 @@ enum {
 //              fail (Error_No_Catch_For_Throw(out));
 //
 //      If you *do* handle it, be aware it's a throw label with
-//      OPT_VALUE_THROWN set in its header, and shouldn't leak to the
+//      VALUE_FLAG_THROWN set in its header, and shouldn't leak to the
 //      rest of the system.
 //
 // ===========================================================================
