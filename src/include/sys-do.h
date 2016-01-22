@@ -189,15 +189,18 @@ enum {
 //
 #define VARARGS_INCOMPLETE_FLAG (END_FLAG - 0xAE)
 
-// The C build simply defines a REBIXO as a synonym for a REBCNT.  But in
-// the C++ build, the indexor is a more restrictive class...which redefines
-// a subset of operations for REBCNT but does *not* implicitly cast to a
-// REBCNT.  Hence if a THROWN_FLAG, END_FLAG, VARARGS_FLAG etc. is used with
-// integer math or put into a REBCNT variable not expecting such flags, this
-// situation will be caught.
+// The C build simply defines a REBIXO as a synonym for an unsigned int.  But
+// in the C++ build, the indexor is a more restrictive class...which redefines
+// a subset of operations for integers but does *not* implicitly cast to one
+// Hence if a THROWN_FLAG, END_FLAG, VARARGS_FLAG etc. is used with integer
+// math or put into an `int` variable accidentally, this will be caught.
+//
+// Because indexors are not stored in REBVALs or places where memory usage
+// outweighs the concern of the native performance, they use `unsigned int`
+// instead of REBCNT.
 //
 #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
-    typedef REBCNT REBIXO;
+    typedef unsigned int REBIXO;
 #else
     #include "sys-do-cpp.h"
 
@@ -252,6 +255,9 @@ union Reb_Call_Source {
 // (as long as REBCNT and REBINT are 32-bit on such platforms).  If modifying
 // the structure, be sensitive to this issue.
 //
+// Because performance in the core evaluator loop is system-critical, this
+// uses full platform `int`s instead of REBCNTs.
+//
 struct Reb_Call {
     //
     // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
@@ -272,14 +278,14 @@ struct Reb_Call {
     // something to compare against to find out how many is needed.  At this
     // position to sync alignment with same-sized `flags`.
     //
-    REBINT dsp_orig;
+    int dsp_orig; // type is REBDSP, but enforce alignment here
 
     // `flags` [INPUT, READ-ONLY (unless FRAMELESS signaling error)]
     //
     // These are DO_FLAG_xxx or'd together.  If the call is being set up
     // for an Apply as opposed to Do, this must be 0.
     //
-    REBCNT flags;
+    unsigned int flags; // type is REBFLGS, but enforce alignment here
 
     // `out` [INPUT pointer of where to write an OUTPUT, GC-SAFE cell]
     //

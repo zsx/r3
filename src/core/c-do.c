@@ -350,7 +350,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL *val)
 {
     REBPVS pvs;
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
 
     assert(ANY_PATH(path));
 
@@ -3290,7 +3290,7 @@ REBOOL Reduce_Array_Throws(
     REBCNT index,
     REBOOL into
 ) {
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
     REBIXO indexor = index;
 
     // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
@@ -3339,7 +3339,7 @@ void Reduce_Only(
     REBVAL *words,
     REBOOL into
 ) {
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
     REBVAL *val;
     const REBVAL *v;
     REBARR *arr = 0;
@@ -3397,7 +3397,7 @@ REBOOL Reduce_Array_No_Set_Throws(
     REBCNT index,
     REBOOL into
 ) {
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
     REBIXO indexor = index;
 
     while (index < ARRAY_LEN(block)) {
@@ -3445,7 +3445,7 @@ REBOOL Compose_Values_Throws(
     REBOOL only,
     REBOOL into
 ) {
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {
         if (IS_GROUP(value)) {
@@ -3541,7 +3541,7 @@ REBOOL Compose_Values_Throws(
 //
 void Do_Construct(REBVAL value[])
 {
-    REBINT dsp_orig = DSP;
+    REBDSP dsp_orig = DSP;
 
     REBVAL temp;
     VAL_INIT_WRITABLE_DEBUG(&temp);
@@ -3645,7 +3645,7 @@ void Do_Construct(REBVAL value[])
 void Do_Min_Construct(REBVAL value[])
 {
     REBVAL *temp;
-    REBINT ssp;  // starting stack pointer
+    REBDSP ssp;  // starting stack pointer
 
     DS_PUSH_NONE;
     temp = DS_TOP;

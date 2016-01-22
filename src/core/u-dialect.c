@@ -504,7 +504,7 @@ REBINT Do_Dialect(REBCON *dialect, REBARR *block, REBCNT *index, REBARR **out)
 {
     REBDIA dia;
     REBINT n;
-    REBINT dsp_orig = DSP; // Save stack position
+    REBDSP dsp_orig = DSP; // Save stack position
     REBCNT self_index;
 
     CLEARS(&dia);
@@ -582,7 +582,7 @@ REBNATIVE(delect)
 
     REBDIA dia;
     REBINT err;
-    REBINT dsp_orig;
+    REBDSP dsp_orig;
     REBCNT self_index;
 
     CLEARS(&dia);
