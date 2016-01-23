@@ -205,7 +205,7 @@ void Expand_Context(REBCON *context, REBCNT delta, REBCNT copy)
 // If word is not NULL, use the word sym and bind the word value,
 // otherwise use sym.
 //
-REBVAL *Append_Context(REBCON *context, REBVAL *word, REBCNT sym)
+REBVAL *Append_Context(REBCON *context, REBVAL *word, REBSYM sym)
 {
     REBARR *keylist = CONTEXT_KEYLIST(context);
     REBVAL *value;
@@ -1572,7 +1572,7 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCON *dst, REBVAL value[]) {
 // !!! This is semi-redundant with similar functions for Find_Word_In_Array
 // and key finding for objects, review...
 //
-REBCNT Find_Param_Index(REBARR *paramlist, REBCNT sym)
+REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 {
     REBVAL *params = ARRAY_AT(paramlist, 1);
     REBCNT len = ARRAY_LEN(paramlist);
@@ -1600,7 +1600,7 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBCNT sym)
 // Return the context index for a word. Locate it by matching
 // the canon word identifiers. Return 0 if not found.
 //
-REBCNT Find_Word_In_Context(REBCON *context, REBCNT sym, REBOOL always)
+REBCNT Find_Word_In_Context(REBCON *context, REBSYM sym, REBOOL always)
 {
     REBVAL *key = CONTEXT_KEYS_HEAD(context);
     REBCNT len = CONTEXT_LEN(context);
@@ -1629,7 +1629,7 @@ REBCNT Find_Word_In_Context(REBCON *context, REBCNT sym, REBOOL always)
 // return the value for the word. Locate it by matching
 // the canon word identifiers. Return NULL if not found.
 //
-REBVAL *Find_Word_Value(REBCON *context, REBCNT sym)
+REBVAL *Find_Word_Value(REBCON *context, REBSYM sym)
 {
     REBINT n;
 
@@ -1645,7 +1645,7 @@ REBVAL *Find_Word_Value(REBCON *context, REBCNT sym)
 // 
 // Find word (of any type) in an array of values with linear search.
 //
-REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBCNT sym)
+REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 {
     REBVAL *value;
 

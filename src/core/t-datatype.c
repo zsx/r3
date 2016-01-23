@@ -45,7 +45,7 @@ REBINT CT_Datatype(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 REBOOL MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
-    REBCNT sym;
+    REBSYM sym;
     if (!IS_WORD(data)) return FALSE;
     sym = VAL_WORD_CANON(data);
     if (sym > REB_MAX_0) return FALSE;

@@ -884,7 +884,7 @@ REBARR *Load_Markup(const REBYTE *cp, REBINT len)
 REBOOL Construct_Value(REBVAL *out, REBARR *spec)
 {
     REBVAL *val;
-    REBCNT sym;
+    REBSYM sym;
     enum Reb_Kind type;
     MAKE_FUNC func;
 
@@ -983,7 +983,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
         else break;
 
         if (*cp == ':') {
-            REBCNT sym = Make_Word(start, cp-start);
+            REBSYM sym = Make_Word(start, cp-start);
             cp++;
             // Search if word already present:
             for (val = ARRAY_HEAD(header); NOT_END(val); val += 2) {

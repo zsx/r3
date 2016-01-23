@@ -312,7 +312,7 @@ REBNATIVE(evoke)
 //
 REBNATIVE(limit_usage)
 {
-    REBCNT sym;
+    REBSYM sym;
 
     sym = VAL_WORD_CANON(D_ARG(1));
 

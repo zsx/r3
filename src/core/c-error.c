@@ -1625,7 +1625,7 @@ void Init_Errors(REBVAL *errors)
 //         eval:  integer (limit)
 //     ]
 //
-REBYTE *Security_Policy(REBCNT sym, REBVAL *name)
+REBYTE *Security_Policy(REBSYM sym, REBVAL *name)
 {
     REBVAL *policy = Get_System(SYS_STATE, STATE_POLICIES);
     REBYTE *flags;
@@ -1695,7 +1695,7 @@ error:
 // Take action on the policy flags provided. The sym and value
 // are provided for error message purposes only.
 //
-void Trap_Security(REBCNT flag, REBCNT sym, REBVAL *value)
+void Trap_Security(REBCNT flag, REBSYM sym, REBVAL *value)
 {
     if (flag == SEC_THROW) {
         if (!value) {
@@ -1715,7 +1715,7 @@ void Trap_Security(REBCNT flag, REBCNT sym, REBVAL *value)
 // a given symbol (FILE) and value (path), and then tests
 // that they are allowed.
 //
-void Check_Security(REBCNT sym, REBCNT policy, REBVAL *value)
+void Check_Security(REBSYM sym, REBCNT policy, REBVAL *value)
 {
     REBYTE *flags;
 

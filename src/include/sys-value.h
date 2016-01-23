@@ -864,6 +864,18 @@ enum {
 #define TRUE_VALUE (&PG_True_Value[0])
 
 
+//
+// Rebol Symbol
+//
+// !!! Historically Rebol used an unsigned 32-bit integer as a "symbol ID".
+// These symbols did not participate in garbage collection and had to be
+// looked up in a table to get their values.  Ren-C is moving toward adapting
+// REBSERs to be able to store words and canon words, as well as GC them.
+// This starts moving the types to be the size of a platform pointer.
+//
+
+typedef REBUPT REBSYM;
+
 
 /***********************************************************************
 **
@@ -895,7 +907,7 @@ struct Reb_Datatype {
 #define IS_KIND_SYM(s)      ((s) < REB_MAX_0 + 1)
 #define KIND_FROM_SYM(s)    cast(enum Reb_Kind, KIND_FROM_0((s) - 1))
 #define SYM_FROM_KIND(k) \
-    (assert(cast(REBCNT, (k)) < REB_MAX), cast(REBCNT, TO_0_FROM_KIND(k) + 1))
+    (assert((k) < REB_MAX), cast(REBSYM, TO_0_FROM_KIND(k) + 1))
 #define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->payload.datatype.kind)
 
 //#define   VAL_MIN_TYPE(v) ((v)->payload.datatype.min_type)
@@ -1371,7 +1383,7 @@ struct Reb_Any_Word {
     // pointer and garbage collected, likely as series nodes.  A full pointer
     // sized value is required here.
     //
-    REBCNT sym;
+    REBSYM sym;
 };
 
 #define IS_WORD_BOUND(v) \
@@ -1532,7 +1544,7 @@ enum {
 };
 
 struct Reb_Typeset {
-    REBCNT sym;         // Symbol (if a key of object or function param)
+    REBSYM sym;         // Symbol (if a key of object or function param)
 
     // Note: `sym` is first so that the value's 32-bit Reb_Flags header plus
     // the 32-bit REBCNT will pad `bits` to a REBU64 alignment boundary

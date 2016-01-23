@@ -96,7 +96,7 @@ static struct digest {
     void (*update)(void *, REBYTE *, REBCNT);
     void (*final)(REBYTE *, void *);
     int (*ctxsize)(void);
-    REBINT index;
+    REBSYM index;
     REBINT len;
     REBINT hmacblock;
 } digests[] = {
@@ -201,10 +201,11 @@ REBNATIVE(checksum)
     REBYTE *data = VAL_RAW_DATA_AT(arg);
     REBCNT wide = SERIES_WIDE(VAL_SERIES(arg));
     REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE));
-    REBINT sym = SYM_SHA1;
+    REBSYM sym = SYM_SHA1;
 
     // Method word:
-    if (D_REF(ARG_CHECKSUM_METHOD)) sym = VAL_WORD_CANON(D_ARG(ARG_CHECKSUM_WORD));
+    if (D_REF(ARG_CHECKSUM_METHOD))
+        sym = VAL_WORD_CANON(D_ARG(ARG_CHECKSUM_WORD));
 
     // If method, secure, or key... find matching digest:
     if (D_REF(ARG_CHECKSUM_METHOD) || D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) {

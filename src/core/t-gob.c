@@ -623,7 +623,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
     REBVAL *vals[6];
     REBINT n = 0;
     REBVAL *val1;
-    REBCNT sym;
+    REBSYM sym;
 
     for (n = 0; words[n]; n++) {
         val = Alloc_Tail_Array(array);
