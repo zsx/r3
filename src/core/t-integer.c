@@ -313,7 +313,7 @@ REBTYPE(Integer)
                 *D_OUT = *val2;  // Use as temp workspace
                 *val2 = *val;
                 *val = *D_OUT;
-                return Value_Dispatch[VAL_TYPE(val)](call_, action);
+                return Value_Dispatch[VAL_TYPE_0(val)](call_, action);
 
             // Only type valid to subtract from, divide into, is decimal/money:
             case A_SUBTRACT:

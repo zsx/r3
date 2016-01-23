@@ -52,7 +52,7 @@ const struct {
     {SYM_ANY_NOTHING_X, TS_NOTHING},
     {SYM_ANY_SOMETHING_X, TS_SOMETHING},
     {SYM_ANY_VALUE_X, TS_VALUE},
-    {SYM_OPT_ANY_VALUE_X, TS_VALUE | (cast(REBU64, 1) << REB_UNSET)},
+    {SYM_OPT_ANY_VALUE_X, TS_VALUE | FLAGIT_KIND(REB_UNSET)},
     {SYM_ANY_WORD_X, TS_WORD},
     {SYM_ANY_PATH_X, TS_PATH},
     {SYM_ANY_FUNCTION_X, TS_FUNCTION},
@@ -229,15 +229,15 @@ REBARR *Typeset_To_Array(REBVAL *tset)
     REBINT n;
     REBINT size = 0;
 
-    for (n = 0; n < REB_MAX; n++) {
-        if (TYPE_CHECK(tset, n)) size++;
+    for (n = 0; n < REB_MAX_0; n++) {
+        if (TYPE_CHECK(tset, KIND_FROM_0(n))) size++;
     }
 
     block = Make_Array(size);
 
     // Convert bits to types:
-    for (n = 0; n < REB_MAX; n++) {
-        if (TYPE_CHECK(tset, n)) {
+    for (n = 0; n < REB_MAX_0; n++) {
+        if (TYPE_CHECK(tset, KIND_FROM_0(n))) {
             value = Alloc_Tail_Array(block);
             Val_Init_Datatype(value, n);
         }
@@ -284,8 +284,9 @@ REBTYPE(Typeset)
     case A_AND_T:
     case A_OR_T:
     case A_XOR_T:
-        if (IS_DATATYPE(arg))
-            VAL_TYPESET_BITS(arg) = FLAGIT_64(VAL_TYPE_KIND(arg));
+        if (IS_DATATYPE(arg)) {
+            VAL_TYPESET_BITS(arg) = FLAGIT_KIND(VAL_TYPE(arg));
+        }
         else if (!IS_TYPESET(arg))
             fail (Error_Invalid_Arg(arg));
 

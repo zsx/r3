@@ -894,7 +894,7 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
 
     // Handle the datatype or keyword:
     sym = VAL_WORD_CANON(val);
-    if (sym > REB_MAX) { // >, not >=, because they are one-based
+    if (sym > REB_MAX_0) { // >, not >=, because they are one-based
 
         switch (sym) {
 
@@ -930,7 +930,7 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
     val++;
     if (IS_END(val)) return FALSE;
 
-    if ((func = Make_Dispatch[type])) {
+    if ((func = Make_Dispatch[TO_0_FROM_KIND(type)])) {
         // As written today, the creation process may call into the evaluator.
         // The spec content should not be GC'd during that time.  (This was
         // previously managed by holding it in the `out` slot, but making

@@ -271,9 +271,9 @@ REBCNT Find_Refines(struct Reb_Call *call_, REBCNT mask)
 //
 //  Val_Init_Datatype: C
 //
-void Val_Init_Datatype(REBVAL *value, REBINT n)
+void Val_Init_Datatype(REBVAL *value, enum Reb_Kind kind)
 {
-    *value = *CONTEXT_VAR(Lib_Context, n + 1);
+    *value = *CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
 
@@ -283,10 +283,9 @@ void Val_Init_Datatype(REBVAL *value, REBINT n)
 // Returns the specified datatype value from the system context.
 // The datatypes are all at the head of the context.
 //
-REBVAL *Get_Type(REBCNT index)
+REBVAL *Get_Type(enum Reb_Kind kind)
 {
-    assert(index <= CONTEXT_LEN(Lib_Context));
-    return CONTEXT_VAR(Lib_Context, index + 1);
+    return CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
 
@@ -298,18 +297,7 @@ REBVAL *Get_Type(REBCNT index)
 //
 REBVAL *Type_Of(const REBVAL *value)
 {
-    return CONTEXT_VAR(Lib_Context, VAL_TYPE(value) + 1);
-}
-
-
-//
-//  Get_Type_Sym: C
-// 
-// Returns the datatype word for the given type number.
-//
-REBINT Get_Type_Sym(REBCNT type)
-{
-    return CONTEXT_KEY_SYM(Lib_Context, type + 1);
+    return CONTEXT_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
 }
 
 

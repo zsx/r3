@@ -157,7 +157,7 @@ void Clonify_Values_Len_Managed(
         //
         ASSERT_VALUE_MANAGED(value);
 
-        if (types & FLAGIT_64(VAL_TYPE(value)) & TS_SERIES_OBJ) {
+        if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_SERIES_OBJ) {
             //
             // Objects and series get shallow copied at minimum
             //
@@ -188,7 +188,7 @@ void Clonify_Values_Len_Managed(
             // If we're going to copy deeply, we go back over the shallow
             // copied series and "clonify" the values in it.
             //
-            if (types & FLAGIT_64(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
+            if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
                      ARRAY_HEAD(AS_ARRAY(series)),
                      VAL_LEN_HEAD(value),
@@ -197,7 +197,7 @@ void Clonify_Values_Len_Managed(
                 );
             }
         }
-        else if (types & FLAGIT_64(VAL_TYPE(value)) & TS_FUNCLOS) {
+        else if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_FUNCLOS) {
             Clonify_Function(value);
         }
         else {

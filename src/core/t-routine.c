@@ -1363,7 +1363,9 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                             ARRAY_LEN(VAL_ROUTINE_PARAMLIST(out))
                         );
                         v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
-                        Val_Init_Typeset(v, FLAGIT_64(REB_BLOCK), SYM_VARARGS);
+                        Val_Init_Typeset(
+                            v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
+                        );
                     }
                     else {
                         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {

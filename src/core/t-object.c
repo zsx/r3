@@ -621,7 +621,7 @@ REBTYPE(Context)
         }
         if (D_REF(ARG_COPY_TYPES)) {
             arg = D_ARG(ARG_COPY_KINDS);
-            if (IS_DATATYPE(arg)) types |= FLAGIT_64(VAL_TYPE_KIND(arg));
+            if (IS_DATATYPE(arg)) types |= FLAGIT_KIND(VAL_TYPE_KIND(arg));
             else types |= VAL_TYPESET_BITS(arg);
         }
         context = AS_CONTEXT(

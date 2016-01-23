@@ -506,7 +506,7 @@ static void Collect_Context_Inner_Loop(
                     Val_Init_Typeset(
                         typeset,
                         // Allow all datatypes but UNSET (initially):
-                        ~FLAGIT_64(REB_UNSET),
+                        ~FLAGIT_KIND(REB_UNSET),
                         VAL_WORD_SYM(value)
                     );
                 }

@@ -249,7 +249,7 @@ REBTYPE(Decimal)
             *D_OUT = *D_ARG(2);
             *D_ARG(2) = *D_ARG(1);
             *D_ARG(1) = *D_OUT;
-            return Value_Dispatch[VAL_TYPE(D_ARG(1))](call_, action);
+            return Value_Dispatch[VAL_TYPE_0(D_ARG(1))](call_, action);
         }
 
         // If the type of the second arg is something we can handle:

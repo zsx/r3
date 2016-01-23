@@ -456,7 +456,7 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
 
 compare:
     // At this point, both args are of the same datatype.
-    if (!(code = Compare_Types[VAL_TYPE(a)])) return 0;
+    if (!(code = Compare_Types[VAL_TYPE_0(a)])) return 0;
     result = code(a, b, strictness);
     if (result < 0) fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
     return result;

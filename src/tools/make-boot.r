@@ -185,9 +185,10 @@ emit-head "Evaluation Maps" %evaltypes.h
 
 
 emit {
+
 /***********************************************************************
 **
-*/  const REBACT Value_Dispatch[REB_MAX] =
+*/  const REBACT Value_Dispatch[REB_MAX_0] =
 /*
 **      The ACTION dispatch function for each datatype.
 **
@@ -207,7 +208,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBOOL Eval_Table[REB_MAX] =
+*/  const int Eval_Table[REB_MAX] =
 /*
 ** This table is used to bypass a Do_Core evaluation for certain types.  So
 ** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
@@ -224,16 +225,24 @@ emit {
 ** build...but only on Linux so that any debug builds run on other platforms
 ** can help raise alerts on the problem.
 **
+** Though there are only 64 basic "kinds" of types, this spaces them out in
+** an array of 256 to avoid needing to do shifting on the type bits.  The
+** REB_XXX types are actually offset by 2 bits due to the special usage of
+** low bits in the header, and to avoid needing to shift on every test or
+** use of a type they are left as 00 which makes the type constants larger
+** but speeds comparisons and usage.
+**
 ***********************************************************************/
 ^{
 }
 
 for-each-record-NO-RETURN type boot-types [
     either group? type/class [
-        emit-line "" "TRUE" type/name
+        emit-line "" "1" type/name
     ][
-        emit-line "" "FALSE" type/name
+        emit-line "" "0" type/name
     ]
+    loop 3 [emit-line "" "0xAE" "available"]
 ]
 emit-end
 
@@ -242,7 +251,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBPEF Path_Dispatch[REB_MAX] =
+*/  const REBPEF Path_Dispatch[REB_MAX_0] =
 /*
 **      The path evaluator function for each datatype.
 **
@@ -296,7 +305,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const MAKE_FUNC Make_Dispatch[REB_MAX] =
+*/  const MAKE_FUNC Make_Dispatch[REB_MAX_0] =
 /*
 **      Specifies the make method used for each datatype.
 **
@@ -349,7 +358,7 @@ for-each-record-NO-RETURN type boot-types [
 emit {
 /***********************************************************************
 **
-*/  const REBCTF Compare_Types[REB_MAX] =
+*/  const REBCTF Compare_Types[REB_MAX_0] =
 /*
 **      Type comparision functions.
 **
@@ -378,7 +387,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX] =
+;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX_0] =
 ;/*
 ;**     The MOLD dispatch function for each datatype.
 ;**
@@ -404,7 +413,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Form_Dispatch[REB_MAX] =
+;*/ const MOLD_FUNC Form_Dispatch[REB_MAX_0] =
 ;/*
 ;**     The FORM dispatch function for each datatype.
 ;**
@@ -452,13 +461,28 @@ emit [
 
 datatypes: []
 n: 0
+bits: does [n * 4]
+
 for-each-record-NO-RETURN type boot-types [
     append datatypes type/name
-    emit-line "REB_" type/name n
+
+    ; Shift in two lowest bits as 1, both must be true in the lowest byte of
+    ; a value header for it to be a valid REBVAL (that isn't an end marker).
+    ; The other 6 bits are the type.  So we shift
+    ;
+    emit-line "REB_" form reduce [type/name {=} bits] bits
+
     n: n + 1
 ]
-emit {    REB_MAX
+
+emit-line "REB_" form reduce ["MAX" {=} bits] bits
+
+emit {    REB_ENUM_NO_DANGLING_COMMA // placeholder so REB_MAX can end in comma
 ^};
+
+// For zero based indexing into arrays without concern for the low bits
+//
+#define REB_MAX_0 (REB_MAX / 4)
 }
 
 emit {
@@ -536,10 +560,17 @@ emit {
 // The types are not arranged in an order that makes a super fast test easy
 // (though perhaps someday it could be tweaked so that all the evaluated types
 // had a certain bit set?) hence use a small fixed table.
+//
+// Note that this table has 256 entries, of which only those corresponding
+// to having the two lowest bits zero are set.  This is to avoid needing
+// shifting to check if a value is evaluable.  The other storage could be
+// used for properties of the type +1, +2, +3 ... at the cost of a bit of
+// math but reusing the values.  Any integer property could be stored for
+// the evaluables so long as non-evaluables are 0 in this list.
+//
+extern const int Eval_Table[REB_MAX];
 
-extern const REBOOL Eval_Table[REB_MAX];
-
-#define ANY_EVAL(v) Eval_Table[VAL_TYPE(v)]
+#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
 }
 
 
@@ -551,20 +582,20 @@ emit {
 ***********************************************************************/
 
 #define TS_NOTHING \
-    (((cast(REBU64, 1) << REB_UNSET)) | ((cast(REBU64, 1) << REB_NONE)))
+    (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
 // UNSET! or NONE!.  TRASH! is a purely internal type, but is removed anyway.
 //
 #define TS_SOMETHING \
-    (((cast(REBU64, 1) << REB_MAX) - 1) /* all typeset bits */ \
-    - TS_NOTHING - ((cast(REBU64, 1) << REB_TRASH)))
+    ((FLAGIT_KIND(REB_MAX) - 1) /* all typeset bits */ \
+    - TS_NOTHING - FLAGIT_KIND(REB_TRASH))
 
 // ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
 // count UNSET! (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
 // clear from for reasons including that it looks a lot like ANY-DATATYPE!)
 //
-#define TS_VALUE (TS_SOMETHING | ((cast(REBU64, 1) << REB_NONE)))
+#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_NONE))
 
 }
 
@@ -584,7 +615,7 @@ remove/part typeset-sets 2 ; the - markers
 for-each [ts types] typeset-sets [
     emit ["#define TS_" up-word ts " ("]
     for-each t types [
-        emit ["((REBU64)1<<REB_" up-word t ")|"]
+        emit ["FLAGIT_KIND(REB_" up-word t ")|"] ; last | removed
     ]
     append remove back tail out ")^/"
 ]
@@ -643,11 +674,11 @@ emit {
 extern "C" ^{
 #endif
 
-extern const REBRXT Reb_To_RXT[REB_MAX];
+extern const REBRXT Reb_To_RXT[REB_MAX_0];
 
 /***********************************************************************
 **
-*/  const REBRXT Reb_To_RXT[REB_MAX] =
+*/  const REBRXT Reb_To_RXT[REB_MAX_0] =
 /*
 ***********************************************************************/
 ^{
@@ -707,7 +738,7 @@ emit {
 #define RXT_ALLOWED_TYPES (}
 for-each type next rxt-types [
     if word? type [
-        emit replace join "((u64)" uppercase rejoin ["1<<REB_" type ") \^/"] #"-" #"_"
+        emit replace join "((u64)" uppercase rejoin ["1<<(REB_" type ">>2)) \^/"] #"-" #"_"
         emit "|"
     ]
 ]

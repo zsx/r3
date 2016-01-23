@@ -259,7 +259,7 @@ struct Reb_Value_Header {
 #define IS_END(v) \
     (assert( \
         !((v)->header.bits & WRITABLE_MASK_DEBUG) \
-        || ((((v)->header.bits & HEADER_TYPE_MASK) >> 2) != REB_TRASH \
+        || (((v)->header.bits & HEADER_TYPE_MASK) != REB_TRASH \
             || GET_VAL_FLAG((v), TRASH_FLAG_SAFE) \
         ) \
     ), (v)->header.bits % 2 == 0)
@@ -277,7 +277,7 @@ struct Reb_Value_Header {
     //
     #define SET_END(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = WRITABLE_MASK_DEBUG | (REB_MAX << 2))
+            (v)->header.bits = WRITABLE_MASK_DEBUG | REB_MAX)
 #endif
 
 // Pointer to a global END marker.  Though this global value is allocated to
@@ -451,11 +451,26 @@ enum {
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        cast(enum Reb_Kind, ((v)->header.bits & HEADER_TYPE_MASK) >> 2)
+        cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK)
 #else
     #define VAL_TYPE(v) \
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
+
+// For the processor's convenience, the 64 basic Rebol types are shifted to
+// the left by 2 bits.  This makes their range go from 0..251 instead of
+// from 0..63.  The choice to do this is because most of the type the types
+// are just used in comparisons or switch statements, and it's cheaper to
+// not have to shift out the 2 low bits that are used for END and WRITABLE
+// flags in the header most of the time.
+//
+// However, to index into a zero based array with 64 elements, the shift
+// needs to be done.  If that's required these defines adjust for the shift.
+// See also REB_MAX_0
+//
+#define KIND_FROM_0(z) ((z) << 2)
+#define TO_0_FROM_KIND(k) ((k) >> 2)
+#define VAL_TYPE_0(v) TO_0_FROM_KIND(VAL_TYPE(v))
 
 // SET_TYPE_BITS only sets the type, with other header bits intact.  This
 // should be used when you are sure that the new type payload is in sync with
@@ -472,7 +487,7 @@ enum {
 //
 #define VAL_SET_TYPE_BITS(v,t) \
     ((v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK), \
-        (v)->header.bits |= ((t) << 2))
+        (v)->header.bits |= (t))
 
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
@@ -480,7 +495,7 @@ enum {
 //
 #ifdef NDEBUG
     #define VAL_RESET_HEADER(v,t) \
-        ((v)->header.bits = NOT_END_MASK | ((t) << 2))
+        ((v)->header.bits = NOT_END_MASK | (t))
 #else
     // The debug build includes an extra check that the value we are about
     // to write the header of is actually a full REBVAL-sized slot...and not
@@ -489,7 +504,7 @@ enum {
     //
     #define VAL_RESET_HEADER(v,t) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | ((t) << 2))
+            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | (t))
 #endif
 
 // !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
@@ -616,7 +631,7 @@ enum {
     enum {
         // GC safe trash (UNSET! in release build)
         //
-        TRASH_FLAG_SAFE = (1 << TYPE_SPECIFIC_BIT) | (REB_TRASH << 2)
+        TRASH_FLAG_SAFE = (1 << TYPE_SPECIFIC_BIT) | REB_TRASH
     };
 
     // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
@@ -774,12 +789,12 @@ enum {
 
 #ifdef NDEBUG
     #define SET_NONE(v) \
-        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | (REB_NONE << 2))
+        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_NONE)
 #else
     #define SET_NONE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = VALUE_FLAG_FALSE | \
-            NOT_END_MASK | WRITABLE_MASK_DEBUG | (REB_NONE << 2), \
+            NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_NONE, \
         SET_TRACK_PAYLOAD(v))
 #endif
 
@@ -810,21 +825,21 @@ enum {
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
-        ((v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK)
+        ((v)->header.bits = REB_LOGIC | NOT_END_MASK)
 
     #define SET_FALSE(v) \
-        ((v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
+        ((v)->header.bits = REB_LOGIC | NOT_END_MASK \
             | VALUE_FLAG_FALSE)
 #else
     #define SET_TRUE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
+            (v)->header.bits = REB_LOGIC | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v)) // compound
 
     #define SET_FALSE(v) \
         (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = (REB_LOGIC << 2) | NOT_END_MASK \
+            (v)->header.bits = REB_LOGIC | NOT_END_MASK \
             | WRITABLE_MASK_DEBUG | VALUE_FLAG_FALSE, \
          SET_TRACK_PAYLOAD(v))  // compound
 #endif
@@ -869,15 +884,18 @@ struct Reb_Datatype {
 };
 
 #define VAL_TYPE_KIND(v)    ((v)->payload.datatype.kind)
+#define VAL_TYPE_KIND_0(v)  TO_0_FROM_KIND(VAL_TYPE_KIND(v))
+
 #define VAL_TYPE_SPEC(v)    ((v)->payload.datatype.spec)
 
 // %words.r is arranged so that symbols for types are at the start
 // Although REB_TRASH is 0, the 0 REBCNT used for symbol IDs is reserved
 // for "no symbol".  So there is no symbol for the "fake" type TRASH!
 //
-#define IS_KIND_SYM(s)      ((s) < REB_MAX + 1)
-#define KIND_FROM_SYM(s)    cast(enum Reb_Kind, (s) - 1)
-#define SYM_FROM_KIND(k)    cast(REBCNT, (k) + 1)
+#define IS_KIND_SYM(s)      ((s) < REB_MAX_0 + 1)
+#define KIND_FROM_SYM(s)    cast(enum Reb_Kind, KIND_FROM_0((s) - 1))
+#define SYM_FROM_KIND(k) \
+    (assert(cast(REBCNT, (k)) < REB_MAX), cast(REBCNT, TO_0_FROM_KIND(k) + 1))
 #define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->payload.datatype.kind)
 
 //#define   VAL_MIN_TYPE(v) ((v)->payload.datatype.min_type)
@@ -1297,7 +1315,7 @@ struct Reb_Symbol {
 #ifdef NDEBUG
     #define WORD_FLAG 0
 #else
-    #define WORD_FLAG (REB_WORD << 2) // interpreted to mean ANY-WORD!
+    #define WORD_FLAG REB_WORD // interpreted to mean ANY-WORD!
 #endif
 
 enum {
@@ -1459,7 +1477,7 @@ struct Reb_Any_Word {
 #ifdef NDEBUG
     #define TYPESET_FLAG 0
 #else
-    #define TYPESET_FLAG (REB_TYPESET << 2) // interpreted to mean ANY-TYPESET!
+    #define TYPESET_FLAG REB_TYPESET // interpreted to mean ANY-TYPESET!
 #endif
 
 // Option flags used with GET_VAL_FLAG().  These describe properties of
@@ -1515,10 +1533,10 @@ struct Reb_Typeset {
 #define VAL_TYPESET_BITS(v) ((v)->payload.typeset.bits)
 
 #define TYPE_CHECK(v,n) \
-    ((VAL_TYPESET_BITS(v) & FLAGIT_64(n)) != 0)
+    LOGICAL(VAL_TYPESET_BITS(v) & FLAGIT_KIND(n))
 
 #define TYPE_SET(v,n) \
-    ((VAL_TYPESET_BITS(v) |= FLAGIT_64(n)), NOOP)
+    ((VAL_TYPESET_BITS(v) |= FLAGIT_KIND(n)), NOOP)
 
 #define EQUAL_TYPESET(v,w) \
     (VAL_TYPESET_BITS(v) == VAL_TYPESET_BITS(w))
@@ -1544,6 +1562,11 @@ struct Reb_Typeset {
 
 #define WORDS_LAST(w) \
     (WORDS_HEAD(w) + SERIES_LEN(w) - 1) // (tail never zero)
+
+// Useful variation of FLAGIT_64 for marking a type, as they now involve
+// shifting and possible abstraction vs. simply being 0..63
+//
+#define FLAGIT_KIND(t)          (cast(REBU64, 1) << TO_0_FROM_KIND(t))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1701,7 +1724,7 @@ struct Reb_Any_Context {
 #ifdef NDEBUG
     #define FUNC_FLAG 0
 #else
-    #define FUNC_FLAG (REB_FUNCTION << 2) // interpreted to mean ANY-FUNCTION!
+    #define FUNC_FLAG REB_FUNCTION // interpreted to mean ANY-FUNCTION!
 #endif
 
 enum {

@@ -1484,7 +1484,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             if (len == 0) {bp--; goto syntax_error;}
             Val_Init_Word(
                 value,
-                cast(enum Reb_Kind, REB_WORD + (token - TOKEN_WORD)),
+                KIND_OF_WORD_FROM_TOKEN(token),
                 Make_Word(bp, len)
             );
             break;
