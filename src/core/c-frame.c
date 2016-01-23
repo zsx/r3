@@ -1245,9 +1245,7 @@ static void Bind_Values_Inner_Loop(
                 binds, VAL_ARRAY_AT(value), context, mode
             );
         }
-        else if (
-            (IS_FUNCTION(value) || IS_CLOSURE(value)) && (mode & BIND_FUNC)
-        ) {
+        else if (IS_FUNCTION(value) && (mode & BIND_FUNC)) {
             Bind_Values_Inner_Loop(
                 binds, ARRAY_HEAD(VAL_FUNC_BODY(value)), context, mode
             );
@@ -1488,7 +1486,7 @@ void Rebind_Values_Deep(
                 INIT_WORD_INDEX(value, opt_binds[canon]);
             }
         }
-        else if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
+        else if (IS_FUNCTION(value)) {
             //
             // !!! Extremely questionable feature--walking into function
             // bodies and changing them.  This R3-Alpha concept was largely
@@ -1535,7 +1533,7 @@ void Rebind_Values_Relative_Deep(
 
 
 //
-//  Rebind_Values_Closure_Deep: C
+//  Rebind_Values_Specifically_Deep: C
 //
 // Rebind all words that reference src target to dst target.
 // Rebind is always deep.
@@ -1543,10 +1541,10 @@ void Rebind_Values_Relative_Deep(
 // !!! This function is temporary and should not be necessary after the FRAME!
 // is implemented.
 //
-void Rebind_Values_Closure_Deep(REBFUN *src, REBCON *dst, REBVAL value[]) {
+void Rebind_Values_Specifically_Deep(REBFUN *src, REBCON *dst, REBVAL value[]) {
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
-            Rebind_Values_Closure_Deep(src, dst, VAL_ARRAY_AT(value));
+            Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));
         }
         else if (
             ANY_WORD(value)
@@ -1717,10 +1715,10 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
             )
         );
 
-        // Shouldn't be doing relative word lookups for closures...they
-        // copied their bodies.
+        // Shouldn't be doing relative word lookups in durables ATM...they
+        // copied their bodies in the current implementation.
         //
-        assert(!IS_CLOSURE(FUNC_VALUE(DSF_FUNC(call))));
+        assert(!IS_FUNC_DURABLE(FUNC_VALUE(DSF_FUNC(call))));
 
         return call;
     }

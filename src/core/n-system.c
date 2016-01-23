@@ -1100,8 +1100,8 @@ REBOOL Do_Breakpoint_Throws(
                         return TRUE; // TRUE = thrown
                     }
 
-                    if (IS_OBJECT(target)) {
-                        if (VAL_TYPE(FUNC_VALUE(call->func)) != REB_CLOSURE)
+                    if (IS_FRAME(target)) {
+                        if (NOT(call->flags & DO_FLAG_FRAME_CONTEXT))
                             continue;
                         if (
                             VAL_CONTEXT(target)
@@ -1118,7 +1118,7 @@ REBOOL Do_Breakpoint_Throws(
                     }
                     else {
                         assert(ANY_FUNC(target));
-                        if (VAL_TYPE(FUNC_VALUE(call->func)) == REB_CLOSURE)
+                        if (call->flags & DO_FLAG_FRAME_CONTEXT)
                             continue;
                         if (VAL_FUNC(target) == call->func) {
                             //
@@ -1446,14 +1446,12 @@ REBNATIVE(check)
     else if (ANY_FUNC(value)) {
         ASSERT_ARRAY(VAL_FUNC_SPEC(value));
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
-        if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
+        if (IS_FUNCTION(value))
             ASSERT_ARRAY(VAL_FUNC_BODY(value));
-        }
     }
 
     return R_TRUE;
 #endif
-
 }
 
 

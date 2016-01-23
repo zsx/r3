@@ -52,9 +52,9 @@ REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 //  MT_Function: C
 // 
-// For REB_FUNCTION and REB_CLOSURE "make spec", there is a function spec
-// block and then a block of Rebol code implementing that function.  In that
-// case we expect that `def` should be:
+// For REB_FUNCTION and "make spec", there is a function spec block and then
+// a block of Rebol code implementing that function.  In that case we expect
+// that `def` should be:
 // 
 //     [[spec] [body]]
 // 
@@ -88,17 +88,21 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
 
         Make_Command(out, spec, extension, command_num);
     }
-    else if (type == REB_FUNCTION || type == REB_CLOSURE) {
+    else if (type == REB_FUNCTION) {
         REBVAL *body = VAL_ARRAY_AT_HEAD(def, 1);
 
         // Spec-constructed functions do *not* have definitional returns
-        // added automatically.  They are part of the generators.
-
-        REBOOL has_return = FALSE;
+        // added automatically.  They are part of the generators.  So the
+        // behavior comes--as with any other generator--from the projected
+        // code (though round-tripping it via text is not possible in
+        // general in any case due to loss of bindings.)
+        //
+        const REBOOL has_return = FALSE;
+        const REBOOL returns_unset = FALSE;
 
         if (len != 2) return FALSE;
 
-        Make_Function(out, type, spec, body, has_return);
+        Make_Function(out, returns_unset, spec, body, has_return);
     }
     else
         return FALSE;
@@ -149,18 +153,18 @@ REBTYPE(Function)
 
         case OF_BODY: {
             switch (VAL_TYPE(value))
-            case REB_FUNCTION:
-            case REB_CLOSURE: {
+            case REB_FUNCTION: {
+                //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
-                // functions made by the optimized generators FUNC and CLOS...
+                // functions made by the optimized generators FUNC and PROC...
 
                 REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
                 Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
 
-                if (VAL_TYPE(value) == REB_CLOSURE) {
-                    // See #2221 for why closure body copies unbind locals
+                if (IS_FUNC_DURABLE(value)) {
+                    // See #2221 for why durable body copies unbind locals
                     Unbind_Values_Core(
                         VAL_ARRAY_HEAD(D_OUT),
                         AS_CONTEXT(VAL_FUNC_PARAMLIST(value)),

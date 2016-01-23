@@ -840,7 +840,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
     /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
     Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
 
-    if (IS_FUNCTION(value) || IS_CLOSURE(value)) {
+    if (IS_FUNCTION(value)) {
         //
         // MOLD is an example of user-facing code that needs to be complicit
         // in the "lie" about the effective bodies of the functions made
@@ -1297,7 +1297,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Emit(mold, "#W", value);
         break;
 
-    case REB_CLOSURE:
     case REB_FUNCTION:
     case REB_NATIVE:
     case REB_ACTION:

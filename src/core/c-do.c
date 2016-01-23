@@ -991,7 +991,7 @@ void Do_Core(struct Reb_Call * const c)
     // Reb_Call only stores the FUNC so we must extract this body from the
     // value if it represents a exit_from
     //
-    REBARR *exit_from = NULL;
+    REBARR *exit_from;
 
     // See notes below on reference for why this is needed to implement eval.
     //
@@ -1139,6 +1139,8 @@ reevaluate:
 #if !defined(NDEBUG)
     do_count = Do_Evaluation_Preamble_Debug(c);
     cast(void, do_count); // suppress unused warning
+
+    exit_from = cast(REBARR*, 0xDECAFBAD);
 #endif
 
     switch (VAL_TYPE(c->value)) {
@@ -1197,8 +1199,14 @@ reevaluate:
             // and if it's a definitional return we extract its target
             //
             c->func = VAL_FUNC(c->out);
+            if (c->func == PG_Leave_Func) {
+                exit_from = VAL_FUNC_EXIT_FROM(c->out);
+                goto do_definitional_exit_from;
+            }
             if (c->func == PG_Return_Func)
-                exit_from = VAL_FUNC_RETURN_FROM(c->out);
+                exit_from = VAL_FUNC_EXIT_FROM(c->out);
+            else
+                exit_from = NULL;
 
             if (Trace_Flags) Trace_Line(c->source, c->indexor, c->value);
 
@@ -1262,7 +1270,6 @@ reevaluate:
     case REB_NATIVE:
     case REB_ACTION:
     case REB_COMMAND:
-    case REB_CLOSURE:
     case REB_FUNCTION:
         //
         // Note: Because this is a function value being hit literally in
@@ -1283,8 +1290,14 @@ reevaluate:
         // because the user can compose it into a block like any function.
         //
         c->func = VAL_FUNC(c->value);
+        if (c->func == PG_Leave_Func) {
+            exit_from = VAL_FUNC_EXIT_FROM(c->value);
+            goto do_definitional_exit_from;
+        }
         if (c->func == PG_Return_Func)
-            exit_from = VAL_FUNC_RETURN_FROM(c->value);
+            exit_from = VAL_FUNC_EXIT_FROM(c->value);
+        else
+            exit_from = NULL;
 
         FETCH_NEXT_ONLY_MAYBE_END(c);
 
@@ -1698,7 +1711,7 @@ reevaluate:
                 // because you don't have to go find /local (!), you can
                 // really put it wherever is convenient--no position rule.
                 //
-                // A special trick for functions marked FUNC_FLAG_HAS_RETURN
+                // A trick for functions marked FUNC_FLAG_LEAVE_OR_RETURN
                 // puts a "magic" REBNATIVE(return) value into the arg slot
                 // for pure locals named RETURN: ....used by FUNC and CLOS
                 //
@@ -2137,18 +2150,27 @@ reevaluate:
     #endif
 
         if (exit_from) {
+        do_definitional_exit_from:
             //
             // If it's a definitional return, then we need to do the throw
             // for the return, named by the value in the exit_from.  This
             // should be the RETURN native with 1 arg as the function, and
             // the native code pointer should have been replaced by a
-            // REBFUN (if function) or REBCON (if closure) to jump to.
+            // REBFUN (if function) or REBCON (if durable) to jump to.
             //
-            assert(FUNC_NUM_PARAMS(c->func) == 1);
+            // !!! Long term there will always be frames for user functions
+            // where definitional returns are possible, but for now they
+            // still only make them by default if <durable> requested)
+            //
+            // LEAVE jumps directly here, because it doesn't need to go
+            // through any parameter evaluation.  (Note that RETURN can't
+            // simply evaluate the next item without inserting an opportunity
+            // for the debugger, e.g. `return (breakpoint)`...)
+            //
             ASSERT_ARRAY(exit_from);
 
-            // We only have a REBSER*, but want to actually THROW a full
-            // REBVAL (FUNCTION! or OBJECT! if it's a closure) which matches
+            // We only have a REBARR*, but want to actually THROW a full
+            // REBVAL (FUNCTION! or FRAME! if it has a context) which matches
             // the paramlist.  In either case, the value comes from slot [0]
             // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
@@ -2159,6 +2181,7 @@ reevaluate:
                 //
                 *c->out = *CONTEXT_VALUE(AS_CONTEXT(exit_from));
                 assert(IS_FRAME(c->out));
+                assert(CONTEXT_VARLIST(VAL_CONTEXT(c->out)) == exit_from);
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
@@ -2169,9 +2192,22 @@ reevaluate:
                 assert(VAL_FUNC_PARAMLIST(c->out) == exit_from);
             }
 
-            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
-
             c->indexor = THROWN_FLAG;
+
+            if (c->func == PG_Leave_Func) {
+                //
+                // LEAVE never created an arglist, so it doesn't have to
+                // free one.  Also, it wants to just return UNSET!
+                //
+                CONVERT_NAME_TO_THROWN(c->out, UNSET_VALUE, TRUE);
+                NOTE_THROWING(goto return_indexor);
+            }
+
+            // On the other hand, RETURN did make an arglist that has to be
+            // dropped from the chunk stack.
+            //
+            assert(FUNC_NUM_PARAMS(c->func) == 1);
+            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
             NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 
@@ -2201,14 +2237,6 @@ reevaluate:
         assert(IS_END(c->param));
         c->refine = NULL;
 
-    #if !defined(NDEBUG)
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
-            REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
-            assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-            assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
-        }
-    #endif
-
         if (c->flags & DO_FLAG_FRAME_CONTEXT) {
             //
             // !!! For the moment we cache the series data pointer in arg.
@@ -2232,11 +2260,15 @@ reevaluate:
             // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
             // usually, but not if it's reusing a frame.
             //
-            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
+            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
                 REBVAL *last_arg = CONTEXT_VAR(
                     c->frame.context,
                     CONTEXT_LEN(c->frame.context)
                 );
+                REBVAL *last_param
+                    = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+
+                assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
 
             #if !defined(NDEBUG)
                 if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
@@ -2245,8 +2277,14 @@ reevaluate:
                     assert(IS_UNSET(last_arg));
             #endif
 
-                *last_arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_FROM(last_arg)
+                if (VAL_TYPESET_CANON(last_param) == SYM_RETURN)
+                    *last_arg = *ROOT_RETURN_NATIVE;
+                else {
+                    assert(VAL_TYPESET_CANON(last_param) == SYM_LEAVE);
+                    *last_arg = *ROOT_LEAVE_NATIVE;
+                }
+
+                VAL_FUNC_EXIT_FROM(last_arg)
                     = CONTEXT_VARLIST(c->frame.context);
             }
         }
@@ -2257,8 +2295,12 @@ reevaluate:
             //
             c->arg = &c->frame.stackvars[0];
 
-            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
+            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
                 REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func) - 1];
+                REBVAL *last_param
+                    = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+
+                assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
 
             #if !defined(NDEBUG)
                 if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
@@ -2267,8 +2309,14 @@ reevaluate:
                     assert(IS_UNSET(last_arg));
             #endif
 
-                *last_arg = *ROOT_RETURN_NATIVE;
-                VAL_FUNC_RETURN_FROM(last_arg) = FUNC_PARAMLIST(c->func);
+                if (VAL_TYPESET_CANON(last_param) == SYM_RETURN)
+                    *last_arg = *ROOT_RETURN_NATIVE;
+                else {
+                    assert(VAL_TYPESET_CANON(last_param) == SYM_LEAVE);
+                    *last_arg = *ROOT_LEAVE_NATIVE;
+                }
+
+                VAL_FUNC_EXIT_FROM(last_arg) = FUNC_PARAMLIST(c->func);
             }
         }
 
@@ -2301,10 +2349,6 @@ reevaluate:
 
         case REB_COMMAND:
             Do_Command_Core(c);
-            break;
-
-        case REB_CLOSURE:
-            Do_Closure_Core(c);
             break;
 
         case REB_FUNCTION:
@@ -2437,6 +2481,31 @@ reevaluate:
             }
         }
 
+        // Here we know the function finished.  If it has a definitional
+        // return we need to type check it--and if it has a leave we have
+        // to squash whatever the last evaluative result was and replace it
+        // with an UNSET!
+        //
+        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+            REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+            if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
+                SET_UNSET(c->out);
+            }
+            else {
+                // The type bits of the definitional return are not applicable
+                // to the `return` word being associated with a FUNCTION!
+                // vs. an INTEGER! (for instance).  It is where the type
+                // information for the non-existent return function specific
+                // to this call is hidden.
+                //
+                assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
+                if (!TYPE_CHECK(last_param, VAL_TYPE(c->out)))
+                    fail (Error_Arg_Type(
+                        SYM_RETURN, last_param, Type_Of(c->out))
+                    );
+            }
+        }
+
         // If running a frame execution then clear that flag out.
         //
         c->flags &= ~DO_FLAG_EXECUTE_FRAME;
@@ -2520,7 +2589,9 @@ reevaluate:
         c->param = CONTEXT_KEYS_HEAD(VAL_CONTEXT(c->value));
 
         c->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+
         FETCH_NEXT_ONLY_MAYBE_END(c);
+        exit_from = NULL;
         goto do_function_arglist_in_progress;
 
     // [PATH!]
@@ -2553,8 +2624,14 @@ reevaluate:
             // and if a definitional return, we need to extract its target.
             //
             c->func = VAL_FUNC(c->out);
+            if (c->func == PG_Leave_Func) {
+                exit_from = VAL_FUNC_EXIT_FROM(c->out);
+                goto do_definitional_exit_from;
+            }
             if (c->func == PG_Return_Func)
-                exit_from = VAL_FUNC_RETURN_FROM(c->out);
+                exit_from = VAL_FUNC_EXIT_FROM(c->out);
+            else
+                exit_from = NULL;
 
             FETCH_NEXT_ONLY_MAYBE_END(c);
             goto do_function_maybe_end_ok;
@@ -2746,7 +2823,14 @@ reevaluate:
             #endif
 
                 c->func = VAL_FUNC(c->param);
-                assert(c->func != PG_Return_Func); // return wouldn't be infix
+
+                // The warped function values used for definitional return
+                // usually need their EXIT_FROMs extracted, but here we should
+                // not worry about it as neither RETURN nor LEAVE are infix
+                //
+                assert(c->func != PG_Leave_Func);
+                assert(c->func != PG_Return_Func);
+                exit_from = NULL;
 
                 if (Trace_Flags) Trace_Line(c->source, c->indexor, c->param);
 

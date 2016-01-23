@@ -305,7 +305,6 @@ chkDecimal:
     case REB_ACTION:
     case REB_COMMAND:
     case REB_FUNCTION:
-    case REB_CLOSURE:
     case REB_ROUTINE:
     case REB_CALLBACK:
         return VAL_FUNC_PARAMLIST(s) - VAL_FUNC_PARAMLIST(t);

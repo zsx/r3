@@ -1516,7 +1516,19 @@ enum {
     // solution to separate the property of bindability from visibility, as
     // the SELF solution shakes out--so that SELF may be hidden but bind.
     //
-    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG
+    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG,
+
+    // !!! <durable> is the working name for the property of a function
+    // argument or local to have its data survive after the call is over.
+    // Much of the groundwork has been laid to allow this to be specified
+    // individually for each argument, but the feature currently is "all
+    // or nothing"--and implementation-wise corresponds to what R3-Alpha
+    // called CLOSURE!, with the deep-copy-per-call that entails.
+    //
+    // Hence if this property is applied, it will be applied to *all* of
+    // a function's arguments.
+    //
+    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG
 };
 
 struct Reb_Typeset {
@@ -1732,9 +1744,10 @@ enum {
     //
     FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG,
 
-    // function "fakes" a definitionally scoped return
+    // function "fakes" a definitionally scoped return (or a "LEAVE"...which
+    // word is determined by the symbol of the *last* parameter)
     //
-    FUNC_FLAG_HAS_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG,
+    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG,
 
     // native hooks into DO state and does own arg eval
     //
@@ -1844,20 +1857,30 @@ struct Reb_Any_Function {
 #define VAL_FUNC_ACT(v)       ((v)->payload.any_function.impl.act)
 #define VAL_FUNC_INFO(v)      ((v)->payload.any_function.impl.info)
 
-// FUNC_FLAG_HAS_RETURN functions use the RETURN native's function value to give
-// the definitional return its prototype, but overwrite its code pointer to
-// hold the paramlist of the target.
+// FUNC_FLAG_LEAVE_OR_RETURN functions use RETURN or LEAVE native's function
+// value to give the definitional return its prototype, but overwrite its
+// code pointer to hold the paramlist of the target.
 //
 // Do_Native_Throws() sees when someone tries to execute one of these "native
 // returns"...and instead interprets it as a THROW whose /NAME is the function
-// value.  The paramlist has that value (it's the REBVAL in slot #0)
+// value.  The paramlist has that value (it's the REBVAL in slot #0)  In this
+// way the illusion of a "new function being created on each call" is given.
 //
 // This is a special case: the body value of the hacked REBVAL of the return
 // is allowed to be inconsistent with the content of the ROOT_RETURN_NATIVE's
 // actual FUNC.  (In the general case, the [0] element of the FUNC must be
 // consistent with the fields of the value holding it.)
 //
-#define VAL_FUNC_RETURN_FROM(v) VAL_FUNC_BODY(v)
+#define VAL_FUNC_EXIT_FROM(v) VAL_FUNC_BODY(v)
+
+// !!! At the moment functions are "all durable" or "none durable" w.r.t. the
+// survival of their arguments and locals after the call.  This corresponds
+// to the CLOSURE! and FUNCTION! distinction for the moment, and brings
+// about two things: specific binding *and* durability.
+//
+#define IS_FUNC_DURABLE(f) \
+    LOGICAL(VAL_FUNC_NUM_PARAMS(f) != 0 \
+        && GET_VAL_FLAG(VAL_FUNC_PARAM((f), 1), TYPESET_FLAG_DURABLE))
 
 
 /***********************************************************************

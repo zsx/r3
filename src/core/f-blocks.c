@@ -197,7 +197,9 @@ void Clonify_Values_Len_Managed(
                 );
             }
         }
-        else if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_FUNCLOS) {
+        else if (
+            types & FLAGIT_KIND(VAL_TYPE(value)) & FLAGIT_KIND(REB_FUNCTION)
+        ) {
             Clonify_Function(value);
         }
         else {

@@ -542,7 +542,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // slot long, because function frames start with the value of the
     // function in slot 0.
     //
-    if (IS_CLOSURE(FUNC_VALUE(c->func))) {
+    if (IS_FUNC_DURABLE(FUNC_VALUE(c->func))) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -751,7 +751,7 @@ REBCON *Frame_For_Call_May_Reify(
     // possible in the debugger anyway.)  For now, protect unless it's a
     // user function.
     //
-    if (!IS_FUNCTION(FUNC_VALUE(c->func)) && !IS_CLOSURE(FUNC_VALUE(c->func)))
+    if (!IS_FUNCTION(FUNC_VALUE(c->func)))
         ARRAY_SET_FLAG(AS_ARRAY(context), OPT_SER_LOCKED);
 
     // Finally we mark the flags to say this contains a valid frame, so that
