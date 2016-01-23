@@ -239,7 +239,7 @@ REBARR *Typeset_To_Array(REBVAL *tset)
     for (n = 0; n < REB_MAX_0; n++) {
         if (TYPE_CHECK(tset, KIND_FROM_0(n))) {
             value = Alloc_Tail_Array(block);
-            Val_Init_Datatype(value, n);
+            Val_Init_Datatype(value, KIND_FROM_0(n));
         }
     }
     return block;

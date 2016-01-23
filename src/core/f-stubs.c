@@ -727,11 +727,11 @@ void memswapl(void *m1, void *m2, size_t len)
 //
 //  Add_Max: C
 //
-i64 Add_Max(int type, i64 n, i64 m, i64 maxi)
+i64 Add_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n + m;
     if (r < -maxi || r > maxi) {
-        if (type) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
+        if (type != REB_TRASH) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
         r = r > 0 ? maxi : -maxi;
     }
     return r;
@@ -741,7 +741,7 @@ i64 Add_Max(int type, i64 n, i64 m, i64 maxi)
 //
 //  Mul_Max: C
 //
-int Mul_Max(int type, i64 n, i64 m, i64 maxi)
+int Mul_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n * m;
     if (r < -maxi || r > maxi) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
