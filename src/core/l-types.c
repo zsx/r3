@@ -799,11 +799,11 @@ static void Append_Markup(
     REBINT len
 ) {
     REBVAL *val;
-    if (SERIES_FULL(ARRAY_SERIES(array)))
-        Extend_Series(ARRAY_SERIES(array), 8);
-    val = ARRAY_TAIL(array);
+    if (SER_FULL(ARR_SERIES(array)))
+        Extend_Series(ARR_SERIES(array), 8);
+    val = ARR_TAIL(array);
     SET_END(val);
-    SET_ARRAY_LEN(array, ARRAY_LEN(array) + 1);
+    SET_ARRAY_LEN(array, ARR_LEN(array) + 1);
     SET_END(val+1);
     Val_Init_Series(val, type, Append_UTF8(0, bp, len));
 }
@@ -888,7 +888,7 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
     enum Reb_Kind type;
     MAKE_FUNC func;
 
-    val = ARRAY_HEAD(spec);
+    val = ARR_HEAD(spec);
 
     if (!IS_WORD(val)) return FALSE;
 
@@ -986,7 +986,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
             REBSYM sym = Make_Word(start, cp-start);
             cp++;
             // Search if word already present:
-            for (val = ARRAY_HEAD(header); NOT_END(val); val += 2) {
+            for (val = ARR_HEAD(header); NOT_END(val); val += 2) {
                 if (VAL_WORD_SYM(val) == sym) {
                     // Does it already use a block?
                     if (IS_BLOCK(val+1)) {

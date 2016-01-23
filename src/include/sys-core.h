@@ -33,7 +33,7 @@
 
 // Internal configuration:
 #define REB_DEF                 // kernel definitions and structs
-//#define SERIES_LABELS         // enable identifier labels for series
+//#define SER_LABELS         // enable identifier labels for series
 #define STACK_MIN   4000        // data stack increment size
 #define STACK_LIMIT 400000      // data stack max (6.4MB)
 #define MIN_COMMON 10000        // min size of common buffer

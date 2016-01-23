@@ -111,7 +111,7 @@ typedef unsigned int REBDSP;
 
 #if !defined(NDEBUG)
     #define IN_DATA_STACK(p) \
-        (ARRAY_LEN(DS_Array) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
+        (ARR_LEN(DS_Array) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
 #endif
 
 //
@@ -266,7 +266,7 @@ struct Reb_Chunk {
     // client, because a fail() can longjmp...and the chunk stack needs enough
     // information stored to find that series to mark.
     //
-    REBCON *opt_context;
+    REBCTX *opt_context;
 
     // Pointer to the previous chunk.
     //

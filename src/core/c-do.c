@@ -641,7 +641,7 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
     struct Reb_State state;
-    REBCON *error;
+    REBCTX *error;
 
     REBCNT sigs;
     REBCNT mask;
@@ -2156,7 +2156,7 @@ reevaluate:
             // for the return, named by the value in the exit_from.  This
             // should be the RETURN native with 1 arg as the function, and
             // the native code pointer should have been replaced by a
-            // REBFUN (if function) or REBCON (if durable) to jump to.
+            // REBFUN (if function) or REBCTX (if durable) to jump to.
             //
             // !!! Long term there will always be frames for user functions
             // where definitional returns are possible, but for now they
@@ -2175,13 +2175,13 @@ reevaluate:
             // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
-            if (ARRAY_GET_FLAG(exit_from, OPT_SER_CONTEXT)) {
+            if (GET_ARR_FLAG(exit_from, SERIES_FLAG_CONTEXT)) {
                 //
                 // Request to exit from a specific FRAME!
                 //
-                *c->out = *CONTEXT_VALUE(AS_CONTEXT(exit_from));
+                *c->out = *CTX_VALUE(AS_CONTEXT(exit_from));
                 assert(IS_FRAME(c->out));
-                assert(CONTEXT_VARLIST(VAL_CONTEXT(c->out)) == exit_from);
+                assert(CTX_VARLIST(VAL_CONTEXT(c->out)) == exit_from);
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
@@ -2247,10 +2247,10 @@ reevaluate:
             // locked series in order to more freely rearrange memory, so
             // this is a tradeoff.
             //
-            assert(ARRAY_GET_FLAG(
-                AS_ARRAY(c->frame.context), OPT_SER_FIXED_SIZE
+            assert(GET_ARR_FLAG(
+                AS_ARRAY(c->frame.context), SERIES_FLAG_FIXED_SIZE
             ));
-            c->arg = CONTEXT_VARS_HEAD(c->frame.context);
+            c->arg = CTX_VARS_HEAD(c->frame.context);
 
             // If the function has a native-optimized version of definitional
             // return, the local for this return should so far have just been
@@ -2261,9 +2261,9 @@ reevaluate:
             // usually, but not if it's reusing a frame.
             //
             if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-                REBVAL *last_arg = CONTEXT_VAR(
+                REBVAL *last_arg = CTX_VAR(
                     c->frame.context,
-                    CONTEXT_LEN(c->frame.context)
+                    CTX_LEN(c->frame.context)
                 );
                 REBVAL *last_param
                     = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
@@ -2285,7 +2285,7 @@ reevaluate:
                 }
 
                 VAL_FUNC_EXIT_FROM(last_arg)
-                    = CONTEXT_VARLIST(c->frame.context);
+                    = CTX_VARLIST(c->frame.context);
             }
         }
         else {
@@ -2386,19 +2386,19 @@ reevaluate:
         // which happens depends on whether eval_fetched is NULL or not
         //
         if (c->flags & DO_FLAG_FRAME_CONTEXT) {
-            if (CONTEXT_STACKVARS(c->frame.context) != NULL)
-                Drop_Chunk(CONTEXT_STACKVARS(c->frame.context));
+            if (CTX_STACKVARS(c->frame.context) != NULL)
+                Drop_Chunk(CTX_STACKVARS(c->frame.context));
 
-            if (ARRAY_GET_FLAG(
-                CONTEXT_VARLIST(c->frame.context), OPT_SER_MANAGED
+            if (GET_ARR_FLAG(
+                CTX_VARLIST(c->frame.context), SERIES_FLAG_MANAGED
             )) {
                 // Context at some point became managed and hence may still
                 // have outstanding references.  The accessible flag should
                 // have been cleared by the drop chunk above.
                 //
                 assert(
-                    !ARRAY_GET_FLAG(
-                        CONTEXT_VARLIST(c->frame.context), OPT_SER_ACCESSIBLE
+                    !GET_ARR_FLAG(
+                        CTX_VARLIST(c->frame.context), SERIES_FLAG_ACCESSIBLE
                     )
                 );
             }
@@ -2408,7 +2408,7 @@ reevaluate:
                 // Val_Init_Object() for the frame) then the varlist can just
                 // go away...
                 //
-                Free_Array(CONTEXT_VARLIST(c->frame.context));
+                Free_Array(CTX_VARLIST(c->frame.context));
                 //
                 // NOTE: Even though we've freed the pointer, we still compare
                 // it for identity below when checking to see if this was the
@@ -2578,15 +2578,15 @@ reevaluate:
         c->frame.context = VAL_CONTEXT(c->value);
         c->func = VAL_CONTEXT_FUNC(c->value);
 
-        if (ARRAY_GET_FLAG(
-            CONTEXT_VARLIST(VAL_CONTEXT(c->value)), OPT_SER_STACK)
+        if (GET_ARR_FLAG(
+            CTX_VARLIST(VAL_CONTEXT(c->value)), SERIES_FLAG_STACK)
         ) {
             c->arg = VAL_CONTEXT_STACKVARS(c->value);
         }
         else
-            c->arg = CONTEXT_VARS_HEAD(VAL_CONTEXT(c->value));
+            c->arg = CTX_VARS_HEAD(VAL_CONTEXT(c->value));
 
-        c->param = CONTEXT_KEYS_HEAD(VAL_CONTEXT(c->value));
+        c->param = CTX_KEYS_HEAD(VAL_CONTEXT(c->value));
 
         c->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
 
@@ -2930,7 +2930,7 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c) {
         // last value for processing (and not signaled end) but on the
         // next fetch we *will* signal an end.
         //
-        assert(c->indexor <= ARRAY_LEN(c->source.array));
+        assert(c->indexor <= ARR_LEN(c->source.array));
     }
 
     if (c->flags & DO_FLAG_TO_END)
@@ -2980,7 +2980,7 @@ REBIXO Do_Array_At_Core(
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        c.value = ARRAY_AT(array, index);
+        c.value = ARR_AT(array, index);
         c.indexor = index + 1;
     }
 
@@ -3139,7 +3139,7 @@ REBIXO Do_Values_At_Core(
 //
 REBVAL *Sys_Func(REBCNT inum)
 {
-    REBVAL *value = CONTEXT_VAR(Sys_Context, inum);
+    REBVAL *value = CTX_VAR(Sys_Context, inum);
 
     if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
@@ -3169,7 +3169,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 
 #ifdef VA_END_IS_MANDATORY
     struct Reb_State state;
-    REBCON *error;
+    REBCTX *error;
 #endif
 
     va_start(varargs, applicand); // must mention last param before the "..."
@@ -3271,7 +3271,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // invocation (if it had no refinements or locals).
     //
     REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(c->func));
-    REBVAL *code = ARRAY_HEAD(code_array);
+    REBVAL *code = ARR_HEAD(code_array);
 
     // We'll walk through the original functions param and arglist only, and
     // accept the error-checking the evaluator provides at this time (types,
@@ -3289,7 +3289,7 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // at the head...
     //
     REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
-    REBVAL *path = ARRAY_HEAD(path_array);
+    REBVAL *path = ARR_HEAD(path_array);
 
     REBVAL first;
     VAL_INIT_WRITABLE_DEBUG(&first);
@@ -3332,11 +3332,11 @@ REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     }
 
     SET_END(code);
-    SET_ARRAY_LEN(code_array, code - ARRAY_HEAD(code_array));
+    SET_ARRAY_LEN(code_array, code - ARR_HEAD(code_array));
     MANAGE_ARRAY(code_array);
 
     SET_END(path);
-    SET_ARRAY_LEN(path_array, path - ARRAY_HEAD(path_array));
+    SET_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
     Val_Init_Array(&first, REB_PATH, path_array); // manages
 
     // Invoke DO with the special mode requesting non-evaluation on all
@@ -3397,7 +3397,7 @@ REBOOL Reduce_Array_Throws(
     // We'd like REDUCE to treat `reduce []` and `reduce [#[unset!]]` in
     // a different way, so must do a special check to handle the former.
     //
-    if (IS_END(ARRAY_AT(array, index))) {
+    if (IS_END(ARR_AT(array, index))) {
         if (into)
             return FALSE;
 
@@ -3448,7 +3448,7 @@ void Reduce_Only(
         idx = VAL_INDEX(words);
     }
 
-    for (val = ARRAY_AT(block, index); NOT_END(val); val++) {
+    for (val = ARR_AT(block, index); NOT_END(val); val++) {
         if (IS_WORD(val)) {
             // Check for keyword:
             if (arr && NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(val))) {
@@ -3498,8 +3498,8 @@ REBOOL Reduce_Array_No_Set_Throws(
     REBDSP dsp_orig = DSP;
     REBIXO indexor = index;
 
-    while (index < ARRAY_LEN(block)) {
-        REBVAL *value = ARRAY_AT(block, index);
+    while (index < ARR_LEN(block)) {
+        REBVAL *value = ARR_AT(block, index);
         if (IS_SET_WORD(value)) {
             DS_PUSH(value);
             index++;
@@ -3797,7 +3797,7 @@ void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 // 
 // Given a path, return a context and index for its terminal.
 //
-REBCON *Resolve_Path(REBVAL *path, REBCNT *index)
+REBCTX *Resolve_Path(REBVAL *path, REBCNT *index)
 {
     REBVAL *sel; // selector
     const REBVAL *val;
@@ -3806,11 +3806,11 @@ REBCON *Resolve_Path(REBVAL *path, REBCNT *index)
 
     if (VAL_LEN_HEAD(path) < 2) return 0;
     blk = VAL_ARRAY(path);
-    sel = ARRAY_HEAD(blk);
+    sel = ARR_HEAD(blk);
     if (!ANY_WORD(sel)) return 0;
     val = GET_OPT_VAR_MAY_FAIL(sel);
 
-    sel = ARRAY_AT(blk, 1);
+    sel = ARR_AT(blk, 1);
     while (TRUE) {
         if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
         i = Find_Word_In_Context(VAL_CONTEXT(val), VAL_WORD_SYM(sel), FALSE);

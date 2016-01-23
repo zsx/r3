@@ -200,7 +200,7 @@ REBTYPE(Function)
             // that symbol out before giving it back.
             //
             param = VAL_FUNC_PARAMS_HEAD(value);
-            typeset = ARRAY_HEAD(copy);
+            typeset = ARR_HEAD(copy);
             for (; NOT_END(param); param++, typeset++) {
                 assert(VAL_TYPESET_SYM(param) != SYM_0);
                 *typeset = *param;
@@ -223,7 +223,7 @@ REBTYPE(Function)
             // interpreted by HELP?  The policy on allowing strings to be
             // skipped and preserved leans toward the latter concept.
             //
-            arg = ARRAY_HEAD(VAL_FUNC_SPEC(value));
+            arg = ARR_HEAD(VAL_FUNC_SPEC(value));
             for (; NOT_END(arg); arg++) {
                 if (IS_STRING(arg)) {
                     Val_Init_String(D_OUT, Copy_Sequence(VAL_SERIES(arg)));

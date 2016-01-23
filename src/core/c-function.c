@@ -151,7 +151,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     // data.  Scan for words (BIND_ALL) and error on duplicates (BIND_NO_DUP)
     //
     paramlist = Collect_Keylist_Managed(
-        NULL, ARRAY_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
+        NULL, ARR_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
     );
 
     // Whatever function is being made, it must fill in the paramlist slot 0
@@ -159,11 +159,11 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     // the paramlist of.  Use SET_TRASH so that the debug build will leave
     // an alarm if that value isn't thrown in (the GC would complain...)
 
-    typeset = ARRAY_HEAD(paramlist);
+    typeset = ARR_HEAD(paramlist);
     SET_TRASH_IF_DEBUG(typeset);
 
     // !!! needs more checks
-    for (item = ARRAY_HEAD(spec); NOT_END(item); item++) {
+    for (item = ARR_HEAD(spec); NOT_END(item); item++) {
 
         if (ANY_BINSTR(item)) {
             // A goal of the Ren-C design is that core generators like
@@ -193,7 +193,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
         if (IS_BLOCK(item)) {
             REBVAL *attribute;
 
-            if (typeset != ARRAY_HEAD(paramlist)) {
+            if (typeset != ARR_HEAD(paramlist)) {
                 //
                 // Turn block into typeset for parameter at current index
                 // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
@@ -326,7 +326,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     // protecting the whole array?  (It will be changed more by the caller,
     // but after that.)
     //
-    ARRAY_SET_FLAG(paramlist, OPT_SER_FIXED_SIZE);
+    SET_ARR_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
 
     return paramlist;
 }
@@ -342,7 +342,7 @@ void Make_Native(
     enum Reb_Kind type,
     REBOOL frameless
 ) {
-    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SERIES_LEN(spec));
+    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
 
@@ -461,15 +461,15 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
     // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
     //
-    assert(IS_ISSUE(ARRAY_AT(fake_body, 4))); // #BODY
-    Val_Init_Array(ARRAY_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
-    SET_VAL_FLAG(ARRAY_AT(fake_body, 4), VALUE_FLAG_LINE);
+    assert(IS_ISSUE(ARR_AT(fake_body, 4))); // #BODY
+    Val_Init_Array(ARR_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
+    SET_VAL_FLAG(ARR_AT(fake_body, 4), VALUE_FLAG_LINE);
 
     // !!! Neither of these should be necessary as there is a line break in
     // the template...look into why the line didn't make it to the body.
     //
-    SET_VAL_FLAG(ARRAY_AT(fake_body, 0), VALUE_FLAG_LINE);
-    SET_VAL_FLAG(ARRAY_AT(fake_body, 5), VALUE_FLAG_LINE);
+    SET_VAL_FLAG(ARR_AT(fake_body, 0), VALUE_FLAG_LINE);
+    SET_VAL_FLAG(ARR_AT(fake_body, 5), VALUE_FLAG_LINE);
 
     return fake_body;
 }
@@ -801,7 +801,7 @@ void Make_Function(
         // Make_Paramlist above should have ensured it's in the last slot.
         //
     #if !defined(NDEBUG)
-        REBVAL *param = ARRAY_LAST(AS_ARRAY(out->payload.any_function.func));
+        REBVAL *param = ARR_LAST(AS_ARRAY(out->payload.any_function.func));
 
         assert(returns_unset
             ? VAL_TYPESET_CANON(param) == SYM_LEAVE
@@ -916,7 +916,7 @@ void Clonify_Function(REBVAL *value)
     Rebind_Values_Relative_Deep(
         func_orig,
         value->payload.any_function.func,
-        ARRAY_HEAD(VAL_FUNC_BODY(value))
+        ARR_HEAD(VAL_FUNC_BODY(value))
     );
 
     // The above phrasing came from deep cloning code, while the below was
@@ -1049,7 +1049,7 @@ void Do_Function_Core(struct Reb_Call *c)
             c->mode = CALL_MODE_THROW_PENDING;
     }
     else {
-        REBCON *frame = c->frame.context;
+        REBCTX *frame = c->frame.context;
 
         REBVAL body;
         VAL_INIT_WRITABLE_DEBUG(&body);
@@ -1165,8 +1165,8 @@ REBNATIVE(proc)
 //  FUNC_PARAM_Debug: C
 //
 REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
-    assert(n != 0 && n < ARRAY_LEN(FUNC_PARAMLIST(f)));
-    return ARRAY_AT(FUNC_PARAMLIST(f), (n));
+    assert(n != 0 && n < ARR_LEN(FUNC_PARAMLIST(f)));
+    return ARR_AT(FUNC_PARAMLIST(f), (n));
 }
 
 
@@ -1179,8 +1179,8 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
 
     assert(func == FUNC_VALUE(func)->payload.any_function.func);
-    assert(ARRAY_GET_FLAG(FUNC_PARAMLIST(func), OPT_SER_ARRAY));
-    assert(ARRAY_GET_FLAG(v->payload.any_function.spec, OPT_SER_ARRAY));
+    assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
+    assert(GET_ARR_FLAG(v->payload.any_function.spec, SERIES_FLAG_ARRAY));
 
     switch (VAL_TYPE(v)) {
     case REB_NATIVE:
@@ -1202,7 +1202,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             // don't know if it has a valid code field or not.
             //
             /*assert(
-                ARRAY_GET_FLAG(v->payload.any_function.impl.body, OPT_SER_ARRAY)
+                GET_ARR_FLAG(v->payload.any_function.impl.body, SERIES_FLAG_ARRAY)
             );*/
         }
         break;
