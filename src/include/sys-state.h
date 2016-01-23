@@ -205,7 +205,7 @@ struct Reb_State {
 //
 #define PUSH_TRAP_CORE(e,s,haltable) \
     do { \
-        assert(Saved_State || (DSP == -1 && !DSF)); \
+        assert(Saved_State || (DSP == 0 && !DSF)); \
         Snap_State_Core(s); \
         (s)->last_state = Saved_State; \
         Saved_State = (s); \

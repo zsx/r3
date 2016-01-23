@@ -1217,6 +1217,23 @@ REBCNT Recycle_Core(REBOOL shutdown)
     VAL_TERM_ARRAY(TASK_BUF_EMIT);
     VAL_TERM_ARRAY(TASK_BUF_COLLECT);
 
+    // The data stack logic is that it is contiguous values that has no
+    // REB_ENDs in it except at the series end.  Bumping up against that
+    // END signal is how the stack knows when it needs to grow.  But every
+    // drop of the stack doesn't clean up the value dropped--because the
+    // values are not END markers, they are considered fine as far as the
+    // stack is concerned to indicate unused capacity.  However, the GC
+    // doesn't want to mark these "marker-only" values live.
+    //
+    // Hence this temporarily puts an END marker at one past the DSP, if it
+    // is required to do so.  Then it puts safe trash back--or leaves it as
+    // an end if it wasn't disturbed.
+    //
+    if (IS_END(&DS_Movable_Base[DSP + 1]))
+        assert(DSP == ARRAY_LEN(DS_Array));
+    else
+        SET_END(&DS_Movable_Base[DSP + 1]);
+
     // MARKING PHASE: the "root set" from which we determine the liveness
     // (or deadness) of a series.  If we are shutting down, we are freeing
     // *all* of the series that are managed by the garbage collector, so
@@ -1340,6 +1357,11 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         if (Reb_Opts->watch_recycle)
             Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
+
+        // Undo the data stack END marking if necessary.
+        //
+        if (DSP != ARRAY_LEN(DS_Array))
+            SET_TRASH_SAFE(&DS_Movable_Base[DSP + 1]);
     }
 
     ASSERT_NO_GC_MARKS_PENDING();

@@ -278,7 +278,7 @@ struct Reb_Call {
     // something to compare against to find out how many is needed.  At this
     // position to sync alignment with same-sized `flags`.
     //
-    int dsp_orig; // type is REBDSP, but enforce alignment here
+    unsigned int dsp_orig; // type is REBDSP, but enforce alignment here
 
     // `flags` [INPUT, READ-ONLY (unless FRAMELESS signaling error)]
     //
