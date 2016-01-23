@@ -2237,7 +2237,14 @@ reevaluate:
                     c->frame.context,
                     CONTEXT_LEN(c->frame.context)
                 );
-                assert(IS_UNSET(last_arg));
+
+            #if !defined(NDEBUG)
+                if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
+                    assert(IS_NONE(last_arg));
+                else
+                    assert(IS_UNSET(last_arg));
+            #endif
+
                 *last_arg = *ROOT_RETURN_NATIVE;
                 VAL_FUNC_RETURN_FROM(last_arg)
                     = CONTEXT_VARLIST(c->frame.context);
@@ -2252,7 +2259,14 @@ reevaluate:
 
             if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_HAS_RETURN)) {
                 REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func) - 1];
-                assert(IS_UNSET(last_arg));
+
+            #if !defined(NDEBUG)
+                if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
+                    assert(IS_NONE(last_arg));
+                else
+                    assert(IS_UNSET(last_arg));
+            #endif
+
                 *last_arg = *ROOT_RETURN_NATIVE;
                 VAL_FUNC_RETURN_FROM(last_arg) = FUNC_PARAMLIST(c->func);
             }
