@@ -80,7 +80,7 @@ x*/ RXIARG Value_To_RXI(const REBVAL *val)
 {
     RXIARG arg;
 
-    switch (RXT_Eval_Class[Reb_To_RXT[VAL_TYPE(val)]]) {
+    switch (RXT_Eval_Class[Reb_To_RXT[VAL_TYPE_0(val)]]) {
     case RXX_LOGIC:
         //
         // LOGIC! changed to just be a header bit, and there is no VAL_I32
@@ -624,7 +624,7 @@ void Do_Command_Core(struct Reb_Call *call_)
     if (D_ARGC > 7) fail (Error(RE_BAD_COMMAND));
     val = D_ARG(1);
     for (n = 1; n <= D_ARGC; n++, val++) {
-        RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE(val)];
+        RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
         frm.args[n] = Value_To_RXI(val);
     }
 
@@ -775,7 +775,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
 
             // put arg into command frame
             n++;
-            RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE(val)];
+            RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
             frm.args[n] = Value_To_RXI(val);
         }
 

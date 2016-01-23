@@ -267,7 +267,7 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
 
             // Refinements can nominally be only WORD! or NONE!
             VAL_TYPESET_BITS(typeset) =
-                (FLAGIT_64(REB_WORD) | FLAGIT_64(REB_NONE));
+                (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_NONE));
             break;
 
         case REB_SET_WORD:
@@ -928,8 +928,8 @@ void Do_Action_Core(struct Reb_Call *c)
     // when a frame is not required (such as when running under trace, where
     // the values need to be inspectable)
     //
-    if (FUNC_ACT(c->func) < REB_MAX) {
-        if (type == FUNC_ACT(c->func))
+    if (FUNC_ACT(c->func) < REB_MAX_0) {
+        if (TO_0_FROM_KIND(type) == FUNC_ACT(c->func))
             SET_TRUE(c->out);
         else
             SET_FALSE(c->out);
@@ -937,7 +937,7 @@ void Do_Action_Core(struct Reb_Call *c)
         return;
     }
 
-    action = Value_Dispatch[type];
+    action = Value_Dispatch[TO_0_FROM_KIND(type)];
     if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(c->func)));
     ret = action(c, FUNC_ACT(c->func));
 

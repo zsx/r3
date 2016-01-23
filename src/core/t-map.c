@@ -515,7 +515,7 @@ REBCON *Alloc_Context_From_Map(REBMAP *map)
             Val_Init_Typeset(
                 key,
                 // all types except UNSET
-                ~FLAGIT_64(REB_UNSET),
+                ~FLAGIT_KIND(REB_UNSET),
                 VAL_WORD_SYM(mval)
             );
             key++;

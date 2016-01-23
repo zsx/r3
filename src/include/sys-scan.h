@@ -35,8 +35,17 @@ enum Value_Types {
     TOKEN_BLOCK_END,
     TOKEN_PAREN_END,
     TOKEN_WORD,
+    TOKEN_FILLER1, // !!! needed for REB_WORD + (token - TOKEN_WORD) trick
+    TOKEN_FILLER2, // !!! review the necessity of this "adding" on REB_XXXs
+    TOKEN_FILLER3, // !!! see KIND_OF_WORD_FROM_TOKEN
     TOKEN_SET,
+    TOKEN_FILLER4,
+    TOKEN_FILLER5,
+    TOKEN_FILLER6,
     TOKEN_GET,
+    TOKEN_FILLER7,
+    TOKEN_FILLER8,
+    TOKEN_FILLER9,
     TOKEN_LIT,
     TOKEN_NONE,     // not needed
     TOKEN_BAR,
@@ -66,6 +75,8 @@ enum Value_Types {
     TOKEN_MAX
 };
 
+#define KIND_OF_WORD_FROM_TOKEN(t) \
+    cast(enum Reb_Kind, REB_WORD + ((t) - TOKEN_WORD))
 
 /*
 **  Lexical Table Entry Encoding

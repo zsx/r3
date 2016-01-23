@@ -366,9 +366,9 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     // INTEGER! or DECIMAL!
     if (IS_WORD(bp)) {
-        if (VAL_WORD_CANON(bp) == (REB_INTEGER+1)) // integer! symbol
+        if (VAL_WORD_CANON(bp) == SYM_FROM_KIND(REB_INTEGER))
             type = 0;
-        else if (VAL_WORD_CANON(bp) == (REB_DECIMAL+1)) { // decimal! symbol
+        else if (VAL_WORD_CANON(bp) == SYM_FROM_KIND(REB_DECIMAL)) {
             type = 1;
             if (sign > 0) return 0;
         }

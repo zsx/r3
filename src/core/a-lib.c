@@ -48,7 +48,7 @@ REBOL_HOST_LIB *Host_Lib;
 // #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #endif
 
-extern const REBRXT Reb_To_RXT[REB_MAX];
+extern const REBRXT Reb_To_RXT[REB_MAX_0];
 extern RXIARG Value_To_RXI(const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
@@ -501,7 +501,7 @@ RL_API int RL_Do_String(
     else
         DS_PUSH(&result);
 
-    return Reb_To_RXT[VAL_TYPE(&result)];
+    return Reb_To_RXT[VAL_TYPE_0(&result)];
 }
 
 
@@ -1038,7 +1038,7 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
     if (index >= ARRAY_LEN(array)) return 0;
     value = ARRAY_AT(array, index);
     *result = Value_To_RXI(value);
-    return Reb_To_RXT[VAL_TYPE(value)];
+    return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 
 
@@ -1133,7 +1133,7 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
     if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
     value = CONTEXT_VAR(context, word);
     *result = Value_To_RXI(value);
-    return Reb_To_RXT[VAL_TYPE(value)];
+    return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 
 

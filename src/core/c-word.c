@@ -358,7 +358,7 @@ const REBYTE *Get_Word_Name(const REBVAL *value)
 //
 const REBYTE *Get_Type_Name(const REBVAL *value)
 {
-    return Get_Sym_Name(VAL_TYPE(value)+1);
+    return Get_Sym_Name(SYM_FROM_KIND(VAL_TYPE(value)));
 }
 
 

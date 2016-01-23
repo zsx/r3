@@ -1463,7 +1463,7 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
         Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
         assert(!IS_TRASH_DEBUG(v)); // for message
     }
-    return cast(enum Reb_Kind, ((v)->header.bits & HEADER_TYPE_MASK) >> 2);
+    return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
 }
 
 
@@ -1478,13 +1478,13 @@ void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
     if ((f & HEADER_TYPE_MASK) == 0)
         return; // flag applies to any value (or trash)
 
-    if (((f & HEADER_TYPE_MASK) >> 2) == REB_FUNCTION) {
+    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
         assert(ANY_FUNC(v));
     }
-    else if (((f & HEADER_TYPE_MASK) >> 2) == REB_OBJECT) {
+    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
         assert(ANY_CONTEXT(v));
     }
-    else if (((f & HEADER_TYPE_MASK) >> 2) == REB_WORD) {
+    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
         assert(ANY_WORD(v));
     }
 }

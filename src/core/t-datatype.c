@@ -48,7 +48,7 @@ REBOOL MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     REBCNT sym;
     if (!IS_WORD(data)) return FALSE;
     sym = VAL_WORD_CANON(data);
-    if (sym > REB_MAX) return FALSE;
+    if (sym > REB_MAX_0) return FALSE;
     VAL_RESET_HEADER(out, REB_DATATYPE);
     VAL_TYPE_KIND(out) = KIND_FROM_SYM(sym);
     VAL_TYPE_SPEC(out) = 0;
@@ -97,7 +97,7 @@ REBTYPE(Datatype)
     case A_MAKE:
     case A_TO:
         if (kind != REB_DATATYPE) {
-            act = Value_Dispatch[kind];
+            act = Value_Dispatch[TO_0_FROM_KIND(kind)];
             if (act) return act(call_, action);
             //return R_NONE;
             fail (Error_Bad_Make(kind, arg));

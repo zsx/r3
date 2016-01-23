@@ -266,7 +266,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     VAL_INIT_WRITABLE_DEBUG(&temp);
 
     // Path must have dispatcher, else return:
-    func = Path_Dispatch[VAL_TYPE(pvs->value)];
+    func = Path_Dispatch[VAL_TYPE_0(pvs->value)];
     if (!func) return FALSE; // unwind, then check for errors
 
     pvs->path++;
@@ -403,7 +403,7 @@ REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL
         //
         // !!! Is this the desired behavior, or should it be an error?
     }
-    else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
+    else if (Path_Dispatch[VAL_TYPE_0(pvs.value)]) {
         REBOOL threw = Next_Path_Throws(&pvs);
 
         // !!! See comments about why the initialization of out is necessary.
@@ -603,7 +603,7 @@ void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
     pvs.store = out;        // Temp space for constructed results
 
     // Path must have dispatcher, else return:
-    func = Path_Dispatch[VAL_TYPE(value)];
+    func = Path_Dispatch[VAL_TYPE_0(value)];
     if (!func) return; // unwind, then check for errors
 
     switch (func(&pvs)) {
@@ -1411,7 +1411,7 @@ reevaluate:
                 // and INTEGER?
                 //
 
-                assert(FUNC_ACT(c->func) < REB_MAX);
+                assert(FUNC_ACT(c->func) < REB_MAX_0);
                 assert(FUNC_NUM_PARAMS(c->func) == 1);
 
                 if (c->indexor == END_FLAG)
@@ -1424,7 +1424,7 @@ reevaluate:
                 if (c->indexor == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
                 else {
-                    if (cast(REBCNT, VAL_TYPE(c->out)) == FUNC_ACT(c->func))
+                    if (VAL_TYPE_0(c->out) == FUNC_ACT(c->func))
                         SET_TRUE(c->out);
                     else
                         SET_FALSE(c->out);

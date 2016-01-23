@@ -183,12 +183,12 @@ static void Assert_Basics(void)
     assert(NOT_FOUND != THROWN_FLAG);
 
     // The END marker logic currently uses REB_MAX for the type bits.  That's
-    // okay up until the REB_MAX bumps to 64.  If you hit this then some
+    // okay up until the REB_MAX bumps to 256.  If you hit this then some
     // other value needs to be chosen in the debug build to represent the
     // type value for END's bits.  (REB_TRASH is just a poor choice, because
     // you'd like to catch IS_END() tests on trash.)
     //
-    assert(REB_MAX < 64);
+    assert(REB_MAX < 256);
 }
 
 
@@ -326,7 +326,7 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
 
-    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX)
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
     if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
         panic (Error(RE_BAD_TRASH_TYPE));
@@ -367,10 +367,10 @@ static void Init_Datatypes(void)
     REBINT n;
 
     for (n = 0; NOT_END(word); word++, n++) {
-        assert(n < REB_MAX);
+        assert(n < REB_MAX_0);
         value = Append_Context(Lib_Context, word, 0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
-        VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
+        VAL_TYPE_KIND(value) = KIND_FROM_0(n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
     }
 }
@@ -466,7 +466,7 @@ REBNATIVE(native)
 //  {Creates datatype action (for internal usage only).}
 //
 //      spec [block!]
-//      /typecheck typenum [integer! datatype!]
+//      /typecheck type [integer! datatype!]
 //  ]
 //
 REBNATIVE(action)
@@ -483,7 +483,7 @@ REBNATIVE(action)
 {
     PARAM(1, spec);
     REFINE(2, typecheck);
-    PARAM(3, typenum);
+    PARAM(3, type);
 
     if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
 
@@ -493,7 +493,18 @@ REBNATIVE(action)
     // exactly what is going on.
     //
     if (REF(typecheck)) {
-        assert(VAL_INT32(ARG(typenum)) == cast(REBINT, Action_Count));
+        if (IS_INTEGER(ARG(type)))
+            assert(VAL_INT32(ARG(type)) == cast(REBINT, Action_Count));
+        else {
+            // !!! Originally this was written to take datatypes, then that
+            // didn't work.  It was changed to INTEGER! with the datatype
+            // left for future need (do users need to create ACTIONs like
+            // this?)  But should it be changed to take a symbol instead
+            // (quoted perhaps?) of the type so the boot reads better?
+            //
+            assert(IS_DATATYPE(ARG(type)));
+            fail (Error(RE_MISC));
+        }
     }
 
     Make_Native(
@@ -914,8 +925,8 @@ static void Init_System_Object(void)
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
-    Extend_Series(ARRAY_SERIES(array), REB_MAX - 1);
-    for (n = 1; n <= REB_MAX; n++) {
+    Extend_Series(ARRAY_SERIES(array), REB_MAX_0 - 1);
+    for (n = 1; n <= REB_MAX_0; n++) {
         Append_Value(array, CONTEXT_VAR(Lib_Context, n));
     }
 
