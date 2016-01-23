@@ -915,7 +915,7 @@ void Do_Native_Core(struct Reb_Call *c)
 //
 void Do_Action_Core(struct Reb_Call *c)
 {
-    REBCNT type = VAL_TYPE(DSF_ARG(c, 1));
+    enum Reb_Kind type = VAL_TYPE(DSF_ARG(c, 1));
     REBACT action;
     REB_R ret;
 

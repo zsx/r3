@@ -1388,7 +1388,7 @@ REBCON *Error_Protected_Key(REBVAL *key)
 //
 //  Error_Illegal_Action: C
 //
-REBCON *Error_Illegal_Action(REBCNT type, REBCNT action)
+REBCON *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
 {
     REBVAL action_word;
     VAL_INIT_WRITABLE_DEBUG(&action_word);
@@ -1488,7 +1488,7 @@ REBCON *Error_Local_Injection(
 //
 //  Error_Bad_Make: C
 //
-REBCON *Error_Bad_Make(REBCNT type, const REBVAL *spec)
+REBCON *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)
 {
     return Error(RE_BAD_MAKE_ARG, Get_Type(type), spec, NULL);
 }
@@ -1497,7 +1497,7 @@ REBCON *Error_Bad_Make(REBCNT type, const REBVAL *spec)
 //
 //  Error_Cannot_Reflect: C
 //
-REBCON *Error_Cannot_Reflect(REBCNT type, const REBVAL *arg)
+REBCON *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 {
     return Error(RE_CANNOT_USE, arg, Get_Type(type), NULL);
 }

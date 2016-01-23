@@ -468,8 +468,8 @@ enum {
 // needs to be done.  If that's required these defines adjust for the shift.
 // See also REB_MAX_0
 //
-#define KIND_FROM_0(z) ((z) << 2)
-#define TO_0_FROM_KIND(k) ((k) >> 2)
+#define KIND_FROM_0(z) cast(enum Reb_Kind, (z) << 2)
+#define TO_0_FROM_KIND(k) (cast(REBCNT, (k)) >> 2)
 #define VAL_TYPE_0(v) TO_0_FROM_KIND(VAL_TYPE(v))
 
 // SET_TYPE_BITS only sets the type, with other header bits intact.  This

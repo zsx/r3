@@ -1060,7 +1060,7 @@ return_value_arg:
 //
 REBNATIVE(type_of)
 {
-    REBCNT type = VAL_TYPE(D_ARG(1));
+    enum Reb_Kind type = VAL_TYPE(D_ARG(1));
     Val_Init_Datatype(D_OUT, type);
     return R_OUT;
 }
