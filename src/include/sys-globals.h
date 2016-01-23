@@ -157,6 +157,9 @@ TVAR struct Reb_Call *TG_Do_Stack;
 
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;
+TVAR REBDSP DS_Index;
+TVAR REBVAL *DS_Movable_Base;
+
 TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 
 // We store the head chunk of the current chunker even though it could be

@@ -430,7 +430,8 @@ RL_API int RL_Do_String(
 
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
-    assert(DSP == -1);
+    //
+    assert(DSP == 0);
 
     PUSH_UNHALTABLE_TRAP(&error, &state);
 

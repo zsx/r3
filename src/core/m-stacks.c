@@ -67,7 +67,36 @@ void Init_Stacks(REBCNT size)
 
     CS_Running = NULL;
 
-    DS_Array = Make_Array(size);
+    // Start the data stack out with just one element in it, and make it an
+    // unwritable trash for the debug build.  This helps avoid both accidental
+    // reads and writes of an empty stack, as well as meaning that indices
+    // into the data stack can be unsigned (no need for -1 to mean empty,
+    // because 0 can)
+    {
+        DS_Array = Make_Array(1);
+        DS_Movable_Base = ARRAY_HEAD(DS_Array);
+
+        SET_TRASH_SAFE(ARRAY_HEAD(DS_Array));
+
+    #if !defined(NDEBUG)
+        MARK_VAL_READ_ONLY_DEBUG(ARRAY_HEAD(DS_Array));
+    #endif
+
+        // The END marker will signal DS_PUSH that it has run out of space,
+        // and it will perform the allocation at that time.
+        //
+        SET_ARRAY_LEN(DS_Array, 1);
+        SET_END(ARRAY_TAIL(DS_Array));
+        ASSERT_ARRAY(DS_Array);
+
+        // Reuse the expansion logic that happens on a DS_PUSH to get the
+        // initial stack size.  It requires you to be on an END to run.  Then
+        // drop the hypothetical thing pushed.
+        //
+        DS_Index = 1;
+        Expand_Data_Stack_May_Fail(size);
+        DS_DROP;
+    }
 
     // !!! Historically the data stack used a "special GC" because it was
     // not always terminated with an END marker.  It also had some fixed
@@ -108,7 +137,75 @@ void Shutdown_Stacks(void)
 
     assert(!CS_Running);
 
-    assert(DSP == -1);
+    // !!! Why not free data stack here?
+    //
+    assert(DSP == 0);
+}
+
+
+//
+//  Expand_Data_Stack_May_Fail: C
+//
+// The data stack maintains an invariant that you may never push an END to it.
+// So each push looks to see if it's pushing to a cell that contains an END
+// and if so requests an expansion.
+//
+// WARNING: This will invalidate any extant pointers to REBVALs living in
+// the stack.  It is for this reason that stack access should be done by
+// REBDSP "data stack pointers" and not by REBVAL* across *any* operation
+// which could do a push or pop.  (Currently stable w.r.t. pop but there may
+// be compaction at some point.)
+//
+void Expand_Data_Stack_May_Fail(REBCNT amount)
+{
+    REBCNT len_old = ARRAY_LEN(DS_Array);
+    REBCNT len_new;
+    REBCNT n;
+    REBVAL *value;
+
+    // The current requests for expansion should only happen when the stack
+    // is at its end.  Sanity check that.
+    //
+    assert(IS_END(DS_TOP));
+    assert(DS_TOP == ARRAY_TAIL(DS_Array));
+    assert(DS_TOP - ARRAY_HEAD(DS_Array) == len_old);
+
+    // If adding in the requested amount would overflow the stack limit, then
+    // give a data stack overflow error.
+    //
+    if (SERIES_REST(ARRAY_SERIES(DS_Array)) + amount >= STACK_LIMIT)
+        Trap_Stack_Overflow();
+
+    Extend_Series(ARRAY_SERIES(DS_Array), amount);
+    // DS_Base = BLK_HEAD(DS_Array);
+    // Debug_Fmt(BOOT_STR(RS_STACK, 0), DSP, SERIES_REST(DS_Array));
+
+    // Update the global pointer representing the base of the stack that
+    // likely was moved by the above allocation.  (It's not necessarily a
+    // huge win to cache it, but it turns data stack access from a double
+    // dereference into a single dereference in the common case, and it was
+    // how R3-Alpha did it).
+    //
+    DS_Movable_Base = ARRAY_HEAD(DS_Array); // must do before using DS_TOP
+
+    // We fill in the data stack with "GC safe trash" (which is unset it the
+    // release build, but will raise an alarm if VAL_TYPE() called on it in
+    // the debug build).  In order to serve as a marker for the stack slot
+    // being available, it merely must not be IS_END()...
+    //
+    value = DS_TOP;
+    len_new = len_old + amount;
+    for (n = len_old; n < len_new; ++n) {
+        SET_TRASH_SAFE(value);
+        ++value;
+    }
+
+    // Update the end marker to serve as the indicator for when the next
+    // stack push would need to expand.
+    //
+    SET_END(value);
+    SET_ARRAY_LEN(DS_Array, len_new);
+    ASSERT_ARRAY(DS_Array);
 }
 
 
@@ -122,7 +219,7 @@ void Shutdown_Stacks(void)
 // 
 // Protocol for /INTO is to set the position to the tail.
 //
-void Pop_Stack_Values(REBVAL *out, REBINT dsp_start, REBOOL into)
+void Pop_Stack_Values(REBVAL *out, REBDSP dsp_start, REBOOL into)
 {
     REBARR *array;
     REBCNT len = DSP - dsp_start;

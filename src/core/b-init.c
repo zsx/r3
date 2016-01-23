@@ -1595,7 +1595,7 @@ void Init_Core(REBARGS *rargs)
     Boot_Block = NULL;
     PG_Boot_Phase = BOOT_MEZZ;
 
-    assert(DSP == -1 && !DSF);
+    assert(DSP == 0 && !DSF);
 
     if (Apply_Only_Throws(
         &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_VALUE
@@ -1614,7 +1614,7 @@ void Init_Core(REBARGS *rargs)
         panic (Error(RE_MISC));
     }
 
-    assert(DSP == -1 && !DSF);
+    assert(DSP == 0 && !DSF);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
