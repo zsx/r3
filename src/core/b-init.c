@@ -1145,7 +1145,7 @@ REBINT Codec_Markup(REBCDI *codi)
 void Register_Codec(const REBYTE *name, codo dispatcher)
 {
     REBVAL *value = Get_System(SYS_CODECS, 0);
-    REBCNT sym = Make_Word(name, LEN_BYTES(name));
+    REBSYM sym = Make_Word(name, LEN_BYTES(name));
 
     value = Append_Context(VAL_CONTEXT(value), 0, sym);
     SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));

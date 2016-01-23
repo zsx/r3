@@ -299,7 +299,7 @@ REBCNT Last_Word_Num(void)
 void Val_Init_Word_Bound(
     REBVAL *out,
     enum Reb_Kind type,
-    REBCNT sym,
+    REBSYM sym,
     REBCON *context,
     REBCNT index
 ) {
@@ -325,7 +325,7 @@ void Val_Init_Word_Bound(
 // Initialize a value as a word. Set frame as unbound--no context.  (See
 // also Val_Init_Word_Bound)
 //
-void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBCNT sym)
+void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBSYM sym)
 {
     assert(sym != SYM_0);
 

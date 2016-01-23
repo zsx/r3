@@ -209,7 +209,7 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
 //
 //  Get_Event_Var: C
 //
-static REBOOL Get_Event_Var(const REBVAL *value, REBCNT sym, REBVAL *val)
+static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 {
     REBVAL *arg;
     REBREQ *req;

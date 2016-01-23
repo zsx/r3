@@ -488,7 +488,7 @@ void Validate_Port(REBCON *port, REBCNT action)
 #endif
 
 typedef struct rebol_scheme_actions {
-    REBCNT sym;
+    REBSYM sym;
     const PORT_ACTION *map;
     REBPAF fun;
 } SCHEME_ACTIONS;
@@ -502,7 +502,7 @@ SCHEME_ACTIONS *Scheme_Actions; // Initial Global (not threaded)
 // Associate a scheme word (e.g. FILE) with a set of native
 // scheme actions. This will be used by the Set_Scheme native
 //
-void Register_Scheme(REBCNT sym, const PORT_ACTION *map, REBPAF fun)
+void Register_Scheme(REBSYM sym, const PORT_ACTION *map, REBPAF fun)
 {
     REBINT n;
 

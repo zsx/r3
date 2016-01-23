@@ -1254,7 +1254,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_DATATYPE: {
-        REBCNT sym = VAL_TYPE_SYM(value);
+        REBSYM sym = VAL_TYPE_SYM(value);
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)) {
             if (VAL_TYPE_KIND(value) == REB_GROUP)

@@ -46,7 +46,7 @@
 // their own reduce before trying to make a typeset out of a block?
 //
 const struct {
-    REBCNT sym;
+    REBSYM sym;
     REBU64 bits;
 } Typesets[] = {
     {SYM_ANY_NOTHING_X, TS_NOTHING},
@@ -110,7 +110,7 @@ void Init_Typesets(void)
 // 
 // Note: sym is optional, and can be SYM_0
 //
-void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBCNT sym)
+void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBSYM sym)
 {
     VAL_RESET_HEADER(value, REB_TYPESET);
     VAL_TYPESET_SYM(value) = sym;
@@ -150,7 +150,7 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
         val = NULL;
         if (IS_WORD(block) && !(val = TRY_GET_OPT_VAR(block))) {
             //Print("word: %s", Get_Word_Name(block));
-            REBCNT sym = VAL_WORD_SYM(block);
+            REBSYM sym = VAL_WORD_SYM(block);
 
             if (IS_KIND_SYM(sym)) { // Accept datatype word
                 TYPE_SET(value, KIND_FROM_SYM(sym));

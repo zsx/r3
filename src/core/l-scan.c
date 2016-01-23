@@ -1502,7 +1502,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 SET_NONE(value);  // A single # means NONE
             }
             else {
-                REBCNT sym = Scan_Issue(bp + 1, len - 1);
+                REBSYM sym = Scan_Issue(bp + 1, len - 1);
                 if (sym == SYM_0)
                     goto syntax_error;
                 Val_Init_Word(value, REB_ISSUE, sym);
@@ -1901,7 +1901,7 @@ REBNATIVE(transcode)
 REBCNT Scan_Word(const REBYTE *cp, REBCNT len)
 {
     SCAN_STATE scan_state;
-    REBCNT sym = 0;
+    REBSYM sym = 0;
     REB_MOLD mo;
     CLEARS(&mo);
 

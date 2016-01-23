@@ -50,7 +50,7 @@ enum {
 struct Struct_Field {
     REBARR* spec; /* for nested struct */
     REBSER* fields; /* for nested struct */
-    REBCNT sym;
+    REBSYM sym;
 
     REBINT type; /* rebol type */
 

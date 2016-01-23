@@ -64,7 +64,7 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 // Search a block of objects for a given word symbol and
 // return the value for the word. NULL if not found.
 //
-REBVAL *Find_Mutable_In_Contexts(REBCNT sym, REBVAL *where)
+REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
 {
     REBVAL *val;
 
