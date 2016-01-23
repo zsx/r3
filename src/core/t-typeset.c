@@ -89,7 +89,7 @@ void Init_Typesets(void)
     REBVAL *value;
     REBINT n;
 
-    Set_Root_Series(ROOT_TYPESETS, ARRAY_SERIES(Make_Array(40)));
+    Set_Root_Series(ROOT_TYPESETS, ARR_SERIES(Make_Array(40)));
 
     for (n = 0; Typesets[n].sym != SYM_0; n++) {
         value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));
@@ -157,7 +157,7 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
                 continue;
             } // Special typeset symbols:
             else if (sym >= SYM_ANY_NOTHING_X && sym < SYM_DATATYPES)
-                val = ARRAY_AT(types, sym - SYM_ANY_NOTHING_X);
+                val = ARR_AT(types, sym - SYM_ANY_NOTHING_X);
         }
         if (!val) val = block;
         if (IS_DATATYPE(val)) {

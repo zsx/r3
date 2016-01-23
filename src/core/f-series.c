@@ -333,13 +333,13 @@ chkDecimal:
 //
 REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
 {
-    REBVAL *value = ARRAY_HEAD(array);
+    REBVAL *value = ARR_HEAD(array);
 
-    for (; index < ARRAY_LEN(array); index++) {
+    for (; index < ARR_LEN(array); index++) {
         if (0 == Cmp_Value(value+index, target, FALSE)) return index;
     }
 
-    return ARRAY_LEN(array);
+    return ARR_LEN(array);
 }
 
 //
@@ -359,17 +359,17 @@ REB_R Destroy_External_Storage(REBVAL *out,
 {
     SET_UNSET_UNLESS_LEGACY_NONE(out);
 
-    if (!SERIES_GET_FLAG(ser, OPT_SER_EXTERNAL)) {
+    if (!GET_SER_FLAG(ser, SERIES_FLAG_EXTERNAL)) {
         fail (Error(RE_NO_EXTERNAL_STORAGE));
     }
-    if (!SERIES_GET_FLAG(ser, OPT_SER_ACCESSIBLE)) {
+    if (!GET_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE)) {
         REBVAL i;
         VAL_INIT_WRITABLE_DEBUG(&i);
-        SET_INTEGER(&i, cast(REBUPT, SERIES_DATA_RAW(ser)));
+        SET_INTEGER(&i, cast(REBUPT, SER_DATA_RAW(ser)));
 
         fail (Error(RE_ALREADY_DESTROYED, &i));
     }
-    SERIES_CLR_FLAG(ser, OPT_SER_ACCESSIBLE);
+    CLEAR_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE);
     if (free_func) {
         REBVAL safe;
         REBARR *array;
@@ -384,7 +384,7 @@ REB_R Destroy_External_Storage(REBVAL *out,
         *elem = *free_func;
 
         elem = Alloc_Tail_Array(array);
-        SET_INTEGER(elem, cast(REBUPT, SERIES_DATA_RAW(ser)));
+        SET_INTEGER(elem, cast(REBUPT, SER_DATA_RAW(ser)));
 
         VAL_INIT_WRITABLE_DEBUG(&safe);
         threw = Do_At_Throws(&safe, array, 0);

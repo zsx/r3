@@ -218,7 +218,7 @@ static void Print_Banner(REBARGS *rargs)
 //
 static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
 {
-    REBVAL *item = ARRAY_AT(block, index);
+    REBVAL *item = ARR_AT(block, index);
 
     struct Reb_State state;
 
@@ -259,7 +259,7 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
         // Now restart the search so we are sure to pick up any paths that
         // might come *before* the first bound word.
         //
-        item = ARRAY_AT(block, index);
+        item = ARR_AT(block, index);
         for (; NOT_END(item); item++) {
             if (IS_PATH(item)) {
                 REBVAL *path_item = VAL_ARRAY_HEAD(item);
@@ -314,7 +314,7 @@ static void Load_Boot(void)
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!text || (SERIES_LEN(text) != NAT_UNCOMPRESSED_SIZE))
+    if (!text || (SER_LEN(text) != NAT_UNCOMPRESSED_SIZE))
         panic (Error(RE_BOOT_DATA));
 
     boot = Scan_Source(BIN_HEAD(text), NAT_UNCOMPRESSED_SIZE);
@@ -322,9 +322,9 @@ static void Load_Boot(void)
 
     // Do not let it get GC'd
     //
-    Set_Root_Series(ROOT_BOOT, ARRAY_SERIES(boot));
+    Set_Root_Series(ROOT_BOOT, ARR_SERIES(boot));
 
-    Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARRAY_HEAD(boot)));
+    Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARR_HEAD(boot)));
 
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
@@ -371,7 +371,7 @@ static void Init_Datatypes(void)
         value = Append_Context(Lib_Context, word, 0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = KIND_FROM_0(n);
-        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARRAY_AT(specs, n));
+        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n));
     }
 }
 
@@ -640,7 +640,7 @@ static void Init_Natives(void)
     // to subtract tone to account for our skipped TRASH? which should not be
     // exposed to the user.
     //
-    Action_Marker = CONTEXT_LEN(Lib_Context);
+    Action_Marker = CTX_LEN(Lib_Context);
     Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1);
 
     // Sanity check the symbol transformation
@@ -666,7 +666,7 @@ static void Init_Natives(void)
 //
 REBCNT Get_Action_Sym(REBCNT action)
 {
-    return CONTEXT_KEY_SYM(Lib_Context, Action_Marker + action);
+    return CTX_KEY_SYM(Lib_Context, Action_Marker + action);
 }
 
 
@@ -677,7 +677,7 @@ REBCNT Get_Action_Sym(REBCNT action)
 //
 REBVAL *Get_Action_Value(REBCNT action)
 {
-    return CONTEXT_VAR(Lib_Context, Action_Marker + action);
+    return CTX_VAR(Lib_Context, Action_Marker + action);
 }
 
 
@@ -693,11 +693,11 @@ REBVAL *Get_Action_Value(REBCNT action)
 //
 static void Init_Root_Context(void)
 {
-    REBCON *root = Alloc_Context(ROOT_MAX - 1);
+    REBCTX *root = Alloc_Context(ROOT_MAX - 1);
     PG_Root_Context = root;
 
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(root), OPT_SER_FIXED_SIZE);
-    Root_Vars = cast(ROOT_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(root)));
+    SET_ARR_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
+    Root_Vars = cast(ROOT_VARS*, ARR_HEAD(CTX_VARLIST(root)));
 
     // Get rid of the keylist, we will make another one later in the boot.
     // (You can't ASSERT_CONTEXT(PG_Root_Context) until that happens.)  The
@@ -707,23 +707,23 @@ static void Init_Root_Context(void)
     // for Alloc_Context() wants to manage the keylist in general.  This
     // is done for convenience.
     //
-    /*Free_Array(CONTEXT_KEYLIST(root));*/
+    /*Free_Array(CTX_KEYLIST(root));*/
     INIT_CONTEXT_KEYLIST(root, NULL);
-    MANAGE_ARRAY(CONTEXT_VARLIST(root));
+    MANAGE_ARRAY(CTX_VARLIST(root));
 
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
     //
-    VAL_RESET_HEADER(CONTEXT_VALUE(root), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CONTEXT_VALUE(root)) = NULL;
-    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(root)) = NULL;
+    VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
+    VAL_CONTEXT_SPEC(CTX_VALUE(root)) = NULL;
+    VAL_CONTEXT_STACKVARS(CTX_VALUE(root)) = NULL;
 
     // Set all other values to NONE:
     {
         REBINT n = 1;
-        REBVAL *var = CONTEXT_VARS_HEAD(root);
+        REBVAL *var = CTX_VARS_HEAD(root);
         for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
         SET_END(var);
-        SET_ARRAY_LEN(CONTEXT_VARLIST(root), ROOT_MAX);
+        SET_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
 
     // These values are simple isolated UNSET, NONE, TRUE, and FALSE values
@@ -764,8 +764,8 @@ static void Init_Root_Context(void)
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), OPT_SER_LOCKED);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), OPT_SER_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     // Used by FUNC and PROC generators - RETURN: & LEAVE:
     //
@@ -779,13 +779,13 @@ static void Init_Root_Context(void)
     //
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
     Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), OPT_SER_LOCKED);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), OPT_SER_FIXED_SIZE);
+    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_LOCKED);
+    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     Val_Init_Block(ROOT_LEAVE_BLOCK, Make_Array(1));
     Append_Value(VAL_ARRAY(ROOT_LEAVE_BLOCK), ROOT_LEAVE_SET_WORD);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), OPT_SER_LOCKED);
-    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), OPT_SER_FIXED_SIZE);
+    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_LOCKED);
+    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
@@ -815,7 +815,7 @@ void Set_Root_Series(REBVAL *value, REBSER *ser)
     if (Is_Array_Series(ser))
         Val_Init_Block(value, AS_ARRAY(ser));
     else {
-        assert(SERIES_WIDE(ser) == 1 || SERIES_WIDE(ser) == 2);
+        assert(SER_WIDE(ser) == 1 || SER_WIDE(ser) == 2);
         Val_Init_String(value, ser);
     }
 }
@@ -828,11 +828,11 @@ void Set_Root_Series(REBVAL *value, REBSER *ser)
 //
 static void Init_Task_Context(void)
 {
-    REBCON *task = Alloc_Context(TASK_MAX - 1);
+    REBCTX *task = Alloc_Context(TASK_MAX - 1);
     TG_Task_Context = task;
 
-    ARRAY_SET_FLAG(CONTEXT_VARLIST(task), OPT_SER_FIXED_SIZE);
-    Task_Vars = cast(TASK_VARS*, ARRAY_HEAD(CONTEXT_VARLIST(task)));
+    SET_ARR_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
+    Task_Vars = cast(TASK_VARS*, ARR_HEAD(CTX_VARLIST(task)));
 
     // Get rid of the keylist, we will make another one later in the boot.
     // (You can't ASSERT_CONTEXT(TG_Task_Context) until that happens.)  The
@@ -842,23 +842,23 @@ static void Init_Task_Context(void)
     // for Alloc_Context() wants to manage the keylist in general.  This
     // is done for convenience.
     //
-    /*Free_Array(CONTEXT_KEYLIST(task));*/
+    /*Free_Array(CTX_KEYLIST(task));*/
     INIT_CONTEXT_KEYLIST(task, NULL);
-    MANAGE_ARRAY(CONTEXT_VARLIST(task));
+    MANAGE_ARRAY(CTX_VARLIST(task));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
-    VAL_RESET_HEADER(CONTEXT_VALUE(task), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CONTEXT_VALUE(task)) = NULL;
-    VAL_CONTEXT_STACKVARS(CONTEXT_VALUE(task)) = NULL;
+    VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
+    VAL_CONTEXT_SPEC(CTX_VALUE(task)) = NULL;
+    VAL_CONTEXT_STACKVARS(CTX_VALUE(task)) = NULL;
 
     // Set all other values to NONE:
     {
         REBINT n = 1;
-        REBVAL *var = CONTEXT_VARS_HEAD(task);
+        REBVAL *var = CTX_VARS_HEAD(task);
         for (; n < TASK_MAX; n++, var++) SET_NONE(var);
         SET_END(var);
-        SET_ARRAY_LEN(CONTEXT_VARLIST(task), TASK_MAX);
+        SET_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
     }
 
     // Initialize a few fields:
@@ -884,7 +884,7 @@ static void Init_Task_Context(void)
 //
 static void Init_System_Object(void)
 {
-    REBCON *system;
+    REBCTX *system;
     REBARR *array;
     REBVAL *value;
     REBCNT n;
@@ -932,9 +932,9 @@ static void Init_System_Object(void)
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
-    Extend_Series(ARRAY_SERIES(array), REB_MAX_0 - 1);
+    Extend_Series(ARR_SERIES(array), REB_MAX_0 - 1);
     for (n = 1; n <= REB_MAX_0; n++) {
-        Append_Value(array, CONTEXT_VAR(Lib_Context, n));
+        Append_Value(array, CTX_VAR(Lib_Context, n));
     }
 
     // Create system/catalog/actions block
@@ -956,12 +956,12 @@ static void Init_System_Object(void)
     // Create system/codecs object
     //
     {
-        REBCON *codecs = Alloc_Context(10);
+        REBCTX *codecs = Alloc_Context(10);
 
         value = Get_System(SYS_CODECS, 0);
-        VAL_RESET_HEADER(CONTEXT_VALUE(codecs), REB_OBJECT);
+        VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
         INIT_CONTEXT_SPEC(codecs, NULL);
-        CONTEXT_STACKVARS(codecs) = NULL;
+        CTX_STACKVARS(codecs) = NULL;
         Val_Init_Object(value, codecs);
     }
 }
@@ -1029,9 +1029,9 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
             Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
             ser = dst;
         }
-        codi->data = SERIES_DATA_RAW(ser); // !!! REBUNI?  REBYTE?
-        codi->len = SERIES_LEN(ser);
-        codi->w = SERIES_WIDE(ser);
+        codi->data = SER_DATA_RAW(ser); // !!! REBUNI?  REBYTE?
+        codi->len = SER_LEN(ser);
+        codi->w = SER_WIDE(ser);
         return CODI_TEXT;
     }
 
@@ -1270,7 +1270,7 @@ static void Init_Main_Args(REBARGS *rargs)
         SET_ARRAY_LEN(array, n - 1);
         for (n = 0; (data = rargs->args[n]); ++n)
             Val_Init_String(
-                ARRAY_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
+                ARR_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
             );
         TERM_ARRAY(array);
     }
@@ -1390,7 +1390,7 @@ void Init_Year(void)
 //
 void Init_Core(REBARGS *rargs)
 {
-    REBCON *error;
+    REBCTX *error;
     struct Reb_State state;
 
     const REBYTE transparent[] = "transparent";
@@ -1463,20 +1463,20 @@ void Init_Core(REBARGS *rargs)
     // Must manage, else Expand_Context() looks like a leak
     //
     Lib_Context = Alloc_Context(600);
-    MANAGE_ARRAY(CONTEXT_VARLIST(Lib_Context));
+    MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
 
-    VAL_RESET_HEADER(CONTEXT_VALUE(Lib_Context), REB_OBJECT);
+    VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
     INIT_CONTEXT_SPEC(Lib_Context, NULL);
-    CONTEXT_STACKVARS(Lib_Context) = NULL;
+    CTX_STACKVARS(Lib_Context) = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
     //
     Sys_Context = Alloc_Context(50);
-    MANAGE_ARRAY(CONTEXT_VARLIST(Sys_Context));
+    MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
 
-    VAL_RESET_HEADER(CONTEXT_VALUE(Sys_Context), REB_OBJECT);
+    VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
     INIT_CONTEXT_SPEC(Sys_Context, NULL);
-    CONTEXT_STACKVARS(Sys_Context) = NULL;
+    CTX_STACKVARS(Sys_Context) = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available
@@ -1543,29 +1543,29 @@ void Init_Core(REBARGS *rargs)
         ROOT_TRANSPARENT_TAG,
         Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), OPT_SER_FIXED_SIZE);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), OPT_SER_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
         Append_UTF8(NULL, infix, LEN_BYTES(infix))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), OPT_SER_FIXED_SIZE);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_INFIX_TAG), OPT_SER_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
         Append_UTF8(NULL, local, LEN_BYTES(local))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), OPT_SER_FIXED_SIZE);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), OPT_SER_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_DURABLE_TAG,
         Append_UTF8(NULL, durable, LEN_BYTES(durable))
     );
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), OPT_SER_FIXED_SIZE);
-    SERIES_SET_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), OPT_SER_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_LOCKED);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
@@ -1602,8 +1602,8 @@ void Init_Core(REBARGS *rargs)
         Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2);
     }
 
-    *CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;
-    *CONTEXT_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
+    *CTX_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;
+    *CTX_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
 
     // No longer needs protecting:
     SET_NONE(ROOT_BOOT);
