@@ -797,7 +797,6 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 
         case REB_FUNCTION:
         case REB_COMMAND:
-        case REB_CLOSURE:
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
         case REB_NATIVE:
         case REB_ACTION:

@@ -1156,17 +1156,13 @@ REBNATIVE(exit)
     // Though the Ren-C default is to allow exiting from natives (and not
     // to provide the poor invariant of different behavior based on whether
     // the containing function is native or not), the legacy switch lets
-    // EXIT skip consideration of non-FUNCTION and non-CLOSUREs.
+    // EXIT skip consideration of non-FUNCTIONs.
     //
     if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
         struct Reb_Call *call = call_->prior;
-        while (
-            call != NULL
-            && !IS_FUNCTION(FUNC_VALUE(call->func))
-            && !IS_CLOSURE(FUNC_VALUE(call->func))
-        ) {
+
+        while (call != NULL && !IS_FUNCTION(FUNC_VALUE(call->func)))
             call = call->prior;
-        }
 
         if (call == NULL)
             fail (Error(RE_INVALID_EXIT));
@@ -1672,15 +1668,28 @@ REBNATIVE(return)
 // There is a RETURN native defined, and its native function spec is
 // utilized to create the appropriate help and calling protocol
 // information for values that have overridden its VAL_FUNC_CODE
-// slot with a VAL_FUNC_RETURN_FROM spec.
+// slot with a VAL_FUNC_EXIT_FROM spec.
 // 
 // However: this native is unset and its actual code body should
 // never be able to be called.  The non-definitional return construct
 // that people should use if they need it would be EXIT and EXIT/WITH
 {
     panic (Error(RE_MISC));
+}
 
-    return R_NONE;
+
+//
+//  leave: native [
+//
+//  "Leaves a procedure, giving no result to the caller."
+//
+//  ]
+//
+REBNATIVE(leave)
+//
+// See notes on REBNATIVE(return)
+{
+    panic (Error(RE_MISC));
 }
 
 

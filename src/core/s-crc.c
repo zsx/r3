@@ -290,7 +290,6 @@ REBCNT Hash_Value(const REBVAL *val)
     case REB_ACTION:
     case REB_ROUTINE:
     case REB_COMMAND:
-    case REB_CLOSURE:
     case REB_FUNCTION:
         //
         // ANY-FUNCTION has a uniquely identifying "func" pointer for that

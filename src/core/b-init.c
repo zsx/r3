@@ -767,18 +767,25 @@ static void Init_Root_Context(void)
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), OPT_SER_LOCKED);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), OPT_SER_FIXED_SIZE);
 
-    // Used by FUNC and CLOS generators: RETURN:
+    // Used by FUNC and PROC generators - RETURN: & LEAVE:
+    //
     Val_Init_Word(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
+    Val_Init_Word(ROOT_LEAVE_SET_WORD, REB_SET_WORD, SYM_LEAVE);
 
     // Make a series that's just [return:], that is made often in function
     // spec blocks (when the original spec was just []).  Unlike the paramlist
     // a function spec doesn't need unique mutable identity, so a shared
-    // series saves on allocation time and space...
+    // series saves on allocation time and space...do the same for [leave:]
     //
     Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
     Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
     ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), OPT_SER_LOCKED);
     ARRAY_SET_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), OPT_SER_FIXED_SIZE);
+
+    Val_Init_Block(ROOT_LEAVE_BLOCK, Make_Array(1));
+    Append_Value(VAL_ARRAY(ROOT_LEAVE_BLOCK), ROOT_LEAVE_SET_WORD);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), OPT_SER_LOCKED);
+    ARRAY_SET_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), OPT_SER_FIXED_SIZE);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
@@ -1389,6 +1396,7 @@ void Init_Core(REBARGS *rargs)
     const REBYTE transparent[] = "transparent";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
+    const REBYTE durable[] = "durable";
 
     REBVAL result;
     VAL_INIT_WRITABLE_DEBUG(&result);
@@ -1551,6 +1559,13 @@ void Init_Core(REBARGS *rargs)
     );
     SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), OPT_SER_FIXED_SIZE);
     SERIES_SET_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), OPT_SER_LOCKED);
+
+    Val_Init_Tag(
+        ROOT_DURABLE_TAG,
+        Append_UTF8(NULL, durable, LEN_BYTES(durable))
+    );
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), OPT_SER_FIXED_SIZE);
+    SERIES_SET_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), OPT_SER_LOCKED);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
