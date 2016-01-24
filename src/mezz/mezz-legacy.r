@@ -25,9 +25,9 @@ REBOL [
 
             do <r3-legacy>
 
-        (Dispatch for this from DO is in the DO* function of sys-base.r)
+        (Dispatch for this from DO is in the DO* function of %sys-base.r)
 
-        This statement will be a NO-OP in older Rebols, since executing a
+        This statement will do nothing in older Rebols, since executing a
         tag evaluates to just a tag.  Note that the current trick will
         modify the user context directly, and is not module-based...so
         you really are sort of "backdating" the system globally.  A
@@ -692,6 +692,86 @@ set 'r3-legacy* func [] [
                     (body)
                 ]
             ]
+        ])
+
+        ; REDUCE has been changed to evaluate single-elements if those
+        ; elements do not require arguments (so effectively a more limited
+        ; form of EVAL).  The old behavior was to just pass through non-blocks
+        ;
+        reduce: (function [
+            {Evaluates expressions and returns multiple results.}
+            value
+            /no-set
+                "Keep set-words as-is. Do not set them."
+            /only
+                "Only evaluate words and paths, not functions"
+            words [block! none!]
+                "Optional words that are not evaluated (keywords)"
+            /into
+                {Output results into a series with no intermediate storage}
+            target [any-block!]
+        ][
+            unless block? :value [return :value]
+
+            frame: make frame! :lib/reduce
+
+            frame/value: :value
+            frame/no-set: no-set
+            frame/only: only
+            set/opt 'frame/words :words
+            frame/into: into
+            set/opt 'frame/target :target
+
+            eval frame
+        ])
+
+        ; because reduce has been changed but lib/reduce is not in legacy
+        ; mode, this means the repend and join function semantics are
+        ; different.  This snapshots their implementation.
+
+        repend: (function [
+            "Appends a reduced value to a series and returns the series head."
+            series [series! port! map! gob! object! bitset!]
+                {Series at point to insert (modified)}
+            value
+                {The value to insert}
+            /part
+                {Limits to a given length or position}
+            length [number! series! pair!]
+            /only
+                {Inserts a series as a series}
+            /dup
+                {Duplicates the insert a specified number of times}
+            count [number! pair!]
+        ][
+            ;-- R3-alpha REPEND with block behavior called out
+
+            frame: make frame! :append
+
+            frame/series: series
+            frame/value: either block? :value [reduce :value] [value]
+            frame/part: part
+            set/opt 'frame/limit :length
+            frame/only: only
+            frame/dup: dup
+            set/opt 'frame/count :count
+
+            eval frame
+        ])
+
+        join: (function [
+            "Concatenates values."
+            value "Base value"
+            rest "Value or block of values"
+        ][
+            frame: make frame! :append
+
+            ;-- double-inline of R3-alpha `repend value :rest`
+
+            frame/series: either series? :value [copy value] [form :value]
+            frame/value: either block? :rest [reduce :rest] [rest]
+
+            eval frame
         ])
 
         ; The name STACK is a noun that really suits a variable name, and

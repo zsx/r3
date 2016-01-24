@@ -1619,13 +1619,15 @@ REBNATIVE(reduce)
     REFINE(5, into);
     PARAM(6, target);
 
-    if (IS_BLOCK(ARG(value))) {
+    REBVAL *value = ARG(value);
+
+    if (IS_BLOCK(value)) {
         if (REF(into))
             *D_OUT = *ARG(target);
 
         if (REF(no_set)) {
             if (Reduce_Array_No_Set_Throws(
-                D_OUT, VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value)), REF(into)
+                D_OUT, VAL_ARRAY(value), VAL_INDEX(value), REF(into)
             )) {
                 return R_OUT_IS_THROWN;
             }
@@ -1633,15 +1635,15 @@ REBNATIVE(reduce)
         else if (REF(only)) {
             Reduce_Only(
                 D_OUT,
-                VAL_ARRAY(ARG(value)),
-                VAL_INDEX(ARG(value)),
+                VAL_ARRAY(value),
+                VAL_INDEX(value),
                 ARG(words),
                 REF(into)
             );
         }
         else {
             if (Reduce_Array_Throws(
-                D_OUT, VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value)), REF(into)
+                D_OUT, VAL_ARRAY(value), VAL_INDEX(value), REF(into)
             )) {
                 return R_OUT_IS_THROWN;
             }
@@ -1650,7 +1652,23 @@ REBNATIVE(reduce)
         return R_OUT;
     }
 
-    *D_OUT = *ARG(value);
+    if (REF(only) || REF(no_set) || REF(into)) {
+        //
+        // !!! These features on single elements have not been defined or
+        // implemented, and should be reviewed.
+        //
+        fail (Error(RE_MISC));
+    }
+
+    // A single element should do what is effectively an evaluation but with
+    // no arguments.  This is a change in behavior from R3-Alpha, which would
+    // just return the input as is, e.g. `reduce quote (1 + 2)` => (1 + 2).
+    //
+    // !!! Should the error be more "reduce-specific" if args were required?
+    //
+    if (DO_VALUE_THROWS(D_OUT, value))
+        return R_OUT_IS_THROWN;
+
     return R_OUT;
 }
 
