@@ -259,12 +259,12 @@ enum {
     // `->data` is accessible. This is not checked at every access to the
     // `->data` for the performance consideration, only on those that are
     // known to have possible external memory storage.  Currently this is
-    // used for STRUCT! and to note when an SERIES_FLAG_STACK series has its
+    // used for STRUCT! and to note when a CONTEXT_FLAG_STACK series has its
     // stack level popped (there's no data to lookup for words bound to it)
     //
     SERIES_FLAG_ACCESSIBLE = 1 << 11,
 
-    // `SERIES_FLAG_STACK` indicates that this series data lives on the stack.
+    // `CONTEXT_FLAG_STACK` indicates that varlist data lives on the stack.
     // This is a work in progress to unify objects and function call frames
     // as a prelude to unifying FUNCTION! and CLOSURE!.
     //
@@ -275,7 +275,7 @@ enum {
     // of mapping index numbers in the function paramlist into either the
     // stack array or the dynamic array during binding in an efficient way.
     //
-    SERIES_FLAG_STACK = 1 << 12
+    CONTEXT_FLAG_STACK = 1 << 12
 };
 
 struct Reb_Series_Dynamic {
@@ -432,7 +432,7 @@ struct Reb_Series {
             : (s)->misc.len)
 
 #define SET_SERIES_LEN(s,l) \
-    (assert(!GET_SER_FLAG((s), SERIES_FLAG_STACK)), \
+    (assert(!GET_SER_FLAG((s), CONTEXT_FLAG_STACK)), \
         GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
         ? ((s)->content.dynamic.len = (l)) \
         : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
@@ -981,7 +981,7 @@ struct Reb_Context {
 //
 #define CTX_KEYS_HEAD(c)    ARR_AT(CTX_KEYLIST(c), 1)
 #define CTX_VARS_HEAD(c) \
-    (GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_STACK) \
+    (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
         ? VAL_CONTEXT_STACKVARS(CTX_VALUE(c)) \
         : ARR_AT(CTX_VARLIST(c), 1))
 
@@ -1000,7 +1000,7 @@ struct Reb_Context {
 // REBSER node data itself.
 //
 #define CTX_VALUE(c) \
-    (GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_STACK) \
+    (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
         ? &ARR_SERIES(CTX_VARLIST(c))->content.values[0] \
         : ARR_HEAD(CTX_VARLIST(c)))
 
@@ -1040,6 +1040,12 @@ struct Reb_Context {
         Free_Array(CTX_KEYLIST(c)); \
         Free_Array(CTX_VARLIST(c)); \
     } while (0)
+
+// It's convenient to not have to extract the array just to check/set flags
+//
+#define SET_CTX_FLAG(c,f)       SET_ARR_FLAG(CTX_VARLIST(c), (f))
+#define CLEAR_CTX_FLAG(c,f)     CLEAR_ARR_FLAG(CTX_VARLIST(c), (f))
+#define GET_CTX_FLAG(c,f)       GET_ARR_FLAG(CTX_VARLIST(c), (f))
 
 #define PUSH_GUARD_CONTEXT(c) \
     PUSH_GUARD_ARRAY(CTX_VARLIST(c)) // varlist points to/guards keylist

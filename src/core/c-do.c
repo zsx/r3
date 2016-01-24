@@ -2775,7 +2775,7 @@ reevaluate:
         c->func = VAL_CONTEXT_FUNC(c->value);
 
         if (GET_ARR_FLAG(
-            CTX_VARLIST(VAL_CONTEXT(c->value)), SERIES_FLAG_STACK)
+            CTX_VARLIST(VAL_CONTEXT(c->value)), CONTEXT_FLAG_STACK)
         ) {
             c->arg = VAL_CONTEXT_STACKVARS(c->value);
         }
