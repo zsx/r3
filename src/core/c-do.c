@@ -1141,7 +1141,7 @@ reevaluate:
 // [BAR! and LIT-BAR!]
 //
 // If an expression barrier is seen in-between expressions (as it will always
-// be if hit in this switch), it is skipped.  It only errors in argument
+// be if hit in this switch), it becomes UNSET!.  It only errors in argument
 // fulfillment during the switch case for ANY-FUNCTION!.
 //
 // LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
@@ -1151,8 +1151,6 @@ reevaluate:
     case ET_BAR:
         SET_UNSET(c->out);
         FETCH_NEXT_ONLY_MAYBE_END(c);
-        if (c->indexor != END_FLAG)
-            goto value_ready_for_do_next; // keep going, even if [| | | ...]
         break;
 
     case ET_LIT_BAR:
@@ -1177,7 +1175,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_WORD:
-        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
+        *(c->out) = *GET_OPT_VAR_MAY_FAIL(c->value);
 
     dispatch_the_word_in_out:
         if (ANY_FUNC(c->out)) { // check before checking unset, for speed
@@ -1193,7 +1191,7 @@ reevaluate:
             if (Trace_Flags) Trace_Line(c->source, c->indexor, c->value);
 
             c->value = c->out;
-            goto do_function_value;
+            goto do_function_in_value;
         }
 
         if (IS_UNSET(c->out))
@@ -1234,7 +1232,7 @@ reevaluate:
         if (IS_UNSET(c->out))
             fail (Error(RE_NEED_VALUE, c->param)); // e.g. `foo: ()`
 
-        *GET_MUTABLE_VAR_MAY_FAIL(c->param) = *c->out;
+        *GET_MUTABLE_VAR_MAY_FAIL(c->param) = *(c->out);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1247,7 +1245,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GET_WORD:
-        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
+        *(c->out) = *GET_OPT_VAR_MAY_FAIL(c->value);
         FETCH_NEXT_ONLY_MAYBE_END(c);
         break;
 
@@ -1310,7 +1308,7 @@ reevaluate:
                 fail (Error_Has_Bad_Type(c->out));
 
             c->value = c->out;
-            goto do_function_value;
+            goto do_function_in_value;
         }
         else {
             // Path should have been fully processed, no refinements on stack
@@ -1348,7 +1346,7 @@ reevaluate:
                 NOTE_THROWING(goto return_indexor);
         }
         else {
-            *(c)->out = *(c)->value;
+            *(c->out) = *(c->value);
             FETCH_NEXT_ONLY_MAYBE_END(c);
         }
 
@@ -1374,7 +1372,7 @@ reevaluate:
             VAL_INIT_WRITABLE_DEBUG(&temp);
             if (Do_Path_Throws(&temp, NULL, c->param, c->out)) {
                 c->indexor = THROWN_FLAG;
-                *c->out = temp;
+                *(c->out) = temp;
                 NOTE_THROWING(goto return_indexor);
             }
         }
@@ -1433,7 +1431,7 @@ reevaluate:
 // is only triggered when they are looked up from a word.  See #1934.
 //
 // Most function evaluations are triggered from a SWITCH on a WORD! or PATH!,
-// which jumps in at the `do_function_value` label.
+// which jumps in at the `do_function_in_value` label.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
@@ -1452,9 +1450,9 @@ reevaluate:
         c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
     #endif
 
-    do_function_value:
+    do_function_in_value:
         //
-        // `do_function_value` expects the function to be in c->value,
+        // `do_function_in_value` expects the function to be in c->value,
         // and if it's a definitional return we need to extract its target.
         // (the REBVAL you get from FUNC_VALUE() does not have the exit_from
         // poked into it.)
@@ -2144,7 +2142,7 @@ reevaluate:
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
 
-                    *c->arg = *c->out;
+                    *(c->arg) = *(c->out);
 
                     FETCH_NEXT_ONLY_MAYBE_END(c);
                 }
@@ -2196,7 +2194,7 @@ reevaluate:
                     );
 
                     if (c->indexor == THROWN_FLAG) {
-                        *c->out = *c->arg;
+                        *(c->out) = *(c->arg);
 
                         // If we have refinements pending on the data
                         // stack we need to balance those...
@@ -2367,7 +2365,7 @@ reevaluate:
                 //
                 // Request to exit from a specific FRAME!
                 //
-                *c->out = *CTX_VALUE(AS_CONTEXT(exit_from));
+                *(c->out) = *CTX_VALUE(AS_CONTEXT(exit_from));
                 assert(IS_FRAME(c->out));
                 assert(CTX_VARLIST(VAL_CONTEXT(c->out)) == exit_from);
             }
@@ -2375,7 +2373,7 @@ reevaluate:
                 // Request to dynamically exit from first ANY-FUNCTION! found
                 // that has a given parameter list
                 //
-                *c->out = *FUNC_VALUE(AS_FUNC(exit_from));
+                *(c->out) = *FUNC_VALUE(AS_FUNC(exit_from));
                 assert(IS_FUNCTION(c->out));
                 assert(VAL_FUNC_PARAMLIST(c->out) == exit_from);
             }
@@ -2877,20 +2875,19 @@ reevaluate:
                 //
                 Push_New_Arglist_For_Call(c);
 
-                // Infix functions must have at least arity 2 (exactly?)
+                // Infix functions must have at least arity 1 (exactly 2?)
                 //
-                assert(FUNC_NUM_PARAMS(c->func) >= 2);
+                assert(FUNC_NUM_PARAMS(c->func) >= 1);
                 c->param = FUNC_PARAMS_HEAD(c->func);
                 if (!TYPE_CHECK(c->param, VAL_TYPE(c->out)))
                     fail (Error_Arg_Type(
                         c->label_sym, c->param, Type_Of(c->out))
                     );
 
-                // Take current `out` and use it as the first argument of the
-                // infix function.
+                // Use current `out` as first argument of the infix function
                 //
                 c->arg = DSF_ARGS_HEAD(c);
-                *c->arg = *c->out;
+                *(c->arg) = *(c->out);
 
                 ++c->param;
                 ++c->arg;
@@ -2910,7 +2907,7 @@ reevaluate:
                 // properly update the tick count and clear out state.
                 //
                 c->expr_index = c->indexor;
-                *c->out = *c->param; // param is trashed by Preamble_Debug!
+                *(c->out) = *(c->param); // param is trashed by Preamble_Debug!
 
             #if !defined(NDEBUG)
                 do_count = Do_Evaluation_Preamble_Debug(c);
