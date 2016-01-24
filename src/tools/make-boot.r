@@ -206,6 +206,38 @@ emit-end
 
 emit {
 
+//
+// ET_XXX: "Eval Type"
+//
+// The REB_XXX types are not sequential, but skip by 4 in order to have the
+// low 2 bits clear on all values in the enumeration.  This means faster
+// extraction and comparison without needing to bit-shift, but it also
+// means that a `switch` statement can't be optimized into a jump table--
+// which generally requires contiguous values:
+//
+// http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
+//
+// By having a table that can quickly convert an `enum Reb_Kind` into a
+// small integer suitable for a switch statement in the evaluator, the
+// optimization can be leveraged.  The special value of "0" is picked for
+// no evaluation behavior, so the table can have a second use as the quick
+// implementation behind the ANY_EVAL macro.  All non-zero values then can
+// mean "has some behavior in the evaluator".
+//
+enum ^{
+    ET_NONE = 0,
+}
+
+for-each-record-NO-RETURN type boot-types [
+    if group? type/class [
+        emit-line "ET_" type/name ""
+    ]
+]
+emit-end
+
+
+emit {
+
 /***********************************************************************
 **
 */  const int Eval_Table[REB_MAX] =
@@ -238,9 +270,9 @@ emit {
 
 for-each-record-NO-RETURN type boot-types [
     either group? type/class [
-        emit-line "" "1" type/name
+        emit-line "" rejoin ["ET_" uppercase to-string type/name] ""
     ][
-        emit-line "" "0" type/name
+        emit-line "" "ET_NONE" ""
     ]
     loop 3 [emit-line "" "0xAE" "available"]
 ]

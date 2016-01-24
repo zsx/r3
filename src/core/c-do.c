@@ -1011,18 +1011,8 @@ void Do_Core(struct Reb_Call * const c)
     c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
 #if !defined(NDEBUG)
-    //
-    // With TG_Do_Stack set up, we can snapshot the state that we'll be
-    // checking for the balance of after each iteration.  This has a lot in
-    // common with what's done during a PUSH_TRAP for restoring state in
-    // errors, so code is shared...see %sys-state.h
-    //
-    SNAP_STATE(&state);
-
-    // Entry verification checks, to make sure the caller provided good
-    // parameters.  (Broken into separate routine
-    //
-    do_count = Do_Entry_Checks_Debug(c);
+    SNAP_STATE(&state); // for comparison to make sure stack balances, etc.
+    do_count = Do_Entry_Checks_Debug(c); // checks that run once per Do_Core()
 #endif
 
     // Capture the data stack pointer on entry (used by debug checks, but
@@ -1037,14 +1027,11 @@ void Do_Core(struct Reb_Call * const c)
     //
     c->eval_fetched = NULL;
 
-    // Write some garbage (that won't crash the GC) into the `out` slot in
-    // the debug build.  We will assume that as the evaluator runs
-    // it will never put anything in out that will crash the GC.
+    // The c->out slot is GC protected while the natives or user code runs.
+    // To keep it from crashing the GC, we put in "safe trash" that will be
+    // acceptable to the GC but raise alerts if any other code reads it.
     //
-    // !!! See remarks below which seem to think it necessary to do this
-    // on each iteration...research why this was being done 3 times (?!)
-    //
-    /*SET_TRASH_SAFE(c->out);*/
+    SET_TRASH_SAFE(c->out);
 
 value_ready_for_do_next:
     //
@@ -1113,81 +1100,89 @@ reevaluate:
     // (We also want the debugger to consider the triggering EVAL as the
     // start of the expression, and don't want to advance `expr_index`).
 
-    // Although in the outer loop this call frame is not threaded into the
-    // call stack, the `out` value may be shared.  So it could be a value
-    // pointed to at another level which *is* on the stack.  Hence we must
-    // always write safe trash into it for this debug check.
+    // On entry we initialized `c->out` to a GC-safe value, and no evaluations
+    // should write END markers or unsafe trash in the slot.  As evaluations
+    // proceed the value they wrote in `c->out` should be fine to leave there
+    // as it won't crash the GC--and is cheaper than overwriting.  But in the
+    // debug build, throw safe trash in the slot half the time to catch stray
+    // reuses of irrelevant data...and test the release path the other half.
     //
-    // !!! REVIEW: This was overruling an earlier bit of writing that said:
-    // "Every other call in the debug build we put safe trash in the output
-    // slot.  This gives a spread of release build behavior (trusting that
-    // the out value is GC safe from previous evaluations)...as well as a
-    // debug behavior to catch those trying to inspect what is conceptually
-    // supposed to be a garbage value."  Determine what the exact meaning
-    // of this was, and why it had two contradicting calls.
-    //
-    /*if (SPORADICALLY(2)) SET_TRASH_SAFE(c->out);*/
-    SET_TRASH_SAFE(c->out);
+    if (SPORADICALLY(2)) SET_TRASH_SAFE(c->out);
 
-    // The "Preamble" is only in debug builds, and it is what trashes the
-    // various state variables in order to ensure that one iteration of Do
-    // doesn't leak its state to be observed by the next.
-    //
-    // (It also allows one to catch a certain tick count in the evaluator
-    // with a probe and a breakpoint opportunity.)
-    //
 #if !defined(NDEBUG)
-    do_count = Do_Evaluation_Preamble_Debug(c);
+    do_count = Do_Evaluation_Preamble_Debug(c); // per-DO/NEXT debug checks
     cast(void, do_count); // suppress unused warning
-
-    exit_from = cast(REBARR*, 0xDECAFBAD);
+    exit_from = cast(REBARR*, 0xDECAFBAD); // trash local to alert on reuse
 #endif
 
-    switch (VAL_TYPE(c->value)) {
+    //==////////////////////////////////////////////////////////////////==//
     //
-    // [BAR! and LIT-BAR!]
+    // BEGIN MAIN SWITCH STATEMENT
     //
-    // If an expression barrier is seen in between expressions, it is an
-    // interstitial and is skipped.  It doesn't "count", so a DO/NEXT will
-    // pass by as many REB_BARs as it has to in order to get to a "real"
-    // evaluation point (or, to the end).
-    //
-    // It wipes the slate of any previous evaluations by clearing c->out.
-    //
-    // LIT-BAR! is the only way to pass a BAR!, because BAR! cannot be
-    // picked up by quoting--even hard quoting.  It decays into an ordinary
-    // BAR! as part of its evaluation, but in that decay it can suitably
-    // be passed as a parameter.
-    //
-    case REB_BAR:
+    //==////////////////////////////////////////////////////////////////==//
+
+    switch (Eval_Table[VAL_TYPE(c->value)]) { // see ET_XXX, RE: jump table
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [no evaluation] (REB_BLOCK, REB_INTEGER, REB_STRING, etc.)
+//
+// Copy the value's bits to c->out and fetch the next value.  (Infix behavior
+// may kick in for this same "DO/NEXT" step--see processing after switch.)
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_NONE:
+        DO_NEXT_REFETCH_QUOTED(c->out, c);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [BAR! and LIT-BAR!]
+//
+// If an expression barrier is seen in-between expressions (as it will always
+// be if hit in this switch), it is skipped.  It only errors in argument
+// fulfillment during the switch case for ANY-FUNCTION!.
+//
+// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_BAR:
         SET_UNSET(c->out);
         FETCH_NEXT_ONLY_MAYBE_END(c);
         if (c->indexor != END_FLAG)
             goto value_ready_for_do_next; // keep going, even if [| | | ...]
         break;
 
-    case REB_LIT_BAR:
+    case ET_LIT_BAR:
         SET_BAR(c->out);
         FETCH_NEXT_ONLY_MAYBE_END(c);
         break;
 
-    //
-    // [WORD!]
-    //
-    case REB_WORD:
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [WORD!]
+//
+// A plain word tries to fetch its value through its binding.  It will fail
+// and longjmp out of this stack if the word is unbound (or if the binding is
+// to a variable which is not set).  Should the word look up to a function,
+// then that function will be called by jumping to the ANY-FUNCTION! case.
+//
+// Note: Infix functions cannot be dispatched from this point, as there is no
+// "Left-Hand-Side" computed to use.  Infix dispatch happens on words during
+// a lookahead *after* this switch statement, when a omputed value in c->out
+// is available.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_WORD:
         *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
 
-    do_retrieved_word:
+    dispatch_the_word_in_out:
         if (ANY_FUNC(c->out)) { // check before checking unset, for speed
-            //
-            // As mentioned in #1934, we only dispatch infix functions as
-            // infix when they are looked up from words.  Yet that can only
-            // happen after this switch during "lookahead" when the left hand
-            // side is ready in `out`.  Here we are starting a brand new
-            // expression, and may have nothing at all in `out` to use.
-            //
             if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
-                fail (Error(RE_NO_OP_ARG, c->value));
+                fail (Error(RE_NO_OP_ARG, c->value)); // see Note above
 
             c->label_sym = VAL_WORD_SYM(c->value);
 
@@ -1195,48 +1190,34 @@ reevaluate:
             c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
         #endif
 
-            // `do_function_maybe_end_ok` expects the function to be in `func`
-            // and if it's a definitional return we extract its target
-            //
-            c->func = VAL_FUNC(c->out);
-            if (c->func == PG_Leave_Func) {
-                exit_from = VAL_FUNC_EXIT_FROM(c->out);
-                goto do_definitional_exit_from;
-            }
-            if (c->func == PG_Return_Func)
-                exit_from = VAL_FUNC_EXIT_FROM(c->out);
-            else
-                exit_from = NULL;
-
             if (Trace_Flags) Trace_Line(c->source, c->indexor, c->value);
 
-            FETCH_NEXT_ONLY_MAYBE_END(c);
-            goto do_function_maybe_end_ok;
+            c->value = c->out;
+            goto do_function_value;
         }
 
         if (IS_UNSET(c->out))
-            fail (Error(RE_NO_VALUE, c->value));
+            fail (Error(RE_NO_VALUE, c->value)); // need `:x` if `x` is unset
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out)) {
-            //
-            // Only set the type, not reset the whole header, because the
-            // binding in the payload needs to be in sync with the header bits.
-            //
-            VAL_SET_TYPE_BITS(c->out, REB_WORD);
-        }
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
+            VAL_SET_TYPE_BITS(c->out, REB_WORD); // don't reset full header!
     #endif
 
         FETCH_NEXT_ONLY_MAYBE_END(c);
         break;
 
-    // [SET-WORD!]
-    //
-    // Does the evaluation into `out`, then gets the variable indicated by
-    // the word and writes the result there as well.
-    //
-    case REB_SET_WORD:
-        c->param = c->value; // fetch writes c->value, save SET-WORD! pointer
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [SET-WORD!]
+//
+// Does the evaluation into `out`, then gets the variable indicated by the
+// word and writes the result there as well.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_SET_WORD:
+        c->param = c->value; // fetch writes c->value, so save SET-WORD! ptr
 
         FETCH_NEXT_ONLY_MAYBE_END(c);
         if (c->indexor == END_FLAG)
@@ -1256,21 +1237,211 @@ reevaluate:
         *GET_MUTABLE_VAR_MAY_FAIL(c->param) = *c->out;
         break;
 
-    // [ANY-FUNCTION!]
-    //
-    // If a function makes it to the SWITCH statement, that means it is either
-    // literally a function value in the array (`do compose [(:+) 1 2]`)
-    // or is being retriggered via EVAL.  Note that infix functions that
-    // are encountered in this way will behave as prefix--their infix behavior
-    // is only triggered when they are looked up from a word.  See #1934
-    //
-    // Most function evaluations are triggered from a SWITCH on a WORD! or
-    // a PATH!, which jumps in at the `do_function_maybe_end_ok` label.
-    //
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_COMMAND:
-    case REB_FUNCTION:
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GET-WORD!]
+//
+// A GET-WORD! does no checking for unsets, no dispatch on functions, and
+// will return an UNSET! if that is what the variable is.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_GET_WORD:
+        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        break;
+
+//==/////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-WORD!]
+//
+// Note we only want to reset the type bits in the header, not the whole
+// header--because header bits contain information like WORD_FLAG_BOUND.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_LIT_WORD:
+        DO_NEXT_REFETCH_QUOTED(c->out, c);
+        VAL_SET_TYPE_BITS(c->out, REB_WORD);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GROUP!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_GROUP:
+        if (DO_ARRAY_THROWS(c->out, c->value)) {
+            c->indexor = THROWN_FLAG;
+            NOTE_THROWING(goto return_indexor);
+        }
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [PATH!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_PATH:
+        if (Do_Path_Throws(c->out, &c->label_sym, c->value, NULL)) {
+            c->indexor = THROWN_FLAG;
+            NOTE_THROWING(goto return_indexor);
+        }
+
+        if (ANY_FUNC(c->out)) {
+            //
+            // object/func or func/refinements or object/func/refinement
+            //
+            // Because we passed in a label symbol, the path evaluator was
+            // willing to assume we are going to invoke a function if it
+            // is one.  Hence it left any potential refinements on data stack.
+            //
+            assert(DSP >= c->dsp_orig);
+
+            // Cannot handle infix because prior value is wiped out above
+            // (Theoretically we could save it if we are DO-ing a chain of
+            // values, and make it work.  But then, a loop of DO/NEXT
+            // may not behave the same as DO-ing the whole block.  Bad.)
+            //
+            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
+                fail (Error_Has_Bad_Type(c->out));
+
+            c->value = c->out;
+            goto do_function_value;
+        }
+        else {
+            // Path should have been fully processed, no refinements on stack
+            //
+            assert(DSP == c->dsp_orig);
+            FETCH_NEXT_ONLY_MAYBE_END(c);
+        }
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [SET-PATH!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_SET_PATH:
+        c->param = c->value; // fetch writes c->value, save SET-WORD! pointer
+
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+
+        // `do [a/b/c:]` is not legal
+        //
+        if (c->indexor == END_FLAG)
+            fail (Error(RE_NEED_VALUE, c->param));
+
+        // We want the result of the set path to wind up in `out`, so go
+        // ahead and put the result of the evaluation there.  Do_Path_Throws
+        // will *not* put this value in the output when it is making the
+        // variable assignment!
+        //
+        if (eval_normal) {
+            DO_NEXT_REFETCH_MAY_THROW(c->out, c, DO_FLAG_LOOKAHEAD);
+
+            if (c->indexor == THROWN_FLAG)
+                NOTE_THROWING(goto return_indexor);
+        }
+        else {
+            *(c)->out = *(c)->value;
+            FETCH_NEXT_ONLY_MAYBE_END(c);
+        }
+
+        // `a/b/c: ()` is not legal (cannot assign path from unset)
+        //
+        if (IS_UNSET(c->out))
+            fail (Error(RE_NEED_VALUE, c->param));
+
+        // !!! The evaluation ordering of SET-PATH! evaluation seems to break
+        // the "left-to-right" nature of the language:
+        //
+        //     >> foo: make object! [bar: 10]
+        //
+        //     >> foo/(print "left" 'bar): (print "right" 20)
+        //     right
+        //     left
+        //     == 20
+        //
+        // In addition to seeming "wrong" it also necessitates an extra cell
+        // of storage.  This should be reviewed along with Do_Path generally.
+        {
+            REBVAL temp;
+            VAL_INIT_WRITABLE_DEBUG(&temp);
+            if (Do_Path_Throws(&temp, NULL, c->param, c->out)) {
+                c->indexor = THROWN_FLAG;
+                *c->out = temp;
+                NOTE_THROWING(goto return_indexor);
+            }
+        }
+
+        // We did not pass in a symbol, so not a call... hence we cannot
+        // process refinements.  Should not get any back.
+        //
+        assert(DSP == c->dsp_orig);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GET-PATH!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_GET_PATH:
+        //
+        // returns in word the path item, DS_TOP has value
+        //
+        if (Do_Path_Throws(c->out, NULL, c->value, NULL)) {
+            c->indexor = THROWN_FLAG;
+            NOTE_THROWING(goto return_indexor);
+        }
+
+        // We did not pass in a symbol ID
+        //
+        assert(DSP == c->dsp_orig);
+        FETCH_NEXT_ONLY_MAYBE_END(c);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-PATH!]
+//
+// We only set the type, in order to preserve the header bits... (there
+// currently aren't any for ANY-PATH!, but there might be someday.)
+//
+// !!! Aliases a REBSER under two value types, likely bad, see #2233
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_LIT_PATH:
+        DO_NEXT_REFETCH_QUOTED(c->out, c);
+        VAL_SET_TYPE_BITS(c->out, REB_PATH);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [ANY-FUNCTION!]
+//
+// If a function makes it to the SWITCH statement, that means it is either
+// literally a function value in the array (`do compose [(:+) 1 2]`) or is
+// being retriggered via EVAL.  Note that infix functions that are
+// encountered in this way will behave as prefix--their infix behavior
+// is only triggered when they are looked up from a word.  See #1934.
+//
+// Most function evaluations are triggered from a SWITCH on a WORD! or PATH!,
+// which jumps in at the `do_function_value` label.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_NATIVE:
+    case ET_ACTION:
+    case ET_COMMAND:
+    case ET_ROUTINE:
+    case ET_FUNCTION:
         //
         // Note: Because this is a function value being hit literally in
         // a block, it does not have a name.  Use symbol of its VAL_TYPE
@@ -1281,7 +1452,9 @@ reevaluate:
         c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
     #endif
 
-        // `do_function_maybe_end_ok` expects the function to be in `func`,
+    do_function_value:
+        //
+        // `do_function_value` expects the function to be in c->value,
         // and if it's a definitional return we need to extract its target.
         // (the REBVAL you get from FUNC_VALUE() does not have the exit_from
         // poked into it.)
@@ -1289,6 +1462,7 @@ reevaluate:
         // Note that you *can* have a 'literal' definitional return value,
         // because the user can compose it into a block like any function.
         //
+        assert(ANY_FUNC(c->value));
         c->func = VAL_FUNC(c->value);
         if (c->func == PG_Leave_Func) {
             exit_from = VAL_FUNC_EXIT_FROM(c->value);
@@ -1299,33 +1473,29 @@ reevaluate:
         else
             exit_from = NULL;
 
+        // Advance the input.  Note we are allowed to be at a END_FLAG (such
+        // as if the function has no arguments, or perhaps its first argument
+        // is hard quoted as HELP's is and it can accept that.)
+        //
         FETCH_NEXT_ONLY_MAYBE_END(c);
-
-    do_function_maybe_end_ok:
-        //
-        // Function to dispatch must be held in `func` on a jump here.
-        // We are allowed to be at a END_FLAG position (such as if the
-        // function has no arguments, or perhaps its first argument is
-        // hard quoted as HELP's is and it can accept that.)
-        //
-        assert(ANY_FUNC(FUNC_VALUE(c->func)));
-        ASSERT_ARRAY(FUNC_PARAMLIST(c->func));
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
         //
         assert(DSP >= c->dsp_orig);
 
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! EVAL HANDLING
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
         // The EVAL "native" is unique because it cannot be a function that
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
         if (c->func == PG_Eval_Func) {
-            //
-            // EVAL will handle anything the evaluator can, including
-            // an UNSET!, but it errors on END, e.g. `do [eval]`
-            //
-            if (c->indexor == END_FLAG)
+            if (c->indexor == END_FLAG) // e.g. `do [eval]`
                 fail (Error_No_Arg(c->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
@@ -1374,6 +1544,12 @@ reevaluate:
             c->value = &eval;
             goto reevaluate; // we don't move index!
         }
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! FRAMELESS CALL DISPATCH
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
         // If a native has no refinements to process, it is feasible to
         // allow it to run "frameless".  Even though the chunk stack is a
@@ -1483,6 +1659,12 @@ reevaluate:
             // We're done!
             break;
         }
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
         // `out` may contain the pending argument for an infix operation,
         // and it could also be the backing store of the `value` pointer
@@ -2149,6 +2331,12 @@ reevaluate:
         }
     #endif
 
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! THROWING OF "RETURN" + "LEAVE" DEFINITIONAL EXITs
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
         if (exit_from) {
         do_definitional_exit_from:
             //
@@ -2211,12 +2399,11 @@ reevaluate:
             NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 
-
-////////// ACTUAL FUNCTION DISPATCH (formerly Dispatch_Call_Throws)
-//
-// !!! There is a reason this is being integrated directly into what is
-// already the longest function in the source.  (Patience!)
-//
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
         // We need to save what the DSF was prior to our execution, and
         // cannot simply use our frame's prior...because our frame's
@@ -2418,6 +2605,12 @@ reevaluate:
         else
             Drop_Chunk(c->frame.stackvars);
 
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! CATCHING OF EXITs (includes catching RETURN + LEAVE)
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
         // A definitional return should only be intercepted if it was for this
         // particular function invocation.  Definitional return abilities have
         // been extended to natives and actions, in order to permit stack
@@ -2480,6 +2673,12 @@ reevaluate:
                 assert(FALSE); // no other low-level EXIT/FROM supported
             }
         }
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // ANY-FUNCTION! CALL COMPLETION FINALIZATION
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
         // Here we know the function finished.  If it has a definitional
         // return we need to type check it--and if it has a leave we have
@@ -2549,22 +2748,22 @@ reevaluate:
         else
             c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
-//
-//
-////////// END ACTUAL FUNCTION DISPATCH (formerly Dispatch_Call_Throws)
-
-
         if (Trace_Flags) Trace_Return(c->label_sym, c->out);
         break;
 
-    // [FRAME!]
-    //
-    // If a literal FRAME! is hit in the source, then its associated function
-    // will be executed with the data.  Any BAR! in the frame will be treated
-    // as if it is an unfulfilled parameter and go through ordinary parameter
-    // fulfillment logic.
-    //
-    case REB_FRAME:
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [ FRAME! ]
+//
+// If a literal FRAME! is hit in the source, then its associated function
+// will be executed with the data.  Any BAR! in the frame will be treated
+// as if it is an unfulfilled parameter and go through ordinary parameter
+// fulfillment logic.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case ET_FRAME:
         //
         // While *technically* possible that a context could be in use by more
         // than one function at a time, this is a dangerous enough idea to
@@ -2594,186 +2793,24 @@ reevaluate:
         exit_from = NULL;
         goto do_function_arglist_in_progress;
 
-    // [PATH!]
-    //
-    case REB_PATH:
-        if (Do_Path_Throws(c->out, &c->label_sym, c->value, NULL)) {
-            c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
 
-        if (ANY_FUNC(c->out)) {
-            //
-            // object/func or func/refinements or object/func/refinement
-            //
-            // Because we passed in a label symbol, the path evaluator was
-            // willing to assume we are going to invoke a function if it
-            // is one.  Hence it left any potential refinements on data stack.
-            //
-            assert(DSP >= c->dsp_orig);
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [ ??? ] => panic
+//
+// All types must match a case in the switch.  This shouldn't happen.
+//
+//==//////////////////////////////////////////////////////////////////////==//
 
-            // Cannot handle infix because prior value is wiped out above
-            // (Theoretically we could save it if we are DO-ing a chain of
-            // values, and make it work.  But then, a loop of DO/NEXT
-            // may not behave the same as DO-ing the whole block.  Bad.)
-            //
-            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
-                fail (Error_Has_Bad_Type(c->out));
-
-            // `do_function_maybe_end_ok` expects the function to be in `func`
-            // and if a definitional return, we need to extract its target.
-            //
-            c->func = VAL_FUNC(c->out);
-            if (c->func == PG_Leave_Func) {
-                exit_from = VAL_FUNC_EXIT_FROM(c->out);
-                goto do_definitional_exit_from;
-            }
-            if (c->func == PG_Return_Func)
-                exit_from = VAL_FUNC_EXIT_FROM(c->out);
-            else
-                exit_from = NULL;
-
-            FETCH_NEXT_ONLY_MAYBE_END(c);
-            goto do_function_maybe_end_ok;
-        }
-        else {
-            // Path should have been fully processed, no refinements on stack
-            //
-            assert(DSP == c->dsp_orig);
-            FETCH_NEXT_ONLY_MAYBE_END(c);
-        }
-        break;
-
-    // [GET-PATH!]
-    //
-    case REB_GET_PATH:
-        //
-        // returns in word the path item, DS_TOP has value
-        //
-        if (Do_Path_Throws(c->out, NULL, c->value, NULL)) {
-            c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
-
-        // We did not pass in a symbol ID
-        //
-        assert(DSP == c->dsp_orig);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
-        break;
-
-    // [SET-PATH!]
-    //
-    case REB_SET_PATH:
-        c->param = c->value; // fetch writes c->value, save SET-WORD! pointer
-
-        FETCH_NEXT_ONLY_MAYBE_END(c);
-
-        // `do [a/b/c:]` is not legal
-        //
-        if (c->indexor == END_FLAG)
-            fail (Error(RE_NEED_VALUE, c->param));
-
-        // We want the result of the set path to wind up in `out`, so go
-        // ahead and put the result of the evaluation there.  Do_Path_Throws
-        // will *not* put this value in the output when it is making the
-        // variable assignment!
-        //
-        if (eval_normal) {
-            DO_NEXT_REFETCH_MAY_THROW(c->out, c, DO_FLAG_LOOKAHEAD);
-
-            if (c->indexor == THROWN_FLAG)
-                NOTE_THROWING(goto return_indexor);
-        }
-        else {
-            *(c)->out = *(c)->value;
-            FETCH_NEXT_ONLY_MAYBE_END(c);
-        }
-
-        // `a/b/c: ()` is not legal (cannot assign path from unset)
-        //
-        if (IS_UNSET(c->out))
-            fail (Error(RE_NEED_VALUE, c->param));
-
-        // !!! The evaluation ordering of SET-PATH! evaluation seems to break
-        // the "left-to-right" nature of the language:
-        //
-        //     >> foo: make object! [bar: 10]
-        //
-        //     >> foo/(print "left" 'bar): (print "right" 20)
-        //     right
-        //     left
-        //     == 20
-        //
-        // In addition to seeming "wrong" it also necessitates an extra cell
-        // of storage.  This should be reviewed along with Do_Path generally.
-        {
-            REBVAL temp;
-            VAL_INIT_WRITABLE_DEBUG(&temp);
-            if (Do_Path_Throws(&temp, NULL, c->param, c->out)) {
-                c->indexor = THROWN_FLAG;
-                *c->out = temp;
-                NOTE_THROWING(goto return_indexor);
-            }
-        }
-
-        // We did not pass in a symbol, so not a call... hence we cannot
-        // process refinements.  Should not get any back.
-        //
-        assert(DSP == c->dsp_orig);
-        break;
-
-    // [GROUP!]
-    //
-    case REB_GROUP:
-        if (DO_ARRAY_THROWS(c->out, c->value)) {
-            c->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
-        FETCH_NEXT_ONLY_MAYBE_END(c);
-        break;
-
-    // [LIT-WORD!]
-    //
-    // Note we only want to reset the type, not the whole header--because the
-    // header bits contain information like WORD_FLAG_BOUND.
-    //
-    case REB_LIT_WORD:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
-        VAL_SET_TYPE_BITS(c->out, REB_WORD);
-        break;
-
-    // [GET-WORD!]
-    //
-    // A GET-WORD! does no checking for unsets, and will return an UNSET! if
-    // that is what the variable is.
-    //
-    case REB_GET_WORD:
-        *c->out = *GET_OPT_VAR_MAY_FAIL(c->value);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
-        break;
-
-    // [LIT-PATH!]
-    //
-    // We only set the type, in order to preserve the header bits... (there
-    // currently aren't any for ANY-PATH!, but there might be someday.)
-    //
-    // !!! Aliases a REBSER under two value types, likely bad, see #2233
-    //
-    case REB_LIT_PATH:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
-        VAL_SET_TYPE_BITS(c->out, REB_PATH);
-        break;
-
-    // *** [ANY-(other)-TYPE!] ***
-    //
-    // Most things just evaluate to themselves.  See DO_NEXT_CORE_MAY_THROW
-    // for the optimization that keeps us from bothering to set up a
-    // recursive call if the only outcome will be reaching this point.
-    //
     default:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
-        break;
+        panic (Error(RE_MISC));
     }
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // END MAIN SWITCH STATEMENT
+    //
+    //==////////////////////////////////////////////////////////////////==//
 
     // There shouldn't have been any "accumulated state", in the sense that
     // we should be back where we started in terms of the data stack, the
@@ -2781,26 +2818,26 @@ reevaluate:
     //
     ASSERT_STATE_BALANCED(&state);
 
-    // Throws should have already returned at the time of throw, by jumping
-    // to the `thrown_index` label
-    //
-    assert(c->indexor != THROWN_FLAG && !THROWN(c->out));
-
     // It's valid for the operations above to fall through after a fetch or
     // refetch that could have reached the end.
     //
     if (c->indexor == END_FLAG)
         goto return_indexor;
 
+    // Throws should have already returned at the time of throw, by jumping
+    // to the `thrown_index` label.
+    //
+    assert(c->indexor != THROWN_FLAG && !THROWN(c->out));
+
     if (c->flags & DO_FLAG_NO_LOOKAHEAD) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
         // to be requested by callers (there is already no infix lookahead
         // by using DO_FLAG_EVAL_ONLY, so those cases don't need to ask.)
+        //
         // However, recursive cases of DO disable infix dispatch if they are
         // currently processing an infix operation.  The currently processing
         // operation is thus given "higher precedence" by this disablement.
-        //
     }
     else {
         // Since we're not at an END, we know c->value has been prefetched,
@@ -2879,7 +2916,7 @@ reevaluate:
                 do_count = Do_Evaluation_Preamble_Debug(c);
             #endif
 
-                goto do_retrieved_word; // word will handle FETCH_NEXT
+                goto dispatch_the_word_in_out; // will handle the FETCH_NEXT
             }
         }
 

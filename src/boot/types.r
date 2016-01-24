@@ -55,6 +55,15 @@ tuple       tuple       *       *       *       *       scalar
 time        time        *       *       *       *       scalar
 date        date        *       *       *       *       -
 
+;-- Order dependent: next few words
+
+word        (word)      +       *       -       -       word
+set-word    (word)      +       *       -       -       word
+get-word    (word)      +       *       -       -       word
+lit-word    (word)      +       *       -       -       word
+refinement  word        +       *       -       -       word
+issue       word        +       *       -       -       word
+
 ;-- Series
 
 binary      string      +       +       *       *       [series]
@@ -81,15 +90,6 @@ map         map         +       f*      *       *       -
 datatype    datatype    +       f*      -       *       -
 typeset     typeset     +       f*      -       *       -
 
-;-- Order dependent: next few words
-
-word        (word)      +       *       -       -       word
-set-word    (word)      +       *       -       -       word
-get-word    (word)      +       *       -       -       word
-lit-word    (word)      +       *       -       -       word
-refinement  word        +       *       -       -       word
-issue       word        +       *       -       -       word
-
 native      (function)  *       -       -       *       function
 action      (function)  *       -       -       *       function
 routine     (routine)   *       -       -       *       function
@@ -97,7 +97,7 @@ command     (function)  -       -       -       *       function
 function    (function)  *       -       -       *       function
 
 object      context     *       f*      *       *       context
-frame       context     *       f*      *       *       context
+frame       (context)   *       f*      *       *       context
 module      context     *       f*      *       *       context
 error       context     +       f+      *       *       context
 task        context     +       +       *       *       context
