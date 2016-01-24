@@ -1562,10 +1562,10 @@ reevaluate:
         // (EVAL/ONLY also suppresses frameless abilities, because the
         // burden of the flag would be too much to pass through.)
         //
-        if (
-            !Trace_Flags
+        if ( // check from most likely to be false to least likely...
+            GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)
             && DSP == c->dsp_orig
-            && GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)
+            && !Trace_Flags
             && eval_normal // avoid framelessness if EVAL/ONLY used
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
@@ -2419,11 +2419,61 @@ reevaluate:
         SET_TRASH_SAFE(c->out);
 
         assert(IS_END(c->param));
+        // c->arg may be uninitialized if there were no args...
+
         c->refine = NULL;
 
+        // If the function has a native-optimized version of definitional
+        // return, the local for this return should so far have just been
+        // ensured in last slot...and left unset by the arg filling.
+        //
+        // Now fill in the var for that local with a "hacked up" native
+        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
+        // usually, but not if it's reusing a frame.
+        //
+        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+            assert(IS_END(c->arg)); // not uninitialized if we get here...
+
+            --(c->param);
+            --(c->arg);
+
+            assert(GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN));
+
+        #if !defined(NDEBUG)
+            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
+                assert(IS_NONE(c->arg));
+            else
+                assert(IS_UNSET(c->arg));
+        #endif
+
+            if (VAL_TYPESET_CANON(c->param) == SYM_RETURN)
+                *(c->arg) = *ROOT_RETURN_NATIVE;
+            else {
+                assert(VAL_TYPESET_CANON(c->param) == SYM_LEAVE);
+                *(c->arg) = *ROOT_LEAVE_NATIVE;
+            }
+
+            // !!! Having to pick a function paramlist or a context for
+            // definitional return (and doubly testing this flag) is a likely
+            // temporary state of affairs, as all functions able to have a
+            // definitional return will have contexts in NewFunction.
+            //
+            if (c->flags & DO_FLAG_FRAME_CONTEXT)
+                VAL_FUNC_EXIT_FROM(c->arg) = CTX_VARLIST(c->frame.context);
+            else
+                VAL_FUNC_EXIT_FROM(c->arg) = FUNC_PARAMLIST(c->func);
+        }
+
+        // Now we reset arg to the head of the argument list.  This provides
+        // fast access for the callees, so they don't have to go through an
+        // indirection further than just c->arg to get it.
+        //
+        // !!! When hybrid frames are introduced, review the question of
+        // which pointer "wins".  Might more than one be used?
+        //
         if (c->flags & DO_FLAG_FRAME_CONTEXT) {
             //
-            // !!! For the moment we cache the series data pointer in arg.
+            // !!! Here this caches a dynamic series data pointer in arg.
             // For arbitrary series this is not legal to do, because a
             // resize could relocate it...but we know the argument list will
             // not expand in the current implementation.  However, a memory
@@ -2435,73 +2485,14 @@ reevaluate:
                 AS_ARRAY(c->frame.context), SERIES_FLAG_FIXED_SIZE
             ));
             c->arg = CTX_VARS_HEAD(c->frame.context);
-
-            // If the function has a native-optimized version of definitional
-            // return, the local for this return should so far have just been
-            // ensured in last slot...and left unset by the arg filling.
-            //
-            // Now fill in the var for that local with a "hacked up" native
-            // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
-            // usually, but not if it's reusing a frame.
-            //
-            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-                REBVAL *last_arg = CTX_VAR(
-                    c->frame.context,
-                    CTX_LEN(c->frame.context)
-                );
-                REBVAL *last_param
-                    = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
-
-                assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
-
-            #if !defined(NDEBUG)
-                if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
-                    assert(IS_NONE(last_arg));
-                else
-                    assert(IS_UNSET(last_arg));
-            #endif
-
-                if (VAL_TYPESET_CANON(last_param) == SYM_RETURN)
-                    *last_arg = *ROOT_RETURN_NATIVE;
-                else {
-                    assert(VAL_TYPESET_CANON(last_param) == SYM_LEAVE);
-                    *last_arg = *ROOT_LEAVE_NATIVE;
-                }
-
-                VAL_FUNC_EXIT_FROM(last_arg)
-                    = CTX_VARLIST(c->frame.context);
-            }
         }
         else {
-            // We cache the arglist's data pointer in `arg` for ARG().
-            // Note that even if the frame becomes "reified" as a context, the
-            // data pointer will be the same over the stack level lifetime.
+            // We cache the stackvars data pointer in the stack allocated
+            // case.  Note that even if the frame becomes "reified" as a
+            // context, the data pointer will be the same over the stack
+            // level lifetime.
             //
             c->arg = &c->frame.stackvars[0];
-
-            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-                REBVAL *last_arg = &c->arg[FUNC_NUM_PARAMS(c->func) - 1];
-                REBVAL *last_param
-                    = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
-
-                assert(GET_VAL_FLAG(last_param, TYPESET_FLAG_HIDDEN));
-
-            #if !defined(NDEBUG)
-                if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
-                    assert(IS_NONE(last_arg));
-                else
-                    assert(IS_UNSET(last_arg));
-            #endif
-
-                if (VAL_TYPESET_CANON(last_param) == SYM_RETURN)
-                    *last_arg = *ROOT_RETURN_NATIVE;
-                else {
-                    assert(VAL_TYPESET_CANON(last_param) == SYM_LEAVE);
-                    *last_arg = *ROOT_LEAVE_NATIVE;
-                }
-
-                VAL_FUNC_EXIT_FROM(last_arg) = FUNC_PARAMLIST(c->func);
-            }
         }
 
         if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
@@ -2673,7 +2664,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! CALL COMPLETION FINALIZATION
+    // ANY-FUNCTION! CALL COMPLETION (Type Check Result, Throw If Needed)
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -2751,7 +2742,7 @@ reevaluate:
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [ FRAME! ]
+// [FRAME!]
 //
 // If a literal FRAME! is hit in the source, then its associated function
 // will be executed with the data.  Any BAR! in the frame will be treated
