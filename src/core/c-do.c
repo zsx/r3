@@ -899,9 +899,8 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
                 REBVAL dump;
                 VAL_INIT_WRITABLE_DEBUG(&dump);
 
-                assert(cast(REBCNT, c->indexor) > 0);
                 PROBE_MSG(c->value, "Do_Core() count trap");
-                Val_Init_Block_Index(&dump, c->source.array, c->indexor - 1);
+                Val_Init_Block_Index(&dump, c->source.array, c->indexor);
                 PROBE_MSG(&dump, "Do_Core() next up...");
             }
         }
