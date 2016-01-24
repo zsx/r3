@@ -933,8 +933,8 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     REBVAL *var;
 
     if (
-        !GET_ARR_FLAG(CTX_VARLIST(VAL_CONTEXT(value)), SERIES_FLAG_STACK) ||
-        GET_ARR_FLAG(CTX_VARLIST(VAL_CONTEXT(value)), SERIES_FLAG_ACCESSIBLE)
+        !GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK) ||
+        GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_ACCESSIBLE)
     ) {
         var = CTX_VARS_HEAD(VAL_CONTEXT(value));
     }

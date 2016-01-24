@@ -1770,8 +1770,8 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         );
 
         if (
-            GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_STACK)
-            && !GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_ACCESSIBLE)
+            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
+            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
         ) {
             // In R3-Alpha, the closure construct created a persistent object
             // which would keep all of its args, refinements, and locals
@@ -1962,7 +1962,7 @@ void Assert_Context_Core(REBCTX *context)
         Panic_Context(context);
     }
 
-    if (GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_STACK)) {
+    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
         assert(vars_len == 1);
     }
     else {

@@ -433,7 +433,7 @@ void Drop_Chunk(REBVAL values[])
         REBARR *varlist = CTX_VARLIST(chunk->opt_context);
         assert(
             GET_ARR_FLAG(varlist, SERIES_FLAG_EXTERNAL)
-            && GET_ARR_FLAG(varlist, SERIES_FLAG_STACK)
+            && GET_ARR_FLAG(varlist, CONTEXT_FLAG_STACK)
             && GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY)
         );
         assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE));
@@ -739,8 +739,8 @@ REBCTX *Frame_For_Call_May_Reify(
         assert(!chunk->opt_context);
         chunk->opt_context = context;
 
-        SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_STACK);
-        SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_ACCESSIBLE);
+        SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
+        SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
     }
     else
         assert(opt_varlist);

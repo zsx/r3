@@ -156,7 +156,7 @@ static void Push_Array_Marked_Deep(REBARR *array)
 
     assert(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY));
 
-    if (GET_ARR_FLAG(array, SERIES_FLAG_STACK)) {
+    if (GET_ARR_FLAG(array, CONTEXT_FLAG_STACK)) {
         //
         // If the array's storage was on the stack and that stack level has
         // been popped, its data has been nulled out, and the series only
@@ -760,7 +760,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // remain live, so the canon value has the field trashed
                 // in debug builds.
                 //
-                if (GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_STACK)) {
+                if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
                     assert(
                         VAL_CONTEXT_STACKVARS(val)
                         == VAL_CONTEXT_STACKVARS(value)
