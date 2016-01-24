@@ -119,6 +119,41 @@ unless find words-of :get /opt [
     ]
 ]
 
+if paren? reduce quote () [
+    ;
+    ; R3-Alpha would only REDUCE a block and pass through other outputs.
+    ; REDUCE in Ren-C (and also in Red) is willing to reduce anything that
+    ; does not require EVAL-like argument consumption (so GROUP!, GET-WORD!,
+    ; GET-PATH!).
+    ;
+    lib-reduce: :reduce
+    reduce: func [
+        {Evaluates expressions and returns multiple results.}
+        value
+        /no-set
+            "Keep set-words as-is. Do not set them."
+        /only
+            "Only evaluate words and paths, not functions"
+        words [block! none!]
+            "Optional words that are not evaluated (keywords)"
+        /into
+            {Output results into a series with no intermediate storage}
+        target [any-block!]
+    ][
+        either block? :value [
+            apply :lib-reduce [value no-set only words into target]
+        ][
+            ; For non-blocks, put the item in a block, reduce the block,
+            ; then pick the first element out.  This may error (e.g. if you
+            ; try to reduce a word looking up to a function taking arguments)
+            ;
+            ; !!! Simple with no refinements for now--enhancement welcome.
+            ;
+            assert [not no-set not only not into]
+            first (lib-reduce lib-reduce [:value])
+        ]
+    ]
+]
 
 ; === ABOVE ROUTINES NEEDED TO RUN BELOW ===
 
