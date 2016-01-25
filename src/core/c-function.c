@@ -222,12 +222,13 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
                     if (VAL_WORD_SYM(attribute) == SYM_CATCH)
                         continue; // ignore it;
                     if (VAL_WORD_SYM(attribute) == SYM_THROW) {
-                        // !!! Basically a synonym for <transparent>, but
+                        // !!! Basically a synonym for <no-return>, but
                         // transparent is now a manipulation done by the
                         // function generators *before* the internal spec
                         // is checked...and the flag is removed.  So
                         // simulating it here is no longer easy...hence
                         // ignore it;
+                        //
                         continue;
                     }
                     // no other words supported, fall through to error
@@ -553,7 +554,7 @@ void Make_Function(
     if (!has_return) {
         //
         // Simpler case: if `make function!` is used then the function is
-        // "effectively <transparent>".  There is no definitional return
+        // "effectively <no-return>".  There is no definitional return
         // automatically added.  Non-definitional EXIT and EXIT/WITH will
         // still be available.
         //
@@ -601,12 +602,12 @@ void Make_Function(
 
             if (IS_TAG(item)) {
                 if (
-                    0 == Compare_String_Vals(item, ROOT_TRANSPARENT_TAG, TRUE)
+                    0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)
                 ) {
-                    // The <transparent> tag is a way to cue FUNC and CLOS that
+                    // The <no-return> tag is a way to cue FUNC and PROC that
                     // you do not want a definitional return:
                     //
-                    //     foo: func [<transparent> a] [return a]
+                    //     foo: func [<no-return> a] [return a]
                     //     foo 10 ;-- ERROR!
                     //
                     // This is redundant with the default for `make function!`.
@@ -621,7 +622,7 @@ void Make_Function(
                     );
                     has_return = FALSE;
 
-                    // We *could* remove the <transparent> tag, or check to
+                    // We *could* remove the <no-return> tag, or check to
                     // see if there's more than one, etc.  But Check_Func_Spec
                     // is tolerant of any strings that we leave in the spec.
                     // This tolerance exists because the system is not to have

@@ -83,14 +83,14 @@ use: func [
     ; body may have RETURN words with bindings in them already that we do
     ; not want to disturb with the definitional bindings in the new code.
     ; So that means either using MAKE FUNCTION! (which wouldn't disrupt
-    ; RETURN bindings) or using the more friendly FUNC with <transparent>
+    ; RETURN bindings) or using the more friendly FUNC with <no-return>
     ; (they do the same thing, just FUNC is arity-2)
     ;
     ; <durable> is used so that the data for the locals will still be
     ; available if any of the words leak out and are accessed after the
     ; execution is finished.
     ;
-    eval func compose [<durable> <transparent> /local (vars)] body
+    eval func compose [<durable> <no-return> /local (vars)] body
 ]
 
 object: func [

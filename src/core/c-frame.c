@@ -703,7 +703,7 @@ void Rebind_Context_Deep(REBCTX *src, REBCTX *dst, REBINT *opt_binds)
 //
 // This routine will *always* make a context with a SELF.  This lacks the
 // nuance that is expected of the generators, which will have an equivalent
-// to <transparent>.
+// to <no-return>.
 //
 REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
