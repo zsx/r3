@@ -1023,12 +1023,15 @@ struct Reb_Context {
 #define CTX_SPEC(c) \
     (VAL_CONTEXT_SPEC(CTX_VALUE(c)) + 0)
 
-#define INIT_CONTEXT_FUNC(c,f) \
+#define INIT_FRAME_CALL(c,f) \
     (assert(IS_FRAME(CTX_VALUE(c))), \
-        VAL_CONTEXT_FUNC(CTX_VALUE(c)) = (f))
+        VAL_FRAME_CALL(CTX_VALUE(c)) = (f))
 
-#define CTX_FUNC(c) \
-    (VAL_CONTEXT_FUNC(CTX_VALUE(c)) + 0)
+#define FRM_CALL(c) \
+    (VAL_FRAME_CALL(CTX_VALUE(c)) + 0)
+
+#define FRM_FUNC(c) \
+    (assert(ANY_FUNC(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
 
 #define CTX_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
 

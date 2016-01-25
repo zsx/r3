@@ -1367,9 +1367,9 @@ struct Reb_Any_Word {
     // !!! Intended logic is that if the index is positive, then the word
     // is looked for in the context's pooled memory data pointer.  If the
     // index is negative or 0, then it's assumed to be a stack variable,
-    // and looked up in the CTX_STACKVARS data.
+    // and looked up in the call's `stackvars` data.
     //
-    // But or now there are no examples of contexts which have both pooled
+    // But now there are no examples of contexts which have both pooled
     // and stack memory, and the general issue of mapping the numbers has
     // not been solved.  However, both pointers are available to a context
     // so it's awaiting some solution for a reasonably-performing way to
@@ -1634,7 +1634,16 @@ struct Reb_Any_Context {
 
     union {
         REBCTX *spec; // used by REB_MODULE
-        REBFUN *func; // used by REB_FRAME
+
+        // Used by REB_FRAME.  This is the call that corresponded to the
+        // FRAME! at the time it was created.  The pointer becomes invalid if
+        // the call ends, so the flags on the context must be consulted to
+        // see if it indicates the stack is over before using.
+        //
+        // Note: This is technically just a cache, as the stack could be
+        // walked to find it given the frame.
+        //
+        struct Reb_Call *call;
     } more;
 };
 
@@ -1646,13 +1655,13 @@ struct Reb_Any_Context {
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.more.spec)
 
-#define VAL_CONTEXT_FUNC(v)         ((v)->payload.any_context.more.func)
-
 #define VAL_CONTEXT_STACKVARS(v)    ((v)->payload.any_context.stackvars)
 
 #define VAL_CONTEXT_STACKVARS_LEN(v) \
     (assert(ANY_CONTEXT(v)), \
         CHUNK_LEN_FROM_VALUES((v)->payload.any_context.stackvars))
+
+#define VAL_FRAME_CALL(v)           ((v)->payload.any_context.more.call)
 
 // Convenience macros to speak in terms of object values instead of the context
 //

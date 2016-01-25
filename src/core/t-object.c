@@ -406,7 +406,16 @@ REBTYPE(Context)
             INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
             INIT_CONTEXT_KEYLIST(AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg));
             ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
-            INIT_CONTEXT_FUNC(AS_CONTEXT(varlist), VAL_FUNC(arg));
+
+            // !!! The frame will never have stack storage if created this
+            // way, because we return it...and it would be of no use if the
+            // stackvars were empty--they could not be filled.  However it
+            // will have an associated call if it is run.  We don't know what
+            // that call pointer will be so NULL is put in for now--but any
+            // extant FRAME! values of this type will have to use stack
+            // walks to find the pointer (possibly recaching in values.)
+            //
+            INIT_FRAME_CALL(AS_CONTEXT(varlist), NULL);
             CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
             ++var;
 
