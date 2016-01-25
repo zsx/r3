@@ -3309,7 +3309,7 @@ REBOOL Reduce_Array_Throws(
         DS_PUSH(&reduced);
     }
 
-    Pop_Stack_Values(out, dsp_orig, into);
+    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
     return FALSE;
 }
 
@@ -3369,7 +3369,7 @@ void Reduce_Only(
         // never be accessible via words or paths.
     }
 
-    Pop_Stack_Values(out, dsp_orig, into);
+    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
 
     assert(DSP == dsp_orig);
 }
@@ -3407,7 +3407,7 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into);
+    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
 
     return FALSE;
 }
@@ -3506,7 +3506,7 @@ REBOOL Compose_Values_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into);
+    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
 
     return FALSE;
 }
