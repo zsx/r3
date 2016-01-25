@@ -260,6 +260,18 @@ union Reb_Call_Source {
 //
 struct Reb_Call {
     //
+    // `eval` [INTERNAL, NON-READABLE, not GC-PROTECTED?]
+    //
+    // Placed at the head of the structure for alignment reasons, but the most
+    // difficult field of Reb_Call to explain.  It serves the purpose of a
+    // holding cell that is needed while an EVAL is running, because the
+    // calculated value that had lived in `c->out` which is being evaluated
+    // can't stay in that spot while the next evaluation is writing into it.
+    // Frameless natives and other code with call frame access should not
+    // tamper w/it or read it--from their point of view it is "random".
+    //
+    REBVAL eval;
+
     // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
     //
     // If a function call is currently in effect, `func` holds a pointer to
