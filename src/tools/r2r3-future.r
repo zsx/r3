@@ -162,7 +162,6 @@ migrations: [
     ;
     ; Note: EVERY cannot be written in R3-Alpha because there is no way
     ; to write loop wrappers, given lack of definitionally scoped return
-    ; or <transparent>
     ;
     for-each <as> :foreach
 

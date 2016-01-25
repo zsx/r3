@@ -24,9 +24,9 @@ typesets        ; block of TYPESETs used by system; expandable
 empty-block     ; a value that is an empty BLOCK!
 
 ;; Tags used in the native-optimized versions of user-function-generators
-;; FUNC and CLOS
+;; FUNC and PROC
 
-transparent-tag ; func w/o definitional return, ignores non-definitional ones
+no-return-tag   ; func w/o definitional return, ignores non-definitional ones
 infix-tag       ; func is treated as "infix" (first parameter comes before it)
 local-tag       ; marks the beginning of a list of "pure locals"
 durable-tag     ; !!! In progress - argument word lookup survives call ending

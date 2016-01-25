@@ -1205,8 +1205,7 @@ sctx: construct boot-sys
 ; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
 ; constructor, but uses Alloc_Context() directly.  Rather than try and force
 ; it to have a SELF, having some objects that don't helps pave the way
-; to the userspace choice of self-vs-no-self (as with <transparent> on
-; function to have no RETURN)
+; to the userspace choice of self-vs-no-self (as with func's <no-return>)
 ;
 make-obj-defs/selfless sctx "SYS_CTX_" 1
 

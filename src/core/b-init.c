@@ -1393,7 +1393,12 @@ void Init_Core(REBARGS *rargs)
     REBCTX *error;
     struct Reb_State state;
 
-    const REBYTE transparent[] = "transparent";
+    // !!! These need to find a new home, and preferably a way to be read
+    // as constants declared in Rebol files.  Hasn't been done yet due to
+    // a desire to keep this as an obvious TBD for remembering to do it
+    // right, but also to protect the values from changing.
+    //
+    const REBYTE no_return[] = "no-return";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
@@ -1540,11 +1545,11 @@ void Init_Core(REBARGS *rargs)
     // arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
 
     Val_Init_Tag(
-        ROOT_TRANSPARENT_TAG,
-        Append_UTF8(NULL, transparent, LEN_BYTES(transparent))
+        ROOT_NO_RETURN_TAG,
+        Append_UTF8(NULL, no_return, LEN_BYTES(no_return))
     );
-    SET_SER_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_TRANSPARENT_TAG), SERIES_FLAG_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
