@@ -657,7 +657,7 @@ REBCTX *Frame_For_Call_May_Reify(
         assert(GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
     }
     else {
-        assert(c->mode == CALL_MODE_FUNCTION);
+        assert(c->mode != CALL_MODE_GUARD_ARRAY_ONLY);
         if (DSF_FRAMELESS(c)) {
             //
             // After-the-fact attempt to create a frame for a frameless native.
@@ -724,7 +724,7 @@ REBCTX *Frame_For_Call_May_Reify(
     //
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CTX_VALUE(context), context);
-    INIT_CONTEXT_FUNC(context, c->func);
+    INIT_FRAME_CALL(context, c);
 
     // Give this series the data from what was in the chunk, and make note
     // of the series in the chunk so that it can be marked as "gone bad"

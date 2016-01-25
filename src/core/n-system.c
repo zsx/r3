@@ -486,7 +486,7 @@ REBNATIVE(label_of)
 //
 //  function-of: native [
 //
-//  "Get the ANY-FUNCTION! that a call corresponds to (if still on stack)"
+//  "Get the ANY-FUNCTION! for a stack level or frame"
 //
 //      level [frame! integer! none!]
 //  ]
@@ -498,7 +498,12 @@ REBNATIVE(function_of)
     REBVAL *level = ARG(level);
 
     if (IS_FRAME(level)) {
-        *D_OUT = *FUNC_VALUE(VAL_CONTEXT_FUNC(level));
+        //
+        // If a FRAME!, then the keylist *should* be the function params,
+        // which should be coercible to a function even when the call is
+        // no longer on the stack.
+        //
+        *D_OUT = *FUNC_VALUE(FRM_FUNC(VAL_CONTEXT(level)));
     }
     else {
         struct Reb_Call *call = Call_For_Stack_Level(NULL, level, TRUE);

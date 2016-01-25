@@ -2763,7 +2763,7 @@ reevaluate:
 
         assert(c->frame.stackvars == NULL);
         c->frame.context = VAL_CONTEXT(c->value);
-        c->func = VAL_CONTEXT_FUNC(c->value);
+        c->func = FRM_FUNC(VAL_CONTEXT(c->value));
 
         if (GET_ARR_FLAG(
             CTX_VARLIST(VAL_CONTEXT(c->value)), CONTEXT_FLAG_STACK)

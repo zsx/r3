@@ -520,8 +520,9 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
-    if (IS_FRAME(CTX_VALUE(context)))
-        assert(ANY_FUNC(FUNC_VALUE(CTX_FUNC(context))));
+    if (IS_FRAME(CTX_VALUE(context))) {
+        assert(ANY_FUNC(FUNC_VALUE(FRM_FUNC(context))));
+    }
     else
         assert(
             NOT(CTX_SPEC(context))

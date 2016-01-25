@@ -749,7 +749,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 REBVAL *value = CTX_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
                 if (IS_FRAME(val))
-                    assert(VAL_CONTEXT_FUNC(val) == VAL_CONTEXT_FUNC(value));
+                    assert(VAL_FRAME_CALL(val) == VAL_FRAME_CALL(value));
                 else
                     assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
 
@@ -772,7 +772,12 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_CONTEXT_DEEP(context);
 
             if (IS_FRAME(val)) {
-                QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(VAL_CONTEXT_FUNC(val)));
+                //
+                // The FRM_CALL is either on the stack--in which case its
+                // already taken care of in terms of marking--or it has gone
+                // bad in which case it should be ignored.
+                //
+                // !!! Should the GC null out bad pointers or just leave them?
             }
             else {
                 if (VAL_CONTEXT_SPEC(val)) {
