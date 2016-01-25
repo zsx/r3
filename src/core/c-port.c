@@ -342,6 +342,144 @@ REBCNT Find_Action(REBVAL *object, REBCNT action)
 
 
 //
+//  Redo_Func_Throws: C
+//
+// This code takes a running call frame that has been built for one function
+// and then tries to map its parameters to another call.  It is used to
+// dispatch some ACTION!s (an archetypal function spec with no implementation)
+// from a native C invocation to be "bounced" out into user code.
+//
+// In the origins of this function's active usage in R3-Alpha, it was allowed
+// for the target function to have a parameterization that was a superset of
+// the original frame's function (adding refinements, etc.)  The greater
+// intentions of how it was supposed to work are not known--as there was
+// little error checking, given there were few instances.
+//
+// !!! Due to the historical brittleness of this function, very rare calls,
+// and need for an additional repetition of dispatch logic from Do_Core,
+// this code has been replaced with a straightforward implementation.  It
+// builds a PATH! of the target function and refinements from the original
+// frame.  Then it uses this in the DO_FLAG_EVAL_ONLY mode to suppress
+// re-evaluation of the frame's "live" args.
+//
+// !!! This won't stand up in the face of targets that are "adversarial"
+// to the archetype:
+//
+//     foo: func [a /b c] [...]  =>  bar: func [/b d e] [...]
+//                    foo/b 1 2  =>  bar/b 1 2
+//
+// However, it is still *much* better than the R3-Alpha situation for error
+// checking, and significantly less confusing.  A real solution to this kind
+// of dispatch--if it is to be used--seems like it should be a language
+// feature available to users themselves.  So leaning on the evaluator in
+// one way or another is the best course to keep this functionality going.
+//
+// !!! Marked static to avoid casual re-uses, which may not be likely but
+// just to stop more calls from being introduced on accident.
+//
+static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
+{
+    REBIXO indexor;
+
+    // Upper bound on the length of the args we might need for a redo
+    // invocation is the total number of parameters to the *old* function's
+    // invocation (if it had no refinements or locals).
+    //
+    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(c->func));
+    REBVAL *code = ARR_HEAD(code_array);
+
+    // We'll walk through the original functions param and arglist only, and
+    // accept the error-checking the evaluator provides at this time (types,
+    // refinement presence or absence matching).
+    //
+    // !!! See note in function description about arity mismatches.
+    //
+    REBVAL *param = FUNC_PARAMS_HEAD(c->func);
+    REBVAL *arg = DSF_ARGS_HEAD(c);
+    REBOOL ignoring = FALSE;
+
+    // The first element of our path will be the function, followed by its
+    // refinements.  It has an upper bound on length that is to consider the
+    // opposite case where it had only refinements and then the function
+    // at the head...
+    //
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
+    REBVAL *path = ARR_HEAD(path_array);
+
+    REBVAL first;
+    VAL_INIT_WRITABLE_DEBUG(&first);
+
+    *path = *FUNC_VALUE(func_new);
+    ++path;
+
+    for (; NOT_END(param); ++param, ++arg) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
+             //
+             // Pure local... don't add a code arg for it (can't)!
+             //
+             continue;
+        }
+
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
+            if (IS_CONDITIONAL_FALSE(arg)) {
+                //
+                // If the refinement is not in use, do not add it and ignore
+                // args until the next refinement.
+                //
+                ignoring = TRUE;
+                continue;
+            }
+
+            // In use--and used refinements must be added to the PATH!
+            //
+            ignoring = FALSE;
+            Val_Init_Word(path, REB_WORD, VAL_TYPESET_SYM(param));
+            ++path;
+            continue;
+        }
+
+        // Otherwise it should be a quoted or normal argument.  If ignoring
+        // then pass on it, otherwise add the arg to the code as-is.
+        //
+        if (ignoring) continue;
+
+        *code++ = *arg;
+    }
+
+    SET_END(code);
+    SET_ARRAY_LEN(code_array, code - ARR_HEAD(code_array));
+    MANAGE_ARRAY(code_array);
+
+    SET_END(path);
+    SET_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
+    Val_Init_Array(&first, REB_PATH, path_array); // manages
+
+    // Invoke DO with the special mode requesting non-evaluation on all
+    // args, as they were evaluated the first time around.
+    //
+    indexor = Do_Array_At_Core(
+        c->out,
+        &first, // path not in array but will be "virtual" first array element
+        code_array,
+        0, // index
+        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
+    );
+
+    if (indexor != THROWN_FLAG && indexor != END_FLAG) {
+        //
+        // We may not have stopped the invocation by virtue of the args
+        // all not getting consumed, but we can raise an error now that it
+        // did not.
+        //
+        assert(FALSE);
+        fail (Error(RE_MISC));
+    }
+
+    return LOGICAL(indexor == THROWN_FLAG);
+}
+
+
+//
 //  Do_Port_Action: C
 // 
 // Call a PORT actor (action) value. Search PORT actor
