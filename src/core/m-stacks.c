@@ -212,25 +212,27 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 //
 //  Pop_Stack_Values: C
 // 
-// Pop_Stack_Values computed values from the stack into the series
-// specified by "into", or if into is NULL then store it as a
-// block on top of the stack.  (Also checks to see if into
-// is protected, and will trigger a trap if that is the case.)
-// 
-// Protocol for /INTO is to set the position to the tail.
+// Pops computed values from the stack to make a new ANY-ARRAY! value of a
+// certain kind in `out`, or if the kind is REB_MAX then `out` is assumed to
+// be an ANY-ARRAY! value into which the values should be put.
 //
-void Pop_Stack_Values(REBVAL *out, REBDSP dsp_start, REBOOL into)
-{
+void Pop_Stack_Values(
+    REBVAL *out,
+    REBDSP dsp_start,
+    enum Reb_Kind kind_or_max_if_into
+) {
     REBARR *array;
     REBCNT len = DSP - dsp_start;
     REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
 
-    if (into) {
+    if (kind_or_max_if_into == REB_MAX) {
         assert(ANY_ARRAY(out));
         array = VAL_ARRAY(out);
 
         FAIL_IF_LOCKED_ARRAY(array);
 
+        // The protocol for /INTO is to set the position to the insertion tail
+        //
         VAL_INDEX(out) = Insert_Series(
             ARR_SERIES(array),
             VAL_INDEX(out),
@@ -240,7 +242,7 @@ void Pop_Stack_Values(REBVAL *out, REBDSP dsp_start, REBOOL into)
     }
     else {
         array = Copy_Values_Len_Shallow(values, len);
-        Val_Init_Block(out, array);
+        Val_Init_Array(out, kind_or_max_if_into, array);
     }
 
     DS_DROP_TO(dsp_start);
