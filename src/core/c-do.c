@@ -995,8 +995,7 @@ void Do_Core(struct Reb_Call * const c)
     // See notes below on reference for why this is needed to implement eval.
     //
     REBOOL eval_normal; // EVAL/ONLY can trigger this to FALSE
-    REBVAL eval;
-    VAL_INIT_WRITABLE_DEBUG(&eval);
+    VAL_INIT_WRITABLE_DEBUG(&c->eval);
 
     // Check just once (stack level would be constant if checked in a loop)
     //
@@ -1058,7 +1057,7 @@ value_ready_for_do_next:
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    SET_TRASH_IF_DEBUG(&eval);
+    SET_TRASH_IF_DEBUG(&c->eval);
     eval_normal = LOGICAL(c->flags & DO_FLAG_EVAL_NORMAL);
 
     // If we're going to jump to the `reevaluate:` label below we should not
@@ -1500,7 +1499,7 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            DO_NEXT_REFETCH_MAY_THROW(&eval, c, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&c->eval, c, DO_FLAG_LOOKAHEAD);
 
             if (c->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -1538,7 +1537,7 @@ reevaluate:
             else
                 c->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
 
-            c->value = &eval;
+            c->value = &c->eval;
             goto reevaluate; // we don't move index!
         }
 
@@ -2318,10 +2317,10 @@ reevaluate:
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            eval = *DSF_ARGS_HEAD(c);
+            c->eval = *DSF_ARGS_HEAD(c);
 
             c->eval_fetched = c->value;
-            c->value = &eval;
+            c->value = &c->eval;
 
             c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
             goto drop_call_for_legacy_do_function;
