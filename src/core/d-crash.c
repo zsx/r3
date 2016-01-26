@@ -48,7 +48,7 @@
 ATTRIBUTE_NO_RETURN void Panic_Core(
     REBCNT id,
     REBCTX *opt_error,
-    va_list *varargs_ptr
+    va_list *vaptr
 ) {
     char title[PANIC_TITLE_BUF_SIZE + 1]; // account for null terminator
     char message[PANIC_BUF_SIZE + 1]; // "
@@ -119,7 +119,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         // becomes a priority then find a way to safely report them
         // (perhaps a subset like integer!, otherwise just print type #?)
         //
-        assert(varargs_ptr && !opt_error);
+        assert(vaptr && !opt_error);
 
         strncat(
             message, "\n** Boot Error: ", PANIC_BUF_SIZE - strlen(message)
@@ -163,14 +163,14 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         Push_Mold(&mo);
 
         if (opt_error) {
-            assert(!varargs_ptr);
+            assert(!vaptr);
             Val_Init_Error(&error, opt_error);
         }
         else {
             // We aren't explicitly passed a Rebol ERROR! object, but we
             // consider it "safe" to make one since we're past BOOT_ERRORS
 
-            Val_Init_Error(&error, Make_Error_Core(id, FALSE, varargs_ptr));
+            Val_Init_Error(&error, Make_Error_Core(id, FALSE, vaptr));
         }
 
         Mold_Value(&mo, &error, FALSE);

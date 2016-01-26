@@ -708,7 +708,7 @@ was_caught:
             REBVAL *param = VAL_FUNC_PARAMS_HEAD(handler);
 
             //
-            // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Varargs_Core()!
+            // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Va_Core()!
             //
 
             if (

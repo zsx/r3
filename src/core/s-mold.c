@@ -75,58 +75,56 @@ enum {
 //
 REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
 {
-    va_list varargs;
+    va_list va;
     REBYTE ender = 0;
     REBSER *series = mold->series;
 
     assert(SER_WIDE(series) == 2);
 
-    va_start(varargs, fmt);
+    va_start(va, fmt);
 
     for (; *fmt; fmt++) {
         switch (*fmt) {
         case 'W':   // Word symbol
             Append_UTF8_May_Fail(
                 series,
-                Get_Word_Name(va_arg(varargs, const REBVAL*)),
+                Get_Word_Name(va_arg(va, const REBVAL*)),
                 -1
             );
             break;
         case 'V':   // Value
-            Mold_Value(mold, va_arg(varargs, const REBVAL*), TRUE);
+            Mold_Value(mold, va_arg(va, const REBVAL*), TRUE);
             break;
         case 'S':   // String of bytes
-            Append_Unencoded(series, va_arg(varargs, const char *));
+            Append_Unencoded(series, va_arg(va, const char *));
             break;
         case 'C':   // Char
-            Append_Codepoint_Raw(series, va_arg(varargs, REBCNT));
+            Append_Codepoint_Raw(series, va_arg(va, REBCNT));
             break;
         case 'E': {  // Series (byte or uni)
-            REBSER *src = va_arg(varargs, REBSER*);
+            REBSER *src = va_arg(va, REBSER*);
             Insert_String(
                 series, SER_LEN(series), src, 0, SER_LEN(src), FALSE
             );
             break;
         }
         case 'I':   // Integer
-            Append_Int(series, va_arg(varargs, REBINT));
+            Append_Int(series, va_arg(va, REBINT));
             break;
         case 'i':
-            Append_Int_Pad(series, va_arg(varargs, REBINT), -9);
+            Append_Int_Pad(series, va_arg(va, REBINT), -9);
             Trim_Tail(mold->series, '0');
             break;
         case '2':   // 2 digit int (for time)
-            Append_Int_Pad(series, va_arg(varargs, REBINT), 2);
+            Append_Int_Pad(series, va_arg(va, REBINT), 2);
             break;
         case 'T':   // Type name
             Append_UTF8_May_Fail(
-                series, Get_Type_Name(va_arg(varargs, REBVAL*)), -1
+                series, Get_Type_Name(va_arg(va, REBVAL*)), -1
             );
             break;
         case 'N':   // Symbol name
-            Append_UTF8_May_Fail(
-                series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1
-            );
+            Append_UTF8_May_Fail(series, Get_Sym_Name(va_arg(va, REBCNT)), -1);
             break;
         case '+':   // Add #[ if mold/all
             if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
@@ -137,19 +135,21 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
         case 'D':   // Datatype symbol: #[type
             if (ender) {
                 Append_UTF8_May_Fail(
-                    series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1
+                    series, Get_Sym_Name(va_arg(va, REBCNT)), -1
                 );
                 Append_Codepoint_Raw(series, ' ');
-            } else va_arg(varargs, REBCNT); // ignore it
+            }
+            else
+                va_arg(va, REBCNT); // ignore it
             break;
         case 'B':   // Boot string
-            Append_Boot_Str(series, va_arg(varargs, REBINT));
+            Append_Boot_Str(series, va_arg(va, REBINT));
             break;
         default:
             Append_Codepoint_Raw(series, *fmt);
         }
     }
-    va_end(varargs);
+    va_end(va);
 
     if (ender) Append_Codepoint_Raw(series, ender);
 

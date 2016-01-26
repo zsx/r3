@@ -888,7 +888,7 @@ REBOOL Make_Error_Object_Throws(
 // 
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 // 
-// Create and init a new error object based on a C vararg list
+// Create and init a new error object based on a C va_list
 // and an error code.  This routine is responsible also for
 // noticing if there is an attempt to make an error at a time
 // that is too early for error creation, and not try and invoke
@@ -909,7 +909,7 @@ REBOOL Make_Error_Object_Throws(
 //
 // !!! Result is managed.  See notes at end for why.
 //
-REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
+REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 {
 #if !defined(NDEBUG)
     // The legacy error mechanism expects us to have exactly three fields
@@ -934,7 +934,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
     assert(code != 0);
 
     if (PG_Boot_Phase < BOOT_ERRORS) {
-        Panic_Core(code, NULL, varargs_ptr);
+        Panic_Core(code, NULL, vaptr);
         DEAD_END;
     }
 
@@ -945,8 +945,8 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
     assert(message);
 
     if (IS_BLOCK(message)) {
-        // For a system error coming from a C vararg call, the # of
-        // GET-WORD!s in the format block should match the varargs supplied.
+        // For a system error coming from a C va_list call, the # of
+        // GET-WORD!s in the format block should match the va_list supplied.
 
         REBVAL *temp = VAL_ARRAY_HEAD(message);
         expected_args = 0;
@@ -1032,7 +1032,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
 
         while (NOT_END(temp)) {
             if (IS_GET_WORD(temp)) {
-                const REBVAL *arg = va_arg(*varargs_ptr, const REBVAL*);
+                const REBVAL *arg = va_arg(*vaptr, const REBVAL*);
 
                 if (!arg) {
                     // Terminating with a NULL is optional but can help
@@ -1060,7 +1060,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
                     assert(FALSE);
 
                     // !!! Note that we have no way of checking for too *many*
-                    // args with C's vararg machinery
+                    // args with C's va_list machinery
                 #endif
                 }
 
@@ -1181,7 +1181,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
             // the call is originating from C, hence the position is in
             // system code.  An empty block is not a good answer; what one
             // could do is finish out the arg enumeration and on-demand
-            // mutate the varargs into a series which could be introspected.
+            // mutate the va_list into a series which could be introspected.
             //
             // The assert is a reminder to investigate that mechanism if this
             // kind of error happens vs. sweep under the rug.  (Will be common
@@ -1235,16 +1235,16 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
 //
 REBCTX *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
-    va_list varargs;
+    va_list va;
     REBCTX *error;
 
-    va_start(varargs, num);
+    va_start(va, num);
     error = Make_Error_Core(
         (num < 0 ? -num : num),
         LOGICAL(num < 0),
-        &varargs
+        &va
     );
-    va_end(varargs);
+    va_end(va);
 
     return error;
 }

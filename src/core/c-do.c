@@ -147,8 +147,8 @@ void Trace_Line(
     if (indexor == END_FLAG) {
         Debug_Fmt_("END_FLAG...");
     }
-    else if (indexor == VARARGS_FLAG) {
-        Debug_Fmt_("VARARGS_FLAG...");
+    else if (indexor == VALIST_FLAG) {
+        Debug_Fmt_("VALIST_FLAG...");
     }
     else {
         REBCNT index = cast(REBCNT, indexor);
@@ -876,7 +876,7 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
                                       0
             // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
         ) {
-            if (c->indexor == VARARGS_FLAG) {
+            if (c->indexor == VALIST_FLAG) {
                 //
                 // !!! Can't fetch the next value here without destroying the
                 // forward iteration.  Destructive debugging techniques could
@@ -1048,7 +1048,7 @@ value_ready_for_do_next:
     // cannot know what a preloaded head value was unless it was saved
     // under a debug> mode.
     //
-    if (c->indexor != VARARGS_FLAG) c->expr_index = c->indexor;
+    if (c->indexor != VALIST_FLAG) c->expr_index = c->indexor;
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
@@ -2945,7 +2945,7 @@ return_indexor:
 static void Do_Exit_Checks_Debug(struct Reb_Call *c) {
     if (
         c->indexor != END_FLAG && c->indexor != THROWN_FLAG
-        && c->indexor != VARARGS_FLAG
+        && c->indexor != VALIST_FLAG
     ) {
         // If we're at the array's end position, then we've prefetched the
         // last value for processing (and not signaled end) but on the
@@ -3021,7 +3021,7 @@ REBIXO Do_Array_At_Core(
 
 
 //
-//  Do_Varargs_Core: C
+//  Do_Va_Core: C
 //
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
@@ -3049,18 +3049,18 @@ REBIXO Do_Array_At_Core(
 // additions could do this more efficiently by allowing the refinement words
 // to be pushed directly to the data stack.
 //
-// !!! C vararg lists are very dangerous, there is no type checking!  The
+// !!! C's va_lists are very dangerous, there is no type checking!  The
 // C++ build should be able to check this for the callers of this function
 // *and* check that you ended properly.  It means this function will need
 // two different signatures (and so will each caller of this routine).
 //
 // Returns THROWN_FLAG, END_FLAG--or if DO_FLAG_NEXT is used it may return
-// VARARGS_INCOMPLETE_FLAG.
+// VALIST_INCOMPLETE_FLAG.
 //
-REBIXO Do_Varargs_Core(
+REBIXO Do_Va_Core(
     REBVAL *out,
     const REBVAL *opt_first,
-    va_list *varargs_ptr,
+    va_list *vaptr,
     REBFLGS flags
 ) {
     struct Reb_Call c;
@@ -3070,7 +3070,7 @@ REBIXO Do_Varargs_Core(
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        c.value = va_arg(*varargs_ptr, const REBVAL*);
+        c.value = va_arg(*vaptr, const REBVAL*);
     }
 
     if (IS_END(c.value)) {
@@ -3079,13 +3079,13 @@ REBIXO Do_Varargs_Core(
     }
 
     c.out = out;
-    c.indexor = VARARGS_FLAG;
-    c.source.varargs_ptr = varargs_ptr;
+    c.indexor = VALIST_FLAG;
+    c.source.vaptr = vaptr;
 
     // !!! See notes in %m-gc.c about what needs to be done before it can
-    // be safe to let arbitrary evaluations happen in varargs scenarios.
-    // (This functionality coming soon, but it requires reifying the varargs
-    // into an array if a GC incidentally happens during any vararg DOs.)
+    // be safe to let arbitrary evaluations happen in variadic scenarios.
+    // (This functionality coming soon, but it requires reifying the va_list
+    // into an array if a GC incidentally happens during any va_list DOs.)
     //
     assert(flags & DO_FLAG_EVAL_ONLY);
     c.flags = flags;
@@ -3095,19 +3095,19 @@ REBIXO Do_Varargs_Core(
     if (flags & DO_FLAG_NEXT) {
         //
         // Infix lookahead causes a fetch that cannot be undone.  Hence
-        // Varargs DO/NEXT can't be resumed -- see VARARGS_INCOMPLETE_FLAG.
-        // For a resumable interface on varargs, see the lower level
+        // Varargs DO/NEXT can't be resumed -- see VALIST_INCOMPLETE_FLAG.
+        // For a resumable interface on va_list, see the lower level
         // frameless API.
         //
-        if (c.indexor == VARARGS_FLAG) {
+        if (c.indexor == VALIST_FLAG) {
             //
             // Try one more fetch and see if it's at the end.  If not, we did
             // not consume all the input.
             //
             FETCH_NEXT_ONLY_MAYBE_END(&c);
             if (c.indexor != END_FLAG) {
-                assert(c.indexor == VARARGS_FLAG); // couldn't throw!!
-                return VARARGS_INCOMPLETE_FLAG;
+                assert(c.indexor == VALIST_FLAG); // couldn't throw!!
+                return VALIST_INCOMPLETE_FLAG;
             }
         }
 
@@ -3186,14 +3186,14 @@ REBVAL *Sys_Func(REBCNT inum)
 REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 {
     REBIXO indexor;
-    va_list varargs;
+    va_list va;
 
 #ifdef VA_END_IS_MANDATORY
     struct Reb_State state;
     REBCTX *error;
 #endif
 
-    va_start(varargs, applicand); // must mention last param before the "..."
+    va_start(va, applicand); // must mention last param before the "..."
 
 #ifdef VA_END_IS_MANDATORY
     PUSH_TRAP(&error, &state);
@@ -3202,28 +3202,28 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        va_end(varargs); // interject cleanup of whatever va_start() set up...
+        va_end(va); // interject cleanup of whatever va_start() set up...
         fail (error); // ...then just retrigger error
     }
 #endif
 
-    indexor = Do_Varargs_Core(
+    indexor = Do_Va_Core(
         out,
         applicand, // opt_first
-        &varargs,
+        &va,
         DO_FLAG_NEXT | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
     );
 
-    if (indexor == VARARGS_INCOMPLETE_FLAG) {
+    if (indexor == VALIST_INCOMPLETE_FLAG) {
         //
         // Not consuming all the arguments given suggests a problem as far
         // as this interface is concerned.  To tolerate incomplete states,
-        // use Do_Varargs_Core() directly.
+        // use Do_Va_Core() directly.
         //
         fail (Error(RE_APPLY_TOO_MANY));
     }
 
-    va_end(varargs);
+    va_end(va);
     //
     // ^-- This va_end() will *not* be called if a fail() happens to longjmp
     // during the apply.  But is that a problem, you ask?  No survey has

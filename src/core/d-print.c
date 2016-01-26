@@ -551,7 +551,7 @@ void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
 // will not exceed its max size.  No line termination
 // is supplied after the print.
 //
-void Debug_Buf(const char *fmt, va_list *varargs_ptr)
+void Debug_Buf(const char *fmt, va_list *vaptr)
 {
     REBCNT len;
     REBCNT sub;
@@ -565,7 +565,7 @@ void Debug_Buf(const char *fmt, va_list *varargs_ptr)
 
     Push_Mold(&mo);
 
-    Form_Args_Core(&mo, fmt, varargs_ptr);
+    Form_Args_Core(&mo, fmt, vaptr);
 
     bytes = Pop_Molded_UTF8(&mo);
 
@@ -600,10 +600,10 @@ void Debug_Buf(const char *fmt, va_list *varargs_ptr)
 //
 void Debug_Fmt_(const char *fmt, ...)
 {
-    va_list varargs;
-    va_start(varargs, fmt);
-    Debug_Buf(fmt, &varargs);
-    va_end(varargs);
+    va_list va;
+    va_start(va, fmt);
+    Debug_Buf(fmt, &va);
+    va_end(va);
 }
 
 
@@ -633,7 +633,7 @@ void Debug_Fmt(const char *fmt, ...)
 //  Probe_Core_Debug: C
 // 
 // Debug function for outputting a value.  Done as a function
-// instead of just a macro due to how easy it is with varargs
+// instead of just a macro due to how easy it is with va_lists
 // to order the types of the parameters wrong.  :-/
 //
 void Probe_Core_Debug(const char *msg, const char *file, int line, const REBVAL *val)
@@ -801,7 +801,7 @@ REBUNI *Form_Uni_Hex(REBUNI *out, REBCNT n)
 // calls and unicode support.  It simplified the code, at the cost of
 // becoming slightly more "bootstrapped".
 //
-void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *varargs_ptr)
+void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *vaptr)
 {
     REBYTE *cp;
     REBINT pad;
@@ -847,7 +847,7 @@ pick:
             // All va_arg integer arguments will be coerced to platform 'int'
             cp = Form_Int_Pad(
                 buf,
-                cast(REBI64, va_arg(*varargs_ptr, int)),
+                cast(REBI64, va_arg(*vaptr, int)),
                 MAX_SCAN_DECIMAL,
                 pad,
                 padding
@@ -856,7 +856,7 @@ pick:
             break;
 
         case 's':
-            cp = va_arg(*varargs_ptr, REBYTE *);
+            cp = va_arg(*vaptr, REBYTE *);
             if (pad == 1) pad = LEN_BYTES(cp);
             if (pad < 0) {
                 pad = -pad;
@@ -878,7 +878,7 @@ pick:
         case 'v':   // use Form
             Mold_Value(
                 mo,
-                va_arg(*varargs_ptr, const REBVAL*),
+                va_arg(*vaptr, const REBVAL*),
                 LOGICAL(desc != 'v')
             );
 
@@ -899,7 +899,7 @@ pick:
             //
             VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
-            VAL_SERIES(&value) = va_arg(*varargs_ptr, REBSER *);
+            VAL_SERIES(&value) = va_arg(*vaptr, REBSER *);
             VAL_INDEX(&value) = 0;
             Mold_Value(mo, &value, TRUE);
             break;
@@ -907,7 +907,7 @@ pick:
         case 'c':
             Append_Codepoint_Raw(
                 ser,
-                cast(REBYTE, va_arg(*varargs_ptr, REBINT))
+                cast(REBYTE, va_arg(*vaptr, REBINT))
             );
             break;
 
@@ -916,7 +916,7 @@ pick:
             if (pad == 1) pad = 8;
             cp = Form_Hex_Pad(
                 buf,
-                cast(REBU64, cast(REBUPT, va_arg(*varargs_ptr, REBYTE*))),
+                cast(REBU64, cast(REBUPT, va_arg(*vaptr, REBYTE*))),
                 pad
             );
             Append_Unencoded_Len(ser, s_cast(buf), cp - buf);

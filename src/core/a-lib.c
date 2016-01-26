@@ -601,10 +601,10 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
 //
 RL_API void RL_Print(const REBYTE *fmt, ...)
 {
-    va_list varargs;
-    va_start(varargs, fmt);
-    Debug_Buf(cs_cast(fmt), &varargs);
-    va_end(varargs);
+    va_list va;
+    va_start(va, fmt);
+    Debug_Buf(cs_cast(fmt), &va);
+    va_end(va);
 }
 
 

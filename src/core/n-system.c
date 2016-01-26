@@ -359,7 +359,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     if (DSF_IS_VARARGS(call)) {
         //
         // !!! Not yet implemented: the reporting of errors that occur when
-        // a C vararg list is used.  The historical instances of this were
+        // a C va_list is used.  The historical instances of this were
         // system calls that really would be difficult to know what was
         // going wrong--and there wasn't much notice or tolerance of failure,
         // but Ren-C is going to permit these calls everywhere and needs
@@ -367,9 +367,9 @@ REBARR *Where_For_Call(struct Reb_Call *call)
         //
         // What needs to happen is that the args must be reified; it would
         // make it impossible to continue evaluating after this point unless
-        // the varargs were transformed into an array.  This is similar to
+        // the va_list was transformed into an array.  This is similar to
         // what needs to be done if there is a GC in the middle of an
-        // arbitrary varargs-based evaluation.
+        // arbitrary va_list-based evaluation.
         //
         assert(FALSE);
     }
