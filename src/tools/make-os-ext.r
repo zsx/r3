@@ -33,10 +33,12 @@ file-base: make object! load %file-base.r
 change-dir %../os/
 
 ; Collect OS-specific host files:
-unless os-specific-objs: select file-base to word! join "os-" config/os-base [
-    fail rejoin [
+unless (
+    os-specific-objs: select file-base to word! rejoin ["os-" config/os-base]
+)[
+    fail [
         "make-os-ext.r requires os-specific obj list in file-base.r"
-        space "none was provided for os-" config/os-base
+        "none was provided for" rejoin ["os-" config/os-base]
     ]
 ]
 
