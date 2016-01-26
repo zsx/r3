@@ -212,7 +212,11 @@ init-schemes: func [
 				if port: find waked first ports [return true]
 			]
 
-			false ; keep waiting
+			either zero? n-event [
+				none ;events are ignored
+			][
+				false ; keep waiting
+			]
 		]
 		init: func [port] [
 			;;print ["Init" title]
