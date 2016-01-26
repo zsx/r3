@@ -145,7 +145,9 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action
 
             // Temp conversion:!!!
             ser = Make_Unicode(len);
-            len = Decode_UTF8(UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE);
+            len = Decode_UTF8_May_Fail(
+                UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE
+            );
             len = abs(len);
             SET_SERIES_LEN(ser, len);
             UNI_TERM(ser);
