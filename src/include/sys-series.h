@@ -747,10 +747,10 @@ struct Reb_Series {
 //
 
 #define UNI_LEN(s) \
-    (assert(SER_WIDE(s) == sizeof(REBUNI), SER_LEN(s))
+    (assert(SER_WIDE(s) == sizeof(REBUNI)), SER_LEN(s))
 
 #define SET_UNI_LEN(s,l) \
-    (assert(SER_WIDE(s) == sizeof(REBUNI), SET_SERIES_LEN((s), (l)))
+    (assert(SER_WIDE(s) == sizeof(REBUNI)), SET_SERIES_LEN((s), (l)))
 
 #define UNI_AT(s,n)     SER_AT(REBUNI, (s), (n))
 #define UNI_HEAD(s)     SER_HEAD(REBUNI, (s))
