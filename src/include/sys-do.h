@@ -629,6 +629,16 @@ struct Reb_Call {
 // currently...this is an open question.
 //
 
+#if 0
+    // For detailed debugging of the fetching; coarse tool used only in very
+    // deep debugging of the evaluator.
+    //
+    #define TRACE_FETCH_DEBUG(m,c,a) \
+        Trace_Fetch_Debug((m), (c), (a))
+#else
+    #define TRACE_FETCH_DEBUG(m,c,a) NOOP
+#endif
+
 //
 // FETCH_NEXT_ONLY_MAYBE_END (see notes above)
 //
@@ -670,9 +680,9 @@ struct Reb_Call {
 #else
     #define FETCH_NEXT_ONLY_MAYBE_END(c) \
         do { \
-            Trace_Fetch_Debug("FETCH_NEXT_ONLY_MAYBE_END", (c), FALSE); \
+            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (c), FALSE); \
             FETCH_NEXT_ONLY_MAYBE_END_RAW(c); \
-            Trace_Fetch_Debug("FETCH_NEXT_ONLY_MAYBE_END", (c), TRUE); \
+            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (c), TRUE); \
         } while (0)
 #endif
 
@@ -741,12 +751,12 @@ struct Reb_Call {
 #else
     #define DO_NEXT_REFETCH_MAY_THROW(dest,c,flags) \
         do { \
-            Trace_Fetch_Debug("DO_NEXT_REFETCH_MAY_THROW", (c), FALSE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (c), FALSE); \
             DO_CORE_REFETCH_MAY_THROW( \
                 (c)->value, (c)->indexor, dest, /* outputs */ \
                 (c)->source, (c)->indexor, (c)->value, (c)->eval_fetched, \
                 flags /* inputs */); \
-            Trace_Fetch_Debug("DO_NEXT_REFETCH_MAY_THROW", (c), TRUE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (c), TRUE); \
         } while (0)
 #endif
 
@@ -764,10 +774,10 @@ struct Reb_Call {
 #else
     #define DO_NEXT_REFETCH_QUOTED(dest,c) \
         do { \
-            Trace_Fetch_Debug("DO_NEXT_REFETCH_QUOTED", (c), FALSE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (c), FALSE); \
             *dest = *(c)->value; \
             FETCH_NEXT_ONLY_MAYBE_END(c); \
-            Trace_Fetch_Debug("DO_NEXT_REFETCH_QUOTED", (c), TRUE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (c), TRUE); \
         } while (0)
 #endif
 

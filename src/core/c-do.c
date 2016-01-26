@@ -722,12 +722,10 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 // fine-grained level than a breakpoint at each DO/NEXT point.
 //
 void Trace_Fetch_Debug(const char* msg, struct Reb_Call *c, REBOOL after) {
-    if (c->do_count == 0) {
-        Debug_Fmt("%d - %s : %s", c->indexor, msg, after ? "AFTER" : "BEFORE");
-        assert(c->value != NULL || (after && c->indexor == END_FLAG));
-        if (c->value)
-            PROBE(c->value);
-    }
+    Debug_Fmt("%d - %s : %s", c->indexor, msg, after ? "AFTER" : "BEFORE");
+    assert(c->value != NULL || (after && c->indexor == END_FLAG));
+    if (c->value)
+        PROBE(c->value);
 }
 
 
