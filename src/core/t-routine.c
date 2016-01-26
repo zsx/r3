@@ -392,7 +392,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
     REBVAL *rebol_args = NULL;
     if (idx) {
         // when it's first call for return type, all_args has not been initialized yet
-        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)
+        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)
             && idx > ARR_LEN(VAL_ROUTINE_FIXED_ARGS(out))) {
             rebol_args = ARR_HEAD(VAL_ROUTINE_ALL_ARGS(out));
         }
@@ -502,7 +502,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
 
     struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
 
-    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARARGS))
+    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARIADIC))
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
     else
         rebol_args = VAL_ROUTINE_PARAMLIST(rot);
@@ -784,11 +784,11 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
 
     REBVAL out = *FUNC_VALUE(rot); // REVIEW: why is it done this way?
 
-    // `is_vararg_routine` is optimized out, but hints static analyzer
-    const REBOOL is_vararg_routine
-        = ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARARGS);
+    // `is_va_list_routine` is optimized out, but hints static analyzer
+    const REBOOL is_va_list_routine
+        = ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARIADIC);
 
-    REBVAL *varargs = NULL;
+    REBVAL *va_values = NULL;
 
     /* save the saved series stack pointer
      *
@@ -804,21 +804,21 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
             fail (Error(RE_BAD_LIBRARY));
     }
 
-    if (is_vararg_routine) {
-        varargs = ARR_HEAD(args);
-        if (!IS_BLOCK(varargs))
-            fail (Error_Invalid_Arg(varargs));
+    if (is_va_list_routine) {
+        va_values = ARR_HEAD(args);
+        if (!IS_BLOCK(va_values))
+            fail (Error_Invalid_Arg(va_values));
 
         // Note: Must subtract 1 because the [0]th element is reserved in
         // paramlists for the REBVAL of the function itself.
         //
         n_fixed = ARR_LEN(ROUTINE_FIXED_ARGS(rot)) - 1;
 
-        if ((VAL_LEN_AT(varargs) - n_fixed) % 2)
-            fail (Error_Invalid_Arg(varargs));
+        if ((VAL_LEN_AT(va_values) - n_fixed) % 2)
+            fail (Error_Invalid_Arg(va_values));
 
         ser = Make_Series(
-            n_fixed + (VAL_LEN_AT(varargs) - n_fixed) / 2,
+            n_fixed + (VAL_LEN_AT(va_values) - n_fixed) / 2,
             sizeof(void *),
             MKS_NONE
         );
@@ -840,7 +840,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE
     );
 
-    if (is_vararg_routine) {
+    if (is_va_list_routine) {
         REBCNT j = 1;
         ffi_type **arg_types = NULL;
 
@@ -850,8 +850,8 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(ROUTINE_FIXED_ARGS(rot));
         MANAGE_ARRAY(ROUTINE_ALL_ARGS(rot));
 
-        for (i = 1, j = 1; i < VAL_LEN_HEAD(varargs) + 1; i ++, j ++) {
-            REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(varargs, i - 1);
+        for (i = 1, j = 1; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
+            REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(va_values, i - 1);
             if (i <= n_fixed) { /* fix arguments */
                 if (!TYPE_CHECK(
                     ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
@@ -867,10 +867,10 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
                 /* initialize rin->args */
                 REBVAL *reb_type = NULL;
                 REBVAL *v = NULL;
-                if (i == VAL_LEN_HEAD(varargs)) /* type is missing */
+                if (i == VAL_LEN_HEAD(va_values)) /* type is missing */
                     fail (Error_Invalid_Arg(reb_arg));
 
-                reb_type = VAL_ARRAY_AT_HEAD(varargs, i);
+                reb_type = VAL_ARRAY_AT_HEAD(va_values, i);
                 if (!IS_BLOCK(reb_type))
                     fail (Error_Invalid_Arg(reb_type));
 
@@ -904,7 +904,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
                 &arg_types[1]
         )) {
             //RL_Print("Couldn't prep CIF_VAR\n");
-            fail (Error_Invalid_Arg(varargs));
+            fail (Error_Invalid_Arg(va_values));
         }
     }
     else {
@@ -1350,10 +1350,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 {
                     REBVAL *v = NULL;
                     if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
+                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
                             fail (Error_Invalid_Arg(blk)); /* duplicate ellipsis */
                         }
-                        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS);
+                        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC);
                         //Change the argument list to be a block
                         VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_PARAMLIST(out));
                         MANAGE_ARRAY(VAL_ROUTINE_FIXED_ARGS(out));
@@ -1368,7 +1368,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         );
                     }
                     else {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
+                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
                             //... has to be the last argument
                             fail (Error_Invalid_Arg(blk));
                         }
@@ -1473,7 +1473,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         }
     }
 
-    if (!ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARARGS)) {
+    if (!ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
         VAL_ROUTINE_CIF(out) = OS_ALLOC(ffi_cif);
         //printf("allocated cif at: %p\n", VAL_ROUTINE_CIF(out));
         QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), VAL_ROUTINE_CIF(out));

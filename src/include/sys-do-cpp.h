@@ -74,19 +74,19 @@ class Reb_Indexor {
     static constexpr const char* array_index_name = "(array index)";
     static constexpr const char* end_name = "END_FLAG";
     static constexpr const char* thrown_name = "THROWN_FLAG";
-    static constexpr const char* varargs_name = "VARARGS_FLAG";
-    static constexpr const char* varargs_incomplete_name
-        = "VARARGS_INCOMPLETE";
+    static constexpr const char* valist_name = "VALIST_FLAG";
+    static constexpr const char* valist_incomplete_name
+        = "VALIST_INCOMPLETE";
 
     void Update_Name() {
         if (bits == END_FLAG)
             name = end_name;
         else if (bits == THROWN_FLAG)
             name = thrown_name;
-        else if (bits == VARARGS_FLAG)
-            name = varargs_name;
-        else if (bits == VARARGS_INCOMPLETE_FLAG)
-            name = varargs_incomplete_name;
+        else if (bits == VALIST_FLAG)
+            name = valist_name;
+        else if (bits == VALIST_INCOMPLETE_FLAG)
+            name = valist_incomplete_name;
         else
             name = array_index_name;
     }
@@ -114,7 +114,7 @@ public:
     explicit operator REBCNT() const {
         assert(
             bits != END_FLAG && bits != THROWN_FLAG &&
-            bits != VARARGS_FLAG && bits != VARARGS_INCOMPLETE_FLAG
+            bits != VALIST_FLAG && bits != VALIST_INCOMPLETE_FLAG
         );
         return bits;
     }

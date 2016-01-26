@@ -2040,7 +2040,7 @@ enum {
     ROUTINE_MARK = 1,       // routine was found during GC mark scan.
     ROUTINE_USED = 1 << 1,
     ROUTINE_CALLBACK = 1 << 2, //this is a callback
-    ROUTINE_VARARGS = 1 << 3 //this is a function with varargs
+    ROUTINE_VARIADIC = 1 << 3 //this is a FFI function with a va_list interface
 };
 
 /* argument is REBFCN */

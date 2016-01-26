@@ -181,7 +181,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     if (only) {
         //
         // If we're using /ONLY, we need path AWAKE/ONLY to call.  (Ren-C's
-        // varargs API does not support positionally-provided refinements.)
+        // va_list API does not support positionally-provided refinements.)
         //
         REBARR *array = Make_Array(2);
         Append_Value(array, awake);

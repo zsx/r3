@@ -350,22 +350,22 @@ REBVAL *In_Object(REBCTX *base, ...)
 {
     REBVAL *context = NULL;
     REBCNT n;
-    va_list varargs;
+    va_list va;
 
-    va_start(varargs, base);
-    while ((n = va_arg(varargs, REBCNT))) {
+    va_start(va, base);
+    while ((n = va_arg(va, REBCNT))) {
         if (n > CTX_LEN(base)) {
-            va_end(varargs);
+            va_end(va);
             return NULL;
         }
         context = CTX_VAR(base, n);
         if (!ANY_CONTEXT(context)) {
-            va_end(varargs);
+            va_end(va);
             return NULL;
         }
         base = VAL_CONTEXT(context);
     }
-    va_end(varargs);
+    va_end(va);
 
     return context;
 }

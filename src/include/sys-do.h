@@ -87,7 +87,7 @@ enum {
     // invariant and especially in light of potential interaction with
     // DO_FLAG_LOOKAHEAD.
     //
-    // NOTE: DO_FLAG_NEXT is *non-continuable* with varargs.  This is due to
+    // NOTE: DO_FLAG_NEXT is *non-continuable* with va_list.  This is due to
     // contention with DO_FLAG_LOOKAHEAD which would not be able to "un-fetch"
     // in the case of a lookahead for infix that failed (and NO_LOOKAHEAD is
     // very rare with API clients).  But also, the va_list could need a
@@ -173,26 +173,26 @@ enum {
 #define END_FLAG 0x80000000  // end of block as index
 #define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
 
-// The VARARGS_FLAG is the index used when a C varargs list is the input.
+// The VALIST_FLAG is the index used when a C va_list pointer is the input.
 // Because access to a `va_list` is strictly increasing through va_arg(),
 // there is no way to track an index; fetches are indexed automatically
 // and sequentially without possibility for mutation of the list.  Should
 // this index be used it will always be the index of a DO_NEXT until either
 // an END_FLAG or a THROWN_FLAG is reached.
 //
-#define VARARGS_FLAG (END_FLAG - 0xBD)
+#define VALIST_FLAG (END_FLAG - 0xBD)
 
 // This is not an actual DO state flag that you would see in a Reb_Call's
 // index, but it is a value that is returned in case a non-continuable
-// DO_NEXT call is made on varargs.  One can make the observation that it
+// DO_NEXT call is made on va_lists.  One can make the observation that it
 // is incomplete only--not resume.
 //
-#define VARARGS_INCOMPLETE_FLAG (END_FLAG - 0xAE)
+#define VALIST_INCOMPLETE_FLAG (END_FLAG - 0xAE)
 
 // The C build simply defines a REBIXO as a synonym for an unsigned int.  But
 // in the C++ build, the indexor is a more restrictive class...which redefines
 // a subset of operations for integers but does *not* implicitly cast to one
-// Hence if a THROWN_FLAG, END_FLAG, VARARGS_FLAG etc. is used with integer
+// Hence if a THROWN_FLAG, END_FLAG, VALIST_FLAG etc. is used with integer
 // math or put into an `int` variable accidentally, this will be caught.
 //
 // Because indexors are not stored in REBVALs or places where memory usage
@@ -247,7 +247,7 @@ enum Reb_Call_Mode {
 
 union Reb_Call_Source {
     REBARR *array;
-    va_list *varargs_ptr;
+    va_list *vaptr;
 };
 
 // NOTE: The ordering of the fields in `Reb_Call` are specifically done so
@@ -350,7 +350,7 @@ struct Reb_Call {
     //
     const REBVAL *eval_fetched;
 
-    // source.array, source.varargs_ptr [INPUT, READ-ONLY, GC-PROTECTED]
+    // source.array, source.vaptr [INPUT, READ-ONLY, GC-PROTECTED]
     //
     // This is the source from which new values will be fetched.  The most
     // common dispatch of the evaluator is on values that live inside of a
@@ -365,11 +365,11 @@ struct Reb_Call {
     // allocate an array to use as input for an impromptu evaluation: the
     // stack parameters of a function call are enumerated.  However...
     //
-    // === The `varargs` list is *NOT* random access like an array is!!! ===
+    // === The `va_list` is *NOT* random access like an array is!!! ===
     //
     // http://en.cppreference.com/w/c/variadic
     //
-    // See notes on `index` about how this is managed via VARARGS_FLAG.
+    // See notes on `index` about how this is managed via VALIST_FLAG.
     //
     // !!! It is extremely desirable to implicitly GC protect the C function
     // arguments but a bit difficult to do so; one good implementation idea
@@ -653,7 +653,7 @@ struct Reb_Call {
             (c)->eval_fetched = NULL; \
             break; \
         } \
-        if ((c)->indexor != VARARGS_FLAG) { \
+        if ((c)->indexor != VALIST_FLAG) { \
             if ((c)->indexor < ARR_LEN((c)->source.array)) { \
                 assert((c)->value != \
                     ARR_AT((c)->source.array, (c)->indexor)); \
@@ -666,7 +666,7 @@ struct Reb_Call {
             } \
         } \
         else { \
-            (c)->value = va_arg(*(c)->source.varargs_ptr, const REBVAL*); \
+            (c)->value = va_arg(*(c)->source.vaptr, const REBVAL*); \
             if (IS_END((c)->value)) { \
                 (c)->value = NULL; \
                 (c)->indexor = END_FLAG; \
@@ -692,7 +692,7 @@ struct Reb_Call {
 // evaluator behavior, and if so avoid a recursive call to Do_Core().
 //
 // However, "inert" values can have evaluator behavior--so this requires a
-// lookahead check.  Using varargs has already taken one step further than
+// lookahead check.  Using va_list has already taken one step further than
 // it can by using a "prefetch", and it cannot lookahead again without
 // saving the value in another location.  Hence the trick is not used with
 // vararg input, and INTEGER!/BLOCK!/etc. go through Do_Core() in that case.
@@ -707,7 +707,7 @@ struct Reb_Call {
 ) \
     do { \
         struct Reb_Call c_; \
-        if (!eval_fetched && indexor_in != VARARGS_FLAG) { \
+        if (!eval_fetched && indexor_in != VALIST_FLAG) { \
             if (SPORADICALLY(2)) { /* every OTHER execution fast if DEBUG */ \
                 if ( \
                     !ANY_EVAL(value_in) \
@@ -732,7 +732,7 @@ struct Reb_Call {
         c_.indexor = (indexor_in); \
         c_.flags = DO_FLAG_EVAL_NORMAL | DO_FLAG_NEXT | (flags_); \
         Do_Core(&c_); \
-        assert(c_.indexor == VARARGS_FLAG || (indexor_in) != c_.indexor); \
+        assert(c_.indexor == VALIST_FLAG || (indexor_in) != c_.indexor); \
         (indexor_out) = c_.indexor; \
         (value_out) = c_.value; \
     } while (0)
@@ -797,7 +797,7 @@ struct Reb_Call {
 // it doesn't have to.  It uses ANY_EVAL() to see if it can get out of making
 // a function call...sometimes it cannot because there may be an infix lookup
 // possible (we don't know that `[3] + [4]` isn't ever going to work...)  For
-// this reason the optimization cannot work with a varargs list, as the
+// this reason the optimization cannot work with a va_list pointer, as the
 // va_list in C cannot be "peeked ahead at" and then put back (while the
 // Rebol array data is random access).
 //
@@ -830,7 +830,7 @@ struct Reb_Call {
         union Reb_Call_Source source; \
         REBIXO indexor_ = index + 1; \
         REBVAL *value_ = ARR_AT((array_in), (index)); \
-        const REBVAL *dummy; /* need for varargs continuation, not array */ \
+        const REBVAL *dummy; /* need for va_list continuation, not array */ \
         if (IS_END(value_)) { \
             SET_UNSET(out); \
             (indexor_out) = END_FLAG; \
@@ -1034,7 +1034,7 @@ struct Native_Refine {
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
 #define DSF_IS_VARARGS(c) \
-    ((c)->indexor == VARARGS_FLAG)
+    ((c)->indexor == VALIST_FLAG)
 
 #define DSF_ARRAY(c) \
     (assert(!DSF_IS_VARARGS(c)), (c)->source.array)

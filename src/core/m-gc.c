@@ -446,7 +446,7 @@ static void Queue_Mark_Routine_Deep(REBROT *rot)
             // until fully constructed.
         }
     } else {
-        if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARARGS)) {
+        if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARIADIC)) {
             if (ROUTINE_FIXED_ARGS(rot))
                 QUEUE_MARK_ARRAY_DEEP(ROUTINE_FIXED_ARGS(rot));
 
@@ -563,15 +563,15 @@ static void Mark_Call_Frames_Deep(void)
 
         // !!! There are now going to be two, and perhaps three (?), ways of
         // holding the values being enumerated.  One problem is that the
-        // remainder of a vararg list cannot be enumerated without killing
+        // remainder of a C va_list cannot be enumerated without killing
         // the enumeration, so there has to be a way to do that...and one
         // would be to finish the enumeration but put in a dynamic source
         // (ARRAY being a natural choice, but we're in mid-GC of arrays and
         // don't want to make one, so some kind of pre-GC phase that took
-        // the outstanding vararg-based enumerations and made series for
+        // the outstanding va_list-based enumerations and made series for
         // them would be required).
         //
-        // GENERAL THEORY: vararg and memory series are "lazy realized" as
+        // GENERAL THEORY: va_list and memory series are "lazy realized" as
         // arrays, this lazy realization can happen if you need to do a
         // debug backtrace or error.  GCs lazy realize all pending frames
         // before the GC starts.
@@ -584,13 +584,13 @@ static void Mark_Call_Frames_Deep(void)
             // function is running, which could be arbitrarily long...so
             // a GC could happen.
         }
-        else if (c->indexor == VARARGS_FLAG) {
+        else if (c->indexor == VALIST_FLAG) {
             //
             // !!! This needs to be written!  But we can *temporarily* hope
             // for the best, because the existing Apply calls are only
             // allowed to use DO_FLAG_EVAL_ONLY to supply their arguments.
-            // It's not safe to use full evaluation in varargs until this
-            // code is written, so see assert in Do_Varargs_Core()
+            // It's not safe to use full evaluation in va_lists until this
+            // code is written, so see assert in Do_Va_Core()
             //
             //assert(FALSE);
         }
