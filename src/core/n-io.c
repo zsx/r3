@@ -68,11 +68,62 @@ REBNATIVE(echo)
 //  "Converts a value to a human-readable string."
 //  
 //      value [opt-any-value!] "The value to form"
+//      /delimit
+//          "Use a delimiter between expressions that added to the output"
+//      delimiter [none! any-scalar! any-string! block!]
+//          "Delimiting value (or block of delimiters for each depth)"
+//      /quote
+//          "Do not reduce values in blocks"
+//      /new
+//          "TEMPORARY: Test new formatting logic for Ren-C (reduces)"
 //  ]
 //
 REBNATIVE(form)
 {
-    Val_Init_String(D_OUT, Copy_Form_Value(D_ARG(1), 0));
+    PARAM(1, value);
+    REFINE(2, delimit);
+    PARAM(3, delimiter);
+    REFINE(4, quote);
+    REFINE(5, new);
+
+    REBVAL *value = ARG(value);
+    REBVAL *delimiter = ARG(delimiter);
+
+    if (REF(new)) {
+        REBVAL pending_delimiter;
+
+        REB_MOLD mo;
+        CLEARS(&mo);
+
+        // !!! Temporary experiment to make the strings done by the new
+        // print logic available programmatically.  Possible outcome is that
+        // this would become the new FORM.
+
+        if (!REF(delimit))
+            *delimiter = *ROOT_DEFAULT_PRINT_DELIMITER;
+
+        Push_Mold(&mo);
+
+        VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
+        SET_END(&pending_delimiter);
+
+        if (Format_GC_Safe_Value_Throws(
+            D_OUT,
+            &mo,
+            &pending_delimiter,
+            value,
+            LOGICAL(!REF(quote) && IS_BLOCK(value)),
+            delimiter,
+            0 // depth
+        )) {
+            return R_OUT_IS_THROWN;
+        }
+
+        Pop_Molded_String(&mo);
+    }
+    else {
+        Val_Init_String(D_OUT, Copy_Form_Value(value, 0));
+    }
     return R_OUT;
 }
 
@@ -112,103 +163,42 @@ REBNATIVE(mold)
 }
 
 
-static REBOOL Print_Native_Modifying_Throws(
-    REBVAL *value, // Value may be modified.  Contents must be GC-safe!
-    REBOOL newline
-) {
-    if (IS_UNSET(value)) {
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_PRINT_FORMS_EVERYTHING))
-            goto form_it;
-    #endif
-
-        // No effect (not even a newline).  Previously this also was the
-        // behavior for NONE, but now that none is considered "reified" it
-        // does not opt out from rendering.
-    }
-    else if (IS_BINARY(value)) {
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_PRINT_FORMS_EVERYTHING))
-            goto form_it;
-    #endif
-
-        // Send raw bytes to the console.  CGI+ANSI+VT100 etc. require it
-        // for full 8-bit byte transport (UTF-8 is by definition not good
-        // enough...some bytes are illegal to occur in UTF-8 at all).
-        //
-        // Given that PRINT is not a general-purpose PROBE tool (it has
-        // never output values purely "as is", evaluating blocks for
-        // instance) it's worth doing a "strange" thing (though no stranger
-        // than WRITE) to be able to access the facility.
-
-        Prin_OS_String(VAL_BIN_AT(value), VAL_LEN_AT(value), OPT_ENC_RAW);
-
-        // !!! Binary print should never output a newline.  This would seem
-        // more natural if PRINT's decision to output newlines was guided
-        // by whether it was given a block or not (under consideration).
-    }
-    else if (IS_BLOCK(value)) {
-        // !!! Pending plan for PRINT of BLOCK! is to do something like
-        // COMBINE where NONE! is elided, single characters are not spaced out,
-        // nested blocks are recursed, etc.  So:
-        //
-        //     print ["A" newline "B" if 1 > 2 [newline] if 1 < 2 ["C"]]]
-        //
-        // Would output the following (where _ is space):
-        //
-        //     A
-        //     B_C
-        //
-        // As opposed to historical output, which is:
-        //
-        //     A_
-        //     B_none_C
-        //
-        // Currently it effectively FORM REDUCEs the output.
-
-        if (Reduce_Array_Throws(
-            value, VAL_ARRAY(value), VAL_INDEX(value), FALSE
-        )) {
-            return TRUE;
-        }
-
-        Prin_Value(value, 0, FALSE);
-        if (newline)
-            Print_OS_Line();
-    }
-    else {
-#if !defined(NDEBUG)
-    form_it: // used only by OPTIONS_PRINT_FORMS_EVERYTHING
-#endif
-        // !!! Full behavior review needed for all types.
-
-        Prin_Value(value, 0, FALSE);
-        if (newline)
-            Print_OS_Line();
-    }
-
-    return FALSE;
-}
-
-
 //
 //  print: native [
 //  
 //  "Outputs a value followed by a line break."
 //  
 //      value [opt-any-value!] "The value to print"
+//      /delimit
+//          "Use a delimiter between expressions that added to the output"
+//      delimiter [none! any-scalar! any-string! block!]
+//          "Delimiting value (or block of delimiters for each depth)"
+//      /quote
+//          "Do not reduce values in blocks"
 //  ]
 //
 REBNATIVE(print)
 {
-    // Note: value is safe from GC due to being in arg slot
-    REBVAL *value = D_ARG(1);
+    PARAM(1, value);
+    REFINE(2, delimit);
+    PARAM(3, delimiter);
+    REFINE(4, quote);
 
-    if (Print_Native_Modifying_Throws(value, TRUE)) { // add newline
-        *D_OUT = *value;
+    // By default, we assume the delimiter is supposed to be a space at the
+    // outermost level and nothing at every level beyond that: [#" " |]
+    //
+    if (!REF(delimit))
+        *ARG(delimiter) = *ROOT_DEFAULT_PRINT_DELIMITER;
+
+    // If not in quoting mode, then it will reduce
+    //
+    if (Prin_GC_Safe_Value_Throws(
+        D_OUT, ARG(value), ARG(delimiter), 0, FALSE, NOT(REF(quote))
+    )) {
         return R_OUT_IS_THROWN;
     }
+
+    Print_OS_Line();
 
     return R_UNSET;
 }
@@ -224,19 +214,29 @@ REBNATIVE(print)
 //
 REBNATIVE(prin)
 //
-// !!! PRIN is considered as a "poor word" and is pending decisions
-// about a better solution to newline management in output.  The
-// following idea has been proposed as giving necessary coverage:
+// !!! PRIN is considered as a "poor word" and is pending decisions about a
+// better solution to newline management in output.  The following idea has
+// been proposed as giving necessary coverage:
 // 
 //     `print x` (no newline if x is not a block)
 //     `print [x]` (newline for all x, no extra one if x is block)
 //     `print form x` (guarantee no newline, even if x is block)
+//
+// But it's not the only idea out there, and worst case scenario is PRINT/ONLY
+// be chosen to suppress the newline.  Due to a specific desire to see PRIN
+// not go forward, it is not being enhanced to take delimiters.
 {
-    // Note: value is safe from GC due to being in arg slot
-    REBVAL *value = D_ARG(1);
+    PARAM(1, value);
 
-    if (Print_Native_Modifying_Throws(value, FALSE)) { // do not add newline
-        *D_OUT = *value;
+    REBVAL delimiter;
+    VAL_INIT_WRITABLE_DEBUG(&delimiter);
+    SET_CHAR(&delimiter, ' ');
+
+    // Note: Reduces but does not mold
+    //
+    if (Prin_GC_Safe_Value_Throws(
+        D_OUT, ARG(value), &delimiter, 0, FALSE, TRUE
+    )) {
         return R_OUT_IS_THROWN;
     }
 
