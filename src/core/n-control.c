@@ -1245,10 +1245,19 @@ REBNATIVE(fail)
         //     fail/with [{The key} :key-name {is invalid}] [key-name: key]
         //
         if (IS_BLOCK(reason)) {
+            REBVAL *item = VAL_ARRAY_AT(reason);
+
+            REBVAL pending_delimiter;
+
+            REB_MOLD mo;
+            CLEARS(&mo);
+
+            VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
+            SET_END(&pending_delimiter);
+
             // Check to make sure we're only drawing from the limited types
             // we accept (reserving room for future dialect expansion)
             //
-            REBVAL *item = VAL_ARRAY_AT(reason);
             for (; NOT_END(item); item++) {
                 if (IS_STRING(item) || IS_SCALAR(item))
                     continue;
@@ -1256,6 +1265,13 @@ REBNATIVE(fail)
                 // Leave the group in and let the reduce take care of it
                 //
                 if (IS_GROUP(item))
+                    continue;
+
+                // Literal blocks in the spec given to Format used by PRINT
+                // has special meaning for BLOCK! (and BAR! when not used
+                // in the middle of an expression)
+                //
+                if (IS_BLOCK(item) || IS_BAR(item))
                     continue;
 
                 // Leave words in to be handled by the reduce step as long
@@ -1280,17 +1296,23 @@ REBNATIVE(fail)
                 fail (Error(RE_LIMITED_FAIL_INPUT));
             }
 
-            // We just reduce and form the result, but since we allow GROUP!
-            // it means you can put in pretty much any expression.
-            //
-            if (Reduce_Array_Throws(
-                reason, VAL_ARRAY(reason), VAL_INDEX(reason), FALSE
+            // Use the same logic that PRINT does, which will create newline
+            // at expression barriers and form literal blocks with no spaces
+
+            Push_Mold(&mo);
+            if (Format_GC_Safe_Value_Throws(
+                D_OUT,
+                &mo,
+                &pending_delimiter, // variable shared by recursions
+                reason,
+                TRUE, // reduce
+                ROOT_DEFAULT_PRINT_DELIMITER, // same as PRINT (customizable?)
+                0 // depth
             )) {
-                *D_OUT = *reason;
                 return R_OUT_IS_THROWN;
             }
 
-            Val_Init_String(reason, Copy_Form_Value(reason, 0));
+            Val_Init_String(reason, Pop_Molded_String(&mo));
         }
 
         if (Make_Error_Object_Throws(D_OUT, reason)) {

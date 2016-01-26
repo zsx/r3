@@ -814,8 +814,9 @@ REBNATIVE(backtrace)
 
     // If they didn't use /ONLY we assume they want it printed out.
     //
-    Prin_Value(D_OUT, 0, TRUE); // TRUE = mold
-    Print_OS_Line();
+    // TRUE = mold
+    //
+    Print_Value(D_OUT, 0, TRUE);
     return R_UNSET;
 }
 

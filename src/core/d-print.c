@@ -951,14 +951,273 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 **
 ***********************************************************************/
 
+static const REBVAL *Pending_Format_Delimiter(
+    const REBVAL* delimiter,
+    REBCNT depth
+) {
+    if (!IS_BLOCK(delimiter))
+        return delimiter;
+
+    if (VAL_ARRAY_LEN_AT(delimiter) == 0)
+        return NONE_VALUE;
+
+    if (depth >= VAL_ARRAY_LEN_AT(delimiter))
+        depth = VAL_ARRAY_LEN_AT(delimiter) - 1;
+
+    // We allow the block passed in to not be at the head, so we have to
+    // account for the index and offset from it.
+    //
+    delimiter = VAL_ARRAY_AT_HEAD(delimiter, VAL_INDEX(delimiter) + depth);
+
+    // BAR! at the end signals a stop, not to keep repeating the last
+    // delimiter for higher levels.  Same effect as a NONE!
+    //
+    if (IS_BAR(delimiter) || IS_NONE(delimiter))
+        return NONE_VALUE;
+
+    // We have to re-type-check against the legal delimiter types here.
+    //
+    if (ANY_STRING(delimiter) || IS_CHAR(delimiter))
+        return delimiter;
+
+    // !!! TBD: Error message, more comprehensive type check
+    //
+    fail (Error(RE_MISC));
+}
+
+
 //
-//  Prin_Value: C
+//  Format_GC_Safe_Value_Throws: C
+//
+// This implements new logic (which should ultimately also power FAIL, FORM,
+// and other print-like things).  The dialect will recurse on evaluated
+// blocks, treat literal blocks as grouping, and a BAR! `|` signals a
+// newline (as well as acting as an expression barrier)
+//
+REBOOL Format_GC_Safe_Value_Throws(
+    REBVAL *out,
+    REB_MOLD *mold,
+    REBVAL *pending_delimiter,
+    const REBVAL *val_gc_safe,
+    REBOOL reduce,
+    const REBVAL *delimiter,
+    REBCNT depth
+) {
+    struct Reb_Call c;
+
+    if (IS_BLOCK(val_gc_safe)) {
+        c.value = VAL_ARRAY_AT(val_gc_safe);
+        if (IS_END(c.value))
+            return FALSE; // no mold output added on empty blocks
+
+        c.indexor = VAL_INDEX(val_gc_safe) + 1;
+        c.source.array = VAL_ARRAY(val_gc_safe);
+    }
+    else {
+        // Prefetch with value + an empty array to use same code path
+
+        c.value = val_gc_safe;
+        c.indexor = END_FLAG;
+        c.source.array = EMPTY_ARRAY;
+    }
+
+    c.flags = DO_FLAG_NEXT | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD;
+    c.eval_fetched = NULL;
+
+    do {
+        if (IS_UNSET(c.value)) {
+            //
+            // Unsets format to nothing (!!! should NONE! do the same?)
+            //
+            FETCH_NEXT_ONLY_MAYBE_END(&c);
+        }
+        else if (IS_BAR(c.value)) {
+            //
+            // !!! At each depth BAR! is always a barrier.  However, it may
+            // also mean inserting a delimiter.  The default is to assume it
+            // means to insert a newline at the outermost level and then
+            // spaces at every inner level.  This should be overrideable
+            // via something like a /bar refinement.
+
+            if (depth == 0)
+                Append_Codepoint_Raw(mold->series, '\n');
+            else
+                Append_Codepoint_Raw(mold->series, ' ');
+
+            SET_END(pending_delimiter);
+            FETCH_NEXT_ONLY_MAYBE_END(&c);
+        }
+        else if (IS_CHAR(c.value)) {
+            //
+            // Characters are inserted with no spacing.  This is because the
+            // cases in which spaced-out-characters are most likely to be
+            // interesting are cases that are probably debug-oriented in
+            // which case MOLD should be used anyway.
+
+            assert(
+                SER_WIDE(mold->series) == sizeof(c.value->payload.character)
+            );
+            Append_Codepoint_Raw(mold->series, c.value->payload.character);
+
+            SET_END(pending_delimiter); // no delimiting before/after chars
+            FETCH_NEXT_ONLY_MAYBE_END(&c);
+        }
+        else if (IS_BINARY(c.value)) {
+            //
+            // Rather than introduce Rebol's specialized MOLD notation for
+            // BINARY! into ordinary printing, the assumption is that it
+            // should be interpreted as UTF-8 bytes.
+            //
+            if (VAL_LEN_AT(c.value) > 0) {
+                if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
+                    Mold_Value(mold, pending_delimiter, FALSE);
+
+                Append_UTF8_May_Fail(
+                    mold->series, VAL_BIN_AT(c.value), VAL_LEN_AT(c.value)
+                );
+
+                *pending_delimiter
+                    = *Pending_Format_Delimiter(delimiter, depth);
+            }
+
+            FETCH_NEXT_ONLY_MAYBE_END(&c);
+        }
+        else {
+            const REBVAL *item;
+            if (reduce) {
+                DO_NEXT_REFETCH_MAY_THROW(out, &c, DO_FLAG_LOOKAHEAD);
+                if (c.indexor == THROWN_FLAG)
+                    return TRUE;
+
+                item = out;
+            }
+            else
+                item = c.value;
+
+            if (IS_BLOCK(item)) {
+                //
+                // If an expression was a block then recurse and consider it
+                // a new depth level.  If it *evaluated* to a block, treat it
+                // the same--pretend the block was literally in the spot.
+
+                REBVAL maybe_thrown;
+                VAL_INIT_WRITABLE_DEBUG(&maybe_thrown);
+
+                if (reduce) PUSH_GUARD_VALUE(out);
+
+                if (Format_GC_Safe_Value_Throws(
+                    &maybe_thrown, // not interested in value unless thrown
+                    mold,
+                    pending_delimiter,
+                    item, // this level's output is recursion's input
+                    reduce,
+                    delimiter,
+                    depth + 1
+                )) {
+                    if (reduce) DROP_GUARD_VALUE(out);
+                    *out = maybe_thrown;
+                    return TRUE;
+                }
+
+                // If there's a delimiter pending (even a NONE!), then convert
+                // it back to pending the delimiter of the *outer* element.
+                //
+                if (!IS_END(pending_delimiter)) {
+                    *pending_delimiter = *Pending_Format_Delimiter(
+                        delimiter, depth
+                    );
+                }
+
+                if (reduce)
+                    DROP_GUARD_VALUE(out);
+                else
+                    FETCH_NEXT_ONLY_MAYBE_END(&c);
+            }
+            else if (reduce) {
+                //
+                // If we got here via a reduction step, we might have gotten
+                // a BINARY! or a BAR! or some other type.  Don't call MOLD
+                // directly because it won't necessarily do what this routine
+                // wants...recurse with reduce=FALSE to pick those up.
+
+                Format_GC_Safe_Value_Throws(
+                    NULL, // can't throw--no need for output slot
+                    mold,
+                    pending_delimiter,
+                    item, // this level's output is recursion's input
+                    FALSE, // don't reduce the value again
+                    delimiter,
+                    depth // not nested block so no depth increment
+                );
+
+                // If there's a delimiter pending (even a NONE!), then convert
+                // it back to pending the delimiter of the *outer* element.
+                //
+                if (!IS_END(pending_delimiter)) {
+                    *pending_delimiter
+                        = *Pending_Format_Delimiter(delimiter, depth);
+                }
+
+                // The DO_NEXT already refetched...
+            }
+            else {
+                // This is where the recursion bottoms out...the need to FORM
+                // a terminal value.  We don't know in advance if the forming
+                // will produce output, and if it doesn't we suppress the
+                // delimiter...so to do that, we have to roll back.
+
+                REBCNT rollback_point = UNI_LEN(mold->series);
+                REBCNT mold_point;
+
+                if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
+                    Mold_Value(mold, pending_delimiter, FALSE);
+
+                mold_point = UNI_LEN(mold->series);
+
+                Mold_Value(mold, item, FALSE);
+
+                if (UNI_LEN(mold->series) == mold_point) {
+                    //
+                    // The mold didn't add anything, so roll back and don't
+                    // update the pending delimiter.
+                    //
+                    SET_UNI_LEN(mold->series, rollback_point);
+                    UNI_TERM(mold->series);
+                    SET_NONE(pending_delimiter);
+                }
+                else {
+                    *pending_delimiter
+                        = *Pending_Format_Delimiter(delimiter, depth);
+                }
+
+                FETCH_NEXT_ONLY_MAYBE_END(&c);
+            }
+        }
+
+        if (c.indexor == END_FLAG)
+            break;
+    } while (TRUE);
+
+    return FALSE;
+}
+
+
+//
+//  Prin_GC_Safe_Value_Throws: C
 // 
 // Print a value or block's contents for user viewing.
 // Can limit output to a given size. Set limit to 0 for full size.
 //
-void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
-{
+REBOOL Prin_GC_Safe_Value_Throws(
+    REBVAL *out_if_reduce,
+    const REBVAL *value,
+    const REBVAL *delimiter,
+    REBCNT limit,
+    REBOOL mold,
+    REBOOL reduce
+) {
+    REBVAL pending_delimiter;
+
     REB_MOLD mo;
     CLEARS(&mo);
     if (limit != 0) {
@@ -967,7 +1226,25 @@ void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
     }
     Push_Mold(&mo);
 
-    Mold_Value(&mo, value, mold);
+    VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
+    SET_END(&pending_delimiter);
+
+    if (mold)
+        Mold_Value(&mo, value, TRUE);
+    else {
+        if (Format_GC_Safe_Value_Throws(
+            out_if_reduce,
+            &mo,
+            &pending_delimiter,
+            value,
+            LOGICAL(reduce && IS_BLOCK(value)), // `print 'word` won't GET it
+            delimiter,
+            0 // depth
+        )) {
+            return TRUE;
+        }
+    }
+
     Throttle_Mold(&mo); // not using Pop_Mold(), must do explicitly
 
     assert(SER_WIDE(mo.series) == sizeof(REBUNI));
@@ -978,6 +1255,7 @@ void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
     );
 
     Drop_Mold(&mo);
+    return FALSE;
 }
 
 
@@ -989,7 +1267,16 @@ void Prin_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 //
 void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 {
-    Prin_Value(value, limit, mold);
+    // Note: Does not reduce
+    //
+    REBVAL delimiter;
+    VAL_INIT_WRITABLE_DEBUG(&delimiter);
+    SET_CHAR(&delimiter, ' ');
+
+    (void)Prin_GC_Safe_Value_Throws(
+        NULL, value, &delimiter, limit, mold, FALSE
+    );
+
     Print_OS_Line();
 }
 

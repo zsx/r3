@@ -42,6 +42,12 @@ return-native
 leave-native
 parse-native
 
+;; PRINT takes a /DELIMIT which can be a block specifying delimiters at each
+;; level of depth in the recursion of blocks.  The default is [#" " |], which
+;; is a signal to put spaces at the first level and then after that nothing.
+;;
+default-print-delimiter
+
 ;; The BREAKPOINT instruction needs to be able to re-transmit a RESUME
 ;; instruction in the case that it wants to leapfrog another breakpoint
 ;; sandbox on the stack, and needs access to the resume native for the label

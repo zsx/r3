@@ -787,6 +787,18 @@ static void Init_Root_Context(void)
     SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_LOCKED);
     SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
+    // Used by REBNATIVE(print)
+    //
+    Val_Init_Block(ROOT_DEFAULT_PRINT_DELIMITER, Make_Array(2));
+    SET_CHAR(VAL_ARRAY_HEAD(ROOT_DEFAULT_PRINT_DELIMITER), ' ');
+    SET_BAR(VAL_ARRAY_AT_HEAD(ROOT_DEFAULT_PRINT_DELIMITER, 1));
+    SET_END(VAL_ARRAY_AT_HEAD(ROOT_DEFAULT_PRINT_DELIMITER, 2));
+    SET_ARRAY_LEN(VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), 2);
+    SET_ARR_FLAG(VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), SERIES_FLAG_LOCKED);
+    SET_ARR_FLAG(
+        VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), SERIES_FLAG_FIXED_SIZE
+    );
+
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  We also dynamically allocate it in
     // order to get uninitialized memory for everything but the header (if
