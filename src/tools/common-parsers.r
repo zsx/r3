@@ -59,7 +59,10 @@ decode-key-value-text: function [
     meta: make block! []
     
     if not parse/all text data-fields [
-        fail [{Expected key value format on line} (line-of text position) {and lines must end with newline.}]
+        fail [
+            {Expected key value format on line} (line-of text position)
+            {and lines must end with newline.}
+        ]
     ]
 
     new-line/all/skip meta true 2
@@ -76,7 +79,11 @@ decode-lines: function [
     if not empty? indent [append pattern compose/only [opt (indent)]]
     line: [pos: pattern rest: (rest: remove/part pos rest) :rest thru newline]
     if not parse/all text [any line] [
-        fail [{Expected line} (line-of text pos) {to begin with} (mold line-prefix) {and end with newline.}]
+        fail [
+            {Expected line} (line-of text pos)
+            {to begin with} (mold line-prefix)
+            {and end with newline.}
+        ]
     ]
     remove back tail text
     text
