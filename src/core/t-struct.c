@@ -474,7 +474,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
             switch (VAL_WORD_CANON(attr)) {
                 case SYM_RAW_SIZE:
                     ++ attr;
-                    if (IS_INTEGER(attr)) {
+                    if (NOT_END(attr) && IS_INTEGER(attr)) {
                         if (*raw_size > 0) /* duplicate raw-size */
                             fail (Error_Invalid_Arg(attr));
 
@@ -488,7 +488,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 
                 case SYM_RAW_MEMORY:
                     ++ attr;
-                    if (IS_INTEGER(attr)) {
+                    if (NOT_END(attr) && IS_INTEGER(attr)) {
                         if (*raw_addr != 0) /* duplicate raw-memory */
                             fail (Error_Invalid_Arg(attr));
 
@@ -506,7 +506,8 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                     if (*raw_addr != 0) // raw-memory is exclusive with extern
                         fail (Error_Invalid_Arg(attr));
 
-                    if (!IS_BLOCK(attr)
+                    if (IS_END(attr)
+			|| !IS_BLOCK(attr)
                         || VAL_LEN_AT(attr) != 2) {
                         fail (Error_Invalid_Arg(attr));
                     }
@@ -584,7 +585,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 {
     REBVAL *val = VAL_ARRAY_AT(spec);
 
-    if (IS_WORD(val)){
+    if (NOT_END(val) && IS_WORD(val)){
         switch (VAL_WORD_CANON(val)) {
             case SYM_UINT8:
                 field->type = STRUCT_TYPE_UINT8;
@@ -658,7 +659,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
             default:
                 fail (Error_Has_Bad_Type(val));
         }
-    } else if (IS_STRUCT(val)) { //[b: [struct-a] val-a]
+    } else if (NOT_END(val) && IS_STRUCT(val)) { //[b: [struct-a] val-a]
         field->size = SER_LEN(VAL_STRUCT_DATA_BIN(val));
         field->type = STRUCT_TYPE_STRUCT;
         field->fields = VAL_STRUCT_FIELDS(val);
@@ -670,7 +671,10 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 
     ++ val;
 
-    if (NOT_END(val) && IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
+    if (IS_END(val)) {
+        field->dimension = 1; /* scalar */
+        field->array = 0; // FALSE, but bitfield must be integer
+    } else if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
         VAL_INIT_WRITABLE_DEBUG(&ret);
 
@@ -687,12 +691,8 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         field->array = 1; // TRUE, but bitfield must be integer
         ++ val;
     } else {
-        field->dimension = 1; /* scalar */
-        field->array = 0; // FALSE, but bitfield must be integer
-    }
-
-    if (NOT_END(val))
         fail (Error_Has_Bad_Type(val));
+    }
 
     return TRUE;
 }
@@ -786,7 +786,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
             ++ blk;
 
-            if (!IS_BLOCK(blk))
+            if (IS_END(blk) || !IS_BLOCK(blk))
                 fail (Error_Invalid_Arg(blk));
 
             if (!parse_field_type(field, blk, inner, &init)) { return FALSE; }
@@ -807,7 +807,9 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
                 init = &safe;
 
-                if (IS_BLOCK(blk)) {
+                if (IS_END(blk)) {
+                   fail (Error_Invalid_Arg(blk));
+                } else if (IS_BLOCK(blk)) {
                     if (Reduce_Array_Throws(init, VAL_ARRAY(blk), 0, FALSE))
                         fail (Error_No_Catch_For_Throw(init));
 
