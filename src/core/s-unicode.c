@@ -862,7 +862,7 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 
 
 //
-//  Decode_UTF8: C
+//  Decode_UTF8_May_Fail: C
 // 
 // Decode UTF8 byte string into a 16 bit preallocated array.
 // 
@@ -874,8 +874,12 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 // Returns length in chars (negative if all chars are latin-1).
 // No terminator is added.
 //
-int Decode_UTF8(REBUNI *dst, const REBYTE *src, REBCNT len, REBOOL crlf_to_lf)
-{
+int Decode_UTF8_May_Fail(
+    REBUNI *dst,
+    const REBYTE *src,
+    REBCNT len,
+    REBOOL crlf_to_lf
+) {
     int flag = -1;
     REBUNI ch;
     REBUNI *start = dst;
@@ -983,7 +987,7 @@ REBSER *Decode_UTF_String(REBYTE *bp, REBCNT len, REBINT utf)
     }
 
     if (utf == 0 || utf == 8) {
-        size = Decode_UTF8(
+        size = Decode_UTF8_May_Fail(
             cast(REBUNI*, Reset_Buffer(ser, len)), bp, len, TRUE
         );
     }

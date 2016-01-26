@@ -565,7 +565,9 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
         Get_Event_Var(value, fields[field], &val);
         if (!IS_NONE(&val)) {
             New_Indented_Line(mold);
-            Append_UTF8(mold->series, Get_Sym_Name(fields[field]), -1);
+            Append_UTF8_May_Fail(
+                mold->series, Get_Sym_Name(fields[field]), -1
+            );
             Append_Unencoded(mold->series, ": ");
             if (IS_WORD(&val)) Append_Codepoint_Raw(mold->series, '\'');
             Mold_Value(mold, &val, TRUE);

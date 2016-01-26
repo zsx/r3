@@ -204,7 +204,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
             assert(sizeof(REBCHR) == sizeof(REBUNI));
             Append_Uni_Uni(dst, cast(const REBUNI*, lpath), l);
 #else
-            REBINT clen = Decode_UTF8(
+            REBINT clen = Decode_UTF8_May_Fail(
                 UNI_HEAD(dst), cast(const REBYTE*, lpath), l, FALSE
             );
             SET_SERIES_LEN(dst, abs(clen));

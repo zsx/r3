@@ -1107,7 +1107,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *varargs_ptr)
             key++;
             Val_Init_File(
                 value,
-                Append_UTF8(
+                Append_UTF8_May_Fail(
                     NULL,
                     cb_cast(TG_Erroring_C_File),
                     LEN_BYTES(cb_cast(TG_Erroring_C_File))

@@ -305,7 +305,7 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         // !!!"Leaks" in the sense that the GC has to take care of this
         MANAGE_SERIES(up);
 
-        n = Decode_UTF8(UNI_HEAD(up), VAL_BIN_AT(val), n, FALSE);
+        n = Decode_UTF8_May_Fail(UNI_HEAD(up), VAL_BIN_AT(val), n, FALSE);
         SET_SERIES_LEN(up, abs(n));
         UNI_TERM(up);
 
@@ -540,7 +540,7 @@ void Append_Int_Pad(REBSER *dst, REBINT num, REBINT digs)
 
 
 //
-//  Append_UTF8: C
+//  Append_UTF8_May_Fail: C
 // 
 // Append (or create) decoded UTF8 to a string. OPTIMIZED.
 // 
@@ -548,7 +548,7 @@ void Append_Int_Pad(REBSER *dst, REBINT num, REBINT digs)
 // 
 // dst = null means make a new string.
 //
-REBSER *Append_UTF8(REBSER *dst, const REBYTE *src, REBINT len)
+REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBINT len)
 {
     REBSER *ser = BUF_UTF8; // buffer is Unicode width
 
@@ -556,7 +556,7 @@ REBSER *Append_UTF8(REBSER *dst, const REBYTE *src, REBINT len)
 
     Resize_Series(ser, len+1); // needs at most this much
 
-    len = Decode_UTF8(UNI_HEAD(ser), src, len, FALSE);
+    len = Decode_UTF8_May_Fail(UNI_HEAD(ser), src, len, FALSE);
 
     if (len < 0) {
         len = -len;

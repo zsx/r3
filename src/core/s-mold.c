@@ -86,7 +86,7 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
     for (; *fmt; fmt++) {
         switch (*fmt) {
         case 'W':   // Word symbol
-            Append_UTF8(
+            Append_UTF8_May_Fail(
                 series,
                 Get_Word_Name(va_arg(varargs, const REBVAL*)),
                 -1
@@ -119,10 +119,14 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
             Append_Int_Pad(series, va_arg(varargs, REBINT), 2);
             break;
         case 'T':   // Type name
-            Append_UTF8(series, Get_Type_Name(va_arg(varargs, REBVAL*)), -1);
+            Append_UTF8_May_Fail(
+                series, Get_Type_Name(va_arg(varargs, REBVAL*)), -1
+            );
             break;
         case 'N':   // Symbol name
-            Append_UTF8(series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1);
+            Append_UTF8_May_Fail(
+                series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1
+            );
             break;
         case '+':   // Add #[ if mold/all
             if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
@@ -132,7 +136,9 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
             break;
         case 'D':   // Datatype symbol: #[type
             if (ender) {
-                Append_UTF8(series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1);
+                Append_UTF8_May_Fail(
+                    series, Get_Sym_Name(va_arg(varargs, REBCNT)), -1
+                );
                 Append_Codepoint_Raw(series, ' ');
             } else va_arg(varargs, REBCNT); // ignore it
             break;
@@ -796,7 +802,7 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         // the typesets, if we are looking at a PARAMLIST or KEYLIST.
         //
         Append_Unencoded(mold->series, "(");
-        Append_UTF8(
+        Append_UTF8_May_Fail(
             mold->series, Get_Sym_Name(VAL_TYPESET_SYM(value)), -1 // LEN_BYTES
         );
         Append_Unencoded(mold->series, ") ");
@@ -969,7 +975,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         ){
             New_Indented_Line(mold);
 
-            Append_UTF8(
+            Append_UTF8_May_Fail(
                 mold->series, Get_Sym_Name(VAL_TYPESET_SYM(key)), -1
             );
 
@@ -1274,7 +1280,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
 
     case REB_WORD:
         // This is a high frequency function, so it is optimized.
-        Append_UTF8(ser, Get_Sym_Name(VAL_WORD_SYM(value)), -1);
+        Append_UTF8_May_Fail(ser, Get_Sym_Name(VAL_WORD_SYM(value)), -1);
         break;
 
     case REB_SET_WORD:

@@ -1546,28 +1546,28 @@ void Init_Core(REBARGS *rargs)
 
     Val_Init_Tag(
         ROOT_NO_RETURN_TAG,
-        Append_UTF8(NULL, no_return, LEN_BYTES(no_return))
+        Append_UTF8_May_Fail(NULL, no_return, LEN_BYTES(no_return))
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,
-        Append_UTF8(NULL, infix, LEN_BYTES(infix))
+        Append_UTF8_May_Fail(NULL, infix, LEN_BYTES(infix))
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
-        Append_UTF8(NULL, local, LEN_BYTES(local))
+        Append_UTF8_May_Fail(NULL, local, LEN_BYTES(local))
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_DURABLE_TAG,
-        Append_UTF8(NULL, durable, LEN_BYTES(durable))
+        Append_UTF8_May_Fail(NULL, durable, LEN_BYTES(durable))
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_LOCKED);

@@ -768,7 +768,7 @@ const REBYTE *Scan_Any(
     REBCNT n;
 
     VAL_RESET_HEADER(value, type);
-    VAL_SERIES(value) = Append_UTF8(0, cp, len);
+    VAL_SERIES(value) = Append_UTF8_May_Fail(0, cp, len);
     VAL_INDEX(value) = 0;
 
     // We hand it over to management by the GC, but don't run the GC before
@@ -805,7 +805,7 @@ static void Append_Markup(
     SET_END(val);
     SET_ARRAY_LEN(array, ARR_LEN(array) + 1);
     SET_END(val+1);
-    Val_Init_Series(val, type, Append_UTF8(0, bp, len));
+    Val_Init_Series(val, type, Append_UTF8_May_Fail(0, bp, len));
 }
 
 
