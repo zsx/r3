@@ -1325,19 +1325,19 @@ struct Reb_Symbol {
 ***********************************************************************/
 
 #ifdef NDEBUG
-    #define WORD_FLAG 0
+    #define WORD_FLAG_X 0
 #else
-    #define WORD_FLAG REB_WORD // interpreted to mean ANY-WORD!
+    #define WORD_FLAG_X REB_WORD // interpreted to mean ANY-WORD!
 #endif
 
 enum {
     // is bound to a normally GC'd context
     //
-    WORD_FLAG_BOUND_SPECIFIC = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG,
+    WORD_FLAG_BOUND_SPECIFIC = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG_X,
 
     // var is found by combining w/extra info
     //
-    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG
+    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
 };
 
 struct Reb_Any_Word {
@@ -1487,9 +1487,9 @@ struct Reb_Any_Word {
 //
 
 #ifdef NDEBUG
-    #define TYPESET_FLAG 0
+    #define TYPESET_FLAG_X 0
 #else
-    #define TYPESET_FLAG REB_TYPESET // interpreted to mean ANY-TYPESET!
+    #define TYPESET_FLAG_X REB_TYPESET // interpreted to mean ANY-TYPESET!
 #endif
 
 // Option flags used with GET_VAL_FLAG().  These describe properties of
@@ -1498,23 +1498,23 @@ struct Reb_Any_Word {
 enum {
     // Quoted (REDUCE group/get-word|path if EVALUATE)
     //
-    TYPESET_FLAG_QUOTE = (1 << (TYPE_SPECIFIC_BIT + 0)) | TYPESET_FLAG,
+    TYPESET_FLAG_QUOTE = (1 << (TYPE_SPECIFIC_BIT + 0)) | TYPESET_FLAG_X,
 
     // DO/NEXT performed at callsite when setting
     //
-    TYPESET_FLAG_EVALUATE = (1 << (TYPE_SPECIFIC_BIT + 1)) | TYPESET_FLAG,
+    TYPESET_FLAG_EVALUATE = (1 << (TYPE_SPECIFIC_BIT + 1)) | TYPESET_FLAG_X,
 
     // Value indicates an optional switch
     //
-    TYPESET_FLAG_REFINEMENT = (1 << (TYPE_SPECIFIC_BIT + 2)) | TYPESET_FLAG,
+    TYPESET_FLAG_REFINEMENT = (1 << (TYPE_SPECIFIC_BIT + 2)) | TYPESET_FLAG_X,
 
     // Can't be changed (set with PROTECT)
     //
-    TYPESET_FLAG_LOCKED = (1 << (TYPE_SPECIFIC_BIT + 3)) | TYPESET_FLAG,
+    TYPESET_FLAG_LOCKED = (1 << (TYPE_SPECIFIC_BIT + 3)) | TYPESET_FLAG_X,
 
     // Can't be reflected (set with PROTECT/HIDE) or local in spec as `foo:`
     //
-    TYPESET_FLAG_HIDDEN = (1 << (TYPE_SPECIFIC_BIT + 4)) | TYPESET_FLAG,
+    TYPESET_FLAG_HIDDEN = (1 << (TYPE_SPECIFIC_BIT + 4)) | TYPESET_FLAG_X,
 
     // Can't be bound to beyond the current bindings.
     //
@@ -1528,7 +1528,7 @@ enum {
     // solution to separate the property of bindability from visibility, as
     // the SELF solution shakes out--so that SELF may be hidden but bind.
     //
-    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG,
+    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG_X,
 
     // !!! <durable> is the working name for the property of a function
     // argument or local to have its data survive after the call is over.
@@ -1540,7 +1540,7 @@ enum {
     // Hence if this property is applied, it will be applied to *all* of
     // a function's arguments.
     //
-    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG
+    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG_X
 };
 
 struct Reb_Typeset {
@@ -1755,30 +1755,30 @@ struct Reb_Any_Context {
 ***********************************************************************/
 
 #ifdef NDEBUG
-    #define FUNC_FLAG 0
+    #define FUNC_FLAG_X 0
 #else
-    #define FUNC_FLAG REB_FUNCTION // interpreted to mean ANY-FUNCTION!
+    #define FUNC_FLAG_X REB_FUNCTION // interpreted to mean ANY-FUNCTION!
 #endif
 
 enum {
     // called with "infix" protocol
     //
-    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG,
+    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG_X,
 
     // function "fakes" a definitionally scoped return (or a "LEAVE"...which
     // word is determined by the symbol of the *last* parameter)
     //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG,
+    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG_X,
 
     // native hooks into DO state and does own arg eval
     //
-    FUNC_FLAG_FRAMELESS = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG,
+    FUNC_FLAG_FRAMELESS = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
 
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
