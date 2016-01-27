@@ -305,7 +305,7 @@ REBOOL Set_Bits(REBSER *bset, REBVAL *val, REBOOL set)
     if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
     val = VAL_ARRAY_AT(val);
-    if (IS_SAME_WORD(val, SYM_NOT)) {
+    if (NOT_END(val) && IS_SAME_WORD(val, SYM_NOT)) {
         BITS_NOT(bset) = TRUE;
         val++;
     }
