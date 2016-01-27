@@ -591,8 +591,8 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
     REBINT maxlen;
     REBINT is_ser = ANY_SERIES(sval);
 
-    // If lval is not set, use the current len of the target value:
-    if (IS_UNSET(lval)) {
+    // If lval is not set or is BAR!, use the current len of the target value:
+    if (IS_UNSET(lval) || IS_BAR(lval)) {
         if (!is_ser) return 1;
         if (VAL_INDEX(sval) >= VAL_LEN_HEAD(sval)) return 0;
         return (VAL_LEN_HEAD(sval) - VAL_INDEX(sval));
