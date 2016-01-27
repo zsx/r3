@@ -230,7 +230,10 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
             ser = Make_Binary(len * sizeof(siginfo_t));
             req->common.data = BIN_HEAD(ser);
             result = OS_DO_DEVICE(req, RDC_READ);
-            if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
+            if (result < 0) {
+                Free_Series(ser);
+                fail(Error_On_Port(RE_READ_ERROR, port, req->error));
+            }
 
             arg = CTX_VAR(port, STD_PORT_DATA);
             if (!IS_BLOCK(arg)) {
@@ -241,9 +244,11 @@ static REB_R Signal_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
 
             if (len > 0) {
                 update(req, len, arg);
+                Free_Series(ser);
                 *D_OUT = *arg;
                 return R_OUT;
             } else {
+                Free_Series(ser);
                 return R_NONE;
             }
 
