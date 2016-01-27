@@ -212,6 +212,7 @@ set (CORE_SOURCE
 	${CORE_DIR}/n-io.c
 	${CORE_DIR}/n-loop.c
 	${CORE_DIR}/n-math.c
+	${CORE_DIR}/n-reduce.c
 	${CORE_DIR}/n-sets.c
 	${CORE_DIR}/n-strings.c
 	${CORE_DIR}/n-system.c
@@ -259,6 +260,7 @@ set (CORE_SOURCE
 	${CORE_DIR}/t-tuple.c
 	${CORE_DIR}/t-typeset.c
 	${CORE_DIR}/t-utype.c
+	${CORE_DIR}/t-varargs.c
 	${CORE_DIR}/t-vector.c
 	${CORE_DIR}/t-word.c
 	${CORE_DIR}/u-bmp.c
