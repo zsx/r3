@@ -1010,6 +1010,38 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
 
 //
+//  Make_Singular_Array: C
+//
+// This is a helper routine for making an array that contains just a single
+// element.  It should be the default behavior for making single-element
+// resizable arrays, but for now the early instances testing the behavior
+// of fitting an array's data into a single node are all fixed 1-elements.
+//
+REBARR *Make_Singular_Array(REBVAL *single) {
+    REBARR *array = AS_ARRAY(
+        Make_Series(
+            1, // length will not come from this, but from end marker
+            sizeof(REBVAL),
+            MKS_EXTERNAL // don't alloc (or free) any data, trust us
+        ));
+
+    // At present, no ability to resize a singular array--mark fixed size
+    //
+    SET_ARR_FLAG(array, SERIES_FLAG_ARRAY);
+    SET_ARR_FLAG(array, SERIES_FLAG_FIXED_SIZE);
+
+    assert(!GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)); // paranoid check
+
+    *ARR_HEAD(array) = *single; // afterward, [0] value is NOT_END()
+
+    assert(ARR_LEN(array) == 1); // if NOT_END() for [0] value, length is 1
+    assert(IS_END(ARR_TAIL(array))); // info bits signal this; low bits clear
+
+    return array;
+}
+
+
+//
 //  Free_Unbiased_Series_Data: C
 // 
 // Routines that are part of the core series implementation
