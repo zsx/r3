@@ -41,8 +41,8 @@
 
 #if defined(TO_OSX_X86) || defined(TO_OSX_PPC)
     #include <sys/malloc.h>
-#else
-    #include <stdlib.h>
+#elif defined(TO_WINDOWS)
+    #include <malloc.h>
 #endif
 
 #include "rsa.h"
