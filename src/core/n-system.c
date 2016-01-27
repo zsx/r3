@@ -503,7 +503,8 @@ REBNATIVE(function_of)
         // which should be coercible to a function even when the call is
         // no longer on the stack.
         //
-        *D_OUT = *FUNC_VALUE(FRM_FUNC(VAL_CONTEXT(level)));
+        REBCTX *ctx = VAL_CONTEXT(level);
+        *D_OUT = *FUNC_VALUE(FRM_FUNC(ctx));
     }
     else {
         struct Reb_Call *call = Call_For_Stack_Level(NULL, level, TRUE);
