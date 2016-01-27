@@ -153,6 +153,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     REBVAL result;
     VAL_INIT_WRITABLE_DEBUG(&tmp);
     VAL_INIT_WRITABLE_DEBUG(&result);
+    VAL_INIT_WRITABLE_DEBUG(&awake_only);
 
     // Get the system port object:
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
