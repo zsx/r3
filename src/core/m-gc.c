@@ -610,6 +610,18 @@ static void Mark_Call_Frames_Deep(void)
             continue;
         }
 
+        // The subfeed may be in use by VARARGS!, and it may be either a
+        // context or a single element array.
+        //
+        if (c->cell.subfeed) {
+            if (GET_ARR_FLAG(c->cell.subfeed, SERIES_FLAG_CONTEXT))
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(c->cell.subfeed));
+            else {
+                assert(ARR_LEN(c->cell.subfeed) == 1);
+                QUEUE_MARK_ARRAY_DEEP(c->cell.subfeed);
+            }
+        }
+
         QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func)); // never NULL
 
         Queue_Mark_Value_Deep(c->out); // never NULL
@@ -811,6 +823,34 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val));
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
             break;
+
+        case REB_VARARGS: {
+            REBARR *subfeed;
+            if (GET_VAL_FLAG(val, VARARGS_FLAG_NO_FRAME)) {
+                //
+                // A single-element shared series node is kept between
+                // instances of the same vararg that was created with
+                // MAKE ARRAY! - which fits compactly in a REBSER.
+                //
+                subfeed = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(val));
+                QUEUE_MARK_ARRAY_DEEP(VAL_VARARGS_ARRAY1(val));
+            }
+            else {
+                subfeed = *SUBFEED_ADDR_OF_FEED(
+                    CTX_VARLIST(VAL_VARARGS_FRAME(val))
+                );
+                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME(val));
+            }
+
+            if (subfeed) {
+                if (GET_ARR_FLAG(subfeed, SERIES_FLAG_CONTEXT))
+                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(subfeed));
+                else
+                    QUEUE_MARK_ARRAY_DEEP(subfeed);
+            }
+
+            break;
+        }
 
         case REB_WORD:  // (and also used for function STACK backtrace frame)
         case REB_SET_WORD:

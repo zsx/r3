@@ -211,6 +211,12 @@ Script: [
 ;   face-reused:        [{Face object reused (in more than one pane):} :arg1]
 
     frame-already-used: [{Frame currently in use by a function call} :arg1]
+
+    recursive-varargs:  {VARARGS! chained into itself (maybe try <durable>?)}
+    varargs-no-stack:   {Call originating VARARGS! has finished running}
+    varargs-make-only:  {MAKE *shared* BLOCK! supported on VARARGS! (not TO)}
+    varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}
+    varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
 ]
 
 Math: [

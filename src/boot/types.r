@@ -96,6 +96,8 @@ routine     (routine)   *       -       -       *       function
 command     (function)  -       -       -       *       function
 function    (function)  *       -       -       *       function
 
+varargs     varargs     -       -       -       -       -
+
 object      context     *       f*      *       *       context
 frame       (context)   *       f*      *       *       context
 module      context     *       f*      *       *       context

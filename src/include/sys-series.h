@@ -359,6 +359,10 @@ struct Reb_Series {
     //
     struct Reb_Value_Header info;
 
+    // The `misc` field is an extra pointer-sized piece of data which is
+    // resident in the series node, and hence visible to all REBVALs that
+    // might be referring to the series.
+    //
     union {
         REBCNT len; // length of non-arrays when !SERIES_FLAG_HAS_DYNAMIC
         REBCNT size;    // used for vectors and bitsets
@@ -369,6 +373,7 @@ struct Reb_Series {
             REBCNT high:16;
         } area;
         REBOOL negated; // for bitsets (can't be EXT flag on just one value)
+        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
     } misc;
 
 #if !defined(NDEBUG)

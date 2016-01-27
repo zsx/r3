@@ -1411,6 +1411,7 @@ void Init_Core(REBARGS *rargs)
     // right, but also to protect the values from changing.
     //
     const REBYTE no_return[] = "no-return";
+    const REBYTE ellipsis[] = "...";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
@@ -1562,6 +1563,13 @@ void Init_Core(REBARGS *rargs)
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
+
+    Val_Init_Tag(
+        ROOT_ELLIPSIS_TAG,
+        Append_UTF8_May_Fail(NULL, ellipsis, LEN_BYTES(ellipsis))
+    );
+    SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,

@@ -116,6 +116,7 @@ core: [
     t-tuple.c
     t-typeset.c
     t-utype.c
+    t-varargs.c
     t-vector.c
     t-word.c
     u-bmp.c

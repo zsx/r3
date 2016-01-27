@@ -209,15 +209,19 @@ REBCNT Find_In_Array(
 
 
 //
-//  Make_Block_Type: C
+//  Make_Block_Type_Throws: C
 // 
 // Arg can be:
 //     1. integer (length of block)
 //     2. block (copy it)
 //     3. value (convert to a block)
 //
-void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
-{
+REBOOL Make_Block_Type_Throws(
+    REBVAL *out,
+    enum Reb_Kind type,
+    REBOOL make,
+    REBVAL *arg
+) {
     REBCNT len;
     REBARR *array;
 
@@ -262,10 +266,86 @@ void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
 //      goto done;
 //  }
 
+    if (IS_VARARGS(arg)) {
+        //
+        // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
+        // varargs to the end and making an array out of the unevaluated
+        // values.  It's not known how many elements that will be, so they're
+        // gathered to the data stack to find the size, then an array made.
+
+        REBDSP dsp_orig = DSP;
+
+        REBARR *feed;
+        REBARR **subfeed_addr;
+
+        const REBVAL *param;
+        REBVAL fake_param;
+        VAL_INIT_WRITABLE_DEBUG(&fake_param);
+
+        // !!! This MAKE will be destructive to its input (the varargs will
+        // be fetched and exhausted).  That's not necessarily obvious, but
+        // with a TO conversion it would be even less obvious...
+        //
+        if (!make)
+            fail (Error(RE_VARARGS_MAKE_ONLY));
+
+        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
+            feed = VAL_VARARGS_ARRAY1(arg);
+
+            // Just a vararg created from a block, so no typeset or quoting
+            // settings available.  Make a fake parameter that hard quotes
+            // and takes any type (it will be type checked if in a chain).
+            //
+            Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
+            SET_VAL_FLAGS(
+                &fake_param,
+                TYPESET_FLAG_VARARGS | TYPESET_FLAG_QUOTE
+            );
+            param = &fake_param;
+        }
+        else {
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME(arg));
+            param = VAL_VARARGS_PARAM(arg);
+        }
+
+        do {
+            REBIXO indexor = Do_Vararg_Op_Core(
+                out, feed, param, SYM_0, VARARG_OP_TAKE
+            );
+
+            if (indexor == THROWN_FLAG)
+                return TRUE;
+            if (indexor == END_FLAG)
+                break;
+            assert(indexor == VALIST_FLAG);
+
+            DS_PUSH(out);
+        } while (TRUE);
+
+        Pop_Stack_Values(out, dsp_orig, type);
+
+        if (FALSE) {
+            //
+            // !!! If desired, input could be fed back into the varargs
+            // after exhaustion by setting it up with array data as a new
+            // subfeed.  Probably doesn't make sense to re-feed with data
+            // that has been evaluated, and subfeeds can't be fixed up
+            // like this either...disabled for now.
+            //
+            subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
+            assert(*subfeed_addr == NULL); // all values should be exhausted
+            *subfeed_addr = Make_Singular_Array(out);
+            MANAGE_ARRAY(*subfeed_addr);
+            *SUBFEED_ADDR_OF_FEED(*subfeed_addr) = NULL;
+        }
+
+        return FALSE;
+    }
+
     // to block! typset
     if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
         Val_Init_Array(out, type, Typeset_To_Array(arg));
-        return;
+        return FALSE;
     }
 
     if (make) {
@@ -273,7 +353,7 @@ void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
         if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
             len = Int32s(arg, 0);
             Val_Init_Array(out, type, Make_Array(len));
-            return;
+            return FALSE;
         }
         fail (Error_Invalid_Arg(arg));
     }
@@ -282,7 +362,7 @@ void Make_Block_Type(REBVAL *out, enum Reb_Kind type, REBOOL make, REBVAL *arg)
 
 done:
     Val_Init_Array(out, type, array);
-    return;
+    return FALSE;
 }
 
 
@@ -615,14 +695,18 @@ REBTYPE(Array)
         // make block! ...
         // to block! ...
         //
-        Make_Block_Type(
-            value, // out
-            IS_DATATYPE(value)
-                ? VAL_TYPE_KIND(value)
-                : VAL_TYPE(value), // type
-            LOGICAL(action == A_MAKE), // make? (as opposed to to?)
-            arg // size, block to copy, or value to convert
-        );
+        if (
+            Make_Block_Type_Throws(
+                value, // out
+                IS_DATATYPE(value)
+                    ? VAL_TYPE_KIND(value)
+                    : VAL_TYPE(value), // type
+                LOGICAL(action == A_MAKE), // make? (as opposed to to?)
+                arg // size, block to copy, or value to convert
+            )
+        ) {
+            return R_OUT_IS_THROWN;
+        }
 
         if (ANY_PATH(value)) {
             // Get rid of any line break options on the path's elements
