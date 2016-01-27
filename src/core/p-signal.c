@@ -45,7 +45,7 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
     Extend_Series(VAL_SERIES(arg), len);
 
     for (i = 0; i < len; i ++) {
-        REBCTX *obj = Alloc_Context(2);
+        REBCTX *obj = Alloc_Context(8);
         REBVAL *val = Append_Context(
             obj, NULL, Make_Word(signal_no, LEN_BYTES(signal_no))
         );
@@ -64,10 +64,18 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
         );
         SET_INTEGER(val, sig[i].si_uid);
 
-        Val_Init_Object(VAL_ARRAY_AT_HEAD(arg, VAL_LEN_HEAD(arg) + i), obj);
-    }
+        // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
+        //
+        VAL_INIT_WRITABLE_DEBUG(CTX_VALUE(obj));
+        VAL_RESET_HEADER(CTX_VALUE(obj), REB_OBJECT);
 
-    SET_SERIES_LEN(VAL_SERIES(arg), VAL_LEN_HEAD(arg) + len);
+        CTX_VALUE(obj)->payload.any_context.context = obj;
+        VAL_CONTEXT_SPEC(CTX_VALUE(obj)) = NULL;
+        VAL_CONTEXT_STACKVARS(CTX_VALUE(obj)) = NULL;
+
+        val = Alloc_Tail_Array(VAL_ARRAY(arg));
+        Val_Init_Object(val, obj);
+    }
 
     req->actual = 0; /* avoid duplicate updates */
 }
