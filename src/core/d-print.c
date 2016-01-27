@@ -1100,8 +1100,15 @@ REBOOL Format_GC_Safe_Value_Throws(
                 // a new depth level.  If it *evaluated* to a block, treat it
                 // the same--pretend the block was literally in the spot.
 
+                REBOOL nested_reduce = reduce;
+
                 REBVAL maybe_thrown;
                 VAL_INIT_WRITABLE_DEBUG(&maybe_thrown);
+
+            #if !defined(NDEBUG)
+                if (LEGACY(OPTIONS_NO_REDUCE_NESTED_PRINT))
+                    nested_reduce = FALSE;
+            #endif
 
                 if (reduce) PUSH_GUARD_VALUE(out);
 
@@ -1110,7 +1117,7 @@ REBOOL Format_GC_Safe_Value_Throws(
                     mold,
                     pending_delimiter,
                     item, // this level's output is recursion's input
-                    reduce,
+                    nested_reduce,
                     delimiter,
                     depth + 1
                 )) {
