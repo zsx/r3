@@ -119,7 +119,7 @@ REBNATIVE(form)
             return R_OUT_IS_THROWN;
         }
 
-        Pop_Molded_String(&mo);
+        Val_Init_String(D_OUT, Pop_Molded_String(&mo));
     }
     else {
         Val_Init_String(D_OUT, Copy_Form_Value(value, 0));

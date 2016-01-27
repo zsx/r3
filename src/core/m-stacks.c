@@ -269,8 +269,6 @@ void Expand_Stack(REBCNT amount)
 }
 
 
-#define V(p) cast(void*, (p))
-
 //
 //  Push_Ended_Trash_Chunk: C
 //

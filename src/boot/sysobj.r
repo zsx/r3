@@ -155,6 +155,7 @@ options: context [  ; Options supplied to REBOL during startup
     dont-exit-natives: false
     paren-instead-of-group: false
     get-will-get-anything: false
+    no-reduce-nested-print: false
 
     ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
     ; on the new behavior).  The points are retained in the code for purpose

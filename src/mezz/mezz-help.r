@@ -277,7 +277,11 @@ dump-obj: function [
     either infix? :value [
         print [args/1 word args/2]
     ][
-        print [uppercase mold word args]
+        ; Test idiom... print "tightly" by going straight to a second level
+        ; of nesting, where | also means space and can serve as a barrier.
+        ; Must FORM/QUOTE args to keep them from trying to be reduced.
+        ;
+        print [[uppercase mold word | form/new/quote args]]
     ]
 
     print ajoin [

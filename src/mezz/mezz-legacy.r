@@ -894,6 +894,7 @@ set 'r3-legacy* func [] [
     system/options/dont-exit-natives: true
     system/options/paren-instead-of-group: true
     system/options/get-will-get-anything: true
+    system/options/no-reduce-nested-print: true
 
     r3-legacy-mode: on
     return none
