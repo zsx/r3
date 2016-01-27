@@ -144,3 +144,10 @@ any-array?: func [
     "Return TRUE if value is a series containing all the same type."
     value [opt-any-value!]
 ][find any-array! type-of :value]
+
+ok?: func [
+    "Returns TRUE on all values that are not ERROR!"
+    value [opt-any-value!]
+][
+    not error? :value
+]
