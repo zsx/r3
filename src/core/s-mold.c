@@ -582,7 +582,10 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
 ************************************************************************
 ***********************************************************************/
 
-static void Mold_Array_At(
+//
+//  Mold_Array_At: C
+//
+void Mold_Array_At(
     REB_MOLD *mold,
     REBARR *array,
     REBCNT index,
@@ -1308,6 +1311,10 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     case REB_ACTION:
     case REB_COMMAND:
         Mold_Function(value, mold);
+        break;
+
+    case REB_VARARGS:
+        Mold_Varargs(value, mold);
         break;
 
     case REB_OBJECT:

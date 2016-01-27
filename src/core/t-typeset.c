@@ -148,6 +148,12 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
 
     for (; NOT_END(block); block++) {
         val = NULL;
+
+        if (IS_BAR(block)) {
+            SET_VAL_FLAG(value, TYPESET_FLAG_VARARGS);
+            continue;
+        }
+
         if (IS_WORD(block) && !(val = TRY_GET_OPT_VAR(block))) {
             //Print("word: %s", Get_Word_Name(block));
             REBSYM sym = VAL_WORD_SYM(block);

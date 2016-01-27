@@ -739,6 +739,30 @@ void Make_Function(
                     has_return = FALSE;
                 }
             }
+            else if (IS_BLOCK(item)) {
+                //
+                // Blocks representing typesets must be inspected for
+                // extension signifiers too, as MAKE TYPESET! doesn't know
+                // any keywords either.
+                //
+                REBVAL *subitem = VAL_ARRAY_HEAD(item);
+                for (; NOT_END(subitem); ++subitem) {
+                    if (!IS_TAG(subitem))
+                        continue;
+
+                    if (
+                        0 ==
+                        Compare_String_Vals(subitem, ROOT_ELLIPSIS_TAG, TRUE)
+                    ) {
+                        // Really this is just a notational convenience for
+                        // what happens with a BAR!, because a spec saying
+                        // `func [x [integer! |]]` is not as easy to see as
+                        // one that says `func [x [integer! <...>]]`
+                        //
+                        SET_BAR(subitem);
+                    }
+                }
+            }
         }
 
         if (has_return) {

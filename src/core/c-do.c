@@ -993,7 +993,6 @@ void Do_Core(struct Reb_Call * const c)
     // See notes below on reference for why this is needed to implement eval.
     //
     REBOOL eval_normal; // EVAL/ONLY can trigger this to FALSE
-    VAL_INIT_WRITABLE_DEBUG(&c->eval);
 
     // Check just once (stack level would be constant if checked in a loop)
     //
@@ -1055,7 +1054,8 @@ value_ready_for_do_next:
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    SET_TRASH_IF_DEBUG(&c->eval);
+    VAL_INIT_WRITABLE_DEBUG(&(c->cell.eval)); // in union, always reinit
+    SET_TRASH_IF_DEBUG(&(c->cell.eval));
     eval_normal = LOGICAL(c->flags & DO_FLAG_EVAL_NORMAL);
 
     // If we're going to jump to the `reevaluate:` label below we should not
@@ -1497,7 +1497,8 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            DO_NEXT_REFETCH_MAY_THROW(&c->eval, c, DO_FLAG_LOOKAHEAD);
+            VAL_INIT_WRITABLE_DEBUG(&(c->cell.eval));
+            DO_NEXT_REFETCH_MAY_THROW(&(c->cell.eval), c, DO_FLAG_LOOKAHEAD);
 
             if (c->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -1535,7 +1536,7 @@ reevaluate:
             else
                 c->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
 
-            c->value = &c->eval;
+            c->value = &(c->cell.eval);
             goto reevaluate; // we don't move index!
         }
 
@@ -1582,6 +1583,7 @@ reevaluate:
             //
             c->param = NULL;
             c->refine = NULL;
+            c->cell.subfeed = NULL;
 
             SET_TRASH_SAFE(c->out);
 
@@ -1710,9 +1712,10 @@ reevaluate:
     #endif
 
         // While fulfilling arguments the GC might be invoked, so we have to
-        // initialize `refine` to something too...
+        // initialize `refine` to something too.  The GC sees subfeed too.
         //
         c->refine = NULL;
+        c->cell.subfeed = NULL;
 
         // This loop goes through the parameter and argument slots, filling in
         // the arguments via recursive calls to the evaluator.
@@ -2053,6 +2056,29 @@ reevaluate:
                 || c->mode == CALL_MODE_REFINE_REVOKE
             );
 
+            // Evaluation argument "hook" parameters (signaled in MAKE FUNCION!
+            // by a `|` in the typeset, and in FUNC by `<...>`).  They point
+            // back to this call through a reified FRAME!, and are able to
+            // consume additional arguments during the function run.
+            //
+            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_VARARGS)) {
+                assert(eval_normal); // !!! Can EVAL/ONLY be supported?
+                /*assert(DSP == c->dsp_orig);*/ // !!! *after* refinement args?
+
+                VAL_RESET_HEADER(c->arg, REB_VARARGS);
+
+                VAL_VARARGS_FRAME(c->arg)
+                    = Frame_For_Call_May_Reify(c, NULL, FALSE);
+                ENSURE_ARRAY_MANAGED(
+                    CTX_VARLIST(VAL_VARARGS_FRAME(c->arg))
+                );
+
+                VAL_VARARGS_PARAM(c->arg) = c->param; // type checks on TAKE
+
+                assert(c->cell.subfeed == NULL); // NULL earlier in switch case
+                continue;
+            }
+
             // No argument--quoted or otherwise--is allowed to be directly
             // filled by a literal expression barrier.  Not even if it is able
             // to accept the type BAR! (other means must be used, e.g.
@@ -2315,10 +2341,10 @@ reevaluate:
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            c->eval = *DSF_ARGS_HEAD(c);
+            c->cell.eval = *DSF_ARGS_HEAD(c);
 
             c->eval_fetched = c->value;
-            c->value = &c->eval;
+            c->value = &c->cell.eval;
 
             c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
             goto drop_call_for_legacy_do_function;
@@ -2417,8 +2443,7 @@ reevaluate:
 
         assert(IS_END(c->param));
         // c->arg may be uninitialized if there were no args...
-
-        c->refine = NULL;
+        // refine should be either NULL or in the args (valid during call)
 
         // If the function has a native-optimized version of definitional
         // return, the local for this return should so far have just been
@@ -2778,7 +2803,6 @@ reevaluate:
         exit_from = NULL;
         goto do_function_arglist_in_progress;
 
-
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // [ ??? ] => panic
@@ -3095,7 +3119,7 @@ REBIXO Do_Va_Core(
     if (flags & DO_FLAG_NEXT) {
         //
         // Infix lookahead causes a fetch that cannot be undone.  Hence
-        // Varargs DO/NEXT can't be resumed -- see VALIST_INCOMPLETE_FLAG.
+        // va_list DO/NEXT can't be resumed -- see VALIST_INCOMPLETE_FLAG.
         // For a resumable interface on va_list, see the lower level
         // frameless API.
         //

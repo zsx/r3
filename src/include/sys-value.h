@@ -1540,7 +1540,14 @@ enum {
     // Hence if this property is applied, it will be applied to *all* of
     // a function's arguments.
     //
-    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG_X
+    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG_X,
+
+    // !!! This is the last available typeset flag...it does not need to be
+    // on the typeset necessarily.  See the VARARGS! type for what this is,
+    // which is a representation of the capture of an evaluation position.
+    // The type will also be checked but the value will not be consumed
+    //
+    TYPESET_FLAG_VARARGS = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
 };
 
 struct Reb_Typeset {
@@ -1904,6 +1911,91 @@ struct Reb_Any_Function {
         && GET_VAL_FLAG(VAL_FUNC_PARAM((f), 1), TYPESET_FLAG_DURABLE))
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// VARARGS! (`struct Reb_Varargs`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A VARARGS! represents a point for parameter gathering inline at the
+// callsite of a function.  The point is located *after* that function has
+// gathered all of its arguments and started running.  It is implemented by
+// holding a reference to a reified FRAME! series, which allows it to find
+// the point of a running evaluation (as well as to safely check for when
+// that call is no longer on the stack, and can't provide data.)
+//
+// A second VARARGS! form is implemented as a thin proxy over an ANY-ARRAY!.
+// This mimics the interface of feeding forward through those arguments, to
+// allow for "parameter packs" that can be passed to variadic functions.
+//
+// When the bits of a payload of a VARARG! are copied from one item to
+// another, they are still maintained in sync.  TAKE-ing a vararg off of one
+// is reflected in the others.  This means that the "indexor" position of
+// the vararg is located through the frame pointer.  If there is no frame,
+// then a single element array (the `array`) holds an ANY-ARRAY! value that
+// is shared between the instances, to reflect the state.
+//
+
+#ifdef NDEBUG
+    #define VARARGS_FLAG_X 0
+#else
+    #define VARARGS_FLAG_X REB_VARARGS
+#endif
+
+enum {
+    // Was made with a call to MAKE VARARGS! with data from an ANY-ARRAY!
+    // If that is the case, it does not use the varargs payload at all,
+    // rather it uses the Reb_Any_Series payload.
+    //
+    VARARGS_FLAG_NO_FRAME = (1 << (TYPE_SPECIFIC_BIT + 0)) | VARARGS_FLAG_X
+};
+
+struct Reb_Varargs {
+    //
+    // This is a FRAME! which was on the stack at the time when the VARARGS!
+    // was created.  However it may no longer be on the stack--and once it is
+    // not, it cannot respond to requests to be advanced.  The frame keeps
+    // a flag to test for this as long as this VARARGS! is GC-managed.
+    //
+    // Note that this frame reuses its EVAL slot to hold a value for any
+    // "sub-varargs" that is being processed, so that is the first place it
+    // looks to get the next item.
+    //
+    union {
+        REBCTX *frame;
+
+        REBARR *array1; // for MAKE VARARGS! to share a reference on an array
+    } feed;
+
+    // For as long as the VARARGS! can be used, the function it is applying
+    // will be alive.  Assume that the locked paramlist won't move in memory
+    // (evaluation would break if so, anyway) and hold onto the TYPESET!
+    // describing the parameter.  Each time a value is fetched from the EVAL
+    // then type check it for convenience.  Use ANY-VALUE! if not wanted.
+    //
+    // Note: could be a parameter index in the worst case scenario that the
+    // array grew, revisit the rules on holding pointers into paramlists.
+    //
+    const REBVAL *param;
+};
+
+#define VAL_VARARGS_FRAME(v) ((v)->payload.varargs.feed.frame)
+#define VAL_VARARGS_ARRAY1(v) ((v)->payload.varargs.feed.array1)
+
+#define VAL_VARARGS_PARAM(v) ((v)->payload.varargs.param)
+
+// The subfeed is either the varlist of the frame of another varargs that is
+// being chained at the moment, or the `array1` of another varargs.  To
+// be visible for all instances of the same vararg, it can't live in the
+// payload bits--so it's in the `eval` slot of a frame or the misc slot
+// of the array1.
+//
+#define SUBFEED_ADDR_OF_FEED(f) \
+    (GET_ARR_FLAG((f), SERIES_FLAG_CONTEXT) \
+        ? &FRM_CALL(AS_CONTEXT(f))->cell.subfeed \
+        : &ARR_SERIES(f)->misc.subfeed)
+
+
 /***********************************************************************
 **
 **  HANDLE
@@ -2208,6 +2300,8 @@ union Reb_Value_Payload {
     struct Reb_Any_Context any_context;
 
     struct Reb_Any_Function any_function;
+
+    struct Reb_Varargs varargs;
 
     struct Reb_Library library;
     struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword

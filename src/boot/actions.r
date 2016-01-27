@@ -140,7 +140,7 @@ head?: action [
 
 tail?: action [
     {Returns TRUE if series is at or past its end; or empty for other types.}
-    series [any-series! object! gob! port! bitset! map! none!]
+    series [any-series! object! gob! port! bitset! map! none! varargs!]
 ]
 
 past?: action [
@@ -185,7 +185,9 @@ length: action [
 
 pick: action [
     {Returns the value at the specified position.}
-    aggregate [any-series! map! gob! pair! date! time! tuple! bitset! port!]
+    aggregate [
+        any-series! map! gob! pair! date! time! tuple! bitset! port! varargs!
+    ]
     index {Index offset, symbol, or other value to use as index}
 ]
 
@@ -261,7 +263,7 @@ copy: action [
 
 take: action [
     {Removes and returns one or more elements.}
-    series [any-series! port! gob! none!] {At position (modified)}
+    series [any-series! port! gob! none! varargs!] {At position (modified)}
     /part {Specifies a length or end position}
     limit [any-number! any-series! pair! bar!]
     /deep {Also copies series values within the block}

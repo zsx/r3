@@ -442,6 +442,18 @@ enum encoding_opts {
     #define OPT_ENC_CRLF_MAYBE 0
 #endif
 
+
+// These 3 operations are the current legal set of what can be done with a
+// VARARG!.  They integrate with Do_Core()'s limitations in the prefetch
+// evaluator--such as to having one unit of lookahead.
+//
+enum Reb_Vararg_Op {
+    VARARG_OP_TAIL_Q, // tail?
+    VARARG_OP_FIRST, // "lookahead"
+    VARARG_OP_TAKE // doesn't modify underlying data stream--advances index
+};
+
+
 /***********************************************************************
 **
 **  Macros

@@ -270,7 +270,16 @@ struct Reb_Call {
     // Frameless natives and other code with call frame access should not
     // tamper w/it or read it--from their point of view it is "random".
     //
-    REBVAL eval;
+    // Once a function evaluation has started and the fields of the FUNC
+    // extracted, however, then specifically the eval slot is free up until
+    // the function evaluation is over.  As a result, it is used by VARARGS!
+    // to hold a piece of state that is visible to all bit-pattern-instances
+    // of that same VARARGS! in other locations.  See notes in %sys-value.h
+    //
+    union {
+        REBVAL eval;
+        REBARR *subfeed; // during VARARGS! (see also REBSER.misc.subfeed)
+    } cell;
 
     // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
     //
