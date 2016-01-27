@@ -883,10 +883,10 @@ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 {
     int len;
 
-    if (index >= SERIES_LEN(series))
+    if (index >= SER_LEN(series))
         len = 0;
     else
-        len = SERIES_LEN(series) - index;
+        len = SER_LEN(series) - index;
 
     if (BYTE_SIZE(series)) {
         *str = BIN_AT(series, index);
@@ -903,7 +903,7 @@ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
         utf8 = Make_Binary(utf8_len);
         if (utf8 == NULL) return 0;
 
-        Encode_UTF8(SERIES_DATA(utf8), utf8_len, src, &len, OPT_ENC_UNISRC);
+        Encode_UTF8(SER_DATA_RAW(utf8), utf8_len, src, &len, OPT_ENC_UNISRC);
     }
 
     return len;

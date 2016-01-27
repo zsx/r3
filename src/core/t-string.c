@@ -815,7 +815,7 @@ zero_str:
             : make_binary(arg, LOGICAL(action == A_MAKE));
 
         if (ser && type == REB_FILE && action == A_TO) {
-            REBSER *f_ser = To_REBOL_Path(SERIES_DATA(ser), SERIES_LEN(ser), SERIES_WIDE(ser) > 1 ? PATH_OPT_UNI_SRC : 0);
+            REBSER *f_ser = To_REBOL_Path(SER_DATA_RAW(ser), SER_LEN(ser), SER_WIDE(ser) > 1 ? PATH_OPT_UNI_SRC : 0);
             Free_Series(ser);
             ser = f_ser;
         }
