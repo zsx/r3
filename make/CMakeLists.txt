@@ -506,7 +506,3 @@ target_link_libraries(r3-core ${LIBS} ${FFI_LIBRARIES})
 if (NOT R3_EXTERNAL_FFI)
 	add_dependencies(r3-core ffi_s)
 endif()
-
-if (R3_BUILD_VIEW)
-	include (CMakeLists-view.txt)
-endif ()
