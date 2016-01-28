@@ -1017,7 +1017,7 @@ REBOOL Format_GC_Safe_Value_Throws(
         // Prefetch with value + an empty array to use same code path
 
         c.value = val_gc_safe;
-        c.indexor = END_FLAG;
+        c.indexor = 0;
         c.source.array = EMPTY_ARRAY;
     }
 
