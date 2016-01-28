@@ -51,12 +51,12 @@
 #define INCLUDE_EXT_DATA
 #include "host-ext-core.h"
 
-#ifdef __cplusplus__
+#ifdef __cplusplus
 extern "C" {
 #endif
     extern void Init_Core_Ext(REBYTE vers[8]);
     extern void Shutdown_Core_Ext(void);
-#ifdef __cplusplus__
+#ifdef __cplusplus
 }
 #endif
 

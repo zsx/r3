@@ -189,22 +189,30 @@ enum {
 //
 #define VALIST_INCOMPLETE_FLAG (END_FLAG - 0xAE)
 
-// The C build simply defines a REBIXO as a synonym for an unsigned int.  But
-// in the C++ build, the indexor is a more restrictive class...which redefines
+// The C build simply defines a REBIXO as a synonym for a pointer-sized int.
+// In the C++ build, the indexor is a more restrictive class...which redefines
 // a subset of operations for integers but does *not* implicitly cast to one
 // Hence if a THROWN_FLAG, END_FLAG, VALIST_FLAG etc. is used with integer
 // math or put into an `int` variable accidentally, this will be caught.
 //
 // Because indexors are not stored in REBVALs or places where memory usage
-// outweighs the concern of the native performance, they use `unsigned int`
-// instead of REBCNT.
+// outweighs the concern of the native performance, they use `REBUPT`
+// instead of REBCNT.  The C++ build maintains that size for its class too.
+//
+// !!! The feature is now selectively enabled, temporarily in order to make
+// the binding in Ren-Cpp binary compatible regardless of whether the build
+// was done with C or C++
 //
 #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
     typedef REBUPT REBIXO;
 #else
     #include "sys-do-cpp.h"
 
-    typedef Reb_Indexor REBIXO;
+    #if 0
+        typedef Reb_Indexor REBIXO;
+    #else
+        typedef REBUPT REBIXO;
+    #endif
 #endif
 
 
