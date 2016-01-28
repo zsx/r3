@@ -163,7 +163,7 @@ extern void OS_Destroy_Graphics(void);
 #ifdef __cplusplus
 extern "C" {
 #endif
-    extern void Init_Core_Ext(REBYTE vers[8]);
+    extern void Init_Core_Ext();
     extern void Shutdown_Core_Ext(void);
 #ifdef __cplusplus
 }
@@ -460,9 +460,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // !!! Note we may have to free Main_Args.home_dir below after this
     Parse_Args(argc, argv, &Main_Args);
 
-    vers[0] = 5; // len
-    RL_Version(&vers[0]);
-
     // Must be done before an console I/O can occur. Does not use reb-lib,
     // so this device should open even if there are other problems.
     Open_StdIO();  // also sets up interrupt handler
@@ -481,7 +478,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // Initialize core extension commands.  (This also checks struct alignment
     // and versioning, because it has access to the RL_XXX macros)
     //
-    Init_Core_Ext(vers);
+    Init_Core_Ext();
 
 #ifdef TEST_EXTENSIONS
     Init_Ext_Test();
