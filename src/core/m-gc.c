@@ -599,13 +599,17 @@ static void Mark_Call_Frames_Deep(void)
             QUEUE_MARK_ARRAY_DEEP(c->source.array);
         }
 
+        if (c->value && Is_Value_Managed(c->value, FALSE))
+            Queue_Mark_Value_Deep(c->value);
+
         if (c->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
             //
-            // The only field we protect if no function is pending or running
-            // with this frame is the array itself.  This is important if we
-            // do something like `eval copy quote (recycle)`, because while
-            // evaluating the group it has no anchor anywhere in the root set
-            // and could be GC'd.  The Reb_Call's array ref is all we have.
+            // The only fields we protect if no function is pending or running
+            // with this frame is the array and the potentially pending value.
+            //
+            // Consider something like `eval copy quote (recycle)`, because
+            // while evaluating the group it has no anchor anywhere in the
+            // root set and could be GC'd.  The Reb_Call's array ref is it.
             //
             continue;
         }
@@ -625,9 +629,6 @@ static void Mark_Call_Frames_Deep(void)
         QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func)); // never NULL
 
         Queue_Mark_Value_Deep(c->out); // never NULL
-
-        if (c->value && Is_Value_Managed(c->value, FALSE))
-            Queue_Mark_Value_Deep(c->value);
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
@@ -1350,9 +1351,11 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark all devices:
         Mark_Devices_Deep();
+        Propagate_All_GC_Marks();
 
         // Mark function call frames:
         Mark_Call_Frames_Deep();
+        Propagate_All_GC_Marks();
     }
 
     // SWEEPING PHASE
