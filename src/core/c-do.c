@@ -347,8 +347,15 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 // the evaluator, which may already have the `val` where it wants it, and
 // so the extra assignment would just be overhead.
 //
-REBOOL Do_Path_Throws(REBVAL *out, REBCNT *label_sym, const REBVAL *path, REBVAL *val)
-{
+// !!! Path evaluation is one of the parts of R3-Alpha that has not been
+// vetted very heavily by Ren-C, and needs a review and overhaul.
+//
+REBOOL Do_Path_Throws(
+    REBVAL *out,
+    REBSYM *label_sym,
+    const REBVAL *path,
+    REBVAL *val
+) {
     REBPVS pvs;
     REBDSP dsp_orig = DSP;
 
