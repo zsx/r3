@@ -176,7 +176,7 @@ struct Reb_Value_Header {
 // responsibility to guarantee that pointers to memory of the same type of
 // data be compatibly read-and-written.
 //
-#define NOT_END_MASK 0x01
+#define NOT_END_MASK cast(REBUPT, 0x01)
 
 #define GENERAL_VALUE_BIT 8
 #define TYPE_SPECIFIC_BIT 16
@@ -206,13 +206,13 @@ struct Reb_Value_Header {
     // one bit--the rest of the REBUPT bits besides the bottom two may be
     // anything necessary for the purpose.
     //
-    #define WRITABLE_MASK_DEBUG 0x02
+    #define WRITABLE_MASK_DEBUG cast(REBUPT, 0x02)
 #endif
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
 // hardcodes it for obviousness.  High 6 bits of the lowest byte.
 //
-#define HEADER_TYPE_MASK 0xFC
+#define HEADER_TYPE_MASK cast(REBUPT, 0xFC)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1440,12 +1440,12 @@ struct Reb_Any_Word {
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        (CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC), \
-            CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE))
+        CLEAR_VAL_FLAGS((v), \
+            WORD_FLAG_BOUND_SPECIFIC | WORD_FLAG_BOUND_RELATIVE)
 #else
     #define UNBIND_WORD(v) \
-        (CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC), \
-            CLEAR_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE), \
+        (CLEAR_VAL_FLAGS((v), \
+            WORD_FLAG_BOUND_SPECIFIC | WORD_FLAG_BOUND_RELATIVE), \
             (v)->payload.any_word.index = 0)
 #endif
 
