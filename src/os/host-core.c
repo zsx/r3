@@ -40,16 +40,7 @@
 #include <stdlib.h> //for free()
 #include <assert.h>
 
-// For the moment, we move the inclusion of the host-table.inc into this
-// file.  It cannot be included in the same file that uses the definitions
-// from %sys-core.h, because it expects the conventions of %reb-host.h.
-// However the %host-main.c wishes to use the %sys-core.h conventions at
-// this point in time, vs. be trapped with the RL_Api...
-//
 #include "reb-host.h"
-#include "host-table.inc"
-
-
 #include "png/lodepng.h"
 
 #include "rc4/rc4.h"
@@ -60,7 +51,15 @@
 #define INCLUDE_EXT_DATA
 #include "host-ext-core.h"
 
-extern void Init_Core_Ext(REBYTE vers[8]);
+#ifdef __cplusplus__
+extern "C" {
+#endif
+    extern void Init_Core_Ext(REBYTE vers[8]);
+    extern void Shutdown_Core_Ext(void);
+#ifdef __cplusplus__
+}
+#endif
+
 
 // Encapping is not a feature supported by Ren/C
 //REBYTE *encapBuffer = NULL;
