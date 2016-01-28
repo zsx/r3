@@ -160,8 +160,15 @@ extern void OS_Init_Graphics(void);
 extern void OS_Destroy_Graphics(void);
 #endif
 
-extern void Init_Core_Ext(REBYTE vers[8]);
-extern void Shutdown_Core_Ext(void);
+#ifdef __cplusplus__
+extern "C" {
+#endif
+    extern void Init_Core_Ext(REBYTE vers[8]);
+    extern void Shutdown_Core_Ext(void);
+#ifdef __cplusplus__
+}
+#endif
+
 
 //#define TEST_EXTENSIONS
 #ifdef TEST_EXTENSIONS

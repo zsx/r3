@@ -170,6 +170,7 @@ os: [
     + host-device.c
     host-stdio.c
     host-core.c
+    host-table.c
     dev-net.c
     dev-dns.c
 ]
