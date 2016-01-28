@@ -1220,9 +1220,8 @@ static void Bind_Values_Inner_Loop(
                 // is a macro and VAL_TYPE is a macro, so we cannot directly
                 // initialize the header while also needing the type.
                 //
-                enum Reb_Kind kind = VAL_TYPE(value);
                 assert(n <= CTX_LEN(context));
-                VAL_RESET_HEADER(value, kind);
+                UNBIND_WORD(value); // clear any previous binding flags
                 SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
