@@ -82,6 +82,23 @@ REBNATIVE(quit)
     return R_OUT_IS_THROWN;
 }
 
+//
+//  exit-rebol: native [
+//  
+//  {Stop the current Rebol interpreter.}
+//  
+//      /with {Yield a result (mapped to an integer if given to shell)}
+//      value [opt-any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
+//  ]
+//
+REBNATIVE(exit_rebol)
+{
+    int code = EXIT_SUCCESS;
+    if (D_REF(1)) {
+        code = VAL_INT32(D_ARG(2));
+    }
+    exit(code);
+}
 
 //
 //  recycle: native [
