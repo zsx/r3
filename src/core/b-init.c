@@ -189,6 +189,13 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
+
+    // The "Indexor" type in the C++ build has some added checking to make
+    // sure that the special values used for indicating THROWN_FLAG or
+    // END_FLAG etc. don't leak out into the REBCNT stored in things like
+    // blocks.  We want the C++ class to be the same size as the C build.
+    //
+    assert(sizeof(REBIXO) == sizeof(REBUPT));
 }
 
 

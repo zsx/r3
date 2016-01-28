@@ -47,6 +47,7 @@
 // the C89 version.  Additional classes are only enabled for C++11 and above.
 //
 
+
 //
 // Reb_Indexor
 //
@@ -67,9 +68,16 @@
 // one can quickly see which magic value a strange number is supposed to
 // be representing.
 //
-class Reb_Indexor {
-    unsigned int bits;
+// To ensure it's the same size as a REBUPT, the indexor has to do an
+// allocation for its contents.
+//
+struct Reb_Indexor_Data {
+    REBUPT bits;
     const char* name;
+};
+
+class Reb_Indexor {
+    Reb_Indexor_Data *d; // not unique_ptr<>, class must be same size as C type
 
     static constexpr const char* array_index_name = "(array index)";
     static constexpr const char* end_name = "END_FLAG";
@@ -79,29 +87,49 @@ class Reb_Indexor {
         = "VALIST_INCOMPLETE";
 
     void Update_Name() {
-        if (bits == END_FLAG)
-            name = end_name;
-        else if (bits == THROWN_FLAG)
-            name = thrown_name;
-        else if (bits == VALIST_FLAG)
-            name = valist_name;
-        else if (bits == VALIST_INCOMPLETE_FLAG)
-            name = valist_incomplete_name;
+        if (d->bits == END_FLAG)
+            d->name = end_name;
+        else if (d->bits == THROWN_FLAG)
+            d->name = thrown_name;
+        else if (d->bits == VALIST_FLAG)
+            d->name = valist_name;
+        else if (d->bits == VALIST_INCOMPLETE_FLAG)
+            d->name = valist_incomplete_name;
         else
-            name = array_index_name;
+            d->name = array_index_name;
     }
 
 public:
-    Reb_Indexor() {} // simulate C uninitialization of bits
-    Reb_Indexor(REBCNT bits) : bits (bits) {
+    Reb_Indexor () : d (new Reb_Indexor_Data) {} // simulate C uninitialization
+    Reb_Indexor (REBCNT bits) : d (new Reb_Indexor_Data) {
+        d->bits = bits;
         Update_Name();
     }
+    Reb_Indexor (Reb_Indexor const &other) {
+        d = new Reb_Indexor_Data;
+        d->bits = other.d->bits;
+        d->name = other.d->name;
+    }
+    void operator=(Reb_Indexor const &rhs) {
+        d->bits = rhs.d->bits;
+        d->name = rhs.d->name;
+    }
+    Reb_Indexor (Reb_Indexor && other) {
+        d->bits = other.d->bits;
+        d->name = other.d->name;
+        delete other.d;
+        other.d = NULL;
+    }
+    ~Reb_Indexor() {
+        if (d) delete d;
+    }
+
     void operator=(REBCNT rhs) {
-        bits = rhs;
+        d->bits = rhs;
         Update_Name();
     }
     int operator==(Reb_Indexor const &rhs) {
-        return bits == rhs.bits;
+        return d->bits == rhs.d->bits;
     }
     int operator!=(Reb_Indexor const &rhs) {
         return !((*this) == rhs);
@@ -113,10 +141,10 @@ public:
     //
     explicit operator REBCNT() const {
         assert(
-            bits != END_FLAG && bits != THROWN_FLAG &&
-            bits != VALIST_FLAG && bits != VALIST_INCOMPLETE_FLAG
+            d->bits != END_FLAG && d->bits != THROWN_FLAG &&
+            d->bits != VALIST_FLAG && d->bits != VALIST_INCOMPLETE_FLAG
         );
-        return bits;
+        return d->bits;
     }
 
     // Subset of operations that are exported to be legal to perform between
@@ -127,7 +155,7 @@ public:
     // should be extracted by casting to a REBCNT.
     //
     friend int operator==(REBCNT lhs, const Reb_Indexor &rhs) {
-        return lhs == rhs.bits;
+        return lhs == rhs.d->bits;
     }
     friend int operator!=(REBCNT lhs, const Reb_Indexor &rhs) {
         return !(lhs == rhs);
@@ -136,19 +164,19 @@ public:
         return cast(REBCNT, *this) < rhs;
     }
     friend int operator<(REBCNT lhs, const Reb_Indexor &rhs) {
-        return lhs < rhs.bits;
+        return lhs < rhs.d->bits;
     }
     int operator>(REBCNT rhs) const {
         return cast(REBCNT, *this) > rhs;
     }
     friend int operator>(REBCNT lhs, const Reb_Indexor &rhs) {
-        return lhs > rhs.bits;
+        return lhs > rhs.d->bits;
     }
     int operator<=(REBCNT rhs) const {
         return cast(REBCNT, *this) <= rhs;
     }
     friend int operator<=(REBCNT lhs, const Reb_Indexor &rhs) {
-        return lhs <= rhs.bits;
+        return lhs <= rhs.d->bits;
     }
     REBCNT operator+(REBCNT rhs) const {
         return cast(REBCNT, *this) + rhs;

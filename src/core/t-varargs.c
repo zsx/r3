@@ -606,7 +606,9 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
                 else if (c->indexor == END_FLAG)
                     Append_Unencoded(mold->series, "*end*");
                 else
-                    Mold_Array_At(mold, c->source.array, c->indexor, NULL);
+                    Mold_Array_At(
+                        mold, c->source.array, cast(REBCNT, c->indexor), NULL
+                    );
             }
         }
     }
