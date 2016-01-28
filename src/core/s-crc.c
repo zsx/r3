@@ -537,8 +537,8 @@ REBINT Hash_String(
     u32 c = 0x00000000;
     u32 c2 = 0x00000000; // don't change, see [1] below
     REBCNT n;
-    const REBYTE *b = cast(REBYTE*, data);
-    const REBUNI *u = cast(REBUNI*, data);
+    const REBYTE *b = cast(const REBYTE*, data);
+    const REBUNI *u = cast(const REBUNI*, data);
 
     if(!crc32_table) Make_CRC32_Table();
 
