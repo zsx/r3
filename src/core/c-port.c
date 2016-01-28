@@ -174,7 +174,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     //Debug_Num("A", VAL_LEN_HEAD(waked));
     // Get the system port AWAKE function:
     awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
-    if (!ANY_FUNC(awake)) return -1;
+    if (!IS_FUNCTION(awake)) return -1;
 
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
@@ -514,7 +514,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     if (IS_NONE(actor)) return R_NONE;
 
     // If actor is a native function:
-    if (IS_NATIVE(actor))
+    if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE))
         return cast(REBPAF, VAL_FUNC_CODE(actor))(frame_, port, action);
 
     // actor must be an object:
@@ -523,7 +523,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     // Dispatch object function:
     n = Find_Action(actor, action);
     actor = Obj_Value(actor, n);
-    if (!n || !actor || !ANY_FUNC(actor)) {
+    if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
         VAL_INIT_WRITABLE_DEBUG(&action_word);
         Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
@@ -543,7 +543,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     if (n == 0) {
         actor = Obj_Value(scheme, STD_SCHEME_actor);
         if (!actor) goto err;
-        if (IS_NATIVE(actor)) goto fun;
+        if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE)) goto fun;
         if (!IS_OBJECT(actor)) goto err; //vTrap_Expect(value, STD_PORT_actor, REB_OBJECT);
         n = Find_Action(actor, action);
         if (n == 0) goto err;
@@ -715,16 +715,17 @@ REBNATIVE(set_scheme)
         // 'typed' words to the user.  For safety, a single global actor spec
         // could be made at startup.
         //
-        VAL_RESET_HEADER(actor, REB_NATIVE);
+        VAL_RESET_HEADER(actor, REB_FUNCTION);
+        INIT_VAL_FUNC_CLASS(actor, FUNC_CLASS_NATIVE);
         VAL_FUNC_SPEC(actor) = spec;
-        actor->payload.any_function.func = AS_FUNC(paramlist);
+        actor->payload.function.func = AS_FUNC(paramlist);
 
         VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 
         // Poke the function value itself into the [0] slot (see definition
         // of `struct Reb_Func` for explanation of why this is needed)
         //
-        *FUNC_VALUE(actor->payload.any_function.func) = *actor;
+        *FUNC_VALUE(actor->payload.function.func) = *actor;
 
         return R_TRUE;
     }
@@ -746,7 +747,7 @@ REBNATIVE(set_scheme)
                 Obj_Value(actor, n), // function,
                 VAL_FUNC_SPEC(act),
                 cast(REBNAT, map->func),
-                REB_NATIVE,
+                FUNC_CLASS_NATIVE,
                 FALSE
             );
         }

@@ -497,7 +497,7 @@ REBNATIVE(wake_up)
     if (CTX_LEN(port) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
 
     value = CTX_VAR(port, STD_PORT_ACTOR);
-    if (IS_NATIVE(value)) {
+    if (IS_FUNCTION_AND(value, FUNC_CLASS_NATIVE)) {
         //
         // We don't pass `value` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
@@ -506,7 +506,7 @@ REBNATIVE(wake_up)
     }
 
     value = CTX_VAR(port, STD_PORT_AWAKE);
-    if (ANY_FUNC(value)) {
+    if (IS_FUNCTION(value)) {
         if (Apply_Only_Throws(D_OUT, value, ARG(event), END_VALUE))
             fail (Error_No_Catch_For_Throw(D_OUT));
 

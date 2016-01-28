@@ -218,7 +218,7 @@ REBCNT HG_Stack_Level = 1;
 //
 const REBYTE N_debug_spec[] =
     " {Dialect for interactive debugging, see documentation for details}"
-    " 'value [unset! integer! frame! any-function! block!]"
+    " 'value [unset! integer! frame! function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
 REB_R N_debug(struct Reb_Frame *frame_) {
@@ -236,7 +236,7 @@ REB_R N_debug(struct Reb_Frame *frame_) {
         goto modify_with_confidence;
     }
 
-    if (IS_INTEGER(value) || IS_FRAME(value) || ANY_FUNC(value)) {
+    if (IS_INTEGER(value) || IS_FRAME(value) || IS_FUNCTION(value)) {
         struct Reb_Frame *frame;
 
         // We pass TRUE here to account for an extra stack level... the one
@@ -253,7 +253,7 @@ REB_R N_debug(struct Reb_Frame *frame_) {
 
     Debug_Fmt(
         "Sorry, but the `debug [...]` dialect is not defined yet.\n"
-        "Change the stack level (integer!, frame!, any-function!)\n"
+        "Change the stack level (integer!, frame!, function!)\n"
         "Or try out these commands:\n"
         "\n"
         "    BREAKPOINT, RESUME, BACKTRACE\n"
@@ -386,7 +386,10 @@ int Do_String(
         DROP_GUARD_ARRAY(code);
 
         if (at_breakpoint) {
-            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_resume) {
+            if (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && VAL_FUNC_CODE(out) == &N_resume
+            ) {
                 //
                 // This means we're done with the embedded REPL.  We want to
                 // resume and may be returning a piece of code that will be
@@ -403,7 +406,10 @@ int Do_String(
                 return -1;
             }
 
-            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_quit) {
+            if (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && VAL_FUNC_CODE(out) == &N_quit
+            ) {
                 //
                 // It would be frustrating if the system did not respond to
                 // a QUIT and forced you to do `resume/with [quit]`.  So
@@ -421,7 +427,8 @@ int Do_String(
             // now, also EXIT as meaning you want to leave.
             //
             if (
-                IS_NATIVE(out) && (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && (
                     VAL_FUNC_CODE(out) == &N_quit
                     || VAL_FUNC_CODE(out) == &N_exit
                 )
@@ -540,7 +547,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBVAL debug_native;
         VAL_INIT_WRITABLE_DEBUG(&debug_native);
 
-        Make_Native(&debug_native, spec, &N_debug, REB_NATIVE, FALSE);
+        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE, FALSE);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
         *Append_Context(user_context, 0, debug_sym) = debug_native;

@@ -507,7 +507,7 @@ static void Sort_Block(
     sort_flags.offset = 0;
 
     if (IS_INTEGER(compv)) sort_flags.offset = Int32(compv)-1;
-    if (ANY_FUNC(compv)) sort_flags.compare = compv;
+    if (IS_FUNCTION(compv)) sort_flags.compare = compv;
 
     // Determine length of sort:
     len = Partial1(block, part);
@@ -995,7 +995,7 @@ void Assert_Array_Core(REBARR *array)
 
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
-    // see if the series is an array...and if so, would call this routine!
+    // see if the series is an array...and if so, would call this routine
     //
     Assert_Series_Core(ARR_SERIES(array));
 

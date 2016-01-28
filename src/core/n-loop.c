@@ -54,7 +54,7 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
     // Throw /NAME-s used by CONTINUE and BREAK are the actual native
     // function values of the routines themselves.
-    if (!IS_NATIVE(val))
+    if (!IS_FUNCTION_AND(val, FUNC_CLASS_NATIVE))
         return FALSE;
 
     if (VAL_FUNC_CODE(val) == &N_break) {

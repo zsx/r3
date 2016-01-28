@@ -340,28 +340,30 @@ void Make_Native(
     REBVAL *out,
     REBARR *spec,
     REBNAT code,
-    enum Reb_Kind type,
+    enum Reb_Func_Class fclass,
     REBOOL varless
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
 
-    VAL_RESET_HEADER(out, type);
+    VAL_RESET_HEADER(out, REB_FUNCTION);
+    INIT_VAL_FUNC_CLASS(out, fclass);
+
     if (varless)
-        SET_VAL_FLAG(out, FUNC_FLAG_FRAMELESS);
+        SET_VAL_FLAG(out, FUNC_FLAG_VARLESS);
 
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
 
-    out->payload.any_function.func
+    out->payload.function.func
         = AS_FUNC(Make_Paramlist_Managed(spec, SYM_0));
 
     // Save the function value in slot 0 of the paramlist so that having
     // just the paramlist REBARR can get you the full REBVAL of the function
     // that it is the paramlist for.
 
-    *FUNC_VALUE(out->payload.any_function.func) = *out;
+    *FUNC_VALUE(out->payload.function.func) = *out;
 
     // Note: used to set the keys of natives as read-only so that the debugger
     // couldn't manipulate the values in a native frame out from under it,
@@ -438,7 +440,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     REBARR *fake_body;
     REBVAL *example = NULL;
 
-    assert(IS_FUNCTION(func));
+    assert(IS_FUNCTION(func) && VAL_FUNC_CLASS(func) == FUNC_CLASS_USER);
 
     if (GET_VAL_FLAG(func, FUNC_FLAG_LEAVE_OR_RETURN)) {
         REBVAL *last_param = VAL_FUNC_PARAM(func, VAL_FUNC_NUM_PARAMS(func));
@@ -541,6 +543,7 @@ void Make_Function(
     REBOOL durable = FALSE;
 
     VAL_RESET_HEADER(out, REB_FUNCTION); // clears value flags in header...
+    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_USER);
 
     if (!IS_BLOCK(spec) || !IS_BLOCK(body))
         fail (Error_Bad_Func_Def(spec, body));
@@ -794,7 +797,7 @@ void Make_Function(
     // have located in the final slot if its symbol is found (so SYM_RETURN
     // if the function has a optimized definitional return).
     //
-    out->payload.any_function.func = AS_FUNC(
+    out->payload.function.func = AS_FUNC(
         Make_Paramlist_Managed(
             VAL_FUNC_SPEC(out),
             has_return ? (returns_unset ? SYM_LEAVE : SYM_RETURN) : SYM_0
@@ -820,7 +823,7 @@ void Make_Function(
         // Make_Paramlist above should have ensured it's in the last slot.
         //
     #if !defined(NDEBUG)
-        REBVAL *param = ARR_LAST(AS_ARRAY(out->payload.any_function.func));
+        REBVAL *param = ARR_LAST(AS_ARRAY(out->payload.function.func));
 
         assert(returns_unset
             ? VAL_TYPESET_CANON(param) == SYM_LEAVE
@@ -858,7 +861,7 @@ void Make_Function(
     // given just its identifying series, but where to put it?  We use
     // slot 0 (a trick learned from R3-Alpha's object strategy)
     //
-    *FUNC_VALUE(out->payload.any_function.func) = *out;
+    *FUNC_VALUE(out->payload.function.func) = *out;
 
     // !!! This is a lame way of setting the durability, because it means
     // that there's no way a user with just `make function!` could do it.
@@ -919,7 +922,10 @@ void Clonify_Function(REBVAL *value)
     // questionable, for now we will suspend disbelief and preserve what
     // R3-Alpha did until a clear resolution.
 
-    if (!IS_FUNCTION(value) || IS_FUNC_DURABLE(value))
+    if (!IS_FUNCTION_AND(value, FUNC_CLASS_USER))
+        return;
+
+    if (IS_FUNC_DURABLE(value))
         return;
 
     // No need to modify the spec or header.  But we do need to copy the
@@ -931,7 +937,7 @@ void Clonify_Function(REBVAL *value)
     func_orig = VAL_FUNC(value);
     paramlist_copy = Copy_Array_Shallow(FUNC_PARAMLIST(func_orig));
 
-    value->payload.any_function.func = AS_FUNC(paramlist_copy);
+    value->payload.function.func = AS_FUNC(paramlist_copy);
 
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
@@ -940,7 +946,7 @@ void Clonify_Function(REBVAL *value)
 
     Rebind_Values_Relative_Deep(
         func_orig,
-        value->payload.any_function.func,
+        value->payload.function.func,
         ARR_HEAD(VAL_FUNC_BODY(value))
     );
 
@@ -957,7 +963,7 @@ void Clonify_Function(REBVAL *value)
     // value itself.  So we must update this value if we make a copy,
     // so the paramlist does not indicate the original.
     //
-    *FUNC_VALUE(value->payload.any_function.func) = *value;
+    *FUNC_VALUE(value->payload.function.func) = *value;
 
     MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
 }
@@ -1199,16 +1205,17 @@ REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
 //  VAL_FUNC_Debug: C
 //
 REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
-    REBFUN *func = v->payload.any_function.func;
+    REBFUN *func = v->payload.function.func;
     struct Reb_Value_Header v_header = v->header;
     struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
 
-    assert(func == FUNC_VALUE(func)->payload.any_function.func);
+    assert(IS_FUNCTION(v));
+    assert(func == FUNC_VALUE(func)->payload.function.func);
     assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
-    assert(GET_ARR_FLAG(v->payload.any_function.spec, SERIES_FLAG_ARRAY));
+    assert(GET_ARR_FLAG(v->payload.function.spec, SERIES_FLAG_ARRAY));
 
-    switch (VAL_TYPE(v)) {
-    case REB_NATIVE:
+    switch (VAL_FUNC_CLASS(v)) {
+    case FUNC_CLASS_NATIVE:
         //
         // Only the definitional returns are allowed to lie on a per-value
         // basis and put a differing field in besides the canon FUNC_CODE
@@ -1216,7 +1223,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         //
         if (func != PG_Return_Func && func != PG_Leave_Func) {
             assert(
-                v->payload.any_function.impl.code == FUNC_CODE(func)
+                v->payload.function.impl.code == FUNC_CODE(func)
             );
         }
         else {
@@ -1227,28 +1234,28 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             // don't know if it has a valid code field or not.
             //
             /*assert(
-                GET_ARR_FLAG(v->payload.any_function.impl.body, SERIES_FLAG_ARRAY)
+                GET_ARR_FLAG(v->payload.function.impl.body, SERIES_FLAG_ARRAY)
             );*/
         }
         break;
 
-    case REB_ACTION:
+    case FUNC_CLASS_ACTION:
         assert(
-            v->payload.any_function.impl.act == FUNC_ACT(func)
+            v->payload.function.impl.act == FUNC_ACT(func)
         );
         break;
 
-    case REB_COMMAND:
-    case REB_FUNCTION:
+    case FUNC_CLASS_COMMAND:
+    case FUNC_CLASS_USER:
         assert(
-            v->payload.any_function.impl.body == FUNC_BODY(func)
+            v->payload.function.impl.body == FUNC_BODY(func)
         );
         break;
 
-    case REB_CALLBACK:
-    case REB_ROUTINE:
+    case FUNC_CLASS_CALLBACK:
+    case FUNC_CLASS_ROUTINE:
         assert(
-            v->payload.any_function.impl.info == FUNC_INFO(func)
+            v->payload.function.impl.info == FUNC_INFO(func)
         );
         break;
 
@@ -1284,10 +1291,10 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         // If this happens, these help with debugging if stopped at breakpoint.
         //
         REBVAL *func_value = FUNC_VALUE(func);
-        REBOOL frameless_value
-            = GET_VAL_FLAG(v, FUNC_FLAG_FRAMELESS);
-        REBOOL frameless_func
-            = GET_VAL_FLAG(func_value, FUNC_FLAG_FRAMELESS);
+        REBOOL varless_value
+            = GET_VAL_FLAG(v, FUNC_FLAG_VARLESS);
+        REBOOL varless_func
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_VARLESS);
         REBOOL has_return_value
             = GET_VAL_FLAG(v, FUNC_FLAG_LEAVE_OR_RETURN);
         REBOOL has_return_func
@@ -1298,7 +1305,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             = GET_VAL_FLAG(func_value, FUNC_FLAG_INFIX);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
-        Debug_Array(v->payload.any_function.spec);
+        Debug_Array(v->payload.function.spec);
         Panic_Array(FUNC_PARAMLIST(func));
     }
 

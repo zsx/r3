@@ -723,7 +723,7 @@ REBCTX *Context_For_Frame_May_Reify(
     // possible in the debugger anyway.)  For now, protect unless it's a
     // user function.
     //
-    if (!IS_FUNCTION(FUNC_VALUE(f->func)))
+    if (VAL_FUNC_CLASS(FUNC_VALUE(f->func)) != FUNC_CLASS_USER)
         SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_LOCKED);
 
     // Finally we mark the flags to say this contains a valid frame, so that

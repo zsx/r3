@@ -301,12 +301,7 @@ chkDecimal:
     case REB_PORT:
         return VAL_CONTEXT(s) - VAL_CONTEXT(t);
 
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_COMMAND:
     case REB_FUNCTION:
-    case REB_ROUTINE:
-    case REB_CALLBACK:
         return VAL_FUNC_PARAMLIST(s) - VAL_FUNC_PARAMLIST(t);
 
     case REB_LIBRARY:
@@ -345,12 +340,12 @@ REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
 //
 //  Destroy_External_Storage: C
 //
-// Destroy the external storage pointed by `->data` by calling the routine!
+// Destroy the external storage pointed by `->data` by calling the routine
 // `free_func` if it's not NULL
 //
 // out            Result
 // ser            The series
-// free_func    A routine! to free the storage, if it's NULL, only mark the
+// free_func    A routine to free the storage, if it's NULL, only mark the
 //         external storage non-accessible
 //
 REB_R Destroy_External_Storage(REBVAL *out,

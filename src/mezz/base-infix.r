@@ -20,7 +20,7 @@ REBOL [
 
 binary-to-infix: func [
     {Convert a binary function to its infix equivalent}
-    value [any-function!]
+    value [function!]
 ][
     ; SPEC-OF isn't defined yet at this point in the boot...
     func (

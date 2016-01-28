@@ -65,50 +65,34 @@ REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 // 
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
-REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind type)
+REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
 {
+    // Spec-constructed functions do *not* have definitional returns
+    // added automatically.  They are part of the generators.  So the
+    // behavior comes--as with any other generator--from the projected
+    // code (though round-tripping it via text is not possible in
+    // general in any case due to loss of bindings.)
+    //
+    const REBOOL has_return = FALSE;
+    const REBOOL returns_unset = FALSE;
+
     REBVAL *spec;
-    REBCNT len;
+    REBVAL *body;
+
+    assert(kind == REB_FUNCTION);
 
     if (!IS_BLOCK(def)) return FALSE;
+    if (VAL_LEN_AT(def) != 2) return FALSE;
 
-    len = VAL_LEN_AT(def);
-    if (len < 2) return FALSE;
+    spec = VAL_ARRAY_AT_HEAD(def, 0);
+    if (!IS_BLOCK(spec)) return FALSE;
 
-    spec = VAL_ARRAY_HEAD(def);
+    body = VAL_ARRAY_AT_HEAD(def, 1);
+    if (!IS_BLOCK(body)) return FALSE;
 
-    if (!IS_BLOCK(def)) return FALSE;
+    Make_Function(out, returns_unset, spec, body, has_return);
 
-    if (type == REB_COMMAND) {
-        REBVAL *extension = VAL_ARRAY_AT_HEAD(def, 1);
-        REBVAL *command_num;
-
-        if (len != 3) return FALSE;
-        command_num = VAL_ARRAY_AT_HEAD(def, 2);
-
-        Make_Command(out, spec, extension, command_num);
-    }
-    else if (type == REB_FUNCTION) {
-        REBVAL *body = VAL_ARRAY_AT_HEAD(def, 1);
-
-        // Spec-constructed functions do *not* have definitional returns
-        // added automatically.  They are part of the generators.  So the
-        // behavior comes--as with any other generator--from the projected
-        // code (though round-tripping it via text is not possible in
-        // general in any case due to loss of bindings.)
-        //
-        const REBOOL has_return = FALSE;
-        const REBOOL returns_unset = FALSE;
-
-        if (len != 2) return FALSE;
-
-        Make_Function(out, returns_unset, spec, body, has_return);
-    }
-    else
-        return FALSE;
-
-
-    // We only get here if neither Make() raises an error...
+    // We only get here if Make() doesn't raise an error...
     return TRUE;
 }
 
@@ -146,14 +130,62 @@ REBTYPE(Function)
         return R_OUT;
 
     case A_REFLECT:
+        if (
+            VAL_FUNC_CLASS(value) == FUNC_CLASS_CALLBACK
+            && VAL_WORD_CANON(arg) == SYM_ADDR
+        ) {
+            // !!! Temp...there was no OF_SPEC when integrating MT_XXXs
+            //
+            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
+            return R_OUT;
+        }
+
+        if (
+            VAL_FUNC_CLASS(value) == FUNC_CLASS_ROUTINE
+            && VAL_WORD_CANON(arg) == SYM_ADDR
+        ) {
+            // !!! Same as above, temporary while exploring solutions.
+            //
+            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
+            return R_OUT;
+        }
+
         switch (What_Reflector(arg)) {
         case OF_WORDS:
             Val_Init_Block(D_OUT, List_Func_Words(value));
             return R_OUT;
 
-        case OF_BODY: {
-            switch (VAL_TYPE(value))
-            case REB_FUNCTION: {
+        case OF_BODY:
+            switch (VAL_FUNC_CLASS(value)) {
+            case FUNC_CLASS_NATIVE: {
+                //
+                // !!! Should be able to give "equivalent" body of code for
+                // some native functions.  /body already being passed to
+                // a few natives in definitions, just need a place to save
+                // the information (improve native table).
+                //
+                Val_Init_Array(
+                    D_OUT,
+                    REB_GROUP,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_NATIVE_BODY))
+                    ));
+
+                return R_OUT;
+            }
+
+            case FUNC_CLASS_ACTION: {
+                Val_Init_Array(
+                    D_OUT,
+                    REB_GROUP,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_ACTION_BODY))
+                    ));
+
+                return R_OUT;
+            }
+
+            case FUNC_CLASS_USER: {
                 //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
@@ -175,9 +207,41 @@ REBTYPE(Function)
                 return R_OUT;
             }
 
-            case REB_NATIVE:
-            case REB_COMMAND:
-            case REB_ACTION:
+            case FUNC_CLASS_COMMAND: {
+                Val_Init_Array(
+                    D_OUT,
+                    REB_GROUP,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_COMMAND_BODY))
+                    ));
+
+                return R_OUT;
+            }
+
+            case FUNC_CLASS_ROUTINE: {
+                Val_Init_Array(
+                    D_OUT,
+                    REB_GROUP,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_ROUTINE_BODY))
+                    ));
+
+                return R_OUT;
+            }
+
+            case FUNC_CLASS_CALLBACK: {
+                Val_Init_Array(
+                    D_OUT,
+                    REB_GROUP,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_CALLBACK_BODY))
+                    ));
+
+                return R_OUT;
+            }
+
+            default:
+                assert(FALSE);
                 return R_NONE;
             }
             break;
@@ -248,4 +312,21 @@ REBTYPE(Function)
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));
+}
+
+
+//
+//  func-class-of: native [
+//
+//  {Internal-use-only for implementing NATIVE?, ACTION?, CALLBACK?, etc.}
+//
+//      func [function!]
+//  ]
+//
+REBNATIVE(func_class_of)
+{
+    PARAM(1, func);
+
+    SET_INTEGER(D_OUT, VAL_FUNC_CLASS(ARG(func)));
+    return R_OUT;
 }

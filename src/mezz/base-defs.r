@@ -105,11 +105,6 @@ any-string?: func [
     value [opt-any-value!]
 ][find any-string! type-of :value]
 
-any-function?: func [
-    "Return TRUE if value is any type of function."
-    value [opt-any-value!]
-][find any-function! type-of :value]
-
 any-word?: func [
     "Return TRUE if value is any type of word."
     value [opt-any-value!]

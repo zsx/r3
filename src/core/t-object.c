@@ -388,7 +388,7 @@ REBTYPE(Context)
             // !!! Current experiment for making frames lets you give it
             // a FUNCTION! only.
             //
-            if (!ANY_FUNC(arg))
+            if (!IS_FUNCTION(arg))
                 fail (Error_Bad_Make(target, arg));
 
             // In order to have the frame survive the call to MAKE and be

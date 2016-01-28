@@ -849,7 +849,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
     /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
     Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
 
-    if (IS_FUNCTION(value)) {
+    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
         //
         // MOLD is an example of user-facing code that needs to be complicit
         // in the "lie" about the effective bodies of the functions made
@@ -1307,9 +1307,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_FUNCTION:
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_COMMAND:
         Mold_Function(value, mold);
         break;
 
@@ -1362,12 +1359,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     }
         break;
 
-    case REB_ROUTINE:
-        Pre_Mold(value, mold);
-        Mold_Array_At(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
-        End_Mold(mold);
-        break;
-
     case REB_LIBRARY:
         Pre_Mold(value, mold);
 
@@ -1376,12 +1367,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Mold_File(DS_TOP, mold);
         DS_DROP;
 
-        End_Mold(mold);
-        break;
-
-    case REB_CALLBACK:
-        Pre_Mold(value, mold);
-        Mold_Array_At(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
         End_Mold(mold);
         break;
 

@@ -1776,6 +1776,22 @@ struct Reb_Any_Context {
 **
 ***********************************************************************/
 
+// !!! Functions used to come in several different REB_XXX types, but have
+// been folded all into one REB_FUNCTION with different type-specific-bits.
+// Six types for now, use 3 bits...hopefully just two bits needed long term.
+
+enum Reb_Func_Class {
+    FUNC_CLASS_0 = 0, // leave invalid to catch not-set-func-classes
+    FUNC_CLASS_NATIVE, // "direct CPU evaluated function"
+    FUNC_CLASS_USER, // "function body is Rebol code"
+    FUNC_CLASS_ACTION, // "datatype native function (standard polymorphic)"
+    FUNC_CLASS_COMMAND, // "special dispatch-based function"
+    FUNC_CLASS_ROUTINE, // "external C function"
+    FUNC_CLASS_CALLBACK // "function to be called from C"
+};
+
+#define FCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
+
 #ifdef NDEBUG
     #define FUNC_FLAG_X 0
 #else
@@ -1783,24 +1799,24 @@ struct Reb_Any_Context {
 #endif
 
 enum {
-    // called with "infix" protocol
+    // called with "infix" protocol.  Start at bit 3 to skip FUNC_CLASS bits
     //
-    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG_X,
+    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
 
     // function "fakes" a definitionally scoped return (or a "LEAVE"...which
     // word is determined by the symbol of the *last* parameter)
     //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
 
     // native hooks into DO state and does own arg eval
     //
-    FUNC_FLAG_FRAMELESS = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
+    FUNC_FLAG_VARLESS = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
 
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 6)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
@@ -1859,7 +1875,7 @@ typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 
 typedef struct Reb_Routine_Info REBRIN;
 
-struct Reb_Any_Function {
+struct Reb_Function {
     //
     // Array of spec values for function
     //
@@ -1873,7 +1889,7 @@ struct Reb_Any_Function {
     //
     REBFUN *func;
 
-    union Reb_Any_Function_Impl {
+    union Reb_Function_Impl {
         REBNAT code;
         REBARR *body;
         REBCNT act;
@@ -1881,23 +1897,42 @@ struct Reb_Any_Function {
     } impl;
 };
 
+#define VAL_FUNC_CLASS(v) \
+    cast(enum Reb_Func_Class, \
+        ((v)->header.bits & FCLASS_MASK) >> TYPE_SPECIFIC_BIT)
+
+// Could be potentially faster testing of the function class as well as if
+// something is a function, but keeps them together in any case.  So:
+//
+//     IS_NATIVE(f) => IS_FUNCTION_AND(f, FUNC_CLASS_NATIVE)
+//
+// For the time being, this will help avoid mistakes from coders assuming
+// that other function categories are still a separate type.
+//
+#define IS_FUNCTION_AND(v,c) \
+    (IS_FUNCTION(v) && (VAL_FUNC_CLASS(v) == (c)))
+
+#define INIT_VAL_FUNC_CLASS(v,c) \
+    ((v)->header.bits &= ~FCLASS_MASK, \
+    (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
+
 /* argument is of type REBVAL* */
 #ifdef NDEBUG
-    #define VAL_FUNC(v)             ((v)->payload.any_function.func + 0)
+    #define VAL_FUNC(v)             ((v)->payload.function.func + 0)
 #else
     #define VAL_FUNC(v)             VAL_FUNC_Debug(v)
 #endif
-#define VAL_FUNC_SPEC(v)            ((v)->payload.any_function.spec)
+#define VAL_FUNC_SPEC(v)            ((v)->payload.function.spec)
 #define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
 
 #define VAL_FUNC_NUM_PARAMS(v)      FUNC_NUM_PARAMS(VAL_FUNC(v))
 #define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))
 #define VAL_FUNC_PARAM(v,p)         FUNC_PARAM(VAL_FUNC(v), (p))
 
-#define VAL_FUNC_CODE(v)      ((v)->payload.any_function.impl.code)
-#define VAL_FUNC_BODY(v)      ((v)->payload.any_function.impl.body)
-#define VAL_FUNC_ACT(v)       ((v)->payload.any_function.impl.act)
-#define VAL_FUNC_INFO(v)      ((v)->payload.any_function.impl.info)
+#define VAL_FUNC_CODE(v)      ((v)->payload.function.impl.code)
+#define VAL_FUNC_BODY(v)      ((v)->payload.function.impl.body)
+#define VAL_FUNC_ACT(v)       ((v)->payload.function.impl.act)
+#define VAL_FUNC_INFO(v)      ((v)->payload.function.impl.info)
 
 // FUNC_FLAG_LEAVE_OR_RETURN functions use RETURN or LEAVE native's function
 // value to give the definitional return its prototype, but overwrite its
@@ -2313,7 +2348,7 @@ union Reb_Value_Payload {
     struct Reb_Any_Series any_series;
     struct Reb_Any_Context any_context;
 
-    struct Reb_Any_Function any_function;
+    struct Reb_Function function;
 
     struct Reb_Varargs varargs;
 

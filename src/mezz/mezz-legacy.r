@@ -56,7 +56,7 @@ op?: func [
     "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
     value [opt-any-value!]
 ][
-    either any-function? :value [:infix? :value] false
+    either function? :value [:infix? :value] false
 ]
 
 
@@ -358,7 +358,7 @@ try: func [
     {Tries to DO a block and returns its value or an error.}
     block [block!]
     /except "On exception, evaluate this code block"
-    code [block! any-function!]
+    code [block! function!]
 ][
     either except [trap/with block :code] [trap block]
 ]
@@ -396,7 +396,7 @@ apply: func [
 
     ; This does not work with infix operations.  It *could* be adapted to
     ; work, but as a legacy concept it's easier just to say don't do it.
-    func [function! action! native! routine! command!]
+    func [function!]
         "Function value to apply"
     block [block!]
         "Block of args, reduced first (unless /only)"
@@ -530,6 +530,61 @@ clos: func [
 
 closure!: :function!
 closure?: :function?
+
+; All other function classes are also folded into the one FUNCTION! type ATM.
+
+any-function!: :function!
+any-function?: :function?
+
+native!: function!
+native?: func [f] [all [function? :f | 1 = func-class-of :f]]
+
+;-- If there were a test for user-written functions, what would it be called?
+;-- it would be function class 2 ATM
+
+action!: function!
+action?: func [f] [all [function? :f | 3 = func-class-of :f]]
+
+command!: function!
+command?: func [f] [all [function? :f | 4 = func-class-of :f]]
+
+routine!: function!
+routine?: func [f] [all [function? :f | 5 = func-class-of :f]]
+
+callback!: function!
+callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
+
+; To bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
+; while still letting ROUTINE!, COMMAND!, and CALLBACK! be valid to use in
+; typesets invokes the new variadic behavior.  This can only work if the
+; source literally wrote out `make routine!` vs an expression that evaluated
+; to the routine! datatype (for instance) but should cover most cases.
+;
+lib-make: :lib/make
+make: func [
+    "Constructs or allocates the specified datatype."
+    :lookahead [opt-any-value! <...>]
+    type [opt-any-value! <...>]
+        "The datatype or an example value"
+    spec [opt-any-value! <...>]
+        "Attributes or size of the new value (modified)"
+][
+    switch first lookahead [
+        callback! [
+            assert [function! = take type]
+            make-callback take spec
+        ]
+        routine! [
+            assert [function! = take type]
+            make-routine take spec
+        ]
+        command! [
+            assert [function! = take type]
+            make-command take spec
+        ]
+        (lib-make take type take spec)
+    ]
+]
 
 
 ; To invoke this function, use `do <r3-legacy>` instead of calling it

@@ -592,7 +592,7 @@ REBNATIVE(case)
 //      block [block!] "Block to evaluate"
 //      /name
 //          "Catches a named throw" ;-- should it be called /named ?
-//      names [block! word! any-function! object!]
+//      names [block! word! function! object!]
 //          "Names to catch (single name if not block)"
 //      /quit
 //          "Special catch for QUIT native"
@@ -600,7 +600,7 @@ REBNATIVE(case)
 //          {Catch all throws except QUIT (can be used with /QUIT)}
 //      /with
 //          "Handle thrown case with code"
-//      handler [block! any-function!] 
+//      handler [block! function!]
 //      "If FUNCTION!, spec matches [value name]"
 //  ]
 //
@@ -630,11 +630,17 @@ REBNATIVE(catch)
         if (
             (
                 REF(any)
-                && (!IS_NATIVE(D_OUT) || VAL_FUNC_CODE(D_OUT) != &N_quit)
+                && (
+                    !IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
+                    || VAL_FUNC_CODE(D_OUT) != &N_quit
+                )
             )
             || (
                 REF(quit)
-                && (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_quit)
+                && (
+                    IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
+                    && VAL_FUNC_CODE(D_OUT) == &N_quit
+                )
             )
         ) {
             goto was_caught;
@@ -720,7 +726,7 @@ was_caught:
 
             return R_OUT;
         }
-        else if (ANY_FUNC(handler)) {
+        else if (IS_FUNCTION(handler)) {
             REBVAL *param = VAL_FUNC_PARAMS_HEAD(handler);
 
             //
@@ -778,7 +784,7 @@ was_caught:
 //  
 //      value [opt-any-value!] "Value returned from catch"
 //      /name "Throws to a named catch"
-//      name-value [word! any-function! object!]
+//      name-value [word! function! object!]
 //  ]
 //
 REBNATIVE(throw)
@@ -893,7 +899,7 @@ REBNATIVE(continue)
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
 //      source [unset! none! block! group! string! binary! url! file! tag!
-//      error! any-function!]
+//      error! function!]
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
 //      /next {Do next expression only, return it, update block variable}
@@ -1051,7 +1057,7 @@ REBNATIVE(eval)
 //
 //  {Returns TRUE if a function may take a variable number of arguments.}
 //
-//      func [any-function!]
+//      func [function!]
 //  ]
 //
 REBNATIVE(variadic_q)
@@ -1078,7 +1084,7 @@ REBNATIVE(variadic_q)
 //      value [opt-any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
-//      level [frame! any-function! integer!]
+//      level [frame! function! integer!]
 //          "Frame, function, or stack index to exit from"
 //  ]
 //
@@ -1108,8 +1114,12 @@ REBNATIVE(exit)
     if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
         struct Reb_Frame *frame = frame_->prior;
 
-        while (frame != NULL && !IS_FUNCTION(FUNC_VALUE(frame->func)))
+        while (
+            frame != NULL
+            && FUNC_CLASS(frame->func) != FUNC_CLASS_USER
+        ) {
             frame = frame->prior;
+        }
 
         if (frame == NULL)
             fail (Error(RE_INVALID_EXIT));
@@ -1151,7 +1161,7 @@ REBNATIVE(exit)
         SET_INTEGER(D_OUT, VAL_INT32(level) + 1);
     }
     else {
-        assert(IS_FRAME(level) || ANY_FUNC(level));
+        assert(IS_FRAME(level) || IS_FUNCTION(level));
 
         *D_OUT = *level;
     }
@@ -1230,7 +1240,7 @@ REBNATIVE(fail)
                 //
                 if (IS_WORD(item) || IS_GET_WORD(item)) {
                     const REBVAL *var = TRY_GET_OPT_VAR(item);
-                    if (!var || !ANY_FUNC(var))
+                    if (!var || !IS_FUNCTION(var))
                         continue;
                 }
 
@@ -1732,7 +1742,7 @@ REBNATIVE(switch)
 //  
 //      block [block!]
 //      /with "Handle error case with code"
-//      handler [block! any-function!] 
+//      handler [block! function!]
 //      "If FUNCTION!, spec allows [error [error!]]"
 //  ]
 //
@@ -1761,7 +1771,7 @@ REBNATIVE(trap)
 
                 return R_OUT;
             }
-            else if (ANY_FUNC(handler)) {
+            else if (IS_FUNCTION(handler)) {
 
                 if (
                     (VAL_FUNC_NUM_PARAMS(handler) == 0)

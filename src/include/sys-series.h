@@ -1066,7 +1066,7 @@ struct Reb_Context {
     (VAL_CONTEXT_FRAME(CTX_VALUE(c)) + 0)
 
 #define CTX_FRAME_FUNC(c) \
-    (assert(ANY_FUNC(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
+    (assert(IS_FUNCTION(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
 
 #define CTX_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
 
@@ -1132,12 +1132,13 @@ struct Reb_Func {
 #endif
 #define FUNC_PARAM_SYM(f,n)     VAL_TYPESET_SYM(FUNC_PARAM((f), (n)))
 
+#define FUNC_CLASS(f)           VAL_FUNC_CLASS(FUNC_VALUE(f))
 #define FUNC_VALUE(f)           ARR_HEAD(FUNC_PARAMLIST(f))
-#define FUNC_SPEC(f)            (FUNC_VALUE(f)->payload.any_function.spec)
-#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.any_function.impl.code)
-#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.any_function.impl.body)
-#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.any_function.impl.act)
-#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.any_function.impl.info)
+#define FUNC_SPEC(f)            (FUNC_VALUE(f)->payload.function.spec)
+#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.function.impl.code)
+#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.function.impl.body)
+#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.function.impl.act)
+#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.function.impl.info)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

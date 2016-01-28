@@ -362,7 +362,7 @@ REBNATIVE(do_callback)
         SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
         return 0;
     }
-    if (!ANY_FUNC(val)) {
+    if (!IS_FUNCTION(val)) {
         SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
         return 0;
     }
@@ -542,13 +542,14 @@ void Make_Command(
 
     if (!IS_BLOCK(spec)) goto bad_func_def;
 
-    VAL_RESET_HEADER(out, REB_COMMAND); // clears exts and opts in header...
+    VAL_RESET_HEADER(out, REB_FUNCTION); // clears exts and opts in header...
+    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_COMMAND);
 
     // See notes in `Make_Function()` about why a copy is *required*.
     VAL_FUNC_SPEC(out) =
         Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
 
-    out->payload.any_function.func
+    out->payload.function.func
         = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(spec), SYM_0));
 
     // There is no "body", but we want to save `extension` and `command_num`
@@ -564,7 +565,7 @@ void Make_Command(
     // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
     // function types, can find the function value from the paramlist.
 
-    *FUNC_VALUE(out->payload.any_function.func) = *out;
+    *FUNC_VALUE(out->payload.function.func) = *out;
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
@@ -594,6 +595,37 @@ bad_func_def:
 
         fail (Error(RE_BAD_FUNC_DEF, &def));
     }
+}
+
+
+//
+//  make-command: native [
+//
+//  {Native for creating the FUNCTION! subclass for what was once COMMAND!}
+//
+//      def [block!]
+//  ]
+//
+REBNATIVE(make_command)
+{
+    PARAM(1, def);
+
+    REBVAL *def = ARG(def);
+
+    if (VAL_LEN_AT(def) != 3)
+        fail (Error_Invalid_Arg(def));
+
+    // Validity checking on the 3 elements done inside Make_Command, will
+    // fail() if the input is not good.
+    //
+    Make_Command(
+        D_OUT,
+        VAL_ARRAY_AT(def), // spec
+        VAL_ARRAY_AT(def) + 1, // extension
+        VAL_ARRAY_AT(def) + 2 // command_num
+    );
+
+    return R_OUT;
 }
 
 
@@ -686,7 +718,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
     REBVAL *blk;
     REBCNT index = 0;
     REBVAL *set_word = 0;
-    REBCNT cmd_sym = SYM_COMMAND_TYPE; // !!! to avoid uninitialized use, fix!
+    REBCNT cmd_sym = SYM_NATIVE; // !!! to avoid uninitialized use, fix!
     REBVAL *args;
     REBVAL *val;
     const REBVAL *func; // !!! Why is this called 'func'?  What is this?
@@ -715,11 +747,11 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
         else
             func = blk;
 
-        if (!IS_COMMAND(func)) {
+        if (!IS_FUNCTION_AND(func, FUNC_CLASS_COMMAND)) {
             REBVAL commandx_word;
             VAL_INIT_WRITABLE_DEBUG(&commandx_word);
             Val_Init_Word(
-                &commandx_word, REB_WORD, SYM_FROM_KIND(REB_COMMAND)
+                &commandx_word, REB_WORD, SYM_NATIVE
             );
             fail (Error(RE_EXPECT_VAL, &commandx_word, blk));
         }

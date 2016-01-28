@@ -239,7 +239,7 @@ cause-error: func [
     args: compose [(:args)]
     ; Filter out functional values:
     for-next args [
-        if any-function? first args [
+        if function? first args [
             change/only args spec-of first args
         ]
     ]

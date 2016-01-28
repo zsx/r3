@@ -457,7 +457,7 @@ static void Queue_Mark_Routine_Deep(REBROT *rot)
         if (ROUTINE_LIB(rot))
             MARK_LIB(ROUTINE_LIB(rot));
         else {
-            // may be null if called before the routine! is fully constructed
+            // may be null if called before the routine is fully constructed
         }
     }
 }
@@ -640,7 +640,7 @@ static void Mark_Frame_Stack_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_FRAMELESS)) {
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)) {
             //
             // Optimized native: it didn't need a variable-sized chunk
             // allocated for its args and locals because it was able to do
@@ -813,17 +813,22 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             break;
         }
 
-        case REB_FUNCTION:
-        case REB_COMMAND:
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
-        case REB_NATIVE:
-        case REB_ACTION:
+        case REB_FUNCTION: {
+            enum Reb_Func_Class fclass = VAL_FUNC_CLASS(val);
+
+            if (fclass == FUNC_CLASS_USER || fclass == FUNC_CLASS_COMMAND)
+                QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
+
+            if (fclass == FUNC_CLASS_ROUTINE || fclass == FUNC_CLASS_CALLBACK)
+                Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
+
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val));
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
             break;
+        }
 
         case REB_VARARGS: {
             REBARR *subfeed;
@@ -936,13 +941,6 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 MARK_SERIES_ONLY(MAP_HASHLIST(map));
             break;
         }
-
-        case REB_CALLBACK:
-        case REB_ROUTINE:
-            QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_SPEC(val));
-            QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_PARAMLIST(val));
-            Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
-            break;
 
         case REB_LIBRARY:
             MARK_LIB(VAL_LIB_HANDLE(val));

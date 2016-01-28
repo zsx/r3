@@ -83,7 +83,7 @@ static void Assert_Basics(void)
         printf(fmt, sizeof(dummy_payload->symbol), "symbol");
         printf(fmt, sizeof(dummy_payload->time), "time");
         printf(fmt, sizeof(dummy_payload->tuple), "tuple");
-        printf(fmt, sizeof(dummy_payload->any_function), "any_function");
+        printf(fmt, sizeof(dummy_payload->function), "function");
         printf(fmt, sizeof(dummy_payload->any_context), "any_context");
         printf(fmt, sizeof(dummy_payload->pair), "pair");
         printf(fmt, sizeof(dummy_payload->event), "event");
@@ -458,7 +458,7 @@ REBNATIVE(native)
         D_OUT,
         VAL_ARRAY(ARG(spec)),
         *Native_Functions++,
-        REB_NATIVE,
+        FUNC_CLASS_NATIVE,
         REF(varless)
     );
 
@@ -518,7 +518,7 @@ REBNATIVE(action)
         D_OUT,
         VAL_ARRAY(ARG(spec)),
         cast(REBNAT, cast(REBUPT, Action_Count)),
-        REB_ACTION,
+        FUNC_CLASS_ACTION,
         REF(typecheck) // varless? (all typechecks run "varlessly")
     );
 
@@ -623,7 +623,9 @@ static void Init_Natives(void)
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
+    Make_Native(
+        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE, FALSE
+    );
     Native_Count++;
     item++; // skip spec
 
@@ -639,7 +641,9 @@ static void Init_Natives(void)
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native`
-    Make_Native(val, VAL_ARRAY(item), *Native_Functions++, REB_NATIVE, FALSE);
+    Make_Native(
+        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE, FALSE
+    );
     Native_Count++;
     item++; // skip spec
 

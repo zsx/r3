@@ -21,7 +21,6 @@ any-value!
 opt-any-value! ;-- temporary until <opt> or #opt or similar are settled
 any-word!
 any-path!
-any-function!
 any-number!
 any-scalar!
 any-series!

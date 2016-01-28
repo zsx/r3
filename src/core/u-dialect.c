@@ -178,7 +178,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     case REB_PATH:
         if (Do_Path_Throws(&safe, NULL, value, NULL))
             fail (Error_No_Catch_For_Throw(&safe));
-        if (ANY_FUNC(&safe)) return NULL;
+        if (IS_FUNCTION(&safe)) return NULL;
         DS_PUSH(&safe);
         value = DS_TOP;
         break;

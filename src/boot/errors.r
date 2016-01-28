@@ -204,6 +204,8 @@ Script: [
 
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
+    only-callback-ptr:  {Only callback functions may be passed by FFI pointer}
+    free-needs-routine: {Function to destroy struct storage must be routine}
 
     block-skip-wrong:   {Block is not even multiple of skip size}
 ;   bad-prompt:         [{Error executing prompt block}]

@@ -292,7 +292,7 @@ load-ext-module: function [
                 args [integer! block!]
             ][
                 ; (contains module-local variables)
-                make command! reduce [
+                make-command reduce [
                     ;
                     ; `self` isn't the self in effect for load-ext-module
                     ; (we're in the `sys` context, which doesn't have self).

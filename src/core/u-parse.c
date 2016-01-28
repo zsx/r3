@@ -1236,7 +1236,7 @@ static REBCNT Parse_Rules_Loop(
 
         item_hold = item;   // a command or literal match value
 
-        if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_NATIVE)
+        if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_FUNCTION)
             goto bad_rule;
 
         begin = index;      // input at beginning of match section
@@ -1659,7 +1659,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
         assert(!IS_TRASH_DEBUG(D_OUT));
         assert(THROWN(D_OUT));
         if (
-            IS_NATIVE(D_OUT)
+            IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
             && VAL_FUNC_CODE(ROOT_PARSE_NATIVE) == VAL_FUNC_CODE(D_OUT)
         ) {
             // Note the difference:

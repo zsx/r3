@@ -578,9 +578,6 @@ emit {
 #define ANY_PATH(v) \
     LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
-#define ANY_FUNC(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_NATIVE && VAL_TYPE(v) <= REB_FUNCTION)
-
 #define ANY_EVAL_BLOCK(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
 

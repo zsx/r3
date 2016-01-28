@@ -1284,7 +1284,7 @@ is_arg_error:
 //
 //  {Destroy the external memory associated the struct}
 //      s   [struct!]
-//      /free func [routine!] {Specify the function to free the memory}
+//      /free func [function!] {Specify the function to free the memory}
 //  ]
 //
 REBNATIVE(destroy_struct_storage)
@@ -1292,6 +1292,11 @@ REBNATIVE(destroy_struct_storage)
     PARAM(1, val);
     REFINE(2, free_q);
     PARAM(3, free_func);
+
+    if (REF(free_q)) {
+        if (VAL_FUNC_CLASS(ARG(free_func)) != FUNC_CLASS_ROUTINE)
+            fail (Error(RE_FREE_NEEDS_ROUTINE));
+    }
 
     return Destroy_External_Storage(D_OUT,
                                     VAL_STRUCT_DATA_BIN(ARG(val)),

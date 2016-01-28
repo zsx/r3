@@ -521,7 +521,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // may want to use another word of that and make a block "spec"
     //
     if (IS_FRAME(CTX_VALUE(context))) {
-        assert(ANY_FUNC(FUNC_VALUE(CTX_FRAME_FUNC(context))));
+        assert(IS_FUNCTION(FUNC_VALUE(CTX_FRAME_FUNC(context))));
     }
     else
         assert(

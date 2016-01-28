@@ -1134,14 +1134,14 @@ REBNATIVE(unset)
 //  
 //  {Returns TRUE if the function gets its first argument prior to the call}
 //  
-//      value [any-function!]
+//      value [function!]
 //  ]
 //
 REBNATIVE(infix_q)
 {
     REBVAL *func = D_ARG(1);
 
-    assert(ANY_FUNC(func));
+    assert(IS_FUNCTION(func));
     if (GET_VAL_FLAG(func, FUNC_FLAG_INFIX))
         return R_TRUE;
 
@@ -1516,7 +1516,7 @@ void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
         return; // flag applies to any value (or trash)
 
     if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(ANY_FUNC(v));
+        assert(IS_FUNCTION(v));
     }
     else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
         assert(ANY_CONTEXT(v));

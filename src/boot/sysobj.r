@@ -183,6 +183,17 @@ script: context [
 ]
 
 standard: context [
+    native-body: [
+        ; have BODY-OF fill in a better template, see %c-function.c
+        comment {NATIVE: direct CPU evaluated function}
+        <...>
+    ]
+
+    action-body: [
+        ; have BODY-OF fill in a better template, see %c-function.c
+        comment {ACTION: datatype native function (standard polymorphic)}
+        <...>
+    ]
 
     ; FUNC+PROC implement a native-optimized variant of a function generator.
     ; This is the body template that it provides as the code *equivalent* of
@@ -209,6 +220,24 @@ standard: context [
         ]
         #BODY
         comment {No return value.}
+    ]
+
+    command-body: [
+        ; have BODY-OF fill in a better template, see %c-function.c
+        comment {COMMAND: special dispatch-based function}
+        <...>
+    ]
+
+    routine-body: [
+        ; have BODY-OF fill in a better template, see %c-function.c
+        comment {ROUTINE: external C function}
+        <...>
+    ]
+
+    callback-body: [
+        ; have BODY-OF fill in a better template, see %c-function.c
+        comment {CALLBACK: function to be called from C}
+        <...>
     ]
 
     error: context [ ; Template used for all errors:

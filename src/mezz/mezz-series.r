@@ -111,7 +111,7 @@ array: func [
         any-series? :value [
             loop size [block: insert/only block copy/deep value]
         ]
-        any-function? :value [ ; So value can be a thunk :)
+        function? :value [ ; So value can be a thunk :)
             loop size [block: insert/only block value] ; Called every time
         ]
 	true [
@@ -319,7 +319,7 @@ reword: function [
         copy w word cword out (
             output: insert output case [
                 block? v: select vals w [either only [v] :v]
-                any-function? :v [apply :v [:b]]
+                function? :v [apply :v [:b]]
                 'else :v
             ]
         ) a:

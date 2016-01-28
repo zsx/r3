@@ -251,7 +251,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         #endif
 
         if (
-            IS_NATIVE(&result) && (
+            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
                 VAL_FUNC_CODE(&result) == &N_quit
                 || VAL_FUNC_CODE(&result) == &N_exit
             )
@@ -478,7 +478,7 @@ RL_API int RL_Do_String(
         DROP_GUARD_ARRAY(code);
 
         if (
-            IS_NATIVE(&result) && (
+            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
                 VAL_FUNC_CODE(&result) == &N_quit
                 || VAL_FUNC_CODE(&result) == &N_exit
             )
@@ -1206,7 +1206,7 @@ RL_API int RL_Callback(RXICBI *cbi)
             SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
             return 0;
         }
-        if (!ANY_FUNC(val)) {
+        if (!IS_FUNCTION(val)) {
             SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
             return 0;
         }

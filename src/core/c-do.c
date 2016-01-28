@@ -140,7 +140,7 @@ void Trace_Line(
     int depth;
 
     if (GET_FLAG(Trace_Flags, 1)) return; // function
-    if (ANY_FUNC(value)) return;
+    if (IS_FUNCTION(value)) return;
 
     CHECK_DEPTH(depth);
 
@@ -157,9 +157,9 @@ void Trace_Line(
 
     if (IS_WORD(value) || IS_GET_WORD(value)) {
         value = GET_OPT_VAR_MAY_FAIL(value);
-        if (VAL_TYPE(value) < REB_NATIVE)
+        if (VAL_TYPE(value) < REB_FUNCTION)
             Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), value);
-        else if (VAL_TYPE(value) >= REB_NATIVE && VAL_TYPE(value) <= REB_FUNCTION) {
+        else if (VAL_TYPE(value) == REB_FUNCTION) {
             REBARR *words = List_Func_Words(value);
             Debug_Fmt_(
                 cs_cast(BOOT_STR(RS_TRACE,3)), Get_Type_Name(value), words
@@ -339,7 +339,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 // If label_sym is passed in as being non-null, then the caller is implying
 // readiness to process a path which may be a function with refinements.
 // These refinements will be left in order on the data stack in the case
-// that `out` comes back as ANY_FUNC().
+// that `out` comes back as IS_FUNCTION().
 //
 // If a `val` is provided, it is assumed to be a set-path and is set to that
 // value IF the path evaluation did not throw or error.  HOWEVER the set value
@@ -432,12 +432,12 @@ REBOOL Do_Path_Throws(
         if (threw) return TRUE;
 
         // Check for errors:
-        if (NOT_END(pvs.path + 1) && !ANY_FUNC(pvs.value)) {
+        if (NOT_END(pvs.path + 1) && !IS_FUNCTION(pvs.value)) {
             // Only function refinements should get by this line:
             fail (Error(RE_INVALID_PATH, pvs.orig, pvs.path));
         }
     }
-    else if (!ANY_FUNC(pvs.value))
+    else if (!IS_FUNCTION(pvs.value))
         fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
 
     if (val) {
@@ -452,7 +452,7 @@ REBOOL Do_Path_Throws(
     assert(!THROWN(out));
 
     // Return 0 if not function or is :path/word...
-    if (!ANY_FUNC(pvs.value)) {
+    if (!IS_FUNCTION(pvs.value)) {
         assert(IS_END(pvs.path) + 1);
         return FALSE;
     }
@@ -1226,7 +1226,7 @@ reevaluate:
         *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
 
     dispatch_the_word_in_out:
-        if (ANY_FUNC(f->out)) { // check before checking unset, for speed
+        if (IS_FUNCTION(f->out)) { // check before checking unset, for speed
             if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
                 fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
 
@@ -1337,7 +1337,7 @@ reevaluate:
             NOTE_THROWING(goto return_indexor);
         }
 
-        if (ANY_FUNC(f->out)) {
+        if (IS_FUNCTION(f->out)) {
             //
             // object/func or func/refinements or object/func/refinement
             //
@@ -1470,7 +1470,7 @@ reevaluate:
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [ANY-FUNCTION!]
+// [FUNCTION!]
 //
 // If a function makes it to the SWITCH statement, that means it is either
 // literally a function value in the array (`do compose [(:+) 1 2]`) or is
@@ -1483,10 +1483,6 @@ reevaluate:
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_NATIVE:
-    case ET_ACTION:
-    case ET_COMMAND:
-    case ET_ROUTINE:
     case ET_FUNCTION:
         //
         // Note: Because this is a function value being hit literally in
@@ -1508,22 +1504,8 @@ reevaluate:
         // Note that you *can* have a 'literal' definitional return value,
         // because the user can compose it into a block like any function.
         //
-        assert(ANY_FUNC(f->value));
+        assert(IS_FUNCTION(f->value));
         f->func = VAL_FUNC(f->value);
-        if (f->func == PG_Leave_Func) {
-            exit_from = VAL_FUNC_EXIT_FROM(f->value);
-            goto do_definitional_exit_from;
-        }
-        if (f->func == PG_Return_Func)
-            exit_from = VAL_FUNC_EXIT_FROM(f->value);
-        else
-            exit_from = NULL;
-
-        // Advance the input.  Note we are allowed to be at a END_FLAG (such
-        // as if the function has no arguments, or perhaps its first argument
-        // is hard quoted as HELP's is and it can accept that.)
-        //
-        FETCH_NEXT_ONLY_MAYBE_END(f);
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
@@ -1532,7 +1514,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! EVAL HANDLING
+    // FUNCTION! EVAL HANDLING
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -1541,6 +1523,8 @@ reevaluate:
         // Hence it is handled in a special way.
         //
         if (f->func == PG_Eval_Func) {
+            FETCH_NEXT_ONLY_MAYBE_END(f);
+
             if (f->indexor == END_FLAG) // e.g. `do [eval]`
                 fail (Error_No_Arg(f->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
 
@@ -1594,7 +1578,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! "VARLESS" CALL DISPATCH
+    // FUNCTION! "VARLESS" CALL DISPATCH
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -1613,13 +1597,15 @@ reevaluate:
         // burden of the flag would be too much to pass through.)
         //
         if ( // check from most likely to be false to least likely...
-            GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_FRAMELESS)
+            GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)
             && DSP == f->dsp_orig
             && !Trace_Flags
             && eval_normal // avoid framelessness if EVAL/ONLY used
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
+
+            FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // A NULL arg signifies to the called function that it is being
             // run varless.  If it had arg values, then it would be non-NULL
@@ -1639,7 +1625,7 @@ reevaluate:
 
             f->mode = CALL_MODE_FUNCTION; // !!! separate "varless" mode?
 
-            if (IS_ACTION(FUNC_VALUE(f->func))) {
+            if (VAL_FUNC_CLASS(FUNC_VALUE(f->func)) == FUNC_CLASS_ACTION) {
                 //
                 // At the moment, the type checking actions run framelessly,
                 // while no other actions do.  These are things like STRING?
@@ -1671,7 +1657,10 @@ reevaluate:
                 // Beyond the type-checking actions, only NATIVE! can be
                 // varless...
                 //
-                assert(IS_NATIVE(FUNC_VALUE(f->func)));
+                assert(
+                    VAL_FUNC_CLASS(FUNC_VALUE(f->func))
+                    == FUNC_CLASS_NATIVE
+                );
                 ret = (*FUNC_CODE(f->func))(f);
             }
 
@@ -1706,15 +1695,23 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
+    // FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // `out` may contain the pending argument for an infix operation,
-        // and it could also be the backing store of the `value` pointer
-        // to the function.  So Push_New_Arglist_For_Call() shouldn't
-        // overwrite it!
+        // At this point `f->value` is still good because we have not
+        // advanced the input.  We extract the special exit_from property
+        // contained in optimized definitional returns.
         //
+        if (f->func == PG_Leave_Func) {
+            exit_from = VAL_FUNC_EXIT_FROM(f->value);
+            goto do_definitional_exit_from;
+        }
+        if (f->func == PG_Return_Func)
+            exit_from = VAL_FUNC_EXIT_FROM(f->value);
+        else
+            exit_from = NULL;
+
         // Note: Although we create the call frame here, we cannot "put
         // it into effect" until all the arguments have been computed.
         // This is because recursive stack-relative bindings would wind
@@ -1722,6 +1719,13 @@ reevaluate:
         // being built, and that would be bad.
         //
         Push_New_Arglist_For_Call(f);
+
+        // Advance the input, which loses our ability to inspect the function
+        // value further.  Note we are allowed to be at a END_FLAG (such
+        // as if the function has no arguments, or perhaps its first argument
+        // is hard quoted as HELP's is and it can accept that.)
+        //
+        FETCH_NEXT_ONLY_MAYBE_END(f);
 
         // We assume you can enumerate both the formal parameters (in the
         // spec) and the actual arguments (in the call frame) using pointer
@@ -2382,9 +2386,9 @@ reevaluate:
         //
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
-            && IS_NATIVE(FUNC_VALUE(f->func))
+            && IS_FUNCTION_AND(FUNC_VALUE(f->func), FUNC_CLASS_NATIVE)
             && FUNC_CODE(f->func) == &N_do
-            && ANY_FUNC(FRM_ARGS_HEAD(f))
+            && IS_FUNCTION(FRM_ARGS_HEAD(f))
         ) {
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
@@ -2401,7 +2405,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! THROWING OF "RETURN" + "LEAVE" DEFINITIONAL EXITs
+    // FUNCTION! THROWING OF "RETURN" + "LEAVE" DEFINITIONAL EXITs
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -2469,7 +2473,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
+    // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -2575,25 +2579,26 @@ reevaluate:
         // going to need to be updated anyway back to DO_MODE_0, so no harm
         // in reusing it for the indicator.
         //
-        switch (VAL_TYPE(FUNC_VALUE(f->func))) {
-        case REB_NATIVE:
+        switch (VAL_FUNC_CLASS(FUNC_VALUE(f->func))) {
+        case FUNC_CLASS_NATIVE:
             Do_Native_Core(f);
             break;
 
-        case REB_ACTION:
+        case FUNC_CLASS_ACTION:
             Do_Action_Core(f);
             break;
 
-        case REB_COMMAND:
+        case FUNC_CLASS_COMMAND:
             Do_Command_Core(f);
             break;
 
-        case REB_FUNCTION:
-            Do_Function_Core(f);
+        case FUNC_CLASS_CALLBACK:
+        case FUNC_CLASS_ROUTINE:
+            Do_Routine_Core(f);
             break;
 
-        case REB_ROUTINE:
-            Do_Routine_Core(f);
+        case FUNC_CLASS_USER:
+            Do_Function_Core(f);
             break;
 
         default:
@@ -2652,7 +2657,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! CATCHING OF EXITs (includes catching RETURN + LEAVE)
+    // FUNCTION! CATCHING OF EXITs (includes catching RETURN + LEAVE)
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -2681,7 +2686,7 @@ reevaluate:
                     f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
             }
-            else if (ANY_FUNC(f->out)) {
+            else if (IS_FUNCTION(f->out)) {
                 //
                 // This identifies an exit from whichever instance of the
                 // function is most recent on the stack.  This can be used
@@ -2721,7 +2726,7 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! CALL COMPLETION (Type Check Result, Throw If Needed)
+    // FUNCTION! CALL COMPLETION (Type Check Result, Throw If Needed)
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -2896,7 +2901,10 @@ reevaluate:
         if (IS_WORD(f->value)) {
             f->param = GET_OPT_VAR_MAY_FAIL(f->value);
 
-            if (ANY_FUNC(f->param) && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)) {
+            if (
+                IS_FUNCTION(f->param)
+                && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)
+            ) {
                 f->label_sym = VAL_WORD_SYM(f->value);
 
             #if !defined(NDEBUG)
@@ -3221,7 +3229,7 @@ REBVAL *Sys_Func(REBCNT inum)
 {
     REBVAL *value = CTX_VAR(Sys_Context, inum);
 
-    if (!ANY_FUNC(value)) fail (Error(RE_BAD_SYS_FUNC, value));
+    if (!IS_FUNCTION(value)) fail (Error(RE_BAD_SYS_FUNC, value));
 
     return value;
 }

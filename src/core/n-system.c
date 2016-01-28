@@ -456,7 +456,7 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
 //
 //  "Get execution point summary for a function call (if still on stack)"
 //
-//      level [frame! any-function! integer! none!]
+//      level [frame! function! integer! none!]
 //  ]
 //
 REBNATIVE(where_of)
@@ -480,7 +480,7 @@ REBNATIVE(where_of)
 //
 //  "Get word label used to invoke a function call (if still on stack)"
 //
-//      level [frame! any-function! integer! none!]
+//      level [frame! function! integer! none!]
 //  ]
 //
 REBNATIVE(label_of)
@@ -669,7 +669,7 @@ REBNATIVE(backtrace)
 
             if (
                 first
-                && IS_NATIVE(FUNC_VALUE(frame->func))
+                && IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
                 && (
                     FUNC_CODE(frame->func) == &N_pause
                     || FUNC_CODE(frame->func) == &N_breakpoint
@@ -723,7 +723,7 @@ REBNATIVE(backtrace)
                     continue;
             }
             else {
-                assert(ANY_FUNC(level));
+                assert(IS_FUNCTION(level));
                 if (frame->func != VAL_FUNC(level))
                     continue;
             }
@@ -899,7 +899,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
 
         if (first) {
             if (
-                IS_NATIVE(FUNC_VALUE(frame->func))
+                IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
                 && (
                     FUNC_CODE(frame->func) == &N_pause
                     || FUNC_CODE(frame->func) == N_breakpoint
@@ -952,7 +952,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
             }
         }
         else {
-            assert(ANY_FUNC(level));
+            assert(IS_FUNCTION(level));
             if (VAL_FUNC(level) == frame->func)
                 goto return_maybe_set_number_out;
         }
@@ -1106,7 +1106,7 @@ REBOOL Do_Breakpoint_Throws(
 
                     if (
                         frame != FS_TOP
-                        && VAL_TYPE(FUNC_VALUE(frame->func)) == REB_NATIVE
+                        && FUNC_CLASS(frame->func) == FUNC_CLASS_NATIVE
                         && (
                             FUNC_CODE(frame->func) == &N_pause
                             || FUNC_CODE(frame->func) == &N_breakpoint
@@ -1139,7 +1139,7 @@ REBOOL Do_Breakpoint_Throws(
                         }
                     }
                     else {
-                        assert(ANY_FUNC(target));
+                        assert(IS_FUNCTION(target));
                         if (frame->flags & DO_FLAG_FRAME_CONTEXT)
                             continue;
                         if (VAL_FUNC(target) == frame->func) {
@@ -1317,7 +1317,7 @@ REBNATIVE(pause)
 //          "Code to evaluate"
 //      /at
 //          "Return from another call up stack besides the breakpoint"
-//      level [frame! any-function! integer!]
+//      level [frame! function! integer!]
 //          "Stack level to target in unwinding (can be BACKTRACE #)"
 //  ]
 //
@@ -1470,10 +1470,10 @@ REBNATIVE(check)
     else if (ANY_CONTEXT(value)) {
         ASSERT_CONTEXT(VAL_CONTEXT(value));
     }
-    else if (ANY_FUNC(value)) {
+    else if (IS_FUNCTION(value)) {
         ASSERT_ARRAY(VAL_FUNC_SPEC(value));
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
-        if (IS_FUNCTION(value))
+        if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER)
             ASSERT_ARRAY(VAL_FUNC_BODY(value));
     }
 

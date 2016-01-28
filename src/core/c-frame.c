@@ -1263,7 +1263,10 @@ static void Bind_Values_Inner_Loop(
                 flags
             );
         }
-        else if (IS_FUNCTION(value) && (flags & BIND_FUNC)) {
+        else if (
+            IS_FUNCTION_AND(value, FUNC_CLASS_USER)
+            && (flags & BIND_FUNC)
+        ) {
             Bind_Values_Inner_Loop(
                 binds,
                 ARR_HEAD(VAL_FUNC_BODY(value)),
@@ -1433,7 +1436,8 @@ void Bind_Relative_Deep(REBFUN *func, REBARR *block)
     // varless if it's to be introspected.
     //
     /*assert(
-        IS_FUNCTION(ARR_HEAD(paramlist)) || IS_CLOSURE(ARR_HEAD(paramlist))
+        IS_FUNCTION(FUNC_VALUE(func))
+        && VAL_FUNC_CLASS(FUNC_VALUE(func)) == FUNC_CLASS_USER
     );*/
 
     CHECK_BIND_TABLE;
@@ -1507,7 +1511,10 @@ void Rebind_Values_Deep(
                 INIT_WORD_INDEX(value, opt_binds[canon]);
             }
         }
-        else if (IS_FUNCTION(value)) {
+        else if (
+            IS_FUNCTION(value)
+            && VAL_FUNC_CLASS(value) == FUNC_CLASS_USER
+        ) {
             //
             // !!! Extremely questionable feature--walking into function
             // bodies and changing them.  This R3-Alpha concept was largely
@@ -2005,7 +2012,7 @@ void Assert_Context_Core(REBCTX *context)
     var = CTX_VALUE(context);
 
     if (
-        (IS_TYPESET(key) && VAL_TYPESET_SYM(key) == SYM_0) || ANY_FUNC(key)
+        (IS_TYPESET(key) && VAL_TYPESET_SYM(key) == SYM_0) || IS_FUNCTION(key)
     ) {
         // It's okay.  Note that in the future the rootkey for ordinary
         // OBJECT!/ERROR!/PORT! etc. may be more interesting than SYM_0
