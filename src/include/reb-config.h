@@ -122,6 +122,7 @@ Special internal defines used by RT, not Host-Kit developers:
     #endif
 
     #define OS_WIDE_CHAR            // wchar_t used strings passed to OS API
+    #include <wchar.h>
 
     // ASCII strings to Integer
     #define ATOI                    // supports it
