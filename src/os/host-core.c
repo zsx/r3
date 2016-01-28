@@ -54,7 +54,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    extern void Init_Core_Ext(REBYTE vers[8]);
+    extern void Init_Core_Ext();
     extern void Shutdown_Core_Ext(void);
 #ifdef __cplusplus
 }
@@ -673,8 +673,13 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 // 
 // Initialize special variables of the core extension.
 //
-void Init_Core_Ext(REBYTE vers[8])
+void Init_Core_Ext()
 {
+    REBYTE vers[8];
+
+    vers[0] = 5; // len
+    RL_Version(&vers[0]);
+
     // Because %host-main.c wants access to %sys-core.h, it does not include
     // %reb-host.h, and hence can't check these macros.  It's done here
     // instead for now.
