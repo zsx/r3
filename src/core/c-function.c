@@ -466,12 +466,6 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     Val_Init_Array(ARR_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
     SET_VAL_FLAG(ARR_AT(fake_body, 4), VALUE_FLAG_LINE);
 
-    // !!! Neither of these should be necessary as there is a line break in
-    // the template...look into why the line didn't make it to the body.
-    //
-    SET_VAL_FLAG(ARR_AT(fake_body, 0), VALUE_FLAG_LINE);
-    SET_VAL_FLAG(ARR_AT(fake_body, 5), VALUE_FLAG_LINE);
-
     return fake_body;
 }
 
