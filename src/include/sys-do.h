@@ -416,7 +416,7 @@ struct Reb_Call {
     // FUNCTION! value), 'label_sym' will be that WORD!, and a placeholder
     // otherwise.  Placed here for 64-bit alignment after same-size `index`.
     //
-    REBCNT label_sym;
+    REBSYM label_sym;
 
     // `frame` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "frameless"]
     //
@@ -516,15 +516,6 @@ struct Reb_Call {
     REBIXO expr_index;
 
 #if !defined(NDEBUG)
-    //
-    // `do_count` [INTERNAL, DEBUG, READ-ONLY]
-    //
-    // The `do_count` represents the expression evaluation "tick" where the
-    // Reb_Call is starting its processing.  This is helpful for setting
-    // breakpoints on certain ticks in reproducible situations.
-    //
-    REBCNT do_count;
-
     // `label_str` [INTERNAL, DEBUG, READ-ONLY]
     //
     // Knowing the label symbol is not as handy as knowing the actual string
@@ -532,6 +523,15 @@ struct Reb_Call {
     // and cast to `char*` to help debuggers that have trouble with REBYTE.
     //
     const char *label_str;
+
+    //
+    // `do_count` [INTERNAL, DEBUG, READ-ONLY]
+    //
+    // The `do_count` represents the expression evaluation "tick" where the
+    // Reb_Call is starting its processing.  This is helpful for setting
+    // breakpoints on certain ticks in reproducible situations.
+    //
+    REBCNT do_count; // !!! Move to dynamic data, available in a debug mode?
 #endif
 };
 
