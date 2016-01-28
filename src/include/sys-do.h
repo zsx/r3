@@ -200,7 +200,7 @@ enum {
 // instead of REBCNT.
 //
 #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
-    typedef unsigned int REBIXO;
+    typedef REBUPT REBIXO;
 #else
     #include "sys-do-cpp.h"
 

@@ -729,7 +729,12 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 // fine-grained level than a breakpoint at each DO/NEXT point.
 //
 void Trace_Fetch_Debug(const char* msg, struct Reb_Call *c, REBOOL after) {
-    Debug_Fmt("%d - %s : %s", c->indexor, msg, after ? "AFTER" : "BEFORE");
+    Debug_Fmt(
+        "%d - %s : %s",
+        cast(REBCNT, c->indexor),
+        msg,
+        after ? "AFTER" : "BEFORE"
+    );
     assert(c->value != NULL || (after && c->indexor == END_FLAG));
     if (c->value)
         PROBE(c->value);
@@ -905,7 +910,9 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
                 VAL_INIT_WRITABLE_DEBUG(&dump);
 
                 PROBE_MSG(c->value, "Do_Core() count trap");
-                Val_Init_Block_Index(&dump, c->source.array, c->indexor);
+                Val_Init_Block_Index(
+                    &dump, c->source.array, cast(REBCNT, c->indexor)
+                );
                 PROBE_MSG(&dump, "Do_Core() next up...");
             }
         }
