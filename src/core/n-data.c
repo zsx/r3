@@ -1278,6 +1278,8 @@ REBNATIVE(dump)
 
     REBVAL *value = ARG(value);
 
+    Dump_Stack(call_, 0);
+
     if (ANY_SERIES(value))
         Dump_Series(VAL_SERIES(value), "=>");
     else

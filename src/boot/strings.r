@@ -90,26 +90,6 @@ trace:
     "Parse back: %r" ; 10
     "**: error : %r %r" ; 11
 
-stack:
-    "STACK Expanded - DSP: %d MAX: %d"
-    "^/STACK[%d] %s[%d] %s"
-
-dump:
-    "^/--REBOL Kernel Dump--"
-    "Evaluator:"
-    "    Cycles:  %d" ; only lower bits
-    "    Counter: %d"
-    "    Dose:    %d"
-    "    Signals: %x"
-    "    Sigmask: %x"
-    "    DSP:     %d"
-    "    DSF:     %d"
-    "Memory/GC:"
-    "    Ballast: %d"
-    "    Disable: %d"
-    "    Protect: %d"
-    "    Infants: %d"
-
 ;stats:
 ;   "Stats: bad series value: %d in: %x offset: %d size: %d"
 

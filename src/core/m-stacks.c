@@ -177,8 +177,6 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
         Trap_Stack_Overflow();
 
     Extend_Series(ARR_SERIES(DS_Array), amount);
-    // DS_Base = BLK_HEAD(DS_Array);
-    // Debug_Fmt(BOOT_STR(RS_STACK, 0), DSP, SER_REST(DS_Array));
 
     // Update the global pointer representing the base of the stack that
     // likely was moved by the above allocation.  (It's not necessarily a
@@ -248,25 +246,6 @@ void Pop_Stack_Values(
     DS_DROP_TO(dsp_start);
 }
 
-
-//
-//  Expand_Stack: C
-// 
-// Expand the datastack. Invalidates any references to stack
-// values, so code should generally use stack index integers,
-// not pointers into the stack.
-//
-void Expand_Stack(REBCNT amount)
-{
-    if (SER_REST(ARR_SERIES(DS_Array)) >= STACK_LIMIT)
-        Trap_Stack_Overflow();
-    Extend_Series(ARR_SERIES(DS_Array), amount);
-    Debug_Fmt(
-        cs_cast(BOOT_STR(RS_STACK, 0)),
-        DSP,
-        SER_REST(ARR_SERIES(DS_Array))
-    );
-}
 
 
 //

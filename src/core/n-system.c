@@ -282,10 +282,6 @@ REBNATIVE(evoke)
             case SYM_WATCH_OBJ_COPY:
                 Reb_Opts->watch_obj_copy = NOT(Reb_Opts->watch_obj_copy);
                 break;
-            case SYM_STACK_SIZE:
-                arg++;
-                Expand_Stack(Int32s(arg, 1));
-                break;
             case SYM_CRASH:
                 panic (Error(RE_MISC));
             default:

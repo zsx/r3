@@ -240,7 +240,8 @@ enum {
 // if there is an error while it's running that doesn't get trapped inside
 // of it somewhere.
 //
-
+// Note: Keep in sync with `mode_strings` in Dump_Stack
+//
 enum Reb_Call_Mode {
     CALL_MODE_GUARD_ARRAY_ONLY, // no special mode signal
     CALL_MODE_ARGS, // ordinary arguments before any refinements seen
@@ -250,7 +251,8 @@ enum Reb_Call_Mode {
     CALL_MODE_REFINE_SKIP, // in the process of skipping an unused refinement
     CALL_MODE_REFINE_REVOKE, // found an unset and aiming to revoke refinement use
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
-    CALL_MODE_THROW_PENDING // function threw (sometimes may be intercepted)
+    CALL_MODE_THROW_PENDING, // function threw (sometimes may be intercepted)
+    CALL_MODE_MAX
 };
 
 union Reb_Call_Source {

@@ -318,7 +318,6 @@ crash
 crash-dump
 watch-recycle
 watch-obj-copy
-stack-size
 
 uid
 euid
