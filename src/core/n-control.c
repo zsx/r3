@@ -1012,8 +1012,12 @@ REBNATIVE(do)
 //  
 //      value [opt-any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
+//      args [opt-any-value! |]
+//          {Variable number of args required as evaluation's parameters}
 //      /only
 //          {Suppress evaluation on any ensuing arguments value consumes}
+//      :quoted [opt-any-value! |]
+//          {Variadic feed used to acquire quoted arguments (if needed)}
 //  ]
 //
 REBNATIVE(eval)
@@ -1021,8 +1025,30 @@ REBNATIVE(eval)
     // There should not be any way to call this actual function, because it
     // will be intercepted by recognizing its identity in the evaluator loop
     // itself (required to do the "magic")
-
+    //
     fail (Error(RE_MISC));
+}
+
+
+//
+//  variadic?: native [
+//
+//  {Returns TRUE if a function may take a variable number of arguments.}
+//
+//      func [any-function!]
+//  ]
+//
+REBNATIVE(variadic_q)
+{
+    PARAM(1, func);
+
+    REBVAL *param = VAL_FUNC_PARAMS_HEAD(ARG(func));
+    for (; NOT_END(param); ++param) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_VARARGS))
+            return R_TRUE;
+    }
+
+    return R_FALSE;
 }
 
 
