@@ -1173,9 +1173,12 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
         }
         Val_Init_Block(&error_obj->where, backtrace);
 
-        // Nearby location of the error...
+        // Nearby location of the error.  Note that we may be giving an error
+        // for code running that is not officially "in the call stack" e.g.
+        // in the argument fulfillment of a pending frame, so we consult
+        // the TG_Do_Stack pointer and not the DSF.
         //
-        if (DSF_IS_VARARGS(DSF)) {
+        if (DSF_IS_VARARGS(TG_Do_Stack)) {
             //
             // !!! There should be a good logic for giving back errors if
             // the call is originating from C, hence the position is in
@@ -1191,9 +1194,41 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
             Val_Init_Block_Index(&error_obj->nearest, EMPTY_ARRAY, 0);
         }
         else {
-            Val_Init_Block_Index(
-                &error_obj->nearest, DSF_ARRAY(DSF), DSF_INDEX(DSF)
-            );
+            // Get at most 6 values out of the array.  Ideally 3 before and
+            // 3 after the error point.  If truncating either the head or
+            // tail of the values, put ellipses.  Leave a marker at the
+            // point of the error (currently `??`)
+            //
+            // Note: something like `=>ERROR=>` would be better, but have to
+            // insert a today-legal WORD!
+            //
+            REBDSP dsp_orig = DSP;
+            REBINT start = DSF_INDEX(TG_Do_Stack) - 3;
+            REBCNT count = 0;
+            REBVAL *item;
+
+            REBVAL marker;
+            REBVAL ellipsis;
+            VAL_INIT_WRITABLE_DEBUG(&marker);
+            VAL_INIT_WRITABLE_DEBUG(&ellipsis);
+            Val_Init_Word(&marker, REB_WORD, SYM__Q_Q);
+            Val_Init_Word(&ellipsis, REB_WORD, SYM_ELLIPSIS);
+
+            if (start < 0) {
+                DS_PUSH(&ellipsis);
+                start = 0;
+            }
+            item = ARR_AT(DSF_ARRAY(TG_Do_Stack), start);
+            while (NOT_END(item) && count++ < 6) {
+                DS_PUSH(item);
+                if (count == DSF_INDEX(TG_Do_Stack) - start)
+                    DS_PUSH(&marker);
+                ++item;
+            }
+            if (NOT_END(item))
+                DS_PUSH(&ellipsis);
+
+            Pop_Stack_Values(&error_obj->nearest, dsp_orig, REB_BLOCK);
         }
     }
 
