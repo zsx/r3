@@ -460,7 +460,7 @@ RL_API int RL_Do_String(
     // Bind into lib or user spaces?
     if (flags) {
         // Top words will be added to lib:
-        Bind_Values_Set_Forward_Shallow(ARR_HEAD(code), Lib_Context);
+        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context);
     }
     else {

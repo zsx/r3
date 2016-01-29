@@ -155,7 +155,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Use binding table
     binds = WORDS_HEAD(Bind_Table);
 
-    Collect_Keys_Start(BIND_ALL);
+    Collect_Keys_Start(COLLECT_ANY_WORD);
 
     // Setup binding table with obj words.  Binding table is empty so don't
     // bother checking for duplicates.

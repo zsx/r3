@@ -265,22 +265,33 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
+    REBVAL *value = ARG(value);
+    REBVAL *target = ARG(target);
+
     REBCTX *context = NULL;
     REBFUN *func = NULL;
 
     REBARR *array;
-    REBCNT flags;
+    REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
 
-    flags = REF(only) ? 0 : BIND_DEEP;
-    if (REF(new)) flags |= BIND_ALL;
-    if (REF(set)) flags |= BIND_SET;
+    REBU64 bind_types = TS_ANY_WORD;
 
-    if (ANY_CONTEXT(ARG(target))) {
+    REBU64 add_midstream_types;
+    if (REF(new)) {
+        add_midstream_types = TS_ANY_WORD;
+    }
+    else if (REF(set)) {
+        add_midstream_types = FLAGIT_KIND(REB_SET_WORD);
+    }
+    else
+        add_midstream_types = 0;
+
+    if (ANY_CONTEXT(target)) {
         //
         // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
         //
-        assert(!IS_FRAME(ARG(target))); // !!! not implemented yet
-        context = VAL_CONTEXT(ARG(target));
+        assert(!IS_FRAME(target)); // !!! not implemented yet
+        context = VAL_CONTEXT(target);
     }
     else {
         //
@@ -290,18 +301,18 @@ REBNATIVE(bind)
         // why not?  Were it a closure, it would be legal because a closure's
         // frame is just an object context (at the moment).
         //
-        assert(ANY_WORD(ARG(target)));
-        if (IS_WORD_UNBOUND(ARG(target)))
-            fail (Error(RE_NOT_BOUND, ARG(target)));
+        assert(ANY_WORD(target));
+        if (IS_WORD_UNBOUND(target))
+            fail (Error(RE_NOT_BOUND, target));
 
         // The word in hand may be a relatively bound one.  To return a
         // specific frame, this needs to ensure that the Reb_Call's frame
         // is a real context, not just a chunk of data.
         //
-        context = VAL_WORD_CONTEXT_MAY_REIFY(ARG(target));
+        context = VAL_WORD_CONTEXT_MAY_REIFY(target);
     }
 
-    if (ANY_WORD(ARG(value))) {
+    if (ANY_WORD(value)) {
         //
         // Bind a single word
 
@@ -309,23 +320,23 @@ REBNATIVE(bind)
             //
             // Note: BIND_ALL has no effect on "frames".
             //
-            Bind_Stack_Word(func, ARG(value)); // may fail()
-            *D_OUT = *ARG(value);
+            Bind_Stack_Word(func, value); // may fail()
+            *D_OUT = *value;
             return R_OUT;
         }
 
         assert(context);
 
-        if (Try_Bind_Word(context, ARG(value))) {
-            *D_OUT = *ARG(value);
+        if (Try_Bind_Word(context, value)) {
+            *D_OUT = *value;
             return R_OUT;
         }
 
-        // not in context, BIND_ALL means add it if it's not.
+        // not in context, bind/new means add it if it's not.
         //
-        if (flags & BIND_ALL) {
-            Append_Context(context, ARG(value), 0);
-            *D_OUT = *ARG(value);
+        if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
+            Append_Context(context, value, 0);
+            *D_OUT = *value;
             return R_OUT;
         }
 
@@ -340,24 +351,31 @@ REBNATIVE(bind)
     // because there could be code that depends on the existing (mis)behavior
     // but it should be followed up on.
     //
-    *D_OUT = *ARG(value);
+    *D_OUT = *value;
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value))
+            VAL_ARRAY(value), VAL_INDEX(value)
         );
         VAL_ARRAY(D_OUT) = array;
     }
     else
-        array = VAL_ARRAY(ARG(value));
+        array = VAL_ARRAY(value);
 
-    if (context)
-        Bind_Values_Core(ARR_HEAD(array), context, flags);
+    if (context) {
+        Bind_Values_Core(
+            ARR_HEAD(array),
+            context,
+            bind_types,
+            add_midstream_types,
+            flags
+        );
+    }
     else {
         // This code is temporary, but it doesn't have any non-deep option
         // at this time...
         //
         assert(flags & BIND_DEEP);
-        assert(NOT(flags & BIND_SET));
+        assert(NOT(REF(set)));
         Bind_Relative_Deep(func, array);
     }
 
@@ -457,12 +475,16 @@ REBNATIVE(collect_words)
     PARAM(5, hidden);
 
     REBARR *words;
-    REBCNT modes = 0;
+    REBCNT modes;
     REBVAL *values = VAL_ARRAY_AT(D_ARG(1));
     REBVAL *prior_values;
 
-    if (REF(deep)) modes |= BIND_DEEP;
-    if (!REF(set)) modes |= BIND_ALL;
+    if (REF(set))
+        modes = COLLECT_ONLY_SET_WORDS;
+    else
+        modes = COLLECT_ANY_WORD;
+
+    if (REF(deep)) modes |= COLLECT_DEEP;
 
     // If ignore, then setup for it:
     if (REF(ignore)) {

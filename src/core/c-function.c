@@ -148,10 +148,10 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     SET_END(&bubble); // not holding a value being bubbled to end...
 
     // Start by reusing the code that makes keylists out of Rebol-structured
-    // data.  Scan for words (BIND_ALL) and error on duplicates (BIND_NO_DUP)
+    // data.  Scan for all words and error on duplicates
     //
     paramlist = Collect_Keylist_Managed(
-        NULL, ARR_HEAD(spec), NULL, BIND_ALL | BIND_NO_DUP
+        NULL, ARR_HEAD(spec), NULL, COLLECT_ANY_WORD | COLLECT_NO_DUP
     );
 
     // Whatever function is being made, it must fill in the paramlist slot 0

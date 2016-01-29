@@ -257,6 +257,11 @@ enum {
 
 #define TS_CLONE ((TS_SERIES | FLAGIT_KIND(REB_FUNCTION)) & ~TS_NOT_COPIED)
 
+#define TS_ANY_WORD \
+    (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_SET_WORD) | \
+    FLAGIT_KIND(REB_GET_WORD) | FLAGIT_KIND(REB_REFINEMENT) | \
+    FLAGIT_KIND(REB_LIT_WORD) | FLAGIT_KIND(REB_ISSUE))
+
 // These are the types which have no need to be seen by the GC.  Note that
 // this list may change--for instance if garbage collection is added for
 // symbols, then word types and typesets would have to be checked too.  Some
@@ -281,14 +286,18 @@ typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
 
 // Modes allowed by Bind related functions:
 enum {
-    BIND_ONLY = 0,      // Only bind the words found in the context.
-    BIND_SET,           // Add set-words to the context during the bind.
-    BIND_ALL,           // Add words to the context during the bind.
-    BIND_DEEP = 4,      // Recurse into sub-blocks.
-    BIND_GET = 8,       // Lookup :word and use its word value
-    BIND_NO_DUP = 16,   // Do not allow dups during word collection (for specs)
-    BIND_FUNC = 32,     // Recurse into functions.
-    BIND_SELF = 64      // !!! Ensure SYM_SELF in context (transitional flag)
+    BIND_0 = 0, // Only bind the words found in the context.
+    BIND_DEEP = 1 << 1, // Recurse into sub-blocks.
+    BIND_FUNC = 1 << 2 // Recurse into functions.
+};
+
+// Modes allowed by Collect keys functions:
+enum {
+    COLLECT_ONLY_SET_WORDS = 0,
+    COLLECT_ANY_WORD = 1 << 1,
+    COLLECT_DEEP = 1 << 2,
+    COLLECT_NO_DUP = 1 << 3, // Do not allow dups during collection (for specs)
+    COLLECT_ENSURE_SELF = 1 << 4 // !!! Ensure SYM_SELF in context (temp)
 };
 
 // Flags used for Protect functions
@@ -715,20 +724,21 @@ enum Reb_Vararg_Op {
 ***********************************************************************/
 
 #define Bind_Values_Deep(values,context) \
-    Bind_Values_Core((values), (context), BIND_DEEP)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_DEEP)
 
 #define Bind_Values_All_Deep(values,context) \
-    Bind_Values_Core((values), (context), BIND_ALL | BIND_DEEP)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, TS_ANY_WORD, BIND_DEEP)
 
 #define Bind_Values_Shallow(values, context) \
-    Bind_Values_Core((values), (context), BIND_ONLY)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_0)
 
 // Gave this a complex name to warn of its peculiarities.  Calling with
 // just BIND_SET is shallow and tricky because the set words must occur
 // before the uses (to be applied to bindings of those uses)!
 //
-#define Bind_Values_Set_Forward_Shallow(values, context) \
-    Bind_Values_Core((values), (context), BIND_SET)
+#define Bind_Values_Set_Midstream_Shallow(values, context) \
+    Bind_Values_Core( \
+        (values), (context), TS_ANY_WORD, FLAGIT_KIND(REB_SET_WORD), BIND_0)
 
 #define Unbind_Values_Deep(values) \
     Unbind_Values_Core((values), NULL, TRUE)

@@ -378,7 +378,7 @@ int Do_String(
         // "Bind into lib or user spaces?" and then "Top words will be
         // added to lib".  Is it relevant in any way?
         //
-        /* Bind_Values_Set_Forward_Shallow(ARR_HEAD(code), Lib_Context);
+        /* Bind_Values_Set_Midstream_Shallow(ARR_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context); */
     }
 

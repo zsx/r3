@@ -232,7 +232,7 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
     REBVAL result;
     VAL_INIT_WRITABLE_DEBUG(&result);
 
-    Bind_Values_Set_Forward_Shallow(
+    Bind_Values_Set_Midstream_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
     );
 
@@ -1511,14 +1511,14 @@ void Init_Core(REBARGS *rargs)
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
     INIT_CONTEXT_KEYLIST(PG_Root_Context, Collect_Keylist_Managed(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, BIND_ALL
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, COLLECT_ANY_WORD
     ));
     ASSERT_CONTEXT(PG_Root_Context);
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
     INIT_CONTEXT_KEYLIST(TG_Task_Context, Collect_Keylist_Managed(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, BIND_ALL
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, COLLECT_ANY_WORD
     ));
     ASSERT_CONTEXT(TG_Task_Context);
 

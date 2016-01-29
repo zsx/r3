@@ -304,7 +304,7 @@ REBCTX *Copy_Context_Shallow(REBCTX *src) {
 // Therefore do not call code that might call BIND or otherwise
 // make use of the Bind_Table or BUF_COLLECT.
 //
-void Collect_Keys_Start(REBCNT modes)
+void Collect_Keys_Start(REBFLGS flags)
 {
     CHECK_BIND_TABLE;
 
@@ -493,12 +493,12 @@ void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
 static void Collect_Context_Inner_Loop(
     REBINT *binds,
     REBVAL value[],
-    REBCNT modes
+    REBFLGS flags
 ) {
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
             if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
-                if (IS_SET_WORD(value) || modes & BIND_ALL) {
+                if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
                     REBVAL *typeset;
                     binds[VAL_WORD_CANON(value)] = ARR_LEN(BUF_COLLECT);
                     EXPAND_SERIES_TAIL(ARR_SERIES(BUF_COLLECT), 1);
@@ -512,7 +512,7 @@ static void Collect_Context_Inner_Loop(
                 }
             } else {
                 // If word duplicated:
-                if (modes & BIND_NO_DUP) {
+                if (flags & COLLECT_NO_DUP) {
                     // Reset binding table (note BUF_COLLECT may have expanded):
                     REBVAL *key = ARR_HEAD(BUF_COLLECT);
                     for (; NOT_END(key); key++)
@@ -524,10 +524,8 @@ static void Collect_Context_Inner_Loop(
             continue;
         }
         // Recurse into sub-blocks:
-        if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Context_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
-        // In this mode (foreach native), do not allow non-words:
-        //else if (modes & BIND_GET) fail (Error_Invalid_Arg(value));
+        if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
+            Collect_Context_Inner_Loop(binds, VAL_ARRAY_AT(value), flags);
     }
 }
 
@@ -548,28 +546,25 @@ static void Collect_Context_Inner_Loop(
 // Returns:
 //     A block of typesets that can be used for a context keylist.
 //     If no new words, the prior list is returned.
-// 
-// Modes:
-//     BIND_ALL  - scan all words, or just set words
-//     BIND_DEEP - scan sub-blocks too
-//     BIND_GET  - substitute :word with actual word
-//     BIND_SELF - make sure a SELF key is added (if not already in prior)
 //
 REBARR *Collect_Keylist_Managed(
-    REBCNT *self_index_out, // which context index SELF is in (if BIND_SELF)
+    REBCNT *self_index_out, // which context index SELF is in (if COLLECT_SELF)
     REBVAL value[],
     REBCTX *prior,
-    REBCNT modes
+    REBFLGS flags // see %sys-core.h for COLLECT_ANY_WORD, etc.
 ) {
     REBINT *binds = WORDS_HEAD(Bind_Table);
     REBARR *keylist;
 
-    Collect_Keys_Start(modes);
+    Collect_Keys_Start(flags);
 
-    if (modes & BIND_SELF) {
+    if (flags & COLLECT_ENSURE_SELF) {
         if (
-            !prior ||
-            (*self_index_out = Find_Word_In_Context(prior, SYM_SELF, TRUE)) == 0
+            !prior
+            || (
+                (*self_index_out = Find_Word_In_Context(prior, SYM_SELF, TRUE))
+                == 0
+            )
         ) {
             // No prior or no SELF in prior, so we'll add it as the first key
             //
@@ -599,7 +594,7 @@ REBARR *Collect_Keylist_Managed(
     if (prior) Collect_Context_Keys(prior, FALSE);
 
     // Scan for words, adding them to BUF_COLLECT and bind table:
-    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
+    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], flags);
 
     keylist = Grab_Collected_Keylist_Managed(prior);
 
@@ -618,20 +613,20 @@ REBARR *Collect_Keylist_Managed(
 static void Collect_Words_Inner_Loop(
     REBINT *binds,
     REBVAL value[],
-    REBCNT modes
+    REBFLGS flags
 ) {
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)
             && !binds[VAL_WORD_CANON(value)]
-            && (modes & BIND_ALL || IS_SET_WORD(value))
+            && (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD))
         ) {
             REBVAL *word;
             binds[VAL_WORD_CANON(value)] = 1;
             word = Alloc_Tail_Array(BUF_COLLECT);
             Val_Init_Word(word, REB_WORD, VAL_WORD_SYM(value));
         }
-        else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
+        else if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
+            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), flags);
     }
 }
 
@@ -641,7 +636,7 @@ static void Collect_Words_Inner_Loop(
 // 
 // Collect words from a prior block and new block.
 //
-REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
+REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBFLGS flags)
 {
     REBARR *array;
     REBCNT start;
@@ -651,10 +646,10 @@ REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
     if (prior_value)
-        Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
+        Collect_Words_Inner_Loop(binds, &prior_value[0], COLLECT_ANY_WORD);
 
     start = ARR_LEN(BUF_COLLECT);
-    Collect_Words_Inner_Loop(binds, &value[0], modes);
+    Collect_Words_Inner_Loop(binds, &value[0], flags);
     TERM_ARRAY(BUF_COLLECT);
 
     // Reset word markers:
@@ -793,7 +788,10 @@ REBCTX *Make_Selfish_Context_Detect(
         REBCNT len;
 
         keylist = Collect_Keylist_Managed(
-            &self_index, &value[0], opt_parent, BIND_ONLY | BIND_SELF
+            &self_index,
+            &value[0],
+            opt_parent,
+            COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
         );
         len = ARR_LEN(keylist);
 
@@ -977,7 +975,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 
     // Merge parent1 and parent2 words.
     // Keep the binding table.
-    Collect_Keys_Start(BIND_ALL | BIND_SELF);
+    Collect_Keys_Start(COLLECT_ANY_WORD | COLLECT_ENSURE_SELF);
 
     // Setup binding table and BUF_COLLECT with parent1 words.  Don't bother
     // checking for duplicates, buffer is empty.
@@ -1099,7 +1097,7 @@ void Resolve_Context(
     // the method needs to be reviewed to something that could properly
     // reset in the case of an out of memory error.
     //
-    Collect_Keys_Start(BIND_ONLY);
+    Collect_Keys_Start(COLLECT_ONLY_SET_WORDS);
 
     n = 0;
 
@@ -1209,10 +1207,14 @@ static void Bind_Values_Inner_Loop(
     REBINT *binds,
     REBVAL value[],
     REBCTX *context,
-    REBCNT mode
+    REBU64 bind_types, // !!! REVIEW: force word types low enough for 32-bit?
+    REBU64 add_midstream_types,
+    REBFLGS flags
 ) {
     for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)) {
+        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
+
+        if (type_bit & bind_types) {
             REBCNT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
                 //
@@ -1220,33 +1222,40 @@ static void Bind_Values_Inner_Loop(
                 // is a macro and VAL_TYPE is a macro, so we cannot directly
                 // initialize the header while also needing the type.
                 //
+                assert(ANY_WORD(value));
                 assert(n <= CTX_LEN(context));
                 UNBIND_WORD(value); // clear any previous binding flags
                 SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
             }
-            else {
+            else if (type_bit & add_midstream_types) {
+                //
                 // Word is not in context, so add it if option is specified
                 //
-                if (
-                    (mode & BIND_ALL)
-                    || ((mode & BIND_SET) && (IS_SET_WORD(value)))
-                ) {
-                    Expand_Context(context, 1, 1);
-                    Append_Context(context, value, 0);
-                    binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
-                }
+                Expand_Context(context, 1, 1);
+                Append_Context(context, value, 0);
+                binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
             }
         }
-        else if (ANY_ARRAY(value) && (mode & BIND_DEEP)) {
+        else if (ANY_ARRAY(value) && (flags & BIND_DEEP)) {
             Bind_Values_Inner_Loop(
-                binds, VAL_ARRAY_AT(value), context, mode
+                binds,
+                VAL_ARRAY_AT(value),
+                context,
+                bind_types,
+                add_midstream_types,
+                flags
             );
         }
-        else if (IS_FUNCTION(value) && (mode & BIND_FUNC)) {
+        else if (IS_FUNCTION(value) && (flags & BIND_FUNC)) {
             Bind_Values_Inner_Loop(
-                binds, ARR_HEAD(VAL_FUNC_BODY(value)), context, mode
+                binds,
+                ARR_HEAD(VAL_FUNC_BODY(value)),
+                context,
+                bind_types,
+                add_midstream_types,
+                flags
             );
         }
     }
@@ -1260,20 +1269,16 @@ static void Bind_Values_Inner_Loop(
 // to a specified context.  See warnings on the functions like
 // Bind_Values_Deep() about not passing just a singular REBVAL.
 // 
-// Different modes may be applied:
-// 
-//     BIND_ONLY - Only bind words found in the context.
-//     BIND_ALL  - Add words to the context during the bind.
-//     BIND_SET  - Add set-words to the context during the bind.
-//                 (note: word must not occur before the SET)
-//     BIND_DEEP - Recurse into sub-blocks.
-// 
-// NOTE: BIND_SET must be used carefully, because it does not
-// bind prior instances of the word before the set-word. That is
-// to say that forward references are not allowed.
+// NOTE: If types are added, then they will be added in "midstream".  Only
+// bindings that come after the added value is seen will be bound.
 //
-void Bind_Values_Core(REBVAL value[], REBCTX *context, REBCNT mode)
-{
+void Bind_Values_Core(
+    REBVAL value[],
+    REBCTX *context,
+    REBU64 bind_types,
+    REBU64 add_midstream_types,
+    REBFLGS flags // see %sys-core.h for BIND_DEEP, etc.
+) {
     REBVAL *key;
     REBCNT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
@@ -1292,7 +1297,9 @@ void Bind_Values_Core(REBVAL value[], REBCTX *context, REBCNT mode)
             binds[VAL_TYPESET_CANON(key)] = index;
     }
 
-    Bind_Values_Inner_Loop(binds, &value[0], context, mode);
+    Bind_Values_Inner_Loop(
+        binds, &value[0], context, bind_types, add_midstream_types, flags
+    );
 
     // Reset binding table:
     key = CTX_KEYS_HEAD(context);
