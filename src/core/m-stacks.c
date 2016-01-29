@@ -207,6 +207,9 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 // certain kind in `out`, or if the kind is REB_MAX then `out` is assumed to
 // be an ANY-ARRAY! value into which the values should be put.
 //
+// !!! Should update interface to return a REBARR* and not require going
+// through a REBVAL.
+//
 void Pop_Stack_Values(
     REBVAL *out,
     REBDSP dsp_start,
@@ -492,6 +495,8 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
     REBARR *varlist;
+    REBFUN *actual_func;
+    REBVAL *special_arg;
 
     // Should not already have an arglist.  We zero out the union field for
     // the chunk, so that's the one we should check.
@@ -500,10 +505,23 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
     assert(!f->data.stackvars);
 #endif
 
+    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIAL) {
+        actual_func = CTX_FRAME_FUNC(
+            FUNC_VALUE(f->func)->payload.function.impl.special
+        );
+        special_arg = CTX_VARS_HEAD(
+            FUNC_VALUE(f->func)->payload.function.impl.special
+        );
+    }
+    else {
+        actual_func = f->func;
+        special_arg = NULL;
+    }
+
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.
     //
-    num_slots = FUNC_NUM_PARAMS(f->func);
+    num_slots = FUNC_NUM_PARAMS(actual_func);
 
     // For starters clear the context flag; it's just the chunk with no
     // "reification" (Context_For_Frame_May_Reify() might change this)
@@ -514,7 +532,7 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
     // slot long, because function frames start with the value of the
     // function in slot 0.
     //
-    if (IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
+    if (IS_FUNC_DURABLE(FUNC_VALUE(actual_func))) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -565,6 +583,11 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
     // scanning knows when it has filled a refinement slot (and hence its
     // args) or not.
     //
+    // !!! Filling with specialized args could be done via a memcpy; doing
+    // an unset only writes 1 out of 4 pointer-sized values in release build
+    // so maybe faster than a memset (if unsets were the pattern of a uniform
+    // byte, currently not true)
+    //
     while (num_slots--) {
         //
         // In Rebol2 and R3-Alpha, unused refinement arguments were set to
@@ -573,14 +596,20 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
         // the time of function creation, so that both kinds of functions
         // can coexist at the same time.
         //
-    #ifdef NDEBUG
-        SET_UNSET(slot);
-    #else
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
-            SET_NONE(slot);
-        else
+        if (special_arg) {
+            *slot = *special_arg;
+            ++special_arg;
+        }
+        else {
+        #ifdef NDEBUG
             SET_UNSET(slot);
-    #endif
+        #else
+            if (GET_VAL_FLAG(FUNC_VALUE(actual_func), FUNC_FLAG_LEGACY))
+                SET_NONE(slot);
+            else
+                SET_UNSET(slot);
+        #endif
+        }
 
         slot++;
     }

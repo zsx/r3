@@ -1267,6 +1267,9 @@ static void Bind_Values_Inner_Loop(
             IS_FUNCTION_AND(value, FUNC_CLASS_USER)
             && (flags & BIND_FUNC)
         ) {
+            // !!! Likely-to-be deprecated functionality--rebinding inside the
+            // content of an already formed function.  :-/
+            //
             Bind_Values_Inner_Loop(
                 binds,
                 ARR_HEAD(VAL_FUNC_BODY(value)),

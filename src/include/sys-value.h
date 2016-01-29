@@ -1778,7 +1778,7 @@ struct Reb_Any_Context {
 
 // !!! Functions used to come in several different REB_XXX types, but have
 // been folded all into one REB_FUNCTION with different type-specific-bits.
-// Six types for now, use 3 bits...hopefully just two bits needed long term.
+// 7 types for now, use 3 bits...hopefully just two bits needed long term.
 
 enum Reb_Func_Class {
     FUNC_CLASS_0 = 0, // leave invalid to catch not-set-func-classes
@@ -1787,7 +1787,8 @@ enum Reb_Func_Class {
     FUNC_CLASS_ACTION, // "datatype native function (standard polymorphic)"
     FUNC_CLASS_COMMAND, // "special dispatch-based function"
     FUNC_CLASS_ROUTINE, // "external C function"
-    FUNC_CLASS_CALLBACK // "function to be called from C"
+    FUNC_CLASS_CALLBACK, // "function to be called from C"
+    FUNC_CLASS_SPECIAL // "specialization of another function"
 };
 
 #define FCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
@@ -1894,6 +1895,7 @@ struct Reb_Function {
         REBARR *body;
         REBCNT act;
         REBRIN *info;
+        REBCTX *special;
     } impl;
 };
 

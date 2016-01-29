@@ -890,6 +890,186 @@ void Make_Function(
 
 
 //
+//  Make_Frame_For_Function: C
+//
+// This creates a *non-stack-allocated* FRAME!, which can be used in function
+// applications or specializations.  It reuses the keylist of the function
+// but makes a new varlist.
+//
+REBCTX *Make_Frame_For_Function(REBFUN *func) {
+    REBARR *varlist;
+    REBCNT n;
+    REBVAL *var;
+
+    // In order to have the frame survive the call to MAKE and be
+    // returned to the user it can't be stack allocated, because it
+    // would immediately become useless.  Allocate dynamically.
+    //
+    varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
+    SET_ARR_FLAG(varlist, SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+
+    // Fill in the rootvar information for the context canon REBVAL
+    //
+    var = ARR_HEAD(varlist);
+    VAL_RESET_HEADER(var, REB_FRAME);
+    INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
+    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
+
+    // !!! The frame will never have stack storage if created this
+    // way, because we return it...and it would be of no use if the
+    // stackvars were empty--they could not be filled.  However it
+    // will have an associated call if it is run.  We don't know what
+    // that call pointer will be so NULL is put in for now--but any
+    // extant FRAME! values of this type will have to use stack
+    // walks to find the pointer (possibly recaching in values.)
+    //
+    INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
+    CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
+    ++var;
+
+    // !!! This is a current experiment for choosing that the value
+    // used to indicate a parameter has not been "specialized" is
+    // a BAR!.  This is contentious with the idea that someone might
+    // want to pass a BAR! as a parameter literally.  How to deal
+    // with this is not yet completely figured out--it could involve
+    // a new kind of "LIT-BAR!-decay" whereby instead LIT-BAR! was
+    // used with the understanding that it meant to act as a BAR!.
+    // Review needed once some experience is had with this.
+    //
+    for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var)
+        SET_BAR(var);
+
+    SET_END(var);
+    SET_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
+
+    return AS_CONTEXT(varlist);
+}
+
+
+//
+//  Specialize_Function_Throws: C
+//
+// This produces a new REBVAL for a function that specializes another.  It
+// uses a FRAME! to do this, where the frame intrinsically stores the
+// reference to the function it is specializing.
+//
+REBOOL Specialize_Function_Throws(
+    REBVAL *out,
+    REBFUN *func,
+    REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
+) {
+    REBDSP dsp_orig = DSP;
+
+    REBCTX *frame;
+
+    REBVAL *param;
+    REBVAL *arg;
+
+    REBVAL popped; // !!! Adapt Pop_Stack_Values to return array directly
+    REBVAL dummy;
+
+    VAL_INIT_WRITABLE_DEBUG(&popped);
+    VAL_INIT_WRITABLE_DEBUG(&dummy);
+
+    if (FUNC_CLASS(func) == FUNC_CLASS_SPECIAL) {
+        //
+        // Specializing a specialization is ultimately just a specialization
+        // of the innermost function being specialized.  (Imagine specializing
+        // a specialization of APPEND, to the point where it no longer takes
+        // any parameters.  Nevertheless, the frame being stored and invoked
+        // needs to have as many parameters as APPEND has.  The frame must be
+        // be built for the code ultimately being called--and specializations
+        // have no code of their own.)
+        //
+        frame = AS_CONTEXT(Copy_Array_Deep_Managed(
+            CTX_VARLIST(FUNC_VALUE(func)->payload.function.impl.special)
+        ));
+        INIT_CTX_KEYLIST_SHARED(
+            frame,
+            CTX_KEYLIST(FUNC_VALUE(func)->payload.function.impl.special)
+        );
+    }
+    else {
+        // An initial specialization is responsible for making a frame out
+        // of the function's paramlist.  Unused keys will be | for a start,
+        // as an experimental placeholder for "not specialized yet"
+        //
+        frame = Make_Frame_For_Function(func);
+        MANAGE_ARRAY(CTX_VARLIST(frame)); // for consistency w/copying case
+    }
+
+    // Bind all the SET-WORD! in the body that match params in the frame
+    // into the frame.  This means `value: value` can very likely have
+    // `value:` bound for assignments into the frame while `value` refers
+    // to whatever value was in the context the specialization is running
+    // in, but this is likely the more useful behavior.  Review.
+    //
+    // !!! This binds the actual arg data, not a copy of it--following
+    // OBJECT!'s lead.  However, ordinary functions make a copy of the body
+    // they are passed before rebinding.  Rethink.
+    //
+    Bind_Values_Core(
+        VAL_ARRAY_AT(block),
+        frame,
+        FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
+        0, // types to "add midstream" to binding as we go (nothing)
+        BIND_DEEP
+    );
+
+    // Do the block into scratch space--we ignore the result (unless it is
+    // thrown, in which case it must be returned.)
+    //
+    PUSH_GUARD_ARRAY(CTX_VARLIST(frame));
+
+    if (DO_VAL_ARRAY_AT_THROWS(&dummy, block)) {
+        DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+        *out = dummy;
+        return TRUE;
+    }
+
+    DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+
+    // Generate paramlist by way of the data stack.  Push empty value (to
+    // become the function value afterward), then all the args that remain
+    // unspecialized (currently indicated by being a BAR!)
+    //
+    DS_PUSH_TRASH_SAFE; // later initialized as [0] canon value
+    param = CTX_KEYS_HEAD(frame);
+    arg = CTX_VARS_HEAD(frame);
+    for (; NOT_END(param); ++param, ++arg) {
+        if (IS_BAR(arg))
+            DS_PUSH(param);
+    }
+    Pop_Stack_Values(&popped, dsp_orig, REB_BLOCK);
+    //
+    // !!! VAL_ARRAY(&popped) already managed, but shouldn't be if changed
+    // to an array interface...would need MANAGE_ARRAY here.
+
+    // Update fields of canon value.
+    //
+    // !!! Temporarily use an empty array for the spec.  Generating a spec
+    // here persistently would mean that all specializations would cost the
+    // generation of a spec--whether anyone looked at it or not.  So really
+    // it should be made on demand to answer SPEC-OF requests.
+    //
+    arg = ARR_AT(VAL_ARRAY(&popped), 0);
+    VAL_RESET_HEADER(arg, REB_FUNCTION);
+    INIT_VAL_FUNC_CLASS(arg, FUNC_CLASS_SPECIAL);
+    arg->payload.function.func = AS_FUNC(VAL_ARRAY(&popped));
+    arg->payload.function.spec = EMPTY_ARRAY;
+    arg->payload.function.impl.special = frame;
+
+    // Return clone of the canon value's bits (this way guaranteed to match)
+    //
+    *out = *arg;
+
+    return FALSE;
+}
+
+
+//
 //  Clonify_Function: C
 // 
 // The "Clonify" interface takes in a raw duplicate value that one
@@ -1137,7 +1317,7 @@ void Do_Routine_Core(struct Reb_Frame *f)
 //  
 //  "Defines a user function with given spec and body."
 //  
-//      spec [block!] 
+//      spec [block!]
 //          {Help string (opt) followed by arg words (and opt type + string)}
 //      body [block!]
 //          "The body block of the function"
@@ -1151,11 +1331,22 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
+    REBVAL *spec = ARG(spec);
+
     const REBOOL has_return = TRUE;
     const REBOOL returns_unset = FALSE;
 
-    Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
+    if (IS_FUNCTION(spec)) {
+        //
+        // !!! Review implications of RETURN vs. LEAVE for specializations--
+        // FUNC vs. PROC?  The frame must match the original.
+        //
+        if (Specialize_Function_Throws(D_OUT, VAL_FUNC(spec), ARG(body)))
+            return R_OUT_IS_THROWN;
+        return R_OUT;
+    }
 
+    Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
     return R_OUT;
 }
 
@@ -1256,6 +1447,13 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     case FUNC_CLASS_ROUTINE:
         assert(
             v->payload.function.impl.info == FUNC_INFO(func)
+        );
+        break;
+
+    case FUNC_CLASS_SPECIAL:
+        assert(
+            v->payload.function.impl.special
+            == FUNC_VALUE(func)->payload.function.impl.special
         );
         break;
 

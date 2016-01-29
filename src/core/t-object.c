@@ -395,49 +395,10 @@ REBTYPE(Context)
             // returned to the user it can't be stack allocated, because it
             // would immediately become useless.  Allocate dynamically.
             //
-            varlist = Make_Array(ARR_LEN(VAL_FUNC_PARAMLIST(arg)));
-            SET_ARR_FLAG(varlist, SERIES_FLAG_CONTEXT);
-            SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
-
-            // Fill in the rootvar information for the context canon REBVAL
-            //
-            var = ARR_HEAD(varlist);
-            VAL_RESET_HEADER(var, REB_FRAME);
-            INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
-            INIT_CTX_KEYLIST_SHARED(
-                AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg)
+            Val_Init_Context(
+                D_OUT, REB_FRAME, Make_Frame_For_Function(VAL_FUNC(arg))
             );
-            ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
 
-            // !!! The frame will never have stack storage if created this
-            // way, because we return it...and it would be of no use if the
-            // stackvars were empty--they could not be filled.  However it
-            // will have an associated call if it is run.  We don't know what
-            // that call pointer will be so NULL is put in for now--but any
-            // extant FRAME! values of this type will have to use stack
-            // walks to find the pointer (possibly recaching in values.)
-            //
-            INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
-            CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
-            ++var;
-
-            // !!! This is a current experiment for choosing that the value
-            // used to indicate a parameter has not been "specialized" is
-            // a BAR!.  This is contentious with the idea that someone might
-            // want to pass a BAR! as a parameter literally.  How to deal
-            // with this is not yet completely figured out--it could involve
-            // a new kind of "LIT-BAR!-decay" whereby instead LIT-BAR! was
-            // used with the understanding that it meant to act as a BAR!.
-            // Review needed once some experience is had with this.
-            //
-            for (n = 1; n <= VAL_FUNC_NUM_PARAMS(arg); ++n, ++var)
-                SET_BAR(var);
-
-            SET_END(var);
-            SET_ARRAY_LEN(varlist, ARR_LEN(VAL_FUNC_PARAMLIST(arg)));
-
-            ASSERT_CONTEXT(AS_CONTEXT(varlist));
-            Val_Init_Context(D_OUT, REB_FRAME, AS_CONTEXT(varlist));
             return R_OUT;
         }
 

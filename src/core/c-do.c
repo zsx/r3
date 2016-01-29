@@ -1718,6 +1718,21 @@ reevaluate:
         //
         Push_New_Arglist_For_Call(f);
 
+        // If it's a specialization, we've already taken care of what we
+        // needed to know from that specialization--all further references
+        // will need to talk about the function which is being called.
+        //
+        // !!! For debugging, it would probably be desirable to indicate
+        // that this call of the function originated from a specialization.
+        // So that would mean saving the specialization's f->func somewhere.
+        //
+        if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIAL) {
+            f->func = CTX_FRAME_FUNC(
+                FUNC_VALUE(f->func)->payload.function.impl.special
+            );
+            f->flags |= DO_FLAG_EXECUTE_FRAME;
+        }
+
         // Advance the input, which loses our ability to inspect the function
         // value further.  Note we are allowed to be at a END_FLAG (such
         // as if the function has no arguments, or perhaps its first argument
@@ -2597,6 +2612,14 @@ reevaluate:
 
         case FUNC_CLASS_USER:
             Do_Function_Core(f);
+            break;
+
+        case FUNC_CLASS_SPECIAL:
+            //
+            // Shouldn't get here--the specific function type should have been
+            // extracted from the frame to use.
+            //
+            assert(FALSE);
             break;
 
         default:
