@@ -1103,7 +1103,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         //
         PROTECT_FRM_X(f, &body);
 
-        if (DO_ARRAY_THROWS(f->out, &body))
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
             f->mode = CALL_MODE_THROW_PENDING;
 
         // References to parts of this function's copied body may still be

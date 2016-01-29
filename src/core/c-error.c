@@ -639,7 +639,7 @@ REBOOL Make_Error_Object_Throws(
 
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-        if (DO_ARRAY_THROWS(&evaluated, arg)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&evaluated, arg)) {
             *out = evaluated;
 
         #if !defined(NDEBUG)

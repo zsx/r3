@@ -297,7 +297,7 @@ REBOOL Compose_Values_Throws(
             REBVAL evaluated;
             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-            if (DO_ARRAY_THROWS(&evaluated, value)) {
+            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, value)) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
                 return TRUE;

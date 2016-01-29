@@ -281,7 +281,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     }
     // object/(expr) case:
     else if (IS_GROUP(path)) {
-        if (DO_ARRAY_THROWS(&temp, path)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&temp, path)) {
             *pvs->value = temp;
             return TRUE;
         }
@@ -526,7 +526,7 @@ REBOOL Do_Path_Throws(
                 // Note it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
-                if (DO_ARRAY_THROWS(&refinement, pvs.path)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&refinement, pvs.path)) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
@@ -1318,7 +1318,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
-        if (DO_ARRAY_THROWS(f->out, f->value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value)) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
@@ -1630,7 +1630,6 @@ reevaluate:
                 // At the moment, the type checking actions run framelessly,
                 // while no other actions do.  These are things like STRING?
                 // and INTEGER?
-                //
 
                 assert(FUNC_ACT(f->func) < REB_MAX_0);
                 assert(FUNC_NUM_PARAMS(f->func) == 1);
@@ -1653,7 +1652,6 @@ reevaluate:
                 }
             }
             else {
-                //
                 // Beyond the type-checking actions, only NATIVE! can be
                 // varless...
                 //

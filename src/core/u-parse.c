@@ -311,7 +311,7 @@ static REBCNT Parse_Next_String(
     // Do an expression:
     case REB_GROUP:
         // might GC
-        if (DO_ARRAY_THROWS(&save, item)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&save, item)) {
             *p->out = save;
             return THROWN_FLAG;
         }
@@ -399,7 +399,7 @@ static REBCNT Parse_Next_Array(
     // Do an expression:
     case REB_GROUP:
         // might GC
-        if (DO_ARRAY_THROWS(&save, item)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&save, item)) {
             *p->out = save;
             return THROWN_FLAG;
         }
@@ -462,7 +462,7 @@ static REBCNT To_Thru(
                         if (IS_END(item)) goto bad_target;
                         if (IS_GROUP(item)) {
                             // might GC
-                            if (DO_ARRAY_THROWS(&save, item)) {
+                            if (DO_VAL_ARRAY_AT_THROWS(&save, item)) {
                                 *p->out = save;
                                 return THROWN_FLAG;
                             }
@@ -593,7 +593,7 @@ found:
         REBVAL evaluated;
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-        if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&evaluated, blk + 1)) {
             *p->out = evaluated;
             return THROWN_FLAG;
         }
@@ -606,7 +606,7 @@ found1:
         REBVAL evaluated;
         VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-        if (DO_ARRAY_THROWS(&evaluated, blk + 1)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&evaluated, blk + 1)) {
             *p->out = save;
             return THROWN_FLAG;
         }
@@ -824,7 +824,7 @@ static REBCNT Do_Eval_Rule(REBPARSE *p, REBCNT index, const REBVAL **rule)
             if (IS_END(item)) fail (Error(RE_PARSE_END, item - 2));
             if (IS_GROUP(item)) {
                 // might GC
-                if (DO_ARRAY_THROWS(&save, item)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&save, item)) {
                     *p->out = save;
                     return THROWN_FLAG;
                 }
@@ -1055,7 +1055,7 @@ static REBCNT Parse_Rules_Loop(
                             REBVAL evaluated;
                             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-                            if (DO_ARRAY_THROWS(&evaluated, rule)) {
+                            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, rule)) {
                                 // If the group evaluation result gives a
                                 // THROW, BREAK, CONTINUE, etc then we'll
                                 // return that
@@ -1096,7 +1096,7 @@ static REBCNT Parse_Rules_Loop(
                             fail (Error(RE_PARSE_RULE, item));
 
                         // might GC
-                        if (DO_ARRAY_THROWS(&save, item)) {
+                        if (DO_VAL_ARRAY_AT_THROWS(&save, item)) {
                             *p->out = save;
                             return THROWN_FLAG;
                         }
@@ -1202,7 +1202,7 @@ static REBCNT Parse_Rules_Loop(
             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
             // might GC
-            if (DO_ARRAY_THROWS(&evaluated, item)) {
+            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, item)) {
                 *p->out = evaluated;
                 return THROWN_FLAG;
             }
@@ -1285,7 +1285,7 @@ static REBCNT Parse_Rules_Loop(
                     rules_consumed = 1;
                     if (IS_GROUP(rule)) {
                         // might GC
-                        if (DO_ARRAY_THROWS(&save, rule)) {
+                        if (DO_VAL_ARRAY_AT_THROWS(&save, rule)) {
                             *p->out = save;
                             return THROWN_FLAG;
                         }

@@ -789,7 +789,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
                     }
                 }
                 else if (IS_GROUP(val)) {
-                    if (DO_ARRAY_THROWS(&save, val)) {
+                    if (DO_VAL_ARRAY_AT_THROWS(&save, val)) {
                         // !!! Should this GROUP! evaluation be able to "bubble
                         // up" so that returns and throws can be caught up
                         // the stack, or is raising an error here sufficient?

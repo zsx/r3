@@ -472,7 +472,7 @@ REBTYPE(Context)
                 // Do the block into scratch space (we ignore the result,
                 // unless it is thrown in which case it must be returned.
                 //
-                if (DO_ARRAY_THROWS(&dummy, arg)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&dummy, arg)) {
                     *D_OUT = dummy;
                     return R_OUT_IS_THROWN;
                 }

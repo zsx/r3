@@ -905,9 +905,9 @@ struct Reb_Frame {
 
 // Note: It is safe for `out` and `array` to be the same variable.  The
 // array and index are extracted, and will be protected from GC by the DO
-// state...so it is legal to DO_ARRAY_THROWS(D_OUT, D_OUT) for instance.
+// state...so it is legal to e.g DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT).
 //
-#define DO_ARRAY_THROWS(out,array) \
+#define DO_VAL_ARRAY_AT_THROWS(out,array) \
     Do_At_Throws((out), VAL_ARRAY(m_cast(REBVAL*, array)), VAL_INDEX(array))
 
 // Lowercase, because doesn't repeat array parameter.  If macro picked head

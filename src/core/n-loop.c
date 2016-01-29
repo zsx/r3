@@ -342,7 +342,7 @@ static REB_R Loop_Skip(
             VAL_INDEX(var) = index;
         }
 
-        if (DO_ARRAY_THROWS(out, body)) {
+        if (DO_VAL_ARRAY_AT_THROWS(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) goto restore_var_and_return;
@@ -862,7 +862,7 @@ REBNATIVE(forever)
     REBVAL * const block = D_ARG(1);
 
     do {
-        if (DO_ARRAY_THROWS(D_OUT, block)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -986,7 +986,7 @@ REBNATIVE(loop)
         count = Int64(ARG(count));
 
     for (; count > 0; count--) {
-        if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1075,7 +1075,7 @@ REBNATIVE(until)
 
     do {
     skip_check:
-        if (DO_ARRAY_THROWS(D_OUT, block)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1131,7 +1131,7 @@ REBNATIVE(while)
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
 
     do {
-        if (DO_ARRAY_THROWS(&unsafe, ARG(condition))) {
+        if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
@@ -1154,7 +1154,7 @@ REBNATIVE(while)
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, ARG(body))) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;

@@ -190,7 +190,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
         break;
 
     case REB_GROUP:
-        if (DO_ARRAY_THROWS(&safe, value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&safe, value)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
             fail (Error_No_Catch_For_Throw(&safe));

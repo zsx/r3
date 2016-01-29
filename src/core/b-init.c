@@ -567,7 +567,7 @@ REBNATIVE(context)
     // The evaluative result of running the spec is ignored and done into a
     // scratch cell, but needs to be returned if a throw happens.
     //
-    if (DO_ARRAY_THROWS(&dummy, ARG(spec))) {
+    if (DO_VAL_ARRAY_AT_THROWS(&dummy, ARG(spec))) {
         *D_OUT = dummy;
         return R_OUT_IS_THROWN;
     }
@@ -936,7 +936,7 @@ static void Init_System_Object(void)
 
     // Evaluate the block (will eval CONTEXTs within).  Expects UNSET!.
     //
-    if (DO_ARRAY_THROWS(&result, &Boot_Block->sysobj))
+    if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
     if (!IS_UNSET(&result))
         panic (Error(RE_MISC));

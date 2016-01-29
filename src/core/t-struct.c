@@ -678,7 +678,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         REBVAL ret;
         VAL_INIT_WRITABLE_DEBUG(&ret);
 
-        if (DO_ARRAY_THROWS(&ret, val)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&ret, val)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
             fail (Error_No_Catch_For_Throw(&ret));

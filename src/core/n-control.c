@@ -364,7 +364,7 @@ REBNATIVE(attempt)
 
     if (error) return R_NONE;
 
-    if (DO_ARRAY_THROWS(D_OUT, block)) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // Throw name is in D_OUT, thrown value is held task local
@@ -550,7 +550,7 @@ REBNATIVE(case)
                 // "optimized IF-ELSE" as `if true stuff` would also behave
                 // in the manner of running that block.
                 //
-                if (DO_ARRAY_THROWS(D_OUT, safe_temp)) {
+                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, safe_temp)) {
                     DROP_CALL(f);
                     return R_OUT_IS_THROWN;
                 }
@@ -626,7 +626,7 @@ REBNATIVE(catch)
     if (REF(any) && REF(name))
         fail (Error(RE_BAD_REFINES));
 
-    if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
         if (
             (
                 REF(any)
@@ -721,7 +721,7 @@ was_caught:
             //
             // There's no way to pass args to a block (so just DO it)
             //
-            if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                 return R_OUT_IS_THROWN;
 
             return R_OUT;
@@ -968,7 +968,7 @@ REBNATIVE(do)
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, ARG(value)))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(value)))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -1325,7 +1325,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
             // We know there is no /ONLY because varless never runs
             // when you have refinements.  Hence always evaluate blocks.
             //
-            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
                 //
                 // This throw might be resumable, consider a case like:
                 //
@@ -1359,7 +1359,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
         if (REF(only) || !IS_BLOCK(ARG(branch))) {
             *D_OUT = *ARG(branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(branch)))
             return R_OUT_IS_THROWN;
     }
     else
@@ -1482,7 +1482,7 @@ REBNATIVE(either)
         // working with for the output, and we also know there's no /ONLY.
         //
         if (IS_BLOCK(D_OUT)) {
-            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
                 //
                 // This throw might be resumable, consider a case like:
                 //
@@ -1509,14 +1509,14 @@ REBNATIVE(either)
         if (REF(only) || !IS_BLOCK(ARG(true_branch))) {
             *D_OUT = *ARG(true_branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(true_branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(true_branch)))
             return R_OUT_IS_THROWN;
     }
     else {
         if (REF(only) || !IS_BLOCK(ARG(false_branch))) {
             *D_OUT = *ARG(false_branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(false_branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(false_branch)))
             return R_OUT_IS_THROWN;
     }
 
@@ -1704,7 +1704,7 @@ REBNATIVE(switch)
 
         found = TRUE;
 
-        if (DO_ARRAY_THROWS(D_OUT, item))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, item))
             return R_OUT_IS_THROWN;
 
         // Only keep processing if the /ALL refinement was specified
@@ -1713,7 +1713,7 @@ REBNATIVE(switch)
     }
 
     if (!found && IS_BLOCK(default_case)) {
-        if (DO_ARRAY_THROWS(D_OUT, default_case))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, default_case))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -1766,7 +1766,7 @@ REBNATIVE(trap)
 
             if (IS_BLOCK(handler)) {
                 // There's no way to pass 'error' to a block (so just DO it)
-                if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
+                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
                 return R_OUT;
@@ -1806,7 +1806,7 @@ REBNATIVE(trap)
         return R_OUT;
     }
 
-    if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
         // Note that we are interested in when errors are raised, which
         // causes a tricky C longjmp() to the code above.  Yet a THROW
         // is different from that, and offers an opportunity to each

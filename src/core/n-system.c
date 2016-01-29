@@ -1176,7 +1176,7 @@ REBOOL Do_Breakpoint_Throws(
             assert(IS_LOGIC(mode));
 
             if (VAL_LOGIC(mode)) {
-                if (DO_ARRAY_THROWS(&temp, payload)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&temp, payload)) {
                     //
                     // Throwing is not compatible with /AT currently.
                     //
@@ -1205,7 +1205,7 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
-        if (DO_ARRAY_THROWS(&temp, default_value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&temp, default_value)) {
             //
             // If the code throws, we're no longer in the sandbox...so we
             // bubble it up.  Note that breakpoint runs this code at its
