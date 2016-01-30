@@ -1178,22 +1178,17 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
         // in the argument fulfillment of a pending frame, so we consult
         // the TG_Do_Stack pointer and not the DSF.
         //
-        if (DSF_IS_VARARGS(TG_Do_Stack)) {
+        // !!! There should be a good logic for giving back errors when the
+        // call originates from the C code via va_args (hence no block).
+        // This current idea may not be ideal...it walks up the stack until
+        // it finds a non-valist frame and reports the error there.
+        //
+        call = TG_Do_Stack;
+        while (call != NULL && DSF_IS_VARARGS(call))
+            call = call->prior;
+
+        if (call != NULL) {
             //
-            // !!! There should be a good logic for giving back errors if
-            // the call is originating from C, hence the position is in
-            // system code.  An empty block is not a good answer; what one
-            // could do is finish out the arg enumeration and on-demand
-            // mutate the va_list into a series which could be introspected.
-            //
-            // The assert is a reminder to investigate that mechanism if this
-            // kind of error happens vs. sweep under the rug.  (Will be common
-            // for Ren-C invocations as an API.)
-            //
-            assert(FALSE);
-            Val_Init_Block_Index(&error_obj->nearest, EMPTY_ARRAY, 0);
-        }
-        else {
             // Get at most 6 values out of the array.  Ideally 3 before and
             // 3 after the error point.  If truncating either the head or
             // tail of the values, put ellipses.  Leave a marker at the
@@ -1201,9 +1196,9 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
             //
             // Note: something like `=>ERROR=>` would be better, but have to
             // insert a today-legal WORD!
-            //
+
             REBDSP dsp_orig = DSP;
-            REBINT start = DSF_INDEX(TG_Do_Stack) - 3;
+            REBINT start = DSF_INDEX(call) - 3;
             REBCNT count = 0;
             REBVAL *item;
 
@@ -1218,10 +1213,10 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
                 DS_PUSH(&ellipsis);
                 start = 0;
             }
-            item = ARR_AT(DSF_ARRAY(TG_Do_Stack), start);
+            item = ARR_AT(DSF_ARRAY(call), start);
             while (NOT_END(item) && count++ < 6) {
                 DS_PUSH(item);
-                if (count == DSF_INDEX(TG_Do_Stack) - start)
+                if (count == DSF_INDEX(call) - start)
                     DS_PUSH(&marker);
                 ++item;
             }

@@ -129,7 +129,17 @@ enum {
     // It will be type checked, and also any BAR! parameters will indicate
     // a desire to acquire that argument (permitting partial specialization).
     //
-    DO_FLAG_EXECUTE_FRAME = 1 << 8
+    DO_FLAG_EXECUTE_FRAME = 1 << 8,
+
+    // Usually VALIST_FLAG is enough to tell when there is a source array to
+    // examine or not.  However, when the end is reached it is written over
+    // with END_FLAG and it's no longer possible to tell if there's an array
+    // available to inspect or not.  The few cases that "need to know" are
+    // things like error delivery, which want to process the array after
+    // expression evaluation is complete.  Review to see if they actually
+    // would rather know something else, but this is a cheap flag for now.
+    //
+    DO_FLAG_VALIST = 1 << 9
 };
 
 
@@ -1053,7 +1063,7 @@ struct Native_Refine {
 #define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
 
 #define DSF_IS_VARARGS(c) \
-    ((c)->indexor == VALIST_FLAG)
+    LOGICAL((c)->flags & DO_FLAG_VALIST)
 
 #define DSF_ARRAY(c) \
     (assert(!DSF_IS_VARARGS(c)), (c)->source.array)

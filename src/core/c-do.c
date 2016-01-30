@@ -3126,7 +3126,7 @@ REBIXO Do_Va_Core(
     // into an array if a GC incidentally happens during any va_list DOs.)
     //
     assert(flags & DO_FLAG_EVAL_ONLY);
-    c.flags = flags;
+    c.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 
     Do_Core(&c);
 
