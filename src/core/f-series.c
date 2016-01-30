@@ -36,7 +36,7 @@
 // 
 // Common series functions.
 //
-REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, REBVAL *arg)
+REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, REBVAL *arg)
 {
     REBINT  index;
     REBINT  tail;

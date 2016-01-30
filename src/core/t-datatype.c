@@ -98,7 +98,7 @@ REBTYPE(Datatype)
     case A_TO:
         if (kind != REB_DATATYPE) {
             act = Value_Dispatch[TO_0_FROM_KIND(kind)];
-            if (act) return act(call_, action);
+            if (act) return act(frame_, action);
             //return R_NONE;
             fail (Error_Bad_Make(kind, arg));
         }

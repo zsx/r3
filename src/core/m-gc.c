@@ -532,7 +532,7 @@ static void Mark_Devices_Deep(void)
 
 
 //
-//  Mark_Call_Frames_Deep: C
+//  Mark_Frame_Stack_Deep: C
 // 
 // Mark all function call frames.  In addition to containing the
 // arguments that are referred to by pointer during a function
@@ -552,14 +552,14 @@ static void Mark_Devices_Deep(void)
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
 //
-static void Mark_Call_Frames_Deep(void)
+static void Mark_Frame_Stack_Deep(void)
 {
     // The GC must consider all entries, not just those that have been pushed
     // into active evaluation.
     //
-    struct Reb_Call *c = TG_Do_Stack;
+    struct Reb_Frame *f = TG_Frame_Stack;
 
-    for (; c != NULL; c = c->prior) {
+    for (; f != NULL; f = f->prior) {
 
         // !!! There are now going to be two, and perhaps three (?), ways of
         // holding the values being enumerated.  One problem is that the
@@ -576,7 +576,7 @@ static void Mark_Call_Frames_Deep(void)
         // debug backtrace or error.  GCs lazy realize all pending frames
         // before the GC starts.
         //
-        if (c->indexor == END_FLAG) {
+        if (f->indexor == END_FLAG) {
             //
             // This is possible, because the frame could be sitting at the
             // end of a block when a function runs, e.g. `do [zero-arity]`.
@@ -584,7 +584,7 @@ static void Mark_Call_Frames_Deep(void)
             // function is running, which could be arbitrarily long...so
             // a GC could happen.
         }
-        else if (c->indexor == VALIST_FLAG) {
+        else if (f->indexor == VALIST_FLAG) {
             //
             // !!! This needs to be written!  But we can *temporarily* hope
             // for the best, because the existing Apply calls are only
@@ -595,21 +595,21 @@ static void Mark_Call_Frames_Deep(void)
             //assert(FALSE);
         }
         else {
-            assert(c->indexor != THROWN_FLAG);
-            QUEUE_MARK_ARRAY_DEEP(c->source.array);
+            assert(f->indexor != THROWN_FLAG);
+            QUEUE_MARK_ARRAY_DEEP(f->source.array);
         }
 
-        if (c->value && Is_Value_Managed(c->value, FALSE))
-            Queue_Mark_Value_Deep(c->value);
+        if (f->value && Is_Value_Managed(f->value, FALSE))
+            Queue_Mark_Value_Deep(f->value);
 
-        if (c->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+        if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
             //
             // The only fields we protect if no function is pending or running
             // with this frame is the array and the potentially pending value.
             //
             // Consider something like `eval copy quote (recycle)`, because
             // while evaluating the group it has no anchor anywhere in the
-            // root set and could be GC'd.  The Reb_Call's array ref is it.
+            // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
             continue;
         }
@@ -617,22 +617,22 @@ static void Mark_Call_Frames_Deep(void)
         // The subfeed may be in use by VARARGS!, and it may be either a
         // context or a single element array.
         //
-        if (c->cell.subfeed) {
-            if (GET_ARR_FLAG(c->cell.subfeed, SERIES_FLAG_CONTEXT))
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(c->cell.subfeed));
+        if (f->cell.subfeed) {
+            if (GET_ARR_FLAG(f->cell.subfeed, SERIES_FLAG_CONTEXT))
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
             else {
-                assert(ARR_LEN(c->cell.subfeed) == 1);
-                QUEUE_MARK_ARRAY_DEEP(c->cell.subfeed);
+                assert(ARR_LEN(f->cell.subfeed) == 1);
+                QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed);
             }
         }
 
-        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func)); // never NULL
+        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
 
-        Queue_Mark_Value_Deep(c->out); // never NULL
+        Queue_Mark_Value_Deep(f->out); // never NULL
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
-        /* Mark_Symbol_Still_In_Use?(call->label_sym); */
+        /* Mark_Symbol_Still_In_Use?(f->label_sym); */
 
         // In the current implementation (under review) functions use
         // stack-based chunks to gather their arguments, and closures use
@@ -640,32 +640,32 @@ static void Mark_Call_Frames_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)) {
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_FRAMELESS)) {
             //
             // Optimized native: it didn't need a variable-sized chunk
             // allocated for its args and locals because it was able to do
             // its work just processing the block input directly.  So nothing
-            // in `c->frame` to GC protect.
+            // in `f->frame` to GC protect.
             //
         }
-        else if (c->flags & DO_FLAG_FRAME_CONTEXT) {
+        else if (f->flags & DO_FLAG_FRAME_CONTEXT) {
             //
-            // Though a Reb_Call starts off with just a chunk of memory, it
+            // Though a Reb_Frame starts off with just a chunk of memory, it
             // may be promoted to a context (backed by a data pointer of
             // that chunk of memory).  This context *may not be managed yet*
             // in the current implementation.
             //
             if (
                 GET_ARR_FLAG(
-                    CTX_VARLIST(c->frame.context),
+                    CTX_VARLIST(f->data.context),
                     SERIES_FLAG_MANAGED
                 )
             ) {
-                QUEUE_MARK_CONTEXT_DEEP(c->frame.context);
+                QUEUE_MARK_CONTEXT_DEEP(f->data.context);
             }
             else {
                 // Just mark the keylist...
-                QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c->frame.context));
+                QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(f->data.context));
             }
         }
         else  {
@@ -676,13 +676,13 @@ static void Mark_Call_Frames_Deep(void)
         }
 
         // `param`, and `refine` may both be NULL
-        // (`arg` is a cache of the head of the arglist or NULL if frameless)
+        // (`arg` is a cache of the head of the arglist or NULL if varless)
 
-        if (c->param && Is_Value_Managed(c->param, FALSE))
-            Queue_Mark_Value_Deep(c->param);
+        if (f->param && Is_Value_Managed(f->param, FALSE))
+            Queue_Mark_Value_Deep(f->param);
 
-        if (c->refine && Is_Value_Managed(c->refine, FALSE))
-            Queue_Mark_Value_Deep(c->refine);
+        if (f->refine && Is_Value_Managed(f->refine, FALSE))
+            Queue_Mark_Value_Deep(f->refine);
 
         Propagate_All_GC_Marks();
     }
@@ -762,7 +762,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 REBVAL *value = CTX_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
                 if (IS_FRAME(val))
-                    assert(VAL_FRAME_CALL(val) == VAL_FRAME_CALL(value));
+                    assert(VAL_CONTEXT_FRAME(val) == VAL_CONTEXT_FRAME(value));
                 else
                     assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
 
@@ -838,9 +838,9 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             }
             else {
                 subfeed = *SUBFEED_ADDR_OF_FEED(
-                    CTX_VARLIST(VAL_VARARGS_FRAME(val))
+                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(val))
                 );
-                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME(val));
+                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME_CTX(val));
             }
 
             if (subfeed) {
@@ -1354,7 +1354,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         Propagate_All_GC_Marks();
 
         // Mark function call frames:
-        Mark_Call_Frames_Deep();
+        Mark_Frame_Stack_Deep();
         Propagate_All_GC_Marks();
     }
 

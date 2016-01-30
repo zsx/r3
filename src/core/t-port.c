@@ -82,7 +82,7 @@ REBTYPE(Port)
         break;
 
     case A_REFLECT:
-        return T_Context(call_, action);
+        return T_Context(frame_, action);
 
     case A_MAKE:
         if (!IS_DATATYPE(value)) fail (Error_Bad_Make(REB_PORT, value));
@@ -104,5 +104,5 @@ REBTYPE(Port)
         return R_OUT;
     }
 
-    return Do_Port_Action(call_, VAL_CONTEXT(value), action);
+    return Do_Port_Action(frame_, VAL_CONTEXT(value), action);
 }

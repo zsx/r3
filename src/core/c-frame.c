@@ -1415,7 +1415,7 @@ void Bind_Relative_Deep(REBFUN *func, REBARR *block)
     //
     // NOTE: This cannot work if the native is invoked framelessly.  A
     // debug mode must be enabled that prohibits the native from being
-    // frameless if it's to be introspected.
+    // varless if it's to be introspected.
     //
     /*assert(
         IS_FUNCTION(ARR_HEAD(paramlist)) || IS_CLOSURE(ARR_HEAD(paramlist))
@@ -1671,8 +1671,10 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 // Looks up word from a relative binding to get a specific context.  Currently
 // this uses the stack (dynamic binding) but a better idea is in the works.
 //
-struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
-
+struct Reb_Frame *Frame_For_Relative_Word(
+    const REBVAL *any_word,
+    REBOOL trap
+) {
     // !!! This is the temporary answer to relative binding.  NewFunction
     // aims to resolve relative bindings with the help of an extra
     // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
@@ -1681,19 +1683,19 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
     // frame so this code will not have to guess that "the last stack
     // level is close enough"
 
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
 
-    for (; call != NULL; call = PRIOR_DSF(call)) {
+    for (; frame != NULL; frame = FRM_PRIOR(frame)) {
         if (
-            call->mode != CALL_MODE_FUNCTION
-            || DSF_FUNC(call) != any_word->payload.any_word.binding.relative
+            frame->mode != CALL_MODE_FUNCTION
+            || FRM_FUNC(frame) != any_word->payload.any_word.binding.relative
         ) {
             continue;
         }
 
-        if (DSF_FRAMELESS(call)) {
+        if (FRM_IS_VARLESS(frame)) {
             //
-            // !!! Trying to get a variable from a frameless native is a
+            // !!! Trying to get a variable from a varless native is a
             // little bit different and probably shouldn't be willing to
             // fail in an "oh it's unbound but that's okay" way.  Because
             // the data should be there, it's just been "optimized out"
@@ -1703,7 +1705,7 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
             // (how else would one get access to a binding to a native's
             // locals and args??)
             //
-            fail (Error(RE_FRAMELESS_WORD, any_word));
+            fail (Error(RE_VARLESS_WORD, any_word));
         }
 
         // Currently the only `mode` in which a frame should be
@@ -1716,7 +1718,7 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
             SAME_SYM(
                 VAL_WORD_SYM(any_word),
                 VAL_TYPESET_SYM(
-                    FUNC_PARAM(DSF_FUNC(call), VAL_WORD_INDEX(any_word))
+                    FUNC_PARAM(FRM_FUNC(frame), VAL_WORD_INDEX(any_word))
                 )
             )
         );
@@ -1724,9 +1726,9 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
         // Shouldn't be doing relative word lookups in durables ATM...they
         // copied their bodies in the current implementation.
         //
-        assert(!IS_FUNC_DURABLE(FUNC_VALUE(DSF_FUNC(call))));
+        assert(!IS_FUNC_DURABLE(FUNC_VALUE(FRM_FUNC(frame))));
 
-        return call;
+        return frame;
     }
 
     // Historically, trying to get a value from a context not
@@ -1828,24 +1830,27 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         REBCNT index = VAL_WORD_INDEX(any_word);
         REBVAL *value;
 
-        struct Reb_Call *call
-            = Call_For_Relative_Word(any_word, trap);
+        struct Reb_Frame *frame
+            = Frame_For_Relative_Word(any_word, trap);
 
-        if (!call) {
+        if (!frame) {
             assert(trap);
             return NULL;
         }
 
         if (
             writable &&
-            GET_VAL_FLAG(FUNC_PARAM(DSF_FUNC(call), index), TYPESET_FLAG_LOCKED)
+            GET_VAL_FLAG(
+                FUNC_PARAM(FRM_FUNC(frame), index),
+                TYPESET_FLAG_LOCKED
+            )
         ) {
             if (trap) return NULL;
 
             fail (Error(RE_LOCKED_WORD, any_word));
         }
 
-        value = DSF_ARG(call, index);
+        value = FRM_ARG(frame, index);
         assert(!THROWN(value));
         return value;
     }

@@ -1003,35 +1003,35 @@ REBOOL Format_GC_Safe_Value_Throws(
     const REBVAL *delimiter,
     REBCNT depth
 ) {
-    struct Reb_Call c;
+    struct Reb_Frame f;
 
     if (IS_BLOCK(val_gc_safe)) {
-        c.value = VAL_ARRAY_AT(val_gc_safe);
-        if (IS_END(c.value))
+        f.value = VAL_ARRAY_AT(val_gc_safe);
+        if (IS_END(f.value))
             return FALSE; // no mold output added on empty blocks
 
-        c.indexor = VAL_INDEX(val_gc_safe) + 1;
-        c.source.array = VAL_ARRAY(val_gc_safe);
+        f.indexor = VAL_INDEX(val_gc_safe) + 1;
+        f.source.array = VAL_ARRAY(val_gc_safe);
     }
     else {
         // Prefetch with value + an empty array to use same code path
 
-        c.value = val_gc_safe;
-        c.indexor = 0;
-        c.source.array = EMPTY_ARRAY;
+        f.value = val_gc_safe;
+        f.indexor = 0;
+        f.source.array = EMPTY_ARRAY;
     }
 
-    c.flags = DO_FLAG_NEXT | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD;
-    c.eval_fetched = NULL;
+    f.flags = DO_FLAG_NEXT | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD;
+    f.eval_fetched = NULL;
 
     do {
-        if (IS_UNSET(c.value)) {
+        if (IS_UNSET(f.value)) {
             //
             // Unsets format to nothing (!!! should NONE! do the same?)
             //
-            FETCH_NEXT_ONLY_MAYBE_END(&c);
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
-        else if (IS_BAR(c.value)) {
+        else if (IS_BAR(f.value)) {
             //
             // !!! At each depth BAR! is always a barrier.  However, it may
             // also mean inserting a delimiter.  The default is to assume it
@@ -1045,9 +1045,9 @@ REBOOL Format_GC_Safe_Value_Throws(
                 Append_Codepoint_Raw(mold->series, ' ');
 
             SET_END(pending_delimiter);
-            FETCH_NEXT_ONLY_MAYBE_END(&c);
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
-        else if (IS_CHAR(c.value)) {
+        else if (IS_CHAR(f.value)) {
             //
             // Characters are inserted with no spacing.  This is because the
             // cases in which spaced-out-characters are most likely to be
@@ -1055,44 +1055,44 @@ REBOOL Format_GC_Safe_Value_Throws(
             // which case MOLD should be used anyway.
 
             assert(
-                SER_WIDE(mold->series) == sizeof(c.value->payload.character)
+                SER_WIDE(mold->series) == sizeof(f.value->payload.character)
             );
-            Append_Codepoint_Raw(mold->series, c.value->payload.character);
+            Append_Codepoint_Raw(mold->series, f.value->payload.character);
 
             SET_END(pending_delimiter); // no delimiting before/after chars
-            FETCH_NEXT_ONLY_MAYBE_END(&c);
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
-        else if (IS_BINARY(c.value)) {
+        else if (IS_BINARY(f.value)) {
             //
             // Rather than introduce Rebol's specialized MOLD notation for
             // BINARY! into ordinary printing, the assumption is that it
             // should be interpreted as UTF-8 bytes.
             //
-            if (VAL_LEN_AT(c.value) > 0) {
+            if (VAL_LEN_AT(f.value) > 0) {
                 if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
                     Mold_Value(mold, pending_delimiter, FALSE);
 
                 Append_UTF8_May_Fail(
-                    mold->series, VAL_BIN_AT(c.value), VAL_LEN_AT(c.value)
+                    mold->series, VAL_BIN_AT(f.value), VAL_LEN_AT(f.value)
                 );
 
                 *pending_delimiter
                     = *Pending_Format_Delimiter(delimiter, depth);
             }
 
-            FETCH_NEXT_ONLY_MAYBE_END(&c);
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
         else {
             const REBVAL *item;
             if (reduce) {
-                DO_NEXT_REFETCH_MAY_THROW(out, &c, DO_FLAG_LOOKAHEAD);
-                if (c.indexor == THROWN_FLAG)
+                DO_NEXT_REFETCH_MAY_THROW(out, &f, DO_FLAG_LOOKAHEAD);
+                if (f.indexor == THROWN_FLAG)
                     return TRUE;
 
                 item = out;
             }
             else
-                item = c.value;
+                item = f.value;
 
             if (IS_BLOCK(item)) {
                 //
@@ -1138,7 +1138,7 @@ REBOOL Format_GC_Safe_Value_Throws(
                 if (reduce)
                     DROP_GUARD_VALUE(out);
                 else
-                    FETCH_NEXT_ONLY_MAYBE_END(&c);
+                    FETCH_NEXT_ONLY_MAYBE_END(&f);
             }
             else if (reduce) {
                 //
@@ -1197,11 +1197,11 @@ REBOOL Format_GC_Safe_Value_Throws(
                         = *Pending_Format_Delimiter(delimiter, depth);
                 }
 
-                FETCH_NEXT_ONLY_MAYBE_END(&c);
+                FETCH_NEXT_ONLY_MAYBE_END(&f);
             }
         }
 
-        if (c.indexor == END_FLAG)
+        if (f.indexor == END_FLAG)
             break;
     } while (TRUE);
 

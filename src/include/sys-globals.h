@@ -147,21 +147,19 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     TVAR REBCNT TG_Do_Count;
 #endif
 
-// Each time Do_Core is called a Reb_Call* is pushed to the Do_Stack.  Some
-// of the pushed entries will represent parens or paths being executed, and
+// Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".
+// Some pushed entries will represent groups or paths being executed, and
 // some will represent functions that are gathering arguments...hence they
 // have been "pushed" but are not yet actually running.  This stack must
 // be filtered to get an understanding of something like a "backtrace of
 // currently running functions".
 //
-TVAR struct Reb_Call *TG_Do_Stack;
+TVAR struct Reb_Frame *TG_Frame_Stack;
 
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;
 TVAR REBDSP DS_Index;
 TVAR REBVAL *DS_Movable_Base;
-
-TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 
 // We store the head chunk of the current chunker even though it could be
 // computed, because it's quicker to compare to a pointer than to do the

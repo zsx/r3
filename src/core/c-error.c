@@ -44,7 +44,7 @@ void Snap_State_Core(struct Reb_State *s)
     s->dsp = DSP;
     s->top_chunk = TG_Top_Chunk;
 
-    s->call = DSF;
+    s->frame = FS_TOP;
 
     // There should not be a Collect_Keys in progress.  (We use a non-zero
     // length of the collect buffer to tell if a later fail() happens in
@@ -54,7 +54,7 @@ void Snap_State_Core(struct Reb_State *s)
 
     s->series_guard_len = SER_LEN(GC_Series_Guard);
     s->value_guard_len = SER_LEN(GC_Value_Guard);
-    s->do_stack = TG_Do_Stack;
+    s->frame_stack = TG_Frame_Stack;
     s->gc_disable = GC_Disabled;
 
     s->manuals_len = SER_LEN(GC_Manuals);
@@ -91,7 +91,7 @@ void Assert_State_Balanced_Debug(
 
     assert(s->top_chunk == TG_Top_Chunk);
 
-    assert(s->call == DSF);
+    assert(s->frame == FS_TOP);
 
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
@@ -121,7 +121,7 @@ void Assert_State_Balanced_Debug(
         goto problem_found;
     }
 
-    assert(s->do_stack == TG_Do_Stack);
+    assert(s->frame_stack == TG_Frame_Stack);
     assert(s->gc_disable == GC_Disabled);
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
@@ -203,12 +203,6 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
 
-    // Restore Rebol call stack frame at time of Push_Trap.  Also, our
-    // topmost call state (which may have been pushed but not put into
-    // effect) has been accounted for by the drop.
-    //
-    CS_Running = s->call;
-
     // Restore Rebol data stack pointer at time of Push_Trap
     DS_DROP_TO(s->dsp);
 
@@ -239,7 +233,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
-    TG_Do_Stack = s->do_stack;
+    TG_Frame_Stack = s->frame_stack;
     SET_SERIES_LEN(UNI_BUF, s->uni_buf_len);
     TERM_SERIES(UNI_BUF); // see remarks on termination in Pop/Drop Molds
 
@@ -411,11 +405,11 @@ void Trap_Stack_Overflow(void)
 //
 REBCNT Stack_Depth(void)
 {
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
     REBCNT count = 0;
 
-    while (call) {
-        if (call->mode == CALL_MODE_FUNCTION) {
+    while (frame) {
+        if (frame->mode == CALL_MODE_FUNCTION) {
             //
             // We only count invoked functions (not group or path evaluations
             // or "pending" functions that are building their arguments but
@@ -423,7 +417,7 @@ REBCNT Stack_Depth(void)
             //
             count++;
         }
-        call = PRIOR_DSF(call);
+        frame = FRM_PRIOR(frame);
     }
 
     return count;
@@ -1136,12 +1130,12 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
     error_obj->id = id;
     error_obj->type = type;
 
-    // If a frameless native is running it might want us to pretend it hasn't
+    // If a varless native is running it might want us to pretend it hasn't
     // been called yet for stack display purposes.  This happens for instance
     // in the case where *if* it were running framed, it would be erroring on
     // argument fulfillment.  This is conveyed by the `up_stack` flag.
     //
-    if (up_stack ? LOGICAL(DSF && DSF->prior) : LOGICAL(DSF)) {
+    if (up_stack ? LOGICAL(FS_TOP && FS_TOP->prior) : LOGICAL(FS_TOP)) {
         //
         // Set backtrace, in the form of a block of label words that start
         // from the top of stack and go downward.
@@ -1151,43 +1145,40 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 
         // Count the number of entries that the backtrace will have
         //
-        struct Reb_Call *call = up_stack ? DSF->prior : DSF;
-        for (; call != NULL; call = call->prior)
+        struct Reb_Frame *frame = up_stack ? FS_TOP->prior : FS_TOP;
+        for (; frame != NULL; frame = frame->prior)
             ++backtrace_len;
 
         backtrace = Make_Array(backtrace_len);
 
         // Reset the call pointer and fill those entries.
         //
-        call = up_stack ? DSF->prior : DSF;
-        for (; call != NULL; call = call->prior) {
+        frame = up_stack ? FRM_PRIOR(FS_TOP) : FS_TOP;
+        for (; frame != NULL; frame = FRM_PRIOR(frame)) {
             //
             // Only invoked functions (not pending functions, parens, etc.)
             //
-            if (call->mode != CALL_MODE_FUNCTION)
+            if (frame->mode != CALL_MODE_FUNCTION)
                 continue;
 
             Val_Init_Word(
-                Alloc_Tail_Array(backtrace), REB_WORD, DSF_LABEL_SYM(call)
+                Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL_SYM(frame)
             );
         }
         Val_Init_Block(&error_obj->where, backtrace);
 
-        // Nearby location of the error.  Note that we may be giving an error
-        // for code running that is not officially "in the call stack" e.g.
-        // in the argument fulfillment of a pending frame, so we consult
-        // the TG_Do_Stack pointer and not the DSF.
+        // Nearby location of the error.
         //
         // !!! There should be a good logic for giving back errors when the
         // call originates from the C code via va_args (hence no block).
         // This current idea may not be ideal...it walks up the stack until
         // it finds a non-valist frame and reports the error there.
         //
-        call = TG_Do_Stack;
-        while (call != NULL && DSF_IS_VARARGS(call))
-            call = call->prior;
+        frame = FS_TOP;
+        while (frame != NULL && FRM_IS_VALIST(frame))
+            frame = FRM_PRIOR(frame);
 
-        if (call != NULL) {
+        if (frame != NULL) {
             //
             // Get at most 6 values out of the array.  Ideally 3 before and
             // 3 after the error point.  If truncating either the head or
@@ -1198,7 +1189,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
             // insert a today-legal WORD!
 
             REBDSP dsp_orig = DSP;
-            REBINT start = DSF_INDEX(call) - 3;
+            REBINT start = FRM_INDEX(frame) - 3;
             REBCNT count = 0;
             REBVAL *item;
 
@@ -1213,10 +1204,10 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
                 DS_PUSH(&ellipsis);
                 start = 0;
             }
-            item = ARR_AT(DSF_ARRAY(call), start);
+            item = ARR_AT(FRM_ARRAY(frame), start);
             while (NOT_END(item) && count++ < 6) {
                 DS_PUSH(item);
-                if (count == DSF_INDEX(call) - start)
+                if (count == FRM_INDEX(frame) - start)
                     DS_PUSH(&marker);
                 ++item;
             }
@@ -1258,9 +1249,9 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 //
 // If the error number is negative, this signals that it should not be seen
 // as originating from the current stack frame but rather the frame above.
-// This is useful for frameless natives that are doing argument checking
+// This is useful for varless natives that are doing argument checking
 // from within their own bodies but do not want to appear in the error's
-// call stack, because if they were not frameless then they wouldn't have
+// call stack, because if they were not varless then they wouldn't have
 // been invoked yet.
 //
 REBCTX *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
@@ -1315,7 +1306,7 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
     Val_Init_Word(&label, REB_WORD, label_sym);
 
     return Error(
-        (!DSF || DSF->arg ? RE_NO_ARG : -RE_NO_ARG), &label, &key_word, NULL
+        (!FS_TOP || FS_TOP->arg ? RE_NO_ARG : -RE_NO_ARG), &label, &key_word, NULL
     );
 }
 
@@ -1477,7 +1468,7 @@ REBCTX *Error_Arg_Type(
 
     assert(IS_DATATYPE(arg_type));
     return Error(
-        (!DSF || DSF->arg ? RE_EXPECT_ARG : -RE_EXPECT_ARG),
+        (!FS_TOP || FS_TOP->arg ? RE_EXPECT_ARG : -RE_EXPECT_ARG),
         &label_word,
         arg_type,
         &param_word,

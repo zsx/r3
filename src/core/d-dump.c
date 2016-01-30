@@ -188,7 +188,7 @@ void Dump_Info(void)
 //
 // Prints stack counting levels from the passed in number.  Pass 0 to start.
 //
-void Dump_Stack(struct Reb_Call *c, REBCNT level)
+void Dump_Stack(struct Reb_Frame *f, REBCNT level)
 {
     REBINT n;
     REBVAL *arg;
@@ -211,8 +211,8 @@ void Dump_Stack(struct Reb_Call *c, REBCNT level)
 
     Debug_Fmt(""); // newline.
 
-    if (c == NULL) c = DSF;
-    if (c == NULL) {
+    if (f == NULL) f = FS_TOP;
+    if (f == NULL) {
         Debug_Fmt("*STACK[] - NO FRAMES*");
         return;
     }
@@ -220,18 +220,18 @@ void Dump_Stack(struct Reb_Call *c, REBCNT level)
     Debug_Fmt(
         "STACK[%d](%s) - %s",
         level,
-        Get_Sym_Name(c->label_sym),
-        mode_strings[c->mode]
+        Get_Sym_Name(f->label_sym),
+        mode_strings[f->mode]
     );
 
-    if (c->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+    if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
         Debug_Fmt("(no function call pending or in progress)");
         return;
     }
 
     n = 1;
-    arg = DSF_ARG(c, 1);
-    param = FUNC_PARAMS_HEAD(c->func);
+    arg = FRM_ARG(f, 1);
+    param = FUNC_PARAMS_HEAD(f->func);
 
     for (; NOT_END(param); ++param, ++arg, ++n) {
         Debug_Fmt(
@@ -241,8 +241,8 @@ void Dump_Stack(struct Reb_Call *c, REBCNT level)
         );
     }
 
-    if (c->prior)
-        Dump_Stack(c->prior, level + 1);
+    if (f->prior)
+        Dump_Stack(f->prior, level + 1);
 }
 
 #ifdef TEST_PRINT

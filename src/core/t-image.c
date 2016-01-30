@@ -519,7 +519,7 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
 // Insert or change image
 // ACTION value arg /part len /only /dup count
 //
-REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
+REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
@@ -710,7 +710,7 @@ REBVAL *Modify_Image(struct Reb_Call *call_, REBCNT action)
 //     14 /last  {Backwards from end of string.}
 //     15 /reverse {Backwards from the current position.}
 //
-REBVAL *Find_Image(struct Reb_Call *call_)
+REBVAL *Find_Image(struct Reb_Frame *frame_)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
@@ -1006,11 +1006,11 @@ REBTYPE(Image)
     case A_APPEND:
     case A_INSERT:  // insert ser val /part len /only /dup count
     case A_CHANGE:  // change ser val /part len /only /dup count
-        value = Modify_Image(call_, action); // sets DS_OUT
+        value = Modify_Image(frame_, action); // sets DS_OUT
         break;
 
     case A_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
-        Find_Image(call_); // sets DS_OUT
+        Find_Image(frame_); // sets DS_OUT
         break;
 
     case A_TO:

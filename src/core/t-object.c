@@ -415,7 +415,7 @@ REBTYPE(Context)
             // extant FRAME! values of this type will have to use stack
             // walks to find the pointer (possibly recaching in values.)
             //
-            INIT_FRAME_CALL(AS_CONTEXT(varlist), NULL);
+            INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
             CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
             ++var;
 
@@ -697,7 +697,7 @@ REBTYPE(Context)
         return R_OUT;
 
     case A_TRIM:
-        if (Find_Refines(call_, ALL_TRIM_REFS)) {
+        if (Find_Refines(frame_, ALL_TRIM_REFS)) {
             // no refinements are allowed
             fail (Error(RE_BAD_REFINES));
         }

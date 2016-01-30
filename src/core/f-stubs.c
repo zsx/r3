@@ -253,7 +253,7 @@ REBINT Int8u(const REBVAL *val)
 // Scans the stack for function refinements that have been
 // specified in the mask (each as a bit) and are being used.
 //
-REBCNT Find_Refines(struct Reb_Call *call_, REBCNT mask)
+REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
 {
     REBINT n;
     REBCNT result = 0;
@@ -521,7 +521,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // may want to use another word of that and make a block "spec"
     //
     if (IS_FRAME(CTX_VALUE(context))) {
-        assert(ANY_FUNC(FUNC_VALUE(FRM_FUNC(context))));
+        assert(ANY_FUNC(FUNC_VALUE(CTX_FRAME_FUNC(context))));
     }
     else
         assert(

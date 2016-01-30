@@ -371,7 +371,7 @@ REBOOL Compose_Values_Throws(
 
 
 //
-//  compose: native/frameless [
+//  compose: native/varless [
 //
 //  {Evaluates only the GROUP!s in a block of expressions, returning a block.}
 //
@@ -398,9 +398,9 @@ REBNATIVE(compose)
     REFINE(4, into);
     PARAM(5, out);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         //
-        // The ARG(value) is unavailable in a frameless evaluation, so we'll
+        // The ARG(value) is unavailable in a varless evaluation, so we'll
         // have to evaluate it here.  Note that the usage does not require
         // it to be GC-safe (at time of writing).
         //
@@ -412,7 +412,7 @@ REBNATIVE(compose)
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_MAY_THROW(&value, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(&value, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG) {
             *D_OUT = value;

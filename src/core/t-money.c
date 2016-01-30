@@ -191,7 +191,7 @@ REBTYPE(Money)
         }
         VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
             VAL_MONEY_AMOUNT(val),
-            Get_Round_Flags(call_),
+            Get_Round_Flags(frame_),
             VAL_MONEY_AMOUNT(arg)
         );
         if (D_REF(2)) {

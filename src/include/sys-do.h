@@ -192,7 +192,7 @@ enum {
 //
 #define VALIST_FLAG (END_FLAG - 0xBD)
 
-// This is not an actual DO state flag that you would see in a Reb_Call's
+// This is not an actual DO state flag that you would see in a Reb_Frame's
 // index, but it is a value that is returned in case a non-continuable
 // DO_NEXT call is made on va_lists.  One can make the observation that it
 // is incomplete only--not resume.
@@ -228,11 +228,11 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  REBOL DO STATE (a.k.a. Reb_Call)
+//  REBOL DO STATE (a.k.a. Reb_Frame)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A Reb_Call structure represents the fixed-size portion for a function's
+// A Reb_Frame structure represents the fixed-size portion for a function's
 // call frame.  It is stack allocated, and is used by both Do and Apply.
 // (If a dynamic allocation is necessary for the call frame, that dynamic
 // portion is allocated as an array in `arglist`.)
@@ -243,10 +243,10 @@ enum {
 // in this way is to make it faster and easier to delegate branches in
 // the Do loop--without bearing the overhead of setting up new stack state.
 //
-// A stack-allocated Reb_Call cannot contain anything that can't be freed by
+// A stack-allocated Reb_Frame cannot contain anything that can't be freed by
 // the PUSH_TRAP handling implicitly--so no malloc'd members, no cleanup
 // needing imperative code, etc.  Any allocations must be of things that the
-// GC or otherwise will take care of, because a Reb_Call will just vanish
+// GC or otherwise will take care of, because a Reb_Frame will just vanish
 // if there is an error while it's running that doesn't get trapped inside
 // of it somewhere.
 //
@@ -265,12 +265,12 @@ enum Reb_Call_Mode {
     CALL_MODE_MAX
 };
 
-union Reb_Call_Source {
+union Reb_Frame_Source {
     REBARR *array;
     va_list *vaptr;
 };
 
-// NOTE: The ordering of the fields in `Reb_Call` are specifically done so
+// NOTE: The ordering of the fields in `Reb_Frame` are specifically done so
 // as to accomplish correct 64-bit alignment of pointers on 64-bit systems
 // (as long as REBCNT and REBINT are 32-bit on such platforms).  If modifying
 // the structure, be sensitive to this issue.
@@ -278,12 +278,12 @@ union Reb_Call_Source {
 // Because performance in the core evaluator loop is system-critical, this
 // uses full platform `int`s instead of REBCNTs.
 //
-struct Reb_Call {
+struct Reb_Frame {
     //
     // `eval` [INTERNAL, NON-READABLE, not GC-PROTECTED?]
     //
     // Placed at the head of the structure for alignment reasons, but the most
-    // difficult field of Reb_Call to explain.  It serves the purpose of a
+    // difficult field of Reb_Frame to explain.  It serves the purpose of a
     // holding cell that is needed while an EVAL is running, because the
     // calculated value that had lived in `c->out` which is being evaluated
     // can't stay in that spot while the next evaluation is writing into it.
@@ -321,7 +321,7 @@ struct Reb_Call {
     //
     unsigned int dsp_orig; // type is REBDSP, but enforce alignment here
 
-    // `flags` [INPUT, READ-ONLY (unless FRAMELESS signaling error)]
+    // `flags` [INPUT, READ-ONLY (unless VARLESS signaling error)]
     //
     // These are DO_FLAG_xxx or'd together.  If the call is being set up
     // for an Apply as opposed to Do, this must be 0.
@@ -409,7 +409,7 @@ struct Reb_Call {
     // them into some safe location and then picking up the enumeration
     // through memory.
     //
-    union Reb_Call_Source source;
+    union Reb_Frame_Source source;
 
     // `index` [INPUT, OUTPUT]
     //
@@ -438,10 +438,10 @@ struct Reb_Call {
     //
     REBSYM label_sym;
 
-    // `frame` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "frameless"]
+    // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "varless"]
     //
     // The dynamic portion of the call frame has args with which a function is
-    // being invoked (if it is not frameless).  The data is resident in the
+    // being invoked (if it is not varless).  The data is resident in the
     // "chunk stack".
     //
     // If a client of this array is a NATIVE!, then it will access the data
@@ -460,7 +460,7 @@ struct Reb_Call {
     union {
         REBCTX *context;
         REBVAL *stackvars;
-    } frame;
+    } data;
 
     // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
     //
@@ -500,7 +500,7 @@ struct Reb_Call {
     //
     // The prior call frame (may be NULL if this is the topmost stack call).
     //
-    struct Reb_Call *prior;
+    struct Reb_Frame *prior;
 
     // `mode` [INTERNAL, READ-ONLY]
     //
@@ -548,7 +548,7 @@ struct Reb_Call {
     // `do_count` [INTERNAL, DEBUG, READ-ONLY]
     //
     // The `do_count` represents the expression evaluation "tick" where the
-    // Reb_Call is starting its processing.  This is helpful for setting
+    // Reb_Frame is starting its processing.  This is helpful for setting
     // breakpoints on certain ticks in reproducible situations.
     //
     REBCNT do_count; // !!! Move to dynamic data, available in a debug mode?
@@ -571,16 +571,16 @@ struct Reb_Call {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DO's "FRAMELESS" API => *LOWEST* LEVEL EVALUATOR HOOKING
+//  DO's "VARLESS" API => *LOWEST* LEVEL EVALUATOR HOOKING
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // This API is used internally in the implementation of Do_Core.  It does
 // not speak in terms of arrays or indices, it works entirely by setting
-// up a call frame (c), and threading that frame's state through successive
+// up a call frame (f), and threading that frame's state through successive
 // operations, vs. setting it up and disposing it on each DO/NEXT step.
 //
-// Like higher level APIs that move through the input series, the frameless
+// Like higher level APIs that move through the input series, the varless
 // API can move at full DO/NEXT intervals.  Unlike the higher APIs, the
 // possibility exists to move by single elements at a time--regardless of
 // if the default evaluation rules would consume larger expressions.  Also
@@ -628,7 +628,7 @@ struct Reb_Call {
 // This is not intending to be a "published" API of Rebol/Ren-C.  But the
 // privileged level of access can be used by natives that feel they can
 // optimize performance by working with the evaluator directly.  Code written
-// in a frameless native can be essentially equally as fast as writing code
+// in a varless native can be essentially equally as fast as writing code
 // inside of the main `switch()` statement of Do_Core(), as they hook out
 // quickly once a function is identified.
 //
@@ -640,9 +640,9 @@ struct Reb_Call {
 // make sure it's not the end of the input, then call DO_NEXT_REFETCH_QUOTED
 // itself and be done.)
 //
-// !!! If a native works at the frameless API level, that foregoes automatic
+// !!! If a native works at the varless API level, that foregoes automatic
 // parameter checking, and the absence of a call frame for debugging or
-// tracing insight.  Hence each frameless native must still be able to run
+// tracing insight.  Hence each varless native must still be able to run
 // in a "framed" mode if necessary.  Error reporting has some help to say
 // whether the error came from what would correspond to parameter fulfillment
 // vs. execution were it an ordinary native.
@@ -660,27 +660,27 @@ struct Reb_Call {
 
 #define PUSH_CALL_UNLESS_END(c,v) \
     do { \
-        (c)->value = VAL_ARRAY_AT(v); \
-        if (IS_END((c)->value)) { \
-            (c)->indexor = END_FLAG; \
+        (f)->value = VAL_ARRAY_AT(v); \
+        if (IS_END((f)->value)) { \
+            (f)->indexor = END_FLAG; \
             break; \
         } \
-        (c)->indexor = VAL_INDEX(v) + 1; \
-        (c)->source.array = VAL_ARRAY(v); \
-        (c)->eval_fetched = NULL; \
-        (c)->label_sym = SYM_0; \
-        (c)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
-        (c)->prior = TG_Do_Stack; \
-        TG_Do_Stack = c; \
+        (f)->indexor = VAL_INDEX(v) + 1; \
+        (f)->source.array = VAL_ARRAY(v); \
+        (f)->eval_fetched = NULL; \
+        (f)->label_sym = SYM_0; \
+        (f)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
+        (f)->prior = TG_Frame_Stack; \
+        TG_Frame_Stack = f; \
     } while (0)
 
-#define UPDATE_EXPRESSION_START(c) \
-    (assert((c)->indexor != VALIST_FLAG), (c)->expr_index = (c)->indexor)
+#define UPDATE_EXPRESSION_START(f) \
+    (assert((f)->indexor != VALIST_FLAG), (f)->expr_index = (f)->indexor)
 
-#define DROP_CALL(c) \
+#define DROP_CALL(f) \
     do { \
-        assert(TG_Do_Stack == (c)); \
-        TG_Do_Stack = c->prior; \
+        assert(TG_Frame_Stack == (f)); \
+        TG_Frame_Stack = f->prior; \
     } while (0)
 
 #if 0
@@ -688,7 +688,7 @@ struct Reb_Call {
     // deep debugging of the evaluator.
     //
     #define TRACE_FETCH_DEBUG(m,c,a) \
-        Trace_Fetch_Debug((m), (c), (a))
+        Trace_Fetch_Debug((m), (f), (a))
 #else
     #define TRACE_FETCH_DEBUG(m,c,a) NOOP
 #endif
@@ -697,46 +697,46 @@ struct Reb_Call {
 // FETCH_NEXT_ONLY_MAYBE_END (see notes above)
 //
 
-#define FETCH_NEXT_ONLY_MAYBE_END_RAW(c) \
+#define FETCH_NEXT_ONLY_MAYBE_END_RAW(f) \
     do { \
-        if ((c)->eval_fetched) { \
-            if (IS_END((c)->eval_fetched)) \
-                (c)->value = NULL; /* could be debug only */ \
+        if ((f)->eval_fetched) { \
+            if (IS_END((f)->eval_fetched)) \
+                (f)->value = NULL; /* could be debug only */ \
             else \
-                (c)->value = (c)->eval_fetched; \
-            (c)->eval_fetched = NULL; \
+                (f)->value = (f)->eval_fetched; \
+            (f)->eval_fetched = NULL; \
             break; \
         } \
-        if ((c)->indexor != VALIST_FLAG) { \
-            if ((c)->indexor < ARR_LEN((c)->source.array)) { \
-                assert((c)->value != \
-                    ARR_AT((c)->source.array, (c)->indexor)); \
-                (c)->value = ARR_AT((c)->source.array, (c)->indexor); \
-                (c)->indexor = (c)->indexor + 1; \
+        if ((f)->indexor != VALIST_FLAG) { \
+            if ((f)->indexor < ARR_LEN((f)->source.array)) { \
+                assert((f)->value != \
+                    ARR_AT((f)->source.array, (f)->indexor)); \
+                (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
+                (f)->indexor = (f)->indexor + 1; \
             } \
             else { \
-                (c)->value = NULL; \
-                (c)->indexor = END_FLAG; \
+                (f)->value = NULL; \
+                (f)->indexor = END_FLAG; \
             } \
         } \
         else { \
-            (c)->value = va_arg(*(c)->source.vaptr, const REBVAL*); \
-            if (IS_END((c)->value)) { \
-                (c)->value = NULL; \
-                (c)->indexor = END_FLAG; \
+            (f)->value = va_arg(*(f)->source.vaptr, const REBVAL*); \
+            if (IS_END((f)->value)) { \
+                (f)->value = NULL; \
+                (f)->indexor = END_FLAG; \
             } \
         } \
     } while (0)
 
 #ifdef NDEBUG
-    #define FETCH_NEXT_ONLY_MAYBE_END(c) \
-        FETCH_NEXT_ONLY_MAYBE_END_RAW(c)
+    #define FETCH_NEXT_ONLY_MAYBE_END(f) \
+        FETCH_NEXT_ONLY_MAYBE_END_RAW(f)
 #else
-    #define FETCH_NEXT_ONLY_MAYBE_END(c) \
+    #define FETCH_NEXT_ONLY_MAYBE_END(f) \
         do { \
-            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (c), FALSE); \
-            FETCH_NEXT_ONLY_MAYBE_END_RAW(c); \
-            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (c), TRUE); \
+            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (f), FALSE); \
+            FETCH_NEXT_ONLY_MAYBE_END_RAW(f); \
+            TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", (f), TRUE); \
         } while (0)
 #endif
 
@@ -760,7 +760,7 @@ struct Reb_Call {
     value_out,indexor_out,out_,source_,indexor_in,value_in,eval_fetched,flags_ \
 ) \
     do { \
-        struct Reb_Call c_; \
+        struct Reb_Frame f_; \
         if (!eval_fetched && indexor_in != VALIST_FLAG) { \
             if (SPORADICALLY(2)) { /* every OTHER execution fast if DEBUG */ \
                 if ( \
@@ -780,15 +780,15 @@ struct Reb_Call {
                 } \
             } \
         } \
-        c_.out = (out_); \
-        c_.source = (source_); \
-        c_.value = (value_in); \
-        c_.indexor = (indexor_in); \
-        c_.flags = DO_FLAG_EVAL_NORMAL | DO_FLAG_NEXT | (flags_); \
-        Do_Core(&c_); \
-        assert(c_.indexor == VALIST_FLAG || (indexor_in) != c_.indexor); \
-        (indexor_out) = c_.indexor; \
-        (value_out) = c_.value; \
+        f_.out = (out_); \
+        f_.source = (source_); \
+        f_.value = (value_in); \
+        f_.indexor = (indexor_in); \
+        f_.flags = DO_FLAG_EVAL_NORMAL | DO_FLAG_NEXT | (flags_); \
+        Do_Core(&f_); \
+        assert(f_.indexor == VALIST_FLAG || (indexor_in) != f_.indexor); \
+        (indexor_out) = f_.indexor; \
+        (value_out) = f_.value; \
     } while (0)
 
 //
@@ -796,21 +796,21 @@ struct Reb_Call {
 //
 
 #ifdef NDEBUG
-    #define DO_NEXT_REFETCH_MAY_THROW(dest,c,flags) \
+    #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
         DO_CORE_REFETCH_MAY_THROW( \
-            (c)->value, (c)->indexor, dest, /* outputs */ \
-            (c)->source, (c)->indexor, (c)->value, (c)->eval_fetched, \
+            (f)->value, (f)->indexor, dest, /* outputs */ \
+            (f)->source, (f)->indexor, (f)->value, (f)->eval_fetched, \
             flags /* inputs */) \
 
 #else
-    #define DO_NEXT_REFETCH_MAY_THROW(dest,c,flags) \
+    #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
         do { \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (c), FALSE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (f), FALSE); \
             DO_CORE_REFETCH_MAY_THROW( \
-                (c)->value, (c)->indexor, dest, /* outputs */ \
-                (c)->source, (c)->indexor, (c)->value, (c)->eval_fetched, \
+                (f)->value, (f)->indexor, dest, /* outputs */ \
+                (f)->source, (f)->indexor, (f)->value, (f)->eval_fetched, \
                 flags /* inputs */); \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (c), TRUE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (f), TRUE); \
         } while (0)
 #endif
 
@@ -819,19 +819,19 @@ struct Reb_Call {
 //
 
 #ifdef NDEBUG
-    #define DO_NEXT_REFETCH_QUOTED(dest,c) \
+    #define DO_NEXT_REFETCH_QUOTED(dest,f) \
         do { \
-            *dest = *(c)->value; \
-            FETCH_NEXT_ONLY_MAYBE_END(c); \
+            *dest = *(f)->value; \
+            FETCH_NEXT_ONLY_MAYBE_END(f); \
         } while (0)
 
 #else
-    #define DO_NEXT_REFETCH_QUOTED(dest,c) \
+    #define DO_NEXT_REFETCH_QUOTED(dest,f) \
         do { \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (c), FALSE); \
-            *dest = *(c)->value; \
-            FETCH_NEXT_ONLY_MAYBE_END(c); \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (c), TRUE); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (f), FALSE); \
+            *dest = *(f)->value; \
+            FETCH_NEXT_ONLY_MAYBE_END(f); \
+            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (f), TRUE); \
         } while (0)
 #endif
 
@@ -881,7 +881,7 @@ struct Reb_Call {
 
 #define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index) \
     do { \
-        union Reb_Call_Source source; \
+        union Reb_Frame_Source source; \
         REBIXO indexor_ = index + 1; \
         REBVAL *value_ = ARR_AT((array_in), (index)); \
         const REBVAL *dummy; /* need for va_list continuation, not array */ \
@@ -972,7 +972,7 @@ typedef REBINT (*REBCTF)(const REBVAL *a, const REBVAL *b, REBINT s);
 //
 // These accessors are designed to make it convenient for natives and actions
 // written in C to access their arguments and refinements.  They are able
-// to bind to the implicit Reb_Call* passed to every REBNATIVE() and read
+// to bind to the implicit Reb_Frame* passed to every REBNATIVE() and read
 // the information out cleanly, like this:
 //
 //     PARAM(1, foo);
@@ -1022,27 +1022,27 @@ struct Native_Refine {
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = {n}
 #else
-    // Capture the argument for debug inspection.  Be sensitive to frameless
+    // Capture the argument for debug inspection.  Be sensitive to varless
     // usage so that parameters may be declared and used with PAR() even if
     // they cannot be used with ARG()
     //
     #define PARAM(n,name) \
         const struct Native_Param p_##name = { \
-            call_->arg ? VAL_TYPE(call_->arg + (n) - 1) : REB_TRASH, \
-            call_->arg ? call_->arg + (n) - 1 : NULL, \
+            frame_->arg ? VAL_TYPE(frame_->arg + (n) - 1) : REB_TRASH, \
+            frame_->arg ? frame_->arg + (n) - 1 : NULL, \
             (n) \
         }
 
     // As above, do a cache and be tolerant of framelessness.  The seeming odd
-    // choice to lie and say a refinement is present in the frameless case is
-    // actually to make any frameless native that tries to use REF() get
+    // choice to lie and say a refinement is present in the varless case is
+    // actually to make any varless native that tries to use REF() get
     // confused and hopefully crash...saying FALSE might make the debug build
-    // get cozy with the idea that REF() is legal in a frameless native.
+    // get cozy with the idea that REF() is legal in a varless native.
     //
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            call_->arg ? NOT(IS_NONE(call_->arg + (n) - 1)) : TRUE, \
-            call_->arg ? call_->arg + (n) - 1 : NULL, \
+            frame_->arg ? NOT(IS_NONE(frame_->arg + (n) - 1)) : TRUE, \
+            frame_->arg ? frame_->arg + (n) - 1 : NULL, \
             (n) \
         }
 #endif
@@ -1051,10 +1051,10 @@ struct Native_Refine {
 // with either.
 //
 #define ARG(name) \
-    (call_->arg + (p_##name).num - 1)
+    (frame_->arg + (p_##name).num - 1)
 
 #define PAR(name) \
-    FUNC_PARAM(call_->func, (p_##name).num) // a TYPESET!
+    FUNC_PARAM(frame_->func, (p_##name).num) // a TYPESET!
 
 #ifdef NDEBUG
     #define REF(name) \
@@ -1077,33 +1077,33 @@ struct Native_Refine {
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // !!! To be documented and reviewed.  Legacy naming conventions when the
-// arguments to functions lived in the data stack gave the name "DSF" for
+// arguments to functions lived in the data stack gave the name "FS_TOP" for
 // "(D)ata (S)tack (F)rame" which is no longer accurate, as well as the
 // convention of prefix with a D_.  The new PARAM()/REFINE()/ARG()/REF()
 // scheme is coming up on replacing a lot of it, so these will be needing
 // a tune up and choices of better names once that is sorted out.  It
-// may be as simple as changing these to C_ or CSP for "call stack pointer"
+// may be as simple as changing these to FS/FSP for "frame stack pointer"
 //
 
-#define DSF (CS_Running + 0) // avoid assignment to DSF via + 0
+#define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
-#define DSF_IS_VARARGS(c) \
-    LOGICAL((c)->flags & DO_FLAG_VALIST)
+#define FRM_IS_VALIST(f) \
+    LOGICAL((f)->flags & DO_FLAG_VALIST)
 
-#define DSF_ARRAY(c) \
-    (assert(!DSF_IS_VARARGS(c)), (c)->source.array)
+#define FRM_ARRAY(f) \
+    (assert(!FRM_IS_VALIST(f)), (f)->source.array)
 
-#define DSF_INDEX(c) \
-    (assert(!DSF_IS_VARARGS(c)), (c)->indexor == END_FLAG \
-        ? ARR_LEN((c)->source.array) : (c)->indexor - 1)
+#define FRM_INDEX(f) \
+    (assert(!FRM_IS_VALIST(f)), (f)->indexor == END_FLAG \
+        ? ARR_LEN((f)->source.array) : (f)->indexor - 1)
 
-#define DSF_OUT(c)          cast(REBVAL * const, (c)->out) // writable Lvalue
-#define PRIOR_DSF(c)        ((c)->prior)
-#define DSF_LABEL_SYM(c)    ((c)->label_sym + 0) // Lvalue
-#define DSF_FUNC(c)         ((c)->func)
-#define DSF_DSP_ORIG(c)     ((c)->dsp_orig + 0) // Lvalue
+#define FRM_OUT(f)          cast(REBVAL * const, (f)->out) // writable Lvalue
+#define FRM_PRIOR(f)        ((f)->prior)
+#define FRM_LABEL_SYM(f)    ((f)->label_sym + 0) // Lvalue
+#define FRM_FUNC(f)         ((f)->func)
+#define FRM_DSP_ORIG(f)     ((f)->dsp_orig + 0) // Lvalue
 
-#define DSF_PARAMS_HEAD(c)  FUNC_PARAMS_HEAD((c)->func)
+#define FRM_PARAMS_HEAD(f)  FUNC_PARAMS_HEAD((f)->func)
 
 // Though `arg` is in use to point at the arguments during evaluation, the
 // other parameter fulfillment pointers `param` and `refine` are free for
@@ -1115,11 +1115,11 @@ struct Native_Refine {
 //
 // Using X and Y instead of 1 and 2 to avoid confusing with PARAM(#)s
 //
-#define DSF_PROTECT_X(c,v) \
-    ((c)->param = (v))
+#define PROTECT_FRM_X(f,v) \
+    ((f)->param = (v))
 
-#define DSF_PROTECT_Y(c,v) \
-    ((c)->refine = (v))
+#define PROTECT_FRM_Y(f,v) \
+    ((f)->refine = (v))
 
 // It's not clear exactly in which situations one might be using this; while
 // it seems that when filling function args you could just assume it hasn't
@@ -1128,55 +1128,55 @@ struct Native_Refine {
 // reuse a frame that's been reified after its initial "chunk only" state.
 // For now check the flag and don't just assume it's a raw frame.
 //
-#define DSF_ARGS_HEAD(c) \
-    (((c)->flags & DO_FLAG_FRAME_CONTEXT) \
-        ? CTX_VARS_HEAD((c)->frame.context) \
-        : &(c)->frame.stackvars[0])
+#define FRM_ARGS_HEAD(f) \
+    (((f)->flags & DO_FLAG_FRAME_CONTEXT) \
+        ? CTX_VARS_HEAD((f)->data.context) \
+        : &(f)->data.stackvars[0])
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)
 #ifdef NDEBUG
-    #define DSF_ARG(c,n)    ((c)->arg + (n) - 1)
+    #define FRM_ARG(f,n)    ((f)->arg + (n) - 1)
 #else
-    #define DSF_ARG(c,n)    DSF_ARG_Debug((c), (n)) // checks arg index bound
+    #define FRM_ARG(f,n)    FRM_ARG_Debug((f), (n)) // checks arg index bound
 #endif
 
-#define DSF_FRAMELESS(c) \
-    ((c)->arg ? FALSE : (assert(!DSF_IS_VARARGS(c)), TRUE))
+#define FRM_IS_VARLESS(f) \
+    ((f)->arg ? FALSE : (assert(!FRM_IS_VALIST(f)), TRUE))
 
-// Note about D_ARGC: A native should generally not detect the arity it
+// Note about D_NUM_ARGS: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
 // the full list of arguments and refinements).  However, ACTION! dispatch
 // has several different argument counts piping through a switch, and often
 // "cheats" by using the arity instead of being conditional on which action
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
-#define DSF_ARGC(c) \
-    cast(REBCNT, FUNC_NUM_PARAMS((c)->func))
+#define FRM_NUM_ARGS(f) \
+    cast(REBCNT, FUNC_NUM_PARAMS((f)->func))
 
 // Quick access functions from natives (or compatible functions that name a
-// Reb_Call pointer `call_`) to get some of the common public fields.
+// Reb_Frame pointer `frame_`) to get some of the common public fields.
 //
-#define D_OUT       DSF_OUT(call_)          // GC-safe slot for output value
-#define D_ARGC      DSF_ARGC(call_)         // count of args+refinements/args
-#define D_ARG(n)    DSF_ARG(call_, (n))     // pass 1 for first arg
+#define D_OUT       FRM_OUT(frame_)         // GC-safe slot for output value
+#define D_ARGC      FRM_NUM_ARGS(frame_)        // count of args+refinements/args
+#define D_ARG(n)    FRM_ARG(frame_, (n))    // pass 1 for first arg
 #define D_REF(n)    NOT(IS_NONE(D_ARG(n)))  // D_REFinement (not D_REFerence)
-#define D_FUNC      DSF_FUNC(call_)         // REBVAL* of running function
-#define D_LABEL_SYM DSF_LABEL_SYM(call_)    // symbol or placeholder for call
-#define D_DSP_ORIG  DSF_DSP_ORIG(call_)     // Original data stack pointer
+#define D_FUNC      FRM_FUNC(frame_)        // REBVAL* of running function
+#define D_LABEL_SYM FRM_LABEL_SYM(frame_)   // symbol or placeholder for call
+#define D_DSP_ORIG  FRM_DSP_ORIG(frame_)    // Original data stack pointer
 
-#define D_PROTECT_X(v)      DSF_PROTECT_X(call_, (v))
-#define D_PROTECT_Y(v)      DSF_PROTECT_Y(call_, (v))
+#define D_PROTECT_X(v)      PROTECT_FRM_X(frame_, (v))
+#define D_PROTECT_Y(v)      PROTECT_FRM_Y(frame_, (v))
 
-#define D_FRAMELESS DSF_FRAMELESS(call_)    // Native running w/no call frame
+#define D_IS_VARLESS FRM_IS_VARLESS(frame_) // Native running w/no arg vars
 
 // Frameless native access
 //
-// !!! Should `call_` just be renamed to `c_` to make this briefer and be used
+// !!! Should `frame_` just be renamed to `c_` to make this briefer and be used
 // directly?  It is helpful to have macros to find the usages, however.
 //
-#define D_CALL      call_
-#define D_ARRAY     (call_->source.array)
-#define D_INDEXOR   (call_->indexor)
-#define D_VALUE     (call_->value)
-#define D_MODE      (call_->mode)
+#define D_FRAME      frame_
+#define D_ARRAY     (frame_->source.array)
+#define D_INDEXOR   (frame_->indexor)
+#define D_VALUE     (frame_->value)
+#define D_MODE      (frame_->mode)

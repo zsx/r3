@@ -638,7 +638,7 @@ static REBCTX *Error_Bad_Scan(
 
     error = Error(errnum, &arg1, &arg2, NULL);
 
-    // Write the NEAR information (`Error()` gets it from DSF)
+    // Write the NEAR information (`Error()` gets it from FS_TOP)
     //
     err_obj = cast(ERROR_OBJ*, ARR_HEAD(CTX_VARLIST(error)));
     Val_Init_String(&err_obj->nearest, ser);

@@ -42,9 +42,9 @@
 REBINT Eval_Depth(void)
 {
     REBINT depth = 0;
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
 
-    for (; call != NULL; call = PRIOR_DSF(call), depth++)
+    for (; frame != NULL; frame = FRM_PRIOR(frame), depth++)
         NOOP;
 
     return depth;
@@ -52,17 +52,17 @@ REBINT Eval_Depth(void)
 
 
 //
-//  Stack_Frame: C
+//  Frame_At_Depth: C
 //
-struct Reb_Call *Stack_Frame(REBCNT n)
+struct Reb_Frame *Frame_At_Depth(REBCNT n)
 {
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
 
-    while (call) {
-        if (n == 0) return call;
+    while (frame) {
+        if (n == 0) return frame;
 
         --n;
-        call = PRIOR_DSF(call);
+        frame = FRM_PRIOR(frame);
     }
 
     return NULL;
@@ -133,7 +133,7 @@ static REBINT Init_Depth(void)
 #define CHECK_DEPTH(d) if ((d = Init_Depth()) < 0) return;\
 
 void Trace_Line(
-    union Reb_Call_Source source,
+    union Reb_Frame_Source source,
     REBIXO indexor,
     const REBVAL *value
 ) {
@@ -174,7 +174,7 @@ void Trace_Line(
         if (IS_WORD(value)) value = GET_OPT_VAR_MAY_FAIL(word);
         Debug_Fmt_(cs_cast(BOOT_STR(RS_TRACE,2)), VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), Get_Type_Name(value));
     }
-    if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, DSF);
+    if (Trace_Stack) Debug_Fmt(cs_cast(BOOT_STR(RS_TRACE,3)), DSP, FS_TOP);
     else
     */
     Debug_Line();
@@ -190,7 +190,7 @@ void Trace_Func(REBCNT label_sym, const REBVAL *value)
         Get_Type_Name(value)
     );
     if (GET_FLAG(Trace_Flags, 1))
-        Debug_Values(DSF_ARG(DSF, 1), DSF_ARGC(DSF), 20);
+        Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
     else Debug_Line();
 }
 
@@ -728,36 +728,36 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 // wrong.  This routine hooks the individual fetch and writes at a more
 // fine-grained level than a breakpoint at each DO/NEXT point.
 //
-void Trace_Fetch_Debug(const char* msg, struct Reb_Call *c, REBOOL after) {
+void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
     Debug_Fmt(
         "%d - %s : %s",
-        cast(REBCNT, c->indexor),
+        cast(REBCNT, f->indexor),
         msg,
         after ? "AFTER" : "BEFORE"
     );
-    assert(c->value != NULL || (after && c->indexor == END_FLAG));
-    if (c->value)
-        PROBE(c->value);
+    assert(f->value != NULL || (after && f->indexor == END_FLAG));
+    if (f->value)
+        PROBE(f->value);
 }
 
 
 //
-// The entry checks to DO are for verifying that the setup of the Reb_Call
+// The entry checks to DO are for verifying that the setup of the Reb_Frame
 // passed in was valid.  They run just once for each Do_Core() call, and
 // are only in the debug build.
 //
-static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
+static REBCNT Do_Entry_Checks_Debug(struct Reb_Frame *f)
 {
     // The caller must preload ->value with the first value to process.  It
     // may be resident in the array passed that will be used to fetch further
     // values, or it may not.
     //
-    assert(c->value);
+    assert(f->value);
 
     // All callers should ensure that the type isn't an END marker before
     // bothering to invoke Do_Core().
     //
-    assert(NOT_END(c->value));
+    assert(NOT_END(f->value));
 
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -767,9 +767,9 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
     // be returned.
     //
 #ifdef STRESS_CHECK_DO_OUT_POINTER
-    ASSERT_NOT_IN_SERIES_DATA(c->out);
+    ASSERT_NOT_IN_SERIES_DATA(f->out);
 #else
-    assert(!IN_DATA_STACK(c->out));
+    assert(!IN_DATA_STACK(f->out));
 #endif
 
     // The DO_FLAGs were decided to come in pairs for clarity, to make sure
@@ -777,21 +777,21 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
     // asking for.  This may or may not be overkill long term, but helps now.
     //
     assert(
-        LOGICAL(c->flags & DO_FLAG_NEXT)
-        != LOGICAL(c->flags & DO_FLAG_TO_END)
+        LOGICAL(f->flags & DO_FLAG_NEXT)
+        != LOGICAL(f->flags & DO_FLAG_TO_END)
     );
     assert(
-        LOGICAL(c->flags & DO_FLAG_LOOKAHEAD)
-        != LOGICAL(c->flags & DO_FLAG_NO_LOOKAHEAD)
+        LOGICAL(f->flags & DO_FLAG_LOOKAHEAD)
+        != LOGICAL(f->flags & DO_FLAG_NO_LOOKAHEAD)
     );
     assert(
-        LOGICAL(c->flags & DO_FLAG_EVAL_NORMAL)
-        != LOGICAL(c->flags & DO_FLAG_EVAL_ONLY)
+        LOGICAL(f->flags & DO_FLAG_EVAL_NORMAL)
+        != LOGICAL(f->flags & DO_FLAG_EVAL_ONLY)
     );
 
     // This flag is managed solely by the frame code; shouldn't come in set
     //
-    assert(NOT(c->flags & DO_FLAG_FRAME_CONTEXT));
+    assert(NOT(f->flags & DO_FLAG_FRAME_CONTEXT));
 
 #if !defined(NDEBUG)
     //
@@ -799,7 +799,7 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
     // because sometimes one stackvars call ends and then another starts
     // before the debug preamble is run.  Give it an initial NULL here though.
     //
-    c->frame.stackvars = NULL;
+    f->data.stackvars = NULL;
 #endif
 
     // Snapshot the "tick count" to assist in showing the value of the tick
@@ -807,8 +807,8 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
     // set for that tick based on higher levels than the value you might
     // see during a crash.
     //
-    c->do_count = TG_Do_Count;
-    return c->do_count;
+    f->do_count = TG_Do_Count;
+    return f->do_count;
 }
 
 
@@ -819,35 +819,35 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Call *c)
 // making the code shareable allows code paths that jump to later spots
 // in the switch (vs. starting at the top) to reuse the work.
 //
-static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
+static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Frame *f) {
     //
     // The ->mode is examined by parts of the system as a sign of whether
     // the stack represents a function invocation or not.  If it is changed
     // from CALL_MODE_GUARD_ARRAY_ONLY during an evaluation step, it must
     // be changed back before a next step is to run.
     //
-    assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
+    assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY);
 
-    // We should not be linked into the call stack when a function is not
-    // running (it is not if we're in this outer loop)
+    // If running the evaluator, then this frame should be the topmost on the
+    // frame stack.
     //
-    assert(c != CS_Running);
+    assert(f == FS_TOP);
 
     // We checked for END when we entered Do_Core() and short circuited
     // that, but if we're running DO_FLAG_TO_END then the catch for that is
     // an index check.  We shouldn't go back and `do_at_index` on an end!
     //
-    assert(c->value && NOT_END(c->value));
-    assert(c->indexor != THROWN_FLAG);
+    assert(f->value && NOT_END(f->value));
+    assert(f->indexor != THROWN_FLAG);
 
-    // Note that `c->indexor` *might* be END_FLAG in the case of an eval;
-    // if you write `do [eval help]` then it will load help in as c->value
+    // Note that `f->indexor` *might* be END_FLAG in the case of an eval;
+    // if you write `do [eval help]` then it will load help in as f->value
     // and retrigger, and `help` (for instance) is capable of handling a
     // prefetched input that is at end.  This is different from most cases
     // where END_FLAG directly implies prefetch input was exhausted and
-    // c->value must be NULL.
+    // f->value must be NULL.
     //
-    assert(c->indexor != END_FLAG || IS_END(c->eval_fetched));
+    assert(f->indexor != END_FLAG || IS_END(f->eval_fetched));
 
     // The value we are processing should not be THROWN() and any series in
     // it should be under management by the garbage collector.
@@ -855,8 +855,8 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // !!! THROWN() bit on individual values is in the process of being
     // deprecated, in favor of the evaluator being in a "throwing state".
     //
-    assert(!THROWN(c->value));
-    ASSERT_VALUE_MANAGED(c->value);
+    assert(!THROWN(f->value));
+    ASSERT_VALUE_MANAGED(f->value);
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets
@@ -864,12 +864,12 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    c->func = cast(REBFUN*, 0xDECAFBAD);
-    c->label_sym = SYM_0;
-    c->label_str = "(no current label)";
-    c->param = cast(REBVAL*, 0xDECAFBAD);
-    c->arg = cast(REBVAL*, 0xDECAFBAD);
-    c->refine = cast(REBVAL*, 0xDECAFBAD);
+    f->func = cast(REBFUN*, 0xDECAFBAD);
+    f->label_sym = SYM_0;
+    f->label_str = "(no current label)";
+    f->param = cast(REBVAL*, 0xDECAFBAD);
+    f->arg = cast(REBVAL*, 0xDECAFBAD);
+    f->refine = cast(REBVAL*, 0xDECAFBAD);
 
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
@@ -882,13 +882,13 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
     // is annoying even in a debug build.
     //
     if (TG_Do_Count < MAX_U32) {
-        c->do_count = ++TG_Do_Count;
-        if (c->do_count ==
+        f->do_count = ++TG_Do_Count;
+        if (f->do_count ==
             // *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
                                       0
             // *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
         ) {
-            if (c->indexor == VALIST_FLAG) {
+            if (f->indexor == VALIST_FLAG) {
                 //
                 // !!! Can't fetch the next value here without destroying the
                 // forward iteration.  Destructive debugging techniques could
@@ -900,30 +900,30 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Call *c) {
                     "Do_Core() count trap (va_list, no nondestructive fetch)"
                 );
             }
-            else if (c->indexor == END_FLAG) {
-                assert(c->value != NULL);
+            else if (f->indexor == END_FLAG) {
+                assert(f->value != NULL);
                 Debug_Fmt("Performing EVAL at end of array (no args)");
-                PROBE_MSG(c->value, "Do_Core() count trap");
+                PROBE_MSG(f->value, "Do_Core() count trap");
             }
             else {
                 REBVAL dump;
                 VAL_INIT_WRITABLE_DEBUG(&dump);
 
-                PROBE_MSG(c->value, "Do_Core() count trap");
+                PROBE_MSG(f->value, "Do_Core() count trap");
                 Val_Init_Block_Index(
-                    &dump, c->source.array, cast(REBCNT, c->indexor)
+                    &dump, f->source.array, cast(REBCNT, f->indexor)
                 );
                 PROBE_MSG(&dump, "Do_Core() next up...");
             }
         }
     }
 
-    return c->do_count;
+    return f->do_count;
 }
 
 // Needs a forward declaration, but makes more sense to locate after Do_Core()
 //
-static void Do_Exit_Checks_Debug(struct Reb_Call *c);
+static void Do_Exit_Checks_Debug(struct Reb_Frame *f);
 
 #endif
 
@@ -932,8 +932,8 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c);
 //
 #define NOTE_THROWING(g) \
     do { \
-        assert(c->indexor == THROWN_FLAG); \
-        assert(THROWN(c->out)); \
+        assert(f->indexor == THROWN_FLAG); \
+        assert(THROWN(f->out)); \
         g; /* goto statement left at callsite for readability */ \
     } while(0)
 
@@ -948,7 +948,7 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c);
 //     3. Encountered an error
 //
 // For comprehensive notes on the input parameters, output parameters, and
-// internal state variables...see %sys-do.h and `struct Reb_Call`.
+// internal state variables...see %sys-do.h and `struct Reb_Frame`.
 // 
 // NOTES:
 //
@@ -979,7 +979,7 @@ static void Do_Exit_Checks_Debug(struct Reb_Call *c);
 // values.  The benefits of this self-modifying lenience should be reviewed
 // to inform a decision regarding the locking of arrays during evaluation.
 //
-void Do_Core(struct Reb_Call * const c)
+void Do_Core(struct Reb_Frame * const f)
 {
 #if !defined(NDEBUG)
     //
@@ -987,19 +987,14 @@ void Do_Core(struct Reb_Call * const c)
     //
     struct Reb_State state;
 
-    // Cache of `c->do_count` (to make it quicker to see in the debugger)
+    // Cache of `f->do_count` (to make it quicker to see in the debugger)
     //
     REBCNT do_count;
 #endif
 
-    // It's necessary to track the running call frame (or is it?  could it
-    // be searched and found?  natives have access as a parameter...)
-    //
-    struct Reb_Call *call_orig;
-
     // Definitional Return gives back a "corrupted" REBVAL of a return native,
     // whose body is actually an indicator of the return target.  The
-    // Reb_Call only stores the FUNC so we must extract this body from the
+    // Reb_Frame only stores the FUNC so we must extract this body from the
     // value if it represents a exit_from
     //
     REBARR *exit_from;
@@ -1010,67 +1005,67 @@ void Do_Core(struct Reb_Call * const c)
 
     // Check just once (stack level would be constant if checked in a loop)
     //
-    if (C_STACK_OVERFLOWING(&c)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&f)) Trap_Stack_Overflow();
 
     // Chain the call state into the stack, and mark it as generally not
     // having valid fields to GC protect (more valid during function calls).
     //
-    c->prior = TG_Do_Stack;
-    TG_Do_Stack = c;
-    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+    f->prior = TG_Frame_Stack;
+    TG_Frame_Stack = f;
+    f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
 #if !defined(NDEBUG)
     SNAP_STATE(&state); // for comparison to make sure stack balances, etc.
-    do_count = Do_Entry_Checks_Debug(c); // checks that run once per Do_Core()
+    do_count = Do_Entry_Checks_Debug(f); // checks that run once per Do_Core()
 #endif
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
     // are any that are not processed)
     //
-    c->dsp_orig = DSP;
+    f->dsp_orig = DSP;
 
     // Indicate that we do not have a value already fetched by eval which is
-    // pending to be the next fetch (after the eval's "slipstreamed" c->value
+    // pending to be the next fetch (after the eval's "slipstreamed" f->value
     // is done processing).
     //
-    c->eval_fetched = NULL;
+    f->eval_fetched = NULL;
 
-    // The c->out slot is GC protected while the natives or user code runs.
+    // The f->out slot is GC protected while the natives or user code runs.
     // To keep it from crashing the GC, we put in "safe trash" that will be
     // acceptable to the GC but raise alerts if any other code reads it.
     //
-    SET_TRASH_SAFE(c->out);
+    SET_TRASH_SAFE(f->out);
 
 value_ready_for_do_next:
     //
-    // c->value is expected to be set here, as is c->index
+    // f->value is expected to be set here, as is f->index
     //
     // !!! are there more rules for the locations value can't point to?
     // Note that a fetched value pointer may be within a va_arg list.  Also
     // consider the GC implications of running ANY non-EVAL/ONLY scenario;
     // how do you know the values are safe?  (See ideas in %sys-do.h)
     //
-    assert(c->value && !IS_END(c->value) && c->value != c->out);
-    assert(c->indexor != END_FLAG && c->indexor != THROWN_FLAG);
+    assert(f->value && !IS_END(f->value) && f->value != f->out);
+    assert(f->indexor != END_FLAG && f->indexor != THROWN_FLAG);
 
-    if (Trace_Flags) Trace_Line(c->source, c->indexor, c->value);
+    if (Trace_Flags) Trace_Line(f->source, f->indexor, f->value);
 
     // Save the index at the start of the expression in case it is needed
-    // for error reporting.  DSF_INDEX can account for prefetching, but it
+    // for error reporting.  FRM_INDEX can account for prefetching, but it
     // cannot know what a preloaded head value was unless it was saved
     // under a debug> mode.
     //
-    if (c->indexor != VALIST_FLAG) c->expr_index = c->indexor;
+    if (f->indexor != VALIST_FLAG) f->expr_index = f->indexor;
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    VAL_INIT_WRITABLE_DEBUG(&(c->cell.eval)); // in union, always reinit
-    SET_TRASH_IF_DEBUG(&(c->cell.eval));
-    eval_normal = LOGICAL(c->flags & DO_FLAG_EVAL_NORMAL);
+    VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval)); // in union, always reinit
+    SET_TRASH_IF_DEBUG(&(f->cell.eval));
+    eval_normal = LOGICAL(f->flags & DO_FLAG_EVAL_NORMAL);
 
     // If we're going to jump to the `reevaluate:` label below we should not
     // consider it a Recycle() opportunity.  The value residing in `eval`
@@ -1078,7 +1073,7 @@ value_ready_for_do_next:
     // to initialize it or GC-safe de-initialize it each time through
     // the evaluator loop.  It will only be protected by the GC under
     // circumstances that wind up extracting its properties during a needed
-    // evaluation (hence protected indirectly via `c->array` or `c->func`.)
+    // evaluation (hence protected indirectly via `f->array` or `f->func`.)
     //
     if (--Eval_Count <= 0 || Eval_Signals) {
         //
@@ -1086,12 +1081,12 @@ value_ready_for_do_next:
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
-        if (Do_Signals_Throws(c->out)) {
-            c->indexor = THROWN_FLAG;
+        if (Do_Signals_Throws(f->out)) {
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
 
-        if (!IS_UNSET(c->out)) {
+        if (!IS_UNSET(f->out)) {
             //
             // !!! What to do with something like a Ctrl-C-based breakpoint
             // session that does something like `resume/with 10`?  We are
@@ -1110,17 +1105,17 @@ reevaluate:
     // (We also want the debugger to consider the triggering EVAL as the
     // start of the expression, and don't want to advance `expr_index`).
 
-    // On entry we initialized `c->out` to a GC-safe value, and no evaluations
+    // On entry we initialized `f->out` to a GC-safe value, and no evaluations
     // should write END markers or unsafe trash in the slot.  As evaluations
-    // proceed the value they wrote in `c->out` should be fine to leave there
+    // proceed the value they wrote in `f->out` should be fine to leave there
     // as it won't crash the GC--and is cheaper than overwriting.  But in the
     // debug build, throw safe trash in the slot half the time to catch stray
     // reuses of irrelevant data...and test the release path the other half.
     //
-    if (SPORADICALLY(2)) SET_TRASH_SAFE(c->out);
+    if (SPORADICALLY(2)) SET_TRASH_SAFE(f->out);
 
 #if !defined(NDEBUG)
-    do_count = Do_Evaluation_Preamble_Debug(c); // per-DO/NEXT debug checks
+    do_count = Do_Evaluation_Preamble_Debug(f); // per-DO/NEXT debug checks
     cast(void, do_count); // suppress unused warning
     exit_from = cast(REBARR*, 0xDECAFBAD); // trash local to alert on reuse
 #endif
@@ -1131,19 +1126,19 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    switch (Eval_Table[VAL_TYPE(c->value)]) { // see ET_XXX, RE: jump table
+    switch (Eval_Table[VAL_TYPE(f->value)]) { // see ET_XXX, RE: jump table
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // [no evaluation] (REB_BLOCK, REB_INTEGER, REB_STRING, etc.)
 //
-// Copy the value's bits to c->out and fetch the next value.  (Infix behavior
+// Copy the value's bits to f->out and fetch the next value.  (Infix behavior
 // may kick in for this same "DO/NEXT" step--see processing after switch.)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_NONE:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
+        DO_NEXT_REFETCH_QUOTED(f->out, f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1169,13 +1164,13 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_BAR:
-        SET_UNSET(c->out);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        SET_UNSET(f->out);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
     case ET_LIT_BAR:
-        SET_BAR(c->out);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        SET_BAR(f->out);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1189,40 +1184,40 @@ reevaluate:
 //
 // Note: Infix functions cannot be dispatched from this point, as there is no
 // "Left-Hand-Side" computed to use.  Infix dispatch happens on words during
-// a lookahead *after* this switch statement, when a omputed value in c->out
+// a lookahead *after* this switch statement, when a omputed value in f->out
 // is available.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_WORD:
-        *(c->out) = *GET_OPT_VAR_MAY_FAIL(c->value);
+        *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
 
     dispatch_the_word_in_out:
-        if (ANY_FUNC(c->out)) { // check before checking unset, for speed
-            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
-                fail (Error(RE_NO_OP_ARG, c->value)); // see Note above
+        if (ANY_FUNC(f->out)) { // check before checking unset, for speed
+            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
+                fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
 
-            c->label_sym = VAL_WORD_SYM(c->value);
+            f->label_sym = VAL_WORD_SYM(f->value);
 
         #if !defined(NDEBUG)
-            c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+            f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
         #endif
 
-            if (Trace_Flags) Trace_Line(c->source, c->indexor, c->value);
+            if (Trace_Flags) Trace_Line(f->source, f->indexor, f->value);
 
-            c->value = c->out;
+            f->value = f->out;
             goto do_function_in_value;
         }
 
-        if (IS_UNSET(c->out))
-            fail (Error(RE_NO_VALUE, c->value)); // need `:x` if `x` is unset
+        if (IS_UNSET(f->out))
+            fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(c->out))
-            VAL_SET_TYPE_BITS(c->out, REB_WORD); // don't reset full header!
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
+            VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
     #endif
 
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1235,24 +1230,24 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_SET_WORD:
-        c->param = c->value; // fetch writes c->value, so save SET-WORD! ptr
+        f->param = f->value; // fetch writes f->value, so save SET-WORD! ptr
 
-        FETCH_NEXT_ONLY_MAYBE_END(c);
-        if (c->indexor == END_FLAG)
-            fail (Error(RE_NEED_VALUE, c->param)); // e.g. `do [foo:]`
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (f->indexor == END_FLAG)
+            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
 
         if (eval_normal) { // not using EVAL/ONLY
-            DO_NEXT_REFETCH_MAY_THROW(c->out, c, DO_FLAG_LOOKAHEAD);
-            if (c->indexor == THROWN_FLAG)
+            DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
+            if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
         }
         else
-            DO_NEXT_REFETCH_QUOTED(c->out, c);
+            DO_NEXT_REFETCH_QUOTED(f->out, f);
 
-        if (IS_UNSET(c->out))
-            fail (Error(RE_NEED_VALUE, c->param)); // e.g. `foo: ()`
+        if (IS_UNSET(f->out))
+            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
 
-        *GET_MUTABLE_VAR_MAY_FAIL(c->param) = *(c->out);
+        *GET_MUTABLE_VAR_MAY_FAIL(f->param) = *(f->out);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1265,8 +1260,8 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GET_WORD:
-        *(c->out) = *GET_OPT_VAR_MAY_FAIL(c->value);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
 //==/////////////////////////////////////////////////////////////////////==//
@@ -1279,8 +1274,8 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_LIT_WORD:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
-        VAL_SET_TYPE_BITS(c->out, REB_WORD);
+        DO_NEXT_REFETCH_QUOTED(f->out, f);
+        VAL_SET_TYPE_BITS(f->out, REB_WORD);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1290,11 +1285,11 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
-        if (DO_ARRAY_THROWS(c->out, c->value)) {
-            c->indexor = THROWN_FLAG;
+        if (DO_ARRAY_THROWS(f->out, f->value)) {
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1304,12 +1299,12 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_PATH:
-        if (Do_Path_Throws(c->out, &c->label_sym, c->value, NULL)) {
-            c->indexor = THROWN_FLAG;
+        if (Do_Path_Throws(f->out, &f->label_sym, f->value, NULL)) {
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
 
-        if (ANY_FUNC(c->out)) {
+        if (ANY_FUNC(f->out)) {
             //
             // object/func or func/refinements or object/func/refinement
             //
@@ -1317,24 +1312,24 @@ reevaluate:
             // willing to assume we are going to invoke a function if it
             // is one.  Hence it left any potential refinements on data stack.
             //
-            assert(DSP >= c->dsp_orig);
+            assert(DSP >= f->dsp_orig);
 
             // Cannot handle infix because prior value is wiped out above
             // (Theoretically we could save it if we are DO-ing a chain of
             // values, and make it work.  But then, a loop of DO/NEXT
             // may not behave the same as DO-ing the whole block.  Bad.)
             //
-            if (GET_VAL_FLAG(c->out, FUNC_FLAG_INFIX))
-                fail (Error_Has_Bad_Type(c->out));
+            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
+                fail (Error_Has_Bad_Type(f->out));
 
-            c->value = c->out;
+            f->value = f->out;
             goto do_function_in_value;
         }
         else {
             // Path should have been fully processed, no refinements on stack
             //
-            assert(DSP == c->dsp_orig);
-            FETCH_NEXT_ONLY_MAYBE_END(c);
+            assert(DSP == f->dsp_orig);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         break;
 
@@ -1345,14 +1340,14 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_SET_PATH:
-        c->param = c->value; // fetch writes c->value, save SET-WORD! pointer
+        f->param = f->value; // fetch writes f->value, save SET-WORD! pointer
 
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
 
         // `do [a/b/c:]` is not legal
         //
-        if (c->indexor == END_FLAG)
-            fail (Error(RE_NEED_VALUE, c->param));
+        if (f->indexor == END_FLAG)
+            fail (Error(RE_NEED_VALUE, f->param));
 
         // We want the result of the set path to wind up in `out`, so go
         // ahead and put the result of the evaluation there.  Do_Path_Throws
@@ -1360,20 +1355,20 @@ reevaluate:
         // variable assignment!
         //
         if (eval_normal) {
-            DO_NEXT_REFETCH_MAY_THROW(c->out, c, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
 
-            if (c->indexor == THROWN_FLAG)
+            if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
         }
         else {
-            *(c->out) = *(c->value);
-            FETCH_NEXT_ONLY_MAYBE_END(c);
+            *(f->out) = *(f->value);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
 
         // `a/b/c: ()` is not legal (cannot assign path from unset)
         //
-        if (IS_UNSET(c->out))
-            fail (Error(RE_NEED_VALUE, c->param));
+        if (IS_UNSET(f->out))
+            fail (Error(RE_NEED_VALUE, f->param));
 
         // !!! The evaluation ordering of SET-PATH! evaluation seems to break
         // the "left-to-right" nature of the language:
@@ -1390,9 +1385,9 @@ reevaluate:
         {
             REBVAL temp;
             VAL_INIT_WRITABLE_DEBUG(&temp);
-            if (Do_Path_Throws(&temp, NULL, c->param, c->out)) {
-                c->indexor = THROWN_FLAG;
-                *(c->out) = temp;
+            if (Do_Path_Throws(&temp, NULL, f->param, f->out)) {
+                f->indexor = THROWN_FLAG;
+                *(f->out) = temp;
                 NOTE_THROWING(goto return_indexor);
             }
         }
@@ -1400,7 +1395,7 @@ reevaluate:
         // We did not pass in a symbol, so not a call... hence we cannot
         // process refinements.  Should not get any back.
         //
-        assert(DSP == c->dsp_orig);
+        assert(DSP == f->dsp_orig);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1413,15 +1408,15 @@ reevaluate:
         //
         // returns in word the path item, DS_TOP has value
         //
-        if (Do_Path_Throws(c->out, NULL, c->value, NULL)) {
-            c->indexor = THROWN_FLAG;
+        if (Do_Path_Throws(f->out, NULL, f->value, NULL)) {
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
 
         // We did not pass in a symbol ID
         //
-        assert(DSP == c->dsp_orig);
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        assert(DSP == f->dsp_orig);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1436,8 +1431,8 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_LIT_PATH:
-        DO_NEXT_REFETCH_QUOTED(c->out, c);
-        VAL_SET_TYPE_BITS(c->out, REB_PATH);
+        DO_NEXT_REFETCH_QUOTED(f->out, f);
+        VAL_SET_TYPE_BITS(f->out, REB_PATH);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1464,15 +1459,15 @@ reevaluate:
         // Note: Because this is a function value being hit literally in
         // a block, it does not have a name.  Use symbol of its VAL_TYPE
         //
-        c->label_sym = SYM_FROM_KIND(VAL_TYPE(c->value));
+        f->label_sym = SYM_FROM_KIND(VAL_TYPE(f->value));
 
     #if !defined(NDEBUG)
-        c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
     #endif
 
     do_function_in_value:
         //
-        // `do_function_in_value` expects the function to be in c->value,
+        // `do_function_in_value` expects the function to be in f->value,
         // and if it's a definitional return we need to extract its target.
         // (the REBVAL you get from FUNC_VALUE() does not have the exit_from
         // poked into it.)
@@ -1480,14 +1475,14 @@ reevaluate:
         // Note that you *can* have a 'literal' definitional return value,
         // because the user can compose it into a block like any function.
         //
-        assert(ANY_FUNC(c->value));
-        c->func = VAL_FUNC(c->value);
-        if (c->func == PG_Leave_Func) {
-            exit_from = VAL_FUNC_EXIT_FROM(c->value);
+        assert(ANY_FUNC(f->value));
+        f->func = VAL_FUNC(f->value);
+        if (f->func == PG_Leave_Func) {
+            exit_from = VAL_FUNC_EXIT_FROM(f->value);
             goto do_definitional_exit_from;
         }
-        if (c->func == PG_Return_Func)
-            exit_from = VAL_FUNC_EXIT_FROM(c->value);
+        if (f->func == PG_Return_Func)
+            exit_from = VAL_FUNC_EXIT_FROM(f->value);
         else
             exit_from = NULL;
 
@@ -1495,12 +1490,12 @@ reevaluate:
         // as if the function has no arguments, or perhaps its first argument
         // is hard quoted as HELP's is and it can accept that.)
         //
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
         //
-        assert(DSP >= c->dsp_orig);
+        assert(DSP >= f->dsp_orig);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1512,27 +1507,27 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (c->func == PG_Eval_Func) {
-            if (c->indexor == END_FLAG) // e.g. `do [eval]`
-                fail (Error_No_Arg(c->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
+        if (f->func == PG_Eval_Func) {
+            if (f->indexor == END_FLAG) // e.g. `do [eval]`
+                fail (Error_No_Arg(f->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            VAL_INIT_WRITABLE_DEBUG(&(c->cell.eval));
-            DO_NEXT_REFETCH_MAY_THROW(&(c->cell.eval), c, DO_FLAG_LOOKAHEAD);
+            VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval));
+            DO_NEXT_REFETCH_MAY_THROW(&(f->cell.eval), f, DO_FLAG_LOOKAHEAD);
 
-            if (c->indexor == THROWN_FLAG)
+            if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
 
             // There's only one refinement to EVAL and that is /ONLY.  It can
             // push one refinement to the stack or none.  The state will
             // twist up the evaluator for the next evaluation only.
             //
-            if (DSP > c->dsp_orig) {
-                assert(DSP == c->dsp_orig + 1);
+            if (DSP > f->dsp_orig) {
+                assert(DSP == f->dsp_orig + 1);
                 assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY); // canonized on push
                 DS_DROP;
                 eval_normal = FALSE;
@@ -1548,133 +1543,129 @@ reevaluate:
             // If there's any reason to be concerned about the temporary
             // item being GC'd, it should be taken care of by the implicit
             // protection from the Do Stack.  (e.g. if it contains a function
-            // that gets evaluated it will wind up in c->func, if it's a
-            // GROUP! or PATH!-containing-GROUP! it winds up in c->array...)
+            // that gets evaluated it will wind up in f->func, if it's a
+            // GROUP! or PATH!-containing-GROUP! it winds up in f->array...)
             //
             // Note that we may be at the end (which would usually be a NULL
-            // case for c->value) but we are splicing in eval over that,
+            // case for f->value) but we are splicing in eval over that,
             // which keeps the switch from crashing.
             //
-            if (c->value)
-                c->eval_fetched = c->value;
+            if (f->value)
+                f->eval_fetched = f->value;
             else
-                c->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
+                f->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
 
-            c->value = &(c->cell.eval);
+            f->value = &(f->cell.eval);
             goto reevaluate; // we don't move index!
         }
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // ANY-FUNCTION! FRAMELESS CALL DISPATCH
+    // ANY-FUNCTION! "VARLESS" CALL DISPATCH
     //
     //==////////////////////////////////////////////////////////////////==//
 
         // If a native has no refinements to process, it is feasible to
-        // allow it to run "frameless".  Even though the chunk stack is a
+        // allow it to run "varless".  Even though the chunk stack is a
         // very cheap abstraction, it is not zero cost...and some functions
         // are better implemented as essentially inline hooks to the DO
         // evaluator.
         //
-        // All frameless functions must still be able to run with a call
-        // frame if requested, because debug scenarios would expect those
+        // All varless functions must still be able to run with args stored
+        // as vars if requested, because debug scenarios would expect those
         // cells to be inspectable on the stack.  Hence, if there are any
         // trace flags set we fall back upon that implementation.
         //
-        // (EVAL/ONLY also suppresses frameless abilities, because the
+        // (EVAL/ONLY also suppresses varless abilities, because the
         // burden of the flag would be too much to pass through.)
         //
         if ( // check from most likely to be false to least likely...
-            GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)
-            && DSP == c->dsp_orig
+            GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_FRAMELESS)
+            && DSP == f->dsp_orig
             && !Trace_Flags
             && eval_normal // avoid framelessness if EVAL/ONLY used
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
-            struct Reb_Call *prior_call = DSF;
-            CS_Running = c;
 
             // A NULL arg signifies to the called function that it is being
-            // run frameless.  If it had a frame, then it would be non-NULL
-            // and the source of the frame values.
+            // run varless.  If it had arg values, then it would be non-NULL
+            // (and be the pointer to the values in memory).
             //
-            c->arg = NULL;
+            f->arg = NULL;
 
             // We might wind up invoking the GC, and we need to make sure
             // the reusable variables aren't bad data.  `value` should be
             // good but we don't know what's in the others.
             //
-            c->param = NULL;
-            c->refine = NULL;
-            c->cell.subfeed = NULL;
+            f->param = NULL;
+            f->refine = NULL;
+            f->cell.subfeed = NULL;
 
-            SET_TRASH_SAFE(c->out);
+            SET_TRASH_SAFE(f->out);
 
-            c->mode = CALL_MODE_FUNCTION; // !!! separate "frameless" mode?
+            f->mode = CALL_MODE_FUNCTION; // !!! separate "varless" mode?
 
-            if (IS_ACTION(FUNC_VALUE(c->func))) {
+            if (IS_ACTION(FUNC_VALUE(f->func))) {
                 //
                 // At the moment, the type checking actions run framelessly,
                 // while no other actions do.  These are things like STRING?
                 // and INTEGER?
                 //
 
-                assert(FUNC_ACT(c->func) < REB_MAX_0);
-                assert(FUNC_NUM_PARAMS(c->func) == 1);
+                assert(FUNC_ACT(f->func) < REB_MAX_0);
+                assert(FUNC_NUM_PARAMS(f->func) == 1);
 
-                if (c->indexor == END_FLAG)
+                if (f->indexor == END_FLAG)
                     fail (Error_No_Arg(
-                        c->label_sym, FUNC_PARAM(c->func, 1)
+                        f->label_sym, FUNC_PARAM(f->func, 1)
                     ));
 
-                DO_NEXT_REFETCH_MAY_THROW(c->out, c, DO_FLAG_LOOKAHEAD);
+                DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
 
-                if (c->indexor == THROWN_FLAG)
+                if (f->indexor == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
                 else {
-                    if (VAL_TYPE_0(c->out) == FUNC_ACT(c->func))
-                        SET_TRUE(c->out);
+                    if (VAL_TYPE_0(f->out) == FUNC_ACT(f->func))
+                        SET_TRUE(f->out);
                     else
-                        SET_FALSE(c->out);
+                        SET_FALSE(f->out);
                     ret = R_OUT;
                 }
             }
             else {
                 //
                 // Beyond the type-checking actions, only NATIVE! can be
-                // frameless...
+                // varless...
                 //
-                assert(IS_NATIVE(FUNC_VALUE(c->func)));
-                ret = (*FUNC_CODE(c->func))(c);
+                assert(IS_NATIVE(FUNC_VALUE(f->func)));
+                ret = (*FUNC_CODE(f->func))(f);
             }
 
-            CS_Running = prior_call;
-
-            // If frameless, use SET_UNSET(D_OUT) instead of R_UNSET, etc.
+            // If varless, use SET_UNSET(D_OUT) instead of R_UNSET, etc.
             //
             assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
 
             if (ret == R_OUT_IS_THROWN) {
-                assert(THROWN(c->out));
+                assert(THROWN(f->out));
 
                 // There are actually "two kinds of throws"...one that can't
                 // be resumed (such as that which might happen during a
                 // parameter fulfillment) and one that might be resumable
                 // (like a throw during a DO_ARRAY of a fulfilled parameter).
-                // A frameless native must make this distinction to line up
+                // A varless native must make this distinction to line up
                 // with the distinction from normal evaluation.
                 //
-                if (c->mode == CALL_MODE_THROW_PENDING) {
-                    assert(c->indexor != THROWN_FLAG);
+                if (f->mode == CALL_MODE_THROW_PENDING) {
+                    assert(f->indexor != THROWN_FLAG);
                     goto handle_possible_exit_thrown;
                 }
 
-                assert(c->indexor == THROWN_FLAG);
+                assert(f->indexor == THROWN_FLAG);
                 NOTE_THROWING(goto return_indexor);
             }
 
-            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
             // We're done!
             break;
@@ -1697,16 +1688,16 @@ reevaluate:
         // up reading variables out of the frame while it is still
         // being built, and that would be bad.
         //
-        Push_New_Arglist_For_Call(c);
+        Push_New_Arglist_For_Call(f);
 
         // We assume you can enumerate both the formal parameters (in the
         // spec) and the actual arguments (in the call frame) using pointer
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
         //
-        c->param = FUNC_PARAMS_HEAD(c->func);
+        f->param = FUNC_PARAMS_HEAD(f->func);
 
-        if (IS_END(c->param)) {
+        if (IS_END(f->param)) {
             //
             // There are no arguments, so just skip the next section.  We
             // know that `param` contains an END marker so the GC
@@ -1720,26 +1711,26 @@ reevaluate:
         // grab the arg head.  While fulfilling arguments the GC might be
         // invoked, so we have to initialize `refine` to something too...
         //
-        c->arg = DSF_ARGS_HEAD(c);
+        f->arg = FRM_ARGS_HEAD(f);
 
     do_function_arglist_in_progress:
         //
-        // c->out may have either contained the infix argument (if jumped in)
+        // f->out may have either contained the infix argument (if jumped in)
         // or if this was a fresh loop iteration, the debug build had
-        // set c->out to a safe trash.  Using the statistical technique
+        // set f->out to a safe trash.  Using the statistical technique
         // again, we mimic the release build behavior of trust *half* the
         // time, and put in a trapping trash the other half...
         //
     #if !defined(NDEBUG)
         if (SPORADICALLY(2))
-            SET_TRASH_SAFE(c->out);
+            SET_TRASH_SAFE(f->out);
     #endif
 
         // While fulfilling arguments the GC might be invoked, so we have to
         // initialize `refine` to something too.  The GC sees subfeed too.
         //
-        c->refine = NULL;
-        c->cell.subfeed = NULL;
+        f->refine = NULL;
+        f->cell.subfeed = NULL;
 
         // This loop goes through the parameter and argument slots, filling in
         // the arguments via recursive calls to the evaluator.
@@ -1750,20 +1741,20 @@ reevaluate:
         // also because the garbage collector has to consider the slots "live"
         // as arguments are progressively fulfilled.
         //
-        c->mode = CALL_MODE_ARGS;
+        f->mode = CALL_MODE_ARGS;
 
-        for (; NOT_END(c->param); c->param++, c->arg++) {
+        for (; NOT_END(f->param); f->param++, f->arg++) {
         no_advance:
-            assert(IS_TYPESET(c->param));
+            assert(IS_TYPESET(f->param));
 
             // If the frame was pre-built then we want to skip most parameter
             // fulfillment logic.  However, refinements throw a wrench in
             // it because of specialization, because a refinement may be
             // specialized but an argument to it not, or vice-versa.  The
-            // `c->mode` and `c->refine` must be updated to allow fallthrough
+            // `f->mode` and `f->refine` must be updated to allow fallthrough
             // to normal fulfillment.
             //
-            if ((c->flags & DO_FLAG_EXECUTE_FRAME)) {
+            if ((f->flags & DO_FLAG_EXECUTE_FRAME)) {
                 //
                 // !!! Currently there is no support for calling a FRAME! with
                 // additional refinements beyond the specialization.  So you
@@ -1772,32 +1763,32 @@ reevaluate:
                 // refinements and other things.  In the long term that should
                 // be implemented.
                 //
-                assert(c->mode != CALL_MODE_SEEK_REFINE_WORD);
+                assert(f->mode != CALL_MODE_SEEK_REFINE_WORD);
 
-                if (IS_BAR(c->arg)) {
-                    if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
+                if (IS_BAR(f->arg)) {
+                    if (GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN)) {
                         //
                         // Pure local, so if told to fulfill ordinarily then
                         // that would just be an UNSET!
                         //
-                        SET_UNSET(c->arg);
+                        SET_UNSET(f->arg);
                         continue;
                     }
 
-                    if (GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
+                    if (GET_VAL_FLAG(f->param, TYPESET_FLAG_REFINEMENT)) {
                         //
                         // With a BAR! in a refinement slot, we take that to
                         // mean that the refinement is not supplied.
                         //
-                        SET_NONE(c->arg);
-                        c->refine = c->arg;
-                        c->mode = CALL_MODE_REFINE_SKIP;
+                        SET_NONE(f->arg);
+                        f->refine = f->arg;
+                        f->mode = CALL_MODE_REFINE_SKIP;
                         continue;
                     }
 
                     if (
-                        c->mode == CALL_MODE_REFINE_REVOKE
-                        || c->mode == CALL_MODE_REFINE_SKIP
+                        f->mode == CALL_MODE_REFINE_REVOKE
+                        || f->mode == CALL_MODE_REFINE_SKIP
                     ) {
                         //
                         // A BAR! in a refinement slot where the refinement is
@@ -1806,7 +1797,7 @@ reevaluate:
                         // revoked due to an UNSET! being seen...will just
                         // act like an UNSET!
                         //
-                        SET_UNSET(c->arg);
+                        SET_UNSET(f->arg);
                         continue;
                     }
 
@@ -1819,13 +1810,13 @@ reevaluate:
                     // dispatch is going to be more common than fulfilling a
                     // partially specialized arg, we restore that invariant.
                     //
-                    SET_UNSET(c->arg);
+                    SET_UNSET(f->arg);
                     goto fulfill_non_refinement_non_local;
                 }
 
                 // Otherwise, it's not a BAR!, but a value to use...
 
-                if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
+                if (GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN)) {
                     //
                     // "Pure locals" are expected by functions to be unset.
                     // If frame dispatch were allowed to poke values into
@@ -1840,8 +1831,8 @@ reevaluate:
                     // intermediate state?  Such frames would need the ability
                     // to have any value in a locals slot.
                     //
-                    if (!IS_UNSET(c->arg))
-                        fail (Error_Local_Injection(c->label_sym, c->param));
+                    if (!IS_UNSET(f->arg))
+                        fail (Error_Local_Injection(f->label_sym, f->param));
 
                     continue;
                 }
@@ -1850,25 +1841,25 @@ reevaluate:
                 // coerced into the proper WORD! value of that refinement.
                 // An UNSET! is not considered to be coercible.
                 //
-                if (GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
-                    if (IS_UNSET(c->arg)) {
+                if (GET_VAL_FLAG(f->param, TYPESET_FLAG_REFINEMENT)) {
+                    if (IS_UNSET(f->arg)) {
                         //
                         // !!! More specific "refinement unset" error?
                         //
                         fail (Error_Arg_Type(
-                            c->label_sym, c->param, Type_Of(c->arg))
+                            f->label_sym, f->param, Type_Of(f->arg))
                         );
                     }
-                    else if (IS_CONDITIONAL_TRUE(c->arg)) {
+                    else if (IS_CONDITIONAL_TRUE(f->arg)) {
                         Val_Init_Word(
-                            c->arg, REB_WORD, VAL_TYPESET_SYM(c->param)
+                            f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
                         );
-                        c->mode = CALL_MODE_REFINE_PENDING;
+                        f->mode = CALL_MODE_REFINE_PENDING;
                         continue;
                     }
                     else {
-                        SET_NONE(c->arg);
-                        c->mode = CALL_MODE_REFINE_SKIP;
+                        SET_NONE(f->arg);
+                        f->mode = CALL_MODE_REFINE_SKIP;
                         continue;
                     }
                 }
@@ -1876,13 +1867,13 @@ reevaluate:
                 // If it's an ordinary arg then the revoking/pending logic
                 // is repeated here.  This repetition is unfortunate, but if
                 // control were to be passed to normal argument fulfillment
-                // it would mean stuffing `c->value` from the `c->arg` (which
+                // it would mean stuffing `f->value` from the `f->arg` (which
                 // is dubious) as well as doing a mode check to know not to
                 // do full evaluation.
                 //
                 if (
-                    c->mode == CALL_MODE_REFINE_REVOKE
-                    || c->mode == CALL_MODE_REFINE_SKIP
+                    f->mode == CALL_MODE_REFINE_REVOKE
+                    || f->mode == CALL_MODE_REFINE_SKIP
                 ) {
                     //
                     // !!! Technically should it be different errors when you
@@ -1890,13 +1881,13 @@ reevaluate:
                     // a frame value, vs a conditionally true one and not all
                     // unset values in a revoke?
                     //
-                    if (!IS_UNSET(c->arg))
+                    if (!IS_UNSET(f->arg))
                         fail (Error(RE_BAD_REFINE_REVOKE));
 
                     continue;
                 }
-                else if (c->mode == CALL_MODE_REFINE_PENDING) {
-                    c->mode = CALL_MODE_REFINE_ARGS;
+                else if (f->mode == CALL_MODE_REFINE_PENDING) {
+                    f->mode = CALL_MODE_REFINE_ARGS;
                     continue;
                 }
 
@@ -1905,7 +1896,7 @@ reevaluate:
 
             // *** PURE LOCALS => continue ***
 
-            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN)) {
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN)) {
                 //
                 // When the spec contained a SET-WORD!, that was a "pure
                 // local".  It corresponds to no argument and will not
@@ -1923,12 +1914,12 @@ reevaluate:
                 continue;
             }
 
-            if (!GET_VAL_FLAG(c->param, TYPESET_FLAG_REFINEMENT)) {
+            if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_REFINEMENT)) {
                 //
                 // Hunting a refinement?  Quickly disregard this if we are
                 // doing such a scan and it isn't a refinement.
                 //
-                if (c->mode == CALL_MODE_SEEK_REFINE_WORD)
+                if (f->mode == CALL_MODE_SEEK_REFINE_WORD)
                     continue;
             }
             else {
@@ -1945,7 +1936,7 @@ reevaluate:
                 // *definition*.  Hence we may have to seek refinements ahead
                 // or behind to know where to put the results we evaluate.
                 //
-                if (c->mode == CALL_MODE_SEEK_REFINE_WORD) {
+                if (f->mode == CALL_MODE_SEEK_REFINE_WORD) {
                     //
                     // Note that we have already canonized the path words for
                     // a case-insensitive-comparison to the symbol in the
@@ -1956,7 +1947,7 @@ reevaluate:
                     //
                     if (
                         VAL_WORD_SYM(DS_TOP) // ...was canonized when pushed
-                        == SYMBOL_TO_CANON(VAL_TYPESET_SYM(c->param))
+                        == SYMBOL_TO_CANON(VAL_TYPESET_SYM(f->param))
                     ) {
                         // If we seeked backwards to find a refinement and it's
                         // the one we are looking for, "consume" it off the
@@ -1967,21 +1958,21 @@ reevaluate:
                         // Now as we switch to pending mode, change refine to
                         // point at the arg slot so we can revoke it if needed
                         //
-                        c->mode = CALL_MODE_REFINE_PENDING;
-                        c->refine = c->arg;
+                        f->mode = CALL_MODE_REFINE_PENDING;
+                        f->refine = f->arg;
 
                         Val_Init_Word(
-                            c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
+                            f->refine, REB_WORD, VAL_TYPESET_SYM(f->param)
                         );
 
                     #if !defined(NDEBUG)
                         if (GET_VAL_FLAG(
-                            FUNC_VALUE(c->func), FUNC_FLAG_LEGACY
+                            FUNC_VALUE(f->func), FUNC_FLAG_LEGACY
                         )) {
                             // OPTIONS_REFINEMENTS_TRUE at function create,
                             // so ovewrite the WORD! with TRUE
                             //
-                            SET_TRUE(c->refine);
+                            SET_TRUE(f->refine);
                         }
                     #endif
 
@@ -1991,21 +1982,21 @@ reevaluate:
                     // ...else keep scanning, but if it's unset then set it
                     // to none because we *might* not revisit this spot again.
                     //
-                    if (IS_UNSET(c->arg))
-                        SET_NONE(c->arg);
+                    if (IS_UNSET(f->arg))
+                        SET_NONE(f->arg);
 
                     continue;
                 }
 
-                if (c->dsp_orig == DSP) {
+                if (f->dsp_orig == DSP) {
                     //
                     // No refinements are left on the data stack, so if this
                     // refinement slot is still unset, skip the args and leave
                     // them as unsets (or set nones in legacy mode)
                     //
-                    c->mode = CALL_MODE_REFINE_SKIP;
-                    if (IS_UNSET(c->arg))
-                        SET_NONE(c->arg);
+                    f->mode = CALL_MODE_REFINE_SKIP;
+                    if (IS_UNSET(f->arg))
+                        SET_NONE(f->arg);
 
                     continue;
                 }
@@ -2017,26 +2008,26 @@ reevaluate:
 
                 if (
                     VAL_WORD_SYM(DS_TOP) // ...was canonized when pushed
-                    == SYMBOL_TO_CANON(VAL_TYPESET_SYM(c->param))
+                    == SYMBOL_TO_CANON(VAL_TYPESET_SYM(f->param))
                 ) {
                     // We were lucky and the next refinement we wish to
                     // process lines up with this parameter slot.
 
-                    c->mode = CALL_MODE_REFINE_PENDING;
-                    c->refine = c->arg;
+                    f->mode = CALL_MODE_REFINE_PENDING;
+                    f->refine = f->arg;
 
                     DS_DROP;
 
                     Val_Init_Word(
-                        c->refine, REB_WORD, VAL_TYPESET_SYM(c->param)
+                        f->refine, REB_WORD, VAL_TYPESET_SYM(f->param)
                     );
 
                 #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY)) {
+                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
                         // OPTIONS_REFINEMENTS_TRUE at function create, so
                         // ovewrite the word we put in the refine slot
                         //
-                        SET_TRUE(c->refine);
+                        SET_TRUE(f->refine);
                     }
                 #endif
 
@@ -2045,7 +2036,7 @@ reevaluate:
 
                 // We weren't lucky and need to scan
 
-                c->mode = CALL_MODE_SEEK_REFINE_WORD;
+                f->mode = CALL_MODE_SEEK_REFINE_WORD;
                 assert(IS_WORD(DS_TOP));
 
                 // We have to reset to the beginning if we are going to scan,
@@ -2054,8 +2045,8 @@ reevaluate:
                 // a scan before to get us started going out of order.  If not,
                 // we would only need to look ahead.)
                 //
-                c->param = DSF_PARAMS_HEAD(c);
-                c->arg = DSF_ARGS_HEAD(c);
+                f->param = FRM_PARAMS_HEAD(f);
+                f->arg = FRM_ARGS_HEAD(f);
 
                 // We might have a function with no normal args, where a
                 // refinement is the first parameter...and we don't want to
@@ -2064,7 +2055,7 @@ reevaluate:
                 goto no_advance;
             }
 
-            if (c->mode == CALL_MODE_REFINE_SKIP) {
+            if (f->mode == CALL_MODE_REFINE_SKIP) {
                 //
                 // Just skip because the args are already UNSET! (or NONE! if
                 // we are in LEGACY_OPTIONS_REFINEMENT_TRUE mode
@@ -2074,10 +2065,10 @@ reevaluate:
 
         fulfill_non_refinement_non_local:
             assert(
-                c->mode == CALL_MODE_ARGS
-                || c->mode == CALL_MODE_REFINE_PENDING
-                || c->mode == CALL_MODE_REFINE_ARGS
-                || c->mode == CALL_MODE_REFINE_REVOKE
+                f->mode == CALL_MODE_ARGS
+                || f->mode == CALL_MODE_REFINE_PENDING
+                || f->mode == CALL_MODE_REFINE_ARGS
+                || f->mode == CALL_MODE_REFINE_REVOKE
             );
 
             // Evaluation argument "hook" parameters (signaled in MAKE FUNCION!
@@ -2085,21 +2076,21 @@ reevaluate:
             // back to this call through a reified FRAME!, and are able to
             // consume additional arguments during the function run.
             //
-            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_VARARGS)) {
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARARGS)) {
                 assert(eval_normal); // !!! Can EVAL/ONLY be supported?
-                /*assert(DSP == c->dsp_orig);*/ // !!! *after* refinement args?
+                /*assert(DSP == f->dsp_orig);*/ // !!! *after* refinement args?
 
-                VAL_RESET_HEADER(c->arg, REB_VARARGS);
+                VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
-                VAL_VARARGS_FRAME(c->arg)
-                    = Frame_For_Call_May_Reify(c, NULL, FALSE);
+                VAL_VARARGS_FRAME_CTX(f->arg)
+                    = Context_For_Frame_May_Reify(f, NULL, FALSE);
                 ENSURE_ARRAY_MANAGED(
-                    CTX_VARLIST(VAL_VARARGS_FRAME(c->arg))
+                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(f->arg))
                 );
 
-                VAL_VARARGS_PARAM(c->arg) = c->param; // type checks on TAKE
+                VAL_VARARGS_PARAM(f->arg) = f->param; // type checks on TAKE
 
-                assert(c->cell.subfeed == NULL); // NULL earlier in switch case
+                assert(f->cell.subfeed == NULL); // NULL earlier in switch case
                 continue;
             }
 
@@ -2110,18 +2101,18 @@ reevaluate:
             //
             // Since we prefetched, this can look before a possible DO/NEXT.
             //
-            // !!! Technically this is an additional check of c->indexor for
+            // !!! Technically this is an additional check of f->indexor for
             // the END_FLAG, so it would suggest better performance if the
             // check were done on each non-END-flag-checked branch, but for
             // now it is checked in one place for simplicity.
             //
-            if (c->indexor != END_FLAG && IS_BAR(c->value))
+            if (f->indexor != END_FLAG && IS_BAR(f->value))
                 fail (Error(RE_EXPRESSION_BARRIER));
 
             // *** QUOTED OR EVALUATED ITEMS ***
 
-            if (GET_VAL_FLAG(c->param, TYPESET_FLAG_QUOTE)) {
-                if (c->indexor == END_FLAG) {
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_QUOTE)) {
+                if (f->indexor == END_FLAG) {
                     //
                     // If a function has a quoted argument whose types permit
                     // unset, then that specific case is allowed, in order to
@@ -2136,25 +2127,25 @@ reevaluate:
                     //     == "special allowance"
                     //
                 #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
-                        SET_UNSET(c->arg); // was NONE by default...
+                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
+                        SET_UNSET(f->arg); // was NONE by default...
                     else
-                        assert(IS_UNSET(c->arg)); // already is unset...
+                        assert(IS_UNSET(f->arg)); // already is unset...
                 #endif
 
                     // Pre-empt the later type checking in order to inject a
                     // more specific message than "doesn't take UNSET!"
                     //
-                    if (!TYPE_CHECK(c->param, REB_UNSET))
-                        fail (Error_No_Arg(c->label_sym, c->param));
+                    if (!TYPE_CHECK(f->param, REB_UNSET))
+                        fail (Error_No_Arg(f->label_sym, f->param));
                 }
                 else if (
-                    GET_VAL_FLAG(c->param, TYPESET_FLAG_EVALUATE) // soft quote
+                    GET_VAL_FLAG(f->param, TYPESET_FLAG_EVALUATE) // soft quote
                     && eval_normal // we're not in never-evaluating EVAL/ONLY
                     && (
-                        IS_GROUP(c->value)
-                        || IS_GET_WORD(c->value)
-                        || IS_GET_PATH(c->value)
+                        IS_GROUP(f->value)
+                        || IS_GET_WORD(f->value)
+                        || IS_GET_PATH(f->value)
                     )
                 ) {
                     // These cases are "soft quoted", because both the flags
@@ -2177,20 +2168,20 @@ reevaluate:
                     // choice because if a throw were to happen, that's where
                     // the thrown value would have to wind up in that case.)
                     //
-                    if (DO_VALUE_THROWS(c->out, c->value)) {
+                    if (DO_VALUE_THROWS(f->out, f->value)) {
                         //
                         // If we have refinements pending on the data
                         // stack we need to balance those...
                         //
-                        DS_DROP_TO(c->dsp_orig);
+                        DS_DROP_TO(f->dsp_orig);
 
-                        c->indexor = THROWN_FLAG;
+                        f->indexor = THROWN_FLAG;
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
 
-                    *(c->arg) = *(c->out);
+                    *(f->arg) = *(f->out);
 
-                    FETCH_NEXT_ONLY_MAYBE_END(c);
+                    FETCH_NEXT_ONLY_MAYBE_END(f);
                 }
                 else {
                     // This is either not one of the "soft quoted" cases, or
@@ -2204,7 +2195,7 @@ reevaluate:
                     //     >> foo (1 + 2)
                     //     a is (1 + 2)
                     //
-                    DO_NEXT_REFETCH_QUOTED(c->arg, c);
+                    DO_NEXT_REFETCH_QUOTED(f->arg, f);
                 }
             }
             else {
@@ -2213,8 +2204,8 @@ reevaluate:
                 //
                 // assert(GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE));
 
-                if (c->indexor == END_FLAG)
-                    fail (Error_No_Arg(DSF_LABEL_SYM(c), c->param));
+                if (f->indexor == END_FLAG)
+                    fail (Error_No_Arg(FRM_LABEL_SYM(f), f->param));
 
                 // An ordinary WORD! in the function spec indicates that you
                 // would like that argument to be evaluated normally.
@@ -2232,35 +2223,35 @@ reevaluate:
                 //
                 if (eval_normal) {
                     DO_NEXT_REFETCH_MAY_THROW(
-                        c->arg,
-                        c,
-                        GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_INFIX)
+                        f->arg,
+                        f,
+                        GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_INFIX)
                             ? DO_FLAG_NO_LOOKAHEAD
                             : DO_FLAG_LOOKAHEAD
                     );
 
-                    if (c->indexor == THROWN_FLAG) {
-                        *(c->out) = *(c->arg);
+                    if (f->indexor == THROWN_FLAG) {
+                        *(f->out) = *(f->arg);
 
                         // If we have refinements pending on the data
                         // stack we need to balance those...
                         //
-                        DS_DROP_TO(c->dsp_orig);
+                        DS_DROP_TO(f->dsp_orig);
 
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
                 }
                 else
-                    DO_NEXT_REFETCH_QUOTED(c->arg, c);
+                    DO_NEXT_REFETCH_QUOTED(f->arg, f);
             }
 
-            ASSERT_VALUE_MANAGED(c->arg);
+            ASSERT_VALUE_MANAGED(f->arg);
 
-            if (IS_UNSET(c->arg)) {
-                if (c->mode == CALL_MODE_REFINE_ARGS)
+            if (IS_UNSET(f->arg)) {
+                if (f->mode == CALL_MODE_REFINE_ARGS)
                     fail (Error(RE_BAD_REFINE_REVOKE));
-                else if (c->mode == CALL_MODE_REFINE_PENDING) {
-                    c->mode = CALL_MODE_REFINE_REVOKE;
+                else if (f->mode == CALL_MODE_REFINE_PENDING) {
+                    f->mode = CALL_MODE_REFINE_REVOKE;
 
                 #if !defined(NDEBUG)
                     //
@@ -2268,48 +2259,48 @@ reevaluate:
                     // whether legacy (true/false) or Ren-C (WORD! of the
                     // refinement itself).
                     //
-                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY)) {
-                        assert(IS_LOGIC(c->refine));
-                        assert(IS_NONE(c->arg)); // is actually already none
+                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
+                        assert(IS_LOGIC(f->refine));
+                        assert(IS_NONE(f->arg)); // is actually already none
                     }
                     else {
-                        assert(IS_WORD(c->refine));
-                        assert(IS_UNSET(c->arg));
+                        assert(IS_WORD(f->refine));
+                        assert(IS_UNSET(f->arg));
                     }
                 #endif
 
-                    SET_NONE(c->refine); // ...revoke the refinement.
+                    SET_NONE(f->refine); // ...revoke the refinement.
                 }
-                else if (c->mode == CALL_MODE_REFINE_REVOKE) {
+                else if (f->mode == CALL_MODE_REFINE_REVOKE) {
                     //
                     // We are revoking arguments to a refinement that have
                     // never been filled, so they should be vacant.
                     //
                 #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
-                        assert(IS_NONE(c->arg));
+                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
+                        assert(IS_NONE(f->arg));
                     else
-                        assert(IS_UNSET(c->arg));
+                        assert(IS_UNSET(f->arg));
                 #endif
                 }
             }
             else {
-                if (c->mode == CALL_MODE_REFINE_REVOKE)
+                if (f->mode == CALL_MODE_REFINE_REVOKE)
                     fail (Error(RE_BAD_REFINE_REVOKE));
-                else if (c->mode == CALL_MODE_REFINE_PENDING)
-                    c->mode = CALL_MODE_REFINE_ARGS;
+                else if (f->mode == CALL_MODE_REFINE_PENDING)
+                    f->mode = CALL_MODE_REFINE_ARGS;
             }
 
             // Don't type check the argument if it's being revoked.
             //
-            if (c->mode == CALL_MODE_REFINE_REVOKE) {
-                assert(IS_UNSET(c->arg));
+            if (f->mode == CALL_MODE_REFINE_REVOKE) {
+                assert(IS_UNSET(f->arg));
                 continue;
             }
 
         type_check_arg:
-            if (!TYPE_CHECK(c->param, VAL_TYPE(c->arg)))
-                fail (Error_Arg_Type(c->label_sym, c->param, Type_Of(c->arg)));
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+                fail (Error_Arg_Type(f->label_sym, f->param, Type_Of(f->arg)));
         }
 
         // If we were scanning and didn't find the refinement we were looking
@@ -2324,17 +2315,17 @@ reevaluate:
         // and GROUP! evals up front and check that things are words or NONE,
         // not knowing if a refinement isn't on the function until the end.
         //
-        if (c->mode == CALL_MODE_SEEK_REFINE_WORD)
+        if (f->mode == CALL_MODE_SEEK_REFINE_WORD)
             fail (Error(RE_BAD_REFINE, DS_TOP));
 
         // In the case where the user has said foo/bar/baz, and bar was later
         // in the spec than baz, then we will have passed it.  We need to
         // restart the scan (which may wind up failing)
         //
-        if (DSP != c->dsp_orig) {
-            c->mode = CALL_MODE_SEEK_REFINE_WORD;
-            c->param = DSF_PARAMS_HEAD(c);
-            c->arg = DSF_ARGS_HEAD(c);
+        if (DSP != f->dsp_orig) {
+            f->mode = CALL_MODE_SEEK_REFINE_WORD;
+            f->param = FRM_PARAMS_HEAD(f);
+            f->arg = FRM_ARGS_HEAD(f);
             goto no_advance;
         }
 
@@ -2358,19 +2349,19 @@ reevaluate:
         //
         if (
             LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
-            && IS_NATIVE(FUNC_VALUE(c->func))
-            && FUNC_CODE(c->func) == &N_do
-            && ANY_FUNC(DSF_ARGS_HEAD(c))
+            && IS_NATIVE(FUNC_VALUE(f->func))
+            && FUNC_CODE(f->func) == &N_do
+            && ANY_FUNC(FRM_ARGS_HEAD(f))
         ) {
             // Grab the argument into the eval storage slot before abandoning
             // the arglist.
             //
-            c->cell.eval = *DSF_ARGS_HEAD(c);
+            f->cell.eval = *FRM_ARGS_HEAD(f);
 
-            c->eval_fetched = c->value;
-            c->value = &c->cell.eval;
+            f->eval_fetched = f->value;
+            f->value = &f->cell.eval;
 
-            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
             goto drop_call_for_legacy_do_function;
         }
     #endif
@@ -2411,35 +2402,35 @@ reevaluate:
                 //
                 // Request to exit from a specific FRAME!
                 //
-                *(c->out) = *CTX_VALUE(AS_CONTEXT(exit_from));
-                assert(IS_FRAME(c->out));
-                assert(CTX_VARLIST(VAL_CONTEXT(c->out)) == exit_from);
+                *(f->out) = *CTX_VALUE(AS_CONTEXT(exit_from));
+                assert(IS_FRAME(f->out));
+                assert(CTX_VARLIST(VAL_CONTEXT(f->out)) == exit_from);
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
                 // that has a given parameter list
                 //
-                *(c->out) = *FUNC_VALUE(AS_FUNC(exit_from));
-                assert(IS_FUNCTION(c->out));
-                assert(VAL_FUNC_PARAMLIST(c->out) == exit_from);
+                *(f->out) = *FUNC_VALUE(AS_FUNC(exit_from));
+                assert(IS_FUNCTION(f->out));
+                assert(VAL_FUNC_PARAMLIST(f->out) == exit_from);
             }
 
-            c->indexor = THROWN_FLAG;
+            f->indexor = THROWN_FLAG;
 
-            if (c->func == PG_Leave_Func) {
+            if (f->func == PG_Leave_Func) {
                 //
                 // LEAVE never created an arglist, so it doesn't have to
                 // free one.  Also, it wants to just return UNSET!
                 //
-                CONVERT_NAME_TO_THROWN(c->out, UNSET_VALUE, TRUE);
+                CONVERT_NAME_TO_THROWN(f->out, UNSET_VALUE, TRUE);
                 NOTE_THROWING(goto return_indexor);
             }
 
             // On the other hand, RETURN did make an arglist that has to be
             // dropped from the chunk stack.
             //
-            assert(FUNC_NUM_PARAMS(c->func) == 1);
-            CONVERT_NAME_TO_THROWN(c->out, DSF_ARGS_HEAD(c), TRUE);
+            assert(FUNC_NUM_PARAMS(f->func) == 1);
+            CONVERT_NAME_TO_THROWN(f->out, FRM_ARGS_HEAD(f), TRUE);
             NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 
@@ -2449,24 +2440,16 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // We need to save what the DSF was prior to our execution, and
-        // cannot simply use our frame's prior...because our frame's
-        // prior call frame may be a *pending* frame that we do not want
-        // to put in effect when we are finished.
-        //
-        call_orig = CS_Running;
-        CS_Running = c;
-
-        assert(DSP == c->dsp_orig);
+        assert(DSP == f->dsp_orig);
 
         // Although the Make_Call wrote safe trash into the output slot, we
         // need to do it again for the dispatch, since the spots are used to
         // do argument fulfillment into.
         //
-        SET_TRASH_SAFE(c->out);
+        SET_TRASH_SAFE(f->out);
 
-        assert(IS_END(c->param));
-        // c->arg may be uninitialized if there were no args...
+        assert(IS_END(f->param));
+        // f->arg may be uninitialized if there were no args...
         // refine should be either NULL or in the args (valid during call)
 
         // If the function has a native-optimized version of definitional
@@ -2477,26 +2460,26 @@ reevaluate:
         // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
         // usually, but not if it's reusing a frame.
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-            assert(IS_END(c->arg)); // not uninitialized if we get here...
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+            assert(IS_END(f->arg)); // not uninitialized if we get here...
 
-            --(c->param);
-            --(c->arg);
+            --(f->param);
+            --(f->arg);
 
-            assert(GET_VAL_FLAG(c->param, TYPESET_FLAG_HIDDEN));
+            assert(GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN));
 
         #if !defined(NDEBUG)
-            if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
-                assert(IS_NONE(c->arg));
+            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
+                assert(IS_NONE(f->arg));
             else
-                assert(IS_UNSET(c->arg));
+                assert(IS_UNSET(f->arg));
         #endif
 
-            if (VAL_TYPESET_CANON(c->param) == SYM_RETURN)
-                *(c->arg) = *ROOT_RETURN_NATIVE;
+            if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)
+                *(f->arg) = *ROOT_RETURN_NATIVE;
             else {
-                assert(VAL_TYPESET_CANON(c->param) == SYM_LEAVE);
-                *(c->arg) = *ROOT_LEAVE_NATIVE;
+                assert(VAL_TYPESET_CANON(f->param) == SYM_LEAVE);
+                *(f->arg) = *ROOT_LEAVE_NATIVE;
             }
 
             // !!! Having to pick a function paramlist or a context for
@@ -2504,20 +2487,20 @@ reevaluate:
             // temporary state of affairs, as all functions able to have a
             // definitional return will have contexts in NewFunction.
             //
-            if (c->flags & DO_FLAG_FRAME_CONTEXT)
-                VAL_FUNC_EXIT_FROM(c->arg) = CTX_VARLIST(c->frame.context);
+            if (f->flags & DO_FLAG_FRAME_CONTEXT)
+                VAL_FUNC_EXIT_FROM(f->arg) = CTX_VARLIST(f->data.context);
             else
-                VAL_FUNC_EXIT_FROM(c->arg) = FUNC_PARAMLIST(c->func);
+                VAL_FUNC_EXIT_FROM(f->arg) = FUNC_PARAMLIST(f->func);
         }
 
         // Now we reset arg to the head of the argument list.  This provides
         // fast access for the callees, so they don't have to go through an
-        // indirection further than just c->arg to get it.
+        // indirection further than just f->arg to get it.
         //
         // !!! When hybrid frames are introduced, review the question of
         // which pointer "wins".  Might more than one be used?
         //
-        if (c->flags & DO_FLAG_FRAME_CONTEXT) {
+        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
             //
             // !!! Here this caches a dynamic series data pointer in arg.
             // For arbitrary series this is not legal to do, because a
@@ -2528,9 +2511,9 @@ reevaluate:
             // this is a tradeoff.
             //
             assert(GET_ARR_FLAG(
-                AS_ARRAY(c->frame.context), SERIES_FLAG_FIXED_SIZE
+                AS_ARRAY(f->data.context), SERIES_FLAG_FIXED_SIZE
             ));
-            c->arg = CTX_VARS_HEAD(c->frame.context);
+            f->arg = CTX_VARS_HEAD(f->data.context);
         }
         else {
             // We cache the stackvars data pointer in the stack allocated
@@ -2538,46 +2521,46 @@ reevaluate:
             // context, the data pointer will be the same over the stack
             // level lifetime.
             //
-            c->arg = &c->frame.stackvars[0];
+            f->arg = &f->data.stackvars[0];
         }
 
-        if (Trace_Flags) Trace_Func(c->label_sym, FUNC_VALUE(c->func));
+        if (Trace_Flags) Trace_Func(f->label_sym, FUNC_VALUE(f->func));
 
-        assert(c->indexor != THROWN_FLAG);
+        assert(f->indexor != THROWN_FLAG);
 
-        c->mode = CALL_MODE_FUNCTION;
+        f->mode = CALL_MODE_FUNCTION;
 
         // If the Do_XXX_Core function dispatcher throws, we can't let it
-        // write `c->indexor` directly to become THROWN_FLAG because we may
+        // write `f->indexor` directly to become THROWN_FLAG because we may
         // "recover" from the throw by realizing it was a RETURN.  If that
         // is the case, the function we called is the one that returned...
         // so there could still be code after it to execute, and that index
         // will be needed.
         //
         // Rather than have a separate `REBOOL threw`, this goes ahead and
-        // overwrites `c->mode` with a special state DO_MODE_THROWN.  It was
+        // overwrites `f->mode` with a special state DO_MODE_THROWN.  It was
         // going to need to be updated anyway back to DO_MODE_0, so no harm
         // in reusing it for the indicator.
         //
-        switch (VAL_TYPE(FUNC_VALUE(c->func))) {
+        switch (VAL_TYPE(FUNC_VALUE(f->func))) {
         case REB_NATIVE:
-            Do_Native_Core(c);
+            Do_Native_Core(f);
             break;
 
         case REB_ACTION:
-            Do_Action_Core(c);
+            Do_Action_Core(f);
             break;
 
         case REB_COMMAND:
-            Do_Command_Core(c);
+            Do_Command_Core(f);
             break;
 
         case REB_FUNCTION:
-            Do_Function_Core(c);
+            Do_Function_Core(f);
             break;
 
         case REB_ROUTINE:
-            Do_Routine_Core(c);
+            Do_Routine_Core(f);
             break;
 
         default:
@@ -2586,16 +2569,11 @@ reevaluate:
 
     #if !defined(NDEBUG)
         assert(
-            c->mode == CALL_MODE_FUNCTION
-            || c->mode == CALL_MODE_THROW_PENDING
+            f->mode == CALL_MODE_FUNCTION
+            || f->mode == CALL_MODE_THROW_PENDING
         );
-        assert(THROWN(c->out) == LOGICAL(c->mode == CALL_MODE_THROW_PENDING));
+        assert(THROWN(f->out) == LOGICAL(f->mode == CALL_MODE_THROW_PENDING));
     #endif
-
-        // Remove this call frame from the call stack (it will be dropped
-        // from GC consideration when the args are freed).
-        //
-        CS_Running = call_orig;
 
 #if !defined(NDEBUG)
     drop_call_for_legacy_do_function:
@@ -2606,12 +2584,12 @@ reevaluate:
         // The same label is currently used for both these outcomes, and
         // which happens depends on whether eval_fetched is NULL or not
         //
-        if (c->flags & DO_FLAG_FRAME_CONTEXT) {
-            if (CTX_STACKVARS(c->frame.context) != NULL)
-                Drop_Chunk(CTX_STACKVARS(c->frame.context));
+        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+            if (CTX_STACKVARS(f->data.context) != NULL)
+                Drop_Chunk(CTX_STACKVARS(f->data.context));
 
             if (GET_ARR_FLAG(
-                CTX_VARLIST(c->frame.context), SERIES_FLAG_MANAGED
+                CTX_VARLIST(f->data.context), SERIES_FLAG_MANAGED
             )) {
                 // Context at some point became managed and hence may still
                 // have outstanding references.  The accessible flag should
@@ -2619,7 +2597,7 @@ reevaluate:
                 //
                 assert(
                     !GET_ARR_FLAG(
-                        CTX_VARLIST(c->frame.context), SERIES_FLAG_ACCESSIBLE
+                        CTX_VARLIST(f->data.context), SERIES_FLAG_ACCESSIBLE
                     )
                 );
             }
@@ -2629,7 +2607,7 @@ reevaluate:
                 // Val_Init_Object() for the frame) then the varlist can just
                 // go away...
                 //
-                Free_Array(CTX_VARLIST(c->frame.context));
+                Free_Array(CTX_VARLIST(f->data.context));
                 //
                 // NOTE: Even though we've freed the pointer, we still compare
                 // it for identity below when checking to see if this was the
@@ -2637,7 +2615,7 @@ reevaluate:
             }
         }
         else
-            Drop_Chunk(c->frame.stackvars);
+            Drop_Chunk(f->data.stackvars);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -2653,24 +2631,24 @@ reevaluate:
         //
     handle_possible_exit_thrown:
         if (
-            c->mode == CALL_MODE_THROW_PENDING
-            && GET_VAL_FLAG(c->out, VALUE_FLAG_EXIT_FROM)
+            f->mode == CALL_MODE_THROW_PENDING
+            && GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)
         ) {
-            if (IS_FRAME(c->out)) {
+            if (IS_FRAME(f->out)) {
                 //
                 // This identifies an exit from a *specific* functiion
                 // invocation.  We can only match it if we have a reified
                 // frame context.
                 //
                 if (
-                    (c->flags & DO_FLAG_FRAME_CONTEXT) &&
-                    VAL_CONTEXT(c->out) == AS_CONTEXT(c->frame.context)
+                    (f->flags & DO_FLAG_FRAME_CONTEXT) &&
+                    VAL_CONTEXT(f->out) == AS_CONTEXT(f->data.context)
                 ) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+                    CATCH_THROWN(f->out, f->out);
+                    f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
             }
-            else if (ANY_FUNC(c->out)) {
+            else if (ANY_FUNC(f->out)) {
                 //
                 // This identifies an exit from whichever instance of the
                 // function is most recent on the stack.  This can be used
@@ -2680,25 +2658,25 @@ reevaluate:
                 // the behavior of a reified frame without needing to do
                 // so (for now, they use this path in FUNCTION!)
                 //
-                if (VAL_FUNC_PARAMLIST(c->out) == FUNC_PARAMLIST(c->func)) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+                if (VAL_FUNC_PARAMLIST(f->out) == FUNC_PARAMLIST(f->func)) {
+                    CATCH_THROWN(f->out, f->out);
+                    f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
             }
-            else if (IS_INTEGER(c->out)) {
+            else if (IS_INTEGER(f->out)) {
                 //
                 // If it's an integer, we drop the value at each stack level
                 // until 1 is reached...
                 //
-                if (VAL_INT32(c->out) == 1) {
-                    CATCH_THROWN(c->out, c->out);
-                    c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+                if (VAL_INT32(f->out) == 1) {
+                    CATCH_THROWN(f->out, f->out);
+                    f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
                 }
                 else {
                     // don't reset header (keep thrown flag as is), just bump
                     // the count down by one...
                     //
-                    --c->out->payload.integer;
+                    --f->out->payload.integer;
                     //
                     // ...and stay in thrown mode...
                 }
@@ -2719,10 +2697,10 @@ reevaluate:
         // to squash whatever the last evaluative result was and replace it
         // with an UNSET!
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-            REBVAL *last_param = FUNC_PARAM(c->func, FUNC_NUM_PARAMS(c->func));
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+            REBVAL *last_param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
             if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
-                SET_UNSET(c->out);
+                SET_UNSET(f->out);
             }
             else {
                 // The type bits of the definitional return are not applicable
@@ -2732,29 +2710,29 @@ reevaluate:
                 // to this call is hidden.
                 //
                 assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-                if (!TYPE_CHECK(last_param, VAL_TYPE(c->out)))
+                if (!TYPE_CHECK(last_param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        SYM_RETURN, last_param, Type_Of(c->out))
+                        SYM_RETURN, last_param, Type_Of(f->out))
                     );
             }
         }
 
         // If running a frame execution then clear that flag out.
         //
-        c->flags &= ~DO_FLAG_EXECUTE_FRAME;
+        f->flags &= ~DO_FLAG_EXECUTE_FRAME;
 
     #if !defined(NDEBUG)
         //
-        // No longer need to check c->frame.context for thrown status if it
+        // No longer need to check f->data.context for thrown status if it
         // was used, so overwrite the dead pointer in the union.  Note there
         // are two entry points to Push_Arglist_For_Call at the moment,
         // so this clearing can't be done by the debug routine at top of loop.
         //
-        c->frame.stackvars = NULL;
+        f->data.stackvars = NULL;
     #endif
 
     #if !defined(NDEBUG)
-        if (c->eval_fetched) {
+        if (f->eval_fetched) {
             //
             // All the eval wanted to do was get the call frame cleaned up.
             //
@@ -2763,8 +2741,8 @@ reevaluate:
             // call with arguments.  Is there a cleaner way?
             //
             assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-            assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
-            assert(c->indexor != THROWN_FLAG);
+            assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY);
+            assert(f->indexor != THROWN_FLAG);
             goto reevaluate;
         }
     #endif
@@ -2773,16 +2751,16 @@ reevaluate:
         // accept the throw.  We only care about the mode getting set cleanly
         // back to CALL_MODE_GUARD_ARRAY_ONLY if evaluation continues...
         //
-        if (c->mode == CALL_MODE_THROW_PENDING) {
-            c->indexor = THROWN_FLAG;
+        if (f->mode == CALL_MODE_THROW_PENDING) {
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
-        else if (c->indexor == THROWN_FLAG)
+        else if (f->indexor == THROWN_FLAG)
             NOTE_THROWING(goto return_indexor);
         else
-            c->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
-        if (Trace_Flags) Trace_Return(c->label_sym, c->out);
+        if (Trace_Flags) Trace_Return(f->label_sym, f->out);
         break;
 
 
@@ -2804,26 +2782,26 @@ reevaluate:
         // prohibit unless some special situation arises and it's explicitly
         // said what is meant to be done.
         //
-        /*if (GET_VAL_FLAG(c->value, EXT_CONTEXT_RUNNING))
-           fail (Error(RE_FRAME_ALREADY_USED, c->value)); */
+        /*if (GET_VAL_FLAG(f->value, EXT_CONTEXT_RUNNING))
+           fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
 
-        assert(c->frame.stackvars == NULL);
-        c->frame.context = VAL_CONTEXT(c->value);
-        c->func = FRM_FUNC(VAL_CONTEXT(c->value));
+        assert(f->data.stackvars == NULL);
+        f->data.context = VAL_CONTEXT(f->value);
+        f->func = CTX_FRAME_FUNC(VAL_CONTEXT(f->value));
 
         if (GET_ARR_FLAG(
-            CTX_VARLIST(VAL_CONTEXT(c->value)), CONTEXT_FLAG_STACK)
+            CTX_VARLIST(VAL_CONTEXT(f->value)), CONTEXT_FLAG_STACK)
         ) {
-            c->arg = VAL_CONTEXT_STACKVARS(c->value);
+            f->arg = VAL_CONTEXT_STACKVARS(f->value);
         }
         else
-            c->arg = CTX_VARS_HEAD(VAL_CONTEXT(c->value));
+            f->arg = CTX_VARS_HEAD(VAL_CONTEXT(f->value));
 
-        c->param = CTX_KEYS_HEAD(VAL_CONTEXT(c->value));
+        f->param = CTX_KEYS_HEAD(VAL_CONTEXT(f->value));
 
-        c->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+        f->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
 
-        FETCH_NEXT_ONLY_MAYBE_END(c);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         exit_from = NULL;
         goto do_function_arglist_in_progress;
 
@@ -2854,15 +2832,15 @@ reevaluate:
     // It's valid for the operations above to fall through after a fetch or
     // refetch that could have reached the end.
     //
-    if (c->indexor == END_FLAG)
+    if (f->indexor == END_FLAG)
         goto return_indexor;
 
     // Throws should have already returned at the time of throw, by jumping
     // to the `thrown_index` label.
     //
-    assert(c->indexor != THROWN_FLAG && !THROWN(c->out));
+    assert(f->indexor != THROWN_FLAG && !THROWN(f->out));
 
-    if (c->flags & DO_FLAG_NO_LOOKAHEAD) {
+    if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
         // to be requested by callers (there is already no infix lookahead
@@ -2873,7 +2851,7 @@ reevaluate:
         // operation is thus given "higher precedence" by this disablement.
     }
     else {
-        // Since we're not at an END, we know c->value has been prefetched,
+        // Since we're not at an END, we know f->value has been prefetched,
         // so we can "peek" at it.
         //
         // If it is a WORD! that looks up to an infix function, we will use
@@ -2882,70 +2860,70 @@ reevaluate:
         // function values in the source will act as if they were prefix,
         // so word lookup is the only way to get infix behavior.)
         //
-        if (IS_WORD(c->value)) {
-            c->param = GET_OPT_VAR_MAY_FAIL(c->value);
+        if (IS_WORD(f->value)) {
+            f->param = GET_OPT_VAR_MAY_FAIL(f->value);
 
-            if (ANY_FUNC(c->param) && GET_VAL_FLAG(c->param, FUNC_FLAG_INFIX)) {
-                c->label_sym = VAL_WORD_SYM(c->value);
+            if (ANY_FUNC(f->param) && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)) {
+                f->label_sym = VAL_WORD_SYM(f->value);
 
             #if !defined(NDEBUG)
-                c->label_str = cast(const char*, Get_Sym_Name(c->label_sym));
+                f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
             #endif
 
-                c->func = VAL_FUNC(c->param);
+                f->func = VAL_FUNC(f->param);
 
                 // The warped function values used for definitional return
                 // usually need their EXIT_FROMs extracted, but here we should
                 // not worry about it as neither RETURN nor LEAVE are infix
                 //
-                assert(c->func != PG_Leave_Func);
-                assert(c->func != PG_Return_Func);
+                assert(f->func != PG_Leave_Func);
+                assert(f->func != PG_Return_Func);
                 exit_from = NULL;
 
-                if (Trace_Flags) Trace_Line(c->source, c->indexor, c->param);
+                if (Trace_Flags) Trace_Line(f->source, f->indexor, f->param);
 
                 // We go ahead and start an arglist, and put our evaluated
                 // result into it as the "left-hand-side" before calling into
                 // the rest of function's behavior.
                 //
-                Push_New_Arglist_For_Call(c);
+                Push_New_Arglist_For_Call(f);
 
                 // Infix functions must have at least arity 1 (exactly 2?)
                 //
-                assert(FUNC_NUM_PARAMS(c->func) >= 1);
-                c->param = FUNC_PARAMS_HEAD(c->func);
-                if (!TYPE_CHECK(c->param, VAL_TYPE(c->out)))
+                assert(FUNC_NUM_PARAMS(f->func) >= 1);
+                f->param = FUNC_PARAMS_HEAD(f->func);
+                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        c->label_sym, c->param, Type_Of(c->out))
+                        f->label_sym, f->param, Type_Of(f->out))
                     );
 
                 // Use current `out` as first argument of the infix function
                 //
-                c->arg = DSF_ARGS_HEAD(c);
-                *(c->arg) = *(c->out);
+                f->arg = FRM_ARGS_HEAD(f);
+                *(f->arg) = *(f->out);
 
-                ++c->param;
-                ++c->arg;
+                ++f->param;
+                ++f->arg;
 
-                FETCH_NEXT_ONLY_MAYBE_END(c);
+                FETCH_NEXT_ONLY_MAYBE_END(f);
                 goto do_function_arglist_in_progress;
             }
 
             // Perhaps not an infix function, but we just paid for a variable
             // lookup.  If this isn't just a DO/NEXT, use the work!
             //
-            if (c->flags & DO_FLAG_TO_END) {
+            if (f->flags & DO_FLAG_TO_END) {
                 //
                 // We need to update the `expr_index` since we are skipping
                 // the whole `do_at_index` preparation for the next cycle,
                 // and also need to run the "Preamble" in debug builds to
                 // properly update the tick count and clear out state.
                 //
-                c->expr_index = c->indexor;
-                *(c->out) = *(c->param); // param is trashed by Preamble_Debug!
+                f->expr_index = f->indexor;
+                *(f->out) = *(f->param); // param is trashed by Preamble_Debug!
 
             #if !defined(NDEBUG)
-                do_count = Do_Evaluation_Preamble_Debug(c);
+                do_count = Do_Evaluation_Preamble_Debug(f);
             #endif
 
                 goto dispatch_the_word_in_out; // will handle the FETCH_NEXT
@@ -2960,7 +2938,7 @@ reevaluate:
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //
-    if (c->flags & DO_FLAG_TO_END) goto value_ready_for_do_next;
+    if (f->flags & DO_FLAG_TO_END) goto value_ready_for_do_next;
 
 return_indexor:
     //
@@ -2970,13 +2948,13 @@ return_indexor:
     ASSERT_STATE_BALANCED(&state);
 
 #if !defined(NDEBUG)
-    Do_Exit_Checks_Debug(c);
+    Do_Exit_Checks_Debug(f);
 #endif
 
     // Restore the top of stack (if there is a fail() and associated longjmp,
     // this restoration will be done by the Drop_Trap helper.)
     //
-    TG_Do_Stack = c->prior;
+    TG_Frame_Stack = f->prior;
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
 }
@@ -2990,36 +2968,36 @@ return_indexor:
 // still having a place to put as many checks that might help verify that
 // things are working properly.
 //
-static void Do_Exit_Checks_Debug(struct Reb_Call *c) {
+static void Do_Exit_Checks_Debug(struct Reb_Frame *f) {
     if (
-        c->indexor != END_FLAG && c->indexor != THROWN_FLAG
-        && c->indexor != VALIST_FLAG
+        f->indexor != END_FLAG && f->indexor != THROWN_FLAG
+        && f->indexor != VALIST_FLAG
     ) {
         // If we're at the array's end position, then we've prefetched the
         // last value for processing (and not signaled end) but on the
         // next fetch we *will* signal an end.
         //
-        assert(c->indexor <= ARR_LEN(c->source.array));
+        assert(f->indexor <= ARR_LEN(f->source.array));
     }
 
-    if (c->flags & DO_FLAG_TO_END)
-        assert(c->indexor == THROWN_FLAG || c->indexor == END_FLAG);
+    if (f->flags & DO_FLAG_TO_END)
+        assert(f->indexor == THROWN_FLAG || f->indexor == END_FLAG);
 
-    if (c->indexor == END_FLAG) {
-        assert(c->value == NULL); // NULLing out value may become debug-only
-        assert(NOT_END(c->out)); // series END marker shouldn't leak out
+    if (f->indexor == END_FLAG) {
+        assert(f->value == NULL); // NULLing out value may become debug-only
+        assert(NOT_END(f->out)); // series END marker shouldn't leak out
     }
 
-    if (c->indexor == THROWN_FLAG)
-        assert(THROWN(c->out));
+    if (f->indexor == THROWN_FLAG)
+        assert(THROWN(f->out));
 
     // Function execution should have written *some* actual output value
     // over the trash that we put in the return slot before the call.
     //
-    assert(!IS_TRASH_DEBUG(c->out));
-    assert(VAL_TYPE(c->out) < REB_MAX); // cheap check
+    assert(!IS_TRASH_DEBUG(f->out));
+    assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
 
-    ASSERT_VALUE_MANAGED(c->out);
+    ASSERT_VALUE_MANAGED(f->out);
 }
 
 #endif
@@ -3040,31 +3018,31 @@ REBIXO Do_Array_At_Core(
     REBCNT index,
     REBFLGS flags
 ) {
-    struct Reb_Call c;
+    struct Reb_Frame f;
 
     if (opt_first) {
-        c.value = opt_first;
-        c.indexor = index;
+        f.value = opt_first;
+        f.indexor = index;
     }
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        c.value = ARR_AT(array, index);
-        c.indexor = index + 1;
+        f.value = ARR_AT(array, index);
+        f.indexor = index + 1;
     }
 
-    if (IS_END(c.value)) {
+    if (IS_END(f.value)) {
         SET_UNSET(out);
         return END_FLAG;
     }
 
-    c.out = out;
-    c.source.array = array;
-    c.flags = flags;
+    f.out = out;
+    f.source.array = array;
+    f.flags = flags;
 
-    Do_Core(&c);
+    Do_Core(&f);
 
-    return c.indexor;
+    return f.indexor;
 }
 
 
@@ -3111,24 +3089,24 @@ REBIXO Do_Va_Core(
     va_list *vaptr,
     REBFLGS flags
 ) {
-    struct Reb_Call c;
+    struct Reb_Frame f;
 
     if (opt_first)
-        c.value = opt_first;
+        f.value = opt_first;
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        c.value = va_arg(*vaptr, const REBVAL*);
+        f.value = va_arg(*vaptr, const REBVAL*);
     }
 
-    if (IS_END(c.value)) {
+    if (IS_END(f.value)) {
         SET_UNSET(out);
         return END_FLAG;
     }
 
-    c.out = out;
-    c.indexor = VALIST_FLAG;
-    c.source.vaptr = vaptr;
+    f.out = out;
+    f.indexor = VALIST_FLAG;
+    f.source.vaptr = vaptr;
 
     // !!! See notes in %m-gc.c about what needs to be done before it can
     // be safe to let arbitrary evaluations happen in variadic scenarios.
@@ -3136,33 +3114,33 @@ REBIXO Do_Va_Core(
     // into an array if a GC incidentally happens during any va_list DOs.)
     //
     assert(flags & DO_FLAG_EVAL_ONLY);
-    c.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
+    f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 
-    Do_Core(&c);
+    Do_Core(&f);
 
     if (flags & DO_FLAG_NEXT) {
         //
         // Infix lookahead causes a fetch that cannot be undone.  Hence
         // va_list DO/NEXT can't be resumed -- see VALIST_INCOMPLETE_FLAG.
         // For a resumable interface on va_list, see the lower level
-        // frameless API.
+        // varless API.
         //
-        if (c.indexor == VALIST_FLAG) {
+        if (f.indexor == VALIST_FLAG) {
             //
             // Try one more fetch and see if it's at the end.  If not, we did
             // not consume all the input.
             //
-            FETCH_NEXT_ONLY_MAYBE_END(&c);
-            if (c.indexor != END_FLAG) {
-                assert(c.indexor == VALIST_FLAG); // couldn't throw!!
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            if (f.indexor != END_FLAG) {
+                assert(f.indexor == VALIST_FLAG); // couldn't throw!!
                 return VALIST_INCOMPLETE_FLAG;
             }
         }
 
-        assert(c.indexor == THROWN_FLAG || c.indexor == END_FLAG);
+        assert(f.indexor == THROWN_FLAG || f.indexor == END_FLAG);
     }
 
-    return c.indexor;
+    return f.indexor;
 }
 
 

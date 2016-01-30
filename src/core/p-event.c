@@ -143,7 +143,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
 // 
 // Internal port handler for events.
 //
-static REB_R Event_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *spec;
     REBVAL *state;
@@ -182,7 +182,7 @@ static REB_R Event_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
 act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
-        result = T_Array(call_, action);
+        result = T_Array(frame_, action);
         SET_SIGNAL(SIG_EVENT_PORT);
         if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
             *D_OUT = save_port;

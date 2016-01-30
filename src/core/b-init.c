@@ -241,7 +241,7 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
     if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
 
     // !!! The words NATIVE and ACTION were bound but paths would not bind.
-    // So you could do `native [spec]` but not `native/frameless [spec]`
+    // So you could do `native [spec]` but not `native/varless [spec]`
     // because in the later case, it wouldn't have descended into the path
     // to bind `native`.  This is apparently intentional to avoid binding
     // deeply in the system context.  This hacky workaround serves to get
@@ -427,7 +427,7 @@ static void Init_Constants(void)
 //      /body
 //          {Equivalent body of Rebol code matching native's implementation}
 //      code [block!]
-//      /frameless
+//      /varless
 //          {Native wants delegation to eval its own args and extend DO state}
 //  ]
 //
@@ -445,7 +445,7 @@ REBNATIVE(native)
     PARAM(1, spec);
     REFINE(2, body);
     PARAM(3, code);
-    REFINE(4, frameless);
+    REFINE(4, varless);
 
     if (
         (Native_Limit != 0 || !*Native_Functions)
@@ -459,7 +459,7 @@ REBNATIVE(native)
         VAL_ARRAY(ARG(spec)),
         *Native_Functions++,
         REB_NATIVE,
-        REF(frameless)
+        REF(varless)
     );
 
     Native_Count++;
@@ -519,7 +519,7 @@ REBNATIVE(action)
         VAL_ARRAY(ARG(spec)),
         cast(REBNAT, cast(REBUPT, Action_Count)),
         REB_ACTION,
-        REF(typecheck) // frameless? (all typechecks run framelessly)
+        REF(typecheck) // varless? (all typechecks run "varlessly")
     );
 
     Action_Count++;
@@ -1642,7 +1642,7 @@ void Init_Core(REBARGS *rargs)
     Boot_Block = NULL;
     PG_Boot_Phase = BOOT_MEZZ;
 
-    assert(DSP == 0 && !DSF);
+    assert(DSP == 0 && FS_TOP == NULL);
 
     if (Apply_Only_Throws(
         &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_VALUE
@@ -1661,7 +1661,7 @@ void Init_Core(REBARGS *rargs)
         panic (Error(RE_MISC));
     }
 
-    assert(DSP == 0 && !DSF);
+    assert(DSP == 0 && FS_TOP == NULL);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 

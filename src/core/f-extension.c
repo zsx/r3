@@ -608,7 +608,7 @@ bad_func_def:
 //     spec - same as other funcs
 //     body - [ext-obj func-index]
 //
-void Do_Command_Core(struct Reb_Call *call_)
+void Do_Command_Core(struct Reb_Frame *frame_)
 {
     // All of these were checked above on definition:
     REBVAL *val = ARR_HEAD(FUNC_BODY(D_FUNC));
@@ -668,7 +668,7 @@ void Do_Command_Core(struct Reb_Call *call_)
 
     // Note: no current interface for Rebol "commands" to throw (to the extent
     // that REB_COMMAND has a future in Ren-C).  If it could throw, then
-    // this would set `c->mode = CALL_MODE_THROW_PENDING` in that case.
+    // this would set `f->mode = CALL_MODE_THROW_PENDING` in that case.
 }
 
 

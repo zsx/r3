@@ -500,7 +500,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
     ffi_type **args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(rot));
     REBARR *rebol_args;
 
-    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARIADIC))
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
@@ -780,7 +780,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
     REBCNT n_fixed = 0; /* number of fixed arguments */
     REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
 
-    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     REBVAL out = *FUNC_VALUE(rot); // REVIEW: why is it done this way?
 

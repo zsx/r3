@@ -341,14 +341,14 @@ void Make_Native(
     REBARR *spec,
     REBNAT code,
     enum Reb_Kind type,
-    REBOOL frameless
+    REBOOL varless
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
 
     VAL_RESET_HEADER(out, type);
-    if (frameless)
+    if (varless)
         SET_VAL_FLAG(out, FUNC_FLAG_FRAMELESS);
 
     VAL_FUNC_CODE(out) = code;
@@ -960,7 +960,7 @@ void Clonify_Function(REBVAL *value)
 //
 //  Do_Native_Core: C
 //
-void Do_Native_Core(struct Reb_Call *c)
+void Do_Native_Core(struct Reb_Frame *f)
 {
     REB_R ret;
 
@@ -968,25 +968,25 @@ void Do_Native_Core(struct Reb_Call *c)
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
-    ret = FUNC_CODE(c->func)(c);
+    ret = FUNC_CODE(f->func)(f);
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        c->mode = CALL_MODE_THROW_PENDING;
+        f->mode = CALL_MODE_THROW_PENDING;
         break;
     case R_NONE:
-        SET_NONE(c->out);
+        SET_NONE(f->out);
         break;
     case R_UNSET:
-        SET_UNSET(c->out);
+        SET_UNSET(f->out);
         break;
     case R_TRUE:
-        SET_TRUE(c->out);
+        SET_TRUE(f->out);
         break;
     case R_FALSE:
-        SET_FALSE(c->out);
+        SET_FALSE(f->out);
         break;
     default:
         assert(FALSE);
@@ -997,9 +997,9 @@ void Do_Native_Core(struct Reb_Call *c)
 //
 //  Do_Action_Core: C
 //
-void Do_Action_Core(struct Reb_Call *c)
+void Do_Action_Core(struct Reb_Frame *f)
 {
-    enum Reb_Kind type = VAL_TYPE(DSF_ARG(c, 1));
+    enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
     REBACT action;
     REB_R ret;
 
@@ -1008,40 +1008,40 @@ void Do_Action_Core(struct Reb_Call *c)
     assert(type < REB_MAX);
 
     // Handle special datatype test cases (eg. integer?).  Note that this
-    // has a frameless implementation which is the one that typically runs
+    // has a varless implementation which is the one that typically runs
     // when a frame is not required (such as when running under trace, where
     // the values need to be inspectable)
     //
-    if (FUNC_ACT(c->func) < REB_MAX_0) {
-        if (TO_0_FROM_KIND(type) == FUNC_ACT(c->func))
-            SET_TRUE(c->out);
+    if (FUNC_ACT(f->func) < REB_MAX_0) {
+        if (TO_0_FROM_KIND(type) == FUNC_ACT(f->func))
+            SET_TRUE(f->out);
         else
-            SET_FALSE(c->out);
+            SET_FALSE(f->out);
 
         return;
     }
 
     action = Value_Dispatch[TO_0_FROM_KIND(type)];
-    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(c->func)));
-    ret = action(c, FUNC_ACT(c->func));
+    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(f->func)));
+    ret = action(f, FUNC_ACT(f->func));
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        c->mode = CALL_MODE_THROW_PENDING;
+        f->mode = CALL_MODE_THROW_PENDING;
         break;
     case R_NONE:
-        SET_NONE(c->out);
+        SET_NONE(f->out);
         break;
     case R_UNSET:
-        SET_UNSET(c->out);
+        SET_UNSET(f->out);
         break;
     case R_TRUE:
-        SET_TRUE(c->out);
+        SET_TRUE(f->out);
         break;
     case R_FALSE:
-        SET_FALSE(c->out);
+        SET_FALSE(f->out);
         break;
     default:
         assert(FALSE);
@@ -1052,11 +1052,11 @@ void Do_Action_Core(struct Reb_Call *c)
 //
 //  Do_Function_Core: C
 //
-void Do_Function_Core(struct Reb_Call *c)
+void Do_Function_Core(struct Reb_Frame *f)
 {
     Eval_Functions++;
 
-    if (!IS_FUNC_DURABLE(FUNC_VALUE(c->func))) {
+    if (!IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
         //
         // Simple model with no deep copying or rebinding of the body on
         // a per-call basis.  Long-term this is planned to be able to handle
@@ -1064,16 +1064,16 @@ void Do_Function_Core(struct Reb_Call *c)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        if (Do_At_Throws(c->out, FUNC_BODY(c->func), 0))
-            c->mode = CALL_MODE_THROW_PENDING;
+        if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
+            f->mode = CALL_MODE_THROW_PENDING;
     }
     else {
-        REBCTX *frame = c->frame.context;
+        REBCTX *frame = f->data.context;
 
         REBVAL body;
         VAL_INIT_WRITABLE_DEBUG(&body);
 
-        assert(c->flags & DO_FLAG_FRAME_CONTEXT);
+        assert(f->flags & DO_FLAG_FRAME_CONTEXT);
 
         // Clone the body of the closure to allow us to rebind words inside
         // of it so that they point specifically to the instances for this
@@ -1081,22 +1081,22 @@ void Do_Function_Core(struct Reb_Call *c)
         // present time, until true relative binding is implemented.)
         //
         VAL_RESET_HEADER(&body, REB_BLOCK);
-        VAL_ARRAY(&body) = Copy_Array_Deep_Managed(FUNC_BODY(c->func));
+        VAL_ARRAY(&body) = Copy_Array_Deep_Managed(FUNC_BODY(f->func));
         VAL_INDEX(&body) = 0;
 
-        Rebind_Values_Specifically_Deep(c->func, frame, VAL_ARRAY_AT(&body));
+        Rebind_Values_Specifically_Deep(f->func, frame, VAL_ARRAY_AT(&body));
 
         // Protect the body from garbage collection during the course of the
-        // execution.  (This is inexpensive...it just points `c->param` to it.)
+        // execution.  (This is inexpensive...it just points `f->param` to it.)
         //
-        DSF_PROTECT_X(c, &body);
+        PROTECT_FRM_X(f, &body);
 
-        if (DO_ARRAY_THROWS(c->out, &body))
-            c->mode = CALL_MODE_THROW_PENDING;
+        if (DO_ARRAY_THROWS(f->out, &body))
+            f->mode = CALL_MODE_THROW_PENDING;
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
-        // DSF_PROTECT_X will be implicitly dropped when the call ends.
+        // PROTECT_FRM_X will be implicitly dropped when the call ends.
     }
 }
 
@@ -1104,19 +1104,19 @@ void Do_Function_Core(struct Reb_Call *c)
 //
 //  Do_Routine_Core: C
 //
-void Do_Routine_Core(struct Reb_Call *c)
+void Do_Routine_Core(struct Reb_Frame *f)
 {
     REBARR *args = Copy_Values_Len_Shallow(
-        DSF_ARGC(c) > 0 ? DSF_ARG(c, 1) : NULL,
-        DSF_ARGC(c)
+        FRM_NUM_ARGS(f) > 0 ? FRM_ARG(f, 1) : NULL,
+        FRM_NUM_ARGS(f)
     );
 
-    Call_Routine(c->func, args, c->out);
+    Call_Routine(f->func, args, f->out);
 
     Free_Array(args);
 
     // Note: cannot "throw" a Rebol value across an FFI boundary.  If you
-    // could this would set `c->mode = CALL_MODE_THROW_PENDING` in that case.
+    // could this would set `f->mode = CALL_MODE_THROW_PENDING` in that case.
 }
 
 

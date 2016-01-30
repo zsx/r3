@@ -42,7 +42,7 @@
 //
 //  Console_Actor: C
 //
-static REB_R Console_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBREQ *req;
     REBINT result;

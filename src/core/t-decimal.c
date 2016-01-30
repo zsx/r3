@@ -249,7 +249,7 @@ REBTYPE(Decimal)
             *D_OUT = *D_ARG(2);
             *D_ARG(2) = *D_ARG(1);
             *D_ARG(1) = *D_OUT;
-            return Value_Dispatch[VAL_TYPE_0(D_ARG(1))](call_, action);
+            return Value_Dispatch[VAL_TYPE_0(D_ARG(1))](frame_, action);
         }
 
         // If the type of the second arg is something we can handle:
@@ -268,7 +268,7 @@ REBTYPE(Decimal)
             } else if (type == REB_MONEY) {
                 VAL_MONEY_AMOUNT(val) = decimal_to_deci(VAL_DECIMAL(val));
                 VAL_RESET_HEADER(val, REB_MONEY);
-                return T_Money(call_, action);
+                return T_Money(frame_, action);
             } else if (type == REB_CHAR) {
                 d2 = (REBDEC)VAL_CHAR(arg);
                 type = REB_DECIMAL;
@@ -436,7 +436,7 @@ REBTYPE(Decimal)
 
         case A_ROUND:
             arg = D_ARG(3);
-            num = Get_Round_Flags(call_);
+            num = Get_Round_Flags(frame_);
             if (D_REF(2)) { // to
                 if (IS_MONEY(arg)) {
                     VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(

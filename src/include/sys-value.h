@@ -108,6 +108,17 @@ struct Reb_Map;
 typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
 
+//
+// Forward declaration of the type referenced by FRAME!, which represents an
+// execution call frame bindable by the debugger.  See %sys-do.h for notes.
+//
+// !!! Should it be aliased REBFRM?  It stands out better from REBFUN and
+// other value types this way.
+//
+
+struct Reb_Frame;
+
+
 // A `#pragma pack` of 4 was requested by the R3-Alpha source for the
 // duration of %sys-value.h:
 //
@@ -1420,8 +1431,8 @@ struct Reb_Any_Word {
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
     (assert(ANY_WORD(v)), GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)) \
         ? (v)->payload.any_word.binding.specific \
-        : Frame_For_Call_May_Reify( \
-            Call_For_Relative_Word((v), FALSE), NULL, TRUE)
+        : Context_For_Frame_May_Reify( \
+            Frame_For_Relative_Word((v), FALSE), NULL, TRUE)
 
 #define INIT_WORD_SPECIFIC(v,context) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
@@ -1650,7 +1661,7 @@ struct Reb_Any_Context {
         // Note: This is technically just a cache, as the stack could be
         // walked to find it given the frame.
         //
-        struct Reb_Call *call;
+        struct Reb_Frame *frame;
     } more;
 };
 
@@ -1668,7 +1679,7 @@ struct Reb_Any_Context {
     (assert(ANY_CONTEXT(v)), \
         CHUNK_LEN_FROM_VALUES((v)->payload.any_context.stackvars))
 
-#define VAL_FRAME_CALL(v)           ((v)->payload.any_context.more.call)
+#define VAL_CONTEXT_FRAME(v)        ((v)->payload.any_context.more.frame)
 
 // Convenience macros to speak in terms of object values instead of the context
 //
@@ -1791,7 +1802,6 @@ enum {
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
 };
 
-struct Reb_Call;
 
 // enums in C have no guaranteed size, yet Rebol wants to use known size
 // types in its interfaces.  Hence REB_R is a REBCNT from reb-c.h (and not
@@ -1828,17 +1838,17 @@ enum {
 typedef REBCNT REB_R;
 
 // NATIVE! function
-typedef REB_R (*REBNAT)(struct Reb_Call *call_);
+typedef REB_R (*REBNAT)(struct Reb_Frame *frame_);
 #define REBNATIVE(n) \
-    REB_R N_##n(struct Reb_Call *call_)
+    REB_R N_##n(struct Reb_Frame *frame_)
 
 // ACTION! function (one per each DATATYPE!)
-typedef REB_R (*REBACT)(struct Reb_Call *call_, REBCNT a);
+typedef REB_R (*REBACT)(struct Reb_Frame *frame_, REBCNT a);
 #define REBTYPE(n) \
-    REB_R T_##n(struct Reb_Call *call_, REBCNT action)
+    REB_R T_##n(struct Reb_Frame *frame_, REBCNT action)
 
 // PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Call *call_, REBCTX *p, REBCNT a);
+typedef REB_R (*REBPAF)(struct Reb_Frame *frame_, REBCTX *p, REBCNT a);
 
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
@@ -1962,7 +1972,7 @@ struct Reb_Varargs {
     // looks to get the next item.
     //
     union {
-        REBCTX *frame;
+        REBCTX *frame_ctx;
 
         REBARR *array1; // for MAKE VARARGS! to share a reference on an array
     } feed;
@@ -1979,7 +1989,7 @@ struct Reb_Varargs {
     const REBVAL *param;
 };
 
-#define VAL_VARARGS_FRAME(v) ((v)->payload.varargs.feed.frame)
+#define VAL_VARARGS_FRAME_CTX(v) ((v)->payload.varargs.feed.frame_ctx)
 #define VAL_VARARGS_ARRAY1(v) ((v)->payload.varargs.feed.array1)
 
 #define VAL_VARARGS_PARAM(v) ((v)->payload.varargs.param)
@@ -1990,10 +2000,10 @@ struct Reb_Varargs {
 // payload bits--so it's in the `eval` slot of a frame or the misc slot
 // of the array1.
 //
-#define SUBFEED_ADDR_OF_FEED(f) \
-    (GET_ARR_FLAG((f), SERIES_FLAG_CONTEXT) \
-        ? &FRM_CALL(AS_CONTEXT(f))->cell.subfeed \
-        : &ARR_SERIES(f)->misc.subfeed)
+#define SUBFEED_ADDR_OF_FEED(a) \
+    (GET_ARR_FLAG((a), SERIES_FLAG_CONTEXT) \
+        ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed \
+        : &ARR_SERIES(a)->misc.subfeed)
 
 
 /***********************************************************************

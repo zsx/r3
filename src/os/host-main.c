@@ -221,7 +221,7 @@ const REBYTE N_debug_spec[] =
     " 'value [unset! integer! frame! any-function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
-REB_R N_debug(struct Reb_Call *call_) {
+REB_R N_debug(struct Reb_Frame *frame_) {
     PARAM(1, value);
     REBVAL *value = ARG(value);
 
@@ -237,15 +237,15 @@ REB_R N_debug(struct Reb_Call *call_) {
     }
 
     if (IS_INTEGER(value) || IS_FRAME(value) || ANY_FUNC(value)) {
-        struct Reb_Call *call;
+        struct Reb_Frame *frame;
 
         // We pass TRUE here to account for an extra stack level... the one
         // added by DEBUG itself, which presumably should not count.
         //
-        if (!(call = Call_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
+        if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
             fail (Error_Invalid_Arg(value));
 
-        Val_Init_Block(D_OUT, Where_For_Call(call));
+        Val_Init_Block(D_OUT, Make_Where_For_Frame(frame));
         return R_OUT;
     }
 
@@ -338,15 +338,15 @@ int Do_String(
         // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
         // review of why it's written exactly this way.
         //
-        REBCTX *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+        REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
         VAL_INIT_WRITABLE_DEBUG(&vali);
 
-        SET_INTEGER(&vali, CTX_LEN(user) + 1);
+        SET_INTEGER(&vali, CTX_LEN(user_ctx) + 1);
 
-        Bind_Values_All_Deep(ARR_HEAD(code), user);
-        Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
+        Bind_Values_All_Deep(ARR_HEAD(code), user_ctx);
+        Resolve_Context(user_ctx, Lib_Context, &vali, FALSE, FALSE);
 
         // If we're stopped at a breakpoint, the REPL should have a concept
         // of what stack level it is inspecting (conveyed by the |#|>> in the
@@ -354,23 +354,23 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            struct Reb_Call *call;
-            REBCTX *frame;
+            struct Reb_Frame *frame;
+            REBCTX *frame_ctx;
 
             REBVAL level;
             VAL_INIT_WRITABLE_DEBUG(&level);
             SET_INTEGER(&level, HG_Stack_Level);
 
-            call = Call_For_Stack_Level(NULL, &level, FALSE);
-            assert(call);
+            frame = Frame_For_Stack_Level(NULL, &level, FALSE);
+            assert(frame);
 
             // Need to manage because it may be no words get bound into it,
             // and we're not putting it into a FRAME! value, so it might leak
             // otherwise if it's reified.
             //
-            frame = Frame_For_Call_May_Reify(call, NULL, TRUE);
+            frame_ctx = Context_For_Frame_May_Reify(frame, NULL, TRUE);
 
-            Bind_Values_Deep(ARR_HEAD(code), frame);
+            Bind_Values_Deep(ARR_HEAD(code), frame_ctx);
         }
 
         // !!! This was unused code that used to be in Do_String from
@@ -968,7 +968,7 @@ REBOOL Host_Breakpoint_Quitting_Hook(
         VAL_INIT_WRITABLE_DEBUG(&level);
         SET_INTEGER(&level, 1);
 
-        if (Call_For_Stack_Level(NULL, &level, FALSE) != NULL)
+        if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
             HG_Stack_Level = 1;
         else
             HG_Stack_Level = 0; // Happens if you just type "breakpoint"

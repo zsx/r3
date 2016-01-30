@@ -306,7 +306,7 @@ REBNATIVE(bind)
             fail (Error(RE_NOT_BOUND, target));
 
         // The word in hand may be a relatively bound one.  To return a
-        // specific frame, this needs to ensure that the Reb_Call's frame
+        // specific frame, this needs to ensure that the Reb_Frame's data
         // is a real context, not just a chunk of data.
         //
         context = VAL_WORD_CONTEXT_MAY_REIFY(target);
@@ -1205,7 +1205,7 @@ REBNATIVE(true_q)
 //
 REBNATIVE(false_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1225,7 +1225,7 @@ REBNATIVE(false_q)
 //
 REBNATIVE(quote)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1249,7 +1249,7 @@ REBNATIVE(quote)
 //
 REBNATIVE(nothing_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1272,7 +1272,7 @@ REBNATIVE(nothing_q)
 //
 REBNATIVE(something_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1300,7 +1300,7 @@ REBNATIVE(dump)
 
     REBVAL *value = ARG(value);
 
-    Dump_Stack(call_, 0);
+    Dump_Stack(frame_, 0);
 
     if (ANY_SERIES(value))
         Dump_Series(VAL_SERIES(value), "=>");

@@ -533,7 +533,7 @@ REBTYPE(Vector)
     REBSER *vect;
     REBSER *ser;
 
-    type = Do_Series_Action(call_, action, value, arg);
+    type = Do_Series_Action(frame_, action, value, arg);
     if (type >= 0) return type;
 
     if (action != A_MAKE && action != A_TO)

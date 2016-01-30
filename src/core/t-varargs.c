@@ -73,10 +73,10 @@ REBIXO Do_Vararg_Op_Core(
     REBSYM sym_func, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
 ) {
-    struct Reb_Call *c;
+    struct Reb_Frame *f;
     REBIXO indexor = VALIST_FLAG;
 
-    struct Reb_Call temp_call;
+    struct Reb_Frame temp_frame;
 
     REBARR **subfeed_addr;
     REBVAL *shared;
@@ -102,12 +102,12 @@ REBIXO Do_Vararg_Op_Core(
             fail (Error(RE_VARARGS_NO_STACK));
         }
 
-        c = FRM_CALL(AS_CONTEXT(feed));
+        f = CTX_FRAME(AS_CONTEXT(feed));
 
         // Take label symbol from context if asked to capture and not set.
         //
         if (sym_func == SYM_0)
-            sym_func = c->label_sym;
+            sym_func = f->label_sym;
     }
     else {
         // If the request was to capture a symbol and the first level wasn't
@@ -159,13 +159,13 @@ handle_subfeed:
     if (GET_ARR_FLAG(feed, SERIES_FLAG_CONTEXT)) {
         //
         // "Ordinary" case... use the original frame implied by the VARARGS!
-        // The Reb_Call isn't a bad pointer, we checked FRAME! is stack-live.
+        // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
         //
-        if (c->indexor == END_FLAG)
+        if (f->indexor == END_FLAG)
             goto return_end_flag;
 
         if (op == VARARG_OP_FIRST) {
-            *out = *c->value;
+            *out = *f->value;
             return VALIST_FLAG;
         }
     }
@@ -188,27 +188,27 @@ handle_subfeed:
             goto return_end_flag;
         }
 
-        temp_call.value = VAL_ARRAY_AT(shared);
+        temp_frame.value = VAL_ARRAY_AT(shared);
         if (op == VARARG_OP_FIRST) {
-            *out = *temp_call.value;
+            *out = *temp_frame.value;
             return VALIST_FLAG;
         }
 
         // Fill in just enough enformation to call the FETCH-based routines
 
-        temp_call.source.array = VAL_ARRAY(shared);
-        temp_call.indexor = VAL_INDEX(shared) + 1;
-        temp_call.out = out;
-        temp_call.eval_fetched = NULL;
-        temp_call.label_sym = SYM_NATIVE; // !!! lie, but shouldn't be used
+        temp_frame.source.array = VAL_ARRAY(shared);
+        temp_frame.indexor = VAL_INDEX(shared) + 1;
+        temp_frame.out = out;
+        temp_frame.eval_fetched = NULL;
+        temp_frame.label_sym = SYM_NATIVE; // !!! lie, but shouldn't be used
 
-        c = &temp_call;
+        f = &temp_frame;
     }
 
     // The invariant here is that `c` has been prepared for fetching/doing
     // and has at least one value in it.
     //
-    assert(c->indexor != THROWN_FLAG && c->indexor != END_FLAG);
+    assert(f->indexor != THROWN_FLAG && f->indexor != END_FLAG);
     assert(sym_func != SYM_0);
     assert(op != VARARG_OP_FIRST);
 
@@ -217,68 +217,68 @@ handle_subfeed:
     //
     if (GET_VAL_FLAG(param, TYPESET_FLAG_QUOTE)) {
         if (GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE)) { // soft-quote
-            if (IS_BAR(c->value))
+            if (IS_BAR(f->value))
                 goto return_end_flag; // soft-quoted varargs stop at `|`
 
             if (
-                IS_GROUP(c->value)
-                || IS_GET_WORD(c->value)
-                || IS_GET_PATH(c->value) // these 3 cases evaluate
+                IS_GROUP(f->value)
+                || IS_GET_WORD(f->value)
+                || IS_GET_PATH(f->value) // these 3 cases evaluate
             ) {
                 if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
-                if (DO_VALUE_THROWS(out, c->value))
+                if (DO_VALUE_THROWS(out, f->value))
                     return THROWN_FLAG;
 
-                FETCH_NEXT_ONLY_MAYBE_END(c);
+                FETCH_NEXT_ONLY_MAYBE_END(f);
             }
             else { // not a soft-"exception" case, quote ordinarily
                 if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
-                DO_NEXT_REFETCH_QUOTED(out, c);
+                DO_NEXT_REFETCH_QUOTED(out, f);
             }
         }
         else { // hard-quote
             if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
-            DO_NEXT_REFETCH_QUOTED(out, c); // hard quoted varargs consume `|`
+            DO_NEXT_REFETCH_QUOTED(out, f); // hard quoted varargs consume `|`
         }
     }
     else { // ordinary parameter
-        if (IS_BAR(c->value))
+        if (IS_BAR(f->value))
             goto return_end_flag; // normal varargs stop at `|`
 
         if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
         DO_NEXT_REFETCH_MAY_THROW(
             out,
-            c,
-            (c->flags & DO_FLAG_LOOKAHEAD)
+            f,
+            (f->flags & DO_FLAG_LOOKAHEAD)
                 ? DO_FLAG_LOOKAHEAD
                 : DO_FLAG_NO_LOOKAHEAD
         );
 
-        if (c->indexor == THROWN_FLAG)
+        if (f->indexor == THROWN_FLAG)
             return THROWN_FLAG;
     }
 
-    assert(c->indexor != THROWN_FLAG); // should have returned above
+    assert(f->indexor != THROWN_FLAG); // should have returned above
 
     // If the `c` we were updating was the stack local call we created just
     // for this function, then the new index status would be lost when this
     // routine ended.  Update the indexor state in the sub_value array.
     //
-    if (c == &temp_call) {
+    if (f == &temp_frame) {
         assert(ANY_ARRAY(shared));
-        if (c->indexor == END_FLAG)
+        if (f->indexor == END_FLAG)
             SET_END(shared); // signal no more to all varargs sharing value
         else {
-            // The indexor is "prefetched", so although the temp_call would
+            // The indexor is "prefetched", so although the temp_frame would
             // be ready to use again we're throwing it away, and need to
             // effectively "undo the prefetch" by taking it down by 1.  The
             //
-            assert(c->indexor > 0);
-            VAL_INDEX(shared) = c->indexor - 1; // update seen by all sharings
+            assert(f->indexor > 0);
+            VAL_INDEX(shared) = f->indexor - 1; // update seen by all sharings
         }
     }
 
@@ -298,7 +298,7 @@ handle_subfeed:
         if (GET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME))
             *subfeed_addr = VAL_VARARGS_ARRAY1(out);
         else {
-            *subfeed_addr = CTX_VARLIST(VAL_VARARGS_FRAME(out));
+            *subfeed_addr = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(out));
             if (*subfeed_addr == feed) {
                 //
                 // This only catches direct recursions, soslightly more
@@ -371,8 +371,8 @@ REBIXO Do_Vararg_Op_May_Throw(
     //
     return Do_Vararg_Op_Core(
         out,
-        CTX_VARLIST(VAL_VARARGS_FRAME(varargs)),
-        VAL_VARARGS_PARAM(varargs), // distinct from the frame's call->param!
+        CTX_VARLIST(VAL_VARARGS_FRAME_CTX(varargs)),
+        VAL_VARARGS_PARAM(varargs), // distinct from the frame->param!
         SYM_0, // have it fetch symbol from frame if call is active
         op
     );
@@ -511,7 +511,7 @@ REBINT CT_Varargs(const REBVAL *a, const REBVAL *b, REBINT mode)
     }
     else {
         if (GET_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
-        return VAL_VARARGS_FRAME(a) == VAL_VARARGS_FRAME(b) ? 1 : 0;
+        return VAL_VARARGS_FRAME_CTX(a) == VAL_VARARGS_FRAME_CTX(b) ? 1 : 0;
     }
 }
 
@@ -526,7 +526,7 @@ REBINT CT_Varargs(const REBVAL *a, const REBVAL *b, REBINT mode)
 // be given when printing these out (they should not "lookahead")
 //
 void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
-    struct Reb_Call *c;
+    struct Reb_Frame *f;
 
     REBARR *subfeed;
 
@@ -559,13 +559,14 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
         REBVAL param_word;
         VAL_INIT_WRITABLE_DEBUG(&param_word);
 
-        if (GET_CTX_FLAG(VAL_VARARGS_FRAME(value), CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(VAL_VARARGS_FRAME(value), SERIES_FLAG_ACCESSIBLE)
+        if (
+            GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&
+            !GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_ACCESSIBLE)
         ) {
             Append_Unencoded(mold->series, "**unavailable: call ended **");
         }
         else {
-            // The Reb_Call is not a bad pointer since FRAME! is stack-live
+            // The Reb_Frame is not a bad pointer since FRAME! is stack-live
 
             Val_Init_Word(
                 &param_word,
@@ -587,27 +588,27 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             }
 
             subfeed = *SUBFEED_ADDR_OF_FEED(
-                CTX_VARLIST(VAL_VARARGS_FRAME(value)));
+                CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value)));
 
             if (subfeed != NULL)
                 Append_Unencoded(mold->series, "<= (subfeed) <= "); // !!!
 
-            c = FRM_CALL(VAL_VARARGS_FRAME(value));
+            f = CTX_FRAME(VAL_VARARGS_FRAME_CTX(value));
 
-            assert(c->indexor != THROWN_FLAG);
+            assert(f->indexor != THROWN_FLAG);
 
-            if (c->value == NULL)
+            if (f->value == NULL)
                 Append_Unencoded(mold->series, "*exhausted*");
             else {
-                Mold_Value(mold, c->value, TRUE);
+                Mold_Value(mold, f->value, TRUE);
 
-                if (c->indexor == VALIST_FLAG)
+                if (f->indexor == VALIST_FLAG)
                     Append_Unencoded(mold->series, "*C varargs, pending*");
-                else if (c->indexor == END_FLAG)
+                else if (f->indexor == END_FLAG)
                     Append_Unencoded(mold->series, "*end*");
                 else
                     Mold_Array_At(
-                        mold, c->source.array, cast(REBCNT, c->indexor), NULL
+                        mold, f->source.array, cast(REBCNT, f->indexor), NULL
                     );
             }
         }

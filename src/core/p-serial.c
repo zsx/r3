@@ -36,7 +36,7 @@
 //
 //  Serial_Actor: C
 //
-static REB_R Serial_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBREQ *req;    // IO request
     REBVAL *spec;   // port spec
@@ -164,7 +164,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
     switch (action) {
 
     case A_READ:
-        refs = Find_Refines(call_, ALL_READ_REFS);
+        refs = Find_Refines(frame_, ALL_READ_REFS);
 
         // Setup the read buffer (allocate a buffer if needed):
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -199,7 +199,7 @@ static REB_R Serial_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         return R_OUT;
 
     case A_WRITE:
-        refs = Find_Refines(call_, ALL_WRITE_REFS);
+        refs = Find_Refines(frame_, ALL_WRITE_REFS);
 
         // Determine length. Clip /PART to size of string if needed.
         spec = D_ARG(2);

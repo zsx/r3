@@ -65,8 +65,6 @@ void Init_Stacks(REBCNT size)
 
     TG_Head_Chunk = TG_Top_Chunk;
 
-    CS_Running = NULL;
-
     // Start the data stack out with just one element in it, and make it an
     // unwritable trash for the debug build.  This helps avoid both accidental
     // reads and writes of an empty stack, as well as meaning that indices
@@ -109,9 +107,9 @@ void Init_Stacks(REBCNT size)
     Set_Root_Series(TASK_STACK, ARR_SERIES(DS_Array));
 
     // Call stack (includes pending functions, parens...anything that sets
-    // up a `struct Reb_Call` and calls Do_Core())  Singly linked.
+    // up a `struct Reb_Frame` and calls Do_Core())  Singly linked.
     //
-    TG_Do_Stack = NULL;
+    TG_Frame_Stack = NULL;
 }
 
 
@@ -120,7 +118,8 @@ void Init_Stacks(REBCNT size)
 //
 void Shutdown_Stacks(void)
 {
-    assert(TG_Do_Stack == NULL);
+    assert(FS_TOP == NULL);
+    assert(DSP == 0); // !!! Why not free data stack here?
 
     assert(TG_Top_Chunk == cast(struct Reb_Chunk*, &TG_Root_Chunker->payload));
 
@@ -134,12 +133,6 @@ void Shutdown_Stacks(void)
     // OTOH we always have to free the root chunker.
     //
     FREE(struct Reb_Chunker, TG_Root_Chunker);
-
-    assert(!CS_Running);
-
-    // !!! Why not free data stack here?
-    //
-    assert(DSP == 0);
 }
 
 
@@ -483,7 +476,7 @@ void Drop_Chunk(REBVAL values[])
 //
 //  Push_New_Arglist_For_Call: C
 // 
-// Allocate the series of REBVALs inspected by a non-frameless function when
+// Allocate the series of REBVALs inspected by a non-varless function when
 // executed (the values behind D_ARG(1), D_REF(2), etc.)  Since the call
 // contains the function, it is known how many parameters are needed.
 //
@@ -495,7 +488,7 @@ void Drop_Chunk(REBVAL values[])
 // actually invoke the function, so it's Dispatch_Call that actually moves
 // it to the running status.
 //
-void Push_New_Arglist_For_Call(struct Reb_Call *c) {
+void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
     REBARR *varlist;
@@ -504,24 +497,24 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     // the chunk, so that's the one we should check.
     //
 #if !defined(NDEBUG)
-    assert(!c->frame.stackvars);
+    assert(!f->data.stackvars);
 #endif
 
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.
     //
-    num_slots = FUNC_NUM_PARAMS(c->func);
+    num_slots = FUNC_NUM_PARAMS(f->func);
 
     // For starters clear the context flag; it's just the chunk with no
-    // "reification" (Frame_For_Call_May_Reify() might change this)
+    // "reification" (Context_For_Frame_May_Reify() might change this)
     //
-    c->flags &= ~DO_FLAG_FRAME_CONTEXT;
+    f->flags &= ~DO_FLAG_FRAME_CONTEXT;
 
     // Make REBVALs to hold the arguments.  It will always be at least one
     // slot long, because function frames start with the value of the
     // function in slot 0.
     //
-    if (IS_FUNC_DURABLE(FUNC_VALUE(c->func))) {
+    if (IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -543,7 +536,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         // The NULL stackvars will be picked up by the reification; reuse the
         // work that function does vs. duplicating it here.
         //
-        c->frame.stackvars = NULL;
+        f->data.stackvars = NULL;
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -555,9 +548,9 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         // Note that chunks implicitly have an END at the end; no need to
         // put one there.
         //
-        c->frame.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
-        assert(CHUNK_LEN_FROM_VALUES(c->frame.stackvars) == num_slots);
-        slot = &c->frame.stackvars[0];
+        f->data.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
+        assert(CHUNK_LEN_FROM_VALUES(f->data.stackvars) == num_slots);
+        slot = &f->data.stackvars[0];
 
         // For now there's no hybridization; a context with stackvars has
         // no pooled allocation.
@@ -583,7 +576,7 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
     #ifdef NDEBUG
         SET_UNSET(slot);
     #else
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_LEGACY))
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
             SET_NONE(slot);
         else
             SET_UNSET(slot);
@@ -599,15 +592,15 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
         // the context (have to hold onto the allocated varlist pointer
         // somewhere...)
         //
-        Frame_For_Call_May_Reify(c, varlist, FALSE);
+        Context_For_Frame_May_Reify(f, varlist, FALSE);
     }
 }
 
 
 //
-//  Frame_For_Call_May_Reify: C
+//  Context_For_Frame_May_Reify: C
 //
-// A Reb_Call does not allocate a REBSER for its frame to be used in the
+// A Reb_Frame does not allocate a REBSER for its frame to be used in the
 // context by default.  But one can be allocated on demand, even for a NATIVE!
 // in order to have a binding location for the debugger (for instance).
 // If it becomes necessary to create words bound into the frame that is
@@ -615,36 +608,36 @@ void Push_New_Arglist_For_Call(struct Reb_Call *c) {
 //
 // If there's already a frame this will return it, otherwise create it.
 //
-REBCTX *Frame_For_Call_May_Reify(
-    struct Reb_Call *c,
+REBCTX *Context_For_Frame_May_Reify(
+    struct Reb_Frame *f,
     REBARR *opt_varlist, // if a CLOSURE! and varlist is preallocated
     REBOOL ensure_managed
 ) {
     REBCTX *context;
     struct Reb_Chunk *chunk;
 
-    if (c->flags & DO_FLAG_FRAME_CONTEXT)
-        return c->frame.context;
+    if (f->flags & DO_FLAG_FRAME_CONTEXT)
+        return f->data.context;
 
     if (opt_varlist) {
         //
         // This is an a-priori creation of pooled data... arg isn't ready to
         // check yet.
         //
-        assert(c->mode == CALL_MODE_GUARD_ARRAY_ONLY);
+        assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY);
         context = AS_CONTEXT(opt_varlist);
         assert(GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
     }
     else {
-        assert(c->mode != CALL_MODE_GUARD_ARRAY_ONLY);
-        if (DSF_FRAMELESS(c)) {
+        assert(f->mode != CALL_MODE_GUARD_ARRAY_ONLY);
+        if (FRM_IS_VARLESS(f)) {
             //
-            // After-the-fact attempt to create a frame for a frameless native.
+            // After-the-fact attempt to create a frame for a varless native.
             // Suggest running in debug mode.
             //
             // !!! Debug mode disabling optimizations not yet written.
             //
-            fail (Error(RE_FRAMELESS_CALL));
+            fail (Error(RE_VARLESS_CALL));
         }
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
@@ -673,7 +666,7 @@ REBCTX *Frame_For_Call_May_Reify(
     // that has already been managed.  The arglist array was managed when
     // created and kept alive by Mark_Call_Frames
     //
-    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(c->func));
+    INIT_CONTEXT_KEYLIST(context, FUNC_PARAMLIST(f->func));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     // We do not manage the varlist, because we'd like to be able to free
@@ -703,18 +696,18 @@ REBCTX *Frame_For_Call_May_Reify(
     //
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CTX_VALUE(context), context);
-    INIT_FRAME_CALL(context, c);
+    INIT_CONTEXT_FRAME(context, f);
 
     // Give this series the data from what was in the chunk, and make note
     // of the series in the chunk so that it can be marked as "gone bad"
     // when that chunk gets freed (could happen during a fail() or when
     // the stack frame finishes normally)
     //
-    CTX_STACKVARS(context) = c->frame.stackvars;
-    if (c->frame.stackvars) {
+    CTX_STACKVARS(context) = f->data.stackvars;
+    if (f->data.stackvars) {
         assert(!opt_varlist);
 
-        chunk = CHUNK_FROM_VALUES(c->frame.stackvars);
+        chunk = CHUNK_FROM_VALUES(f->data.stackvars);
         assert(!chunk->opt_context);
         chunk->opt_context = context;
 
@@ -730,17 +723,17 @@ REBCTX *Frame_For_Call_May_Reify(
     // possible in the debugger anyway.)  For now, protect unless it's a
     // user function.
     //
-    if (!IS_FUNCTION(FUNC_VALUE(c->func)))
+    if (!IS_FUNCTION(FUNC_VALUE(f->func)))
         SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_LOCKED);
 
     // Finally we mark the flags to say this contains a valid frame, so that
     // future calls to this routine will return it instead of making another.
-    // This flag must be cleared when the call is finished (as the Reb_Call
+    // This flag must be cleared when the call is finished (as the Reb_Frame
     // will be blown away if there's an error, no concerns about that).
     //
     ASSERT_CONTEXT(context);
-    c->frame.context = context;
-    c->flags |= DO_FLAG_FRAME_CONTEXT;
+    f->data.context = context;
+    f->flags |= DO_FLAG_FRAME_CONTEXT;
 
     return context;
 }
@@ -749,16 +742,16 @@ REBCTX *Frame_For_Call_May_Reify(
 #if !defined(NDEBUG)
 
 //
-//  DSF_ARG_Debug: C
+//  FRM_ARG_Debug: C
 // 
 // Debug-only version of getting a variable out of a call
 // frame, which asserts if you use an index that is higher
 // than the number of arguments in the frame.
 //
-REBVAL *DSF_ARG_Debug(struct Reb_Call *call, REBCNT n)
+REBVAL *FRM_ARG_Debug(struct Reb_Frame *frame, REBCNT n)
 {
-    assert(n != 0 && n <= DSF_ARGC(call));
-    return &call->arg[n - 1];
+    assert(n != 0 && n <= FRM_NUM_ARGS(frame));
+    return &frame->arg[n - 1];
 }
 
 #endif

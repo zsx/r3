@@ -1611,7 +1611,7 @@ bad_end:
 // PARSE is more general purpose in terms of the result it provides, and
 // it defaults to returning the input.
 //
-static REB_R Parse_Core(struct Reb_Call *call_, REBOOL logic)
+static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
 {
     PARAM(1, input);
     PARAM(2, rules);
@@ -1746,7 +1746,7 @@ static REB_R Parse_Core(struct Reb_Call *call_, REBOOL logic)
 //
 REBNATIVE(parse_q)
 {
-    return Parse_Core(call_, TRUE);
+    return Parse_Core(frame_, TRUE);
 }
 
 
@@ -1769,5 +1769,5 @@ REBNATIVE(parse_q)
 //
 REBNATIVE(parse)
 {
-    return Parse_Core(call_, FALSE);
+    return Parse_Core(frame_, FALSE);
 }

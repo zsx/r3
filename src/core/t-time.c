@@ -470,7 +470,7 @@ REBTYPE(Time)
             *D_ARG(3) = *val; // (temporary location for swap)
             *D_ARG(1) = *arg;
             *D_ARG(2) = *D_ARG(3);
-            return T_Date(call_, action);
+            return T_Date(frame_, action);
         }
         fail (Error_Math_Args(REB_TIME, action));
     }
@@ -496,12 +496,12 @@ REBTYPE(Time)
             if (D_REF(2)) {
                 arg = D_ARG(3);
                 if (IS_TIME(arg)) {
-                    secs = Round_Int(secs, Get_Round_Flags(call_), VAL_TIME(arg));
+                    secs = Round_Int(secs, Get_Round_Flags(frame_), VAL_TIME(arg));
                 }
                 else if (IS_DECIMAL(arg)) {
                     VAL_DECIMAL(arg) = Round_Dec(
                         cast(REBDEC, secs),
-                        Get_Round_Flags(call_),
+                        Get_Round_Flags(frame_),
                         Dec64(arg) * SEC_SEC
                     );
                     VAL_DECIMAL(arg) /= SEC_SEC;
@@ -518,7 +518,7 @@ REBTYPE(Time)
                 else fail (Error_Invalid_Arg(arg));
             }
             else {
-                secs = Round_Int(secs, Get_Round_Flags(call_) | 1, SEC_SEC);
+                secs = Round_Int(secs, Get_Round_Flags(frame_) | 1, SEC_SEC);
             }
             goto fixTime;
 

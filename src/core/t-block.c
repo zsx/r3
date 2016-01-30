@@ -304,7 +304,7 @@ REBOOL Make_Block_Type_Throws(
             param = &fake_param;
         }
         else {
-            feed = CTX_VARLIST(VAL_VARARGS_FRAME(arg));
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
             param = VAL_VARARGS_PARAM(arg);
         }
 
@@ -683,10 +683,10 @@ REBTYPE(Array)
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
-        return T_Port(call_, action);
+        return T_Port(frame_, action);
 
     // Most common series actions:  !!! speed this up!
-    len = Do_Series_Action(call_, action, value, arg);
+    len = Do_Series_Action(frame_, action, value, arg);
     if (len >= 0) return len; // return code
 
     // Special case (to avoid fetch of index and tail below):
@@ -817,7 +817,7 @@ zero_blk:
 
     case A_FIND:
     case A_SELECT:
-        args = Find_Refines(call_, ALL_FIND_REFS);
+        args = Find_Refines(frame_, ALL_FIND_REFS);
 
         len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
         if (args & AM_FIND_PART) tail = Partial1(value, D_ARG(ARG_FIND_LIMIT));
@@ -899,7 +899,7 @@ zero_blk:
     //-- Special actions:
 
     case A_TRIM:
-        args = Find_Refines(call_, ALL_TRIM_REFS);
+        args = Find_Refines(frame_, ALL_TRIM_REFS);
         if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
         Trim_Array(array, index, args);
         break;

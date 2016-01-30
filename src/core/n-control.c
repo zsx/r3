@@ -170,7 +170,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
 // 
 // Protect takes a HIDE parameter as #5.
 //
-static int Protect(struct Reb_Call *call_, REBCNT flags)
+static int Protect(struct Reb_Frame *frame_, REBCNT flags)
 {
     PARAM(1, value);
     REFINE(2, deep);
@@ -426,8 +426,8 @@ REBNATIVE(case)
     // reuse refinement slot for GC safety (const pointer optimized out)
     REBVAL * const safe_temp = ARG(all);
 
-    struct Reb_Call call;
-    struct Reb_Call *c = &call;
+    struct Reb_Frame frame;
+    struct Reb_Frame *f = &frame;
 
     // condition result must survive across potential GC evaluations of
     // the body evaluation re-using `safe-temp`, but can be collapsed to a
@@ -436,25 +436,25 @@ REBNATIVE(case)
 
     SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // make UNSET! default result
 
-    PUSH_CALL_UNLESS_END(c, ARG(block));
-    if (c->indexor == END_FLAG)
+    PUSH_CALL_UNLESS_END(f, ARG(block));
+    if (f->indexor == END_FLAG)
         return R_OUT; // quickly terminate on empty array
 
-    while (c->indexor != END_FLAG) {
-        UPDATE_EXPRESSION_START(c);
-        if (IS_BAR(c->value)) {
+    while (f->indexor != END_FLAG) {
+        UPDATE_EXPRESSION_START(f);
+        if (IS_BAR(f->value)) {
             //
             // interstitial (e.g. `case [1 2 | 3 4]`) - BAR! legal here, skip
             //
-            FETCH_NEXT_ONLY_MAYBE_END(c);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
             continue;
         }
 
-        DO_NEXT_REFETCH_MAY_THROW(safe_temp, c, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        if (c->indexor == THROWN_FLAG) {
+        if (f->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
-            DROP_CALL(c);
+            DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -466,11 +466,11 @@ REBNATIVE(case)
         //         false ; no matching body for condition
         //     ]
         //
-        if (c->indexor == END_FLAG) {
+        if (f->indexor == END_FLAG) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
                 // case [first [a b c]] => true ;-- in Rebol2
-                DROP_CALL(c);
+                DROP_CALL(f);
                 return R_TRUE;
             }
         #endif
@@ -489,7 +489,7 @@ REBNATIVE(case)
         // they can actually catch something interesting (being out of sync
         // on conditions and branches).
         //
-        if (IS_BAR(c->value))
+        if (IS_BAR(f->value))
             fail (Error(RE_BAR_HIT_MID_CASE));
 
         matched = IS_CONDITIONAL_TRUE(safe_temp);
@@ -519,7 +519,7 @@ REBNATIVE(case)
             // case [true add 1 2] => 3
             // case [false add 1 2] => 2 ;-- in Rebol2
             //
-            FETCH_NEXT_ONLY_MAYBE_END(c);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
@@ -529,11 +529,11 @@ REBNATIVE(case)
         }
     #endif
 
-        DO_NEXT_REFETCH_MAY_THROW(safe_temp, c, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        if (c->indexor == THROWN_FLAG) {
+        if (f->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
-            DROP_CALL(c);
+            DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -551,7 +551,7 @@ REBNATIVE(case)
                 // in the manner of running that block.
                 //
                 if (DO_ARRAY_THROWS(D_OUT, safe_temp)) {
-                    DROP_CALL(c);
+                    DROP_CALL(f);
                     return R_OUT_IS_THROWN;
                 }
             }
@@ -569,7 +569,7 @@ REBNATIVE(case)
 
             // One match is enough to return the result now, unless /ALL
             if (!all) {
-                DROP_CALL(c);
+                DROP_CALL(f);
                 return R_OUT;
             }
         }
@@ -579,7 +579,7 @@ REBNATIVE(case)
     // conditionally true, or defaults to UNSET if there weren't any
     // (or NONE in legacy mode)
     //
-    DROP_CALL(c);
+    DROP_CALL(f);
     return R_OUT;
 }
 
@@ -824,7 +824,7 @@ REBNATIVE(throw)
 
 
 //
-//  comment: native/frameless [
+//  comment: native/varless [
 //
 //  {Ignores the argument value and returns nothing (with no evaluations).}
 //
@@ -836,11 +836,11 @@ REBNATIVE(comment)
 {
     PARAM(1, value);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_QUOTED(D_OUT, D_CALL);
+        DO_NEXT_REFETCH_QUOTED(D_OUT, D_FRAME);
 
         if (ANY_EVAL(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_OUT)));
@@ -1106,15 +1106,15 @@ REBNATIVE(exit)
     // EXIT skip consideration of non-FUNCTIONs.
     //
     if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
-        struct Reb_Call *call = call_->prior;
+        struct Reb_Frame *frame = frame_->prior;
 
-        while (call != NULL && !IS_FUNCTION(FUNC_VALUE(call->func)))
-            call = call->prior;
+        while (frame != NULL && !IS_FUNCTION(FUNC_VALUE(frame->func)))
+            frame = frame->prior;
 
-        if (call == NULL)
+        if (frame == NULL)
             fail (Error(RE_INVALID_EXIT));
 
-        *D_OUT = *FUNC_VALUE(call->func);
+        *D_OUT = *FUNC_VALUE(frame->func);
 
         CONVERT_NAME_TO_THROWN(
             D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE
@@ -1274,20 +1274,20 @@ REBNATIVE(fail)
 }
 
 
-static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
+static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);
 
     assert((trigger == TRUE) || (trigger == FALSE));
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
         // First evaluate the condition into D_OUT
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
@@ -1303,7 +1303,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             // Matched what we're looking for (TRUE for IF, FALSE for UNLESS)
             // DO_NEXT once to produce what would have been `ARG(branch)`
             //
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
 
@@ -1312,7 +1312,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             if (!IS_BLOCK(D_OUT))
                 return R_OUT;
 
-            // We know there is no /ONLY because frameless never runs
+            // We know there is no /ONLY because varless never runs
             // when you have refinements.  Hence always evaluate blocks.
             //
             if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
@@ -1331,10 +1331,10 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             return R_OUT;
         }
 
-        // Note that even when we don't *take* the branch, a frameless native
+        // Note that even when we don't *take* the branch, a varless native
         // needs to evaluate to get what would have been `ARG(branch)`.
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
 
@@ -1360,7 +1360,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
 
 
 //
-//  if: native/frameless [
+//  if: native/varless [
 //  
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
@@ -1371,12 +1371,12 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
 //
 REBNATIVE(if)
 {
-    return If_Unless_Core(call_, TRUE);
+    return If_Unless_Core(frame_, TRUE);
 }
 
 
 //
-//  unless: native/frameless [
+//  unless: native/varless [
 //
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
@@ -1387,12 +1387,12 @@ REBNATIVE(if)
 //
 REBNATIVE(unless)
 {
-    return If_Unless_Core(call_, FALSE);
+    return If_Unless_Core(frame_, FALSE);
 }
 
 
 //
-//  either: native/frameless [
+//  either: native/varless [
 //
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
@@ -1412,13 +1412,13 @@ REBNATIVE(either)
     REBVAL dummy; // Place to write unused result, no GC safety needed
     VAL_INIT_WRITABLE_DEBUG(&dummy);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
         // First evaluate the condition into D_OUT
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
@@ -1436,7 +1436,7 @@ REBNATIVE(either)
         // `dummy` as scratch space.
         //
         if (IS_CONDITIONAL_TRUE(D_OUT)) {
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
@@ -1444,7 +1444,7 @@ REBNATIVE(either)
             if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = dummy;
@@ -1452,7 +1452,7 @@ REBNATIVE(either)
             }
         }
         else {
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = dummy;
@@ -1462,7 +1462,7 @@ REBNATIVE(either)
             if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
@@ -1540,7 +1540,7 @@ REBNATIVE(protect)
     else SET_FLAG(flags, PROT_WORD); // there is no unhide
 
     // accesses arguments 1 - 4
-    return Protect(call_, flags);
+    return Protect(frame_, flags);
 }
 
 
@@ -1558,7 +1558,7 @@ REBNATIVE(protect)
 REBNATIVE(unprotect)
 {
     // accesses arguments 1 - 4
-    return Protect(call_, FLAGIT(PROT_WORD));
+    return Protect(frame_, FLAGIT(PROT_WORD));
 }
 
 

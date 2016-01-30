@@ -570,7 +570,7 @@ REBTYPE(Map)
 
     case A_FIND:
     case A_SELECT:
-        args = Find_Refines(call_, ALL_FIND_REFS);
+        args = Find_Refines(frame_, ALL_FIND_REFS);
         n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
         if (!n) return R_NONE;
         *D_OUT = *VAL_ARRAY_AT_HEAD(val, ((n - 1) * 2) + 1);

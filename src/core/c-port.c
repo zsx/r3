@@ -378,7 +378,7 @@ REBCNT Find_Action(REBVAL *object, REBCNT action)
 // !!! Marked static to avoid casual re-uses, which may not be likely but
 // just to stop more calls from being introduced on accident.
 //
-static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
+static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 {
     REBIXO indexor;
 
@@ -386,7 +386,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // invocation is the total number of parameters to the *old* function's
     // invocation (if it had no refinements or locals).
     //
-    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(c->func));
+    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(f->func));
     REBVAL *code = ARR_HEAD(code_array);
 
     // We'll walk through the original functions param and arglist only, and
@@ -395,8 +395,8 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     //
     // !!! See note in function description about arity mismatches.
     //
-    REBVAL *param = FUNC_PARAMS_HEAD(c->func);
-    REBVAL *arg = DSF_ARGS_HEAD(c);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
+    REBVAL *arg = FRM_ARGS_HEAD(f);
     REBOOL ignoring = FALSE;
 
     // The first element of our path will be the function, followed by its
@@ -404,7 +404,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // opposite case where it had only refinements and then the function
     // at the head...
     //
-    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->func) + 1);
     REBVAL *path = ARR_HEAD(path_array);
 
     REBVAL first;
@@ -459,7 +459,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // args, as they were evaluated the first time around.
     //
     indexor = Do_Array_At_Core(
-        c->out,
+        f->out,
         &first, // path not in array but will be "virtual" first array element
         code_array,
         0, // index
@@ -489,7 +489,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
-int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *actor;
     REBCNT n = 0;
@@ -515,7 +515,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
 
     // If actor is a native function:
     if (IS_NATIVE(actor))
-        return cast(REBPAF, VAL_FUNC_CODE(actor))(call_, port, action);
+        return cast(REBPAF, VAL_FUNC_CODE(actor))(frame_, port, action);
 
     // actor must be an object:
     if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
@@ -531,7 +531,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
 
-    if (Redo_Func_Throws(call_, VAL_FUNC(actor))) {
+    if (Redo_Func_Throws(frame_, VAL_FUNC(actor))) {
         // The throw name will be in D_OUT, with thrown value in task vars
         return R_OUT_IS_THROWN;
     }

@@ -263,7 +263,7 @@ REBTYPE(Pair)
         case A_ROUND:
             {
                 REBDEC d64;
-                n = Get_Round_Flags(call_);
+                n = Get_Round_Flags(frame_);
                 if (D_REF(2))
                     d64 = Dec64(D_ARG(3));
                 else {
