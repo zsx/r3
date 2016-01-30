@@ -420,41 +420,41 @@ REBNATIVE(case)
     PARAM(1, block);
     REFINE(2, all);
 
-    // We leave D_ARG(1) alone, it is holding 'block' alive from GC
-    REBARR *block = VAL_ARRAY(ARG(block));
-    REBIXO indexor = VAL_INDEX(ARG(block));
-
     // Save refinement to boolean to free up GC protected call frame slot
     REBOOL all = REF(all);
 
     // reuse refinement slot for GC safety (const pointer optimized out)
     REBVAL * const safe_temp = ARG(all);
 
+    struct Reb_Call call;
+    struct Reb_Call *c = &call;
+
     // condition result must survive across potential GC evaluations of
     // the body evaluation re-using `safe-temp`, but can be collapsed to a
     // flag as the full value of the condition is never returned.
     REBOOL matched;
 
-    // CASE is in the same family as IF/UNLESS/EITHER, so if there is no
-    // matching condition it will return UNSET!.  Set that as default.
+    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // make UNSET! default result
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+    PUSH_CALL_UNLESS_END(c, ARG(block));
+    if (c->indexor == END_FLAG)
+        return R_OUT; // quickly terminate on empty array
 
-    // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
-    // between DOing an array that literally contains an UNSET! and an empty
-    // array, because both give back an unset value and an end position.
-    // We'd like CASE to allow `case []` but not `case [#[unset!]]` so we
-    // must do a special check to permit the former.
-    //
-    if (IS_END(VAL_ARRAY_AT(ARG(block))))
-        return R_OUT;
+    while (c->indexor != END_FLAG) {
+        UPDATE_EXPRESSION_START(c);
+        if (IS_BAR(c->value)) {
+            //
+            // interstitial (e.g. `case [1 2 | 3 4]`) - BAR! legal here, skip
+            //
+            FETCH_NEXT_ONLY_MAYBE_END(c);
+            continue;
+        }
 
-    while (indexor != END_FLAG) {
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, c, DO_FLAG_LOOKAHEAD);
 
-        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
-
-        if (indexor == THROWN_FLAG) {
+        if (c->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
+            DROP_CALL(c);
             return R_OUT_IS_THROWN;
         }
 
@@ -466,10 +466,11 @@ REBNATIVE(case)
         //         false ; no matching body for condition
         //     ]
         //
-        if (indexor == END_FLAG) {
+        if (c->indexor == END_FLAG) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
                 // case [first [a b c]] => true ;-- in Rebol2
+                DROP_CALL(c);
                 return R_TRUE;
             }
         #endif
@@ -482,6 +483,14 @@ REBNATIVE(case)
         // so it seems equally applicable to CASE.
         //
         if (IS_UNSET(safe_temp)) fail (Error(RE_NO_RETURN));
+
+        // Expression barriers in CASE statements are only allowed at the
+        // in-between-pairs spots.  This maximizes their usefulness, because
+        // they can actually catch something interesting (being out of sync
+        // on conditions and branches).
+        //
+        if (IS_BAR(c->value))
+            fail (Error(RE_BAR_HIT_MID_CASE));
 
         matched = IS_CONDITIONAL_TRUE(safe_temp);
 
@@ -510,7 +519,7 @@ REBNATIVE(case)
             // case [true add 1 2] => 3
             // case [false add 1 2] => 2 ;-- in Rebol2
             //
-            indexor = indexor + 1;
+            FETCH_NEXT_ONLY_MAYBE_END(c);
 
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
@@ -520,10 +529,11 @@ REBNATIVE(case)
         }
     #endif
 
-        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, c, DO_FLAG_LOOKAHEAD);
 
-        if (indexor == THROWN_FLAG) {
+        if (c->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
+            DROP_CALL(c);
             return R_OUT_IS_THROWN;
         }
 
@@ -540,8 +550,10 @@ REBNATIVE(case)
                 // "optimized IF-ELSE" as `if true stuff` would also behave
                 // in the manner of running that block.
                 //
-                if (DO_ARRAY_THROWS(D_OUT, safe_temp))
+                if (DO_ARRAY_THROWS(D_OUT, safe_temp)) {
+                    DROP_CALL(c);
                     return R_OUT_IS_THROWN;
+                }
             }
             else
                 *D_OUT = *safe_temp;
@@ -556,14 +568,18 @@ REBNATIVE(case)
         #endif
 
             // One match is enough to return the result now, unless /ALL
-            if (!all) return R_OUT;
+            if (!all) {
+                DROP_CALL(c);
+                return R_OUT;
+            }
         }
     }
 
     // Returns the evaluative result of the last body whose condition was
     // conditionally true, or defaults to UNSET if there weren't any
     // (or NONE in legacy mode)
-
+    //
+    DROP_CALL(c);
     return R_OUT;
 }
 

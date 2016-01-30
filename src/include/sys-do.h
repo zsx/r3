@@ -658,6 +658,31 @@ struct Reb_Call {
 // currently...this is an open question.
 //
 
+#define PUSH_CALL_UNLESS_END(c,v) \
+    do { \
+        (c)->value = VAL_ARRAY_AT(v); \
+        if (IS_END((c)->value)) { \
+            (c)->indexor = END_FLAG; \
+            break; \
+        } \
+        (c)->indexor = VAL_INDEX(v) + 1; \
+        (c)->source.array = VAL_ARRAY(v); \
+        (c)->eval_fetched = NULL; \
+        (c)->label_sym = SYM_0; \
+        (c)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
+        (c)->prior = TG_Do_Stack; \
+        TG_Do_Stack = c; \
+    } while (0)
+
+#define UPDATE_EXPRESSION_START(c) \
+    (assert((c)->indexor != VALIST_FLAG), (c)->expr_index = (c)->indexor)
+
+#define DROP_CALL(c) \
+    do { \
+        assert(TG_Do_Stack == (c)); \
+        TG_Do_Stack = c->prior; \
+    } while (0)
+
 #if 0
     // For detailed debugging of the fetching; coarse tool used only in very
     // deep debugging of the evaluator.

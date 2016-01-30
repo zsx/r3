@@ -127,6 +127,7 @@ Script: [
     local-injection:    [{Attempt to inject value to local} :arg1 {in} :arg2]
 
     expression-barrier: {Expression barrier hit while processing arguments}
+    bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
 
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 

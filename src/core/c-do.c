@@ -1156,6 +1156,16 @@ reevaluate:
 //
 // LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
 //
+// Note that natives and dialects frequently do their own interpretation of
+// BAR!--rather than just evaluate it and let it mean something equivalent
+// to an unset.  For instance:
+//
+//     case [false [print "F"] | true [print ["T"]]
+//
+// If CASE did not specially recognize BAR!, it would complain that the
+// "second condition" was UNSET!.  So if you are looking for a BAR! behavior
+// and it's not passing through here, check the construct you are using.
+//
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_BAR:
