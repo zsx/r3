@@ -130,7 +130,7 @@ REBCTX *Alloc_Context(REBCNT len)
     // are building which contains this context
     //
     CTX_VALUE(context)->payload.any_context.context = context;
-    INIT_CONTEXT_KEYLIST(context, keylist);
+    INIT_CTX_KEYLIST_UNIQUE(context, keylist);
     MANAGE_ARRAY(keylist);
 
 #if !defined(NDEBUG)
@@ -171,24 +171,36 @@ REBCTX *Alloc_Context(REBCNT len)
 //
 //  Expand_Context: C
 // 
-// Expand a context. Copy words if flagged.
+// Expand a context. Copy words if keylist is not unique.
 //
-void Expand_Context(REBCTX *context, REBCNT delta, REBCNT copy)
+void Expand_Context(REBCTX *context, REBCNT delta)
 {
     REBARR *keylist = CTX_KEYLIST(context);
 
+    // varlist is unique to each object--expand without making a copy.
+    //
     Extend_Series(ARR_SERIES(CTX_VARLIST(context)), delta);
     TERM_ARRAY(CTX_VARLIST(context));
 
-    // Expand or copy WORDS block:
-    if (copy) {
-        REBOOL managed = GET_ARR_FLAG(keylist, SERIES_FLAG_MANAGED);
-        INIT_CONTEXT_KEYLIST(
-            context, Copy_Array_Extra_Shallow(keylist, delta)
-        );
-        if (managed) MANAGE_ARRAY(CTX_KEYLIST(context));
+    if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
+        //
+        // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
+        // this keylist is shared with one or more other contexts.  Can't
+        // expand the shared copy without impacting the others, so break away
+        // from the sharing group by making a new copy.
+        //
+        // (If all shared copies break away in this fashion, then the last
+        // copy of the dangling keylist will be GC'd.)
+
+        keylist = Copy_Array_Extra_Shallow(keylist, delta);
+        MANAGE_ARRAY(keylist);
+        INIT_CTX_KEYLIST_UNIQUE(context, keylist);
     }
     else {
+        // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
+        // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
+        // to mark the flag indicating it's shared.  Extend it directly.
+
         Extend_Series(ARR_SERIES(keylist), delta);
         TERM_ARRAY(keylist);
     }
@@ -263,14 +275,12 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
     if (extra == 0) {
         dest = AS_CONTEXT(Copy_Array_Shallow(CTX_VARLIST(src)));
-        INIT_CONTEXT_KEYLIST(dest, CTX_KEYLIST(src));
+        INIT_CTX_KEYLIST_SHARED(dest, CTX_KEYLIST(src));
     }
     else {
+        REBARR *keylist = Copy_Array_Extra_Shallow(CTX_KEYLIST(src), extra);
         dest = AS_CONTEXT(Copy_Array_Extra_Shallow(CTX_VARLIST(src), extra));
-        INIT_CONTEXT_KEYLIST(
-            dest,
-            Copy_Array_Extra_Shallow(CTX_KEYLIST(src), extra)
-        );
+        INIT_CTX_KEYLIST_UNIQUE(dest, keylist);
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
@@ -396,7 +406,7 @@ void Collect_Keys_End(void)
 //  Collect_Context_Keys: C
 // 
 // Collect words from a prior context.  If `check_dups` is passed in then
-// there is a check for duplciates, otherwise the keys are assumed to
+// there is a check for duplicates, otherwise the keys are assumed to
 // be unique and copied in using `memcpy` as an optimization.
 //
 void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
@@ -734,17 +744,16 @@ REBCTX *Make_Selfish_Context_Detect(
                 // If we didn't find a SELF in the parent context, add it.
                 // (this means we need a new keylist, too)
                 //
-                INIT_CONTEXT_KEYLIST(
-                    context,
-                    Copy_Array_Core_Managed(
-                        CTX_KEYLIST(opt_parent),
-                        0, // at
-                        CTX_LEN(opt_parent) + 1, // tail (+1 for rootkey)
-                        1, // one extra for self
-                        FALSE, // !deep (keylists shouldn't need it...)
-                        TS_CLONE // types (overkill for a keylist?)
-                    )
+                REBARR *keylist = Copy_Array_Core_Managed(
+                    CTX_KEYLIST(opt_parent),
+                    0, // at
+                    CTX_LEN(opt_parent) + 1, // tail (+1 for rootkey)
+                    1, // one extra for self
+                    FALSE, // !deep (keylists shouldn't need it...)
+                    TS_CLONE // types (overkill for a keylist?)
                 );
+
+                INIT_CTX_KEYLIST_UNIQUE(context, keylist);
 
                 self_index = CTX_LEN(opt_parent) + 1;
                 Val_Init_Typeset(
@@ -761,7 +770,7 @@ REBCTX *Make_Selfish_Context_Detect(
             else {
                 // The parent had a SELF already, so we can reuse its keylist
                 //
-                INIT_CONTEXT_KEYLIST(context, CTX_KEYLIST(opt_parent));
+                INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(opt_parent));
             }
 
             INIT_VAL_CONTEXT(CTX_VALUE(context), context);
@@ -799,7 +808,13 @@ REBCTX *Make_Selfish_Context_Detect(
         //
         context = AS_CONTEXT(Make_Array(len));
         SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
-        INIT_CONTEXT_KEYLIST(context, keylist);
+
+        // !!! We actually don't know if the keylist coming back from
+        // Collect_Keylist_Managed was created new or reused.  Err on the safe
+        // side for now, but it could also return a result so we could know
+        // if it would be legal to call INIT_CTX_KEYLIST_UNIQUE.
+        //
+        INIT_CTX_KEYLIST_SHARED(context, keylist);
 
         // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
         //
@@ -1007,7 +1022,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // so review consequences.
     //
     VAL_RESET_HEADER(value, CTX_TYPE(parent1));
-    INIT_CONTEXT_KEYLIST(child, keylist);
+    INIT_CTX_KEYLIST_UNIQUE(child, keylist);
     INIT_VAL_CONTEXT(value, child);
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_STACKVARS(value) = NULL;
@@ -1126,7 +1141,7 @@ void Resolve_Context(
             if (binds[VAL_TYPESET_CANON(key)]) n--;
 
         // Expand context by the amount required:
-        if (n > 0) Expand_Context(target, n, 0);
+        if (n > 0) Expand_Context(target, n);
         else expand = FALSE;
     }
 
@@ -1233,7 +1248,7 @@ static void Bind_Values_Inner_Loop(
                 //
                 // Word is not in context, so add it if option is specified
                 //
-                Expand_Context(context, 1, 1);
+                Expand_Context(context, 1);
                 Append_Context(context, value, 0);
                 binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
             }
@@ -1666,7 +1681,7 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 
 
 //
-//  Call_For_Relative_Word: C
+//  Frame_For_Relative_Word: C
 //
 // Looks up word from a relative binding to get a specific context.  Currently
 // this uses the stack (dynamic binding) but a better idea is in the works.

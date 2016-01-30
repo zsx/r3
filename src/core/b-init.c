@@ -715,7 +715,8 @@ static void Init_Root_Context(void)
     // is done for convenience.
     //
     /*Free_Array(CTX_KEYLIST(root));*/
-    INIT_CONTEXT_KEYLIST(root, NULL);
+    /*INIT_CTX_KEYLIST_UNIQUE(root, NULL);*/ // can't use with NULL
+    ARR_SERIES(CTX_VARLIST(root))->misc.keylist = NULL;
     MANAGE_ARRAY(CTX_VARLIST(root));
 
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
@@ -862,7 +863,9 @@ static void Init_Task_Context(void)
     // is done for convenience.
     //
     /*Free_Array(CTX_KEYLIST(task));*/
-    INIT_CONTEXT_KEYLIST(task, NULL);
+    /*INIT_CTX_KEYLIST_UNIQUE(task, NULL);*/ // can't use with NULL
+    ARR_SERIES(CTX_VARLIST(task))->misc.keylist = NULL;
+
     MANAGE_ARRAY(CTX_VARLIST(task));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
@@ -1411,6 +1414,7 @@ void Init_Core(REBARGS *rargs)
 {
     REBCTX *error;
     struct Reb_State state;
+    REBARR *keylist;
 
     // !!! These need to find a new home, and preferably a way to be read
     // as constants declared in Rebol files.  Hasn't been done yet due to
@@ -1510,16 +1514,17 @@ void Init_Core(REBARGS *rargs)
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
-    INIT_CONTEXT_KEYLIST(PG_Root_Context, Collect_Keylist_Managed(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, COLLECT_ANY_WORD
-    ));
+    keylist = Collect_Keylist_Managed(
+        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, COLLECT_ANY_WORD);
+    INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, keylist);
     ASSERT_CONTEXT(PG_Root_Context);
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
-    INIT_CONTEXT_KEYLIST(TG_Task_Context, Collect_Keylist_Managed(
+    keylist = Collect_Keylist_Managed(
         NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, COLLECT_ANY_WORD
-    ));
+    );
+    INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, keylist);
     ASSERT_CONTEXT(TG_Task_Context);
 
     // Create main values:

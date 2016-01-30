@@ -275,7 +275,19 @@ enum {
     // of mapping index numbers in the function paramlist into either the
     // stack array or the dynamic array during binding in an efficient way.
     //
-    CONTEXT_FLAG_STACK = 1 << 12
+    CONTEXT_FLAG_STACK = 1 << 12,
+
+    // `KEYLIST_FLAG_SHARED` is indicated on the keylist array of a context
+    // when that same array is the keylist for another object.  If this flag
+    // is set, then modifying an object using that keylist (such as by adding
+    // a key/value pair) will require that object to make its own copy.
+    //
+    // (Note: This flag did not exist in R3-Alpha, so all expansions would
+    // copy--even if expanding the same object by 1 item 100 times with no
+    // sharing of the keylist.  That would make 100 copies of an arbitrary
+    // long keylist that the GC would have to clean up.)
+    //
+    KEYLIST_FLAG_SHARED = 1 << 13
 };
 
 struct Reb_Series_Dynamic {
@@ -976,8 +988,13 @@ struct Reb_Context {
 #define CTX_KEYLIST(c) \
     (ARR_SERIES(CTX_VARLIST(c))->misc.keylist)
 
-#define INIT_CONTEXT_KEYLIST(c,k) \
-    (ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
+#define INIT_CTX_KEYLIST_SHARED(c,k) \
+    (SET_ARR_FLAG((k), KEYLIST_FLAG_SHARED), \
+        ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
+
+#define INIT_CTX_KEYLIST_UNIQUE(c,k) \
+    (assert(!GET_ARR_FLAG((k), KEYLIST_FLAG_SHARED)), \
+        ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that

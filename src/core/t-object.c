@@ -140,7 +140,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Can be a word:
     if (ANY_WORD(arg)) {
         if (!Find_Word_In_Context(context, VAL_WORD_SYM(arg), TRUE)) {
-            Expand_Context(context, 1, 1); // copy word table also
+            Expand_Context(context, 1); // copy word table also
             Append_Context(context, 0, VAL_WORD_SYM(arg));
             // val is UNSET
         }
@@ -189,7 +189,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Append new words to obj
     //
     len = CTX_LEN(context) + 1;
-    Expand_Context(context, ARR_LEN(BUF_COLLECT) - len, 1);
+    Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
     for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
         Append_Context(context, NULL, VAL_TYPESET_SYM(key));
@@ -404,7 +404,9 @@ REBTYPE(Context)
             var = ARR_HEAD(varlist);
             VAL_RESET_HEADER(var, REB_FRAME);
             INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
-            INIT_CONTEXT_KEYLIST(AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg));
+            INIT_CTX_KEYLIST_SHARED(
+                AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg)
+            );
             ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
 
             // !!! The frame will never have stack storage if created this
@@ -636,7 +638,7 @@ REBTYPE(Context)
         context = AS_CONTEXT(
             Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)))
         );
-        INIT_CONTEXT_KEYLIST(context, CTX_KEYLIST(VAL_CONTEXT(value)));
+        INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
         SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
         INIT_VAL_CONTEXT(CTX_VALUE(context), context);
         if (types != 0) {
