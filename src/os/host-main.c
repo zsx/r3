@@ -1074,6 +1074,8 @@ int main(int argc, char **argv_ansi)
 
         REBVAL value;
         VAL_INIT_WRITABLE_DEBUG(&value);
+        SET_END(&value);
+        PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 
     push_trap:
         //
@@ -1111,6 +1113,7 @@ int main(int argc, char **argv_ansi)
         Host_Repl(&exit_status, &value, FALSE);
 
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+        DROP_GUARD_VALUE(&value);
     }
     else
         exit_status = 0; // "success"
