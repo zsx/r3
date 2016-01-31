@@ -1060,7 +1060,7 @@ REBNATIVE(variadic_q)
 
     REBVAL *param = VAL_FUNC_PARAMS_HEAD(ARG(func));
     for (; NOT_END(param); ++param) {
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_VARARGS))
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_VARIADIC))
             return R_TRUE;
     }
 

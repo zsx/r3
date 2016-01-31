@@ -2076,7 +2076,7 @@ reevaluate:
             // back to this call through a reified FRAME!, and are able to
             // consume additional arguments during the function run.
             //
-            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARARGS)) {
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
                 assert(eval_normal); // !!! Can EVAL/ONLY be supported?
                 /*assert(DSP == f->dsp_orig);*/ // !!! *after* refinement args?
 

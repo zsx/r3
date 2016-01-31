@@ -1556,9 +1556,13 @@ enum {
     // !!! This is the last available typeset flag...it does not need to be
     // on the typeset necessarily.  See the VARARGS! type for what this is,
     // which is a representation of the capture of an evaluation position.
-    // The type will also be checked but the value will not be consumed
+    // The type will also be checked but the value will not be consumed.
     //
-    TYPESET_FLAG_VARARGS = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
+    // Note the important distinction, that a variadic parameter and taking
+    // a VARARGS! type are different things.  (A function may accept a
+    // variadic number of VARARGS! values, for instance.)
+    //
+    TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
 };
 
 struct Reb_Typeset {

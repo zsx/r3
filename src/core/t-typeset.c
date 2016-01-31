@@ -150,7 +150,7 @@ REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
         val = NULL;
 
         if (IS_BAR(block)) {
-            SET_VAL_FLAG(value, TYPESET_FLAG_VARARGS);
+            SET_VAL_FLAG(value, TYPESET_FLAG_VARIADIC);
             continue;
         }
 

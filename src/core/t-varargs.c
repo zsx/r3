@@ -283,16 +283,13 @@ handle_subfeed:
     }
 
     // Now check to see if the value fetched through the varargs mechanism
-    // was itself a VARARGS!.  As long as not hard-quoted, this will chain
-    // so the next time this routine is called, this varargs is consulted.
+    // was itself a VARARGS!.  If the argument explicitly says it takes
+    // a VARARGS! type (a distinction from being marked variadic but taking
+    // only integers, say)...then it will be passed normally.  But if it
+    // is not marked as taking VARARGS! then it will become chained, so
+    // that the next time this routine is called, this varargs is consulted.
     //
-    if (
-        IS_VARARGS(out)
-        && (
-            GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE)
-            || !GET_VAL_FLAG(param, TYPESET_FLAG_QUOTE)
-        )
-    ) {
+    if (IS_VARARGS(out) && !TYPE_CHECK(param, REB_VARARGS)) {
         assert(*subfeed_addr == NULL);
 
         if (GET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME))
@@ -350,7 +347,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         VAL_INIT_WRITABLE_DEBUG(&fake_param);
 
         Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS); // any type
-        SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARARGS); // pretend <...> tag
+        SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARIADIC); // pretend <...> tag
         SET_VAL_FLAG(&fake_param, TYPESET_FLAG_QUOTE); // !FLAG_EVALUATE
 
         indexor = Do_Vararg_Op_Core(

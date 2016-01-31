@@ -269,9 +269,11 @@ REBOOL Make_Block_Type_Throws(
     if (IS_VARARGS(arg)) {
         //
         // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
-        // varargs to the end and making an array out of the unevaluated
-        // values.  It's not known how many elements that will be, so they're
-        // gathered to the data stack to find the size, then an array made.
+        // varargs to the end and making an array out of that.  It's not known
+        // how many elements that will be, so they're gathered to the data
+        // stack to find the size, then an array made.  Note that | will stop
+        // a normal or soft-quoted varargs, but a hard-quoted varargs will
+        // grab all the values to the end of the source.
 
         REBDSP dsp_orig = DSP;
 
@@ -299,7 +301,7 @@ REBOOL Make_Block_Type_Throws(
             Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
             SET_VAL_FLAGS(
                 &fake_param,
-                TYPESET_FLAG_VARARGS | TYPESET_FLAG_QUOTE
+                TYPESET_FLAG_VARIADIC | TYPESET_FLAG_QUOTE
             );
             param = &fake_param;
         }
@@ -313,8 +315,10 @@ REBOOL Make_Block_Type_Throws(
                 out, feed, param, SYM_0, VARARG_OP_TAKE
             );
 
-            if (indexor == THROWN_FLAG)
+            if (indexor == THROWN_FLAG) {
+                DS_DROP_TO(dsp_orig);
                 return TRUE;
+            }
             if (indexor == END_FLAG)
                 break;
             assert(indexor == VALIST_FLAG);
@@ -705,6 +709,7 @@ REBTYPE(Array)
                 arg // size, block to copy, or value to convert
             )
         ) {
+            *D_OUT = *value;
             return R_OUT_IS_THROWN;
         }
 
