@@ -838,13 +838,19 @@ void Make_Function(
 
 #if !defined(NDEBUG)
     //
-    // Because Mezzanine functions are written to depend on the idea that when
-    // they get a refinement it will be a WORD! and not a LOGIC!, we have to
-    // capture the desire to get LOGIC! vs WORD! at function creation time,
-    // not dispatch time.
+    // If FUNC or MAKE FUNCTION! are being invoked from an array of code that
+    // has been flagged "legacy" (e.g. the body of a function created after
+    // `do <r3-legacy>` has been run) then mark the function with the setting
+    // to make refinements TRUE instead of WORD! when used, as well as their
+    // args NONE! instead of UNSET! when not used...if that option is on.
     //
-    if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
+    if (
+        LEGACY_RUNNING(OPTIONS_REFINEMENTS_TRUE)
+        || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
+        || GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LEGACY)
+    ) {
         SET_VAL_FLAG(out, FUNC_FLAG_LEGACY);
+    }
 #endif
 
     // Now that we've created the function's fields, we pull a trick.  It

@@ -146,8 +146,6 @@ options: context [  ; Options supplied to REBOL during startup
     broken-case-semantics: false
     do-runs-functions: false
     refinements-true: false
-    no-switch-evals: false
-    no-switch-fallthrough: false
     forever-64-bit-ints: false
     print-forms-everything: false
     break-with-overrides: false
@@ -156,6 +154,14 @@ options: context [  ; Options supplied to REBOL during startup
     paren-instead-of-group: false
     get-will-get-anything: false
     no-reduce-nested-print: false
+    arg1-arg2-arg3-error: false
+
+    ; These option will only apply if the function which is currently executing
+    ; was created after legacy mode was enabled, and if refinements-true is
+    ; set (because that's what marks functions as "legacy" or not")
+    ;
+    no-switch-evals: false
+    no-switch-fallthrough: false
 
     ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
     ; on the new behavior).  The points are retained in the code for purpose
@@ -164,7 +170,7 @@ options: context [  ; Options supplied to REBOL during startup
     ; would mean adapting the mezzanine (or finding a way to mark a routine
     ; as not being in the mezzanine and following a different rule.)
 
-    arg1-arg2-arg3-error: false
+    ;--none at present--
 ]
 
 script: context [

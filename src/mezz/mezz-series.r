@@ -427,8 +427,8 @@ use [collect-proto] [
     "Evaluate body, and return block of values collected via keep function."
 
     (if/only with [
-        'word [word! lit-word!]
-            "Word to which keep function will be assigned (<local> if word!)"
+        'name [word! lit-word!]
+            "Name to which keep function will be assigned (<local> if word!)"
     ])
 
     body [block!]
@@ -442,62 +442,31 @@ use [collect-proto] [
     ]]
 
     collect-with: func (collect-proto true) [
+        output: any [:output make block! 16]
 
-        ; Due to the desire to be able to use COLLECT in <r3-legacy> mode,
-        ; the "true valued refinements switch" must be respected.  This is even
-        ; though the function captures a modality at the time a switch is on,
-        ; because collect *makes* a function.  :-/
-
-        either not system/options/refinements-true [
-
-            ;; Ren/C version ... adds `with` feature
-
-            output: any [:output make block! 16]
-
-            keeper: func [
-                value [opt-any-value!] /only
-            ][
-                output: insert/:only output :value
-                :value
-            ]
-
-            either word? word [
-                ;
-                ; A plain `word` indicates that the body is not already bound to
-                ; that word.  FUNC does binding and variable creation so let it
-                ; do the work.
-                ;
-                eval func reduce [<no-return> word] body :keeper
-            ][
-                ; A lit-word `word` indicates that the word for the keeper already
-                ; exists.  Set the variable and DO the body bound as-is.
-                ;
-                set word :keeper
-                do body
-            ]
-
-            either into [output] [head output]
+        keeper: func [
+            value [opt-any-value!] /only
         ][
-            ;; Legacy .. no WITH feature
-
-            ; Note: because this is a Mezzanine it was loaded with the word
-            ; valued refinements and unset-unused-refinements, and remembers
-            ; that...even when the legacy mode is enabled.  Compatibility to
-            ; not touch code.
-            ;
-            if unset? :output [output: none]
-
-            assert [word = 'keep] ; no WITH
-
-            unless output [output: make block! 16]
-            do func [keep] body func [
-                value [any-type!] /only
-            ][
-                output: apply :insert [output :value none none only]
-                :value
-            ]
-            either into [output] [head output]
+            output: insert/:only output :value
+            :value
         ]
+
+        either word? name [
+            ;
+            ; A word `name` indicates that the body is not already bound to
+            ; that word.  FUNC does binding and variable creation so let it
+            ; do the work.
+            ;
+            eval func reduce [<no-return> name] body :keeper
+        ][
+            ; A lit-word `name` indicates that the word for the keeper already
+            ; exists.  Set the variable and DO the body bound as-is.
+            ;
+            set name :keeper
+            do body
+        ]
+
+        either into [output] [head output]
     ]
 
     ; Classic version of COLLECT which assumes that the word you want to use

@@ -1648,43 +1648,21 @@ REBNATIVE(switch)
         // You can still evaluate to one of these, e.g. `(quote :foo)` to
         // use parens to produce a GET-WORD! to test against.
 
-        if (IS_GROUP(item)) {
+        if (IS_GROUP(item) || IS_GET_WORD(item) || IS_GET_PATH(item)) {
 
         #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
+            //
+            // Note: Mezzanine can no longer support a non-eval'ing switch.
+            // Guide usage of the flag by currently running function *only*.
+            //
+            if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_EVALS)) {
                 *D_OUT = *item;
                 goto compare_values;
             }
         #endif
 
-            if (DO_ARRAY_THROWS(D_OUT, item))
+            if (DO_VALUE_THROWS(D_OUT, item))
                 return R_OUT_IS_THROWN;
-        }
-        else if (IS_GET_WORD(item)) {
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
-                *D_OUT = *item;
-                goto compare_values;
-            }
-        #endif
-
-            *D_OUT = *GET_OPT_VAR_MAY_FAIL(item);
-        }
-        else if (IS_GET_PATH(item)) {
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
-                *D_OUT = *item;
-                goto compare_values;
-            }
-        #endif
-
-            if (Do_Path_Throws(D_OUT, NULL, item, NULL))
-                return R_OUT;
         }
         else {
             // Even if we're just using the item literally, we need to copy
@@ -1732,22 +1710,15 @@ REBNATIVE(switch)
     }
 
     #if !defined(NDEBUG)
-        // The previous answer to `switch 1 [1]` was a NONE!.  This was
-        // a candidate for marking as an error, however the new idea is to
-        // let cases that do not have a block after them be evaluated
-        // (if necessary) and the last one to fall through and be the
-        // result.  This offers a nicer syntax for a default, especially
-        // when GROUP! is taken into account.
         //
-        // However, running in legacy compatibility mode we need to squash
-        // the value into a NONE! so it doesn't fall through.
+        // R3-Alpha made `switch 1 [1]` NONE!, in Ren-C this is 1 (and useful
+        // especially with evaluated items like GROUP! for a fallthrough
+        // syntax alternative to `switch/default`.)  Mezzanine relies on this
+        // now, so only use the legacy behavior if the currently running
+        // function is "legacy" marked.  It's not perfect, see notes.
         //
-        if (LEGACY(OPTIONS_NO_SWITCH_FALLTHROUGH)) {
-            if (!IS_NONE(D_OUT)) {
-                // !!! Note this difference in legacy log
-            }
+        if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_FALLTHROUGH))
             return R_NONE;
-        }
     #endif
 
     return R_OUT;

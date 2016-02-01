@@ -721,6 +721,39 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 
 
 //
+//  In_Legacy_Function_Debug: C
+//
+// Determine if a legacy function is "in effect" currently.  To the extent
+// that compatibility in debug builds or legacy mode with R3-Alpha is
+// "important" this should be used sparingly, because code can be bound and
+// passed around in blocks.  So you might be running a legacy function passed
+// new code or new code passed legacy code (e.g. a mezzanine that uses DO)
+//
+REBOOL In_Legacy_Function_Debug(void)
+{
+    // Find the first bit of code that's actually running ordinarily in
+    // the evaluator, and not just dispatching.
+    //
+    struct Reb_Frame *frame = FS_TOP;
+    for (; frame != NULL; frame = frame->prior) {
+        if (frame->flags & DO_FLAG_VALIST)
+            return FALSE; // no source array to look at
+
+        break; // whatever's dispatching here, there is a source array
+    }
+
+    if (frame == NULL)
+        return FALSE;
+
+    // Check the flag on the source series
+    //
+    if (GET_ARR_FLAG(frame->source.array, SERIES_FLAG_LEGACY))
+        return TRUE;
+
+    return FALSE;
+}
+
+
 //  Trace_Fetch_Debug: C
 //
 // When down to the wire and wanting to debug the evaluator, it can be very

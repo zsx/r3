@@ -287,7 +287,20 @@ enum {
     // sharing of the keylist.  That would make 100 copies of an arbitrary
     // long keylist that the GC would have to clean up.)
     //
-    KEYLIST_FLAG_SHARED = 1 << 13
+    KEYLIST_FLAG_SHARED = 1 << 13,
+
+    // `SERIES_FLAG_LEGACY` is a flag which is marked at the root set of the
+    // body of legacy functions.  It can be used in a dynamic examination of
+    // a call to see if it "originates from legacy code".  This is a vague
+    // concept given the ability to create blocks and run them--so functions
+    // like COPY would have to propagate the flag to make it "more accurate".
+    // But it's good enough for casual compatibility in many cases.
+    //
+#if !defined NDEBUG
+    SERIES_FLAG_LEGACY = 1 << 14,
+#endif
+
+    SERIES_FLAG_NO_COMMA_NEEDED = 0 // solves dangling comma from above
 };
 
 struct Reb_Series_Dynamic {

@@ -1761,6 +1761,20 @@ exit_block:
     // too expensive, and we don't load source and free it manually anyway)
     //
     MANAGE_ARRAY(block);
+
+    // In Legacy mode, it can be helpful to know if a block of code is
+    // loaded after legacy mode is turned on.  This way, for instance a
+    // SWITCH can run differently based on noticing it was dispatched from
+    // a reference living in that legacy code.
+    //
+    // !!! Currently cued by the REFINEMENTS_TRUE option which also applies
+    // to functions, but should be its own independent switch.
+    //
+#if !defined(NDEBUG)
+    if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
+        SET_ARR_FLAG(block, SERIES_FLAG_LEGACY);
+#endif
+
     return block;
 }
 
