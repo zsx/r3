@@ -754,6 +754,47 @@ REBOOL In_Legacy_Function_Debug(void)
 }
 
 
+//
+// R3-Alpha and Rebol2 used TRUE for a refinement and NONE for the argument
+// to a refinement which is not present.  Ren-C provides the name of the
+// argument as a WORD! if for the refinement, and UNSET! for refinement
+// args that are not there.  (This makes chaining work.)
+//
+// Could be woven in efficiently, but as it's a debug build only feature it's
+// better to isolate it into a post-phase.  This improves the readability of
+// the mainline code.
+//
+static void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
+{
+    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
+    REBVAL *arg = FRM_ARGS_HEAD(f);
+
+    REBOOL set_none = FALSE;
+
+    for (; NOT_END(param); ++param, ++arg) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
+
+            if (IS_WORD(arg)) {
+                assert(VAL_WORD_SYM(arg) == VAL_TYPESET_SYM(param));
+                SET_TRUE(arg);
+                set_none = FALSE;
+            }
+            else if (IS_NONE(arg)) {
+                set_none = TRUE;
+            }
+            else assert(FALSE);
+        }
+        else {
+            if (set_none && !GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
+                assert(IS_UNSET(arg));
+                SET_NONE(arg);
+            }
+        }
+    }
+}
+
+
+//
 //  Trace_Fetch_Debug: C
 //
 // When down to the wire and wanting to debug the evaluator, it can be very
@@ -1715,8 +1756,12 @@ reevaluate:
         // This is because recursive stack-relative bindings would wind
         // up reading variables out of the frame while it is still
         // being built, and that would be bad.
+
+        // Depending on the <durable> settings of a function's arguments, they
+        // may wind up resident in stack space or in dynamically allocated
+        // space.  This sets up the memory as appropriate for the flags.
         //
-        Push_New_Arglist_For_Call(f);
+        Push_Or_Alloc_Vars_For_Call(f);
 
         // If it's a specialization, we've already taken care of what we
         // needed to know from that specialization--all further references
@@ -2015,17 +2060,6 @@ reevaluate:
                             f->refine, REB_WORD, VAL_TYPESET_SYM(f->param)
                         );
 
-                    #if !defined(NDEBUG)
-                        if (GET_VAL_FLAG(
-                            FUNC_VALUE(f->func), FUNC_FLAG_LEGACY
-                        )) {
-                            // OPTIONS_REFINEMENTS_TRUE at function create,
-                            // so ovewrite the WORD! with TRUE
-                            //
-                            SET_TRUE(f->refine);
-                        }
-                    #endif
-
                         continue;
                     }
 
@@ -2071,15 +2105,6 @@ reevaluate:
                     Val_Init_Word(
                         f->refine, REB_WORD, VAL_TYPESET_SYM(f->param)
                     );
-
-                #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
-                        // OPTIONS_REFINEMENTS_TRUE at function create, so
-                        // ovewrite the word we put in the refine slot
-                        //
-                        SET_TRUE(f->refine);
-                    }
-                #endif
 
                     continue;
                 }
@@ -2176,12 +2201,7 @@ reevaluate:
                     //     >> do [foo]
                     //     == "special allowance"
                     //
-                #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
-                        SET_UNSET(f->arg); // was NONE by default...
-                    else
-                        assert(IS_UNSET(f->arg)); // already is unset...
-                #endif
+                    SET_UNSET(f->arg);
 
                     // Pre-empt the later type checking in order to inject a
                     // more specific message than "doesn't take UNSET!"
@@ -2302,22 +2322,8 @@ reevaluate:
                     fail (Error(RE_BAD_REFINE_REVOKE));
                 else if (f->mode == CALL_MODE_REFINE_PENDING) {
                     f->mode = CALL_MODE_REFINE_REVOKE;
-
-                #if !defined(NDEBUG)
-                    //
-                    // Sanity check that the refinement revoking type is good,
-                    // whether legacy (true/false) or Ren-C (WORD! of the
-                    // refinement itself).
-                    //
-                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
-                        assert(IS_LOGIC(f->refine));
-                        assert(IS_NONE(f->arg)); // is actually already none
-                    }
-                    else {
-                        assert(IS_WORD(f->refine));
-                        assert(IS_UNSET(f->arg));
-                    }
-                #endif
+                    assert(IS_WORD(f->refine));
+                    assert(IS_UNSET(f->arg));
 
                     SET_NONE(f->refine); // ...revoke the refinement.
                 }
@@ -2326,12 +2332,7 @@ reevaluate:
                     // We are revoking arguments to a refinement that have
                     // never been filled, so they should be vacant.
                     //
-                #if !defined(NDEBUG)
-                    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
-                        assert(IS_NONE(f->arg));
-                    else
-                        assert(IS_UNSET(f->arg));
-                #endif
+                    assert(IS_UNSET(f->arg));
                 }
             }
             else {
@@ -2383,6 +2384,17 @@ reevaluate:
         //
         // Execute the function with all arguments ready.
         //
+    #if !defined(NDEBUG)
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
+            //
+            // OPTIONS_REFINEMENTS_TRUE was set when this particular function
+            // was created.  Use the debug-build's legacy post-processing
+            // so refinements and their args work like in Rebol2/R3-Alpha.
+            //
+            Legacy_Convert_Function_Args_Debug(f);
+        }
+    #endif
+
     #if !defined(NDEBUG)
         //
         // R3-Alpha DO acted like an "EVAL" when passed a function, hence it
@@ -2517,13 +2529,7 @@ reevaluate:
             --(f->arg);
 
             assert(GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN));
-
-        #if !defined(NDEBUG)
-            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
-                assert(IS_NONE(f->arg));
-            else
-                assert(IS_UNSET(f->arg));
-        #endif
+            assert(IS_UNSET(f->arg));
 
             if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)
                 *(f->arg) = *ROOT_RETURN_NATIVE;
@@ -2784,7 +2790,7 @@ reevaluate:
         //
         // No longer need to check f->data.context for thrown status if it
         // was used, so overwrite the dead pointer in the union.  Note there
-        // are two entry points to Push_Arglist_For_Call at the moment,
+        // are two entry points to Push_Or_Alloc_Vars_For_Call at the moment,
         // so this clearing can't be done by the debug routine at top of loop.
         //
         f->data.stackvars = NULL;
@@ -2944,11 +2950,11 @@ reevaluate:
 
                 if (Trace_Flags) Trace_Line(f->source, f->indexor, f->param);
 
-                // We go ahead and start an arglist, and put our evaluated
+                // We go ahead and start the vars, and put our evaluated
                 // result into it as the "left-hand-side" before calling into
                 // the rest of function's behavior.
                 //
-                Push_New_Arglist_For_Call(f);
+                Push_Or_Alloc_Vars_For_Call(f);
 
                 // Infix functions must have at least arity 1 (exactly 2?)
                 //

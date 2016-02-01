@@ -477,8 +477,8 @@ void Drop_Chunk(REBVAL values[])
 
 
 //
-//  Push_New_Arglist_For_Call: C
-// 
+//  Push_Or_Alloc_Vars_For_Call: C
+//
 // Allocate the series of REBVALs inspected by a non-varless function when
 // executed (the values behind D_ARG(1), D_REF(2), etc.)  Since the call
 // contains the function, it is known how many parameters are needed.
@@ -491,14 +491,14 @@ void Drop_Chunk(REBVAL values[])
 // actually invoke the function, so it's Dispatch_Call that actually moves
 // it to the running status.
 //
-void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
+void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
     REBARR *varlist;
     REBFUN *actual_func;
     REBVAL *special_arg;
 
-    // Should not already have an arglist.  We zero out the union field for
+    // Should not already have any vars.  We zero out the union field for
     // the chunk, so that's the one we should check.
     //
 #if !defined(NDEBUG)
@@ -600,16 +600,8 @@ void Push_New_Arglist_For_Call(struct Reb_Frame *f) {
             *slot = *special_arg;
             ++special_arg;
         }
-        else {
-        #ifdef NDEBUG
+        else
             SET_UNSET(slot);
-        #else
-            if (GET_VAL_FLAG(FUNC_VALUE(actual_func), FUNC_FLAG_LEGACY))
-                SET_NONE(slot);
-            else
-                SET_UNSET(slot);
-        #endif
-        }
 
         slot++;
     }
