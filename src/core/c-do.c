@@ -772,8 +772,7 @@ static void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
     REBOOL set_none = FALSE;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
-
+        if (VAL_PARAM_CLASS(param) == PARAM_CLASS_REFINEMENT) {
             if (IS_WORD(arg)) {
                 assert(VAL_WORD_SYM(arg) == VAL_TYPESET_SYM(param));
                 SET_TRUE(arg);
@@ -784,8 +783,10 @@ static void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
             }
             else assert(FALSE);
         }
+        else if (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
+            assert(IS_UNSET(arg));
         else {
-            if (set_none && !GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
+            if (set_none) {
                 assert(IS_UNSET(arg));
                 SET_NONE(arg);
             }
@@ -1012,38 +1013,41 @@ static void Do_Exit_Checks_Debug(struct Reb_Frame *f);
     } while(0)
 
 
+// In Ren-C, marking an argument used is done by setting it to a WORD! which
+// has the same symbol as the refinement itself.  This makes certain chaining
+// scenarios easier (though APPLY is being improved to the point where it
+// may be less necessary).  This macro makes it clear that's what's happening.
+//
+#define MARK_REFINEMENT_USED(arg,param) \
+    Val_Init_Word((arg), REB_WORD, VAL_TYPESET_SYM(param));
+
+
 //
 //  Do_Core: C
 // 
-// Evaluate the code block until we have:
-//
-//     1. An irreducible value (return next index)
-//     2. Reached the end of the block (return END_FLAG)
-//     3. Encountered an error
+// This is the central evaluator which operates on an array of Rebol values.
+// It can execute single evaluation steps (e.g. a DO/NEXT) or it can run the
+// array to the end of its content.  A flag controls that behavior, and there
+// are other flags for controlling its other behaviors.
 //
 // For comprehensive notes on the input parameters, output parameters, and
 // internal state variables...see %sys-do.h and `struct Reb_Frame`.
 // 
 // NOTES:
 //
-// 1. This is a very long routine.  That is largely on purpose, because it
-//    does not contain repeated portions...and is a critical performance
-//    bottleneck in the system.  So dividing it for the sake of "having
-//    more functions" wouldn't be a good idea, especially since the target
-//    is compilers that are so simple they may not have proper inlining
-//    (which is only a "hint" to the compiler even if it's supported).
+// * This is a very long routine.  That is largely on purpose, because it
+//   does not contain repeated portions...and is a critical performance
+//   bottleneck in the system.  So dividing it for the sake of "having
+//   more functions" wouldn't be a good idea, especially since the target
+//   is compilers that are so simple they may not have proper inlining
+//   (which is only a "hint" to the compiler even if it's supported).
 //
-// 2. Changing the behavior of the parameter fulfillment in this core routine
-//    generally also means changes to two other semi-parallel routines:
-//    `Apply_Block_Throws()` and `Redo_Func_Throws().`  Review the impacts
-//    of any changes on all three.
-//
-// The evaluator only moves forward, and it consumes exactly one element from
-// the input at a time.  This input may be a source where the index needs
-// to be tracked and care taken to contain the index within its boundaries
-// in the face of change (e.g. a mutable ARRAY).  Or it may be an entity
-// which tracks its own position on each fetch and where it is immutable,
-// where the "index" is serving as a flag and should be left static.
+// * The evaluator only moves forward, and it consumes exactly one element
+//   from the input at a time.  This input may be a source where the index
+//   needs to be tracked and care taken to contain the index within its
+//   boundaries in the face of change (e.g. a mutable ARRAY).  Or it may be
+//   an entity which tracks its own position on each fetch, where "indexor"
+//   is serving as a flag and should be left static.
 //
 // !!! There is currently no "locking" or other protection on the arrays that
 // are in the call stack and executing.  Each iteration must be prepared for
@@ -1076,6 +1080,10 @@ void Do_Core(struct Reb_Frame * const f)
     // See notes below on reference for why this is needed to implement eval.
     //
     REBOOL eval_normal; // EVAL/ONLY can trigger this to FALSE
+
+    // Parameter class cache, used while fulfilling arguments
+    //
+    enum Reb_Param_Class pclass;
 
     // Check just once (stack level would be constant if checked in a loop)
     //
@@ -1212,7 +1220,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_NONE:
-        DO_NEXT_REFETCH_QUOTED(f->out, f);
+        QUOTE_NEXT_REFETCH(f->out, f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1316,7 +1324,7 @@ reevaluate:
                 NOTE_THROWING(goto return_indexor);
         }
         else
-            DO_NEXT_REFETCH_QUOTED(f->out, f);
+            QUOTE_NEXT_REFETCH(f->out, f);
 
         if (IS_UNSET(f->out))
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
@@ -1348,7 +1356,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_LIT_WORD:
-        DO_NEXT_REFETCH_QUOTED(f->out, f);
+        QUOTE_NEXT_REFETCH(f->out, f);
         VAL_SET_TYPE_BITS(f->out, REB_WORD);
         break;
 
@@ -1505,7 +1513,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_LIT_PATH:
-        DO_NEXT_REFETCH_QUOTED(f->out, f);
+        QUOTE_NEXT_REFETCH(f->out, f);
         VAL_SET_TYPE_BITS(f->out, REB_PATH);
         break;
 
@@ -1828,44 +1836,62 @@ reevaluate:
 
         f->mode = CALL_MODE_ARGS;
 
-        f->refine = TRUE_VALUE; // (read-only)
+        f->refine = TRUE_VALUE; // "not a refinement arg, evaluate normally"
 
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // FUNCTION! NORMAL ARGUMENT FULFILLMENT LOOP
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
+        // This loop goes through the parameter and argument slots.  Based on
+        // the parameter type, it may be necessary to "consume" an expression
+        // from values that come after the invokation point.  But not all
+        // params will consume arguments for all calls.  See notes below.
+        //
+        // For this one body of code to be able to handle both function
+        // specialization and ordinary invocation, the BAR! type is used as
+        // a signal to have "unspecialized" behavior.  Hence a normal call
+        // just pre-fills all the args with BAR!--which will be overwritten
+        // during the argument fulfillment process.
+        //
+        // It is mostly straightforward, but notice that refinements are
+        // somewhat tricky.  These two calls mean different things:
+        //
+        //     foo: func [a /b c /d e] [...]
+        //
+        //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
+        //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
+        //
+        // The order of refinements in the definition (b d) might not match
+        // what order the refinements are invoked in the path.  This means
+        // the "visitation order" of the parameters while walking across
+        // parameters in the array might not match the "consumption order"
+        // of the expressions that are being fetched from the callsite.
+        //
+        // To get around that, there's a trick.  An out-of-order refinement
+        // makes a note in the stack about a parameter and arg position that
+        // it sees that it will need to come back to.  It pokes those two
+        // pointers into extra space in the refinement's word on the stack,
+        // since that word isn't using its binding.  See WORD_FLAG_PICKUP for
+        // the type of WORD! that is used to implement this.
+        //
         for (; NOT_END(f->param); ++f->param, ++f->arg) {
+            pclass = VAL_PARAM_CLASS(f->param);
             assert(IS_TYPESET(f->param));
 
-    //=//// REFINEMENT PARAMETER //////////////////////////////////////////=//
+            if (pclass == PARAM_CLASS_REFINEMENT) {
 
-            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_REFINEMENT)) {
+                if (f->mode == CALL_MODE_REFINEMENT_PICKUP)
+                    break; // pickups done when another refinement is hit
 
-                if (f->mode == CALL_MODE_ARGS_PICKUPS)
-                    break; // done picking up previous refinement's args...
+                if (IS_BAR(f->arg)) { // unspecialized, so consult path (stack)
 
-                // BE CAREFUL IN TRYING TO SIMPLIFY THIS CODE!  Refinements
-                // are tricky because users can write:
-                //
-                //     foo: func [a /b c /d e] [...]
-                //
-                //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
-                //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
-                //
-                // The order of evaluations in the argument series might not
-                // match the order of the refinements in the definition.
-                // Hence if we pass a refinement which isn't needed yet but
-                // will be needed later, we leave a pointer to this position
-                // with the word on the stack (it's not using its binding).
-                //
-                if (IS_BAR(f->arg)) {
-                    //
-                    // BAR! means no specialization of this refinement, so
-                    // the path (now stack words) dictate whether it's used
+    //=//// UNSPECIALIZED REFINEMENT ARG (no consumption) /////////////////=//
 
-                    if (f->dsp_orig == DSP) {
-                        //
-                        // No refinements to process (or none left on the
-                        // stack), so this one we're hitting can't be used.
-                        //
+                    if (f->dsp_orig == DSP) { // no refinements left on stack
                         SET_NONE(f->arg);
-                        f->refine = NONE_VALUE; // (read-only)
+                        f->refine = NONE_VALUE; // "don't consume args, ever"
                         goto continue_arg_loop;
                     }
 
@@ -1875,22 +1901,15 @@ reevaluate:
                         VAL_WORD_SYM(f->refine)
                         == SYMBOL_TO_CANON(VAL_TYPESET_SYM(f->param)) // #2258
                     ) {
-                        // We're lucky--next refinement to fulfill was the
-                        // one that got hit while walking in order
-                        //
-                        DS_DROP;
-                        Val_Init_Word(
-                            f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
-                        );
-                        f->refine = f->arg; // writable (can be revoked)
+                        DS_DROP; // we're lucky: this was next refinement used
+
+                        MARK_REFINEMENT_USED(f->arg, f->param);
+                        f->refine = f->arg; // "consume args (can be revoked)"
                         goto continue_arg_loop;
                     }
 
-                    // We weren't lucky, so we may have to make a note on
-                    // the refinement word about coming back to this arg and
-                    // param to fill it in once the arg loop finishes.
-                    //
-                    --f->refine;
+                    --f->refine; // not lucky: if in use, this is out of order
+
                     for (; f->refine > DS_AT(f->dsp_orig); --f->refine) {
                         if (
                             VAL_WORD_SYM(f->refine) // canonized when pushed
@@ -1898,18 +1917,20 @@ reevaluate:
                                 VAL_TYPESET_SYM(f->param) // #2258
                             )
                         ) {
-                            Val_Init_Word(
-                                f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
-                            );
-
+                            // The call uses this refinement but we'll have to
+                            // come back to it when the expression index to
+                            // consume lines up.  Make a note of the param
+                            // and arg and poke them into the stack WORD!.
+                            //
                             UNBIND_WORD(f->refine);
-                            SET_VAL_FLAG(f->refine, WORD_FLAG_SEEKER);
-                            f->refine->payload.any_word.place.seeker.param
+                            SET_VAL_FLAG(f->refine, WORD_FLAG_PICKUP);
+                            f->refine->payload.any_word.place.pickup.param
                                 = f->param;
-                            f->refine->payload.any_word.place.seeker.arg
+                            f->refine->payload.any_word.place.pickup.arg
                                 = f->arg;
 
-                            f->refine = UNSET_VALUE; // means "skipping"
+                            MARK_REFINEMENT_USED(f->arg, f->param);
+                            f->refine = UNSET_VALUE; // "consume args later"
                             goto continue_arg_loop;
                         }
                     }
@@ -1917,21 +1938,16 @@ reevaluate:
                     // Wasn't in the path and not specialized, so not present
                     //
                     SET_NONE(f->arg);
-                    f->refine = NONE_VALUE; // (read-only)
+                    f->refine = NONE_VALUE; // "don't consume args, ever"
                     goto continue_arg_loop;
                 }
 
-                // We're attempting specialization (since arg wasn't a BAR!).
-                // Do soft-quote handling first, so arg can use evaluations.
-                //
-                if (
-                    IS_GROUP(f->arg)
-                    || IS_GET_WORD(f->arg)
-                    || IS_GET_PATH(f->arg)
-                ) {
+    //=//// SPECIALIZED REFINEMENT ARG (no consumption) ///////////////////=//
+
+                if (IS_QUOTABLY_SOFT(f->arg)) { // for `(copy [1 2 3])`, etc.
+
                     if (DO_VALUE_THROWS(f->out, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
-
                         f->indexor = THROWN_FLAG;
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
@@ -1961,14 +1977,14 @@ reevaluate:
                 goto continue_arg_loop;
             }
 
-    //=//// IF SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////////=//
+    //=//// IF JUST SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////=//
 
             if (IS_UNSET(f->refine))
                 goto continue_arg_loop;
 
-    //=//// "PURE LOCAL" ARG (set-word! in spec) //////////////////////////=//
+    //=//// PURE "LOCAL:" ARG (must be unset, no consumption) /////////////=//
 
-            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN)) {
+            if (pclass == PARAM_CLASS_PURE_LOCAL) {
 
                 if (IS_BAR(f->arg)) { // no specialization (common case)
                     SET_UNSET(f->arg);
@@ -1978,28 +1994,20 @@ reevaluate:
                 if (IS_UNSET(f->arg)) // the only legal specialized value
                     goto continue_arg_loop;
 
-                // Pure locals *must* be UNSET! when the function starts.
-                // (outlier is the FUNC_FLAG_LEAVE_OR_RETURN trick, which will
-                // later put a "magic" REBNATIVE(return) in `return:` slots)
-                //
                 fail (Error_Local_Injection(f->label_sym, f->param));
             }
 
-    //=//// SPECIALIZED ARG ///////////////////////////////////////////////=//
+    //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
 
             if (NOT(IS_BAR(f->arg))) {
 
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
 
-                if (
-                    IS_GROUP(f->arg)
-                    || IS_GET_WORD(f->arg)
-                    || IS_GET_PATH(f->arg)
-                ) {
+                if (IS_QUOTABLY_SOFT(f->arg)) {
+
                     if (DO_VALUE_THROWS(f->out, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
-
                         f->indexor = THROWN_FLAG;
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
@@ -2047,19 +2055,17 @@ reevaluate:
                 goto check_arg; // normal checking, handles errors also
             }
 
-            // If we get here then the argument was a BAR!, and we fallthrough
-            // to normal argument acquisition at the callsite.  But no
-            // argument acquisition should be done for inactive refinements.
+    //=//// IF UNSPECIALIZED ARG IS INACTIVE, SET UNSET AND MOVE ON ///////=//
+
+            // Unspecialized arguments that do not consume do not need any
+            // further processing or checking.  UNSET! will always be fine.
             //
-            // (If f->refine is FALSE, then the refinement is revoked.  It
-            // should still be evaluated, `check_arg` ensures it's UNSET!)
-            //
-            if (IS_NONE(f->refine)) {
+            if (IS_NONE(f->refine)) { // FALSE if revoked, and still evaluates
                 SET_UNSET(f->arg);
                 goto continue_arg_loop;
             }
 
-    //=//// FUNCTION VARARGS PARAMETER ////////////////////////////////////=//
+    //=//// VARIADIC ARG (doesn't consume anything *yet*) /////////////////=//
 
             // Evaluation argument "hook" parameters (signaled in MAKE FUNCION!
             // by a `|` in the typeset, and in FUNC by `<...>`).  They point
@@ -2083,130 +2089,46 @@ reevaluate:
                 goto continue_arg_loop;
             }
 
-            // No argument--quoted or otherwise--is allowed to be directly
-            // filled by a literal expression barrier.  Not even if it can
-            // accept the type BAR! (other means must be used, e.g. LIT-BAR!
-            // decaying to a BAR! in the slot).
+    //=//// AFTER THIS, PARAMS CONSUME--ERROR ON END MARKER, BAR! ////////=//
+
+            // Note that if a function has a quoted argument whose types
+            // permit unset, then hitting the end of expressions to consume
+            // is allowed, in order to implement console commands like HELP
+            // (which acts as arity 1 or 0, using this trick)
             //
-            // Since we prefetched, this can look before a possible DO/NEXT.
+            //     >> foo: func [:a [unset!]] [
+            //         if unset? :a ["special allowance"]
+            //     ]
             //
-            // !!! Technically this is an additional check of f->indexor for
-            // the END_FLAG, so it would suggest better performance if the
-            // check were done on each non-END-flag-checked branch, but for
-            // now it is checked in one place for simplicity.
-            //
-            if (f->indexor != END_FLAG && IS_BAR(f->value))
-                fail (Error(RE_EXPRESSION_BARRIER));
+            //     >> do [foo]
+            //     == "special allowance"
 
-    //=//// QUOTED ARG-OR-REFINEMENT-ARG (HARD OR SOFT QUOTE) /////////////=//
-
-            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_QUOTE)) {
-                if (f->indexor == END_FLAG) {
-                    //
-                    // If a function has a quoted argument whose types permit
-                    // unset, then that specific case is allowed, in order to
-                    // implement console commands like HELP (which acts as
-                    // arity 1 or 0, using this trick)
-                    //
-                    //     >> foo: func [:a [unset!]] [
-                    //         if unset? :a ["special allowance"]
-                    //     ]
-                    //
-                    //     >> do [foo]
-                    //     == "special allowance"
-                    //
-                    SET_UNSET(f->arg);
-
-                    // Pre-empt the later type checking in order to inject a
-                    // more specific message than "doesn't take UNSET!"
-                    //
-                    if (!TYPE_CHECK(f->param, REB_UNSET))
-                        fail (Error_No_Arg(f->label_sym, f->param));
-                }
-                else if (
-                    GET_VAL_FLAG(f->param, TYPESET_FLAG_EVALUATE) // soft quote
-                    && eval_normal // we're not in never-evaluating EVAL/ONLY
-                    && (
-                        IS_GROUP(f->value)
-                        || IS_GET_WORD(f->value)
-                        || IS_GET_PATH(f->value)
-                    )
-                ) {
-                    // These cases are "soft quoted", because both the flags
-                    // TYPESET_FLAG_QUOTE and TYPESET_FLAG_EVALUATE are set.
-                    //
-                    //     >> foo: function ['a] [print [{a is} a]
-                    //
-                    //     >> foo 1 + 2
-                    //     a is 1
-                    //
-                    //     >> foo (1 + 2)
-                    //     a is 3
-                    //
-                    // This provides a convenient escape mechanism to allow
-                    // callers to subvert quoting if they need to.
-                    //
-                    // These are "no-arg" evals so we do them isolated.  The
-                    // `arg` slot is the input, and can't be output for the
-                    // DO also...so use `out` instead.  (`out` is a decent
-                    // choice because if a throw were to happen, that's where
-                    // the thrown value would have to wind up in that case.)
-                    //
-                    if (DO_VALUE_THROWS(f->out, f->value)) {
-                        //
-                        // If we have refinements pending on the data
-                        // stack we need to balance those...
-                        //
-                        DS_DROP_TO(f->dsp_orig);
-
-                        f->indexor = THROWN_FLAG;
-                        NOTE_THROWING(goto drop_call_and_return_thrown);
-                    }
-
-                    *(f->arg) = *(f->out);
-
-                    FETCH_NEXT_ONLY_MAYBE_END(f);
-                }
-                else {
-                    // This is either not one of the "soft quoted" cases, or
-                    // "hard quoting" was explicitly used with GET-WORD!:
-                    //
-                    //     >> foo: function [:a] [print [{a is} a]
-                    //
-                    //     >> foo 1 + 2
-                    //     a is 1
-                    //
-                    //     >> foo (1 + 2)
-                    //     a is (1 + 2)
-                    //
-                    DO_NEXT_REFETCH_QUOTED(f->arg, f);
-                }
-            }
-            else {
-                // !!! Note: ROUTINE! does not set any bits on the symbols
-                // and will need to be made to...
-                //
-                // assert(GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE));
-
-    //=//// REGULAR ARG-OR-REFINEMENT-ARG) ////////////////////////////////=//
-
-                if (f->indexor == END_FLAG)
+            if (f->indexor == END_FLAG) {
+                if (pclass == PARAM_CLASS_NORMAL)
                     fail (Error_No_Arg(FRM_LABEL_SYM(f), f->param));
 
-                // An ordinary WORD! in the function spec indicates that you
-                // would like that argument to be evaluated normally.
-                //
-                //     >> foo: function [a] [print [{a is} a]
-                //
-                //     >> foo 1 + 2
-                //     a is 3
-                //
-                // Special outlier EVAL/ONLY can be used to subvert this:
-                //
-                //     >> eval/only :foo 1 + 2
-                //     a is 1
-                //     ** Script error: + operator is missing an argument
-                //
+                assert(
+                    pclass == PARAM_CLASS_HARD_QUOTE
+                    || pclass == PARAM_CLASS_SOFT_QUOTE
+                );
+
+                if (!TYPE_CHECK(f->param, REB_UNSET))
+                    fail (Error_No_Arg(f->label_sym, f->param));
+
+                SET_UNSET(f->arg);
+                goto continue_arg_loop;
+            }
+
+            // Literal expression barriers cannot be consumed, even if the
+            // argument takes a BAR!.  It must come through non-literal means
+            // (e.g. `quote '|` or `first [|]`)
+            //
+            if (IS_BAR(f->value))
+                fail (Error(RE_EXPRESSION_BARRIER));
+
+    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
+
+            if (pclass == PARAM_CLASS_NORMAL) {
                 if (eval_normal) {
                     DO_NEXT_REFETCH_MAY_THROW(
                         f->arg,
@@ -2228,33 +2150,57 @@ reevaluate:
                     }
                 }
                 else
-                    DO_NEXT_REFETCH_QUOTED(f->arg, f);
+                    QUOTE_NEXT_REFETCH(f->arg, f);
+
+                goto check_arg;
             }
+
+    //=//// QUOTED ARG-OR-REFINEMENT-ARG (HARD OR SOFT QUOTE) /////////////=//
+
+            if (
+                pclass == PARAM_CLASS_SOFT_QUOTE
+                && eval_normal // we're not in never-evaluating EVAL/ONLY
+                && IS_QUOTABLY_SOFT(f->value)
+            ) {
+                if (DO_VALUE_THROWS(f->out, f->value)) {
+                    DS_DROP_TO(f->dsp_orig);
+                    f->indexor = THROWN_FLAG;
+                    NOTE_THROWING(goto drop_call_and_return_thrown);
+                }
+
+                *(f->arg) = *(f->out);
+                FETCH_NEXT_ONLY_MAYBE_END(f);
+                goto continue_arg_loop;
+            }
+
+            // This is either not one of the "soft quoted" cases, or
+            // "hard quoting" was explicitly used with GET-WORD!:
+
+            assert(
+                pclass == PARAM_CLASS_HARD_QUOTE
+                || pclass == PARAM_CLASS_SOFT_QUOTE
+            );
+
+            QUOTE_NEXT_REFETCH(f->arg, f);
+
+    //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
+
+            // Some arguments can be fulfilled and skip type checking or
+            // take care of it themselves.  But normal args pass through
+            // this code which checks the typeset and also handles it when
+            // an UNSET! arg signals the revocation of a refinement usage.
 
         check_arg:
             ASSERT_VALUE_MANAGED(f->arg);
-            assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_REFINEMENT));
+            assert(pclass != PARAM_CLASS_REFINEMENT);
+            assert(pclass != PARAM_CLASS_PURE_LOCAL);
 
-            // We know we're checking an ordinary arg or a refinement arg
-            // at this point.  The type of `f->refine` clues our checking.
+            // See notes on `Reb_Frame.refine` in %sys-do.h for more info.
             //
             assert(
-                // If NONE!, this is an arg to an inactive refinement, and the
-                // value must be unset (only when specialization jumps here)
-                //
-                IS_NONE(f->refine) ||
-
-                // If FALSE, this is an arg to a *revoked* refinement.  It
-                // will still be gathered, but it must evaluate to UNSET!.
-                //
-                // If TRUE, it's an ordinary arg...not a refinement arg.
-                //
-                IS_LOGIC(f->refine) ||
-
-                // If WORD! the refinement is active but revokable.  So if
-                // evaluation produces an UNSET!, f->refine must become FALSE
-                //
-                IS_WORD(f->refine)
+                IS_NONE(f->refine) || // arg to unused refinement
+                IS_LOGIC(f->refine) || // F = revoked, T = not refinement arg
+                IS_WORD(f->refine) // refinement arg in use, but revokable
             );
 
             if (IS_UNSET(f->arg)) {
@@ -2295,7 +2241,7 @@ reevaluate:
         // them for later fulfillment.
         //
         if (DSP != f->dsp_orig) {
-            if (!GET_VAL_FLAG(DS_TOP, WORD_FLAG_SEEKER)) {
+            if (!GET_VAL_FLAG(DS_TOP, WORD_FLAG_PICKUP)) {
                 //
                 // The walk through the arguments didn't fill in any
                 // information for this word, so it was either a duplicate of
@@ -2304,11 +2250,12 @@ reevaluate:
                 //
                 fail (Error(RE_BAD_REFINE, DS_TOP));
             }
-            f->param = DS_TOP->payload.any_word.place.seeker.param;
-            f->refine = f->arg = DS_TOP->payload.any_word.place.seeker.arg;
+            f->param = DS_TOP->payload.any_word.place.pickup.param;
+            f->refine = f->arg = DS_TOP->payload.any_word.place.pickup.arg;
+            assert(IS_WORD(f->refine));
             DS_DROP;
-            f->mode = CALL_MODE_ARGS_PICKUPS;
-            goto continue_arg_loop; // refinement is none, bumps param+arg
+            f->mode = CALL_MODE_REFINEMENT_PICKUP;
+            goto continue_arg_loop; // leaves refine, but bumps param+arg
         }
 
     function_ready_to_call:
@@ -2489,7 +2436,7 @@ reevaluate:
             );
             f->refine = FRM_ARG(f, VAL_FUNC_NUM_PARAMS(FUNC_VALUE(f->func)));
 
-            assert(GET_VAL_FLAG(f->param, TYPESET_FLAG_HIDDEN));
+            assert(VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL);
             assert(IS_UNSET(f->refine));
 
             if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)

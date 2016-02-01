@@ -846,7 +846,7 @@ REBNATIVE(comment)
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_QUOTED(D_OUT, D_FRAME);
+        QUOTE_NEXT_REFETCH(D_OUT, D_FRAME);
 
         if (ANY_EVAL(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_OUT)));

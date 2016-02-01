@@ -414,14 +414,12 @@ static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     ++path;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
-             //
-             // Pure local... don't add a code arg for it (can't)!
-             //
-             continue;
-        }
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
+        if (pclass == PARAM_CLASS_PURE_LOCAL)
+             continue; // don't add a callsite expression for it (can't)!
+
+        if (pclass == PARAM_CLASS_REFINEMENT) {
             if (IS_CONDITIONAL_FALSE(arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore

@@ -246,17 +246,15 @@ x*/ REBRXT Do_Callback(RXIARG *out, REBFUN *func, REBCNT label_sym, RXIARG *rxis
     ++path;
 
     for (n = 1; n <= RXI_COUNT(rxis); n++, param++) {
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
+
         REBVAL arg;
         RXI_To_Value(&arg, rxis[n], RXI_TYPE(rxis, n));
 
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
-             //
-             // Pure local... don't add a code arg for it (can't)!
-             //
-             continue;
-        }
+        if (pclass == PARAM_CLASS_PURE_LOCAL)
+             continue; // don't add a callsite expression for it (can't)!
 
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
+        if (pclass == PARAM_CLASS_REFINEMENT) {
             if (IS_CONDITIONAL_FALSE(&arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore

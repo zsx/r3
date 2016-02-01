@@ -1355,7 +1355,7 @@ enum {
     // and argument location.  This helps fulfill "out-of-order" refinement
     // usages more quickly without having to do two full arglist walks.
     //
-    WORD_FLAG_SEEKER = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
+    WORD_FLAG_PICKUP = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
 };
 
 struct Reb_Binding {
@@ -1410,7 +1410,7 @@ struct Reb_Any_Word {
         struct {
             const REBVAL *param;
             REBVAL *arg;
-        } seeker;
+        } pickup;
     } place;
 
     // Index of the word's symbol
@@ -1522,6 +1522,86 @@ struct Reb_Any_Word {
 //      make typeset! [<hide> <quote> <protect> string! integer!]
 //
 
+enum Reb_Param_Class {
+    PARAM_CLASS_0 = 0, // reserve to catch uninitialized cases
+
+    // `PARAM_CLASS_NORMAL` is cued by an ordinary WORD! in the function spec
+    // to indicate that you would like that argument to be evaluated normally.
+    //
+    //     >> foo: function [a] [print [{a is} a]
+    //
+    //     >> foo 1 + 2
+    //     a is 3
+    //
+    // Special outlier EVAL/ONLY can be used to subvert this:
+    //
+    //     >> eval/only :foo 1 + 2
+    //     a is 1
+    //     ** Script error: + operator is missing an argument
+    //
+    PARAM_CLASS_NORMAL,
+
+    // `PARAM_CLASS_REFINEMENT`
+    //
+    PARAM_CLASS_REFINEMENT,
+
+    // `PARAM_CLASS_HARD_QUOTE` is cued by a GET-WORD! in the function spec
+    // dialect.  It indicates that a single value of  content at the callsite
+    // should be passed through *literally*, without any evaluation:
+    //
+    //     >> foo: function [:a] [print [{a is} a]
+    //
+    //     >> foo 1 + 2
+    //     a is 1
+    //
+    //     >> foo (1 + 2)
+    //     a is (1 + 2)
+    //
+    PARAM_CLASS_HARD_QUOTE, // GET-WORD! in spec
+
+    // `PARAM_CLASS_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
+    // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
+    // GET-PATH!...which will be evaluated:
+    //
+    //     >> foo: function ['a] [print [{a is} a]
+    //
+    //     >> foo 1 + 2
+    //     a is 1
+    //
+    //     >> foo (1 + 2)
+    //     a is 3
+    //
+    // Although possible to implement soft quoting with hard quoting, it is
+    // a convenient way to allow callers to "escape" a quoted context when
+    // they need to.
+    //
+    PARAM_CLASS_SOFT_QUOTE,
+
+    // `PARAM_CLASS_PURE_LOCAL` has the disambiguator "pure" on it because
+    // historically Rebol used a refinement named `/local` by convention to
+    // define "locals".  This created the phenomenon of "locals injection"
+    // where callers could actually invoke a function with `foo/local`.
+    // It also gave a sort of "keyword" to the language, and introduced
+    // friction on usage of the name for things like `time/local`.
+    //
+    // Ren-C uses a SET-WORD! in the spec to indicate a pure local which
+    // guarantees that when the function starts, it will be UNSET!.
+    // (There's a "technicality" outlier in the FUNC_FLAG_LEAVE_OR_RETURN
+    // trick, which will put a "magic" REBNATIVE(return) in `return:` slots.
+    // But it gives the illusion that it happens after the function is
+    // started with a fake function body boilerplate shown via BODY-OF.)
+    //
+    // !!! Initially these were indicated with TYPESET_FLAG_HIDDEN.  That
+    // would allow the PARAM_CLASS to fit in just two bits (if there were
+    // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
+    // But is it the case that hiding and localness should be independent?
+    //
+    PARAM_CLASS_PURE_LOCAL
+};
+
+#define PCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
+
+
 #ifdef NDEBUG
     #define TYPESET_FLAG_X 0
 #else
@@ -1532,18 +1612,6 @@ struct Reb_Any_Word {
 // a value slot when it's constrained to the types in the typeset
 //
 enum {
-    // Quoted (REDUCE group/get-word|path if EVALUATE)
-    //
-    TYPESET_FLAG_QUOTE = (1 << (TYPE_SPECIFIC_BIT + 0)) | TYPESET_FLAG_X,
-
-    // DO/NEXT performed at callsite when setting
-    //
-    TYPESET_FLAG_EVALUATE = (1 << (TYPE_SPECIFIC_BIT + 1)) | TYPESET_FLAG_X,
-
-    // Value indicates an optional switch
-    //
-    TYPESET_FLAG_REFINEMENT = (1 << (TYPE_SPECIFIC_BIT + 2)) | TYPESET_FLAG_X,
-
     // Can't be changed (set with PROTECT)
     //
     TYPESET_FLAG_LOCKED = (1 << (TYPE_SPECIFIC_BIT + 3)) | TYPESET_FLAG_X,
@@ -1578,16 +1646,18 @@ enum {
     //
     TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG_X,
 
-    // !!! This is the last available typeset flag...it does not need to be
-    // on the typeset necessarily.  See the VARARGS! type for what this is,
-    // which is a representation of the capture of an evaluation position.
-    // The type will also be checked but the value will not be consumed.
+    // !!! This does not need to be on the typeset necessarily.  See the
+    // VARARGS! type for what this is, which is a representation of the
+    // capture of an evaluation position. The type will also be checked but
+    // the value will not be consumed.
     //
     // Note the important distinction, that a variadic parameter and taking
     // a VARARGS! type are different things.  (A function may accept a
     // variadic number of VARARGS! values, for instance.)
     //
     TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
+
+    // WARNING: + 7 is max type-specific bit!
 };
 
 struct Reb_Typeset {
@@ -1638,6 +1708,15 @@ struct Reb_Typeset {
 // shifting and possible abstraction vs. simply being 0..63
 //
 #define FLAGIT_KIND(t)          (cast(REBU64, 1) << TO_0_FROM_KIND(t))
+
+
+#define VAL_PARAM_CLASS(v) \
+    cast(enum Reb_Param_Class, \
+        ((v)->header.bits & PCLASS_MASK) >> TYPE_SPECIFIC_BIT)
+
+#define INIT_VAL_PARAM_CLASS(v,c) \
+    ((v)->header.bits &= ~PCLASS_MASK, \
+    (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

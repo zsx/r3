@@ -1390,7 +1390,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
                     // to be hard quoted, soft quoted, refinements, or
                     // evaluated.  This is signaled with bits on the typeset.
                     //
-                    SET_VAL_FLAG(v, TYPESET_FLAG_EVALUATE);
+                    INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
                 }
                 n ++;
                 break;

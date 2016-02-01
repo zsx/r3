@@ -81,9 +81,11 @@ REBIXO Do_Vararg_Op_Core(
     REBARR **subfeed_addr;
     REBVAL *shared;
 
+    enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
+
     assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
 
-    if (op == VARARG_OP_FIRST && GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE))
+    if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
         fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
 
     // If the VARARGS! has a call frame, then ensure that the call frame where
@@ -215,36 +217,8 @@ handle_subfeed:
     // Based on the quoting class of the parameter, fulfill the varargs from
     // whatever information was loaded into `c` as the "feed" for values.
     //
-    if (GET_VAL_FLAG(param, TYPESET_FLAG_QUOTE)) {
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_EVALUATE)) { // soft-quote
-            if (IS_BAR(f->value))
-                goto return_end_flag; // soft-quoted varargs stop at `|`
-
-            if (
-                IS_GROUP(f->value)
-                || IS_GET_WORD(f->value)
-                || IS_GET_PATH(f->value) // these 3 cases evaluate
-            ) {
-                if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
-
-                if (DO_VALUE_THROWS(out, f->value))
-                    return THROWN_FLAG;
-
-                FETCH_NEXT_ONLY_MAYBE_END(f);
-            }
-            else { // not a soft-"exception" case, quote ordinarily
-                if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
-
-                DO_NEXT_REFETCH_QUOTED(out, f);
-            }
-        }
-        else { // hard-quote
-            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
-
-            DO_NEXT_REFETCH_QUOTED(out, f); // hard quoted varargs consume `|`
-        }
-    }
-    else { // ordinary parameter
+    switch (pclass) {
+    case PARAM_CLASS_NORMAL:
         if (IS_BAR(f->value))
             goto return_end_flag; // normal varargs stop at `|`
 
@@ -260,6 +234,39 @@ handle_subfeed:
 
         if (f->indexor == THROWN_FLAG)
             return THROWN_FLAG;
+        break;
+
+    case PARAM_CLASS_HARD_QUOTE:
+        if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+
+        QUOTE_NEXT_REFETCH(out, f); // hard quoted varargs consume `|`
+        break;
+
+    case PARAM_CLASS_SOFT_QUOTE:
+        if (IS_BAR(f->value))
+            goto return_end_flag; // soft-quoted varargs stop at `|`
+
+        if (
+            IS_GROUP(f->value)
+            || IS_GET_WORD(f->value)
+            || IS_GET_PATH(f->value) // these 3 cases evaluate
+        ) {
+            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+
+            if (DO_VALUE_THROWS(out, f->value))
+                return THROWN_FLAG;
+
+            FETCH_NEXT_ONLY_MAYBE_END(f);
+        }
+        else { // not a soft-"exception" case, quote ordinarily
+            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+
+            QUOTE_NEXT_REFETCH(out, f);
+        }
+        break;
+
+    default:
+        assert(FALSE);
     }
 
     assert(f->indexor != THROWN_FLAG); // should have returned above
@@ -348,7 +355,7 @@ REBIXO Do_Vararg_Op_May_Throw(
 
         Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS); // any type
         SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARIADIC); // pretend <...> tag
-        SET_VAL_FLAG(&fake_param, TYPESET_FLAG_QUOTE); // !FLAG_EVALUATE
+        INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
 
         indexor = Do_Vararg_Op_Core(
             out,
@@ -564,16 +571,25 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
         }
         else {
             // The Reb_Frame is not a bad pointer since FRAME! is stack-live
+            //
+            enum Reb_Param_Class pclass = VAL_PARAM_CLASS(varargs_param);
+            enum Reb_Kind kind;
+            switch (pclass) {
+                case PARAM_CLASS_NORMAL:
+                    kind = REB_WORD;
+                    break;
+                case PARAM_CLASS_HARD_QUOTE:
+                    kind = REB_GET_WORD;
+                    break;
+                case PARAM_CLASS_SOFT_QUOTE:
+                    kind = REB_LIT_WORD;
+                    break;
+                default:
+                    assert(FALSE);
+            };
 
-            Val_Init_Word(
-                &param_word,
-                !GET_VAL_FLAG(varargs_param, TYPESET_FLAG_QUOTE)
-                    ? REB_WORD
-                    : GET_VAL_FLAG(varargs_param, TYPESET_FLAG_EVALUATE)
-                        ? REB_LIT_WORD
-                        : REB_GET_WORD,
-                VAL_TYPESET_SYM(varargs_param) // distinct from c->param!
-            );
+            // Note varargs_param is distinct from f->param!
+            Val_Init_Word(&param_word, kind, VAL_TYPESET_SYM(varargs_param));
 
             Mold_Value(mold, &param_word, TRUE);
 

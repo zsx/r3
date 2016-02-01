@@ -299,10 +299,7 @@ REBOOL Make_Block_Type_Throws(
             // and takes any type (it will be type checked if in a chain).
             //
             Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
-            SET_VAL_FLAGS(
-                &fake_param,
-                TYPESET_FLAG_VARIADIC | TYPESET_FLAG_QUOTE
-            );
+            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
             param = &fake_param;
         }
         else {

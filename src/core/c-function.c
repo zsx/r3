@@ -60,33 +60,37 @@
 REBARR *List_Func_Words(const REBVAL *func)
 {
     REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
-    REBVAL *typeset = VAL_FUNC_PARAMS_HEAD(func);
+    REBVAL *param = VAL_FUNC_PARAMS_HEAD(func);
 
-    for (; !IS_END(typeset); typeset++) {
+    for (; !IS_END(param); param++) {
         enum Reb_Kind kind;
 
-        if (GET_VAL_FLAG(typeset, TYPESET_FLAG_HIDDEN)) {
-            // "true local" (e.g. it was a SET-WORD! in the spec)
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_NORMAL:
+            kind = REB_WORD;
+            break;
+
+        case PARAM_CLASS_REFINEMENT:
+            kind = REB_REFINEMENT;
+            break;
+
+        case PARAM_CLASS_HARD_QUOTE:
+            kind = REB_GET_WORD;
+            break;
+
+        case PARAM_CLASS_SOFT_QUOTE:
+            kind = REB_LIT_WORD;
+            break;
+
+        case PARAM_CLASS_PURE_LOCAL:
             // treat as invisible and do not expose via WORDS-OF
             continue;
+
+        default:
+            assert(FALSE);
         }
 
-        if (GET_VAL_FLAG(typeset, TYPESET_FLAG_REFINEMENT))
-            kind = REB_REFINEMENT;
-        else if (GET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE)) {
-            if (GET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE))
-                kind = REB_LIT_WORD;
-            else
-                kind = REB_GET_WORD;
-        }
-        else {
-            // Currently there's no meaning for non-quoted non-evaluating
-            // things (only 3 param types for foo:, 'foo, :foo)
-            assert(GET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE));
-            kind = REB_WORD;
-        }
-
-        Val_Init_Word(Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(typeset));
+        Val_Init_Word(Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(param));
     }
 
     return array;
@@ -250,21 +254,19 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
 
         switch (VAL_TYPE(item)) {
         case REB_WORD:
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE);
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
             break;
 
         case REB_GET_WORD:
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE);
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             break;
 
         case REB_LIT_WORD:
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_QUOTE);
-            // will actually only evaluate get-word!, get-path!, and group!
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_EVALUATE);
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             break;
 
         case REB_REFINEMENT:
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_REFINEMENT);
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_REFINEMENT);
 
             // Refinements can nominally be only WORD! or NONE!
             VAL_TYPESET_BITS(typeset) =
@@ -275,8 +277,8 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
             // "Pure locals"... these will not be visible via WORDS-OF and
             // will be skipped during argument fulfillment.  We re-use the
             // same option flag that is used to hide words other places.
-
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_HIDDEN);
+            //
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_PURE_LOCAL);
             break;
 
         default:
@@ -298,6 +300,8 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
             //
             *(typeset - 1) = *typeset;
         }
+
+        assert(VAL_PARAM_CLASS(typeset) != PARAM_CLASS_0);
     }
 
     // Note the above code leaves us in the final typeset position... the loop
@@ -829,7 +833,7 @@ void Make_Function(
             ? VAL_TYPESET_CANON(param) == SYM_LEAVE
             : VAL_TYPESET_CANON(param) == SYM_RETURN);
 
-        assert(GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN));
+        assert(VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL);
     #endif
 
         // Flag that this function has a definitional return, so Dispatch_Call

@@ -255,7 +255,7 @@ enum {
 enum Reb_Call_Mode {
     CALL_MODE_GUARD_ARRAY_ONLY, // no special mode signal
     CALL_MODE_ARGS, // first straight walk through the arguments
-    CALL_MODE_ARGS_PICKUPS, // second pass for refinements used out of order
+    CALL_MODE_REFINEMENT_PICKUP, // pass for refinements used out of order
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
     CALL_MODE_THROW_PENDING, // function threw (sometimes may be intercepted)
     CALL_MODE_MAX
@@ -486,9 +486,34 @@ struct Reb_Frame {
 
     // `refine` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVAL]
     //
-    // The `arg` slot of the refinement currently being processed.  We have to
-    // remember its address in case we later see all its arguments are UNSET!,
-    // and want to go back and "revoke" it by setting the arg to NONE!.
+    // During parameter fulfillment, this might point to the `arg` slot
+    // of a refinement which is having its arguments processed.  Or it may
+    // point to another *read-only* value whose content signals information
+    // about how arguments should be handled.  The states are chosen to line
+    // up naturally with tests in the evaluator, so there's a reasoning:.
+    //
+    // * If UNSET!, then refinements are being skipped and the arguments
+    //   that follow should not be written to.
+    //
+    // * If NONE!, this is an arg to a refinement that was not used in the
+    //   invocation.  No consumption should be performed, arguments should
+    //   be written as unset, and any non-unset specializations of arguments
+    //   should trigger an error.
+    //
+    // * If FALSE, this is an arg to a refinement that was used in the
+    //   invocation but has been *revoked*.  It still consumes expressions
+    //   from the callsite for each remaining argument, but those expressions
+    //   must evaluate to UNSET!
+    //
+    // * If WORD! the refinement is active but revokable.  So if evaluation
+    //   produces an UNSET!, `refine` must become FALSE.
+    //
+    // * If TRUE, it's an ordinary arg...and not a refinement.  It will be
+    //   evaluated normally but is not involved with revocation.
+    //
+    // Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
+    // determine if an argument should be type checked normally...while
+    // IS_CONDITIONAL_FALSE() means that the arg must be UNSET!.
     //
     REBVAL *refine;
 
@@ -564,6 +589,9 @@ struct Reb_Frame {
     #define SPORADICALLY(modulus) (TG_Do_Count % modulus == 0)
 #endif
 
+#define IS_QUOTABLY_SOFT(v) \
+    (IS_GROUP(v) || IS_GET_WORD(v) || IS_GET_PATH(v))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -609,7 +637,7 @@ struct Reb_Frame {
 //      waiting for examination or use.  c->index may be set to either
 //      THROWN_FLAG or END_FLAG by this operation.
 //
-// DO_NEXT_REFETCH_QUOTED
+// QUOTE_NEXT_REFETCH
 //
 //      This operation is fairly trivial in the sense that it just assigns
 //      the REBVAL bits pointed to by the current value to the destination
@@ -633,7 +661,7 @@ struct Reb_Frame {
 // counts, checking to see the parameter is quoted and doing a quote refetch
 // into that slot...then dispatching the function, checking that value,
 // moving it to the output, freeing the stack memory.  `QUOTE` can just
-// make sure it's not the end of the input, then call DO_NEXT_REFETCH_QUOTED
+// make sure it's not the end of the input, then call QUOTE_NEXT_REFETCH
 // itself and be done.)
 //
 // !!! If a native works at the varless API level, that foregoes automatic
@@ -811,23 +839,23 @@ struct Reb_Frame {
 #endif
 
 //
-// DO_NEXT_REFETCH_QUOTED (see notes above)
+// QUOTE_NEXT_REFETCH (see notes above)
 //
 
 #ifdef NDEBUG
-    #define DO_NEXT_REFETCH_QUOTED(dest,f) \
+    #define QUOTE_NEXT_REFETCH(dest,f) \
         do { \
             *dest = *(f)->value; \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
         } while (0)
 
 #else
-    #define DO_NEXT_REFETCH_QUOTED(dest,f) \
+    #define QUOTE_NEXT_REFETCH(dest,f) \
         do { \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (f), FALSE); \
+            TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), FALSE); \
             *dest = *(f)->value; \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
-            TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_QUOTED", (f), TRUE); \
+            TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), TRUE); \
         } while (0)
 #endif
 

@@ -885,7 +885,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                     val->payload.any_word.place.binding.target.relative;
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
             }
-            else if (GET_VAL_FLAG(val, WORD_FLAG_SEEKER)) {
+            else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
                 //
                 // Special word class that might be seen on the stack during
                 // a GC that's used by argument fulfillment when searching
