@@ -146,12 +146,11 @@ struct Reb_Frame;
 // The layout of the header corresponds to the following bitfield
 // structure on big endian machines:
 //
-//    unsigned resv:8;      // !!! <reserved for future use>
-//    unsigned exts:8;      // extensions to datatype
-//    unsigned opts:8;      // options that can apply to any value
-//    unsigned type:6;      // datatype (64 possibilities)
-//    unsigned settable:1;  // Debug build only--"formatted" for setting
-//    unsigned not_end:1;   // not an end marker
+//    unsigned specific:16;     // flags that can apply to any REBVAL kind
+//    unsigned general:8;       // flags that can apply to any kind of REBVAL
+//    unsigned kind:6;          // underlying system datatype (64 kinds)
+//    unsigned settable:1;      // for debug build only--"formatted" to write
+//    unsigned not_end:1;       // not an end marker
 //
 // Due to a desire to be able to assign all the header bits in one go
 // with a native-platform-sized int, this is done with bit masking.

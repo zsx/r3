@@ -112,8 +112,8 @@ enum {
 
     // Write more comments here when feeling in more of a commenting mood
     //
-    DO_FLAG_EVAL_NORMAL = 1 << 5,
-    DO_FLAG_EVAL_ONLY = 1 << 6,
+    DO_FLAG_ARGS_EVALUATE = 1 << 5,
+    DO_FLAG_NO_ARGS_EVALUATE = 1 << 6,
 
     // Not all function invocations require there to be a persistent frame
     // that identifies it.  One will be needed if there are going to be
@@ -808,7 +808,7 @@ struct Reb_Frame {
         f_.source = (source_); \
         f_.value = (value_in); \
         f_.indexor = (indexor_in); \
-        f_.flags = DO_FLAG_EVAL_NORMAL | DO_FLAG_NEXT | (flags_); \
+        f_.flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | (flags_); \
         Do_Core(&f_); \
         assert(f_.indexor == VALIST_FLAG || (indexor_in) != f_.indexor); \
         (indexor_out) = f_.indexor; \
@@ -941,7 +941,7 @@ struct Reb_Frame {
 #define Do_At_Throws(out,array,index) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core( \
         (out), NULL, (array), (index), \
-        DO_FLAG_TO_END | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD \
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD \
     ))
 
 // Because Do_Core can seed with a single value, we seed with our value and
@@ -949,7 +949,7 @@ struct Reb_Frame {
 //
 #define DO_VALUE_THROWS(out,value) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, 0, \
-        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_NORMAL))
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

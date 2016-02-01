@@ -1021,7 +1021,7 @@ REBOOL Format_GC_Safe_Value_Throws(
         f.source.array = EMPTY_ARRAY;
     }
 
-    f.flags = DO_FLAG_NEXT | DO_FLAG_EVAL_NORMAL | DO_FLAG_LOOKAHEAD;
+    f.flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD;
     f.eval_fetched = NULL;
 
     do {

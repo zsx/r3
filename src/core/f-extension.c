@@ -296,7 +296,7 @@ x*/ REBRXT Do_Callback(RXIARG *out, REBFUN *func, REBCNT label_sym, RXIARG *rxis
         &first, // path not in array but will be "virtual" first array element
         code_array,
         0, // index
-        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
+        DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
     // Used to report a special error on bad args, using the limited checking

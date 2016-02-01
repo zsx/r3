@@ -860,8 +860,8 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Frame *f)
         != LOGICAL(f->flags & DO_FLAG_NO_LOOKAHEAD)
     );
     assert(
-        LOGICAL(f->flags & DO_FLAG_EVAL_NORMAL)
-        != LOGICAL(f->flags & DO_FLAG_EVAL_ONLY)
+        LOGICAL(f->flags & DO_FLAG_ARGS_EVALUATE)
+        != LOGICAL(f->flags & DO_FLAG_NO_ARGS_EVALUATE)
     );
 
     // This flag is managed solely by the frame code; shouldn't come in set
@@ -1077,10 +1077,14 @@ void Do_Core(struct Reb_Frame * const f)
     //
     REBARR *exit_from;
 
-    // EVAL/ONLY can trigger this to FALSE.  Not forced to a REBOOL for
-    // efficiency (turning to a 1 for "real TRUE" requires shifting)
+    // Although the f->flags has a "baseline" of whether one is seeking to
+    // suppress argument evaluation or lookahead, these can be temporarily
+    // changed during the loop.  An EVAL/ONLY can disable argument evaluation
+    // for one DO/NEXT step, and lookahead can be disabled for arguments
+    // during one level of a function call.
     //
-    REBFLGS eval_normal;
+    REBUPT args_evaluate; // native pointer size is faster than REBOOL :-/
+    REBUPT lookahead_flags; // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD
 
     // Parameter class cache, used while fulfilling arguments
     //
@@ -1148,7 +1152,12 @@ value_ready_for_do_next:
     //
     VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval)); // in union, always reinit
     SET_TRASH_IF_DEBUG(&(f->cell.eval));
-    eval_normal = f->flags & DO_FLAG_EVAL_NORMAL; // Note: not a REBOOL
+
+    args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
+
+    lookahead_flags = (f->flags & DO_FLAG_LOOKAHEAD)
+        ? DO_FLAG_LOOKAHEAD
+        : DO_FLAG_NO_LOOKAHEAD;
 
     // If we're going to jump to the `reevaluate:` label below we should not
     // consider it a Recycle() opportunity.  The value residing in `eval`
@@ -1320,7 +1329,11 @@ reevaluate:
         if (f->indexor == END_FLAG)
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
 
-        if (eval_normal) { // not using EVAL/ONLY
+        if (args_evaluate) {
+            //
+            // A SET-WORD! handles lookahead like a prefix function would;
+            // so it uses lookahead on its arguments regardless of f->flags
+            //
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -1438,7 +1451,11 @@ reevaluate:
         // will *not* put this value in the output when it is making the
         // variable assignment!
         //
-        if (eval_normal) {
+        if (args_evaluate) {
+            //
+            // A SET-PATH! handles lookahead like a prefix function would;
+            // so it uses lookahead on its arguments regardless of f->flags
+            //
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
 
             if (f->indexor == THROWN_FLAG)
@@ -1563,6 +1580,24 @@ reevaluate:
         //
         assert(DSP >= f->dsp_orig);
 
+        // We reset the lookahead_flags here to do a lookahead regardless
+        // of what was passed in by the caller.  The reason is that each
+        // level of function dispatch resets it.  Consider:
+        //
+        //     >> "1" = mold 2 - 1
+        //
+        // mold is not infix.  Hence while it is acquiring its arguments
+        // that needs to have lookahead.
+        //
+        // This means that the caller can only control lookahead at the
+        // granularity of the DO/NEXT points; it will be dictated by the
+        // function itself at each level after that.  Note that when an
+        // infix function is found after the loop, it jumps in lower than
+        // this point to do the execution, so its change to lookahead is
+        // not overwritten by this.
+        //
+        lookahead_flags = DO_FLAG_LOOKAHEAD;
+
     //==////////////////////////////////////////////////////////////////==//
     //
     // FUNCTION! EVAL HANDLING
@@ -1585,7 +1620,7 @@ reevaluate:
             // retriggered itself, just any arguments it consumes.)
             //
             VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval));
-            DO_NEXT_REFETCH_MAY_THROW(&(f->cell.eval), f, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&(f->cell.eval), f, lookahead_flags);
 
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -1598,10 +1633,10 @@ reevaluate:
                 assert(DSP == f->dsp_orig + 1);
                 assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY); // canonized on push
                 DS_DROP;
-                eval_normal = FALSE;
+                args_evaluate = FALSE;
             }
             else
-                eval_normal = TRUE;
+                args_evaluate = TRUE;
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
@@ -1651,7 +1686,7 @@ reevaluate:
             GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)
             && DSP == f->dsp_orig
             && !Trace_Flags
-            && eval_normal // avoid framelessness if EVAL/ONLY used
+            && args_evaluate // avoid EVAL/ONLY
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
@@ -1690,7 +1725,7 @@ reevaluate:
                         f->label_sym, FUNC_PARAM(f->func, 1)
                     ));
 
-                DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
+                DO_NEXT_REFETCH_MAY_THROW(f->out, f, lookahead_flags);
 
                 if (f->indexor == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
@@ -1887,7 +1922,7 @@ reevaluate:
                 if (f->mode == CALL_MODE_REFINEMENT_PICKUP)
                     break; // pickups done when another refinement is hit
 
-                if (IS_BAR(f->arg)) { // unspecialized, so consult path (stack)
+                if (IS_BAR(f->arg)) {
 
     //=//// UNSPECIALIZED REFINEMENT ARG (no consumption) /////////////////=//
 
@@ -1946,7 +1981,9 @@ reevaluate:
 
     //=//// SPECIALIZED REFINEMENT ARG (no consumption) ///////////////////=//
 
-                if (IS_QUOTABLY_SOFT(f->arg)) { // for `(copy [1 2 3])`, etc.
+                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                    //
+                    // Needed for `(copy [1 2 3])`, active specializations
 
                     if (DO_VALUE_THROWS(f->out, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
@@ -2006,7 +2043,7 @@ reevaluate:
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
 
-                if (IS_QUOTABLY_SOFT(f->arg)) {
+                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
                     if (DO_VALUE_THROWS(f->out, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
@@ -2075,7 +2112,14 @@ reevaluate:
             // consume additional arguments during the function run.
             //
             if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
-                assert(eval_normal); // !!! Can EVAL/ONLY be supported?
+                //
+                // !!! Can EVAL/ONLY be supported by variadics?  What would
+                // it mean?  It generally means that argument fulfillment will
+                // ignore the quoting settings, if that's all it is then
+                // the varargs needs to have this flag communicated...but
+                // then should it function variadically anyway?
+                //
+                assert(args_evaluate);
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
@@ -2121,24 +2165,18 @@ reevaluate:
                 goto continue_arg_loop;
             }
 
-            // Literal expression barriers cannot be consumed, even if the
-            // argument takes a BAR!.  It must come through non-literal means
-            // (e.g. `quote '|` or `first [|]`)
+            // Literal expression barriers cannot be consumed in normal
+            // evaluation, even if the argument takes a BAR!.  It must come
+            // through non-literal means(e.g. `quote '|` or `first [|]`)
             //
-            if (IS_BAR(f->value))
+            if (args_evaluate && IS_BAR(f->value))
                 fail (Error(RE_EXPRESSION_BARRIER));
 
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (eval_normal) {
-                    DO_NEXT_REFETCH_MAY_THROW(
-                        f->arg,
-                        f,
-                        GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_INFIX)
-                            ? DO_FLAG_NO_LOOKAHEAD
-                            : DO_FLAG_LOOKAHEAD
-                    );
+                if (args_evaluate) {
+                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
 
                     if (f->indexor == THROWN_FLAG) {
                         *(f->out) = *(f->arg);
@@ -2161,7 +2199,7 @@ reevaluate:
 
             if (
                 pclass == PARAM_CLASS_SOFT_QUOTE
-                && eval_normal // we're not in never-evaluating EVAL/ONLY
+                && args_evaluate // it's not an EVAL/ONLY
                 && IS_QUOTABLY_SOFT(f->value)
             ) {
                 if (DO_VALUE_THROWS(f->out, f->value)) {
@@ -2852,6 +2890,10 @@ reevaluate:
                 ++f->param;
                 ++f->arg;
 
+                // During the argument evaluations, do not look further ahead
+                //
+                lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
+
                 FETCH_NEXT_ONLY_MAYBE_END(f);
                 goto do_function_arglist_in_progress;
             }
@@ -3060,7 +3102,7 @@ REBIXO Do_Va_Core(
     // (This functionality coming soon, but it requires reifying the va_list
     // into an array if a GC incidentally happens during any va_list DOs.)
     //
-    assert(flags & DO_FLAG_EVAL_ONLY);
+    assert(flags & DO_FLAG_NO_ARGS_EVALUATE);
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 
     Do_Core(&f);
@@ -3184,7 +3226,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NEXT | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
+        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
     if (indexor == VALIST_INCOMPLETE_FLAG) {

@@ -638,12 +638,8 @@ void Make_Function(
                 else if (
                     0 == Compare_String_Vals(item, ROOT_INFIX_TAG, TRUE)
                 ) {
-                    // The <infix> option may or may not stick around.  The
-                    // main reason not to is that it doesn't make sense for
-                    // OP! to be the same interface type as FUNCTION! (or
-                    // ANY-FUNCTION!).  An INFIX function generator is thus
-                    // kind of tempting that returns an INFIX! (OP!), so
-                    // this will remain under consideration.
+                    // The <infix> option may or may not stick around.  How
+                    // infix functions dispatch is in flux.
                     //
                     SET_VAL_FLAG(out, FUNC_FLAG_INFIX);
                 }
@@ -1385,6 +1381,42 @@ REBNATIVE(proc)
 }
 
 
+//
+//  to-infix: native [
+//
+//  {Copy a FUNCTION! value so that it dispatches as infix from word lookup.}
+//
+//      value [function!]
+//  ]
+//
+REBNATIVE(to_infix)
+{
+    PARAM(1, value);
+
+    *D_OUT = *ARG(value);
+    SET_VAL_FLAG(D_OUT, FUNC_FLAG_INFIX);
+    return R_OUT;
+}
+
+
+//
+//  to-prefix: native [
+//
+//  {Copy a FUNCTION! value so that it dispatches as prefix from word lookup.}
+//
+//      value [function!]
+//  ]
+//
+REBNATIVE(to_prefix)
+{
+    PARAM(1, value);
+
+    *D_OUT = *ARG(value);
+    CLEAR_VAL_FLAG(D_OUT, FUNC_FLAG_INFIX);
+    return R_OUT;
+}
+
+
 #if !defined(NDEBUG)
 
 //
@@ -1487,6 +1519,14 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         | VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
     );
+
+    // Additionally, FUNC_FLAG_INFIX is allowed to be different from the
+    // canon value.  This is because the infixed-ness or not of a function
+    // is carried by the value not by the function.
+    //
+    func_header.bits |= FUNC_FLAG_INFIX;
+    v_header.bits |= FUNC_FLAG_INFIX;
+
 
     if (v_header.bits != func_header.bits) {
         //
