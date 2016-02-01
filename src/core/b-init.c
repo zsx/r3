@@ -1353,6 +1353,7 @@ void Init_Task(void)
 
     Eval_Cycles = 0;
     Eval_Dose = EVAL_DOSE;
+    Eval_Count = Eval_Dose;
     Eval_Signals = 0;
     Eval_Sigmask = ALL_BITS;
 
@@ -1458,13 +1459,17 @@ void Init_Core(REBARGS *rargs)
     CLEAR(Reb_Opts, sizeof(REB_OPTS));
     Saved_State = NULL;
 
-    // Thread locals:
+    // Thread locals.
+    //
+    // !!! This code duplicates work done in Init_Task
+    //
     Trace_Level = 0;
     Saved_State = 0;
     Eval_Dose = EVAL_DOSE;
+    Eval_Count = Eval_Dose;
     Eval_Limit = 0;
     Eval_Signals = 0;
-    Eval_Sigmask = ALL_BITS; /// dups Init_Task
+    Eval_Sigmask = ALL_BITS;
 
     Init_StdIO();
 

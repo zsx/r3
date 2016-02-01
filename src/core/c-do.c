@@ -1077,9 +1077,10 @@ void Do_Core(struct Reb_Frame * const f)
     //
     REBARR *exit_from;
 
-    // See notes below on reference for why this is needed to implement eval.
+    // EVAL/ONLY can trigger this to FALSE.  Not forced to a REBOOL for
+    // efficiency (turning to a 1 for "real TRUE" requires shifting)
     //
-    REBOOL eval_normal; // EVAL/ONLY can trigger this to FALSE
+    REBFLGS eval_normal;
 
     // Parameter class cache, used while fulfilling arguments
     //
@@ -1138,7 +1139,7 @@ value_ready_for_do_next:
     // cannot know what a preloaded head value was unless it was saved
     // under a debug> mode.
     //
-    if (f->indexor != VALIST_FLAG) f->expr_index = f->indexor;
+    f->expr_index = f->indexor;
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
@@ -1147,7 +1148,7 @@ value_ready_for_do_next:
     //
     VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval)); // in union, always reinit
     SET_TRASH_IF_DEBUG(&(f->cell.eval));
-    eval_normal = LOGICAL(f->flags & DO_FLAG_EVAL_NORMAL);
+    eval_normal = f->flags & DO_FLAG_EVAL_NORMAL; // Note: not a REBOOL
 
     // If we're going to jump to the `reevaluate:` label below we should not
     // consider it a Recycle() opportunity.  The value residing in `eval`
@@ -1157,7 +1158,8 @@ value_ready_for_do_next:
     // circumstances that wind up extracting its properties during a needed
     // evaluation (hence protected indirectly via `f->array` or `f->func`.)
     //
-    if (--Eval_Count <= 0 || Eval_Signals) {
+    assert(Eval_Count != 0);
+    if (--Eval_Count == 0 || Eval_Signals) {
         //
         // Note that Do_Signals_Throws() may do a recycle step of the GC, or
         // it may spawn an entire interactive debugging session via

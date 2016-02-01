@@ -240,7 +240,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const int Eval_Table[REB_MAX] =
+*/  const REBUPT Eval_Table[REB_MAX] =
 /*
 ** This table is used to bypass a Do_Core evaluation for certain types.  So
 ** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
@@ -597,7 +597,7 @@ emit {
 // math but reusing the values.  Any integer property could be stored for
 // the evaluables so long as non-evaluables are 0 in this list.
 //
-extern const int Eval_Table[REB_MAX];
+extern const REBUPT Eval_Table[REB_MAX];
 
 #define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
 }
