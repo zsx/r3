@@ -114,9 +114,9 @@ array: func [
         function? :value [ ; So value can be a thunk :)
             loop size [block: insert/only block value] ; Called every time
         ]
-	true [
+        'default [
             insert/dup block either initial [value][none] size
-	]
+        ]
     ]
     head block
 ]
