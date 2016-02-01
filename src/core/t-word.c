@@ -83,8 +83,10 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                     return 0;
                 }
 
-                return (a->payload.any_word.binding.relative
-                    == b->payload.any_word.binding.relative) ? 1 : 0;
+                return (
+                    a->payload.any_word.place.binding.target.relative
+                    == b->payload.any_word.place.binding.target.relative
+                ) ? 1 : 0;
             }
 
             // `a` isn't bound, so it matches if `b` is unbound too.

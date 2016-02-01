@@ -601,7 +601,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
             ++special_arg;
         }
         else
-            SET_UNSET(slot);
+            SET_BAR(slot);
 
         slot++;
     }

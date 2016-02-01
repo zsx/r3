@@ -254,12 +254,8 @@ enum {
 //
 enum Reb_Call_Mode {
     CALL_MODE_GUARD_ARRAY_ONLY, // no special mode signal
-    CALL_MODE_ARGS, // ordinary arguments before any refinements seen
-    CALL_MODE_REFINE_PENDING, // picking up refinement arguments, none yet
-    CALL_MODE_REFINE_ARGS, // at least one refinement has been found
-    CALL_MODE_SEEK_REFINE_WORD, // looking for refinements (used out of order)
-    CALL_MODE_REFINE_SKIP, // in the process of skipping an unused refinement
-    CALL_MODE_REFINE_REVOKE, // found an unset and aiming to revoke refinement use
+    CALL_MODE_ARGS, // first straight walk through the arguments
+    CALL_MODE_ARGS_PICKUPS, // second pass for refinements used out of order
     CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
     CALL_MODE_THROW_PENDING, // function threw (sometimes may be intercepted)
     CALL_MODE_MAX

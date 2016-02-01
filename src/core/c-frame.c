@@ -1555,7 +1555,7 @@ void Rebind_Values_Relative_Deep(
         else if (
             ANY_WORD(value)
             && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.binding.relative == src
+            && value->payload.any_word.place.binding.target.relative == src
         ) {
             INIT_WORD_RELATIVE(value, dst);
         }
@@ -1580,7 +1580,7 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL value[]) {
         else if (
             ANY_WORD(value)
             && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.binding.relative == src
+            && value->payload.any_word.place.binding.target.relative == src
         ) {
             // Note that VAL_RESET_HEADER(value...) is a macro for setting
             // value, so passing VAL_TYPE(value) which is also a macro can be
@@ -1713,7 +1713,10 @@ struct Reb_Frame *Frame_For_Relative_Word(
     for (; frame != NULL; frame = FRM_PRIOR(frame)) {
         if (
             frame->mode != CALL_MODE_FUNCTION
-            || FRM_FUNC(frame) != any_word->payload.any_word.binding.relative
+            || (
+                FRM_FUNC(frame)
+                != any_word->payload.any_word.place.binding.target.relative
+            )
         ) {
             continue;
         }

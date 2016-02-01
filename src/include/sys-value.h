@@ -1348,10 +1348,17 @@ enum {
 
     // var is found by combining w/extra info
     //
-    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
+    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X,
+
+    // A special kind of word is used during argument fulfillment to hold
+    // a refinement's word on the data stack, augmented with its param
+    // and argument location.  This helps fulfill "out-of-order" refinement
+    // usages more quickly without having to do two full arglist walks.
+    //
+    WORD_FLAG_SEEKER = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
 };
 
-struct Reb_Any_Word {
+struct Reb_Binding {
     //
     // The context to look in to find the word's value.  It is valid if the
     // word has been bound, and null otherwise.
@@ -1371,7 +1378,7 @@ struct Reb_Any_Word {
     union {
         REBCTX *specific; // for WORD_FLAG_BOUND_SPECIFIC
         REBFUN *relative; // for WORD_FLAG_BOUND_RELATIVE
-    } binding;
+    } target;
 
     // Index of word in context (if word is bound, e.g. `context` is not NULL)
     //
@@ -1387,6 +1394,24 @@ struct Reb_Any_Word {
     // do the mapping from [1 2 3 4 5 6] to [-3 -2 -1 0 1 2] (or whatever)
     //
     REBINT index;
+};
+
+struct Reb_Any_Word {
+    union {
+        struct Reb_Binding binding;
+
+        // The order in which refinements are defined in a function spec may
+        // not match the order in which they are mentioned on a path.  As an
+        // efficiency trick, a word on the data stack representing a refinement
+        // usage request is able to store the pointer to its `param` and `arg`
+        // positions, so that they may be returned to after the later-defined
+        // refinement has had its chance to take the earlier fulfillments.
+        //
+        struct {
+            const REBVAL *param;
+            REBVAL *arg;
+        } seeker;
+    } place;
 
     // Index of the word's symbol
     //
@@ -1416,21 +1441,21 @@ struct Reb_Any_Word {
 // and negative numbers for the stack vars, to distingiush where to get data.
 //
 #define VAL_WORD_INDEX(v) \
-    (assert(ANY_WORD(v)), (v)->payload.any_word.index)
+    (assert(ANY_WORD(v)), (v)->payload.any_word.place.binding.index)
 #define INIT_WORD_INDEX(v,i) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
         ? (i) >= 1 && SAME_SYM( \
             VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
         ) : (i) >= 1), \
-        (v)->payload.any_word.index = (i))
+        (v)->payload.any_word.place.binding.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
     (assert(ANY_WORD(v) && GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
-        (v)->payload.any_word.binding.specific)
+        (v)->payload.any_word.place.binding.target.specific)
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
     (assert(ANY_WORD(v)), GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)) \
-        ? (v)->payload.any_word.binding.specific \
+        ? (v)->payload.any_word.place.binding.target.specific \
         : Context_For_Frame_May_Reify( \
             Frame_For_Relative_Word((v), FALSE), NULL, TRUE)
 
@@ -1439,12 +1464,12 @@ struct Reb_Any_Word {
         && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE)), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
-        (v)->payload.any_word.binding.specific = (context))
+        (v)->payload.any_word.place.binding.target.specific = (context))
 
 #define INIT_WORD_RELATIVE(v,func) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE) \
         && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
-        (v)->payload.any_word.binding.relative = (func))
+        (v)->payload.any_word.place.binding.target.relative = (func))
 
 #define IS_SAME_WORD(v, n) \
     (IS_WORD(v) && VAL_WORD_CANON(v) == n)
@@ -1457,7 +1482,7 @@ struct Reb_Any_Word {
     #define UNBIND_WORD(v) \
         (CLEAR_VAL_FLAGS((v), \
             WORD_FLAG_BOUND_SPECIFIC | WORD_FLAG_BOUND_RELATIVE), \
-            (v)->payload.any_word.index = 0)
+            (v)->payload.any_word.place.binding.index = 0)
 #endif
 
 #define VAL_WORD_CANON(v) \

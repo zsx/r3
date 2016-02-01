@@ -881,11 +881,22 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // mark all the function's properties (there is an embedded
                 // function value...)
                 //
-                REBFUN* func = val->payload.any_word.binding.relative;
+                REBFUN* func =
+                    val->payload.any_word.place.binding.target.relative;
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+            }
+            else if (GET_VAL_FLAG(val, WORD_FLAG_SEEKER)) {
+                //
+                // Special word class that might be seen on the stack during
+                // a GC that's used by argument fulfillment when searching
+                // for out-of-order refinements.  It holds two REBVAL*s
+                // (for the parameter and argument of the refinement) and
+                // both should be covered for GC already, because the
+                // paramlist and arg variables are "in progress" for a call.
             }
             else {
                 // The word is unbound...make sure index is 0 in debug build.
+                //
             #if !defined(NDEBUG)
                 assert(VAL_WORD_INDEX(val) == 0);
             #endif
