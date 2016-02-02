@@ -416,7 +416,7 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
         // If the execution were a path or anything other than a word, this
         // will lose it.
         //
-        Val_Init_Word(ARR_AT(where, n), REB_WORD, frame->label_sym);
+        Val_Init_Word(ARR_AT(where, n), REB_WORD, FRM_LABEL(frame));
         ++n;
 
         for (n = 1; n < len; ++n)
@@ -491,7 +491,7 @@ REBNATIVE(label_of)
     if (frame == NULL)
         fail (Error_Invalid_Arg(ARG(level)));
 
-    Val_Init_Word(D_OUT, REB_WORD, frame->label_sym);
+    Val_Init_Word(D_OUT, REB_WORD, FRM_LABEL(frame));
     return R_OUT;
 }
 
@@ -775,7 +775,7 @@ REBNATIVE(backtrace)
         //
         temp = ARR_AT(backtrace, --index);
         if (REF(brief)) {
-            Val_Init_Word(temp, REB_WORD, FRM_LABEL_SYM(frame));
+            Val_Init_Word(temp, REB_WORD, FRM_LABEL(frame));
             continue;
         }
 

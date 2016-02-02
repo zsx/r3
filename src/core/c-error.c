@@ -1162,7 +1162,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
                 continue;
 
             Val_Init_Word(
-                Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL_SYM(frame)
+                Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL(frame)
             );
         }
         Val_Init_Block(&error_obj->where, backtrace);

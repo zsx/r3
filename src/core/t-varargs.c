@@ -106,10 +106,10 @@ REBIXO Do_Vararg_Op_Core(
 
         f = CTX_FRAME(AS_CONTEXT(feed));
 
-        // Take label symbol from context if asked to capture and not set.
+        // Take label symbol from context if it hasn't been set yet.
         //
         if (sym_func == SYM_0)
-            sym_func = f->label_sym;
+            sym_func = FRM_LABEL(f);
     }
     else {
         // If the request was to capture a symbol and the first level wasn't
@@ -202,7 +202,7 @@ handle_subfeed:
         temp_frame.indexor = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
         temp_frame.eval_fetched = NULL;
-        temp_frame.label_sym = SYM_NATIVE; // !!! lie, but shouldn't be used
+        temp_frame.opt_label_sym = SYM_NATIVE; // !!! lie, shouldn't be used
 
         f = &temp_frame;
     }

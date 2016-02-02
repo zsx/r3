@@ -220,7 +220,7 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     Debug_Fmt(
         "STACK[%d](%s) - %s",
         level,
-        Get_Sym_Name(f->label_sym),
+        Get_Sym_Name(FRM_LABEL(f)),
         mode_strings[f->mode]
     );
 

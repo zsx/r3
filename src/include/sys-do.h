@@ -425,14 +425,15 @@ struct Reb_Frame {
     //
     REBIXO indexor;
 
-    // `label_sym` [INTERNAL, READ-ONLY]
+    // `opt_label_sym` [INTERNAL, READ-ONLY]
     //
-    // Functions don't have "names", though they can be assigned
-    // to words.  If a function is invoked via word lookup (vs. a literal
-    // FUNCTION! value), 'label_sym' will be that WORD!, and a placeholder
-    // otherwise.  Placed here for 64-bit alignment after same-size `index`.
+    // Functions don't have "names", though they can be assigned to words.
+    // Typically the label symbol is passed into the evaluator as SYM_0 and
+    // then only changed if a function dispatches by WORD!, however it
+    // is possible for Do_Core to be called with a preloaded symbol for
+    // better debugging descriptivity.
     //
-    REBSYM label_sym;
+    REBSYM opt_label_sym;
 
     // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "varless"]
     //
@@ -692,7 +693,7 @@ struct Reb_Frame {
         (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
-        (f)->label_sym = SYM_0; \
+        (f)->opt_label_sym = SYM_0; \
         (f)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
         (f)->prior = TG_Frame_Stack; \
         TG_Frame_Stack = f; \
@@ -888,9 +889,9 @@ struct Reb_Frame {
 // of where to execute.  Although the return value is a REBCNT, it is *NOT*
 // always a series index!!!  It may return:
 //
-// DO_ARRAY_THROWS is another helper for the frequent case where one has a
-// BLOCK! or a GROUP! at an index which already indicates the point where
-// execution is to start.
+// DO_VAL_ARRAY_AT_THROWS is another helper for the frequent case where one
+// has a BLOCK! or a GROUP! REBVAL at an index which already indicates the
+// point where execution is to start.
 //
 // (The "Throws" name is because it's expected to usually be used in an
 // 'if' statement.  It cues you into realizing that it returns TRUE if a
@@ -941,15 +942,14 @@ struct Reb_Frame {
 #define Do_At_Throws(out,array,index) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core( \
         (out), NULL, (array), (index), \
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD \
-    ))
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD, SYM_0))
 
 // Because Do_Core can seed with a single value, we seed with our value and
 // an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
 //
 #define DO_VALUE_THROWS(out,value) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, 0, \
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD, SYM_0))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1123,7 +1123,8 @@ struct Native_Refine {
 
 #define FRM_OUT(f)          cast(REBVAL * const, (f)->out) // writable Lvalue
 #define FRM_PRIOR(f)        ((f)->prior)
-#define FRM_LABEL_SYM(f)    ((f)->label_sym + 0) // Lvalue
+#define FRM_LABEL(f)        ((f)->opt_label_sym)
+
 #define FRM_FUNC(f)         ((f)->func)
 #define FRM_DSP_ORIG(f)     ((f)->dsp_orig + 0) // Lvalue
 
@@ -1186,7 +1187,7 @@ struct Native_Refine {
 #define D_ARG(n)    FRM_ARG(frame_, (n))    // pass 1 for first arg
 #define D_REF(n)    NOT(IS_NONE(D_ARG(n)))  // D_REFinement (not D_REFerence)
 #define D_FUNC      FRM_FUNC(frame_)        // REBVAL* of running function
-#define D_LABEL_SYM FRM_LABEL_SYM(frame_)   // symbol or placeholder for call
+#define D_LABEL_SYM FRM_LABEL(frame_)       // symbol or placeholder for call
 #define D_DSP_ORIG  FRM_DSP_ORIG(frame_)    // Original data stack pointer
 
 #define D_PROTECT_X(v)      PROTECT_FRM_X(frame_, (v))

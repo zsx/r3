@@ -940,8 +940,12 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Frame *f) {
     // hold valid values.
     //
     f->func = cast(REBFUN*, 0xDECAFBAD);
-    f->label_sym = SYM_0;
-    f->label_str = "(no current label)";
+
+    if (f->opt_label_sym == SYM_0)
+        f->label_str = "(no current label)";
+    else
+        f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
+
     f->param = cast(REBVAL*, 0xDECAFBAD);
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
@@ -1085,6 +1089,15 @@ void Do_Core(struct Reb_Frame * const f)
     //
     REBUPT args_evaluate; // native pointer size is faster than REBOOL :-/
     REBUPT lookahead_flags; // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD
+
+    // Do_Core is invoked with an optional symbol to describe it.  This way
+    // something like an APPLY or varargs-based evaluation can describe
+    // what's going on a little to the debugger.
+    //
+    // !!! Could these be expanded to be REBSERs, which might include a
+    // generated string, or even a hook to generate a string on demand?
+    //
+    REBSYM opt_saved_sym = f->opt_label_sym;
 
     // Parameter class cache, used while fulfilling arguments
     //
@@ -1290,10 +1303,10 @@ reevaluate:
             if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
                 fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
 
-            f->label_sym = VAL_WORD_SYM(f->value);
+            f->opt_label_sym = VAL_WORD_SYM(f->value);
 
         #if !defined(NDEBUG)
-            f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
+            f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
         #endif
 
             if (Trace_Flags) Trace_Line(f->source, f->indexor, f->value);
@@ -1396,7 +1409,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_PATH:
-        if (Do_Path_Throws(f->out, &f->label_sym, f->value, NULL)) {
+        if (Do_Path_Throws(f->out, &f->opt_label_sym, f->value, NULL)) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
@@ -1554,13 +1567,10 @@ reevaluate:
     case ET_FUNCTION:
         //
         // Note: Because this is a function value being hit literally in
-        // a block, it does not have a name.  Use symbol of its VAL_TYPE
+        // a block, no word was used to get it, so its name is unknown.
         //
-        f->label_sym = SYM_FROM_KIND(VAL_TYPE(f->value));
-
-    #if !defined(NDEBUG)
-        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
-    #endif
+        if (f->opt_label_sym == SYM_0)
+            f->opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
 
     do_function_in_value:
         //
@@ -1574,6 +1584,15 @@ reevaluate:
         //
         assert(IS_FUNCTION(f->value));
         f->func = VAL_FUNC(f->value);
+
+        // A label symbol should always be put in place for a function
+        // dispatch by this point, even if it's just "anonymous".  Cache a
+        // string for it to be friendlier in the C debugging watchlist.
+        //
+    #if !defined(NDEBUG)
+        assert(f->opt_label_sym != SYM_0);
+        f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
+    #endif
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
@@ -1612,7 +1631,7 @@ reevaluate:
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             if (f->indexor == END_FLAG) // e.g. `do [eval]`
-                fail (Error_No_Arg(f->label_sym, FUNC_PARAM(PG_Eval_Func, 1)));
+                fail (Error_No_Arg(FRM_LABEL(f), FUNC_PARAM(PG_Eval_Func, 1)));
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress
@@ -1721,9 +1740,7 @@ reevaluate:
                 assert(FUNC_NUM_PARAMS(f->func) == 1);
 
                 if (f->indexor == END_FLAG)
-                    fail (Error_No_Arg(
-                        f->label_sym, FUNC_PARAM(f->func, 1)
-                    ));
+                    fail (Error_No_Arg(FRM_LABEL(f), FUNC_PARAM(f->func, 1)));
 
                 DO_NEXT_REFETCH_MAY_THROW(f->out, f, lookahead_flags);
 
@@ -1914,17 +1931,17 @@ reevaluate:
         // the type of WORD! that is used to implement this.
         //
         for (; NOT_END(f->param); ++f->param, ++f->arg) {
-            pclass = VAL_PARAM_CLASS(f->param);
             assert(IS_TYPESET(f->param));
+            pclass = VAL_PARAM_CLASS(f->param);
 
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
                 if (f->mode == CALL_MODE_REFINEMENT_PICKUP)
-                    break; // pickups done when another refinement is hit
+                    break; // pickups finished when another refinement is hit
 
                 if (IS_BAR(f->arg)) {
 
-    //=//// UNSPECIALIZED REFINEMENT ARG (no consumption) /////////////////=//
+    //=//// UNSPECIALIZED REFINEMENT SLOT (no consumption) ////////////////=//
 
                     if (f->dsp_orig == DSP) { // no refinements left on stack
                         SET_NONE(f->arg);
@@ -1979,7 +1996,7 @@ reevaluate:
                     goto continue_arg_loop;
                 }
 
-    //=//// SPECIALIZED REFINEMENT ARG (no consumption) ///////////////////=//
+    //=//// SPECIALIZED REFINEMENT SLOT (no consumption) //////////////////=//
 
                 if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
                     //
@@ -1999,7 +2016,7 @@ reevaluate:
                 //
                 if (IS_UNSET(f->arg))
                     fail (Error_Arg_Type(
-                        f->label_sym, f->param, Type_Of(f->arg))
+                        FRM_LABEL(f), f->param, Type_Of(f->arg))
                     );
 
                 if (IS_CONDITIONAL_TRUE(f->arg)) {
@@ -2033,7 +2050,7 @@ reevaluate:
                 if (IS_UNSET(f->arg)) // the only legal specialized value
                     goto continue_arg_loop;
 
-                fail (Error_Local_Injection(f->label_sym, f->param));
+                fail (Error_Local_Injection(FRM_LABEL(f), f->param));
             }
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
@@ -2075,7 +2092,7 @@ reevaluate:
                         );
 
                         fail (Error_Arg_Type(
-                            f->label_sym, &honest_param, Type_Of(f->arg))
+                            FRM_LABEL(f), &honest_param, Type_Of(f->arg))
                         );
                     }
 
@@ -2151,7 +2168,7 @@ reevaluate:
 
             if (f->indexor == END_FLAG) {
                 if (pclass == PARAM_CLASS_NORMAL)
-                    fail (Error_No_Arg(FRM_LABEL_SYM(f), f->param));
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 assert(
                     pclass == PARAM_CLASS_HARD_QUOTE
@@ -2159,7 +2176,7 @@ reevaluate:
                 );
 
                 if (!TYPE_CHECK(f->param, REB_UNSET))
-                    fail (Error_No_Arg(f->label_sym, f->param));
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 SET_UNSET(f->arg);
                 goto continue_arg_loop;
@@ -2269,7 +2286,7 @@ reevaluate:
             }
 
             if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-                fail (Error_Arg_Type(f->label_sym, f->param, Type_Of(f->arg)));
+                fail (Error_Arg_Type(FRM_LABEL(f), f->param, Type_Of(f->arg)));
 
         continue_arg_loop: // `continue` might bind to the wrong scope
             NOOP;
@@ -2497,7 +2514,7 @@ reevaluate:
                 VAL_FUNC_EXIT_FROM(f->refine) = FUNC_PARAMLIST(f->func);
         }
 
-        if (Trace_Flags) Trace_Func(f->label_sym, FUNC_VALUE(f->func));
+        if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
         assert(f->indexor != THROWN_FLAG);
 
@@ -2713,6 +2730,8 @@ reevaluate:
         f->data.stackvars = NULL;
     #endif
 
+        f->opt_label_sym = opt_saved_sym;
+
     #if !defined(NDEBUG)
         if (f->eval_fetched) {
             //
@@ -2742,7 +2761,7 @@ reevaluate:
         else
             f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
-        if (Trace_Flags) Trace_Return(f->label_sym, f->out);
+        if (Trace_Flags) Trace_Return(FRM_LABEL(f), f->out);
         break;
 
 
@@ -2766,6 +2785,9 @@ reevaluate:
         //
         /*if (GET_VAL_FLAG(f->value, EXT_CONTEXT_RUNNING))
            fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
+
+        if (f->opt_label_sym == SYM_0)
+            f->opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
 
         assert(f->data.stackvars == NULL);
         f->data.context = VAL_CONTEXT(f->value);
@@ -2849,12 +2871,7 @@ reevaluate:
                 IS_FUNCTION(f->param)
                 && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)
             ) {
-                f->label_sym = VAL_WORD_SYM(f->value);
-
-            #if !defined(NDEBUG)
-                f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
-            #endif
-
+                f->opt_label_sym = VAL_WORD_SYM(f->value);
                 f->func = VAL_FUNC(f->param);
 
                 // The warped function values used for definitional return
@@ -2879,7 +2896,7 @@ reevaluate:
                 f->param = FUNC_PARAMS_HEAD(f->func);
                 if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        f->label_sym, f->param, Type_Of(f->out))
+                        FRM_LABEL(f), f->param, Type_Of(f->out))
                     );
 
                 // Use current `out` as first argument of the infix function
@@ -3005,7 +3022,8 @@ REBIXO Do_Array_At_Core(
     const REBVAL *opt_first,
     REBARR *array,
     REBCNT index,
-    REBFLGS flags
+    REBFLGS flags,
+    REBSYM opt_label_sym
 ) {
     struct Reb_Frame f;
 
@@ -3025,6 +3043,7 @@ REBIXO Do_Array_At_Core(
         return END_FLAG;
     }
 
+    f.opt_label_sym = opt_label_sym;
     f.out = out;
     f.source.array = array;
     f.flags = flags;
@@ -3076,7 +3095,8 @@ REBIXO Do_Va_Core(
     REBVAL *out,
     const REBVAL *opt_first,
     va_list *vaptr,
-    REBFLGS flags
+    REBFLGS flags,
+    REBSYM opt_label_sym
 ) {
     struct Reb_Frame f;
 
@@ -3096,6 +3116,7 @@ REBIXO Do_Va_Core(
     f.out = out;
     f.indexor = VALIST_FLAG;
     f.source.vaptr = vaptr;
+    f.opt_label_sym = opt_label_sym;
 
     // !!! See notes in %m-gc.c about what needs to be done before it can
     // be safe to let arbitrary evaluations happen in variadic scenarios.
@@ -3226,7 +3247,8 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD,
+        SYM_0
     );
 
     if (indexor == VALIST_INCOMPLETE_FLAG) {
