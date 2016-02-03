@@ -3102,25 +3102,39 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     REBDSP dsp_orig = DSP;
     const REBVAL *value;
 
-    REBVAL temp;
-    VAL_INIT_WRITABLE_DEBUG(&temp);
-
-    assert(f->indexor == VALIST_FLAG);
     assert(f->flags & DO_FLAG_VALIST);
+    assert(f->indexor == VALIST_FLAG || f->indexor == END_FLAG);
 
     //assert(f->eval_fetched == NULL); // could reification ever happen here?
 
     if (truncated) {
+        REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
         Val_Init_Word(&temp, REB_WORD, SYM___OPTIMIZED_OUT__);
+
         DS_PUSH(&temp);
     }
 
-    while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
-        DS_PUSH(value);
+    if (f->indexor != END_FLAG) {
+        while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
+            DS_PUSH(value);
 
-    Pop_Stack_Values(&temp, dsp_orig, REB_BLOCK); // !!! update interface!
-    f->indexor = 1; // skip the --optimized-out--
-    f->source.array = VAL_ARRAY(&temp);
+        if (truncated)
+            f->indexor = 1; // skip the --optimized-out--
+        else
+            f->indexor = 0; // position at the start of the extracted values
+    }
+    else {
+        // Leave at the END_FLAG, but give back the array to serve as
+        // notice of the truncation (if it was truncated)
+    }
+
+    if (DSP != dsp_orig) {
+        f->source.array = Pop_Stack_Values(dsp_orig);
+        MANAGE_ARRAY(f->source.array); // held alive while frame running
+    }
+    else
+        f->source.array = EMPTY_ARRAY; // doesn't need to be unique
 
     // We clear the DO_FLAG_VALIST, assuming that the truncation marker is
     // enough information to record the fact that it was a va_list (revisit

@@ -489,7 +489,9 @@ REBTYPE(Varargs)
             DS_PUSH(D_OUT);
         }
 
-        Pop_Stack_Values(D_OUT, dsp_orig, REB_BLOCK); // other REB_XXX types?
+        // !!! What if caller wanted a REB_GROUP, REB_PATH, or an /INTO?
+        //
+        Val_Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
         return R_OUT;
     }
 

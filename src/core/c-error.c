@@ -1210,7 +1210,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
             if (NOT_END(item))
                 DS_PUSH(&ellipsis);
 
-            Pop_Stack_Values(&error_obj->nearest, dsp_orig, REB_BLOCK);
+            Val_Init_Block(&error_obj->nearest, Pop_Stack_Values(dsp_orig));
         }
     }
 

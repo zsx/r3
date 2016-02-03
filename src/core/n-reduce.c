@@ -81,7 +81,11 @@ REBOOL Reduce_Array_Throws(
         DS_PUSH(&reduced);
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
+
     return FALSE;
 }
 
@@ -147,7 +151,10 @@ void Reduce_Only(
         // never be accessible via words or paths.
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     assert(DSP == dsp_orig);
 }
@@ -185,7 +192,10 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     return FALSE;
 }
@@ -364,7 +374,10 @@ REBOOL Compose_Values_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     return FALSE;
 }

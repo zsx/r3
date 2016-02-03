@@ -323,7 +323,7 @@ REBOOL Make_Block_Type_Throws(
             DS_PUSH(out);
         } while (TRUE);
 
-        Pop_Stack_Values(out, dsp_orig, type);
+        Val_Init_Array(out, type, Pop_Stack_Values(dsp_orig));
 
         if (FALSE) {
             //

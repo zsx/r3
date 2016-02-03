@@ -202,46 +202,43 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 
 //
 //  Pop_Stack_Values: C
-// 
-// Pops computed values from the stack to make a new ANY-ARRAY! value of a
-// certain kind in `out`, or if the kind is REB_MAX then `out` is assumed to
-// be an ANY-ARRAY! value into which the values should be put.
 //
-// !!! Should update interface to return a REBARR* and not require going
-// through a REBVAL.
+// Pops computed values from the stack to make a new ARRAY.
 //
-void Pop_Stack_Values(
-    REBVAL *out,
-    REBDSP dsp_start,
-    enum Reb_Kind kind_or_max_if_into
-) {
-    REBARR *array;
+REBARR *Pop_Stack_Values(REBDSP dsp_start)
+{
     REBCNT len = DSP - dsp_start;
     REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
 
-    if (kind_or_max_if_into == REB_MAX) {
-        assert(ANY_ARRAY(out));
-        array = VAL_ARRAY(out);
+    REBARR *array = Copy_Values_Len_Shallow(values, len);
 
-        FAIL_IF_LOCKED_ARRAY(array);
+    DS_DROP_TO(dsp_start);
+    return array;
+}
 
-        // The protocol for /INTO is to set the position to the insertion tail
-        //
-        VAL_INDEX(out) = Insert_Series(
-            ARR_SERIES(array),
-            VAL_INDEX(out),
-            cast(REBYTE*, values),
-            len // multiplied by width (sizeof(REBVAL)) in Insert_Series
-        );
-    }
-    else {
-        array = Copy_Values_Len_Shallow(values, len);
-        Val_Init_Array(out, kind_or_max_if_into, array);
-    }
+
+//
+//  Pop_Stack_Values_Into: C
+//
+// Pops computed values from the stack into an existing ANY-ARRAY.  The
+// index of that array will be updated to the insertion tail (/INTO protocol)
+//
+void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
+    REBCNT len = DSP - dsp_start;
+    REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
+
+    assert(ANY_ARRAY(into));
+    FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(into));
+
+    VAL_INDEX(into) = Insert_Series(
+        ARR_SERIES(VAL_ARRAY(into)),
+        VAL_INDEX(into),
+        cast(REBYTE*, values),
+        len // multiplied by width (sizeof(REBVAL)) in Insert_Series
+    );
 
     DS_DROP_TO(dsp_start);
 }
-
 
 
 //

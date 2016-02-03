@@ -971,8 +971,7 @@ REBOOL Specialize_Function_Throws(
     REBVAL *param;
     REBVAL *arg;
 
-    REBVAL popped; // !!! Adapt Pop_Stack_Values to return array directly
-    VAL_INIT_WRITABLE_DEBUG(&popped);
+    REBARR *array;
 
     if (FUNC_CLASS(func) == FUNC_CLASS_SPECIALIZED) {
         //
@@ -1021,15 +1020,36 @@ REBOOL Specialize_Function_Throws(
 
     // Do the block into scratch space--we ignore the result (unless it is
     // thrown, in which case it must be returned.)
-    //
-    PUSH_GUARD_ARRAY(CTX_VARLIST(frame));
+    {
+        PUSH_GUARD_ARRAY(CTX_VARLIST(frame));
 
-    if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
+        if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
+            DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+            return TRUE;
+        }
+
         DROP_GUARD_ARRAY(CTX_VARLIST(frame));
-        return TRUE;
     }
 
-    DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+    // The spec is specially generated to be an optimized single-element
+    // series with a WORD! of the symbol of the function being specialized
+    // (if any).  The non-trivial generation process for a "fake" spec derived
+    // from the original function's spec is left to SPEC-OF, which will only
+    // be run when necessary.
+    //
+    Val_Init_Word(out, REB_WORD, opt_original_sym);
+    array = Make_Singular_Array(out); // now the `spec`
+    MANAGE_ARRAY(array);
+
+    // Begin initializing the returned function value
+    //
+    VAL_RESET_HEADER(out, REB_FUNCTION);
+    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_SPECIALIZED);
+    out->payload.function.spec = array;
+
+    // The "body" is just the frame of specialization information.
+    //
+    out->payload.function.impl.special = frame;
 
     // Generate paramlist by way of the data stack.  Push empty value (to
     // become the function value afterward), then all the args that remain
@@ -1042,32 +1062,13 @@ REBOOL Specialize_Function_Throws(
         if (IS_BAR(arg))
             DS_PUSH(param);
     }
-    Pop_Stack_Values(&popped, dsp_orig, REB_BLOCK);
-    //
-    // !!! VAL_ARRAY(&popped) already managed, but shouldn't be if changed
-    // to an array interface...would need MANAGE_ARRAY here.
+    array = Pop_Stack_Values(dsp_orig); // now the `paramlist`
+    MANAGE_ARRAY(array);
+    out->payload.function.func = AS_FUNC(array);
 
-    // Update fields of canon value.
+    // Update canon value's bits to match what we're giving back in out.
     //
-    arg = ARR_AT(VAL_ARRAY(&popped), 0);
-    VAL_RESET_HEADER(arg, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(arg, FUNC_CLASS_SPECIALIZED);
-    arg->payload.function.func = AS_FUNC(VAL_ARRAY(&popped));
-    arg->payload.function.impl.special = frame;
-
-    // The spec is specially generated to be an optimized single-element
-    // series with a WORD! of the symbol of the function being specialized
-    // (if any).  The non-trivial generation process for a "fake" spec derived
-    // from the original function's spec is left to SPEC-OF, which will only
-    // be run when necessary.
-    //
-    Val_Init_Word(out, REB_WORD, opt_original_sym);
-    arg->payload.function.spec = Make_Singular_Array(out);
-    MANAGE_ARRAY(arg->payload.function.spec);
-
-    // Return clone of the canon value's bits (this way guaranteed to match)
-    //
-    *out = *arg;
+    *ARR_HEAD(array) = *out;
 
     return FALSE;
 }
