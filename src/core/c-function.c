@@ -1536,9 +1536,11 @@ REBNATIVE(apply)
 
     f.arg = FRM_ARGS_HEAD(&f);
     f.param = FUNC_PARAMS_HEAD(f.func);
+    f.refine = TRUE_VALUE;
     f.args_evaluate = FALSE;
     f.lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
     f.exit_from = NULL;
+    f.cell.subfeed = NULL;
 
     if (f.flags & DO_FLAG_FRAME_CONTEXT) {
         //
