@@ -530,8 +530,11 @@ void Assert_Series_Core(REBSER *series)
 // This could be done in the PANIC_SERIES macro, but having it
 // as an actual function gives you a place to set breakpoints.
 //
-void Panic_Series_Debug(const REBSER *series, const char *file, int line)
-{
+ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
+    const REBSER *series,
+    const char *file,
+    int line
+) {
     if (TG_Pushing_Mold) { // cannot call Debug_Fmt !
         Debug_String(
             "Panic_Series() while pushing_mold",

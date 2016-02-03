@@ -323,9 +323,8 @@ struct Reb_Series_Dynamic {
 
     // This is the 4th pointer on 32-bit platforms which could be used for
     // something when a series is dynamic.  Previously the bias was not
-    // a full REBCNT but was limited in range to 16 bits or so.  But if
-    // it were here then it would free up a number of flags for the
-    // series, which would be helpful as they are necessary
+    // a full REBCNT but was limited in range to 16 bits or so.  This means
+    // 16 info bits are likely available if needed for dynamic series.
     //
     REBCNT bias;
 
@@ -397,7 +396,7 @@ struct Reb_Series {
             REBCNT wide:16;
             REBCNT high:16;
         } area;
-        REBOOL negated; // for bitsets (can't be EXT flag on just one value)
+        REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
     } misc;
 
@@ -604,18 +603,6 @@ struct Reb_Series {
             else \
                 Assert_Series_Core(s); \
         } while (0)
-#endif
-
-// This is a rather expensive check for whether a REBVAL* lives anywhere in
-// series memory, and hence may be relocated.  It can be useful for certain
-// stress tests to try and catch cases where values that should not be
-// living in a series are passed to some routines.
-//
-#ifdef NDEBUG
-    #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
-#else
-    #define ASSERT_NOT_IN_SERIES_DATA(v) \
-        Assert_Not_In_Series_Data_Debug(v, TRUE)
 #endif
 
 

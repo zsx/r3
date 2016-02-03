@@ -36,6 +36,7 @@ core: [
     c-function.c
     c-port.c
     c-task.c
+    c-value.c
     c-word.c
     d-crash.c
     d-dump.c

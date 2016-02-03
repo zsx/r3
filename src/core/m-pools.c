@@ -773,9 +773,13 @@ static REBOOL Series_Data_Alloc(
 #if !defined(NDEBUG)
 
 //
-//  Assert_Not_In_Series_Data_Debug: C
+//  Try_Find_Containing_Series_Debug: C
 //
-void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
+// This debug-build-only routine will look to see if it can find what series
+// a data pointer lives in.  It returns NULL if it can't find one.  It's very
+// slow, because it has to look at all the series.  Use sparingly!
+//
+REBSER *Try_Find_Containing_Series_Debug(const void *pointer)
 {
     REBSEG *seg;
 
@@ -784,13 +788,6 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
             if (SER_FREED(series))
-                continue;
-
-            // A locked series can be in some cases considered "safe" for the
-            // purposes that this routine is checking for.  Closures use
-            // series to gather their arguments, for instance.
-            //
-            if (locked_ok && GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE))
                 continue;
 
             if (pointer < cast(void*,
@@ -819,7 +816,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
 
             if (pointer < cast(void*, series->content.dynamic.data)) {
                 Debug_Fmt("Pointer found in freed head capacity of series");
-                assert(FALSE);
+                return series;
             }
 
             if (pointer > cast(void*,
@@ -827,13 +824,14 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
                 + (SER_WIDE(series) * SER_LEN(series))
             )) {
                 Debug_Fmt("Pointer found in freed tail capacity of series");
-                assert(FALSE);
+                return series;
             }
 
-            Debug_Fmt("Pointer not supposed to be in series data, but is.");
-            assert(FALSE);
+            return series;
         }
     }
+
+    return NULL; // not found
 }
 
 #endif

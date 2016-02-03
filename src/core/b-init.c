@@ -753,25 +753,25 @@ static void Init_Root_Context(void)
     SET_UNSET(&PG_Unset_Value[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_Unset_Value[1]);
-    MARK_VAL_READ_ONLY_DEBUG(&PG_Unset_Value[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_Unset_Value[1]);
 
     VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[0]);
     SET_NONE(&PG_None_Value[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_None_Value[1]);
-    MARK_VAL_READ_ONLY_DEBUG(&PG_None_Value[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_None_Value[1]);
 
     VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[0]);
     SET_FALSE(&PG_False_Value[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_VAL_READ_ONLY_DEBUG(&PG_False_Value[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_False_Value[1]);
 
     VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[0]);
     SET_TRUE(&PG_True_Value[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_VAL_READ_ONLY_DEBUG(&PG_True_Value[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //

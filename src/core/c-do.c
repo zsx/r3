@@ -823,6 +823,36 @@ void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
 //
 static REBCNT Do_Entry_Checks_Debug(struct Reb_Frame *f)
 {
+    // Though we can protect the value written into the target pointer 'out'
+    // from GC during the course of evaluation, we can't protect the
+    // underlying value from relocation.  Technically this would be a problem
+    // for any series which might be modified while this call is running, but
+    // most notably it applies to the data stack--where output used to always
+    // be returned.
+    //
+    // !!! A non-contiguous data stack which is not a series is a possibility.
+    //
+#ifdef STRESS_CHECK_DO_OUT_POINTER
+    REBSER *containing = Try_Find_Containing_Series_Debug(f->out);
+
+    if (containing) {
+        if (GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE)) {
+            //
+            // Currently it's considered OK to be writing into a fixed size
+            // series, for instance the durable portion of a function's
+            // arg storage.  It's assumed that the memory will not move
+            // during the course of the argument evaluation.
+            //
+        }
+        else {
+            Debug_Fmt("Request for ->out location in movable series memory");
+            assert(FALSE);
+        }
+    }
+#else
+    assert(!IN_DATA_STACK(f->out));
+#endif
+
     // The caller must preload ->value with the first value to process.  It
     // may be resident in the array passed that will be used to fetch further
     // values, or it may not.
@@ -833,19 +863,6 @@ static REBCNT Do_Entry_Checks_Debug(struct Reb_Frame *f)
     // bothering to invoke Do_Core().
     //
     assert(NOT_END(f->value));
-
-    // Though we can protect the value written into the target pointer 'out'
-    // from GC during the course of evaluation, we can't protect the
-    // underlying value from relocation.  Technically this would be a problem
-    // for any series which might be modified while this call is running, but
-    // most notably it applies to the data stack--where output used to always
-    // be returned.
-    //
-#ifdef STRESS_CHECK_DO_OUT_POINTER
-    ASSERT_NOT_IN_SERIES_DATA(f->out);
-#else
-    assert(!IN_DATA_STACK(f->out));
-#endif
 
     // The DO_FLAGs were decided to come in pairs for clarity, to make sure
     // that each callsite of the core routines was clear on what it was

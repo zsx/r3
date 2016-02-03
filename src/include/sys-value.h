@@ -3,7 +3,7 @@
 // "Ren-C" branch @ https://github.com/metaeducation/ren-c
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2015 Rebol Open Source Contributors
+// Copyright 2012-2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -65,8 +65,8 @@
 // address becoming invalid--but by default the garbage collector does not
 // know that value exists.  So while the address may be stable, any series
 // it has in the payload might go bad.  Use PUSH_GUARD_VALUE() to protect a
-// stack variable, and then DROP_GUARD_VALUE() when the protection is not
-// needed.  (You must always drop the last guard pushed.)
+// stack variable's payload, and then DROP_GUARD_VALUE() when the protection
+// is not needed.  (You must always drop the last guard pushed.)
 //
 // For a means of creating a temporary array of GC-protected REBVALs, see
 // the "chunk stack" in %sys-stack.h.  This is used when building function
@@ -260,19 +260,11 @@ struct Reb_Value_Header {
 // being sought of when terminators will be required and when they will not.
 //
 
-// The debug build puts REB_MAX in the type slot, to distinguish it from the
-// 0 that signifies REB_TRASH.  That can be checked to ensure a writable
-// value isn't a trash, but a non-writable value (e.g. a pointer) could be
-// any bit pattern in the type slot.  Only check if it's a Rebol-initialized
-// value slot...and then, tolerate "GC safe trash" (an unset in release)
-//
-#define IS_END(v) \
-    (assert( \
-        !((v)->header.bits & WRITABLE_MASK_DEBUG) \
-        || (((v)->header.bits & HEADER_TYPE_MASK) != REB_TRASH \
-            || GET_VAL_FLAG((v), TRASH_FLAG_SAFE) \
-        ) \
-    ), (v)->header.bits % 2 == 0)
+#ifdef NDEBUG
+    #define IS_END(v)       LOGICAL((v)->header.bits % 2 == 0)
+#else
+    #define IS_END(v)       IS_END_Debug(v)
+#endif
 
 #define NOT_END(v)          NOT(IS_END(v))
 
@@ -300,7 +292,7 @@ struct Reb_Value_Header {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  OPTS FLAGS common to every REBVAL
+//  GENERAL FLAGS common to every REBVAL
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -311,21 +303,11 @@ struct Reb_Value_Header {
 enum {
     // `VALUE_FLAG_FALSE`
     //
-    // This flag indicates that the attached value is one of the two cases of
-    // Rebol values that are considered "conditionally false".  This means
-    // that IF or WHILE or CASE would consider them to not be a test-positive
-    // for running the associated code.
-    //
-    // The two cases of conditional falsehood are (LOGIC! FALSE), and the
-    // NONE! value.  In order to optimize tests used by conditional constructs,
-    // this header bit is set to 1 for those two values...while all others
-    // set it to 0.
-    //
-    // This means that a LOGIC! does not need to use its data payload, and
-    // can just check this bit to know if it is true or false.  Also, testing
-    // for something being (LOGIC! TRUE) or (LOGIC! FALSE) can be done with
-    // a bit mask against one memory location in the header--not two tests
-    // against the type in the header and some byte in the payload.
+    // Both NONE! and LOGIC!'s false state are FALSE? ("conditionally false").
+    // All other types are TRUE?.  To make checking FALSE? and TRUE? faster,
+    // this bit is set when creating NONE! or FALSE.  As a result, LOGIC!
+    // does not need to store any data in its payload... its data of being
+    // true or false is already covered by this header bit.
     //
     VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
 
@@ -397,9 +379,9 @@ enum {
     VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3)
 };
 
-// VALUE_FLAG_e flags both generically applicable to all values and specific
-// to a single value type.  To be a little on the safe side, the masking
-// routines
+// VALUE_FLAG_XXX flags are applicable to all types.  Type-specific flags are
+// named things like TYPESET_FLAG_XXX or WORD_FLAG_XXX and only apply to the
+// type that they reference.  Both use these XXX_VAL_FLAG accessors.
 //
 #ifdef NDEBUG
     #define SET_VAL_FLAG(v,f) \
@@ -443,7 +425,7 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE TYPE and per-type EXTS flags
+//  VALUE "KIND" (1 out of 64 different foundational types)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -525,19 +507,6 @@ enum {
     (VAL_RESET_HEADER((v),(t)), \
         CLEAR(&(v)->payload, sizeof(union Reb_Value_Payload)))
 
-//
-// The ability to read and write all the EXTS at once as an 8-bit value.
-// Review uses to see if they could be done all as part of the initialization.
-//
-
-#define VAL_EXTS_DATA(v) \
-    (((v)->header.bits & \
-        (cast(REBUPT, 0xFF) << TYPE_SPECIFIC_BIT)) >> TYPE_SPECIFIC_BIT)
-
-#define VAL_SET_EXTS_DATA(v,e) \
-    (((v)->header.bits &= ~(cast(REBUPT, 0xFF) << TYPE_SPECIFIC_BIT)), \
-        (v)->header.bits |= ((e) << TYPE_SPECIFIC_BIT))
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -548,8 +517,8 @@ enum {
 // `struct Reb_Track` is the value payload in debug builds for any REBVAL
 // whose VAL_TYPE() doesn't need any information beyond the header.  This
 // offers a chance to inject some information into the payload to help
-// know where the value originated.  It is used by TRASH!, UNSET!, NONE!
-// and LOGIC!.
+// know where the value originated.  It is used by TRASH!, UNSET!, NONE!,
+// LOGIC!, and BAR!.
 //
 // In addition to the file and line number where the assignment was made,
 // the "tick count" of the DO loop is also saved.  This means that it can
@@ -557,10 +526,14 @@ enum {
 // the value--and at what place in the source.  Repro cases can be set to
 // break on that tick count, if it is deterministic.
 //
-// This feature can be helpful to enable, but it can also create problems
-// in terms of making memory that would look "free" appear available.
+
+// !!! If we're not using TRACK_EMPTY_PAYLOADS, should this POISON_MEMORY()
+// on the payload to catch invalid reads?  Trash values don't hang around
+// that long, except for the values in the extra "->rest" capacity of series.
+// Would that be too many memory poisonings to handle efficiently?
 //
-#define TRACK_EMPTY_PAYLOADS // for now, helpful to know...
+#define TRACK_EMPTY_PAYLOADS
+
 #if !defined(NDEBUG)
     #ifdef TRACK_EMPTY_PAYLOADS
         struct Reb_Track {
@@ -592,45 +565,27 @@ enum {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Trash is a debugging-only concept.  Nevertheless, REB_TRASH consumes
-// VAL_TYPE #0 (of 64) in the release build.  That offers some benefit since
-// it means one of the 64-bits in a typeset is always available for another
-// use (as trash is not ever supposed to be seen by the user...)
+//     NOTE: In debug builds, Reb_Trash saves the line and file where
+//     the "trashing" of the cell slot happened  See `Reb_Value.track`.
 //
-// It's intended to be a value written into cells in the debug build when
-// the cell is expected to be overwitten with valid data.  By default, the
-// garbage collector will raise an alert if a TRASH! value is not overwritten
-// by the time it sees it...and any attempt to read the type of a trash
-// value with VAL_TYPE() will cause the debug build to assert.  Hence it
-// must be tested for specially.
+// Trash is what's written into cells in the debug build when the cell is
+// expected to be overwitten with valid data.  To prevent it from being
+// inspected while it's in an invalid state, VAL_TYPE used on a trash value
+// will assert in the debug build.
 //
-// There are some uses of trash which the GC should be able to run while it
-// is extant.  For example, when a native function is called the cell where
-// it is supposed to write its output is set to trash.  However, the garbage
-// collector may run before the native has written its result...so for these
-// cases, use SET_TRASH_SAFE().  It will still trigger assertions if other
-// code tries to use it--it's just that the GC will treat it like an UNSET!.
+// By default, the garbage collector will raise an alert if a TRASH! value
+// is not overwritten by the time it sees it.  But some cases work with
+// GC-visible locations and want the GC to ignore a transitional trash.  For
+// these cases use SET_TRASH_GC_SAFE().
 //
-// The operations for setting trash are available in both debug and release
-// builds.  An unsafe trash set turns into a NOOP in release builds (it will
-// be "trash" in the sense of being uninitialized memory).  Meanwhile a safe
-// trash set turns into a SET_UNSET() in release builds--so for instance any
-// native that does not write its return result will return unset in release
-// builds.  IS_TRASH_DEBUG() can be used to test for trash in debug builds,
-// but not in release builds...as there is no test for "uninitialized memory".
-//
-// Because the trash value saves the filename and line where it originated,
-// the REBVAL has that info in debug builds to inspect in its `trash` union
-// member.  It also saves the Do tick count in which it was created, to
-// make it easier to pinpoint precisely when it came into existence.
-//
-// !!! If we're not using TRACK_EMPTY_PAYLOADS, should this POISON_MEMORY() on
-// the payload to help catch invalid reads?  Trash values don't hang around
-// that long, except for the case of the values in the extra "->rest" capacity
-// of series.  Would that be too many memory poisonings to handle efficiently?
+// IS_TRASH_DEBUG() can be used to test for trash, but in debug builds only.
+// The macros for setting trash will compile in both debug and release builds,
+// though an unsafe trash will be a NOOP in release builds.  (So the "trash"
+// will be uninitialized memory, in that case.)  A safe trash set turns into
+// a SET_UNSET() in release builds.
 //
 #ifdef NDEBUG
-    #define MARK_VAL_READ_ONLY_DEBUG(v) NOOP
+    #define MARK_VAL_UNWRITABLE_DEBUG(v) NOOP
 
     #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
 
@@ -654,7 +609,7 @@ enum {
     // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
     // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
     //
-    #define MARK_VAL_READ_ONLY_DEBUG(v) \
+    #define MARK_VAL_UNWRITABLE_DEBUG(v) \
         ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
 
     // The debug build requires that any value slot that's going to be written

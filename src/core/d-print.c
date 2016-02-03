@@ -627,26 +627,6 @@ void Debug_Fmt(const char *fmt, ...)
 }
 
 
-#if !defined(NDEBUG)
-
-//
-//  Probe_Core_Debug: C
-// 
-// Debug function for outputting a value.  Done as a function
-// instead of just a macro due to how easy it is with va_lists
-// to order the types of the parameters wrong.  :-/
-//
-void Probe_Core_Debug(const char *msg, const char *file, int line, const REBVAL *val)
-{
-    if (msg)
-        Debug_Fmt("\n** PROBE_MSG(\"%s\") %s:%d\n%r\n", msg, file, line, val);
-    else
-        Debug_Fmt("\n** PROBE() %s:%d\n%r\n", file, line, val);
-}
-
-#endif
-
-
 //
 //  Echo_File: C
 //

@@ -1445,87 +1445,6 @@ REBNATIVE(map_gob_offset)
 
 #if !defined(NDEBUG)
 
-//
-//  Assert_REBVAL_Writable: C
-//
-// If this check fails, then you've done something along the lines of:
-//
-//     REBVAL value;
-//     SET_INTEGER(&value, 10);
-//
-// It needs to be "formatted" so it can be written to:
-//
-//     REBVAL value;
-//     VAL_INIT_WRITABLE_DEBUG(&value);
-//     SET_INTEGER(&value, 10);
-//
-// This is only needed for REBVALs that are not resident in series, e.g.
-// stack variables.
-//
-// The check helps avoid various catastrophies that might ensue if "implicit
-// end markers" could be overwritten.  These are the ENDs that are actually
-// pointers doing double duty inside a data structure, and there is no REBVAL
-// storage backing the position.
-//
-// There's also benefit in catching writes to other unanticipated locations.
-//
-void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
-{
-    if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
-        Debug_Fmt("Non-writable value found at %s:%d", file, line);
-        assert((v)->header.bits & WRITABLE_MASK_DEBUG); // for message
-    }
-}
-
-
-//
-//  VAL_TYPE_Debug: C
-//
-// Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker or on REB_TRASH.
-//
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
-{
-    if (IS_END(v)) {
-        //
-        // Seeing a bit pattern that has the low bit to 0 may be a purposeful
-        // end signal, or it could be something that's garbage data and just
-        // happens to have its zero bit set.  Since half of all possible
-        // bit patterns are even, it's more worth it than usual to point out.
-        //
-        Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
-        assert(NOT_END(v)); // for message
-    }
-    if (IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
-        assert(!IS_TRASH_DEBUG(v)); // for message
-    }
-    return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
-}
-
-
-//
-//  Assert_Flags_Are_For_Value: C
-//
-// This check is used by GET_VAL_FLAG, SET_VAL_FLAG, CLEAR_VAL_FLAG to avoid
-// accidentally checking or setting a type-specific flag on the wrong type
-// of value in the debug build.
-//
-void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
-    if ((f & HEADER_TYPE_MASK) == 0)
-        return; // flag applies to any value (or trash)
-
-    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(IS_FUNCTION(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
-        assert(ANY_CONTEXT(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
-        assert(ANY_WORD(v));
-    }
-}
-
 
 //
 //  VAL_SERIES_Ptr_Debug: C
@@ -1538,24 +1457,6 @@ REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
     return &(m_cast(REBVAL*, v))->payload.any_series.series;
-}
-
-
-//
-//  IS_CONDITIONAL_FALSE_Debug: C
-//
-// Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
-// ensure you never call it on an UNSET!
-//
-REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
-{
-    assert(!IS_END(v) && !IS_UNSET(v) && !IS_TRASH_DEBUG(v));
-    if (GET_VAL_FLAG(v, VALUE_FLAG_FALSE)) {
-        assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
-        return TRUE;
-    }
-    assert(!IS_NONE(v) && !(IS_LOGIC(v) && !VAL_LOGIC(v)));
-    return FALSE;
 }
 
 #endif

@@ -182,6 +182,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/c-port.c
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
+    ${CORE_DIR}/c-value.c
     ${CORE_DIR}/d-crash.c
     ${CORE_DIR}/d-dump.c
     ${CORE_DIR}/d-print.c
