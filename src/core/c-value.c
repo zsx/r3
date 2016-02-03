@@ -44,9 +44,32 @@
 // it can find it).  This will allow those using Address Sanitizer or
 // Valgrind to know a bit more about where the value came from.
 //
+// Additionally, if it happens to be trash, UNSET!, LOGIC!, BAR!, or NONE!
+// it will dump out where the initialization happened if that information
+// was stored.
+//
 ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 {
     REBSER *containing = Try_Find_Containing_Series_Debug(value);
+
+#ifdef TRACK_EMPTY_PAYLOADS
+    switch (value->header.bits & HEADER_TYPE_MASK) {
+    case REB_TRASH:
+    case REB_UNSET:
+    case REB_NONE:
+    case REB_LOGIC:
+    case REB_BAR:
+        Debug_Fmt(
+            "REBVAL init on tick #%d at %s:%d",
+            value->payload.track.count,
+            value->payload.track.filename,
+            value->payload.track.line
+        );
+        break;
+    }
+#endif
+
+    Debug_Fmt("Kind=%d", cast(int, value->header.bits & HEADER_TYPE_MASK));
 
     if (containing) {
         Debug_Fmt("Containing series for value pointer found, panicking it:");
@@ -84,7 +107,7 @@ void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
 {
     if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
         Debug_Fmt("Non-writable value found at %s:%d", file, line);
-        assert((v)->header.bits & WRITABLE_MASK_DEBUG); // for message
+        Panic_Value(v);
     }
 }
 
@@ -124,13 +147,12 @@ REBOOL IS_END_Debug(const REBVAL *v) {
 //
 REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
-    assert(!IS_END(v) && !IS_UNSET(v) && !IS_TRASH_DEBUG(v));
-    if (GET_VAL_FLAG(v, VALUE_FLAG_FALSE)) {
-        assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
-        return TRUE;
+    if (IS_END(v) || IS_UNSET(v) || IS_TRASH_DEBUG(v)) {
+        Debug_Fmt("Conditional true/false test on END orUNSET or TRASH");
+        Panic_Value(v);
     }
-    assert(!IS_NONE(v) && !(IS_LOGIC(v) && !VAL_LOGIC(v)));
-    return FALSE;
+
+    return GET_VAL_FLAG(v, VALUE_FLAG_FALSE);
 }
 
 
@@ -150,11 +172,11 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
         // bit patterns are even, it's more worth it than usual to point out.
         //
         Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
-        assert(NOT_END(v)); // for message
+        Panic_Value(v);
     }
     if (IS_TRASH_DEBUG(v)) {
         Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
-        assert(!IS_TRASH_DEBUG(v)); // for message
+        Panic_Value(v);
     }
     return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
 }
