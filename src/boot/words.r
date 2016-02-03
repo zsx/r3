@@ -336,6 +336,11 @@ comment
 ; (product of literal or evaluation) so no name is known for it
 --anonymous--
 
+; used to signal situations where information that would be available in
+; a debug build has been elided
+;
+--optimized-out--
+
 ; used as error fields in debug builds for C's __FILE__ and __LINE__ of origin
 __FILE__
 __LINE__

@@ -969,6 +969,14 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Frame *f) {
 
     f->exit_from = cast(REBARR*, 0xDECAFBAD);
 
+    // Mutate va_list sources into arrays at fairly random moments in the
+    // debug build.  It should be able to handle it at any time.
+    //
+    if (f->indexor == VALIST_FLAG && SPORADICALLY(50)) {
+        const REBOOL truncated = TRUE;
+        Reify_Va_To_Array_In_Frame(f, truncated);
+    }
+
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
     // and read the count...then put that here and recompile with
@@ -3064,6 +3072,65 @@ REBIXO Do_Array_At_Core(
 
 
 //
+//  Reify_Va_To_Array_In_Frame: C
+//
+// For performance and memory usage reasons, a variadic C function call that
+// wants to invoke the evaluator with just a comma-delimited list of REBVAL*
+// does not need to make a series to hold them.  Do_Core is written to use
+// the va_list traversal as an alternate to DO-ing an ARRAY.
+//
+// However, va_lists cannot be backtracked once advanced.  So in a debug mode
+// it can be helpful to turn all the va_lists into arrays before running
+// them, so stack frames can be inspected more meaningfully--both for upcoming
+// evaluations and those already past.
+//
+// A non-debug reason to reify a va_list into an array is if the garbage
+// collector needs to see the upcoming values to protect them from GC.  In
+// this case it only needs to protect those values that have not yet been
+// consumed.
+//
+// Because items may well have already been consumed from the va_list() that
+// can't be gotten back, we put in a marker to help hint at the truncation
+// (unless told that it's not truncated, e.g. a debug mode that calls it
+// before any items are consumed).
+//
+// This does not touch the current prefetched f->value in the frame--it only
+// changes the source and the indexor which will be seen by the next fetch.
+//
+void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
+{
+    REBDSP dsp_orig = DSP;
+    const REBVAL *value;
+
+    REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
+
+    assert(f->indexor == VALIST_FLAG);
+    assert(f->flags & DO_FLAG_VALIST);
+
+    //assert(f->eval_fetched == NULL); // could reification ever happen here?
+
+    if (truncated) {
+        Val_Init_Word(&temp, REB_WORD, SYM___OPTIMIZED_OUT__);
+        DS_PUSH(&temp);
+    }
+
+    while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
+        DS_PUSH(value);
+
+    Pop_Stack_Values(&temp, dsp_orig, REB_BLOCK); // !!! update interface!
+    f->indexor = 1; // skip the --optimized-out--
+    f->source.array = VAL_ARRAY(&temp);
+
+    // We clear the DO_FLAG_VALIST, assuming that the truncation marker is
+    // enough information to record the fact that it was a va_list (revisit
+    // if there's another reason to know what it was...)
+
+    f->flags &= ~DO_FLAG_VALIST;
+}
+
+
+//
 //  Do_Va_Core: C
 //
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
@@ -3126,12 +3193,6 @@ REBIXO Do_Va_Core(
     f.source.vaptr = vaptr;
     f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
-    // !!! See notes in %m-gc.c about what needs to be done before it can
-    // be safe to let arbitrary evaluations happen in variadic scenarios.
-    // (This functionality coming soon, but it requires reifying the va_list
-    // into an array if a GC incidentally happens during any va_list DOs.)
-    //
-    assert(flags & DO_FLAG_NO_ARGS_EVALUATE);
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 
     Do_Core(&f);
@@ -3143,7 +3204,16 @@ REBIXO Do_Va_Core(
         // For a resumable interface on va_list, see the lower level
         // varless API.
         //
-        if (f.indexor == VALIST_FLAG) {
+        // Note that the va_list may be reified during the call, so the
+        // index may not be VALIST_FLAG at this point.
+        //
+        // !!! Should this auto-reify, so it can keep going in all cases?
+        // The transition from va_list to non is a bit strange, and even
+        // if it were possible then users might wonder why the numbers
+        // don't line up with the parameter order.  Also, doing it without
+        // explicit request undermines knowledge of the efficiency lost.
+        //
+        if (f.indexor != THROWN_FLAG && f.indexor != END_FLAG) {
             //
             // Try one more fetch and see if it's at the end.  If not, we did
             // not consume all the input.

@@ -382,46 +382,30 @@ struct Reb_Frame {
     // Rebol BLOCK! or GROUP!...but something to know is that the `array`
     // could have come from any ANY-ARRAY! (e.g. a PATH!).  The fact that it
     // came from a value marked REB_PATH is not known here: value-bearing
-    // series will all "evaluate like a block".
+    // series will all "evaluate like a block" when passed to Do_Core.
     //
     // In addition to working with a source of values in a traditional series,
     // in Ren-C it is also possible to feed the evaluator arbitrary REBVAL*s
-    // through a variable argument list.  It is not necessary to dynamically
-    // allocate an array to use as input for an impromptu evaluation: the
-    // stack parameters of a function call are enumerated.  However...
-    //
-    // === The `va_list` is *NOT* random access like an array is!!! ===
-    //
-    // http://en.cppreference.com/w/c/variadic
-    //
-    // See notes on `index` about how this is managed via VALIST_FLAG.
-    //
-    // !!! It is extremely desirable to implicitly GC protect the C function
-    // arguments but a bit difficult to do so; one good implementation idea
-    // would be to merge it with the idea of a third category of using
-    // an in-memory array block of values; where at the point of a GC
-    // actually happening then *that* would be the opportunity where the
-    // cost were paid to advance through the remaining arguments, copying
-    // them into some safe location and then picking up the enumeration
-    // through memory.
+    // through a variable argument list.  Though this means no array needs to
+    // be dynamically allocated, some conditions require the va_list to be
+    // converted to an array.  See notes on Reify_Va_To_Array_In_Frame().
     //
     union Reb_Frame_Source source;
 
-    // `index` [INPUT, OUTPUT]
+    // `indexor` [INPUT, OUTPUT]
     //
-    // Index into the array from which new values are fetched after the
-    // initial `value`.  Successive fetching is always done by index and
-    // not by incrementing `value` for several reasons, though one is to
-    // avoid crashing if the input array is modified during the evaluation.
+    // This can hold an "index OR a flag" related to the current state of
+    // the enumeration of the values being evaluated.  For the flags, see
+    // notes on REBIXO and END_FLAG, THROWN_FLAG.  Note also the case of
+    // a C va_list where the actual index of the REBVAL* is intrinsic to
+    // the enumeration...so the indexor will be VA_LIST flag vs. a count.
+    //
+    // Successive fetching is always done by index and not with `++c-value`.
+    // This is for several reasons, but one of them is to avoid crashing if
+    // the input array is modified during the evaluation.
     //
     // !!! While it doesn't *crash*, a good user-facing explanation of
     // handling what it does instead seems not to have been articulated!  :-/
-    //
-    // At the end of the evaluation it's the index of the next expression
-    // to be evaluated, THROWN_FLAG, or END_FLAG.
-    //
-    // What might happen if they are on a branch during the conversion where
-    // they assumed it was vararg and it changes?
     //
     REBIXO indexor;
 
@@ -1188,7 +1172,7 @@ struct Native_Refine {
 #endif
 
 #define FRM_IS_VARLESS(f) \
-    ((f)->arg ? FALSE : (assert(!FRM_IS_VALIST(f)), TRUE))
+    LOGICAL((f)->arg == NULL)
 
 // Note about D_NUM_ARGS: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get

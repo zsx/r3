@@ -370,21 +370,8 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
     REBOOL pending;
 
     if (FRM_IS_VALIST(frame)) {
-        //
-        // !!! Not yet implemented: the reporting of errors that occur when
-        // a C va_list is used.  The historical instances of this were
-        // system calls that really would be difficult to know what was
-        // going wrong--and there wasn't much notice or tolerance of failure,
-        // but Ren-C is going to permit these calls everywhere and needs
-        // a better story.
-        //
-        // What needs to happen is that the args must be reified; it would
-        // make it impossible to continue evaluating after this point unless
-        // the va_list was transformed into an array.  This is similar to
-        // what needs to be done if there is a GC in the middle of an
-        // arbitrary va_list-based evaluation.
-        //
-        assert(FALSE);
+        const REBOOL truncated = TRUE;
+        Reify_Va_To_Array_In_Frame(frame, truncated);
     }
 
     // WARNING: MIN is a C macro and repeats its arguments.

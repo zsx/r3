@@ -1167,29 +1167,25 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
         }
         Val_Init_Block(&error_obj->where, backtrace);
 
-        // Nearby location of the error.
+        // Nearby location of the error.  Reify any valist that is running,
+        // so that the error has an array to present.
         //
-        // !!! There should be a good logic for giving back errors when the
-        // call originates from the C code via va_args (hence no block).
-        // This current idea may not be ideal...it walks up the stack until
-        // it finds a non-valist frame and reports the error there.
+        frame = up_stack ? FS_TOP->prior : FS_TOP;
+        if (FRM_IS_VALIST(frame)) {
+            const REBOOL truncated = TRUE;
+            Reify_Va_To_Array_In_Frame(frame, truncated);
+        }
+
+        // Get at most 6 values out of the array.  Ideally 3 before and after
+        // the error point.  If truncating either the head or tail of the
+        // values, put ellipses.  Leave a marker at the point of the error
+        // (currently `??`)
         //
-        frame = FS_TOP;
-        while (frame != NULL && FRM_IS_VALIST(frame))
-            frame = FRM_PRIOR(frame);
-
-        if (frame != NULL) {
-            //
-            // Get at most 6 values out of the array.  Ideally 3 before and
-            // 3 after the error point.  If truncating either the head or
-            // tail of the values, put ellipses.  Leave a marker at the
-            // point of the error (currently `??`)
-            //
-            // Note: something like `=>ERROR=>` would be better, but have to
-            // insert a today-legal WORD!
-
+        // Note: something like `=>ERROR=>` would be better, but have to
+        // insert a today-legal WORD!
+        {
             REBDSP dsp_orig = DSP;
-            REBINT start = FRM_INDEX(frame) - 3;
+            REBINT start = FRM_INDEX(FS_TOP) - 3;
             REBCNT count = 0;
             REBVAL *item;
 

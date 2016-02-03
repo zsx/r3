@@ -160,7 +160,7 @@ static void Push_Array_Marked_Deep(REBARR *array)
         //
         // If the array's storage was on the stack and that stack level has
         // been popped, its data has been nulled out, and the series only
-        // exists for to keep words or objects holding it from crashing.
+        // exists to keep words or objects holding it from crashing.
         //
         if (!GET_ARR_FLAG(array, SERIES_FLAG_ACCESSIBLE))
             return;
@@ -560,22 +560,13 @@ static void Mark_Frame_Stack_Deep(void)
     struct Reb_Frame *f = TG_Frame_Stack;
 
     for (; f != NULL; f = f->prior) {
+        //
+        // Should have taken care of reifying all the VALIST on the stack
+        // earlier in the recycle process (don't want to create new arrays
+        // once the recycling has started...)
+        //
+        assert(f->indexor != VALIST_FLAG);
 
-        // !!! There are now going to be two, and perhaps three (?), ways of
-        // holding the values being enumerated.  One problem is that the
-        // remainder of a C va_list cannot be enumerated without killing
-        // the enumeration, so there has to be a way to do that...and one
-        // would be to finish the enumeration but put in a dynamic source
-        // (ARRAY being a natural choice, but we're in mid-GC of arrays and
-        // don't want to make one, so some kind of pre-GC phase that took
-        // the outstanding va_list-based enumerations and made series for
-        // them would be required).
-        //
-        // GENERAL THEORY: va_list and memory series are "lazy realized" as
-        // arrays, this lazy realization can happen if you need to do a
-        // debug backtrace or error.  GCs lazy realize all pending frames
-        // before the GC starts.
-        //
         if (f->indexor == END_FLAG) {
             //
             // This is possible, because the frame could be sitting at the
@@ -583,16 +574,6 @@ static void Mark_Frame_Stack_Deep(void)
             // That frame will stay on the stack while the zero-arity
             // function is running, which could be arbitrarily long...so
             // a GC could happen.
-        }
-        else if (f->indexor == VALIST_FLAG) {
-            //
-            // !!! This needs to be written!  But we can *temporarily* hope
-            // for the best, because the existing Apply calls are only
-            // allowed to use DO_FLAG_EVAL_ONLY to supply their arguments.
-            // It's not safe to use full evaluation in va_lists until this
-            // code is written, so see assert in Do_Va_Core()
-            //
-            //assert(FALSE);
         }
         else {
             assert(f->indexor != THROWN_FLAG);
@@ -1255,6 +1236,23 @@ REBCNT Recycle_Core(REBOOL shutdown)
         SET_SIGNAL(SIG_RECYCLE);
         //Print("pending");
         return 0;
+    }
+
+    // Some of the call stack frames may have been invoked with a C function
+    // call that took a comma-separated list of REBVAL (the way printf works,
+    // a variadic va_list).  These call frames have no REBARR series behind
+    // them, but still need to be enumerated to protect the values coming up
+    // in the later DO/NEXTs.  But enumerating a C va_list can't be undone;
+    // the information were be lost if it weren't saved.  We "reify" the
+    // va_list into a REBARR before we start the GC (as it makes new series).
+    //
+    {
+        struct Reb_Frame *f = FS_TOP;
+        for (; f != NULL; f = f->prior) {
+            const REBOOL truncated = TRUE;
+            if (f->indexor == VALIST_FLAG)
+                Reify_Va_To_Array_In_Frame(f, truncated); // see function
+        }
     }
 
     if (Reb_Opts->watch_recycle) Debug_Str(cs_cast(BOOT_STR(RS_WATCH, 0)));
