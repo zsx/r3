@@ -645,7 +645,10 @@ REBCTX *Context_For_Frame_May_Reify(
         // This is an a-priori creation of pooled data... arg isn't ready to
         // check yet.
         //
-        assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY);
+    #if !defined(NDEBUG)
+        assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY); // APPLY doesn't init
+    #endif
+
         context = AS_CONTEXT(opt_varlist);
         assert(GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
     }

@@ -391,7 +391,7 @@ has: func [
 ;
 ; (It is still lightly optimized as a FUNC with no additional vars in frame)
 ;
-apply: func [
+r3-alpha-apply: func [
     "Apply a function to a reduced block of arguments."
 
     ; This does not work with infix operations.  It *could* be adapted to
@@ -503,19 +503,17 @@ closure: func [
     /extern
         {These words are not local}
     words [block!]
-
-    frame: ;-- local
 ][
-    frame: make frame! :function
-
-    frame/spec: compose [<durable> (spec)]
-    frame/body: body
-    frame/with: with
-    set/opt 'frame/object :object
-    frame/extern: extern
-    set/opt 'frame/words :words
-
-    eval frame
+    apply :function [
+        spec: compose [<durable> (spec)]
+        body: body
+        if with: with [
+            object: object
+        ]
+        if extern: extern [
+            words: :words
+        ]
+    ]
 ]
 
 clos: func [
@@ -612,6 +610,8 @@ set 'r3-legacy* func [] [
         or: (:or+)
 
         xor: (:xor-)
+
+        apply: (:r3-alpha-apply)
 
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)

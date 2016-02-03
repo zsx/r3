@@ -557,7 +557,24 @@ struct Reb_Frame {
     //
     REBIXO expr_index;
 
+    // Definitional Return gives back a "corrupted" REBVAL of a return native,
+    // whose body is actually an indicator of the return target.  The
+    // Reb_Frame only stores the FUNC so we must extract this body from the
+    // value if it represents a exit_from
+    //
+    REBARR *exit_from;
+
+    // Although the f->flags has a "baseline" of whether one is seeking to
+    // suppress argument evaluation or lookahead, these can be temporarily
+    // changed during the loop.  An EVAL/ONLY can disable argument evaluation
+    // for one DO/NEXT step, and lookahead can be disabled for arguments
+    // during one level of a function call.
+    //
+    REBUPT args_evaluate; // native pointer size is faster than REBOOL :-/
+    REBUPT lookahead_flags; // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD
+
 #if !defined(NDEBUG)
+    //
     // `label_str` [INTERNAL, DEBUG, READ-ONLY]
     //
     // Knowing the label symbol is not as handy as knowing the actual string
@@ -566,7 +583,10 @@ struct Reb_Frame {
     //
     const char *label_str;
 
+    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
     //
+    struct Reb_State state;
+
     // `do_count` [INTERNAL, DEBUG, READ-ONLY]
     //
     // The `do_count` represents the expression evaluation "tick" where the
@@ -809,6 +829,7 @@ struct Reb_Frame {
         f_.source = (source_); \
         f_.value = (value_in); \
         f_.indexor = (indexor_in); \
+        f_.mode = CALL_MODE_GUARD_ARRAY_ONLY; \
         f_.flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | (flags_); \
         Do_Core(&f_); \
         assert(f_.indexor == VALIST_FLAG || (indexor_in) != f_.indexor); \
@@ -942,14 +963,14 @@ struct Reb_Frame {
 #define Do_At_Throws(out,array,index) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core( \
         (out), NULL, (array), (index), \
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD, SYM_0))
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 // Because Do_Core can seed with a single value, we seed with our value and
 // an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
 //
 #define DO_VALUE_THROWS(out,value) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, 0, \
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD, SYM_0))
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

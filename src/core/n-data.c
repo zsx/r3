@@ -376,7 +376,7 @@ REBNATIVE(bind)
         //
         assert(flags & BIND_DEEP);
         assert(NOT(REF(set)));
-        Bind_Relative_Deep(func, array);
+        Bind_Relative_Deep(func, ARR_HEAD(array), TS_ANY_WORD);
     }
 
     return R_OUT;

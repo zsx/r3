@@ -136,7 +136,9 @@ Script: [
     use-eval-for-eval:  {Use EVAL (not DO) for inline evaluation of a value}
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
+    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
 
+    apply-non-function: [:arg1 {did not evaluate to a function in APPLY}]
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]

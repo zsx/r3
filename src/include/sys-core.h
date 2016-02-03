@@ -153,8 +153,8 @@ typedef struct rebol_mem_pool REBPOL;
 #include "sys-series.h"
 #include "sys-scan.h"
 #include "sys-stack.h"
-#include "sys-do.h"
 #include "sys-state.h"
+#include "sys-do.h"
 
 #include "reb-struct.h"
 

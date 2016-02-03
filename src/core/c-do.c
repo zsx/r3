@@ -950,6 +950,8 @@ static REBCNT Do_Evaluation_Preamble_Debug(struct Reb_Frame *f) {
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 
+    f->exit_from = cast(REBARR*, 0xDECAFBAD);
+
     // This counter is helpful for tracking a specific invocation.
     // If you notice a crash, look on the stack for the topmost call
     // and read the count...then put that here and recompile with
@@ -1064,60 +1066,50 @@ static void Do_Exit_Checks_Debug(struct Reb_Frame *f);
 void Do_Core(struct Reb_Frame * const f)
 {
 #if !defined(NDEBUG)
-    //
-    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
-    //
-    struct Reb_State state;
-
     // Cache of `f->do_count` (to make it quicker to see in the debugger)
     //
     REBCNT do_count;
 #endif
 
-    // Definitional Return gives back a "corrupted" REBVAL of a return native,
-    // whose body is actually an indicator of the return target.  The
-    // Reb_Frame only stores the FUNC so we must extract this body from the
-    // value if it represents a exit_from
-    //
-    REBARR *exit_from;
-
-    // Although the f->flags has a "baseline" of whether one is seeking to
-    // suppress argument evaluation or lookahead, these can be temporarily
-    // changed during the loop.  An EVAL/ONLY can disable argument evaluation
-    // for one DO/NEXT step, and lookahead can be disabled for arguments
-    // during one level of a function call.
-    //
-    REBUPT args_evaluate; // native pointer size is faster than REBOOL :-/
-    REBUPT lookahead_flags; // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD
-
-    // Do_Core is invoked with an optional symbol to describe it.  This way
-    // something like an APPLY or varargs-based evaluation can describe
-    // what's going on a little to the debugger.
-    //
-    // !!! Could these be expanded to be REBSERs, which might include a
-    // generated string, or even a hook to generate a string on demand?
-    //
-    REBSYM opt_saved_sym = f->opt_label_sym;
-
     // Parameter class cache, used while fulfilling arguments
     //
     enum Reb_Param_Class pclass;
 
+    // APPLY may wish to do a fast jump to doing type checking on the args.
+    // Other callers may have similar interests (and this may be explored
+    // further with "continuations" of the evaluator).  If requested, skip
+    // the dispatch and go straight to a label.
+    //
+    switch (f->mode) {
+    case CALL_MODE_GUARD_ARRAY_ONLY:
+        //
+        // Chain the call state into the stack, and mark it as generally not
+        // having valid fields to GC protect (more in use during functions).
+        //
+        f->prior = TG_Frame_Stack;
+        TG_Frame_Stack = f;
+    #if !defined(NDEBUG)
+        SNAP_STATE(&f->state); // to make sure stack balances, etc.
+        do_count = Do_Entry_Checks_Debug(f); // checks run once per Do_Core()
+    #endif
+        f->opt_label_sym = SYM_0;
+        break;
+
+    case CALL_MODE_ARGS:
+        assert(TG_Frame_Stack == f); // should already be pushed
+        assert(f->opt_label_sym != SYM_0);
+    #if !defined(NDEBUG)
+        do_count = TG_Do_Count; // entry checks for debug not true here
+    #endif
+        goto do_function_arglist_in_progress;
+
+    default:
+        assert(FALSE);
+    }
+
     // Check just once (stack level would be constant if checked in a loop)
     //
     if (C_STACK_OVERFLOWING(&f)) Trap_Stack_Overflow();
-
-    // Chain the call state into the stack, and mark it as generally not
-    // having valid fields to GC protect (more valid during function calls).
-    //
-    f->prior = TG_Frame_Stack;
-    TG_Frame_Stack = f;
-    f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
-
-#if !defined(NDEBUG)
-    SNAP_STATE(&state); // for comparison to make sure stack balances, etc.
-    do_count = Do_Entry_Checks_Debug(f); // checks that run once per Do_Core()
-#endif
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
@@ -1166,20 +1158,8 @@ value_ready_for_do_next:
     VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval)); // in union, always reinit
     SET_TRASH_IF_DEBUG(&(f->cell.eval));
 
-    args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
+    f->args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
 
-    lookahead_flags = (f->flags & DO_FLAG_LOOKAHEAD)
-        ? DO_FLAG_LOOKAHEAD
-        : DO_FLAG_NO_LOOKAHEAD;
-
-    // If we're going to jump to the `reevaluate:` label below we should not
-    // consider it a Recycle() opportunity.  The value residing in `eval`
-    // is a local variable unseen by the GC *by design*--to avoid having
-    // to initialize it or GC-safe de-initialize it each time through
-    // the evaluator loop.  It will only be protected by the GC under
-    // circumstances that wind up extracting its properties during a needed
-    // evaluation (hence protected indirectly via `f->array` or `f->func`.)
-    //
     assert(Eval_Count != 0);
     if (--Eval_Count == 0 || Eval_Signals) {
         //
@@ -1206,10 +1186,20 @@ value_ready_for_do_next:
     }
 
 reevaluate:
+    // ^--
+    // `reevaluate` is jumped to by EVAL, and must skip the possible Recycle()
+    // from the above.  Whenever `eval` holds a REBVAL it is unseen by the GC
+    // *by design*.  This avoids having to initialize it or GC-safe null it
+    // each time through the evaluator loop.  It will only be protected by
+    // the GC indirectly when its properties are extracted during the switch,
+    // such as a function that gets stored into `f->func`.
     //
-    // ^-- See why reevaluate must jump to be *after* a potentical GC point.
     // (We also want the debugger to consider the triggering EVAL as the
     // start of the expression, and don't want to advance `expr_index`).
+
+    f->lookahead_flags = (f->flags & DO_FLAG_LOOKAHEAD)
+        ? DO_FLAG_LOOKAHEAD
+        : DO_FLAG_NO_LOOKAHEAD;
 
     // On entry we initialized `f->out` to a GC-safe value, and no evaluations
     // should write END markers or unsafe trash in the slot.  As evaluations
@@ -1223,7 +1213,6 @@ reevaluate:
 #if !defined(NDEBUG)
     do_count = Do_Evaluation_Preamble_Debug(f); // per-DO/NEXT debug checks
     cast(void, do_count); // suppress unused warning
-    exit_from = cast(REBARR*, 0xDECAFBAD); // trash local to alert on reuse
 #endif
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1342,7 +1331,7 @@ reevaluate:
         if (f->indexor == END_FLAG)
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
 
-        if (args_evaluate) {
+        if (f->args_evaluate) {
             //
             // A SET-WORD! handles lookahead like a prefix function would;
             // so it uses lookahead on its arguments regardless of f->flags
@@ -1464,7 +1453,7 @@ reevaluate:
         // will *not* put this value in the output when it is making the
         // variable assignment!
         //
-        if (args_evaluate) {
+        if (f->args_evaluate) {
             //
             // A SET-PATH! handles lookahead like a prefix function would;
             // so it uses lookahead on its arguments regardless of f->flags
@@ -1615,7 +1604,7 @@ reevaluate:
         // this point to do the execution, so its change to lookahead is
         // not overwritten by this.
         //
-        lookahead_flags = DO_FLAG_LOOKAHEAD;
+        f->lookahead_flags = DO_FLAG_LOOKAHEAD;
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1638,8 +1627,8 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval));
-            DO_NEXT_REFETCH_MAY_THROW(&(f->cell.eval), f, lookahead_flags);
+            VAL_INIT_WRITABLE_DEBUG(&f->cell.eval);
+            DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, f->lookahead_flags);
 
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -1652,10 +1641,10 @@ reevaluate:
                 assert(DSP == f->dsp_orig + 1);
                 assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY); // canonized on push
                 DS_DROP;
-                args_evaluate = FALSE;
+                f->args_evaluate = FALSE;
             }
             else
-                args_evaluate = TRUE;
+                f->args_evaluate = TRUE;
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
@@ -1677,7 +1666,7 @@ reevaluate:
             else
                 f->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
 
-            f->value = &(f->cell.eval);
+            f->value = &f->cell.eval;
             goto reevaluate; // we don't move index!
         }
 
@@ -1705,7 +1694,7 @@ reevaluate:
             GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)
             && DSP == f->dsp_orig
             && !Trace_Flags
-            && args_evaluate // avoid EVAL/ONLY
+            && f->args_evaluate // avoid EVAL/ONLY
             && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
         ) {
             REB_R ret;
@@ -1742,7 +1731,7 @@ reevaluate:
                 if (f->indexor == END_FLAG)
                     fail (Error_No_Arg(FRM_LABEL(f), FUNC_PARAM(f->func, 1)));
 
-                DO_NEXT_REFETCH_MAY_THROW(f->out, f, lookahead_flags);
+                DO_NEXT_REFETCH_MAY_THROW(f->out, f, f->lookahead_flags);
 
                 if (f->indexor == THROWN_FLAG)
                     ret = R_OUT_IS_THROWN;
@@ -1799,13 +1788,13 @@ reevaluate:
         // contained in optimized definitional returns.
         //
         if (f->func == PG_Leave_Func) {
-            exit_from = VAL_FUNC_EXIT_FROM(f->value);
+            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
             goto do_definitional_exit_from;
         }
         if (f->func == PG_Return_Func)
-            exit_from = VAL_FUNC_EXIT_FROM(f->value);
+            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
         else
-            exit_from = NULL;
+            f->exit_from = NULL;
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1998,7 +1987,7 @@ reevaluate:
 
     //=//// SPECIALIZED REFINEMENT SLOT (no consumption) //////////////////=//
 
-                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
                     //
                     // Needed for `(copy [1 2 3])`, active specializations
 
@@ -2060,7 +2049,7 @@ reevaluate:
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
 
-                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
                     if (DO_VALUE_THROWS(f->out, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
@@ -2136,7 +2125,7 @@ reevaluate:
                 // the varargs needs to have this flag communicated...but
                 // then should it function variadically anyway?
                 //
-                assert(args_evaluate);
+                assert(f->args_evaluate);
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
@@ -2186,14 +2175,14 @@ reevaluate:
             // evaluation, even if the argument takes a BAR!.  It must come
             // through non-literal means(e.g. `quote '|` or `first [|]`)
             //
-            if (args_evaluate && IS_BAR(f->value))
+            if (f->args_evaluate && IS_BAR(f->value))
                 fail (Error(RE_EXPRESSION_BARRIER));
 
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (args_evaluate) {
-                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
+                if (f->args_evaluate) {
+                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, f->lookahead_flags);
 
                     if (f->indexor == THROWN_FLAG) {
                         *(f->out) = *(f->arg);
@@ -2216,7 +2205,7 @@ reevaluate:
 
             if (
                 pclass == PARAM_CLASS_SOFT_QUOTE
-                && args_evaluate // it's not an EVAL/ONLY
+                && f->args_evaluate // it's not an EVAL/ONLY
                 && IS_QUOTABLY_SOFT(f->value)
             ) {
                 if (DO_VALUE_THROWS(f->out, f->value)) {
@@ -2369,7 +2358,7 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        if (exit_from) {
+        if (f->exit_from) {
         do_definitional_exit_from:
             //
             // If it's a definitional return, then we need to do the throw
@@ -2387,7 +2376,7 @@ reevaluate:
             // simply evaluate the next item without inserting an opportunity
             // for the debugger, e.g. `return (breakpoint)`...)
             //
-            ASSERT_ARRAY(exit_from);
+            ASSERT_ARRAY(f->exit_from);
 
             // We only have a REBARR*, but want to actually THROW a full
             // REBVAL (FUNCTION! or FRAME! if it has a context) which matches
@@ -2395,21 +2384,21 @@ reevaluate:
             // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
-            if (GET_ARR_FLAG(exit_from, SERIES_FLAG_CONTEXT)) {
+            if (GET_ARR_FLAG(f->exit_from, SERIES_FLAG_CONTEXT)) {
                 //
                 // Request to exit from a specific FRAME!
                 //
-                *(f->out) = *CTX_VALUE(AS_CONTEXT(exit_from));
+                *(f->out) = *CTX_VALUE(AS_CONTEXT(f->exit_from));
                 assert(IS_FRAME(f->out));
-                assert(CTX_VARLIST(VAL_CONTEXT(f->out)) == exit_from);
+                assert(CTX_VARLIST(VAL_CONTEXT(f->out)) == f->exit_from);
             }
             else {
                 // Request to dynamically exit from first ANY-FUNCTION! found
                 // that has a given parameter list
                 //
-                *(f->out) = *FUNC_VALUE(AS_FUNC(exit_from));
+                *(f->out) = *FUNC_VALUE(AS_FUNC(f->exit_from));
                 assert(IS_FUNCTION(f->out));
-                assert(VAL_FUNC_PARAMLIST(f->out) == exit_from);
+                assert(VAL_FUNC_PARAMLIST(f->out) == f->exit_from);
             }
 
             f->indexor = THROWN_FLAG;
@@ -2477,7 +2466,6 @@ reevaluate:
             //
             f->arg = &f->data.stackvars[0];
         }
-
 
         // If the function has a native-optimized version of definitional
         // return, the local for this return should so far have just been
@@ -2730,8 +2718,6 @@ reevaluate:
         f->data.stackvars = NULL;
     #endif
 
-        f->opt_label_sym = opt_saved_sym;
-
     #if !defined(NDEBUG)
         if (f->eval_fetched) {
             //
@@ -2770,9 +2756,15 @@ reevaluate:
 // [FRAME!]
 //
 // If a literal FRAME! is hit in the source, then its associated function
-// will be executed with the data.  Any BAR! in the frame will be treated
-// as if it is an unfulfilled parameter and go through ordinary parameter
-// fulfillment logic.
+// will be executed with the data.  By default it will act like a
+// function specialization in terms of interpretation of the BAR! and
+// soft quoted arguments, unless EVAL/ONLY or DO_FLAG_NO_ARGS_EVALUATE
+// are used.
+//
+// To allow efficient applications, this does not make a copy of the FRAME!.
+// It considers it to be the prebuilt content.  However, it will rectify
+// any refinements to ensure they are the WORD! value or NONE!, as in the
+// case of specialization...and it also will type check.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
@@ -2805,8 +2797,9 @@ reevaluate:
 
         f->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
 
+        f->exit_from = NULL;
+
         FETCH_NEXT_ONLY_MAYBE_END(f);
-        exit_from = NULL;
         goto do_function_arglist_in_progress;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -2831,7 +2824,7 @@ reevaluate:
     // we should be back where we started in terms of the data stack, the
     // mold buffer position, the outstanding manual series allocations, etc.
     //
-    ASSERT_STATE_BALANCED(&state);
+    ASSERT_STATE_BALANCED(&f->state);
 
     // It's valid for the operations above to fall through after a fetch or
     // refetch that could have reached the end.
@@ -2880,7 +2873,7 @@ reevaluate:
                 //
                 assert(f->func != PG_Leave_Func);
                 assert(f->func != PG_Return_Func);
-                exit_from = NULL;
+                f->exit_from = NULL;
 
                 if (Trace_Flags) Trace_Line(f->source, f->indexor, f->param);
 
@@ -2909,7 +2902,7 @@ reevaluate:
 
                 // During the argument evaluations, do not look further ahead
                 //
-                lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
+                f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
 
                 FETCH_NEXT_ONLY_MAYBE_END(f);
                 goto do_function_arglist_in_progress;
@@ -2951,7 +2944,7 @@ return_indexor:
     // Jumping here skips the natural check that would be done after the
     // switch on the value being evaluated, so we assert balance here too.
     //
-    ASSERT_STATE_BALANCED(&state);
+    ASSERT_STATE_BALANCED(&f->state);
 
 #if !defined(NDEBUG)
     Do_Exit_Checks_Debug(f);
@@ -3022,8 +3015,7 @@ REBIXO Do_Array_At_Core(
     const REBVAL *opt_first,
     REBARR *array,
     REBCNT index,
-    REBFLGS flags,
-    REBSYM opt_label_sym
+    REBFLGS flags
 ) {
     struct Reb_Frame f;
 
@@ -3043,10 +3035,10 @@ REBIXO Do_Array_At_Core(
         return END_FLAG;
     }
 
-    f.opt_label_sym = opt_label_sym;
     f.out = out;
     f.source.array = array;
     f.flags = flags;
+    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
     Do_Core(&f);
 
@@ -3095,8 +3087,7 @@ REBIXO Do_Va_Core(
     REBVAL *out,
     const REBVAL *opt_first,
     va_list *vaptr,
-    REBFLGS flags,
-    REBSYM opt_label_sym
+    REBFLGS flags
 ) {
     struct Reb_Frame f;
 
@@ -3116,7 +3107,7 @@ REBIXO Do_Va_Core(
     f.out = out;
     f.indexor = VALIST_FLAG;
     f.source.vaptr = vaptr;
-    f.opt_label_sym = opt_label_sym;
+    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
     // !!! See notes in %m-gc.c about what needs to be done before it can
     // be safe to let arbitrary evaluations happen in variadic scenarios.
@@ -3247,8 +3238,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD,
-        SYM_0
+        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
     if (indexor == VALIST_INCOMPLETE_FLAG) {

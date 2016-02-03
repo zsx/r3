@@ -1387,14 +1387,16 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
 static void Bind_Relative_Inner_Loop(
     REBINT *binds,
     REBFUN *func,
-    REBARR *block
+    REBVAL value[],
+    REBU64 bind_types
 ) {
-    REBVAL *value = ARR_HEAD(block);
-
     for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)) {
-            REBINT n = binds[VAL_WORD_CANON(value)];
-            if (n != 0) {
+        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
+
+        if (type_bit & bind_types) {
+            REBINT n;
+            assert(ANY_WORD(value));
+            if ((n = binds[VAL_WORD_CANON(value)]) != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
                 // (clear out existing header flags first).  Note that
@@ -1409,7 +1411,9 @@ static void Bind_Relative_Inner_Loop(
             }
         }
         else if (ANY_ARRAY(value))
-            Bind_Relative_Inner_Loop(binds, func, VAL_ARRAY(value));
+            Bind_Relative_Inner_Loop(
+                binds, func, VAL_ARRAY_AT(value), bind_types
+            );
     }
 }
 
@@ -1421,7 +1425,7 @@ static void Bind_Relative_Inner_Loop(
 // To indicate the relative nature of the index, it is set to
 // a negative offset.
 //
-void Bind_Relative_Deep(REBFUN *func, REBARR *block)
+void Bind_Relative_Deep(REBFUN *func, REBVAL value[], REBU64 bind_types)
 {
     REBVAL *param;
     REBCNT index;
@@ -1454,7 +1458,7 @@ void Bind_Relative_Deep(REBFUN *func, REBARR *block)
     for (; NOT_END(param); param++, index++)
         binds[VAL_TYPESET_CANON(param)] = index;
 
-    Bind_Relative_Inner_Loop(binds, func, block);
+    Bind_Relative_Inner_Loop(binds, func, &value[0], bind_types);
 
     // Reset binding table
     //

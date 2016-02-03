@@ -461,8 +461,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
         &first, // path not in array but will be "virtual" first array element
         code_array,
         0, // index
-        DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD,
-        SYM_0
+        DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
     if (indexor != THROWN_FLAG && indexor != END_FLAG) {

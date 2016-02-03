@@ -88,6 +88,7 @@ REBARR *List_Func_Words(const REBVAL *func)
 
         default:
             assert(FALSE);
+            DEAD_END;
         }
 
         Val_Init_Word(Alloc_Tail_Array(array), kind, VAL_TYPESET_SYM(param));
@@ -885,7 +886,9 @@ void Make_Function(
     // body of the durable...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
     //
-    Bind_Relative_Deep(VAL_FUNC(out), VAL_FUNC_BODY(out));
+    Bind_Relative_Deep(
+        VAL_FUNC(out), ARR_HEAD(VAL_FUNC_BODY(out)), TS_ANY_WORD
+    );
 }
 
 
@@ -1135,7 +1138,9 @@ void Clonify_Function(REBVAL *value)
     // relating to the difference.
 /*
     Bind_Relative_Deep(
-        VAL_FUNC_PARAMLIST(out), VAL_FUNC_PARAMLIST(out), VAL_FUNC_BODY(out)
+        VAL_FUNC_PARAMLIST(out),
+        ARR_HEAD(VAL_FUNC_BODY(out)),
+        TS_ANY_WORD
     );
 */
 
@@ -1331,20 +1336,8 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
-    REBVAL *spec = ARG(spec);
-
     const REBOOL has_return = TRUE;
     const REBOOL returns_unset = FALSE;
-
-    if (IS_FUNCTION(spec)) {
-        //
-        // !!! Review implications of RETURN vs. LEAVE for specializations--
-        // FUNC vs. PROC?  The frame must match the original.
-        //
-        if (Specialize_Function_Throws(D_OUT, VAL_FUNC(spec), ARG(body)))
-            return R_OUT_IS_THROWN;
-        return R_OUT;
-    }
 
     Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
     return R_OUT;
@@ -1376,6 +1369,183 @@ REBNATIVE(proc)
     const REBOOL returns_unset = TRUE;
 
     Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
+
+    return R_OUT;
+}
+
+
+//
+//  specialize: native [
+//
+//  {Create a new function through partial or full specialization of another}
+//
+//      value [function!]
+//      def [block!]
+//          {Definition for FRAME! fields for args and refinements}
+//  ]
+//
+REBNATIVE(specialize)
+{
+    PARAM(1, value);
+    PARAM(2, def);
+
+    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(ARG(value)), ARG(def)))
+        return R_OUT_IS_THROWN;
+
+    return R_OUT;
+}
+
+
+//
+//  apply: native [
+//
+//  {Invoke a function with all required arguments specified.}
+//
+//      :value [function! get-word! get-path! group!]
+//          {Function specifier (will be soft quoted, keeps name for error)}
+//      def [block!]
+//          {Frame definition block (will be bound and evaluated)}
+//  ]
+//
+REBNATIVE(apply)
+{
+    PARAM(1, value);
+    PARAM(2, def);
+
+    REBVAL *value = ARG(value);
+    REBVAL *def = ARG(def);
+
+    struct Reb_Frame f;
+
+#if !defined(NDEBUG)
+    REBVAL *first_def = VAL_ARRAY_AT(def);
+
+    // !!! Because APPLY has changed, help warn legacy usages by alerting
+    // if the first element of the block is not a SET-WORD!.  A comment can
+    // subvert the warning: `apply :foo [comment {This is a new APPLY} ...]`
+    //
+    if (NOT_END(first_def)) {
+        if (
+            !IS_SET_WORD(first_def)
+            && !(IS_WORD(first_def) && VAL_WORD_SYM(first_def) == SYM_COMMENT)
+        ) {
+            fail (Error(RE_APPLY_HAS_CHANGED));
+        }
+    }
+#endif
+
+    if (IS_FUNCTION(value)) {
+        f.func = VAL_FUNC(value);
+        f.opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
+    }
+    else {
+        // "Manually soft quote" the value given to get the function.  If
+        // fetching the function from a GET-WORD!, capture the word's symbol
+        // to label the apply (for better debug and error information)
+
+        if (IS_GET_WORD(value))
+            f.opt_label_sym = VAL_WORD_SYM(value);
+        else
+            f.opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
+
+        if (DO_VALUE_THROWS(D_OUT, value))
+            return R_OUT_IS_THROWN;
+
+        if (!IS_FUNCTION(D_OUT))
+            fail (Error(RE_APPLY_NON_FUNCTION, value));
+
+        f.func = VAL_FUNC(D_OUT);
+    }
+
+    // !!! Because APPLY is being written as a regular native (and not a
+    // special exception case inside of Do_Core) it has to "re-enter" Do_Core
+    // and jump to the argument processing.  This is the first example of
+    // such a re-entry, and is not particularly streamlined yet.
+    //
+    // This could also be accomplished if function dispatch were a subroutine
+    // that would be called both here and from the evaluator loop.  But if
+    // the subroutine were parameterized with the frame state, it would be
+    // basically equivalent to a re-entry.  And re-entry is interesting to
+    // establish for other reasons (e.g. continuations), so that is what is
+    // used here.
+
+    f.prior = TG_Frame_Stack;
+    TG_Frame_Stack = &f;
+
+#if !defined(NDEBUG)
+    SNAP_STATE(&f.state); // for comparison to make sure stack balances, etc.
+#endif
+
+    f.value = NULL;
+    f.indexor = END_FLAG;
+    f.source.array = EMPTY_ARRAY;
+    f.eval_fetched = NULL;
+
+    f.out = D_OUT;
+    f.dsp_orig = DSP;
+
+    f.flags = DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
+
+#if !defined(NDEBUG)
+    f.data.stackvars = NULL;
+    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
+#endif
+
+    Push_Or_Alloc_Vars_For_Call(&f);
+
+    f.arg = FRM_ARGS_HEAD(&f);
+    f.param = FUNC_PARAMS_HEAD(f.func);
+    f.args_evaluate = FALSE;
+    f.lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
+    f.exit_from = NULL;
+
+    if (f.flags & DO_FLAG_FRAME_CONTEXT) {
+        //
+        // There's a pool-allocated context, specific binding available
+        //
+        Bind_Values_Core(
+            VAL_ARRAY_AT(def),
+            f.data.context,
+            FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
+            0, // types to "add midstream" to binding as we go (nothing)
+            BIND_DEEP
+        );
+
+        f.mode = CALL_MODE_ARGS; // protects context, needed during DO of def
+    }
+    else {
+        // Relative binding (long term this would be specific also)
+        //
+        Bind_Relative_Deep(
+            f.func, VAL_ARRAY_AT(def), FLAGIT_KIND(REB_SET_WORD)
+        );
+
+        // !!! While running `def`, it must believe that the relatively bound
+        // variables can be resolved.  For relative binding it will only think
+        // so if a stack frame for the function exists and is in the running
+        // state.  Hence we have to lie here temporarily during DO of def.
+        //
+        f.mode = CALL_MODE_FUNCTION;
+        f.arg = &f.data.stackvars[0];
+    }
+
+    // Do the block into scratch space--we ignore the result (unless it is
+    // thrown, in which case it must be returned.)
+    //
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, def))
+        return R_OUT_IS_THROWN;
+
+    // Undo our lie about the function running (if we had to lie)...
+    //
+    if (NOT(f.flags & DO_FLAG_FRAME_CONTEXT))
+        f.mode = CALL_MODE_ARGS;
+
+    Do_Core(&f);
+
+    if (f.indexor == THROWN_FLAG)
+        return R_OUT_IS_THROWN;
+
+    assert(f.indexor == END_FLAG); // we started at END_FLAG, can only throw
 
     return R_OUT;
 }
