@@ -966,7 +966,7 @@ REBOOL Specialize_Function_Throws(
 ) {
     REBDSP dsp_orig = DSP;
 
-    REBCTX *frame;
+    REBCTX *frame_ctx;
 
     REBVAL *param;
     REBVAL *arg;
@@ -983,21 +983,23 @@ REBOOL Specialize_Function_Throws(
         // be built for the code ultimately being called--and specializations
         // have no code of their own.)
         //
-        frame = AS_CONTEXT(Copy_Array_Deep_Managed(
+        frame_ctx = AS_CONTEXT(Copy_Array_Deep_Managed(
             CTX_VARLIST(FUNC_VALUE(func)->payload.function.impl.special)
         ));
         INIT_CTX_KEYLIST_SHARED(
-            frame,
+            frame_ctx,
             CTX_KEYLIST(FUNC_VALUE(func)->payload.function.impl.special)
         );
+        SET_ARR_FLAG(CTX_VARLIST(frame_ctx), SERIES_FLAG_CONTEXT);
+        INIT_VAL_CONTEXT(CTX_VALUE(frame_ctx), frame_ctx);
     }
     else {
         // An initial specialization is responsible for making a frame out
         // of the function's paramlist.  Unused keys will be | for a start,
         // as an experimental placeholder for "not specialized yet"
         //
-        frame = Make_Frame_For_Function(func);
-        MANAGE_ARRAY(CTX_VARLIST(frame)); // for consistency w/copying case
+        frame_ctx = Make_Frame_For_Function(func);
+        MANAGE_ARRAY(CTX_VARLIST(frame_ctx)); // because above case manages
     }
 
     // Bind all the SET-WORD! in the body that match params in the frame
@@ -1012,7 +1014,7 @@ REBOOL Specialize_Function_Throws(
     //
     Bind_Values_Core(
         VAL_ARRAY_AT(block),
-        frame,
+        frame_ctx,
         FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
         0, // types to "add midstream" to binding as we go (nothing)
         BIND_DEEP
@@ -1021,14 +1023,14 @@ REBOOL Specialize_Function_Throws(
     // Do the block into scratch space--we ignore the result (unless it is
     // thrown, in which case it must be returned.)
     {
-        PUSH_GUARD_ARRAY(CTX_VARLIST(frame));
+        PUSH_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
 
         if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
-            DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+            DROP_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
             return TRUE;
         }
 
-        DROP_GUARD_ARRAY(CTX_VARLIST(frame));
+        DROP_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
     }
 
     // The spec is specially generated to be an optimized single-element
@@ -1049,15 +1051,15 @@ REBOOL Specialize_Function_Throws(
 
     // The "body" is just the frame of specialization information.
     //
-    out->payload.function.impl.special = frame;
+    out->payload.function.impl.special = frame_ctx;
 
     // Generate paramlist by way of the data stack.  Push empty value (to
     // become the function value afterward), then all the args that remain
     // unspecialized (currently indicated by being a BAR!)
     //
     DS_PUSH_TRASH_SAFE; // later initialized as [0] canon value
-    param = CTX_KEYS_HEAD(frame);
-    arg = CTX_VARS_HEAD(frame);
+    param = CTX_KEYS_HEAD(frame_ctx);
+    arg = CTX_VARS_HEAD(frame_ctx);
     for (; NOT_END(param); ++param, ++arg) {
         if (IS_BAR(arg))
             DS_PUSH(param);
