@@ -1891,7 +1891,7 @@ enum Reb_Func_Class {
     FUNC_CLASS_COMMAND, // "special dispatch-based function"
     FUNC_CLASS_ROUTINE, // "external C function"
     FUNC_CLASS_CALLBACK, // "function to be called from C"
-    FUNC_CLASS_SPECIAL // "specialization of another function"
+    FUNC_CLASS_SPECIALIZED // "specialization of another function"
 };
 
 #define FCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
@@ -2038,6 +2038,7 @@ struct Reb_Function {
 #define VAL_FUNC_BODY(v)      ((v)->payload.function.impl.body)
 #define VAL_FUNC_ACT(v)       ((v)->payload.function.impl.act)
 #define VAL_FUNC_INFO(v)      ((v)->payload.function.impl.info)
+#define VAL_FUNC_SPECIAL(v)   ((v)->payload.function.impl.special)
 
 // FUNC_FLAG_LEAVE_OR_RETURN functions use RETURN or LEAVE native's function
 // value to give the definitional return its prototype, but overwrite its

@@ -505,7 +505,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     assert(!f->data.stackvars);
 #endif
 
-    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIAL) {
+    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
         actual_func = CTX_FRAME_FUNC(
             FUNC_VALUE(f->func)->payload.function.impl.special
         );

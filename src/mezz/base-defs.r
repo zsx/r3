@@ -20,7 +20,7 @@ REBOL [
 
 ; Must be defined in A108 (no forward refs)
 spec-of:
-body-of:
+body-of: ;-- real BODY-OF defined in %mezz-func.r
 words-of:
 values-of:
 types-of:

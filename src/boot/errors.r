@@ -138,7 +138,7 @@ Script: [
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
     apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
 
-    apply-non-function: [:arg1 {did not evaluate to a function in APPLY}]
+    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]

@@ -1559,7 +1559,7 @@ reevaluate:
         // a block, no word was used to get it, so its name is unknown.
         //
         if (f->opt_label_sym == SYM_0)
-            f->opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
+            f->opt_label_sym = SYM___ANONYMOUS__;
 
     do_function_in_value:
         //
@@ -1816,7 +1816,7 @@ reevaluate:
         // that this call of the function originated from a specialization.
         // So that would mean saving the specialization's f->func somewhere.
         //
-        if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIAL) {
+        if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
             f->func = CTX_FRAME_FUNC(
                 FUNC_VALUE(f->func)->payload.function.impl.special
             );
@@ -2542,7 +2542,7 @@ reevaluate:
             Do_Function_Core(f);
             break;
 
-        case FUNC_CLASS_SPECIAL:
+        case FUNC_CLASS_SPECIALIZED:
             //
             // Shouldn't get here--the specific function type should have been
             // extracted from the frame to use.
@@ -2779,7 +2779,7 @@ reevaluate:
            fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
 
         if (f->opt_label_sym == SYM_0)
-            f->opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
+            f->opt_label_sym = SYM___ANONYMOUS__;
 
         assert(f->data.stackvars == NULL);
         f->data.context = VAL_CONTEXT(f->value);

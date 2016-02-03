@@ -334,7 +334,7 @@ comment
 
 ; used when a function is executed but not looked up through a word binding
 ; (product of literal or evaluation) so no name is known for it
---anonymous-function--
+--anonymous--
 
 ; used as error fields in debug builds for C's __FILE__ and __LINE__ of origin
 __FILE__

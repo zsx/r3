@@ -158,30 +158,32 @@ REBTYPE(Function)
         case OF_BODY:
             switch (VAL_FUNC_CLASS(value)) {
             case FUNC_CLASS_NATIVE: {
-                //
-                // !!! Should be able to give "equivalent" body of code for
-                // some native functions.  /body already being passed to
-                // a few natives in definitions, just need a place to save
-                // the information (improve native table).
-                //
-                Val_Init_Array(
-                    D_OUT,
-                    REB_GROUP,
-                    Copy_Array_Deep_Managed(
-                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_NATIVE_BODY))
-                    ));
+                if (VAL_FUNC_CODE(value) == &N_quote) {
+                    //
+                    // !!! Should be able to give "equivalent" body of code for
+                    // some native functions.  /body already being passed to
+                    // a few natives in definitions, just need a place to save
+                    // the information (improve native table).
+                    //
+                    Val_Init_Array(
+                        D_OUT,
+                        REB_GROUP,
+                        Copy_Array_Deep_Managed(
+                            VAL_ARRAY(Get_System(
+                                SYS_STANDARD,
+                                STD_QUOTE_BODY_TEST
+                            ))
+                        ));
+                }
+                else {
+                    SET_HANDLE_CODE(D_OUT, cast(CFUNC*, VAL_FUNC_CODE(value)));
+                }
 
                 return R_OUT;
             }
 
             case FUNC_CLASS_ACTION: {
-                Val_Init_Array(
-                    D_OUT,
-                    REB_GROUP,
-                    Copy_Array_Deep_Managed(
-                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_ACTION_BODY))
-                    ));
-
+                SET_INTEGER(D_OUT, VAL_FUNC_ACT(value));
                 return R_OUT;
             }
 
@@ -208,37 +210,26 @@ REBTYPE(Function)
             }
 
             case FUNC_CLASS_COMMAND: {
-                Val_Init_Array(
-                    D_OUT,
-                    REB_GROUP,
-                    Copy_Array_Deep_Managed(
-                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_COMMAND_BODY))
-                    ));
-
+                SET_INTEGER(D_OUT, 0);
                 return R_OUT;
             }
 
             case FUNC_CLASS_ROUTINE: {
-                Val_Init_Array(
-                    D_OUT,
-                    REB_GROUP,
-                    Copy_Array_Deep_Managed(
-                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_ROUTINE_BODY))
-                    ));
-
+                SET_INTEGER(D_OUT, 0);
                 return R_OUT;
             }
 
             case FUNC_CLASS_CALLBACK: {
-                Val_Init_Array(
-                    D_OUT,
-                    REB_GROUP,
-                    Copy_Array_Deep_Managed(
-                        VAL_ARRAY(Get_System(SYS_STANDARD, STD_CALLBACK_BODY))
-                    ));
-
+                Val_Init_Array(D_OUT, REB_BLOCK, VAL_FUNC_BODY(value));
                 return R_OUT;
             }
+
+            case FUNC_CLASS_SPECIALIZED:
+                //
+                // Just a FRAME! (turned into a BLOCK! by mezzanine BODY-OF)
+                //
+                Val_Init_Context(D_OUT, REB_FRAME, VAL_FUNC_SPECIAL(value));
+                return R_OUT;
 
             default:
                 assert(FALSE);
@@ -250,6 +241,7 @@ REBTYPE(Function)
             Val_Init_Block(
                 D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
             );
+
             Unbind_Values_Deep(VAL_ARRAY_HEAD(D_OUT));
             return R_OUT;
 

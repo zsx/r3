@@ -961,6 +961,7 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
 REBOOL Specialize_Function_Throws(
     REBVAL *out,
     REBFUN *func,
+    REBSYM opt_original_sym,
     REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
 ) {
     REBDSP dsp_orig = DSP;
@@ -971,12 +972,9 @@ REBOOL Specialize_Function_Throws(
     REBVAL *arg;
 
     REBVAL popped; // !!! Adapt Pop_Stack_Values to return array directly
-    REBVAL dummy;
-
     VAL_INIT_WRITABLE_DEBUG(&popped);
-    VAL_INIT_WRITABLE_DEBUG(&dummy);
 
-    if (FUNC_CLASS(func) == FUNC_CLASS_SPECIAL) {
+    if (FUNC_CLASS(func) == FUNC_CLASS_SPECIALIZED) {
         //
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
@@ -1026,9 +1024,8 @@ REBOOL Specialize_Function_Throws(
     //
     PUSH_GUARD_ARRAY(CTX_VARLIST(frame));
 
-    if (DO_VAL_ARRAY_AT_THROWS(&dummy, block)) {
+    if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
         DROP_GUARD_ARRAY(CTX_VARLIST(frame));
-        *out = dummy;
         return TRUE;
     }
 
@@ -1052,17 +1049,21 @@ REBOOL Specialize_Function_Throws(
 
     // Update fields of canon value.
     //
-    // !!! Temporarily use an empty array for the spec.  Generating a spec
-    // here persistently would mean that all specializations would cost the
-    // generation of a spec--whether anyone looked at it or not.  So really
-    // it should be made on demand to answer SPEC-OF requests.
-    //
     arg = ARR_AT(VAL_ARRAY(&popped), 0);
     VAL_RESET_HEADER(arg, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(arg, FUNC_CLASS_SPECIAL);
+    INIT_VAL_FUNC_CLASS(arg, FUNC_CLASS_SPECIALIZED);
     arg->payload.function.func = AS_FUNC(VAL_ARRAY(&popped));
-    arg->payload.function.spec = EMPTY_ARRAY;
     arg->payload.function.impl.special = frame;
+
+    // The spec is specially generated to be an optimized single-element
+    // series with a WORD! of the symbol of the function being specialized
+    // (if any).  The non-trivial generation process for a "fake" spec derived
+    // from the original function's spec is left to SPEC-OF, which will only
+    // be run when necessary.
+    //
+    Val_Init_Word(out, REB_WORD, opt_original_sym);
+    arg->payload.function.spec = Make_Singular_Array(out);
+    MANAGE_ARRAY(arg->payload.function.spec);
 
     // Return clone of the canon value's bits (this way guaranteed to match)
     //
@@ -1375,11 +1376,51 @@ REBNATIVE(proc)
 
 
 //
+// "Manual soft quoting" used by APPLY and SPECIALIZE.  This will get an
+// optional symbol out of a value, or consider it to be anonymous.  On the
+// downside it means that passing an expression needs to be in a GROUP!
+//
+//     >> apply (first reduce [:append :print]) [series: [a b] value: 'c]
+//     == [a b c]
+//
+// On the upside, the error messages (and debug stack information) can be much
+// more meaningful in the common case, because they know the symbol of the
+// GET-WORD! used:
+//
+//     >> apply :append [value: 'c]
+//     ** Script error: append is missing its series argument
+//
+// !!! This may be more useful as a general technique, but static for now.
+//
+static REBOOL Manual_Soft_Quote_Throws(
+    REBVAL *out,
+    REBSYM *opt_sym,
+    const REBVAL *value
+) {
+    if (IS_GET_WORD(value))
+        *opt_sym = VAL_WORD_SYM(value);
+    else {
+        *opt_sym = SYM___ANONYMOUS__;
+        if (!IS_GET_PATH(value) && !IS_GET_WORD(value)) {
+            *out = *value;
+            return FALSE;
+        }
+    }
+
+    if (DO_VALUE_THROWS(out, value))
+        return TRUE;
+
+    return FALSE;
+}
+
+
+//
 //  specialize: native [
 //
 //  {Create a new function through partial or full specialization of another}
 //
-//      value [function!]
+//      :value [function! get-word! get-path! group!]
+//          {Function specifier (will be soft quoted, keeps name for error)}
 //      def [block!]
 //          {Definition for FRAME! fields for args and refinements}
 //  ]
@@ -1389,7 +1430,19 @@ REBNATIVE(specialize)
     PARAM(1, value);
     PARAM(2, def);
 
-    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(ARG(value)), ARG(def)))
+    REBSYM opt_sym;
+
+    // We don't limit to taking a FUNCTION! value directly, because that loses
+    // the symbol (for debugging, errors, etc.)  If caller passes a GET-WORD!
+    // then we lookup the variable to get the function, but save the symbol.
+    //
+    if (Manual_Soft_Quote_Throws(D_OUT, &opt_sym, ARG(value)))
+        return R_OUT_IS_THROWN;
+
+    if (!IS_FUNCTION(D_OUT))
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
+
+    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(D_OUT), opt_sym, ARG(def)))
         return R_OUT_IS_THROWN;
 
     return R_OUT;
@@ -1412,7 +1465,6 @@ REBNATIVE(apply)
     PARAM(1, value);
     PARAM(2, def);
 
-    REBVAL *value = ARG(value);
     REBVAL *def = ARG(def);
 
     struct Reb_Frame f;
@@ -1434,28 +1486,17 @@ REBNATIVE(apply)
     }
 #endif
 
-    if (IS_FUNCTION(value)) {
-        f.func = VAL_FUNC(value);
-        f.opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
-    }
-    else {
-        // "Manually soft quote" the value given to get the function.  If
-        // fetching the function from a GET-WORD!, capture the word's symbol
-        // to label the apply (for better debug and error information)
+    // We don't limit to taking a FUNCTION! value directly, because that loses
+    // the symbol (for debugging, errors, etc.)  If caller passes a GET-WORD!
+    // then we lookup the variable to get the function, but save the symbol.
+    //
+    if (Manual_Soft_Quote_Throws(D_OUT, &f.opt_label_sym, ARG(value)))
+        return R_OUT_IS_THROWN;
 
-        if (IS_GET_WORD(value))
-            f.opt_label_sym = VAL_WORD_SYM(value);
-        else
-            f.opt_label_sym = SYM___ANONYMOUS_FUNCTION__;
+    if (!IS_FUNCTION(D_OUT))
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));
 
-        if (DO_VALUE_THROWS(D_OUT, value))
-            return R_OUT_IS_THROWN;
-
-        if (!IS_FUNCTION(D_OUT))
-            fail (Error(RE_APPLY_NON_FUNCTION, value));
-
-        f.func = VAL_FUNC(D_OUT);
-    }
+    f.func = VAL_FUNC(D_OUT);
 
     // !!! Because APPLY is being written as a regular native (and not a
     // special exception case inside of Do_Core) it has to "re-enter" Do_Core
@@ -1656,7 +1697,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         );
         break;
 
-    case FUNC_CLASS_SPECIAL:
+    case FUNC_CLASS_SPECIALIZED:
         assert(
             v->payload.function.impl.special
             == FUNC_VALUE(func)->payload.function.impl.special

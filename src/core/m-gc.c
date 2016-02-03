@@ -822,7 +822,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             if (fclass == FUNC_CLASS_ROUTINE || fclass == FUNC_CLASS_CALLBACK)
                 Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
 
-            if (fclass == FUNC_CLASS_SPECIAL)
+            if (fclass == FUNC_CLASS_SPECIALIZED)
                 QUEUE_MARK_CONTEXT_DEEP(val->payload.function.impl.special);
 
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));

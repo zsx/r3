@@ -183,18 +183,6 @@ script: context [
 ]
 
 standard: context [
-    native-body: [
-        ; have BODY-OF fill in a better template, see %c-function.c
-        comment {NATIVE: direct CPU evaluated function}
-        <...>
-    ]
-
-    action-body: [
-        ; have BODY-OF fill in a better template, see %c-function.c
-        comment {ACTION: datatype native function (standard polymorphic)}
-        <...>
-    ]
-
     ; FUNC+PROC implement a native-optimized variant of a function generator.
     ; This is the body template that it provides as the code *equivalent* of
     ; what it is doing (via a more specialized/internal method).  Though
@@ -222,22 +210,13 @@ standard: context [
         comment {No return value.}
     ]
 
-    command-body: [
-        ; have BODY-OF fill in a better template, see %c-function.c
-        comment {COMMAND: special dispatch-based function}
-        <...>
-    ]
-
-    routine-body: [
-        ; have BODY-OF fill in a better template, see %c-function.c
-        comment {ROUTINE: external C function}
-        <...>
-    ]
-
-    callback-body: [
-        ; have BODY-OF fill in a better template, see %c-function.c
-        comment {CALLBACK: function to be called from C}
-        <...>
+    ; A very near-future feature is the ability to have natives supply a
+    ; "source equivalent" implementation body, so you can see what it would
+    ; do if it were not optimized as C code.  This is just a quick test to
+    ; pave the way for BODY-OF to be able to handle such data.
+    ;
+    quote-body-test: [
+        :value
     ]
 
     error: context [ ; Template used for all errors:
