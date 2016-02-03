@@ -937,22 +937,22 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     if (flags & MKS_EXTERNAL) {
         //
         // External series will poke in their own data pointer after the
-        // REBSER header allocation is done
+        // REBSER header allocation is done.  Note that despite using a
+        // data pointer, it is still considered a dynamic series...as it
+        // uses fields in `content.dynamic` (for length and data)
         //
-        // !!! For the moment, external series are conflated with the frame
-        // series that have only stack data and no dynamic data.  Hence we
-        // initialize the REBVAL as writable here, but also set the length
-        // and rest fields.  How exactly are external series used, and how
-        // much of a problem is it to share the flag?  Could they set their
-        // own length, rest, wide, height vs. doing it here, where those
-        // fields could conceivably be just turned around and overwritten by
-        // the use of the slot as a REBVAL?
-        //
-        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
-
-        SET_SER_FLAG(s, SERIES_FLAG_EXTERNAL);
         SER_SET_WIDE(s, wide);
+        SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
         s->content.dynamic.rest = length;
+    }
+    else if (flags & MKS_NO_DYNAMIC) {
+        //
+        // These series have no data allocation and may use the content as a
+        // value-sized piece of state (if MKS_ARRAY).
+        //
+        SER_SET_WIDE(s, wide);
+        assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
+        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
     }
     else {
         // Allocate the actual data blob that holds the series elements
@@ -1020,7 +1020,7 @@ REBARR *Make_Singular_Array(REBVAL *single) {
         Make_Series(
             1, // length will not come from this, but from end marker
             sizeof(REBVAL),
-            MKS_EXTERNAL // don't alloc (or free) any data, trust us
+            MKS_NO_DYNAMIC // don't alloc (or free) any data, trust us
         ));
 
     // At present, no ability to resize a singular array--mark fixed size
@@ -1328,8 +1328,14 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
     series->content.dynamic.data = NULL;
 
     // SERIES_FLAG_EXTERNAL manages its own memory and shouldn't call Remake
+    //
     assert(!(flags & MKS_EXTERNAL));
     assert(!GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL));
+
+    // transition to or from optimized form of 1-element series not done yet
+    //
+    assert(!(flags & MKS_NO_DYNAMIC));
+    assert(GET_SER_FLAG(series, SERIES_FLAG_HAS_DYNAMIC));
 
     // SERIES_FLAG_FIXED_SIZE has unexpandable data and shouldn't call Remake
     assert(!GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE));
@@ -1400,12 +1406,10 @@ void GC_Kill_Series(REBSER *series)
         if (Prior_Expand[n] == series) Prior_Expand[n] = 0;
     }
 
-    if (GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL)) {
-        // External series have their REBSER GC'd when Rebol doesn't need it,
-        // but the data pointer itself is not one that Rebol allocated
-        // !!! Should the external owner be told about the GC/free event?
-    }
-    else {
+    if (
+        GET_SER_FLAG(series, SERIES_FLAG_HAS_DYNAMIC)
+        && !GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL)
+    ) {
         REBYTE wide = SER_WIDE(series);
         REBCNT bias = SER_BIAS(series);
         series->content.dynamic.data -= wide * bias;
@@ -1413,6 +1417,11 @@ void GC_Kill_Series(REBSER *series)
             series->content.dynamic.data,
             Series_Allocation_Unpooled(series)
         );
+    }
+    else {
+        // External series have their REBSER GC'd when Rebol doesn't need it,
+        // but the data pointer itself is not one that Rebol allocated
+        // !!! Should the external owner be told about the GC/free event?
     }
 
     series->info.bits = 0; // includes width

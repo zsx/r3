@@ -110,15 +110,15 @@
 // Series Flags
 //
 enum {
-    // `SERIES_FLAG_0_IS_FALSE` represents the lowest bit and should always be
-    // set to zero.  This is because it means that when the REBSER's
-    // contents are interpreted as value data, then the info bits can do
-    // double-duty serving as an END marker.  For a description of the
-    // method see notes on NOT_END_MASK.
+    // `SERIES_FLAG_0_IS_FALSE` represents the lowest bit and should always
+    // be set to zero.  This is because it means that when Reb_Series_Content
+    // is interpreted as a REBVAL's worth of data, then the info bits are in
+    // a location where they do double-duty serving as an END marker.  For a
+    // description of the method see notes on NOT_END_MASK.
     //
     SERIES_FLAG_0_IS_FALSE = 1 << 0,
 
-    // `SERIES_FLAG_1_IS_FALSE` is the second lowest bit, and it is set to zero
+    // `SERIES_FLAG_1_IS_FALSE` is the second lowest bit, and is set to zero
     // as a safety precaution.  In the debug build this is checked by value
     // writes to ensure that when the info flags are serving double duty
     // as an END marker, they do not get overwritten by rogue code that
@@ -436,6 +436,13 @@ struct Reb_Series {
 
 #define GET_SER_FLAG(s,f) \
     LOGICAL((s)->info.bits & (f))
+
+#define SET_SER_FLAGS(s,f) \
+    SET_SER_FLAG((s), (f))
+
+#define CLEAR_SER_FLAGS(s,f) \
+    CLEAR_SER_FLAG((s), (f))
+
 
 //
 // The mechanics of the macros that get or set the length of a series are a

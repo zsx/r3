@@ -165,13 +165,13 @@ static void Push_Array_Marked_Deep(REBARR *array)
         if (!GET_ARR_FLAG(array, SERIES_FLAG_ACCESSIBLE))
             return;
     }
-    else {
-        // There are no other examples currently of "external" series (ones
-        // that don't have their memory managed by the series) besides the
-        // stack that are value-bearing at this time--may change.
-        //
-        assert(!GET_ARR_FLAG(array, SERIES_FLAG_EXTERNAL));
-    }
+
+    // !!! Are there actually any "external" series that are value-bearing?
+    // e.g. a REBSER node which has a ->data pointer to REBVAL[...] and
+    // expects this to be managed with GC, even though if the REBSER is
+    // GC'd it shouldn't free that data?
+    //
+    assert(!GET_ARR_FLAG(array, SERIES_FLAG_EXTERNAL));
 
     // set by calling macro (helps catch direct calls of this function)
     assert(GET_ARR_FLAG(array, SERIES_FLAG_MARK));

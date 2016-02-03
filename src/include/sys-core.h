@@ -233,7 +233,8 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
+    MKS_GC_MANUALS  = 1 << 4,   // used in implementation of series itself
+    MKS_NO_DYNAMIC  = 1 << 5    // Internal series using REBVAL[0] slot
 };
 
 // Modes allowed by Copy_Block function:

@@ -407,7 +407,7 @@ void Drop_Chunk(REBVAL values[])
     if (chunk->opt_context) {
         REBARR *varlist = CTX_VARLIST(chunk->opt_context);
         assert(
-            GET_ARR_FLAG(varlist, SERIES_FLAG_EXTERNAL)
+            !GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC)
             && GET_ARR_FLAG(varlist, CONTEXT_FLAG_STACK)
             && GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY)
         );
@@ -666,7 +666,7 @@ REBCTX *Context_For_Frame_May_Reify(
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),
-            MKS_EXTERNAL // don't alloc (or free) any data, trust us to do it
+            MKS_NO_DYNAMIC // use the REBVAL in the REBSER--no allocation
         ));
 
         assert(!GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
