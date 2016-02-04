@@ -419,18 +419,12 @@ alter: func [
     ) [append series :value]
 ]
 
-collect-with: collect: none
 
-use [collect-proto] [
-    collect-proto: func [with] [compose [
-
+collect-with: func [
     "Evaluate body, and return block of values collected via keep function."
 
-    (if/only with [
-        'name [word! lit-word!]
-            "Name to which keep function will be assigned (<local> if word!)"
-    ])
-
+    'name [word! lit-word!]
+        "Name to which keep function will be assigned (<local> if word!)"
     body [block!]
         "Block to evaluate"
     /into
@@ -438,45 +432,41 @@ use [collect-proto] [
     output [any-series!]
         "The buffer series (modified)"
 
-    (if/only with [keeper:])
-    ]]
+    keeper: ;-- local
+][
+    output: any [:output make block! 16]
 
-    collect-with: func (collect-proto true) [
-        output: any [:output make block! 16]
-
-        keeper: func [
-            value [opt-any-value!] /only
-        ][
-            output: insert/:only output :value
-            :value
-        ]
-
-        either word? name [
-            ;
-            ; A word `name` indicates that the body is not already bound to
-            ; that word.  FUNC does binding and variable creation so let it
-            ; do the work.
-            ;
-            eval func reduce [<no-return> name] body :keeper
-        ][
-            ; A lit-word `name` indicates that the word for the keeper already
-            ; exists.  Set the variable and DO the body bound as-is.
-            ;
-            set name :keeper
-            do body
-        ]
-
-        either into [output] [head output]
+    keeper: func [
+        value [opt-any-value!] /only
+    ][
+        output: insert/:only output :value
+        :value
     ]
 
-    ; Classic version of COLLECT which assumes that the word you want to use
-    ; is KEEP, and that the body needs to be deep copied and rebound (via FUNC)
-    ; to a new variable to hold the keeping function.
-    ;
-    collect: func (collect-proto false) [
-        collect-with keep body
+    either word? name [
+        ;
+        ; A word `name` indicates that the body is not already bound to
+        ; that word.  FUNC does binding and variable creation so let it
+        ; do the work.
+        ;
+        eval func reduce [<no-return> name] body :keeper
+    ][
+        ; A lit-word `name` indicates that the word for the keeper already
+        ; exists.  Set the variable and DO the body bound as-is.
+        ;
+        set name :keeper
+        do body
     ]
+
+    either into [output] [head output]
 ]
+
+
+; Classic version of COLLECT which assumes that the word you want to use
+; is KEEP, and that the body needs to be deep copied and rebound (via FUNC)
+; to a new variable to hold the keeping function.
+;
+collect: specialize :collect-with [name: 'keep]
 
 
 format: function [
