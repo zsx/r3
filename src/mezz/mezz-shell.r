@@ -13,7 +13,11 @@ REBOL [
 
 ls:     :list-dir
 pwd:    :what-dir
-rm:     :delete
+
+rm: does [
+    fail "Use DELETE, not RM (Rebol REMOVE is different, shell dialect coming)"
+]
+
 mkdir:  :make-dir
 
 cd: func [
