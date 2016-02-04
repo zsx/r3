@@ -24,7 +24,6 @@ body-of: ;-- real BODY-OF defined in %mezz-func.r
 words-of:
 values-of:
 types-of:
-title-of:
     none
 
 use [word title] [

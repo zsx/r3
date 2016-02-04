@@ -353,7 +353,6 @@ enum Reb_Reflectors {
     OF_SPEC,
     OF_VALUES,
     OF_TYPES,
-    OF_TITLE,
     OF_MAX
 };
 

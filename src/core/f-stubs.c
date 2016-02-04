@@ -401,40 +401,6 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 
 
 //
-//  Make_Std_Object_Managed: C
-//
-REBCTX *Make_Std_Object_Managed(REBCNT index)
-{
-    REBCTX *context = Copy_Context_Shallow(
-        VAL_CONTEXT(Get_System(SYS_STANDARD, index))
-    );
-    MANAGE_ARRAY(CTX_VARLIST(context));
-
-    //
-    // !!! Shallow copy... values are all the same and modifications of
-    // series in one will modify all...is this right (?)
-    //
-
-    return context;
-}
-
-
-//
-//  Set_Object_Values: C
-//
-void Set_Object_Values(REBCTX *context, REBVAL value[])
-{
-    REBVAL *var;
-
-    var = CTX_VARS_HEAD(context);
-    for (; NOT_END(var); var++) {
-        if (IS_END(value)) SET_NONE(var);
-        else *var = *value++;
-    }
-}
-
-
-//
 //  Val_Init_Series_Index_Core: C
 // 
 // Common function.
@@ -801,7 +767,6 @@ REBINT What_Reflector(REBVAL *word)
         case SYM_WORDS:  return OF_WORDS;
         case SYM_VALUES: return OF_VALUES;
         case SYM_TYPES:  return OF_TYPES;
-        case SYM_TITLE:  return OF_TITLE;
         }
     }
     return 0;

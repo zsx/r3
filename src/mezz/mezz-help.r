@@ -91,6 +91,41 @@ dump-obj: function [
     out
 ]
 
+
+title-of: function [
+    {Examines the spec of a value and extracts a summary of it's purpose.}
+
+    value [any-value!]
+][
+    switch type-of :value [
+        :function! [
+            ;
+            ; Get the first STRING! before any parameter definitions, or
+            ; NONE! if there isn't one.
+
+            for-each item spec-of :value [
+                if string? :item [
+                    return copy item
+                ]
+                if any-word? :item [
+                    return none
+                ]
+            ]
+        ]
+
+        :datatype! [
+            ;
+            ; Each datatype should have a help string.
+
+            spec: spec-of value
+            return spec/title
+        ]
+    ]
+
+    none
+]
+
+
 ?: help: func [
     "Prints information about words and values."
     'word [opt-any-value!]
