@@ -600,7 +600,7 @@ REBTYPE(Context)
             Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)))
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+        SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_VAL_CONTEXT(CTX_VALUE(context), context);
         if (types != 0) {
             Clonify_Values_Len_Managed(

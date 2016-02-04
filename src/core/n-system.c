@@ -279,9 +279,6 @@ REBNATIVE(evoke)
             case SYM_WATCH_RECYCLE:
                 Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
-            case SYM_WATCH_OBJ_COPY:
-                Reb_Opts->watch_obj_copy = NOT(Reb_Opts->watch_obj_copy);
-                break;
             case SYM_CRASH:
                 panic (Error(RE_MISC));
             default:

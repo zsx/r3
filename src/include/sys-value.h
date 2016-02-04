@@ -1709,7 +1709,26 @@ struct Reb_Typeset {
 //
 
 struct Reb_Any_Context {
-    REBCTX *context;
+    //
+    // `varlist` is a Rebol Array that from 1..NUM_VARS contains REBVALs
+    // representing the stored values in the context.
+    //
+    // As with the `paramlist` of a FUNCTION!, the varlist uses the [0]th
+    // element specially.  It stores a copy of the ANY-CONTEXT! value that
+    // refers to itself.
+    //
+    // The `keylist` is held in the varlist's Reb_Series.misc field, and it
+    // may be shared with an arbitrary number of other contexts.  Changing
+    // the keylist involves making a copy if it is shared.
+    //
+    REBCTX *context; // !!! TBD: change to REBARR*, rename as varlist
+
+    // `stackvars` points to values that are resident on the "chunk stack",
+    // where arguments to functions go when they aren't <durable>.  This
+    // is presently only used by FRAME!, but it is conceivable that other
+    // context types might also want stack variables that can be freed
+    // after some point (e.g. after the MAKE OBJECT! [...] body code has run)
+    //
     REBVAL *stackvars;
 
     union {
@@ -1936,17 +1955,25 @@ typedef struct Reb_Routine_Info REBRIN;
 
 struct Reb_Function {
     //
-    // Array of spec values for function
+    // `paramlist` is a Rebol Array whose 1..NUM_PARAMS values are all
+    // TYPESET! values, with an embedded symbol (a.k.a. a "param") as well
+    // as other bits, including the parameter class (PARAM_CLASS).  This
+    // is the list that is processed to produce WORDS-OF and which is
+    // consulted during invocation to fulfill the arguments.
+    //
+    // In addition, its [0]th element contains a FUNCTION! value which is
+    // self-referentially the function itself.  This means that the paramlist
+    // can be passed around as a single pointer from which a whole REBVAL
+    // for the function can be found.
+    //
+    REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
+
+    // `spec` is a Rebol Aray which generally contains the information that
+    // was passed to MAKE FUNCTION! to create the `paramlist`.  After the
+    // paramlist has been generated, it is not generally processed by the
+    // code and remains mostly to be scanned by user mode code to make HELP.
     //
     REBARR *spec;
-
-    // `func` is a Rebol Array that contains an ANY-FUNCTION! value that
-    // represents the function as its [0]th element, and hence is a single
-    // pointer which can be used to access all the function's properties
-    // via the FUNC_VALUE macro.  The rest of the array is the parameter
-    // definitions (TYPESET! values plus name symbol)
-    //
-    REBFUN *func;
 
     union Reb_Function_Impl {
         REBNAT code;
@@ -2101,7 +2128,7 @@ struct Reb_Varargs {
 // of the array1.
 //
 #define SUBFEED_ADDR_OF_FEED(a) \
-    (GET_ARR_FLAG((a), SERIES_FLAG_CONTEXT) \
+    (GET_ARR_FLAG((a), ARRAY_FLAG_CONTEXT_VARLIST) \
         ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed \
         : &ARR_SERIES(a)->misc.subfeed)
 

@@ -96,7 +96,7 @@ REBIXO Do_Vararg_Op_Core(
     // call pointer it first ran with is dead.  There needs to be a solution
     // for other reasons, so use that solution when it's ready.
     //
-    if (GET_ARR_FLAG(feed, SERIES_FLAG_CONTEXT)) {
+    if (GET_ARR_FLAG(feed, ARRAY_FLAG_CONTEXT_VARLIST)) {
         if (
             GET_ARR_FLAG(feed, CONTEXT_FLAG_STACK)
             && !GET_ARR_FLAG(feed, SERIES_FLAG_ACCESSIBLE)
@@ -158,7 +158,7 @@ handle_subfeed:
 
     // Reading from the main feed...
 
-    if (GET_ARR_FLAG(feed, SERIES_FLAG_CONTEXT)) {
+    if (GET_ARR_FLAG(feed, ARRAY_FLAG_CONTEXT_VARLIST)) {
         //
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.

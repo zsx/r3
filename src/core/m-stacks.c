@@ -670,7 +670,7 @@ REBCTX *Context_For_Frame_May_Reify(
     }
 
     SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_ARRAY);
-    SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
 
     // We have to set the lock flag on the series as long as it is on
     // the stack.  This means that no matter what cleverness the GC

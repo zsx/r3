@@ -494,7 +494,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     assert(action < A_MAX_ACTION);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(port), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST));
 
     // Verify valid port (all of these must be false):
     if (
@@ -587,7 +587,7 @@ void Validate_Port(REBCTX *port, REBCNT action)
     if (
         action >= A_MAX_ACTION
         || CTX_LEN(port) > 50 // !!! ?? why 50 ??
-        || !GET_ARR_FLAG(CTX_VARLIST(port), SERIES_FLAG_CONTEXT)
+        || !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST)
         || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));

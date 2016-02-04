@@ -316,7 +316,6 @@ bits
 crash
 crash-dump
 watch-recycle
-watch-obj-copy
 
 uid
 euid

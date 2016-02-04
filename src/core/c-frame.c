@@ -122,7 +122,7 @@ REBCTX *Alloc_Context(REBCNT len)
 
     keylist = Make_Array(len + 1); // size + room for ROOTKEY (SYM_0)
     context = AS_CONTEXT(Make_Array(len + 1));
-    SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
 
     // Note: cannot use Append_Frame for first word.
 
@@ -270,7 +270,7 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
 REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(src), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_CONTEXT_VARLIST));
     assert(GET_ARR_FLAG(CTX_KEYLIST(src), SERIES_FLAG_MANAGED));
 
     if (extra == 0) {
@@ -284,7 +284,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(dest), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_CONTEXT_VARLIST);
 
     INIT_VAL_CONTEXT(CTX_VALUE(dest), dest);
 
@@ -557,6 +557,10 @@ static void Collect_Context_Inner_Loop(
 //     A block of typesets that can be used for a context keylist.
 //     If no new words, the prior list is returned.
 //
+// !!! There was previously an optimization in object creation which bypassed
+// key collection in the case where value[] was empty.  Revisit if it is worth
+// the complexity to move handling for that case in this routine.
+//
 REBARR *Collect_Keylist_Managed(
     REBCNT *self_index_out, // which context index SELF is in (if COLLECT_SELF)
     REBVAL value[],
@@ -721,141 +725,64 @@ REBCTX *Make_Selfish_Context_Detect(
     REBCTX *context;
     REBCNT self_index;
 
-#if !defined(NDEBUG)
-    PG_Reb_Stats->Objects++;
-#endif
+    REBCNT len;
 
-    if (IS_END(value)) {
-        if (opt_parent) {
-            self_index = Find_Word_In_Context(opt_parent, SYM_SELF, TRUE);
+    keylist = Collect_Keylist_Managed(
+        &self_index,
+        &value[0],
+        opt_parent,
+        COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
+    );
+    len = ARR_LEN(keylist);
 
-            context = AS_CONTEXT(Copy_Array_Core_Managed(
-                CTX_VARLIST(opt_parent),
-                0, // at
-                CTX_LEN(opt_parent) + 1, // tail (+1 for rootvar)
-                (self_index == 0) ? 1 : 0, // one extra slot if self needed
-                TRUE, // deep
-                TS_CLONE // types
-            ));
-            SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+    // Make a context of same size as keylist (END already accounted for)
+    //
+    context = AS_CONTEXT(Make_Array(len));
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
 
-            if (self_index == 0) {
-                //
-                // If we didn't find a SELF in the parent context, add it.
-                // (this means we need a new keylist, too)
-                //
-                REBARR *keylist = Copy_Array_Core_Managed(
-                    CTX_KEYLIST(opt_parent),
-                    0, // at
-                    CTX_LEN(opt_parent) + 1, // tail (+1 for rootkey)
-                    1, // one extra for self
-                    FALSE, // !deep (keylists shouldn't need it...)
-                    TS_CLONE // types (overkill for a keylist?)
-                );
+    // !!! We actually don't know if the keylist coming back from
+    // Collect_Keylist_Managed was created new or reused.  Err on the safe
+    // side for now, but it could also return a result so we could know
+    // if it would be legal to call INIT_CTX_KEYLIST_UNIQUE.
+    //
+    INIT_CTX_KEYLIST_SHARED(context, keylist);
 
-                INIT_CTX_KEYLIST_UNIQUE(context, keylist);
+    // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
+    //
+    CTX_VALUE(context)->payload.any_context.context = context;
+    VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
+    VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) = NULL;
 
-                self_index = CTX_LEN(opt_parent) + 1;
-                Val_Init_Typeset(
-                    CTX_KEY(context, self_index), ALL_64, SYM_SELF
-                );
+    SET_ARRAY_LEN(CTX_VARLIST(context), len);
 
-                // !!! See notes on the flags about why SELF is set hidden but
-                // not unbindable with TYPESET_FLAG_UNBINDABLE.
-                //
-                SET_VAL_FLAG(
-                    CTX_KEY(context, self_index), TYPESET_FLAG_HIDDEN
-                );
-            }
-            else {
-                // The parent had a SELF already, so we can reuse its keylist
-                //
-                INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(opt_parent));
-            }
-
-            INIT_VAL_CONTEXT(CTX_VALUE(context), context);
-        }
-        else {
-            context = Alloc_Context(1); // just a self
-            self_index = 1;
-            Val_Init_Typeset(
-                Alloc_Tail_Array(CTX_KEYLIST(context)), ALL_64, SYM_SELF
-            );
-
-            // !!! See notes on the flags about why SELF is set hidden but
-            // not unbindable with TYPESET_FLAG_UNBINDABLE.
-            //
-            SET_VAL_FLAG(
-                CTX_KEY(context, self_index), TYPESET_FLAG_HIDDEN
-            );
-
-            Alloc_Tail_Array(CTX_VARLIST(context));
-        }
-    }
-    else {
-        REBVAL *var;
-        REBCNT len;
-
-        keylist = Collect_Keylist_Managed(
-            &self_index,
-            &value[0],
-            opt_parent,
-            COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
-        );
-        len = ARR_LEN(keylist);
-
-        // Make a context of same size as keylist (END already accounted for)
-        //
-        context = AS_CONTEXT(Make_Array(len));
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
-
-        // !!! We actually don't know if the keylist coming back from
-        // Collect_Keylist_Managed was created new or reused.  Err on the safe
-        // side for now, but it could also return a result so we could know
-        // if it would be legal to call INIT_CTX_KEYLIST_UNIQUE.
-        //
-        INIT_CTX_KEYLIST_SHARED(context, keylist);
-
-        // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
-        //
-        CTX_VALUE(context)->payload.any_context.context = context;
-        VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
-        VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) = NULL;
-
-        // !!! This code was inlined from Create_Frame() because it was only
-        // used once here, and it filled the context vars with NONE!.  For
-        // Ren-C we probably want to go with UNSET!, and also the filling
-        // of parent vars will overwrite the work here.  Review.
-        //
-        SET_ARRAY_LEN(CTX_VARLIST(context), len);
-        var = CTX_VARS_HEAD(context);
+    // !!! This code was inlined from Create_Frame() because it was only
+    // used once here, and it filled the context vars with NONE!.  For
+    // Ren-C we probably want to go with UNSET!, and also the filling
+    // of parent vars will overwrite the work here.  Review.
+    //
+    {
+        REBVAL *var = CTX_VARS_HEAD(context);
         for (; len > 1; len--, var++) // 1 is rootvar (context), already done
             SET_NONE(var);
         SET_END(var);
+    }
 
-        if (opt_parent) {
-            if (Reb_Opts->watch_obj_copy)
-                Debug_Fmt(
-                    cs_cast(BOOT_STR(RS_WATCH, 2)),
-                    CTX_LEN(opt_parent),
-                    CTX_KEYLIST(context)
-                );
+    if (opt_parent) {
+        //
+        // Bitwise copy parent values (will have bits fixed by Clonify)
+        //
+        memcpy(
+            CTX_VARS_HEAD(context),
+            CTX_VARS_HEAD(opt_parent),
+            (CTX_LEN(opt_parent)) * sizeof(REBVAL)
+        );
 
-            // Bitwise copy parent values (will have bits fixed by Clonify)
-            //
-            memcpy(
-                CTX_VARS_HEAD(context),
-                CTX_VARS_HEAD(opt_parent),
-                (CTX_LEN(opt_parent)) * sizeof(REBVAL)
-            );
-
-            // For values we copied that were blocks and strings, replace
-            // their series components with deep copies of themselves:
-            //
-            Clonify_Values_Len_Managed(
-                CTX_VAR(context, 1), CTX_LEN(context), TRUE, TS_CLONE
-            );
-        }
+        // For values we copied that were blocks and strings, replace
+        // their series components with deep copies of themselves:
+        //
+        Clonify_Values_Len_Managed(
+            CTX_VAR(context, 1), CTX_LEN(context), TRUE, TS_CLONE
+        );
     }
 
     VAL_RESET_HEADER(CTX_VALUE(context), kind);
@@ -887,6 +814,10 @@ REBCTX *Make_Selfish_Context_Detect(
         Rebind_Context_Deep(opt_parent, context, NULL);
 
     ASSERT_CONTEXT(context);
+
+#if !defined(NDEBUG)
+    PG_Reb_Stats->Objects++;
+#endif
 
     return context;
 }
@@ -1012,7 +943,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     keylist = Copy_Array_Shallow(BUF_COLLECT);
     MANAGE_ARRAY(keylist);
     child = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(child), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(child), ARRAY_FLAG_CONTEXT_VARLIST);
 
     value = Alloc_Tail_Array(CTX_VARLIST(child));
 
@@ -1982,8 +1913,8 @@ void Assert_Context_Core(REBCTX *context)
     REBCNT keys_len;
     REBCNT vars_len;
 
-    if (!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT)) {
-        Debug_Fmt("Frame series does not have SERIES_FLAG_CONTEXT flag set");
+    if (!GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST)) {
+        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_CONTEXT_VARLIST");
         Panic_Context(context);
     }
 

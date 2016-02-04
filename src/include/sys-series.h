@@ -178,13 +178,14 @@ enum {
     //
     SERIES_FLAG_ARRAY = 1 << 5,
 
-    // `SERIES_FLAG_CONTEXT` indicates this series represents the "varlist"
-    // of a context.  A second series can be reached from it via the `->misc`
-    // field in the series node, which is a second array known as a "keylist".
+    // `ARRAY_FLAG_CONTEXT_VARLIST` indicates this series represents the
+    // "varlist" of a context.  A second series can be reached from it via
+    // the `->misc` field in the series node, which is a second array known
+    // as a "keylist".
     //
     // See notes on REBCTX for further details about what a context is.
     //
-    SERIES_FLAG_CONTEXT = 1 << 6,
+    ARRAY_FLAG_CONTEXT_VARLIST = 1 << 6,
 
     // `SERIES_FLAG_LOCKED` indicates that the series size or values cannot
     // be modified.  This check is honored by some layers of abstraction, but

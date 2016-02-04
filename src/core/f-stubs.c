@@ -334,7 +334,7 @@ REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
     REBCTX *context = VAL_CONTEXT(any_context);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
     assert(index <= CTX_LEN(context));
     return CTX_VAR(context, index);
 }
@@ -515,7 +515,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
         Panic_Context(context);
     }
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
 
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"

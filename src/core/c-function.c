@@ -909,7 +909,7 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
     // would immediately become useless.  Allocate dynamically.
     //
     varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
-    SET_ARR_FLAG(varlist, SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
     SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
     // Fill in the rootvar information for the context canon REBVAL
@@ -990,7 +990,7 @@ REBOOL Specialize_Function_Throws(
             frame_ctx,
             CTX_KEYLIST(FUNC_VALUE(func)->payload.function.impl.special)
         );
-        SET_ARR_FLAG(CTX_VARLIST(frame_ctx), SERIES_FLAG_CONTEXT);
+        SET_ARR_FLAG(CTX_VARLIST(frame_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_VAL_CONTEXT(CTX_VALUE(frame_ctx), frame_ctx);
     }
     else {

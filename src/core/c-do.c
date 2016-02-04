@@ -2409,7 +2409,7 @@ reevaluate:
             // of the RETURN_FROM array, but in the debug build do an added
             // sanity check.
             //
-            if (GET_ARR_FLAG(f->exit_from, SERIES_FLAG_CONTEXT)) {
+            if (GET_ARR_FLAG(f->exit_from, ARRAY_FLAG_CONTEXT_VARLIST)) {
                 //
                 // Request to exit from a specific FRAME!
                 //

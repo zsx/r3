@@ -211,7 +211,7 @@ static void Propagate_All_GC_Marks(void);
 
 #define QUEUE_MARK_CONTEXT_DEEP(c) \
     do { \
-        assert(GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_CONTEXT)); \
+        assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST)); \
         QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c)); \
         QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c)); \
     } while (0)
@@ -599,7 +599,7 @@ static void Mark_Frame_Stack_Deep(void)
         // context or a single element array.
         //
         if (f->cell.subfeed) {
-            if (GET_ARR_FLAG(f->cell.subfeed, SERIES_FLAG_CONTEXT))
+            if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
                 QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
             else {
                 assert(ARR_LEN(f->cell.subfeed) == 1);
@@ -833,7 +833,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             }
 
             if (subfeed) {
-                if (GET_ARR_FLAG(subfeed, SERIES_FLAG_CONTEXT))
+                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
                     QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(subfeed));
                 else
                     QUEUE_MARK_ARRAY_DEEP(subfeed);
@@ -994,7 +994,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
     // context instead of QUEUE_MARK_CONTEXT.
     //
-    if (GET_ARR_FLAG(array, SERIES_FLAG_CONTEXT))
+    if (GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST))
         assert(GET_ARR_FLAG(CTX_KEYLIST(AS_CONTEXT(array)), SERIES_FLAG_MARK));
 #endif
 
@@ -1306,7 +1306,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         //
         sp = SER_HEAD(REBSER*, GC_Series_Guard);
         for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-            if (GET_SER_FLAG(*sp, SERIES_FLAG_CONTEXT))
+            if (GET_SER_FLAG(*sp, ARRAY_FLAG_CONTEXT_VARLIST))
                 MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
             else if (Is_Array_Series(*sp))
                 MARK_ARRAY_DEEP(AS_ARRAY(*sp));

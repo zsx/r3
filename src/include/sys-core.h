@@ -806,7 +806,6 @@ typedef struct rebol_stats {
 
 //-- Options of various kinds:
 typedef struct rebol_opts {
-    REBOOL  watch_obj_copy;
     REBOOL  watch_recycle;
     REBOOL  watch_series;
     REBOOL  watch_expand;
