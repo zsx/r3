@@ -706,11 +706,11 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 //     no references to them from REBOL code (C code does nothing.)
 //     However, you can lock blocks to prevent deallocation. (?? default)
 //
-RL_API void *RL_Make_Block(u32 size)
+RL_API REBSER *RL_Make_Block(u32 size)
 {
     REBARR * array = Make_Array(size);
     MANAGE_ARRAY(array);
-    return array;
+    return ARR_SERIES(array);
 }
 
 
@@ -733,7 +733,7 @@ RL_API void *RL_Make_Block(u32 size)
 //     no references to them from REBOL code (C code does nothing.)
 //     However, you can lock strings to prevent deallocation. (?? default)
 //
-RL_API void *RL_Make_String(u32 size, REBOOL unicode)
+RL_API REBSER *RL_Make_String(u32 size, REBOOL unicode)
 {
     REBSER *result = unicode ? Make_Unicode(size) : Make_Binary(size);
 
@@ -742,6 +742,26 @@ RL_API void *RL_Make_String(u32 size, REBOOL unicode)
     // we be sure they get what usage they needed before the GC happens?
     MANAGE_SERIES(result);
     return result;
+}
+
+
+//
+//  RL_Set_Series_Len: C
+//
+// Returns:
+//     A pointer to an image series, or zero if size is too large.
+// Arguments:
+//     width - the width of the image in pixels
+//     height - the height of the image in lines
+// Notes:
+//     Expedient replacement for a line of code related to PNG loading
+//     in %host-core.c that said "hack! - will set the tail to buffersize"
+//
+//          *((REBCNT*)(binary+1)) = buffersize;
+//
+RL_API void RL_Set_Series_Len(REBSER* series, REBCNT len)
+{
+    SET_SERIES_LEN(series, len);
 }
 
 
@@ -760,7 +780,7 @@ RL_API void *RL_Make_String(u32 size, REBOOL unicode)
 //     Image are automatically garbage collected if there are
 //     no references to them from REBOL code (C code does nothing.)
 //
-RL_API void *RL_Make_Image(u32 width, u32 height)
+RL_API REBSER *RL_Make_Image(u32 width, u32 height)
 {
     REBSER *ser = Make_Image(width, height, FALSE);
     MANAGE_SERIES(ser);

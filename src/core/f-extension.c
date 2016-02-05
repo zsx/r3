@@ -149,7 +149,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         VAL_INT64(val) = arg.int64;
         break;
     case RXX_SER:
-        VAL_SERIES(val) = cast(REBSER*, arg.sri.series);
+        VAL_SERIES(val) = arg.sri.series;
         VAL_INDEX(val) = arg.sri.index;
         break;
     case RXX_PTR:
@@ -166,7 +166,7 @@ x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
         Val_Init_Word(val, RXT_To_Reb[type], arg.i2.int32a);
         break;
     case RXX_IMAGE:
-        VAL_SERIES(val) = cast(REBSER*, arg.iwh.image);
+        VAL_SERIES(val) = arg.iwh.image;
         VAL_IMAGE_WIDE(val) = arg.iwh.width;
         VAL_IMAGE_HIGH(val) = arg.iwh.height;
         break;

@@ -57,11 +57,12 @@ typedef union rxi_arg_val {
         REBD32 dec32b;
     } d2;
     struct {
-        void *series;
+        REBSER *series;
         u32 index;
     } sri;
+    REBSER *context; // !!! never assigned, seems to expect `series` overlap
     struct {
-        void *image;
+        REBSER *image;
         int width:16;
         int height:16;
     } iwh;
@@ -107,9 +108,9 @@ typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
 #define RXA_TUPLE(f,n)  (RXA_ARG(f,n).bytes)
 #define RXA_SERIES(f,n) (RXA_ARG(f,n).sri.series)
 #define RXA_INDEX(f,n)  (RXA_ARG(f,n).sri.index)
-#define RXA_OBJECT(f,n) (RXA_ARG(f,n).addr)
-#define RXA_MODULE(f,n) (RXA_ARG(f,n).addr)
 #define RXA_HANDLE(f,n) (RXA_ARG(f,n).addr)
+#define RXA_OBJECT(f,n) (RXA_ARG(f,n).context)
+#define RXA_MODULE(f,n) (RXA_ARG(f,n).context)
 #define RXA_IMAGE(f,n)  (RXA_ARG(f,n).iwh.image)
 #define RXA_IMAGE_BITS(f,n) \
 	cast(REBYTE *, RL_SERIES((RXA_ARG(f,n).iwh.image), RXI_SER_DATA))
