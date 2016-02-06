@@ -109,6 +109,8 @@ emit-out {
 // "name mangling" so that library clients will not notice a difference
 // between a C++ build and a C build.
 //
+// http://stackoverflow.com/q/1041866/
+//
 #ifdef __cplusplus
 extern "C" ^{
 #endif

@@ -74,50 +74,12 @@
 // accessed via ARG() will be stable as long as the function is running.
 //
 
+//
+// Note: Forward declarations are in %reb-defs.h
+//
+
 #ifndef VALUE_H
 #define VALUE_H
-
-
-// Forward declaration.  The actual structure for REBVAL can't be defined
-// until all the structs and unions it builds on have been defined.  So you
-// will find it near the end of this file, as `struct Reb_Value`.
-//
-struct Reb_Value;
-typedef struct Reb_Value REBVAL;
-
-
-//
-// Forward declarations of the series subclasses defined in %sys-series.h
-// Because the Reb_Series structure includes a Reb_Value by value, it
-// must be included *after* %sys-value.h
-//
-
-struct Reb_Series;
-typedef struct Reb_Series REBSER; // Rebol series node
-
-struct Reb_Array;
-typedef struct Reb_Array REBARR; // REBSER containing REBVALs ("Rebol Array")
-
-struct Reb_Context;
-typedef struct Reb_Context REBCTX; // parallel REBARR key/var arrays, +2 values
-
-struct Reb_Func;
-typedef struct Reb_Func REBFUN; // function parameters plus function REBVAL
-
-struct Reb_Map;
-typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
-
-
-//
-// Forward declaration of the type referenced by FRAME!, which represents an
-// execution call frame bindable by the debugger.  See %sys-do.h for notes.
-//
-// !!! Should it be aliased REBFRM?  It stands out better from REBFUN and
-// other value types this way.
-//
-
-struct Reb_Frame;
-
 
 // A `#pragma pack` of 4 was requested by the R3-Alpha source for the
 // duration of %sys-value.h:
@@ -2344,14 +2306,7 @@ enum {
 #define VAL_EVENT_TIME(v)   ((v)->payload.event.time)
 #define VAL_EVENT_REQ(v)    ((v)->payload.event.eventee.req)
 
-// !!! Because 'eventee.ser' is exported to clients who may not have the full
-// definitions of Rebol's internal types like REBSER available, it is defined
-// as a 'void*'.  This "dereference a cast of an address as a double-pointer"
-// trick allows us to use VAL_EVENT_SER on the left hand of an assignment,
-// but means that 'v' cannot be const to use this on the right hand side.
-// An m_cast will have to be used in those cases (or split up this macro)
-#define VAL_EVENT_SER(v) \
-    (*cast(REBSER **, &(v)->payload.event.eventee.ser))
+#define VAL_EVENT_SER(v)    ((v)->payload.event.eventee.ser)
 
 #define IS_EVENT_MODEL(v,f) (VAL_EVENT_MODEL(v) == (f))
 

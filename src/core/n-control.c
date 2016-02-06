@@ -135,9 +135,15 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
         key = CTX_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
-            // Ignore existing mutability state, by casting away the const.
-            // (Most routines should DEFINITELY not do this!)
-            val = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(word));
+            //
+            // Ignore existing mutability state so that it may be modified.
+            // Most routines should NOT do this!
+            //
+            val = Get_Var_Core(
+                word,
+                TRUE, // trap, e.g. may fail.
+                FALSE // writable access not enforced
+            );
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -205,10 +211,15 @@ static int Protect(struct Reb_Frame *frame_, REBCNT flags)
 
             for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
                 if (IS_WORD(val)) {
-                    // !!! Temporary and ugly cast; since we *are* PROTECT
-                    // we allow ourselves to get mutable references to even
-                    // protected values so we can no-op protect them.
-                    val2 = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(val));
+                    //
+                    // Since we *are* PROTECT we allow ourselves to get mutable
+                    // references to even protected values to protect them.
+                    //
+                    val2 = Get_Var_Core(
+                        val,
+                        TRUE, // trap, e.g. may fail.
+                        FALSE // writable access not enforced
+                    );
                 }
                 else if (IS_PATH(val)) {
                     if (Do_Path_Throws(&safe, NULL, val, NULL))
@@ -618,9 +629,6 @@ REBNATIVE(catch)
     REFINE(6, with);
     PARAM(7, handler);
 
-    const REBOOL named = D_REF(2);
-    REBVAL * const name_list = D_ARG(3);
-
     // /ANY would override /NAME, so point out the potential confusion
     //
     if (REF(any) && REF(name))
@@ -727,12 +735,12 @@ was_caught:
             return R_OUT;
         }
         else if (IS_FUNCTION(handler)) {
-            REBVAL *param = VAL_FUNC_PARAMS_HEAD(handler);
-
             //
             // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Va_Core()!
+            // There's no reason to have each of these cases when it
+            // could just be one call that either consumes all the
+            // subsequent args or does not.
             //
-
             if (
                 VAL_FUNC_NUM_PARAMS(handler) == 0
                 || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))

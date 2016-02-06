@@ -1854,17 +1854,6 @@ REBVAL *Obj_Value(REBVAL *value, REBCNT index)
 
 
 //
-//  Init_Obj_Value: C
-//
-void Init_Obj_Value(REBVAL *value, REBCTX *context)
-{
-    assert(context);
-    CLEARS(value);
-    Val_Init_Object(value, context);
-}
-
-
-//
 //  Init_Collector: C
 //
 void Init_Collector(void)

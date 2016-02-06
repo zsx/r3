@@ -1237,7 +1237,7 @@ RL_API int RL_Callback(RXICBI *cbi)
     CLEARS(&evt);
     evt.type = EVT_CALLBACK;
     evt.model = EVM_CALLBACK;
-    evt.eventee.ser = cbi;
+    evt.eventee.ser = cast(REBSER*, cbi);
     SET_FLAG(cbi->flags, RXC_QUEUED);
 
     return RL_Event(&evt);  // (returns 0 if queue is full, ignored)
