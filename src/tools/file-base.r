@@ -32,6 +32,7 @@ core: [
     c-error.c
     c-frame.c
     c-function.c
+    c-path.c
     c-port.c
     c-task.c
     c-value.c
@@ -41,6 +42,7 @@ core: [
     d-crash.c
     d-dump.c
     d-print.c
+    d-trace.c
 
     ; (F)???
     f-blocks.c

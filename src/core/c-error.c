@@ -355,7 +355,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     if (Trace_Level) {
         Debug_Fmt(
-            cs_cast(BOOT_STR(RS_TRACE, 10)),
+            "Parse back: %r",
             &ERR_VARS(error)->type,
             &ERR_VARS(error)->id
         );

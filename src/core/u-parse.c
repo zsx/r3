@@ -209,13 +209,13 @@ static REBCNT Parse_Next_String(
     VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
-        Trace_Value(7, item);
+        Trace_Value("input", item);
 
         // !!! This used STR_AT (obsolete) but it's not clear that this is
         // necessarily a byte sized series.  Switched to BIN_AT, which will
         // assert if it's not BYTE_SIZE()
 
-        Trace_String(8, BIN_AT(p->series, index), BIN_LEN(p->series) - index);
+        Trace_String(BIN_AT(p->series, index), BIN_LEN(p->series) - index);
     }
 
     if (IS_NONE(item)) return index;
@@ -347,13 +347,13 @@ static REBCNT Parse_Next_Array(
     VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
-        Trace_Value(7, item);
+        Trace_Value("input", item);
         if (IS_END(blk)) {
             const char *end_str = "** END **";
-            Trace_String(8, cb_cast(end_str), strlen(end_str));
+            Trace_String(cb_cast(end_str), strlen(end_str));
         }
         else
-            Trace_Value(9, blk);
+            Trace_Value("match", blk);
     }
 
     // !!! The previous code did not have a handling for this, but it fell

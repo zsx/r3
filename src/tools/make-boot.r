@@ -281,6 +281,10 @@ emit-end
 
 emit {
 
+
+
+extern const REBPEF Path_Dispatch[REB_MAX_0];
+
 /***********************************************************************
 **
 */  const REBPEF Path_Dispatch[REB_MAX_0] =
@@ -301,7 +305,7 @@ for-each-record-NO-RETURN type boot-types [
 ]
 emit-end
 
-write inc/tmp-evaltypes.h out
+write inc/tmp-evaltypes.inc out
 
 
 ;----------------------------------------------------------------------------
