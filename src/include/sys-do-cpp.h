@@ -2,8 +2,7 @@
 // Rebol 3 Language Interpreter and Run-time Environment
 // "Ren-C" branch @ https://github.com/metaeducation/ren-c
 //
-// Copyright 2012 REBOL Technologies
-// Copyright 2012-2016 Rebol Open Source Contributors
+// Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -22,29 +21,17 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Summary: Optional C++ Checking Classes
-//  File: %sys-cpp.h
+//  Summary: Optional C++ Checking Classes for %sys-do.h
+//  File: %sys-do-cpp.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// R3-Alpha was designed to build under ANSI C89.  Though a seemingly archaic
-// requirement in 2016, the unique nature of the project and a desire to
-// build on as many platforms as possible has kept that a requirement.
+// These checking classes are only for debug builds that wish to use them.
+// They are not used in release builds.
 //
-// The Ren-C branch took the codebase forward to build in standard C99 and
-// C11, but also to build and run under C++98, C++11, C++14, and C++17.  At
-// the beginning this was just running in the lowest common denominator of
-// both C++ and C89 (which is C89 for any practical purposes in the project.)
-// Yet this was extended to use in both static and dynamic analysis, where
-// the C++ build had classes taking the place of plain values or structs and
-// to add more checking.
+// See "Static-and-Dynamic-Analysis-in-the-Cpp-Build" on:
 //
-// No features are implemented using C++, and the classes are only used in a
-// debug build of the project.  They are strictly for additional checks.
-//
-// While the C89 feature strives for legacy support, the C++ build does not.
-// The build works under C++98 but adds no additional checking features to
-// the C89 version.  Additional classes are only enabled for C++11 and above.
+// https://github.com/metaeducation/ren-c/wiki/
 //
 
 

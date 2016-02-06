@@ -502,13 +502,10 @@ struct Reb_Series {
 // Note that series indexing in C is zero based.  So as far as SERIES is
 // concerned, `SER_HEAD(t, s)` is the same as `SER_AT(t, s, 0)`
 //
-// !!! C++11 note: can't use cast helper here and have the const of an
-// incoming REBVAL be ignored... must use `(old_cast)casting_style`
-//
 
 #define SER_AT(t,s,i) \
     (assert(SER_WIDE(s) == sizeof(t)), \
-        (t*)(SER_DATA_RAW(s) + (sizeof(t) * (i))))
+        cast(t*, SER_DATA_RAW(s) + (sizeof(t) * (i))))
 
 #define SER_HEAD(t,s) \
     SER_AT(t, (s), 0)

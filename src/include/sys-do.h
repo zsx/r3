@@ -315,14 +315,14 @@ struct Reb_Frame {
     // something to compare against to find out how many is needed.  At this
     // position to sync alignment with same-sized `flags`.
     //
-    unsigned int dsp_orig; // type is REBDSP, but enforce alignment here
+    REBUPT dsp_orig; // type is REBDSP, but enforce alignment here
 
     // `flags` [INPUT, READ-ONLY (unless VARLESS signaling error)]
     //
     // These are DO_FLAG_xxx or'd together.  If the call is being set up
     // for an Apply as opposed to Do, this must be 0.
     //
-    unsigned int flags; // type is REBFLGS, but enforce alignment here
+    REBUPT flags; // type is REBFLGS, but enforce alignment here
 
     // `out` [INPUT pointer of where to write an OUTPUT, GC-SAFE cell]
     //
