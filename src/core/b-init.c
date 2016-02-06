@@ -223,10 +223,13 @@ static void Print_Banner(REBARGS *rargs)
 // 
 // Expects result to be UNSET!
 //
-static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
-{
+static void Do_Global_Block(
+    REBARR *block,
+    REBCNT index,
+    REBINT rebind,
+    REBVAL *opt_toplevel_word // ACTION or NATIVE, bound words
+) {
     REBVAL *item = ARR_AT(block, index);
-
     struct Reb_State state;
 
     REBVAL result;
@@ -244,45 +247,28 @@ static void Do_Global_Block(REBARR *block, REBCNT index, REBINT rebind)
     // So you could do `native [spec]` but not `native/varless [spec]`
     // because in the later case, it wouldn't have descended into the path
     // to bind `native`.  This is apparently intentional to avoid binding
-    // deeply in the system context.  This hacky workaround serves to get
-    // the boot binding working well enough to use refinements, but should
-    // be given a review.
-    {
-        REBVAL *word = NULL;
-        for (; NOT_END(item); item++) {
-            if (
-                IS_WORD(item) && (
-                    VAL_WORD_SYM(item) == SYM_NATIVE
-                    || VAL_WORD_SYM(item) == SYM_ACTION
-                )
-            ) {
-                // Get the bound value from the first `native` or `action`
-                // toplevel word that we find
-                //
-                word = item;
-            }
-        }
-
-        // Now restart the search so we are sure to pick up any paths that
-        // might come *before* the first bound word.
-        //
+    // deeply in the system context.
+    //
+    // Here we hackily walk over all the paths and look for any that start
+    // with the symbol of the passed in word (SYM_ACTION, SYM_NATIVE) and
+    // just overwrite the word with the bound vesion.  :-/  Review.
+    //
+    if (opt_toplevel_word) {
         item = ARR_AT(block, index);
         for (; NOT_END(item); item++) {
             if (IS_PATH(item)) {
                 REBVAL *path_item = VAL_ARRAY_HEAD(item);
                 if (
                     IS_WORD(path_item) && (
-                        VAL_WORD_SYM(path_item) == SYM_NATIVE
-                        || VAL_WORD_SYM(path_item) == SYM_ACTION
+                        VAL_WORD_SYM(path_item)
+                        == VAL_WORD_SYM(opt_toplevel_word)
                     )
                 ) {
-                    // overwrite with bound form (we shouldn't have any calls
-                    // to NATIVE in the actions block or to ACTION in the
-                    // block of natives...)
+                    // Steal binding, but keep the same word type
                     //
-                    assert(word);
-                    assert(VAL_WORD_SYM(word) == VAL_WORD_SYM(path_item));
-                    *path_item = *word;
+                    enum Reb_Kind kind = VAL_TYPE(path_item);
+                    *path_item = *opt_toplevel_word;
+                    VAL_SET_TYPE_BITS(path_item, kind);
                 }
             }
         }
@@ -605,6 +591,8 @@ static void Init_Natives(void)
 {
     REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
     REBVAL *val;
+    REBVAL *native_word;
+    REBVAL *action_word;
 
     Action_Count = 1; // Skip A_TRASH_Q
     Native_Count = 0;
@@ -619,6 +607,7 @@ static void Init_Natives(void)
         panic (Error(RE_NATIVE_BOOT));
 
     val = Append_Context(Lib_Context, item, 0);
+    native_word = item; // bound
 
     item++; // skip `native:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
@@ -637,6 +626,7 @@ static void Init_Natives(void)
         panic (Error(RE_NATIVE_BOOT));
 
     val = Append_Context(Lib_Context, item, 0);
+    action_word = item; // bound
 
     item++; // skip `action:`
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
@@ -652,7 +642,7 @@ static void Init_Natives(void)
     // exposed to the user.
     //
     Action_Marker = CTX_LEN(Lib_Context);
-    Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1);
+    Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1, action_word);
 
     // Sanity check the symbol transformation
     //
@@ -665,7 +655,8 @@ static void Init_Natives(void)
     Do_Global_Block(
         VAL_ARRAY(&Boot_Block->natives),
         item - VAL_ARRAY_HEAD(&Boot_Block->natives),
-        -1
+        -1,
+        native_word
     );
 }
 
@@ -1641,8 +1632,8 @@ void Init_Core(REBARGS *rargs)
     // Initialize mezzanine functions:
     DOUT("Level 5");
     if (PG_Boot_Level >= BOOT_LEVEL_SYS) {
-        Do_Global_Block(VAL_ARRAY(&Boot_Block->base), 0, 1);
-        Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2);
+        Do_Global_Block(VAL_ARRAY(&Boot_Block->base), 0, 1, NULL);
+        Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2, NULL);
     }
 
     *CTX_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = Boot_Block->mezz;
