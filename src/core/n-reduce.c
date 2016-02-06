@@ -295,11 +295,12 @@ REBNATIVE(reduce)
 //
 REBOOL Compose_Values_Throws(
     REBVAL *out,
-    REBVAL value[],
+    const REBVAL *head,
     REBOOL deep,
     REBOOL only,
     REBOOL into
 ) {
+    const REBVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {

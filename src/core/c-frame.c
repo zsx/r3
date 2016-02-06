@@ -502,9 +502,10 @@ void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
 //
 static void Collect_Context_Inner_Loop(
     REBINT *binds,
-    REBVAL value[],
+    const REBVAL *head,
     REBFLGS flags
 ) {
+    const REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
             if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
@@ -548,7 +549,7 @@ static void Collect_Context_Inner_Loop(
 //
 // A `prior` context can be provided to serve as a basis; all the keys in
 // the prior will be returned, with only new entries contributed by the
-// data coming from the value[] array.  If no new values are needed (the
+// data coming from the head[] array.  If no new values are needed (the
 // array has no relevant words, or all were just duplicates of words already
 // in prior) then then `prior`'s keylist may be returned.  The result is
 // always pre-managed, because it may not be legal to free prior's keylist.
@@ -558,12 +559,12 @@ static void Collect_Context_Inner_Loop(
 //     If no new words, the prior list is returned.
 //
 // !!! There was previously an optimization in object creation which bypassed
-// key collection in the case where value[] was empty.  Revisit if it is worth
+// key collection in the case where head[] was empty.  Revisit if it is worth
 // the complexity to move handling for that case in this routine.
 //
 REBARR *Collect_Keylist_Managed(
     REBCNT *self_index_out, // which context index SELF is in (if COLLECT_SELF)
-    REBVAL value[],
+    const REBVAL *head,
     REBCTX *prior,
     REBFLGS flags // see %sys-core.h for COLLECT_ANY_WORD, etc.
 ) {
@@ -608,7 +609,7 @@ REBARR *Collect_Keylist_Managed(
     if (prior) Collect_Context_Keys(prior, FALSE);
 
     // Scan for words, adding them to BUF_COLLECT and bind table:
-    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], flags);
+    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), head, flags);
 
     keylist = Grab_Collected_Keylist_Managed(prior);
 
@@ -626,9 +627,10 @@ REBARR *Collect_Keylist_Managed(
 //
 static void Collect_Words_Inner_Loop(
     REBINT *binds,
-    REBVAL value[],
+    const REBVAL *head,
     REBFLGS flags
 ) {
+    const REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)
             && !binds[VAL_WORD_CANON(value)]
@@ -650,8 +652,11 @@ static void Collect_Words_Inner_Loop(
 // 
 // Collect words from a prior block and new block.
 //
-REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBFLGS flags)
-{
+REBARR *Collect_Words(
+    const REBVAL *head,
+    REBVAL *opt_prior_head,
+    REBFLGS flags
+) {
     REBARR *array;
     REBCNT start;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
@@ -659,16 +664,19 @@ REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBFLGS flags)
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
-    if (prior_value)
-        Collect_Words_Inner_Loop(binds, &prior_value[0], COLLECT_ANY_WORD);
+    if (opt_prior_head)
+        Collect_Words_Inner_Loop(binds, opt_prior_head, COLLECT_ANY_WORD);
 
     start = ARR_LEN(BUF_COLLECT);
-    Collect_Words_Inner_Loop(binds, &value[0], flags);
+    Collect_Words_Inner_Loop(binds, head, flags);
     TERM_ARRAY(BUF_COLLECT);
 
     // Reset word markers:
-    for (value = ARR_HEAD(BUF_COLLECT); NOT_END(value); value++)
-        binds[VAL_WORD_CANON(value)] = 0;
+    {
+        REBVAL *word;
+        for (word = ARR_HEAD(BUF_COLLECT); NOT_END(word); word++)
+            binds[VAL_WORD_CANON(word)] = 0;
+    }
 
     array = Copy_Array_At_Max_Shallow(
         BUF_COLLECT, start, ARR_LEN(BUF_COLLECT) - start
@@ -718,7 +726,7 @@ REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
     REBCTX *spec,
     REBVAL *stackvars,
-    REBVAL value[],
+    const REBVAL *head,
     REBCTX *opt_parent
 ) {
     REBARR *keylist;
@@ -729,7 +737,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
     keylist = Collect_Keylist_Managed(
         &self_index,
-        &value[0],
+        head,
         opt_parent,
         COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
     );
@@ -831,7 +839,7 @@ REBCTX *Make_Selfish_Context_Detect(
 //
 REBCTX *Construct_Context(
     enum Reb_Kind kind,
-    REBVAL value[],
+    REBVAL *head,
     REBOOL as_is,
     REBCTX *opt_parent
 ) {
@@ -839,14 +847,14 @@ REBCTX *Construct_Context(
         kind, // type
         NULL, // spec
         NULL, // body
-        &value[0], // values to scan for toplevel set-words
+        head, // values to scan for toplevel set-words
         opt_parent // parent
     );
 
-    if (NOT_END(value)) Bind_Values_Shallow(&value[0], context);
+    if (NOT_END(head)) Bind_Values_Shallow(head, context);
 
-    if (as_is) Do_Min_Construct(&value[0]);
-    else Do_Construct(&value[0]);
+    if (as_is) Do_Min_Construct(head);
+    else Do_Construct(head);
 
     return context;
 }
@@ -1151,12 +1159,13 @@ void Resolve_Context(
 //
 static void Bind_Values_Inner_Loop(
     REBINT *binds,
-    REBVAL value[],
+    REBVAL *head,
     REBCTX *context,
     REBU64 bind_types, // !!! REVIEW: force word types low enough for 32-bit?
     REBU64 add_midstream_types,
     REBFLGS flags
 ) {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
 
@@ -1225,12 +1234,13 @@ static void Bind_Values_Inner_Loop(
 // bindings that come after the added value is seen will be bound.
 //
 void Bind_Values_Core(
-    REBVAL value[],
+    REBVAL *head,
     REBCTX *context,
     REBU64 bind_types,
     REBU64 add_midstream_types,
     REBFLGS flags // see %sys-core.h for BIND_DEEP, etc.
 ) {
+    REBVAL *value = head;
     REBVAL *key;
     REBCNT index;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
@@ -1269,8 +1279,9 @@ void Bind_Values_Core(
 // bound to a particular target (if target is NULL, then all
 // words will be unbound regardless of their VAL_WORD_CONTEXT).
 //
-void Unbind_Values_Core(REBVAL value[], REBCTX *context, REBOOL deep)
+void Unbind_Values_Core(REBVAL *head, REBCTX *context, REBOOL deep)
 {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (
             ANY_WORD(value)
@@ -1318,9 +1329,10 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
 static void Bind_Relative_Inner_Loop(
     REBINT *binds,
     REBFUN *func,
-    REBVAL value[],
+    REBVAL *head,
     REBU64 bind_types
 ) {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
 
@@ -1356,7 +1368,7 @@ static void Bind_Relative_Inner_Loop(
 // To indicate the relative nature of the index, it is set to
 // a negative offset.
 //
-void Bind_Relative_Deep(REBFUN *func, REBVAL value[], REBU64 bind_types)
+void Bind_Relative_Deep(REBFUN *func, REBVAL *head, REBU64 bind_types)
 {
     REBVAL *param;
     REBCNT index;
@@ -1389,7 +1401,7 @@ void Bind_Relative_Deep(REBFUN *func, REBVAL value[], REBU64 bind_types)
     for (; NOT_END(param); param++, index++)
         binds[VAL_TYPESET_CANON(param)] = index;
 
-    Bind_Relative_Inner_Loop(binds, func, &value[0], bind_types);
+    Bind_Relative_Inner_Loop(binds, func, head, bind_types);
 
     // Reset binding table
     //
@@ -1430,9 +1442,10 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
 void Rebind_Values_Deep(
     REBCTX *src,
     REBCTX *dst,
-    REBVAL value[],
+    REBVAL *head,
     REBINT *opt_binds
 ) {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), opt_binds);
@@ -1481,8 +1494,9 @@ void Rebind_Values_Deep(
 void Rebind_Values_Relative_Deep(
     REBFUN *src,
     REBFUN *dst,
-    REBVAL value[]
+    REBVAL *head
 ) {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Relative_Deep(src, dst, VAL_ARRAY_AT(value));
@@ -1507,7 +1521,8 @@ void Rebind_Values_Relative_Deep(
 // !!! This function is temporary and should not be necessary after the FRAME!
 // is implemented.
 //
-void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL value[]) {
+void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
+    REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));

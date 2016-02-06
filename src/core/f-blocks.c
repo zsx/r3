@@ -106,16 +106,19 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 //
 //  Copy_Values_Len_Extra_Shallow: C
 // 
-// Shallow copy the first 'len' values of `value[]` into a new
+// Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Extra_Shallow(REBVAL value[], REBCNT len, REBCNT extra)
-{
+REBARR *Copy_Values_Len_Extra_Shallow(
+    const REBVAL *head,
+    REBCNT len,
+    REBCNT extra
+) {
     REBARR *array;
 
     array = Make_Array(len + extra + 1);
 
-    memcpy(ARR_HEAD(array), &value[0], len * sizeof(REBVAL));
+    memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
 
     SET_ARRAY_LEN(array, len);
     TERM_ARRAY(array);
@@ -127,7 +130,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(REBVAL value[], REBCNT len, REBCNT extra)
 //
 //  Clonify_Values_Len_Managed: C
 // 
-// Update the first `len` elements of value[] to clone the series
+// Update the first `len` elements of `head[]` to clone the series
 // embedded in them *if* they are in the given set of types (and
 // if "cloning" makes sense for them, e.g. they are not simple
 // scalars).  If the `deep` flag is set, recurse into subseries
@@ -140,11 +143,12 @@ REBARR *Copy_Values_Len_Extra_Shallow(REBVAL value[], REBCNT len, REBCNT extra)
 // are in an array, and assert that they are managed.)
 //
 void Clonify_Values_Len_Managed(
-    REBVAL value[],
+    REBVAL *head,
     REBCNT len,
     REBOOL deep,
     REBU64 types
 ) {
+    REBVAL *value = head;
     REBCNT index;
 
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();

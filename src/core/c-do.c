@@ -3393,8 +3393,9 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 // 
 // Handles cascading set words:  word1: word2: value
 //
-void Do_Construct(REBVAL value[])
+void Do_Construct(REBVAL* head)
 {
+    REBVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     REBVAL temp;
@@ -3496,8 +3497,9 @@ void Do_Construct(REBVAL value[])
 // 
 // Do no evaluation of the set values.
 //
-void Do_Min_Construct(REBVAL value[])
+void Do_Min_Construct(REBVAL* head)
 {
+    REBVAL *value = head;
     REBVAL *temp;
     REBDSP ssp;  // starting stack pointer
 

@@ -389,7 +389,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
 // only occasionally requires an actual call to Free_Mem(), due to allocating
 // call these arrays sequentially inside of chunks in memory.
 //
-void Drop_Chunk(REBVAL values[])
+void Drop_Chunk(REBVAL *opt_head)
 {
     struct Reb_Chunk* chunk = TG_Top_Chunk;
 
@@ -399,7 +399,7 @@ void Drop_Chunk(REBVAL values[])
     // state, this information isn't available because the call frame data
     // containing the chunk pointer has been longjmp'd past into oblivion.)
     //
-    assert(!values || CHUNK_FROM_VALUES(values) == chunk);
+    assert(!opt_head || CHUNK_FROM_VALUES(opt_head) == chunk);
 
     if (chunk->opt_context) {
         REBARR *varlist = CTX_VARLIST(chunk->opt_context);

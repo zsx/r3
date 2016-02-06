@@ -106,7 +106,7 @@ void Append_Series(REBSER *series, const REBYTE *data, REBCNT len)
 // the number of units and does not include the terminator
 // (which will be added).
 //
-void Append_Values_Len(REBARR *array, const REBVAL value[], REBCNT len)
+void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
 {
     REBYTE *dest = cast(REBYTE*, ARR_TAIL(array));
 
@@ -114,7 +114,7 @@ void Append_Values_Len(REBARR *array, const REBVAL value[], REBCNT len)
     //
     EXPAND_SERIES_TAIL(ARR_SERIES(array), len);
 
-    memcpy(dest, &value[0], sizeof(REBVAL) * len);
+    memcpy(dest, head, sizeof(REBVAL) * len);
 
     TERM_ARRAY(array);
 }
