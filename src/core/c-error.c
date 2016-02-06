@@ -356,8 +356,8 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     if (Trace_Level) {
         Debug_Fmt(
             cs_cast(BOOT_STR(RS_TRACE, 10)),
-            &ERR_VALUES(error)->type,
-            &ERR_VALUES(error)->id
+            &ERR_VARS(error)->type,
+            &ERR_VARS(error)->id
         );
     }
 
@@ -594,7 +594,7 @@ REBOOL Make_Error_Object_Throws(
     REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ); // !!! actually an OBJECT!
 
     REBCTX *error;
-    ERROR_OBJ *error_obj;
+    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
 
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
@@ -609,7 +609,7 @@ REBOOL Make_Error_Object_Throws(
         // raised later in the routine.
 
         error = Merge_Contexts_Selfish(root_error, VAL_CONTEXT(arg));
-        error_obj = ERR_VALUES(error);
+        vars = ERR_VARS(error);
     }
     else if (IS_BLOCK(arg)) {
         // If a block, then effectively MAKE OBJECT! on it.  Afterward,
@@ -654,7 +654,7 @@ REBOOL Make_Error_Object_Throws(
             return TRUE;
         }
 
-        error_obj = ERR_VALUES(error);
+        vars = ERR_VARS(error);
     }
     else if (IS_STRING(arg)) {
         //
@@ -674,12 +674,12 @@ REBOOL Make_Error_Object_Throws(
         //
         VAL_RESET_HEADER(CTX_VALUE(error), REB_ERROR);
 
-        error_obj = ERR_VALUES(error);
-        assert(IS_NONE(&error_obj->code));
+        vars = ERR_VARS(error);
+        assert(IS_NONE(&vars->code));
 
         // fill in RE_USER (1000) later if it passes the check
 
-        Val_Init_String(&error_obj->message, Copy_Sequence_At_Position(arg));
+        Val_Init_String(&vars->message, Copy_Sequence_At_Position(arg));
     }
     else {
         // No other argument types are handled by this routine at this time.
@@ -696,8 +696,8 @@ REBOOL Make_Error_Object_Throws(
     // traffic cones to make it easy to pick and choose what parts to excise
     // or tighten in an error enhancement upgrade.
 
-    if (IS_INTEGER(&error_obj->code)) {
-        if (VAL_INT32(&error_obj->code) < RE_USER) {
+    if (IS_INTEGER(&vars->code)) {
+        if (VAL_INT32(&vars->code) < RE_USER) {
             // Users can make up anything for error codes allocated to them,
             // but Rebol's historical default is to "own" error codes less
             // than 1000.  If a code is used in the sub-1000 range then make
@@ -710,48 +710,48 @@ REBOOL Make_Error_Object_Throws(
             VAL_INIT_WRITABLE_DEBUG(&id);
             VAL_INIT_WRITABLE_DEBUG(&type);
 
-            if (!IS_NONE(&error_obj->message)) // assume a MESSAGE: is wrong
+            if (!IS_NONE(&vars->message)) // assume a MESSAGE: is wrong
                 fail (Error(RE_INVALID_ERROR, arg));
 
             message = Find_Error_For_Code(
                 &id,
                 &type,
-                cast(REBCNT, VAL_INT32(&error_obj->code))
+                cast(REBCNT, VAL_INT32(&vars->code))
             );
 
             if (!message)
                 fail (Error(RE_INVALID_ERROR, arg));
 
-            error_obj->message = *message;
+            vars->message = *message;
 
-            if (!IS_NONE(&error_obj->id)) {
+            if (!IS_NONE(&vars->id)) {
                 if (
-                    !IS_WORD(&error_obj->id)
+                    !IS_WORD(&vars->id)
                     || !SAME_SYM(
-                        VAL_WORD_SYM(&error_obj->id), VAL_WORD_SYM(&id)
+                        VAL_WORD_SYM(&vars->id), VAL_WORD_SYM(&id)
                     )
                 ) {
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            error_obj->id = id; // normalize binding and case
+            vars->id = id; // normalize binding and case
 
-            if (!IS_NONE(&error_obj->type)) {
+            if (!IS_NONE(&vars->type)) {
                 if (
-                    !IS_WORD(&error_obj->id)
+                    !IS_WORD(&vars->id)
                     || !SAME_SYM(
-                        VAL_WORD_SYM(&error_obj->type), VAL_WORD_SYM(&type)
+                        VAL_WORD_SYM(&vars->type), VAL_WORD_SYM(&type)
                     )
                 ) {
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            error_obj->type = type; // normalize binding and case
+            vars->type = type; // normalize binding and case
 
             // !!! TBD: Check that all arguments were provided!
         }
     }
-    else if (IS_WORD(&error_obj->type) && IS_WORD(&error_obj->id)) {
+    else if (IS_WORD(&vars->type) && IS_WORD(&vars->id)) {
         // If there was no CODE: supplied but there was a TYPE: and ID: then
         // this may overlap a combination used by Rebol where we wish to
         // fill in the code.  (No fast lookup for this, must search.)
@@ -759,10 +759,10 @@ REBOOL Make_Error_Object_Throws(
         REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
         REBVAL *category;
 
-        assert(IS_NONE(&error_obj->code));
+        assert(IS_NONE(&vars->code));
 
         // Find correct category for TYPE: (if any)
-        category = Find_Word_Value(categories, VAL_WORD_SYM(&error_obj->type));
+        category = Find_Word_Value(categories, VAL_WORD_SYM(&vars->type));
         if (category) {
             REBCNT code;
             REBVAL *message;
@@ -786,21 +786,21 @@ REBOOL Make_Error_Object_Throws(
 
             // Find correct message for ID: (if any)
             message = Find_Word_Value(
-                VAL_CONTEXT(category), VAL_WORD_SYM(&error_obj->id)
+                VAL_CONTEXT(category), VAL_WORD_SYM(&vars->id)
             );
 
             if (message) {
                 assert(IS_STRING(message) || IS_BLOCK(message));
 
-                if (!IS_NONE(&error_obj->message))
+                if (!IS_NONE(&vars->message))
                     fail (Error(RE_INVALID_ERROR, arg));
 
-                error_obj->message = *message;
+                vars->message = *message;
 
-                SET_INTEGER(&error_obj->code,
+                SET_INTEGER(&vars->code,
                     code
                     + Find_Word_In_Context(
-                        error, VAL_WORD_SYM(&error_obj->id), FALSE
+                        error, VAL_WORD_SYM(&vars->id), FALSE
                     )
                     - Find_Word_In_Context(error, SYM_TYPE, FALSE)
                     - 1
@@ -825,7 +825,7 @@ REBOOL Make_Error_Object_Throws(
         else {
             // The type and category picked did not overlap any existing one
             // so let it be a user error.
-            SET_INTEGER(&error_obj->code, RE_USER);
+            SET_INTEGER(&vars->code, RE_USER);
         }
     }
     else {
@@ -837,10 +837,10 @@ REBOOL Make_Error_Object_Throws(
         // For now we just write 1000 into the error code field, if that was
         // not already there.
 
-        if (IS_NONE(&error_obj->code))
-            SET_INTEGER(&error_obj->code, RE_USER);
-        else if (IS_INTEGER(&error_obj->code)) {
-            if (VAL_INT32(&error_obj->code) != RE_USER)
+        if (IS_NONE(&vars->code))
+            SET_INTEGER(&vars->code, RE_USER);
+        else if (IS_INTEGER(&vars->code)) {
+            if (VAL_INT32(&vars->code) != RE_USER)
                 fail (Error(RE_INVALID_ERROR, arg));
         }
         else
@@ -851,19 +851,19 @@ REBOOL Make_Error_Object_Throws(
         // This is conservative logic and not good for general purposes.
 
         if (
-            !(IS_WORD(&error_obj->id) || IS_NONE(&error_obj->id))
-            || !(IS_WORD(&error_obj->type) || IS_NONE(&error_obj->type))
+            !(IS_WORD(&vars->id) || IS_NONE(&vars->id))
+            || !(IS_WORD(&vars->type) || IS_NONE(&vars->type))
             || !(
-                IS_BLOCK(&error_obj->message)
-                || IS_STRING(&error_obj->message)
-                || IS_NONE(&error_obj->message)
+                IS_BLOCK(&vars->message)
+                || IS_STRING(&vars->message)
+                || IS_NONE(&vars->message)
             )
         ) {
             fail (Error(RE_INVALID_ERROR, arg));
         }
     }
 
-    assert(IS_INTEGER(&error_obj->code));
+    assert(IS_INTEGER(&vars->code));
 
 #if !defined(NDEBUG)
     // Let our fake root_error that had arg1: arg2: arg3: on it be
@@ -916,7 +916,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
     REBCTX *root_error;
 
     REBCTX *error;
-    ERROR_OBJ *error_obj; // Error object values
+    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
     REBCNT expected_args;
 
     REBVAL *message;
@@ -1121,14 +1121,14 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
         SET_END(value);
     }
 
-    error_obj = ERR_VALUES(error);
+    vars = ERR_VARS(error);
 
     // Set error number:
-    SET_INTEGER(&error_obj->code, code);
+    SET_INTEGER(&vars->code, code);
 
-    error_obj->message = *message;
-    error_obj->id = id;
-    error_obj->type = type;
+    vars->message = *message;
+    vars->id = id;
+    vars->type = type;
 
     // If a varless native is running it might want us to pretend it hasn't
     // been called yet for stack display purposes.  This happens for instance
@@ -1165,7 +1165,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
                 Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL(frame)
             );
         }
-        Val_Init_Block(&error_obj->where, backtrace);
+        Val_Init_Block(&vars->where, backtrace);
 
         // Nearby location of the error.  Reify any valist that is running,
         // so that the error has an array to present.
@@ -1210,7 +1210,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
             if (NOT_END(item))
                 DS_PUSH(&ellipsis);
 
-            Val_Init_Block(&error_obj->nearest, Pop_Stack_Values(dsp_orig));
+            Val_Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
         }
     }
 

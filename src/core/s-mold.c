@@ -1004,7 +1004,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    ERROR_OBJ *err;
+    ERROR_VARS *vars;
     REBCTX *context;
 
     // Protect against recursion. !!!!
@@ -1015,21 +1015,21 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     context = VAL_CONTEXT(value);
-    err = VAL_ERR_VALUES(value);
+    vars = VAL_ERR_VARS(value);
 
     // Form: ** <type> Error:
-    Emit(mold, "** WB", &err->type, RS_ERRS+0);
+    Emit(mold, "** WB", &vars->type, RS_ERRS+0);
 
     // Append: error message ARG1, ARG2, etc.
-    if (IS_BLOCK(&err->message))
-        Form_Array_At(VAL_ARRAY(&err->message), 0, mold, context);
-    else if (IS_STRING(&err->message))
-        Mold_Value(mold, &err->message, FALSE);
+    if (IS_BLOCK(&vars->message))
+        Form_Array_At(VAL_ARRAY(&vars->message), 0, mold, context);
+    else if (IS_STRING(&vars->message))
+        Mold_Value(mold, &vars->message, FALSE);
     else
         Append_Boot_Str(mold->series, RS_ERRS + 1);
 
     // Form: ** Where: function
-    value = &err->where;
+    value = &vars->where;
     if (VAL_TYPE(value) > REB_NONE) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
@@ -1037,7 +1037,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     // Form: ** Near: location
-    value = &err->nearest;
+    value = &vars->nearest;
     if (VAL_TYPE(value) > REB_NONE) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);

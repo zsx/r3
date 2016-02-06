@@ -1070,19 +1070,18 @@ emit {
 #ifdef VAL_TYPE
 /***********************************************************************
 **
-*/  typedef struct REBOL_Error_Obj
+*/  typedef struct REBOL_Error_Vars
 /*
 ***********************************************************************/
 ^{
 }
 ; Generate ERROR object and append it to bootdefs.h:
-emit-line/code "REBVAL " 'rootvar ";"
 emit-line/code "REBVAL " 'self ";"
 for-each word words-of ob/standard/error [
     if word = 'near [word: 'nearest] ; prevents C problem
     emit-line/code "REBVAL " word ";"
 ]
-emit {^} ERROR_OBJ;
+emit {^} ERROR_VARS;
 #endif
 }
 

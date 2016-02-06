@@ -1834,10 +1834,10 @@ struct Reb_Any_Context {
 // `fail()` C macro inside the source, and the various routines in %c-error.c
 //
 
-#define ERR_VALUES(e)   cast(ERROR_OBJ*, ARR_HEAD(CTX_VARLIST(e)))
-#define ERR_NUM(e)      cast(REBCNT, VAL_INT32(&ERR_VALUES(e)->code))
+#define ERR_VARS(e)     cast(ERROR_VARS*, CTX_VARS_HEAD(e))
+#define ERR_NUM(e)      cast(REBCNT, VAL_INT32(&ERR_VARS(e)->code))
 
-#define VAL_ERR_VALUES(v)   ERR_VALUES(VAL_CONTEXT(v))
+#define VAL_ERR_VARS(v)     ERR_VARS(VAL_CONTEXT(v))
 #define VAL_ERR_NUM(v)      ERR_NUM(VAL_CONTEXT(v))
 
 #define Val_Init_Error(v,c) \

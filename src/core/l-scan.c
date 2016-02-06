@@ -604,7 +604,7 @@ static REBCTX *Error_Bad_Scan(
     REBSER *ser;
     REBCNT len = 0;
 
-    ERROR_OBJ *err_obj;
+    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
     REBVAL arg1;
     REBVAL arg2;
     VAL_INIT_WRITABLE_DEBUG(&arg1);
@@ -640,8 +640,8 @@ static REBCTX *Error_Bad_Scan(
 
     // Write the NEAR information (`Error()` gets it from FS_TOP)
     //
-    err_obj = cast(ERROR_OBJ*, ARR_HEAD(CTX_VARLIST(error)));
-    Val_Init_String(&err_obj->nearest, ser);
+    vars = ERR_VARS(error);
+    Val_Init_String(&vars->nearest, ser);
 
     return error;
 }

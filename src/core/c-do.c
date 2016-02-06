@@ -246,8 +246,8 @@ void Trace_Error(const REBVAL *value)
     CHECK_DEPTH(depth);
     Debug_Fmt(
         cs_cast(BOOT_STR(RS_TRACE, 11)),
-        &VAL_ERR_VALUES(value)->type,
-        &VAL_ERR_VALUES(value)->id
+        &VAL_ERR_VARS(value)->type,
+        &VAL_ERR_VARS(value)->id
     );
 }
 
