@@ -1348,7 +1348,7 @@ static void Bind_Relative_Inner_Loop(
                 //
                 enum Reb_Kind kind = VAL_TYPE(value);
                 VAL_RESET_HEADER(value, kind);
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE);
+                SET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE);
                 INIT_WORD_RELATIVE(value, func);
                 INIT_WORD_INDEX(value, n);
             }
@@ -1427,7 +1427,7 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
 
     kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
     VAL_RESET_HEADER(word, kind);
-    SET_VAL_FLAG(word, WORD_FLAG_BOUND_RELATIVE);
+    SET_VAL_FLAG(word, VALUE_FLAG_BOUND_RELATIVE);
     INIT_WORD_RELATIVE(word, func);
     INIT_WORD_INDEX(word, index);
 }
@@ -1503,7 +1503,7 @@ void Rebind_Values_Relative_Deep(
         }
         else if (
             ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
+            && GET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE)
             && value->payload.any_word.place.binding.target.relative == src
         ) {
             INIT_WORD_RELATIVE(value, dst);
@@ -1529,7 +1529,7 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
         }
         else if (
             ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
+            && GET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE)
             && value->payload.any_word.place.binding.target.relative == src
         ) {
             // Note that VAL_RESET_HEADER(value...) is a macro for setting
@@ -1787,7 +1787,7 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         assert(!THROWN(value));
         return value;
     }
-    else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_RELATIVE)) {
+    else if (GET_VAL_FLAG(any_word, VALUE_FLAG_BOUND_RELATIVE)) {
         //
         // RELATIVE CONTEXT: Word is stack-relative bound to a function with
         // no persistent varlist held by the GC.  The value *might* be found

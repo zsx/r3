@@ -338,7 +338,23 @@ enum {
     // to use a new technique that brings it to parity with CLOSURE! in this
     // regard, then that will fix this.
     //
-    VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3)
+    VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3),
+
+    // `VALUE_FLAG_BOUND_RELATIVE` is used to indicate a value that is both
+    // an ANY-WORD! and relatively bound.
+    //
+    // Even though it may seem "wasteful" to take a flag that is only
+    // applicable to one type and put it in the general bits, there is a
+    // reason.  It's because a relatively bound word contains a bit pattern
+    // that cannot be copied into another value directly without supplying
+    // a specific context for the instance.  So this bit has to be checked
+    // very frequently.
+    //
+    // !!! The feature of specific binding is a work in progress, and not
+    // yet live...so the bit is not being checked on every copy at time
+    // of writing.  (But will be.)
+    //
+    VALUE_FLAG_BOUND_RELATIVE = 1 << (GENERAL_VALUE_BIT + 4)
 };
 
 // VALUE_FLAG_XXX flags are applicable to all types.  Type-specific flags are
@@ -1262,10 +1278,6 @@ enum {
     //
     WORD_FLAG_BOUND_SPECIFIC = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG_X,
 
-    // var is found by combining w/extra info
-    //
-    WORD_FLAG_BOUND_RELATIVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X,
-
     // A special kind of word is used during argument fulfillment to hold
     // a refinement's word on the data stack, augmented with its param
     // and argument location.  This helps fulfill "out-of-order" refinement
@@ -1293,7 +1305,7 @@ struct Reb_Binding {
     //
     union {
         REBCTX *specific; // for WORD_FLAG_BOUND_SPECIFIC
-        REBFUN *relative; // for WORD_FLAG_BOUND_RELATIVE
+        REBFUN *relative; // for VALUE_FLAG_BOUND_RELATIVE
     } target;
 
     // Index of word in context (if word is bound, e.g. `context` is not NULL)
@@ -1341,7 +1353,7 @@ struct Reb_Any_Word {
 #define IS_WORD_BOUND(v) \
     (assert(ANY_WORD(v)), \
         GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
-        || GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE)) // !!! => test both
+        || GET_VAL_FLAG((v), VALUE_FLAG_BOUND_RELATIVE)) // !!! => test both
 
 #define IS_WORD_UNBOUND(v) \
     NOT(IS_WORD_BOUND(v))
@@ -1377,15 +1389,18 @@ struct Reb_Any_Word {
 
 #define INIT_WORD_SPECIFIC(v,context) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
-        && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE)), \
+        && !GET_VAL_FLAG((v), VALUE_FLAG_BOUND_RELATIVE)), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
         (v)->payload.any_word.place.binding.target.specific = (context))
 
 #define INIT_WORD_RELATIVE(v,func) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_RELATIVE) \
+    (assert(GET_VAL_FLAG((v), VALUE_FLAG_BOUND_RELATIVE) \
         && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
         (v)->payload.any_word.place.binding.target.relative = (func))
+
+#define VAL_WORD_RELATIVE(v) \
+    ((v)->payload.any_word.place.binding.target.relative)
 
 #define IS_SAME_WORD(v, n) \
     (IS_WORD(v) && VAL_WORD_CANON(v) == n)
@@ -1393,11 +1408,11 @@ struct Reb_Any_Word {
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
         CLEAR_VAL_FLAGS((v), \
-            WORD_FLAG_BOUND_SPECIFIC | WORD_FLAG_BOUND_RELATIVE)
+            WORD_FLAG_BOUND_SPECIFIC | VALUE_FLAG_BOUND_RELATIVE)
 #else
     #define UNBIND_WORD(v) \
         (CLEAR_VAL_FLAGS((v), \
-            WORD_FLAG_BOUND_SPECIFIC | WORD_FLAG_BOUND_RELATIVE), \
+            WORD_FLAG_BOUND_SPECIFIC | VALUE_FLAG_BOUND_RELATIVE), \
             (v)->payload.any_word.place.binding.index = 0)
 #endif
 
