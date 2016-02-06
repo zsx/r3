@@ -289,7 +289,7 @@ REBNATIVE(evoke)
             switch (Int32(arg)) {
             case 0:
                 Check_Memory();
-                Check_Bind_Table();
+                Assert_Bind_Table_Empty();
                 break;
             case 1:
                 Reb_Opts->watch_expand = TRUE;
@@ -298,7 +298,7 @@ REBNATIVE(evoke)
                 Check_Memory();
                 break;
             case 3:
-                Check_Bind_Table();
+                Assert_Bind_Table_Empty();
                 break;
             default:
                 Out_Str(cb_cast(evoke_help), 1);

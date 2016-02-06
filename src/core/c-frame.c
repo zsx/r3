@@ -86,24 +86,6 @@
 
 #include "sys-core.h"
 
-#define CHECK_BIND_TABLE
-
-//
-//  Check_Bind_Table: C
-//
-void Check_Bind_Table(void)
-{
-    REBCNT  n;
-    REBINT *binds = WORDS_HEAD(Bind_Table);
-
-    //Debug_Fmt("Bind Table (Size: %d)", SER_LEN(Bind_Table));
-    for (n = 0; n < SER_LEN(Bind_Table); n++) {
-        if (binds[n]) {
-            Debug_Fmt("Bind table fault: %3d to %3d (%s)", n, binds[n], Get_Sym_Name(n));
-        }
-    }
-}
-
 
 //
 //  Alloc_Context: C
@@ -316,7 +298,7 @@ REBCTX *Copy_Context_Shallow(REBCTX *src) {
 //
 void Collect_Keys_Start(REBFLGS flags)
 {
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
@@ -398,7 +380,7 @@ void Collect_Keys_End(void)
 
     SET_ARRAY_LEN(BUF_COLLECT, 0); // allow reuse
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 }
 
 
@@ -660,7 +642,7 @@ REBARR *Collect_Words(
     REBARR *array;
     REBCNT start;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
@@ -683,7 +665,7 @@ REBARR *Collect_Words(
     );
     SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
     return array;
 }
 
@@ -861,6 +843,147 @@ REBCTX *Construct_Context(
 
 
 //
+//  Do_Construct: C
+//
+// Do a block with minimal evaluation and no evaluation of
+// functions. Used for things like script headers where security
+// is important.
+//
+// Handles cascading set words:  word1: word2: value
+//
+void Do_Construct(REBVAL* head)
+{
+    REBVAL *value = head;
+    REBDSP dsp_orig = DSP;
+
+    REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
+    SET_NONE(&temp);
+
+    // This routine reads values from the start to the finish, which means
+    // that if it wishes to do `word1: word2: value` it needs to have some
+    // way of getting to the value and then going back across the words to
+    // set them.  One way of doing it would be to start from the end and
+    // work backward, but this uses the data stack instead to gather set
+    // words and then go back and set them all when a value is found.
+    //
+    // !!! This could also just remember the pointer of the first set
+    // word in a run, but at time of writing this is just patching a bug.
+    //
+    for (; NOT_END(value); value++) {
+        if (IS_SET_WORD(value)) {
+            //
+            // Remember this SET-WORD!.  Come back and set what it is
+            // bound to, once a non-SET-WORD! value is found.
+            //
+            DS_PUSH(value);
+            continue;
+        }
+
+        // If not a SET-WORD! then consider the argument to represent some
+        // kind of value.
+        //
+        // !!! The historical default is to NONE!, and also to transform
+        // what would be evaluative into non-evaluative.  So:
+        //
+        //     >> construct [a: b/c: d: append "Strange" <defaults>]
+        //     == make object! [
+        //         a: b/c:
+        //         d: 'append
+        //     ]
+        //
+        // A differing philosophy might be that the construction process
+        // only tolerate input that would yield the same output if used
+        // in an evaulative object creation.
+        //
+        if (IS_WORD(value)) {
+            switch (VAL_WORD_CANON(value)) {
+            case SYM_NONE:
+                SET_NONE(&temp);
+                break;
+
+            case SYM_TRUE:
+            case SYM_ON:
+            case SYM_YES:
+                SET_TRUE(&temp);
+                break;
+
+            case SYM_FALSE:
+            case SYM_OFF:
+            case SYM_NO:
+                SET_FALSE(&temp);
+                break;
+
+            default:
+                temp = *value;
+                VAL_SET_TYPE_BITS(&temp, REB_WORD);
+            }
+        }
+        else if (IS_LIT_WORD(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_WORD);
+        }
+        else if (IS_LIT_PATH(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_PATH);
+        }
+        else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
+            temp = *value;
+        }
+        else
+            SET_NONE(&temp);
+
+        // Set prior set-words:
+        while (DSP > dsp_orig) {
+            *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = temp;
+            DS_DROP;
+        }
+    }
+
+    // All vars in the frame should have a default value if not set, so if
+    // we reached the end with something like `[a: 10 b: c: d:]` just leave
+    // the trailing words to that default.  However, we must balance the
+    // stack to please the evaluator, so let go of the set-words that we
+    // did not set.
+    //
+    DS_DROP_TO(dsp_orig);
+}
+
+
+//
+//  Do_Min_Construct: C
+//
+// Do no evaluation of the set values.  So if the input is:
+//
+//      [a: b: 1 + 2 d: print e:]
+//
+// Then `a` and `b` will be set to 1, while `+` and `2` will be ignored, `d`
+// will be the word `print`, and `e` will be left as it was.
+//
+void Do_Min_Construct(const REBVAL* head)
+{
+    const REBVAL *value = head;
+    REBDSP dsp_orig = DSP;
+
+    for (; NOT_END(value); value++) {
+        if (IS_SET_WORD(value)) {
+            DS_PUSH(value); // push this SET-WORD! to the stack
+        }
+        else {
+            // For any pushed SET-WORD!s, assign them to this non-SET-WORD!
+            // value and then drop them from the stack.
+            //
+            while (DSP > dsp_orig) {
+                *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = *value;
+                DS_DROP;
+            }
+        }
+    }
+}
+
+
+
+//
 //  Context_To_Array: C
 // 
 // Return a block containing words, values, or set-word: value
@@ -1034,7 +1157,7 @@ void Resolve_Context(
     REBINT m;
     REBCNT i = 0;
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     FAIL_IF_LOCKED_CONTEXT(target);
 
@@ -1142,435 +1265,12 @@ void Resolve_Context(
         }
     }
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     // !!! Note we explicitly do *not* use Collect_Keys_End().  See warning
     // about errors, out of memory issues, etc. at Collect_Keys_Start()
     //
     SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
-}
-
-
-//
-//  Bind_Values_Inner_Loop: C
-// 
-// Bind_Values_Core() sets up the binding table and then calls
-// this recursive routine to do the actual binding.
-//
-static void Bind_Values_Inner_Loop(
-    REBINT *binds,
-    REBVAL *head,
-    REBCTX *context,
-    REBU64 bind_types, // !!! REVIEW: force word types low enough for 32-bit?
-    REBU64 add_midstream_types,
-    REBFLGS flags
-) {
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
-
-        if (type_bit & bind_types) {
-            REBCNT n = binds[VAL_WORD_CANON(value)];
-            if (n != 0) {
-                //
-                // Word is in context, bind it.  Note that VAL_RESET_HEADER
-                // is a macro and VAL_TYPE is a macro, so we cannot directly
-                // initialize the header while also needing the type.
-                //
-                assert(ANY_WORD(value));
-                assert(n <= CTX_LEN(context));
-                UNBIND_WORD(value); // clear any previous binding flags
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
-                INIT_WORD_SPECIFIC(value, context);
-                INIT_WORD_INDEX(value, n);
-            }
-            else if (type_bit & add_midstream_types) {
-                //
-                // Word is not in context, so add it if option is specified
-                //
-                Expand_Context(context, 1);
-                Append_Context(context, value, 0);
-                binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
-            }
-        }
-        else if (ANY_ARRAY(value) && (flags & BIND_DEEP)) {
-            Bind_Values_Inner_Loop(
-                binds,
-                VAL_ARRAY_AT(value),
-                context,
-                bind_types,
-                add_midstream_types,
-                flags
-            );
-        }
-        else if (
-            IS_FUNCTION_AND(value, FUNC_CLASS_USER)
-            && (flags & BIND_FUNC)
-        ) {
-            // !!! Likely-to-be deprecated functionality--rebinding inside the
-            // content of an already formed function.  :-/
-            //
-            Bind_Values_Inner_Loop(
-                binds,
-                ARR_HEAD(VAL_FUNC_BODY(value)),
-                context,
-                bind_types,
-                add_midstream_types,
-                flags
-            );
-        }
-    }
-}
-
-
-//
-//  Bind_Values_Core: C
-// 
-// Bind words in an array of values terminated with END
-// to a specified context.  See warnings on the functions like
-// Bind_Values_Deep() about not passing just a singular REBVAL.
-// 
-// NOTE: If types are added, then they will be added in "midstream".  Only
-// bindings that come after the added value is seen will be bound.
-//
-void Bind_Values_Core(
-    REBVAL *head,
-    REBCTX *context,
-    REBU64 bind_types,
-    REBU64 add_midstream_types,
-    REBFLGS flags // see %sys-core.h for BIND_DEEP, etc.
-) {
-    REBVAL *value = head;
-    REBVAL *key;
-    REBCNT index;
-    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-
-    CHECK_BIND_TABLE;
-
-    // Note about optimization: it's not a big win to avoid the
-    // binding table for short blocks (size < 4), because testing
-    // every block for the rare case adds up.
-
-    // Setup binding table
-    index = 1;
-    key = CTX_KEYS_HEAD(context);
-    for (; index <= CTX_LEN(context); key++, index++) {
-        if (!GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
-            binds[VAL_TYPESET_CANON(key)] = index;
-    }
-
-    Bind_Values_Inner_Loop(
-        binds, &value[0], context, bind_types, add_midstream_types, flags
-    );
-
-    // Reset binding table:
-    key = CTX_KEYS_HEAD(context);
-    for (; NOT_END(key); key++)
-        binds[VAL_TYPESET_CANON(key)] = 0;
-
-    CHECK_BIND_TABLE;
-}
-
-
-//
-//  Unbind_Values_Core: C
-// 
-// Unbind words in a block, optionally unbinding those which are
-// bound to a particular target (if target is NULL, then all
-// words will be unbound regardless of their VAL_WORD_CONTEXT).
-//
-void Unbind_Values_Core(REBVAL *head, REBCTX *context, REBOOL deep)
-{
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (
-            ANY_WORD(value)
-            && (
-                !context
-                || (
-                    IS_WORD_BOUND(value)
-                    && VAL_WORD_CONTEXT(value) == context
-                )
-            )
-        ) {
-            UNBIND_WORD(value);
-        }
-        else if (ANY_ARRAY(value) && deep)
-            Unbind_Values_Core(VAL_ARRAY_AT(value), context, TRUE);
-    }
-}
-
-
-//
-//  Try_Bind_Word: C
-// 
-// Binds a word to a context. If word is not part of the context.
-//
-REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
-{
-    REBCNT n;
-
-    n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
-    if (n != 0) {
-        UNBIND_WORD(word); // get rid of binding if it had one
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
-        INIT_WORD_SPECIFIC(word, context);
-        INIT_WORD_INDEX(word, n);
-    }
-    return n;
-}
-
-
-//
-//  Bind_Relative_Inner_Loop: C
-// 
-// Recursive function for relative function word binding.
-// 
-static void Bind_Relative_Inner_Loop(
-    REBINT *binds,
-    REBFUN *func,
-    REBVAL *head,
-    REBU64 bind_types
-) {
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
-
-        if (type_bit & bind_types) {
-            REBINT n;
-            assert(ANY_WORD(value));
-            if ((n = binds[VAL_WORD_CANON(value)]) != 0) {
-                //
-                // Word's canon symbol is in frame.  Relatively bind it.
-                // (clear out existing header flags first).  Note that
-                // VAL_RESET_HEADER is a macro and it's not safe to pass
-                // it VAL_TYPE(value) directly while initializing value...
-                //
-                enum Reb_Kind kind = VAL_TYPE(value);
-                VAL_RESET_HEADER(value, kind);
-                SET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE);
-                INIT_WORD_RELATIVE(value, func);
-                INIT_WORD_INDEX(value, n);
-            }
-        }
-        else if (ANY_ARRAY(value))
-            Bind_Relative_Inner_Loop(
-                binds, func, VAL_ARRAY_AT(value), bind_types
-            );
-    }
-}
-
-
-//
-//  Bind_Relative_Deep: C
-// 
-// Bind the words of a function block to a stack frame.
-// To indicate the relative nature of the index, it is set to
-// a negative offset.
-//
-void Bind_Relative_Deep(REBFUN *func, REBVAL *head, REBU64 bind_types)
-{
-    REBVAL *param;
-    REBCNT index;
-    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-
-    // !!! Historically, relative binding was not allowed for NATIVE! or
-    // other function types.  It was not desirable for user code to be
-    // capable of binding to the parameters of a native.  However, for
-    // purposes of debug inspection, read-only access presents an
-    // interesting case.  While this avenue is explored, relative bindings
-    // for all function types are being permitted.
-    //
-    // NOTE: This cannot work if the native is invoked framelessly.  A
-    // debug mode must be enabled that prohibits the native from being
-    // varless if it's to be introspected.
-    //
-    /*assert(
-        IS_FUNCTION(FUNC_VALUE(func))
-        && VAL_FUNC_CLASS(FUNC_VALUE(func)) == FUNC_CLASS_USER
-    );*/
-
-    CHECK_BIND_TABLE;
-
-    //Dump_Block(words);
-
-    // Setup binding table from the argument word list
-    //
-    index = 1;
-    param = FUNC_PARAMS_HEAD(func);
-    for (; NOT_END(param); param++, index++)
-        binds[VAL_TYPESET_CANON(param)] = index;
-
-    Bind_Relative_Inner_Loop(binds, func, head, bind_types);
-
-    // Reset binding table
-    //
-    param = FUNC_PARAMS_HEAD(func);
-    for (; NOT_END(param); param++)
-        binds[VAL_TYPESET_CANON(param)] = 0;
-
-    CHECK_BIND_TABLE;
-}
-
-
-//
-//  Bind_Stack_Word: C
-//
-void Bind_Stack_Word(REBFUN *func, REBVAL *word)
-{
-    REBINT index;
-    enum Reb_Kind kind;
-
-    index = Find_Param_Index(FUNC_PARAMLIST(func), VAL_WORD_SYM(word));
-    if (index == 0)
-        fail (Error(RE_NOT_IN_CONTEXT, word));
-
-    kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
-    VAL_RESET_HEADER(word, kind);
-    SET_VAL_FLAG(word, VALUE_FLAG_BOUND_RELATIVE);
-    INIT_WORD_RELATIVE(word, func);
-    INIT_WORD_INDEX(word, index);
-}
-
-
-//
-//  Rebind_Values_Deep: C
-// 
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-void Rebind_Values_Deep(
-    REBCTX *src,
-    REBCTX *dst,
-    REBVAL *head,
-    REBINT *opt_binds
-) {
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), opt_binds);
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC)
-            && VAL_WORD_CONTEXT(value) == src
-        ) {
-            INIT_WORD_SPECIFIC(value, dst);
-
-            if (opt_binds) {
-                REBCNT canon = VAL_WORD_CANON(value);
-                INIT_WORD_INDEX(value, opt_binds[canon]);
-            }
-        }
-        else if (
-            IS_FUNCTION(value)
-            && VAL_FUNC_CLASS(value) == FUNC_CLASS_USER
-        ) {
-            //
-            // !!! Extremely questionable feature--walking into function
-            // bodies and changing them.  This R3-Alpha concept was largely
-            // broken (didn't work for closures) and created a lot of extra
-            // garbage (inheriting an object's methods meant making deep
-            // copies of all that object's method bodies...each time).
-            // Ren-C has a different idea in the works.
-            //
-            Rebind_Values_Deep(
-                src, dst, ARR_HEAD(VAL_FUNC_BODY(value)), opt_binds
-            );
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Relative_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Relative_Deep(
-    REBFUN *src,
-    REBFUN *dst,
-    REBVAL *head
-) {
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Relative_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.place.binding.target.relative == src
-        ) {
-            INIT_WORD_RELATIVE(value, dst);
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Specifically_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
-    REBVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, VALUE_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.place.binding.target.relative == src
-        ) {
-            // Note that VAL_RESET_HEADER(value...) is a macro for setting
-            // value, so passing VAL_TYPE(value) which is also a macro can be
-            // dangerous...
-            //
-            enum Reb_Kind kind = VAL_TYPE(value);
-            VAL_RESET_HEADER(value, kind);
-            SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
-            INIT_WORD_SPECIFIC(value, dst);
-        }
-    }
-}
-
-
-//
-//  Find_Param_Index: C
-// 
-// Find function param word in function "frame".
-//
-// !!! This is semi-redundant with similar functions for Find_Word_In_Array
-// and key finding for objects, review...
-//
-REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
-{
-    REBVAL *params = ARR_AT(paramlist, 1);
-    REBCNT len = ARR_LEN(paramlist);
-
-    REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
-
-    REBCNT n;
-    for (n = 1; n < len; n++, params++) {
-        if (
-            sym == VAL_TYPESET_SYM(params)
-            || canon == VAL_TYPESET_CANON(params)
-        ) {
-            return n;
-        }
-    }
-
-    return 0;
 }
 
 
@@ -1721,123 +1421,6 @@ struct Reb_Frame *Frame_For_Relative_Word(
     if (trap) return NULL;
 
     fail (Error(RE_NO_RELATIVE, any_word));
-}
-
-
-//
-//  Get_Var_Core: C
-// 
-// Get the word--variable--value. (Generally, use the macros like
-// GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
-// called quite a lot and so attention to performance is important.
-//
-// If `trap` is TRUE, return NULL instead of raising errors on unbounds.
-//
-// Coded assuming most common case is trap=FALSE and writable=FALSE
-//
-REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
-{
-    if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_SPECIFIC)) {
-        //
-        // The word is bound directly to a value inside a varlist, and
-        // represents the zero-based offset into that series.  This is how
-        // values would be picked out of object-like things...
-        //
-        // (Including e.g. looking up 'append' in the user context.)
-
-        REBCTX *context = VAL_WORD_CONTEXT(any_word);
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
-
-        assert(
-            SAME_SYM(
-                VAL_WORD_SYM(any_word), CTX_KEY_SYM(context, index)
-            )
-        );
-
-        if (
-            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-        ) {
-            // In R3-Alpha, the closure construct created a persistent object
-            // which would keep all of its args, refinements, and locals
-            // alive after the closure ended.  In trying to eliminate the
-            // distinction between FUNCTION! and CLOSURE! in Ren-C, the
-            // default is for them not to survive...though a mechanism for
-            // allowing some to be marked ("<durable>") is under development.
-            //
-            // In the meantime, report the same error as a function which
-            // is no longer on the stack.
-
-            if (trap) return NULL;
-
-            fail (Error(RE_NO_RELATIVE, any_word));
-        }
-
-        if (
-            writable &&
-            GET_VAL_FLAG(CTX_KEY(context, index), TYPESET_FLAG_LOCKED)
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
-
-        value = CTX_VAR(context, index);
-        assert(!THROWN(value));
-        return value;
-    }
-    else if (GET_VAL_FLAG(any_word, VALUE_FLAG_BOUND_RELATIVE)) {
-        //
-        // RELATIVE CONTEXT: Word is stack-relative bound to a function with
-        // no persistent varlist held by the GC.  The value *might* be found
-        // on the stack (or not, if all instances of the function on the
-        // call stack have finished executing).  We walk backward in the call
-        // stack to see if we can find the function's "identifying series"
-        // in a call frame...and take the first instance we see (even if
-        // multiple invocations are on the stack, most recent wins)
-        //
-        // !!! This is the temporary answer to relative binding.  NewFunction
-        // aims to resolve relative bindings with the help of an extra
-        // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
-        // REBVALs that are "viewing" an array that contains relatively
-        // bound elements.  That extra parameter will fill in the *actual*
-        // frame so this code will not have to guess that "the last stack
-        // level is close enough"
-
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
-
-        struct Reb_Frame *frame
-            = Frame_For_Relative_Word(any_word, trap);
-
-        if (!frame) {
-            assert(trap);
-            return NULL;
-        }
-
-        if (
-            writable &&
-            GET_VAL_FLAG(
-                FUNC_PARAM(FRM_FUNC(frame), index),
-                TYPESET_FLAG_LOCKED
-            )
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
-
-        value = FRM_ARG(frame, index);
-        assert(!THROWN(value));
-        return value;
-    }
-
-    // If none of the above cases matched, then it's not bound at all.
-
-    if (trap) return NULL;
-
-    fail (Error(RE_NOT_BOUND, any_word));
 }
 
 

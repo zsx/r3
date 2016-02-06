@@ -175,6 +175,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/a-stubs.c
     ${CORE_DIR}/b-boot.c
     ${CORE_DIR}/b-init.c
+    ${CORE_DIR}/c-bind.c
     ${CORE_DIR}/c-do.c
     ${CORE_DIR}/c-error.c
     ${CORE_DIR}/c-frame.c

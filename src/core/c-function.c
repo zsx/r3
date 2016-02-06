@@ -338,6 +338,36 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
 }
 
 
+
+//
+//  Find_Param_Index: C
+//
+// Find function param word in function "frame".
+//
+// !!! This is semi-redundant with similar functions for Find_Word_In_Array
+// and key finding for objects, review...
+//
+REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
+{
+    REBVAL *params = ARR_AT(paramlist, 1);
+    REBCNT len = ARR_LEN(paramlist);
+
+    REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
+
+    REBCNT n;
+    for (n = 1; n < len; n++, params++) {
+        if (
+            sym == VAL_TYPESET_SYM(params)
+            || canon == VAL_TYPESET_CANON(params)
+        ) {
+            return n;
+        }
+    }
+
+    return 0;
+}
+
+
 //
 //  Make_Native: C
 //

@@ -292,6 +292,22 @@ enum {
     BIND_FUNC = 1 << 2 // Recurse into functions.
 };
 
+// The bind table is sparsely hashed, so when it is in use only a few
+// entries get set.  It's cheaper to go through the entries that were
+// made nonzero and zero them out than to reset it.  So after every wave
+// of binding, the binds that were given non-zero values should have been
+// zeroed back out.  This can be enabled to check that invariant.
+//
+#ifdef NDEBUG
+    #define ASSERT_BIND_TABLE_EMPTY
+#else
+    #if 0
+        #define ASSERT_BIND_TABLE_EMPTY Assert_Bind_Table_Empty()
+    #else
+        #define ASSERT_BIND_TABLE_EMPTY
+    #endif
+#endif
+
 // Modes allowed by Collect keys functions:
 enum {
     COLLECT_ONLY_SET_WORDS = 0,
