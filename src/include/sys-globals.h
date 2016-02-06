@@ -80,19 +80,11 @@ PVAR REB_OPTS *Reb_Opts;
 // arrays--they are singular values, and the second element is set to
 // be trash to trap any unwanted access.
 //
-PVAR REBVAL PG_Unset_Value[2];
-PVAR REBVAL PG_None_Value[2];
-PVAR REBVAL PG_False_Value[2];
-PVAR REBVAL PG_True_Value[2];
-
-// A value with END set, which comes in handy if you ever need the address of
-// an end for a noop to pass to a routine expecting an end-terminated series
-//
-// It is dynamically allocated via malloc in order to ensure that all parts
-// besides the header are uninitialized memory, to prevent reading of the
-// other three platform words inside of it.
-//
-PVAR REBVAL *PG_End_Val;
+PVAR struct Reb_Value PG_Unset_Value[2];
+PVAR struct Reb_Value PG_None_Value[2];
+PVAR struct Reb_Value PG_False_Value[2];
+PVAR struct Reb_Value PG_True_Value[2];
+PVAR struct Reb_Value PG_End_Val;
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!

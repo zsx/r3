@@ -287,7 +287,7 @@ struct Reb_Value_Header {
 // of the value payload is accessed, it will trip memory checkers like
 // Valgrind or Address Sanitizer to warn of the mistake.
 //
-#define END_VALUE           PG_End_Val
+#define END_VALUE (&PG_End_Val)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

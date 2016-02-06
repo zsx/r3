@@ -773,6 +773,13 @@ static void Init_Root_Context(void)
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
     MARK_VAL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
 
+    // We can't actually put an end value in the middle of a block, so we poke
+    // this one into a program global.  It is not legal to bit-copy an
+    // END (you always use SET_END), so we can make it unwritable.
+    //
+    PG_End_Val.header.bits = 0; // read-only end
+    assert(IS_END(END_VALUE)); // sanity check that it took
+
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
@@ -810,16 +817,6 @@ static void Init_Root_Context(void)
     SET_ARR_FLAG(
         VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), SERIES_FLAG_FIXED_SIZE
     );
-
-    // We can't actually put an end value in the middle of a block, so we poke
-    // this one into a program global.  We also dynamically allocate it in
-    // order to get uninitialized memory for everything but the header (if
-    // we used a global, C zero-initializes that space).  Mark it unsettable
-    // in the debug build for good measure.
-    //
-    PG_End_Val = cast(REBVAL*, malloc(sizeof(REBVAL)));
-    PG_End_Val->header.bits = 0; // read-only end
-    assert(IS_END(END_VALUE));
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -1717,12 +1714,6 @@ void Shutdown_Core(void)
     Recycle_Core(TRUE);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
-
-    // Free our end value, that was allocated instead of global in order to
-    // get good trip-ups on anyone trying to use anything but the header out
-    // of it based on uninitialized memory warnings in ASAN/Valgrind.
-    //
-    free(PG_End_Val);
 
     Shutdown_Ports();
     Shutdown_Event_Scheme();
