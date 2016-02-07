@@ -284,51 +284,58 @@ REBINT Cmp_Time(const REBVAL *v1, const REBVAL *v2)
 //
 REBINT PD_Time(REBPVS *pvs)
 {
-    REBVAL *val;
+    const REBVAL *sel = pvs->selector;
+    const REBVAL *setval;
     REBINT i;
     REBINT n;
     REBDEC f;
     REB_TIMEF tf;
 
-    if (IS_WORD(pvs->select)) {
-        switch (VAL_WORD_CANON(pvs->select)) {
+    if (IS_WORD(sel)) {
+        switch (VAL_WORD_CANON(sel)) {
         case SYM_HOUR:   i = 0; break;
         case SYM_MINUTE: i = 1; break;
         case SYM_SECOND: i = 2; break;
-        default: return PE_BAD_SELECT;
+        default:
+            fail (Error_Bad_Path_Select(pvs));
         }
     }
-    else if (IS_INTEGER(pvs->select))
-        i = VAL_INT32(pvs->select) - 1;
+    else if (IS_INTEGER(sel))
+        i = VAL_INT32(sel) - 1;
     else
-        return PE_BAD_SELECT;
+        fail (Error_Bad_Path_Select(pvs));
 
     Split_Time(VAL_TIME(pvs->value), &tf); // loses sign
 
-    if (!(val = pvs->setval)) {
-        val = pvs->store;
+    if (!(setval = pvs->opt_setval)) {
+        REBVAL *store = pvs->store;
+
         switch(i) {
         case 0: // hours
-            SET_INTEGER(val, tf.h);
+            SET_INTEGER(store, tf.h);
             break;
         case 1:
-            SET_INTEGER(val, tf.m);
+            SET_INTEGER(store, tf.m);
             break;
         case 2:
             if (tf.n == 0)
-                SET_INTEGER(val, tf.s);
+                SET_INTEGER(store, tf.s);
             else
-                SET_DECIMAL(val, (REBDEC)tf.s + (tf.n * NANO));
+                SET_DECIMAL(store, cast(REBDEC, tf.s) + (tf.n * NANO));
             break;
         default:
             return PE_NONE;
         }
-        return PE_USE;
 
-    } else {
-        if (IS_INTEGER(val) || IS_DECIMAL(val)) n = Int32s(val, 0);
-        else if (IS_NONE(val)) n = 0;
-        else return PE_BAD_SET;
+        return PE_USE_STORE;
+    }
+    else {
+        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
+            n = Int32s(setval, 0);
+        else if (IS_NONE(setval))
+            n = 0;
+        else
+            fail (Error_Bad_Path_Set(pvs));
 
         switch(i) {
         case 0:
@@ -338,11 +345,13 @@ REBINT PD_Time(REBPVS *pvs)
             tf.m = n;
             break;
         case 2:
-            if (IS_DECIMAL(val)) {
-                f = VAL_DECIMAL(val);
-                if (f < 0.0) fail (Error_Out_Of_Range(val));
-                tf.s = (REBINT)f;
-                tf.n = (REBINT)((f - tf.s) * SEC_SEC);
+            if (IS_DECIMAL(setval)) {
+                f = VAL_DECIMAL(setval);
+                if (f < 0.0)
+                    fail (Error_Out_Of_Range(setval));
+
+                tf.s = cast(REBINT, f);
+                tf.n = cast(REBINT, (f - tf.s) * SEC_SEC);
             }
             else {
                 tf.s = n;
@@ -350,7 +359,7 @@ REBINT PD_Time(REBPVS *pvs)
             }
             break;
         default:
-            return PE_BAD_SELECT;
+            fail (Error_Bad_Path_Select(pvs));
         }
 
         VAL_TIME(pvs->value) = Join_Time(&tf, FALSE);

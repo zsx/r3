@@ -918,7 +918,7 @@ REBTYPE(Image)
             diff = (VAL_PAIR_Y_INT(arg) * VAL_IMAGE_WIDE(value) + VAL_PAIR_X_INT(arg)) +
                 ((action == A_SKIP) ? 0 : 1);
         } else
-            diff = Get_Num_Arg(arg);
+            diff = Get_Num_From_Arg(arg);
 
         index += diff;
         if (action == A_SKIP) {
@@ -1155,15 +1155,16 @@ is_true:
 REBINT PD_Image(REBPVS *pvs)
 {
     REBVAL *data = pvs->value;
-    REBVAL *sel = pvs->select;
-    REBVAL *val = pvs->setval;
+    const REBVAL *sel = pvs->selector;
+    const REBVAL *setval;
     REBINT n;
     REBINT len;
     REBYTE *src;
-    REBINT index = (REBINT)VAL_INDEX(data);
     REBSER *nser;
-    REBSER *series = VAL_SERIES(data);
     REBCNT *dp;
+
+    REBSER *series = VAL_SERIES(data);
+    REBINT index = cast(REBINT, VAL_INDEX(data));
 
     len = VAL_LEN_HEAD(data) - index;
     len = MAX(len, 0);
@@ -1174,118 +1175,151 @@ REBINT PD_Image(REBPVS *pvs)
     else if (IS_DECIMAL(sel)) n = (REBINT)VAL_DECIMAL(sel);
     else if (IS_LOGIC(sel))   n = (VAL_LOGIC(sel) ? 1 : 2);
     else if (IS_WORD(sel)) {
-        if (val == 0) {
-            val = pvs->value = pvs->store;
+        if (!pvs->opt_setval) {
             switch (VAL_WORD_CANON(sel)) {
 
             case SYM_SIZE:
-                VAL_RESET_HEADER(val, REB_PAIR);
-                VAL_PAIR_X(val) = (REBD32)VAL_IMAGE_WIDE(data);
-                VAL_PAIR_Y(val) = (REBD32)VAL_IMAGE_HIGH(data);
+                VAL_RESET_HEADER(pvs->store, REB_PAIR);
+                VAL_PAIR_X(pvs->store) = (REBD32)VAL_IMAGE_WIDE(data);
+                VAL_PAIR_Y(pvs->store) = (REBD32)VAL_IMAGE_HIGH(data);
                 break;
 
             case SYM_RGB:
                 nser = Make_Binary(len * 3);
                 SET_SERIES_LEN(nser, len * 3);
                 RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
-                Val_Init_Binary(val, nser);
+                Val_Init_Binary(pvs->store, nser);
                 break;
 
             case SYM_ALPHA:
                 nser = Make_Binary(len);
                 SET_SERIES_LEN(nser, len);
                 Alpha_To_Bin(QUAD_HEAD(nser), src, len);
-                Val_Init_Binary(val, nser);
+                Val_Init_Binary(pvs->store, nser);
                 break;
 
             default:
-                return PE_BAD_SELECT;
+                fail (Error_Bad_Path_Select(pvs));
             }
-            return PE_OK;
-
-        } else {
+            return PE_USE_STORE;
+        }
+        else {
+            FAIL_IF_LOCKED_SERIES(series);
+            setval = pvs->opt_setval;
 
             switch (VAL_WORD_CANON(sel)) {
 
             case SYM_SIZE:
-                if (!IS_PAIR(val) || !VAL_PAIR_X(val)) return PE_BAD_SET;
-                VAL_IMAGE_WIDE(data) = VAL_PAIR_X_INT(val);
+                if (!IS_PAIR(setval) || !VAL_PAIR_X(setval))
+                    fail (Error_Bad_Path_Set(pvs));
+
+                VAL_IMAGE_WIDE(data) = VAL_PAIR_X_INT(setval);
                 VAL_IMAGE_HIGH(data) = MIN(
-                    VAL_PAIR_Y_INT(val),
-                    cast(REBINT, VAL_LEN_HEAD(data) / VAL_PAIR_X_INT(val))
+                    VAL_PAIR_Y_INT(setval),
+                    cast(REBINT, VAL_LEN_HEAD(data) / VAL_PAIR_X_INT(setval))
                 );
                 break;
 
             case SYM_RGB:
-                if (IS_TUPLE(val)) {
+                if (IS_TUPLE(setval)) {
                     Fill_Line(
-                        cast(REBCNT*, src), TO_PIXEL_TUPLE(val), len, TRUE
+                        cast(REBCNT*, src), TO_PIXEL_TUPLE(setval), len, TRUE
                     );
-                } else if (IS_INTEGER(val)) {
-                    n = VAL_INT32(val);
-                    if (n < 0 || n > 255) return PE_BAD_RANGE;
+                } else if (IS_INTEGER(setval)) {
+                    n = VAL_INT32(setval);
+                    if (n < 0 || n > 255)
+                        fail (Error_Bad_Path_Range(pvs));
+
                     Fill_Line(
                         cast(REBCNT*, src),
                         TO_PIXEL_COLOR(n,n,n,0xFF),
                         len,
                         TRUE
                     );
-                } else if (IS_BINARY(val)) {
-                    Bin_To_RGB(src, len, VAL_BIN_AT(val), VAL_LEN_AT(val) / 3);
-                } else return PE_BAD_SET;
+                }
+                else if (IS_BINARY(setval)) {
+                    Bin_To_RGB(
+                        src,
+                        len,
+                        VAL_BIN_AT(setval),
+                        VAL_LEN_AT(setval) / 3
+                    );
+                }
+                else
+                    fail (Error_Bad_Path_Set(pvs));
                 break;
 
             case SYM_ALPHA:
-                if (IS_INTEGER(val)) {
-                    n = VAL_INT32(val);
-                    if (n < 0 || n > 255) return PE_BAD_RANGE;
+                if (IS_INTEGER(setval)) {
+                    n = VAL_INT32(setval);
+                    if (n < 0 || n > 255)
+                        fail (Error_Bad_Path_Range(pvs));
+
                     Fill_Alpha_Line(src, (REBYTE)n, len);
-                } else if (IS_BINARY(val)) {
-                    Bin_To_Alpha(src, len, VAL_BIN_AT(val), VAL_LEN_AT(val));
-                } else return PE_BAD_SET;
+                }
+                else if (IS_BINARY(setval)) {
+                    Bin_To_Alpha(
+                        src,
+                        len,
+                        VAL_BIN_AT(setval),
+                        VAL_LEN_AT(setval)
+                    );
+                }
+                else
+                    fail (Error_Bad_Path_Set(pvs));
                 break;
 
             default:
-                return PE_BAD_SELECT;
+                fail (Error_Bad_Path_Select(pvs));
             }
             return PE_OK;
         }
     }
-    else return PE_BAD_SELECT;
+    else
+        fail (Error_Bad_Path_Select(pvs));
 
     // Handle index path:
     index += n;
     if (n > 0) index--;
 
-    FAIL_IF_LOCKED_SERIES(series);
-
     // Out of range:
     if (n == 0 || index < 0 || index >= cast(REBINT, SER_LEN(series))) {
-        if (val) return PE_BAD_SET;
+        if (pvs->opt_setval)
+            fail (Error_Bad_Path_Set(pvs));
+
         return PE_NONE;
     }
 
     // Get the pixel:
-    if (val == 0) {
+    if (!pvs->opt_setval) {
         Set_Tuple_Pixel(QUAD_SKIP(series, index), pvs->store);
-        return PE_USE;
+        return PE_USE_STORE;
     }
 
+    FAIL_IF_LOCKED_SERIES(series);
+    setval = pvs->opt_setval;
+
     // Set the pixel:
-    if (IS_TUPLE(val) && (IS_IMAGE(data))) {
-        Set_Pixel_Tuple(QUAD_SKIP(series, index), val);
-        //*dp = (long) (VAL_TUPLE_LEN(val) < 4) ?
-        //  ((*dp & 0xff000000) | (VAL_TUPLE(val)[0] << 16) | (VAL_TUPLE(val)[1] << 8) | (VAL_TUPLE(val)[2])) :
-        //  ((VAL_TUPLE(val)[3] << 24) | (VAL_TUPLE(val)[0] << 16) | (VAL_TUPLE(val)[1] << 8) | (VAL_TUPLE(val)[2]));
+    if (IS_TUPLE(setval)) {
+        assert(IS_IMAGE(data)); // there was an && clause in this if before
+        Set_Pixel_Tuple(QUAD_SKIP(series, index), setval);
         return PE_OK;
     }
 
     // Set the alpha only:
-    if (IS_INTEGER(val) && VAL_INT64(val) > 0 && VAL_INT64(val) < 255) n = VAL_INT32(val);
-    else if (IS_CHAR(val)) n = VAL_CHAR(val);
-    else return PE_BAD_RANGE;
+    if (
+        IS_INTEGER(setval)
+        && VAL_INT64(setval) > 0
+        && VAL_INT64(setval) < 255
+    ) {
+        n = VAL_INT32(setval);
+    }
+    else if (IS_CHAR(setval))
+        n = VAL_CHAR(setval);
+    else
+        fail (Error_Bad_Path_Range(pvs));
 
-    dp = (REBCNT*)QUAD_SKIP(series, index);
+    dp = cast(REBCNT*, QUAD_SKIP(series, index));
     *dp = (*dp & 0xffffff) | (n << 24);
     return PE_OK;
 }

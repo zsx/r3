@@ -272,8 +272,8 @@ static void Rehash_Map(REBMAP *map)
 //
 static REBCNT Find_Map_Entry(
     REBMAP *map,
-    REBVAL *key,
-    REBVAL *val,
+    const REBVAL *key,
+    const REBVAL *val,
     REBOOL cased // case-sensitive if true
 ) {
     REBSER *hashlist = MAP_HASHLIST(map); // can be null
@@ -340,24 +340,34 @@ REBINT Length_Map(REBMAP *map)
 //
 REBINT PD_Map(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
-    REBVAL *val = 0;
-    REBINT n = 0;
+    REBVAL *val;
+    REBINT n;
 
-    if (IS_END(pvs->path+1)) val = pvs->setval;
-    if (IS_NONE(pvs->select)) return PE_NONE;
+    REBOOL setting = LOGICAL(pvs->opt_setval && IS_END(pvs->item + 1));
 
-    {
-        const REBOOL cased = (val ? TRUE : FALSE); // cased when *setting*
-        n = Find_Map_Entry(VAL_MAP(data), pvs->select, val, cased);
-    }
+    assert(IS_MAP(pvs->value));
 
-    if (!n) val = UNSET_VALUE;
-    else {
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(data));
-        val = VAL_ARRAY_AT_HEAD(data, ((n - 1) * 2) + 1);
-    }
-    if (IS_UNSET(val) && !IS_GET_PATH(pvs->orig)) return PE_NONE;
+    if (setting)
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+
+    if (IS_NONE(pvs->selector))
+        return PE_NONE;
+
+    n = Find_Map_Entry(
+        VAL_MAP(pvs->value),
+        pvs->selector,
+        setting ? pvs->opt_setval : NULL,
+        setting // `cased` flag for case-sensitivity--use when setting only
+    );
+
+    if (n == 0)
+        val = UNSET_VALUE;
+    else
+        val = VAL_ARRAY_AT_HEAD(pvs->value, ((n - 1) * 2) + 1);
+
+    if (IS_UNSET(val))
+        return PE_NONE;
+
     pvs->value = val;
     return PE_OK;
 }

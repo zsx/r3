@@ -472,9 +472,10 @@ REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 //
 REBINT PD_Date(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
-    REBVAL *arg = pvs->select;
-    REBVAL *val = pvs->setval;
+    const REBVAL *sel = pvs->selector;
+    REBVAL *value = pvs->value;
+    const REBVAL *setval;
+
     REBINT i;
     REBINT n;
     REBI64 secs;
@@ -484,14 +485,22 @@ REBINT PD_Date(REBPVS *pvs)
     REBINT num;
     REB_TIMEF time;
 
-    REBVAL dat;
-    VAL_INIT_WRITABLE_DEBUG(&dat);
+    assert(IS_DATE(value));
 
-    // !zone! - adjust date by zone (unless /utc given)
+    // Extract the components of the input
+    //
+    date = VAL_DATE(value);
+    day = VAL_DAY(value) - 1;
+    month = VAL_MONTH(value) - 1;
+    year = VAL_YEAR(value);
+    secs = VAL_TIME(value);
+    tz = VAL_ZONE(value);
 
-    if (IS_WORD(arg)) {
-        //!!! change this to an array!?
-        switch (VAL_WORD_CANON(arg)) {
+    if (IS_WORD(sel)) {
+        //
+        // !!! Wouldn't it be clearer if this turned indices into symbols?
+        //
+        switch (VAL_WORD_CANON(sel)) {
         case SYM_YEAR:  i = 0; break;
         case SYM_MONTH: i = 1; break;
         case SYM_DAY:   i = 2; break;
@@ -505,32 +514,31 @@ REBINT PD_Date(REBPVS *pvs)
         case SYM_HOUR:   i = 9; break;
         case SYM_MINUTE: i = 10; break;
         case SYM_SECOND: i = 11; break;
-        default: return PE_BAD_SELECT;
+        default:
+            fail (Error_Bad_Path_Select(pvs));
         }
     }
-    else if (IS_INTEGER(arg)) {
-        i = Int32(arg) - 1;
-        if (i < 0 || i > 8) return PE_BAD_SELECT;
+    else if (IS_INTEGER(sel)) {
+        i = Int32(sel) - 1;
+        if (i < 0 || i > 8)
+            fail (Error_Bad_Path_Select(pvs));
     }
-    else
-        return PE_BAD_SELECT;
+    else fail (Error_Bad_Path_Select(pvs));
 
-    if (IS_DATE(data)) {
-        dat = *data; // recode!
-        data = &dat;
-        if (i != 8) Adjust_Date_Zone(data, FALSE); // adjust for timezone
-        date  = VAL_DATE(data);
-        day   = VAL_DAY(data) - 1;
-        month = VAL_MONTH(data) - 1;
-        year  = VAL_YEAR(data);
-        secs  = VAL_TIME(data);
-        tz    = VAL_ZONE(data);
-        if (i > 8) Split_Time(secs, &time);
-    }
-    else panic (Error_Invalid_Arg(data)); // this should never happen
+    if (i > 8) Split_Time(secs, &time);
 
-    if (val == 0) {
-        val = pvs->store;
+    if (!(setval = pvs->opt_setval)) {
+        //
+        // Adapt the date value that came in to get the return result.  Put
+        // the existing value in the store, and adjust its time zone if
+        // not aleady adusted.
+        //
+        REBVAL *store = pvs->store;
+        if (pvs->value != store)
+            *store = *pvs->value;
+
+        if (i != 8) Adjust_Date_Zone(store, FALSE);
+
         switch(i) {
         case 0:
             num = year;
@@ -543,34 +551,30 @@ REBINT PD_Date(REBPVS *pvs)
             break;
         case 3:
             if (secs == NO_TIME) return PE_NONE;
-            *val = *data;
-            VAL_RESET_HEADER(val, REB_TIME);
-            return PE_USE;
+            VAL_RESET_HEADER(store, REB_TIME);
+            return PE_USE_STORE;
         case 4:
             if (secs == NO_TIME) return PE_NONE;
-            *val = *data;
-            VAL_TIME(val) = (i64)tz * ZONE_MINS * MIN_SEC;
-            VAL_RESET_HEADER(val, REB_TIME);
-            return PE_USE;
+            VAL_TIME(store) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
+            VAL_RESET_HEADER(store, REB_TIME);
+            return PE_USE_STORE;
         case 5:
             // date
-            *val = *data;
-            VAL_TIME(val) = NO_TIME;
-            VAL_ZONE(val) = 0;
-            return PE_USE;
+            VAL_TIME(store) = NO_TIME;
+            VAL_ZONE(store) = 0;
+            return PE_USE_STORE;
         case 6:
             // weekday
             num = Week_Day(date);
             break;
         case 7:
             // yearday
-            num = (REBINT)Julian_Date(date);
+            num = cast(REBINT, Julian_Date(date));
             break;
         case 8:
             // utc
-            *val = *data;
-            VAL_ZONE(val) = 0;
-            return PE_USE;
+            VAL_ZONE(store) = 0;
+            return PE_USE_STORE;
         case 9:
             num = time.h;
             break;
@@ -580,24 +584,32 @@ REBINT PD_Date(REBPVS *pvs)
         case 11:
             if (time.n == 0) num = time.s;
             else {
-                SET_DECIMAL(val, (REBDEC)time.s + (time.n * NANO));
-                return PE_USE;
+                SET_DECIMAL(store, cast(REBDEC, time.s) + (time.n * NANO));
+                return PE_USE_STORE;
             }
             break;
 
         default:
             return PE_NONE;
         }
-        SET_INTEGER(val, num);
-        return PE_USE;
 
-    } else {
+        SET_INTEGER(store, num);
+        return PE_USE_STORE;
+    }
+    else {
+        // Here the desire is to modify the incoming date directly.  This is
+        // done by changing the components that need to change which were
+        // extracted, and building a new date out of the parts.
 
-        if (IS_INTEGER(val) || IS_DECIMAL(val)) n = Int32s(val, 0);
-        else if (IS_NONE(val)) n = 0;
-        else if (IS_TIME(val) && (i == 3 || i == 4));
-        else if (IS_DATE(val) && (i == 3 || i == 5));
-        else return PE_BAD_SET_TYPE;
+        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
+            n = Int32s(setval, 0);
+        else if (IS_NONE(setval))
+            n = 0;
+        else if (IS_TIME(setval) && (i == 3 || i == 4))
+            NOOP;
+        else if (IS_DATE(setval) && (i == 3 || i == 5))
+            NOOP;
+        else fail (Error_Bad_Path_Field_Set(pvs));
 
         switch(i) {
         case 0:
@@ -611,31 +623,36 @@ REBINT PD_Date(REBPVS *pvs)
             break;
         case 3:
             // time
-            if (IS_NONE(val)) {
+            if (IS_NONE(setval)) {
                 secs = NO_TIME;
                 tz = 0;
                 break;
             }
-            else if (IS_TIME(val) || IS_DATE(val))
-                secs = VAL_TIME(val);
-            else if (IS_INTEGER(val))
+            else if (IS_TIME(setval) || IS_DATE(setval))
+                secs = VAL_TIME(setval);
+            else if (IS_INTEGER(setval))
                 secs = n * SEC_SEC;
-            else if (IS_DECIMAL(val))
-                secs = DEC_TO_SECS(VAL_DECIMAL(val));
-            else return PE_BAD_SET_TYPE;
+            else if (IS_DECIMAL(setval))
+                secs = DEC_TO_SECS(VAL_DECIMAL(setval));
+            else
+                fail (Error_Bad_Path_Field_Set(pvs));
             break;
         case 4:
             // zone
-            if (IS_TIME(val)) tz = (REBINT)(VAL_TIME(val) / (ZONE_MINS * MIN_SEC));
-            else if (IS_DATE(val)) tz = VAL_ZONE(val);
+            if (IS_TIME(setval))
+                tz = (REBINT)(VAL_TIME(setval) / (ZONE_MINS * MIN_SEC));
+            else if (IS_DATE(setval))
+                tz = VAL_ZONE(setval);
             else tz = n * (60 / ZONE_MINS);
-            if (tz > MAX_ZONE || tz < -MAX_ZONE) return PE_BAD_RANGE;
+            if (tz > MAX_ZONE || tz < -MAX_ZONE)
+                fail (Error_Bad_Path_Range(pvs));
             break;
         case 5:
             // date
-            if (!IS_DATE(val)) return PE_BAD_SET_TYPE;
-            date = VAL_DATE(val);
-            goto setDate;
+            if (!IS_DATE(setval))
+                fail (Error_Bad_Path_Field_Set(pvs));
+            date = VAL_DATE(setval);
+            goto set_date;
         case 9:
             time.h = n;
             secs = Join_Time(&time, FALSE);
@@ -645,33 +662,33 @@ REBINT PD_Date(REBPVS *pvs)
             secs = Join_Time(&time, FALSE);
             break;
         case 11:
-            if (IS_INTEGER(val)) {
+            if (IS_INTEGER(setval)) {
                 time.s = n;
                 time.n = 0;
             }
             else {
-                //if (f < 0.0) fail (Error_Out_Of_Range(val));
-                time.s = (REBINT)VAL_DECIMAL(val);
-                time.n = (REBINT)((VAL_DECIMAL(val) - time.s) * SEC_SEC);
+                //if (f < 0.0) fail (Error_Out_Of_Range(setval));
+                time.s = cast(REBINT, VAL_DECIMAL(setval));
+                time.n = cast(REBINT,
+                    (VAL_DECIMAL(setval) - time.s) * SEC_SEC);
             }
             secs = Join_Time(&time, FALSE);
             break;
 
         default:
-            return PE_BAD_SET;
+            fail (Error_Bad_Path_Set(pvs));
         }
 
         Normalize_Time(&secs, &day);
         date = Normalize_Date(day, month, year, tz);
 
-setDate:
-        data = pvs->value;
-        VAL_RESET_HEADER(data, REB_DATE);
-        VAL_DATE(data) = date;
-        VAL_TIME(data) = secs;
-        Adjust_Date_Zone(data, TRUE);
+    set_date:
+        VAL_RESET_HEADER(pvs->value, REB_DATE);
+        VAL_DATE(pvs->value) = date;
+        VAL_TIME(pvs->value) = secs;
+        Adjust_Date_Zone(pvs->value, TRUE);
 
-        return PE_USE;
+        return PE_OK;
     }
 }
 

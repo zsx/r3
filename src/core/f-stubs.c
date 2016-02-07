@@ -70,13 +70,13 @@ REBCNT Find_Int(REBINT *array, REBINT num)
 
 
 //
-//  Get_Num_Arg: C
+//  Get_Num_From_Arg: C
 // 
 // Get the amount to skip or pick.
 // Allow multiple types. Throw error if not valid.
 // Note that the result is one-based.
 //
-REBINT Get_Num_Arg(REBVAL *val)
+REBINT Get_Num_From_Arg(const REBVAL *val)
 {
     REBINT n;
 

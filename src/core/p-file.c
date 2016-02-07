@@ -525,7 +525,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         goto seeked;
 
     case A_SKIP:
-        file->special.file.index += Get_Num_Arg(D_ARG(2));
+        file->special.file.index += Get_Num_From_Arg(D_ARG(2));
         goto seeked;
 
     case A_HEAD_Q:

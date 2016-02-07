@@ -100,7 +100,7 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         if (!IS_OPEN(sock))
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
 pick:
         if (len == 1) {
             if (!sock->special.net.host_info || !GET_FLAG(sock->flags, RRF_DONE)) return R_NONE;

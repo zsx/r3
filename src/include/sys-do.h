@@ -959,33 +959,62 @@ struct Reb_Frame {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  PATH EVALUATION "PVS"
+//  PATH VALUE STATE "PVS"
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! This structure and the code using it has not been given a very
-// thorough review under Ren-C yet.  It pertains to the dispatch of paths,
-// where types can chain an evaluation from one to the next.
+// The path value state structure is used by `Do_Path_Throws()` and passed
+// to the dispatch routines.  See additional comments in %c-path.c.
 //
 
-typedef struct Reb_Path_Value {
-    REBVAL *value;  // modified
-    REBVAL *select; // modified
-    REBVAL *path;   // modified
-    REBVAL *store;  // modified (holds constructed values)
-    REBVAL *setval; // static
-    const REBVAL *orig; // static
+typedef struct Reb_Path_Value_State {
+    //
+    // `item` is the current element within the path that is being processed.
+    // It is advanced as the path is consumed.
+    //
+    const REBVAL *item;
+
+    // `selector` is the result of evaluating the current path item if
+    // necessary.  So if the path is `a/(1 + 2)` and processing the second
+    // `item`, then the selector would be the computed value `3`.
+    //
+    // (This is what the individual path dispatchers should use.)
+    //
+    const REBVAL *selector;
+
+    // `value` holds the path value that should be chained from.  (It is the
+    // type of `value` that dictates which dispatcher is given the `selector`
+    // to get the next step.)
+    //
+    REBVAL *value;
+
+    // `store` is the storage for constructed values, and also where any
+    // thrown value will be written.
+    //
+    REBVAL *store;
+
+    // `setval` is non-NULL if this is a SET-PATH!, and it is the value to
+    // ultimately set the path to.  The set should only occur at the end
+    // of the path, so most setters should check `IS_END(pvs->item + 1)`
+    // before setting.
+    //
+    // !!! See notes in %c-path.c about why the path dispatch is more
+    // complicated than simply being able to only pass the setval to the last
+    // item being dispatched (which would be cleaner, but some cases must
+    // look ahead with alternate handling).
+    //
+    const REBVAL *opt_setval;
+
+    // `orig` original path input, saved for error messages
+    //
+    const REBVAL *orig;
 } REBPVS;
 
 enum Path_Eval_Result {
-    PE_OK,
-    PE_SET,
-    PE_USE,
-    PE_NONE,
-    PE_BAD_SELECT,
-    PE_BAD_SET,
-    PE_BAD_RANGE,
-    PE_BAD_SET_TYPE
+    PE_OK, // pvs->value points to the element to take the next selector
+    PE_SET_IF_END, // only sets if end of path
+    PE_USE_STORE, // set pvs->value to be pvs->store
+    PE_NONE // set pvs->store to NONE and then pvs->value to pvs->store
 };
 
 typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function

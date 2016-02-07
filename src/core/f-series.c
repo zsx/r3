@@ -79,7 +79,7 @@ REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, 
 
     case A_SKIP:
     case A_AT:
-        len = Get_Num_Arg(arg);
+        len = Get_Num_From_Arg(arg);
         {
             REBI64 i = (REBI64)index + (REBI64)len;
             if (action == A_SKIP) {
@@ -94,7 +94,7 @@ REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, 
         break;
 /*
     case A_ATZ:
-        len = Get_Num_Arg(arg);
+        len = Get_Num_From_Arg(arg);
         {
             REBI64 idx = Add_Max(0, index, len, MAX_I32);
             if (idx < 0) idx = 0;
@@ -326,7 +326,7 @@ chkDecimal:
 // Simple search for a value in an array. Return the index of
 // the value or the TAIL index if not found.
 //
-REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
+REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const REBVAL *target)
 {
     REBVAL *value = ARR_HEAD(array);
 

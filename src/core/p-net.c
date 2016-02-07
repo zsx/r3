@@ -283,7 +283,7 @@ static REB_R Transport_Actor(
 
     case A_PICK:
         // FIRST server-port returns new port connection.
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
         if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
             Accept_New_Port(D_OUT, port, sock); // sets D_OUT
         else

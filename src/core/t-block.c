@@ -512,7 +512,7 @@ static void Sort_Block(
 
     // Skip factor:
     if (!IS_UNSET(skipv)) {
-        skip = Get_Num_Arg(skipv);
+        skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Out_Of_Range(skipv));
     }
@@ -592,12 +592,12 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 // 
 // Path dispatch for the following types:
 // 
-//     PD_Block(REBPVS *pvs)
-//     PD_Group(REBPVS *pvs)
-//     PD_Path(REBPVS *pvs)
-//     PD_Get_Path(REBPVS *pvs)
-//     PD_Set_Path(REBPVS *pvs)
-//     PD_Lit_Path(REBPVS *pvs)
+//     PD_Block
+//     PD_Group
+//     PD_Path
+//     PD_Get_Path
+//     PD_Set_Path
+//     PD_Lit_Path
 //
 REBINT PD_Array(REBPVS *pvs)
 {
@@ -609,14 +609,14 @@ REBINT PD_Array(REBPVS *pvs)
         a/not-followed: 10 error or append?
     */
 
-    if (IS_INTEGER(pvs->select)) {
-        n = Int32(pvs->select) + VAL_INDEX(pvs->value) - 1;
+    if (IS_INTEGER(pvs->selector)) {
+        n = Int32(pvs->selector) + VAL_INDEX(pvs->value) - 1;
     }
-    else if (IS_WORD(pvs->select)) {
+    else if (IS_WORD(pvs->selector)) {
         n = Find_Word_In_Array(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
-            VAL_WORD_CANON(pvs->select)
+            VAL_WORD_CANON(pvs->selector)
         );
         if (cast(REBCNT, n) != NOT_FOUND) n++;
     }
@@ -625,31 +625,34 @@ REBINT PD_Array(REBPVS *pvs)
         n = 1 + Find_In_Array_Simple(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
-            pvs->select
+            pvs->selector
         );
     }
 
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
-        if (pvs->setval) return PE_BAD_SELECT;
+        if (pvs->opt_setval)
+            fail(Error_Bad_Path_Select(pvs));
+
         return PE_NONE;
     }
 
-    if (pvs->setval) FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+    if (pvs->opt_setval)
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
-    // if valset - check PROTECT on block
-    //if (NOT_END(pvs->path+1)) Next_Path(pvs); return PE_OK;
-    return PE_SET;
+
+    return PE_SET_IF_END;
 }
 
 
 //
 //  Pick_Block: C
 //
-REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
+REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
 {
     REBINT n = 0;
 
-    n = Get_Num_Arg(selector);
+    n = Get_Num_From_Arg(selector);
     n += VAL_INDEX(block) - 1;
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
     return VAL_ARRAY_AT_HEAD(block, n);
@@ -767,7 +770,7 @@ repick:
         return R_OUT;
 
 /*
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
         index += len;
         if (len > 0) index--;
         if (len == 0 || index < 0 || index >= tail) {

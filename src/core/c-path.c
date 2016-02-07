@@ -27,8 +27,51 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Handling of the PATH! type in the core was a fairly large part of %c-do.c,
-// so it was broken out as an independent file.
+// When a path like `a/(b + c)/d` is evaluated, it moves in steps.  The
+// evaluative result of chaining the prior steps is offered as input to
+// the next step.  The path evaluator `Do_Path_Throws` delegates steps to
+// type-specific "(P)ath (D)ispatchers" with names like PD_Context,
+// PD_Array, etc.
+//
+// R3-Alpha left several open questions about the handling of paths.  One
+// of the trickiest regards the mechanics of how to use a SET-PATH! to
+// write data into native structures when more than one path step is
+// required.  For instance:
+//
+//     >> gob/size
+//     == 10x20
+//
+//     >> gob/size/x: 304
+//     >> gob/size
+//     == 10x304
+//
+// Because GOB! stores its size as packed bits that are not a full PAIR!,
+// the `gob/size` path dispatch can't give back a pointer to a REBVAL* to
+// which later writes will update the GOB!.  It can only give back a
+// temporary value built from its internal bits.  So workarounds are needed,
+// as they are for a similar situation in trying to set values inside of
+// C arrays in STRUCT!.
+//
+// The way the workaround works involves allowing a SET-PATH! to run forward
+// and write into a temporary value.  Then in these cases the temporary
+// REBVAL is observed and used to write back into the native bits before the
+// SET-PATH! evaluation finishes.  This means that it's not currently
+// prohibited for the effect of a SET-PATH! to be writing into a temporary.
+//
+// Further, the `value` slot is writable...even when it is inside of the path
+// that is being dispatched:
+//
+//     >> code: compose [(make set-path! [12-Dec-2012 day]) 1]
+//     == [12-Dec-2012/day: 1]
+//
+//     >> do code
+//
+//     >> probe code
+//     [1-Dec-2012/day: 1]
+//
+// Ren-C has largely punted on resolving these particular questions in order
+// to look at "more interesting" ones.  However, names and functions have
+// been updated during investigation of what was being done.
 //
 
 #include "sys-core.h"
@@ -47,72 +90,59 @@ extern const REBPEF Path_Dispatch[REB_MAX_0];
 //
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
-    REBVAL *path;
-    REBPEF func;
+    REBPEF dispatcher;
 
     REBVAL temp;
     VAL_INIT_WRITABLE_DEBUG(&temp);
 
     // Path must have dispatcher, else return:
-    func = Path_Dispatch[VAL_TYPE_0(pvs->value)];
-    if (!func) return FALSE; // unwind, then check for errors
+    dispatcher = Path_Dispatch[VAL_TYPE_0(pvs->value)];
+    if (!dispatcher) return FALSE; // unwind, then check for errors
 
-    pvs->path++;
+    pvs->item++;
 
     //Debug_Fmt("Next_Path: %r/%r", pvs->path-1, pvs->path);
 
     // object/:field case:
-    if (IS_GET_WORD(path = pvs->path)) {
-        pvs->select = GET_MUTABLE_VAR_MAY_FAIL(path);
-        if (IS_UNSET(pvs->select))
-            fail (Error(RE_NO_VALUE, path));
+    if (IS_GET_WORD(pvs->item)) {
+        pvs->selector = GET_MUTABLE_VAR_MAY_FAIL(pvs->item);
+        if (IS_UNSET(pvs->selector))
+            fail (Error(RE_NO_VALUE, pvs->item));
     }
     // object/(expr) case:
-    else if (IS_GROUP(path)) {
-        if (DO_VAL_ARRAY_AT_THROWS(&temp, path)) {
+    else if (IS_GROUP(pvs->item)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&temp, pvs->item)) {
             *pvs->value = temp;
             return TRUE;
         }
 
-        pvs->select = &temp;
+        pvs->selector = &temp;
     }
     else // object/word and object/value case:
-        pvs->select = path;
+        pvs->selector = pvs->item;
 
-    // Uses selector on the value.
-    // .path - must be advanced as path is used (modified by func)
-    // .value - holds currently evaluated path value (modified by func)
-    // .select - selector on value
-    // .store - storage (usually TOS) for constructed values
-    // .setval - non-zero for SET-PATH (set to zero after SET is done)
-    // .orig - original path for error messages
-    switch (func(pvs)) {
+    switch (dispatcher(pvs)) {
     case PE_OK:
         break;
-    case PE_SET: // only sets if end of path
-        if (pvs->setval && IS_END(pvs->path+1)) {
-            *pvs->value = *pvs->setval;
-            pvs->setval = 0;
+
+    case PE_SET_IF_END:
+        if (pvs->opt_setval && IS_END(pvs->item + 1)) {
+            *pvs->value = *pvs->opt_setval;
+            pvs->opt_setval = NULL;
         }
         break;
+
     case PE_NONE:
         SET_NONE(pvs->store);
-    case PE_USE:
+    case PE_USE_STORE:
         pvs->value = pvs->store;
         break;
-    case PE_BAD_SELECT:
-        fail (Error(RE_INVALID_PATH, pvs->orig, pvs->path));
-    case PE_BAD_SET:
-        fail (Error(RE_BAD_PATH_SET, pvs->orig, pvs->path));
-    case PE_BAD_RANGE:
-        fail (Error_Out_Of_Range(pvs->path));
-    case PE_BAD_SET_TYPE:
-        fail (Error(RE_BAD_FIELD_SET, pvs->path, Type_Of(pvs->setval)));
+
     default:
         assert(FALSE);
     }
 
-    if (NOT_END(pvs->path + 1)) return Next_Path_Throws(pvs);
+    if (NOT_END(pvs->item + 1)) return Next_Path_Throws(pvs);
 
     return FALSE;
 }
@@ -121,16 +151,18 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 //
 //  Do_Path_Throws: C
 //
-// Evaluate a path value, given the first value in that path's series.  This
-// evaluator may throw because parens are evaluated, e.g. `foo/(throw 1020)`
+// Evaluate an ANY_PATH! REBVAL, starting from the index position of that
+// path value and continuing to the end.
+//
+// The evaluator may throw because GROUP! is evaluated, e.g. `foo/(throw 1020)`
 //
 // If label_sym is passed in as being non-null, then the caller is implying
 // readiness to process a path which may be a function with refinements.
 // These refinements will be left in order on the data stack in the case
 // that `out` comes back as IS_FUNCTION().
 //
-// If a `val` is provided, it is assumed to be a set-path and is set to that
-// value IF the path evaluation did not throw or error.  HOWEVER the set value
+// If `opt_setval` is given, the path operation will be done as a "SET-PATH!"
+// if the path evaluation did not throw or error.  HOWEVER the set value
 // is NOT put into `out`.  This provides more flexibility on performance in
 // the evaluator, which may already have the `val` where it wants it, and
 // so the extra assignment would just be overhead.
@@ -142,7 +174,7 @@ REBOOL Do_Path_Throws(
     REBVAL *out,
     REBSYM *label_sym,
     const REBVAL *path,
-    REBVAL *val
+    REBVAL *opt_setval
 ) {
     REBPVS pvs;
     REBDSP dsp_orig = DSP;
@@ -161,7 +193,7 @@ REBOOL Do_Path_Throws(
     // thrown so that we aren't testing uninitialized memory.  A safe trash
     // will do, which is unset in release builds.
     //
-    if (val)
+    if (opt_setval)
         SET_TRASH_SAFE(out);
 
     // None of the values passed in can live on the data stack, because
@@ -169,30 +201,39 @@ REBOOL Do_Path_Throws(
     //
     assert(!IN_DATA_STACK(out));
     assert(!IN_DATA_STACK(path));
-    assert(!val || !IN_DATA_STACK(val));
+    assert(!opt_setval || !IN_DATA_STACK(opt_setval));
 
     // Not currently robust for reusing passed in path or value as the output
-    assert(out != path && out != val);
+    assert(out != path && out != opt_setval);
 
-    assert(!val || !THROWN(val));
+    assert(!opt_setval || !THROWN(opt_setval));
 
-    pvs.setval = val;       // Set to this new value
-    pvs.store = out;        // Space for constructed results
-
-    // Get first block value:
+    // Initialize REBPVS -- see notes in %sys-do.h
+    //
+    pvs.opt_setval = opt_setval;
+    pvs.store = out;
     pvs.orig = path;
-    pvs.path = VAL_ARRAY_AT(pvs.orig);
+    pvs.item = VAL_ARRAY_AT(pvs.orig); // may not be starting at head of PATH!
 
-    // Lookup the value of the variable:
-    if (IS_WORD(pvs.path)) {
-        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.path);
+    // Seed the path evaluation process by looking up the first item (to
+    // get a datatype to dispatch on for the later path items)
+    //
+    if (IS_WORD(pvs.item)) {
+        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item);
         if (IS_UNSET(pvs.value))
-            fail (Error(RE_NO_VALUE, pvs.path));
+            fail (Error(RE_NO_VALUE, pvs.item));
     }
-    else pvs.value = pvs.path;
+    else {
+        // !!! Ideally there would be some way to protect pvs.value during
+        // successive path dispatches to make sure it does not get written.
+        // This is semi-dangerously giving pvs.value a reference into the
+        // input path, which should not be modified!
+
+        pvs.value = VAL_ARRAY_AT(pvs.orig);
+    }
 
     // Start evaluation of path:
-    if (IS_END(pvs.path + 1)) {
+    if (IS_END(pvs.item + 1)) {
         // If it was a single element path, return the value rather than
         // try to dispatch it (would cause a crash at time of writing)
         //
@@ -208,7 +249,7 @@ REBOOL Do_Path_Throws(
         //     t/time: 10:20:03
         //
         // (It thinks pvs.value has its THROWN bit set when it completed
-        // successfully.  It was a PE_USE case where pvs.value was reset to
+        // successfully.  It was a PE_USE_STORE case where pvs.value was reset to
         // pvs.store, and pvs.store has its thrown bit set.  Valgrind does not
         // catch any uninitialized variables.)
         //
@@ -220,17 +261,17 @@ REBOOL Do_Path_Throws(
         if (threw) return TRUE;
 
         // Check for errors:
-        if (NOT_END(pvs.path + 1) && !IS_FUNCTION(pvs.value)) {
+        if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
             // Only function refinements should get by this line:
-            fail (Error(RE_INVALID_PATH, pvs.orig, pvs.path));
+            fail (Error(RE_INVALID_PATH, pvs.orig, pvs.item));
         }
     }
     else if (!IS_FUNCTION(pvs.value))
         fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
 
-    if (val) {
+    if (opt_setval) {
         // If SET then we don't return anything
-        assert(IS_END(pvs.path) + 1);
+        assert(IS_END(pvs.item) + 1);
         return FALSE;
     }
 
@@ -241,7 +282,7 @@ REBOOL Do_Path_Throws(
 
     // Return 0 if not function or is :path/word...
     if (!IS_FUNCTION(pvs.value)) {
-        assert(IS_END(pvs.path) + 1);
+        assert(IS_END(pvs.item) + 1);
         return FALSE;
     }
 
@@ -254,8 +295,8 @@ REBOOL Do_Path_Throws(
         // on the position of the last component of that sub-path. Usually,
         // this last component in the sub-path is a word naming the function.
         //
-        if (IS_WORD(pvs.path)) {
-            *label_sym = VAL_WORD_SYM(pvs.path);
+        if (IS_WORD(pvs.item)) {
+            *label_sym = VAL_WORD_SYM(pvs.item);
         }
         else {
             // In rarer cases, the final component (completing the sub-path to
@@ -283,7 +324,7 @@ REBOOL Do_Path_Throws(
         }
 
         // Move on to the refinements (if any)
-        pvs.path = pvs.path + 1;
+        ++pvs.item;
 
         // !!! Currently, the mainline path evaluation "punts" on refinements.
         // When it finds a function, it stops the path evaluation and leaves
@@ -307,14 +348,14 @@ REBOOL Do_Path_Throws(
         // from dsp_orig to DSP (thanks to accounting, all other operations
         // should balance!)
 
-        for (; NOT_END(pvs.path); pvs.path++) { // "the refinements"
-            if (IS_NONE(pvs.path)) continue;
+        for (; NOT_END(pvs.item); ++pvs.item) { // "the refinements"
+            if (IS_NONE(pvs.item)) continue;
 
-            if (IS_GROUP(pvs.path)) {
+            if (IS_GROUP(pvs.item)) {
                 // Note it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
-                if (DO_VAL_ARRAY_AT_THROWS(&refinement, pvs.path)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&refinement, pvs.item)) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
@@ -322,16 +363,15 @@ REBOOL Do_Path_Throws(
                 if (IS_NONE(&refinement)) continue;
                 DS_PUSH(&refinement);
             }
-            else if (IS_GET_WORD(pvs.path)) {
+            else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.path);
+                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item);
                 if (IS_NONE(DS_TOP)) {
                     DS_DROP;
                     continue;
                 }
             }
-            else
-                DS_PUSH(pvs.path);
+            else DS_PUSH(pvs.item);
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
@@ -372,11 +412,47 @@ REBOOL Do_Path_Throws(
         // If the caller did not pass in a label pointer we assume they are
         // likely not ready to process any refinements.
         //
-        if (NOT_END(pvs.path + 1))
+        if (NOT_END(pvs.item + 1))
             fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
     }
 
     return FALSE;
+}
+
+
+//
+//  Error_Bad_Path_Select: C
+//
+REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
+{
+    return Error(RE_INVALID_PATH, pvs->orig, pvs->item);
+}
+
+
+//
+//  Error_Bad_Path_Set: C
+//
+REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
+{
+    return Error(RE_BAD_PATH_SET, pvs->orig, pvs->item);
+}
+
+
+//
+//  Error_Bad_Path_Range: C
+//
+REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
+{
+    return Error_Out_Of_Range(pvs->item);
+}
+
+
+//
+//  Error_Bad_Path_Field_Set: C
+//
+REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
+{
+    return Error(RE_BAD_FIELD_SET, pvs->item, Type_Of(pvs->opt_setval));
 }
 
 
@@ -386,36 +462,40 @@ REBOOL Do_Path_Throws(
 // Lightweight version of Do_Path used for A_PICK actions.
 // Does not do GROUP! evaluation, hence not designed to throw.
 //
-void Pick_Path(REBVAL *out, REBVAL *value, REBVAL *selector, REBVAL *val)
-{
+void Pick_Path(
+    REBVAL *out,
+    REBVAL *value,
+    const REBVAL *selector,
+    const REBVAL *opt_setval
+) {
     REBPVS pvs;
-    REBPEF func;
+    REBPEF dispatcher;
 
     pvs.value = value;
-    pvs.path = 0;
-    pvs.select = selector;
-    pvs.setval = val;
+    pvs.item = NULL;
+    pvs.selector = selector;
+    pvs.opt_setval = opt_setval;
     pvs.store = out;        // Temp space for constructed results
 
     // Path must have dispatcher, else return:
-    func = Path_Dispatch[VAL_TYPE_0(value)];
-    if (!func) return; // unwind, then check for errors
+    dispatcher = Path_Dispatch[VAL_TYPE_0(value)];
+    if (!dispatcher) return; // unwind, then check for errors
 
-    switch (func(&pvs)) {
+    switch (dispatcher(&pvs)) {
     case PE_OK:
         break;
-    case PE_SET: // only sets if end of path
-        if (pvs.setval) *pvs.value = *pvs.setval;
+
+    case PE_SET_IF_END: // !!! Said "only sets if end of path", but no check?
+        if (pvs.opt_setval)
+            *pvs.value = *pvs.opt_setval;
         break;
+
     case PE_NONE:
         SET_NONE(pvs.store);
-    case PE_USE:
+    case PE_USE_STORE:
         pvs.value = pvs.store;
         break;
-    case PE_BAD_SELECT:
-        fail (Error(RE_INVALID_PATH, pvs.value, pvs.select));
-    case PE_BAD_SET:
-        fail (Error(RE_BAD_PATH_SET, pvs.value, pvs.select));
+
     default:
         assert(FALSE);
     }

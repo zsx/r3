@@ -448,7 +448,7 @@ static void Sort_String(
 
     // Skip factor:
     if (!IS_UNSET(skipv)) {
-        skip = Get_Num_Arg(skipv);
+        skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Invalid_Arg(skipv));
     }
@@ -475,54 +475,63 @@ static void Sort_String(
 //
 REBINT PD_String(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
-    REBVAL *val = pvs->setval;
-    REBINT n = 0;
+    const REBVAL *setval;
+    REBINT n;
     REBCNT i;
     REBINT c;
-    REBSER *ser = VAL_SERIES(data);
+    REBSER *ser = VAL_SERIES(pvs->value);
 
-    if (IS_INTEGER(pvs->select)) {
-        n = Int32(pvs->select) + VAL_INDEX(data) - 1;
+    if (IS_INTEGER(pvs->selector)) {
+        n = Int32(pvs->selector) + VAL_INDEX(pvs->value) - 1;
     }
-    else return PE_BAD_SELECT;
+    else fail (Error_Bad_Path_Select(pvs));
 
-    if (val == 0) {
+    if (!pvs->opt_setval) {
         if (n < 0 || (REBCNT)n >= SER_LEN(ser)) return PE_NONE;
-        if (IS_BINARY(data)) {
+        if (IS_BINARY(pvs->value)) {
             SET_INTEGER(pvs->store, *BIN_AT(ser, n));
         } else {
             SET_CHAR(pvs->store, GET_ANY_CHAR(ser, n));
         }
-        return PE_USE;
+        return PE_USE_STORE;
     }
-
-    if (n < 0 || (REBCNT)n >= SER_LEN(ser)) return PE_BAD_RANGE;
-
-    if (IS_CHAR(val)) {
-        c = VAL_CHAR(val);
-        if (c > MAX_CHAR) return PE_BAD_SET;
-    }
-    else if (IS_INTEGER(val)) {
-        c = Int32(val);
-        if (c > MAX_CHAR || c < 0) return PE_BAD_SET;
-        if (IS_BINARY(data)) { // special case for binary
-            if (c > 0xff) fail (Error_Out_Of_Range(val));
-            BIN_HEAD(ser)[n] = (REBYTE)c;
-            return PE_OK;
-        }
-    }
-    else if (ANY_BINSTR(val)) {
-        i = VAL_INDEX(val);
-        if (i >= VAL_LEN_HEAD(val)) return PE_BAD_SET;
-        c = GET_ANY_CHAR(VAL_SERIES(val), i);
-    }
-    else
-        return PE_BAD_SELECT;
 
     FAIL_IF_LOCKED_SERIES(ser);
+    setval = pvs->opt_setval;
 
-    if (BYTE_SIZE(ser) && c > 0xff) Widen_String(ser, TRUE);
+    if (n < 0 || cast(REBCNT, n) >= SER_LEN(ser))
+        fail (Error_Bad_Path_Range(pvs));
+
+    if (IS_CHAR(setval)) {
+        c = VAL_CHAR(setval);
+        if (c > MAX_CHAR)
+            fail (Error_Bad_Path_Set(pvs));
+    }
+    else if (IS_INTEGER(setval)) {
+        c = Int32(setval);
+        if (c > MAX_CHAR || c < 0)
+            fail (Error_Bad_Path_Set(pvs));
+    }
+    else if (ANY_BINSTR(setval)) {
+        i = VAL_INDEX(setval);
+        if (i >= VAL_LEN_HEAD(setval))
+            fail (Error_Bad_Path_Set(pvs));
+
+        c = GET_ANY_CHAR(VAL_SERIES(setval), i);
+    }
+    else fail (Error_Bad_Path_Select(pvs));
+
+    if (IS_BINARY(pvs->value)) {
+        if (c > 0xff)
+            fail (Error_Out_Of_Range(setval));
+
+        BIN_HEAD(ser)[n] = cast(REBYTE, c);
+        return PE_OK;
+    }
+
+    if (BYTE_SIZE(ser) && c > 0xff)
+        Widen_String(ser, TRUE);
+
     SET_ANY_CHAR(ser, n, c);
 
     return PE_OK;
@@ -555,7 +564,8 @@ REBINT PD_File(REBPVS *pvs)
     REB_MOLD mo;
     CLEARS(&mo);
 
-    if (pvs->setval) return PE_BAD_SET;
+    if (pvs->opt_setval)
+        fail (Error_Bad_Path_Set(pvs));
 
     ser = Copy_Sequence_At_Position(pvs->value);
 
@@ -571,7 +581,7 @@ REBINT PD_File(REBPVS *pvs)
     if (len == 0 || c != '/') Append_Codepoint_Raw(ser, '/');
 
     Push_Mold(&mo);
-    Mold_Value(&mo, pvs->select, FALSE);
+    Mold_Value(&mo, pvs->selector, FALSE);
 
     // The `skip` logic here regarding slashes and backslashes is apparently
     // for an exception to the rule of appending the molded content.  It
@@ -600,7 +610,7 @@ REBINT PD_File(REBPVS *pvs)
 
     Val_Init_Series(pvs->store, VAL_TYPE(pvs->value), ser);
 
-    return PE_USE;
+    return PE_USE_STORE;
 }
 
 
@@ -713,7 +723,7 @@ find:
     //-- Picking:
     case A_PICK:
     case A_POKE:
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
         //if (len > 0) index--;
         if (REB_I32_SUB_OF(len, 1, &len)
             || REB_I32_ADD_OF(index, len, &index)

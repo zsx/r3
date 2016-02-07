@@ -316,29 +316,24 @@ REBINT PD_Context(REBPVS *pvs)
     REBCNT n;
     REBCTX *context = VAL_CONTEXT(pvs->value);
 
-    if (IS_WORD(pvs->select)) {
-        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->select), FALSE);
+    if (IS_WORD(pvs->selector)) {
+        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->selector), FALSE);
     }
-    else
-        return PE_BAD_SELECT;
+    else fail (Error_Bad_Path_Select(pvs));
 
-    // !!! Can Find_Word_In_Context give back an index longer than the context?!
-    // There was a check here.  Adding a test for now, look into it.
-    //
-    assert(n <= CTX_LEN(context));
-    if (n == 0 || n > CTX_LEN(context))
-        return PE_BAD_SELECT;
+    if (n == 0)
+        fail (Error_Bad_Path_Select(pvs));
 
     if (
-        pvs->setval
-        && IS_END(pvs->path + 1)
+        pvs->opt_setval
+        && IS_END(pvs->item + 1)
         && GET_VAL_FLAG(CTX_KEY(context, n), TYPESET_FLAG_LOCKED)
     ) {
-        fail (Error(RE_LOCKED_WORD, pvs->select));
+        fail (Error(RE_LOCKED_WORD, pvs->selector));
     }
 
     pvs->value = CTX_VAR(context, n);
-    return PE_SET;
+    return PE_SET_IF_END;
 }
 
 

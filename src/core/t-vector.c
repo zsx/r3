@@ -460,6 +460,7 @@ REBINT CT_Vector(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 REBINT PD_Vector(REBPVS *pvs)
 {
+    const REBVAL *setval;
     REBSER *vect;
     REBINT n;
     REBINT bits;
@@ -467,16 +468,17 @@ REBINT PD_Vector(REBPVS *pvs)
     REBI64 i;
     REBDEC f;
 
-    if (IS_INTEGER(pvs->select) || IS_DECIMAL(pvs->select))
-        n = Int32(pvs->select);
-    else return PE_BAD_SELECT;
+    if (IS_INTEGER(pvs->selector) || IS_DECIMAL(pvs->selector))
+        n = Int32(pvs->selector);
+    else
+        fail (Error_Bad_Path_Select(pvs));
 
     n += VAL_INDEX(pvs->value);
     vect = VAL_SERIES(pvs->value);
     vp = SER_DATA_RAW(vect);
     bits = VECT_TYPE(vect);
 
-    if (pvs->setval == 0) {
+    if (!(setval = pvs->opt_setval)) {
 
         // Check range:
         if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) return PE_NONE;
@@ -489,16 +491,17 @@ REBINT PD_Vector(REBPVS *pvs)
             VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
         }
 
-        return PE_USE;
+        return PE_USE_STORE;
     }
 
     //--- Set Value...
     FAIL_IF_LOCKED_SERIES(vect);
 
-    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) return PE_BAD_RANGE;
+    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect))
+        fail (Error_Bad_Path_Range(pvs));
 
-    if (IS_INTEGER(pvs->setval)) {
-        i = VAL_INT64(pvs->setval);
+    if (IS_INTEGER(setval)) {
+        i = VAL_INT64(setval);
         if (bits > VTUI64) f = cast(REBDEC, i);
         else {
             // !!! REVIEW: f was not set in this case; compiler caught the
@@ -507,13 +510,14 @@ REBINT PD_Vector(REBPVS *pvs)
             f = -646.699;
         }
     }
-    else if (IS_DECIMAL(pvs->setval)) {
-        f = VAL_DECIMAL(pvs->setval);
-        if (bits <= VTUI64) i = cast(REBINT, f);
+    else if (IS_DECIMAL(setval)) {
+        f = VAL_DECIMAL(setval);
+        if (bits <= VTUI64)
+            i = cast(REBINT, f);
         else
-            return PE_BAD_SET;
+            fail (Error_Bad_Path_Set(pvs));
     }
-    else return PE_BAD_SET;
+    else fail (Error_Bad_Path_Set(pvs));
 
     set_vect(bits, vp, n-1, i, f);
 

@@ -370,16 +370,25 @@ REBOOL MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT PD_Event(REBPVS *pvs)
 {
-    if (IS_WORD(pvs->select)) {
-        if (pvs->setval == 0 || NOT_END(pvs->path+1)) {
-            if (!Get_Event_Var(pvs->value, VAL_WORD_CANON(pvs->select), pvs->store)) return PE_BAD_SELECT;
-            return PE_USE;
-        } else {
-            if (!Set_Event_Var(pvs->value, pvs->select, pvs->setval)) return PE_BAD_SET;
+    if (IS_WORD(pvs->selector)) {
+        if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
+            if (!Get_Event_Var(
+                pvs->value, VAL_WORD_CANON(pvs->selector), pvs->store
+            )) {
+                fail (Error_Bad_Path_Set(pvs));
+            }
+
+            return PE_USE_STORE;
+        }
+        else {
+            if (!Set_Event_Var(pvs->value, pvs->selector, pvs->opt_setval))
+                fail (Error_Bad_Path_Set(pvs));
+
             return PE_OK;
         }
     }
-    return PE_BAD_SELECT;
+
+    fail (Error_Bad_Path_Select(pvs));
 }
 
 
@@ -447,7 +456,7 @@ is_arg_error:
 
 
     case A_PICK:
-        index = num = Get_Num_Arg(arg);
+        index = num = Get_Num_From_Arg(arg);
         if (num > 0) index--;
         if (num == 0 || index < 0 || index > EF_DCLICK) {
             if (action == A_POKE) fail (Error_Out_Of_Range(arg));
