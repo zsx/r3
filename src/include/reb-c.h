@@ -203,7 +203,7 @@ typedef uintptr_t       REBUPT;     // unsigned counterpart of void*
 #else
 /* C-code types: C99 definitions unavailable, do it ourselves */
 
-typedef char            i8;
+typedef signed char     i8;
 typedef unsigned char   u8;
 #define I8(c)           c
 #define U8(c)           c
