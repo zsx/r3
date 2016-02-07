@@ -30,10 +30,12 @@ core: [
     c-bind.c
     c-do.c
     c-error.c
+    c-eval.c
     c-frame.c
     c-function.c
     c-path.c
     c-port.c
+    c-signal.c
     c-task.c
     c-value.c
     c-word.c
@@ -41,6 +43,7 @@ core: [
     ; (D)ebug
     d-crash.c
     d-dump.c
+    d-legacy.c
     d-print.c
     d-trace.c
 

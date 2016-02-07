@@ -507,65 +507,6 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 }
 
 
-#if !defined(NDEBUG)
-
-//
-//  Make_Guarded_Arg123_Error: C
-// 
-// Needed only for compatibility trick to "fake in" ARG1: ARG2: ARG3:
-// 
-// Rebol2 and R3-Alpha errors were limited to three arguments with
-// fixed names, arg1 arg2 arg3.  (Though R3 comments alluded to
-// the idea that MAKE ERROR! from an OBJECT! would inherit that
-// object's fields, it did not actually work.)  With FAIL and more
-// flexible error creation this is being extended.
-// 
-// Change is not made to the root error object because there is no
-// "moment" to effect that (e.g. <r3-legacy> mode will not be started
-// at boot time, it happens after).  This allows the stock args to be
-// enabled and disabled dynamically in the legacy settings, at the
-// cost of creating a new error object each time.
-// 
-// To make code handling it like the regular error context (and keep that
-// code "relatively uncontaminated" by the #ifdefs), it must behave
-// as GC managed.  So it has to be guarded, thus the client drops the
-// guard and it will wind up being freed since it's not in the root set.
-// This is a bit inefficient but it's for legacy mode only, so best
-// to bend to the expectations of the non-legacy code.
-//
-static REBCTX *Make_Guarded_Arg123_Error(void)
-{
-    REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
-    REBCTX *error = Copy_Context_Shallow_Extra(root_error, 3);
-    REBVAL *key;
-    REBVAL *var;
-    REBCNT n;
-    REBCNT root_len = ARR_LEN(CTX_VARLIST(root_error));
-
-    // Update the length to suppress out of bounds assert from CTX_KEY/VAL
-    //
-    SET_ARRAY_LEN(CTX_VARLIST(error), root_len + 3);
-    SET_ARRAY_LEN(CTX_KEYLIST(error), root_len + 3);
-
-    key = CTX_KEY(error, CTX_LEN(root_error) + 1);
-    var = CTX_VAR(error, CTX_LEN(root_error) + 1);
-
-    for (n = 0; n < 3; n++, key++, var++) {
-        Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
-        SET_NONE(var);
-    }
-
-    SET_END(key);
-    SET_END(var);
-
-    MANAGE_ARRAY(CTX_VARLIST(error));
-    PUSH_GUARD_CONTEXT(error);
-    return error;
-}
-
-#endif
-
-
 //
 //  Make_Error_Object_Throws: C
 // 

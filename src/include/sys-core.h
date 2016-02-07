@@ -86,6 +86,11 @@
     // release build should catch if any of these aren't #if !defined(NDEBUG)
     //
     #include <stdio.h>
+
+    // This header file brings in the ability to trigger a programmatic
+    // breakpoint in C code, by calling `debug_break();`
+    //
+    #include "debugbreak.h"
 #endif
 
 // Special OS-specific definitions:
