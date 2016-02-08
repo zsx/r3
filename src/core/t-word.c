@@ -70,8 +70,8 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                 return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
             }
 
-            if (GET_VAL_FLAG(a, VALUE_FLAG_BOUND_RELATIVE)) {
-                if (!GET_VAL_FLAG(b, VALUE_FLAG_BOUND_RELATIVE)) {
+            if (GET_VAL_FLAG(a, VALUE_FLAG_RELATIVE)) {
+                if (!GET_VAL_FLAG(b, VALUE_FLAG_RELATIVE)) {
                     //
                     // !!! We'll need to be able to compare a relative bound
                     // word to a frame bound word... but for the moment

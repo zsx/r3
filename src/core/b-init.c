@@ -143,27 +143,20 @@ static void Assert_Basics(void)
     if (sizeof(REBDAT) != 4)
         panic (Error(RE_BAD_SIZE));
 
-    // The RXIARG structure mirrors the layouts of several value types
-    // for clients who want to extend Rebol but not depend on all of
-    // its includes.  This mirroring is brittle and is counter to the
-    // idea of Ren/C.  It is depended on by the host-extensions (crypto)
-    // as well as R3/View's way of picking apart Rebol data.
-    //
-    // Best thing to do would be to get rid of it and link those clients
-    // directly to Ren/C's API.  But until then, even adapting the RXIARG
-    // doesn't seem to get everything to work...so there are bugs.  The
-    // struct layout of certain things must line up, notably that the
-    // `context` of an ANY-CONTEXT! is as the same location as the `series`
-    // of a ANY-SERIES!
-    //
-    // In the meantime, this limits flexibility which might require the
-    // answer to VAL_CONTEXT() to be different from VAL_SERIES(), and
-    // lead to trouble if one call were used in lieu of the other.
-    // Revisit after RXIARG dependencies have been eliminated.
+    // Deep copies of Any_Word in function bodies can be marked as relative to
+    // that function.  Care must be taken to put together the right context
+    // information with the relative value to look up the variable, and it's
+    // important not to "leak" the bit patterns of these relative words when
+    // copying the values elsewhere.  Hence both the words *and* an ANY-ARRAY!
+    // that may be carrying them need to be "derelativized" before copying.
+    // Both carry binding targets that can be relative or specific, and
+    // these should be at the same offset inside the value for fast processing.
     //
     if (
-        offsetof(struct Reb_Any_Context, context)
-        != offsetof(struct Reb_Any_Series, series)
+        offsetof(struct Reb_Any_Word, place)
+            + offsetof(union Reb_Any_Word_Place, binding)
+            + offsetof(struct Reb_Binding, target)
+        != offsetof(struct Reb_Any_Series, target)
     ) {
         panic (Error(RE_MISC));
     }

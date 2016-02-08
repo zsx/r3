@@ -856,7 +856,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 REBCTX* context = VAL_WORD_CONTEXT(val);
                 QUEUE_MARK_CONTEXT_DEEP(context);
             }
-            else if (GET_VAL_FLAG(val, VALUE_FLAG_BOUND_RELATIVE)) {
+            else if (GET_VAL_FLAG(val, VALUE_FLAG_RELATIVE)) {
                 //
                 // Marking the function's paramlist should be enough to
                 // mark all the function's properties (there is an embedded
