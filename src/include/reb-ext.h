@@ -156,19 +156,3 @@ enum {
 
 #define SET_EXT_ERROR(v,n) ((v)->i2.int32a = (n))
 #define GET_EXT_ERROR(v)   ((v)->i2.int32a)
-
-typedef struct rxi_callback_info {
-    u32 flags;
-    REBARR *obj;    // object that holds the function
-    u32 word;       // word id for function (name)
-    RXIARG *args;   // argument list for function
-    RXIARG result;  // result from function
-} RXICBI;
-
-enum {
-    RXC_NONE,
-    RXC_ASYNC,      // async callback
-    RXC_QUEUED,     // pending in event queue
-    RXC_DONE,       // call completed, structs can be freed
-    RXC_MAX
-};

@@ -267,15 +267,6 @@ init-schemes: func [
     ]
 
     make-scheme [
-        title: "Callback Event Functions"
-        name: 'callback
-        awake: func [event] [
-            do-callback event
-            true
-        ]
-    ]
-
-    make-scheme [
         title: "File Access"
         name: 'file
         info: system/standard/file-info ; for C enums
@@ -355,7 +346,6 @@ init-schemes: func [
 
     system/ports/system:   open [scheme: 'system]
     system/ports/input:    open [scheme: 'console]
-    system/ports/callback: open [scheme: 'callback]
 
     init-schemes: 'done ; only once
 ]

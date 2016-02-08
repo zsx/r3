@@ -1223,63 +1223,6 @@ RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
 
 
 //
-//  RL_Callback: C
-// 
-// Evaluate a REBOL callback function, either synchronous or asynchronous.
-// 
-// Returns:
-//     Sync callback: type of the result; async callback: true if queued
-// Arguments:
-//     cbi - callback information including special option flags,
-//         object pointer (where function is located), function name
-//         as global word identifier (within above object), argument list
-//         passed to callback (see notes below), and result value.
-// Notes:
-//     The flag value will determine the type of callback. It can be either
-//     synchronous, where the code will re-enter the interpreter environment
-//     and call the specified function, or asynchronous where an EVT_CALLBACK
-//     event is queued, and the callback will be evaluated later when events
-//     are processed within the interpreter's environment.
-//     For asynchronous callbacks, the cbi and the args array must be managed
-//     because the data isn't processed until the callback event is
-//     handled. Therefore, these cannot be allocated locally on
-//     the C stack; they should be dynamic (or global if so desired.)
-//     See c:extensions-callbacks
-//
-RL_API int RL_Callback(RXICBI *cbi)
-{
-    REBEVT evt;
-
-    // Synchronous callback?
-    //
-    if (!GET_FLAG(cbi->flags, RXC_ASYNC)) {
-        //
-        // Find word in object, verify it is a function
-        //
-        REBVAL *val = Find_Word_Value(AS_CONTEXT(cbi->obj), cbi->word);
-        if (!val) {
-            SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
-            return 0;
-        }
-        if (!IS_FUNCTION(val)) {
-            SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
-            return 0;
-        }
-
-        return Do_Callback(&cbi->result, VAL_FUNC(val), cbi->word, cbi->args);
-    }
-
-    CLEARS(&evt);
-    evt.type = EVT_CALLBACK;
-    evt.model = EVM_CALLBACK;
-    evt.eventee.ser = cast(REBSER*, cbi);
-    SET_FLAG(cbi->flags, RXC_QUEUED);
-
-    return RL_Event(&evt);  // (returns 0 if queue is full, ignored)
-}
-
-
-//
 //  RL_Length_As_UTF8: C
 // 
 // Calculate the UTF8 length of an array of unicode codepoints
