@@ -559,28 +559,63 @@ RL_API int RL_Do_Binary(
 //
 //  RL_Do_Commands: C
 // 
-// Evaluate a block of extension commands at high speed.
+// Evaluate a block with a command context passed in.
 // 
 // Returns:
 //     Nothing
 // Arguments:
 //     array - a pointer to the REBVAL array series
 //     flags - set to zero for now
-//     context - command evaluation context struct or zero if not used.
+//     cec - command evaluation context struct or NULL if not used.
 // Notes:
-//     For command blocks only, not for other blocks.
 //     The context allows passing to each command a struct that is
 //     used for back-referencing your environment data or for tracking
 //     the evaluation block and its index.
 //
-RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
+RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
 {
-    REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result); // !!! necessary?  presumably...
-    Do_Commands(&result, array, context);
+    // !!! Only 2 calls to RL_Do_Commands known to exist (R3-View), like:
+    //
+    //     REBCEC innerCtx;
+    //     innerCtx.envr = ctx->envr;
+    //     innerCtx.block = RXA_SERIES(frm, 1);
+    //     innerCtx.index = 0;
+    //
+    //     rebdrw_push_matrix(ctx->envr);
+    //     RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
+    //     rebdrw_pop_matrix(ctx->envr);
+    //
+    // innerCtx.block is just a copy of the commands list, and not used by
+    // any C-based COMMAND! implementation code.  But ->envr is needed.
+    // Ren-C modifies ordinary COMMAND! dispatch to pass in whatever the
+    // global TG_Command_Rebcec is (instead of NULL)
 
-    // !!! Ignored result?  Throws?  etc.  But it's old  RL_Api, so...not
-    // really a core concern going forward in Ren-C.
+    void *cec_before;
+
+    REBIXO indexor; // "index -or- a flag"
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
+
+    cec_before = TG_Command_Execution_Context;
+    TG_Command_Execution_Context = cec; // push
+
+    indexor = Do_Array_At_Core(
+        &result,
+        NULL, // `first`: NULL means start at array head (no injected head)
+        array,
+        0, // start evaluating at index 0
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+    );
+
+    TG_Command_Execution_Context = cec_before; // pop
+
+    if (indexor == THROWN_FLAG)
+        fail (Error_No_Catch_For_Throw(&result));
+
+    assert(indexor == END_FLAG); // if it didn't throw, should reach end
+
+    // "Returns: nothing" :-/
 }
 
 

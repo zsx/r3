@@ -173,6 +173,13 @@ TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
     TVAR REBFLGS TG_Pushing_Mold; // Push_Mold should not directly recurse
 #endif
 
+// !!! There is a desire at callsites which invoke COMMAND! to "tunnel
+// through" a piece of global state information in what is called a REBCEC.
+// This tunneling is needed by RL_Do_Commands(), which has been turned into
+// ordinary DO...but which pushes and pops the state.
+//
+TVAR void *TG_Command_Execution_Context;
+
 //-- Evaluation variables:
 TVAR REBI64 Eval_Cycles;    // Total evaluation counter (upward)
 TVAR REBI64 Eval_Limit;     // Evaluation limit (set by secure)
