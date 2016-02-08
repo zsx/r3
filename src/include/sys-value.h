@@ -1024,7 +1024,7 @@ union Reb_Binding_Target {
 
 struct Reb_Any_Series
 {
-    Reb_Binding_Target target;
+    union Reb_Binding_Target target;
     REBSER *series;
     REBCNT index;
 };
