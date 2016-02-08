@@ -1124,27 +1124,6 @@ REBINT Codec_UTF16BE(REBCDI *codi)
 
 
 //
-//  Codec_Markup: C
-//
-REBINT Codec_Markup(REBCDI *codi)
-{
-    codi->error = 0;
-
-    if (codi->action == CODI_ACT_IDENTIFY) {
-        return CODI_CHECK; // error code is inverted result
-    }
-
-    if (codi->action == CODI_ACT_DECODE) {
-        codi->extra.other = Load_Markup(codi->data, codi->len);
-        return CODI_BLOCK;
-    }
-
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
-}
-
-
-//
 //  Register_Codec: C
 // 
 // Internal function for adding a codec.
@@ -1167,7 +1146,6 @@ static void Init_Codecs(void)
     Register_Codec(cb_cast("text"), Codec_Text);
     Register_Codec(cb_cast("utf-16le"), Codec_UTF16LE);
     Register_Codec(cb_cast("utf-16be"), Codec_UTF16BE);
-    Register_Codec(cb_cast("markup"), Codec_Markup);
     Init_BMP_Codec();
     Init_GIF_Codec();
     Init_PNG_Codec();
