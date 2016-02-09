@@ -504,7 +504,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     //
     // Here is a case of where we mark the context as having an extant usage,
     // so that at minimum this value must become unreachable from the root GC
-    // set before they are GC'd.  For another case, see INIT_WORD_SPECIFIC(),
+    // set before they are GC'd.  For another case, see INIT_WORD_CONTEXT(),
     // where an ANY-WORD! can mark a context as in use.
     //
     ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));

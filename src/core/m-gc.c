@@ -858,8 +858,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 // mark all the function's properties (there is an embedded
                 // function value...)
                 //
-                REBFUN* func =
-                    val->payload.any_word.place.binding.target.relative;
+                REBFUN* func = VAL_WORD_FUNC(val);
                 assert(GET_VAL_FLAG(val, WORD_FLAG_BOUND)); // should be set
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
             }

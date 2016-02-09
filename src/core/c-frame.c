@@ -234,7 +234,7 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
         //
         assert(!GET_VAL_FLAG(word, VALUE_FLAG_RELATIVE));
         SET_VAL_FLAG(word, WORD_FLAG_BOUND);
-        INIT_WORD_SPECIFIC(word, context);
+        INIT_WORD_CONTEXT(word, context);
         INIT_WORD_INDEX(word, len); // length we just bumped
     }
     else
@@ -1020,7 +1020,7 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 
                 INIT_WORD_SYM(value, VAL_TYPESET_SYM(key));
                 SET_VAL_FLAG(value, WORD_FLAG_BOUND); // hdr reset, !relative
-                INIT_WORD_SPECIFIC(value, context);
+                INIT_WORD_CONTEXT(value, context);
                 INIT_WORD_INDEX(value, n);
             }
             if (mode & 2) {
@@ -1362,13 +1362,12 @@ struct Reb_Frame *Frame_For_Relative_Word(
 
     struct Reb_Frame *frame = FS_TOP;
 
+    assert(ANY_WORD(any_word) && IS_RELATIVE(any_word));
+
     for (; frame != NULL; frame = FRM_PRIOR(frame)) {
         if (
             frame->mode != CALL_MODE_FUNCTION
-            || (
-                FRM_FUNC(frame)
-                != any_word->payload.any_word.place.binding.target.relative
-            )
+            || FRM_FUNC(frame) != VAL_WORD_FUNC(any_word)
         ) {
             continue;
         }

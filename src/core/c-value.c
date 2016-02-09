@@ -206,6 +206,15 @@ void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
 
 
 //
+//  VAL_SPECIFIC_Debug: C
+//
+REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
+{
+    assert(IS_SPECIFIC(v));
+    return (v)->payload.any_target.specific;
+}
+
+
 //  Probe_Core_Debug: C
 //
 // Debug function for outputting a value.  Done as a function instead of just

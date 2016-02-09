@@ -76,10 +76,7 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                     return 0;
                 }
 
-                return (
-                    a->payload.any_word.place.binding.target.relative
-                    == b->payload.any_word.place.binding.target.relative
-                ) ? 1 : 0;
+                return (VAL_WORD_FUNC(a) == VAL_WORD_FUNC(b)) ? 1 : 0;
             }
 
             if (GET_VAL_FLAG(a, WORD_FLAG_BOUND)) {

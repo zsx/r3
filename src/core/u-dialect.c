@@ -108,7 +108,7 @@ static int Find_Command(REBCTX *dialect, REBVAL *word)
         if ((n = Find_Word_In_Context(dialect, VAL_WORD_SYM(word), FALSE))) {
             CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
             SET_VAL_FLAG(word, WORD_FLAG_BOUND);
-            INIT_WORD_SPECIFIC(word, dialect);
+            INIT_WORD_CONTEXT(word, dialect);
             INIT_WORD_INDEX(word, n);
         }
         else return 0;

@@ -190,7 +190,7 @@ static void Bind_Values_Inner_Loop(
                 CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
 
                 SET_VAL_FLAG(value, WORD_FLAG_BOUND);
-                INIT_WORD_SPECIFIC(value, context);
+                INIT_WORD_CONTEXT(value, context);
                 INIT_WORD_INDEX(value, n);
             }
             else if (type_bit & add_midstream_types) {
@@ -326,7 +326,7 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
         CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
 
         SET_VAL_FLAG(word, WORD_FLAG_BOUND);
-        INIT_WORD_SPECIFIC(word, context);
+        INIT_WORD_CONTEXT(word, context);
         INIT_WORD_INDEX(word, n);
     }
     return n;
@@ -361,7 +361,7 @@ static void Bind_Relative_Inner_Loop(
                 enum Reb_Kind kind = VAL_TYPE(value);
                 VAL_RESET_HEADER(value, kind);
                 SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
-                INIT_WORD_RELATIVE(value, func);
+                INIT_WORD_FUNC(value, func);
                 INIT_WORD_INDEX(value, n);
             }
         }
@@ -440,7 +440,7 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
     kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
     VAL_RESET_HEADER(word, kind);
     SET_VAL_FLAGS(word, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
-    INIT_WORD_RELATIVE(word, func);
+    INIT_WORD_FUNC(word, func);
     INIT_WORD_INDEX(word, index);
 }
 
@@ -468,7 +468,7 @@ void Rebind_Values_Deep(
             && !GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
             && VAL_WORD_CONTEXT(value) == src
         ) {
-            INIT_WORD_SPECIFIC(value, dst);
+            INIT_WORD_CONTEXT(value, dst);
 
             if (opt_binds) {
                 REBCNT canon = VAL_WORD_CANON(value);
@@ -517,9 +517,9 @@ void Rebind_Values_Relative_Deep(
         else if (
             ANY_WORD(value)
             && GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && value->payload.any_word.place.binding.target.relative == src
+            && VAL_WORD_FUNC(value) == src
         ) {
-            INIT_WORD_RELATIVE(value, dst);
+            INIT_WORD_FUNC(value, dst);
         }
     }
 }
@@ -543,7 +543,7 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
         else if (
             ANY_WORD(value)
             && GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && value->payload.any_word.place.binding.target.relative == src
+            && VAL_WORD_FUNC(value) == src
         ) {
             // Note that VAL_RESET_HEADER(value...) is a macro for setting
             // value, so passing VAL_TYPE(value) which is also a macro can be
@@ -551,7 +551,7 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
             //
             assert(GET_VAL_FLAG(value, WORD_FLAG_BOUND)); // should be set
             CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-            INIT_WORD_SPECIFIC(value, dst);
+            INIT_WORD_CONTEXT(value, dst);
         }
     }
 }

@@ -1022,12 +1022,70 @@ union Reb_Binding_Target {
     REBCTX *specific; // for !VALUE_FLAG_RELATIVE
 };
 
-struct Reb_Any_Series
-{
+#define IS_RELATIVE(v) \
+    GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)
+
+#define IS_SPECIFIC(v) \
+    NOT(IS_RELATIVE(v))
+
+//
+// Only read VAL_RELATIVE and VAL_SPECIFIC through the generic `any_target`.
+// Write via the main payload types (see the notes in Reb_Value_Payload)
+//
+
+#define VAL_RELATIVE(v) \
+    (assert(IS_RELATIVE(v)), \
+        (v)->payload.any_target.relative)
+
+#ifdef NDEBUG
+    #define VAL_SPECIFIC(v)     ((v)->payload.any_target.specific)
+#else
+    #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Debug(v)
+#endif
+
+
+struct Reb_Any_Series {
+    //
+    // `specifier` is used in ANY-ARRAY! payloads.  It is a pointer to a FRAME!
+    // context which indicates where relatively-bound ANY-WORD! values which
+    // are in the series data can be looked up to get their variable values.
+    // If the array does not contain any relatively bound words then it is
+    // okay for this to be NULL.
+    //
     union Reb_Binding_Target target;
+
+    // `series` represents the actual physical underlying data, which is
+    // essentially a vector of equal-sized items.  The length of the item
+    // (the series "width") is kept within the REBSER abstraction.  See the
+    // file %sys-series.h for notes.
+    //
     REBSER *series;
+
+    // `index` is the 0-based position into the series represented by this
+    // ANY-VALUE! (so if it is 0 then that means a Rebol index of 1).
+    //
+    // It is possible that the index could be to a point beyond the range of
+    // the series.  This is intrinsic, because the series can be modified
+    // through other values and not update the others referring to it.  Hence
+    // VAL_INDEX() must be checked, or the routine called with it must.
+    //
+    // !!! Review that it doesn't seem like these checks are being done
+    // in a systemic way.  VAL_LEN_AT() bounds the length at the index
+    // position by the physical length, but VAL_ARRAY_AT() doesn't check.
+    //
     REBCNT index;
 };
+
+#define VAL_SPECIFIER(v) \
+    (assert(ANY_ARRAY(v)), VAL_SPECIFIC(v))
+
+#define INIT_ARRAY_SPECIFIC(v,context) \
+    (assert(IS_SPECIFIC(v)), \
+        (v)->payload.any_array.target.specific = (context))
+
+#define INIT_ARRAY_RELATIVE(v,func) \
+    (assert(IS_RELATIVE(v)), \
+        (v)->payload.any_array.target.relative = (func))
 
 #ifdef NDEBUG
     #define VAL_SERIES(v)   ((v)->payload.any_series.series)
@@ -1370,11 +1428,6 @@ struct Reb_Any_Word {
 #define INIT_WORD_SYM(v,s) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.sym = (s))
 
-// !!! Today indices for both stackvars and durable vars in the varlist are
-// done with positive numbers.  But when "hybrids" exist, the indexing scheme
-// will need to differentiate...with positive numbers for the durable vars
-// and negative numbers for the stack vars, to distingiush where to get data.
-//
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.place.binding.index)
 #define INIT_WORD_INDEX(v,i) \
@@ -1382,31 +1435,26 @@ struct Reb_Any_Word {
         (v)->payload.any_word.place.binding.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
-    assert(!GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)), \
-        (v)->payload.any_word.place.binding.target.specific)
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_SPECIFIC(v))
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
-    GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
+    (GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
         ? Context_For_Frame_May_Reify( \
             Frame_For_Relative_Word((v), FALSE), NULL, TRUE) \
-        : (v)->payload.any_word.place.binding.target.specific)
+        : VAL_WORD_CONTEXT(v))
 
-#define INIT_WORD_SPECIFIC(v,context) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND) \
-        && !GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)), \
+#define INIT_WORD_CONTEXT(v,context) \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
         (v)->payload.any_word.place.binding.target.specific = (context))
 
-#define INIT_WORD_RELATIVE(v,func) \
-    (assert(GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
-        && GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
+#define INIT_WORD_FUNC(v,func) \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
         (v)->payload.any_word.place.binding.target.relative = (func))
 
-#define VAL_WORD_RELATIVE(v) \
-    ((v)->payload.any_word.place.binding.target.relative)
+#define VAL_WORD_FUNC(v) \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_RELATIVE(v))
 
 #define IS_SAME_WORD(v, n) \
     (IS_WORD(v) && VAL_WORD_CANON(v) == n)
@@ -2406,8 +2454,22 @@ union Reb_Value_Payload {
     struct Reb_Datatype datatype;
     struct Reb_Typeset typeset;
 
-    struct Reb_Any_Word any_word;
-    struct Reb_Any_Series any_series;
+    // Both Any_Word and Any_Series have a Reb_Binding_Target as the first
+    // item in their payloads.  Since Reb_Value_Payload is a union, C permits
+    // the *reading* of common leading elements from another union member,
+    // even if that wasn't the last union written.  While this has been a
+    // longstanding informal assumption in C, the standard has adopted it:
+    //
+    //     http://stackoverflow.com/a/11996970/211160
+    //
+    // So `any_target` can be used to read the binding target out of either
+    // an ANY-WORD! or ANY-SERIES! payload.  To be on the safe side, *writing*
+    // should likely be specifically through `any_word` or `any_series`.
+    //
+    union Reb_Binding_Target any_target;
+        struct Reb_Any_Word any_word;
+        struct Reb_Any_Series any_series;
+
     struct Reb_Any_Context any_context;
 
     struct Reb_Function function;

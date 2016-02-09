@@ -680,7 +680,7 @@ REBNATIVE(in)
                     if (index != 0) {
                         CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
                         SET_VAL_FLAG(word, WORD_FLAG_BOUND);
-                        INIT_WORD_SPECIFIC(word, context);
+                        INIT_WORD_CONTEXT(word, context);
                         INIT_WORD_INDEX(word, index);
                         *D_OUT = *word;
                         return R_OUT;
@@ -709,7 +709,7 @@ REBNATIVE(in)
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
     INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
     SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND); // header reset, so not relative
-    INIT_WORD_SPECIFIC(D_OUT, context);
+    INIT_WORD_CONTEXT(D_OUT, context);
     INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
 }

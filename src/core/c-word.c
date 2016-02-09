@@ -309,7 +309,7 @@ void Val_Init_Word_Bound(
     VAL_RESET_HEADER(out, type);
     SET_VAL_FLAG(out, WORD_FLAG_BOUND);
     INIT_WORD_SYM(out, sym);
-    INIT_WORD_SPECIFIC(out, context);
+    INIT_WORD_CONTEXT(out, context);
     INIT_WORD_INDEX(out, index);
 
     assert(ANY_WORD(out));
