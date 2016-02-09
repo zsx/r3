@@ -215,6 +215,25 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 }
 
 
+//
+//  INIT_WORD_INDEX_Debug: C
+//
+void INIT_WORD_INDEX_Debug(REBVAL *v, REBCNT i)
+{
+    assert(ANY_WORD(v));
+    assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND));
+    if (IS_RELATIVE(v))
+        assert(
+            SAME_SYM(VAL_WORD_SYM(v), FUNC_PARAM_SYM(VAL_WORD_FUNC(v), i))
+        );
+    else
+        assert(SAME_SYM(
+            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(v), i))
+        );
+    (v)->payload.any_word.place.binding.index = (i);
+}
+
+
 //  Probe_Core_Debug: C
 //
 // Debug function for outputting a value.  Done as a function instead of just

@@ -1430,9 +1430,14 @@ struct Reb_Any_Word {
 
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.place.binding.index)
-#define INIT_WORD_INDEX(v,i) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
-        (v)->payload.any_word.place.binding.index = (i))
+
+#ifdef NDEBUG
+    #define INIT_WORD_INDEX(v,i) \
+        ((v)->payload.any_word.place.binding.index = (i))
+#else
+    #define INIT_WORD_INDEX(v,i) \
+        INIT_WORD_INDEX_Debug((v),(i))
+#endif
 
 #define VAL_WORD_CONTEXT(v) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_SPECIFIC(v))
