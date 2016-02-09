@@ -49,7 +49,54 @@
 //
 REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
 {
-    if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_SPECIFIC)) {
+    if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
+        //
+        // RELATIVE CONTEXT: Word is stack-relative bound to a function with
+        // no persistent varlist held by the GC.  The value *might* be found
+        // on the stack (or not, if all instances of the function on the
+        // call stack have finished executing).  We walk backward in the call
+        // stack to see if we can find the function's "identifying series"
+        // in a call frame...and take the first instance we see (even if
+        // multiple invocations are on the stack, most recent wins)
+        //
+        // !!! This is the temporary answer to relative binding.  NewFunction
+        // aims to resolve relative bindings with the help of an extra
+        // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
+        // REBVALs that are "viewing" an array that contains relatively
+        // bound elements.  That extra parameter will fill in the *actual*
+        // frame so this code will not have to guess that "the last stack
+        // level is close enough"
+
+        REBCNT index = VAL_WORD_INDEX(any_word);
+        REBVAL *value;
+
+        struct Reb_Frame *frame
+            = Frame_For_Relative_Word(any_word, trap);
+
+        assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
+
+        if (!frame) {
+            assert(trap);
+            return NULL;
+        }
+
+        if (
+            writable &&
+            GET_VAL_FLAG(
+                FUNC_PARAM(FRM_FUNC(frame), index),
+                TYPESET_FLAG_LOCKED
+            )
+        ) {
+            if (trap) return NULL;
+
+            fail (Error(RE_LOCKED_WORD, any_word));
+        }
+
+        value = FRM_ARG(frame, index);
+        assert(!THROWN(value));
+        return value;
+    }
+    else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //
         // The word is bound directly to a value inside a varlist, and
         // represents the zero-based offset into that series.  This is how
@@ -99,51 +146,6 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         assert(!THROWN(value));
         return value;
     }
-    else if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
-        //
-        // RELATIVE CONTEXT: Word is stack-relative bound to a function with
-        // no persistent varlist held by the GC.  The value *might* be found
-        // on the stack (or not, if all instances of the function on the
-        // call stack have finished executing).  We walk backward in the call
-        // stack to see if we can find the function's "identifying series"
-        // in a call frame...and take the first instance we see (even if
-        // multiple invocations are on the stack, most recent wins)
-        //
-        // !!! This is the temporary answer to relative binding.  NewFunction
-        // aims to resolve relative bindings with the help of an extra
-        // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
-        // REBVALs that are "viewing" an array that contains relatively
-        // bound elements.  That extra parameter will fill in the *actual*
-        // frame so this code will not have to guess that "the last stack
-        // level is close enough"
-
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
-
-        struct Reb_Frame *frame
-            = Frame_For_Relative_Word(any_word, trap);
-
-        if (!frame) {
-            assert(trap);
-            return NULL;
-        }
-
-        if (
-            writable &&
-            GET_VAL_FLAG(
-                FUNC_PARAM(FRM_FUNC(frame), index),
-                TYPESET_FLAG_LOCKED
-            )
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
-
-        value = FRM_ARG(frame, index);
-        assert(!THROWN(value));
-        return value;
-    }
 
     // If none of the above cases matched, then it's not bound at all.
 
@@ -181,8 +183,13 @@ static void Bind_Values_Inner_Loop(
                 //
                 assert(ANY_WORD(value));
                 assert(n <= CTX_LEN(context));
-                UNBIND_WORD(value); // clear any previous binding flags
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
+
+                // We're overwriting any previous binding, which may have
+                // been relative.
+                //
+                CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND);
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
             }
@@ -313,8 +320,12 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
 
     n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (n != 0) {
-        UNBIND_WORD(word); // get rid of binding if it had one
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
+        //
+        // Previously may have been bound relative, remove flag.
+        //
+        CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
+
+        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
         INIT_WORD_SPECIFIC(word, context);
         INIT_WORD_INDEX(word, n);
     }
@@ -349,7 +360,7 @@ static void Bind_Relative_Inner_Loop(
                 //
                 enum Reb_Kind kind = VAL_TYPE(value);
                 VAL_RESET_HEADER(value, kind);
-                SET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+                SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
                 INIT_WORD_RELATIVE(value, func);
                 INIT_WORD_INDEX(value, n);
             }
@@ -428,7 +439,7 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
 
     kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
     VAL_RESET_HEADER(word, kind);
-    SET_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
+    SET_VAL_FLAGS(word, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
     INIT_WORD_RELATIVE(word, func);
     INIT_WORD_INDEX(word, index);
 }
@@ -453,7 +464,8 @@ void Rebind_Values_Deep(
         }
         else if (
             ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC)
+            && GET_VAL_FLAG(value, WORD_FLAG_BOUND)
+            && !GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
             && VAL_WORD_CONTEXT(value) == src
         ) {
             INIT_WORD_SPECIFIC(value, dst);
@@ -537,9 +549,8 @@ void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
             // value, so passing VAL_TYPE(value) which is also a macro can be
             // dangerous...
             //
-            enum Reb_Kind kind = VAL_TYPE(value);
-            VAL_RESET_HEADER(value, kind);
-            SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
+            assert(GET_VAL_FLAG(value, WORD_FLAG_BOUND)); // should be set
+            CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
             INIT_WORD_SPECIFIC(value, dst);
         }
     }

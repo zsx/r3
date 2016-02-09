@@ -1278,9 +1278,15 @@ struct Reb_Symbol {
 #endif
 
 enum {
-    // is bound to a normally GC'd context
+    // `WORD_FLAG_BOUND` answers whether a word is bound, but it may be
+    // relatively bound if `VALUE_FLAG_RELATIVE` is set.  In that case, it
+    // does not have a context pointer but rather a function pointer, that
+    // must be combined with more information to get the FRAME! where the
+    // word should actually be looked up.
     //
-    WORD_FLAG_BOUND_SPECIFIC = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG_X,
+    // If VALUE_FLAG_RELATIVE is set, then WORD_FLAG_BOUND must also be set.
+    //
+    WORD_FLAG_BOUND = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG_X,
 
     // A special kind of word is used during argument fulfillment to hold
     // a refinement's word on the data stack, augmented with its param
@@ -1354,9 +1360,7 @@ struct Reb_Any_Word {
 };
 
 #define IS_WORD_BOUND(v) \
-    (assert(ANY_WORD(v)), \
-        GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
-        || GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)) // !!! => test both
+    GET_VAL_FLAG((v), WORD_FLAG_BOUND)
 
 #define IS_WORD_UNBOUND(v) \
     NOT(IS_WORD_BOUND(v))
@@ -1374,24 +1378,23 @@ struct Reb_Any_Word {
 #define VAL_WORD_INDEX(v) \
     (assert(ANY_WORD(v)), (v)->payload.any_word.place.binding.index)
 #define INIT_WORD_INDEX(v,i) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
-        ? (i) >= 1 && SAME_SYM( \
-            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(v), (i)) \
-        ) : (i) >= 1), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
         (v)->payload.any_word.place.binding.index = (i))
 
 #define VAL_WORD_CONTEXT(v) \
-    (assert(ANY_WORD(v) && GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
+    assert(!GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)), \
         (v)->payload.any_word.place.binding.target.specific)
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (assert(ANY_WORD(v)), GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)) \
-        ? (v)->payload.any_word.place.binding.target.specific \
-        : Context_For_Frame_May_Reify( \
-            Frame_For_Relative_Word((v), FALSE), NULL, TRUE)
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
+    GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
+        ? Context_For_Frame_May_Reify( \
+            Frame_For_Relative_Word((v), FALSE), NULL, TRUE) \
+        : (v)->payload.any_word.place.binding.target.specific)
 
 #define INIT_WORD_SPECIFIC(v,context) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC) \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND) \
         && !GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
@@ -1399,7 +1402,7 @@ struct Reb_Any_Word {
 
 #define INIT_WORD_RELATIVE(v,func) \
     (assert(GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
-        && !GET_VAL_FLAG((v), WORD_FLAG_BOUND_SPECIFIC)), \
+        && GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
         (v)->payload.any_word.place.binding.target.relative = (func))
 
 #define VAL_WORD_RELATIVE(v) \
@@ -1410,13 +1413,11 @@ struct Reb_Any_Word {
 
 #ifdef NDEBUG
     #define UNBIND_WORD(v) \
-        CLEAR_VAL_FLAGS((v), \
-            WORD_FLAG_BOUND_SPECIFIC | VALUE_FLAG_RELATIVE)
+        CLEAR_VAL_FLAGS((v), WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE)
 #else
     #define UNBIND_WORD(v) \
-        (CLEAR_VAL_FLAGS((v), \
-            WORD_FLAG_BOUND_SPECIFIC | VALUE_FLAG_RELATIVE), \
-            (v)->payload.any_word.place.binding.index = 0)
+        (CLEAR_VAL_FLAGS((v), WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE), \
+        (v)->payload.any_word.place.binding.index = 0)
 #endif
 
 #define VAL_WORD_CANON(v) \

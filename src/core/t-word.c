@@ -63,13 +63,6 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
             if (VAL_WORD_INDEX(a) != VAL_WORD_INDEX(b))
                 return 0;
 
-            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND_SPECIFIC)) {
-                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND_SPECIFIC))
-                    return 0;
-
-                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
-            }
-
             if (GET_VAL_FLAG(a, VALUE_FLAG_RELATIVE)) {
                 if (!GET_VAL_FLAG(b, VALUE_FLAG_RELATIVE)) {
                     //
@@ -87,6 +80,13 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                     a->payload.any_word.place.binding.target.relative
                     == b->payload.any_word.place.binding.target.relative
                 ) ? 1 : 0;
+            }
+
+            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND)) {
+                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND))
+                    return 0;
+
+                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
             }
 
             // `a` isn't bound, so it matches if `b` is unbound too.

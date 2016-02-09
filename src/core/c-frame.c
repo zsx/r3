@@ -232,7 +232,8 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
+        assert(!GET_VAL_FLAG(word, VALUE_FLAG_RELATIVE));
+        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
         INIT_WORD_SPECIFIC(word, context);
         INIT_WORD_INDEX(word, len); // length we just bumped
     }
@@ -1016,8 +1017,9 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
                     SET_VAL_FLAG(value, VALUE_FLAG_LINE);
                 }
                 else VAL_RESET_HEADER(value, REB_WORD);
+
                 INIT_WORD_SYM(value, VAL_TYPESET_SYM(key));
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND); // hdr reset, !relative
                 INIT_WORD_SPECIFIC(value, context);
                 INIT_WORD_INDEX(value, n);
             }

@@ -852,11 +852,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             // All bound words should keep their contexts from being GC'd...
             // even stack-relative contexts for functions.
             //
-            if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_SPECIFIC)) {
-                REBCTX* context = VAL_WORD_CONTEXT(val);
-                QUEUE_MARK_CONTEXT_DEEP(context);
-            }
-            else if (GET_VAL_FLAG(val, VALUE_FLAG_RELATIVE)) {
+            if (GET_VAL_FLAG(val, VALUE_FLAG_RELATIVE)) {
                 //
                 // Marking the function's paramlist should be enough to
                 // mark all the function's properties (there is an embedded
@@ -864,7 +860,12 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 //
                 REBFUN* func =
                     val->payload.any_word.place.binding.target.relative;
+                assert(GET_VAL_FLAG(val, WORD_FLAG_BOUND)); // should be set
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+            }
+            else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND)) {
+                REBCTX* context = VAL_WORD_CONTEXT(val);
+                QUEUE_MARK_CONTEXT_DEEP(context);
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
                 //
