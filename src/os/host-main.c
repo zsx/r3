@@ -324,7 +324,6 @@ int Do_String(
     }
 
     code = Scan_Source(text, LEN_BYTES(text));
-    PUSH_GUARD_ARRAY(code);
 
     // Where code ends up being bound when loaded at the REPL prompt should
     // be more generally configurable.  (It may be, for instance, that one
@@ -382,9 +381,7 @@ int Do_String(
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context); */
     }
 
-    if (Do_At_Throws(out, code, 0)) {
-        DROP_GUARD_ARRAY(code);
-
+    if (Do_At_Throws(out, code, 0)) { // `code` is implicitly GC protected
         if (at_breakpoint) {
             if (
                 IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
@@ -443,7 +440,6 @@ int Do_String(
         fail (Error_No_Catch_For_Throw(out));
     }
 
-    DROP_GUARD_ARRAY(code);
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     return 0;
