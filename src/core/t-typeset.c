@@ -128,50 +128,70 @@ REBCNT *VAL_TYPESET_SYM_Ptr_Debug(const REBVAL *typeset)
     assert(IS_TYPESET(typeset));
     // loses constness, but that's not the particular concern needed
     // to be caught in the wake of the UNWORD => TYPESET change...
-    return (REBCNT*)(&typeset->payload.typeset.sym);
+    return cast(REBCNT*, &typeset->payload.typeset.sym);
 }
 
 
 //
-//  Make_Typeset: C
-// 
-// block - block of datatypes (datatype words ok too)
-// value - value to hold result (can be word-spec type too)
+//  Update_Typeset_Bits_Core: C
 //
-REBOOL Make_Typeset(REBVAL *block, REBVAL *value, REBOOL load)
-{
-    const REBVAL *val;
+// This sets the bits in a bitset according to a block of datatypes.  There
+// is special handling by which BAR! will set the "variadic" bit on the
+// typeset, which is heeded by functions only.
+//
+// !!! R3-Alpha supported fixed word symbols for datatypes and typesets.
+// Confusingly, this means that if you have said `word!: integer!` and use
+// WORD!, you will get the integer type... but if WORD! is unbound then it
+// will act as WORD!.  Also, is essentially having "keywords" and should be
+// reviewed to see if anything actually used it.
+//
+REBOOL Update_Typeset_Bits_Core(
+    REBVAL *typeset,
+    const REBVAL *head,
+    REBOOL trap // if TRUE, then return FALSE instead of failing
+) {
+    const REBVAL *item = head;
+
     REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
 
-    VAL_TYPESET_BITS(value) = 0;
+    assert(IS_TYPESET(typeset));
 
-    for (; NOT_END(block); block++) {
-        val = NULL;
+    VAL_TYPESET_BITS(typeset) = 0;
 
-        if (IS_BAR(block)) {
-            SET_VAL_FLAG(value, TYPESET_FLAG_VARIADIC);
+    for (; NOT_END(item); item++) {
+        const REBVAL *var = NULL;
+
+        if (IS_BAR(item)) {
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
             continue;
         }
 
-        if (IS_WORD(block) && !(val = TRY_GET_OPT_VAR(block))) {
-            //Print("word: %s", Get_Word_Name(block));
-            REBSYM sym = VAL_WORD_SYM(block);
+        if (IS_WORD(item) && !(var = TRY_GET_OPT_VAR(item))) {
+            REBSYM sym = VAL_WORD_SYM(item);
 
-            if (IS_KIND_SYM(sym)) { // Accept datatype word
-                TYPE_SET(value, KIND_FROM_SYM(sym));
+            // See notes: if a word doesn't look up to a variable, then its
+            // symbol is checked as a second chance.
+            //
+            if (IS_KIND_SYM(sym)) {
+                TYPE_SET(typeset, KIND_FROM_SYM(sym));
                 continue;
-            } // Special typeset symbols:
+            }
             else if (sym >= SYM_ANY_NOTHING_X && sym < SYM_DATATYPES)
-                val = ARR_AT(types, sym - SYM_ANY_NOTHING_X);
+                var = ARR_AT(types, sym - SYM_ANY_NOTHING_X);
         }
-        if (!val) val = block;
-        if (IS_DATATYPE(val)) {
-            TYPE_SET(value, VAL_TYPE_KIND(val));
-        } else if (IS_TYPESET(val)) {
-            VAL_TYPESET_BITS(value) |= VAL_TYPESET_BITS(val);
-        } else {
-            if (load) return FALSE;
-            fail (Error_Invalid_Arg(block));
+
+        if (!var) var = item;
+
+        if (IS_DATATYPE(var)) {
+            TYPE_SET(typeset, VAL_TYPE_KIND(var));
+        }
+        else if (IS_TYPESET(var)) {
+            VAL_TYPESET_BITS(typeset) |= VAL_TYPESET_BITS(var);
+        }
+        else {
+            if (trap) return FALSE;
+
+            fail (Error_Invalid_Arg(item));
         }
     }
 
@@ -186,38 +206,17 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!IS_BLOCK(data)) return FALSE;
 
-    if (!Make_Typeset(VAL_ARRAY_HEAD(data), out, TRUE)) return FALSE;
     VAL_RESET_HEADER(out, REB_TYPESET);
 
-    return TRUE;
-}
-
-
-//
-//  Find_Typeset: C
-//
-REBINT Find_Typeset(REBVAL *block)
-{
-    REBVAL *val;
-    REBINT n;
-
-    REBVAL value;
-    VAL_INIT_WRITABLE_DEBUG(&value);
-    VAL_RESET_HEADER(&value, REB_TYPESET);
-    Make_Typeset(block, &value, FALSE);
-
-    val = VAL_ARRAY_AT_HEAD(ROOT_TYPESETS, 1);
-
-    for (n = 1; NOT_END(val); val++, n++) {
-        if (EQUAL_TYPESET(&value, val)){
-            //Print("FTS: %d", n);
-            return n;
-        }
+    if (!Update_Typeset_Bits_Core(
+        out,
+        VAL_ARRAY_HEAD(data),
+        TRUE // `trap`: true means to return FALSE instead of fail() on error
+    )) {
+        return FALSE;
     }
 
-//  Print("Size Typesets: %d", VAL_LEN_HEAD(ROOT_TYPESETS));
-    Append_Value(VAL_ARRAY(ROOT_TYPESETS), &value);
-    return n;
+    return TRUE;
 }
 
 
@@ -271,7 +270,11 @@ REBTYPE(Typeset)
     case A_TO:
         if (IS_BLOCK(arg)) {
             VAL_RESET_HEADER(D_OUT, REB_TYPESET);
-            Make_Typeset(VAL_ARRAY_AT(arg), D_OUT, FALSE);
+            Update_Typeset_Bits_Core(
+                D_OUT,
+                VAL_ARRAY_AT(arg),
+                FALSE // `trap`: false means fail() instead of FALSE on error
+            );
             return R_OUT;
         }
     //  if (IS_NONE(arg)) {

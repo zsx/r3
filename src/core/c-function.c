@@ -203,7 +203,11 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
                 // Turn block into typeset for parameter at current index
                 // Note: Make_Typeset leaves VAL_TYPESET_SYM as-is
                 //
-                Make_Typeset(VAL_ARRAY_HEAD(item), typeset, FALSE);
+                Update_Typeset_Bits_Core(
+                    typeset,
+                    VAL_ARRAY_HEAD(item),
+                    FALSE // `trap`: false means fail vs. return FALSE if error
+                );
                 continue;
             }
 
