@@ -183,7 +183,7 @@ value_ready_for_do_next:
     assert(f->value && !IS_END(f->value) && f->value != f->out);
     assert(f->indexor != END_FLAG && f->indexor != THROWN_FLAG);
 
-    if (Trace_Flags) Trace_Line(f->source, f->indexor, f->value);
+    if (Trace_Flags) Trace_Line(f);
 
     // Save the index at the start of the expression in case it is needed
     // for error reporting.  FRM_INDEX can account for prefetching, but it
@@ -339,8 +339,6 @@ reevaluate:
         #if !defined(NDEBUG)
             f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
         #endif
-
-            if (Trace_Flags) Trace_Line(f->source, f->indexor, f->value);
 
             f->value = f->out;
             goto do_function_in_value;
@@ -1917,8 +1915,6 @@ reevaluate:
                 assert(f->func != PG_Return_Func);
                 f->exit_from = NULL;
 
-                if (Trace_Flags) Trace_Line(f->source, f->indexor, f->param);
-
                 // We go ahead and start the vars, and put our evaluated
                 // result into it as the "left-hand-side" before calling into
                 // the rest of function's behavior.
@@ -1966,6 +1962,8 @@ reevaluate:
             #if !defined(NDEBUG)
                 do_count = Do_Core_Expression_Checks_Debug(f);
             #endif
+
+                if (Trace_Flags) Trace_Line(f);
 
                 goto dispatch_the_word_in_out; // will handle the FETCH_NEXT
             }

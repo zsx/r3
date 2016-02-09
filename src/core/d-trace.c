@@ -94,40 +94,36 @@ static REBINT Init_Depth(void)
 //
 //  Trace_Line: C
 //
-void Trace_Line(
-    union Reb_Frame_Source source,
-    REBIXO indexor,
-    const REBVAL *value
-) {
+void Trace_Line(struct Reb_Frame *f)
+{
     int depth;
 
     if (GET_FLAG(Trace_Flags, 1)) return; // function
-    if (IS_FUNCTION(value)) return;
+    if (IS_FUNCTION(f->value)) return;
 
     CHECK_DEPTH(depth);
 
-    if (indexor == END_FLAG) {
+    if (f->indexor == END_FLAG) {
         Debug_Fmt_("END_FLAG...");
     }
-    else if (indexor == VALIST_FLAG) {
+    else if (f->indexor == VALIST_FLAG) {
         Debug_Fmt_("VALIST_FLAG...");
     }
     else {
-        REBCNT index = cast(REBCNT, indexor);
-        Debug_Fmt_("%-02d: %50r", index, value);
+        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->indexor), f->value);
     }
 
-    if (IS_WORD(value) || IS_GET_WORD(value)) {
-        value = GET_OPT_VAR_MAY_FAIL(value);
-        if (VAL_TYPE(value) < REB_FUNCTION)
-            Debug_Fmt_(" : %50r", value);
-        else if (VAL_TYPE(value) == REB_FUNCTION) {
-            REBARR *words = List_Func_Words(value);
-            Debug_Fmt_(" : %s %50m", Get_Type_Name(value), words);
+    if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
+        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(f->value);
+        if (VAL_TYPE(var) < REB_FUNCTION)
+            Debug_Fmt_(" : %50r", var);
+        else if (VAL_TYPE(var) == REB_FUNCTION) {
+            REBARR *words = List_Func_Words(var);
+            Debug_Fmt_(" : %s %50m", Get_Type_Name(var), words);
             Free_Array(words);
         }
         else
-            Debug_Fmt_(" : %s", Get_Type_Name(value));
+            Debug_Fmt_(" : %s", Get_Type_Name(var));
     }
     /*if (ANY_WORD(value)) {
         word = value;
