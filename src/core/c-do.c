@@ -47,7 +47,7 @@
 //
 REBIXO Do_Array_At_Core(
     REBVAL *out,
-    const RELVAL *opt_first,
+    const RELVAL *opt_first, // must also be relative to specifier if relative
     REBARR *array,
     REBCNT index,
     REBCTX *specifier,
@@ -56,7 +56,7 @@ REBIXO Do_Array_At_Core(
     struct Reb_Frame f;
 
     if (opt_first) {
-        f.value = opt_first; // must also be relative to specifier if relative
+        f.value = opt_first;
         f.indexor = index;
     }
     else {
@@ -267,7 +267,7 @@ REBIXO Do_Va_Core(
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        f.value = va_arg(*vaptr, const REBVAL*);
+        f.value = va_arg(*vaptr, const REBVAL*); // not relative
     }
 
     if (IS_END(f.value)) {

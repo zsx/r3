@@ -1657,7 +1657,7 @@ REBNATIVE(switch)
             VAL_ARRAY(e.value),
             VAL_INDEX(e.value),
             IS_SPECIFIC(e.value)
-                ? VAL_SPECIFIER(KNOWN(e.value))
+                ? VAL_SPECIFIER(const_KNOWN(e.value))
                 : VAL_SPECIFIER(ARG(cases))
         )) {
             return R_OUT_IS_THROWN;

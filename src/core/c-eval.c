@@ -540,7 +540,7 @@ reevaluate:
 
     case ET_SET_PATH:
         //
-        // fetch writes f->value, so save SET-WORD! ptr.  Note that the nested
+        // fetch writes f->value, so save SET-PATH! ptr.  Note that the nested
         // evaluation here might peek up at it if it contains an infix
         // function that quotes its first argument, e.g. `x/y: ++ 10`
         //
@@ -574,7 +574,7 @@ reevaluate:
             if (THROWN(f->out)) goto finished;
         }
         else {
-            *(f->out) = *(f->value);
+            COPY_VALUE(f->out, f->value, f->specifier);
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
 
@@ -1164,7 +1164,7 @@ reevaluate:
 
             if (IS_END(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+                    fail (Error_No_Arg(FRM_LABEL(f), const_KNOWN(f->param)));
 
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
@@ -1265,7 +1265,20 @@ reevaluate:
                 SET_END(f->out);
             }
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
-                if (EVAL_VALUE_THROWS(f->arg, f->value)) {
+                // Can't use DO_VALUE_THROWS() macro on relative value
+                if (
+                    THROWN_FLAG
+                    == Do_Array_At_Core(
+                        f->arg,
+                        f->value, // first (and only) item to DO
+                        EMPTY_ARRAY, // empty array so isolated value runs
+                        0, // will get END immediately after f->value
+                        f->specifier,
+                        DO_FLAG_TO_END
+                            | DO_FLAG_ARGS_EVALUATE
+                            | DO_FLAG_LOOKAHEAD
+                    )
+                ) {
                     *f->out = *f->arg;
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
@@ -1880,6 +1893,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     assert(!THROWN(f->value));
     ASSERT_VALUE_MANAGED(f->value);
+    assert(f->value != f->out);
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets

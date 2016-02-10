@@ -105,7 +105,7 @@ void Init_Typesets(void)
 
 
 //
-//  Val_Init_Typeset: C
+//  Val_Init_Typeset_Core: C
 // 
 // Note: sym is optional, and can be SYM_0
 //

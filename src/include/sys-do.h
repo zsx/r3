@@ -414,7 +414,7 @@ struct Reb_Frame {
     // then if any problem needing a where came up, a series would be made
     // to put it in.  (The where series is paying for a copy anyway.)
     //
-    const REBVAL *value;
+    const RELVAL *value;
 
     // `gotten`
     //
@@ -444,7 +444,7 @@ struct Reb_Frame {
     // by virtue of not being NULL signals to just use the value on the
     // next fetch instead of fetching again.
     //
-    const REBVAL *eval_fetched;
+    const RELVAL *eval_fetched;
 
     // source.array, source.vaptr [INPUT, READ-ONLY, GC-PROTECTED]
     //
@@ -535,6 +535,8 @@ struct Reb_Frame {
     // but also because it is used as a temporary to store value if it is
     // advanced but we'd like to hold the old one...this makes it important
     // to protect it from GC if we have advanced beyond as well!)
+    //
+    // Made relative just to have another RELVAL on hand.
     //
     const RELVAL *param;
 
@@ -1046,7 +1048,7 @@ typedef struct Reb_Path_Value_State {
     // `item` is the current element within the path that is being processed.
     // It is advanced as the path is consumed.
     //
-    const REBVAL *item;
+    const RELVAL *item;
 
     // `selector` is the result of evaluating the current path item if
     // necessary.  So if the path is `a/(1 + 2)` and processing the second
@@ -1081,7 +1083,7 @@ typedef struct Reb_Path_Value_State {
 
     // `orig` original path input, saved for error messages
     //
-    const REBVAL *orig;
+    const RELVAL *orig;
 
     // A specifier is needed because the PATH! is processed by incrementing
     // through values, which may be resident in an array that was part of

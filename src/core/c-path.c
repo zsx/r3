@@ -109,15 +109,24 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     }
     // object/(expr) case:
     else if (IS_GROUP(pvs->item)) {
-        if (DO_VAL_ARRAY_AT_THROWS(&temp, pvs->item)) {
+        if (Do_At_Throws(
+            &temp,
+            VAL_ARRAY(pvs->item),
+            VAL_INDEX(pvs->item),
+            pvs->specifier
+        )) {
             *pvs->value = temp;
             return TRUE;
         }
 
         pvs->selector = &temp;
     }
-    else // object/word and object/value case:
-        pvs->selector = pvs->item;
+    else {
+        // object/word and object/value case:
+        //
+        COPY_VALUE(&temp, pvs->item, pvs->specifier);
+        pvs->selector = &temp;
+    }
 
     switch (dispatcher(pvs)) {
     case PE_OK:
@@ -363,6 +372,7 @@ REBOOL Do_Path_Throws_Core(
             if (IS_VOID(pvs.item)) continue;
 
             if (IS_GROUP(pvs.item)) {
+                //
                 // Note it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
@@ -389,8 +399,7 @@ REBOOL Do_Path_Throws_Core(
                     continue;
                 }
             }
-            else
-                DS_PUSH_RELVAL(pvs.item, pvs.specifier);
+            else DS_PUSH_RELVAL(pvs.item, pvs.specifier);
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
@@ -454,6 +463,12 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->specifier);
+
+    REBVAL orig;
+    COPY_VALUE(&orig, pvs->orig, pvs->specifier);
+
     return Error(RE_BAD_PATH_SET, pvs->orig, pvs->item);
 }
 
@@ -463,7 +478,10 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
-    return Error_Out_Of_Range(pvs->item);
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->specifier);
+
+    return Error_Out_Of_Range(&item);
 }
 
 
@@ -472,7 +490,10 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
-    return Error(RE_BAD_FIELD_SET, pvs->item, Type_Of(pvs->opt_setval));
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->specifier);
+
+    return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
 }
 
 
