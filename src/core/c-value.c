@@ -99,11 +99,8 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
 //
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
-void Assert_Cell_Writable(
-    const RELVAL *v,
-    const char *file,
-    int line
-) {
+void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
+{
     // REBVALs should not be written at addresses that do not match the
     // alignment of the processor.  This checks modulo the size of an unsigned
     // integer the same size as a platform pointer (REBUPT => uintptr_t)
@@ -350,13 +347,22 @@ const RELVAL *ENSURE_C_RELVAL_Debug(const RELVAL *value)
 
 
 //
-//  Assert_Is_Payload: C
+//  const_KNOWN_Debug: C
 //
-// Simple NOOP used as a helper in checking that a pointer is either a
-// REBVAL -or- a RELVAL in C.
-//
-void Assert_Is_Payload(const union Reb_Value_Payload *payload)
+const REBVAL *const_KNOWN_Debug(const RELVAL *value)
 {
+    assert(IS_SPECIFIC(value));
+    return cast(const REBVAL*, value);
+}
+
+
+//
+//  KNOWN_Debug: C
+//
+REBVAL *KNOWN_Debug(RELVAL *value)
+{
+    assert(IS_SPECIFIC(value));
+    return cast(REBVAL*, value);
 }
 
 
@@ -381,7 +387,7 @@ void Probe_Core_Debug(
     const char *msg,
     const char *file,
     int line,
-    const REBVAL *val
+    const RELVAL *val
 ) {
     if (msg)
         printf("\n** PROBE_MSG(\"%s\") ", msg);

@@ -862,11 +862,17 @@ struct Reb_Array {
 // marker in its last slot, which is one past the last position that is
 // valid for writing a full REBVAL.
 //
+// An ARRAY is the main place in the system where "relative" values come
+// from, because all relative words are created during the copy of the
+// bodies of functions.  The array accessors must err on the safe side and
+// give back a relative value.  Many inspection operations are legal on
+// a relative value, but it cannot be copied without a "specifier" FRAME!
+// context (which is also required to do a GET_VAR lookup).
 
-#define ARR_AT(a, n)      SER_AT(REBVAL, ARR_SERIES(a), (n))
-#define ARR_HEAD(a)       SER_HEAD(REBVAL, ARR_SERIES(a))
-#define ARR_TAIL(a)       SER_TAIL(REBVAL, ARR_SERIES(a))
-#define ARR_LAST(a)       SER_LAST(REBVAL, ARR_SERIES(a))
+#define ARR_AT(a, n)        SER_AT(RELVAL, ARR_SERIES(a), (n))
+#define ARR_HEAD(a)         SER_HEAD(RELVAL, ARR_SERIES(a))
+#define ARR_TAIL(a)         SER_TAIL(RELVAL, ARR_SERIES(a))
+#define ARR_LAST(a)         SER_LAST(RELVAL, ARR_SERIES(a))
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to control these independently for
@@ -1040,11 +1046,16 @@ struct Reb_Context {
 // the indexing is legal.  To get a pointer to the first key or value
 // regardless of length (e.g. will be an END if 0 keys/vars) use HEAD
 //
-#define CTX_KEYS_HEAD(c)    ARR_AT(CTX_KEYLIST(c), 1)
+// Rather than use ARR_AT (which returns RELVAL*) for the vars, this uses
+// SER_AT to get REBVALs back, because the values of the context are known to
+// not live in function body arrays--hence they can't hold relative words.
+// Keys can't hold relative values either.
+//
+#define CTX_KEYS_HEAD(c)    SER_AT(REBVAL, ARR_SERIES(CTX_KEYLIST(c)), 1)
 #define CTX_VARS_HEAD(c) \
     (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
         ? VAL_CONTEXT_STACKVARS(CTX_VALUE(c)) \
-        : ARR_AT(CTX_VARLIST(c), 1))
+        : SER_AT(REBVAL, ARR_SERIES(CTX_VARLIST(c)), 1))
 
 #ifdef NDEBUG
     #define CTX_KEY(c,n)    (CTX_KEYS_HEAD(c) + (n) - 1)
@@ -1062,8 +1073,8 @@ struct Reb_Context {
 //
 #define CTX_VALUE(c) \
     (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
-        ? cast(REBVAL*, &ARR_SERIES(CTX_VARLIST(c))->content.values[0]) \
-        : ARR_HEAD(CTX_VARLIST(c)))
+        ? &ARR_SERIES(CTX_VARLIST(c))->content.values[0] \
+        : SER_HEAD(REBVAL, ARR_SERIES(CTX_VARLIST(c)))) // not a RELVAL
 
 // Navigate from context to context components.  Note that the context's
 // "length" does not count the [0] cell of either the varlist or the keylist.
@@ -1074,7 +1085,7 @@ struct Reb_Context {
 // requested in context creation).
 //
 #define CTX_LEN(c)          (ARR_LEN(CTX_KEYLIST(c)) - 1)
-#define CTX_ROOTKEY(c)      ARR_HEAD(CTX_KEYLIST(c))
+#define CTX_ROOTKEY(c)      SER_HEAD(REBVAL, ARR_SERIES(CTX_KEYLIST(c)))
 #define CTX_TYPE(c)         VAL_TYPE(CTX_VALUE(c))
 
 #define INIT_CONTEXT_META(c,s) \
@@ -1149,16 +1160,26 @@ struct Reb_Func {
 #define FUNC_PARAMLIST(f)       (&(f)->paramlist)
 
 #define FUNC_NUM_PARAMS(f)      (ARR_LEN(FUNC_PARAMLIST(f)) - 1)
-#define FUNC_PARAMS_HEAD(f)     ARR_AT(FUNC_PARAMLIST(f), 1)
+
+// There is no binding information in a function parameter (typeset) so a
+// REBVAL should be okay.
+//
+#define FUNC_PARAMS_HEAD(f) \
+    SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), 1)
+
 #ifdef NDEBUG
-    #define FUNC_PARAM(f,n)     ARR_AT(FUNC_PARAMLIST(f), (n))
+    #define FUNC_PARAM(f,n)     (FUNC_PARAMS_HEAD(f) + (n) - 1)
 #else
     #define FUNC_PARAM(f,n)     FUNC_PARAM_Debug((f), (n))
 #endif
+
 #define FUNC_PARAM_SYM(f,n)     VAL_TYPESET_SYM(FUNC_PARAM((f), (n)))
 
 #define FUNC_CLASS(f)           VAL_FUNC_CLASS(FUNC_VALUE(f))
-#define FUNC_VALUE(f)           ARR_HEAD(FUNC_PARAMLIST(f))
+
+#define FUNC_VALUE(f) \
+    SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), 0)
+
 #define FUNC_META(f) \
     (ARR_SERIES(FUNC_PARAMLIST(f))->misc.meta)
 

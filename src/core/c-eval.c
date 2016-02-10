@@ -200,7 +200,7 @@ do_next:
         f->eval_type = ET_INERT;
 
         INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
-        if (Do_Signals_Throws(KNOWN(&f->cell.eval))) {
+        if (Do_Signals_Throws(SINK(&f->cell.eval))) {
             *f->out = *KNOWN(&f->cell.eval);
             goto finished;
         }

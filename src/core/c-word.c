@@ -322,12 +322,12 @@ void Val_Init_Word_Bound(
 
 
 //
-//  Val_Init_Word: C
+//  Val_Init_Word_Core: C
 // 
 // Initialize a value as a word. Set frame as unbound--no context.  (See
 // also Val_Init_Word_Bound)
 //
-void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBSYM sym)
+void Val_Init_Word_Core(RELVAL *out, enum Reb_Kind type, REBSYM sym)
 {
     assert(sym != SYM_0);
 

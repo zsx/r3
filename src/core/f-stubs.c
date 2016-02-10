@@ -295,6 +295,18 @@ REBVAL *Get_Type(enum Reb_Kind kind)
 
 
 //
+//  Type_Of_Core: C
+// 
+// Returns the datatype value for the given value.
+// The datatypes are all at the head of the context.
+//
+REBVAL *Type_Of_Core(const RELVAL *value)
+{
+    return CTX_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
+}
+
+
+//
 //  Get_Field_Name: C
 // 
 // Get the name of a field of an object.
@@ -399,10 +411,11 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 // Common function.
 //
 void Val_Init_Series_Index_Core(
-    REBVAL *value,
+    RELVAL *value,
     enum Reb_Kind type,
     REBSER *series,
-    REBCNT index
+    REBCNT index,
+    REBCTX *specifier
 ) {
     assert(series);
     ENSURE_SERIES_MANAGED(series);
@@ -427,7 +440,7 @@ void Val_Init_Series_Index_Core(
     VAL_RESET_HEADER(value, type);
     INIT_VAL_SERIES(value, series);
     VAL_INDEX(value) = index;
-    INIT_ARRAY_SPECIFIC(value, SPECIFIED);
+    INIT_ARRAY_SPECIFIC(value, specifier);
 }
 
 
@@ -446,7 +459,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 
 
 //
-//  Val_Init_Context: C
+//  Val_Init_Context_Core: C
 //
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
 //
@@ -454,7 +467,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
+void Val_Init_Context_Core(RELVAL *out, enum Reb_Kind kind, REBCTX *context) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are

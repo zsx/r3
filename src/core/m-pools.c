@@ -1686,7 +1686,7 @@ void Manage_Series(REBSER *series)
 // with either managed or unmanaged value states for variables w/o needing
 // this test to know which it has.)
 //
-REBOOL Is_Value_Managed(const REBVAL *value)
+REBOOL Is_Value_Managed(const RELVAL *value)
 {
     assert(!THROWN(value));
 

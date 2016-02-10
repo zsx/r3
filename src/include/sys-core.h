@@ -295,7 +295,7 @@ enum {
 #define TS_GC (~TS_NO_GC)
 
 #define Type_Of(value) \
-    Get_Type(VAL_TYPE(value))
+    Type_Of_Core(value)
 
 
 // Garbage collection marker function (GC Hook)

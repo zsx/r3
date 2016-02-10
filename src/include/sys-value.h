@@ -1241,7 +1241,7 @@ struct Reb_Any_Series {
 // (Or perhaps just use proper inlining and support it in those builds.)
 
 #define Val_Init_Series_Index(v,t,s,i) \
-    Val_Init_Series_Index_Core((v), (t), (s), (i))
+    Val_Init_Series_Index_Core((v), (t), (s), (i), SPECIFIED)
 
 #define Val_Init_Series(v,t,s) \
     Val_Init_Series_Index((v), (t), (s), 0)
@@ -1522,7 +1522,7 @@ union Reb_Any_Word_Place {
     // refinement has had its chance to take the earlier fulfillments.
     //
     struct {
-        const REBVAL *param;
+        const RELVAL *param;
         REBVAL *arg;
     } pickup;
 };
@@ -1602,6 +1602,9 @@ struct Reb_Any_Word {
     VAL_SYM_NAME(ARR_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
 
 #define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
+
+#define Val_Init_Word(out,kind,sym) \
+    Val_Init_Word_Core((out), (kind), (sym))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1844,6 +1847,9 @@ struct Reb_Typeset {
     ((v)->header.bits &= ~PCLASS_MASK, \
     (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
 
+#define Val_Init_Typeset(value,bits,sym) \
+    Val_Init_Typeset_Core((value), (bits), (sym))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -1961,6 +1967,9 @@ struct Reb_Any_Context {
 // more easily than if it were left as just + 1.
 //
 #define SELFISH(n) (n + 1)
+
+#define Val_Init_Context(out,kind,context) \
+    Val_Init_Context_Core((out), (kind), (context))
 
 #define Val_Init_Object(v,c) \
     Val_Init_Context((v), REB_OBJECT, (c))
@@ -2764,13 +2773,13 @@ struct Reb_Value
 //
 // Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
 //
-//#ifdef NDEBUG
+#ifdef NDEBUG
     #define const_KNOWN(v)      cast(const REBVAL*, (v))
     #define KNOWN(v)            cast(REBVAL*, (v))
-//#else
-//    #define const_KNOWN(v)      const_KNOWN_Debug(v)
-//    #define KNOWN(v)            KNOWN_Debug(v)
-//#endif
+#else
+    #define const_KNOWN(v)      const_KNOWN_Debug(v)
+    #define KNOWN(v)            KNOWN_Debug(v)
+#endif
 
 // To make it easier to look for places that think they aren't dealing
 // with any relative values, pass this as the specifier instead of NULL.
