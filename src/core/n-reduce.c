@@ -362,7 +362,10 @@ REBOOL Compose_Values_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
-                    VAL_ARRAY(DS_TOP) = Copy_Array_Shallow(VAL_ARRAY(value));
+                    INIT_VAL_ARRAY(
+                        DS_TOP,
+                        Copy_Array_Shallow(VAL_ARRAY(value))
+                    );
                     MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
                 }
             }

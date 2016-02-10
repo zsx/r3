@@ -682,23 +682,3 @@ REBTYPE(Map)
 
     fail (Error_Illegal_Action(REB_MAP, action));
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  VAL_MAP_Ptr_Debug: C
-//
-// Debug-Only version of VAL_MAP() that makes sure you actually are getting
-// a REBMAP out of a value initialized as type REB_MAP.
-//
-REBMAP **VAL_MAP_Ptr_Debug(const REBVAL *v) {
-    assert(VAL_TYPE(v) == REB_MAP);
-    assert(GET_SER_FLAG(VAL_SERIES(v), SERIES_FLAG_ARRAY));
-
-    // Note: hashlist may or may not be present
-
-    return &AS_MAP(VAL_SERIES(v));
-}
-
-#endif

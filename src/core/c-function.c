@@ -1316,7 +1316,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         // present time, until true relative binding is implemented.)
         //
         VAL_RESET_HEADER(&body, REB_BLOCK);
-        VAL_ARRAY(&body) = Copy_Array_Deep_Managed(FUNC_BODY(f->func));
+        INIT_VAL_ARRAY(&body, Copy_Array_Deep_Managed(FUNC_BODY(f->func)));
         VAL_INDEX(&body) = 0;
 
         Rebind_Values_Specifically_Deep(f->func, frame, VAL_ARRAY_AT(&body));

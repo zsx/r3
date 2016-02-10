@@ -356,7 +356,7 @@ REBNATIVE(bind)
         array = Copy_Array_At_Deep_Managed(
             VAL_ARRAY(value), VAL_INDEX(value)
         );
-        VAL_ARRAY(D_OUT) = array;
+        INIT_VAL_ARRAY(D_OUT, array);
     }
     else
         array = VAL_ARRAY(value);
@@ -1448,16 +1448,16 @@ REBNATIVE(map_gob_offset)
 
 
 //
-//  VAL_SERIES_Ptr_Debug: C
+//  VAL_SERIES_Debug: C
 //
 // Variant of VAL_SERIES() macro for the debug build which checks to ensure
 // that you have an ANY-SERIES! value you're calling it on (or one of the
 // exception types that use REBSERs)
 //
-REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
+REBSER *VAL_SERIES_Debug(const REBVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return &(m_cast(REBVAL*, v))->payload.any_series.series;
+    return (v)->payload.any_series.series;
 }
 
 #endif

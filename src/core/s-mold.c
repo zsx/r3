@@ -615,7 +615,7 @@ void Mold_Array_At(
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
     VAL_RESET_HEADER(value, REB_BLOCK);
-    VAL_ARRAY(value) = array;
+    INIT_VAL_ARRAY(value, array);
     VAL_INDEX(value) = 0;
 
     if (sep[1]) {

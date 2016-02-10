@@ -236,7 +236,7 @@ REBOOL Make_Block_Type_Throws(
 
     if (IS_STRING(arg)) {
         REBCNT index, len = 0;
-        VAL_SERIES(arg) = Temp_Bin_Str_Managed(arg, &index, &len);
+        INIT_VAL_SERIES(arg, Temp_Bin_Str_Managed(arg, &index, &len));
         array = Scan_Source(VAL_BIN(arg), VAL_LEN_AT(arg));
         goto done;
     }
@@ -889,14 +889,14 @@ zero_blk:
             else types |= VAL_TYPESET_BITS(arg);
         }
         len = Partial1(value, D_ARG(ARG_COPY_LIMIT));
-        VAL_ARRAY(value) = Copy_Array_Core_Managed(
+        INIT_VAL_ARRAY(value, Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
             VAL_INDEX(value) + len, // tail
             0, // extra
             D_REF(ARG_COPY_DEEP), // deep
             types // types
-        );
+        ));
         VAL_INDEX(value) = 0;
     }
         break;

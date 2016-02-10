@@ -182,7 +182,7 @@ void Clonify_Values_Len_Managed(
                 }
                 else
                     series = Copy_Sequence(VAL_SERIES(value));
-                VAL_SERIES(value) = series;
+                INIT_VAL_SERIES(value, series);
             }
 
             MANAGE_SERIES(series);

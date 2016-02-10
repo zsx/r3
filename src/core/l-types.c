@@ -597,7 +597,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     REBUNI n;
 
     VAL_RESET_HEADER(value, REB_EMAIL);
-    VAL_SERIES(value) = Make_Binary(len);
+    INIT_VAL_SERIES(value, Make_Binary(len));
     VAL_INDEX(value) = 0;
 
     str = VAL_BIN(value);
@@ -643,7 +643,7 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (*str != ':') return 0;
 
     VAL_RESET_HEADER(value, REB_URL);
-    VAL_SERIES(value) = Make_Binary(len);
+    INIT_VAL_SERIES(value, Make_Binary(len));
     VAL_INDEX(value) = 0;
 
     str = VAL_BIN(value);
@@ -768,7 +768,7 @@ const REBYTE *Scan_Any(
     REBCNT n;
 
     VAL_RESET_HEADER(value, type);
-    VAL_SERIES(value) = Append_UTF8_May_Fail(0, cp, len);
+    INIT_VAL_SERIES(value, Append_UTF8_May_Fail(0, cp, len));
     VAL_INDEX(value) = 0;
 
     // We hand it over to management by the GC, but don't run the GC before

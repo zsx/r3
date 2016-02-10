@@ -987,7 +987,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
     // annoying to find to inspect in the debugger.  This makes pointers into
     // the value payloads so they can be seen more easily.
     //
-    REBSER * const *input_debug = &P_INPUT; // *pointer*-to-pointer-to-REBSER
     const REBCNT *pos_debug = &P_POS;
     const REBI64 *result_debug = &P_RESULT;
 

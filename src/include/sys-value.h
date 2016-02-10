@@ -1090,8 +1090,15 @@ struct Reb_Any_Series {
 #ifdef NDEBUG
     #define VAL_SERIES(v)   ((v)->payload.any_series.series)
 #else
-    #define VAL_SERIES(v)   (*VAL_SERIES_Ptr_Debug(v))
+    #define VAL_SERIES(v)   VAL_SERIES_Debug(v)
 #endif
+
+#define INIT_VAL_SERIES(v,s) \
+    ((v)->payload.any_series.series = (s))
+
+#define INIT_VAL_ARRAY(v,s) \
+    ((v)->payload.any_series.series = ARR_SERIES(s))
+
 #define VAL_INDEX(v)        ((v)->payload.any_series.index)
 #define VAL_LEN_HEAD(v)     SER_LEN(VAL_SERIES(v))
 #define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
@@ -1101,6 +1108,8 @@ struct Reb_Any_Series {
 #define VAL_RAW_DATA_AT(v) \
     SER_AT_RAW(VAL_SERIES(v), VAL_INDEX(v))
 
+#define VAL_MAP(v) \
+    (assert(IS_MAP(v)), AS_MAP((v)->payload.any_series.series))
 
 // Note: These macros represent things that used to sometimes be functions,
 // and sometimes were not.  They could be done without a function call, but
@@ -1188,7 +1197,9 @@ struct Reb_Any_Series {
 // Must use `(old_style)cast_here` because we may-or-may-not be casting away
 // constness in the process, e.g. a series extracted from a const REBVAL.
 //
-#define VAL_ARRAY(v)            (*(REBARR**)(&VAL_SERIES(v)))
+#define VAL_ARRAY(v) \
+    (assert(ANY_ARRAY(v)), AS_ARRAY((v)->payload.any_series.series))
+
 #define VAL_ARRAY_HEAD(v)       ARR_HEAD(VAL_ARRAY(v))
 #define VAL_ARRAY_TAIL(v)       ARR_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
 

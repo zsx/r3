@@ -1439,7 +1439,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 } else token = REB_PATH;
             }
             VAL_RESET_HEADER(value, cast(enum Reb_Kind, token));
-            VAL_ARRAY(value) = block;
+            INIT_VAL_ARRAY(value, block);
             VAL_INDEX(value) = 0;
             token = TOKEN_PATH;
         } else {

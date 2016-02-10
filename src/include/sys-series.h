@@ -1168,9 +1168,3 @@ struct Reb_Map {
 // objects with hidden fields, locals in paramlists, etc.
 
 #define AS_MAP(s)               (*cast(REBMAP**, &(s)))
-
-#ifdef NDEBUG
-    #define VAL_MAP(v)          AS_MAP(VAL_ARRAY(v))
-#else
-    #define VAL_MAP(v)          (*VAL_MAP_Ptr_Debug(v))
-#endif

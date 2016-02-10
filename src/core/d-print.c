@@ -381,7 +381,7 @@ void Debug_Series(REBSER *ser)
         // raw VAL_SET instead of Val_Init_Block
         //
         VAL_RESET_HEADER(&value, REB_BLOCK);
-        VAL_SERIES(&value) = ser;
+        INIT_VAL_SERIES(&value, ser);
         VAL_INDEX(&value) = 0;
 
         Debug_Fmt("%r", &value);
@@ -879,7 +879,7 @@ pick:
             //
             VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
-            VAL_SERIES(&value) = va_arg(*vaptr, REBSER *);
+            INIT_VAL_SERIES(&value, va_arg(*vaptr, REBSER*));
             VAL_INDEX(&value) = 0;
             Mold_Value(mo, &value, TRUE);
             break;

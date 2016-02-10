@@ -422,7 +422,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     if (iblk) Set_Vector_Row(vect, iblk);
 
-    VAL_SERIES(value) = vect;
+    INIT_VAL_SERIES(value, vect);
     MANAGE_SERIES(vect);
 
     // index set earlier
