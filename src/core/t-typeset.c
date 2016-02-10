@@ -139,7 +139,7 @@ REBOOL Update_Typeset_Bits_Core(
     assert(IS_TYPESET(typeset));
     VAL_TYPESET_BITS(typeset) = 0;
 
-    const REBVAL *item = head;
+    const RELVAL *item = head;
     if (!IS_END(item) && IS_BLOCK(item)) {
         // Double blocks are a variadic signal.
         if (!IS_END(item + 1))
@@ -229,7 +229,7 @@ REBOOL Update_Typeset_Bits_Core(
         else {
             if (trap) return FALSE;
 
-            fail (Error_Invalid_Arg(item));
+            fail (Error_Invalid_Arg_Core(item, specifier));
         }
     }
 

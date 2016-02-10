@@ -385,7 +385,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     // invocation (if it had no refinements or locals).
     //
     REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(f->func));
-    REBVAL *code = ARR_HEAD(code_array);
+    RELVAL *code = ARR_HEAD(code_array);
 
     // We'll walk through the original functions param and arglist only, and
     // accept the error-checking the evaluator provides at this time (types,
@@ -403,11 +403,11 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     // at the head...
     //
     REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->func) + 1);
-    REBVAL *path = ARR_HEAD(path_array);
+    RELVAL *path = ARR_HEAD(path_array);
 
     REBVAL first;
 
-    *path = *FUNC_VALUE(func_new);
+    *SINK(path) = *FUNC_VALUE(func_new);
     ++path;
 
     for (; NOT_END(param); ++param, ++arg) {
@@ -439,7 +439,8 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
         //
         if (ignoring) continue;
 
-        *code++ = *arg;
+        *SINK(code) = *arg;
+        ++code;
     }
 
     SET_END(code);
@@ -455,7 +456,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     //
     indexor = Do_Array_At_Core(
         f->out,
-        &first, // path not in array but will be "virtual" first array element
+        &first, // path not in array, will be "virtual" first element
         code_array,
         0, // index
         SPECIFIED, // reusing existing REBVAL arguments, no relative values

@@ -138,7 +138,7 @@ void Expand_Hash(REBSER *ser)
 static void Expand_Word_Table(void)
 {
     REBCNT *hashes;
-    REBVAL *word;
+    RELVAL *word;
     REBINT hash;
     REBCNT size;
     REBINT skip;
@@ -152,15 +152,19 @@ static void Expand_Word_Table(void)
     word = ARR_AT(PG_Word_Table.array, 1);
     hashes = SER_HEAD(REBCNT, PG_Word_Table.hashes);
     size = SER_LEN(PG_Word_Table.hashes);
+
     for (n = 1; n < ARR_LEN(PG_Word_Table.array); n++, word++) {
         const REBYTE *name = VAL_SYM_NAME(word);
         hash = Hash_Word(name, LEN_BYTES(name));
-        skip  = (hash & 0x0000FFFF) % size;
+
+        skip = (hash & 0x0000FFFF) % size;
         if (skip == 0) skip = 1;
+
         hash = (hash & 0x00FFFF00) % size;
         while (hashes[hash]) {
             hash += skip;
-            if (hash >= (REBINT)size) hash -= size;
+            if (hash >= cast(REBINT, size))
+                hash -= size;
         }
         hashes[hash] = n;
     }
@@ -194,14 +198,14 @@ static REBCNT Make_Word_Name(const REBYTE *str, REBCNT len)
 //
 REBCNT Make_Word(const REBYTE *str, REBCNT len)
 {
-    REBINT  hash;
-    REBINT  size;
-    REBINT  skip;
-    REBINT  n;
-    REBCNT  h;
-    REBCNT  *hashes;
-    REBVAL  *words;
-    REBVAL  *w;
+    REBINT hash;
+    REBINT size;
+    REBINT skip;
+    REBINT n;
+    REBCNT h;
+    REBCNT *hashes;
+    RELVAL *words;
+    RELVAL *w;
 
     //REBYTE *sss = Get_Sym_Name(1);    // (Debugging method)
 

@@ -209,13 +209,13 @@ REBVAL *Get_Var_Core(
 //
 static void Bind_Values_Inner_Loop(
     REBINT *binds,
-    REBVAL *head,
+    RELVAL *head,
     REBCTX *context,
     REBU64 bind_types, // !!! REVIEW: force word types low enough for 32-bit?
     REBU64 add_midstream_types,
     REBFLGS flags
 ) {
-    REBVAL *value = head;
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
 
@@ -290,7 +290,7 @@ static void Bind_Values_Inner_Loop(
 // bindings that come after the added value is seen will be bound.
 //
 void Bind_Values_Core(
-    REBVAL *head,
+    RELVAL *head,
     REBCTX *context,
     REBU64 bind_types,
     REBU64 add_midstream_types,
@@ -334,9 +334,9 @@ void Bind_Values_Core(
 // bound to a particular target (if target is NULL, then all
 // words will be unbound regardless of their VAL_WORD_CONTEXT).
 //
-void Unbind_Values_Core(REBVAL *head, REBCTX *context, REBOOL deep)
+void Unbind_Values_Core(RELVAL *head, REBCTX *context, REBOOL deep)
 {
-    REBVAL *value = head;
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         if (
             ANY_WORD(value)
@@ -344,7 +344,8 @@ void Unbind_Values_Core(REBVAL *head, REBCTX *context, REBOOL deep)
                 !context
                 || (
                     IS_WORD_BOUND(value)
-                    && VAL_WORD_CONTEXT(value) == context
+                    && !IS_RELATIVE(value)
+                    && VAL_WORD_CONTEXT(KNOWN(value)) == context
                 )
             )
         ) {
@@ -492,10 +493,10 @@ void Bind_Stack_Word(REBFUN *func, REBVAL *word)
 void Rebind_Values_Deep(
     REBCTX *src,
     REBCTX *dst,
-    REBVAL *head,
+    RELVAL *head,
     REBINT *opt_binds
 ) {
-    REBVAL *value = head;
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), opt_binds);
@@ -504,7 +505,7 @@ void Rebind_Values_Deep(
             ANY_WORD(value)
             && GET_VAL_FLAG(value, WORD_FLAG_BOUND)
             && !GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && VAL_WORD_CONTEXT(value) == src
+            && VAL_WORD_CONTEXT(KNOWN(value)) == src
         ) {
             INIT_WORD_CONTEXT(value, dst);
 
@@ -542,9 +543,9 @@ void Rebind_Values_Deep(
 void Rebind_Values_Relative_Deep(
     REBFUN *src,
     REBFUN *dst,
-    REBVAL *head
+    RELVAL *head
 ) {
-    REBVAL *value = head;
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Relative_Deep(src, dst, VAL_ARRAY_AT(value));
@@ -569,8 +570,8 @@ void Rebind_Values_Relative_Deep(
 // !!! This function is temporary and should not be necessary after the FRAME!
 // is implemented.
 //
-void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL *head) {
-    REBVAL *value = head;
+void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, RELVAL *head) {
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_ARRAY(value)) {
             Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));

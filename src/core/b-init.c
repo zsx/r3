@@ -234,7 +234,7 @@ static void Do_Global_Block(
     REBINT rebind,
     REBVAL *opt_toplevel_word
 ) {
-    REBVAL *item = ARR_AT(block, index);
+    RELVAL *item = ARR_AT(block, index);
     struct Reb_State state;
 
     REBVAL result;
@@ -261,7 +261,7 @@ static void Do_Global_Block(
         item = ARR_AT(block, index);
         for (; NOT_END(item); item++) {
             if (IS_PATH(item)) {
-                REBVAL *path_item = VAL_ARRAY_HEAD(item);
+                RELVAL *path_item = VAL_ARRAY_HEAD(item);
                 if (
                     IS_WORD(path_item) && (
                         VAL_WORD_SYM(path_item)
@@ -271,7 +271,7 @@ static void Do_Global_Block(
                     // Steal binding, but keep the same word type
                     //
                     enum Reb_Kind kind = VAL_TYPE(path_item);
-                    *path_item = *opt_toplevel_word;
+                    *SINK(path_item) = *opt_toplevel_word;
                     VAL_SET_TYPE_BITS(path_item, kind);
                 }
             }
@@ -361,7 +361,7 @@ static void Load_Boot(void)
 //
 static void Init_Datatypes(void)
 {
-    REBVAL *word = VAL_ARRAY_HEAD(&Boot_Block->types);
+    RELVAL *word = VAL_ARRAY_HEAD(&Boot_Block->types);
     REBARR *specs = VAL_ARRAY(&Boot_Block->typespecs);
     REBVAL *value;
     REBINT n;
@@ -473,6 +473,7 @@ REBNATIVE(action)
             fail (Error(RE_MISC));
         }
     }
+    assert(VAL_INDEX(ARG(spec)) == 0); // must be at head as we don't copy
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
@@ -611,7 +612,7 @@ static void Init_Natives(void)
         Val_Init_Object(ROOT_FUNCTION_META, function_meta);
     }
 
-    REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
+    RELVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
     REBCNT n = 0;
     REBVAL *action_word;
 
@@ -1263,6 +1264,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 static void Init_Main_Args(REBARGS *rargs)
 {
     REBVAL *val;
+    RELVAL *item;
     REBARR *array;
     REBCHR *data;
     REBCNT n;
@@ -1270,9 +1272,10 @@ static void Init_Main_Args(REBARGS *rargs)
     array = Make_Array(3);
     n = 2; // skip first flag (ROF_EXT)
     val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-    for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++) {
-        CLEAR_VAL_FLAG(val, VALUE_FLAG_LINE);
-        if (rargs->options & n) Append_Value(array, val);
+    for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
+        CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
+        if (rargs->options & n)
+            Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
         n <<= 1;
     }
     val = Alloc_Tail_Array(array);

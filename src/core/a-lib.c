@@ -944,7 +944,7 @@ RL_API u32 *RL_Map_Words(REBARR *array)
 {
     REBCNT i = 1;
     u32 *words;
-    REBVAL *val = ARR_HEAD(array);
+    RELVAL *val = ARR_HEAD(array);
 
     words = OS_ALLOC_N(u32, ARR_LEN(array) + 2);
 
@@ -1100,7 +1100,7 @@ RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 //
 RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 {
-    REBVAL *value;
+    RELVAL *value;
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
     Value_To_RXI(result, value);
@@ -1131,7 +1131,7 @@ RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
         return TRUE;
     }
 
-    *ARR_AT(array, index) = value;
+    *SINK(ARR_AT(array, index)) = value;
 
     return FALSE;
 }

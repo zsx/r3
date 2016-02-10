@@ -724,10 +724,10 @@ void Make_OS_Error(REBVAL *out, int errnum)
 // 
 // Scan a block, collecting all of its SET words as a block.
 //
-REBARR *Collect_Set_Words(REBVAL *val)
+REBARR *Collect_Set_Words(RELVAL *val)
 {
     REBCNT count = 0;
-    REBVAL *val2 = val;
+    RELVAL *val2 = val;
     REBARR *array;
 
     for (; NOT_END(val); val++) if (IS_SET_WORD(val)) count++;

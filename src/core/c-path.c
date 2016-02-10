@@ -382,7 +382,7 @@ REBOOL Do_Path_Throws_Core(
                     VAL_INDEX(pvs.item),
                     IS_RELATIVE(pvs.item)
                         ? pvs.specifier
-                        : VAL_SPECIFIER(pvs.item)
+                        : VAL_SPECIFIER(const_KNOWN(pvs.item))
                 )) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);

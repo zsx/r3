@@ -117,12 +117,14 @@ REBARR *List_Func_Typesets(REBVAL *func)
 
     for (; !IS_END(typeset); typeset++) {
         REBVAL *value = Alloc_Tail_Array(array);
+
+        assert(IS_TYPESET(typeset));
         *value = *typeset;
 
         // !!! It's already a typeset, but this will clear out the header
         // bits.  This may not be desirable over the long run (what if
         // a typeset wishes to encode hiddenness, protectedness, etc?)
-
+        //
         VAL_RESET_HEADER(value, REB_TYPESET);
     }
 
@@ -308,7 +310,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 // [catch] and [throw] during Rebol2 => Rebol3 migration,
                 // but ignore them.
                 //
-                REBVAL *attribute = VAL_ARRAY_AT(item);
+                RELVAL *attribute = VAL_ARRAY_AT(item);
                 for (; NOT_END(attribute); attribute++) {
                     if (IS_WORD(attribute)) {
                         if (VAL_WORD_SYM(attribute) == SYM_CATCH)
@@ -721,16 +723,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 //
 REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 {
-    REBVAL *params = ARR_AT(paramlist, 1);
+    RELVAL *param = ARR_AT(paramlist, 1);
     REBCNT len = ARR_LEN(paramlist);
 
     REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
 
     REBCNT n;
-    for (n = 1; n < len; n++, params++) {
+    for (n = 1; n < len; ++n, ++param) {
         if (
-            sym == VAL_TYPESET_SYM(params)
-            || canon == VAL_TYPESET_CANON(params)
+            sym == VAL_TYPESET_SYM(param)
+            || canon == VAL_TYPESET_CANON(param)
         ) {
             return n;
         }
@@ -2310,7 +2312,7 @@ REBNATIVE(apply)
 //
 REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
     assert(n != 0 && n < ARR_LEN(FUNC_PARAMLIST(f)));
-    return ARR_AT(FUNC_PARAMLIST(f), (n));
+    return SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), (n));
 }
 
 

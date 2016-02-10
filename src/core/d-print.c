@@ -487,7 +487,7 @@ void Debug_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 //
 //  Debug_Values: C
 //
-void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
+void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
 {
     REBCNT i1;
     REBCNT i2;

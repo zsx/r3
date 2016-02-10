@@ -867,7 +867,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         // For a system error coming from a C va_list call, the # of
         // GET-WORD!s in the format block should match the va_list supplied.
 
-        REBVAL *temp = VAL_ARRAY_HEAD(message);
+        RELVAL *temp = VAL_ARRAY_HEAD(message);
         expected_args = 0;
         while (NOT_END(temp)) {
             if (IS_GET_WORD(temp))
@@ -919,7 +919,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         REBCNT root_len = CTX_LEN(root_error);
         REBVAL *key;
         REBVAL *value;
-        REBVAL *temp;
+        RELVAL *temp;
         REBSER *keylist;
 
         // Should the error be well-formed, we'll need room for the new
@@ -1116,7 +1116,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             REBDSP dsp_orig = DSP;
             REBINT start = FRM_INDEX(FS_TOP) - 3;
             REBCNT count = 0;
-            REBVAL *item;
+            RELVAL *item;
 
             REBVAL marker;
             REBVAL ellipsis;
@@ -1129,7 +1129,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             }
             item = ARR_AT(FRM_ARRAY(frame), start);
             while (NOT_END(item) && count++ < 6) {
-                DS_PUSH(item);
+                DS_PUSH_RELVAL(item, frame->specifier);
                 if (count == FRM_INDEX(frame) - start)
                     DS_PUSH(&marker);
                 ++item;
@@ -1324,17 +1324,29 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 
 
 //
-//  Error_Invalid_Arg: C
+//  Error_Invalid_Arg_Core: C
 // 
 // This error is pretty vague...it's just "invalid argument"
 // and the value with no further commentary or context.  It
 // becomes a catch all for "unexpected input" when a more
 // specific error would be more useful.
 //
-REBCTX *Error_Invalid_Arg(const REBVAL *value)
+REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBCTX *specifier)
 {
     assert(NOT_END(value)); // can't use with END markers
-    return Error(RE_INVALID_ARG, value, END_CELL);
+
+    REBVAL specific;
+    COPY_VALUE(&specific, value, specifier);
+
+    return Error(RE_INVALID_ARG, &specific, END_CELL);
+}
+
+
+//
+//  Error_Invalid_Arg: C
+//
+REBCTX *Error_Invalid_Arg(const REBVAL *value) {
+    return Error_Invalid_Arg_Core(value, SPECIFIED);
 }
 
 
@@ -1680,7 +1692,10 @@ REBYTE *Security_Policy(REBSYM sym, REBVAL *name)
     // Scan block of policies for the class: [file [allow read quit write]]
     len = 0;    // file or url length
     flags = 0;  // policy flags
-    for (policy = VAL_ARRAY_HEAD(policy); NOT_END(policy); policy += 2) {
+
+    policy = KNOWN(VAL_ARRAY_HEAD(policy)); // no relatives in STATE_POLICIES
+
+    for (; NOT_END(policy); policy += 2) {
 
         // Must be a policy tuple:
         if (!IS_TUPLE(policy+1)) goto error;
@@ -1708,10 +1723,12 @@ REBYTE *Security_Policy(REBSYM sym, REBVAL *name)
     if (!flags) {
         errcode = RE_SECURITY;
         policy = name ? name : 0;
+
+        REBVAL temp;
 error:
         if (!policy) {
-            Val_Init_Word(DS_TOP, REB_WORD, sym);
-            policy = DS_TOP;
+            Val_Init_Word(&temp, REB_WORD, sym);
+            policy = &temp;
         }
         fail (Error(errcode, policy));
     }
