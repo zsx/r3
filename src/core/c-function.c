@@ -2158,9 +2158,8 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // If applying an existing FRAME! there should be no need to push vars
     // for it...it should have its own space.
     //
-    REBFUN *under;
     if (opt_def) {
-        under = Push_Or_Alloc_Args_For_Underlying_Func(f);
+        Push_Or_Alloc_Args_For_Underlying_Func(f);
     }
     else {
         // f->func and f->exit_from should already be set
@@ -2177,7 +2176,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         ASSERT_CONTEXT(AS_CONTEXT(f->varlist));
         f->stackvars = NULL;
 
-        under = f->func;
         f->arg = FRM_ARGS_HEAD(f);
         f->param = FUNC_PARAMS_HEAD(f->func); // !!! Review
     }
@@ -2186,56 +2184,21 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     f->cell.subfeed = NULL;
 
     if (opt_def) {
-        //
-        // !!! Prior to specific binding, it's necessary to signal to the
-        // Is_Function_Frame_Fulfilling() that this frame is *not* fulfilling
-        // by setting f->param to END_CELL.  That way it will be considered
-        // a valid target for the stack walk to do the binding.
-        //
-        const REBVAL *param_saved = f->param;
-
-        f->param = END_CELL; // for Is_Function_Frame_Fulfilling() during GC
-        f->refine = NULL; // necessary since GC looks at it
-
-        if (f->varlist != NULL) {
-            //
-            // Here we are binding with a maybe-not-valid context.  Should
-            // probably just use the keylist...
-            //
-            REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
-
-            // There's a pool-allocated context, specific binding available
-            //
-            Bind_Values_Core(
-                VAL_ARRAY_AT(opt_def),
-                frame_ctx,
-                FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
-                0, // types to "add midstream" to binding as we go (nothing)
-                BIND_DEEP
-            );
-        }
-        else {
-            // Relative binding (long term this would be specific also)
-            //
-            Bind_Relative_Deep(
-                under, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
-            );
-        }
-
-        REBFUN *func_saved = f->func; // another pre-specific binding hack
-        f->func = under;
+        Bind_Values_Core(
+            VAL_ARRAY_AT(opt_def),
+            Context_For_Frame_May_Reify_Core(f),
+            FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
+            0, // types to "add midstream" to binding as we go (nothing)
+            BIND_DEEP
+        );
 
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
         //
         if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def)) {
-            f->func = func_saved;
             DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
-
-        f->func = func_saved;
-        f->param = param_saved;
     }
 
     SET_END(f->out);

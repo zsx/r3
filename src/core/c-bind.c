@@ -51,28 +51,27 @@ REBVAL *Get_Var_Core(
     REBCTX *specifier,
     REBFLGS flags
 ) {
+    REBCTX *context;
+
     assert(ANY_WORD(any_word));
 
     if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
         //
-        // RELATIVE CONTEXT: Word is stack-relative bound to a function with
-        // no persistent varlist held by the GC.  The value *might* be found
-        // on the stack (or not, if all instances of the function on the
-        // call stack have finished executing).  We walk backward in the call
-        // stack to see if we can find the function's "identifying series"
-        // in a call frame...and take the first instance we see (even if
-        // multiple invocations are on the stack, most recent wins)
+        // RELATIVE BINDING: The word was made during a deep copy of the block
+        // that was given as a function's body, and stored a reference to that
+        // FUNCTION! as its binding.  To get a variable for the word, we must
+        // find the right function call on the stack (if any) for the word to
+        // refer to (the FRAME!)
         //
-        // !!! This is the temporary answer to relative binding.  NewFunction
-        // aims to resolve relative bindings with the help of an extra
-        // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
-        // REBVALs that are "viewing" an array that contains relatively
-        // bound elements.  That extra parameter will fill in the *actual*
-        // frame so this code will not have to guess that "the last stack
-        // level is close enough"
-
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
+        // R3-Alpha would look at the function call stack, and use the most
+        // recent invocation.  This "dynamic binding" had undesirable
+        // properties, and Ren-C achieves "specific binding" to make sure
+        // that words preserve their linkage to the correct instance of the
+        // function invocation they originated in.
+        //
+        // !!! Specific binding is a work in progress.  As an interim step
+        // while it is being worked on, a failure of specificity will fall
+        // back upon the R3-Alpha dynamic binding...just searching the stack.
 
         struct Reb_Frame *frame =
             Frame_For_Relative_Word(
@@ -86,91 +85,107 @@ REBVAL *Get_Var_Core(
             return NULL;
         }
 
-        REBVAL *key = FUNC_PARAM(FRM_FUNC(frame), index);
-
-        if (flags & GETVAR_IS_SETVAR) {
-            if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
-                fail (Error(RE_LOCKED_WORD, any_word));
-
-            if (*lookback != GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)) {
-                //
-                // Because infixness is no longer a property of values but of
-                // the key in a binding, this creates a problem if you want a
-                // local in a function to serve as infix...because the effect
-                // would be felt by all instances of that function.  One
-                // recursion should not be able to affect another in that way,
-                // so it is prohibited.
-                //
-                // !!! This problem already prohibits a PROTECT of function
-                // words, so if a solution were engineered for one it would
-                // likely be able to apply to both.
-
-                fail (Error(RE_MISC));
-            }
-        }
-
-        value = FRM_ARG(frame, index);
-        assert(!THROWN(value));
-
-        assert(NOT(GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)));
-        *lookback = FALSE;
-        return value;
+        assert(frame->varlist != NULL);
+        assert(GET_ARR_FLAG(frame->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+        context = AS_CONTEXT(frame->varlist);
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //
-        // The word is bound directly to a value inside a varlist, and
-        // represents the zero-based offset into that series.  This is how
-        // values would be picked out of object-like things...
+        // SPECIFIC BINDING: The context the word is bound to is explicitly
+        // contained in the `any_word` REBVAL payload.  Just extract it.
         //
-        // (Including e.g. looking up 'append' in the user context.)
+        context = VAL_WORD_CONTEXT(const_KNOWN(any_word));
+    }
+    else {
+        // If a word is neither relatively nor specifically bound, then it
+        // is unbound and there is no way to get a REBVAL* from it.  Raise
+        // an error, or just return NULL if told to trap it.
 
-        REBCTX *context = VAL_WORD_CONTEXT(const_KNOWN(any_word));
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
+        if (flags & GETVAR_UNBOUND_OK) return NULL;
 
-        assert(
-            SAME_SYM(
-                VAL_WORD_SYM(any_word), CTX_KEY_SYM(context, index)
-            )
-        );
+        fail (Error(RE_NOT_BOUND, any_word));
+    }
 
-        if (
-            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-        ) {
-            // In R3-Alpha, the closure construct created a persistent object
-            // which would keep all of its args, refinements, and locals
-            // alive after the closure ended.  In trying to eliminate the
-            // distinction between FUNCTION! and CLOSURE! in Ren-C, the
-            // default is for them not to survive...though a mechanism for
-            // allowing some to be marked ("<durable>") is under development.
+    // If the word is bound, then it should have an index (currently nonzero)
+    //
+    REBCNT index = VAL_WORD_INDEX(any_word);
+    assert(index != 0);
+
+    REBVAL *key = CTX_KEY(context, index);
+
+    // Check that the symbol matches the one the word thought it did.
+    //
+    // !!! Review if the symbol not matching could be used as a "cache miss"
+    // and a way of being able to delete key/val pairs from objects.
+    //
+    assert(SAME_SYM(VAL_WORD_SYM(any_word), VAL_TYPESET_SYM(key)));
+
+    REBVAL *var;
+
+    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
+        if (!GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)) {
             //
-            // In the meantime, report the same error as a function which
-            // is no longer on the stack.
+            // Currently if a context has a stack component, then the vars
+            // are "all stack"...so when that level is popped, all the vars
+            // will be unavailable.  There is a <durable> mechanism, but that
+            // makes all the variables come from an ordinary pool-allocated
+            // series.  Hybrid approaches which have "some stack and some
+            // durable" will be possible in the future, as a context can
+            // mechanically have both stackvars and a dynamic data pointer.
 
             if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             fail (Error(RE_NO_RELATIVE, any_word));
         }
 
-        REBVAL *key = CTX_KEY(context, index);
+        assert(CTX_STACKVARS(context) != NULL);
 
-        value = CTX_VAR(context, index);
-        assert(!THROWN(value));
+        var = FRM_ARG(CTX_FRAME(context), index);
+    }
+    else
+        var = CTX_VAR(context, index);
 
-        if (NOT(flags & GETVAR_IS_SETVAR)) {
-            *lookback = GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
-            return value;
-        }
+    if (NOT(flags & GETVAR_IS_SETVAR)) {
+        //
+        // If we're just reading the variable, we don't touch its lookback
+        // bit, but return the value for callers to check.  (E.g. the
+        // evaluator wants to know when it fetches the value for a word
+        // if it wants to lookback for infix purposes, if it's a function)
+        //
+        *lookback = GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+    }
+    else {
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)) {
+            //
+            // The key corresponding to the var being looked up contains
+            // some flags, including one of whether or not the variable is
+            // locked from writes.  If mutable access was requested, deny
+            // it if this flag is set.
 
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
+            if (flags & GETVAR_UNBOUND_OK) return NULL;
+
             fail (Error(RE_LOCKED_WORD, any_word));
+        }
 
         // If we are writing, then we write the state of the lookback boolean
         // but also return what it was before.
 
         if (*lookback != GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)) {
             //
+            // Because infixness is no longer a property of values but of
+            // the key in a binding, this creates a problem if you want a
+            // local in a function to serve as infix...because the effect
+            // would be felt by all instances of that function.  One
+            // recursion should not be able to affect another in that way,
+            // so it is prohibited.
+            //
+            // !!! This problem already prohibits a PROTECT of function
+            // words, so if a solution were engineered for one it would
+            // likely be able to apply to both.
+            //
+            if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK))
+                fail (Error(RE_MISC));
+
             // Make sure if this context shares a keylist that we aren't
             // setting the other object's lookback states.  Current price paid
             // is making an independent keylist (same issue as adding a key)
@@ -189,15 +204,10 @@ REBVAL *Get_Var_Core(
             // We didn't have to change the lookback, so it must have matched
             // what was passed in...leave it alone.
         }
-
-        return value;
     }
 
-    // If none of the above cases matched, then it's not bound at all.
-
-    if (flags & GETVAR_UNBOUND_OK) return NULL;
-
-    fail (Error(RE_NOT_BOUND, any_word));
+    assert(!THROWN(var));
+    return var;
 }
 
 
