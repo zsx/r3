@@ -133,7 +133,7 @@ Script: [
 
     ; !!! Temporary errors while faulty constructs are still outstanding
     ; (more informative than just saying "function doesn't take that type")
-    use-eval-for-eval:  {Use EVAL (not DO) for inline evaluation of a value}
+    use-eval-for-eval:  {Use EVAL or APPLY to call functions arity > 0, not DO}
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
     apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}

@@ -616,6 +616,68 @@ set 'r3-legacy* func [] [
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
 
+        ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it
+        ; a function, it could "reach out" to grab arguments from after the
+        ; call.  While Ren-C permits this in variadic functions, the system
+        ; functions should be "well behaved" and there will even likely be
+        ; a security setting to turn variadics off (system-wide or per module)
+        ;
+        ; https://trello.com/c/YMAb89dv
+        ;
+        ; This legacy bridge is variadic to achieve the result.
+        ;
+        do: (function [
+            {Evaluates a block of source code (variadic <r3-legacy> bridge)}
+
+            source [unset! none! block! group! string! binary! url! file! tag!
+                error! function!
+            ]
+            normals [any-type! <...>]
+                {Normal variadic parameters if function (<r3-legacy> only)}
+            'softs [any-type! <...>]
+                {Soft-quote variadic parameters if function (<r3-legacy> only)}
+            :hards [any-type! <...>]
+                {Hard-quote variadic parameters if function (<r3-legacy> only)}
+            /args
+                {If value is a script, this will set its system/script/args}
+            arg
+                "Args passed to a script (normally a string)"
+            /next
+                {Do next expression only, return it, update block variable}
+            var [word! none!]
+                "Variable updated with new block position"
+        ][
+            next_DO: next
+            next: :lib/next
+
+            either function? :source [
+                code: reduce [:source]
+                params: words-of :source
+                while [params/1] [
+                    append code switch type-of params/1 [
+                        :word! [take normals]
+                        :lit-word! [take softs]
+                        :get-word! [take hards]
+                        :set-word! [()] ;-- unset appends nothing (for local)
+                        :refinement! [break]
+                        (fail ["bad param type" params/1])
+                    ]
+                    params: next params
+                ]
+                lib/do code
+            ][
+                apply :lib/do [
+                    source: :source
+                    if args: args [
+                        arg: :arg
+                    ]
+                    if next: next_DO [
+                        var: :var
+                    ]
+                ]
+            ]
+        ])
+
         ; Ren-C removed the "simple parse" functionality, which has been
         ; superseded by SPLIT.  For the legacy parse implementation, add
         ; it back in (more or less) by delegating to split.
@@ -935,7 +997,6 @@ set 'r3-legacy* func [] [
     ; refinements/etc.)
     ;
     system/options/lit-word-decay: true
-    system/options/do-runs-functions: true
     system/options/broken-case-semantics: true
     system/options/exit-functions-only: true
     system/options/refinements-true: true

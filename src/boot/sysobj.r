@@ -144,7 +144,6 @@ options: context [  ; Options supplied to REBOL during startup
     lit-word-decay: false
     exit-functions-only: false
     broken-case-semantics: false
-    do-runs-functions: false
     refinements-true: false
     forever-64-bit-ints: false
     print-forms-everything: false

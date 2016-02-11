@@ -1359,39 +1359,6 @@ reevaluate:
         }
     #endif
 
-    #if !defined(NDEBUG)
-        //
-        // R3-Alpha DO acted like an "EVAL" when passed a function, hence it
-        // would have an effective arity greater than 1 if that were the case.
-        // It was the only function that could do this.  Ren-C isolates the
-        // concept of a "re-evaluator" into a full-spectrum native that does
-        // *only* that, and is known to be "un-wrappable":
-        //
-        // https://trello.com/c/YMAb89dv
-        //
-        // With the VALUE_FLAG_REEVALUATE bit (which had been a cost on every
-        // REBVAL) now gone, we must hook the evaluator to implement the
-        // legacy feature for DO.
-        //
-        if (
-            LEGACY(OPTIONS_DO_RUNS_FUNCTIONS)
-            && IS_FUNCTION_AND(FUNC_VALUE(f->func), FUNC_CLASS_NATIVE)
-            && FUNC_CODE(f->func) == &N_do
-            && IS_FUNCTION(FRM_ARGS_HEAD(f))
-        ) {
-            // Grab the argument into the eval storage slot before abandoning
-            // the arglist.
-            //
-            f->cell.eval = *FRM_ARGS_HEAD(f);
-
-            f->eval_fetched = f->value;
-            f->value = &f->cell.eval;
-
-            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
-            goto drop_call_for_legacy_do_function;
-        }
-    #endif
-
     //==////////////////////////////////////////////////////////////////==//
     //
     // FUNCTION! THROWING OF "RETURN" + "LEAVE" DEFINITIONAL EXITs
@@ -1602,10 +1569,6 @@ reevaluate:
         assert(THROWN(f->out) == LOGICAL(f->mode == CALL_MODE_THROW_PENDING));
     #endif
 
-#if !defined(NDEBUG)
-    drop_call_for_legacy_do_function:
-#endif
-
     drop_call_and_return_thrown:
         //
         // The same label is currently used for both these outcomes, and
@@ -1756,22 +1719,6 @@ reevaluate:
         // so this clearing can't be done by the debug routine at top of loop.
         //
         f->data.stackvars = NULL;
-    #endif
-
-    #if !defined(NDEBUG)
-        if (f->eval_fetched) {
-            //
-            // All the eval wanted to do was get the call frame cleaned up.
-            //
-            // !!! This is only needed by the legacy implementation of DO
-            // for EVAL of functions, because it has to drop the pushed
-            // call with arguments.  Is there a cleaner way?
-            //
-            assert(LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-            assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY);
-            assert(f->indexor != THROWN_FLAG);
-            goto reevaluate;
-        }
     #endif
 
         // If the throw wasn't intercepted as an exit from this function call,

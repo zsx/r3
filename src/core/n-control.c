@@ -922,7 +922,9 @@ REBNATIVE(do)
     REFINE(4, next);
     PARAM(5, var); // if NONE!, DO/NEXT only but no var update
 
-    switch (VAL_TYPE(ARG(value))) {
+    REBVAL *value = ARG(value);
+
+    switch (VAL_TYPE(value)) {
     case REB_UNSET:
         // useful for `do if ...` types of scenarios
         return R_UNSET;
@@ -934,12 +936,12 @@ REBNATIVE(do)
     case REB_BLOCK:
     case REB_GROUP:
         if (REF(next)) {
-            REBIXO indexor = VAL_INDEX(ARG(value));
+            REBIXO indexor = VAL_INDEX(value);
 
             DO_NEXT_MAY_THROW(
                 indexor, // updated
                 D_OUT,
-                VAL_ARRAY(ARG(value)),
+                VAL_ARRAY(value),
                 indexor
             );
 
@@ -951,7 +953,7 @@ REBNATIVE(do)
                 // longer actually the expression that started the throw?
 
                 if (!IS_NONE(ARG(var)))
-                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
+                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *value;
                 return R_OUT_IS_THROWN;
             }
 
@@ -966,9 +968,9 @@ REBNATIVE(do)
                 // recover the series again...you'd have to save it.
                 //
                 if (indexor == END_FLAG)
-                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
+                    VAL_INDEX(value) = VAL_LEN_HEAD(value);
                 else
-                    VAL_INDEX(ARG(value)) = cast(REBCNT, indexor);
+                    VAL_INDEX(value) = cast(REBCNT, indexor);
 
                 *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
             }
@@ -976,7 +978,7 @@ REBNATIVE(do)
             return R_OUT;
         }
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(value)))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, value))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -992,7 +994,7 @@ REBNATIVE(do)
         if (Apply_Only_Throws(
             D_OUT,
             Sys_Func(SYS_CTX_DO_P),
-            ARG(value),
+            value,
             REF(args) ? ARG(arg) : UNSET_VALUE,
             REF(next) ? ARG(var) : UNSET_VALUE,
             END_VALUE
@@ -1009,22 +1011,33 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_CONTEXT(ARG(value)));
+        fail (VAL_CONTEXT(value));
 
-    case REB_TASK:
-        Do_Task(ARG(value));
-        *D_OUT = *ARG(value);
+    case REB_FUNCTION: {
+        //
+        // Ren-C will only run arity 0 functions from DO, otherwise EVAL
+        // must be used.  Look for the first non-local parameter to tell.
+        //
+        REBVAL *param = FUNC_PARAMS_HEAD(VAL_FUNC(value));
+        while (
+            NOT_END(param)
+            && (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
+        ) {
+            ++param;
+        }
+        if (NOT_END(param))
+            fail (Error(RE_USE_EVAL_FOR_EVAL));
+
+        if (DO_VALUE_THROWS(D_OUT, value))
+            return R_OUT_IS_THROWN;
         return R_OUT;
     }
 
-#if !defined(NDEBUG)
-    //
-    // !!! The LEGACY mode for DO that allows it to run functions is,
-    // like EVAL, implemented as part of the evaluator by recognizing
-    // the &N_do native function pointer.
-    //
-    assert(!LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-#endif
+    case REB_TASK:
+        Do_Task(value);
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
     // Note: it is not possible to write a wrapper function in Rebol
     // which can do what EVAL can do for types that consume arguments
