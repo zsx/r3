@@ -408,7 +408,7 @@ struct Reb_Frame {
     //
     REBIXO indexor;
 
-    // `opt_label_sym` [INTERNAL, READ-ONLY]
+    // `label_sym` [INTERNAL, READ-ONLY]
     //
     // Functions don't have "names", though they can be assigned to words.
     // Typically the label symbol is passed into the evaluator as SYM_0 and
@@ -416,7 +416,7 @@ struct Reb_Frame {
     // is possible for Do_Core to be called with a preloaded symbol for
     // better debugging descriptivity.
     //
-    REBSYM opt_label_sym;
+    REBSYM label_sym;
 
     // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE]
     //
@@ -565,17 +565,17 @@ struct Reb_Frame {
     //
     const char *label_str;
 
-    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
-    //
-    struct Reb_State state;
-
     // `do_count` [INTERNAL, DEBUG, READ-ONLY]
     //
     // The `do_count` represents the expression evaluation "tick" where the
     // Reb_Frame is starting its processing.  This is helpful for setting
     // breakpoints on certain ticks in reproducible situations.
     //
-    REBCNT do_count; // !!! Move to dynamic data, available in a debug mode?
+    REBUPT do_count; // !!! Move to dynamic data, available in a debug mode?
+
+    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
+    //
+    struct Reb_State state;
 #endif
 };
 
@@ -677,7 +677,7 @@ struct Reb_Frame {
         (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
-        (f)->opt_label_sym = SYM_0; \
+        (f)->label_sym = SYM_0; \
         (f)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
         (f)->prior = TG_Frame_Stack; \
         TG_Frame_Stack = f; \
@@ -1131,7 +1131,7 @@ struct Native_Refine {
 
 #define FRM_OUT(f)          cast(REBVAL * const, (f)->out) // writable Lvalue
 #define FRM_PRIOR(f)        ((f)->prior)
-#define FRM_LABEL(f)        ((f)->opt_label_sym)
+#define FRM_LABEL(f)        ((f)->label_sym)
 
 #define FRM_FUNC(f)         ((f)->func)
 #define FRM_DSP_ORIG(f)     ((f)->dsp_orig + 0) // Lvalue

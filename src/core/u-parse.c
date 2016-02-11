@@ -991,7 +991,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
     const REBCNT *pos_debug = &P_POS;
     const REBI64 *result_debug = &P_RESULT;
 
-    REBCNT do_count = TG_Do_Count; // helpful to cache for visibility also
+    REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
 #endif
 
     const REBVAL *item;     // current rule item

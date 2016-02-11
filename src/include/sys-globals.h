@@ -137,7 +137,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // used for many purposes...including setting breakpoints in routines
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
-    TVAR REBCNT TG_Do_Count;
+    TVAR REBUPT TG_Do_Count;
 #endif
 
 // Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".

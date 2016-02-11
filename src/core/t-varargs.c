@@ -201,7 +201,7 @@ handle_subfeed:
         temp_frame.indexor = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
         temp_frame.eval_fetched = NULL;
-        temp_frame.opt_label_sym = SYM_NATIVE; // !!! lie, shouldn't be used
+        temp_frame.label_sym = SYM_NATIVE; // !!! lie, shouldn't be used
 
         f = &temp_frame;
     }

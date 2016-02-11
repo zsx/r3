@@ -68,8 +68,8 @@
     // Forward declarations for debug-build-only code--routines at end of
     // file.  (Separated into functions to reduce clutter in the main logic.)
     //
-    static REBCNT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f);
-    static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f);
+    static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f);
+    static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f);
     static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f);
 
     // The `do_count` should be visible in the C debugger watchlist as a
@@ -111,7 +111,7 @@
 void Do_Core(struct Reb_Frame * const f)
 {
 #if !defined(NDEBUG)
-    REBCNT do_count; // cache of `f->do_count` (improves watchlist visibility)
+    REBUPT do_count; // cache of `f->do_count` (improves watchlist visibility)
 #endif
 
     enum Reb_Param_Class pclass; // cached while fulfilling an argument
@@ -133,12 +133,12 @@ void Do_Core(struct Reb_Frame * const f)
         SNAP_STATE(&f->state); // to make sure stack balances, etc.
         do_count = Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
     #endif
-        f->opt_label_sym = SYM_0;
+        f->label_sym = SYM_0;
         break;
 
     case CALL_MODE_ARGS:
         assert(TG_Frame_Stack == f); // should already be pushed
-        assert(f->opt_label_sym != SYM_0);
+        assert(f->label_sym != SYM_0);
     #if !defined(NDEBUG)
         do_count = TG_Do_Count; // entry checks for debug not true here
     #endif
@@ -335,10 +335,10 @@ reevaluate:
             if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
                 fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
 
-            f->opt_label_sym = VAL_WORD_SYM(f->value);
+            f->label_sym = VAL_WORD_SYM(f->value);
 
         #if !defined(NDEBUG)
-            f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
+            f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
         #endif
 
             f->value = f->out;
@@ -441,7 +441,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_PATH:
-        if (Do_Path_Throws(f->out, &f->opt_label_sym, f->value, NULL)) {
+        if (Do_Path_Throws(f->out, &f->label_sym, f->value, NULL)) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
@@ -601,8 +601,8 @@ reevaluate:
         // Note: Because this is a function value being hit literally in
         // a block, no word was used to get it, so its name is unknown.
         //
-        if (f->opt_label_sym == SYM_0)
-            f->opt_label_sym = SYM___ANONYMOUS__;
+        if (f->label_sym == SYM_0)
+            f->label_sym = SYM___ANONYMOUS__;
 
     do_function_in_value:
         //
@@ -622,8 +622,8 @@ reevaluate:
         // string for it to be friendlier in the C debugging watchlist.
         //
     #if !defined(NDEBUG)
-        assert(f->opt_label_sym != SYM_0);
-        f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
+        assert(f->label_sym != SYM_0);
+        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
     #endif
 
         // There may be refinements pushed to the data stack to process, if
@@ -1609,8 +1609,8 @@ reevaluate:
         /*if (GET_VAL_FLAG(f->value, EXT_CONTEXT_RUNNING))
            fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
 
-        if (f->opt_label_sym == SYM_0)
-            f->opt_label_sym = SYM___ANONYMOUS__;
+        if (f->label_sym == SYM_0)
+            f->label_sym = SYM___ANONYMOUS__;
 
         assert(f->data.stackvars == NULL);
         f->data.context = VAL_CONTEXT(f->value);
@@ -1689,7 +1689,7 @@ reevaluate:
                 IS_FUNCTION(f->param)
                 && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)
             ) {
-                f->opt_label_sym = VAL_WORD_SYM(f->value);
+                f->label_sym = VAL_WORD_SYM(f->value);
                 f->func = VAL_FUNC(f->param);
 
                 // The warped function values used for definitional return
@@ -1812,10 +1812,9 @@ return_indexor:
 // any side-effects that affect the interpreter's ordinary operation.
 //
 
-
 #if !defined(NDEBUG)
 
-static REBCNT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
+static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 {
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -1905,7 +1904,7 @@ static REBCNT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 // making the code shareable allows code paths that jump to later spots
 // in the switch (vs. starting at the top) to reuse the work.
 //
-static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
+static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     // There shouldn't have been any "accumulated state", in the sense that
     // we should be back where we started in terms of the data stack, the
@@ -1959,10 +1958,10 @@ static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     f->func = cast(REBFUN*, 0xDECAFBAD);
 
-    if (f->opt_label_sym == SYM_0)
+    if (f->label_sym == SYM_0)
         f->label_str = "(no current label)";
     else
-        f->label_str = cast(const char*, Get_Sym_Name(f->opt_label_sym));
+        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
 
     f->param = cast(REBVAL*, 0xDECAFBAD);
     f->arg = cast(REBVAL*, 0xDECAFBAD);
@@ -1980,7 +1979,8 @@ static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
 
     // We bound the count at the max unsigned 32-bit, since otherwise it would
     // roll over to zero and print a message that wasn't asked for, which
-    // is annoying even in a debug build.
+    // is annoying even in a debug build.  (It's actually a REBUPT, so this
+    // wastes possible bits in the 64-bit build, but there's no MAX_REBUPT.)
     //
     if (TG_Do_Count < MAX_U32) {
         f->do_count = ++TG_Do_Count;
