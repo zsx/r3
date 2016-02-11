@@ -255,7 +255,7 @@ struct Reb_Value_Header {
     // marker...which we cannot overwrite...not even with another END marker.
     //
     #define SET_END(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = WRITABLE_MASK_DEBUG | REB_MAX)
 #endif
 
@@ -486,7 +486,7 @@ enum {
     // internal pointer of a container structure.
     //
     #define VAL_RESET_HEADER(v,t) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | (t))
 #endif
 
@@ -614,7 +614,6 @@ enum {
     //
     #define VAL_INIT_WRITABLE_DEBUG(v) \
         ( \
-            /* assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0), */ \
             (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
             SET_TRACK_PAYLOAD(v) \
         )
@@ -748,7 +747,7 @@ enum {
         ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_NONE)
 #else
     #define SET_NONE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = VALUE_FLAG_FALSE | \
             NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_NONE, \
         SET_TRACK_PAYLOAD(v))
@@ -788,13 +787,13 @@ enum {
             | VALUE_FLAG_FALSE)
 #else
     #define SET_TRUE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = REB_LOGIC | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v)) // compound
 
     #define SET_FALSE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
+        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = REB_LOGIC | NOT_END_MASK \
             | WRITABLE_MASK_DEBUG | VALUE_FLAG_FALSE, \
          SET_TRACK_PAYLOAD(v))  // compound

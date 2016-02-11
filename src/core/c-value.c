@@ -81,7 +81,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 
 
 //
-//  Assert_REBVAL_Writable: C
+//  Assert_Cell_Writable: C
 //
 // If this check fails, then you're either writing to memory you shouldn't,
 // or are writing to an "unformatted" stack value.  For instance:
@@ -102,12 +102,20 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 //
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
-void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
+void Assert_Cell_Writable(const REBVAL *v, const char *file, int line)
 {
+/*
+    // REBVALs should not be written at addresses that do not match the
+    // alignment of the processor.  This checks modulo the size of an unsigned
+    // integer the same size as a platform pointer (REBUPT => uintptr_t)
+    //
+    assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
+
     if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
         Debug_Fmt("Non-writable value found at %s:%d", file, line);
         Panic_Value(v);
     }
+*/
 }
 
 
