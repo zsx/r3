@@ -252,8 +252,10 @@ reevaluate:
     if (SPORADICALLY(2)) SET_TRASH_SAFE(f->out);
 
 #if !defined(NDEBUG)
-    do_count = Do_Core_Expression_Checks_Debug(f); // per-DO/NEXT debug checks
-    cast(void, do_count); // suppress unused warning
+    do_count = Do_Core_Expression_Checks_Debug(f);
+
+    if (do_count == DO_COUNT_BREAKPOINT)
+        debug_break(); // see %debug_break.h
 #endif
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1649,12 +1651,6 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    // There shouldn't have been any "accumulated state", in the sense that
-    // we should be back where we started in terms of the data stack, the
-    // mold buffer position, the outstanding manual series allocations, etc.
-    //
-    ASSERT_STATE_BALANCED(&f->state);
-
     // It's valid for the operations above to fall through after a fetch or
     // refetch that could have reached the end.
     //
@@ -1750,6 +1746,9 @@ reevaluate:
 
             #if !defined(NDEBUG)
                 do_count = Do_Core_Expression_Checks_Debug(f);
+
+                if (do_count == DO_COUNT_BREAKPOINT)
+                    debug_break(); // see %debug_break.h
             #endif
 
                 if (Trace_Flags) Trace_Line(f);
@@ -1769,12 +1768,6 @@ reevaluate:
     if (f->flags & DO_FLAG_TO_END) goto value_ready_for_do_next;
 
 return_indexor:
-    //
-    // Jumping here skips the natural check that would be done after the
-    // switch on the value being evaluated, so we assert balance here too.
-    //
-    ASSERT_STATE_BALANCED(&f->state);
-
 #if !defined(NDEBUG)
     Do_Core_Exit_Checks_Debug(f); // will get called unless a fail() longjmps
 #endif
@@ -1788,13 +1781,40 @@ return_indexor:
 }
 
 
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// DEBUG-BUILD ONLY CHECKS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// Due to the length of Do_Core() and how many debug checks it already has,
+// three debug-only routines are separated out:
+//
+// * Do_Core_Entry_Checks_Debug() runs once at the beginning of a Do_Core()
+//   call.  It verifies that the fields of the frame the caller has to
+//   provide have been pre-filled correctly, and snapshots bits of the
+//   interpreter state that are supposed to "balance back to zero" by the
+//   end of a run (assuming it completes, and doesn't longjmp from fail()ing)
+//
+// * Do_Core_Expression_Checks_Debug() runs before each full "expression"
+//   is evaluated, e.g. before each DO/NEXT step.  It makes sure the state
+//   balanced completely--so no DS_PUSH that wasn't balanced by a DS_POP
+//   or DS_DROP (for example).  It also trashes variables in the frame which
+//   might accidentally carry over from one step to another, so that there
+//   will be a crash instead of a casual reuse.
+//
+// * Do_Core_Exit_Checks_Debug() runs if the Do_Core() call makes it to the
+//   end without a fail() longjmping out from under it.  It also checks to
+//   make sure the state has balanced, and that the return result is
+//   consistent with the state being returned.
+//
+// Because none of these routines are in the release build, they cannot have
+// any side-effects that affect the interpreter's ordinary operation.
+//
+
+
 #if !defined(NDEBUG)
 
-//
-// The entry checks to DO are for verifying that the setup of the Reb_Frame
-// passed in was valid.  They run just once for each Do_Core() call, and
-// are only in the debug build.
-//
 static REBCNT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 {
     // Though we can protect the value written into the target pointer 'out'
@@ -1887,6 +1907,13 @@ static REBCNT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 //
 static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
+    // There shouldn't have been any "accumulated state", in the sense that
+    // we should be back where we started in terms of the data stack, the
+    // mold buffer position, the outstanding manual series allocations, etc.
+    //
+    ASSERT_STATE_BALANCED(&f->state);
+
+    //
     // The ->mode is examined by parts of the system as a sign of whether
     // the stack represents a function invocation or not.  If it is changed
     // from CALL_MODE_GUARD_ARRAY_ONLY during an evaluation step, it must
@@ -1951,45 +1978,45 @@ static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
-    // This counter is helpful for tracking a specific invocation.
-    // If you notice a crash, look on the stack for the topmost call
-    // and read the count...then put that here and recompile with
-    // a breakpoint set.  (The 'TG_Do_Count' value is captured into a
-    // local 'count' so you still get the right count after recursion.)
-    //
-    // We bound it at the max unsigned 32-bit because otherwise it would
+    // We bound the count at the max unsigned 32-bit, since otherwise it would
     // roll over to zero and print a message that wasn't asked for, which
     // is annoying even in a debug build.
     //
     if (TG_Do_Count < MAX_U32) {
         f->do_count = ++TG_Do_Count;
         if (f->do_count == DO_COUNT_BREAKPOINT) {
+            REBVAL dump = *f->value;
+
+            PROBE_MSG(&dump, "DO_COUNT_BREAKPOINT hit at...");
+
             if (f->indexor == VALIST_FLAG) {
                 //
-                // !!! Can't fetch the next value here without destroying the
-                // forward iteration.  Destructive debugging techniques could
-                // be added here on demand, or non-destructive ones that
-                // logged the va_list into a dynamically allocated array
-                // could be put in the debug build, etc.  Add when necessary.
+                // NOTE: This reifies the va_list in the frame, and hence has
+                // side effects.  It may need to be commented out if the
+                // problem you are trapping with DO_COUNT_BREAKPOINT was
+                // specifically with va_list frame processing.
                 //
-                Debug_Fmt(
-                    "Do_Core() count trap (va_list, no nondestructive fetch)"
-                );
+                const REBOOL truncated = TRUE;
+                Reify_Va_To_Array_In_Frame(f, truncated);
             }
-            else if (f->indexor == END_FLAG) {
-                assert(f->value != NULL);
-                Debug_Fmt("Performing EVAL at end of array (no args)");
-                PROBE_MSG(f->value, "Do_Core() count trap");
+
+            if (f->eval_fetched && NOT_END(f->eval_fetched)) {
+                dump = *f->eval_fetched;
+
+                PROBE_MSG(&dump, "EVAL in progress, so next will be...");
+            }
+
+            if (f->indexor == END_FLAG) {
+                Debug_Fmt("...then at end of array");
             }
             else {
                 REBVAL dump;
                 VAL_INIT_WRITABLE_DEBUG(&dump);
 
-                PROBE_MSG(f->value, "Do_Core() count trap");
                 Val_Init_Block_Index(
                     &dump, f->source.array, cast(REBCNT, f->indexor)
                 );
-                PROBE_MSG(&dump, "Do_Core() next up...");
+                PROBE_MSG(&dump, "...then this array for the next input");
             }
         }
     }
@@ -1998,10 +2025,13 @@ static REBCNT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
 }
 
 
-//
-// Run at the exit of Do_Core()
-//
 static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
+    //
+    // Make sure the data stack, mold stack, and other structures didn't
+    // accumulate any state over the course of the run.
+    //
+    ASSERT_STATE_BALANCED(&f->state);
+
     if (
         f->indexor != END_FLAG && f->indexor != THROWN_FLAG
         && f->indexor != VALIST_FLAG
