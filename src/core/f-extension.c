@@ -27,6 +27,12 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// NOTE: The R3-Alpha extension mechanism and API are deprecated in Ren-C.
+//
+// See %reb-ext.h for a general overview of R3-Alpha extensions.  Also:
+//
+// http://www.rebol.com/r3/docs/concepts/extensions-embedded.html
+//
 
 #include "sys-core.h"
 
@@ -322,7 +328,7 @@ ser:
 }
 
 
-void RXI_To_Block(RXIFRM *frm, REBVAL *out)
+void RXI_To_Block(RXIFRM *rxifrm, REBVAL *out)
 {
     // Note: This function is imported by %a-lib.c, keep prototype in sync
 
@@ -331,10 +337,10 @@ void RXI_To_Block(RXIFRM *frm, REBVAL *out)
     REBVAL *val;
     REBCNT len;
 
-    array = Make_Array(len = RXA_COUNT(frm));
+    array = Make_Array(len = RXA_COUNT(rxifrm));
     for (n = 1; n <= len; n++) {
         val = Alloc_Tail_Array(array);
-        RXI_To_Value(val, &frm->args[n], RXA_TYPE(frm, n));
+        RXI_To_Value(val, &rxifrm->rxiargs[n], RXA_TYPE(rxifrm, n));
     }
     Val_Init_Block(out, array);
 }
@@ -400,7 +406,8 @@ REBNATIVE(load_extension)
         }
 
         // Call its info() function for header and code body:
-        if (!(info = OS_FIND_FUNCTION(dll, cs_cast(BOOT_STR(RS_EXTENSION, 0))))){
+        info = OS_FIND_FUNCTION(dll, cs_cast(BOOT_STR(RS_EXTENSION, 0)));
+        if (!info){
             OS_CLOSE_LIBRARY(dll);
             fail (Error(RE_BAD_EXTENSION, val));
         }
@@ -413,7 +420,9 @@ REBNATIVE(load_extension)
 
         // Import the string into REBOL-land:
         src = Copy_Bytes(code, -1); // Nursery protected
-        call = OS_FIND_FUNCTION(dll, cs_cast(BOOT_STR(RS_EXTENSION, 2))); // zero is allowed
+        call = OS_FIND_FUNCTION(
+            dll, cs_cast(BOOT_STR(RS_EXTENSION, 2))
+        ); // zero is allowed
     }
     else {
         // Hosted extension:
@@ -451,13 +460,6 @@ REBNATIVE(load_extension)
 //
 //  Make_Command: C
 // 
-// A REB_COMMAND is used to connect a Rebol function spec to implementation
-// inside of a C DLL.  That implementation uses a set of APIs (RXIARG, etc.)
-// which were developed prior to Rebol becoming open source.  It was
-// intended that C developers could use an API that was a parallel subset
-// of Rebol's internal code, that would be binary stable to survive any
-// reorganizations.
-// 
 // `extension` is an object or module that represents the properties of the
 // DLL or shared library (including its DLL handle, load or unload status,
 // etc.)  `command-num` is a numbered function inside of that DLL, which
@@ -465,16 +467,6 @@ REBNATIVE(load_extension)
 // provided.  Though the same spec format is used as for ordinary functions
 // in Rebol, the allowed datatypes are more limited...as not all Rebol types
 // had a parallel interface under this conception.
-// 
-// Subsequent to the open-sourcing, the Ren/C initiative is not focusing on
-// the REB_COMMAND model--preferring to connect the Rebol core directly as
-// a library to bindings.  However, as it was the only extension model
-// available under closed-source Rebol3, several pieces of code were built
-// to depend upon it for functionality.  This included the cryptography
-// extensions needed for secure sockets and a large part of the GUI.
-// 
-// Being able to quarantine the REB_COMMAND machinery to only builds that
-// need it is a working objective.
 //
 void Make_Command(
     REBVAL *out,
@@ -587,58 +579,86 @@ REBNATIVE(make_command)
 
 //
 //  Do_Command_Core: C
-// 
-// Evaluates the arguments for a command function and creates
-// a resulting stack frame (struct or object) for command processing.
-// 
-// A command value consists of:
-//     args - same as other funcs
-//     spec - same as other funcs
-//     body - [ext-obj func-index]
 //
-void Do_Command_Core(struct Reb_Frame *frame_)
+// Because it cannot interact with REBVALs directly, a COMMAND! must have
+// the Reb_Frame's REBVAL[] array proxied into an array of RXIARGs inside
+// of an RXIFRM.  The arguments are indexed starting at 1, and there is a
+// a fixed maximum number of arguments (7 in R3-Alpha).  By convention, the
+// 1st argument slot in also serves as the slot for a return result.  There
+// is also an option by which the argument slots may be reused to effectively
+// return a BLOCK! of up to length 7.
+//
+// No guarantees are made about the lifetime of series inside of RXIARGs,
+// and they are not protected from the garbage collector.
+//
+// !!! The very ad-hoc nature of the R3-Alpha extension API has made it a
+// legacy-maintenance-only area.  See notes in %reb-ext.h.
+//
+void Do_Command_Core(struct Reb_Frame *f)
 {
-    // All of these were checked above on definition:
-    REBVAL *val = ARR_HEAD(FUNC_BODY(D_FUNC));
-    // Handler
-    REBEXT *ext = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(val, SELFISH(1)))];
-    REBCNT cmd = cast(REBCNT, Int32(val + 1));
+    // For a "body", a command has a data array with [ext-obj func-index]
+    // See Make_Command() for an explanation of these two values.
+    //
+    REBVAL *data = ARR_HEAD(FUNC_BODY(f->func));
+    REBEXT *handler = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(data, SELFISH(1)))];
+    REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 
     REBCNT n;
-    RXIFRM frm; // args stored here
+    RXIFRM rxifrm;
 
-    // Copy args to command frame (array of args):
-    RXA_COUNT(&frm) = D_ARGC;
-    if (D_ARGC > 7) fail (Error(RE_BAD_COMMAND));
-    val = D_ARG(1);
-    for (n = 1; n <= D_ARGC; n++, val++) {
-        RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
-        Value_To_RXI(&frm.args[n], val);
+    REBVAL *arg;
+
+    if (FRM_NUM_ARGS(f) >= RXIFRM_MAX_ARGS) // fixed # of rxiargs in struct :-/
+        fail (Error(RE_BAD_COMMAND));
+
+    // Proxy array of REBVAL to array of RXIARG inside of the RXIFRM.
+    //
+    RXA_COUNT(&rxifrm) = FRM_NUM_ARGS(f); // count is put into rxiargs[0] cell
+    arg = FRM_ARGS_HEAD(f);
+    n = 1; // values start at the rxiargs[1] cell, arbitrary max at rxifrm[7]
+    for (; NOT_END(arg); ++arg, ++n) {
+        RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE_0(arg)];
+        Value_To_RXI(&rxifrm.rxiargs[n], arg);
     }
 
-    // Call the command:
-    n = ext->call(cmd, &frm, cast(REBCEC*, TG_Command_Execution_Context));
+    n = handler->call(
+        cmd_num, &rxifrm, cast(REBCEC*, TG_Command_Execution_Context)
+    );
 
-    assert(!THROWN(D_OUT));
+    assert(!THROWN(f->out));
 
     switch (n) {
     case RXR_VALUE:
-        RXI_To_Value(D_OUT, &frm.args[1], RXA_TYPE(&frm, 1));
+        //
+        // !!! By convention, it appears that returning RXR_VALUE means to
+        // consider the RXIARG in the [1] slot to be the return value.
+        //
+        RXI_To_Value(f->out, &rxifrm.rxiargs[1], RXA_TYPE(&rxifrm, 1));
         break;
+
     case RXR_BLOCK:
-        RXI_To_Block(&frm, D_OUT);
+        //
+        // !!! It seems that one can return a block of up to 7 items, by
+        // setting the count of the frame and overwriting the arguments.
+        // Very strange interface.  :-/
+        //
+        RXI_To_Block(&rxifrm, f->out);
         break;
+
     case RXR_UNSET:
-        SET_UNSET(D_OUT);
+        SET_UNSET(f->out);
         break;
+
     case RXR_NONE:
-        SET_NONE(D_OUT);
+        SET_NONE(f->out);
         break;
+
     case RXR_TRUE:
-        SET_TRUE(D_OUT);
+        SET_TRUE(f->out);
         break;
+
     case RXR_FALSE:
-        SET_FALSE(D_OUT);
+        SET_FALSE(f->out);
         break;
 
     case RXR_BAD_ARGS:
@@ -651,7 +671,7 @@ void Do_Command_Core(struct Reb_Frame *frame_)
         fail (Error(RE_COMMAND_FAIL));
 
     default:
-        SET_UNSET(D_OUT);
+        SET_UNSET(f->out);
     }
 
     // Note: no current interface for Rebol "commands" to throw (to the extent
