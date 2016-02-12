@@ -240,6 +240,18 @@ selfless?: func [context [any-context!]] [
 ]
 
 
+; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
+; (since PRIN of a block would historically execute it).
+;
+prin: function [
+    "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
+
+    value [opt-any-value!]
+][
+    print/only either block? :value [reduce value] [:value]
+]
+
+
 ; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
 ; the word RETURN in the refinement (return from where, who?) became only
 ; more confusing with the introduction of definitional return.

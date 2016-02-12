@@ -1062,123 +1062,120 @@ REBOOL Format_GC_Safe_Value_Throws(
 
             FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
-        else {
-            const REBVAL *item;
-            if (reduce) {
-                DO_NEXT_REFETCH_MAY_THROW(out, &f, DO_FLAG_LOOKAHEAD);
-                if (f.indexor == THROWN_FLAG)
-                    return TRUE;
+        else if (IS_BLOCK(f.value)) {
+            //
+            // If an expression was a literal block in the print source
+            // then recurse and consider it a new depth level--using
+            // the same reducing logic as the outermost level.  Note that
+            // if it *evaluates* to a block, it will be output without
+            // evaluation...just printed inertly.
+            //
+            // !!! Note that this literal examination of f.value does not
+            // combine well with infix operators, if PRINT is considered to
+            // allow any evaluation.  It would be recursing into something
+            // like `print [[a] + [b]]` before it took the + into account.
+            // One possibility would be to have all non-trivial evaluations
+            // (e.g. things other than word lookup) be in a GROUP!.
 
-                item = out;
+            REBOOL nested_reduce = reduce;
+
+            REBVAL maybe_thrown;
+            VAL_INIT_WRITABLE_DEBUG(&maybe_thrown);
+
+        #if !defined(NDEBUG)
+            if (LEGACY(OPTIONS_NO_REDUCE_NESTED_PRINT))
+                nested_reduce = FALSE;
+        #endif
+
+            // since the value we're iterating is guarded, f.value is too
+
+            if (Format_GC_Safe_Value_Throws(
+                &maybe_thrown, // not interested in value unless thrown
+                mold,
+                pending_delimiter,
+                f.value,
+                nested_reduce,
+                delimiter,
+                depth + 1
+            )) {
+                *out = maybe_thrown;
+                return TRUE;
             }
-            else
-                item = f.value;
 
-            if (IS_BLOCK(item)) {
-                //
-                // If an expression was a block then recurse and consider it
-                // a new depth level.  If it *evaluated* to a block, treat it
-                // the same--pretend the block was literally in the spot.
-
-                REBOOL nested_reduce = reduce;
-
-                REBVAL maybe_thrown;
-                VAL_INIT_WRITABLE_DEBUG(&maybe_thrown);
-
-            #if !defined(NDEBUG)
-                if (LEGACY(OPTIONS_NO_REDUCE_NESTED_PRINT))
-                    nested_reduce = FALSE;
-            #endif
-
-                if (reduce) PUSH_GUARD_VALUE(out);
-
-                if (Format_GC_Safe_Value_Throws(
-                    &maybe_thrown, // not interested in value unless thrown
-                    mold,
-                    pending_delimiter,
-                    item, // this level's output is recursion's input
-                    nested_reduce,
-                    delimiter,
-                    depth + 1
-                )) {
-                    if (reduce) DROP_GUARD_VALUE(out);
-                    *out = maybe_thrown;
-                    return TRUE;
-                }
-
-                // If there's a delimiter pending (even a NONE!), then convert
-                // it back to pending the delimiter of the *outer* element.
-                //
-                if (!IS_END(pending_delimiter)) {
-                    *pending_delimiter = *Pending_Format_Delimiter(
-                        delimiter, depth
-                    );
-                }
-
-                if (reduce)
-                    DROP_GUARD_VALUE(out);
-                else
-                    FETCH_NEXT_ONLY_MAYBE_END(&f);
-            }
-            else if (reduce) {
-                //
-                // If we got here via a reduction step, we might have gotten
-                // a BINARY! or a BAR! or some other type.  Don't call MOLD
-                // directly because it won't necessarily do what this routine
-                // wants...recurse with reduce=FALSE to pick those up.
-
-                Format_GC_Safe_Value_Throws(
-                    NULL, // can't throw--no need for output slot
-                    mold,
-                    pending_delimiter,
-                    item, // this level's output is recursion's input
-                    FALSE, // don't reduce the value again
-                    delimiter,
-                    depth // not nested block so no depth increment
+            // If there's a delimiter pending (even a NONE!), then convert
+            // it back to pending the delimiter of the *outer* element.
+            //
+            if (!IS_END(pending_delimiter)) {
+                *pending_delimiter = *Pending_Format_Delimiter(
+                    delimiter, depth
                 );
+            }
 
-                // If there's a delimiter pending (even a NONE!), then convert
-                // it back to pending the delimiter of the *outer* element.
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
+        }
+        else if (reduce) {
+            DO_NEXT_REFETCH_MAY_THROW(out, &f, DO_FLAG_LOOKAHEAD);
+            if (f.indexor == THROWN_FLAG)
+                return TRUE;
+
+            // If we got here via a reduction step, we might have gotten
+            // a BINARY! or a BAR! or some other type.  Don't call MOLD
+            // directly because it won't necessarily do what this routine
+            // wants...recurse with reduce=FALSE to pick those up.
+
+            PUSH_GUARD_VALUE(out);
+            Format_GC_Safe_Value_Throws(
+                NULL, // can't throw--no need for output slot
+                mold,
+                pending_delimiter,
+                out, // this level's output is recursion's input
+                FALSE, // don't reduce the value again
+                delimiter,
+                depth // not nested block so no depth increment
+            );
+            DROP_GUARD_VALUE(out);
+
+            // If there's a delimiter pending (even a NONE!), then convert
+            // it back to pending the delimiter of the *outer* element.
+            //
+            if (!IS_END(pending_delimiter)) {
+                *pending_delimiter
+                    = *Pending_Format_Delimiter(delimiter, depth);
+            }
+
+            // The DO_NEXT already refetched...
+        }
+        else {
+            // This is where the recursion bottoms out...the need to FORM
+            // a terminal value.  We don't know in advance if the forming
+            // will produce output, and if it doesn't we suppress the
+            // delimiter...so to do that, we have to roll back.
+
+            REBCNT rollback_point = UNI_LEN(mold->series);
+            REBCNT mold_point;
+
+            if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
+                Mold_Value(mold, pending_delimiter, FALSE);
+
+            mold_point = UNI_LEN(mold->series);
+
+            Mold_Value(mold, f.value, FALSE);
+
+            if (UNI_LEN(mold->series) == mold_point) {
                 //
-                if (!IS_END(pending_delimiter)) {
-                    *pending_delimiter
-                        = *Pending_Format_Delimiter(delimiter, depth);
-                }
-
-                // The DO_NEXT already refetched...
+                // The mold didn't add anything, so roll back and don't
+                // update the pending delimiter.
+                //
+                SET_UNI_LEN(mold->series, rollback_point);
+                UNI_TERM(mold->series);
+                SET_NONE(pending_delimiter);
             }
             else {
-                // This is where the recursion bottoms out...the need to FORM
-                // a terminal value.  We don't know in advance if the forming
-                // will produce output, and if it doesn't we suppress the
-                // delimiter...so to do that, we have to roll back.
-
-                REBCNT rollback_point = UNI_LEN(mold->series);
-                REBCNT mold_point;
-
-                if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
-                    Mold_Value(mold, pending_delimiter, FALSE);
-
-                mold_point = UNI_LEN(mold->series);
-
-                Mold_Value(mold, item, FALSE);
-
-                if (UNI_LEN(mold->series) == mold_point) {
-                    //
-                    // The mold didn't add anything, so roll back and don't
-                    // update the pending delimiter.
-                    //
-                    SET_UNI_LEN(mold->series, rollback_point);
-                    UNI_TERM(mold->series);
-                    SET_NONE(pending_delimiter);
-                }
-                else {
-                    *pending_delimiter
-                        = *Pending_Format_Delimiter(delimiter, depth);
-                }
-
-                FETCH_NEXT_ONLY_MAYBE_END(&f);
+                *pending_delimiter
+                    = *Pending_Format_Delimiter(delimiter, depth);
             }
+
+            FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
 
         if (f.indexor == END_FLAG)

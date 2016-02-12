@@ -166,9 +166,12 @@ REBNATIVE(mold)
 //
 //  print: native [
 //  
-//  "Outputs a value followed by a line break."
+//  "Outputs value to standard output using the PRINT dialect."
 //  
-//      value [opt-any-value!] "The value to print"
+//      value [opt-any-value!]
+//          "Literal or BLOCK! in the PRINT dialect, outputs with a newline"
+//      /only
+//          "Don't use dialect--print ANY-VALUE! as-is (no newline)"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
 //      delimiter [none! any-scalar! any-string! block!]
@@ -180,9 +183,10 @@ REBNATIVE(mold)
 REBNATIVE(print)
 {
     PARAM(1, value);
-    REFINE(2, delimit);
-    PARAM(3, delimiter);
-    REFINE(4, quote);
+    REFINE(2, only);
+    REFINE(3, delimit);
+    PARAM(4, delimiter);
+    REFINE(5, quote);
 
     // By default, we assume the delimiter is supposed to be a space at the
     // outermost level and nothing at every level beyond that: [#" " |]
@@ -190,55 +194,19 @@ REBNATIVE(print)
     if (!REF(delimit))
         *ARG(delimiter) = *ROOT_DEFAULT_PRINT_DELIMITER;
 
-    // If not in quoting mode, then it will reduce
-    //
     if (Prin_GC_Safe_Value_Throws(
-        D_OUT, ARG(value), ARG(delimiter), 0, FALSE, NOT(REF(quote))
+        D_OUT,
+        ARG(value),
+        ARG(delimiter),
+        0, // `limit`: 0 means do not limit output length
+        FALSE, // `mold`: false means don't, e.g. no "quotes around strings"
+        NOT(REF(quote)) && NOT(REF(only)) // `reduce`: don't if /QUOTE, /ONLY
     )) {
         return R_OUT_IS_THROWN;
     }
 
-    Print_OS_Line();
-
-    return R_UNSET;
-}
-
-
-//
-//  prin: native [
-//  
-//  "Outputs a value with no line break."
-//  
-//      value [opt-any-value!]
-//  ]
-//
-REBNATIVE(prin)
-//
-// !!! PRIN is considered as a "poor word" and is pending decisions about a
-// better solution to newline management in output.  The following idea has
-// been proposed as giving necessary coverage:
-// 
-//     `print x` (no newline if x is not a block)
-//     `print [x]` (newline for all x, no extra one if x is block)
-//     `print form x` (guarantee no newline, even if x is block)
-//
-// But it's not the only idea out there, and worst case scenario is PRINT/ONLY
-// be chosen to suppress the newline.  Due to a specific desire to see PRIN
-// not go forward, it is not being enhanced to take delimiters.
-{
-    PARAM(1, value);
-
-    REBVAL delimiter;
-    VAL_INIT_WRITABLE_DEBUG(&delimiter);
-    SET_CHAR(&delimiter, ' ');
-
-    // Note: Reduces but does not mold
-    //
-    if (Prin_GC_Safe_Value_Throws(
-        D_OUT, ARG(value), &delimiter, 0, FALSE, TRUE
-    )) {
-        return R_OUT_IS_THROWN;
-    }
+    if (NOT(REF(only)))
+        Print_OS_Line();
 
     return R_UNSET;
 }
