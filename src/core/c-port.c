@@ -302,7 +302,6 @@ void Sieve_Ports(REBARR *ports)
 {
     REBVAL *port;
     REBVAL *waked;
-    REBVAL *val;
     REBCNT n;
 
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -311,10 +310,13 @@ void Sieve_Ports(REBARR *ports)
     if (!IS_BLOCK(waked)) return;
 
     for (n = 0; ports && n < ARR_LEN(ports);) {
-        val = ARR_AT(ports, n);
+        RELVAL *val = ARR_AT(ports, n);
         if (IS_PORT(val)) {
             assert(VAL_LEN_HEAD(waked) != 0);
-            if (VAL_LEN_HEAD(waked) == Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)) {//not found
+            if (
+                Find_In_Array_Simple(VAL_ARRAY(waked), 0, KNOWN(val))
+                == VAL_LEN_HEAD(waked) // `=len` means not found
+            ) {
                 Remove_Series(ARR_SERIES(ports), n, 1);
                 continue;
             }

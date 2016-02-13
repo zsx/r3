@@ -566,31 +566,47 @@ void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBCTX *specifier)
 //
 //  Resolve_Path: C
 //
-// Given a path, return a context and index for its terminal.
+// Given a path, determine if it is ultimately specifying a selection out
+// of a context...and if it is, return that context.  So `a/obj/key` would
+// return the object assocated with obj, while `a/str/1` would return
+// NULL if `str` were a string as it's not an object selection.
 //
-REBCTX *Resolve_Path(REBVAL *path, REBCNT *index)
+// !!! This routine overlaps the logic of Do_Path, and should potentially
+// be a mode of that instead.  It is not very complete, considering that it
+// does not execute GROUP! (and perhaps shouldn't?) and only supports a
+// path that picks contexts out of other contexts, via word selection.
+//
+REBCTX *Resolve_Path(const REBVAL *path, REBCNT *index_out)
 {
-    REBVAL *sel; // selector
-    const REBVAL *val;
-    REBARR *blk;
+    RELVAL *selector;
+    const REBVAL *var;
+    REBARR *array;
     REBCNT i;
 
-    if (VAL_LEN_HEAD(path) < 2) return 0;
-    blk = VAL_ARRAY(path);
-    sel = ARR_HEAD(blk);
-    if (!ANY_WORD(sel)) return 0;
-    val = GET_OPT_VAR_MAY_FAIL(sel, VAL_SPECIFIER(path));
+    array = VAL_ARRAY(path);
+    selector = ARR_HEAD(array);
 
-    sel = ARR_AT(blk, 1);
-    while (TRUE) {
-        if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
-        i = Find_Word_In_Context(VAL_CONTEXT(val), VAL_WORD_SYM(sel), FALSE);
-        sel++;
-        if (IS_END(sel)) {
-            *index = i;
-            return VAL_CONTEXT(val);
+    if (IS_END(selector) || !ANY_WORD(selector))
+        return NULL; // !!! only handles heads of paths that are ANY-WORD!
+
+    var = GET_OPT_VAR_MAY_FAIL(selector, VAL_SPECIFIER(path));
+
+    ++selector;
+    if (IS_END(selector))
+        return NULL; // !!! does not handle single-element paths
+
+    while (ANY_CONTEXT(var) && IS_WORD(selector)) {
+        i = Find_Word_In_Context(
+            VAL_CONTEXT(var), VAL_WORD_SYM(selector), FALSE
+        );
+        ++selector;
+        if (IS_END(selector)) {
+            *index_out = i;
+            return VAL_CONTEXT(var);
         }
+
+        var = CTX_VAR(VAL_CONTEXT(var), i);
     }
 
-    return 0; // never happens
+    DEAD_END;
 }
