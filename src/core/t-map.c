@@ -363,7 +363,7 @@ REBINT PD_Map(REBPVS *pvs)
     if (n == 0)
         val = UNSET_VALUE;
     else
-        val = VAL_ARRAY_AT_HEAD(pvs->value, ((n - 1) * 2) + 1);
+        val = ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1);
 
     if (IS_UNSET(val))
         return PE_NONE;
@@ -583,7 +583,7 @@ REBTYPE(Map)
         args = Find_Refines(frame_, ALL_FIND_REFS);
         n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
         if (!n) return R_NONE;
-        *D_OUT = *VAL_ARRAY_AT_HEAD(val, ((n - 1) * 2) + 1);
+        *D_OUT = *ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1);
         if (IS_UNSET(D_OUT)) return R_NONE;
         if (action == A_FIND) *D_OUT = *val;
         return R_OUT;
