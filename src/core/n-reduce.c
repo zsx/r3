@@ -335,7 +335,9 @@ REBOOL Compose_Values_Throws(
                 &evaluated,
                 VAL_ARRAY(value),
                 VAL_INDEX(value),
-                specifier
+                IS_RELATIVE(value)
+                    ? specifier // if relative, use parent specifier...
+                    : VAL_SPECIFIER(const_KNOWN(value)) // ...else use child's
             )) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
@@ -348,6 +350,10 @@ REBOOL Compose_Values_Throws(
                 //
                 RELVAL *push = VAL_ARRAY_AT(&evaluated);
                 while (!IS_END(push)) {
+                    //
+                    // `evaluated` is known to be specific, but its specifier
+                    // may be needed to derelativize its children.
+                    //
                     DS_PUSH_RELVAL(push, VAL_SPECIFIER(&evaluated));
                     push++;
                 }
@@ -374,7 +380,9 @@ REBOOL Compose_Values_Throws(
                 if (Compose_Values_Throws(
                     &composed,
                     VAL_ARRAY_AT(value),
-                    specifier,
+                    IS_RELATIVE(value)
+                        ? specifier // use parent specifier if relative...
+                        : VAL_SPECIFIER(const_KNOWN(value)), // ...else child's
                     TRUE,
                     only,
                     into
@@ -393,13 +401,15 @@ REBOOL Compose_Values_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
-                    REBARR *copy = Copy_Array_At_Shallow(
+                    REBARR *copy = Copy_Array_Shallow(
                         VAL_ARRAY(value),
-                        VAL_INDEX(value),
-                        specifier
+                        IS_RELATIVE(value)
+                            ? specifier // use parent specifier if relative...
+                            : VAL_SPECIFIER(const_KNOWN(value)) // else child's
                     );
-                    INIT_VAL_ARRAY(DS_TOP, copy); // warning: macro copies args
-                    MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
+                    Val_Init_Array_Index(
+                        DS_TOP, VAL_TYPE(value), copy, VAL_INDEX(value)
+                    ); // ...manages
                 }
             }
         }

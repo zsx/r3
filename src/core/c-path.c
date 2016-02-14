@@ -117,7 +117,9 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             &pvs->selector_temp,
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
-            pvs->specifier
+            IS_RELATIVE(pvs->item)
+                ? pvs->specifier // if relative, use parent specifier...
+                : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
         )) {
             *pvs->value = pvs->selector_temp;
             return TRUE;
@@ -396,8 +398,8 @@ REBOOL Do_Path_Throws_Core(
                     VAL_ARRAY(pvs.item),
                     VAL_INDEX(pvs.item),
                     IS_RELATIVE(pvs.item)
-                        ? pvs.specifier
-                        : VAL_SPECIFIER(const_KNOWN(pvs.item))
+                        ? pvs.specifier // if relative, use parent specifier
+                        : VAL_SPECIFIER(const_KNOWN(pvs.item)) // else embedded
                 )) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);

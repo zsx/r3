@@ -454,6 +454,9 @@ reevaluate:
 //
 // [GROUP!]
 //
+// If a GROUP! is seen then it generates another call into Do_Core().  The
+// resulting value for this step will be the outcome of that evaluation.
+//
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
@@ -465,9 +468,11 @@ reevaluate:
         //
         if (Do_At_Throws(
             f->out,
-            VAL_ARRAY(f->value),
-            VAL_INDEX(f->value),
-            f->specifier
+            VAL_ARRAY(f->value), // the GROUP!'s array
+            VAL_INDEX(f->value), // index in group's REBVAL (may not be head)
+            IS_RELATIVE(f->value)
+                ? f->specifier // if relative, use parent specifier...
+                : VAL_SPECIFIER(const_KNOWN(f->value)) // ...else use child's
         )) {
             goto finished;
         }
@@ -625,7 +630,11 @@ reevaluate:
 
     case ET_GET_PATH:
         //
-        // returns in word the path item, DS_TOP has value
+        // !!! Should a GET-PATH! be able to call into the evaluator, by
+        // evaluating GROUP!s in the path?  It's clear that `get path`
+        // shouldn't be able to evaluate (a GET should not have side effects).
+        // But perhaps source-level GET-PATH!s can be more liberal, as one can
+        // visibly see the GROUP!s.
         //
         if (Do_Path_Throws_Core(
             f->out,
@@ -1376,14 +1385,8 @@ reevaluate:
         }
 
     #if !defined(NDEBUG)
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
-            //
-            // OPTIONS_REFINEMENTS_BLANK was set when this particular function
-            // was created.  Use the debug-build's legacy post-processing
-            // so refinements and their args work like in Rebol2/R3-Alpha.
-            //
-            Legacy_Convert_Function_Args_Debug(f);
-        }
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
+            Legacy_Convert_Function_Args(f); // BLANK!+NONE! vs. FALSE+UNSET!
     #endif
 
     //==////////////////////////////////////////////////////////////////==//

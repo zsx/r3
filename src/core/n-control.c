@@ -1657,9 +1657,9 @@ REBNATIVE(switch)
             D_OUT,
             VAL_ARRAY(e.value),
             VAL_INDEX(e.value),
-            IS_SPECIFIC(e.value)
-                ? VAL_SPECIFIER(const_KNOWN(e.value))
-                : VAL_SPECIFIER(ARG(cases))
+            IS_RELATIVE(e.value)
+                ? VAL_SPECIFIER(ARG(cases)) // if relative, use parent's...
+                : VAL_SPECIFIER(const_KNOWN(e.value)) // ...else use child's
         )) {
             goto return_thrown;
         }

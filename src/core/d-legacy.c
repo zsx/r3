@@ -76,7 +76,7 @@ REBOOL In_Legacy_Function_Debug(void)
 
 
 //
-//  Legacy_Convert_Function_Args_Debug: C
+//  Legacy_Convert_Function_Args: C
 //
 // R3-Alpha and Rebol2 used BLANK for unused refinements and arguments to
 // a refinement which is not present.  Ren-C uses FALSE for unused refinements
@@ -86,7 +86,10 @@ REBOOL In_Legacy_Function_Debug(void)
 // better to isolate it into a post-phase.  This improves the readability of
 // the mainline code.
 //
-void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
+// Trigger is when OPTIONS_REFINEMENTS_TRUE is set during function creation,
+// which will give it FUNC_FLAG_LEGACY--leading to this being used.
+//
+void Legacy_Convert_Function_Args(struct Reb_Frame *f)
 {
     REBVAL *param = FUNC_PARAMS_HEAD(f->func);
     REBVAL *arg = FRM_ARGS_HEAD(f);
