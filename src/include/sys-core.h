@@ -365,6 +365,10 @@ enum REB_Mold_Opts {
 
 #define GET_MOPT(v, f) GET_FLAG(v->opts, f)
 
+#define Mold_Value(mold,value,molded) \
+    Mold_Value_Core((mold), (value), (molded))
+
+
 // Special flags for decimal formatting:
 enum {
     DEC_MOLD_PERCENT = 1 << 0,      // follow num with %

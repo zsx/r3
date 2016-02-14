@@ -996,11 +996,8 @@ void Do_Construct(const RELVAL* head, REBCTX *specifier)
 
         // Set prior set-words:
         while (DSP > dsp_orig) {
-            COPY_VALUE(
-                GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED),
-                &temp,
-                specifier
-            );
+            REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+            *var = temp;
             DS_DROP;
         }
     }
@@ -1039,11 +1036,8 @@ void Do_Min_Construct(const RELVAL* head, REBCTX *specifier)
             // value and then drop them from the stack.
             //
             while (DSP > dsp_orig) {
-                COPY_VALUE(
-                    GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED),
-                    value,
-                    specifier
-                );
+                RELVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+                COPY_VALUE(var, value, specifier);
                 DS_DROP;
             }
         }

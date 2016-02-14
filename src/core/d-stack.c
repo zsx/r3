@@ -404,7 +404,7 @@ REBNATIVE(backtrace)
     number = 0;
     for (frame = FS_TOP->prior; frame != NULL; frame = frame->prior) {
         REBCNT len;
-        REBVAL *temp;
+        RELVAL *temp;
 
         // Only consider invoked or pending functions in the backtrace.
         //

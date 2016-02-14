@@ -1512,7 +1512,7 @@ void Guard_Series_Core(REBSER *series)
 //
 //  Guard_Value_Core: C
 //
-void Guard_Value_Core(const REBVAL *value)
+void Guard_Value_Core(const RELVAL *value)
 {
     // Cheap check; require that the value already contain valid data when
     // the guard call is made (even if GC isn't necessarily going to happen
@@ -1534,7 +1534,7 @@ void Guard_Value_Core(const REBVAL *value)
     if (SER_FULL(GC_Value_Guard)) Extend_Series(GC_Value_Guard, 8);
 
     *SER_AT(
-        const REBVAL*,
+        const RELVAL*,
         GC_Value_Guard,
         SER_LEN(GC_Value_Guard)
     ) = value;

@@ -280,7 +280,9 @@ void Clonify_Values_Len_Managed(
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(AS_ARRAY(series)),
-                     ANY_ARRAY(value) ? VAL_SPECIFIER(value) : SPECIFIED,
+                     IS_SPECIFIC(value)
+                        ? VAL_SPECIFIER(KNOWN(value))
+                        : specifier,
                      VAL_LEN_HEAD(value),
                      deep,
                      types
@@ -290,7 +292,7 @@ void Clonify_Values_Len_Managed(
         else if (
             types & FLAGIT_KIND(VAL_TYPE(value)) & FLAGIT_KIND(REB_FUNCTION)
         ) {
-            Clonify_Function(value);
+            Clonify_Function(KNOWN(value)); // functions never "relative"
         }
         else {
             // The value is not on our radar as needing to be processed,
@@ -465,7 +467,7 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
     REBVAL *tail;
 
     EXPAND_SERIES_TAIL(ARR_SERIES(array), 1);
-    tail = ARR_TAIL(array);
+    tail = SER_TAIL(REBVAL, ARR_SERIES(array));
     SET_END(tail);
 
     SET_TRASH_IF_DEBUG(tail - 1); // No-op in release builds
@@ -490,7 +492,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 {
     REBCNT index = 0;
     REBARR *array;
-    REBVAL *other;
+    RELVAL *other;
 
     if (ANY_ARRAY(value))
         array = VAL_ARRAY(value);

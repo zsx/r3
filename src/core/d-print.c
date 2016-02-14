@@ -995,7 +995,8 @@ REBOOL Format_GC_Safe_Value_Throws(
     REBVAL *out,
     REB_MOLD *mold,
     REBVAL *pending_delimiter,
-    const REBVAL *val_gc_safe,
+    const RELVAL *val_gc_safe,
+    REBCTX *specifier,
     REBOOL reduce,
     const REBVAL *delimiter,
     REBCNT depth
@@ -1009,7 +1010,6 @@ REBOOL Format_GC_Safe_Value_Throws(
 
         f.indexor = VAL_INDEX(val_gc_safe) + 1;
         f.source.array = VAL_ARRAY(val_gc_safe);
-        f.specifier = VAL_SPECIFIER(val_gc_safe);
     }
     else {
         // Prefetch with value + an empty array to use same code path
@@ -1017,9 +1017,9 @@ REBOOL Format_GC_Safe_Value_Throws(
         f.value = val_gc_safe;
         f.indexor = 0;
         f.source.array = EMPTY_ARRAY;
-        f.specifier = NULL; // f.value is guaranteed non-relative
     }
 
+    f.specifier = specifier;
     f.flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD;
     f.eval_fetched = NULL;
 
@@ -1113,6 +1113,7 @@ REBOOL Format_GC_Safe_Value_Throws(
                 mold,
                 pending_delimiter,
                 f.value,
+                f.specifier,
                 nested_reduce,
                 delimiter,
                 depth + 1
@@ -1148,6 +1149,7 @@ REBOOL Format_GC_Safe_Value_Throws(
                 mold,
                 pending_delimiter,
                 out, // this level's output is recursion's input
+                SPECIFIED, // was a REBVAL
                 FALSE, // don't reduce the value again
                 delimiter,
                 depth // not nested block so no depth increment
@@ -1238,6 +1240,7 @@ REBOOL Prin_GC_Safe_Value_Throws(
             &mo,
             &pending_delimiter,
             value,
+            SPECIFIED,
             LOGICAL(reduce && IS_BLOCK(value)), // `print 'word` won't GET it
             delimiter,
             0 // depth

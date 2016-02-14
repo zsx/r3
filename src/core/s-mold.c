@@ -1086,7 +1086,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 // 
 // Mold or form any value to string series tail.
 //
-void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
+void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
 {
     REBYTE buf[60];
     REBINT len;

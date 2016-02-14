@@ -111,6 +111,7 @@ REBNATIVE(form)
             &mo,
             &pending_delimiter,
             value,
+            SPECIFIED,
             LOGICAL(!REF(quote) && IS_BLOCK(value)),
             delimiter,
             0 // depth

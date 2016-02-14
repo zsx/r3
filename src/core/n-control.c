@@ -1327,6 +1327,7 @@ REBNATIVE(fail)
                 &mo,
                 &pending_delimiter, // variable shared by recursions
                 reason,
+                SPECIFIED,
                 TRUE, // reduce
                 ROOT_DEFAULT_PRINT_DELIMITER, // same as PRINT (customizable?)
                 0 // depth
