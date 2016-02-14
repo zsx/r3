@@ -200,7 +200,7 @@ REBNATIVE(print)
         ARG(delimiter),
         0, // `limit`: 0 means do not limit output length
         FALSE, // `mold`: false means don't, e.g. no "quotes around strings"
-        NOT(REF(quote)) && NOT(REF(only)) // `reduce`: don't if /QUOTE, /ONLY
+        LOGICAL(!REF(quote) && !REF(only)) // `reduce`: don't if /QUOTE, /ONLY
     )) {
         return R_OUT_IS_THROWN;
     }
