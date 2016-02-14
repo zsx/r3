@@ -29,8 +29,97 @@
 // which are not specific to any given type.  For the type-specific code,
 // see files with names like %t-word.c, %t-logic.c, %t-integer.c...
 //
+// Largely they are debug-oriented routines, with a couple temporary routines
+// that are needed in the release build.
+//
 
 #include "sys-core.h"
+
+
+//
+//  VAL_SPECIFIC_Expirable: C
+//
+// Similar to the temporary nature of COPY_REBVAL_Guessable, this routine
+// fills in the temporary mode where it's possible to be bound specifically
+// to an expired context, and fail accordingly.  When specific binding is
+// completely propagated, this should just be a simple macro.
+//
+REBCTX *VAL_SPECIFIC_Expirable(const REBVAL *v)
+{
+    if (IS_RELATIVE(v)) {
+        //
+        // !!! Temporary... allowing the leaking of relative values.  One
+        // step at a time.  :-/
+        //
+        return GUESSED;
+    }
+
+    if (ANY_WORD(v) && (v)->payload.any_target.specific == GUESSED_EXPIRED)
+        fail (Error(RE_NO_RELATIVE, v));
+
+    return (v)->payload.any_target.specific;
+}
+
+
+//
+//  COPY_VALUE_Guessable: C
+//
+// Temporary function implementation of what should really just defined as
+// COPY_VALUE_MACRO.  If GUESSED is passed in, it will use dynamic binding
+// to look at the stack and determine what function instance's context to
+// use for a word.
+//
+void COPY_VALUE_Guessable(
+    REBVAL *dest,
+    const RELVAL *src,
+    REBCTX *specifier
+) {
+    if (specifier != GUESSED || !IS_RELATIVE(src)) {
+        COPY_VALUE_MACRO(dest, src, specifier);
+        return;
+    }
+
+    if (ANY_WORD(src)) {
+        struct Reb_Frame* f = Frame_For_Word_Dynamic(src, TRUE);
+        if (f == NULL) {
+            //
+            // If there is no active frame for this word on the stack, we
+            // don't want to create an error when it's copied, only when it's
+            // accessed.  That means that a special value is needed to
+            // indicate something is "specifically bound to a frame that is
+            // no longer on the stack"
+            //
+            // (Leaving the value as relative/guessed would be an unacceptable
+            // invariant, because callers expect an IS_SPECIFIC value back.)
+            //
+            Val_Init_Word(dest, VAL_TYPE(src), VAL_WORD_SYM(src));
+            SET_VAL_FLAG(dest, WORD_FLAG_BOUND);
+            dest->payload.any_word.place.binding.target.specific
+                = GUESSED_EXPIRED;
+            dest->payload.any_word.place.binding.index = VAL_WORD_INDEX(src);
+        }
+        else {
+            // If a frame was found, it should be to a user function (the only
+            // kind that relatively bound words may bind to).  This means the
+            // context should be reified already.
+            //
+            assert(f->varlist != NULL);
+            assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+            COPY_VALUE_MACRO(dest, src, AS_CONTEXT(f->varlist));
+        }
+    }
+    else {
+        // If it's an array, all we can do is propagate the GUESSED state
+        // through to it.  That might lead it to be used with relative words
+        // and other arrays that are contained in the array.
+        //
+        assert(ANY_ARRAY(src));
+        Val_Init_Array_Index(
+            dest, VAL_TYPE(src), VAL_ARRAY(src), VAL_INDEX(src)
+        );
+        INIT_ARRAY_SPECIFIC(dest, GUESSED);
+    }
+}
 
 
 #if !defined(NDEBUG)
@@ -251,9 +340,9 @@ void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    REBCTX *specific = (v)->payload.any_target.specific;
-    assert(IS_SPECIFIC(v));
-    if (specific != NULL) {
+    REBCTX *specific = VAL_SPECIFIC_Expirable(v);
+    assert(specific != GUESSED_EXPIRED); // should be handled above
+    if (specific != SPECIFIED && specific != GUESSED) {
         //
         // Basic sanity check: make sure it's a context at all
         //
@@ -302,6 +391,29 @@ void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
 REBOOL IS_RELATIVE_Debug(const RELVAL *value)
 {
     return GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+}
+
+
+//
+//  Assert_No_Relative: C
+//
+// Check to make sure there are no relative values in an array, maybe deeply.
+//
+// !!! Should this pay attention to indices?
+//
+void Assert_No_Relative(REBARR *array, REBOOL deep)
+{
+    RELVAL *item = ARR_HEAD(array);
+    while (NOT_END(item)) {
+        if (IS_RELATIVE(item)) {
+            Debug_Fmt("Array contained relative item and wasn't supposed to.");
+            PROBE_MSG(item, "relative item");
+            Panic_Array(array);
+        }
+        if (ANY_ARRAY(item) && deep)
+             Assert_No_Relative(VAL_ARRAY(item), deep);
+        ++item;
+    }
 }
 
 
@@ -366,13 +478,45 @@ REBVAL *KNOWN_Debug(RELVAL *value)
 }
 
 
+
 //
-//  COPY_VALUE_Debug: C
+//  COPY_VALUE_Guessable_Debug: C
 //
 // A function in debug build for compile-time type check (vs. blind casting)
+// This should remain even when COPY_VALUE_Guessable goes away and there
+// is only COPY_VALUE.
 //
-void COPY_VALUE_Debug(REBVAL *dest, const RELVAL *src, REBCTX *specifier) {
-    COPY_VALUE_MACRO(dest, src, specifier);
+void COPY_VALUE_Guessable_Debug(
+    REBVAL *dest,
+    const RELVAL *src,
+    REBCTX *specifier
+) {
+    if (IS_RELATIVE(src) && specifier != GUESSED) {
+        if (specifier == SPECIFIED) {
+            //
+            // !!! Temporary... allow "lying" specifieds by bumping them to
+            // just being GUESSED.  This is being addressed incrementally.
+            //
+            specifier = GUESSED;
+        }
+        else if (specifier == SPECIFIED) {
+            Debug_Fmt("Internal Error: Relative word used with SPECIFIC");
+            PROBE_MSG(src, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(src)), "func");
+            assert(FALSE);
+        }
+        else if (
+            VAL_RELATIVE(src)
+            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+        ) {
+            Debug_Fmt("Internal Error: Function mismatch in specific binding");
+            PROBE_MSG(src, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "expected func");
+            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
+            assert(FALSE);
+        }
+    }
+    COPY_VALUE_Guessable(dest, src, specifier);
 }
 
 

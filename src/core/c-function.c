@@ -941,7 +941,11 @@ REBFUN *Make_Plain_Function_May_Fail(
     REBARR *body_array =
         (VAL_ARRAY_LEN_AT(code) == 0)
             ? EMPTY_ARRAY // just reuse empty array if empty, no copy
-            : COPY_ANY_ARRAY_AT_DEEP_MANAGED(code);
+            : Copy_And_Bind_Relative_Deep_Managed(
+                code,
+                FUNC_PARAMLIST(fun),
+                TS_ANY_WORD
+            );
 
     // We need to do a raw initialization of this block RELVAL because it is
     // relative to a function.  (Val_Init_Block assumes all specific values)
@@ -969,18 +973,6 @@ REBFUN *Make_Plain_Function_May_Fail(
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY);
     }
 #endif
-
-    // The argument and local symbols have been arranged in the function's
-    // "frame" and are now in index order.  These numbers are put
-    // into the binding as *negative* versions of the index, in order
-    // to indicate that they are in a function and not an object frame.
-    //
-    // (This is done for durables body even though each call is associated
-    // with an object frame.  The reason is that this is only the "archetype"
-    // body of the durable...it is copied each time and the real numbers
-    // filled in.  Having the indexes already done speeds the copying.)
-    //
-    Bind_Relative_Deep(fun, VAL_ARRAY_HEAD(body), TS_ANY_WORD);
 
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_MUTABLE_FUNCTION_BODIES))
@@ -1248,6 +1240,12 @@ void Clonify_Function(REBVAL *value)
 
     REBFUN *original_fun = VAL_FUNC(value);
 
+    // Ordinary copying would need to derelatavize all the relative values,
+    // but copying the function to make it the body of another function
+    // requires it to be "re-relativized"--all the relative references that
+    // indicated the original function have to be changed to indicate the
+    // new function.
+    //
     REBARR *paramlist = Copy_Array_Shallow(
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
@@ -1272,9 +1270,10 @@ void Clonify_Function(REBVAL *value)
     VAL_RESET_HEADER(body, REB_BLOCK);
     body->payload.any_series.series
         = ARR_SERIES(
-            Copy_Array_Deep_Managed(
+            Copy_Rerelativized_Array_Deep_Managed(
                 VAL_ARRAY(FUNC_BODY(original_fun)),
-                SPECIFIED
+                original_fun,
+                AS_FUNC(paramlist)
             )
         );
     VAL_INDEX(body) = 0;
@@ -1283,11 +1282,6 @@ void Clonify_Function(REBVAL *value)
 
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_ARRAY_RELATIVE(body, AS_FUNC(paramlist));
-    Rebind_Values_Relative_Deep(
-        original_fun,
-        new_fun,
-        VAL_ARRAY_HEAD(FUNC_BODY(new_fun))
-    );
 
     *value = *FUNC_VALUE(new_fun);
 }
@@ -1368,12 +1362,11 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // invocation.  (Costly, but that is the mechanics of words at the
         // present time, until true relative binding is implemented.)
         //
+        // Note that because the copy passes in the frame, it should be able
+        // to resolve all the relatively bound words.
+        //
         REBARR *copy = Copy_Array_Deep_Managed(VAL_ARRAY(body), frame_ctx);
         PUSH_GUARD_ARRAY(copy);
-
-        Rebind_Values_Specifically_Deep(
-            f->func, frame_ctx, ARR_HEAD(copy)
-        );
 
         if (Do_At_Throws(f->out, copy, 0, SPECIFIED))
             r = R_OUT_IS_THROWN;
@@ -1884,11 +1877,6 @@ REBNATIVE(adapt)
 
     *adaptee = *D_OUT;
 
-    // !!! In a future branch it may be possible that specific binding allows
-    // a read-only input to be "viewed" with a relative binding, and no copy
-    // would need be made if input was R/O.  For now, we copy to relativize.
-    //
-    REBARR *prelude = COPY_ANY_ARRAY_AT_DEEP_MANAGED(ARG(prelude));
 
     // For the binding to be correct, the indices that the words use must be
     // the right ones for the frame pushed.  So if you adapt a specialization
@@ -1902,7 +1890,15 @@ REBNATIVE(adapt)
     REBCTX *exemplar;
     REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
 
-    Bind_Relative_Deep(under, ARR_HEAD(prelude), TS_ANY_WORD);
+    // !!! In a future branch it may be possible that specific binding allows
+    // a read-only input to be "viewed" with a relative binding, and no copy
+    // would need be made if input was R/O.  For now, we copy to relativize.
+    //
+    REBARR *prelude = Copy_And_Bind_Relative_Deep_Managed(
+        ARG(prelude),
+        FUNC_PARAMLIST(under),
+        TS_ANY_WORD
+    );
 
     // The paramlist needs to be unique to designate this function, but
     // will be identical typesets to the original.  It's [0] element must

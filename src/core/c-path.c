@@ -229,9 +229,20 @@ REBOOL Do_Path_Throws_Core(
     // its array contents.
     //
     if (IS_RELATIVE(path)) {
-        assert(
-            VAL_RELATIVE(path) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
-        );
+        if (specifier == SPECIFIED)
+            specifier = GUESSED; // !!! Transitional tolerance...
+
+    #if !defined(NDEBUG)
+        if (
+            specifier != GUESSED
+            && VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+        ) {
+            Debug_Fmt("Specificity mismatch found in path dispatch");
+            PROBE_MSG(path, "expected func");
+            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
+            assert(FALSE);
+        }
+    #endif
         pvs.specifier = specifier;
     }
     else pvs.specifier = VAL_SPECIFIER(const_KNOWN(path));

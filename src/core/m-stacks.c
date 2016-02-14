@@ -677,7 +677,9 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // that has already been managed.  The arglist array was managed when
     // created and kept alive by Mark_Call_Frames
     //
-    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(f->func));
+    REBCTX *exemplar;
+    REBFUN *under = Find_Underlying_Func(&exemplar, FUNC_VALUE(f->func));
+    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(under));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     // We do not manage the varlist, because we'd like to be able to free

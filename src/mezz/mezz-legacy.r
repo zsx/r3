@@ -293,7 +293,7 @@ set: function [
     set_OPT: opt
     opt: :lib/opt
 
-    apply :lib-set [
+    apply 'lib-set [
         target: target
         value: :value
         opt: any? [set_ANY set_OPT]

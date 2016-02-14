@@ -68,26 +68,56 @@ REBVAL *Get_Var_Core(
         // properties, and Ren-C achieves "specific binding" to make sure
         // that words preserve their linkage to the correct instance of the
         // function invocation they originated in.
-        //
-        // !!! Specific binding is a work in progress.  As an interim step
-        // while it is being worked on, a failure of specificity will fall
-        // back upon the R3-Alpha dynamic binding...just searching the stack.
-
-        struct Reb_Frame *frame =
-            Frame_For_Relative_Word(
-                any_word, LOGICAL(flags & GETVAR_UNBOUND_OK)
-            );
 
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
-        if (!frame) {
-            assert(flags & GETVAR_UNBOUND_OK);
-            return NULL;
+        if (specifier == SPECIFIED) {
+            //
+            // !!! Temporary--tolerate lying SPECIFIEDs until the basics
+            // of things like picking values out of blocks can propagate the
+            // property properly.
+            //
+            specifier = GUESSED;
         }
 
-        assert(frame->varlist != NULL);
-        assert(GET_ARR_FLAG(frame->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
-        context = AS_CONTEXT(frame->varlist);
+        if (specifier == GUESSED) {
+            //
+            // !!! Specific binding is a work in progress.  As an interim step
+            // while it is being propagated around the system, it's legal
+            // to pass in GUESSED as a specifier to fall back onto dynamic
+            // binding and just search the stack, as R3-Alpha did.
+
+            struct Reb_Frame *frame
+                = Frame_For_Word_Dynamic(
+                    any_word, LOGICAL(flags & GETVAR_UNBOUND_OK)
+                );
+
+            if (!frame) {
+                assert(LOGICAL(flags & GETVAR_UNBOUND_OK));
+                return NULL;
+            }
+
+            assert(frame->varlist != NULL);
+            assert(GET_ARR_FLAG(frame->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+            context = AS_CONTEXT(frame->varlist);
+        }
+        else {
+            // The only legal time to pass in SPECIFIED is if one is convinced
+            // there are no relatively bound words in the array that one is
+            // dealing with.  This assert will happen if that was not the
+            // case, and there actually was one.
+            //
+            assert(specifier != SPECIFIED);
+
+            // If a specifier is provided, then it must be a frame matching
+            // the function in the relatively bound word.
+            //
+            assert(
+                VAL_WORD_FUNC(any_word)
+                == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+            );
+            context = specifier;
+        }
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //
@@ -394,21 +424,33 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
 //
 //  Bind_Relative_Inner_Loop: C
 //
-// Recursive function for relative function word binding.
+// Recursive function for relative function word binding.  Returns TRUE if
+// any relative bindings were made.
 //
 static void Bind_Relative_Inner_Loop(
-    REBINT *binds,
-    REBFUN *func,
     RELVAL *head,
+    REBARR *paramlist,
+    REBINT *binds,
     REBU64 bind_types
 ) {
     RELVAL *value = head;
+
     for (; NOT_END(value); value++) {
         REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
+
+        // The two-pass copy-and-then-bind should have gotten rid of all the
+        // relative values to other functions during the copy.
+        //
+        // !!! Long term, in a single pass copy, this would have to deal
+        // with relative values and run them through the specification
+        // process if they were not just getting overwritten.
+        //
+        assert(!IS_RELATIVE(value));
 
         if (type_bit & bind_types) {
             REBINT n;
             assert(ANY_WORD(value));
+
             if ((n = binds[VAL_WORD_CANON(value)]) != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
@@ -419,37 +461,59 @@ static void Bind_Relative_Inner_Loop(
                 enum Reb_Kind kind = VAL_TYPE(value);
                 VAL_RESET_HEADER(value, kind);
                 SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
-                INIT_WORD_FUNC(value, func);
+                INIT_WORD_FUNC(value, AS_FUNC(paramlist)); // incomplete func
                 INIT_WORD_INDEX(value, n);
             }
         }
-        else if (ANY_ARRAY(value))
+        else if (ANY_ARRAY(value)) {
             Bind_Relative_Inner_Loop(
-                binds, func, VAL_ARRAY_AT(value), bind_types
+                VAL_ARRAY_AT(value), paramlist, binds, bind_types
             );
+
+            // Set the bits in the ANY-ARRAY! REBVAL to indicate that it is
+            // relative to the function.
+            //
+            // !!! Technically speaking it is not necessary for an array to
+            // be marked relative if it doesn't contain any relative words
+            // under it.  However, for uniformity in the near term, it's
+            // easiest to debug if there is a clear mark on arrays that are
+            // part of a deep copy of a function body either way.
+            //
+            SET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+            INIT_ARRAY_RELATIVE(value, AS_FUNC(paramlist)); // incomplete func
+        }
     }
 }
 
 
 //
-//  Bind_Relative_Deep: C
+//  Copy_And_Bind_Relative_Deep_Managed: C
 //
-// Bind the words of a function block to a stack frame.
-// To indicate the relative nature of the index, it is set to
-// a negative offset.
+// This routine is called by Make_Function in order to take the raw material
+// given as a function body, and de-relativize any IS_RELATIVE(value)s that
+// happen to be in it already (as any Copy does).  But it also needs to make
+// new relative references to ANY-WORD! that are referencing function
+// parameters, as well as to relativize the copies of ANY-ARRAY! that contain
+// these relative words...so that they refer to the archetypal function
+// to which they should be relative.
 //
-void Bind_Relative_Deep(REBFUN *func, RELVAL *head, REBU64 bind_types)
-{
-    REBVAL *param;
+REBARR *Copy_And_Bind_Relative_Deep_Managed(
+    const REBVAL *body,
+    REBARR *paramlist, // body of function is not actually ready yet
+    REBU64 bind_types
+) {
+    RELVAL *param;
     REBCNT index;
+    REBARR *copy;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
 
-    // !!! Historically, relative binding was not allowed for NATIVE! or
-    // other function types.  It was not desirable for user code to be
-    // capable of binding to the parameters of a native.  However, for
-    // purposes of debug inspection, read-only access presents an
-    // interesting case.  While this avenue is explored, relative bindings
-    // for all function types are being permitted.
+
+    // !!! Currently this is done in two phases, because the historical code
+    // would use the generic copying code and then do a bind phase afterward.
+    // Both phases are folded into this routine to make it easier to make
+    // a one-pass version when time permits.
+    //
+    copy = COPY_ANY_ARRAY_AT_DEEP_MANAGED(body);
 
     ASSERT_BIND_TABLE_EMPTY;
 
@@ -458,19 +522,21 @@ void Bind_Relative_Deep(REBFUN *func, RELVAL *head, REBU64 bind_types)
     // Setup binding table from the argument word list
     //
     index = 1;
-    param = FUNC_PARAMS_HEAD(func);
+    param = ARR_AT(paramlist, 1); // [0] is FUNCTION! value
     for (; NOT_END(param); param++, index++)
         binds[VAL_TYPESET_CANON(param)] = index;
 
-    Bind_Relative_Inner_Loop(binds, func, head, bind_types);
+    Bind_Relative_Inner_Loop(ARR_HEAD(copy), paramlist, binds, bind_types);
 
     // Reset binding table
     //
-    param = FUNC_PARAMS_HEAD(func);
+    param = ARR_AT(paramlist, 1); // [0] is FUNCTION! value
     for (; NOT_END(param); param++)
         binds[VAL_TYPESET_CANON(param)] = 0;
 
     ASSERT_BIND_TABLE_EMPTY;
+
+    return copy;
 }
 
 
@@ -536,68 +602,6 @@ void Rebind_Values_Deep(
             Rebind_Values_Deep(
                 src, dst, VAL_FUNC_BODY(value), opt_binds
             );
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Relative_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Relative_Deep(
-    REBFUN *src,
-    REBFUN *dst,
-    RELVAL *head
-) {
-    RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Relative_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && VAL_WORD_FUNC(value) == src
-        ) {
-            INIT_WORD_FUNC(value, dst);
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Specifically_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, RELVAL *head) {
-    RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && VAL_WORD_FUNC(value) == src
-        ) {
-            // Note that VAL_RESET_HEADER(value...) is a macro for setting
-            // value, so passing VAL_TYPE(value) which is also a macro can be
-            // dangerous...
-            //
-            assert(GET_VAL_FLAG(value, WORD_FLAG_BOUND)); // should be set
-            CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-            INIT_WORD_CONTEXT(value, dst);
         }
     }
 }

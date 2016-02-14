@@ -1464,12 +1464,12 @@ REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
 
 
 //
-//  Frame_For_Relative_Word: C
+//  Frame_For_Word_Dynamic: C
 //
 // Looks up word from a relative binding to get a specific context.  Currently
 // this uses the stack (dynamic binding) but a better idea is in the works.
 //
-struct Reb_Frame *Frame_For_Relative_Word(
+struct Reb_Frame *Frame_For_Word_Dynamic(
     const RELVAL *any_word,
     REBOOL trap
 ) {

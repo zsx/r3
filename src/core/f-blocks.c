@@ -78,15 +78,8 @@ REBARR *Copy_Array_At_Extra_Shallow(
     #if !defined(NDEBUG)
         RELVAL *check = ARR_AT(original, index);
         REBCNT count = 0;
-        for (; count < len; ++count) {
-            //
-            // Temporarily disable check.  The system uses dynamic binding
-            // for the moment to resolve relative values in the absence of
-            // a specifier, and the general desire is to get the specifiers
-            // chained in everywhere they need to be.
-            //
-            /* assert(IS_SPECIFIC(check)); */
-        }
+        for (; count < len; ++count)
+            assert(IS_SPECIFIC(check));
     #endif
 
         memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
@@ -156,12 +149,12 @@ REBARR *Copy_Values_Len_Extra_Shallow(
 
     array = Make_Array(len + extra + 1);
 
-    if (specifier == SPECIFIED) {
+    if (specifier == SPECIFIED && FALSE) { // !!! Temporary--bad SPECIFIED ok
     #if !defined(NDEBUG)
         REBCNT count = 0;
         const RELVAL *check = head;
         for (; count < len; ++count, ++check) {
-            /*assert(IS_SPECIFIC(check));*/ // temporarily disable
+            assert(IS_SPECIFIC(check));
         }
     #endif
         memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
@@ -245,25 +238,14 @@ void Clonify_Values_Len_Managed(
                     legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif
 
-                    if (IS_RELATIVE(value)) {
-                        assert(
-                            VAL_RELATIVE(value)
-                            == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
-                        );
-                        series = ARR_SERIES(
-                            Copy_Array_Shallow(VAL_ARRAY(value), specifier)
-                        );
-                        CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-                        INIT_ARRAY_SPECIFIC(value, specifier);
-                    }
-                    else {
-                        series = ARR_SERIES(
-                            Copy_Array_Shallow(
-                                VAL_ARRAY(value),
-                                VAL_SPECIFIER(KNOWN(value)) // not relative...
-                            )
-                        );
-                    }
+                    series = ARR_SERIES(
+                        Copy_Array_Shallow(
+                            VAL_ARRAY(value),
+                            IS_SPECIFIC(value)
+                                ? VAL_SPECIFIER(KNOWN(value))
+                                : specifier
+                        )
+                    );
 
                     INIT_VAL_ARRAY(value, AS_ARRAY(series)); // copies args
 
@@ -296,11 +278,9 @@ void Clonify_Values_Len_Managed(
             // through to the new values.
             //
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
-                REBOOL array = ANY_ARRAY(value);
-                REBOOL context = ANY_CONTEXT(value);
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(AS_ARRAY(series)),
-                     SPECIFIED,
+                     ANY_ARRAY(value) ? VAL_SPECIFIER(value) : SPECIFIED,
                      VAL_LEN_HEAD(value),
                      deep,
                      types
@@ -316,6 +296,10 @@ void Clonify_Values_Len_Managed(
             // The value is not on our radar as needing to be processed,
             // so leave it as-is.
         }
+
+        // Value shouldn't be relative after the above processing.
+        //
+        assert(!IS_RELATIVE(value));
     }
 }
 
@@ -369,6 +353,8 @@ REBARR *Copy_Array_Core_Managed(
         SET_ARR_FLAG(copy, SERIES_FLAG_LEGACY);
 #endif
 
+    ASSERT_NO_RELATIVE(copy, deep);
+
     return copy;
 }
 
@@ -393,7 +379,7 @@ REBARR *Copy_Array_At_Extra_Deep_Managed(
     REBCTX *specifier,
     REBCNT extra
 ) {
-    return Copy_Array_Core_Managed(
+    REBARR *copy = Copy_Array_Core_Managed(
         original,
         index, // at
         specifier,
@@ -402,6 +388,65 @@ REBARR *Copy_Array_At_Extra_Deep_Managed(
         TRUE, // deep
         TS_SERIES & ~TS_NOT_COPIED // types
     );
+
+    return copy;
+}
+
+
+//
+//  Copy_Rerelativized_Array_Deep_Managed: C
+//
+// The invariant of copying in general is that when you are done with the
+// copy, there are no relative values in that copy.  One exception to this
+// is the deep copy required to make a relative function body in the first
+// place (which it currently does in two passes--a normal deep copy followed
+// by a relative binding).  The other exception is when a relativized
+// function body is copied to make another relativized function body.
+//
+// This is specialized logic for the latter case.  It's constrained enough
+// to be simple (all relative values are known to be relative to the same
+// function), and the feature is questionable anyway.  So it's best not to
+// further complicate ordinary copying with a parameterization to copy
+// and change all the relative binding information from one function's
+// paramlist to another.
+//
+REBARR *Copy_Rerelativized_Array_Deep_Managed(
+    REBARR *original,
+    REBFUN *before, // references to `before` will be changed to `after`
+    REBFUN *after
+) {
+    REBARR *copy = Make_Array(ARR_LEN(original));
+    RELVAL *src = ARR_HEAD(original);
+    RELVAL *dest = ARR_HEAD(copy);
+
+    for (; NOT_END(src); ++src, ++dest) {
+        if (!IS_RELATIVE(src)) {
+            *dest = *src;
+            continue;
+        }
+
+        assert(VAL_RELATIVE(src) == before);
+        if (ANY_ARRAY(src)) {
+            *dest = *src; // !!! could copy just fields not overwritten
+            dest->payload.any_series.series = ARR_SERIES(
+                Copy_Rerelativized_Array_Deep_Managed(
+                    VAL_ARRAY(src), before, after
+                )
+            );
+            INIT_ARRAY_RELATIVE(dest, after);
+        }
+        else {
+            assert(ANY_WORD(src));
+            *dest = *src; // !!! could copy just fields not overwritten
+            INIT_WORD_FUNC(dest, after);
+        }
+    }
+
+    SET_ARRAY_LEN(copy, ARR_LEN(original));
+    TERM_ARRAY(copy);
+    MANAGE_ARRAY(copy);
+
+    return copy;
 }
 
 

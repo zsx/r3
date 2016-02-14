@@ -1141,7 +1141,7 @@ union Reb_Binding_Target {
         (v)->payload.any_target.relative)
 
 #ifdef NDEBUG
-    #define VAL_SPECIFIC(v)     ((v)->payload.any_target.specific)
+    #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Expirable(v)
 #else
     #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Debug(v)
 #endif
@@ -1182,6 +1182,8 @@ struct Reb_Any_Series {
 #define VAL_SPECIFIER(v) \
     (assert(ANY_ARRAY(v)), VAL_SPECIFIC(v))
 
+// !!! GUESSED is temporarily allowed for initializing an array's 'specifier'
+//
 #define INIT_ARRAY_SPECIFIC(v,context) \
     (assert(IS_SPECIFIC(v)), \
         (v)->payload.any_series.target.specific = (context))
@@ -1197,7 +1199,7 @@ struct Reb_Any_Series {
 #endif
 
 #define INIT_VAL_SERIES(v,s) \
-    ((v)->payload.any_series.series = (s))
+    (assert(!Is_Array_Series(s)), (v)->payload.any_series.series = (s))
 
 #define INIT_VAL_ARRAY(v,s) \
     ((v)->payload.any_series.target.specific = SPECIFIED, \
@@ -1567,11 +1569,11 @@ struct Reb_Any_Word {
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
     (GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
         ? Context_For_Frame_May_Reify_Managed( \
-            Frame_For_Relative_Word((v), FALSE)) \
+            Frame_For_Word_Dynamic((v), FALSE)) \
         : VAL_WORD_CONTEXT(v))
 
 #define INIT_WORD_CONTEXT(v,context) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND) && context != GUESSED), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
         (v)->payload.any_word.place.binding.target.specific = (context))
@@ -2784,14 +2786,23 @@ struct Reb_Value
 // To make it easier to look for places that think they aren't dealing
 // with any relative values, pass this as the specifier instead of NULL.
 //
-#define SPECIFIED cast(REBCTX*, 0)
+#define SPECIFIED cast(REBCTX*, 0xF00F00F0)
 
 // To try and have some hope of getting to the point where the specifier is
 // threaded properly through, for starters the system is just trying to
 // compile and run with the new parameterization.  If up against a wall and
 // no specifier available, just pass GUESSED.
 //
-#define GUESSED cast(REBCTX*, 0)
+#define GUESSED cast(REBCTX*, 0xABCDABCD)
+
+// So long as dynamic-based guessing is still around, it's possible to copy a
+// relative word at a time when no corresponding function is on the stack.
+// A specific value still has to be produced--as that's not the moment an
+// error should happen (only if it is looked up as a variable).  This is the
+// specific context constant that is filled in for that case, which will
+// lead to errors on lookup if they ever happen.
+//
+#define GUESSED_EXPIRED cast(REBCTX*, 0xEEEEEEEE)
 
 // This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
 // indeed relative and needs to be made specific to be put into the
@@ -2801,16 +2812,13 @@ struct Reb_Value
 // be relative to the function that deep copied them, and that is the
 // only kind of specifier you can use with them).
 //
-// !!! Temporarily this only will combine the specifier with the relative
-// value if the functions match.  Really it should be able to assert that
-// any relative values *always* match the specifier, just not there yet.
+// !!! Because of the existence of GUESSED, this macro cannot be run directly
+// yet.  Any guesses must be resolved first, see COPY_VALUE_Guessed.
+// (Ultimately this will be unnecessary.)
 //
 #define COPY_VALUE_MACRO(dest,src,specifier) \
     do { \
-        if ( \
-            IS_RELATIVE(src) && specifier \
-            && VAL_RELATIVE(src) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier)) \
-        ) { \
+        if (IS_RELATIVE(src)) { \
             (dest)->header.bits = (src)->header.bits & ~VALUE_FLAG_RELATIVE; \
             if (ANY_ARRAY(src)) { \
                 (dest)->payload.any_series.target.specific = (specifier); \
@@ -2834,13 +2842,30 @@ struct Reb_Value
         } \
     } while (0)
 
+// During the transitional phase when specifiers are not completely propagated,
+// traditional dynamic binding can be used to "just guess" where to look up
+// a relative value.  To get this behavior, pass GUESSED as a specifier.
+//
+// (Ultimately this will not be allowed, and the only way to avoid passing
+// a specifier will be if you are certain you aren't dealing with any
+// relative values, in which case you pass SPECIFIED.)
+//
 #ifdef NDEBUG
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_MACRO(SINK(dest),(src),(specifier))
+        COPY_VALUE_Guessable((dest),(src),(specifier))
 #else
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Debug(SINK(dest),(src),(specifier))
+        COPY_VALUE_Guessable_Debug((dest),(src),(specifier))
 #endif
+
+#ifdef NDEBUG
+    #define ASSERT_NO_RELATIVE(array,deep) \
+        NOOP
+#else
+    #define ASSERT_NO_RELATIVE(array,deep) \
+        Assert_No_Relative((array),(deep))
+#endif
+
 
 // In the C++ build, defining this overload that takes a REBVAL* instead of
 // a RELVAL*, and then not defining it...will tell you that you do not need
@@ -2849,7 +2874,6 @@ struct Reb_Value
 #ifdef __cplusplus
 void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
 #endif
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

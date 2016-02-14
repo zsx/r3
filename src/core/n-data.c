@@ -273,8 +273,7 @@ REBNATIVE(bind)
     REBVAL *value = ARG(value);
     REBVAL *target = ARG(target);
 
-    REBCTX *context = NULL;
-    REBFUN *func = NULL;
+    REBCTX *context;
 
     REBARR *array;
     REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
@@ -301,10 +300,6 @@ REBNATIVE(bind)
         //
         // Extract target from whatever word we were given
         //
-        // !!! Should we allow binding into FUNCTION! paramlists?  If not,
-        // why not?  Were it a closure, it would be legal because a closure's
-        // frame is just an object context (at the moment).
-        //
         assert(ANY_WORD(target));
         if (IS_WORD_UNBOUND(target))
             fail (Error(RE_NOT_BOUND, target));
@@ -319,17 +314,6 @@ REBNATIVE(bind)
     if (ANY_WORD(value)) {
         //
         // Bind a single word
-
-        if (func) {
-            //
-            // Note: BIND_ALL has no effect on "frames".
-            //
-            Bind_Stack_Word(func, value); // may fail()
-            *D_OUT = *value;
-            return R_OUT;
-        }
-
-        assert(context);
 
         if (Try_Bind_Word(context, value)) {
             *D_OUT = *value;
@@ -365,23 +349,13 @@ REBNATIVE(bind)
     else
         array = VAL_ARRAY(value);
 
-    if (context) {
-        Bind_Values_Core(
-            ARR_HEAD(array),
-            context,
-            bind_types,
-            add_midstream_types,
-            flags
-        );
-    }
-    else {
-        // This code is temporary, but it doesn't have any non-deep option
-        // at this time...
-        //
-        assert(flags & BIND_DEEP);
-        assert(NOT(REF(set)));
-        Bind_Relative_Deep(func, ARR_HEAD(array), TS_ANY_WORD);
-    }
+    Bind_Values_Core(
+        ARR_HEAD(array),
+        context,
+        bind_types,
+        add_midstream_types,
+        flags
+    );
 
     return R_OUT;
 }
