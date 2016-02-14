@@ -277,9 +277,11 @@ void Convert_Name_To_Thrown_Debug(
         //
         // If a context, the throw is asking to send an exit instruction to
         // a specific frame on the stack.  If a function, the throw is asking
-        // to exit its most recent invocation on the stack ("dynamic").
+        // to exit its most recent invocation on the stack ("dynamic").  If
+        // an integer, it is asking for a countdown, bumping by 1 at each
+        // step up the stack.
         //
-        assert(ANY_CONTEXT(name) || IS_FUNCTION(name));
+        assert(IS_FRAME(name) || IS_FUNCTION(name) || IS_INTEGER(name));
         SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM);
     }
 
