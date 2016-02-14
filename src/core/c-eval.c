@@ -771,21 +771,6 @@ reevaluate:
         // that there are an equal number of values in both.
         //
         f->param = FUNC_PARAMS_HEAD(f->func);
-
-        if (IS_END(f->param)) {
-            //
-            // There are no arguments, so just skip the next section.  We
-            // know that `param` contains an END marker so the GC
-            // won't crash on it.  The Dispatch_Call() will ovewrite both
-            // `arg` and `refine`.
-            //
-            goto function_ready_to_call;
-        }
-
-        // Since we know we're not going to just overwrite it, go ahead and
-        // grab the arg head.  While fulfilling arguments the GC might be
-        // invoked, so we have to initialize `refine` to something too...
-        //
         f->arg = FRM_ARGS_HEAD(f);
 
     do_function_arglist_in_progress:
@@ -805,15 +790,7 @@ reevaluate:
         // examine subfeed (which could be set during argument acquisition)
         //
         f->cell.subfeed = NULL;
-
-        // This loop goes through the parameter and argument slots.  Ordinary
-        // calls have all the arguments initialized to BAR!, indicating they
-        // are unspecialized--so they are acquired from the callsite.  Partial
-        // specializations can use BAR! as well, but with other values
-        // pre-existing in arg slots being soft-quoted as the value to use.
-
         f->mode = CALL_MODE_ARGS;
-
         f->refine = TRUE_VALUE; // "not a refinement arg, evaluate normally"
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1239,10 +1216,6 @@ reevaluate:
             goto continue_arg_loop; // leaves refine, but bumps param+arg
         }
 
-    function_ready_to_call:
-        //
-        // Execute the function with all arguments ready.
-        //
     #if !defined(NDEBUG)
         if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
             //
