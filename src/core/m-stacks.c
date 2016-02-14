@@ -641,6 +641,7 @@ REBCTX *Context_For_Frame_May_Reify(
     }
     else {
         assert(f->mode != CALL_MODE_GUARD_ARRAY_ONLY);
+
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),
@@ -706,6 +707,7 @@ REBCTX *Context_For_Frame_May_Reify(
     // the stack frame finishes normally)
     //
     CTX_STACKVARS(context) = f->data.stackvars;
+
     if (f->data.stackvars) {
         assert(!opt_varlist);
 

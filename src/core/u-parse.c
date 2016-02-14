@@ -1145,9 +1145,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                             }
 
                             *f->out = *ROOT_PARSE_NATIVE;
-                            CONVERT_NAME_TO_THROWN(
-                                f->out, &evaluated, FALSE
-                            );
+                            CONVERT_NAME_TO_THROWN(f->out, &evaluated);
 
                             // Implicitly returns whatever's in f->out
                             return THROWN_FLAG;
@@ -1623,7 +1621,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     );
 
                     *f->out = *ROOT_PARSE_NATIVE;
-                    CONVERT_NAME_TO_THROWN(f->out, &captured, FALSE);
+                    CONVERT_NAME_TO_THROWN(f->out, &captured);
 
                     // Implicitly returns whatever's in f->out
                     return THROWN_FLAG;

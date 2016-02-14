@@ -93,6 +93,7 @@ Internal: [
     debug-only:         {Feature available only in DEBUG builds}
 
     host-no-breakpoint: {Interpreter host code has no breakpoint handler}
+    no-current-pause:   {No current PAUSE or BREAKPOINT instruction in effect}
 
     invalid-exit:       {Frame does not exist on the stack to EXIT from}
 ]

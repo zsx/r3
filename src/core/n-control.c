@@ -412,7 +412,7 @@ REBNATIVE(break)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
+    CONVERT_NAME_TO_THROWN(D_OUT, value);
 
     return R_OUT_IS_THROWN;
 }
@@ -831,7 +831,7 @@ REBNATIVE(throw)
         SET_NONE(D_OUT);
     }
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
+    CONVERT_NAME_TO_THROWN(D_OUT, value);
 
     // Throw name is in D_OUT, thrown value is held task local
     return R_OUT_IS_THROWN;
@@ -881,7 +881,7 @@ REBNATIVE(continue)
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value, FALSE);
+    CONVERT_NAME_TO_THROWN(D_OUT, value);
 
     return R_OUT_IS_THROWN;
 }
@@ -1133,8 +1133,8 @@ REBNATIVE(exit)
 
         *D_OUT = *FUNC_VALUE(frame->func);
 
-        CONVERT_NAME_TO_THROWN(
-            D_OUT, REF(with) ? ARG(value) : VOID_CELL, TRUE
+        CONVERT_NAME_TO_EXIT_THROWN(
+            D_OUT, REF(with) ? ARG(value) : VOID_CELL
         );
 
         return R_OUT_IS_THROWN;
@@ -1173,7 +1173,7 @@ REBNATIVE(exit)
         *D_OUT = *level;
     }
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL, TRUE);
+    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
     return R_OUT_IS_THROWN;
 }

@@ -1264,7 +1264,7 @@ reevaluate:
                 // LEAVE never created an arglist, so it doesn't have to
                 // free one.  Also, it wants to just return UNSET!
                 //
-                CONVERT_NAME_TO_THROWN(f->out, VOID_CELL, TRUE);
+                CONVERT_NAME_TO_EXIT_THROWN(f->out, VOID_CELL);
                 NOTE_THROWING(goto return_indexor);
             }
 
@@ -1272,7 +1272,7 @@ reevaluate:
             // dropped from the chunk stack.
             //
             assert(FUNC_NUM_PARAMS(f->func) == 1);
-            CONVERT_NAME_TO_THROWN(f->out, FRM_ARGS_HEAD(f), TRUE);
+            CONVERT_NAME_TO_EXIT_THROWN(f->out, FRM_ARGS_HEAD(f));
             NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 

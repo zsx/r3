@@ -522,9 +522,15 @@ enum Reb_Vararg_Op {
 // will occur exactly once (when it is caught).
 
 #ifdef NDEBUG
-    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
+    #define CONVERT_NAME_TO_THROWN(name,arg) \
         do { \
-            if (from) SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM); \
+            SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
+            (TG_Thrown_Arg = *(arg)); \
+        } while (0)
+
+    #define CONVERT_NAME_TO_EXIT_THROWN(name,arg) \
+        do { \
+            SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM); \
             SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
             (TG_Thrown_Arg = *(arg)); \
         } while (0)
@@ -536,8 +542,11 @@ enum Reb_Vararg_Op {
             (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
-    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
-        Convert_Name_To_Thrown_Debug(name, arg, from)
+    #define CONVERT_NAME_TO_THROWN(name,arg) \
+        Convert_Name_To_Thrown_Debug((name), (arg), FALSE)
+
+    #define CONVERT_NAME_TO_EXIT_THROWN(name,arg) \
+        Convert_Name_To_Thrown_Debug((name), (arg), TRUE)
 
     #define CATCH_THROWN(a,t) \
         Catch_Thrown_Debug(a, t)

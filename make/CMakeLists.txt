@@ -188,10 +188,12 @@ set (CORE_SOURCE
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
     ${CORE_DIR}/c-value.c
+    ${CORE_DIR}/d-break.c
     ${CORE_DIR}/d-crash.c
     ${CORE_DIR}/d-dump.c
     ${CORE_DIR}/d-legacy.c
     ${CORE_DIR}/d-print.c
+    ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
