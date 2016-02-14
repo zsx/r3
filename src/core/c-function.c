@@ -1368,26 +1368,19 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // invocation.  (Costly, but that is the mechanics of words at the
         // present time, until true relative binding is implemented.)
         //
-        REBVAL copy;
-        VAL_RESET_HEADER(&copy, REB_BLOCK);
-        INIT_VAL_ARRAY(
-            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(body), frame_ctx)
-        );
-        VAL_INDEX(&copy) = 0;
+        REBARR *copy = Copy_Array_Deep_Managed(VAL_ARRAY(body), frame_ctx);
+        PUSH_GUARD_ARRAY(copy);
 
         Rebind_Values_Specifically_Deep(
-            f->func, frame_ctx, VAL_ARRAY_AT(&copy)
+            f->func, frame_ctx, ARR_HEAD(copy)
         );
 
-        // Protect the body from garbage collection during the course of the
-        // execution.  (This is inexpensive...it just points `f->param` to it.)
-        //
-        PROTECT_FRM_X(f, &copy);
-
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, &copy))
+        if (Do_At_Throws(f->out, copy, 0, SPECIFIED))
             r = R_OUT_IS_THROWN;
         else
             r = R_OUT;
+
+        DROP_GUARD_ARRAY(copy);
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the

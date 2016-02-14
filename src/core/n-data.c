@@ -360,7 +360,7 @@ REBNATIVE(bind)
         array = Copy_Array_At_Deep_Managed(
             VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
         );
-        INIT_VAL_ARRAY(D_OUT, array);
+        INIT_VAL_ARRAY(D_OUT, array); // warning: macro copies args
     }
     else
         array = VAL_ARRAY(value);

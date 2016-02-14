@@ -553,7 +553,7 @@ void Assert_Series_Core(REBSER *series)
 // as an actual function gives you a place to set breakpoints.
 //
 ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
-    const REBSER *series,
+    REBSER *series,
     const char *file,
     int line
 ) {

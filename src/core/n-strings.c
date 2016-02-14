@@ -419,16 +419,15 @@ REBNATIVE(construct)
     if (IS_STRING(spec_value) || IS_BINARY(spec_value)) {
         REBCNT index;
         REBARR *array;
+        REBSER *temp;
 
         // Just a guess at size:
         array = Make_Array(10);     // Use a std BUF_?
         Val_Init_Block(D_OUT, array); // Keep safe
 
         // Convert string if necessary. Store back for safety.
-        INIT_VAL_SERIES(
-            spec_value,
-            Temp_Bin_Str_Managed(spec_value, &index, 0)
-        );
+        temp = Temp_Bin_Str_Managed(spec_value, &index, 0);
+        INIT_VAL_SERIES(spec_value, temp); // caution: macro copies args!
 
         // !!! "Is this what we really want here?" <= but *what is it*?
         //

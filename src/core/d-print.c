@@ -380,7 +380,7 @@ void Debug_Series(REBSER *ser)
         //
         REBVAL value;
         VAL_RESET_HEADER(&value, REB_BLOCK);
-        INIT_VAL_SERIES(&value, ser);
+        INIT_VAL_ARRAY(&value, AS_ARRAY(ser));
         VAL_INDEX(&value) = 0;
 
         Debug_Fmt("%r", &value);
@@ -870,17 +870,25 @@ pick:
             /* for (; l > 0; l--, bp++) if (*bp < ' ') *bp = ' '; */
             break;
 
-        case 'm':  // Mold a series
+        case 'm': { // Mold a series
             // Val_Init_Block would Ensure_Series_Managed, we use a raw
             // VAL_SET instead.
             //
             // !!! Better approach?  Can the series be passed directly?
             //
-            VAL_RESET_HEADER(&value, REB_BLOCK);
-            INIT_VAL_SERIES(&value, va_arg(*vaptr, REBSER*));
+            REBSER* temp = va_arg(*vaptr, REBSER*);
+            if (Is_Array_Series(temp)) {
+                VAL_RESET_HEADER(&value, REB_BLOCK);
+                INIT_VAL_ARRAY(&value, AS_ARRAY(temp)); // careful, macro!
+            }
+            else {
+                VAL_RESET_HEADER(&value, REB_STRING);
+                INIT_VAL_SERIES(&value, temp); // careful, macro!
+            }
             VAL_INDEX(&value) = 0;
             Mold_Value(mo, &value, TRUE);
             break;
+        }
 
         case 'c':
             Append_Codepoint_Raw(

@@ -438,7 +438,7 @@ void Val_Init_Series_Index_Core(
     }
 
     VAL_RESET_HEADER(value, type);
-    INIT_VAL_SERIES(value, series);
+    value->payload.any_series.series = series;
     VAL_INDEX(value) = index;
     INIT_ARRAY_SPECIFIC(value, specifier);
 }

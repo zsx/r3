@@ -393,14 +393,12 @@ REBOOL Compose_Values_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
-                    INIT_VAL_ARRAY(
-                        DS_TOP,
-                        Copy_Array_At_Shallow(
-                            VAL_ARRAY(value),
-                            VAL_INDEX(value),
-                            specifier
-                        )
+                    REBARR *copy = Copy_Array_At_Shallow(
+                        VAL_ARRAY(value),
+                        VAL_INDEX(value),
+                        specifier
                     );
+                    INIT_VAL_ARRAY(DS_TOP, copy); // warning: macro copies args
                     MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
                 }
             }

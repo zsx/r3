@@ -603,14 +603,12 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     REBOOL at = FALSE;
     REBUNI n;
 
-    VAL_RESET_HEADER(value, REB_EMAIL);
-    INIT_VAL_SERIES(value, Make_Binary(len));
-    VAL_INDEX(value) = 0;
+    REBSER *series = Make_Binary(len);
 
-    str = VAL_BIN(value);
+    str = BIN_HEAD(series);
     for (; len > 0; len--) {
         if (*cp == '@') {
-            if (at) return 0;
+            if (at) return NULL;
             at = TRUE;
         }
         if (*cp == '%') {
@@ -623,9 +621,9 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     }
     *str = 0;
     if (!at) return 0;
-    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
+    SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    MANAGE_SERIES(VAL_SERIES(value));
+    Val_Init_Series(value, REB_EMAIL, series); // manages
 
     return cp;
 }
@@ -638,6 +636,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
 //
 const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 {
+    REBSER *series;
     REBYTE *str;
     REBUNI n;
 
@@ -649,11 +648,9 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (n >= URL_MAX) return 0;
 //  if (*str != ':') return 0;
 
-    VAL_RESET_HEADER(value, REB_URL);
-    INIT_VAL_SERIES(value, Make_Binary(len));
-    VAL_INDEX(value) = 0;
+    series = Make_Binary(len);
 
-    str = VAL_BIN(value);
+    str = BIN_HEAD(series);
     for (; len > 0; len--) {
         //if (*cp == '%' && len > 2 && Scan_Hex2(cp+1, &n, FALSE)) {
         if (*cp == '%') {
@@ -665,10 +662,9 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
         else *str++ = *cp++;
     }
     *str = 0;
-    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
+    SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    // All scanned code is assumed to be managed
-    MANAGE_SERIES(VAL_SERIES(value));
+    Val_Init_Series(value, REB_URL, series); // manages
     return cp;
 }
 
@@ -774,13 +770,10 @@ const REBYTE *Scan_Any(
 ) {
     REBCNT n;
 
-    VAL_RESET_HEADER(value, type);
-    INIT_VAL_SERIES(value, Append_UTF8_May_Fail(0, cp, len));
-    VAL_INDEX(value) = 0;
-
     // We hand it over to management by the GC, but don't run the GC before
     // the source has been scanned and put somewhere safe!
-    MANAGE_SERIES(VAL_SERIES(value));
+    //
+    Val_Init_Series(value, type, Append_UTF8_May_Fail(0, cp, len));
 
     if (VAL_BYTE_SIZE(value)) {
         n = Deline_Bytes(VAL_BIN(value), VAL_LEN_AT(value));

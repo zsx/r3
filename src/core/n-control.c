@@ -1660,7 +1660,7 @@ REBNATIVE(switch)
                 ? VAL_SPECIFIER(const_KNOWN(e.value))
                 : VAL_SPECIFIER(ARG(cases))
         )) {
-            return R_OUT_IS_THROWN;
+            goto return_thrown;
         }
 
         // Only keep processing if the /ALL refinement was specified

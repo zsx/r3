@@ -264,11 +264,18 @@ void Clonify_Values_Len_Managed(
                             )
                         );
                     }
-                }
-                else
-                    series = Copy_Sequence(VAL_SERIES(value));
 
-                INIT_VAL_SERIES(value, series);
+                    INIT_VAL_ARRAY(value, AS_ARRAY(series)); // copies args
+
+                    // If it was relative, then copying with a specifier
+                    // means it isn't relative any more.
+                    //
+                    INIT_ARRAY_SPECIFIC(value, SPECIFIED);
+                }
+                else {
+                    series = Copy_Sequence(VAL_SERIES(value));
+                    INIT_VAL_SERIES(value, series);
+                }
             }
 
         #if !defined(NDEBUG)

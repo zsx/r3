@@ -236,7 +236,8 @@ REBOOL Make_Block_Type_Throws(
 
     if (IS_STRING(arg)) {
         REBCNT index, len = 0;
-        INIT_VAL_SERIES(arg, Temp_Bin_Str_Managed(arg, &index, &len));
+        REBSER *temp = Temp_Bin_Str_Managed(arg, &index, &len);
+        INIT_VAL_SERIES(arg, temp); // caution: macro copies args!
         array = Scan_Source(VAL_BIN(arg), VAL_LEN_AT(arg));
         goto done;
     }
