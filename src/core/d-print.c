@@ -937,15 +937,22 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 **
 ***********************************************************************/
 
-static const REBVAL *Pending_Format_Delimiter(
+static void Get_Pending_Format_Delimiter(
+    REBVAL *out,
     const REBVAL* delimiter,
     REBCNT depth
 ) {
-    if (!IS_BLOCK(delimiter))
-        return delimiter;
+    RELVAL *item;
 
-    if (VAL_ARRAY_LEN_AT(delimiter) == 0)
-        return BLANK_VALUE;
+    if (!IS_BLOCK(delimiter)) {
+        *out = *delimiter;
+        return;
+    }
+
+    if (VAL_ARRAY_LEN_AT(delimiter) == 0) {
+        SET_BLANK(out);
+        return;
+    }
 
     if (depth >= VAL_ARRAY_LEN_AT(delimiter))
         depth = VAL_ARRAY_LEN_AT(delimiter) - 1;
@@ -953,18 +960,22 @@ static const REBVAL *Pending_Format_Delimiter(
     // We allow the block passed in to not be at the head, so we have to
     // account for the index and offset from it.
     //
-    delimiter = VAL_ARRAY_AT_HEAD(delimiter, VAL_INDEX(delimiter) + depth);
+    item = VAL_ARRAY_AT_HEAD(delimiter, VAL_INDEX(delimiter) + depth);
 
     // BAR! at the end signals a stop, not to keep repeating the last
     // delimiter for higher levels.  Same effect as a NONE!
     //
-    if (IS_BAR(delimiter) || IS_BLANK(delimiter))
-        return BLANK_VALUE;
+    if (IS_BAR(item) || IS_BLANK(item)) {
+        SET_BLANK(out);
+        return;
+    }
 
     // We have to re-type-check against the legal delimiter types here.
     //
-    if (ANY_STRING(delimiter) || IS_CHAR(delimiter))
-        return delimiter;
+    if (ANY_STRING(item) || IS_CHAR(item)) {
+        *out = *KNOWN(item);
+        return;
+    }
 
     // !!! TBD: Error message, more comprehensive type check
     //
@@ -1064,8 +1075,9 @@ REBOOL Format_GC_Safe_Value_Throws(
                     mold->series, VAL_BIN_AT(f.value), VAL_LEN_AT(f.value)
                 );
 
-                *pending_delimiter
-                    = *Pending_Format_Delimiter(delimiter, depth);
+                Get_Pending_Format_Delimiter(
+                    pending_delimiter, delimiter, depth
+                );
             }
 
             FETCH_NEXT_ONLY_MAYBE_END(&f);
@@ -1113,8 +1125,8 @@ REBOOL Format_GC_Safe_Value_Throws(
             // it back to pending the delimiter of the *outer* element.
             //
             if (!IS_END(pending_delimiter)) {
-                *pending_delimiter = *Pending_Format_Delimiter(
-                    delimiter, depth
+                Get_Pending_Format_Delimiter(
+                    pending_delimiter, delimiter, depth
                 );
             }
 
@@ -1146,8 +1158,9 @@ REBOOL Format_GC_Safe_Value_Throws(
             // it back to pending the delimiter of the *outer* element.
             //
             if (!IS_END(pending_delimiter)) {
-                *pending_delimiter
-                    = *Pending_Format_Delimiter(delimiter, depth);
+                Get_Pending_Format_Delimiter(
+                    pending_delimiter, delimiter, depth
+                );
             }
 
             // The DO_NEXT already refetched...
@@ -1178,8 +1191,9 @@ REBOOL Format_GC_Safe_Value_Throws(
                 SET_BLANK(pending_delimiter);
             }
             else {
-                *pending_delimiter
-                    = *Pending_Format_Delimiter(delimiter, depth);
+                Get_Pending_Format_Delimiter(
+                    pending_delimiter, delimiter, depth
+                );
             }
 
             FETCH_NEXT_ONLY_MAYBE_END(&f);
