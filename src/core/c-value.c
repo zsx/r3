@@ -74,6 +74,14 @@ void COPY_VALUE_Guessable(
     const RELVAL *src,
     REBCTX *specifier
 ) {
+    // !!! TEMPORARY TOLERANCE.  The default initialization for arrays that
+    // aren't coming from a deep function body copy will be specified long
+    // term.  But right now, it's used more widely.  If a relative value
+    // is used with specified, just treat it as guessed.
+    //
+    if (IS_RELATIVE(src) && specifier == SPECIFIED)
+        specifier = GUESSED;
+
     if (specifier != GUESSED || !IS_RELATIVE(src)) {
         COPY_VALUE_MACRO(dest, src, specifier);
         return;
@@ -497,7 +505,6 @@ void COPY_VALUE_Guessable_Debug(
             // !!! Temporary... allow "lying" specifieds by bumping them to
             // just being GUESSED.  This is being addressed incrementally.
             //
-            specifier = GUESSED;
         }
         else if (specifier == SPECIFIED) {
             Debug_Fmt("Internal Error: Relative word used with SPECIFIC");

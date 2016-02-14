@@ -995,19 +995,24 @@ REBINT PD_Struct(REBPVS *pvs)
             && IS_BLOCK(pvs->store)
             && IS_END(pvs->item + 2)
         ) {
-            const REBVAL *sel_orig = pvs->selector;
+            // !!! This is dodgy; it has to copy (as selector is a pointer to
+            // a memory cell it may not own), has to guard (as the next path
+            // evaluation may not protect the result...)
+            //
+            REBVAL sel_orig = *pvs->selector;
+            PUSH_GUARD_VALUE(&sel_orig);
+
             pvs->value = pvs->store;
 
             if (Next_Path_Throws(pvs)) { // updates pvs->store, pvs->selector
-
-                // !!! Gob and Struct do "sub-dispatch" which may throw
-                // No "PE_THREW" return, however.  (should there be?)
-
-                fail (Error_No_Catch_For_Throw(pvs->store));
+                DROP_GUARD_VALUE(&sel_orig);
+                fail (Error_No_Catch_For_Throw(pvs->store)); // !!! Review
             }
 
-            if (!Set_Struct_Var(stu, sel_orig, pvs->selector, pvs->value))
+            if (!Set_Struct_Var(stu, &sel_orig, pvs->selector, pvs->value))
                 fail (Error_Bad_Path_Set(pvs));
+
+            DROP_GUARD_VALUE(&sel_orig);
 
             return PE_OK;
         }

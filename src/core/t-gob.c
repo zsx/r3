@@ -691,14 +691,13 @@ REBOOL MT_Gob(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT PD_Gob(REBPVS *pvs)
 {
-    const REBVAL *sel = pvs->selector;
     REBGOB *gob = VAL_GOB(pvs->value);
     REBCNT index;
     REBCNT tail;
 
-    if (IS_WORD(sel)) {
+    if (IS_WORD(pvs->selector)) {
         if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
-            if (!Get_GOB_Var(gob, sel, pvs->store))
+            if (!Get_GOB_Var(gob, pvs->selector, pvs->store))
                 fail (Error_Bad_Path_Select(pvs));
 
             // !!! Comment here said: "Check for SIZE/X: types of cases".
@@ -710,35 +709,42 @@ REBINT PD_Gob(REBPVS *pvs)
             // overall solution to facilitating this kind of need.
             //
             if (pvs->opt_setval && IS_PAIR(pvs->store)) {
+                //
+                // !!! Adding to the reasons that this is dodgy, the selector
+                // can be pointing to a temporary memory cell, and when
+                // Next_Path_Throws runs arbitrary code it could be GC'd too.
+                // Have to copy -and- protect.
+                //
+                REBVAL sel_orig = *pvs->selector;
+                PUSH_GUARD_VALUE(&sel_orig);
+
                 pvs->value = pvs->store;
 
                 if (Next_Path_Throws(pvs)) { // sets value in pvs->store
-
-                    // !!! Gob and Struct do "sub-dispatch" which may throw
-                    // No "PE_THREW" return, however.  (should there be?)
-
-                    fail (Error_No_Catch_For_Throw(pvs->store));
+                    DROP_GUARD_VALUE(&sel_orig);
+                    fail (Error_No_Catch_For_Throw(pvs->store)); // Review
                 }
 
                 // write it back to gob
                 //
-                Set_GOB_Var(gob, sel, pvs->store);
+                Set_GOB_Var(gob, &sel_orig, pvs->store);
+                DROP_GUARD_VALUE(&sel_orig);
             }
             return PE_USE_STORE;
         }
         else {
-            if (!Set_GOB_Var(gob, sel, pvs->opt_setval))
+            if (!Set_GOB_Var(gob, pvs->selector, pvs->opt_setval))
                 fail (Error_Bad_Path_Set(pvs));
             return PE_OK;
         }
     }
 
-    if (IS_INTEGER(sel)) {
+    if (IS_INTEGER(pvs->selector)) {
         if (!GOB_PANE(gob)) return PE_NONE;
 
         tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
         index = VAL_GOB_INDEX(pvs->value);
-        index += Int32(sel) - 1;
+        index += Int32(pvs->selector) - 1;
 
         if (index >= tail) return PE_NONE;
 

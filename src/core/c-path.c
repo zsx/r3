@@ -101,31 +101,35 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
     //Debug_Fmt("Next_Path: %r/%r", pvs->path-1, pvs->path);
 
-    // object/:field case:
-    if (IS_GET_WORD(pvs->item)) {
+    // Determine the "selector".  See notes on pvs->selector_temp for why
+    // a local variable can't be used for the temporary space.
+    //
+    if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
         pvs->selector = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->specifier);
         if (IS_VOID(pvs->selector))
             fail (Error(RE_NO_VALUE, pvs->item));
+
+        SET_TRASH_IF_DEBUG(&pvs->selector_temp);
     }
     // object/(expr) case:
     else if (IS_GROUP(pvs->item)) {
         if (Do_At_Throws(
-            &temp,
+            &pvs->selector_temp,
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
             pvs->specifier
         )) {
-            *pvs->value = temp;
+            *pvs->value = pvs->selector_temp;
             return TRUE;
         }
 
-        pvs->selector = &temp;
+        pvs->selector = &pvs->selector_temp;
     }
     else {
         // object/word and object/value case:
         //
-        COPY_VALUE(&temp, pvs->item, pvs->specifier);
-        pvs->selector = &temp;
+        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->specifier);
+        pvs->selector = &pvs->selector_temp;
     }
 
     switch (dispatcher(pvs)) {
