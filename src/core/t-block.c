@@ -669,16 +669,11 @@ REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
 //
 REBTYPE(Array)
 {
-    REBVAL  *value = D_ARG(1);
-    REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBARR *array;
-    REBINT  index;
-    REBINT  tail;
-    REBINT  len;
-    REBCNT  args;
-    REBCNT  ret;
+    REBVAL *value = D_ARG(1);
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBVAL val;
+    REBARR *array;
+    REBINT index;
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
@@ -722,39 +717,18 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    index = cast(REBINT, VAL_INDEX(value));
-    tail  = cast(REBINT, VAL_LEN_HEAD(value));
+    // Extract the array and the index from value.
+    //
+    // NOTE: Partial1() used below can mutate VAL_INDEX(value), be aware :-/
+    //
     array = VAL_ARRAY(value);
-
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_ARRAY(array);
+    index = cast(REBINT, VAL_INDEX(value));
 
     switch (action) {
 
-    //-- Picking:
-
-#ifdef REMOVE_THIS
-
-//CHANGE SELECT TO USE PD_BLOCK?
-
-    case A_PATH:
-        if (IS_INTEGER(arg)) {
-            action = A_PICK;
-            goto repick;
-        }
-        // block/select case:
-        ret = Find_In_Array_Simple(array, index, arg);
-        goto select_val;
-
-    case A_PATH_SET:
-        action = A_POKE;
-        // no SELECT case allowed !!!!
-#endif
-
     case A_POKE:
-    case A_PICK:
-repick:
+    case A_PICK: {
+pick_using_arg:
         value = Pick_Block(value, arg);
         if (action == A_PICK) {
             if (!value) {
@@ -763,38 +737,48 @@ repick:
             }
             *D_OUT = *value;
         } else {
+            FAIL_IF_LOCKED_ARRAY(array);
             if (!value) fail (Error_Out_Of_Range(arg));
             arg = D_ARG(3);
             *value = *arg;
             *D_OUT = *arg;
         }
         return R_OUT;
+    }
 
-    case A_TAKE:
-        // take/part:
-        if (D_REF(2)) {
-            len = Partial1(value, D_ARG(3));
-            if (len == 0) {
-zero_blk:
-                Val_Init_Block(D_OUT, Make_Array(0));
-                return R_OUT;
-            }
+    case A_TAKE: {
+        REFINE(2, part);
+        PARAM(3, limit);
+        REFINE(4, deep);
+        REFINE(5, last);
+
+        REBINT len;
+
+        FAIL_IF_LOCKED_ARRAY(array);
+
+        if (REF(part)) {
+            len = Partial1(value, ARG(limit));
+            if (len == 0)
+                goto return_empty_block;
         } else
             len = 1;
 
         index = VAL_INDEX(value); // /part can change index
-        // take/last:
-        if (D_REF(5)) index = tail - len;
-        if (index < 0 || index >= tail) {
-            if (!D_REF(2)) {
+
+        if (REF(last))
+            index = VAL_LEN_HEAD(value) - len;
+
+        if (index < 0 || index >= cast(REBINT, VAL_LEN_HEAD(value))) {
+            if (!REF(part)) {
                 SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
                 return R_OUT;
             }
-            goto zero_blk;
+
+            goto return_empty_block;
         }
 
         // if no /part, just return value, else return block:
-        if (!D_REF(2))
+        if (!REF(part))
             *D_OUT = ARR_HEAD(array)[index];
         else
             Val_Init_Block(
@@ -802,20 +786,28 @@ zero_blk:
             );
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
+    }
 
     //-- Search:
 
     case A_FIND:
-    case A_SELECT:
-        args = Find_Refines(frame_, ALL_FIND_REFS);
+    case A_SELECT: {
+        REBCNT args = Find_Refines(frame_, ALL_FIND_REFS);
+        REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
-        len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
-        if (args & AM_FIND_PART) tail = Partial1(value, D_ARG(ARG_FIND_LIMIT));
+        REBCNT ret;
+        REBINT limit;
+
+        if (args & AM_FIND_PART)
+            limit = Partial1(value, D_ARG(ARG_FIND_LIMIT));
+        else
+            limit = cast(REBINT, VAL_LEN_HEAD(value));
+
         ret = 1;
         if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);
-        ret = Find_In_Array(array, index, tail, arg, len, args, ret);
+        ret = Find_In_Array(array, index, limit, arg, len, args, ret);
 
-        if (ret >= (REBCNT)tail) {
+        if (ret >= cast(REBCNT, limit)) {
             if (action == A_FIND) return R_BLANK;
             SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
             return R_OUT;
@@ -827,23 +819,35 @@ zero_blk:
         }
         else {
             ret += len;
-            if (ret >= (REBCNT)tail) {
+            if (ret >= cast(REBCNT, limit)) {
                 if (action == A_FIND) return R_BLANK;
                 SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
                 return R_OUT;
             }
             value = ARR_AT(array, ret);
         }
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
     //-- Modification:
     case A_APPEND:
     case A_INSERT:
-    case A_CHANGE:
+    case A_CHANGE: {
+        REBCNT args = 0;
+
         // Length of target (may modify index): (arg can be anything)
-        len = Partial1((action == A_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
+        //
+        REBINT len = Partial1(
+            (action == A_CHANGE)
+                ? value
+                : arg,
+            D_ARG(AN_LIMIT)
+        );
+
+        FAIL_IF_LOCKED_ARRAY(array);
         index = VAL_INDEX(value);
-        args = 0;
+
         if (D_REF(AN_ONLY)) SET_FLAG(args, AN_ONLY);
         if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
         index = Modify_Array(
@@ -856,85 +860,107 @@ zero_blk:
             D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1
         );
         VAL_INDEX(value) = index;
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
-    case A_CLEAR:
-        if (index < tail) {
+    case A_CLEAR: {
+        FAIL_IF_LOCKED_ARRAY(array);
+        if (index < cast(REBINT, VAL_LEN_HEAD(value))) {
             if (index == 0) Reset_Array(array);
             else {
                 SET_END(ARR_AT(array, index));
                 SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             }
         }
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
     //-- Creation:
 
-    case A_COPY: // /PART len /DEEP /TYPES kinds
-    {
+    case A_COPY: {
+        REFINE(2, part);
+        PARAM(3, limit);
+        REFINE(4, deep);
+        REFINE(5, types);
+        PARAM(6, kinds);
+
         REBU64 types = 0;
-        if (D_REF(ARG_COPY_DEEP)) {
-            types |= D_REF(ARG_COPY_TYPES) ? 0 : TS_STD_SERIES;
+        REBARR *copy;
+
+        if (REF(deep)) {
+            types |= REF(types) ? 0 : TS_STD_SERIES;
         }
-        if D_REF(ARG_COPY_TYPES) {
-            arg = D_ARG(ARG_COPY_KINDS);
-            if (IS_DATATYPE(arg)) types |= FLAGIT_KIND(VAL_TYPE(arg));
-            else types |= VAL_TYPESET_BITS(arg);
+        if (REF(types)) {
+            if (IS_DATATYPE(ARG(kinds)))
+                types |= FLAGIT_KIND(VAL_TYPE(ARG(kinds)));
+            else
+                types |= VAL_TYPESET_BITS(ARG(kinds));
         }
-        len = Partial1(value, D_ARG(ARG_COPY_LIMIT));
-        INIT_VAL_ARRAY(value, Copy_Array_Core_Managed(
+        copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
-            VAL_INDEX(value) + len, // tail
+            VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
             0, // extra
-            D_REF(ARG_COPY_DEEP), // deep
+            REF(deep), // deep
             types // types
-        ));
-        VAL_INDEX(value) = 0;
+        );
+        Val_Init_Array(D_OUT, VAL_TYPE(value), copy);
+        return R_OUT;
     }
-        break;
 
     //-- Special actions:
 
-    case A_TRIM:
-        args = Find_Refines(frame_, ALL_TRIM_REFS);
+    case A_TRIM: {
+        REBCNT args = Find_Refines(frame_, ALL_TRIM_REFS);
+        FAIL_IF_LOCKED_ARRAY(array);
+
         if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
         Trim_Array(array, index, args);
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
-    case A_SWAP:
+    case A_SWAP: {
         if (!ANY_ARRAY(arg))
             fail (Error_Invalid_Arg(arg));
 
-        // value should have been checked by the action number (sorted by
-        // modifying/not modifying), so just check the argument for protect
-        //
-        // !!! Is relying on action numbers a good idea in general?
-        //
+        FAIL_IF_LOCKED_ARRAY(array);
         FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)) {
-            val = *VAL_ARRAY_AT(value);
+        if (
+            index < cast(REBINT, VAL_LEN_HEAD(value))
+            && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)
+        ) {
+            REBVAL temp = *VAL_ARRAY_AT(value);
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
-            *VAL_ARRAY_AT(arg) = val;
+            *VAL_ARRAY_AT(arg) = temp;
         }
-        value = 0;
-        break;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+    }
 
-    case A_REVERSE:
-        len = Partial1(value, D_ARG(3));
-        if (len == 0) break;
-        value = VAL_ARRAY_AT(value);
-        arg = value + len - 1;
-        for (len /= 2; len > 0; len--) {
-            val = *value;
-            *value++ = *arg;
-            *arg-- = val;
+    case A_REVERSE: {
+        REBINT len = Partial1(value, D_ARG(3));
+
+        FAIL_IF_LOCKED_ARRAY(array);
+
+        if (len != 0) {
+            value = VAL_ARRAY_AT(value);
+            arg = value + len - 1;
+            for (len /= 2; len > 0; len--) {
+                REBVAL temp = *value;
+                *value++ = *arg;
+                *arg-- = temp;
+            }
         }
-        value = 0;
-        break;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+    }
 
-    case A_SORT:
+    case A_SORT: {
+        FAIL_IF_LOCKED_ARRAY(array);
         Sort_Block(
             value,
             D_REF(2),   // case sensitive
@@ -944,32 +970,43 @@ zero_blk:
             D_REF(9),   // all fields
             D_REF(10)   // reverse
         );
-        break;
-
-    case A_RANDOM:
-        if (!IS_BLOCK(value)) fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-        if (D_REF(4)) { // /only
-            if (index >= tail) return R_BLANK;
-            len = (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
-            arg = D_ARG(2); // pass to pick
-            SET_INTEGER(arg, len+1);
-            action = A_PICK;
-            goto repick;
-        }
-        Shuffle_Block(value, D_REF(3));
-        break;
-
-    default:
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
-    }
-
-    if (!value) {
-        *D_OUT = *D_ARG(1);
+        *D_OUT = *value;
         return R_OUT;
     }
 
-    *D_OUT = *value;
+    case A_RANDOM: {
+        REFINE(2, seed);
+        REFINE(3, secure);
+        REFINE(4, only);
+
+        if (REF(seed)) fail (Error(RE_BAD_REFINES));
+
+        if (REF(only)) { // pick an element out of the array
+            if (index >= cast(REBINT, VAL_LEN_HEAD(value)))
+                return R_BLANK;
+
+            SET_INTEGER(
+                ARG(seed),
+                1 + (Random_Int(REF(secure)) % (VAL_LEN_HEAD(value) - index))
+            );
+            arg = ARG(seed); // argument to pick
+            action = A_PICK;
+            goto pick_using_arg;
+        }
+
+        Shuffle_Block(value, REF(secure));
+        *D_OUT = *value;
+        return R_OUT;
+    }
+
+    default:
+        break; // fallthrough to error
+    }
+
+    fail (Error_Illegal_Action(VAL_TYPE(value), action));
+
+return_empty_block:
+    Val_Init_Block(D_OUT, Make_Array(0));
     return R_OUT;
 }
 
