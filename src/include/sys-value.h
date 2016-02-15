@@ -1106,7 +1106,7 @@ struct Reb_Any_Series {
 #define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
 
 #define VAL_RAW_DATA_AT(v) \
-    SER_AT_RAW(VAL_SERIES(v), VAL_INDEX(v))
+    SER_AT_RAW(SER_WIDE(VAL_SERIES(v)), VAL_SERIES(v), VAL_INDEX(v))
 
 #define VAL_MAP(v) \
     (assert(IS_MAP(v)), AS_MAP((v)->payload.any_series.series))

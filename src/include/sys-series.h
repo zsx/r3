@@ -485,10 +485,19 @@ struct Reb_Series {
 //
 #define SER_DATA_RAW(s) \
     (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
-        ? ((s)->content.dynamic.data + 0) /* Lvalue! */ \
+        ? (s)->content.dynamic.data \
         : cast(REBYTE*, &(s)->content.values[0]))
 
-#define SER_AT_RAW(s,i)      (SER_DATA_RAW(s) + (SER_WIDE(s) * (i)))
+#define SER_AT_RAW_MACRO(w,s,i) \
+    (SER_DATA_RAW(s) + ((w) * (i)))
+
+#ifdef NDEBUG
+    #define SER_AT_RAW(w,s,i) \
+        SER_AT_RAW_MACRO((w),(s),(i))
+#else
+    #define SER_AT_RAW(w,s,i) \
+        SER_AT_RAW_Debug((w),(s),(i))
+#endif
 
 #define SER_SET_EXTERNAL_DATA(s,p) \
     (SET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC), \
@@ -504,8 +513,7 @@ struct Reb_Series {
 //
 
 #define SER_AT(t,s,i) \
-    (assert(SER_WIDE(s) == sizeof(t)), \
-        cast(t*, SER_DATA_RAW(s) + (sizeof(t) * (i))))
+    cast(t*, SER_AT_RAW(sizeof(t), (s), (i)))
 
 #define SER_HEAD(t,s) \
     SER_AT(t, (s), 0)
@@ -588,7 +596,7 @@ struct Reb_Series {
 #define TERM_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        memset(SER_AT_RAW((s), SER_LEN(s)), 0, SER_WIDE(s)); \
+        memset(SER_AT_RAW(SER_WIDE(s), (s), SER_LEN(s)), 0, SER_WIDE(s)); \
     } while (0)
 
 #ifdef NDEBUG
@@ -865,7 +873,7 @@ struct Reb_Array {
 #define TERM_SERIES(s) \
     Is_Array_Series(s) \
         ? (void)TERM_ARRAY(AS_ARRAY(s)) \
-        : (void)memset(SER_AT_RAW(s, SER_LEN(s)), 0, SER_WIDE(s))
+        : (void)memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s))
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.

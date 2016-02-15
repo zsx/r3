@@ -471,6 +471,26 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 #if !defined(NDEBUG)
 
 //
+//  SER_AT_RAW_Debug: C
+//
+// This functionality is extremely common, and having too much checking on
+// each invocation as part of the macro expansion was creating explosions
+// of unreadable macro code in asserts.  Putting it into a function in
+// the debug build reigns in the expansions...and since performance is
+// not a concern in the debug build, it's ok.
+//
+REBYTE *SER_AT_RAW_Debug(size_t w, REBSER *s, REBCNT i) {
+    //
+    // Callsites know the type of pointer they are asking for, so they often
+    // know the width without having to look in the series to get it.  Assert
+    // the width they think is consistent with what SER_WIDE thinks.
+    //
+    assert(w == SER_WIDE(s));
+    return SER_AT_RAW_MACRO(w, s, i);
+}
+
+
+//
 //  Assert_Series_Term_Core: C
 //
 void Assert_Series_Term_Core(REBSER *series)

@@ -600,8 +600,8 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 // be in a good state for the next iteration of the body. :-/
                 //
                 memmove(
-                    SER_AT_RAW(series, write_index),
-                    SER_AT_RAW(series, read_index),
+                    SER_AT_RAW(SER_WIDE(series), series, write_index),
+                    SER_AT_RAW(SER_WIDE(series), series, read_index),
                     (index - read_index) * SER_WIDE(series)
                 );
                 write_index += index - read_index;

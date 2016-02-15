@@ -902,7 +902,11 @@ zero_str:
             //
             Set_Random(
                 Compute_CRC(
-                    SER_AT_RAW(VAL_SERIES(value), VAL_INDEX(value)),
+                    SER_AT_RAW(
+                        SER_WIDE(VAL_SERIES(value)),
+                        VAL_SERIES(value),
+                        VAL_INDEX(value)
+                    ),
                     VAL_LEN_AT(value) * SER_WIDE(VAL_SERIES(value))
                 )
             );

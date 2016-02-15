@@ -53,8 +53,8 @@ REBINT Compare_Binary_Vals(const REBVAL *v1, const REBVAL *v2)
     // that asserts BYTE_SIZE().
     //
     n = memcmp(
-        SER_AT_RAW(VAL_SERIES(v1), VAL_INDEX(v1)),
-        SER_AT_RAW(VAL_SERIES(v2), VAL_INDEX(v2)),
+        SER_AT_RAW(SER_WIDE(VAL_SERIES(v1)), VAL_SERIES(v1), VAL_INDEX(v1)),
+        SER_AT_RAW(SER_WIDE(VAL_SERIES(v2)), VAL_SERIES(v2), VAL_INDEX(v2)),
         len
     );
 
