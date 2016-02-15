@@ -82,6 +82,38 @@ REBIXO Do_Array_At_Core(
 
 
 //
+//  Do_Values_At_Core: C
+//
+// !!! Not yet implemented--concept is to accept a REBVAL[] array, rather
+// than a REBARR of values.
+//
+// !!! Considerations of this core interface are to see the values as being
+// potentially in non-contiguous points in memory, and advanced with some
+// skip length between them.  Additionally the idea of some kind of special
+// Rebol value or "REB_INSTRUCTION" to say how far to skip is a possibility,
+// which would be more general in the sense that it would allow the skip
+// distances to be generalized, though this would cost a pointer size
+// entity at each point.  The advantage of REB_INSTRUCTION is that only the
+// clients using the esoteric ability would be paying anything for it or
+// the API complexity, but if an important client like Ren-C++ it might
+// be worth the savings.
+//
+// Note: Functionally it would be possible to assume a 0 index and require
+// the caller to bump the value pointer as necessary.  But an index-based
+// interface is likely useful to avoid the bookkeeping required for the caller.
+//
+REBIXO Do_Values_At_Core(
+    REBVAL *out,
+    REBFLGS flags,
+    const REBVAL *opt_head,
+    const REBVAL values[],
+    REBCNT index
+) {
+    fail (Error(RE_MISC));
+}
+
+
+//
 //  Reify_Va_To_Array_In_Frame: C
 //
 // For performance and memory usage reasons, a variadic C function call that
@@ -256,34 +288,63 @@ REBIXO Do_Va_Core(
 
 
 //
-//  Do_Values_At_Core: C
+//  Do_Va_Throws: C
 //
-// !!! Not yet implemented--concept is to accept a REBVAL[] array, rather
-// than a REBARR of values.
+// Wrapper around Do_Va_Core which has the actual variadic interface (as
+// opposed to taking the `va_list` whicih has been captured out of the
+// variadic interface).
 //
-// !!! Considerations of this core interface are to see the values as being
-// potentially in non-contiguous points in memory, and advanced with some
-// skip length between them.  Additionally the idea of some kind of special
-// Rebol value or "REB_INSTRUCTION" to say how far to skip is a possibility,
-// which would be more general in the sense that it would allow the skip
-// distances to be generalized, though this would cost a pointer size
-// entity at each point.  The advantage of REB_INSTRUCTION is that only the
-// clients using the esoteric ability would be paying anything for it or
-// the API complexity, but if an important client like Ren-C++ it might
-// be worth the savings.
-//
-// Note: Functionally it would be possible to assume a 0 index and require
-// the caller to bump the value pointer as necessary.  But an index-based
-// interface is likely useful to avoid the bookkeeping required for the caller.
-//
-REBIXO Do_Values_At_Core(
-    REBVAL *out,
-    REBFLGS flags,
-    const REBVAL *opt_head,
-    const REBVAL values[],
-    REBCNT index
-) {
-    fail (Error(RE_MISC));
+REBOOL Do_Va_Throws(REBVAL *out, ...)
+{
+    va_list va;
+    va_start(va, out); // must mention last param before the "..."
+
+#ifdef VA_END_IS_MANDATORY
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error) {
+        va_end(va); // interject cleanup of whatever va_start() set up...
+        fail (error); // ...then just retrigger error
+    }
+#endif
+
+    REBIXO indexor = Do_Va_Core(
+        out,
+        NULL, // opt_first
+        &va,
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+    );
+
+    va_end(va);
+    //
+    // ^-- This va_end() will *not* be called if a fail() happens to longjmp
+    // during the apply.  But is that a problem, you ask?  No survey has
+    // turned up an existing C compiler where va_end() isn't a NOOP.
+    //
+    // But there's implementations we know of, then there's the Standard...
+    //
+    //    http://stackoverflow.com/a/32259710/211160
+    //
+    // The Standard is explicit: an implementation *could* require calling
+    // va_end() if it wished--it's undefined behavior if you skip it.
+    //
+    // In the interests of efficiency and not needing to set up trapping on
+    // each apply, our default is to assume the implementation does not
+    // need the va_end() call.  But for thoroughness, VA_END_IS_MANDATORY is
+    // outlined here to show the proper bracketing if it were ever needed.
+
+#ifdef VA_END_IS_MANDATORY
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+#endif
+
+    assert(indexor == THROWN_FLAG || indexor == END_FLAG);
+    return LOGICAL(indexor == THROWN_FLAG);
 }
 
 
@@ -360,23 +421,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         fail (Error(RE_APPLY_TOO_MANY));
     }
 
-    va_end(va);
-    //
-    // ^-- This va_end() will *not* be called if a fail() happens to longjmp
-    // during the apply.  But is that a problem, you ask?  No survey has
-    // turned up an existing C compiler where va_end() isn't a NOOP.
-    //
-    // But there's implementations we know of, then there's the Standard...
-    //
-    //    http://stackoverflow.com/a/32259710/211160
-    //
-    // The Standard is explicit: an implementation *could* require calling
-    // va_end() if it wished--it's undefined behavior if you skip it.
-    //
-    // In the interests of efficiency and not needing to set up trapping on
-    // each apply, our default is to assume the implementation does not
-    // need the va_end() call.  But for thoroughness, VA_END_IS_MANDATORY is
-    // outlined here to show the proper bracketing if it were ever needed.
+    va_end(va); // see notes in Do_Va_Core RE: VA_END_IS_MANDATORY
 
 #ifdef VA_END_IS_MANDATORY
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
