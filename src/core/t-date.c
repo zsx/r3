@@ -769,9 +769,10 @@ REBTYPE(Date)
     else {
         switch(action) {
         case A_EVEN_Q:
-            day = ~day;
+            return ((~day) & 1) == 0 ? R_TRUE : R_FALSE;
+
         case A_ODD_Q:
-            DECIDE((day & 1) == 0);
+            return (day & 1) == 0 ? R_TRUE : R_FALSE;
 
         case A_PICK:
             assert(D_ARGC > 1);
@@ -863,10 +864,4 @@ ret_int:
 ret_val:
     *D_OUT = *val;
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }

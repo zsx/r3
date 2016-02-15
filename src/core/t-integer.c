@@ -381,7 +381,7 @@ REBTYPE(Integer)
 
     case A_REMAINDER:
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
-        num = REM2(num, arg);
+        num = (arg != -1) ? (num % arg) : 0; // !!! was macro called REM2 (?)
         break;
 
     case A_AND_T:

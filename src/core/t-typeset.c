@@ -263,7 +263,7 @@ REBTYPE(Typeset)
 
     case A_FIND:
         if (IS_DATATYPE(arg)) {
-            DECIDE(TYPE_CHECK(val, VAL_TYPE_KIND(arg)));
+            return (TYPE_CHECK(val, VAL_TYPE_KIND(arg))) ? R_TRUE : R_FALSE;
         }
         fail (Error_Invalid_Arg(arg));
 
@@ -316,10 +316,4 @@ REBTYPE(Typeset)
     default:
         fail (Error_Illegal_Action(REB_TYPESET, action));
     }
-
-is_true:
-    return R_TRUE;
-
-is_false:
-    return R_FALSE;
 }

@@ -634,8 +634,12 @@ REBTYPE(String)
         return T_Port(frame_, action);
     }
 
-    len = Do_Series_Action(frame_, action, value, arg);
-    if (len >= 0) return len;
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
+    }
 
     // Common setup code for all actions:
     if (action != A_MAKE && action != A_TO) {

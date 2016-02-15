@@ -545,8 +545,12 @@ REBTYPE(Vector)
     REBSER *vect;
     REBSER *ser;
 
-    type = Do_Series_Action(frame_, action, value, arg);
-    if (type >= 0) return type;
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
+    }
 
     if (action != A_MAKE && action != A_TO)
         vect = VAL_SERIES(value);

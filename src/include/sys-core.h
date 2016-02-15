@@ -505,9 +505,6 @@ enum Reb_Vararg_Op {
 #define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
 #define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
 
-#define DECIDE(cond) if (cond) goto is_true; else goto is_false
-#define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
-
 
 // All THROWN values have two parts: the REBVAL arg being thrown and
 // a REBVAL indicating the /NAME of a labeled throw.  (If the throw was

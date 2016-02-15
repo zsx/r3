@@ -530,13 +530,17 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         goto seeked;
 
     case A_HEAD_Q:
-        DECIDE(file->special.file.index == 0);
+        return (file->special.file.index == 0) ? R_TRUE : R_FALSE;
 
     case A_TAIL_Q:
-        DECIDE(file->special.file.index >= file->special.file.size);
+        return (file->special.file.index >= file->special.file.size)
+            ? R_TRUE
+            : R_FALSE;
 
     case A_PAST_Q:
-        DECIDE(file->special.file.index > file->special.file.size);
+        return (file->special.file.index > file->special.file.size)
+            ? R_TRUE
+            : R_FALSE;
 
     case A_CLEAR:
         // !! check for write enabled?
@@ -573,12 +577,6 @@ seeked:
     SET_FLAG(file->modes, RFM_RESEEK);
     *D_OUT = *D_ARG(1);
     return R_OUT;
-
-is_true:
-    return R_TRUE;
-
-is_false:
-    return R_FALSE;
 }
 
 

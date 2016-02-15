@@ -327,7 +327,9 @@ REBTYPE(Decimal)
         case A_EVEN_Q:
         case A_ODD_Q:
             d1 = fabs(fmod(d1, 2.0));
-            DECIDE((action != A_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)));
+            return ((action != A_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)))
+                ? R_TRUE
+                : R_FALSE;
 
         case A_MAKE:
         case A_TO:
@@ -500,12 +502,6 @@ setDec:
     VAL_DECIMAL(D_OUT) = d1;
     ///if (type == REB_MONEY) VAL_MONEY_DENOM(D_OUT)[0] = 0;
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
 
 

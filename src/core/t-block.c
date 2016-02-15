@@ -687,9 +687,12 @@ REBTYPE(Array)
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
         return T_Port(frame_, action);
 
-    // Most common series actions:  !!! speed this up!
-    len = Do_Series_Action(frame_, action, value, arg);
-    if (len >= 0) return len; // return code
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
+    }
 
     // Special case (to avoid fetch of index and tail below):
     if (action == A_MAKE || action == A_TO) {

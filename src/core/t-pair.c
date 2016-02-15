@@ -250,23 +250,11 @@ REBTYPE(Pair)
     else {
         switch(action) {
 
-#ifdef temp
-        case A_ODDQ:
-            DECIDE((x1 & 1) && (y1 & 1));
-
-        case A_EVENQ:
-            DECIDE((x1 & 1) == 0 && (y1 & 1) == 0);
-#endif
         case A_NEGATE:
             x1 = -x1;
             y1 = -y1;
             goto setPair;
-#ifdef temp
-        case A_COMPLEMENT:
-            x1 = ~x1;
-            y1 = ~y1;
-            goto setPair;
-#endif
+
         case A_ABSOLUTE:
             if (x1 < 0) x1 = -x1;
             if (y1 < 0) y1 = -y1;
@@ -371,11 +359,5 @@ setPair:
     VAL_PAIR_X(D_OUT) = x1;
     VAL_PAIR_Y(D_OUT) = y1;
     return R_OUT;
-
-//is_false:
-//  return R_FALSE;
-
-//is_true:
-//  return R_TRUE;
 }
 

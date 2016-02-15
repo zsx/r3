@@ -34,21 +34,32 @@
 #define THE_SIGN(v) ((v < 0) ? -1 : (v > 0) ? 1 : 0)
 
 //
-//  Do_Series_Action: C
+//  Series_Common_Action_Returns: C
 // 
-// Common series functions.
+// This routine is called to handle actions on ANY-SERIES! that can be taken
+// care of without knowing what specific kind of series it is.  So generally
+// index manipulation, and things like LENGTH/etc.
 //
-REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, REBVAL *arg)
-{
-    REBINT  index;
-    REBINT  tail;
-    REBINT  len = 0;
+// The strange name is to convey the result in an if statement, in the same
+// spirit as the `if (XXX_Throws(...)) { /* handle throw */ }` pattern.
+//
+REBOOL Series_Common_Action_Returns(
+    REB_R *r, // `r_out` would be slightly confusing, considering R_OUT
+    struct Reb_Frame *frame_,
+    REBCNT action
+) {
+    REBVAL *value = D_ARG(1);
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    // Common setup code for all actions:
-    if (action != A_MAKE && action != A_TO) {
-        index = cast(REBINT, VAL_INDEX(value));
-        tail = cast(REBINT, VAL_LEN_HEAD(value));
-    } else return -1;
+    REBINT index;
+    REBINT tail;
+    REBINT len = 0;
+
+    if (action == A_MAKE || action == A_TO)
+        return FALSE; // not a common operation, not handled
+
+    index = cast(REBINT, VAL_INDEX(value));
+    tail = cast(REBINT, VAL_LEN_HEAD(value));
 
     switch (action) {
 
@@ -63,13 +74,16 @@ REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, 
         break;
 
     case A_HEAD_Q:
-        DECIDE(index == 0);
+        *r = (index == 0) ? R_TRUE : R_FALSE;
+        return TRUE; // handled
 
     case A_TAIL_Q:
-        DECIDE(index >= tail);
+        *r = (index >= tail) ? R_TRUE : R_FALSE;
+        return TRUE; // handled
 
     case A_PAST_Q:
-        DECIDE(index > tail);
+        *r = (index > tail) ? R_TRUE : R_FALSE;
+        return TRUE; // handled
 
     case A_NEXT:
         if (index < tail) VAL_INDEX(value)++;
@@ -94,29 +108,22 @@ REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, 
             VAL_INDEX(value) = (REBCNT)i;
         }
         break;
-/*
-    case A_ATZ:
-        len = Get_Num_From_Arg(arg);
-        {
-            REBI64 idx = Add_Max(0, index, len, MAX_I32);
-            if (idx < 0) idx = 0;
-            VAL_INDEX(value) = (REBCNT)idx;
-        }
-        break;
-*/
+
     case A_INDEX_OF:
         SET_INTEGER(D_OUT, cast(REBI64, index) + 1);
-        return R_OUT;
+        *r = R_OUT;
+        return TRUE; // handled
 
     case A_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
-        return R_OUT;
+        *r = R_OUT;
+        return TRUE; // handled
 
     case A_REMOVE:
         // /PART length
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
         len = D_REF(2) ? Partial(value, 0, D_ARG(3)) : 1;
-        index = (REBINT)VAL_INDEX(value);
+        index = cast(REBINT, VAL_INDEX(value));
         if (index < tail && len != 0)
             Remove_Series(VAL_SERIES(value), VAL_INDEX(value), len);
         break;
@@ -133,17 +140,12 @@ REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, 
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
 
     default:
-        return -1;
+        return FALSE; // not a common operation, not handled
     }
 
     *D_OUT = *value;
-    return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
+    *r = R_OUT;
+    return TRUE; // handled
 }
 
 

@@ -122,9 +122,10 @@ REBTYPE(Char)
         break;
 
     case A_EVEN_Q:
-        chr = cast(REBUNI, ~chr);
+        return (cast(REBUNI, ~chr) & 1) ? R_TRUE : R_FALSE;
+
     case A_ODD_Q:
-        DECIDE(chr & 1);
+        return (chr & 1) ? R_TRUE : R_FALSE;
 
     case A_RANDOM:  //!!! needs further definition ?  random/zero
         if (D_REF(2)) { // /seed
@@ -207,11 +208,5 @@ bad_make:
         fail (Error(RE_TYPE_LIMIT, Get_Type(REB_CHAR)));
     SET_CHAR(D_OUT, chr);
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
 

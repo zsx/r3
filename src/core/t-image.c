@@ -860,10 +860,10 @@ REBTYPE(Image)
         break;
 
     case A_HEAD_Q:
-        DECIDE(index == 0);
+        return (index == 0) ? R_TRUE : R_FALSE;
 
     case A_TAIL_Q:
-        DECIDE(index >= tail);
+        return (index >= tail) ? R_TRUE : R_FALSE;
 
     case A_NEXT:
         if (index < tail) VAL_INDEX(value)++;
@@ -1134,12 +1134,6 @@ makeCopy2:
 
     *D_OUT = *value;
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
 
 

@@ -489,10 +489,10 @@ REBTYPE(Time)
         switch(action) {
 
         case A_ODD_Q:
-            DECIDE((SECS_IN(secs) & 1) != 0);
+            return ((SECS_IN(secs) & 1) != 0) ? R_TRUE : R_FALSE;
 
         case A_EVEN_Q:
-            DECIDE((SECS_IN(secs) & 1) == 0);
+            return ((SECS_IN(secs) & 1) == 0) ? R_TRUE : R_FALSE;
 
         case A_NEGATE:
             secs = -secs;
@@ -567,10 +567,4 @@ setTime:
     VAL_TIME(D_OUT) = secs;
     VAL_RESET_HEADER(D_OUT, REB_TIME);
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
