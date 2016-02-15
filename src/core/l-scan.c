@@ -636,7 +636,7 @@ static REBCTX *Error_Bad_Scan(
     Val_Init_String(&arg1, Copy_Bytes(name, -1));
     Val_Init_String(&arg2, Copy_Bytes(arg, size));
 
-    error = Error(errnum, &arg1, &arg2, NULL);
+    error = Error(errnum, &arg1, &arg2, END_VALUE);
 
     // Write the NEAR information (`Error()` gets it from FS_TOP)
     //
