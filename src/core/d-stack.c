@@ -39,6 +39,39 @@
 
 
 //
+//  Collapsify_Array: C
+//
+// This will replace "long" nested blocks with collapsed versions with
+// ellipses to show they have been cut off.  It does not change the arrays
+// in question, but replaces them with copies.
+//
+void Collapsify_Array(REBARR *array, REBCNT limit)
+{
+    REBVAL *item = ARR_HEAD(array);
+    for (; NOT_END(item); ++item) {
+        if (ANY_ARRAY(item) && VAL_LEN_AT(item) > limit) {
+            REBARR *copy = Copy_Array_At_Max_Shallow(
+                VAL_ARRAY(item),
+                VAL_INDEX(item),
+                limit + 1
+            );
+
+            Val_Init_Word(ARR_AT(copy, limit), REB_WORD, SYM_ELLIPSIS);
+
+            Collapsify_Array(
+                copy,
+                limit
+            );
+
+            Val_Init_Array_Index(item, VAL_TYPE(item), copy, 0); // at 0 now
+            assert(IS_SPECIFIC(item));
+            assert(!GET_VAL_FLAG(item, VALUE_FLAG_LINE)); // should be cleared
+        }
+    }
+}
+
+
+//
 //  Make_Where_For_Frame: C
 //
 // Each call frame maintains the array it is executing in, the current index
@@ -110,6 +143,8 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
 
         SET_ARRAY_LEN(where, len);
         TERM_ARRAY(where);
+
+        Collapsify_Array(where, 3);
     }
 
     // Making a shallow copy offers another advantage, that it's
@@ -253,7 +288,7 @@ REBNATIVE(backtrace_index)
 //
 //  "Backtrace to find a specific FRAME!, or other queried property."
 //
-//      'level [unset! none! integer! function!]
+//      level [none! integer! function! |]
 //          "Stack level to return frame for (none to list)"
 //      /limit
 //          "Limit the length of the backtrace"
@@ -282,7 +317,19 @@ REBNATIVE(backtrace)
 
     REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
 
-    REBVAL *level = ARG(level);
+    // If variadic and empty, then point level at VOID_VALUE...otherwise
+    // try and extract one argument.
+    //
+    REBVAL *level;
+    REBVAL level_store;
+    if (Do_Vararg_Op_May_Throw(
+        &level_store, ARG(level), VARARG_OP_TAKE) == END_FLAG
+    ) {
+        level = UNSET_VALUE;
+    }
+    else {
+        level = &level_store;
+    }
 
     // Note: Running this code path is *intentionally* redundant with
     // Frame_For_Stack_Level, as a way of keeping the numbers listed in a

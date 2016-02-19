@@ -289,9 +289,8 @@ REBNATIVE(bind)
 
     if (ANY_CONTEXT(target)) {
         //
-        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
+        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
         //
-        assert(!IS_FRAME(target)); // !!! not implemented yet
         context = VAL_CONTEXT(target);
     }
     else {
