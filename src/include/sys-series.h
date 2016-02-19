@@ -421,8 +421,6 @@ struct Reb_Series {
         Panic_Series_Debug((s), __FILE__, __LINE__);
 #endif
 
-#define SER_REST(s)   ((s)->content.dynamic.rest)
-
 #define SER_WIDE(s) \
     cast(REBYTE, ((s)->info.bits >> 16) & 0xff)
 
@@ -466,7 +464,7 @@ struct Reb_Series {
 
 #define SER_LEN(s) \
     (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
-        ? ((s)->content.dynamic.len + 0) \
+        ? ((s)->content.dynamic.len) \
         : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
             ? (IS_END(&(s)->content.values[0]) ? 0 : 1) \
             : (s)->misc.len)
@@ -478,6 +476,14 @@ struct Reb_Series {
         : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
             ? 1337 /* trust the END marker? */ \
             : ((s)->misc.len = (l)))
+
+#define SER_REST(s) \
+    (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
+        ? ((s)->content.dynamic.rest) \
+        : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
+            ? 2 /* includes trick "terminator" in info bits */ \
+            : sizeof(REBVAL))
+
 
 // Raw access does not demand that the caller know the contained type.  So
 // for instance a generic debugging routine might just want a byte pointer

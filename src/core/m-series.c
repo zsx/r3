@@ -248,7 +248,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
             // Reset bias to zero:
             len = SER_BIAS(series);
             SER_SET_BIAS(series, 0);
-            SER_REST(series) += len;
+            series->content.dynamic.rest += len;
             series->content.dynamic.data -= SER_WIDE(series) * len;
             TERM_SERIES(series);
         }
@@ -265,7 +265,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
                 series->content.dynamic.data -=
                     SER_WIDE(series) * SER_BIAS(series);
 
-                SER_REST(series) += SER_BIAS(series);
+                series->content.dynamic.rest += SER_BIAS(series);
                 SER_SET_BIAS(series, 0);
 
                 memmove(
@@ -276,7 +276,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
             }
             else {
                 SER_SET_BIAS(series, bias);
-                SER_REST(series) -= len;
+                series->content.dynamic.rest -= len;
                 series->content.dynamic.data += SER_WIDE(series) * len;
                 if ((start = SER_BIAS(series))) {
                     // If more than half biased:
@@ -348,7 +348,7 @@ void Unbias_Series(REBSER *series, REBOOL keep)
     if (len == 0) return;
 
     SER_SET_BIAS(series, 0);
-    SER_REST(series) += len;
+    series->content.dynamic.rest += len;
     series->content.dynamic.data -= SER_WIDE(series) * len;
 
     if (keep)

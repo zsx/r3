@@ -1141,7 +1141,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     if (index == 0 && SER_BIAS(series) >= delta) {
         series->content.dynamic.data -= wide * delta;
         series->content.dynamic.len += delta;
-        SER_REST(series) += delta;
+        series->content.dynamic.rest += delta;
         SER_SUB_BIAS(series, delta);
 
     #if !defined(NDEBUG)
