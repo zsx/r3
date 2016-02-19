@@ -107,6 +107,8 @@ typedef struct Reb_Func REBFUN; // function parameters plus function REBVAL
 struct Reb_Map;
 typedef struct Reb_Map REBMAP; // REBARR listing key/value pairs with hash
 
+struct Reb_Mem_Dump;
+typedef struct Reb_Mem_Dump REBMDP;
 
 // A `#pragma pack` of 4 was requested by the R3-Alpha source for the
 // duration of %sys-value.h:

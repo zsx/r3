@@ -808,7 +808,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 init = &safe;
 
                 if (IS_END(blk)) {
-                   fail (Error_Invalid_Arg(blk));
+                   fail (Error_Invalid_Arg(data));
                 } else if (IS_BLOCK(blk)) {
                     if (Reduce_Array_Throws(init, VAL_ARRAY(blk), 0, FALSE))
                         fail (Error_No_Catch_For_Throw(init));

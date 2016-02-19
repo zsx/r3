@@ -195,6 +195,7 @@ void Dump_Stack(struct Reb_Call *call, REBDSP dsp)
 {
     REBINT n;
     REBINT m;
+    REBINT i;
     REBVAL *args;
 
     if (!call) {
@@ -202,25 +203,25 @@ void Dump_Stack(struct Reb_Call *call, REBDSP dsp)
         dsp = DSP;
     }
 
-    m = 0; // !!! dsp - dsf - DSF_SIZE
-    Debug_Fmt(
-        cs_cast(BOOT_STR(RS_STACK, 1)),
-        dsp,
-        Get_Sym_Name(DSF_LABEL_SYM(call)),
-        m,
-        Get_Type_Name(FUNC_VALUE(DSF_FUNC(call)))
-    );
+    for (i = 0; call != NULL; call = PRIOR_DSF(call)) {
 
-    if (call) {
+        if (call->mode != CALL_MODE_FUNCTION) continue;
+
+        Debug_Fmt(
+            cs_cast(BOOT_STR(RS_STACK, 1)),
+            dsp,
+            Get_Sym_Name(DSF_LABEL_SYM(call)),
+            i,
+            Get_Type_Name(FUNC_VALUE(DSF_FUNC(call)))
+            );
+
         args = FUNC_PARAMS_HEAD(DSF_FUNC(call));
         m = FUNC_NUM_PARAMS((DSF_FUNC(call)));
         for (n = 1; n < m; n++)
-            Debug_Fmt("\t%s: %72r", Get_Sym_Name(VAL_TYPESET_SYM(args+n)), DSF_ARG(call, n));
+            Debug_Fmt("\t%s: %72r", Get_Sym_Name(VAL_TYPESET_SYM(args + n)), DSF_ARG(call, n));
 
-        //Debug_Fmt(Str_Stack[2], PRIOR_DSF(dsf));
-        if (PRIOR_DSF(call)) Dump_Stack(PRIOR_DSF(call), dsp);
+        i++;
     }
-
     //for (n = 1; n <= 2; n++) {
     //  Debug_Fmt("  ARG%d: %s %r", n, Get_Type_Name(DSF_ARG(dsf, n)), DSF_ARG(dsf, n));
     //}
