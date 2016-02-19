@@ -1682,31 +1682,6 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // Here we know the function finished.  If it has a definitional
-        // return we need to type check it--and if it has a leave we have
-        // to squash whatever the last evaluative result was and replace it
-        // with an UNSET!
-        //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-            REBVAL *last_param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-            if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
-                SET_UNSET(f->out);
-            }
-            else {
-                // The type bits of the definitional return are not applicable
-                // to the `return` word being associated with a FUNCTION!
-                // vs. an INTEGER! (for instance).  It is where the type
-                // information for the non-existent return function specific
-                // to this call is hidden.
-                //
-                assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-                if (!TYPE_CHECK(last_param, VAL_TYPE(f->out)))
-                    fail (Error_Arg_Type(
-                        SYM_RETURN, last_param, Type_Of(f->out))
-                    );
-            }
-        }
-
         // If running a frame execution then clear that flag out.
         //
         f->flags &= ~DO_FLAG_EXECUTE_FRAME;
@@ -1731,8 +1706,33 @@ reevaluate:
         }
         else if (f->indexor == THROWN_FLAG)
             NOTE_THROWING(goto return_indexor);
-        else
-            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+
+        // Here we know the function finished and did not throw or exit.  If
+        // it has a definitional return we need to type check it--and if it
+        // has a leave we have to squash whatever the last evaluative result
+        // was and replace it with an UNSET!
+        //
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+            REBVAL *last_param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+            if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
+                SET_UNSET(f->out);
+            }
+            else {
+                // The type bits of the definitional return are not applicable
+                // to the `return` word being associated with a FUNCTION!
+                // vs. an INTEGER! (for instance).  It is where the type
+                // information for the non-existent return function specific
+                // to this call is hidden.
+                //
+                assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
+                if (!TYPE_CHECK(last_param, VAL_TYPE(f->out)))
+                    fail (Error_Arg_Type(
+                        SYM_RETURN, last_param, Type_Of(f->out))
+                    );
+            }
+        }
+
+        f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
         if (Trace_Flags) Trace_Return(FRM_LABEL(f), f->out);
         break;
