@@ -197,11 +197,7 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     static const char *mode_strings[] = {
         "CALL_MODE_GUARD_ARRAY_ONLY",
         "CALL_MODE_ARGS",
-        "CALL_MODE_REFINE_PENDING",
-        "CALL_MODE_REFINE_ARGS",
-        "CALL_MODE_SEEK_REFINE_WORD",
-        "CALL_MODE_REFINE_SKIP",
-        "CALL_MODE_REFINE_REVOKE",
+        "CALL_MODE_REFINEMENT_PICKUP",
         "CALL_MODE_FUNCTION",
         "CALL_MODE_THROW_PENDING",
         NULL
