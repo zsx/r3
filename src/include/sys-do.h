@@ -579,6 +579,24 @@ struct Reb_Frame {
 #endif
 };
 
+// It's helpful when looking in the debugger to be able to look at a frame
+// and see a cached string for the function it's running (if there is one)
+//
+#ifdef NDEBUG
+    #define SET_FRAME_SYM(f,s) \
+        ((f)->label_sym = (s))
+
+    #define CLEAR_FRAME_SYM(f) \
+        ((f)->label_sym = SYM_0)
+#else
+    #define SET_FRAME_SYM(f,s) \
+        ((f)->label_sym = (s), \
+        (f)->label_str = cast(const char*, Get_Sym_Name((f)->label_sym)))
+
+    #define CLEAR_FRAME_SYM(f) \
+        ((f)->label_sym = SYM_0, (f)->label_str = NULL)
+#endif
+
 // Each iteration of DO bumps a global count, that in deterministic repro
 // cases can be very helpful in identifying the "tick" where certain problems
 // are occurring.  The SPORADICALLY() macro uses this to allow flipping

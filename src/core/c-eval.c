@@ -133,12 +133,13 @@ void Do_Core(struct Reb_Frame * const f)
         SNAP_STATE(&f->state); // to make sure stack balances, etc.
         do_count = Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
     #endif
-        f->label_sym = SYM_0;
+        CLEAR_FRAME_SYM(f);
         break;
 
     case CALL_MODE_ARGS:
         assert(TG_Frame_Stack == f); // should already be pushed
         assert(f->label_sym != SYM_0);
+        assert(f->label_str != NULL);
     #if !defined(NDEBUG)
         do_count = TG_Do_Count; // entry checks for debug not true here
     #endif
@@ -335,11 +336,7 @@ reevaluate:
             if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
                 fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
 
-            f->label_sym = VAL_WORD_SYM(f->value);
-
-        #if !defined(NDEBUG)
-            f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
-        #endif
+            SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
             f->value = f->out;
             goto do_function_in_value;
@@ -440,8 +437,15 @@ reevaluate:
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_PATH:
-        if (Do_Path_Throws(f->out, &f->label_sym, f->value, NULL)) {
+    case ET_PATH: {
+        REBSYM sym;
+
+        if (Do_Path_Throws(
+            f->out,
+            &sym, // requesting symbol says we process refinements
+            f->value,
+            NULL // `setval`: null means don't treat as SET-PATH!
+        )) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
@@ -450,7 +454,8 @@ reevaluate:
             fail (Error(RE_NO_VALUE, f->value)); // need `:x/y` if `y` is unset
 
         if (IS_FUNCTION(f->out)) {
-            //
+            SET_FRAME_SYM(f, sym);
+
             // object/func or func/refinements or object/func/refinement
             //
             // Because we passed in a label symbol, the path evaluator was
@@ -477,6 +482,7 @@ reevaluate:
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         break;
+    }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -604,8 +610,7 @@ reevaluate:
         // Note: Because this is a function value being hit literally in
         // a block, no word was used to get it, so its name is unknown.
         //
-        if (f->label_sym == SYM_0)
-            f->label_sym = SYM___ANONYMOUS__;
+        SET_FRAME_SYM(f, SYM___ANONYMOUS__);
 
     do_function_in_value:
         //
@@ -619,14 +624,9 @@ reevaluate:
         //
         assert(IS_FUNCTION(f->value));
         f->func = VAL_FUNC(f->value);
-
-        // A label symbol should always be put in place for a function
-        // dispatch by this point, even if it's just "anonymous".  Cache a
-        // string for it to be friendlier in the C debugging watchlist.
-        //
+        assert(f->label_sym != SYM_0); // must be something (even "anonymous")
     #if !defined(NDEBUG)
-        assert(f->label_sym != SYM_0);
-        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
+        assert(f->label_str != NULL); // debug build only
     #endif
 
         // There may be refinements pushed to the data stack to process, if
@@ -713,6 +713,7 @@ reevaluate:
                 f->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
 
             f->value = &f->cell.eval;
+            CLEAR_FRAME_SYM(f);
             goto reevaluate; // we don't move index!
         }
 
@@ -1580,6 +1581,7 @@ reevaluate:
         }
 
         f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
+        CLEAR_FRAME_SYM(f);
 
         if (Trace_Flags) Trace_Return(FRM_LABEL(f), f->out);
         break;
@@ -1612,8 +1614,7 @@ reevaluate:
         /*if (GET_VAL_FLAG(f->value, EXT_CONTEXT_RUNNING))
            fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
 
-        if (f->label_sym == SYM_0)
-            f->label_sym = SYM___ANONYMOUS__;
+        SET_FRAME_SYM(f, SYM___ANONYMOUS__);
 
         assert(f->data.stackvars == NULL);
         f->data.context = VAL_CONTEXT(f->value);
@@ -1692,7 +1693,7 @@ reevaluate:
                 IS_FUNCTION(f->param)
                 && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)
             ) {
-                f->label_sym = VAL_WORD_SYM(f->value);
+                SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
                 f->func = VAL_FUNC(f->param);
 
                 // The warped function values used for definitional return
@@ -1961,10 +1962,8 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     f->func = cast(REBFUN*, 0xDECAFBAD);
 
-    if (f->label_sym == SYM_0)
-        f->label_str = "(no current label)";
-    else
-        f->label_str = cast(const char*, Get_Sym_Name(f->label_sym));
+    assert(f->label_sym == SYM_0);
+    assert(f->label_str == NULL);
 
     f->param = cast(REBVAL*, 0xDECAFBAD);
     f->arg = cast(REBVAL*, 0xDECAFBAD);

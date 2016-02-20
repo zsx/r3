@@ -346,12 +346,14 @@ void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBSYM sym)
 //
 //  Get_Sym_Name: C
 //
-const REBYTE *Get_Sym_Name(REBCNT num)
+const REBYTE *Get_Sym_Name(REBSYM sym)
 {
-    if (num == 0 || num >= ARR_LEN(PG_Word_Table.array))
+    if (sym == 0 || sym >= ARR_LEN(PG_Word_Table.array)) {
+        assert(FALSE); // !!! R3-Alpha was tolerant, Ren-C is not...
         return cb_cast("???");
+    }
 
-    return VAL_SYM_NAME(ARR_AT(PG_Word_Table.array, num));
+    return VAL_SYM_NAME(ARR_AT(PG_Word_Table.array, sym));
 }
 
 

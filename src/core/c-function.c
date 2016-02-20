@@ -1497,6 +1497,7 @@ REBNATIVE(apply)
     PARAM(2, def);
 
     REBVAL *def = ARG(def);
+    REBSYM sym;
 
     struct Reb_Frame f;
 
@@ -1521,8 +1522,13 @@ REBNATIVE(apply)
     // the symbol (for debugging, errors, etc.)  If caller passes a GET-WORD!
     // then we lookup the variable to get the function, but save the symbol.
     //
-    if (Manual_Soft_Quote_Throws(D_OUT, &f.label_sym, ARG(value)))
+    if (Manual_Soft_Quote_Throws(D_OUT, &sym, ARG(value)))
         return R_OUT_IS_THROWN;
+
+#if !defined(NDEBUG)
+    f.label_sym = SYM_0; // debug build checks label was SYM_0 before SET
+#endif
+    SET_FRAME_SYM(&f, sym);
 
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));

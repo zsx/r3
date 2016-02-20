@@ -147,7 +147,7 @@ REBOOL IS_END_Debug(const REBVAL *v) {
 REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
     if (IS_END(v) || IS_UNSET(v) || IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Conditional true/false test on END orUNSET or TRASH");
+        Debug_Fmt("Conditional true/false test on END or UNSET or TRASH");
         Panic_Value(v);
     }
 
