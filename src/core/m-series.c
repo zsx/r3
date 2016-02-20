@@ -557,18 +557,19 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
     const char *file,
     int line
 ) {
-    if (TG_Pushing_Mold) { // cannot call Debug_Fmt !
-        Debug_String(
-            "Panic_Series() while pushing_mold",
-            33, // ^--- length of this!
-            FALSE, 1
-        );
-    }
-    else {
-        Debug_Fmt("Panic_Series() in %s at line %d", file, line);
-    }
+    // Note: Only use printf in debug builds (not a dependency of the main
+    // executable).  Here it's important because series panics can happen
+    // during mold and other times.
+    //
+    printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
+    fflush(stdout);
+
     if (*series->guard == 1020) // should make valgrind or asan alert
         panic (Error(RE_MISC));
+
+    printf("!!! *series->guard dereference didn't crash (not a REBSER?)\n");
+    fflush(stdout);
+
     panic (Error(RE_MISC)); // just in case it didn't crash
 }
 
