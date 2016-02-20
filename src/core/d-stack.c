@@ -687,3 +687,63 @@ return_maybe_set_number_out:
         *number_out = num;
     return frame;
 }
+
+
+//
+//  running?: native [
+//
+//  "Returns TRUE if a FRAME! is on the stack and executing (arguments done)."
+//
+//      frame [frame!]
+//  ]
+//
+REBNATIVE(running_q)
+{
+    PARAM(1, frame);
+
+    REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
+    struct Reb_Frame *frame;
+
+    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
+        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
+            return R_FALSE;
+
+    frame = CTX_FRAME(frame_ctx);
+
+    if (frame->mode == CALL_MODE_FUNCTION)
+        return R_TRUE;
+
+    return R_FALSE;
+}
+
+
+//
+//  pending?: native [
+//
+//  "Returns TRUE if a FRAME! is on the stack, but is gathering arguments."
+//
+//      frame [frame!]
+//  ]
+//
+REBNATIVE(pending_q)
+{
+    PARAM(1, frame);
+
+    REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
+    struct Reb_Frame *frame;
+
+    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
+        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
+            return R_FALSE;
+
+    frame = CTX_FRAME(frame_ctx);
+
+    if (
+        frame->mode == CALL_MODE_ARGS
+        || frame->mode == CALL_MODE_REFINEMENT_PICKUP
+    ) {
+        return R_TRUE;
+    }
+
+    return R_FALSE;
+}
