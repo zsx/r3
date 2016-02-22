@@ -29,6 +29,7 @@ endif()
 if (NOT DEFINED R3_OS_ID)
     message("Trying to obtain OS_ID from r3-make, as R3_OS_ID is not defined ...")
     execute_process(COMMAND ${REBOL} --do "print rejoin [\"0.\" system/version/4 \".\" system/version/5]" OUTPUT_VARIABLE R3_OS_ID)
+    string(STRIP ${R3_OS_ID} R3_OS_ID)
 endif()
 
 if (NOT DEFINED R3_OS_ID)
