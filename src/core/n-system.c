@@ -113,7 +113,7 @@ REBNATIVE(dump_memory)
     REBVAL *path = D_ARG(1);
     REBSER *ser;
     ser = Value_To_OS_Path(path, TRUE);
-    Dump_Memory_Usage(SER_HEAD(char, ser));
+    Dump_Memory_Usage(SER_HEAD(REBCHR, ser));
     Free_Series(ser);
     return R_UNSET;
 }
