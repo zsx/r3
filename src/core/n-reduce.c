@@ -174,7 +174,7 @@ REBOOL Reduce_Array_No_Set_Throws(
         else {
             REBVAL reduced;
             VAL_INIT_WRITABLE_DEBUG(&reduced);
-
+            indexor = index;
             DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor);
             if (indexor == THROWN_FLAG) {
                 *out = reduced;
@@ -182,6 +182,12 @@ REBOOL Reduce_Array_No_Set_Throws(
                 return TRUE;
             }
             DS_PUSH(&reduced);
+
+            if (indexor == END_FLAG) {
+                break;
+            }
+
+            index = indexor;
         }
     }
 
