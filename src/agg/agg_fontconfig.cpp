@@ -170,6 +170,7 @@ unsigned char *find_font_path(
 	FcValue 		val;
 	FcChar8 		*file = NULL;
 	FcChar8 		*ret = NULL;
+    const FcChar8  * const fontformat = (FcChar8 *)"truetype";
 
 	font_cache_entry_t *entry = NULL;
 	entry = cache_manager.find_an_entry((char*)family, bold, italic, size);
@@ -194,6 +195,7 @@ unsigned char *find_font_path(
 
 	FcPatternAddInteger(pat, FC_SIZE, size);
 	FcPatternAddBool(pat, FC_SCALABLE, FcTrue);
+    FcPatternAddString(pat, FC_FONTFORMAT, fontformat);
 
 	FcConfigSubstitute(0, pat, FcMatchPattern);
 	FcDefaultSubstitute(pat);
