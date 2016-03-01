@@ -747,7 +747,7 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
                 if (IS_WORD(val)) {
                     // !!! The "mutable" is probably not necessary here
                     // However, this code is not written for val to be const
-                    if (IS_WORD(args)) val = GET_MUTABLE_VAR_MAY_FAIL(val);
+                    if (!GET_VAL_FLAG(args, TYPESET_FLAG_QUOTE)) val = GET_MUTABLE_VAR_MAY_FAIL(val);
                 }
                 else if (IS_PATH(val)) {
                     if (IS_WORD(args)) {
