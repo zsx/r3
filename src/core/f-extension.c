@@ -709,6 +709,8 @@ void Do_Commands(REBVAL *out, REBARR *cmds, void *context)
             index++;
         };
 
+        cmd_sym = VAL_WORD_SYM(blk);
+
         // get command function
         if (IS_WORD(blk))
             func = GET_OPT_VAR_MAY_FAIL(blk);
