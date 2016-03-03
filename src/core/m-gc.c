@@ -444,28 +444,30 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob, const char *name, const void *paren
             .addr = GOB_DATA(gob),
             .name = NULL,
             .parent = gob,
-            .edge = "<GOB_DATA>",
+            .edge = "<gob-data>",
             .size = sizeof(REBVAL),
         };
         enum Reb_Kind kind = REB_TRASH;
         switch (GOB_DTYPE(gob)) {
         case GOBD_INTEGER:
             kind = REB_INTEGER;
+            // fall through
         case GOBD_NONE:
             kind = REB_NONE;
+            // fall through
         default:
             entry.kind = kind;
             Dump_Mem_Entry(dump, &entry);
             break;
         case GOBD_OBJECT:
-            QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(GOB_DATA(gob)), NULL, GOB_DATA(gob), "<data>", dump);
+            QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(GOB_DATA(gob)), NULL, gob, "<gob-data>", dump);
             break;
         case GOBD_STRING:
         case GOBD_BINARY:
-            MARK_SERIES_ONLY(GOB_DATA(gob), NULL, GOB_DATA(gob), "<data>", REB_KIND_SERIES, dump);
+            MARK_SERIES_ONLY(GOB_DATA(gob), NULL, gob, "<gob-data>", REB_KIND_SERIES, dump);
             break;
         case GOBD_BLOCK:
-            QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_DATA(gob)), NULL, GOB_DATA(gob), "<data>", REB_KIND_ARRAY, NULL, dump);
+            QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_DATA(gob)), NULL, gob, "<gob-data>", REB_KIND_ARRAY, NULL, dump);
         }
     }
 }
