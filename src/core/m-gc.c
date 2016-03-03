@@ -1492,128 +1492,8 @@ static void Propagate_All_GC_Marks(REBMDP *dump)
         last->array = NULL;
         last->key_list = NULL;
 
-        Mark_Array_Deep_Core(elem, dump);
+        Mark_Array_Deep_Core(elem, elem->dump);
     }
-}
-
-//
-// Mark_All: C
-//
-static void Mark_All(REBMDP *dump)
-{
-    REBSER **sp;
-    REBVAL **vp;
-    REBINT n;
-
-    struct mem_dump_entry entry;
-
-    // Mark all root series:
-    //
-    Dump_Mem_Comment(dump, "Dumping Root-Context");
-    MARK_CONTEXT_DEEP(PG_Root_Context, "Root-Context", NULL, NULL, dump);
-    Dump_Mem_Comment(dump, "Dumping Task-Context");
-    MARK_CONTEXT_DEEP(TG_Task_Context, "Task-Context", NULL, NULL, dump);
-
-    // Mark series that have been temporarily protected from garbage
-    // collection with PUSH_GUARD_SERIES.  We have to check if the
-    // series is a context (so the keylist gets marked) or an array (so
-    // the values are marked), or if it's just a data series which
-    // should just be marked shallow.
-    //
-    sp = SER_HEAD(REBSER*, GC_Series_Guard);
-    entry.name = "GC_Series_Guard";
-    entry.edge = NULL;
-    entry.addr = GC_Series_Guard;
-    entry.parent = NULL;
-    entry.kind = REB_KIND_SERIES;
-    entry.size = SER_TOTAL(GC_Series_Guard);
-    Dump_Mem_Entry(dump, &entry);
-
-    for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-        if (GET_SER_FLAG(*sp, SERIES_FLAG_CONTEXT))
-            MARK_CONTEXT_DEEP(AS_CONTEXT(*sp), NULL, GC_Series_Guard, NULL, dump);
-        else if (Is_Array_Series(*sp))
-            MARK_ARRAY_DEEP(AS_ARRAY(*sp), NULL, GC_Series_Guard, NULL, REB_KIND_SERIES, NULL, dump);
-        else
-            MARK_SERIES_ONLY(*sp, NULL, GC_Series_Guard, NULL, REB_KIND_SERIES, dump);
-    }
-
-    // Mark value stack (temp-saved values):
-    vp = SER_HEAD(REBVAL*, GC_Value_Guard);
-    entry.name = "GC_Value_Guard";
-    entry.addr = GC_Value_Guard;
-    entry.parent = NULL;
-    entry.edge = NULL;
-    entry.kind = REB_KIND_SERIES;
-    entry.size = SER_TOTAL(GC_Value_Guard);
-    Dump_Mem_Entry(dump, &entry);
-
-    for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
-        if (NOT_END(*vp))
-            Queue_Mark_Value_Deep(*vp, NULL, GC_Value_Guard, "<e>", dump);
-        Propagate_All_GC_Marks(dump);
-    }
-
-    // Mark chunk stack (non-movable saved arrays of values)
-    {
-        Dump_Mem_Comment(dump, "Dump chunk stack");
-
-        struct Reb_Chunk *chunk = TG_Top_Chunk;
-        entry.name = "TG_Top_Chunk";
-        entry.addr = TG_Top_Chunk;
-        entry.parent = NULL;
-        entry.edge = NULL;
-        entry.kind = REB_KIND_CHUNK;
-        entry.size = BASE_CHUNK_SIZE;
-        Dump_Mem_Entry(dump, &entry);
-
-        while (chunk) {
-            REBVAL *chunk_value = &chunk->values[0];
-            while (
-                cast(REBYTE*, chunk_value)
-                < cast(REBYTE*, chunk) + chunk->size.bits
-                ) {
-                if (NOT_END(chunk_value))
-                    Queue_Mark_Value_Deep(chunk_value, NULL, chunk, "<e>", dump); //FIXME
-                chunk_value++;
-            }
-            if (chunk->prev) {
-                entry.name = "Chunk";
-                entry.addr = chunk->prev;
-                entry.parent = chunk;
-                entry.kind = REB_KIND_CHUNK;
-                entry.size = BASE_CHUNK_SIZE;
-                Dump_Mem_Entry(dump, &entry);
-            }
-            chunk = chunk->prev;
-        }
-    }
-
-    // Mark potential error object from callback!
-    Dump_Mem_Comment(dump, "Dumping potential error object from callback!");
-    Queue_Mark_Value_Deep(&Callback_Error, "Callback-Error", NULL, NULL, dump);
-    Propagate_All_GC_Marks(dump);
-
-    // !!! This hook point is an interim measure for letting a host
-    // mark REBVALs that it is holding onto which are not contained in
-    // series.  It is motivated by Ren/C++, which wraps REBVALs in
-    // `ren::Value` class instances, and is able to enumerate the
-    // "live" classes (they "die" when the destructor runs).
-    //
-    if (GC_Mark_Hook) {
-        (*GC_Mark_Hook)();
-        Propagate_All_GC_Marks(dump);
-    }
-
-    // Mark all devices:
-    Dump_Mem_Comment(dump, "Dumping all devices!");
-    Mark_Devices_Deep(dump);
-    Propagate_All_GC_Marks(dump);
-
-    // Mark function call frames:
-    Dump_Mem_Comment(dump, "Dumping function call frames");
-    Mark_Call_Frames_Deep(dump);
-    Propagate_All_GC_Marks(dump);
 }
 
 //
@@ -1635,7 +1515,7 @@ void Dump_Memory_Usage(const REBCHR *path)
     dump.parent = NULL;
     Dump_Mem_Comment(&dump, "Addr,parent,type,size,name");
 
-    Mark_All(&dump);
+    Recycle_Core(FALSE, &dump);
 
     fclose(dump.out);
 }
@@ -1645,7 +1525,7 @@ void Dump_Memory_Usage(const REBCHR *path)
 // 
 // Recycle memory no longer needed.
 //
-REBCNT Recycle_Core(REBOOL shutdown)
+REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 {
     REBINT n;
     REBCNT count;
@@ -1700,7 +1580,119 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // we don't mark anything as live.
 
     if (!shutdown) {
-        Mark_All(NULL);
+        REBSER **sp;
+        REBVAL **vp;
+        REBINT n;
+
+        struct mem_dump_entry entry;
+
+        // Mark all root series:
+        //
+        Dump_Mem_Comment(dump, "Dumping Root-Context");
+        MARK_CONTEXT_DEEP(PG_Root_Context, "Root-Context", NULL, NULL, dump);
+        Dump_Mem_Comment(dump, "Dumping Task-Context");
+        MARK_CONTEXT_DEEP(TG_Task_Context, "Task-Context", NULL, NULL, dump);
+
+        // Mark series that have been temporarily protected from garbage
+        // collection with PUSH_GUARD_SERIES.  We have to check if the
+        // series is a context (so the keylist gets marked) or an array (so
+        // the values are marked), or if it's just a data series which
+        // should just be marked shallow.
+        //
+        sp = SER_HEAD(REBSER*, GC_Series_Guard);
+        entry.name = "GC_Series_Guard";
+        entry.edge = NULL;
+        entry.addr = GC_Series_Guard;
+        entry.parent = NULL;
+        entry.kind = REB_KIND_SERIES;
+        entry.size = SER_TOTAL(GC_Series_Guard);
+        Dump_Mem_Entry(dump, &entry);
+
+        for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
+            if (GET_SER_FLAG(*sp, SERIES_FLAG_CONTEXT))
+                MARK_CONTEXT_DEEP(AS_CONTEXT(*sp), NULL, GC_Series_Guard, NULL, dump);
+            else if (Is_Array_Series(*sp))
+                MARK_ARRAY_DEEP(AS_ARRAY(*sp), NULL, GC_Series_Guard, NULL, REB_KIND_SERIES, NULL, dump);
+            else
+                MARK_SERIES_ONLY(*sp, NULL, GC_Series_Guard, NULL, REB_KIND_SERIES, dump);
+        }
+
+        // Mark value stack (temp-saved values):
+        vp = SER_HEAD(REBVAL*, GC_Value_Guard);
+        entry.name = "GC_Value_Guard";
+        entry.addr = GC_Value_Guard;
+        entry.parent = NULL;
+        entry.edge = NULL;
+        entry.kind = REB_KIND_SERIES;
+        entry.size = SER_TOTAL(GC_Value_Guard);
+        Dump_Mem_Entry(dump, &entry);
+
+        for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
+            if (NOT_END(*vp))
+                Queue_Mark_Value_Deep(*vp, NULL, GC_Value_Guard, "<has>", dump);
+            Propagate_All_GC_Marks(dump);
+        }
+
+        // Mark chunk stack (non-movable saved arrays of values)
+        {
+            Dump_Mem_Comment(dump, "Dump chunk stack");
+
+            struct Reb_Chunk *chunk = TG_Top_Chunk;
+            entry.name = "TG_Top_Chunk";
+            entry.addr = TG_Top_Chunk;
+            entry.parent = NULL;
+            entry.edge = NULL;
+            entry.kind = REB_KIND_CHUNK;
+            entry.size = BASE_CHUNK_SIZE;
+            Dump_Mem_Entry(dump, &entry);
+
+            while (chunk) {
+                REBVAL *chunk_value = &chunk->values[0];
+                while (
+                    cast(REBYTE*, chunk_value)
+                    < cast(REBYTE*, chunk) + chunk->size.bits
+                    ) {
+                    if (NOT_END(chunk_value))
+                        Queue_Mark_Value_Deep(chunk_value, NULL, chunk, "<keeps>", dump); //FIXME
+                    chunk_value++;
+                }
+                if (chunk->prev) {
+                    entry.name = "Chunk";
+                    entry.addr = chunk->prev;
+                    entry.parent = chunk;
+                    entry.kind = REB_KIND_CHUNK;
+                    entry.size = BASE_CHUNK_SIZE;
+                    Dump_Mem_Entry(dump, &entry);
+                }
+                chunk = chunk->prev;
+            }
+        }
+
+        // Mark potential error object from callback!
+        Dump_Mem_Comment(dump, "Dumping potential error object from callback!");
+        Queue_Mark_Value_Deep(&Callback_Error, "Callback-Error", NULL, NULL, dump);
+        Propagate_All_GC_Marks(dump);
+
+        // !!! This hook point is an interim measure for letting a host
+        // mark REBVALs that it is holding onto which are not contained in
+        // series.  It is motivated by Ren/C++, which wraps REBVALs in
+        // `ren::Value` class instances, and is able to enumerate the
+        // "live" classes (they "die" when the destructor runs).
+        //
+        if (GC_Mark_Hook) {
+            (*GC_Mark_Hook)();
+            Propagate_All_GC_Marks(dump);
+        }
+
+        // Mark all devices:
+        Dump_Mem_Comment(dump, "Dumping all devices!");
+        Mark_Devices_Deep(dump);
+        Propagate_All_GC_Marks(dump);
+
+        // Mark function call frames:
+        Dump_Mem_Comment(dump, "Dumping function call frames");
+        Mark_Call_Frames_Deep(dump);
+        Propagate_All_GC_Marks(dump);
     }
 
     // SWEEPING PHASE
@@ -1773,7 +1765,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 REBCNT Recycle(void)
 {
     // Default to not passing the `shutdown` flag.
-    return Recycle_Core(FALSE);
+    return Recycle_Core(FALSE, NULL);
 }
 
 
