@@ -441,6 +441,7 @@ set (OS_SOURCE
     ${OS_DIR}/host-device.c
     ${OS_DIR}/host-stdio.c
     ${OS_DIR}/host-core.c
+    ${OS_DIR}/host-table.c
     ${OS_DIR}/dev-net.c
     ${OS_DIR}/dev-dns.c
     ${OS_DIR}/generic/host-memory.c
