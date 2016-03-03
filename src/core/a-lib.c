@@ -902,6 +902,7 @@ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 
         utf8 = Make_Binary(utf8_len);
         if (utf8 == NULL) return 0;
+        MANAGE_SERIES(utf8);
 
         Encode_UTF8(SER_DATA_RAW(utf8), utf8_len, src, &len, OPT_ENC_UNISRC);
     }
