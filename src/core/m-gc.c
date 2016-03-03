@@ -1505,9 +1505,9 @@ void Dump_Memory_Usage(const REBCHR *path)
 {
     REBMDP dump;
 #ifdef TO_WINDOWS
-    dump.out = _wfopen(path, "w");
+    dump.out = _wfopen(cast(const REBUNI*, path), "w");
 #else
-    dump.out = fopen(path, "w");
+    dump.out = fopen(cast(const char*, path), "w");
 #endif
     if (dump.out == NULL) {
         return;
