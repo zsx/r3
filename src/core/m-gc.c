@@ -143,6 +143,7 @@ struct Reb_Mem_Dump {
 struct mark_stack_elem {
     REBARR *array;
     const REBARR *key_list;
+    REBMDP *dump;
 #ifndef NDEBUG
     int *guard;
 #endif
@@ -192,7 +193,7 @@ static void Dump_Mem_Comment(REBMDP *dump, const char *s)
 // was static, but exported for Ren/C
 /* static void Queue_Mark_Value_Deep(const REBVAL *val, const void *parent, REBMDP *dump);*/
 
-static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_listr);
+static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_listr, REBMDP *dump);
 
 #ifndef NDEBUG
 static void Mark_Series_Only_Debug_Core(REBSER *ser);
@@ -223,7 +224,7 @@ static void Panic_Mark_Stack(struct mark_stack_elem *elem)
 // as a verb it has more leeway than as the CS noun, and can just
 // mean "put into a list for later processing", hence macro names.
 //
-static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list)
+static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP *dump)
 {
     struct mark_stack_elem *elem;
 
@@ -265,6 +266,7 @@ static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list)
     elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
     elem->array = array;
     elem->key_list = key_list;
+    elem->dump = dump;
 #ifndef NDEBUG
     elem->guard = malloc(sizeof(int));
     free(elem->guard);
@@ -295,13 +297,20 @@ static REBOOL in_mark = FALSE;
 
 #define QUEUE_MARK_ARRAY_DEEP(a, name, parent, edge, kind, keylist, dump) \
     do { \
-        struct mem_dump_entry tmp_entry = { \
-            (a), (name), (parent), (edge), (kind), sizeof(REBARR) /* size is counted in the contained REBVALs */ \
-        };\
-        Dump_Mem_Entry(dump, &tmp_entry); \
+        if (kind != REB_KIND_KEYLIST) { \
+            struct mem_dump_entry tmp_entry = { \
+                (a), (name), (parent), (edge), (kind), sizeof(REBARR) /* size is counted in the contained REBVALs */ \
+            };\
+            Dump_Mem_Entry(dump, &tmp_entry); \
+        } else {\
+            struct mem_dump_entry tmp_entry = { \
+                (a), (name), (parent), (edge), (kind), sizeof(REBARR) + ARR_LEN(a) * sizeof(REBVAL) \
+            }; \
+            Dump_Mem_Entry(dump, &tmp_entry); \
+        } \
         if (!GET_ARR_FLAG((a), SERIES_FLAG_MARK)) { \
             SET_ARR_FLAG((a), SERIES_FLAG_MARK); \
-            Push_Array_Marked_Deep(a, keylist); \
+            Push_Array_Marked_Deep(a, keylist, (kind == REB_KIND_KEYLIST) ? NULL : dump); \
         } \
     } while (0)
 
@@ -317,7 +326,7 @@ static REBOOL in_mark = FALSE;
 void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c, const char *name, const void *parent, const char *edge, REBMDP *dump)
 {
     assert(GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_CONTEXT));
-    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_ARRAY, CTX_KEYLIST(c), dump);
+    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_KEYLIST, CTX_KEYLIST(c), dump);
     QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), edge, REB_KIND_ARRAY, CTX_KEYLIST(c), dump);
 }
 
