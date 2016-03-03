@@ -624,7 +624,7 @@ static void Queue_Mark_Routine_Deep(REBROT *rot, const char*name, const void *pa
             // Should take care of spec, body, etc.
             Dump_Mem_Comment(dump, "Dumping the paramlist of a callback");
             REBARR *paramlist = FUNC_PARAMLIST(CALLBACK_FUNC(rot));
-            QUEUE_MARK_ARRAY_DEEP(paramlist, NULL, parent, "<paramlist>", REB_KIND_ARRAY, paramlist, dump); //paramlist points the same address as rot does
+            QUEUE_MARK_ARRAY_DEEP(paramlist, NULL, parent, "<rebfunc>", REB_KIND_ARRAY, paramlist, dump); //paramlist points the same address as rot does
         }
         else {
             // !!! There is a call during MT_Routine that does an evaluation
@@ -1030,7 +1030,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
                     // something more like a function spec, with the module
                     // information going in something called a "meta"
                     //
-                    QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val), NULL, val, "<spec>", dump);
+                    QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val), NULL, val, "<context-spec>", dump);
                 }
             }
 
@@ -1094,7 +1094,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
             //
             if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_SPECIFIC)) {
                 REBCTX* context = VAL_WORD_CONTEXT(val);
-                QUEUE_MARK_CONTEXT_DEEP(context, NULL, val, "<context>", dump);
+                QUEUE_MARK_CONTEXT_DEEP(context, NULL, val, "<bound-to>", dump);
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_RELATIVE)) {
                 //
@@ -1103,7 +1103,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
                 // function value...)
                 //
                 REBFUN* func = val->payload.any_word.binding.relative;
-                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func), NULL, val, "<paramlist>", REB_KIND_ARRAY, FUNC_PARAMLIST(func), dump);
+                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func), NULL, val, "<bound-to>", REB_KIND_ARRAY, FUNC_PARAMLIST(func), dump);
             }
             else {
                 // The word is unbound...make sure index is 0 in debug build.
@@ -1294,7 +1294,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
             key++;
         }
 
-        Queue_Mark_Value_Deep(value, name, array, "<e>", dump);
+        Queue_Mark_Value_Deep(value, name, array, "<has>", dump);
     }
 }
 
