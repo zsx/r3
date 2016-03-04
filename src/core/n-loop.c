@@ -1031,8 +1031,8 @@ REBNATIVE(repeat)
     }
 
     if (IS_DECIMAL(count) || IS_PERCENT(count)) {
-        VAL_INT64(count) = Int64(count);
-        VAL_RESET_HEADER(count, REB_INTEGER);
+        REBI64 i64 = Int64(count);
+        SET_INTEGER(count, i64); // macro! don't get-and-set in same line!
     }
 
     body = Init_Loop(&context, D_ARG(1), D_ARG(3));

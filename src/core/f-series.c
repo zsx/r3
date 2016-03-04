@@ -28,6 +28,7 @@
 ***********************************************************************/
 
 #include "sys-core.h"
+#include "sys-deci-funcs.h"
 
 #define THE_SIGN(v) ((v < 0) ? -1 : (v > 0) ? 1 : 0)
 
@@ -228,9 +229,14 @@ REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBOOL is_case)
     case REB_PERCENT:
     case REB_DECIMAL:
     case REB_MONEY:
+        if (IS_MONEY(s))
+            d1 = deci_to_decimal(VAL_MONEY_AMOUNT(s));
+        else
             d1 = VAL_DECIMAL(s);
         if (IS_INTEGER(t))
-            d2 = (REBDEC)VAL_INT64(t);
+            d2 = cast(REBDEC, VAL_INT64(t));
+        else if (IS_MONEY(t))
+            d2 = deci_to_decimal(VAL_MONEY_AMOUNT(t));
         else
             d2 = VAL_DECIMAL(t);
 chkDecimal:

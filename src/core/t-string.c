@@ -271,12 +271,8 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
         n = VAL_INT64(arg);
     }
     else {
-        // !!! Bad byte-level casting from R3-alpha (preserved after an even
-        // worse inactive-union-member-usage that implemented the same cast).
-        // Use more legitimate method to convert floating point to bytes.
-        //
         assert(IS_DECIMAL(arg));
-        n = *cast(REBI64*, &VAL_DECIMAL(arg));
+        n = VAL_DECIMAL_BITS(arg);
     }
 
     for (count = 7; count >= 0; count--) {

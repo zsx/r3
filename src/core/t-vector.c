@@ -292,9 +292,14 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
     REBYTE *data = SER_DATA_RAW(series);
     REBCNT bits = VECT_TYPE(series);
 
-    VAL_INT64(var) = get_vect(bits, data, index);
-    if (bits >= VTSF08) VAL_RESET_HEADER(var, REB_DECIMAL);
-    else VAL_RESET_HEADER(var, REB_INTEGER);
+    if (bits >= VTSF08) {
+        VAL_RESET_HEADER(var, REB_DECIMAL);
+        VAL_DECIMAL_BITS(var) = get_vect(bits, data, index);
+    }
+    else {
+        VAL_RESET_HEADER(var, REB_INTEGER);
+        VAL_INT64(var) = get_vect(bits, data, index);
+    }
 }
 
 
@@ -487,10 +492,10 @@ REBINT PD_Vector(REBPVS *pvs)
         if (bits < VTSF08) {
             VAL_RESET_HEADER(pvs->store, REB_INTEGER);
             VAL_INT64(pvs->store) = get_vect(bits, vp, n - 1); // 64 bits
-        } else {
+        }
+        else {
             VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
-            VAL_DECIMAL(pvs->store)
-                = cast(REBDEC, get_vect(bits, vp, n - 1)); // 64 bits
+            VAL_DECIMAL_BITS(pvs->store) = get_vect(bits, vp, n - 1); // 64bit
         }
 
         return PE_USE_STORE;

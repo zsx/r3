@@ -196,13 +196,15 @@ REBTYPE(Money)
         );
         if (D_REF(2)) {
             if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-                VAL_DECIMAL(D_OUT) = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));
+                REBDEC dec = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));
                 VAL_RESET_HEADER(D_OUT, VAL_TYPE(arg));
+                VAL_DECIMAL(D_OUT) = dec;
                 return R_OUT;
             }
             if (IS_INTEGER(arg)) {
-                VAL_INT64(D_OUT) = deci_to_int(VAL_MONEY_AMOUNT(D_OUT));;
+                REBI64 i64 = deci_to_int(VAL_MONEY_AMOUNT(D_OUT));
                 VAL_RESET_HEADER(D_OUT, REB_INTEGER);
+                VAL_INT64(D_OUT) = i64;
                 return R_OUT;
             }
         }

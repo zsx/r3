@@ -402,11 +402,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
         switch (ta) {
         case REB_INTEGER:
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-                SET_DECIMAL(a, (REBDEC)VAL_INT64(a));
+                REBDEC dec_a = cast(REBDEC, VAL_INT64(a));
+                SET_DECIMAL(a, dec_a);
                 goto compare;
             }
             else if (tb == REB_MONEY) {
-                SET_MONEY_AMOUNT(a, int_to_deci(VAL_INT64(a)));
+                deci amount = int_to_deci(VAL_INT64(a));
+                SET_MONEY_AMOUNT(a, amount);
                 goto compare;
             }
             break;
@@ -414,11 +416,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
         case REB_DECIMAL:
         case REB_PERCENT:
             if (tb == REB_INTEGER) {
-                SET_DECIMAL(b, (REBDEC)VAL_INT64(b));
+                REBDEC dec_b = cast(REBDEC, VAL_INT64(b));
+                SET_DECIMAL(b, dec_b);
                 goto compare;
             }
             else if (tb == REB_MONEY) {
-                SET_MONEY_AMOUNT(a, decimal_to_deci(VAL_DECIMAL(a)));
+                deci amount = decimal_to_deci(VAL_DECIMAL(a));
+                SET_MONEY_AMOUNT(a, amount);
                 goto compare;
             }
             else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
@@ -427,11 +431,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
 
         case REB_MONEY:
             if (tb == REB_INTEGER) {
-                SET_MONEY_AMOUNT(b, int_to_deci(VAL_INT64(b)));
+                deci amount = int_to_deci(VAL_INT64(b));
+                SET_MONEY_AMOUNT(b, amount);
                 goto compare;
             }
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-                SET_MONEY_AMOUNT(b, decimal_to_deci(VAL_DECIMAL(b)));
+                deci amount = decimal_to_deci(VAL_DECIMAL(b));
+                SET_MONEY_AMOUNT(b, amount);
                 goto compare;
             }
             break;

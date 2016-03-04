@@ -892,11 +892,16 @@ struct Reb_Integer {
     REBI64 i64;
 };
 
-#define VAL_INT32(v)    cast(REBINT, (v)->payload.integer.value)
-#define VAL_INT64(v)    ((v)->payload.integer.value)
+#define VAL_INT32(v)    cast(REBINT, (v)->payload.integer.i64)
+
+#ifdef NDEBUG
+    #define VAL_INT64(v)    ((v)->payload.integer.i64)
+#else
+    #define VAL_INT64(v)    (*VAL_INT64_Ptr_Debug(v))
+#endif
 
 #define SET_INTEGER(v,n) \
-    (VAL_RESET_HEADER(v, REB_INTEGER), (v)->payload.integer.value = (n))
+    (VAL_RESET_HEADER(v, REB_INTEGER), (v)->payload.integer.i64 = (n))
 
 #define MAX_CHAR        0xffff
 #define VAL_CHAR(v)     ((v)->payload.character)
@@ -921,12 +926,29 @@ struct Reb_Decimal {
     //
     REBUPT padding;
 
-    REBDEC value;
+    REBDEC dec;
 };
 
-#define VAL_DECIMAL(v)  ((v)->payload.decimal.value)
+#ifdef NDEBUG
+    #define VAL_DECIMAL(v)  ((v)->payload.decimal.dec)
+#else
+    #define VAL_DECIMAL(v)  (*VAL_DECIMAL_Ptr_Debug(v))
+#endif
+
+// !!! Several parts of the code want to access the decimal as "bits", where
+// those bits are cast as a 64-bit integer.  This uses casting, which is bad,
+// but even worse was that it used to use the disengaged integer state of
+// the union.  (so it was calling VAL_INTEGER() on a MONEY! or a DECIMAL!).
+// This at least makes it clear what's happening.
+//
+#ifdef NDEBUG
+    #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, &(v)->payload.decimal.dec))
+#else
+    #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, VAL_DECIMAL_Ptr_Debug(v)))
+#endif
+
 #define SET_DECIMAL(v,n) \
-    (VAL_RESET_HEADER(v, REB_DECIMAL), (v)->payload.decimal.value = (n))
+    (VAL_RESET_HEADER(v, REB_DECIMAL), (v)->payload.decimal.dec = (n))
 
 
 /***********************************************************************

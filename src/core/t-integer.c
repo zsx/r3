@@ -296,7 +296,8 @@ REBTYPE(Integer)
     REBOOL sgn;
     REBI64 anum;
 
-    num = VAL_INT64(val);
+    if (action != A_MAKE && action != A_TO)
+        num = VAL_INT64(val);
 
     if (IS_BINARY_ACT(action)) {
 
@@ -427,8 +428,9 @@ REBTYPE(Integer)
                 return R_OUT;
             }
             if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
-                VAL_DECIMAL(D_OUT) = Round_Dec((REBDEC)num, n, VAL_DECIMAL(val2));
-                VAL_SET_TYPE_BITS(D_OUT, VAL_TYPE(val2));
+                REBDEC dec = Round_Dec(cast(REBDEC, num), n, VAL_DECIMAL(val2));
+                VAL_RESET_HEADER(D_OUT, VAL_TYPE(val2));
+                VAL_DECIMAL(D_OUT) = dec;
                 return R_OUT;
             }
             if (IS_TIME(val2)) fail (Error_Invalid_Arg(val2));
@@ -487,3 +489,17 @@ REBTYPE(Integer)
     SET_INTEGER(D_OUT, num);
     return R_OUT;
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  VAL_INT64_Ptr_Debug: C
+//
+REBI64 *VAL_INT64_Ptr_Debug(const REBVAL *value)
+{
+    assert(IS_INTEGER(value));
+    return &m_cast(REBVAL*, value)->payload.integer.i64;
+}
+
+#endif
