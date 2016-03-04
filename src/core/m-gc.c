@@ -424,10 +424,10 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob, const char *name, const void *paren
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        SET_SER_FLAG(GOB_PANE(gob), SERIES_FLAG_MARK);
+        MARK_SERIES_ONLY(GOB_PANE(gob), NULL, gob, "<pane>", REB_KIND_SERIES, dump);
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
-            Queue_Mark_Gob_Deep(*pane, NULL, gob, "<child>", dump);
+            Queue_Mark_Gob_Deep(*pane, NULL, GOB_PANE(gob), "<has>", dump);
     }
 
     if (GOB_PARENT(gob)) Queue_Mark_Gob_Deep(GOB_PARENT(gob), NULL, gob, "<parent>", dump);
