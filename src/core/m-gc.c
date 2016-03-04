@@ -359,7 +359,7 @@ void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c, const char *name, const void *parent, co
 
 #define MARK_SERIES_ONLY(s, name, parent, edge, kind, dump) do {\
     struct mem_dump_entry tmp_entry = { \
-        (s), (name), (parent), (edge), (kind), SER_TOTAL(s) \
+        (s), (name), (parent), (edge), (kind), SER_TOTAL(s) + sizeof(REBSER)\
     }; \
     Dump_Mem_Entry(dump, &tmp_entry); \
     if (!GET_SER_FLAG((s), SERIES_FLAG_MARK)) { \
