@@ -263,9 +263,21 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
 static REBSER *Make_Binary_BE64(REBVAL *arg)
 {
     REBSER *ser = Make_Binary(9);
-    REBI64 n = VAL_INT64(arg);
+    REBI64 n;
     REBINT count;
     REBYTE *bp = BIN_HEAD(ser);
+
+    if (IS_INTEGER(arg)) {
+        n = VAL_INT64(arg);
+    }
+    else {
+        // !!! Bad byte-level casting from R3-alpha (preserved after an even
+        // worse inactive-union-member-usage that implemented the same cast).
+        // Use more legitimate method to convert floating point to bytes.
+        //
+        assert(IS_DECIMAL(arg));
+        n = *cast(REBI64*, &VAL_DECIMAL(arg));
+    }
 
     for (count = 7; count >= 0; count--) {
         bp[count] = (REBYTE)(n & 0xff);
@@ -745,8 +757,13 @@ pick_it:
             arg = D_ARG(3);
             if (IS_CHAR(arg))
                 c = VAL_CHAR(arg);
-            else if (IS_INTEGER(arg) && VAL_UNT64(arg) <= MAX_CHAR)
+            else if (
+                IS_INTEGER(arg)
+                && VAL_INT32(arg) >= 0
+                && VAL_INT32(arg) <= MAX_CHAR
+            ) {
                 c = VAL_INT32(arg);
+            }
             else
                 fail (Error_Invalid_Arg(arg));
 

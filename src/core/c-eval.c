@@ -1666,7 +1666,7 @@ reevaluate:
                     // don't reset header (keep thrown flag as is), just bump
                     // the count down by one...
                     //
-                    --f->out->payload.integer;
+                    --VAL_INT64(f->out);
                     //
                     // ...and stay in thrown mode...
                 }

@@ -67,6 +67,7 @@ Internal: [
     bad-true-canon:     {TRUE was not found}
     bad-trash-type:     {the TRASH! word is not correct}
     rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
+    pool-alignment:     {Memory pool width not 64-bit aligned}
 
     io-error:           {problem with IO}
     max-words:          {too many words}

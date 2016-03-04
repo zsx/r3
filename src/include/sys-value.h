@@ -81,22 +81,38 @@
 #ifndef VALUE_H
 #define VALUE_H
 
-// A `#pragma pack` of 4 was requested by the R3-Alpha source for the
-// duration of %sys-value.h:
+// The definition of the REBVAL struct has a header followed by a payload.
+// On 32-bit platforms the header is 32 bits, and on 64-bit platforms it is
+// 64-bits.  However, even on 32-bit platforms, some payloads contain 64-bit
+// quantities (doubles or 64-bit integers).  By default, the compiler would
+// pad a payload with one 64-bit quantity and one 32-bit quantity to 128-bits,
+// which would not leave room for the header (if REBVALs are to be 128-bits).
+//
+// So since R3-Alpha, a `#pragma pack` of 4 is requested for this file:
 //
 //     http://stackoverflow.com/questions/3318410/
 //
-// Pushed here and popped at the end of the file to the previous value
+// It is restored to the default via `#pragma pack()` at the end of the file.
+// (Note that pack(push) and pack(pop) are not supported by older compilers.)
 //
-// !!! Compilers are free to ignore pragmas (or error on them), and this can
-// cause a loss of performance...so it might not be worth doing.  Especially
-// because the ordering of fields in REBVAL members is alignment-conscious
-// already.  Since Rebol series indexes (REBINT) and length counts (REBCNT)
-// are still 32-bits on 64-bit platforms, it means that often REBINTs are
-// "paired up" in structures to create a 64-bit alignment for a pointer
-// that comes after them.  So everything is pretty well aligned as-is.
+// Compilers are free to ignore pragmas (or error on them).  Also, this
+// packing subverts the automatic alignment handling of the compiler.  So if
+// the manually packed structures do not position 64-bit values on 64-bit
+// alignments, there can be problems.  On x86 this is generally just slower
+// reads and writes, but on more esoteric platforms (like the C-to-Javascript
+// translator "emscripten") some instances do not work at all.
 //
-#pragma pack(push,4)
+// Hence REBVAL payloads that contain quantities that need 64-bit alignment
+// put those *after* a platform-pointer sized field, even if that field is
+// just padding.  On 32-bit platforms this will pair with the header to make
+// enough space to get to a 64-bit alignment
+//
+// If #pragma pack is disabled, a REBVAL will wind up being 160 bits.  This
+// won't give ideal performance, and will trigger an assertion in
+// Assert_Basics.  But the code *should* be able to work otherwise if that
+// assertion is removed.
+//
+#pragma pack(4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -861,12 +877,26 @@ struct Reb_Datatype {
 **
 ***********************************************************************/
 
-#define VAL_INT32(v)    (REBINT)((v)->payload.integer)
-#define VAL_INT64(v)    ((v)->payload.integer)
-#define VAL_UNT64(v)    ((v)->payload.unteger)
+struct Reb_Integer {
+    //
+    // On 32-bit platforms, this payload structure begins after a 32-bit
+    // header...hence not a 64-bit aligned location.  Since a REBUPT is
+    // 32-bits on 32-bit platforms and 64-bit on 64-bit, putting one here
+    // right after the header ensures `value` will be on a 64-bit boundary.
+    //
+    // (At time of writing, this is necessary for the "C-to-Javascript"
+    // emscripten build to work.  It's also likely preferred by x86.)
+    //
+    REBUPT padding;
+
+    REBI64 i64;
+};
+
+#define VAL_INT32(v)    cast(REBINT, (v)->payload.integer.value)
+#define VAL_INT64(v)    ((v)->payload.integer.value)
 
 #define SET_INTEGER(v,n) \
-    (VAL_RESET_HEADER(v, REB_INTEGER), ((v)->payload.integer) = (n))
+    (VAL_RESET_HEADER(v, REB_INTEGER), (v)->payload.integer.value = (n))
 
 #define MAX_CHAR        0xffff
 #define VAL_CHAR(v)     ((v)->payload.character)
@@ -884,8 +914,19 @@ struct Reb_Datatype {
 **
 ***********************************************************************/
 
-#define VAL_DECIMAL(v)  ((v)->payload.decimal)
-#define SET_DECIMAL(v,n) VAL_RESET_HEADER(v, REB_DECIMAL), VAL_DECIMAL(v) = (n)
+struct Reb_Decimal {
+    //
+    // See notes on Reb_Integer for why this is needed (handles case of when
+    // `value` is 64-bit, and the platform is 32-bit.)
+    //
+    REBUPT padding;
+
+    REBDEC value;
+};
+
+#define VAL_DECIMAL(v)  ((v)->payload.decimal.value)
+#define SET_DECIMAL(v,n) \
+    (VAL_RESET_HEADER(v, REB_DECIMAL), (v)->payload.decimal.value = (n))
 
 
 /***********************************************************************
@@ -2223,8 +2264,8 @@ struct Reb_Handle {
 
 typedef struct Reb_Library_Handle {
     void * fd;
-    REBFLGS flags;
-} REBLHL;
+    REBUPT flags;
+} REBLHL; // sizeof(REBLHL) % 8 must equal 0 on both 64-bit and 32-bit builds
 
 struct Reb_Library {
     REBLHL *handle;
@@ -2306,6 +2347,8 @@ struct Reb_Routine_Info {
     REBSER  *extra_mem; /* extra memory that needs to be free'ed */
     REBCNT  flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
     REBINT  abi;
+
+    REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
 };
 
 typedef REBFUN REBROT;
@@ -2415,9 +2458,9 @@ enum {
 **
 ***********************************************************************/
 
-#pragma pack(pop)
+#pragma pack() // set back to default (was set to 4 at start of file)
     #include "reb-gob.h"
-#pragma pack(push,4)
+#pragma pack(4) // resume packing with 4
 
 struct Reb_Gob {
     REBGOB *gob;
@@ -2435,6 +2478,24 @@ struct Reb_Gob {
 //  REBOL VALUE DEFINITION (`struct Reb_Value`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
+//
+// The value is defined to have the header first, and then the value.  Having
+// the header come first is taken advantage of by the trick for allowing
+// a single REBUPT-sized value (32-bit on 32 bit builds, 64-bit on 64-bit
+// builds) be examined to determine if a value is an END marker or not.
+//
+// One aspect of having the header before the payload is that on 32-bit
+// platforms, this means that the starting address of the payload is not on
+// a 64-bit alignment boundary.  This means placing a quantity that needs
+// 64-bit alignment at the start of a payload can cause problems on some
+// platforms with strict alignment requirements.
+//
+// (Note: The reason why this can happen at all is due to the #pragma pack(4)
+// that is put in effect at the top of this file.)
+//
+// See Reb_Integer, Reb_Decimal, and Reb_Typeset for examples where the 64-bit
+// quantity is padded by a pointer or pointer-sized-REBUPT to compensate.
+//
 
 // Reb_All is a structure type designed specifically for getting at
 // the underlying bits of whichever union member is in effect inside
@@ -2456,11 +2517,10 @@ struct Reb_All {
 union Reb_Value_Payload {
     struct Reb_All all;
 
-    REBCNT rebcnt;
-    REBI64 integer;
-    REBU64 unteger;
-    REBDEC decimal; // actually a C 'double', typically 64-bit
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
+
+    struct Reb_Integer integer;
+    struct Reb_Decimal decimal;
 
     struct Reb_Pair pair;
     struct Reb_Money money;
@@ -2492,6 +2552,7 @@ union Reb_Value_Payload {
 
     struct Reb_Varargs varargs;
 
+    REBCNT rebcnt; // !!! used by extensions, review
     struct Reb_Library library;
     struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
 
@@ -2511,7 +2572,7 @@ struct Reb_Value
     union Reb_Value_Payload payload;
 };
 
-#pragma pack(pop)
+#pragma pack() // set back to default (was set to 4 at start of file)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

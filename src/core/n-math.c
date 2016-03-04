@@ -328,23 +328,28 @@ REBNATIVE(shift)
 
     if (b < 0) {
         // this is defined:
-        c = -(REBU64)b;
+        c = - cast(REBU64, b);
         if (c >= 64) {
             if (REF(logical)) VAL_INT64(a) = 0;
             else VAL_INT64(a) >>= 63;
         } else {
-            if (REF(logical)) VAL_UNT64(a) >>= c;
-            else VAL_INT64(a) >>= (REBI64)c;
+            if (REF(logical))
+                VAL_INT64(a) = cast(REBU64, VAL_INT64(a)) >> c;
+            else
+                VAL_INT64(a) >>= cast(REBI64, c);
         }
     } else {
         if (b >= 64) {
             if (REF(logical)) VAL_INT64(a) = 0;
             else if (VAL_INT64(a)) fail (Error(RE_OVERFLOW));
         } else
-            if (REF(logical)) VAL_UNT64(a) <<= b;
+            if (REF(logical))
+                VAL_INT64(a) = cast(REBU64, VAL_INT64(a)) << b;
             else {
-                c = (REBU64)MIN_I64 >> b;
-                d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
+                c = cast(REBU64, MIN_I64) >> b;
+                d = VAL_INT64(a) < 0
+                    ? - cast(REBU64, VAL_INT64(a))
+                    : cast(REBU64, VAL_INT64(a));
                 if (c <= d) {
                     if ((c < d) || (VAL_INT64(a) >= 0))
                         fail (Error(RE_OVERFLOW));

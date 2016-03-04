@@ -75,7 +75,6 @@ static void Assert_Basics(void)
         printf(fmt, sizeof(dummy_payload->any_word), "any_word");
         printf(fmt, sizeof(dummy_payload->any_series), "any_series");
         printf(fmt, sizeof(dummy_payload->integer), "integer");
-        printf(fmt, sizeof(dummy_payload->unteger), "unteger");
         printf(fmt, sizeof(dummy_payload->decimal), "decimal");
         printf(fmt, sizeof(dummy_payload->character), "char");
         printf(fmt, sizeof(dummy_payload->datatype), "datatype");
@@ -129,7 +128,7 @@ static void Assert_Basics(void)
     // checking that the size is what the linked-to code is expecting.
     //
     if (sizeof(void *) == 8) {
-        if (sizeof(REBGOB) != 84)
+        if (sizeof(REBGOB) != 88)
             panic (Error(RE_BAD_SIZE));
     }
     else {
@@ -189,6 +188,21 @@ static void Assert_Basics(void)
     // blocks.  We want the C++ class to be the same size as the C build.
     //
     assert(sizeof(REBIXO) == sizeof(REBUPT));
+
+    // Types that are used for memory pooled allocations are required to be
+    // multiples of 8 bytes in size.  This way it's possible to reliably align
+    // 64-bit values using the node's allocation pointer as a baseline that
+    // is known to be 64-bit aligned.  (Rounding internally to the allocator
+    // would be possible, but that would add calculation as well as leading
+    // to wasting space--whereas this way any padding is visible.)
+    //
+    // This check is reinforced in the pool initialization itself.
+    //
+    assert(sizeof(REBI64) == 8);
+    assert(sizeof(REBSER) % 8 == 0);
+    assert(sizeof(REBGOB) % 8 == 0);
+    assert(sizeof(REBLHL) % 8 == 0);
+    assert(sizeof(REBRIN) % 8 == 0);
 }
 
 

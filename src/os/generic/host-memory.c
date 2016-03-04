@@ -51,12 +51,15 @@ void *OS_Alloc_Mem(size_t size)
         // Rebol Core uses the same trick (but stores a size), we
         // write a known garbage value into that size to warn you that
         // you are FREE()ing something you should OS_FREE().
+        //
+        // A 64-bit size is used in order to maintain a 64-bit alignment
+        // (potentially a lesser alignment guarantee than malloc())
 
         // (If you copy this code, choose another "magic number".)
 
-        void *ptr = malloc(size + sizeof(size_t));
-        *cast(size_t *, ptr) = cast(size_t, -1020);
-        return cast(char *, ptr) + sizeof(size_t);
+        void *ptr = malloc(size + sizeof(REBI64));
+        *cast(REBI64 *, ptr) = -1020;
+        return cast(char *, ptr) + sizeof(REBI64);
     }
 #endif
 }
@@ -73,8 +76,8 @@ void OS_Free_Mem(void *mem)
     free(mem);
 #else
     {
-        char *ptr = cast(char *, mem) - sizeof(size_t);
-        if (*cast(size_t *, ptr) != cast(size_t, -1020)) {
+        char *ptr = cast(char *, mem) - sizeof(REBI64);
+        if (*cast(REBI64 *, ptr) != -1020) {
             OS_CRASH(
                 cb_cast("OS_Free_Mem() mismatched with allocator!"),
                 cb_cast("Did you mean to use FREE() instead of OS_FREE()?")

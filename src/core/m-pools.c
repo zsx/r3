@@ -125,10 +125,13 @@ void *Alloc_Mem(size_t size)
         // In debug builds we cache the size at the head of the allocation
         // so we can check it.  This also allows us to catch cases when
         // free() is paired with Alloc_Mem() instead of using Free_Mem()
+        //
+        // Note that we use a 64-bit quantity, as we want the allocations
+        // to remain suitable in alignment for 64-bit values!
 
-        void *ptr = malloc(size + sizeof(size_t));
-        *cast(size_t *, ptr) = size;
-        return cast(char *, ptr) + sizeof(size_t);
+        void *ptr = malloc(size + sizeof(REBI64));
+        *cast(REBI64 *, ptr) = size;
+        return cast(char *, ptr) + sizeof(REBI64);
     }
 #endif
 }
@@ -156,13 +159,13 @@ void Free_Mem(void *mem, size_t size)
         // a similar trick, but since it doesn't need to remember the
         // size it puts a known garbage value for us to check for.
 
-        char *ptr = cast(char *, mem) - sizeof(size_t);
-        if (*cast(size_t *, ptr) == cast(size_t, -1020)) {
+        char *ptr = cast(char *, mem) - sizeof(REBI64);
+        if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
             Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
             Debug_Fmt("** You should use OS_FREE() instead of FREE().");
             assert(FALSE);
         }
-        assert(*cast(size_t *, ptr) == size);
+        assert(*cast(REBI64 *, ptr) == size);
         free(ptr);
     }
 #endif
@@ -238,7 +241,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
     DEF_POOL(sizeof(REBGOB), 128),  // Gobs
     DEF_POOL(sizeof(REBLHL), 32), // external libraries
     DEF_POOL(sizeof(REBRIN), 128), // external routines
-    DEF_POOL(1, 1), // Just used for tracking main memory
+    DEF_POOL(sizeof(REBI64), 1), // Just used for tracking main memory
 };
 
 
@@ -275,7 +278,19 @@ void Init_Pools(REBINT scale)
         Mem_Pools[n].segs = NULL;
         Mem_Pools[n].first = NULL;
         Mem_Pools[n].last = NULL;
+
+        // The current invariant is that allocations returned from Make_Node()
+        // should always come back as being at a legal 64-bit alignment point.
+        // Although it would be possible to round the allocations, turning it
+        // into an alert helps make sure available space isn't idly wasted.
+        //
+        // A panic is used instead of an assert, since the debug sizes and
+        // release sizes may be different...and both must be checked.
+        //
+        if (Mem_Pool_Spec[n].wide % sizeof(REBI64) != 0)
+            panic (Error(RE_POOL_ALIGNMENT));
         Mem_Pools[n].wide = Mem_Pool_Spec[n].wide;
+
         Mem_Pools[n].units = (Mem_Pool_Spec[n].units * scale) / unscale;
         if (Mem_Pools[n].units < 2) Mem_Pools[n].units = 2;
         Mem_Pools[n].free = 0;
@@ -564,6 +579,13 @@ void *Make_Node(REBCNT pool_id)
         pool->last = NULL;
     }
     pool->free--;
+
+    // All nodes must start on 64-bit alignment (so that data allocated in
+    // nodes can be structured in a way to know where legal 64-bit alignment
+    // points would be)
+    //
+    assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
+
     return (void *)node;
 }
 

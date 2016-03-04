@@ -492,7 +492,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                         if (*raw_addr != 0) /* duplicate raw-memory */
                             fail (Error_Invalid_Arg(attr));
 
-                        *raw_addr = VAL_UNT64(attr);
+                        *raw_addr = cast(REBU64, VAL_INT64(attr));
                         if (*raw_addr == 0)
                             fail (Error_Invalid_Arg(attr));
                     }

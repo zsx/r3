@@ -117,6 +117,14 @@ struct rebol_gob {      // size: 64 bytes!
     REBXYF size;
     REBXYF old_offset;  // prior location
     REBXYF old_size;    // prior size
+
+    // All data types allocated in memory pools need to be a multiple of 64
+    // bits in size.  This padding is added in order to get the 64-bit build
+    // to meet that rule (there's an assert when initializing the pools)
+    //
+#if defined(__LP64__) || defined(__LLP64__)
+    REBCNT padding; // bump from 84 bytes on 64-bit to 88 bytes (11 * 8)
+#endif
 };
 #pragma pack()
 
