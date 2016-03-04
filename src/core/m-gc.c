@@ -1391,7 +1391,14 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // are being freed.
     //
     if (!shutdown) {
-        if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
+
+        // !!! This code was added by Atronix to deal with frequent garbage
+        // collection, but the logic is not correct.  The issue has been
+        // raised and is commented out pending a correct solution.
+        //
+        // https://github.com/zsx/r3/issues/32
+        //
+        /*if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
             && VAL_INT64(TASK_BALLAST) < MAX_I32) {
             //increasing ballast by half
             VAL_INT64(TASK_BALLAST) /= 2;
@@ -1407,7 +1414,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
             || VAL_INT64(TASK_BALLAST) >= MAX_I32
         ) {
             VAL_INT64(TASK_BALLAST) = MAX_I32;
-        }
+        }*/
 
         GC_Ballast = VAL_INT32(TASK_BALLAST);
         GC_Disabled = 0;
