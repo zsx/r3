@@ -307,7 +307,16 @@ extern "C" void aggdrw_line_join(void* gr, REBINT mode)
 
 extern "C" void aggdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
-((agg_graphics*)gr)->agg_line_pattern((col) ? (REBYTE*)&col : NULL, patterns);
+    if (col != 0 && patterns != NULL) {
+        size_t len = static_cast<size_t>(patterns[0]) + 1;
+        double *ptns = new double[len];
+        if (ptns == NULL) return;
+        memcpy(ptns, patterns, sizeof(double) * len);
+        ((agg_graphics*)gr)->agg_line_pattern((REBYTE*)&col, ptns);
+    }
+    else {
+        ((agg_graphics*)gr)->agg_line_pattern(NULL, patterns);
+    }
 }
 
 extern "C" void aggdrw_line_width(void* gr, REBDEC width, REBINT mode)

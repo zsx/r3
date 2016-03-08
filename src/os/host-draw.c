@@ -446,6 +446,7 @@ static u32* shape_ext_words;
                         break;
                 }
                 rebol_renderer->draw->rebdrw_line_pattern(ctx->envr, RXA_COLOR_TUPLE(frm, 1), pattern);
+                OS_FREE_MEM(pattern);
             }
 
         }
