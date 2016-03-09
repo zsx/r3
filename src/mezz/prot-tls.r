@@ -135,7 +135,7 @@ parse-asn: func [
                             (either constructed? ["constructed"] ["primitive"])
                             (index-of data)
                             (size)
-                            #[none]
+                            _
                         ]
                     ]
                     mode: 'type

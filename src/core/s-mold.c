@@ -1136,7 +1136,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_NONE:
-        Emit(mold, "+N", SYM_NONE);
+        Append_Unencoded(ser, "_");
         break;
 
     case REB_LOGIC:

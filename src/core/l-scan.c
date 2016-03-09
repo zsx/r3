@@ -150,7 +150,7 @@ const REBYTE Lex_Map[256] =
     /* 5C \   */    LEX_SPECIAL|LEX_SPECIAL_BACKSLASH,
     /* 5D ]   */    LEX_DELIMIT|LEX_DELIMIT_RIGHT_BRACKET,
     /* 5E ^   */    LEX_WORD,
-    /* 5F _   */    LEX_WORD,
+    /* 5F _   */    LEX_SPECIAL|LEX_SPECIAL_BLANK,
 
     /* 60 `   */    LEX_WORD,
     /* 61 a   */    LEX_WORD|10,
@@ -901,6 +901,8 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 || *cp == '+'
                 || *cp == '-'
                 || *cp == '.'
+                || *cp == '|'
+                || *cp == '_'
             ) {
                 // ///refine not allowed
                 if (scan_state->begin + 1 != cp) {
@@ -1064,6 +1066,17 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             //
             if (IS_LEX_DELIMIT(cp[1]) || IS_LEX_ANY_SPACE(cp[1]))
                 return TOKEN_BAR;
+            type = TOKEN_WORD;
+            goto scanword;
+
+        case LEX_SPECIAL_BLANK:
+            //
+            // `_` standalone should become a BLANK!, so if followed by a
+            // delimiter or space.  However `_a_` and `a_b` are left as
+            // legal words (at least for the time being).
+            //
+            if (IS_LEX_DELIMIT(cp[1]) || IS_LEX_ANY_SPACE(cp[1]))
+                return TOKEN_BLANK;
             type = TOKEN_WORD;
             goto scanword;
 
@@ -1466,6 +1479,11 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         case TOKEN_LIT_BAR:
             SET_LIT_BAR(value);
+            ++bp;
+            break;
+
+        case TOKEN_BLANK:
+            SET_NONE(value);
             ++bp;
             break;
 
@@ -1962,6 +1980,8 @@ REBCNT Scan_Issue(const REBYTE *cp, REBCNT len)
                 || LEX_SPECIAL_PLUS   == c
                 || LEX_SPECIAL_MINUS  == c
                 || LEX_SPECIAL_TILDE  == c
+                || LEX_SPECIAL_BAR == c
+                || LEX_SPECIAL_BLANK == c
             )) {
                 return SYM_0; // will trigger error
             }

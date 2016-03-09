@@ -145,3 +145,9 @@ ok?: func [
 ][
     not error? :value
 ]
+
+; Currently BLANK! is an alias for NONE!, but Ren-C's plan is that BLANK!
+; would be the official name, with NONE! the legacy alias.
+;
+blank?: :none?
+blank!: :none!
