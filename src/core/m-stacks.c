@@ -476,9 +476,9 @@ void Drop_Chunk(REBVAL *opt_head)
 //
 //  Push_Or_Alloc_Vars_For_Call: C
 //
-// Allocate the series of REBVALs inspected by a non-varless function when
-// executed (the values behind D_ARG(1), D_REF(2), etc.)  Since the call
-// contains the function, it is known how many parameters are needed.
+// Allocate the series of REBVALs inspected by a function when executed (the
+// values behind D_ARG(1), D_REF(2), etc.)  Since the call contains the
+// REBFUN pointer, it is known how many parameters are needed.
 //
 // The call frame will be pushed onto the call stack, and hence its fields
 // will be seen by the GC and protected.
@@ -651,15 +651,6 @@ REBCTX *Context_For_Frame_May_Reify(
     }
     else {
         assert(f->mode != CALL_MODE_GUARD_ARRAY_ONLY);
-        if (FRM_IS_VARLESS(f)) {
-            //
-            // After-the-fact attempt to create a frame for a varless native.
-            // Suggest running in debug mode.
-            //
-            // !!! Debug mode disabling optimizations not yet written.
-            //
-            fail (Error(RE_VARLESS_CALL));
-        }
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),

@@ -574,18 +574,13 @@ enum Reb_Vararg_Op {
 // to GET_OPT_VAR_MAY_FAIL() on an unbound variable will raise an error.
 //
 // TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.  (One uncommon exception to this is
-// if a word somehow becomes bound to a PARAM of a NATIVE!, which can happen
-// during debugging inspection.  Because it's possible for natives to be
-// "varless" and optimize out the need to store arguments, a bound variable
-// into a varless native may nevertheless fail during TRY_GET_OPT_VAR().)
+// instead of fail on unbound variables.
 //
 // GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
 // facilities for getting a non-const REBVAL back.  They will fail if the
 // variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
 // them against modification.  The TRY variation will fail quietly by
-// returning NULL (with the same caveat about varless natives mentioned
-// above.)
+// returning NULL.
 //
 
 #define GET_OPT_VAR_MAY_FAIL(w) \

@@ -226,8 +226,7 @@ REBIXO Do_Va_Core(
         //
         // Infix lookahead causes a fetch that cannot be undone.  Hence
         // va_list DO/NEXT can't be resumed -- see VALIST_INCOMPLETE_FLAG.
-        // For a resumable interface on va_list, see the lower level
-        // varless API.
+        // For a resumable interface on va_list, see the lower level API.
         //
         // Note that the va_list may be reified during the call, so the
         // index may not be VALIST_FLAG at this point.

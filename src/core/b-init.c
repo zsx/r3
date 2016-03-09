@@ -251,7 +251,7 @@ static void Do_Global_Block(
     if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
 
     // !!! The words NATIVE and ACTION were bound but paths would not bind.
-    // So you could do `native [spec]` but not `native/varless [spec]`
+    // So you could do `native [spec]` but not `native/xxx [spec]`
     // because in the later case, it wouldn't have descended into the path
     // to bind `native`.  This is apparently intentional to avoid binding
     // deeply in the system context.
@@ -420,8 +420,6 @@ static void Init_Constants(void)
 //      /body
 //          {Equivalent body of Rebol code matching native's implementation}
 //      code [block!]
-//      /varless
-//          {Native wants delegation to eval its own args and extend DO state}
 //  ]
 //
 REBNATIVE(native)
@@ -438,7 +436,6 @@ REBNATIVE(native)
     PARAM(1, spec);
     REFINE(2, body);
     PARAM(3, code);
-    REFINE(4, varless);
 
     if (
         (Native_Limit != 0 || !*Native_Functions)
@@ -451,8 +448,7 @@ REBNATIVE(native)
         D_OUT,
         VAL_ARRAY(ARG(spec)),
         *Native_Functions++,
-        FUNC_CLASS_NATIVE,
-        REF(varless)
+        FUNC_CLASS_NATIVE
     );
 
     Native_Count++;
@@ -511,8 +507,7 @@ REBNATIVE(action)
         D_OUT,
         VAL_ARRAY(ARG(spec)),
         cast(REBNAT, cast(REBUPT, Action_Count)),
-        FUNC_CLASS_ACTION,
-        REF(typecheck) // varless? (all typechecks run "varlessly")
+        FUNC_CLASS_ACTION
     );
 
     Action_Count++;
@@ -620,7 +615,7 @@ static void Init_Natives(void)
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native` so we're on the `[spec [block!]]`
     Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE, FALSE
+        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
     );
     Native_Count++;
     item++; // skip spec
@@ -639,7 +634,7 @@ static void Init_Natives(void)
     assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
     item++; // skip `native`
     Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE, FALSE
+        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
     );
     Native_Count++;
     item++; // skip spec

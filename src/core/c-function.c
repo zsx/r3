@@ -379,8 +379,7 @@ void Make_Native(
     REBVAL *out,
     REBARR *spec,
     REBNAT code,
-    enum Reb_Func_Class fclass,
-    REBOOL varless
+    enum Reb_Func_Class fclass
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
@@ -388,9 +387,6 @@ void Make_Native(
 
     VAL_RESET_HEADER(out, REB_FUNCTION);
     INIT_VAL_FUNC_CLASS(out, fclass);
-
-    if (varless)
-        SET_VAL_FLAG(out, FUNC_FLAG_VARLESS);
 
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
@@ -1242,10 +1238,7 @@ void Do_Action_Core(struct Reb_Frame *f)
 
     assert(type < REB_MAX);
 
-    // Handle special datatype test cases (eg. integer?).  Note that this
-    // has a varless implementation which is the one that typically runs
-    // when a frame is not required (such as when running under trace, where
-    // the values need to be inspectable)
+    // Handle special datatype test cases (eg. integer?).
     //
     if (FUNC_ACT(f->func) < REB_MAX_0) {
         if (TO_0_FROM_KIND(type) == FUNC_ACT(f->func))
@@ -1783,10 +1776,6 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         // If this happens, these help with debugging if stopped at breakpoint.
         //
         REBVAL *func_value = FUNC_VALUE(func);
-        REBOOL varless_value
-            = GET_VAL_FLAG(v, FUNC_FLAG_VARLESS);
-        REBOOL varless_func
-            = GET_VAL_FLAG(func_value, FUNC_FLAG_VARLESS);
         REBOOL has_return_value
             = GET_VAL_FLAG(v, FUNC_FLAG_LEAVE_OR_RETURN);
         REBOOL has_return_func

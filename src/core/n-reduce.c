@@ -388,7 +388,7 @@ REBOOL Compose_Values_Throws(
 
 
 //
-//  compose: native/varless [
+//  compose: native [
 //
 //  {Evaluates only the GROUP!s in a block of expressions, returning a block.}
 //
@@ -405,9 +405,6 @@ REBOOL Compose_Values_Throws(
 //  ]
 //
 REBNATIVE(compose)
-//
-// !!! Should 'compose quote (a (1 + 2) b)' give back '(a 3 b)' ?
-// !!! What about 'compose quote a/(1 + 2)/b' ?
 {
     PARAM(1, value);
     REFINE(2, deep);
@@ -415,52 +412,8 @@ REBNATIVE(compose)
     REFINE(4, into);
     PARAM(5, out);
 
-    if (D_IS_VARLESS) {
-        //
-        // The ARG(value) is unavailable in a varless evaluation, so we'll
-        // have to evaluate it here.  Note that the usage does not require
-        // it to be GC-safe (at time of writing).
-        //
-        REBVAL value;
-        VAL_INIT_WRITABLE_DEBUG(&value);
-        SET_TRASH_SAFE(&value); // !!! could c->out offer this before a GC?
-        D_PROTECT_X(&value); // must be protected to save its content values[]
-
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
-
-        DO_NEXT_REFETCH_MAY_THROW(&value, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-        if (D_INDEXOR == THROWN_FLAG) {
-            *D_OUT = value;
-            return R_OUT_IS_THROWN;
-        }
-
-        if (IS_UNSET(&value))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(&value)));
-
-        if (!IS_BLOCK(&value)) {
-            *D_OUT = value;
-            return R_OUT;
-        }
-
-        if (Compose_Values_Throws(
-            D_OUT, VAL_ARRAY_HEAD(&value), FALSE, FALSE, FALSE
-        )) {
-            // Here we want to be able to recover in situations like:
-            //
-            //     compose [(exit/from :compose)] print "this should print"
-            //
-            // So we can't overwrite the index.  Signal check for exit.
-            //
-            D_MODE = CALL_MODE_THROW_PENDING;
-            return R_OUT_IS_THROWN;
-        }
-
-        return R_OUT;
-    }
-
-    // !!! See above--should all non-BLOCK! be evaluating to themselves?
+    // !!! Should 'compose quote (a (1 + 2) b)' give back '(a 3 b)' ?
+    // What about 'compose quote a/(1 + 2)/b' ?
     //
     if (!IS_BLOCK(ARG(value))) {
         *D_OUT = *ARG(value);

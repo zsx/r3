@@ -1372,21 +1372,6 @@ struct Reb_Frame *Frame_For_Relative_Word(
             continue;
         }
 
-        if (FRM_IS_VARLESS(frame)) {
-            //
-            // !!! Trying to get a variable from a varless native is a
-            // little bit different and probably shouldn't be willing to
-            // fail in an "oh it's unbound but that's okay" way.  Because
-            // the data should be there, it's just been "optimized out"
-            //
-            // We ignore the `trap` setting for this unusual case, which
-            // generally should only be possible in debugging scenarios
-            // (how else would one get access to a binding to a native's
-            // locals and args??)
-            //
-            fail (Error(RE_VARLESS_WORD, any_word));
-        }
-
         // Currently the only `mode` in which a frame should be
         // considered as a legitimate match is CALL_MODE_FUNCTION.
         // Other call types include a GROUP! being recursed or

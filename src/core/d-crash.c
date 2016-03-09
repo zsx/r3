@@ -170,7 +170,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
             // We aren't explicitly passed a Rebol ERROR! object, but we
             // consider it "safe" to make one since we're past BOOT_ERRORS
 
-            Val_Init_Error(&error, Make_Error_Core(id, FALSE, vaptr));
+            Val_Init_Error(&error, Make_Error_Core(id, vaptr));
         }
 
         Mold_Value(&mo, &error, FALSE);

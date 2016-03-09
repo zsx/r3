@@ -1205,8 +1205,6 @@ REBNATIVE(true_q)
 //  ]
 //
 REBNATIVE(false_q)
-//
-// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1225,8 +1223,6 @@ REBNATIVE(false_q)
 //  ]
 //
 REBNATIVE(quote)
-//
-// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1249,8 +1245,6 @@ REBNATIVE(quote)
 //  ]
 //
 REBNATIVE(nothing_q)
-//
-// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1272,8 +1266,6 @@ REBNATIVE(nothing_q)
 //  ]
 //
 REBNATIVE(something_q)
-//
-// TBD: Make varless
 {
     PARAM(1, value);
 

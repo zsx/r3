@@ -543,7 +543,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBVAL debug_native;
         VAL_INIT_WRITABLE_DEBUG(&debug_native);
 
-        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE, FALSE);
+        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
         *Append_Context(user_context, 0, debug_sym) = debug_native;

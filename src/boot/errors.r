@@ -187,9 +187,6 @@ Script: [
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 
-    varless-word:       [{variable} :arg1 {optimized out, run with DEBUG ON}]
-    varless-call:       {arguments optimized out, run with DEBUG ON}
-
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
 ;   no-decode:          [{cannot decode} :arg1 {encoding}]
     wrong-denom:        [:arg1 {not same denomination as} :arg2]

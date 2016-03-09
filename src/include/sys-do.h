@@ -317,7 +317,7 @@ struct Reb_Frame {
     //
     REBUPT dsp_orig; // type is REBDSP, but enforce alignment here
 
-    // `flags` [INPUT, READ-ONLY (unless VARLESS signaling error)]
+    // `flags` [INPUT, READ-ONLY]
     //
     // These are DO_FLAG_xxx or'd together.  If the call is being set up
     // for an Apply as opposed to Do, this must be 0.
@@ -419,11 +419,10 @@ struct Reb_Frame {
     //
     REBSYM opt_label_sym;
 
-    // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE if not "varless"]
+    // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE]
     //
     // The dynamic portion of the call frame has args with which a function is
-    // being invoked (if it is not varless).  The data is resident in the
-    // "chunk stack".
+    // being invoked.  The data is resident in the "chunk stack".
     //
     // If a client of this array is a NATIVE!, then it will access the data
     // directly by offset index (e.g. `PARAM(3,...)`).  But if it is a
@@ -600,7 +599,7 @@ struct Reb_Frame {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DO's "VARLESS" API => *LOWEST* LEVEL EVALUATOR HOOKING
+//  DO's LOWEST-LEVEL EVALUATOR HOOKING
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -609,7 +608,7 @@ struct Reb_Frame {
 // up a call frame (f), and threading that frame's state through successive
 // operations, vs. setting it up and disposing it on each DO/NEXT step.
 //
-// Like higher level APIs that move through the input series, the varless
+// Like higher level APIs that move through the input series, this low-level
 // API can move at full DO/NEXT intervals.  Unlike the higher APIs, the
 // possibility exists to move by single elements at a time--regardless of
 // if the default evaluation rules would consume larger expressions.  Also
@@ -656,25 +655,7 @@ struct Reb_Frame {
 //
 // This is not intending to be a "published" API of Rebol/Ren-C.  But the
 // privileged level of access can be used by natives that feel they can
-// optimize performance by working with the evaluator directly.  Code written
-// in a varless native can be essentially equally as fast as writing code
-// inside of the main `switch()` statement of Do_Core(), as they hook out
-// quickly once a function is identified.
-//
-// (So for instance, the implementation of `QUOTE` does not require setting
-// up memory on the stack, enumerating parameters and checking parameter
-// counts, checking to see the parameter is quoted and doing a quote refetch
-// into that slot...then dispatching the function, checking that value,
-// moving it to the output, freeing the stack memory.  `QUOTE` can just
-// make sure it's not the end of the input, then call QUOTE_NEXT_REFETCH
-// itself and be done.)
-//
-// !!! If a native works at the varless API level, that foregoes automatic
-// parameter checking, and the absence of a call frame for debugging or
-// tracing insight.  Hence each varless native must still be able to run
-// in a "framed" mode if necessary.  Error reporting has some help to say
-// whether the error came from what would correspond to parameter fulfillment
-// vs. execution were it an ordinary native.
+// optimize performance by working with the evaluator directly.
 //
 // !!! For better or worse, Do_Core does not lock the series it is iterating.
 // This means any arbitrary user code (or system code) could theoretically
@@ -1080,27 +1061,21 @@ struct Native_Refine {
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = {n}
 #else
-    // Capture the argument for debug inspection.  Be sensitive to varless
-    // usage so that parameters may be declared and used with PAR() even if
-    // they cannot be used with ARG()
+    // Capture the argument (and its type) for debug inspection.
     //
     #define PARAM(n,name) \
         const struct Native_Param p_##name = { \
-            frame_->arg ? VAL_TYPE(frame_->arg + (n) - 1) : REB_TRASH, \
-            frame_->arg ? frame_->arg + (n) - 1 : NULL, \
+            VAL_TYPE(frame_->arg + (n) - 1), \
+            frame_->arg + (n) - 1, \
             (n) \
         }
 
-    // As above, do a cache and be tolerant of framelessness.  The seeming odd
-    // choice to lie and say a refinement is present in the varless case is
-    // actually to make any varless native that tries to use REF() get
-    // confused and hopefully crash...saying FALSE might make the debug build
-    // get cozy with the idea that REF() is legal in a varless native.
+    // As above, do a cache and be tolerant of framelessness.
     //
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            frame_->arg ? NOT(IS_NONE(frame_->arg + (n) - 1)) : TRUE, \
-            frame_->arg ? frame_->arg + (n) - 1 : NULL, \
+            NOT(IS_NONE(frame_->arg + (n) - 1)), \
+            frame_->arg + (n) - 1, \
             (n) \
         }
 #endif
@@ -1200,9 +1175,6 @@ struct Native_Refine {
     #define FRM_ARG(f,n)    FRM_ARG_Debug((f), (n)) // checks arg index bound
 #endif
 
-#define FRM_IS_VARLESS(f) \
-    LOGICAL((f)->arg == NULL)
-
 // Note about D_NUM_ARGS: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
 // the full list of arguments and refinements).  However, ACTION! dispatch
@@ -1226,8 +1198,6 @@ struct Native_Refine {
 
 #define D_PROTECT_X(v)      PROTECT_FRM_X(frame_, (v))
 #define D_PROTECT_Y(v)      PROTECT_FRM_Y(frame_, (v))
-
-#define D_IS_VARLESS FRM_IS_VARLESS(frame_) // Native running w/no arg vars
 
 // Frameless native access
 //

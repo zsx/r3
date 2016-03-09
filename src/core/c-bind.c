@@ -393,10 +393,6 @@ void Bind_Relative_Deep(REBFUN *func, REBVAL *head, REBU64 bind_types)
     // interesting case.  While this avenue is explored, relative bindings
     // for all function types are being permitted.
     //
-    // NOTE: This cannot work if the native is invoked framelessly.  A
-    // debug mode must be enabled that prohibits the native from being
-    // varless if it's to be introspected.
-    //
     /*assert(
         IS_FUNCTION(FUNC_VALUE(func))
         && VAL_FUNC_CLASS(FUNC_VALUE(func)) == FUNC_CLASS_USER
