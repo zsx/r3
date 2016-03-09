@@ -116,6 +116,15 @@ void Do_Core(struct Reb_Frame * const f)
 
     enum Reb_Param_Class pclass; // cached while fulfilling an argument
 
+    // !!! Temporary hack until better finesse is found...an APPLY wants to
+    // treat voids in the frame as valid argument fulfillment for optional
+    // arguments (as opposed to SPECIALIZE, which wants to treat them as
+    // unspecialized and potentially gathered from the callsite).  The
+    // right bits aren't in place yet to know which it is in the middle of
+    // the function, but should be streamlined so they are.
+    //
+    REBOOL applying;
+
     // APPLY may wish to do a fast jump to doing type checking on the args.
     // Other callers may have similar interests (and this may be explored
     // further with "continuations" of the evaluator).  If requested, skip
@@ -134,6 +143,7 @@ void Do_Core(struct Reb_Frame * const f)
         do_count = Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
     #endif
         CLEAR_FRAME_SYM(f);
+        applying = FALSE;
         break;
 
     case CALL_MODE_ARGS:
@@ -143,6 +153,7 @@ void Do_Core(struct Reb_Frame * const f)
     #if !defined(NDEBUG)
         do_count = TG_Do_Count; // entry checks for debug not true here
     #endif
+        applying = TRUE;
         goto do_function_arglist_in_progress;
 
     default:
@@ -815,10 +826,11 @@ reevaluate:
         // params will consume arguments for all calls.  See notes below.
         //
         // For this one body of code to be able to handle both function
-        // specialization and ordinary invocation, the BAR! type is used as
+        // specialization and ordinary invocation, the void type is used as
         // a signal to have "unspecialized" behavior.  Hence a normal call
-        // just pre-fills all the args with BAR!--which will be overwritten
-        // during the argument fulfillment process.
+        // just pre-fills all the args with void--which will be overwritten
+        // during the argument fulfillment process (unless they turn out to
+        // be optional in the invocation).
         //
         // It is mostly straightforward, but notice that refinements are
         // somewhat tricky.  These two calls mean different things:
@@ -850,7 +862,7 @@ reevaluate:
                 if (f->mode == CALL_MODE_REFINEMENT_PICKUP)
                     break; // pickups finished when another refinement is hit
 
-                if (IS_BAR(f->arg)) {
+                if (IS_VOID(f->arg)) {
 
     //=//// UNSPECIALIZED REFINEMENT SLOT (no consumption) ////////////////=//
 
@@ -922,21 +934,22 @@ reevaluate:
                     *(f->arg) = *(f->out);
                 }
 
-                // MAKE FRAME! defaults to all empty variables that are not
-                // set.  Consequently, the most sensible default for a
-                // refinement behavior is to consider the refinement to be
-                // "opted out of" (despite more generally that a refinement
-                // is neither true nor false)
-                //
-                if (IS_VOID(f->arg) || IS_CONDITIONAL_FALSE(f->arg)) {
-                    SET_BLANK(f->arg);
-                    f->refine = BLANK_VALUE; // (read-only)
+                if (!IS_LOGIC(f->arg) && !IS_BLANK(f->arg) && !IS_WORD(f->arg)) {
+                    //
+                    // !!! Refinements must specialize to true or FALSE,
+                    // temporarily tolerating blanks...
+                    //
+                    fail (Error(RE_MISC)); // !!! add more descriptive error
                 }
-                else {
+                else if (VAL_LOGIC(f->arg) || IS_WORD(f->arg)) { // TRUE
                     Val_Init_Word(
                         f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
                     );
                     f->refine = f->arg; // remember so we can revoke!
+                }
+                else { // FALSE
+                    SET_BLANK(f->arg);
+                    f->refine = BLANK_VALUE; // (read-only)
                 }
 
                 goto continue_arg_loop;
@@ -951,12 +964,7 @@ reevaluate:
 
             if (pclass == PARAM_CLASS_PURE_LOCAL) {
 
-                if (IS_BAR(f->arg)) { // no specialization (common case)
-                    SET_VOID(f->arg);
-                    goto continue_arg_loop;
-                }
-
-                if (IS_VOID(f->arg)) // the only legal specialized value
+                if (IS_VOID(f->arg)) // only legal value - can't specialize
                     goto continue_arg_loop;
 
                 fail (Error_Local_Injection(FRM_LABEL(f), f->param));
@@ -964,7 +972,7 @@ reevaluate:
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
 
-            if (NOT(IS_BAR(f->arg))) {
+            if (NOT(IS_VOID(f->arg))) {
 
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
@@ -1024,7 +1032,7 @@ reevaluate:
             // further processing or checking.  void will always be fine.
             //
             if (IS_BLANK(f->refine)) { // FALSE if revoked, and still evaluates
-                SET_VOID(f->arg);
+                assert(IS_VOID(f->arg));
                 goto continue_arg_loop;
             }
 
@@ -1059,13 +1067,18 @@ reevaluate:
                 goto continue_arg_loop;
             }
 
-    //=//// AFTER THIS, PARAMS CONSUME--ERROR ON END MARKER, BAR! ////////=//
+    //=//// AFTER THIS, PARAMS CONSUME FROM CALLSITE IF NOT APPLY ////////=//
+
+            assert(IS_VOID(f->arg));
+
+            if (applying) goto check_arg; // try treating void as optional
+
+    //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
             if (f->indexor == END_FLAG) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1077,7 +1090,6 @@ reevaluate:
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
-                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1615,58 +1627,6 @@ reevaluate:
         CLEAR_FRAME_SYM(f);
         break;
 
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [FRAME!]
-//
-// If a literal FRAME! is hit in the source, then its associated function
-// will be executed with the data.  By default it will act like a
-// function specialization in terms of interpretation of the BAR! and
-// soft quoted arguments, unless EVAL/ONLY or DO_FLAG_NO_ARGS_EVALUATE
-// are used.
-//
-// To allow efficient applications, this does not make a copy of the FRAME!.
-// It considers it to be the prebuilt content.  However, it will rectify
-// any refinements to ensure they are the WORD! value or NONE!, as in the
-// case of specialization...and it also will type check.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_FRAME:
-        //
-        // While *technically* possible that a context could be in use by more
-        // than one function at a time, this is a dangerous enough idea to
-        // prohibit unless some special situation arises and it's explicitly
-        // said what is meant to be done.
-        //
-        /*if (GET_VAL_FLAG(f->value, EXT_CONTEXT_RUNNING))
-           fail (Error(RE_FRAME_ALREADY_USED, f->value)); */
-
-        SET_FRAME_SYM(f, SYM___ANONYMOUS__);
-
-        assert(f->data.stackvars == NULL);
-        f->data.context = VAL_CONTEXT(f->value);
-        f->func = CTX_FRAME_FUNC(VAL_CONTEXT(f->value));
-
-        if (GET_ARR_FLAG(
-            CTX_VARLIST(VAL_CONTEXT(f->value)), CONTEXT_FLAG_STACK)
-        ) {
-            f->arg = VAL_CONTEXT_STACKVARS(f->value);
-        }
-        else
-            f->arg = CTX_VARS_HEAD(VAL_CONTEXT(f->value));
-
-        f->param = CTX_KEYS_HEAD(VAL_CONTEXT(f->value));
-
-        f->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
-        f->args_evaluate = FALSE;
-
-        f->exit_from = NULL;
-
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        goto do_function_arglist_in_progress;
-
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // [ ??? ] => panic
@@ -1749,23 +1709,20 @@ reevaluate:
                 f->param = FUNC_PARAMS_HEAD(f->func);
                 f->arg = FRM_ARGS_HEAD(f);
 
-                // A specialized function uses BAR! to indicate arguments
+                // A specialized function uses voids to indicate arguments
                 // which are to be acquired.  Cannot fulfill an infix
                 // slot using one, because that would not be "fulfilling"
                 //
-                // !!! This could be a simpler check for if (!IS_VOID)
-                // with the BAR->void change
-                //
                 assert(
                     NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
-                    || !IS_BAR(f->out)
+                    || !IS_VOID(f->out)
                 );
 
                 while (
                     NOT_END(f->arg)
                     && (
                         NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
-                        || !IS_BAR(f->arg)
+                        || !IS_VOID(f->arg)
                     )
                     && VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL
                 ) {

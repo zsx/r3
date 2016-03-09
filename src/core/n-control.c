@@ -914,12 +914,28 @@ REBNATIVE(continue)
 //  
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
-//      source [<opt> blank! block! group! string! binary! url! file! tag!
-//      error! function!]
-//      /args {If value is a script, this will set its system/script/args}
-//      arg "Args passed to a script (normally a string)"
-//      /next {Do next expression only, return it, update block variable}
-//      var [word! blank!] "Variable updated with new block position"
+//      source [
+//          <opt> ;-- should DO accept an optional argument (chaining?)
+//          blank! ;-- same question... necessary, or not?
+//          block! ;-- source code in block form
+//          string! ;-- source code in text form
+//          binary! ;-- treated as UTF-8
+//          url! ;-- load code from URL via protocol
+//          file! ;-- load code from file on local disk
+//          group! ;-- !!! likely not needed with the AS aliasing
+//          tag! ;-- proposed as module library tag name, hacked as demo
+//          error! ;-- should use FAIL instead
+//          function! ;-- will only run arity 0 functions (avoids DO variadic)
+//          frame! ;-- acts like APPLY (voids are optionals, not unspecialized)
+//      ]
+//      /args
+//          {If value is a script, this will set its system/script/args}
+//      arg
+//          "Args passed to a script (normally a string)"
+//      /next
+//          {Do next expression only, return it, update block variable}
+//      var [word! blank!]
+//          "Variable updated with new block position"
 //  ]
 //
 REBNATIVE(do)
@@ -1039,6 +1055,42 @@ REBNATIVE(do)
         if (DO_VALUE_THROWS(D_OUT, value))
             return R_OUT_IS_THROWN;
         return R_OUT;
+    }
+
+    case REB_FRAME: {
+        //
+        // To allow efficient applications, this does not make a copy of the
+        // FRAME!.  However it goes through the argument traversal in order
+        // to do type checking.
+        //
+        // !!! Check needed to not run an already running frame!  User should
+        // be told to copy the frame if they try.
+        //
+        // Right now all stack based contexts are either running (in which
+        // case you shouldn't run them again) or expired (in which case their
+        // values are unavailable).  It may come to pass that an interesting
+        // trick lets you reuse a stack context and unwind it as a kind of
+        // GOTO to reuse it, but that would be deep voodoo.  Just handle the
+        // kind of frames that come in as "objects plus function the object
+        // is for" flavor.
+        //
+        assert(!GET_ARR_FLAG(
+            CTX_VARLIST(VAL_CONTEXT(value)), CONTEXT_FLAG_STACK)
+        );
+
+        struct Reb_Frame frame;
+        struct Reb_Frame *f = &frame;
+
+        // Apply_Frame_Core sets up most of the Reb_Frame, but expects these
+        // arguments to be filled in.
+        //
+        f->out = D_OUT;
+        f->func = CTX_FRAME_FUNC(VAL_CONTEXT(value));
+        f->exit_from = NULL;
+
+        f->data.context = VAL_CONTEXT(value); // because def is NULL
+
+        return Apply_Frame_Core(f, SYM___ANONYMOUS__, NULL);
     }
 
     case REB_TASK:

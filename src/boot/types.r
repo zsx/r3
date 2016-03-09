@@ -101,7 +101,7 @@ function    (function)  *       -       -       *       -
 varargs     varargs     -       -       -       -       -
 
 object      context     *       f*      *       *       context
-frame       (context)   *       f*      *       *       context
+frame       context     *       f*      *       *       context
 module      context     *       f*      *       *       context
 error       context     +       f+      *       *       context
 task        context     +       +       *       *       context

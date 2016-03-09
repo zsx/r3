@@ -590,7 +590,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
             ++special_arg;
         }
         else
-            SET_BAR(slot);
+            SET_VOID(slot); // void means unspecialized, fulfill from callsite
 
         slot++;
         --num_slots;

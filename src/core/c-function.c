@@ -897,21 +897,18 @@ void Make_Function(
 // but makes a new varlist.
 //
 REBCTX *Make_Frame_For_Function(REBFUN *func) {
-    REBARR *varlist;
-    REBCNT n;
-    REBVAL *var;
-
+    //
     // In order to have the frame survive the call to MAKE and be
     // returned to the user it can't be stack allocated, because it
     // would immediately become useless.  Allocate dynamically.
     //
-    varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
+    REBARR *varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
     SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
     SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
     // Fill in the rootvar information for the context canon REBVAL
     //
-    var = ARR_HEAD(varlist);
+    REBVAL *var = ARR_HEAD(varlist);
     VAL_RESET_HEADER(var, REB_FRAME);
     INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
     INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
@@ -929,18 +926,15 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
     CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
     ++var;
 
-    // !!! This is a current experiment for choosing that the value
-    // used to indicate a parameter has not been "specialized" is
-    // a BAR!.  This is contentious with the idea that someone might
-    // want to pass a BAR! as a parameter literally.  How to deal
-    // with this is not yet completely figured out--it could involve
-    // a new kind of "LIT-BAR!-decay" whereby instead LIT-BAR! was
-    // used with the understanding that it meant to act as a BAR!.
-    // Review needed once some experience is had with this.
+    // A FRAME! defaults all args and locals to not being set.  If the frame
+    // is then used as the storage for a function specialization, unset
+    // vars indicate *unspecialized* arguments...not <opt> ones.  (This is
+    // a good argument for not making <opt> have meaning that is interesting
+    // to APPLY or SPECIALIZE cases, but to revoke the function's effects.
     //
-    for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var) {
-        SET_BAR(var);
-    }
+    REBCNT n;
+    for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var)
+        SET_VOID(var);
 
     SET_END(var);
     SET_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
@@ -962,14 +956,7 @@ REBOOL Specialize_Function_Throws(
     REBSYM opt_original_sym,
     REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
 ) {
-    REBDSP dsp_orig = DSP;
-
     REBCTX *frame_ctx;
-
-    REBVAL *param;
-    REBVAL *arg;
-
-    REBARR *array;
 
     if (FUNC_CLASS(func) == FUNC_CLASS_SPECIALIZED) {
         //
@@ -993,8 +980,7 @@ REBOOL Specialize_Function_Throws(
     }
     else {
         // An initial specialization is responsible for making a frame out
-        // of the function's paramlist.  Unused keys will be | for a start,
-        // as an experimental placeholder for "not specialized yet"
+        // of the function's paramlist.  Frame vars default void.
         //
         frame_ctx = Make_Frame_For_Function(func);
         MANAGE_ARRAY(CTX_VARLIST(frame_ctx)); // because above case manages
@@ -1038,14 +1024,14 @@ REBOOL Specialize_Function_Throws(
     // be run when necessary.
     //
     Val_Init_Word(out, REB_WORD, opt_original_sym);
-    array = Make_Singular_Array(out); // now the `spec`
-    MANAGE_ARRAY(array);
+    REBARR *spec = Make_Singular_Array(out);
+    MANAGE_ARRAY(spec);
 
     // Begin initializing the returned function value
     //
     VAL_RESET_HEADER(out, REB_FUNCTION);
     INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_SPECIALIZED);
-    out->payload.function.spec = array;
+    out->payload.function.spec = spec;
 
     // The "body" is just the frame of specialization information.
     //
@@ -1053,22 +1039,25 @@ REBOOL Specialize_Function_Throws(
 
     // Generate paramlist by way of the data stack.  Push empty value (to
     // become the function value afterward), then all the args that remain
-    // unspecialized (currently indicated by being a BAR!)
+    // unspecialized (indicated by being void...<opt> is not supported)
     //
+    REBDSP dsp_orig = DSP;
     DS_PUSH_TRASH_SAFE; // later initialized as [0] canon value
-    param = CTX_KEYS_HEAD(frame_ctx);
-    arg = CTX_VARS_HEAD(frame_ctx);
+
+    REBVAL *param = CTX_KEYS_HEAD(frame_ctx);
+    REBVAL *arg = CTX_VARS_HEAD(frame_ctx);
     for (; NOT_END(param); ++param, ++arg) {
-        if (IS_BAR(arg))
+        if (!IS_VOID(arg))
             DS_PUSH(param);
     }
-    array = Pop_Stack_Values(dsp_orig); // now the `paramlist`
-    MANAGE_ARRAY(array);
-    out->payload.function.func = AS_FUNC(array);
+
+    REBARR *paramlist = Pop_Stack_Values(dsp_orig);
+    MANAGE_ARRAY(paramlist);
+    out->payload.function.func = AS_FUNC(paramlist);
 
     // Update canon value's bits to match what we're giving back in out.
     //
-    *ARR_HEAD(array) = *out;
+    *ARR_HEAD(paramlist) = *out;
 
     return FALSE;
 }
@@ -1446,6 +1435,137 @@ REBNATIVE(specialize)
 
 
 //
+//  Apply_Frame_Core: C
+//
+// Work in progress to factor out common code used by DO and APPLY.  Needs
+// to be streamlined.
+//
+// Expects the following Reb_Frame fields to be preloaded:
+//
+//    f->out
+//    f->func
+//    f->exit_from
+//
+// If opt_def is NULL, then f->data.context must be set
+//
+REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
+{
+#if !defined(NDEBUG)
+    f->label_sym = SYM_0; // debug build checks label was SYM_0 before SET
+#endif
+    SET_FRAME_SYM(f, sym);
+
+    // !!! Because APPLY is being written as a regular native (and not a
+    // special exception case inside of Do_Core) it has to "re-enter" Do_Core
+    // and jump to the argument processing.  This is the first example of
+    // such a re-entry, and is not particularly streamlined yet.
+    //
+    // This could also be accomplished if function dispatch were a subroutine
+    // that would be called both here and from the evaluator loop.  But if
+    // the subroutine were parameterized with the frame state, it would be
+    // basically equivalent to a re-entry.  And re-entry is interesting to
+    // establish for other reasons (e.g. continuations), so that is what is
+    // used here.
+
+    f->prior = TG_Frame_Stack;
+    TG_Frame_Stack = f;
+
+#if !defined(NDEBUG)
+    SNAP_STATE(&f->state); // for comparison to make sure stack balances, etc.
+#endif
+
+    f->value = NULL;
+    f->indexor = END_FLAG;
+    f->source.array = EMPTY_ARRAY;
+    f->eval_fetched = NULL;
+
+    f->dsp_orig = DSP;
+
+    // If applying an existing FRAME! there should be no need to push vars
+    // for it...it should have its own space.
+    //
+    if (opt_def) {
+    #if !defined(NDEBUG)
+        f->data.stackvars = NULL;
+        f->mode = CALL_MODE_GUARD_ARRAY_ONLY; // lie for a second
+    #endif
+
+        f->flags =
+            DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
+        Push_Or_Alloc_Vars_For_Call(f);
+    }
+    else {
+        f->flags |=
+            DO_FLAG_NEXT | DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+
+        f->mode = CALL_MODE_ARGS;
+    }
+
+    f->arg = FRM_ARGS_HEAD(f);
+    f->param = FUNC_PARAMS_HEAD(f->func);
+    f->refine = TRUE_VALUE;
+    f->args_evaluate = FALSE;
+    f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
+
+    f->cell.subfeed = NULL;
+
+    if (!opt_def)
+        goto call_now;
+
+    if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+        //
+        // There's a pool-allocated context, specific binding available
+        //
+        Bind_Values_Core(
+            VAL_ARRAY_AT(opt_def),
+            f->data.context,
+            FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
+            0, // types to "add midstream" to binding as we go (nothing)
+            BIND_DEEP
+        );
+
+        f->mode = CALL_MODE_ARGS; // protects context, needed during DO of def
+    }
+    else {
+        // Relative binding (long term this would be specific also)
+        //
+        Bind_Relative_Deep(
+            f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
+        );
+
+        // !!! While running `def`, it must believe that the relatively bound
+        // variables can be resolved.  For relative binding it will only think
+        // so if a stack frame for the function exists and is in the running
+        // state.  Hence we have to lie here temporarily during DO of def.
+        //
+        f->mode = CALL_MODE_FUNCTION;
+        f->arg = &f->data.stackvars[0];
+    }
+
+    // Do the block into scratch space--we ignore the result (unless it is
+    // thrown, in which case it must be returned.)
+    //
+    if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def))
+        return R_OUT_IS_THROWN;
+
+    // Undo our lie about the function running (if we had to lie)...
+    //
+    if (NOT(f->flags & DO_FLAG_FRAME_CONTEXT))
+        f->mode = CALL_MODE_ARGS;
+
+call_now:
+    Do_Core(f);
+
+    if (f->indexor == THROWN_FLAG)
+        return R_OUT_IS_THROWN;
+
+    assert(f->indexor == END_FLAG); // we started at END_FLAG, can only throw
+
+    return R_OUT;
+}
+
+
+//
 //  apply: native [
 //
 //  {Invoke a function with all required arguments specified.}
@@ -1464,20 +1584,18 @@ REBNATIVE(apply)
     REBVAL *def = ARG(def);
     REBSYM sym;
 
-    struct Reb_Frame f;
+    struct Reb_Frame frame;
+    struct Reb_Frame *f = &frame;
 
 #if !defined(NDEBUG)
     REBVAL *first_def = VAL_ARRAY_AT(def);
 
     // !!! Because APPLY has changed, help warn legacy usages by alerting
-    // if the first element of the block is not a SET-WORD!.  A comment can
-    // subvert the warning: `apply :foo [comment {This is a new APPLY} ...]`
+    // if the first element of the block is not a SET-WORD!.  A BAR! can
+    // subvert the warning: `apply :foo [| comment {This is a new APPLY} ...]`
     //
     if (NOT_END(first_def)) {
-        if (
-            !IS_SET_WORD(first_def)
-            && !(IS_WORD(first_def) && VAL_WORD_SYM(first_def) == SYM_COMMENT)
-        ) {
+        if (!IS_SET_WORD(first_def) && !IS_BAR(first_def)) {
             fail (Error(RE_APPLY_HAS_CHANGED));
         }
     }
@@ -1490,114 +1608,18 @@ REBNATIVE(apply)
     if (Manual_Soft_Quote_Throws(D_OUT, &sym, ARG(value)))
         return R_OUT_IS_THROWN;
 
-#if !defined(NDEBUG)
-    f.label_sym = SYM_0; // debug build checks label was SYM_0 before SET
-#endif
-    SET_FRAME_SYM(&f, sym);
-
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));
 
-    f.func = VAL_FUNC(D_OUT);
-
-    if (f.func == NAT_FUNC(return) || f.func == NAT_FUNC(leave))
-        f.exit_from = VAL_FUNC_EXIT_FROM(D_OUT);
+    f->func = VAL_FUNC(D_OUT);
+    if (f->func == NAT_FUNC(return) || f->func == NAT_FUNC(leave))
+        f->exit_from = VAL_FUNC_EXIT_FROM(D_OUT);
     else
-        f.exit_from = NULL;
+        f->exit_from = NULL;
 
-    // !!! Because APPLY is being written as a regular native (and not a
-    // special exception case inside of Do_Core) it has to "re-enter" Do_Core
-    // and jump to the argument processing.  This is the first example of
-    // such a re-entry, and is not particularly streamlined yet.
-    //
-    // This could also be accomplished if function dispatch were a subroutine
-    // that would be called both here and from the evaluator loop.  But if
-    // the subroutine were parameterized with the frame state, it would be
-    // basically equivalent to a re-entry.  And re-entry is interesting to
-    // establish for other reasons (e.g. continuations), so that is what is
-    // used here.
+    f->out = D_OUT;
 
-    f.prior = TG_Frame_Stack;
-    TG_Frame_Stack = &f;
-
-#if !defined(NDEBUG)
-    SNAP_STATE(&f.state); // for comparison to make sure stack balances, etc.
-#endif
-
-    f.value = NULL;
-    f.indexor = END_FLAG;
-    f.source.array = EMPTY_ARRAY;
-    f.eval_fetched = NULL;
-
-    f.out = D_OUT;
-    f.dsp_orig = DSP;
-
-    f.flags = DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
-
-#if !defined(NDEBUG)
-    f.data.stackvars = NULL;
-    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
-#endif
-
-    Push_Or_Alloc_Vars_For_Call(&f);
-
-    f.arg = FRM_ARGS_HEAD(&f);
-    f.param = FUNC_PARAMS_HEAD(f.func);
-    f.refine = TRUE_VALUE;
-    f.args_evaluate = FALSE;
-    f.lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
-
-    f.cell.subfeed = NULL;
-
-    if (f.flags & DO_FLAG_FRAME_CONTEXT) {
-        //
-        // There's a pool-allocated context, specific binding available
-        //
-        Bind_Values_Core(
-            VAL_ARRAY_AT(def),
-            f.data.context,
-            FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
-            0, // types to "add midstream" to binding as we go (nothing)
-            BIND_DEEP
-        );
-
-        f.mode = CALL_MODE_ARGS; // protects context, needed during DO of def
-    }
-    else {
-        // Relative binding (long term this would be specific also)
-        //
-        Bind_Relative_Deep(
-            f.func, VAL_ARRAY_AT(def), FLAGIT_KIND(REB_SET_WORD)
-        );
-
-        // !!! While running `def`, it must believe that the relatively bound
-        // variables can be resolved.  For relative binding it will only think
-        // so if a stack frame for the function exists and is in the running
-        // state.  Hence we have to lie here temporarily during DO of def.
-        //
-        f.mode = CALL_MODE_FUNCTION;
-        f.arg = &f.data.stackvars[0];
-    }
-
-    // Do the block into scratch space--we ignore the result (unless it is
-    // thrown, in which case it must be returned.)
-    //
-    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, def))
-        return R_OUT_IS_THROWN;
-
-    // Undo our lie about the function running (if we had to lie)...
-    //
-    if (NOT(f.flags & DO_FLAG_FRAME_CONTEXT))
-        f.mode = CALL_MODE_ARGS;
-
-    Do_Core(&f);
-
-    if (f.indexor == THROWN_FLAG)
-        return R_OUT_IS_THROWN;
-
-    assert(f.indexor == END_FLAG); // we started at END_FLAG, can only throw
-
-    return R_OUT;
+    return Apply_Frame_Core(f, sym, def);
 }
 
 

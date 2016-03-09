@@ -329,10 +329,6 @@ pid
 id
 exit-code
 
-; used by APPLY as a signal that the user is knowingly not starting the frame
-; definition block with a SET-WORD!, so they know it's a new APPLY
-comment
-
 ; used when a function is executed but not looked up through a word binding
 ; (product of literal or evaluation) so no name is known for it
 --anonymous--

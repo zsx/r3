@@ -346,7 +346,7 @@ break: func [
 ; meaning and sense)
 ;
 lib-set: :set ; overwriting lib/set for now
-set: func [
+set: function [
     {Sets a word, path, block of words, or context to specified value(s).}
 
     target [any-word! any-path! block! any-context!]
@@ -362,14 +362,15 @@ set: func [
     /any
         "Deprecated legacy synonym for /opt"
 ][
+    set_ANY: any
+    any: :lib/any
+    set_OPT: opt
+    opt: :lib/opt
+
     apply :lib-set [
         target: target
         value: :value
-        opt: case [
-            any 'opt ;-- Note: refinement, not native ANY []
-            opt 'opt ;-- Note: refinement, not native OPT
-            'default blank
-        ]
+        opt: true? any [set_ANY set_OPT]
         pad: pad
         lookback: lookback
     ]
@@ -475,19 +476,19 @@ r3-alpha-apply: function [
 ][
     frame: make frame! :func
     params: words-of :func
-    ignoring: false
+    using-args: true
 
     while [not tail? block] [
-        set/opt (quote arg:) either only [
+        arg: either only [
             also block/1 (block: next block)
         ][
             do/next block 'block
         ]
 
         either refinement? params/1 [
-            ignoring: not to-value set/opt (in frame params/1) :arg
+            using-args: set (in frame params/1) true? :arg
         ][
-            unless ignoring [
+            if using-args [
                 set/opt (in frame params/1) :arg
             ]
         ]
@@ -506,11 +507,7 @@ r3-alpha-apply: function [
         ]
     ]
 
-    ; Too few arguments will be handled by the frame evaluation...because it
-    ; starts out with the frame vars all not set.  If the function is not
-    ; able to deal with the number of unsets there will be an error here.
-    ;
-    eval frame
+    do frame ;-- voids are optionals
 ]
 
 
@@ -918,16 +915,12 @@ set 'r3-legacy* func [] [
         ][
             unless block? :value [return :value]
 
-            frame: make frame! :lib/reduce
-
-            frame/value: :value
-            frame/no-set: no-set
-            frame/only: only
-            set/opt 'frame/words :words
-            frame/into: into
-            set/opt 'frame/target :target
-
-            eval frame
+            apply :lib/reduce [
+                | value: :value
+                | no-set: no-set
+                | if only: only [words: :words]
+                | if into: into [target: :target]
+            ]
         ])
 
         ; because reduce has been changed but lib/reduce is not in legacy
@@ -951,17 +944,13 @@ set 'r3-legacy* func [] [
         ][
             ;-- R3-alpha REPEND with block behavior called out
 
-            frame: make frame! :append
-
-            frame/series: series
-            frame/value: either block? :value [reduce :value] [value]
-            frame/part: part
-            set/opt 'frame/limit :length
-            frame/only: only
-            frame/dup: dup
-            set/opt 'frame/count :count
-
-            eval frame
+            apply :append [
+                | series: series
+                | value: either block? :value [reduce :value] [value]
+                | if part: part [limit: length]
+                | only: only
+                | if dup: dup [count: count]
+            ]
         ])
 
         join: (function [
@@ -969,13 +958,11 @@ set 'r3-legacy* func [] [
             value "Base value"
             rest "Value or block of values"
         ][
-            frame: make frame! :append
-
             ;-- double-inline of R3-alpha `repend value :rest`
-            frame/series: either series? :value [copy value] [form :value]
-            frame/value: either block? :rest [reduce :rest] [rest]
-
-            eval frame
+            apply :append [
+                | series: either series? :value [copy value] [form :value]
+                | value: either block? :rest [reduce :rest] [rest]
+            ]
         ])
 
         ; The name STACK is a noun that really suits a variable name, and

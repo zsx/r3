@@ -403,7 +403,9 @@ REBTYPE(Context)
             // would immediately become useless.  Allocate dynamically.
             //
             Val_Init_Context(
-                D_OUT, REB_FRAME, Make_Frame_For_Function(VAL_FUNC(arg))
+                D_OUT,
+                REB_FRAME,
+                Make_Frame_For_Function(VAL_FUNC(arg)) // all void vars default
             );
 
             return R_OUT;
