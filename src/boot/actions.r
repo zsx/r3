@@ -253,7 +253,7 @@ to: action [
 
 copy: action [
     {Copies a series, object, or other value.}
-    value [any-series! port! map! object! bitset! any-function!] {At position}
+    value [any-series! port! map! object! bitset! function!] {At position}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /deep {Also copies series values within the block}
@@ -355,7 +355,7 @@ sort: action [
     /skip {Treat the series as records of fixed size}
     size [integer!] {Size of each record}
     /compare  {Comparator offset, block or function}
-    comparator [integer! block! any-function!]
+    comparator [integer! block! function!]
     /part {Sort only part of a series}
     limit [any-number! any-series!] {Length of series to sort}
     /all {Compare all fields}

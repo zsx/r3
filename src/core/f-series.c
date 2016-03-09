@@ -28,6 +28,7 @@
 ***********************************************************************/
 
 #include "sys-core.h"
+#include "sys-deci-funcs.h"
 
 #define THE_SIGN(v) ((v < 0) ? -1 : (v > 0) ? 1 : 0)
 
@@ -36,7 +37,7 @@
 // 
 // Common series functions.
 //
-REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, REBVAL *arg)
+REBINT Do_Series_Action(struct Reb_Frame *frame_, REBCNT action, REBVAL *value, REBVAL *arg)
 {
     REBINT  index;
     REBINT  tail;
@@ -79,7 +80,7 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
 
     case A_SKIP:
     case A_AT:
-        len = Get_Num_Arg(arg);
+        len = Get_Num_From_Arg(arg);
         {
             REBI64 i = (REBI64)index + (REBI64)len;
             if (action == A_SKIP) {
@@ -94,7 +95,7 @@ REBINT Do_Series_Action(struct Reb_Call *call_, REBCNT action, REBVAL *value, RE
         break;
 /*
     case A_ATZ:
-        len = Get_Num_Arg(arg);
+        len = Get_Num_From_Arg(arg);
         {
             REBI64 idx = Add_Max(0, index, len, MAX_I32);
             if (idx < 0) idx = 0;
@@ -228,9 +229,14 @@ REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBOOL is_case)
     case REB_PERCENT:
     case REB_DECIMAL:
     case REB_MONEY:
+        if (IS_MONEY(s))
+            d1 = deci_to_decimal(VAL_MONEY_AMOUNT(s));
+        else
             d1 = VAL_DECIMAL(s);
         if (IS_INTEGER(t))
-            d2 = (REBDEC)VAL_INT64(t);
+            d2 = cast(REBDEC, VAL_INT64(t));
+        else if (IS_MONEY(t))
+            d2 = deci_to_decimal(VAL_MONEY_AMOUNT(t));
         else
             d2 = VAL_DECIMAL(t);
 chkDecimal:
@@ -301,12 +307,7 @@ chkDecimal:
     case REB_PORT:
         return VAL_CONTEXT(s) - VAL_CONTEXT(t);
 
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_COMMAND:
     case REB_FUNCTION:
-    case REB_ROUTINE:
-    case REB_CALLBACK:
         return VAL_FUNC_PARAMLIST(s) - VAL_FUNC_PARAMLIST(t);
 
     case REB_LIBRARY:
@@ -331,7 +332,7 @@ chkDecimal:
 // Simple search for a value in an array. Return the index of
 // the value or the TAIL index if not found.
 //
-REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
+REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const REBVAL *target)
 {
     REBVAL *value = ARR_HEAD(array);
 
@@ -345,12 +346,12 @@ REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, REBVAL *target)
 //
 //  Destroy_External_Storage: C
 //
-// Destroy the external storage pointed by `->data` by calling the routine!
+// Destroy the external storage pointed by `->data` by calling the routine
 // `free_func` if it's not NULL
 //
 // out            Result
 // ser            The series
-// free_func    A routine! to free the storage, if it's NULL, only mark the
+// free_func    A routine to free the storage, if it's NULL, only mark the
 //         external storage non-accessible
 //
 REB_R Destroy_External_Storage(REBVAL *out,

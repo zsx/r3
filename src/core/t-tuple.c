@@ -107,7 +107,7 @@ REBINT Cmp_Tuple(const REBVAL *t1, const REBVAL *t2)
 //
 REBINT PD_Tuple(REBPVS *pvs)
 {
-    REBVAL *val;
+    const REBVAL *setval;
     REBINT n;
     REBINT i;
     REBYTE *dat;
@@ -115,28 +115,39 @@ REBINT PD_Tuple(REBPVS *pvs)
 
     dat = VAL_TUPLE(pvs->value);
     len = VAL_TUPLE_LEN(pvs->value);
-    if (len < 3) len = 3;
-    n = Get_Num_Arg(pvs->select);
 
-    if ((val = pvs->setval)) {
-        if (n <= 0 || n > MAX_TUPLE) return PE_BAD_SELECT;
-        if (IS_INTEGER(val) || IS_DECIMAL(val)) i = Int32(val);
-        else if (IS_NONE(val)) {
+    if (len < 3) { len = 3; }
+
+    n = Get_Num_From_Arg(pvs->selector);
+
+    if ((setval = pvs->opt_setval)) {
+        if (n <= 0 || n > MAX_TUPLE)
+            fail (Error_Bad_Path_Select(pvs));
+
+        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
+            i = Int32(setval);
+        else if (IS_NONE(setval)) {
             n--;
-            CLEAR(dat+n, MAX_TUPLE-n);
+            CLEAR(dat + n, MAX_TUPLE - n);
             VAL_TUPLE_LEN(pvs->value) = n;
             return PE_OK;
         }
-        else return PE_BAD_SET;
+        else
+            fail (Error_Bad_Path_Set(pvs));
+
         if (i < 0) i = 0;
         else if (i > 255) i = 255;
-        dat[n-1] = i;
-        if (n > len) VAL_TUPLE_LEN(pvs->value) = n;
+
+        dat[n - 1] = i;
+        if (n > len)
+            VAL_TUPLE_LEN(pvs->value) = n;
+
         return PE_OK;
-    } else {
+    }
+    else {
         if (n > 0 && n <= len) {
-            SET_INTEGER(pvs->store, dat[n-1]);
-            return PE_USE;
+            SET_INTEGER(pvs->store, dat[n - 1]);
+            return PE_USE_STORE;
         }
         else return PE_NONE;
     }
@@ -306,7 +317,7 @@ REBTYPE(Tuple)
 
     case A_REVERSE:
         if (D_REF(2)) {
-            len = Get_Num_Arg(D_ARG(3));
+            len = Get_Num_From_Arg(D_ARG(3));
             len = MIN(len, VAL_TUPLE_LEN(value));
         }
         if (len > 0) {
@@ -321,7 +332,7 @@ REBTYPE(Tuple)
         goto ret_value;
 /*
   poke_it:
-        a = Get_Num_Arg(arg);
+        a = Get_Num_From_Arg(arg);
         if (a <= 0 || a > len) {
             if (action == A_PICK) return R_NONE;
             fail (Error_Out_Of_Range(arg));

@@ -179,16 +179,23 @@ set (CORE_SOURCE
     ${CORE_DIR}/a-stubs.c
     ${CORE_DIR}/b-boot.c
     ${CORE_DIR}/b-init.c
+    ${CORE_DIR}/c-bind.c
     ${CORE_DIR}/c-do.c
+    ${CORE_DIR}/c-eval.c
     ${CORE_DIR}/c-error.c
     ${CORE_DIR}/c-frame.c
     ${CORE_DIR}/c-function.c
+    ${CORE_DIR}/c-path.c
     ${CORE_DIR}/c-port.c
+    ${CORE_DIR}/c-signal.c
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
+    ${CORE_DIR}/c-value.c
     ${CORE_DIR}/d-crash.c
     ${CORE_DIR}/d-dump.c
+    ${CORE_DIR}/d-legacy.c
     ${CORE_DIR}/d-print.c
+    ${CORE_DIR}/d-trace.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c

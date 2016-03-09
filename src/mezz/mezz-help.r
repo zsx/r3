@@ -29,7 +29,7 @@ dump-obj: function [
         if any-block? :val [return reform ["length:" length val]]
         if image? :val [return reform ["size:" val/size]]
         if datatype? :val [return get in spec-of val 'title]
-        if any-function? :val [
+        if function? :val [
             return clip-str any [title-of :val mold spec-of :val]
         ]
         if object? :val [val: words-of val]
@@ -55,7 +55,7 @@ dump-obj: function [
         ; (and for this use maybe it would be needed anyway, review to check)
         type: to-word type-of :val
 
-        str: either any [any-function? :type object? :type] [
+        str: either any [function? :type object? :type] [
             reform [word mold spec-of :val words-of :val]
         ][
             form word
@@ -91,6 +91,41 @@ dump-obj: function [
     out
 ]
 
+
+title-of: function [
+    {Examines the spec of a value and extracts a summary of it's purpose.}
+
+    value [any-value!]
+][
+    switch type-of :value [
+        :function! [
+            ;
+            ; Get the first STRING! before any parameter definitions, or
+            ; NONE! if there isn't one.
+
+            for-each item spec-of :value [
+                if string? :item [
+                    return copy item
+                ]
+                if any-word? :item [
+                    return none
+                ]
+            ]
+        ]
+
+        :datatype! [
+            ;
+            ; Each datatype should have a help string.
+
+            spec: spec-of value
+            return spec/title
+        ]
+    ]
+
+    none
+]
+
+
 ?: help: func [
     "Prints information about words and values."
     'word [opt-any-value!]
@@ -121,7 +156,7 @@ dump-obj: function [
 
             To see all words of a specific datatype:
 
-                ? native!
+                ? object!
                 ? function!
                 ? datatype!
 
@@ -179,10 +214,10 @@ dump-obj: function [
     if all [
         doc
         word? :word
-        any [any-function? get :word datatype? get :word]
+        any [function? get :word datatype? get :word]
     ][
         item: form :word
-        either any-function? get :word [
+        either function? get :word [
             for-each [a b] [ ; need a better method !
                 "!" "-ex"
                 "?" "-q"
@@ -251,7 +286,7 @@ dump-obj: function [
     ][
         value: get :word
     ]
-    unless any-function? :value [
+    unless function? :value [
         prin [uppercase mold word "is" type-name :value "of value: "]
         print either any [object? value port? value]  [print "" dump-obj value][mold :value]
         return ()
@@ -401,7 +436,7 @@ license: func [
 ;
 source: make function! [[
     "Prints the source code for a function."
-    'arg [integer! word! path! any-function!]
+    'arg [integer! word! path! function!]
         {If integer then the function backtrace for that index is shown}
 
     f: name: ; pure locals
@@ -457,7 +492,7 @@ source: make function! [[
         ]
     ]
 
-    either any-function? :f [
+    either function? :f [
         print rejoin [mold name ":" space mold :f]
     ][
         either integer? arg [
@@ -480,7 +515,7 @@ what: func [
     ctx: any [select system/modules :name lib]
 
     for-each [word val] ctx [
-        if any-function? :val [
+        if function? :val [
             arg: either args [
                 arg: words-of :val
                 clear find arg /local

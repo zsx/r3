@@ -33,7 +33,7 @@
 //
 //  Clipboard_Actor: C
 //
-static REB_R Clipboard_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBREQ *req;
     REBINT result;
@@ -125,7 +125,7 @@ static REB_R Clipboard_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         }
 
-        refs = Find_Refines(call_, ALL_WRITE_REFS);
+        refs = Find_Refines(frame_, ALL_WRITE_REFS);
 
         // Handle /part refinement:
         len = VAL_LEN_AT(arg);

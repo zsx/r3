@@ -106,8 +106,9 @@ static int Find_Command(REBCTX *dialect, REBVAL *word)
         n = VAL_WORD_INDEX(word);
     else {
         if ((n = Find_Word_In_Context(dialect, VAL_WORD_SYM(word), FALSE))) {
-            SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
-            INIT_WORD_SPECIFIC(word, dialect);
+            CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
+            SET_VAL_FLAG(word, WORD_FLAG_BOUND);
+            INIT_WORD_CONTEXT(word, dialect);
             INIT_WORD_INDEX(word, n);
         }
         else return 0;
@@ -178,7 +179,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     case REB_PATH:
         if (Do_Path_Throws(&safe, NULL, value, NULL))
             fail (Error_No_Catch_For_Throw(&safe));
-        if (ANY_FUNC(&safe)) return NULL;
+        if (IS_FUNCTION(&safe)) return NULL;
         DS_PUSH(&safe);
         value = DS_TOP;
         break;
@@ -190,7 +191,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
         break;
 
     case REB_GROUP:
-        if (DO_ARRAY_THROWS(&safe, value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&safe, value)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
             fail (Error_No_Catch_For_Throw(&safe));

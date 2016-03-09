@@ -57,11 +57,12 @@ typedef union rxi_arg_val {
         REBD32 dec32b;
     } d2;
     struct {
-        void *series;
+        REBSER *series;
         u32 index;
     } sri;
+    REBSER *context; // !!! never assigned, seems to expect `series` overlap
     struct {
-        void *image;
+        REBSER *image;
         int width:16;
         int height:16;
     } iwh;
@@ -107,9 +108,9 @@ typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
 #define RXA_TUPLE(f,n)  (RXA_ARG(f,n).bytes)
 #define RXA_SERIES(f,n) (RXA_ARG(f,n).sri.series)
 #define RXA_INDEX(f,n)  (RXA_ARG(f,n).sri.index)
-#define RXA_OBJECT(f,n) (RXA_ARG(f,n).addr)
-#define RXA_MODULE(f,n) (RXA_ARG(f,n).addr)
 #define RXA_HANDLE(f,n) (RXA_ARG(f,n).addr)
+#define RXA_OBJECT(f,n) (RXA_ARG(f,n).context)
+#define RXA_MODULE(f,n) (RXA_ARG(f,n).context)
 #define RXA_IMAGE(f,n)  (RXA_ARG(f,n).iwh.image)
 #define RXA_IMAGE_BITS(f,n) \
 	cast(REBYTE *, RL_SERIES((RXA_ARG(f,n).iwh.image), RXI_SER_DATA))
@@ -155,19 +156,3 @@ enum {
 
 #define SET_EXT_ERROR(v,n) ((v)->i2.int32a = (n))
 #define GET_EXT_ERROR(v)   ((v)->i2.int32a)
-
-typedef struct rxi_callback_info {
-    u32 flags;
-    REBARR *obj;    // object that holds the function
-    u32 word;       // word id for function (name)
-    RXIARG *args;   // argument list for function
-    RXIARG result;  // result from function
-} RXICBI;
-
-enum {
-    RXC_NONE,
-    RXC_ASYNC,      // async callback
-    RXC_QUEUED,     // pending in event queue
-    RXC_DONE,       // call completed, structs can be freed
-    RXC_MAX
-};

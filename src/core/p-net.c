@@ -111,7 +111,7 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
 //  Transport_Actor: C
 //
 static REB_R Transport_Actor(
-    struct Reb_Call *call_,
+    struct Reb_Frame *frame_,
     REBCTX *port,
     REBCNT action,
     enum Transport_Types proto
@@ -221,7 +221,7 @@ static REB_R Transport_Actor(
     case A_READ:
         // Read data into a buffer, expanding the buffer if needed.
         // If no length is given, program must stop it at some point.
-        refs = Find_Refines(call_, ALL_READ_REFS);
+        refs = Find_Refines(frame_, ALL_READ_REFS);
         if (
             !GET_FLAG(sock->modes, RST_UDP)
             && !GET_FLAG(sock->state, RSM_CONNECT)
@@ -256,7 +256,7 @@ static REB_R Transport_Actor(
         // Write the entire argument string to the network.
         // The lower level write code continues until done.
 
-        refs = Find_Refines(call_, ALL_WRITE_REFS);
+        refs = Find_Refines(frame_, ALL_WRITE_REFS);
         if (!GET_FLAG(sock->modes, RST_UDP)
             && !GET_FLAG(sock->state, RSM_CONNECT))
             fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
@@ -283,7 +283,7 @@ static REB_R Transport_Actor(
 
     case A_PICK:
         // FIRST server-port returns new port connection.
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
         if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
             Accept_New_Port(D_OUT, port, sock); // sets D_OUT
         else
@@ -340,17 +340,17 @@ static REB_R Transport_Actor(
 //
 //  TCP_Actor: C
 //
-static REB_R TCP_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R TCP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
-    return Transport_Actor(call_, port, action, TRANSPORT_TCP);
+    return Transport_Actor(frame_, port, action, TRANSPORT_TCP);
 }
 
 //
 //  UDP_Actor: C
 //
-static REB_R UDP_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R UDP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
-    return Transport_Actor(call_, port, action, TRANSPORT_UDP);
+    return Transport_Actor(frame_, port, action, TRANSPORT_UDP);
 }
 
 //

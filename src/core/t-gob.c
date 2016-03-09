@@ -691,16 +691,25 @@ REBOOL MT_Gob(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT PD_Gob(REBPVS *pvs)
 {
+    const REBVAL *sel = pvs->selector;
     REBGOB *gob = VAL_GOB(pvs->value);
     REBCNT index;
     REBCNT tail;
 
-    if (IS_WORD(pvs->select)) {
-        if (pvs->setval == 0 || NOT_END(pvs->path+1)) {
-            if (!Get_GOB_Var(gob, pvs->select, pvs->store)) return PE_BAD_SELECT;
-            // Check for SIZE/X: types of cases:
-            if (pvs->setval && IS_PAIR(pvs->store)) {
-                REBVAL *sel = pvs->select;
+    if (IS_WORD(sel)) {
+        if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
+            if (!Get_GOB_Var(gob, sel, pvs->store))
+                fail (Error_Bad_Path_Select(pvs));
+
+            // !!! Comment here said: "Check for SIZE/X: types of cases".
+            // See %c-path.c for an explanation of why this code steps
+            // outside the ordinary path processing to "look ahead" in the
+            // case of wanting to make it possible to use a generated PAIR!
+            // as a way of "writing back" into the values in the GOB! that
+            // were used to generate the PAIR!.  There should be some
+            // overall solution to facilitating this kind of need.
+            //
+            if (pvs->opt_setval && IS_PAIR(pvs->store)) {
                 pvs->value = pvs->store;
 
                 if (Next_Path_Throws(pvs)) { // sets value in pvs->store
@@ -711,27 +720,36 @@ REBINT PD_Gob(REBPVS *pvs)
                     fail (Error_No_Catch_For_Throw(pvs->store));
                 }
 
-                Set_GOB_Var(gob, sel, pvs->store); // write it back to gob
+                // write it back to gob
+                //
+                Set_GOB_Var(gob, sel, pvs->store);
             }
-            return PE_USE;
-        } else {
-            if (!Set_GOB_Var(gob, pvs->select, pvs->setval)) return PE_BAD_SET;
+            return PE_USE_STORE;
+        }
+        else {
+            if (!Set_GOB_Var(gob, sel, pvs->opt_setval))
+                fail (Error_Bad_Path_Set(pvs));
             return PE_OK;
         }
     }
-    if (IS_INTEGER(pvs->select)) {
+
+    if (IS_INTEGER(sel)) {
         if (!GOB_PANE(gob)) return PE_NONE;
+
         tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
         index = VAL_GOB_INDEX(pvs->value);
-        index += Int32(pvs->select) - 1;
+        index += Int32(sel) - 1;
+
         if (index >= tail) return PE_NONE;
+
         gob = *GOB_AT(gob, index);
         VAL_RESET_HEADER(pvs->store, REB_GOB);
         VAL_GOB(pvs->store) = gob;
         VAL_GOB_INDEX(pvs->store) = 0;
-        return PE_USE;
+        return PE_USE_STORE;
     }
-    return PE_BAD_SELECT;
+
+    fail (Error_Bad_Path_Select(pvs));
 }
 
 
@@ -797,14 +815,14 @@ REBTYPE(Gob)
     case A_PICK:
         if (!IS_NUMBER(arg) && !IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
         if (!GOB_PANE(gob)) goto is_none;
-        index += Get_Num_Arg(arg) - 1;
+        index += Get_Num_From_Arg(arg) - 1;
         if (index >= tail) goto is_none;
         gob = *GOB_AT(gob, index);
         index = 0;
         goto set_index;
 
     case A_POKE:
-        index += Get_Num_Arg(arg) - 1;
+        index += Get_Num_From_Arg(arg) - 1;
         arg = D_ARG(3);
     case A_CHANGE:
         if (!IS_GOB(arg)) goto is_arg_error;
@@ -846,13 +864,13 @@ REBTYPE(Gob)
 
     case A_REMOVE:
         // /PART length
-        len = D_REF(2) ? Get_Num_Arg(D_ARG(3)) : 1;
+        len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
         if (index + len > tail) len = tail - index;
         if (index < tail && len != 0) Remove_Gobs(gob, index, len);
         break;
 
     case A_TAKE:
-        len = D_REF(2) ? Get_Num_Arg(D_ARG(3)) : 1;
+        len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
         if (index + len > tail) len = tail - index;
         if (index >= tail) goto is_none;
         if (!D_REF(2)) { // just one value

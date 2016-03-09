@@ -233,15 +233,11 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
         }
         // Event holds a port:
         else if (IS_EVENT_MODEL(value, EVM_PORT)) {
-            Val_Init_Port(
-                val, AS_CONTEXT(VAL_EVENT_SER(m_cast(REBVAL*, value)))
-            );
+            Val_Init_Port(val, AS_CONTEXT(VAL_EVENT_SER(value)));
         }
         // Event holds an object:
         else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
-            Val_Init_Object(
-                val, AS_CONTEXT(VAL_EVENT_SER(m_cast(REBVAL*, value)))
-            );
+            Val_Init_Object(val, AS_CONTEXT(VAL_EVENT_SER(value)));
         }
         else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
             *val = *Get_System(SYS_PORTS, PORTS_CALLBACK);
@@ -258,8 +254,8 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
     case SYM_WINDOW:
     case SYM_GOB:
         if (IS_EVENT_MODEL(value, EVM_GUI)) {
-            if (VAL_EVENT_SER(m_cast(REBVAL*, value))) {
-                SET_GOB(val, cast(REBGOB*, VAL_EVENT_SER(m_cast(REBVAL*, value))));
+            if (VAL_EVENT_SER(value)) {
+                SET_GOB(val, cast(REBGOB*, VAL_EVENT_SER(value)));
                 break;
             }
         }
@@ -322,22 +318,23 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
         // Event holds a file string:
         if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_none;
         if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
-            // !!! EVIL mutability cast !!!
-            // This should be done a better way.  What's apparently going on
-            // is that VAL_EVENT_SER is supposed to be a FILE! series
-            // for a string, but some client is allowed to put an ordinary
-            // OS_ALLOC'd string of bytes into the field.  If a flag
-            // doesn't tell us that it's "copied" and hence holds that
-            // string form, it gets turned into a series "on-demand" even
-            // in const-like contexts.  (So VAL_EVENT_SER is what C++ would
-            // consider a "mutable" field.)  No way to tell C that, though.
+            void *str = VAL_EVENT_SER(value);
 
-            void *str = VAL_EVENT_SER(m_cast(REBVAL*, value));
-            VAL_EVENT_SER(m_cast(REBVAL*, value)) = Copy_Bytes(cast(REBYTE*, str), -1);
-            SET_FLAG(VAL_EVENT_FLAGS(m_cast(REBVAL*, value)), EVF_COPIED);
+            // !!! This modifies a const-marked values's bits, which
+            // is generally a bad thing.  The reason it appears to be doing
+            // this is to let clients can put ordinary OS_ALLOC'd arrays of
+            // bytes into a field which are then on-demand turned into
+            // string series when seen here.  This flips a bit to say the
+            // conversion has been done.  Review this implementation.
+            //
+            REBVAL *writable = m_cast(REBVAL*, value);
+
+            VAL_EVENT_SER(writable) = Copy_Bytes(cast(REBYTE*, str), -1);
+            SET_FLAG(VAL_EVENT_FLAGS(writable), EVF_COPIED);
+
             OS_FREE(str);
         }
-        Val_Init_File(val, VAL_EVENT_SER(m_cast(REBVAL*, value)));
+        Val_Init_File(val, VAL_EVENT_SER(value));
         break;
 
     default:
@@ -373,16 +370,25 @@ REBOOL MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 REBINT PD_Event(REBPVS *pvs)
 {
-    if (IS_WORD(pvs->select)) {
-        if (pvs->setval == 0 || NOT_END(pvs->path+1)) {
-            if (!Get_Event_Var(pvs->value, VAL_WORD_CANON(pvs->select), pvs->store)) return PE_BAD_SELECT;
-            return PE_USE;
-        } else {
-            if (!Set_Event_Var(pvs->value, pvs->select, pvs->setval)) return PE_BAD_SET;
+    if (IS_WORD(pvs->selector)) {
+        if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
+            if (!Get_Event_Var(
+                pvs->value, VAL_WORD_CANON(pvs->selector), pvs->store
+            )) {
+                fail (Error_Bad_Path_Set(pvs));
+            }
+
+            return PE_USE_STORE;
+        }
+        else {
+            if (!Set_Event_Var(pvs->value, pvs->selector, pvs->opt_setval))
+                fail (Error_Bad_Path_Set(pvs));
+
             return PE_OK;
         }
     }
-    return PE_BAD_SELECT;
+
+    fail (Error_Bad_Path_Select(pvs));
 }
 
 
@@ -450,7 +456,7 @@ is_arg_error:
 
 
     case A_PICK:
-        index = num = Get_Num_Arg(arg);
+        index = num = Get_Num_From_Arg(arg);
         if (num > 0) index--;
         if (num == 0 || index < 0 || index > EF_DCLICK) {
             if (action == A_POKE) fail (Error_Out_Of_Range(arg));

@@ -18,57 +18,36 @@ REBOL [
     }
 ]
 
-binary-to-infix: func [
-    {Convert a binary function to its infix equivalent}
-    value [any-function!]
-][
-    ; SPEC-OF isn't defined yet at this point in the boot...
-    func (
-        head insert (reflect :value 'spec) <infix>
-    )(
-        ; WORDS-OF isn't defined either...
-        compose [
-            (:value) (map-each word reflect :value 'words [to get-word! word])
-        ]
++: to-infix :add
+-: to-infix :subtract
+*: to-infix :multiply
 
-        ; Note that this is effectively "compiling in" the function as
-        ; a direct value, which is kind of interesting...this means that
-        ; changing ADD won't change the behavior of +
-    )
-]
+set (pick [/] 1) to-infix :divide
+set (pick [//] 1) to-infix :remainder
 
-+: binary-to-infix :add
--: binary-to-infix :subtract
-*: binary-to-infix :multiply
+**: to-infix :power
+=: to-infix :equal?
+=?: to-infix :same?
+==: to-infix :strict-equal?
+!=: to-infix :not-equal?
 
-set (pick [/] 1) binary-to-infix :divide
-set (pick [//] 1) binary-to-infix :remainder
+set (pick [<>] 1) to-infix :not-equal?
 
-**: binary-to-infix :power
-=: binary-to-infix :equal?
-=?: binary-to-infix :same?
-==: binary-to-infix :strict-equal?
-!=: binary-to-infix :not-equal?
+!==: to-infix :strict-not-equal?
 
-set (pick [<>] 1) binary-to-infix :not-equal?
+set (pick [<] 1) to-infix :lesser?
+set (pick [<=] 1) to-infix :lesser-or-equal?
+set (pick [>] 1) to-infix :greater?
+set (pick [>=] 1) to-infix :greater-or-equal?
 
-!==: binary-to-infix :strict-not-equal?
+and: to-infix :and?
+or: to-infix :or?
+xor: to-infix :xor?
 
-set (pick [<] 1) binary-to-infix :lesser?
-set (pick [<=] 1) binary-to-infix :lesser-or-equal?
-set (pick [>] 1) binary-to-infix :greater?
-set (pick [>=] 1) binary-to-infix :greater-or-equal?
-
-and: binary-to-infix :and?
-or: binary-to-infix :or?
-xor: binary-to-infix :xor?
-
-and*: binary-to-infix :and~
-or+: binary-to-infix :or~
-xor-: binary-to-infix :xor~
+and*: to-infix :and~
+or+: to-infix :or~
+xor-: to-infix :xor~
 
 ; !!! C-isms that are unlikely to be kept
-&: binary-to-infix :and~
-|: binary-to-infix :or~
-
-unset 'binary-to-infix
+&: to-infix :and~
+|: to-infix :or~

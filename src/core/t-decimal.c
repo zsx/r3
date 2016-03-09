@@ -177,7 +177,7 @@ REBINT CT_Decimal(const REBVAL *a, const REBVAL *b, REBINT mode)
             return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 0) ? 1 : 0;
 
         return (
-            (VAL_INT64(a) == VAL_INT64(b))
+            (VAL_DECIMAL_BITS(a) == VAL_DECIMAL_BITS(b))
                 ? 1 // bits are identical
                 : 0 // not identical
         );
@@ -202,7 +202,7 @@ static void Check_Overflow(REBDEC dval)
 //
 //  Binary_To_Decimal: C
 //
-static void Binary_To_Decimal(REBVAL *bin, REBVAL *dec)
+static void Binary_To_Decimal(const REBVAL *bin, REBVAL *out)
 {
     REBI64 n = 0;
     REBSER *ser = VAL_SERIES(bin);
@@ -213,8 +213,8 @@ static void Binary_To_Decimal(REBVAL *bin, REBVAL *dec)
 
     for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
 
-    VAL_RESET_HEADER(dec, REB_DECIMAL);
-    VAL_INT64(dec) = n; // aliasing the bits!
+    VAL_RESET_HEADER(out, REB_DECIMAL);
+    VAL_DECIMAL_BITS(out) = n;
 }
 
 
@@ -224,12 +224,15 @@ static void Binary_To_Decimal(REBVAL *bin, REBVAL *dec)
 REBTYPE(Decimal)
 {
     REBVAL  *val = D_ARG(1);
-    REBDEC  d1 = VAL_DECIMAL(val);
+    REBDEC  d1;
     REBVAL  *arg;
     REBDEC  d2;
     REBINT  num;
     REBDEC  exp;
     enum Reb_Kind type = REB_TRASH;
+
+    if (action != A_MAKE && action != A_TO)
+        d1 = VAL_DECIMAL(val);
 
     // all binary actions
     if (IS_BINARY_ACT(action)) {
@@ -249,7 +252,7 @@ REBTYPE(Decimal)
             *D_OUT = *D_ARG(2);
             *D_ARG(2) = *D_ARG(1);
             *D_ARG(1) = *D_OUT;
-            return Value_Dispatch[VAL_TYPE_0(D_ARG(1))](call_, action);
+            return Value_Dispatch[VAL_TYPE_0(D_ARG(1))](frame_, action);
         }
 
         // If the type of the second arg is something we can handle:
@@ -268,7 +271,7 @@ REBTYPE(Decimal)
             } else if (type == REB_MONEY) {
                 VAL_MONEY_AMOUNT(val) = decimal_to_deci(VAL_DECIMAL(val));
                 VAL_RESET_HEADER(val, REB_MONEY);
-                return T_Money(call_, action);
+                return T_Money(frame_, action);
             } else if (type == REB_CHAR) {
                 d2 = (REBDEC)VAL_CHAR(arg);
                 type = REB_DECIMAL;
@@ -436,7 +439,7 @@ REBTYPE(Decimal)
 
         case A_ROUND:
             arg = D_ARG(3);
-            num = Get_Round_Flags(call_);
+            num = Get_Round_Flags(frame_);
             if (D_REF(2)) { // to
                 if (IS_MONEY(arg)) {
                     VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
@@ -449,8 +452,8 @@ REBTYPE(Decimal)
 
                 d1 = Round_Dec(d1, num, Dec64(arg));
                 if (IS_INTEGER(arg)) {
+                    VAL_RESET_HEADER(D_OUT, REB_INTEGER);
                     VAL_INT64(D_OUT) = cast(REBI64, d1);
-                    VAL_SET_TYPE_BITS(D_OUT, REB_INTEGER);
                     return R_OUT;
                 }
                 if (IS_PERCENT(arg)) type = REB_PERCENT;
@@ -510,3 +513,17 @@ is_false:
 is_true:
     return R_TRUE;
 }
+
+
+#if !defined(NDEBUG)
+
+//
+//  VAL_DECIMAL_Ptr_Debug: C
+//
+REBDEC *VAL_DECIMAL_Ptr_Debug(const REBVAL *value)
+{
+    assert(IS_DECIMAL(value) || IS_PERCENT(value));
+    return &m_cast(REBVAL*, value)->payload.decimal.dec;
+}
+
+#endif

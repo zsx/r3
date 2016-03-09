@@ -80,19 +80,11 @@ PVAR REB_OPTS *Reb_Opts;
 // arrays--they are singular values, and the second element is set to
 // be trash to trap any unwanted access.
 //
-PVAR REBVAL PG_Unset_Value[2];
-PVAR REBVAL PG_None_Value[2];
-PVAR REBVAL PG_False_Value[2];
-PVAR REBVAL PG_True_Value[2];
-
-// A value with END set, which comes in handy if you ever need the address of
-// an end for a noop to pass to a routine expecting an end-terminated series
-//
-// It is dynamically allocated via malloc in order to ensure that all parts
-// besides the header are uninitialized memory, to prevent reading of the
-// other three platform words inside of it.
-//
-PVAR REBVAL *PG_End_Val;
+PVAR struct Reb_Value PG_Unset_Value[2];
+PVAR struct Reb_Value PG_None_Value[2];
+PVAR struct Reb_Value PG_False_Value[2];
+PVAR struct Reb_Value PG_True_Value[2];
+PVAR struct Reb_Value PG_End_Val;
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
@@ -147,21 +139,19 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     TVAR REBCNT TG_Do_Count;
 #endif
 
-// Each time Do_Core is called a Reb_Call* is pushed to the Do_Stack.  Some
-// of the pushed entries will represent parens or paths being executed, and
+// Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".
+// Some pushed entries will represent groups or paths being executed, and
 // some will represent functions that are gathering arguments...hence they
 // have been "pushed" but are not yet actually running.  This stack must
 // be filtered to get an understanding of something like a "backtrace of
 // currently running functions".
 //
-TVAR struct Reb_Call *TG_Do_Stack;
+TVAR struct Reb_Frame *TG_Frame_Stack;
 
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;
 TVAR REBDSP DS_Index;
 TVAR REBVAL *DS_Movable_Base;
-
-TVAR struct Reb_Call *CS_Running;   // Call frame if *running* function
 
 // We store the head chunk of the current chunker even though it could be
 // computed, because it's quicker to compare to a pointer than to do the
@@ -183,14 +173,21 @@ TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
     TVAR REBFLGS TG_Pushing_Mold; // Push_Mold should not directly recurse
 #endif
 
+// !!! There is a desire at callsites which invoke COMMAND! to "tunnel
+// through" a piece of global state information in what is called a REBCEC.
+// This tunneling is needed by RL_Do_Commands(), which has been turned into
+// ordinary DO...but which pushes and pops the state.
+//
+TVAR void *TG_Command_Execution_Context;
+
 //-- Evaluation variables:
 TVAR REBI64 Eval_Cycles;    // Total evaluation counter (upward)
 TVAR REBI64 Eval_Limit;     // Evaluation limit (set by secure)
-TVAR REBINT Eval_Count;     // Evaluation counter (downward)
-TVAR REBINT Eval_Dose;      // Evaluation counter reset value
-TVAR REBCNT Eval_Sigmask;   // Masking out signal flags
+TVAR REBUPT Eval_Count;     // Evaluation counter (downward)
+TVAR REBUPT Eval_Dose;      // Evaluation counter reset value
+TVAR REBFLGS Eval_Sigmask;   // Masking out signal flags
 
-TVAR REBCNT Trace_Flags;    // Trace flag
+TVAR REBFLGS Trace_Flags;    // Trace flag
 TVAR REBINT Trace_Level;    // Trace depth desired
 TVAR REBINT Trace_Depth;    // Tracks trace indentation
 TVAR REBCNT Trace_Limit;    // Backtrace buffering limit

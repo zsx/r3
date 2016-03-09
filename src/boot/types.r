@@ -90,10 +90,6 @@ map         map         +       f*      *       *       -
 datatype    datatype    +       f*      -       *       -
 typeset     typeset     +       f*      -       *       -
 
-native      (function)  *       -       -       *       function
-action      (function)  *       -       -       *       function
-routine     (routine)   *       -       -       *       function
-command     (function)  -       -       -       *       function
 function    (function)  *       -       -       *       function
 
 varargs     varargs     -       -       -       -       -
@@ -107,7 +103,6 @@ port        port        context context context -       context
 
 gob         gob         *       *       *       *       -
 event       event       *       *       *       *       -
-callback    callback    -       -       -       -       -
 handle      0           -       -       -       -       -
 struct      struct      *       *       *       *       -
 library     library     -       -       -       -       -

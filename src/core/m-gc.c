@@ -1,5 +1,4 @@
-/*******
-****************************************************************
+/***********************************************************************
 **
 **  REBOL [R3] Language Interpreter and Run-time Environment
 **
@@ -235,26 +234,24 @@ static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP
     }
 #endif
 
-    //printf("pushing array at %p\n", array);
-
     assert(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY));
 
     if (GET_ARR_FLAG(array, CONTEXT_FLAG_STACK)) {
         //
         // If the array's storage was on the stack and that stack level has
         // been popped, its data has been nulled out, and the series only
-        // exists for to keep words or objects holding it from crashing.
+        // exists to keep words or objects holding it from crashing.
         //
         if (!GET_ARR_FLAG(array, SERIES_FLAG_ACCESSIBLE))
             return;
     }
-    else {
-        // There are no other examples currently of "external" series (ones
-        // that don't have their memory managed by the series) besides the
-        // stack that are value-bearing at this time--may change.
-        //
-        assert(!GET_ARR_FLAG(array, SERIES_FLAG_EXTERNAL));
-    }
+
+    // !!! Are there actually any "external" series that are value-bearing?
+    // e.g. a REBSER node which has a ->data pointer to REBVAL[...] and
+    // expects this to be managed with GC, even though if the REBSER is
+    // GC'd it shouldn't free that data?
+    //
+    assert(!GET_ARR_FLAG(array, SERIES_FLAG_EXTERNAL));
 
     // set by calling macro (helps catch direct calls of this function)
     assert(GET_ARR_FLAG(array, SERIES_FLAG_MARK));
@@ -286,7 +283,7 @@ static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP
 static void Propagate_All_GC_Marks(REBMDP *dump);
 
 #ifndef NDEBUG
-static REBOOL in_mark = FALSE;
+    static REBOOL in_mark = FALSE;
 #endif
 
 // NOTE: The following macros uses S parameter multiple times, hence if S has
@@ -314,21 +311,12 @@ static REBOOL in_mark = FALSE;
         } \
     } while (0)
 
-#if 0
-#define QUEUE_MARK_CONTEXT_DEEP(c, name, parent, dump) \
+#define QUEUE_MARK_CONTEXT_DEEP(c, name, parent, edge, dump) \
     do { \
-        assert(GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_CONTEXT)); \
-        QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), "keylist", CTX_VARLIST(c), REB_KIND_KEYLIST, CTX_KEYLIST(c), dump); \
-        QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), REB_KIND_VARLIST, CTX_KEYLIST(c), dump); \
+	    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST)); \
+	    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_KEYLIST, CTX_KEYLIST(c), dump); \
+	    QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), (edge), REB_KIND_ARRAY, CTX_KEYLIST(c), dump); \
     } while (0)
-#endif
-
-void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c, const char *name, const void *parent, const char *edge, REBMDP *dump)
-{
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), SERIES_FLAG_CONTEXT));
-    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_KEYLIST, CTX_KEYLIST(c), dump);
-    QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), edge, REB_KIND_ARRAY, CTX_KEYLIST(c), dump);
-}
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
@@ -761,36 +749,26 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
     // The GC must consider all entries, not just those that have been pushed
     // into active evaluation.
     //
-    struct Reb_Call *c = TG_Do_Stack;
+    struct Reb_Frame *f = TG_Frame_Stack;
     struct mem_dump_entry entry;
     
-    entry.addr = c;
+    entry.addr = f;
     entry.name = "TG_Do_Stack";
     entry.parent = NULL;
     entry.kind = REB_KIND_CALL;
     entry.edge = NULL,
     entry.size = 0; // on the stack
-
     Dump_Mem_Entry(dump, &entry);
 
-    for (; c != NULL; c = c->prior) {
+    for (; f != NULL; f = f->prior) {
+        //
+        // Should have taken care of reifying all the VALIST on the stack
+        // earlier in the recycle process (don't want to create new arrays
+        // once the recycling has started...)
+        //
+        assert(f->indexor != VALIST_FLAG);
 
-        // !!! There are now going to be two, and perhaps three (?), ways of
-        // holding the values being enumerated.  One problem is that the
-        // remainder of a C va_list cannot be enumerated without killing
-        // the enumeration, so there has to be a way to do that...and one
-        // would be to finish the enumeration but put in a dynamic source
-        // (ARRAY being a natural choice, but we're in mid-GC of arrays and
-        // don't want to make one, so some kind of pre-GC phase that took
-        // the outstanding va_list-based enumerations and made series for
-        // them would be required).
-        //
-        // GENERAL THEORY: va_list and memory series are "lazy realized" as
-        // arrays, this lazy realization can happen if you need to do a
-        // debug backtrace or error.  GCs lazy realize all pending frames
-        // before the GC starts.
-        //
-        if (c->indexor == END_FLAG) {
+        if (f->indexor == END_FLAG) {
             //
             // This is possible, because the frame could be sitting at the
             // end of a block when a function runs, e.g. `do [zero-arity]`.
@@ -798,32 +776,22 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
             // function is running, which could be arbitrarily long...so
             // a GC could happen.
         }
-        else if (c->indexor == VALIST_FLAG) {
-            //
-            // !!! This needs to be written!  But we can *temporarily* hope
-            // for the best, because the existing Apply calls are only
-            // allowed to use DO_FLAG_EVAL_ONLY to supply their arguments.
-            // It's not safe to use full evaluation in va_lists until this
-            // code is written, so see assert in Do_Va_Core()
-            //
-            //assert(FALSE);
-        }
         else {
-            assert(c->indexor != THROWN_FLAG);
-            QUEUE_MARK_ARRAY_DEEP(c->source.array, NULL, c, "<source>", REB_KIND_ARRAY, NULL, dump);
+            assert(f->indexor != THROWN_FLAG);
+                        QUEUE_MARK_ARRAY_DEEP(f->source.array, NULL, f, "<source>", REB_KIND_ARRAY, NULL, dump);
         }
 
-        if (c->value && Is_Value_Managed(c->value, FALSE))
-            Queue_Mark_Value_Deep(c->value, NULL, c, "<value>", dump);
+        if (f->value && Is_Value_Managed(f->value, FALSE))
+		Queue_Mark_Value_Deep(f->value, NULL, f, "<value>", dump);
 
-        if (c->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+        if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
             //
             // The only fields we protect if no function is pending or running
             // with this frame is the array and the potentially pending value.
             //
             // Consider something like `eval copy quote (recycle)`, because
             // while evaluating the group it has no anchor anywhere in the
-            // root set and could be GC'd.  The Reb_Call's array ref is it.
+            // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
             continue;
         }
@@ -831,22 +799,22 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         // The subfeed may be in use by VARARGS!, and it may be either a
         // context or a single element array.
         //
-        if (c->cell.subfeed) {
-            if (GET_ARR_FLAG(c->cell.subfeed, SERIES_FLAG_CONTEXT))
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(c->cell.subfeed), NULL, c, "<subfeed>", dump);
+        if (f->cell.subfeed) {
+            if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed), NULL, f, "<subfeed>", dump);
             else {
-                assert(ARR_LEN(c->cell.subfeed) == 1);
-                QUEUE_MARK_ARRAY_DEEP(c->cell.subfeed, NULL, c, "<subfeed>", REB_KIND_ARRAY, NULL, dump);
+                assert(ARR_LEN(f->cell.subfeed) == 1);
+                QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed, NULL, f, "<subfeed>", REB_KIND_ARRAY, NULL, dump);
             }
         }
 
-        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(c->func), NULL, c, "<paramlist>", REB_KIND_ARRAY, FUNC_PARAMLIST(c->func), dump); // never NULL
+        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func), NULL, f, "<paramlist>", REB_KIND_ARRAY, FUNC_PARAMLIST(f->func), dump); // never NULL
 
-        Queue_Mark_Value_Deep(c->out, NULL, c, "<out>", dump); // never NULL
+        Queue_Mark_Value_Deep(f->out, NULL, f, "<out>", dump); // never NULL
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
-        /* Mark_Symbol_Still_In_Use?(call->label_sym); */
+        /* Mark_Symbol_Still_In_Use?(f->label_sym); */
 
         // In the current implementation (under review) functions use
         // stack-based chunks to gather their arguments, and closures use
@@ -854,32 +822,32 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(c->func), FUNC_FLAG_FRAMELESS)) {
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)) {
             //
             // Optimized native: it didn't need a variable-sized chunk
             // allocated for its args and locals because it was able to do
             // its work just processing the block input directly.  So nothing
-            // in `c->frame` to GC protect.
+            // in `f->frame` to GC protect.
             //
         }
-        else if (c->flags & DO_FLAG_FRAME_CONTEXT) {
+        else if (f->flags & DO_FLAG_FRAME_CONTEXT) {
             //
-            // Though a Reb_Call starts off with just a chunk of memory, it
+            // Though a Reb_Frame starts off with just a chunk of memory, it
             // may be promoted to a context (backed by a data pointer of
             // that chunk of memory).  This context *may not be managed yet*
             // in the current implementation.
             //
             if (
                 GET_ARR_FLAG(
-                    CTX_VARLIST(c->frame.context),
+                    CTX_VARLIST(f->data.context),
                     SERIES_FLAG_MANAGED
                 )
             ) {
-                QUEUE_MARK_CONTEXT_DEEP(c->frame.context, NULL, c, "<context>", dump);
+                QUEUE_MARK_CONTEXT_DEEP(f->data.context, NULL, f, "<context>", dump);
             }
             else {
                 // Just mark the keylist...
-                QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c->frame.context), NULL, c, "<keylist>", REB_KIND_ARRAY, CTX_KEYLIST(c->frame.context), dump);
+                QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(f->data.context), NULL, f, "<keylist>", REB_KIND_ARRAY, CTX_KEYLIST(f->data.context), dump);
             }
         }
         else  {
@@ -890,13 +858,13 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         }
 
         // `param`, and `refine` may both be NULL
-        // (`arg` is a cache of the head of the arglist or NULL if frameless)
+        // (`arg` is a cache of the head of the arglist or NULL if varless)
 
-        if (c->param && Is_Value_Managed(c->param, FALSE))
-            Queue_Mark_Value_Deep(c->param, NULL, c, "<param>", dump);
+        if (f->param && Is_Value_Managed(f->param, FALSE))
+            Queue_Mark_Value_Deep(f->param, NULL, f, "<param>", dump);
 
-        if (c->refine && Is_Value_Managed(c->refine, FALSE))
-            Queue_Mark_Value_Deep(c->refine, NULL, c, "<refine>", dump);
+        if (f->refine && Is_Value_Managed(f->refine, FALSE))
+            Queue_Mark_Value_Deep(f->refine, NULL, f, "<param>", dump);
 
         Propagate_All_GC_Marks(dump);
     }
@@ -992,7 +960,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
                 REBVAL *value = CTX_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
                 if (IS_FRAME(val))
-                    assert(VAL_FRAME_CALL(val) == VAL_FRAME_CALL(value));
+                    assert(VAL_CONTEXT_FRAME(val) == VAL_CONTEXT_FRAME(value));
                 else
                     assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
 
@@ -1043,18 +1011,25 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
             break;
         }
 
-        case REB_FUNCTION:
-        case REB_COMMAND:
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val), NULL, val, "<func-body>", REB_KIND_ARRAY, NULL, dump);
-        case REB_NATIVE:
-        case REB_ACTION:
+        case REB_FUNCTION: {
+            enum Reb_Func_Class fclass = VAL_FUNC_CLASS(val);
+
+            if (fclass == FUNC_CLASS_USER || fclass == FUNC_CLASS_COMMAND)
+                QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val), NULL, val, "<func-body>", REB_KIND_ARRAY, NULL, dump);
+
+            if (fclass == FUNC_CLASS_ROUTINE || fclass == FUNC_CLASS_CALLBACK)
+                Queue_Mark_Routine_Deep(VAL_ROUTINE(val), name, val, dump);
+
+            if (fclass == FUNC_CLASS_SPECIALIZED)
+                QUEUE_MARK_CONTEXT_DEEP(val->payload.function.impl.special, NULL, val, "<special>", dump);
+
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val), NULL, val, "<spec>", REB_KIND_ARRAY, NULL, dump);
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val), NULL, val, "<paramlist>", REB_KIND_ARRAY, VAL_FUNC_PARAMLIST(val), dump);
-            //QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val), NULL, val, "paramlist", REB_KIND_ARRAY, NULL, dump);
             break;
+        }
 
         case REB_VARARGS: {
             REBARR *subfeed;
@@ -1069,13 +1044,13 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
             }
             else {
                 subfeed = *SUBFEED_ADDR_OF_FEED(
-                    CTX_VARLIST(VAL_VARARGS_FRAME(val))
+                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(val))
                 );
-                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME(val), NULL, val, "<varargs-frame>", dump);
+                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME_CTX(val), NULL, val, "<varargs-frame>", dump);
             }
 
             if (subfeed) {
-                if (GET_ARR_FLAG(subfeed, SERIES_FLAG_CONTEXT))
+                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
                     QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(subfeed), NULL, val, "<subfeed>", dump);
                 else
                     QUEUE_MARK_ARRAY_DEEP(subfeed, NULL, val, "<subfeed>", REB_KIND_ARRAY, NULL, dump);
@@ -1094,21 +1069,32 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
             // All bound words should keep their contexts from being GC'd...
             // even stack-relative contexts for functions.
             //
-            if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_SPECIFIC)) {
-                REBCTX* context = VAL_WORD_CONTEXT(val);
-                QUEUE_MARK_CONTEXT_DEEP(context, NULL, val, "<bound-to>", dump);
-            }
-            else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND_RELATIVE)) {
+            if (GET_VAL_FLAG(val, VALUE_FLAG_RELATIVE)) {
                 //
                 // Marking the function's paramlist should be enough to
                 // mark all the function's properties (there is an embedded
                 // function value...)
                 //
-                REBFUN* func = val->payload.any_word.binding.relative;
+                REBFUN* func = VAL_WORD_FUNC(val);
+                assert(GET_VAL_FLAG(val, WORD_FLAG_BOUND)); // should be set
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func), NULL, val, "<bound-to>", REB_KIND_ARRAY, FUNC_PARAMLIST(func), dump);
+            }
+            else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND)) {
+                REBCTX* context = VAL_WORD_CONTEXT(val);
+                QUEUE_MARK_CONTEXT_DEEP(context, NULL, val, "<bound-to>", dump);
+            }
+            else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
+                //
+                // Special word class that might be seen on the stack during
+                // a GC that's used by argument fulfillment when searching
+                // for out-of-order refinements.  It holds two REBVAL*s
+                // (for the parameter and argument of the refinement) and
+                // both should be covered for GC already, because the
+                // paramlist and arg variables are "in progress" for a call.
             }
             else {
                 // The word is unbound...make sure index is 0 in debug build.
+                //
             #if !defined(NDEBUG)
                 assert(VAL_WORD_INDEX(val) == 0);
             #endif
@@ -1167,14 +1153,6 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
                 MARK_SERIES_ONLY(MAP_HASHLIST(map), NULL, val, "<hashlist>", REB_KIND_HASH, dump);
             break;
         }
-
-        case REB_CALLBACK:
-        case REB_ROUTINE:
-            Dump_Mem_Comment(dump, "Starting routine/callback dumping");
-            QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_SPEC(val), NULL, val, "<spec>", REB_KIND_ARRAY, NULL, dump);
-            QUEUE_MARK_ARRAY_DEEP(VAL_ROUTINE_PARAMLIST(val), NULL, val, "<paramlist>", REB_KIND_ARRAY, VAL_ROUTINE_PARAMLIST(val), dump);
-            Queue_Mark_Routine_Deep(VAL_ROUTINE(val), name, val, dump);
-            break;
 
         case REB_LIBRARY:
             if (!IS_MARK_LIB(VAL_LIB_HANDLE(val))) {
@@ -1245,7 +1223,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
     // context instead of QUEUE_MARK_CONTEXT.
     //
-    if (GET_ARR_FLAG(array, SERIES_FLAG_CONTEXT))
+    if (GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST))
         assert(GET_ARR_FLAG(CTX_KEYLIST(AS_CONTEXT(array)), SERIES_FLAG_MARK));
 #endif
 
@@ -1268,7 +1246,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
     value = ARR_HEAD(array);
     if (keylist != NULL) {
         assert(ARR_LEN(array) == ARR_LEN(keylist));
-        key = ARR_HEAD(keylist);
+        key = ARR_HEAD(cast(REBARR*, keylist));
     }
 
     for (; NOT_END(value); value++) {
@@ -1299,6 +1277,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
         Queue_Mark_Value_Deep(value, name, array, "<has>", dump);
     }
 }
+
 
 //
 //  Sweep_Series: C
@@ -1542,6 +1521,24 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
         //Print("pending");
         return 0;
     }
+
+    // Some of the call stack frames may have been invoked with a C function
+    // call that took a comma-separated list of REBVAL (the way printf works,
+    // a variadic va_list).  These call frames have no REBARR series behind
+    // them, but still need to be enumerated to protect the values coming up
+    // in the later DO/NEXTs.  But enumerating a C va_list can't be undone;
+    // the information were be lost if it weren't saved.  We "reify" the
+    // va_list into a REBARR before we start the GC (as it makes new series).
+    //
+    {
+        struct Reb_Frame *f = FS_TOP;
+        for (; f != NULL; f = f->prior) {
+            const REBOOL truncated = TRUE;
+            if (f->indexor == VALIST_FLAG)
+                Reify_Va_To_Array_In_Frame(f, truncated); // see function
+        }
+    }
+
     if (Reb_Opts->watch_recycle) Debug_Str(cs_cast(BOOT_STR(RS_WATCH, 0)));
 
     GC_Disabled = 1;
@@ -1588,12 +1585,6 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 
         struct mem_dump_entry entry;
 
-        // Mark all root series:
-        //
-        Dump_Mem_Comment(dump, "Dumping Root-Context");
-        MARK_CONTEXT_DEEP(PG_Root_Context, "Root-Context", NULL, NULL, dump);
-        Dump_Mem_Comment(dump, "Dumping Task-Context");
-        MARK_CONTEXT_DEEP(TG_Task_Context, "Task-Context", NULL, NULL, dump);
 
         // Mark series that have been temporarily protected from garbage
         // collection with PUSH_GUARD_SERIES.  We have to check if the
@@ -1611,7 +1602,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
         Dump_Mem_Entry(dump, &entry);
 
         for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-            if (GET_SER_FLAG(*sp, SERIES_FLAG_CONTEXT))
+            if (GET_SER_FLAG(*sp, ARRAY_FLAG_CONTEXT_VARLIST))
                 MARK_CONTEXT_DEEP(AS_CONTEXT(*sp), NULL, GC_Series_Guard, NULL, dump);
             else if (Is_Array_Series(*sp))
                 MARK_ARRAY_DEEP(AS_ARRAY(*sp), NULL, GC_Series_Guard, NULL, REB_KIND_SERIES, NULL, dump);
@@ -1653,7 +1644,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
                 while (
                     cast(REBYTE*, chunk_value)
                     < cast(REBYTE*, chunk) + chunk->size.bits
-                    ) {
+                ) {
                     if (NOT_END(chunk_value))
                         Queue_Mark_Value_Deep(chunk_value, NULL, chunk, "<keeps>", dump); //FIXME
                     chunk_value++;
@@ -1670,8 +1661,14 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
             }
         }
 
+        // Mark all root series:
+        //
+        Dump_Mem_Comment(dump, "Dumping Root-Context");
+        MARK_CONTEXT_DEEP(PG_Root_Context, "Root-Context", NULL, NULL, dump);
+        Dump_Mem_Comment(dump, "Dumping Task-Context");
+        MARK_CONTEXT_DEEP(TG_Task_Context, "Task-Context", NULL, NULL, dump);
+
         // Mark potential error object from callback!
-        Dump_Mem_Comment(dump, "Dumping potential error object from callback!");
         Queue_Mark_Value_Deep(&Callback_Error, "Callback-Error", NULL, NULL, dump);
         Propagate_All_GC_Marks(dump);
 
@@ -1720,18 +1717,21 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
     // are being freed.
     //
     if (!shutdown) {
-        if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
+
+        // !!! This code was added by Atronix to deal with frequent garbage
+        // collection, but the logic is not correct.  The issue has been
+        // raised and is commented out pending a correct solution.
+        //
+        // https://github.com/zsx/r3/issues/32
+        //
+        /*if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
             && VAL_INT64(TASK_BALLAST) < MAX_I32) {
             //increasing ballast by half
-            printf("Increasing ballast by half to ");
             VAL_INT64(TASK_BALLAST) /= 2;
             VAL_INT64(TASK_BALLAST) *= 3;
-            printf("%lld\n", VAL_INT64(TASK_BALLAST));
         } else if (GC_Ballast >= VAL_INT64(TASK_BALLAST) * 2) {
             //reduce ballast by half
-            printf("Cutting ballast by half to ");
             VAL_INT64(TASK_BALLAST) /= 2;
-            printf("%lld\n", VAL_INT64(TASK_BALLAST));
         }
 
         // avoid overflow
@@ -1740,7 +1740,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
             || VAL_INT64(TASK_BALLAST) >= MAX_I32
         ) {
             VAL_INT64(TASK_BALLAST) = MAX_I32;
-        }
+        }*/
 
         GC_Ballast = VAL_INT32(TASK_BALLAST);
         GC_Disabled = 0;
@@ -1755,6 +1755,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
     }
 
     ASSERT_NO_GC_MARKS_PENDING();
+
     return count;
 }
 

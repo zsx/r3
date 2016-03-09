@@ -307,9 +307,9 @@ void Val_Init_Word_Bound(
     assert(context);
 
     VAL_RESET_HEADER(out, type);
-    SET_VAL_FLAG(out, WORD_FLAG_BOUND_SPECIFIC);
+    SET_VAL_FLAG(out, WORD_FLAG_BOUND);
     INIT_WORD_SYM(out, sym);
-    INIT_WORD_SPECIFIC(out, context);
+    INIT_WORD_CONTEXT(out, context);
     INIT_WORD_INDEX(out, index);
 
     assert(ANY_WORD(out));
@@ -333,7 +333,7 @@ void Val_Init_Word(REBVAL *out, enum Reb_Kind type, REBSYM sym)
     INIT_WORD_SYM(out, sym);
 
 #if !defined(NDEBUG)
-    out->payload.any_word.index = 0;
+    out->payload.any_word.place.binding.index = 0;
 #endif
 
     assert(ANY_WORD(out));

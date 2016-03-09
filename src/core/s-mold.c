@@ -615,7 +615,7 @@ void Mold_Array_At(
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
     VAL_RESET_HEADER(value, REB_BLOCK);
-    VAL_ARRAY(value) = array;
+    INIT_VAL_ARRAY(value, array);
     VAL_INDEX(value) = 0;
 
     if (sep[1]) {
@@ -849,7 +849,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
     /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
     Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
 
-    if (IS_FUNCTION(value)) {
+    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
         //
         // MOLD is an example of user-facing code that needs to be complicit
         // in the "lie" about the effective bodies of the functions made
@@ -1004,7 +1004,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    ERROR_OBJ *err;
+    ERROR_VARS *vars;
     REBCTX *context;
 
     // Protect against recursion. !!!!
@@ -1015,21 +1015,21 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     context = VAL_CONTEXT(value);
-    err = VAL_ERR_VALUES(value);
+    vars = VAL_ERR_VARS(value);
 
     // Form: ** <type> Error:
-    Emit(mold, "** WB", &err->type, RS_ERRS+0);
+    Emit(mold, "** WB", &vars->type, RS_ERRS+0);
 
     // Append: error message ARG1, ARG2, etc.
-    if (IS_BLOCK(&err->message))
-        Form_Array_At(VAL_ARRAY(&err->message), 0, mold, context);
-    else if (IS_STRING(&err->message))
-        Mold_Value(mold, &err->message, FALSE);
+    if (IS_BLOCK(&vars->message))
+        Form_Array_At(VAL_ARRAY(&vars->message), 0, mold, context);
+    else if (IS_STRING(&vars->message))
+        Mold_Value(mold, &vars->message, FALSE);
     else
         Append_Boot_Str(mold->series, RS_ERRS + 1);
 
     // Form: ** Where: function
-    value = &err->where;
+    value = &vars->where;
     if (VAL_TYPE(value) > REB_NONE) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
@@ -1037,7 +1037,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     // Form: ** Near: location
-    value = &err->nearest;
+    value = &vars->nearest;
     if (VAL_TYPE(value) > REB_NONE) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
@@ -1307,9 +1307,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_FUNCTION:
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_COMMAND:
         Mold_Function(value, mold);
         break;
 
@@ -1362,12 +1359,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     }
         break;
 
-    case REB_ROUTINE:
-        Pre_Mold(value, mold);
-        Mold_Array_At(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
-        End_Mold(mold);
-        break;
-
     case REB_LIBRARY:
         Pre_Mold(value, mold);
 
@@ -1376,12 +1367,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Mold_File(DS_TOP, mold);
         DS_DROP;
 
-        End_Mold(mold);
-        break;
-
-    case REB_CALLBACK:
-        Pre_Mold(value, mold);
-        Mold_Array_At(mold, VAL_ROUTINE_SPEC(value), 0, NULL);
         End_Mold(mold);
         break;
 

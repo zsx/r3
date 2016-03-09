@@ -135,9 +135,15 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
         key = CTX_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
         Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
-            // Ignore existing mutability state, by casting away the const.
-            // (Most routines should DEFINITELY not do this!)
-            val = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(word));
+            //
+            // Ignore existing mutability state so that it may be modified.
+            // Most routines should NOT do this!
+            //
+            val = Get_Var_Core(
+                word,
+                TRUE, // trap, e.g. may fail.
+                FALSE // writable access not enforced
+            );
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -170,7 +176,7 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
 // 
 // Protect takes a HIDE parameter as #5.
 //
-static int Protect(struct Reb_Call *call_, REBCNT flags)
+static int Protect(struct Reb_Frame *frame_, REBCNT flags)
 {
     PARAM(1, value);
     REFINE(2, deep);
@@ -205,10 +211,15 @@ static int Protect(struct Reb_Call *call_, REBCNT flags)
 
             for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
                 if (IS_WORD(val)) {
-                    // !!! Temporary and ugly cast; since we *are* PROTECT
-                    // we allow ourselves to get mutable references to even
-                    // protected values so we can no-op protect them.
-                    val2 = m_cast(REBVAL*, GET_OPT_VAR_MAY_FAIL(val));
+                    //
+                    // Since we *are* PROTECT we allow ourselves to get mutable
+                    // references to even protected values to protect them.
+                    //
+                    val2 = Get_Var_Core(
+                        val,
+                        TRUE, // trap, e.g. may fail.
+                        FALSE // writable access not enforced
+                    );
                 }
                 else if (IS_PATH(val)) {
                     if (Do_Path_Throws(&safe, NULL, val, NULL))
@@ -364,7 +375,7 @@ REBNATIVE(attempt)
 
     if (error) return R_NONE;
 
-    if (DO_ARRAY_THROWS(D_OUT, block)) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // Throw name is in D_OUT, thrown value is held task local
@@ -420,41 +431,41 @@ REBNATIVE(case)
     PARAM(1, block);
     REFINE(2, all);
 
-    // We leave D_ARG(1) alone, it is holding 'block' alive from GC
-    REBARR *block = VAL_ARRAY(ARG(block));
-    REBIXO indexor = VAL_INDEX(ARG(block));
-
     // Save refinement to boolean to free up GC protected call frame slot
     REBOOL all = REF(all);
 
     // reuse refinement slot for GC safety (const pointer optimized out)
     REBVAL * const safe_temp = ARG(all);
 
+    struct Reb_Frame frame;
+    struct Reb_Frame *f = &frame;
+
     // condition result must survive across potential GC evaluations of
     // the body evaluation re-using `safe-temp`, but can be collapsed to a
     // flag as the full value of the condition is never returned.
     REBOOL matched;
 
-    // CASE is in the same family as IF/UNLESS/EITHER, so if there is no
-    // matching condition it will return UNSET!.  Set that as default.
+    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // make UNSET! default result
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+    PUSH_CALL_UNLESS_END(f, ARG(block));
+    if (f->indexor == END_FLAG)
+        return R_OUT; // quickly terminate on empty array
 
-    // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
-    // between DOing an array that literally contains an UNSET! and an empty
-    // array, because both give back an unset value and an end position.
-    // We'd like CASE to allow `case []` but not `case [#[unset!]]` so we
-    // must do a special check to permit the former.
-    //
-    if (IS_END(VAL_ARRAY_AT(ARG(block))))
-        return R_OUT;
+    while (f->indexor != END_FLAG) {
+        UPDATE_EXPRESSION_START(f);
+        if (IS_BAR(f->value)) {
+            //
+            // interstitial (e.g. `case [1 2 | 3 4]`) - BAR! legal here, skip
+            //
+            FETCH_NEXT_ONLY_MAYBE_END(f);
+            continue;
+        }
 
-    while (indexor != END_FLAG) {
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
-
-        if (indexor == THROWN_FLAG) {
+        if (f->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
+            DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -466,10 +477,11 @@ REBNATIVE(case)
         //         false ; no matching body for condition
         //     ]
         //
-        if (indexor == END_FLAG) {
+        if (f->indexor == END_FLAG) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
                 // case [first [a b c]] => true ;-- in Rebol2
+                DROP_CALL(f);
                 return R_TRUE;
             }
         #endif
@@ -482,6 +494,14 @@ REBNATIVE(case)
         // so it seems equally applicable to CASE.
         //
         if (IS_UNSET(safe_temp)) fail (Error(RE_NO_RETURN));
+
+        // Expression barriers in CASE statements are only allowed at the
+        // in-between-pairs spots.  This maximizes their usefulness, because
+        // they can actually catch something interesting (being out of sync
+        // on conditions and branches).
+        //
+        if (IS_BAR(f->value))
+            fail (Error(RE_BAR_HIT_MID_CASE));
 
         matched = IS_CONDITIONAL_TRUE(safe_temp);
 
@@ -510,7 +530,7 @@ REBNATIVE(case)
             // case [true add 1 2] => 3
             // case [false add 1 2] => 2 ;-- in Rebol2
             //
-            indexor = indexor + 1;
+            FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
@@ -520,10 +540,11 @@ REBNATIVE(case)
         }
     #endif
 
-        DO_NEXT_MAY_THROW(indexor, safe_temp, block, indexor);
+        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        if (indexor == THROWN_FLAG) {
+        if (f->indexor == THROWN_FLAG) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
+            DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -540,8 +561,10 @@ REBNATIVE(case)
                 // "optimized IF-ELSE" as `if true stuff` would also behave
                 // in the manner of running that block.
                 //
-                if (DO_ARRAY_THROWS(D_OUT, safe_temp))
+                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, safe_temp)) {
+                    DROP_CALL(f);
                     return R_OUT_IS_THROWN;
+                }
             }
             else
                 *D_OUT = *safe_temp;
@@ -556,14 +579,18 @@ REBNATIVE(case)
         #endif
 
             // One match is enough to return the result now, unless /ALL
-            if (!all) return R_OUT;
+            if (!all) {
+                DROP_CALL(f);
+                return R_OUT;
+            }
         }
     }
 
     // Returns the evaluative result of the last body whose condition was
     // conditionally true, or defaults to UNSET if there weren't any
     // (or NONE in legacy mode)
-
+    //
+    DROP_CALL(f);
     return R_OUT;
 }
 
@@ -576,7 +603,7 @@ REBNATIVE(case)
 //      block [block!] "Block to evaluate"
 //      /name
 //          "Catches a named throw" ;-- should it be called /named ?
-//      names [block! word! any-function! object!]
+//      names [block! word! function! object!]
 //          "Names to catch (single name if not block)"
 //      /quit
 //          "Special catch for QUIT native"
@@ -584,7 +611,7 @@ REBNATIVE(case)
 //          {Catch all throws except QUIT (can be used with /QUIT)}
 //      /with
 //          "Handle thrown case with code"
-//      handler [block! any-function!] 
+//      handler [block! function!]
 //      "If FUNCTION!, spec matches [value name]"
 //  ]
 //
@@ -602,23 +629,26 @@ REBNATIVE(catch)
     REFINE(6, with);
     PARAM(7, handler);
 
-    const REBOOL named = D_REF(2);
-    REBVAL * const name_list = D_ARG(3);
-
     // /ANY would override /NAME, so point out the potential confusion
     //
     if (REF(any) && REF(name))
         fail (Error(RE_BAD_REFINES));
 
-    if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
         if (
             (
                 REF(any)
-                && (!IS_NATIVE(D_OUT) || VAL_FUNC_CODE(D_OUT) != &N_quit)
+                && (
+                    !IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
+                    || VAL_FUNC_CODE(D_OUT) != &N_quit
+                )
             )
             || (
                 REF(quit)
-                && (IS_NATIVE(D_OUT) && VAL_FUNC_CODE(D_OUT) == &N_quit)
+                && (
+                    IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
+                    && VAL_FUNC_CODE(D_OUT) == &N_quit
+                )
             )
         ) {
             goto was_caught;
@@ -699,18 +729,18 @@ was_caught:
             //
             // There's no way to pass args to a block (so just DO it)
             //
-            if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                 return R_OUT_IS_THROWN;
 
             return R_OUT;
         }
-        else if (ANY_FUNC(handler)) {
-            REBVAL *param = VAL_FUNC_PARAMS_HEAD(handler);
-
+        else if (IS_FUNCTION(handler)) {
             //
             // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Va_Core()!
+            // There's no reason to have each of these cases when it
+            // could just be one call that either consumes all the
+            // subsequent args or does not.
             //
-
             if (
                 VAL_FUNC_NUM_PARAMS(handler) == 0
                 || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
@@ -762,7 +792,7 @@ was_caught:
 //  
 //      value [opt-any-value!] "Value returned from catch"
 //      /name "Throws to a named catch"
-//      name-value [word! any-function! object!]
+//      name-value [word! function! object!]
 //  ]
 //
 REBNATIVE(throw)
@@ -808,7 +838,7 @@ REBNATIVE(throw)
 
 
 //
-//  comment: native/frameless [
+//  comment: native/varless [
 //
 //  {Ignores the argument value and returns nothing (with no evaluations).}
 //
@@ -820,11 +850,11 @@ REBNATIVE(comment)
 {
     PARAM(1, value);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_QUOTED(D_OUT, D_CALL);
+        QUOTE_NEXT_REFETCH(D_OUT, D_FRAME);
 
         if (ANY_EVAL(D_OUT))
             fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_OUT)));
@@ -877,7 +907,7 @@ REBNATIVE(continue)
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
 //      source [unset! none! block! group! string! binary! url! file! tag!
-//      error! any-function!]
+//      error! function!]
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
 //      /next {Do next expression only, return it, update block variable}
@@ -892,7 +922,9 @@ REBNATIVE(do)
     REFINE(4, next);
     PARAM(5, var); // if NONE!, DO/NEXT only but no var update
 
-    switch (VAL_TYPE(ARG(value))) {
+    REBVAL *value = ARG(value);
+
+    switch (VAL_TYPE(value)) {
     case REB_UNSET:
         // useful for `do if ...` types of scenarios
         return R_UNSET;
@@ -904,12 +936,12 @@ REBNATIVE(do)
     case REB_BLOCK:
     case REB_GROUP:
         if (REF(next)) {
-            REBIXO indexor = VAL_INDEX(ARG(value));
+            REBIXO indexor = VAL_INDEX(value);
 
             DO_NEXT_MAY_THROW(
                 indexor, // updated
                 D_OUT,
-                VAL_ARRAY(ARG(value)),
+                VAL_ARRAY(value),
                 indexor
             );
 
@@ -921,7 +953,7 @@ REBNATIVE(do)
                 // longer actually the expression that started the throw?
 
                 if (!IS_NONE(ARG(var)))
-                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
+                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *value;
                 return R_OUT_IS_THROWN;
             }
 
@@ -936,9 +968,9 @@ REBNATIVE(do)
                 // recover the series again...you'd have to save it.
                 //
                 if (indexor == END_FLAG)
-                    VAL_INDEX(ARG(value)) = VAL_LEN_HEAD(ARG(value));
+                    VAL_INDEX(value) = VAL_LEN_HEAD(value);
                 else
-                    VAL_INDEX(ARG(value)) = cast(REBCNT, indexor);
+                    VAL_INDEX(value) = cast(REBCNT, indexor);
 
                 *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
             }
@@ -946,7 +978,7 @@ REBNATIVE(do)
             return R_OUT;
         }
 
-        if (DO_ARRAY_THROWS(D_OUT, ARG(value)))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, value))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -962,7 +994,7 @@ REBNATIVE(do)
         if (Apply_Only_Throws(
             D_OUT,
             Sys_Func(SYS_CTX_DO_P),
-            ARG(value),
+            value,
             REF(args) ? ARG(arg) : UNSET_VALUE,
             REF(next) ? ARG(var) : UNSET_VALUE,
             END_VALUE
@@ -979,22 +1011,33 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_CONTEXT(ARG(value)));
+        fail (VAL_CONTEXT(value));
 
-    case REB_TASK:
-        Do_Task(ARG(value));
-        *D_OUT = *ARG(value);
+    case REB_FUNCTION: {
+        //
+        // Ren-C will only run arity 0 functions from DO, otherwise EVAL
+        // must be used.  Look for the first non-local parameter to tell.
+        //
+        REBVAL *param = FUNC_PARAMS_HEAD(VAL_FUNC(value));
+        while (
+            NOT_END(param)
+            && (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
+        ) {
+            ++param;
+        }
+        if (NOT_END(param))
+            fail (Error(RE_USE_EVAL_FOR_EVAL));
+
+        if (DO_VALUE_THROWS(D_OUT, value))
+            return R_OUT_IS_THROWN;
         return R_OUT;
     }
 
-#if !defined(NDEBUG)
-    //
-    // !!! The LEGACY mode for DO that allows it to run functions is,
-    // like EVAL, implemented as part of the evaluator by recognizing
-    // the &N_do native function pointer.
-    //
-    assert(!LEGACY(OPTIONS_DO_RUNS_FUNCTIONS));
-#endif
+    case REB_TASK:
+        Do_Task(value);
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
     // Note: it is not possible to write a wrapper function in Rebol
     // which can do what EVAL can do for types that consume arguments
@@ -1012,8 +1055,12 @@ REBNATIVE(do)
 //  
 //      value [opt-any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
+//      args [opt-any-value! |]
+//          {Variable number of args required as evaluation's parameters}
 //      /only
 //          {Suppress evaluation on any ensuing arguments value consumes}
+//      :quoted [opt-any-value! |]
+//          {Variadic feed used to acquire quoted arguments (if needed)}
 //  ]
 //
 REBNATIVE(eval)
@@ -1021,8 +1068,30 @@ REBNATIVE(eval)
     // There should not be any way to call this actual function, because it
     // will be intercepted by recognizing its identity in the evaluator loop
     // itself (required to do the "magic")
-
+    //
     fail (Error(RE_MISC));
+}
+
+
+//
+//  variadic?: native [
+//
+//  {Returns TRUE if a function may take a variable number of arguments.}
+//
+//      func [function!]
+//  ]
+//
+REBNATIVE(variadic_q)
+{
+    PARAM(1, func);
+
+    REBVAL *param = VAL_FUNC_PARAMS_HEAD(ARG(func));
+    for (; NOT_END(param); ++param) {
+        if (GET_VAL_FLAG(param, TYPESET_FLAG_VARIADIC))
+            return R_TRUE;
+    }
+
+    return R_FALSE;
 }
 
 
@@ -1036,7 +1105,7 @@ REBNATIVE(eval)
 //      value [opt-any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
-//      level [frame! any-function! integer!]
+//      level [frame! function! integer!]
 //          "Frame, function, or stack index to exit from"
 //  ]
 //
@@ -1064,15 +1133,19 @@ REBNATIVE(exit)
     // EXIT skip consideration of non-FUNCTIONs.
     //
     if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
-        struct Reb_Call *call = call_->prior;
+        struct Reb_Frame *frame = frame_->prior;
 
-        while (call != NULL && !IS_FUNCTION(FUNC_VALUE(call->func)))
-            call = call->prior;
+        while (
+            frame != NULL
+            && FUNC_CLASS(frame->func) != FUNC_CLASS_USER
+        ) {
+            frame = frame->prior;
+        }
 
-        if (call == NULL)
+        if (frame == NULL)
             fail (Error(RE_INVALID_EXIT));
 
-        *D_OUT = *FUNC_VALUE(call->func);
+        *D_OUT = *FUNC_VALUE(frame->func);
 
         CONVERT_NAME_TO_THROWN(
             D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE
@@ -1109,7 +1182,7 @@ REBNATIVE(exit)
         SET_INTEGER(D_OUT, VAL_INT32(level) + 1);
     }
     else {
-        assert(IS_FRAME(level) || ANY_FUNC(level));
+        assert(IS_FRAME(level) || IS_FUNCTION(level));
 
         *D_OUT = *level;
     }
@@ -1188,7 +1261,7 @@ REBNATIVE(fail)
                 //
                 if (IS_WORD(item) || IS_GET_WORD(item)) {
                     const REBVAL *var = TRY_GET_OPT_VAR(item);
-                    if (!var || !ANY_FUNC(var))
+                    if (!var || !IS_FUNCTION(var))
                         continue;
                 }
 
@@ -1232,20 +1305,20 @@ REBNATIVE(fail)
 }
 
 
-static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
+static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);
 
     assert((trigger == TRUE) || (trigger == FALSE));
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
         // First evaluate the condition into D_OUT
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
@@ -1261,7 +1334,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             // Matched what we're looking for (TRUE for IF, FALSE for UNLESS)
             // DO_NEXT once to produce what would have been `ARG(branch)`
             //
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
 
@@ -1270,10 +1343,10 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             if (!IS_BLOCK(D_OUT))
                 return R_OUT;
 
-            // We know there is no /ONLY because frameless never runs
+            // We know there is no /ONLY because varless never runs
             // when you have refinements.  Hence always evaluate blocks.
             //
-            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
                 //
                 // This throw might be resumable, consider a case like:
                 //
@@ -1289,10 +1362,10 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
             return R_OUT;
         }
 
-        // Note that even when we don't *take* the branch, a frameless native
+        // Note that even when we don't *take* the branch, a varless native
         // needs to evaluate to get what would have been `ARG(branch)`.
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
 
@@ -1307,7 +1380,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
         if (REF(only) || !IS_BLOCK(ARG(branch))) {
             *D_OUT = *ARG(branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(branch)))
             return R_OUT_IS_THROWN;
     }
     else
@@ -1318,7 +1391,7 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
 
 
 //
-//  if: native/frameless [
+//  if: native/varless [
 //  
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
@@ -1329,12 +1402,12 @@ static REB_R If_Unless_Core(struct Reb_Call *call_, REBOOL trigger) {
 //
 REBNATIVE(if)
 {
-    return If_Unless_Core(call_, TRUE);
+    return If_Unless_Core(frame_, TRUE);
 }
 
 
 //
-//  unless: native/frameless [
+//  unless: native/varless [
 //
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
@@ -1345,12 +1418,12 @@ REBNATIVE(if)
 //
 REBNATIVE(unless)
 {
-    return If_Unless_Core(call_, FALSE);
+    return If_Unless_Core(frame_, FALSE);
 }
 
 
 //
-//  either: native/frameless [
+//  either: native/varless [
 //
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
@@ -1370,13 +1443,13 @@ REBNATIVE(either)
     REBVAL dummy; // Place to write unused result, no GC safety needed
     VAL_INIT_WRITABLE_DEBUG(&dummy);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
 
         // First evaluate the condition into D_OUT
         //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG)
             return R_OUT_IS_THROWN;
@@ -1394,7 +1467,7 @@ REBNATIVE(either)
         // `dummy` as scratch space.
         //
         if (IS_CONDITIONAL_TRUE(D_OUT)) {
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
@@ -1402,7 +1475,7 @@ REBNATIVE(either)
             if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = dummy;
@@ -1410,7 +1483,7 @@ REBNATIVE(either)
             }
         }
         else {
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG) {
                 *D_OUT = dummy;
@@ -1420,7 +1493,7 @@ REBNATIVE(either)
             if (D_INDEXOR == END_FLAG)
                 fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
 
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_CALL, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
 
             if (D_INDEXOR == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
@@ -1430,7 +1503,7 @@ REBNATIVE(either)
         // working with for the output, and we also know there's no /ONLY.
         //
         if (IS_BLOCK(D_OUT)) {
-            if (DO_ARRAY_THROWS(D_OUT, D_OUT)) { // array = out is safe
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
                 //
                 // This throw might be resumable, consider a case like:
                 //
@@ -1457,14 +1530,14 @@ REBNATIVE(either)
         if (REF(only) || !IS_BLOCK(ARG(true_branch))) {
             *D_OUT = *ARG(true_branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(true_branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(true_branch)))
             return R_OUT_IS_THROWN;
     }
     else {
         if (REF(only) || !IS_BLOCK(ARG(false_branch))) {
             *D_OUT = *ARG(false_branch);
         }
-        else if (DO_ARRAY_THROWS(D_OUT, ARG(false_branch)))
+        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(false_branch)))
             return R_OUT_IS_THROWN;
     }
 
@@ -1498,7 +1571,7 @@ REBNATIVE(protect)
     else SET_FLAG(flags, PROT_WORD); // there is no unhide
 
     // accesses arguments 1 - 4
-    return Protect(call_, flags);
+    return Protect(frame_, flags);
 }
 
 
@@ -1516,7 +1589,7 @@ REBNATIVE(protect)
 REBNATIVE(unprotect)
 {
     // accesses arguments 1 - 4
-    return Protect(call_, FLAGIT(PROT_WORD));
+    return Protect(frame_, FLAGIT(PROT_WORD));
 }
 
 
@@ -1606,43 +1679,21 @@ REBNATIVE(switch)
         // You can still evaluate to one of these, e.g. `(quote :foo)` to
         // use parens to produce a GET-WORD! to test against.
 
-        if (IS_GROUP(item)) {
+        if (IS_GROUP(item) || IS_GET_WORD(item) || IS_GET_PATH(item)) {
 
         #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
+            //
+            // Note: Mezzanine can no longer support a non-eval'ing switch.
+            // Guide usage of the flag by currently running function *only*.
+            //
+            if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_EVALS)) {
                 *D_OUT = *item;
                 goto compare_values;
             }
         #endif
 
-            if (DO_ARRAY_THROWS(D_OUT, item))
+            if (DO_VALUE_THROWS(D_OUT, item))
                 return R_OUT_IS_THROWN;
-        }
-        else if (IS_GET_WORD(item)) {
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
-                *D_OUT = *item;
-                goto compare_values;
-            }
-        #endif
-
-            *D_OUT = *GET_OPT_VAR_MAY_FAIL(item);
-        }
-        else if (IS_GET_PATH(item)) {
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_NO_SWITCH_EVALS)) {
-                // !!! Note this as a delta in the legacy log
-                *D_OUT = *item;
-                goto compare_values;
-            }
-        #endif
-
-            if (Do_Path_Throws(D_OUT, NULL, item, NULL))
-                return R_OUT;
         }
         else {
             // Even if we're just using the item literally, we need to copy
@@ -1674,7 +1725,7 @@ REBNATIVE(switch)
 
         found = TRUE;
 
-        if (DO_ARRAY_THROWS(D_OUT, item))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, item))
             return R_OUT_IS_THROWN;
 
         // Only keep processing if the /ALL refinement was specified
@@ -1683,29 +1734,22 @@ REBNATIVE(switch)
     }
 
     if (!found && IS_BLOCK(default_case)) {
-        if (DO_ARRAY_THROWS(D_OUT, default_case))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, default_case))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
     }
 
     #if !defined(NDEBUG)
-        // The previous answer to `switch 1 [1]` was a NONE!.  This was
-        // a candidate for marking as an error, however the new idea is to
-        // let cases that do not have a block after them be evaluated
-        // (if necessary) and the last one to fall through and be the
-        // result.  This offers a nicer syntax for a default, especially
-        // when GROUP! is taken into account.
         //
-        // However, running in legacy compatibility mode we need to squash
-        // the value into a NONE! so it doesn't fall through.
+        // R3-Alpha made `switch 1 [1]` NONE!, in Ren-C this is 1 (and useful
+        // especially with evaluated items like GROUP! for a fallthrough
+        // syntax alternative to `switch/default`.)  Mezzanine relies on this
+        // now, so only use the legacy behavior if the currently running
+        // function is "legacy" marked.  It's not perfect, see notes.
         //
-        if (LEGACY(OPTIONS_NO_SWITCH_FALLTHROUGH)) {
-            if (!IS_NONE(D_OUT)) {
-                // !!! Note this difference in legacy log
-            }
+        if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_FALLTHROUGH))
             return R_NONE;
-        }
     #endif
 
     return R_OUT;
@@ -1719,7 +1763,7 @@ REBNATIVE(switch)
 //  
 //      block [block!]
 //      /with "Handle error case with code"
-//      handler [block! any-function!] 
+//      handler [block! function!]
 //      "If FUNCTION!, spec allows [error [error!]]"
 //  ]
 //
@@ -1743,12 +1787,12 @@ REBNATIVE(trap)
 
             if (IS_BLOCK(handler)) {
                 // There's no way to pass 'error' to a block (so just DO it)
-                if (DO_ARRAY_THROWS(D_OUT, ARG(handler)))
+                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
                 return R_OUT;
             }
-            else if (ANY_FUNC(handler)) {
+            else if (IS_FUNCTION(handler)) {
 
                 if (
                     (VAL_FUNC_NUM_PARAMS(handler) == 0)
@@ -1783,7 +1827,7 @@ REBNATIVE(trap)
         return R_OUT;
     }
 
-    if (DO_ARRAY_THROWS(D_OUT, ARG(block))) {
+    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
         // Note that we are interested in when errors are raised, which
         // causes a tricky C longjmp() to the code above.  Yet a THROW
         // is different from that, and offers an opportunity to each

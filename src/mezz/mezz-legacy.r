@@ -56,7 +56,7 @@ op?: func [
     "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
     value [opt-any-value!]
 ][
-    either any-function? :value [:infix? :value] false
+    either function? :value [:infix? :value] false
 ]
 
 
@@ -240,6 +240,18 @@ selfless?: func [context [any-context!]] [
 ]
 
 
+; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
+; (since PRIN of a block would historically execute it).
+;
+prin: function [
+    "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
+
+    value [opt-any-value!]
+][
+    print/only either block? :value [reduce value] [:value]
+]
+
+
 ; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
 ; the word RETURN in the refinement (return from where, who?) became only
 ; more confusing with the introduction of definitional return.
@@ -358,7 +370,7 @@ try: func [
     {Tries to DO a block and returns its value or an error.}
     block [block!]
     /except "On exception, evaluate this code block"
-    code [block! any-function!]
+    code [block! function!]
 ][
     either except [trap/with block :code] [trap block]
 ]
@@ -391,12 +403,12 @@ has: func [
 ;
 ; (It is still lightly optimized as a FUNC with no additional vars in frame)
 ;
-apply: func [
+r3-alpha-apply: func [
     "Apply a function to a reduced block of arguments."
 
     ; This does not work with infix operations.  It *could* be adapted to
     ; work, but as a legacy concept it's easier just to say don't do it.
-    func [function! action! native! routine! command!]
+    func [function!]
         "Function value to apply"
     block [block!]
         "Block of args, reduced first (unless /only)"
@@ -503,19 +515,17 @@ closure: func [
     /extern
         {These words are not local}
     words [block!]
-
-    frame: ;-- local
 ][
-    frame: make frame! :function
-
-    frame/spec: compose [<durable> (spec)]
-    frame/body: body
-    frame/with: with
-    set/opt 'frame/object :object
-    frame/extern: extern
-    set/opt 'frame/words :words
-
-    eval frame
+    apply :function [
+        spec: compose [<durable> (spec)]
+        body: body
+        if with: with [
+            object: object
+        ]
+        if extern: extern [
+            words: :words
+        ]
+    ]
 ]
 
 clos: func [
@@ -530,6 +540,61 @@ clos: func [
 
 closure!: :function!
 closure?: :function?
+
+; All other function classes are also folded into the one FUNCTION! type ATM.
+
+any-function!: :function!
+any-function?: :function?
+
+native!: function!
+native?: func [f] [all [function? :f | 1 = func-class-of :f]]
+
+;-- If there were a test for user-written functions, what would it be called?
+;-- it would be function class 2 ATM
+
+action!: function!
+action?: func [f] [all [function? :f | 3 = func-class-of :f]]
+
+command!: function!
+command?: func [f] [all [function? :f | 4 = func-class-of :f]]
+
+routine!: function!
+routine?: func [f] [all [function? :f | 5 = func-class-of :f]]
+
+callback!: function!
+callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
+
+; To bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
+; while still letting ROUTINE!, COMMAND!, and CALLBACK! be valid to use in
+; typesets invokes the new variadic behavior.  This can only work if the
+; source literally wrote out `make routine!` vs an expression that evaluated
+; to the routine! datatype (for instance) but should cover most cases.
+;
+lib-make: :lib/make
+make: func [
+    "Constructs or allocates the specified datatype."
+    :lookahead [opt-any-value! <...>]
+    type [opt-any-value! <...>]
+        "The datatype or an example value"
+    spec [opt-any-value! <...>]
+        "Attributes or size of the new value (modified)"
+][
+    switch first lookahead [
+        callback! [
+            assert [function! = take type]
+            make-callback take spec
+        ]
+        routine! [
+            assert [function! = take type]
+            make-routine take spec
+        ]
+        command! [
+            assert [function! = take type]
+            make-command take spec
+        ]
+        (lib-make take type take spec)
+    ]
+]
 
 
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
@@ -558,8 +623,72 @@ set 'r3-legacy* func [] [
 
         xor: (:xor-)
 
+        apply: (:r3-alpha-apply)
+
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
+
+        ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it
+        ; a function, it could "reach out" to grab arguments from after the
+        ; call.  While Ren-C permits this in variadic functions, the system
+        ; functions should be "well behaved" and there will even likely be
+        ; a security setting to turn variadics off (system-wide or per module)
+        ;
+        ; https://trello.com/c/YMAb89dv
+        ;
+        ; This legacy bridge is variadic to achieve the result.
+        ;
+        do: (function [
+            {Evaluates a block of source code (variadic <r3-legacy> bridge)}
+
+            source [unset! none! block! group! string! binary! url! file! tag!
+                error! function!
+            ]
+            normals [any-type! <...>]
+                {Normal variadic parameters if function (<r3-legacy> only)}
+            'softs [any-type! <...>]
+                {Soft-quote variadic parameters if function (<r3-legacy> only)}
+            :hards [any-type! <...>]
+                {Hard-quote variadic parameters if function (<r3-legacy> only)}
+            /args
+                {If value is a script, this will set its system/script/args}
+            arg
+                "Args passed to a script (normally a string)"
+            /next
+                {Do next expression only, return it, update block variable}
+            var [word! none!]
+                "Variable updated with new block position"
+        ][
+            next_DO: next
+            next: :lib/next
+
+            either function? :source [
+                code: reduce [:source]
+                params: words-of :source
+                while [params/1] [
+                    append code switch type-of params/1 [
+                        :word! [take normals]
+                        :lit-word! [take softs]
+                        :get-word! [take hards]
+                        :set-word! [()] ;-- unset appends nothing (for local)
+                        :refinement! [break]
+                        (fail ["bad param type" params/1])
+                    ]
+                    params: next params
+                ]
+                lib/do code
+            ][
+                apply :lib/do [
+                    source: :source
+                    if args: args [
+                        arg: :arg
+                    ]
+                    if next: next_DO [
+                        var: :var
+                    ]
+                ]
+            ]
+        ])
 
         ; Ren-C removed the "simple parse" functionality, which has been
         ; superseded by SPLIT.  For the legacy parse implementation, add
@@ -880,7 +1009,6 @@ set 'r3-legacy* func [] [
     ; refinements/etc.)
     ;
     system/options/lit-word-decay: true
-    system/options/do-runs-functions: true
     system/options/broken-case-semantics: true
     system/options/exit-functions-only: true
     system/options/refinements-true: true

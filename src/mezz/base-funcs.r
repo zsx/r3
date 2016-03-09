@@ -239,7 +239,7 @@ cause-error: func [
     args: compose [(:args)]
     ; Filter out functional values:
     for-next args [
-        if any-function? first args [
+        if function? first args [
             change/only args spec-of first args
         ]
     ]
@@ -264,24 +264,24 @@ default: func [
 
 ensure: func [
     {Pass through a value that isn't UNSET! or FALSE?, but FAIL otherwise}
-    value [opt-any-value!]
-    /only
-        {Only check the value isn't UNSET!--FALSE and NONE okay}
+    arg [opt-any-value!]
+    /value
+        {Only check for ANY-VALUE? (FALSE and NONE ok, but not UNSET!)}
     /type
     types [block! datatype! typeset!]
         {FAIL only if not one of these types (block converts to TYPESET!)}
 
     ; !!! To be rewritten as a native once behavior is pinned down.
 ][
-    unless any-value? :value [
+    unless any-value? :arg [
         unless type [fail "ENSURE did not expect value to be UNSET!"]
     ]
 
     unless type [
-        unless any [value only] [
-            fail ["ENSURE did not expect value to be" (mold :value)]
+        unless any [arg value] [
+            fail ["ENSURE did not expect arg to be" (mold :arg)]
         ]
-        return :value
+        return :arg
     ]
 
     unless find (case [
@@ -289,10 +289,10 @@ ensure: func [
         typeset? :types [types]
         datatype? :types [reduce [types]] ;-- we'll find DATATYPE! in a block
         fail 'unreachable
-    ]) type-of :value [
-        fail ["ENSURE did not expect value to have type" (type-of :value)]
+    ]) type-of :arg [
+        fail ["ENSURE did not expect arg to have type" (type-of :arg)]
     ]
-    :value
+    :arg
 ]
 
 

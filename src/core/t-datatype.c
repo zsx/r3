@@ -65,7 +65,6 @@ REBTYPE(Datatype)
     REBVAL *arg = D_ARG(2);
     REBACT act;
     enum Reb_Kind kind = VAL_TYPE_KIND(value);
-    REBCTX *obj;
     REBINT n;
 
     switch (action) {
@@ -73,22 +72,42 @@ REBTYPE(Datatype)
     case A_REFLECT:
         n = What_Reflector(arg); // zero on error
         if (n == OF_SPEC) {
-            obj = Make_Std_Object_Managed(STD_TYPE_SPEC);
-            Set_Object_Values(
-                obj,
-                ARR_HEAD(
-                    VAL_TYPE_SPEC(CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)))
-                )
+            //
+            // The "type specs" were loaded as an array, but this reflector
+            // wants to give back an object.  Combine the array with the
+            // standard object that mirrors its field order.
+            //
+            REBVAL *var;
+            REBVAL *key;
+
+            REBVAL *value;
+
+            REBCTX *context = Copy_Context_Shallow(
+                VAL_CONTEXT(Get_System(SYS_STANDARD, STD_TYPE_SPEC))
             );
-            Val_Init_Object(D_OUT, obj);
-        }
-        else if (n == OF_TITLE) {
-            Val_Init_String(
-                D_OUT,
-                Copy_Sequence(VAL_SERIES(ARR_HEAD(
-                    VAL_TYPE_SPEC(CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)))
-                )))
+            MANAGE_ARRAY(CTX_VARLIST(context));
+
+            assert(CTX_TYPE(context) == REB_OBJECT);
+
+            key = CTX_KEYS_HEAD(context);
+            var = CTX_VARS_HEAD(context);
+
+            // !!! Account for the "invisible" self key in the current
+            // stop-gap implementation of self, still default on MAKE OBJECT!s
+            //
+            assert(VAL_TYPESET_SYM(key) == SYM_SELF);
+            ++key; ++var;
+
+            value = ARR_HEAD(
+                VAL_TYPE_SPEC(CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)))
             );
+
+            for (; NOT_END(var); ++var, ++key) {
+                if (IS_END(value)) SET_NONE(var);
+                else *var = *value++;
+            }
+
+            Val_Init_Object(D_OUT, context);
         }
         else
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
@@ -98,7 +117,7 @@ REBTYPE(Datatype)
     case A_TO:
         if (kind != REB_DATATYPE) {
             act = Value_Dispatch[TO_0_FROM_KIND(kind)];
-            if (act) return act(call_, action);
+            if (act) return act(frame_, action);
             //return R_NONE;
             fail (Error_Bad_Make(kind, arg));
         }

@@ -297,13 +297,6 @@ REBNATIVE(evoke)
             case SYM_WATCH_RECYCLE:
                 Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
-            case SYM_WATCH_OBJ_COPY:
-                Reb_Opts->watch_obj_copy = NOT(Reb_Opts->watch_obj_copy);
-                break;
-            case SYM_STACK_SIZE:
-                arg++;
-                Expand_Stack(Int32s(arg, 1));
-                break;
             case SYM_CRASH:
                 panic (Error(RE_MISC));
             default:
@@ -314,7 +307,7 @@ REBNATIVE(evoke)
             switch (Int32(arg)) {
             case 0:
                 Check_Memory();
-                Check_Bind_Table();
+                Assert_Bind_Table_Empty();
                 break;
             case 1:
                 Reb_Opts->watch_expand = TRUE;
@@ -323,7 +316,7 @@ REBNATIVE(evoke)
                 Check_Memory();
                 break;
             case 3:
-                Check_Bind_Table();
+                Assert_Bind_Table_Empty();
                 break;
             default:
                 Out_Str(cb_cast(evoke_help), 1);
@@ -362,7 +355,7 @@ REBNATIVE(limit_usage)
 
 
 //
-//  Where_For_Call: C
+//  Make_Where_For_Frame: C
 //
 // Each call frame maintains the array it is executing in, the current index
 // in that array, and the index of where the current expression started.
@@ -383,7 +376,7 @@ REBNATIVE(limit_usage)
 // evaluation thinks it currently is) aren't out of bounds here.  We could
 // be giving back positions now unrelated to the call...but it won't crash!
 //
-REBARR *Where_For_Call(struct Reb_Call *call)
+REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
 {
     REBCNT start;
     REBCNT end;
@@ -391,32 +384,19 @@ REBARR *Where_For_Call(struct Reb_Call *call)
     REBARR *where;
     REBOOL pending;
 
-    if (DSF_IS_VARARGS(call)) {
-        //
-        // !!! Not yet implemented: the reporting of errors that occur when
-        // a C va_list is used.  The historical instances of this were
-        // system calls that really would be difficult to know what was
-        // going wrong--and there wasn't much notice or tolerance of failure,
-        // but Ren-C is going to permit these calls everywhere and needs
-        // a better story.
-        //
-        // What needs to happen is that the args must be reified; it would
-        // make it impossible to continue evaluating after this point unless
-        // the va_list was transformed into an array.  This is similar to
-        // what needs to be done if there is a GC in the middle of an
-        // arbitrary va_list-based evaluation.
-        //
-        assert(FALSE);
+    if (FRM_IS_VALIST(frame)) {
+        const REBOOL truncated = TRUE;
+        Reify_Va_To_Array_In_Frame(frame, truncated);
     }
 
     // WARNING: MIN is a C macro and repeats its arguments.
     //
-    start = MIN(ARR_LEN(DSF_ARRAY(call)), cast(REBCNT, call->expr_index));
-    end = MIN(ARR_LEN(DSF_ARRAY(call)), DSF_INDEX(call));
+    start = MIN(ARR_LEN(FRM_ARRAY(frame)), cast(REBCNT, frame->expr_index));
+    end = MIN(ARR_LEN(FRM_ARRAY(frame)), FRM_INDEX(frame));
 
     assert(end >= start);
-    assert(call->mode != CALL_MODE_GUARD_ARRAY_ONLY);
-    pending = NOT(call->mode == CALL_MODE_FUNCTION);
+    assert(frame->mode != CALL_MODE_GUARD_ARRAY_ONLY);
+    pending = NOT(frame->mode == CALL_MODE_FUNCTION);
 
     // Do a shallow copy so that the WHERE information only includes
     // the range of the array being executed up to the point of
@@ -438,11 +418,11 @@ REBARR *Where_For_Call(struct Reb_Call *call)
         // If the execution were a path or anything other than a word, this
         // will lose it.
         //
-        Val_Init_Word(ARR_AT(where, n), REB_WORD, call->label_sym);
+        Val_Init_Word(ARR_AT(where, n), REB_WORD, FRM_LABEL(frame));
         ++n;
 
         for (n = 1; n < len; ++n)
-            *ARR_AT(where, n) = *ARR_AT(DSF_ARRAY(call), start + n - 1);
+            *ARR_AT(where, n) = *ARR_AT(FRM_ARRAY(frame), start + n - 1);
 
         SET_ARRAY_LEN(where, len);
         TERM_ARRAY(where);
@@ -478,7 +458,7 @@ REBARR *Where_For_Call(struct Reb_Call *call)
 //
 //  "Get execution point summary for a function call (if still on stack)"
 //
-//      level [frame! any-function! integer! none!]
+//      level [frame! function! integer! none!]
 //  ]
 //
 REBNATIVE(where_of)
@@ -488,11 +468,11 @@ REBNATIVE(where_of)
 {
     PARAM(1, level);
 
-    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
-    if (!call)
+    struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
+    if (frame == NULL)
         fail (Error_Invalid_Arg(ARG(level)));
 
-    Val_Init_Block(D_OUT, Where_For_Call(call));
+    Val_Init_Block(D_OUT, Make_Where_For_Frame(frame));
     return R_OUT;
 }
 
@@ -502,18 +482,18 @@ REBNATIVE(where_of)
 //
 //  "Get word label used to invoke a function call (if still on stack)"
 //
-//      level [frame! any-function! integer! none!]
+//      level [frame! function! integer! none!]
 //  ]
 //
 REBNATIVE(label_of)
 {
     PARAM(1, level);
 
-    struct Reb_Call *call = Call_For_Stack_Level(NULL, ARG(level), TRUE);
-    if (!call)
+    struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
+    if (frame == NULL)
         fail (Error_Invalid_Arg(ARG(level)));
 
-    Val_Init_Word(D_OUT, REB_WORD, call->label_sym);
+    Val_Init_Word(D_OUT, REB_WORD, FRM_LABEL(frame));
     return R_OUT;
 }
 
@@ -538,15 +518,15 @@ REBNATIVE(function_of)
         // which should be coercible to a function even when the call is
         // no longer on the stack.
         //
-        REBCTX *ctx = VAL_CONTEXT(level);
-        *D_OUT = *FUNC_VALUE(FRM_FUNC(ctx));
+        REBCTX *context = VAL_CONTEXT(level);
+        *D_OUT = *FUNC_VALUE(CTX_FRAME_FUNC(context));
     }
     else {
-        struct Reb_Call *call = Call_For_Stack_Level(NULL, level, TRUE);
-        if (!call)
+        struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, level, TRUE);
+        if (!frame)
             fail (Error_Invalid_Arg(level));
 
-        *D_OUT = *FUNC_VALUE(call->func);
+        *D_OUT = *FUNC_VALUE(frame->func);
     }
 
     return R_OUT;
@@ -590,14 +570,14 @@ REBNATIVE(backtrace)
     REBVAL *level = ARG(level);
 
     // Note: Running this code path is *intentionally* redundant with
-    // Call_For_Stack_Level, as a way of keeping the numbers listed in a
+    // Frame_For_Stack_Level, as a way of keeping the numbers listed in a
     // backtrace lined up with what that routine returns.  This isn't a very
     // performance-critical routine, so it's good to have the doublecheck.
     //
     REBOOL get_frame = NOT(IS_UNSET(level) || IS_NONE(level));
 
     REBARR *backtrace;
-    struct Reb_Call *call;
+    struct Reb_Frame *frame;
 
     Check_Security(SYM_DEBUG, POL_READ, 0);
 
@@ -641,8 +621,8 @@ REBNATIVE(backtrace)
         //
         index = 0;
         row = 0;
-        for (call = DSF->prior; call != NULL; call = PRIOR_DSF(call)) {
-            if (call->mode == CALL_MODE_GUARD_ARRAY_ONLY) continue;
+        for (frame = FS_TOP->prior; frame != NULL; frame = FRM_PRIOR(frame)) {
+            if (frame->mode == CALL_MODE_GUARD_ARRAY_ONLY) continue;
 
             // index and property, unless /BRIEF in which case it will just
             // be the property.
@@ -670,7 +650,7 @@ REBNATIVE(backtrace)
 
     row = 0;
     number = 0;
-    for (call = DSF->prior; call != NULL; call = call->prior) {
+    for (frame = FS_TOP->prior; frame != NULL; frame = frame->prior) {
         REBCNT len;
         REBVAL *temp;
         REBOOL pending;
@@ -683,18 +663,18 @@ REBNATIVE(backtrace)
         // be interesting to see GROUP! stack levels that are being
         // executed as well (as they are something like DO).
         //
-        if (call->mode == CALL_MODE_GUARD_ARRAY_ONLY)
+        if (frame->mode == CALL_MODE_GUARD_ARRAY_ONLY)
             continue;
 
-        if (call->mode == CALL_MODE_FUNCTION) {
+        if (frame->mode == CALL_MODE_FUNCTION) {
             pending = FALSE;
 
             if (
                 first
-                && IS_NATIVE(FUNC_VALUE(call->func))
+                && IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
                 && (
-                    FUNC_CODE(call->func) == &N_pause
-                    || FUNC_CODE(call->func) == &N_breakpoint
+                    FUNC_CODE(frame->func) == &N_pause
+                    || FUNC_CODE(frame->func) == &N_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -722,17 +702,17 @@ REBNATIVE(backtrace)
         // function frames to do binding in the REPL with.
         //
         if (!pending) {
-            REBCNT temp_number;
-            REBVAL temp_value;
-            VAL_INIT_WRITABLE_DEBUG(&temp_value);
-            SET_INTEGER(&temp_value, number);
+            REBCNT temp_num;
+            REBVAL temp_val;
+            VAL_INIT_WRITABLE_DEBUG(&temp_val);
+            SET_INTEGER(&temp_val, number);
 
             if (
-                Call_For_Stack_Level(&temp_number, &temp_value, TRUE) != call
-                || temp_number != number
+                Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != frame
+                || temp_num != number
             ) {
                 Debug_Fmt(
-                    "%d != Call_For_Stack_Level %d", number, temp_number
+                    "%d != Frame_For_Stack_Level %d", number, temp_num
                 );
                 assert(FALSE);
             }
@@ -745,8 +725,8 @@ REBNATIVE(backtrace)
                     continue;
             }
             else {
-                assert(ANY_FUNC(level));
-                if (call->func != VAL_FUNC(level))
+                assert(IS_FUNCTION(level));
+                if (frame->func != VAL_FUNC(level))
                     continue;
             }
         }
@@ -782,7 +762,9 @@ REBNATIVE(backtrace)
             // `where-of`, `label-of`, `function-of`, etc.)
             //
             Val_Init_Context(
-                D_OUT, REB_FRAME, Frame_For_Call_May_Reify(call, NULL, FALSE)
+                D_OUT,
+                REB_FRAME,
+                Context_For_Frame_May_Reify(frame, NULL, FALSE)
             );
             return R_OUT;
         }
@@ -795,11 +777,11 @@ REBNATIVE(backtrace)
         //
         temp = ARR_AT(backtrace, --index);
         if (REF(brief)) {
-            Val_Init_Word(temp, REB_WORD, DSF_LABEL_SYM(call));
+            Val_Init_Word(temp, REB_WORD, FRM_LABEL(frame));
             continue;
         }
 
-        Val_Init_Block(temp, Where_For_Call(call));
+        Val_Init_Block(temp, Make_Where_For_Frame(frame));
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
@@ -858,7 +840,7 @@ REBNATIVE(backtrace)
 
 
 //
-//  Call_For_Stack_Level: C
+//  Frame_For_Stack_Level: C
 //
 // Level can be an UNSET!, an INTEGER!, an ANY-FUNCTION!, or a FRAME!.  If
 // level is UNSET! then it means give whatever the first call found is.
@@ -873,12 +855,12 @@ REBNATIVE(backtrace)
 // unify the logic for omitting things like breakpoint frames, or either
 // considering pending frames or not...
 //
-struct Reb_Call *Call_For_Stack_Level(
+struct Reb_Frame *Frame_For_Stack_Level(
     REBCNT *number_out,
     const REBVAL *level,
     REBOOL skip_current
 ) {
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
     REBOOL first = TRUE;
     REBINT num = 0;
 
@@ -898,10 +880,10 @@ struct Reb_Call *Call_For_Stack_Level(
     // omit otherwise (pending? parens?)
     //
     if (skip_current)
-        call = call->prior;
+        frame = frame->prior;
 
-    for (; call != NULL; call = call->prior) {
-        if (call->mode != CALL_MODE_FUNCTION) {
+    for (; frame != NULL; frame = frame->prior) {
+        if (frame->mode != CALL_MODE_FUNCTION) {
             //
             // Don't consider pending calls, or GROUP!, or any non-invoked
             // function as a candidate to target.
@@ -919,10 +901,10 @@ struct Reb_Call *Call_For_Stack_Level(
 
         if (first) {
             if (
-                IS_NATIVE(FUNC_VALUE(call->func))
+                IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
                 && (
-                    FUNC_CODE(call->func) == &N_pause
-                    || FUNC_CODE(call->func) == N_breakpoint
+                    FUNC_CODE(frame->func) == &N_pause
+                    || FUNC_CODE(frame->func) == N_breakpoint
                 )
             ) {
                 // this is considered the "0".  Return it only if 0 was requested
@@ -945,7 +927,7 @@ struct Reb_Call *Call_For_Stack_Level(
 
         first = FALSE;
 
-        if (call->mode != CALL_MODE_FUNCTION) {
+        if (frame->mode != CALL_MODE_FUNCTION) {
             //
             // Pending frames don't get numbered
             //
@@ -965,15 +947,15 @@ struct Reb_Call *Call_For_Stack_Level(
         }
         else if (IS_FRAME(level)) {
             if (
-                (call->flags & DO_FLAG_FRAME_CONTEXT)
-                && call->frame.context == VAL_CONTEXT(level)
+                (frame->flags & DO_FLAG_FRAME_CONTEXT)
+                && frame->data.context == VAL_CONTEXT(level)
             ) {
                 goto return_maybe_set_number_out;
             }
         }
         else {
-            assert(ANY_FUNC(level));
-            if (VAL_FUNC(level) == call->func)
+            assert(IS_FUNCTION(level));
+            if (VAL_FUNC(level) == frame->func)
                 goto return_maybe_set_number_out;
         }
     }
@@ -985,7 +967,7 @@ struct Reb_Call *Call_For_Stack_Level(
 return_maybe_set_number_out:
     if (number_out)
         *number_out = num;
-    return call;
+    return frame;
 }
 
 
@@ -1098,7 +1080,7 @@ REBOOL Do_Breakpoint_Throws(
 
         // Decode and process the "resume instruction"
         {
-            struct Reb_Call *call;
+            struct Reb_Frame *frame;
             REBVAL *mode;
             REBVAL *payload;
 
@@ -1120,20 +1102,20 @@ REBOOL Do_Breakpoint_Throws(
                 REBOOL found = FALSE;
             #endif
 
-                for (call = DSF; call != NULL; call = call->prior) {
-                    if (call->mode != CALL_MODE_FUNCTION)
+                for (frame = FS_TOP; frame != NULL; frame = frame->prior) {
+                    if (frame->mode != CALL_MODE_FUNCTION)
                         continue;
 
                     if (
-                        call != DSF
-                        && VAL_TYPE(FUNC_VALUE(call->func)) == REB_NATIVE
+                        frame != FS_TOP
+                        && FUNC_CLASS(frame->func) == FUNC_CLASS_NATIVE
                         && (
-                            FUNC_CODE(call->func) == &N_pause
-                            || FUNC_CODE(call->func) == &N_breakpoint
+                            FUNC_CODE(frame->func) == &N_pause
+                            || FUNC_CODE(frame->func) == &N_breakpoint
                         )
                     ) {
                         // We hit a breakpoint (that wasn't this call to
-                        // breakpoint, at the current DSF) before finding
+                        // breakpoint, at the current FS_TOP) before finding
                         // the sought after target.  Retransmit the resume
                         // instruction so that level will get it instead.
                         //
@@ -1143,11 +1125,11 @@ REBOOL Do_Breakpoint_Throws(
                     }
 
                     if (IS_FRAME(target)) {
-                        if (NOT(call->flags & DO_FLAG_FRAME_CONTEXT))
+                        if (NOT(frame->flags & DO_FLAG_FRAME_CONTEXT))
                             continue;
                         if (
                             VAL_CONTEXT(target)
-                            == AS_CONTEXT(call->frame.context)
+                            == AS_CONTEXT(frame->data.context)
                         ) {
                             // Found a closure matching the target before we
                             // reached a breakpoint, no need to retransmit.
@@ -1159,10 +1141,10 @@ REBOOL Do_Breakpoint_Throws(
                         }
                     }
                     else {
-                        assert(ANY_FUNC(target));
-                        if (call->flags & DO_FLAG_FRAME_CONTEXT)
+                        assert(IS_FUNCTION(target));
+                        if (frame->flags & DO_FLAG_FRAME_CONTEXT)
                             continue;
-                        if (VAL_FUNC(target) == call->func) {
+                        if (VAL_FUNC(target) == frame->func) {
                             //
                             // Found a function matching the target before we
                             // reached a breakpoint, no need to retransmit.
@@ -1196,7 +1178,7 @@ REBOOL Do_Breakpoint_Throws(
             assert(IS_LOGIC(mode));
 
             if (VAL_LOGIC(mode)) {
-                if (DO_ARRAY_THROWS(&temp, payload)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&temp, payload)) {
                     //
                     // Throwing is not compatible with /AT currently.
                     //
@@ -1225,7 +1207,7 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
-        if (DO_ARRAY_THROWS(&temp, default_value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&temp, default_value)) {
             //
             // If the code throws, we're no longer in the sandbox...so we
             // bubble it up.  Note that breakpoint runs this code at its
@@ -1337,7 +1319,7 @@ REBNATIVE(pause)
 //          "Code to evaluate"
 //      /at
 //          "Return from another call up stack besides the breakpoint"
-//      level [frame! any-function! integer!]
+//      level [frame! function! integer!]
 //          "Stack level to target in unwinding (can be BACKTRACE #)"
 //  ]
 //
@@ -1360,7 +1342,6 @@ REBNATIVE(resume)
     REFINE(5, at);
     PARAM(6, level);
 
-    struct Reb_Call *target;
     REBARR *instruction;
 
     REBVAL cell;
@@ -1400,22 +1381,28 @@ REBNATIVE(resume)
         // We want BREAKPOINT to resume /AT a higher stack level (using the
         // same machinery that definitionally-scoped return would to do it).
 
+        struct Reb_Frame *frame;
+
         if (VAL_INT32(ARG(level)) < 0)
             fail (Error_Invalid_Arg(ARG(level)));
 
-        // !!! `target` should just be a "FRAME!" (once the new type exists)
+        // `level` is currently allowed to be anything that backtrace can
+        // handle (integers, functions for most recent call, literal FRAME!)
 
-        if (!(target = Call_For_Stack_Level(NULL, ARG(level), TRUE)))
+        if (!(frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE)))
             fail (Error_Invalid_Arg(ARG(level)));
 
-        if (IS_OBJECT(FUNC_VALUE(target->func))) {
+        // !!! ??? Why is this checking to see if the frame->func is an
+        // object here?  It will always fail.  Investigate original intent.
+        //
+        if (IS_OBJECT(FUNC_VALUE(frame->func))) {
             //
             // !!! A CLOSURE! or FUNCTION! instantiation can be successfully
             // identified by its frame, as it is a unique object.
             //
             Val_Init_Object(
                 ARR_AT(instruction, RESUME_INST_TARGET),
-                AS_CONTEXT(target->frame.context)
+                AS_CONTEXT(frame->data.context)
             );
         }
         else {
@@ -1424,7 +1411,7 @@ REBNATIVE(resume)
             // frames.
             //
             *ARR_AT(instruction, RESUME_INST_TARGET)
-                = *FUNC_VALUE(target->func);
+                = *FUNC_VALUE(frame->func);
         }
     }
     else {
@@ -1485,10 +1472,10 @@ REBNATIVE(check)
     else if (ANY_CONTEXT(value)) {
         ASSERT_CONTEXT(VAL_CONTEXT(value));
     }
-    else if (ANY_FUNC(value)) {
+    else if (IS_FUNCTION(value)) {
         ASSERT_ARRAY(VAL_FUNC_SPEC(value));
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
-        if (IS_FUNCTION(value))
+        if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER)
             ASSERT_ARRAY(VAL_FUNC_BODY(value));
     }
 

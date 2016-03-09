@@ -97,7 +97,7 @@
 //
 typedef unsigned int REBDSP;
 
-// (D)ata (S)tack "(P)ointer" is an integer index into Rebol's data stack
+// (D)ata (S)tack "(P)osition" is an integer index into Rebol's data stack
 //
 #define DSP DS_Index
 

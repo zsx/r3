@@ -81,7 +81,11 @@ REBOOL Reduce_Array_Throws(
         DS_PUSH(&reduced);
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
+
     return FALSE;
 }
 
@@ -147,7 +151,10 @@ void Reduce_Only(
         // never be accessible via words or paths.
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     assert(DSP == dsp_orig);
 }
@@ -191,7 +198,10 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     return FALSE;
 }
@@ -291,11 +301,12 @@ REBNATIVE(reduce)
 //
 REBOOL Compose_Values_Throws(
     REBVAL *out,
-    REBVAL value[],
+    const REBVAL *head,
     REBOOL deep,
     REBOOL only,
     REBOOL into
 ) {
+    const REBVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {
@@ -303,7 +314,7 @@ REBOOL Compose_Values_Throws(
             REBVAL evaluated;
             VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
-            if (DO_ARRAY_THROWS(&evaluated, value)) {
+            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, value)) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
                 return TRUE;
@@ -357,7 +368,10 @@ REBOOL Compose_Values_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
-                    VAL_ARRAY(DS_TOP) = Copy_Array_Shallow(VAL_ARRAY(value));
+                    INIT_VAL_ARRAY(
+                        DS_TOP,
+                        Copy_Array_Shallow(VAL_ARRAY(value))
+                    );
                     MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
                 }
             }
@@ -370,14 +384,17 @@ REBOOL Compose_Values_Throws(
         }
     }
 
-    Pop_Stack_Values(out, dsp_orig, into ? REB_MAX : REB_BLOCK);
+    if (into)
+        Pop_Stack_Values_Into(out, dsp_orig);
+    else
+        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
 
     return FALSE;
 }
 
 
 //
-//  compose: native/frameless [
+//  compose: native/varless [
 //
 //  {Evaluates only the GROUP!s in a block of expressions, returning a block.}
 //
@@ -404,9 +421,9 @@ REBNATIVE(compose)
     REFINE(4, into);
     PARAM(5, out);
 
-    if (D_FRAMELESS) {
+    if (D_IS_VARLESS) {
         //
-        // The ARG(value) is unavailable in a frameless evaluation, so we'll
+        // The ARG(value) is unavailable in a varless evaluation, so we'll
         // have to evaluate it here.  Note that the usage does not require
         // it to be GC-safe (at time of writing).
         //
@@ -418,7 +435,7 @@ REBNATIVE(compose)
         if (D_INDEXOR == END_FLAG)
             fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
 
-        DO_NEXT_REFETCH_MAY_THROW(&value, D_CALL, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(&value, D_FRAME, DO_FLAG_LOOKAHEAD);
 
         if (D_INDEXOR == THROWN_FLAG) {
             *D_OUT = value;

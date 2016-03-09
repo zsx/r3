@@ -86,24 +86,6 @@
 
 #include "sys-core.h"
 
-#define CHECK_BIND_TABLE
-
-//
-//  Check_Bind_Table: C
-//
-void Check_Bind_Table(void)
-{
-    REBCNT  n;
-    REBINT *binds = WORDS_HEAD(Bind_Table);
-
-    //Debug_Fmt("Bind Table (Size: %d)", SER_LEN(Bind_Table));
-    for (n = 0; n < SER_LEN(Bind_Table); n++) {
-        if (binds[n]) {
-            Debug_Fmt("Bind table fault: %3d to %3d (%s)", n, binds[n], Get_Sym_Name(n));
-        }
-    }
-}
-
 
 //
 //  Alloc_Context: C
@@ -122,7 +104,7 @@ REBCTX *Alloc_Context(REBCNT len)
 
     keylist = Make_Array(len + 1); // size + room for ROOTKEY (SYM_0)
     context = AS_CONTEXT(Make_Array(len + 1));
-    SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
 
     // Note: cannot use Append_Frame for first word.
 
@@ -130,7 +112,7 @@ REBCTX *Alloc_Context(REBCNT len)
     // are building which contains this context
     //
     CTX_VALUE(context)->payload.any_context.context = context;
-    INIT_CONTEXT_KEYLIST(context, keylist);
+    INIT_CTX_KEYLIST_UNIQUE(context, keylist);
     MANAGE_ARRAY(keylist);
 
 #if !defined(NDEBUG)
@@ -171,24 +153,36 @@ REBCTX *Alloc_Context(REBCNT len)
 //
 //  Expand_Context: C
 // 
-// Expand a context. Copy words if flagged.
+// Expand a context. Copy words if keylist is not unique.
 //
-void Expand_Context(REBCTX *context, REBCNT delta, REBCNT copy)
+void Expand_Context(REBCTX *context, REBCNT delta)
 {
     REBARR *keylist = CTX_KEYLIST(context);
 
+    // varlist is unique to each object--expand without making a copy.
+    //
     Extend_Series(ARR_SERIES(CTX_VARLIST(context)), delta);
     TERM_ARRAY(CTX_VARLIST(context));
 
-    // Expand or copy WORDS block:
-    if (copy) {
-        REBOOL managed = GET_ARR_FLAG(keylist, SERIES_FLAG_MANAGED);
-        INIT_CONTEXT_KEYLIST(
-            context, Copy_Array_Extra_Shallow(keylist, delta)
-        );
-        if (managed) MANAGE_ARRAY(CTX_KEYLIST(context));
+    if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
+        //
+        // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
+        // this keylist is shared with one or more other contexts.  Can't
+        // expand the shared copy without impacting the others, so break away
+        // from the sharing group by making a new copy.
+        //
+        // (If all shared copies break away in this fashion, then the last
+        // copy of the dangling keylist will be GC'd.)
+
+        keylist = Copy_Array_Extra_Shallow(keylist, delta);
+        MANAGE_ARRAY(keylist);
+        INIT_CTX_KEYLIST_UNIQUE(context, keylist);
     }
     else {
+        // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
+        // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
+        // to mark the flag indicating it's shared.  Extend it directly.
+
         Extend_Series(ARR_SERIES(keylist), delta);
         TERM_ARRAY(keylist);
     }
@@ -238,8 +232,9 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
-        INIT_WORD_SPECIFIC(word, context);
+        assert(!GET_VAL_FLAG(word, VALUE_FLAG_RELATIVE));
+        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
+        INIT_WORD_CONTEXT(word, context);
         INIT_WORD_INDEX(word, len); // length we just bumped
     }
     else
@@ -258,23 +253,21 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
 REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(src), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_CONTEXT_VARLIST));
     assert(GET_ARR_FLAG(CTX_KEYLIST(src), SERIES_FLAG_MANAGED));
 
     if (extra == 0) {
         dest = AS_CONTEXT(Copy_Array_Shallow(CTX_VARLIST(src)));
-        INIT_CONTEXT_KEYLIST(dest, CTX_KEYLIST(src));
+        INIT_CTX_KEYLIST_SHARED(dest, CTX_KEYLIST(src));
     }
     else {
+        REBARR *keylist = Copy_Array_Extra_Shallow(CTX_KEYLIST(src), extra);
         dest = AS_CONTEXT(Copy_Array_Extra_Shallow(CTX_VARLIST(src), extra));
-        INIT_CONTEXT_KEYLIST(
-            dest,
-            Copy_Array_Extra_Shallow(CTX_KEYLIST(src), extra)
-        );
+        INIT_CTX_KEYLIST_UNIQUE(dest, keylist);
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(dest), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_CONTEXT_VARLIST);
 
     INIT_VAL_CONTEXT(CTX_VALUE(dest), dest);
 
@@ -304,9 +297,9 @@ REBCTX *Copy_Context_Shallow(REBCTX *src) {
 // Therefore do not call code that might call BIND or otherwise
 // make use of the Bind_Table or BUF_COLLECT.
 //
-void Collect_Keys_Start(REBCNT modes)
+void Collect_Keys_Start(REBFLGS flags)
 {
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
@@ -388,7 +381,7 @@ void Collect_Keys_End(void)
 
     SET_ARRAY_LEN(BUF_COLLECT, 0); // allow reuse
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 }
 
 
@@ -396,7 +389,7 @@ void Collect_Keys_End(void)
 //  Collect_Context_Keys: C
 // 
 // Collect words from a prior context.  If `check_dups` is passed in then
-// there is a check for duplciates, otherwise the keys are assumed to
+// there is a check for duplicates, otherwise the keys are assumed to
 // be unique and copied in using `memcpy` as an optimization.
 //
 void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
@@ -492,13 +485,14 @@ void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
 //
 static void Collect_Context_Inner_Loop(
     REBINT *binds,
-    REBVAL value[],
-    REBCNT modes
+    const REBVAL *head,
+    REBFLGS flags
 ) {
+    const REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
             if (!binds[VAL_WORD_CANON(value)]) {  // only once per word
-                if (IS_SET_WORD(value) || modes & BIND_ALL) {
+                if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
                     REBVAL *typeset;
                     binds[VAL_WORD_CANON(value)] = ARR_LEN(BUF_COLLECT);
                     EXPAND_SERIES_TAIL(ARR_SERIES(BUF_COLLECT), 1);
@@ -512,7 +506,7 @@ static void Collect_Context_Inner_Loop(
                 }
             } else {
                 // If word duplicated:
-                if (modes & BIND_NO_DUP) {
+                if (flags & COLLECT_NO_DUP) {
                     // Reset binding table (note BUF_COLLECT may have expanded):
                     REBVAL *key = ARR_HEAD(BUF_COLLECT);
                     for (; NOT_END(key); key++)
@@ -524,10 +518,8 @@ static void Collect_Context_Inner_Loop(
             continue;
         }
         // Recurse into sub-blocks:
-        if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Context_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
-        // In this mode (foreach native), do not allow non-words:
-        //else if (modes & BIND_GET) fail (Error_Invalid_Arg(value));
+        if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
+            Collect_Context_Inner_Loop(binds, VAL_ARRAY_AT(value), flags);
     }
 }
 
@@ -540,7 +532,7 @@ static void Collect_Context_Inner_Loop(
 //
 // A `prior` context can be provided to serve as a basis; all the keys in
 // the prior will be returned, with only new entries contributed by the
-// data coming from the value[] array.  If no new values are needed (the
+// data coming from the head[] array.  If no new values are needed (the
 // array has no relevant words, or all were just duplicates of words already
 // in prior) then then `prior`'s keylist may be returned.  The result is
 // always pre-managed, because it may not be legal to free prior's keylist.
@@ -548,28 +540,29 @@ static void Collect_Context_Inner_Loop(
 // Returns:
 //     A block of typesets that can be used for a context keylist.
 //     If no new words, the prior list is returned.
-// 
-// Modes:
-//     BIND_ALL  - scan all words, or just set words
-//     BIND_DEEP - scan sub-blocks too
-//     BIND_GET  - substitute :word with actual word
-//     BIND_SELF - make sure a SELF key is added (if not already in prior)
+//
+// !!! There was previously an optimization in object creation which bypassed
+// key collection in the case where head[] was empty.  Revisit if it is worth
+// the complexity to move handling for that case in this routine.
 //
 REBARR *Collect_Keylist_Managed(
-    REBCNT *self_index_out, // which context index SELF is in (if BIND_SELF)
-    REBVAL value[],
+    REBCNT *self_index_out, // which context index SELF is in (if COLLECT_SELF)
+    const REBVAL *head,
     REBCTX *prior,
-    REBCNT modes
+    REBFLGS flags // see %sys-core.h for COLLECT_ANY_WORD, etc.
 ) {
     REBINT *binds = WORDS_HEAD(Bind_Table);
     REBARR *keylist;
 
-    Collect_Keys_Start(modes);
+    Collect_Keys_Start(flags);
 
-    if (modes & BIND_SELF) {
+    if (flags & COLLECT_ENSURE_SELF) {
         if (
-            !prior ||
-            (*self_index_out = Find_Word_In_Context(prior, SYM_SELF, TRUE)) == 0
+            !prior
+            || (
+                (*self_index_out = Find_Word_In_Context(prior, SYM_SELF, TRUE))
+                == 0
+            )
         ) {
             // No prior or no SELF in prior, so we'll add it as the first key
             //
@@ -599,7 +592,7 @@ REBARR *Collect_Keylist_Managed(
     if (prior) Collect_Context_Keys(prior, FALSE);
 
     // Scan for words, adding them to BUF_COLLECT and bind table:
-    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), &value[0], modes);
+    Collect_Context_Inner_Loop(WORDS_HEAD(Bind_Table), head, flags);
 
     keylist = Grab_Collected_Keylist_Managed(prior);
 
@@ -617,21 +610,22 @@ REBARR *Collect_Keylist_Managed(
 //
 static void Collect_Words_Inner_Loop(
     REBINT *binds,
-    REBVAL value[],
-    REBCNT modes
+    const REBVAL *head,
+    REBFLGS flags
 ) {
+    const REBVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)
             && !binds[VAL_WORD_CANON(value)]
-            && (modes & BIND_ALL || IS_SET_WORD(value))
+            && (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD))
         ) {
             REBVAL *word;
             binds[VAL_WORD_CANON(value)] = 1;
             word = Alloc_Tail_Array(BUF_COLLECT);
             Val_Init_Word(word, REB_WORD, VAL_WORD_SYM(value));
         }
-        else if (ANY_EVAL_BLOCK(value) && (modes & BIND_DEEP))
-            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), modes);
+        else if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
+            Collect_Words_Inner_Loop(binds, VAL_ARRAY_AT(value), flags);
     }
 }
 
@@ -641,32 +635,38 @@ static void Collect_Words_Inner_Loop(
 // 
 // Collect words from a prior block and new block.
 //
-REBARR *Collect_Words(REBVAL value[], REBVAL prior_value[], REBCNT modes)
-{
+REBARR *Collect_Words(
+    const REBVAL *head,
+    REBVAL *opt_prior_head,
+    REBFLGS flags
+) {
     REBARR *array;
     REBCNT start;
     REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
-    if (prior_value)
-        Collect_Words_Inner_Loop(binds, &prior_value[0], BIND_ALL);
+    if (opt_prior_head)
+        Collect_Words_Inner_Loop(binds, opt_prior_head, COLLECT_ANY_WORD);
 
     start = ARR_LEN(BUF_COLLECT);
-    Collect_Words_Inner_Loop(binds, &value[0], modes);
+    Collect_Words_Inner_Loop(binds, head, flags);
     TERM_ARRAY(BUF_COLLECT);
 
     // Reset word markers:
-    for (value = ARR_HEAD(BUF_COLLECT); NOT_END(value); value++)
-        binds[VAL_WORD_CANON(value)] = 0;
+    {
+        REBVAL *word;
+        for (word = ARR_HEAD(BUF_COLLECT); NOT_END(word); word++)
+            binds[VAL_WORD_CANON(word)] = 0;
+    }
 
     array = Copy_Array_At_Max_Shallow(
         BUF_COLLECT, start, ARR_LEN(BUF_COLLECT) - start
     );
     SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
     return array;
 }
 
@@ -709,140 +709,71 @@ REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
     REBCTX *spec,
     REBVAL *stackvars,
-    REBVAL value[],
+    const REBVAL *head,
     REBCTX *opt_parent
 ) {
     REBARR *keylist;
     REBCTX *context;
     REBCNT self_index;
 
-#if !defined(NDEBUG)
-    PG_Reb_Stats->Objects++;
-#endif
+    REBCNT len;
 
-    if (IS_END(value)) {
-        if (opt_parent) {
-            self_index = Find_Word_In_Context(opt_parent, SYM_SELF, TRUE);
+    keylist = Collect_Keylist_Managed(
+        &self_index,
+        head,
+        opt_parent,
+        COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
+    );
+    len = ARR_LEN(keylist);
 
-            context = AS_CONTEXT(Copy_Array_Core_Managed(
-                CTX_VARLIST(opt_parent),
-                0, // at
-                CTX_LEN(opt_parent) + 1, // tail (+1 for rootvar)
-                (self_index == 0) ? 1 : 0, // one extra slot if self needed
-                TRUE, // deep
-                TS_CLONE // types
-            ));
-            SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+    // Make a context of same size as keylist (END already accounted for)
+    //
+    context = AS_CONTEXT(Make_Array(len));
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
 
-            if (self_index == 0) {
-                //
-                // If we didn't find a SELF in the parent context, add it.
-                // (this means we need a new keylist, too)
-                //
-                INIT_CONTEXT_KEYLIST(
-                    context,
-                    Copy_Array_Core_Managed(
-                        CTX_KEYLIST(opt_parent),
-                        0, // at
-                        CTX_LEN(opt_parent) + 1, // tail (+1 for rootkey)
-                        1, // one extra for self
-                        FALSE, // !deep (keylists shouldn't need it...)
-                        TS_CLONE // types (overkill for a keylist?)
-                    )
-                );
+    // !!! We actually don't know if the keylist coming back from
+    // Collect_Keylist_Managed was created new or reused.  Err on the safe
+    // side for now, but it could also return a result so we could know
+    // if it would be legal to call INIT_CTX_KEYLIST_UNIQUE.
+    //
+    INIT_CTX_KEYLIST_SHARED(context, keylist);
 
-                self_index = CTX_LEN(opt_parent) + 1;
-                Val_Init_Typeset(
-                    CTX_KEY(context, self_index), ALL_64, SYM_SELF
-                );
+    // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
+    //
+    CTX_VALUE(context)->payload.any_context.context = context;
+    VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
+    VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) = NULL;
 
-                // !!! See notes on the flags about why SELF is set hidden but
-                // not unbindable with TYPESET_FLAG_UNBINDABLE.
-                //
-                SET_VAL_FLAG(
-                    CTX_KEY(context, self_index), TYPESET_FLAG_HIDDEN
-                );
-            }
-            else {
-                // The parent had a SELF already, so we can reuse its keylist
-                //
-                INIT_CONTEXT_KEYLIST(context, CTX_KEYLIST(opt_parent));
-            }
+    SET_ARRAY_LEN(CTX_VARLIST(context), len);
 
-            INIT_VAL_CONTEXT(CTX_VALUE(context), context);
-        }
-        else {
-            context = Alloc_Context(1); // just a self
-            self_index = 1;
-            Val_Init_Typeset(
-                Alloc_Tail_Array(CTX_KEYLIST(context)), ALL_64, SYM_SELF
-            );
-
-            // !!! See notes on the flags about why SELF is set hidden but
-            // not unbindable with TYPESET_FLAG_UNBINDABLE.
-            //
-            SET_VAL_FLAG(
-                CTX_KEY(context, self_index), TYPESET_FLAG_HIDDEN
-            );
-
-            Alloc_Tail_Array(CTX_VARLIST(context));
-        }
-    }
-    else {
-        REBVAL *var;
-        REBCNT len;
-
-        keylist = Collect_Keylist_Managed(
-            &self_index, &value[0], opt_parent, BIND_ONLY | BIND_SELF
-        );
-        len = ARR_LEN(keylist);
-
-        // Make a context of same size as keylist (END already accounted for)
-        //
-        context = AS_CONTEXT(Make_Array(len));
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
-        INIT_CONTEXT_KEYLIST(context, keylist);
-
-        // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
-        //
-        CTX_VALUE(context)->payload.any_context.context = context;
-        VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
-        VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) = NULL;
-
-        // !!! This code was inlined from Create_Frame() because it was only
-        // used once here, and it filled the context vars with NONE!.  For
-        // Ren-C we probably want to go with UNSET!, and also the filling
-        // of parent vars will overwrite the work here.  Review.
-        //
-        SET_ARRAY_LEN(CTX_VARLIST(context), len);
-        var = CTX_VARS_HEAD(context);
+    // !!! This code was inlined from Create_Frame() because it was only
+    // used once here, and it filled the context vars with NONE!.  For
+    // Ren-C we probably want to go with UNSET!, and also the filling
+    // of parent vars will overwrite the work here.  Review.
+    //
+    {
+        REBVAL *var = CTX_VARS_HEAD(context);
         for (; len > 1; len--, var++) // 1 is rootvar (context), already done
             SET_NONE(var);
         SET_END(var);
+    }
 
-        if (opt_parent) {
-            if (Reb_Opts->watch_obj_copy)
-                Debug_Fmt(
-                    cs_cast(BOOT_STR(RS_WATCH, 2)),
-                    CTX_LEN(opt_parent),
-                    CTX_KEYLIST(context)
-                );
+    if (opt_parent) {
+        //
+        // Bitwise copy parent values (will have bits fixed by Clonify)
+        //
+        memcpy(
+            CTX_VARS_HEAD(context),
+            CTX_VARS_HEAD(opt_parent),
+            (CTX_LEN(opt_parent)) * sizeof(REBVAL)
+        );
 
-            // Bitwise copy parent values (will have bits fixed by Clonify)
-            //
-            memcpy(
-                CTX_VARS_HEAD(context),
-                CTX_VARS_HEAD(opt_parent),
-                (CTX_LEN(opt_parent)) * sizeof(REBVAL)
-            );
-
-            // For values we copied that were blocks and strings, replace
-            // their series components with deep copies of themselves:
-            //
-            Clonify_Values_Len_Managed(
-                CTX_VAR(context, 1), CTX_LEN(context), TRUE, TS_CLONE
-            );
-        }
+        // For values we copied that were blocks and strings, replace
+        // their series components with deep copies of themselves:
+        //
+        Clonify_Values_Len_Managed(
+            CTX_VAR(context, 1), CTX_LEN(context), TRUE, TS_CLONE
+        );
     }
 
     VAL_RESET_HEADER(CTX_VALUE(context), kind);
@@ -875,6 +806,10 @@ REBCTX *Make_Selfish_Context_Detect(
 
     ASSERT_CONTEXT(context);
 
+#if !defined(NDEBUG)
+    PG_Reb_Stats->Objects++;
+#endif
+
     return context;
 }
 
@@ -887,7 +822,7 @@ REBCTX *Make_Selfish_Context_Detect(
 //
 REBCTX *Construct_Context(
     enum Reb_Kind kind,
-    REBVAL value[],
+    REBVAL *head,
     REBOOL as_is,
     REBCTX *opt_parent
 ) {
@@ -895,17 +830,158 @@ REBCTX *Construct_Context(
         kind, // type
         NULL, // spec
         NULL, // body
-        &value[0], // values to scan for toplevel set-words
+        head, // values to scan for toplevel set-words
         opt_parent // parent
     );
 
-    if (NOT_END(value)) Bind_Values_Shallow(&value[0], context);
+    if (NOT_END(head)) Bind_Values_Shallow(head, context);
 
-    if (as_is) Do_Min_Construct(&value[0]);
-    else Do_Construct(&value[0]);
+    if (as_is) Do_Min_Construct(head);
+    else Do_Construct(head);
 
     return context;
 }
+
+
+//
+//  Do_Construct: C
+//
+// Do a block with minimal evaluation and no evaluation of
+// functions. Used for things like script headers where security
+// is important.
+//
+// Handles cascading set words:  word1: word2: value
+//
+void Do_Construct(REBVAL* head)
+{
+    REBVAL *value = head;
+    REBDSP dsp_orig = DSP;
+
+    REBVAL temp;
+    VAL_INIT_WRITABLE_DEBUG(&temp);
+    SET_NONE(&temp);
+
+    // This routine reads values from the start to the finish, which means
+    // that if it wishes to do `word1: word2: value` it needs to have some
+    // way of getting to the value and then going back across the words to
+    // set them.  One way of doing it would be to start from the end and
+    // work backward, but this uses the data stack instead to gather set
+    // words and then go back and set them all when a value is found.
+    //
+    // !!! This could also just remember the pointer of the first set
+    // word in a run, but at time of writing this is just patching a bug.
+    //
+    for (; NOT_END(value); value++) {
+        if (IS_SET_WORD(value)) {
+            //
+            // Remember this SET-WORD!.  Come back and set what it is
+            // bound to, once a non-SET-WORD! value is found.
+            //
+            DS_PUSH(value);
+            continue;
+        }
+
+        // If not a SET-WORD! then consider the argument to represent some
+        // kind of value.
+        //
+        // !!! The historical default is to NONE!, and also to transform
+        // what would be evaluative into non-evaluative.  So:
+        //
+        //     >> construct [a: b/c: d: append "Strange" <defaults>]
+        //     == make object! [
+        //         a: b/c:
+        //         d: 'append
+        //     ]
+        //
+        // A differing philosophy might be that the construction process
+        // only tolerate input that would yield the same output if used
+        // in an evaulative object creation.
+        //
+        if (IS_WORD(value)) {
+            switch (VAL_WORD_CANON(value)) {
+            case SYM_NONE:
+                SET_NONE(&temp);
+                break;
+
+            case SYM_TRUE:
+            case SYM_ON:
+            case SYM_YES:
+                SET_TRUE(&temp);
+                break;
+
+            case SYM_FALSE:
+            case SYM_OFF:
+            case SYM_NO:
+                SET_FALSE(&temp);
+                break;
+
+            default:
+                temp = *value;
+                VAL_SET_TYPE_BITS(&temp, REB_WORD);
+            }
+        }
+        else if (IS_LIT_WORD(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_WORD);
+        }
+        else if (IS_LIT_PATH(value)) {
+            temp = *value;
+            VAL_SET_TYPE_BITS(&temp, REB_PATH);
+        }
+        else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
+            temp = *value;
+        }
+        else
+            SET_NONE(&temp);
+
+        // Set prior set-words:
+        while (DSP > dsp_orig) {
+            *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = temp;
+            DS_DROP;
+        }
+    }
+
+    // All vars in the frame should have a default value if not set, so if
+    // we reached the end with something like `[a: 10 b: c: d:]` just leave
+    // the trailing words to that default.  However, we must balance the
+    // stack to please the evaluator, so let go of the set-words that we
+    // did not set.
+    //
+    DS_DROP_TO(dsp_orig);
+}
+
+
+//
+//  Do_Min_Construct: C
+//
+// Do no evaluation of the set values.  So if the input is:
+//
+//      [a: b: 1 + 2 d: print e:]
+//
+// Then `a` and `b` will be set to 1, while `+` and `2` will be ignored, `d`
+// will be the word `print`, and `e` will be left as it was.
+//
+void Do_Min_Construct(const REBVAL* head)
+{
+    const REBVAL *value = head;
+    REBDSP dsp_orig = DSP;
+
+    for (; NOT_END(value); value++) {
+        if (IS_SET_WORD(value)) {
+            DS_PUSH(value); // push this SET-WORD! to the stack
+        }
+        else {
+            // For any pushed SET-WORD!s, assign them to this non-SET-WORD!
+            // value and then drop them from the stack.
+            //
+            while (DSP > dsp_orig) {
+                *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = *value;
+                DS_DROP;
+            }
+        }
+    }
+}
+
 
 
 //
@@ -941,9 +1017,10 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
                     SET_VAL_FLAG(value, VALUE_FLAG_LINE);
                 }
                 else VAL_RESET_HEADER(value, REB_WORD);
+
                 INIT_WORD_SYM(value, VAL_TYPESET_SYM(key));
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
-                INIT_WORD_SPECIFIC(value, context);
+                SET_VAL_FLAG(value, WORD_FLAG_BOUND); // hdr reset, !relative
+                INIT_WORD_CONTEXT(value, context);
                 INIT_WORD_INDEX(value, n);
             }
             if (mode & 2) {
@@ -977,7 +1054,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 
     // Merge parent1 and parent2 words.
     // Keep the binding table.
-    Collect_Keys_Start(BIND_ALL | BIND_SELF);
+    Collect_Keys_Start(COLLECT_ANY_WORD | COLLECT_ENSURE_SELF);
 
     // Setup binding table and BUF_COLLECT with parent1 words.  Don't bother
     // checking for duplicates, buffer is empty.
@@ -999,7 +1076,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     keylist = Copy_Array_Shallow(BUF_COLLECT);
     MANAGE_ARRAY(keylist);
     child = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(child), SERIES_FLAG_CONTEXT);
+    SET_ARR_FLAG(CTX_VARLIST(child), ARRAY_FLAG_CONTEXT_VARLIST);
 
     value = Alloc_Tail_Array(CTX_VARLIST(child));
 
@@ -1009,7 +1086,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // so review consequences.
     //
     VAL_RESET_HEADER(value, CTX_TYPE(parent1));
-    INIT_CONTEXT_KEYLIST(child, keylist);
+    INIT_CTX_KEYLIST_UNIQUE(child, keylist);
     INIT_VAL_CONTEXT(value, child);
     VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_STACKVARS(value) = NULL;
@@ -1082,7 +1159,7 @@ void Resolve_Context(
     REBINT m;
     REBCNT i = 0;
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     FAIL_IF_LOCKED_CONTEXT(target);
 
@@ -1099,7 +1176,7 @@ void Resolve_Context(
     // the method needs to be reviewed to something that could properly
     // reset in the case of an out of memory error.
     //
-    Collect_Keys_Start(BIND_ONLY);
+    Collect_Keys_Start(COLLECT_ONLY_SET_WORDS);
 
     n = 0;
 
@@ -1128,7 +1205,7 @@ void Resolve_Context(
             if (binds[VAL_TYPESET_CANON(key)]) n--;
 
         // Expand context by the amount required:
-        if (n > 0) Expand_Context(target, n, 0);
+        if (n > 0) Expand_Context(target, n);
         else expand = FALSE;
     }
 
@@ -1190,405 +1267,12 @@ void Resolve_Context(
         }
     }
 
-    CHECK_BIND_TABLE;
+    ASSERT_BIND_TABLE_EMPTY;
 
     // !!! Note we explicitly do *not* use Collect_Keys_End().  See warning
     // about errors, out of memory issues, etc. at Collect_Keys_Start()
     //
     SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
-}
-
-
-//
-//  Bind_Values_Inner_Loop: C
-// 
-// Bind_Values_Core() sets up the binding table and then calls
-// this recursive routine to do the actual binding.
-//
-static void Bind_Values_Inner_Loop(
-    REBINT *binds,
-    REBVAL value[],
-    REBCTX *context,
-    REBCNT mode
-) {
-    for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)) {
-            REBCNT n = binds[VAL_WORD_CANON(value)];
-            if (n != 0) {
-                //
-                // Word is in context, bind it.  Note that VAL_RESET_HEADER
-                // is a macro and VAL_TYPE is a macro, so we cannot directly
-                // initialize the header while also needing the type.
-                //
-                assert(n <= CTX_LEN(context));
-                UNBIND_WORD(value); // clear any previous binding flags
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
-                INIT_WORD_SPECIFIC(value, context);
-                INIT_WORD_INDEX(value, n);
-            }
-            else {
-                // Word is not in context, so add it if option is specified
-                //
-                if (
-                    (mode & BIND_ALL)
-                    || ((mode & BIND_SET) && (IS_SET_WORD(value)))
-                ) {
-                    Expand_Context(context, 1, 1);
-                    Append_Context(context, value, 0);
-                    binds[VAL_WORD_CANON(value)] = VAL_WORD_INDEX(value);
-                }
-            }
-        }
-        else if (ANY_ARRAY(value) && (mode & BIND_DEEP)) {
-            Bind_Values_Inner_Loop(
-                binds, VAL_ARRAY_AT(value), context, mode
-            );
-        }
-        else if (IS_FUNCTION(value) && (mode & BIND_FUNC)) {
-            Bind_Values_Inner_Loop(
-                binds, ARR_HEAD(VAL_FUNC_BODY(value)), context, mode
-            );
-        }
-    }
-}
-
-
-//
-//  Bind_Values_Core: C
-// 
-// Bind words in an array of values terminated with END
-// to a specified context.  See warnings on the functions like
-// Bind_Values_Deep() about not passing just a singular REBVAL.
-// 
-// Different modes may be applied:
-// 
-//     BIND_ONLY - Only bind words found in the context.
-//     BIND_ALL  - Add words to the context during the bind.
-//     BIND_SET  - Add set-words to the context during the bind.
-//                 (note: word must not occur before the SET)
-//     BIND_DEEP - Recurse into sub-blocks.
-// 
-// NOTE: BIND_SET must be used carefully, because it does not
-// bind prior instances of the word before the set-word. That is
-// to say that forward references are not allowed.
-//
-void Bind_Values_Core(REBVAL value[], REBCTX *context, REBCNT mode)
-{
-    REBVAL *key;
-    REBCNT index;
-    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-
-    CHECK_BIND_TABLE;
-
-    // Note about optimization: it's not a big win to avoid the
-    // binding table for short blocks (size < 4), because testing
-    // every block for the rare case adds up.
-
-    // Setup binding table
-    index = 1;
-    key = CTX_KEYS_HEAD(context);
-    for (; index <= CTX_LEN(context); key++, index++) {
-        if (!GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
-            binds[VAL_TYPESET_CANON(key)] = index;
-    }
-
-    Bind_Values_Inner_Loop(binds, &value[0], context, mode);
-
-    // Reset binding table:
-    key = CTX_KEYS_HEAD(context);
-    for (; NOT_END(key); key++)
-        binds[VAL_TYPESET_CANON(key)] = 0;
-
-    CHECK_BIND_TABLE;
-}
-
-
-//
-//  Unbind_Values_Core: C
-// 
-// Unbind words in a block, optionally unbinding those which are
-// bound to a particular target (if target is NULL, then all
-// words will be unbound regardless of their VAL_WORD_CONTEXT).
-//
-void Unbind_Values_Core(REBVAL value[], REBCTX *context, REBOOL deep)
-{
-    for (; NOT_END(value); value++) {
-        if (
-            ANY_WORD(value)
-            && (
-                !context
-                || (
-                    IS_WORD_BOUND(value)
-                    && VAL_WORD_CONTEXT(value) == context
-                )
-            )
-        ) {
-            UNBIND_WORD(value);
-        }
-        else if (ANY_ARRAY(value) && deep)
-            Unbind_Values_Core(VAL_ARRAY_AT(value), context, TRUE);
-    }
-}
-
-
-//
-//  Try_Bind_Word: C
-// 
-// Binds a word to a context. If word is not part of the context.
-//
-REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
-{
-    REBCNT n;
-
-    n = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
-    if (n != 0) {
-        UNBIND_WORD(word); // get rid of binding if it had one
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
-        INIT_WORD_SPECIFIC(word, context);
-        INIT_WORD_INDEX(word, n);
-    }
-    return n;
-}
-
-
-//
-//  Bind_Relative_Inner_Loop: C
-// 
-// Recursive function for relative function word binding.
-// 
-static void Bind_Relative_Inner_Loop(
-    REBINT *binds,
-    REBFUN *func,
-    REBARR *block
-) {
-    REBVAL *value = ARR_HEAD(block);
-
-    for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)) {
-            REBINT n = binds[VAL_WORD_CANON(value)];
-            if (n != 0) {
-                //
-                // Word's canon symbol is in frame.  Relatively bind it.
-                // (clear out existing header flags first).  Note that
-                // VAL_RESET_HEADER is a macro and it's not safe to pass
-                // it VAL_TYPE(value) directly while initializing value...
-                //
-                enum Reb_Kind kind = VAL_TYPE(value);
-                VAL_RESET_HEADER(value, kind);
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE);
-                INIT_WORD_RELATIVE(value, func);
-                INIT_WORD_INDEX(value, n);
-            }
-        }
-        else if (ANY_ARRAY(value))
-            Bind_Relative_Inner_Loop(binds, func, VAL_ARRAY(value));
-    }
-}
-
-
-//
-//  Bind_Relative_Deep: C
-// 
-// Bind the words of a function block to a stack frame.
-// To indicate the relative nature of the index, it is set to
-// a negative offset.
-//
-void Bind_Relative_Deep(REBFUN *func, REBARR *block)
-{
-    REBVAL *param;
-    REBCNT index;
-    REBINT *binds = WORDS_HEAD(Bind_Table); // GC safe to do here
-
-    // !!! Historically, relative binding was not allowed for NATIVE! or
-    // other function types.  It was not desirable for user code to be
-    // capable of binding to the parameters of a native.  However, for
-    // purposes of debug inspection, read-only access presents an
-    // interesting case.  While this avenue is explored, relative bindings
-    // for all function types are being permitted.
-    //
-    // NOTE: This cannot work if the native is invoked framelessly.  A
-    // debug mode must be enabled that prohibits the native from being
-    // frameless if it's to be introspected.
-    //
-    /*assert(
-        IS_FUNCTION(ARR_HEAD(paramlist)) || IS_CLOSURE(ARR_HEAD(paramlist))
-    );*/
-
-    CHECK_BIND_TABLE;
-
-    //Dump_Block(words);
-
-    // Setup binding table from the argument word list
-    //
-    index = 1;
-    param = FUNC_PARAMS_HEAD(func);
-    for (; NOT_END(param); param++, index++)
-        binds[VAL_TYPESET_CANON(param)] = index;
-
-    Bind_Relative_Inner_Loop(binds, func, block);
-
-    // Reset binding table
-    //
-    param = FUNC_PARAMS_HEAD(func);
-    for (; NOT_END(param); param++)
-        binds[VAL_TYPESET_CANON(param)] = 0;
-
-    CHECK_BIND_TABLE;
-}
-
-
-//
-//  Bind_Stack_Word: C
-//
-void Bind_Stack_Word(REBFUN *func, REBVAL *word)
-{
-    REBINT index;
-    enum Reb_Kind kind;
-
-    index = Find_Param_Index(FUNC_PARAMLIST(func), VAL_WORD_SYM(word));
-    if (index == 0)
-        fail (Error(RE_NOT_IN_CONTEXT, word));
-
-    kind = VAL_TYPE(word); // safe--can't pass VAL_TYPE(value) while resetting
-    VAL_RESET_HEADER(word, kind);
-    SET_VAL_FLAG(word, WORD_FLAG_BOUND_RELATIVE);
-    INIT_WORD_RELATIVE(word, func);
-    INIT_WORD_INDEX(word, index);
-}
-
-
-//
-//  Rebind_Values_Deep: C
-// 
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-void Rebind_Values_Deep(
-    REBCTX *src,
-    REBCTX *dst,
-    REBVAL value[],
-    REBINT *opt_binds
-) {
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), opt_binds);
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC)
-            && VAL_WORD_CONTEXT(value) == src
-        ) {
-            INIT_WORD_SPECIFIC(value, dst);
-
-            if (opt_binds) {
-                REBCNT canon = VAL_WORD_CANON(value);
-                INIT_WORD_INDEX(value, opt_binds[canon]);
-            }
-        }
-        else if (IS_FUNCTION(value)) {
-            //
-            // !!! Extremely questionable feature--walking into function
-            // bodies and changing them.  This R3-Alpha concept was largely
-            // broken (didn't work for closures) and created a lot of extra
-            // garbage (inheriting an object's methods meant making deep
-            // copies of all that object's method bodies...each time).
-            // Ren-C has a different idea in the works.
-            //
-            Rebind_Values_Deep(
-                src, dst, ARR_HEAD(VAL_FUNC_BODY(value)), opt_binds
-            );
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Relative_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Relative_Deep(
-    REBFUN *src,
-    REBFUN *dst,
-    REBVAL value[]
-) {
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Relative_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.binding.relative == src
-        ) {
-            INIT_WORD_RELATIVE(value, dst);
-        }
-    }
-}
-
-
-//
-//  Rebind_Values_Specifically_Deep: C
-//
-// Rebind all words that reference src target to dst target.
-// Rebind is always deep.
-//
-// !!! This function is temporary and should not be necessary after the FRAME!
-// is implemented.
-//
-void Rebind_Values_Specifically_Deep(REBFUN *src, REBCTX *dst, REBVAL value[]) {
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Specifically_Deep(src, dst, VAL_ARRAY_AT(value));
-        }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND_RELATIVE)
-            && value->payload.any_word.binding.relative == src
-        ) {
-            // Note that VAL_RESET_HEADER(value...) is a macro for setting
-            // value, so passing VAL_TYPE(value) which is also a macro can be
-            // dangerous...
-            //
-            enum Reb_Kind kind = VAL_TYPE(value);
-            VAL_RESET_HEADER(value, kind);
-            SET_VAL_FLAG(value, WORD_FLAG_BOUND_SPECIFIC);
-            INIT_WORD_SPECIFIC(value, dst);
-        }
-    }
-}
-
-
-//
-//  Find_Param_Index: C
-// 
-// Find function param word in function "frame".
-//
-// !!! This is semi-redundant with similar functions for Find_Word_In_Array
-// and key finding for objects, review...
-//
-REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
-{
-    REBVAL *params = ARR_AT(paramlist, 1);
-    REBCNT len = ARR_LEN(paramlist);
-
-    REBCNT canon = SYMBOL_TO_CANON(sym); // don't recalculate each time
-
-    REBCNT n;
-    for (n = 1; n < len; n++, params++) {
-        if (
-            sym == VAL_TYPESET_SYM(params)
-            || canon == VAL_TYPESET_CANON(params)
-        ) {
-            return n;
-        }
-    }
-
-    return 0;
 }
 
 
@@ -1659,13 +1343,15 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 
 
 //
-//  Call_For_Relative_Word: C
+//  Frame_For_Relative_Word: C
 //
 // Looks up word from a relative binding to get a specific context.  Currently
 // this uses the stack (dynamic binding) but a better idea is in the works.
 //
-struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
-
+struct Reb_Frame *Frame_For_Relative_Word(
+    const REBVAL *any_word,
+    REBOOL trap
+) {
     // !!! This is the temporary answer to relative binding.  NewFunction
     // aims to resolve relative bindings with the help of an extra
     // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
@@ -1674,19 +1360,21 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
     // frame so this code will not have to guess that "the last stack
     // level is close enough"
 
-    struct Reb_Call *call = DSF;
+    struct Reb_Frame *frame = FS_TOP;
 
-    for (; call != NULL; call = PRIOR_DSF(call)) {
+    assert(ANY_WORD(any_word) && IS_RELATIVE(any_word));
+
+    for (; frame != NULL; frame = FRM_PRIOR(frame)) {
         if (
-            call->mode != CALL_MODE_FUNCTION
-            || DSF_FUNC(call) != any_word->payload.any_word.binding.relative
+            frame->mode != CALL_MODE_FUNCTION
+            || FRM_FUNC(frame) != VAL_WORD_FUNC(any_word)
         ) {
             continue;
         }
 
-        if (DSF_FRAMELESS(call)) {
+        if (FRM_IS_VARLESS(frame)) {
             //
-            // !!! Trying to get a variable from a frameless native is a
+            // !!! Trying to get a variable from a varless native is a
             // little bit different and probably shouldn't be willing to
             // fail in an "oh it's unbound but that's okay" way.  Because
             // the data should be there, it's just been "optimized out"
@@ -1696,7 +1384,7 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
             // (how else would one get access to a binding to a native's
             // locals and args??)
             //
-            fail (Error(RE_FRAMELESS_WORD, any_word));
+            fail (Error(RE_VARLESS_WORD, any_word));
         }
 
         // Currently the only `mode` in which a frame should be
@@ -1709,7 +1397,7 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
             SAME_SYM(
                 VAL_WORD_SYM(any_word),
                 VAL_TYPESET_SYM(
-                    FUNC_PARAM(DSF_FUNC(call), VAL_WORD_INDEX(any_word))
+                    FUNC_PARAM(FRM_FUNC(frame), VAL_WORD_INDEX(any_word))
                 )
             )
         );
@@ -1717,9 +1405,9 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
         // Shouldn't be doing relative word lookups in durables ATM...they
         // copied their bodies in the current implementation.
         //
-        assert(!IS_FUNC_DURABLE(FUNC_VALUE(DSF_FUNC(call))));
+        assert(!IS_FUNC_DURABLE(FUNC_VALUE(FRM_FUNC(frame))));
 
-        return call;
+        return frame;
     }
 
     // Historically, trying to get a value from a context not
@@ -1734,120 +1422,6 @@ struct Reb_Call *Call_For_Relative_Word(const REBVAL *any_word, REBOOL trap) {
     if (trap) return NULL;
 
     fail (Error(RE_NO_RELATIVE, any_word));
-}
-
-
-//
-//  Get_Var_Core: C
-// 
-// Get the word--variable--value. (Generally, use the macros like
-// GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
-// called quite a lot and so attention to performance is important.
-//
-// If `trap` is TRUE, return NULL instead of raising errors on unbounds.
-//
-// Coded assuming most common case is trap=FALSE and writable=FALSE
-//
-REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
-{
-    if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_SPECIFIC)) {
-        //
-        // The word is bound directly to a value inside a varlist, and
-        // represents the zero-based offset into that series.  This is how
-        // values would be picked out of object-like things...
-        //
-        // (Including e.g. looking up 'append' in the user context.)
-
-        REBCTX *context = VAL_WORD_CONTEXT(any_word);
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
-
-        assert(
-            SAME_SYM(
-                VAL_WORD_SYM(any_word), CTX_KEY_SYM(context, index)
-            )
-        );
-
-        if (
-            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-        ) {
-            // In R3-Alpha, the closure construct created a persistent object
-            // which would keep all of its args, refinements, and locals
-            // alive after the closure ended.  In trying to eliminate the
-            // distinction between FUNCTION! and CLOSURE! in Ren-C, the
-            // default is for them not to survive...though a mechanism for
-            // allowing some to be marked ("<durable>") is under development.
-            //
-            // In the meantime, report the same error as a function which
-            // is no longer on the stack.
-
-            if (trap) return NULL;
-
-            fail (Error(RE_NO_RELATIVE, any_word));
-        }
-
-        if (
-            writable &&
-            GET_VAL_FLAG(CTX_KEY(context, index), TYPESET_FLAG_LOCKED)
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
-
-        value = CTX_VAR(context, index);
-        assert(!THROWN(value));
-        return value;
-    }
-    else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND_RELATIVE)) {
-        //
-        // RELATIVE CONTEXT: Word is stack-relative bound to a function with
-        // no persistent varlist held by the GC.  The value *might* be found
-        // on the stack (or not, if all instances of the function on the
-        // call stack have finished executing).  We walk backward in the call
-        // stack to see if we can find the function's "identifying series"
-        // in a call frame...and take the first instance we see (even if
-        // multiple invocations are on the stack, most recent wins)
-        //
-        // !!! This is the temporary answer to relative binding.  NewFunction
-        // aims to resolve relative bindings with the help of an extra
-        // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
-        // REBVALs that are "viewing" an array that contains relatively
-        // bound elements.  That extra parameter will fill in the *actual*
-        // frame so this code will not have to guess that "the last stack
-        // level is close enough"
-
-        REBCNT index = VAL_WORD_INDEX(any_word);
-        REBVAL *value;
-
-        struct Reb_Call *call
-            = Call_For_Relative_Word(any_word, trap);
-
-        if (!call) {
-            assert(trap);
-            return NULL;
-        }
-
-        if (
-            writable &&
-            GET_VAL_FLAG(FUNC_PARAM(DSF_FUNC(call), index), TYPESET_FLAG_LOCKED)
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
-
-        value = DSF_ARG(call, index);
-        assert(!THROWN(value));
-        return value;
-    }
-
-    // If none of the above cases matched, then it's not bound at all.
-
-    if (trap) return NULL;
-
-    fail (Error(RE_NOT_BOUND, any_word));
 }
 
 
@@ -1875,17 +1449,6 @@ REBVAL *Obj_Value(REBVAL *value, REBCNT index)
 
     if (index > CTX_LEN(context)) return 0;
     return CTX_VAR(context, index);
-}
-
-
-//
-//  Init_Obj_Value: C
-//
-void Init_Obj_Value(REBVAL *value, REBCTX *context)
-{
-    assert(context);
-    CLEARS(value);
-    Val_Init_Object(value, context);
 }
 
 
@@ -1938,8 +1501,8 @@ void Assert_Context_Core(REBCTX *context)
     REBCNT keys_len;
     REBCNT vars_len;
 
-    if (!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT)) {
-        Debug_Fmt("Frame series does not have SERIES_FLAG_CONTEXT flag set");
+    if (!GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST)) {
+        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_CONTEXT_VARLIST");
         Panic_Context(context);
     }
 
@@ -1978,7 +1541,7 @@ void Assert_Context_Core(REBCTX *context)
     var = CTX_VALUE(context);
 
     if (
-        (IS_TYPESET(key) && VAL_TYPESET_SYM(key) == SYM_0) || ANY_FUNC(key)
+        (IS_TYPESET(key) && VAL_TYPESET_SYM(key) == SYM_0) || IS_FUNCTION(key)
     ) {
         // It's okay.  Note that in the future the rootkey for ordinary
         // OBJECT!/ERROR!/PORT! etc. may be more interesting than SYM_0

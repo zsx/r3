@@ -67,6 +67,7 @@ Internal: [
     bad-true-canon:     {TRUE was not found}
     bad-trash-type:     {the TRASH! word is not correct}
     rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
+    pool-alignment:     {Memory pool width not 64-bit aligned}
 
     io-error:           {problem with IO}
     max-words:          {too many words}
@@ -127,15 +128,18 @@ Script: [
     local-injection:    [{Attempt to inject value to local} :arg1 {in} :arg2]
 
     expression-barrier: {Expression barrier hit while processing arguments}
+    bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
 
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 
     ; !!! Temporary errors while faulty constructs are still outstanding
     ; (more informative than just saying "function doesn't take that type")
-    use-eval-for-eval:  {Use EVAL (not DO) for inline evaluation of a value}
+    use-eval-for-eval:  {Use EVAL or APPLY to call functions arity > 0, not DO}
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
+    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
 
+    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]
@@ -183,8 +187,8 @@ Script: [
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 
-    frameless-word:     [{variable} :arg1 {optimized out, run with DEBUG ON}]
-    frameless-call:     {arguments optimized out, run with DEBUG ON}
+    varless-word:       [{variable} :arg1 {optimized out, run with DEBUG ON}]
+    varless-call:       {arguments optimized out, run with DEBUG ON}
 
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
 ;   no-decode:          [{cannot decode} :arg1 {encoding}]
@@ -203,6 +207,8 @@ Script: [
 
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
+    only-callback-ptr:  {Only callback functions may be passed by FFI pointer}
+    free-needs-routine: {Function to destroy struct storage must be routine}
 
     block-skip-wrong:   {Block is not even multiple of skip size}
 ;   bad-prompt:         [{Error executing prompt block}]

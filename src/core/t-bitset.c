@@ -211,7 +211,7 @@ retry:
 // 
 // If uncased is TRUE, try to match either upper or lower case.
 //
-REBOOL Check_Bit_Str(REBSER *bset, REBVAL *val, REBOOL uncased)
+REBOOL Check_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL uncased)
 {
     REBCNT n = VAL_INDEX(val);
 
@@ -258,7 +258,7 @@ void Set_Bit(REBSER *bset, REBCNT n, REBOOL set)
 //
 //  Set_Bit_Str: C
 //
-void Set_Bit_Str(REBSER *bset, REBVAL *val, REBOOL set)
+void Set_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL set)
 {
     REBCNT n = VAL_INDEX(val);
 
@@ -280,7 +280,7 @@ void Set_Bit_Str(REBSER *bset, REBVAL *val, REBOOL set)
 // 
 // Set/clear bits indicated by strings and chars and ranges.
 //
-REBOOL Set_Bits(REBSER *bset, REBVAL *val, REBOOL set)
+REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
 {
     REBCNT n;
     REBCNT c;
@@ -390,7 +390,7 @@ span_bits:
 // Check bits indicated by strings and chars and ranges.
 // If uncased is TRUE, try to match either upper or lower case.
 //
-REBOOL Check_Bits(REBSER *bset, REBVAL *val, REBOOL uncased)
+REBOOL Check_Bits(REBSER *bset, const REBVAL *val, REBOOL uncased)
 {
     REBCNT n;
     REBUNI c;
@@ -472,27 +472,27 @@ found:
 //
 REBINT PD_Bitset(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
-    REBVAL *val = pvs->setval;
-    REBSER *ser = VAL_SERIES(data);
+    REBSER *ser = VAL_SERIES(pvs->value);
 
-    if (!val) {
-        if (Check_Bits(ser, pvs->select, FALSE)) {
+    if (!pvs->opt_setval) {
+        if (Check_Bits(ser, pvs->selector, FALSE)) {
             SET_TRUE(pvs->store);
-            return PE_USE;
+            return PE_USE_STORE;
         }
         return PE_NONE;
     }
 
     if (Set_Bits(
         ser,
-        pvs->select,
-        BITS_NOT(ser) ? IS_CONDITIONAL_FALSE(val) : IS_CONDITIONAL_TRUE(val)
+        pvs->selector,
+        BITS_NOT(ser)
+            ? IS_CONDITIONAL_FALSE(pvs->opt_setval)
+            : IS_CONDITIONAL_TRUE(pvs->opt_setval)
     )) {
         return PE_OK;
     }
 
-    return PE_BAD_SET;
+    fail (Error_Bad_Path_Set(pvs));
 }
 
 

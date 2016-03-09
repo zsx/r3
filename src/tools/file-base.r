@@ -16,30 +16,38 @@ REBOL [
 ]
 
 core: [
+    ; (A)???
     a-constants.c
     a-globals.c
     a-lib.c
-
-; Empty...
-;   a-lib2.c
-
     a-stubs.c
+
+    ; (B)oot
     b-boot.c
     b-init.c
 
-; Non-functional
-;   b-main.c
-
+    ; (C)ore
+    c-bind.c
     c-do.c
     c-error.c
+    c-eval.c
     c-frame.c
     c-function.c
+    c-path.c
     c-port.c
+    c-signal.c
     c-task.c
+    c-value.c
     c-word.c
+
+    ; (D)ebug
     d-crash.c
     d-dump.c
+    d-legacy.c
     d-print.c
+    d-trace.c
+
+    ; (F)???
     f-blocks.c
     f-deci.c
     f-dtoa.c
@@ -53,12 +61,18 @@ core: [
     f-round.c
     f-series.c
     f-stubs.c
+
+    ; (L)exer
     l-scan.c
     l-types.c
+
+    ; (M)emory
     m-gc.c
     m-pools.c
     m-series.c
     m-stacks.c
+
+    ; (N)atives
     n-control.c
     n-data.c
     n-io.c
@@ -68,6 +82,8 @@ core: [
     n-sets.c
     n-strings.c
     n-system.c
+
+    ; (P)orts
     p-clipboard.c
     p-console.c
     p-dir.c
@@ -77,10 +93,9 @@ core: [
     p-net.c
     p-serial.c
     p-signal.c
+;   p-timer.c ;--Marked as unimplemented
 
-; Marked as unimplemented
-;   p-timer.c
-
+    ; (S)trings
     s-cases.c
     s-crc.c
     s-file.c
@@ -90,6 +105,8 @@ core: [
     s-ops.c
     s-trim.c
     s-unicode.c
+
+    ; (T)ypes
     t-bitset.c
     t-block.c
     t-char.c
@@ -119,6 +136,8 @@ core: [
     t-varargs.c
     t-vector.c
     t-word.c
+
+    ; (U)??? (3rd-party code extractions)
     u-bmp.c
     u-compress.c
     u-dialect.c

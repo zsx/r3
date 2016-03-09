@@ -86,6 +86,11 @@
     // release build should catch if any of these aren't #if !defined(NDEBUG)
     //
     #include <stdio.h>
+
+    // This header file brings in the ability to trigger a programmatic
+    // breakpoint in C code, by calling `debug_break();`
+    //
+    #include "debugbreak.h"
 #endif
 
 // Special OS-specific definitions:
@@ -153,8 +158,8 @@ typedef struct rebol_mem_pool REBPOL;
 #include "sys-series.h"
 #include "sys-scan.h"
 #include "sys-stack.h"
-#include "sys-do.h"
 #include "sys-state.h"
+#include "sys-do.h"
 
 #include "reb-struct.h"
 
@@ -233,7 +238,8 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
+    MKS_GC_MANUALS  = 1 << 4,   // used in implementation of series itself
+    MKS_NO_DYNAMIC  = 1 << 5    // Internal series using REBVAL[0] slot
 };
 
 // Modes allowed by Copy_Block function:
@@ -256,6 +262,11 @@ enum {
 #define TS_ARRAYS_OBJ ((TS_ARRAY | TS_CONTEXT) & ~TS_NOT_COPIED)
 
 #define TS_CLONE ((TS_SERIES | FLAGIT_KIND(REB_FUNCTION)) & ~TS_NOT_COPIED)
+
+#define TS_ANY_WORD \
+    (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_SET_WORD) | \
+    FLAGIT_KIND(REB_GET_WORD) | FLAGIT_KIND(REB_REFINEMENT) | \
+    FLAGIT_KIND(REB_LIT_WORD) | FLAGIT_KIND(REB_ISSUE))
 
 // These are the types which have no need to be seen by the GC.  Note that
 // this list may change--for instance if garbage collection is added for
@@ -281,14 +292,34 @@ typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
 
 // Modes allowed by Bind related functions:
 enum {
-    BIND_ONLY = 0,      // Only bind the words found in the context.
-    BIND_SET,           // Add set-words to the context during the bind.
-    BIND_ALL,           // Add words to the context during the bind.
-    BIND_DEEP = 4,      // Recurse into sub-blocks.
-    BIND_GET = 8,       // Lookup :word and use its word value
-    BIND_NO_DUP = 16,   // Do not allow dups during word collection (for specs)
-    BIND_FUNC = 32,     // Recurse into functions.
-    BIND_SELF = 64      // !!! Ensure SYM_SELF in context (transitional flag)
+    BIND_0 = 0, // Only bind the words found in the context.
+    BIND_DEEP = 1 << 1, // Recurse into sub-blocks.
+    BIND_FUNC = 1 << 2 // Recurse into functions.
+};
+
+// The bind table is sparsely hashed, so when it is in use only a few
+// entries get set.  It's cheaper to go through the entries that were
+// made nonzero and zero them out than to reset it.  So after every wave
+// of binding, the binds that were given non-zero values should have been
+// zeroed back out.  This can be enabled to check that invariant.
+//
+#ifdef NDEBUG
+    #define ASSERT_BIND_TABLE_EMPTY
+#else
+    #if 0
+        #define ASSERT_BIND_TABLE_EMPTY Assert_Bind_Table_Empty()
+    #else
+        #define ASSERT_BIND_TABLE_EMPTY
+    #endif
+#endif
+
+// Modes allowed by Collect keys functions:
+enum {
+    COLLECT_ONLY_SET_WORDS = 0,
+    COLLECT_ANY_WORD = 1 << 1,
+    COLLECT_DEEP = 1 << 2,
+    COLLECT_NO_DUP = 1 << 3, // Do not allow dups during collection (for specs)
+    COLLECT_ENSURE_SELF = 1 << 4 // !!! Ensure SYM_SELF in context (temp)
 };
 
 // Flags used for Protect functions
@@ -343,7 +374,6 @@ enum Reb_Reflectors {
     OF_SPEC,
     OF_VALUES,
     OF_TYPES,
-    OF_TITLE,
     OF_MAX
 };
 
@@ -547,14 +577,14 @@ enum Reb_Vararg_Op {
 // instead of fail on unbound variables.  (One uncommon exception to this is
 // if a word somehow becomes bound to a PARAM of a NATIVE!, which can happen
 // during debugging inspection.  Because it's possible for natives to be
-// "frameless" and optimize out the need to store arguments, a bound variable
-// into a frameless native may nevertheless fail during TRY_GET_OPT_VAR().)
+// "varless" and optimize out the need to store arguments, a bound variable
+// into a varless native may nevertheless fail during TRY_GET_OPT_VAR().)
 //
 // GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
 // facilities for getting a non-const REBVAL back.  They will fail if the
 // variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
 // them against modification.  The TRY variation will fail quietly by
-// returning NULL (with the same caveat about frameless natives mentioned
+// returning NULL (with the same caveat about varless natives mentioned
 // above.)
 //
 
@@ -715,20 +745,21 @@ enum Reb_Vararg_Op {
 ***********************************************************************/
 
 #define Bind_Values_Deep(values,context) \
-    Bind_Values_Core((values), (context), BIND_DEEP)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_DEEP)
 
 #define Bind_Values_All_Deep(values,context) \
-    Bind_Values_Core((values), (context), BIND_ALL | BIND_DEEP)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, TS_ANY_WORD, BIND_DEEP)
 
 #define Bind_Values_Shallow(values, context) \
-    Bind_Values_Core((values), (context), BIND_ONLY)
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_0)
 
 // Gave this a complex name to warn of its peculiarities.  Calling with
 // just BIND_SET is shallow and tricky because the set words must occur
 // before the uses (to be applied to bindings of those uses)!
 //
-#define Bind_Values_Set_Forward_Shallow(values, context) \
-    Bind_Values_Core((values), (context), BIND_SET)
+#define Bind_Values_Set_Midstream_Shallow(values, context) \
+    Bind_Values_Core( \
+        (values), (context), TS_ANY_WORD, FLAGIT_KIND(REB_SET_WORD), BIND_0)
 
 #define Unbind_Values_Deep(values) \
     Unbind_Values_Core((values), NULL, TRUE)
@@ -757,6 +788,9 @@ enum Reb_Vararg_Op {
         (PG_Boot_Phase >= BOOT_ERRORS) \
         && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))) \
     )
+
+    #define LEGACY_RUNNING(option) \
+        (LEGACY(option) && In_Legacy_Function_Debug())
 #endif
 
 
@@ -792,7 +826,6 @@ typedef struct rebol_stats {
 
 //-- Options of various kinds:
 typedef struct rebol_opts {
-    REBOOL  watch_obj_copy;
     REBOOL  watch_recycle;
     REBOOL  watch_series;
     REBOOL  watch_expand;
@@ -806,9 +839,6 @@ typedef struct rebol_time_fields {
     REBCNT n;
 } REB_TIMEF;
 
-
-// DO evaltype dispatch function
-typedef void (*REBDOF)(const REBVAL *ds);
 
 
 /***********************************************************************

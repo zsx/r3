@@ -37,7 +37,7 @@ struct Reb_Event {
     u32 data;       // an x/y position or keycode (raw/decoded)
     union {
         REBREQ *req;    // request (for device events)
-        void *ser;      // port or object
+        REBSER *ser;      // port or object
     } eventee;              // !!! REVIEW: Not always "sender"?  The name is
                             // "bad" (?) but at least unique, making it easy
                             // to change.  See also rebol_devreq->requestee

@@ -58,7 +58,7 @@
      * access.  Stray writes to that can cause even time-traveling bugs, with
      * effects *before* that write is made...due to "undefined behavior".
      */
-#elif defined(__cplusplus) /* <= gcc -Wundef */ && (__cplusplus < 201103L)
+#elif defined(__cplusplus) /* for gcc -Wundef */ && (__cplusplus < 201103L)
     /* Well-intentioned macros aside, C has no way to enforce that you can't
      * cast away a const without m_cast. C++98 builds can do that, at least:
      */
@@ -80,13 +80,25 @@
             "invalid m_cast() - input and output have mismatched volatility");
         return const_cast<T>(v);
     }
+    /* reinterpret_cast for pointer to pointer casting (non-class source)*/
     template<typename T, typename V,
-        typename std::enable_if<std::is_pointer<V>::value
-            || std::is_pointer<T>::value>::type* = nullptr>
+        typename std::enable_if<
+            !std::is_class<V>::value
+            && (std::is_pointer<V>::value || std::is_pointer<T>::value)
+        >::type* = nullptr>
                 T cast_helper(V v) { return reinterpret_cast<T>(v); }
+    /* static_cast for non-pointer to non-pointer casting (non-class source) */
     template<typename T, typename V,
-        typename std::enable_if<!std::is_pointer<V>::value
-            && !std::is_pointer<T>::value>::type* = nullptr>
+        typename std::enable_if<
+            !std::is_class<V>::value
+            && (!std::is_pointer<V>::value && !std::is_pointer<T>::value)
+        >::type* = nullptr>
+                T cast_helper(V v) { return static_cast<T>(v); }
+    /* use static_cast on all classes, to go through their cast operators */
+    template<typename T, typename V,
+        typename std::enable_if<
+            std::is_class<V>::value
+        >::type* = nullptr>
                 T cast_helper(V v) { return static_cast<T>(v); }
     template<typename T, typename V>
     T c_cast_helper(V v) {
@@ -191,7 +203,7 @@ typedef uintptr_t       REBUPT;     // unsigned counterpart of void*
 #else
 /* C-code types: C99 definitions unavailable, do it ourselves */
 
-typedef char            i8;
+typedef signed char     i8;
 typedef unsigned char   u8;
 #define I8(c)           c
 #define U8(c)           c

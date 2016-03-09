@@ -108,7 +108,7 @@ static u32* shape_ext_words;
 			RXIARG val[2];
 			REBCNT type;
 			REBCNT n, m = 0;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
@@ -129,7 +129,7 @@ static u32* shape_ext_words;
 			RXIARG val[3];
 			REBCNT type;
 			REBCNT n, m = 0;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
                 if (type == RXT_PAIR && ++m == 3) {
@@ -162,7 +162,7 @@ static u32* shape_ext_words;
 			RXIARG val;
 			REBCNT type;
 			REBCNT n;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
 				if (type == RXT_PAIR) {
@@ -199,7 +199,7 @@ static u32* shape_ext_words;
 			RXIARG val[2];
 			REBCNT type;
 			REBCNT n, m = 0;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val[m])); n++) {
 			    if (type == RXT_PAIR && ++m == 2) {
@@ -388,7 +388,7 @@ static u32* shape_ext_words;
 			RXIARG val;
 			REBCNT type;
 			REBCNT n, m = 0;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 			REBXYF *pts;
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
@@ -425,7 +425,7 @@ static u32* shape_ext_words;
         if (RXA_TYPE(frm, 2) == RXT_NONE)
             rebol_renderer->draw->rebdrw_line_pattern(ctx->envr, 0, 0);
         else {
-            REBSER patterns = RXA_SERIES(frm, 2);
+            REBSER *patterns = RXA_SERIES(frm, 2);
             REBINT len = RL_SERIES(patterns, RXI_SER_TAIL);
 
             if (len > 1){
@@ -474,7 +474,7 @@ static u32* shape_ext_words;
 			RXIARG val;
 			REBCNT type;
 			REBCNT n;
-			REBSER blk = RXA_SERIES(frm, 1);
+			REBSER *blk = RXA_SERIES(frm, 1);
 
 			for (n = 0; (type = RL_GET_VALUE(blk, n, &val)); n++) {
 				if (type == RXT_PAIR) {
@@ -537,7 +537,7 @@ static u32* shape_ext_words;
 
 	case CMD_DRAW_SPLINE:
         {
-            REBSER points = RXA_SERIES(frm, 1);
+            REBSER *points = RXA_SERIES(frm, 1);
             REBINT len = RL_SERIES(points, RXI_SER_TAIL);
 
             if (len > 3){

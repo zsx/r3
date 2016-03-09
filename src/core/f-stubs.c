@@ -70,13 +70,13 @@ REBCNT Find_Int(REBINT *array, REBINT num)
 
 
 //
-//  Get_Num_Arg: C
+//  Get_Num_From_Arg: C
 // 
 // Get the amount to skip or pick.
 // Allow multiple types. Throw error if not valid.
 // Note that the result is one-based.
 //
-REBINT Get_Num_Arg(REBVAL *val)
+REBINT Get_Num_From_Arg(const REBVAL *val)
 {
     REBINT n;
 
@@ -253,7 +253,7 @@ REBINT Int8u(const REBVAL *val)
 // Scans the stack for function refinements that have been
 // specified in the mask (each as a bit) and are being used.
 //
-REBCNT Find_Refines(struct Reb_Call *call_, REBCNT mask)
+REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
 {
     REBINT n;
     REBCNT result = 0;
@@ -334,7 +334,7 @@ REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
     REBCTX *context = VAL_CONTEXT(any_context);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
     assert(index <= CTX_LEN(context));
     return CTX_VAR(context, index);
 }
@@ -401,40 +401,6 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 
 
 //
-//  Make_Std_Object_Managed: C
-//
-REBCTX *Make_Std_Object_Managed(REBCNT index)
-{
-    REBCTX *context = Copy_Context_Shallow(
-        VAL_CONTEXT(Get_System(SYS_STANDARD, index))
-    );
-    MANAGE_ARRAY(CTX_VARLIST(context));
-
-    //
-    // !!! Shallow copy... values are all the same and modifications of
-    // series in one will modify all...is this right (?)
-    //
-
-    return context;
-}
-
-
-//
-//  Set_Object_Values: C
-//
-void Set_Object_Values(REBCTX *context, REBVAL value[])
-{
-    REBVAL *var;
-
-    var = CTX_VARS_HEAD(context);
-    for (; NOT_END(var); var++) {
-        if (IS_END(value)) SET_NONE(var);
-        else *var = *value++;
-    }
-}
-
-
-//
 //  Val_Init_Series_Index_Core: C
 // 
 // Common function.
@@ -466,7 +432,7 @@ void Val_Init_Series_Index_Core(
     }
 
     VAL_RESET_HEADER(value, type);
-    VAL_SERIES(value) = series;
+    INIT_VAL_SERIES(value, series);
     VAL_INDEX(value) = index;
 }
 
@@ -515,13 +481,13 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
         Panic_Context(context);
     }
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
 
     // !!! Historically spec is a frame of an object for a "module spec",
     // may want to use another word of that and make a block "spec"
     //
     if (IS_FRAME(CTX_VALUE(context))) {
-        assert(ANY_FUNC(FUNC_VALUE(FRM_FUNC(context))));
+        assert(IS_FUNCTION(FUNC_VALUE(CTX_FRAME_FUNC(context))));
     }
     else
         assert(
@@ -538,7 +504,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     //
     // Here is a case of where we mark the context as having an extant usage,
     // so that at minimum this value must become unreachable from the root GC
-    // set before they are GC'd.  For another case, see INIT_WORD_SPECIFIC(),
+    // set before they are GC'd.  For another case, see INIT_WORD_CONTEXT(),
     // where an ANY-WORD! can mark a context as in use.
     //
     ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
@@ -801,7 +767,6 @@ REBINT What_Reflector(REBVAL *word)
         case SYM_WORDS:  return OF_WORDS;
         case SYM_VALUES: return OF_VALUES;
         case SYM_TYPES:  return OF_TYPES;
-        case SYM_TITLE:  return OF_TITLE;
         }
     }
     return 0;

@@ -286,16 +286,19 @@ REBCNT Hash_Value(const REBVAL *val)
         ret = VAL_WORD_CANON(val);
         break;
 
-    case REB_NATIVE:
-    case REB_ACTION:
-    case REB_ROUTINE:
-    case REB_COMMAND:
     case REB_FUNCTION:
         //
-        // ANY-FUNCTION has a uniquely identifying "func" pointer for that
-        // function.  Because function equality is by identity only and they
-        // are immutable once created, it is legal to put them in hashes.
+        // Because function equality is by identity only and they are
+        // immutable once created, it is legal to put them in hashes.  The
+        // VAL_FUNC is the paramlist series, guaranteed unique per function
         //
+        // !!! Callback was not allowed to be hashed before nor was it in
+        // the any function category.  But it had a spec, paramlist, and
+        // routine.  In any case, it wasn't hashed here before.
+        //
+        if (VAL_FUNC_CLASS(val) == FUNC_CLASS_CALLBACK)
+            fail (Error_Has_Bad_Type(val));
+
         ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(val)) >> 4);
         break;
 
@@ -332,7 +335,6 @@ REBCNT Hash_Value(const REBVAL *val)
     case REB_TASK:
     case REB_GOB:
     case REB_EVENT:
-    case REB_CALLBACK:
     case REB_HANDLE:
     case REB_STRUCT:
     case REB_LIBRARY:

@@ -94,7 +94,7 @@ http-awake: func [event /local port http-port state awake res] [
     port: event/port
     http-port: port/locals
     state: http-port/state
-    if any-function? :http-port/awake [state/awake: :http-port/awake]
+    if function? :http-port/awake [state/awake: :http-port/awake]
     awake: :state/awake
     switch/default event/type [
         read [
@@ -538,7 +538,7 @@ sys/make-scheme [
         read: func [
             port [port!]
         ] [
-            either any-function? :port/awake [
+            either function? :port/awake [
                 unless open? port [cause-error 'Access 'not-open port/spec/ref]
                 unless port/state/state = 'ready [
                     fail make-http-error "Port not ready"
@@ -556,7 +556,7 @@ sys/make-scheme [
         ] [
             unless any [block? :value binary? :value any-string? :value] [value: form :value]
             unless block? value [value: reduce [[Content-Type: "application/x-www-form-urlencoded; charset=utf-8"] value]]
-            either any-function? :port/awake [
+            either function? :port/awake [
                 unless open? port [cause-error 'Access 'not-open port/spec/ref]
                 unless port/state/state = 'ready [
                     fail make-http-error "Port not ready"

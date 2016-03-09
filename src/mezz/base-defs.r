@@ -20,11 +20,10 @@ REBOL [
 
 ; Must be defined in A108 (no forward refs)
 spec-of:
-body-of:
+body-of: ;-- real BODY-OF defined in %mezz-func.r
 words-of:
 values-of:
 types-of:
-title-of:
     none
 
 use [word title] [
@@ -104,11 +103,6 @@ any-string?: func [
     "Return TRUE if value is any type of string."
     value [opt-any-value!]
 ][find any-string! type-of :value]
-
-any-function?: func [
-    "Return TRUE if value is any type of function."
-    value [opt-any-value!]
-][find any-function! type-of :value]
 
 any-word?: func [
     "Return TRUE if value is any type of word."

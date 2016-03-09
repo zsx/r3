@@ -534,7 +534,7 @@ REBINT Alloc_Window(REBGOB *gob) {
         case CMD_GRAPHICS_CURSOR:
 			{
                 REBUPT n = 0;
-                REBSER image = 0;
+                REBSER *image = 0;
 
                 if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
                     image = RXA_IMAGE_BITS(frm,1);

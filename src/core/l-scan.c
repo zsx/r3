@@ -604,7 +604,7 @@ static REBCTX *Error_Bad_Scan(
     REBSER *ser;
     REBCNT len = 0;
 
-    ERROR_OBJ *err_obj;
+    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
     REBVAL arg1;
     REBVAL arg2;
     VAL_INIT_WRITABLE_DEBUG(&arg1);
@@ -636,12 +636,12 @@ static REBCTX *Error_Bad_Scan(
     Val_Init_String(&arg1, Copy_Bytes(name, -1));
     Val_Init_String(&arg2, Copy_Bytes(arg, size));
 
-    error = Error(errnum, &arg1, &arg2, NULL);
+    error = Error(errnum, &arg1, &arg2, END_VALUE);
 
-    // Write the NEAR information (`Error()` gets it from DSF)
+    // Write the NEAR information (`Error()` gets it from FS_TOP)
     //
-    err_obj = cast(ERROR_OBJ*, ARR_HEAD(CTX_VARLIST(error)));
-    Val_Init_String(&err_obj->nearest, ser);
+    vars = ERR_VARS(error);
+    Val_Init_String(&vars->nearest, ser);
 
     return error;
 }
@@ -1439,7 +1439,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 } else token = REB_PATH;
             }
             VAL_RESET_HEADER(value, cast(enum Reb_Kind, token));
-            VAL_ARRAY(value) = block;
+            INIT_VAL_ARRAY(value, block);
             VAL_INDEX(value) = 0;
             token = TOKEN_PATH;
         } else {
@@ -1761,6 +1761,20 @@ exit_block:
     // too expensive, and we don't load source and free it manually anyway)
     //
     MANAGE_ARRAY(block);
+
+    // In Legacy mode, it can be helpful to know if a block of code is
+    // loaded after legacy mode is turned on.  This way, for instance a
+    // SWITCH can run differently based on noticing it was dispatched from
+    // a reference living in that legacy code.
+    //
+    // !!! Currently cued by the REFINEMENTS_TRUE option which also applies
+    // to functions, but should be its own independent switch.
+    //
+#if !defined(NDEBUG)
+    if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
+        SET_ARR_FLAG(block, SERIES_FLAG_LEGACY);
+#endif
+
     return block;
 }
 

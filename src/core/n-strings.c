@@ -420,7 +420,10 @@ REBNATIVE(construct)
         Val_Init_Block(D_OUT, array); // Keep safe
 
         // Convert string if necessary. Store back for safety.
-        VAL_SERIES(spec_value) = Temp_Bin_Str_Managed(spec_value, &index, 0);
+        INIT_VAL_SERIES(
+            spec_value,
+            Temp_Bin_Str_Managed(spec_value, &index, 0)
+        );
 
         // !!! "Is this what we really want here?" <= but *what is it*?
         //

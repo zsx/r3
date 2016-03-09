@@ -164,67 +164,81 @@ void Dump_Values(REBVAL *vp, REBCNT count)
 //
 void Dump_Info(void)
 {
-    REBINT n;
+    Debug_Fmt("^/--REBOL Kernel Dump--");
 
-    // Must be compile-time const for '= {...}' style init (-Wc99-extensions)
-    REBINT nums[14];
+    Debug_Fmt("Evaluator:");
+    Debug_Fmt("    Cycles:  %d", cast(REBINT, Eval_Cycles));
+    Debug_Fmt("    Counter: %d", Eval_Count);
+    Debug_Fmt("    Dose:    %d", Eval_Dose);
+    Debug_Fmt("    Signals: %x", Eval_Signals);
+    Debug_Fmt("    Sigmask: %x", Eval_Sigmask);
+    Debug_Fmt("    DSP:     %d", DSP);
 
-    nums[0] = 0;
-    nums[1] = 0,
-    nums[2] = cast(REBINT, Eval_Cycles);
-    nums[3] = Eval_Count;
-    nums[4] = Eval_Dose;
-    nums[5] = Eval_Signals;
-    nums[6] = Eval_Sigmask;
-    nums[7] = DSP;
-    nums[8] = Stack_Depth(); // DSF
-    nums[9] = 0;
-    nums[10] = GC_Ballast;
-    nums[11] = GC_Disabled;
-    nums[12] = SER_LEN(GC_Series_Guard);
-    nums[13] = SER_LEN(GC_Value_Guard);
+    Debug_Fmt("Memory/GC:");
 
-    for (n = 0; n < 14; n++) Debug_Fmt(cs_cast(BOOT_STR(RS_DUMP, n)), nums[n]);
+    Debug_Fmt("    Ballast: %d", GC_Ballast);
+    Debug_Fmt("    Disable: %d", GC_Disabled);
+    Debug_Fmt("    Guarded Series: %d", SER_LEN(GC_Series_Guard));
+    Debug_Fmt("    Guarded Values: %d", SER_LEN(GC_Value_Guard));
 }
 
 
 //
 //  Dump_Stack: C
 //
-void Dump_Stack(struct Reb_Call *call, REBDSP dsp)
+// Prints stack counting levels from the passed in number.  Pass 0 to start.
+//
+void Dump_Stack(struct Reb_Frame *f, REBCNT level)
 {
     REBINT n;
-    REBINT m;
-    REBINT i;
-    REBVAL *args;
+    REBVAL *arg;
+    REBVAL *param;
 
-    if (!call) {
-        call = DSF;
-        dsp = DSP;
+    static const char *mode_strings[] = {
+        "CALL_MODE_GUARD_ARRAY_ONLY",
+        "CALL_MODE_ARGS",
+        "CALL_MODE_REFINEMENT_PICKUP",
+        "CALL_MODE_FUNCTION",
+        "CALL_MODE_THROW_PENDING",
+        NULL
+    };
+
+    assert(mode_strings[CALL_MODE_MAX] == NULL);
+
+    Debug_Fmt(""); // newline.
+
+    if (f == NULL) f = FS_TOP;
+    if (f == NULL) {
+        Debug_Fmt("*STACK[] - NO FRAMES*");
+        return;
     }
 
-    for (i = 0; call != NULL; call = PRIOR_DSF(call)) {
+    Debug_Fmt(
+        "STACK[%d](%s) - %s",
+        level,
+        Get_Sym_Name(FRM_LABEL(f)),
+        mode_strings[f->mode]
+    );
 
-        if (call->mode != CALL_MODE_FUNCTION) continue;
+    if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+        Debug_Fmt("(no function call pending or in progress)");
+        return;
+    }
 
+    n = 1;
+    arg = FRM_ARG(f, 1);
+    param = FUNC_PARAMS_HEAD(f->func);
+
+    for (; NOT_END(param); ++param, ++arg, ++n) {
         Debug_Fmt(
-            cs_cast(BOOT_STR(RS_STACK, 1)),
-            dsp,
-            Get_Sym_Name(DSF_LABEL_SYM(call)),
-            i,
-            Get_Type_Name(FUNC_VALUE(DSF_FUNC(call)))
-            );
-
-        args = FUNC_PARAMS_HEAD(DSF_FUNC(call));
-        m = FUNC_NUM_PARAMS((DSF_FUNC(call)));
-        for (n = 1; n < m; n++)
-            Debug_Fmt("\t%s: %72r", Get_Sym_Name(VAL_TYPESET_SYM(args + n)), DSF_ARG(call, n));
-
-        i++;
+            "    %s: %72r",
+            Get_Sym_Name(VAL_TYPESET_SYM(param)),
+            arg
+        );
     }
-    //for (n = 1; n <= 2; n++) {
-    //  Debug_Fmt("  ARG%d: %s %r", n, Get_Type_Name(DSF_ARG(dsf, n)), DSF_ARG(dsf, n));
-    //}
+
+    if (f->prior)
+        Dump_Stack(f->prior, level + 1);
 }
 
 #ifdef TEST_PRINT

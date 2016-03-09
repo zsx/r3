@@ -106,7 +106,7 @@ void Append_Series(REBSER *series, const REBYTE *data, REBCNT len)
 // the number of units and does not include the terminator
 // (which will be added).
 //
-void Append_Values_Len(REBARR *array, const REBVAL value[], REBCNT len)
+void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
 {
     REBYTE *dest = cast(REBYTE*, ARR_TAIL(array));
 
@@ -114,7 +114,7 @@ void Append_Values_Len(REBARR *array, const REBVAL value[], REBCNT len)
     //
     EXPAND_SERIES_TAIL(ARR_SERIES(array), len);
 
-    memcpy(dest, &value[0], sizeof(REBVAL) * len);
+    memcpy(dest, head, sizeof(REBVAL) * len);
 
     TERM_ARRAY(array);
 }
@@ -248,7 +248,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
             // Reset bias to zero:
             len = SER_BIAS(series);
             SER_SET_BIAS(series, 0);
-            SER_REST(series) += len;
+            series->content.dynamic.rest += len;
             series->content.dynamic.data -= SER_WIDE(series) * len;
             TERM_SERIES(series);
         }
@@ -265,7 +265,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
                 series->content.dynamic.data -=
                     SER_WIDE(series) * SER_BIAS(series);
 
-                SER_REST(series) += SER_BIAS(series);
+                series->content.dynamic.rest += SER_BIAS(series);
                 SER_SET_BIAS(series, 0);
 
                 memmove(
@@ -276,7 +276,7 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
             }
             else {
                 SER_SET_BIAS(series, bias);
-                SER_REST(series) -= len;
+                series->content.dynamic.rest -= len;
                 series->content.dynamic.data += SER_WIDE(series) * len;
                 if ((start = SER_BIAS(series))) {
                     // If more than half biased:
@@ -348,7 +348,7 @@ void Unbias_Series(REBSER *series, REBOOL keep)
     if (len == 0) return;
 
     SER_SET_BIAS(series, 0);
-    SER_REST(series) += len;
+    series->content.dynamic.rest += len;
     series->content.dynamic.data -= SER_WIDE(series) * len;
 
     if (keep)
@@ -471,6 +471,26 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 #if !defined(NDEBUG)
 
 //
+//  SER_AT_RAW_Debug: C
+//
+// This functionality is extremely common, and having too much checking on
+// each invocation as part of the macro expansion was creating explosions
+// of unreadable macro code in asserts.  Putting it into a function in
+// the debug build reigns in the expansions...and since performance is
+// not a concern in the debug build, it's ok.
+//
+REBYTE *SER_AT_RAW_Debug(size_t w, REBSER *s, REBCNT i) {
+    //
+    // Callsites know the type of pointer they are asking for, so they often
+    // know the width without having to look in the series to get it.  Assert
+    // the width they think is consistent with what SER_WIDE thinks.
+    //
+    assert(w == SER_WIDE(s));
+    return SER_AT_RAW_MACRO(w, s, i);
+}
+
+
+//
 //  Assert_Series_Term_Core: C
 //
 void Assert_Series_Term_Core(REBSER *series)
@@ -530,8 +550,11 @@ void Assert_Series_Core(REBSER *series)
 // This could be done in the PANIC_SERIES macro, but having it
 // as an actual function gives you a place to set breakpoints.
 //
-void Panic_Series_Debug(const REBSER *series, const char *file, int line)
-{
+ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
+    const REBSER *series,
+    const char *file,
+    int line
+) {
     if (TG_Pushing_Mold) { // cannot call Debug_Fmt !
         Debug_String(
             "Panic_Series() while pushing_mold",

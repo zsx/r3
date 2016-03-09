@@ -597,7 +597,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     REBUNI n;
 
     VAL_RESET_HEADER(value, REB_EMAIL);
-    VAL_SERIES(value) = Make_Binary(len);
+    INIT_VAL_SERIES(value, Make_Binary(len));
     VAL_INDEX(value) = 0;
 
     str = VAL_BIN(value);
@@ -643,7 +643,7 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (*str != ':') return 0;
 
     VAL_RESET_HEADER(value, REB_URL);
-    VAL_SERIES(value) = Make_Binary(len);
+    INIT_VAL_SERIES(value, Make_Binary(len));
     VAL_INDEX(value) = 0;
 
     str = VAL_BIN(value);
@@ -768,7 +768,7 @@ const REBYTE *Scan_Any(
     REBCNT n;
 
     VAL_RESET_HEADER(value, type);
-    VAL_SERIES(value) = Append_UTF8_May_Fail(0, cp, len);
+    INIT_VAL_SERIES(value, Append_UTF8_May_Fail(0, cp, len));
     VAL_INDEX(value) = 0;
 
     // We hand it over to management by the GC, but don't run the GC before
@@ -784,80 +784,6 @@ const REBYTE *Scan_Any(
     SET_SERIES_LEN(VAL_SERIES(value), n);
 
     return cp + len;
-}
-
-
-//
-//  Append_Markup: C
-// 
-// Add a new string or tag to a markup block, advancing the tail.
-//
-static void Append_Markup(
-    REBARR *array,
-    enum Reb_Kind type,
-    const REBYTE *bp,
-    REBINT len
-) {
-    REBVAL *val;
-    if (SER_FULL(ARR_SERIES(array)))
-        Extend_Series(ARR_SERIES(array), 8);
-    val = ARR_TAIL(array);
-    SET_END(val);
-    SET_ARRAY_LEN(array, ARR_LEN(array) + 1);
-    SET_END(val+1);
-    Val_Init_Series(val, type, Append_UTF8_May_Fail(0, bp, len));
-}
-
-
-//
-//  Load_Markup: C
-// 
-// Scan a string as HTML or XML and convert it to a block
-// of strings and tags.  Return the block as a series.
-//
-REBARR *Load_Markup(const REBYTE *cp, REBINT len)
-{
-    const REBYTE *bp = cp;
-    REBARR *array;
-    REBYTE quote;
-
-    array = Make_Array(16);
-
-    while (len > 0) {
-        // Look for tag, gathering text as we go:
-        for (; len > 0 && *cp != '<'; len--, cp++);
-        if (len <= 0) break;
-        if (!IS_LEX_WORD(cp[1]) && cp[1] != '/' && cp[1] != '?' && cp[1] != '!') {
-            cp++; len--; continue;
-        }
-        if (cp != bp) Append_Markup(array, REB_STRING, bp, cp - bp);
-        bp = ++cp;  // skip <
-
-        // Check for comment tag:
-        if (*cp == '!' && len > 7 && cp[1] == '-' && cp[2] == '-') {
-            for (len -= 3, cp += 3; len > 2 &&
-                !(*cp == '-' && cp[1] == '-' && cp[2] == '>'); cp++, len--);
-            if (len > 2) cp += 2, len -= 2;
-            // fall into tag code below...
-        }
-        // Look for end of tag, watch for quotes:
-        for (len--; len > 0; len--, cp++) {
-            if (*cp == '>') {
-                Append_Markup(array, REB_TAG, bp, cp - bp);
-                bp = ++cp; len--;
-                break;
-            }
-            if (*cp == '"' || *cp == '\'') { // quote in tag
-                quote = *cp++;
-                for (len--; len > 0 && *cp != quote; len--, cp++); // find end quote
-                if (len <= 0) break;
-            }
-        }
-        // Note: if final tag does not end, then it is treated as text.
-    }
-    if (cp != bp) Append_Markup(array, REB_STRING, bp, cp - bp);
-
-    return array;
 }
 
 

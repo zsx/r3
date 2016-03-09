@@ -137,33 +137,44 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
 //
 REBINT PD_Pair(REBPVS *pvs)
 {
-    REBVAL *sel;
-    REBVAL *val;
+    const REBVAL *sel = pvs->selector;
     REBINT n = 0;
     REBD32 dec;
 
-    if (IS_WORD(sel = pvs->select)) {
-        if (VAL_WORD_CANON(sel) == SYM_X) n = 1;
-        else if (VAL_WORD_CANON(sel) == SYM_Y) n = 2;
-        else return PE_BAD_SELECT;
+    if (IS_WORD(sel)) {
+        if (VAL_WORD_CANON(sel) == SYM_X)
+            n = 1;
+        else if (VAL_WORD_CANON(sel) == SYM_Y)
+            n = 2;
+        else
+            fail (Error_Bad_Path_Select(pvs));
     }
     else if (IS_INTEGER(sel)) {
         n = Int32(sel);
-        if (n != 1 && n !=2) return PE_BAD_SELECT;
+        if (n != 1 && n != 2)
+            fail (Error_Bad_Path_Select(pvs));
     }
-    else
-        return PE_BAD_SELECT;
+    else fail (Error_Bad_Path_Select(pvs));
 
-    if ((val = pvs->setval)) {
-        if (IS_INTEGER(val)) dec = (REBD32)VAL_INT64(val);
-        else if (IS_DECIMAL(val)) dec = (REBD32)VAL_DECIMAL(val);
-        else return PE_BAD_SET;
-        if (n == 1) VAL_PAIR_X(pvs->value) = dec;
-        else VAL_PAIR_Y(pvs->value) = dec;
-    } else {
+    if (pvs->opt_setval) {
+        const REBVAL *setval = pvs->opt_setval;
+
+        if (IS_INTEGER(setval))
+            dec = cast(REBD32, VAL_INT64(setval));
+        else if (IS_DECIMAL(setval))
+            dec = cast(REBD32, VAL_DECIMAL(setval));
+        else
+            fail (Error_Bad_Path_Set(pvs));
+
+        if (n == 1)
+            VAL_PAIR_X(pvs->value) = dec;
+        else
+            VAL_PAIR_Y(pvs->value) = dec;
+    }
+    else {
         dec = (n == 1 ? VAL_PAIR_X(pvs->value) : VAL_PAIR_Y(pvs->value));
         SET_DECIMAL(pvs->store, dec);
-        return PE_USE;
+        return PE_USE_STORE;
     }
 
     return PE_OK;
@@ -263,7 +274,7 @@ REBTYPE(Pair)
         case A_ROUND:
             {
                 REBDEC d64;
-                n = Get_Round_Flags(call_);
+                n = Get_Round_Flags(frame_);
                 if (D_REF(2))
                     d64 = Dec64(D_ARG(3));
                 else {
@@ -298,7 +309,7 @@ REBTYPE(Pair)
                     fail (Error_Invalid_Arg(arg));
             }
             else {
-                n = Get_Num_Arg(arg);
+                n = Get_Num_From_Arg(arg);
                 if (n < 1 || n > 2) fail (Error_Out_Of_Range(arg));
                 n--;
             }

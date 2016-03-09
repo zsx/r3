@@ -328,23 +328,28 @@ REBNATIVE(shift)
 
     if (b < 0) {
         // this is defined:
-        c = -(REBU64)b;
+        c = - cast(REBU64, b);
         if (c >= 64) {
             if (REF(logical)) VAL_INT64(a) = 0;
             else VAL_INT64(a) >>= 63;
         } else {
-            if (REF(logical)) VAL_UNT64(a) >>= c;
-            else VAL_INT64(a) >>= (REBI64)c;
+            if (REF(logical))
+                VAL_INT64(a) = cast(REBU64, VAL_INT64(a)) >> c;
+            else
+                VAL_INT64(a) >>= cast(REBI64, c);
         }
     } else {
         if (b >= 64) {
             if (REF(logical)) VAL_INT64(a) = 0;
             else if (VAL_INT64(a)) fail (Error(RE_OVERFLOW));
         } else
-            if (REF(logical)) VAL_UNT64(a) <<= b;
+            if (REF(logical))
+                VAL_INT64(a) = cast(REBU64, VAL_INT64(a)) << b;
             else {
-                c = (REBU64)MIN_I64 >> b;
-                d = VAL_INT64(a) < 0 ? -VAL_UNT64(a) : VAL_UNT64(a);
+                c = cast(REBU64, MIN_I64) >> b;
+                d = VAL_INT64(a) < 0
+                    ? - cast(REBU64, VAL_INT64(a))
+                    : cast(REBU64, VAL_INT64(a));
                 if (c <= d) {
                     if ((c < d) || (VAL_INT64(a) >= 0))
                         fail (Error(RE_OVERFLOW));
@@ -397,11 +402,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
         switch (ta) {
         case REB_INTEGER:
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-                SET_DECIMAL(a, (REBDEC)VAL_INT64(a));
+                REBDEC dec_a = cast(REBDEC, VAL_INT64(a));
+                SET_DECIMAL(a, dec_a);
                 goto compare;
             }
             else if (tb == REB_MONEY) {
-                SET_MONEY_AMOUNT(a, int_to_deci(VAL_INT64(a)));
+                deci amount = int_to_deci(VAL_INT64(a));
+                SET_MONEY_AMOUNT(a, amount);
                 goto compare;
             }
             break;
@@ -409,11 +416,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
         case REB_DECIMAL:
         case REB_PERCENT:
             if (tb == REB_INTEGER) {
-                SET_DECIMAL(b, (REBDEC)VAL_INT64(b));
+                REBDEC dec_b = cast(REBDEC, VAL_INT64(b));
+                SET_DECIMAL(b, dec_b);
                 goto compare;
             }
             else if (tb == REB_MONEY) {
-                SET_MONEY_AMOUNT(a, decimal_to_deci(VAL_DECIMAL(a)));
+                deci amount = decimal_to_deci(VAL_DECIMAL(a));
+                SET_MONEY_AMOUNT(a, amount);
                 goto compare;
             }
             else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
@@ -422,11 +431,13 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
 
         case REB_MONEY:
             if (tb == REB_INTEGER) {
-                SET_MONEY_AMOUNT(b, int_to_deci(VAL_INT64(b)));
+                deci amount = int_to_deci(VAL_INT64(b));
+                SET_MONEY_AMOUNT(b, amount);
                 goto compare;
             }
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-                SET_MONEY_AMOUNT(b, decimal_to_deci(VAL_DECIMAL(b)));
+                deci amount = decimal_to_deci(VAL_DECIMAL(b));
+                SET_MONEY_AMOUNT(b, amount);
                 goto compare;
             }
             break;

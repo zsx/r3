@@ -82,7 +82,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
     case CMD_CORE_GET_ENCAP_DATA:
         if (encapBuffer != NULL)
         {
-            REBSER *encapData = (REBSER*)RL_Make_String(encapBufferLen, FALSE);
+            REBSER *encapData = RL_Make_String(encapBufferLen, FALSE);
             memcpy(RL_SERIES(encapData, RXI_SER_DATA), encapBuffer, encapBufferLen);
             FREE(encapBuffer);
             encapBuffer = NULL;
@@ -125,7 +125,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             error = lodepng_encode(
                 &buffer, &buffersize,
                 cast(REBYTE *, RL_SERIES(
-                    cast(REBSER*, RXA_ARG(frm,1).iwh.image), RXI_SER_DATA)
+                    RXA_ARG(frm,1).iwh.image, RXI_SER_DATA)
                 ),
                 w, h,
                 &state
@@ -140,13 +140,12 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             }
             //RL_Print("buff size: %d\n",buffersize);
             //allocate new binary!
-            binary = (REBSER*)RL_Make_String(buffersize, FALSE);
+            binary = RL_Make_String(buffersize, FALSE);
             binaryBuffer = (REBYTE *)RL_SERIES(binary, RXI_SER_DATA);
             //copy PNG data
             memcpy(binaryBuffer, buffer, buffersize);
 
-            //hack! - will set the tail to buffersize
-            *((REBCNT*)(binary+1)) = buffersize;
+            RL_SET_SERIES_LEN(binary, buffersize);
 
             //setup returned binary! value
             RXA_TYPE(frm,1) = RXT_BINARY;
@@ -171,7 +170,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             REBOOL osPath = FALSE;
 
             //allocate new string!
-            string = (REBSER*)RL_Make_String(MAX_PATH, TRUE);
+            string = RL_Make_String(MAX_PATH, TRUE);
             stringBuffer = (REBCHR*)RL_SERIES(string, RXI_SER_DATA);
 
 
@@ -230,7 +229,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 }
 
                 //get data
-                data = cast(REBSER*, RXA_SERIES(frm,5));
+                data = RXA_SERIES(frm,5);
                 dataBuffer = cast(REBYTE *, RL_SERIES(data, RXI_SER_DATA))
                     + RXA_INDEX(frm,5);
 
@@ -240,7 +239,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //key defined - setup new context
                 ctx = OS_ALLOC_ZEROFILL(RC4_CTX);
 
-                key = cast(REBSER*, RXA_SERIES(frm, 2));
+                key = RXA_SERIES(frm, 2);
 
                 RC4_setup(ctx,
                     cast(REBYTE *, RL_SERIES(key, RXI_SER_DATA))
@@ -283,7 +282,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 }
 
                 //get data
-                data = cast(REBSER*, RXA_SERIES(frm, 6));
+                data = RXA_SERIES(frm, 6);
                 dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 6);
                 len = RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 6);
 
@@ -302,7 +301,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 }
 
                 //allocate new binary! for output
-                binaryOut = (REBSER*)RL_Make_String(pad_len, FALSE);
+                binaryOut = RL_Make_String(pad_len, FALSE);
                 binaryOutBuffer =(REBYTE *)RL_SERIES(binaryOut, RXI_SER_DATA);
                 memset(binaryOutBuffer, 0, pad_len);
 
@@ -323,8 +322,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
                 if (pad_data) OS_FREE(pad_data);
 
-                //hack! - will set the tail to buffersize
-                *((REBCNT*)(binaryOut+1)) = pad_len;
+                RL_SET_SERIES_LEN(binaryOut, pad_len);
 
                 //setup returned binary! value
                 RXA_TYPE(frm, 1) = RXT_BINARY;
@@ -338,7 +336,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
                 if (RXA_TYPE(frm, 3) == RXT_BINARY)
                 {
-                    data = cast(REBSER*, RXA_SERIES(frm, 3));
+                    data = RXA_SERIES(frm, 3);
                     dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 3);
 
                     if ((RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 3)) < AES_IV_SIZE) return RXR_NONE;
@@ -353,7 +351,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //key defined - setup new context
                 ctx = OS_ALLOC_ZEROFILL(AES_CTX);
 
-                key = cast(REBSER*, RXA_SERIES(frm, 2));
+                key = RXA_SERIES(frm, 2);
                 len = (RL_SERIES(key, RXI_SER_TAIL) - RXA_INDEX(frm,2)) << 3;
 
                 if (len != 128 && len != 256) {
@@ -383,9 +381,9 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RXIARG val;
             u32 *words,*w;
             REBCNT type;
-            REBSER *data = cast(REBSER*, RXA_SERIES(frm, 1));
+            REBSER *data = RXA_SERIES(frm, 1);
             REBYTE *dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm,1);
-            REBSER *obj = cast(REBSER*, RXA_OBJECT(frm, 2));
+            REBSER *obj = RXA_OBJECT(frm, 2);
             REBYTE *objData = NULL, *n = NULL, *e = NULL, *d = NULL, *p = NULL, *q = NULL, *dp = NULL, *dq = NULL, *qinv = NULL;
             REBINT data_len = RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm,1), objData_len = 0, n_len = 0, e_len = 0, d_len = 0, p_len = 0, q_len = 0, dp_len = 0, dq_len = 0, qinv_len = 0;
             REBSER *binary;
@@ -408,11 +406,11 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             {
                 if (type == RXT_BINARY){
                     objData = cast(REBYTE *, RL_SERIES(
-                        cast(REBSER*, val.sri.series), RXI_SER_DATA)
+                        val.sri.series, RXI_SER_DATA)
                     ) + val.sri.index;
 
                     objData_len =
-                        RL_SERIES(cast(REBSER*, val.sri.series), RXI_SER_TAIL)
+                        RL_SERIES(val.sri.series, RXI_SER_TAIL)
                         - val.sri.index;
 
                     switch(RL_FIND_WORD(core_ext_words,w[0]))
@@ -475,7 +473,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             data_bi = bi_import(bi_ctx, dataBuffer, data_len);
 
             //allocate new binary!
-            binary = (REBSER*)RL_Make_String(binary_len, FALSE);
+            binary = RL_Make_String(binary_len, FALSE);
             binaryBuffer = (REBYTE *)RL_SERIES(binary, RXI_SER_DATA);
 
             if (RXA_WORD(frm, 3)) // decrypt refinement
@@ -512,7 +510,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             }
 
             //hack! - will set the tail to buffersize
-            *((REBCNT*)(binary+1)) = binary_len;
+            RL_SET_SERIES_LEN(binary, binary_len);
 
             //setup returned binary! value
             RXA_TYPE(frm,1) = RXT_BINARY;
@@ -528,7 +526,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             DH_CTX dh_ctx;
             RXIARG val, priv_key, pub_key;
             REBCNT type;
-            REBSER *obj = cast(REBSER*, RXA_OBJECT(frm, 1));
+            REBSER *obj = RXA_OBJECT(frm, 1);
             u32 *words = RL_WORDS_OF_OBJECT(obj);
             REBYTE *objData;
 
@@ -539,7 +537,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (type == RXT_BINARY)
                 {
                     objData = cast(REBYTE*, RL_SERIES(
-                        cast(REBSER*, val.sri.series), RXI_SER_DATA
+                        val.sri.series, RXI_SER_DATA
                     )) + val.sri.index;
 
                     switch(RL_FIND_WORD(core_ext_words,words[0]))
@@ -547,14 +545,14 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         case W_CORE_P:
                             dh_ctx.p = objData;
                             dh_ctx.len = RL_SERIES(
-                                cast(REBSER*, val.sri.series), RXI_SER_TAIL
+                                val.sri.series, RXI_SER_TAIL
                             ) - val.sri.index;
                             break;
 
                         case W_CORE_G:
                             dh_ctx.g = objData;
                             dh_ctx.glen = RL_SERIES(
-                                cast(REBSER*, val.sri.series), RXI_SER_TAIL
+                                val.sri.series, RXI_SER_TAIL
                             ) - val.sri.index;
                             break;
                     }
@@ -566,21 +564,21 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             //allocate new binary! blocks for priv/pub keys
             priv_key.sri.series =
-                cast(REBSER*, RL_Make_String(dh_ctx.len, FALSE));
+                RL_Make_String(dh_ctx.len, FALSE);
             priv_key.sri.index = 0;
 
             dh_ctx.x = cast(REBYTE*, RL_SERIES(
-                cast(REBSER*, priv_key.sri.series), RXI_SER_DATA)
+                priv_key.sri.series, RXI_SER_DATA)
             );
             memset(dh_ctx.x, 0, dh_ctx.len);
             //hack! - will set the tail to key size
             *cast(REBCNT*, cast(void**, priv_key.sri.series) + 1) = dh_ctx.len;
 
-            pub_key.sri.series = cast(REBSER*, RL_Make_String(dh_ctx.len, FALSE));
+            pub_key.sri.series = RL_Make_String(dh_ctx.len, FALSE);
             pub_key.sri.index = 0;
 
             dh_ctx.gx = cast(REBYTE*, RL_SERIES(
-                cast(REBSER*, pub_key.sri.series), RXI_SER_DATA)
+                pub_key.sri.series, RXI_SER_DATA)
             );
             memset(dh_ctx.gx, 0, dh_ctx.len);
             //hack! - will set the tail to key size
@@ -601,8 +599,8 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             DH_CTX dh_ctx;
             RXIARG val;
             REBCNT type;
-            REBSER *obj = cast(REBSER*, RXA_OBJECT(frm, 1));
-            REBSER *pub_key = cast(REBSER*, RXA_SERIES(frm, 2));
+            REBSER *obj = RXA_OBJECT(frm, 1);
+            REBSER *pub_key = RXA_SERIES(frm, 2);
             u32 *words = RL_WORDS_OF_OBJECT(obj);
             REBYTE *objData;
             REBSER *binary;
@@ -615,7 +613,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (type == RXT_BINARY)
                 {
                     objData = cast(REBYTE *, RL_SERIES(
-                        cast(REBSER*, val.sri.series), RXI_SER_DATA)
+                        val.sri.series, RXI_SER_DATA)
                     ) + val.sri.index;
 
                     switch(RL_FIND_WORD(core_ext_words,words[0]))
@@ -623,7 +621,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         case W_CORE_P:
                             dh_ctx.p = objData;
                             dh_ctx.len = RL_SERIES(
-                                cast(REBSER*, val.sri.series), RXI_SER_TAIL
+                                val.sri.series, RXI_SER_TAIL
                             ) - val.sri.index;
                             break;
                         case W_CORE_PRIV_KEY:
@@ -639,11 +637,11 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy) return RXR_NONE;
 
             //allocate new binary!
-            binary = (REBSER*)RL_Make_String(dh_ctx.len, FALSE);
+            binary = RL_Make_String(dh_ctx.len, FALSE);
             binaryBuffer = (REBYTE *)RL_SERIES(binary, RXI_SER_DATA);
             memset(binaryBuffer, 0, dh_ctx.len);
-            //hack! - will set the tail to buffersize
-            *((REBCNT*)(binary+1)) = dh_ctx.len;
+
+            RL_SET_SERIES_LEN(binary, dh_ctx.len);
 
             dh_ctx.k = binaryBuffer;
 
@@ -658,7 +656,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
         }
 
         case CMD_CORE_INIT_WORDS:
-            core_ext_words = RL_MAP_WORDS(cast(REBSER*, RXA_SERIES(frm, 1)));
+            core_ext_words = RL_MAP_WORDS(RXA_SERIES(frm, 1));
             break;
 
         default:

@@ -240,7 +240,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const int Eval_Table[REB_MAX] =
+*/  const REBUPT Eval_Table[REB_MAX] =
 /*
 ** This table is used to bypass a Do_Core evaluation for certain types.  So
 ** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
@@ -281,6 +281,10 @@ emit-end
 
 emit {
 
+
+
+extern const REBPEF Path_Dispatch[REB_MAX_0];
+
 /***********************************************************************
 **
 */  const REBPEF Path_Dispatch[REB_MAX_0] =
@@ -301,7 +305,7 @@ for-each-record-NO-RETURN type boot-types [
 ]
 emit-end
 
-write inc/tmp-evaltypes.h out
+write inc/tmp-evaltypes.inc out
 
 
 ;----------------------------------------------------------------------------
@@ -578,9 +582,6 @@ emit {
 #define ANY_PATH(v) \
     LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
-#define ANY_FUNC(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_NATIVE && VAL_TYPE(v) <= REB_FUNCTION)
-
 #define ANY_EVAL_BLOCK(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
 
@@ -600,7 +601,7 @@ emit {
 // math but reusing the values.  Any integer property could be stored for
 // the evaluables so long as non-evaluables are 0 in this list.
 //
-extern const int Eval_Table[REB_MAX];
+extern const REBUPT Eval_Table[REB_MAX];
 
 #define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
 }
@@ -1073,19 +1074,18 @@ emit {
 #ifdef VAL_TYPE
 /***********************************************************************
 **
-*/  typedef struct REBOL_Error_Obj
+*/  typedef struct REBOL_Error_Vars
 /*
 ***********************************************************************/
 ^{
 }
 ; Generate ERROR object and append it to bootdefs.h:
-emit-line/code "REBVAL " 'rootvar ";"
 emit-line/code "REBVAL " 'self ";"
 for-each word words-of ob/standard/error [
     if word = 'near [word: 'nearest] ; prevents C problem
     emit-line/code "REBVAL " word ";"
 ]
-emit {^} ERROR_OBJ;
+emit {^} ERROR_VARS;
 #endif
 }
 

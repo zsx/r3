@@ -265,22 +265,33 @@ REBNATIVE(bind)
     REFINE(5, new);
     REFINE(6, set);
 
+    REBVAL *value = ARG(value);
+    REBVAL *target = ARG(target);
+
     REBCTX *context = NULL;
     REBFUN *func = NULL;
 
     REBARR *array;
-    REBCNT flags;
+    REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
 
-    flags = REF(only) ? 0 : BIND_DEEP;
-    if (REF(new)) flags |= BIND_ALL;
-    if (REF(set)) flags |= BIND_SET;
+    REBU64 bind_types = TS_ANY_WORD;
 
-    if (ANY_CONTEXT(ARG(target))) {
+    REBU64 add_midstream_types;
+    if (REF(new)) {
+        add_midstream_types = TS_ANY_WORD;
+    }
+    else if (REF(set)) {
+        add_midstream_types = FLAGIT_KIND(REB_SET_WORD);
+    }
+    else
+        add_midstream_types = 0;
+
+    if (ANY_CONTEXT(target)) {
         //
         // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
         //
-        assert(!IS_FRAME(ARG(target))); // !!! not implemented yet
-        context = VAL_CONTEXT(ARG(target));
+        assert(!IS_FRAME(target)); // !!! not implemented yet
+        context = VAL_CONTEXT(target);
     }
     else {
         //
@@ -290,18 +301,18 @@ REBNATIVE(bind)
         // why not?  Were it a closure, it would be legal because a closure's
         // frame is just an object context (at the moment).
         //
-        assert(ANY_WORD(ARG(target)));
-        if (IS_WORD_UNBOUND(ARG(target)))
-            fail (Error(RE_NOT_BOUND, ARG(target)));
+        assert(ANY_WORD(target));
+        if (IS_WORD_UNBOUND(target))
+            fail (Error(RE_NOT_BOUND, target));
 
         // The word in hand may be a relatively bound one.  To return a
-        // specific frame, this needs to ensure that the Reb_Call's frame
+        // specific frame, this needs to ensure that the Reb_Frame's data
         // is a real context, not just a chunk of data.
         //
-        context = VAL_WORD_CONTEXT_MAY_REIFY(ARG(target));
+        context = VAL_WORD_CONTEXT_MAY_REIFY(target);
     }
 
-    if (ANY_WORD(ARG(value))) {
+    if (ANY_WORD(value)) {
         //
         // Bind a single word
 
@@ -309,23 +320,23 @@ REBNATIVE(bind)
             //
             // Note: BIND_ALL has no effect on "frames".
             //
-            Bind_Stack_Word(func, ARG(value)); // may fail()
-            *D_OUT = *ARG(value);
+            Bind_Stack_Word(func, value); // may fail()
+            *D_OUT = *value;
             return R_OUT;
         }
 
         assert(context);
 
-        if (Try_Bind_Word(context, ARG(value))) {
-            *D_OUT = *ARG(value);
+        if (Try_Bind_Word(context, value)) {
+            *D_OUT = *value;
             return R_OUT;
         }
 
-        // not in context, BIND_ALL means add it if it's not.
+        // not in context, bind/new means add it if it's not.
         //
-        if (flags & BIND_ALL) {
-            Append_Context(context, ARG(value), 0);
-            *D_OUT = *ARG(value);
+        if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
+            Append_Context(context, value, 0);
+            *D_OUT = *value;
             return R_OUT;
         }
 
@@ -340,25 +351,32 @@ REBNATIVE(bind)
     // because there could be code that depends on the existing (mis)behavior
     // but it should be followed up on.
     //
-    *D_OUT = *ARG(value);
+    *D_OUT = *value;
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(ARG(value)), VAL_INDEX(ARG(value))
+            VAL_ARRAY(value), VAL_INDEX(value)
         );
-        VAL_ARRAY(D_OUT) = array;
+        INIT_VAL_ARRAY(D_OUT, array);
     }
     else
-        array = VAL_ARRAY(ARG(value));
+        array = VAL_ARRAY(value);
 
-    if (context)
-        Bind_Values_Core(ARR_HEAD(array), context, flags);
+    if (context) {
+        Bind_Values_Core(
+            ARR_HEAD(array),
+            context,
+            bind_types,
+            add_midstream_types,
+            flags
+        );
+    }
     else {
         // This code is temporary, but it doesn't have any non-deep option
         // at this time...
         //
         assert(flags & BIND_DEEP);
-        assert(NOT(flags & BIND_SET));
-        Bind_Relative_Deep(func, array);
+        assert(NOT(REF(set)));
+        Bind_Relative_Deep(func, ARR_HEAD(array), TS_ANY_WORD);
     }
 
     return R_OUT;
@@ -457,12 +475,16 @@ REBNATIVE(collect_words)
     PARAM(5, hidden);
 
     REBARR *words;
-    REBCNT modes = 0;
+    REBCNT modes;
     REBVAL *values = VAL_ARRAY_AT(D_ARG(1));
     REBVAL *prior_values;
 
-    if (REF(deep)) modes |= BIND_DEEP;
-    if (!REF(set)) modes |= BIND_ALL;
+    if (REF(set))
+        modes = COLLECT_ONLY_SET_WORDS;
+    else
+        modes = COLLECT_ANY_WORD;
+
+    if (REF(deep)) modes |= COLLECT_DEEP;
 
     // If ignore, then setup for it:
     if (REF(ignore)) {
@@ -656,8 +678,9 @@ REBNATIVE(in)
                         context, VAL_WORD_SYM(word), FALSE
                     );
                     if (index != 0) {
-                        SET_VAL_FLAG(word, WORD_FLAG_BOUND_SPECIFIC);
-                        INIT_WORD_SPECIFIC(word, context);
+                        CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
+                        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
+                        INIT_WORD_CONTEXT(word, context);
                         INIT_WORD_INDEX(word, index);
                         *D_OUT = *word;
                         return R_OUT;
@@ -685,8 +708,8 @@ REBNATIVE(in)
 
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
     INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
-    SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND_SPECIFIC);
-    INIT_WORD_SPECIFIC(D_OUT, context);
+    SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND); // header reset, so not relative
+    INIT_WORD_CONTEXT(D_OUT, context);
     INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
 }
@@ -1112,14 +1135,14 @@ REBNATIVE(unset)
 //  
 //  {Returns TRUE if the function gets its first argument prior to the call}
 //  
-//      value [any-function!]
+//      value [function!]
 //  ]
 //
 REBNATIVE(infix_q)
 {
     REBVAL *func = D_ARG(1);
 
-    assert(ANY_FUNC(func));
+    assert(IS_FUNCTION(func));
     if (GET_VAL_FLAG(func, FUNC_FLAG_INFIX))
         return R_TRUE;
 
@@ -1183,7 +1206,7 @@ REBNATIVE(true_q)
 //
 REBNATIVE(false_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1203,7 +1226,7 @@ REBNATIVE(false_q)
 //
 REBNATIVE(quote)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1227,7 +1250,7 @@ REBNATIVE(quote)
 //
 REBNATIVE(nothing_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1250,7 +1273,7 @@ REBNATIVE(nothing_q)
 //
 REBNATIVE(something_q)
 //
-// TBD: Make frameless
+// TBD: Make varless
 {
     PARAM(1, value);
 
@@ -1277,6 +1300,8 @@ REBNATIVE(dump)
     PARAM(1, value);
 
     REBVAL *value = ARG(value);
+
+    Dump_Stack(frame_, 0);
 
     if (ANY_SERIES(value))
         Dump_Series(VAL_SERIES(value), "=>");
@@ -1421,117 +1446,18 @@ REBNATIVE(map_gob_offset)
 
 #if !defined(NDEBUG)
 
-//
-//  Assert_REBVAL_Writable: C
-//
-// If this check fails, then you've done something along the lines of:
-//
-//     REBVAL value;
-//     SET_INTEGER(&value, 10);
-//
-// It needs to be "formatted" so it can be written to:
-//
-//     REBVAL value;
-//     VAL_INIT_WRITABLE_DEBUG(&value);
-//     SET_INTEGER(&value, 10);
-//
-// This is only needed for REBVALs that are not resident in series, e.g.
-// stack variables.
-//
-// The check helps avoid various catastrophies that might ensue if "implicit
-// end markers" could be overwritten.  These are the ENDs that are actually
-// pointers doing double duty inside a data structure, and there is no REBVAL
-// storage backing the position.
-//
-// There's also benefit in catching writes to other unanticipated locations.
-//
-void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
-{
-    if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
-        Debug_Fmt("Non-writable value found at %s:%d", file, line);
-        assert((v)->header.bits & WRITABLE_MASK_DEBUG); // for message
-    }
-}
-
 
 //
-//  VAL_TYPE_Debug: C
-//
-// Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker or on REB_TRASH.
-//
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
-{
-    if (IS_END(v)) {
-        //
-        // Seeing a bit pattern that has the low bit to 0 may be a purposeful
-        // end signal, or it could be something that's garbage data and just
-        // happens to have its zero bit set.  Since half of all possible
-        // bit patterns are even, it's more worth it than usual to point out.
-        //
-        Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
-        assert(NOT_END(v)); // for message
-    }
-    if (IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
-        assert(!IS_TRASH_DEBUG(v)); // for message
-    }
-    return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
-}
-
-
-//
-//  Assert_Flags_Are_For_Value: C
-//
-// This check is used by GET_VAL_FLAG, SET_VAL_FLAG, CLEAR_VAL_FLAG to avoid
-// accidentally checking or setting a type-specific flag on the wrong type
-// of value in the debug build.
-//
-void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
-    if ((f & HEADER_TYPE_MASK) == 0)
-        return; // flag applies to any value (or trash)
-
-    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(ANY_FUNC(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
-        assert(ANY_CONTEXT(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
-        assert(ANY_WORD(v));
-    }
-}
-
-
-//
-//  VAL_SERIES_Ptr_Debug: C
+//  VAL_SERIES_Debug: C
 //
 // Variant of VAL_SERIES() macro for the debug build which checks to ensure
 // that you have an ANY-SERIES! value you're calling it on (or one of the
 // exception types that use REBSERs)
 //
-REBSER **VAL_SERIES_Ptr_Debug(const REBVAL *v)
+REBSER *VAL_SERIES_Debug(const REBVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return &(m_cast(REBVAL*, v))->payload.any_series.series;
-}
-
-
-//
-//  IS_CONDITIONAL_FALSE_Debug: C
-//
-// Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
-// ensure you never call it on an UNSET!
-//
-REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
-{
-    assert(!IS_END(v) && !IS_UNSET(v) && !IS_TRASH_DEBUG(v));
-    if (GET_VAL_FLAG(v, VALUE_FLAG_FALSE)) {
-        assert(IS_NONE(v) || (IS_LOGIC(v) && !VAL_LOGIC(v)));
-        return TRUE;
-    }
-    assert(!IS_NONE(v) && !(IS_LOGIC(v) && !VAL_LOGIC(v)));
-    return FALSE;
+    return (v)->payload.any_series.series;
 }
 
 #endif

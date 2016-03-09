@@ -251,7 +251,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         #endif
 
         if (
-            IS_NATIVE(&result) && (
+            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
                 VAL_FUNC_CODE(&result) == &N_quit
                 || VAL_FUNC_CODE(&result) == &N_exit
             )
@@ -460,7 +460,7 @@ RL_API int RL_Do_String(
     // Bind into lib or user spaces?
     if (flags) {
         // Top words will be added to lib:
-        Bind_Values_Set_Forward_Shallow(ARR_HEAD(code), Lib_Context);
+        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context);
     }
     else {
@@ -478,7 +478,7 @@ RL_API int RL_Do_String(
         DROP_GUARD_ARRAY(code);
 
         if (
-            IS_NATIVE(&result) && (
+            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
                 VAL_FUNC_CODE(&result) == &N_quit
                 || VAL_FUNC_CODE(&result) == &N_exit
             )
@@ -559,28 +559,63 @@ RL_API int RL_Do_Binary(
 //
 //  RL_Do_Commands: C
 // 
-// Evaluate a block of extension commands at high speed.
+// Evaluate a block with a command context passed in.
 // 
 // Returns:
 //     Nothing
 // Arguments:
 //     array - a pointer to the REBVAL array series
 //     flags - set to zero for now
-//     context - command evaluation context struct or zero if not used.
+//     cec - command evaluation context struct or NULL if not used.
 // Notes:
-//     For command blocks only, not for other blocks.
 //     The context allows passing to each command a struct that is
 //     used for back-referencing your environment data or for tracking
 //     the evaluation block and its index.
 //
-RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *context)
+RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
 {
-    REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result); // !!! necessary?  presumably...
-    Do_Commands(&result, array, context);
+    // !!! Only 2 calls to RL_Do_Commands known to exist (R3-View), like:
+    //
+    //     REBCEC innerCtx;
+    //     innerCtx.envr = ctx->envr;
+    //     innerCtx.block = RXA_SERIES(frm, 1);
+    //     innerCtx.index = 0;
+    //
+    //     rebdrw_push_matrix(ctx->envr);
+    //     RL_Do_Commands(RXA_SERIES(frm, 1), 0, &innerCtx);
+    //     rebdrw_pop_matrix(ctx->envr);
+    //
+    // innerCtx.block is just a copy of the commands list, and not used by
+    // any C-based COMMAND! implementation code.  But ->envr is needed.
+    // Ren-C modifies ordinary COMMAND! dispatch to pass in whatever the
+    // global TG_Command_Rebcec is (instead of NULL)
 
-    // !!! Ignored result?  Throws?  etc.  But it's old  RL_Api, so...not
-    // really a core concern going forward in Ren-C.
+    void *cec_before;
+
+    REBIXO indexor; // "index -or- a flag"
+
+    REBVAL result;
+    VAL_INIT_WRITABLE_DEBUG(&result);
+
+    cec_before = TG_Command_Execution_Context;
+    TG_Command_Execution_Context = cec; // push
+
+    indexor = Do_Array_At_Core(
+        &result,
+        NULL, // `first`: NULL means start at array head (no injected head)
+        array,
+        0, // start evaluating at index 0
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+    );
+
+    TG_Command_Execution_Context = cec_before; // pop
+
+    if (indexor == THROWN_FLAG)
+        fail (Error_No_Catch_For_Throw(&result));
+
+    assert(indexor == END_FLAG); // if it didn't throw, should reach end
+
+    // "Returns: nothing" :-/
 }
 
 
@@ -731,11 +766,11 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 //     no references to them from REBOL code (C code does nothing.)
 //     However, you can lock blocks to prevent deallocation. (?? default)
 //
-RL_API void *RL_Make_Block(u32 size)
+RL_API REBSER *RL_Make_Block(u32 size)
 {
     REBARR * array = Make_Array(size);
     MANAGE_ARRAY(array);
-    return array;
+    return ARR_SERIES(array);
 }
 
 
@@ -758,7 +793,7 @@ RL_API void *RL_Make_Block(u32 size)
 //     no references to them from REBOL code (C code does nothing.)
 //     However, you can lock strings to prevent deallocation. (?? default)
 //
-RL_API void *RL_Make_String(u32 size, REBOOL unicode)
+RL_API REBSER *RL_Make_String(u32 size, REBOOL unicode)
 {
     REBSER *result = unicode ? Make_Unicode(size) : Make_Binary(size);
 
@@ -767,6 +802,26 @@ RL_API void *RL_Make_String(u32 size, REBOOL unicode)
     // we be sure they get what usage they needed before the GC happens?
     MANAGE_SERIES(result);
     return result;
+}
+
+
+//
+//  RL_Set_Series_Len: C
+//
+// Returns:
+//     A pointer to an image series, or zero if size is too large.
+// Arguments:
+//     width - the width of the image in pixels
+//     height - the height of the image in lines
+// Notes:
+//     Expedient replacement for a line of code related to PNG loading
+//     in %host-core.c that said "hack! - will set the tail to buffersize"
+//
+//          *((REBCNT*)(binary+1)) = buffersize;
+//
+RL_API void RL_Set_Series_Len(REBSER* series, REBCNT len)
+{
+    SET_SERIES_LEN(series, len);
 }
 
 
@@ -785,7 +840,7 @@ RL_API void *RL_Make_String(u32 size, REBOOL unicode)
 //     Image are automatically garbage collected if there are
 //     no references to them from REBOL code (C code does nothing.)
 //
-RL_API void *RL_Make_Image(u32 width, u32 height)
+RL_API REBSER *RL_Make_Image(u32 width, u32 height)
 {
     REBSER *ser = Make_Image(width, height, FALSE);
     MANAGE_SERIES(ser);
@@ -1234,63 +1289,6 @@ RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
     RXI_To_Value(CTX_VAR(context, word_id), val, type);
 
     return type;
-}
-
-
-//
-//  RL_Callback: C
-// 
-// Evaluate a REBOL callback function, either synchronous or asynchronous.
-// 
-// Returns:
-//     Sync callback: type of the result; async callback: true if queued
-// Arguments:
-//     cbi - callback information including special option flags,
-//         object pointer (where function is located), function name
-//         as global word identifier (within above object), argument list
-//         passed to callback (see notes below), and result value.
-// Notes:
-//     The flag value will determine the type of callback. It can be either
-//     synchronous, where the code will re-enter the interpreter environment
-//     and call the specified function, or asynchronous where an EVT_CALLBACK
-//     event is queued, and the callback will be evaluated later when events
-//     are processed within the interpreter's environment.
-//     For asynchronous callbacks, the cbi and the args array must be managed
-//     because the data isn't processed until the callback event is
-//     handled. Therefore, these cannot be allocated locally on
-//     the C stack; they should be dynamic (or global if so desired.)
-//     See c:extensions-callbacks
-//
-RL_API int RL_Callback(RXICBI *cbi)
-{
-    REBEVT evt;
-
-    // Synchronous callback?
-    //
-    if (!GET_FLAG(cbi->flags, RXC_ASYNC)) {
-        //
-        // Find word in object, verify it is a function
-        //
-        REBVAL *val = Find_Word_Value(AS_CONTEXT(cbi->obj), cbi->word);
-        if (!val) {
-            SET_EXT_ERROR(&cbi->result, RXE_NO_WORD);
-            return 0;
-        }
-        if (!ANY_FUNC(val)) {
-            SET_EXT_ERROR(&cbi->result, RXE_NOT_FUNC);
-            return 0;
-        }
-
-        return Do_Callback(&cbi->result, VAL_FUNC(val), cbi->word, cbi->args);
-    }
-
-    CLEARS(&evt);
-    evt.type = EVT_CALLBACK;
-    evt.model = EVM_CALLBACK;
-    evt.eventee.ser = cbi;
-    SET_FLAG(cbi->flags, RXC_QUEUED);
-
-    return RL_Event(&evt);  // (returns 0 if queue is full, ignored)
 }
 
 

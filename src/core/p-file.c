@@ -319,7 +319,7 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 // 
 // Internal port handler for files.
 //
-static REB_R File_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *spec;
     REBVAL *path;
@@ -349,7 +349,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
     switch (action) {
 
     case A_READ:
-        args = Find_Refines(call_, ALL_READ_REFS);
+        args = Find_Refines(frame_, ALL_READ_REFS);
 
         // Handle the READ %file shortcut case:
         if (!IS_OPEN(file)) {
@@ -382,7 +382,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         SET_FLAG(file->modes, RFM_RESEEK);
 
     case A_WRITE:
-        args = Find_Refines(call_, ALL_WRITE_REFS);
+        args = Find_Refines(frame_, ALL_WRITE_REFS);
         spec = D_ARG(2); // data (binary, string, or block)
 
         // Handle the READ %file shortcut case:
@@ -424,7 +424,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         break;
 
     case A_OPEN:
-        args = Find_Refines(call_, ALL_OPEN_REFS);
+        args = Find_Refines(frame_, ALL_OPEN_REFS);
         // Default file modes if not specified:
         if (!(args & (AM_OPEN_READ | AM_OPEN_WRITE))) args |= (AM_OPEN_READ | AM_OPEN_WRITE);
         Setup_File(file, args, path);
@@ -525,7 +525,7 @@ static REB_R File_Actor(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         goto seeked;
 
     case A_SKIP:
-        file->special.file.index += Get_Num_Arg(D_ARG(2));
+        file->special.file.index += Get_Num_From_Arg(D_ARG(2));
         goto seeked;
 
     case A_HEAD_Q:

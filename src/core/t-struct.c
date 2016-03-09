@@ -156,7 +156,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 //
 //  Get_Struct_Var: C
 //
-static REBOOL Get_Struct_Var(REBSTU *stu, REBVAL *word, REBVAL *val)
+static REBOOL Get_Struct_Var(REBSTU *stu, const REBVAL *word, REBVAL *val)
 {
     struct Struct_Field *field = NULL;
     REBCNT i = 0;
@@ -410,9 +410,9 @@ static REBOOL assign_scalar(REBSTU *stu,
 //
 static REBOOL Set_Struct_Var(
     REBSTU *stu,
-    REBVAL *word,
-    REBVAL *elem,
-    REBVAL *val
+    const REBVAL *word,
+    const REBVAL *elem,
+    const REBVAL *val
 ) {
     struct Struct_Field *field = SER_HEAD(struct Struct_Field, stu->fields);
 
@@ -492,7 +492,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                         if (*raw_addr != 0) /* duplicate raw-memory */
                             fail (Error_Invalid_Arg(attr));
 
-                        *raw_addr = VAL_UNT64(attr);
+                        *raw_addr = cast(REBU64, VAL_INT64(attr));
                         if (*raw_addr == 0)
                             fail (Error_Invalid_Arg(attr));
                     }
@@ -678,7 +678,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         REBVAL ret;
         VAL_INIT_WRITABLE_DEBUG(&ret);
 
-        if (DO_ARRAY_THROWS(&ret, val)) {
+        if (DO_VAL_ARRAY_AT_THROWS(&ret, val)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
             fail (Error_No_Catch_For_Throw(&ret));
@@ -808,7 +808,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 init = &safe;
 
                 if (IS_END(blk)) {
-                   fail (Error_Invalid_Arg(data));
+                   fail (Error_Invalid_Arg(blk));
                 } else if (IS_BLOCK(blk)) {
                     if (Reduce_Array_Throws(init, VAL_ARRAY(blk), 0, FALSE))
                         fail (Error_No_Catch_For_Throw(init));
@@ -964,26 +964,42 @@ REBINT PD_Struct(REBPVS *pvs)
     struct Struct_Field *field = NULL;
     REBCNT i = 0;
     REBSTU *stu = &VAL_STRUCT(pvs->value);
-    if (!IS_WORD(pvs->select)) {
-        return PE_BAD_SELECT;
-    }
+    if (!IS_WORD(pvs->selector))
+        fail (Error_Bad_Path_Select(pvs));
 
     fail_if_non_accessible(pvs->value);
-    if (! pvs->setval || NOT_END(pvs->path + 1)) {
-        if (!Get_Struct_Var(stu, pvs->select, pvs->store)) {
-            return PE_BAD_SELECT;
-        }
 
-        /* Setting element to an array in the struct:
-         * struct/field/1: 0
-         * */
-        if (pvs->setval
+    if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
+        if (!Get_Struct_Var(stu, pvs->selector, pvs->store))
+            fail (Error_Bad_Path_Select(pvs));
+
+        // !!! Comment here said "Setting element to an array in the struct"
+        // and gave the example `struct/field/1: 0`.  What is thus happening
+        // here is that the ordinary SET-PATH! dispatch which goes one step
+        // at a time can't work to update something whose storage is not
+        // a REBVAL*.  So (struct/field) produces a temporary BLOCK! out of
+        // the C array data, and if the set just sets an element in that
+        // block then it will be forgotten and have no effect.
+        //
+        // So the workaround is to bypass ordinary dispatch and call it to
+        // look ahead manually by one step.  Whatever change is made to
+        // the block is then turned around and re-set in the underlying
+        // memory that produced it.
+        //
+        // A better general mechanism for this kind of problem is needed,
+        // although it only affects "extension types" which use natively
+        // packed structures to store their state instead of REBVAL.  (See
+        // a similar technique used by PD_Gob)
+        //
+        if (
+            pvs->opt_setval
             && IS_BLOCK(pvs->store)
-            && IS_END(pvs->path + 2)) {
-            REBVAL *sel = pvs->select;
+            && IS_END(pvs->item + 2)
+        ) {
+            const REBVAL *sel_orig = pvs->selector;
             pvs->value = pvs->store;
 
-            if (Next_Path_Throws(pvs)) { // sets value in pvs->store
+            if (Next_Path_Throws(pvs)) { // updates pvs->store, pvs->selector
 
                 // !!! Gob and Struct do "sub-dispatch" which may throw
                 // No "PE_THREW" return, however.  (should there be?)
@@ -991,19 +1007,24 @@ REBINT PD_Struct(REBPVS *pvs)
                 fail (Error_No_Catch_For_Throw(pvs->store));
             }
 
-            if (!Set_Struct_Var(stu, sel, pvs->select, pvs->value)) {
-                return PE_BAD_SET;
-            }
+            if (!Set_Struct_Var(stu, sel_orig, pvs->selector, pvs->value))
+                fail (Error_Bad_Path_Set(pvs));
+
             return PE_OK;
         }
-        return PE_USE;
-    } else {// setval && END
-        if (!Set_Struct_Var(stu, pvs->select, NULL, pvs->setval)) {
-            return PE_BAD_SET;
-        }
+
+        return PE_USE_STORE;
+    }
+    else {
+        // setting (because opt_setval is non-NULL, and at end of path)
+
+        if (!Set_Struct_Var(stu, pvs->selector, NULL, pvs->opt_setval))
+            fail (Error_Bad_Path_Set(pvs));
+
         return PE_OK;
     }
-    return PE_BAD_SELECT;
+
+    fail (Error_Bad_Path_Select(pvs));
 }
 
 
@@ -1284,7 +1305,7 @@ is_arg_error:
 //
 //  {Destroy the external memory associated the struct}
 //      s   [struct!]
-//      /free func [routine!] {Specify the function to free the memory}
+//      /free func [function!] {Specify the function to free the memory}
 //  ]
 //
 REBNATIVE(destroy_struct_storage)
@@ -1292,6 +1313,11 @@ REBNATIVE(destroy_struct_storage)
     PARAM(1, val);
     REFINE(2, free_q);
     PARAM(3, free_func);
+
+    if (REF(free_q)) {
+        if (VAL_FUNC_CLASS(ARG(free_func)) != FUNC_CLASS_ROUTINE)
+            fail (Error(RE_FREE_NEEDS_ROUTINE));
+    }
 
     return Destroy_External_Storage(D_OUT,
                                     VAL_STRUCT_DATA_BIN(ARG(val)),

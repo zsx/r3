@@ -292,9 +292,14 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
     REBYTE *data = SER_DATA_RAW(series);
     REBCNT bits = VECT_TYPE(series);
 
-    var->payload.integer = get_vect(bits, data, index);
-    if (bits >= VTSF08) VAL_RESET_HEADER(var, REB_DECIMAL);
-    else VAL_RESET_HEADER(var, REB_INTEGER);
+    if (bits >= VTSF08) {
+        VAL_RESET_HEADER(var, REB_DECIMAL);
+        VAL_DECIMAL_BITS(var) = get_vect(bits, data, index);
+    }
+    else {
+        VAL_RESET_HEADER(var, REB_INTEGER);
+        VAL_INT64(var) = get_vect(bits, data, index);
+    }
 }
 
 
@@ -422,7 +427,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     if (iblk) Set_Vector_Row(vect, iblk);
 
-    VAL_SERIES(value) = vect;
+    INIT_VAL_SERIES(value, vect);
     MANAGE_SERIES(vect);
 
     // index set earlier
@@ -460,6 +465,7 @@ REBINT CT_Vector(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 REBINT PD_Vector(REBPVS *pvs)
 {
+    const REBVAL *setval;
     REBSER *vect;
     REBINT n;
     REBINT bits;
@@ -467,38 +473,42 @@ REBINT PD_Vector(REBPVS *pvs)
     REBI64 i;
     REBDEC f;
 
-    if (IS_INTEGER(pvs->select) || IS_DECIMAL(pvs->select))
-        n = Int32(pvs->select);
-    else return PE_BAD_SELECT;
+    if (IS_INTEGER(pvs->selector) || IS_DECIMAL(pvs->selector))
+        n = Int32(pvs->selector);
+    else
+        fail (Error_Bad_Path_Select(pvs));
 
     n += VAL_INDEX(pvs->value);
     vect = VAL_SERIES(pvs->value);
     vp = SER_DATA_RAW(vect);
     bits = VECT_TYPE(vect);
 
-    if (pvs->setval == 0) {
+    if (!(setval = pvs->opt_setval)) {
 
         // Check range:
         if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) return PE_NONE;
 
         // Get element value:
-        pvs->store->payload.integer = get_vect(bits, vp, n - 1); // 64 bits
         if (bits < VTSF08) {
             VAL_RESET_HEADER(pvs->store, REB_INTEGER);
-        } else {
+            VAL_INT64(pvs->store) = get_vect(bits, vp, n - 1); // 64 bits
+        }
+        else {
             VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
+            VAL_DECIMAL_BITS(pvs->store) = get_vect(bits, vp, n - 1); // 64bit
         }
 
-        return PE_USE;
+        return PE_USE_STORE;
     }
 
     //--- Set Value...
     FAIL_IF_LOCKED_SERIES(vect);
 
-    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) return PE_BAD_RANGE;
+    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect))
+        fail (Error_Bad_Path_Range(pvs));
 
-    if (IS_INTEGER(pvs->setval)) {
-        i = VAL_INT64(pvs->setval);
+    if (IS_INTEGER(setval)) {
+        i = VAL_INT64(setval);
         if (bits > VTUI64) f = cast(REBDEC, i);
         else {
             // !!! REVIEW: f was not set in this case; compiler caught the
@@ -507,13 +517,14 @@ REBINT PD_Vector(REBPVS *pvs)
             f = -646.699;
         }
     }
-    else if (IS_DECIMAL(pvs->setval)) {
-        f = VAL_DECIMAL(pvs->setval);
-        if (bits <= VTUI64) i = cast(REBINT, f);
+    else if (IS_DECIMAL(setval)) {
+        f = VAL_DECIMAL(setval);
+        if (bits <= VTUI64)
+            i = cast(REBINT, f);
         else
-            return PE_BAD_SET;
+            fail (Error_Bad_Path_Set(pvs));
     }
-    else return PE_BAD_SET;
+    else fail (Error_Bad_Path_Set(pvs));
 
     set_vect(bits, vp, n-1, i, f);
 
@@ -533,7 +544,7 @@ REBTYPE(Vector)
     REBSER *vect;
     REBSER *ser;
 
-    type = Do_Series_Action(call_, action, value, arg);
+    type = Do_Series_Action(frame_, action, value, arg);
     if (type >= 0) return type;
 
     if (action != A_MAKE && action != A_TO)

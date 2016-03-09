@@ -272,8 +272,8 @@ static void Rehash_Map(REBMAP *map)
 //
 static REBCNT Find_Map_Entry(
     REBMAP *map,
-    REBVAL *key,
-    REBVAL *val,
+    const REBVAL *key,
+    const REBVAL *val,
     REBOOL cased // case-sensitive if true
 ) {
     REBSER *hashlist = MAP_HASHLIST(map); // can be null
@@ -340,24 +340,34 @@ REBINT Length_Map(REBMAP *map)
 //
 REBINT PD_Map(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
-    REBVAL *val = 0;
-    REBINT n = 0;
+    REBVAL *val;
+    REBINT n;
 
-    if (IS_END(pvs->path+1)) val = pvs->setval;
-    if (IS_NONE(pvs->select)) return PE_NONE;
+    REBOOL setting = LOGICAL(pvs->opt_setval && IS_END(pvs->item + 1));
 
-    {
-        const REBOOL cased = (val ? TRUE : FALSE); // cased when *setting*
-        n = Find_Map_Entry(VAL_MAP(data), pvs->select, val, cased);
-    }
+    assert(IS_MAP(pvs->value));
 
-    if (!n) val = UNSET_VALUE;
-    else {
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(data));
-        val = VAL_ARRAY_AT_HEAD(data, ((n - 1) * 2) + 1);
-    }
-    if (IS_UNSET(val) && !IS_GET_PATH(pvs->orig)) return PE_NONE;
+    if (setting)
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+
+    if (IS_NONE(pvs->selector))
+        return PE_NONE;
+
+    n = Find_Map_Entry(
+        VAL_MAP(pvs->value),
+        pvs->selector,
+        setting ? pvs->opt_setval : NULL,
+        setting // `cased` flag for case-sensitivity--use when setting only
+    );
+
+    if (n == 0)
+        val = UNSET_VALUE;
+    else
+        val = ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1);
+
+    if (IS_UNSET(val))
+        return PE_NONE;
+
     pvs->value = val;
     return PE_OK;
 }
@@ -570,10 +580,10 @@ REBTYPE(Map)
 
     case A_FIND:
     case A_SELECT:
-        args = Find_Refines(call_, ALL_FIND_REFS);
+        args = Find_Refines(frame_, ALL_FIND_REFS);
         n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
         if (!n) return R_NONE;
-        *D_OUT = *VAL_ARRAY_AT_HEAD(val, ((n - 1) * 2) + 1);
+        *D_OUT = *ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1);
         if (IS_UNSET(D_OUT)) return R_NONE;
         if (action == A_FIND) *D_OUT = *val;
         return R_OUT;
@@ -672,23 +682,3 @@ REBTYPE(Map)
 
     fail (Error_Illegal_Action(REB_MAP, action));
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  VAL_MAP_Ptr_Debug: C
-//
-// Debug-Only version of VAL_MAP() that makes sure you actually are getting
-// a REBMAP out of a value initialized as type REB_MAP.
-//
-REBMAP **VAL_MAP_Ptr_Debug(const REBVAL *v) {
-    assert(VAL_TYPE(v) == REB_MAP);
-    assert(GET_SER_FLAG(VAL_SERIES(v), SERIES_FLAG_ARRAY));
-
-    // Note: hashlist may or may not be present
-
-    return &AS_MAP(VAL_SERIES(v));
-}
-
-#endif

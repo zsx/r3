@@ -75,6 +75,9 @@
 // are explained where they are defined.
 //
 
+//
+// Note: Forward declarations are in %reb-defs.h
+//
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -110,15 +113,15 @@
 // Series Flags
 //
 enum {
-    // `SERIES_FLAG_0_IS_FALSE` represents the lowest bit and should always be
-    // set to zero.  This is because it means that when the REBSER's
-    // contents are interpreted as value data, then the info bits can do
-    // double-duty serving as an END marker.  For a description of the
-    // method see notes on NOT_END_MASK.
+    // `SERIES_FLAG_0_IS_FALSE` represents the lowest bit and should always
+    // be set to zero.  This is because it means that when Reb_Series_Content
+    // is interpreted as a REBVAL's worth of data, then the info bits are in
+    // a location where they do double-duty serving as an END marker.  For a
+    // description of the method see notes on NOT_END_MASK.
     //
     SERIES_FLAG_0_IS_FALSE = 1 << 0,
 
-    // `SERIES_FLAG_1_IS_FALSE` is the second lowest bit, and it is set to zero
+    // `SERIES_FLAG_1_IS_FALSE` is the second lowest bit, and is set to zero
     // as a safety precaution.  In the debug build this is checked by value
     // writes to ensure that when the info flags are serving double duty
     // as an END marker, they do not get overwritten by rogue code that
@@ -178,13 +181,14 @@ enum {
     //
     SERIES_FLAG_ARRAY = 1 << 5,
 
-    // `SERIES_FLAG_CONTEXT` indicates this series represents the "varlist"
-    // of a context.  A second series can be reached from it via the `->misc`
-    // field in the series node, which is a second array known as a "keylist".
+    // `ARRAY_FLAG_CONTEXT_VARLIST` indicates this series represents the
+    // "varlist" of a context.  A second series can be reached from it via
+    // the `->misc` field in the series node, which is a second array known
+    // as a "keylist".
     //
     // See notes on REBCTX for further details about what a context is.
     //
-    SERIES_FLAG_CONTEXT = 1 << 6,
+    ARRAY_FLAG_CONTEXT_VARLIST = 1 << 6,
 
     // `SERIES_FLAG_LOCKED` indicates that the series size or values cannot
     // be modified.  This check is honored by some layers of abstraction, but
@@ -275,7 +279,32 @@ enum {
     // of mapping index numbers in the function paramlist into either the
     // stack array or the dynamic array during binding in an efficient way.
     //
-    CONTEXT_FLAG_STACK = 1 << 12
+    CONTEXT_FLAG_STACK = 1 << 12,
+
+    // `KEYLIST_FLAG_SHARED` is indicated on the keylist array of a context
+    // when that same array is the keylist for another object.  If this flag
+    // is set, then modifying an object using that keylist (such as by adding
+    // a key/value pair) will require that object to make its own copy.
+    //
+    // (Note: This flag did not exist in R3-Alpha, so all expansions would
+    // copy--even if expanding the same object by 1 item 100 times with no
+    // sharing of the keylist.  That would make 100 copies of an arbitrary
+    // long keylist that the GC would have to clean up.)
+    //
+    KEYLIST_FLAG_SHARED = 1 << 13,
+
+    // `SERIES_FLAG_LEGACY` is a flag which is marked at the root set of the
+    // body of legacy functions.  It can be used in a dynamic examination of
+    // a call to see if it "originates from legacy code".  This is a vague
+    // concept given the ability to create blocks and run them--so functions
+    // like COPY would have to propagate the flag to make it "more accurate".
+    // But it's good enough for casual compatibility in many cases.
+    //
+#if !defined NDEBUG
+    SERIES_FLAG_LEGACY = 1 << 14,
+#endif
+
+    SERIES_FLAG_NO_COMMA_NEEDED = 0 // solves dangling comma from above
 };
 
 struct Reb_Series_Dynamic {
@@ -298,9 +327,8 @@ struct Reb_Series_Dynamic {
 
     // This is the 4th pointer on 32-bit platforms which could be used for
     // something when a series is dynamic.  Previously the bias was not
-    // a full REBCNT but was limited in range to 16 bits or so.  But if
-    // it were here then it would free up a number of flags for the
-    // series, which would be helpful as they are necessary
+    // a full REBCNT but was limited in range to 16 bits or so.  This means
+    // 16 info bits are likely available if needed for dynamic series.
     //
     REBCNT bias;
 
@@ -372,12 +400,13 @@ struct Reb_Series {
             REBCNT wide:16;
             REBCNT high:16;
         } area;
-        REBOOL negated; // for bitsets (can't be EXT flag on just one value)
+        REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
     } misc;
 
 #if !defined(NDEBUG)
     REBINT *guard; // intentionally alloc'd and freed for use by Panic_Series
+    REBUPT padding; // maintain sizeof(REBSER) % sizeof(REBI64) == 0
 #endif
 };
 
@@ -392,8 +421,6 @@ struct Reb_Series {
     #define Panic_Series(s) \
         Panic_Series_Debug((s), __FILE__, __LINE__);
 #endif
-
-#define SER_REST(s)   ((s)->content.dynamic.rest)
 
 #define SER_WIDE(s) \
     cast(REBYTE, ((s)->info.bits >> 16) & 0xff)
@@ -413,6 +440,13 @@ struct Reb_Series {
 #define GET_SER_FLAG(s,f) \
     LOGICAL((s)->info.bits & (f))
 
+#define SET_SER_FLAGS(s,f) \
+    SET_SER_FLAG((s), (f))
+
+#define CLEAR_SER_FLAGS(s,f) \
+    CLEAR_SER_FLAG((s), (f))
+
+
 //
 // The mechanics of the macros that get or set the length of a series are a
 // little bit complicated.  This is due to the optimization that allows data
@@ -431,7 +465,7 @@ struct Reb_Series {
 
 #define SER_LEN(s) \
     (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
-        ? ((s)->content.dynamic.len + 0) \
+        ? ((s)->content.dynamic.len) \
         : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
             ? (IS_END(&(s)->content.values[0]) ? 0 : 1) \
             : (s)->misc.len)
@@ -444,16 +478,33 @@ struct Reb_Series {
             ? 1337 /* trust the END marker? */ \
             : ((s)->misc.len = (l)))
 
+#define SER_REST(s) \
+    (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
+        ? ((s)->content.dynamic.rest) \
+        : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
+            ? 2 /* includes trick "terminator" in info bits */ \
+            : sizeof(REBVAL))
+
+
 // Raw access does not demand that the caller know the contained type.  So
 // for instance a generic debugging routine might just want a byte pointer
 // but have no element type pointer to pass in.
 //
 #define SER_DATA_RAW(s) \
     (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
-        ? ((s)->content.dynamic.data + 0) /* Lvalue! */ \
+        ? (s)->content.dynamic.data \
         : cast(REBYTE*, &(s)->content.values[0]))
 
-#define SER_AT_RAW(s,i)      (SER_DATA_RAW(s) + (SER_WIDE(s) * (i)))
+#define SER_AT_RAW_MACRO(w,s,i) \
+    (SER_DATA_RAW(s) + ((w) * (i)))
+
+#ifdef NDEBUG
+    #define SER_AT_RAW(w,s,i) \
+        SER_AT_RAW_MACRO((w),(s),(i))
+#else
+    #define SER_AT_RAW(w,s,i) \
+        SER_AT_RAW_Debug((w),(s),(i))
+#endif
 
 #define SER_SET_EXTERNAL_DATA(s,p) \
     (SET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC), \
@@ -467,13 +518,9 @@ struct Reb_Series {
 // Note that series indexing in C is zero based.  So as far as SERIES is
 // concerned, `SER_HEAD(t, s)` is the same as `SER_AT(t, s, 0)`
 //
-// !!! C++11 note: can't use cast helper here and have the const of an
-// incoming REBVAL be ignored... must use `(old_cast)casting_style`
-//
 
 #define SER_AT(t,s,i) \
-    (assert(SER_WIDE(s) == sizeof(t)), \
-        (t*)(SER_DATA_RAW(s) + (sizeof(t) * (i))))
+    cast(t*, SER_AT_RAW(sizeof(t), (s), (i)))
 
 #define SER_HEAD(t,s) \
     SER_AT(t, (s), 0)
@@ -556,7 +603,7 @@ struct Reb_Series {
 #define TERM_SEQUENCE(s) \
     do { \
         assert(!Is_Array_Series(s)); \
-        memset(SER_AT_RAW((s), SER_LEN(s)), 0, SER_WIDE(s)); \
+        memset(SER_AT_RAW(SER_WIDE(s), (s), SER_LEN(s)), 0, SER_WIDE(s)); \
     } while (0)
 
 #ifdef NDEBUG
@@ -579,18 +626,6 @@ struct Reb_Series {
             else \
                 Assert_Series_Core(s); \
         } while (0)
-#endif
-
-// This is a rather expensive check for whether a REBVAL* lives anywhere in
-// series memory, and hence may be relocated.  It can be useful for certain
-// stress tests to try and catch cases where values that should not be
-// living in a series are passed to some routines.
-//
-#ifdef NDEBUG
-    #define ASSERT_NOT_IN_SERIES_DATA(p) NOOP
-#else
-    #define ASSERT_NOT_IN_SERIES_DATA(v) \
-        Assert_Not_In_Series_Data_Debug(v, TRUE)
 #endif
 
 
@@ -845,7 +880,7 @@ struct Reb_Array {
 #define TERM_SERIES(s) \
     Is_Array_Series(s) \
         ? (void)TERM_ARRAY(AS_ARRAY(s)) \
-        : (void)memset(SER_AT_RAW(s, SER_LEN(s)), 0, SER_WIDE(s))
+        : (void)memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s))
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.
@@ -976,8 +1011,13 @@ struct Reb_Context {
 #define CTX_KEYLIST(c) \
     (ARR_SERIES(CTX_VARLIST(c))->misc.keylist)
 
-#define INIT_CONTEXT_KEYLIST(c,k) \
-    (ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
+#define INIT_CTX_KEYLIST_SHARED(c,k) \
+    (SET_ARR_FLAG((k), KEYLIST_FLAG_SHARED), \
+        ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
+
+#define INIT_CTX_KEYLIST_UNIQUE(c,k) \
+    (assert(!GET_ARR_FLAG((k), KEYLIST_FLAG_SHARED)), \
+        ARR_SERIES(CTX_VARLIST(c))->misc.keylist = (k))
 
 // The keys and vars are accessed by positive integers starting at 1.  If
 // indexed access is used then the debug build will check to be sure that
@@ -1028,15 +1068,15 @@ struct Reb_Context {
 #define CTX_SPEC(c) \
     (VAL_CONTEXT_SPEC(CTX_VALUE(c)) + 0)
 
-#define INIT_FRAME_CALL(c,f) \
+#define INIT_CONTEXT_FRAME(c,f) \
     (assert(IS_FRAME(CTX_VALUE(c))), \
-        VAL_FRAME_CALL(CTX_VALUE(c)) = (f))
+        VAL_CONTEXT_FRAME(CTX_VALUE(c)) = (f))
 
-#define FRM_CALL(c) \
-    (VAL_FRAME_CALL(CTX_VALUE(c)) + 0)
+#define CTX_FRAME(c) \
+    (VAL_CONTEXT_FRAME(CTX_VALUE(c)) + 0)
 
-#define FRM_FUNC(c) \
-    (assert(ANY_FUNC(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
+#define CTX_FRAME_FUNC(c) \
+    (assert(IS_FUNCTION(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
 
 #define CTX_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
 
@@ -1102,12 +1142,13 @@ struct Reb_Func {
 #endif
 #define FUNC_PARAM_SYM(f,n)     VAL_TYPESET_SYM(FUNC_PARAM((f), (n)))
 
+#define FUNC_CLASS(f)           VAL_FUNC_CLASS(FUNC_VALUE(f))
 #define FUNC_VALUE(f)           ARR_HEAD(FUNC_PARAMLIST(f))
-#define FUNC_SPEC(f)            (FUNC_VALUE(f)->payload.any_function.spec)
-#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.any_function.impl.code)
-#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.any_function.impl.body)
-#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.any_function.impl.act)
-#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.any_function.impl.info)
+#define FUNC_SPEC(f)            (FUNC_VALUE(f)->payload.function.spec)
+#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.function.impl.code)
+#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.function.impl.body)
+#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.function.impl.act)
+#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.function.impl.info)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1142,9 +1183,3 @@ struct Reb_Map {
 // objects with hidden fields, locals in paramlists, etc.
 
 #define AS_MAP(s)               (*cast(REBMAP**, &(s)))
-
-#ifdef NDEBUG
-    #define VAL_MAP(v)          AS_MAP(VAL_ARRAY(v))
-#else
-    #define VAL_MAP(v)          (*VAL_MAP_Ptr_Debug(v))
-#endif

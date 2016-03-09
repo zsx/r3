@@ -236,7 +236,7 @@ REBOOL Make_Block_Type_Throws(
 
     if (IS_STRING(arg)) {
         REBCNT index, len = 0;
-        VAL_SERIES(arg) = Temp_Bin_Str_Managed(arg, &index, &len);
+        INIT_VAL_SERIES(arg, Temp_Bin_Str_Managed(arg, &index, &len));
         array = Scan_Source(VAL_BIN(arg), VAL_LEN_AT(arg));
         goto done;
     }
@@ -269,9 +269,11 @@ REBOOL Make_Block_Type_Throws(
     if (IS_VARARGS(arg)) {
         //
         // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
-        // varargs to the end and making an array out of the unevaluated
-        // values.  It's not known how many elements that will be, so they're
-        // gathered to the data stack to find the size, then an array made.
+        // varargs to the end and making an array out of that.  It's not known
+        // how many elements that will be, so they're gathered to the data
+        // stack to find the size, then an array made.  Note that | will stop
+        // a normal or soft-quoted varargs, but a hard-quoted varargs will
+        // grab all the values to the end of the source.
 
         REBDSP dsp_orig = DSP;
 
@@ -297,14 +299,11 @@ REBOOL Make_Block_Type_Throws(
             // and takes any type (it will be type checked if in a chain).
             //
             Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
-            SET_VAL_FLAGS(
-                &fake_param,
-                TYPESET_FLAG_VARARGS | TYPESET_FLAG_QUOTE
-            );
+            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
             param = &fake_param;
         }
         else {
-            feed = CTX_VARLIST(VAL_VARARGS_FRAME(arg));
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
             param = VAL_VARARGS_PARAM(arg);
         }
 
@@ -313,8 +312,10 @@ REBOOL Make_Block_Type_Throws(
                 out, feed, param, SYM_0, VARARG_OP_TAKE
             );
 
-            if (indexor == THROWN_FLAG)
+            if (indexor == THROWN_FLAG) {
+                DS_DROP_TO(dsp_orig);
                 return TRUE;
+            }
             if (indexor == END_FLAG)
                 break;
             assert(indexor == VALIST_FLAG);
@@ -322,7 +323,7 @@ REBOOL Make_Block_Type_Throws(
             DS_PUSH(out);
         } while (TRUE);
 
-        Pop_Stack_Values(out, dsp_orig, type);
+        Val_Init_Array(out, type, Pop_Stack_Values(dsp_orig));
 
         if (FALSE) {
             //
@@ -503,7 +504,7 @@ static void Sort_Block(
     sort_flags.offset = 0;
 
     if (IS_INTEGER(compv)) sort_flags.offset = Int32(compv)-1;
-    if (ANY_FUNC(compv)) sort_flags.compare = compv;
+    if (IS_FUNCTION(compv)) sort_flags.compare = compv;
 
     // Determine length of sort:
     len = Partial1(block, part);
@@ -511,7 +512,7 @@ static void Sort_Block(
 
     // Skip factor:
     if (!IS_UNSET(skipv)) {
-        skip = Get_Num_Arg(skipv);
+        skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Out_Of_Range(skipv));
     }
@@ -591,12 +592,12 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 // 
 // Path dispatch for the following types:
 // 
-//     PD_Block(REBPVS *pvs)
-//     PD_Group(REBPVS *pvs)
-//     PD_Path(REBPVS *pvs)
-//     PD_Get_Path(REBPVS *pvs)
-//     PD_Set_Path(REBPVS *pvs)
-//     PD_Lit_Path(REBPVS *pvs)
+//     PD_Block
+//     PD_Group
+//     PD_Path
+//     PD_Get_Path
+//     PD_Set_Path
+//     PD_Lit_Path
 //
 REBINT PD_Array(REBPVS *pvs)
 {
@@ -608,14 +609,14 @@ REBINT PD_Array(REBPVS *pvs)
         a/not-followed: 10 error or append?
     */
 
-    if (IS_INTEGER(pvs->select)) {
-        n = Int32(pvs->select) + VAL_INDEX(pvs->value) - 1;
+    if (IS_INTEGER(pvs->selector)) {
+        n = Int32(pvs->selector) + VAL_INDEX(pvs->value) - 1;
     }
-    else if (IS_WORD(pvs->select)) {
+    else if (IS_WORD(pvs->selector)) {
         n = Find_Word_In_Array(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
-            VAL_WORD_CANON(pvs->select)
+            VAL_WORD_CANON(pvs->selector)
         );
         if (cast(REBCNT, n) != NOT_FOUND) n++;
     }
@@ -624,31 +625,34 @@ REBINT PD_Array(REBPVS *pvs)
         n = 1 + Find_In_Array_Simple(
             VAL_ARRAY(pvs->value),
             VAL_INDEX(pvs->value),
-            pvs->select
+            pvs->selector
         );
     }
 
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
-        if (pvs->setval) return PE_BAD_SELECT;
+        if (pvs->opt_setval)
+            fail(Error_Bad_Path_Select(pvs));
+
         return PE_NONE;
     }
 
-    if (pvs->setval) FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+    if (pvs->opt_setval)
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
+
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
-    // if valset - check PROTECT on block
-    //if (NOT_END(pvs->path+1)) Next_Path(pvs); return PE_OK;
-    return PE_SET;
+
+    return PE_SET_IF_END;
 }
 
 
 //
 //  Pick_Block: C
 //
-REBVAL *Pick_Block(REBVAL *block, REBVAL *selector)
+REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
 {
     REBINT n = 0;
 
-    n = Get_Num_Arg(selector);
+    n = Get_Num_From_Arg(selector);
     n += VAL_INDEX(block) - 1;
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
     return VAL_ARRAY_AT_HEAD(block, n);
@@ -683,10 +687,10 @@ REBTYPE(Array)
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
-        return T_Port(call_, action);
+        return T_Port(frame_, action);
 
     // Most common series actions:  !!! speed this up!
-    len = Do_Series_Action(call_, action, value, arg);
+    len = Do_Series_Action(frame_, action, value, arg);
     if (len >= 0) return len; // return code
 
     // Special case (to avoid fetch of index and tail below):
@@ -705,6 +709,7 @@ REBTYPE(Array)
                 arg // size, block to copy, or value to convert
             )
         ) {
+            *D_OUT = *value;
             return R_OUT_IS_THROWN;
         }
 
@@ -765,7 +770,7 @@ repick:
         return R_OUT;
 
 /*
-        len = Get_Num_Arg(arg); // Position
+        len = Get_Num_From_Arg(arg); // Position
         index += len;
         if (len > 0) index--;
         if (len == 0 || index < 0 || index >= tail) {
@@ -817,7 +822,7 @@ zero_blk:
 
     case A_FIND:
     case A_SELECT:
-        args = Find_Refines(call_, ALL_FIND_REFS);
+        args = Find_Refines(frame_, ALL_FIND_REFS);
 
         len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
         if (args & AM_FIND_PART) tail = Partial1(value, D_ARG(ARG_FIND_LIMIT));
@@ -884,14 +889,14 @@ zero_blk:
             else types |= VAL_TYPESET_BITS(arg);
         }
         len = Partial1(value, D_ARG(ARG_COPY_LIMIT));
-        VAL_ARRAY(value) = Copy_Array_Core_Managed(
+        INIT_VAL_ARRAY(value, Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
             VAL_INDEX(value) + len, // tail
             0, // extra
             D_REF(ARG_COPY_DEEP), // deep
             types // types
-        );
+        ));
         VAL_INDEX(value) = 0;
     }
         break;
@@ -899,7 +904,7 @@ zero_blk:
     //-- Special actions:
 
     case A_TRIM:
-        args = Find_Refines(call_, ALL_TRIM_REFS);
+        args = Find_Refines(frame_, ALL_TRIM_REFS);
         if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
         Trim_Array(array, index, args);
         break;
@@ -990,7 +995,7 @@ void Assert_Array_Core(REBARR *array)
 
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
-    // see if the series is an array...and if so, would call this routine!
+    // see if the series is an array...and if so, would call this routine
     //
     Assert_Series_Core(ARR_SERIES(array));
 

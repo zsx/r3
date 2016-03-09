@@ -21,7 +21,6 @@ any-value!
 opt-any-value! ;-- temporary until <opt> or #opt or similar are settled
 any-word!
 any-path!
-any-function!
 any-number!
 any-scalar!
 any-series!
@@ -317,8 +316,6 @@ bits
 crash
 crash-dump
 watch-recycle
-watch-obj-copy
-stack-size
 
 uid
 euid
@@ -329,6 +326,19 @@ pid
 ;call/info
 id
 exit-code
+
+; used by APPLY as a signal that the user is knowingly not starting the frame
+; definition block with a SET-WORD!, so they know it's a new APPLY
+comment
+
+; used when a function is executed but not looked up through a word binding
+; (product of literal or evaluation) so no name is known for it
+--anonymous--
+
+; used to signal situations where information that would be available in
+; a debug build has been elided
+;
+--optimized-out--
 
 ; used as error fields in debug builds for C's __FILE__ and __LINE__ of origin
 __FILE__

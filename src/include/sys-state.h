@@ -124,10 +124,10 @@ struct Reb_State {
 
     REBDSP dsp;
     struct Reb_Chunk *top_chunk;
-    struct Reb_Call *call;
+    struct Reb_Frame *frame;
     REBCNT series_guard_len;
     REBCNT value_guard_len;
-    struct Reb_Call *do_stack; // is it necessary to keep this *and* DSF?
+    struct Reb_Frame *frame_stack; // is it necessary to keep this *and* FS_TOP?
     REBCTX *error;
     REBINT gc_disable;      // Count of GC_Disables at time of Push
 
@@ -205,7 +205,7 @@ struct Reb_State {
 //
 #define PUSH_TRAP_CORE(e,s,haltable) \
     do { \
-        assert(Saved_State || (DSP == 0 && !DSF)); \
+        assert(Saved_State || (DSP == 0 && FS_TOP == NULL)); \
         Snap_State_Core(s); \
         (s)->last_state = Saved_State; \
         Saved_State = (s); \

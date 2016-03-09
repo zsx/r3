@@ -125,10 +125,13 @@ void *Alloc_Mem(size_t size)
         // In debug builds we cache the size at the head of the allocation
         // so we can check it.  This also allows us to catch cases when
         // free() is paired with Alloc_Mem() instead of using Free_Mem()
+        //
+        // Note that we use a 64-bit quantity, as we want the allocations
+        // to remain suitable in alignment for 64-bit values!
 
-        void *ptr = malloc(size + sizeof(size_t));
-        *cast(size_t *, ptr) = size;
-        return cast(char *, ptr) + sizeof(size_t);
+        void *ptr = malloc(size + sizeof(REBI64));
+        *cast(REBI64 *, ptr) = size;
+        return cast(char *, ptr) + sizeof(REBI64);
     }
 #endif
 }
@@ -156,13 +159,13 @@ void Free_Mem(void *mem, size_t size)
         // a similar trick, but since it doesn't need to remember the
         // size it puts a known garbage value for us to check for.
 
-        char *ptr = cast(char *, mem) - sizeof(size_t);
-        if (*cast(size_t *, ptr) == cast(size_t, -1020)) {
+        char *ptr = cast(char *, mem) - sizeof(REBI64);
+        if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
             Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
             Debug_Fmt("** You should use OS_FREE() instead of FREE().");
             assert(FALSE);
         }
-        assert(*cast(size_t *, ptr) == size);
+        assert(*cast(REBI64 *, ptr) == size);
         free(ptr);
     }
 #endif
@@ -238,7 +241,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
     DEF_POOL(sizeof(REBGOB), 128),  // Gobs
     DEF_POOL(sizeof(REBLHL), 32), // external libraries
     DEF_POOL(sizeof(REBRIN), 128), // external routines
-    DEF_POOL(1, 1), // Just used for tracking main memory
+    DEF_POOL(sizeof(REBI64), 1), // Just used for tracking main memory
 };
 
 
@@ -275,7 +278,19 @@ void Init_Pools(REBINT scale)
         Mem_Pools[n].segs = NULL;
         Mem_Pools[n].first = NULL;
         Mem_Pools[n].last = NULL;
+
+        // The current invariant is that allocations returned from Make_Node()
+        // should always come back as being at a legal 64-bit alignment point.
+        // Although it would be possible to round the allocations, turning it
+        // into an alert helps make sure available space isn't idly wasted.
+        //
+        // A panic is used instead of an assert, since the debug sizes and
+        // release sizes may be different...and both must be checked.
+        //
+        if (Mem_Pool_Spec[n].wide % sizeof(REBI64) != 0)
+            panic (Error(RE_POOL_ALIGNMENT));
         Mem_Pools[n].wide = Mem_Pool_Spec[n].wide;
+
         Mem_Pools[n].units = (Mem_Pool_Spec[n].units * scale) / unscale;
         if (Mem_Pools[n].units < 2) Mem_Pools[n].units = 2;
         Mem_Pools[n].free = 0;
@@ -564,6 +579,13 @@ void *Make_Node(REBCNT pool_id)
         pool->last = NULL;
     }
     pool->free--;
+
+    // All nodes must start on 64-bit alignment (so that data allocated in
+    // nodes can be structured in a way to know where legal 64-bit alignment
+    // points would be)
+    //
+    assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
+
     return (void *)node;
 }
 
@@ -773,9 +795,13 @@ static REBOOL Series_Data_Alloc(
 #if !defined(NDEBUG)
 
 //
-//  Assert_Not_In_Series_Data_Debug: C
+//  Try_Find_Containing_Series_Debug: C
 //
-void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
+// This debug-build-only routine will look to see if it can find what series
+// a data pointer lives in.  It returns NULL if it can't find one.  It's very
+// slow, because it has to look at all the series.  Use sparingly!
+//
+REBSER *Try_Find_Containing_Series_Debug(const void *pointer)
 {
     REBSEG *seg;
 
@@ -784,13 +810,6 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
             if (SER_FREED(series))
-                continue;
-
-            // A locked series can be in some cases considered "safe" for the
-            // purposes that this routine is checking for.  Closures use
-            // series to gather their arguments, for instance.
-            //
-            if (locked_ok && GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE))
                 continue;
 
             if (pointer < cast(void*,
@@ -819,7 +838,7 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
 
             if (pointer < cast(void*, series->content.dynamic.data)) {
                 Debug_Fmt("Pointer found in freed head capacity of series");
-                assert(FALSE);
+                return series;
             }
 
             if (pointer > cast(void*,
@@ -827,13 +846,14 @@ void Assert_Not_In_Series_Data_Debug(const void *pointer, REBOOL locked_ok)
                 + (SER_WIDE(series) * SER_LEN(series))
             )) {
                 Debug_Fmt("Pointer found in freed tail capacity of series");
-                assert(FALSE);
+                return series;
             }
 
-            Debug_Fmt("Pointer not supposed to be in series data, but is.");
-            assert(FALSE);
+            return series;
         }
     }
+
+    return NULL; // not found
 }
 
 #endif
@@ -939,22 +959,22 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     if (flags & MKS_EXTERNAL) {
         //
         // External series will poke in their own data pointer after the
-        // REBSER header allocation is done
+        // REBSER header allocation is done.  Note that despite using a
+        // data pointer, it is still considered a dynamic series...as it
+        // uses fields in `content.dynamic` (for length and data)
         //
-        // !!! For the moment, external series are conflated with the frame
-        // series that have only stack data and no dynamic data.  Hence we
-        // initialize the REBVAL as writable here, but also set the length
-        // and rest fields.  How exactly are external series used, and how
-        // much of a problem is it to share the flag?  Could they set their
-        // own length, rest, wide, height vs. doing it here, where those
-        // fields could conceivably be just turned around and overwritten by
-        // the use of the slot as a REBVAL?
-        //
-        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
-
-        SET_SER_FLAG(s, SERIES_FLAG_EXTERNAL);
         SER_SET_WIDE(s, wide);
+        SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
         s->content.dynamic.rest = length;
+    }
+    else if (flags & MKS_NO_DYNAMIC) {
+        //
+        // These series have no data allocation and may use the content as a
+        // value-sized piece of state (if MKS_ARRAY).
+        //
+        SER_SET_WIDE(s, wide);
+        assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
+        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
     }
     else {
         // Allocate the actual data blob that holds the series elements
@@ -1022,7 +1042,7 @@ REBARR *Make_Singular_Array(REBVAL *single) {
         Make_Series(
             1, // length will not come from this, but from end marker
             sizeof(REBVAL),
-            MKS_EXTERNAL // don't alloc (or free) any data, trust us
+            MKS_NO_DYNAMIC // don't alloc (or free) any data, trust us
         ));
 
     // At present, no ability to resize a singular array--mark fixed size
@@ -1143,7 +1163,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     if (index == 0 && SER_BIAS(series) >= delta) {
         series->content.dynamic.data -= wide * delta;
         series->content.dynamic.len += delta;
-        SER_REST(series) += delta;
+        series->content.dynamic.rest += delta;
         SER_SUB_BIAS(series, delta);
 
     #if !defined(NDEBUG)
@@ -1330,8 +1350,14 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
     series->content.dynamic.data = NULL;
 
     // SERIES_FLAG_EXTERNAL manages its own memory and shouldn't call Remake
+    //
     assert(!(flags & MKS_EXTERNAL));
     assert(!GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL));
+
+    // transition to or from optimized form of 1-element series not done yet
+    //
+    assert(!(flags & MKS_NO_DYNAMIC));
+    assert(GET_SER_FLAG(series, SERIES_FLAG_HAS_DYNAMIC));
 
     // SERIES_FLAG_FIXED_SIZE has unexpandable data and shouldn't call Remake
     assert(!GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE));
@@ -1402,12 +1428,10 @@ void GC_Kill_Series(REBSER *series)
         if (Prior_Expand[n] == series) Prior_Expand[n] = 0;
     }
 
-    if (GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL)) {
-        // External series have their REBSER GC'd when Rebol doesn't need it,
-        // but the data pointer itself is not one that Rebol allocated
-        // !!! Should the external owner be told about the GC/free event?
-    }
-    else {
+    if (
+        GET_SER_FLAG(series, SERIES_FLAG_HAS_DYNAMIC)
+        && !GET_SER_FLAG(series, SERIES_FLAG_EXTERNAL)
+    ) {
         REBYTE wide = SER_WIDE(series);
         REBCNT bias = SER_BIAS(series);
         series->content.dynamic.data -= wide * bias;
@@ -1415,6 +1439,11 @@ void GC_Kill_Series(REBSER *series)
             series->content.dynamic.data,
             Series_Allocation_Unpooled(series)
         );
+    }
+    else {
+        // External series have their REBSER GC'd when Rebol doesn't need it,
+        // but the data pointer itself is not one that Rebol allocated
+        // !!! Should the external owner be told about the GC/free event?
     }
 
     series->info.bits = 0; // includes width

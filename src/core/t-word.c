@@ -63,15 +63,8 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
             if (VAL_WORD_INDEX(a) != VAL_WORD_INDEX(b))
                 return 0;
 
-            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND_SPECIFIC)) {
-                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND_SPECIFIC))
-                    return 0;
-
-                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
-            }
-
-            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND_RELATIVE)) {
-                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND_RELATIVE)) {
+            if (GET_VAL_FLAG(a, VALUE_FLAG_RELATIVE)) {
+                if (!GET_VAL_FLAG(b, VALUE_FLAG_RELATIVE)) {
                     //
                     // !!! We'll need to be able to compare a relative bound
                     // word to a frame bound word... but for the moment
@@ -83,8 +76,14 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
                     return 0;
                 }
 
-                return (a->payload.any_word.binding.relative
-                    == b->payload.any_word.binding.relative) ? 1 : 0;
+                return (VAL_WORD_FUNC(a) == VAL_WORD_FUNC(b)) ? 1 : 0;
+            }
+
+            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND)) {
+                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND))
+                    return 0;
+
+                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
             }
 
             // `a` isn't bound, so it matches if `b` is unbound too.

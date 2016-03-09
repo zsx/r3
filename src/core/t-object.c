@@ -140,7 +140,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Can be a word:
     if (ANY_WORD(arg)) {
         if (!Find_Word_In_Context(context, VAL_WORD_SYM(arg), TRUE)) {
-            Expand_Context(context, 1, 1); // copy word table also
+            Expand_Context(context, 1); // copy word table also
             Append_Context(context, 0, VAL_WORD_SYM(arg));
             // val is UNSET
         }
@@ -155,7 +155,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Use binding table
     binds = WORDS_HEAD(Bind_Table);
 
-    Collect_Keys_Start(BIND_ALL);
+    Collect_Keys_Start(COLLECT_ANY_WORD);
 
     // Setup binding table with obj words.  Binding table is empty so don't
     // bother checking for duplicates.
@@ -189,7 +189,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     // Append new words to obj
     //
     len = CTX_LEN(context) + 1;
-    Expand_Context(context, ARR_LEN(BUF_COLLECT) - len, 1);
+    Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
     for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
         Append_Context(context, NULL, VAL_TYPESET_SYM(key));
@@ -316,29 +316,24 @@ REBINT PD_Context(REBPVS *pvs)
     REBCNT n;
     REBCTX *context = VAL_CONTEXT(pvs->value);
 
-    if (IS_WORD(pvs->select)) {
-        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->select), FALSE);
+    if (IS_WORD(pvs->selector)) {
+        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->selector), FALSE);
     }
-    else
-        return PE_BAD_SELECT;
+    else fail (Error_Bad_Path_Select(pvs));
 
-    // !!! Can Find_Word_In_Context give back an index longer than the context?!
-    // There was a check here.  Adding a test for now, look into it.
-    //
-    assert(n <= CTX_LEN(context));
-    if (n == 0 || n > CTX_LEN(context))
-        return PE_BAD_SELECT;
+    if (n == 0)
+        fail (Error_Bad_Path_Select(pvs));
 
     if (
-        pvs->setval
-        && IS_END(pvs->path + 1)
+        pvs->opt_setval
+        && IS_END(pvs->item + 1)
         && GET_VAL_FLAG(CTX_KEY(context, n), TYPESET_FLAG_LOCKED)
     ) {
-        fail (Error(RE_LOCKED_WORD, pvs->select));
+        fail (Error(RE_LOCKED_WORD, pvs->selector));
     }
 
     pvs->value = CTX_VAR(context, n);
-    return PE_SET;
+    return PE_SET_IF_END;
 }
 
 
@@ -388,54 +383,17 @@ REBTYPE(Context)
             // !!! Current experiment for making frames lets you give it
             // a FUNCTION! only.
             //
-            if (!ANY_FUNC(arg))
+            if (!IS_FUNCTION(arg))
                 fail (Error_Bad_Make(target, arg));
 
             // In order to have the frame survive the call to MAKE and be
             // returned to the user it can't be stack allocated, because it
             // would immediately become useless.  Allocate dynamically.
             //
-            varlist = Make_Array(ARR_LEN(VAL_FUNC_PARAMLIST(arg)));
-            SET_ARR_FLAG(varlist, SERIES_FLAG_CONTEXT);
-            SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+            Val_Init_Context(
+                D_OUT, REB_FRAME, Make_Frame_For_Function(VAL_FUNC(arg))
+            );
 
-            // Fill in the rootvar information for the context canon REBVAL
-            //
-            var = ARR_HEAD(varlist);
-            VAL_RESET_HEADER(var, REB_FRAME);
-            INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
-            INIT_CONTEXT_KEYLIST(AS_CONTEXT(varlist), VAL_FUNC_PARAMLIST(arg));
-            ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
-
-            // !!! The frame will never have stack storage if created this
-            // way, because we return it...and it would be of no use if the
-            // stackvars were empty--they could not be filled.  However it
-            // will have an associated call if it is run.  We don't know what
-            // that call pointer will be so NULL is put in for now--but any
-            // extant FRAME! values of this type will have to use stack
-            // walks to find the pointer (possibly recaching in values.)
-            //
-            INIT_FRAME_CALL(AS_CONTEXT(varlist), NULL);
-            CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
-            ++var;
-
-            // !!! This is a current experiment for choosing that the value
-            // used to indicate a parameter has not been "specialized" is
-            // a BAR!.  This is contentious with the idea that someone might
-            // want to pass a BAR! as a parameter literally.  How to deal
-            // with this is not yet completely figured out--it could involve
-            // a new kind of "LIT-BAR!-decay" whereby instead LIT-BAR! was
-            // used with the understanding that it meant to act as a BAR!.
-            // Review needed once some experience is had with this.
-            //
-            for (n = 1; n <= VAL_FUNC_NUM_PARAMS(arg); ++n, ++var)
-                SET_BAR(var);
-
-            SET_END(var);
-            SET_ARRAY_LEN(varlist, ARR_LEN(VAL_FUNC_PARAMLIST(arg)));
-
-            ASSERT_CONTEXT(AS_CONTEXT(varlist));
-            Val_Init_Context(D_OUT, REB_FRAME, AS_CONTEXT(varlist));
             return R_OUT;
         }
 
@@ -470,7 +428,7 @@ REBTYPE(Context)
                 // Do the block into scratch space (we ignore the result,
                 // unless it is thrown in which case it must be returned.
                 //
-                if (DO_ARRAY_THROWS(&dummy, arg)) {
+                if (DO_VAL_ARRAY_AT_THROWS(&dummy, arg)) {
                     *D_OUT = dummy;
                     return R_OUT_IS_THROWN;
                 }
@@ -636,8 +594,8 @@ REBTYPE(Context)
         context = AS_CONTEXT(
             Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)))
         );
-        INIT_CONTEXT_KEYLIST(context, CTX_KEYLIST(VAL_CONTEXT(value)));
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_CONTEXT);
+        INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
+        SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_VAL_CONTEXT(CTX_VALUE(context), context);
         if (types != 0) {
             Clonify_Values_Len_Managed(
@@ -697,7 +655,7 @@ REBTYPE(Context)
         return R_OUT;
 
     case A_TRIM:
-        if (Find_Refines(call_, ALL_TRIM_REFS)) {
+        if (Find_Refines(frame_, ALL_TRIM_REFS)) {
             // no refinements are allowed
             fail (Error(RE_BAD_REFINES));
         }

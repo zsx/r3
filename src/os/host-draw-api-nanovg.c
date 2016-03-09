@@ -39,7 +39,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "reb-host.h"
-#include "reb-series.h"
 
 #include "nanovg.h"
 
@@ -70,6 +69,8 @@
 #endif
 
 REBUPT RL_Series(REBSER *ser, REBCNT what);
+#define IMG_WIDE(s) ((s) & 0xffff)
+#define IMG_HIGH(s) ((s) >> 16)
 
 static void nvgdrw_add_poly_vertex (void* gr, REBXYF p)
 {
@@ -1210,8 +1211,9 @@ static void nvgdrw_gob_color(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXY
 static void nvgdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI clip_top, REBXYI clip_bottom)
 {
 	struct rebol_series* img = (struct rebol_series*)GOB_CONTENT(gob);
-	int w = IMG_WIDE(img);
-	int h = IMG_HIGH(img);
+    REBUPT size = RL_SERIES(img, RXI_SER_SIZE);
+    int w = IMG_WIDE(size);
+	int h = IMG_HIGH(size);
 	NVGcontext *nvg = NULL;
 
 	REBINT paint_mode = (GOB_ALPHA(gob) == 255) ? NVG_COPY : NVG_SOURCE_OVER;

@@ -218,10 +218,10 @@ REBCNT HG_Stack_Level = 1;
 //
 const REBYTE N_debug_spec[] =
     " {Dialect for interactive debugging, see documentation for details}"
-    " 'value [unset! integer! frame! any-function! block!]"
+    " 'value [unset! integer! frame! function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
-REB_R N_debug(struct Reb_Call *call_) {
+REB_R N_debug(struct Reb_Frame *frame_) {
     PARAM(1, value);
     REBVAL *value = ARG(value);
 
@@ -236,16 +236,16 @@ REB_R N_debug(struct Reb_Call *call_) {
         goto modify_with_confidence;
     }
 
-    if (IS_INTEGER(value) || IS_FRAME(value) || ANY_FUNC(value)) {
-        struct Reb_Call *call;
+    if (IS_INTEGER(value) || IS_FRAME(value) || IS_FUNCTION(value)) {
+        struct Reb_Frame *frame;
 
         // We pass TRUE here to account for an extra stack level... the one
         // added by DEBUG itself, which presumably should not count.
         //
-        if (!(call = Call_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
+        if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
             fail (Error_Invalid_Arg(value));
 
-        Val_Init_Block(D_OUT, Where_For_Call(call));
+        Val_Init_Block(D_OUT, Make_Where_For_Frame(frame));
         return R_OUT;
     }
 
@@ -253,7 +253,7 @@ REB_R N_debug(struct Reb_Call *call_) {
 
     Debug_Fmt(
         "Sorry, but the `debug [...]` dialect is not defined yet.\n"
-        "Change the stack level (integer!, frame!, any-function!)\n"
+        "Change the stack level (integer!, frame!, function!)\n"
         "Or try out these commands:\n"
         "\n"
         "    BREAKPOINT, RESUME, BACKTRACE\n"
@@ -324,7 +324,6 @@ int Do_String(
     }
 
     code = Scan_Source(text, LEN_BYTES(text));
-    PUSH_GUARD_ARRAY(code);
 
     // Where code ends up being bound when loaded at the REPL prompt should
     // be more generally configurable.  (It may be, for instance, that one
@@ -338,15 +337,15 @@ int Do_String(
         // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
         // review of why it's written exactly this way.
         //
-        REBCTX *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+        REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
         VAL_INIT_WRITABLE_DEBUG(&vali);
 
-        SET_INTEGER(&vali, CTX_LEN(user) + 1);
+        SET_INTEGER(&vali, CTX_LEN(user_ctx) + 1);
 
-        Bind_Values_All_Deep(ARR_HEAD(code), user);
-        Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
+        Bind_Values_All_Deep(ARR_HEAD(code), user_ctx);
+        Resolve_Context(user_ctx, Lib_Context, &vali, FALSE, FALSE);
 
         // If we're stopped at a breakpoint, the REPL should have a concept
         // of what stack level it is inspecting (conveyed by the |#|>> in the
@@ -354,23 +353,23 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            struct Reb_Call *call;
-            REBCTX *frame;
+            struct Reb_Frame *frame;
+            REBCTX *frame_ctx;
 
             REBVAL level;
             VAL_INIT_WRITABLE_DEBUG(&level);
             SET_INTEGER(&level, HG_Stack_Level);
 
-            call = Call_For_Stack_Level(NULL, &level, FALSE);
-            assert(call);
+            frame = Frame_For_Stack_Level(NULL, &level, FALSE);
+            assert(frame);
 
             // Need to manage because it may be no words get bound into it,
             // and we're not putting it into a FRAME! value, so it might leak
             // otherwise if it's reified.
             //
-            frame = Frame_For_Call_May_Reify(call, NULL, TRUE);
+            frame_ctx = Context_For_Frame_May_Reify(frame, NULL, TRUE);
 
-            Bind_Values_Deep(ARR_HEAD(code), frame);
+            Bind_Values_Deep(ARR_HEAD(code), frame_ctx);
         }
 
         // !!! This was unused code that used to be in Do_String from
@@ -378,15 +377,16 @@ int Do_String(
         // "Bind into lib or user spaces?" and then "Top words will be
         // added to lib".  Is it relevant in any way?
         //
-        /* Bind_Values_Set_Forward_Shallow(ARR_HEAD(code), Lib_Context);
+        /* Bind_Values_Set_Midstream_Shallow(ARR_HEAD(code), Lib_Context);
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context); */
     }
 
-    if (Do_At_Throws(out, code, 0)) {
-        DROP_GUARD_ARRAY(code);
-
+    if (Do_At_Throws(out, code, 0)) { // `code` is implicitly GC protected
         if (at_breakpoint) {
-            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_resume) {
+            if (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && VAL_FUNC_CODE(out) == &N_resume
+            ) {
                 //
                 // This means we're done with the embedded REPL.  We want to
                 // resume and may be returning a piece of code that will be
@@ -403,7 +403,10 @@ int Do_String(
                 return -1;
             }
 
-            if (IS_NATIVE(out) && VAL_FUNC_CODE(out) == &N_quit) {
+            if (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && VAL_FUNC_CODE(out) == &N_quit
+            ) {
                 //
                 // It would be frustrating if the system did not respond to
                 // a QUIT and forced you to do `resume/with [quit]`.  So
@@ -421,7 +424,8 @@ int Do_String(
             // now, also EXIT as meaning you want to leave.
             //
             if (
-                IS_NATIVE(out) && (
+                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                && (
                     VAL_FUNC_CODE(out) == &N_quit
                     || VAL_FUNC_CODE(out) == &N_exit
                 )
@@ -436,7 +440,6 @@ int Do_String(
         fail (Error_No_Catch_For_Throw(out));
     }
 
-    DROP_GUARD_ARRAY(code);
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     return 0;
@@ -540,7 +543,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBVAL debug_native;
         VAL_INIT_WRITABLE_DEBUG(&debug_native);
 
-        Make_Native(&debug_native, spec, &N_debug, REB_NATIVE, FALSE);
+        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE, FALSE);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
         *Append_Context(user_context, 0, debug_sym) = debug_native;
@@ -564,8 +567,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 #else
     startup_rc = RL_Start(0, 0, embedded_script, embedded_size, 0);
 #endif
-
-	*exit_status = startup_rc;
 
 #if !defined(ENCAP)
     // !!! What should an encapped executable do with a --do?  Here we just
@@ -970,7 +971,7 @@ REBOOL Host_Breakpoint_Quitting_Hook(
         VAL_INIT_WRITABLE_DEBUG(&level);
         SET_INTEGER(&level, 1);
 
-        if (Call_For_Stack_Level(NULL, &level, FALSE) != NULL)
+        if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
             HG_Stack_Level = 1;
         else
             HG_Stack_Level = 0; // Happens if you just type "breakpoint"
@@ -1076,6 +1077,8 @@ int main(int argc, char **argv_ansi)
 
         REBVAL value;
         VAL_INIT_WRITABLE_DEBUG(&value);
+        SET_END(&value);
+        PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 
     push_trap:
         //
@@ -1113,6 +1116,7 @@ int main(int argc, char **argv_ansi)
         Host_Repl(&exit_status, &value, FALSE);
 
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+        DROP_GUARD_VALUE(&value);
     }
     else
         exit_status = 0; // "success"

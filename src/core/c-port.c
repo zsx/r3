@@ -174,7 +174,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     //Debug_Num("A", VAL_LEN_HEAD(waked));
     // Get the system port AWAKE function:
     awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
-    if (!ANY_FUNC(awake)) return -1;
+    if (!IS_FUNCTION(awake)) return -1;
 
     if (ports) Val_Init_Block(&tmp, ports);
     else SET_NONE(&tmp);
@@ -378,7 +378,7 @@ REBCNT Find_Action(REBVAL *object, REBCNT action)
 // !!! Marked static to avoid casual re-uses, which may not be likely but
 // just to stop more calls from being introduced on accident.
 //
-static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
+static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 {
     REBIXO indexor;
 
@@ -386,7 +386,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // invocation is the total number of parameters to the *old* function's
     // invocation (if it had no refinements or locals).
     //
-    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(c->func));
+    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(f->func));
     REBVAL *code = ARR_HEAD(code_array);
 
     // We'll walk through the original functions param and arglist only, and
@@ -395,8 +395,8 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     //
     // !!! See note in function description about arity mismatches.
     //
-    REBVAL *param = FUNC_PARAMS_HEAD(c->func);
-    REBVAL *arg = DSF_ARGS_HEAD(c);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
+    REBVAL *arg = FRM_ARGS_HEAD(f);
     REBOOL ignoring = FALSE;
 
     // The first element of our path will be the function, followed by its
@@ -404,7 +404,7 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // opposite case where it had only refinements and then the function
     // at the head...
     //
-    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(c->func) + 1);
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->func) + 1);
     REBVAL *path = ARR_HEAD(path_array);
 
     REBVAL first;
@@ -414,14 +414,12 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     ++path;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
-             //
-             // Pure local... don't add a code arg for it (can't)!
-             //
-             continue;
-        }
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-        if (GET_VAL_FLAG(param, TYPESET_FLAG_REFINEMENT)) {
+        if (pclass == PARAM_CLASS_PURE_LOCAL)
+             continue; // don't add a callsite expression for it (can't)!
+
+        if (pclass == PARAM_CLASS_REFINEMENT) {
             if (IS_CONDITIONAL_FALSE(arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore
@@ -459,11 +457,11 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
     // args, as they were evaluated the first time around.
     //
     indexor = Do_Array_At_Core(
-        c->out,
+        f->out,
         &first, // path not in array but will be "virtual" first array element
         code_array,
         0, // index
-        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_EVAL_ONLY
+        DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
     if (indexor != THROWN_FLAG && indexor != END_FLAG) {
@@ -489,14 +487,14 @@ static REBOOL Redo_Func_Throws(struct Reb_Call *c, REBFUN *func_new)
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
-int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
+int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *actor;
     REBCNT n = 0;
 
     assert(action < A_MAX_ACTION);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(port), SERIES_FLAG_CONTEXT));
+    assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST));
 
     // Verify valid port (all of these must be false):
     if (
@@ -514,8 +512,8 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
     if (IS_NONE(actor)) return R_NONE;
 
     // If actor is a native function:
-    if (IS_NATIVE(actor))
-        return cast(REBPAF, VAL_FUNC_CODE(actor))(call_, port, action);
+    if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE))
+        return cast(REBPAF, VAL_FUNC_CODE(actor))(frame_, port, action);
 
     // actor must be an object:
     if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
@@ -523,7 +521,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
     // Dispatch object function:
     n = Find_Action(actor, action);
     actor = Obj_Value(actor, n);
-    if (!n || !actor || !ANY_FUNC(actor)) {
+    if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
         VAL_INIT_WRITABLE_DEBUG(&action_word);
         Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
@@ -531,7 +529,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
 
-    if (Redo_Func_Throws(call_, VAL_FUNC(actor))) {
+    if (Redo_Func_Throws(frame_, VAL_FUNC(actor))) {
         // The throw name will be in D_OUT, with thrown value in task vars
         return R_OUT_IS_THROWN;
     }
@@ -543,7 +541,7 @@ int Do_Port_Action(struct Reb_Call *call_, REBCTX *port, REBCNT action)
     if (n == 0) {
         actor = Obj_Value(scheme, STD_SCHEME_actor);
         if (!actor) goto err;
-        if (IS_NATIVE(actor)) goto fun;
+        if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE)) goto fun;
         if (!IS_OBJECT(actor)) goto err; //vTrap_Expect(value, STD_PORT_actor, REB_OBJECT);
         n = Find_Action(actor, action);
         if (n == 0) goto err;
@@ -589,7 +587,7 @@ void Validate_Port(REBCTX *port, REBCNT action)
     if (
         action >= A_MAX_ACTION
         || CTX_LEN(port) > 50 // !!! ?? why 50 ??
-        || !GET_ARR_FLAG(CTX_VARLIST(port), SERIES_FLAG_CONTEXT)
+        || !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST)
         || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
@@ -715,16 +713,17 @@ REBNATIVE(set_scheme)
         // 'typed' words to the user.  For safety, a single global actor spec
         // could be made at startup.
         //
-        VAL_RESET_HEADER(actor, REB_NATIVE);
+        VAL_RESET_HEADER(actor, REB_FUNCTION);
+        INIT_VAL_FUNC_CLASS(actor, FUNC_CLASS_NATIVE);
         VAL_FUNC_SPEC(actor) = spec;
-        actor->payload.any_function.func = AS_FUNC(paramlist);
+        actor->payload.function.func = AS_FUNC(paramlist);
 
         VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 
         // Poke the function value itself into the [0] slot (see definition
         // of `struct Reb_Func` for explanation of why this is needed)
         //
-        *FUNC_VALUE(actor->payload.any_function.func) = *actor;
+        *FUNC_VALUE(actor->payload.function.func) = *actor;
 
         return R_TRUE;
     }
@@ -746,7 +745,7 @@ REBNATIVE(set_scheme)
                 Obj_Value(actor, n), // function,
                 VAL_FUNC_SPEC(act),
                 cast(REBNAT, map->func),
-                REB_NATIVE,
+                FUNC_CLASS_NATIVE,
                 FALSE
             );
         }

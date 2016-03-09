@@ -454,7 +454,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
                     TYPE_SET(&rebol_args[idx], REB_STRING);
                     TYPE_SET(&rebol_args[idx], REB_BINARY);
                     TYPE_SET(&rebol_args[idx], REB_VECTOR);
-                    TYPE_SET(&rebol_args[idx], REB_CALLBACK);
+                    TYPE_SET(&rebol_args[idx], REB_FUNCTION); // !!! callback
                 }
                 break;
             default:
@@ -500,7 +500,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
     ffi_type **args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(rot));
     REBARR *rebol_args;
 
-    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARIADIC))
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
@@ -603,7 +603,10 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 case REB_VECTOR:
                     ptrs[idx] = VAL_RAW_DATA_AT(arg);
                     return &ptrs[idx];
-                case REB_CALLBACK:
+                case REB_FUNCTION:
+                    if (VAL_FUNC_CLASS(arg) != FUNC_CLASS_CALLBACK)
+                        fail (Error(RE_ONLY_CALLBACK_PTR));
+
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
                     return &ptrs[idx];
                 default:
@@ -780,7 +783,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
     REBCNT n_fixed = 0; /* number of fixed arguments */
     REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
 
-    struct Reb_Call *call_ = DSF; // So you can use the D_xxx macros
+    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     REBVAL out = *FUNC_VALUE(rot); // REVIEW: why is it done this way?
 
@@ -1169,7 +1172,7 @@ static void callback_dispatcher(
 //     abi: word "note"
 // ] lib "name"]
 //
-REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     ffi_type ** args = NULL;
@@ -1187,13 +1190,14 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         return FALSE;
     }
 
-    VAL_RESET_HEADER(out, type);
+    VAL_RESET_HEADER(out, REB_FUNCTION);
+    INIT_VAL_FUNC_CLASS(out, fclass);
 
     VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
     memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
     ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);
 
-    if (type == REB_CALLBACK) {
+    if (fclass == FUNC_CLASS_CALLBACK) {
         ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);
     }
 
@@ -1202,11 +1206,11 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
     VAL_ROUTINE_FFI_ARG_TYPES(out) =
         Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
-    out->payload.any_function.func = AS_FUNC(Make_Array(N_ARGS));
+    out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
 
     // first slot is reserved for the "self", see `struct Reb_Func`
     //
-    temp = Alloc_Tail_Array(FUNC_PARAMLIST(out->payload.any_function.func));
+    temp = Alloc_Tail_Array(FUNC_PARAMLIST(out->payload.function.func));
     *temp = *out;
 
     VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
@@ -1245,7 +1249,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     MANAGE_ARRAY(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
-    if (type == REB_ROUTINE) {
+    if (fclass == FUNC_CLASS_ROUTINE) {
         REBIXO indexor = 0;
 
         REBVAL lib;
@@ -1315,7 +1319,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 VAL_ROUTINE_FUNCPTR(out) = func;
             }
         }
-    } else if (type == REB_CALLBACK) {
+    } else if (fclass == FUNC_CLASS_CALLBACK) {
         REBIXO indexor = 0;
 
         REBVAL fun;
@@ -1337,6 +1341,8 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
     }
+    else
+        assert(FALSE);
 
     blk = VAL_ARRAY_AT(&blk[0]);
     for (; NOT_END(blk); blk++) {
@@ -1384,7 +1390,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                     // to be hard quoted, soft quoted, refinements, or
                     // evaluated.  This is signaled with bits on the typeset.
                     //
-                    SET_VAL_FLAG(v, TYPESET_FLAG_EVALUATE);
+                    INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
                 }
                 n ++;
                 break;
@@ -1494,7 +1500,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         }
     }
 
-    if (type == REB_CALLBACK) {
+    if (fclass == FUNC_CLASS_CALLBACK) {
         VAL_ROUTINE_CLOSURE(out) = ffi_closure_alloc(sizeof(ffi_closure), &VAL_ROUTINE_DISPATCHER(out));
         if (VAL_ROUTINE_CLOSURE(out) == NULL) {
             //printf("No memory\n");
@@ -1521,100 +1527,38 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     return ret;
 }
 
+
 //
-//  REBTYPE: C
+//  make-routine: native [
 //
-REBTYPE(Routine)
+//  {Native for creating the FUNCTION! for what was once ROUTINE!}
+//
+//      def [block!]
+//  ]
+//
+REBNATIVE(make_routine)
 {
-    REBVAL *val;
-    REBVAL *arg;
-    REBVAL *ret;
+    PARAM(1, def);
 
-    arg = D_ARG(2);
-    val = D_ARG(1);
+    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_ROUTINE);
 
-    ret = D_OUT;
-    // unary actions
-    switch(action) {
-        case A_MAKE:
-            //RL_Print("%s, %d, Make routine action\n", __func__, __LINE__);
-        case A_TO:
-            if (IS_ROUTINE(val)) {
-                fail (Error_Unexpected_Type(REB_ROUTINE, VAL_TYPE(arg)));
-            }
-            else if (!IS_BLOCK(arg) || !MT_Routine(ret, arg, REB_ROUTINE)) {
-                fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(arg)));
-            }
-            break;
-        case A_REFLECT:
-            {
-                REBINT n = VAL_WORD_CANON(arg); // zero on error
-                switch (n) {
-                    case SYM_SPEC:
-                        Val_Init_Block(
-                            ret, Copy_Array_Deep_Managed(VAL_ROUTINE_SPEC(val))
-                        );
-                        Unbind_Values_Deep(VAL_ARRAY_HEAD(val));
-                        break;
-                    case SYM_ADDR:
-                        SET_INTEGER(ret, cast(REBUPT, VAL_ROUTINE_FUNCPTR(val)));
-                        break;
-                    default:
-                        fail (Error_Cannot_Reflect(REB_STRUCT, arg));
-                }
-            }
-            break;
-        default:
-            fail (Error_Illegal_Action(REB_ROUTINE, action));
-    }
     return R_OUT;
 }
 
+
 //
-//  REBTYPE: C
+//  make-callback: native [
 //
-REBTYPE(Callback)
+//  {Native for creating the FUNCTION! for what was once CALLBACK!}
+//
+//      def [block!]
+//  ]
+//
+REBNATIVE(make_callback)
 {
-    REBVAL *val;
-    REBVAL *arg;
-    REBVAL *ret;
+    PARAM(1, def);
 
-    arg = D_ARG(2);
-    val = D_ARG(1);
+    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_CALLBACK);
 
-    ret = D_OUT;
-    // unary actions
-    switch(action) {
-        case A_MAKE:
-            //RL_Print("%s, %d, Make routine action\n", __func__, __LINE__);
-        case A_TO:
-            if (IS_ROUTINE(val)) {
-                fail (Error_Unexpected_Type(REB_ROUTINE, VAL_TYPE(arg)));
-            }
-            else if (!IS_BLOCK(arg) || !MT_Routine(ret, arg, REB_CALLBACK)) {
-                fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(arg)));
-            }
-            break;
-        case A_REFLECT:
-            {
-                REBINT n = VAL_WORD_CANON(arg); // zero on error
-                switch (n) {
-                    case SYM_SPEC:
-                        Val_Init_Block(
-                            ret, Copy_Array_Deep_Managed(VAL_ROUTINE_SPEC(val))
-                        );
-                        Unbind_Values_Deep(VAL_ARRAY_HEAD(val));
-                        break;
-                    case SYM_ADDR:
-                        SET_INTEGER(ret, (REBUPT)VAL_ROUTINE_DISPATCHER(val));
-                        break;
-                    default:
-                        fail (Error_Cannot_Reflect(REB_STRUCT, arg));
-                }
-            }
-            break;
-        default:
-            fail (Error_Illegal_Action(REB_CALLBACK, action));
-    }
     return R_OUT;
 }
