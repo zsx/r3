@@ -167,7 +167,7 @@ void Free_Mem(void *mem, size_t size)
             Debug_Fmt("** You should use OS_FREE() instead of FREE().");
             assert(FALSE);
         }
-        assert(*cast(REBI64 *, ptr) == size);
+        assert(*cast(REBI64*, ptr) == cast(REBI64, size));
         free(ptr);
     }
 #endif
