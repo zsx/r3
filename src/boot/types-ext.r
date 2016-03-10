@@ -14,49 +14,49 @@ REBOL [
     }
 ]
 
-trash       *   0
-unset       *   null
-none        *   null
-handle      *   ptr
+trash       *
+unset       *
+none        *
+handle      *
 
-logic       5   logic
-integer     *   64
-decimal     *   64
-percent     *   64
+logic       5
+integer     *
+decimal     *
+percent     *
 
-char        11  32
-pair        *   64
-tuple       *   64
-time        *   64
-date        *   date
+char        11
+pair        *
+tuple       *
+time        *
+date        *
 
-word        17  sym
-set-word    *   sym
-get-word    *   sym
-lit-word    *   sym
-refinement  *   sym
-issue       *   sym
+word        17
+set-word    *
+get-word    *
+lit-word    *
+refinement  *
+issue       *
 
-string      25  ser
-file        *   ser
-email       *   ser
-url         *   ser
-tag         *   ser
+string      25
+file        *
+email       *
+url         *
+tag         *
 
-block       33  ser
-group       *   ser
-path        *   ser
-set-path    *   ser
-get-path    *   ser
-lit-path    *   ser
+block       33
+group       *
+path        *
+set-path    *
+get-path    *
+lit-path    *
 
-binary      41  ser
-bitset      *   ser
-vector      *   ser
-image       *   image
+binary      41
+bitset      *
+vector      *
+image       *
 
-gob         48  ptr
+gob         48
 
-object      49  ptr
-module      *   ptr
+object      49
+module      *
 

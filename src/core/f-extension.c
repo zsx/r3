@@ -34,19 +34,6 @@
 
 #include "reb-lib.h"
 
-// Extension evaluation categories:
-enum {
-    RXX_NULL,   // unset
-    RXX_PTR,    // any pointer
-    RXX_LOGIC,  // logic
-    RXX_32,     // char
-    RXX_64,     // integer, decimal, etc.
-    RXX_SYM,    // word
-    RXX_SER,    // string
-    RXX_IMAGE,  // image
-    RXX_DATE,   // from upper section
-    RXX_MAX
-};
 
 //(*call)(int cmd, RXIFRM *args);
 
@@ -74,108 +61,271 @@ REBCNT Ext_Next = 0;
 
 /***********************************************************************
 **
-x*/ RXIARG Value_To_RXI(const REBVAL *val)
+x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
 /*
 ***********************************************************************/
 {
-    RXIARG arg;
-
-    switch (RXT_Eval_Class[Reb_To_RXT[VAL_TYPE_0(val)]]) {
-    case RXX_LOGIC:
+    switch (VAL_TYPE(val)) {
+    case REB_LOGIC:
         //
         // LOGIC! changed to just be a header bit, and there is no VAL_I32
         // in the "payload" any longer.  It must be proxied.
         //
-        arg.i2.int32a = (VAL_LOGIC(val) == TRUE) ? 1 : 0;
+        arg->i2.int32a = (VAL_LOGIC(val) == TRUE) ? 1 : 0;
         break;
-    case RXX_64:
-        arg.int64 = VAL_INT64(val);
+
+    case REB_INTEGER:
+        arg->int64 = VAL_INT64(val);
         break;
-    case RXX_SER:
-        arg.sri.series = VAL_SERIES(val);
-        arg.sri.index = VAL_INDEX(val);
+
+    case REB_DECIMAL:
+    case REB_PERCENT:
+        arg->dec64 = VAL_DECIMAL(val);
         break;
-    case RXX_PTR:
-        arg.addr = VAL_HANDLE_DATA(val);
+
+    case REB_PAIR:
+        arg->pair.x = VAL_PAIR_X(val);
+        arg->pair.y = VAL_PAIR_Y(val);
         break;
-    case RXX_32:
-        arg.i2.int32a = VAL_I32(val);
-        arg.i2.int32b = 0;
+
+    case REB_CHAR:
+        arg->i2.int32a = VAL_CHAR(val);
         break;
-    case RXX_DATE:
-        arg.i2.int32a = VAL_ALL_BITS(val)[2];
-        arg.i2.int32b = 0;
+
+    case REB_TUPLE:
+        arg->addr = cast(void *, VAL_TUPLE_DATA(val));
         break;
-    case RXX_SYM:
-        arg.i2.int32a = VAL_WORD_CANON(val);
-        arg.i2.int32b = 0;
+
+    case REB_TIME:
+        arg->int64 = VAL_TIME(val);
         break;
-    case RXX_IMAGE:
-        arg.iwh.image = VAL_SERIES(val);
-        arg.iwh.width = VAL_IMAGE_WIDE(val);
-        arg.iwh.height = VAL_IMAGE_HIGH(val);
+
+    case REB_DATE: /* FIXME: avoid type punning */
+        arg->i2.int32a = VAL_ALL_BITS(val)[2];
+        arg->i2.int32b = 0;
         break;
-    case RXX_NULL:
+
+    case REB_WORD:
+    case REB_SET_WORD:
+    case REB_GET_WORD:
+    case REB_LIT_WORD:
+    case REB_REFINEMENT:
+    case REB_ISSUE:
+        arg->i2.int32a = VAL_WORD_CANON(val);
+        arg->i2.int32b = 0;
+        break;
+
+    case REB_STRING:
+    case REB_FILE:
+    case REB_EMAIL:
+    case REB_URL:
+    case REB_TAG:
+    case REB_BLOCK:
+    case REB_GROUP:
+    case REB_PATH:
+    case REB_SET_PATH:
+    case REB_GET_PATH:
+    case REB_LIT_PATH:
+    case REB_BINARY:
+    case REB_BITSET:
+    case REB_VECTOR:
+        arg->sri.series = VAL_SERIES(val);
+        arg->sri.index = VAL_INDEX(val);
+        break;
+
+    case REB_GOB:
+        arg->addr = VAL_GOB(val);
+        break;
+
+    case REB_HANDLE:
+        arg->addr = VAL_HANDLE_DATA(val);
+        break;
+
+    case REB_IMAGE:
+        arg->iwh.image = VAL_SERIES(val);
+        arg->iwh.width = VAL_IMAGE_WIDE(val);
+        arg->iwh.height = VAL_IMAGE_HIGH(val);
+        break;
+
+    case REB_OBJECT:
+    case REB_MODULE:
+        arg->addr = VAL_CONTEXT(val);
+
     default:
-        arg.int64 = 0;
+        arg->int64 = 0;
         break;
     }
-    return arg;
+    return;
 }
 
 /***********************************************************************
 **
-x*/ void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type)
+x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
 /*
 ***********************************************************************/
 {
-    // !!! Should use proper Val_Init routines
-    //
-    VAL_RESET_HEADER(val, RXT_To_Reb[type]);
+    switch (type) {
+    case RXT_TRASH:
+        SET_TRASH_SAFE(val);
+        break;
 
-    switch (RXT_Eval_Class[type]) {
-    case RXX_LOGIC:
-        //
-        // In RXIARG a logic is "in the payload", but it's only a header bit
-        // in an actual REBVAL.  Though it's not technically necessary to
-        // constrain the accepted values to 0 and 1, it helps with the build
-        // that is trying to catch mistakes in REBOOL usage...and also to
-        // lock down the RXIARG interface a bit to make it easier to change.
-        //
-        assert((arg.i2.int32a == 0) || (arg.i2.int32a == 1));
-        SET_LOGIC(val, arg.i2.int32a);
+    case RXT_UNSET:
+        SET_UNSET(val);
         break;
-    case RXX_64:
-        VAL_INT64(val) = arg.int64;
-        break;
-    case RXX_SER:
-        INIT_VAL_SERIES(val, arg.sri.series);
-        VAL_INDEX(val) = arg.sri.index;
-        break;
-    case RXX_PTR:
-        VAL_HANDLE_DATA(val) = arg.addr;
-        break;
-    case RXX_32:
-        VAL_I32(val) = arg.i2.int32a;
-        break;
-    case RXX_DATE:
-        VAL_TIME(val) = NO_TIME;
-        VAL_ALL_BITS(val)[2] = arg.i2.int32a;
-        break;
-    case RXX_SYM:
-        Val_Init_Word(val, RXT_To_Reb[type], arg.i2.int32a);
-        break;
-    case RXX_IMAGE:
-        INIT_VAL_SERIES(val, arg.iwh.image);
-        VAL_IMAGE_WIDE(val) = arg.iwh.width;
-        VAL_IMAGE_HIGH(val) = arg.iwh.height;
-        break;
-    case RXX_NULL:
-        VAL_INT64(val) = 0;
-        break;
-    default:
+
+    case RXT_NONE:
         SET_NONE(val);
+        break;
+
+    case RXT_LOGIC:
+        assert((arg->i2.int32a == 0) || (arg->i2.int32a == 1));
+        SET_LOGIC(val, arg->i2.int32a);
+        break;
+
+    case RXT_INTEGER:
+        SET_INTEGER(val, arg->int64);
+        break;
+
+    case RXT_DECIMAL:
+        SET_DECIMAL(val, arg->dec64);
+        break;
+
+    case REB_PERCENT:
+        SET_PERCENT(val, arg->dec64);
+        break;
+
+    case RXT_CHAR:
+        SET_CHAR(val, arg->i2.int32a);
+        break;
+
+    case RXT_PAIR:
+        SET_PAIR(val, arg->pair.x, arg->pair.y);
+        break;
+
+    case RXT_TUPLE:
+        SET_TUPLE(val, arg->addr);
+        break;
+
+    case RXT_TIME:
+        SET_TIME(val, arg->int64);
+        break;
+
+    case RXT_DATE: // FIXME: see Value_To_RXI
+        VAL_RESET_HEADER(val, REB_DATE);
+        VAL_ALL_BITS(val)[2] = arg->i2.int32a;
+        break;
+
+    case RXT_WORD:
+        Val_Init_Word(val, REB_WORD, arg->i2.int32a);
+        break;
+
+    case RXT_SET_WORD:
+        Val_Init_Word(val, REB_SET_WORD, arg->i2.int32a);
+        break;
+
+    case RXT_GET_WORD:
+        Val_Init_Word(val, REB_GET_WORD, arg->i2.int32a);
+        break;
+
+    case RXT_LIT_WORD:
+        Val_Init_Word(val, REB_LIT_WORD, arg->i2.int32a);
+        break;
+
+    case RXT_REFINEMENT:
+        Val_Init_Word(val, REB_REFINEMENT, arg->i2.int32a);
+        break;
+
+    case RXT_ISSUE:
+        Val_Init_Word(val, REB_ISSUE, arg->i2.int32a);
+        break;
+
+    case RXT_BINARY:
+        VAL_RESET_HEADER(val, REB_BINARY);
+        goto ser;
+
+    case RXT_STRING:
+        VAL_RESET_HEADER(val, REB_STRING);
+        goto ser;
+
+    case RXT_FILE:
+        VAL_RESET_HEADER(val, REB_FILE);
+        goto ser;
+
+    case RXT_EMAIL:
+        VAL_RESET_HEADER(val, REB_EMAIL);
+        goto ser;
+
+    case RXT_URL:
+        VAL_RESET_HEADER(val, REB_URL);
+        goto ser;
+
+    case RXT_TAG:
+        VAL_RESET_HEADER(val, REB_TAG);
+        goto ser;
+
+    case RXT_BLOCK:
+        VAL_RESET_HEADER(val, REB_BLOCK);
+        goto ser;
+
+    case RXT_GROUP:
+        VAL_RESET_HEADER(val, REB_GROUP);
+        goto ser;
+
+    case RXT_PATH:
+        VAL_RESET_HEADER(val, REB_PATH);
+        goto ser;
+
+    case RXT_SET_PATH:
+        VAL_RESET_HEADER(val, REB_SET_PATH);
+        goto ser;
+
+    case RXT_GET_PATH:
+        VAL_RESET_HEADER(val, REB_GET_PATH);
+        goto ser;
+
+    case RXT_LIT_PATH:
+        VAL_RESET_HEADER(val, REB_LIT_PATH);
+        goto ser;
+
+    case RXT_BITSET:
+        VAL_RESET_HEADER(val, REB_BITSET);
+        goto ser;
+
+    case RXT_VECTOR:
+        VAL_RESET_HEADER(val, REB_VECTOR);
+        goto ser;
+
+    case RXT_GOB:
+        SET_GOB(val, arg->addr);
+        break;
+
+    case RXT_HANDLE:
+        SET_HANDLE_DATA(val, arg->addr);
+        break;
+
+    case RXT_IMAGE:
+        INIT_VAL_SERIES(val, arg->iwh.image);
+        VAL_IMAGE_WIDE(val) = arg->iwh.width;
+        VAL_IMAGE_HIGH(val) = arg->iwh.height;
+        break;
+
+    case RXT_OBJECT:
+        Val_Init_Object(val, arg->addr);
+        break;
+
+    case RXT_MODULE:
+        Val_Init_Module(val, arg->addr);
+        break;
+
+    default:
+        fail(Error(RE_BAD_CMD_ARGS));
     }
+
+    return;
+
+ser:
+    INIT_VAL_SERIES(val, arg->sri.series);
+    VAL_INDEX(val) = arg->sri.index;
 }
 
 /***********************************************************************
@@ -191,7 +341,7 @@ x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
     array = Make_Array(len = RXA_COUNT(frm));
     for (n = 1; n <= len; n++) {
         val = Alloc_Tail_Array(array);
-        RXI_To_Value(val, frm->args[n], RXA_TYPE(frm, n));
+        RXI_To_Value(val, &frm->args[n], RXA_TYPE(frm, n));
     }
     Val_Init_Block(out, array);
 }
@@ -470,7 +620,7 @@ void Do_Command_Core(struct Reb_Frame *frame_)
     val = D_ARG(1);
     for (n = 1; n <= D_ARGC; n++, val++) {
         RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
-        frm.args[n] = Value_To_RXI(val);
+        Value_To_RXI(&frm.args[n], val);
     }
 
     // Call the command:
@@ -480,7 +630,7 @@ void Do_Command_Core(struct Reb_Frame *frame_)
 
     switch (n) {
     case RXR_VALUE:
-        RXI_To_Value(D_OUT, frm.args[1], RXA_TYPE(&frm, 1));
+        RXI_To_Value(D_OUT, &frm.args[1], RXA_TYPE(&frm, 1));
         break;
     case RXR_BLOCK:
         RXI_To_Block(&frm, D_OUT);

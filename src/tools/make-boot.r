@@ -662,7 +662,7 @@ write-if inc/reb-types.h out
 ;----------------------------------------------------------------------------
 
 ext-types: load %types-ext.r
-rxt-record: [type offset size]
+rxt-record: [type offset]
 
 ; Generate type table with necessary gaps
 rxt-types: []
@@ -739,29 +739,6 @@ n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
         emit-line "" "REB_TRASH" n
-    ]
-    n: n + 1
-]
-emit-end
-
-emit {
-/***********************************************************************
-**
-*/  const REBCNT RXT_Eval_Class[RXT_MAX] =
-/*
-***********************************************************************/
-^{
-}
-
-n: 0
-for-each type rxt-types [
-    either all [
-        word? type
-        rec: find ext-types type
-    ][
-        emit-line "RXX_" rec/3 rec/1
-    ][
-        emit-line "" 0 n
     ]
     n: n + 1
 ]
