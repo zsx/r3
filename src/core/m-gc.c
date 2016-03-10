@@ -1264,7 +1264,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
                 name = Get_Sym_Name(VAL_WORD_SYM(key));
                 break;
             default:
-                if (key != ARR_HEAD(keylist)) {// the first element could be function!, native!, etc for FRAMEs
+                if (key != ARR_HEAD(cast(REBARR*, keylist))) {// the first element could be function!, native!, etc for FRAMEs
                     printf("unexpected type: %d\n", VAL_TYPE(key));
                     fclose(dump->out);
                     Panic_Mark_Stack(elem);
