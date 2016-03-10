@@ -950,6 +950,9 @@ struct Reb_Decimal {
 #define SET_DECIMAL(v,n) \
     (VAL_RESET_HEADER(v, REB_DECIMAL), (v)->payload.decimal.dec = (n))
 
+#define SET_PERCENT(v,n) \
+    (VAL_RESET_HEADER(v, REB_PERCENT), (v)->payload.decimal.dec = (n))
+
 
 /***********************************************************************
 **
@@ -1042,6 +1045,8 @@ struct Reb_Time {
 #define ZONE_SECS (ZONE_MINS*60)
 #define MAX_ZONE (15 * (60/ZONE_MINS))
 
+#define SET_TIME(v, t) \
+    (VAL_RESET_HEADER(v, REB_TIME), VAL_TIME(v)=(t))
 
 /***********************************************************************
 **
@@ -1055,7 +1060,12 @@ typedef struct Reb_Tuple {
 
 #define VAL_TUPLE(v)        ((v)->payload.tuple.tuple + 1)
 #define VAL_TUPLE_LEN(v)    ((v)->payload.tuple.tuple[0])
+#define VAL_TUPLE_DATA(v)   ((v)->payload.tuple.tuple)
 #define MAX_TUPLE 10
+#define SET_TUPLE(v, t) \
+    (VAL_RESET_HEADER(v, REB_TIME), \
+    memcpy(VAL_TUPLE_DATA(v), t, sizeof(VAL_TUPLE_DATA(v))))
+
 
 
 /***********************************************************************
