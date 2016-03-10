@@ -464,7 +464,7 @@ REBTYPE(Decimal)
 
         case A_RANDOM:
             if (D_REF(2)) {
-                Set_Random(VAL_INT64(val)); // use IEEE bits
+                Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits
                 return R_UNSET;
             }
 #ifdef OLD_METHOD
