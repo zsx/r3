@@ -293,31 +293,43 @@ file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
 list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
 
-add_custom_command(OUTPUT
+set(NATIVE_OUTPUT
     ${TOP_SRC_DIR}/boot/tmp-natives.r
     ${TOP_SRC_DIR}/boot/tmp-actions.r
+    )
+set(NATIVE_DEPENDS "")
+
+add_custom_command(OUTPUT
+    ${NATIVE_OUTPUT}
     COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
+    ${NTIVE_DEPENDS}
 )
 
-add_custom_command(OUTPUT
+set(HEADER_OUTPUT
     ${TOP_SRC_DIR}/include/tmp-funcs.h
     ${TOP_SRC_DIR}/include/tmp-funcargs.h
     ${TOP_SRC_DIR}/include/tmp-strings.h
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
-    DEPENDS
-    ${TOOLS_DIR}/make-headers.r
+    )
+set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
     ${TOOLS_DIR}/common-parsers.r
     ${TOOLS_DIR}/form-header.r
     ${CORE_C_FILES}
-    ${TOP_SRC_DIR}/boot/tmp-natives.r
-    ${TOP_SRC_DIR}/boot/tmp-actions.r
+    ${NATIVE_OUTPUT}
     )
 
 add_custom_command(OUTPUT
-    ${TOP_SRC_DIR}/include/tmp-evaltypes.h
+    ${HEADER_OUTPUT}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
+    DEPENDS
+    ${TOOLS_DIR}/make-headers.r
+    ${HEADER_DEPENDS}
+    )
+
+set(BOOT_OUTPUT
+    ${TOP_SRC_DIR}/include/tmp-evaltypes.inc
     ${TOP_SRC_DIR}/include/tmp-maketypes.h
     ${TOP_SRC_DIR}/include/tmp-comptypes.h
     ${TOP_SRC_DIR}/include/reb-types.h
@@ -332,10 +344,8 @@ add_custom_command(OUTPUT
     ${TOP_SRC_DIR}/include/tmp-sysctx.h
     ${TOP_SRC_DIR}/include/tmp-boot.h
     ${TOP_SRC_DIR}/core/b-boot.c
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r ${R3_OS_ID}
-    DEPENDS
-    ${TOOLS_DIR}/make-boot.r
-
+    )
+set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
     ${TOP_SRC_DIR}/boot/version.r
     ${TOP_SRC_DIR}/boot/types.r
@@ -390,19 +400,37 @@ add_custom_command(OUTPUT
     ${TOP_SRC_DIR}/mezz/prot-http.r
     ${TOP_SRC_DIR}/mezz/prot-tls.r
     )
+
 add_custom_command(OUTPUT
+    ${BOOT_OUTPUT}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r ${R3_OS_ID}
+    DEPENDS
+    ${TOOLS_DIR}/make-boot.r
+    ${BOOT_DEPENDS}
+    )
+
+set(EXT_CORE_OUTPUT
     ${TOP_SRC_DIR}/include/host-ext-core.h
+    )
+
+set(EXT_CORE_DEPENDS
+    ${TOP_SRC_DIR}/boot/core.r
+    )
+
+add_custom_command(OUTPUT
+    ${EXT_CORE_OUTPUT}
     COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r
     DEPENDS
     ${TOOLS_DIR}/core-ext.r
-    ${TOP_SRC_DIR}/boot/core.r
+    ${EXT_CORE_DEPENDS}
     )
-add_custom_command(OUTPUT
+
+set(REB_LIB_OUTPUT
     ${TOP_SRC_DIR}/include/reb-lib.h
     ${TOP_SRC_DIR}/include/reb-lib-lib.h
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r
-    DEPENDS
-    ${TOOLS_DIR}/make-reb-lib.r
+    )
+
+set(REB_LIB_DEPENDS
     ${TOOLS_DIR}/common.r
     ${TOOLS_DIR}/common-parsers.r
     ${TOOLS_DIR}/form-header.r
@@ -411,37 +439,61 @@ add_custom_command(OUTPUT
     ${CORE_DIR}/f-extension.c
     )
 
-set (GENERATED_CORE_SOURCE
-    ${TOP_SRC_DIR}/include/tmp-funcs.h
-    ${TOP_SRC_DIR}/include/tmp-funcargs.h
-    ${TOP_SRC_DIR}/include/tmp-strings.h
-    ${TOP_SRC_DIR}/include/tmp-evaltypes.h
-    ${TOP_SRC_DIR}/include/tmp-maketypes.h
-    ${TOP_SRC_DIR}/include/tmp-comptypes.h
-    ${TOP_SRC_DIR}/include/reb-types.h
-    ${TOP_SRC_DIR}/include/ext-types.h
-    ${TOP_SRC_DIR}/include/tmp-exttypes.h
-    ${TOP_SRC_DIR}/include/tmp-bootdefs.h
-    ${TOP_SRC_DIR}/include/tmp-sysobj.h
-    ${TOP_SRC_DIR}/include/reb-dialect.h
-    ${TOP_SRC_DIR}/include/reb-evtypes.h
-    ${TOP_SRC_DIR}/include/tmp-errnums.h
-    ${TOP_SRC_DIR}/include/tmp-portmodes.h
-    ${TOP_SRC_DIR}/include/tmp-sysctx.h
-    ${TOP_SRC_DIR}/include/tmp-boot.h
-    ${TOP_SRC_DIR}/core/b-boot.c
-    ${TOP_SRC_DIR}/include/host-ext-core.h
-    ${TOP_SRC_DIR}/include/reb-lib.h
-    ${TOP_SRC_DIR}/include/reb-lib-lib.h
-    ${TOP_SRC_DIR}/include/host-lib.h
-    ${TOP_SRC_DIR}/include/host-table.inc
+add_custom_command(OUTPUT
+    ${REB_LIB_OUTPUT}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r
+    DEPENDS
+    ${TOOLS_DIR}/make-reb-lib.r
+    ${REB_LIB_DEPENDS}
     )
+
+set (GENERATED_CORE_SOURCE
+    ${NATIVE_OUTPUT}
+    ${HEADER_OUTPUT}
+    ${BOOT_OUTPUT}
+    ${EXT_CORE_OUTPUT}
+    ${REB_LIB_OUTPUT}
+    )
+
 set_source_files_properties(
     ${TOP_SRC_DIR}/include/host-table.inc
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
+
 #HOST
+set(EXT_OS_OUTPUT
+    ${TOP_SRC_DIR}/include/host-lib.h
+    ${TOP_SRC_DIR}/include/host-table.inc
+    )
+
+set(EXT_OS_DEPENDS
+    ${TOP_SRC_DIR}/boot/version.r
+    ${TOOLS_DIR}/common.r
+    ${TOOLS_DIR}/common-parsers.r
+    ${TOOLS_DIR}/form-header.r
+    ${TOOLS_DIR}/file-base.r
+    ${OS_SOURCE}
+    )
+
+if (R3_BUILD_VIEW)
+    add_custom_command(OUTPUT
+        ${EXT_OS_OUTPUT}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID} gfx
+        DEPENDS
+        ${TOOLS_DIR}/make-os-ext.r
+        ${EXT_OS_DEPENDS}
+        )
+else ()
+    add_custom_command(OUTPUT
+        ${EXT_OS_OUTPUT}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID}
+        DEPENDS
+        ${TOOLS_DIR}/make-os-ext.r
+        ${EXT_OS_DEPENDS}
+        )
+endif ()
+
 set (OS_SOURCE
     ${OS_DIR}/host-main.c
     ${OS_DIR}/host-args.c
@@ -454,38 +506,10 @@ set (OS_SOURCE
     ${OS_DIR}/generic/host-memory.c
     ${CORE_PLATFORM_SOURCE}
     )
-set (GENERATED_OS_SOURCE
-    )
 
-if (R3_BUILD_VIEW)
-    add_custom_command(OUTPUT
-        ${TOP_SRC_DIR}/include/host-lib.h
-        ${TOP_SRC_DIR}/include/host-table.inc
-        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID} gfx
-        DEPENDS
-        ${TOOLS_DIR}/make-os-ext.r
-        ${TOP_SRC_DIR}/boot/version.r
-        ${TOOLS_DIR}/common.r
-        ${TOOLS_DIR}/common-parsers.r
-        ${TOOLS_DIR}/form-header.r
-        ${TOOLS_DIR}/file-base.r
-        ${OS_SOURCE}
-        )
-else ()
-    add_custom_command(OUTPUT
-        ${TOP_SRC_DIR}/include/host-lib.h
-        ${TOP_SRC_DIR}/include/host-table.inc
-        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID}
-        DEPENDS
-        ${TOOLS_DIR}/make-os-ext.r
-        ${TOP_SRC_DIR}/boot/version.r
-        ${TOOLS_DIR}/common.r
-        ${TOOLS_DIR}/common-parsers.r
-        ${TOOLS_DIR}/form-header.r
-        ${TOOLS_DIR}/file-base.r
-        ${OS_SOURCE}
-        )
-endif ()
+set (GENERATED_OS_SOURCE
+    ${EXT_OS_OUTPUT}
+    )
 
 if(NOT (MSVC_IDE OR XCODE))
     add_custom_target(clean-generated COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake)
@@ -494,8 +518,8 @@ if(NOT (MSVC_IDE OR XCODE))
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake
         )
 endif()
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE})
-add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE} ${GENERATED_OS_SOURCE})
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
+add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
 target_include_directories(libr3_core_core PUBLIC ${TOP_SRC_DIR}/include ${TOP_SRC_DIR}/codecs ${FFI_INCLUDE_DIRS})
 target_include_directories(r3-core PUBLIC ${TOP_SRC_DIR}/include ${TOP_SRC_DIR}/codecs)
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
