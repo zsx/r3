@@ -140,7 +140,8 @@ set (GENERATED_VIEW_SOURCE
 )
 add_library(libr3_view_core OBJECT
 				${CORE_SOURCE}
-				${GENERATED_CORE_SOURCE})
+				${GENERATED_CORE_SOURCE}
+        ${GENERATED_OS_SOURCE})
 			#add_library(libr3_view_os OBJECT ${OS_SOURCE} ${GENERATED_OS_SOURCE})
 add_library(libr3_view OBJECT ${VIEW_SOURCE} ${GENERATED_VIEW_SOURCE})
 add_library(libr3_win_sys OBJECT ${WIN_SYS_SOURCE})
