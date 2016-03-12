@@ -182,6 +182,18 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         Free_Series(bytes);
     }
 
+#if !defined(NDEBUG)
+    //
+    // In a debug build, we'd like to try and cause a break so as not to lose
+    // the state of the panic, which would happen if we called out to the
+    // host kit's exit routine...
+    //
+    printf("%s\n", Str_Panic_Title);
+    printf("%s\n", message);
+    fflush(stdout);
+    debug_break(); // see %debug_break.h
+#endif
+
     OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(message));
 
     // Note that since we crash, we never return so that the caller can run

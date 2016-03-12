@@ -63,8 +63,8 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
     var2 = CTX_VARS_HEAD(f2);
 
     // Compare each entry, in order.  This order dependence suggests that
-    // an object made with `make object! [a: 1 b: 2]` will not compare equal
-    // to `make object! [b: 1 a: 2]`.  Although Rebol does not allow
+    // an object made with `make object! [[a b][a: 1 b: 2]]` will not be equal
+    // to `make object! [[b a][b: 1 a: 2]]`.  Although Rebol does not allow
     // positional picking out of objects, it does allow positional setting
     // currently (which it likely should not), hence they are functionally
     // distinct for now.  Yet those two should probably be `equal?`.
@@ -283,7 +283,7 @@ REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!IS_BLOCK(data)) return FALSE;
 
     context = Construct_Context(
-        type, VAL_ARRAY_AT(data), VAL_SPECIFIER(data), FALSE, NULL
+        type, VAL_ARRAY_AT(data), VAL_SPECIFIER(data), NULL
     );
 
     Val_Init_Context(out, type, context);
@@ -440,7 +440,7 @@ REBTYPE(Context)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBCTX *context;
-    REBCTX *src_context;
+
     enum Reb_Kind target;
 
     switch (action) {
@@ -450,23 +450,8 @@ REBTYPE(Context)
         // `make object! | error! | module!`; first parameter must be either
         // a datatype or a type exemplar.
         //
-        // !!! For objects historically, the "type exemplar" parameter was
-        // also the parent... this is not the long term answer.  For the
-        // future, `make (make object! [a: 10]) [b: 20]` will give the same
-        // result back as `make object! [b: 20]`, with parents specified to
-        // generators like `o: object [<parent> p] [...]`
-        //
-        if (!IS_DATATYPE(value) && !ANY_CONTEXT(value))
-            fail (Error_Bad_Make(VAL_TYPE(value), value));
-
-        if (IS_DATATYPE(value)) {
-            target = VAL_TYPE_KIND(value);
-            src_context = NULL;
-        }
-        else {
-            target = VAL_TYPE(value);
-            src_context = VAL_CONTEXT(value);
-        }
+        assert(IS_DATATYPE(value));
+        target = VAL_TYPE_KIND(value);
 
         if (target == REB_FRAME) {
             REBARR *varlist;
@@ -492,58 +477,46 @@ REBTYPE(Context)
             return R_OUT;
         }
 
-        if (
-            (target == REB_OBJECT || target == REB_MODULE)
-            && (IS_BLOCK(arg) || IS_BLANK(arg))
-        ) {
+        if ((target == REB_OBJECT || target == REB_MODULE) && IS_BLANK(arg)) {
             //
-            // make object! [init]
+            // Special case (necessary?) to return an empty object.
             //
-            // First we scan the object for top-level set words in
-            // order to make an appropriately sized context.  Then
-            // we put it into an object in D_OUT to GC protect it.
-            //
-            context = Make_Selfish_Context_Detect(
-                REB_OBJECT, // type
-                NULL, // spec
-                NULL, // body
-                // scan for toplevel set-words
-                IS_BLANK(arg) ? END_CELL : VAL_ARRAY_AT(arg),
-                src_context // parent
+            Val_Init_Object(
+                D_OUT,
+                Construct_Context(REB_OBJECT, END_CELL, SPECIFIED, NULL)
             );
-            Val_Init_Context(D_OUT, target, context);
-
-            if (!IS_BLANK(arg)) {
-                //
-                // !!! This binds the actual arg data, not a copy of it
-                // (functions make a copy of the body they are passed to
-                // be rebound).  This seems wrong.
-                //
-                Bind_Values_Deep(VAL_ARRAY_AT(arg), context);
-
-                // Do the block into scratch space (we ignore the result,
-                // unless it is thrown in which case it must be returned.
-                //
-                REBVAL dummy;
-                if (DO_VAL_ARRAY_AT_THROWS(&dummy, arg)) {
-                    *D_OUT = dummy;
-                    return R_OUT_IS_THROWN;
-                }
-            }
-
             return R_OUT;
         }
 
-        // make parent-object object
-        //
-        if ((target == REB_OBJECT) && IS_OBJECT(value) && IS_OBJECT(arg)) {
+        if ((target == REB_OBJECT || target == REB_MODULE) && IS_BLOCK(arg)) {
             //
-            // !!! Again, the presumption that the result of a merge is to
-            // be selfish should not be hardcoded in the C, but part of
-            // the generator choice by the person doing the derivation.
+            // Simple object creation with no evaluation, so all values are
+            // handled "as-is".  Should have a spec block and a body block.
             //
-            context = Merge_Contexts_Selfish(src_context, VAL_CONTEXT(arg));
-            Val_Init_Object(D_OUT, context);
+            // Note: In %r3-legacy.r, the old evaluative MAKE OBJECT! is
+            // done by redefining MAKE itself, and calling the CONSTRUCT
+            // generator if the make def is not the [[spec][body]] format.
+
+            if (
+                VAL_LEN_AT(arg) != 2
+                || !IS_BLOCK(VAL_ARRAY_AT(arg)) // spec
+                || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1) // body
+            ) {
+                fail (Error_Bad_Make(target, arg));
+            }
+
+            // !!! Spec block is currently ignored, but required.
+
+            Val_Init_Object(
+                D_OUT,
+                Construct_Context(
+                    REB_OBJECT,
+                    VAL_ARRAY_AT(VAL_ARRAY_AT(arg) + 1),
+                    VAL_SPECIFIER(VAL_ARRAY_AT(arg) + 1),
+                    NULL // no parent
+                )
+            );
+
             return R_OUT;
         }
 
@@ -596,9 +569,8 @@ REBTYPE(Context)
         fail (Error_Bad_Make(target, arg));
 
     case A_TO:
-        target = IS_DATATYPE(value)
-            ? VAL_TYPE_KIND(value)
-            : VAL_TYPE(value);
+        assert(IS_DATATYPE(value));
+        target = VAL_TYPE_KIND(value);
 
         // special conversions to object! | error! | module!
         if (target == REB_ERROR) {
@@ -720,4 +692,139 @@ REBTYPE(Context)
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));
+}
+
+
+//
+//  construct: native [
+//
+//  "Creates an ANY-CONTEXT! instance"
+//
+//      spec [datatype! block! any-context!]
+//          "Datatype to create, specification, or parent/prototype context"
+//      body [block! any-context! blank!]
+//          "keys and values defining instance contents (bindings modified)"
+//      /only
+//          "Values are kept as-is"
+//  ]
+//
+REBNATIVE(construct)
+//
+// CONSTRUCT in Ren-C is an effective replacement for what MAKE ANY-OBJECT!
+// was able to do in Rebol2 and R3-Alpha.  It takes a spec that can be an
+// ANY-CONTEXT! datatype, or it can be a parent ANY-CONTEXT!, or a block that
+// represents a "spec".
+//
+// !!! This assumes you want a SELF defined.  The entire concept of SELF
+// needs heavy review, but at minimum this needs a <no-self> override to
+// match the <no-return> for functions.
+//
+// !!! This mutates the bindings of the body block passed in, should it
+// be making a copy instead (at least by default, perhaps with performance
+// junkies saying `construct/rebind` or something like that?
+{
+    PARAM(1, spec);
+    PARAM(2, body);
+    REFINE(3, only);
+
+    REBVAL *spec = ARG(spec);
+    REBVAL *body = ARG(body);
+    REBCTX *parent = NULL;
+
+    enum Reb_Kind target;
+    REBCTX *context;
+
+    if (ANY_CONTEXT(spec)) {
+        parent = VAL_CONTEXT(spec);
+        target = VAL_TYPE(spec);
+    }
+    else if (IS_DATATYPE(spec)) {
+        //
+        // Should this be supported, or just assume OBJECT! ?  There are
+        // problems trying to create a FRAME! without a function (for
+        // instance), and making an ERROR! from scratch is currently dangerous
+        // as well though you can derive them.
+        //
+        fail (Error(RE_MISC));
+    }
+    else {
+        assert(IS_BLOCK(spec));
+        target = REB_OBJECT;
+    }
+
+    // This parallels the code originally in CONSTRUCT.  Run it if the /ONLY
+    // refinement was passed in.
+    //
+    if (REF(only)) {
+        Val_Init_Object(
+            D_OUT,
+            Construct_Context(
+                REB_OBJECT,
+                VAL_ARRAY_AT(body),
+                VAL_SPECIFIER(body),
+                parent
+            )
+        );
+        return R_OUT;
+    }
+
+    // This code came from REBTYPE(Context) for implementing MAKE OBJECT!.
+    // Now that MAKE ANY-CONTEXT! has been pulled back, it no longer does
+    // any evaluation or creates SELF fields.  It also obeys the rule that
+    // the first argument is an exemplar of the type to create only, bringing
+    // uniformity to MAKE.
+    //
+    if (target == REB_OBJECT && (IS_BLOCK(body) || IS_BLANK(body))) {
+        //
+        // First we scan the object for top-level set words in
+        // order to make an appropriately sized context.  Then
+        // we put it into an object in D_OUT to GC protect it.
+        //
+        context = Make_Selfish_Context_Detect(
+            REB_OBJECT, // type
+            NULL, // spec
+            NULL, // body
+            // scan for toplevel set-words
+            IS_BLANK(body) ? END_CELL : VAL_ARRAY_AT(body),
+            parent
+        );
+        Val_Init_Object(D_OUT, context);
+
+        if (!IS_BLANK(body)) {
+            //
+            // !!! This binds the actual body data, not a copy of it
+            // (functions make a copy of the body they are passed to
+            // be rebound).  This seems wrong.
+            //
+            Bind_Values_Deep(VAL_ARRAY_AT(body), context);
+
+            // Do the block into scratch space (we ignore the result,
+            // unless it is thrown in which case it must be returned.
+            //
+            REBVAL dummy;
+            if (DO_VAL_ARRAY_AT_THROWS(&dummy, body)) {
+                *D_OUT = dummy;
+                return R_OUT_IS_THROWN;
+            }
+        }
+
+        return R_OUT;
+    }
+
+    // "multiple inheritance" case when both spec and body are objects.
+    //
+    // !!! As with most R3-Alpha concepts, this needs review.
+    //
+    if ((target == REB_OBJECT) && parent && IS_OBJECT(body)) {
+        //
+        // !!! Again, the presumption that the result of a merge is to
+        // be selfish should not be hardcoded in the C, but part of
+        // the generator choice by the person doing the derivation.
+        //
+        context = Merge_Contexts_Selfish(parent, VAL_CONTEXT(body));
+        Val_Init_Object(D_OUT, context);
+        return R_OUT;
+    }
+
+    fail (Error(RE_MISC));
 }

@@ -390,69 +390,6 @@ REBNATIVE(decompress)
 
 
 //
-//  construct: native [
-//  
-//  "Creates an object with scant (safe) evaluation."
-//  
-//      spec [block! string! binary!]
-//          "Specification (modified)"
-//      /with
-//          "Create from a default object"
-//      object [object!]
-//          "Default object"
-//      /only
-//          "Values are kept as-is"
-//  ]
-//
-REBNATIVE(construct)
-{
-    PARAM(1, spec);
-    REFINE(2, with);
-    PARAM(3, object);
-    REFINE(4, only);
-
-    REBVAL *spec_value = ARG(spec);
-    REBCTX *parent = NULL;
-
-    // !!! What is this?
-    //
-    if (IS_STRING(spec_value) || IS_BINARY(spec_value)) {
-        REBCNT index;
-        REBARR *array;
-        REBSER *temp;
-
-        // Just a guess at size:
-        array = Make_Array(10);     // Use a std BUF_?
-        Val_Init_Block(D_OUT, array); // Keep safe
-
-        // Convert string if necessary. Store back for safety.
-        temp = Temp_Bin_Str_Managed(spec_value, &index, 0);
-        INIT_VAL_SERIES(spec_value, temp); // caution: macro copies args!
-
-        // !!! "Is this what we really want here?" <= but *what is it*?
-        //
-        Scan_Net_Header(array, VAL_BIN(spec_value) + index);
-        spec_value = D_OUT;
-    }
-
-    if (REF(with)) parent = VAL_CONTEXT(ARG(object));
-
-    Val_Init_Object(
-        D_OUT,
-        Construct_Context(
-            REB_OBJECT,
-            VAL_ARRAY_AT(spec_value),
-            VAL_SPECIFIER(spec_value),
-            REF(only),
-            parent
-        )
-    );
-
-    return R_OUT;
-}
-
-
-//
 //  debase: native [
 //  
 //  {Decodes binary-coded string (BASE-64 default) to binary value.}

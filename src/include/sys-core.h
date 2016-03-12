@@ -354,7 +354,6 @@ enum REB_Mold_Opts {
     MOPT_FILE,          // Molding %file
     MOPT_INDENT,        // Indentation
     MOPT_TIGHT,         // No space between block values
-    MOPT_NO_NONE,       // Do not output UNSET or NONE object vars
     MOPT_EMAIL,         // ?
     MOPT_ONLY,          // Mold/only - no outer block []
     MOPT_LINES,         // add a linefeed between each value

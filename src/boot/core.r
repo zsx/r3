@@ -84,7 +84,7 @@ rc4: command [
 rsa-make-key: func [
     "Creates a key object for RSA algorithm."
 ][
-    make object! [
+    has [
         n:          ;modulus
         e:          ;public exponent
         d:          ;private exponent
@@ -115,7 +115,7 @@ dh-make-key: func [
 ;       size [integer!] "Key length"
 ;       generator [integer!] "Generator number"
 ][
-    make object! [
+    has [
         priv-key:   ;private key
         pub-key:    ;public key
         g:          ;generator

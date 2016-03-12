@@ -909,7 +909,7 @@ change/only at-value platform reduce [
     any [select third any [find/skip plats version/4 3 []] version/5 ""]
 ]
 
-ob: context boot-sysobj
+ob: has boot-sysobj
 
 make-obj-defs: func [obj prefix depth /selfless /local f] [
     uppercase prefix
@@ -1153,7 +1153,22 @@ for-each file first mezz-files [
 ]
 
 emit-head "Sys Context" %sysctx.h
-sctx: construct boot-sys
+
+; We don't actually want to create the object in the R3-MAKE Rebol, because
+; the constructs are intended to run in the Rebol being built.  But the list
+; of top-level SET-WORD!s is needed.  R3-Alpha used a non-evaluating CONSTRUCT
+; to do this, but Ren-C's non-evaluating construct expects direct alternation
+; of SET-WORD! and unevaluated value (even another SET-WORD!).  So we just
+; gather the top-level set-words manually.
+
+sctx: has collect [
+    for-each item boot-sys [
+        if set-word? :item [
+            keep item
+            keep "stub proxy for %sys-base.r item"
+        ]
+    ]
+]
 
 ; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
 ; constructor, but uses Alloc_Context() directly.  Rather than try and force

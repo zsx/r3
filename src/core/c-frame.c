@@ -877,14 +877,31 @@ REBCTX *Make_Selfish_Context_Detect(
 //
 //  Construct_Context: C
 // 
-// Construct an object (partial evaluation of block).
+// Construct an object without evaluation.
 // Parent can be null. Values are rebound.
+//
+// In R3-Alpha the CONSTRUCT native supported a mode where the following:
+//
+//      [a: b: 1 + 2 d: a e:]
+//
+// ...would have `a` and `b` will be set to 1, while `+` and `2` will be
+// ignored, `d` will be the word `a` (where it knows to be bound to the a
+// of the object) and `e` would be left as it was.
+//
+// Ren-C retakes the name CONSTRUCT to be the arity-2 object creation
+// function with evaluation, and makes "raw" construction (via /ONLY on both
+// 1-arity HAS and CONSTRUCT) more regimented.  The requirement for a raw
+// construct is that the fields alternate SET-WORD! and then value, with
+// no evaluation--hence it is possible to use any value type (a GROUP! or
+// another SET-WORD!, for instance) as the value.
+//
+// !!! Because this is a work in progress, set-words would be gathered if
+// they were used as values, so they are not currently permitted.
 //
 REBCTX *Construct_Context(
     enum Reb_Kind kind,
     RELVAL *head,
     REBCTX *specifier,
-    REBOOL as_is,
     REBCTX *opt_parent
 ) {
     REBCTX *context = Make_Selfish_Context_Detect(
@@ -895,155 +912,32 @@ REBCTX *Construct_Context(
         opt_parent // parent
     );
 
+    const RELVAL *value = head;
+
     if (NOT_END(head)) Bind_Values_Shallow(head, context);
 
-    if (as_is) Do_Min_Construct(head, specifier);
-    else Do_Construct(head, specifier);
+    for (; NOT_END(value); value += 2) {
+        //
+        // !!! Objects are a rewrite in progress; error messages need to
+        // be improved.
+
+        RELVAL *var;
+
+        if (!IS_SET_WORD(value))
+            fail (Error(RE_INVALID_TYPE, Type_Of(value)));
+
+        if (IS_END(value + 1))
+            fail (Error(RE_MISC));
+
+        assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
+
+        var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
+
+        COPY_VALUE(var, value + 1, specifier);
+    }
 
     return context;
 }
-
-
-//
-//  Do_Construct: C
-//
-// Do a block with minimal evaluation and no evaluation of
-// functions. Used for things like script headers where security
-// is important.
-//
-// Handles cascading set words:  word1: word2: value
-//
-void Do_Construct(const RELVAL* head, REBCTX *specifier)
-{
-    const RELVAL *value = head;
-    REBDSP dsp_orig = DSP;
-
-    RELVAL temp;
-    SET_BLANK(&temp);
-
-    // This routine reads values from the start to the finish, which means
-    // that if it wishes to do `word1: word2: value` it needs to have some
-    // way of getting to the value and then going back across the words to
-    // set them.  One way of doing it would be to start from the end and
-    // work backward, but this uses the data stack instead to gather set
-    // words and then go back and set them all when a value is found.
-    //
-    // !!! This could also just remember the pointer of the first set
-    // word in a run, but at time of writing this is just patching a bug.
-    //
-    for (; NOT_END(value); value++) {
-        if (IS_SET_WORD(value)) {
-            //
-            // Remember this SET-WORD!.  Come back and set what it is
-            // bound to, once a non-SET-WORD! value is found.
-            //
-            DS_PUSH_RELVAL(value, specifier);
-            continue;
-        }
-
-        // If not a SET-WORD! then consider the argument to represent some
-        // kind of value.
-        //
-        // !!! The historical default is to NONE!, and also to transform
-        // what would be evaluative into non-evaluative.  So:
-        //
-        //     >> construct [a: b/c: d: append "Strange" <defaults>]
-        //     == make object! [
-        //         a: b/c:
-        //         d: 'append
-        //     ]
-        //
-        // A differing philosophy might be that the construction process
-        // only tolerate input that would yield the same output if used
-        // in an evaulative object creation.
-        //
-        if (IS_WORD(value)) {
-            switch (VAL_WORD_CANON(value)) {
-            case SYM_BLANK:
-                SET_BLANK(&temp);
-                break;
-
-            case SYM_TRUE:
-            case SYM_ON:
-            case SYM_YES:
-                SET_TRUE(&temp);
-                break;
-
-            case SYM_FALSE:
-            case SYM_OFF:
-            case SYM_NO:
-                SET_FALSE(&temp);
-                break;
-
-            default:
-                temp = *value;
-                VAL_SET_TYPE_BITS(&temp, REB_WORD);
-            }
-        }
-        else if (IS_LIT_WORD(value)) {
-            temp = *value;
-            VAL_SET_TYPE_BITS(&temp, REB_WORD);
-        }
-        else if (IS_LIT_PATH(value)) {
-            temp = *value;
-            VAL_SET_TYPE_BITS(&temp, REB_PATH);
-        }
-        else if (VAL_TYPE(value) >= REB_BLANK) { // all valid values
-            temp = *value;
-        }
-        else
-            SET_BLANK(&temp);
-
-        // Set prior set-words:
-        while (DSP > dsp_orig) {
-            REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
-            *var = temp;
-            DS_DROP;
-        }
-    }
-
-    // All vars in the frame should have a default value if not set, so if
-    // we reached the end with something like `[a: 10 b: c: d:]` just leave
-    // the trailing words to that default.  However, we must balance the
-    // stack to please the evaluator, so let go of the set-words that we
-    // did not set.
-    //
-    DS_DROP_TO(dsp_orig);
-}
-
-
-//
-//  Do_Min_Construct: C
-//
-// Do no evaluation of the set values.  So if the input is:
-//
-//      [a: b: 1 + 2 d: print e:]
-//
-// Then `a` and `b` will be set to 1, while `+` and `2` will be ignored, `d`
-// will be the word `print`, and `e` will be left as it was.
-//
-void Do_Min_Construct(const RELVAL* head, REBCTX *specifier)
-{
-    const RELVAL *value = head;
-    REBDSP dsp_orig = DSP;
-
-    for (; NOT_END(value); value++) {
-        if (IS_SET_WORD(value)) {
-            DS_PUSH_RELVAL(value, specifier); // push SET-WORD! to the stack
-        }
-        else {
-            // For any pushed SET-WORD!s, assign them to this non-SET-WORD!
-            // value and then drop them from the stack.
-            //
-            while (DSP > dsp_orig) {
-                RELVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
-                COPY_VALUE(var, value, specifier);
-                DS_DROP;
-            }
-        }
-    }
-}
-
 
 
 //

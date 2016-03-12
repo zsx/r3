@@ -572,8 +572,7 @@ REBTYPE(Vector)
         return R_OUT;
 
     case A_MAKE:
-        // We only allow MAKE VECTOR! ...
-        if (!IS_DATATYPE(value)) goto bad_make;
+        assert(IS_DATATYPE(value) && VAL_TYPE_KIND(value) == REB_VECTOR);
 
         // CASE: make vector! 100
         if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
@@ -591,7 +590,7 @@ REBTYPE(Vector)
         // fall thru
 
     case A_TO:
-        // CASE: make vector! [...]
+        assert(IS_DATATYPE(value) && VAL_TYPE_KIND(value) == REB_VECTOR);
         if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_ARRAY_AT(arg), value)) break;
         goto bad_make;
 

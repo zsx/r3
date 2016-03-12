@@ -28,7 +28,7 @@ config: config-system/guess system/options/args
 
 do %form-header.r
 
-file-base: make object! load %file-base.r
+file-base: has load %file-base.r
 
 change-dir %../os/
 

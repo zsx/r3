@@ -234,7 +234,7 @@ for-each-record-NO-RETURN: func [
             ]
         ]
 
-        set record make object! spec
+        set record has spec
 
         do body
     ]

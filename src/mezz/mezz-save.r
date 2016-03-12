@@ -89,7 +89,7 @@ save: function [
             trim :header-data
         ][
             ; standard/header intentionally not used
-            construct :header-data
+            has/only :header-data
         ]
 
         if compress [ ; Make the header option match

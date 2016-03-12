@@ -22,7 +22,7 @@ REBOL [
 for-each [codec handler] system/codecs [
     if handle? handler [
         ; Change boot handle into object:
-        codec: set codec make object! [
+        codec: set codec construct [] [
             entry: handler
             title: form reduce ["Internal codec for" codec "media type"]
             name: codec

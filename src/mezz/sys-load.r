@@ -160,7 +160,7 @@ load-header: function/with [
             return 'no-header
         ]
 
-        not attempt [hdr: construct/with :hdr system/standard/header] [
+        not attempt [hdr: construct/only system/standard/header :hdr] [
             return 'bad-header
         ]
 

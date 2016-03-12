@@ -533,7 +533,7 @@ REBNATIVE(get)
         // !!! This is a questionable feature, a shallow copy of the vars of
         // the context being put into a BLOCK!:
         //
-        //     >> get make object! [a: 10 b: 20]
+        //     >> get make object! [[a b][a: 10 b: 20]]
         //     == [10 20]
         //
         // Certainly an oddity for GET.  Should either be turned into a

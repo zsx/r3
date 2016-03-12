@@ -208,7 +208,7 @@ load: function [
             header [
                 unless hdr? [cause-error 'syntax 'no-header source]
                 remove data
-                data/1: attempt [construct/with first data system/standard/header]
+                data/1: attempt [construct/only system/standard/header (first data)]
             ]
             load_ALL blank ; /header overrides /all
             hdr? [remove/part data 2]

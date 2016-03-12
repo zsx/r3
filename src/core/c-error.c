@@ -1614,7 +1614,6 @@ void Init_Errors(REBVAL *errors)
         REB_OBJECT,
         VAL_ARRAY_HEAD(errors),
         SPECIFIED, // we're confident source array isn't in a function body
-        FALSE,
         NULL
     );
 
@@ -1628,7 +1627,6 @@ void Init_Errors(REBVAL *errors)
             REB_OBJECT,
             VAL_ARRAY_HEAD(val),
             SPECIFIED, // source array not in a function body
-            FALSE,
             NULL
         );
         Val_Init_Object(val, errs);

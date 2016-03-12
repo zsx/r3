@@ -116,13 +116,7 @@ REBTYPE(Datatype)
 
     case A_MAKE:
     case A_TO:
-        if (kind != REB_DATATYPE) {
-            act = Value_Dispatch[TO_0_FROM_KIND(kind)];
-            if (act) return act(frame_, action);
-            //return R_BLANK;
-            fail (Error_Bad_Make(kind, arg));
-        }
-        // if (IS_BLANK(arg)) return R_BLANK;
+        assert(kind == REB_DATATYPE);
         if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
             break;
 

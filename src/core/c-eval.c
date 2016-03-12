@@ -591,7 +591,7 @@ reevaluate:
         // !!! The evaluation ordering of SET-PATH! evaluation seems to break
         // the "left-to-right" nature of the language:
         //
-        //     >> foo: make object! [bar: 10]
+        //     >> foo: make object! [[bar][bar: 10]]
         //
         //     >> foo/(print "left" 'bar): (print "right" 20)
         //     right

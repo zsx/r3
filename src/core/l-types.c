@@ -880,19 +880,58 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
 
 
 //
-//  Scan_Net_Header: C
-// 
-// Scan an Internet-style header (HTTP, SMTP).
-// Fields with duplicate words will be merged into a block.
+//  scan-net-header: native [
+//      {Scan an Internet-style header (HTTP, SMTP).}
 //
-REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
+//      header [string! binary!]
+//          {Fields with duplicate words will be merged into a block.}
+//  ]
+//
+REBNATIVE(scan_net_header)
+//
+// !!! This routine used to be a feature of CONSTRUCT in R3-Alpha, and was
+// used by %prot-http.r.  The idea was that instead of providing a parent
+// object, a STRING! or BINARY! could be provided which would be turned
+// into a block by this routine.
+//
+// The only reason it seemed to support BINARY! was to optimize the case
+// where the binary only contained ASCII codepoints to dodge a string
+// conversion.
+//
+// It doesn't make much sense to have this coded in C rather than using PARSE
+// It's only being converted into a native to avoid introducing bugs by
+// rewriting it as Rebol in the middle of other changes.
 {
-    REBYTE *cp = str;
+    PARAM(1, header);
+
+    REBVAL *header = ARG(header);
+
+    // Input variables from R3-Alpha REBNATIVE(construct)
+    REBCNT index;
+    REBARR *result;
+    REBSER *temp;
+
+    // Processing variables from R3-Alpha Scan_Net_Header()
+    REBYTE *str;
+    REBYTE *cp;
     REBYTE *start;
     REBVAL *val;
     REBINT len;
     REBARR *array;
     REBSER *string;
+
+    result = Make_Array(10); // Just a guess at size (use STD_BUF?)
+    Val_Init_Block(D_OUT, result); // Keep safe from GC
+
+    // Convert string if necessary. Store back for GC safety.
+    //
+    temp = Temp_Bin_Str_Managed(header, &index, 0);
+    INIT_VAL_SERIES(header, temp); // caution: macro copies args!
+
+    // !!! This is assuming the string is in bytes, but what if it was
+    // unicode?  See R3-Alpha source for REBNATIVE(construct) for origin.
+    //
+    cp = VAL_BIN(header) + index;
 
     while (IS_LEX_ANY_SPACE(*cp)) cp++; // skip white space
 
@@ -915,7 +954,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
             REBSYM sym = Make_Word(start, cp-start);
             cp++;
             // Search if word already present:
-            for (val = ARR_HEAD(header); NOT_END(val); val += 2) {
+            for (val = ARR_HEAD(result); NOT_END(val); val += 2) {
                 if (VAL_WORD_SYM(val) == sym) {
                     // Does it already use a block?
                     if (IS_BLOCK(val+1)) {
@@ -937,9 +976,9 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
                 }
             }
             if (IS_END(val)) {
-                val = Alloc_Tail_Array(header); // add new word
+                val = Alloc_Tail_Array(result); // add new word
                 Val_Init_Word(val, REB_SET_WORD, sym);
-                val = Alloc_Tail_Array(header); // for new value
+                val = Alloc_Tail_Array(result); // for new value
                 SET_BLANK(val);
             }
         }
@@ -988,5 +1027,5 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
         Val_Init_String(val, string);
     }
 
-    return header;
+    return R_OUT;
 }

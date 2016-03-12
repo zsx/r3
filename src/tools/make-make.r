@@ -257,10 +257,10 @@ libr3.lib:	r3.o
 ;** Options and Config
 ;******************************************************************************
 
-file-base: make object! load %file-base.r
-
 do %common.r
 do %systems.r
+
+file-base: has load %file-base.r
 config: config-system/guess system/options/args
 
 print ["Option set for building:" config/id config/os-name]
@@ -416,7 +416,7 @@ unless flag? -SP [ ; Use standard paths:
 if flag? EXE [macro+ BIN_SUFFIX %.exe]
 macro++ CLIB linker-flags
 macro++ RAPI_FLAGS compiler-flags
-macro++ HOST_FLAGS make compiler-flags [PIC: NCM: _]
+macro++ HOST_FLAGS construct compiler-flags [PIC: NCM: _]
 macro+  HOST_FLAGS compiler-flags/f64 ; default for all
 
 if flag? +SC [remove find os-specific-objs 'host-readline.c]

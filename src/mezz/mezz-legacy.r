@@ -68,6 +68,19 @@ paren!: :group!
 to-paren: :to-group
 
 
+; CONSTRUCT (arity 2) and HAS (arity 1) have arisen as the OBJECT!-making
+; routines, parallel to FUNCTION (arity 2) and DOES (arity 1).  By not being
+; nouns like CONTEXT and OBJECT, they free up those words for other usages.
+; For legacy support, both CONTEXT and OBJECT are just defined to be HAS.
+;
+; Note: Historically OBJECT was essentially a synonym for CONTEXT with the
+; ability to tolerate a spec of `[a:]` by transforming it to `[a: none].
+; The tolerance of ending with a set-word has been added to CONSTRUCT+HAS
+; so this distinction is no longer required.
+;
+context: object: :has
+
+
 ; General renamings away from non-LOGIC!-ending-in-?-functions
 ; https://trello.com/c/DVXmdtIb
 ;
@@ -363,23 +376,20 @@ try: func [
 ]
 
 
-; HAS is targeted for use to be the arity-1 parallel to the arity-2 constructor
-; for OBJECT!s (similar to the relationship between DOES and FUNCTION).  The
-; working name for the arity-2 form is CONSTRUCT
+; APPLY is a historically brittle construct, that has been eclipsed by the
+; evolution of the evaluator.  An APPLY filling in arguments is positionally
+; dependent on the order of the refinements in the function spec, while
+; it is now possible to do through alternative mechanisms...e.g. the
+; ability to revoke refinement requests via UNSET! and to evaluate refinement
+; words via parens or get-words in a PATH!.
 ;
-has: func [
-    {A shortcut to define a function that has local variables but no arguments.}
-    vars [block!] {List of words that are local to the function}
-    body [block!] {The body block of the function}
-][
-    func (head insert copy vars /local) body
-]
-
-
-; With the introduction of FRAME! in Ren-C, the field is opened for more
-; possibilities of APPLY-like constructs.  The default APPLY is now based on
-; filling frames with parameters by name.  But this implements the R3-Alpha
-; variant, showing that more could be written.
+; Delegating APPLY to "userspace" incurs cost, but there's not really any good
+; reason for its existence or usage any longer.  So if it's a little slower,
+; that's a good incentive to switch to using the evaluator proper.  It means
+; that C code for APPLY does not have to be maintained, which is trickier code
+; to read and write than this short function.
+;
+; (It is still lightly optimized as a FUNC with no additional vars in frame)
 ;
 r3-alpha-apply: function [
     "Apply a function to a reduced block of arguments."
@@ -501,14 +511,23 @@ routine?: func [f] [all [function? :f | 5 = func-class-of :f]]
 callback!: function!
 callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 
-; To bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
+
+; In Ren-C, MAKE for OBJECT! does not use the "type" slot for parent
+; objects.  You have to use the arity-2 CONSTRUCT to get that behavior.
+; Also, MAKE OBJECT! does not do evaluation--it is a raw creation,
+; and requires a format of a spec block and a body block.
+;
+; Because of the commonality of the alternate interpretation of MAKE, this
+; bridges until further notice.
+;
+; Also: bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
 ; while still letting ROUTINE!, COMMAND!, and CALLBACK! be valid to use in
 ; typesets invokes the new variadic behavior.  This can only work if the
 ; source literally wrote out `make routine!` vs an expression that evaluated
 ; to the routine! datatype (for instance) but should cover most cases.
 ;
-lib-make: :lib/make
-make: function [
+lib-make: :make
+make: (func [
     "Constructs or allocates the specified datatype."
     :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
@@ -519,20 +538,49 @@ make: function [
     switch first lookahead [
         callback! [
             assert [function! = take type]
-            make-callback take spec
+            return make-callback take spec
         ]
         routine! [
             assert [function! = take type]
-            make-routine take spec
+            return make-routine take spec
         ]
         command! [
             assert [function! = take type]
-            make-command take spec
+            return make-command take spec
+        ]
+    ]
+
+    type: take type
+    spec: take spec
+
+    case [
+        all [
+            :type = object!
+            block? :spec
+            not block? first spec
+        ][
+            ;
+            ; MAKE OBJECT! [x: ...] vs. MAKE OBJECT! [[spec][body]]
+            ; This old style did evaluation.  Must use a generator
+            ; for that in Ren-C.
+            ;
+            return has :spec
         ]
 
-        (lib-make take type take spec)
+        object? :type [
+            ;
+            ; For most types in Rebol2 and R3-Alpha, MAKE VALUE [...]
+            ; was equivalent to MAKE TYPE-OF VALUE [...].  But with
+            ; objects, MAKE SOME-OBJECT [...] would interpret the
+            ; some-object as a parent.  This must use a generator
+            ; in Ren-C.
+            ;
+            return construct :type :spec
+        ]
     ]
-]
+
+    lib-make :type :spec
+])
 
 
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
@@ -946,9 +994,54 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
             probe semiquote name ;-- signal to probe to use dialect form
         ])
+
+        ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
+        ; to the relationship between DOES and FUNCTION).  In Rebol2 and
+        ; R3-Alpha it just broke out locals into their own block when they
+        ; had no arguments.
+        ;
+        has: (func [
+            {Shortcut for function with local variables but no arguments.}
+            vars [block!] {List of words that are local to the function}
+            body [block!] {The body block of the function}
+        ][
+            func (head insert copy vars /local) body
+        ])
+
+        ; CONSTRUCT is now the generalized arity-2 object constructor.  What
+        ; was previously known as CONSTRUCT can be achieved with the /ONLY
+        ; parameter to CONSTRUCT or to HAS.
+        ;
+        ; !!! There's was code inside of Rebol which called "Scan_Net_Header()"
+        ; in order to produce a block out of a STRING! or a BINARY! here.
+        ; That has been moved to scan-net-header, and there was not presumably
+        ; other code that used the feature.
+        ;
+        construct: (func [
+            "Creates an object with scant (safe) evaluation."
+
+            spec [block!]
+                "Specification (modified)"
+            /with
+                "Create from a default object"
+            object [object!]
+                "Default object"
+            /only
+                "Values are kept as-is"
+        ][
+            apply :lib/construct [
+                | spec: either with [object] [[]]
+                | body: spec
+
+                ; It may be necessary to do *some* evaluation here, because
+                ; things like loading module headers would tolerate [x: 'foo]
+                ; as well as [x: foo] for some fields.
+                ;
+                | only: true
+            ]
+        ])
     ]
 
-    ;
     ; set-infix on PATH! instead of WORD! is still TBD
     ;
     set-infix (bind 'and system/contexts/user) :and*

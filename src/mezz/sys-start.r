@@ -174,7 +174,7 @@ finish-rl-start: proc [
     unless blank? boot-embedded [
         code: load/header/type boot-embedded 'unbound
         ;boot-print ["executing embedded script:" mold code]
-        system/script: make system/standard/script [
+        system/script: construct system/standard/script [
             title: select first code 'title
             header: first code
             parent: _
@@ -205,7 +205,7 @@ finish-rl-start: proc [
             boot-print ["Evaluating:" script]
             code: load/header/type second script-path 'unbound
             ; update system/script (Make into a function?)
-            system/script: make system/standard/script [
+            system/script: construct system/standard/script [
                 title: select first code 'title
                 header: first code
                 parent: _

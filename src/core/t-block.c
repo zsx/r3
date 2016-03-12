@@ -695,12 +695,12 @@ REBTYPE(Array)
         // make block! ...
         // to block! ...
         //
+        assert(IS_DATATYPE(value));
+
         if (
             Make_Block_Type_Throws(
                 value, // out
-                IS_DATATYPE(value)
-                    ? VAL_TYPE_KIND(value)
-                    : VAL_TYPE(value), // type
+                VAL_TYPE_KIND(value), // type
                 LOGICAL(action == A_MAKE), // make? (as opposed to to?)
                 arg // size, block to copy, or value to convert
             )

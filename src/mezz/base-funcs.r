@@ -63,7 +63,7 @@ make-action: func [
         {These words are not local.}
 ][
     if with [
-        unless object? object [object: make object! object]
+        unless object? object [object: has object]
         body: copy/deep body
         bind body object
     ]
@@ -541,14 +541,17 @@ use: func [
     eval func compose [<durable> <no-return> /local (vars)] body
 ]
 
-; !!! Historically OBJECT was essentially a synonym for CONTEXT with the
-; ability to tolerate a spec of `[a:]` by transforming it to `[a: none].
-; The tolerance of ending with a set-word has been added to the context
-; native, which avoids the need to mutate (or copy) the spec to add the none.
+; Shorthand helper for CONSTRUCT (similar to DOES for FUNCTION).
 ;
-; !!! Ren-C intends to grow object into a richer construct with a spec.
-;
-object: :context
+has: func [
+    "Defines an object with just a body...no spec and no parent."
+    body [block!] ;-- !!! name checked as `body` vs `vars` by r2r3-future.r
+        "Object words and values (bindings modified)"
+    /only
+        "Values are kept as-is"
+][
+    construct/(if only 'only) [] body
+]
 
 module: func [
     "Creates a new module."
@@ -569,10 +572,27 @@ module: func [
     ;
     if block? :spec [
         unbind/deep spec
-        spec: attempt [construct/with :spec system/standard/header]
+        spec: attempt [construct/only system/standard/header :spec]
+    ]
+
+    ; Historically, the Name: and Type: fields would tolerate either LIT-WORD!
+    ; or WORD! equally well.  This is because it used R3-Alpha's CONSTRUCT,
+    ; (which was non-evaluative by default, unlike Ren-C's construct) but
+    ; without the /ONLY switch.  In that mode, it decayed LIT-WORD! to WORD!.
+    ; To try and standardize the variance, Ren-C does not accept LIT-WORD!
+    ; in these slots.
+    ;
+    if lit-word? spec/name [
+        fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
+    ]
+    if lit-word? spec/type [
+        fail ["Ren-C module Type:" (spec/name) "must be WORD!, not LIT-WORD!"]
     ]
 
     ; Validate the important fields of header:
+    ;
+    ; !!! This should be an informative error instead of asserts!
+    ;
     assert/type [
         spec object!
         body block!

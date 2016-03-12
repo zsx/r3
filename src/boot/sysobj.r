@@ -28,7 +28,13 @@ Licensed under the Apache License, Version 2.0.
 See: http://www.apache.org/licenses/LICENSE-2.0
 }
 
-catalog: context [
+; !!! HAS is defined later, so this uses CONSTRUCT [] [body] instead.
+; MAKE OBJECT! is not used because that is too low-level (no evaluation or
+; collection of fields).  Reconsider if base-funcs should be loaded before
+; the system object here, or if it should be able to work with just the
+; low level MAKE OBJECT! and not use things like `x: y: z: none` etc.
+
+catalog: construct [] [
     ; Static (non-changing) values, blocks, objects
     datatypes: []
     actions: _
@@ -43,7 +49,7 @@ catalog: context [
     ]
 ]
 
-contexts: context [
+contexts: construct [] [
     root:
     sys:
     lib:
@@ -51,10 +57,10 @@ contexts: context [
         _
 ]
 
-state: context [
+state: construct [] [
     ; Mutable system state variables
     note: "contains protected hidden fields"
-    policies: context [ ; Security policies
+    policies: construct [] [ ; Security policies
         file:    ; file access
         net:     ; network access
         eval:    ; evaluation limit
@@ -73,9 +79,9 @@ state: context [
 
 modules: []
 
-codecs: context []
+codecs: make object! [[][]]
 
-dialects: context [
+dialects: construct [] [
     secure:
     draw:
     effect:
@@ -84,9 +90,9 @@ dialects: context [
         _
 ]
 
-schemes: context []
+schemes: make object! [[][]]
 
-ports: context [
+ports: construct [] [
     wait-list: []   ; List of ports to add to 'wait
     input:          ; Port for user input.
     output:         ; Port for user output
@@ -96,7 +102,7 @@ ports: context [
 ;   serial: _       ; serial device name block
 ]
 
-locale: context [
+locale: construct [] [
     language:   ; Human language locale
     language*:
     locale:
@@ -110,7 +116,7 @@ locale: context [
     ]
 ]
 
-options: context [  ; Options supplied to REBOL during startup
+options: construct [] [  ; Options supplied to REBOL during startup
     boot: _         ; The path to the executable
     home: _         ; Path of home directory
     path: _         ; Where script was started or the startup dir
@@ -126,7 +132,6 @@ options: context [  ; Options supplied to REBOL during startup
     secure: _       ; security policy
     version: _      ; script version needed
     boot-level: _   ; how far to boot up
-
 
     quiet: false    ; do not show startup info (compatibility)
 
@@ -171,7 +176,7 @@ options: context [  ; Options supplied to REBOL during startup
     set-word-void-is-error: false
 ]
 
-script: context [
+script: construct [] [
     title:          ; Title string of script
     header:         ; Script header as evaluated
     parent:         ; Script that loaded the current one
@@ -180,7 +185,7 @@ script: context [
         blank
 ]
 
-standard: context [
+standard: construct [] [
     ; FUNC+PROC implement a native-optimized variant of a function generator.
     ; This is the body template that it provides as the code *equivalent* of
     ; what it is doing (via a more specialized/internal method).  Though
@@ -236,7 +241,7 @@ standard: context [
     ; the archetypal context has to be created "by hand" for natives to use,
     ; with this archetype used by the REDESCRIBE Mezzanine.
     ;
-    function-meta: context [
+    function-meta: construct [] [
         description:
         parameter-types:
         parameter-notes:
@@ -248,35 +253,35 @@ standard: context [
     ; meta archetype to `function-meta` and subset the parameters.  Otherwise
     ; HELP just follows the `specializee` and gets descriptions there.
     ;
-    specialized-meta: context [
+    specialized-meta: construct [] [
         description:
         specializee:
         specializee-name:
             _
     ]
 
-    adapted-meta: context [
+    adapted-meta: construct [] [
         description:
         adaptee:
         adaptee-name:
             _
     ]
 
-    chained-meta: context [
+    chained-meta: construct [] [
         description:
         chainees:
         chainee-names:
             _
     ]
 
-    hijacked-meta: context [
+    hijacked-meta: construct [] [
         description:
         hijackee:
         hijackee-name:
             _
     ]
 
-    error: context [ ; Template used for all errors:
+    error: construct [] [ ; Template used for all errors:
         code: _
         type: 'user
         id: 'message
@@ -288,7 +293,7 @@ standard: context [
         ; necessary (errors with no arguments will just have a message)
     ]
 
-    script: context [
+    script: construct [] [
         title:
         header:
         parent:
@@ -297,7 +302,7 @@ standard: context [
             blank
     ]
 
-    header: context [
+    header: construct [] [
         title: {Untitled}
         name:
         type:
@@ -314,7 +319,7 @@ standard: context [
             blank
     ]
 
-    scheme: context [
+    scheme: construct [] [
         name:       ; word of http, ftp, sound, etc.
         title:      ; user-friendly title for the scheme
         spec:       ; custom spec for scheme (if needed)
@@ -326,7 +331,7 @@ standard: context [
             blank
     ]
 
-    port: context [ ; Port specification object
+    port: construct [] [ ; Port specification object
         spec:       ; published specification of the port
         scheme:     ; scheme object used for this port
         actor:      ; port action handler (script driven)
@@ -338,7 +343,7 @@ standard: context [
             blank
     ]
 
-    port-spec-head: context [
+    port-spec-head: construct [] [
         title:      ; user-friendly title for port
         scheme:     ; reference to scheme that defines this port
         ref:        ; reference path or url (for errors)
@@ -346,12 +351,12 @@ standard: context [
            blank    ; (extended here)
     ]
 
-    port-spec-net: make port-spec-head [
+    port-spec-net: construct port-spec-head [
         host: _
         port-id: 80
     ]
 
-    port-spec-serial: make port-spec-head [
+    port-spec-serial: construct port-spec-head [
         speed: 115200
         data-size: 8
         parity: _
@@ -359,11 +364,11 @@ standard: context [
         flow-control: _ ;not supported on all systems
     ]
 
-    port-spec-signal: make port-spec-head [
+    port-spec-signal: construct port-spec-head [
         mask: [all]
     ]
 
-    file-info: context [
+    file-info: construct [] [
         name:
         size:
         date:
@@ -371,7 +376,7 @@ standard: context [
             blank
     ]
 
-    net-info: context [
+    net-info: construct [] [
         local-ip:
         local-port:
         remote-ip:
@@ -379,7 +384,7 @@ standard: context [
             blank
     ]
 
-    extension: context [
+    extension: construct [] [
         lib-base:   ; handle to DLL
         lib-file:   ; file name loaded
         lib-boot:   ; module header and body
@@ -389,7 +394,7 @@ standard: context [
             blank
     ]
 
-    stats: context [ ; port stats
+    stats: construct [] [ ; port stats
         timer:      ; timer (nanos)
         evals:      ; evaluations
         eval-natives:
@@ -405,7 +410,7 @@ standard: context [
             blank
     ]
 
-    type-spec: context [
+    type-spec: construct [] [
         title:
         type:
             blank
@@ -416,7 +421,7 @@ standard: context [
     para: _  ; mezz-graphics.h
 ]
 
-view: context [
+view: construct [] [
     screen-gob: _
     handler: _
     event-port: _
@@ -561,7 +566,7 @@ view: context [
 ;       user-data:
 ;       awake:
 
-;   port-flags: context [
+;   port-flags: construct [] [
 ;       direct:
 ;       pass-thru:
 ;       open-append:
@@ -569,7 +574,7 @@ view: context [
 ;           blank
 ;   ]
 
-;   email: context [ ; Email header object
+;   email: construct [] [ ; Email header object
 ;       To:
 ;       CC:
 ;       BCC:
@@ -588,20 +593,20 @@ view: context [
 ;           blank
 ;   ]
 
-;user: context [
+;user: construct [] [
 ;   name:           ; User's name
 ;   email:          ; User's default email address
 ;   home:           ; The HOME environment variable
 ;   words: blank
 ;]
 
-;network: context [
+;network: construct [] [
 ;   host: ""        ; Host name of the user's computer
 ;   host-address: 0.0.0.0 ; Host computer's TCP-IP address
 ;   trace: blank
 ;]
 
-;console: context [
+;console: construct [] [
 ;   hide-types: _    ; types not to print
 ;   history: _       ; Log of user inputs
 ;   keys: _          ; Keymap for special key
@@ -618,7 +623,7 @@ view: context [
 ;           date-sep: #"-"  ; The character used as the date separator
 ;           date-month-num: false   ; True if months are displayed as numbers; False for names
 ;           time-sep: #":"  ; The character used as the time separator
-;   cgi: context [ ; CGI environment variables
+;   cgi: construct [] [ ; CGI environment variables
 ;       server-software:
 ;       server-name:
 ;       gateway-interface:

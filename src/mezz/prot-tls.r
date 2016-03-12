@@ -1,10 +1,10 @@
 REBOL [
-    title: "REBOL 3 TLSv1.0 protocol scheme"
-    name: 'tls
-    type: 'module
-    author: rights: "Richard 'Cyphre' Smolak"
-    version: 0.6.1
-    todo: {
+    Title: "REBOL 3 TLSv1.0 protocol scheme"
+    Name: tls
+    Type: module
+    Author: "Richard 'Cyphre' Smolak"
+    Version: 0.6.1
+    Todo: {
         -cached sessions
         -automagic cert data lookup
         -add more cipher suites (based on DSA, 3DES, ECDH, ECDHE, ECDSA, SHA256, SHA384 ...)
@@ -44,7 +44,7 @@ make-tls-error: func [
     ]
 ]
 
-cipher-suites: make object! [
+cipher-suites: has [
     TLS_RSA_WITH_RC4_128_MD5:               #{00 04}
     TLS_RSA_WITH_RC4_128_SHA:               #{00 05}
     TLS_RSA_WITH_AES_128_CBC_SHA:           #{00 2F}
@@ -1105,7 +1105,7 @@ tls-awake: function [event [event!]] [
 sys/make-scheme [
     name: 'tls
     title: "TLS protocol v1.0"
-    spec: make system/standard/port-spec-net []
+    spec: construct system/standard/port-spec-net []
     actor: [
         read: func [
             port [port!]

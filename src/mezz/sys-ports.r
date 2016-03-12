@@ -58,8 +58,8 @@ make-port*: func [
     ][cause-error 'access 'no-scheme name]
 
     ; Create the port with the correct scheme spec:
-    port: make system/standard/port []
-    port/spec: make any [scheme/spec system/standard/port-spec-head] spec
+    port: construct system/standard/port []
+    port/spec: construct any [scheme/spec system/standard/port-spec-head] spec
     port/spec/scheme: name
     port/scheme: scheme
 
@@ -77,7 +77,7 @@ make-port*: func [
     port
 ]
 
-*parse-url: make object! [
+*parse-url: has [
     digit:       make bitset! "0123456789"
     digits:      [1 5 digit]
     alpha-num:   make bitset! [#"a" - #"z" #"A" - #"Z" #"0" - #"9"]
@@ -170,7 +170,7 @@ make-scheme: func [
     with: either with [get in system/schemes scheme][system/standard/scheme]
     unless with [cause-error 'access 'no-scheme scheme]
 
-    def: make with def
+    def: construct with def
     ;print ["Scheme:" def/name]
     unless def/name [cause-error 'access 'no-scheme-name def]
     set-scheme def

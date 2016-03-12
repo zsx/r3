@@ -1306,6 +1306,20 @@ REB_R Action_Dispatcher(struct Reb_Frame *f)
         return R_FALSE;
     }
 
+    if (FUNC_ACT(f->func) == A_MAKE || FUNC_ACT(f->func) == A_TO) {
+        //
+        // !!! These should not be "actions"...but go through the MT_xxx
+        // routine for "Make Type".  The first value is allowed to be either
+        // a datatype or an instance of the datatype to use as an "exemplar",
+        // but avoid each routine having to check for that by canonizing as
+        // a datatype here.
+        //
+        if (type == REB_DATATYPE)
+            type = VAL_TYPE_KIND(FRM_ARG(f, 1)); // datatype...but which one?
+        else
+            Val_Init_Datatype(FRM_ARG(f, 1), type); // change to a datatype
+    }
+
     REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];
     if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(f->func)));
 

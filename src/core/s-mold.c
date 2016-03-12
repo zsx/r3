@@ -962,21 +962,23 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *keys_head = CTX_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *vars_head;
+    REBVAL *key;
     REBVAL *var;
 
     if (
         !GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK) ||
         GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_ACCESSIBLE)
     ) {
-        var = CTX_VARS_HEAD(VAL_CONTEXT(value));
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
     }
     else {
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
         // be good, however.
         //
-        var = NULL;
+        vars_head = NULL;
     }
 
     Pre_Mold(value, mold);
@@ -990,33 +992,81 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     }
 
     Append_Value(MOLD_STACK, value);
+    mold->indent++;
+
+    // !!! New experimental Ren-C code for the [[spec][body]] format of the
+    // non-evaluative MAKE OBJECT!.
+
+    // First loop: spec block.  This is difficult because unlike functions,
+    // objects are dynamically modified with new members added.  If the spec
+    // were captured with strings and other data in it as separate from the
+    // "keylist" information, it would have to be updated to reflect newly
+    // added fields in order to be able to run a corresponding MAKE OBJECT!.
+    //
+    // To get things started, we aren't saving the original spec that made
+    // the object...but regenerate one from the keylist.  If this were done
+    // with functions, they would "forget" their help strings in MOLDing.
+
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, '[');
+
+    key = keys_head;
+    var = vars_head;
+
+    for (; !IS_END(key); var ? (++key, ++var) : ++key) {
+        if (key != keys_head)
+            Append_Codepoint_Raw(mold->series, ' ');
+
+        // !!! Feature of hidden words in object specs not yet implemented,
+        // but if it paralleled how function specs work it would be SET-WORD!
+        //
+        REBVAL any_word;
+        Val_Init_Word(
+            &any_word,
+            GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN) ? REB_SET_WORD : REB_WORD,
+            VAL_TYPESET_SYM(key)
+        );
+        Mold_Value(mold, &any_word, TRUE);
+    }
+
+    Append_Codepoint_Raw(mold->series, ']');
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, '[');
 
     mold->indent++;
+
+    key = keys_head;
+    var = vars_head;
+
     for (; !IS_END(key); var ? (++key, ++var) : ++key) {
-        if (
-            !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)
-            && (
-                !var ||
-                ((VAL_TYPE(var) > REB_BLANK) || !GET_MOPT(mold, MOPT_NO_NONE))
-            )
-        ){
-            New_Indented_Line(mold);
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue; // !!! Should hidden fields be in molded view?
 
-            Append_UTF8_May_Fail(
-                mold->series, Get_Sym_Name(VAL_TYPESET_SYM(key)), -1
-            );
-
-            Append_Unencoded(mold->series, ": ");
-
-            if (var) {
-                if (IS_WORD(var) && !GET_MOPT(mold, MOPT_MOLD_ALL))
-                    Append_Codepoint_Raw(mold->series, '\'');
-                Mold_Value(mold, var, TRUE);
-            }
-            else
-                Append_Unencoded(mold->series, ": --optimized out--");
+        if (var && IS_VOID(var)) {
+            //
+            // no way to show value for unset variables, they are covered
+            // by being present in the "spec" and absent from the "body"
+            //
+            continue;
         }
+
+        New_Indented_Line(mold);
+
+        Append_UTF8_May_Fail(
+            mold->series, Get_Sym_Name(VAL_TYPESET_SYM(key)), -1
+        );
+
+        Append_Unencoded(mold->series, ": ");
+
+        if (var)
+            Mold_Value(mold, var, TRUE);
+        else
+            Append_Unencoded(mold->series, ": --optimized out--");
     }
+
+    mold->indent--;
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, ']');
     mold->indent--;
     New_Indented_Line(mold);
     Append_Codepoint_Raw(mold->series, ']');
@@ -1142,9 +1192,6 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
             return;
         }
     }
-
-    // if (IS_END(value)) => used to do the same as UNSET!, does this come up?
-    assert(NOT_END(value));
 
     switch (VAL_TYPE(value)) {
     case REB_0:
@@ -1352,7 +1399,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     case REB_TASK:
-        Mold_Object(value, mold); //// | (1<<MOPT_NO_NONE));
+        Mold_Object(value, mold);
         break;
 
     case REB_ERROR:

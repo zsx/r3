@@ -75,7 +75,6 @@ REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    enum Reb_Kind type = VAL_TYPE(val);
     REBINT diff;
     REBSYM sym;
 
@@ -83,13 +82,13 @@ REBTYPE(Word)
     case A_MAKE:
     case A_TO:
         // TO word! ...
-        if (type == REB_DATATYPE) type = VAL_TYPE_KIND(val);
+        assert(IS_DATATYPE(val));
         if (ANY_WORD(arg)) {
             //
             // Only reset the type, not all the header bits (the bits must
             // stay in sync with the binding state)
             //
-            VAL_SET_TYPE_BITS(arg, type);
+            VAL_SET_TYPE_BITS(arg, VAL_TYPE_KIND(val));
             *D_OUT = *D_ARG(2);
             return R_OUT;
         }
@@ -107,7 +106,7 @@ REBTYPE(Word)
                     arg, MAX_SCAN_WORD, &len, allow_utf8
                 );
 
-                if (type == REB_ISSUE) sym = Scan_Issue(bp, len);
+                if (VAL_TYPE_KIND(val) == REB_ISSUE) sym = Scan_Issue(bp, len);
                 else sym = Scan_Word(bp, len);
                 if (!sym) fail (Error(RE_BAD_CHAR, arg));
             }
@@ -137,12 +136,13 @@ REBTYPE(Word)
             else
                 fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
 
-            Val_Init_Word(D_OUT, type, sym);
+            Val_Init_Word(D_OUT, VAL_TYPE_KIND(val), sym);
         }
         break;
 
     default:
-        fail (Error_Illegal_Action(type, action));
+        assert(ANY_WORD(val));
+        fail (Error_Illegal_Action(VAL_TYPE(val), action));
     }
 
     return R_OUT;

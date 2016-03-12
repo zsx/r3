@@ -97,6 +97,7 @@ if void? :group? [
     group!: get 'paren!
 ]
 
+
 ; Older versions of Rebol had a different concept of what FUNCTION meant
 ; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
 ; did locals-gathering by default named FUNCT overtook it, with the name
@@ -105,6 +106,52 @@ if void? :group? [
 unless (copy/part words-of :function 2) = [spec body] [
     function: :funct
 ]
+
+
+; The HAS routine in Ren-C is used for object creation with no spec, as
+; a parallel between FUNCTION and DOES.  It is favored for this purpose
+; over CONTEXT which is very "noun-like" and may be better for holding
+; a variable that is an ANY-CONTEXT!
+;
+; Additionally, the CONSTRUCT option behaves like MAKE ANY-OBJECT, sort of,
+; as the way of creating objects with parents or otherwise.
+;
+unless (copy/part words-of :has 1) = [body] [
+    has: :context
+
+    construct-legacy: :construct
+
+    construct: function [
+        "Creates an ANY-CONTEXT! instance"
+        spec [datatype! block! any-context!]
+            "Datatype to create, specification, or parent/prototype context"
+        body [block! any-context! none!]
+            "keys and values defining instance contents (bindings modified)"
+        /only
+            "Values are kept as-is"
+    ][
+        either only [
+            if block? spec [spec: make object! spec]
+            construct-legacy/only/with body spec
+        ][
+            if block? spec [
+                ;
+                ; If they supplied a spec block, do a minimal behavior which
+                ; will create a parent object with those fields...then run
+                ; the traditional gathering added onto that using the body
+                ;
+                spec: map-each item spec [
+                    assert [word? :item]
+                    to-set-word item
+                ]
+                append spec none
+                spec: make object! spec
+            ]
+            make spec body
+        ]
+    ]
+]
+
 
 ; A lone vertical bar is an "expression barrier" in Ren-C, but a word character
 ; in other situations.  Having a word behave as a function that returns an
@@ -125,8 +172,7 @@ unless find words-of :set /opt [
     set: func [
         {Sets a word, path, block of words, or context to specified value(s).}
 
-        ;-- Note: any-context! not defined until after migrations
-        target [any-word! any-path! block! any-object!]
+        target [any-word! any-path! block! any-context!]
             {Word, block of words, path, or object to be set (modified)}
 
         value [*opt-legacy* any-value!]
@@ -223,8 +269,8 @@ migrations: [
     ;
     any-array? <as> :any-block?
     any-array! <as> :any-block!
-    any-context? <as> :any-object?
-    any-context! <as> :any-object!
+
+    ; Note: any-context! and any-context? supplied at top of file
 
     ; *all* typesets now ANY-XXX to help distinguish them from concrete types
     ; https://trello.com/c/d0Nw87kp

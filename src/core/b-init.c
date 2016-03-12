@@ -489,56 +489,6 @@ REBNATIVE(action)
 
 
 //
-//  context: native [
-//  
-//  "Defines a unique object."
-//  
-//      spec [block!] "Object words and values (modified)"
-//  ]
-//
-REBNATIVE(context)
-//
-// The spec block has already been bound to Lib_Context, to
-// allow any embedded values and functions to evaluate.
-// 
-// Note: Overlaps code in REBTYPE(Context)'s A_MAKE handling
-{
-    PARAM(1, spec);
-
-    REBVAL dummy; // doesn't need GC-safety for this use (at time of writing)
-
-    Val_Init_Object(
-        D_OUT,
-        Make_Selfish_Context_Detect(
-            REB_OBJECT, // kind
-            NULL, // spec
-            NULL, // body
-            VAL_ARRAY_HEAD(ARG(spec)), // values to scan for toplevel SET_WORDs
-            NULL // parent
-        )
-    );
-
-    // !!! This mutates the bindings of the spec block passed in, should it
-    // be making a copy instead (at least by default, perhaps with performance
-    // junkies saying `object/bind` or something like that?
-    //
-    Bind_Values_Deep(VAL_ARRAY_HEAD(ARG(spec)), VAL_CONTEXT(D_OUT));
-
-    // The evaluative result of running the spec is ignored and done into a
-    // scratch cell, but needs to be returned if a throw happens.
-    //
-    if (DO_VAL_ARRAY_AT_THROWS(&dummy, ARG(spec))) {
-        *D_OUT = dummy;
-        return R_OUT_IS_THROWN;
-    }
-
-    // On success, return the object (common case)
-    //
-    return R_OUT;
-}
-
-
-//
 //  Init_Ops: C
 //
 // This contains the weird words that the lexer doesn't easily let us make
