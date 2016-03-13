@@ -150,6 +150,7 @@ x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
     case REB_OBJECT:
     case REB_MODULE:
         arg->addr = VAL_CONTEXT(val);
+        break;
 
     default:
         arg->int64 = 0;
