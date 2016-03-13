@@ -288,7 +288,7 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         goto ser;
 
     case RXT_GOB:
-        SET_GOB(val, arg->addr);
+        SET_GOB(val, cast(REBGOB*, arg->addr));
         break;
 
     case RXT_HANDLE:
@@ -302,11 +302,11 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         break;
 
     case RXT_OBJECT:
-        Val_Init_Object(val, arg->addr);
+        Val_Init_Object(val, cast(REBCTX*, arg->addr));
         break;
 
     case RXT_MODULE:
-        Val_Init_Module(val, arg->addr);
+        Val_Init_Module(val, cast(REBCTX*, arg->addr));
         break;
 
     default:
