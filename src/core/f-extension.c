@@ -53,18 +53,10 @@ REBEXT Ext_List[64];
 REBCNT Ext_Next = 0;
 
 
-/***********************************************************************
-**
-**  Local functions
-**
-***********************************************************************/
-
-/***********************************************************************
-**
-x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
-/*
-***********************************************************************/
+void Value_To_RXI(RXIARG *arg, const REBVAL *val)
 {
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     switch (VAL_TYPE(val)) {
     case REB_LOGIC:
         //
@@ -159,12 +151,11 @@ x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
     return;
 }
 
-/***********************************************************************
-**
-x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
-/*
-***********************************************************************/
+
+void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
 {
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     switch (type) {
     case RXT_TRASH:
         SET_TRASH_SAFE(val);
@@ -329,11 +320,11 @@ ser:
     VAL_INDEX(val) = arg->sri.index;
 }
 
-/***********************************************************************
-**
-x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
-/*
-***********************************************************************/
+
+void RXI_To_Block(RXIFRM *frm, REBVAL *out)
+{
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     REBCNT n;
     REBARR *array;
     REBVAL *val;

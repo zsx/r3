@@ -38,7 +38,6 @@
 REBOL_HOST_LIB *Host_Lib;
 #endif
 
-#include "reb-lib.h"
 
 //#define DUMP_INIT_SCRIPT
 #ifdef DUMP_INIT_SCRIPT
@@ -48,16 +47,20 @@ REBOL_HOST_LIB *Host_Lib;
 // #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #endif
 
+
+// !!! Most of the Rebol source does not include %reb-lib.h.  As a result
+// REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
+// compiled, so the MAKE PREP process doesn't auto-generate prototypes for
+// these functions.
+//
+// Rather than try and define RX* for all of the core to include, assume that
+// the burden of keeping these in sync manually is for the best.
+//
+#include "reb-lib.h"
 extern const REBRXT Reb_To_RXT[REB_MAX_0];
-extern RXIARG Value_To_RXI(const REBVAL *val); // f-extension.c
-extern void RXI_To_Value(REBVAL *val, RXIARG arg, REBCNT type); // f-extension.c
+extern void Value_To_RXI(RXIARG *arg, const REBVAL *val); // f-extension.c
+extern void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
-extern int Do_Callback(
-    RXIARG *result,
-    REBFUN *func,
-    REBCNT label_sym,
-    RXIARG *args
-);
 
 
 //
@@ -447,7 +450,7 @@ RL_API int RL_Do_String(
             return -1; // !!! Revisit hardcoded #
 
         if (out)
-            *out = Value_To_RXI(last);
+            Value_To_RXI(out, last);
         else
             DS_PUSH(last);
 
@@ -498,7 +501,7 @@ RL_API int RL_Do_String(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     if (out)
-        *out = Value_To_RXI(&result);
+        Value_To_RXI(out, &result);
     else
         DS_PUSH(&result);
 
@@ -1093,7 +1096,7 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
     REBVAL *value;
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
-    *result = Value_To_RXI(value);
+    Value_To_RXI(result, value);
     return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 
@@ -1115,7 +1118,7 @@ RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
     VAL_INIT_WRITABLE_DEBUG(&value);
-    RXI_To_Value(&value, val, type);
+    RXI_To_Value(&value, &val, type);
 
     if (index >= ARR_LEN(array)) {
         Append_Value(array, &value);
@@ -1188,7 +1191,7 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
     REBVAL *value;
     if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
     value = CTX_VAR(context, word);
-    *result = Value_To_RXI(value);
+    Value_To_RXI(result, value);
     return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 
@@ -1216,7 +1219,7 @@ RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
     if (GET_VAL_FLAG(CTX_KEY(context, word_id), TYPESET_FLAG_LOCKED))
         return 0;
 
-    RXI_To_Value(CTX_VAR(context, word_id), val, type);
+    RXI_To_Value(CTX_VAR(context, word_id), &val, type);
 
     return type;
 }
