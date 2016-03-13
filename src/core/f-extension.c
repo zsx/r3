@@ -190,7 +190,7 @@ x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         SET_DECIMAL(val, arg->dec64);
         break;
 
-    case REB_PERCENT:
+    case RXT_PERCENT:
         SET_PERCENT(val, arg->dec64);
         break;
 
