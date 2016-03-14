@@ -374,7 +374,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
     obj = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), i1);
     if (i2 == 0) return obj;
     assert(IS_OBJECT(obj));
-    return Get_Field(VAL_CONTEXT(obj), i2);
+    return CTX_VAR(VAL_CONTEXT(obj), i2);
 }
 
 
@@ -521,18 +521,6 @@ REBCNT Val_Series_Len_At(const REBVAL *value)
 {
     if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
     return VAL_LEN_HEAD(value) - VAL_INDEX(value);
-}
-
-
-//
-//  Val_Byte_Len: C
-// 
-// Get length of series in bytes.
-//
-REBCNT Val_Byte_Len(const REBVAL *value)
-{
-    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
-    return (VAL_LEN_HEAD(value) - VAL_INDEX(value)) * SER_WIDE(VAL_SERIES(value));
 }
 
 

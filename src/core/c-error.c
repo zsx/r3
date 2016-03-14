@@ -1476,8 +1476,9 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 
-    REBVAL *val = Get_Object(spec, STD_PORT_SPEC_HEAD_REF); // most informative
-    if (IS_BLANK(val)) val = Get_Object(spec, STD_PORT_SPEC_HEAD_TITLE);
+    REBVAL *val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_REF); // informative
+    if (IS_BLANK(val))
+        val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_TITLE); // less info
 
     REBVAL err_code_value;
     SET_INTEGER(&err_code_value, err_code);

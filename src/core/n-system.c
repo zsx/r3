@@ -182,7 +182,7 @@ REBNATIVE(stats)
         stats = Get_System(SYS_STANDARD, STD_STATS);
         *D_OUT = *stats;
         if (IS_OBJECT(stats)) {
-            stats = Get_Object(stats, 1);
+            stats = VAL_CONTEXT_VAR(stats, 1);
 
             VAL_TIME(stats) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
             VAL_RESET_HEADER(stats, REB_TIME);

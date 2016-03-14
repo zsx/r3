@@ -1535,6 +1535,7 @@ REBVAL *CTX_KEY_Debug(REBCTX *c, REBCNT n) {
 //
 REBVAL *CTX_VAR_Debug(REBCTX *c, REBCNT n) {
     assert(n != 0 && n <= CTX_LEN(c));
+    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
     return CTX_VARS_HEAD(c) + (n) - 1;
 }
 

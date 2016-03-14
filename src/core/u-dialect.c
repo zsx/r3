@@ -537,7 +537,7 @@ REBINT Do_Dialect(REBCTX *dialect, REBARR *block, REBCNT *index, REBARR **out)
         if (dia.missed) {
             Debug_Fmt(
                 Dia_Fmt,
-                Get_Field_Name(dia.dialect, dia.cmd),
+                Get_Sym_Name(CTX_KEY_SYM(dia.dialect, dia.cmd)),
                 ARR_LEN(dia.out),
                 dia.missed,
                 Total_Missed
@@ -630,7 +630,7 @@ REBNATIVE(delect)
         if (dia.missed) {
             Debug_Fmt(
                 Dia_Fmt,
-                Get_Field_Name(dia.dialect, dia.cmd),
+                Get_Sym_Name(CTX_KEY_SYM(dia.dialect, dia.cmd)),
                 ARR_LEN(dia.out),
                 dia.missed,
                 Total_Missed
