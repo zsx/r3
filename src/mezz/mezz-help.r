@@ -126,22 +126,24 @@ title-of: function [
 ]
 
 
-?: help: func [
-    "Prints information about words and values."
-    'word [opt-any-value!]
+help: procedure [
+    "Prints information about words and values (if no args, general help)."
+    'word [any-value! <...>]
     /doc "Open web browser to related documentation."
-    /local value args item type-name types tmp print-args
 ][
-    unless set? 'word [
+    if tail? word [
+        ;
+        ; The VARARGS! is empty, so it was just `>> help` or `do [help]` or
+        ; similar.  Print out generic help message.
+        ;
         print trim/auto {
-            Use HELP or ? to see built-in info:
+            Use HELP to see built-in info:
 
                 help insert
-                ? insert
 
             To search within the system, use quotes:
 
-                ? "insert"
+                help "insert"
 
             To browse online web documents:
 
@@ -149,16 +151,16 @@ title-of: function [
 
             To view words and values of a context or object:
 
-                ? lib    - the runtime library
-                ? self   - your user context
-                ? system - the system object
-                ? system/options - special settings
+                help lib    - the runtime library
+                help self   - your user context
+                help system - the system object
+                help system/options - special settings
 
             To see all words of a specific datatype:
 
-                ? object!
-                ? function!
-                ? datatype!
+                help object!
+                help function!
+                help datatype!
 
             Other debug functions:
 
@@ -183,8 +185,14 @@ title-of: function [
                 license - show user license
                 usage - program cmd line options
         }
-        return ()
+        leave
     ]
+
+    ; Otherwise, the VARARGS! has at least one element available in the series
+    ; after the HELP invocation.  Overwrite the varargs value by taking that
+    ; first item out of it.
+    ;
+    word: take word
 
 ;           Word completion:
 ;
@@ -251,14 +259,14 @@ title-of: function [
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
-            return ()
+            leave
         ]
         if all [word? :word datatype? get :word] [
             print ["No values defined for" word]
-            return ()
+            leave
         ]
         print ["No information on" word]
-        return ()
+        leave
     ]
 
     ; Print type name with proper singular article:
@@ -271,7 +279,7 @@ title-of: function [
     ; Print literal values:
     if not any [word? :word path? :word][
         print [mold :word "is" type-name :word]
-        return ()
+        leave
     ]
 
     ; Get value (may be a function, so handle with ":")
@@ -281,7 +289,7 @@ title-of: function [
             not set? 'value
         ][
             print ["No information on" word "(path has no value)"]
-            return ()
+            leave
         ]
     ][
         value: get :word
@@ -289,7 +297,7 @@ title-of: function [
     unless function? :value [
         prin [uppercase mold word "is" type-name :value "of value: "]
         print either any [object? value port? value]  [print "" dump-obj value][mold :value]
-        return ()
+        leave
     ]
 
     ; Must be a function...
@@ -366,8 +374,6 @@ title-of: function [
         print-args "^/ARGUMENTS:" argl
         print-args/extra "^/REFINEMENTS:" refl
     ]
-
-    () ; return unset
 ]
 
 about: func [

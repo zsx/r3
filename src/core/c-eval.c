@@ -1024,7 +1024,7 @@ reevaluate:
 
     //=//// VARIADIC ARG (doesn't consume anything *yet*) /////////////////=//
 
-            // Evaluation argument "hook" parameters (signaled in MAKE FUNCION!
+            // Evaluation argument "hook" parameters (marked in MAKE FUNCTION!
             // by a `|` in the typeset, and in FUNC by `<...>`).  They point
             // back to this call through a reified FRAME!, and are able to
             // consume additional arguments during the function run.
@@ -1055,33 +1055,8 @@ reevaluate:
 
     //=//// AFTER THIS, PARAMS CONSUME--ERROR ON END MARKER, BAR! ////////=//
 
-            // Note that if a function has a quoted argument whose types
-            // permit unset, then hitting the end of expressions to consume
-            // is allowed, in order to implement console commands like HELP
-            // (which acts as arity 1 or 0, using this trick)
-            //
-            //     >> foo: func [:a [unset!]] [
-            //         if unset? :a ["special allowance"]
-            //     ]
-            //
-            //     >> do [foo]
-            //     == "special allowance"
-
-            if (f->indexor == END_FLAG) {
-                if (pclass == PARAM_CLASS_NORMAL)
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                assert(
-                    pclass == PARAM_CLASS_HARD_QUOTE
-                    || pclass == PARAM_CLASS_SOFT_QUOTE
-                );
-
-                if (!TYPE_CHECK(f->param, REB_UNSET))
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                SET_UNSET(f->arg);
-                goto continue_arg_loop;
-            }
+            if (f->indexor == END_FLAG)
+                fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
             // Literal expression barriers cannot be consumed in normal
             // evaluation, even if the argument takes a BAR!.  It must come
