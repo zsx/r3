@@ -101,6 +101,24 @@ REBNATIVE(exit_rebol)
 }
 
 //
+//  dump-memory: native [
+//  
+//  "Dump all referenced memory"
+//  
+//      path [file!] "Where to dump the data"
+//  ]
+//
+REBNATIVE(dump_memory)
+{
+    REBVAL *path = D_ARG(1);
+    REBSER *ser;
+    ser = Value_To_OS_Path(path, TRUE);
+    Dump_Memory_Usage(SER_HEAD(REBCHR, ser));
+    Free_Series(ser);
+    return R_UNSET;
+}
+
+//
 //  recycle: native [
 //  
 //  "Recycles unused memory."

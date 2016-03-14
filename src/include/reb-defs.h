@@ -110,4 +110,6 @@ typedef struct rebol_dat {
 
 #pragma pack()
 
+typedef struct Reb_Mem_Dump REBMDP;
+
 #endif
