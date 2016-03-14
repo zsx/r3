@@ -1534,6 +1534,10 @@ REBNATIVE(apply)
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));
 
     f.func = VAL_FUNC(D_OUT);
+    if ((f.func == PG_Return_Func) || (f.func == PG_Leave_Func))
+        f.exit_from = VAL_FUNC_EXIT_FROM(D_OUT);
+    else
+        f.exit_from = NULL;
 
     // !!! Because APPLY is being written as a regular native (and not a
     // special exception case inside of Do_Core) it has to "re-enter" Do_Core
@@ -1576,7 +1580,7 @@ REBNATIVE(apply)
     f.refine = TRUE_VALUE;
     f.args_evaluate = FALSE;
     f.lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
-    f.exit_from = NULL;
+
     f.cell.subfeed = NULL;
 
     if (f.flags & DO_FLAG_FRAME_CONTEXT) {
