@@ -104,6 +104,110 @@
 
 #include "reb-evtypes.h"
 
+//-- For Serious Debugging:
+#ifdef WATCH_GC_VALUE
+REBSER *Watcher = 0;
+REBVAL *WatchVar = 0;
+REBVAL *GC_Break_Point(REBVAL *val) {return val;}
+#endif
+
+// This can be put below
+#ifdef WATCH_GC_VALUE
+            if (Watcher && ser == Watcher)
+                GC_Break_Point(val);
+
+        // for (n = 0; n < depth * 2; n++) Prin_Str(" ");
+        // Mark_Count++;
+        // Print("Mark: %s %x", TYPE_NAME(val), val);
+#endif
+
+enum mem_dump_kind {
+    REB_KIND_SERIES = REB_MAX + 4,
+    REB_KIND_ARRAY,
+    REB_KIND_CONTEXT,
+    REB_KIND_KEYLIST,
+    REB_KIND_VARLIST,
+    REB_KIND_FIELD,
+    REB_KIND_STU,
+    REB_KIND_HASH,
+    REB_KIND_CHUNK,
+    REB_KIND_CALL,
+    REB_KIND_ROUTINE_INFO,
+    REB_KIND_DEV,
+    REB_KIND_MAX
+};
+
+struct Reb_Mem_Dump {
+    void *parent;
+    FILE *out;
+};
+
+struct mark_stack_elem {
+    REBARR *array;
+    const REBARR *key_list;
+    REBMDP *dump;
+#ifndef NDEBUG
+    int *guard;
+#endif
+};
+
+struct mem_dump_entry {
+    const void *addr;
+    const char *name;
+    const void *parent;
+    const char *edge; /* name of the edge from parent to this ndoe */
+    int kind;
+    REBCNT size;
+};
+
+static void Dump_Mem_Entry(REBMDP *dump,
+    const struct mem_dump_entry *entry)
+{
+    char n[8];
+    if (!dump || !dump->out) return;
+    if (entry->addr == entry->parent) return;
+    if (entry->parent == NULL) {
+        // Windows prints 00000 for NULL
+        fprintf(dump->out, "%p,(nil),%d,%d,%s,%s\n",
+            entry->addr,
+            entry->kind,
+            entry->size,
+            entry->edge == NULL ? "(null)" : entry->edge,
+            entry->name == NULL ? "(null)" : entry->name);
+    }
+    else {
+        fprintf(dump->out, "%p,%p,%d,%d,%s,%s\n",
+            entry->addr,
+            entry->parent,
+            entry->kind,
+            entry->size,
+            entry->edge == NULL? "(null)" : entry->edge,
+            entry->name == NULL? "(null)" : entry->name);
+    }
+}
+
+static void Dump_Mem_Comment(REBMDP *dump, const char *s)
+{
+    if (!dump) return;
+    fprintf(dump->out, "#%s\n", s);
+}
+
+// was static, but exported for Ren/C
+/* static void Queue_Mark_Value_Deep(const REBVAL *val, const void *parent, REBMDP *dump);*/
+
+static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_listr, REBMDP *dump);
+
+#ifndef NDEBUG
+static void Mark_Series_Only_Debug_Core(REBSER *ser);
+#endif
+
+#ifndef NDEBUG
+static void Panic_Mark_Stack(struct mark_stack_elem *elem)
+{
+    /* reference the freed guard to cause a crash and a backtrace */
+    int i = *elem->guard;
+}
+#endif
 
 //
 //  Push_Array_Marked_Deep: C
@@ -122,8 +226,10 @@
 // as a verb it has more leeway than as the CS noun, and can just
 // mean "put into a list for later processing", hence macro names.
 //
-static void Push_Array_Marked_Deep(REBARR *array)
+static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP *dump)
 {
+    struct mark_stack_elem *elem;
+
 #if !defined(NDEBUG)
     if (!IS_ARRAY_MANAGED(array)) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
@@ -157,15 +263,27 @@ static void Push_Array_Marked_Deep(REBARR *array)
 
     if (SER_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
 
-    *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = array;
+    elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
+    elem->array = array;
+    elem->key_list = key_list;
+    elem->dump = dump;
+#ifndef NDEBUG
+    elem->guard = cast(int*, malloc(sizeof(int)));
+    free(elem->guard);
+#endif
 
     SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) + 1);
 
-    *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = NULL;
+    elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
+    elem->array = NULL;
+    elem->key_list = NULL;
+#ifndef NDEBUG
+    elem->guard = NULL;
+#endif
 }
 
 
-static void Propagate_All_GC_Marks(void);
+static void Propagate_All_GC_Marks(REBMDP *dump);
 
 #ifndef NDEBUG
     static REBOOL in_mark = FALSE;
@@ -175,43 +293,103 @@ static void Propagate_All_GC_Marks(void);
 // Deferred form for marking series that prevents potentially overflowing the
 // C execution stack.
 
-inline static void Queue_Mark_Array_Deep(REBARR *a) {
-    if (IS_REBSER_MARKED(ARR_SERIES(a)))
-        return;
-
-    MARK_REBSER(ARR_SERIES(a));
-    Push_Array_Marked_Deep(a);
+inline static void Queue_Mark_Array_Deep_Full(REBARR *a,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    const REBARR *keylist,
+    int kind,
+    REBMDP *dump) {
+    if (kind != REB_KIND_KEYLIST) {
+        struct mem_dump_entry tmp_entry = {
+            a, name, parent, edge, kind, sizeof(REBARR) /* size is counted in the contained REBVALs */
+        };
+        Dump_Mem_Entry(dump, &tmp_entry);
+    }
+    else {
+        struct mem_dump_entry tmp_entry = {
+            a, name, parent, edge, kind, cast(REBCNT, sizeof(REBARR) + ARR_LEN(a) * sizeof(REBVAL))
+        };
+        Dump_Mem_Entry(dump, &tmp_entry);
+    }
+    if (NOT(IS_REBSER_MARKED(ARR_SERIES(a)))) {
+        MARK_REBSER(ARR_SERIES(a));
+        Push_Array_Marked_Deep(a, keylist, (kind == REB_KIND_KEYLIST) ? NULL : dump);
+    }
 }
 
-inline static void Queue_Mark_Context_Deep(REBCTX *c) {
+inline static void Queue_Mark_Named_Array_Deep(REBARR *a,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Queue_Mark_Array_Deep_Full(a, name, parent, edge, NULL, REB_KIND_ARRAY, dump);
+}
+
+inline static void Queue_Mark_Array_Deep(REBARR *a,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Queue_Mark_Named_Array_Deep(a, NULL, parent, edge, dump);
+}
+
+inline static void Queue_Mark_Named_Context_Deep(REBCTX *c,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    struct mem_dump_entry tmp_entry = {
+        c, name, parent, edge, REB_KIND_CONTEXT, 0
+    };
     assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
-    Queue_Mark_Array_Deep(CTX_KEYLIST(c));
-    Queue_Mark_Array_Deep(CTX_VARLIST(c));
+    Queue_Mark_Array_Deep_Full(CTX_KEYLIST(c), NULL, c, "<keylist>", CTX_KEYLIST(c), REB_KIND_KEYLIST, dump);
+    Queue_Mark_Array_Deep(CTX_VARLIST(c), c, "<varlist>", dump);
 }
 
-static void Queue_Mark_Routine_Deep(REBRIN *r);
+inline static void Queue_Mark_Context_Deep(REBCTX *c,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Queue_Mark_Named_Context_Deep(c, NULL, parent, edge, dump);
+}
 
-inline static void Queue_Mark_Function_Deep(REBFUN *f) {
-    if (f == cast(REBFUN *, 0x7fffea5be898)) debug_break();
-    Queue_Mark_Array_Deep(FUNC_PARAMLIST(f));
+inline static void Queue_Mark_Routine_Deep(REBRIN *r, const void *parent, const char *edge, REBMDP *dump);
 
+inline static void Queue_Mark_Function_Deep(REBFUN *f,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+
+    struct mem_dump_entry tmp_entry = {
+        f, NULL, parent, edge, REB_FUNCTION, sizeof(REBARR) /* size is counted in the contained REBVALs */
+    };
+    Dump_Mem_Entry(dump, &tmp_entry);
     // Need to queue the mark of the array for the body--as trying
     // to mark the "singular" value directly could infinite loop.
     //
-    if (FUNC_VALUE(f)->payload.function.body_holder == cast(REBARR*, 0x7fffea5be8e8)) debug_break();
-    Queue_Mark_Array_Deep(FUNC_VALUE(f)->payload.function.body_holder);
+    Queue_Mark_Array_Deep(FUNC_VALUE(f)->payload.function.body_holder, f, "<body_holder>", dump);
 
     if (FUNC_META(f) != NULL)
-        Queue_Mark_Context_Deep(FUNC_META(f));
+        Queue_Mark_Context_Deep(FUNC_META(f), f, "<meta>", dump);
 
     // Of all the function types, only the routines and callbacks use
     // HANDLE! and must be explicitly pointed out in the body.
     //
     if (IS_FUNCTION_RIN(FUNC_VALUE(f)))
-        Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(FUNC_VALUE(f)));
+        Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(FUNC_VALUE(f)), f, "<routine>", dump);
 }
 
-inline static void Queue_Mark_Anything_Deep(REBSER *s) {
+inline static void Queue_Mark_Named_Anything_Deep(REBSER *s,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+
+    struct mem_dump_entry tmp_entry = {
+        s, name, parent, edge, REB_KIND_SERIES, cast(REBCNT, sizeof(REBSER) + SER_TOTAL(s))
+    };
+    Dump_Mem_Entry(dump, &tmp_entry);
+
     if (IS_REBSER_MARKED(s))
         return;
 
@@ -219,54 +397,113 @@ inline static void Queue_Mark_Anything_Deep(REBSER *s) {
     // as a GC root!
 
     if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
-        Queue_Mark_Context_Deep(AS_CONTEXT(s));
+        Queue_Mark_Context_Deep(AS_CONTEXT(s), s, "<context>", dump);
   /*  else if (GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST))
         Queue_Mark_Function_Deep(AS_FUNC(s));
     else */ if (Is_Array_Series(s))
-        Queue_Mark_Array_Deep(AS_ARRAY(s));
+        Queue_Mark_Array_Deep(AS_ARRAY(s), s, "<array>", dump);
     else
         MARK_REBSER(s);
+}
+
+inline static void Queue_Mark_Anything_Deep(REBSER *s,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Queue_Mark_Named_Anything_Deep(s, NULL, parent, edge, dump);
 }
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
 
-inline static void Mark_Array_Deep(REBARR *a) {
+inline static void Mark_Array_Deep_Full(REBARR *a,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    const REBARR *keylist,
+    int kind,
+    REBMDP *dump) {
     assert(!in_mark);
-    Queue_Mark_Array_Deep(a);
-    Propagate_All_GC_Marks();
+    Queue_Mark_Array_Deep_Full(a, name, parent, edge, keylist, kind, dump);
+    Propagate_All_GC_Marks(dump);
 }
 
-inline static void Mark_Context_Deep(REBCTX *c) {
-    assert(!in_mark);
-    Queue_Mark_Context_Deep(c);
-    Propagate_All_GC_Marks();
+inline static void Mark_Named_Array_Deep(REBARR *a,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Mark_Array_Deep_Full(a, name, parent, edge, NULL, REB_KIND_ARRAY, dump);
 }
 
+inline static void Mark_Array_Deep(REBARR *a,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump) {
+    Mark_Named_Array_Deep(a, NULL, parent, edge, dump);
+}
+
+inline static void Mark_Context_Deep(REBCTX *c,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump)
+{
+    assert(!in_mark);
+    Queue_Mark_Context_Deep(c, parent, edge, dump);
+    Propagate_All_GC_Marks(dump);
+}
+
+// Non-Deep form of mark, to be used on non-BLOCK! series or a block series
+// for which deep marking is known to be unnecessary.
+//
+inline static void Mark_Series_Only_Full(
+    REBSER *s,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    int kind,
+    REBMDP *dump)
+{
+    struct mem_dump_entry tmp_entry = {
+        s, name, parent, edge, kind,
+        cast(REBCNT, GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC) ?
+            SER_TOTAL(s) + sizeof(REBSER) : sizeof(REBSER))
+    };
+    Dump_Mem_Entry(dump, &tmp_entry);
+#if !defined(NDEBUG)
+    if (NOT(IS_SERIES_MANAGED(s))) {
+        Debug_Fmt("Link to non-MANAGED item reached by GC");
+        Panic_Series(s);
+    }
+#endif
+    if (NOT(IS_REBSER_MARKED(s))) {
+        s->header.bits |= REBSER_REBVAL_FLAG_MARK;
+    }
+}
+
+inline static void Mark_Named_Series_Only(
+    REBSER *s,
+    const char *name,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump)
+{
+    Mark_Series_Only_Full(s, NULL, parent, edge, REB_KIND_SERIES, dump);
+}
+
+inline static void Mark_Series_Only(
+    REBSER *s,
+    const void *parent,
+    const char *edge,
+    REBMDP *dump)
+{
+    Mark_Named_Series_Only(s, NULL, parent, edge, dump);
+}
 
 // Assertion for making sure that all the deferred marks have been propagated
 
 #define ASSERT_NO_GC_MARKS_PENDING() \
     assert(SER_LEN(GC_Mark_Stack) == 0)
-
-
-// Non-Deep form of mark, to be used on non-BLOCK! series or a block series
-// for which deep marking is known to be unnecessary.
-//
-static inline void Mark_Series_Only(REBSER *series)
-{
-#if !defined(NDEBUG)
-    if (NOT(IS_SERIES_MANAGED(series))) {
-        Debug_Fmt("Link to non-MANAGED item reached by GC");
-        Panic_Series(series);
-    }
-#endif
-
-    // Don't use MARK_REBSER, because that expects unmarked.  This should be
-    // fast and tolerate setting the bit again without checking.
-    //
-    series->header.bits |= REBSER_REBVAL_FLAG_MARK;
-}
 
 
 //
@@ -280,50 +517,65 @@ static inline void Mark_Series_Only(REBSER *series)
 // itself is processed via recursion.  Deeply nested GOBs could
 // in theory overflow the C stack.
 //
-static void Queue_Mark_Gob_Deep(REBGOB *gob)
+static void Queue_Mark_Gob_Deep(REBGOB *gob, const char *name, const void *parent, const char *edge, REBMDP *dump)
 {
     REBGOB **pane;
     REBCNT i;
+
+    struct mem_dump_entry entry = {gob, name, parent, edge, REB_GOB, sizeof(REBGOB)};
+
+    Dump_Mem_Entry(dump, &entry);
 
     if (IS_GOB_MARK(gob)) return;
 
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        MARK_REBSER(GOB_PANE(gob));
+        Mark_Series_Only(GOB_PANE(gob), gob, "<pane>", dump);
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
-            Queue_Mark_Gob_Deep(*pane);
+            Queue_Mark_Gob_Deep(*pane, NULL, GOB_PANE(gob), "<has>", dump);
     }
 
-    if (GOB_PARENT(gob)) Queue_Mark_Gob_Deep(GOB_PARENT(gob));
+    if (GOB_PARENT(gob)) Queue_Mark_Gob_Deep(GOB_PARENT(gob), NULL, gob, "<parent>", dump);
 
     if (GOB_CONTENT(gob)) {
+        const char *edge = "<content>";
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
-            if (!IS_REBSER_MARKED(GOB_CONTENT(gob))) MARK_REBSER(GOB_CONTENT(gob));
+            Mark_Series_Only_Full(GOB_CONTENT(gob), NULL, gob, edge, GOB_TYPE(gob) + REB_KIND_MAX, dump);
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
-            Queue_Mark_Array_Deep(AS_ARRAY(GOB_CONTENT(gob)));
+            Queue_Mark_Array_Deep_Full(AS_ARRAY(GOB_CONTENT(gob)), NULL, gob, edge, NULL, GOB_TYPE(gob) + REB_KIND_MAX, dump);
     }
 
     if (GOB_DATA(gob)) {
+        enum Reb_Kind kind = REB_BLANK;
+        const char *edge = "<gob-data>";
+        struct mem_dump_entry entry = {GOB_DATA(gob), NULL, gob, edge, kind, sizeof(REBVAL)};
         switch (GOB_DTYPE(gob)) {
         case GOBD_INTEGER:
+            kind = REB_INTEGER;
+            // fall through
         case GOBD_NONE:
+            kind = REB_BLANK;
+            // fall through
         default:
+            entry.kind = kind;
+            Dump_Mem_Entry(dump, &entry);
             break;
         case GOBD_OBJECT:
-            Queue_Mark_Context_Deep(AS_CONTEXT(GOB_DATA(gob)));
+            Queue_Mark_Context_Deep(AS_CONTEXT(GOB_DATA(gob)), gob, edge, dump);
             break;
         case GOBD_STRING:
         case GOBD_BINARY:
-            Mark_Series_Only(GOB_DATA(gob));
+            Mark_Series_Only(GOB_DATA(gob), gob, edge, dump);
             break;
         case GOBD_BLOCK:
-            Queue_Mark_Array_Deep(AS_ARRAY(GOB_DATA(gob)));
+            Queue_Mark_Array_Deep(AS_ARRAY(GOB_DATA(gob)), gob, edge, dump);
         }
     }
 }
 
+inline static void Queue_Mark_Value_Deep(const RELVAL *val, const void *parent, const char *edge, REBMDP *dump);
 
 //
 //  Queue_Mark_Field_Deep: C
@@ -339,8 +591,12 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 static void Queue_Mark_Field_Deep(
     struct Struct_Field *field,
     REBSER *data_bin,
-    REBCNT offset
-){
+    REBCNT offset,
+    const void *parent,
+    REBMDP *dump
+) {
+    struct mem_dump_entry entry = { field, cast(const char*, STR_HEAD(field->name)), parent, "<field>", REB_KIND_FIELD, 0 /* counted in fields already */ };
+    Dump_Mem_Entry(dump, &entry);
     if (field->is_rebval) {
         //
         // !!! The FFI apparently can tunnel REBVALs through to callbacks.
@@ -355,7 +611,7 @@ static void Queue_Mark_Field_Deep(
 
         REBCNT i;
         for (i = 0; i < field->dimension; i += 4) {
-            REBVAL *value = cast(REBVAL*,
+            RELVAL *value = cast(REBVAL*,
                 SER_AT(
                     REBYTE,
                     data_bin,
@@ -363,14 +619,15 @@ static void Queue_Mark_Field_Deep(
                 )
             );
 
+            /* This could lead to an infinite recursive call to Queue_Mark_Field_Deep if this value refers back to this struct */
             if (field->done)
-                Queue_Mark_Value_Deep(value);
+                Queue_Mark_Value_Deep(value, field, "<value>", dump);
         }
     }
     else if (field->type == FFI_TYPE_STRUCT) {
         assert(!field->is_rebval);
-        Mark_Series_Only(field->fields);
-        Queue_Mark_Array_Deep(field->spec);
+        Mark_Series_Only(field->fields, field, "<fields>", dump);
+        Queue_Mark_Array_Deep(field->spec, field, "<spec>", dump);
 
         REBCNT i;
         for (i = 0; i < SER_LEN(field->fields); ++i) {
@@ -383,7 +640,7 @@ static void Queue_Mark_Field_Deep(
             //
             assert(subfield->offset >= offset);
 
-            Queue_Mark_Field_Deep(subfield, data_bin, subfield->offset);
+            Queue_Mark_Field_Deep(subfield, data_bin, subfield->offset, field, dump);
         }
     }
     else {
@@ -391,9 +648,8 @@ static void Queue_Mark_Field_Deep(
     }
 
     if (field->name != NULL)
-        Mark_Series_Only(field->name);
+        Mark_Series_Only_Full(field->name, cast(const char*, STR_HEAD(field->name)), field, "<name>", REB_STRING, dump);
 }
-
 
 //
 //  Queue_Mark_Routine_Deep: C
@@ -406,9 +662,14 @@ static void Queue_Mark_Field_Deep(
 // is processed via recursion.  Deeply nested RValue structs could
 // in theory overflow the C stack.
 //
-static void Queue_Mark_Routine_Deep(REBRIN *r)
+static void Queue_Mark_Named_Routine_Deep(REBRIN *r, const char *name, const void *parent, const char *edge, REBMDP *dump)
 {
     SET_RIN_FLAG(r, ROUTINE_FLAG_MARK);
+
+    struct mem_dump_entry entry = { r, name, parent, "<routine>", REB_KIND_ROUTINE_INFO, sizeof(REBRIN)};
+    Dump_Mem_Entry(dump, &entry);
+
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_MARK)) return;
 
     // Mark the descriptions for the return type and argument types.
     //
@@ -420,23 +681,23 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
 
     if (IS_HANDLE(&r->ret_schema)) {
         REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
-        Mark_Series_Only(schema);
+        Mark_Series_Only(schema, r, "<ret-schema>", dump);
         Queue_Mark_Field_Deep(
-            *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+            *SER_HEAD(struct Struct_Field*, schema), NULL, 0, schema, dump
         );
     }
     else // special, allows NONE (e.g. void return)
         assert(IS_INTEGER(&r->ret_schema) || IS_BLANK(&r->ret_schema));
 
-    Queue_Mark_Array_Deep(r->args_schemas);
+    Queue_Mark_Array_Deep(r->args_schemas, r, "<args-schemas>", dump);
     REBCNT n;
     for (n = 0; n < ARR_LEN(r->args_schemas); ++n) {
         if (IS_HANDLE(ARR_AT(r->args_schemas, n))) {
             REBSER *schema
                 = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
-            Mark_Series_Only(schema);
+            Mark_Series_Only(schema, r->args_schemas, "<schema>", dump);
             Queue_Mark_Field_Deep(
-                *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+                *SER_HEAD(struct Struct_Field*, schema), NULL, 0, schema, dump
             );
         }
         else
@@ -454,16 +715,16 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         // before the CIF is ready to be created or not.
         //
         if (r->cif)
-            Mark_Series_Only(r->cif);
+            Mark_Series_Only(r->cif, r, "<cif>", dump);
         if (r->args_fftypes)
-            Mark_Series_Only(r->args_fftypes);
+            Mark_Series_Only(r->args_fftypes, r, "<args-fftypes>", dump);
     }
 
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
         REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
         if (cb_func) {
             // Should take care of spec, body, etc.
-            Queue_Mark_Array_Deep(FUNC_PARAMLIST(cb_func));
+            Queue_Mark_Array_Deep(FUNC_PARAMLIST(cb_func), r, "<callback>", dump);
         }
         else {
             // !!! There is a call during MAKE_Routine that does an evaluation
@@ -476,14 +737,19 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         }
     } else {
         if (RIN_LIB(r))
-            Queue_Mark_Array_Deep(RIN_LIB(r));
+            Queue_Mark_Array_Deep(RIN_LIB(r), r, "<library>", dump);
         else {
             // may be null if called before the routine is fully constructed
             // !!! Review if this can be made not possible
         }
     }
+    Dump_Mem_Comment(dump, "Done dumping Routine/Callback");
 }
 
+inline static void Queue_Mark_Routine_Deep(REBRIN *r, const void *parent, const char *edge, REBMDP *dump)
+{
+    Queue_Mark_Named_Routine_Deep(r, NULL, parent, edge, dump);
+}
 
 //
 //  Queue_Mark_Event_Deep: C
@@ -492,7 +758,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure completely marked.
 //
-static void Queue_Mark_Event_Deep(const RELVAL *value)
+static void Queue_Mark_Event_Deep(const RELVAL *value, REBMDP *dump)
 {
     REBREQ *req;
 
@@ -507,7 +773,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         // !!! Comment says void* ->ser field of the REBEVT is a "port or
         // object" but it also looks to store maps.  (?)
         //
-        Queue_Mark_Array_Deep(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))));
+        Queue_Mark_Array_Deep(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))), value, "<port/object/ser>", dump);
     }
 
     if (IS_EVENT_MODEL(value, EVM_DEVICE)) {
@@ -520,7 +786,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         while (req) {
             // Comment says void* ->port is "link back to REBOL port object"
             if (req->port)
-                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)), value, "<port>", dump);
             req = req->next;
         }
     }
@@ -535,7 +801,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
 // This should be called at the top level, and as it is not
 // 'Queued' it guarantees that the marks have been propagated.
 //
-static void Mark_Devices_Deep(void)
+static void Mark_Devices_Deep(REBMDP *dump)
 {
     REBDEV **devices = Host_Lib->devices;
 
@@ -546,9 +812,12 @@ static void Mark_Devices_Deep(void)
         if (!dev)
             continue;
 
+        struct mem_dump_entry entry = { dev, NULL, NULL, "<dev>", REB_KIND_DEV, sizeof(REBDEV) };
+        Dump_Mem_Entry(dump, &entry);
+
         for (req = dev->pending; req; req = req->next)
             if (req->port)
-                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)), dev, "<req-port>", dump);
     }
 }
 
@@ -574,9 +843,21 @@ static void Mark_Devices_Deep(void)
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
 //
-static void Mark_Frame_Stack_Deep(void)
+static void Mark_Frame_Stack_Deep(REBMDP *dump)
 {
     REBFRM *f = TG_Frame_Stack;
+    // The GC must consider all entries, not just those that have been pushed
+    // into active evaluation.
+    //
+    struct mem_dump_entry entry;
+    
+    entry.addr = f;
+    entry.name = "TG_Do_Stack";
+    entry.parent = NULL;
+    entry.kind = REB_KIND_CALL;
+    entry.edge = NULL,
+    entry.size = 0; // on the stack
+    Dump_Mem_Entry(dump, &entry);
 
     for (; f != NULL; f = f->prior) {
         assert(f->eval_type <= REB_MAX_VOID);
@@ -588,7 +869,7 @@ static void Mark_Frame_Stack_Deep(void)
         assert(f->pending != VA_LIST_PENDING);
 
         ASSERT_ARRAY_MANAGED(f->source.array);
-        Queue_Mark_Array_Deep(f->source.array);
+        Queue_Mark_Array_Deep(f->source.array, f, "<source-array>", dump);
 
         // END is possible, because the frame could be sitting at the end of
         // a block when a function runs, e.g. `do [zero-arity]`.  That frame
@@ -596,15 +877,15 @@ static void Mark_Frame_Stack_Deep(void)
         // The array still might be used in an error, so can't GC it.
         //
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
-            Queue_Mark_Value_Deep(f->value);
+            Queue_Mark_Value_Deep(f->value, f, "<value>", dump);
 
         if (f->specifier != SPECIFIED)
-            Queue_Mark_Context_Deep(f->specifier);
+            Queue_Mark_Context_Deep(f->specifier, f, "<specifier>", dump);
 
         // For uniformity of assumption, f->out is always maintained as GC safe
         //
         if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
-            Queue_Mark_Value_Deep(f->out); // never NULL
+            Queue_Mark_Value_Deep(f->out, f, "<out>", dump); // never NULL
 
         if (NOT(Is_Any_Function_Frame(f))) {
             //
@@ -616,10 +897,13 @@ static void Mark_Frame_Stack_Deep(void)
         }
 
         if (!IS_END(&f->cell) && !IS_VOID_OR_SAFE_TRASH(&f->cell))
-            Queue_Mark_Value_Deep(&f->cell);
+            Queue_Mark_Value_Deep(&f->cell, f, "<cell>", dump);
 
-        Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func)); // never NULL
-        Mark_Series_Only(f->label); // also never NULL
+        Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func), f, "<func>", dump); // never NULL
+
+        // Need to keep the label symbol alive for error messages/stacktraces
+        //
+        Mark_Series_Only(f->label, f, "<label>", dump); // also never NULL
 
         // The subfeed may be in use by VARARGS!, and it may be either a
         // context or a single element array.  It will only be valid during
@@ -630,10 +914,10 @@ static void Mark_Frame_Stack_Deep(void)
                 REBARR *subfeed = cast(REBARR*, f->special);
 
                 if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
+                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed), f, "<subfeed>", dump);
                 else {
                     assert(ARR_LEN(subfeed) == 1);
-                    Queue_Mark_Array_Deep(subfeed);
+                    Queue_Mark_Array_Deep(subfeed, f, "<subfeed>", dump);
                 }
             }
 
@@ -645,13 +929,9 @@ static void Mark_Frame_Stack_Deep(void)
                 && !IS_VOID_OR_SAFE_TRASH(f->refine)
                 && Is_Value_Managed(f->refine)
             ) {
-                Queue_Mark_Value_Deep(f->refine);
+                Queue_Mark_Value_Deep(f->refine, f, "<refine>", dump);
             }
         }
-
-        // Need to keep the label symbol alive for error messages/stacktraces
-        //
-        Mark_Series_Only(f->label);
 
         // We need to GC protect the values in the args no matter what,
         // but it might not be managed yet (e.g. could still contain garbage
@@ -661,7 +941,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (f->varlist != NULL && IS_ARRAY_MANAGED(f->varlist)) {
             assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
             assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-            Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist));
+            Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist), f, "<varlist>", dump);
         }
 
         // (Although the above will mark the varlist, it may not mark the
@@ -683,7 +963,7 @@ static void Mark_Frame_Stack_Deep(void)
         REBVAL *arg = f->args_head; // may be stack or dynamic
         while (NOT_END(param)) {
             if (!IS_END(arg) && !IS_VOID_OR_SAFE_TRASH(arg))
-                Queue_Mark_Value_Deep(arg);
+                Queue_Mark_Value_Deep(arg, f, "<arg>", dump);
 
             if (param == f->param && !f->doing_pickups)
                 break; // protect arg for current param, but no further
@@ -693,26 +973,43 @@ static void Mark_Frame_Stack_Deep(void)
         }
         assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 
-        Propagate_All_GC_Marks();
+        Propagate_All_GC_Marks(dump);
     }
 }
 
 
 //
-//  Queue_Mark_Value_Deep: C
+//  Queue_Mark_Named_Value_Deep: C
 // 
 // This routine is not marked `static` because it is needed by
 // Ren/C++ in order to implement its GC_Mark_Hook.
 //
-void Queue_Mark_Value_Deep(const RELVAL *val)
+void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void *parent, const char *edge, REBMDP *dump)
 {
     REBSER *ser = NULL;
+    struct mem_dump_entry entry;
+    enum Reb_Kind kind;
 
     // If this happens, it means somehow Recycle() got called between
     // when an `if (Do_XXX_Throws())` branch was taken and when the throw
     // should have been caught up the stack (before any more calls made).
     //
     assert(!THROWN(val));
+
+    kind = VAL_TYPE(val);
+
+    entry.addr = val;
+    entry.name = name;
+    entry.parent = parent;
+    entry.kind = kind;
+    entry.edge = edge;
+    entry.size = sizeof(REBVAL);
+
+    if (name == NULL && ANY_WORD(val)) {
+        entry.name = cast(const char*, STR_HEAD(VAL_WORD_SPELLING(val)));
+    }
+    Dump_Mem_Entry(dump, &entry);
+
 
     switch (VAL_TYPE(val)) {
         case REB_0:
@@ -735,7 +1032,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // keys of objects (or parameters of functions)
             //
             if (val->extra.key_spelling != NULL)
-                Mark_Series_Only(val->extra.key_spelling);
+                Mark_Series_Only(val->extra.key_spelling, val, "<spelling>", dump);
             break;
 
         case REB_HANDLE:
@@ -752,14 +1049,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 assert(h->extra.singular == val->extra.singular);
             #endif
 
-                Mark_Series_Only(ARR_SERIES(val->extra.singular));
+                Mark_Series_Only(ARR_SERIES(val->extra.singular), val, "<handle>", dump);
             }
             break;
 
         case REB_DATATYPE:
             // Type spec is allowed to be NULL.  See %typespec.r file
             if (VAL_TYPE_SPEC(val))
-                Queue_Mark_Array_Deep(VAL_TYPE_SPEC(val));
+                Queue_Mark_Array_Deep(VAL_TYPE_SPEC(val), val, "<spec>", dump);
             break;
 
         case REB_TASK: // not yet implemented
@@ -776,14 +1073,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             assert(VAL_CONTEXT(CTX_VALUE(context)) == context);
             assert(VAL_CONTEXT_META(CTX_VALUE(context)) == CTX_META(context));
 
-            Queue_Mark_Context_Deep(context);
+            Queue_Mark_Context_Deep(context, val, "<context>", dump);
 
             // !!! Currently a FRAME! has a keylist which is storing a non-
             // context block spec.  This will be changed to be compatible
             // with the meta on object keylists.
             //
             if (!IS_FRAME(val) && VAL_CONTEXT_META(val))
-                Queue_Mark_Context_Deep(VAL_CONTEXT_META(val));
+                Queue_Mark_Context_Deep(VAL_CONTEXT_META(val), val, "<meta>", dump);
 
             // For VAL_CONTEXT_FRAME, the FRM_CALL is either on the stack
             // (in which case it's already taken care of for marking) or it
@@ -797,9 +1094,9 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
             assert(VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(archetype));
             assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(archetype));
-            Queue_Mark_Function_Deep(VAL_FUNC(val));
+            Queue_Mark_Function_Deep(VAL_FUNC(val), val, "<func>", dump);
             if (VAL_BINDING(val) != NULL)
-                Queue_Mark_Anything_Deep(ARR_SERIES(VAL_BINDING(val)));
+                Queue_Mark_Anything_Deep(ARR_SERIES(VAL_BINDING(val)), val, "<binding>", dump);
 
             // !!! Needs to mark the exit/binding...
             break;
@@ -812,7 +1109,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // instances of the same vararg that was created with
                 // MAKE ARRAY! - which fits compactly in a REBSER.
                 //
-                Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val));
+                Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val), val, "<varargs-array1>", dump);
 
                 REBARR **subfeed_addr;
                 if (!Is_End_Subfeed_Addr_Of_Feed(
@@ -820,9 +1117,9 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                     VAL_VARARGS_ARRAY1(val)
                 )) {
                     if (GET_ARR_FLAG(*subfeed_addr, ARRAY_FLAG_VARLIST))
-                        Queue_Mark_Context_Deep(AS_CONTEXT(*subfeed_addr));
+                        Queue_Mark_Context_Deep(AS_CONTEXT(*subfeed_addr), VAL_VARARGS_ARRAY1(val), "<subfeed_addr>", dump);
                     else
-                        Queue_Mark_Array_Deep(*subfeed_addr);
+                        Queue_Mark_Array_Deep(*subfeed_addr,  VAL_VARARGS_ARRAY1(val), "<subfeed_addr>", dump);
                 }
             }
             else {
@@ -839,7 +1136,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 if (GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
                     if (IS_ARRAY_MANAGED(varlist)) {
                         REBCTX *context = AS_CONTEXT(varlist);
-                        Queue_Mark_Context_Deep(context);
+                        Queue_Mark_Context_Deep(context, val, "<binding>", dump);
                     }
                 }
 
@@ -856,12 +1153,13 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_REFINEMENT:
         case REB_ISSUE: {
             REBSTR *spelling = val->payload.any_word.spelling;
+            const char *edge = "<bound-to>";
 
             // A word marks the specific spelling it uses, but not the canon
             // value.  That's because if the canon value gets GC'd, then
             // another value might become the new canon during that sweep.
             //
-            Mark_Series_Only(spelling);
+            Mark_Series_Only(spelling, val, "<spelling>", dump);
 
             // A GC cannot run during a binding process--which is the only
             // time a canon word's "index" field is allowed to be nonzero.
@@ -885,12 +1183,12 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 //
                 REBFUN* func = VAL_WORD_FUNC(val);
                 assert(GET_VAL_FLAG(val, WORD_FLAG_BOUND)); // should be set
-                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
+                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func), val, edge, dump);
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND)) {
                 if (IS_SPECIFIC(val)) {
                     REBCTX* context = VAL_WORD_CONTEXT(const_KNOWN(val));
-                    Queue_Mark_Context_Deep(context);
+                    Queue_Mark_Context_Deep(context, val, edge, dump);
                 }
                 else {
                     // We trust that if a relative word's context needs to make
@@ -898,7 +1196,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                     // of by the array reference that holds it.
                     //
                     REBFUN* func = VAL_WORD_FUNC(val);
-                    Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
+                    Queue_Mark_Array_Deep(FUNC_PARAMLIST(func), val, edge, dump);
                 }
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
@@ -952,15 +1250,15 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_BITSET:
             ser = VAL_SERIES(val);
             assert(SER_WIDE(ser) <= sizeof(REBUNI));
-            Mark_Series_Only(ser);
+            Mark_Series_Only(ser, val, "<series>", dump);
             break;
 
         case REB_IMAGE:
-            Mark_Series_Only(VAL_SERIES(val));
+            Mark_Series_Only(VAL_SERIES(val), val, "<series>", dump);
             break;
 
         case REB_VECTOR:
-            Mark_Series_Only(VAL_SERIES(val));
+            Mark_Series_Only(VAL_SERIES(val), val, "<series>", dump);
             break;
 
         case REB_BLOCK:
@@ -972,7 +1270,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             if (IS_SPECIFIC(val)) {
                 REBCTX *context = VAL_SPECIFIER(const_KNOWN(val));
                 if (context != SPECIFIED)
-                    Queue_Mark_Context_Deep(context);
+                    Queue_Mark_Context_Deep(context, val, "<bound-to>", dump);
             }
             else {
                 // We trust that if a relative array's context needs to make
@@ -980,26 +1278,26 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // of by a higher-up array reference that holds it.
                 //
                 REBFUN* func = VAL_RELATIVE(val);
-                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
+                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func), val, "<bound-to>", dump);
             }
 
-            Queue_Mark_Array_Deep(VAL_ARRAY(val));
+            Queue_Mark_Array_Deep(VAL_ARRAY(val), val, "<contains>", dump);
             break;
         }
 
         case REB_MAP: {
             REBMAP* map = VAL_MAP(val);
-            Queue_Mark_Array_Deep(MAP_PAIRLIST(map));
+            Queue_Mark_Array_Deep(MAP_PAIRLIST(map), val, "<contains>", dump);
             if (MAP_HASHLIST(map))
-                Mark_Series_Only(MAP_HASHLIST(map));
+                Mark_Series_Only(MAP_HASHLIST(map), val, "<hash>", dump);
             break;
         }
 
         case REB_LIBRARY: {
-            Queue_Mark_Array_Deep(VAL_LIBRARY(val));
+            Queue_Mark_Array_Deep(VAL_LIBRARY(val), val, "<contains>", dump);
             REBCTX *meta = VAL_LIBRARY_META(val);
             if (meta != NULL)
-                Queue_Mark_Context_Deep(meta);
+                Queue_Mark_Context_Deep(meta, val, "<meta>", dump);
             break; }
 
         case REB_STRUCT:
@@ -1009,7 +1307,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // contains the REBVAL of the struct itself.  (Because it is
             // "singular" it is only a REBSER node--no data allocation.)
             //
-            Queue_Mark_Array_Deep(VAL_STRUCT(val));
+            Queue_Mark_Array_Deep(VAL_STRUCT(val), val, "<contains>", dump);
 
             // Though the REBVAL payload carries the data series and offset
             // position of this struct into that data, the hierarchical
@@ -1017,14 +1315,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // single element series--the "schema"--which is held in the
             // miscellaneous slot of the main array.
             //
-            Mark_Series_Only(ARR_SERIES(VAL_STRUCT(val))->link.schema);
+            Mark_Series_Only(ARR_SERIES(VAL_STRUCT(val))->link.schema, val, "<link-schema>", dump);
 
             // The data series needs to be marked.  It needs to be marked
             // even for structs that aren't at the 0 offset--because their
             // lifetime can be longer than the struct which they represent
             // a "slice" out of.
             //
-            Mark_Series_Only(VAL_STRUCT_DATA_BIN(val));
+            Mark_Series_Only(VAL_STRUCT_DATA_BIN(val), val, "<data-bin>", dump);
 
             // The symbol needs to be GC protected, but only fields have them
 
@@ -1033,8 +1331,8 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // These series are backing stores for the `ffi_type` data that
             // is needed to use the struct with the FFI api.
             //
-            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fftype);
-            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs);
+            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fftype, val, "<fftype>", dump);
+            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs, val, "<fields-fftype-ptrs>", dump);
 
             // Recursively mark the schema and any nested structures (or
             // REBVAL-typed fields, specially recognized by the interface)
@@ -1042,17 +1340,19 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             Queue_Mark_Field_Deep(
                 VAL_STRUCT_SCHEMA(val),
                 VAL_STRUCT_DATA_BIN(val),
-                VAL_STRUCT_OFFSET(val)
+                VAL_STRUCT_OFFSET(val),
+                val,
+                dump
             );
             }
             break;
 
         case REB_GOB:
-            Queue_Mark_Gob_Deep(VAL_GOB(val));
+            Queue_Mark_Gob_Deep(VAL_GOB(val), NULL, val, "<REBGOB>", dump);
             break;
 
         case REB_EVENT:
-            Queue_Mark_Event_Deep(val);
+            Queue_Mark_Event_Deep(val, dump);
             break;
 
         default:
@@ -1060,6 +1360,10 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
     }
 }
 
+inline static void Queue_Mark_Value_Deep(const RELVAL *val, const void *parent, const char *edge, REBMDP *dump)
+{
+    Queue_Mark_Named_Value_Deep(val, NULL, parent, edge, dump);
+}
 
 //
 //  Mark_Array_Deep_Core: C
@@ -1078,8 +1382,15 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 // It could start out saying there may be...but then if it did a visit and
 // didn't see any mark it as not needing GC.  Modifications dirty that bit.
 //
-static void Mark_Array_Deep_Core(REBARR *array)
+static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
 {
+    REBCNT len;
+    RELVAL *value, *key = NULL;
+    REBARR *array = elem->array;
+    const REBARR *keylist = elem->key_list;
+
+    //printf("Marking array at %p\n", array);
+
 #if !defined(NDEBUG)
     //
     // We should have marked this series at queueing time to keep it from
@@ -1111,8 +1422,14 @@ static void Mark_Array_Deep_Core(REBARR *array)
     assert(!IS_FREE_NODE(ARR_SERIES(array)));
 #endif
 
-    RELVAL *value = ARR_HEAD(array);
+    value = ARR_HEAD(array);
+    if (keylist != NULL) {
+        assert(ARR_LEN(array) == ARR_LEN(m_cast(REBARR*, keylist)));
+        key = ARR_HEAD(m_cast(REBARR*, keylist));
+    }
+
     for (; NOT_END(value); value++) {
+        const char *name = NULL;
         if (IS_VOID_OR_SAFE_TRASH(value)) {
             //
             // Voids are illegal in most arrays, but the varlist of a context
@@ -1124,8 +1441,26 @@ static void Mark_Array_Deep_Core(REBARR *array)
                 || GET_ARR_FLAG(array, ARRAY_FLAG_VOIDS_LEGAL)
             );
         }
-        else
-            Queue_Mark_Value_Deep(value);
+        else {
+            if (dump && key != NULL) {
+                switch (VAL_TYPE(key)) {
+                case REB_TYPESET:
+                case REB_WORD:
+                    name = cast(const char*, VAL_WORD_SPELLING(key));
+                    break;
+                default:
+                    if (key != ARR_HEAD(m_cast(REBARR*, keylist))) {// the first element could be function!, native!, etc for FRAMEs
+                        printf("unexpected type: %d\n", VAL_TYPE(key));
+                        fclose(dump->out);
+                        Panic_Mark_Stack(elem);
+                        //Panic_Array(array);
+                    }
+                }
+                key++;
+            }
+
+            Queue_Mark_Named_Value_Deep(value, name, array, "<has>", dump);
+        }
     }
 }
 
@@ -1253,7 +1588,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 // lifetime of that frame on the stack.  (Not to the lifetime of the FRAME!
 // value itself, which could be indefinite.)
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
+ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(REBMDP *dump)
 {
     REBSEG *seg;
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
@@ -1300,16 +1635,16 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 // it is memory guaranteed not to relocate)
                 //
                 MARK_REBSER(s);
-                Queue_Mark_Value_Deep(key);
+                Queue_Mark_Value_Deep(key, NULL, "<key>", dump);
                 if (!IS_END(pairing))
-                    Queue_Mark_Value_Deep(pairing);
+                    Queue_Mark_Value_Deep(pairing, NULL, "<pairing>", dump);
             }
             else {
                 // We have to do the queueing based on whatever type of series
                 // this is.  So if it's a context, we have to get the
                 // keylist...etc.
                 //
-                Queue_Mark_Anything_Deep(s);
+                Queue_Mark_Anything_Deep(s, NULL, "<has>", dump);
             }
         }
     }
@@ -1397,9 +1732,11 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
 // Processing continues until all reachable items from the mark
 // stack are known to be marked.
 //
-static void Propagate_All_GC_Marks(void)
+static void Propagate_All_GC_Marks(REBMDP *dump)
 {
     assert(!in_mark);
+
+    Dump_Mem_Comment(dump, "Progagate all GC marks");
 
     while (SER_LEN(GC_Mark_Stack) != 0) {
         SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) - 1); // still ok
@@ -1407,24 +1744,54 @@ static void Propagate_All_GC_Marks(void)
         // Data pointer may change in response to an expansion during
         // Mark_Array_Deep_Core(), so must be refreshed on each loop.
         //
-        REBARR *array = *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
+        REBARR *array;
+        struct mark_stack_elem *elem, *last;
+
+        elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
 
         // Drop the series we are processing off the tail, as we could be
         // queuing more of them (hence increasing the tail).
         //
-        *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = NULL;
 
-        Mark_Array_Deep_Core(array);
+        last = elem + 1;
+
+        last->array = NULL;
+        last->key_list = NULL;
+
+        Mark_Array_Deep_Core(elem, elem->dump);
     }
 }
 
+//
+//  Dump_Memory_Usage: C
+//
+// Dump detailed memory usage to a file
+//
+void Dump_Memory_Usage(const REBCHR *path)
+{
+    REBMDP dump;
+#ifdef TO_WINDOWS
+    dump.out = _wfopen(cast(const wchar_t*, path), L"w");
+#else
+    dump.out = fopen(cast(const char*, path), "w");
+#endif
+    if (dump.out == NULL) {
+        return;
+    }
+    dump.parent = NULL;
+    Dump_Mem_Comment(&dump, "Addr,parent,type,size,name");
+
+    Recycle_Core(FALSE, &dump);
+
+    fclose(dump.out);
+}
 
 //
 //  Recycle_Core: C
 // 
 // Recycle memory no longer needed.
 //
-REBCNT Recycle_Core(REBOOL shutdown)
+REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 {
     REBINT n;
     REBCNT count;
@@ -1499,13 +1866,17 @@ REBCNT Recycle_Core(REBOOL shutdown)
         assert(IS_TRASH_DEBUG(&DS_Movable_Base[0]));
         while (stackval != &DS_Movable_Base[0]) {
             if (NOT(IS_VOID_OR_SAFE_TRASH(stackval)))
-                Queue_Mark_Value_Deep(stackval);
+                Queue_Mark_Value_Deep(stackval, NULL, "<stackval>", dump);
             --stackval;
         }
-        Propagate_All_GC_Marks();
+        Propagate_All_GC_Marks(dump);
 
         REBSER **sp;
         REBVAL **vp;
+        REBINT n;
+
+        struct mem_dump_entry entry;
+
 
         // Mark symbol series.  These canon words for SYM_XXX are the only ones
         // that are never candidates for GC.  All other symbol series may
@@ -1515,14 +1886,21 @@ REBCNT Recycle_Core(REBOOL shutdown)
             assert(*canon == NULL); // SYM_0 is for all non-builtin words
             ++canon;
             for (; *canon != NULL; ++canon)
-                Mark_Series_Only(*canon);
+                Mark_Series_Only(*canon, NULL, "<symbol-canons>", dump);
         }
 
         // Mark all natives
+        entry.name = "Natives";
+        entry.edge = NULL;
+        entry.addr = Natives;
+        entry.parent = NULL;
+        entry.kind = REB_KIND_ARRAY;
+        entry.size = sizeof(Natives);
+        Dump_Mem_Entry(dump, &entry);
         {
             REBCNT n;
             for (n = 0; n < NUM_NATIVES; ++n)
-                Mark_Array_Deep(VAL_FUNC_PARAMLIST(&Natives[n]));
+                Mark_Array_Deep(VAL_FUNC_PARAMLIST(&Natives[n]), Natives, "<has>", dump);
         }
 
         // Mark series that have been temporarily protected from garbage
@@ -1532,33 +1910,49 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // should just be marked shallow.
         //
         sp = SER_HEAD(REBSER*, GC_Series_Guard);
+        entry.name = "GC_Series_Guard";
+        entry.edge = NULL;
+        entry.addr = GC_Series_Guard;
+        entry.parent = NULL;
+        entry.kind = REB_KIND_SERIES;
+        entry.size = SER_TOTAL(GC_Series_Guard);
+        Dump_Mem_Entry(dump, &entry);
+
         for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
             if (GET_SER_FLAG(*sp, ARRAY_FLAG_VARLIST))
-                Mark_Context_Deep(AS_CONTEXT(*sp));
+                Mark_Context_Deep(AS_CONTEXT(*sp), GC_Series_Guard, "<has>", dump);
             else if (Is_Array_Series(*sp))
-                Mark_Array_Deep(AS_ARRAY(*sp));
+                Mark_Array_Deep(AS_ARRAY(*sp), GC_Series_Guard, "<has>", dump);
             else
-                Mark_Series_Only(*sp);
+                Mark_Series_Only(*sp, GC_Series_Guard, "<has>", dump);
         }
 
         // Mark value stack (temp-saved values):
         vp = SER_HEAD(REBVAL*, GC_Value_Guard);
+        entry.name = "GC_Value_Guard";
+        entry.addr = GC_Value_Guard;
+        entry.parent = NULL;
+        entry.edge = NULL;
+        entry.kind = REB_KIND_SERIES;
+        entry.size = SER_TOTAL(GC_Value_Guard);
+        Dump_Mem_Entry(dump, &entry);
+
         for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
             if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
-                Queue_Mark_Value_Deep(*vp);
-            Propagate_All_GC_Marks();
+                Queue_Mark_Value_Deep(*vp, GC_Value_Guard, "<has>", dump);
+            Propagate_All_GC_Marks(dump);
         }
 
         // Mark all root series:
         //
-        Mark_Root_Series();
+        Mark_Root_Series(dump);
 
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
             assert(NOT(GET_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE)));
-            Queue_Mark_Value_Deep(&Callback_Error);
+            Queue_Mark_Value_Deep(&Callback_Error, "Callback-error", NULL, dump);
         }
-        Propagate_All_GC_Marks();
+        Propagate_All_GC_Marks(dump);
 
         // !!! This hook point is an interim measure for letting a host
         // mark REBVALs that it is holding onto which are not contained in
@@ -1568,16 +1962,18 @@ REBCNT Recycle_Core(REBOOL shutdown)
         //
         if (GC_Mark_Hook) {
             (*GC_Mark_Hook)();
-            Propagate_All_GC_Marks();
+            Propagate_All_GC_Marks(dump);
         }
 
         // Mark all devices:
-        Mark_Devices_Deep();
-        Propagate_All_GC_Marks();
+        Dump_Mem_Comment(dump, "Dumping all devices!");
+        Mark_Devices_Deep(dump);
+        Propagate_All_GC_Marks(dump);
 
         // Mark function call frames:
-        Mark_Frame_Stack_Deep();
-        Propagate_All_GC_Marks();
+        Dump_Mem_Comment(dump, "Dumping function call frames");
+        Mark_Frame_Stack_Deep(dump);
+        Propagate_All_GC_Marks(dump);
     }
 
     // SWEEPING PHASE
@@ -1647,9 +2043,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
 //
 REBCNT Recycle(void)
 {
-    printf("Recycle begins\n");
+    //printf("Recycle begins\n");
     // Default to not passing the `shutdown` flag.
-    return Recycle_Core(FALSE);
+    return Recycle_Core(FALSE, NULL);
 }
 
 
@@ -1745,7 +2141,7 @@ void Init_GC(void)
 
     // The marking queue used in lieu of recursion to ensure that deeply
     // nested structures don't cause the C stack to overflow.
-    GC_Mark_Stack = Make_Series(100, sizeof(REBARR *), MKS_NONE);
+    GC_Mark_Stack = Make_Series(100, sizeof(struct mark_stack_elem), MKS_NONE);
     TERM_SEQUENCE(GC_Mark_Stack);
 }
 

@@ -1668,7 +1668,7 @@ void Shutdown_Core(void)
     // Run Recycle, but the TRUE flag indicates we want every series
     // that is managed to be freed.  (Only unmanaged should be left.)
     //
-    Recycle_Core(TRUE);
+    Recycle_Core(TRUE, NULL);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 

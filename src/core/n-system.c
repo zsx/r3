@@ -119,13 +119,11 @@ REBNATIVE(exit_rebol)
 //
 REBNATIVE(dump_memory)
 {
-#if 0
     REBVAL *path = D_ARG(1);
     REBSER *ser;
     ser = Value_To_OS_Path(path, TRUE);
     Dump_Memory_Usage(SER_HEAD(REBCHR, ser));
     Free_Series(ser);
-#endif
     return R_OUT_VOID_IF_UNWRITTEN;
 }
 
