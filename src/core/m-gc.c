@@ -793,7 +793,7 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
             // while evaluating the group it has no anchor anywhere in the
             // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
-            continue;
+            goto next;
         }
 
         // The subfeed may be in use by VARARGS!, and it may be either a
@@ -859,6 +859,17 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
             Queue_Mark_Value_Deep(f->refine, NULL, f, "<param>", dump);
 
         Propagate_All_GC_Marks(dump);
+
+    next:
+        if (f->prior) {
+            entry.addr = f->prior;
+            entry.name = NULL;
+            entry.parent = f;
+            entry.kind = REB_KIND_CALL;
+            entry.edge = "<prior>";
+            entry.size = 0; // on the stack
+            Dump_Mem_Entry(dump, &entry);
+        }
     }
 }
 
