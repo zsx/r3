@@ -2004,15 +2004,11 @@ enum {
     //
     FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
 
-    // native hooks into DO state and does own arg eval
-    //
-    FUNC_FLAG_VARLESS = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
-
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 6)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list

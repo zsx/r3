@@ -844,7 +844,7 @@ REBOOL Make_Error_Object_Throws(
 //
 // !!! Result is managed.  See notes at end for why.
 //
-REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
+REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 {
 #if !defined(NDEBUG)
     // The legacy error mechanism expects us to have exactly three fields
@@ -1078,12 +1078,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
     vars->id = id;
     vars->type = type;
 
-    // If a varless native is running it might want us to pretend it hasn't
-    // been called yet for stack display purposes.  This happens for instance
-    // in the case where *if* it were running framed, it would be erroring on
-    // argument fulfillment.  This is conveyed by the `up_stack` flag.
-    //
-    if (up_stack ? LOGICAL(FS_TOP && FS_TOP->prior) : LOGICAL(FS_TOP)) {
+    if (FS_TOP) {
         //
         // Set backtrace, in the form of a block of label words that start
         // from the top of stack and go downward.
@@ -1093,7 +1088,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 
         // Count the number of entries that the backtrace will have
         //
-        struct Reb_Frame *frame = up_stack ? FS_TOP->prior : FS_TOP;
+        struct Reb_Frame *frame = FS_TOP;
         for (; frame != NULL; frame = frame->prior)
             ++backtrace_len;
 
@@ -1101,7 +1096,7 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 
         // Reset the call pointer and fill those entries.
         //
-        frame = up_stack ? FRM_PRIOR(FS_TOP) : FS_TOP;
+        frame = FS_TOP;
         for (; frame != NULL; frame = FRM_PRIOR(frame)) {
             //
             // Only invoked functions (not pending functions, parens, etc.)
@@ -1118,8 +1113,8 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
         // Nearby location of the error.  Reify any valist that is running,
         // so that the error has an array to present.
         //
-        frame = up_stack ? FS_TOP->prior : FS_TOP;
-        if (FRM_IS_VALIST(frame)) {
+        frame = FS_TOP;
+        if (frame && FRM_IS_VALIST(frame)) {
             const REBOOL truncated = TRUE;
             Reify_Va_To_Array_In_Frame(frame, truncated);
         }
@@ -1191,24 +1186,13 @@ REBCTX *Make_Error_Core(REBCNT code, REBOOL up_stack, va_list *vaptr)
 // to double-check that too few arguments are not given, though
 // this is not enforced (to help with callsite readability).
 //
-// If the error number is negative, this signals that it should not be seen
-// as originating from the current stack frame but rather the frame above.
-// This is useful for varless natives that are doing argument checking
-// from within their own bodies but do not want to appear in the error's
-// call stack, because if they were not varless then they wouldn't have
-// been invoked yet.
-//
-REBCTX *Error(REBINT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
+REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
     va_list va;
     REBCTX *error;
 
     va_start(va, num);
-    error = Make_Error_Core(
-        (num < 0 ? -num : num),
-        LOGICAL(num < 0),
-        &va
-    );
+    error = Make_Error_Core(num, &va);
     va_end(va);
 
     return error;
@@ -1250,7 +1234,7 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
     Val_Init_Word(&label, REB_WORD, label_sym);
 
     return Error(
-        (!FS_TOP || FS_TOP->arg ? RE_NO_ARG : -RE_NO_ARG),
+        RE_NO_ARG,
         &label,
         &key_word,
         END_VALUE
@@ -1421,7 +1405,7 @@ REBCTX *Error_Arg_Type(
 
     assert(IS_DATATYPE(arg_type));
     return Error(
-        (!FS_TOP || FS_TOP->arg ? RE_EXPECT_ARG : -RE_EXPECT_ARG),
+        RE_EXPECT_ARG,
         &label_word,
         arg_type,
         &param_word,

@@ -53,18 +53,10 @@ REBEXT Ext_List[64];
 REBCNT Ext_Next = 0;
 
 
-/***********************************************************************
-**
-**  Local functions
-**
-***********************************************************************/
-
-/***********************************************************************
-**
-x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
-/*
-***********************************************************************/
+void Value_To_RXI(RXIARG *arg, const REBVAL *val)
 {
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     switch (VAL_TYPE(val)) {
     case REB_LOGIC:
         //
@@ -150,6 +142,7 @@ x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
     case REB_OBJECT:
     case REB_MODULE:
         arg->addr = VAL_CONTEXT(val);
+        break;
 
     default:
         arg->int64 = 0;
@@ -158,12 +151,11 @@ x*/ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
     return;
 }
 
-/***********************************************************************
-**
-x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
-/*
-***********************************************************************/
+
+void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
 {
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     switch (type) {
     case RXT_TRASH:
         SET_TRASH_SAFE(val);
@@ -190,7 +182,7 @@ x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         SET_DECIMAL(val, arg->dec64);
         break;
 
-    case REB_PERCENT:
+    case RXT_PERCENT:
         SET_PERCENT(val, arg->dec64);
         break;
 
@@ -296,7 +288,7 @@ x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         goto ser;
 
     case RXT_GOB:
-        SET_GOB(val, arg->addr);
+        SET_GOB(val, cast(REBGOB*, arg->addr));
         break;
 
     case RXT_HANDLE:
@@ -310,11 +302,11 @@ x*/ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         break;
 
     case RXT_OBJECT:
-        Val_Init_Object(val, arg->addr);
+        Val_Init_Object(val, cast(REBCTX*, arg->addr));
         break;
 
     case RXT_MODULE:
-        Val_Init_Module(val, arg->addr);
+        Val_Init_Module(val, cast(REBCTX*, arg->addr));
         break;
 
     default:
@@ -328,11 +320,11 @@ ser:
     VAL_INDEX(val) = arg->sri.index;
 }
 
-/***********************************************************************
-**
-x*/ void RXI_To_Block(RXIFRM *frm, REBVAL *out) {
-/*
-***********************************************************************/
+
+void RXI_To_Block(RXIFRM *frm, REBVAL *out)
+{
+    // Note: This function is imported by %a-lib.c, keep prototype in sync
+
     REBCNT n;
     REBARR *array;
     REBVAL *val;

@@ -838,7 +838,7 @@ REBNATIVE(throw)
 
 
 //
-//  comment: native/varless [
+//  comment: native [
 //
 //  {Ignores the argument value and returns nothing (with no evaluations).}
 //
@@ -850,25 +850,10 @@ REBNATIVE(comment)
 {
     PARAM(1, value);
 
-    if (D_IS_VARLESS) {
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(value)));
+    // All the work was already done (at the cost of setting up
+    // state that would just have to be torn down).
 
-        QUOTE_NEXT_REFETCH(D_OUT, D_FRAME);
-
-        if (ANY_EVAL(D_OUT))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(value), Type_Of(D_OUT)));
-
-        SET_UNSET(D_OUT);
-        return R_OUT;
-    }
-    else {
-        // Framed!  All the work was already done (at the cost of setting up
-        // state that would just have to be torn down).  Since comment has
-        // no refinements, this should only be called in debug modes.
-
-        return R_UNSET;
-    }
+    return R_UNSET;
 }
 
 
@@ -1312,70 +1297,6 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
 
     assert((trigger == TRUE) || (trigger == FALSE));
 
-    if (D_IS_VARLESS) {
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
-
-        // First evaluate the condition into D_OUT
-        //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-        if (D_INDEXOR == THROWN_FLAG)
-            return R_OUT_IS_THROWN;
-
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(branch)));
-
-        if (IS_UNSET(D_OUT))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
-
-        if (IS_CONDITIONAL_TRUE(D_OUT) == trigger) {
-            //
-            // Matched what we're looking for (TRUE for IF, FALSE for UNLESS)
-            // DO_NEXT once to produce what would have been `ARG(branch)`
-            //
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-            if (D_INDEXOR == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-
-            // Non-blocks return as-is.
-            //
-            if (!IS_BLOCK(D_OUT))
-                return R_OUT;
-
-            // We know there is no /ONLY because varless never runs
-            // when you have refinements.  Hence always evaluate blocks.
-            //
-            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
-                //
-                // This throw might be resumable, consider a case like:
-                //
-                //     if true [exit/from :if] print "Hello"
-                //
-                // If D_INDEXOR were overwritten, then `print "Hello"` could
-                // never be resumed.  Signal check for exit first.
-                //
-                D_MODE = CALL_MODE_THROW_PENDING;
-                return R_OUT_IS_THROWN;
-            }
-
-            return R_OUT;
-        }
-
-        // Note that even when we don't *take* the branch, a varless native
-        // needs to evaluate to get what would have been `ARG(branch)`.
-        //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-        if (D_INDEXOR == THROWN_FLAG)
-            return R_OUT_IS_THROWN;
-
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-        return R_OUT;
-    }
-
-    // The framed variation uses the same logic, but is simpler.  This will
-    // run in debug or trace situations, as well as if /ONLY is used.
-    //
     if (IS_CONDITIONAL_TRUE(ARG(condition)) == trigger) {
         if (REF(only) || !IS_BLOCK(ARG(branch))) {
             *D_OUT = *ARG(branch);
@@ -1391,7 +1312,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
 
 
 //
-//  if: native/varless [
+//  if: native [
 //  
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
@@ -1407,7 +1328,7 @@ REBNATIVE(if)
 
 
 //
-//  unless: native/varless [
+//  unless: native [
 //
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
@@ -1423,7 +1344,7 @@ REBNATIVE(unless)
 
 
 //
-//  either: native/varless [
+//  either: native [
 //
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
@@ -1440,92 +1361,6 @@ REBNATIVE(either)
     PARAM(3, false_branch);
     REFINE(4, only);
 
-    REBVAL dummy; // Place to write unused result, no GC safety needed
-    VAL_INIT_WRITABLE_DEBUG(&dummy);
-
-    if (D_IS_VARLESS) {
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(condition)));
-
-        // First evaluate the condition into D_OUT
-        //
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-        if (D_INDEXOR == THROWN_FLAG)
-            return R_OUT_IS_THROWN;
-
-        if (D_INDEXOR == END_FLAG)
-            fail (Error_No_Arg(D_LABEL_SYM, PAR(true_branch)));
-
-        if (IS_UNSET(D_OUT))
-            fail (Error_Arg_Type(D_LABEL_SYM, PAR(condition), Type_Of(D_OUT)));
-
-        // If conditionally true, we want the protected D_OUT to be used for
-        // the true branch evaluation, and use `dummy` for scratch space to
-        // do the false branch into.  If false, we want D_OUT to be used for
-        // the false branch evaluation with the true branch writing into
-        // `dummy` as scratch space.
-        //
-        if (IS_CONDITIONAL_TRUE(D_OUT)) {
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-            if (D_INDEXOR == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-
-            if (D_INDEXOR == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
-
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-            if (D_INDEXOR == THROWN_FLAG) {
-                *D_OUT = dummy;
-                return R_OUT_IS_THROWN;
-            }
-        }
-        else {
-            DO_NEXT_REFETCH_MAY_THROW(&dummy, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-            if (D_INDEXOR == THROWN_FLAG) {
-                *D_OUT = dummy;
-                return R_OUT_IS_THROWN;
-            }
-
-            if (D_INDEXOR == END_FLAG)
-                fail (Error_No_Arg(D_LABEL_SYM, PAR(false_branch)));
-
-            DO_NEXT_REFETCH_MAY_THROW(D_OUT, D_FRAME, DO_FLAG_LOOKAHEAD);
-
-            if (D_INDEXOR == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-        }
-
-        // We know at this point that D_OUT contains what we want to be
-        // working with for the output, and we also know there's no /ONLY.
-        //
-        if (IS_BLOCK(D_OUT)) {
-            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) { // array = out is safe
-                //
-                // This throw might be resumable, consider a case like:
-                //
-                //     if either true [exit/from :either] [] print "Hello"
-                //
-                // If D_INDEXOR were overwritten, then `print "Hello"` could
-                // never be resumed.  Signal check for exit first.
-                //
-                D_MODE = CALL_MODE_THROW_PENDING;
-                return R_OUT_IS_THROWN;
-            }
-            return R_OUT;
-        }
-
-        // Return non-blocks as-is
-        //
-        return R_OUT;
-    }
-
-    // The framed variation uses the same logic, but is simpler.  This will
-    // run in debug or trace situations, as well as if /ONLY is used.
-    //
     if (IS_CONDITIONAL_TRUE(ARG(condition))) {
         if (REF(only) || !IS_BLOCK(ARG(true_branch))) {
             *D_OUT = *ARG(true_branch);

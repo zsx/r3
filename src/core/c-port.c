@@ -745,8 +745,7 @@ REBNATIVE(set_scheme)
                 Obj_Value(actor, n), // function,
                 VAL_FUNC_SPEC(act),
                 cast(REBNAT, map->func),
-                FUNC_CLASS_NATIVE,
-                FALSE
+                FUNC_CLASS_NATIVE
             );
         }
     }

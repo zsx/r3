@@ -712,116 +712,9 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! "VARLESS" CALL DISPATCH
+    // DEFINITIONAL RETURN EXTRACTION
     //
     //==////////////////////////////////////////////////////////////////==//
-
-        // If a native has no refinements to process, it is feasible to
-        // allow it to run "varless".  Even though the chunk stack is a
-        // very cheap abstraction, it is not zero cost...and some functions
-        // are better implemented as essentially inline hooks to the DO
-        // evaluator.
-        //
-        // All varless functions must still be able to run with args stored
-        // as vars if requested, because debug scenarios would expect those
-        // cells to be inspectable on the stack.  Hence, if there are any
-        // trace flags set we fall back upon that implementation.
-        //
-        // (EVAL/ONLY also suppresses varless abilities, because the
-        // burden of the flag would be too much to pass through.)
-        //
-        if ( // check from most likely to be false to least likely...
-            GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)
-            && DSP == f->dsp_orig
-            && !Trace_Flags
-            && f->args_evaluate // avoid EVAL/ONLY
-            && !SPORADICALLY(2) // run it framed in DEBUG 1/2 of the time
-        ) {
-            REB_R ret;
-
-            FETCH_NEXT_ONLY_MAYBE_END(f);
-
-            // A NULL arg signifies to the called function that it is being
-            // run varless.  If it had arg values, then it would be non-NULL
-            // (and be the pointer to the values in memory).
-            //
-            f->arg = NULL;
-
-            // We might wind up invoking the GC, and we need to make sure
-            // the reusable variables aren't bad data.  `value` should be
-            // good but we don't know what's in the others.
-            //
-            f->param = NULL;
-            f->refine = NULL;
-            f->cell.subfeed = NULL;
-
-            SET_TRASH_SAFE(f->out);
-
-            f->mode = CALL_MODE_FUNCTION; // !!! separate "varless" mode?
-
-            if (VAL_FUNC_CLASS(FUNC_VALUE(f->func)) == FUNC_CLASS_ACTION) {
-                //
-                // At the moment, the type checking actions run framelessly,
-                // while no other actions do.  These are things like STRING?
-                // and INTEGER?
-
-                assert(FUNC_ACT(f->func) < REB_MAX_0);
-                assert(FUNC_NUM_PARAMS(f->func) == 1);
-
-                if (f->indexor == END_FLAG)
-                    fail (Error_No_Arg(FRM_LABEL(f), FUNC_PARAM(f->func, 1)));
-
-                DO_NEXT_REFETCH_MAY_THROW(f->out, f, f->lookahead_flags);
-
-                if (f->indexor == THROWN_FLAG)
-                    ret = R_OUT_IS_THROWN;
-                else {
-                    if (VAL_TYPE_0(f->out) == FUNC_ACT(f->func))
-                        SET_TRUE(f->out);
-                    else
-                        SET_FALSE(f->out);
-                    ret = R_OUT;
-                }
-            }
-            else {
-                // Beyond the type-checking actions, only NATIVE! can be
-                // varless...
-                //
-                assert(
-                    VAL_FUNC_CLASS(FUNC_VALUE(f->func))
-                    == FUNC_CLASS_NATIVE
-                );
-                ret = (*FUNC_CODE(f->func))(f);
-            }
-
-            // If varless, use SET_UNSET(D_OUT) instead of R_UNSET, etc.
-            //
-            assert(ret == R_OUT || ret == R_OUT_IS_THROWN);
-
-            if (ret == R_OUT_IS_THROWN) {
-                assert(THROWN(f->out));
-
-                // There are actually "two kinds of throws"...one that can't
-                // be resumed (such as that which might happen during a
-                // parameter fulfillment) and one that might be resumable
-                // (like a throw during a DO_ARRAY of a fulfilled parameter).
-                // A varless native must make this distinction to line up
-                // with the distinction from normal evaluation.
-                //
-                if (f->mode == CALL_MODE_THROW_PENDING) {
-                    assert(f->indexor != THROWN_FLAG);
-                    goto handle_possible_exit_thrown;
-                }
-
-                assert(f->indexor == THROWN_FLAG);
-                NOTE_THROWING(goto return_indexor);
-            }
-
-            f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
-
-            // We're done!
-            break;
-        }
 
         // At this point `f->value` is still good because we have not
         // advanced the input.  We extract the special exit_from property
@@ -831,6 +724,7 @@ reevaluate:
             f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
             goto do_definitional_exit_from;
         }
+
         if (f->func == PG_Return_Func)
             f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
         else
@@ -1619,7 +1513,6 @@ reevaluate:
         // control in debug situations (and perhaps some non-debug capabilities
         // will be discovered as well).
         //
-    handle_possible_exit_thrown:
         if (
             f->mode == CALL_MODE_THROW_PENDING
             && GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)

@@ -822,15 +822,7 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_VARLESS)) {
-            //
-            // Optimized native: it didn't need a variable-sized chunk
-            // allocated for its args and locals because it was able to do
-            // its work just processing the block input directly.  So nothing
-            // in `f->frame` to GC protect.
-            //
-        }
-        else if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
             //
             // Though a Reb_Frame starts off with just a chunk of memory, it
             // may be promoted to a context (backed by a data pointer of
@@ -858,7 +850,7 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         }
 
         // `param`, and `refine` may both be NULL
-        // (`arg` is a cache of the head of the arglist or NULL if varless)
+        // (`arg` is a cache of the head of the arglist)
 
         if (f->param && Is_Value_Managed(f->param, FALSE))
             Queue_Mark_Value_Deep(f->param, NULL, f, "<param>", dump);
