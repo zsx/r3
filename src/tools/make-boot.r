@@ -532,21 +532,35 @@ emit {
 new-types: []
 n: 0
 for-each-record-NO-RETURN type boot-types [
-    append new-types to-word join type/name "!"
+    ;
+    ; make legal C identifier, e.g. lit-word => LIT_WORD
+    ;
+    str: replace/all (uppercase form type/name) #"-" #"_"
 
-    if n = 0 [
-        ; Do not check for VAL_TYPE() == REB_TRASH.  Trying to get the type of
-        ; something that is trash should cause an assert...hence
-        ; IS_TRASH_DEBUG() is a macro that does not go through VAL_TYPE()
-        ;
-        n: n + 1
-        continue
+    ; Emit the IS_INTEGER() / etc. tests for the datatype.  Include IS_UNSET()
+    ; because REB_UNSET is a bit pattern of 0 that is reserved internally and
+    ; kept in value slots when they are considered "unoccupied".  They cannot
+    ; be put in an ANY-ARRAY!, but may be appear transiently during an
+    ; evaluation or serve as a marking in a slot for an ANY-CONTEXT! when a
+    ; field named in that context's spec is present for binding but not
+    ; currently "set".
+    ;
+    ; Use LOGICAL() so that `REBOOL b = IS_INTEGER(value);` passes type
+    ; verification tests in the build (`a == b` is an integer in C, not bool)
+    ;
+    emit [
+        {#define IS_} str "(v)" space
+        "LOGICAL(VAL_TYPE(v)==REB_" str ")"
+        newline
     ]
 
-    str: uppercase form type/name
-    replace/all str #"-" #"_"
-    def: join {#define IS_} [str "(v)" space]
-    emit [def "LOGICAL(VAL_TYPE(v)==REB_" str ")" newline]
+    ; Although there is a REB_UNSET and an IS_UNSET() test used internally,
+    ; there is no "UNSET!" datatype.  So only add the type word to the list
+    ; if not 0.
+    ;
+    if n != 0 [
+        append new-types to-word join type/name "!"
+    ]
 
     n: n + 1
 ]
@@ -562,7 +576,7 @@ emit {
     LOGICAL(VAL_TYPE(v) == REB_UNSET)
 
 #define IS_SET(v) \
-    LOGICAL(VAL_TYPE(v) > REB_UNSET)
+    LOGICAL(VAL_TYPE(v) != REB_UNSET)
 
 #define IS_ANY_VALUE(v) \
     LOGICAL(VAL_TYPE(v) != REB_UNSET)
@@ -624,11 +638,11 @@ emit {
     (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
-// UNSET! or NONE!.  TRASH! is a purely internal type, but is removed anyway.
+// UNSET! or NONE!.
 //
 #define TS_SOMETHING \
     ((FLAGIT_KIND(REB_MAX) - 1) /* all typeset bits */ \
-    - TS_NOTHING - FLAGIT_KIND(REB_TRASH))
+    - TS_NOTHING)
 
 // ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
 // count UNSET! (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
@@ -744,7 +758,7 @@ emit {
 n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
-        emit-line "" "REB_TRASH" n
+        emit-line "" "REB_UNSET" n
     ]
     n: n + 1
 ]
@@ -862,9 +876,17 @@ emit {
     SYM_0 = 0,
 }
 
-n: 1
+n: 0
 for-each-record-NO-RETURN type boot-types [
-    emit-line "SYM_" join type/name "_type" n
+    ;
+    ; We don't emit a SYM_UNSET because there is no unset type.  Conveniently,
+    ; this goes along with the idea that SYM_0 as 0 is an illegal and "null"
+    ; symbol (cannot be turned into a string)
+    ;
+    if n != 0 [
+        emit-line "SYM_" join type/name "_type" n
+    ]
+
     n: n + 1
 ]
 

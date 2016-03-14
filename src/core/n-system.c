@@ -51,7 +51,7 @@ REBNATIVE(halt)
 //  {Stop evaluating and return control to command shell or calling script.}
 //  
 //      /with {Yield a result (mapped to an integer if given to shell)}
-//      value [opt-any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
+//      value [<opt> any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
 //      /return "(deprecated synonym for /WITH)"
 //      return-value
 //  ]
@@ -89,7 +89,7 @@ REBNATIVE(quit)
 //  {Stop the current Rebol interpreter.}
 //  
 //      /with {Yield a result (mapped to an integer if given to shell)}
-//      value [opt-any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
+//      value [<opt> any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
 //  ]
 //
 REBNATIVE(exit_rebol)
@@ -342,7 +342,7 @@ REBNATIVE(limit_usage)
 //
 //  "Run an integrity check on a value in debug builds of the interpreter"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          {System will terminate abnormally if this value is corrupt.}
 //  ]
 //

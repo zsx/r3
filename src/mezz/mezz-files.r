@@ -108,7 +108,7 @@ confirm: func [
 
 list-dir: func [
     "Print contents of a directory (ls)."
-    'path [file! word! path! string! unset!]
+    'path [<opt> file! word! path! string!]
         "Accepts %file, :variables, and just words (as dirs)"
     /l "Line of info format"
     /f "Files only"
@@ -124,13 +124,13 @@ list-dir: func [
         fail ["No directory listing protocol registered for" save-dir]
     ]
 
-    ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-    switch to-word type-of :path [
-        unset! [] ; Stay here
-        file! [change-dir path]
-        string! [change-dir to-rebol-file path]
-        word! path! [change-dir to-file path]
+    switch type-of :path [
+        _ [] ; Stay here
+        :file! [change-dir path]
+        :string! [change-dir to-rebol-file path]
+        :word! :path! [change-dir to-file path]
     ]
+
     if r [l: true]
     unless l [l: make string! 62] ; approx width
     indent: any [:indent ""]

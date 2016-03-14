@@ -18,7 +18,6 @@ REBOL [
 any-nothing! ;-- signal typesets start (SYM_ANY_NOTHING_X hardcoded reference)
 any-something!
 any-value!
-opt-any-value! ;-- temporary until <opt> or #opt or similar are settled
 any-word!
 any-path!
 any-number!

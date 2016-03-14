@@ -52,10 +52,15 @@ REBOOL Reduce_Array_Throws(
     REBIXO indexor = index;
 
     // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
-    // between DOing an array that literally contains an UNSET! and an empty
-    // array, because both give back an unset value and an end position.
-    // We'd like REDUCE to treat `reduce []` and `reduce [#[unset!]]` in
-    // a different way, so must do a special check to handle the former.
+    // between DOing an array that evaluates to void and an empty
+    // array, because both give back an unset value and an end position.  But
+    // we want:
+    //
+    //     reduce [] => []
+    //     reduce [()] => error
+    //
+    // So must do a special check to handle the former.  This could be changed
+    // to use the lower level DO API, however.
     //
     if (IS_END(ARR_AT(array, index))) {
         if (into)
@@ -75,6 +80,16 @@ REBOOL Reduce_Array_Throws(
             *out = reduced;
             DS_DROP_TO(dsp_orig);
             return TRUE;
+        }
+
+        if (IS_UNSET(&reduced)) {
+            //
+            // !!! Review if there should be a form of reduce which allows
+            // void expressions.  The general feeling is that it shouldn't
+            // be allowed by default, since N expressions would not make N
+            // results...and reduce is often used for positional purposes.
+            //
+            fail (Error(RE_REDUCE_MADE_VOID));
         }
 
         DS_PUSH(&reduced);

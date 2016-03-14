@@ -415,7 +415,7 @@ REBNATIVE(context_of)
 //  
 //  "Returns whether a data cell contains a value."
 //  
-//      cell [opt-any-value!]
+//      cell [<opt> any-value!]
 //  ]
 //
 REBNATIVE(any_value_q)
@@ -603,7 +603,7 @@ REBNATIVE(get)
 //  
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(to_value)
@@ -623,7 +623,7 @@ REBNATIVE(to_value)
 //  
 //  {NONEs become unset, all other value types pass through. (See: TO-VALUE)}
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(opt)
@@ -835,7 +835,7 @@ REBNATIVE(resolve)
 //  
 //      target [any-word! any-path! block! any-context!]
 //          {Word, block of words, path, or object to be set (modified)}
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          "Value or block of values"
 //      /opt
 //          "Value is optional, and if no value is provided unset the target"
@@ -1085,13 +1085,18 @@ return_value_arg:
 //  
 //  "Returns the datatype of a value."
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(type_of)
 {
-    enum Reb_Kind type = VAL_TYPE(D_ARG(1));
-    Val_Init_Datatype(D_OUT, type);
+    PARAM(1, value);
+
+    enum Reb_Kind kind = VAL_TYPE(ARG(value));
+    if (kind == REB_UNSET)
+        return R_NONE;
+
+    Val_Init_Datatype(D_OUT, kind);
     return R_OUT;
 }
 
@@ -1211,9 +1216,9 @@ REBNATIVE(set_q)
 //
 //  true?: native/body [
 //
-//  "Returns true if a value can be used as true (errors on UNSET!)."
+//  "Returns true if a value can be used as true."
 //
-//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail
+//      value [any-value!] ; Note: No [<opt> any-value!] - void must fail
 //  ][
 //      not not :val
 //  ]
@@ -1231,7 +1236,7 @@ REBNATIVE(true_q)
 //
 //  "Returns false if a value is either LOGIC! false or a NONE!."
 //
-//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail.
+//      value [any-value!] ; Note: No [<opt> any-value!] - void must fail.
 //  ][
 //      either any [
 //          none? :value
@@ -1256,7 +1261,7 @@ REBNATIVE(false_q)
 //
 //  "Returns the value passed to it without evaluation."
 //
-//      :value [opt-any-value!]
+//      :value [<opt> any-value!]
 //  ][
 //      :value
 //  ]
@@ -1271,14 +1276,49 @@ REBNATIVE(quote)
 
 
 //
+//  void?: native/body [
+//
+//  "Tells you if the argument is not a value (e.g. `void? do []` is TRUE)"
+//
+//      value [<opt> any-value!]
+//  ][
+//      none? type-of :value
+//  ]
+//
+REBNATIVE(void_q)
+{
+    PARAM(1, value);
+
+    return IS_UNSET(ARG(value)) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  void: native/body [
+//
+//  "Generates a void value (alternative to `()` or `do []`)"
+//
+//  ][
+//  ]
+//
+REBNATIVE(void)
+//
+// !!! This may or may not be necessary--not everyone has liked `return ()`,
+// so `return void` may be preferable.
+{
+    return R_VOID;
+}
+
+
+//
 //  nothing?: native/body [
 //
 //  "Returns whether a value is either a NONE! or UNSET!"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ][
 //      any [
-//          unset? :value
+//          void? :value
 //          none? :value
 //      ]
 //  ]
@@ -1296,7 +1336,7 @@ REBNATIVE(nothing_q)
 //
 //  "Returns whether a value something besides a NONE! or UNSET!"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ][
 //      all [
 //          any-value? :value
@@ -1320,7 +1360,7 @@ REBNATIVE(something_q)
 //
 //  "Temporary debug dump"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(dump)

@@ -53,7 +53,6 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 
 #ifdef TRACK_EMPTY_PAYLOADS
     switch (value->header.bits & HEADER_TYPE_MASK) {
-    case REB_TRASH:
     case REB_UNSET:
     case REB_NONE:
     case REB_LOGIC:
@@ -112,7 +111,8 @@ void Assert_Cell_Writable(const REBVAL *v, const char *file, int line)
     assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
 
     if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
-        Debug_Fmt("Non-writable value found at %s:%d", file, line);
+        printf("Non-writable value found at %s:%d", file, line);
+        fflush(stdout);
         Panic_Value(v);
     }
 */
@@ -123,22 +123,22 @@ void Assert_Cell_Writable(const REBVAL *v, const char *file, int line)
 //  IS_END_Debug: C
 //
 // The debug build puts REB_MAX in the type slot of a REB_END, to help to
-// distinguish it from the 0 that signifies REB_TRASH.  This means that
+// distinguish it from the 0 that signifies an unset TRASH.  This means that
 // any writable value can be checked to ensure it is an actual END marker
 // and not "uninitialized".  This trick can only be used so long as REB_MAX
 // is 63 or smaller (ensured by an assertion at startup ATM.
 //
 // Note: a non-writable value (e.g. a pointer) could have any bit pattern in
 // the type slot.  So only check if it's a Rebol-initialized value slot...
-// and then, tolerate "GC safe trash" (an unset in release)
+// and then, tolerate "GC safe trash" (ordinary unset in release)
 //
 REBOOL IS_END_Debug(const REBVAL *v) {
     if (
         ((v)->header.bits & WRITABLE_MASK_DEBUG)
-        && ((v)->header.bits & HEADER_TYPE_MASK) == REB_TRASH
-        && NOT(GET_VAL_FLAG((v), TRASH_FLAG_SAFE))
+        && IS_TRASH_DEBUG(v)
+        && NOT(GET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH))
     ) {
-        Debug_Fmt("IS_END() called on value marked as uninitialized (TRASH!)");
+        Debug_Fmt("IS_END() called on value marked as a TRASH unset");
         Panic_Value(v);
     }
 

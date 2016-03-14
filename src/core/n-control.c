@@ -255,8 +255,8 @@ return_value_arg:
 //  
 //  {Returns the first value, but also evaluates the second.}
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(also)
@@ -396,7 +396,7 @@ REBNATIVE(attempt)
 //  
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(break)
@@ -791,7 +791,7 @@ was_caught:
 //  
 //  "Throws control back to a previous catch."
 //  
-//      value [opt-any-value!] "Value returned from catch"
+//      value [<opt> any-value!] "Value returned from catch"
 //      /name "Throws to a named catch"
 //      name-value [word! function! object!]
 //  ]
@@ -865,7 +865,7 @@ REBNATIVE(comment)
 //  
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(continue)
@@ -892,7 +892,7 @@ REBNATIVE(continue)
 //  
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
-//      source [unset! none! block! group! string! binary! url! file! tag!
+//      source [<opt> none! block! group! string! binary! url! file! tag!
 //      error! function!]
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
@@ -1039,13 +1039,13 @@ REBNATIVE(do)
 //  
 //  {(Special) Process received value *inline* as the evaluator loop would.}
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
-//      args [opt-any-value! |]
+//      args [<opt> any-value! |]
 //          {Variable number of args required as evaluation's parameters}
 //      /only
 //          {Suppress evaluation on any ensuing arguments value consumes}
-//      :quoted [opt-any-value! |]
+//      :quoted [<opt> any-value! |]
 //          {Variadic feed used to acquire quoted arguments (if needed)}
 //  ]
 //
@@ -1088,7 +1088,7 @@ REBNATIVE(variadic_q)
 //  
 //      /with
 //          "Result for enclosing state (default is UNSET!)"
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
 //      level [frame! function! integer!]
@@ -1318,7 +1318,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
 //      condition
-//      branch [opt-any-value!]
+//      branch [<opt> any-value!]
 //      /only "Return block branches literally instead of evaluating them."
 //  ]
 //
@@ -1334,7 +1334,7 @@ REBNATIVE(if)
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
 //      condition
-//      branch [opt-any-value!]
+//      branch [<opt> any-value!]
 //      /only "Return block branches literally instead of evaluating them."
 //  ]
 //
@@ -1350,8 +1350,8 @@ REBNATIVE(unless)
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
 //      condition
-//      true-branch [opt-any-value!]
-//      false-branch [opt-any-value!]
+//      true-branch [<opt> any-value!]
+//      false-branch [<opt> any-value!]
 //      /only "Return block arg instead of evaluating it."
 //  ]
 //
@@ -1434,7 +1434,7 @@ REBNATIVE(unprotect)
 //  
 //  "Returns a value from a function."
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(return)

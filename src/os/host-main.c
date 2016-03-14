@@ -220,7 +220,7 @@ REBCNT HG_Stack_Level = 1;
 //
 const REBYTE N_debug_spec[] =
     " {Dialect for interactive debugging, see documentation for details}"
-    " 'value [unset! integer! frame! function! block!]"
+    " 'value [_ integer! frame! function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
 REB_R N_debug(struct Reb_Frame *frame_) {

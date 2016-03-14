@@ -129,6 +129,22 @@ static void Push_Array_Marked_Deep(REBARR *array);
 static void Mark_Series_Only_Debug(REBSER *ser);
 #endif
 
+
+// The debug build has a concept of "safe trash" which is really just an
+// unset that is meant to be overwritten before it is ever read.  Only the
+// GC is willing to tolerate them, but they will trigger an alarm if any
+// other code sees them (error during VAL_TYPE or IS_XXX)
+//
+#ifdef NDEBUG
+    #define IS_UNSET_OR_SAFE_TRASH(v) \
+        IS_UNSET(v)
+#else
+    #define IS_UNSET_OR_SAFE_TRASH(v) \
+        ((IS_TRASH_DEBUG(v) && GET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH)) \
+        || IS_UNSET(v))
+#endif
+
+
 //
 //  Push_Array_Marked_Deep: C
 // 
@@ -583,7 +599,7 @@ static void Mark_Frame_Stack_Deep(void)
             QUEUE_MARK_ARRAY_DEEP(f->source.array);
         }
 
-        if (f->value && Is_Value_Managed(f->value, FALSE))
+        if (f->value && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
@@ -612,7 +628,8 @@ static void Mark_Frame_Stack_Deep(void)
 
         QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
 
-        Queue_Mark_Value_Deep(f->out); // never NULL
+        if (!IS_UNSET_OR_SAFE_TRASH(f->out))
+            Queue_Mark_Value_Deep(f->out); // never NULL
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
@@ -654,11 +671,22 @@ static void Mark_Frame_Stack_Deep(void)
         // `param`, and `refine` may both be NULL
         // (`arg` is a cache of the head of the arglist)
 
-        if (f->param && Is_Value_Managed(f->param, FALSE))
+        if (
+            f->param
+            && !IS_END(f->param) // can be end
+            && !IS_UNSET_OR_SAFE_TRASH(f->param)
+            && Is_Value_Managed(f->param)
+        ) {
             Queue_Mark_Value_Deep(f->param);
+        }
 
-        if (f->refine && Is_Value_Managed(f->refine, FALSE))
+        if (
+            f->refine
+            && !IS_UNSET_OR_SAFE_TRASH(f->refine)
+            && Is_Value_Managed(f->refine)
+        ) {
             Queue_Mark_Value_Deep(f->refine);
+        }
 
         Propagate_All_GC_Marks();
     }
@@ -681,26 +709,13 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
     //
     assert(!THROWN(val));
 
-#if !defined(NDEBUG)
-    if (IS_TRASH_DEBUG(val)) {
-        // We allow *safe* trash values to be on the stack at the time
-        // of a garbage collection.  These will be UNSET! in the debug
-        // builds and they would not interfere with GC (they only exist
-        // so that at the end of a process you can confirm that if an
-        // UNSET! is in the slot, it was written there purposefully)
-
-        if (GET_VAL_FLAG(val, TRASH_FLAG_SAFE))
-            return;
-
-        // Otherwise would be uninitialized in a release build!
-        Debug_Fmt("TRASH! (uninitialized) found by Queue_Mark_Value_Deep");
-        assert(FALSE);
-    }
-#endif
-
     switch (VAL_TYPE(val)) {
         case REB_UNSET:
-            break;
+            //
+            // Critical error; the only array that can handle unsets are the
+            // varlists of contexts, and they must do so before getting here.
+            //
+            panic (Error(RE_MISC));
 
         case REB_TYPESET:
             // As long as typeset is encoded as 64 bits, there's no issue
@@ -949,9 +964,8 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             Queue_Mark_Event_Deep(val);
             break;
 
-        default: {
+        default:
             panic (Error_Invalid_Datatype(VAL_TYPE(val)));
-        }
     }
 }
 
@@ -1011,11 +1025,20 @@ static void Mark_Array_Deep_Core(REBARR *array)
 
     value = ARR_HEAD(array);
     for (; NOT_END(value); value++) {
-    #if !defined(NDEBUG)
-        if (IS_TRASH_DEBUG(value) && !GET_VAL_FLAG(value, TRASH_FLAG_SAFE))
-            Panic_Array(array);
-    #endif
-        Queue_Mark_Value_Deep(value);
+        if (IS_UNSET_OR_SAFE_TRASH(value)) {
+            //
+            // Unsets are illegal in most arrays, but the varlist of a context
+            // uses unset values to denote that the variable is not set.
+            //
+            // They are also legal in the data stack.
+            //
+            assert(
+                array == DS_Array
+                || GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST)
+            );
+        }
+        else
+            Queue_Mark_Value_Deep(value);
     }
 }
 
@@ -1326,8 +1349,12 @@ REBCNT Recycle_Core(REBOOL shutdown)
                     cast(REBYTE*, chunk_value)
                     < cast(REBYTE*, chunk) + chunk->size.bits
                 ) {
-                    if (NOT_END(chunk_value))
+                    if (
+                        NOT_END(chunk_value)
+                        && !IS_UNSET_OR_SAFE_TRASH(chunk_value)
+                    ) {
                         Queue_Mark_Value_Deep(chunk_value);
+                    }
                     chunk_value++;
                 }
                 chunk = chunk->prev;
@@ -1340,7 +1367,8 @@ REBCNT Recycle_Core(REBOOL shutdown)
         MARK_CONTEXT_DEEP(TG_Task_Context);
 
         // Mark potential error object from callback!
-        Queue_Mark_Value_Deep(&Callback_Error);
+        if (!IS_UNSET_OR_SAFE_TRASH(&Callback_Error))
+            Queue_Mark_Value_Deep(&Callback_Error);
         Propagate_All_GC_Marks();
 
         // !!! This hook point is an interim measure for letting a host

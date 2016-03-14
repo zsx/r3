@@ -137,7 +137,7 @@ repend: func [
     "Appends a reduced value to a series and returns the series head."
     series [any-series! port! map! gob! object! bitset!]
         {Series at point to insert (modified)}
-    value [opt-any-value!] {The value to insert}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Inserts a series as a series}
@@ -153,8 +153,8 @@ repend: func [
 
 join: func [
     "Concatenates values."
-    value "Base value" [opt-any-value!]
-    rest "Value or block of values" [opt-any-value!]
+    value "Base value" [<opt> any-value!]
+    rest "Value or block of values" [<opt> any-value!]
 ][
     either any-value? :value [
         value: either any-series? :value [copy value] [form :value]

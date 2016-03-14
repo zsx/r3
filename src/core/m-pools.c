@@ -1653,27 +1653,9 @@ void Manage_Series(REBSER *series)
 // with either managed or unmanaged value states for variables w/o needing
 // this test to know which it has.)
 //
-REBOOL Is_Value_Managed(const REBVAL *value, REBOOL thrown_or_end_ok)
+REBOOL Is_Value_Managed(const REBVAL *value)
 {
-#if !defined(NDEBUG)
-    //
-    // !thrown_or_end_ok might as well be the "called from GC setting", and it
-    // might need to be reframed that way.  Because the GC is willing to
-    // consider safe trash to be managed but can't tolerate unsafe trash.
-    //
-    if (!thrown_or_end_ok) {
-        if (IS_TRASH_DEBUG(value)) {
-            assert(GET_VAL_FLAG(value, TRASH_FLAG_SAFE));
-            return TRUE;
-        }
-    }
-#endif
-
-    if (IS_END(value))
-        return thrown_or_end_ok;
-
-    if (THROWN(value))
-        return thrown_or_end_ok;
+    assert(!THROWN(value));
 
     if (ANY_CONTEXT(value)) {
         REBCTX *context = VAL_CONTEXT(value);

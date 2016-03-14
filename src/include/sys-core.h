@@ -285,6 +285,10 @@ enum {
 
 #define TS_GC (~TS_NO_GC)
 
+#define Type_Of(value) \
+    Get_Type(VAL_TYPE(value))
+
+
 // Garbage collection marker function (GC Hook)
 typedef void (*REBMRK)(void);
 

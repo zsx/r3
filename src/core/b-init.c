@@ -327,10 +327,13 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARR_HEAD(boot)));
 
-    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0)
+    // There should be a datatype word for every REB_XXX type except REB_UNSET
+    //
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0 - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
-    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
-        panic (Error(RE_BAD_TRASH_TYPE));
+
+    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_NONE_TYPE)
+        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
     // Create low-level string pointers (used by RS_ constants):
     {
@@ -346,10 +349,10 @@ static void Load_Boot(void)
         }
     }
 
-    if (COMPARE_BYTES(cb_cast("trash!"), Get_Sym_Name(SYM_TRASH_TYPE)) != 0)
-        panic (Error(RE_BAD_TRASH_CANON));
+    if (COMPARE_BYTES(cb_cast("none!"), Get_Sym_Name(SYM_NONE_TYPE)) != 0)
+        panic (Error(RE_BAD_BOOT_STRING));
     if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
-        panic (Error(RE_BAD_TRUE_CANON));
+        panic (Error(RE_BAD_BOOT_STRING));
     if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
 }
@@ -367,12 +370,26 @@ static void Init_Datatypes(void)
     REBVAL *value;
     REBINT n;
 
-    for (n = 0; NOT_END(word); word++, n++) {
+    for (n = 1; NOT_END(word); word++, n++) {
         assert(n < REB_MAX_0);
-        value = Append_Context(Lib_Context, word, 0);
+        value = Append_Context(Lib_Context, word, SYM_0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = KIND_FROM_0(n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n));
+
+        // !!! The system depends on these definitions, as they are used by
+        // Get_Type and Type_Of.  Although it is convenient to be able to
+        // get a REBVAL of a type and not have to worry about its lifetime
+        // management or stack-allocate the value and fill it, that's
+        // probably not a frequent enough need to justify putting it in
+        // a public slot and either leave it mutable (dangerous) or lock it
+        // (inflexible).  Better to create a new type value each time.
+        //
+        // (Another possibility would be to use the "datatypes catalog",
+        // which appears to copy this subset out from the Lib_Context.)
+
+        assert(value == Get_Type(KIND_FROM_0(n)));
+        SET_VAL_FLAG(CTX_KEY(Lib_Context, 1), TYPESET_FLAG_LOCKED);
     }
 }
 
@@ -413,6 +430,40 @@ static void Init_Constants(void)
 
 
 //
+//  Turn_Typespec_Opts_Into_Nones: C
+//
+// In function specs, `[x [<opt> integer!]]` is a notational nicety for
+// indicating that a parameter is optional.  The TAG! "keyword" is not known
+// to MAKE FUNCTION!, it uses a NONE! literal to indicate it.  The generators
+// transform it for convenience.  This is used by NATIVE, ACTION, and COMMAND
+// while FUNC and PROC have their own larger amount of work done in spec
+// processing (for returns, etc.)
+//
+// !!! Note that this modifies the specs directly, so no copy is being made
+// (it's mutating the arg to NATIVE, ACTION, etc.)
+//
+void Turn_Typespec_Opts_Into_Nones(REBARR *spec)
+{
+    REBVAL *item = ARR_HEAD(spec);
+    for (; NOT_END(item); ++item) {
+        if (IS_BLOCK(item)) {
+            REBVAL *subitem = VAL_ARRAY_AT(item);
+            for (; NOT_END(subitem); ++subitem) {
+                if (
+                    IS_TAG(subitem)
+                    && 0 == Compare_String_Vals(
+                        subitem, ROOT_OPT_TAG, TRUE
+                    )
+                ) {
+                    SET_NONE(subitem);
+                }
+            }
+        }
+    }
+}
+
+
+//
 //  native: native [
 //
 //  {Creates native function (for internal usage only).}
@@ -438,12 +489,20 @@ REBNATIVE(native)
     REFINE(2, body);
     PARAM(3, code);
 
+    REBVAL *spec = ARG(spec);
+
     if (
         (Native_Limit != 0 || !*Native_Functions)
         && (Native_Count >= Native_Limit)
     ) {
         fail (Error(RE_MAX_NATIVES));
     }
+
+    assert(VAL_INDEX(spec) == 0); // must be at head as we don't copy
+
+    // spec scanner doesn't know <opt>, just _
+    //
+    Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
 
     Make_Native(
         D_OUT,
@@ -473,7 +532,7 @@ REBNATIVE(action)
 //
 // If /TYPECHECK is used then you can get a fast checker for a datatype:
 //
-//     string?: action/typecheck [value [opt-any-value!]] string!
+//     string?: action/typecheck [value [<opt> any-value!]] string!
 //
 // Because words are not bound to the datatypes at the time of action building
 // it accepts integer numbers for bootstrapping.
@@ -481,6 +540,8 @@ REBNATIVE(action)
     PARAM(1, spec);
     REFINE(2, typecheck);
     PARAM(3, type);
+
+    REBVAL *spec = ARG(spec);
 
     if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
 
@@ -503,6 +564,12 @@ REBNATIVE(action)
             fail (Error(RE_MISC));
         }
     }
+
+    assert(VAL_INDEX(spec) == 0); // must be at head as we don't copy
+
+    // spec scanner doesn't know <opt>, just _
+    //
+    Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
 
     Make_Native(
         D_OUT,
@@ -945,12 +1012,13 @@ static void Init_System_Object(void)
     //
     Val_Init_Object(ROOT_SYSTEM, system);
 
-    // Create system/datatypes block
+    // Create system/datatypes block.  Start at 1 (REB_NONE), given that 0
+    // is REB_UNSET and does not correspond to a value type.
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
     Extend_Series(ARR_SERIES(array), REB_MAX_0 - 1);
-    for (n = 1; n <= REB_MAX_0; n++) {
+    for (n = 1; n < REB_MAX_0; n++) {
         Append_Value(array, CTX_VAR(Lib_Context, n));
     }
 
@@ -1397,6 +1465,7 @@ void Init_Core(REBARGS *rargs)
     //
     const REBYTE no_return[] = "no-return";
     const REBYTE ellipsis[] = "...";
+    const REBYTE opt[] = "opt";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
@@ -1511,31 +1580,6 @@ void Init_Core(REBARGS *rargs)
     Init_Typesets();        // Create standard typesets
     Init_Constants();       // Constant values
 
-    // Run actual code:
-    DOUT("Level 4");
-    Init_Natives();         // Built-in native functions
-    Init_Ops();             // Built-in operators
-    Init_System_Object();
-    Init_Contexts_Object();
-    Init_Main_Args(rargs);
-    Init_Ports();
-    Init_Codecs();
-    Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
-
-    VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
-    SET_UNSET(&Callback_Error);
-
-    PG_Boot_Phase = BOOT_ERRORS;
-
-#if defined(TEST_MID_BOOT_PANIC)
-    // At this point panics should be able to present the full message.
-    panic (Error(RE_NO_VALUE, NONE_VALUE));
-#elif defined(TEST_MID_BOOT_FAIL)
-    // With no PUSH_TRAP yet, fail should give a localized assert in a debug
-    // build but act like panic does in a release build.
-    fail (Error(RE_NO_VALUE, NONE_VALUE));
-#endif
-
     // Although the goal is for the core not to depend on any specific
     // "keywords", there are some native-optimized generators that are not
     // conceptually "part of the core".  Hence, they rely on some keywords,
@@ -1562,6 +1606,13 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
+        ROOT_OPT_TAG,
+        Append_UTF8_May_Fail(NULL, opt, LEN_BYTES(ellipsis))
+    );
+    SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_LOCKED);
+
+    Val_Init_Tag(
         ROOT_INFIX_TAG,
         Append_UTF8_May_Fail(NULL, infix, LEN_BYTES(infix))
     );
@@ -1581,6 +1632,31 @@ void Init_Core(REBARGS *rargs)
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_LOCKED);
+
+    // Run actual code:
+    DOUT("Level 4");
+    Init_Natives();         // Built-in native functions
+    Init_Ops();             // Built-in operators
+    Init_System_Object();
+    Init_Contexts_Object();
+    Init_Main_Args(rargs);
+    Init_Ports();
+    Init_Codecs();
+    Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
+
+    VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
+    SET_UNSET(&Callback_Error);
+
+    PG_Boot_Phase = BOOT_ERRORS;
+
+#if defined(TEST_MID_BOOT_PANIC)
+    // At this point panics should be able to present the full message.
+    panic (Error(RE_NO_VALUE, NONE_VALUE));
+#elif defined(TEST_MID_BOOT_FAIL)
+    // With no PUSH_TRAP yet, fail should give a localized assert in a debug
+    // build but act like panic does in a release build.
+    fail (Error(RE_NO_VALUE, NONE_VALUE));
+#endif
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));

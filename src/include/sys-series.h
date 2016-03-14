@@ -678,7 +678,7 @@ struct Reb_Series {
         } while (0)
 
     #define ASSERT_VALUE_MANAGED(v) \
-        assert(Is_Value_Managed((v), TRUE))
+        assert(Is_Value_Managed(v))
 #endif
 
 

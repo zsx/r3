@@ -31,9 +31,9 @@
 #include "sys-core.h"
 
 //
-//  CT_None: C
+//  CT_Unit: C
 //
-REBINT CT_None(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Unit(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE(a) == VAL_TYPE(b));
     return -1;
@@ -41,9 +41,9 @@ REBINT CT_None(const REBVAL *a, const REBVAL *b, REBINT mode)
 
 
 //
-//  MT_None: C
+//  MT_Unit: C
 //
-REBOOL MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Unit(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     VAL_RESET_HEADER(out, type);
     return TRUE;
@@ -52,25 +52,23 @@ REBOOL MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
 //
 //  REBTYPE: C
-// 
-// ALSO used for unset!
 //
-REBTYPE(None)
+REBTYPE(Unit)
 {
     REBVAL *val = D_ARG(1);
 
+    if (action == A_MAKE || action == A_TO) {
+        assert(IS_DATATYPE(val) && VAL_TYPE_KIND(val) != REB_UNSET);
+        if (!MT_Unit(D_OUT, NULL, VAL_TYPE_KIND(val)))
+            assert(FALSE);
+        return R_OUT;
+    }
+
+    assert(!IS_VOID(val));
+
     switch (action) {
-
-    case A_MAKE:
-    case A_TO:
-        if (IS_DATATYPE(val))
-            return VAL_TYPE_KIND(val) == REB_NONE ? R_NONE : R_VOID;
-        else
-            return IS_NONE(val) ? R_NONE : R_VOID;
-
     case A_TAIL_Q:
-        if (IS_NONE(val)) return R_TRUE;
-        goto trap_it;
+        return R_TRUE;
 
     case A_INDEX_OF:
     case A_LENGTH:
@@ -79,11 +77,11 @@ REBTYPE(None)
     case A_REMOVE:
     case A_CLEAR:
     case A_TAKE:
-        if (IS_NONE(val)) return R_NONE;
+        return R_NONE;
+
     default:
-    trap_it:
-        fail (Error_Illegal_Action(VAL_TYPE(val), action));
+        break;
     }
 
-    return R_OUT;
+    fail (Error_Illegal_Action(VAL_TYPE(val), action));
 }

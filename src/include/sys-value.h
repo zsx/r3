@@ -550,32 +550,41 @@ enum {
 #endif
 
 
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  TRASH! (may use `struct Reb_Track`)
+//  UNSET or TRASH (fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//     NOTE: In debug builds, Reb_Trash saves the line and file where
-//     the "trashing" of the cell slot happened  See `Reb_Value.track`.
+// Though there was an UNSET! datatype in Rebol2 and R3-Alpha, Ren-C does not
+// allow "reified" values of type UNSET!.  It is a transient product of
+// evaluation (e.g. the result of `do []`), and the bit pattern for the
+// value is also used in the varlists of contexts like OBJECT! or FRAME! to
+// denote a variable that is not currently set.
 //
-// Trash is what's written into cells in the debug build when the cell is
-// expected to be overwitten with valid data.  To prevent it from being
+// Since they have no data payload, unsets in the debug build use Reb_Track
+// as their structure to show where-and-when they were assigned.  This is
+// helpful because unset is the default initialization value for several
+// constructs.
+//
+// In the debug build, there is a special flag that if it is not set, the
+// unset is assumed to be "trash".  This is what's used to fill memory that
+// in the release build would be uninitialized data.  To prevent it from being
 // inspected while it's in an invalid state, VAL_TYPE used on a trash value
 // will assert in the debug build.
-//
-// By default, the garbage collector will raise an alert if a TRASH! value
-// is not overwritten by the time it sees it.  But some cases work with
-// GC-visible locations and want the GC to ignore a transitional trash.  For
-// these cases use SET_TRASH_GC_SAFE().
 //
 // IS_TRASH_DEBUG() can be used to test for trash, but in debug builds only.
 // The macros for setting trash will compile in both debug and release builds,
 // though an unsafe trash will be a NOOP in release builds.  (So the "trash"
 // will be uninitialized memory, in that case.)  A safe trash set turns into
-// a SET_UNSET() in release builds.
+// a regular unset in release builds.
 //
+
 #ifdef NDEBUG
+    #define SET_UNSET(v) \
+        VAL_RESET_HEADER((v), REB_UNSET)
+
     #define MARK_VAL_UNWRITABLE_DEBUG(v) NOOP
 
     #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
@@ -585,16 +594,27 @@ enum {
     #define SET_TRASH_SAFE(v) SET_UNSET(v)
 #else
     enum {
-        // GC safe trash (UNSET! in release build)
+        UNSET_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT) | REB_UNSET,
+
+        // By default, the garbage collector will alert if a "trash unset"
+        // is not overwritten by the time it sees it.  But some cases work with
+        // GC-visible locations and want the GC to ignore a transitional trash.
+        // For these cases use SET_TRASH_GC_SAFE().
         //
-        TRASH_FLAG_SAFE = (1 << TYPE_SPECIFIC_BIT) | REB_TRASH
+        UNSET_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT) | REB_UNSET
     };
 
-    // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
+    #define SET_UNSET(v) \
+        (VAL_RESET_HEADER((v), REB_UNSET), \
+        SET_VAL_FLAG((v), UNSET_FLAG_NOT_TRASH), \
+        SET_TRACK_PAYLOAD(v))
+
+    // Special type check...we don't want to use VAL_TYPE() here directly
     // because VAL_TYPE is supposed to assert on trash
     //
     #define IS_TRASH_DEBUG(v) \
-        (((v)->header.bits & HEADER_TYPE_MASK) == 0)
+        (((v)->header.bits & HEADER_TYPE_MASK) == REB_UNSET \
+        && !(((v)->header.bits & UNSET_FLAG_NOT_TRASH)))
 
     // This particularly virulent form of trashing will make the resultant
     // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
@@ -620,48 +640,17 @@ enum {
 
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
+            VAL_RESET_HEADER((v), REB_UNSET), /* don't set NOT_TRASH flag */ \
             SET_TRACK_PAYLOAD(v) \
         )
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
-            SET_VAL_FLAG((v), TRASH_FLAG_SAFE), \
+            VAL_RESET_HEADER((v), REB_UNSET), \
+            SET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH), \
             SET_TRACK_PAYLOAD(v) \
         )
-#endif
 
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  UNSET! (unit type - fits in header bits, may use `struct Reb_Track`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Unset is one of Rebol's two unit types (the other being NONE!).  Whereas
-// integers can be values like 1, 2, 3... and LOGIC! can be true or false,
-// an UNSET! can be only... unset.  Its type is its value.
-//
-// By default, variable lookups that come back as unset will result in an
-// error, and the average user would not be putting them into blocks on
-// purpose.  Hence the Ren-C branch of Rebol3 pushed forward an initiative
-// to make unsets frequently denote an intent to "opt out" of things.  This
-// involved
-//
-// Since they have no data payload, unsets in the debug build use Reb_Track
-// as their structure to show where-and-when they were assigned.  This is
-// helpful because unset is the default initialization value for several
-// constructs.
-//
-
-#ifdef NDEBUG
-    #define SET_UNSET(v) \
-        VAL_RESET_HEADER((v), REB_UNSET)
-
-#else
-    #define SET_UNSET(v) \
-        (VAL_RESET_HEADER((v), REB_UNSET), SET_TRACK_PAYLOAD(v))
 #endif
 
 // Pointer to a global protected void cell that can be used when a read-only
@@ -856,13 +845,14 @@ struct Reb_Datatype {
 #define VAL_TYPE_SPEC(v)    ((v)->payload.datatype.spec)
 
 // %words.r is arranged so that symbols for types are at the start
-// Although REB_TRASH is 0, the 0 REBCNT used for symbol IDs is reserved
-// for "no symbol".  So there is no symbol for the "fake" type TRASH!
+// Although REB_UNSET is 0 and the 0 REBCNT used for symbol IDs is reserved
+// for "no symbol"...this is okay, because UNSET! is not a value type and
+// should not have a symbol.
 //
-#define IS_KIND_SYM(s)      ((s) < REB_MAX_0 + 1)
-#define KIND_FROM_SYM(s)    cast(enum Reb_Kind, KIND_FROM_0((s) - 1))
+#define IS_KIND_SYM(s)      ((s) < REB_MAX_0)
+#define KIND_FROM_SYM(s)    cast(enum Reb_Kind, KIND_FROM_0(s))
 #define SYM_FROM_KIND(k) \
-    (assert((k) < REB_MAX), cast(REBSYM, TO_0_FROM_KIND(k) + 1))
+    cast(REBSYM, TO_0_FROM_KIND(k))
 #define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->payload.datatype.kind)
 
 //#define   VAL_MIN_TYPE(v) ((v)->payload.datatype.min_type)

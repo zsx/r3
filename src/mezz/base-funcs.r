@@ -25,7 +25,7 @@ does: func [
 
 ; The RETURN and LEAVE native specs are used to provide the prototype for
 ; the fake definitional returns.  But the only way you should be able to get
-; at these natives is through the FUNC and CLOS generators (when they hack
+; at these natives is through the FUNC and PROC generators (when they hack
 ; out its function pointer to do implement the FUNC_FLAG_LEAVE_OR_RETURN).
 ; Should the native code itself somehow get called, it would error.
 ;
@@ -38,7 +38,7 @@ leave: does [
 ]
 
 function: func [
-    ; !!! Should have a unified constructor with CLOSURE
+    ; !!! Should have a unified constructor with PROCEDURE
     {Defines a function with all set-words as locals.}
     spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
     body [block!] {The body block of the function}
@@ -256,7 +256,7 @@ cause-error: func [
 default: func [
     "Set a word to a default value if it hasn't been set yet."
     'word [word! set-word! lit-word!] "The word (use :var for word! values)"
-    value "The value" ; unset! not allowed on purpose
+    value "The value" ; void not allowed on purpose
 ][
     unless all [set? word | not none? get word] [set word :value] :value
 ]
@@ -264,7 +264,7 @@ default: func [
 
 ensure: func [
     {Pass through a value that isn't UNSET! or FALSE?, but FAIL otherwise}
-    arg [opt-any-value!]
+    arg [<opt> any-value!]
     /value
         {Only check for ANY-VALUE? (FALSE and NONE ok, but not UNSET!)}
     /type

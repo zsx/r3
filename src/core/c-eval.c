@@ -918,23 +918,21 @@ reevaluate:
                     *(f->arg) = *(f->out);
                 }
 
-                // If any TRUE? value we consider the refinement used, but
-                // UNSET! is neither conditionally true nor false
+                // MAKE FRAME! defaults to all empty variables that are not
+                // set.  Consequently, the most sensible default for a
+                // refinement behavior is to consider the refinement to be
+                // "opted out of" (despite more generally that a refinement
+                // is neither true nor false)
                 //
-                if (IS_VOID(f->arg))
-                    fail (Error_Arg_Type(
-                        FRM_LABEL(f), f->param, Type_Of(f->arg))
-                    );
-
-                if (IS_CONDITIONAL_TRUE(f->arg)) {
+                if (IS_VOID(f->arg) || IS_CONDITIONAL_FALSE(f->arg)) {
+                    SET_NONE(f->arg);
+                    f->refine = NONE_VALUE; // (read-only)
+                }
+                else {
                     Val_Init_Word(
                         f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
                     );
                     f->refine = f->arg; // remember so we can revoke!
-                }
-                else {
-                    SET_NONE(f->arg);
-                    f->refine = NONE_VALUE; // (read-only)
                 }
 
                 goto continue_arg_loop;
@@ -999,7 +997,7 @@ reevaluate:
                         );
 
                         fail (Error_Arg_Type(
-                            FRM_LABEL(f), &honest_param, Type_Of(f->arg))
+                            FRM_LABEL(f), &honest_param, VAL_TYPE(f->arg))
                         );
                     }
 
@@ -1167,8 +1165,11 @@ reevaluate:
                     fail (Error(RE_BAD_REFINE_REVOKE));
             }
 
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-                fail (Error_Arg_Type(FRM_LABEL(f), f->param, Type_Of(f->arg)));
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg))) {
+                fail (Error_Arg_Type(
+                    FRM_LABEL(f), f->param, VAL_TYPE(f->arg)
+                ));
+            }
 
         continue_arg_loop: // `continue` might bind to the wrong scope
             NOOP;
@@ -1575,7 +1576,7 @@ reevaluate:
                 assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
                 if (!TYPE_CHECK(last_param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        SYM_RETURN, last_param, Type_Of(f->out))
+                        SYM_RETURN, last_param, VAL_TYPE(f->out))
                     );
             }
         }
@@ -1631,6 +1632,7 @@ reevaluate:
         f->param = CTX_KEYS_HEAD(VAL_CONTEXT(f->value));
 
         f->flags |= DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+        f->args_evaluate = FALSE;
 
         f->exit_from = NULL;
 
@@ -1716,7 +1718,7 @@ reevaluate:
                 f->param = FUNC_PARAMS_HEAD(f->func);
                 if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        FRM_LABEL(f), f->param, Type_Of(f->out))
+                        FRM_LABEL(f), f->param, VAL_TYPE(f->out))
                     );
 
                 // Use current `out` as first argument of the infix function
@@ -2053,16 +2055,16 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
         assert(NOT_END(f->out)); // series END marker shouldn't leak out
     }
 
-    if (f->indexor == THROWN_FLAG)
-        assert(THROWN(f->out));
-
     // Function execution should have written *some* actual output value
     // over the trash that we put in the return slot before the call.
     //
     assert(!IS_TRASH_DEBUG(f->out));
     assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
 
-    ASSERT_VALUE_MANAGED(f->out);
+    if (f->indexor == THROWN_FLAG)
+        assert(THROWN(f->out));
+    else
+        ASSERT_VALUE_MANAGED(f->out);
 }
 
 #endif

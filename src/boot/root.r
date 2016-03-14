@@ -28,6 +28,7 @@ empty-block     ; a value that is an empty BLOCK!
 
 no-return-tag   ; func w/o definitional return, ignores non-definitional ones
 ellipsis-tag    ; FUNC+PROC use as alternative to | to mark "VARARGS!" varargs
+opt-tag         ; FUNC+PROC use as alternative to _ to mark optional void? args
 infix-tag       ; func is treated as "infix" (first parameter comes before it)
 local-tag       ; marks the beginning of a list of "pure locals"
 durable-tag     ; !!! In progress - argument word lookup survives call ending

@@ -196,7 +196,7 @@ pick: action [
 find: action [
     {Searches for a value; for series returns where found, else none.}
     series [any-series! map! gob! port! bitset! typeset! object! none!]
-    value [opt-any-value!]
+    value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
@@ -215,7 +215,7 @@ find: action [
 select: action [
     {Searches for a value; returns the value that follows, else none.}
     series [any-series! port! map! object! none!]
-    value [opt-any-value!]
+    value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
@@ -233,7 +233,7 @@ select: action [
 
 reflect: action [
     {Returns specific details about a datatype.}
-    value [opt-any-value!]
+    value [<opt> any-value!]
     field [word!] "Such as: spec, body, words, values, title"
 ]
 
@@ -241,14 +241,14 @@ reflect: action [
 
 make: action [
     {Constructs or allocates the specified datatype.}
-    type [opt-any-value!] {The datatype or an example value}
-    spec [opt-any-value!] {Attributes or size of the new value (modified)}
+    type [<opt> any-value!] {The datatype or an example value}
+    spec [<opt> any-value!] {Attributes or size of the new value (modified)}
 ]
 
 to: action [
     {Converts to a specified datatype.}
-    type [opt-any-value!] {The datatype or example value}
-    spec [opt-any-value!] {The attributes of the new value}
+    type [<opt> any-value!] {The datatype or example value}
+    spec [<opt> any-value!] {The attributes of the new value}
 ]
 
 copy: action [
@@ -273,7 +273,7 @@ take: action [
 insert: action [
     {Inserts element(s); for series, returns just past the insert.}
     series [any-series! port! map! gob! object! bitset! port!] {At position (modified)}
-    value [opt-any-value!] {The value to insert}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only insert a block as a single value (not the contents of the block)}
@@ -284,7 +284,7 @@ insert: action [
 append: action [
     {Inserts element(s) at tail; for series, returns head.}
     series [any-series! port! map! gob! object! bitset!] {Any position (modified)}
-    value [opt-any-value!] {The value to insert}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only insert a block as a single value (not the contents of the block)}
@@ -304,7 +304,7 @@ remove: action [
 change: action [
     {Replaces element(s); returns just past the change.}
     series [any-series! gob! port! struct!]{At position (modified)}
-    value [opt-any-value!] {The new value}
+    value [<opt> any-value!] {The new value}
     /part {Limits the amount to change to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only change a block as a single value (not the contents of the block)}
@@ -316,7 +316,7 @@ poke: action [
     {Replaces an element at a given position.}
     series [any-series! port! map! gob! bitset!] {(modified)}
     index {Index offset, symbol, or other value to use as index}
-    value [opt-any-value!] {The new value (returned)}
+    value [<opt> any-value!] {The new value (returned)}
 ]
 
 clear: action [

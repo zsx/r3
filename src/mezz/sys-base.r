@@ -29,17 +29,17 @@ action: none ; for boot only
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
     value [file! url! string! binary! tag!]
-    arg [opt-any-value!]
+    arg [<opt> any-value!]
         "Args passed as system/script/args to a script (normally a string)"
-    var [unset! word!]
+    var [<opt> word!]
         "If do next expression only, variable updated with new block position"
 ][
     ; !!! These were refinements on the original DO* which were called from
     ; the system using positional order.  Under the Ren-C model you cannot
     ; select refinements positionally.  It would be *possible* to keep these
     ; going as refinements and have the system build a path to make a call,
-    ; but using UNSET! as the signal is easier.  Refinement names configured
-    ; here for ease but revisit (also revisit using word "next")
+    ; but using optionality as the signal is easier.  Refinement names
+    ; configured here for ease but revisit (also revisit using word "next")
     ;
     args: any-value? :arg
     next: any-value? :var

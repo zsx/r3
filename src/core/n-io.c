@@ -68,7 +68,7 @@ REBNATIVE(echo)
 //  
 //  "Converts a value to a human-readable string."
 //  
-//      value [opt-any-value!] "The value to form"
+//      value [<opt> any-value!] "The value to form"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
 //      delimiter [none! any-scalar! any-string! block!]
@@ -134,7 +134,7 @@ REBNATIVE(form)
 //  
 //  "Converts a value to a REBOL-readable string."
 //  
-//      value [opt-any-value!] "The value to mold"
+//      value [any-value!] "The value to mold"
 //      /only {For a block value, mold only its contents, no outer []}
 //      /all "Use construction syntax"
 //      /flat "No indentation"
@@ -169,7 +169,7 @@ REBNATIVE(mold)
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          "Literal or BLOCK! in the PRINT dialect, outputs with a newline"
 //      /only
 //          "Don't use dialect--print ANY-VALUE! as-is (no newline)"

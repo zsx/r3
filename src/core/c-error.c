@@ -1407,22 +1407,35 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 REBCTX *Error_Arg_Type(
     REBCNT label_sym,
     const REBVAL *param,
-    const REBVAL *arg_type
+    enum Reb_Kind kind
 ) {
-    REBVAL param_word;
-    REBVAL label_word;
-    VAL_INIT_WRITABLE_DEBUG(&param_word);
-    VAL_INIT_WRITABLE_DEBUG(&label_word);
-
     assert(IS_TYPESET(param));
+
+    REBVAL param_word;
     Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
+
+    REBVAL label_word;
     Val_Init_Word(&label_word, REB_WORD, label_sym);
 
-    assert(IS_DATATYPE(arg_type));
+    if (kind != REB_UNSET) {
+        REBVAL *datatype = Get_Type(kind);
+        assert(IS_DATATYPE(datatype));
+
+        return Error(
+            RE_EXPECT_ARG,
+            &label_word,
+            datatype,
+            &param_word,
+            END_VALUE
+        );
+    }
+
+    // Although REB_UNSET is not a type, the typeset bits are used
+    // to check it.  Since Get_Type() will fail, use another error.
+    //
     return Error(
-        RE_EXPECT_ARG,
+        RE_ARG_REQUIRED,
         &label_word,
-        arg_type,
         &param_word,
         END_VALUE
     );

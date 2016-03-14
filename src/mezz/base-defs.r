@@ -84,7 +84,7 @@ append system/options/file-types switch/default fourth system/version [
 ] [[%.rx extension]]
 
 internal!: make typeset! [
-    unset! handle!
+    handle!
 ]
 
 immediate!: make typeset! [
@@ -101,47 +101,47 @@ system/options/result-types: make typeset! [
 
 any-string?: func [
     "Return TRUE if value is any type of string."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-string! type-of :value]
 
 any-word?: func [
     "Return TRUE if value is any type of word."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-word! type-of :value]
 
 any-path?: func [
     "Return TRUE if value is any type of path."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-path! type-of :value]
 
 any-context?: func [
     "Return TRUE if value is an OBJECT!, ERROR!, PORT!, or MODULE!"
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-context! type-of :value]
 
 any-number?: func [
     "Return TRUE if value is a number (integer or decimal)."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-number! type-of :value]
 
 any-series?: func [
     "Return TRUE if value is any type of series."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-series! type-of :value]
 
 any-scalar?: func [
     "Return TRUE if value is any type of scalar."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-scalar! type-of :value]
 
 any-array?: func [
     "Return TRUE if value is a series containing all the same type."
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][find any-array! type-of :value]
 
 ok?: func [
     "Returns TRUE on all values that are not ERROR!"
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][
     not error? :value
 ]
@@ -151,3 +151,7 @@ ok?: func [
 ;
 blank?: :none?
 blank!: :none!
+
+; Experimental shorthand for ANY-VALUE? test (will also be VALUE?)
+;
+?: :any-value?

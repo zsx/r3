@@ -315,7 +315,7 @@ handle_subfeed:
     }
 
     if (!TYPE_CHECK(param, VAL_TYPE(out)))
-        fail (Error_Arg_Type(sym_func, param, Type_Of(out)));
+        fail (Error_Arg_Type(sym_func, param, VAL_TYPE(out)));
 
     return VALIST_FLAG; // may be at end now, but reflect that at *next* call
 

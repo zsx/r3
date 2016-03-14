@@ -223,7 +223,7 @@ REBTYPE(Decimal)
     REBDEC  d2;
     REBINT  num;
     REBDEC  exp;
-    enum Reb_Kind type = REB_TRASH;
+    enum Reb_Kind type = REB_UNSET; // ?? why initialize this
 
     if (action != A_MAKE && action != A_TO)
         d1 = VAL_DECIMAL(val);

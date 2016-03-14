@@ -513,7 +513,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -526,7 +526,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -539,7 +539,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -552,7 +552,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -565,7 +565,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -578,7 +578,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -592,7 +592,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT64:
             if (!IS_INTEGER(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             return &VAL_INT64(arg);
 
@@ -613,7 +613,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     return &ptrs[idx];
                 default:
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                        D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                     ));
             }
 
@@ -621,7 +621,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             /* hackish, store the signle precision floating point number in a double precision variable */
             if (!IS_DECIMAL(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             } else {
                 float a = (float)VAL_DECIMAL(arg);
@@ -632,7 +632,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_DOUBLE:
             if (!IS_DECIMAL(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             return &VAL_DECIMAL(arg);
 
@@ -642,7 +642,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             } else {
                 if (!IS_STRUCT(arg))
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                        D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                     ));
             }
             return SER_AT(
@@ -656,7 +656,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 return NULL;
             } else {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
+                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
                 ));
             }
 
@@ -865,7 +865,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
                     fail (Error_Arg_Type(
                         D_LABEL_SYM,
                         ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
-                        reb_arg
+                        VAL_TYPE(reb_arg)
                     ));
                 }
             } else {

@@ -13,7 +13,8 @@ REBOL [
 
 secure: function/with [
     "Set security policies (use SECURE help for more information)."
-    'policy [word! lit-word! block! unset!] "Set single or multiple policies (or HELP)"
+    'policy [<opt> word! lit-word! block!]
+        "Set single or multiple policies (or HELP)"
 ] append bind [
 
     "Two funcs bound to private system/state/policies with protect/hide after."
@@ -22,7 +23,7 @@ secure: function/with [
 
 ] system/state [
 
-    if unset? :policy [policy: 'help]
+    if void? :policy [policy: 'help]
 
     if policy = 'none [policy: 'allow] ; note: NONE is a word here (like R2)
 

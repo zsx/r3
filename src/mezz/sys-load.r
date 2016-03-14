@@ -452,7 +452,7 @@ load: function [
             data: read-decode source ftype
         ]
 
-        unset? :data [data: source]
+        void? :data [data: source]
 
         ;-- Is it not source code? Then return it now:
         any [block? data not find [0 extension unbound] any [:ftype 0]] [
@@ -469,7 +469,7 @@ load: function [
             ]
             if word? hdr [cause-error 'syntax hdr source]
         ]
-        unset? :hdr [hdr: none]
+        void? :hdr [hdr: none]
         ; data is binary or block now, hdr is object or none
 
         ;-- Convert code to block, insert header if requested:
@@ -746,7 +746,7 @@ load-module: function [
 
     case/all [
         ; Get info from preloaded or delayed modules
-        unset? :mod [mod: none]
+        void? :mod [mod: none]
         module? mod [
             delay: no-share: none  hdr: spec-of mod
             assert/type [hdr/options [block! none!]]
@@ -756,7 +756,7 @@ load-module: function [
         ; module/block mod used later for override testing
 
         ; Get and process the header
-        unset? :hdr [
+        void? :hdr [
             ; Only happens for string, binary or non-extension file/url source
             set [hdr: code:] load-header/required data
             case [
@@ -772,7 +772,7 @@ load-module: function [
 
         ; Unify hdr/name and /as name
         any-value? :name [hdr/name: name] ; rename /as name
-        unset? :name [name: :hdr/name]
+        void? :name [name: :hdr/name]
         all [not no-lib not word? :name] [ ; requires name for full import
             ; Unnamed module can't be imported to lib, so /no-lib here
             no-lib: true  ; Still not /no-lib in IMPORT

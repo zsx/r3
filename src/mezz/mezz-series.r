@@ -247,7 +247,7 @@ reword: function [
             empty? char-end  ; If we have char-end, it gets appended to the keys
             for-each [w v] values [
                 ; Key types must match wtype and no unset values allowed
-                if any [unset? :v wtype <> type-of :w] [break/return false]
+                if any [void? :v wtype <> type-of :w] [break/return false]
                 true
             ]
         ] [vals: values]  ; Success, so use it
@@ -272,7 +272,8 @@ reword: function [
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w unless unset? :v [:v]
+                    poke vals w
+                    :v ;-- may be void
                 ]
             ]
         ]
@@ -290,7 +291,8 @@ reword: function [
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w unless unset? :v [:v]
+                    poke vals w
+                    :v ;-- may be void
                 ]
             ]
         ]
@@ -384,14 +386,14 @@ extract: func [
     unless index [pos: 1]
     either block? pos [
         unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
-        if unset? :output [output: make series len * length pos]
+        if void? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
             if none? val: pick series pos/1 [val: value]
             output: insert/only output :val
         ]]
     ][
-        if unset? :output [output: make series len]
+        if void? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [
             if none? val: pick series pos [val: value]
@@ -437,7 +439,7 @@ collect-with: func [
     output: any [:output make block! 16]
 
     keeper: func [
-        value [opt-any-value!] /only
+        value [<opt> any-value!] /only
     ][
         output: insert/:only output :value
         :value

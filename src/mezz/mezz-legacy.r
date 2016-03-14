@@ -54,7 +54,7 @@ r3-legacy-mode: off
 
 op?: func [
     "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][
     either function? :value [:infix? :value] false
 ]
@@ -93,20 +93,34 @@ to-paren: :to-group
 ;
 type?: function [
     "Returns the datatype of a value <r3-legacy>."
-    value [opt-any-value!]
+    value [<opt> any-value!]
     /word "No longer in TYPE-OF, as WORD! and DATATYPE! can be EQUAL?"
 ][
-    either word [
-        ;
-        ; For legacy compatibility, type?/word will return PAREN! instead
-        ; of the Ren-C standard GROUP! if the switch is on.
-        ;
-        either all [
-            (word: to-word type-of :value) = 'group!
+    case [
+        not word [
+            type-of :value
+        ]
+
+        all [
+            group? :value
             system/options/paren-instead-of-group
-        ] [paren!] [word]
-    ][
-        type-of :value
+        ][
+            ; For legacy compatibility, type?/word will return PAREN!
+            ; instead of Ren-C standard GROUP! if the switch is on.
+            ;
+            'paren!
+        ]
+
+        void? :value [
+            ;
+            ; UNSET! is no longer a real value type, and TYPE-OF will
+            ; return a value of type NONE! (not a datatype).  But the
+            ; word conversion will say it's UNSET!.
+            ;
+            unset!
+        ]
+
+        'default [to-word type-of :value]
     ]
 ]
 
@@ -208,7 +222,14 @@ series?: :any-series?
 ; is "really, any legal Rebol value, type or otherwise".  So ANY-VALUE! is
 ; the better word for that.  Added for backwards compatibility.
 ;
-any-type!: :opt-any-value!
+; Because UNSET! was a datatype in R3-Alpha and Rebol2, ANY-TYPE! included
+; it...which was the way of achieving "optional" arguments.  However, this
+; concept of "no type" being included isn't necessarily a typeset feature,
+; but a feature of function arguments (like being variadic).  Hence using
+; the _ here to pass in a literal none may not be a long term feature, as
+; allowing no type could be for function specs only--not general typesets.
+;
+any-type!: make typeset! [_ any-value!]
 
 ; BIND? and BOUND? didn't fit the naming convention of returning LOGIC! if
 ; they end in a question mark.  Also, CONTEXT-OF is more explicit about the
@@ -239,7 +260,14 @@ selfless?: func [context [any-context!]] [
     fail {selfless? no longer has meaning (all frames are "selfless")}
 ]
 
-comment [ ;-- not quite ready to get rid of unset! yet...
+unset!: does [
+    fail [
+        {UNSET! is not a datatype in Ren-C.}
+        | {You can test with VOID? (), but the TYPE-OF () is a NONE! *value*}
+        | {So NONE? TYPE-OF () will be TRUE.}
+    ]
+]
+
 unset?: does [
     fail [
         {UNSET? is reserved in Ren-C for future use}
@@ -247,7 +275,6 @@ unset?: does [
         | {Use VOID? for a similar test, but be aware there is no UNSET! type}
         | {If running in <r3-legacy> mode, old UNSET? meaning is available}
     ]
-]
 ]
 
 value?: does [
@@ -277,7 +304,7 @@ not-equiv?: :not-equal?
 prin: function [
     "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
 
-    value [opt-any-value!]
+    value [<opt> any-value!]
 ][
     print/only either block? :value [reduce value] [:value]
 ]
@@ -296,11 +323,11 @@ break: func [
 
     /with
         {Act as if loop body finished current evaluation with a value}
-    value [opt-any-value!]
+    value [<opt> any-value!]
 
     /return ;-- Overrides RETURN!
         {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
-    return-value [opt-any-value!]
+    return-value [<opt> any-value!]
 ][
     lib-break/with either return :return-value :value
 ]
@@ -319,7 +346,7 @@ set: func [
 
     target [any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
-    value [opt-any-value!]
+    value [<opt> any-value!]
         "Value or block of values"
     /opt
         "Value is optional, and if no value is provided then unset the word"
@@ -407,8 +434,9 @@ try: func [
 ]
 
 
-; HAS is targeted for use to be the arity-1 parallel to OBJECT as arity-2,
-; (similar to the relationship between DOES and FUNCTION).
+; HAS is targeted for use to be the arity-1 parallel to the arity-2 constructor
+; for OBJECT!s (similar to the relationship between DOES and FUNCTION).  The
+; working name for the arity-2 form is CONSTRUCT
 ;
 has: func [
     {A shortcut to define a function that has local variables but no arguments.}
@@ -419,106 +447,59 @@ has: func [
 ]
 
 
-; APPLY is a historically brittle construct, that has been eclipsed by the
-; evolution of the evaluator.  An APPLY filling in arguments is positionally
-; dependent on the order of the refinements in the function spec, while
-; it is now possible to do through alternative mechanisms...e.g. the
-; ability to revoke refinement requests via UNSET! and to evaluate refinement
-; words via parens or get-words in a PATH!.
+; With the introduction of FRAME! in Ren-C, the field is opened for more
+; possibilities of APPLY-like constructs.  The default APPLY is now based on
+; filling frames with parameters by name.  But this implements the R3-Alpha
+; variant, showing that more could be written.
 ;
-; Delegating APPLY to "userspace" incurs cost, but there's not really any good
-; reason for its existence or usage any longer.  So if it's a little slower,
-; that's a good incentive to switch to using the evaluator proper.  It means
-; that C code for APPLY does not have to be maintained, which is trickier code
-; to read and write than this short function.
-;
-; (It is still lightly optimized as a FUNC with no additional vars in frame)
-;
-r3-alpha-apply: func [
+r3-alpha-apply: function [
     "Apply a function to a reduced block of arguments."
 
-    ; This does not work with infix operations.  It *could* be adapted to
-    ; work, but as a legacy concept it's easier just to say don't do it.
     func [function!]
         "Function value to apply"
     block [block!]
         "Block of args, reduced first (unless /only)"
-    /only ;-- reused as whether we are actively fulfilling args
+    /only
         "Use arg values as-is, do not reduce the block"
 ][
-    block: either only [copy block] [reduce block]
+    frame: make frame! :func
+    params: words-of :func
+    ignoring: false
 
-    ; Note: shallow modifying `block` now no longer modifies the original arg
+    while [not tail? block] [
+        set/opt (quote arg:) either only [
+            also block/1 (block: next block)
+        ][
+            do/next block 'block
+        ]
 
-    ; Since /ONLY has done its job, we reuse it to track whether we are
-    ; using args or a refinement or not...
-
-    only: true
-
-    every param words-of first (func: to-path :func) [
-        case [
-            tail? block [
-                ; We still have more words in the function spec, but no more
-                ; values in the block.  This may be okay (if it's refinements)
-                ; or it might not be okay, but let the main evaluator do the
-                ; error delivery when we DO/NEXT on it if it's a problem.
-
-                break
+        either refinement? params/1 [
+            ignoring: not to-value set/opt (in frame params/1) :arg
+        ][
+            unless ignoring [
+                set/opt (in frame params/1) :arg
             ]
+        ]
 
-            refinement? param [
-                ; A refinement is considered used if in the block in that
-                ; position slot there is a conditionally true value.  Remember
-                ; whether it was in `only` so we know if we should ignore the
-                ; ensuing refinement args or not.
+        params: next params
+    ]
 
-                if only: take block [
-                    append func to-word param ;-- remember func is a path now
-                ]
-            ]
-
-            only [
-                ; User-mode APPLY is built on top of DO.  It requires knowledge
-                ; of the reduced value of refinements, and DO will reduce also.
-                ; So we need to insert a quote on each arg that we have already
-                ; possibly reduced and don't want to again.
-                ;
-                ; Only do this quote if the argument is evaluative...because
-                ; if it's quoted--either a hard quote or soft quote--then it
-                ; would wind up quoting `quote`...
-                ;
-                ; (Remember that this is a legacy construct with bad positional
-                ; invariants that no one should be using anymore.  Also that
-                ; QUOTE as a NATIVE! will be very optimized.)
-
-                block: next either word? param [
-                    insert block 'quote
-                ][
-                    block
-                ]
-            ]
-
-            'default [
-                ; ignoring (e.g. an unused refinement arg in the block slot)
-                take block
-            ]
+    comment [
+        ;
+        ; Too many arguments was not a problem for R3-alpha's APPLY, it would
+        ; evaluate them all even if not used by the function.  It may or
+        ; may not be better to have it be an error.
+        ;
+        unless tail? block [
+            fail "Too many arguments passed in R3-ALPHA-APPLY block."
         ]
     ]
 
-    block: head block
-
-    also (
-        ; We use ALSO so the result of the DO/NEXT is what we return, while
-        ; we do a check to make sure all the arguments were consumed.
-
-        do/next compose [
-            (func) ;-- actually a path now, with a FUNCTION! in the first slot
-
-            (head block) ;-- args that were needed, all refinement cues gone
-        ] 'block
-    ) unless tail? block [
-        fail "Too many arguments passed in APPLY block for function."
-    ]
+    ; Too few arguments will be handled by the frame evaluation...because it
+    ; starts out with the frame vars all not set.  If the function is not
+    ; able to deal with the number of unsets there will be an error here.
+    ;
+    eval frame
 ]
 
 
@@ -604,10 +585,10 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 lib-make: :lib/make
 make: func [
     "Constructs or allocates the specified datatype."
-    :lookahead [opt-any-value! <...>]
-    type [opt-any-value! <...>]
+    :lookahead [<opt> any-value! <...>]
+    type [<opt> any-value! <...>]
         "The datatype or an example value"
-    spec [opt-any-value! <...>]
+    spec [<opt> any-value! <...>]
         "Attributes or size of the new value (modified)"
 ][
     switch first lookahead [
@@ -667,7 +648,7 @@ set 'r3-legacy* func [] [
         ;
         ; Note that with this definition, `datatype? unset!` will fail.
         ;
-        unset!: (#[unset!])
+        unset!: _
 
         ; The bizarre VALUE? function would look up words, return TRUE if they
         ; were set and FALSE if not.  All other values it returned TRUE.  The
@@ -704,7 +685,7 @@ set 'r3-legacy* func [] [
         do: (function [
             {Evaluates a block of source code (variadic <r3-legacy> bridge)}
 
-            source [unset! none! block! group! string! binary! url! file! tag!
+            source [<opt> none! block! group! string! binary! url! file! tag!
                 error! function!
             ]
             normals [any-type! <...>]
@@ -959,7 +940,6 @@ set 'r3-legacy* func [] [
             frame: make frame! :append
 
             ;-- double-inline of R3-alpha `repend value :rest`
-
             frame/series: either series? :value [copy value] [form :value]
             frame/value: either block? :rest [reduce :rest] [rest]
 

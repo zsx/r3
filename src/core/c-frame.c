@@ -109,20 +109,13 @@ REBCTX *Alloc_Context(REBCNT len)
 
     // Note: cannot use Append_Frame for first word.
 
-    // context[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
-    // are building which contains this context
-    //
-    CTX_VALUE(context)->payload.any_context.context = context;
-    INIT_CTX_KEYLIST_UNIQUE(context, keylist);
-    MANAGE_ARRAY(keylist);
-
 #if !defined(NDEBUG)
     //
     // Type of the embedded object cell must be set to REB_OBJECT, REB_MODULE,
     // REB_PORT, or REB_ERROR.  This information will be mirrored in instances
     // of an object initialized with this context.
     //
-    VAL_RESET_HEADER(CTX_VALUE(context), REB_TRASH);
+    SET_TRASH_IF_DEBUG(CTX_VALUE(context));
 
     // !!! Modules seemed to be using a CONTEXT-style series for a spec, as
     // opposed to a simple array.  This is contentious with the plan for what
@@ -134,10 +127,17 @@ REBCTX *Alloc_Context(REBCNT len)
     CTX_VALUE(context)->payload.any_context.more.spec
         =  cast(REBCTX*, 0xBAADF00D);
 
-    // Allowed to be set to NULL, but must be done so explicitly
+    // CTX_STACKVARS allowed to be set to NULL, but must be done so explicitly
     //
     CTX_STACKVARS(context) = cast(REBVAL*, 0xBAADF00D);
 #endif
+
+    // context[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
+    // are building which contains this context
+    //
+    CTX_VALUE(context)->payload.any_context.context = context;
+    INIT_CTX_KEYLIST_UNIQUE(context, keylist);
+    MANAGE_ARRAY(keylist);
 
     SET_END(CTX_VARS_HEAD(context));
     SET_ARRAY_LEN(CTX_VARLIST(context), 1);

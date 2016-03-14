@@ -325,7 +325,7 @@ REBNATIVE(backtrace)
     if (Do_Vararg_Op_May_Throw(
         &level_store, ARG(level), VARARG_OP_TAKE) == END_FLAG
     ) {
-        level = UNSET_VALUE;
+        level = VOID_CELL;
     }
     else {
         level = &level_store;

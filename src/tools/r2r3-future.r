@@ -66,7 +66,7 @@ either void? :any-value! [
     *opt-legacy*: unset!
     any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
 ][
-    *opt-legacy*: none
+    *opt-legacy*: _
 ]
 
 if void? :set? [
@@ -90,7 +90,6 @@ if void? :group? [
     group?: :paren?
     group!: paren!
 ]
-
 
 ; Older versions of Rebol had a different concept of what FUNCTION meant
 ; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
@@ -124,8 +123,7 @@ unless find words-of :set /opt [
         target [any-word! any-path! block! any-object!]
             {Word, block of words, path, or object to be set (modified)}
 
-        ;-- Note: opt-any-value! not defined until after migrations
-        value [any-type!]
+        value [*opt-legacy* any-value!]
             "Value or block of values"
         /opt
             "Value is optional, and if no value is provided then unset the word"
@@ -167,7 +165,7 @@ unless find words-of :get /opt [
     ]
 ]
 
-if paren? reduce quote () [
+if group? reduce quote () [
     ;
     ; R3-Alpha would only REDUCE a block and pass through other outputs.
     ; REDUCE in Ren-C (and also in Red) is willing to reduce anything that
@@ -213,13 +211,6 @@ migrations: [
     ;
     for-each <as> :foreach
 
-    ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
-    ; for compatibility as pointing to the same datatype).  Older Rebols
-    ; haven't heard of GROUP!, so establish the reverse compatibility.
-    ;
-    group! <as> :paren!
-    group? <as> :paren?
-
     ; Not having category members have the same name as the category
     ; themselves helps both cognition and clarity inside the source of the
     ; implementation.
@@ -239,14 +230,6 @@ migrations: [
     any-number? <as> :number?
     any-number! <as> :number!
 
-    ; ANY-VALUE! is anything that isn't UNSET!.  OPT-ANY-VALUE! is a
-    ; placeholder for [<opt> ANY-VALUE!] or [#opt ANY-VALUE] in function specs,
-    ; a final format has not been picked for the generator to use.
-    ;
-    any-value? <as> (func [item [any-type!]] [not unset? :item])
-    any-value! <as> (difference any-type! (make typeset! [unset!]))
-    opt-any-value! <as> :any-type!
-
     ; Renamings to conform to ?-means-returns-true-false rule
     ; https://trello.com/c/BxLP8Nch
     ;
@@ -255,9 +238,9 @@ migrations: [
     offset? <to> offset-of
     type? <to> type-of
 
-    ; "optional" (a.k.a. UNSET!) handling
+    ; "optional" (a.k.a. void) handling
     opt <as> (func [
-        {NONE! to unset, all other value types pass through.}
+        {NONE! to a void, all other value types pass through.}
         value [any-type!]
     ][
         either none? get/opt 'value [()][
@@ -269,12 +252,12 @@ migrations: [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
         value [any-type!]
     ][
-        either unset? get/opt 'value [none][:value]
+        either void? get/opt 'value [none][:value]
     ])
 
     something? <as> (func [value [any-type!]] [
         not any [
-            unset? :value
+            void? :value
             none? :value
         ]
     ])

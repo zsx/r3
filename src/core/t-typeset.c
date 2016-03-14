@@ -53,7 +53,6 @@ const struct {
     {SYM_ANY_NOTHING_X, TS_NOTHING},
     {SYM_ANY_SOMETHING_X, TS_SOMETHING},
     {SYM_ANY_VALUE_X, TS_VALUE},
-    {SYM_OPT_ANY_VALUE_X, TS_VALUE | FLAGIT_KIND(REB_UNSET)},
     {SYM_ANY_WORD_X, TS_WORD},
     {SYM_ANY_PATH_X, TS_PATH},
     {SYM_ANY_NUMBER_X, TS_NUMBER},
@@ -162,11 +161,6 @@ REBOOL Update_Typeset_Bits_Core(
     for (; NOT_END(item); item++) {
         const REBVAL *var = NULL;
 
-        if (IS_BAR(item)) {
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
-            continue;
-        }
-
         if (IS_WORD(item) && !(var = TRY_GET_OPT_VAR(item))) {
             REBSYM sym = VAL_WORD_SYM(item);
 
@@ -183,7 +177,34 @@ REBOOL Update_Typeset_Bits_Core(
 
         if (!var) var = item;
 
-        if (IS_DATATYPE(var)) {
+        if (IS_BAR(item)) {
+            //
+            // A BAR! in a typeset spec for functions indicates variadicness.
+            // Notationally, the function generators turn <...> into a BAR!
+            // when producing the spec for MAKE FUNCTION!.
+            //
+            // !!! Review if this should be allowed in general typeset
+            // construction or just a feature of function specs.
+            //
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
+        }
+        else if (IS_NONE(item)) {
+            //
+            // A NONE! in a typeset spec for functions indicates a willingness
+            // to take an optional.  (This was once done with the UNSET!
+            // datatype, but now that there isn't a user-exposed unset data
+            // type this is not done.)  Still, since REB_UNSET is available
+            // internally it is used in the type filtering here.
+            //
+            // !!! As with BAR! for variadics, review if this makes sense to
+            // allow with `make typeset!` instead of just function specs.
+            // Note however that this is required for the legacy compatibility
+            // of ANY-TYPE!, which included UNSET! because it was a datatype
+            // in R3-Alpha and Rebol2.
+            //
+            TYPE_SET(typeset, REB_UNSET);
+        }
+        else if (IS_DATATYPE(var)) {
             TYPE_SET(typeset, VAL_TYPE_KIND(var));
         }
         else if (IS_TYPESET(var)) {
@@ -244,7 +265,16 @@ REBARR *Typeset_To_Array(REBVAL *tset)
     for (n = 0; n < REB_MAX_0; n++) {
         if (TYPE_CHECK(tset, KIND_FROM_0(n))) {
             value = Alloc_Tail_Array(block);
-            Val_Init_Datatype(value, KIND_FROM_0(n));
+            if (n == 0) {
+                //
+                // !!! A NONE! value is currently supported in typesets to
+                // indicate that they take optional values.  This may wind up
+                // as a feature of MAKE FUNCTION! only.
+                //
+                SET_NONE(value);
+            }
+            else
+                Val_Init_Datatype(value, KIND_FROM_0(n));
         }
     }
     return block;

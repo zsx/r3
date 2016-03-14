@@ -158,7 +158,7 @@ for-each-record-NO-RETURN type boot-types [
         spaced-tab
             {"} {Returns TRUE if value is of type} space caps-name {"} newline
         spaced-tab
-            {value [opt-any-value!]} newline
+            {value [<opt> any-value!]} newline
         {]} space n
         newline
         newline

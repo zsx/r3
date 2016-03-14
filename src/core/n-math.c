@@ -482,13 +482,18 @@ compare:
 //  
 //  "Returns TRUE if the values are equal."
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_TRUE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), 0))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
@@ -498,8 +503,8 @@ REBNATIVE(equal_q)
 //  
 //  "Returns TRUE if the values are not equal."
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(not_equal_q)
@@ -514,8 +519,8 @@ REBNATIVE(not_equal_q)
 //  
 //  "Returns TRUE if the values are strictly equal."
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(strict_equal_q)
@@ -530,8 +535,8 @@ REBNATIVE(strict_equal_q)
 //  
 //  "Returns TRUE if the values are not strictly equal."
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(strict_not_equal_q)
@@ -546,8 +551,8 @@ REBNATIVE(strict_not_equal_q)
 //  
 //  "Returns TRUE if the values are identical."
 //  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
+//      value1 [<opt> any-value!]
+//      value2 [<opt> any-value!]
 //  ]
 //
 REBNATIVE(same_q)

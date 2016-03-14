@@ -1127,6 +1127,11 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     assert(NOT_END(value));
 
     switch (VAL_TYPE(value)) {
+    case REB_UNSET:
+        // Unsets should only be molded in debug scenarios
+        if (molded) Emit(mold, "?T?", value);
+        break;
+
     case REB_BAR:
         Append_Unencoded(ser, "|");
         break;
@@ -1378,10 +1383,6 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         // Value has no printable form, so just print its name.
         if (!molded) Emit(mold, "?T?", value);
         else Emit(mold, "+T", value);
-        break;
-
-    case REB_UNSET:
-        if (molded) Emit(mold, "+T", value);
         break;
 
     default:

@@ -526,7 +526,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // the spec, then potentially build an entity whose full "body" acts like:
 // 
 //     return: make function! [
-//         [{Returns a value from a function.} value [opt-any-value!]]
+//         [{Returns a value from a function.} value [<opt> any-value!]]
 //         [exit/from/with (context-of 'return) :value]
 //     ]
 //     (body goes here)
@@ -584,22 +584,31 @@ void Make_Function(
     if (!IS_BLOCK(spec) || !IS_BLOCK(body))
         fail (Error_Bad_Func_Def(spec, body));
 
-    if (!has_return) {
+    if (VAL_LEN_AT(spec) == 0) {
         //
-        // Simpler case: if `make function!` is used then the function is
-        // "effectively <no-return>".  There is no definitional return
-        // automatically added.  Non-definitional EXIT and EXIT/WITH will
-        // still be available.
+        // Empty specs are semi-common (e.g. DOES [...] is FUNC [] [...]).
+        // Since the spec is read-only once put into the function value,
+        // re-use an appropriate instance of [], [return:], or [leave:] based
+        // on whether the "effective spec" needs a definitional exit or not.
         //
-        // A small optimization will reuse the global empty array for an
-        // empty spec instead of copying (as the spec need not be unique)
-        //
-        if (VAL_LEN_AT(spec) == 0)
+        if (has_return) {
+            VAL_FUNC_SPEC(out) = returns_unset
+                ? VAL_ARRAY(ROOT_LEAVE_BLOCK)
+                : VAL_ARRAY(ROOT_RETURN_BLOCK);
+        } else
             VAL_FUNC_SPEC(out) = EMPTY_ARRAY;
-        else
-            VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                VAL_ARRAY(spec), VAL_INDEX(spec)
-            );
+    }
+    else if (!has_return) {
+        //
+        // If has_return is FALSE upon entry, then nothing in the spec disabled
+        // a definitional exit...and this was called by `make function!`.  So
+        // there are no bells and whistles (including <opt> or <...> tag
+        // conversion).  It is "effectively <no-return>", though the
+        // non-definitional EXIT and EXIT/WITH will still be available.
+        //
+        VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
+            VAL_ARRAY(spec), VAL_INDEX(spec)
+        );
     }
     else {
         // Trickier case: when the `func` or `clos` natives are used, they
@@ -607,10 +616,21 @@ void Make_Function(
         // They must decide whether to add a specially handled RETURN
         // local, which will be given a tricky "native" definitional return
 
-        REBVAL *item = VAL_ARRAY_HEAD(spec);
         REBCNT index = 0;
         REBOOL convert_local = FALSE;
+        REBVAL *item;
 
+        // We may add a return or leave, so avoid a later expansion by asking
+        // for the capacity of the copy to have an extra value.  (May be a
+        // waste if unused, but would require two passes to avoid it.)
+        //
+        VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
+            VAL_ARRAY(spec),
+            VAL_INDEX(spec),
+            1 // +1 capacity hint
+        );
+
+        item = ARR_HEAD(VAL_FUNC_SPEC(out));
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
                 //
@@ -626,9 +646,10 @@ void Make_Function(
                 // with a definitional return" for you.  You don't have
                 // to use it if you don't want to...
 
-                // !!! Should FUNC and CLOS be willing to move blocks after
-                // a return: to the head to indicate a type check?  It
-                // breaks the purity of the model.
+                // !!! TBD: make type checking work (not yet implemented in
+                // Red, either).  Will only be available as a generator
+                // feature, by way of ENSURE-TYPE wrapping the body and the
+                // argument typing on the return function.
 
                 continue;
             }
@@ -650,9 +671,6 @@ void Make_Function(
                     // or COMPOSE that is generally required to composite a
                     // single block parameter that MAKE FUNCTION! requires.
                     //
-                    VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                        VAL_ARRAY(spec), VAL_INDEX(spec)
-                    );
                     has_return = FALSE;
 
                     // We *could* remove the <no-return> tag, or check to
@@ -762,9 +780,6 @@ void Make_Function(
                     // refinement".  The choice of HELP to omit it could be
                     // a configuration setting.
                     //
-                    VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-                        VAL_ARRAY(spec), VAL_INDEX(spec)
-                    );
                     has_return = FALSE;
                 }
             }
@@ -790,6 +805,17 @@ void Make_Function(
                         //
                         SET_BAR(subitem);
                     }
+                    else if (
+                        0 == Compare_String_Vals(
+                            subitem, ROOT_OPT_TAG, TRUE
+                        )
+                    ) {
+                        // Another notational convenience for NONE!, since
+                        // a spec saying `func [x [_ integer!]]` is not as
+                        // clear as `func [x [<opt> integer!]]`
+                        //
+                        SET_NONE(subitem);
+                    }
                 }
             }
         }
@@ -797,30 +823,16 @@ void Make_Function(
         if (has_return) {
             //
             // No prior RETURN (or other issue) stopping definitional return!
-            // Add the "true local" RETURN: to the spec.
+            // Add the "true local" RETURN: to the spec.  +1 capacity was
+            // reserved in anticipation of this possibility, so it should not
+            // need to expand the array.
             //
-            if (index == 0) {
-                //
-                // If the incoming spec was [] and we are turning it to
-                // [return:], then that's a relatively common pattern
-                // (e.g. what DOES would manufacture).  Re-use a global
-                // instance of that series as an optimization.
-                //
-                VAL_FUNC_SPEC(out) = returns_unset
-                    ? VAL_ARRAY(ROOT_LEAVE_BLOCK)
-                    : VAL_ARRAY(ROOT_RETURN_BLOCK);
-            }
-            else {
-                VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-                    VAL_ARRAY(spec), VAL_INDEX(spec), 1 // +1 capacity hint
-                );
-                Append_Value(
-                    VAL_FUNC_SPEC(out),
-                    returns_unset
-                        ? ROOT_LEAVE_SET_WORD
-                        : ROOT_RETURN_SET_WORD
-                    );
-            }
+            Append_Value(
+                VAL_FUNC_SPEC(out),
+                returns_unset
+                    ? ROOT_LEAVE_SET_WORD
+                    : ROOT_RETURN_SET_WORD
+            );
         }
     }
 
@@ -972,8 +984,9 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
     // used with the understanding that it meant to act as a BAR!.
     // Review needed once some experience is had with this.
     //
-    for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var)
+    for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var) {
         SET_BAR(var);
+    }
 
     SET_END(var);
     SET_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));

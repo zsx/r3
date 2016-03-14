@@ -367,7 +367,7 @@ REBNATIVE(pause)
 //
 //      /with
 //          "Return the given value as return value from BREAKPOINT"
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          "Value to use"
 //      /do
 //          "Evaluate given code as return value from BREAKPOINT"

@@ -14,49 +14,48 @@ REBOL [
     }
 ]
 
-trash       *
 unset       *
 none        *
 handle      *
 
-logic       5
+logic       4
 integer     *
 decimal     *
 percent     *
 
-char        11
+char        10
 pair        *
 tuple       *
 time        *
 date        *
 
-word        17
+word        16
 set-word    *
 get-word    *
 lit-word    *
 refinement  *
 issue       *
 
-string      25
+string      24
 file        *
 email       *
 url         *
 tag         *
 
-block       33
+block       32
 group       *
 path        *
 set-path    *
 get-path    *
 lit-path    *
 
-binary      41
+binary      40
 bitset      *
 vector      *
 image       *
 
-gob         48
+gob         47
 
-object      49
+object      48
 module      *
 

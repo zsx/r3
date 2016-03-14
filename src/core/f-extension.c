@@ -164,10 +164,6 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
     // Note: This function is imported by %a-lib.c, keep prototype in sync
 
     switch (type) {
-    case RXT_TRASH:
-        SET_TRASH_SAFE(val);
-        break;
-
     case RXT_UNSET:
         SET_UNSET(val);
         break;
@@ -494,8 +490,13 @@ void Make_Command(
     INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_COMMAND);
 
     // See notes in `Make_Function()` about why a copy is *required*.
+
     VAL_FUNC_SPEC(out) =
         Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
+
+    // spec scanner doesn't know <opt>, just _
+    //
+    Turn_Typespec_Opts_Into_Nones(VAL_FUNC_SPEC(out));
 
     out->payload.function.func
         = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(out), SYM_0));

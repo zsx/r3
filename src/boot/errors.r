@@ -63,9 +63,6 @@ Internal: [
     bad-boot-type-block: {boot block is wrong size}
     max-natives:        {too many natives}
     action-overflow:    {more actions than we should have}
-    bad-trash-canon:    {TRASH! was not found}
-    bad-true-canon:     {TRUE was not found}
-    bad-trash-type:     {the TRASH! word is not correct}
     rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
     pool-alignment:     {Memory pool width not 64-bit aligned}
 
@@ -122,6 +119,7 @@ Script: [
 
     no-arg:             [:arg1 {is missing its} :arg2 {argument}]
     expect-arg:         [:arg1 {does not allow} :arg2 {for its} :arg3 {argument}]
+    arg-required:       [:arg1 {requires} :arg2 {argument to not be void}]
     expect-val:         [{expected} :arg1 {not} :arg2]
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
@@ -131,6 +129,7 @@ Script: [
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
 
+    reduce-made-void:   {Expression in REDUCE evaluated to void}
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 
     ; !!! Temporary errors while faulty constructs are still outstanding

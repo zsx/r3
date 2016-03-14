@@ -1190,9 +1190,12 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 {
     REBCTX *context = AS_CONTEXT(obj);
     REBVAL *value;
+
     if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
+
     value = CTX_VAR(context, word);
     Value_To_RXI(result, value);
+
     return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 

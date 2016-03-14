@@ -51,9 +51,7 @@ dump-obj: function [
     wild: all [set? 'pat | string? pat | find pat "*"]
 
     for-each [word val] obj [
-        ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-        ; (and for this use maybe it would be needed anyway, review to check)
-        type: to-word type-of :val
+        type: type-of :val
 
         str: either any [function? :type object? :type] [
             reform [word mold spec-of :val words-of :val]
@@ -63,7 +61,7 @@ dump-obj: function [
         if any [
             not match
             all [
-                not unset? :val
+                not void? :val
                 either string? :pat [
                     either wild [
                         tail? any [find/any/match str pat pat]
@@ -83,7 +81,7 @@ dump-obj: function [
             append str form-pad type 10 - ((length str) - 15)
             append out reform [
                 "  " str
-                if type <> 'unset! [form-val :val]
+                if type [form-val :val]
                 newline
             ]
         ]
@@ -509,11 +507,12 @@ source: make function! [[
     ]
 ]]
 
-what: func [
+what: procedure [
     {Prints a list of known functions.}
-    'name [word! lit-word! unset!] "Optional module name"
-    /args "Show arguments not titles"
-    /local ctx vals arg list size
+    'name [<opt> word! lit-word!]
+        "Optional module name"
+    /args
+        "Show arguments not titles"
 ][
     list: make block! 400
     size: 0
@@ -539,7 +538,6 @@ what: func [
         append/dup clear vals #" " size
         print [head change vals word any [arg ""]]
     ]
-    return ()
 ]
 
 pending: does [
@@ -560,10 +558,10 @@ upgrade: function [
 
 why?: function [
     "Explain the last error in more detail."
-    'err [word! path! error! none! unset!] "Optional error value"
+    'err [_ word! path! error! none!] "Optional error value"
 ][
     case [
-        unset? :err [err: none]
+        not set? 'err [err: none]
         word? err [err: get err]
         path? err [err: get err]
     ]

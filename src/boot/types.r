@@ -36,14 +36,16 @@ REBOL [
 
 [name       class       mold    form    path    make    typesets]
 
-trash       0           -       -       -       -       -
-unset       none        -       -       -       *       -
+;-- "Unit types"
+;-- https://en.wikipedia.org/wiki/Unit_type
+
+unset       unit        -       -       -       -       -
+none        unit        +       +       -       *       -
+bar         (unit)      +       +       -       *       -
+lit-bar     (unit)      +       +       -       *       -
 
 ;-- Scalars
 
-none        none        +       +       -       *       -
-bar         (none)      +       +       -       *       -
-lit-bar     (none)      +       +       -       *       -
 logic       logic       *       *       -       *       -
 integer     integer     *       *       -       -       [number scalar]
 decimal     decimal     *       *       -       *       [number scalar]
@@ -90,7 +92,7 @@ map         map         +       f*      *       *       -
 datatype    datatype    +       f*      -       *       -
 typeset     typeset     +       f*      -       *       -
 
-function    (function)  *       -       -       *       function
+function    (function)  *       -       -       *       -
 
 varargs     varargs     -       -       -       -       -
 

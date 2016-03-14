@@ -1114,7 +1114,7 @@ sys/make-scheme [
             return port
         ]
 
-        write: func [port [port!] value [opt-any-value!]] [
+        write: func [port [port!] value [<opt> any-value!]] [
             if find [encrypted-handshake application] port/state/protocol-state [
                 do-commands/no-wait port/state compose [
                     application (value)
