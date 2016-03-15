@@ -239,6 +239,25 @@ selfless?: func [context [any-context!]] [
     fail {selfless? no longer has meaning (all frames are "selfless")}
 ]
 
+comment [ ;-- not quite ready to get rid of unset! yet...
+unset?: does [
+    fail [
+        {UNSET? is reserved in Ren-C for future use}
+        | {(Will mean VOID? GET, like R3-Alpha VALUE?, only for WORDs/PATHs}
+        | {Use VOID? for a similar test, but be aware there is no UNSET! type}
+        | {If running in <r3-legacy> mode, old UNSET? meaning is available}
+    ]
+]
+]
+
+value?: does [
+    fail [
+        {VALUE? is reserved in Ren-C for future use}
+        | {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
+        | {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
+        | {If running in <r3-legacy> mode, old VALUE? meaning is available.}
+    ]
+]
 
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
@@ -616,6 +635,38 @@ set 'r3-legacy* func [] [
     if r3-legacy-mode [return none]
 
     append system/contexts/user compose [
+
+        ; UNSET! as a reified type does not exist in Ren-C.  There is still
+        ; a "void" state as the result of `do []` or just `()`, and it can be
+        ; passed around transitionally.  Yet this "meta" result cannot be
+        ; stored in blocks.
+        ;
+        ; Over the longer term, UNSET? should be something that takes a word
+        ; or path to tell whether a variable is unset... but that is reserved
+        ; for NOT SET? until legacy is adapted.
+        ;
+        unset?: :void?
+
+        ; Result from TYPE-OF () is a NONE!, so this should allow one to write
+        ; `unset! = type-of ()`.  Also, a NONE! value in a typeset spec is
+        ; used to indicate a willingness to tolerate optional arguments, so
+        ; `foo: func [x [unset! integer!] x][...]` should work in legacy mode
+        ; for making an optional x argument.
+        ;
+        ; Note that with this definition, `datatype? unset!` will fail.
+        ;
+        unset!: (#[unset!])
+
+        ; The bizarre VALUE? function would look up words, return TRUE if they
+        ; were set and FALSE if not.  All other values it returned TRUE.  The
+        ; parameter was not optional, so you couldn't say `value?`.
+        ;
+        value?: (func [
+            {If a word, return whether word is set...otherwise TRUE}
+            value
+        ][
+            either any-word? :value [set? value] [true]
+        ])
 
         and: (:and*)
 

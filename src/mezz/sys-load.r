@@ -798,7 +798,7 @@ load-module: function [
                 module? :mod0 [hdr0: spec-of mod0] ; final header
                 block? :mod0 [hdr0: first mod0] ; cached preparsed header
                 ;assert/type [name0 word! hdr0 object! sum0 [binary! none!]] none
-                not tuple? set/opt 'ver0 :hdr0/version [ver0: 0.0.0]
+                not tuple? ver0: :hdr0/version [ver0: 0.0.0]
             ]
 
             ; Compare it to the module we want to load

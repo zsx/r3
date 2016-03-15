@@ -48,7 +48,7 @@ dump-obj: function [
 
     ; Search for matching strings:
     out: copy []
-    wild: all [value? 'pat string? pat  find pat "*"]
+    wild: all [set? 'pat | string? pat | find pat "*"]
 
     for-each [word val] obj [
         ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
@@ -132,7 +132,7 @@ title-of: function [
     /doc "Open web browser to related documentation."
     /local value args item type-name types tmp print-args
 ][
-    unless value? 'word [
+    unless set? 'word [
         print trim/auto {
             Use HELP or ? to see built-in info:
 
@@ -208,7 +208,7 @@ title-of: function [
 ;           More information: http://www.rebol.com/docs.html
 
     ; If arg is an undefined word, just make it into a string:
-    if all [word? :word not value? :word] [word: mold :word]
+    if all [word? :word | not set? :word] [word: mold :word]
 
     ; Open the web page for it?
     if all [
@@ -246,7 +246,7 @@ title-of: function [
                 "It is of the general type" value/type newline
             ]
         ]
-        if any [:word = 'unset! not value? :word] [return ()]
+        if all [any-word? :word | not set? :word] [return ()]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
@@ -278,7 +278,7 @@ title-of: function [
     either path? :word [
         if any [
             error? set/opt 'value trap [get :word] ;trap reduce [to-get-path word]
-            not value? 'value
+            not set? 'value
         ][
             print ["No information on" word "(path has no value)"]
             return ()

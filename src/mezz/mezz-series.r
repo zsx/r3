@@ -99,7 +99,7 @@ array: func [
 ][
     if block? size [
         if tail? rest: next size [rest: none]
-        unless integer? set/opt 'size first size [
+        unless integer? size: first size [
             cause-error 'script 'expect-arg reduce ['array 'size type-of :size]
         ]
     ]
@@ -262,7 +262,7 @@ reword: function [
         ] [
             while [not tail? values] [
                 w: first+ values  ; Keywords are not evaluated
-                set/opt 'v do/next values 'values
+                v: do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
                     wtype = type-of :w none
@@ -387,14 +387,14 @@ extract: func [
         if unset? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
-            if none? set/opt 'val pick series pos/1 [set/opt 'val value]
+            if none? val: pick series pos/1 [val: value]
             output: insert/only output :val
         ]]
     ][
         if unset? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [
-            if none? set/opt 'val pick series pos [set/opt 'val value]
+            if none? val: pick series pos [val: value]
             output: insert/only output :val
         ]
     ]

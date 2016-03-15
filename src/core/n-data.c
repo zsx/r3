@@ -858,7 +858,7 @@ REBNATIVE(set)
     REBVAL *value = ARG(value);
     REBOOL set_with_block;
 
-    if (!REF(opt) && !IS_SET(value))
+    if (!REF(opt) && IS_UNSET(value))
         fail (Error(RE_NEED_VALUE, target));
 
     // Simple request to set a word variable.  Allows ANY-WORD, which means
@@ -1008,7 +1008,7 @@ REBNATIVE(set)
             case REB_WORD:
             case REB_SET_WORD:
             case REB_LIT_WORD:
-                if (!IS_SET(value)) {
+                if (IS_UNSET(value)) {
                     assert(set_with_block); // if not, caught earlier...!
                     fail (Error(RE_NEED_VALUE, target));
                 }
@@ -1020,8 +1020,15 @@ REBNATIVE(set)
                 // elements to the same value, it makes a difference if
                 // it's a get-word for the !set_with_block too.
                 //
-                if (!IS_SET(IS_WORD(value) ? GET_OPT_VAR_MAY_FAIL(value) : value))
+                if (
+                    IS_UNSET(
+                        IS_WORD(value)
+                            ? GET_OPT_VAR_MAY_FAIL(value)
+                            : value
+                    )
+                ) {
                     fail (Error(RE_NEED_VALUE, target));
+                }
                 break;
             }
 
@@ -1152,20 +1159,52 @@ REBNATIVE(infix_q)
 
 
 //
-//  value?: native [
+//  set?: native [
 //  
-//  "Returns TRUE if the word has a value."
+//  "Returns whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
 //  
-//      value
+//      location [any-word! any-path!]
 //  ]
 //
-REBNATIVE(value_q)
+REBNATIVE(set_q)
 {
-    const REBVAL *value = D_ARG(1);
+    PARAM(1, location);
+    REBVAL *location = ARG(location);
 
-    if (ANY_WORD(value) && !(value = TRY_GET_OPT_VAR(value)))
-        return R_FALSE;
-    if (IS_UNSET(value)) return R_FALSE;
+    if (ANY_WORD(location)) {
+        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location); // fails if unbound
+        if (IS_UNSET(var))
+            return R_FALSE;
+    }
+    else {
+        assert(ANY_PATH(location));
+
+    #if !defined(NDEBUG)
+        REBDSP dsp_orig = DSP;
+    #endif
+
+        // !!! We shouldn't be evaluating but currently the path machinery
+        // doesn't "turn off" GROUP! evaluations for GET-PATH!.  Pick_Path
+        // doesn't have the right interface however.  This is temporary.
+        //
+        VAL_SET_TYPE_BITS(location, REB_GET_PATH);
+
+        REBVAL temp;
+        VAL_INIT_WRITABLE_DEBUG(&temp);
+        if (Do_Path_Throws(&temp, NULL, location, NULL)) {
+            //
+            // !!! Shouldn't be evaluating, much less throwing--so fail
+            //
+            fail (Error_No_Catch_For_Throw(&temp));
+        }
+
+        // We did not pass in a symbol ID
+        //
+        assert(DSP == dsp_orig);
+        if (IS_UNSET(&temp))
+            return R_FALSE;
+    }
+
     return R_TRUE;
 }
 
@@ -1197,7 +1236,7 @@ REBNATIVE(true_q)
 //  ][
 //      either any [
 //          none? :value
-//          value = false
+//          :value = false
 //      ][
 //          true
 //      ][

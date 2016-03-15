@@ -869,7 +869,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
         n = VAL_CMD(item);
 
         if (n == SYM_SKIP)
-            return (IS_SET(&value)) ? P_POS : NOT_FOUND;
+            return IS_UNSET(&value) ? NOT_FOUND : P_POS;
 
         if (n == SYM_QUOTE) {
             item = item + 1;
@@ -1036,7 +1036,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
 
-            if (IS_SET(&result))
+            if (IS_ANY_VALUE(&result))
                 fail (Error(RE_MISC));
         }
 

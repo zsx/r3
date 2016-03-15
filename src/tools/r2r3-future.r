@@ -44,6 +44,54 @@ REBOL [
     }
 ]
 
+; Bootstrap VOID? into existence
+;
+unless true = attempt [void? :some-undefined-thing] [
+    void?: :unset?
+]
+
+
+; Used in function definitions before the mappings
+;
+if void? :any-context! [
+    any-context!: :any-object!
+    any-context?: :any-object?
+]
+
+; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
+; placeholder for [<opt> ANY-VALUE!]
+;
+either void? :any-value! [
+    any-value!: difference any-type! (make typeset! [unset!])
+    *opt-legacy*: unset!
+    any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
+][
+    *opt-legacy*: none
+]
+
+if void? :set? [
+    set?: func [
+        "Returns whether a bound word has a value (fails if unbound)"
+        any-word [any-word!]
+    ][
+        unless bound? any-word [
+            fail [any-word "is not bound in set?"]
+        ]
+        value? any-word ;-- the "old" meaning of value...
+    ]
+]
+
+
+; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
+; for compatibility as pointing to the same datatype).  Older Rebols
+; haven't heard of GROUP!, so establish the reverse compatibility.
+;
+if void? :group? [
+    group?: :paren?
+    group!: paren!
+]
+
+
 ; Older versions of Rebol had a different concept of what FUNCTION meant
 ; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
 ; did locals-gathering by default named FUNCT overtook it, with the name
@@ -294,13 +342,13 @@ unless parse migrations [
     some [
         ;-- Note: GROUP! defined during migration, so use PAREN! here
         [set left word! <as> set right [get-word! | paren!]] (
-            unless value? left [
+            unless set? left [
                 set left either paren? right [reduce right] [get right]
             ]
         )
     |
         [set left word! <to> set right word!] (
-            unless value? right [
+            unless set? right [
                 set right get left
                 unset left
             ]

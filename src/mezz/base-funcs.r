@@ -258,7 +258,7 @@ default: func [
     'word [word! set-word! lit-word!] "The word (use :var for word! values)"
     value "The value" ; unset! not allowed on purpose
 ][
-    unless all [value? word not none? get word] [set word :value] :value
+    unless all [set? word | not none? get word] [set word :value] :value
 ]
 
 

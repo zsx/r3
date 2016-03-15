@@ -382,8 +382,10 @@ reevaluate:
         else
             QUOTE_NEXT_REFETCH(f->out, f);
 
-        if (IS_UNSET(f->out))
+    #if !defined(NDEBUG)
+        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_UNSET(f->out))
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
+    #endif
 
         *GET_MUTABLE_VAR_MAY_FAIL(f->param) = *(f->out);
         break;
@@ -507,10 +509,10 @@ reevaluate:
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
 
-        // `a/b/c: ()` is not legal (cannot assign path from unset)
-        //
-        if (IS_UNSET(f->out))
-            fail (Error(RE_NEED_VALUE, f->param));
+    #if !defined(NDEBUG)
+        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_UNSET(f->out))
+            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `a/b/c: ()`
+    #endif
 
         // !!! The evaluation ordering of SET-PATH! evaluation seems to break
         // the "left-to-right" nature of the language:

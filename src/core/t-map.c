@@ -266,8 +266,8 @@ static void Rehash_Map(REBMAP *map)
 //
 //  Find_Map_Entry: C
 // 
-// Try to find the entry in the map. If not found and val IS_SET(), create the
-// entry and store the key and val.
+// Try to find the entry in the map. If not found and val isn't void, create
+// the entry and store the key and val.
 //
 // RETURNS: the index to the VALUE or zero if there is none.
 //

@@ -218,7 +218,10 @@ for-each-record-NO-RETURN: func [
 
     table: next table
 
-    set/opt quote result: while [not empty? table] [
+    ; Note: this code must run in R3-Alpha, so can't just use `result:`
+    ; like in Ren-C (which will unset the variable if VOID? argument)
+    ;
+    set/opt (quote result:) while [not empty? table] [
         if (length headings) > (length table) [
             fail {Element count isn't even multiple of header count}
         ]

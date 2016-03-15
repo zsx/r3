@@ -561,6 +561,9 @@ emit {
 #define IS_SET(v) \
     LOGICAL(VAL_TYPE(v) > REB_UNSET)
 
+#define IS_ANY_VALUE(v) \
+    LOGICAL(VAL_TYPE(v) != REB_UNSET)
+
 #define IS_SCALAR(v) \
     LOGICAL(VAL_TYPE(v) <= REB_DATE)
 

@@ -135,7 +135,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 
         if (Do_Signals_Throws(&result))
             fail (Error_No_Catch_For_Throw(&result));
-        if (IS_SET(&result))
+        if (IS_ANY_VALUE(&result))
             fail (Error(RE_MISC));
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
@@ -161,7 +161,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
-            if (IS_SET(&result))
+            if (IS_ANY_VALUE(&result))
                 fail (Error(RE_MISC));
 
             Req_SIO->length = Encode_UTF8(
