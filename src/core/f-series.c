@@ -320,7 +320,7 @@ chkDecimal:
         return Cmp_Struct(s, t);
 
     case REB_NONE:
-    case REB_UNSET:
+    case REB_0:
     default:
         break;
 
@@ -361,7 +361,7 @@ REB_R Destroy_External_Storage(REBVAL *out,
                                REBSER *ser,
                                REBVAL *free_func)
 {
-    SET_UNSET_UNLESS_LEGACY_NONE(out);
+    SET_VOID_UNLESS_LEGACY_NONE(out);
 
     if (!GET_SER_FLAG(ser, SERIES_FLAG_EXTERNAL)) {
         fail (Error(RE_NO_EXTERNAL_STORAGE));

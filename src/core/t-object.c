@@ -133,7 +133,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (!Find_Word_In_Context(context, VAL_WORD_SYM(arg), TRUE)) {
             Expand_Context(context, 1); // copy word table also
             Append_Context(context, 0, VAL_WORD_SYM(arg));
-            // val is UNSET
+            // default of Append_Context is that arg's value is void
         }
         return;
     }
@@ -222,7 +222,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     REBVAL *key_new;
 
     // First pass: determine size of new context to create by subtracting out
-    // any UNSET!, NONE!, or hidden fields
+    // any void (unset fields), NONE!, or hidden fields
     //
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);

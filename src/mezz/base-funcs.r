@@ -263,10 +263,10 @@ default: func [
 
 
 ensure: func [
-    {Pass through a value that isn't UNSET! or FALSE?, but FAIL otherwise}
+    {Pass through data that isn't VOID? or FALSE?, but FAIL otherwise}
     arg [<opt> any-value!]
     /value
-        {Only check for ANY-VALUE? (FALSE and NONE ok, but not UNSET!)}
+        {Only check for ANY-VALUE? (FALSE and NONE ok, but not void)}
     /type
     types [block! datatype! typeset!]
         {FAIL only if not one of these types (block converts to TYPESET!)}
@@ -274,7 +274,7 @@ ensure: func [
     ; !!! To be rewritten as a native once behavior is pinned down.
 ][
     unless any-value? :arg [
-        unless type [fail "ENSURE did not expect value to be UNSET!"]
+        unless type [fail "ENSURE did not expect value to be void"]
     ]
 
     unless type [

@@ -82,7 +82,7 @@ static REBOOL get_scalar(const REBSTU *stu,
 
     if (NOT_ACCESSIBLE(stu)) {
         if (field->type != STRUCT_TYPE_STRUCT) {
-            SET_UNSET(val);
+            SET_VOID(val);
             return FALSE;
         }
     }
@@ -1206,7 +1206,7 @@ REBTYPE(Struct)
 
     ret = D_OUT;
 
-    SET_UNSET(ret);
+    SET_VOID(ret);
     // unary actions
     switch(action) {
         case A_MAKE:

@@ -14,7 +14,7 @@ REBOL [
     }
 ]
 
-unset       *
+0           *
 none        *
 handle      *
 

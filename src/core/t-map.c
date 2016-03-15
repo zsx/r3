@@ -106,7 +106,7 @@ REBINT Find_Key_Hashed(
     REBCNT *hashes;
     REBCNT skip;
     REBCNT hash;
-    // a 'zombie' is a key with UNSET! value, that may be overwritten
+    // a 'zombie' is a key with void value, that may be overwritten
     REBCNT zombie;
     REBCNT uncased;
     REBCNT len;
@@ -533,8 +533,8 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
             // that function specs did.)
             Val_Init_Typeset(
                 key,
-                // all types except UNSET
-                ~FLAGIT_KIND(REB_UNSET),
+                // all types except void
+                ~FLAGIT_KIND(REB_0),
                 VAL_WORD_SYM(mval)
             );
             key++;

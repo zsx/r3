@@ -389,7 +389,7 @@ get: function [
     source
         "Word, path, context to get"
     /opt
-        "The source may optionally have no value (allows returning UNSET!)"
+        "The source may optionally have no value (allows returning void)"
     /any
         "Deprecated legacy synonym for /OPT"
 ][
@@ -1060,7 +1060,7 @@ set 'r3-legacy* func [] [
     system/options/forever-64-bit-ints: true
     system/options/print-forms-everything: true
     system/options/break-with-overrides: true
-    system/options/none-instead-of-unsets: true
+    system/options/none-instead-of-voids: true
     system/options/arg1-arg2-arg3-error: true
     system/options/dont-exit-natives: true
     system/options/paren-instead-of-group: true

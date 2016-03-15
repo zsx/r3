@@ -62,8 +62,8 @@ time        ["time of day or duration" scalar]
 tuple       ["sequence of small integers (colors, versions, IP)" scalar]
 typeset     ["set of datatypes" opt-object]
 unicode     ["string of unicoded characters" string]
-;-- Note that UNSET is not a type of value, and should not be in this list
 url         ["uniform resource locator or identifier" string]
 varargs     ["evaluator position for variable numbers of arguments" internal]
 vector      ["high performance arrays (single datatype)" vector]
+;-- Note that VOID is not a type of value, and should not be in this list
 word        ["word (symbol or variable)" word]

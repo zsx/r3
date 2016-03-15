@@ -112,7 +112,7 @@ append output-buffer others-buffer
 
 append output-buffer {
 
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+;-- Expectation is that evaluation returns no value, empty parens makes one
 ()
 }
 

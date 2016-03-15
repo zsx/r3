@@ -152,7 +152,7 @@ unless find words-of :get /opt [
         source
             "Word, path, context to get"
         /opt
-            "The source may optionally have no value (allows returning UNSET!)"
+            "The source may optionally have no value (allows returning void)"
         /any
             "Deprecated legacy synonym for /OPT"
     ][

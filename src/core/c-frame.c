@@ -193,12 +193,19 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 //
 //  Append_Context: C
 // 
-// Append a word to the context word list. Expands the list
-// if necessary. Returns the value cell for the word. (Set to
-// UNSET by default to avoid GC corruption.)
-// 
-// If word is not NULL, use the word sym and bind the word value,
-// otherwise use sym.
+// Append a word to the context word list. Expands the list if necessary.
+// Returns the value cell for the word.  The appended variable is unset.
+//
+// !!! Review if it would make more sense to use TRASH.
+//
+// If word is not NULL, use the word sym and bind the word value, otherwise
+// use sym.  When using a word, it will be modified to be specifically bound
+// to this context after the operation.
+//
+// !!! Should there be a clearer hint in the interface, with a REBVAL* out,
+// to give a fully bound value as a result?  Given that the caller passed
+// in the context and can get the index out of a relatively bound word,
+// they usually likely don't need the result directly.
 //
 REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
 {
@@ -216,7 +223,7 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
     //
     EXPAND_SERIES_TAIL(ARR_SERIES(CTX_VARLIST(context)), 1);
     value = ARR_LAST(CTX_VARLIST(context));
-    SET_UNSET(value);
+    SET_VOID(value);
     TERM_ARRAY(CTX_VARLIST(context));
 
     if (word) {
@@ -500,8 +507,8 @@ static void Collect_Context_Inner_Loop(
                     typeset = ARR_LAST(BUF_COLLECT);
                     Val_Init_Typeset(
                         typeset,
-                        // Allow all datatypes but UNSET (initially):
-                        ~FLAGIT_KIND(REB_UNSET),
+                        // Allow all datatypes but no void (initially):
+                        ~FLAGIT_KIND(REB_0),
                         VAL_WORD_SYM(value)
                     );
                 }
@@ -749,7 +756,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
     // !!! This code was inlined from Create_Frame() because it was only
     // used once here, and it filled the context vars with NONE!.  For
-    // Ren-C we probably want to go with UNSET!, and also the filling
+    // Ren-C we probably want to go with void, and also the filling
     // of parent vars will overwrite the work here.  Review.
     //
     {
@@ -1229,7 +1236,7 @@ void Resolve_Context(
                 !GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
                 && (all || IS_VOID(var))
             ) {
-                if (m < 0) SET_UNSET(var); // no value in source context
+                if (m < 0) SET_VOID(var); // no value in source context
                 else *var = *CTX_VAR(source, m);
             }
         }

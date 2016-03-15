@@ -364,7 +364,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     //
     // In debug builds we make sure we put in GC-unsafe trash in the chunk.
     // This helps make sure that the caller fills in the values before a GC
-    // ever actually happens.  (We could set it to UNSET! or something
+    // ever actually happens.  (We could set it to void or something
     // GC-safe, but that might wind up being wasted work if unset is not
     // what the caller was wanting...so leave it to them.)
     {
@@ -566,7 +566,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     // Make_Call does not fill the args in the frame--that's up to Do_Core
     // and Apply_Block as they go along.  But the frame has to survive
     // Recycle() during arg fulfillment, slots can't be left uninitialized.
-    // It is important to set to UNSET for bookkeeping so that refinement
+    // It is important to set to void for bookkeeping so that refinement
     // scanning knows when it has filled a refinement slot (and hence its
     // args) or not.
     //

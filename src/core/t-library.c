@@ -87,7 +87,7 @@ REBTYPE(Library)
         case A_CLOSE:
             OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
             CLOSE_LIB(VAL_LIB_HANDLE(val));
-            SET_UNSET(D_OUT);
+            SET_VOID(D_OUT);
             break;
         default:
             fail (Error_Illegal_Action(REB_LIBRARY, action));

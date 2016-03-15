@@ -285,7 +285,7 @@ reevaluate:
 // [BAR! and LIT-BAR!]
 //
 // If an expression barrier is seen in-between expressions (as it will always
-// be if hit in this switch), it becomes UNSET!.  It only errors in argument
+// be if hit in this switch), it evaluates to void.  It only errors in argument
 // fulfillment during the switch case for ANY-FUNCTION!.
 //
 // LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
@@ -297,13 +297,13 @@ reevaluate:
 //     case [false [print "F"] | true [print ["T"]]
 //
 // If CASE did not specially recognize BAR!, it would complain that the
-// "second condition" was UNSET!.  So if you are looking for a BAR! behavior
+// "second condition" had no value.  So if you are looking for a BAR! behavior
 // and it's not passing through here, check the construct you are using.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_BAR:
-        SET_UNSET(f->out);
+        SET_VOID(f->out);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -394,7 +394,7 @@ reevaluate:
 // [GET-WORD!]
 //
 // A GET-WORD! does no checking for unsets, no dispatch on functions, and
-// will return an UNSET! if that is what the variable is.
+// will return void if the variable is not set.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
@@ -948,7 +948,7 @@ reevaluate:
             if (pclass == PARAM_CLASS_PURE_LOCAL) {
 
                 if (IS_BAR(f->arg)) { // no specialization (common case)
-                    SET_UNSET(f->arg);
+                    SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -1016,13 +1016,13 @@ reevaluate:
                 goto check_arg; // normal checking, handles errors also
             }
 
-    //=//// IF UNSPECIALIZED ARG IS INACTIVE, SET UNSET AND MOVE ON ///////=//
+    //=//// IF UNSPECIALIZED ARG IS INACTIVE, SET VOID AND MOVE ON ////////=//
 
             // Unspecialized arguments that do not consume do not need any
-            // further processing or checking.  UNSET! will always be fine.
+            // further processing or checking.  void will always be fine.
             //
             if (IS_NONE(f->refine)) { // FALSE if revoked, and still evaluates
-                SET_UNSET(f->arg);
+                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1125,7 +1125,7 @@ reevaluate:
             // Some arguments can be fulfilled and skip type checking or
             // take care of it themselves.  But normal args pass through
             // this code which checks the typeset and also handles it when
-            // an UNSET! arg signals the revocation of a refinement usage.
+            // a void arg signals the revocation of a refinement usage.
 
         check_arg:
             ASSERT_VALUE_MANAGED(f->arg);
@@ -1263,7 +1263,7 @@ reevaluate:
             if (f->func == PG_Leave_Func) {
                 //
                 // LEAVE never created an arglist, so it doesn't have to
-                // free one.  Also, it wants to just return UNSET!
+                // free one.  Also, it doesn't want to return a value.
                 //
                 CONVERT_NAME_TO_EXIT_THROWN(f->out, VOID_CELL);
                 NOTE_THROWING(goto return_indexor);
@@ -1559,12 +1559,12 @@ reevaluate:
         // Here we know the function finished and did not throw or exit.  If
         // it has a definitional return we need to type check it--and if it
         // has a leave we have to squash whatever the last evaluative result
-        // was and replace it with an UNSET!
+        // was and return no value
         //
         if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
             REBVAL *last_param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
             if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
-                SET_UNSET(f->out);
+                SET_VOID(f->out);
             }
             else {
                 // The type bits of the definitional return are not applicable

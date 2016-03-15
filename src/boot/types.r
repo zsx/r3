@@ -39,7 +39,11 @@ REBOL [
 ;-- "Unit types"
 ;-- https://en.wikipedia.org/wiki/Unit_type
 
-unset       unit        -       -       -       -       -
+; Note that the "void?" state has no associated VOID! datatype--internally it
+; is known as REB_0.
+;
+0           unit        -       -       -       -       -
+
 none        unit        +       +       -       *       -
 bar         (unit)      +       +       -       *       -
 lit-bar     (unit)      +       +       -       *       -

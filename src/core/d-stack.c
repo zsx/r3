@@ -604,8 +604,8 @@ REBNATIVE(backtrace)
 //
 //  Frame_For_Stack_Level: C
 //
-// Level can be an UNSET!, an INTEGER!, an ANY-FUNCTION!, or a FRAME!.  If
-// level is UNSET! then it means give whatever the first call found is.
+// Level can be a void, an INTEGER!, an ANY-FUNCTION!, or a FRAME!.  If
+// level is void then it means give whatever the first call found is.
 //
 // Returns NULL if the given level number does not correspond to a running
 // function on the stack.

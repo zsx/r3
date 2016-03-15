@@ -148,7 +148,7 @@ options: context [  ; Options supplied to REBOL during startup
     forever-64-bit-ints: false
     print-forms-everything: false
     break-with-overrides: false
-    none-instead-of-unsets: false
+    none-instead-of-voids: false
     dont-exit-natives: false
     paren-instead-of-group: false
     get-will-get-anything: false
@@ -588,5 +588,5 @@ view: context [
 ;   help: none      ; True if the --help flags was specified
 ;   halt: none      ; halt after script
 
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()

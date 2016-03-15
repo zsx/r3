@@ -234,7 +234,7 @@ REBOOL Do_Breakpoint_Throws(
                 // If the resume instruction had no /DO or /WITH of its own,
                 // then it doesn't override whatever the breakpoint provided
                 // as a default.  (If neither the breakpoint nor the resume
-                // provided a /DO or a /WITH, result will be UNSET.)
+                // provided a /DO or a /WITH, result will be void.)
                 //
                 goto return_default; // heeds `target`
             }
@@ -285,7 +285,7 @@ return_default:
         }
     }
     else
-        temp = *default_value; // generally UNSET! if no /WITH
+        temp = *default_value; // generally void if no /WITH
 
 return_temp:
     //

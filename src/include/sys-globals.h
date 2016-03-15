@@ -75,7 +75,7 @@ PVAR REB_OPTS *Reb_Opts;
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
 #endif
 
-// These are some canon UNSET, NONE, TRUE, and FALSE values.  They are here
+// These are some canon VOID, NONE, TRUE, and FALSE values.  They are here
 // in two-element arrays in order that those using them don't accidentally
 // pass them to routines that will increment the pointer as if they are
 // arrays--they are singular values, and the second element is set to

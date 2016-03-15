@@ -889,7 +889,7 @@ void Make_Function(
     // has been flagged "legacy" (e.g. the body of a function created after
     // `do <r3-legacy>` has been run) then mark the function with the setting
     // to make refinements TRUE instead of WORD! when used, as well as their
-    // args NONE! instead of UNSET! when not used...if that option is on.
+    // args NONE! instead of void when not used...if that option is on.
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_TRUE)
@@ -1225,7 +1225,7 @@ void Do_Native_Core(struct Reb_Frame *f)
         SET_NONE(f->out);
         break;
     case R_VOID:
-        SET_UNSET(f->out);
+        SET_VOID(f->out);
         break;
     case R_TRUE:
         SET_TRUE(f->out);
@@ -1277,7 +1277,7 @@ void Do_Action_Core(struct Reb_Frame *f)
         SET_NONE(f->out);
         break;
     case R_VOID:
-        SET_UNSET(f->out);
+        SET_VOID(f->out);
         break;
     case R_TRUE:
         SET_TRUE(f->out);

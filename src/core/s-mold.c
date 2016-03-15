@@ -889,7 +889,9 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         Append_Codepoint_Raw(mold->series, '[');
     }
 
-    // Mold all non-UNSET! entries
+    // Mold all entries that are set.  As with contexts, void values are not
+    // valid entries but indicate the absence of a value.
+    //
     mold->indent++;
     for (val = ARR_HEAD(mapser); NOT_END(val) && NOT_END(val+1); val += 2) {
         if (!IS_VOID(val + 1)) {
@@ -1127,9 +1129,9 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     assert(NOT_END(value));
 
     switch (VAL_TYPE(value)) {
-    case REB_UNSET:
-        // Unsets should only be molded in debug scenarios
-        if (molded) Emit(mold, "?T?", value);
+    case REB_0:
+        // Voids should only be molded in debug scenarios
+        Append_Unencoded(ser, "$void");
         break;
 
     case REB_BAR:

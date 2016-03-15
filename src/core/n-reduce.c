@@ -82,12 +82,14 @@ REBOOL Reduce_Array_Throws(
             return TRUE;
         }
 
-        if (IS_UNSET(&reduced)) {
+        if (IS_VOID(&reduced)) {
             //
             // !!! Review if there should be a form of reduce which allows
             // void expressions.  The general feeling is that it shouldn't
             // be allowed by default, since N expressions would not make N
             // results...and reduce is often used for positional purposes.
+            // Substituting anything (like a NONE!, or anything else) would
+            // perhaps be disingenuous.
             //
             fail (Error(RE_REDUCE_MADE_VOID));
         }

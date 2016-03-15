@@ -174,7 +174,7 @@ static REBOOL Loop_Series_Throws(
 
     if (ei < 0) ei = 0;
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
+    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
     for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
         VAL_INDEX(var) = si;
@@ -210,7 +210,7 @@ static REBOOL Loop_Integer_Throws(
 ) {
     VAL_RESET_HEADER(var, REB_INTEGER);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
+    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
     while ((incr > 0) ? start <= end : start >= end) {
         VAL_INT64(var) = start;
@@ -274,7 +274,7 @@ static REBOOL Loop_Number_Throws(
 
     VAL_RESET_HEADER(var, REB_DECIMAL);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
+    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
     for (; (i > 0.0) ? s <= e : s >= e; s += i) {
         VAL_DECIMAL(var) = s;
@@ -310,7 +310,7 @@ static REB_R Loop_Skip(
 ) {
     REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out);
+    SET_VOID_UNLESS_LEGACY_NONE(out);
 
     // Though we can only iterate on a series, NONE! is used as a way of
     // opting out.  This could be useful, e.g. `for-next (any ...) [...]`
@@ -410,13 +410,13 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
     REBVAL *ds;
 
     REBOOL stop = FALSE;
-    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_UNSETS
+    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_VOIDS
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
     else
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
+        SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
 
     if (IS_NONE(data_value) || IS_VOID(data_value)) return R_OUT;
 
@@ -609,7 +609,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             }
             break;
         case LOOP_MAP_EACH:
-            // anything that's not an UNSET! will be added to the result
+            // anything that's not void will be added to the result
             if (!IS_VOID(D_OUT)) Append_Value(mapped, D_OUT);
             break;
         case LOOP_EVERY:
@@ -965,7 +965,7 @@ REBNATIVE(loop)
 
     REBI64 count;
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if the loop does not run
+    SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // Default if the loop does not run
 
     if (IS_CONDITIONAL_FALSE(ARG(count))) {
         //
@@ -1027,7 +1027,7 @@ REBNATIVE(repeat)
     REBVAL *count = D_ARG(2);
 
     if (IS_NONE(count)) {
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+        SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
         return R_OUT;
     }
 
@@ -1057,7 +1057,7 @@ REBNATIVE(repeat)
         return R_OUT;
     }
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+    SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
     return R_OUT;
 }
 
@@ -1127,9 +1127,9 @@ REBNATIVE(while)
     VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
     // If the loop body never runs (and condition doesn't error or throw),
-    // we want to return an UNSET!
+    // we want to return no value
     //
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+    SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
 
     do {
         if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {

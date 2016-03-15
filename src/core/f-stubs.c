@@ -274,7 +274,7 @@ REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
 //
 void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)
 {
-    assert(kind > REB_UNSET && kind < REB_MAX);
+    assert(kind > REB_0 && kind < REB_MAX);
     *out = *CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
@@ -287,7 +287,7 @@ void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)
 //
 REBVAL *Get_Type(enum Reb_Kind kind)
 {
-    assert(kind > REB_UNSET && kind < REB_MAX);
+    assert(kind > REB_0 && kind < REB_MAX);
     return CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
@@ -689,7 +689,7 @@ i64 Add_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n + m;
     if (r < -maxi || r > maxi) {
-        if (type != REB_UNSET) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
+        if (type != REB_0) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
         r = r > 0 ? maxi : -maxi;
     }
     return r;

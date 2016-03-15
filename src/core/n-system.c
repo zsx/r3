@@ -72,10 +72,10 @@ REBNATIVE(quit)
     }
     else {
         // Chosen to do it this way because returning to a calling script it
-        // will be UNSET! by default, for parity with BREAK and EXIT without
+        // will be no value by default, for parity with BREAK and EXIT without
         // a /WITH.  Long view would have RETURN work this way too: CC#2241
 
-        // (UNSET! will be translated to 0 if it gets caught for the shell)
+        // (a void will be translated to 0 if it gets caught for the shell)
 
         CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
     }

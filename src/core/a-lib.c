@@ -278,7 +278,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     // The convention in the API was to return 0 for success.  We use the
-    // convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
+    // convention (as for FINISH_INIT_CORE) that any stray value result from
     // FINISH_RL_START indicates something went wrong.
 
     if (IS_VOID(&result))

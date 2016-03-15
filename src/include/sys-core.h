@@ -276,7 +276,7 @@ enum {
 // series and thus has to be checked...
 
 #define TS_NO_GC \
-    (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE) | FLAGIT_KIND(REB_LOGIC) \
+    (FLAGIT_KIND(REB_0) | FLAGIT_KIND(REB_NONE) | FLAGIT_KIND(REB_LOGIC) \
     | FLAGIT_KIND(REB_INTEGER) | FLAGIT_KIND(REB_DECIMAL) \
     | FLAGIT_KIND(REB_PERCENT) | FLAGIT_KIND(REB_MONEY) \
     | FLAGIT_KIND(REB_CHAR) | FLAGIT_KIND(REB_PAIR) | FLAGIT_KIND(REB_TUPLE) \
@@ -581,8 +581,8 @@ enum Reb_Vararg_Op {
 // The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
 // only const access is needed.  A const pointer to a REBVAL is given back
 // which may be inspected, but the contents not modified.  While a bound
-// variable that is assigned UNSET! will return a REB_UNSET value, trying
-// to GET_OPT_VAR_MAY_FAIL() on an unbound variable will raise an error.
+// variable that is not currently set will return a REB_0 value, trying
+// to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
 //
 // TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
 // instead of fail on unbound variables.

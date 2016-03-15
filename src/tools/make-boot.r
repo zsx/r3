@@ -537,8 +537,8 @@ for-each-record-NO-RETURN type boot-types [
     ;
     str: replace/all (uppercase form type/name) #"-" #"_"
 
-    ; Emit the IS_INTEGER() / etc. tests for the datatype.  Include IS_UNSET()
-    ; because REB_UNSET is a bit pattern of 0 that is reserved internally and
+    ; Emit the IS_INTEGER() / etc. tests for the datatype.  Include IS_VOID()
+    ; because REB_0 is a bit pattern of 0 that is reserved internally and
     ; kept in value slots when they are considered "unoccupied".  They cannot
     ; be put in an ANY-ARRAY!, but may be appear transiently during an
     ; evaluation or serve as a marking in a slot for an ANY-CONTEXT! when a
@@ -554,7 +554,7 @@ for-each-record-NO-RETURN type boot-types [
         newline
     ]
 
-    ; Although there is a REB_UNSET and an IS_UNSET() test used internally,
+    ; Although there is a REB_0 and an IS_VOID() test used internally,
     ; there is no "UNSET!" datatype.  So only add the type word to the list
     ; if not 0.
     ;
@@ -572,14 +572,11 @@ for-each-record-NO-RETURN type boot-types [
 ; !!! Consider ways of making this more robust.
 ;
 emit {
-#define IS_VOID(v) \
-    LOGICAL(VAL_TYPE(v) == REB_UNSET)
-
 #define IS_SET(v) \
     LOGICAL(VAL_TYPE(v) != REB_UNSET)
 
 #define IS_ANY_VALUE(v) \
-    LOGICAL(VAL_TYPE(v) != REB_UNSET)
+    LOGICAL(VAL_TYPE(v) != REB_0)
 
 #define IS_SCALAR(v) \
     LOGICAL(VAL_TYPE(v) <= REB_DATE)
@@ -635,17 +632,18 @@ emit {
 ***********************************************************************/
 
 #define TS_NOTHING \
-    (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE))
+    (FLAGIT_KIND(REB_0) | FLAGIT_KIND(REB_NONE))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
-// UNSET! or NONE!.
+// NONE! or a void (review if typesets should be allowed to mention void
+// when not part of a function spec)
 //
 #define TS_SOMETHING \
     ((FLAGIT_KIND(REB_MAX) - 1) /* all typeset bits */ \
     - TS_NOTHING)
 
 // ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
-// count UNSET! (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
+// count void (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
 // clear from for reasons including that it looks a lot like ANY-DATATYPE!)
 //
 #define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_NONE))
@@ -710,7 +708,7 @@ for-each :rxt-record ext-types [
     either integer? offset [
         emit-line "RXT_" rejoin [type " = " offset] n
     ][
-        emit-line "RXT_" type n
+        emit-line "RXT_" to-string type n
     ]
     n: n + 1
 ]
@@ -758,7 +756,7 @@ emit {
 n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
-        emit-line "" "REB_UNSET" n
+        emit-line "" "REB_0" n
     ]
     n: n + 1
 ]
@@ -879,7 +877,7 @@ emit {
 n: 0
 for-each-record-NO-RETURN type boot-types [
     ;
-    ; We don't emit a SYM_UNSET because there is no unset type.  Conveniently,
+    ; We don't emit a SYM_VOID because there is no unset type.  Conveniently,
     ; this goes along with the idea that SYM_0 as 0 is an illegal and "null"
     ; symbol (cannot be turned into a string)
     ;

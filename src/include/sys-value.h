@@ -508,8 +508,8 @@ enum {
 // `struct Reb_Track` is the value payload in debug builds for any REBVAL
 // whose VAL_TYPE() doesn't need any information beyond the header.  This
 // offers a chance to inject some information into the payload to help
-// know where the value originated.  It is used by TRASH!, UNSET!, NONE!,
-// LOGIC!, and BAR!.
+// know where the value originated.  It is used by voids (and void trash),
+// NONE!, LOGIC!, and BAR!.
 //
 // In addition to the file and line number where the assignment was made,
 // the "tick count" of the DO loop is also saved.  This means that it can
@@ -553,19 +553,20 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  UNSET or TRASH (fits in header bits, may use `struct Reb_Track`)
+//  VOID or TRASH (fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Though there was an UNSET! datatype in Rebol2 and R3-Alpha, Ren-C does not
-// allow "reified" values of type UNSET!.  It is a transient product of
-// evaluation (e.g. the result of `do []`), and the bit pattern for the
-// value is also used in the varlists of contexts like OBJECT! or FRAME! to
-// denote a variable that is not currently set.
+// Though there was an "unset! datatype" in Rebol2 and R3-Alpha, Ren-C does
+// not allow "reified values of type unset!".  Instead it has voids--which
+// are a transient product of evaluation (e.g. the result of `do []`).  The
+// bit pattern for the value is also used in the varlists of contexts like
+// OBJECT! or FRAME! to denote a variable that is not currently set, but
+// it is said that the *variable* is set or unset.
 //
-// Since they have no data payload, unsets in the debug build use Reb_Track
+// Since they have no data payload, voids in the debug build use Reb_Track
 // as their structure to show where-and-when they were assigned.  This is
-// helpful because unset is the default initialization value for several
+// helpful because void is the default initialization value for several
 // constructs.
 //
 // In the debug build, there is a special flag that if it is not set, the
@@ -582,8 +583,8 @@ enum {
 //
 
 #ifdef NDEBUG
-    #define SET_UNSET(v) \
-        VAL_RESET_HEADER((v), REB_UNSET)
+    #define SET_VOID(v) \
+        VAL_RESET_HEADER((v), REB_0)
 
     #define MARK_VAL_UNWRITABLE_DEBUG(v) NOOP
 
@@ -591,30 +592,30 @@ enum {
 
     #define SET_TRASH_IF_DEBUG(v) NOOP
 
-    #define SET_TRASH_SAFE(v) SET_UNSET(v)
+    #define SET_TRASH_SAFE(v) SET_VOID(v)
 #else
     enum {
-        UNSET_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT) | REB_UNSET,
+        VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT) | REB_0,
 
         // By default, the garbage collector will alert if a "trash unset"
         // is not overwritten by the time it sees it.  But some cases work with
         // GC-visible locations and want the GC to ignore a transitional trash.
         // For these cases use SET_TRASH_GC_SAFE().
         //
-        UNSET_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT) | REB_UNSET
+        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT) | REB_0
     };
 
-    #define SET_UNSET(v) \
-        (VAL_RESET_HEADER((v), REB_UNSET), \
-        SET_VAL_FLAG((v), UNSET_FLAG_NOT_TRASH), \
+    #define SET_VOID(v) \
+        (VAL_RESET_HEADER((v), REB_0), \
+        SET_VAL_FLAG((v), VOID_FLAG_NOT_TRASH), \
         SET_TRACK_PAYLOAD(v))
 
     // Special type check...we don't want to use VAL_TYPE() here directly
     // because VAL_TYPE is supposed to assert on trash
     //
     #define IS_TRASH_DEBUG(v) \
-        (((v)->header.bits & HEADER_TYPE_MASK) == REB_UNSET \
-        && !(((v)->header.bits & UNSET_FLAG_NOT_TRASH)))
+        (((v)->header.bits & HEADER_TYPE_MASK) == REB_0 \
+        && !(((v)->header.bits & VOID_FLAG_NOT_TRASH)))
 
     // This particularly virulent form of trashing will make the resultant
     // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
@@ -640,18 +641,22 @@ enum {
 
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
-            VAL_RESET_HEADER((v), REB_UNSET), /* don't set NOT_TRASH flag */ \
+            VAL_RESET_HEADER((v), REB_0), /* don't set NOT_TRASH flag */ \
             SET_TRACK_PAYLOAD(v) \
         )
 
     #define SET_TRASH_SAFE(v) \
         ( \
-            VAL_RESET_HEADER((v), REB_UNSET), \
-            SET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH), \
+            VAL_RESET_HEADER((v), REB_0), \
+            SET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH), \
             SET_TRACK_PAYLOAD(v) \
         )
-
 #endif
+
+// To help avoid confusion which might suggest there is a VOID! datatype, the
+// name of the REB_XXX type is REB_0, and the test is special.
+//
+#define IS_VOID(v) LOGICAL(VAL_TYPE(v) == REB_0)
 
 // Pointer to a global protected void cell that can be used when a read-only
 // "absence of value" bit pattern is needed.
@@ -660,15 +665,15 @@ enum {
 
 // In legacy mode Ren-C still supports the old convention that IFs that don't
 // take the true branch or a WHILE loop that never runs a body return a NONE!
-// value instead of an UNSET!.  To track the locations where this decision is
-// made more easily, SET_UNSET_UNLESS_LEGACY_NONE() is used.
+// value instead of no value.  To track the locations where this decision is
+// made more easily, SET_VOID_UNLESS_LEGACY_NONE() is used.
 //
 #ifdef NDEBUG
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        SET_UNSET(v) // LEGACY() only available in Debug builds
+    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+        SET_VOID(v) // LEGACY() only available in Debug builds
 #else
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        (LEGACY(OPTIONS_NONE_INSTEAD_OF_UNSETS) ? SET_NONE(v) : SET_UNSET(v))
+    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+        (LEGACY(OPTIONS_NONE_INSTEAD_OF_VOIDS) ? SET_NONE(v) : SET_VOID(v))
 #endif
 
 
@@ -685,7 +690,7 @@ enum {
 //     append [a b c] | [d e f] print "Hello"   ;-- will cause an error
 //     append [a b c] [d e f] | print "Hello"   ;-- is legal
 //
-// This makes it similar to an UNSET! in behavior, but given its specialized
+// This makes it similar to an void in behavior, but given its specialized
 // purpose unlikely to conflict as being needed to be passed as an actual
 // parameter.  Literal unsets in source are treated differently by the
 // evaluator than unsets in variables or coming from the result of a function
@@ -716,7 +721,7 @@ enum {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Unlike UNSET!, none values are inactive.  They do not cause errors
+// Unlike a void cell, none values are inactive.  They do not cause errors
 // when they are used in situations like the condition of an IF statement.
 // Instead they are considered to be false--like the LOGIC! #[false] value.
 // So none is considered to be the other "conditionally false" value.
@@ -727,8 +732,8 @@ enum {
 // falsehood.
 //
 // Though having tracking information for a none is less frequently useful
-// than for TRASH! or UNSET!, it's there in debug builds just in case it
-// ever serves a purpose, as the REBVAL payload is not being used.
+// than for a void, it's there in debug builds just in case it ever serves a
+// purpose, as the REBVAL payload is not being used.
 //
 
 #ifdef NDEBUG
@@ -795,8 +800,8 @@ enum {
     #define IS_CONDITIONAL_FALSE(v) \
         GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
 #else
-    // In a debug build, we want to make sure that UNSET! is never asked
-    // about its conditional truth or falsehood; it's neither.
+    // In a debug build, we want to make sure that void cells are never asked
+    // about their conditional truth or falsehood; they are neither.
     //
     #define IS_CONDITIONAL_FALSE(v) \
         IS_CONDITIONAL_FALSE_Debug(v)
@@ -845,8 +850,8 @@ struct Reb_Datatype {
 #define VAL_TYPE_SPEC(v)    ((v)->payload.datatype.spec)
 
 // %words.r is arranged so that symbols for types are at the start
-// Although REB_UNSET is 0 and the 0 REBCNT used for symbol IDs is reserved
-// for "no symbol"...this is okay, because UNSET! is not a value type and
+// Although REB_0 is 0 and the 0 REBCNT used for symbol IDs is reserved
+// for "no symbol"...this is okay, because void is not a value type and
 // should not have a symbol.
 //
 #define IS_KIND_SYM(s)      ((s) < REB_MAX_0)
@@ -1645,7 +1650,7 @@ enum Reb_Param_Class {
     // friction on usage of the name for things like `time/local`.
     //
     // Ren-C uses a SET-WORD! in the spec to indicate a pure local which
-    // guarantees that when the function starts, it will be UNSET!.
+    // guarantees that when the function starts, it will not be set.
     // (There's a "technicality" outlier in the FUNC_FLAG_LEAVE_OR_RETURN
     // trick, which will put a "magic" REBNATIVE(return) in `return:` slots.
     // But it gives the illusion that it happens after the function is
@@ -2030,7 +2035,7 @@ enum {
     // to specify another result...this cannot be caught by the REB_TRASH
     // trick for detecting an unwritten D_OUT.
     //
-    R_VOID, // => SET_UNSET(D_OUT); return R_OUT;
+    R_VOID, // => SET_VOID(D_OUT); return R_OUT;
     R_NONE, // => SET_NONE(D_OUT); return R_OUT;
     R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
     R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
@@ -2578,7 +2583,7 @@ union Reb_Value_Payload {
     struct Reb_Symbol symbol; // internal
 
 #if !defined(NDEBUG) && defined(TRACK_EMPTY_PAYLOADS)
-    struct Reb_Track track; // debug only (for TRASH!, UNSET!, NONE!, LOGIC!)
+    struct Reb_Track track; // debug only (for void/trash, NONE!, LOGIC!, BAR!)
 #endif
 };
 

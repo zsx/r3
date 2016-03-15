@@ -187,11 +187,17 @@ REBCNT Hash_Value(const REBVAL *val)
     const REBYTE *name;
 
     switch(VAL_TYPE(val)) {
+    case REB_0:
+        //
+        // While a void might technically be hashed, it can't be a value *or*
+        // a key in a map.
+        //
+        assert(FALSE);
+        break;
 
     case REB_BAR:
     case REB_LIT_BAR:
     case REB_NONE:
-    case REB_UNSET:
         ret = 0;
         break;
 

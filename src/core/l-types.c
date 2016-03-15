@@ -851,8 +851,8 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
     type = KIND_FROM_SYM(sym);
 
     // Check for trivial types:
-    if (type == REB_UNSET) {
-        SET_UNSET(out);
+    if (type == REB_0) {
+        SET_VOID(out);
         return TRUE;
     }
     if (type == REB_NONE) {

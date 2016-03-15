@@ -449,5 +449,5 @@ rename: action [
     to [port! file! url! block!]
 ]
 
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()

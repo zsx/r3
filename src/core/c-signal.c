@@ -63,7 +63,7 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     }
 
     if (!(Eval_Signals & Eval_Sigmask)) {
-        SET_UNSET(out);
+        SET_VOID(out);
         return FALSE;
     }
 
@@ -108,6 +108,6 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 
     Eval_Sigmask = mask;
 
-    SET_UNSET(out);
+    SET_VOID(out);
     return FALSE;
 }

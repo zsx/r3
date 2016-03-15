@@ -229,7 +229,7 @@ static void Print_Banner(REBARGS *rargs)
 //     1: add new words to LIB, bind/deep to LIB
 //     2: add new words to SYS, bind/deep to LIB
 // 
-// Expects result to be UNSET!
+// Expects result to be void
 //
 static void Do_Global_Block(
     REBARR *block,
@@ -327,7 +327,7 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARR_HEAD(boot)));
 
-    // There should be a datatype word for every REB_XXX type except REB_UNSET
+    // There should be a datatype word for every REB_XXX type except REB_0
     //
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0 - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
@@ -646,7 +646,7 @@ static void Init_Ops(void)
         // Append the operator name to the lib frame:
         val = Append_Context(Lib_Context, word, 0);
 
-        // leave UNSET!, functions will be filled in later...
+        // leave void, functions will be filled in later...
         cast(void, cast(REBUPT, val));
     }
 }
@@ -799,7 +799,7 @@ static void Init_Root_Context(void)
         SET_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
 
-    // These values are simple isolated UNSET, NONE, TRUE, and FALSE values
+    // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
     // as two-element series in order to ensure that their address is not
     // treated as an array.  They are unsettable (in debug builds), to avoid
@@ -811,7 +811,7 @@ static void Init_Root_Context(void)
     // to the GC's root set.
 
     VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[0]);
-    SET_UNSET(&PG_Void_Cell[0]);
+    SET_VOID(&PG_Void_Cell[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[1]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
     MARK_VAL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
@@ -992,7 +992,7 @@ static void Init_System_Object(void)
     //
     Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), system);
 
-    // Evaluate the block (will eval CONTEXTs within).  Expects UNSET!.
+    // Evaluate the block (will eval CONTEXTs within).  Expects void result.
     //
     if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
@@ -1013,7 +1013,7 @@ static void Init_System_Object(void)
     Val_Init_Object(ROOT_SYSTEM, system);
 
     // Create system/datatypes block.  Start at 1 (REB_NONE), given that 0
-    // is REB_UNSET and does not correspond to a value type.
+    // is REB_0 and does not correspond to a value type.
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
@@ -1645,7 +1645,7 @@ void Init_Core(REBARGS *rargs)
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
     VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
-    SET_UNSET(&Callback_Error);
+    SET_VOID(&Callback_Error);
 
     PG_Boot_Phase = BOOT_ERRORS;
 
@@ -1713,7 +1713,7 @@ void Init_Core(REBARGS *rargs)
     }
 
     // Success of the 'finish-init-core' Rebol code is signified by returning
-    // a UNSET! (all other return results indicate an error state)
+    // void (all other return results indicate an error state)
 
     if (!IS_VOID(&result)) {
         Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &result);

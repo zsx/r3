@@ -517,7 +517,7 @@ REBNATIVE(collect_words)
 //      source [none! any-word! any-path! any-context!]
 //          "Word, path, context to get"
 //      /opt
-//          "The source may optionally have no value (allows returning UNSET!)"
+//          "Optionally return no value if the source is not SET?"
 //  ]
 //
 REBNATIVE(get)
@@ -1093,7 +1093,7 @@ REBNATIVE(type_of)
     PARAM(1, value);
 
     enum Reb_Kind kind = VAL_TYPE(ARG(value));
-    if (kind == REB_UNSET)
+    if (kind == REB_0)
         return R_NONE;
 
     Val_Init_Datatype(D_OUT, kind);
@@ -1122,7 +1122,7 @@ REBNATIVE(unset)
             fail (Error(RE_NOT_BOUND, word));
 
         var = GET_MUTABLE_VAR_MAY_FAIL(word);
-        SET_UNSET(var);
+        SET_VOID(var);
     }
     else {
         assert(IS_BLOCK(value));
@@ -1135,7 +1135,7 @@ REBNATIVE(unset)
                 fail (Error(RE_NOT_BOUND, word));
 
             var = GET_MUTABLE_VAR_MAY_FAIL(word);
-            SET_UNSET(var);
+            SET_VOID(var);
         }
     }
     return R_VOID;
@@ -1289,7 +1289,7 @@ REBNATIVE(void_q)
 {
     PARAM(1, value);
 
-    return IS_UNSET(ARG(value)) ? R_TRUE : R_FALSE;
+    return IS_VOID(ARG(value)) ? R_TRUE : R_FALSE;
 }
 
 
@@ -1313,7 +1313,7 @@ REBNATIVE(void)
 //
 //  nothing?: native/body [
 //
-//  "Returns whether a value is either a NONE! or UNSET!"
+//  "Returns TRUE if argument is either a NONE! or no value is passed in"
 //
 //      value [<opt> any-value!]
 //  ][
@@ -1334,7 +1334,7 @@ REBNATIVE(nothing_q)
 //
 //  something?: native/body [
 //
-//  "Returns whether a value something besides a NONE! or UNSET!"
+//  "Returns TRUE if a value is passed in and it isn't a NONE!"
 //
 //      value [<opt> any-value!]
 //  ][

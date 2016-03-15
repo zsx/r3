@@ -172,7 +172,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 
         // While NONE! is legal and represents a no-op in parse, if a
         // you write `parse "" [to undefined-value]`...and undefined-value
-        // is bound...you may get an UNSET! back.  This should be an
+        // is bound...you may get a void back.  This should be an
         // error, as it is in the evaluator.  (See how this is handled
         // by REB_WORD in %c-do.c)
         //
@@ -189,7 +189,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
         if (Do_Path_Throws(safe, NULL, item, NULL))
             fail (Error_No_Catch_For_Throw(safe));
 
-        // See notes above about UNSET!
+        // See notes above about voids
         //
         if (IS_VOID(safe))
             fail (Error(RE_NO_VALUE, item));
@@ -1317,7 +1317,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
         item_hold = item;   // a command or literal match value
 
-        if (VAL_TYPE(item) <= REB_UNSET || VAL_TYPE(item) >= REB_FUNCTION)
+        if (VAL_TYPE(item) <= REB_0 || VAL_TYPE(item) >= REB_FUNCTION)
             goto bad_rule;
 
         begin = P_POS;       // input at beginning of match section

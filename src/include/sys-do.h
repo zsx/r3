@@ -475,7 +475,7 @@ struct Reb_Frame {
     // about how arguments should be handled.  The states are chosen to line
     // up naturally with tests in the evaluator, so there's a reasoning:.
     //
-    // * If UNSET!, then refinements are being skipped and the arguments
+    // * If IS_VOID(), then refinements are being skipped and the arguments
     //   that follow should not be written to.
     //
     // * If NONE!, this is an arg to a refinement that was not used in the
@@ -486,17 +486,17 @@ struct Reb_Frame {
     // * If FALSE, this is an arg to a refinement that was used in the
     //   invocation but has been *revoked*.  It still consumes expressions
     //   from the callsite for each remaining argument, but those expressions
-    //   must evaluate to UNSET!
+    //   must not evaluate to any value.
     //
     // * If WORD! the refinement is active but revokable.  So if evaluation
-    //   produces an UNSET!, `refine` must become FALSE.
+    //   produces no value, `refine` must become FALSE.
     //
     // * If TRUE, it's an ordinary arg...and not a refinement.  It will be
     //   evaluated normally but is not involved with revocation.
     //
     // Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
     // determine if an argument should be type checked normally...while
-    // IS_CONDITIONAL_FALSE() means that the arg must be UNSET!.
+    // IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
     //
     REBVAL *refine;
 
@@ -903,7 +903,7 @@ struct Reb_Frame {
 //
 // If it returns FALSE, then the DO completed successfully to end of input
 // without a throw...and the output contains the last value evaluated in the
-// block (empty blocks give UNSET!).  If it returns TRUE then it will be the
+// block (empty blocks give void).  If it returns TRUE then it will be the
 // THROWN() value.
 //
 
@@ -914,7 +914,7 @@ struct Reb_Frame {
         REBVAL *value_ = ARR_AT((array_in), (index)); \
         const REBVAL *dummy; /* need for va_list continuation, not array */ \
         if (IS_END(value_)) { \
-            SET_UNSET(out); \
+            SET_VOID(out); \
             (indexor_out) = END_FLAG; \
             break; \
         } \

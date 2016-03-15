@@ -446,7 +446,7 @@ REBNATIVE(case)
     // flag as the full value of the condition is never returned.
     REBOOL matched;
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // make UNSET! default result
+    SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // make void default result
 
     PUSH_CALL_UNLESS_END(f, ARG(block));
     if (f->indexor == END_FLAG)
@@ -536,7 +536,7 @@ REBNATIVE(case)
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
             //
-            SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
             continue;
         }
     #endif
@@ -588,7 +588,7 @@ REBNATIVE(case)
     }
 
     // Returns the evaluative result of the last body whose condition was
-    // conditionally true, or defaults to UNSET if there weren't any
+    // conditionally true, or defaults to void if there weren't any
     // (or NONE in legacy mode)
     //
     DROP_CALL(f);
@@ -911,7 +911,7 @@ REBNATIVE(do)
     REBVAL *value = ARG(value);
 
     switch (VAL_TYPE(value)) {
-    case REB_UNSET:
+    case REB_0:
         // useful for `do if ...` types of scenarios
         return R_VOID;
 
@@ -1087,7 +1087,7 @@ REBNATIVE(variadic_q)
 //  {Leave enclosing function, or jump /FROM.}
 //  
 //      /with
-//          "Result for enclosing state (default is UNSET!)"
+//          "Result for enclosing state (default is no value)"
 //      value [<opt> any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
@@ -1306,7 +1306,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
             return R_OUT_IS_THROWN;
     }
     else
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+        SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
 
     return R_OUT;
 }
@@ -1492,7 +1492,7 @@ REBNATIVE(switch)
 
     REBVAL *item = VAL_ARRAY_AT(cases);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // default return if no cases run
+    SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // default return if no cases run
 
     for (; NOT_END(item); item++) {
 
@@ -1503,10 +1503,10 @@ REBNATIVE(switch)
 
         if (IS_BLOCK(item)) {
             // Each time we see a block that we don't take, we reset
-            // the output to UNSET!...because we only leak evaluations
+            // the output to void...because we only leak evaluations
             // out the bottom of the switch if no block would catch it
 
-            SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
             continue;
         }
 

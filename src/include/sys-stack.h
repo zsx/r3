@@ -141,9 +141,6 @@ typedef unsigned int REBDSP;
 #define DS_PUSH(v) \
     (ASSERT_VALUE_MANAGED(v), DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
 
-#define DS_PUSH_UNSET \
-    (DS_PUSH_TRASH, SET_UNSET(DS_TOP), NOOP)
-
 #define DS_PUSH_NONE \
     (DS_PUSH_TRASH, SET_NONE(DS_TOP), NOOP)
 

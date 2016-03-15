@@ -80,7 +80,7 @@ REBOOL In_Legacy_Function_Debug(void)
 //
 // R3-Alpha and Rebol2 used TRUE for a refinement and NONE for the argument
 // to a refinement which is not present.  Ren-C provides the name of the
-// argument as a WORD! if for the refinement, and UNSET! for refinement
+// argument as a WORD! if for the refinement, and void for refinement
 // args that are not there.  (This makes chaining work.)
 //
 // Could be woven in efficiently, but as it's a debug build only feature it's

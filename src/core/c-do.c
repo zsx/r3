@@ -66,7 +66,7 @@ REBIXO Do_Array_At_Core(
     }
 
     if (IS_END(f.value)) {
-        SET_UNSET(out);
+        SET_VOID(out);
         return END_FLAG;
     }
 
@@ -240,7 +240,7 @@ REBIXO Do_Va_Core(
     }
 
     if (IS_END(f.value)) {
-        SET_UNSET(out);
+        SET_VOID(out);
         return END_FLAG;
     }
 

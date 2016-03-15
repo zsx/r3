@@ -164,8 +164,8 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
     // Note: This function is imported by %a-lib.c, keep prototype in sync
 
     switch (type) {
-    case RXT_UNSET:
-        SET_UNSET(val);
+    case RXT_0:
+        SET_VOID(val);
         break;
 
     case RXT_NONE:
@@ -522,7 +522,10 @@ void Make_Command(
         REBVAL *args = VAL_FUNC_PARAMS_HEAD(out);
         for (; NOT_END(args); args++) {
             if (
-                (3 != ~VAL_TYPESET_BITS(args)) // not END and UNSET (no args)
+                // !!! this said "not END and not UNSET (no args)"...what is
+                // it actually supposed to be doing with this 3?
+                //
+                (3 != ~VAL_TYPESET_BITS(args))
                 && (VAL_TYPESET_BITS(args) & ~RXT_ALLOWED_TYPES)
             ) {
                 fail (Error(RE_BAD_FUNC_ARG, args));
@@ -647,7 +650,7 @@ void Do_Command_Core(struct Reb_Frame *f)
         break;
 
     case RXR_VOID:
-        SET_UNSET(f->out);
+        SET_VOID(f->out);
         break;
 
     case RXR_NONE:
@@ -672,7 +675,7 @@ void Do_Command_Core(struct Reb_Frame *f)
         fail (Error(RE_COMMAND_FAIL));
 
     default:
-        SET_UNSET(f->out);
+        SET_VOID(f->out);
     }
 
     // Note: no current interface for Rebol "commands" to throw (to the extent

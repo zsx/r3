@@ -136,12 +136,12 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 // other code sees them (error during VAL_TYPE or IS_XXX)
 //
 #ifdef NDEBUG
-    #define IS_UNSET_OR_SAFE_TRASH(v) \
-        IS_UNSET(v)
+    #define IS_VOID_OR_SAFE_TRASH(v) \
+        IS_VOID(v)
 #else
-    #define IS_UNSET_OR_SAFE_TRASH(v) \
-        ((IS_TRASH_DEBUG(v) && GET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH)) \
-        || IS_UNSET(v))
+    #define IS_VOID_OR_SAFE_TRASH(v) \
+        ((IS_TRASH_DEBUG(v) && GET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH)) \
+        || IS_VOID(v))
 #endif
 
 
@@ -566,7 +566,7 @@ static void Mark_Devices_Deep(void)
 // catch cases of when a function dispatch doesn't consciously
 // write any value into the output in debug builds.  The GC is
 // willing to overlook this safe trash, however, and it will just
-// be an UNSET! in the release build.
+// be a void in the release build.
 // 
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
@@ -628,7 +628,7 @@ static void Mark_Frame_Stack_Deep(void)
 
         QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
 
-        if (!IS_UNSET_OR_SAFE_TRASH(f->out))
+        if (!IS_VOID_OR_SAFE_TRASH(f->out))
             Queue_Mark_Value_Deep(f->out); // never NULL
 
         // !!! symbols are not currently GC'd, but if they were this would
@@ -674,7 +674,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (
             f->param
             && !IS_END(f->param) // can be end
-            && !IS_UNSET_OR_SAFE_TRASH(f->param)
+            && !IS_VOID_OR_SAFE_TRASH(f->param)
             && Is_Value_Managed(f->param)
         ) {
             Queue_Mark_Value_Deep(f->param);
@@ -682,7 +682,7 @@ static void Mark_Frame_Stack_Deep(void)
 
         if (
             f->refine
-            && !IS_UNSET_OR_SAFE_TRASH(f->refine)
+            && !IS_VOID_OR_SAFE_TRASH(f->refine)
             && Is_Value_Managed(f->refine)
         ) {
             Queue_Mark_Value_Deep(f->refine);
@@ -710,7 +710,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
     assert(!THROWN(val));
 
     switch (VAL_TYPE(val)) {
-        case REB_UNSET:
+        case REB_0:
             //
             // Critical error; the only array that can handle unsets are the
             // varlists of contexts, and they must do so before getting here.
@@ -1025,7 +1025,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
 
     value = ARR_HEAD(array);
     for (; NOT_END(value); value++) {
-        if (IS_UNSET_OR_SAFE_TRASH(value)) {
+        if (IS_VOID_OR_SAFE_TRASH(value)) {
             //
             // Unsets are illegal in most arrays, but the varlist of a context
             // uses unset values to denote that the variable is not set.
@@ -1351,7 +1351,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
                 ) {
                     if (
                         NOT_END(chunk_value)
-                        && !IS_UNSET_OR_SAFE_TRASH(chunk_value)
+                        && !IS_VOID_OR_SAFE_TRASH(chunk_value)
                     ) {
                         Queue_Mark_Value_Deep(chunk_value);
                     }
@@ -1367,7 +1367,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         MARK_CONTEXT_DEEP(TG_Task_Context);
 
         // Mark potential error object from callback!
-        if (!IS_UNSET_OR_SAFE_TRASH(&Callback_Error))
+        if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error))
             Queue_Mark_Value_Deep(&Callback_Error);
         Propagate_All_GC_Marks();
 

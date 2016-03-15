@@ -43,7 +43,7 @@
 // it can find it).  This will allow those using Address Sanitizer or
 // Valgrind to know a bit more about where the value came from.
 //
-// Additionally, if it happens to be trash, UNSET!, LOGIC!, BAR!, or NONE!
+// Additionally, if it happens to be a void or trash, LOGIC!, BAR!, or NONE!
 // it will dump out where the initialization happened if that information
 // was stored.
 //
@@ -53,7 +53,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 
 #ifdef TRACK_EMPTY_PAYLOADS
     switch (value->header.bits & HEADER_TYPE_MASK) {
-    case REB_UNSET:
+    case REB_0:
     case REB_NONE:
     case REB_LOGIC:
     case REB_BAR:
@@ -136,7 +136,7 @@ REBOOL IS_END_Debug(const REBVAL *v) {
     if (
         ((v)->header.bits & WRITABLE_MASK_DEBUG)
         && IS_TRASH_DEBUG(v)
-        && NOT(GET_VAL_FLAG((v), UNSET_FLAG_SAFE_TRASH))
+        && NOT(GET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH))
     ) {
         Debug_Fmt("IS_END() called on value marked as a TRASH unset");
         Panic_Value(v);
@@ -150,12 +150,12 @@ REBOOL IS_END_Debug(const REBVAL *v) {
 //  IS_CONDITIONAL_FALSE_Debug: C
 //
 // Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
-// ensure you never call it on an UNSET!
+// ensure you never call it on a void
 //
 REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
     if (IS_END(v) || IS_VOID(v) || IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Conditional true/false test on END or UNSET or TRASH");
+        Debug_Fmt("Conditional true/false test on END or void or trash");
         Panic_Value(v);
     }
 

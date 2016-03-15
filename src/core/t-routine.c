@@ -691,7 +691,7 @@ static void prep_rvalue(REBRIN *rin, REBVAL *val)
             VAL_RESET_HEADER(val, REB_STRUCT);
             break;
         case FFI_TYPE_VOID:
-            SET_UNSET(val);
+            SET_VOID(val);
             break;
         default:
             fail (Error_Invalid_Arg(val));
@@ -928,7 +928,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         &out, ret, 0, SER_HEAD(void*, ffi_args_ptrs)
     );
 
-    SET_UNSET(&Callback_Error);
+    SET_VOID(&Callback_Error);
 
     ffi_call(
         cast(ffi_cif*, ROUTINE_CIF(rot)),

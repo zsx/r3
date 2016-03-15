@@ -191,9 +191,9 @@ REBOOL Update_Typeset_Bits_Core(
         else if (IS_NONE(item)) {
             //
             // A NONE! in a typeset spec for functions indicates a willingness
-            // to take an optional.  (This was once done with the UNSET!
+            // to take an optional.  (This was once done with the "UNSET!"
             // datatype, but now that there isn't a user-exposed unset data
-            // type this is not done.)  Still, since REB_UNSET is available
+            // type this is not done.)  Still, since REB_0 is available
             // internally it is used in the type filtering here.
             //
             // !!! As with BAR! for variadics, review if this makes sense to
@@ -202,7 +202,7 @@ REBOOL Update_Typeset_Bits_Core(
             // of ANY-TYPE!, which included UNSET! because it was a datatype
             // in R3-Alpha and Rebol2.
             //
-            TYPE_SET(typeset, REB_UNSET);
+            TYPE_SET(typeset, REB_0);
         }
         else if (IS_DATATYPE(var)) {
             TYPE_SET(typeset, VAL_TYPE_KIND(var));

@@ -58,7 +58,7 @@ REBTYPE(Unit)
     REBVAL *val = D_ARG(1);
 
     if (action == A_MAKE || action == A_TO) {
-        assert(IS_DATATYPE(val) && VAL_TYPE_KIND(val) != REB_UNSET);
+        assert(IS_DATATYPE(val) && VAL_TYPE_KIND(val) != REB_0);
         if (!MT_Unit(D_OUT, NULL, VAL_TYPE_KIND(val)))
             assert(FALSE);
         return R_OUT;
