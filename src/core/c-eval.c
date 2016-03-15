@@ -446,6 +446,9 @@ reevaluate:
             NOTE_THROWING(goto return_indexor);
         }
 
+        if (IS_UNSET(f->out))
+            fail (Error(RE_NO_VALUE, f->value)); // need `:x/y` if `y` is unset
+
         if (IS_FUNCTION(f->out)) {
             //
             // object/func or func/refinements or object/func/refinement
