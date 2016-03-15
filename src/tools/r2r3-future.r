@@ -283,7 +283,7 @@ migrations: [
     or? <as> (func [a b] [true? any [:a :b]])
     or <as> :or ; see above
 
-    xor- <as> :xor
+    xor+ <as> :xor
     xor? <as> (func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]])
 ]
 

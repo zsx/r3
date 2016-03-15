@@ -884,7 +884,7 @@ prf: func [
         a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
         append p-sha1 checksum/method/key rejoin [a seed] 'sha1 decode 'text s-2
     ]
-    return ((copy/part p-md5 output-length) xor- copy/part p-sha1 output-length)
+    return ((copy/part p-md5 output-length) xor+ copy/part p-sha1 output-length)
 ]
 
 make-key-block: func [

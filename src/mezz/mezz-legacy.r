@@ -621,7 +621,7 @@ set 'r3-legacy* func [] [
 
         or: (:or+)
 
-        xor: (:xor-)
+        xor: (:xor+)
 
         apply: (:r3-alpha-apply)
 

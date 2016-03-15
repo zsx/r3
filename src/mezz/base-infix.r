@@ -46,7 +46,7 @@ xor: to-infix :xor?
 
 and*: to-infix :and~
 or+: to-infix :or~
-xor-: to-infix :xor~
+xor+: to-infix :xor~
 
 ; !!! C-isms that are unlikely to be kept
 &: to-infix :and~
