@@ -753,7 +753,7 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
     struct mem_dump_entry entry;
     
     entry.addr = f;
-    entry.name = "TG_Do_Stack";
+    entry.name = "TG_Frame_Stack";
     entry.parent = NULL;
     entry.kind = REB_KIND_CALL;
     entry.edge = NULL,
@@ -863,7 +863,7 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
     next:
         if (f->prior) {
             entry.addr = f->prior;
-            entry.name = NULL;
+            entry.name = Get_Sym_Name(f->opt_label_sym);
             entry.parent = f;
             entry.kind = REB_KIND_CALL;
             entry.edge = "<prior>";
