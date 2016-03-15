@@ -130,7 +130,7 @@ void Dump_Values(REBVAL *vp, REBCNT count)
 
     cp = buf;
     for (l = 0; l < count; l++) {
-        REBVAL *val = (REBVAL*)bp;
+        REBVAL *val = cast(REBVAL*, bp);
         cp = Form_Hex_Pad(cp, l, 8);
 
         *cp++ = ':';
@@ -147,9 +147,11 @@ void Dump_Values(REBVAL *vp, REBCNT count)
             *cp++ = ' ';
         }
         n = 0;
-        if (IS_WORD((REBVAL*)val) || IS_GET_WORD((REBVAL*)val) || IS_SET_WORD((REBVAL*)val)) {
-            const char * name = cs_cast(Get_Word_Name((REBVAL*)val));
-            n = snprintf(s_cast(cp), sizeof(buf) - (cp - buf), " (%s)", name);
+        if (IS_WORD(val) || IS_GET_WORD(val) || IS_SET_WORD(val)) {
+            const REBYTE *name = Get_Sym_Name(VAL_WORD_SYM(val));
+            n = snprintf(
+                s_cast(cp), sizeof(buf) - (cp - buf), " (%s)", cs_cast(name)
+            );
         }
 
         *(cp + n) = 0;

@@ -85,13 +85,16 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
 
     for (; *fmt; fmt++) {
         switch (*fmt) {
-        case 'W':   // Word symbol
+        case 'W': { // Word symbol
+            REBVAL *any_word = va_arg(va, const REBVAL*);
             Append_UTF8_May_Fail(
                 series,
-                Get_Word_Name(va_arg(va, const REBVAL*)),
+                Get_Sym_Name(VAL_WORD_SYM(any_word)),
                 -1
             );
             break;
+        }
+
         case 'V':   // Value
             Mold_Value(mold, va_arg(va, const REBVAL*), TRUE);
             break;

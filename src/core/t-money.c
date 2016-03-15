@@ -77,24 +77,6 @@ void Bin_To_Money_May_Fail(REBVAL *result, REBVAL *val)
         if (len > 12) len = 12;
         memcpy(buf, VAL_BIN_AT(val), len);
     }
-#ifdef removed
-    else if (IS_ISSUE(val)) {
-        //if (!(len = Scan_Hex_Bytes(val, 24, buf))) return FALSE;
-        REBYTE *ap = Get_Word_Name(val);
-        REBYTE *bp = &buf[0];
-        REBCNT alen;
-        REBUNI c;
-        len = LEN_BYTES(ap);  // UTF-8 len
-        if (len & 1) return FALSE; // must have even # of chars
-        len /= 2;
-        if (len > 12) return FALSE; // valid even for UTF-8
-        for (alen = 0; alen < len; alen++) {
-            if (!Scan_Hex2(ap, &c, 0)) return FALSE;
-            *bp++ = (REBYTE)c;
-            ap += 2;
-        }
-    }
-#endif
     else
         fail (Error_Invalid_Arg(val));
 

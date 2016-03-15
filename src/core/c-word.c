@@ -354,16 +354,6 @@ const REBYTE *Get_Sym_Name(REBCNT num)
 
 
 //
-//  Get_Word_Name: C
-//
-const REBYTE *Get_Word_Name(const REBVAL *value)
-{
-    if (value) return Get_Sym_Name(VAL_WORD_SYM(value));
-    return cb_cast("(unnamed)");
-}
-
-
-//
 //  Get_Type_Name: C
 //
 const REBYTE *Get_Type_Name(const REBVAL *value)

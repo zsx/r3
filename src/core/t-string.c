@@ -242,7 +242,6 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
         ser = Copy_Mold_Value(arg, 0 /* opts... MOPT_0? */);
-        //ser = Append_UTF8_May_Fail(0, Get_Word_Name(arg), -1);
     }
     // MAKE/TO <type> #"A"
     else if (IS_CHAR(arg)) {

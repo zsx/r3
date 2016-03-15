@@ -460,7 +460,7 @@ void Debug_Space(REBCNT num)
 //
 void Debug_Word(const REBVAL *word)
 {
-    Debug_Str(cs_cast(Get_Word_Name(word)));
+    Debug_Str(cs_cast(Get_Sym_Name(VAL_WORD_SYM(word))));
 }
 
 

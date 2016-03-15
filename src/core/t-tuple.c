@@ -385,7 +385,7 @@ REBTYPE(Tuple)
         vp = VAL_TUPLE(value);
         if (IS_ISSUE(arg)) {
             REBUNI c;
-            ap = Get_Word_Name(arg);
+            ap = Get_Sym_Name(VAL_WORD_SYM(arg));
             len = LEN_BYTES(ap);  // UTF-8 len
             if (len & 1) goto bad_arg; // must have even # of chars
             len /= 2;

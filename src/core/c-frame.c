@@ -1230,8 +1230,6 @@ void Resolve_Context(
             ) {
                 if (m < 0) SET_UNSET(var); // no value in source context
                 else *var = *CTX_VAR(source, m);
-                //Debug_Num("type:", VAL_TYPE(vals));
-                //Debug_Str(Get_Word_Name(words));
             }
         }
     }
