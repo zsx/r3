@@ -313,9 +313,9 @@ static void Propagate_All_GC_Marks(REBMDP *dump);
 
 #define QUEUE_MARK_CONTEXT_DEEP(c, name, parent, edge, dump) \
     do { \
-	    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST)); \
-	    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_KEYLIST, CTX_KEYLIST(c), dump); \
-	    QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), (edge), REB_KIND_ARRAY, CTX_KEYLIST(c), dump); \
+        assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST)); \
+        QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c), NULL, CTX_VARLIST(c), "<keylist>", REB_KIND_KEYLIST, CTX_KEYLIST(c), dump); \
+        QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c), (name), (parent), (edge), REB_KIND_ARRAY, CTX_KEYLIST(c), dump); \
     } while (0)
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
@@ -340,9 +340,9 @@ static void Propagate_All_GC_Marks(REBMDP *dump);
 // for which deep marking is not necessary (such as an 'typed' words block)
 
 #ifdef NDEBUG
-#define MARK_SERIES_ONLY_CORE(s) SET_SER_FLAG((s), SERIES_FLAG_MARK)
+    #define MARK_SERIES_ONLY_CORE(s) SET_SER_FLAG((s), SERIES_FLAG_MARK)
 #else
-#define MARK_SERIES_ONLY_CORE(s) Mark_Series_Only_Debug_Core(s)
+    #define MARK_SERIES_ONLY_CORE(s) Mark_Series_Only_Debug_Core(s)
 #endif
 
 #define MARK_SERIES_ONLY(s, name, parent, edge, kind, dump) do {\
@@ -648,7 +648,7 @@ static void Queue_Mark_Routine_Deep(REBROT *rot, const char*name, const void *pa
             }
         }
         else {
-            // may be null if called before the routine! is fully constructed
+            // may be null if called before the routine is fully constructed
         }
     }
     Dump_Mem_Comment(dump, "Done dumping Routine/Callback");
@@ -724,7 +724,7 @@ static void Mark_Devices_Deep(REBMDP *dump)
 
 
 //
-//  Mark_Call_Frames_Deep: C
+//  Mark_Frame_Stack_Deep: C
 // 
 // Mark all function call frames.  In addition to containing the
 // arguments that are referred to by pointer during a function
@@ -744,7 +744,7 @@ static void Mark_Devices_Deep(REBMDP *dump)
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
 //
-static void Mark_Call_Frames_Deep(REBMDP *dump)
+static void Mark_Frame_Stack_Deep(REBMDP *dump)
 {
     // The GC must consider all entries, not just those that have been pushed
     // into active evaluation.
@@ -778,11 +778,11 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
         }
         else {
             assert(f->indexor != THROWN_FLAG);
-                        QUEUE_MARK_ARRAY_DEEP(f->source.array, NULL, f, "<source>", REB_KIND_ARRAY, NULL, dump);
+            QUEUE_MARK_ARRAY_DEEP(f->source.array, NULL, f, "<source>", REB_KIND_ARRAY, NULL, dump);
         }
 
         if (f->value && Is_Value_Managed(f->value, FALSE))
-		Queue_Mark_Value_Deep(f->value, NULL, f, "<value>", dump);
+            Queue_Mark_Value_Deep(f->value, NULL, f, "<value>", dump);
 
         if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
             //
@@ -793,7 +793,7 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
             // while evaluating the group it has no anchor anywhere in the
             // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
-            continue;
+            goto next;
         }
 
         // The subfeed may be in use by VARARGS!, and it may be either a
@@ -859,6 +859,17 @@ static void Mark_Call_Frames_Deep(REBMDP *dump)
             Queue_Mark_Value_Deep(f->refine, NULL, f, "<param>", dump);
 
         Propagate_All_GC_Marks(dump);
+
+    next:
+        if (f->prior) {
+            entry.addr = f->prior;
+            entry.name = NULL;
+            entry.parent = f;
+            entry.kind = REB_KIND_CALL;
+            entry.edge = "<prior>";
+            entry.size = 0; // on the stack
+            Dump_Mem_Entry(dump, &entry);
+        }
     }
 }
 
@@ -1682,7 +1693,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 
         // Mark function call frames:
         Dump_Mem_Comment(dump, "Dumping function call frames");
-        Mark_Call_Frames_Deep(dump);
+        Mark_Frame_Stack_Deep(dump);
         Propagate_All_GC_Marks(dump);
     }
 
