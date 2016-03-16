@@ -1027,10 +1027,13 @@ typedef struct Reb_Frame Reb_Enumerator;
 // an EVAL and not a DO...hence if you pass it a block, then the block will
 // just evaluate to itself!
 //
-#define EVAL_VALUE_THROWS(out,value) \
+#define EVAL_VALUE_CORE_THROWS(out,value,specifier) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), \
-        (value), EMPTY_ARRAY, 0, SPECIFIED, \
+        (value), EMPTY_ARRAY, 0, specifier, \
         DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
+
+#define EVAL_VALUE_THROWS(out,value) \
+    EVAL_VALUE_CORE_THROWS((out), (value), SPECIFIED)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

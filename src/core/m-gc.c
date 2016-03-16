@@ -1399,9 +1399,11 @@ REBCNT Recycle_Core(REBOOL shutdown)
                         NOT_END(chunk_value)
                         && !IS_VOID_OR_SAFE_TRASH(chunk_value)
                     ) {
-                        // The chunk stack stores REBVAL, not RELVAL
-                        //
-                        assert(!IS_RELATIVE(chunk_value));
+                        // !!! The chunk stack should store REBVAL, not RELVAL
+                        // (can't turn this assert on until the system has
+                        // all the RELVAL/REBVAL type correctness in)
+
+                        /* assert(!IS_RELATIVE(chunk_value)); */
                         Queue_Mark_Value_Deep(chunk_value);
                     }
                     chunk_value++;

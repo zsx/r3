@@ -1274,20 +1274,7 @@ reevaluate:
                 SET_END(f->out);
             }
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
-                // Can't use DO_VALUE_THROWS() macro on relative value
-                if (
-                    THROWN_FLAG
-                    == Do_Array_At_Core(
-                        f->arg,
-                        f->value, // first (and only) item to DO
-                        EMPTY_ARRAY, // empty array so isolated value runs
-                        0, // will get END immediately after f->value
-                        f->specifier,
-                        DO_FLAG_TO_END
-                            | DO_FLAG_ARGS_EVALUATE
-                            | DO_FLAG_LOOKAHEAD
-                    )
-                ) {
+                if (EVAL_VALUE_CORE_THROWS(f->arg, f->value, f->specifier)) {
                     *f->out = *f->arg;
                     Abort_Function_Args_For_Frame(f);
                     goto finished;

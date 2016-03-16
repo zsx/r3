@@ -34,7 +34,7 @@
 //
 //  Protect_Key: C
 //
-static void Protect_Key(REBVAL *key, REBFLGS flags)
+static void Protect_Key(RELVAL *key, REBFLGS flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET)) SET_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
@@ -141,7 +141,12 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             // Most routines should NOT do this!
             //
             REBOOL lookback; // ignored
-            val = Get_Var_Core(&lookback, word, SPECIFIED, GETVAR_READ_ONLY);
+            val = Get_Var_Core(
+                &lookback,
+                word,
+                SPECIFIED,
+                GETVAR_READ_ONLY
+            );
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -197,9 +202,12 @@ static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
 
     if (IS_BLOCK(value)) {
         if (REF(words)) {
-            REBVAL *val;
-            for (val = VAL_ARRAY_AT(value); NOT_END(val); val++)
-                Protect_Word_Value(val, flags);  // will unmark if deep
+            RELVAL *val;
+            for (val = VAL_ARRAY_AT(value); NOT_END(val); val++) {
+                REBVAL word; // need binding intact, can't just pass RELVAL
+                COPY_RELVAL(&word, val, VAL_SPECIFIER(value));
+                Protect_Word_Value(&word, flags);  // will unmark if deep
+            }
             goto return_value_arg;
         }
         if (REF(values)) {
@@ -653,7 +661,7 @@ REBNATIVE(catch)
                 //
                 // Test all the words in the block for a match to catch
 
-                REBVAL *candidate = VAL_ARRAY_AT(ARG(names));
+                RELVAL *candidate = VAL_ARRAY_AT(ARG(names));
                 for (; NOT_END(candidate); candidate++) {
                     //
                     // !!! Should we test a typeset for illegal name types?
@@ -661,7 +669,7 @@ REBNATIVE(catch)
                     if (IS_BLOCK(candidate))
                         fail (Error(RE_INVALID_ARG, ARG(names)));
 
-                    *temp1 = *candidate;
+                    COPY_RELVAL(temp1, candidate, VAL_SPECIFIER(ARG(names)));
                     *temp2 = *D_OUT;
 
                     // Return the THROW/NAME's arg if the names match
@@ -1266,7 +1274,7 @@ REBNATIVE(fail)
         //     fail/with [{The key} :key-name {is invalid}] [key-name: key]
         //
         if (IS_BLOCK(reason)) {
-            REBVAL *item = VAL_ARRAY_AT(reason);
+            RELVAL *item = VAL_ARRAY_AT(reason);
 
             REBVAL pending_delimiter;
 

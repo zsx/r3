@@ -1568,7 +1568,7 @@ struct Reb_Any_Word {
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_SPECIFIC(v))
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
+    (IS_RELATIVE(v) \
         ? Context_For_Frame_May_Reify_Managed( \
             Frame_For_Word_Dynamic((v), FALSE)) \
         : VAL_WORD_CONTEXT(v))

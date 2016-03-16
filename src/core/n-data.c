@@ -99,7 +99,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 {
     const REBVAL *val;
 
-    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, GUESSED) : types;
+    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, SPECIFIED) : types;
 
     if (IS_DATATYPE(val))
         return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
@@ -108,16 +108,20 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
         return LOGICAL(TYPE_CHECK(val, VAL_TYPE(value)));
 
     if (IS_BLOCK(val)) {
-        for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
-            val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, GUESSED) : types;
-            if (IS_DATATYPE(val)) {
-                if (VAL_TYPE_KIND(val) == VAL_TYPE(value)) return TRUE;
+        RELVAL *item;
+        for (item = VAL_ARRAY_AT(val); NOT_END(item); ++item) {
+            const RELVAL *temp = IS_WORD(item)
+                ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(val))
+                : item;
+
+            if (IS_DATATYPE(temp)) {
+                if (VAL_TYPE_KIND(temp) == VAL_TYPE(value)) return TRUE;
             }
-            else if (IS_TYPESET(val)) {
-                if (TYPE_CHECK(val, VAL_TYPE(value))) return TRUE;
+            else if (IS_TYPESET(temp)) {
+                if (TYPE_CHECK(temp, VAL_TYPE(value))) return TRUE;
             }
             else
-                fail (Error(RE_INVALID_TYPE, Type_Of(val)));
+                fail (Error(RE_INVALID_TYPE, Type_Of(temp)));
         }
         return FALSE;
     }
@@ -170,37 +174,42 @@ REBNATIVE(assert)
     else {
         // /types [var1 integer!  var2 [integer! decimal!]]
         const REBVAL *val;
-        REBVAL *type;
-        REBVAL *value = VAL_ARRAY_AT(ARG(conditions));
+        RELVAL *value = VAL_ARRAY_AT(ARG(conditions));
+
+        REBVAL type;
 
         for (; NOT_END(value); value += 2) {
             if (IS_WORD(value)) {
-                val = GET_OPT_VAR_MAY_FAIL(value, GUESSED);
+                val = GET_OPT_VAR_MAY_FAIL(value, specifier);
             }
             else if (IS_PATH(value)) {
-                if (Do_Path_Throws_Core(D_OUT, NULL, value, GUESSED, NULL))
+                if (Do_Path_Throws_Core(D_OUT, NULL, value, specifier, NULL))
                     fail (Error_No_Catch_For_Throw(D_OUT));
 
                 val = D_OUT;
             }
             else
-                fail (Error_Invalid_Arg(value));
+                fail (Error_Invalid_Arg_Core(value, specifier));
 
-            type = value+1;
+            if (IS_END(value + 1)) fail (Error(RE_MISSING_ARG));
 
-            if (IS_END(type)) fail (Error(RE_MISSING_ARG));
+            COPY_RELVAL(&type, value + 1, specifier);
 
             if (
-                IS_BLOCK(type)
-                || IS_WORD(type)
-                || IS_TYPESET(type)
-                || IS_DATATYPE(type)
+                IS_BLOCK(&type)
+                || IS_WORD(&type)
+                || IS_TYPESET(&type)
+                || IS_DATATYPE(&type)
             ) {
-                if (!Is_Type_Of(val, type))
+                if (!Is_Type_Of(val, &type)) {
+                    REBVAL specific;
+                    COPY_RELVAL(&specific, value, specifier);
+
                     fail (Error(RE_WRONG_TYPE, value));
+                }
             }
             else
-                fail (Error_Invalid_Arg(type));
+                fail (Error_Invalid_Arg(&type));
         }
     }
 
@@ -323,7 +332,7 @@ REBNATIVE(bind)
         // not in context, bind/new means add it if it's not.
         //
         if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
-            Append_Context(context, value, 0);
+            Append_Context(context, value, SYM_0);
             *D_OUT = *value;
             return R_OUT;
         }
@@ -454,8 +463,8 @@ REBNATIVE(collect_words)
 
     REBARR *words;
     REBCNT modes;
-    REBVAL *values = VAL_ARRAY_AT(D_ARG(1));
-    REBVAL *prior_values;
+    RELVAL *values = VAL_ARRAY_AT(D_ARG(1));
+    RELVAL *prior_values;
 
     if (REF(set))
         modes = COLLECT_ONLY_SET_WORDS;
@@ -545,7 +554,7 @@ REBNATIVE(get)
         // the LEN including hidden fields which aren't going to be copied.
         //
         REBARR *array = Make_Array(CTX_LEN(VAL_CONTEXT(source)));
-        REBVAL *dest = ARR_HEAD(array);
+        REBVAL *dest = SINK(ARR_HEAD(array));
 
         REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(source));
         REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(source));
@@ -879,17 +888,19 @@ REBNATIVE(set)
     // Pointers independent from the arguments.  If we change them, they can
     // be reset to point at the original argument again.
     //
-    REBVAL *target = ARG(target);
-    REBVAL *value = ARG(value);
+    RELVAL *target;
+    REBCTX *target_specifier;
+    RELVAL *value;
+    REBCTX *value_specifier;
     REBOOL set_with_block;
 
-    if (!REF(opt) && IS_VOID(value))
-        fail (Error(RE_NEED_VALUE, target));
+    if (!REF(opt) && IS_VOID(ARG(value)))
+        fail (Error(RE_NEED_VALUE, ARG(target)));
 
     REBOOL lookback = REF(lookback);
 
     if (lookback) {
-        if (!IS_FUNCTION(value))
+        if (!IS_FUNCTION(ARG(value)))
             fail (Error(RE_MISC));
 
         // SET-INFIX checks for properties of the function to ensure it is
@@ -906,8 +917,10 @@ REBNATIVE(set)
     // for instance that `set quote x: (expression)` would mean that the
     // locals gathering facility of FUNCTION would still gather x.
     //
-    if (ANY_WORD(target)) {
-        *Get_Var_Core(&lookback, target, GUESSED, GETVAR_IS_SETVAR) = *value;
+    if (ANY_WORD(ARG(target))) {
+        *Get_Var_Core(
+                &lookback, ARG(target), SPECIFIED, GETVAR_IS_SETVAR
+            ) = *ARG(value);
         goto return_value_arg;
     }
 
@@ -918,10 +931,15 @@ REBNATIVE(set)
     if (lookback)
         fail (Error(RE_MISC));
 
-    if (ANY_PATH(target)) {
+    if (ANY_PATH(ARG(target))) {
         REBVAL dummy;
-        if (Do_Path_Throws_Core(&dummy, NULL, target, SPECIFIED, value))
+        if (
+            Do_Path_Throws_Core(
+                &dummy, NULL, ARG(target), SPECIFIED, ARG(value)
+            )
+        ) {
             fail (Error_No_Catch_For_Throw(&dummy));
+        }
 
         // If not a throw, then there is no result out of a setting a path,
         // we should return the value we passed in to set with.
@@ -943,8 +961,9 @@ REBNATIVE(set)
     // be recovered again with `value = VAL_ARRAY_AT(ARG(value))` if
     // it is changed.)
     //
-    if ((set_with_block = IS_BLOCK(value))) {
-        value = VAL_ARRAY_AT(value);
+    if ((set_with_block = IS_BLOCK(ARG(value)))) {
+        value = VAL_ARRAY_AT(ARG(value));
+        value_specifier = VAL_SPECIFIER(ARG(value));
 
         // If it's an empty block it's just going to be a no-op, so go ahead
         // and return now so the later code doesn't have to check for it.
@@ -952,8 +971,12 @@ REBNATIVE(set)
         if (IS_END(value))
             goto return_value_arg;
     }
+    else {
+        value = ARG(value);
+        value_specifier = SPECIFIED;
+    }
 
-    if (ANY_CONTEXT(target)) {
+    if (ANY_CONTEXT(ARG(target))) {
         //
         // !!! The functionality of using a block to set ordered arguments
         // in an object depends on a notion of the object retaining a
@@ -962,7 +985,7 @@ REBNATIVE(set)
         // like `set object [a: 0 b: 0 c: 0] 1020` will set all the fields
         // to 1020 is a bit of a strange feature for the primitive.
 
-        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(target));
+        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
         REBVAL *var;
 
         // To make SET somewhat atomic, before setting any of the object's
@@ -1015,8 +1038,8 @@ REBNATIVE(set)
 
         // Refresh the key so we can check and skip hidden fields
         //
-        key = CTX_KEYS_HEAD(VAL_CONTEXT(target));
-        var = CTX_VARS_HEAD(VAL_CONTEXT(target));
+        key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
+        var = CTX_VARS_HEAD(VAL_CONTEXT(ARG(target)));
 
         // With the assignments validated, set the variables in the object,
         // padding to NONE if requested
@@ -1030,7 +1053,7 @@ REBNATIVE(set)
                 SET_BLANK(var);
                 continue;
             }
-            *var = *value;
+            COPY_RELVAL(var, value, value_specifier);
             if (set_with_block) value++;
         }
 
@@ -1039,8 +1062,9 @@ REBNATIVE(set)
 
     // Otherwise, it must be a BLOCK!... extract the value at index position
     //
-    assert(IS_BLOCK(target));
-    target = VAL_ARRAY_AT(target);
+    assert(IS_BLOCK(ARG(target)));
+    target = VAL_ARRAY_AT(ARG(target));
+    target_specifier = VAL_SPECIFIER(ARG(target));
 
     // SET should be somewhat atomic.  So if we're setting a block of
     // words and giving an alert on unsets, check for any unsets before
@@ -1048,14 +1072,12 @@ REBNATIVE(set)
     //
     if (!REF(opt)) {
         for (; NOT_END(target) && NOT_END(value); target++) {
+            assert(!IS_VOID(value)); // blocks may not contain voids
+
             switch (VAL_TYPE(target)) {
             case REB_WORD:
             case REB_SET_WORD:
             case REB_LIT_WORD:
-                if (IS_VOID(value)) {
-                    assert(set_with_block); // if not, caught earlier...!
-                    fail (Error(RE_NEED_VALUE, target));
-                }
                 break;
 
             case REB_GET_WORD:
@@ -1064,15 +1086,15 @@ REBNATIVE(set)
                 // elements to the same value, it makes a difference if
                 // it's a get-word for the !set_with_block too.
                 //
-                if (
-                    IS_VOID(
-                        IS_WORD(value)
-                            ? GET_OPT_VAR_MAY_FAIL(value, GUESSED)
-                            : value
-                    )
-                ) {
-                    fail (Error(RE_NEED_VALUE, target));
-                }
+                if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
+                    if (IS_VOID(GET_OPT_VAR_MAY_FAIL(value, value_specifier)))
+                        fail (Error(RE_NEED_VALUE, target));
+                break;
+
+            default:
+                // !!! Error is not caught here, but in the second loop...
+                // Why two passes if the first pass isn't going to screen
+                // for all errors?
                 break;
             }
 
@@ -1093,7 +1115,11 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            *GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED) = *value;
+            COPY_RELVAL(
+                GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                value,
+                value_specifier
+            );
         }
         else if (IS_GET_WORD(target)) {
             //
@@ -1102,12 +1128,20 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            *GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED) = IS_WORD(value)
-                ? *GET_OPT_VAR_MAY_FAIL(value, GUESSED)
-                : *value;
+            if (IS_WORD(value)) {
+                *GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier)
+                    = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
+            }
+            else {
+                COPY_RELVAL(
+                    GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                    value,
+                    value_specifier
+                );
+            }
         }
         else
-            fail (Error_Invalid_Arg(target));
+            fail (Error_Invalid_Arg_Core(target, target_specifier));
 
         if (set_with_block) {
             value++;
@@ -1115,6 +1149,7 @@ REBNATIVE(set)
                 if (!REF(pad)) break;
                 set_with_block = FALSE;
                 value = BLANK_VALUE;
+                value_specifier = SPECIFIED;
             }
         }
     }

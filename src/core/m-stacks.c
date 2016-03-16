@@ -69,7 +69,7 @@ void Init_Stacks(REBCNT size)
     // because 0 can)
     {
         DS_Array = Make_Array(1);
-        DS_Movable_Base = ARR_HEAD(DS_Array);
+        DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
 
         SET_TRASH_SAFE(ARR_HEAD(DS_Array));
 
@@ -153,8 +153,8 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // is at its end.  Sanity check that.
     //
     assert(IS_END(DS_TOP));
-    assert(DS_TOP == ARR_TAIL(DS_Array));
-    assert(DS_TOP - ARR_HEAD(DS_Array) == len_old);
+    assert(DS_TOP == KNOWN(ARR_TAIL(DS_Array))); // can't push RELVALs
+    assert(DS_TOP - KNOWN(ARR_HEAD(DS_Array)) == len_old);
 
     // If adding in the requested amount would overflow the stack limit, then
     // give a data stack overflow error.
@@ -170,7 +170,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // dereference into a single dereference in the common case, and it was
     // how R3-Alpha did it).
     //
-    DS_Movable_Base = ARR_HEAD(DS_Array); // must do before using DS_TOP
+    DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // must do before using DS_TOP
 
     // We fill in the data stack with "GC safe trash" (which is void in the
     // release build, but will raise an alarm if VAL_TYPE() called on it in
@@ -203,7 +203,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 REBARR *Pop_Stack_Values(REBDSP dsp_start)
 {
     REBCNT len = DSP - dsp_start;
-    REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
+    RELVAL *values = ARR_AT(DS_Array, dsp_start + 1);
 
     // Data stack should be fully specified--no relative values
     //
@@ -222,7 +222,7 @@ REBARR *Pop_Stack_Values(REBDSP dsp_start)
 //
 void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
     REBCNT len = DSP - dsp_start;
-    REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
+    REBVAL *values = KNOWN(ARR_AT(DS_Array, dsp_start + 1));
 
     assert(ANY_ARRAY(into));
     FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(into));
@@ -230,7 +230,7 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
     VAL_INDEX(into) = Insert_Series(
         ARR_SERIES(VAL_ARRAY(into)),
         VAL_INDEX(into),
-        cast(REBYTE*, values),
+        cast(REBYTE*, values), // stack only holds fully specified REBVALs
         len // multiplied by width (sizeof(REBVAL)) in Insert_Series
     );
 
@@ -548,7 +548,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         // !!! Note: Make_Array made the 0 slot an end marker
         //
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
-        f->arg = slot = ARR_AT(f->varlist, 1);
+        f->arg = slot = SINK(ARR_AT(f->varlist, 1));
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
