@@ -120,7 +120,7 @@ REBOOL MT_Bitset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 // Return integer number for the maximum bit number defined by
 // the value. Used to determine how much space to allocate.
 //
-REBINT Find_Max_Bit(REBVAL *val)
+REBINT Find_Max_Bit(RELVAL *val)
 {
     REBINT maxi = 0;
     REBINT n;
@@ -128,11 +128,11 @@ REBINT Find_Max_Bit(REBVAL *val)
     switch (VAL_TYPE(val)) {
 
     case REB_CHAR:
-        maxi = VAL_CHAR(val)+1;
+        maxi = VAL_CHAR(val) + 1;
         break;
 
     case REB_INTEGER:
-        maxi = Int32s(val, 0);
+        maxi = Int32s(KNOWN(val), 0);
         break;
 
     case REB_STRING:
@@ -292,6 +292,7 @@ REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
 {
     REBCNT n;
     REBCNT c;
+    RELVAL *item;
 
     if (IS_CHAR(val)) {
         Set_Bit(bset, VAL_CHAR(val), set);
@@ -312,49 +313,49 @@ REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
 
     if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
-    val = VAL_ARRAY_AT(val);
-    if (NOT_END(val) && IS_SAME_WORD(val, SYM_NOT)) {
+    item = VAL_ARRAY_AT(val);
+    if (NOT_END(item) && IS_SAME_WORD(item, SYM_NOT)) {
         INIT_BITS_NOT(bset, TRUE);
-        val++;
+        item++;
     }
 
     // Loop through block of bit specs:
-    for (; NOT_END(val); val++) {
+    for (; NOT_END(item); item++) {
 
-        switch (VAL_TYPE(val)) {
+        switch (VAL_TYPE(item)) {
 
         case REB_CHAR:
-            c = VAL_CHAR(val);
+            c = VAL_CHAR(item);
 
             // !!! Modified to check for END, used to be just the test for
             // IS_SAME_WORD() ... is the `else` path actually correct?
             //
-            if (NOT_END(val + 1) && IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
-                val += 2;
-                if (IS_CHAR(val)) {
-                    n = VAL_CHAR(val);
+            if (NOT_END(item + 1) && IS_SAME_WORD(item + 1, SYM_HYPHEN)) {
+                item += 2;
+                if (IS_CHAR(item)) {
+                    n = VAL_CHAR(item);
 span_bits:
-                    if (n < c) fail (Error(RE_PAST_END, val));
+                    if (n < c) fail (Error(RE_PAST_END, item));
                     for (; c <= n; c++) Set_Bit(bset, c, set);
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
             else Set_Bit(bset, c, set);
             break;
 
         case REB_INTEGER:
-            n = Int32s(val, 0);
+            n = Int32s(KNOWN(item), 0);
             if (n > MAX_BITSET) return FALSE;
-            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
+            if (IS_SAME_WORD(item + 1, SYM_HYPHEN)) {
                 c = n;
-                val += 2;
-                if (IS_INTEGER(val)) {
-                    n = Int32s(val, 0);
+                item += 2;
+                if (IS_INTEGER(item)) {
+                    n = Int32s(KNOWN(item), 0);
                     goto span_bits;
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
             else Set_Bit(bset, n, set);
             break;
@@ -366,21 +367,21 @@ span_bits:
         case REB_URL:
         case REB_TAG:
 //      case REB_ISSUE:
-            Set_Bit_Str(bset, val, set);
+            Set_Bit_Str(bset, KNOWN(item), set);
             break;
 
         case REB_WORD:
             // Special: BITS #{000...}
-            if (!IS_SAME_WORD(val, SYM_BITS)) return FALSE;
-            val++;
-            if (!IS_BINARY(val)) return FALSE;
-            n = VAL_LEN_AT(val);
+            if (!IS_SAME_WORD(item, SYM_BITS)) return FALSE;
+            item++;
+            if (!IS_BINARY(item)) return FALSE;
+            n = VAL_LEN_AT(item);
             c = SER_LEN(bset);
             if (n >= c) {
                 Expand_Series(bset, c, (n - c));
                 CLEAR(BIN_AT(bset, c), (n - c));
             }
-            memcpy(BIN_HEAD(bset), VAL_BIN_AT(val), n);
+            memcpy(BIN_HEAD(bset), VAL_BIN_AT(item), n);
             break;
 
         default:
@@ -402,6 +403,7 @@ REBOOL Check_Bits(REBSER *bset, const REBVAL *val, REBOOL uncased)
 {
     REBCNT n;
     REBUNI c;
+    RELVAL *item;
 
     if (IS_CHAR(val))
         return Check_Bit(bset, VAL_CHAR(val), uncased);
@@ -415,40 +417,40 @@ REBOOL Check_Bits(REBSER *bset, const REBVAL *val, REBOOL uncased)
     if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
 
     // Loop through block of bit specs:
-    for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
+    for (item = VAL_ARRAY_AT(val); NOT_END(item); item++) {
 
-        switch (VAL_TYPE(val)) {
+        switch (VAL_TYPE(item)) {
 
         case REB_CHAR:
-            c = VAL_CHAR(val);
-            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
-                val += 2;
-                if (IS_CHAR(val)) {
-                    n = VAL_CHAR(val);
+            c = VAL_CHAR(item);
+            if (IS_SAME_WORD(item + 1, SYM_HYPHEN)) {
+                item += 2;
+                if (IS_CHAR(item)) {
+                    n = VAL_CHAR(item);
 scan_bits:
-                    if (n < c) fail (Error(RE_PAST_END, val));
+                    if (n < c) fail (Error(RE_PAST_END, item));
                     for (; c <= n; c++)
                         if (Check_Bit(bset, c, uncased)) goto found;
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 if (Check_Bit(bset, c, uncased)) goto found;
             break;
 
         case REB_INTEGER:
-            n = Int32s(val, 0);
+            n = Int32s(KNOWN(item), 0);
             if (n > 0xffff) return FALSE;
-            if (IS_SAME_WORD(val + 1, SYM_HYPHEN)) {
+            if (IS_SAME_WORD(item + 1, SYM_HYPHEN)) {
                 c = n;
-                val += 2;
-                if (IS_INTEGER(val)) {
-                    n = Int32s(val, 0);
+                item += 2;
+                if (IS_INTEGER(item)) {
+                    n = Int32s(KNOWN(item), 0);
                     goto scan_bits;
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 if (Check_Bit(bset, n, uncased)) goto found;
@@ -461,11 +463,14 @@ scan_bits:
         case REB_URL:
         case REB_TAG:
 //      case REB_ISSUE:
-            if (Check_Bit_Str(bset, val, uncased)) goto found;
+            if (Check_Bit_Str(bset, KNOWN(item), uncased)) goto found;
             break;
 
-        default:
-            fail (Error_Has_Bad_Type(val));
+        default: {
+            REBVAL specific;
+            COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+            fail (Error_Has_Bad_Type(&specific));
+        }
         }
     }
     return FALSE;
