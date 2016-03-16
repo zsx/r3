@@ -2132,6 +2132,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     f->value = END_CELL;
     f->indexor = 0;
     f->source.array = EMPTY_ARRAY;
+    f->specifier = SPECIFIED;
     f->eval_fetched = NULL;
     f->lookback = FALSE;
 

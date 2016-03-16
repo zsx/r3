@@ -417,7 +417,7 @@ static REBCNT Parse_Next_Array(
 
     case REB_LIT_PATH:
         index++;
-        if (IS_PATH(blk) && !Cmp_Block(blk, item, FALSE)) break;
+        if (IS_PATH(blk) && !Cmp_Array(blk, item, FALSE)) break;
         goto no_result;
 
     case REB_BLANK:

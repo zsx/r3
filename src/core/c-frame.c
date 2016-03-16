@@ -921,7 +921,7 @@ REBCTX *Construct_Context(
         // !!! Objects are a rewrite in progress; error messages need to
         // be improved.
 
-        RELVAL *var;
+        REBVAL *var;
 
         if (!IS_SET_WORD(value))
             fail (Error(RE_INVALID_TYPE, Type_Of(value)));

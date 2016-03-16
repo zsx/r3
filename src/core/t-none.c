@@ -33,7 +33,7 @@
 //
 //  CT_Unit: C
 //
-REBINT CT_Unit(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Unit(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE(a) == VAL_TYPE(b));
     return -1;

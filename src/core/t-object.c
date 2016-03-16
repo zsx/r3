@@ -267,7 +267,7 @@ static REBCTX *Trim_Context(REBCTX *context)
 //
 //  CT_Context: C
 //
-REBINT CT_Context(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Context(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     return Equal_Context(a, b) ? 1 : 0;

@@ -467,6 +467,18 @@ const RELVAL *ENSURE_C_RELVAL_Debug(const RELVAL *value)
 
 
 //
+//  SINK_Debug: C
+//
+REBVAL *SINK_Debug(union Reb_Value_Payload *payload)
+{
+    return cast(
+        REBVAL*,
+        cast(char*, payload) - offsetof(struct Reb_Value, payload)
+    );
+}
+
+
+//
 //  const_KNOWN_Debug: C
 //
 const REBVAL *const_KNOWN_Debug(const RELVAL *value)

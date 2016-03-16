@@ -54,7 +54,7 @@ const REBCNT Gob_Flag_Words[] = {
 //
 //  CT_Gob: C
 //
-REBINT CT_Gob(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Gob(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0)
         return VAL_GOB(a) == VAL_GOB(b) && VAL_GOB_INDEX(a) == VAL_GOB_INDEX(b);
@@ -82,7 +82,7 @@ REBGOB *Make_Gob(void)
 //
 //  Cmp_Gob: C
 //
-REBINT Cmp_Gob(const REBVAL *g1, const REBVAL *g2)
+REBINT Cmp_Gob(const RELVAL *g1, const RELVAL *g2)
 {
     REBINT n;
 

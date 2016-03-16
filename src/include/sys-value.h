@@ -974,7 +974,8 @@ struct Reb_Decimal {
 #ifdef NDEBUG
     #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, &(v)->payload.decimal.dec))
 #else
-    #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, VAL_DECIMAL_Ptr_Debug(v)))
+    #define VAL_DECIMAL_BITS(v) \
+        (*cast(REBI64*, VAL_DECIMAL_Ptr_Debug(v)))
 #endif
 
 #define SET_DECIMAL(v,n) \
@@ -2852,10 +2853,10 @@ struct Reb_Value
 //
 #ifdef NDEBUG
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Guessable((dest),(src),(specifier))
+        COPY_VALUE_Guessable(SINK(dest),(src),(specifier))
 #else
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Guessable_Debug((dest),(src),(specifier))
+        COPY_VALUE_Guessable_Debug(SINK(dest),(src),(specifier))
 #endif
 
 #ifdef NDEBUG

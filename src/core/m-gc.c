@@ -490,7 +490,7 @@ static void Queue_Mark_Routine_Deep(REBROT *rot)
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure completely marked.
 //
-static void Queue_Mark_Event_Deep(const REBVAL *value)
+static void Queue_Mark_Event_Deep(const RELVAL *value)
 {
     REBREQ *req;
 
@@ -567,7 +567,7 @@ static void Mark_Devices_Deep(void)
 // catch cases of when a function dispatch doesn't consciously
 // write any value into the output in debug builds.  The GC is
 // willing to overlook this safe trash, however, and it will just
-// be a void in the release build.
+// be an UNSET! in the release build.
 // 
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
@@ -715,7 +715,7 @@ static void Mark_Frame_Stack_Deep(void)
 // This routine is not marked `static` because it is needed by
 // Ren/C++ in order to implement its GC_Mark_Hook.
 //
-void Queue_Mark_Value_Deep(const REBVAL *val)
+void Queue_Mark_Value_Deep(const RELVAL *val)
 {
     REBSER *ser = NULL;
 
@@ -886,8 +886,18 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND)) {
-                REBCTX* context = VAL_WORD_CONTEXT(val);
-                QUEUE_MARK_CONTEXT_DEEP(context);
+                if (IS_SPECIFIC(val)) {
+                    REBCTX* context = VAL_WORD_CONTEXT(const_KNOWN(val));
+                    QUEUE_MARK_CONTEXT_DEEP(context);
+                }
+                else {
+                    // We trust that if a relative word's context needs to make
+                    // it into the transitive closure, that will be taken care
+                    // of by the array reference that holds it.
+                    //
+                    REBFUN* func = VAL_WORD_FUNC(val);
+                    QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+                }
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
                 //
@@ -948,9 +958,24 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         case REB_PATH:
         case REB_SET_PATH:
         case REB_GET_PATH:
-        case REB_LIT_PATH:
+        case REB_LIT_PATH: {
+            if (IS_SPECIFIC(val)) {
+                REBCTX *context = VAL_SPECIFIER(const_KNOWN(val));
+                if (context != GUESSED && context != SPECIFIED)
+                    QUEUE_MARK_CONTEXT_DEEP(context);
+            }
+            else {
+                // We trust that if a relative array's context needs to make
+                // it into the transitive closure, that will be taken care
+                // of by a higher-up array reference that holds it.
+                //
+                REBFUN* func = VAL_RELATIVE(val);
+                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+            }
+
             QUEUE_MARK_ARRAY_DEEP(VAL_ARRAY(val));
             break;
+        }
 
         case REB_MAP: {
             REBMAP* map = VAL_MAP(val);
@@ -1003,7 +1028,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 static void Mark_Array_Deep_Core(REBARR *array)
 {
     REBCNT len;
-    REBVAL *value;
+    RELVAL *value;
 
 #if !defined(NDEBUG)
     //
@@ -1354,8 +1379,10 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = SER_HEAD(REBVAL*, GC_Value_Guard);
         for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
-            if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
+            if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp)) {
+                assert(!IS_RELATIVE(*vp)); // don't actually guard RELVALs
                 Queue_Mark_Value_Deep(*vp);
+            }
             Propagate_All_GC_Marks();
         }
 
@@ -1372,6 +1399,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
                         NOT_END(chunk_value)
                         && !IS_VOID_OR_SAFE_TRASH(chunk_value)
                     ) {
+                        // The chunk stack stores REBVAL, not RELVAL
+                        //
+                        assert(!IS_RELATIVE(chunk_value));
                         Queue_Mark_Value_Deep(chunk_value);
                     }
                     chunk_value++;
@@ -1386,8 +1416,10 @@ REBCNT Recycle_Core(REBOOL shutdown)
         MARK_CONTEXT_DEEP(TG_Task_Context);
 
         // Mark potential error object from callback!
-        if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error))
+        if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
+            assert(!IS_RELATIVE(&Callback_Error));
             Queue_Mark_Value_Deep(&Callback_Error);
+        }
         Propagate_All_GC_Marks();
 
         // !!! This hook point is an interim measure for letting a host

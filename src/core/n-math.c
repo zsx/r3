@@ -390,7 +390,7 @@ REBNATIVE(shift)
 // in native code that can overwrite its argument values without
 // that being a problem, so it doesn't matter.
 //
-REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
+REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
 {
     REBCNT ta = VAL_TYPE(a);
     REBCNT tb = VAL_TYPE(b);
@@ -509,7 +509,12 @@ REBNATIVE(equal_q)
 //
 REBNATIVE(not_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 0)) return R_FALSE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), 0))
+        return R_FALSE;
+
     return R_TRUE;
 }
 
@@ -525,7 +530,12 @@ REBNATIVE(not_equal_q)
 //
 REBNATIVE(strict_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), 1))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
@@ -541,7 +551,12 @@ REBNATIVE(strict_equal_q)
 //
 REBNATIVE(strict_not_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), 1))
+        return R_FALSE;
+
     return R_TRUE;
 }
 
@@ -692,7 +707,12 @@ REBNATIVE(same_q)
 //
 REBNATIVE(lesser_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_FALSE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), -1))
+        return R_FALSE;
+
     return R_TRUE;
 }
 
@@ -707,7 +727,12 @@ REBNATIVE(lesser_q)
 //
 REBNATIVE(lesser_or_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_FALSE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), -2))
+        return R_FALSE;
+
     return R_TRUE;
 }
 
@@ -722,7 +747,12 @@ REBNATIVE(lesser_or_equal_q)
 //
 REBNATIVE(greater_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -2)) return R_TRUE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), -2))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
@@ -737,7 +767,12 @@ REBNATIVE(greater_q)
 //
 REBNATIVE(greater_or_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), -1)) return R_TRUE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (Compare_Modify_Values(ARG(value1), ARG(value2), -1))
+        return R_TRUE;
+
     return R_FALSE;
 }
 
@@ -753,16 +788,22 @@ REBNATIVE(greater_or_equal_q)
 //
 REBNATIVE(maximum)
 {
-    if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), TRUE);
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    const REBVAL *value1 = ARG(value1);
+    const REBVAL *value2 = ARG(value2);
+
+    if (IS_PAIR(value1) || IS_PAIR(value2)) {
+        Min_Max_Pair(D_OUT, value1, value2, TRUE);
     }
     else {
-        REBVAL a = *D_ARG(1);
-        REBVAL b = *D_ARG(2);
-        if (Compare_Modify_Values(&a, &b, -1))
-            *D_OUT = *D_ARG(1);
+        REBVAL coerced1 = *value1;
+        REBVAL coerced2 = *value2;
+        if (Compare_Modify_Values(&coerced1, &coerced2, -1))
+            *D_OUT = *value1;
         else
-            *D_OUT = *D_ARG(2);
+            *D_OUT = *value2;
     }
     return R_OUT;
 }
@@ -779,17 +820,23 @@ REBNATIVE(maximum)
 //
 REBNATIVE(minimum)
 {
-    if (IS_PAIR(D_ARG(1)) || IS_PAIR(D_ARG(2))) {
-        Min_Max_Pair(D_OUT, D_ARG(1), D_ARG(2), FALSE);
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    const REBVAL *value1 = ARG(value1);
+    const REBVAL *value2 = ARG(value2);
+
+    if (IS_PAIR(ARG(value1)) || IS_PAIR(ARG(value2))) {
+        Min_Max_Pair(D_OUT, ARG(value1), ARG(value2), FALSE);
     }
     else {
-        REBVAL a = *D_ARG(1);
-        REBVAL b = *D_ARG(2);
+        REBVAL coerced1 = *value1;
+        REBVAL coerced2 = *value2;
 
-        if (Compare_Modify_Values(&a, &b, -1))
-            *D_OUT = *D_ARG(2);
+        if (Compare_Modify_Values(&coerced1, &coerced2, -1))
+            *D_OUT = *value2;
         else
-            *D_OUT = *D_ARG(1);
+            *D_OUT = *value1;
     }
     return R_OUT;
 }
@@ -805,10 +852,14 @@ REBNATIVE(minimum)
 //
 REBNATIVE(negative_q)
 {
-    REBVAL zero;
-    SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
+    PARAM(1, number);
 
-    if (Compare_Modify_Values(D_ARG(1), &zero, -1)) return R_FALSE;
+    REBVAL zero;
+    SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
+
+    if (Compare_Modify_Values(ARG(number), &zero, -1))
+        return R_FALSE;
+
     return R_TRUE;
 }
 
@@ -823,10 +874,13 @@ REBNATIVE(negative_q)
 //
 REBNATIVE(positive_q)
 {
-    REBVAL zero;
-    SET_ZEROED(&zero, VAL_TYPE(D_ARG(1)));
+    PARAM(1, number);
 
-    if (Compare_Modify_Values(D_ARG(1), &zero, -2)) return R_TRUE;
+    REBVAL zero;
+    SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
+
+    if (Compare_Modify_Values(ARG(number), &zero, -2))
+        return R_TRUE;
 
     return R_FALSE;
 }
@@ -842,13 +896,16 @@ REBNATIVE(positive_q)
 //
 REBNATIVE(zero_q)
 {
-    enum Reb_Kind type = VAL_TYPE(D_ARG(1));
+    PARAM(1, value);
+
+    enum Reb_Kind type = VAL_TYPE(ARG(value));
 
     if (type >= REB_INTEGER && type <= REB_TIME) {
         REBVAL zero;
         SET_ZEROED(&zero, type);
 
-        if (Compare_Modify_Values(D_ARG(1), &zero, 1)) return R_TRUE;
+        if (Compare_Modify_Values(ARG(value), &zero, 1))
+            return R_TRUE;
     }
     return R_FALSE;
 }

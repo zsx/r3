@@ -168,7 +168,7 @@ REBOOL Eq_Decimal2(REBDEC a, REBDEC b)
 //
 //  CT_Decimal: C
 //
-REBINT CT_Decimal(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Decimal(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) {
         if (mode == 0)
@@ -510,10 +510,10 @@ setDec:
 //
 //  VAL_DECIMAL_Ptr_Debug: C
 //
-REBDEC *VAL_DECIMAL_Ptr_Debug(const REBVAL *value)
+REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value)
 {
     assert(IS_DECIMAL(value) || IS_PERCENT(value));
-    return &m_cast(REBVAL*, value)->payload.decimal.dec;
+    return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal.dec;
 }
 
 #endif

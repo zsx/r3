@@ -1113,7 +1113,7 @@ enum Path_Eval_Result {
 
 typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
 
-typedef REBINT (*REBCTF)(const REBVAL *a, const REBVAL *b, REBINT s);
+typedef REBINT (*REBCTF)(const RELVAL *a, const RELVAL *b, REBINT s);
 
 
 //=////////////////////////////////////////////////////////////////////////=//

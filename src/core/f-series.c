@@ -150,16 +150,16 @@ REBOOL Series_Common_Action_Returns(
 
 
 //
-//  Cmp_Block: C
+//  Cmp_Array: C
 // 
-// Compare two blocks and return the difference of the first
+// Compare two arrays and return the difference of the first
 // non-matching value.
 //
-REBINT Cmp_Block(const REBVAL *sval, const REBVAL *tval, REBOOL is_case)
+REBINT Cmp_Array(const RELVAL *sval, const RELVAL *tval, REBOOL is_case)
 {
-    REBVAL  *s = VAL_ARRAY_AT(sval);
-    REBVAL  *t = VAL_ARRAY_AT(tval);
-    REBINT  diff;
+    RELVAL *s = VAL_ARRAY_AT(sval);
+    RELVAL *t = VAL_ARRAY_AT(tval);
+    REBINT diff;
 
     if (C_STACK_OVERFLOWING(&s)) Trap_Stack_Overflow();
 
@@ -203,7 +203,7 @@ diff_of_ends:
 // 
 // is_case TRUE for case sensitive compare
 //
-REBINT Cmp_Value(const REBVAL *s, const REBVAL *t, REBOOL is_case)
+REBINT Cmp_Value(const RELVAL *s, const RELVAL *t, REBOOL is_case)
 {
     REBDEC  d1, d2;
 
@@ -274,7 +274,7 @@ chkDecimal:
     case REB_SET_PATH:
     case REB_GET_PATH:
     case REB_LIT_PATH:
-        return Cmp_Block(s, t, is_case);
+        return Cmp_Array(s, t, is_case);
 
     case REB_STRING:
     case REB_FILE:
@@ -335,12 +335,13 @@ chkDecimal:
 // Simple search for a value in an array. Return the index of
 // the value or the TAIL index if not found.
 //
-REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const REBVAL *target)
+REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const RELVAL *target)
 {
-    REBVAL *value = ARR_HEAD(array);
+    RELVAL *value = ARR_HEAD(array);
 
     for (; index < ARR_LEN(array); index++) {
-        if (0 == Cmp_Value(value+index, target, FALSE)) return index;
+        if (0 == Cmp_Value(value + index, target, FALSE))
+            return index;
     }
 
     return ARR_LEN(array);

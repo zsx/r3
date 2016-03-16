@@ -57,10 +57,10 @@
 //
 //  CT_Map: C
 //
-REBINT CT_Map(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    return 0 == Cmp_Block(a, b, FALSE);
+    return 0 == Cmp_Array(a, b, FALSE);
 }
 
 
@@ -98,7 +98,7 @@ static REBMAP *Make_Map(REBCNT capacity)
 REBINT Find_Key_Hashed(
     REBARR *array,
     REBSER *hashlist,
-    const REBVAL *key,
+    const RELVAL *key,
     REBINT wide,
     REBOOL cased,
     REBYTE mode
@@ -111,7 +111,7 @@ REBINT Find_Key_Hashed(
     REBCNT uncased;
     REBCNT len;
     REBCNT n;
-    REBVAL *val;
+    RELVAL *val;
 
     // Compute hash for value:
     len = SER_LEN(hashlist);

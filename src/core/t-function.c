@@ -55,7 +55,7 @@ static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
 //
 //  CT_Function: C
 //
-REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return Same_Func(a, b) ? 1 : 0;
     return -1;

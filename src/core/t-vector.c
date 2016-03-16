@@ -228,7 +228,7 @@ REBARR *Vector_To_Array(REBVAL *vect)
 //
 //  Compare_Vector: C
 //
-REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
+REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 {
     REBCNT l1 = VAL_LEN_AT(v1);
     REBCNT l2 = VAL_LEN_AT(v2);
@@ -450,7 +450,7 @@ REBOOL MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 //
 //  CT_Vector: C
 //
-REBINT CT_Vector(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Vector(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT n = Compare_Vector(a, b);  // needs to be expanded for equality
     if (mode >= 0) {

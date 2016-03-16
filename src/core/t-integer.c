@@ -36,7 +36,7 @@
 //
 //  CT_Integer: C
 //
-REBINT CT_Integer(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Integer(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0)  return (VAL_INT64(a) == VAL_INT64(b));
     if (mode == -1) return (VAL_INT64(a) >= VAL_INT64(b));
@@ -498,10 +498,10 @@ REBTYPE(Integer)
 //
 //  VAL_INT64_Ptr_Debug: C
 //
-REBI64 *VAL_INT64_Ptr_Debug(const REBVAL *value)
+REBI64 *VAL_INT64_Ptr_Debug(const RELVAL *value)
 {
     assert(IS_INTEGER(value));
-    return &m_cast(REBVAL*, value)->payload.integer.i64;
+    return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer.i64;
 }
 
 #endif

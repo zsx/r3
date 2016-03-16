@@ -809,7 +809,7 @@ const REBYTE *Scan_Any(
 //
 REBOOL Construct_Value(REBVAL *out, REBARR *spec)
 {
-    REBVAL *val;
+    RELVAL *val;
     REBSYM sym;
     enum Reb_Kind type;
     MAKE_FUNC func;
@@ -868,7 +868,7 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
         // out of the spec referred to again...)
 
         PUSH_GUARD_ARRAY(spec);
-        if (func(out, val, type)) {
+        if (func(out, KNOWN(val), type)) { // !!! might this be relative?
             DROP_GUARD_ARRAY(spec);
             return TRUE;
         }
@@ -952,12 +952,13 @@ REBNATIVE(scan_net_header)
 
         if (*cp == ':') {
             REBSYM sym = Make_Word(start, cp-start);
+            RELVAL *item;
             cp++;
             // Search if word already present:
-            for (val = ARR_HEAD(result); NOT_END(val); val += 2) {
-                if (VAL_WORD_SYM(val) == sym) {
+            for (item = ARR_HEAD(result); NOT_END(item); item += 2) {
+                if (VAL_WORD_SYM(item) == sym) {
                     // Does it already use a block?
-                    if (IS_BLOCK(val+1)) {
+                    if (IS_BLOCK(item + 1)) {
                         // Block of values already exists:
                         val = Alloc_Tail_Array(VAL_ARRAY(val + 1));
                         SET_BLANK(val);
@@ -975,7 +976,7 @@ REBNATIVE(scan_net_header)
                     break;
                 }
             }
-            if (IS_END(val)) {
+            if (IS_END(item)) {
                 val = Alloc_Tail_Array(result); // add new word
                 Val_Init_Word(val, REB_SET_WORD, sym);
                 val = Alloc_Tail_Array(result); // for new value

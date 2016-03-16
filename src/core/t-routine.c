@@ -287,7 +287,7 @@ static void init_type_map()
 //
 //  CT_Routine: C
 //
-REBINT CT_Routine(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Routine(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     if (mode >= 0) {
@@ -299,7 +299,7 @@ REBINT CT_Routine(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 //  CT_Callback: C
 //
-REBINT CT_Callback(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Callback(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     return -1;

@@ -41,7 +41,7 @@
 //
 //  CT_Logic: C
 //
-REBINT CT_Logic(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Logic(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0)  return (VAL_LOGIC(a) == VAL_LOGIC(b));
     return -1;

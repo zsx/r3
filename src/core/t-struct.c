@@ -1035,7 +1035,7 @@ REBINT PD_Struct(REBPVS *pvs)
 //
 //  Cmp_Struct: C
 //
-REBINT Cmp_Struct(const REBVAL *s, const REBVAL *t)
+REBINT Cmp_Struct(const RELVAL *s, const RELVAL *t)
 {
     REBINT n = VAL_STRUCT_FIELDS(s) - VAL_STRUCT_FIELDS(t);
     fail_if_non_accessible(s);
@@ -1051,7 +1051,7 @@ REBINT Cmp_Struct(const REBVAL *s, const REBVAL *t)
 //
 //  CT_Struct: C
 //
-REBINT CT_Struct(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     //printf("comparing struct a (%p) with b (%p), mode: %d\n", a, b, mode);
     switch (mode) {

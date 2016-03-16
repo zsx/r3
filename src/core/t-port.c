@@ -34,7 +34,7 @@
 //
 //  CT_Port: C
 //
-REBINT CT_Port(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Port(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
     return VAL_CONTEXT(a) == VAL_CONTEXT(b);

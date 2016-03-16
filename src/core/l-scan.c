@@ -1382,7 +1382,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
     REBCNT len;
     const REBYTE *bp;
     const REBYTE *ep;
-    REBVAL *value = 0;
+    REBVAL *value = NULL;
     REBARR *emitbuf = BUF_EMIT;
     REBARR *block;
     REBCNT begin = ARR_LEN(emitbuf);   // starting point in block buffer
@@ -1425,7 +1425,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         if (token >= TOKEN_WORD && SER_FULL(ARR_SERIES(emitbuf)))
             Extend_Series(ARR_SERIES(emitbuf), 1024);
 
-        value = ARR_TAIL(emitbuf);
+        value = SINK(ARR_TAIL(emitbuf));
         SET_END(value);
 
         // If in a path, handle start of path /word or word//word cases:
@@ -1452,7 +1452,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             && mode_char != '/'
         ) {
             block = Scan_Block(scan_state, '/');  // (could realloc emitbuf)
-            value = ARR_TAIL(emitbuf);
+            value = SINK(ARR_TAIL(emitbuf));
             if (token == TOKEN_LIT) {
                 token = REB_LIT_PATH;
                 VAL_RESET_HEADER(ARR_HEAD(block), REB_WORD);
@@ -1553,9 +1553,9 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             );
             // (above line could have realloced emitbuf)
             ep = scan_state->end;
-            value = ARR_TAIL(emitbuf);
+            value = SINK(ARR_TAIL(emitbuf));
             if (scan_state->errors) {
-                *value = *ARR_LAST(block); // Copy the error
+                *value = *KNOWN(ARR_LAST(block)); // Copy the error
                 SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
@@ -1683,7 +1683,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         case TOKEN_CONSTRUCT:
             block = Scan_Full_Block(scan_state, ']');
-            value = ARR_TAIL(emitbuf);
+            value = SINK(ARR_TAIL(emitbuf));
             SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1); // Protect from GC
             Bind_Values_All_Deep(ARR_HEAD(block), Lib_Context);
             if (!Construct_Value(value, block)) {

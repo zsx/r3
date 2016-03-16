@@ -55,6 +55,9 @@ REBCNT Modify_Array(
     REBINT index;
 #endif
 
+    const RELVAL *src_rel;
+    REBCTX *specifier;
+
     if (IS_VOID(src_val) || dups < 0) {
         // If they are effectively asking for "no action" then all we have
         // to do is return the natural index result for the operation.
@@ -78,10 +81,18 @@ REBCNT Modify_Array(
             REBARR *copy = Copy_Array_At_Shallow(
                 VAL_ARRAY(src_val), VAL_INDEX(src_val), VAL_SPECIFIER(src_val)
             );
-            src_val = ARR_HEAD(copy);
+            src_rel = ARR_HEAD(copy);
+            specifier = SPECIFIED; // copy already specified it
         }
-        else
-            src_val = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
+        else {
+            src_rel = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
+            specifier = VAL_SPECIFIER(src_val);
+        }
+    }
+    else {
+        // use passed in RELVAL and specifier
+        src_rel = src_val;
+        specifier = SPECIFIED; // it's a REBVAL, not a RELVAL, so specified
     }
 
     // Total to insert:
@@ -106,13 +117,19 @@ REBCNT Modify_Array(
 #if !defined(NDEBUG)
     for (index = 0; index < ilen; index++) {
         if (GET_ARR_FLAG(dst_arr, SERIES_FLAG_MANAGED))
-            ASSERT_VALUE_MANAGED(&src_val[index]);
+            ASSERT_VALUE_MANAGED(&src_rel[index]);
     }
 #endif
 
     for (; dups > 0; dups--) {
-        memcpy(ARR_HEAD(dst_arr) + dst_idx, src_val, ilen * sizeof(REBVAL));
-        dst_idx += ilen;
+        REBINT index = 0;
+        for (; index < ilen; ++index, ++dst_idx) {
+            COPY_VALUE(
+                ARR_HEAD(dst_arr) + dst_idx,
+                src_rel + index,
+                specifier
+            );
+        }
     }
     TERM_ARRAY(dst_arr);
 

@@ -72,7 +72,7 @@ void Set_Date(REBVAL *val, REBOL_DAT *dat)
 //
 //  CT_Date: C
 //
-REBINT CT_Date(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Date(a, b);
     if (mode == 1)
@@ -390,7 +390,7 @@ void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)
 //
 //  Cmp_Date: C
 //
-REBINT Cmp_Date(const REBVAL *d1, const REBVAL *d2)
+REBINT Cmp_Date(const RELVAL *d1, const RELVAL *d2)
 {
     REBINT diff;
 

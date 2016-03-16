@@ -1103,7 +1103,7 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
     RELVAL *value;
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
-    Value_To_RXI(result, value);
+    Value_To_RXI(result, KNOWN(value)); // !!! Only have array, no specifier!
     return Reb_To_RXT[VAL_TYPE_0(value)];
 }
 

@@ -34,7 +34,7 @@
 //
 //  CT_Tuple: C
 //
-REBINT CT_Tuple(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Tuple(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Tuple(a, b);
     if (mode > 1) return (num == 0 && VAL_TUPLE_LEN(a) == VAL_TUPLE_LEN(b));
@@ -81,7 +81,7 @@ REBOOL MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 // 
 // Given two tuples, compare them.
 //
-REBINT Cmp_Tuple(const REBVAL *t1, const REBVAL *t2)
+REBINT Cmp_Tuple(const RELVAL *t1, const RELVAL *t2)
 {
     REBCNT  len;
     const REBYTE *vp1, *vp2;

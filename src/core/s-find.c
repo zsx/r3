@@ -40,7 +40,7 @@
 // 
 // Used for: Binary comparision function
 //
-REBINT Compare_Binary_Vals(const REBVAL *v1, const REBVAL *v2)
+REBINT Compare_Binary_Vals(const RELVAL *v1, const RELVAL *v2)
 {
     REBCNT l1 = VAL_LEN_AT(v1);
     REBCNT l2 = VAL_LEN_AT(v2);

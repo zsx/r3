@@ -40,7 +40,7 @@
 //
 //  CT_Event: C
 //
-REBINT CT_Event(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Event(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT diff = Cmp_Event(a, b);
     if (mode >=0) return diff == 0;
@@ -53,7 +53,7 @@ REBINT CT_Event(const REBVAL *a, const REBVAL *b, REBINT mode)
 // 
 // Given two events, compare them.
 //
-REBINT Cmp_Event(const REBVAL *t1, const REBVAL *t2)
+REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)
 {
     REBINT  diff;
 

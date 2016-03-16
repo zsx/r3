@@ -548,18 +548,21 @@ REBNATIVE(make_command)
 
     REBVAL *def = ARG(def);
 
+    REBVAL spec;
+    REBVAL extension;
+    REBVAL command_num;
+
     if (VAL_LEN_AT(def) != 3)
         fail (Error_Invalid_Arg(def));
+
+    COPY_VALUE(&spec, VAL_ARRAY_AT(def), VAL_SPECIFIER(def));
+    COPY_VALUE(&extension, VAL_ARRAY_AT(def) + 1, VAL_SPECIFIER(def));
+    COPY_VALUE(&command_num, VAL_ARRAY_AT(def) + 2, VAL_SPECIFIER(def));
 
     // Validity checking on the 3 elements done inside Make_Command, will
     // fail() if the input is not good.
     //
-    Make_Command(
-        D_OUT,
-        VAL_ARRAY_AT(def), // spec
-        VAL_ARRAY_AT(def) + 1, // extension
-        VAL_ARRAY_AT(def) + 2 // command_num
-    );
+    Make_Command(D_OUT, &spec, &extension, &command_num);
 
     return R_OUT;
 }

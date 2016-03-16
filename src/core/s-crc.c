@@ -406,7 +406,7 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
     REBSER *hashlist;
     REBCNT *hashes;
     REBARR *array = VAL_ARRAY(block);
-    REBVAL *value;
+    RELVAL *value;
 
     // Create the hash array (integer indexes):
     hashlist = Make_Hash_Sequence(VAL_LEN_AT(block));

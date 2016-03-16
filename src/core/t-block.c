@@ -34,20 +34,21 @@
 //
 //  CT_Array: C
 // 
-// "Compare Type" dispatcher for the following types:
+// "Compare Type" dispatcher for the following types: (list here to help
+// text searches)
 // 
-//     CT_Block(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Group(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Set_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Get_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Lit_Path(REBVAL *a, REBVAL *b, REBINT mode)
+//     CT_Block()
+//     CT_Group()
+//     CT_Path()
+//     CT_Set_Path()
+//     CT_Get_Path()
+//     CT_Lit_Path()
 //
-REBINT CT_Array(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num;
 
-    num = Cmp_Block(a, b, LOGICAL(mode == 1));
+    num = Cmp_Array(a, b, LOGICAL(mode == 1));
     if (mode >= 0) return (num == 0);
     if (mode == -1) return (num >= 0);
     return (num > 0);

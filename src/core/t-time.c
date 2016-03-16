@@ -166,7 +166,7 @@ void Emit_Time(REB_MOLD *mold, const REBVAL *value)
 //
 //  CT_Time: C
 //
-REBINT CT_Time(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Time(a, b);
     if (mode >= 0)  return (num == 0);
@@ -267,7 +267,7 @@ REBOOL MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 // 
 // Given two times, compare them.
 //
-REBINT Cmp_Time(const REBVAL *v1, const REBVAL *v2)
+REBINT Cmp_Time(const RELVAL *v1, const RELVAL *v2)
 {
     REBI64 t1 = VAL_TIME(v1);
     REBI64 t2 = VAL_TIME(v2);

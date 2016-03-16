@@ -35,7 +35,7 @@
 //
 //  CT_Money: C
 //
-REBINT CT_Money(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBOOL e, g;
 

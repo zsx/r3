@@ -521,7 +521,7 @@ REBTYPE(Varargs)
 // Simple comparison function stub (required for every type--rules TBD for
 // levels of "exactness" in equality checking, or sort-stable comparison.)
 //
-REBINT CT_Varargs(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (GET_VAL_FLAG(a, VARARGS_FLAG_NO_FRAME)) {
         if (!GET_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;

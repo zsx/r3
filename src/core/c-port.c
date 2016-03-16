@@ -314,7 +314,7 @@ void Sieve_Ports(REBARR *ports)
         if (IS_PORT(val)) {
             assert(VAL_LEN_HEAD(waked) != 0);
             if (
-                Find_In_Array_Simple(VAL_ARRAY(waked), 0, KNOWN(val))
+                Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)
                 == VAL_LEN_HEAD(waked) // `=len` means not found
             ) {
                 Remove_Series(ARR_SERIES(ports), n, 1);

@@ -34,7 +34,7 @@
 //
 //  CT_Pair: C
 //
-REBINT CT_Pair(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Pair(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return Cmp_Pair(a, b) == 0; // works for INTEGER=0 too (spans x y)
     if (IS_PAIR(b) && 0 == VAL_INT64(b)) { // for negative? and positive?
@@ -87,7 +87,7 @@ REBOOL MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 // 
 // Given two pairs, compare them.
 //
-REBINT Cmp_Pair(const REBVAL *t1, const REBVAL *t2)
+REBINT Cmp_Pair(const RELVAL *t1, const RELVAL *t2)
 {
     REBD32  diff;
 
