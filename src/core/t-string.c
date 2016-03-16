@@ -40,14 +40,7 @@ REBINT CT_String(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num;
 
-    if (mode == 3)
-        return (
-            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
-            ? 1
-            : 0
-        );
-
-    num = Compare_String_Vals(a, b, NOT(mode > 1));
+    num = Compare_String_Vals(a, b, NOT(mode == 1));
 
     if (mode >= 0) return (num == 0) ? 1 : 0;
     if (mode == -1) return (num >= 0) ? 1 : 0;

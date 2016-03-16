@@ -39,7 +39,7 @@ REBINT CT_Char(const REBVAL *a, const REBVAL *b, REBINT mode)
     REBINT num;
 
     if (mode >= 0) {
-        if (mode < 2)
+        if (mode == 0)
             num = LO_CASE(VAL_CHAR(a)) - LO_CASE(VAL_CHAR(b));
         else
             num = VAL_CHAR(a) - VAL_CHAR(b);

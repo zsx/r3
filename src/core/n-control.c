@@ -1549,7 +1549,7 @@ REBNATIVE(switch)
         // have compared equal to so will 1%.  (That's the idea, anyway,
         // required for `a = b` and `b = c` to properly imply `a = c`.)
 
-        if (!Compare_Modify_Values(value, D_OUT, strict ? 2 : 0))
+        if (!Compare_Modify_Values(value, D_OUT, strict ? 1 : 0))
             continue;
 
         // Skip ahead to try and find a block, to treat as code

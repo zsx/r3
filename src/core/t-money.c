@@ -39,16 +39,13 @@ REBINT CT_Money(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBOOL e, g;
 
-    if (mode >= 3) e = deci_is_same(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
-    else {
-        e = deci_is_equal(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
-        if (mode < 0) {
-            g = deci_is_lesser_or_equal(
-                VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
-            );
-            if (mode == -1) e = LOGICAL(e || g);
-            else e = LOGICAL(g && !e);
-        }
+    e = deci_is_equal(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
+    if (mode < 0) {
+        g = deci_is_lesser_or_equal(
+            VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
+        );
+        if (mode == -1) e = LOGICAL(e || g);
+        else e = LOGICAL(g && !e);
     }
     return e ? 1 : 0;
 }

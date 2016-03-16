@@ -1052,12 +1052,10 @@ REBINT CT_Struct(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     //printf("comparing struct a (%p) with b (%p), mode: %d\n", a, b, mode);
     switch (mode) {
-        case 3: /* same? */
-        case 2: /* strict equality */
+        case 1: /* strict equality */
             return 0 == Cmp_Struct(a, b);
 
-        case 1: /* equvilance */
-        case 0: /* coersed equality*/
+        case 0: /* coerced equality*/
             if (Cmp_Struct(a, b) == 0)
                 return 1;
 

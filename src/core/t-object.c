@@ -31,16 +31,6 @@
 #include "sys-core.h"
 
 
-static REBOOL Same_Context(const REBVAL *val, const REBVAL *arg)
-{
-    if (
-        VAL_TYPE(arg) == VAL_TYPE(val) &&
-        //VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(arg) &&
-        VAL_CONTEXT(val) == VAL_CONTEXT(arg)
-    ) return TRUE;
-    return FALSE;
-}
-
 
 static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
 {
@@ -277,7 +267,6 @@ static REBCTX *Trim_Context(REBCTX *context)
 REBINT CT_Context(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    if (mode == 3) return Same_Context(a, b) ? 1 : 0;
     return Equal_Context(a, b) ? 1 : 0;
 }
 

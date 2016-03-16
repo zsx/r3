@@ -379,10 +379,8 @@ REBNATIVE(shift)
 // of equality...which those comparison functions do not discern.
 // 
 // Strictness:
-//     0 - coersed equality
-//     1 - equivalence
-//     2 - strict equality
-//     3 - same (identical bits)
+//     0 - coerced equality
+//     1 - strict equality
 // 
 //    -1 - greater or equal
 //    -2 - greater
@@ -400,7 +398,7 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
     REBINT result;
 
     if (ta != tb) {
-        if (strictness > 1) return 0;
+        if (strictness == 1) return 0;
 
         switch (ta) {
         case REB_INTEGER:
@@ -463,8 +461,8 @@ REBINT Compare_Modify_Values(REBVAL *a, REBVAL *b, REBINT strictness)
             break;
         }
 
-        if (strictness == 0 || strictness == 1) return 0;
-        //if (strictness >= 2)
+        if (strictness == 0) return 0;
+
         fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
     }
 
@@ -512,38 +510,6 @@ REBNATIVE(not_equal_q)
 
 
 //
-//  equiv?: native [
-//  
-//  "Returns TRUE if the values are equivalent."
-//  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
-//  ]
-//
-REBNATIVE(equiv_q)
-{
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
-    return R_FALSE;
-}
-
-
-//
-//  not-equiv?: native [
-//  
-//  "Returns TRUE if the values are not equivalent."
-//  
-//      value1 [opt-any-value!]
-//      value2 [opt-any-value!]
-//  ]
-//
-REBNATIVE(not_equiv_q)
-{
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
-    return R_TRUE;
-}
-
-
-//
 //  strict-equal?: native [
 //  
 //  "Returns TRUE if the values are strictly equal."
@@ -554,7 +520,7 @@ REBNATIVE(not_equiv_q)
 //
 REBNATIVE(strict_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_TRUE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_TRUE;
     return R_FALSE;
 }
 
@@ -570,7 +536,7 @@ REBNATIVE(strict_equal_q)
 //
 REBNATIVE(strict_not_equal_q)
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 2)) return R_FALSE;
+    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 1)) return R_FALSE;
     return R_TRUE;
 }
 
@@ -585,8 +551,126 @@ REBNATIVE(strict_not_equal_q)
 //  ]
 //
 REBNATIVE(same_q)
+//
+// This used to be "strictness mode 3" of Compare_Modify_Values.  However,
+// folding SAME?-ness in required the comparisons to take REBVALs instead
+// of just RELVALs, when only a limited number of types supported it.
+// Rather than incur a cost for all comparisons, this handles the issue
+// specially for those types which support it.
 {
-    if (Compare_Modify_Values(D_ARG(1), D_ARG(2), 3)) return R_TRUE;
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    REBVAL *value1 = ARG(value1);
+    REBVAL *value2 = ARG(value2);
+
+    if (VAL_TYPE(value1) != VAL_TYPE(value2))
+        return R_FALSE; // can't be "same" value if not same type
+
+    if (IS_BITSET(value1)) {
+        //
+        // BITSET! only has a series, no index.
+        //
+        if (VAL_SERIES(value1) != VAL_SERIES(value2))
+            return R_FALSE;
+        return R_TRUE;
+    }
+
+    if (ANY_SERIES(value1) || IS_IMAGE(value1)) {
+        //
+        // ANY-SERIES! can only be the same if pointers and indices match.
+        //
+        if (VAL_SERIES(value1) != VAL_SERIES(value2))
+            return R_FALSE;
+        if (VAL_INDEX(value1) != VAL_INDEX(value2))
+            return R_FALSE;
+        return R_TRUE;
+    }
+
+    if (ANY_CONTEXT(value1)) {
+        //
+        // ANY-CONTEXT! are the same if the varlists match.
+        //
+        if (VAL_CONTEXT(value1) != VAL_CONTEXT(value2))
+            return R_FALSE;
+        return R_TRUE;
+    }
+
+    if (IS_MAP(value1)) {
+        //
+        // MAP! will be the same if the map pointer matches.
+        //
+        if (VAL_MAP(value1) != VAL_MAP(value2))
+            return R_FALSE;
+        return R_TRUE;
+    }
+
+    if (ANY_WORD(value1)) {
+        //
+        // ANY-WORD! must match in binding as well as be otherwise equal.
+        //
+        if (VAL_WORD_SYM(value1) != VAL_WORD_SYM(value2))
+            return R_FALSE;
+        if (IS_WORD_BOUND(value1) != IS_WORD_BOUND(value2))
+            return R_FALSE;
+        if (IS_WORD_BOUND(value1)) {
+            if (IS_RELATIVE(value1) && IS_RELATIVE(value2)) {
+                //
+                // Prior to specific binding, relative words with the same
+                // symbol are indistinguishable if they are bound relative to
+                // the same function.  So ecursions of a function cannot
+                // distinguish the word instances originating from each level.
+                //
+                // !!! This problem is fixed in the specific binding branch,
+                // which distinguishes REBVALs (fully specific) from RELVALs
+                // (may be relative).  Function arguments are always REBVAL,
+                // so this relative processing code would never run.
+                //
+                if (VAL_WORD_FUNC(value1) == VAL_WORD_FUNC(value2))
+                    return R_TRUE;
+                return R_FALSE;
+            }
+
+            if (IS_RELATIVE(value1) != IS_RELATIVE(value2))
+                return R_FALSE; // Relatively bound words can't match specific
+
+            if (VAL_WORD_CONTEXT(value1) != VAL_WORD_CONTEXT(value2))
+                return R_FALSE;
+        }
+        return R_TRUE;
+    }
+
+    if (IS_DECIMAL(value1) || IS_PERCENT(value1)) {
+        //
+        // The tolerance on strict-equal? for decimals is apparently not
+        // a requirement of exactly the same bits.
+        //
+        if (VAL_DECIMAL_BITS(value1) == VAL_DECIMAL_BITS(value2))
+            return R_TRUE;
+        return R_FALSE;
+    }
+
+    if (IS_MONEY(value1)) {
+        //
+        // There is apparently a distinction between "strict equal" and "same"
+        // when it comes to the MONEY! type:
+        //
+        // >> strict-equal? $1 $1.0
+        // == true
+        //
+        // >> same? $1 $1.0
+        // == false
+        //
+        if (deci_is_same(VAL_MONEY_AMOUNT(value1), VAL_MONEY_AMOUNT(value2)))
+            return R_TRUE;
+        return R_FALSE;
+    }
+
+    // For other types, just fall through to strict equality comparison
+    //
+    if (Compare_Modify_Values(value1, value2, 1))
+        return R_TRUE;
+
     return R_FALSE;
 }
 

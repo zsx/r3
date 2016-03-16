@@ -47,18 +47,11 @@ REBINT CT_Image(const REBVAL *a, const REBVAL *b, REBINT mode)
     if (mode < 0)
         return -1;
 
-    if (mode == 3)
-        return (
-            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
-                ? 1
-                : 0
-        );
-
     if (
         VAL_IMAGE_WIDE(a) == VAL_IMAGE_WIDE(a)
         && VAL_IMAGE_HIGH(b) == VAL_IMAGE_HIGH(b)
     ) {
-        return (0 == Cmp_Value(a, b, LOGICAL(mode > 1))) ? 1 : 0;
+        return (0 == Cmp_Value(a, b, LOGICAL(mode == 1))) ? 1 : 0;
     }
 
     return 0;

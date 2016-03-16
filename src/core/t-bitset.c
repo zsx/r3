@@ -39,7 +39,6 @@
 //
 REBINT CT_Bitset(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
-    if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b);
     if (mode >= 0) return (
         BITS_NOT(VAL_SERIES(a)) == BITS_NOT(VAL_SERIES(b))
         &&

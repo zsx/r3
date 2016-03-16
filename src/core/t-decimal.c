@@ -171,17 +171,10 @@ REBOOL Eq_Decimal2(REBDEC a, REBDEC b)
 REBINT CT_Decimal(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode >= 0) {
-        if (mode <= 1)
+        if (mode == 0)
             return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 10) ? 1 : 0;
 
-        if (mode == 2)
-            return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 0) ? 1 : 0;
-
-        return (
-            (VAL_DECIMAL_BITS(a) == VAL_DECIMAL_BITS(b))
-                ? 1 // bits are identical
-                : 0 // not identical
-        );
+        return almost_equal(VAL_DECIMAL(a), VAL_DECIMAL(b), 0) ? 1 : 0;
     }
 
     if (mode == -1)

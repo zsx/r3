@@ -60,7 +60,6 @@
 REBINT CT_Map(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    if (mode == 3) return VAL_SERIES(a) == VAL_SERIES(b);
     return 0 == Cmp_Block(a, b, FALSE);
 }
 

@@ -75,7 +75,7 @@ void Set_Date(REBVAL *val, REBOL_DAT *dat)
 REBINT CT_Date(const REBVAL *a, const REBVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Date(a, b);
-    if (mode >= 2)
+    if (mode == 1)
         return VAL_DATE(a).bits == VAL_DATE(b).bits && VAL_TIME(a) == VAL_TIME(b);
     if (mode >= 0)  return (num == 0);
     if (mode == -1) return (num >= 0);

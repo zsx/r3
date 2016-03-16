@@ -43,7 +43,7 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
     REBINT e;
     REBINT diff;
     if (mode >= 0) {
-        if (mode >= 2) {
+        if (mode == 1) {
             //
             // Symbols must be exact match, case-sensitively
             //
@@ -54,43 +54,6 @@ REBINT CT_Word(const REBVAL *a, const REBVAL *b, REBINT mode)
             // Different cases acceptable, only check for a canon match
             //
             if (VAL_WORD_CANON(a) != VAL_WORD_CANON(b))
-                return 0;
-        }
-
-        if (mode >= 1) {
-            //
-            // Check binding information
-
-            if (VAL_WORD_INDEX(a) != VAL_WORD_INDEX(b))
-                return 0;
-
-            if (GET_VAL_FLAG(a, VALUE_FLAG_RELATIVE)) {
-                if (!GET_VAL_FLAG(b, VALUE_FLAG_RELATIVE)) {
-                    //
-                    // !!! We'll need to be able to compare a relative bound
-                    // word to a frame bound word... but for the moment
-                    // the only guesstimation of equality would be if the
-                    // word were equal when considered in the current
-                    // stack level, e.g. a stack-relative comparison...and
-                    // that broken dependency isn't worth hacking in here.
-                    //
-                    return 0;
-                }
-
-                return (VAL_WORD_FUNC(a) == VAL_WORD_FUNC(b)) ? 1 : 0;
-            }
-
-            if (GET_VAL_FLAG(a, WORD_FLAG_BOUND)) {
-                if (!GET_VAL_FLAG(b, WORD_FLAG_BOUND))
-                    return 0;
-
-                return (VAL_WORD_CONTEXT(a) == VAL_WORD_CONTEXT(b)) ? 1 : 0;
-            }
-
-            // `a` isn't bound, so it matches if `b` is unbound too.
-
-            assert(IS_WORD_UNBOUND(a));
-            if (IS_WORD_BOUND(b))
                 return 0;
         }
 

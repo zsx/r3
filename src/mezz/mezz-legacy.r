@@ -259,6 +259,18 @@ value?: does [
     ]
 ]
 
+; There were several different strata of equality checks, and one was EQUIV?
+; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
+; indifferent to binding (unless SAME? is used), these have been shaken up
+; instead focusing on getting more foundational comparisons working.
+;
+; These aren't correct but placeholders for putting in the real functionality
+; if it actually matters.
+;
+equiv?: :equal?
+not-equiv?: :not-equal?
+
+
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
 ;
