@@ -336,6 +336,8 @@ REBINT PD_Context(REBPVS *pvs)
     }
 
     pvs->value = CTX_VAR(context, n);
+    pvs->value_specifier = SPECIFIED;
+
     return PE_SET_IF_END;
 }
 

@@ -55,9 +55,10 @@ REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
 }
 
 static void No_Nones(REBVAL *arg) {
-    arg = VAL_ARRAY_AT(arg);
-    for (; NOT_END(arg); arg++) {
-        if (IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
+    RELVAL *item = VAL_ARRAY_AT(arg);
+    for (; NOT_END(item); item++) {
+        if (IS_BLANK(item))
+            fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
     }
 }
 
@@ -80,7 +81,7 @@ REBOOL MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (!ANY_ARRAY(data)) return FALSE;
     if (type >= REB_PATH && type <= REB_LIT_PATH) {
-        REBVAL *head = VAL_ARRAY_HEAD(data);
+        RELVAL *head = VAL_ARRAY_HEAD(data);
         if (IS_END(head) || !ANY_WORD(head))
             return FALSE;
     }
@@ -129,8 +130,8 @@ REBCNT Find_In_Array(
     REBCNT flags,
     REBINT skip
 ) {
-    REBVAL *value;
-    REBVAL *val;
+    RELVAL *value;
+    RELVAL *val;
     REBCNT cnt;
     REBCNT start = index;
 
@@ -198,8 +199,14 @@ REBCNT Find_In_Array(
     else {
         for (; index >= start && index < end; index += skip) {
             value = ARR_AT(array, index);
-            if (0 == Cmp_Value(value, target, LOGICAL(flags & AM_FIND_CASE)))
+            if (
+                0 == Cmp_Value(
+                    value, target, LOGICAL(flags & AM_FIND_CASE)
+                )
+            ) {
                 return index;
+            }
+
             if (flags & AM_FIND_MATCH) break;
         }
         return NOT_FOUND;
@@ -387,14 +394,14 @@ static int Compare_Val(void *thunk, const void *v1, const void *v2)
 
     if (sort_flags.reverse)
         return Cmp_Value(
-            cast(const REBVAL*, v2) + sort_flags.offset,
-            cast(const REBVAL*, v1) + sort_flags.offset,
+            cast(const RELVAL*, v2) + sort_flags.offset,
+            cast(const RELVAL*, v1) + sort_flags.offset,
             sort_flags.cased
         );
     else
         return Cmp_Value(
-            cast(const REBVAL*, v1) + sort_flags.offset,
-            cast(const REBVAL*, v2) + sort_flags.offset,
+            cast(const RELVAL*, v1) + sort_flags.offset,
+            cast(const RELVAL*, v2) + sort_flags.offset,
             sort_flags.cased
         );
 
@@ -412,7 +419,7 @@ static int Compare_Val(void *thunk, const void *v1, const void *v2)
 //
 static int Compare_Call(void *thunk, const void *v1, const void *v2)
 {
-    REBVAL *args = NULL;
+    RELVAL *args = NULL;
     REBINT tristate = -1;
     const void *tmp = NULL;
 
@@ -425,21 +432,21 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
     }
 
     args = ARR_AT(VAL_FUNC_PARAMLIST(sort_flags.compare), 1);
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v1)))) {
+    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v1)))) {
         fail (Error(
             RE_EXPECT_ARG,
             Type_Of(sort_flags.compare),
             args,
-            Type_Of(cast(const REBVAL*, v1))
+            Type_Of(cast(const RELVAL*, v1))
         ));
     }
     ++ args;
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v2)))) {
+    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v2)))) {
         fail (Error(
             RE_EXPECT_ARG,
             Type_Of(sort_flags.compare),
             args,
-            Type_Of(cast(const REBVAL*, v2))
+            Type_Of(cast(const RELVAL*, v2))
         ));
     }
 
@@ -535,7 +542,7 @@ static void Sort_Block(
 //
 static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 {
-    REBVAL *head = ARR_HEAD(array);
+    RELVAL *head = ARR_HEAD(array);
     REBCNT out = index;
     REBCNT end = ARR_LEN(array);
 
@@ -557,6 +564,10 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
     if (flags == 0) {
         for (; index < end; index++) {
             if (VAL_TYPE(head + index) > REB_BLANK) {
+                //
+                // Rare case of legal RELVAL bit copying... from one slot in
+                // an array to another in that same array.
+                //
                 *ARR_AT(array, out) = head[index];
                 out++;
             }
@@ -574,8 +585,12 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
     REBCNT n;
     REBCNT k;
     REBCNT idx = VAL_INDEX(value);
-    REBVAL *data = VAL_ARRAY_HEAD(value);
-    REBVAL swap;
+    RELVAL *data = VAL_ARRAY_HEAD(value);
+
+    // Rare case where RELVAL bit copying is okay...between spots in the
+    // same array.
+    //
+    RELVAL swap;
 
     for (n = VAL_LEN_AT(value); n > 1;) {
         k = idx + (REBCNT)Random_Int(secure) % n;
@@ -631,7 +646,7 @@ REBINT PD_Array(REBPVS *pvs)
 
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
         if (pvs->opt_setval)
-            fail(Error_Bad_Path_Select(pvs));
+            fail (Error_Bad_Path_Select(pvs));
 
         return PE_NONE;
     }
@@ -640,6 +655,9 @@ REBINT PD_Array(REBPVS *pvs)
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
 
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
+    pvs->value_specifier = IS_RELATIVE(pvs->value)
+        ? pvs->value_specifier
+        : SPECIFIED;
 
     return PE_SET_IF_END;
 }
@@ -648,14 +666,23 @@ REBINT PD_Array(REBPVS *pvs)
 //
 //  Pick_Block: C
 //
-REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
+// Fills out with void if no pick.
+//
+RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
 {
     REBINT n = 0;
 
     n = Get_Num_From_Arg(selector);
     n += VAL_INDEX(block) - 1;
-    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
-    return VAL_ARRAY_AT_HEAD(block, n);
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) {
+        SET_VOID(out);
+        return NULL;
+    }
+    else {
+        RELVAL *slot = VAL_ARRAY_AT_HEAD(block, n);
+        COPY_VALUE(out, slot, VAL_SPECIFIER(block));
+        return slot;
+    }
 }
 
 
@@ -678,6 +705,7 @@ REBTYPE(Array)
 
     REBARR *array;
     REBINT index;
+    REBCTX *specifier;
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
@@ -712,7 +740,7 @@ REBTYPE(Array)
 
         if (ANY_PATH(value)) {
             // Get rid of any line break options on the path's elements
-            REBVAL *clear = VAL_ARRAY_HEAD(value);
+            RELVAL *clear = VAL_ARRAY_HEAD(value);
             for (; NOT_END(clear); clear++) {
                 CLEAR_VAL_FLAG(clear, VALUE_FLAG_LINE);
             }
@@ -727,22 +755,27 @@ REBTYPE(Array)
     //
     array = VAL_ARRAY(value);
     index = cast(REBINT, VAL_INDEX(value));
+    specifier = VAL_SPECIFIER(value);
 
     switch (action) {
     case A_POKE:
     case A_PICK: {
-pick_using_arg:
-        value = Pick_Block(value, arg);
+        RELVAL *slot;
+    pick_using_arg:
+        slot = Pick_Block(D_OUT, value, arg);
         if (action == A_PICK) {
-            if (!value)
+            if (IS_VOID(D_OUT)) {
+                assert(!slot);
                 return R_VOID;
-
-            *D_OUT = *value;
+            }
         } else {
             FAIL_IF_LOCKED_ARRAY(array);
-            if (!value) fail (Error_Out_Of_Range(arg));
+            if (IS_VOID(D_OUT)) {
+                assert(!slot);
+                fail (Error_Out_Of_Range(arg));
+            }
             arg = D_ARG(3);
-            *value = *arg;
+            *slot = *arg;
             *D_OUT = *arg;
         }
         return R_OUT;
@@ -778,8 +811,9 @@ pick_using_arg:
         }
 
         // if no /part, just return value, else return block:
-        if (!REF(part))
-            *D_OUT = ARR_HEAD(array)[index];
+        if (!REF(part)) {
+            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
+        }
         else
             Val_Init_Block(
                 D_OUT, Copy_Array_At_Max_Shallow(array, index, GUESSED, len)
@@ -815,6 +849,7 @@ pick_using_arg:
         if (action == A_FIND) {
             if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
             VAL_INDEX(value) = ret;
+            *D_OUT = *value;
         }
         else {
             ret += len;
@@ -822,9 +857,8 @@ pick_using_arg:
                 if (action == A_FIND) return R_BLANK;
                 return R_VOID;
             }
-            value = ARR_AT(array, ret);
+            COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
         }
-        *D_OUT = *value;
         return R_OUT;
     }
 
@@ -932,7 +966,9 @@ pick_using_arg:
             index < cast(REBINT, VAL_LEN_HEAD(value))
             && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)
         ) {
-            REBVAL temp = *VAL_ARRAY_AT(value);
+            // RELVAL bits can be copied within the same array
+            //
+            RELVAL temp = *VAL_ARRAY_AT(value);
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
             *VAL_ARRAY_AT(arg) = temp;
         }
@@ -946,12 +982,15 @@ pick_using_arg:
         FAIL_IF_LOCKED_ARRAY(array);
 
         if (len != 0) {
-            value = VAL_ARRAY_AT(value);
-            arg = value + len - 1;
+            //
+            // RELVAL bits may be copied from slots within the same array
+            //
+            RELVAL *front = VAL_ARRAY_AT(value);
+            RELVAL *back = front + len - 1;
             for (len /= 2; len > 0; len--) {
-                REBVAL temp = *value;
-                *value++ = *arg;
-                *arg-- = temp;
+                RELVAL temp = *front;
+                *front++ = *back;
+                *back-- = temp;
             }
         }
         *D_OUT = *D_ARG(1);
@@ -1029,7 +1068,7 @@ void Assert_Array_Core(REBARR *array)
         Panic_Array(array);
 
     for (len = 0; len < ARR_LEN(array); len++) {
-        REBVAL *value = ARR_AT(array, len);
+        RELVAL *value = ARR_AT(array, len);
 
         if (IS_END(value)) {
             // Premature end

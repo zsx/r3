@@ -1003,14 +1003,20 @@ REBINT PD_Struct(REBPVS *pvs)
             PUSH_GUARD_VALUE(&sel_orig);
 
             pvs->value = pvs->store;
+            pvs->value_specifier = SPECIFIED;
 
             if (Next_Path_Throws(pvs)) { // updates pvs->store, pvs->selector
                 DROP_GUARD_VALUE(&sel_orig);
                 fail (Error_No_Catch_For_Throw(pvs->store)); // !!! Review
             }
 
-            if (!Set_Struct_Var(stu, &sel_orig, pvs->selector, pvs->value))
-                fail (Error_Bad_Path_Set(pvs));
+            {
+                REBVAL specific;
+                COPY_VALUE(&specific, pvs->value, pvs->value_specifier);
+
+                if (!Set_Struct_Var(stu, &sel_orig, pvs->selector, &specific))
+                    fail (Error_Bad_Path_Set(pvs));
+            }
 
             DROP_GUARD_VALUE(&sel_orig);
 

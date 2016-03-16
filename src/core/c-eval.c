@@ -1925,7 +1925,8 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     if (TG_Do_Count < MAX_U32) {
         f->do_count = ++TG_Do_Count;
         if (f->do_count == DO_COUNT_BREAKPOINT) {
-            REBVAL dump = *f->value;
+            REBVAL dump;
+            COPY_VALUE(&dump, f->value, f->specifier);
 
             PROBE_MSG(&dump, "DO_COUNT_BREAKPOINT hit at...");
 
@@ -1941,9 +1942,11 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
             }
 
             if (f->eval_fetched && NOT_END(f->eval_fetched)) {
-                dump = *f->eval_fetched;
-
-                PROBE_MSG(&dump, "EVAL in progress, so next will be...");
+                assert(IS_SPECIFIC(f->eval_fetched));
+                PROBE_MSG(
+                    const_KNOWN(f->eval_fetched),
+                    "EVAL in progress, so next will be..."
+                );
             }
 
             if (IS_END(f->value)) {

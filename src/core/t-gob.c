@@ -719,6 +719,7 @@ REBINT PD_Gob(REBPVS *pvs)
                 PUSH_GUARD_VALUE(&sel_orig);
 
                 pvs->value = pvs->store;
+                pvs->value_specifier = SPECIFIED;
 
                 if (Next_Path_Throws(pvs)) { // sets value in pvs->store
                     DROP_GUARD_VALUE(&sel_orig);

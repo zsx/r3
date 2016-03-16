@@ -605,7 +605,7 @@ extern "C" {
 #endif
 extern REBVAL *Get_Var_Core(
     REBOOL *lookback,
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBCTX *specifier,
     REBFLGS flags
 );
@@ -614,7 +614,7 @@ extern REBVAL *Get_Var_Core(
 #endif
 
 static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBCTX *specifier
 ) {
     REBOOL dummy;
@@ -622,7 +622,7 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
 }
 
 static inline const REBVAL *TRY_GET_OPT_VAR(
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBCTX *specifier
 ) {
     REBOOL dummy;
@@ -630,7 +630,7 @@ static inline const REBVAL *TRY_GET_OPT_VAR(
 }
 
 static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBCTX *specifier
 ) {
     REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
@@ -638,7 +638,7 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
 }
 
 static inline REBVAL *TRY_GET_MUTABLE_VAR(
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBCTX *specifier
 ) {
     REBOOL lookback = FALSE; // resets infix/postfix/etc. flag

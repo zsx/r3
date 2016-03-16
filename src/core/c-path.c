@@ -105,7 +105,9 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     // a local variable can't be used for the temporary space.
     //
     if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
-        pvs->selector = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->specifier);
+        pvs->selector
+            = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
+
         if (IS_VOID(pvs->selector))
             fail (Error(RE_NO_VALUE, pvs->item));
 
@@ -118,10 +120,10 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
             IS_RELATIVE(pvs->item)
-                ? pvs->specifier // if relative, use parent specifier...
+                ? pvs->item_specifier // if relative, use parent specifier...
                 : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
         )) {
-            *pvs->value = pvs->selector_temp;
+            *pvs->store = pvs->selector_temp;
             return TRUE;
         }
 
@@ -130,7 +132,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     else {
         // object/word and object/value case:
         //
-        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->specifier);
+        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->item_specifier);
         pvs->selector = &pvs->selector_temp;
     }
 
@@ -149,6 +151,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         SET_BLANK(pvs->store);
     case PE_USE_STORE:
         pvs->value = pvs->store;
+        pvs->value_specifier = SPECIFIED;
         break;
 
     default:
@@ -249,15 +252,16 @@ REBOOL Do_Path_Throws_Core(
             assert(FALSE);
         }
     #endif
-        pvs.specifier = specifier;
+        pvs.item_specifier = specifier;
     }
-    else pvs.specifier = VAL_SPECIFIER(const_KNOWN(path));
+    else pvs.item_specifier = VAL_SPECIFIER(const_KNOWN(path));
 
     // Seed the path evaluation process by looking up the first item (to
     // get a datatype to dispatch on for the later path items)
     //
     if (IS_WORD(pvs.item)) {
-        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item, pvs.specifier);
+        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
+        pvs.value_specifier = SPECIFIED;
         if (IS_VOID(pvs.value))
             fail (Error(RE_NO_VALUE, pvs.item));
     }
@@ -266,8 +270,9 @@ REBOOL Do_Path_Throws_Core(
         // temporary locations, like this pvs.value...if a set-path sets
         // it, then it will be discarded.
 
-        COPY_VALUE(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.specifier);
+        COPY_VALUE(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
         pvs.value = pvs.store;
+        pvs.value_specifier = SPECIFIED;
     }
 
     // Start evaluation of path:
@@ -314,7 +319,8 @@ REBOOL Do_Path_Throws_Core(
     }
 
     // If storage was not used, then copy final value back to it:
-    if (pvs.value != pvs.store) *pvs.store = *pvs.value;
+    if (pvs.value != pvs.store)
+        COPY_VALUE(pvs.store, pvs.value, pvs.value_specifier);
 
     assert(!THROWN(out));
 
@@ -398,7 +404,7 @@ REBOOL Do_Path_Throws_Core(
                     VAL_ARRAY(pvs.item),
                     VAL_INDEX(pvs.item),
                     IS_RELATIVE(pvs.item)
-                        ? pvs.specifier // if relative, use parent specifier
+                        ? pvs.item_specifier // if relative, use parent's
                         : VAL_SPECIFIER(const_KNOWN(pvs.item)) // else embedded
                 )) {
                     *out = refinement;
@@ -410,13 +416,13 @@ REBOOL Do_Path_Throws_Core(
             }
             else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item, pvs.specifier);
+                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
                 if (IS_VOID(DS_TOP)) {
                     DS_DROP;
                     continue;
                 }
             }
-            else DS_PUSH_RELVAL(pvs.item, pvs.specifier);
+            else DS_PUSH_RELVAL(pvs.item, pvs.item_specifier);
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
@@ -481,10 +487,10 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->specifier);
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
 
     REBVAL orig;
-    COPY_VALUE(&orig, pvs->orig, pvs->specifier);
+    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
 
     return Error(RE_BAD_PATH_SET, pvs->orig, pvs->item);
 }
@@ -496,7 +502,7 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->specifier);
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
 
     return Error_Out_Of_Range(&item);
 }
@@ -508,7 +514,7 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->specifier);
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
 }
@@ -530,6 +536,7 @@ void Pick_Path(
     REBPEF dispatcher;
 
     pvs.value = value;
+    pvs.value_specifier = SPECIFIED;
     pvs.item = NULL;
     pvs.selector = selector;
     pvs.opt_setval = opt_setval;
@@ -552,6 +559,7 @@ void Pick_Path(
         SET_BLANK(pvs.store);
     case PE_USE_STORE:
         pvs.value = pvs.store;
+        pvs.value_specifier = SPECIFIED;
         break;
 
     default:

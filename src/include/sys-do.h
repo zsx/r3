@@ -1053,6 +1053,14 @@ typedef struct Reb_Path_Value_State {
     //
     const RELVAL *item;
 
+    // A specifier is needed because the PATH! is processed by incrementing
+    // through values, which may be resident in an array that was part of
+    // the cloning of a function body.  The specifier allows the path
+    // evaluation to disambiguate which variable a word's relative binding
+    // would match.
+    //
+    REBCTX *item_specifier;
+
     // `selector` is the result of evaluating the current path item if
     // necessary.  So if the path is `a/(1 + 2)` and processing the second
     // `item`, then the selector would be the computed value `3`.
@@ -1073,9 +1081,14 @@ typedef struct Reb_Path_Value_State {
 
     // `value` holds the path value that should be chained from.  (It is the
     // type of `value` that dictates which dispatcher is given the `selector`
-    // to get the next step.)
+    // to get the next step.)  This has to be a relative value in order to
+    // use the SET_IF_END option which writes into arrays.
     //
-    REBVAL *value;
+    RELVAL *value;
+
+    // `value_specifier` has to be updated whenever value is updated
+    //
+    REBCTX *value_specifier;
 
     // `store` is the storage for constructed values, and also where any
     // thrown value will be written.
@@ -1097,14 +1110,6 @@ typedef struct Reb_Path_Value_State {
     // `orig` original path input, saved for error messages
     //
     const RELVAL *orig;
-
-    // A specifier is needed because the PATH! is processed by incrementing
-    // through values, which may be resident in an array that was part of
-    // the cloning of a function body.  The specifier allows the path
-    // evaluation to disambiguate which variable a word's relative binding
-    // would match.
-    //
-    REBCTX *specifier;
 } REBPVS;
 
 enum Path_Eval_Result {

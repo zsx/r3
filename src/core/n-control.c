@@ -205,7 +205,7 @@ static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
             RELVAL *val;
             for (val = VAL_ARRAY_AT(value); NOT_END(val); val++) {
                 REBVAL word; // need binding intact, can't just pass RELVAL
-                COPY_RELVAL(&word, val, VAL_SPECIFIER(value));
+                COPY_VALUE(&word, val, VAL_SPECIFIER(value));
                 Protect_Word_Value(&word, flags);  // will unmark if deep
             }
             goto return_value_arg;
@@ -669,7 +669,7 @@ REBNATIVE(catch)
                     if (IS_BLOCK(candidate))
                         fail (Error(RE_INVALID_ARG, ARG(names)));
 
-                    COPY_RELVAL(temp1, candidate, VAL_SPECIFIER(ARG(names)));
+                    COPY_VALUE(temp1, candidate, VAL_SPECIFIER(ARG(names)));
                     *temp2 = *D_OUT;
 
                     // Return the THROW/NAME's arg if the names match

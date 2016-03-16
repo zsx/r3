@@ -475,7 +475,7 @@ REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 REBINT PD_Date(REBPVS *pvs)
 {
     const REBVAL *sel = pvs->selector;
-    REBVAL *value = pvs->value;
+    REBVAL *value = KNOWN(pvs->value);
     const REBVAL *setval;
 
     REBINT i;
@@ -536,8 +536,8 @@ REBINT PD_Date(REBPVS *pvs)
         // not aleady adusted.
         //
         REBVAL *store = pvs->store;
-        if (pvs->value != store)
-            *store = *pvs->value;
+        if (value != store)
+            *store = *value;
 
         if (i != 8) Adjust_Date_Zone(store, FALSE);
 
@@ -688,7 +688,7 @@ REBINT PD_Date(REBPVS *pvs)
         VAL_RESET_HEADER(pvs->value, REB_DATE);
         VAL_DATE(pvs->value) = date;
         VAL_TIME(pvs->value) = secs;
-        Adjust_Date_Zone(pvs->value, TRUE);
+        Adjust_Date_Zone(KNOWN(pvs->value), TRUE);
 
         return PE_OK;
     }

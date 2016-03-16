@@ -468,7 +468,7 @@ scan_bits:
 
         default: {
             REBVAL specific;
-            COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+            COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
             fail (Error_Has_Bad_Type(&specific));
         }
         }

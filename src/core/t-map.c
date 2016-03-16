@@ -363,12 +363,16 @@ REBINT PD_Map(REBPVS *pvs)
     if (n == 0)
         val = VOID_CELL;
     else
-        val = ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1);
+        val = KNOWN(
+            ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
+        );
 
     if (IS_VOID(val))
         return PE_NONE;
 
     pvs->value = val;
+    pvs->value_specifier = SPECIFIED;
+
     return PE_OK;
 }
 
@@ -585,9 +589,8 @@ REBTYPE(Map)
     switch (action) {
 
     case A_PICK:
-        val = Pick_Block(val, arg);
-        if (!val) return R_BLANK;
-        *D_OUT = *val;
+        Pick_Block(D_OUT, val, arg);
+        if (IS_VOID(D_OUT)) return R_BLANK;
         return R_OUT;
 
     case A_FIND:

@@ -81,7 +81,7 @@ REBTYPE(Datatype)
             REBVAL *var;
             REBVAL *key;
 
-            REBVAL *value;
+            RELVAL *value;
 
             REBCTX *context = Copy_Context_Shallow(
                 VAL_CONTEXT(Get_System(SYS_STANDARD, STD_TYPE_SPEC))
@@ -105,7 +105,12 @@ REBTYPE(Datatype)
 
             for (; NOT_END(var); ++var, ++key) {
                 if (IS_END(value)) SET_BLANK(var);
-                else *var = *value++;
+                else {
+                    // typespec array does not contain relative values
+                    //
+                    COPY_VALUE(var, value, SPECIFIED);
+                    ++value;
+                }
             }
 
             Val_Init_Object(D_OUT, context);

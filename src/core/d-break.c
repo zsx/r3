@@ -163,9 +163,9 @@ REBOOL Do_Breakpoint_Throws(
 
             // The instruction was built from raw material, non-relative
             //
-            mode = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_MODE);
-            payload = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_PAYLOAD);
-            target = VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_TARGET);
+            mode = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_MODE));
+            payload = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_PAYLOAD));
+            target = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_TARGET));
 
             assert(IS_FRAME(target));
 
@@ -422,11 +422,11 @@ REBNATIVE(resume)
 
     if (REF(with)) {
         SET_FALSE(ARR_AT(instruction, RESUME_INST_MODE)); // don't DO value
-        *ARR_AT(instruction, RESUME_INST_PAYLOAD) = *ARG(value);
+        *SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)) = *ARG(value);
     }
     else if (REF(do)) {
         SET_TRUE(ARR_AT(instruction, RESUME_INST_MODE)); // DO the value
-        *ARR_AT(instruction, RESUME_INST_PAYLOAD) = *ARG(code);
+        *SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)) = *ARG(code);
     }
     else {
         SET_BLANK(ARR_AT(instruction, RESUME_INST_MODE)); // use default

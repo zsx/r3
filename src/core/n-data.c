@@ -193,7 +193,7 @@ REBNATIVE(assert)
 
             if (IS_END(value + 1)) fail (Error(RE_MISSING_ARG));
 
-            COPY_RELVAL(&type, value + 1, specifier);
+            COPY_VALUE(&type, value + 1, specifier);
 
             if (
                 IS_BLOCK(&type)
@@ -203,7 +203,7 @@ REBNATIVE(assert)
             ) {
                 if (!Is_Type_Of(val, &type)) {
                     REBVAL specific;
-                    COPY_RELVAL(&specific, value, specifier);
+                    COPY_VALUE(&specific, value, specifier);
 
                     fail (Error(RE_WRONG_TYPE, value));
                 }
@@ -1053,7 +1053,7 @@ REBNATIVE(set)
                 SET_BLANK(var);
                 continue;
             }
-            COPY_RELVAL(var, value, value_specifier);
+            COPY_VALUE(var, value, value_specifier);
             if (set_with_block) value++;
         }
 
@@ -1115,7 +1115,7 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            COPY_RELVAL(
+            COPY_VALUE(
                 GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
                 value,
                 value_specifier
@@ -1133,7 +1133,7 @@ REBNATIVE(set)
                     = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
             }
             else {
-                COPY_RELVAL(
+                COPY_VALUE(
                     GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
                     value,
                     value_specifier
@@ -1211,7 +1211,7 @@ REBNATIVE(unset)
 
         if (IS_WORD_UNBOUND(word)) {
             REBVAL specific;
-            COPY_RELVAL(&specific, word, VAL_SPECIFIER(target));
+            COPY_VALUE(&specific, word, VAL_SPECIFIER(target));
             fail (Error(RE_NOT_BOUND, &specific));
         }
 
