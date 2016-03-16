@@ -45,7 +45,7 @@ static inline void INIT_BITS_NOT(REBSER *s, REBOOL negated) {
 //
 //  CT_Bitset: C
 //
-REBINT CT_Bitset(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Bitset(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return (
         BITS_NOT(VAL_SERIES(a)) == BITS_NOT(VAL_SERIES(b))

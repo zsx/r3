@@ -488,7 +488,7 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 // series for the spec, body, and paramlist...the spec and body are blocks,
 // and so recursion would be found when the blocks were output.)
 //
-REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
+REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 {
     REBCNT index = 0;
     REBARR *array;

@@ -589,7 +589,7 @@ REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBINT len)
 REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 {
     REBSER *series = BYTE_BUF;
-    REBVAL *val;
+    RELVAL *val;
     REBCNT tail = 0;
     REBCNT len;
     REBCNT bl;
@@ -604,7 +604,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 
         case REB_INTEGER:
             if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < 0)
-                fail (Error_Out_Of_Range(val));
+                fail (Error_Out_Of_Range(KNOWN(val)));
             EXPAND_SERIES_TAIL(series, 1);
             *BIN_AT(series, tail) = (REBYTE)VAL_INT32(val);
             break;
@@ -645,7 +645,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
             break;
 
         default:
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
         }
 
         tail = SER_LEN(series);

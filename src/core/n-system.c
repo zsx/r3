@@ -257,7 +257,10 @@ REBNATIVE(evoke)
 #ifdef NDEBUG
     fail (Error(RE_DEBUG_ONLY));
 #else
-    REBVAL *arg = D_ARG(1);
+
+    PARAM(1, chant);
+
+    RELVAL *arg = ARG(chant);
     REBCNT len;
 
     Check_Security(SYM_DEBUG, POL_READ, 0);
@@ -287,7 +290,7 @@ REBNATIVE(evoke)
             }
         }
         if (IS_INTEGER(arg)) {
-            switch (Int32(arg)) {
+            switch (Int32(KNOWN(arg))) {
             case 0:
                 Check_Memory();
                 Assert_Bind_Table_Empty();

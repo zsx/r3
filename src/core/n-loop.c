@@ -98,6 +98,7 @@ static REBARR *Init_Loop(
     REBARR *body_out;
 
     const RELVAL *item;
+    REBCTX *specifier;
 
     assert(IS_BLOCK(body));
 
@@ -122,16 +123,18 @@ static REBARR *Init_Loop(
 
     if (IS_BLOCK(spec)) {
         item = VAL_ARRAY_AT(spec);
+        specifier = VAL_SPECIFIER(spec);
     }
     else {
         item = spec;
+        specifier = SPECIFIED;
     }
 
     // Optimally create the FOREACH context:
     while (len-- > 0) {
         if (!IS_WORD(item) && !IS_SET_WORD(item)) {
             FREE_CONTEXT(context);
-            fail (Error_Invalid_Arg(item));
+            fail (Error_Invalid_Arg_Core(item, specifier));
         }
 
         Val_Init_Typeset(key, ALL_64, VAL_WORD_SYM(item));
@@ -539,7 +542,10 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 Set_Vector_Value(var, series, index);
             }
             else if (IS_MAP(data_value)) {
-                REBVAL *val = ARR_AT(AS_ARRAY(series), index | 1);
+                //
+                // MAP! does not store RELVALs
+                //
+                REBVAL *val = KNOWN(ARR_AT(AS_ARRAY(series), index | 1));
                 if (!IS_VOID(val)) {
                     if (j == 0) {
                         COPY_VALUE(

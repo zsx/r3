@@ -95,7 +95,7 @@ REBVAL *Append_Event(void)
         }
     }
     SET_SERIES_LEN(VAL_SERIES(state), VAL_LEN_HEAD(state) + 1);
-    value = VAL_ARRAY_TAIL(state);
+    value = SINK(VAL_ARRAY_TAIL(state));
     SET_END(value);
     value--;
     SET_BLANK(value);
@@ -115,7 +115,7 @@ REBVAL *Append_Event(void)
 REBVAL *Find_Last_Event(REBINT model, REBINT type)
 {
     REBVAL *port;
-    REBVAL *value;
+    RELVAL *value;
     REBVAL *state;
 
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -129,7 +129,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
     for (; value >= VAL_ARRAY_HEAD(state); --value) {
         if (VAL_EVENT_MODEL(value) == model) {
             if (VAL_EVENT_TYPE(value) == type) {
-                return value;
+                return KNOWN(value);
             } else {
                 return NULL;
             }

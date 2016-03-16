@@ -77,9 +77,9 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
     req->actual = 0; /* avoid duplicate updates */
 }
 
-static int sig_word_num(REBVAL *word)
+static int sig_word_num(REBSYM canon)
 {
-    switch (VAL_WORD_CANON(word)) {
+    switch (canon) {
         case SYM_SIGALRM:
             return SIGALRM;
         case SYM_SIGABRT:
@@ -140,8 +140,11 @@ static int sig_word_num(REBVAL *word)
             return SIGXCPU;
         case SYM_SIGXFSZ:
             return SIGXFSZ;
-        default:
-            fail (Error(RE_INVALID_SPEC, word));
+        default: {
+            REBVAL word;
+            Val_Init_Word(&word, REB_WORD, canon);
+            fail (Error(RE_INVALID_SPEC, &word));
+        }
     }
 }
 
@@ -157,7 +160,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     REBSER *ser;
     REBVAL *spec;
     REBVAL *val;
-    REBVAL *sig;
+    RELVAL *sig;
 
     Validate_Port(port, action);
 
@@ -184,8 +187,14 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                             break;
                         }
 
-                        if (sigaddset(&req->special.signal.mask, sig_word_num(sig)) < 0)
+                        if (
+                            sigaddset(
+                                &req->special.signal.mask,
+                                sig_word_num(VAL_WORD_CANON(sig))
+                            ) < 0
+                        ) {
                             fail (Error(RE_INVALID_SPEC, sig));
+                        }
                     }
                     else
                         fail (Error(RE_INVALID_SPEC, sig));

@@ -367,6 +367,11 @@ enum REB_Mold_Opts {
 #define Mold_Value(mold,value,molded) \
     Mold_Value_Core((mold), (value), (molded))
 
+#define Pre_Mold(value,mold) \
+    Pre_Mold_Core((value), (mold))
+
+#define Post_Mold(value,mold) \
+    Post_Mold_Core((value), (mold))
 
 // Special flags for decimal formatting:
 enum {

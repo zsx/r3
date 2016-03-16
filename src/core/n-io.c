@@ -237,7 +237,7 @@ REBNATIVE(new_line)
     REFINE(4, skip);
     PARAM(5, size);
 
-    REBVAL *value = VAL_ARRAY_AT(ARG(position));
+    RELVAL *value = VAL_ARRAY_AT(ARG(position));
     REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
     REBINT skip = 0;
     REBCNT n;
@@ -358,7 +358,11 @@ REBNATIVE(now)
 //
 REBNATIVE(wait)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, value);
+    REFINE(2, all);
+    REFINE(3, only);
+
+    RELVAL *val = ARG(value);
     REBINT timeout = 0; // in milliseconds
     REBARR *ports = NULL;
     REBINT n = 0;
@@ -369,7 +373,11 @@ REBNATIVE(wait)
         REBVAL unsafe; // temporary not safe from GC
 
         if (Reduce_Array_Throws(
-            &unsafe, VAL_ARRAY(val), VAL_INDEX(val), VAL_SPECIFIER(val), FALSE
+            &unsafe,
+            VAL_ARRAY(ARG(value)),
+            VAL_INDEX(val),
+            VAL_SPECIFIER(ARG(value)),
+            FALSE
         )) {
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
@@ -377,7 +385,7 @@ REBNATIVE(wait)
 
         ports = VAL_ARRAY(&unsafe);
         for (val = ARR_HEAD(ports); NOT_END(val); val++) { // find timeout
-            if (Pending_Port(val)) n++;
+            if (Pending_Port(KNOWN(val))) n++;
             if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
         }
         if (IS_END(val)) {
@@ -390,7 +398,7 @@ REBNATIVE(wait)
     if (NOT_END(val)) {
         switch (VAL_TYPE(val)) {
         case REB_INTEGER:
-            timeout = 1000 * Int32(val);
+            timeout = 1000 * Int32(KNOWN(val));
             goto chk_neg;
 
         case REB_DECIMAL:
@@ -400,20 +408,20 @@ REBNATIVE(wait)
         case REB_TIME:
             timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
         chk_neg:
-            if (timeout < 0) fail (Error_Out_Of_Range(val));
+            if (timeout < 0) fail (Error_Out_Of_Range(KNOWN(val)));
             break;
 
         case REB_PORT:
-            if (!Pending_Port(val)) return R_BLANK;
+            if (!Pending_Port(KNOWN(val))) return R_BLANK;
             ports = Make_Array(1);
-            Append_Value(ports, val);
+            Append_Value(ports, KNOWN(val));
             // fall thru...
         case REB_BLANK:
             timeout = ALL_BITS; // wait for all windows
             break;
 
         default:
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Invalid_Arg_Core(val, SPECIFIED));
         }
     }
 
@@ -431,9 +439,9 @@ REBNATIVE(wait)
     // Determine what port(s) waked us:
     Sieve_Ports(ports);
 
-    if (!D_REF(2)) { // not /all ports
+    if (!REF(all)) {
         val = ARR_HEAD(ports);
-        if (IS_PORT(val)) *D_OUT = *val;
+        if (IS_PORT(val)) *D_OUT = *KNOWN(val);
         else SET_BLANK(D_OUT);
     }
 
@@ -896,15 +904,15 @@ REBNATIVE(call)
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
         argv = SER_HEAD(const REBCHR*, argv_ser);
         for (i = 0; i < argc; i ++) {
-            REBVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
+            RELVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
             if (IS_STRING(param)) {
                 REBSER *ser;
-                argv[i] = Val_Str_To_OS_Managed(&ser, param);
+                argv[i] = Val_Str_To_OS_Managed(&ser, KNOWN(param));
                 PUSH_GUARD_SERIES(ser);
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = ser;
             }
             else if (IS_FILE(param)) {
-                REBSER *path = Value_To_OS_Path(param, FALSE);
+                REBSER *path = Value_To_OS_Path(KNOWN(param), FALSE);
                 argv[i] = SER_HEAD(REBCHR, path);
 
                 MANAGE_SERIES(path);
@@ -912,7 +920,7 @@ REBNATIVE(call)
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = path;
             }
             else
-                fail (Error_Invalid_Arg(param));
+                fail (Error_Invalid_Arg_Core(param, VAL_SPECIFIER(arg)));
         }
         argv[argc] = NULL;
     }
@@ -1073,7 +1081,7 @@ static REBARR *String_List_To_Array(REBCHR *str)
 //
 REBSER *Block_To_String_List(REBVAL *blk)
 {
-    REBVAL *value;
+    RELVAL *value;
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -1497,20 +1505,23 @@ REBNATIVE(access_os)
         case SYM_PID:
             if (set) {
                 REBINT ret = 0;
-                REBVAL *pid = val;
-                REBVAL *arg = val;
+                RELVAL *pid = val;
+                RELVAL *arg = val;
                 if (IS_INTEGER(val)) {
                     ret = OS_KILL(VAL_INT32(pid));
-                } else if (IS_BLOCK(val)) {
-                    REBVAL *sig = NULL;
+                }
+                else if (IS_BLOCK(val)) {
+                    RELVAL *sig = NULL;
 
                     if (VAL_LEN_AT(val) != 2) fail (Error_Invalid_Arg(val));
 
                     pid = VAL_ARRAY_AT_HEAD(val, 0);
-                    if (!IS_INTEGER(pid)) fail (Error_Invalid_Arg(pid));
+                    if (!IS_INTEGER(pid))
+                        fail (Error_Invalid_Arg_Core(pid, VAL_SPECIFIER(val)));
 
                     sig = VAL_ARRAY_AT_HEAD(val, 1);
-                    if (!IS_INTEGER(sig)) fail (Error_Invalid_Arg(sig));
+                    if (!IS_INTEGER(sig))
+                        fail (Error_Invalid_Arg_Core(sig, VAL_SPECIFIER(val)));
 
                     ret = OS_SEND_SIGNAL(VAL_INT32(pid), VAL_INT32(sig));
                     arg = sig;
@@ -1527,7 +1538,7 @@ REBNATIVE(access_os)
                             fail (Error(RE_PERMISSION_DENIED));
 
                         case OS_EINVAL:
-                            fail (Error_Invalid_Arg(arg));
+                            fail (Error_Invalid_Arg(KNOWN(arg)));
 
                         case OS_ESRCH:
                             fail (Error(RE_PROCESS_NOT_FOUND, pid));

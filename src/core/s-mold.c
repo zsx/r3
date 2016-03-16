@@ -218,7 +218,7 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mold, REBCNT len)
 // 
 // Emit the initial datatype function, depending on /ALL option
 //
-void Pre_Mold(const REBVAL *value, REB_MOLD *mold)
+void Pre_Mold_Core(const RELVAL *value, REB_MOLD *mold)
 {
     Emit(mold, GET_MOPT(mold, MOPT_MOLD_ALL) ? "#[T " : "make T ", value);
 }
@@ -241,7 +241,7 @@ void End_Mold(REB_MOLD *mold)
 // For series that has an index, add the index for mold/all.
 // Add closing block.
 //
-void Post_Mold(const REBVAL *value, REB_MOLD *mold)
+void Post_Mold_Core(const RELVAL *value, REB_MOLD *mold)
 {
     if (VAL_INDEX(value)) {
         Append_Codepoint_Raw(mold->series, ' ');
@@ -598,7 +598,7 @@ void Mold_Array_At(
     REBSER *out = mold->series;
     REBOOL line_flag = FALSE; // newline was part of block
     REBOOL had_lines = FALSE;
-    REBVAL *value = ARR_AT(array, index);
+    RELVAL *value = ARR_AT(array, index);
 
     if (!sep) sep = "[]";
 
@@ -613,14 +613,15 @@ void Mold_Array_At(
         return;
     }
 
-    value = Alloc_Tail_Array(MOLD_STACK);
-
     // We don't want to use Val_Init_Block because it will create an implicit
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
-    VAL_RESET_HEADER(value, REB_BLOCK);
-    INIT_VAL_ARRAY(value, array); // copies args
-    VAL_INDEX(value) = 0;
+    {
+        REBVAL *temp = Alloc_Tail_Array(MOLD_STACK);
+        VAL_RESET_HEADER(temp, REB_BLOCK);
+        INIT_VAL_ARRAY(temp, array); // copies args
+        VAL_INDEX(temp) = 0;
+    }
 
     if (sep[1]) {
         Append_Codepoint_Raw(out, sep[0]);
@@ -652,7 +653,7 @@ void Mold_Array_At(
 }
 
 
-static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
+static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
 {
     const char *sep;
     REBOOL all = GET_MOPT(mold, MOPT_MOLD_ALL);
@@ -725,7 +726,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
     }
 }
 
-static void Mold_Simple_Block(REB_MOLD *mold, REBVAL *block, REBCNT len)
+static void Mold_Simple_Block(REB_MOLD *mold, RELVAL *block, REBCNT len)
 {
     // Simple molder for error locations. Series must be valid.
     // Max length in chars must be provided.
@@ -755,7 +756,7 @@ static void Form_Array_At(
     // Form a series (part_mold means mold non-string values):
     REBINT n;
     REBINT len = ARR_LEN(array) - index;
-    REBVAL *val;
+    RELVAL *val;
     REBVAL *wval;
 
     if (len < 0) len = 0;
@@ -767,7 +768,7 @@ static void Form_Array_At(
             wval = Find_Word_Value(context, VAL_WORD_SYM(val));
             if (wval) val = wval;
         }
-        Mold_Value(mold, val, LOGICAL(wval != 0));
+        Mold_Value(mold, val, LOGICAL(wval != NULL));
         n++;
         if (GET_MOPT(mold, MOPT_LINES)) {
             Append_Codepoint_Raw(mold->series, LF);
@@ -893,7 +894,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
     REBARR *mapser = MAP_PAIRLIST(VAL_MAP(value));
-    REBVAL *val;
+    RELVAL *val;
 
     // Prevent endless mold loop:
     if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
@@ -1188,7 +1189,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
 
         // Special format for ALL string series when not at head:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
     }
@@ -1229,7 +1230,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         goto append;
 
     case REB_MONEY:
-        len = Emit_Money(value, buf, mold->opts);
+        len = Emit_Money(const_KNOWN(value), buf, mold->opts);
         goto append;
 
     case REB_CHAR:
@@ -1248,29 +1249,29 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     case REB_TUPLE:
-        len = Emit_Tuple(value, buf);
+        len = Emit_Tuple(const_KNOWN(value), buf);
         goto append;
 
     case REB_TIME:
         //len = Emit_Time(value, buf, Punctuation[GET_MOPT(mold, MOPT_COMMA_PT) ? PUNCT_COMMA : PUNCT_DOT]);
-        Emit_Time(mold, value);
+        Emit_Time(mold, const_KNOWN(value));
         break;
 
     case REB_DATE:
-        Emit_Date(mold, value);
+        Emit_Date(mold, const_KNOWN(value));
         break;
 
     case REB_STRING:
         // FORM happens in top section.
-        Mold_String_Series(value, mold);
+        Mold_String_Series(const_KNOWN(value), mold);
         break;
 
     case REB_BINARY:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
-        Mold_Binary(value, mold);
+        Mold_Binary(const_KNOWN(value), mold);
         break;
 
     case REB_FILE:
@@ -1278,20 +1279,20 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
             Append_Unencoded(ser, "%\"\"");
             break;
         }
-        Mold_File(value, mold);
+        Mold_File(const_KNOWN(value), mold);
         break;
 
     case REB_EMAIL:
     case REB_URL:
-        Mold_Url(value, mold);
+        Mold_Url(const_KNOWN(value), mold);
         break;
 
     case REB_TAG:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
-        Mold_Tag(value, mold);
+        Mold_Tag(const_KNOWN(value), mold);
         break;
 
 //      Mold_Issue(value, mold);
@@ -1299,7 +1300,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
 
     case REB_BITSET:
         Pre_Mold(value, mold); // #[bitset! or make bitset!
-        Mold_Bitset(value, mold);
+        Mold_Bitset(const_KNOWN(value), mold);
         End_Mold(mold);
         break;
 
@@ -1307,12 +1308,12 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         Pre_Mold(value, mold);
         if (!GET_MOPT(mold, MOPT_MOLD_ALL)) {
             Append_Codepoint_Raw(ser, '[');
-            Mold_Image_Data(value, mold);
+            Mold_Image_Data(const_KNOWN(value), mold);
             Append_Codepoint_Raw(ser, ']');
             End_Mold(mold);
         }
         else {
-            REBVAL val = *value;
+            REBVAL val = *const_KNOWN(value);
             VAL_INDEX(&val) = 0; // mold all of it
             Mold_Image_Data(&val, mold);
             Post_Mold(value, mold);
@@ -1335,7 +1336,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     case REB_VECTOR:
-        Mold_Vector(value, mold, molded);
+        Mold_Vector(const_KNOWN(value), mold, molded);
         break;
 
     case REB_DATATYPE: {
@@ -1354,7 +1355,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
     }
 
     case REB_TYPESET:
-        Mold_Typeset(value, mold, molded);
+        Mold_Typeset(const_KNOWN(value), mold, molded);
         break;
 
     case REB_WORD:
@@ -1383,31 +1384,31 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     case REB_FUNCTION:
-        Mold_Function(value, mold);
+        Mold_Function(const_KNOWN(value), mold);
         break;
 
     case REB_VARARGS:
-        Mold_Varargs(value, mold);
+        Mold_Varargs(const_KNOWN(value), mold);
         break;
 
     case REB_OBJECT:
     case REB_MODULE:
     case REB_PORT:
     case REB_FRAME:
-        if (!molded) Form_Object(value, mold);
-        else Mold_Object(value, mold);
+        if (!molded) Form_Object(const_KNOWN(value), mold);
+        else Mold_Object(const_KNOWN(value), mold);
         break;
 
     case REB_TASK:
-        Mold_Object(value, mold);
+        Mold_Object(const_KNOWN(value), mold);
         break;
 
     case REB_ERROR:
-        Mold_Error(value, mold, molded);
+        Mold_Error(const_KNOWN(value), mold, molded);
         break;
 
     case REB_MAP:
-        Mold_Map(value, mold, molded);
+        Mold_Map(const_KNOWN(value), mold, molded);
         break;
 
     case REB_GOB:
@@ -1422,7 +1423,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     case REB_EVENT:
-        Mold_Event(value, mold);
+        Mold_Event(const_KNOWN(value), mold);
         break;
 
     case REB_STRUCT:
@@ -1535,7 +1536,7 @@ REBOOL Form_Reduce_Throws(
 //
 REBSER *Form_Tight_Block(const REBVAL *blk)
 {
-    REBVAL *val;
+    RELVAL *val;
 
     REB_MOLD mo;
     CLEARS(&mo);

@@ -1197,19 +1197,25 @@ REBNATIVE(unset)
     REBVAL *target = ARG(target);
 
     if (ANY_WORD(target)) {
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED);
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, SPECIFIED);
         SET_VOID(var);
         return R_VOID;
     }
 
     assert(IS_BLOCK(target));
 
-    REBVAL *word;
+    RELVAL *word;
     for (word = VAL_ARRAY_AT(target); NOT_END(word); ++word) {
         if (!ANY_WORD(word))
-            fail (Error_Invalid_Arg(word));
+            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED);
+        if (IS_WORD_UNBOUND(word)) {
+            REBVAL specific;
+            COPY_RELVAL(&specific, word, VAL_SPECIFIER(target));
+            fail (Error(RE_NOT_BOUND, &specific));
+        }
+
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
         SET_VOID(var);
     }
 
