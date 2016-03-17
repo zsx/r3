@@ -49,13 +49,14 @@ REBINT CT_Pair(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Pair: C
 //
-REBOOL MT_Pair(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Pair(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBD32 x;
     REBD32 y;
 
     if (IS_PAIR(data)) {
-        *out = *data;
+        *out = *KNOWN(data);
         return TRUE;
     }
 
@@ -344,7 +345,7 @@ REBTYPE(Pair)
                 goto setPair;
             }
             if (ANY_ARRAY(val) && VAL_LEN_AT(val) <= 2) {
-                if (MT_Pair(D_OUT, val, REB_PAIR))
+                if (MT_Pair(D_OUT, val, SPECIFIED, REB_PAIR))
                     return R_OUT;
             }
 

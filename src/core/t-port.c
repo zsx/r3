@@ -44,8 +44,9 @@ REBINT CT_Port(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Port: C
 //
-REBOOL MT_Port(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Port(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     return FALSE;
 }
 

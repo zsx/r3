@@ -72,7 +72,7 @@ REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)
 //
 static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
 {
-    REBVAL *arg;
+    RELVAL *arg;
     REBINT n;
     REBCNT w;
 
@@ -157,9 +157,9 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_FLAGS:
         if (IS_BLOCK(val)) {
             VAL_EVENT_FLAGS(value) &= ~(1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT);
-            for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
-                if (IS_WORD(val))
-                    switch (VAL_WORD_CANON(val)) {
+            for (arg = VAL_ARRAY_HEAD(val); NOT_END(arg); arg++)
+                if (IS_WORD(arg))
+                    switch (VAL_WORD_CANON(arg)) {
                         case SYM_CONTROL:
                             SET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL);
                             break;
@@ -185,24 +185,23 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 //
 //  Set_Event_Vars: C
 //
-static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
+static void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
 {
-    REBVAL *var;
-    const REBVAL *val;
-
     while (NOT_END(blk)) {
-        REBVAL safe;
+        REBVAL var;
+        COPY_RELVAL(&var, blk, specifier);
+        ++blk;
 
-        var = blk++;
-        val = blk++;
-        if (IS_END(val))
-            val = BLANK_VALUE;
-        else {
-            Get_Simple_Value_Into(&safe, val, GUESSED);
-            val = &safe;
-        }
-        if (!Set_Event_Var(evt, var, val))
-            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
+        REBVAL val;
+        if (IS_END(blk))
+            SET_BLANK(&val);
+        else
+            Get_Simple_Value_Into(&val, blk, specifier);
+
+        ++blk;
+
+        if (!Set_Event_Var(evt, &var, &val))
+            fail (Error(RE_BAD_FIELD_SET, &var, Type_Of(&val)));
     }
 }
 
@@ -222,7 +221,11 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
         if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
-            *val = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
+            COPY_RELVAL(
+                val,
+                VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value)),
+                VAL_SPECIFIER(arg)
+            );
             break;
         }
         return FALSE;
@@ -278,7 +281,11 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
             if (IS_BLOCK(arg) && n < cast(REBINT, VAL_LEN_HEAD(arg))) {
-                *val = *VAL_ARRAY_AT_HEAD(arg, n);
+                COPY_RELVAL(
+                    val,
+                    VAL_ARRAY_AT_HEAD(arg, n),
+                    VAL_SPECIFIER(arg)
+                );
                 break;
             }
             return FALSE;
@@ -353,11 +360,16 @@ is_blank:
 //
 //  MT_Event: C
 //
-REBOOL MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Event(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     if (IS_BLOCK(data)) {
         CLEARS(out);
-        Set_Event_Vars(out, VAL_ARRAY_AT(data));
+        Set_Event_Vars(
+            out,
+            VAL_ARRAY_AT(data),
+            IS_SPECIFIC(data) ? VAL_SPECIFIER(KNOWN(data)) : specifier
+        );
         VAL_RESET_HEADER(out, REB_EVENT);
         return TRUE;
     }
@@ -374,7 +386,7 @@ REBINT PD_Event(REBPVS *pvs)
     if (IS_WORD(pvs->selector)) {
         if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
             if (!Get_Event_Var(
-                pvs->value, VAL_WORD_CANON(pvs->selector), pvs->store
+                KNOWN(pvs->value), VAL_WORD_CANON(pvs->selector), pvs->store
             )) {
                 fail (Error_Bad_Path_Set(pvs));
             }
@@ -382,8 +394,11 @@ REBINT PD_Event(REBPVS *pvs)
             return PE_USE_STORE;
         }
         else {
-            if (!Set_Event_Var(pvs->value, pvs->selector, pvs->opt_setval))
+            if (!Set_Event_Var(
+                KNOWN(pvs->value), pvs->selector, pvs->opt_setval
+            )) {
                 fail (Error_Bad_Path_Set(pvs));
+            }
 
             return PE_OK;
         }
@@ -424,7 +439,8 @@ is_arg_error:
             fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
 
         // Initialize GOB from block:
-        if (IS_BLOCK(arg)) Set_Event_Vars(D_OUT, VAL_ARRAY_AT(arg));
+        if (IS_BLOCK(arg))
+            Set_Event_Vars(D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
         else goto is_arg_error;
     }
     else

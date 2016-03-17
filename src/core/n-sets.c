@@ -117,7 +117,7 @@ static REBSER *Make_Set_Operation_Series(
         // and extending Find_Key to FIND on the value itself w/o the hash.
 
         do {
-            REBSER *ser = VAL_SERIES(val1); // val1 and val2 swapped 2nd pass!
+            REBARR *array1 = VAL_ARRAY(val1); // val1 and val2 swapped 2nd pass!
 
             // Check what is in series1 but not in series2
             //
@@ -127,23 +127,35 @@ static REBSER *Make_Set_Operation_Series(
             // Iterate over first series
             //
             i = VAL_INDEX(val1);
-            for (; i < SER_LEN(ser); i += skip) {
-                RELVAL *item = ARR_AT(AS_ARRAY(ser), i);
+            for (; i < ARR_LEN(array1); i += skip) {
+                RELVAL *item = ARR_AT(array1, i);
                 if (flags & SOP_FLAG_CHECK) {
                     h = Find_Key_Hashed(
-                        VAL_ARRAY(val2), hser, item, skip, cased, 1
+                        VAL_ARRAY(val2),
+                        hser,
+                        item,
+                        VAL_SPECIFIER(val1),
+                        skip,
+                        cased,
+                        1
                     );
                     h = (h >= 0);
                     if (flags & SOP_FLAG_INVERT) h = !h;
                 }
                 if (h) {
                     Find_Key_Hashed(
-                        AS_ARRAY(buffer), hret, item, skip, cased, 2
+                        AS_ARRAY(buffer),
+                        hret,
+                        item,
+                        VAL_SPECIFIER(val1),
+                        skip,
+                        cased,
+                        2
                     );
                 }
             }
 
-            if (i != SER_LEN(ser)) {
+            if (i != ARR_LEN(array1)) {
                 //
                 // In the current philosophy, the semantics of what to do
                 // with things like `intersect/skip [1 2 3] [7] 2` is too

@@ -75,26 +75,37 @@ static void No_Nones(REBVAL *arg) {
 //     MT_Get_Path
 //     MT_Lit_Path
 //
-REBOOL MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+// Currently the reason construction syntax is needed is generally for paths,
+// for instance paths-inside-paths.  To be unambiguous, `#[path! [a b/c d]]`
+// can't be molded as just `a/b/c/d`.
+//
+// There's also a feature to allow the molding of arrays that are not
+// positioned at the head with an integer, such as if `mold next [a b c]`
+// would be `#[block! [a b c] 2]`
+//
+REBOOL MT_Array(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBCNT i;
 
     if (!ANY_ARRAY(data)) return FALSE;
+
     if (type >= REB_PATH && type <= REB_LIT_PATH) {
         RELVAL *head = VAL_ARRAY_HEAD(data);
         if (IS_END(head) || !ANY_WORD(head))
             return FALSE;
     }
 
-    *out = *data++;
+    COPY_RELVAL(out, data, specifier);
+    ++data;
+
     VAL_RESET_HEADER(out, type);
 
-    // !!! This did not have special END handling previously, but it would have
-    // taken the 0 branch.  Review if this is sensible.
-    //
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
+    i = NOT_END(data) && IS_INTEGER(data) ? Int32(KNOWN(data)) - 1 : 0;
 
-    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
+    if (i > VAL_LEN_HEAD(out))
+        i = VAL_LEN_HEAD(out); // clip it
+
     VAL_INDEX(out) = i;
     return TRUE;
 }

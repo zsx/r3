@@ -406,28 +406,35 @@ REBINT Cmp_Date(const RELVAL *d1, const RELVAL *d2)
 // 
 // Given a block of values, construct a date datatype.
 //
-REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
-{
+REBOOL MT_Date(
+    REBVAL *val, RELVAL *arg, REBCTX *specifier, enum Reb_Kind type
+) {
     REBI64 secs = NO_TIME;
     REBINT tz = 0;
     REBDAT date;
     REBCNT year, month, day;
 
     if (IS_DATE(arg)) {
-        *val = *arg;
+        COPY_RELVAL(val, arg, specifier);
         return TRUE;
     }
 
     if (!IS_INTEGER(arg)) return FALSE;
-    day = Int32s(arg++, 1);
+    day = Int32s(KNOWN(arg), 1);
+    ++arg;
     if (!IS_INTEGER(arg)) return FALSE;
-    month = Int32s(arg++, 1);
+    month = Int32s(KNOWN(arg), 1);
+    ++arg;
     if (!IS_INTEGER(arg)) return FALSE;
     if (day > 99) {
         year = day;
-        day = Int32s(arg++, 1);
-    } else
-        year = Int32s(arg++, 0);
+        day = Int32s(KNOWN(arg), 1);
+        ++arg;
+    }
+    else {
+        year = Int32s(KNOWN(arg), 0);
+        ++arg;
+    }
 
     if (month < 1 || month > 12) return FALSE;
 
@@ -451,7 +458,8 @@ REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 
     if (IS_TIME(arg)) {
         tz = (REBINT)(VAL_TIME(arg) / (ZONE_MINS * MIN_SEC));
-        if (tz < -MAX_ZONE || tz > MAX_ZONE) fail (Error_Out_Of_Range(arg));
+        if (tz < -MAX_ZONE || tz > MAX_ZONE)
+            fail (Error_Out_Of_Range(KNOWN(arg)));
         arg++;
     }
 
@@ -798,7 +806,9 @@ REBTYPE(Date)
                 if (Scan_Date(bp, len, D_OUT)) return R_OUT;
             }
             else if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
-                if (MT_Date(D_OUT, VAL_ARRAY_AT(arg), REB_DATE)) {
+                if (MT_Date(
+                    D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), REB_DATE
+                )) {
                     return R_OUT;
                 }
             }

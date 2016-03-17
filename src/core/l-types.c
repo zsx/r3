@@ -33,7 +33,7 @@
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-typedef REBOOL (*MAKE_FUNC)(REBVAL *, REBVAL *, enum Reb_Kind);
+typedef REBOOL (*MAKE_FUNC)(REBVAL *, RELVAL *, REBCTX *, enum Reb_Kind);
 #include "tmp-maketypes.h"
 
 
@@ -807,7 +807,7 @@ const REBYTE *Scan_Any(
 // Keep in mind that this function is being called as part of the
 // scanner, so optimal performance is critical.
 //
-REBOOL Construct_Value(REBVAL *out, REBARR *spec)
+REBOOL Construct_Value(REBVAL *out, REBARR *spec, REBCTX *specifier)
 {
     RELVAL *val;
     REBSYM sym;
@@ -868,7 +868,7 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
         // out of the spec referred to again...)
 
         PUSH_GUARD_ARRAY(spec);
-        if (func(out, KNOWN(val), type)) { // !!! might this be relative?
+        if (func(out, val, specifier, type)) {
             DROP_GUARD_ARRAY(spec);
             return TRUE;
         }

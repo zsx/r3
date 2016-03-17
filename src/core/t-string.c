@@ -351,18 +351,21 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 //
 //  MT_String: C
 //
-REBOOL MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_String(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBCNT i;
 
     if (!ANY_BINSTR(data)) return FALSE;
-    *out = *data++;
+    *out = *KNOWN(data);
+    ++data;
+
     VAL_RESET_HEADER(out, type);
 
     // !!! This did not have special END handling previously, but it would have
     // taken the 0 branch.  Review if this is sensible.
     //
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
+    i = NOT_END(data) && IS_INTEGER(data) ? Int32(KNOWN(data)) - 1 : 0;
 
     if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
     VAL_INDEX(out) = i;
@@ -568,7 +571,7 @@ REBINT PD_File(REBPVS *pvs)
     if (pvs->opt_setval)
         fail (Error_Bad_Path_Set(pvs));
 
-    ser = Copy_Sequence_At_Position(pvs->value);
+    ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
     // This makes sure there's always a "/" at the end of the file before
     // appending new material via a selector:

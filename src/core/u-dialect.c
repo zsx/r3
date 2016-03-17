@@ -73,10 +73,10 @@ REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
-            val = GET_MUTABLE_VAR_MAY_FAIL(where, GUESSED);
+            val = GET_MUTABLE_VAR_MAY_FAIL(where, SPECIFIED);
         }
         else if (IS_PATH(where)) {
-            if (Do_Path_Throws_Core(&safe, NULL, where, GUESSED, NULL))
+            if (Do_Path_Throws_Core(&safe, NULL, where, SPECIFIED, NULL))
                 fail (Error_No_Catch_For_Throw(&safe));
             val = &safe;
         }
@@ -155,7 +155,7 @@ static int Count_Dia_Args(REBVAL *args)
 //
 static REBVAL *Eval_Arg(REBDIA *dia)
 {
-    REBVAL *value = ARR_AT(dia->args, dia->argi);
+    REBVAL *value = KNOWN(ARR_AT(dia->args, dia->argi));
 
     REBVAL safe;
 
@@ -229,14 +229,14 @@ static REBINT Add_Arg(REBDIA *dia, REBVAL *value)
     REBVAL *outp;
     REBINT rept = 0;
 
-    outp = ARR_AT(dia->out, dia->outi);
+    outp = KNOWN(ARR_AT(dia->out, dia->outi));
 
     // Scan all formal args, looking for one that matches given value:
     for (fargi = dia->fargi;; fargi++) {
 
         //Debug_Fmt("Add_Arg fargi: %d outi: %d", fargi, outi);
 
-        if (IS_END(fargs = ARR_AT(dia->fargs, fargi))) return 0;
+        if (IS_END(fargs = KNOWN(ARR_AT(dia->fargs, fargi)))) return 0;
 
 again:
         // Formal arg can be a word (type or refinement), datatype, or * (repeater):
@@ -347,8 +347,8 @@ again:
         break;
 
     case 4: // refinement:
-        dia->fargi = fargs - ARR_HEAD(dia->fargs) + 1;
-        dia->outi = outp - ARR_HEAD(dia->out) + 1;
+        dia->fargi = fargs - KNOWN(ARR_HEAD(dia->fargs)) + 1;
+        dia->outi = outp - KNOWN(ARR_HEAD(dia->out)) + 1;
         *outp = *value;
         return 1;
 
@@ -384,7 +384,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     fargs = CTX_VAR(dia->dialect, dia->cmd);
     if (!IS_BLOCK(fargs)) return -REB_DIALECT_BAD_SPEC;
     dia->fargs = VAL_ARRAY(fargs);
-    fargs = VAL_ARRAY_AT(fargs);
+    fargs = KNOWN(VAL_ARRAY_AT(fargs));
     size = Count_Dia_Args(fargs); // approximate
 
     ser = ARR_SERIES(dia->out);
@@ -451,7 +451,7 @@ static REBINT Do_Cmd(REBDIA *dia)
 //
 static REBINT Do_Dia(REBDIA *dia)
 {
-    REBVAL *next = ARR_AT(dia->args, dia->argi);
+    REBVAL *next = KNOWN(ARR_AT(dia->args, dia->argi));
     REBVAL *head;
     REBINT err;
 
@@ -606,7 +606,7 @@ REBNATIVE(delect)
         dia.contexts = ARG(where);
         if (!IS_BLOCK(dia.contexts))
             fail (Error_Invalid_Arg(dia.contexts));
-        dia.contexts = VAL_ARRAY_AT(dia.contexts);
+        dia.contexts = KNOWN(VAL_ARRAY_AT(dia.contexts));
     }
 
     dsp_orig = DSP;

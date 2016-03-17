@@ -923,7 +923,10 @@ struct Reb_Array {
     ENSURE_SERIES_MANAGED(ARR_SERIES(array))
 
 #define Append_Value(a,v) \
-    (*Alloc_Tail_Array((a)) = *(v), NOOP)
+    (*Alloc_Tail_Array(a) = *(v), NOOP)
+
+#define Append_Value_Core(a,v,s) \
+    COPY_RELVAL(Alloc_Tail_Array(a), (v), (s))
 
 #define Copy_Values_Len_Shallow(v,s,l) \
     Copy_Values_Len_Extra_Shallow((v), (s), (l), 0)

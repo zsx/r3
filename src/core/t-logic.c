@@ -51,8 +51,9 @@ REBINT CT_Logic(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Logic: C
 //
-REBOOL MT_Logic(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Logic(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     if (!IS_INTEGER(data)) return FALSE;
     SET_LOGIC(out, VAL_INT64(data) != 0);
     return TRUE;

@@ -396,10 +396,10 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
         // when it's first call for return type, all_args has not been initialized yet
         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)
             && idx > ARR_LEN(VAL_ROUTINE_FIXED_ARGS(out))) {
-            rebol_args = ARR_HEAD(VAL_ROUTINE_ALL_ARGS(out));
+            rebol_args = KNOWN(ARR_HEAD(VAL_ROUTINE_ALL_ARGS(out)));
         }
         else {
-            rebol_args = ARR_HEAD(VAL_ROUTINE_PARAMLIST(out));
+            rebol_args = KNOWN(ARR_HEAD(VAL_ROUTINE_PARAMLIST(out)));
         }
     }
 
@@ -477,7 +477,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
             return FALSE;
         }
         if (idx == 0) {
-            to = ARR_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
+            to = KNOWN(ARR_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out)));
         } else {
             to = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
         }
@@ -513,7 +513,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -526,7 +526,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -539,7 +539,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -552,7 +552,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -565,7 +565,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -578,7 +578,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -592,7 +592,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT64:
             if (!IS_INTEGER(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             return &VAL_INT64(arg);
 
@@ -617,7 +617,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     return &ptrs[idx];
                 default:
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                        D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                     ));
             }
 
@@ -625,7 +625,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             /* hackish, store the signle precision floating point number in a double precision variable */
             if (!IS_DECIMAL(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             } else {
                 float a = (float)VAL_DECIMAL(arg);
@@ -636,7 +636,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_DOUBLE:
             if (!IS_DECIMAL(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             return &VAL_DECIMAL(arg);
 
@@ -646,7 +646,9 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             } else {
                 if (!IS_STRUCT(arg))
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                        D_LABEL_SYM,
+                        KNOWN(ARR_AT(rebol_args, idx)),
+                        VAL_TYPE(arg)
                     ));
             }
             return SER_AT(
@@ -660,7 +662,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 return NULL;
             } else {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
                 ));
             }
 
@@ -814,7 +816,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
     }
 
     if (is_va_list_routine) {
-        va_values = ARR_HEAD(args);
+        va_values = KNOWN(ARR_HEAD(args));
         if (!IS_BLOCK(va_values))
             fail (Error_Invalid_Arg(va_values));
 
@@ -863,7 +865,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         MANAGE_ARRAY(ROUTINE_ALL_ARGS(rot));
 
         for (i = 1, j = 1; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
-            REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(va_values, i - 1);
+            REBVAL *reb_arg = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i - 1));
             if (i <= n_fixed) { /* fix arguments */
                 if (!TYPE_CHECK(
                     ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
@@ -871,7 +873,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
                 )) {
                     fail (Error_Arg_Type(
                         D_LABEL_SYM,
-                        ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
+                        KNOWN(ARR_AT(ROUTINE_FIXED_ARGS(rot), i)),
                         VAL_TYPE(reb_arg)
                     ));
                 }
@@ -882,7 +884,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
                 if (i == VAL_LEN_HEAD(va_values)) /* type is missing */
                     fail (Error_Invalid_Arg(reb_arg));
 
-                reb_type = VAL_ARRAY_AT_HEAD(va_values, i);
+                reb_type = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i));
                 if (!IS_BLOCK(reb_type))
                     fail (Error_Invalid_Arg(reb_type));
 
@@ -923,7 +925,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         for (i = 1; i < SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)); i ++) {
             ffi_args[i - 1] = arg_to_ffi(
                 &out,
-                ARR_AT(args, i - 1),
+                KNOWN(ARR_AT(args, i - 1)),
                 i,
                 SER_HEAD(void*, ffi_args_ptrs)
             );
@@ -985,7 +987,7 @@ void Free_Routine(REBRIN *rin)
 static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
 {
     if (IS_BLOCK(blk)) {
-        REBVAL *t = VAL_ARRAY_AT(blk);
+        REBVAL *t = KNOWN(VAL_ARRAY_AT(blk));
         if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
             /* followed by struct definition */
             REBVAL tmp;
@@ -996,7 +998,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             if (!IS_BLOCK(t) || VAL_LEN_AT(blk) != 2)
                 fail (Error_Invalid_Arg(blk));
 
-            if (!MT_Struct(&tmp, t, REB_STRUCT))
+            if (!MT_Struct(&tmp, t, SPECIFIED, REB_STRUCT))
                 fail (Error_Invalid_Arg(blk));
 
             if (!rebol_type_to_ffi(out, &tmp, n, make))
@@ -1086,9 +1088,13 @@ static void callback_dispatcher(
                 break;
             case FFI_TYPE_STRUCT:
                 if (!IS_STRUCT(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1)))
-                    fail (Error_Invalid_Arg(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1)));
+                    fail (Error_Invalid_Arg(
+                        KNOWN(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1))
+                    ));
 
-                Copy_Struct_Val(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1), elem);
+                Copy_Struct_Val(
+                    KNOWN(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1)), elem
+                );
                 memcpy(
                     SER_AT(
                         REBYTE,
@@ -1177,11 +1183,15 @@ static void callback_dispatcher(
 //     abi: word "note"
 // ] lib "name"]
 //
-REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
-{
+REBOOL MT_Routine(
+    REBVAL *out,
+    REBVAL *data,
+    REBCTX *specifier,
+    REBOOL is_callback
+) {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     ffi_type ** args = NULL;
-    REBVAL *blk = NULL;
+    RELVAL *blk = NULL;
     REBCNT eval_idx = 0; /* for spec block evaluation */
     REBSER *extra_mem = NULL;
     REBOOL ret = TRUE;
@@ -1288,7 +1298,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
 
         REBVAL lib;
         DO_NEXT_MAY_THROW(
-            indexor, &lib, VAL_ARRAY(data), 1, VAL_SPECIFIER(data)
+            indexor, &lib, VAL_ARRAY(data), 1, specifier
         );
 
         if (indexor == THROWN_FLAG)
@@ -1296,7 +1306,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
 
         if (IS_INTEGER(&lib)) {
             if (indexor != END_FLAG)
-                fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
+                fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
 
             //treated as a pointer to the function
             if (VAL_INT64(&lib) == 0)
@@ -1317,10 +1327,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                 fail (Error_Invalid_Arg(&lib));
 
             if (!IS_STRING(&blk[fn_idx]))
-                fail (Error_Invalid_Arg(&blk[fn_idx]));
+                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx])));
 
             if (NOT_END(&blk[fn_idx + 1]))
-                fail (Error_Invalid_Arg(&blk[fn_idx + 1]));
+                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx + 1])));
 
             VAL_ROUTINE_LIB(out) = VAL_LIB_HANDLE(&lib);
             if (!VAL_ROUTINE_LIB(out)) {
@@ -1337,7 +1347,9 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
             //
             b_index = VAL_INDEX(&blk[fn_idx]);
             b_len = VAL_LEN_AT(&blk[fn_idx]);
-            byte_sized = Temp_Bin_Str_Managed(&blk[fn_idx], &b_index, &b_len);
+            byte_sized = Temp_Bin_Str_Managed(
+                KNOWN(&blk[fn_idx]), &b_index, &b_len
+            );
 
             func = OS_FIND_FUNCTION(
                 LIB_FD(VAL_ROUTINE_LIB(out)),
@@ -1345,7 +1357,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
             );
 
             if (!func) {
-                fail (Error_Invalid_Arg(&blk[fn_idx]));
+                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx])));
                 //printf("Couldn't find function: %s\n", VAL_DATA_AT(&blk[2]));
             } else {
                 VAL_ROUTINE_FUNCPTR(out) = func;
@@ -1355,11 +1367,11 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
         REBIXO indexor = 0;
 
         if (!IS_BLOCK(&blk[0]))
-            fail (Error_Invalid_Arg(&blk[0]));
+            fail (Error_Invalid_Arg(KNOWN(&blk[0])));
 
         REBVAL fun;
         DO_NEXT_MAY_THROW(
-            indexor, &fun, VAL_ARRAY(data), 1, VAL_SPECIFIER(data)
+            indexor, &fun, VAL_ARRAY(data), 1, specifier
         );
 
         if (indexor == THROWN_FLAG)
@@ -1370,7 +1382,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
         VAL_CALLBACK_FUNC(out) = VAL_FUNC(&fun);
 
         if (indexor != END_FLAG)
-            fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
+            fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
 
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
     }
@@ -1388,7 +1400,8 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                     REBVAL *v = NULL;
                     if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
                         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
-                            fail (Error_Invalid_Arg(blk)); /* duplicate ellipsis */
+                            fail (Error_Invalid_Arg(KNOWN(blk)));
+                            /* duplicate ellipsis */
                         }
                         ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC);
 
@@ -1410,14 +1423,14 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                     else {
                         if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
                             //... has to be the last argument
-                            fail (Error_Invalid_Arg(blk));
+                            fail (Error_Invalid_Arg(KNOWN(blk)));
                         }
                         v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
                         Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
                         EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
                         ++ blk;
-                        process_type_block(out, blk, n, TRUE);
+                        process_type_block(out, KNOWN(blk), n, TRUE);
                     }
 
                     // Function dispatch needs to know whether parameters are
@@ -1433,7 +1446,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                     case SYM_ABI:
                         ++ blk;
                         if (!IS_WORD(blk) || has_abi > 1)
-                            fail (Error_Invalid_Arg(blk));
+                            fail (Error_Invalid_Arg(KNOWN(blk)));
 
                         switch (VAL_WORD_CANON(blk)) {
                             case SYM_DEFAULT:
@@ -1492,24 +1505,24 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                                 break;
 #endif //X86_WIN64
                             default:
-                                fail (Error_Invalid_Arg(blk));
+                                fail (Error_Invalid_Arg(KNOWN(blk)));
                         }
                         has_abi ++;
                         break;
                     case SYM_RETURN:
                         if (has_return > 1) {
-                            fail (Error_Invalid_Arg(blk));
+                            fail (Error_Invalid_Arg(KNOWN(blk)));
                         }
                         has_return ++;
                         ++ blk;
-                        process_type_block(out, blk, 0, TRUE);
+                        process_type_block(out, KNOWN(blk), 0, TRUE);
                         break;
                     default:
-                        fail (Error_Invalid_Arg(blk));
+                        fail (Error_Invalid_Arg(KNOWN(blk)));
                 }
                 break;
             default:
-                fail (Error_Invalid_Arg(blk));
+                fail (Error_Invalid_Arg(KNOWN(blk)));
         }
     }
 
@@ -1576,7 +1589,7 @@ REBNATIVE(make_routine)
 
     const REBOOL is_callback = FALSE;
 
-    MT_Routine(D_OUT, ARG(def), is_callback);
+    MT_Routine(D_OUT, ARG(def), SPECIFIED, is_callback);
 
     return R_OUT;
 }
@@ -1596,7 +1609,7 @@ REBNATIVE(make_callback)
 
     const REBOOL is_callback = TRUE;
 
-    MT_Routine(D_OUT, ARG(def), is_callback);
+    MT_Routine(D_OUT, ARG(def), SPECIFIED, is_callback);
 
     return R_OUT;
 }

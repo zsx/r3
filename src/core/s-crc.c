@@ -181,7 +181,7 @@ static void Make_CRC32_Table(void);
 // 
 // Fails if datatype cannot be hashed.
 //
-REBCNT Hash_Value(const REBVAL *val)
+REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
 {
     REBCNT ret;
     const REBYTE *name;
@@ -266,7 +266,7 @@ REBCNT Hash_Value(const REBVAL *val)
         // a PROTECT/DEEP array to be locked and stay locked as the key...
         // and then have a lightweight hash of it.  Review if needed.
         //
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Has_Bad_Type_Core(val, specifier));
 
     case REB_DATATYPE:
         name = Get_Sym_Name(VAL_TYPE_SYM(val));
@@ -282,7 +282,7 @@ REBCNT Hash_Value(const REBVAL *val)
         //
         // !!! Why not?
         //
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Has_Bad_Type_Core(val, specifier));
 
     case REB_WORD:
     case REB_SET_WORD:
@@ -341,7 +341,7 @@ REBCNT Hash_Value(const REBVAL *val)
         //
         // !!! Review hashing behavior or needs of these types if necessary.
         //
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Has_Bad_Type_Core(val, specifier));
 
     default:
         assert(FALSE); // the list above should be comprehensive
@@ -420,7 +420,9 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
     while (TRUE) {
         REBCNT skip_index = skip;
 
-        REBCNT hash = Find_Key_Hashed(array, hashlist, value, 1, cased, 0);
+        REBCNT hash = Find_Key_Hashed(
+            array, hashlist, value, VAL_SPECIFIER(block), 1, cased, 0
+        );
         hashes[hash] = (n / skip) + 1;
 
         while (skip_index != 0) {

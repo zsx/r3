@@ -61,9 +61,10 @@ REBINT CT_Image(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Image: C
 //
-REBOOL MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    if (!Create_Image(data, out, 1)) return FALSE;
+REBOOL MT_Image(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
+    if (!Create_Image(data, specifier, out, 1)) return FALSE;
     VAL_RESET_HEADER(out, REB_IMAGE);
     return TRUE;
 }
@@ -436,7 +437,7 @@ void Clear_Image(REBVAL *img)
 // 
 // Create an image value from components block [pair rgb alpha].
 //
-REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
+REBVAL *Create_Image(RELVAL *block, REBCTX *specifier, REBVAL *val, REBCNT modes)
 {
     REBINT w, h;
     REBYTE *ip; // image pointer
@@ -494,9 +495,11 @@ REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
     else if (IS_BLOCK(block)) {
         REBCNT bad_index;
         if (Array_Has_Non_Tuple(&bad_index, block))
-            fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(block, bad_index)));
+            fail (Error_Invalid_Arg_Core(
+                VAL_ARRAY_AT_HEAD(block, bad_index), VAL_SPECIFIER(block)
+            ));
 
-        Tuples_To_RGBA(ip, size, VAL_ARRAY_AT(block), VAL_LEN_AT(block));
+        Tuples_To_RGBA(ip, size, KNOWN(VAL_ARRAY_AT(block)), VAL_LEN_AT(block));
     }
     else
         return NULL;
@@ -546,7 +549,9 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
-        fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(arg, n)));
+        fail (Error_Invalid_Arg_Core(
+            VAL_ARRAY_AT_HEAD(arg, n), VAL_SPECIFIER(arg)
+        ));
 
     // Get the /dup refinement. It specifies fill size.
     if (D_REF(6)) {
@@ -671,7 +676,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
-            Tuples_To_RGBA(ip, part, VAL_ARRAY_AT(arg), part);
+            Tuples_To_RGBA(ip, part, KNOWN(VAL_ARRAY_AT(arg)), part);
     }
     else
         fail (Error_Has_Bad_Type(arg));
@@ -1065,10 +1070,9 @@ REBTYPE(Image)
 //      }
         // make image! [size rgb alpha index]
         else if (IS_BLOCK(arg)) {
-            if (Create_Image(VAL_ARRAY_AT(arg), value, 0)) break;
+            if (Create_Image(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), value, 0)) break;
         }
         fail (Error_Has_Bad_Type(arg));
-        break;
 
     case A_COPY:  // copy series /part len
         if (!D_REF(2)) {
@@ -1142,7 +1146,7 @@ makeCopy2:
 //
 REBINT PD_Image(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
+    RELVAL *data = pvs->value;
     const REBVAL *sel = pvs->selector;
     const REBVAL *setval;
     REBINT n;

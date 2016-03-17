@@ -164,19 +164,30 @@ static void Detach_Gob(REBGOB *gob)
 // If index >= tail, an append occurs. Each gob has its parent
 // gob field set. (Call Detach_Gobs() before inserting.)
 //
-static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len, REBOOL change)
-{
+static void Insert_Gobs(
+    REBGOB *gob,
+    const RELVAL *arg,
+    REBCNT index,
+    REBCNT len,
+    REBOOL change
+) {
     REBGOB **ptr;
     REBCNT n, count;
-    const REBVAL *val;
-    const REBVAL *sarg;
+    const RELVAL *val;
+    const RELVAL *sarg;
     REBINT i;
 
     // Verify they are gobs:
     sarg = arg;
     for (n = count = 0; n < len; n++, val++) {
         val = arg++;
-        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
+        if (IS_WORD(val)) {
+            //
+            // For the moment, assume this GOB-or-WORD! containing block
+            // only contains non-relative values.
+            //
+            val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
+        }
         if (IS_GOB(val)) {
             count++;
             if (GOB_PARENT(VAL_GOB(val))) {
@@ -194,7 +205,7 @@ static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len
             }
         }
         else
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Invalid_Arg_Core(val, GUESSED));
     }
     arg = sarg;
 
@@ -223,7 +234,12 @@ static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len
     ptr = GOB_AT(gob, index);
     for (n = 0; n < len; n++) {
         val = arg++;
-        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
+        if (IS_WORD(val)) {
+            //
+            // Again, assume no relative values
+            //
+            val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
+        }
         if (IS_GOB(val)) {
             // !!! Temporary error of some kind (supposed to trap, not panic?)
             if (GOB_PARENT(VAL_GOB(val))) fail (Error(RE_MISC));
@@ -270,7 +286,7 @@ static REBARR *Pane_To_Array(REBGOB *gob, REBCNT index, REBINT len)
 
     array = Make_Array(len);
     SET_ARRAY_LEN(array, len);
-    val = ARR_HEAD(array);
+    val = SINK(ARR_HEAD(array));
     gp = GOB_HEAD(gob);
     for (; len > 0; len--, val++, gp++) {
         SET_GOB(val, *gp);
@@ -306,12 +322,12 @@ static REBARR *Gob_Flags_To_Array(REBGOB *gob)
 //
 //  Set_Gob_Flag: C
 //
-static void Set_Gob_Flag(REBGOB *gob, const REBVAL *word)
+static void Set_Gob_Flag(REBGOB *gob, REBSYM canon)
 {
     REBINT i;
 
     for (i = 0; Gob_Flag_Words[i]; i += 2) {
-        if (VAL_WORD_CANON(word) == Gob_Flag_Words[i]) {
+        if (canon == Gob_Flag_Words[i]) {
             REBCNT flag = Gob_Flag_Words[i+1];
             SET_GOB_FLAG(gob, flag);
             //handle mutual exclusive states
@@ -456,15 +472,17 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
         break;
 
     case SYM_FLAGS:
-        if (IS_WORD(val)) Set_Gob_Flag(gob, val);
+        if (IS_WORD(val)) Set_Gob_Flag(gob, VAL_WORD_CANON(val));
         else if (IS_BLOCK(val)) {
             REBINT i;
+            RELVAL* item;
+
             //clear only flags defined by words
             for (i = 0; Gob_Flag_Words[i]; i += 2)
                 CLR_FLAG(gob->flags, Gob_Flag_Words[i+1]);
 
-            for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
-                if (IS_WORD(val)) Set_Gob_Flag(gob, val);
+            for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++)
+                if (IS_WORD(item)) Set_Gob_Flag(gob, VAL_WORD_CANON(item));
         }
         break;
 
@@ -589,23 +607,32 @@ is_blank:
 //
 //  Set_GOB_Vars: C
 //
-static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
+static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
 {
-    const REBVAL *var;
-    const REBVAL *val;
-
     while (NOT_END(blk)) {
-        var = blk++;
-        val = blk++;
-        if (!IS_SET_WORD(var))
-            fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var)));
-        if (IS_END(val) || IS_VOID(val) || IS_SET_WORD(val))
+        assert(!IS_VOID(blk));
+
+        REBVAL var;
+        COPY_RELVAL(&var, blk, specifier);
+        ++blk;
+
+        if (!IS_SET_WORD(&var))
+            fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(&var)));
+
+        if (IS_END(blk))
             fail (Error(RE_NEED_VALUE, var));
 
-        REBVAL safe;
-        Get_Simple_Value_Into(&safe, val, GUESSED);
-        if (!Set_GOB_Var(gob, var, &safe))
-            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
+        assert(!IS_VOID(blk));
+
+        REBVAL val;
+        COPY_RELVAL(&val, blk, specifier);
+        ++blk;
+
+        if (IS_SET_WORD(&val))
+            fail (Error(RE_NEED_VALUE, &var));
+
+        if (!Set_GOB_Var(gob, &var, &val))
+            fail (Error(RE_BAD_FIELD_SET, &var, Type_Of(&val)));
     }
 }
 
@@ -671,13 +698,13 @@ REBARR *Gob_To_Array(REBGOB *gob)
 //
 //  MT_Gob: C
 //
-REBOOL MT_Gob(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Gob(REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type)
 {
     REBGOB *ngob;
 
     if (IS_BLOCK(data)) {
         ngob = Make_Gob();
-        Set_GOB_Vars(ngob, VAL_ARRAY_AT(data));
+        Set_GOB_Vars(ngob, VAL_ARRAY_AT(data), specifier);
         SET_GOB(out, ngob);
         return TRUE;
     }
@@ -799,7 +826,7 @@ REBTYPE(Gob)
 
         // Initialize GOB from block:
         if (IS_BLOCK(arg)) {
-            Set_GOB_Vars(ngob, VAL_ARRAY_AT(arg));
+            Set_GOB_Vars(ngob, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
         }
         // Merge GOB provided as argument:
         else if (IS_GOB(arg)) {
@@ -859,7 +886,7 @@ REBTYPE(Gob)
         if (IS_GOB(arg)) len = 1;
         else if (IS_BLOCK(arg)) {
             len = VAL_ARRAY_LEN_AT(arg);
-            arg = VAL_ARRAY_AT(arg);
+            arg = KNOWN(VAL_ARRAY_AT(arg)); // !!! REVIEW
         }
         else goto is_arg_error;;
         Insert_Gobs(gob, arg, index, len, FALSE);

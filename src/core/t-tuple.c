@@ -47,8 +47,9 @@ REBINT CT_Tuple(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Tuple: C
 //
-REBOOL MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Tuple(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBYTE  *vp;
     REBINT len = 0;
     REBINT n;
@@ -57,7 +58,7 @@ REBOOL MT_Tuple(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     for (; NOT_END(data); data++, vp++, len++) {
         if (len >= 10) return FALSE;
         if (IS_INTEGER(data)) {
-            n = Int32(data);
+            n = Int32(KNOWN(data));
         }
         else if (IS_CHAR(data)) {
             n = VAL_CHAR(data);
@@ -377,8 +378,11 @@ REBTYPE(Tuple)
         }
 
         if (ANY_ARRAY(arg)) {
-            if (!MT_Tuple(D_OUT, VAL_ARRAY_AT(arg), REB_TUPLE))
+            if (!MT_Tuple(
+                D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), REB_TUPLE
+            )) {
                 fail (Error_Bad_Make(REB_TUPLE, arg));
+            }
             return R_OUT;
         }
 

@@ -115,12 +115,13 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 //
 //  MT_Decimal: C
 //
-REBOOL MT_Decimal(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Decimal(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     if (NOT_END(data+1)) return FALSE;
 
     if (IS_DECIMAL(data))
-        *out = *data;
+        *out = *KNOWN(data);
     else if (IS_INTEGER(data)) {
         SET_DECIMAL(out, (REBDEC)VAL_INT64(data));
     }
@@ -406,20 +407,28 @@ REBTYPE(Decimal)
 
             default:
                 if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) == 2) {
-                    arg = VAL_ARRAY_AT(val);
-                    if (IS_INTEGER(arg))
-                        d1 = (REBDEC)VAL_INT64(arg);
-                    else if (IS_DECIMAL(arg) || IS_PERCENT(val))
-                        d1 = VAL_DECIMAL(arg);
-                    else
-                        fail (Error_Bad_Make(REB_DECIMAL, arg));
+                    RELVAL *item = VAL_ARRAY_AT(val);
+                    if (IS_INTEGER(item))
+                        d1 = (REBDEC)VAL_INT64(item);
+                    else if (IS_DECIMAL(item) || IS_PERCENT(item))
+                        d1 = VAL_DECIMAL(item);
+                    else {
+                        REBVAL specific;
+                        COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+                        fail (Error_Bad_Make(REB_DECIMAL, &specific));
+                    }
 
-                    if (IS_INTEGER(++arg))
-                        exp = (REBDEC)VAL_INT64(arg);
-                    else if (IS_DECIMAL(arg) || IS_PERCENT(val))
-                        exp = VAL_DECIMAL(arg);
-                    else
-                        fail (Error_Bad_Make(REB_DECIMAL, arg));
+                    ++item;
+
+                    if (IS_INTEGER(item))
+                        exp = (REBDEC)VAL_INT64(item);
+                    else if (IS_DECIMAL(item) || IS_PERCENT(item))
+                        exp = VAL_DECIMAL(item);
+                    else {
+                        REBVAL specific;
+                        COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+                        fail (Error_Bad_Make(REB_DECIMAL, &specific));
+                    }
 
                     while (exp >= 1)            // funky. There must be a better way
                         exp--, d1 *= 10.0, Check_Overflow(d1);
@@ -463,20 +472,7 @@ REBTYPE(Decimal)
                 Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits
                 return R_VOID;
             }
-#ifdef OLD_METHOD
-            if (d1 > (double) (((unsigned long) -1)>>1))
-                d1 = ((unsigned long) -1)>>1;
-            i = (REBINT)d1;
-            if (i == 0) goto setDec;
-            if (i < 0)  {
-                d1 = -1.0 * (
-                    1.0 + cast(REBDEC, Random_Int(D_REF(3)) % abs(i))
-                );
-            }
-            else d1 = 1.0 + cast(REBDEC, Random_Int(D_REF(3)) % i);
-#else
             d1 = Random_Dec(d1, D_REF(3));
-#endif
             goto setDec;
 
         case A_COMPLEMENT:
@@ -489,18 +485,10 @@ REBTYPE(Decimal)
 
 setDec:
     if (!FINITE(d1)) fail (Error(RE_OVERFLOW));
-#ifdef not_required
-    if (type == REB_PERCENT) {
-        // Keep percent in smaller range (not to use e notation).
-        if (d1 != 0) {
-            num = (REBINT)floor(log10(fabs(d1)));
-            if (num > 12 || num < -6) fail (Error(RE_OVERFLOW)); // use gcvt
-        }
-    }
-#endif
+
     VAL_RESET_HEADER(D_OUT, type);
     VAL_DECIMAL(D_OUT) = d1;
-    ///if (type == REB_MONEY) VAL_MONEY_DENOM(D_OUT)[0] = 0;
+
     return R_OUT;
 }
 

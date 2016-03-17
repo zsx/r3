@@ -152,9 +152,12 @@ REBOOL Update_Typeset_Bits_Core(
     REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
 
     for (; NOT_END(item); item++) {
-        const REBVAL *var = NULL;
+        const RELVAL *var = NULL;
 
-        if (IS_WORD(item) && !(var = TRY_GET_OPT_VAR(item, GUESSED))) {
+        if (
+            IS_WORD(item)
+            && !(var = TRY_GET_OPT_VAR(item, specifier))
+        ) {
             REBSYM sym = VAL_WORD_SYM(item);
 
             // See notes: if a word doesn't look up to a variable, then its
@@ -240,8 +243,9 @@ REBOOL Update_Typeset_Bits_Core(
 //
 //  MT_Typeset: C
 //
-REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Typeset(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     if (!IS_BLOCK(data)) return FALSE;
 
     Val_Init_Typeset(out, 0, SYM_0);
@@ -249,7 +253,7 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!Update_Typeset_Bits_Core(
         out,
         VAL_ARRAY_HEAD(data),
-        VAL_SPECIFIER(data),
+        specifier,
         TRUE // `trap`: true means to return FALSE instead of fail() on error
     )) {
         return FALSE;

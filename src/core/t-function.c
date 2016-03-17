@@ -30,7 +30,7 @@
 
 #include "sys-core.h"
 
-static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
+static REBOOL Same_Func(const RELVAL *val, const RELVAL *arg)
 {
     assert(IS_FUNCTION(val) && IS_FUNCTION(arg));
 
@@ -78,21 +78,39 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 // 
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
-REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
-{
-    REBVAL *spec;
-    REBVAL *body;
+REBOOL MT_Function(
+    REBVAL *out, RELVAL *def, REBCTX *specifier, enum Reb_Kind kind
+) {
+    // Spec-constructed functions do *not* have definitional returns
+    // added automatically.  They are part of the generators.  So the
+    // behavior comes--as with any other generator--from the projected
+    // code (though round-tripping it via text is not possible in
+    // general in any case due to loss of bindings.)
+    //
+    const REBOOL has_return = FALSE;
+    const REBOOL is_procedure = FALSE;
+
+    REBVAL spec;
+    REBVAL body;
 
     assert(kind == REB_FUNCTION);
 
     if (!IS_BLOCK(def)) return FALSE;
     if (VAL_LEN_AT(def) != 2) return FALSE;
 
-    spec = VAL_ARRAY_AT_HEAD(def, 0);
-    if (!IS_BLOCK(spec)) return FALSE;
+    COPY_RELVAL(
+        &spec,
+        VAL_ARRAY_AT_HEAD(def, 0),
+        IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier
+    );
+    if (!IS_BLOCK(&spec)) return FALSE;
 
-    body = VAL_ARRAY_AT_HEAD(def, 1);
-    if (!IS_BLOCK(body)) return FALSE;
+    COPY_RELVAL(
+        &body,
+        VAL_ARRAY_AT_HEAD(def, 1),
+        IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier
+    );
+    if (!IS_BLOCK(&body)) return FALSE;
 
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the
@@ -100,9 +118,11 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     // code (though round-tripping it via text is not possible in
     // general in any case due to loss of bindings.)
     //
-    REBFUN *fun = Make_Plain_Function_May_Fail(spec, body, MKF_NONE);
+    REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_NONE);
 
     *out = *FUNC_VALUE(fun);
+
+    // We only get here if Make() doesn't raise an error...
     return TRUE;
 }
 
@@ -126,7 +146,9 @@ REBTYPE(Function)
 
         // MT_Function checks for `[[spec] [body]]` arg if function/closure
         // and for `[[spec] extension command-num]` if command
-        if (!MT_Function(D_OUT, arg, VAL_TYPE_KIND(value)))
+        if (!IS_BLOCK(arg))
+            fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
+        if (!MT_Function(D_OUT, arg, SPECIFIED, VAL_TYPE_KIND(value)))
             fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
         return R_OUT;
 
@@ -213,7 +235,7 @@ REBTYPE(Function)
             // that symbol out before giving it back.
             //
             param = VAL_FUNC_PARAMS_HEAD(value);
-            typeset = ARR_HEAD(copy);
+            typeset = SINK(ARR_HEAD(copy));
             for (; NOT_END(param); param++, typeset++) {
                 assert(VAL_TYPESET_SYM(param) != SYM_0);
                 *typeset = *param;

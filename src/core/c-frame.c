@@ -900,7 +900,7 @@ REBCTX *Make_Selfish_Context_Detect(
 //
 REBCTX *Construct_Context(
     enum Reb_Kind kind,
-    RELVAL *head,
+    RELVAL *head, // !!! Warning: modified binding
     REBCTX *specifier,
     REBCTX *opt_parent
 ) {
@@ -912,9 +912,9 @@ REBCTX *Construct_Context(
         opt_parent // parent
     );
 
-    const RELVAL *value = head;
+    const RELVAL *value = head ? head : END_CELL;
 
-    if (NOT_END(head)) Bind_Values_Shallow(head, context);
+    if (head) Bind_Values_Shallow(head, context);
 
     for (; NOT_END(value); value += 2) {
         //

@@ -207,35 +207,36 @@ REBI64 Make_Time(REBVAL *val)
     else if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) <= 3) {
         REBOOL neg = FALSE;
         REBI64 i;
+        RELVAL *item;
 
-        val = VAL_ARRAY_AT(val);
+        item = VAL_ARRAY_AT(val);
         if (!IS_INTEGER(val)) goto no_time;
-        i = Int32(val);
+        i = Int32(KNOWN(item));
         if (i < 0) i = -i, neg = TRUE;
         secs = i * 3600;
         if (secs > MAX_SECONDS) goto no_time;
 
-        if (NOT_END(++val)) {
-            if (!IS_INTEGER(val)) goto no_time;
-            if ((i = Int32(val)) < 0) goto no_time;
+        if (NOT_END(++item)) {
+            if (!IS_INTEGER(item)) goto no_time;
+            if ((i = Int32(KNOWN(item))) < 0) goto no_time;
             secs += i * 60;
             if (secs > MAX_SECONDS) goto no_time;
 
-            if (NOT_END(++val)) {
-                if (IS_INTEGER(val)) {
-                    if ((i = Int32(val)) < 0) goto no_time;
+            if (NOT_END(++item)) {
+                if (IS_INTEGER(item)) {
+                    if ((i = Int32(KNOWN(item))) < 0) goto no_time;
                     secs += i;
                     if (secs > MAX_SECONDS) goto no_time;
                 }
-                else if (IS_DECIMAL(val)) {
-                    if (secs + (REBI64)VAL_DECIMAL(val) + 1 > MAX_SECONDS) goto no_time;
+                else if (IS_DECIMAL(item)) {
+                    if (secs + (REBI64)VAL_DECIMAL(item) + 1 > MAX_SECONDS) goto no_time;
                     // added in below
                 }
                 else goto no_time;
             }
         }
         secs *= SEC_SEC;
-        if (IS_DECIMAL(val)) secs += DEC_TO_SECS(VAL_DECIMAL(val));
+        if (IS_DECIMAL(item)) secs += DEC_TO_SECS(VAL_DECIMAL(item));
         if (neg) secs = -secs;
     }
     else
@@ -248,9 +249,15 @@ REBI64 Make_Time(REBVAL *val)
 //
 //  MT_Time: C
 //
-REBOOL MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    REBI64 secs = Make_Time(data);
+REBOOL MT_Time(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
+    REBI64 secs;
+
+    REBVAL specified;
+    COPY_RELVAL(&specified, data, specifier);
+
+    secs = Make_Time(&specified);
 
     if (secs == NO_TIME) return FALSE;
 

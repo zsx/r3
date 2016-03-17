@@ -44,8 +44,9 @@ REBINT CT_Datatype(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Datatype: C
 //
-REBOOL MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Datatype(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBSYM sym;
     if (!IS_WORD(data)) return FALSE;
     sym = VAL_WORD_CANON(data);
@@ -122,7 +123,7 @@ REBTYPE(Datatype)
     case A_MAKE:
     case A_TO:
         assert(kind == REB_DATATYPE);
-        if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
+        if (MT_Datatype(D_OUT, arg, SPECIFIED, REB_DATATYPE))
             break;
 
         fail (Error_Bad_Make(REB_DATATYPE, arg));

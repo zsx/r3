@@ -43,8 +43,9 @@ REBINT CT_Unit(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Unit: C
 //
-REBOOL MT_Unit(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Unit(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     VAL_RESET_HEADER(out, type);
     return TRUE;
 }
@@ -59,7 +60,7 @@ REBTYPE(Unit)
 
     if (action == A_MAKE || action == A_TO) {
         assert(IS_DATATYPE(val) && VAL_TYPE_KIND(val) != REB_0);
-        if (!MT_Unit(D_OUT, NULL, VAL_TYPE_KIND(val)))
+        if (!MT_Unit(D_OUT, NULL, SPECIFIED, VAL_TYPE_KIND(val)))
             assert(FALSE);
         return R_OUT;
     }

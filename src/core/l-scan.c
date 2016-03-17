@@ -1686,7 +1686,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             value = SINK(ARR_TAIL(emitbuf));
             SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1); // Protect from GC
             Bind_Values_All_Deep(ARR_HEAD(block), Lib_Context);
-            if (!Construct_Value(value, block)) {
+            if (!Construct_Value(value, block, SPECIFIED)) {
                 if (IS_END(value)) Val_Init_Block(value, block);
                 fail (Error(RE_MALCONSTRUCT, value));
             }

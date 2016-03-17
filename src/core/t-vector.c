@@ -160,7 +160,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 {
     REBCNT idx = VAL_INDEX(blk);
     REBCNT len = VAL_LEN_AT(blk);
-    REBVAL *val;
+    RELVAL *val;
     REBCNT n = 0;
     REBCNT bits = VECT_TYPE(ser);
     REBI64 i = 0;
@@ -178,7 +178,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
                 f = VAL_DECIMAL(val);
                 if (bits <= VTUI64) i = (REBINT)(f);
             }
-            else fail (Error_Invalid_Arg(val));
+            else fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
             //if (n >= ser->tail) Expand_Vector(ser);
             set_vect(bits, SER_DATA_RAW(ser), n++, i, f);
         }
@@ -206,7 +206,7 @@ REBARR *Vector_To_Array(REBVAL *vect)
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBARR *array = NULL;
     REBCNT n;
-    REBVAL *val;
+    RELVAL *val;
 
     if (len <= 0)
         fail (Error_Invalid_Arg(vect));
@@ -354,7 +354,7 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
 //           size:       integer units
 //           init:        block of values
 //
-REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
+REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 {
     REBINT type = -1; // 0 = int,    1 = float
     REBINT sign = -1; // 0 = signed, 1 = unsigned
@@ -440,9 +440,10 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 //
 //  MT_Vector: C
 //
-REBOOL MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    if (Make_Vector_Spec(data, out)) return TRUE;
+REBOOL MT_Vector(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
+    if (Make_Vector_Spec(data, specifier, out)) return TRUE;
     return FALSE;
 }
 
@@ -589,10 +590,13 @@ REBTYPE(Vector)
 //      }
         // fall thru
 
-    case A_TO:
+    case A_TO: {
         assert(IS_DATATYPE(value) && VAL_TYPE_KIND(value) == REB_VECTOR);
-        if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_ARRAY_AT(arg), value)) break;
+        if (IS_BLOCK(arg)) {
+            if (Make_Vector_Spec(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), value)) break;
+        }
         goto bad_make;
+    }
 
     case A_LENGTH:
         //bits = 1 << (vect->size & 3);

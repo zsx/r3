@@ -168,7 +168,7 @@ handle_subfeed:
             goto return_end_flag;
 
         if (op == VARARG_OP_FIRST) {
-            *out = *f->value;
+            COPY_RELVAL(out, f->value, f->specifier);
             return VALIST_FLAG;
         }
     }
@@ -178,10 +178,12 @@ handle_subfeed:
         // MAKE ANY-ARRAY! on a varargs (which reified the varargs into an
         // array during that creation, flattening its entire output).
         //
-        shared = ARR_HEAD(feed);
+        shared = KNOWN(ARR_HEAD(feed)); // 1 element, array or end marker
 
         if (IS_END(shared))
             goto return_end_flag; // exhausted
+
+        assert(IS_BLOCK(shared)); // holds index and data values (specified)
 
         // A proxy call frame is created to feed from the shared array, and
         // its index will be updated (or set to END when exhausted)
@@ -191,14 +193,15 @@ handle_subfeed:
             goto return_end_flag;
         }
 
-        temp_frame.value = VAL_ARRAY_AT(shared);
         if (op == VARARG_OP_FIRST) {
-            *out = *temp_frame.value;
+            *out = *KNOWN(VAL_ARRAY_AT(shared)); // no relative values
             return VALIST_FLAG;
         }
 
         // Fill in just enough enformation to call the FETCH-based routines
 
+        temp_frame.value = VAL_ARRAY_AT(shared);
+        temp_frame.specifier = SPECIFIED;
         temp_frame.source.array = VAL_ARRAY(shared);
         temp_frame.indexor = VAL_INDEX(shared) + 1;
         temp_frame.out = out;

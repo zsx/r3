@@ -93,21 +93,32 @@ void Mold_Bitset(const REBVAL *value, REB_MOLD *mold)
 //
 //  MT_Bitset: C
 //
-REBOOL MT_Bitset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Bitset(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBOOL is_not = FALSE;
 
     if (IS_BLOCK(data)) {
         REBINT len = Find_Max_Bit(data);
         REBSER *ser;
-        if (len < 0 || len > 0xFFFFFF) fail (Error_Invalid_Arg(data));
+
+        if (len < 0 || len > 0xFFFFFF)
+            fail (Error_Invalid_Arg_Core(data, specifier));
+
         ser = Make_Bitset(len);
-        Set_Bits(ser, data, TRUE);
+
+        {
+            REBVAL specific;
+            COPY_RELVAL(&specific, data, specifier);
+            Set_Bits(ser, &specific, TRUE);
+        }
+
         Val_Init_Bitset(out, ser);
         return TRUE;
     }
 
     if (!IS_BINARY(data)) return FALSE;
+
     Val_Init_Bitset(out, Copy_Sequence_At_Position(data));
     INIT_BITS_NOT(VAL_SERIES(out), FALSE);
     return TRUE;

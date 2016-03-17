@@ -32,7 +32,7 @@
 
 
 
-static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
+static REBOOL Equal_Context(const RELVAL *val, const RELVAL *arg)
 {
     REBCTX *f1;
     REBCTX *f2;
@@ -124,9 +124,10 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
 static void Append_To_Context(REBCTX *context, REBVAL *arg)
 {
     REBCNT i, len;
-    REBVAL *word;
-    REBVAL *key;
+    RELVAL *word;
+    RELVAL *key;
     REBINT *binds; // for binding table
+    RELVAL *item;
 
     // Can be a word:
     if (ANY_WORD(arg)) {
@@ -141,7 +142,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(arg));
 
     // Process word/value argument block:
-    arg = VAL_ARRAY_AT(arg);
+    item = VAL_ARRAY_AT(arg);
 
     // Use binding table
     binds = WORDS_HEAD(Bind_Table);
@@ -154,11 +155,11 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     Collect_Context_Keys(context, FALSE);
 
     // Examine word/value argument block
-    for (word = arg; NOT_END(word); word += 2) {
+    for (word = item; NOT_END(word); word += 2) {
         REBCNT canon;
 
         if (!IS_WORD(word) && !IS_SET_WORD(word))
-            fail (Error_Invalid_Arg(word));
+            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(arg)));
 
         canon = VAL_WORD_CANON(word);
 
@@ -192,7 +193,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     }
 
     // Set new values to obj words
-    for (word = arg; NOT_END(word); word += 2) {
+    for (word = item; NOT_END(word); word += 2) {
         REBVAL *key;
         REBVAL *var;
 
@@ -206,8 +207,10 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             fail (Error(RE_HIDDEN));
 
-        if (IS_END(word + 1)) SET_BLANK(var);
-        else *var = word[1];
+        if (IS_END(word + 1))
+            SET_BLANK(var);
+        else
+            COPY_RELVAL(var, &word[1], VAL_SPECIFIER(arg));
 
         if (IS_END(word + 1)) break; // fix bug#708
     }
@@ -277,13 +280,14 @@ REBINT CT_Context(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MT_Context: C
 //
-REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Context(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     REBCTX *context;
     if (!IS_BLOCK(data)) return FALSE;
 
     context = Construct_Context(
-        type, VAL_ARRAY_AT(data), VAL_SPECIFIER(data), NULL
+        type, VAL_ARRAY_AT(data), specifier, NULL
     );
 
     Val_Init_Context(out, type, context);
@@ -485,7 +489,12 @@ REBTYPE(Context)
             //
             Val_Init_Object(
                 D_OUT,
-                Construct_Context(REB_OBJECT, END_CELL, SPECIFIED, NULL)
+                Construct_Context(
+                    REB_OBJECT,
+                    NULL, // head
+                    SPECIFIED,
+                    NULL
+                )
             );
             return R_OUT;
         }
@@ -514,7 +523,7 @@ REBTYPE(Context)
                 Construct_Context(
                     REB_OBJECT,
                     VAL_ARRAY_AT(VAL_ARRAY_AT(arg) + 1),
-                    VAL_SPECIFIER(VAL_ARRAY_AT(arg) + 1),
+                    VAL_SPECIFIER(arg),
                     NULL // no parent
                 )
             );

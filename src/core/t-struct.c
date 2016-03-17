@@ -432,7 +432,7 @@ static REBOOL Set_Struct_Var(
 
                     for(n = 0; n < field->dimension; n ++) {
                         if (!assign_scalar(
-                            stu, field, n, VAL_ARRAY_AT_HEAD(val, n)
+                            stu, field, n, KNOWN(VAL_ARRAY_AT_HEAD(val, n))
                         )) {
                             return FALSE;
                         }
@@ -461,7 +461,7 @@ static REBOOL Set_Struct_Var(
 /* parse struct attribute */
 static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 {
-    REBVAL *attr = VAL_ARRAY_AT(blk);
+    REBVAL *attr = KNOWN(VAL_ARRAY_AT(blk));
 
     *raw_size = -1;
     *raw_addr = 0;
@@ -513,8 +513,8 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                         REBVAL *sym;
                         CFUNC *addr;
 
-                        lib = VAL_ARRAY_AT_HEAD(attr, 0);
-                        sym = VAL_ARRAY_AT_HEAD(attr, 1);
+                        lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
+                        sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
 
                         if (!IS_LIBRARY(lib))
                             fail (Error_Invalid_Arg(attr));
@@ -580,7 +580,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 
 static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL *inner, REBVAL **init)
 {
-    REBVAL *val = VAL_ARRAY_AT(spec);
+    REBVAL *val = KNOWN(VAL_ARRAY_AT(spec));
 
     if (NOT_END(val) && IS_WORD(val)){
         switch (VAL_WORD_CANON(val)) {
@@ -633,7 +633,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
                 if (IS_BLOCK(val)) {
                     REBOOL res;
 
-                    res = MT_Struct(inner, val, REB_STRUCT);
+                    res = MT_Struct(inner, val, SPECIFIED, REB_STRUCT);
 
                     if (!res) {
                         //RL_Print("Failed to make nested struct!\n");
@@ -703,8 +703,9 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
 //         field4: [type1[3]]
 //         ...
 //     ]
-REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
+REBOOL MT_Struct(
+    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
+) {
     //RL_Print("%s\n", __func__);
     REBINT max_fields = 16;
 
@@ -716,7 +717,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (IS_BLOCK(data)) {
         //if (Reduce_Block_No_Set_Throws(VAL_SERIES(data), 0, NULL))...
         //data = DS_POP;
-        REBVAL *blk = VAL_ARRAY_AT(data);
+        REBVAL *blk = KNOWN(VAL_ARRAY_AT(data));
         REBINT field_idx = 0; /* for field index */
         u64 offset = 0; /* offset in data */
         REBIXO eval_idx = 0; /* for spec block evaluation */
@@ -727,7 +728,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         REBCNT alignment = 0;
 
         VAL_STRUCT_SPEC(out) = Copy_Array_Shallow(
-            VAL_ARRAY(data), VAL_SPECIFIER(data)
+            VAL_ARRAY(data), specifier
         );
         VAL_STRUCT_DATA(out) = Make_Series(
             1, sizeof(struct Struct_Data), MKS_NONE
@@ -818,15 +819,15 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                         init,
                         VAL_ARRAY(data),
                         blk - VAL_ARRAY_AT(data),
-                        VAL_SPECIFIER(data)
+                        specifier
                     );
                     if (eval_idx == THROWN_FLAG)
                         fail (Error_No_Catch_For_Throw(init));
 
                     if (eval_idx == END_FLAG)
-                        blk = VAL_ARRAY_TAIL(data);
+                        blk = KNOWN(VAL_ARRAY_TAIL(data));
                     else
-                        blk = VAL_ARRAY_AT_HEAD(data, eval_idx);
+                        blk = KNOWN(VAL_ARRAY_AT_HEAD(data, eval_idx));
                 }
 
                 if (field->array) {
@@ -856,7 +857,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                                 &VAL_STRUCT(out),
                                 field,
                                 n,
-                                VAL_ARRAY_AT_HEAD(init, n)
+                                KNOWN(VAL_ARRAY_AT_HEAD(init, n))
                             )) {
                                 //RL_Print("Failed to assign element value\n");
                                 goto failed;
@@ -966,7 +967,7 @@ REBINT PD_Struct(REBPVS *pvs)
     if (!IS_WORD(pvs->selector))
         fail (Error_Bad_Path_Select(pvs));
 
-    fail_if_non_accessible(pvs->value);
+    fail_if_non_accessible(KNOWN(pvs->value));
 
     if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
         if (!Get_Struct_Var(stu, pvs->selector, pvs->store))
@@ -1044,8 +1045,8 @@ REBINT PD_Struct(REBPVS *pvs)
 REBINT Cmp_Struct(const RELVAL *s, const RELVAL *t)
 {
     REBINT n = VAL_STRUCT_FIELDS(s) - VAL_STRUCT_FIELDS(t);
-    fail_if_non_accessible(s);
-    fail_if_non_accessible(t);
+    fail_if_non_accessible(const_KNOWN(s));
+    fail_if_non_accessible(const_KNOWN(t));
     if (n != 0) {
         return n;
     }
@@ -1123,7 +1124,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 {
     REBVAL *blk = NULL;
 
-    for (blk = VAL_ARRAY_AT(spec); NOT_END(blk); blk += 2) {
+    for (blk = KNOWN(VAL_ARRAY_AT(spec)); NOT_END(blk); blk += 2) {
         struct Struct_Field *fld = NULL;
         REBSER *fields = VAL_STRUCT_FIELDS(ret);
         unsigned int i = 0;
@@ -1163,7 +1164,7 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
                                 &VAL_STRUCT(ret),
                                 fld,
                                 n,
-                                VAL_ARRAY_AT_HEAD(fld_val, n)
+                                KNOWN(VAL_ARRAY_AT_HEAD(fld_val, n))
                             )) {
                                 fail (Error_Invalid_Arg(fld_val));
                             }
@@ -1237,7 +1238,7 @@ REBTYPE(Struct)
                 // make struct! [float a: 0]
                 // make struct! [double a: 0]
                 if (IS_BLOCK(arg)) {
-                    if (!MT_Struct(ret, arg, REB_STRUCT)) {
+                    if (!MT_Struct(ret, arg, SPECIFIED, REB_STRUCT)) {
                         goto is_arg_error;
                     }
                 }

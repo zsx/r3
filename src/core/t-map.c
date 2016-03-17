@@ -98,8 +98,9 @@ static REBMAP *Make_Map(REBCNT capacity)
 REBINT Find_Key_Hashed(
     REBARR *array,
     REBSER *hashlist,
-    const RELVAL *key,
-    REBINT wide,
+    const RELVAL *key, // !!! assumes key is followed by value(s) via ++
+    REBCTX *specifier,
+    REBCNT wide,
     REBOOL cased,
     REBYTE mode
 ) {
@@ -116,7 +117,7 @@ REBINT Find_Key_Hashed(
     // Compute hash for value:
     len = SER_LEN(hashlist);
     assert(len > 0);
-    hash = Hash_Value(key);
+    hash = Hash_Value(key, specifier);
 
     // The REBCNT[] hash array size is chosen to try and make a large enough
     // table relative to the data that collisions will be hopefully not
@@ -210,8 +211,15 @@ REBINT Find_Key_Hashed(
     }
     // Append new value the target series:
     if (mode > 1) {
+        REBCNT index;
+        const RELVAL *src = key;
         hashes[hash] = (ARR_LEN(array) / wide) + 1;
-        Append_Values_Len(array, key, wide);
+
+        // This used to use Append_Values_Len, but that is a REBVAL* interface
+        // !!! Should there be an Append_Values_Core which takes RELVAL*?
+        //
+        for (index = 0; index < wide; ++src, ++index)
+            Append_Value_Core(array, src, specifier);
     }
 
     return (mode > 0) ? NOT_FOUND : hash;
@@ -236,7 +244,7 @@ static void Rehash_Map(REBMAP *map)
     hashes = SER_HEAD(REBCNT, hashlist);
     pairlist = MAP_PAIRLIST(map);
 
-    key = ARR_HEAD(pairlist);
+    key = KNOWN(ARR_HEAD(pairlist));
     for (n = 0; n < ARR_LEN(pairlist); n += 2, key += 2) {
         REBCNT hash;
         const REBOOL cased = TRUE; // cased=TRUE is always fine
@@ -245,12 +253,14 @@ static void Rehash_Map(REBMAP *map)
             //
             // It's a "zombie", move last key to overwrite it
             //
-            *key = *ARR_AT(pairlist, ARR_LEN(pairlist) - 2);
-            *(key + 1) = *ARR_AT(pairlist, ARR_LEN(pairlist) - 1);
+            *key = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 2));
+            *(key + 1) = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 1));
             SET_ARRAY_LEN(pairlist, ARR_LEN(pairlist) - 2);
         }
 
-        hash = Find_Key_Hashed(pairlist, hashlist, key, 2, cased, 0);
+        hash = Find_Key_Hashed(
+            pairlist, hashlist, key, SPECIFIED, 2, cased, 0
+        );
         hashes[hash] = n / 2 + 1;
 
         // discard zombies at end of pairlist
@@ -272,8 +282,10 @@ static void Rehash_Map(REBMAP *map)
 //
 static REBCNT Find_Map_Entry(
     REBMAP *map,
-    const REBVAL *key,
-    const REBVAL *val,
+    const RELVAL *key,
+    REBCTX *key_specifier,
+    const RELVAL *val,
+    REBCTX *val_specifier,
     REBOOL cased // case-sensitive if true
 ) {
     REBSER *hashlist = MAP_HASHLIST(map); // can be null
@@ -293,7 +305,9 @@ static REBCNT Find_Map_Entry(
         Rehash_Map(map);
     }
 
-    hash = Find_Key_Hashed(pairlist, hashlist, key, 2, cased, 0);
+    hash = Find_Key_Hashed(
+        pairlist, hashlist, key, key_specifier, 2, cased, 0
+    );
     hashes = SER_HEAD(REBCNT, hashlist);
     n = hashes[hash];
     // n==0 or pairlist[(n-1)*]=~key
@@ -303,15 +317,17 @@ static REBCNT Find_Map_Entry(
 
     // Must set the value:
     if (n) {  // re-set it:
-        *ARR_AT(pairlist, ((n - 1) * 2) + 1) = *val; // set it
+        COPY_RELVAL(ARR_AT(pairlist, ((n - 1) * 2) + 1), val, val_specifier);
         return n;
     }
 
     if (IS_VOID(val)) return 0; // trying to remove non-existing key
 
-    // Create new entry:
-    Append_Value(pairlist, key);
-    Append_Value(pairlist, val);  // does not copy value, e.g. if string
+    // Create new entry.  Note that it does not copy underlying series (e.g.
+    // the data of a string)
+    //
+    Append_Value_Core(pairlist, key, key_specifier);
+    Append_Value_Core(pairlist, val, val_specifier);
 
     return (hashes[hash] = (ARR_LEN(pairlist) / 2));
 }
@@ -323,7 +339,7 @@ static REBCNT Find_Map_Entry(
 REBINT Length_Map(REBMAP *map)
 {
     REBCNT n, c = 0;
-    REBVAL *v = ARR_HEAD(MAP_PAIRLIST(map));
+    REBVAL *v = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
 
     for (n = 0; !IS_END(v); n += 2, v += 2) {
         if (!IS_BLANK(v + 1)) c++; // must have non-blank value (!!! void?)
@@ -356,7 +372,9 @@ REBINT PD_Map(REBPVS *pvs)
     n = Find_Map_Entry(
         VAL_MAP(pvs->value),
         pvs->selector,
+        SPECIFIED,
         setting ? pvs->opt_setval : NULL,
+        SPECIFIED,
         setting // `cased` flag for case-sensitivity--use when setting only
     );
 
@@ -382,11 +400,12 @@ REBINT PD_Map(REBPVS *pvs)
 //
 static void Append_Map(
     REBMAP *map,
-    REBARR *any_array,
+    REBARR *array,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT len
 ) {
-    REBVAL *item = ARR_AT(any_array, index);
+    REBVAL *item = ARR_AT(array, index);
     REBCNT n = 0;
 
     while (n < len && NOT_END(item)) {
@@ -414,7 +433,14 @@ static void Append_Map(
             fail (Error(RE_EXPRESSION_BARRIER));
         }
 
-        Find_Map_Entry(map, item, item + 1, TRUE);
+        Find_Map_Entry(
+            map,
+            item,
+            specifier,
+            item + 1,
+            specifier,
+            TRUE
+        );
 
         item += 2;
         n += 2;
@@ -425,7 +451,7 @@ static void Append_Map(
 //
 //  MT_Map: C
 //
-REBOOL MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+REBOOL MT_Map(REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type)
 {
     REBARR* array;
     REBCNT len;
@@ -445,7 +471,7 @@ REBOOL MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         return FALSE;
 
     REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
-    Append_Map(map, array, index, UNKNOWN);
+    Append_Map(map, array, index, specifier, UNKNOWN);
     Rehash_Map(map);
 
     Val_Init_Map(out, map);
@@ -468,7 +494,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
 
     // Count number of set entries:
     //
-    val = ARR_HEAD(MAP_PAIRLIST(map));
+    val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
     for (; NOT_END(val) && NOT_END(val + 1); val += 2) {
         if (!IS_BLANK(val + 1)) cnt++; // must have non-blank value !!! void?
     }
@@ -476,8 +502,8 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     // Copy entries to new block:
     //
     array = Make_Array(cnt * ((what == 0) ? 2 : 1));
-    out = ARR_HEAD(array);
-    val = ARR_HEAD(MAP_PAIRLIST(map));
+    out = SINK(ARR_HEAD(array));
+    val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
     for (; NOT_END(val) && NOT_END(val+1); val += 2) {
         if (!IS_BLANK(val+1)) {
             if (what <= 0) *out++ = val[0];
@@ -530,7 +556,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
     REBVAL *var;
 
     // Count number of set entries:
-    mval = ARR_HEAD(MAP_PAIRLIST(map));
+    mval = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
     for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
         if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) cnt++;
     }
@@ -540,7 +566,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
 
-    mval = ARR_HEAD(MAP_PAIRLIST(map));
+    mval = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
 
     for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
         if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) {
@@ -596,9 +622,16 @@ REBTYPE(Map)
     case A_FIND:
     case A_SELECT:
         args = Find_Refines(frame_, ALL_FIND_REFS);
-        n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
+        n = Find_Map_Entry(
+            map,
+            arg,
+            SPECIFIED,
+            NULL,
+            SPECIFIED,
+            LOGICAL(args & AM_FIND_CASE)
+        );
         if (!n) return R_BLANK;
-        *D_OUT = *ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1);
+        *D_OUT = *KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1));
         if (IS_VOID(D_OUT)) return R_BLANK;
         if (action == A_FIND) *D_OUT = *val;
         return R_OUT;
@@ -615,6 +648,7 @@ REBTYPE(Map)
             map,
             VAL_ARRAY(arg),
             VAL_INDEX(arg),
+            VAL_SPECIFIER(arg),
             Partial1(arg, D_ARG(AN_LIMIT))
         );
         return R_OUT;
@@ -624,11 +658,15 @@ REBTYPE(Map)
             fail (Error_Illegal_Action(REB_MAP, action));
         }
         *D_OUT = *val;
-        Find_Map_Entry(map, D_ARG(5), VOID_CELL, TRUE);
+        Find_Map_Entry(
+            map, D_ARG(5), SPECIFIED, VOID_CELL, SPECIFIED, TRUE
+        );
         return R_OUT;
 
     case A_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
-        n = Find_Map_Entry(map, arg, D_ARG(3), TRUE);
+        n = Find_Map_Entry(
+            map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
+        );
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
@@ -640,7 +678,7 @@ REBTYPE(Map)
     case A_TO:
         // make map! [word val word val]
         if (IS_BLOCK(arg) || IS_GROUP(arg) || IS_MAP(arg)) {
-            if (MT_Map(D_OUT, arg, REB_MAP)) return R_OUT;
+            if (MT_Map(D_OUT, arg, SPECIFIED, REB_MAP)) return R_OUT;
             fail (Error_Invalid_Arg(arg));
 //      } else if (IS_BLANK(arg)) {
 //          n = 3; // just a start
@@ -658,7 +696,7 @@ REBTYPE(Map)
         return R_OUT;
 
     case A_COPY:
-        if (MT_Map(D_OUT, val, REB_MAP)) return R_OUT;
+        if (MT_Map(D_OUT, val, SPECIFIED, REB_MAP)) return R_OUT;
         fail (Error_Invalid_Arg(val));
 
     case A_CLEAR:
