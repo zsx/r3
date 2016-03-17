@@ -89,6 +89,7 @@ static REBCNT keycode_to_char[] = {
     SDLK_BACKQUOTE, '`',  '~',    '`',    '~',
     SDLK_MINUS,   '-',    '_',    '-',    '_',
     SDLK_EQUALS,  '=',    '+',    '=',    '+',
+    SDLK_BACKSPACE, '\b', '\b',   '\b',   '\b',
     SDLK_ESCAPE,  '\033', '\033', '\033',    '\033',
     SDLK_KP_0,    '0',    '0',    '0',    '0',
     SDLK_KP_1,    '1',    '1',    '1',    '1',
