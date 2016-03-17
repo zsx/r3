@@ -921,7 +921,7 @@ typedef struct Reb_Frame Reb_Enumerator;
 #ifdef NDEBUG
     #define QUOTE_NEXT_REFETCH(dest,f) \
         do { \
-            *dest = *(f)->value; \
+            COPY_RELVAL((dest), (f)->value, (f)->specifier); \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
             CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED); \
         } while (0)

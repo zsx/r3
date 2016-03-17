@@ -168,11 +168,11 @@ void Trace_Return(REBCNT label_sym, const REBVAL *value)
 
 
 //
-//  Trace_Value: C
+//  Trace_Value_Core: C
 //
-void Trace_Value(
+void Trace_Value_Core(
     const char* label, // currently "match" or "input"
-    const REBVAL *value
+    const RELVAL *value
 ) {
     int depth;
     CHECK_DEPTH(depth);

@@ -281,10 +281,10 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 // Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
 // ensure you never call it on a void
 //
-REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
+REBOOL IS_CONDITIONAL_FALSE_Debug(const RELVAL *v)
 {
-    if (IS_END(v) || IS_VOID(v) || IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Conditional true/false test on END or void or trash");
+    if (IS_VOID(v)) {
+        Debug_Fmt("Conditional true/false test on void");
         PANIC_VALUE(v);
     }
 

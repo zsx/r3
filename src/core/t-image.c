@@ -274,7 +274,7 @@ void Bin_To_Alpha(REBYTE *rgba, REBCNT size, REBYTE *bin, REBINT len)
 // TRUE and `index_out` will contain the index position from the head of
 // the array of the non-tuple.  Otherwise returns FALSE.
 //
-REBOOL Array_Has_Non_Tuple(REBCNT *index_out, REBVAL *blk)
+REBOOL Array_Has_Non_Tuple(REBCNT *index_out, RELVAL *blk)
 {
     REBCNT len;
 
@@ -479,7 +479,7 @@ REBVAL *Create_Image(RELVAL *block, REBCTX *specifier, REBVAL *val, REBCNT modes
         }
 
         if (NOT_END(block) && IS_INTEGER(block)) {
-            VAL_INDEX(val) = (Int32s(block, 1) - 1);
+            VAL_INDEX(val) = (Int32s(KNOWN(block), 1) - 1);
             block++;
         }
     }
@@ -496,7 +496,10 @@ REBVAL *Create_Image(RELVAL *block, REBCTX *specifier, REBVAL *val, REBCNT modes
         REBCNT bad_index;
         if (Array_Has_Non_Tuple(&bad_index, block))
             fail (Error_Invalid_Arg_Core(
-                VAL_ARRAY_AT_HEAD(block, bad_index), VAL_SPECIFIER(block)
+                VAL_ARRAY_AT_HEAD(block, bad_index),
+                IS_SPECIFIC(block)
+                    ? VAL_SPECIFIER(KNOWN(block))
+                    : specifier
             ));
 
         Tuples_To_RGBA(ip, size, KNOWN(VAL_ARRAY_AT(block)), VAL_LEN_AT(block));

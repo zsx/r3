@@ -1470,7 +1470,7 @@ check_and_return:
 // 
 // Form a value based on the mold opts provided.
 //
-REBSER *Copy_Form_Value(const REBVAL *value, REBFLGS opts)
+REBSER *Copy_Form_Value_Core(const RELVAL *value, REBFLGS opts)
 {
     REB_MOLD mo;
     CLEARS(&mo);

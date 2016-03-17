@@ -387,7 +387,7 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 
     // BITS
     if (IS_INTEGER(bp)) {
-        bits = Int32(bp);
+        bits = Int32(KNOWN(bp));
         if (
             (bits == 32 || bits == 64)
             ||
@@ -398,8 +398,8 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 
     // SIZE
     if (NOT_END(bp) && IS_INTEGER(bp)) {
-        if (Int32(bp) < 0) return 0;
-        size = Int32(bp);
+        if (Int32(KNOWN(bp)) < 0) return 0;
+        size = Int32(KNOWN(bp));
         bp++;
     }
 
@@ -408,7 +408,7 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
         REBCNT len = VAL_LEN_AT(bp);
         if (IS_BINARY(bp) && type == 1) return 0;
         if (len > size) size = len;
-        iblk = bp;
+        iblk = KNOWN(bp);
         bp++;
     }
 
@@ -416,7 +416,7 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 
     // Index offset:
     if (NOT_END(bp) && IS_INTEGER(bp)) {
-        VAL_INDEX(value) = (Int32s(bp, 1) - 1);
+        VAL_INDEX(value) = (Int32s(KNOWN(bp), 1) - 1);
         bp++;
     }
     else VAL_INDEX(value) = 0;

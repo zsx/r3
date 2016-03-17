@@ -47,7 +47,7 @@
 //
 void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
 {
-    REBVAL *item = ARR_HEAD(array);
+    RELVAL *item = ARR_HEAD(array);
     for (; NOT_END(item); ++item) {
         if (ANY_ARRAY(item) && VAL_LEN_AT(item) > limit) {
             REBARR *copy = Copy_Array_At_Max_Shallow(

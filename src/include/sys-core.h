@@ -367,6 +367,9 @@ enum REB_Mold_Opts {
 #define Mold_Value(mold,value,molded) \
     Mold_Value_Core((mold), (value), (molded))
 
+#define Copy_Form_Value(value,opts) \
+    Copy_Form_Value_Core((value), (opts))
+
 #define Pre_Mold(value,mold) \
     Pre_Mold_Core((value), (mold))
 
@@ -901,6 +904,13 @@ typedef struct rebol_time_fields {
     REBCNT n;
 } REB_TIMEF;
 
+
+//
+// Tracing !!! move to separate file?
+//
+
+#define Trace_Value(label,value) \
+    Trace_Value_Core((label), (value))
 
 
 /***********************************************************************

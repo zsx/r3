@@ -136,7 +136,7 @@ REBCNT Find_In_Array(
     REBARR *array,
     REBCNT index,
     REBCNT end,
-    const REBVAL *target,
+    const RELVAL *target,
     REBCNT len,
     REBCNT flags,
     REBINT skip
