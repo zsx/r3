@@ -991,6 +991,18 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                 #endif
                 }
 
+            #if !defined(NDEBUG)
+                if (IS_RELATIVE(arg)) {
+                    //
+                    // Make_Error doesn't have any way to pass in a specifier,
+                    // so only specific values should be used.
+                    //
+                    Debug_Fmt("Relative value passed to Make_Error()");
+                    PROBE_MSG(arg, "the value");
+                    PANIC_VALUE(arg);
+                }
+            #endif
+
                 ASSERT_VALUE_MANAGED(arg);
 
             #if !defined(NDEBUG)

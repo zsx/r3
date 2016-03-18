@@ -1947,7 +1947,7 @@ struct Reb_Any_Context {
     ((v)->payload.any_context.exit_from)
 
 #define VAL_CONTEXT_STACKVARS(v) \
-    ((v)->payload.any_context.more.frame->stackvars)
+    cast(REBVAL*, (v)->payload.any_context.more.frame->stackvars)
 
 #define VAL_CONTEXT_STACKVARS_LEN(v) \
     (assert(ANY_CONTEXT(v)), \

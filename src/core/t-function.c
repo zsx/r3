@@ -194,20 +194,28 @@ REBTYPE(Function)
                 //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
-                // functions made by the optimized generators FUNC and PROC...
+                // functions made by the optimized generators FUNC and PROC.
+                //
+                // Note that since the function body contains relative arrays
+                // and words, there needs to be some frame to specify them
+                // before a specific REBVAL can be made.  Usually that's the
+                // frame of the running instance of the function...but because
+                // we're reflecting data out of it, we have to either unbind
+                // them or make up a frame.  Making up a frame that acts like
+                // it's off the stack and the variables are dead is easiest
+                // for now...but long term perhaps unbinding them is better,
+                // though this is "more informative".  See #2221.
 
                 REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
-                Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body, SPECIFIED));
+                Val_Init_Block(
+                    D_OUT,
+                    Copy_Array_Deep_Managed(
+                        body,
+                        Make_Expired_Frame_Ctx_Managed(VAL_FUNC(value))
+                    )
+                );
 
-                if (IS_FUNC_DURABLE(value)) {
-                    // See #2221 for why durable body copies unbind locals
-                    Unbind_Values_Core(
-                        VAL_ARRAY_HEAD(D_OUT),
-                        AS_CONTEXT(VAL_FUNC_PARAMLIST(value)),
-                        TRUE
-                    );
-                }
                 if (is_fake) Free_Array(body); // was shallow copy
                 return R_OUT;
             }

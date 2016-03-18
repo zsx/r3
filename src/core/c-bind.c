@@ -142,7 +142,14 @@ REBVAL *Get_Var_Core(
 
             if (flags & GETVAR_UNBOUND_OK) return NULL;
 
-            fail (Error(RE_NO_RELATIVE, any_word));
+            REBVAL unbound;
+            Val_Init_Word(
+                &unbound,
+                VAL_TYPE(any_word),
+                VAL_WORD_SYM(any_word)
+            );
+
+            fail (Error(RE_NO_RELATIVE, &unbound));
         }
 
         assert(CTX_STACKVARS(context) != NULL);

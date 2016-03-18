@@ -799,7 +799,7 @@ REBFUN *Make_Function(
 
 
 //
-//  Make_Expired_Frame_Ctx: C
+//  Make_Expired_Frame_Ctx_Managed: C
 //
 // Function bodies contain relative words and relative arrays.  Arrays from
 // this relativized body may only be put into a specified REBVAL once they
@@ -817,20 +817,27 @@ REBFUN *Make_Function(
 // !!! To be written...was started for MOLD of function, and realized it's
 // really only needed for the BODY-OF reflector that gives back REBVAL*
 //
-REBCTX *Make_Expired_Frame_Ctx(REBFUN *func)
+REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    assert(FALSE);
-    /*
-    expired_ctx = AS_CONTEXT(Make_Singular_Array(NONE_VALUE));
-    INIT_CTX_KEYLIST_SHARED(expired_ctx, VAL_FUNC_PARAMLIST(func));
-    SET_ARR_FLAG(CTX_VARLIST(expired_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
-    SET_CTX_FLAG(expired_ctx, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
-    INIT_VAL_CONTEXT(CTX_VALUE(expired_ctx), expired_ctx);
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(expired_ctx), NULL); // !!! or magic value?
-    VAL_CONTEXT_FRAME(CTX_VALUE(expired_ctx), NULL); // !!! or magic value?
-    */
-    return NULL;
+    REBCTX *expired = AS_CONTEXT(Make_Singular_Array(BLANK_VALUE));
+    SET_ARR_FLAG(CTX_VARLIST(expired), ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_CTX_FLAG(expired, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
+
+    INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
+    INIT_VAL_CONTEXT(CTX_VALUE(expired), expired);
+
+    // Clients aren't supposed to ever be looking at the values for the
+    // stackvars or the frame if it is expired.  That should hopefully
+    // include not looking to see whether they are NULL or not.  But if
+    // there is some debug check that *does* check it these might need to
+    // be magic non-NULL values to subvert that.
+    //
+    CTX_VALUE(expired)->payload.any_context.more.frame = NULL;
+
+    MANAGE_ARRAY(CTX_VARLIST(expired));
+    return expired;
 }
+
 
 //
 //  Get_Maybe_Fake_Func_Body: C
