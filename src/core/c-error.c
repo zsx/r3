@@ -1394,6 +1394,25 @@ REBCTX *Error_Bad_Refine_Revoke(struct Reb_Frame *f)
 
 
 //
+//  Error_No_Value_Core: C
+//
+REBCTX *Error_No_Value_Core(const RELVAL *target, REBCTX *specifier) {
+    REBVAL specified;
+    COPY_VALUE(&specified, target, specifier);
+
+    return Error(RE_NO_VALUE, &specified, END_CELL);
+}
+
+
+//
+//  Error_No_Value: C
+//
+REBCTX *Error_No_Value(const REBVAL *target) {
+    return Error_No_Value_Core(target, SPECIFIED);
+}
+
+
+//
 //  Error_No_Catch_For_Throw: C
 //
 REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)

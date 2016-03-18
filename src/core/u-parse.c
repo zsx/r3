@@ -191,7 +191,7 @@ static const RELVAL *Get_Parse_Value(
         // by REB_WORD in %c-do.c)
         //
         if (IS_VOID(var))
-            fail (Error(RE_NO_VALUE, item));
+            fail (Error_No_Value_Core(item, specifier));
 
         return var;
     }
@@ -206,7 +206,7 @@ static const RELVAL *Get_Parse_Value(
         // See notes above about voids
         //
         if (IS_VOID(safe))
-            fail (Error(RE_NO_VALUE, item));
+            fail (Error_No_Value_Core(item, specifier));
 
         return safe;
     }
@@ -1759,7 +1759,8 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     // new value...comment said "CHECK FOR QUOTE!!"
                     item = Get_Parse_Value(&save, item, P_SPECIFIER);
 
-                    if (IS_VOID(item)) fail (Error(RE_NO_VALUE, P_RULE - 1));
+                    if (IS_VOID(item))
+                        fail (Error_No_Value_Core(P_RULE - 1, P_SPECIFIER));
 
                     if (IS_END(item)) goto bad_end;
 

@@ -3,6 +3,18 @@
 ; clearly, and to make the day to day testing run with 0 errors so that a
 ; log diffing is not required.
 
+
+; Having guarantees about mold--down to the tab--is something that's a bit
+; outside the realm of reasonable formalism in Ren-C just yet.  If it's to
+; be done, it should be done in a systemic way.
+; Mold recursive object
+[
+    o: object [a: 1 r: _]
+    o/r: o
+    (ajoin ["<" mold o  ">"])
+        = "<make object! [^/    a: 1^/    r: make object! [...]^/]>"
+]
+
 ; This is a lot of different ways of saying "REDUCE errors when an expression
 ; evaluates to void".  While this is inconvenient for using blocks to erase
 ; the state of variables, that is what NONE! (blank) is for...to serve as

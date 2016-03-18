@@ -105,11 +105,11 @@ void Init_Typesets(void)
 
 
 //
-//  Val_Init_Typeset_Core: C
+//  Val_Init_Typeset: C
 // 
 // Note: sym is optional, and can be SYM_0
 //
-void Val_Init_Typeset_Core(RELVAL *value, REBU64 bits, REBSYM sym)
+void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSYM sym)
 {
     VAL_RESET_HEADER(value, REB_TYPESET);
     VAL_TYPESET_SYM(value) = sym;

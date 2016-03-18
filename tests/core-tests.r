@@ -27,6 +27,7 @@
 ; actions are active
 [1 == do reduce [:abs -1]]
 
+
 ; better-than-nothing VARARGS! variadic argument tests
 
 [
@@ -82,6 +83,58 @@
     append-123: specialize :append [value: [1 2 3] only: true]
     append-123-twice: specialize :append-123 [dup: true count: 2]
     [a b c [1 2 3] [1 2 3]] = append-123-twice [a b c]
+]
+
+
+; better-than-nothing ADAPT tests
+
+[
+    x: 10
+    foo: adapt 'any [x: 20]
+    foo [1 2 3]
+    x = 20
+]
+[
+    capture: blank
+    foo: adapt 'any [capture: block]
+    all? [
+      foo [1 2 3]
+      capture = [1 2 3]
+    ]
+]
+
+
+; better-than-nothing CHAIN tests
+
+[
+    add-one: func [x] [x + 1]
+    mp-ad-ad: chain [:multiply | :add-one | :add-one]
+    202 = (mp-ad-ad 10 20)
+]
+[
+    add-one: func [x] [x + 1]
+    mp-ad-ad: chain [:multiply | :add-one | :add-one]
+    sub-one: specialize 'subtract [value2: 1]
+    mp-normal: chain [:mp-ad-ad | :sub-one | :sub-one]
+    200 = (mp-normal 10 20)
+]
+
+
+; better than-nothing HIJACK tests
+
+[
+    foo: func [x] [x + 1]
+    another-foo: :foo
+
+    old-foo: hijack 'foo _
+
+    all? [
+        (old-foo 10) = 11
+        error? try [foo 10] ;-- hijacked function captured but no body
+        blank? hijack 'foo func [x] [(old-foo x) + 20]
+        (foo 10) = 31
+        (another-foo 10) = 31
+    ]
 ]
 
 
@@ -1225,12 +1278,13 @@
 [lf: func ['x] [:x] o: context [f: 10] 10 == lf :o/f]
 ; basic test for recursive function! invocation
 [i: 0 countdown: func [n] [if n > 0 [++ i countdown n - 1]] countdown 10 i = 10]
-; a function-local word that escapes the function's dynamic extent still works
-; when re-entering the dynamic extent of the same function later.
+
+; In Ren-C's specific binding, a function-local word that escapes the
+; function's extent cannot be used when re-entering the same function later
 [
     f: func [code value] [either blank? code ['value] [do code]]
     f-value: f blank blank
-    42 == f compose [2 * (f-value)] 21  ; re-entering same function
+    error? try [f compose [2 * (f-value)] 21]  ; re-entering same function
 ]
 [
     f: func [code value] [either blank? code ['value] [do code]]
@@ -1251,13 +1305,15 @@
     f: does reduce [does [true]]
     f
 ]
-; no-rebind test
+; no-rebind test--succeeds in R3-Alpha but fails in Ren-C.  Second time f is
+; called, `a` has been cleared so `a [d]` doesn't recapture the local, and
+; `c` holds the `[d]` from the first call.
 [
     a: func [b] [a: _ c: b]
     f: func [d] [a [d] do c]
-    all [
+    all? [
         1 = f 1
-        2 = f 2
+        error? try [2 = f 2]
     ]
 ]
 ; bug#1528
@@ -3302,13 +3358,13 @@
 [not equal? make object! [a: 1] make object! []]
 ; object! complex structural equivalence
 [
-    a-value: construct/only [
+    a-value: has/only [
         a: 1 b: 1.0 c: $1 d: 1%
         e: [a 'a :a a: /a #"a" #{00}]
         f: ["a" #a http://a a@a.com <a>]
         g: :a/b/(c: 'd/e/f)/(b/d: [:f/g h/i])
     ]
-    b-value: construct/only [
+    b-value: has/only [
         a: 1 b: 1.0 c: $1 d: 1%
         e: [a 'a :a a: /a #"a" #{00}]
         f: ["a" #a http://a a@a.com <a>]
@@ -3322,13 +3378,13 @@
 ; object! structural equivalence verified
 ; Structural equality requires equality of the object's fields.
 [
-    a-value: construct/only [
+    a-value: has/only [
         a: 1 b: 1.0 c: $1 d: 1%
         e: [a 'a :a a: /a #"a" #{00}]
         f: ["a" #a http://a a@a.com <a>]
         g: :a/b/(c: 'd/e/f)/(b/d: [:f/g h/i])
     ]
-    b-value: construct/only [
+    b-value: has/only [
         a: 1 b: 1.0 c: $1 d: 1%
         e: [a 'a :a a: /a #"a" #{00}]
         f: ["a" #a http://a a@a.com <a>]
@@ -3345,13 +3401,13 @@
 ; object! structural equivalence verified
 ; Structural equality requires equality of the object's fields.
 [
-    a-value: construct/only [
+    a-value: has/only [
         a: 1 b: 1.0 c: $1 d: 1%
         e: [a 'a :a a: /a #"a" #{00}]
         f: ["a" #a http://a a@a.com <a>]
         g: :a/b/(c: 'd/e/f)/(b/d: [:f/g h/i])
     ]
-    b-value: construct/only [
+    b-value: has/only [
         a: 1.0 b: $1 c: 100% d: 0.01
         e: [/a a 'a :a a: #"A" #[binary! #{0000} 2]]
         f: [#a <A> http://A a@A.com "A"]
@@ -4742,7 +4798,7 @@
 ; bug#1655
 [not head? bind next [1] 'rebol]
 ; bug#892, bug#216
-[y: 'x eval has [x] [x: true get bind y 'x]]
+[y: 'x eval func [<local> x] [x: true get bind y 'x]]
 ; functions/context/boundq.r
 ; functions/context/bindq.r
 [
@@ -4756,8 +4812,8 @@
 ; bug#1763
 [a: 1 all [error? try [set [a] reduce [()]] a = 1]]
 [a: 1 attempt [set [a b] reduce [2 ()]] a = 1]
-[x: construct [a: 1] all [error? try [set x reduce [()]] x/a = 1]]
-[x: construct [a: 1 b: 2] all [error? try [set x reduce [3 ()]] x/a = 1]]
+[x: has [a: 1] all [error? try [set x reduce [()]] x/a = 1]]
+[x: has [a: 1 b: 2] all [error? try [set x reduce [3 ()]] x/a = 1]]
 ; set [:get-word] [word]
 [a: 1 b: _ set [:b] [a] b =? 1]
 [unset 'a b: _ all [error? try [set [:b] [a]] blank? b]]
@@ -10659,13 +10715,6 @@
         either n <= 1 [n] [ajoin [n space nested-ajoin n - 1]]
     ]
     "9 8 7 6 5 4 3 2 1" = nested-ajoin 9
-]
-; Mold recursive object
-[
-    o: object [a: 1 r: _]
-    o/r: o
-    (ajoin ["<" mold o  ">"])
-        = "<make object! [^/    a: 1^/    r: make object! [...]^/]>"
 ]
 ; Form recursive object...
 [

@@ -202,7 +202,7 @@ help: procedure [
                 "It is of the general type" value/type newline
             ]
         ]
-        if all [any-word? :word | not set? :word] [leave]
+        if all [word? :word | not set? :word] [leave]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [

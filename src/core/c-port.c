@@ -415,8 +415,13 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     for (; NOT_END(param); ++param, ++arg) {
         enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-        if (pclass == PARAM_CLASS_LOCAL)
+        if (
+            pclass == PARAM_CLASS_LOCAL
+            || pclass == PARAM_CLASS_LEAVE
+            || pclass == PARAM_CLASS_RETURN
+        ) {
              continue; // don't add a callsite expression for it (can't)!
+        }
 
         if (pclass == PARAM_CLASS_REFINEMENT) {
             if (IS_CONDITIONAL_FALSE(arg)) {

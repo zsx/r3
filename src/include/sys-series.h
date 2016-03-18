@@ -378,7 +378,7 @@ struct Reb_Series {
         // rest of the bits in the debug build as it is checked whenver a
         // REBVAL tries to write a new header.)
         //
-        REBVAL values[1];
+        RELVAL values[1];
     } content;
 
     // `info` is the information about the series which needs to be known

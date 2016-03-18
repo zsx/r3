@@ -579,7 +579,7 @@ REBNATIVE(get)
     }
 
     if (!REF(opt) && IS_VOID(D_OUT))
-        fail (Error(RE_NO_VALUE, source));
+        fail (Error_No_Value(source));
 
     return R_OUT;
 }

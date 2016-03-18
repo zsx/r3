@@ -1438,18 +1438,8 @@ REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 
     assert(IS_FUNCTION(hook));
 
-    // Prior to specific binding, the function that the body is looking for
-    // has to be on the stack for words to look up.
-
-    REBFUN *save_func = f->func;
-    f->func = VAL_FUNC(hook);
-
-    if (Redo_Func_Throws(f, VAL_FUNC(hook))) {
-        f->func = save_func;
+    if (Redo_Func_Throws(f, VAL_FUNC(hook)))
         return R_OUT_IS_THROWN;
-    }
-
-    f->func = save_func;
 
     return R_OUT;
 }
@@ -1481,10 +1471,12 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 {
-    REBVAL *adaptation = KNOWN(FUNC_BODY(f->func));
+    REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
+
+    RELVAL *adaptation = FUNC_BODY(f->func);
     assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
 
-    REBVAL* prelude = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 0));
+    RELVAL* prelude = VAL_ARRAY_AT_HEAD(adaptation, 0);
     REBVAL* adaptee = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 1));
 
     // !!! With specific binding, we could slip the adapter a specifier for
@@ -1495,26 +1487,12 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     REBCTX *exemplar;
     REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
 
-    REBFUN *save_func = f->func;
-    f->func = under;
-
     // The first thing to do is run the prelude code, which may throw.  If it
     // does throw--including a RETURN--that means the adapted function will
     // not be run.
     //
-    if (THROWN_FLAG == Do_Array_At_Core(
-        f->out,
-        NULL, // no virtual first element
-        VAL_ARRAY(prelude),
-        0, // index,
-        VAL_SPECIFIER(prelude),
-        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_ARGS_EVALUATE
-    )) {
-        f->func = save_func;
+    if (Do_At_Throws(f->out, VAL_ARRAY(prelude), VAL_INDEX(prelude), frame_ctx))
         return R_OUT_IS_THROWN;
-    }
-
-    f->func = save_func;
 
     // We have to run a type-checking sweep, to make sure the state of the
     // arguments is legal for the function.  Note that in particular,
@@ -1815,18 +1793,24 @@ REBNATIVE(chain)
         ASSERT_ARRAY_MANAGED(chainees);
     }
 
+    // !!! Current validation is that all are functions.  Should there be other
+    // checks?  (That inputs match outputs in the chain?)  Should it be
+    // a dialect and allow things other than functions?
+    //
+    REBVAL *check = KNOWN(ARR_HEAD(chainees));
+    while (NOT_END(check)) {
+        if (!IS_FUNCTION(check))
+            fail (Error_Invalid_Arg(check));
+        ++check;
+    }
+
     // The paramlist needs to be unique to designate this function, but
     // will be identical typesets to the first function in the chain.  It's
     // [0] element must identify the function we're creating vs the original,
     // however.
     //
-    // !!! Should validate pipeline here.  What would be legal besides
-    // just functions...is it a dialect?
-    //
-    REBVAL *starter = KNOWN(ARR_HEAD(chainees));
-    assert(IS_FUNCTION(ARR_HEAD(chainees)));
     REBARR *paramlist = Copy_Array_Shallow(
-        VAL_FUNC_PARAMLIST(starter), SPECIFIED
+        VAL_FUNC_PARAMLIST(ARR_HEAD(chainees)), SPECIFIED
     );
     ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
     MANAGE_ARRAY(paramlist);
@@ -1929,6 +1913,7 @@ REBNATIVE(adapt)
     REBARR *adaptation = Make_Array(2);
 
     REBVAL *block = Alloc_Tail_Array(adaptation);
+    VAL_RESET_HEADER(block, REB_BLOCK);
     block->payload.any_series.series = ARR_SERIES(prelude);
     VAL_INDEX(block) = 0;
     SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
@@ -1937,6 +1922,7 @@ REBNATIVE(adapt)
     Append_Value(adaptation, adaptee);
 
     RELVAL *body = FUNC_BODY(fun);
+    VAL_RESET_HEADER(body, REB_BLOCK);
     body->payload.any_series.series = ARR_SERIES(adaptation);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);

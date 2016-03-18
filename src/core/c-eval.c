@@ -360,8 +360,8 @@ reevaluate:
     do_word_in_value_with_gotten:
         assert(!IS_FUNCTION(f->gotten)); // infix handling needs differ
 
-        if (IS_VOID(f->gotten))
-            fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
+        if (IS_VOID(f->gotten)) // need `:x` if `x` is unset
+            fail (Error_No_Value_Core(f->value, f->specifier));
 
         *f->out = *f->gotten;
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
@@ -499,8 +499,8 @@ reevaluate:
             goto finished;
         }
 
-        if (IS_VOID(f->out))
-            fail (Error(RE_NO_VALUE, f->value)); // need `:x/y` if `y` is unset
+        if (IS_VOID(f->out)) // need `:x/y` if `y` is unset
+            fail (Error_No_Value_Core(f->value, f->specifier));
 
         if (IS_FUNCTION(f->out)) {
             f->eval_type = ET_FUNCTION;
@@ -714,23 +714,6 @@ reevaluate:
         //
         assert(DSP >= f->dsp_orig);
 
-        // If a function doesn't want to act as an argument to a function
-        // call or an assignment (e.g. `x: print "don't do this"`) we can
-        // stop it by looking at the frame above.  Note that if a function
-        // frame is running but not fulfilling arguments, that just means
-        // that this is being used in the implementation.
-        //
-        if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_PUNCTUATES) && f->prior)
-            switch (f->prior->eval_type) {
-            case ET_FUNCTION:
-                if (Is_Function_Frame_Fulfilling(f->prior))
-                    fail (Error_Punctuator_Hit(f));
-                break;
-            case ET_SET_PATH:
-            case ET_SET_WORD:
-                fail (Error_Punctuator_Hit(f));
-            }
-
     //==////////////////////////////////////////////////////////////////==//
     //
     // FUNCTION! EVAL HANDLING
@@ -859,6 +842,26 @@ reevaluate:
             f->lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
 
         f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
+
+        // If a function doesn't want to act as an argument to a function
+        // call or an assignment (e.g. `x: print "don't do this"`) we can
+        // stop it by looking at the frame above.  Note that if a function
+        // frame is running but not fulfilling arguments, that just means
+        // that this is being used in the implementation.
+        //
+        // Must be positioned here to apply to infix, and also so that the
+        // f->param field is initialized (checked by error machinery)
+        //
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES) && f->prior)
+            switch (f->prior->eval_type) {
+            case ET_FUNCTION:
+                if (Is_Function_Frame_Fulfilling(f->prior))
+                    fail (Error_Punctuator_Hit(f));
+                break;
+            case ET_SET_PATH:
+            case ET_SET_WORD:
+                fail (Error_Punctuator_Hit(f));
+            }
 
     //==////////////////////////////////////////////////////////////////==//
     //

@@ -543,7 +543,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 
 
 //
-//  Unmark_Series: C
+//  Unmark_Array: C
 //
 void Unmark_Array(REBARR *array)
 {

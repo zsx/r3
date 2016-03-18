@@ -486,7 +486,7 @@ enum {
 //
 #define VAL_SET_TYPE_BITS(v,t) \
     ((v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK), \
-        (v)->header.bits |= (t))
+        (v)->header.bits |= cast(REBUPT, (t)))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1855,9 +1855,6 @@ struct Reb_Typeset {
 #define INIT_VAL_PARAM_CLASS(v,c) \
     ((v)->header.bits &= ~PCLASS_MASK, \
     (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
-
-#define Val_Init_Typeset(value,bits,sym) \
-    Val_Init_Typeset_Core((value), (bits), (sym))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

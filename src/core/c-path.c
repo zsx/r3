@@ -109,7 +109,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
 
         if (IS_VOID(pvs->selector))
-            fail (Error(RE_NO_VALUE, pvs->item));
+            fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
 
         SET_TRASH_IF_DEBUG(&pvs->selector_temp);
     }
@@ -259,7 +259,7 @@ REBOOL Do_Path_Throws_Core(
         pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
         pvs.value_specifier = SPECIFIED;
         if (IS_VOID(pvs.value))
-            fail (Error(RE_NO_VALUE, pvs.item));
+            fail (Error_No_Value_Core(pvs.item, pvs.item_specifier));
     }
     else {
         // !!! Ideally there would be some way to deal with writes to
