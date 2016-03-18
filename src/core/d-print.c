@@ -1235,12 +1235,18 @@ REBOOL Prin_GC_Safe_Value_Throws(
     if (mold)
         Mold_Value(&mo, value, TRUE);
     else {
+        REBCTX *specifier;
+        if ((ANY_WORD(value) || ANY_ARRAY(value)) && IS_SPECIFIC(value))
+            specifier = VAL_SPECIFIC(value);
+        else
+            specifier = SPECIFIED;
+
         if (Format_GC_Safe_Value_Throws(
             out_if_reduce,
             &mo,
             &pending_delimiter,
             value,
-            SPECIFIED,
+            specifier,
             LOGICAL(reduce && IS_BLOCK(value)), // `print 'word` won't GET it
             delimiter,
             0 // depth

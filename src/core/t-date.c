@@ -415,7 +415,7 @@ REBOOL MT_Date(
     REBCNT year, month, day;
 
     if (IS_DATE(arg)) {
-        COPY_RELVAL(val, arg, specifier);
+        COPY_VALUE(val, arg, specifier);
         return TRUE;
     }
 

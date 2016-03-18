@@ -255,7 +255,7 @@ REBOOL MT_Time(
     REBI64 secs;
 
     REBVAL specified;
-    COPY_RELVAL(&specified, data, specifier);
+    COPY_VALUE(&specified, data, specifier);
 
     secs = Make_Time(&specified);
 

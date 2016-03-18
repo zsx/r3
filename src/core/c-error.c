@@ -946,6 +946,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     #else
         // Will get here even for a parameterless string due to throwing in
         // the extra "arguments" of the __FILE__ and __LINE__
+        //
         temp = IS_STRING(message) ? END_CELL : VAL_ARRAY_HEAD(message);
     #endif
 
@@ -1280,14 +1281,14 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 //
 //  Error_No_Arg: C
 //
-REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
+REBCTX *Error_No_Arg(REBCNT label_sym, const RELVAL *key)
 {
-    REBVAL key_word;
-    REBVAL label;
-
     assert(IS_TYPESET(key));
 
+    REBVAL key_word;
     Val_Init_Word(&key_word, REB_WORD, VAL_TYPESET_SYM(key));
+
+    REBVAL label;
     Val_Init_Word(&label, REB_WORD, label_sym);
 
     return Error(
@@ -1491,7 +1492,7 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 //
 REBCTX *Error_Arg_Type(
     REBCNT label_sym,
-    const REBVAL *param,
+    const RELVAL *param,
     enum Reb_Kind kind
 ) {
     assert(IS_TYPESET(param));
@@ -1731,8 +1732,9 @@ REBYTE *Security_Policy(REBSYM sym, REBVAL *name)
         errcode = RE_SECURITY;
         policy = name ? name : 0;
 
+    error:
+        ; // need statement
         REBVAL temp;
-error:
         if (!policy) {
             Val_Init_Word(&temp, REB_WORD, sym);
             policy = &temp;

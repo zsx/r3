@@ -168,9 +168,9 @@ void Trace_Return(REBCNT label_sym, const REBVAL *value)
 
 
 //
-//  Trace_Value_Core: C
+//  Trace_Value: C
 //
-void Trace_Value_Core(
+void Trace_Value(
     const char* label, // currently "match" or "input"
     const RELVAL *value
 ) {

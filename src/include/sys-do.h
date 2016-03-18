@@ -835,6 +835,7 @@ typedef struct Reb_Frame Reb_Enumerator;
             (f)->value = va_arg(*(f)->source.vaptr, const REBVAL*); \
             assert(IS_END((f)->value) || !IS_VOID((f)->value) || \
                 NOT((f)->flags & DO_FLAG_ARGS_EVALUATE)); \
+            assert(IS_END((f)->value) || !IS_RELATIVE((f)->value)); \
         } \
     } while (0)
 
@@ -876,7 +877,7 @@ typedef struct Reb_Frame Reb_Enumerator;
                     (f_.eval_type == ET_INERT) \
                     && (IS_END((f)->value + 1) || !ANY_EVAL((f)->value + 1)) \
                 ) { \
-                    *(dest) = *(f)->value; \
+                    COPY_VALUE((dest), (f)->value, (f)->specifier); \
                     (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
                     ++(f)->indexor; \
                     break; \
@@ -921,7 +922,7 @@ typedef struct Reb_Frame Reb_Enumerator;
 #ifdef NDEBUG
     #define QUOTE_NEXT_REFETCH(dest,f) \
         do { \
-            COPY_RELVAL((dest), (f)->value, (f)->specifier); \
+            COPY_VALUE((dest), (f)->value, (f)->specifier); \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
             CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED); \
         } while (0)
@@ -1287,7 +1288,7 @@ struct Native_Refine {
 // Uses ARR_AT instead of CTX_VAR because the varlist may not be finished.
 //
 #define FRM_ARGS_HEAD(f) \
-    ((f)->stackvars ? &(f)->stackvars[0] : ARR_AT((f)->varlist, 1))
+    ((f)->stackvars ? &(f)->stackvars[0] : KNOWN(ARR_AT((f)->varlist, 1)))
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)

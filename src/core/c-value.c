@@ -37,96 +37,19 @@
 
 
 //
-//  VAL_SPECIFIC_Expirable: C
-//
-// Similar to the temporary nature of COPY_REBVAL_Guessable, this routine
-// fills in the temporary mode where it's possible to be bound specifically
-// to an expired context, and fail accordingly.  When specific binding is
-// completely propagated, this should just be a simple macro.
-//
-REBCTX *VAL_SPECIFIC_Expirable(const REBVAL *v)
-{
-    if (IS_RELATIVE(v)) {
-        //
-        // !!! Temporary... allowing the leaking of relative values.  One
-        // step at a time.  :-/
-        //
-        return GUESSED;
-    }
-
-    if (ANY_WORD(v) && (v)->payload.any_target.specific == GUESSED_EXPIRED)
-        fail (Error(RE_NO_RELATIVE, v));
-
-    return (v)->payload.any_target.specific;
-}
-
-
-//
-//  COPY_VALUE_Guessable: C
+//  COPY_VALUE_Release: C
 //
 // Temporary function implementation of what should really just defined as
 // COPY_VALUE_MACRO.  If GUESSED is passed in, it will use dynamic binding
 // to look at the stack and determine what function instance's context to
 // use for a word.
 //
-void COPY_VALUE_Guessable(
+void COPY_VALUE_Release(
     REBVAL *dest,
     const RELVAL *src,
     REBCTX *specifier
 ) {
-    // !!! TEMPORARY TOLERANCE.  The default initialization for arrays that
-    // aren't coming from a deep function body copy will be specified long
-    // term.  But right now, it's used more widely.  If a relative value
-    // is used with specified, just treat it as guessed.
-    //
-    if (IS_RELATIVE(src) && specifier == SPECIFIED)
-        specifier = GUESSED;
-
-    if (specifier != GUESSED || !IS_RELATIVE(src)) {
-        COPY_VALUE_MACRO(dest, src, specifier);
-        return;
-    }
-
-    if (ANY_WORD(src)) {
-        struct Reb_Frame* f = Frame_For_Word_Dynamic(src, TRUE);
-        if (f == NULL) {
-            //
-            // If there is no active frame for this word on the stack, we
-            // don't want to create an error when it's copied, only when it's
-            // accessed.  That means that a special value is needed to
-            // indicate something is "specifically bound to a frame that is
-            // no longer on the stack"
-            //
-            // (Leaving the value as relative/guessed would be an unacceptable
-            // invariant, because callers expect an IS_SPECIFIC value back.)
-            //
-            Val_Init_Word(dest, VAL_TYPE(src), VAL_WORD_SYM(src));
-            SET_VAL_FLAG(dest, WORD_FLAG_BOUND);
-            dest->payload.any_word.place.binding.target.specific
-                = GUESSED_EXPIRED;
-            dest->payload.any_word.place.binding.index = VAL_WORD_INDEX(src);
-        }
-        else {
-            // If a frame was found, it should be to a user function (the only
-            // kind that relatively bound words may bind to).  This means the
-            // context should be reified already.
-            //
-            assert(f->varlist != NULL);
-            assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
-            COPY_VALUE_MACRO(dest, src, AS_CONTEXT(f->varlist));
-        }
-    }
-    else {
-        // If it's an array, all we can do is propagate the GUESSED state
-        // through to it.  That might lead it to be used with relative words
-        // and other arrays that are contained in the array.
-        //
-        assert(ANY_ARRAY(src));
-        Val_Init_Array_Index(
-            dest, VAL_TYPE(src), VAL_ARRAY(src), VAL_INDEX(src)
-        );
-        INIT_ARRAY_SPECIFIC(dest, GUESSED);
-    }
+    COPY_VALUE_MACRO(dest, src, specifier);
 }
 
 
@@ -348,9 +271,14 @@ void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    REBCTX *specific = VAL_SPECIFIC_Expirable(v);
-    assert(specific != GUESSED_EXPIRED); // should be handled above
-    if (specific != SPECIFIED && specific != GUESSED) {
+    REBCTX *specific;
+
+    assert(IS_SPECIFIC(v));
+    assert(ANY_WORD(v) || ANY_ARRAY(v));
+
+    specific = (v)->payload.any_target.specific;
+
+    if (specific != SPECIFIED) {
         //
         // Basic sanity check: make sure it's a context at all
         //
@@ -367,6 +295,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
         if (ANY_ARRAY(v))
             assert(IS_FUNCTION(CTX_ROOTKEY(specific)));
     }
+
     return specific;
 }
 
@@ -418,7 +347,7 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
             PROBE_MSG(item, "relative item");
             Panic_Array(array);
         }
-        if (ANY_ARRAY(item) && deep)
+        if (!IS_VOID_OR_SAFE_TRASH(item) && ANY_ARRAY(item) && deep)
              Assert_No_Relative(VAL_ARRAY(item), deep);
         ++item;
     }
@@ -450,31 +379,15 @@ REBVAL *ENSURE_REBVAL_Debug(REBVAL *value)
 
 
 //
-//  ENSURE_RELVAL_Debug: C
-//
-RELVAL *ENSURE_RELVAL_Debug(RELVAL *value) {
-    return value;
-}
-
-
-//
-//  ENSURE_C_RELVAL_Debug: C
-//
-const RELVAL *ENSURE_C_RELVAL_Debug(const RELVAL *value)
-{
-    return value;
-}
-
-
-//
 //  SINK_Debug: C
 //
-REBVAL *SINK_Debug(union Reb_Value_Payload *payload)
+// Checked version of casting operation (to restrict input to only RELVAL).
+// This is used when the cast is legal because the slot is to be written to
+// only, and hence it doesn't matter if it contains relative data.
+//
+REBVAL *SINK_Debug(RELVAL *v)
 {
-    return cast(
-        REBVAL*,
-        cast(char*, payload) - offsetof(struct Reb_Value, payload)
-    );
+    return cast(REBVAL*, v);
 }
 
 
@@ -500,26 +413,18 @@ REBVAL *KNOWN_Debug(RELVAL *value)
 
 
 //
-//  COPY_VALUE_Guessable_Debug: C
+//  COPY_VALUE_Debug: C
 //
 // A function in debug build for compile-time type check (vs. blind casting)
-// This should remain even when COPY_VALUE_Guessable goes away and there
-// is only COPY_VALUE.
 //
-void COPY_VALUE_Guessable_Debug(
+void COPY_VALUE_Debug(
     REBVAL *dest,
     const RELVAL *src,
     REBCTX *specifier
 ) {
-    if (IS_RELATIVE(src) && specifier != GUESSED) {
+    if (IS_RELATIVE(src)) {
         if (specifier == SPECIFIED) {
-            //
-            // !!! Temporary... allow "lying" specifieds by bumping them to
-            // just being GUESSED.  This is being addressed incrementally.
-            //
-        }
-        else if (specifier == SPECIFIED) {
-            Debug_Fmt("Internal Error: Relative word used with SPECIFIC");
+            Debug_Fmt("Internal Error: Relative word used with SPECIFIED");
             PROBE_MSG(src, "word or array");
             PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(src)), "func");
             assert(FALSE);
@@ -535,7 +440,7 @@ void COPY_VALUE_Guessable_Debug(
             assert(FALSE);
         }
     }
-    COPY_VALUE_Guessable(dest, src, specifier);
+    COPY_VALUE_MACRO(dest, src, specifier);
 }
 
 

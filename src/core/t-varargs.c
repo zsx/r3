@@ -68,7 +68,7 @@
 REBIXO Do_Vararg_Op_Core(
     REBVAL *out,
     REBARR *feed, // may be varlist or 1-element-long array w/shared value
-    const REBVAL *param,
+    const RELVAL *param,
     REBVAL *arg, // for updating VALUE_FLAG_EVALUATED
     REBSYM sym_func, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
@@ -168,7 +168,7 @@ handle_subfeed:
             goto return_end_flag;
 
         if (op == VARARG_OP_FIRST) {
-            COPY_RELVAL(out, f->value, f->specifier);
+            COPY_VALUE(out, f->value, f->specifier);
             return VALIST_FLAG;
         }
     }
@@ -575,7 +575,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             Mold_Value(mold, ARR_HEAD(VAL_VARARGS_ARRAY1(value)), TRUE);
     }
     else {
-        const REBVAL *varargs_param = VAL_VARARGS_PARAM(value);
+        const RELVAL *varargs_param = VAL_VARARGS_PARAM(value);
 
         REBVAL param_word;
 

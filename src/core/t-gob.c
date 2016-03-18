@@ -613,7 +613,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
         assert(!IS_VOID(blk));
 
         REBVAL var;
-        COPY_RELVAL(&var, blk, specifier);
+        COPY_VALUE(&var, blk, specifier);
         ++blk;
 
         if (!IS_SET_WORD(&var))
@@ -625,7 +625,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
         assert(!IS_VOID(blk));
 
         REBVAL val;
-        COPY_RELVAL(&val, blk, specifier);
+        COPY_VALUE(&val, blk, specifier);
         ++blk;
 
         if (IS_SET_WORD(&val))
@@ -888,7 +888,7 @@ REBTYPE(Gob)
             len = VAL_ARRAY_LEN_AT(arg);
             arg = KNOWN(VAL_ARRAY_AT(arg)); // !!! REVIEW
         }
-        else goto is_arg_error;;
+        else goto is_arg_error;
         Insert_Gobs(gob, arg, index, len, FALSE);
         break;
 

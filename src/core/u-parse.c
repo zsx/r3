@@ -88,7 +88,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth);
 
 REBCTX *Error_Parse_Rule_Core(const RELVAL *item, REBCTX *specifier) {
     REBVAL specified;
-    COPY_RELVAL(&specified, item, specifier);
+    COPY_VALUE(&specified, item, specifier);
 
     return Error(RE_PARSE_RULE, &specified);
 }
@@ -786,7 +786,7 @@ static REBCNT Parse_To(
             REBVAL word; /// !!!Temp, but where can we put it?
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
-                COPY_RELVAL(&word, item, P_SPECIFIER);
+                COPY_VALUE(&word, item, P_SPECIFIER);
 
                 // Only set type--don't reset the header, because that could
                 // make the word binding inconsistent with the bits.
@@ -924,7 +924,9 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
     //
     REBVAL value;
-    DO_NEXT_MAY_THROW(indexor, &value, AS_ARRAY(P_INPUT), indexor, GUESSED);
+    DO_NEXT_MAY_THROW(
+        indexor, &value, AS_ARRAY(P_INPUT), indexor, P_INPUT_SPECIFIER
+    );
     if (indexor == THROWN_FLAG) {
         *f->out = value;
         return THROWN_FLAG;
@@ -1287,11 +1289,15 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(item)) {
-                    REBVAL temp;
-                    Val_Init_Series_Index(&temp, P_TYPE, P_INPUT, P_POS);
-
-                    *GET_MUTABLE_VAR_MAY_FAIL(item, P_SPECIFIER) = temp;
-
+                    Val_Init_Series_Index_Core(
+                        GET_MUTABLE_VAR_MAY_FAIL(item, P_SPECIFIER),
+                        P_TYPE, // make variable ANY-SERIES type match input
+                        P_INPUT, // current input series
+                        P_POS, // current input position
+                        Is_Array_Series(P_INPUT)
+                            ? P_INPUT_SPECIFIER // need the specifier too
+                            : SPECIFIED
+                    );
                     continue;
                 }
 
@@ -1302,15 +1308,13 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     if (!ANY_SERIES(var)) // #1263
                         fail (Error(RE_PARSE_SERIES, P_RULE - 1));
                     P_POS = Set_Parse_Series(f, var);
-                    item = var; // before this was "var"
+                    item = var;
                     continue;
                 }
 
                 // word - some other variable
-                if (IS_WORD(item)) {
-                    // !!! Should mutability be enforced?
+                if (IS_WORD(item))
                     item = GET_MUTABLE_VAR_MAY_FAIL(item, P_SPECIFIER);
-                }
 
                 // item can still be 'word or /word
             }
@@ -1341,7 +1345,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                  */
                 if (!ANY_SERIES(&save)) {
                     REBVAL specified;
-                    COPY_RELVAL(&specified, item, P_SPECIFIER);
+                    COPY_VALUE(&specified, item, P_SPECIFIER);
                     fail (Error(RE_PARSE_SERIES, &specified));
                 }
                 P_POS = Set_Parse_Series(f, &save);
@@ -1489,7 +1493,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     }
 
                     sub_parse.stackvars = Push_Ended_Trash_Chunk(3);
-                    COPY_RELVAL(
+                    COPY_VALUE(
                         &sub_parse.stackvars[0], val, P_INPUT_SPECIFIER
                     );
                     SET_INTEGER(&sub_parse.stackvars[1], P_FIND_FLAGS);
@@ -1669,20 +1673,23 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? ARR_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT), begin, GUESSED, count
+                                AS_ARRAY(P_INPUT),
+                                begin,
+                                P_INPUT_SPECIFIER,
+                                count
                             ))
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
-                    *GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED) = temp;
+                    *GET_MUTABLE_VAR_MAY_FAIL(word, P_SPECIFIER) = temp;
                 }
                 else if (GET_FLAG(flags, PF_SET)) {
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED);
+                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, P_SPECIFIER);
 
                     if (Is_Array_Series(P_INPUT)) {
                         if (count == 0)
                             SET_BLANK(var);
                         else {
-                            COPY_RELVAL(
+                            COPY_VALUE(
                                 var,
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
@@ -1716,7 +1723,10 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? ARR_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT), begin, GUESSED, count
+                                AS_ARRAY(P_INPUT),
+                                begin,
+                                P_INPUT_SPECIFIER,
+                                count
                             ))
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
@@ -1755,7 +1765,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
-                        COPY_RELVAL(&specified, item, P_SPECIFIER);
+                        COPY_VALUE(&specified, item, P_SPECIFIER);
 
                         P_POS = Modify_Array(
                             GET_FLAG(flags, PF_CHANGE) ? A_CHANGE : A_INSERT,
@@ -1779,7 +1789,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     }
                     else {
                         REBVAL specified;
-                        COPY_RELVAL(&specified, item, P_SPECIFIER);
+                        COPY_VALUE(&specified, item, P_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
                             cmd |= (1 << AN_SERIES); // special flag

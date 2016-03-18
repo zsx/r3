@@ -368,7 +368,7 @@ static void Init_Datatypes(void)
 
     for (n = 1; NOT_END(word); word++, n++) {
         assert(n < REB_MAX_0);
-        value = Append_Context(Lib_Context, word, SYM_0);
+        value = Append_Context(Lib_Context, KNOWN(word), SYM_0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = KIND_FROM_0(n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n - 1));
@@ -585,14 +585,14 @@ static void Init_Natives(void)
         // Do_Core() helps with stability and invariants.
 
         REBVAL *name;
-        REBVAL *spec;
+        RELVAL *spec;
         REBOOL has_body;
 
         // Get the name the native will be started at with in Lib_Context
         //
         if (!IS_SET_WORD(item))
             panic (Error(RE_NATIVE_BOOT));
-        name = item;
+        name = KNOWN(item);
         ++item;
 
         // See if it's being invoked with NATIVE or NATIVE/BODY

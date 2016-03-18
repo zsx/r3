@@ -317,7 +317,7 @@ static REBCNT Find_Map_Entry(
 
     // Must set the value:
     if (n) {  // re-set it:
-        COPY_RELVAL(ARR_AT(pairlist, ((n - 1) * 2) + 1), val, val_specifier);
+        COPY_VALUE(ARR_AT(pairlist, ((n - 1) * 2) + 1), val, val_specifier);
         return n;
     }
 
@@ -405,7 +405,7 @@ static void Append_Map(
     REBCTX *specifier,
     REBCNT len
 ) {
-    REBVAL *item = ARR_AT(array, index);
+    RELVAL *item = ARR_AT(array, index);
     REBCNT n = 0;
 
     while (n < len && NOT_END(item)) {
@@ -490,7 +490,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     REBVAL *val;
     REBCNT cnt = 0;
     REBARR *array;
-    REBVAL *out;
+    REBVAL *dest;
 
     // Count number of set entries:
     //
@@ -502,17 +502,17 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     // Copy entries to new block:
     //
     array = Make_Array(cnt * ((what == 0) ? 2 : 1));
-    out = SINK(ARR_HEAD(array));
+    dest = SINK(ARR_HEAD(array));
     val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
     for (; NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_BLANK(val+1)) {
-            if (what <= 0) *out++ = val[0];
-            if (what >= 0) *out++ = val[1];
+        if (!IS_BLANK(val + 1)) {
+            if (what <= 0) *dest++ = val[0];
+            if (what >= 0) *dest++ = val[1];
         }
     }
 
-    SET_END(out);
-    SET_ARRAY_LEN(array, out - ARR_HEAD(array));
+    SET_END(dest);
+    SET_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
     return array;
 }
 

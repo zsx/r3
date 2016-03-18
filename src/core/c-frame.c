@@ -274,7 +274,7 @@ REBVAL *Append_Context_Core(
 // Most common appending is not concerned with lookahead bit (e.g. whether the
 // key is infix).  Generally only an issue when copying.
 //
-REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym) {
+REBVAL *Append_Context(REBCTX *context, RELVAL *word, REBSYM sym) {
     return Append_Context_Core(context, word, sym, FALSE);
 }
 
@@ -1352,75 +1352,6 @@ REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
 
 
 //
-//  Frame_For_Word_Dynamic: C
-//
-// Looks up word from a relative binding to get a specific context.  Currently
-// this uses the stack (dynamic binding) but a better idea is in the works.
-//
-struct Reb_Frame *Frame_For_Word_Dynamic(
-    const RELVAL *any_word,
-    REBOOL trap
-) {
-    // !!! This is the temporary answer to relative binding.  NewFunction
-    // aims to resolve relative bindings with the help of an extra
-    // parameter to Get_Var, that will be "tunneled" through ANY-SERIES!
-    // REBVALs that are "viewing" an array that contains relatively
-    // bound elements.  That extra parameter will fill in the *actual*
-    // frame so this code will not have to guess that "the last stack
-    // level is close enough"
-
-    struct Reb_Frame *frame = FS_TOP;
-
-    assert(ANY_WORD(any_word) && IS_RELATIVE(any_word));
-
-    for (; frame != NULL; frame = FRM_PRIOR(frame)) {
-        if (
-            frame->eval_type != ET_FUNCTION
-            || FRM_FUNC(frame) != VAL_WORD_FUNC(any_word)
-            || Is_Function_Frame_Fulfilling(frame)
-        ) {
-            continue;
-        }
-
-        // Currently the only `mode` in which a frame should be
-        // considered as a legitimate match is ET_FUNCTION.
-        // Other call types include a GROUP! being recursed or
-        // a function whose frame is pending and doesn't have all
-        // the arguments ready yet... these shouldn't count.
-        //
-        assert(
-            SAME_SYM(
-                VAL_WORD_SYM(any_word),
-                VAL_TYPESET_SYM(
-                    FUNC_PARAM(FRM_FUNC(frame), VAL_WORD_INDEX(any_word))
-                )
-            )
-        );
-
-        // Shouldn't be doing relative word lookups in durables ATM...they
-        // copied their bodies in the current implementation.
-        //
-        assert(!IS_FUNC_DURABLE(FUNC_VALUE(FRM_FUNC(frame))));
-
-        return frame;
-    }
-
-    // Historically, trying to get a value from a context not
-    // on the stack in non-trapping concepts has been treated
-    // the same as an unbound.  See #1914.
-    //
-    // !!! Is trying to access a variable that is no longer
-    // available via a FRAME! that's gone off stack materially
-    // different in the sense it should warrant an error in
-    // all cases, trap or not?
-
-    if (trap) return NULL;
-
-    fail (Error(RE_NO_RELATIVE, any_word));
-}
-
-
-//
 //  Obj_Value: C
 // 
 // Return pointer to the nth VALUE of an object.
@@ -1467,9 +1398,16 @@ REBVAL *CTX_KEY_Debug(REBCTX *c, REBCNT n) {
 //  CTX_VAR_Debug: C
 //
 REBVAL *CTX_VAR_Debug(REBCTX *c, REBCNT n) {
+    REBVAL *var;
     assert(n != 0 && n <= CTX_LEN(c));
     assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
-    return CTX_VARS_HEAD(c) + (n) - 1;
+
+    var = CTX_VARS_HEAD(c) + (n) - 1;
+
+    assert(IS_SPECIFIC(var));
+    assert(!THROWN(var));
+
+    return var;
 }
 
 

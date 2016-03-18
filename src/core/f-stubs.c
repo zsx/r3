@@ -411,7 +411,7 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 // Common function.
 //
 void Val_Init_Series_Index_Core(
-    RELVAL *value,
+    REBVAL *value,
     enum Reb_Kind type,
     REBSER *series,
     REBCNT index,
@@ -441,6 +441,17 @@ void Val_Init_Series_Index_Core(
     value->payload.any_series.series = series;
     VAL_INDEX(value) = index;
     INIT_ARRAY_SPECIFIC(value, specifier);
+
+#if !defined(NDEBUG)
+    if (ANY_ARRAY(value) && specifier == SPECIFIED) {
+        //
+        // If a SPECIFIED is used for an array, then that top level of the
+        // array cannot have any relative values in it.  Catch it here vs.
+        // waiting until a later assertion.
+        //
+        ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
+    }
+#endif
 }
 
 
@@ -467,7 +478,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context_Core(RELVAL *out, enum Reb_Kind kind, REBCTX *context) {
+void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are

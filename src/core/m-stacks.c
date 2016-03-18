@@ -481,7 +481,7 @@ REBFUN *Find_Underlying_Func(
     // the frame needs to be "for that", so it is the underlying function.
 
     if (IS_FUNCTION_PLAIN(value)) {
-        REBVAL *body = VAL_FUNC_BODY(value);
+        RELVAL *body = VAL_FUNC_BODY(value);
         assert(IS_RELATIVE(body));
         return VAL_RELATIVE(body);
     }
@@ -817,8 +817,14 @@ finished:
 //
 REBVAL *FRM_ARG_Debug(struct Reb_Frame *frame, REBCNT n)
 {
+    REBVAL *var;
     assert(n != 0 && n <= FRM_NUM_ARGS(frame));
-    return &frame->arg[n - 1];
+
+    var = &frame->arg[n - 1];
+    assert(!THROWN(var));
+    assert(!IS_RELATIVE(var));
+
+    return var;
 }
 
 #endif

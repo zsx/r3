@@ -670,7 +670,7 @@ REBARR *Make_Spec_From_Function(REBVAL *func)
 
     REBCNT index = 1;
     for (; index <= ARR_LEN(words); ++index) {
-        Append_Value(spec, ARR_AT(words, index - 1));
+        Append_Value(spec, KNOWN(ARR_AT(words, index - 1)));
         if (types && IS_BLOCK(CTX_VAR(types, index)))
             Append_Value(spec, CTX_VAR(types, index));
         if (notes && IS_STRING(CTX_VAR(notes, index)))

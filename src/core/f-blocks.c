@@ -124,7 +124,23 @@ REBARR *Copy_Array_At_Max_Shallow(
 
     copy = Make_Array(max + 1);
 
-    memcpy(ARR_HEAD(copy), ARR_AT(original, index), max * sizeof(REBVAL));
+    if (specifier == SPECIFIED) {
+    #if !defined(NDEBUG)
+        REBCNT count = 0;
+        const RELVAL *check = ARR_AT(original, index);
+        for (; count < max; ++count, ++check) {
+            assert(IS_SPECIFIC(check));
+        }
+    #endif
+        memcpy(ARR_HEAD(copy), ARR_AT(original, index), max * sizeof(REBVAL));
+    }
+    else {
+        REBCNT count = 0;
+        const RELVAL *src = ARR_AT(original, index);
+        RELVAL *dest = ARR_HEAD(copy);
+        for (; count < max; ++count, ++src, ++dest)
+            COPY_VALUE(dest, src, specifier);
+    }
 
     SET_ARRAY_LEN(copy, max);
     TERM_ARRAY(copy);
@@ -149,7 +165,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(
 
     array = Make_Array(len + extra + 1);
 
-    if (specifier == SPECIFIED && FALSE) { // !!! Temporary--bad SPECIFIED ok
+    if (specifier == SPECIFIED) {
     #if !defined(NDEBUG)
         REBCNT count = 0;
         const RELVAL *check = head;
@@ -162,7 +178,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(
     else {
         REBCNT count = 0;
         const RELVAL *src = head;
-        REBVAL *dest = KNOWN(ARR_HEAD(array));
+        RELVAL *dest = ARR_HEAD(array);
         for (; count < len; ++count, ++src, ++dest)
             COPY_VALUE(dest, src, specifier);
     }
@@ -356,7 +372,6 @@ REBARR *Copy_Array_Core_Managed(
 #endif
 
     ASSERT_NO_RELATIVE(copy, deep);
-
     return copy;
 }
 
@@ -528,6 +543,21 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 
 
 //
+//  Unmark_Series: C
+//
+void Unmark_Array(REBARR *array)
+{
+    if (!GET_ARR_FLAG(array, SERIES_FLAG_MARK)) return; // avoid loop
+
+    CLEAR_ARR_FLAG(array, SERIES_FLAG_MARK);
+
+    RELVAL *val;
+    for (val = ARR_HEAD(array); NOT_END(val); ++val)
+        Unmark(val);
+}
+
+
+//
 //  Unmark: C
 // 
 // Clear the recusion markers for series and object trees.
@@ -553,10 +583,5 @@ void Unmark(RELVAL *val)
         return;
     }
 
-    if (!GET_ARR_FLAG(array, SERIES_FLAG_MARK)) return; // avoid loop
-
-    CLEAR_ARR_FLAG(array, SERIES_FLAG_MARK);
-
-    for (val = ARR_HEAD(array); NOT_END(val); val++)
-        Unmark(val);
+    Unmark_Array(array);
 }

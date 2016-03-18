@@ -364,18 +364,6 @@ enum REB_Mold_Opts {
 
 #define GET_MOPT(v, f) GET_FLAG(v->opts, f)
 
-#define Mold_Value(mold,value,molded) \
-    Mold_Value_Core((mold), (value), (molded))
-
-#define Copy_Form_Value(value,opts) \
-    Copy_Form_Value_Core((value), (opts))
-
-#define Pre_Mold(value,mold) \
-    Pre_Mold_Core((value), (mold))
-
-#define Post_Mold(value,mold) \
-    Post_Mold_Core((value), (mold))
-
 // Special flags for decimal formatting:
 enum {
     DEC_MOLD_PERCENT = 1 << 0,      // follow num with %
@@ -903,14 +891,6 @@ typedef struct rebol_time_fields {
     REBCNT s;
     REBCNT n;
 } REB_TIMEF;
-
-
-//
-// Tracing !!! move to separate file?
-//
-
-#define Trace_Value(label,value) \
-    Trace_Value_Core((label), (value))
 
 
 /***********************************************************************

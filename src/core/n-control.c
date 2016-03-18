@@ -60,7 +60,7 @@ static void Protect_Key(RELVAL *key, REBFLGS flags)
 void Protect_Value(RELVAL *value, REBFLGS flags)
 {
     if (ANY_SERIES(value) || IS_MAP(value))
-        Protect_Series(value, flags);
+        Protect_Series(VAL_SERIES(value), VAL_INDEX(value), flags);
     else if (IS_OBJECT(value) || IS_MODULE(value))
         Protect_Object(value, flags);
 }
@@ -71,10 +71,8 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Series(RELVAL *val, REBFLGS flags)
+void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 {
-    REBSER *series = VAL_SERIES(val);
-
     if (GET_SER_FLAG(series, SERIES_FLAG_MARK)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
@@ -82,11 +80,12 @@ void Protect_Series(RELVAL *val, REBFLGS flags)
     else
         CLEAR_SER_FLAG(series, SERIES_FLAG_LOCKED);
 
-    if (!ANY_ARRAY(val) || !GET_FLAG(flags, PROT_DEEP)) return;
+    if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
     SET_SER_FLAG(series, SERIES_FLAG_MARK); // recursion protection
 
-    for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
+    RELVAL *val = ARR_AT(AS_ARRAY(series), index);
+    for (; NOT_END(val); val++) {
         Protect_Value(val, flags);
     }
 }
@@ -1629,14 +1628,14 @@ REBNATIVE(switch)
             || IS_GET_WORD(e.value)
             || IS_GET_PATH(e.value)
         ) {
-            if (EVAL_VALUE_THROWS(fallout, e.value)) {
+            if (EVAL_VALUE_CORE_THROWS(fallout, e.value, e.specifier)) {
                 *D_OUT = *fallout;
                 goto return_thrown;
             }
             // Note: e.value may have gone stale during DO, must REFETCH
         }
         else
-            *fallout = *e.value;
+            COPY_VALUE(fallout, e.value, e.specifier);
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it

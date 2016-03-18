@@ -317,7 +317,7 @@ REBNATIVE(bind)
         // specific frame, this needs to ensure that the Reb_Frame's data
         // is a real context, not just a chunk of data.
         //
-        context = VAL_WORD_CONTEXT_MAY_REIFY(target);
+        context = VAL_WORD_CONTEXT(target);
     }
 
     if (ANY_WORD(value)) {
@@ -391,7 +391,7 @@ REBNATIVE(context_of)
     // !!! Mechanically it is likely that in the future, all FRAME!s for
     // user functions will be reified from the moment of invocation.
     //
-    *D_OUT = *CTX_VALUE(VAL_WORD_CONTEXT_MAY_REIFY(ARG(word)));
+    *D_OUT = *CTX_VALUE(VAL_WORD_CONTEXT(ARG(word)));
 
     return R_OUT;
 }
@@ -570,7 +570,7 @@ REBNATIVE(get)
         }
 
         SET_END(dest);
-        SET_ARRAY_LEN(array, dest - ARR_HEAD(array));
+        SET_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
         Val_Init_Block(D_OUT, array);
     }
     else {
@@ -1411,6 +1411,7 @@ REBNATIVE(aliases_q)
 REBNATIVE(set_q)
 {
     PARAM(1, location);
+
     REBVAL *location = ARG(location);
 
     if (ANY_WORD(location)) {

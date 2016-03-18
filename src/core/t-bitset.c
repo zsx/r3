@@ -109,7 +109,7 @@ REBOOL MT_Bitset(
 
         {
             REBVAL specific;
-            COPY_RELVAL(&specific, data, specifier);
+            COPY_VALUE(&specific, data, specifier);
             Set_Bits(ser, &specific, TRUE);
         }
 
@@ -119,7 +119,7 @@ REBOOL MT_Bitset(
 
     if (!IS_BINARY(data)) return FALSE;
 
-    Val_Init_Bitset(out, Copy_Sequence_At_Position(data));
+    Val_Init_Bitset(out, Copy_Sequence_At_Position(KNOWN(data)));
     INIT_BITS_NOT(VAL_SERIES(out), FALSE);
     return TRUE;
 }

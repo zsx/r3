@@ -218,7 +218,7 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mold, REBCNT len)
 // 
 // Emit the initial datatype function, depending on /ALL option
 //
-void Pre_Mold_Core(const RELVAL *value, REB_MOLD *mold)
+void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
 {
     Emit(mold, GET_MOPT(mold, MOPT_MOLD_ALL) ? "#[T " : "make T ", value);
 }
@@ -241,7 +241,7 @@ void End_Mold(REB_MOLD *mold)
 // For series that has an index, add the index for mold/all.
 // Add closing block.
 //
-void Post_Mold_Core(const RELVAL *value, REB_MOLD *mold)
+void Post_Mold(const RELVAL *value, REB_MOLD *mold)
 {
     if (VAL_INDEX(value)) {
         Append_Codepoint_Raw(mold->series, ' ');
@@ -1043,12 +1043,28 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue; // !!! Should hidden fields be in molded view?
 
-        if (var && IS_VOID(var)) {
+        if (var) {
             //
-            // no way to show value for unset variables, they are covered
-            // by being present in the "spec" and absent from the "body"
+            // There's no way to show a value for unset variables.  They are
+            // covered by being present in "spec" and absent from the "body".
             //
-            continue;
+            // !!! The way FRAME! is currently implemented, it is possible to
+            // see "safe trash" when processing natives...because a native
+            // can legally use its argument slots as evaluation destinations.
+            // And it's possible to have an unsafe trash if the argument is
+            // a pending frame.  Because the debugger is a work in progress
+            // it's not known exactly how to handle this...for now, be
+            // very conservative and just allow the molding of objects which
+            // have safe trash set as if the variable is unset.
+            //
+            if (IS_FRAME(value)) {
+                if (IS_VOID_OR_SAFE_TRASH(var))
+                    continue;
+            }
+            else {
+                if (IS_VOID(value))
+                    continue;
+            }
         }
 
         New_Indented_Line(mold);
@@ -1137,7 +1153,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 // 
 // Mold or form any value to string series tail.
 //
-void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
+void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
 {
     REBYTE buf[60];
     REBINT len;
@@ -1197,7 +1213,7 @@ void Mold_Value_Core(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
     switch (VAL_TYPE(value)) {
     case REB_0:
         // Voids should only be molded in debug scenarios
-        Append_Unencoded(ser, "$void");
+        Append_Unencoded(ser, "&void");
         break;
 
     case REB_BAR:
@@ -1470,7 +1486,7 @@ check_and_return:
 // 
 // Form a value based on the mold opts provided.
 //
-REBSER *Copy_Form_Value_Core(const RELVAL *value, REBFLGS opts)
+REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
 {
     REB_MOLD mo;
     CLEARS(&mo);

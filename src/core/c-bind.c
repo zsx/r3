@@ -71,53 +71,30 @@ REBVAL *Get_Var_Core(
 
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
+        // The only legal time to pass in SPECIFIED is if one is convinced
+        // there are no relatively bound words in the array that one is
+        // dealing with.  This assert will happen if that was not the
+        // case, and there actually was one.
+        //
+    #if !defined(NDEBUG)
         if (specifier == SPECIFIED) {
-            //
-            // !!! Temporary--tolerate lying SPECIFIEDs until the basics
-            // of things like picking values out of blocks can propagate the
-            // property properly.
-            //
-            specifier = GUESSED;
+
+            Debug_Fmt("Get_Var_Core on relative value without specifier");
+            PROBE_MSG(any_word, "the word");
+            assert(IS_FUNCTION(FUNC_VALUE(VAL_WORD_FUNC(any_word))));
+            PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(any_word)), "the function");
+            PANIC_VALUE(any_word);
         }
+    #endif
 
-        if (specifier == GUESSED) {
-            //
-            // !!! Specific binding is a work in progress.  As an interim step
-            // while it is being propagated around the system, it's legal
-            // to pass in GUESSED as a specifier to fall back onto dynamic
-            // binding and just search the stack, as R3-Alpha did.
-
-            struct Reb_Frame *frame
-                = Frame_For_Word_Dynamic(
-                    any_word, LOGICAL(flags & GETVAR_UNBOUND_OK)
-                );
-
-            if (!frame) {
-                assert(LOGICAL(flags & GETVAR_UNBOUND_OK));
-                return NULL;
-            }
-
-            assert(frame->varlist != NULL);
-            assert(GET_ARR_FLAG(frame->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
-            context = AS_CONTEXT(frame->varlist);
-        }
-        else {
-            // The only legal time to pass in SPECIFIED is if one is convinced
-            // there are no relatively bound words in the array that one is
-            // dealing with.  This assert will happen if that was not the
-            // case, and there actually was one.
-            //
-            assert(specifier != SPECIFIED);
-
-            // If a specifier is provided, then it must be a frame matching
-            // the function in the relatively bound word.
-            //
-            assert(
-                VAL_WORD_FUNC(any_word)
-                == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
-            );
-            context = specifier;
-        }
+        // If a specifier is provided, then it must be a frame matching
+        // the function in the relatively bound word.
+        //
+        assert(
+            VAL_WORD_FUNC(any_word)
+            == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+        );
+        context = specifier;
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //

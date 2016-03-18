@@ -711,6 +711,20 @@ enum {
 //
 #define VOID_CELL (&PG_Void_Cell[0])
 
+// The debug build has a concept of "safe trash" which is really just an
+// unset that is meant to be overwritten before it is ever read.  Only the
+// GC is willing to tolerate them, but they will trigger an alarm if any
+// other code sees them (error during VAL_TYPE or IS_XXX)
+//
+#ifdef NDEBUG
+    #define IS_VOID_OR_SAFE_TRASH(v) \
+        IS_VOID(v)
+#else
+    #define IS_VOID_OR_SAFE_TRASH(v) \
+        ((IS_TRASH_DEBUG(v) && GET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH)) \
+        || IS_VOID(v))
+#endif
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -1142,7 +1156,7 @@ union Reb_Binding_Target {
         (v)->payload.any_target.relative)
 
 #ifdef NDEBUG
-    #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Expirable(v)
+    #define VAL_SPECIFIC(v)     ((v)->payload.any_target.specific)
 #else
     #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Debug(v)
 #endif
@@ -1183,8 +1197,6 @@ struct Reb_Any_Series {
 #define VAL_SPECIFIER(v) \
     (assert(ANY_ARRAY(v)), VAL_SPECIFIC(v))
 
-// !!! GUESSED is temporarily allowed for initializing an array's 'specifier'
-//
 #define INIT_ARRAY_SPECIFIC(v,context) \
     (assert(IS_SPECIFIC(v)), \
         (v)->payload.any_series.target.specific = (context))
@@ -1244,7 +1256,7 @@ struct Reb_Any_Series {
 // (Or perhaps just use proper inlining and support it in those builds.)
 
 #define Val_Init_Series_Index(v,t,s,i) \
-    Val_Init_Series_Index_Core((v), (t), (s), (i), SPECIFIED)
+    Val_Init_Series_Index_Core(SINK(v), (t), (s), (i), SPECIFIED)
 
 #define Val_Init_Series(v,t,s) \
     Val_Init_Series_Index((v), (t), (s), 0)
@@ -1567,14 +1579,8 @@ struct Reb_Any_Word {
 #define VAL_WORD_CONTEXT(v) \
     (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_SPECIFIC(v))
 
-#define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (IS_RELATIVE(v) \
-        ? Context_For_Frame_May_Reify_Managed( \
-            Frame_For_Word_Dynamic((v), FALSE)) \
-        : VAL_WORD_CONTEXT(v))
-
 #define INIT_WORD_CONTEXT(v,context) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND) && context != GUESSED), \
+    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND) && context != SPECIFIED), \
         ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
         assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
         (v)->payload.any_word.place.binding.target.specific = (context))
@@ -1972,7 +1978,7 @@ struct Reb_Any_Context {
 #define SELFISH(n) (n + 1)
 
 #define Val_Init_Context(out,kind,context) \
-    Val_Init_Context_Core((out), (kind), (context))
+    Val_Init_Context_Core(SINK(out), (kind), (context))
 
 #define Val_Init_Object(v,c) \
     Val_Init_Context((v), REB_OBJECT, (c))
@@ -2336,7 +2342,7 @@ struct Reb_Varargs {
     // Note: could be a parameter index in the worst case scenario that the
     // array grew, revisit the rules on holding pointers into paramlists.
     //
-    const REBVAL *param;
+    const RELVAL *param;
 
     // Similar to the param, the arg is only good for the lifetime of the
     // FRAME!...but even less so, because VARARGS! can (currently) be
@@ -2625,7 +2631,7 @@ struct Reb_Gob {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  REBOL VALUE DEFINITION (`struct Reb_Value`)
+//  VALUE PAYLOAD DEFINITION (`struct Reb_Value`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -2751,7 +2757,7 @@ struct Reb_Value
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  RELVAL ("POSSIBLY RELATIVE VALUE")
+//  REBVAL ("fully specified" value) and RELVAL ("possibly relative" value)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -2787,23 +2793,19 @@ struct Reb_Value
 // To make it easier to look for places that think they aren't dealing
 // with any relative values, pass this as the specifier instead of NULL.
 //
-#define SPECIFIED cast(REBCTX*, 0xF00F00F0)
+#define SPECIFIED cast(REBCTX*, 0xF10F10F1)
+#define GUESSED SPECIFIED // document sites where you're not sure it's specific
 
-// To try and have some hope of getting to the point where the specifier is
-// threaded properly through, for starters the system is just trying to
-// compile and run with the new parameterization.  If up against a wall and
-// no specifier available, just pass GUESSED.
+// A very small subset of code wants to be able to work with a relative
+// function body in an unbound way.  If it were not able to, then the debug
+// dumping of a relativized function body's values would have to copy (which
+// would undermine the debug operation by doing a complex operation) or
+// the system would have to be generally tolerant of "lying" specifiers.
+// Instead, you can combine the array with ARCHETYPED.
 //
-#define GUESSED cast(REBCTX*, 0xABCDABCD)
-
-// So long as dynamic-based guessing is still around, it's possible to copy a
-// relative word at a time when no corresponding function is on the stack.
-// A specific value still has to be produced--as that's not the moment an
-// error should happen (only if it is looked up as a variable).  This is the
-// specific context constant that is filled in for that case, which will
-// lead to errors on lookup if they ever happen.
+// !!! Review this and if it can be made debug build only.
 //
-#define GUESSED_EXPIRED cast(REBCTX*, 0xEEEEEEEE)
+#define ARCHETYPED cast(REBCTX*, 0xB10B10B1)
 
 // This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
 // indeed relative and needs to be made specific to be put into the
@@ -2812,10 +2814,6 @@ struct Reb_Value
 // the relative value (because relative values in an array may only
 // be relative to the function that deep copied them, and that is the
 // only kind of specifier you can use with them).
-//
-// !!! Because of the existence of GUESSED, this macro cannot be run directly
-// yet.  Any guesses must be resolved first, see COPY_VALUE_Guessed.
-// (Ultimately this will be unnecessary.)
 //
 #define COPY_VALUE_MACRO(dest,src,specifier) \
     do { \
@@ -2843,20 +2841,13 @@ struct Reb_Value
         } \
     } while (0)
 
-// During the transitional phase when specifiers are not completely propagated,
-// traditional dynamic binding can be used to "just guess" where to look up
-// a relative value.  To get this behavior, pass GUESSED as a specifier.
-//
-// (Ultimately this will not be allowed, and the only way to avoid passing
-// a specifier will be if you are certain you aren't dealing with any
-// relative values, in which case you pass SPECIFIED.)
-//
+
 #ifdef NDEBUG
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Guessable(SINK(dest),(src),(specifier))
+        COPY_VALUE_Release(SINK(dest),(src),(specifier))
 #else
     #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Guessable_Debug(SINK(dest),(src),(specifier))
+        COPY_VALUE_Debug(SINK(dest),(src),(specifier))
 #endif
 
 #ifdef NDEBUG
@@ -2910,6 +2901,8 @@ void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
         Panic_Value_Debug((v), __FILE__, __LINE__)
 #endif
 
+#define Panic_Value(v) \
+    PANIC_VALUE(v)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -2930,9 +2923,10 @@ void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
 #define DROP_GUARD_VALUE(v) \
     do { \
         GC_Value_Guard->content.dynamic.len--; \
-        assert((v) == cast(REBVAL **, GC_Value_Guard->content.dynamic.data)[ \
-            GC_Value_Guard->content.dynamic.len \
-        ]); \
+        assert((v) == cast(RELVAL **, \
+            GC_Value_Guard->content.dynamic.data)[ \
+                GC_Value_Guard->content.dynamic.len \
+            ]); \
     } while (0)
 
 

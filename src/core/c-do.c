@@ -150,7 +150,6 @@ REBIXO Do_Values_At_Core(
 void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
 {
     REBDSP dsp_orig = DSP;
-    const REBVAL *value;
 
     assert(f->flags & DO_FLAG_VALIST);
     assert(f->indexor == VALIST_FLAG);
@@ -166,11 +165,12 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
 
     if (NOT_END(f->value)) {
         assert(!IS_VOID(f->value) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
-        DS_PUSH_MAYBE_VOID(f->value);
+        DS_PUSH_RELVAL_MAYBE_VOID(f->value, f->specifier);
 
-        while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*))) {
-            assert(!IS_VOID(value) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
-            DS_PUSH_MAYBE_VOID(value);
+        const RELVAL *spool; // need to keep f->value for END test after
+        while (NOT_END(spool = va_arg(*f->source.vaptr, const REBVAL*))) {
+            assert(!IS_VOID(spool) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
+            DS_PUSH_RELVAL_MAYBE_VOID(spool, f->specifier);
         }
 
         if (truncated) {
@@ -267,7 +267,8 @@ REBIXO Do_Va_Core(
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        f.value = va_arg(*vaptr, const REBVAL*); // not relative
+        f.value = va_arg(*vaptr, const REBVAL*);
+        assert(!IS_RELATIVE(f.value));
     }
 
     if (IS_END(f.value)) {

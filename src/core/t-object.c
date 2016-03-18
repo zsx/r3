@@ -210,7 +210,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (IS_END(word + 1))
             SET_BLANK(var);
         else
-            COPY_RELVAL(var, &word[1], VAL_SPECIFIER(arg));
+            COPY_VALUE(var, &word[1], VAL_SPECIFIER(arg));
 
         if (IS_END(word + 1)) break; // fix bug#708
     }

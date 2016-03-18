@@ -818,7 +818,7 @@ REBOOL MT_Struct(
                         eval_idx,
                         init,
                         VAL_ARRAY(data),
-                        blk - VAL_ARRAY_AT(data),
+                        cast(RELVAL*, blk) - VAL_ARRAY_AT(data),
                         specifier
                     );
                     if (eval_idx == THROWN_FLAG)

@@ -341,13 +341,13 @@ reevaluate:
             if (f->prior)
                 switch (f->prior->eval_type) {
                 case ET_SET_WORD:
-                    *f->out = *const_KNOWN(f->prior->param);
+                    COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
                     assert(IS_SET_WORD(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
                     goto do_function_in_gotten;
 
                 case ET_SET_PATH:
-                    *f->out = *const_KNOWN(f->prior->param);
+                    COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
                     assert(IS_SET_PATH(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
                     goto do_function_in_gotten;
@@ -695,7 +695,7 @@ reevaluate:
             // literally in a block.  This is relatively uncommon, so the code
             // caters to more common function fetches winding up in f->gotten.
             //
-            f->gotten = f->value;
+            f->gotten = const_KNOWN(f->value);
             SET_FRAME_SYM(f, SYM___ANONYMOUS__); // literal functions nameless
             SET_END(f->out); // needs GC-safe data
         }
@@ -803,6 +803,12 @@ reevaluate:
             //
             f->eval_fetched = f->value; // may be END marker for next fetch
 
+            // Since the evaluation result is a REBVAL and not a RELVAL, it
+            // is specific.  This means the `f->specifier` (which can only
+            // specify values from the source array) won't ever be applied
+            // to it, since it only comes into play for IS_RELATIVE values.
+            //
+            assert(IS_SPECIFIC(&f->cell.eval));
             f->value = const_KNOWN(&f->cell.eval);
             f->eval_type = Eval_Table[VAL_TYPE(f->value)];
             goto reevaluate; // we don't move index!
@@ -1173,7 +1179,7 @@ reevaluate:
 
             if (IS_END(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                    fail (Error_No_Arg(FRM_LABEL(f), const_KNOWN(f->param)));
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
@@ -1279,11 +1285,10 @@ reevaluate:
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
+                FETCH_NEXT_ONLY_MAYBE_END(f);
             }
             else
-                *f->arg = *f->value;
-
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
@@ -1345,7 +1350,7 @@ reevaluate:
             Type_Check_Arg_For_Param_May_Fail(f);
 
         continue_arg_loop: // `continue` might bind to the wrong scope
-            NOOP;
+            assert(IS_SPECIFIC(f->arg));
         }
 
         // There may have been refinements that were skipped because the
@@ -1954,10 +1959,14 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
             }
             else {
                 REBVAL dump;
-
-                Val_Init_Block_Index(
-                    &dump, f->source.array, cast(REBCNT, f->indexor)
+                Val_Init_Series_Index_Core(
+                    &dump,
+                    REB_BLOCK,
+                    ARR_SERIES(f->source.array),
+                    cast(REBCNT, f->indexor),
+                    f->specifier
                 );
+
                 PROBE_MSG(&dump, "...then this array for the next input");
             }
         }

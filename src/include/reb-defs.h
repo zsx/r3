@@ -44,13 +44,9 @@
 // construct is relevant to the Assert_Cell_Writable checks.
 //
 #ifdef REB_DEF
-    struct Reb_Value; // A Rebol value cell
-     #define RELVAL struct Reb_Value // maybe IS_RELATIVE()
+    struct Reb_Value;
+    #define RELVAL struct Reb_Value // maybe IS_RELATIVE()
 
-    // !!! Specific Values are from the specific binding branch, but included
-    // here in order to get the automatic C++ writability check (without
-    // having to format every cell that gets created)
-    //
     #ifdef __cplusplus
         #define REBVAL struct Reb_Specific_Value // guaranteed IS_SPECIFIC()
     #else

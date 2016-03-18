@@ -98,14 +98,14 @@ REBOOL MT_Function(
     if (!IS_BLOCK(def)) return FALSE;
     if (VAL_LEN_AT(def) != 2) return FALSE;
 
-    COPY_RELVAL(
+    COPY_VALUE(
         &spec,
         VAL_ARRAY_AT_HEAD(def, 0),
         IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier
     );
     if (!IS_BLOCK(&spec)) return FALSE;
 
-    COPY_RELVAL(
+    COPY_VALUE(
         &body,
         VAL_ARRAY_AT_HEAD(def, 1),
         IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier

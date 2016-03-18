@@ -414,7 +414,7 @@ REBTYPE(Decimal)
                         d1 = VAL_DECIMAL(item);
                     else {
                         REBVAL specific;
-                        COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+                        COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
                         fail (Error_Bad_Make(REB_DECIMAL, &specific));
                     }
 
@@ -426,7 +426,7 @@ REBTYPE(Decimal)
                         exp = VAL_DECIMAL(item);
                     else {
                         REBVAL specific;
-                        COPY_RELVAL(&specific, item, VAL_SPECIFIER(val));
+                        COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
                         fail (Error_Bad_Make(REB_DECIMAL, &specific));
                     }
 

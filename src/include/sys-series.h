@@ -378,7 +378,7 @@ struct Reb_Series {
         // rest of the bits in the debug build as it is checked whenver a
         // REBVAL tries to write a new header.)
         //
-        struct Reb_Value values[1];
+        REBVAL values[1];
     } content;
 
     // `info` is the information about the series which needs to be known
@@ -926,7 +926,7 @@ struct Reb_Array {
     (*Alloc_Tail_Array(a) = *(v), NOOP)
 
 #define Append_Value_Core(a,v,s) \
-    COPY_RELVAL(Alloc_Tail_Array(a), (v), (s))
+    COPY_VALUE(Alloc_Tail_Array(a), (v), (s))
 
 #define Copy_Values_Len_Shallow(v,s,l) \
     Copy_Values_Len_Extra_Shallow((v), (s), (l), 0)
@@ -1076,7 +1076,7 @@ struct Reb_Context {
 //
 #define CTX_VALUE(c) \
     (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
-        ? &ARR_SERIES(CTX_VARLIST(c))->content.values[0] \
+        ? KNOWN(&ARR_SERIES(CTX_VARLIST(c))->content.values[0]) \
         : SER_HEAD(REBVAL, ARR_SERIES(CTX_VARLIST(c)))) // not a RELVAL
 
 // Navigate from context to context components.  Note that the context's

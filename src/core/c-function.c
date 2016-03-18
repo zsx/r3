@@ -582,7 +582,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     REBARR *paramlist = Make_Array(num_slots);
     if (TRUE) {
-        REBVAL *dest = ARR_HEAD(paramlist); // canon function value
+        RELVAL *dest = ARR_HEAD(paramlist); // canon function value
         VAL_RESET_HEADER(dest, REB_FUNCTION);
         SET_VAL_FLAGS(dest, header_bits);
         dest->payload.function.func = AS_FUNC(paramlist);
@@ -647,7 +647,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         SET_ARR_FLAG(types_varlist, ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
-        REBVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
+        RELVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.context = AS_CONTEXT(types_varlist);
         dest->payload.any_context.exit_from = NULL;
@@ -679,7 +679,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
-        REBVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
+        RELVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.context = AS_CONTEXT(notes_varlist);
         dest->payload.any_context.exit_from = NULL;
@@ -797,6 +797,40 @@ REBFUN *Make_Function(
     return fun;
 }
 
+
+//
+//  Make_Expired_Frame_Ctx: C
+//
+// Function bodies contain relative words and relative arrays.  Arrays from
+// this relativized body may only be put into a specified REBVAL once they
+// have been combined with a frame.
+//
+// Reflection asks for function body data, when no instance is called.  Hence
+// a REBVAL must be produced somehow.  If the body is being copied, then the
+// option exists to convert all the references to unbound...but this isn't
+// representative of the actual connections in the body.
+//
+// There could be an additional "archetype" state for the relative binding
+// machinery.  But making a one-off expired frame is an inexpensive option,
+// at least while the specific binding is coming online.
+//
+// !!! To be written...was started for MOLD of function, and realized it's
+// really only needed for the BODY-OF reflector that gives back REBVAL*
+//
+REBCTX *Make_Expired_Frame_Ctx(REBFUN *func)
+{
+    assert(FALSE);
+    /*
+    expired_ctx = AS_CONTEXT(Make_Singular_Array(NONE_VALUE));
+    INIT_CTX_KEYLIST_SHARED(expired_ctx, VAL_FUNC_PARAMLIST(func));
+    SET_ARR_FLAG(CTX_VARLIST(expired_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_CTX_FLAG(expired_ctx, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
+    INIT_VAL_CONTEXT(CTX_VALUE(expired_ctx), expired_ctx);
+    VAL_CONTEXT_STACKVARS(CTX_VALUE(expired_ctx), NULL); // !!! or magic value?
+    VAL_CONTEXT_FRAME(CTX_VALUE(expired_ctx), NULL); // !!! or magic value?
+    */
+    return NULL;
+}
 
 //
 //  Get_Maybe_Fake_Func_Body: C
@@ -992,13 +1026,13 @@ REBFUN *Make_Plain_Function_May_Fail(
     // !!! This protection needs to be system level, as the user is able to
     // unprotect conventional protection via UNPROTECT.
     //
-    // !!! The protect interface is based on REBVALs at the moment, which
-    // is used by the mandatory Unmark() routine as well.  Easier to use
-    // than to figure out how to modify it to take series for this ATM.
-    //
-    Protect_Series(body, FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET));
+    Protect_Series(
+        ARR_SERIES(VAL_ARRAY(body)),
+        0, // start protection at index 0
+        FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET)
+    );
     assert(GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LOCKED));
-    Unmark(body);
+    Unmark_Array(VAL_ARRAY(body));
 
     return fun;
 }
@@ -1028,7 +1062,7 @@ REBCTX *Make_Frame_For_Function(REBVAL *value) {
 
     // Fill in the rootvar information for the context canon REBVAL
     //
-    REBVAL *var = ARR_HEAD(varlist);
+    REBVAL *var = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(var, REB_FRAME);
     INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
 
@@ -1259,7 +1293,7 @@ void Clonify_Function(REBVAL *value)
     //
     FUNC_META(new_fun) = FUNC_META(original_fun);
 
-    REBVAL *body = FUNC_BODY(new_fun);
+    RELVAL *body = FUNC_BODY(new_fun);
 
     // Since we rebind the body, we need to instruct the Plain_Dispatcher
     // that it's o.k. to tell the frame lookup that it can find variables
@@ -1334,9 +1368,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 {
     // In specific binding, we must always reify the frame and get it handed
     // over to the GC when calling user functions.  This is "costly" but
-    // essential.  It is not technically necessary except for "closures"
-    // prior to specific binding, but this helps exercise the code path
-    // in the non-specific-binding branch.
+    // essential.
     //
     REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
 
@@ -1345,56 +1377,12 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
     RELVAL *body = FUNC_BODY(f->func);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
-    // !!! This concern will be different in specific binding.  But during
-    // dynamic binding, if a hijacked function has put a new paramlist into
-    // effect for this function than the one its body was bound relative to,
-    // then this frame has to lie and say the stack was for that.
-
-    REBFUN *save_func = f->func;
-    f->func = VAL_RELATIVE(body);
-
     REB_R r;
+    if (Do_At_Throws(f->out, VAL_ARRAY(body), VAL_INDEX(body), frame_ctx))
+        r = R_OUT_IS_THROWN;
+    else
+        r = R_OUT;
 
-    if (!IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
-        //
-        // Simple model with no deep copying or rebinding of the body on
-        // a per-call basis.  Long-term this is planned to be able to handle
-        // specific binding and durability as well, but for now it means
-        // that words embedded in the shared blocks may only look up relative
-        // to the currently running function.
-        //
-        if (Do_At_Throws(f->out, VAL_ARRAY(body), 0, GUESSED))
-            r = R_OUT_IS_THROWN;
-        else
-            r = R_OUT;
-    }
-    else {
-        assert(f->varlist);
-
-        // Clone the body of the closure to allow us to rebind words inside
-        // of it so that they point specifically to the instances for this
-        // invocation.  (Costly, but that is the mechanics of words at the
-        // present time, until true relative binding is implemented.)
-        //
-        // Note that because the copy passes in the frame, it should be able
-        // to resolve all the relatively bound words.
-        //
-        REBARR *copy = Copy_Array_Deep_Managed(VAL_ARRAY(body), frame_ctx);
-        PUSH_GUARD_ARRAY(copy);
-
-        if (Do_At_Throws(f->out, copy, 0, SPECIFIED))
-            r = R_OUT_IS_THROWN;
-        else
-            r = R_OUT;
-
-        DROP_GUARD_ARRAY(copy);
-
-        // References to parts of this function's copied body may still be
-        // extant, but we no longer need to hold it from GC.  Fortunately the
-        // PROTECT_FRM_X will be implicitly dropped when the call ends.
-    }
-
-    f->func = save_func;
     return r;
 }
 
@@ -1486,7 +1474,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 {
-    REBVAL *adaptation = FUNC_BODY(f->func);
+    REBVAL *adaptation = KNOWN(FUNC_BODY(f->func));
     assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
 
     REBVAL* prelude = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 0));
@@ -1621,7 +1609,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Chainer_Dispatcher(struct Reb_Frame *f)
 {
-    REBVAL *pipeline = FUNC_BODY(f->func); // is the "pipeline" of functions
+    REBVAL *pipeline = KNOWN(FUNC_BODY(f->func)); // array of functions
 
     // Before skipping off to find the underlying non-chained function
     // to kick off the execution, the post-processing pipeline has to
@@ -1932,9 +1920,21 @@ REBNATIVE(adapt)
     // [0] is the prelude BLOCK!, [1] is the FUNCTION! we've adapted.
     //
     REBARR *adaptation = Make_Array(2);
-    Val_Init_Block(Alloc_Tail_Array(adaptation), prelude);
+
+    REBVAL *block = Alloc_Tail_Array(adaptation);
+    block->payload.any_series.series = ARR_SERIES(prelude);
+    VAL_INDEX(block) = 0;
+    SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
+    INIT_ARRAY_RELATIVE(block, under);
+
     Append_Value(adaptation, adaptee);
-    Val_Init_Block(FUNC_BODY(fun), adaptation);
+
+    RELVAL *body = FUNC_BODY(fun);
+    body->payload.any_series.series = ARR_SERIES(adaptation);
+    VAL_INDEX(body) = 0;
+    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
+    INIT_ARRAY_RELATIVE(body, under);
+    MANAGE_ARRAY(adaptation);
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -2055,7 +2055,7 @@ REBNATIVE(hijack)
     #if !defined(NDEBUG)
         if (IS_FUNCTION_PLAIN(victim)) {
             assert(IS_RELATIVE(victim));
-            REBVAL *block = ARR_HEAD(victim->payload.function.body);
+            RELVAL *block = ARR_HEAD(victim->payload.function.body);
             assert(IS_BLOCK(block));
             assert(VAL_INDEX(block) == 0);
             assert(VAL_RELATIVE(block) == VAL_FUNC(victim));
@@ -2241,7 +2241,7 @@ REBNATIVE(apply)
     struct Reb_Frame *f = &frame;
 
 #if !defined(NDEBUG)
-    REBVAL *first_def = VAL_ARRAY_AT(def);
+    RELVAL *first_def = VAL_ARRAY_AT(def);
 
     // !!! Because APPLY has changed, help warn legacy usages by alerting
     // if the first element of the block is not a SET-WORD!.  A BAR! can

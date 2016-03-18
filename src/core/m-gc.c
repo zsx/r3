@@ -130,21 +130,6 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 #endif
 
 
-// The debug build has a concept of "safe trash" which is really just an
-// unset that is meant to be overwritten before it is ever read.  Only the
-// GC is willing to tolerate them, but they will trigger an alarm if any
-// other code sees them (error during VAL_TYPE or IS_XXX)
-//
-#ifdef NDEBUG
-    #define IS_VOID_OR_SAFE_TRASH(v) \
-        IS_VOID(v)
-#else
-    #define IS_VOID_OR_SAFE_TRASH(v) \
-        ((IS_TRASH_DEBUG(v) && GET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH)) \
-        || IS_VOID(v))
-#endif
-
-
 //
 //  Push_Array_Marked_Deep: C
 // 
@@ -505,7 +490,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         // !!! Comment says void* ->ser field of the REBEVT is a "port or
         // object" but it also looks to store maps.  (?)
         //
-        QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(VAL_EVENT_SER(m_cast(REBVAL*, value))));
+        QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))));
     }
 
     if (IS_EVENT_MODEL(value, EVM_DEVICE)) {
@@ -602,6 +587,9 @@ static void Mark_Frame_Stack_Deep(void)
 
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
+
+        if (f->specifier != SPECIFIED)
+            QUEUE_MARK_CONTEXT_DEEP(f->specifier);
 
         // Specialization code may run while an f->out is being held as the
         // left-hand-side of an infix operation.  And SET-PATH! also holds
@@ -961,7 +949,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_LIT_PATH: {
             if (IS_SPECIFIC(val)) {
                 REBCTX *context = VAL_SPECIFIER(const_KNOWN(val));
-                if (context != GUESSED && context != SPECIFIED)
+                if (context != SPECIFIED)
                     QUEUE_MARK_CONTEXT_DEEP(context);
             }
             else {
@@ -1399,11 +1387,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
                         NOT_END(chunk_value)
                         && !IS_VOID_OR_SAFE_TRASH(chunk_value)
                     ) {
-                        // !!! The chunk stack should store REBVAL, not RELVAL
-                        // (can't turn this assert on until the system has
-                        // all the RELVAL/REBVAL type correctness in)
-
-                        /* assert(!IS_RELATIVE(chunk_value)); */
+                        assert(!IS_RELATIVE(chunk_value));
                         Queue_Mark_Value_Deep(chunk_value);
                     }
                     chunk_value++;

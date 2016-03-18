@@ -590,7 +590,7 @@ REB_R Command_Dispatcher(struct Reb_Frame *f)
     // For a "body", a command has a data array with [ext-obj func-index]
     // See Make_Command() for an explanation of these two values.
     //
-    REBVAL *data = VAL_ARRAY_HEAD(FUNC_BODY(f->func));
+    REBVAL *data = KNOWN(VAL_ARRAY_HEAD(FUNC_BODY(f->func)));
     REBEXT *handler = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(data, SELFISH(1)))];
     REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 

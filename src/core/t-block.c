@@ -96,7 +96,7 @@ REBOOL MT_Array(
             return FALSE;
     }
 
-    COPY_RELVAL(out, data, specifier);
+    COPY_VALUE(out, data, specifier);
     ++data;
 
     VAL_RESET_HEADER(out, type);
@@ -300,7 +300,7 @@ REBOOL Make_Block_Type_Throws(
         REBARR *feed;
         REBARR **subfeed_addr;
 
-        const REBVAL *param;
+        const RELVAL *param;
         REBVAL fake_param;
 
         // !!! This MAKE will be destructive to its input (the varargs will
@@ -665,10 +665,20 @@ REBINT PD_Array(REBPVS *pvs)
     if (pvs->opt_setval)
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
 
+    pvs->value_specifier = IS_SPECIFIC(pvs->value)
+        ? VAL_SPECIFIER(const_KNOWN(pvs->value))
+        : pvs->value_specifier;
+
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
-    pvs->value_specifier = IS_RELATIVE(pvs->value)
-        ? pvs->value_specifier
-        : SPECIFIED;
+
+#if !defined(NDEBUG)
+    if (pvs->value_specifier == SPECIFIED && IS_RELATIVE(pvs->value)) {
+        Debug_Fmt("Relative value found in PD_Array with no specifier");
+        PROBE_MSG(pvs->value, "the value");
+        Panic_Array(VAL_ARRAY(pvs->value));
+        assert(FALSE);
+    }
+#endif
 
     return PE_SET_IF_END;
 }
@@ -944,7 +954,7 @@ REBTYPE(Array)
         copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
-            GUESSED,
+            specifier,
             VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
             0, // extra
             REF(deep), // deep
