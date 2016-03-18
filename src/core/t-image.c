@@ -575,7 +575,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             if (dupx == 0 || dupy == 0) return value;
         }
         else
-            fail (Error_Has_Bad_Type(count));
+            fail (Error_Invalid_Type(VAL_TYPE(count)));
     }
 
     // Get the /part refinement. Only allowed when arg is a series.
@@ -613,7 +613,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
                 if (partx == 0 || party == 0) return value;
             }
             else
-                fail (Error_Has_Bad_Type(len));
+                fail (Error_Invalid_Type(VAL_TYPE(len)));
         }
         else
             fail (Error_Invalid_Arg(arg)); // /part not allowed
@@ -633,7 +633,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             part = VAL_LEN_AT(arg);
         }
         else if (!IS_INTEGER(arg) && !IS_TUPLE(arg))
-            fail (Error_Has_Bad_Type(arg));
+            fail (Error_Invalid_Type(VAL_TYPE(arg)));
     }
 
     // Expand image data if necessary:
@@ -682,7 +682,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             Tuples_To_RGBA(ip, part, KNOWN(VAL_ARRAY_AT(arg)), part);
     }
     else
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     Reset_Height(value);
 
@@ -746,7 +746,7 @@ REBVAL *Find_Image(struct Reb_Frame *frame_)
         p = 0;
     }
     else
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     // Post process the search (failure or apply /match and /tail):
     if (p) {
@@ -994,7 +994,7 @@ REBTYPE(Image)
                 len = VAL_INDEX(val) - VAL_INDEX(value); // may not be same, is ok
             }
             else
-                fail (Error_Has_Bad_Type(val));
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
         }
         else len = 1;
 
@@ -1044,7 +1044,7 @@ REBTYPE(Image)
             );
             break;
         }
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     case A_MAKE:
         // make image! img
@@ -1075,7 +1075,7 @@ REBTYPE(Image)
         else if (IS_BLOCK(arg)) {
             if (Create_Image(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), value, 0)) break;
         }
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     case A_COPY:  // copy series /part len
         if (!D_REF(2)) {
@@ -1115,7 +1115,7 @@ REBTYPE(Image)
 //          VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
             return R_OUT;
         }
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
 makeCopy:
         // Src image is arg.

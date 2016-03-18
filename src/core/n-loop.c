@@ -234,7 +234,9 @@ static REBOOL Loop_Integer_Throws(
         }
 
     next_iteration:
-        if (!IS_INTEGER(var)) fail (Error_Has_Bad_Type(var));
+        if (!IS_INTEGER(var))
+            fail (Error_Invalid_Type(VAL_TYPE(var)));
+
         start = VAL_INT64(var);
 
         if (REB_I64_ADD_OF(start, incr, &start))
@@ -296,7 +298,9 @@ static REBOOL Loop_Number_Throws(
         }
 
     next_iteration:
-        if (!IS_DECIMAL(var)) fail (Error_Has_Bad_Type(var));
+        if (!IS_DECIMAL(var))
+            fail (Error_Invalid_Type(VAL_TYPE(var)));
+
         s = VAL_DECIMAL(var);
     }
 

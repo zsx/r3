@@ -323,7 +323,7 @@ static REBOOL assign_scalar(REBSTU *stu,
     switch (VAL_TYPE(val)) {
         case REB_DECIMAL:
             if (!IS_NUMERIC_TYPE(field->type))
-                fail (Error_Has_Bad_Type(val));
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             d = VAL_DECIMAL(val);
             i = (u64) d;
@@ -331,17 +331,17 @@ static REBOOL assign_scalar(REBSTU *stu,
         case REB_INTEGER:
             if (!IS_NUMERIC_TYPE(field->type))
                 if (field->type != STRUCT_TYPE_POINTER)
-                    fail (Error_Has_Bad_Type(val));
+                    fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             i = (u64) VAL_INT64(val);
             d = (double)i;
             break;
         case REB_STRUCT:
             if (STRUCT_TYPE_STRUCT != field->type)
-                fail (Error_Has_Bad_Type(val));
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
             break;
         default:
-            fail (Error_Has_Bad_Type(val));
+            fail (Error_Invalid_Type(VAL_TYPE(val)));
     }
 
     switch (field->type) {
@@ -580,7 +580,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
 
 static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL *inner, REBVAL **init)
 {
-    REBVAL *val = KNOWN(VAL_ARRAY_AT(spec));
+    RELVAL *val = VAL_ARRAY_AT(spec);
 
     if (NOT_END(val) && IS_WORD(val)){
         switch (VAL_WORD_CANON(val)) {
@@ -633,7 +633,9 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
                 if (IS_BLOCK(val)) {
                     REBOOL res;
 
-                    res = MT_Struct(inner, val, SPECIFIED, REB_STRUCT);
+                    res = MT_Struct(
+                        inner, val, VAL_SPECIFIER(spec), REB_STRUCT
+                    );
 
                     if (!res) {
                         //RL_Print("Failed to make nested struct!\n");
@@ -654,17 +656,17 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
                 field->size = sizeof(REBVAL);
                 break;
             default:
-                fail (Error_Has_Bad_Type(val));
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
         }
     } else if (NOT_END(val) && IS_STRUCT(val)) { //[b: [struct-a] val-a]
         field->size = SER_LEN(VAL_STRUCT_DATA_BIN(val));
         field->type = STRUCT_TYPE_STRUCT;
         field->fields = VAL_STRUCT_FIELDS(val);
         field->spec = VAL_STRUCT_SPEC(val);
-        *init = val;
+        COPY_VALUE(*init, val, VAL_SPECIFIER(spec));
     }
     else
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     ++ val;
 
@@ -673,7 +675,12 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         field->array = 0; // FALSE, but bitfield must be integer
     } else if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
-        if (DO_VAL_ARRAY_AT_THROWS(&ret, val)) {
+        if (Do_At_Throws(
+            &ret,
+            VAL_ARRAY(val),
+            VAL_INDEX(val),
+            VAL_SPECIFIER(spec)
+        )) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
             fail (Error_No_Catch_For_Throw(&ret));
@@ -686,7 +693,7 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         field->array = 1; // TRUE, but bitfield must be integer
         ++ val;
     } else {
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
     }
 
     return TRUE;
@@ -717,7 +724,7 @@ REBOOL MT_Struct(
     if (IS_BLOCK(data)) {
         //if (Reduce_Block_No_Set_Throws(VAL_SERIES(data), 0, NULL))...
         //data = DS_POP;
-        REBVAL *blk = KNOWN(VAL_ARRAY_AT(data));
+        RELVAL *blk = VAL_ARRAY_AT(data);
         REBINT field_idx = 0; /* for field index */
         u64 offset = 0; /* offset in data */
         REBIXO eval_idx = 0; /* for spec block evaluation */
@@ -748,20 +755,30 @@ REBOOL MT_Struct(
         VAL_RESET_HEADER(out, REB_STRUCT);
 
         if (IS_BLOCK(blk)) {
-            parse_attr(blk, &raw_size, &raw_addr);
+            REBVAL specified;
+            COPY_VALUE(&specified, blk, specifier);
+            parse_attr(&specified, &raw_size, &raw_addr);
             ++ blk;
         }
 
         while (NOT_END(blk)) {
-            REBVAL *inner;
             struct Struct_Field *field = NULL;
             u64 step = 0;
 
+            REBVAL inner;
+            REBVAL spec;
+
             EXPAND_SERIES_TAIL(VAL_STRUCT_FIELDS(out), 1);
 
-            DS_PUSH_TRASH;
-            SET_BLANK(DS_TOP);
-            inner = DS_TOP; /* save in stack so that it won't be GC'ed when MT_Struct is recursively called */
+            // !!! MT_Struct is recursively called, and it performs evaluation.
+            // Long-term, the goal of the system is for no MAKE instructions
+            // to run the evaluator--but to have all evaluations done by
+            // generators which pass unevaluated data.
+            //
+            // Given that this code was written to evaluate, protect `inner`
+            //
+            SET_BLANK(&inner);
+            PUSH_GUARD_VALUE(&inner);
 
             field = SER_AT(
                 struct Struct_Field,
@@ -774,21 +791,25 @@ REBOOL MT_Struct(
                 expect_init = TRUE;
                 if (raw_addr) {
                     /* initialization is not allowed for raw memory struct */
-                    fail (Error_Invalid_Arg(blk));
+                    fail (Error_Invalid_Arg_Core(blk, specifier));
                 }
             } else if (IS_WORD(blk)) {
                 field->sym = VAL_WORD_SYM(blk);
                 expect_init = FALSE;
             }
             else
-                fail (Error_Has_Bad_Type(blk));
+                fail (Error_Invalid_Type(VAL_TYPE(blk)));
 
             ++ blk;
 
             if (IS_END(blk) || !IS_BLOCK(blk))
-                fail (Error_Invalid_Arg(blk));
+                fail (Error_Invalid_Arg_Core(blk, specifier));
 
-            if (!parse_field_type(field, blk, inner, &init)) { return FALSE; }
+            COPY_VALUE(&spec, blk, specifier);
+
+            if (!parse_field_type(field, &spec, &inner, &init))
+                return FALSE;
+
             ++ blk;
 
             STATIC_assert(sizeof(field->size) <= 4);
@@ -805,10 +826,16 @@ REBOOL MT_Struct(
                 init = &safe;
 
                 if (IS_END(blk)) {
-                   fail (Error_Invalid_Arg(blk));
+                   fail (Error_Invalid_Arg_Core(blk, specifier));
                 } else if (IS_BLOCK(blk)) {
                     if (Reduce_Array_Throws(
-                        init, VAL_ARRAY(blk), 0, VAL_SPECIFIER(blk), FALSE
+                        init,
+                        VAL_ARRAY(blk),
+                        0,
+                        IS_SPECIFIC(blk)
+                            ? VAL_SPECIFIER(KNOWN(blk))
+                            : specifier,
+                        FALSE
                     )) {
                         fail (Error_No_Catch_For_Throw(init));
                     }
@@ -923,7 +950,7 @@ REBOOL MT_Struct(
 
             ++ field_idx;
 
-            DS_DROP; /* pop up the inner struct*/
+            DROP_GUARD_VALUE(&inner);
         }
 
         VAL_STRUCT_LEN(out) = (REBCNT)offset;
@@ -1238,7 +1265,7 @@ REBTYPE(Struct)
                 // make struct! [float a: 0]
                 // make struct! [double a: 0]
                 if (IS_BLOCK(arg)) {
-                    if (!MT_Struct(ret, arg, SPECIFIED, REB_STRUCT)) {
+                    if (!MT_Struct(ret, arg, VAL_SPECIFIER(arg), REB_STRUCT)) {
                         goto is_arg_error;
                     }
                 }

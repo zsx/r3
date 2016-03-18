@@ -424,9 +424,9 @@ void COPY_VALUE_Debug(
 ) {
     if (IS_RELATIVE(src)) {
         if (specifier == SPECIFIED) {
-            Debug_Fmt("Internal Error: Relative word used with SPECIFIED");
+            Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
             PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(src)), "func");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "func");
             assert(FALSE);
         }
         else if (

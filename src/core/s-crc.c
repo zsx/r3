@@ -266,7 +266,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         // a PROTECT/DEEP array to be locked and stay locked as the key...
         // and then have a lightweight hash of it.  Review if needed.
         //
-        fail (Error_Has_Bad_Type_Core(val, specifier));
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     case REB_DATATYPE:
         name = Get_Sym_Name(VAL_TYPE_SYM(val));
@@ -282,7 +282,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         //
         // !!! Why not?
         //
-        fail (Error_Has_Bad_Type_Core(val, specifier));
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     case REB_WORD:
     case REB_SET_WORD:
@@ -341,7 +341,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         //
         // !!! Review hashing behavior or needs of these types if necessary.
         //
-        fail (Error_Has_Bad_Type_Core(val, specifier));
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     default:
         assert(FALSE); // the list above should be comprehensive

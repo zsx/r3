@@ -1411,22 +1411,13 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 
 
 //
-//  Error_Has_Bad_Type_Core: C
-// 
-// <type> type is not allowed here
+//  Error_Invalid_Type: C
 //
-REBCTX *Error_Has_Bad_Type_Core(const RELVAL *value, REBCTX *specifier)
+// <type> type is not allowed here.
+//
+REBCTX *Error_Invalid_Type(enum Reb_Kind kind)
 {
-    return Error(RE_INVALID_TYPE, Type_Of(value), END_CELL);
-}
-
-
-//
-//  Error_Has_Bad_Type: C
-//
-REBCTX *Error_Has_Bad_Type(const REBVAL *value)
-{
-    return Error_Has_Bad_Type_Core(value, SPECIFIED);
+    return Error(RE_INVALID_TYPE, Get_Type(kind), END_CELL);
 }
 
 

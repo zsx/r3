@@ -322,7 +322,8 @@ REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
         return TRUE;
     }
 
-    if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
+    if (!ANY_ARRAY(val))
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     item = VAL_ARRAY_AT(val);
     if (NOT_END(item) && IS_SAME_WORD(item, SYM_NOT)) {
@@ -425,7 +426,8 @@ REBOOL Check_Bits(REBSER *bset, const REBVAL *val, REBOOL uncased)
     if (ANY_BINSTR(val))
         return Check_Bit_Str(bset, val, uncased);
 
-    if (!ANY_ARRAY(val)) fail (Error_Has_Bad_Type(val));
+    if (!ANY_ARRAY(val))
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
 
     // Loop through block of bit specs:
     for (item = VAL_ARRAY_AT(val); NOT_END(item); item++) {
@@ -477,11 +479,8 @@ scan_bits:
             if (Check_Bit_Str(bset, KNOWN(item), uncased)) goto found;
             break;
 
-        default: {
-            REBVAL specific;
-            COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
-            fail (Error_Has_Bad_Type(&specific));
-        }
+        default:
+            fail (Error_Invalid_Type(VAL_TYPE(item)));
         }
     }
     return FALSE;
