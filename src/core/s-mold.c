@@ -86,7 +86,7 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
     for (; *fmt; fmt++) {
         switch (*fmt) {
         case 'W': { // Word symbol
-            REBVAL *any_word = va_arg(va, const REBVAL*);
+            const REBVAL *any_word = va_arg(va, const REBVAL*);
             Append_UTF8_May_Fail(
                 series,
                 Get_Sym_Name(VAL_WORD_SYM(any_word)),
