@@ -437,44 +437,14 @@ r3-alpha-apply: function [
     do frame ;-- voids are optionals
 ]
 
-
-; CLOSURE has been unified with FUNCTION by attacking the two facets that it
-; offers separately.  One is the ability for its arguments and locals to
-; survive the call, which has been recast using the tag `<durable>`.  The
-; other is the specific binding of words in the body to the frame of origin
-; vs to whichever call to the function is on the stack.  That is desired to
-; be pushed as a feature of FUNCTION! that runs at acceptable cost and one
-; never has to ask for.
+; In Ren-C, FUNCTION's variables have indefinite extent (aka <durable>), and
+; the body is specifically bound to those variables.  (There is no dynamic
+; binding in Ren-C)
 ;
-; For the moment, the acceptable-cost version is in mid-design, so `<durable>`
-; in the function spec indicates a request for both properties.
-;
-closure: func [
-    {Defines a closure function with all set-words as locals.}
-    spec [block!]
-        {Help string (opt) followed by arg words (and opt type and string)}
-    body [block!]
-        {The body block of the function}
-    /with
-        {Define or use a persistent object (self)}
-    object [object! block! map!]
-        {The object or spec}
-    /extern
-        {These words are not local}
-    words [block!]
-][
-    apply 'function [
-        spec: compose [<durable> (spec)]
-        body: body
-        if with: with [
-            object: object
-        ]
-        if extern: extern [
-            words: :words
-        ]
-    ]
-]
+closure: :function
 
+; FUNC variables are not durable by default, it must be specified explicitly.
+;
 clos: func [
     "Defines a closure function."
     spec [block!]

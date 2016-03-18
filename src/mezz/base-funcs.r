@@ -85,6 +85,9 @@ make-action: func [
     ; COLLECT-WORDS interface to efficiently give this result.
     ;
     spec: copy spec
+    unless find spec <durable> [
+        insert spec <durable>
+    ]
     for-next words [
         append spec to set-word! words/1
     ]
