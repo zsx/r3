@@ -1,1 +1,0 @@
-See https://github.com/codebybrett/rebol-source-scripting/tree/master/201512-file-headers
