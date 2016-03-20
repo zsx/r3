@@ -220,7 +220,7 @@ proto-parser: context [
         fileheader: [
             (style: data: none)
             doubleslashed-lines
-            and is-format2016-fileheader
+            and [is-format201603-fileheader | is-format2016-fileheader]
             (
                 style: 'format2016
                 emit-fileheader
@@ -249,6 +249,22 @@ proto-parser: context [
         function-body: #"{"
 
         doubleslashed-lines: [copy lines some ["//" thru newline]]
+
+        is-format201603-fileheader: parsing-at position [
+            either all [
+                lines: attempt [decode-lines lines {//} { }]
+                data: attempt [
+                    load-until-blank trim/auto first split lines [{=///} thru {=//}]
+                ]
+                data: attempt [
+                    either set-word? first data/1 [data/1][none]
+                ]
+            ][
+                position ; Success.
+            ][
+                none
+            ]
+        ]
 
         is-format2016-fileheader: parsing-at position [
             either all [
