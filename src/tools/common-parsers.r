@@ -207,6 +207,7 @@ proto-parser: context [
     proto.arg.1: none
     data: none
     style: none
+    eoh: none ; End of file header.
 
     process: func [text] [parse text grammar/rule]
 
@@ -221,9 +222,10 @@ proto-parser: context [
             (style: data: none)
             doubleslashed-lines
             and is-format201603-fileheader
+            eoh:
             (
                 style: 'format201603
-                emit-fileheader
+                emit-fileheader data
             )
         ]
 
@@ -253,9 +255,8 @@ proto-parser: context [
         is-format201603-fileheader: parsing-at position [
             either all [
                 lines: attempt [decode-lines lines {//} { }]
-                data: attempt [
-                    load-until-blank trim/auto first split lines [{=///} thru {=//}]
-                ]
+                parse/all lines [copy data to {=///} to end]
+                data: attempt [load-until-blank trim/auto data]
                 data: attempt [
                     either set-word? first data/1 [data/1][none]
                 ]
