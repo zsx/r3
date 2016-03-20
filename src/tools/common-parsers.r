@@ -220,9 +220,9 @@ proto-parser: context [
         fileheader: [
             (style: data: none)
             doubleslashed-lines
-            and [is-format201603-fileheader | is-format2016-fileheader]
+            and is-format201603-fileheader
             (
-                style: 'format2016
+                style: 'format201603
                 emit-fileheader
             )
         ]
@@ -258,19 +258,6 @@ proto-parser: context [
                 ]
                 data: attempt [
                     either set-word? first data/1 [data/1][none]
-                ]
-            ][
-                position ; Success.
-            ][
-                none
-            ]
-        ]
-
-        is-format2016-fileheader: parsing-at position [
-            either all [
-                lines: attempt [decode-lines lines {//} { }]
-                data: attempt [
-                    decode-key-value-text trim/auto second split lines [{=///} thru {=//}]
                 ]
             ][
                 position ; Success.
