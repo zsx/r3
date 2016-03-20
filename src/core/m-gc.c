@@ -1,99 +1,100 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  m-gc.c
-**  Summary: main memory garbage collection
-**  Section: memory
-**  Author:  Carl Sassenrath, Ladislav Mecir, HostileFork
-**  Notes:
-**
-**      The garbage collector is based on a conventional "mark and sweep":
-**
-**          https://en.wikipedia.org/wiki/Tracing_garbage_collection
-**
-**      From an optimization perspective, there is an attempt to not incur
-**      function call overhead just to check if a GC-aware item has its
-**      SERIES_FLAG_MARK flag set.  So the flag is checked by a macro before making
-**      any calls to process the references inside of an item.
-**
-**      "Shallow" marking only requires setting the flag, and is suitable for
-**      series like strings (which are not containers for other REBVALs).  In
-**      debug builds shallow marking is done with a function anyway, to give
-**      a place to put assertion code or set breakpoints to catch when a
-**      shallow mark is set (when that is needed).
-**
-**      "Deep" marking was originally done with recursion, and the recursion
-**      would stop whenever a mark was hit.  But this meant deeply nested
-**      structures could quickly wind up overflowing the C stack.  Consider:
-**
-**          a: copy []
-**          loop 200'000 [a: append/only copy [] a]
-**          recycle
-**
-**      The simple solution is that when an unmarked item is hit that it is
-**      marked and put into a queue for processing (instead of recursed on the
-**      spot.  This queue is then handled as soon as the marking stack is
-**      exited, and the process repeated until no more items are queued.
-**
-**    Regarding the two stages:
-**
-**      MARK -  Mark all series and gobs ("collectible values")
-**              that can be found in:
-**
-**              Root Block: special structures and buffers
-**              Task Block: special structures and buffers per task
-**              Data Stack: current state of evaluation
-**              Safe Series: saves the last N allocations
-**
-**      SWEEP - Free all collectible values that were not marked.
-**
-**    GC protection methods:
-**
-**      KEEP flag - protects an individual series from GC, but
-**          does not protect its contents (if it holds values).
-**          Reserved for non-block system series.
-**
-**      Root_Vars - protects all series listed. This list is
-**          used by Sweep as the root of the in-use memory tree.
-**          Reserved for important system series only.
-**
-**      Task_Vars - protects all series listed. This list is
-**          the same as Root, but per the current task context.
-**
-**      Save_Series - protects temporary series. Used with the
-**          SAVE_SERIES and UNSAVE_SERIES macros. Throws and errors
-**          must roll back this series to avoid "stuck" memory.
-**
-**      Safe_Series - protects last MAX_SAFE_SERIES series from GC.
-**          Can only be used if no deeply allocating functions are
-**          called within the scope of its protection. Not affected
-**          by throws and errors.
-**
-**      Data_Stack - all values in the data stack that are below
-**          the TOP (DSP) are automatically protected. This is a
-**          common protection method used by native functions.
-**
-**      DONE flag - do not scan the series; it has no links.
-**
-***********************************************************************/
+//
+//  File: %m-gc.c
+//  Summary: "main memory garbage collection"
+//  Section: memory
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The garbage collector is based on a conventional "mark and sweep":
+//
+//     https://en.wikipedia.org/wiki/Tracing_garbage_collection
+//
+// From an optimization perspective, there is an attempt to not incur
+// function call overhead just to check if a GC-aware item has its
+// SERIES_FLAG_MARK flag set.  So the flag is checked by a macro before making
+// any calls to process the references inside of an item.
+//
+// "Shallow" marking only requires setting the flag, and is suitable for
+// series like strings (which are not containers for other REBVALs).  In
+// debug builds shallow marking is done with a function anyway, to give
+// a place to put assertion code or set breakpoints to catch when a
+// shallow mark is set (when that is needed).
+//
+// "Deep" marking was originally done with recursion, and the recursion
+// would stop whenever a mark was hit.  But this meant deeply nested
+// structures could quickly wind up overflowing the C stack.  Consider:
+//
+//     a: copy []
+//     loop 200'000 [a: append/only copy [] a]
+//     recycle
+//
+// The simple solution is that when an unmarked item is hit that it is
+// marked and put into a queue for processing (instead of recursed on the
+// spot.  This queue is then handled as soon as the marking stack is
+// exited, and the process repeated until no more items are queued.
+//
+// Regarding the two stages:
+//
+// MARK -  Mark all series and gobs ("collectible values")
+//         that can be found in:
+//
+//         Root Block: special structures and buffers
+//         Task Block: special structures and buffers per task
+//         Data Stack: current state of evaluation
+//         Safe Series: saves the last N allocations
+//
+// SWEEP - Free all collectible values that were not marked.
+//
+// GC protection methods:
+//
+// KEEP flag - protects an individual series from GC, but
+//     does not protect its contents (if it holds values).
+//     Reserved for non-block system series.
+//
+// Root_Vars - protects all series listed. This list is
+//     used by Sweep as the root of the in-use memory tree.
+//     Reserved for important system series only.
+//
+// Task_Vars - protects all series listed. This list is
+//     the same as Root, but per the current task context.
+//
+// Save_Series - protects temporary series. Used with the
+//     SAVE_SERIES and UNSAVE_SERIES macros. Throws and errors
+//     must roll back this series to avoid "stuck" memory.
+//
+// Safe_Series - protects last MAX_SAFE_SERIES series from GC.
+//     Can only be used if no deeply allocating functions are
+//     called within the scope of its protection. Not affected
+//     by throws and errors.
+//
+// Data_Stack - all values in the data stack that are below
+//     the TOP (DSP) are automatically protected. This is a
+//     common protection method used by native functions.
+//
+// DONE flag - do not scan the series; it has no links.
+//
 
 #include "sys-core.h"
 

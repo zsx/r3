@@ -1,45 +1,47 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  c-word.c
-**  Summary: symbol table and word related functions
-**  Section: core
-**  Author:  Carl Sassenrath
-**  Notes:
-**    Word table is a block composed of symbols, each of which contain
-**    a canon word number, alias word number (if it exists), and an
-**    index that refers to the string for the text itself.
-**
-**    The canon number for a word is unique and is used to compare
-**    words. The word table is independent of context frames and
-**    words are never garbage collected.
-**
-**    The alias is used mainly for upper and lower case equality,
-**    but can also be used to create ALIASes.
-**
-**    The word strings are stored as a single large string series.
-**    NEVER CACHE A WORD NAME POINTER if new words may be added (e.g.
-**    LOAD), because the series may get moved in memory.
-**
-***********************************************************************/
+//
+//  File: %c-word.c
+//  Summary: "symbol table and word related functions"
+//  Section: core
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Word table is a block composed of symbols, each of which contain
+// a canon word number, alias word number (if it exists), and an
+// index that refers to the string for the text itself.
+//
+// The canon number for a word is unique and is used to compare
+// words. The word table is independent of context frames and
+// words are never garbage collected.
+//
+// The alias is used mainly for upper and lower case equality,
+// but can also be used to create ALIASes.
+//
+// The word strings are stored as a single large string series.
+// NEVER CACHE A WORD NAME POINTER if new words may be added (e.g.
+// LOAD), because the series may get moved in memory.
+//
 
 #include "sys-core.h"
 

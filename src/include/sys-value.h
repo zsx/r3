@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %sys-value.h
+//  Summary: {Definitions for the Rebol Value Struct (REBVAL) and Helpers}
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
 // Copyright 2012-2016 Rebol Open Source Contributors
@@ -19,11 +23,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Definitions for the Rebol Value Struct (REBVAL) and Helpers
-//  File: %sys-value.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //

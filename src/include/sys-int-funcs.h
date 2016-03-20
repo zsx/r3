@@ -1,42 +1,44 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2014 Atronix Engineering, Inc.
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Integer Datatype Functions
-**  Module:  sys-int-funcs.h
-**  Notes:
-**
-**      To grok these routine names, consider unsigned multiplication:
-**
-**      umull is 'U MUL L' for unsigned multiplication of long
-**      umulll is 'U MUL LL' for unsigned multiplication of long long
-**
-**      REBU64 may be an unsigned long long of equivalent size to
-**      unsigned long, and similarly for REBI64 and long long.  But
-**      the types may be incidentally the same size, if you turn up
-**      warnings it will require a cast instead of silently passing
-**      pointers of one to routines expecting a pointer to the other.
-**      So we cast to the singularly-long variant before calling any
-**      of the __builtin 'l' variants with a 64-bit REBU64 or REBI64.
-**
-************************************************************************/
+//
+//  File: %sys-int-funcs.h
+//  Summary: "Integer Datatype Functions"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2014 Atronix Engineering, Inc.
+// Copyright 2014-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// To grok these routine names, consider unsigned multiplication:
+//
+// umull is 'U MUL L' for unsigned multiplication of long
+// umulll is 'U MUL LL' for unsigned multiplication of long long
+//
+// REBU64 may be an unsigned long long of equivalent size to
+// unsigned long, and similarly for REBI64 and long long.  But
+// the types may be incidentally the same size, if you turn up
+// warnings it will require a cast instead of silently passing
+// pointers of one to routines expecting a pointer to the other.
+// So we cast to the singularly-long variant before calling any
+// of the __builtin 'l' variants with a 64-bit REBU64 or REBI64.
+//
 
 #ifndef __SYS_INT_FUNCS_H_
 #define __SYS_INT_FUNCS_H_

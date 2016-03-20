@@ -1,37 +1,39 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Graphical compositing objects
-**  Module:  reb-gob.h
-**  Author:  Carl Sassenrath
-**  Description:
-**      GOBs are lower-level graphics object used by the compositing
-**      and rendering system. Because a GUI can contain thousands of
-**      GOBs, they are designed and structured to be simple and small.
-**      Note that GOBs are also used for windowing.
-**  Warning:
-**      GOBs are allocated from a special pool and
-**      are accounted for by the standard garbage collector.
-**
-***********************************************************************/
+//
+//  File: %reb-gob.h
+//  Summary: "Graphical compositing objects"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// GOBs are lower-level graphics object used by the compositing
+// and rendering system. Because a GUI can contain thousands of
+// GOBs, they are designed and structured to be simple and small.
+// Note that GOBs are also used for windowing.
+//
+// GOBs are allocated from a special pool and
+// are accounted for by the standard garbage collector.
+//
 
 // We accept GOB for the moment in Core, but not view in general...
 // Ultimatley GOB represents a category of Ren/C external items that

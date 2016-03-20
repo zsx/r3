@@ -1,104 +1,106 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2014 Atronix Engineering, Inc.
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-routine.c
-**  Summary: External Routine Support
-**  Section: datatypes
-**  Author:  Shixin Zeng
-**  Notes:
-**      When Rebol3 was open-sourced in 12-Dec-2012, that version had lost
-**      support for the ROUTINE! type from Rebol2.  It was later
-**      reimplemented by Atronix in their fork via the cross-platform (and
-**      popularly used) Foreign Function Interface library "libffi":
-**
-**          https://en.wikipedia.org/wiki/Libffi
-**
-**      Yet Rebol is very conservative about library dependencies that
-**      introduce their "own build step", due to the complexity introduced.
-**      If one is to build libffi for a particular platform, that requires
-**      having the rather messy GNU autotools installed.  Notice the
-**      `Makefile.am`, `acinclude.m4`, `autogen.sh`, `configure.ac`,
-**      `configure.host`, etc:
-**
-**          https://github.com/atgreen/libffi
-**
-**      Suddenly, you need more than just a C compiler (and a rebol.exe) to
-**      build Rebol.  You now need to have everything to configure and
-**      build libffi.  -OR- it would mean a dependency on a built library
-**      you had to find or get somewhere that was not part of the OS
-**      naturally, which can be a wild goose chase with version
-**      incompatibility.  If you `sudo apt-get libffi`, now you need apt-get
-**      *and* you pull down any dependencies as well!
-**
-**      (Note: Rebol's "just say no" attitude is the heart of the Rebellion:
-**
-**          http://www.rebol.com/cgi-bin/blog.r?view=0497
-**
-**      ...so keeping the core true to this principle is critical.  If this
-**      principle is compromised, the whole point of the project is lost.)
-**
-**      Yet Rebol2 had ROUTINE!.  Red also has ROUTINE!, and is hinging its
-**      story for rapid interoperability on it (you should not have to
-**      wrap and recompile a DLL of C functions just to call them).  Users
-**      want the feature and always ask...and Atronix needs it enough to have
-**      had @ShixinZeng write it!
-**
-**      Regarding the choice of libffi in particular, it's a strong sign to
-**      notice how many other language projects are using it.  Short list
-**      taken from 2015 Wikipedia:
-**
-**          Python, Haskell, Dalvik, F-Script, PyPy, PyObjC, RubyCocoa,
-**          JRuby, Rubinius, MacRuby, gcj, GNU Smalltalk, IcedTea, Cycript,
-**          Pawn, Squeak, Java Native Access, Common Lisp, Racket,
-**          Embeddable Common Lisp and Mozilla.
-**
-**      Rebol could roll its own implementation.  But that takes time and
-**      maintenance, and it's hard to imagine how much better a job could
-**      be done for a C-based foreign function interface on these platforms;
-**      it's light and quite small once built.  So it makes sense to
-**      "extract" libffi's code out of its repo to form one .h and .c file.
-**      They'd live in the Rebol sources and build with the existing process,
-**      with no need for GNU Autotools (which are *particularly* crufty!!!)
-**
-**      Doing such extractions by hand is how Rebol was originally done;
-**      that made it hard to merge updates.  As a more future-proof method,
-**      @HostileFork wrote a make-zlib.r extractor that can take a copy of
-**      the zlib repository and do the work (mostly) automatically.  Going
-**      forward it seems prudent to do the same with libffi and any other
-**      libraries that Rebol co-opts into its turnkey build process.
-**
-**      Until that happens for libffi, not definining HAVE_LIBFFI_AVAILABLE,
-**      will give you a short list of non-functional "stubs".  These can
-**      allow t-routine.c to compile anyway.  That assists with maintenance
-**      of the code and keeping it on the radar, even among those doing core
-**      maintenance who are not building against the FFI.
-**
-**      (Note: Longer term there may be a story by which a feature like
-**      ROUTINE! could be implemented as a third party extension.  There is
-**      short-term thinking trying to facilitate this for GOB! in Ren/C, to
-**      try and open the doors to more type extensions.  That's a hard
-**      problem in itself...and the needs of ROUTINE! are hooked a bit more
-**      tightly into the evaluation loop.  So possibly not happening.)
-**
-***********************************************************************/
+//
+//  File: %t-routine.c
+//  Summary: "External Routine Support"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2014 Atronix Engineering, Inc.
+// Copyright 2014-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// When Rebol3 was open-sourced in 12-Dec-2012, that version had lost
+// support for the ROUTINE! type from Rebol2.  It was later
+// reimplemented by Atronix in their fork via the cross-platform (and
+// popularly used) Foreign Function Interface library "libffi":
+//
+//     https://en.wikipedia.org/wiki/Libffi
+//
+// Yet Rebol is very conservative about library dependencies that
+// introduce their "own build step", due to the complexity introduced.
+// If one is to build libffi for a particular platform, that requires
+// having the rather messy GNU autotools installed.  Notice the
+// `Makefile.am`, `acinclude.m4`, `autogen.sh`, `configure.ac`,
+// `configure.host`, etc:
+//
+//     https://github.com/atgreen/libffi
+//
+// Suddenly, you need more than just a C compiler (and a rebol.exe) to
+// build Rebol.  You now need to have everything to configure and
+// build libffi.  -OR- it would mean a dependency on a built library
+// you had to find or get somewhere that was not part of the OS
+// naturally, which can be a wild goose chase with version
+// incompatibility.  If you `sudo apt-get libffi`, now you need apt-get
+// *and* you pull down any dependencies as well!
+//
+// (Note: Rebol's "just say no" attitude is the heart of the Rebellion:
+//
+//     http://www.rebol.com/cgi-bin/blog.r?view=0497
+//
+// ...so keeping the core true to this principle is critical.  If this
+// principle is compromised, the whole point of the project is lost.)
+//
+// Yet Rebol2 had ROUTINE!.  Red also has ROUTINE!, and is hinging its
+// story for rapid interoperability on it (you should not have to
+// wrap and recompile a DLL of C functions just to call them).  Users
+// want the feature and always ask...and Atronix needs it enough to have
+// had @ShixinZeng write it!
+//
+// Regarding the choice of libffi in particular, it's a strong sign to
+// notice how many other language projects are using it.  Short list
+// taken from 2015 Wikipedia:
+//
+//     Python, Haskell, Dalvik, F-Script, PyPy, PyObjC, RubyCocoa,
+//     JRuby, Rubinius, MacRuby, gcj, GNU Smalltalk, IcedTea, Cycript,
+//     Pawn, Squeak, Java Native Access, Common Lisp, Racket,
+//     Embeddable Common Lisp and Mozilla.
+//
+// Rebol could roll its own implementation.  But that takes time and
+// maintenance, and it's hard to imagine how much better a job could
+// be done for a C-based foreign function interface on these platforms;
+// it's light and quite small once built.  So it makes sense to
+// "extract" libffi's code out of its repo to form one .h and .c file.
+// They'd live in the Rebol sources and build with the existing process,
+// with no need for GNU Autotools (which are *particularly* crufty!!!)
+//
+// Doing such extractions by hand is how Rebol was originally done;
+// that made it hard to merge updates.  As a more future-proof method,
+// @HostileFork wrote a make-zlib.r extractor that can take a copy of
+// the zlib repository and do the work (mostly) automatically.  Going
+// forward it seems prudent to do the same with libffi and any other
+// libraries that Rebol co-opts into its turnkey build process.
+//
+// Until that happens for libffi, not definining HAVE_LIBFFI_AVAILABLE,
+// will give you a short list of non-functional "stubs".  These can
+// allow t-routine.c to compile anyway.  That assists with maintenance
+// of the code and keeping it on the radar, even among those doing core
+// maintenance who are not building against the FFI.
+//
+// (Note: Longer term there may be a story by which a feature like
+// ROUTINE! could be implemented as a third party extension.  There is
+// short-term thinking trying to facilitate this for GOB! in Ren/C, to
+// try and open the doors to more type extensions.  That's a hard
+// problem in itself...and the needs of ROUTINE! are hooked a bit more
+// tightly into the evaluation loop.  So possibly not happening.)
+//
 
 #include "sys-core.h"
 

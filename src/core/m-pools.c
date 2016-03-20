@@ -1,67 +1,69 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  m-pools.c
-**  Summary: memory allocation pool management
-**  Section: memory
-**  Author:  Carl Sassenrath
-**  Notes:
-**      A point of Rebol's design was to remain small and solve its
-**      problems without relying on a lot of abstraction.  Its
-**      memory-management was thus focused on staying low-level...and
-**      being able to do efficient and lightweight allocations of
-**      two major elements: series and graphic objects (GOBs).
-**
-**      Both series and GOBs have a fixed-size component that can
-**      be easily allocated from a memory pool.  This portion is
-**      called the "Node" (or NOD) in both Rebol and Red terminology;
-**      it is an item whose pointer is valid for the lifetime of
-**      the object, regardless of resizing.  This is where header
-**      information is stored, and pointers to these objects may
-**      be saved in REBVAL values; such that they are kept alive
-**      by the garbage collector.
-**
-**      The more complicated thing to do memory pooling of is the
-**      variable-sized portion of a series (currently called the
-**      "series data")...as series sizes can vary widely.  But a
-**      trick Rebol has is that a series might be able to take
-**      advantage of being given back an allocation larger than
-**      requested.  They can use it as reserved space for growth.
-**
-**      (Typical models for implementation of things like C++'s
-**      std::vector do not reach below new[] or delete[]...which
-**      are generally implemented with malloc and free under
-**      the hood.  Their buffered additional capacity is done
-**      assuming the allocation they get is as big as they asked
-**      for...no more and no less.)
-**
-**      While Rebol's memory pooling is a likely-useful tool even
-**      with modern alternatives, there are also useful tools
-**      like Valgrind and Address Sanitizer which can more easily
-**      root out bugs if each allocation and free is done
-**      separately through malloc and free.  Therefore there is
-**      an option for always using malloc, which you can enable
-**      by setting the environment variable R3_ALWAYS_MALLOC to 1.
-**
-***********************************************************************/
+//
+//  File: %m-pools.c
+//  Summary: "memory allocation pool management"
+//  Section: memory
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A point of Rebol's design was to remain small and solve its
+// problems without relying on a lot of abstraction.  Its
+// memory-management was thus focused on staying low-level...and
+// being able to do efficient and lightweight allocations of
+// two major elements: series and graphic objects (GOBs).
+//
+// Both series and GOBs have a fixed-size component that can
+// be easily allocated from a memory pool.  This portion is
+// called the "Node" (or NOD) in both Rebol and Red terminology;
+// it is an item whose pointer is valid for the lifetime of
+// the object, regardless of resizing.  This is where header
+// information is stored, and pointers to these objects may
+// be saved in REBVAL values; such that they are kept alive
+// by the garbage collector.
+//
+// The more complicated thing to do memory pooling of is the
+// variable-sized portion of a series (currently called the
+// "series data")...as series sizes can vary widely.  But a
+// trick Rebol has is that a series might be able to take
+// advantage of being given back an allocation larger than
+// requested.  They can use it as reserved space for growth.
+//
+// (Typical models for implementation of things like C++'s
+// std::vector do not reach below new[] or delete[]...which
+// are generally implemented with malloc and free under
+// the hood.  Their buffered additional capacity is done
+// assuming the allocation they get is as big as they asked
+// for...no more and no less.)
+//
+// While Rebol's memory pooling is a likely-useful tool even
+// with modern alternatives, there are also useful tools
+// like Valgrind and Address Sanitizer which can more easily
+// root out bugs if each allocation and free is done
+// separately through malloc and free.  Therefore there is
+// an option for always using malloc, which you can enable
+// by setting the environment variable R3_ALWAYS_MALLOC to 1.
+//
 
 //-- Special Debugging Options:
 //#define CHAFF                 // Fill series data to crash old references

@@ -1,32 +1,33 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-unicode.c
-**  Summary: unicode support functions
-**  Section: strings
-**  Author:  Carl Sassenrath
-**  Notes:
-**    The top part of this code is from Unicode Inc. The second
-**    part was added by REBOL Technologies.
-**
-***********************************************************************/
+//
+// Rebol 3 Language Interpreter and Run-time Environment
+// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+// REBOL is a trademark of REBOL Technologies
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  Project: Rebol 3 Interpreter and Run-time (Ren-C branch)
+//  Homepage: https://github.com/metaeducation/ren-c/
+//  File: %s-unicode.c
+//  Summary: unicode support functions
+//  Section: strings
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The top part of this code is from Unicode Inc. The second
+// part was added by REBOL Technologies.
+//
 
 
 /*

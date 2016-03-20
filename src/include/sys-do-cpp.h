@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %sys-do-cpp.h
+//  Summary: "Optional C++ Checking Classes for %sys-do.h"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
@@ -18,11 +22,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Optional C++ Checking Classes for %sys-do.h
-//  File: %sys-do-cpp.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
