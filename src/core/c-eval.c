@@ -771,16 +771,6 @@ reevaluate:
         //
         f->param = FUNC_PARAMS_HEAD(f->func);
 
-        if (IS_END(f->param)) {
-            //
-            // There are no arguments, so just skip the next section.  We
-            // know that `param` contains an END marker so the GC
-            // won't crash on it.  The Dispatch_Call() will ovewrite both
-            // `arg` and `refine`.
-            //
-            goto function_ready_to_call;
-        }
-
         // Since we know we're not going to just overwrite it, go ahead and
         // grab the arg head.  While fulfilling arguments the GC might be
         // invoked, so we have to initialize `refine` to something too...
@@ -1238,7 +1228,6 @@ reevaluate:
             goto continue_arg_loop; // leaves refine, but bumps param+arg
         }
 
-    function_ready_to_call:
         //
         // Execute the function with all arguments ready.
         //
