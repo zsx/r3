@@ -227,6 +227,7 @@ These are now obsolete (as of A107) and should be removed:
 
 #ifdef TO_LINUX
 #define HAS_POSIX_SIGNAL
+#define HAS_MSG_NOSIGNAL
 #endif
 
 //* Defaults ***********************************************************

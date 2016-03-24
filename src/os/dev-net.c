@@ -222,6 +222,13 @@ static REBOOL Nonblocking_Mode(SOCKET sock)
 		return DR_ERROR;
 	}
 
+#ifdef HAS_SO_NOSIGPIPE
+	{
+		int val = 1;
+		setsockopt(sock->socket, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
+	}
+#endif
+
 	return DR_DONE;
 }
 
@@ -448,8 +455,12 @@ static REBOOL Nonblocking_Mode(SOCKET sock)
 
 	if (mode == RSM_SEND) {
 		// If host is no longer connected:
+		int flags = 0;
+#ifdef HAS_MSG_NOSIGNAL
+		flags |= MSG_NOSIGNAL;
+#endif
 		Set_Addr(&remote_addr, sock->net.remote_ip, sock->net.remote_port);
-		result = sendto(sock->socket, sock->data, len, 0,
+		result = sendto(sock->socket, sock->data, len, flags,
 						(struct sockaddr*)&remote_addr, addr_len);
 		WATCH2("send() len: %d actual: %d\n", len, result);
 
