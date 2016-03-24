@@ -74,25 +74,22 @@ enum parse_flags {
     PF_WHILE = 1 << 10
 };
 
-#define MAX_PARSE_DEPTH 512
-
 // Returns SYMBOL or 0 if not a command:
 #define GET_CMD(n) (((n) >= SYM_SET && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
 
 // Parse_Rules_Loop is used before it is defined, need forward declaration
 //
-static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth);
+static REB_R Parse_Rules_Loop(struct Reb_Frame *f);
 
 static REBOOL Parse_Rules_Loop_Throws(
     REBOOL *interrupted_out,
-    struct Reb_Frame *f,
-    REBCNT depth
+    struct Reb_Frame *f
 ) {
     REB_R r;
 
     SET_TRASH_SAFE(P_RESULT);
-    r = Parse_Rules_Loop(f, depth);
+    r = Parse_Rules_Loop(f);
     assert(!IS_TRASH_DEBUG(P_RESULT));
 
     if (r == R_OUT_IS_THROWN) {
@@ -274,8 +271,7 @@ static const RELVAL *Get_Parse_Value(
 static REBCNT Parse_Next_String(
     struct Reb_Frame *f,
     REBCNT index,
-    const RELVAL *item,
-    REBCNT depth
+    const RELVAL *item
 ) {
     REBSER *ser;
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
@@ -400,7 +396,7 @@ static REBCNT Parse_Next_String(
         // in DO, and it can't catch a throw, couldn't a similarly light
         // save of the index and array and restore do the job?
 
-        if (Parse_Rules_Loop_Throws(&interrupted, f, depth)) // updates P_POS
+        if (Parse_Rules_Loop_Throws(&interrupted, f)) // updates P_POS
             index = THROWN_FLAG;
         else {
             // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
@@ -451,8 +447,7 @@ static REBCNT Parse_Next_String(
 static REBCNT Parse_Next_Array(
     struct Reb_Frame *f,
     REBCNT index,
-    const RELVAL *item,
-    REBCNT depth
+    const RELVAL *item
 ) {
     // !!! THIS CODE NEEDS CLEANUP AND REWRITE BASED ON OTHER CHANGES
     REBARR *array = AS_ARRAY(P_INPUT);
@@ -522,7 +517,7 @@ static REBCNT Parse_Next_Array(
         f->source.array = VAL_ARRAY(item);
         f->indexor = VAL_INDEX(item);
 
-        if (Parse_Rules_Loop_Throws(&interrupted, f, depth))
+        if (Parse_Rules_Loop_Throws(&interrupted, f))
             index = THROWN_FLAG;
         else {
             // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
@@ -638,7 +633,7 @@ static REBCNT To_Thru(
             // Try to match it:
             if (P_TYPE >= REB_BLOCK) {
                 if (ANY_ARRAY(item)) goto bad_target;
-                i = Parse_Next_Array(f, index, item, 0);
+                i = Parse_Next_Array(f, index, item);
                 if (i == THROWN_FLAG)
                     return THROWN_FLAG;
 
@@ -1056,7 +1051,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
                 ? VAL_SPECIFIER(const_KNOWN(item))
                 : P_SPECIFIER;
 
-            threw = Parse_Rules_Loop_Throws(&interrupted, &sub_parse, 0);
+            threw = Parse_Rules_Loop_Throws(&interrupted, &sub_parse);
 
             Drop_Chunk(sub_parse.stackvars);
 
@@ -1112,7 +1107,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 
     {
     PUSH_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
-    n = Parse_Next_Array(&newparse, P_POS, item, 0);
+    n = Parse_Next_Array(&newparse, P_POS, item);
     DROP_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
     }
 
@@ -1141,7 +1136,6 @@ static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
     // !!! Also somewhat ad-hoc; assumes rule - 1 is the error
     //
     REBVAL specified;
-    VAL_INIT_WRITABLE_DEBUG(&specified);
     COPY_RELVAL(&specified, P_RULE - 1, P_SPECIFIER);
 
     return Error(RE_PARSE_END, &specified);
@@ -1183,7 +1177,7 @@ static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
 // by the RETURN instruction.  This also returns R_OUT_IS_THROWN, but will
 // be caught by PARSE before returning.
 //
-static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
+static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
 #if !defined(NDEBUG)
     //
     // These parse state variables live in chunk-stack REBVARs, which can be
@@ -1217,7 +1211,6 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
     mincount = maxcount = 1;
     start = begin = P_POS;
 
-    // For each rule in the rule block:
     while (NOT_END(P_RULE)) {
 
         //Print_Parse_Index(f);
@@ -1660,7 +1653,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         : P_SPECIFIER;
 
                     threw = Parse_Rules_Loop_Throws(
-                        &interrupted, &sub_parse, depth + 1
+                        &interrupted, &sub_parse
                     );
 
                     Drop_Chunk(sub_parse.stackvars);
@@ -1723,7 +1716,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                 item = NULL; // !!! Testing, was left as VAL_ARRAY_AT(item)
 
-                if (Parse_Rules_Loop_Throws(&interrupted, f, depth + 1))
+                if (Parse_Rules_Loop_Throws(&interrupted, f))
                     return R_OUT_IS_THROWN;
 
                 f->source = source_before;
@@ -1755,9 +1748,9 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 REBCTX *specifier_before = P_SPECIFIER;
 
                 if (Is_Array_Series(P_INPUT))
-                    i = Parse_Next_Array(f, P_POS, item, depth + 1);
+                    i = Parse_Next_Array(f, P_POS, item);
                 else
-                    i = Parse_Next_String(f, P_POS, item, depth + 1);
+                    i = Parse_Next_String(f, P_POS, item);
 
                 P_POS = pos_before; // !!! Simulate restoration (needed?)
                 P_RULE_LVALUE = rule_before; // !!! Simulate restoration (?)
@@ -2078,7 +2071,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
 
     parse.out = D_OUT;
 
-    threw = Parse_Rules_Loop_Throws(&interrupted, &parse, 0);
+    threw = Parse_Rules_Loop_Throws(&interrupted, &parse);
 
     Drop_Chunk(parse.stackvars);
 
