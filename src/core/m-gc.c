@@ -189,6 +189,8 @@ static void Mark_Value(REBVAL *val, REBCNT depth);
 {
 	int len = 0;
 	REBSER *series = NULL;
+	if (IS_MARK_SERIES(STRUCT_DATA_BIN(stu))) return;
+
 	CHECK_MARK(stu->spec, depth);
 	CHECK_MARK(stu->fields, depth);
 	CHECK_MARK(STRUCT_DATA_BIN(stu), depth);
