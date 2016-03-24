@@ -936,7 +936,10 @@ struct Reb_Integer {
     REBI64 i64;
 };
 
+// !!! Add checking
+//
 #define VAL_INT32(v)    cast(REBINT, (v)->payload.integer.i64)
+#define VAL_UNT32(v)    cast(REBCNT, (v)->payload.integer.i64)
 
 #ifdef NDEBUG
     #define VAL_INT64(v)    ((v)->payload.integer.i64)
