@@ -61,18 +61,17 @@
         { FETCH_NEXT_RULE_MAYBE_END(f); }
 
 enum parse_flags {
-    PF_SET,
-    PF_COPY,
-    PF_NOT,
-    PF_NOT2,
-    PF_THEN,
-    PF_AND,
-    PF_REMOVE,
-    PF_INSERT,
-    PF_CHANGE,
-    PF_RETURN,
-    PF_WHILE,
-    PF_MAX
+    PF_SET = 1 << 0,
+    PF_COPY = 1 << 1,
+    PF_NOT = 1 << 2,
+    PF_NOT2 = 1 << 3,
+    PF_THEN = 1 << 4,
+    PF_AND = 1 << 5,
+    PF_REMOVE = 1 << 6,
+    PF_INSERT = 1 << 7,
+    PF_CHANGE = 1 << 8,
+    PF_RETURN = 1 << 9,
+    PF_WHILE = 1 << 10
 };
 
 #define MAX_PARSE_DEPTH 512
@@ -1127,6 +1126,28 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 }
 
 
+static REBCTX *Error_Parse_Rule_Back(struct Reb_Frame *f) {
+    //
+    // !!! Somewhat ad-hoc error for indicating a problem with the parse rule
+    // one step back.  (With the frame, it should be storing the current
+    // "expression" and using that.)
+    //
+    return Error_Parse_Rule_Core(P_RULE - 1, P_SPECIFIER);
+}
+
+
+static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
+    //
+    // !!! Also somewhat ad-hoc; assumes rule - 1 is the error
+    //
+    REBVAL specified;
+    VAL_INIT_WRITABLE_DEBUG(&specified);
+    COPY_RELVAL(&specified, P_RULE - 1, P_SPECIFIER);
+
+    return Error(RE_PARSE_END, &specified);
+}
+
+
 //
 //  Parse_Rules_Loop: C
 //
@@ -1253,7 +1274,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     switch (cmd) {
                     // Note: mincount = maxcount = 1 on entry
                     case SYM_WHILE:
-                        SET_FLAG(flags, PF_WHILE);
+                        flags |= PF_WHILE;
                     case SYM_ANY:
                         mincount = 0;
                     case SYM_SOME:
@@ -1265,10 +1286,10 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         continue;
 
                     case SYM_COPY:
-                        SET_FLAG(flags, PF_COPY);
+                        flags |= PF_COPY;
                         goto set_or_copy_pre_rule;
                     case SYM_SET:
-                        SET_FLAG(flags, PF_SET);
+                        flags |= PF_SET;
                     set_or_copy_pre_rule:
                         item = P_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1282,28 +1303,28 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         continue;
 
                     case SYM_NOT:
-                        SET_FLAG(flags, PF_NOT);
-                        flags ^= (1<<PF_NOT2);
+                        flags |= PF_NOT;
+                        flags ^= PF_NOT2;
                         continue;
 
                     case SYM_AND:
-                        SET_FLAG(flags, PF_AND);
+                        flags |= PF_AND;
                         continue;
 
                     case SYM_THEN:
-                        SET_FLAG(flags, PF_THEN);
+                        flags |= PF_THEN;
                         continue;
 
                     case SYM_REMOVE:
-                        SET_FLAG(flags, PF_REMOVE);
+                        flags |= PF_REMOVE;
                         continue;
 
                     case SYM_INSERT:
-                        SET_FLAG(flags, PF_INSERT);
+                        flags |= PF_INSERT;
                         goto post_match_processing;
 
                     case SYM_CHANGE:
-                        SET_FLAG(flags, PF_CHANGE);
+                        flags |= PF_CHANGE;
                         continue;
 
                     // There are two RETURNs: one is a matching form, so with
@@ -1336,7 +1357,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                             CONVERT_NAME_TO_THROWN(f->out, &evaluated);
                             return R_OUT_IS_THROWN;
                         }
-                        SET_FLAG(flags, PF_RETURN);
+                        flags |= PF_RETURN;
                         continue;
 
                     case SYM_ACCEPT:
@@ -1369,7 +1390,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     case SYM_IF:
                         item = P_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
-                        if (IS_END(item)) goto bad_end;
+                        if (IS_END(item))
+                            fail (Error_Parse_End_Back(f));
 
                         if (!IS_GROUP(item))
                             fail (Error_Parse_Rule_Core(item, P_SPECIFIER));
@@ -1396,12 +1418,6 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                     case SYM_LIMIT:
                         fail (Error(RE_NOT_DONE));
-                        //val = Get_Parse_Value(&save, rule++);
-                    //  if (IS_INTEGER(val)) limit = index + Int32(val);
-                    //  else if (ANY_SERIES(val)) limit = VAL_INDEX(val);
-                    //  else goto
-                        //goto bad_rule;
-                    //  goto post_match_processing;
 
                     case SYM__Q_Q:
                         Print_Parse_Index(f);
@@ -1501,7 +1517,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
         // Counter? 123
         if (IS_INTEGER(item)) { // Specify count or range count
-            SET_FLAG(flags, PF_WHILE);
+            flags |= PF_WHILE;
             mincount = maxcount = Int32s(const_KNOWN(item), 0);
             item = Get_Parse_Value(&save, P_RULE, P_SPECIFIER);
             FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1526,7 +1542,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
         item_hold = item;   // a command or literal match value
 
         if (VAL_TYPE(item) <= REB_0 || VAL_TYPE(item) >= REB_FUNCTION)
-            goto bad_rule;
+            fail (Error_Parse_Rule_Back(f));
 
         begin = P_POS;       // input at beginning of match section
         rules_consumed = 0;  // do not use `rule++` below!
@@ -1538,7 +1554,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
             item = item_hold;
 
             if (IS_BAR(item)) {
-                goto bad_rule; // !!! Is this possible?
+                fail (Error_Parse_Rule_Back(f)); // !!! Is this possible?
             }
             if (IS_WORD(item)) {
 
@@ -1558,7 +1574,9 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                 case SYM_TO:
                 case SYM_THRU:
-                    if (IS_END(P_RULE)) goto bad_end;
+                    if (IS_END(P_RULE))
+                        fail (Error_Parse_End_Back(f));
+
                     item = Get_Parse_Value(&save, P_RULE, P_SPECIFIER);
                     rules_consumed = 1;
                     i = Parse_To(f, P_POS, item, LOGICAL(cmd == SYM_THRU));
@@ -1568,9 +1586,12 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     //
                     // !!! Disallow QUOTE on string series, see #2253
                     //
-                    if (!Is_Array_Series(P_INPUT)) goto bad_rule;
+                    if (!Is_Array_Series(P_INPUT))
+                        fail (Error_Parse_Rule_Back(f));
 
-                    if (IS_END(P_RULE)) goto bad_end;
+                    if (IS_END(P_RULE))
+                        fail (Error_Parse_End_Back(f));
+
                     rules_consumed = 1;
                     if (IS_GROUP(P_RULE)) {
                         // might GC
@@ -1605,14 +1626,16 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     REBOOL threw;
                     REBOOL interrupted;
 
-                    if (IS_END(P_RULE)) goto bad_end;
+                    if (IS_END(P_RULE))
+                        fail (Error_Parse_End_Back(f));
 
                     rules_consumed = 1;
 
                     // sub-rules
                     item = Get_Parse_Value(&save, P_RULE, P_SPECIFIER);
 
-                    if (!IS_BLOCK(item)) goto bad_rule;
+                    if (!IS_BLOCK(item))
+                        fail (Error_Parse_Rule_Back(f));
 
                     val = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
 
@@ -1663,7 +1686,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 }
 
                 case SYM_DO:
-                    if (!Is_Array_Series(P_INPUT)) goto bad_rule;
+                    if (!Is_Array_Series(P_INPUT))
+                        fail (Error_Parse_Rule_Back(f));
 
                     {
                     REBCNT pos_before = P_POS;
@@ -1679,7 +1703,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     break;
 
                 default:
-                    goto bad_rule;
+                    fail (Error_Parse_Rule_Back(f));
                 }
             }
             else if (IS_BLOCK(item)) {
@@ -1754,7 +1778,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 if (count < 0)
                     count = MAX_I32; // the forever case
 
-                if (i == P_POS && !GET_FLAG(flags, PF_WHILE)) {
+                if (i == P_POS && NOT(flags & PF_WHILE)) {
                     //
                     // input did not advance
 
@@ -1796,14 +1820,14 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
         // Process special flags:
         if (flags) {
             // NOT before all others:
-            if (GET_FLAG(flags, PF_NOT)) {
-                if (GET_FLAG(flags, PF_NOT2) && P_POS != NOT_FOUND)
+            if (flags & PF_NOT) {
+                if ((flags & PF_NOT2) && P_POS != NOT_FOUND)
                     P_POS = NOT_FOUND;
                 else P_POS = begin;
             }
             if (P_POS == NOT_FOUND) { // Failure actions:
                 // !!! if word isn't NULL should we set its var to NONE! ...?
-                if (GET_FLAG(flags, PF_THEN)) {
+                if (flags & PF_THEN) {
                     FETCH_TO_BAR_MAYBE_END(f);
                     if (NOT_END(P_RULE))
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1815,7 +1839,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 //
                 count = (begin > P_POS) ? 0 : P_POS - begin;
 
-                if (GET_FLAG(flags, PF_COPY)) {
+                if (flags & PF_COPY) {
                     REBVAL temp;
                     Val_Init_Series(
                         &temp,
@@ -1831,7 +1855,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     );
                     *GET_MUTABLE_VAR_MAY_FAIL(word, P_SPECIFIER) = temp;
                 }
-                else if (GET_FLAG(flags, PF_SET)) {
+                else if (flags & PF_SET) {
                     REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, P_SPECIFIER);
 
                     if (Is_Array_Series(P_INPUT)) {
@@ -1863,7 +1887,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     item = var;
                 }
 
-                if (GET_FLAG(flags, PF_RETURN)) {
+                if (flags & PF_RETURN) {
                     // See notes on PARSE's return in handling of SYM_RETURN
 
                     REBVAL captured;
@@ -1885,20 +1909,24 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     return R_OUT_IS_THROWN;
                 }
 
-                if (GET_FLAG(flags, PF_REMOVE)) {
+                if (flags & PF_REMOVE) {
                     if (count) Remove_Series(P_INPUT, begin, count);
                     P_POS = begin;
                 }
 
-                if (flags & ((1 << PF_INSERT) | (1 << PF_CHANGE))) {
-                    count = GET_FLAG(flags, PF_INSERT) ? 0 : count;
-                    cmd = GET_FLAG(flags, PF_INSERT) ? 0 : (1<<AN_PART);
+                if (flags & (PF_INSERT | PF_CHANGE)) {
+                    count = (flags & PF_INSERT) ? 0 : count;
+                    cmd = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
                     item = P_RULE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
-                    if (IS_END(item)) goto bad_end;
+                    if (IS_END(item))
+                        fail (Error_Parse_End_Back(f));
+
                     // Check for ONLY flag:
                     if (IS_WORD(item) && (cmd = VAL_CMD(item))) {
-                        if (cmd != SYM_ONLY) goto bad_rule;
+                        if (cmd != SYM_ONLY)
+                            fail (Error_Parse_Rule_Back(f));
+
                         cmd |= (1<<AN_ONLY);
                         item = P_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1909,14 +1937,15 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     if (IS_VOID(item))
                         fail (Error_No_Value_Core(P_RULE - 1, P_SPECIFIER));
 
-                    if (IS_END(item)) goto bad_end;
+                    if (IS_END(item))
+                        fail (Error_Parse_End_Back(f));
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
                         COPY_VALUE(&specified, item, P_SPECIFIER);
 
                         P_POS = Modify_Array(
-                            GET_FLAG(flags, PF_CHANGE) ? A_CHANGE : A_INSERT,
+                            (flags & PF_CHANGE) ? A_CHANGE : A_INSERT,
                             AS_ARRAY(P_INPUT),
                             begin,
                             &specified,
@@ -1943,7 +1972,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                             cmd |= (1 << AN_SERIES); // special flag
 
                         P_POS = Modify_String(
-                            GET_FLAG(flags, PF_CHANGE) ? A_CHANGE : A_INSERT,
+                            (flags & PF_CHANGE) ? A_CHANGE : A_INSERT,
                             P_INPUT,
                             begin,
                             &specified,
@@ -1954,7 +1983,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     }
                 }
 
-                if (GET_FLAG(flags, PF_AND)) P_POS = begin;
+                if (flags & PF_AND) P_POS = begin;
             }
 
             flags = 0;
@@ -1984,11 +2013,6 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
     SET_INTEGER(P_RESULT, P_POS); // !!! return switched input series??
     return R_OUT;
-
-bad_rule:
-    fail (Error_Parse_Rule_Core(P_RULE - 1, P_SPECIFIER));
-bad_end:
-    fail (Error(RE_PARSE_END, P_RULE - 1));
 }
 
 
