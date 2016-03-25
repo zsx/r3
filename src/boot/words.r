@@ -137,6 +137,8 @@ quit
 leave ;-- for PROC
 continue
 
+subparse ;-- recursions of parse use this for REBNATIVE(subparse) in backtrace
+
 ; PARSE - These words must not be reserved above!!  The range of consecutive
 ; index numbers are used by PARSE to detect keywords.
 ;

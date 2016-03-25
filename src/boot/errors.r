@@ -208,8 +208,8 @@ Script: [
     return-archetype:   {RETURN called with no generator providing it in use}
     leave-archetype:    {LEAVE called with no generator providing it in use}
 
-    parse-rule:         [{PARSE - invalid rule or usage of rule:} :arg1]
-    parse-end:          [{PARSE - unexpected end of rule after:} :arg1]
+    parse-rule:         {PARSE - invalid rule or usage of rule}
+    parse-end:          {PARSE - unexpected end of rule}
     parse-variable:     [{PARSE - expected a variable, not:} :arg1]
     parse-command:      [{PARSE - command cannot be used as variable:} :arg1]
     parse-series:       [{PARSE - input must be a series:} :arg1]

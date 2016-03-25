@@ -33,15 +33,17 @@
 #define P_NEXT_RULE          (f->value + 0) // rvalue
 #define P_NEXT_RULE_LVALUE   (f->value) // lvalue
 #define P_RULE_SPECIFIER     (f->specifier)
-#define P_TYPE          VAL_TYPE(&f->arg[0])
-#define P_INPUT         VAL_SERIES(&f->arg[0])
-#define P_INPUT_SPECIFIER   VAL_SPECIFIER(&f->arg[0])
-#define P_POS           VAL_INDEX(&f->arg[0])
+
+#define P_INPUT_VALUE       (&f->arg[0])
+#define P_TYPE              VAL_TYPE(P_INPUT_VALUE)
+#define P_INPUT             VAL_SERIES(P_INPUT_VALUE)
+#define P_INPUT_SPECIFIER   VAL_SPECIFIER(P_INPUT_VALUE)
+#define P_POS               VAL_INDEX(P_INPUT_VALUE)
 
 #define P_FIND_FLAGS    VAL_INT64(&f->arg[1])
 #define P_HAS_CASE      LOGICAL(P_FIND_FLAGS & AM_FIND_CASE)
 
-#define P_RESULT (f->out)
+#define P_OUT (f->out)
 
 // The workings of PARSE don't 100% parallel the DO evaluator, because it can
 // go backwards.  Figuring out exactly the points at which it needs to go
@@ -49,11 +51,7 @@
 // for things like stream parsing.
 //
 #define FETCH_NEXT_RULE_MAYBE_END(f) \
-    do { \
-        TRACE_FETCH_DEBUG("FETCH_NEXT_RULE_MAYBE_END", (f), FALSE); \
-        ++((f)->value); \
-        TRACE_FETCH_DEBUG("FETCH_NEXT_RULE_MAYBE_END", (f), TRUE); \
-    } while(0)
+    FETCH_NEXT_ONLY_MAYBE_END(f)
 
 #define FETCH_TO_BAR_MAYBE_END(f) \
     while (NOT_END(f->value) && !IS_BAR(f->value)) \
@@ -77,43 +75,115 @@ enum parse_flags {
 #define GET_CMD(n) (((n) >= SYM_SET && (n) <= SYM_END) ? (n) : 0)
 #define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
 
-// Parse_Rules_Loop is used before it is defined, need forward declaration
-//
-static REB_R Parse_Rules_Loop(struct Reb_Frame *f);
 
-static REBOOL Parse_Rules_Loop_Throws(
+// Subparse_Throws is a helper that sets up a call frame and invokes Subparse.
+//
+// !!! This code creates a new frame on each recursion.  On some original
+// R3-Alpha PARSE recursions, it reused the parse state and just modified some
+// of its fields, then potentially changing them back.  That reduces the amount
+// of debugging "transparency" in the backtrace, but may be an acceptable
+// optimization if the intermediates are not interesting.  For the moment,
+// creating a frame on each recursion brings about more uniformity and shows
+// off the debugging.
+//
+static REBOOL Subparse_Throws(
     REBOOL *interrupted_out,
-    struct Reb_Frame *f
+    REBVAL *out,
+    RELVAL *input,
+    REBCTX *input_specifier,
+    const RELVAL *rules,
+    REBCTX *rules_specifier,
+    REBCNT find_flags
 ) {
+    struct Reb_Frame frame;
+    struct Reb_Frame *f = &frame;
     REB_R r;
 
-    SET_TRASH_SAFE(P_RESULT);
-    r = Parse_Rules_Loop(f);
-    assert(!IS_TRASH_DEBUG(P_RESULT));
+    assert(ANY_ARRAY(rules));
+    assert(ANY_SERIES(input));
+
+    // Since SUBPARSE is a native that the user can call directly, and it
+    // is "effectively variadic" reading its instructions inline out of the
+    // `where` of execution, it has to handle the case where the frame it
+    // is given is at an END.
+    //
+    // However, as long as this wrapper is testing for ends, rather than
+    // use that test to create an END state to feed to subparse, it can
+    // just return.  This is because no matter what, empty rules means a match
+    // with no items advanced.
+    //
+    if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
+        COPY_VALUE(out, input, input_specifier);
+        return FALSE;
+    }
+
+    f->out = out;
+
+    f->value = VAL_ARRAY_AT(rules);
+    f->specifier = IS_SPECIFIC(rules)
+        ? VAL_SPECIFIER(const_KNOWN(rules))
+        : rules_specifier;
+
+    f->source.array = VAL_ARRAY(rules);
+    f->indexor = VAL_INDEX(rules) + 1;
+
+    f->eval_fetched = NULL;
+
+    f->stackvars = Push_Ended_Trash_Chunk(2);
+    f->varlist = NULL;
+
+    COPY_VALUE(&f->stackvars[0], input, input_specifier);
+
+    // We always want "case-sensitivity" on binary bytes, vs. treating as
+    // case-insensitive bytes for ASCII characters.
+    //
+    SET_INTEGER(&f->stackvars[1], find_flags);
+
+    f->arg = f->stackvars;
+    f->label_sym = SYM_SUBPARSE;
+    f->eval_type = ET_FUNCTION;
+    f->func = NAT_FUNC(subparse);
+    f->flags = 0;
+    f->param = END_CELL;
+    f->refine = END_CELL;
+    f->cell.subfeed = NULL;
+
+    f->prior = TG_Frame_Stack;
+    TG_Frame_Stack = f;
+
+    SET_TRASH_SAFE(out);
+    r = N_subparse(f);
+    assert(!IS_TRASH_DEBUG(out));
+
+    TG_Frame_Stack = f->prior;
+
+    Drop_Chunk(f->stackvars);
 
     if (r == R_OUT_IS_THROWN) {
-        assert(THROWN(P_RESULT));
+        assert(THROWN(out));
 
-        // ACCEPT and REJECT are special cases that can happen at
-        // nested parse levels and bubble up through the throw
-        // mechanism to break a looping construct.
+        // ACCEPT and REJECT are special cases that can happen at nested parse
+        // levels and bubble up through the throw mechanism to break a looping
+        // construct.
         //
-        // !!! R3-Alpha didn't handle these instructions in
-        // general, only in *one* particular recursive case.
-        // Most places would treat them the same as a normal match
-        // or not found.  Review implications.
+        // !!! R3-Alpha didn't react to these instructions in general, only in
+        // the particular case where subparsing was called inside an iterated
+        // construct.  Even then, it could only break through one level of
+        // depth.  Most places would treat them the same as a normal match
+        // or not found.  This returns the interrupted flag which is still
+        // ignored by most callers, but makes that fact more apparent.
         //
-        if (IS_FUNCTION(P_RESULT)) {
-            if (VAL_FUNC(P_RESULT) == NAT_FUNC(parse_reject)) {
-                CATCH_THROWN(P_RESULT, P_RESULT);
-                assert(IS_BLANK(P_RESULT));
+        if (IS_FUNCTION(out)) {
+            if (VAL_FUNC(out) == NAT_FUNC(parse_reject)) {
+                CATCH_THROWN(out, out);
+                assert(IS_BLANK(out));
                 *interrupted_out = TRUE;
                 return FALSE;
             }
 
-            if (VAL_FUNC(P_RESULT) == NAT_FUNC(parse_accept)) {
-                CATCH_THROWN(P_RESULT, P_RESULT);
-                assert(IS_INTEGER(P_RESULT));
+            if (VAL_FUNC(out) == NAT_FUNC(parse_accept)) {
+                CATCH_THROWN(out, out);
+                assert(IS_INTEGER(out));
                 *interrupted_out = TRUE;
                 return FALSE;
             }
@@ -128,11 +198,19 @@ static REBOOL Parse_Rules_Loop_Throws(
 }
 
 
-REBCTX *Error_Parse_Rule_Core(const RELVAL *rule, REBCTX *specifier) {
-    REBVAL specified;
-    COPY_VALUE(&specified, rule, specifier);
+// Very generic error.  Used to be parameterized with the parse rule in
+// question, but now the `where` at the time of failure will indicate the
+// location in the parse dialect that's the problem.
+//
+static REBCTX *Error_Parse_Rule() {
+    return Error(RE_PARSE_RULE);
+}
 
-    return Error(RE_PARSE_RULE, &specified);
+
+// Also generic.
+//
+static REBCTX *Error_Parse_End() {
+    return Error(RE_PARSE_END);
 }
 
 
@@ -154,7 +232,7 @@ static void Print_Parse_Index(struct Reb_Frame *f) {
     // !!! Or does PARSE adjust to ensure it never is past the end, e.g.
     // when seeking a position given in a variable or modifying?
     //
-    if (IS_END(P_NEXT_RULE)) {
+    if (IS_END(f->value)) {
         if (P_POS >= SER_LEN(P_INPUT))
             Debug_Fmt("[]: ** END **");
         else
@@ -374,46 +452,34 @@ static REBCNT Parse_Next_String(
     // Parse a sub-rule block:
     case REB_BLOCK:
         {
-        const RELVAL *rule_before = P_NEXT_RULE;
-        REBCTX *specifier_before = P_RULE_SPECIFIER;
-        union Reb_Frame_Source source_before = f->source;
-        REBIXO indexor_before = f->indexor;
         REBCNT pos_before = P_POS;
         REBOOL interrupted;
 
-        P_NEXT_RULE_LVALUE = VAL_ARRAY_AT(rule);
-        P_RULE_SPECIFIER = IS_SPECIFIC(rule)
-            ? VAL_SPECIFIER(const_KNOWN(rule))
-            : P_RULE_SPECIFIER;
-        f->source.array = VAL_ARRAY(rule);
-        f->indexor = VAL_INDEX(rule);
-        P_POS = index;
+        P_POS = index; // modify input position
 
-        // !!! In DO this creates a new Reb_Frame (for GROUP!), but here nesting
-        // doesn't.  Is there a reason why one needs it and the other doesn't?
-        // If a separate stack level is not needed for debugging on a GROUP!
-        // in DO, and it can't catch a throw, couldn't a similarly light
-        // save of the index and array and restore do the job?
-
-        if (Parse_Rules_Loop_Throws(&interrupted, f)) // updates P_POS
-            index = THROWN_FLAG;
+        if (Subparse_Throws(
+            &interrupted,
+            P_OUT,
+            P_INPUT_VALUE, // use input value with modified position
+            SPECIFIED,
+            rule,
+            P_RULE_SPECIFIER,
+            P_FIND_FLAGS
+        )) {
+            assert(THROWN(P_OUT));
+        }
         else {
             // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
-            if (IS_BLANK(P_RESULT))
+            if (IS_BLANK(P_OUT))
                 index = NOT_FOUND;
             else {
-                assert(IS_INTEGER(P_RESULT));
-                index = VAL_INT32(P_RESULT);
+                assert(IS_INTEGER(P_OUT));
+                index = VAL_INT32(P_OUT);
             }
         }
 
-        P_POS = pos_before;
-        f->source = source_before;
-        f->indexor = indexor_before;
-        P_NEXT_RULE_LVALUE = rule_before;
-        P_RULE_SPECIFIER = specifier_before;
+        P_POS = pos_before; // restore input position
         }
-        // index may be THROWN_FLAG
         break;
 
     // Do an expression:
@@ -422,7 +488,7 @@ static REBCNT Parse_Next_String(
         if (Do_At_Throws(
             &save, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
         )) {
-            *f->out = save;
+            *P_OUT = save;
             return THROWN_FLAG;
         }
 
@@ -430,7 +496,7 @@ static REBCNT Parse_Next_String(
         break;
 
     default:
-        fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+        fail (Error_Parse_Rule());
     }
 
     return index;
@@ -501,38 +567,33 @@ static REBCNT Parse_Next_Array(
     // Parse a sub-rule block:
     case REB_BLOCK:
         {
-        const RELVAL *rule_before = P_NEXT_RULE;
-        REBCTX *specifier_before = P_RULE_SPECIFIER;
-        union Reb_Frame_Source source_before = f->source;
-        REBIXO indexor_before = f->indexor;
         REBCNT pos_before = P_POS;
         REBOOL interrupted;
 
-        P_POS = index;
-        P_NEXT_RULE_LVALUE = VAL_ARRAY_AT(rule);
-        P_RULE_SPECIFIER = IS_SPECIFIC(rule)
-            ? VAL_SPECIFIER(const_KNOWN(rule))
-            : P_RULE_SPECIFIER;
-        f->source.array = VAL_ARRAY(rule);
-        f->indexor = VAL_INDEX(rule);
+        P_POS = index; // modify input position
 
-        if (Parse_Rules_Loop_Throws(&interrupted, f))
-            index = THROWN_FLAG;
+        if (Subparse_Throws(
+            &interrupted,
+            P_OUT,
+            P_INPUT_VALUE, // use input value with modified position
+            SPECIFIED,
+            rule,
+            P_RULE_SPECIFIER,
+            P_FIND_FLAGS
+        )) {
+            assert(THROWN(P_OUT));
+        }
         else {
             // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
-            if (IS_BLANK(P_RESULT))
+            if (IS_BLANK(P_OUT))
                 index = NOT_FOUND;
             else {
-                assert(IS_INTEGER(P_RESULT));
-                index = VAL_INT32(P_RESULT);
+                assert(IS_INTEGER(P_OUT));
+                index = VAL_INT32(P_OUT);
             }
         }
 
-        P_POS = pos_before;
-        f->value = rule_before;
-        f->specifier = specifier_before;
-        f->source = source_before;
-        f->indexor = indexor_before;
+        P_POS = pos_before; // restore input position
         }
         break;
 
@@ -542,7 +603,7 @@ static REBCNT Parse_Next_Array(
         if (Do_At_Throws(
             &save, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
         )) {
-            *f->out = save;
+            *P_OUT = save;
             return THROWN_FLAG;
         }
         // old: if (IS_ERROR(rule)) Throw_Error(VAL_CONTEXT(rule));
@@ -568,7 +629,7 @@ no_result:
 static REBCNT To_Thru(
     struct Reb_Frame *f,
     REBCNT index,
-    const RELVAL *block,
+    const RELVAL *rule_block,
     REBOOL is_thru
 ) {
     RELVAL *blk;
@@ -581,7 +642,7 @@ static REBCNT To_Thru(
 
     for (; index <= SER_LEN(P_INPUT); index++) {
 
-        for (blk = VAL_ARRAY_HEAD(block); NOT_END(blk); blk++) {
+        for (blk = VAL_ARRAY_HEAD(rule_block); NOT_END(blk); blk++) {
 
             rule = blk;
 
@@ -611,7 +672,7 @@ static REBCNT To_Thru(
                                     ? VAL_SPECIFIER(const_KNOWN(rule))
                                     : P_RULE_SPECIFIER
                             )) {
-                                *f->out = save;
+                                *P_OUT = save;
                                 return THROWN_FLAG;
                             }
                             rule = &save;
@@ -633,7 +694,7 @@ static REBCNT To_Thru(
             if (P_TYPE >= REB_BLOCK) {
                 if (ANY_ARRAY(rule)) goto bad_target;
                 i = Parse_Next_Array(f, index, rule);
-                if (i == THROWN_FLAG)
+                if (THROWN(P_OUT))
                     return THROWN_FLAG;
 
                 if (i != NOT_FOUND) {
@@ -771,11 +832,11 @@ found:
             &evaluated,
             VAL_ARRAY(blk + 1),
             VAL_INDEX(blk + 1),
-            IS_SPECIFIC(block)
-                ? VAL_SPECIFIER(const_KNOWN(block))
+            IS_SPECIFIC(rule_block)
+                ? VAL_SPECIFIER(const_KNOWN(rule_block))
                 : P_RULE_SPECIFIER
         )) {
-            *f->out = evaluated;
+            *P_OUT = evaluated;
             return THROWN_FLAG;
         }
         // !!! ignore evaluated if it's not THROWN?
@@ -789,11 +850,11 @@ found1:
             &evaluated,
             VAL_ARRAY(blk + 1),
             VAL_INDEX(blk + 1),
-            IS_SPECIFIC(block)
-                ? VAL_SPECIFIER(const_KNOWN(block))
+            IS_SPECIFIC(rule_block)
+                ? VAL_SPECIFIER(const_KNOWN(rule_block))
                 : P_RULE_SPECIFIER
         )) {
-            *f->out = save;
+            *P_OUT = save;
             return THROWN_FLAG;
         }
         // !!! ignore evaluated if it's not THROWN?
@@ -801,7 +862,7 @@ found1:
     return index + (is_thru ? 1 : 0);
 
 bad_target:
-    fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+    fail (Error_Parse_Rule());
 }
 
 
@@ -938,7 +999,7 @@ static REBCNT Parse_To(
                 if (i != NOT_FOUND && is_thru) i++;
             }
             else
-                fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+                fail (Error_Parse_Rule());
         }
     }
 
@@ -990,8 +1051,8 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     DO_NEXT_MAY_THROW(
         indexor, &value, AS_ARRAY(P_INPUT), indexor, P_INPUT_SPECIFIER
     );
-    if (indexor == THROWN_FLAG) {
-        *f->out = value;
+    if (THROWN(&value)) {
+        *P_OUT = value;
         return THROWN_FLAG;
     }
 
@@ -1004,69 +1065,67 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
             return IS_VOID(&value) ? NOT_FOUND : P_POS;
 
         if (n == SYM_QUOTE) {
-            rule = rule + 1;
+            /* rule = rule + 1; */ // was this.
+            assert(rule + 1 == P_NEXT_RULE);
+            rule = P_NEXT_RULE;
+
             FETCH_NEXT_RULE_MAYBE_END(f);
-            if (IS_END(rule)) fail (Error(RE_PARSE_END, rule - 2));
+            if (IS_END(f->value))
+                fail (Error_Parse_End());
+
             if (IS_GROUP(rule)) {
                 // might GC
                 if (Do_At_Throws(
                     &save, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
                 )) {
-                    *f->out = save;
+                    *P_OUT = save;
                     return THROWN_FLAG;
                 }
                 rule = &save;
             }
         }
         else if (n == SYM_INTO) {
-            struct Reb_Frame sub_parse;
             REBOOL interrupted;
-            REBOOL threw;
 
-            rule = rule + 1;
+            /* rule = rule + 1; */ // was this.
+            assert(rule + 1 == P_NEXT_RULE);
+            rule = P_NEXT_RULE;
+
             FETCH_NEXT_RULE_MAYBE_END(f);
-
-            if (IS_END(rule))
-                fail (Error(RE_PARSE_END, rule - 2));
+            if (IS_END(f->value))
+                fail (Error_Parse_End());
 
             rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // sub-rules
 
             if (!IS_BLOCK(rule))
-                fail (Error_Parse_Rule_Core(rule - 2, P_RULE_SPECIFIER));
+                fail (Error_Parse_Rule());
 
             if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value))
                 return NOT_FOUND;
 
-            sub_parse.stackvars = Push_Ended_Trash_Chunk(3);
-            sub_parse.stackvars[0] = value; // series
-            SET_INTEGER(&sub_parse.stackvars[1], P_FIND_FLAGS); // fflags
-            sub_parse.arg = sub_parse.stackvars;
-            sub_parse.out = f->out;
-
-            sub_parse.source.array = VAL_ARRAY(rule);
-            sub_parse.indexor = VAL_INDEX(rule);
-            sub_parse.value = VAL_ARRAY_AT(rule);
-            sub_parse.specifier = IS_SPECIFIC(rule)
-                ? VAL_SPECIFIER(const_KNOWN(rule))
-                : P_RULE_SPECIFIER;
-
-            threw = Parse_Rules_Loop_Throws(&interrupted, &sub_parse);
-
-            Drop_Chunk(sub_parse.stackvars);
-
-            if (threw) return THROWN_FLAG;
+            if (Subparse_Throws(
+                &interrupted,
+                P_OUT,
+                &value, // input value (source of P_INPUT, P_POS)
+                SPECIFIED,
+                rule,
+                P_RULE_SPECIFIER,
+                P_FIND_FLAGS
+            )) {
+                return THROWN_FLAG;
+            }
 
             // !!! ignore interrupted?  (e.g. ACCEPT or REJECT ran)
 
-            if (IS_BLANK(P_RESULT)) return NOT_FOUND;
-            assert(IS_INTEGER(P_RESULT));
+            if (IS_BLANK(P_OUT)) return NOT_FOUND;
+            assert(IS_INTEGER(P_OUT));
 
-            if (VAL_UNT32(P_RESULT) == VAL_LEN_HEAD(&value)) return P_POS;
+            if (VAL_UNT32(P_OUT) == VAL_LEN_HEAD(&value)) return P_POS;
 
             return NOT_FOUND;
         }
         else if (n > 0)
-            fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+            fail (Error_Parse_Rule());
         else
             rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // variable
     }
@@ -1079,7 +1138,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
         || IS_SET_PATH(rule)
         || IS_GET_PATH(rule)
     ) {
-        fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+        fail (Error_Parse_Rule());
     }
 
     if (IS_BLANK(rule))
@@ -1094,10 +1153,11 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
         Make_Array(1), // !!! "copy the value into its own block"
         0 // position 0
     ); // series (now a REB_BLOCK)
+
     Append_Value(AS_ARRAY(VAL_SERIES(&newparse.stackvars[0])), &value);
     SET_INTEGER(&newparse.stackvars[1], P_FIND_FLAGS); // find_flags
     newparse.arg = newparse.stackvars;
-    newparse.out = f->out;
+    newparse.out = P_OUT;
 
     newparse.source.array = f->source.array;
     newparse.indexor = f->indexor;
@@ -1120,35 +1180,37 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 }
 
 
-static REBCTX *Error_Parse_Rule_Back(struct Reb_Frame *f) {
-    //
-    // !!! Somewhat ad-hoc error for indicating a problem with the parse rule
-    // one step back.  (With the frame, it should be storing the current
-    // "expression" and using that.)
-    //
-    return Error_Parse_Rule_Core(P_NEXT_RULE - 1, P_RULE_SPECIFIER);
-}
-
-
-static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
-    //
-    // !!! Also somewhat ad-hoc; assumes rule - 1 is the error
-    //
-    REBVAL specified;
-    COPY_VALUE(&specified, P_NEXT_RULE - 1, P_RULE_SPECIFIER);
-
-    return Error(RE_PARSE_END, &specified);
-}
-
-
 //
-//  Parse_Rules_Loop: C
+//  subparse: native [
 //
-// This runs a rule array against an input series.  It is stylized to use a
-// Reb_Frame for its state, so that a recursive parse can be backtraced in
-// the debugger.  (The current rule in the rules array is the "code" position,
-// while the input series position is the first argument in the frame's data.
-// Output is put in the frame's ->out slot.)
+//  {Internal support function for PARSE (acts as variadic to consume rules)}
+//
+//      input [any-series!]
+//      find-flags [integer!]
+//  ]
+//
+REBNATIVE(subparse)
+//
+// Subparse is a function which is "shaped like" a native, so that it can run
+// its parse logic with the necessary parsing state stored in an ordinary
+// call frame.  This allows each recursion in the parse to appear as a stack
+// level in the backtrace, reflected through the ordinary debugging API.
+//
+// Although it is shaped similarly to typical DO code, there are differences.
+// The subparse advances the "current evaluation position" in the frame as
+// it operates (a bit like a variadic function).  The execution point is in an
+// array of parse dialect instructions, not DO functions.  Hence invoking it
+// using DO will lead to unusual behavior, such as:
+//
+//     >> subparse "aaaa" 0 some "a"
+//     == 4
+//
+// This is because when a filled frame is used to call the function, it then
+// assumes the frame's `where` position is the place that rules should come
+// from.  Here that means picking up the `some "a"` after the arguments are
+// gathered, and returning the position where the match successfully ended.
+// A special calling wrapper Subparse_Throws is used to fill a frame from
+// arguments separate from the rule list.
 //
 // Rules are matched until one of these things happens:
 //
@@ -1162,7 +1224,7 @@ static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
 //
 // !!! The return of an integer index is based on the R3-Alpha convention,
 // but needs to be rethought in light of the ability to switch series.  It
-// does not seem that all callers of Parse_Rules_Loop were prepared for
+// does not seem that all callers of Subparse were prepared for
 // the semantics of switching the series.
 //
 // * A `fail()`, in which case the function won't return--it will longjmp
@@ -1176,7 +1238,9 @@ static REBCTX *Error_Parse_End_Back(struct Reb_Frame *f) {
 // by the RETURN instruction.  This also returns R_OUT_IS_THROWN, but will
 // be caught by PARSE before returning.
 //
-static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
+{
+    struct Reb_Frame *f = frame_; // nice alias of implicit native parameter
+
 #if !defined(NDEBUG)
     //
     // These parse state variables live in chunk-stack REBVARs, which can be
@@ -1209,7 +1273,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
     mincount = maxcount = 1;
     start = begin = P_POS;
 
-    while (NOT_END(P_NEXT_RULE)) {
+    while (NOT_END(f->value)) {
         //
         // This loop iterates across each REBVAL's worth of `rule` in the rule
         // block.  Some of these rules set flags and `continue`, so that the
@@ -1224,6 +1288,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
 
         const RELVAL *rule = P_NEXT_RULE;
         /* Print_Parse_Index(f); */
+        UPDATE_EXPRESSION_START(f);
         FETCH_NEXT_RULE_MAYBE_END(f); // advances P_NEXT_RULE
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1266,7 +1331,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             //
             // (Note this means `[| ...anything...]` is a "no-op" match)
             //
-            SET_INTEGER(P_RESULT, P_POS);
+            SET_INTEGER(P_OUT, P_POS);
             return R_OUT;
         }
 
@@ -1358,12 +1423,12 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                                 // If the group evaluation result gives a
                                 // THROW, BREAK, CONTINUE, etc then we'll
                                 // return that
-                                *f->out = evaluated;
+                                *P_OUT = evaluated;
                                 return R_OUT_IS_THROWN;
                             }
 
-                            *f->out = *NAT_VALUE(parse);
-                            CONVERT_NAME_TO_THROWN(f->out, &evaluated);
+                            *P_OUT = *NAT_VALUE(parse);
+                            CONVERT_NAME_TO_THROWN(P_OUT, &evaluated);
                             return R_OUT_IS_THROWN;
                         }
                         flags |= PF_RETURN;
@@ -1378,8 +1443,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                         //
                         REBVAL thrown_arg;
                         SET_INTEGER(&thrown_arg, P_POS);
-                        *f->out = *NAT_VALUE(parse_accept);
-                        CONVERT_NAME_TO_THROWN(f->out, &thrown_arg);
+                        *P_OUT = *NAT_VALUE(parse_accept);
+                        CONVERT_NAME_TO_THROWN(P_OUT, &thrown_arg);
                         return R_OUT_IS_THROWN;
                     }
 
@@ -1387,8 +1452,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                         //
                         // Similarly, this is a break/continue style "throw"
                         //
-                        *f->out = *NAT_VALUE(parse_reject);
-                        CONVERT_NAME_TO_THROWN(f->out, BLANK_VALUE);
+                        *P_OUT = *NAT_VALUE(parse_reject);
+                        CONVERT_NAME_TO_THROWN(P_OUT, BLANK_VALUE);
                         return R_OUT;
                     }
 
@@ -1399,11 +1464,11 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     case SYM_IF:
                         rule = P_NEXT_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
-                        if (IS_END(rule))
-                            fail (Error_Parse_End_Back(f));
+                        if (IS_END(f->value))
+                            fail (Error_Parse_End());
 
                         if (!IS_GROUP(rule))
-                            fail (Error_Parse_Rule_Core(rule, P_RULE_SPECIFIER));
+                            fail (Error_Parse_Rule());
 
                         // might GC
                         if (Do_At_Throws(
@@ -1412,7 +1477,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                             VAL_INDEX(rule),
                             P_RULE_SPECIFIER
                         )) {
-                            *f->out = save;
+                            *P_OUT = save;
                             return R_OUT_IS_THROWN;
                         }
 
@@ -1514,7 +1579,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             if (Do_At_Throws( // might GC
                 &evaluated, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
             )) {
-                *f->out = evaluated;
+                *P_OUT = evaluated;
                 return R_OUT_IS_THROWN;
             }
             // ignore evaluated if it's not THROWN?
@@ -1528,13 +1593,16 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             flags |= PF_WHILE;
             mincount = maxcount = Int32s(const_KNOWN(rule), 0);
             rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
+
             FETCH_NEXT_RULE_MAYBE_END(f);
-            if (IS_END(rule)) fail (Error(RE_PARSE_END, P_NEXT_RULE - 2));
+            if (IS_END(f->value))
+                fail (Error_Parse_End());
+
             if (IS_INTEGER(rule)) {
                 maxcount = Int32s(const_KNOWN(rule), 0);
                 rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
+
                 FETCH_NEXT_RULE_MAYBE_END(f);
-                if (IS_END(rule)) fail (Error(RE_PARSE_END, P_NEXT_RULE - 2));
             }
         }
         // else fall through on other values and words
@@ -1552,7 +1620,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
         rule_hold = rule;   // a command or literal match value
 
         if (VAL_TYPE(rule) <= REB_0 || VAL_TYPE(rule) >= REB_FUNCTION)
-            fail (Error_Parse_Rule_Back(f));
+            fail (Error_Parse_Rule());
 
         begin = P_POS;       // input at beginning of match section
         rules_consumed = 0;  // do not use `rule++` below!
@@ -1564,7 +1632,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             rule = rule_hold;
 
             if (IS_BAR(rule)) {
-                fail (Error_Parse_Rule_Back(f)); // !!! Is this possible?
+                fail (Error_Parse_Rule()); // !!! Is this possible?
             }
             if (IS_WORD(rule)) {
 
@@ -1584,8 +1652,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
 
                 case SYM_TO:
                 case SYM_THRU:
-                    if (IS_END(P_NEXT_RULE))
-                        fail (Error_Parse_End_Back(f));
+                    if (IS_END(f->value))
+                        fail (Error_Parse_End());
 
                     rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
                     rules_consumed = 1;
@@ -1597,10 +1665,10 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     // !!! Disallow QUOTE on string series, see #2253
                     //
                     if (!Is_Array_Series(P_INPUT))
-                        fail (Error_Parse_Rule_Back(f));
+                        fail (Error_Parse_Rule());
 
-                    if (IS_END(P_NEXT_RULE))
-                        fail (Error_Parse_End_Back(f));
+                    if (IS_END(f->value))
+                        fail (Error_Parse_End());
 
                     rules_consumed = 1;
                     if (IS_GROUP(P_NEXT_RULE)) {
@@ -1611,7 +1679,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                             VAL_INDEX(P_NEXT_RULE),
                             P_RULE_SPECIFIER
                         )) {
-                            *f->out = save;
+                            *P_OUT = save;
                             return R_OUT_IS_THROWN;
                         }
                         rule = &save;
@@ -1631,13 +1699,11 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     break;
 
                 case SYM_INTO: {
-                    struct Reb_Frame sub_parse;
                     RELVAL *val;
-                    REBOOL threw;
                     REBOOL interrupted;
 
-                    if (IS_END(P_NEXT_RULE))
-                        fail (Error_Parse_End_Back(f));
+                    if (IS_END(f->value))
+                        fail (Error_Parse_End());
 
                     rules_consumed = 1;
 
@@ -1645,7 +1711,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
 
                     if (!IS_BLOCK(rule))
-                        fail (Error_Parse_Rule_Back(f));
+                        fail (Error_Parse_Rule());
 
                     val = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
 
@@ -1654,39 +1720,28 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                         break;
                     }
 
-                    sub_parse.stackvars = Push_Ended_Trash_Chunk(3);
-                    COPY_VALUE(
-                        &sub_parse.stackvars[0], val, P_INPUT_SPECIFIER
-                    );
-                    SET_INTEGER(&sub_parse.stackvars[1], P_FIND_FLAGS);
-                    sub_parse.arg = sub_parse.stackvars;
-                    sub_parse.out = f->out;
-
-                    sub_parse.source.array = VAL_ARRAY(rule);
-                    sub_parse.indexor = VAL_INDEX(rule);
-                    sub_parse.value = VAL_ARRAY_AT(rule);
-                    sub_parse.specifier = IS_SPECIFIC(rule)
-                        ? VAL_SPECIFIER(const_KNOWN(rule))
-                        : P_RULE_SPECIFIER;
-
-                    threw = Parse_Rules_Loop_Throws(
-                        &interrupted, &sub_parse
-                    );
-
-                    Drop_Chunk(sub_parse.stackvars);
-
-                    if (threw) return R_OUT_IS_THROWN;
+                    if (Subparse_Throws(
+                        &interrupted,
+                        P_OUT,
+                        val,
+                        P_INPUT_SPECIFIER, // val was taken from P_INPUT
+                        rule,
+                        P_RULE_SPECIFIER,
+                        P_FIND_FLAGS
+                    )) {
+                        return R_OUT_IS_THROWN;
+                    }
 
                     // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
 
-                    if (IS_BLANK(P_RESULT)) {
+                    if (IS_BLANK(P_OUT)) {
                         i = NOT_FOUND;
                         break;
                     }
 
-                    assert(IS_INTEGER(P_RESULT));
+                    assert(IS_INTEGER(P_OUT));
 
-                    if (VAL_UNT32(P_RESULT) != VAL_LEN_HEAD(val)) {
+                    if (VAL_UNT32(P_OUT) != VAL_LEN_HEAD(val)) {
                         i = NOT_FOUND;
                         break;
                     }
@@ -1697,12 +1752,12 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
 
                 case SYM_DO:
                     if (!Is_Array_Series(P_INPUT))
-                        fail (Error_Parse_Rule_Back(f));
+                        fail (Error_Parse_Rule());
 
                     {
                     REBCNT pos_before = P_POS;
 
-                    i = Do_Eval_Rule(f); // known to change P_NEXT_RULE (should)
+                    i = Do_Eval_Rule(f); // changes P_NEXT_RULE (should)
 
                     P_POS = pos_before; // !!! Simulate restore (needed?)
                     }
@@ -1713,45 +1768,36 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     break;
 
                 default:
-                    fail (Error_Parse_Rule_Back(f));
+                    fail (Error_Parse_Rule());
                 }
             }
             else if (IS_BLOCK(rule)) {
-                const RELVAL *rule_before = P_NEXT_RULE;
-                REBCTX *specifier_before = P_RULE_SPECIFIER;
-                REBCNT pos_before = P_POS;
-                union Reb_Frame_Source source_before = f->source;
-                REBIXO indexor_before = f->indexor;
                 REBOOL interrupted;
 
-                f->indexor = 0;
-                f->source.array = VAL_ARRAY(rule);
-                P_NEXT_RULE_LVALUE = VAL_ARRAY_AT(rule);
-                P_RULE_SPECIFIER = IS_SPECIFIC(rule)
-                    ? VAL_SPECIFIER(const_KNOWN(rule))
-                    : P_RULE_SPECIFIER;
+                if (Subparse_Throws(
+                    &interrupted,
+                    P_OUT,
+                    P_INPUT_VALUE,
+                    SPECIFIED,
+                    rule,
+                    P_RULE_SPECIFIER,
+                    P_FIND_FLAGS
+                )) {
+                    return R_OUT_IS_THROWN;
+                }
 
                 rule = NULL; // !!! Testing, was left as VAL_ARRAY_AT(rule)
 
-                if (Parse_Rules_Loop_Throws(&interrupted, f))
-                    return R_OUT_IS_THROWN;
-
-                f->source = source_before;
-                f->indexor = indexor_before;
-                P_POS = pos_before; // !!! Simulate restoration (needed?)
-                P_NEXT_RULE_LVALUE = rule_before; // !!! Simulate restoration (needed?)
-                P_RULE_SPECIFIER = specifier_before;
-
                 // Non-breaking out of loop instances of match or not.
 
-                if (IS_BLANK(P_RESULT))
+                if (IS_BLANK(P_OUT))
                     i = NOT_FOUND;
                 else {
-                    assert(IS_INTEGER(P_RESULT));
-                    i = VAL_INT32(P_RESULT);
+                    assert(IS_INTEGER(P_OUT));
+                    i = VAL_INT32(P_OUT);
                 }
 
-                SET_TRASH_SAFE(P_RESULT);
+                SET_TRASH_SAFE(P_OUT);
 
                 if (interrupted) { // ACCEPT or REJECT ran
                     P_POS = i;
@@ -1761,17 +1807,15 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             else {
                 // Parse according to datatype
                 REBCNT pos_before = P_POS;
-                const RELVAL *rule_before = P_NEXT_RULE;
-                REBCTX *specifier_before = P_RULE_SPECIFIER;
 
                 if (Is_Array_Series(P_INPUT))
                     i = Parse_Next_Array(f, P_POS, rule);
                 else
                     i = Parse_Next_String(f, P_POS, rule);
 
-                P_POS = pos_before; // !!! Simulate restoration (needed?)
-                P_NEXT_RULE_LVALUE = rule_before; // !!! Simulate restoration (?)
-                P_RULE_SPECIFIER = specifier_before;
+                assert(P_POS == pos_before);
+                /*P_POS = pos_before; // !!! Simulate restoration (needed?)*/
+
                 // i may be THROWN_FLAG
             }
 
@@ -1813,13 +1857,16 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             P_POS = i;
 
             // A BREAK word stopped us:
-            //if (P_RESULT) {P_RESULT = 0; break;}
+            //if (P_OUT) {P_OUT = 0; break;}
         }
 
         // !!! Recursions or otherwise should be able to advance the rule now
         // that it lives in the parse state
         //
-        P_NEXT_RULE_LVALUE += rules_consumed;
+        /*P_NEXT_RULE_LVALUE += rules_consumed;*/
+        assert(rules_consumed == 0 || rules_consumed == 1);
+        if (rules_consumed == 1)
+            FETCH_NEXT_RULE_MAYBE_END(f);
 
         if (P_POS > SER_LEN(P_INPUT)) P_POS = NOT_FOUND;
 
@@ -1917,8 +1964,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *f->out = *NAT_VALUE(parse);
-                    CONVERT_NAME_TO_THROWN(f->out, &captured);
+                    *P_OUT = *NAT_VALUE(parse);
+                    CONVERT_NAME_TO_THROWN(P_OUT, &captured);
                     return R_OUT_IS_THROWN;
                 }
 
@@ -1930,15 +1977,16 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                 if (flags & (PF_INSERT | PF_CHANGE)) {
                     count = (flags & PF_INSERT) ? 0 : count;
                     cmd = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
+
                     rule = P_NEXT_RULE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
-                    if (IS_END(rule))
-                        fail (Error_Parse_End_Back(f));
+                    if (IS_END(f->value))
+                        fail (Error_Parse_End());
 
                     // Check for ONLY flag:
                     if (IS_WORD(rule) && (cmd = VAL_CMD(rule))) {
                         if (cmd != SYM_ONLY)
-                            fail (Error_Parse_Rule_Back(f));
+                            fail (Error_Parse_Rule());
 
                         cmd |= (1<<AN_ONLY);
                         rule = P_NEXT_RULE;
@@ -1947,11 +1995,11 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
                     // new value...comment said "CHECK FOR QUOTE!!"
                     rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER);
 
+                    if (IS_END(rule)) // !!! Is this possible?
+                        fail (Error_Parse_End());
+
                     if (IS_VOID(rule))
                         fail (Error_No_Value_Core(P_NEXT_RULE - 1, P_RULE_SPECIFIER));
-
-                    if (IS_END(rule))
-                        fail (Error_Parse_End_Back(f));
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
@@ -2009,8 +2057,8 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
             // options later in the block to consider separated by |.
 
             FETCH_TO_BAR_MAYBE_END(f);
-            if (IS_END(P_NEXT_RULE)) { // no alternate rule
-                SET_BLANK(P_RESULT);
+            if (IS_END(f->value)) { // no alternate rule
+                SET_BLANK(P_OUT);
                 return R_OUT;
             }
 
@@ -2024,7 +2072,7 @@ static REB_R Parse_Rules_Loop(struct Reb_Frame *f) {
         mincount = maxcount = 1;
     }
 
-    SET_INTEGER(P_RESULT, P_POS); // !!! return switched input series??
+    SET_INTEGER(P_OUT, P_POS); // !!! return switched input series??
     return R_OUT;
 }
 
@@ -2045,11 +2093,8 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     REBVAL *rules = ARG(rules);
     REBCNT index;
     REBOOL interrupted;
-    REBOOL threw;
 
-    struct Reb_Frame parse;
-
-    if (IS_BLANK(ARG(rules)) || IS_STRING(ARG(rules))) {
+    if (IS_BLANK(rules) || IS_STRING(rules)) {
         //
         // !!! R3-Alpha supported "simple parse", which was cued by the rules
         // being either NONE! or a STRING!.  Though this functionality does
@@ -2060,42 +2105,24 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
         fail (Error(RE_USE_SPLIT_SIMPLE));
     }
 
-
     // The native dispatcher should have pre-filled the output slot with a
     // trash value in the debug build.  We double-check the expectation of
     // whether the parse loop overwites this slot with a result or not.
     //
     assert(IS_END(D_OUT));
 
-    assert(IS_BLOCK(rules));
-    parse.value = VAL_ARRAY_AT(rules);
-    parse.specifier = VAL_SPECIFIER(rules);
-
-    parse.source.array = VAL_ARRAY(rules);
-    parse.indexor = VAL_INDEX(rules);
-    // Note: `parse.value` set above
-
-    parse.stackvars = Push_Ended_Trash_Chunk(3);
-
-    parse.stackvars[0] = *ARG(input);
-
-    // We always want "case-sensitivity" on binary bytes, vs. treating as
-    // case-insensitive bytes for ASCII characters.
-    //
-    SET_INTEGER(
-        &parse.stackvars[1],
+    if (Subparse_Throws(
+        &interrupted,
+        D_OUT,
+        ARG(input),
+        SPECIFIED, // input is a non-relative REBVAL
+        rules,
+        SPECIFIED, // rules is a non-relative REBVAL
         REF(case) || IS_BINARY(ARG(input)) ? AM_FIND_CASE : 0
-    );
-
-    parse.arg = parse.stackvars;
-
-    parse.out = D_OUT;
-
-    threw = Parse_Rules_Loop_Throws(&interrupted, &parse);
-
-    Drop_Chunk(parse.stackvars);
-
-    if (threw) {
+        //
+        // We always want "case-sensitivity" on binary bytes, vs. treating
+        // as case-insensitive bytes for ASCII characters.
+    )) {
         if (
             IS_FUNCTION(D_OUT)
             && NAT_FUNC(parse) == VAL_FUNC(D_OUT)
