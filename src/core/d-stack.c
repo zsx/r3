@@ -79,82 +79,81 @@ void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
 // Each call frame maintains the array it is executing in, the current index
 // in that array, and the index of where the current expression started.
 // This can be deduced into a segment of code to display in the debug views
-// to indicate roughly "what's running" at that stack level.
+// to indicate roughly "what's running" at that stack level.  The code is
+// a shallow copy of the array content.
 //
-// Unfortunately, Rebol doesn't formalize this very well.  There is no lock
-// on segments of blocks during their evaluation, and it's possible for
-// self-modifying code to scramble the blocks being executed.  The DO
-// evaluator is robust in terms of not *crashing*, but the semantics may well
-// suprise users.
+// The resulting WHERE information only includes the range of the array being
+// executed up to the point of currently relevant evaluation.  It does not
+// go all the way to the tail of the block (where future potential evaluation
+// should be.
 //
-// !!! Should blocks on the stack be locked from modification, at least by
-// default unless a special setting for self-modifying code unlocks it?
+// !!! Unfortunately, Rebol doesn't formalize this very well.  There is no
+// lock on segments of blocks during their evaluation (should there be?).
+// It's possible for self-modifying code to scramble the blocks being executed.
+// The DO evaluator is robust in terms of not *crashing*, but the semantics
+// may well suprise users.
 //
-// So long as WHERE information is unreliable, this has to check that
-// `expr_index` (where the evaluation started) and `index` (where the
-// evaluation thinks it currently is) aren't out of bounds here.  We could
-// be giving back positions now unrelated to the call...but shouldn't crash!
+// !!! DO also offers a feature whereby values can be supplied at the start
+// of an evaluation which are not resident in the array.  It also can run
+// on an irreversible C va_list of REBVAL*, where these disappear as the
+// evaluation proceeds.  A special debug setting would be needed to hang
+// onto these values for the purposes of better error messages (at the cost
+// of performance).
 //
-REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
+REBARR *Make_Where_For_Frame(struct Reb_Frame *f)
 {
+    REBARR *where;
+
+    REBCNT dsp_start = DSP;
+
     REBCNT start;
     REBCNT end;
+    REBCNT n;
 
-    REBARR *where;
     REBOOL pending;
 
-    if (FRM_IS_VALIST(frame)) {
+    if (FRM_IS_VALIST(f)) {
+        //
+        // Traversing a C va_arg, so reify into a (truncated) array.
+        //
         const REBOOL truncated = TRUE;
-        Reify_Va_To_Array_In_Frame(frame, truncated);
+        Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
     // WARNING: MIN is a C macro and repeats its arguments.
     //
-    start = MIN(ARR_LEN(FRM_ARRAY(frame)), cast(REBCNT, frame->expr_index));
-    end = MIN(ARR_LEN(FRM_ARRAY(frame)), FRM_INDEX(frame));
+    start = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_EXPR_INDEX(f));
+    end = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_INDEX(f));
 
     assert(end >= start);
-    assert(frame->eval_type == ET_FUNCTION);
-    pending = Is_Function_Frame_Fulfilling(frame);
 
-    // Do a shallow copy so that the WHERE information only includes
-    // the range of the array being executed up to the point of
-    // currently relevant evaluation, not all the way to the tail
-    // of the block (where future potential evaluation would be)
-    {
-        REBCNT n = 0;
+    assert(f->eval_type == ET_FUNCTION);
+    pending = Is_Function_Frame_Fulfilling(f);
 
-        REBCNT len =
-            1 // fake function word (compensates for prefetch)
-            + (end - start) // data from expr_index to the current index
-            + (pending ? 1 : 0); // if it's pending we put "..." to show that
+    // !!! We may be running a function where the value for the function was a
+    // "head" value not in the array.  These cases could substitute the symbol
+    // for the currently executing function.  Reconsider when such cases
+    // appear and can be studied.
+    /*
+        DS_PUSH_TRASH;
+        Val_Init_Word(DS_TOP, REB_WORD, FRM_LABEL(f));
+    */
 
-        where = Make_Array(len);
-
-        // !!! Due to "prefetch" the expr_index will be *past* the invocation
-        // of the function.  So this is a lie, as a placeholder for what a
-        // real debug mode would need to actually save the data to show.
-        // If the execution were a path or anything other than a word, this
-        // will lose it.
-        //
-        Val_Init_Word(ARR_AT(where, n), REB_WORD, FRM_LABEL(frame));
-        ++n;
-
-        for (n = 1; n < len; ++n)
-            *ARR_AT(where, n) = *ARR_AT(FRM_ARRAY(frame), start + n - 1);
-
-        SET_ARRAY_LEN(where, len);
-        TERM_ARRAY(where);
-
-        Collapsify_Array(where, SPECIFIED, 3);
+    for (n = start; n < end; ++n) {
+        DS_PUSH_TRASH;
+        COPY_VALUE(
+            DS_TOP,
+            ARR_AT(FRM_ARRAY(f), n),
+            f->specifier
+        );
+        if (n == start) {
+            //
+            // Get rid of any newline marker on the first element,
+            // that would visually disrupt the backtrace for no reason.
+            //
+            CLEAR_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
+        }
     }
-
-    // Making a shallow copy offers another advantage, that it's
-    // possible to get rid of the newline marker on the first element,
-    // that would visually disrupt the backtrace for no reason.
-    //
-    if (end - start > 0)
-        CLEAR_VAL_FLAG(ARR_HEAD(where), VALUE_FLAG_LINE);
 
     // We add an ellipsis to a pending frame to make it a little bit
     // clearer what is going on.  If someone sees a where that looks
@@ -165,10 +164,19 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
     //
     // !!! This is in-band, which can be mixed up with literal usage
     // of ellipsis.  Could there be a better "out-of-band" conveyance?
-    // Might the system use colorization in a value option bit.
+    // Might the system use colorization in a value option bit?
     //
-    if (pending)
-        Val_Init_Word(Alloc_Tail_Array(where), REB_WORD, SYM_ELLIPSIS);
+    if (pending) {
+        DS_PUSH_TRASH;
+        Val_Init_Word(DS_TOP, REB_WORD, SYM_ELLIPSIS);
+    }
+
+    where = Pop_Stack_Values(dsp_start);
+
+    // Simplify overly-deep blocks embedded in the where so they show (...)
+    // instead of printing out fully.
+    //
+    Collapsify_Array(where, SPECIFIED, 3);
 
     return where;
 }

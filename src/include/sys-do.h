@@ -1258,6 +1258,10 @@ struct Native_Refine {
     (assert(!FRM_IS_VALIST(f)), (f)->indexor == END_FLAG \
         ? ARR_LEN((f)->source.array) : (f)->indexor - 1)
 
+#define FRM_EXPR_INDEX(f) \
+    (assert(!FRM_IS_VALIST(f)), (f)->expr_index == END_FLAG \
+        ? ARR_LEN((f)->source.array) : (f)->expr_index - 1)
+
 #define FRM_OUT(f)          cast(REBVAL * const, (f)->out) // writable Lvalue
 #define FRM_PRIOR(f)        ((f)->prior)
 #define FRM_LABEL(f)        ((f)->label_sym)

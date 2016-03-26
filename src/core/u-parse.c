@@ -148,16 +148,19 @@ static REBOOL Subparse_Throws(
     f->refine = END_CELL;
     f->cell.subfeed = NULL;
 
-    f->prior = TG_Frame_Stack;
-    TG_Frame_Stack = f;
+    PUSH_CALL(f);
 
     SET_TRASH_SAFE(out);
     r = N_subparse(f);
     assert(!IS_TRASH_DEBUG(out));
 
-    TG_Frame_Stack = f->prior;
+    // Can't just drop f->data.stackvars because the debugger may have
+    // "reified" the frame into a FRAME!, which means it would now be using
+    // the f->data.context field.
+    //
+    Drop_Function_Args_For_Frame_Core(f, TRUE);
 
-    Drop_Chunk(f->stackvars);
+    DROP_CALL(f);
 
     if (r == R_OUT_IS_THROWN) {
         assert(THROWN(out));
@@ -1258,8 +1261,6 @@ REBNATIVE(subparse)
     REBINT count;       // iterated pattern counter
     REBINT mincount;    // min pattern count
     REBINT maxcount;    // max pattern count
-    const RELVAL *rule_hold;
-    REBCNT rules_consumed;
     REBFLGS flags;
     REBCNT cmd;
 
@@ -1291,6 +1292,16 @@ REBNATIVE(subparse)
         // section, then rule should be set to something non-NULL by then...
         //
         const RELVAL *rule = NULL;
+
+        // Some rules that make it to the iterated rule section have a
+        // parameter.  For instance `3 into [some "a"]` will actually run
+        // the INTO `rule` 3 times with the `subrule` of `[some "a"]`.
+        // Because it is iterated it is only captured the first time through,
+        // so setting it to NULL indicates for such instructions that it
+        // has not been captured yet.
+        //
+        const RELVAL *subrule = NULL;
+
         /* Print_Parse_Index(f); */
         UPDATE_EXPRESSION_START(f);
 
@@ -1657,19 +1668,14 @@ REBNATIVE(subparse)
 
         FETCH_NEXT_RULE_MAYBE_END(f); // pushed down?
 
-        rule_hold = rule;   // a command or literal match value
-
         if (VAL_TYPE(rule) <= REB_0 || VAL_TYPE(rule) >= REB_FUNCTION)
             fail (Error_Parse_Rule());
 
         begin = P_POS;       // input at beginning of match section
-        rules_consumed = 0;  // do not use `rule++` below!
 
         //note: rules var already advanced
 
         for (count = 0; count < maxcount;) {
-
-            rule = rule_hold;
 
             if (IS_BAR(rule)) {
                 fail (Error_Parse_Rule()); // !!! Is this possible?
@@ -1695,12 +1701,19 @@ REBNATIVE(subparse)
                     if (IS_END(f->value))
                         fail (Error_Parse_End());
 
-                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
-                    rules_consumed = 1;
-                    i = Parse_To(f, P_POS, rule, LOGICAL(cmd == SYM_THRU));
+                    if (!subrule) { // capture only on iteration #1
+                        subrule = Get_Parse_Value(
+                            &save, P_RULE, P_RULE_SPECIFIER
+                        );
+                        FETCH_NEXT_RULE_MAYBE_END(f);
+                    }
+
+                    i = Parse_To(f, P_POS, subrule, LOGICAL(cmd == SYM_THRU));
                     break;
 
-                case SYM_QUOTE:
+                case SYM_QUOTE: {
+                    const RELVAL *quoted;
+
                     //
                     // !!! Disallow QUOTE on string series, see #2253
                     //
@@ -1710,25 +1723,29 @@ REBNATIVE(subparse)
                     if (IS_END(f->value))
                         fail (Error_Parse_End());
 
-                    rules_consumed = 1;
-                    if (IS_GROUP(P_RULE)) {
+                    if (!subrule) { // capture only on iteration #1
+                        subrule = P_RULE;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
+                    }
+
+                    if (IS_GROUP(subrule)) {
                         // might GC
                         if (Do_At_Throws(
                             &save,
-                            VAL_ARRAY(P_RULE),
-                            VAL_INDEX(P_RULE),
+                            VAL_ARRAY(subrule),
+                            VAL_INDEX(subrule),
                             P_RULE_SPECIFIER
                         )) {
                             *P_OUT = save;
                             return R_OUT_IS_THROWN;
                         }
-                        rule = &save;
+                        quoted = &save;
                     }
-                    else rule = P_RULE;
+                    else quoted = subrule;
 
                     if (0 == Cmp_Value(
                         ARR_AT(AS_ARRAY(P_INPUT), P_POS),
-                        rule,
+                        quoted,
                         P_HAS_CASE
                     )) {
                         i = P_POS + 1;
@@ -1737,6 +1754,7 @@ REBNATIVE(subparse)
                         i = NOT_FOUND;
                     }
                     break;
+                }
 
                 case SYM_INTO: {
                     RELVAL *val;
@@ -1745,12 +1763,14 @@ REBNATIVE(subparse)
                     if (IS_END(f->value))
                         fail (Error_Parse_End());
 
-                    rules_consumed = 1;
+                    if (!subrule) {
+                        subrule = Get_Parse_Value(
+                            &save, P_RULE, P_RULE_SPECIFIER
+                        );
+                        FETCH_NEXT_RULE_MAYBE_END(f);
+                    }
 
-                    // sub-rules
-                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
-
-                    if (!IS_BLOCK(rule))
+                    if (!IS_BLOCK(subrule))
                         fail (Error_Parse_Rule());
 
                     val = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
@@ -1765,7 +1785,7 @@ REBNATIVE(subparse)
                         P_OUT,
                         val,
                         P_INPUT_SPECIFIER, // val was taken from P_INPUT
-                        rule,
+                        subrule,
                         P_RULE_SPECIFIER,
                         P_FIND_FLAGS
                     )) {
@@ -1790,9 +1810,20 @@ REBNATIVE(subparse)
                     break;
                 }
 
-                case SYM_DO:
+                case SYM_DO: {
                     if (!Is_Array_Series(P_INPUT))
                         fail (Error_Parse_Rule());
+
+                    if (subrule != NULL) {
+                        //
+                        // Not currently set up for iterating DO rules
+                        // since the Do_Eval_Rule routine expects to be
+                        // able to arbitrarily update P_NEXT_RULE
+                        //
+                        fail (Error(RE_MISC));
+                    }
+
+                    subrule = BLANK_VALUE; // cause an error if iterating
 
                     {
                     REBCNT pos_before = P_POS;
@@ -1804,8 +1835,8 @@ REBNATIVE(subparse)
 
                     if (i == THROWN_FLAG) return R_OUT_IS_THROWN;
 
-                    rules_consumed = 1;
                     break;
+                }
 
                 default:
                     fail (Error_Parse_Rule());
@@ -1825,8 +1856,6 @@ REBNATIVE(subparse)
                 )) {
                     return R_OUT_IS_THROWN;
                 }
-
-                rule = NULL; // !!! Testing, was left as VAL_ARRAY_AT(rule)
 
                 // Non-breaking out of loop instances of match or not.
 
@@ -1899,14 +1928,6 @@ REBNATIVE(subparse)
             // A BREAK word stopped us:
             //if (P_OUT) {P_OUT = 0; break;}
         }
-
-        // !!! Recursions or otherwise should be able to advance the rule now
-        // that it lives in the parse state
-        //
-        /*P_RULE_LVALUE += rules_consumed;*/
-        assert(rules_consumed == 0 || rules_consumed == 1);
-        if (rules_consumed == 1)
-            FETCH_NEXT_RULE_MAYBE_END(f);
 
         if (P_POS > SER_LEN(P_INPUT)) P_POS = NOT_FOUND;
 
