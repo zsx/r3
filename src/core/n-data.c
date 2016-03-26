@@ -164,7 +164,7 @@ REBNATIVE(assert)
             if (IS_CONDITIONAL_FALSE(D_OUT)) {
                 // !!! Only copies 3 values (and flaky), see CC#2231
                 Val_Init_Block(
-                    D_OUT, Copy_Array_At_Max_Shallow(block, i, GUESSED, 3)
+                    D_OUT, Copy_Array_At_Max_Shallow(block, i, specifier, 3)
                 );
                 fail (Error(RE_ASSERT_FAILED, D_OUT));
             }
