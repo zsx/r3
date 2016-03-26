@@ -105,11 +105,13 @@ REBINT Get_Num_From_Arg(const REBVAL *val)
 //
 REBINT Float_Int16(REBD32 f)
 {
-    if (fabs(f) > (REBD32)(0x7FFF)) {
-        DS_PUSH_DECIMAL(f);
-        fail (Error_Out_Of_Range(DS_TOP));
+    if (fabs(f) > cast(REBD32, 0x7FFF)) {
+        REBVAL temp;
+        SET_DECIMAL(&temp, f);
+
+        fail (Error_Out_Of_Range(&temp));
     }
-    return (REBINT)f;
+    return cast(REBINT, f);
 }
 
 

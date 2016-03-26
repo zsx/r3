@@ -229,8 +229,8 @@ REBARR *Struct_To_Array(const REBSTU *stu)
 
         val = Alloc_Tail_Array(VAL_ARRAY(type_blk));
         if (field->type == STRUCT_TYPE_STRUCT) {
-            REBVAL *nested = NULL;
-            DS_PUSH_NONE;
+            REBVAL *nested;
+            DS_PUSH_TRASH_SAFE;
             nested = DS_TOP;
 
             Val_Init_Word(val, REB_WORD, SYM_STRUCT_TYPE);
@@ -756,7 +756,8 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
             EXPAND_SERIES_TAIL(VAL_STRUCT_FIELDS(out), 1);
 
-            DS_PUSH_NONE;
+            DS_PUSH_TRASH;
+            SET_BLANK(DS_TOP);
             inner = DS_TOP; /* save in stack so that it won't be GC'ed when MT_Struct is recursively called */
 
             field = SER_AT(

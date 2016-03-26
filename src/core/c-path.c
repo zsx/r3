@@ -197,9 +197,9 @@ REBOOL Do_Path_Throws(
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
     //
-    assert(!IN_DATA_STACK(out));
-    assert(!IN_DATA_STACK(path));
-    assert(!opt_setval || !IN_DATA_STACK(opt_setval));
+    assert(!IN_DATA_STACK_DEBUG(out));
+    assert(!IN_DATA_STACK_DEBUG(path));
+    assert(!opt_setval || !IN_DATA_STACK_DEBUG(opt_setval));
 
     // Not currently robust for reusing passed in path or value as the output
     assert(out != path && out != opt_setval);

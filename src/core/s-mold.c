@@ -1402,8 +1402,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
     case REB_LIBRARY:
         Pre_Mold(value, mold);
 
-        DS_PUSH_NONE;
-        *DS_TOP = *ARR_HEAD(VAL_LIB_SPEC(value));
+        DS_PUSH(KNOWN(ARR_HEAD(VAL_LIB_SPEC(value))));
         Mold_File(DS_TOP, mold);
         DS_DROP;
 

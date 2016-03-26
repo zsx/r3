@@ -1690,7 +1690,7 @@ static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
         }
     }
 #else
-    assert(!IN_DATA_STACK(f->out));
+    assert(!IN_DATA_STACK_DEBUG(f->out));
 #endif
 
     // The caller must preload ->value with the first value to process.  It

@@ -112,7 +112,7 @@ typedef unsigned int REBDSP;
     #define IS_VALUE_IN_ARRAY(a,v) \
         (ARR_LEN(a) != 0 && (v) >= ARR_HEAD(a) && (v) < ARR_TAIL(a))
 
-    #define IN_DATA_STACK(v) \
+    #define IN_DATA_STACK_DEBUG(v) \
         IS_VALUE_IN_ARRAY(DS_Array, (v))
 #endif
 
@@ -145,18 +145,6 @@ typedef unsigned int REBDSP;
     (assert(!IS_VOID(v)), ASSERT_VALUE_MANAGED(v), \
         DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
 
-#define DS_PUSH_NONE \
-    (DS_PUSH_TRASH, SET_BLANK(DS_TOP), NOOP)
-
-#define DS_PUSH_TRUE \
-    (DS_PUSH_TRASH, SET_TRUE(DS_TOP), NOOP)
-
-#define DS_PUSH_INTEGER(n) \
-    (DS_PUSH_TRASH, SET_INTEGER(DS_TOP, (n)), NOOP)
-
-#define DS_PUSH_DECIMAL(n) \
-    (DS_PUSH_TRASH, SET_DECIMAL(DS_TOP, (n)), NOOP)
-
 // POPPING AND "DROPPING"
 
 #ifdef NDEBUG
@@ -165,13 +153,6 @@ typedef unsigned int REBDSP;
     #define DS_DROP \
         (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
 #endif
-
-#define DS_POP_INTO(v) \
-    do { \
-        assert(!IS_TRASH_DEBUG(DS_TOP) || VAL_TRASH_SAFE(DS_TOP)); \
-        *(v) = *DS_TOP; \
-        DS_DROP; \
-    } while (0)
 
 #ifdef NDEBUG
     #define DS_DROP_TO(dsp) \
