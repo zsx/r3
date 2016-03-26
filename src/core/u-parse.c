@@ -30,8 +30,8 @@
 
 #include "sys-core.h"
 
-#define P_NEXT_RULE          (f->value + 0) // rvalue
-#define P_NEXT_RULE_LVALUE   (f->value) // lvalue
+#define P_RULE          (f->value + 0) // rvalue
+#define P_RULE_LVALUE   (f->value) // lvalue
 #define P_RULE_SPECIFIER     (f->specifier)
 
 #define P_INPUT_VALUE       (&f->arg[0])
@@ -240,9 +240,9 @@ static void Print_Parse_Index(struct Reb_Frame *f) {
     }
     else {
         if (P_POS >= SER_LEN(P_INPUT))
-            Debug_Fmt("%r: ** END **", P_NEXT_RULE);
+            Debug_Fmt("%r: ** END **", P_RULE);
         else
-            Debug_Fmt("%r: %r", P_NEXT_RULE, &input);
+            Debug_Fmt("%r: %r", P_RULE, &input);
     }
 }
 
@@ -250,9 +250,9 @@ static void Print_Parse_Index(struct Reb_Frame *f) {
 //
 //  Set_Parse_Series: C
 // 
-// Change the series and return the new index.
+// Change the series, ensuring the index is not past the end.
 //
-static REBCNT Set_Parse_Series(
+static void Set_Parse_Series(
     struct Reb_Frame *f,
     const REBVAL *any_series
 ) {
@@ -266,8 +266,6 @@ static REBCNT Set_Parse_Series(
         P_FIND_FLAGS |= AM_FIND_CASE;
     else
         P_FIND_FLAGS &= ~AM_FIND_CASE;
-
-    return P_POS; // !!! callers are setting P_POS to this also, which to do?
 }
 
 
@@ -1028,7 +1026,7 @@ static REBCNT Parse_To(
 //
 static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 {
-    const RELVAL *rule = P_NEXT_RULE;
+    const RELVAL *rule = P_RULE;
     REBCNT n;
     struct Reb_Frame newparse;
 
@@ -1066,8 +1064,8 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 
         if (n == SYM_QUOTE) {
             /* rule = rule + 1; */ // was this.
-            assert(rule + 1 == P_NEXT_RULE);
-            rule = P_NEXT_RULE;
+            assert(rule + 1 == P_RULE);
+            rule = P_RULE;
 
             FETCH_NEXT_RULE_MAYBE_END(f);
             if (IS_END(f->value))
@@ -1088,8 +1086,8 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
             REBOOL interrupted;
 
             /* rule = rule + 1; */ // was this.
-            assert(rule + 1 == P_NEXT_RULE);
-            rule = P_NEXT_RULE;
+            assert(rule + 1 == P_RULE);
+            rule = P_RULE;
 
             FETCH_NEXT_RULE_MAYBE_END(f);
             if (IS_END(f->value))
@@ -1252,7 +1250,8 @@ REBNATIVE(subparse)
     REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
 #endif
 
-    const RELVAL *word;     // active word to be set
+    const RELVAL *set_or_copy_word; // active word target of COPY or SET
+
     REBCNT start;       // recovery restart point
     REBCNT i;           // temp index point
     REBCNT begin;       // point at beginning of match
@@ -1269,13 +1268,13 @@ REBNATIVE(subparse)
     if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
 
     flags = 0;
-    word = NULL;
+    set_or_copy_word = NULL;
     mincount = maxcount = 1;
     start = begin = P_POS;
 
     while (NOT_END(f->value)) {
         //
-        // This loop iterates across each REBVAL's worth of `rule` in the rule
+        // This loop iterates across each REBVAL's worth of "rule" in the rule
         // block.  Some of these rules set flags and `continue`, so that the
         // flags will apply to the next rule item.
         //
@@ -1286,10 +1285,14 @@ REBNATIVE(subparse)
         // a lot of edge cases like `while |` where this method isn't set up
         // to notice a "grammar error".  It could use review.
 
-        const RELVAL *rule = P_NEXT_RULE;
+        // The rule in the block of rules can be literal, while the "real
+        // rule" we want to process is the result of a variable fetched from
+        // that item.  If the code makes it to the iterated rule matching
+        // section, then rule should be set to something non-NULL by then...
+        //
+        const RELVAL *rule = NULL;
         /* Print_Parse_Index(f); */
         UPDATE_EXPRESSION_START(f);
-        FETCH_NEXT_RULE_MAYBE_END(f); // advances P_NEXT_RULE
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1322,7 +1325,7 @@ REBNATIVE(subparse)
         // The input index is not advanced here, but may be changed by
         // a GET-WORD variable.
 
-        if (IS_BAR(rule)) {
+        if (IS_BAR(P_RULE)) {
             //
             // If a BAR! is hit while processing any rules in the rules
             // block, then that means the current option didn't fail out
@@ -1336,12 +1339,12 @@ REBNATIVE(subparse)
         }
 
         // If word, set-word, or get-word, process it:
-        if ((VAL_TYPE(rule) >= REB_WORD && VAL_TYPE(rule) <= REB_GET_WORD)) {
+        if (VAL_TYPE(P_RULE) >= REB_WORD && VAL_TYPE(P_RULE) <= REB_GET_WORD) {
             // Is it a command word?
-            if ((cmd = VAL_CMD(rule))) {
+            if ((cmd = VAL_CMD(P_RULE))) {
 
-                if (!IS_WORD(rule))
-                    fail (Error(RE_PARSE_COMMAND, rule)); // no FOO: or :FOO
+                if (!IS_WORD(P_RULE))
+                    fail (Error(RE_PARSE_COMMAND, P_RULE)); // no FOO: or :FOO
 
                 if (cmd <= SYM_BREAK) { // optimization
 
@@ -1353,10 +1356,12 @@ REBNATIVE(subparse)
                         mincount = 0;
                     case SYM_SOME:
                         maxcount = MAX_I32;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_OPT:
                         mincount = 0;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_COPY:
@@ -1365,40 +1370,47 @@ REBNATIVE(subparse)
                     case SYM_SET:
                         flags |= PF_SET;
                     set_or_copy_pre_rule:
-                        rule = P_NEXT_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
-                        if (!(IS_WORD(rule) || IS_SET_WORD(rule)))
-                            fail (Error(RE_PARSE_VARIABLE, rule));
 
-                        if (VAL_CMD(rule))
-                            fail (Error(RE_PARSE_COMMAND, rule));
+                        if (!(IS_WORD(P_RULE) || IS_SET_WORD(P_RULE)))
+                            fail (Error(RE_PARSE_VARIABLE, P_RULE));
 
-                        word = rule;
+                        if (VAL_CMD(P_RULE))
+                            fail (Error(RE_PARSE_COMMAND, P_RULE));
+
+                        set_or_copy_word = P_RULE;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_NOT:
                         flags |= PF_NOT;
                         flags ^= PF_NOT2;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_AND:
                         flags |= PF_AND;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_THEN:
                         flags |= PF_THEN;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_REMOVE:
                         flags |= PF_REMOVE;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     case SYM_INSERT:
                         flags |= PF_INSERT;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         goto post_match_processing;
 
                     case SYM_CHANGE:
                         flags |= PF_CHANGE;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
 
                     // There are two RETURNs: one is a matching form, so with
@@ -1412,12 +1424,13 @@ REBNATIVE(subparse)
                     // happens to be, e.g. 'parse data [return ("abc")]'
 
                     case SYM_RETURN:
-                        if (IS_GROUP(P_NEXT_RULE)) {
+                        FETCH_NEXT_RULE_MAYBE_END(f);
+                        if (IS_GROUP(P_RULE)) {
                             REBVAL evaluated;
                             if (Do_At_Throws(
                                 &evaluated,
-                                VAL_ARRAY(P_NEXT_RULE),
-                                VAL_INDEX(P_NEXT_RULE),
+                                VAL_ARRAY(P_RULE),
+                                VAL_INDEX(P_RULE),
                                 P_RULE_SPECIFIER
                             )) {
                                 // If the group evaluation result gives a
@@ -1459,120 +1472,139 @@ REBNATIVE(subparse)
 
                     case SYM_FAIL:
                         P_POS = NOT_FOUND;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         goto post_match_processing;
 
-                    case SYM_IF:
-                        rule = P_NEXT_RULE;
+                    case SYM_IF: {
                         FETCH_NEXT_RULE_MAYBE_END(f);
                         if (IS_END(f->value))
                             fail (Error_Parse_End());
 
-                        if (!IS_GROUP(rule))
+                        if (!IS_GROUP(P_RULE))
                             fail (Error_Parse_Rule());
 
                         // might GC
+                        REBVAL condition;
                         if (Do_At_Throws(
-                            &save,
-                            VAL_ARRAY(rule),
-                            VAL_INDEX(rule),
+                            &condition,
+                            VAL_ARRAY(P_RULE),
+                            VAL_INDEX(P_RULE),
                             P_RULE_SPECIFIER
                         )) {
                             *P_OUT = save;
                             return R_OUT_IS_THROWN;
                         }
 
-                        rule = &save;
+                        FETCH_NEXT_RULE_MAYBE_END(f);
 
-                        if (IS_CONDITIONAL_TRUE(rule))
+                        if (IS_CONDITIONAL_TRUE(&condition))
                             continue;
-                        else {
-                            P_POS = NOT_FOUND;
-                            goto post_match_processing;
-                        }
+
+                        P_POS = NOT_FOUND;
+                        goto post_match_processing;
+                    }
 
                     case SYM_LIMIT:
                         fail (Error(RE_NOT_DONE));
 
                     case SYM__Q_Q:
                         Print_Parse_Index(f);
+                        FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
                     }
                 }
                 // Any other cmd must be a match command, so proceed...
-
+                rule = P_RULE;
             }
             else {
                 // It's not a PARSE command, get or set it
 
                 // word: - set a variable to the series at current index
-                if (IS_SET_WORD(rule)) {
-                    Val_Init_Series_Index_Core(
-                        GET_MUTABLE_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER),
-                        P_TYPE, // make variable ANY-SERIES type match input
-                        P_INPUT, // current input series
-                        P_POS, // current input position
-                        Is_Array_Series(P_INPUT)
-                            ? P_INPUT_SPECIFIER // need the specifier too
-                            : SPECIFIED
-                    );
+                if (IS_SET_WORD(P_RULE)) {
+                    *GET_MUTABLE_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
+                        = *P_INPUT_VALUE;
+                    FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
                 }
 
                 // :word - change the index for the series to a new position
-                if (IS_GET_WORD(rule)) {
-                    // !!! Should mutability be enforced?
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
+                if (IS_GET_WORD(P_RULE)) {
+                    const REBVAL *var = GET_OPT_VAR_MAY_FAIL(
+                        P_RULE,
+                        P_RULE_SPECIFIER
+                    );
                     if (!ANY_SERIES(var)) // #1263
-                        fail (Error(RE_PARSE_SERIES, P_NEXT_RULE - 1));
-                    P_POS = Set_Parse_Series(f, var);
-                    rule = var;
+                        fail (Error(RE_PARSE_SERIES, P_RULE));
+                    Set_Parse_Series(f, var);
+                    FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
                 }
 
                 // word - some other variable
-                if (IS_WORD(rule))
-                    rule = GET_MUTABLE_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
-
-                // rule can still be 'word or /word
+                if (IS_WORD(P_RULE)) {
+                    rule = GET_OPT_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER);
+                }
+                else {
+                    // rule can still be 'word or /word
+                    rule = P_RULE;
+                }
             }
         }
-        else if (ANY_PATH(rule)) {
-            if (IS_PATH(rule)) {
-                if (Do_Path_Throws_Core(&save, NULL, rule, P_RULE_SPECIFIER, NULL))
+        else if (ANY_PATH(P_RULE)) {
+            if (IS_PATH(P_RULE)) {
+                if (Do_Path_Throws_Core(
+                    &save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
+                )) {
                     fail (Error_No_Catch_For_Throw(&save));
+                }
                 rule = &save;
             }
-            else if (IS_SET_PATH(rule)) {
+            else if (IS_SET_PATH(P_RULE)) {
                 REBVAL tmp;
                 Val_Init_Series(&tmp, P_TYPE, P_INPUT);
                 VAL_INDEX(&tmp) = P_POS;
-                if (Do_Path_Throws_Core(&save, NULL, rule, P_RULE_SPECIFIER, &tmp))
+                if (Do_Path_Throws_Core(
+                    &save, NULL, P_RULE, P_RULE_SPECIFIER, &tmp
+                )) {
                     fail (Error_No_Catch_For_Throw(&save));
-                rule = &save;
-            }
-            else if (IS_GET_PATH(rule)) {
-                if (Do_Path_Throws_Core(&save, NULL, rule, P_RULE_SPECIFIER, NULL))
-                    fail (Error_No_Catch_For_Throw(&save));
-                // CureCode #1263 change
-                /* if (
-                 *    P_TYPE != VAL_TYPE(rule)
-                 *    || VAL_SERIES(rule) != P_INPUT
-                 * )
-                 */
-                if (!ANY_SERIES(&save)) {
-                    REBVAL specified;
-                    COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
-                    fail (Error(RE_PARSE_SERIES, &specified));
                 }
-                P_POS = Set_Parse_Series(f, &save);
-                rule = NULL;
+                rule = &save;
+
+                // !!! code used to say `if (!rule) continue;` "for SET and
+                // GET cases", but here rule isn't set to NULL...so it falls
+                // through and does not continue.  Investigate.
+            }
+            else {
+                assert(IS_GET_PATH(P_RULE));
+
+                if (Do_Path_Throws_Core(
+                    &save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
+                )) {
+                    fail (Error_No_Catch_For_Throw(&save));
+                }
+
+                // !!! This allows the series to be changed, as per #1263,
+                // but note the positions being returned and checked aren't
+                // prepared for this, they only exchange numbers ATM (!!!)
+                //
+                if (!ANY_SERIES(&save))
+                    fail (Error(RE_PARSE_SERIES, &save));
+
+                Set_Parse_Series(f, &save);
+                FETCH_NEXT_RULE_MAYBE_END(f);
+                continue;
             }
 
             if (P_POS > SER_LEN(P_INPUT))
                 P_POS = SER_LEN(P_INPUT);
-
-            if (!rule) continue; // for SET and GET cases
         }
+        else {
+            rule = P_RULE;
+        }
+
+        // All cases should have either set `rule` by this point or continued
+        //
+        assert(rule != NULL);
 
         if (IS_GROUP(rule)) {
             REBVAL evaluated;
@@ -1585,6 +1617,7 @@ REBNATIVE(subparse)
             // ignore evaluated if it's not THROWN?
 
             if (P_POS > SER_LEN(P_INPUT)) P_POS = SER_LEN(P_INPUT);
+            FETCH_NEXT_RULE_MAYBE_END(f);
             continue;
         }
 
@@ -1592,17 +1625,22 @@ REBNATIVE(subparse)
         if (IS_INTEGER(rule)) { // Specify count or range count
             flags |= PF_WHILE;
             mincount = maxcount = Int32s(const_KNOWN(rule), 0);
-            rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
 
             FETCH_NEXT_RULE_MAYBE_END(f);
             if (IS_END(f->value))
                 fail (Error_Parse_End());
 
+            rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
+
             if (IS_INTEGER(rule)) {
                 maxcount = Int32s(const_KNOWN(rule), 0);
-                rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
 
                 FETCH_NEXT_RULE_MAYBE_END(f);
+
+                if (IS_END(f->value))
+                    fail (Error_Parse_End());
+
+                rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
             }
         }
         // else fall through on other values and words
@@ -1616,6 +1654,8 @@ REBNATIVE(subparse)
         // Repeats the same rule N times or until the rule fails.
         // The index is advanced and stored in a temp variable i until
         // the entire rule has been satisfied.
+
+        FETCH_NEXT_RULE_MAYBE_END(f); // pushed down?
 
         rule_hold = rule;   // a command or literal match value
 
@@ -1655,7 +1695,7 @@ REBNATIVE(subparse)
                     if (IS_END(f->value))
                         fail (Error_Parse_End());
 
-                    rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
+                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
                     rules_consumed = 1;
                     i = Parse_To(f, P_POS, rule, LOGICAL(cmd == SYM_THRU));
                     break;
@@ -1671,12 +1711,12 @@ REBNATIVE(subparse)
                         fail (Error_Parse_End());
 
                     rules_consumed = 1;
-                    if (IS_GROUP(P_NEXT_RULE)) {
+                    if (IS_GROUP(P_RULE)) {
                         // might GC
                         if (Do_At_Throws(
                             &save,
-                            VAL_ARRAY(P_NEXT_RULE),
-                            VAL_INDEX(P_NEXT_RULE),
+                            VAL_ARRAY(P_RULE),
+                            VAL_INDEX(P_RULE),
                             P_RULE_SPECIFIER
                         )) {
                             *P_OUT = save;
@@ -1684,7 +1724,7 @@ REBNATIVE(subparse)
                         }
                         rule = &save;
                     }
-                    else rule = P_NEXT_RULE;
+                    else rule = P_RULE;
 
                     if (0 == Cmp_Value(
                         ARR_AT(AS_ARRAY(P_INPUT), P_POS),
@@ -1708,7 +1748,7 @@ REBNATIVE(subparse)
                     rules_consumed = 1;
 
                     // sub-rules
-                    rule = Get_Parse_Value(&save, P_NEXT_RULE, P_RULE_SPECIFIER);
+                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
 
                     if (!IS_BLOCK(rule))
                         fail (Error_Parse_Rule());
@@ -1757,7 +1797,7 @@ REBNATIVE(subparse)
                     {
                     REBCNT pos_before = P_POS;
 
-                    i = Do_Eval_Rule(f); // changes P_NEXT_RULE (should)
+                    i = Do_Eval_Rule(f); // changes P_RULE (should)
 
                     P_POS = pos_before; // !!! Simulate restore (needed?)
                     }
@@ -1863,7 +1903,7 @@ REBNATIVE(subparse)
         // !!! Recursions or otherwise should be able to advance the rule now
         // that it lives in the parse state
         //
-        /*P_NEXT_RULE_LVALUE += rules_consumed;*/
+        /*P_RULE_LVALUE += rules_consumed;*/
         assert(rules_consumed == 0 || rules_consumed == 1);
         if (rules_consumed == 1)
             FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1889,7 +1929,7 @@ REBNATIVE(subparse)
                 // !!! if word isn't NULL should we set its var to NONE! ...?
                 if (flags & PF_THEN) {
                     FETCH_TO_BAR_MAYBE_END(f);
-                    if (NOT_END(P_NEXT_RULE))
+                    if (NOT_END(P_RULE))
                         FETCH_NEXT_RULE_MAYBE_END(f);
                 }
             }
@@ -1913,10 +1953,15 @@ REBNATIVE(subparse)
                             ))
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
-                    *GET_MUTABLE_VAR_MAY_FAIL(word, P_RULE_SPECIFIER) = temp;
+
+                    *GET_MUTABLE_VAR_MAY_FAIL(
+                        set_or_copy_word, P_RULE_SPECIFIER
+                    ) = temp;
                 }
                 else if (flags & PF_SET) {
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, P_RULE_SPECIFIER);
+                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(
+                        set_or_copy_word, P_RULE_SPECIFIER
+                    );
 
                     if (Is_Array_Series(P_INPUT)) {
                         if (count == 0)
@@ -1940,11 +1985,6 @@ REBNATIVE(subparse)
                             }
                         }
                     }
-
-                    // !!! Used to reuse rule, so rule was set to the var at
-                    // the end, but was that actually needed?
-                    //
-                    rule = var;
                 }
 
                 if (flags & PF_RETURN) {
@@ -1978,28 +2018,22 @@ REBNATIVE(subparse)
                     count = (flags & PF_INSERT) ? 0 : count;
                     cmd = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
 
-                    rule = P_NEXT_RULE;
-                    FETCH_NEXT_RULE_MAYBE_END(f);
-                    if (IS_END(f->value))
+                    if (IS_END(P_RULE))
                         fail (Error_Parse_End());
 
                     // Check for ONLY flag:
-                    if (IS_WORD(rule) && (cmd = VAL_CMD(rule))) {
+                    if (IS_WORD(P_RULE) && (cmd = VAL_CMD(P_RULE))) {
                         if (cmd != SYM_ONLY)
                             fail (Error_Parse_Rule());
 
                         cmd |= (1<<AN_ONLY);
-                        rule = P_NEXT_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
+                        if (IS_END(P_RULE))
+                            fail (Error_Parse_End());
                     }
                     // new value...comment said "CHECK FOR QUOTE!!"
-                    rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER);
-
-                    if (IS_END(rule)) // !!! Is this possible?
-                        fail (Error_Parse_End());
-
-                    if (IS_VOID(rule))
-                        fail (Error_No_Value_Core(P_NEXT_RULE - 1, P_RULE_SPECIFIER));
+                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
+                    FETCH_NEXT_RULE_MAYBE_END(f);
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
@@ -2048,7 +2082,7 @@ REBNATIVE(subparse)
             }
 
             flags = 0;
-            word = 0;
+            set_or_copy_word = NULL;
         }
 
         if (P_POS == NOT_FOUND) {
