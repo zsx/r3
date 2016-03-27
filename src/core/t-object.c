@@ -382,8 +382,8 @@ REBTYPE(Context)
                 fail (Error_Bad_Make(target, arg));
 
             if (
-                VAL_FUNC(arg) == PG_Return_Func
-                || VAL_FUNC(arg) == PG_Leave_Func
+                VAL_FUNC(arg) == NAT_FUNC(return)
+                || VAL_FUNC(arg) == NAT_FUNC(leave)
             ) {
                 // !!! Although definitionally scoped return and leave
                 // functions give the *appearance* of having independent

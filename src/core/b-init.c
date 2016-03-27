@@ -34,11 +34,8 @@
 #define EVAL_DOSE 10000
 
 // Boot Vars used locally:
-static  REBCNT  Native_Count;
-static  REBCNT  Native_Limit;
-static  REBCNT  Action_Count;
+static  REBCNT  Action_Index;
 static  REBCNT  Action_Marker;
-static const REBNAT *Native_Functions;
 static  BOOT_BLK *Boot_Block;
 
 
@@ -225,7 +222,7 @@ static void Print_Banner(REBARGS *rargs)
 // Bind and evaluate a global block.
 // Rebind:
 //     0: bind set into sys or lib
-//    -1: bind shallow into sys (for NATIVE and ACTION)
+//    -1: bind shallow into sys (for ACTION)
 //     1: add new words to LIB, bind/deep to LIB
 //     2: add new words to SYS, bind/deep to LIB
 // 
@@ -235,7 +232,7 @@ static void Do_Global_Block(
     REBARR *block,
     REBCNT index,
     REBINT rebind,
-    REBVAL *opt_toplevel_word // ACTION or NATIVE, bound words
+    REBVAL *opt_toplevel_word
 ) {
     REBVAL *item = ARR_AT(block, index);
     struct Reb_State state;
@@ -251,15 +248,15 @@ static void Do_Global_Block(
     if (rebind > 0) Bind_Values_Deep(item, Lib_Context);
     if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
 
-    // !!! The words NATIVE and ACTION were bound but paths would not bind.
-    // So you could do `native [spec]` but not `native/xxx [spec]`
+    // !!! In the block, ACTION words are bound but paths would not bind.
+    // So you could do `action [spec]` but not `action/xxx [spec]`
     // because in the later case, it wouldn't have descended into the path
     // to bind `native`.  This is apparently intentional to avoid binding
     // deeply in the system context.
     //
     // Here we hackily walk over all the paths and look for any that start
-    // with the symbol of the passed in word (SYM_ACTION, SYM_NATIVE) and
-    // just overwrite the word with the bound vesion.  :-/  Review.
+    // with the symbol of the passed in word (SYM_ACTION) and just overwrite
+    // the word with the bound vesion.  :-/  Review.
     //
     if (opt_toplevel_word) {
         item = ARR_AT(block, index);
@@ -466,59 +463,6 @@ void Turn_Typespec_Opts_Into_Nones(REBARR *spec)
 
 
 //
-//  native: native [
-//
-//  {Creates native function (for internal usage only).}
-//
-//      spec [block!]
-//      /body
-//          {Equivalent body of Rebol code matching native's implementation}
-//      code [block!]
-//  ]
-//
-REBNATIVE(native)
-//
-// The `native` native is searched for explicitly by %make-natives.r and put
-// in first place for initialization.  This is a special bootstrap function
-// created manually within the C code, as it cannot "run to create itself".
-//
-// !!! The body is currently commentary only.  It should be stored somewhere;
-// there is no room for it in the REBVAL, and there may be a purpose for the
-// series "extra" bits of generic series other than this.  So the place to
-// put it would likely be a table of "native sources" off to the side.
-{
-    PARAM(1, spec);
-    REFINE(2, body);
-    PARAM(3, code);
-
-    REBVAL *spec = ARG(spec);
-
-    if (
-        (Native_Limit != 0 || !*Native_Functions)
-        && (Native_Count >= Native_Limit)
-    ) {
-        fail (Error(RE_MAX_NATIVES));
-    }
-
-    assert(VAL_INDEX(spec) == 0); // must be at head as we don't copy
-
-    // spec scanner doesn't know <opt>, just _
-    //
-    Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
-
-    Make_Native(
-        D_OUT,
-        VAL_ARRAY(ARG(spec)),
-        *Native_Functions++,
-        FUNC_CLASS_NATIVE
-    );
-
-    Native_Count++;
-    return R_OUT;
-}
-
-
-//
 //  action: native [
 //
 //  {Creates datatype action (for internal usage only).}
@@ -545,7 +489,7 @@ REBNATIVE(action)
 
     REBVAL *spec = ARG(spec);
 
-    if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
+    if (Action_Index >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
 
     // The boot generation process is set up so that the action numbers will
     // conveniently line up to match the type checks to keep the numbers
@@ -554,7 +498,7 @@ REBNATIVE(action)
     //
     if (REF(typecheck)) {
         if (IS_INTEGER(ARG(type)))
-            assert(VAL_INT32(ARG(type)) == cast(REBINT, Action_Count));
+            assert(VAL_INT32(ARG(type)) == cast(REBINT, Action_Index));
         else {
             // !!! Originally this was written to take datatypes, then that
             // didn't work.  It was changed to INTEGER! with the datatype
@@ -575,12 +519,12 @@ REBNATIVE(action)
 
     Make_Native(
         D_OUT,
-        VAL_ARRAY(ARG(spec)),
-        cast(REBNAT, cast(REBUPT, Action_Count)),
+        VAL_ARRAY(spec),
+        cast(REBNAT, cast(REBUPT, Action_Index)),
         FUNC_CLASS_ACTION
     );
 
-    Action_Count++;
+    Action_Index++;
     return R_OUT;
 }
 
@@ -677,79 +621,165 @@ static void Init_Ops(void)
 //
 //  Init_Natives: C
 // 
-// Create native functions.
+// Create native functions.  In R3-Alpha this would go as far as actually
+// creating a NATIVE native by hand, and then run code that would call that
+// native for each function.  Ren-C depends on having the native table
+// initialized to run the evaluator (for instance to test functions against
+// the RETURN native's FUNC signature in definitional returns).  So it
+// "fakes it" just by calling a C function for each item...and there is no
+// actual "native native".
+//
+// If there *were* a REBNATIVE(native) this would be its spec:
+//
+//  native: native [
+//      spec [block!]
+//      /body
+//          {Body of user code matching native's behavior (for documentation)}
+//      code [block!]
+//  ]
 //
 static void Init_Natives(void)
 {
     REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
-    REBVAL *val;
-    REBVAL *native_word;
+    REBCNT n = 0;
     REBVAL *action_word;
 
-    Action_Count = 1; // Skip A_TRASH_Q
-    Native_Count = 0;
-    Native_Limit = MAX_NATS;
-    Native_Functions = Native_Funcs;
+    while (NOT_END(item)) {
+        if (n >= NUM_NATIVES)
+            fail (Error(RE_MAX_NATIVES));
 
-    // Construct first native, which is the NATIVE function creator itself:
+        // Each entry should be one of these forms:
+        //
+        //    some-name: native [spec content]
+        //
+        //    some-name: native/body [spec content] [equivalent user code]
+        //
+        // If more refinements are added, this code will have to be made
+        // more sophisticated.
+        //
+        // Though the manual building of this table is not as nice as running
+        // the evaluator, the evaluator makes comparisons against native
+        // values.  Having all natives loaded fully before ever running
+        // Do_Core() helps with stability and invariants.
+
+        REBVAL *name;
+        REBVAL *spec;
+        REBOOL has_body;
+
+        // Get the name the native will be started at with in Lib_Context
+        //
+        if (!IS_SET_WORD(item))
+            panic (Error(RE_NATIVE_BOOT));
+        name = item;
+        ++item;
+
+        // See if it's being invoked with NATIVE or NATIVE/BODY
+        //
+        if (IS_WORD(item)) {
+            if (!VAL_WORD_SYM(item) == SYM_NATIVE)
+                panic (Error(RE_NATIVE_BOOT));
+            has_body = FALSE;
+        }
+        else {
+            if (
+                !IS_PATH(item)
+                || VAL_LEN_HEAD(item) != 2
+                || !IS_WORD(ARR_HEAD(VAL_ARRAY(item)))
+                || VAL_WORD_SYM(ARR_HEAD(VAL_ARRAY(item))) != SYM_NATIVE
+                || !IS_WORD(ARR_AT(VAL_ARRAY(item), 1))
+                || VAL_WORD_SYM(ARR_AT(VAL_ARRAY(item), 1)) != SYM_BODY
+            ) {
+                panic (Error(RE_NATIVE_BOOT));
+            }
+            has_body = TRUE;
+        }
+        ++item;
+
+        // Grab the spec, and turn any <opt> into _ (the spec processor is low
+        // level and does not understand <opt>)
+        //
+        if (!IS_BLOCK(item))
+            panic (Error(RE_NATIVE_BOOT));
+        spec = item;
+        assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
+        Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
+        ++item;
+
+        // If a user-equivalent body was provided, then save it in a side
+        // table so that BODY-OF can look it up.  (there's no room for it in
+        // the native's REBVAL)
+        //
+        if (has_body) {
+            if (!IS_BLOCK(item))
+                panic (Error(RE_NATIVE_BOOT));
+            assert(VAL_INDEX(item) == 0); // must be at head (we don't copy)
+            Native_Bodies[n] = VAL_ARRAY(item);
+            ++item;
+        }
+        else
+            Native_Bodies[n] = NULL;
+
+        // With the components extracted, generate the native and add it to
+        // the Natives table.  The associated C function is provided by a
+        // table built in the bootstrap scripts, `Native_C_Funcs`.
+        //
+        VAL_INIT_WRITABLE_DEBUG(&Natives[n]);
+        Make_Native(
+            &Natives[n],
+            VAL_ARRAY(spec),
+            Native_C_Funcs[n],
+            FUNC_CLASS_NATIVE
+        );
+
+        // Append the native to the Lib_Context under the name given
+        //
+        *Append_Context(Lib_Context, name, 0) = Natives[n];
+
+        if (VAL_WORD_SYM(name) == SYM_ACTION)
+            action_word = name; // was bound by Append_Context
+
+        ++n;
+    }
+
+    if (n != NUM_NATIVES)
+        fail (Error(RE_NATIVE_BOOT));
+
+    // The definitional return code canonizes symbols to see if they are
+    // return or not, but doesn't canonize SYM_RETURN.  Double-check it
+    // does not have to.
     //
-    //     native: native [spec [block!]]
+    // !!! Is there a better point in the bootstrap for this check, where
+    // it's late enough to not fail the word table lookup?
     //
-    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_NATIVE)
+    assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
+
+    // Should have found and bound `action:` among the natives
+    //
+    if (!action_word)
         panic (Error(RE_NATIVE_BOOT));
 
-    val = Append_Context(Lib_Context, item, 0);
-    native_word = item; // bound
-
-    item++; // skip `native:`
-    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
-    item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
-    );
-    Native_Count++;
-    item++; // skip spec
-
-    // Construct second native, which is the ACTION function creator:
-    //
-    //     action: native [spec [block!]]
-    //
-    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_ACTION)
-        panic (Error(RE_NATIVE_BOOT));
-
-    val = Append_Context(Lib_Context, item, 0);
-    action_word = item; // bound
-
-    item++; // skip `action:`
-    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
-    item++; // skip `native`
-    Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
-    );
-    Native_Count++;
-    item++; // skip spec
-
-    // Save index for action words.  This is used by Get_Action_Sym().  We have
-    // to subtract tone to account for our skipped TRASH? which should not be
-    // exposed to the user.
+    // Save index for action words.  This is used by Get_Action_Sym().  We
+    // have to subtract to account for the natives.
     //
     Action_Marker = CTX_LEN(Lib_Context);
+
+    // Low-numbered actions are type tests for that REB_XXX value.  There is
+    // no type name for "VOID!" at type enumeration 0, so skip A_0_Q.  The
+    // VOID? function is its own native.
+    //
+    Action_Index = 1;
+
+    // With the natives registered (including ACTION), it's now safe to
+    // run the evaluator to register the actions.  This will increment the
+    // Action_Index through the defined `action-name: action [...]` items
+    // in the actions block.
+    //
     Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1, action_word);
 
     // Sanity check the symbol transformation
     //
     if (0 != strcmp("open", cs_cast(Get_Sym_Name(Get_Action_Sym(A_OPEN)))))
         panic (Error(RE_NATIVE_BOOT));
-
-    // Do native construction, but start from after NATIVE: and ACTION: as we
-    // built those by hand
-    //
-    Do_Global_Block(
-        VAL_ARRAY(&Boot_Block->natives),
-        item - VAL_ARRAY_HEAD(&Boot_Block->natives),
-        -1,
-        native_word
-    );
 }
 
 
@@ -812,7 +842,7 @@ static void Init_Root_Context(void)
     VAL_CONTEXT_SPEC(CTX_VALUE(root)) = NULL;
     VAL_CONTEXT_STACKVARS(CTX_VALUE(root)) = NULL;
 
-    // Set all other values to NONE:
+    // Set all other values to blank
     {
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(root);

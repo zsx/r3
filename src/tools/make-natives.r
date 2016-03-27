@@ -22,9 +22,7 @@ r3: system/version > 2.100.0
 
 verbose: false
 
-native-buffer: make string! 200
-action-buffer: make string! 200
-others-buffer: make string! 20000
+unsorted-buffer: make string! 20000
 
 emit-proto: func [proto] [
 
@@ -44,9 +42,10 @@ emit-proto: func [proto] [
         line: line-of source.text proto-parser/parse.position
 
         append case [
-            proto-parser/data/1 = (quote native:) [native-buffer]
-            proto-parser/data/1 = (quote action:) [action-buffer]
-            true [others-buffer]
+            ; could do tests here to create special buffer categories to
+            ; put certain natives first or last, etc. (not currently needed)
+            ;
+            true [unsorted-buffer]
         ] rejoin [
             newline newline
             {; !!! DO NOT EDIT HERE! This is generated from }
@@ -100,21 +99,7 @@ remove-each file files [
 
 for-each file files [process file]
 
-; Need to specifically move `native` and `action` up to the head of the list
-; so that they get created first.
-;
-append output-buffer native-buffer ; native: native [...] must be first
-append output-buffer action-buffer ; action: action [...] must be second
-
-; Then output all the others, ordered by filename
-;
-append output-buffer others-buffer
-
-append output-buffer {
-
-;-- Expectation is that evaluation returns no value, empty parens makes one
-()
-}
+append output-buffer unsorted-buffer
 
 write %../boot/tmp-natives.r output-buffer
 

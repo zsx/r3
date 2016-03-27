@@ -33,31 +33,11 @@ end-tag         ; FUNC+PROC use as alternative to | to mark endable args
 local-tag       ; marks the beginning of a list of "pure locals"
 durable-tag     ; !!! In progress - argument word lookup survives call ending
 
-;; Natives can usually be identified by their code pointers and addresses
-;; (e.g. `VAL_FUNC_CODE(native) == &N_parse`) and know their own values via
-;; D_FUNC when running.  However, RETURN is special because its code pointer
-;; is overwritten so it must be recognized by its paramlist series.
-;;
-;; (PARSE just wants access to its D_FUNC more convenient from a nested call)
-
-return-native
-leave-native
-parse-native
-
 ;; PRINT takes a /DELIMIT which can be a block specifying delimiters at each
 ;; level of depth in the recursion of blocks.  The default is [#" " |], which
 ;; is a signal to put spaces at the first level and then after that nothing.
 ;;
 default-print-delimiter
-
-;; The BREAKPOINT instruction needs to be able to re-transmit a RESUME
-;; instruction in the case that it wants to leapfrog another breakpoint
-;; sandbox on the stack, and needs access to the resume native for the label
-;; of the retransmitted throw.  It also might need to generate a QUIT
-;; throw if the breakpoint hook signaled it.
-
-resume-native
-quit-native
 
 ;; The FUNC and PROC function generators are native code, and quick access
 ;; to a block of [RETURN:] or [LEAVE:] is useful to share across all of the

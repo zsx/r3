@@ -1234,23 +1234,27 @@ boot-booters: load %booters.r
 boot-natives: load %tmp-natives.r
 
 nats: append copy boot-booters boot-natives
-nat-count: 0
+num-natives: 0
 
 for-each val nats [
     if set-word? val [
-        nat-count: nat-count + 1
+        num-natives: num-natives + 1
     ]
 ]
 
-print [nat-count "natives"]
+print [num-natives "natives"]
 
-emit [newline {const REBNAT Native_Funcs[} nat-count {] = ^{
+emit [newline {REBVAL Natives[NUM_NATIVES];}]
+
+emit [newline {REBARR *Native_Bodies[NUM_NATIVES];}]
+
+emit [newline {const REBNAT Native_C_Funcs[NUM_NATIVES] = ^{
 }]
 for-each val nats [
     if set-word? val [
         emit-line/code "N_" to word! val ","
     ]
-    ;nat-count: nat-count + 1
+    ;num-natives: num-natives + 1
 ]
 emit-end
 emit newline
@@ -1335,13 +1339,45 @@ emit-head "Bootstrap Structure and Root Module" %boot.h
 
 emit [
 {
-#define MAX_NATS      } nat-count {
+#define NUM_NATIVES } num-natives {
 #define NAT_UNCOMPRESSED_SIZE } length data {
 #define NAT_COMPRESSED_SIZE } length comp-data {
-#define CHECK_TITLE   } checksum to binary! title {
+#define CHECK_TITLE } checksum to binary! title {
 
-extern const REBYTE Native_Specs[];
-extern const REBNAT Native_Funcs[];
+// Compressed data of the native specifications.  This is uncompressed during
+// boot and executed.
+//
+extern const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
+
+// Raw C function pointers for natives.
+//
+extern const REBNAT Native_C_Funcs[NUM_NATIVES];
+
+// A canon FUNCTION! REBVAL of the native, accessible by the native's index #.
+//
+extern REBVAL Natives[NUM_NATIVES];
+
+// When a native is initialized during boot, it can provide a "fake body" to
+// be shown as how it could be coded equivalently in user code.  May be NULL.
+//
+extern REBARR *Native_Bodies[NUM_NATIVES];
+
+enum Native_Indices ^{
+}
+]
+
+nat-index: 0
+for-each val nats [
+    if set-word? val [
+        emit rejoin ["    N_" to-c-name to word! val {_ID = } nat-index]
+        nat-index: nat-index + 1
+        if nat-index < num-natives [emit {,}]
+        emit newline
+    ]
+]
+
+emit [
+{^};
 
 typedef struct REBOL_Boot_Block ^{
 }

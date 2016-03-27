@@ -136,7 +136,7 @@ REBOOL Do_Breakpoint_Throws(
             // not actually a "resume instruction" in this case.
             //
             assert(!THROWN(&temp));
-            *out = *ROOT_QUIT_NATIVE;
+            *out = *NAT_VALUE(quit);
             CONVERT_NAME_TO_THROWN(out, &temp);
             return TRUE; // TRUE = threw
         }
@@ -197,7 +197,7 @@ REBOOL Do_Breakpoint_Throws(
                     // the sought after target.  Retransmit the resume
                     // instruction so that level will get it instead.
                     //
-                    *out = *ROOT_RESUME_NATIVE;
+                    *out = *NAT_VALUE(resume);
                     CONVERT_NAME_TO_THROWN(out, &temp);
                     return TRUE; // TRUE = thrown
                 }

@@ -559,7 +559,7 @@ REBNATIVE(same_q)
 //
 // This used to be "strictness mode 3" of Compare_Modify_Values.  However,
 // folding SAME?-ness in required the comparisons to take REBVALs instead
-// of just RELVALs, when only a limited number of types supported it.
+// of just REBVALs, when only a limited number of types supported it.
 // Rather than incur a cost for all comparisons, this handles the issue
 // specially for those types which support it.
 {
@@ -627,7 +627,7 @@ REBNATIVE(same_q)
                 // distinguish the word instances originating from each level.
                 //
                 // !!! This problem is fixed in the specific binding branch,
-                // which distinguishes REBVALs (fully specific) from RELVALs
+                // which distinguishes REBVALs (fully specific) from REBVALs
                 // (may be relative).  Function arguments are always REBVAL,
                 // so this relative processing code would never run.
                 //

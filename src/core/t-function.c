@@ -159,22 +159,18 @@ REBTYPE(Function)
         case OF_BODY:
             switch (VAL_FUNC_CLASS(value)) {
             case FUNC_CLASS_NATIVE: {
-                if (VAL_FUNC_CODE(value) == &N_quote) {
-                    //
-                    // !!! Should be able to give "equivalent" body of code for
-                    // some native functions.  /body already being passed to
-                    // a few natives in definitions, just need a place to save
-                    // the information (improve native table).
-                    //
+                REBCNT n = 0;
+                for (; n < NUM_NATIVES; ++n)
+                    if (VAL_FUNC_CODE(value) == VAL_FUNC_CODE(&Natives[n]))
+                        break;
+                if (n == NUM_NATIVES) fail (Error(RE_MISC));
+
+                if (Native_Bodies[n]) { // was created with NATIVE/BODY
                     Val_Init_Array(
                         D_OUT,
-                        REB_GROUP,
-                        Copy_Array_Deep_Managed(
-                            VAL_ARRAY(Get_System(
-                                SYS_STANDARD,
-                                STD_QUOTE_BODY_TEST
-                            ))
-                        ));
+                        REB_BLOCK,
+                        Copy_Array_Deep_Managed(Native_Bodies[n])
+                    );
                 }
                 else {
                     SET_HANDLE_CODE(D_OUT, cast(CFUNC*, VAL_FUNC_CODE(value)));

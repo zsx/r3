@@ -1144,7 +1144,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                                 return THROWN_FLAG;
                             }
 
-                            *f->out = *ROOT_PARSE_NATIVE;
+                            *f->out = *NAT_VALUE(parse);
                             CONVERT_NAME_TO_THROWN(f->out, &evaluated);
 
                             // Implicitly returns whatever's in f->out
@@ -1620,7 +1620,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *f->out = *ROOT_PARSE_NATIVE;
+                    *f->out = *NAT_VALUE(parse);
                     CONVERT_NAME_TO_THROWN(f->out, &captured);
 
                     // Implicitly returns whatever's in f->out
@@ -1791,8 +1791,8 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
         assert(!IS_TRASH_DEBUG(D_OUT));
         assert(THROWN(D_OUT));
         if (
-            IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
-            && VAL_FUNC_CODE(ROOT_PARSE_NATIVE) == VAL_FUNC_CODE(D_OUT)
+            IS_FUNCTION(D_OUT)
+            && NAT_FUNC(parse) == VAL_FUNC(D_OUT)
         ) {
             // Note the difference:
             //

@@ -1316,6 +1316,16 @@ REBCNT Recycle_Core(REBOOL shutdown)
         REBSER **sp;
         REBVAL **vp;
 
+        // Mark all natives and "fake" native function bodies
+        {
+            REBCNT n;
+            for (n = 0; n < NUM_NATIVES; ++n) {
+                if (Native_Bodies[n])
+                    MARK_ARRAY_DEEP(Native_Bodies[n]);
+                MARK_ARRAY_DEEP(AS_ARRAY(VAL_FUNC(&Natives[n])));
+            }
+        }
+
         // Mark series that have been temporarily protected from garbage
         // collection with PUSH_GUARD_SERIES.  We have to check if the
         // series is a context (so the keylist gets marked) or an array (so

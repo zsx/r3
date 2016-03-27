@@ -671,11 +671,13 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (f->func == PG_Eval_Func) {
+        if (f->func == NAT_FUNC(eval)) {
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             if (f->indexor == END_FLAG) // e.g. `do [eval]`
-                fail (Error_No_Arg(FRM_LABEL(f), FUNC_PARAM(PG_Eval_Func, 1)));
+                fail (Error_No_Arg(
+                    FRM_LABEL(f), FUNC_PARAM(NAT_FUNC(eval), 1)
+                ));
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress
@@ -736,12 +738,12 @@ reevaluate:
         // advanced the input.  We extract the special exit_from property
         // contained in optimized definitional returns.
         //
-        if (f->func == PG_Leave_Func) {
+        if (f->func == NAT_FUNC(leave)) {
             f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
             goto do_definitional_exit_from;
         }
 
-        if (f->func == PG_Return_Func)
+        if (f->func == NAT_FUNC(return))
             f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
         else
             f->exit_from = NULL;
@@ -1278,7 +1280,7 @@ reevaluate:
 
             f->indexor = THROWN_FLAG;
 
-            if (f->func == PG_Leave_Func) {
+            if (f->func == NAT_FUNC(leave)) {
                 //
                 // LEAVE never created an arglist, so it doesn't have to
                 // free one.  Also, it doesn't want to return a value.
@@ -1360,10 +1362,10 @@ reevaluate:
             assert(IS_VOID(f->refine));
 
             if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)
-                *(f->refine) = *ROOT_RETURN_NATIVE;
+                *(f->refine) = *NAT_VALUE(return);
             else {
                 assert(VAL_TYPESET_CANON(f->param) == SYM_LEAVE);
-                *(f->refine) = *ROOT_LEAVE_NATIVE;
+                *(f->refine) = *NAT_VALUE(leave);
             }
 
             // !!! Having to pick a function paramlist or a context for
@@ -1722,8 +1724,8 @@ reevaluate:
                 // usually need their EXIT_FROMs extracted, but here we should
                 // not worry about it as neither RETURN nor LEAVE are infix
                 //
-                assert(f->func != PG_Leave_Func);
-                assert(f->func != PG_Return_Func);
+                assert(f->func != NAT_FUNC(leave));
+                assert(f->func != NAT_FUNC(return));
                 f->exit_from = NULL;
 
                 Push_Or_Alloc_Vars_For_Call(f);

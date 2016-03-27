@@ -406,56 +406,6 @@ void Make_Native(
     // potentially crashing C code (vs. just causing userspace code to
     // error).  That protection is now done to the frame series on reification
     // in order to be able to MAKE FRAME! and reuse the native's paramlist.
-
-    // These native routines want to be recognized by paramlist, not by their
-    // VAL_FUNC_CODE pointers.  (RETURN because the code pointer is swapped
-    // out for VAL_FUNC_EXIT_FROM, and EVAL for 1 test vs. 2 in the eval loop.)
-    //
-    // PARSE wants to throw its value from nested code to itself, and doesn't
-    // want to thread its known D_FUNC value through the call stack.
-    //
-    if (code == &N_return) {
-        *ROOT_RETURN_NATIVE = *out;
-
-        // Curiously, it turns out that extracting the paramlist to a global
-        // once and comparing against it is about 30% faster than saving to the
-        // root object and extracting VAL_FUNC_PARAMLIST(ROOT_RETURN_NATIVE)
-        // each time...
-        //
-        PG_Return_Func = VAL_FUNC(out);
-
-        // The definitional return code canonizes symbols to see if they are
-        // return or not, but doesn't canonize SYM_RETURN.  Double-check it
-        // does not have to.
-        //
-        // !!! Is there a better point in the bootstrap for this check, where
-        // it's late enough to not fail the word table lookup?
-        //
-        assert(SYM_RETURN == SYMBOL_TO_CANON(SYM_RETURN));
-    }
-    else if (code == &N_leave) {
-        //
-        // See remarks on return above.
-        //
-        *ROOT_LEAVE_NATIVE = *out;
-        PG_Leave_Func = VAL_FUNC(out);
-        assert(SYM_LEAVE == SYMBOL_TO_CANON(SYM_LEAVE));
-    }
-    else if (code == &N_parse)
-        *ROOT_PARSE_NATIVE = *out;
-    else if (code == &N_eval) {
-        //
-        // See above note regarding return.  A check for EVAL is done on each
-        // function evaluation, so it's worth it to extract.
-        //
-        PG_Eval_Func = VAL_FUNC(out);
-    }
-    else if (code == &N_resume) {
-        *ROOT_RESUME_NATIVE = *out;
-    }
-    else if (code == &N_quit) {
-        *ROOT_QUIT_NATIVE = *out;
-    }
 }
 
 
@@ -1552,7 +1502,8 @@ REBNATIVE(apply)
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));
 
     f.func = VAL_FUNC(D_OUT);
-    if ((f.func == PG_Return_Func) || (f.func == PG_Leave_Func))
+
+    if (f.func == NAT_FUNC(return) || f.func == NAT_FUNC(leave))
         f.exit_from = VAL_FUNC_EXIT_FROM(D_OUT);
     else
         f.exit_from = NULL;
@@ -1684,7 +1635,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         // basis and put a differing field in besides the canon FUNC_CODE
         // which lives in the [0] cell of the paramlist.
         //
-        if (func != PG_Return_Func && func != PG_Leave_Func) {
+        if (func != NAT_FUNC(return) && func != NAT_FUNC(leave)) {
             assert(
                 v->payload.function.impl.code == FUNC_CODE(func)
             );
