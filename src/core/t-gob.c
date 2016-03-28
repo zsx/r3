@@ -74,6 +74,7 @@ REBGOB *Make_Gob(void)
     GOB_ALPHA(gob) = 255;
     USE_GOB(gob);
     if ((GC_Ballast -= Mem_Pools[GOB_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
+    //printf("%p,%lld,MALLOC,%d\n", gob, Mem_Pools[GOB_POOL].wide, __LINE__);
     return gob;
 }
 

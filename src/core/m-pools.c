@@ -749,6 +749,8 @@ static REBOOL Series_Data_Alloc(
 
     if ((GC_Ballast -= size) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
+    //printf("%p,%lld,MALLOC,%d\n", s, size, __LINE__);
+
 #if !defined(NDEBUG)
     if (pool_num >= SYSTEM_POOL)
         assert(Series_Allocation_Unpooled(s) == size);
@@ -925,6 +927,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     s = cast(REBSER*, Make_Node(SER_POOL));
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
+    //printf("%p,%lld,MALLOC,%d\n", s, sizeof(REBSER), __LINE__);
 
 #if !defined(NDEBUG)
     //
@@ -1439,6 +1442,10 @@ void GC_Kill_Series(REBSER *series)
             series->content.dynamic.data,
             Series_Allocation_Unpooled(series)
         );
+
+	GC_Ballast += size;
+	//printf("%p,%lld,FREE,%d\n", series->content.dynamic.data, sizeof(REBSER), __LINE__);
+
     }
     else {
         // External series have their REBSER GC'd when Rebol doesn't need it,
@@ -1452,10 +1459,9 @@ void GC_Kill_Series(REBSER *series)
     //series->misc.size = 0xBAD3BAD3;
 
     Free_Node(SER_POOL, cast(REBNOD*, series));
+    GC_Ballast += sizeof(REBSER);
+    //printf("%p,%lld,FREE\n", series, sizeof(REBSER), __LINE__);
 
-    if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast)) {
-        GC_Ballast = MAX_I32;
-    }
 
     // GC may no longer be necessary:
     if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
@@ -1701,9 +1707,10 @@ void Free_Gob(REBGOB *gob)
 
     Free_Node(GOB_POOL, (REBNOD *)gob);
 
-    if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {
-        GC_Ballast = MAX_I32;
+    if (REB_I64_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {
+        GC_Ballast = MAX_I64;
     }
+    //printf("%p,%lld,FREE\n", gob, Mem_Pools[GOB_POOL].wide);
 
     if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
 }

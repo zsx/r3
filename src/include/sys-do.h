@@ -668,7 +668,7 @@ struct Reb_Frame {
 // currently...this is an open question.
 //
 
-#define PUSH_CALL_UNLESS_END(c,v) \
+#define PUSH_CALL_UNLESS_END(f,v) \
     do { \
         (f)->value = VAL_ARRAY_AT(v); \
         if (IS_END((f)->value)) { \

@@ -73,8 +73,8 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 		printf("SDL_Init Error: %s\n", SDL_GetError());
 		return;
 	}
-	//SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
-	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_WARN);
+	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
+	//SDL_LogSetAllPriority(SDL_LOG_PRIORITY_WARN);
 
 
 	rebol_renderer = init_renderer();

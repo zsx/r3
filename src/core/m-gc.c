@@ -95,6 +95,9 @@
 **
 ***********************************************************************/
 
+#include "stdio.h" // for FILE operations
+#define REN_C_STDIO_OK
+
 #include "sys-core.h"
 
 #include "mem-pools.h" // low-level memory pool access
@@ -259,7 +262,9 @@ static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP
     // Add series to the end of the mark stack series and update terminator
 
     if (SER_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
-
+    if (key_list != NULL) {
+        assert(ARR_LEN(array) <= ARR_LEN(key_list));
+    }
     elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
     elem->array = array;
     elem->key_list = key_list;
@@ -753,10 +758,10 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
     struct mem_dump_entry entry;
     
     entry.addr = f;
-    entry.name = "TG_Frame_Stack";
+    entry.name = (f == NULL)? NULL : Get_Sym_Name(f->opt_label_sym);
     entry.parent = NULL;
     entry.kind = REB_KIND_CALL;
-    entry.edge = NULL,
+    entry.edge = "<TG_Frame_Stack>",
     entry.size = 0; // on the stack
     Dump_Mem_Entry(dump, &entry);
 
@@ -1248,7 +1253,7 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
 
     value = ARR_HEAD(array);
     if (keylist != NULL) {
-        assert(ARR_LEN(array) == ARR_LEN(keylist));
+        assert(ARR_LEN(array) <= ARR_LEN(keylist));
         key = ARR_HEAD(cast(REBARR*, keylist));
     }
 
@@ -1270,7 +1275,9 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
                 if (key != ARR_HEAD(cast(REBARR*, keylist))) {// the first element could be function!, native!, etc for FRAMEs
                     printf("unexpected type: %d\n", VAL_TYPE(key));
                     fclose(dump->out);
+#ifndef NDEBUG
                     Panic_Mark_Stack(elem);
+#endif
                     //Panic_Array(array);
                 }
             }
@@ -1513,6 +1520,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 {
     REBINT n;
     REBCNT count;
+    REBI64 gc_ballast0 = GC_Ballast;
 
     //Debug_Num("GC", GC_Disabled);
 
@@ -1727,27 +1735,36 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
         //
         // https://github.com/zsx/r3/issues/32
         //
-        /*if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
-            && VAL_INT64(TASK_BALLAST) < MAX_I32) {
+        REBI64 bytes_freed = GC_Ballast - gc_ballast0;
+        REBI64 bytes_used = VAL_INT64(TASK_BALLAST) - GC_Ballast;
+	    printf("Recycled %d (%lld bytes), used: %lld, GC_Ballast: %lld, Task Ballast: %lld\n", count, bytes_freed, bytes_used, GC_Ballast, VAL_INT64(TASK_BALLAST));
+        
+        /* if the used bytes is beyond the range of (75%, 90%) of Task_Ballast, adjust Task_Ballast to (1.25 * bytes_used)
+         * The idea is that before next recycle runs, it can at least allocate (1/10 * Task_Ballast) bytes of memory,
+         * and at most (1/4 * Task_Ballast) bytes.
+         * 
+         * Keep in mind that it needs to alloca Task_Ballast (MEM_BALLAST) bytes of memory before the very first recycle runs.
+         */
+
+        if (bytes_used > VAL_INT64(TASK_BALLAST) * 9 / 10) {/* not enough memory was freed */
             //increasing ballast by half
-            VAL_INT64(TASK_BALLAST) /= 2;
-            VAL_INT64(TASK_BALLAST) *= 3;
-        } else if (GC_Ballast >= VAL_INT64(TASK_BALLAST) * 2) {
-            //reduce ballast by half
-            VAL_INT64(TASK_BALLAST) /= 2;
+            REBI64 ballast = VAL_INT64(TASK_BALLAST);
+            VAL_INT64(TASK_BALLAST) = bytes_used * 5 / 4;
+            GC_Ballast += VAL_INT64(TASK_BALLAST) - ballast;
+            printf("Task ballast is increased to %lld\n", VAL_INT64(TASK_BALLAST));
+        } else if (bytes_used < VAL_INT64(TASK_BALLAST) * 3 / 4 && VAL_INT64(TASK_BALLAST) > MEM_BALLAST) {
+            REBI64 ballast = VAL_INT64(TASK_BALLAST);
+            VAL_INT64(TASK_BALLAST) = bytes_used * 5 / 4;
+            if (VAL_INT64(TASK_BALLAST) < MEM_BALLAST) {
+                VAL_INT64(TASK_BALLAST) = MEM_BALLAST;
+            }
+            printf("Task ballast is reduced to %lld\n", VAL_INT64(TASK_BALLAST));
+            GC_Ballast -= ballast - VAL_INT64(TASK_BALLAST);
         }
 
-        // avoid overflow
-        if (
-            VAL_INT64(TASK_BALLAST) < 0
-            || VAL_INT64(TASK_BALLAST) >= MAX_I32
-        ) {
-            VAL_INT64(TASK_BALLAST) = MAX_I32;
-        }*/
+        printf("After adjustment, GC_Ballast: %lld\n", GC_Ballast);
 
-        GC_Ballast = VAL_INT32(TASK_BALLAST);
         GC_Disabled = 0;
-
         if (Reb_Opts->watch_recycle)
             Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
 

@@ -42,16 +42,22 @@ view: func [
 	/options opts [block!] "Window options spec block"
 	/no-wait "Return immediately. Do not wait and process events."
 	/as-is "Leave window as is. Do not add a parent gob."
-	/local screen tmp xy
+	/local screen tmp xy user-title user-offset user-flags user-handler user-color user-draw user-owner
 ][
 	if not screen: system/view/screen-gob [return none]
 
 	; Convert option block to a map:
-	opts: make map! any [reduce/no-set opts []]
+	opts: make map! either options [reduce/no-set opts] []
+	user-title: any [opts/title opts/(to set-word! 'title)]
+	user-offset: any [opts/offset opts/(to set-word! 'offset)]
+	user-flags: any [opts/flags opts/(to set-word! 'flags)]
+	user-handler: any [opts/handler opts/(to set-word! 'handler)]
+	user-color: any [opts/color opts/(to set-word! 'color)]
+	user-draw: any [opts/draw opts/(to set-word! 'draw)]
+	user-owner: any [opts/owner opts/(to set-word! 'owner)]
 	case/all [
 		no-wait [opts/no-wait: true]
 		as-is   [opts/as-is: true]
-;		options [append opts reduce/no-set opts]
 	]
 
 	; GOB based view:
@@ -64,17 +70,17 @@ view: func [
 			append window tmp
 		]
 		; Set optional background:
-		if any [opts/color opts/draw] [
+		if any [user-color user-draw] [
 			insert window make gob! append copy [
 				size: window/size
 				offset: 0x0
 			] pick [
-				[draw:  opts/draw]
-				[color: opts/color]
-			] block? opts/draw
+				[draw:  user-draw]
+				[color: user-color]
+			] block? user-draw
 		]
 		; Set up default handler, if user did not provide one:
-		unless opts/handler [
+		unless user-handler [
 			handle-events [
 				name: 'view-default
 				priority: 50
@@ -97,7 +103,7 @@ view: func [
 
 	; VID-layout based view:
 	if block? window [
-		window: layout/background window any [opts/draw opts/color]
+		window: layout/background window any [user-draw user-color]
 	]
 
 	; VID-face based view:
@@ -111,21 +117,21 @@ view: func [
 	]
 
 	; Window title:
-	window/text: any [opts/title window/text "REBOL: untitled"]
+	window/text: any [user-title window/text "REBOL: untitled"]
 
 	;!!! Add later: use script title - once modules provide that
 
 	; Other options:
-	if opts/offset [
+	if user-offset [
 		; 'Center is allowed:
-		if word? opts/offset [
-			opts/offset: either opts/offset = 'center [screen/size - window/size / 2][100x100]
+		if word? user-offset [
+			user-offset: either user-offset = 'center [screen/size - window/size / 2][100x100]
 		]
-		window/offset: opts/offset
+		window/offset: user-offset
 	]
-	if opts/owner [window/owner: opts/owner]
-	if opts/flags [window/flags: opts/flags]
-	if opts/handler [handle-events opts/handler]
+	if user-owner [window/owner: user-owner]
+	if user-flags [window/flags: user-flags]
+	if user-handler [handle-events user-handler]
 
 	; Add the window to the screen. If it is already there, this action
 	; will move it to the top:
