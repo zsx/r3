@@ -874,7 +874,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    REBARR *mapser = VAL_ARRAY(value);
+    REBARR *mapser = MAP_PAIRLIST(VAL_MAP(value));
     REBVAL *val;
 
     // Prevent endless mold loop:

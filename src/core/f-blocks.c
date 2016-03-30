@@ -339,8 +339,10 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
     REBARR *array;
     REBVAL *other;
 
-    if (ANY_ARRAY(value) || IS_MAP(value))
+    if (ANY_ARRAY(value))
         array = VAL_ARRAY(value);
+    else if (IS_MAP(value))
+        array = MAP_PAIRLIST(VAL_MAP(value));
     else if (ANY_CONTEXT(value))
         array = CTX_VARLIST(VAL_CONTEXT(value));
     else {
