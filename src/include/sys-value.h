@@ -1965,7 +1965,7 @@ enum {
     VARARGS_FLAG_NO_FRAME = (1 << (TYPE_SPECIFIC_BIT + 0)) | VARARGS_FLAG_X
 };
 
-inline static const RELVAL *VAL_VARARGS_PARAM(const RELVAL *v)
+inline static const REBVAL *VAL_VARARGS_PARAM(const RELVAL *v)
     { return v->payload.varargs.param; }
 
 inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
@@ -2161,9 +2161,6 @@ enum {
 
 #define RIN_FFI_ARG_TYPES(r) \
     ((r)->arg_types)
-
-#define RIN_FIXED_ARGS(r) \
-    ((r)->fixed_args)
 
 #define RIN_FFI_ARG_STRUCTS(r) \
     ((r)->arg_structs)

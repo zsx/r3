@@ -690,7 +690,7 @@ struct Reb_Varargs {
     // Note: could be a parameter index in the worst case scenario that the
     // array grew, revisit the rules on holding pointers into paramlists.
     //
-    const RELVAL *param;
+    const REBVAL *param;
 
     // Similar to the param, the arg is only good for the lifetime of the
     // FRAME!...but even less so, because VARARGS! can (currently) be
@@ -739,7 +739,6 @@ struct Reb_Routine_Info {
     } info;
     void *cif; // actually `ffi_cif*` (see RIN_CIF)
     REBSER *arg_types; // index 0 is the return type
-    REBARR *fixed_args;
     REBARR *arg_structs; // for struct arguments
     REBSER *extra_mem; // extra memory that needs to be freed
     REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?

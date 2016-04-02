@@ -446,11 +446,6 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
             // until fully constructed.
         }
     } else {
-        if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-            if (RIN_FIXED_ARGS(r))
-                QUEUE_MARK_ARRAY_DEEP(RIN_FIXED_ARGS(r));
-        }
-
         if (RIN_LIB(r))
             SET_LIB_FLAG(RIN_LIB(r), LIB_FLAG_MARK);
         else {

@@ -803,104 +803,140 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
     // temporary series to hold pointer parameters...must be big enough
     //
-    REBSER *ffi_args_ptrs = Make_Series(
-        SER_LEN(RIN_FFI_ARG_TYPES(r)), sizeof(void *), MKS_NONE
-    );
+    REBSER *ser_ffi_args_ptrs;
 
     // `ser` is a series of FFI arguments (void*).  It will be NULL if the
     // function has no arguments.
     //
     REBSER *ser_ffi_args;
+
     ffi_cif *cif;
+    REBARR *vararray;
+
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
         //
-        // !!! In the Atronix branch FFI, a variadic routine's parameter
-        // list is a single element long--a BLOCK!.  This block is unpacked
-        // of the fixed and variadic arguments.  This is distinct from the
-        // Ren-C varargs model where the called routine consumes as many
-        // arguments as it wants once called from the callsite.  However,
-        // a BAR! could terminate the variadic, or it could be contained
-        // inside a GROUP!...giving the user choices to work with something
-        // compatible with Ren-C's parameter packs.
+        // Last typeset should be variadic (so the number of fixed args does
+        // not include it)
         //
-        REBVAL *va_values = FRM_ARGS_HEAD(f);
-        if (!IS_BLOCK(va_values))
-            fail (Error_Invalid_Arg(va_values));
+        REBCNT n_fixed = FRM_NUM_ARGS(f) - 1;
+        REBVAL *vararg = FRM_ARG(f, FRM_NUM_ARGS(f));
+        assert(IS_VARARGS(vararg));
 
-        // Number of fixed arguments.  Must subtract 1 because the [0]th
-        // element slot is the return value.
+        // Grab the varargs to the data stack, so their values are available
+        // and they can be counted to know how big to make the FFI arg series
         //
-        REBCNT n_fixed = ARR_LEN(RIN_FIXED_ARGS(r)) - 1;
+        REBDSP dsp_orig = DSP;
+
+        REBVAL fake_param;
+
+        REBARR *feed;
+        const REBVAL *varparam;
+        if (GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)) {
+            feed = VAL_VARARGS_ARRAY1(vararg);
+
+            // Just a vararg created from a block, so no typeset or quoting
+            // settings available.  Make a fake parameter that hard quotes
+            // and takes any type (it will be type checked if in a chain).
+            //
+            Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
+            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
+            varparam = &fake_param;
+        }
+        else {
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(vararg));
+            varparam = VAL_VARARGS_PARAM(vararg);
+        }
+
+        do {
+            REBIXO indexor = Do_Vararg_Op_Core(
+                f->out, feed, varparam, vararg, SYM_0, VARARG_OP_TAKE
+            );
+            if (indexor == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
+            if (indexor == END_FLAG)
+                break;
+
+            DS_PUSH(f->out);
+        } while (TRUE);
+
+        // !!! The way calling worked was that it re-used the storage space
+        // in the argument itself for that argument's FFI content after the
+        // conversion (if it would fit in sizeof(REBVAL), otherwise it was
+        // put in a structure array.  Because the pointer has to stay stable
+        // over the course of the call, the data stack isn't where the values
+        // can stay, since the pointers of the data stack are volatile.
+        // Remove into an array for now (freed at end of routine)
+        //
+        vararray = Pop_Stack_Values(dsp_orig);
 
         // It appears that variadic arguments in each call come as a pair of
         // the datatype and the value.  So there must be an even number.
         //
-        if ((VAL_LEN_AT(va_values) - n_fixed) % 2 != 0)
-            fail (Error_Invalid_Arg(va_values));
+        // !!! Review if there's a more usable way of doing this, that could
+        // take advantage of the presumed int / double conventions from C
+        //
+        if (ARR_LEN(vararray) % 2 != 0)
+            fail (Error(RE_MISC));
 
+        REBCNT n_variable = ARR_LEN(vararray) / 2;
         ser_ffi_args = Make_Series(
-            n_fixed + (VAL_LEN_AT(va_values) - n_fixed) / 2,
-            sizeof(void *),
-            MKS_NONE
+            n_fixed + n_variable, sizeof(void*), MKS_NONE
         );
+
+        ser_ffi_args_ptrs = Make_Series(
+            n_fixed + n_variable + 1, sizeof(void *), MKS_NONE
+        ); // needs to include return value :-/
 
         ffi_type **arg_types = NULL;
 
         // reset length
         SET_SERIES_LEN(RIN_FFI_ARG_TYPES(r), n_fixed + 1);
 
-        REBCNT i = 1;
         REBCNT j = 1;
-        for (; i < VAL_LEN_HEAD(va_values) + 1; ++i, ++j) {
-            REBVAL *reb_arg = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i - 1));
 
-            REBVAL temp;
+        // First gather the fixed parameters from the frame (known to be
+        // of correct types)
 
-            REBVAL *param = NULL; // catch reuse
-
-            if (i <= n_fixed) {
-                param = KNOWN(ARR_AT(RIN_FIXED_ARGS(r), i));
-                if (!TYPE_CHECK(param, VAL_TYPE(reb_arg))) {
-                    fail (Error_Arg_Type(
-                        FRM_LABEL(f),
-                        KNOWN(ARR_AT(RIN_FIXED_ARGS(r), i)),
-                        VAL_TYPE(reb_arg)
-                    ));
-                }
-            } else {
-                /* initialize rin->args */
-
-                if (i == VAL_LEN_HEAD(va_values)) /* type is missing */
-                    fail (Error_Invalid_Arg(reb_arg));
-
-                REBVAL *reb_type = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i));
-                if (!IS_BLOCK(reb_type))
-                    fail (Error_Invalid_Arg(reb_type));
-
-                // Start with no type bits initially (process_type_block will
-                // add them).
-                //
-                // !!! Clearer name for individual variadic args than "..."?
-                //
-                Val_Init_Typeset(&temp, 0, SYM_ELLIPSIS);
-                param = &temp;
-
-                EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
-                process_type_block(r, param, reb_type, j, FALSE);
-                ++i;
-            }
+        for (; j <= n_fixed; ++j) {
             *SER_AT(void*, ser_ffi_args, j - 1) = arg_to_ffi(
                 r,
-                param,
-                reb_arg,
+                FUNC_PARAM(FRM_FUNC(f), j),
+                FRM_ARG(f, j),
                 *SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), j),
-                SER_AT(void*, ffi_args_ptrs, j),
+                SER_AT(void*, ser_ffi_args_ptrs, j),
                 FALSE // not a return value
             );
         }
 
-        /* series data could have moved */
-        arg_types = SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
+        REBCNT i;
+        for (i = 0; j <= n_fixed + n_variable; i += 2, ++j) {
+            REBVAL param;
+
+            // Start with no type bits initially (process_type_block will
+            // add them).
+            //
+            // !!! Clearer name for individual variadic args than "..."?
+            //
+            Val_Init_Typeset(&param, 0, SYM_ELLIPSIS);
+
+            EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
+            process_type_block(
+                r,
+                &param, // will set the type bits to match for some reason
+                KNOWN(ARR_AT(vararray, i + 1)), // error if this is not a block
+                j, // used to write into RIN_FFI_ARG_TYPES
+                FALSE // not a return value
+            );
+
+            *SER_AT(void*, ser_ffi_args, j - 1) = arg_to_ffi(
+                r,
+                &param,
+                KNOWN(ARR_AT(vararray, i)),
+                *SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), j),
+                SER_AT(void*, ser_ffi_args_ptrs, j),
+                FALSE // not a return value
+            );
+        }
 
         assert(j == SER_LEN(RIN_FFI_ARG_TYPES(r)));
 
@@ -915,14 +951,16 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                 cif,
                 RIN_ABI(r),
                 n_fixed, // number of fixed arguments
-                j - 1, // number of all arguments
-                arg_types[0], // return type
-                &arg_types[1]
+                n_fixed + n_variable, // number of all arguments
+                *SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), 0), // return type
+                SER_LEN(RIN_FFI_ARG_TYPES(r)) > 1
+                    ? SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), 1)
+                    : NULL
             )
         ){
             OS_FREE(cif);
             //RL_Print("Couldn't prep CIF_VAR\n");
-            fail (Error_Invalid_Arg(va_values));
+            fail (Error(RE_MISC));
         }
     }
     else if (SER_LEN(RIN_FFI_ARG_TYPES(r)) == 1) {
@@ -933,6 +971,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         cif = RIN_CIF(r);
 
         ser_ffi_args = NULL;
+        ser_ffi_args_ptrs = Make_Series(1, sizeof(void*), MKS_NONE); // return
     }
     else {
         assert(RIN_CIF(r) != NULL);
@@ -940,8 +979,14 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
         assert(SER_LEN(RIN_FFI_ARG_TYPES(r)) > 1);
         ser_ffi_args = Make_Series(
-            SER_LEN(RIN_FFI_ARG_TYPES(r)) - 1,
+            SER_LEN(RIN_FFI_ARG_TYPES(r)) - 1, // return value not needed
             sizeof(void *),
+            MKS_NONE
+        );
+
+        ser_ffi_args_ptrs = Make_Series(
+            SER_LEN(RIN_FFI_ARG_TYPES(r)), // needs return value
+            sizeof(void*),
             MKS_NONE
         );
 
@@ -952,7 +997,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                 FUNC_PARAM(FRM_FUNC(f), i),
                 FRM_ARG(f, i), // 1-based access
                 *SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), i),
-                SER_AT(void*, ffi_args_ptrs, i),
+                SER_AT(void*, ser_ffi_args_ptrs, i),
                 FALSE // not a return value
             );
         }
@@ -1005,7 +1050,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         &dummy_param,
         f->out,
         *SER_AT(ffi_type*, RIN_FFI_ARG_TYPES(r), 0),
-        SER_AT(void*, ffi_args_ptrs, 0),
+        SER_AT(void*, ser_ffi_args_ptrs, 0),
         TRUE // is a return value
     );
 
@@ -1028,13 +1073,15 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         f->out
     );
 
-    Free_Series(ffi_args_ptrs);
+    Free_Series(ser_ffi_args_ptrs);
 
     if (ser_ffi_args)
         Free_Series(ser_ffi_args);
 
-    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
         OS_FREE(cif);
+        Free_Array(vararray);
+    }
 
     //restore the saved series stack pointer
     SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
@@ -1507,41 +1554,37 @@ REBOOL MT_Routine(
 
                 SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
 
-                // Change the argument list to be a block
-                RIN_FIXED_ARGS(r) = Copy_Array_Shallow(
-                    VAL_FUNC_PARAMLIST(out), SPECIFIED
-                );
-                MANAGE_ARRAY(RIN_FIXED_ARGS(r));
-                Remove_Series(
-                    ARR_SERIES(VAL_FUNC_PARAMLIST(out)),
-                    1,
-                    ARR_LEN(VAL_FUNC_PARAMLIST(out))
-                );
-                v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                REBVAL *typeset = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+
+                // Currently the rule is that if VARARGS! is itself a valid
+                // parameter type, then the varargs will not chain.  We want
+                // chaining as opposed to passing the parameter pack to the
+                // C code to process (it wouldn't know what to do with it)
+                //
                 Val_Init_Typeset(
-                    v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
+                    typeset,
+                    ALL_64 & ~FLAGIT_KIND(REB_VARARGS),
+                    SYM_VARARGS
                 );
+                SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
+                INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
             }
             else {
                 if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
                     //... has to be the last argument
                     fail (Error_Invalid_Arg(KNOWN(blk)));
                 }
-                v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
-                Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
+
+                REBVAL *typeset = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                Val_Init_Typeset(typeset, 0, VAL_WORD_SYM(blk));
                 EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
+                INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
 
                 ++blk;
                 process_type_block(
                     r, VAL_FUNC_PARAM(out, n), KNOWN(blk), n, TRUE
                 );
             }
-
-            // Function dispatch needs to know whether parameters are
-            // to be hard quoted, soft quoted, refinements, or
-            // evaluated.  This is signaled with bits on the typeset.
-            //
-            INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
 
             ++n;
             }

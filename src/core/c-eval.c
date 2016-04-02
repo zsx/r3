@@ -1170,7 +1170,7 @@ reevaluate:
                 Context_For_Frame_May_Reify_Core(f);
                 f->arg->payload.varargs.feed.varlist = f->varlist;
 
-                f->arg->payload.varargs.param = f->param; // typecheck on TAKE
+                f->arg->payload.varargs.param = const_KNOWN(f->param); // check
                 f->arg->payload.varargs.arg = f->arg; // linkback, might change
                 goto continue_arg_loop;
             }
