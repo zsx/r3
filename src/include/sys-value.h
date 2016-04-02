@@ -2168,9 +2168,6 @@ enum {
 #define RIN_FIXED_ARGS(r) \
     ((r)->fixed_args)
 
-#define RIN_ALL_ARGS(r) \
-    ((r)->all_args)
-
 #define RIN_FFI_ARG_STRUCTS(r) \
     ((r)->arg_structs)
 

@@ -728,7 +728,7 @@ typedef struct Reb_Struct {
 struct Reb_Routine_Info {
     union {
         struct {
-            REBLHL  *lib;
+            REBLHL *lib;
             CFUNC *funcptr;
         } rot;
         struct {
@@ -740,13 +740,12 @@ struct Reb_Routine_Info {
     void *cif;
     REBSER *arg_types; // index 0 is the return type
     REBARR *fixed_args;
-    REBARR *all_args;
     REBARR *arg_structs; // for struct arguments
     REBSER *extra_mem; // extra memory that needs to be freed
     REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
     REBINT abi;
 
-    REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
+    //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
 };
 
 #pragma pack() // set back to default (was set to 4 at start of file)

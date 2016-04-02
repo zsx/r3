@@ -449,9 +449,6 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
             if (RIN_FIXED_ARGS(r))
                 QUEUE_MARK_ARRAY_DEEP(RIN_FIXED_ARGS(r));
-
-            if (RIN_ALL_ARGS(r))
-                QUEUE_MARK_ARRAY_DEEP(RIN_ALL_ARGS(r));
         }
 
         if (RIN_LIB(r))

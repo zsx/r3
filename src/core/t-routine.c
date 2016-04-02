@@ -259,7 +259,8 @@ inline static void QUEUE_EXTRA_MEM(REBRIN *r, void *p) {
 static ffi_type * struct_type_to_ffi [STRUCT_TYPE_MAX];
 
 static void process_type_block(
-    const REBVAL *out,
+    REBRIN *r,
+    REBARR *paramlist,
     REBVAL *blk,
     REBCNT n,
     REBOOL make
@@ -319,8 +320,12 @@ static REBCNT n_struct_fields (REBSER *fields)
     return n_fields;
 }
 
-static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
-{
+static ffi_type* struct_to_ffi(
+    REBRIN *r,
+    REBARR *paramlist,
+    REBSER *fields,
+    REBOOL make
+){
     REBCNT i = 0, j = 0;
     REBCNT n_basic_type = 0;
 
@@ -328,7 +333,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
     //printf("allocated stype at: %p\n", stype);
     if (make) {//called by Routine constructor
         stype = OS_ALLOC(ffi_type);
-        QUEUE_EXTRA_MEM(VAL_FUNC_ROUTINE(out), stype);
+        QUEUE_EXTRA_MEM(r, stype);
     } else {
         REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
         SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
@@ -343,7 +348,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
     if (make) {
         stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
         //printf("allocated stype elements at: %p\n", stype->elements);
-        QUEUE_EXTRA_MEM(VAL_FUNC_ROUTINE(out), stype->elements);
+        QUEUE_EXTRA_MEM(r, stype->elements);
     }
     else {
         REBSER *ser = Make_Series(
@@ -357,9 +362,15 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
     for (i = 0; i < SER_LEN(fields); i ++) {
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
         if (field->type == STRUCT_TYPE_REBVAL) {
-            /* don't see a point to pass a rebol value to external functions */
-            fail (Error_Invalid_Arg(out));
-        } else if (field->type != STRUCT_TYPE_STRUCT) {
+            //
+            // "don't see a point to pass a rebol value to external functions"
+            //
+            // !!! ^-- What if the value is being passed through and will
+            // come back via a callback?
+            //
+            fail (Error(RE_MISC));
+        }
+        else if (field->type != STRUCT_TYPE_STRUCT) {
             if (struct_type_to_ffi[field->type]) {
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
@@ -369,7 +380,9 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
                 return NULL;
             }
         } else {
-            ffi_type *subtype = struct_to_ffi(out, field->fields, make);
+            ffi_type *subtype
+                = struct_to_ffi(r, paramlist, field->fields, make);
+
             if (subtype) {
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
@@ -388,27 +401,17 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
 /* convert the type of "elem", and store it in "out" with index of "idx"
  */
 static REBOOL rebol_type_to_ffi(
-    const REBVAL *out,
+    REBRIN *r,
+    REBARR *paramlist, // may be temporary list if variadic
     const REBVAL *elem,
     REBCNT idx,
     REBOOL make
 ){
-    REBRIN *r = VAL_FUNC_ROUTINE(out);
-
     ffi_type **args = SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
-    REBVAL *rebol_args = NULL;
-    if (idx) {
-        // when it's first call for return type, all_args has not been initialized yet
-        if (
-            GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)
-            && idx > ARR_LEN(RIN_FIXED_ARGS(r))
-        ) {
-            rebol_args = KNOWN(ARR_HEAD(RIN_ALL_ARGS(r)));
-        }
-        else {
-            rebol_args = KNOWN(ARR_HEAD(VAL_FUNC_PARAMLIST(out)));
-        }
-    }
+
+    // return value not covered by paramlist (?)
+    //
+    assert(idx == 0 ? paramlist == NULL : paramlist != NULL);
 
     if (IS_WORD(elem)) {
         REBVAL *temp;
@@ -418,52 +421,55 @@ static REBOOL rebol_type_to_ffi(
                 break;
             case SYM_UINT8:
                 args[idx] = &ffi_type_uint8;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_INT8:
                 args[idx] = &ffi_type_sint8;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_UINT16:
                 args[idx] = &ffi_type_uint16;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_INT16:
                 args[idx] = &ffi_type_sint16;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_UINT32:
                 args[idx] = &ffi_type_uint32;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_INT32:
                 args[idx] = &ffi_type_sint32;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_UINT64:
                 args[idx] = &ffi_type_uint64;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_INT64:
                 args[idx] = &ffi_type_sint64;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
                 break;
             case SYM_FLOAT:
                 args[idx] = &ffi_type_float;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_DECIMAL);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_DECIMAL);
                 break;
             case SYM_DOUBLE:
                 args[idx] = &ffi_type_double;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_DECIMAL);
+                if (idx) TYPE_SET(ARR_AT(paramlist, idx), REB_DECIMAL);
                 break;
             case SYM_POINTER:
                 args[idx] = &ffi_type_pointer;
                 if (idx) {
-                    TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                    TYPE_SET(&rebol_args[idx], REB_STRING);
-                    TYPE_SET(&rebol_args[idx], REB_BINARY);
-                    TYPE_SET(&rebol_args[idx], REB_VECTOR);
-                    TYPE_SET(&rebol_args[idx], REB_FUNCTION); // !!! callback
+                    TYPE_SET(ARR_AT(paramlist, idx), REB_INTEGER);
+                    TYPE_SET(ARR_AT(paramlist, idx), REB_STRING);
+                    TYPE_SET(ARR_AT(paramlist, idx), REB_BINARY);
+                    TYPE_SET(ARR_AT(paramlist, idx), REB_VECTOR);
+
+                    // !!! callback
+                    //
+                    TYPE_SET(ARR_AT(paramlist, idx), REB_FUNCTION);
                 }
                 break;
             default:
@@ -473,12 +479,14 @@ static REBOOL rebol_type_to_ffi(
         SET_BLANK(temp);
     }
     else if (IS_STRUCT(elem)) {
-        ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem), make);
+        ffi_type *ftype = struct_to_ffi(
+            r, paramlist, VAL_STRUCT_FIELDS(elem), make
+        );
         REBVAL *to = NULL;
         if (ftype) {
             args[idx] = ftype;
             if (idx) {
-                TYPE_SET(&rebol_args[idx], REB_STRUCT);
+                TYPE_SET(ARR_AT(paramlist, idx), REB_STRUCT);
             }
         } else {
             return FALSE;
@@ -504,25 +512,22 @@ static REBOOL rebol_type_to_ffi(
  * For FFI_TYPE_POINTER, a temperary pointer could be needed
  * (whose address is returned). ptrs[idx] is the temperary pointer.
  * */
-static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
-{
-    REBRIN *r = VAL_FUNC_ROUTINE(rot);
-
+static void *arg_to_ffi(
+    REBRIN *r,
+    REBARR *paramlist, // may be temporary list for instance if variadic
+    REBVAL *arg,
+    REBCNT idx,
+    void **ptrs
+){
     ffi_type **args = SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
-    REBARR *rebol_args;
 
     struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
-
-    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
-        rebol_args = RIN_ALL_ARGS(r);
-    else
-        rebol_args = VAL_FUNC_PARAMLIST(rot);
 
     switch (args[idx]->type) {
         case FFI_TYPE_UINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -535,7 +540,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT8:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -548,7 +553,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -561,7 +566,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT16:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -574,7 +579,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_UINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -587,7 +592,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT32:
             if (!IS_INTEGER(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
 #ifdef BIG_ENDIAN
@@ -601,7 +606,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_SINT64:
             if (!IS_INTEGER(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             return &VAL_INT64(arg);
 
@@ -628,7 +633,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     return &ptrs[idx];
                 default:
                     fail (Error_Arg_Type(
-                        D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                        D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                     ));
             }
 
@@ -639,7 +644,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
             //
             if (!IS_DECIMAL(arg)) {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             } else {
                 float a = (float)VAL_DECIMAL(arg);
@@ -650,7 +655,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
         case FFI_TYPE_DOUBLE:
             if (!IS_DECIMAL(arg))
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             return &VAL_DECIMAL(arg);
 
@@ -661,7 +666,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 if (!IS_STRUCT(arg))
                     fail (Error_Arg_Type(
                         D_LABEL_SYM,
-                        KNOWN(ARR_AT(rebol_args, idx)),
+                        KNOWN(ARR_AT(paramlist, idx)),
                         VAL_TYPE(arg)
                     ));
             }
@@ -676,7 +681,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 return NULL;
             } else {
                 fail (Error_Arg_Type(
-                    D_LABEL_SYM, KNOWN(ARR_AT(rebol_args, idx)), VAL_TYPE(arg)
+                    D_LABEL_SYM, KNOWN(ARR_AT(paramlist, idx)), VAL_TYPE(arg)
                 ));
             }
 
@@ -767,8 +772,6 @@ static void ffi_to_rebol(REBRIN *rin,
 //
 REB_R Routine_Dispatcher(struct Reb_Frame *f)
 {
-    REBVAL out = *FUNC_VALUE(f->func); // REVIEW: why is it done this way?
-
     REBRIN *r = FUNC_ROUTINE(f->func);
 
     // `is_va_list_routine` is optimized out, but hints static analyzer
@@ -807,6 +810,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     // function has no arguments.
     //
     REBSER *ser_ffi_args;
+    REBARR *paramlist;
     if (is_va_list_routine) {
         //
         // !!! In the Atronix branch FFI, a variadic routine's parameter
@@ -827,6 +831,9 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         //
         REBCNT n_fixed = ARR_LEN(RIN_FIXED_ARGS(r)) - 1;
 
+        // It appears that variadic arguments in each call come as a pair of
+        // the datatype and the value.  So there must be an even number.
+        //
         if ((VAL_LEN_AT(va_values) - n_fixed) % 2 != 0)
             fail (Error_Invalid_Arg(va_values));
 
@@ -841,8 +848,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         // reset length
         SET_SERIES_LEN(RIN_FFI_ARG_TYPES(r), n_fixed + 1);
 
-        RIN_ALL_ARGS(r) = Copy_Array_Shallow(RIN_FIXED_ARGS(r), SPECIFIED);
-        MANAGE_ARRAY(RIN_ALL_ARGS(r));
+        paramlist = Copy_Array_Shallow(RIN_FIXED_ARGS(r), SPECIFIED);
 
         REBCNT i = 1;
         REBCNT j = 1;
@@ -869,15 +875,20 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                 if (!IS_BLOCK(reb_type))
                     fail (Error_Invalid_Arg(reb_type));
 
-                REBVAL *v = Alloc_Tail_Array(RIN_ALL_ARGS(r));
-                Val_Init_Typeset(v, 0, SYM_ELLIPSIS); //FIXME, be clear
+                // Add typeset to the end of the instance-specific paramlist.
+                //
+                Val_Init_Typeset(
+                    Alloc_Tail_Array(paramlist),
+                    0, // no type bits set (process_type_block adds them)
+                    SYM_ELLIPSIS // !!! clearer name for individual arguments?
+                );
                 EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
 
-                process_type_block(&out, reb_type, j, FALSE);
+                process_type_block(r, paramlist, reb_type, j, FALSE);
                 i ++;
             }
             *SER_AT(void*, ser_ffi_args, j - 1) = arg_to_ffi(
-                &out, reb_arg, j, SER_HEAD(void*, ffi_args_ptrs)
+                r, paramlist, reb_arg, j, SER_HEAD(void*, ffi_args_ptrs)
             );
         }
         if (RIN_CIF(r) == NULL) {
@@ -918,10 +929,13 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
             MKS_NONE
         );
 
+        paramlist = FUNC_PARAMLIST(f->func);
+
         REBCNT i;
         for (i = 1; i < SER_LEN(RIN_FFI_ARG_TYPES(r)); i ++) {
             *SER_AT(void*, ser_ffi_args, i - 1) = arg_to_ffi(
-                &out,
+                r,
+                paramlist,
                 FRM_ARG(f, i), // 1-based access
                 i,
                 SER_HEAD(void*, ffi_args_ptrs)
@@ -964,7 +978,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     }
 
     void *rvalue = arg_to_ffi(
-        &out, f->out, 0, SER_HEAD(void*, ffi_args_ptrs)
+        r, NULL, f->out, 0, SER_HEAD(void*, ffi_args_ptrs)
     );
 
     SET_VOID(&Callback_Error);
@@ -989,6 +1003,8 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     Free_Series(ffi_args_ptrs);
 
     if (ser_ffi_args) Free_Series(ser_ffi_args);
+
+    if (is_va_list_routine) Free_Array(paramlist);
 
     //restore the saved series stack pointer
     SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
@@ -1019,8 +1035,13 @@ void Free_Routine(REBRIN *rin)
     Free_Node(RIN_POOL, (REBNOD*)rin);
 }
 
-static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
-{
+static void process_type_block(
+    REBRIN *r,
+    REBARR *paramlist,
+    REBVAL *blk,
+    REBCNT n,
+    REBOOL make
+){
     if (IS_BLOCK(blk)) {
         REBVAL *t = KNOWN(VAL_ARRAY_AT(blk));
         if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
@@ -1036,7 +1057,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             if (!MT_Struct(&tmp, t, SPECIFIED, REB_STRUCT))
                 fail (Error_Invalid_Arg(blk));
 
-            if (!rebol_type_to_ffi(out, &tmp, n, make))
+            if (!rebol_type_to_ffi(r, paramlist, &tmp, n, make))
                 fail (Error_Invalid_Arg(blk));
 
             DROP_GUARD_VALUE(&tmp);
@@ -1045,7 +1066,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             if (VAL_LEN_AT(blk) != 1)
                 fail (Error_Invalid_Arg(blk));
 
-            if (!rebol_type_to_ffi(out, t, n, make))
+            if (!rebol_type_to_ffi(r, paramlist, t, n, make))
                 fail (Error_Invalid_Arg(t));
         }
     }
@@ -1456,7 +1477,9 @@ REBOOL MT_Routine(
                         EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
 
                         ++ blk;
-                        process_type_block(out, KNOWN(blk), n, TRUE);
+                        process_type_block(
+                            r, VAL_FUNC_PARAMLIST(out), KNOWN(blk), n, TRUE
+                        );
                     }
 
                     // Function dispatch needs to know whether parameters are
@@ -1541,7 +1564,7 @@ REBOOL MT_Routine(
                         }
                         has_return ++;
                         ++ blk;
-                        process_type_block(out, KNOWN(blk), 0, TRUE);
+                        process_type_block(r, NULL, KNOWN(blk), 0, TRUE);
                         break;
                     default:
                         fail (Error_Invalid_Arg(KNOWN(blk)));
