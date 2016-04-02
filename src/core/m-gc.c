@@ -424,13 +424,13 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
 //
 static void Queue_Mark_Routine_Deep(REBRIN *r)
 {
-    ROUTINE_SET_FLAG(r, ROUTINE_MARK);
+    SET_RIN_FLAG(r, ROUTINE_FLAG_MARK);
 
     MARK_SERIES_ONLY(RIN_FFI_ARG_TYPES(r));
-    QUEUE_MARK_ARRAY_DEEP(RIN_ARGS_STRUCTS(r));
+    QUEUE_MARK_ARRAY_DEEP(RIN_FFI_ARG_STRUCTS(r));
     MARK_SERIES_ONLY(RIN_EXTRA_MEM(r));
 
-    if (ROUTINE_GET_FLAG(r, ROUTINE_CALLBACK)) {
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
         REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
         if (cb_func) {
             // Should take care of spec, body, etc.
@@ -446,7 +446,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
             // until fully constructed.
         }
     } else {
-        if (ROUTINE_GET_FLAG(r, ROUTINE_VARIADIC)) {
+        if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
             if (RIN_FIXED_ARGS(r))
                 QUEUE_MARK_ARRAY_DEEP(RIN_FIXED_ARGS(r));
 
@@ -455,7 +455,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         }
 
         if (RIN_LIB(r))
-            MARK_LIB(RIN_LIB(r));
+            SET_LIB_FLAG(RIN_LIB(r), LIB_FLAG_MARK);
         else {
             // may be null if called before the routine is fully constructed
         }
@@ -969,7 +969,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         }
 
         case REB_LIBRARY:
-            MARK_LIB(VAL_LIB_HANDLE(val));
+            SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_MARK);
             QUEUE_MARK_ARRAY_DEEP(VAL_LIB_SPEC(val));
             break;
 
@@ -1168,12 +1168,12 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Libs(void)
     for (seg = Mem_Pools[LIB_POOL].segs; seg; seg = seg->next) {
         lib = (REBLHL *) (seg + 1);
         for (n = Mem_Pools[LIB_POOL].units; n > 0; n--) {
-            if (IS_USED_LIB(lib)) {
-                if (IS_MARK_LIB(lib))
-                    UNMARK_LIB(lib);
+            if (GET_LIB_FLAG(lib, LIB_FLAG_USED)) {
+                if (GET_LIB_FLAG(lib, LIB_FLAG_MARK))
+                    CLEAR_LIB_FLAG(lib, LIB_FLAG_MARK);
                 else {
-                    UNUSE_LIB(lib);
-                    Free_Node(LIB_POOL, (REBNOD*)lib);
+                    CLEAR_LIB_FLAG(lib, LIB_FLAG_USED);
+                    Free_Node(LIB_POOL, cast(REBNOD*, lib));
                     count++;
                 }
             }
@@ -1203,11 +1203,11 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
     for (seg = Mem_Pools[RIN_POOL].segs; seg; seg = seg->next) {
         info = (REBRIN *) (seg + 1);
         for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-            if (ROUTINE_GET_FLAG(info, ROUTINE_USED)) {
-                if (ROUTINE_GET_FLAG(info, ROUTINE_MARK))
-                    ROUTINE_CLR_FLAG(info, ROUTINE_MARK);
+            if (GET_RIN_FLAG(info, ROUTINE_FLAG_USED)) {
+                if (GET_RIN_FLAG(info, ROUTINE_FLAG_MARK))
+                    CLEAR_RIN_FLAG(info, ROUTINE_FLAG_MARK);
                 else {
-                    ROUTINE_CLR_FLAG(info, ROUTINE_USED);
+                    CLEAR_RIN_FLAG(info, ROUTINE_FLAG_USED);
                     Free_Routine(info);
                     count ++;
                 }

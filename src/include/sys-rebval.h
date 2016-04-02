@@ -749,8 +749,6 @@ struct Reb_Routine_Info {
     REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
 };
 
-typedef REBFUN REBROT;
-
 #pragma pack() // set back to default (was set to 4 at start of file)
     #include "reb-gob.h"
 #pragma pack(4) // resume packing with 4

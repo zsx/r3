@@ -2048,36 +2048,38 @@ inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
 // the system uses internally.
 //
 
-#define LIB_FD(v)           ((v)->fd)
-#define LIB_FLAGS(v)        ((v)->flags)
+#define LIB_FD(l) \
+    ((l)->fd) // file descriptor
 
-#define VAL_LIB(v)          ((v)->payload.library)
-#define VAL_LIB_SPEC(v)     ((v)->payload.library.spec)
-#define VAL_LIB_HANDLE(v)   ((v)->payload.library.handle)
-#define VAL_LIB_FD(v)       ((v)->payload.library.handle->fd)
-#define VAL_LIB_FLAGS(v)    ((v)->payload.library.handle->flags)
+#define LIB_FLAGS(l) \
+    ((l)->flags)
+
+#define VAL_LIB_SPEC(v) \
+    ((v)->payload.library.spec)
+
+#define VAL_LIB_HANDLE(v) \
+    ((v)->payload.library.handle)
+
+#define VAL_LIB_FD(v) \
+    LIB_FD(VAL_LIB_HANDLE(v))
+
+#define VAL_LIB_FLAGS(v) \
+    LIB_FLAGS(VAL_LIB_HANDLE(v))
 
 enum {
-    LIB_MARK = 1,       // library was found during GC mark scan.
-    LIB_USED = 1 << 1,
-    LIB_CLOSED = 1 << 2
+    LIB_FLAG_MARK = 1 << 0, // library was found during GC mark scan.
+    LIB_FLAG_USED = 1 << 1,
+    LIB_FLAG_CLOSED = 1 << 2
 };
 
-#define LIB_SET_FLAG(s, f)  (LIB_FLAGS(s) |= (f))
-#define LIB_CLR_FLAG(s, f)  (LIB_FLAGS(s) &= ~(f))
-#define LIB_GET_FLAG(s, f) (LIB_FLAGS(s) &  (f))
+#define SET_LIB_FLAG(s, f) \
+    (LIB_FLAGS(s) |= (f))
 
-#define MARK_LIB(s)    LIB_SET_FLAG(s, LIB_MARK)
-#define UNMARK_LIB(s)  LIB_CLR_FLAG(s, LIB_MARK)
-#define IS_MARK_LIB(s) LIB_GET_FLAG(s, LIB_MARK)
+#define CLEAR_LIB_FLAG(s, f) \
+    (LIB_FLAGS(s) &= ~(f))
 
-#define USE_LIB(s)     LIB_SET_FLAG(s, LIB_USED)
-#define UNUSE_LIB(s)   LIB_CLR_FLAG(s, LIB_USED)
-#define IS_USED_LIB(s) LIB_GET_FLAG(s, LIB_USED)
-
-#define IS_CLOSED_LIB(s)    LIB_GET_FLAG(s, LIB_CLOSED)
-#define CLOSE_LIB(s)        LIB_SET_FLAG(s, LIB_CLOSED)
-#define OPEN_LIB(s)         LIB_CLR_FLAG(s, LIB_CLOSED)
+#define GET_LIB_FLAG(s, f) \
+    (LIB_FLAGS(s) &  (f))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -2134,69 +2136,61 @@ enum {
 //
 
 enum {
-    ROUTINE_MARK = 1,       // routine was found during GC mark scan.
-    ROUTINE_USED = 1 << 1,
-    ROUTINE_CALLBACK = 1 << 2, //this is a callback
-    ROUTINE_VARIADIC = 1 << 3 //this is a FFI function with a va_list interface
+    ROUTINE_FLAG_MARK = 1 << 0, // routine was found during GC mark scan.
+    ROUTINE_FLAG_USED = 1 << 1,
+    ROUTINE_FLAG_CALLBACK = 1 << 2, // is a callback
+    ROUTINE_FLAG_VARIADIC = 1 << 3 // has FFI va_list interface
 };
 
-/* argument is REBRIN */
+#define SET_RIN_FLAG(s,f) \
+    ((s)->flags |= (f))
 
-#define RIN_FUNCPTR(r)          ((r)->info.rot.funcptr)
-#define RIN_LIB(r)              ((r)->info.rot.lib)
-#define RIN_ABI(r)              ((r)->abi)
-#define RIN_FFI_ARG_TYPES(r)    ((r)->arg_types)
-#define RIN_FIXED_ARGS(r)       ((r)->fixed_args)
-#define RIN_ALL_ARGS(r)         ((r)->all_args)
-#define RIN_ARGS_STRUCTS(r)     ((r)->arg_structs)
-#define RIN_EXTRA_MEM(r)        ((r)->extra_mem)
-#define RIN_CIF(r)              ((r)->cif)
-#define RIN_RVALUE(r)           VAL_STRUCT(ARR_HEAD(RIN_ARGS_STRUCTS(r)))
-#define RIN_CLOSURE(r)          ((r)->info.cb.closure)
-#define RIN_DISPATCHER(r)       ((r)->info.cb.dispatcher)
-#define RIN_CALLBACK_FUNC(r)    ((r)->info.cb.func)
+#define CLEAR_RIN_FLAG(s,f) \
+    ((s)->flags &= ~(f))
 
+#define GET_RIN_FLAG(s, f) \
+    LOGICAL((s)->flags & (f))
 
-/* argument is REBFUN */
+// Routine Field Accessors
 
-#define ROUTINE_FUNCPTR(v)          (FUNC_ROUTINE(v)->info.rot.funcptr)
-#define ROUTINE_LIB(v)              (FUNC_ROUTINE(v)->info.rot.lib)
-#define ROUTINE_ABI(v)              (FUNC_ROUTINE(v)->abi)
-#define ROUTINE_FFI_ARG_TYPES(v)    (FUNC_ROUTINE(v)->arg_types)
-#define ROUTINE_FIXED_ARGS(v)       (FUNC_ROUTINE(v)->fixed_args)
-#define ROUTINE_ALL_ARGS(v)         (FUNC_ROUTINE(v)->all_args)
-#define ROUTINE_FFI_ARG_STRUCTS(v)  (FUNC_ROUTINE(v)->arg_structs)
-#define ROUTINE_EXTRA_MEM(v)        (FUNC_ROUTINE(v)->extra_mem)
-#define ROUTINE_CIF(v)              (FUNC_ROUTINE(v)->cif)
-#define ROUTINE_RVALUE(v)           VAL_STRUCT(ARR_HEAD(ROUTINE_FFI_ARG_STRUCTS(v)))
-#define ROUTINE_CLOSURE(v)          (FUNC_ROUTINE(v)->info.cb.closure)
-#define ROUTINE_DISPATCHER(v)       (FUNC_ROUTINE(v)->info.cb.dispatcher)
-#define CALLBACK_FUNC(v)            (FUNC_ROUTINE(v)->info.cb.func)
+#define RIN_FUNCPTR(r) \
+    ((r)->info.rot.funcptr)
 
-#define ROUTINE_FLAGS(s)       ((s)->flags)
-#define ROUTINE_SET_FLAG(s, f) (ROUTINE_FLAGS(s) |= (f))
-#define ROUTINE_CLR_FLAG(s, f) (ROUTINE_FLAGS(s) &= ~(f))
-#define ROUTINE_GET_FLAG(s, f) LOGICAL(ROUTINE_FLAGS(s) & (f))
+#define RIN_LIB(r) \
+    ((r)->info.rot.lib)
 
-#define IS_CALLBACK_ROUTINE(s) ROUTINE_GET_FLAG(s, ROUTINE_CALLBACK)
+#define RIN_ABI(r) \
+    ((r)->abi)
 
-/* argument is REBVAL */
-#define VAL_ROUTINE_FUNCPTR(v)      (VAL_FUNC_ROUTINE(v)->info.rot.funcptr)
-#define VAL_ROUTINE_LIB(v)          (VAL_FUNC_ROUTINE(v)->info.rot.lib)
-#define VAL_ROUTINE_ABI(v)          (VAL_FUNC_ROUTINE(v)->abi)
-#define VAL_ROUTINE_FFI_ARG_TYPES(v)    (VAL_FUNC_ROUTINE(v)->arg_types)
-#define VAL_ROUTINE_FIXED_ARGS(v)   (VAL_FUNC_ROUTINE(v)->fixed_args)
-#define VAL_ROUTINE_ALL_ARGS(v)     (VAL_FUNC_ROUTINE(v)->all_args)
-#define VAL_ROUTINE_FFI_ARG_STRUCTS(v)  (VAL_FUNC_ROUTINE(v)->arg_structs)
-#define VAL_ROUTINE_EXTRA_MEM(v)    (VAL_FUNC_ROUTINE(v)->extra_mem)
-#define VAL_ROUTINE_CIF(v)          (VAL_FUNC_ROUTINE(v)->cif)
+#define RIN_FFI_ARG_TYPES(r) \
+    ((r)->arg_types)
 
-#define VAL_ROUTINE_RVALUE(v) \
-    VAL_STRUCT(ARR_HEAD(VAL_FUNC_ROUTINE(v)->arg_structs))
+#define RIN_FIXED_ARGS(r) \
+    ((r)->fixed_args)
 
-#define VAL_ROUTINE_CLOSURE(v)      (VAL_FUNC_ROUTINE(v)->info.cb.closure)
-#define VAL_ROUTINE_DISPATCHER(v)   (VAL_FUNC_ROUTINE(v)->info.cb.dispatcher)
-#define VAL_CALLBACK_FUNC(v)        (VAL_FUNC_ROUTINE(v)->info.cb.func)
+#define RIN_ALL_ARGS(r) \
+    ((r)->all_args)
+
+#define RIN_FFI_ARG_STRUCTS(r) \
+    ((r)->arg_structs)
+
+#define RIN_EXTRA_MEM(r) \
+    ((r)->extra_mem)
+
+#define RIN_CIF(r) \
+    ((r)->cif)
+
+#define RIN_RVALUE(r) \
+    VAL_STRUCT(ARR_HEAD(RIN_FFI_ARG_STRUCTS(r)))
+
+#define RIN_CLOSURE(r) \
+    ((r)->info.cb.closure)
+
+#define RIN_DISPATCHER(r) \
+    ((r)->info.cb.dispatcher)
+
+#define RIN_CALLBACK_FUNC(r) \
+    ((r)->info.cb.func)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

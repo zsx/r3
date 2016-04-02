@@ -1448,27 +1448,6 @@ REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 
 
 //
-//  Routine_Dispatcher: C
-//
-REB_R Routine_Dispatcher(struct Reb_Frame *f)
-{
-    // All the arguments have been fully specified as REBVALs by the
-    // argument fulfillment process.
-    //
-    REBARR *args = Copy_Values_Len_Shallow(
-        FRM_ARGS_HEAD(f),
-        SPECIFIED,
-        FRM_NUM_ARGS(f)
-    );
-
-    Call_Routine(f->func, args, f->out);
-
-    Free_Array(args);
-    return R_OUT;
-}
-
-
-//
 //  Adapter_Dispatcher: C
 //
 REB_R Adapter_Dispatcher(struct Reb_Frame *f)

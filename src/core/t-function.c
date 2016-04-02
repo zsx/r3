@@ -158,16 +158,20 @@ REBTYPE(Function)
         case SYM_ADDR:
             if (
                 IS_FUNCTION_RIN(value)
-                && IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value))
+                && GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
             ) {
-                SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
+                SET_INTEGER(
+                    D_OUT, cast(REBUPT, RIN_DISPATCHER(VAL_FUNC_ROUTINE(value)))
+                );
                 return R_OUT;
             }
             if (
                 IS_FUNCTION_RIN(value)
-                && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value)))
+                && !GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
             ) {
-                SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
+                SET_INTEGER(
+                    D_OUT, cast(REBUPT, RIN_FUNCPTR(VAL_FUNC_ROUTINE(value)))
+                );
                 return R_OUT;
             }
             break;
@@ -285,7 +289,7 @@ REBNATIVE(func_class_of)
     else if (IS_FUNCTION_COMMAND(value))
         n = 4;
     else if (IS_FUNCTION_RIN(value)) {
-        if (!IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value)))
+        if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK))
             n = 5;
         else
             n = 6;

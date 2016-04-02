@@ -77,16 +77,16 @@ REBTYPE(Library)
                 MANAGE_ARRAY(VAL_LIB_SPEC(D_OUT));
 
                 Append_Value(VAL_LIB_SPEC(D_OUT), arg);
-                VAL_LIB_HANDLE(D_OUT) = (REBLHL*)Make_Node(LIB_POOL);
+                VAL_LIB_HANDLE(D_OUT) = cast(REBLHL*, Make_Node(LIB_POOL));
                 VAL_LIB_FD(D_OUT) = lib;
-                USE_LIB(VAL_LIB_HANDLE(D_OUT));
-                OPEN_LIB(VAL_LIB_HANDLE(D_OUT));
+                SET_LIB_FLAG(VAL_LIB_HANDLE(D_OUT), LIB_FLAG_USED);
+                CLEAR_LIB_FLAG(VAL_LIB_HANDLE(D_OUT), LIB_FLAG_CLOSED);
                 VAL_RESET_HEADER(D_OUT, REB_LIBRARY);
             }
             break;
         case A_CLOSE:
             OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
-            CLOSE_LIB(VAL_LIB_HANDLE(val));
+            SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_CLOSED);
             SET_VOID(D_OUT);
             break;
         default:

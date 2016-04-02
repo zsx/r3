@@ -503,8 +503,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                     if (*raw_addr != 0) // raw-memory is exclusive with extern
                         fail (Error_Invalid_Arg(attr));
 
-                    if (IS_END(attr)
-			|| !IS_BLOCK(attr)
+                    if (IS_END(attr) || !IS_BLOCK(attr)
                         || VAL_LEN_AT(attr) != 2) {
                         fail (Error_Invalid_Arg(attr));
                     }
@@ -518,8 +517,10 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 
                         if (!IS_LIBRARY(lib))
                             fail (Error_Invalid_Arg(attr));
-                        if (IS_CLOSED_LIB(VAL_LIB_HANDLE(lib)))
+
+                        if (GET_LIB_FLAG(VAL_LIB_HANDLE(lib), LIB_FLAG_CLOSED))
                             fail (Error(RE_BAD_LIBRARY));
+
                         if (!ANY_BINSTR(sym))
                             fail (Error_Invalid_Arg(sym));
 
