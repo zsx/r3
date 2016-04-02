@@ -553,7 +553,8 @@ void Unmark_Array(REBARR *array)
 
     RELVAL *val;
     for (val = ARR_HEAD(array); NOT_END(val); ++val)
-        Unmark(val);
+        if (ANY_ARRAY(val))
+            Unmark(val);
 }
 
 

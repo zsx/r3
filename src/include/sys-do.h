@@ -178,7 +178,6 @@ inline static void DROP_CALL(struct Reb_Frame *f) {
 
 typedef struct Reb_Frame Reb_Enumerator;
 
-
 inline static void PUSH_SAFE_ENUMERATOR(
     struct Reb_Frame *f,
     const REBVAL *v

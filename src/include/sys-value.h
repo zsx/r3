@@ -1708,7 +1708,7 @@ inline static REBCNT VAL_FUNC_NUM_PARAMS(const RELVAL *v)
 inline static REBVAL *VAL_FUNC_PARAMS_HEAD(const RELVAL *v)
     { return FUNC_PARAMS_HEAD(VAL_FUNC(v)); }
 
-inline static const REBVAL *VAL_FUNC_PARAM(const RELVAL *v, REBCNT n)
+inline static REBVAL *VAL_FUNC_PARAM(const RELVAL *v, REBCNT n)
     { return FUNC_PARAM(VAL_FUNC(v), n); }
 
 inline static RELVAL *VAL_FUNC_BODY(const RELVAL *v)
@@ -2159,9 +2159,6 @@ enum {
 #define RIN_LIB(r) \
     ((r)->info.rot.lib)
 
-#define RIN_ABI(r) \
-    ((r)->abi)
-
 #define RIN_FFI_ARG_TYPES(r) \
     ((r)->arg_types)
 
@@ -2174,20 +2171,38 @@ enum {
 #define RIN_EXTRA_MEM(r) \
     ((r)->extra_mem)
 
-#define RIN_CIF(r) \
-    ((r)->cif)
-
 #define RIN_RVALUE(r) \
     VAL_STRUCT(ARR_HEAD(RIN_FFI_ARG_STRUCTS(r)))
-
-#define RIN_CLOSURE(r) \
-    ((r)->info.cb.closure)
 
 #define RIN_DISPATCHER(r) \
     ((r)->info.cb.dispatcher)
 
 #define RIN_CALLBACK_FUNC(r) \
     ((r)->info.cb.func)
+
+//
+// The REBVAL structure definition is not dependent on the FFI include files,
+// so it uses void* instead of `ffi_cif*` or `ffi_closure*`.  Hence these
+// are macros and can't be inline functions.
+//
+
+#define RIN_CIF(r) \
+    cast(ffi_cif*, (r)->cif)
+
+#define INIT_RIN_CIF(r, cif_) \
+    ((r)->cif = (cif_), NOOP)
+
+#define RIN_CLOSURE(r) \
+    cast(ffi_closure*, (r)->info.cb.closure)
+
+#define INIT_RIN_CLOSURE(r, closure_) \
+    ((r)->info.cb.closure = (closure_), NOOP)
+
+#define RIN_ABI(r) \
+    cast(ffi_abi, (r)->abi)
+
+#define INIT_RIN_ABI(r, abi_) \
+    ((r)->abi = (abi_), NOOP)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

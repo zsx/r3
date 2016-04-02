@@ -732,18 +732,18 @@ struct Reb_Routine_Info {
             CFUNC *funcptr;
         } rot;
         struct {
-            void *closure;
+            void *closure; // actually `ffi_closure*` (see RIN_CLOSURE)
             REBFUN *func;
             void *dispatcher;
         } cb;
     } info;
-    void *cif;
+    void *cif; // actually `ffi_cif*` (see RIN_CIF)
     REBSER *arg_types; // index 0 is the return type
     REBARR *fixed_args;
     REBARR *arg_structs; // for struct arguments
     REBSER *extra_mem; // extra memory that needs to be freed
     REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
-    REBINT abi;
+    REBINT abi; // actually `ffi_abi` (see RIN_ABI)
 
     //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
 };

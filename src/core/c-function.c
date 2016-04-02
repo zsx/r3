@@ -2177,7 +2177,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         }
     }
 
-    f->param = FUNC_PARAMS_HEAD(f->func);
     f->refine = NULL;
     SET_END(f->out);
 
