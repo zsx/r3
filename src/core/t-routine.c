@@ -687,37 +687,6 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
     return NULL;
 }
 
-static void prep_rvalue(REBRIN *rin, REBVAL *val)
-{
-    ffi_type *rtype = *SER_HEAD(ffi_type*, rin->arg_types);
-
-    switch (rtype->type) {
-        case FFI_TYPE_UINT8:
-        case FFI_TYPE_SINT8:
-        case FFI_TYPE_UINT16:
-        case FFI_TYPE_SINT16:
-        case FFI_TYPE_UINT32:
-        case FFI_TYPE_SINT32:
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_SINT64:
-        case FFI_TYPE_POINTER:
-            SET_INTEGER(val, 0);
-            break;
-        case FFI_TYPE_FLOAT:
-        case FFI_TYPE_DOUBLE:
-            SET_DECIMAL(val, 0);
-            break;
-        case FFI_TYPE_STRUCT:
-            VAL_RESET_HEADER(val, REB_STRUCT);
-            break;
-        case FFI_TYPE_VOID:
-            SET_VOID(val);
-            break;
-        default:
-            fail (Error_Invalid_Arg(val));
-    }
-}
-
 /* convert the return value to rebol
  */
 static void ffi_to_rebol(REBRIN *rin,
@@ -798,20 +767,6 @@ static void ffi_to_rebol(REBRIN *rin,
 //
 REB_R Routine_Dispatcher(struct Reb_Frame *f)
 {
-    REBARR *args = Copy_Values_Len_Shallow(
-        FRM_ARGS_HEAD(f),
-        SPECIFIED, // ARGS_HEAD is REBVAL* not RELVAL...so fully specified
-        FRM_NUM_ARGS(f)
-    );
-
-    REBCNT i = 0;
-    void *rvalue = NULL;
-    REBSER *ser = NULL;
-    void ** ffi_args = NULL;
-    REBINT pop = 0;
-    REBCNT n_fixed = 0; /* number of fixed arguments */
-    REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
-
     REBVAL out = *FUNC_VALUE(f->func); // REVIEW: why is it done this way?
 
     REBRIN *r = FUNC_ROUTINE(f->func);
@@ -820,72 +775,78 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     //
     const REBOOL is_va_list_routine = GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
 
-    REBVAL *va_values = NULL;
-
-    /* save the saved series stack pointer
-     *
-     *  Temporary series could be allocated in process_type_block, recursively.
-     *  Instead of remembering how many times SAVE_SERIES has called, it's easier to
-     *  just remember the initial pointer and restore it later.
-    **/
+    // !!! This code calls GUARD_SERIES, but doesn't remember what series
+    // it guarded.  It remembers the initial pointer and restores it...which
+    // is a bit hacky for reaching beneath the abstraction layer.  It also
+    // means that it could silently cover up cases of stray guards leaking
+    // that were not ones it would have released.
+    //
+    // Comment here said: "Temporary series could be allocated in
+    // process_type_block, recursively."
+    //
     REBCNT series_guard_tail = SER_LEN(GC_Series_Guard);
 
-    if (RIN_LIB(r) != NULL) {
-        // lib is NULL when routine is constructed from address directly
+    if (RIN_LIB(r) == NULL) {
+        //
+        // lib is NULL when routine is constructed from address directly,
+        // so there's nothing to track whether that gets loaded or unloaded
+        //
+    }
+    else {
         if (GET_LIB_FLAG(RIN_LIB(r), LIB_FLAG_CLOSED))
             fail (Error(RE_BAD_LIBRARY));
     }
 
+    // temporary series to hold pointer parameters...must be big enough
+    //
+    REBSER *ffi_args_ptrs = Make_Series(
+        SER_LEN(RIN_FFI_ARG_TYPES(r)), sizeof(void *), MKS_NONE
+    );
+
+    // `ser` is a series of FFI arguments (void*).  It will be NULL if the
+    // function has no arguments.
+    //
+    REBSER *ser_ffi_args;
     if (is_va_list_routine) {
-        va_values = KNOWN(ARR_HEAD(args));
+        //
+        // !!! In the Atronix branch FFI, a variadic routine's parameter
+        // list is a single element long--a BLOCK!.  This block is unpacked
+        // of the fixed and variadic arguments.  This is distinct from the
+        // Ren-C varargs model where the called routine consumes as many
+        // arguments as it wants once called from the callsite.  However,
+        // a BAR! could terminate the variadic, or it could be contained
+        // inside a GROUP!...giving the user choices to work with something
+        // compatible with Ren-C's parameter packs.
+        //
+        REBVAL *va_values = FRM_ARGS_HEAD(f);
         if (!IS_BLOCK(va_values))
             fail (Error_Invalid_Arg(va_values));
 
-        // Note: Must subtract 1 because the [0]th element is reserved in
-        // paramlists for the REBVAL of the function itself.
+        // Number of fixed arguments.  Must subtract 1 because the [0]th
+        // element slot is the return value.
         //
-        n_fixed = ARR_LEN(RIN_FIXED_ARGS(r)) - 1;
+        REBCNT n_fixed = ARR_LEN(RIN_FIXED_ARGS(r)) - 1;
 
-        if ((VAL_LEN_AT(va_values) - n_fixed) % 2)
+        if ((VAL_LEN_AT(va_values) - n_fixed) % 2 != 0)
             fail (Error_Invalid_Arg(va_values));
 
-        ser = Make_Series(
+        ser_ffi_args = Make_Series(
             n_fixed + (VAL_LEN_AT(va_values) - n_fixed) / 2,
             sizeof(void *),
             MKS_NONE
         );
-    } else if ((SER_LEN(RIN_FFI_ARG_TYPES(r))) > 1) {
-        ser = Make_Series(
-            SER_LEN(RIN_FFI_ARG_TYPES(r)) - 1,
-            sizeof(void *),
-            MKS_NONE
-        );
-    }
 
-    /* ser is NULL if the routine takes no arguments */
-    if (ser)
-        ffi_args = SER_HEAD(void*, ser);
-
-    // must be big enough
-    //
-    ffi_args_ptrs = Make_Series(
-        SER_LEN(RIN_FFI_ARG_TYPES(r)), sizeof(void *), MKS_NONE
-    );
-
-    if (is_va_list_routine) {
-        REBCNT j = 1;
         ffi_type **arg_types = NULL;
 
         // reset length
         SET_SERIES_LEN(RIN_FFI_ARG_TYPES(r), n_fixed + 1);
 
-        RIN_ALL_ARGS(r) = Copy_Array_Shallow(
-            RIN_FIXED_ARGS(r), SPECIFIED
-        );
-
+        RIN_ALL_ARGS(r) = Copy_Array_Shallow(RIN_FIXED_ARGS(r), SPECIFIED);
         MANAGE_ARRAY(RIN_ALL_ARGS(r));
 
-        for (i = 1, j = 1; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
+        REBCNT i = 1;
+        REBCNT j = 1;
+        for (; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
             REBVAL *reb_arg = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i - 1));
             if (i <= n_fixed) { /* fix arguments */
                 if (!TYPE_CHECK(
@@ -900,23 +861,22 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                 }
             } else {
                 /* initialize rin->args */
-                REBVAL *reb_type = NULL;
-                REBVAL *v = NULL;
+
                 if (i == VAL_LEN_HEAD(va_values)) /* type is missing */
                     fail (Error_Invalid_Arg(reb_arg));
 
-                reb_type = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i));
+                REBVAL *reb_type = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i));
                 if (!IS_BLOCK(reb_type))
                     fail (Error_Invalid_Arg(reb_type));
 
-                v = Alloc_Tail_Array(RIN_ALL_ARGS(r));
+                REBVAL *v = Alloc_Tail_Array(RIN_ALL_ARGS(r));
                 Val_Init_Typeset(v, 0, SYM_ELLIPSIS); //FIXME, be clear
                 EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
 
                 process_type_block(&out, reb_type, j, FALSE);
                 i ++;
             }
-            ffi_args[j - 1] = arg_to_ffi(
+            *SER_AT(void*, ser_ffi_args, j - 1) = arg_to_ffi(
                 &out, reb_arg, j, SER_HEAD(void*, ffi_args_ptrs)
             );
         }
@@ -930,31 +890,80 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
         assert(j == SER_LEN(RIN_FFI_ARG_TYPES(r)));
 
-        if (FFI_OK != ffi_prep_cif_var(
+        if (
+            FFI_OK != ffi_prep_cif_var(
                 cast(ffi_cif*, RIN_CIF(r)),
                 cast(ffi_abi, RIN_ABI(r)),
-                n_fixed, /* number of fixed arguments */
-                j - 1, /* number of all arguments */
-                arg_types[0], /* return type */
+                n_fixed, // number of fixed arguments
+                j - 1, // number of all arguments
+                arg_types[0], // return type
                 &arg_types[1]
-        )) {
+            )
+        ){
             //RL_Print("Couldn't prep CIF_VAR\n");
             fail (Error_Invalid_Arg(va_values));
         }
     }
+    else if (SER_LEN(RIN_FFI_ARG_TYPES(r)) == 1) {
+        //
+        // 1 means it's just a return value (no arguments)
+        //
+        ser_ffi_args = NULL;
+    }
     else {
+        assert(SER_LEN(RIN_FFI_ARG_TYPES(r)) > 1);
+        ser_ffi_args = Make_Series(
+            SER_LEN(RIN_FFI_ARG_TYPES(r)) - 1,
+            sizeof(void *),
+            MKS_NONE
+        );
+
+        REBCNT i;
         for (i = 1; i < SER_LEN(RIN_FFI_ARG_TYPES(r)); i ++) {
-            ffi_args[i - 1] = arg_to_ffi(
+            *SER_AT(void*, ser_ffi_args, i - 1) = arg_to_ffi(
                 &out,
-                KNOWN(ARR_AT(args, i - 1)),
+                FRM_ARG(f, i), // 1-based access
                 i,
                 SER_HEAD(void*, ffi_args_ptrs)
             );
         }
     }
 
-    prep_rvalue(r, f->out);
-    rvalue = arg_to_ffi(
+    // "prep" the return value
+    //
+    // !!! why is this necessary before the call to the C routine is made?
+    // shouldn't the type and bits be set by the return result conversion
+    // after the call is finished?
+    //
+    ffi_type *rtype = *SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
+    switch (rtype->type) {
+        case FFI_TYPE_UINT8:
+        case FFI_TYPE_SINT8:
+        case FFI_TYPE_UINT16:
+        case FFI_TYPE_SINT16:
+        case FFI_TYPE_UINT32:
+        case FFI_TYPE_SINT32:
+        case FFI_TYPE_UINT64:
+        case FFI_TYPE_SINT64:
+        case FFI_TYPE_POINTER:
+            SET_INTEGER(f->out, 0);
+            break;
+        case FFI_TYPE_FLOAT:
+        case FFI_TYPE_DOUBLE:
+            SET_DECIMAL(f->out, 0);
+            break;
+        case FFI_TYPE_STRUCT:
+            VAL_RESET_HEADER(f->out, REB_STRUCT);
+            break;
+        case FFI_TYPE_VOID:
+            SET_VOID(f->out);
+            break;
+        default:
+            // !!! Was passing uninitialized f->out to Error_Invalid_Arg
+            fail (Error(RE_MISC));
+    }
+
+    void *rvalue = arg_to_ffi(
         &out, f->out, 0, SER_HEAD(void*, ffi_args_ptrs)
     );
 
@@ -964,7 +973,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         cast(ffi_cif*, RIN_CIF(r)),
         RIN_FUNCPTR(r),
         rvalue,
-        ffi_args
+        ser_ffi_args ? SER_HEAD(void*, ser_ffi_args) : NULL
     );
 
     if (IS_ERROR(&Callback_Error))
@@ -979,12 +988,10 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
     Free_Series(ffi_args_ptrs);
 
-    if (ser) Free_Series(ser);
+    if (ser_ffi_args) Free_Series(ser_ffi_args);
 
     //restore the saved series stack pointer
     SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
-
-    Free_Array(args);
 
     // Note: cannot "throw" a Rebol value across an FFI boundary.
 
