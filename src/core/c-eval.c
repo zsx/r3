@@ -143,7 +143,7 @@ static inline REBOOL Specialized_Arg(REBVAL *arg) {
 // function being run.
 //
 // Comments on the definition of Reb_Frame are a good place to start looking
-// to understand what's going on.
+// to understand what's going on.  See %sys-frame.h
 //
 void Do_Core(struct Reb_Frame * const f)
 {
@@ -190,7 +190,7 @@ do_next:
 
     assert(Eval_Count != 0);
 
-    if (--Eval_Count == 0 || Eval_Signals) {
+    if (--Eval_Count == 0 || Eval_Signals || TRUE) {
         //
         // Note that Do_Signals_Throws() may do a recycle step of the GC, or
         // it may spawn an entire interactive debugging session via
@@ -791,7 +791,6 @@ reevaluate:
             // specify values from the source array) won't ever be applied
             // to it, since it only comes into play for IS_RELATIVE values.
             //
-            assert(IS_SPECIFIC(&f->cell.eval));
             f->value = const_KNOWN(&f->cell.eval);
             f->eval_type = Eval_Table[VAL_TYPE(f->value)];
             goto reevaluate; // we don't move index!
@@ -827,22 +826,6 @@ reevaluate:
         //
         assert(IS_END(f->out) || f->lookback);
 
-        // `10 = add 5 5` is `true`
-        // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
-        //
-        // `5 + 5 = 10` is `true`
-        // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
-        //
-        // We may consume the `lookahead` parameter, but if we *were* looking
-        // ahead then it suppresses lookahead on all evaluated arguments.
-        // Need a separate variable to track it.
-        //
-        REBUPT lookahead_flags; // `goto finished` would cross if initialized
-        lookahead_flags =
-            f->lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
-
-        f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
-
         // If a function doesn't want to act as an argument to a function
         // call or an assignment (e.g. `x: print "don't do this"`) we can
         // stop it by looking at the frame above.  Note that if a function
@@ -862,6 +845,23 @@ reevaluate:
             case ET_SET_WORD:
                 fail (Error_Punctuator_Hit(f));
             }
+
+        // `10 = add 5 5` is `true`
+        // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
+        //
+        // `5 + 5 = 10` is `true`
+        // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
+        //
+        // We may consume the `lookahead` parameter, but if we *were* looking
+        // ahead then it suppresses lookahead on all evaluated arguments.
+        // Need a separate variable to track it.
+        //
+        REBUPT lookahead_flags; // `goto finished` would cross if initialized
+        lookahead_flags =
+            f->lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
+
+        // "not a refinement arg, evaluate normally", won't be modified
+        f->refine = m_cast(REBVAL*, BAR_VALUE);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -973,7 +973,8 @@ reevaluate:
                                 = f->arg;
 
                             SET_TRUE(f->arg); // marks refinement used
-                            f->refine = VOID_CELL; // "consume args later"
+                            // "consume args later" (promise not to change)
+                            f->refine = m_cast(REBVAL*, VOID_CELL);
                             goto continue_arg_loop;
                         }
                     }
@@ -1169,8 +1170,8 @@ reevaluate:
                 Context_For_Frame_May_Reify_Core(f);
                 f->arg->payload.varargs.feed.varlist = f->varlist;
 
-                VAL_VARARGS_PARAM(f->arg) = f->param; // type checks on TAKE
-                VAL_VARARGS_ARG(f->arg) = f->arg; // traces back, might change
+                f->arg->payload.varargs.param = f->param; // typecheck on TAKE
+                f->arg->payload.varargs.arg = f->arg; // linkback, might change
                 goto continue_arg_loop;
             }
 
@@ -1338,7 +1339,8 @@ reevaluate:
                         fail (Error_Bad_Refine_Revoke(f));
 
                     SET_FALSE(f->refine);
-                    f->refine = FALSE_VALUE;
+                    // won't be modified
+                    f->refine = m_cast(REBVAL*, FALSE_VALUE);
                     goto continue_arg_loop; // don't type check for optionality
                 }
             }
@@ -1353,7 +1355,7 @@ reevaluate:
             Type_Check_Arg_For_Param_May_Fail(f);
 
         continue_arg_loop: // `continue` might bind to the wrong scope
-            assert(IS_SPECIFIC(f->arg));
+            NOOP;
         }
 
         // There may have been refinements that were skipped because the
@@ -1455,9 +1457,9 @@ reevaluate:
         // into the background.)  The dispatcher may also push functions to
         // the data stack which will be used to process the return result.
         //
-        REBNAT dispatch;
-        dispatch = VAL_FUNC_DISPATCH(FUNC_VALUE(f->func));
-        switch (dispatch(f)) {
+        REBNAT dispatcher; // goto would cross initialization
+        dispatcher = FUNC_DISPATCHER(f->func);
+        switch (dispatcher(f)) {
         case R_OUT: // put sequentially in switch() for jump-table optimization
             break;
 
@@ -1842,7 +1844,13 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // opportunity for the caller to decide pushing a frame is not necessary
     // (e.g. if it's ET_INERT).  Hence it is only set at the end of the loop.
     //
-    assert(f->eval_type == Eval_Table[VAL_TYPE(f->value)]);
+    // Special exemption is made when f->gotten is a function and the symbol
+    // has been set from a WORD!, because f->value is still that word.
+    //
+    assert(
+        f->eval_type == Eval_Table[VAL_TYPE(f->value)]
+        || (f->lookback && f->eval_type == ET_FUNCTION && IS_WORD(f->value))
+    );
 
     // If running the evaluator, then this frame should be the topmost on the
     // frame stack.

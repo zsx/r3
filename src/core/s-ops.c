@@ -182,7 +182,13 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
     // reallocate under a new width) so consider having an EMPTY_BYTE_STRING
     // like EMPTY_ARRAY which is protected to hand back.
     //
-    if (IS_BINARY(val) || VAL_STR_IS_ASCII(val)) {
+    if (
+        IS_BINARY(val)
+        || (
+            VAL_BYTE_SIZE(val)
+            && All_Bytes_ASCII(VAL_BIN_AT(val), VAL_LEN_AT(val))
+        )
+    ){
         //
         // It's BINARY!, or an ANY-STRING! whose codepoints are all values in
         // ASCII (0x00 => 0x7F), hence not needing any UTF-8 encoding.
@@ -212,6 +218,7 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
         {
             REBVAL protect;
             Val_Init_String(&protect, series);
+
             Protect_Value(&protect, FLAGIT(PROT_SET));
 
             // just a string...not /DEEP...shouldn't need to Unmark()

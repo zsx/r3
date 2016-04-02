@@ -442,16 +442,20 @@ void Val_Init_Series_Index_Core(
     VAL_INDEX(value) = index;
     INIT_ARRAY_SPECIFIC(value, specifier);
 
-#if !defined(NDEBUG)
-    if (ANY_ARRAY(value) && specifier == SPECIFIED) {
-        //
-        // If a SPECIFIED is used for an array, then that top level of the
-        // array cannot have any relative values in it.  Catch it here vs.
-        // waiting until a later assertion.
-        //
-        ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
+    if (Is_Array_Series(series)) {
+        SET_VAL_FLAG(value, VALUE_FLAG_ARRAY);
+
+    #if !defined(NDEBUG)
+        if (specifier == SPECIFIED) {
+            //
+            // If a SPECIFIED is used for an array, then that top level of the
+            // array cannot have any relative values in it.  Catch it here vs.
+            // waiting until a later assertion.
+            //
+            ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
+        }
+    #endif
     }
-#endif
 }
 
 
@@ -531,19 +535,6 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     *out = *CTX_VALUE(context);
-}
-
-
-//
-//  Val_Series_Len_At: C
-// 
-// Get length of an ANY-SERIES! value, taking the current index into account.
-// Avoid negative values.
-//
-REBCNT Val_Series_Len_At(const RELVAL *value)
-{
-    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
-    return VAL_LEN_HEAD(value) - VAL_INDEX(value);
 }
 
 

@@ -155,27 +155,16 @@ typedef void* REBNOD; // Just used for linking free nodes
 typedef struct rebol_mem_pool REBPOL;
 
 #include "sys-deci.h"
-#include "sys-value.h"
-#include "sys-series.h"
+
+#include "sys-rebval.h" // REBVAL structure definition
+#include "sys-rebser.h" // REBSER series definition (embeds REBVAL definition)
+
 #include "sys-scan.h"
 #include "sys-stack.h"
 #include "sys-state.h"
-#include "sys-do.h"
+#include "sys-frame.h" // `struct Reb_Frame` definition (also used by value)
 
 #include "reb-struct.h"
-
-//#include "reb-net.h"
-#include "tmp-strings.h"
-#include "tmp-funcargs.h"
-#include "tmp-bootdefs.h"
-#include "tmp-boot.h"
-#include "tmp-errnums.h"
-#include "tmp-sysobj.h"
-#include "tmp-sysctx.h"
-
-#include "host-lib.h"
-
-
 
 //-- Port actions (for native port schemes):
 
@@ -209,6 +198,53 @@ typedef struct rebol_mold {
 
 #define Pop_Molded_String_Len(mo,len) \
     Pop_Molded_String_Core((mo), (len))
+
+
+
+/***********************************************************************
+**
+**  Structures
+**
+***********************************************************************/
+
+// Word Table Structure - used to manage hashed word tables (symbol tables).
+typedef struct rebol_word_table
+{
+    REBARR  *array;     // Global block of words
+    REBSER  *hashes;    // Hash table
+//  REBCNT  count;      // Number of units used in hash table
+} WORD_TABLE;
+
+//-- Measurement Variables:
+typedef struct rebol_stats {
+    REBI64  Series_Memory;
+    REBCNT  Series_Made;
+    REBCNT  Series_Freed;
+    REBCNT  Series_Expanded;
+    REBCNT  Recycle_Counter;
+    REBCNT  Recycle_Series_Total;
+    REBCNT  Recycle_Series;
+    REBI64  Recycle_Prior_Eval;
+    REBCNT  Mark_Count;
+    REBCNT  Free_List_Checked;
+    REBCNT  Blocks;
+    REBCNT  Objects;
+} REB_STATS;
+
+//-- Options of various kinds:
+typedef struct rebol_opts {
+    REBOOL  watch_recycle;
+    REBOOL  watch_series;
+    REBOOL  watch_expand;
+    REBOOL  crash_dump;
+} REB_OPTS;
+
+typedef struct rebol_time_fields {
+    REBCNT h;
+    REBCNT m;
+    REBCNT s;
+    REBCNT n;
+} REB_TIMEF;
 
 
 /***********************************************************************
@@ -489,158 +525,6 @@ enum Reb_Vararg_Op {
 
 /***********************************************************************
 **
-**  Macros
-**
-***********************************************************************/
-
-// Generic defines:
-#define ALIGN(s, a) (((s) + (a)-1) & ~((a)-1))
-
-#define MEM_CARE 5              // Lower number for more frequent checks
-
-#define UP_CASE(c) Upper_Cases[c]
-#define LO_CASE(c) Lower_Cases[c]
-#define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
-#define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
-
-#define SET_SIGNAL(f) SET_FLAG(Eval_Signals, f)
-#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
-#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
-
-
-// All THROWN values have two parts: the REBVAL arg being thrown and
-// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
-// created with plain THROW instead of THROW/NAME then its name is NONE!).
-// You cannot fit both values into a single value's bits of course, but
-// since only one THROWN() value is supposed to exist on the stack at a
-// time the arg part is stored off to the side when one is produced
-// during an evaluation.  It must be processed before another evaluation
-// is performed, and if the GC or DO are ever given a value with a
-// THROWN() bit they will assert!
-//
-// A reason to favor the name as "the main part" is that having the name
-// value ready-at-hand allows easy testing of it to see if it needs
-// to be passed on.  That happens more often than using the arg, which
-// will occur exactly once (when it is caught).
-
-#ifdef NDEBUG
-    #define CONVERT_NAME_TO_THROWN(name,arg) \
-        do { \
-            SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
-            (TG_Thrown_Arg = *(arg)); \
-        } while (0)
-
-    #define CATCH_THROWN(arg,thrown) \
-        do { \
-            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_THROWN); \
-            (*(arg) = TG_Thrown_Arg); \
-        } while (0)
-#else
-    #define CONVERT_NAME_TO_THROWN(name,arg) \
-        Convert_Name_To_Thrown_Debug((name), (arg))
-
-    #define CATCH_THROWN(a,t) \
-        Catch_Thrown_Debug(a, t)
-#endif
-
-#define THROWN(v) \
-    (assert(!IS_END(v)), GET_VAL_FLAG((v), VALUE_FLAG_THROWN))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  VARIABLE ACCESS
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// When a word is bound to a context by an index, it becomes a means of
-// reading and writing from a persistent storage location.  We use "variable"
-// or just VAR to refer to REBVAL slots reached via binding in this way.
-// More narrowly, a VAR that represents an argument to a function invocation
-// may be called an ARG (and an ARG's "persistence" is only as long as that
-// function call is on the stack).
-//
-// All variables can be put in a protected state where they cannot be written.
-// This protection status is marked on the KEY of the context.  Again, more
-// narrowly we may refer to a KEY that represents a parameter to a function
-// as a PARAM.
-//
-// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
-// only const access is needed.  A const pointer to a REBVAL is given back
-// which may be inspected, but the contents not modified.  While a bound
-// variable that is not currently set will return a REB_0 value, trying
-// to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
-//
-// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.
-//
-// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
-// facilities for getting a non-const REBVAL back.  They will fail if the
-// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
-// them against modification.  The TRY variation will fail quietly by
-// returning NULL.
-//
-
-enum {
-    GETVAR_READ_ONLY = 0,
-    GETVAR_UNBOUND_OK = 1 << 0,
-    GETVAR_IS_SETVAR = 1 << 1, // will clear infix bit, so "always writes"!
-};
-
-// !!! The files have not been sorted out in this commit properly to
-// have the externs set up for inline functions...this will not be necessary
-// once that is committed (it's in the specific binding branch).
-//
-#ifdef __cplusplus
-extern "C" {
-#endif
-extern REBVAL *Get_Var_Core(
-    REBOOL *lookback,
-    const RELVAL *any_word,
-    REBCTX *specifier,
-    REBFLGS flags
-);
-#ifdef __cplusplus
-}
-#endif
-
-static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBOOL dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, 0);
-}
-
-static inline const REBVAL *TRY_GET_OPT_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBOOL dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
-}
-
-static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
-    return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
-}
-
-static inline REBVAL *TRY_GET_MUTABLE_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
-    return Get_Var_Core(
-        &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
-    );
-}
-
-
-/***********************************************************************
-**
 **  ASSERTIONS
 **
 **      Assertions are in debug builds only, and use the conventional
@@ -744,6 +628,199 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
         } while (0)
 #endif
 
+
+#include "tmp-funcs.h"
+
+//#include "reb-net.h"
+#include "tmp-strings.h"
+#include "tmp-funcargs.h"
+#include "tmp-bootdefs.h"
+#include "tmp-boot.h"
+#include "tmp-errnums.h"
+#include "tmp-sysobj.h"
+#include "tmp-sysctx.h"
+
+
+/***********************************************************************
+**
+**  Threaded Global Variables
+**
+***********************************************************************/
+
+#ifdef __cplusplus
+    #define PVAR extern "C"
+    #define TVAR extern "C" THREAD
+#else
+    #define PVAR extern
+    #define TVAR extern THREAD
+#endif
+
+#include "sys-globals.h"
+
+#include "sys-series.h" // Series accessor routines (used by value accessors)
+#include "sys-value.h" // Value accessors
+
+#include "host-lib.h"
+
+/***********************************************************************
+**
+**  Macros
+**
+***********************************************************************/
+
+// Generic defines:
+#define ALIGN(s, a) (((s) + (a)-1) & ~((a)-1))
+
+#define MEM_CARE 5              // Lower number for more frequent checks
+
+#define UP_CASE(c) Upper_Cases[c]
+#define LO_CASE(c) Lower_Cases[c]
+#define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
+#define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
+
+#define SET_SIGNAL(f) SET_FLAG(Eval_Signals, f)
+#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
+#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
+
+
+// All THROWN values have two parts: the REBVAL arg being thrown and
+// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
+// created with plain THROW instead of THROW/NAME then its name is NONE!).
+// You cannot fit both values into a single value's bits of course, but
+// since only one THROWN() value is supposed to exist on the stack at a
+// time the arg part is stored off to the side when one is produced
+// during an evaluation.  It must be processed before another evaluation
+// is performed, and if the GC or DO are ever given a value with a
+// THROWN() bit they will assert!
+//
+// A reason to favor the name as "the main part" is that having the name
+// value ready-at-hand allows easy testing of it to see if it needs
+// to be passed on.  That happens more often than using the arg, which
+// will occur exactly once (when it is caught).
+//
+
+#define THROWN(v) \
+    GET_VAL_FLAG((v), VALUE_FLAG_THROWN)
+
+static inline void CONVERT_NAME_TO_THROWN(
+    REBVAL *name, const REBVAL *arg
+){
+    assert(!THROWN(name));
+    SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
+
+    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    TG_Thrown_Arg = *arg;
+}
+
+static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
+    //
+    // Note: arg_out and thrown may be the same pointer
+    //
+    assert(!IS_END(thrown));
+    assert(THROWN(thrown));
+    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
+
+    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    *arg_out = TG_Thrown_Arg;
+    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VARIABLE ACCESS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// When a word is bound to a context by an index, it becomes a means of
+// reading and writing from a persistent storage location.  We use "variable"
+// or just VAR to refer to REBVAL slots reached via binding in this way.
+// More narrowly, a VAR that represents an argument to a function invocation
+// may be called an ARG (and an ARG's "persistence" is only as long as that
+// function call is on the stack).
+//
+// All variables can be put in a protected state where they cannot be written.
+// This protection status is marked on the KEY of the context.  Again, more
+// narrowly we may refer to a KEY that represents a parameter to a function
+// as a PARAM.
+//
+// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
+// only const access is needed.  A const pointer to a REBVAL is given back
+// which may be inspected, but the contents not modified.  While a bound
+// variable that is not currently set will return a REB_0 value, trying
+// to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
+//
+// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
+// instead of fail on unbound variables.
+//
+// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
+// facilities for getting a non-const REBVAL back.  They will fail if the
+// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
+// them against modification.  The TRY variation will fail quietly by
+// returning NULL.
+//
+
+
+enum {
+    GETVAR_READ_ONLY = 0,
+    GETVAR_UNBOUND_OK = 1 << 0,
+    GETVAR_IS_SETVAR = 1 << 1, // will clear infix bit, so "always writes"!
+};
+
+
+// !!! The files have not been sorted out in this commit properly to
+// have the externs set up for inline functions...this will not be necessary
+// once that is committed (it's in the specific binding branch).
+//
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern REBVAL *Get_Var_Core(
+ REBOOL *lookback,
+ const RELVAL *any_word,
+ REBCTX *specifier,
+ REBFLGS flags
+);
+#ifdef __cplusplus
+}
+#endif
+
+
+static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
+    const RELVAL *any_word,
+    REBCTX *specifier
+) {
+    REBOOL dummy;
+    return Get_Var_Core(&dummy, any_word, specifier, 0);
+}
+
+static inline const REBVAL *TRY_GET_OPT_VAR(
+    const RELVAL *any_word,
+    REBCTX *specifier
+) {
+    REBOOL dummy;
+    return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
+}
+
+static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
+    const RELVAL *any_word,
+    REBCTX *specifier
+) {
+    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
+}
+
+static inline REBVAL *TRY_GET_MUTABLE_VAR(
+    const RELVAL *any_word,
+    REBCTX *specifier
+) {
+    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    return Get_Var_Core(
+        &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
+    );
+}
+
+
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS
 #define ALL_64      ((REBU64)0xffffffffffffffffLL)
@@ -836,7 +913,10 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
 **
 ***********************************************************************/
 
-#if !defined(NDEBUG)
+#ifdef NDEBUG
+    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+        SET_VOID(v) // LEGACY() only available in Debug builds
+#else
     #define LEGACY(option) ( \
         (PG_Boot_Phase >= BOOT_ERRORS) \
         && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))) \
@@ -844,53 +924,20 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
 
     #define LEGACY_RUNNING(option) \
         (LEGACY(option) && In_Legacy_Function_Debug())
+
+    // In legacy mode Ren-C still supports the old convention that IFs that
+    // don't take the true branch or a WHILE loop that never runs a body
+    // return a BLANK! value instead of no value.  See implementation notes.
+    //
+    #ifdef NDEBUG
+        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+            SET_VOID(v) // LEGACY() only available in Debug builds
+    #else
+        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+            SET_VOID_UNLESS_LEGACY_NONE_Debug(v, __FILE__, __LINE__);
+    #endif
+
 #endif
-
-
-/***********************************************************************
-**
-**  Structures
-**
-***********************************************************************/
-
-// Word Table Structure - used to manage hashed word tables (symbol tables).
-typedef struct rebol_word_table
-{
-    REBARR  *array;     // Global block of words
-    REBSER  *hashes;    // Hash table
-//  REBCNT  count;      // Number of units used in hash table
-} WORD_TABLE;
-
-//-- Measurement Variables:
-typedef struct rebol_stats {
-    REBI64  Series_Memory;
-    REBCNT  Series_Made;
-    REBCNT  Series_Freed;
-    REBCNT  Series_Expanded;
-    REBCNT  Recycle_Counter;
-    REBCNT  Recycle_Series_Total;
-    REBCNT  Recycle_Series;
-    REBI64  Recycle_Prior_Eval;
-    REBCNT  Mark_Count;
-    REBCNT  Free_List_Checked;
-    REBCNT  Blocks;
-    REBCNT  Objects;
-} REB_STATS;
-
-//-- Options of various kinds:
-typedef struct rebol_opts {
-    REBOOL  watch_recycle;
-    REBOOL  watch_series;
-    REBOOL  watch_expand;
-    REBOOL  crash_dump;
-} REB_OPTS;
-
-typedef struct rebol_time_fields {
-    REBCNT h;
-    REBCNT m;
-    REBCNT s;
-    REBCNT n;
-} REB_TIMEF;
 
 
 /***********************************************************************
@@ -905,22 +952,5 @@ extern const REBACT Value_Dispatch[];
 //extern const REBYTE Upper_Case[];
 //extern const REBYTE Lower_Case[];
 
-
-#include "tmp-funcs.h"
-
-
-/***********************************************************************
-**
-**  Threaded Global Variables
-**
-***********************************************************************/
-
-#ifdef __cplusplus
-    #define PVAR extern "C"
-    #define TVAR extern "C" THREAD
-#else
-    #define PVAR extern
-    #define TVAR extern THREAD
-#endif
-
-#include "sys-globals.h"
+#include "sys-do.h"
+#include "sys-trap.h"

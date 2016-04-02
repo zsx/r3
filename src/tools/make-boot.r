@@ -557,8 +557,13 @@ emit {
 #define ANY_BINSTR(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
+// Accelerated by a value flag
+//
+// #define ANY_ARRAY(v)
+//   LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
+
 #define ANY_ARRAY(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
+    GET_VAL_FLAG((v), VALUE_FLAG_ARRAY)
 
 #define ANY_WORD(v) \
     LOGICAL(VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)
@@ -572,7 +577,6 @@ emit {
 #define ANY_CONTEXT(v) \
     LOGICAL(VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
 }
-
 
 emit {
 /***********************************************************************
@@ -1024,7 +1028,6 @@ write inc/reb-evtypes.h out
 emit-head "Error Structure and Constants" %errnums.h
 
 emit {
-#ifdef VAL_TYPE
 /***********************************************************************
 **
 */  typedef struct REBOL_Error_Vars
@@ -1039,7 +1042,6 @@ for-each word words-of ob/standard/error [
     emit-line/code "REBVAL " word ";"
 ]
 emit {^} ERROR_VARS;
-#endif
 }
 
 emit {

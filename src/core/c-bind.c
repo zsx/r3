@@ -246,11 +246,6 @@ static void Bind_Values_Inner_Loop(
         if (type_bit & bind_types) {
             REBCNT n = binds[VAL_WORD_CANON(value)];
             if (n != 0) {
-                //
-                // Word is in context, bind it.  Note that VAL_RESET_HEADER
-                // is a macro and VAL_TYPE is a macro, so we cannot directly
-                // initialize the header while also needing the type.
-                //
                 assert(ANY_WORD(value));
                 assert(n <= CTX_LEN(context));
 
@@ -438,12 +433,9 @@ static void Bind_Relative_Inner_Loop(
             if ((n = binds[VAL_WORD_CANON(value)]) != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
-                // (clear out existing header flags first).  Note that
-                // VAL_RESET_HEADER is a macro and it's not safe to pass
-                // it VAL_TYPE(value) directly while initializing value...
+                // (clear out existing header flags first).
                 //
-                enum Reb_Kind kind = VAL_TYPE(value);
-                VAL_RESET_HEADER(value, kind);
+                VAL_RESET_HEADER(value, VAL_TYPE(value));
                 SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
                 INIT_WORD_FUNC(value, AS_FUNC(paramlist)); // incomplete func
                 INIT_WORD_INDEX(value, n);

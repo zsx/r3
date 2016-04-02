@@ -544,7 +544,7 @@ REBTYPE(Context)
 
         // `make object! 10` - currently not prohibited for any context type
         //
-        if (IS_NUMBER(arg)) {
+        if (ANY_NUMBER(arg)) {
             REBINT n = Int32s(arg, 0);
 
             // !!! Temporary!  Ultimately SELF will be a user protocol.
@@ -696,7 +696,7 @@ REBTYPE(Context)
 
     case A_TAIL_Q:
         if (IS_OBJECT(value)) {
-            SET_LOGIC(D_OUT, CTX_LEN(VAL_CONTEXT(value)) == 0);
+            SET_LOGIC(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
             return R_OUT;
         }
         fail (Error_Illegal_Action(VAL_TYPE(value), action));

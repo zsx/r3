@@ -53,11 +53,11 @@
 // REBYTE and dodge the comparison if so.
 //
 
-#define MAX_SERIES_WIDE 0x100 \
+#define MAX_SERIES_WIDE 0x100
 
-#define SER_SET_WIDE(s,w) \
-    ((s)->info.bits = ((s)->info.bits & 0xffff) | (w << 16))
-
+inline static void SER_SET_WIDE(REBSER *s, REBCNT w) {
+    s->info.bits = (s->info.bits & 0xffff) | (w << 16);
+}
 
 //
 // Bias is empty space in front of head:
@@ -66,14 +66,19 @@
 #define SER_BIAS(s) \
     cast(REBCNT, ((s)->content.dynamic.bias >> 16) & 0xffff)
 
-#define MAX_SERIES_BIAS 0x1000 \
+#define MAX_SERIES_BIAS 0x1000
 
-#define SER_SET_BIAS(s,b) \
-    ((s)->content.dynamic.bias = \
-        ((s)->content.dynamic.bias & 0xffff) | (b << 16))
+inline static void SER_SET_BIAS(REBSER *s, REBCNT bias) {
+    s->content.dynamic.bias =
+        (s->content.dynamic.bias & 0xffff) | (bias << 16);
+}
 
 #define SER_ADD_BIAS(s,b) \
     ((s)->content.dynamic.bias += (b << 16))
 
 #define SER_SUB_BIAS(s,b) \
     ((s)->content.dynamic.bias -= (b << 16))
+
+inline static size_t SER_TOTAL(REBSER *s) {
+    return (SER_REST(s) + SER_BIAS(s)) * SER_WIDE(s);
+}

@@ -251,11 +251,10 @@
     }
 #endif // HAVE_LIBFFI_AVAILABLE
 
-#define QUEUE_EXTRA_MEM(v,p) \
-    do { \
-        *SER_AT(void*, (v)->extra_mem, SER_LEN((v)->extra_mem)) = (p); \
-        EXPAND_SERIES_TAIL((v)->extra_mem, 1);\
-    } while (0)
+inline static void QUEUE_EXTRA_MEM(REBRIN *r, void *p) {
+    *SER_AT(void*, r->extra_mem, SER_LEN(r->extra_mem)) = p;
+    EXPAND_SERIES_TAIL(r->extra_mem, 1);
+}
 
 static ffi_type * struct_type_to_ffi [STRUCT_TYPE_MAX];
 
@@ -291,7 +290,7 @@ REBINT CT_Routine(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     if (mode >= 0) {
-        return VAL_ROUTINE_INFO(a) == VAL_ROUTINE_INFO(b);
+        return VAL_FUNC_ROUTINE(a) == VAL_FUNC_ROUTINE(b);
     }
     return -1;
 }
@@ -329,7 +328,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
     //printf("allocated stype at: %p\n", stype);
     if (make) {//called by Routine constructor
         stype = OS_ALLOC(ffi_type);
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
+        QUEUE_EXTRA_MEM(VAL_FUNC_ROUTINE(out), stype);
     } else {
         REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
         SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
@@ -344,7 +343,7 @@ static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
     if (make) {
         stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
         //printf("allocated stype elements at: %p\n", stype->elements);
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
+        QUEUE_EXTRA_MEM(VAL_FUNC_ROUTINE(out), stype->elements);
     }
     else {
         REBSER *ser = Make_Series(
@@ -394,12 +393,12 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
     REBVAL *rebol_args = NULL;
     if (idx) {
         // when it's first call for return type, all_args has not been initialized yet
-        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)
+        if (ROUTINE_GET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_VARIADIC)
             && idx > ARR_LEN(VAL_ROUTINE_FIXED_ARGS(out))) {
             rebol_args = KNOWN(ARR_HEAD(VAL_ROUTINE_ALL_ARGS(out)));
         }
         else {
-            rebol_args = KNOWN(ARR_HEAD(VAL_ROUTINE_PARAMLIST(out)));
+            rebol_args = KNOWN(ARR_HEAD(VAL_FUNC_PARAMLIST(out)));
         }
     }
 
@@ -504,10 +503,10 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
 
     struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
-    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARIADIC))
+    if (ROUTINE_GET_FLAG(VAL_FUNC_ROUTINE(rot), ROUTINE_VARIADIC))
         rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
     else
-        rebol_args = VAL_ROUTINE_PARAMLIST(rot);
+        rebol_args = VAL_FUNC_PARAMLIST(rot);
 
     switch (args[idx]->type) {
         case FFI_TYPE_UINT8:
@@ -608,11 +607,10 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                 case REB_FUNCTION:
                     if (
                         NOT(IS_FUNCTION_RIN(arg))
-                        || NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(arg)))
+                        || NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(arg)))
                     ) {
                         fail (Error(RE_ONLY_CALLBACK_PTR));
                     }
-
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
                     return &ptrs[idx];
                 default:
@@ -797,7 +795,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
 
     // `is_va_list_routine` is optimized out, but hints static analyzer
     const REBOOL is_va_list_routine
-        = ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARIADIC);
+        = ROUTINE_GET_FLAG(FUNC_ROUTINE(rot), ROUTINE_VARIADIC);
 
     REBVAL *va_values = NULL;
 
@@ -901,7 +899,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         }
         if (ROUTINE_CIF(rot) == NULL) {
             ROUTINE_CIF(rot) = OS_ALLOC(ffi_cif);
-            QUEUE_EXTRA_MEM(ROUTINE_INFO(rot), ROUTINE_CIF(rot));
+            QUEUE_EXTRA_MEM(FUNC_ROUTINE(rot), ROUTINE_CIF(rot));
         }
 
         /* series data could have moved */
@@ -932,7 +930,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         }
     }
 
-    prep_rvalue(ROUTINE_INFO(rot), ret);
+    prep_rvalue(FUNC_ROUTINE(rot), ret);
     rvalue = arg_to_ffi(
         &out, ret, 0, SER_HEAD(void*, ffi_args_ptrs)
     );
@@ -950,7 +948,7 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         fail (VAL_CONTEXT(&Callback_Error));
 
     ffi_to_rebol(
-        ROUTINE_INFO(rot),
+        FUNC_ROUTINE(rot),
         SER_HEAD(ffi_type*, ROUTINE_FFI_ARG_TYPES(rot))[0],
         rvalue,
         ret
@@ -1056,7 +1054,7 @@ static void callback_dispatcher(
     PUSH_GUARD_ARRAY(array);
 
     elem = Alloc_Tail_Array(array);
-    *elem = *FUNC_VALUE(RIN_FUNC(rin));
+    *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
 
     for (i = 0; i < cif->nargs; i ++) {
         elem = Alloc_Tail_Array(array);
@@ -1224,17 +1222,17 @@ REBOOL MT_Routine(
     MANAGE_ARRAY(body_array);
     assert(IS_BLANK(VAL_FUNC_BODY(out)));
 
-    ARR_SERIES(body_array)->misc.dispatch = &Routine_Dispatcher;
-    assert(VAL_FUNC_DISPATCH(out) == &Routine_Dispatcher);
+    ARR_SERIES(body_array)->misc.dispatcher = &Routine_Dispatcher;
+    assert(VAL_FUNC_DISPATCHER(out) == &Routine_Dispatcher);
 
     VAL_RESET_HEADER(VAL_FUNC_BODY(out), REB_HANDLE);
     VAL_HANDLE_DATA(VAL_FUNC_BODY(out)) = cast(REBRIN*, Make_Node(RIN_POOL));
 
-    memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
-    ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);
+    memset(VAL_FUNC_ROUTINE(out), 0, sizeof(REBRIN));
+    ROUTINE_SET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_USED);
 
     if (is_callback) {
-        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);
+        ROUTINE_SET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_CALLBACK);
     }
 
 #define N_ARGS 8
@@ -1243,7 +1241,7 @@ REBOOL MT_Routine(
 
     out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
 
-    VAL_ROUTINE_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
+    VAL_FUNC_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
 
     REBSER *ffi_arg_types = Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
     assert(GET_SER_FLAG(ffi_arg_types, SERIES_FLAG_HAS_DYNAMIC));
@@ -1286,7 +1284,7 @@ REBOOL MT_Routine(
     // they are not linked somehow into the transitive closure of the roots.
     //
     MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_TYPES(out));
-    MANAGE_ARRAY(VAL_ROUTINE_PARAMLIST(out));
+    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(out));
     MANAGE_ARRAY(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
@@ -1297,9 +1295,7 @@ REBOOL MT_Routine(
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
 
         REBVAL lib;
-        DO_NEXT_MAY_THROW(
-            indexor, &lib, VAL_ARRAY(data), 1, specifier
-        );
+        indexor = DO_NEXT_MAY_THROW(&lib, VAL_ARRAY(data), 1, specifier);
 
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&lib));
@@ -1370,9 +1366,7 @@ REBOOL MT_Routine(
             fail (Error_Invalid_Arg(KNOWN(&blk[0])));
 
         REBVAL fun;
-        DO_NEXT_MAY_THROW(
-            indexor, &fun, VAL_ARRAY(data), 1, specifier
-        );
+        indexor = DO_NEXT_MAY_THROW(&fun, VAL_ARRAY(data), 1, specifier);
 
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&fun));
@@ -1384,7 +1378,7 @@ REBOOL MT_Routine(
         if (indexor != END_FLAG)
             fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
 
-        //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
+        //printf("RIN: %p, func: %p\n", VAL_FUNC_ROUTINE(out), &blk[1]);
     }
 
     blk = VAL_ARRAY_AT(&blk[0]);
@@ -1399,33 +1393,33 @@ REBOOL MT_Routine(
                 {
                     REBVAL *v = NULL;
                     if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
+                        if (ROUTINE_GET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_VARIADIC)) {
                             fail (Error_Invalid_Arg(KNOWN(blk)));
                             /* duplicate ellipsis */
                         }
-                        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC);
+                        ROUTINE_SET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_VARIADIC);
 
                         // Change the argument list to be a block
                         VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(
-                            VAL_ROUTINE_PARAMLIST(out), SPECIFIED
+                            VAL_FUNC_PARAMLIST(out), SPECIFIED
                         );
                         MANAGE_ARRAY(VAL_ROUTINE_FIXED_ARGS(out));
                         Remove_Series(
-                            ARR_SERIES(VAL_ROUTINE_PARAMLIST(out)),
+                            ARR_SERIES(VAL_FUNC_PARAMLIST(out)),
                             1,
-                            ARR_LEN(VAL_ROUTINE_PARAMLIST(out))
+                            ARR_LEN(VAL_FUNC_PARAMLIST(out))
                         );
-                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
+                        v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
                         Val_Init_Typeset(
                             v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
                         );
                     }
                     else {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
+                        if (ROUTINE_GET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_VARIADIC)) {
                             //... has to be the last argument
                             fail (Error_Invalid_Arg(KNOWN(blk)));
                         }
-                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
+                        v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
                         Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
                         EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
 
@@ -1526,10 +1520,10 @@ REBOOL MT_Routine(
         }
     }
 
-    if (!ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
+    if (!ROUTINE_GET_FLAG(VAL_FUNC_ROUTINE(out), ROUTINE_VARIADIC)) {
         VAL_ROUTINE_CIF(out) = OS_ALLOC(ffi_cif);
         //printf("allocated cif at: %p\n", VAL_ROUTINE_CIF(out));
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), VAL_ROUTINE_CIF(out));
+        QUEUE_EXTRA_MEM(VAL_FUNC_ROUTINE(out), VAL_ROUTINE_CIF(out));
 
         /* series data could have moved */
         args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(out));
@@ -1559,7 +1553,7 @@ REBOOL MT_Routine(
                 cast(ffi_closure*, VAL_ROUTINE_CLOSURE(out)),
                 cast(ffi_cif*, VAL_ROUTINE_CIF(out)),
                 callback_dispatcher,
-                VAL_ROUTINE_INFO(out),
+                VAL_FUNC_ROUTINE(out),
                 VAL_ROUTINE_DISPATCHER(out)
             );
 

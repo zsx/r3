@@ -430,8 +430,8 @@ REBNATIVE(backtrace)
             if (
                 first
                 && (
-                    FUNC_DISPATCH(frame->func) == &N_pause
-                    || FUNC_DISPATCH(frame->func) == &N_breakpoint
+                    FUNC_DISPATCHER(frame->func) == &N_pause
+                    || FUNC_DISPATCHER(frame->func) == &N_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -457,10 +457,10 @@ REBNATIVE(backtrace)
         // function frames to do binding in the REPL with.
         //
         if (!pending) {
-            REBCNT temp_num;
             REBVAL temp_val;
             SET_INTEGER(&temp_val, number);
 
+            REBCNT temp_num;
             if (
                 Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != frame
                 || temp_num != number
@@ -660,8 +660,8 @@ struct Reb_Frame *Frame_For_Stack_Level(
 
         if (first) {
             if (
-                FUNC_DISPATCH(frame->func) == &N_pause
-                || FUNC_DISPATCH(frame->func) == N_breakpoint
+                FUNC_DISPATCHER(frame->func) == &N_pause
+                || FUNC_DISPATCHER(frame->func) == N_breakpoint
             ) {
                 // this is considered the "0".  Return it only if 0 was requested
                 // specifically (you don't "count down to it");

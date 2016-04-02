@@ -472,11 +472,9 @@ REBNATIVE(break)
     REFINE(1, with);
     PARAM(2, value);
 
-    REBVAL *value = REF(with) ? ARG(value) : VOID_CELL;
-
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
     return R_OUT_IS_THROWN;
 }
@@ -635,11 +633,11 @@ REBNATIVE(catch)
         if (
             (
                 REF(any)
-                && (!IS_FUNCTION(D_OUT) || VAL_FUNC_DISPATCH(D_OUT) != &N_quit)
+                && (!IS_FUNCTION(D_OUT) || VAL_FUNC_DISPATCHER(D_OUT) != &N_quit)
             )
             || (
                 REF(quit)
-                && (IS_FUNCTION(D_OUT) && VAL_FUNC_DISPATCH(D_OUT) == &N_quit)
+                && (IS_FUNCTION(D_OUT) && VAL_FUNC_DISPATCHER(D_OUT) == &N_quit)
             )
         ) {
             goto was_caught;
@@ -875,11 +873,9 @@ REBNATIVE(continue)
     REFINE(1, with);
     PARAM(2, value);
 
-    REBVAL *value = REF(with) ? ARG(value) : VOID_CELL;
-
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
-    CONVERT_NAME_TO_THROWN(D_OUT, value);
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
     return R_OUT_IS_THROWN;
 }
@@ -937,8 +933,7 @@ REBNATIVE(do)
         if (REF(next)) {
             REBIXO indexor = VAL_INDEX(value);
 
-            DO_NEXT_MAY_THROW(
-                indexor, // updated
+            indexor = DO_NEXT_MAY_THROW(
                 D_OUT,
                 VAL_ARRAY(value),
                 indexor,
@@ -1276,11 +1271,10 @@ REBNATIVE(fail)
             RELVAL *item = VAL_ARRAY_AT(reason);
 
             REBVAL pending_delimiter;
+            SET_END(&pending_delimiter);
 
             REB_MOLD mo;
             CLEARS(&mo);
-
-            SET_END(&pending_delimiter);
 
             // Check to make sure we're only drawing from the limited types
             // we accept (reserving room for future dialect expansion)

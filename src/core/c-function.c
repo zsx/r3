@@ -762,7 +762,7 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 //
 REBFUN *Make_Function(
     REBARR *paramlist,
-    REBNAT dispatch // native C function called by Do_Core
+    REBNAT dispatcher // native C function called by Do_Core
 ) {
     ASSERT_ARRAY_MANAGED(paramlist);
     assert(IS_FUNCTION(ARR_HEAD(paramlist))); // !!! body not fully formed...
@@ -786,7 +786,7 @@ REBFUN *Make_Function(
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    ARR_SERIES(body_holder)->misc.dispatch = dispatch;
+    ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
     // Note: used to set the keys of natives as read-only so that the debugger
     // couldn't manipulate the values in a native frame out from under it,
@@ -993,7 +993,7 @@ REBFUN *Make_Plain_Function_May_Fail(
     //
     RELVAL *body = FUNC_BODY(fun);
     VAL_RESET_HEADER(body, REB_BLOCK);
-    body->payload.any_series.series = ARR_SERIES(body_array);
+    INIT_VAL_ARRAY(body, body_array);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     body->payload.any_series.target.relative = fun;
@@ -1270,7 +1270,7 @@ void Clonify_Function(REBVAL *value)
     if (!IS_FUNCTION(value) || !IS_FUNCTION_PLAIN(value))
         return;
 
-    if (IS_FUNC_DURABLE(value))
+    if (IS_FUNC_DURABLE(VAL_FUNC(value)))
         return;
 
     // No need to modify the spec or header.  But we do need to copy the
@@ -1309,14 +1309,14 @@ void Clonify_Function(REBVAL *value)
     // in this slot
     //
     VAL_RESET_HEADER(body, REB_BLOCK);
-    body->payload.any_series.series
-        = ARR_SERIES(
-            Copy_Rerelativized_Array_Deep_Managed(
-                VAL_ARRAY(FUNC_BODY(original_fun)),
-                original_fun,
-                AS_FUNC(paramlist)
-            )
-        );
+    INIT_VAL_ARRAY(
+        body,
+        Copy_Rerelativized_Array_Deep_Managed(
+            VAL_ARRAY(FUNC_BODY(original_fun)),
+            original_fun,
+            AS_FUNC(paramlist)
+        )
+    );
     VAL_INDEX(body) = 0;
 
     // Remap references in the body from the original function to new
@@ -1338,16 +1338,18 @@ REB_R Action_Dispatcher(struct Reb_Frame *f)
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
     assert(type < REB_MAX);
 
+    REBCNT action_num = VAL_INT32(FUNC_BODY(f->func));
+
     // Handle special datatype test cases (eg. integer?).
     //
-    if (FUNC_ACT(f->func) < REB_MAX_0) {
-        if (TO_0_FROM_KIND(type) == FUNC_ACT(f->func))
+    if (action_num < REB_MAX_0) {
+        if (TO_0_FROM_KIND(type) == action_num)
             return R_TRUE;
 
         return R_FALSE;
     }
 
-    if (FUNC_ACT(f->func) == A_MAKE || FUNC_ACT(f->func) == A_TO) {
+    if (action_num == A_MAKE || action_num == A_TO) {
         //
         // !!! These should not be "actions"...but go through the MT_xxx
         // routine for "Make Type".  The first value is allowed to be either
@@ -1362,9 +1364,9 @@ REB_R Action_Dispatcher(struct Reb_Frame *f)
     }
 
     REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];
-    if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(f->func)));
+    if (!action) fail (Error_Illegal_Action(type, action_num));
 
-    return action(f, FUNC_ACT(f->func));
+    return action(f, action_num);
 }
 
 
@@ -1407,7 +1409,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 {
-    REBVAL *exemplar = FUNC_EXEMPLAR(f->func);
+    REBVAL *exemplar = KNOWN(FUNC_BODY(f->func));
     f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
     f->exit_from = VAL_CONTEXT_EXIT_FROM(exemplar);
 
@@ -1914,7 +1916,7 @@ REBNATIVE(adapt)
 
     REBVAL *block = Alloc_Tail_Array(adaptation);
     VAL_RESET_HEADER(block, REB_BLOCK);
-    block->payload.any_series.series = ARR_SERIES(prelude);
+    INIT_VAL_ARRAY(block, prelude);
     VAL_INDEX(block) = 0;
     SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
     INIT_ARRAY_RELATIVE(block, under);
@@ -1923,7 +1925,7 @@ REBNATIVE(adapt)
 
     RELVAL *body = FUNC_BODY(fun);
     VAL_RESET_HEADER(body, REB_BLOCK);
-    body->payload.any_series.series = ARR_SERIES(adaptation);
+    INIT_VAL_ARRAY(body, adaptation);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_ARRAY_RELATIVE(body, under);
@@ -2047,7 +2049,6 @@ REBNATIVE(hijack)
         //
     #if !defined(NDEBUG)
         if (IS_FUNCTION_PLAIN(victim)) {
-            assert(IS_RELATIVE(victim));
             RELVAL *block = ARR_HEAD(victim->payload.function.body);
             assert(IS_BLOCK(block));
             assert(VAL_INDEX(block) == 0);
@@ -2064,9 +2065,9 @@ REBNATIVE(hijack)
 
     assert(ARR_LEN(victim->payload.function.body) == 1);
     *ARR_HEAD(victim->payload.function.body) = *hijacker;
-    ARR_SERIES(victim->payload.function.body)->misc.dispatch
+    ARR_SERIES(victim->payload.function.body)->misc.dispatcher
         = &Hijacker_Dispatcher;
-    VAL_FUNC_EXIT_FROM(victim) = NULL;
+    victim->payload.function.exit_from = NULL;
 
     // See %sysobj.r for `hijacked-meta:` object template
 
@@ -2177,7 +2178,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         f->param = FUNC_PARAMS_HEAD(f->func); // !!! Review
     }
 
-    f->refine = TRUE_VALUE;
     f->cell.subfeed = NULL;
 
     if (opt_def) {
@@ -2198,6 +2198,8 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         }
     }
 
+    f->param = FUNC_PARAMS_HEAD(f->func);
+    f->refine = NULL;
     SET_END(f->out);
 
     Do_Core(f);
@@ -2268,15 +2270,6 @@ REBNATIVE(apply)
 #if !defined(NDEBUG)
 
 //
-//  FUNC_PARAM_Debug: C
-//
-REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
-    assert(n != 0 && n < ARR_LEN(FUNC_PARAMLIST(f)));
-    return SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), (n));
-}
-
-
-//
 //  VAL_FUNC_Debug: C
 //
 REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
@@ -2289,7 +2282,7 @@ REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
     assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
 
     assert(VAL_FUNC_BODY(v) == FUNC_BODY(func));
-    assert(VAL_FUNC_DISPATCH(v) == FUNC_DISPATCH(func));
+    assert(VAL_FUNC_DISPATCHER(v) == FUNC_DISPATCHER(func));
 
     // set VALUE_FLAG_LINE on both headers for sake of comparison, we allow
     // it to be different from the value stored in frame.

@@ -379,12 +379,9 @@ REBINT PD_Map(REBPVS *pvs)
     );
 
     if (n == 0)
-        val = VOID_CELL;
-    else
-        val = KNOWN(
-            ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
-        );
+        return PE_NONE;
 
+    val = KNOWN(ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1));
     if (IS_VOID(val))
         return PE_NONE;
 
@@ -683,7 +680,7 @@ REBTYPE(Map)
 //      } else if (IS_BLANK(arg)) {
 //          n = 3; // just a start
         // make map! 10000
-        } else if (IS_NUMBER(arg)) {
+        } else if (ANY_NUMBER(arg)) {
             if (action == A_TO) fail (Error_Invalid_Arg(arg));
             n = Int32s(arg, 0);
         }

@@ -72,10 +72,7 @@ void Init_Stacks(REBCNT size)
         DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
 
         SET_TRASH_SAFE(ARR_HEAD(DS_Array));
-
-    #if !defined(NDEBUG)
         MARK_CELL_UNWRITABLE_IF_DEBUG(ARR_HEAD(DS_Array));
-    #endif
 
         // The END marker will signal DS_PUSH that it has run out of space,
         // and it will perform the allocation at that time.
@@ -455,7 +452,7 @@ REBFUN *Find_Underlying_Func(
         // time of creation, to cache the summation of the specilized args.
         //
         if (IS_FUNCTION_SPECIALIZER(value)) {
-            *exemplar_out = VAL_CONTEXT(VAL_FUNC_EXEMPLAR(value));
+            *exemplar_out = VAL_CONTEXT(VAL_FUNC_BODY(value));
             return VAL_FUNC(CTX_FRAME_FUNC_VALUE(*exemplar_out));
         }
 
@@ -528,7 +525,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     f->param = FUNC_PARAMS_HEAD(under);
 
     REBVAL *slot;
-    if (IS_FUNC_DURABLE(FUNC_VALUE(under))) {
+    if (IS_FUNC_DURABLE(under)) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -542,6 +539,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         f->varlist = Make_Array(num_args + 1);
         SET_ARRAY_LEN(f->varlist, num_args + 1);
         SET_END(ARR_AT(f->varlist, num_args + 1));
+        MARK_CELL_UNWRITABLE_IF_DEBUG(ARR_AT(f->varlist, num_args + 1));
         SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
@@ -611,6 +609,8 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
             --num_args;
         }
     }
+
+    assert(IS_END(slot));
 
     f->func = VAL_FUNC(f->gotten);
     f->exit_from = VAL_FUNC_EXIT_FROM(f->gotten);
@@ -822,7 +822,7 @@ REBVAL *FRM_ARG_Debug(struct Reb_Frame *frame, REBCNT n)
 
     var = &frame->arg[n - 1];
     assert(!THROWN(var));
-    assert(!IS_RELATIVE(var));
+    assert(NOT(GET_VAL_FLAG(var, VALUE_FLAG_RELATIVE)));
 
     return var;
 }

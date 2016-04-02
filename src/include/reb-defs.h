@@ -75,6 +75,55 @@
     // on the C stack.  It can be blown away by a longjmp during fail().  It
     // is not aliased as REBFRM to help it stand out as being a non-series
     // and non-value type.
+
+    // The C build simply defines a REBIXO as a synonym for a pointer-sized int.
+    // In the C++ build, the indexor is a more restrictive class...which redefines
+    // a subset of operations for integers but does *not* implicitly cast to one
+    // Hence if a THROWN_FLAG, END_FLAG, VALIST_FLAG etc. is used with integer
+    // math or put into an `int` variable accidentally, this will be caught.
+    //
+    // Because indexors are not stored in REBVALs or places where memory usage
+    // outweighs the concern of the native performance, they use `REBUPT`
+    // instead of REBCNT.  The C++ build maintains that size for its class too.
+    //
+    // !!! The feature is now selectively enabled, temporarily in order to make
+    // the binding in Ren-Cpp binary compatible regardless of whether the build
+    // was done with C or C++
+    //
+
+    #define END_FLAG 0x80000000  // end of block as index
+    #define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
+
+    // The VALIST_FLAG is the index used when a C va_list pointer is the input.
+    // Because access to a `va_list` is strictly increasing through va_arg(),
+    // there is no way to track an index; fetches are indexed automatically
+    // and sequentially without possibility for mutation of the list.  Should
+    // this index be used it will always be the index of a DO_NEXT until either
+    // an END_FLAG or a THROWN_FLAG is reached.
+    //
+    #define VALIST_FLAG (END_FLAG - 0xBD)
+
+    // This is not an actual DO state flag that you would see in a Reb_Frame's
+    // index, but it is a value that is returned in case a non-continuable
+    // DO_NEXT call is made on va_lists.  One can make the observation that it
+    // is incomplete only--not resume.
+    //
+    #define VALIST_INCOMPLETE_FLAG (END_FLAG - 0xAE)
+
+    #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
+        typedef REBUPT REBIXO;
+    #else
+        #include "sys-do-cpp.h"
+
+        #if 0
+            typedef Reb_Indexor REBIXO;
+        #else
+            typedef REBUPT REBIXO;
+        #endif
+    #endif
+
+    struct Reb_Path_Value_State;
+    typedef struct Reb_Path_Value_State REBPVS;
 #else
     // The %reb-xxx.h files define structures visible to host code (client)
     // which don't also require pulling in all of the %sys-xxx.h files and

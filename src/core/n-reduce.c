@@ -73,8 +73,7 @@ REBOOL Reduce_Array_Throws(
 
     while (indexor != END_FLAG) {
         REBVAL reduced;
-        DO_NEXT_MAY_THROW(indexor, &reduced, array, indexor, specifier);
-
+        indexor = DO_NEXT_MAY_THROW(&reduced, array, indexor, specifier);
         if (indexor == THROWN_FLAG) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
@@ -197,12 +196,14 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
         else {
             REBVAL reduced;
-            DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor, specifier);
+            indexor = DO_NEXT_MAY_THROW(&reduced, block, indexor, specifier);
+
             if (indexor == THROWN_FLAG) {
                 *out = reduced;
                 DS_DROP_TO(dsp_orig);
                 return TRUE;
             }
+
             DS_PUSH(&reduced);
         }
     }

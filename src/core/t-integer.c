@@ -330,8 +330,7 @@ REBTYPE(Integer)
                     return T_Decimal(frame_, action);
                 }
                 if (IS_MONEY(val2)) {
-                    VAL_MONEY_AMOUNT(val) = int_to_deci(VAL_INT64(val));
-                    VAL_RESET_HEADER(val, REB_MONEY);
+                    SET_MONEY(val, int_to_deci(VAL_INT64(val)));
                     return T_Money(frame_, action);
                 }
                 if (n > 0) {
@@ -423,10 +422,9 @@ REBTYPE(Integer)
         n = Get_Round_Flags(frame_);
         if (D_REF(2)) { // to
             if (IS_MONEY(val2)) {
-                VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+                SET_MONEY(D_OUT, Round_Deci(
                     int_to_deci(num), n, VAL_MONEY_AMOUNT(val2)
-                );
-                VAL_SET_TYPE_BITS(D_OUT, REB_MONEY);
+                ));
                 return R_OUT;
             }
             if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
@@ -491,17 +489,3 @@ REBTYPE(Integer)
     SET_INTEGER(D_OUT, num);
     return R_OUT;
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  VAL_INT64_Ptr_Debug: C
-//
-REBI64 *VAL_INT64_Ptr_Debug(const RELVAL *value)
-{
-    assert(IS_INTEGER(value));
-    return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer.i64;
-}
-
-#endif

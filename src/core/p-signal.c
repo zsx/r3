@@ -143,6 +143,7 @@ static int sig_word_num(REBSYM canon)
         default: {
             REBVAL word;
             Val_Init_Word(&word, REB_WORD, canon);
+
             fail (Error(RE_INVALID_SPEC, &word));
         }
     }

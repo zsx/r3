@@ -157,7 +157,7 @@ REBNATIVE(assert)
         while (indexor != END_FLAG) {
             i = cast(REBCNT, indexor);
 
-            DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor, specifier);
+            indexor = DO_NEXT_MAY_THROW(D_OUT, block, indexor, specifier);
             if (indexor == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
 
@@ -1016,6 +1016,7 @@ REBNATIVE(set)
             if (!REF(opt) && IS_VOID(value)) {
                 REBVAL key_name;
                 Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
+
                 fail (Error(RE_NEED_VALUE, &key_name));
             }
 
@@ -1208,12 +1209,6 @@ REBNATIVE(unset)
     for (word = VAL_ARRAY_AT(target); NOT_END(word); ++word) {
         if (!ANY_WORD(word))
             fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
-
-        if (IS_WORD_UNBOUND(word)) {
-            REBVAL specific;
-            COPY_VALUE(&specific, word, VAL_SPECIFIER(target));
-            fail (Error(RE_NOT_BOUND, &specific));
-        }
 
         REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
         SET_VOID(var);
@@ -1761,22 +1756,3 @@ REBNATIVE(map_gob_offset)
 
     return R_OUT;
 }
-
-
-#if !defined(NDEBUG)
-
-
-//
-//  VAL_SERIES_Debug: C
-//
-// Variant of VAL_SERIES() macro for the debug build which checks to ensure
-// that you have an ANY-SERIES! value you're calling it on (or one of the
-// exception types that use REBSERs)
-//
-REBSER *VAL_SERIES_Debug(const RELVAL *v)
-{
-    assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return (v)->payload.any_series.series;
-}
-
-#endif

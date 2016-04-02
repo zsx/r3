@@ -202,48 +202,45 @@ static void Propagate_All_GC_Marks(void);
 // Deferred form for marking series that prevents potentially overflowing the
 // C execution stack.
 
-#define QUEUE_MARK_ARRAY_DEEP(a) \
-    do { \
-        if (!GET_ARR_FLAG((a), SERIES_FLAG_MARK)) { \
-            SET_ARR_FLAG((a), SERIES_FLAG_MARK); \
-            Push_Array_Marked_Deep(a); \
-        } \
-    } while (0)
+inline static void QUEUE_MARK_ARRAY_DEEP(REBARR *a) {
+    if (!GET_ARR_FLAG((a), SERIES_FLAG_MARK)) { \
+        SET_ARR_FLAG((a), SERIES_FLAG_MARK); \
+        Push_Array_Marked_Deep(a); \
+    }
+}
 
-
-#define QUEUE_MARK_CONTEXT_DEEP(c) \
-    do { \
-        assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST)); \
-        QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c)); \
-        QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c)); \
-    } while (0)
+inline static void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c) {
+    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
+    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c));
+    QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c));
+}
 
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
 
-#define MARK_ARRAY_DEEP(a) \
-    do { \
-        assert(!in_mark); \
-        QUEUE_MARK_ARRAY_DEEP(a); \
-        Propagate_All_GC_Marks(); \
-    } while (0)
+inline static void MARK_ARRAY_DEEP(REBARR *a) {
+    assert(!in_mark);
+    QUEUE_MARK_ARRAY_DEEP(a);
+    Propagate_All_GC_Marks();
+}
 
-#define MARK_CONTEXT_DEEP(c) \
-    do { \
-        assert(!in_mark); \
-        QUEUE_MARK_CONTEXT_DEEP(c); \
-        Propagate_All_GC_Marks(); \
-    } while (0)
+inline static void MARK_CONTEXT_DEEP(REBCTX *c) {
+    assert(!in_mark);
+    QUEUE_MARK_CONTEXT_DEEP(c);
+    Propagate_All_GC_Marks();
+}
 
 
 // Non-Deep form of mark, to be used on non-BLOCK! series or a block series
 // for which deep marking is not necessary (such as an 'typed' words block)
 
 #ifdef NDEBUG
-    #define MARK_SERIES_ONLY(s) SET_SER_FLAG((s), SERIES_FLAG_MARK)
+    #define MARK_SERIES_ONLY(s) \
+        SET_SER_FLAG((s), SERIES_FLAG_MARK)
 #else
-    #define MARK_SERIES_ONLY(s) Mark_Series_Only_Debug(s)
+    #define MARK_SERIES_ONLY(s) \
+        Mark_Series_Only_Debug(s)
 #endif
 
 
@@ -425,21 +422,19 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
 // is processed via recursion.  Deeply nested RValue structs could
 // in theory overflow the C stack.
 //
-static void Queue_Mark_Routine_Deep(REBROT *rot)
+static void Queue_Mark_Routine_Deep(REBRIN *r)
 {
-    if (ROUTINE_META(rot))
-        QUEUE_MARK_CONTEXT_DEEP(ROUTINE_META(rot));
-    ROUTINE_SET_FLAG(ROUTINE_INFO(rot), ROUTINE_MARK);
+    ROUTINE_SET_FLAG(r, ROUTINE_MARK);
 
-    MARK_SERIES_ONLY(ROUTINE_FFI_ARG_TYPES(rot));
-    QUEUE_MARK_ARRAY_DEEP(ROUTINE_FFI_ARG_STRUCTS(rot));
-    MARK_SERIES_ONLY(ROUTINE_EXTRA_MEM(rot));
+    MARK_SERIES_ONLY(RIN_FFI_ARG_TYPES(r));
+    QUEUE_MARK_ARRAY_DEEP(RIN_ARGS_STRUCTS(r));
+    MARK_SERIES_ONLY(RIN_EXTRA_MEM(r));
 
-    if (IS_CALLBACK_ROUTINE(ROUTINE_INFO(rot))) {
-        REBFUN *cb_func = CALLBACK_FUNC(rot);
+    if (ROUTINE_GET_FLAG(r, ROUTINE_CALLBACK)) {
+        REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
         if (cb_func) {
             // Should take care of spec, body, etc.
-            QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(CALLBACK_FUNC(rot)));
+            QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(cb_func));
         }
         else {
             // !!! There is a call during MT_Routine that does an evaluation
@@ -451,16 +446,16 @@ static void Queue_Mark_Routine_Deep(REBROT *rot)
             // until fully constructed.
         }
     } else {
-        if (ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARIADIC)) {
-            if (ROUTINE_FIXED_ARGS(rot))
-                QUEUE_MARK_ARRAY_DEEP(ROUTINE_FIXED_ARGS(rot));
+        if (ROUTINE_GET_FLAG(r, ROUTINE_VARIADIC)) {
+            if (RIN_FIXED_ARGS(r))
+                QUEUE_MARK_ARRAY_DEEP(RIN_FIXED_ARGS(r));
 
-            if (ROUTINE_ALL_ARGS(rot))
-                QUEUE_MARK_ARRAY_DEEP(ROUTINE_ALL_ARGS(rot));
+            if (RIN_ALL_ARGS(r))
+                QUEUE_MARK_ARRAY_DEEP(RIN_ALL_ARGS(r));
         }
 
-        if (ROUTINE_LIB(rot))
-            MARK_LIB(ROUTINE_LIB(rot));
+        if (RIN_LIB(r))
+            MARK_LIB(RIN_LIB(r));
         else {
             // may be null if called before the routine is fully constructed
         }
@@ -808,7 +803,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // HANDLE! and must be explicitly pointed out in the body.
             //
             if (IS_FUNCTION_RIN(val))
-                Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
+                Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(val));
             break;
         }
 
@@ -1367,10 +1362,8 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = SER_HEAD(REBVAL*, GC_Value_Guard);
         for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
-            if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp)) {
-                assert(!IS_RELATIVE(*vp)); // don't actually guard RELVALs
+            if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
                 Queue_Mark_Value_Deep(*vp);
-            }
             Propagate_All_GC_Marks();
         }
 
@@ -1387,7 +1380,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
                         NOT_END(chunk_value)
                         && !IS_VOID_OR_SAFE_TRASH(chunk_value)
                     ) {
-                        assert(!IS_RELATIVE(chunk_value));
+                        assert(NOT(
+                            GET_VAL_FLAG(chunk_value, VALUE_FLAG_RELATIVE)
+                        ));
                         Queue_Mark_Value_Deep(chunk_value);
                     }
                     chunk_value++;
@@ -1403,7 +1398,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
-            assert(!IS_RELATIVE(&Callback_Error));
+            assert(NOT(GET_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE)));
             Queue_Mark_Value_Deep(&Callback_Error);
         }
         Propagate_All_GC_Marks();

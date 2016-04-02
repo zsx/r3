@@ -409,7 +409,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 
     REBVAL first;
 
-    *SINK(path) = *FUNC_VALUE(func_new);
+    *path = *FUNC_VALUE(func_new);
     ++path;
 
     for (; NOT_END(param); ++param, ++arg) {
@@ -446,7 +446,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
         //
         if (ignoring) continue;
 
-        *SINK(code) = *arg;
+        *code = *arg;
         ++code;
     }
 
@@ -519,7 +519,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     // If actor is a function (!!! Note: must be native !!!)
     if (IS_FUNCTION(actor))
-        return cast(REBPAF, VAL_FUNC_DISPATCH(actor))(frame_, port, action);
+        return cast(REBPAF, VAL_FUNC_DISPATCHER(actor))(frame_, port, action);
 
     // actor must be an object:
     if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));

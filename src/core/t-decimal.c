@@ -264,8 +264,7 @@ REBTYPE(Decimal)
                 if (action == A_DIVIDE) type = REB_DECIMAL;
                 else if (!IS_PERCENT(val)) type = VAL_TYPE(val);
             } else if (type == REB_MONEY) {
-                VAL_MONEY_AMOUNT(val) = decimal_to_deci(VAL_DECIMAL(val));
-                VAL_RESET_HEADER(val, REB_MONEY);
+                SET_MONEY(val, decimal_to_deci(VAL_DECIMAL(val)));
                 return T_Money(frame_, action);
             } else if (type == REB_CHAR) {
                 d2 = (REBDEC)VAL_CHAR(arg);
@@ -415,6 +414,7 @@ REBTYPE(Decimal)
                     else {
                         REBVAL specific;
                         COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
+
                         fail (Error_Bad_Make(REB_DECIMAL, &specific));
                     }
 
@@ -427,6 +427,7 @@ REBTYPE(Decimal)
                     else {
                         REBVAL specific;
                         COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
+
                         fail (Error_Bad_Make(REB_DECIMAL, &specific));
                     }
 
@@ -447,10 +448,9 @@ REBTYPE(Decimal)
             num = Get_Round_Flags(frame_);
             if (D_REF(2)) { // to
                 if (IS_MONEY(arg)) {
-                    VAL_RESET_HEADER(D_OUT, REB_MONEY);
-                    VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+                    SET_MONEY(D_OUT, Round_Deci(
                         decimal_to_deci(d1), num, VAL_MONEY_AMOUNT(arg)
-                    );
+                    ));
                     return R_OUT;
                 }
                 if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
@@ -491,17 +491,3 @@ setDec:
 
     return R_OUT;
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  VAL_DECIMAL_Ptr_Debug: C
-//
-REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value)
-{
-    assert(IS_DECIMAL(value) || IS_PERCENT(value));
-    return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal.dec;
-}
-
-#endif

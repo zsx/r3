@@ -384,7 +384,7 @@ int Do_String(
         if (at_breakpoint) {
             if (
                 IS_FUNCTION(out)
-                && VAL_FUNC_DISPATCH(out) == &N_resume
+                && VAL_FUNC_DISPATCHER(out) == &N_resume
             ) {
                 //
                 // This means we're done with the embedded REPL.  We want to
@@ -404,7 +404,7 @@ int Do_String(
 
             if (
                 IS_FUNCTION(out)
-                && VAL_FUNC_DISPATCH(out) == &N_quit
+                && VAL_FUNC_DISPATCHER(out) == &N_quit
             ) {
                 //
                 // It would be frustrating if the system did not respond to
@@ -425,8 +425,8 @@ int Do_String(
             if (
                 IS_FUNCTION(out)
                 && (
-                    VAL_FUNC_DISPATCH(out) == &N_quit
-                    || VAL_FUNC_DISPATCH(out) == &N_exit
+                    VAL_FUNC_DISPATCHER(out) == &N_quit
+                    || VAL_FUNC_DISPATCHER(out) == &N_exit
                 )
             ) {
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -950,9 +950,6 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     REBVAL *instruction_out,
     REBOOL interrupted
 ) {
-    int exit_status;
-    REBCNT old_stack_level;
-
     // Notify the user that the breakpoint or interruption was hit.
     //
     if (interrupted)
@@ -964,20 +961,19 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     // we resume.  Each new breakpoint nesting hit will default to debugging
     // stack level 1...e.g. the level that called breakpoint.
     //
-    old_stack_level = HG_Stack_Level;
+    REBCNT old_stack_level = HG_Stack_Level;
 
-    {
-        REBVAL level;
-        SET_INTEGER(&level, 1);
+    REBVAL level;
+    SET_INTEGER(&level, 1);
 
-        if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
-            HG_Stack_Level = 1;
-        else
-            HG_Stack_Level = 0; // Happens if you just type "breakpoint"
-    }
+    if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
+        HG_Stack_Level = 1;
+    else
+        HG_Stack_Level = 0; // Happens if you just type "breakpoint"
 
     // Spawn nested REPL.
     //
+    int exit_status;
     Host_Repl(&exit_status, instruction_out, TRUE);
 
     // Restore stack level, which is presumably still valid (there shouldn't

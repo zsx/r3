@@ -1001,36 +1001,35 @@ REBOOL Format_GC_Safe_Value_Throws(
     const REBVAL *delimiter,
     REBCNT depth
 ) {
-    struct Reb_Frame f;
+    struct Reb_Frame frame;
+    struct Reb_Frame *f = &frame;
 
-    if (IS_BLOCK(val_gc_safe)) {
-        f.value = VAL_ARRAY_AT(val_gc_safe);
-        if (IS_END(f.value))
-            return FALSE; // no mold output added on empty blocks
+    // !!! Temporary hack, put everything in a block for convenience.
 
-        f.indexor = VAL_INDEX(val_gc_safe) + 1;
-        f.source.array = VAL_ARRAY(val_gc_safe);
-    }
+    REBVAL specific;
+    COPY_VALUE(&specific, val_gc_safe, specifier);
+    if (IS_BLOCK(&specific))
+        PUSH_SAFE_ENUMERATOR(f, &specific);
     else {
-        // Prefetch with value + an empty array to use same code path
+        REBARR *temp_array = Make_Singular_Array(&specific);
 
-        f.value = val_gc_safe;
-        f.indexor = 0;
-        f.source.array = EMPTY_ARRAY;
+        REBVAL temp_value;
+        Val_Init_Block(&temp_value, temp_array);
+
+        PUSH_SAFE_ENUMERATOR(f, &temp_value);
     }
 
-    f.specifier = specifier;
-    f.flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD;
-    f.eval_fetched = NULL;
+    if (IS_END(f->value))
+        return FALSE;
 
     do {
-        if (IS_VOID(f.value)) {
+        if (IS_VOID(f->value)) {
             //
             // Unsets format to nothing (!!! should NONE! do the same?)
             //
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
-        else if (IS_BAR(f.value)) {
+        else if (IS_BAR(f->value)) {
             //
             // !!! At each depth BAR! is always a barrier.  However, it may
             // also mean inserting a delimiter.  The default is to assume it
@@ -1044,9 +1043,9 @@ REBOOL Format_GC_Safe_Value_Throws(
                 Append_Codepoint_Raw(mold->series, ' ');
 
             SET_END(pending_delimiter);
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
-        else if (IS_CHAR(f.value)) {
+        else if (IS_CHAR(f->value)) {
             //
             // Characters are inserted with no spacing.  This is because the
             // cases in which spaced-out-characters are most likely to be
@@ -1054,25 +1053,25 @@ REBOOL Format_GC_Safe_Value_Throws(
             // which case MOLD should be used anyway.
 
             assert(
-                SER_WIDE(mold->series) == sizeof(f.value->payload.character)
+                SER_WIDE(mold->series) == sizeof(f->value->payload.character)
             );
-            Append_Codepoint_Raw(mold->series, f.value->payload.character);
+            Append_Codepoint_Raw(mold->series, f->value->payload.character);
 
             SET_END(pending_delimiter); // no delimiting before/after chars
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
-        else if (IS_BINARY(f.value)) {
+        else if (IS_BINARY(f->value)) {
             //
             // Rather than introduce Rebol's specialized MOLD notation for
             // BINARY! into ordinary printing, the assumption is that it
             // should be interpreted as UTF-8 bytes.
             //
-            if (VAL_LEN_AT(f.value) > 0) {
+            if (VAL_LEN_AT(f->value) > 0) {
                 if (!IS_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
                     Mold_Value(mold, pending_delimiter, FALSE);
 
                 Append_UTF8_May_Fail(
-                    mold->series, VAL_BIN_AT(f.value), VAL_LEN_AT(f.value)
+                    mold->series, VAL_BIN_AT(f->value), VAL_LEN_AT(f->value)
                 );
 
                 Get_Pending_Format_Delimiter(
@@ -1080,9 +1079,9 @@ REBOOL Format_GC_Safe_Value_Throws(
                 );
             }
 
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
-        else if (IS_BLOCK(f.value)) {
+        else if (IS_BLOCK(f->value)) {
             //
             // If an expression was a literal block in the print source
             // then recurse and consider it a new depth level--using
@@ -1112,12 +1111,13 @@ REBOOL Format_GC_Safe_Value_Throws(
                 &maybe_thrown, // not interested in value unless thrown
                 mold,
                 pending_delimiter,
-                f.value,
-                f.specifier,
+                f->value,
+                f->specifier,
                 nested_reduce,
                 delimiter,
                 depth + 1
             )) {
+                DROP_SAFE_ENUMERATOR(f);
                 *out = maybe_thrown;
                 return TRUE;
             }
@@ -1131,12 +1131,14 @@ REBOOL Format_GC_Safe_Value_Throws(
                 );
             }
 
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         else if (reduce) {
-            DO_NEXT_REFETCH_MAY_THROW(out, &f, DO_FLAG_LOOKAHEAD);
-            if (THROWN(out))
+            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
+            if (THROWN(out)) {
+                DROP_SAFE_ENUMERATOR(f);
                 return TRUE;
+            }
 
             // If we got here via a reduction step, we might have gotten
             // a BINARY! or a BAR! or some other type.  Don't call MOLD
@@ -1181,7 +1183,7 @@ REBOOL Format_GC_Safe_Value_Throws(
 
             mold_point = UNI_LEN(mold->series);
 
-            Mold_Value(mold, f.value, FALSE);
+            Mold_Value(mold, f->value, FALSE);
 
             if (UNI_LEN(mold->series) == mold_point) {
                 //
@@ -1198,10 +1200,12 @@ REBOOL Format_GC_Safe_Value_Throws(
                 );
             }
 
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
         }
 
-    } while (NOT_END(f.value));
+    } while (NOT_END(f->value));
+
+    DROP_SAFE_ENUMERATOR(f);
 
     return FALSE;
 }
@@ -1235,18 +1239,12 @@ REBOOL Prin_GC_Safe_Value_Throws(
     if (mold)
         Mold_Value(&mo, value, TRUE);
     else {
-        REBCTX *specifier;
-        if ((ANY_WORD(value) || ANY_ARRAY(value)) && IS_SPECIFIC(value))
-            specifier = VAL_SPECIFIC(value);
-        else
-            specifier = SPECIFIED;
-
         if (Format_GC_Safe_Value_Throws(
             out_if_reduce,
             &mo,
             &pending_delimiter,
             value,
-            specifier,
+            ANY_ARRAY(value) ? VAL_SPECIFIER(value) : SPECIFIED,
             LOGICAL(reduce && IS_BLOCK(value)), // `print 'word` won't GET it
             delimiter,
             0 // depth

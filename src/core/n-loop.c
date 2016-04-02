@@ -58,13 +58,13 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
     if (!IS_FUNCTION(val))
         return FALSE;
 
-    if (VAL_FUNC_DISPATCH(val) == &N_break) {
+    if (VAL_FUNC_DISPATCHER(val) == &N_break) {
         *stop = TRUE; // was BREAK or BREAK/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
     }
 
-    if (VAL_FUNC_DISPATCH(val) == &N_continue) {
+    if (VAL_FUNC_DISPATCHER(val) == &N_continue) {
         *stop = FALSE; // was CONTINUE or CONTINUE/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
@@ -538,6 +538,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
                     Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
+
                     fail (Error_Invalid_Arg(&key_name));
                 }
                 j++;
@@ -573,6 +574,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                         Val_Init_Word(
                             &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                         );
+
                         fail (Error_Invalid_Arg(&key_name));
                     }
                     j++;

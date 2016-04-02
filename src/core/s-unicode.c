@@ -853,6 +853,7 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
         // !!! Not currently supported.
         REBVAL num;
         SET_INTEGER(&num, ch);
+
         fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
     }
 
@@ -1166,7 +1167,8 @@ int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
     REBINT n;
     REBYTE buf[8];
 
-    tail = RESET_TAIL(dst);
+    RESET_TAIL(dst);
+    tail = 0;
 
     while (idx < len) {
         if ((c = up[idx]) < 0x80) {
@@ -1227,9 +1229,16 @@ REBSER *Make_UTF8_From_Any_String(
 ) {
     assert(ANY_STRING(value));
 
-    if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
+    if (
+        NOT(opts & OPT_ENC_CRLF)
+        && (
+            VAL_BYTE_SIZE(value)
+            && All_Bytes_ASCII(VAL_BIN_AT(value), VAL_LEN_AT(value))
+        )
+    ){
         // We can copy a one-byte-per-character series if it doesn't contain
         // codepoints like 128 - 255 (pure ASCII is valid UTF-8)
+        //
         return Copy_Bytes(VAL_BIN_AT(value), len);
     }
     else {

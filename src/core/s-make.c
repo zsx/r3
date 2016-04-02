@@ -323,7 +323,10 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         return cast(REBCHR*, VAL_UNI_AT(val));
     }
 #else
-    if (VAL_STR_IS_ASCII(val)) {
+    if (
+        VAL_BYTE_SIZE(val)
+        && All_Bytes_ASCII(VAL_BIN_AT(val), VAL_LEN_AT(val))
+    ) {
         if (out) *out = VAL_SERIES(val);
 
         // On Linux/Unix we can use ASCII directly (it is valid UTF-8):

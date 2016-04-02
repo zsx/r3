@@ -883,7 +883,8 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
         //         index: 1
         //     ]]
         //
-        Mold_Value(mold, VAL_FUNC_EXEMPLAR(value), TRUE);
+        REBVAL *exemplar = KNOWN(VAL_FUNC_BODY(value));
+        Mold_Value(mold, exemplar, TRUE);
     }
 
     Append_Codepoint_Raw(mold->series, ']');
@@ -1534,7 +1535,7 @@ REBOOL Form_Reduce_Throws(
     Push_Mold(&mo);
 
     while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, out, block, indexor, specifier);
+        indexor = DO_NEXT_MAY_THROW(out, block, indexor, specifier);
         if (indexor == THROWN_FLAG)
             return TRUE;
 

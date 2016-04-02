@@ -25,32 +25,14 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// These are routines to support the macros and definitions in %sys-value.h
-// which are not specific to any given type.  For the type-specific code,
-// see files with names like %t-word.c, %t-logic.c, %t-integer.c...
+// These are mostly DEBUG-build routines to support the macros and definitions
+// in %sys-value.h.
 //
-// Largely they are debug-oriented routines, with a couple temporary routines
-// that are needed in the release build.
+// These are not specific to any given type.  For the type-specific REBVAL
+// code, see files with names like %t-word.c, %t-logic.c, %t-integer.c...
 //
 
 #include "sys-core.h"
-
-
-//
-//  COPY_VALUE_Release: C
-//
-// Temporary function implementation of what should really just defined as
-// COPY_VALUE_MACRO.  If GUESSED is passed in, it will use dynamic binding
-// to look at the stack and determine what function instance's context to
-// use for a word.
-//
-void COPY_VALUE_Release(
-    REBVAL *dest,
-    const RELVAL *src,
-    REBCTX *specifier
-) {
-    COPY_VALUE_MACRO(dest, src, specifier);
-}
 
 
 #if !defined(NDEBUG)
@@ -107,6 +89,25 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
 }
 
 
+//
+// Assert_Flags_Are_For_Value: C
+//
+void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
+    if ((f & HEADER_TYPE_MASK) == REB_0)
+        return; // flag applies to any value (or trash)
+
+    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
+        assert(IS_FUNCTION(v));
+    }
+    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
+        assert(ANY_CONTEXT(v));
+    }
+    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
+        assert(ANY_WORD(v));
+    }
+}
+
+
 #if defined(__cplusplus)
 
 //
@@ -138,39 +139,15 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 
 
 //
-//  VAL_RESET_HEADER_Debug: C
+//  SET_END_Debug: C
 //
-void VAL_RESET_HEADER_Debug(
-    RELVAL *v,
-    enum Reb_Kind kind,
-    const char *file,
-    int line
-) {
+// Uses REB_MAX instead of just REB_0 for the type, to help cue
+//
+void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-    VAL_RESET_HEADER_CORE(v, kind);
+    (v)->header.bits = REB_MAX;
     MARK_CELL_WRITABLE_IF_DEBUG(v);
-}
-
-
-
-//
-//  Sink_Debug: C
-//
-// !!! Uses proper inlines after specific-binding merge, but written this
-// way so that sinks get the right file and line information while the
-// old macros are still around.
-//
-REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
-    //
-    // SINK claims it's okay to cast from RELVAL to REBVAL because the
-    // value is just going to be written to.  Verify that claim in the
-    // debug build by setting to trash as part of the cast.
-    //
-    VAL_RESET_HEADER((v), REB_0); /* don't set NOT_TRASH flag */
-    (v)->payload.track.filename = file;
-    (v)->payload.track.line = line;
-    (v)->payload.track.count = TG_Do_Count;
-    return cast(REBVAL*, v);
+    Set_Track_Payload_Debug(v, file, line);
 }
 
 
@@ -199,70 +176,13 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 
 
 //
-//  IS_CONDITIONAL_FALSE_Debug: C
+//  IS_TRASH_DEBUG: C
 //
-// Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
-// ensure you never call it on a void
-//
-REBOOL IS_CONDITIONAL_FALSE_Debug(const RELVAL *v)
-{
-    if (IS_VOID(v)) {
-        Debug_Fmt("Conditional true/false test on void");
-        PANIC_VALUE(v);
-    }
-
-    return GET_VAL_FLAG(v, VALUE_FLAG_FALSE);
-}
-
-
-//
-//  VAL_TYPE_Debug: C
-//
-// Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker or on REB_TRASH.
-//
-enum Reb_Kind VAL_TYPE_Debug(const RELVAL *v, const char *file, int line)
-{
-    if (IS_END(v)) {
-        //
-        // Seeing a bit pattern that has the low bit to 0 may be a purposeful
-        // end signal, or it could be something that's garbage data and just
-        // happens to have its zero bit set.  Since half of all possible
-        // bit patterns are even, it's more worth it than usual to point out.
-        //
-        printf("END marker or garbage (low bit 0) in VAL_TYPE()\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
-    }
-    if (IS_TRASH_DEBUG(v)) {
-        printf("Unexpected TRASH in VAL_TYPE()\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
-    }
-    return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
-}
-
-
-//
-//  Assert_Flags_Are_For_Value: C
-//
-// This check is used by GET_VAL_FLAG, SET_VAL_FLAG, CLEAR_VAL_FLAG to avoid
-// accidentally checking or setting a type-specific flag on the wrong type
-// of value in the debug build.
-//
-void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
-    if ((f & HEADER_TYPE_MASK) == 0)
-        return; // flag applies to any value (or trash)
-
-    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(IS_FUNCTION(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
-        assert(ANY_CONTEXT(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
-        assert(ANY_WORD(v));
-    }
+REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
+    return LOGICAL(
+        (v->header.bits & HEADER_TYPE_MASK) == REB_0
+        && !((v->header.bits & VOID_FLAG_NOT_TRASH))
+    );
 }
 
 
@@ -273,18 +193,18 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
     REBCTX *specific;
 
-    assert(IS_SPECIFIC(v));
+    assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
     assert(ANY_WORD(v) || ANY_ARRAY(v));
 
-    specific = (v)->payload.any_target.specific;
+    specific = VAL_SPECIFIC_MACRO(v);
 
     if (specific != SPECIFIED) {
         //
         // Basic sanity check: make sure it's a context at all
         //
-        if (!GET_ARR_FLAG(CTX_VARLIST(specific), ARRAY_FLAG_CONTEXT_VARLIST)) {
+        if (!GET_CTX_FLAG(specific, ARRAY_FLAG_CONTEXT_VARLIST)) {
             printf("Non-CONTEXT found as specifier in specific value\n");
-            Panic_Series(cast(REBSER*, specific));
+            Panic_Series(cast(REBSER*, specific)); // may not be series either
         }
 
         // While an ANY-WORD! can be bound specifically to an arbitrary
@@ -336,7 +256,11 @@ REBOOL IS_RELATIVE_Debug(const RELVAL *value)
 //
 // Check to make sure there are no relative values in an array, maybe deeply.
 //
-// !!! Should this pay attention to indices?
+// !!! What if you have an ANY-ARRAY! inside your array at a position N,
+// but there is a relative value in the VAL_ARRAY() of that value at an
+// index earlier than N?  This currently considers that an error since it
+// checks the whole array...which is more conservative (asserts on more
+// cases).  But should there be a flag to ask to honor the index?
 //
 void Assert_No_Relative(REBARR *array, REBOOL deep)
 {
@@ -355,74 +279,26 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
 
 
 //
-//  ENSURE_C_REBVAL_Debug: C
-//
-// NOOP for type check in the debug build.
-//
-const REBVAL *ENSURE_C_REBVAL_Debug(const REBVAL *value)
-{
-    assert(!GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE));
-    return value;
-}
-
-
-//
-//  ENSURE_REBVAL_Debug: C
-//
-// NOOP for type check in the debug build.
-//
-REBVAL *ENSURE_REBVAL_Debug(REBVAL *value)
-{
-    assert(!GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE));
-    return value;
-}
-
-
-//
-//  SINK_Debug: C
-//
-// Checked version of casting operation (to restrict input to only RELVAL).
-// This is used when the cast is legal because the slot is to be written to
-// only, and hence it doesn't matter if it contains relative data.
-//
-REBVAL *SINK_Debug(RELVAL *v)
-{
-    return cast(REBVAL*, v);
-}
-
-
-//
-//  const_KNOWN_Debug: C
-//
-const REBVAL *const_KNOWN_Debug(const RELVAL *value)
-{
-    assert(IS_SPECIFIC(value));
-    return cast(const REBVAL*, value);
-}
-
-
-//
-//  KNOWN_Debug: C
-//
-REBVAL *KNOWN_Debug(RELVAL *value)
-{
-    assert(IS_SPECIFIC(value));
-    return cast(REBVAL*, value);
-}
-
-
-
-//
 //  COPY_VALUE_Debug: C
 //
-// A function in debug build for compile-time type check (vs. blind casting)
+// The implementation of COPY_VALUE_CORE is designed to be fairly optimal
+// (since it is being called in lieu of what would have been a memcpy() or
+// plain assignment).  It is left in its raw form as an inline function to
+// to help convey that it is nearly as efficient as an assignment.
+//
+// This adds some verbose checking in the debug build to help debug cases
+// where the relative information bits are incorrect.
 //
 void COPY_VALUE_Debug(
     REBVAL *dest,
     const RELVAL *src,
     REBCTX *specifier
 ) {
+    assert(!IS_END(src));
+    assert(!IS_TRASH_DEBUG(src));
+
     if (IS_RELATIVE(src)) {
+        assert(ANY_WORD(src) || ANY_ARRAY(src));
         if (specifier == SPECIFIED) {
             Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
             PROBE_MSG(src, "word or array");
@@ -440,16 +316,12 @@ void COPY_VALUE_Debug(
             assert(FALSE);
         }
     }
-    COPY_VALUE_MACRO(dest, src, specifier);
+    COPY_VALUE_CORE(dest, src, specifier);
 }
 
 
 //
 //  Probe_Core_Debug: C
-//
-// Debug function for outputting a value.  Done as a function instead of just
-// a macro due to how easy it is with va_lists to order the types of the
-// parameters wrong.  :-/
 //
 void Probe_Core_Debug(
     const char *msg,

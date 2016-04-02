@@ -622,8 +622,6 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
         if (IS_END(blk))
             fail (Error(RE_NEED_VALUE, var));
 
-        assert(!IS_VOID(blk));
-
         REBVAL val;
         COPY_VALUE(&val, blk, specifier);
         ++blk;
@@ -847,7 +845,7 @@ REBTYPE(Gob)
         break;
 
     case A_PICK:
-        if (!IS_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
+        if (!ANY_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
         if (!GOB_PANE(gob)) goto is_blank;
         index += Get_Num_From_Arg(arg) - 1;
         if (index >= tail) goto is_blank;

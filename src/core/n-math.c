@@ -409,7 +409,7 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
             }
             else if (tb == REB_MONEY) {
                 deci amount = int_to_deci(VAL_INT64(a));
-                SET_MONEY_AMOUNT(a, amount);
+                SET_MONEY(a, amount);
                 goto compare;
             }
             break;
@@ -422,8 +422,7 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
                 goto compare;
             }
             else if (tb == REB_MONEY) {
-                deci amount = decimal_to_deci(VAL_DECIMAL(a));
-                SET_MONEY_AMOUNT(a, amount);
+                SET_MONEY(a, decimal_to_deci(VAL_DECIMAL(a)));
                 goto compare;
             }
             else if (tb == REB_DECIMAL || tb == REB_PERCENT) // equivalent types
@@ -432,13 +431,11 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
 
         case REB_MONEY:
             if (tb == REB_INTEGER) {
-                deci amount = int_to_deci(VAL_INT64(b));
-                SET_MONEY_AMOUNT(b, amount);
+                SET_MONEY(b, int_to_deci(VAL_INT64(b)));
                 goto compare;
             }
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
-                deci amount = decimal_to_deci(VAL_DECIMAL(b));
-                SET_MONEY_AMOUNT(b, amount);
+                SET_MONEY(b, decimal_to_deci(VAL_DECIMAL(b)));
                 goto compare;
             }
             break;
@@ -634,26 +631,6 @@ REBNATIVE(same_q)
         if (IS_WORD_BOUND(value1) != IS_WORD_BOUND(value2))
             return R_FALSE;
         if (IS_WORD_BOUND(value1)) {
-            if (IS_RELATIVE(value1) && IS_RELATIVE(value2)) {
-                //
-                // Prior to specific binding, relative words with the same
-                // symbol are indistinguishable if they are bound relative to
-                // the same function.  So ecursions of a function cannot
-                // distinguish the word instances originating from each level.
-                //
-                // !!! This problem is fixed in the specific binding branch,
-                // which distinguishes REBVALs (fully specific) from REBVALs
-                // (may be relative).  Function arguments are always REBVAL,
-                // so this relative processing code would never run.
-                //
-                if (VAL_WORD_FUNC(value1) == VAL_WORD_FUNC(value2))
-                    return R_TRUE;
-                return R_FALSE;
-            }
-
-            if (!(IS_SPECIFIC(value1) && IS_SPECIFIC(value2)))
-                return R_FALSE; // Relatively bound words can't match specific
-
             REBCTX *ctx1 = VAL_WORD_CONTEXT(value1);
             REBCTX *ctx2 = VAL_WORD_CONTEXT(value2);
             if (ctx1 != ctx2)

@@ -43,7 +43,7 @@ static REBOOL Same_Func(const RELVAL *val, const RELVAL *arg)
     /* if (VAL_FUNC_EXIT_FROM(val) == VAL_FUNC_EXIT_FROM(arg)) */
 
     if (VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg)) {
-        assert(VAL_FUNC_DISPATCH(val) == VAL_FUNC_DISPATCH(arg));
+        assert(VAL_FUNC_DISPATCHER(val) == VAL_FUNC_DISPATCHER(arg));
         assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(arg));
         return TRUE;
     }
@@ -81,23 +81,12 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 REBOOL MT_Function(
     REBVAL *out, RELVAL *def, REBCTX *specifier, enum Reb_Kind kind
 ) {
-    // Spec-constructed functions do *not* have definitional returns
-    // added automatically.  They are part of the generators.  So the
-    // behavior comes--as with any other generator--from the projected
-    // code (though round-tripping it via text is not possible in
-    // general in any case due to loss of bindings.)
-    //
-    const REBOOL has_return = FALSE;
-    const REBOOL is_procedure = FALSE;
-
-    REBVAL spec;
-    REBVAL body;
-
     assert(kind == REB_FUNCTION);
 
     if (!IS_BLOCK(def)) return FALSE;
     if (VAL_LEN_AT(def) != 2) return FALSE;
 
+    REBVAL spec;
     COPY_VALUE(
         &spec,
         VAL_ARRAY_AT_HEAD(def, 0),
@@ -105,6 +94,7 @@ REBOOL MT_Function(
     );
     if (!IS_BLOCK(&spec)) return FALSE;
 
+    REBVAL body;
     COPY_VALUE(
         &body,
         VAL_ARRAY_AT_HEAD(def, 1),
@@ -168,14 +158,14 @@ REBTYPE(Function)
         case SYM_ADDR:
             if (
                 IS_FUNCTION_RIN(value)
-                && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value))
+                && IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value))
             ) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
                 return R_OUT;
             }
             if (
                 IS_FUNCTION_RIN(value)
-                && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value)))
+                && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value)))
             ) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
                 return R_OUT;
@@ -247,7 +237,7 @@ REBTYPE(Function)
             for (; NOT_END(param); param++, typeset++) {
                 assert(VAL_TYPESET_SYM(param) != SYM_0);
                 *typeset = *param;
-                VAL_TYPESET_SYM(typeset) = SYM_0;
+                VAL_TYPESET_SYM_INIT(typeset, SYM_0);
             }
             SET_END(typeset);
             SET_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
@@ -295,7 +285,7 @@ REBNATIVE(func_class_of)
     else if (IS_FUNCTION_COMMAND(value))
         n = 4;
     else if (IS_FUNCTION_RIN(value)) {
-        if (!IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value)))
+        if (!IS_CALLBACK_ROUTINE(VAL_FUNC_ROUTINE(value)))
             n = 5;
         else
             n = 6;

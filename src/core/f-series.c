@@ -171,7 +171,7 @@ REBINT Cmp_Array(const RELVAL *sval, const RELVAL *tval, REBOOL is_case)
 
     while (
         (VAL_TYPE(s) == VAL_TYPE(t) ||
-        (IS_NUMBER(s) && IS_NUMBER(t)))
+        (ANY_NUMBER(s) && ANY_NUMBER(t)))
     ) {
         if ((diff = Cmp_Value(s, t, is_case)) != 0)
             return diff;
@@ -207,7 +207,7 @@ REBINT Cmp_Value(const RELVAL *s, const RELVAL *t, REBOOL is_case)
 {
     REBDEC  d1, d2;
 
-    if (VAL_TYPE(t) != VAL_TYPE(s) && !(IS_NUMBER(s) && IS_NUMBER(t)))
+    if (VAL_TYPE(t) != VAL_TYPE(s) && !(ANY_NUMBER(s) && ANY_NUMBER(t)))
         return VAL_TYPE(s) - VAL_TYPE(t);
 
     assert(NOT_END(s) && NOT_END(t));

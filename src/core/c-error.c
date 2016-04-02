@@ -257,49 +257,6 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
 
 //
-//  Convert_Name_To_Thrown_Debug: C
-// 
-// Debug-only version of CONVERT_NAME_TO_THROWN
-// 
-// Sets a task-local value to be associated with the name and
-// mark it as the proxy value indicating a THROW().
-//
-void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg) {
-    assert(!THROWN(name));
-
-    SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
-
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
-    assert(!IS_TRASH_DEBUG(arg));
-
-    TG_Thrown_Arg = *arg;
-}
-
-
-//
-//  Catch_Thrown_Debug: C
-// 
-// Debug-only version of TAKE_THROWN_ARG
-// 
-// Gets the task-local value associated with the thrown,
-// and clears the thrown bit from thrown.
-// 
-// WARNING: 'out' can be the same pointer as 'thrown'
-//
-void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
-{
-    assert(THROWN(thrown));
-    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
-
-    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
-
-    *out = TG_Thrown_Arg;
-
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
-}
-
-
-//
 //  Fail_Core: C
 // 
 // Cause a "trap" of an error by longjmp'ing to the enclosing
@@ -919,7 +876,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         REBCNT root_len = CTX_LEN(root_error);
         REBVAL *key;
         REBVAL *value;
-        RELVAL *temp;
+        const RELVAL *temp;
         REBSER *keylist;
 
         // Should the error be well-formed, we'll need room for the new
@@ -992,7 +949,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                 }
 
             #if !defined(NDEBUG)
-                if (IS_RELATIVE(arg)) {
+                if (GET_VAL_FLAG(arg, VALUE_FLAG_RELATIVE)) {
                     //
                     // Make_Error doesn't have any way to pass in a specifier,
                     // so only specific values should be used.
@@ -1132,8 +1089,9 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             RELVAL *item;
 
             REBVAL marker;
-            REBVAL ellipsis;
             Val_Init_Word(&marker, REB_WORD, SYM__Q_Q);
+
+            REBVAL ellipsis;
             Val_Init_Word(&ellipsis, REB_WORD, SYM_ELLIPSIS);
 
             if (start < 0) {
@@ -1303,12 +1261,7 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const RELVAL *key)
     REBVAL label;
     Val_Init_Word(&label, REB_WORD, label_sym);
 
-    return Error(
-        RE_NO_ARG,
-        &label,
-        &key_word,
-        END_CELL
-    );
+    return Error(RE_NO_ARG, &label, &key_word, END_CELL);
 }
 
 
@@ -1574,8 +1527,8 @@ REBCTX *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 {
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
-
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
+    if (!IS_OBJECT(spec))
+        fail (Error(RE_INVALID_PORT));
 
     REBVAL *val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_REF); // informative
     if (IS_BLANK(val))

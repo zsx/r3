@@ -365,6 +365,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
     if (!n) {
         REBVAL temp;
         SET_INTEGER(&temp, len);
+
         fail (Error(RE_SIZE_LIMIT, &temp));
     }
 

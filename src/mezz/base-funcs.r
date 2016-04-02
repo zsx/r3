@@ -85,9 +85,17 @@ make-action: func [
     ; COLLECT-WORDS interface to efficiently give this result.
     ;
     spec: copy spec
+
+    ; Insert <durable> into the spec if not already there.  This is
+    ; based on the belief that indefinite duration is a fair user expectation
+    ; without having to ask.  Consider the legitimacy of:
+    ;
+    ;    foo: function [x] [y: x * 2 | return func [z] [x + y + z]
+    ;
     unless find spec <durable> [
         insert spec <durable>
     ]
+
     for-next words [
         append spec to set-word! words/1
     ]

@@ -112,7 +112,7 @@ void Init_Typesets(void)
 void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSYM sym)
 {
     VAL_RESET_HEADER(value, REB_TYPESET);
-    VAL_TYPESET_SYM(value) = sym;
+    VAL_TYPESET_SYM_INIT(value, sym);
     VAL_TYPESET_BITS(value) = bits;
 }
 

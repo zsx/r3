@@ -491,7 +491,7 @@ void Collect_Context_Keys(REBCTX *context, REBOOL check_dups)
             // keys.  If they did, what sort of rule should the typesets
             // have when being inherited?
             //
-            *SINK(collect) = *key;
+            *collect = *key;
             ++collect;
 
             binds[canon] = bind_index++;
@@ -1386,32 +1386,6 @@ void Init_Collector(void)
 #ifndef NDEBUG
 
 //
-//  CTX_KEY_Debug: C
-//
-REBVAL *CTX_KEY_Debug(REBCTX *c, REBCNT n) {
-    assert(n != 0 && n <= CTX_LEN(c));
-    return CTX_KEYS_HEAD(c) + (n) - 1;
-}
-
-
-//
-//  CTX_VAR_Debug: C
-//
-REBVAL *CTX_VAR_Debug(REBCTX *c, REBCNT n) {
-    REBVAL *var;
-    assert(n != 0 && n <= CTX_LEN(c));
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
-
-    var = CTX_VARS_HEAD(c) + (n) - 1;
-
-    assert(IS_SPECIFIC(var));
-    assert(!THROWN(var));
-
-    return var;
-}
-
-
-//
 //  Assert_Context_Core: C
 //
 void Assert_Context_Core(REBCTX *context)
@@ -1499,6 +1473,7 @@ void Assert_Context_Core(REBCTX *context)
 
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
+    REBVAL *xxx = var;
 
     for (n = 1; n < keys_len; n++, var++, key++) {
         if (IS_END(key) || IS_END(var)) {

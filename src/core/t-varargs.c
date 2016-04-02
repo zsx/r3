@@ -363,14 +363,12 @@ REBIXO Do_Vararg_Op_May_Throw(
         // With these choices, no errors should be reported which would
         // require a named symbol.  However, we name it `...` anyway.
 
-        REBIXO indexor;
-
         REBVAL fake_param;
         Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS); // any type
         SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARIADIC); // pretend <...> tag
         INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
 
-        indexor = Do_Vararg_Op_Core(
+        REBIXO indexor = Do_Vararg_Op_Core(
             out,
             VAL_VARARGS_ARRAY1(varargs), // single-element array w/shared value
             &fake_param,
@@ -432,7 +430,7 @@ REBTYPE(Varargs)
 
             VAL_RESET_HEADER(D_OUT, REB_VARARGS);
             SET_VAL_FLAG(D_OUT, VARARGS_FLAG_NO_FRAME);
-            VAL_VARARGS_ARRAY1(D_OUT) = array1;
+            D_OUT->payload.varargs.feed.array1 = array1;
 
             return R_OUT;
         }
@@ -614,6 +612,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             };
 
             // Note varargs_param is distinct from f->param!
+            REBVAL param_word;
             Val_Init_Word(&param_word, kind, VAL_TYPESET_SYM(varargs_param));
 
             Mold_Value(mold, &param_word, TRUE);

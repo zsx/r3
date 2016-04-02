@@ -98,15 +98,18 @@ typedef unsigned int REBDSP;
 
 // (D)ata (S)tack "(P)osition" is an integer index into Rebol's data stack
 //
-#define DSP DS_Index
+#define DSP \
+    DS_Index
 
 // Access value at given stack location
 //
-#define DS_AT(d) (DS_Movable_Base + (d))
+#define DS_AT(d) \
+    (DS_Movable_Base + (d))
 
 // Most recently pushed item
 //
-#define DS_TOP DS_AT(DS_Index)
+#define DS_TOP \
+    DS_AT(DS_Index)
 
 #if !defined(NDEBUG)
     #define IS_VALUE_IN_ARRAY(a,v) \
@@ -161,7 +164,8 @@ typedef unsigned int REBDSP;
 // POPPING AND "DROPPING"
 
 #ifdef NDEBUG
-    #define DS_DROP (--DS_Index, NOOP)
+    #define DS_DROP \
+        (--DS_Index, NOOP)
 #else
     #define DS_DROP \
         (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)

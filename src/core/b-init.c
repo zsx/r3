@@ -271,7 +271,7 @@ static void Do_Global_Block(
                     // Steal binding, but keep the same word type
                     //
                     enum Reb_Kind kind = VAL_TYPE(path_item);
-                    *SINK(path_item) = *opt_toplevel_word;
+                    *path_item = *opt_toplevel_word;
                     VAL_SET_TYPE_BITS(path_item, kind);
                 }
             }
@@ -598,7 +598,7 @@ static void Init_Natives(void)
         // See if it's being invoked with NATIVE or NATIVE/BODY
         //
         if (IS_WORD(item)) {
-            if (!VAL_WORD_SYM(item) == SYM_NATIVE)
+            if (VAL_WORD_SYM(item) != SYM_NATIVE)
                 panic (Error(RE_NATIVE_BOOT));
             has_body = FALSE;
         }

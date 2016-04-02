@@ -255,8 +255,8 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 
         if (
             IS_FUNCTION(&result) && (
-                VAL_FUNC_DISPATCH(&result) == &N_quit
-                || VAL_FUNC_DISPATCH(&result) == &N_exit
+                VAL_FUNC_DISPATCHER(&result) == &N_quit
+                || VAL_FUNC_DISPATCHER(&result) == &N_exit
             )
         ) {
             int status;
@@ -480,8 +480,8 @@ RL_API int RL_Do_String(
 
         if (
             IS_FUNCTION(&result) && (
-                VAL_FUNC_DISPATCH(&result) == &N_quit
-                || VAL_FUNC_DISPATCH(&result) == &N_exit
+                VAL_FUNC_DISPATCHER(&result) == &N_quit
+                || VAL_FUNC_DISPATCHER(&result) == &N_exit
             )
         ) {
             CATCH_THROWN(&result, &result);
@@ -1131,7 +1131,7 @@ RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
         return TRUE;
     }
 
-    *SINK(ARR_AT(array, index)) = value;
+    *ARR_AT(array, index) = value;
 
     return FALSE;
 }

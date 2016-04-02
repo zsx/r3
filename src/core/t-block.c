@@ -100,6 +100,7 @@ REBOOL MT_Array(
     ++data;
 
     VAL_RESET_HEADER(out, type);
+    SET_VAL_FLAG(out, VALUE_FLAG_ARRAY);
 
     i = NOT_END(data) && IS_INTEGER(data) ? Int32(KNOWN(data)) - 1 : 0;
 
@@ -295,20 +296,17 @@ REBOOL Make_Block_Type_Throws(
         // a normal or soft-quoted varargs, but a hard-quoted varargs will
         // grab all the values to the end of the source.
 
-        REBDSP dsp_orig = DSP;
-
-        REBARR *feed;
-        REBARR **subfeed_addr;
-
-        const RELVAL *param;
-        REBVAL fake_param;
-
         // !!! This MAKE will be destructive to its input (the varargs will
         // be fetched and exhausted).  That's not necessarily obvious, but
         // with a TO conversion it would be even less obvious...
         //
         if (!make)
             fail (Error(RE_VARARGS_MAKE_ONLY));
+
+        const RELVAL *param;
+        REBVAL fake_param;
+
+        REBARR *feed;
 
         if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
             feed = VAL_VARARGS_ARRAY1(arg);
@@ -325,6 +323,8 @@ REBOOL Make_Block_Type_Throws(
             feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
             param = VAL_VARARGS_PARAM(arg);
         }
+
+        REBDSP dsp_orig = DSP;
 
         do {
             REBIXO indexor = Do_Vararg_Op_Core(
@@ -352,7 +352,7 @@ REBOOL Make_Block_Type_Throws(
             // that has been evaluated, and subfeeds can't be fixed up
             // like this either...disabled for now.
             //
-            subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
+            REBARR **subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
             assert(*subfeed_addr == NULL); // all values should be exhausted
             *subfeed_addr = Make_Singular_Array(out);
             MANAGE_ARRAY(*subfeed_addr);

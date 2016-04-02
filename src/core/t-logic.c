@@ -55,7 +55,7 @@ REBOOL MT_Logic(
     REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
 ) {
     if (!IS_INTEGER(data)) return FALSE;
-    SET_LOGIC(out, VAL_INT64(data) != 0);
+    SET_LOGIC(out, LOGICAL(VAL_INT64(data) != 0));
     return TRUE;
 }
 
@@ -65,7 +65,7 @@ REBOOL MT_Logic(
 //
 REBTYPE(Logic)
 {
-    REBOOL val1 = VAL_LOGIC(D_ARG(1));
+    REBOOL val1;
     REBOOL val2;
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
@@ -77,6 +77,9 @@ REBTYPE(Logic)
         else
             fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
     }
+
+    if (action != A_MAKE && action != A_TO)
+        val1 = VAL_LOGIC(D_ARG(1));
 
     switch (action) {
 

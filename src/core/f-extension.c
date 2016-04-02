@@ -66,10 +66,6 @@ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
 
     switch (VAL_TYPE(val)) {
     case REB_LOGIC:
-        //
-        // LOGIC! changed to just be a header bit, and there is no VAL_I32
-        // in the "payload" any longer.  It must be proxied.
-        //
         arg->i2.int32a = (VAL_LOGIC(val) == TRUE) ? 1 : 0;
         break;
 
@@ -92,7 +88,11 @@ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
         break;
 
     case REB_TUPLE:
-        arg->addr = cast(void *, m_cast(REBYTE *, VAL_TUPLE_DATA(val)));
+        //
+        // !!! Bad, this is pointing directly at data in a value!  (RXI is
+        // not going to be developed further in Ren-C... #wontfix)
+        //
+        arg->addr = cast(void*, VAL_TUPLE_DATA(m_cast(REBVAL*, val)));
         break;
 
     case REB_TIME:
@@ -174,7 +174,7 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
 
     case RXT_LOGIC:
         assert((arg->i2.int32a == 0) || (arg->i2.int32a == 1));
-        SET_LOGIC(val, arg->i2.int32a);
+        SET_LOGIC(val, LOGICAL(arg->i2.int32a));
         break;
 
     case RXT_INTEGER:
@@ -437,8 +437,7 @@ REBNATIVE(load_extension)
 
     // Set extension fields needed:
     val = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
-    VAL_RESET_HEADER(val, REB_HANDLE);
-    VAL_I32(val) = ext->index;
+    SET_HANDLE_NUMBER(val, ext->index);
 
     if (!D_REF(2))
         *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
@@ -473,7 +472,7 @@ void Make_Command(
         REBEXT *rebext;
         REBVAL *handle = VAL_CONTEXT_VAR(extension, SELFISH(1));
         if (!IS_HANDLE(handle)) goto bad_func_def;
-        rebext = &Ext_List[VAL_I32(handle)];
+        rebext = &Ext_List[VAL_HANDLE_NUMBER(handle)];
         if (!rebext || !rebext->call) goto bad_func_def;
     }
 
@@ -591,7 +590,9 @@ REB_R Command_Dispatcher(struct Reb_Frame *f)
     // See Make_Command() for an explanation of these two values.
     //
     REBVAL *data = KNOWN(VAL_ARRAY_HEAD(FUNC_BODY(f->func)));
-    REBEXT *handler = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(data, SELFISH(1)))];
+    REBEXT *handler = &Ext_List[
+        VAL_HANDLE_NUMBER(VAL_CONTEXT_VAR(data, SELFISH(1)))
+    ];
     REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 
     REBCNT n;

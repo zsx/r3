@@ -570,7 +570,7 @@ static void set_ext_storage (REBVAL *out, REBINT raw_size, REBUPT raw_addr)
         Is_Array_Series(data_ser) ? (MKS_ARRAY | MKS_EXTERNAL) : MKS_EXTERNAL
     );
 
-    SER_SET_EXTERNAL_DATA(ser, raw_addr);
+    SER_SET_EXTERNAL_DATA(ser, cast(REBYTE*, raw_addr));
     SET_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE); // accessible by default
     SET_SERIES_LEN(ser, SER_LEN(VAL_STRUCT_DATA_BIN(out)));
 
@@ -765,9 +765,6 @@ REBOOL MT_Struct(
             struct Struct_Field *field = NULL;
             u64 step = 0;
 
-            REBVAL inner;
-            REBVAL spec;
-
             EXPAND_SERIES_TAIL(VAL_STRUCT_FIELDS(out), 1);
 
             // !!! MT_Struct is recursively called, and it performs evaluation.
@@ -777,6 +774,7 @@ REBOOL MT_Struct(
             //
             // Given that this code was written to evaluate, protect `inner`
             //
+            REBVAL inner;
             SET_BLANK(&inner);
             PUSH_GUARD_VALUE(&inner);
 
@@ -805,6 +803,7 @@ REBOOL MT_Struct(
             if (IS_END(blk) || !IS_BLOCK(blk))
                 fail (Error_Invalid_Arg_Core(blk, specifier));
 
+            REBVAL spec;
             COPY_VALUE(&spec, blk, specifier);
 
             if (!parse_field_type(field, &spec, &inner, &init))
@@ -841,8 +840,7 @@ REBOOL MT_Struct(
                     }
                     ++ blk;
                 } else {
-                    DO_NEXT_MAY_THROW(
-                        eval_idx,
+                    eval_idx = DO_NEXT_MAY_THROW(
                         init,
                         VAL_ARRAY(data),
                         cast(RELVAL*, blk) - VAL_ARRAY_AT(data),
